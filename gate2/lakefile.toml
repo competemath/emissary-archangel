@@ -1,0 +1,17 @@
+name = "gate2"
+defaultTargets = ["Vendor"]
+
+# Gate 2 elaborates in the Tengoku tree; the tree depends on nothing. Fetch
+# its published build cache after `lake update`:
+#   cd .lake/packages/tengoku && scripts/cache.sh get
+# For a local checkout of the tree, replace the require with
+#   [[require]]
+#   name = "tengoku"
+#   path = "../../compete-math/tengoku"
+[[require]]
+name = "tengoku"
+git = "https://github.com/competemath/tengoku"
+rev = "main"
+
+[[lean_lib]]
+name = "Vendor"

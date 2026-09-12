@@ -39,3 +39,19 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local tooling config
+.claude/
+
+# corpus checkouts and tool builds (cloned/built locally — see README)
+/infra/equational-theories-4291/
+/infra/lean4export/
+/gate2/.lake/
+/gate2/gate2_sandbox.lean
+
+# run state and caches
+/data/exports/
+/data/export.ndjson
+/data/recurse-prefix-cache.json
+/data/*.corrupted-backup
+*.log
