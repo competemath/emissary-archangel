@@ -28,7 +28,9 @@ async def main():
             ok2 = bool(text2.strip()) and "error" not in text2.lower()[:200]
             print(f"[{'OK ' if ok2 else 'BAD'}] moogle_search — {' '.join(text2.split())[:200]}")
             print("LEAK_I_OK" if ok and ok2 else "LEAK_I_FAILED")
-            sys.exit(0 if ok and ok2 else 1)
+            return 0 if ok and ok2 else 1
 
 
-asyncio.run(main())
+# exit AFTER the client context has closed: a SystemExit inside it surfaces as
+# an exception-group traceback from the transport's task group.
+sys.exit(asyncio.run(main()))
