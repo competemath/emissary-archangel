@@ -174,6 +174,7 @@ async function stageVerifiedTheorem(
     context: split.context,
     source_path: typeof entry.sourcePath === "string" ? entry.sourcePath : null,
     status: "staging",
+    staged_at: new Date().toISOString(),
     library: source,
     source_url: resolveSourceUrl(entry),
     toolchain: TOOLCHAIN_BY_SOURCE[source] ?? null,
@@ -209,6 +210,9 @@ async function stageVerifiedTheorem(
 
     // The record is the source of truth; the tree module is derived from it.
     // Promotion (scripts/promote.py) moves this source file's staging records
+    // — only once the file has been quiet for 5 minutes: a file being banked
+    // every few seconds would otherwise rebuild its whole module per bank.
+    // scripts/promote-loop.sh in the tree does the same for finished files.
     // to data/trusted, regenerates the file's module and `lake build`s it:
     // only a module that builds in the tree becomes trusted — a failed build
     // puts the records back in staging with the error, and the module is
@@ -228,7 +232,7 @@ async function stageVerifiedTheorem(
       try {
         const { stdout } = await execFileAsync(
           "python3",
-          ["scripts/promote.py", "--corpus", corpusRoot, "--library", source, "--only", record.source_path],
+          ["scripts/promote.py", "--corpus", corpusRoot, "--library", source, "--only", record.source_path, "--quiescent", "300"],
           { cwd: TENGOKU_REPO, maxBuffer: 16 * 1024 * 1024, timeout: 15 * 60 * 1000 },
         );
         promotion = stdout.trim().split("\n").pop() || "";
