@@ -6,7 +6,7 @@ toolchain, and vouches for each translation twice before it is banked.
 
 A translation of a theorem `T` is accepted only when
 
-1. **Gate 1 — Leak IV**: the translated script elaborates on the Tengoku
+1. **Gate 1 — [Leak IV](https://github.com/mikael-bashir/leak-iv)**: the translated script elaborates on the Tengoku
    environment with no errors, no warnings and no `sorry`, and
 2. **Gate 2 — Archangel**: the *original* `T` is replayed from an export of
    its module into that same environment and the kernel accepts
