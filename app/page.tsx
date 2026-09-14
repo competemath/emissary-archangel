@@ -1,4 +1,5 @@
 import { QueueConsole } from "@/components/queue-console";
+import { PipelinePanel } from "@/components/pipeline-panel";
 
 export default function Home() {
   return (
@@ -11,6 +12,7 @@ export default function Home() {
         CompeteMath automatically — every result is stored locally
         (data/queue.json) until you decide otherwise.
       </p>
+      <PipelinePanel />
       <QueueConsole />
     </main>
   );

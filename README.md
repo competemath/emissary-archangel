@@ -31,6 +31,30 @@ tree (`scripts/promote.py` there).
 | **Exports** | `lean4export` dumps of an original module's declarations (`data/exports/<module>.ndjson`), corpus-scoped, which Gate 2 replays. |
 | **Leak IV / Leak I** | The verifier (`verify_full_script`) and the search service (loogle + moogle), both running on the Tengoku tree. |
 
+## Pipeline panel (run everything from the console)
+
+The console at http://localhost:3000 has a **Pipeline** panel that owns the
+whole local pipeline, so nothing needs a terminal after `pnpm dev`:
+
+- **Local services** — Leak IV (verifier), Gate 2 (Archangel), Leak I (loogle)
+  and a private bridge, each with start/stop and a live log. They import
+  `Tengoku.All` from a *cache-pinned clone* of the tree (`~/tengoku-cache`,
+  made with `scripts/pin.sh`), which is never compiled.
+- **Tree cache** — check whether a newer nightly cache is published, and
+  refresh the clone to it (download + replay check only). Restart the services
+  afterwards so they load the new oleans.
+- **Promote loop** — `scripts/promote-loop.sh` in the *working* tree: turns
+  quiet staging files into trusted modules, commits and pushes.
+- **Recursion run** — `scripts/run-recurse.mjs` against the private bridge,
+  scoped to all pending entries, one file, or one entry; progress, per-outcome
+  counts and the live log. Stop aborts the run at the bridge.
+- **Configuration** — paths, ports and the bridge token, saved to
+  `data/pipeline-config.json` (git-ignored).
+
+Every process is spawned detached with a pid file and log under
+`data/pipeline/`, so it survives closing the tab or reloading the dev server.
+The API (`/api/pipeline`) only answers requests whose Host is localhost.
+
 ## Layout
 
 ```

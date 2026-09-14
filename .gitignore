@@ -55,3 +55,7 @@ next-env.d.ts
 /data/recurse-prefix-cache.json
 /data/*.corrupted-backup
 *.log
+
+# pipeline panel state (pids, logs, machine-specific config)
+/data/pipeline/
+/data/pipeline-config.json
