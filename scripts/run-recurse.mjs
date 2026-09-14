@@ -1,6 +1,7 @@
 // Drive the recursion engine on a private bridge instance and log its stream.
 //   node run-recurse.mjs <bridgePort> <token> [scopeJson]
 import { appendFileSync, writeFileSync } from "node:fs"
+import { request } from "node:http"
 const [port, token, scopeArg] = process.argv.slice(2)
 const scope = scopeArg ? JSON.parse(scopeArg) : { type: "all" }
 // Every service runs on the local Tengoku tree (Tengoku.All): no Mathlib anywhere.
@@ -37,22 +38,32 @@ const mcpServers = [
 if (await reachable(LEAK_I)) mcpServers.push({ id: "leak-i", name: "Leak_I", url: LEAK_I, isActive: true })
 log(`servers: ${mcpServers.map((s) => s.name).join(", ")} | scope ${JSON.stringify(scope)}`)
 
-const res = await fetch(`http://127.0.0.1:${port}/archangel-recurse`, {
-  method: "POST",
-  headers: { "content-type": "application/json", "x-bridge-token": token, Origin: "http://localhost:3000" },
-  body: JSON.stringify({ source: "equational-theories", scope, archangelUrl: ARCHANGEL, verifyUrl: LEAK_IV, mcpServers, timeoutMs: TIMEOUT_MS }),
+// Plain node:http, not fetch: Node's fetch aborts a response body that stays
+// silent for 5 minutes (UND_ERR_BODY_TIMEOUT), and a cold first entry can
+// easily be silent that long while the services load the tree.
+const reqBody = JSON.stringify({ source: "equational-theories", scope, archangelUrl: ARCHANGEL, verifyUrl: LEAK_IV, mcpServers, timeoutMs: TIMEOUT_MS })
+const res = await new Promise((resolve, reject) => {
+  const req = request(
+    {
+      host: "127.0.0.1", port: Number(port), path: "/archangel-recurse", method: "POST",
+      headers: { "content-type": "application/json", "content-length": Buffer.byteLength(reqBody), "x-bridge-token": token, Origin: "http://localhost:3000" },
+    },
+    resolve,
+  )
+  req.on("error", reject)
+  req.setTimeout(0)
+  req.end(reqBody)
 })
-if (!res.ok || !res.body) {
-  log(`HTTP ${res.status}: ${await res.text()}`)
+if (res.statusCode !== 200) {
+  let text = ""
+  for await (const c of res) text += c
+  log(`HTTP ${res.statusCode}: ${text}`)
   process.exit(1)
 }
-const reader = res.body.getReader()
-const dec = new TextDecoder()
+res.setEncoding("utf8")
 let buf = ""
-for (;;) {
-  const { done, value } = await reader.read()
-  if (done) break
-  buf += dec.decode(value, { stream: true })
+for await (const chunk of res) {
+  buf += chunk
   const chunks = buf.split("\n\n")
   buf = chunks.pop() || ""
   for (const chunk of chunks) {
