@@ -3,8 +3,97 @@ import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { loadConfig } from "@/lib/pipeline";
+import { existingNames, openRecordsPr } from "@/lib/tengoku-pr";
 
 const execFileAsync = promisify(execFile);
+
+// PR mode (config promote.viaPrs, or TENGOKU_VIA_PRS=1): records are banked
+// into an ignored batch file under <tree>/.bank/<library>/ and every batch
+// becomes one content PR (a per-PR staging file, signed off, auto-merged)
+// instead of a commit on main. A batch closes after FLUSH_MAX records or
+// FLUSH_AGE_MS, whichever comes first; promotion is the loop's job, in its
+// own PRs. Nothing in PR mode runs promote.py from here.
+const FLUSH_MAX = Number(process.env.TENGOKU_BANK_FLUSH_MAX || 200);
+const FLUSH_AGE_MS = Number(process.env.TENGOKU_BANK_FLUSH_MIN || 10) * 60 * 1000;
+function viaPrs(): boolean {
+  return process.env.TENGOKU_VIA_PRS === "1" || !!loadConfig().promote.viaPrs;
+}
+const batches = new Map<string, { id: string; file: string; startedAt: number; count: number }>();
+function batchFor(source: string): { id: string; file: string; startedAt: number; count: number } {
+  let b = batches.get(source);
+  if (!b) {
+    const id = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+    b = { id, file: path.join(TENGOKU_REPO, ".bank", sanitizeSegment(source), `${id}.jsonl`), startedAt: Date.now(), count: 0 };
+    batches.set(source, b);
+  }
+  return b;
+}
+/** Close the batch and open its PR; the batch file moves under .bank/<library>/sent (or /failed). Runs under the git lock. */
+async function flushBatch(source: string, why: string): Promise<string> {
+  const b = batches.get(source);
+  if (!b || b.count === 0) return "nothing to flush";
+  batches.delete(source);
+  const dir = path.dirname(b.file);
+  try {
+    const pr = await openRecordsPr({
+      repoDir: TENGOKU_REPO,
+      library: sanitizeSegment(source),
+      batchId: b.id,
+      recordsFile: b.file,
+      title: `Stage ${source}: ${b.count} record${b.count === 1 ? "" : "s"} (${b.id})`,
+      body: `Banked by Emissary-Archangel (${why}). One per-PR staging file; the merge queue compiles exactly these records.`,
+    });
+    await mkdir(path.join(dir, "sent"), { recursive: true });
+    await rename(b.file, path.join(dir, "sent", `${b.id}.jsonl`));
+    // eslint-disable-next-line no-console
+    console.log(`[bank] PR #${pr.number} for ${source}: ${b.count} records (${why}) ${pr.url}`);
+    return `PR #${pr.number} (${b.count} records)`;
+  } catch (e) {
+    await mkdir(path.join(dir, "failed"), { recursive: true }).catch(() => undefined);
+    await rename(b.file, path.join(dir, "failed", `${b.id}.jsonl`)).catch(() => undefined);
+    const msg = e instanceof Error ? e.message : String(e);
+    // eslint-disable-next-line no-console
+    console.error(`[bank] PR for ${source} batch ${b.id} failed (${b.count} records kept in .bank/${sanitizeSegment(source)}/failed):`, msg);
+    return `PR failed: ${msg}`;
+  }
+}
+// Age-based flushes happen even when nothing new arrives.
+if (typeof setInterval === "function" && !(globalThis as { __tengokuBankTimer?: unknown }).__tengokuBankTimer) {
+  (globalThis as { __tengokuBankTimer?: unknown }).__tengokuBankTimer = setInterval(() => {
+    for (const [source, b] of batches) {
+      if (Date.now() - b.startedAt >= FLUSH_AGE_MS) void withGitLock(() => flushBatch(source, "age"));
+    }
+  }, 60 * 1000);
+}
+
+async function stageViaPr(source: string, name: string, record: Record<string, unknown>): Promise<{ staged: boolean; detail?: string }> {
+  return withGitLock(async () => {
+    const known = await existingNames(TENGOKU_REPO, sanitizeSegment(source));
+    if (known.has(name)) return { staged: false, detail: `${name} is already on main (staging or trusted); append-only data cannot replace it` };
+    const b = batchFor(source);
+    await mkdir(path.dirname(b.file), { recursive: true });
+    let lines: string[] = [];
+    try {
+      lines = (await readFile(b.file, "utf8")).split("\n").filter((l) => l.trim());
+    } catch {
+      /* first record of the batch */
+    }
+    const kept = lines.filter((l) => {
+      try {
+        return JSON.parse(l).name !== name;
+      } catch {
+        return true;
+      }
+    });
+    kept.push(JSON.stringify(record));
+    await writeFile(b.file, kept.join("\n") + "\n");
+    b.count = kept.length;
+    let detail = `batch ${b.id}: ${b.count} record${b.count === 1 ? "" : "s"}`;
+    if (b.count >= FLUSH_MAX) detail += `; ${await flushBatch(source, "size")}`;
+    return { staged: true, detail };
+  });
+}
 
 // Every distinct translation corpus gets its own file — never merged into
 // one, so a bug or corruption in one source's queue can't touch another's,
@@ -180,9 +269,11 @@ async function stageVerifiedTheorem(
     toolchain: TOOLCHAIN_BY_SOURCE[source] ?? null,
   };
 
-  // ONE file per library, matching every other data/**/*.jsonl file in the
-  // repo (data/tentative/<library>.jsonl, data/trusted/<library>.jsonl) —
-  // not a nested-folder-per-entry scheme of our own invention.
+  if (viaPrs()) return stageViaPr(source, name, record);
+
+  // Direct mode (until the ruleset): ONE file per library, matching every
+  // other data/**/*.jsonl file in the repo (data/tentative/<library>.jsonl,
+  // data/trusted/<library>.jsonl).
   const relPath = path.join("data", "staging", `${sanitizeSegment(source)}.jsonl`);
   const absPath = path.join(TENGOKU_REPO, relPath);
 

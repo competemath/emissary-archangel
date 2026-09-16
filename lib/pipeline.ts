@@ -36,7 +36,7 @@ export interface PipelineConfig {
   gate2: { dir: string; python: string; port: number };
   leakI: { dir: string; python: string; port: number; loogleDir: string };
   bridge: { port: number; token: string };
-  promote: { library: string; intervalS: number; quiescentS: number };
+  promote: { library: string; intervalS: number; quiescentS: number; viaPrs: boolean };
   run: { source: string; timeoutMin: number };
 }
 
@@ -48,7 +48,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   gate2: { dir: path.join(HOME, "emissary-gate2-tengoku"), python: path.join(HOME, "emissary-gate2", "venv", "bin", "python"), port: 7872 },
   leakI: { dir: path.join(HOME, "Leak-I"), python: ".venv-tree/bin/python", port: 7874, loogleDir: path.join(HOME, "loogle") },
   bridge: { port: 4125, token: "archangel-run-token" },
-  promote: { library: "equational-theories", intervalS: 300, quiescentS: 300 },
+  promote: { library: "equational-theories", intervalS: 300, quiescentS: 300, viaPrs: false },
   run: { source: "equational-theories", timeoutMin: 20 },
 };
 
@@ -191,7 +191,8 @@ export async function startService(name: ServiceName, cfg = loadConfig()): Promi
 }
 
 export function startPromote(cfg = loadConfig()) {
-  return startProc("promote", "bash", ["scripts/promote-loop.sh", cfg.corpusRoot, cfg.promote.library, String(cfg.promote.intervalS), String(cfg.promote.quiescentS)], cfg.workTree, {});
+  // PR mode: the loop opens one promotion PR per source file instead of pushing main (scripts/promote-loop.sh in the tree).
+  return startProc("promote", "bash", ["scripts/promote-loop.sh", cfg.corpusRoot, cfg.promote.library, String(cfg.promote.intervalS), String(cfg.promote.quiescentS)], cfg.workTree, cfg.promote.viaPrs ? { TENGOKU_VIA_PRS: "1" } : {});
 }
 
 export function startRun(scope: RunScope, cfg = loadConfig()) {

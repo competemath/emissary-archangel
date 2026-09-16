@@ -135,3 +135,17 @@ there, and commits.
 - It must keep the original's names (Gate 2 shares them with the replayed
   original); a name that already exists in the target environment with a
   different definition ends the entry as untranslatable.
+
+
+## PR mode for the Tengoku tree
+
+By default the banking hook appends to `data/staging/<library>.jsonl` and pushes
+`main`, and the promote loop does the same. Set **Via pull requests** to `1` in
+the Pipeline panel (or `TENGOKU_VIA_PRS=1`) and nothing touches `main` any more:
+records collect in an ignored `<tree>/.bank/<library>/` batch file and every
+batch (200 records or 10 minutes, whichever first) becomes one content PR with a
+per-PR staging file, signed off and set to auto-merge; the loop opens one
+promotion PR per source file and waits for each merge. A name already on
+`main` is refused here rather than duplicated, and a batch whose PR could not
+be opened stays under `.bank/<library>/failed/`. Promotion PRs are accepted by
+the gate only when the `gh` login on this machine is the tree's `TENGOKU_BOT`.

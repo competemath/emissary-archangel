@@ -16,7 +16,7 @@ type Config = {
   gate2: { dir: string; python: string; port: number };
   leakI: { dir: string; python: string; port: number; loogleDir: string };
   bridge: { port: number; token: string };
-  promote: { library: string; intervalS: number; quiescentS: number };
+  promote: { library: string; intervalS: number; quiescentS: number; viaPrs: boolean };
   run: { source: string; timeoutMin: number };
 };
 type Status = {
@@ -214,7 +214,7 @@ export function PipelinePanel() {
       >
         <div style={{ fontSize: 13, marginBottom: 6 }}>
           <Dot color={promote.alive ? 'green' : 'grey'} />
-          {promote.alive ? `running · pid ${promote.pid} · ${since(promote.startedAt)}` : 'stopped'} · every {config.promote.intervalS}s, files quiet for {config.promote.quiescentS}s · commits and pushes <code>{config.workTree}</code>
+          {promote.alive ? `running · pid ${promote.pid} · ${since(promote.startedAt)}` : 'stopped'} · every {config.promote.intervalS}s, files quiet for {config.promote.quiescentS}s · {config.promote.viaPrs ? <>opens promotion PRs from <code>{config.workTree}</code> (main untouched)</> : <>commits and pushes <code>{config.workTree}</code></>}
         </div>
         <LogBox lines={promote.log} height={90} />
       </Card>
@@ -283,6 +283,7 @@ export function PipelinePanel() {
               ['Bridge token', cfgDraft.bridge.token, (v: string) => ({ ...cfgDraft, bridge: { ...cfgDraft.bridge, token: v } })],
               ['Promote every (s)', String(cfgDraft.promote.intervalS), (v: string) => ({ ...cfgDraft, promote: { ...cfgDraft.promote, intervalS: Number(v) } })],
               ['Promote quiescent (s)', String(cfgDraft.promote.quiescentS), (v: string) => ({ ...cfgDraft, promote: { ...cfgDraft.promote, quiescentS: Number(v) } })],
+              ['Via pull requests (1 = never push main)', cfgDraft.promote.viaPrs ? '1' : '0', (v: string) => ({ ...cfgDraft, promote: { ...cfgDraft.promote, viaPrs: v.trim() === '1' } })],
               ['Run timeout per entry (min)', String(cfgDraft.run.timeoutMin), (v: string) => ({ ...cfgDraft, run: { ...cfgDraft.run, timeoutMin: Number(v) } })],
             ] as [string, string, (v: string) => Config][]).map(([label, value, set]) => (
               <FragmentRow key={label}>
