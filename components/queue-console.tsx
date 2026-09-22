@@ -41,7 +41,7 @@ interface QueueEntry {
 // corrupting another's.
 const QUEUE_SOURCES: { key: string; label: string }[] = [
   { key: 'competemath', label: 'CompeteMath (232)' },
-  { key: 'equational-theories', label: 'Equational Theories (13,164)' },
+  { key: 'equational-theories', label: 'Equational Theories (9,140)' },
 ];
 const PAGE_SIZE = 50;
 

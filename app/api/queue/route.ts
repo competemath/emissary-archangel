@@ -19,7 +19,16 @@ const FLUSH_AGE_MS = Number(process.env.TENGOKU_BANK_FLUSH_MIN || 10) * 60 * 100
 function viaPrs(): boolean {
   return process.env.TENGOKU_VIA_PRS === "1" || !!loadConfig().promote.viaPrs;
 }
-const batches = new Map<string, { id: string; file: string; startedAt: number; count: number }>();
+type Batch = { id: string; file: string; startedAt: number; count: number };
+// On `globalThis`, not a plain module-level `const`: a dev-mode hot-reload of this route
+// re-evaluates the module, which would otherwise hand every open batch a brand-new, empty
+// Map with nothing watching it — the age-based flush below skips creating a second interval
+// (see its own guard) because it finds one already running, but that surviving interval
+// closed over the OLD module instance's map, not this new one. A batch staged between the
+// edit and the next server restart then sits forever: found live (a batch went unflushed for
+// over an hour after an unrelated fix to this same file). Keyed off `globalThis` instead, the
+// map itself survives a reload exactly like the interval does, so there is only ever one.
+const batches: Map<string, Batch> = ((globalThis as { __tengokuBanks?: Map<string, Batch> }).__tengokuBanks ??= new Map());
 function batchFor(source: string): { id: string; file: string; startedAt: number; count: number } {
   let b = batches.get(source);
   if (!b) {
@@ -248,7 +257,13 @@ async function stageVerifiedTheorem(
   entry: Record<string, unknown>,
 ): Promise<{ staged: boolean; detail?: string }> {
   const name = String(entry.name ?? entry.id);
-  const fullText = String(entry.proof ?? "");
+  // Tengoku's generator supplies the tree's own root import for every module; a leading
+  // `import ...` line here (e.g. `import Tengoku.All`, `import Mathlib`) would land in
+  // `context` and fail the gate's content-lint ("no import inside a record"). Found live:
+  // it had been silently landing in `context` since before that check existed (50 of 8,920
+  // already-trusted equational-theories records carry it, all promoted pre-2026-09-16) —
+  // harmless before the gate, a hard failure on every submission since.
+  const fullText = String(entry.proof ?? "").replace(/^(?:\s*import\s+\S+\s*\n)+/, "");
   if (!fullText.trim()) return { staged: false, detail: "no proof text on entry" };
   const split = splitStatementAndProof(fullText, name);
   if (!split) return { staged: false, detail: "no ':=' found — can't split into statement/proof" };
