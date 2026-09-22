@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { corpusRootFor, listSources } from "./sources";
 
 const execFileAsync = promisify(execFile);
 const APP_ROOT = process.cwd();
@@ -192,7 +193,9 @@ export async function startService(name: ServiceName, cfg = loadConfig()): Promi
 
 export function startPromote(cfg = loadConfig()) {
   // PR mode: the loop opens one promotion PR per source file instead of pushing main (scripts/promote-loop.sh in the tree).
-  return startProc("promote", "bash", ["scripts/promote-loop.sh", cfg.corpusRoot, cfg.promote.library, String(cfg.promote.intervalS), String(cfg.promote.quiescentS)], cfg.workTree, cfg.promote.viaPrs ? { TENGOKU_VIA_PRS: "1" } : {});
+  // The library's own checkout (sources.json); the configured corpusRoot only when the registry has none.
+  const corpus = corpusRootFor(cfg.promote.library) ?? cfg.corpusRoot;
+  return startProc("promote", "bash", ["scripts/promote-loop.sh", corpus, cfg.promote.library, String(cfg.promote.intervalS), String(cfg.promote.quiescentS)], cfg.workTree, cfg.promote.viaPrs ? { TENGOKU_VIA_PRS: "1" } : {});
 }
 
 export function startRun(scope: RunScope, cfg = loadConfig()) {
@@ -202,6 +205,7 @@ export function startRun(scope: RunScope, cfg = loadConfig()) {
     EMISSARY_LEAK_I_URL: sse(cfg.leakI.port),
     EMISSARY_GATE2_URL: sse(cfg.gate2.port),
     EMISSARY_RUN_TIMEOUT_MS: String(Math.max(1, cfg.run.timeoutMin) * 60 * 1000),
+    EMISSARY_RUN_SOURCE: cfg.run.source,
     RECURSE_LOG: "", // stdout is the log (data/pipeline/run.log)
   }, true);
 }
@@ -312,5 +316,7 @@ export async function status(logLines = 60) {
   const promote = { ...procState("promote"), log: tailLog("promote", 8) };
   const runLog = tailLog("run", logLines);
   const run = { ...parseRun(tailLog("run", 4000), procState("run")), log: runLog };
-  return { config: cfg, services, promote, run, queue: queueSummary(cfg.run.source), tree: await treeState(cfg), now: new Date().toISOString() };
+  let sources: ReturnType<typeof listSources> = [];
+  try { sources = listSources(); } catch { /* sources.json missing or malformed: pickers stay empty */ }
+  return { config: cfg, services, promote, run, queue: queueSummary(cfg.run.source), sources, tree: await treeState(cfg), now: new Date().toISOString() };
 }

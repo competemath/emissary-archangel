@@ -13334,11 +13334,32 @@ const APP_ROOT =
   })()
 const GATE2_EXPORTS_DIR = process.env.GATE2_EXPORTS_DIR || join(APP_ROOT, "data", "exports")
 const LEAN4EXPORT_BIN = process.env.LEAN4EXPORT_BIN || join(APP_ROOT, "infra", "lean4export", ".lake", "build", "bin", "lean4export")
-// Where each source's OLD-toolchain checkout lives — same convention as
-// theorem-text/route.ts's REPO_ROOTS, duplicated for the same reason (no
-// shared module boundary between this process and the Next.js app).
-const RECURSE_REPO_ROOTS = {
-  "equational-theories": process.env.CORPUS_ROOT_EQUATIONAL_THEORIES || join(APP_ROOT, "infra", "equational-theories-4291", "repo"),
+// Where each source's OLD-toolchain checkout lives: sources.json at the app
+// root — the registry the queue routes and the pipeline panel read too (no
+// shared module boundary with the Next.js app, so it is read here directly).
+// CORPUS_ROOT_<KEY> (e.g. CORPUS_ROOT_EQUATIONAL_THEORIES) overrides a source.
+const SOURCES_REGISTRY = (() => {
+  try {
+    return JSON.parse(readFileSync(join(APP_ROOT, "sources.json"), "utf8"))
+  } catch {
+    return { sources: {} }
+  }
+})()
+function repoRootFor(source) {
+  const s = SOURCES_REGISTRY.sources?.[source]
+  if (!s || !s.repo || !/^[a-z0-9][a-z0-9-]*$/.test(String(source))) return null
+  const env = process.env[`CORPUS_ROOT_${String(source).toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`]
+  const root = env || (String(s.corpusRoot || "").startsWith("/") ? s.corpusRoot : join(APP_ROOT, s.corpusRoot || join("infra", source, "repo")))
+  return root.replace(/\/+$/, "")
+}
+// The registry key a checkout belongs to. Exports live under
+// data/exports/<key>/ so two sources with a module of the same name
+// (`Solution`, `Basic`) never share a file, and Gate 2's old_id is
+// "<key>/<module>" — a path it joins under data/exports/ as it always has.
+function sourceOfRepoRoot(repoRoot) {
+  const r = String(repoRoot || "").replace(/\/+$/, "")
+  for (const key of Object.keys(SOURCES_REGISTRY.sources || {})) if (repoRootFor(key) === r) return key
+  return ""
 }
 
 // "equational_theories/ThreeC2.lean" -> "equational_theories.ThreeC2" — Lean's
@@ -13771,7 +13792,8 @@ export async function corpusClosureNames(repoRoot, moduleName) {
   // imported module), and the modules are what the dependency prelude is
   // assembled from (modulePrelude below).
   try {
-    writeFileSync(corpusNamesPath(moduleName), JSON.stringify({ names, modules: Array.from(modules), moduleOf, deps }))
+    mkdirSync(join(GATE2_EXPORTS_DIR, sourceOfRepoRoot(repoRoot)), { recursive: true })
+    writeFileSync(corpusNamesPath(repoRoot, moduleName), JSON.stringify({ names, modules: Array.from(modules), moduleOf, deps }))
   } catch {
     /* advisory */
   }
@@ -13783,8 +13805,8 @@ export async function corpusClosureNames(repoRoot, moduleName) {
 // is missing or in an older format.
 async function corpusClosureInfo(repoRoot, moduleName) {
   try {
-    if (existsSync(corpusNamesPath(moduleName))) {
-      const parsed = JSON.parse(readFileSync(corpusNamesPath(moduleName), "utf8"))
+    if (existsSync(corpusNamesPath(repoRoot, moduleName))) {
+      const parsed = JSON.parse(readFileSync(corpusNamesPath(repoRoot, moduleName), "utf8"))
       if (parsed && Array.isArray(parsed.names) && Array.isArray(parsed.modules) && parsed.moduleOf && parsed.deps) return parsed
     }
   } catch {
@@ -13801,12 +13823,12 @@ async function corpusClosureInfo(repoRoot, moduleName) {
       throw new Error(`corpus closure failed for ${moduleName} even after lake build: ${secondErr?.message || secondErr} (first attempt: ${firstErr?.message || firstErr})`)
     }
   }
-  const parsed = JSON.parse(readFileSync(corpusNamesPath(moduleName), "utf8"))
+  const parsed = JSON.parse(readFileSync(corpusNamesPath(repoRoot, moduleName), "utf8"))
   return { names: parsed.names || [], modules: parsed.modules || [], moduleOf: parsed.moduleOf || {}, deps: parsed.deps || {} }
 }
 
-function corpusNamesPath(moduleName) {
-  return join(GATE2_EXPORTS_DIR, `${moduleName}.names.json`)
+function corpusNamesPath(repoRoot, moduleName) {
+  return join(GATE2_EXPORTS_DIR, sourceOfRepoRoot(repoRoot), `${moduleName}.names.json`)
 }
 
 // The original module's corpus-side names (full names and last components),
@@ -13828,8 +13850,10 @@ export async function moduleCorpusNames(repoRoot, moduleName) {
 
 export async function ensureModuleExport(repoRoot, moduleName) {
   if (!existsSync(GATE2_EXPORTS_DIR)) throw new Error(`GATE2_EXPORTS_DIR does not exist: ${GATE2_EXPORTS_DIR}`)
-  const exportPath = join(GATE2_EXPORTS_DIR, `${moduleName}.ndjson`)
-  if (existsSync(exportPath)) return moduleName
+  const sub = sourceOfRepoRoot(repoRoot)
+  const oldId = sub ? `${sub}/${moduleName}` : moduleName
+  const exportPath = join(GATE2_EXPORTS_DIR, sub, `${moduleName}.ndjson`)
+  if (existsSync(exportPath)) return oldId
   const runExport = async () => {
     const names = await corpusClosureNames(repoRoot, moduleName)
     return execFileAsync("lake", ["env", LEAN4EXPORT_BIN, moduleName, "--", ...names], { cwd: repoRoot, maxBuffer: 512 * 1024 * 1024 })
@@ -13854,8 +13878,9 @@ export async function ensureModuleExport(repoRoot, moduleName) {
   if (!stdout || !stdout.includes('"thm"') && !stdout.includes('"def"')) {
     throw new Error(`lean4export produced no declarations for ${moduleName}`)
   }
+  mkdirSync(join(GATE2_EXPORTS_DIR, sub), { recursive: true })
   writeFileSync(exportPath, stdout)
-  return moduleName
+  return oldId
 }
 
 async function fetchQueueEntries(source) {
@@ -14320,9 +14345,12 @@ if (req.method === "POST" && url.pathname === "/archangel-translate") {
       const source = body.source
       const scope = body.scope || { type: "all" }
       const archangelUrl = body.archangelUrl
-      const repoRoot = RECURSE_REPO_ROOTS[source]
+      const repoRoot = repoRootFor(source)
       if (!repoRoot) {
         return json(res, 400, { error: "unsupported_source", detail: source })
+      }
+      if (!existsSync(repoRoot)) {
+        return json(res, 400, { error: "source_not_set_up", detail: `${source}: no checkout at ${repoRoot} (scripts/setup-source.mjs ${source})` })
       }
       if (!archangelUrl) {
         return json(res, 400, { error: "archangelUrl_required" })

@@ -43,9 +43,14 @@ next-env.d.ts
 # local tooling config
 .claude/
 
-# corpus checkouts and tool builds (cloned/built locally — see README)
+# corpus checkouts and tool builds (cloned/built locally — see README, scripts/setup-source.mjs)
 /infra/equational-theories-4291/
 /infra/lean4export/
+/infra/*/repo/
+/infra/*/setup.json
+# per-source queues are run state; equational-theories' stays tracked as before
+/data/queue-*.json
+!/data/queue-equational-theories.json
 /gate2/.lake/
 /gate2/gate2_sandbox.lean
 

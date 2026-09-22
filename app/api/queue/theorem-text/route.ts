@@ -1,22 +1,17 @@
 import { NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { corpusRootFor, queuePathFor } from "@/lib/sources";
 
-// Same allowlist convention as ../route.ts — never interpolate `source`
-// into a path unchecked.
-const SOURCES: Record<string, string> = {
-  competemath: "queue.json",
-  "equational-theories": "queue-equational-theories.json",
-};
-
-// Where each source's own local repo checkout lives, for sources whose
-// queue entries store sourcePath/sourceLine instead of a pre-baked
-// oldTheoremText (see build-eqt-queue-v4.mjs's comment for why: storing the
-// full per-theorem file-prefix context inline blew the queue file up to
-// 524MB, since hundreds of theorems can share one file).
-const REPO_ROOTS: Record<string, string> = {
-  "equational-theories": path.join(process.cwd(), "infra", "equational-theories-4291", "repo"),
-};
+// Which sources exist, where each one's queue and checkout are: sources.json
+// (lib/sources.ts). `source` is a query param and is only ever used through
+// that registry — never interpolated into a path unchecked.
+//
+// Sources whose queue entries store sourcePath/sourceLine instead of a
+// pre-baked oldTheoremText are reconstructed from their checkout on demand
+// (storing the full per-theorem file-prefix context inline blew the
+// equational-theories queue up to 524MB, since hundreds of theorems can share
+// one file).
 
 // Constructs a theorem's full compilable context on demand — cheap (one
 // file read + slice), and only ever done for the ONE theorem actually being
@@ -25,7 +20,8 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const source = url.searchParams.get("source") || "competemath";
   const idParam = url.searchParams.get("id");
-  if (!(source in SOURCES)) {
+  const queuePath = queuePathFor(source);
+  if (!queuePath) {
     return NextResponse.json({ error: "unknown_source", detail: source }, { status: 400 });
   }
   const id = Number(idParam);
@@ -34,7 +30,6 @@ export async function GET(req: Request) {
   }
 
   try {
-    const queuePath = path.join(process.cwd(), "data", SOURCES[source]);
     const queue = JSON.parse(await readFile(queuePath, "utf8")) as Array<Record<string, unknown>>;
     const entry = queue.find((e) => e.id === id);
     if (!entry) {
@@ -49,10 +44,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ oldTheoremText: entry.oldTheoremText });
     }
 
-    const repoRoot = REPO_ROOTS[source];
+    const repoRoot = corpusRootFor(source);
     const sourcePath = entry.sourcePath;
     const sourceLine = entry.sourceLine;
-    if (!repoRoot || typeof sourcePath !== "string" || typeof sourceLine !== "number") {
+    if (!repoRoot || typeof sourcePath !== "string" || typeof sourceLine !== "number" || sourcePath.includes("..")) {
       return NextResponse.json(
         { error: "no_construction_path", detail: "entry has neither oldTheoremText nor sourcePath/sourceLine" },
         { status: 500 },

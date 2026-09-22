@@ -39,9 +39,10 @@ interface QueueEntry {
 // queue file (see app/api/queue/route.ts's SOURCES allowlist) — never
 // merged into one file, so switching sources never risks one corpus's queue
 // corrupting another's.
-const QUEUE_SOURCES: { key: string; label: string }[] = [
-  { key: 'competemath', label: 'CompeteMath (232)' },
-  { key: 'equational-theories', label: 'Equational Theories (9,140)' },
+// Shown until /api/sources answers (sources.json is the real list).
+const DEFAULT_QUEUE_SOURCES: { key: string; label: string }[] = [
+  { key: 'competemath', label: 'CompeteMath' },
+  { key: 'equational-theories', label: 'Equational Theories' },
 ];
 const PAGE_SIZE = 50;
 
@@ -82,6 +83,16 @@ function generateToken(): string {
 
 export function QueueConsole() {
   const [source, setSource] = useState<string>('competemath');
+  const [queueSources, setQueueSources] = useState<{ key: string; label: string }[]>(DEFAULT_QUEUE_SOURCES);
+  useEffect(() => {
+    fetch('/api/sources', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { sources?: { key: string; label: string; ready: boolean }[] } | null) => {
+        const ready = (body?.sources || []).filter((s) => s.ready).map((s) => ({ key: s.key, label: s.label }));
+        if (ready.length) setQueueSources(ready);
+      })
+      .catch(() => undefined);
+  }, []);
   const [queue, setQueue] = useState<QueueEntry[]>([]);
   // Table-only view controls — the underlying queue/active/queued/events
   // state is untouched by these; a 13,164-row source needs filtering and
@@ -692,7 +703,7 @@ export function QueueConsole() {
       <section style={{ border: '1px solid var(--border, #333)', borderRadius: 8, padding: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Source</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          {QUEUE_SOURCES.map((s) => (
+          {queueSources.map((s) => (
             <Button
               key={s.key}
               size="sm"

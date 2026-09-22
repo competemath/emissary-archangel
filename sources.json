@@ -1,0 +1,145 @@
+{
+  "$comment": "Every translation source the pipeline knows. A corpus source is set up ONCE by scripts/setup-source.mjs <key> (clone at `commit`, build on `toolchain`, per-module Gate 2 exports under data/exports/<key>/, queue data/queue-<key>.json); after that only its source checkout (corpusRoot, default infra/<key>/repo) is needed — the build is deleted. `roots` are the lean_lib module roots that carry records. Translations target `targetToolchain` (the tree's). The queue route, theorem-text route, queue console, pipeline panel, run-recurse.mjs and the bridge all read this file.",
+  "targetToolchain": "leanprover/lean4:v4.34.0-rc2",
+  "tentativeDir": "../compete-math/tengoku/data/tentative",
+  "sources": {
+    "competemath": {
+      "label": "CompeteMath",
+      "kind": "prebaked",
+      "queueFile": "queue.json",
+      "targetToolchain": "leanprover/lean4:v4.29.1"
+    },
+    "equational-theories": {
+      "label": "Equational Theories",
+      "repo": "https://github.com/teorth/equational_theories",
+      "commit": "e218ce18b0c265efbbe65093c1f1d063c54f3639",
+      "toolchain": "leanprover/lean4:v4.29.1",
+      "roots": [
+        "equational_theories"
+      ],
+      "corpusRoot": "infra/equational-theories-4291/repo"
+    },
+    "carleson": {
+      "label": "Carleson",
+      "repo": "https://github.com/fpvandoorn/Carleson",
+      "commit": "6e7b18b655ead52b9a4eb46906f7d99bc6bc241c",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "Carleson",
+        "Solution"
+      ]
+    },
+    "pfr": {
+      "label": "PFR",
+      "repo": "https://github.com/teorth/pfr",
+      "commit": "3d7898164ebff70a809dce618f9082a7b39e7850",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "PFR",
+        "PFRPalomar"
+      ]
+    },
+    "flt": {
+      "label": "FLT",
+      "repo": "https://github.com/ImperialCollegeLondon/FLT",
+      "commit": "81d8bee0f708ac41cb975da76ed3c43ad99fae72",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "FLT"
+      ]
+    },
+    "flt-regular": {
+      "label": "FLT (regular primes)",
+      "repo": "https://github.com/leanprover-community/flt-regular",
+      "commit": "faae830a27a7b39748b61487a9f2aa81a6d14450",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "FltRegular"
+      ]
+    },
+    "imoshortlist": {
+      "label": "IMO Shortlist",
+      "repo": "https://github.com/mortarsanjaya/IMOSLLean4",
+      "commit": "49e7596ffb3e88d357eba3e450c29ad9f85f3cc5",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "IMOSLLean4"
+      ]
+    },
+    "toric": {
+      "label": "Toric",
+      "repo": "https://github.com/YaelDillies/toric",
+      "commit": "85451213e92b35500738b91424032e2c63044c90",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "Toric"
+      ]
+    },
+    "compfiles": {
+      "label": "Compfiles",
+      "repo": "https://github.com/dwrensha/compfiles",
+      "commit": "51c8803ed93c0a350d110fffe4c3804b473bba78",
+      "toolchain": "leanprover/lean4:v4.34.0-rc1",
+      "roots": [
+        "Compfiles"
+      ]
+    },
+    "formal-conjectures": {
+      "label": "Formal Conjectures",
+      "repo": "https://github.com/google-deepmind/formal-conjectures",
+      "commit": "71a0744be944b9d26864cef6f970c291c8e79a2d",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "FormalConjectures",
+        "FormalConjecturesForMathlib",
+        "FormalConjecturesTest",
+        "FormalConjecturesUtil"
+      ]
+    },
+    "primenumbertheoremand": {
+      "label": "PrimeNumberTheoremAnd",
+      "repo": "https://github.com/AlexKontorovich/PrimeNumberTheoremAnd",
+      "commit": "a5154676af9aa3095150ee410cdda80555aa0642",
+      "toolchain": "leanprover/lean4:v4.32.2",
+      "roots": [
+        "PrimeNumberTheoremAnd"
+      ]
+    },
+    "erdos-unit-distance-1": {
+      "label": "Erdős unit distance",
+      "repo": "https://github.com/kim-em/erdos-unit-distance",
+      "commit": "d748fd08b40a72f61e982325f2f0599228ca08b3",
+      "toolchain": "leanprover/lean4:v4.32.2",
+      "roots": [
+        "ErdosUnitDistance"
+      ]
+    },
+    "sphere-packing-orig": {
+      "label": "Sphere Packing",
+      "repo": "https://github.com/thefundamentaltheor3m/Sphere-Packing-Lean",
+      "commit": "9b2ddfc66330f9da18cc8feb0dca2dc01bfa0a85",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "SpherePacking"
+      ]
+    },
+    "con-nf": {
+      "label": "Con(NF)",
+      "repo": "https://github.com/leanprover-community/con-nf",
+      "commit": "55b939a3acf947793e252ff330800bfe968cc172",
+      "toolchain": "leanprover/lean4:v4.21.0-rc3",
+      "roots": [
+        "ConNF"
+      ]
+    },
+    "seymour": {
+      "label": "Seymour",
+      "repo": "https://github.com/Ivan-Sergeyev/seymour",
+      "commit": "2769b10cb73fda17bafc0f13890dc057a2f4ff2a",
+      "toolchain": "leanprover/lean4:v4.18.0",
+      "roots": [
+        "Seymour"
+      ]
+    }
+  }
+}

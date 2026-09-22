@@ -1,9 +1,11 @@
 // Drive the recursion engine on a private bridge instance and log its stream.
-//   node run-recurse.mjs <bridgePort> <token> [scopeJson]
+//   node run-recurse.mjs <bridgePort> <token> [scopeJson] [source]
+// The source (a key of sources.json) comes from argv or EMISSARY_RUN_SOURCE.
 import { appendFileSync, writeFileSync } from "node:fs"
 import { request } from "node:http"
-const [port, token, scopeArg] = process.argv.slice(2)
+const [port, token, scopeArg, sourceArg] = process.argv.slice(2)
 const scope = scopeArg ? JSON.parse(scopeArg) : { type: "all" }
+const SOURCE = sourceArg || process.env.EMISSARY_RUN_SOURCE || "equational-theories"
 // Every service runs on the local Tengoku tree (Tengoku.All): no Mathlib anywhere.
 const LEAK_IV = process.env.EMISSARY_LEAK_IV_URL || "http://127.0.0.1:7871/sse"
 const LEAK_I = process.env.EMISSARY_LEAK_I_URL || "http://127.0.0.1:7874/sse"
@@ -36,12 +38,12 @@ const mcpServers = [
   { id: "archangel", name: "Archangel_Emissary_0_0_1", url: ARCHANGEL, isActive: true },
 ]
 if (await reachable(LEAK_I)) mcpServers.push({ id: "leak-i", name: "Leak_I", url: LEAK_I, isActive: true })
-log(`servers: ${mcpServers.map((s) => s.name).join(", ")} | scope ${JSON.stringify(scope)}`)
+log(`source ${SOURCE} | servers: ${mcpServers.map((s) => s.name).join(", ")} | scope ${JSON.stringify(scope)}`)
 
 // Plain node:http, not fetch: Node's fetch aborts a response body that stays
 // silent for 5 minutes (UND_ERR_BODY_TIMEOUT), and a cold first entry can
 // easily be silent that long while the services load the tree.
-const reqBody = JSON.stringify({ source: "equational-theories", scope, archangelUrl: ARCHANGEL, verifyUrl: LEAK_IV, mcpServers, timeoutMs: TIMEOUT_MS })
+const reqBody = JSON.stringify({ source: SOURCE, scope, archangelUrl: ARCHANGEL, verifyUrl: LEAK_IV, mcpServers, timeoutMs: TIMEOUT_MS })
 const res = await new Promise((resolve, reject) => {
   const req = request(
     {

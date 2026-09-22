@@ -22,6 +22,7 @@ type Config = {
 type Status = {
   config: Config; services: Service[]; promote: Proc & { log: string[] }; run: Run;
   queue: { counts: Record<string, number>; files: { sourcePath: string; pending: number }[] };
+  sources: { key: string; label: string; kind: string; ready: boolean }[];
   tree: Tree; now: string;
 };
 
@@ -119,7 +120,13 @@ export function PipelinePanel() {
 
   if (!st) return <div style={{ fontSize: 13, opacity: 0.7 }}>{err ? `Pipeline: ${err}` : 'Loading pipeline status…'}</div>;
 
-  const { services, promote, run, queue, tree, config } = st;
+  const { services, promote, run, queue, tree, config, sources = [] } = st;
+  const sourcePicker = (value: string, disabled: boolean, onChange: (v: string) => void) => (
+    <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} style={{ fontSize: 12, maxWidth: 260 }}>
+      {!sources.some((s) => s.key === value) && <option value={value}>{value}</option>}
+      {sources.map((s) => <option key={s.key} value={s.key} disabled={!s.ready}>{s.label}{s.ready ? '' : ' (not set up)'}</option>)}
+    </select>
+  );
   const allUp = services.every((s) => s.up);
   const runScope = scopeMode === 'all' ? { type: 'all' } : scopeMode === 'file' ? { type: 'file', sourcePath: scopeFile } : { type: 'one', id: Number(scopeId) };
   const scopeValid = scopeMode === 'all' || (scopeMode === 'file' && !!scopeFile) || (scopeMode === 'one' && Number.isFinite(Number(scopeId)) && scopeId !== '');
@@ -214,7 +221,9 @@ export function PipelinePanel() {
       >
         <div style={{ fontSize: 13, marginBottom: 6 }}>
           <Dot color={promote.alive ? 'green' : 'grey'} />
-          {promote.alive ? `running · pid ${promote.pid} · ${since(promote.startedAt)}` : 'stopped'} · every {config.promote.intervalS}s, files quiet for {config.promote.quiescentS}s · {config.promote.viaPrs ? <>opens promotion PRs from <code>{config.workTree}</code> (main untouched)</> : <>commits and pushes <code>{config.workTree}</code></>}
+          {promote.alive ? `running · pid ${promote.pid} · ${since(promote.startedAt)}` : 'stopped'} · library{' '}
+          {sourcePicker(config.promote.library, promote.alive || !!busy, (v) => act('save-config', { config: { promote: { ...config.promote, library: v } } }))}
+          {' '}· every {config.promote.intervalS}s, files quiet for {config.promote.quiescentS}s · {config.promote.viaPrs ? <>opens promotion PRs from <code>{config.workTree}</code> (main untouched)</> : <>commits and pushes <code>{config.workTree}</code></>}
         </div>
         <LogBox lines={promote.log} height={90} />
       </Card>
@@ -241,6 +250,10 @@ export function PipelinePanel() {
           <label>
             <input type="radio" checked={scopeMode === 'one'} onChange={() => setScopeMode('one')} /> one entry #
             <input value={scopeId} onChange={(e) => { setScopeId(e.target.value); setScopeMode('one'); }} placeholder="id" style={{ width: 80, fontSize: 12, marginLeft: 4 }} />
+          </label>
+          <label>
+            source{' '}
+            {sourcePicker(config.run.source, run.state === 'running' || !!busy, (v) => act('save-config', { config: { run: { ...config.run, source: v } } }))}
           </label>
           <span style={{ opacity: 0.7 }}>· {config.run.timeoutMin} min per entry · bridge :{config.bridge.port}</span>
         </div>

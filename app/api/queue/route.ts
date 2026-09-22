@@ -5,6 +5,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { loadConfig } from "@/lib/pipeline";
 import { existingNames, openRecordsPr } from "@/lib/tengoku-pr";
+import { corpusRootFor, queuePathFor, targetToolchainFor } from "@/lib/sources";
 
 const execFileAsync = promisify(execFile);
 
@@ -107,19 +108,15 @@ async function stageViaPr(source: string, name: string, record: Record<string, u
 // Every distinct translation corpus gets its own file — never merged into
 // one, so a bug or corruption in one source's queue can't touch another's,
 // and each stays small enough for the existing whole-file read-modify-write
-// pattern to remain fine at its scale. `source` is a query param, so it MUST
-// be checked against this allowlist before touching the filesystem with it
-// — never interpolate it into a path unchecked.
-const SOURCES: Record<string, string> = {
-  competemath: "queue.json",
-  "equational-theories": "queue-equational-theories.json",
-};
+// pattern to remain fine at its scale. Which sources exist, and which file is
+// whose, is sources.json (lib/sources.ts); `source` is a query param and is
+// only ever used through that registry — never interpolated into a path.
 const DEFAULT_SOURCE = "competemath";
 
 function resolveQueuePath(source: string): string {
-  const filename = SOURCES[source];
-  if (!filename) throw new Error(`unknown queue source: ${source}`);
-  return path.join(process.cwd(), "data", filename);
+  const p = queuePathFor(source);
+  if (!p) throw new Error(`unknown queue source: ${source}`);
+  return p;
 }
 
 // Multiple theorem translations can finish/update around the same moment —
@@ -181,17 +178,9 @@ function sanitizeSegment(s: string): string {
 // translations INTO v4.34.0-rc2 (see infra/equational-theories-4291/
 // repo-rc2-test); plain CompeteMath entries are proved directly against
 // CompeteMath's own production toolchain — no translation involved.
-// Where each corpus's ORIGINAL checkout lives — the tree generator reads the
-// corpus's definition modules from it (same map as theorem-text/route.ts's
-// REPO_ROOTS, duplicated for the same reason: no shared module boundary).
-const CORPUS_ROOT_BY_SOURCE: Record<string, string> = {
-  "equational-theories": path.join(process.cwd(), "infra", "equational-theories-4291", "repo"),
-};
-
-const TOOLCHAIN_BY_SOURCE: Record<string, string> = {
-  competemath: "leanprover/lean4:v4.29.1",
-  "equational-theories": "leanprover/lean4:v4.34.0-rc2",
-};
+// Where each corpus's ORIGINAL checkout lives (the tree generator reads the
+// corpus's definition modules from it) and which toolchain a verified entry
+// compiles under: both from sources.json (lib/sources.ts).
 
 // Best-effort: a clean source_url if the queue entry already has one
 // (CompeteMath entries do, via `sourceUrl`), else try to pull one out of
@@ -281,7 +270,7 @@ async function stageVerifiedTheorem(
     staged_at: new Date().toISOString(),
     library: source,
     source_url: resolveSourceUrl(entry),
-    toolchain: TOOLCHAIN_BY_SOURCE[source] ?? null,
+    toolchain: targetToolchainFor(source),
   };
 
   if (viaPrs()) return stageViaPr(source, name, record);
@@ -326,7 +315,7 @@ async function stageVerifiedTheorem(
     // fatal: the record is still staged.
     let generated: string[] = [];
     let promotion = "";
-    const corpusRoot = CORPUS_ROOT_BY_SOURCE[source];
+    const corpusRoot = corpusRootFor(source);
     if (corpusRoot && record.source_path) {
       const libNs = source.split(/[-_ ]+/).filter(Boolean).map((p) => p[0].toUpperCase() + p.slice(1)).join("");
       generated = [
@@ -377,7 +366,7 @@ async function stageVerifiedTheorem(
 
 export async function GET(req: Request) {
   const source = new URL(req.url).searchParams.get("source") || DEFAULT_SOURCE;
-  if (!(source in SOURCES)) {
+  if (!queuePathFor(source)) {
     return NextResponse.json({ error: "unknown_source", detail: source }, { status: 400 });
   }
   try {
@@ -403,7 +392,7 @@ export async function GET(req: Request) {
 // stays manual and deliberate.
 export async function PATCH(req: Request) {
   const source = new URL(req.url).searchParams.get("source") || DEFAULT_SOURCE;
-  if (!(source in SOURCES)) {
+  if (!queuePathFor(source)) {
     return NextResponse.json({ error: "unknown_source", detail: source }, { status: 400 });
   }
   try {
