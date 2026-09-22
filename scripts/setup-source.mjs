@@ -376,7 +376,8 @@ async function exports(modules) {
         continue
       }
       try {
-        const { stdout } = await x("lake", ["env", L4E_BIN, m, "--", ...names], { cwd: REPO, env: ENV, maxBuffer: 1024 * 1024 * 1024, timeout: 30 * 60 * 1000 })
+        // --only-listed (scripts/patch-lean4export.py): the closure's own constants, not everything they reach in Mathlib.
+        const { stdout } = await x("lake", ["env", L4E_BIN, m, "--only-listed", "--", ...names], { cwd: REPO, env: ENV, maxBuffer: 1024 * 1024 * 1024, timeout: 30 * 60 * 1000 })
         if (!stdout || (!stdout.includes('"thm"') && !stdout.includes('"def"'))) throw new Error("lean4export produced no declarations")
         writeFileSync(join(EXPORTS, `${m}.ndjson`), stdout)
       } catch (e) {

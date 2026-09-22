@@ -32,5 +32,6 @@ done
 echo "lean4export at $c ($(git show "$c:lean-toolchain")), built with $TC"
 git checkout -q "$c"
 echo "$TC" > lean-toolchain
+python3 "$ROOT/scripts/patch-lean4export.py" "$DEST"   # --only-listed (see the script)
 lake build
 ls -la .lake/build/bin/lean4export
