@@ -13439,7 +13439,10 @@ function stripCorpusAttrs(text) {
       const kept = inner.split(",").map((s) => s.trim()).filter((s) => s && !/^equational_result\b/.test(s))
       return kept.length ? `@[${kept.join(", ")}]` : ""
     })
-    .replace(/^[ \t]*import[ \t]+\S+[^\n]*$/gm, "")
+    // Lean 4.34's module system: a `module` header and `public`/`private`/`meta import`s
+    // (Carleson uses both) — no more a declaration than a plain import is.
+    .replace(/^[ \t]*(?:(?:public|private|meta)[ \t]+)*import[ \t]+\S+[^\n]*$/gm, "")
+    .replace(/^[ \t]*module[ \t]*$/gm, "")
 }
 function modulePathOf(repoRoot, moduleName) {
   return join(repoRoot, ...moduleName.split(".")) + ".lean"
@@ -13447,7 +13450,7 @@ function modulePathOf(repoRoot, moduleName) {
 function corpusImportsOf(repoRoot, moduleName, pfx) {
   try {
     const src = readFileSync(modulePathOf(repoRoot, moduleName), "utf8")
-    return [...src.matchAll(/^\s*import\s+(\S+)/gm)].map((m) => m[1]).filter((m) => m.startsWith(pfx))
+    return [...src.matchAll(/^\s*(?:(?:public|private|meta)\s+)*import\s+(\S+)/gm)].map((m) => m[1]).filter((m) => m.startsWith(pfx))
   } catch {
     return []
   }
