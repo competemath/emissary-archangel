@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Make one translation source self-contained, once.
-//   node scripts/setup-source.mjs <key> [--jobs N] [--concurrency N] [--keep-build]
+//   node scripts/setup-source.mjs <key> [--concurrency N] [--keep-build]
 //                                       [--reseed] [--uninstall-toolchain] [--only seed|build|export]
 // Reads sources.json. Steps, each skipped when its output already exists:
 //   1. toolchain   elan installs the source's own Lean (its .oleans must be read by a matching lean4export)
@@ -35,7 +35,6 @@ const flag = (name, dflt) => {
   const i = argv.indexOf(`--${name}`)
   return i >= 0 ? argv[i + 1] ?? true : dflt
 }
-const JOBS = Number(flag("jobs", Math.max(2, os.cpus().length - 2)))
 const CONCURRENCY = Number(flag("concurrency", 3))
 const KEEP_BUILD = argv.includes("--keep-build")
 const RESEED = argv.includes("--reseed")
@@ -284,7 +283,7 @@ async function build(modules) {
   // Only the modules that carry entries (and, through lake, what they import).
   for (let i = 0; i < modules.length; i += 150) {
     const chunk = modules.slice(i, i + 150)
-    const r = await run("lake", ["build", "-j", String(JOBS), ...chunk], { cwd: REPO, timeoutMs: 6 * 3600 * 1000 })
+    const r = await run("lake", ["build", ...chunk], { cwd: REPO, timeoutMs: 6 * 3600 * 1000 })
     if (r.code !== 0) log(`WARNING: lake build chunk ${i / 150 + 1} exited ${r.code}: ${r.tail.slice(-400)} — modules that did not build are reported at export`)
   }
 }

@@ -13731,7 +13731,9 @@ function savePrefixCache(cache) {
 // elsewhere in this file (stop at `:=` or the next declaration keyword —
 // handles equation-compiler declarations with no bare `:=` of their own).
 function extractFixedPrefix(fullProofText, bareName) {
-  const re = new RegExp(`\\b(?:theorem|lemma)\\s+(?:\\S*\\.)?${bareName}\\b`, "g")
+  // Lookarounds, not \b: a name ending in a non-ASCII character (`measurable_Q₂`)
+  // has no ASCII word boundary after it, and `\b` would never match.
+  const re = new RegExp(`(?<![\\w'.])(?:theorem|lemma)\\s+(?:\\S*\\.)?${bareName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w'])`, "g")
   const m = re.exec(fullProofText)
   if (!m) return null
   const lines = fullProofText.slice(0, m.index).split("\n")
