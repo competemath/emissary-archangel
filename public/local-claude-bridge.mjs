@@ -13361,6 +13361,17 @@ function sourceOfRepoRoot(repoRoot) {
   for (const key of Object.keys(SOURCES_REGISTRY.sources || {})) if (repoRootFor(key) === r) return key
   return ""
 }
+// The exporter must be built on the checkout's own toolchain (it reads its
+// .oleans): scripts/setup-source.mjs keeps one per toolchain under
+// infra/lean4export/<toolchain>/; LEAN4EXPORT_BIN is the fallback.
+function lean4exportFor(repoRoot) {
+  const tc = SOURCES_REGISTRY.sources?.[sourceOfRepoRoot(repoRoot)]?.toolchain
+  if (tc) {
+    const bin = join(APP_ROOT, "infra", "lean4export", String(tc).replace(/[^A-Za-z0-9.-]+/g, "_"), ".lake", "build", "bin", "lean4export")
+    if (existsSync(bin)) return bin
+  }
+  return LEAN4EXPORT_BIN
+}
 
 // "equational_theories/ThreeC2.lean" -> "equational_theories.ThreeC2" — Lean's
 // own module-name convention (path separators become dots, extension dropped).
@@ -13858,7 +13869,8 @@ export async function ensureModuleExport(repoRoot, moduleName) {
   if (existsSync(exportPath)) return oldId
   const runExport = async () => {
     const names = await corpusClosureNames(repoRoot, moduleName)
-    return execFileAsync("lake", ["env", LEAN4EXPORT_BIN, moduleName, "--", ...names], { cwd: repoRoot, maxBuffer: 512 * 1024 * 1024 })
+    // --only-listed (scripts/patch-lean4export.py) keeps the file to the corpus closure; a stock lean4export ignores it.
+    return execFileAsync("lake", ["env", lean4exportFor(repoRoot), moduleName, "--only-listed", "--", ...names], { cwd: repoRoot, maxBuffer: 512 * 1024 * 1024 })
   }
   let stdout
   try {
