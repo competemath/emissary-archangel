@@ -78,18 +78,26 @@ Prerequisites: Node 22 + pnpm, Python 3.11+, `elan` with the corpus toolchain
 its build in place (`scripts/cache.sh get` there), and the Claude CLI logged
 in (the agent runs through it).
 
-1. **Corpus** — clone the corpus at its pinned commit and build it on its
-   own toolchain:
+1. **Sources** — `sources.json` lists every library the pipeline can
+   translate (repo, commit, its own toolchain, lean_lib roots). A source is
+   set up once and is then self-contained:
    ```bash
-   git clone https://github.com/teorth/equational_theories infra/equational-theories-4291/repo
-   git -C infra/equational-theories-4291/repo checkout e218ce18
-   (cd infra/equational-theories-4291/repo && lake exe cache get && lake build)
+   node scripts/setup-source.mjs carleson        # one source
+   scripts/setup-sources.sh                       # every registered source, one at a time
    ```
-2. **Exporter** — build `lean4export` on the corpus toolchain:
-   ```bash
-   git clone https://github.com/leanprover/lean4export infra/lean4export
-   (cd infra/lean4export && git checkout <last commit whose lean-toolchain is v4.29.*> && echo leanprover/lean4:v4.29.1 > lean-toolchain && lake build)
-   ```
+   That clones the repo at its commit under `infra/<key>/repo`, installs its
+   toolchain, builds it (`lake exe cache get` + `lake build` of the modules
+   that carry records), builds `lean4export` for that toolchain under
+   `infra/lean4export/<toolchain>/`, writes one Gate 2 export and corpus
+   closure per module under `data/exports/<key>/`, seeds
+   `data/queue-<key>.json` from the tree's `data/tentative/<key>.jsonl`, and
+   deletes the build — afterwards only the exports and the source files are
+   read, so one library's build is on disk at a time. The runner uninstalls a
+   toolchain once its last library is done. To add a library: a record in
+   `sources.json` (and in the tree's `schemas/sources.json`), then set it up.
+2. **Exporter** — built by the step above; by hand,
+   `scripts/build-lean4export.sh <toolchain> [dest]` picks the lean4export
+   commit that pins that toolchain.
 3. **Gate 2 daemon** (`gate2/`):
    ```bash
    cd gate2 && lake update && (cd .lake/packages/tengoku && scripts/cache.sh get) && lake build
@@ -105,7 +113,8 @@ in (the agent runs through it).
 5. **Console** — `pnpm install && pnpm dev`, open it, register the three
    MCP servers (Leak IV, Leak I, Archangel), copy the bridge setup command it
    shows (it carries `EMISSARY_APP_ROOT`, the token and the allowed origin),
-   run it in a terminal, then **Recurse**.
+   run it in a terminal, pick the source in the pipeline panel, then
+   **Recurse**.
 
 Every bank writes `data/staging/<source>.jsonl` in the tree checkout
 (`TENGOKU_STAGING_REPO`, default `../compete-math/tengoku`), runs promotion
