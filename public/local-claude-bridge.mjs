@@ -13578,7 +13578,11 @@ function syntaxAtomsOf(src) {
   return atoms
 }
 function usesAtom(text, atom) {
-  if (/^[A-Za-z_][\w'!?]*$/.test(atom)) return new RegExp(`(^|[^\\w'.])${atom.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w'])`, "m").test(text)
+  const esc = atom.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  if (/^[A-Za-z_][\w'!?]*$/.test(atom)) return new RegExp(`(^|[^\\w'.])${esc}(?![\\w'])`, "m").test(text)
+  // A token boundary before an atom that starts with an identifier character:
+  // `dist_{` is not a use of itself inside `edist_{`.
+  if (/^[A-Za-z_]/.test(atom)) return new RegExp(`(^|[^\\w'.])${esc}`, "m").test(text)
   return text.includes(atom)
 }
 

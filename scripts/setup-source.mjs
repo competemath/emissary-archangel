@@ -392,6 +392,23 @@ async function exports(modules) {
   return failed
 }
 
+// Every module the bridge may paste: the entries' own, plus each of their
+// corpus closures' modules (Carleson.Defs carries no theorem and is pasted
+// under nearly every Carleson entry).
+function closureModules(modules) {
+  const all = new Set(modules)
+  for (const m of modules) {
+    const p = join(EXPORTS, `${m}.names.json`)
+    if (!existsSync(p)) continue
+    try {
+      for (const x of JSON.parse(readFileSync(p, "utf8")).modules || []) if (x) all.add(x)
+    } catch {
+      /* recomputed by closures() if unreadable */
+    }
+  }
+  return Array.from(all).sort()
+}
+
 // ---- 6b. notation expansion -----------------------------------------------------
 // scripts/expand-notations.lean, under the corpus's own toolchain: each module
 // rewritten with the corpus's own notations expanded, so the text the bridge
@@ -477,13 +494,13 @@ async function main() {
   log(`${entries.length} entries in ${modules.length} modules`)
   if (ONLY === "seed") return
   if (ONLY !== "export") await build(modules)
-  const expansion = await expand(modules)
+  await closures(modules)
+  const expansion = await expand(closureModules(modules))
   if (ONLY === "expand") {
     await cleanup()
     return log(`done ${key} (expand only): ${JSON.stringify(expansion.stats)}, ${expansion.failed.length} failed`)
   }
   await ensureLean4export()
-  await closures(modules)
   const failed = await exports(modules)
   const exported = modules.filter((m) => existsSync(join(EXPORTS, `${m}.ndjson`)))
   const report = {
