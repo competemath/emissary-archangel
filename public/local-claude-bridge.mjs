@@ -13442,8 +13442,50 @@ const preludeCache = new Map() // target module -> { text, missing }
 const UNSAFE_MODULE_RE = /^\s*(?:scoped\s+)?(initialize|builtin_initialize|register_simp_attr|register_option|register_label_attr|register_tag_attr|register_parametric_attr)\b/m
 const EQUATION_LINE_RE = /^\s*(?:@\[[^\]]*\]\s*)*equation\s+(\d+)\s*:=\s*(.+?)\s*$/gm
 
+// Non-doc block comments (`/- … -/`, nested, and `/-! … -/` module docs) go: a
+// commented-out `def 𝕔 := …` inside one looked like a declaration to the
+// block-based pruners, which split the comment apart and brought it back to
+// life ("𝕔 already declared"). Docstrings (`/-- … -/`) belong to their
+// declaration and stay.
+function stripBlockComments(text) {
+  const s = String(text || "")
+  let out = ""
+  let i = 0
+  while (i < s.length) {
+    const c = s[i]
+    if (c === '"') {
+      let j = i + 1
+      while (j < s.length && s[j] !== '"') j += s[j] === "\\" ? 2 : 1
+      out += s.slice(i, j + 1)
+      i = j + 1
+      continue
+    }
+    if (c === "-" && s[i + 1] === "-") {
+      const j = s.indexOf("\n", i)
+      out += s.slice(i, j === -1 ? s.length : j)
+      i = j === -1 ? s.length : j
+      continue
+    }
+    if (c === "/" && s[i + 1] === "-") {
+      const keep = s[i + 2] === "-" && s[i + 3] !== "/"
+      let depth = 1
+      let j = i + 2
+      while (j < s.length && depth > 0) {
+        if (s[j] === "/" && s[j + 1] === "-") depth++, (j += 2)
+        else if (s[j] === "-" && s[j + 1] === "/") depth--, (j += 2)
+        else j++
+      }
+      if (keep) out += s.slice(i, j)
+      i = j
+      continue
+    }
+    out += c
+    i++
+  }
+  return out
+}
 function stripCorpusAttrs(text) {
-  return String(text || "")
+  return stripBlockComments(String(text || ""))
     .replace(/@\[([^\]]*)\]/g, (_, inner) => {
       const kept = inner.split(",").map((s) => s.trim()).filter((s) => s && !/^equational_result\b/.test(s))
       return kept.length ? `@[${kept.join(", ")}]` : ""
@@ -13520,7 +13562,7 @@ function readModuleSrc(repoRoot, m) {
   const key = `${repoRoot}:${m}`
   if (!moduleSrcCache.has(key)) {
     const ex = readExpandedModule(repoRoot, m)
-    moduleSrcCache.set(key, ex ? `${ex.header}\n${ex.commands.map((c) => c.text).join("\n")}` : readFileSync(modulePathOf(repoRoot, m), "utf8"))
+    moduleSrcCache.set(key, stripBlockComments(ex ? `${ex.header}\n${ex.commands.map((c) => c.text).join("\n")}` : readFileSync(modulePathOf(repoRoot, m), "utf8")))
   }
   return moduleSrcCache.get(key)
 }
@@ -13846,6 +13888,7 @@ export async function reconstructOldTheoremText(repoRoot, entry) {
       proof = split.proof
     }
   }
+  rawPrefix = stripBlockComments(rawPrefix) // before any block-based pruning sees it
   // The candidate's own text (siblings pruned) is what the macro probe reads.
   const info0 = await corpusClosureInfo(repoRoot, moduleName)
   const reach0 = reachableCorpusNames(info0, rootName) || new Set(info0.names)
