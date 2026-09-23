@@ -13518,7 +13518,7 @@ function regenerateEquations(src, wanted) {
 // `syntax "Facts " …`, notation strings. Macros and tactics are not constants,
 // so a proof that uses `superpose` reaches nothing in Superposition.lean by
 // name — the dependency graph is blind to them.
-const SYNTAX_DECL_RE = /^\s*(?:scoped\s+|local\s+)?(?:syntax|macro|macro_rules|elab|elab_rules|notation|infixl?|infixr?|prefix|postfix)\b[^\n]*?"([^"\n]+)"/gm
+const SYNTAX_DECL_RE = /^\s*(?:@\[[^\]]*\]\s*)*(?:scoped\s+|local\s+)?(?:syntax|macro|macro_rules|elab|elab_rules|notation3?|infixl?|infixr?|prefix|postfix)\b[^\n]*?"([^"\n]+)"/gm
 function syntaxAtomsOf(src) {
   const atoms = new Set()
   for (const m of String(src || "").matchAll(SYNTAX_DECL_RE)) {
