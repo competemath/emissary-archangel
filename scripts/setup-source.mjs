@@ -17,7 +17,7 @@
 //                  removes a toolchain that is neither the tree's nor 4.29.1
 // Writes infra/<key>/setup.json with the counts. Re-runnable: finished steps are skipped.
 import { execFile, execFileSync, spawn } from "node:child_process"
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs"
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -27,7 +27,10 @@ const x = promisify(execFile)
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const HOME = os.homedir()
 const PATH = [join(HOME, ".elan", "bin"), "/opt/homebrew/bin", "/usr/local/bin", process.env.PATH || ""].join(":")
-const ENV = { ...process.env, PATH, HOME }
+// LEAN_NUM_THREADS bounds the Lean runtime's task pool, which is what Lake builds
+// with: 2 compilers at a time (each a few GB on Mathlib-heavy files) instead of
+// one per core. The setup must stay well under 20 GB alongside the Leak services.
+const ENV = { ...process.env, PATH, HOME, LEAN_NUM_THREADS: process.env.LEAN_NUM_THREADS || "2" }
 
 const argv = process.argv.slice(2)
 const key = argv.find((a) => !a.startsWith("--") && !/^\d+$/.test(a))
@@ -35,7 +38,9 @@ const flag = (name, dflt) => {
   const i = argv.indexOf(`--${name}`)
   return i >= 0 ? argv[i + 1] ?? true : dflt
 }
-const CONCURRENCY = Number(flag("concurrency", 3))
+// One Lean process at a time: each import of Mathlib is a few GB, and the resident
+// Leak services already hold theirs. Three at once pushed the machine into swap.
+const CONCURRENCY = Number(flag("concurrency", 1))
 const KEEP_BUILD = argv.includes("--keep-build")
 const RESEED = argv.includes("--reseed")
 const UNINSTALL_TC = argv.includes("--uninstall-toolchain")
@@ -90,6 +95,17 @@ function run(cmd, args, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000, quiet = f
       clearTimeout(t)
       res({ code: code ?? 1, tail })
     })
+  })
+}
+// Like run(), with stdout written to `outPath` (stderr captured for the report).
+function runToFile(cmd, args, outPath, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000 } = {}) {
+  return new Promise((res) => {
+    const fd = openSync(outPath, "w")
+    const p = spawn(cmd, args, { cwd, env: ENV, stdio: ["ignore", fd, "pipe"] })
+    let tail = ""
+    p.stderr.on("data", (d) => { tail = (tail + d.toString()).slice(-4000) })
+    const t = setTimeout(() => { p.kill("SIGKILL"); closeSync(fd); res({ code: 124, tail: tail + `\n[timed out after ${timeoutMs / 1000}s]` }) }, timeoutMs)
+    p.on("close", (code) => { clearTimeout(t); closeSync(fd); res({ code: code ?? 1, tail }) })
   })
 }
 const moduleOfPath = (p) => p.replace(/\.lean$/, "").replace(/\//g, ".")
@@ -377,11 +393,17 @@ async function exports(modules) {
         continue
       }
       try {
-        // --only-listed (scripts/patch-lean4export.py): the closure's own constants, not everything they reach in Mathlib.
-        const { stdout } = await x("lake", ["env", L4E_BIN, m, "--only-listed", "--", ...names], { cwd: REPO, env: ENV, maxBuffer: 1024 * 1024 * 1024, timeout: 30 * 60 * 1000 })
-        if (!stdout || (!stdout.includes('"thm"') && !stdout.includes('"def"'))) throw new Error("lean4export produced no declarations")
-        writeFileSync(join(EXPORTS, `${m}.ndjson`), stdout)
+        // --only-listed (scripts/patch-lean4export.py): the closure's own constants, not everything they
+        // reach in Mathlib. Streamed straight to the file: a Node string tops out around 512 MB, and
+        // one Sendov module's export was bigger than that.
+        const tmp = join(EXPORTS, `${m}.ndjson.tmp`)
+        const r = await runToFile("lake", ["env", L4E_BIN, m, "--only-listed", "--", ...names], tmp, { cwd: REPO, timeoutMs: 30 * 60 * 1000 })
+        if (r.code !== 0) throw new Error(`lean4export exited ${r.code}: ${r.tail.slice(-300)}`)
+        const has = await x("grep", ["-q", "-m1", "-E", '"(thm|def|inductive|axiom)"', tmp], { env: ENV }).then(() => true, () => false)
+        if (!has) throw new Error("lean4export produced no declarations")
+        renameSync(tmp, join(EXPORTS, `${m}.ndjson`))
       } catch (e) {
+        try { rmSync(join(EXPORTS, `${m}.ndjson.tmp`), { force: true }) } catch { /* nothing to remove */ }
         failed.push([m, (e.stderr || e.message || String(e)).toString().slice(-300).replace(/\s+/g, " ")])
       }
       done++

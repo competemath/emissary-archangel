@@ -38,6 +38,28 @@ MAIN_ANCHOR = "    let _ ← initState env opts\n"
 MAIN = MAIN_ANCHOR + """    if opts.contains "--only-listed" then
       modify fun st => { st with onlyListed := true, listed := constants.foldl (·.insert ·) {} }
 """
+# In --only-listed mode a theorem's proof term is never read (Gate 2 replays
+# theorems as axioms), and Sendov-style computational proofs run to hundreds of
+# MB: a placeholder stands in for the value, so only the type is dumped.
+THM_OLD = """  | .thmInfo val => do
+    dumpDeps val.type
+    dumpDeps val.value
+    dumpObj [
+      ("thm", Json.mkObj [
+        ("name", ← dumpName val.name),
+        ("levelParams", ← dumpUparams val.levelParams),
+        ("type", ← dumpExpr val.type),
+        ("value", ← dumpExpr val.value),"""
+THM_NEW = """  | .thmInfo val => do
+    dumpDeps val.type
+    let value := if (← get).onlyListed then Expr.const ``True.intro [] else val.value
+    if !(← get).onlyListed then dumpDeps val.value
+    dumpObj [
+      ("thm", Json.mkObj [
+        ("name", ← dumpName val.name),
+        ("levelParams", ← dumpUparams val.levelParams),
+        ("type", ← dumpExpr val.type),
+        ("value", ← dumpExpr value),"""
 DECODE_OLDS = ['Syntax.decodeNameLit ("`" ++ c) |>.get!', '(Syntax.decodeNameLit ("`" ++ c)).getD c.toName']
 DECODE_NEW = "decodeClosureName c"
 DECODER = '''/-- A listed constant as `Name.toString` printed it. A hygienic name
@@ -77,6 +99,11 @@ if "def decodeClosureName" not in mt:
     mt = mt.replace("def main (args : List String) : IO Unit := do", DECODER, 1)
     done.append("decodeClosureName")
 
+if THM_OLD in et:
+    et = et.replace(THM_OLD, THM_NEW, 1)
+    done.append("theorem values elided under --only-listed")
+elif "let value := if (← get).onlyListed" not in et:
+    sys.exit("lean4export: thmInfo anchor not found — the patch needs updating for this commit")
 export.write_text(et, encoding="utf-8")
 main.write_text(mt, encoding="utf-8")
 print("lean4export: " + (", ".join(done) if done else "already patched"))
