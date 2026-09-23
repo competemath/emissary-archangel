@@ -27,7 +27,7 @@ type Status = {
 };
 
 const LABEL: Record<string, string> = { 'leak-iv': 'Leak IV — verifier', gate2: 'Gate 2 — Archangel', 'leak-i': 'Leak I — loogle', bridge: 'Private bridge' };
-const SUMMARY_ORDER = ['mechanical', 'cached-mechanical', 'agentic', 'unresolved', 'infra-blocked', 'failed', 'untranslatable'];
+const SUMMARY_ORDER = ['mechanical', 'cached-mechanical', 'agentic', 'unresolved', 'unbankable', 'infra-blocked', 'failed', 'untranslatable'];
 
 function since(iso: string | null) {
   if (!iso) return '';

@@ -6959,6 +6959,15 @@ WHAT GATE 2 NEEDS FROM YOUR SCRIPT (checked by regex before it runs):
 - If a name the original defines already exists in the target environment with a different definition (Gate 2 reports \`name_collision\`), the entry cannot be translated under this toolchain: say so plainly and stop. Do not work around it.
 - The target environment is the Tengoku tree: one self-contained library seeded from Mathlib, with Mathlib's declaration names. Write \`import Mathlib\` as the script's only import line (the verifier maps it onto the tree); module-specific imports are unnecessary.
 
+THE TREE'S CONTENT POLICY — checked by the harness before banking; a script that breaks it is never banked, whatever the gates said:
+- No syntax-level declarations of any kind: no notation/notation3/infix/infixl/infixr/prefix/postfix, no macro/macro_rules/syntax/elab/elab_rules/declare_syntax_cat. Write every notation out as the term it stands for and drop delaborators and macros — they are display sugar, not mathematics. Definitions the statement needs are still declared under their original names.
+- No opaque, axiom, unsafe/partial definitions, initialize, @[extern]/@[implemented_by]/@[init]/@[export], #eval, run_cmd/run_tac/run_elab, native_decide, or IO.
+- set_option only from: linter.*, maxRecDepth, maxHeartbeats, synthInstance.maxHeartbeats, synthInstance.maxSize, autoImplicit, relaxedAutoImplicit, pp.all, exponentiation.threshold, backward.*.${
+    Array.isArray(archangelOldRef?.policy_note) && archangelOldRef.policy_note.length
+      ? `\n- THIS ORIGINAL's text carries: ${archangelOldRef.policy_note.join("; ")}. Its unchanged text was refused for exactly that; yours must not carry it.`
+      : ""
+  }
+
 THE LOOP:
 1. Draft the translated theorem + proof, verify_full_script it, iterate on real compiler errors until it's sorry-free.
 2. Read the Gate 2 verdict appended to that result. If it failed, it tells you exactly why and what to change — fix the script and go back to step 1. Only a CHANGED script is worth resubmitting.
@@ -13523,6 +13532,86 @@ function usesAtom(text, atom) {
   return text.includes(atom)
 }
 
+// ---- The tree's content policy, mirrored (tengoku scripts/ci/lint_banked.py) ----
+// A record the tree would refuse must never be banked: one such record fails
+// the gate of the whole batch PR it lands in (200 records). A mechanical
+// candidate is checked before Leak IV is even called; an agent's script is
+// checked before banking. Keep this list in step with lint_banked.py.
+const BANK_FORBIDDEN = [
+  [/^\s*import\b/m, "import"],
+  [/#eval\b/, "#eval"],
+  [/#print\s+axioms/, "#print axioms"],
+  [/\brun_cmd\b/, "run_cmd"],
+  [/\brun_tac\b/, "run_tac"],
+  [/\brun_elab\b/, "run_elab"],
+  [/^\s*(builtin_)?initialize\b/m, "initialize"],
+  [/@\[\s*(init|builtin_init|extern|implemented_by|export|never_extract)\b/, "@[init]/@[extern]/@[implemented_by]/@[export]"],
+  [/^\s*(unsafe|partial)\s+(def|theorem|abbrev|instance|opaque)/m, "unsafe/partial definitions"],
+  [/^\s*(@\[[^\]]*\]\s*)*(scoped\s+|local\s+)?(macro|macro_rules|syntax|elab|elab_rules|declare_syntax_cat|notation3?|infixl?|infixr|prefix|postfix)\b/m, "syntax/macro/elab/notation declarations"],
+  [/\bnative_decide\b/, "native_decide"],
+  [/^\s*opaque\b/m, "opaque"],
+  [/^\s*axiom\b/m, "axiom"],
+  [/\bIO\.(Process|FS)\b|\bSystem\.(FilePath|Platform)\b/, "IO.Process / IO.FS"],
+]
+const BANK_ALLOWED_OPTIONS = new Set([
+  "linter.all", "linter.unusedVariables", "linter.style.longLine", "linter.style.setOption", "maxRecDepth", "maxHeartbeats",
+  "synthInstance.maxHeartbeats", "synthInstance.maxSize", "backward.isDefEq.respectTransparency", "backward.isDefEq.respectTransparency.types",
+  "backward.privateInPublic", "backward.privateInPublic.warn", "exponentiation.threshold", "pp.all", "autoImplicit", "relaxedAutoImplicit", "warn.classDefReducibility",
+])
+// What the tree's lint would say about a script, as a list of reasons (empty = bankable).
+// Leading import lines are the verifier's own and are stripped before staging (queue/route.ts).
+function lintBankable(text) {
+  const body = String(text || "").replace(/^(?:\s*import\s+\S+\s*\n)+/, "")
+  const out = []
+  for (const [re, why] of BANK_FORBIDDEN) if (re.test(body)) out.push(why)
+  for (const m of body.matchAll(/set_option\s+([A-Za-z_][\w.]*)/g)) if (!BANK_ALLOWED_OPTIONS.has(m[1])) out.push(`set_option ${m[1]}`)
+  return Array.from(new Set(out))
+}
+
+// Syntax-level declarations (notation, macro, syntax, elab, …) that nothing in
+// the candidate uses are dropped from its prefix: the tree's lint refuses
+// records that carry them, and a pasted corpus module (Carleson.Defs) declares
+// notations for things a given theorem never mentions. One whose token the
+// remaining text does use stays — the compile needs it, and the entry then
+// goes to the agent to write it out.
+const SYNTAX_BLOCK_RE = /^\s*(?:@\[[^\]]*\]\s*)*(?:scoped\s+|local\s+)?(?:macro|macro_rules|syntax|elab|elab_rules|declare_syntax_cat|notation3?|infixl?|infixr|prefix|postfix)\b/
+function pruneUnusedSyntax(prefixText, probeText) {
+  const lines = String(prefixText || "").split("\n")
+  // Blocks as in pruneFilePrefix: attributes and doc comments attach to the declaration after them.
+  const blocks = []
+  let cur = []
+  let attached = false
+  let inDoc = false
+  for (const line of lines) {
+    const t = line.trim()
+    if (!inDoc && BLOCK_START_RE.test(t) && !attached && cur.length) {
+      blocks.push(cur)
+      cur = []
+    }
+    cur.push(line)
+    if (inDoc) {
+      if (t.includes("-/")) inDoc = false
+      attached = !inDoc
+      continue
+    }
+    if (t.startsWith("/--") && !t.includes("-/")) {
+      inDoc = true
+      attached = true
+    } else if (t.startsWith("@[") && !/\]\s*\S/.test(t.slice(2))) attached = true
+    else if (t !== "") attached = false
+  }
+  if (cur.length) blocks.push(cur)
+  const keep = blocks.map((b) => !b.some((l) => SYNTAX_BLOCK_RE.test(l)))
+  let dropped = 0
+  for (let i = 0; i < blocks.length; i++) {
+    if (keep[i]) continue
+    const rest = blocks.filter((_, j) => j !== i && keep[j]).map((b) => b.join("\n")).join("\n") + "\n" + String(probeText || "")
+    if (Array.from(syntaxAtomsOf(blocks[i].join("\n"))).some((a) => usesAtom(rest, a))) keep[i] = true
+    else dropped++
+  }
+  return { text: blocks.filter((_, i) => keep[i]).map((b) => b.join("\n")).join("\n"), dropped }
+}
+
 // `probeText`: the candidate's own text (pruned prefix + statement + proof).
 // A pasteable module whose syntax atoms appear in it is included, together
 // with the constants it declares and their dependencies, so whatever its
@@ -13700,12 +13789,17 @@ export async function reconstructOldTheoremText(repoRoot, entry) {
   // Linters are style policy, not toolchain drift, and Leak IV fails on any
   // warning — a `def` of a Prop, a deprecated alias — so they are off for
   // the whole candidate. The kernel check is untouched by this.
-  const prefix = `set_option linter.all false -- [Emissary] lints are not drift; the kernel decides\n\n${preludeText}${missingNote}-- [Emissary] ${entry.sourcePath}, everything before line ${entry.sourceLine} (imports stripped; sibling theorems the target does not use omitted)\n${filePrefix}\n\n`
+  const target = `${stripCorpusAttrs(entry.oldStatement || "")}${entry.oldProofText || ""}`
+  const { text: prefix, dropped } = pruneUnusedSyntax(
+    `set_option linter.all false -- [Emissary] lints are not drift; the kernel decides\n\n${preludeText}${missingNote}-- [Emissary] ${entry.sourcePath}, everything before line ${entry.sourceLine} (imports stripped; sibling theorems the target does not use omitted)\n${filePrefix}\n\n`,
+    target,
+  )
   return {
     fileContent,
     prefix,
     equations,
-    oldTheoremText: `${prefix}${stripCorpusAttrs(entry.oldStatement || "")}${entry.oldProofText || ""}`,
+    droppedSyntax: dropped,
+    oldTheoremText: `${prefix}${target}`,
   }
 }
 
@@ -13924,6 +14018,10 @@ async function patchQueueEntry(source, update) {
 // Shared by the fresh-prefix attempt and the cached-fixed-prefix attempt
 // below — identical logic, just fed different text for the shared part.
 async function tryMechanicalBank(candidateText, entry, { source, repoRoot, verifyUrl, archangelUrl, moduleName, qualifiedName, bareName, timeoutMs, emit }) {
+  // A candidate the tree's content lint would refuse is not worth a compile: it
+  // could never be banked, and it would poison its batch PR if it were.
+  const lint = lintBankable(candidateText)
+  if (lint.length) return { ok: false, lint }
   const leakRes = await verifyViaDaemon(candidateText, verifyUrl, { timeoutMs })
   if (!leakRes.ok || !verifyResultSucceeded(leakRes.text)) return { ok: false, leakText: leakRes.text || leakRes.error || "" }
   // Same judge as the agentic path (regex check, rename to `_archangel`,
@@ -13984,13 +14082,24 @@ async function recurseOneEntry(entry, opts) {
     return { id: entry.id, outcome: "untranslatable" }
   }
 
-  if (cached?.status === "broken" && cached.fixedPrefix) {
+  // The tree's content lint (lintBankable) decides what can be banked at all. An
+  // original whose text it would refuse — a notation the theorem needs, a macro —
+  // is not worth a mechanical compile: it goes straight to the agent, which is
+  // told exactly what to write out. A cached agent-made prefix is clean by
+  // construction, so that path still gets its mechanical shot.
+  let policyNote = null
+  const lintHits = lintBankable(oldTheoremText)
+  if (lintHits.length && !(cached?.status === "broken" && cached.fixedPrefix)) {
+    policyNote = lintHits
+    emit({ type: "message-annotation", subtype: "status", thought: `⚖️ #${entry.id} ${entry.name}: the original's text carries what the tree's content lint refuses (${lintHits.join("; ")}) — skipping the mechanical attempt, escalating to the agent to write it out.` })
+  } else if (cached?.status === "broken" && cached.fixedPrefix) {
     // A PRIOR entry from this same file already got its shared dependency
     // fixed by the agent — try that fix here first, zero agent calls, before
     // ever assuming THIS entry needs its own independent repair.
     const candidate = `${withEquations(cached.fixedPrefix, equations)}${stripCorpusAttrs(entry.oldStatement || "")}${entry.oldProofText || ""}`
     emit({ type: "message-annotation", subtype: "status", thought: `♻️ #${entry.id} ${entry.name}: reusing this file's already-fixed shared prefix (from an earlier entry) — mechanical attempt, no agent.` })
     const r = await tryMechanicalBank(candidate, entry, tryOpts)
+    if (r.lint) policyNote = r.lint
     if (r.ok) {
       emit({ type: "message-annotation", subtype: "status", thought: `✅ #${entry.id} ${entry.name}: banked via the cached fix — zero agent calls for this one.` })
       return { id: entry.id, outcome: "cached-mechanical" }
@@ -14090,7 +14199,7 @@ async function recurseOneEntry(entry, opts) {
     searchBudget: { remaining: 0, initial: 0 },
     emit,
     archangelUrl,
-    archangelOldRef: { old_id: oldId, old_export_names: qualifiedName, bare_name: bareName, repo_root: repoRoot, module_name: moduleName, corpus_names: corpusNames },
+    archangelOldRef: { old_id: oldId, old_export_names: qualifiedName, bare_name: bareName, repo_root: repoRoot, module_name: moduleName, corpus_names: corpusNames, policy_note: policyNote },
     maxAttempts: 2,
   }
   const result = await proveControl(oldTheoremText, archCtx, 2)
@@ -14104,6 +14213,14 @@ async function recurseOneEntry(entry, opts) {
     }
   }
   if (result.verified) {
+    // Both gates passed, but the tree's content lint has the last word on what
+    // is banked: a script it would refuse stays pending, with the reasons.
+    const lint = lintBankable(result.proof)
+    if (lint.length) {
+      emit({ type: "message-annotation", subtype: "error", thought: `⚖️ #${entry.id} ${entry.name}: verified by both gates, but the tree's content lint would refuse it (${lint.join("; ")}) — not banked, left pending with that reason.` })
+      await patchQueueEntry(source, { id: entry.id, unverified_reason: `content-lint: ${lint.join("; ")}` })
+      return { id: entry.id, outcome: "unbankable" }
+    }
     await patchQueueEntry(source, { id: entry.id, status: "verified", proof: result.proof })
     return { id: entry.id, outcome: "agentic" }
   }
