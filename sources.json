@@ -140,6 +140,918 @@
       "roots": [
         "Seymour"
       ]
+    },
+    "abc-exceptions": {
+      "label": "abc-exceptions",
+      "repo": "https://github.com/b-mehta/ABC-Exceptions",
+      "commit": "d8ace7bbaa232b2b3df40f1cbd8ff4b45eed16d3",
+      "toolchain": "leanprover/lean4:v4.21.0-rc3",
+      "roots": [
+        "ABCExceptions"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "add-combi": {
+      "label": "add-combi",
+      "repo": "https://github.com/leanprover-community/add-combi",
+      "commit": "2d061f437c1ba00ba9b16d7cba1c7603ba4807a4",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "AddCombi"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "aintlib": {
+      "label": "aintlib",
+      "repo": "https://github.com/CBirkbeck/AINTLIB",
+      "commit": "160e446617a2168c34c95bbe7a76c4105b392434",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "Common"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "aisafety-atlas": {
+      "label": "aisafety-atlas",
+      "repo": "https://github.com/mbrcic/ai-safety-formalization-atlas",
+      "commit": "a65e32f8047584686320a3013720624b5efa39ee",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "AISafetyAtlas"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "algolean": {
+      "label": "algolean",
+      "repo": "https://github.com/Shreyas4991/Algolean",
+      "commit": "f64556d69fd625f083f86304cb7b97a16852b657",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "Algolean",
+        "AlgoleanTests"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "anderson-conjecture": {
+      "label": "anderson-conjecture",
+      "repo": "https://github.com/frenzymath/Anderson-Conjecture",
+      "commit": "b8bd37b72ced46bb2d52fef583b8656a29019d3c",
+      "toolchain": "leanprover/lean4:v4.29.0-rc8",
+      "roots": [
+        "Anderson"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "apap": {
+      "label": "apap",
+      "repo": "https://github.com/YaelDillies/apap",
+      "commit": "ce27f3d432cf35d19c442223cbddceaa7e91c688",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "APAP"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "aperiodicmonotiles": {
+      "label": "aperiodicmonotiles",
+      "repo": "https://github.com/jsm28/AperiodicMonotilesLean",
+      "commit": "4f3ca4044650f0c1b62dafdddc27217252ecb8e1",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "AM"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "archon-firstproof-p6": {
+      "label": "archon-firstproof-p6",
+      "repo": "https://github.com/frenzymath/Archon-FirstProof-problem6-augmentation",
+      "commit": "8070ba0088146093e5bb57cbddade9b55bf84e67",
+      "toolchain": "leanprover/lean4:v4.28.0",
+      "roots": [
+        "FirstProof"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "archon-firstproof-results": {
+      "label": "archon-firstproof-results",
+      "repo": "https://github.com/frenzymath/Archon-FirstProof-Results",
+      "commit": "35550f2bc0a58289bbe2342a64f10a46ada0f52f",
+      "toolchain": "leanprover/lean4:v4.28.0",
+      "roots": [
+        "FirstProof"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "arklib": {
+      "label": "arklib",
+      "repo": "https://github.com/Verified-zkEVM/ArkLib",
+      "commit": "dca90385fb40dd5eb8da9145da6348ed17f5cd8b",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "ArkLib",
+        "ArkLibTest"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "automatatheory": {
+      "label": "automatatheory",
+      "repo": "https://github.com/ctchou/AutomataTheory",
+      "commit": "f196548710ce1ba8e7d4aa73b1cf846248ecfcb8",
+      "toolchain": "leanprover/lean4:v4.24.0-rc1",
+      "roots": [
+        "AutomataTheory"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "autth": {
+      "label": "autth",
+      "repo": "https://github.com/shetzl/autth",
+      "commit": "80d0a7f054b35c3dc687418f306982988e6fbf7f",
+      "toolchain": "leanprover/lean4:v4.12.0-rc1",
+      "roots": [
+        "autth"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "brownian-motion": {
+      "label": "brownian-motion",
+      "repo": "https://github.com/RemyDegenne/brownian-motion",
+      "commit": "314f04a34ff75e18fd383917ae7fe7d77beb1b6f",
+      "toolchain": "leanprover/lean4:v4.33.0-rc1",
+      "roots": [
+        "BrownianMotion"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "btc-verified": {
+      "label": "btc-verified",
+      "repo": "https://github.com/ProofOfKeags/btc-verified",
+      "commit": "653d27e118ab4bdf4de3df09f0c398f35a7410ba",
+      "toolchain": "leanprover/lean4:v4.30.0-rc2",
+      "roots": [
+        "BtcVerified"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "certifyinginvariantsnf": {
+      "label": "certifyinginvariantsnf",
+      "repo": "https://github.com/CBirkbeck/CertifyingInvariantsNF",
+      "commit": "f1392cbb63a41b51581e225951dd6f915ca4afbd",
+      "toolchain": "leanprover/lean4:v4.30.0-rc1",
+      "roots": [
+        "IdealArithmetic"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "chandra-furst-lipton": {
+      "label": "chandra-furst-lipton",
+      "repo": "https://github.com/YaelDillies/chandra-furst-lipton",
+      "commit": "7e89eb02cb3adeab5c70f84067d1463a5a1cbc98",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "ChandraFurstLipton"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "chebotarev-density": {
+      "label": "chebotarev-density",
+      "repo": "https://github.com/CBirkbeck/chebotarev-density",
+      "commit": "c64095e6cc6483b401849c7fd9182d983d3bf261",
+      "toolchain": "leanprover/lean4:v4.32.0-rc1",
+      "roots": [
+        "CebotarevDensity"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "classfieldtheory": {
+      "label": "classfieldtheory",
+      "repo": "https://github.com/YaelDillies/ClassFieldTheory",
+      "commit": "4262a7330f831441f157948562d35ccda32d3533",
+      "toolchain": "leanprover/lean4:v4.25.0-rc2",
+      "roots": [
+        "ClassFieldTheory"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "compply": {
+      "label": "compply",
+      "repo": "https://github.com/Verified-zkEVM/CompPoly",
+      "commit": "4ce69b905b618ad147e4d3a27ee0a841263d49a0",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "CompPoly"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "cvxlean": {
+      "label": "cvxlean",
+      "repo": "https://github.com/verified-optimization/CvxLean",
+      "commit": "c62c2f292c6420f31a12e738ebebdfed50f6f840",
+      "toolchain": "leanprover/lean4:v4.8.0-rc1",
+      "roots": [
+        "CvxLean"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "degiorgi": {
+      "label": "degiorgi",
+      "repo": "https://github.com/scottnarmstrong/DeGiorgi",
+      "commit": "4c1b3077d3782b24065184df4ba59501b2e56fc7",
+      "toolchain": "leanprover/lean4:v4.29.0-rc6",
+      "roots": [
+        "DeGiorgi"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "dirichletnonvanishing": {
+      "label": "dirichletnonvanishing",
+      "repo": "https://github.com/CBirkbeck/DirichletNonvanishing",
+      "commit": "fb3e6ac7ca97c2dbb5ee796c87d667af360e41af",
+      "toolchain": "leanprover/lean4:v4.13.0-rc3",
+      "roots": [
+        "Project"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "erdos1196": {
+      "label": "erdos1196",
+      "repo": "https://github.com/math-inc/Erdos1196",
+      "commit": "02fba13be7487cc51315f68d8fa7ef277633d3c8",
+      "toolchain": "leanprover/lean4:v4.30.0-rc1",
+      "roots": [
+        "PrimitiveSetsAboveX"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "evm-asm": {
+      "label": "evm-asm",
+      "repo": "https://github.com/Verified-zkEVM/evm-asm",
+      "commit": "7e65e4d024718f704226cd795f3d03d4e9aafe13",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "EvmAsm"
+      ],
+      "licence": "MIT"
+    },
+    "expdb": {
+      "label": "expdb",
+      "repo": "https://github.com/teorth/expdb",
+      "commit": "088040634e8300f87e80f431d8bdc38c42cc8e11",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "Expdb"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "flt-anthropic": {
+      "label": "flt-anthropic",
+      "repo": "https://github.com/anthropics/fermats-last-theorem",
+      "commit": "aa2d8b34692b16c70f699536de0d8e75b9a3e9ef",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "Theorems",
+        "Definitions"
+      ],
+      "licence": "Apache-2.0",
+      "tentative": [
+        "flt-anthropic-001.jsonl",
+        "flt-anthropic-002.jsonl",
+        "flt-anthropic-003.jsonl"
+      ]
+    },
+    "forbidden-matrix": {
+      "label": "forbidden-matrix",
+      "repo": "https://github.com/YaelDillies/forbidden-matrix",
+      "commit": "a938c04974d145131c446e8d488b834797ab6ed0",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "ForbiddenMatrix"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "formal-mathfin": {
+      "label": "formal-mathfin",
+      "repo": "https://github.com/formal-applied-math/formal-mathfin",
+      "commit": "9f8ec70949d72af1358444ce8f9056f0e82db3f6",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "MathFin"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "formalbook": {
+      "label": "formalbook",
+      "repo": "https://github.com/mo271/FormalBook",
+      "commit": "5f67ecf6b7dc2763b84bfc1d0111d4604410f49c",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "FormalBook"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "formalising-math-2024": {
+      "label": "formalising-math-2024",
+      "repo": "https://github.com/ImperialCollegeLondon/formalising-mathematics-2024",
+      "commit": "c4cfdc64d59c12e07e0c88d702bfe654d518c0bd",
+      "toolchain": "leanprover/lean4:v4.5.0-rc1",
+      "roots": [
+        "FormalisingMathematics2024"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "formalslt": {
+      "label": "formalslt",
+      "repo": "https://github.com/Robby955/FormalSLT",
+      "commit": "5e41e98ed3e1c270efe3089a4eb86ee6dd920995",
+      "toolchain": "leanprover/lean4:v4.32.2",
+      "roots": [
+        "FormalSLT"
+      ],
+      "licence": "MIT"
+    },
+    "foundation": {
+      "label": "foundation",
+      "repo": "https://github.com/FormalizedFormalLogic/Foundation",
+      "commit": "81810b9f22c49fbb32bd89c1e9737059d83a37e6",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "Foundation"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "frenzymath-reap": {
+      "label": "frenzymath-reap",
+      "repo": "https://github.com/frenzymath/reap",
+      "commit": "147743970d0061ae23783820b4723658064665b9",
+      "toolchain": "leanprover/lean4:v4.28.0-rc1",
+      "roots": [
+        "Reap"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "frontiermath-hypergraphs": {
+      "label": "frontiermath-hypergraphs",
+      "repo": "https://github.com/math-inc/FrontierMathOpen-Hypergraphs",
+      "commit": "0f5a301e61492e0751a9ed8a04dc946f706941a5",
+      "toolchain": "leanprover/lean4:v4.28.0",
+      "roots": [
+        "FrontierMathOpenHypergraphs"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "gibbs-measure": {
+      "label": "gibbs-measure",
+      "repo": "https://github.com/YaelDillies/gibbs-measure",
+      "commit": "70012e298f6e57410c6b00e972273f4bab37a378",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "GibbsMeasure"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "goldbach-tm": {
+      "label": "goldbach-tm",
+      "repo": "https://github.com/lengyijun/goldbach_tm",
+      "commit": "6cd292062516a0a14ea1b34f2ab75154cae7ab1e",
+      "toolchain": "leanprover/lean4:v4.14.0-rc2",
+      "roots": [
+        "GoldbachTm"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "groebner-proj": {
+      "label": "groebner-proj",
+      "repo": "https://github.com/WuProver/groebner_proj",
+      "commit": "fb6681985b9ebba0a74b2f57466ce2acba3f498e",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "Groebner"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "groebner-tactic": {
+      "label": "groebner-tactic",
+      "repo": "https://github.com/WuProver/GroebnerTactic",
+      "commit": "94c082b083d5c7995f3253be0c0ab61d59cabcc5",
+      "toolchain": "leanprover/lean4:v4.29.0-rc8",
+      "roots": [
+        "GroebnerTac"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "hausdorffschoollean": {
+      "label": "hausdorffschoollean",
+      "repo": "https://github.com/fpvandoorn/HausdorffSchoolLean",
+      "commit": "df1f295ee528dee88a26d22a6446c7cade7232f5",
+      "toolchain": "leanprover/lean4:v4.0.0",
+      "roots": [
+        "HausdorffSchool"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "hottlean": {
+      "label": "hottlean",
+      "repo": "https://github.com/sinhp/HoTTLean",
+      "commit": "31133dd5b25226ea897f8aa5e2e43b61392459eb",
+      "toolchain": "leanprover/lean4:v4.25.0-rc2",
+      "roots": [
+        "HoTTLean",
+        "test"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "htpi": {
+      "label": "htpi",
+      "repo": "https://github.com/djvelleman/HTPILeanPackage",
+      "commit": "0df4435fb0be652b90821f81b1cda252970b996a",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "HTPILib"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "ieantn": {
+      "label": "ieantn",
+      "repo": "https://github.com/teorth/IEANTN",
+      "commit": "0096280ba7440f268701abffe25ccf8f2c2389da",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "IEANTN"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "imoshortlist2024": {
+      "label": "imoshortlist2024",
+      "repo": "https://github.com/jsm28/IMOShortlist2024Lean",
+      "commit": "f8ae6af40c0595563108a45da5c6f84ad007272f",
+      "toolchain": "leanprover/lean4:v4.22.0-rc3",
+      "roots": [
+        "IMO"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "infinity-cosmos": {
+      "label": "infinity-cosmos",
+      "repo": "https://github.com/emilyriehl/infinity-cosmos",
+      "commit": "4e1d20ffded8cdcc7fb68ce8098996bbc27f4884",
+      "toolchain": "leanprover/lean4:v4.34.0-rc1",
+      "roots": [
+        "InfinityCosmos"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lean-characteristic-set": {
+      "label": "lean-characteristic-set",
+      "repo": "https://github.com/WuProver/lean_characteristic_set",
+      "commit": "8631b1326942799529814c4d319aef6813ea6e32",
+      "toolchain": "leanprover/lean4:v4.29.0-rc6",
+      "roots": [
+        "CharacteristicSet"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lean-logic-formalization": {
+      "label": "lean-logic-formalization",
+      "repo": "https://github.com/a2435191/lean-logic-formalization",
+      "commit": "52447ae389f594afa3ba82b9250c68ce300996bd",
+      "toolchain": "leanprover/lean4:v4.20.0-rc5",
+      "roots": [
+        "LogicFormalization"
+      ],
+      "licence": "MIT"
+    },
+    "lean-wasm": {
+      "label": "lean-wasm",
+      "repo": "https://github.com/T-Brick/lean-wasm",
+      "commit": "43b051f30b920e4d1253d83ae08b3dc83b4d6d88",
+      "toolchain": "leanprover/lean4:v4.25.0",
+      "roots": [
+        "Wasm"
+      ],
+      "licence": "GPL-3.0"
+    },
+    "lean4-analysis-tao": {
+      "label": "lean4-analysis-tao",
+      "repo": "https://github.com/vltanh/lean4-analysis-tao",
+      "commit": "bac39612b3745469e620212947a573eb91154166",
+      "toolchain": "leanprover/lean4:v4.29.0",
+      "roots": [
+        "Lean4AnalysisTao"
+      ],
+      "licence": "MIT"
+    },
+    "leanbridge": {
+      "label": "leanbridge",
+      "repo": "https://github.com/CBirkbeck/LeanBridge",
+      "commit": "4dffaca404780f5ec439bda834fbc90a891174c2",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "LeanBridge"
+      ],
+      "licence": "Apache-2.0",
+      "tentative": [
+        "leanbridge-001.jsonl",
+        "leanbridge-002.jsonl",
+        "leanbridge-003.jsonl",
+        "leanbridge-004.jsonl",
+        "leanbridge-005.jsonl",
+        "leanbridge-006.jsonl",
+        "leanbridge-007.jsonl",
+        "leanbridge-008.jsonl",
+        "leanbridge-009.jsonl",
+        "leanbridge-010.jsonl",
+        "leanbridge-011.jsonl",
+        "leanbridge-012.jsonl",
+        "leanbridge-013.jsonl",
+        "leanbridge-014.jsonl",
+        "leanbridge-015.jsonl"
+      ]
+    },
+    "leancamcombi": {
+      "label": "leancamcombi",
+      "repo": "https://github.com/YaelDillies/LeanCamCombi",
+      "commit": "bc161bb205d5ffb557dedce22290a0924771225a",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "CamCombi"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "leancourse24": {
+      "label": "leancourse24",
+      "repo": "https://github.com/fpvandoorn/LeanCourse24",
+      "commit": "db3b3f07a416cdea6730578dacda24921739d215",
+      "toolchain": "leanprover/lean4:v4.13.0-rc3",
+      "roots": [
+        "LeanCourse"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "leaneuclid": {
+      "label": "leaneuclid",
+      "repo": "https://github.com/loganrjmurphy/LeanEuclid",
+      "commit": "413f52deb59cef981a2d6d92e0437d0eee30d56f",
+      "toolchain": "leanprover/lean4:v4.19.0",
+      "roots": [
+        "Book",
+        "UniGeo"
+      ],
+      "licence": "MIT"
+    },
+    "leanforcontrol": {
+      "label": "leanforcontrol",
+      "repo": "https://github.com/AnandGokhale/LeanForControl",
+      "commit": "c5cedca904fe7b8168643c428b5cf5fd8b6ebf6d",
+      "toolchain": "leanprover/lean4:v4.30.0-rc2",
+      "roots": [
+        "LeanForControl"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "leangeo": {
+      "label": "leangeo",
+      "repo": "https://github.com/project-numina/LeanGeo",
+      "commit": "9212b89ef0cb08adb049b32f6332a1f2b9e551ab",
+      "toolchain": "leanprover/lean4:v4.15.0",
+      "roots": [
+        "Book",
+        "LeanGeo"
+      ],
+      "licence": "MIT"
+    },
+    "leanmodularforms": {
+      "label": "leanmodularforms",
+      "repo": "https://github.com/CBirkbeck/LeanModularForms",
+      "commit": "7c41b9b1747d47298f76bdb51f07031087702198",
+      "toolchain": "leanprover/lean4:v4.31.0-rc2",
+      "roots": [
+        "LeanModularForms"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "leanslt": {
+      "label": "leanslt",
+      "repo": "https://github.com/YuanheZ/lean-stat-learning-theory",
+      "commit": "d0f506f0a695018265dccb33bcb05e2f5ca1c876",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "SLT"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "leray-hopf": {
+      "label": "leray-hopf",
+      "repo": "https://github.com/uda-lab/leray-hopf",
+      "commit": "e704400f2fb2f26b2ee7f4372c3e1ecbbc82f3dc",
+      "toolchain": "leanprover/lean4:v4.31.0-rc2",
+      "roots": [
+        "LerayHopf"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "mean-fourier": {
+      "label": "mean-fourier",
+      "repo": "https://github.com/YaelDillies/mean-fourier",
+      "commit": "36975c9b7f20dbfc051b6907668954716ce1999d",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "MeanFourier"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "miller-rabin": {
+      "label": "miller-rabin",
+      "repo": "https://github.com/hanwenzhu/miller-rabin",
+      "commit": "4423f23973a42601a26185c4e8ce156d22596c85",
+      "toolchain": "leanprover/lean4:v4.22.0",
+      "roots": [
+        "MillerRabin"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "misc-yd": {
+      "label": "misc-yd",
+      "repo": "https://github.com/YaelDillies/misc-yd",
+      "commit": "338b7f4f07603fe386ec93c0b07cdd6fa23646a4",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "MiscYD"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "modformdims": {
+      "label": "modformdims",
+      "repo": "https://github.com/CBirkbeck/ModFormDims",
+      "commit": "10bab4895a034174685b04543886a8b090f80687",
+      "toolchain": "leanprover/lean4:v4.13.0-rc3",
+      "roots": [
+        "ModFormDims"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "monomial-ordered-polynomial": {
+      "label": "monomial-ordered-polynomial",
+      "repo": "https://github.com/WuProver/MonomialOrderedPolynomial",
+      "commit": "395c5f73357e6f8a377c97108ae8eb2123c4bfe1",
+      "toolchain": "leanprover/lean4:v4.29.0-rc8",
+      "roots": [
+        "MonomialOrderedPolynomial"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "padic-l-functions": {
+      "label": "padic-l-functions",
+      "repo": "https://github.com/CBirkbeck/padic-L-functions",
+      "commit": "45307015169791f1316f23a459c8e92ed5961c54",
+      "toolchain": "leanprover/lean4:v4.31.0-rc1",
+      "roots": [
+        "PadicLFunctions"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "physlib": {
+      "label": "physlib",
+      "repo": "https://github.com/leanprover-community/physlib",
+      "commit": "889c09c66fb5f3c4a27182a43cafbed9e00b9d0a",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "QuantumInfo",
+        "Physlib",
+        "PhyslibAlpha"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "polyfun": {
+      "label": "polyfun",
+      "repo": "https://github.com/Verified-zkEVM/PolyFun",
+      "commit": "31773b17a2c4c9d884c43cd34eb9365b2bb4deb9",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "PolyFunCslib",
+        "PolyFunTest",
+        "PolyFun",
+        "ToCslib"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "prismriver": {
+      "label": "prismriver",
+      "repo": "https://github.com/lenianiva/Prismriver",
+      "commit": "b54efbfaf259e9cf4d6186c8fb7998456821d568",
+      "toolchain": "leanprover/lean4:v4.28.0",
+      "roots": [
+        "Prismriver"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "qrcp-bounded-coherence": {
+      "label": "qrcp-bounded-coherence",
+      "repo": "https://github.com/frenzymath/qrcp-bounded-coherence-obstruction",
+      "commit": "9a6a1fb96d97d1e3eb0f81f34915e7c332176828",
+      "toolchain": "leanprover/lean4:v4.30.0-rc2",
+      "roots": [
+        "QRCPProof"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "quantumoptimization": {
+      "label": "quantumoptimization",
+      "repo": "https://github.com/urikol/QuantumOptimization",
+      "commit": "2f92a179f796b36a89ccdf858a83f96a0e7ac7d0",
+      "toolchain": "leanprover/lean4:v4.28.0",
+      "roots": [
+        "QuantumOptimization"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "scilean": {
+      "label": "scilean",
+      "repo": "https://github.com/lecopivo/SciLean",
+      "commit": "95f8119a2884e9c41f82136523bd5568ea7075c5",
+      "toolchain": "leanprover/lean4:v4.28.0-rc1",
+      "roots": [
+        "Test",
+        "SciLean"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "sendov": {
+      "label": "sendov",
+      "repo": "https://github.com/teorth/sendov",
+      "commit": "1ddea92d89f951a0a7cbbffa6c267cf7e6640b1d",
+      "toolchain": "leanprover/lean4:v4.34.0-rc1",
+      "roots": [
+        "Sendov"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "software-foundations-lean": {
+      "label": "software-foundations-lean",
+      "repo": "https://github.com/PnVDiscord/software-foundations-lean",
+      "commit": "bc5e4983350b7d15340f357a92764f00936a7dcf",
+      "toolchain": "leanprover/lean4:v4.21.0",
+      "roots": [
+        "SoftwareFoundations"
+      ],
+      "licence": "AGPL-3.0"
+    },
+    "sphere-eversion": {
+      "label": "sphere-eversion",
+      "repo": "https://github.com/leanprover-community/sphere-eversion",
+      "commit": "b914ed3c4c32d256747579d83a13342b0938fcd5",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "SphereEversion"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "sphere-packing-ext": {
+      "label": "sphere-packing-ext",
+      "repo": "https://github.com/math-inc/Sphere-Packing-Lean",
+      "commit": "1e98fb493088948ca7bbf47d7faed49cc5b39fc4",
+      "toolchain": "leanprover/lean4:v4.28.0",
+      "roots": [
+        "SpherePacking"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "statsmllib": {
+      "label": "statsmllib",
+      "repo": "https://github.com/Lean-MoDS/StatsMLlib",
+      "commit": "8e6661fe1d5abf0f56ed6b2b8ed0fda37cdc32a1",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "StatsMLlib"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "tao-analysis": {
+      "label": "tao-analysis",
+      "repo": "https://github.com/teorth/analysis",
+      "commit": "245b2e16e2501170cd3d2c234edf74d298dbdc60",
+      "toolchain": "leanprover/lean4:v4.29.0-rc8",
+      "roots": [
+        "Analysis"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "tauceti": {
+      "label": "tauceti",
+      "repo": "https://github.com/CBirkbeck/TauCeti",
+      "commit": "7b42845ff2c77548d51f3789ee9ae5cc9c2795d9",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "TauCeti"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "tautology": {
+      "label": "tautology",
+      "repo": "https://github.com/siqiliu-tsinghua/tautology",
+      "commit": "261012c7540673d59a4015371b7618b7573d43da",
+      "toolchain": "leanprover/lean4:v4.30.0",
+      "roots": [
+        "Tautology"
+      ],
+      "licence": "MIT"
+    },
+    "tnlean": {
+      "label": "tnlean",
+      "repo": "https://github.com/LionSR/TNLean",
+      "commit": "6380bb1d39803d845c01d27c6c8eb3b01331ed6a",
+      "toolchain": "leanprover/lean4:v4.34.0-rc1",
+      "roots": [
+        "TNLean"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "ttfpi": {
+      "label": "ttfpi",
+      "repo": "https://github.com/keilambda/ttfpi",
+      "commit": "ff7de8287d80c9e2f439e546d1edbe9c72315bf4",
+      "toolchain": "leanprover/lean4:v4.13.0",
+      "roots": [
+        "TTFPI"
+      ],
+      "licence": "BSD-3-Clause"
+    },
+    "uniform-sheafy-tate-domains": {
+      "label": "uniform-sheafy-tate-domains",
+      "repo": "https://github.com/CBirkbeck/uniform-sheafy-tate-domains-lean",
+      "commit": "2f45865e87d20dd460cc5a14d04850bf03be4570",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "Palomar"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "vcvio": {
+      "label": "vcvio",
+      "repo": "https://github.com/Verified-zkEVM/VCVio",
+      "commit": "6d5c7d502ad97f676293a84c3d364c518cbde117",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "VCVioTest",
+        "LatticeCrypto",
+        "Examples",
+        "VCVio",
+        "Extern",
+        "HashSig",
+        "Interop",
+        "HashSigTest",
+        "ToMathlib"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "verified-3d-mesh-intersection": {
+      "label": "verified-3d-mesh-intersection",
+      "repo": "https://github.com/schildep/verified-3d-mesh-intersection",
+      "commit": "c537025f69511110108acc9608dc1cdb19025057",
+      "toolchain": "leanprover/lean4:v4.15.0",
+      "roots": [
+        "CSG"
+      ],
+      "licence": "MIT"
+    },
+    "verified-polygon-intersection": {
+      "label": "verified-polygon-intersection",
+      "repo": "https://github.com/schildep/verified-polygon-intersection",
+      "commit": "26f5110a5b22cd1493d6a0ec5ce106f1e10cac1e",
+      "toolchain": "leanprover/lean4:v4.15.0",
+      "roots": [
+        "Polygons"
+      ],
+      "licence": "MIT"
+    },
+    "zflean": {
+      "label": "zflean",
+      "repo": "https://github.com/VTrelat/ZFLean",
+      "commit": "ae928234e7ed6b26241344ef4ba6d7cf98c0ed91",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "ZFLean"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "zkevm-clean": {
+      "label": "zkevm-clean",
+      "repo": "https://github.com/Verified-zkEVM/clean",
+      "commit": "93c9d1ef45be9f687214625d7857889cf2485504",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "Clean"
+      ],
+      "licence": "MIT"
+    },
+    "zklean": {
+      "label": "zklean",
+      "repo": "https://github.com/Verified-zkEVM/zkLean",
+      "commit": "eb17e501ba5b81ab77a20df52c590533e537657e",
+      "toolchain": "leanprover/lean4:v4.25.2",
+      "roots": [
+        "zkLean"
+      ],
+      "licence": "BSD-3-Clause"
     }
   }
 }

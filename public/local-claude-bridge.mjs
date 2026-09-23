@@ -13469,10 +13469,60 @@ function corpusImportsOf(repoRoot, moduleName, pfx) {
 // dependency on another member is often indirect (FreeMagma imports
 // Homomorphisms imports Magma), and looking only at direct imports put
 // FreeMagma ahead of Magma.
-const moduleSrcCache = new Map() // module -> source text
+// A module as scripts/expand-notations.lean rewrote it at setup (the corpus's
+// own notations expanded — see that file): the header, then commands tagged
+// `-- @@ L<start>-<end> <expanded|verbatim|unexpanded>`. Null when the source
+// was set up before that pass existed; the raw file is used then.
+const expandedCache = new Map()
+function readExpandedModule(repoRoot, m) {
+  const key = `${repoRoot}:${m}`
+  if (!expandedCache.has(key)) {
+    const p = join(GATE2_EXPORTS_DIR, sourceOfRepoRoot(repoRoot), `${m}.expanded.lean`)
+    if (!existsSync(p)) expandedCache.set(key, null)
+    else {
+      const header = []
+      const commands = []
+      let cur = null
+      for (const line of readFileSync(p, "utf8").split("\n")) {
+        const mk = line.match(/^-- @@ L(\d+)-(\d+) (expanded|verbatim|unexpanded)$/)
+        if (mk) {
+          cur = { start: Number(mk[1]), end: Number(mk[2]), kind: mk[3], lines: [] }
+          commands.push(cur)
+        } else if (cur) cur.lines.push(line)
+        else header.push(line)
+      }
+      expandedCache.set(key, { header: header.join("\n"), commands: commands.map((c) => ({ start: c.start, end: c.end, kind: c.kind, text: c.lines.join("\n") })) })
+    }
+  }
+  return expandedCache.get(key)
+}
+// The first `:=` at bracket depth zero splits a declaration into its header and body.
+function splitAtDefinition(text) {
+  const s = String(text || "")
+  let depth = 0
+  let inStr = false
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+    if (inStr) {
+      if (c === "\\") i++
+      else if (c === '"') inStr = false
+      continue
+    }
+    if (c === '"') inStr = true
+    else if ("([{⟨".includes(c)) depth++
+    else if (")]}⟩".includes(c)) depth = Math.max(0, depth - 1)
+    else if (depth === 0 && c === ":" && s[i + 1] === "=") return { statement: s.slice(0, i).replace(/\s+$/, ""), proof: s.slice(i).replace(/\s+$/, "") }
+  }
+  return null
+}
+const moduleSrcCache = new Map() // repoRoot:module -> source text (expanded when available)
 function readModuleSrc(repoRoot, m) {
-  if (!moduleSrcCache.has(m)) moduleSrcCache.set(m, readFileSync(modulePathOf(repoRoot, m), "utf8"))
-  return moduleSrcCache.get(m)
+  const key = `${repoRoot}:${m}`
+  if (!moduleSrcCache.has(key)) {
+    const ex = readExpandedModule(repoRoot, m)
+    moduleSrcCache.set(key, ex ? `${ex.header}\n${ex.commands.map((c) => c.text).join("\n")}` : readFileSync(modulePathOf(repoRoot, m), "utf8"))
+  }
+  return moduleSrcCache.get(key)
 }
 function orderModules(repoRoot, modules, pfx) {
   const order = []
@@ -13774,13 +13824,28 @@ function withEquations(prefixText, equations) {
 // rule) + the recorded statement + proof text.
 export async function reconstructOldTheoremText(repoRoot, entry) {
   const fileContent = readFileSync(join(repoRoot, entry.sourcePath), "utf8")
-  const rawPrefix = fileContent.split("\n").slice(0, entry.sourceLine - 1).join("\n")
   const rootName = deriveQualifiedName(fileContent, entry.sourceLine, String(entry.oldExportNames || entry.name || ""))
   const moduleName = moduleNameFromSourcePath(entry.sourcePath)
+  // With the module's expanded form on disk, the prefix is every command that
+  // ends above the target and the target is its own command's expanded text;
+  // otherwise the raw file up to the target's line and the recorded text.
+  let rawPrefix = fileContent.split("\n").slice(0, entry.sourceLine - 1).join("\n")
+  let statement = String(entry.oldStatement || "")
+  let proof = String(entry.oldProofText || "")
+  const expanded = readExpandedModule(repoRoot, moduleName)
+  if (expanded) {
+    rawPrefix = `${expanded.header}\n${expanded.commands.filter((c) => c.end < entry.sourceLine).map((c) => c.text).join("\n")}`
+    const own = expanded.commands.find((c) => c.start <= entry.sourceLine && entry.sourceLine <= c.end)
+    const split = own?.kind === "expanded" ? splitAtDefinition(own.text) : null
+    if (split) {
+      statement = split.statement
+      proof = split.proof
+    }
+  }
   // The candidate's own text (siblings pruned) is what the macro probe reads.
   const info0 = await corpusClosureInfo(repoRoot, moduleName)
   const reach0 = reachableCorpusNames(info0, rootName) || new Set(info0.names)
-  const probeText = `${pruneFilePrefix(rawPrefix, reach0)}\n${entry.oldStatement || ""}${entry.oldProofText || ""}`
+  const probeText = `${pruneFilePrefix(rawPrefix, reach0)}\n${statement}${proof}`
   const { text: preludeText, missing, equations, reach } = await modulePrelude(repoRoot, moduleName, rootName, probeText)
   const filePrefix = stripCorpusAttrs(pruneFilePrefix(rawPrefix, reach))
   const missingNote = missing.length
@@ -13789,7 +13854,7 @@ export async function reconstructOldTheoremText(repoRoot, entry) {
   // Linters are style policy, not toolchain drift, and Leak IV fails on any
   // warning — a `def` of a Prop, a deprecated alias — so they are off for
   // the whole candidate. The kernel check is untouched by this.
-  const target = `${stripCorpusAttrs(entry.oldStatement || "")}${entry.oldProofText || ""}`
+  const target = `${stripCorpusAttrs(statement)}${proof}`
   const { text: prefix, dropped } = pruneUnusedSyntax(
     `set_option linter.all false -- [Emissary] lints are not drift; the kernel decides\n\n${preludeText}${missingNote}-- [Emissary] ${entry.sourcePath}, everything before line ${entry.sourceLine} (imports stripped; sibling theorems the target does not use omitted)\n${filePrefix}\n\n`,
     target,

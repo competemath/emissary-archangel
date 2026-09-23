@@ -59,7 +59,8 @@ const INFRA = join(APP_ROOT, "infra", key)
 const REPO = src.corpusRoot ? resolve(APP_ROOT, src.corpusRoot) : join(INFRA, "repo")
 const EXPORTS = join(APP_ROOT, "data", "exports", key)
 const QUEUE = join(APP_ROOT, "data", src.queueFile || `queue-${key}.json`)
-const TENTATIVE = resolve(APP_ROOT, registry.tentativeDir || "../compete-math/tengoku/data/tentative", `${key}.jsonl`)
+// One tentative file per source, or several for a repo the harvester sharded (leanbridge-001…015).
+const TENTATIVE_FILES = (src.tentative || [`${key}.jsonl`]).map((f) => resolve(APP_ROOT, registry.tentativeDir || "../compete-math/tengoku/data/tentative", f))
 const TC_SLUG = src.toolchain.replace(/[^A-Za-z0-9.-]+/g, "_")
 const L4E_DIR = join(APP_ROOT, "infra", "lean4export", TC_SLUG)
 const L4E_BIN = join(L4E_DIR, ".lake", "build", "bin", "lean4export")
@@ -174,7 +175,7 @@ function seedQueue() {
     log(`queue exists: ${QUEUE} (${q.length} entries) — keeping it (--reseed to rebuild)`)
     return { entries: q, stats: null }
   }
-  if (!existsSync(TENTATIVE)) fail(`no tentative file at ${TENTATIVE}`)
+  for (const f of TENTATIVE_FILES) if (!existsSync(f)) fail(`no tentative file at ${f}`)
   const roots = new Set(src.roots)
   const seen = new Set()
   const fileCache = new Map()
@@ -190,7 +191,7 @@ function seedQueue() {
     return fileCache.get(p)
   }
   const entries = []
-  for (const raw of readFileSync(TENTATIVE, "utf8").split("\n")) {
+  for (const raw of TENTATIVE_FILES.flatMap((f) => readFileSync(f, "utf8").split("\n"))) {
     if (!raw.trim()) continue
     const r = JSON.parse(raw)
     stats.records++
@@ -391,6 +392,51 @@ async function exports(modules) {
   return failed
 }
 
+// ---- 6b. notation expansion -----------------------------------------------------
+// scripts/expand-notations.lean, under the corpus's own toolchain: each module
+// rewritten with the corpus's own notations expanded, so the text the bridge
+// pastes is free of them (the tree's content lint refuses notation and macro
+// declarations, and dropping a declaration breaks every use).
+const EXPAND_LEAN = join(APP_ROOT, "scripts", "expand-notations.lean")
+async function expand(modules) {
+  const todo = modules.filter((m) => !existsSync(join(EXPORTS, `${m}.expanded.lean`)))
+  log(`expand: ${todo.length} to do, ${modules.length - todo.length} present, concurrency ${CONCURRENCY}`)
+  const failed = []
+  const stats = { expanded: 0, verbatim: 0, unexpanded: 0 }
+  const chunks = []
+  for (let i = 0; i < todo.length; i += 8) chunks.push(todo.slice(i, i + 8))
+  const worker = async () => {
+    while (chunks.length) {
+      const chunk = chunks.shift()
+      try {
+        const { stdout } = await x("lake", ["env", "lean", "--run", EXPAND_LEAN, EXPORTS, src.roots.join(","), ...chunk], { cwd: REPO, env: ENV, maxBuffer: 64 * 1024 * 1024, timeout: 60 * 60 * 1000 })
+        for (const line of stdout.split("\n")) {
+          const [m, e, v, u] = line.split("\t")
+          if (m && u != null) {
+            stats.expanded += Number(e)
+            stats.verbatim += Number(v)
+            stats.unexpanded += Number(u)
+          }
+        }
+        for (const m of chunk) if (!existsSync(join(EXPORTS, `${m}.expanded.lean`))) failed.push([m, "no output"])
+      } catch (e) {
+        // One bad module must not take its chunk down: retry each alone.
+        for (const m of chunk) {
+          try {
+            await x("lake", ["env", "lean", "--run", EXPAND_LEAN, EXPORTS, src.roots.join(","), m], { cwd: REPO, env: ENV, maxBuffer: 64 * 1024 * 1024, timeout: 20 * 60 * 1000 })
+          } catch (e2) {
+            failed.push([m, (e2.stderr || e2.message || String(e2)).toString().slice(-300).replace(/\s+/g, " ")])
+          }
+        }
+      }
+      log(`expand: ${modules.length - chunks.length * 8 - todo.length + (todo.length - chunks.length * 8)} … ${chunks.length} chunks left, ${failed.length} failed`)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.max(1, CONCURRENCY) }, worker))
+  log(`expand: commands expanded ${stats.expanded}, verbatim ${stats.verbatim}, unexpanded ${stats.unexpanded}; ${failed.length} modules failed`)
+  return { failed, stats }
+}
+
 // ---- 7. cleanup -----------------------------------------------------------------
 async function cleanup() {
   if (KEEP_BUILD) return log("keeping the build (--keep-build)")
@@ -398,6 +444,14 @@ async function cleanup() {
   if (existsSync(lake)) {
     rmSync(lake, { recursive: true, force: true })
     log(`removed ${lake}`)
+  }
+  // Mathlib's cache tool keeps every downloaded archive under ~/.cache/mathlib;
+  // across a hundred libraries on different Mathlib commits that is hundreds of
+  // GB. A re-download costs minutes; the disk does not come back.
+  const mlcache = join(HOME, ".cache", "mathlib")
+  if (existsSync(mlcache)) {
+    rmSync(mlcache, { recursive: true, force: true })
+    log(`removed ${mlcache}`)
   }
   if (UNINSTALL_TC && !KEEP_TOOLCHAINS.has(src.toolchain)) {
     const r = await run("elan", ["toolchain", "uninstall", src.toolchain], { timeoutMs: 5 * 60 * 1000 })
@@ -423,6 +477,11 @@ async function main() {
   log(`${entries.length} entries in ${modules.length} modules`)
   if (ONLY === "seed") return
   if (ONLY !== "export") await build(modules)
+  const expansion = await expand(modules)
+  if (ONLY === "expand") {
+    await cleanup()
+    return log(`done ${key} (expand only): ${JSON.stringify(expansion.stats)}, ${expansion.failed.length} failed`)
+  }
   await ensureLean4export()
   await closures(modules)
   const failed = await exports(modules)
@@ -438,6 +497,7 @@ async function main() {
     modules: modules.length,
     exported: exported.length,
     failed: failed.map(([m, why]) => ({ module: m, why })),
+    expansion: { ...expansion.stats, failed: expansion.failed.map(([m, why]) => ({ module: m, why })) },
     seed: stats,
     exportsBytes: dirSize(EXPORTS),
     minutes: Math.round((Date.now() - t0) / 60000),
