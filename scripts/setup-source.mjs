@@ -17,7 +17,7 @@
 //                  removes a toolchain that is neither the tree's nor 4.29.1
 // Writes infra/<key>/setup.json with the counts. Re-runnable: finished steps are skipped.
 import { execFile, execFileSync, spawn } from "node:child_process"
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync, readdirSync, statSync } from "node:fs"
 import os from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -41,6 +41,7 @@ const flag = (name, dflt) => {
 // One Lean process at a time: each import of Mathlib is a few GB, and the resident
 // Leak services already hold theirs. Three at once pushed the machine into swap.
 const CONCURRENCY = Number(flag("concurrency", 1))
+const EXPORT_BATCH = Math.max(1, Number(flag("export-batch", 8)))
 const KEEP_BUILD = argv.includes("--keep-build")
 const RESEED = argv.includes("--reseed")
 const UNINSTALL_TC = argv.includes("--uninstall-toolchain")
@@ -307,14 +308,24 @@ async function build(modules) {
 
 // ---- 5. lean4export on this toolchain --------------------------------------------
 async function ensureLean4export() {
-  if (existsSync(L4E_BIN)) return log(`lean4export present: ${L4E_BIN}`)
+  // A build from before the --batch patch (scripts/patch-lean4export.py) is rebuilt: its exports would
+  // fall back to one process per module.
+  const batchable = existsSync(join(L4E_DIR, "Main.lean")) && readFileSync(join(L4E_DIR, "Main.lean"), "utf8").includes("runBatch")
+  if (existsSync(L4E_BIN) && batchable) return log(`lean4export present: ${L4E_BIN}`)
+  if (existsSync(L4E_BIN)) log(`lean4export at ${L4E_DIR} predates --batch: rebuilding`)
   const r = await run("bash", [join(APP_ROOT, "scripts", "build-lean4export.sh"), src.toolchain, L4E_DIR], { timeoutMs: 40 * 60 * 1000 })
   if (r.code !== 0 || !existsSync(L4E_BIN)) fail(`lean4export build for ${src.toolchain}: ${r.tail.slice(-600)}`)
 }
 
 // ---- 6. exports -----------------------------------------------------------------
 async function closures(modules) {
-  const todo = modules.filter((m) => !existsSync(join(EXPORTS, `${m}.names.json`)))
+  // A module the build did not produce would fail its whole batch (tnlean: one missing
+  // .olean sent 1,156 modules down the one-process-each path, a minute apiece). Skip
+  // those up front; the export step reports them as unbuilt.
+  const oleanOf = (m) => join(REPO, ".lake", "build", "lib", "lean", ...m.split(".")) + ".olean"
+  const unbuilt = new Set(modules.filter((m) => !existsSync(oleanOf(m))))
+  if (unbuilt.size) log(`closures: ${unbuilt.size} modules have no .olean — skipped: ${[...unbuilt].slice(0, 6).join(", ")}${unbuilt.size > 6 ? ", …" : ""}`)
+  const todo = modules.filter((m) => !unbuilt.has(m) && !existsSync(join(EXPORTS, `${m}.names.json`)))
   if (!todo.length) return log("closures: all present")
   // One process per root prefix (the closure is filtered by module prefix), all of its modules at once.
   const byPfx = new Map()
@@ -376,47 +387,76 @@ function writeClosureSections(stdout) {
 async function exports(modules) {
   const failed = []
   const todo = modules.filter((m) => !existsSync(join(EXPORTS, `${m}.ndjson`)))
-  log(`exports: ${todo.length} to do, ${modules.length - todo.length} present, concurrency ${CONCURRENCY}`)
+  log(`exports: ${todo.length} to do, ${modules.length - todo.length} present, batches of ${EXPORT_BATCH}, concurrency ${CONCURRENCY}`)
   let done = 0
+  const namesOf = (m) => {
+    const namesPath = join(EXPORTS, `${m}.names.json`)
+    return existsSync(namesPath) ? JSON.parse(readFileSync(namesPath, "utf8")).names : null
+  }
+  // The export is complete when it holds a declaration; then it takes its final name.
+  const finish = async (m) => {
+    const tmp = join(EXPORTS, `${m}.ndjson.tmp`)
+    const has = existsSync(tmp) && (await x("grep", ["-q", "-m1", "-E", '"(thm|def|inductive|axiom)"', tmp], { env: ENV }).then(() => true, () => false))
+    if (!has) {
+      try { rmSync(tmp, { force: true }) } catch { /* nothing to remove */ }
+      return false
+    }
+    renameSync(tmp, join(EXPORTS, `${m}.ndjson`))
+    return true
+  }
+  const exportOne = async (m, names) => {
+    const bytes = names.reduce((a, n) => a + n.length + 1, 0)
+    if (bytes > 900 * 1024) return failed.push([m, `closure too large for argv (${names.length} names)`])
+    try {
+      // --only-listed (scripts/patch-lean4export.py): the closure's own constants, not everything they
+      // reach in Mathlib. Streamed straight to the file: a Node string tops out around 512 MB, and
+      // one Sendov module's export was bigger than that.
+      const tmp = join(EXPORTS, `${m}.ndjson.tmp`)
+      const r = await runToFile("lake", ["env", L4E_BIN, m, "--only-listed", "--", ...names], tmp, { cwd: REPO, timeoutMs: 30 * 60 * 1000 })
+      if (r.code !== 0) throw new Error(`lean4export exited ${r.code}: ${r.tail.slice(-300)}`)
+      if (!(await finish(m))) throw new Error("lean4export produced no declarations")
+    } catch (e) {
+      try { rmSync(join(EXPORTS, `${m}.ndjson.tmp`), { force: true }) } catch { /* nothing to remove */ }
+      failed.push([m, (e.stderr || e.message || String(e)).toString().slice(-300).replace(/\s+/g, " ")])
+    }
+  }
   const worker = async () => {
     while (todo.length) {
-      const m = todo.shift()
-      const namesPath = join(EXPORTS, `${m}.names.json`)
-      if (!existsSync(namesPath)) {
-        failed.push([m, "no closure"])
-        continue
+      // Importing the environment is the whole cost of an export (tnlean: ~110 s per module for a
+      // dump of a few seconds): a batch imports the union of its modules once (--batch, see
+      // patch-lean4export.py). A batch that fails (two modules that cannot share an environment)
+      // falls back to one process per module.
+      const group = todo.splice(0, EXPORT_BATCH)
+      const members = []
+      for (const m of group) {
+        const names = namesOf(m)
+        if (!names) failed.push([m, "no closure"])
+        else members.push([m, names])
       }
-      const names = JSON.parse(readFileSync(namesPath, "utf8")).names
-      const bytes = names.reduce((a, n) => a + n.length + 1, 0)
-      if (bytes > 900 * 1024) {
-        failed.push([m, `closure too large for argv (${names.length} names)`])
-        continue
+      if (members.length) {
+        const listPath = join(EXPORTS, `.batch-${process.pid}-${Math.random().toString(36).slice(2)}.tsv`)
+        writeFileSync(listPath, members.map(([m, names]) => [m, join(EXPORTS, `${m}.ndjson.tmp`), ...names].join("\t")).join("\n") + "\n")
+        let r
+        try {
+          r = await run("lake", ["env", L4E_BIN, "--only-listed", `--batch=${listPath}`], { cwd: REPO, timeoutMs: 60 * 60 * 1000 })
+        } catch (e) {
+          r = { code: -1, tail: String(e) }
+        }
+        try { rmSync(listPath, { force: true }) } catch { /* nothing to remove */ }
+        if (r.code !== 0) log(`WARNING: export batch of ${members.length} exited ${r.code}: ${(r.tail || "").slice(-300).replace(/\s+/g, " ")} — one module per process`)
+        for (const [m, names] of members) {
+          if (r.code === 0 && (await finish(m))) continue
+          await exportOne(m, names)
+        }
       }
-      try {
-        // --only-listed (scripts/patch-lean4export.py): the closure's own constants, not everything they
-        // reach in Mathlib. Streamed straight to the file: a Node string tops out around 512 MB, and
-        // one Sendov module's export was bigger than that.
-        const tmp = join(EXPORTS, `${m}.ndjson.tmp`)
-        const r = await runToFile("lake", ["env", L4E_BIN, m, "--only-listed", "--", ...names], tmp, { cwd: REPO, timeoutMs: 30 * 60 * 1000 })
-        if (r.code !== 0) throw new Error(`lean4export exited ${r.code}: ${r.tail.slice(-300)}`)
-        const has = await x("grep", ["-q", "-m1", "-E", '"(thm|def|inductive|axiom)"', tmp], { env: ENV }).then(() => true, () => false)
-        if (!has) throw new Error("lean4export produced no declarations")
-        renameSync(tmp, join(EXPORTS, `${m}.ndjson`))
-      } catch (e) {
-        try { rmSync(join(EXPORTS, `${m}.ndjson.tmp`), { force: true }) } catch { /* nothing to remove */ }
-        failed.push([m, (e.stderr || e.message || String(e)).toString().slice(-300).replace(/\s+/g, " ")])
-      }
-      done++
-      if (done % 10 === 0 || !todo.length) log(`exports: ${done} done, ${todo.length} left, ${failed.length} failed`)
+      done += group.length
+      log(`exports: ${done} done, ${todo.length} left, ${failed.length} failed`)
     }
   }
   await Promise.all(Array.from({ length: Math.max(1, CONCURRENCY) }, worker))
   return failed
 }
 
-// Every module the bridge may paste: the entries' own, plus each of their
-// corpus closures' modules (Carleson.Defs carries no theorem and is pasted
-// under nearly every Carleson entry).
 function closureModules(modules) {
   const all = new Set(modules)
   for (const m of modules) {
@@ -437,9 +477,71 @@ function closureModules(modules) {
 // pastes is free of them (the tree's content lint refuses notation and macro
 // declarations, and dropping a declaration breaks every use).
 const EXPAND_LEAN = join(APP_ROOT, "scripts", "expand-notations.lean")
+// Every notation, macro or syntax the corpus declares: the modules declaring one are always
+// expanded (a `local` notation is usable only there), and a module can use a global one only if
+// every atom (string literal) of its declaration occurs in the text — identifier-like atoms as
+// whole tokens. Anything else needs no expansion: the bridge reads its raw source, which is what
+// an all-verbatim expansion is. Expansion re-elaborates every file (tnlean: 1 of its first 155
+// modules had anything to expand, minutes per chunk of 8; the filter keeps 89 of 1,227). Null
+// when a global declaration has no atom, in which case every module is expanded as before.
+const SYNTAX_DECL_RE = /^\s*(?:@\[[^\]]*\]\s*)*(?:(?:scoped(?:\[[^\]]*\])?|local)\s+)?(?:notation3?|macro|syntax|infixl?|infixr|prefix|postfix|elab)\b/
+const LOCAL_DECL_RE = /^\s*(?:@\[[^\]]*\]\s*)*local\s/
+const IDENT_ATOM_RE = /^[\p{L}\p{N}_'.₀-₉]+$/u
+function leanFilesUnder(dir) {
+  const out = []
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name)
+    if (e.isDirectory()) out.push(...leanFilesUnder(p))
+    else if (e.name.endsWith(".lean")) out.push(p)
+  }
+  return out
+}
+function corpusSyntax() {
+  const decls = []
+  const declaring = new Set()
+  for (const root of src.roots) {
+    const base = join(REPO, ...root.split("."))
+    const files = [base + ".lean", ...(existsSync(base) && statSync(base).isDirectory() ? leanFilesUnder(base) : [])]
+    for (const f of files) {
+      if (!existsSync(f)) continue
+      const lines = readFileSync(f, "utf8").split("\n")
+      let depth = 0
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        if (depth === 0 && !/^\s*--/.test(line) && SYNTAX_DECL_RE.test(line)) {
+          declaring.add(f)
+          let cmd = line
+          for (let j = i + 1; j < lines.length && /^\s+\S/.test(lines[j]); j++) cmd += "\n" + lines[j]
+          if (!LOCAL_DECL_RE.test(line)) {
+            const atoms = [...cmd.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((s) => s[1].trim()).filter(Boolean)
+            if (!atoms.length) return null
+            decls.push(atoms)
+          }
+        }
+        depth = Math.max(0, depth + (line.match(/\/-/g) || []).length - (line.match(/-\//g) || []).length)
+      }
+    }
+  }
+  return { decls, declaring }
+}
+function occurs(text, atom) {
+  if (!IDENT_ATOM_RE.test(atom)) return text.includes(atom)
+  return new RegExp(`(?<![\\p{L}\\p{N}_'.₀-₉])${atom.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}_'.₀-₉])`, "u").test(text)
+}
 async function expand(modules) {
-  const todo = modules.filter((m) => !existsSync(join(EXPORTS, `${m}.expanded.lean`)))
-  log(`expand: ${todo.length} to do, ${modules.length - todo.length} present, concurrency ${CONCURRENCY}`)
+  const syntax = corpusSyntax()
+  const mayUseNotation = (m) => {
+    if (syntax === null) return true
+    const p = join(REPO, ...m.split(".")) + ".lean"
+    if (!existsSync(p) || syntax.declaring.has(p)) return true
+    const text = readFileSync(p, "utf8")
+    return syntax.decls.some((atoms) => atoms.every((a) => occurs(text, a)))
+  }
+  const missing = modules.filter((m) => !existsSync(join(EXPORTS, `${m}.expanded.lean`)))
+  const todo = missing.filter(mayUseNotation)
+  log(
+    `expand: ${todo.length} to do, ${modules.length - missing.length} present, ${missing.length - todo.length} cannot use a corpus notation (${syntax ? syntax.decls.length : "?"} global syntax declarations, ${syntax ? syntax.declaring.size : "?"} declaring modules), concurrency ${CONCURRENCY}`,
+  )
   const failed = []
   const stats = { expanded: 0, verbatim: 0, unexpanded: 0 }
   const chunks = []

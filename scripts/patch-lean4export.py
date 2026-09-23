@@ -99,6 +99,48 @@ if "def decodeClosureName" not in mt:
     mt = mt.replace("def main (args : List String) : IO Unit := do", DECODER, 1)
     done.append("decodeClosureName")
 
+# 3. `--batch=<file>`: one import for many modules. Importing the environment is the whole
+# cost of an export (tnlean: ~110 s per module for a dump of a few seconds), so a batch
+# imports the union of its modules once and dumps each module's listed constants, from a
+# fresh exporter state, into its own file. Each line of the file: module, output path, names,
+# tab-separated. The single-module command line is unchanged.
+BATCH = '''/-- `--batch=<file>`: import the union of the listed modules once and dump each module's
+listed constants, with a fresh exporter state, into its own file (see patch-lean4export.py). -/
+def runBatch (file : String) (opts : List String) : IO Unit := do
+  let lines ← IO.FS.lines file
+  let groups := lines.toList.filterMap fun l =>
+    match l.splitOn "\\t" with
+    | mod :: out :: names => if mod.isEmpty || out.isEmpty then none else some (mod, out, names.filter (· ≠ ""))
+    | _ => none
+  let env ← importModules (groups.map fun (mod, _, _) => { module := decodeClosureName mod }).toArray {}
+  for (_, out, names) in groups do
+    let h ← IO.FS.Handle.mk out .write
+    let prev ← IO.setStdout (IO.FS.Stream.ofHandle h)
+    try
+      M.run env do
+        let _ ← initState env opts
+        let constants := names.map decodeClosureName
+        modify fun st => { st with onlyListed := true, listed := constants.foldl (·.insert ·) {} }
+        dumpMetadata
+        for c in constants do
+          modify (fun st => { st with noMDataExprs := {} })
+          dumpConstant c
+    finally
+      h.flush
+      let _ ← IO.setStdout prev
+
+def main (args : List String) : IO Unit := do'''
+BATCH_DISPATCH_ANCHOR = "  let (opts, args) := args.partition (fun s => s.startsWith \"--\" && s.length ≥ 3)\n"
+BATCH_DISPATCH = BATCH_DISPATCH_ANCHOR + '''  if let some b := opts.find? (·.startsWith "--batch=") then
+    return ← runBatch (String.mk (b.toList.drop 8)) opts
+'''
+if "--batch=" not in mt:
+    if mt.count("def main (args : List String) : IO Unit := do") != 1 or mt.count(BATCH_DISPATCH_ANCHOR) != 1:
+        sys.exit("lean4export: batch anchors not found — the patch needs updating for this commit")
+    mt = mt.replace("def main (args : List String) : IO Unit := do", BATCH, 1)
+    mt = mt.replace(BATCH_DISPATCH_ANCHOR, BATCH_DISPATCH, 1)
+    done.append("--batch mode")
+
 if THM_OLD in et:
     et = et.replace(THM_OLD, THM_NEW, 1)
     done.append("theorem values elided under --only-listed")
