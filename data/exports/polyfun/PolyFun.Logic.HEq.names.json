@@ -1,0 +1,1 @@
+{"names":["PolyFun.Logic.dependent_apply_heq","Prod.mk_heq"],"modules":["PolyFun.Logic.HEq"],"moduleOf":{"PolyFun.Logic.dependent_apply_heq":"PolyFun.Logic.HEq","Prod.mk_heq":"PolyFun.Logic.HEq"},"deps":{"PolyFun.Logic.dependent_apply_heq":[],"Prod.mk_heq":[]}}

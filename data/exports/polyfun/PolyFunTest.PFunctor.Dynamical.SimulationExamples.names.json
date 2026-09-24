@@ -1,0 +1,1 @@
+{"names":["PFunctor.selfSimulation","PFunctor.idSim"],"modules":["PolyFunTest.PFunctor.Dynamical.SimulationExamples"],"moduleOf":{"PFunctor.selfSimulation":"PolyFunTest.PFunctor.Dynamical.SimulationExamples","PFunctor.idSim":"PolyFunTest.PFunctor.Dynamical.SimulationExamples"},"deps":{"PFunctor.selfSimulation":[],"PFunctor.idSim":[]}}

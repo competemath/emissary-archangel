@@ -1,0 +1,223 @@
+/-
+Copyright (c) 2026 PolyFun Contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Devon Tuma
+-/
+module
+
+public import PolyFun.PFunctor.Lens.Basic
+import Batteries.Tactic.Lint
+
+
+-- @@ L11-38 verbatim
+/-!
+# The internal hom of the tensor product
+
+Following Spivak–Niu, *Polynomial Functors: A Mathematical Theory of Interaction*
+(§4.5, Ex 4.78), the tensor (parallel / Dirichlet) product `⊗` on `PFunctor` is
+closed: for each `q` the functor `- ⊗ q` has a right adjoint `ihom q -`, the
+**internal hom** `[q, r]`. Its positions are exactly the lenses `q ⇆ r`, and a
+direction at a lens `f` is a `q`-position together with an `r`-direction over its
+image:
+
+* `(ihom q r).A := Lens q r`;
+* `(ihom q r).B f := Σ j : q.A, r.B (f.toFunA j)`.
+
+The counit is the evaluation lens `eval : ihom q r ⊗ q ⇆ r`, and the adjunction
+is witnessed by the `curry` / `uncurry` bijection
+
+`Lens (p ⊗ q) r ≃ Lens p (ihom q r)`  (`curryEquiv`).
+
+This is the object VCVio's `WireK`/`ProbResponder` wiring hand-rolls: wiring a
+challenger against a responder is exactly closing over `eval`. Two special cases
+tie the hom back to existing structure: `[y, r] ≅ r` (`ihomY`, the tensor-unit
+law) and `(ihom q y).A = Lens q y = enclose q` — the positions of `[q, y]` are
+the handlers (sections) of `q`.
+
+Note this is a *different* object from `PFunctor.exp` (`P ^ Q`, Spivak–Niu §5.3),
+which is the cartesian exponential right-adjoint to the categorical product,
+not to `⊗`.
+-/
+
+
+-- @@ L40-40 verbatim
+@[expose] public section
+
+
+-- @@ L42-42 verbatim
+universe uA uB pA pB qA qA₁ qA₂ qB rA rB
+
+
+-- @@ L44-44 verbatim
+namespace PFunctor
+
+
+-- @@ L46-52 verbatim
+/-- The **internal hom** `[q, r]` of the tensor product (Spivak–Niu Ex 4.78):
+positions are the lenses `q ⇆ r`, and a direction at a lens `f` is a `q`-position
+`j` paired with an `r`-direction over `f.toFunA j`. -/
+def ihom (q : PFunctor.{qA, qB}) (r : PFunctor.{rA, rB}) :
+    PFunctor.{max qA qB rA rB, max qA rB} where
+  A := Lens q r
+  B f := Σ j : q.A, r.B (f.toFunA j)
+
+
+-- @@ L54-54 verbatim
+@[inherit_doc] scoped[PFunctor] 
+-- @@ L54-54 verbatim
+infixr:60 " ⊸ " => ihom
+
+
+-- @@ L56-56 verbatim
+namespace Lens
+
+
+-- @@ L58-59 verbatim
+variable {p : PFunctor.{pA, pB}} {q : PFunctor.{qA, qB}}
+  {r : PFunctor.{rA, rB}}
+
+
+-- @@ L61-67 verbatim
+/-- The evaluation (counit) lens `eval : ihom q r ⊗ q ⇆ r`: at a position
+`(f, j)` it exposes `f.toFunA j`, and pulls a direction `d : r.B (f.toFunA j)`
+back to the pair `(⟨j, d⟩, f.toFunB j d)`. -/
+def eval (q : PFunctor.{qA, qB}) (r : PFunctor.{rA, rB}) :
+    Lens (ihom q r ⊗ q) r :=
+  (fun (f, j) => f.toFunA j) ⇆
+    fun (f, j) d => (⟨j, d⟩, f.toFunB j d)
+
+
+-- @@ L69-73 verbatim
+/-- Currying: a lens `p ⊗ q ⇆ r` transposes to a lens `p ⇆ ihom q r`. This is
+the forward direction of the tensor–hom adjunction. -/
+def curry (φ : Lens (p ⊗ q) r) : Lens p (ihom q r) :=
+  (fun i => (fun j => φ.toFunA (i, j)) ⇆ (fun j d => (φ.toFunB (i, j) d).2)) ⇆
+    (fun i => fun ⟨j, d⟩ => (φ.toFunB (i, j) d).1)
+
+
+-- @@ L75-79 verbatim
+/-- Uncurrying: a lens `p ⇆ ihom q r` transposes to a lens `p ⊗ q ⇆ r`. Inverse
+to `curry`. -/
+def uncurry (ψ : Lens p (ihom q r)) : Lens (p ⊗ q) r :=
+  (fun (i, j) => (ψ.toFunA i).toFunA j) ⇆
+    fun (i, j) d => (ψ.toFunB i ⟨j, d⟩, (ψ.toFunA i).toFunB j d)
+
+
+-- @@ L81-87 verbatim
+/-- The tensor–hom adjunction as an equivalence of hom-sets:
+`Lens (p ⊗ q) r ≃ Lens p (ihom q r)`. -/
+def curryEquiv : Lens (p ⊗ q) r ≃ Lens p (ihom q r) where
+  toFun := curry
+  invFun := uncurry
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+
+-- @@ L89-89 verbatim
+@[simp] theorem uncurry_curry (φ : Lens (p ⊗ q) r) : uncurry (curry φ) = φ := rfl
+
+
+-- @@ L91-91 verbatim
+@[simp] theorem curry_uncurry (ψ : Lens p (ihom q r)) : curry (uncurry ψ) = ψ := rfl
+
+
+-- @@ L93-96 verbatim
+/-- Naturality of `eval` against a curried lens: evaluating a curried `φ` in
+parallel with the identity on `q` recovers `φ`. -/
+@[simp] theorem eval_comp_curry (φ : Lens (p ⊗ q) r) :
+    eval q r ∘ₗ (curry φ ⊗ₗ Lens.id q) = φ := rfl
+
+
+-- @@ L98-98 verbatim
+end Lens
+
+
+-- @@ L100-100 verbatim
+/-! ## Special cases tying the hom to existing structure -/
+
+
+-- @@ L102-108 verbatim
+/-- The tensor-unit law `[y, r] ≅ r`: a lens `y ⇆ r` is a position of `r`, and a
+direction of `[y, r]` at that lens is a direction of `r`. -/
+def ihomY (r : PFunctor.{uA, uB}) : ihom y r ≃ₗ r where
+  toLens := (fun f => f.toFunA PUnit.unit) ⇆ (fun _f d => ⟨PUnit.unit, d⟩)
+  invLens := Lens.fromY ⇆ fun _ ⟨_, d⟩ => d
+  left_inv := rfl
+  right_inv := rfl
+
+
+-- @@ L110-110 verbatim
+@[deprecated (since := "2026-08-17")] alias ihomX := ihomY
+
+
+-- @@ L112-115 verbatim
+/-- The positions of `[q, y]` are the sections (handlers) of `q`, i.e. the
+lenses `q ⇆ y = enclose q`. -/
+theorem ihom_y_A (q : PFunctor.{uA, uB}) :
+    (ihom q y.{uA, uB}).A = Lens q y.{uA, uB} := rfl
+
+
+-- @@ L117-117 verbatim
+@[deprecated (since := "2026-08-17")] alias ihom_X_A := ihom_y_A
+
+
+-- @@ L119-133 verbatim
+/-! ## The internal hom of a coproduct
+
+The internal hom turns a coproduct in its first argument into a categorical
+product: `[q₁ + q₂, r] ≅ [q₁, r] × [q₂, r]`. On positions this is the universal
+property of the coproduct, `Lens (q₁ + q₂) r ≃ Lens q₁ r × Lens q₂ r`; on
+directions the sigma `Σ j : q₁.A ⊕ q₂.A, r.B (f.toFunA j)` splits as the
+*coproduct* of the two direction sigmas (`Equiv.sumSigmaDistrib`), which matches
+the directions of the categorical product `*` (positions multiply, directions
+add). The target is therefore the categorical product `*`, not the tensor `⊗`:
+the tensor combines directions multiplicatively and does not match the
+coproduct-shaped fibers here. -/
+
+/- Lean 4.33 compares assigned metavariable types at implicit transparency;
+the coproduct-splitting equations below rewrite lenses stored as `ihom`
+positions, so `ihom` must unfold there for the rewrites to type-check. -/
+
+-- @@ L134-134 verbatim
+attribute [local implicit_reducible] ihom
+
+
+-- @@ L136-148 verbatim
+/-- The positions of `[q₁ + q₂, r]` split as a product: a lens `q₁ + q₂ ⇆ r` is
+exactly a pair of lenses `(q₁ ⇆ r, q₂ ⇆ r)`, by the universal property of the
+coproduct. This is the position component of `ihomSum`, and equally identifies
+the positions of the categorical-product form `ihom q₁ r * ihom q₂ r`. -/
+def ihomSumAEquiv (q₁ : PFunctor.{qA₁, qB}) (q₂ : PFunctor.{qA₂, qB})
+    (r : PFunctor.{rA, rB}) :
+    (ihom (PFunctor.sum q₁ q₂) r).A ≃ (ihom q₁ r).A × (ihom q₂ r).A where
+  toFun f := (f ∘ₗ Lens.inl, f ∘ₗ Lens.inr)
+  invFun p := Lens.sumPair p.1 p.2
+  left_inv f := Lens.comp_inl_inr f
+  right_inv p := by
+    obtain ⟨a, b⟩ := p
+    simp only [Lens.sumPair_comp_inl, Lens.sumPair_comp_inr]
+
+
+-- @@ L150-157 verbatim
+/-- The position bijection together with the fiber splitting, packaged as a
+`PFunctor.Equiv`: over a lens `f : q₁ + q₂ ⇆ r` the sigma of `r`-directions over
+`(q₁ + q₂).A` splits as the coproduct of the sigmas over `q₁.A` and `q₂.A`. -/
+def ihomSumPEquiv (q₁ : PFunctor.{qA₁, qB}) (q₂ : PFunctor.{qA₂, qB})
+    (r : PFunctor.{rA, rB}) :
+    ihom (PFunctor.sum q₁ q₂) r ≃ₚ PFunctor.prod (ihom q₁ r) (ihom q₂ r) where
+  equivA := ihomSumAEquiv q₁ q₂ r
+  equivB f := _root_.Equiv.sumSigmaDistrib (fun j => r.B (f.toFunA j))
+
+
+-- @@ L159-165 verbatim
+/-- The internal hom sends a coproduct in its first argument to a categorical
+product: `[q₁ + q₂, r] ≅ [q₁, r] × [q₂, r]`. This is the contravariant image of
+the coproduct's universal property under the tensor–hom adjunction. -/
+def ihomSum (q₁ : PFunctor.{qA₁, qB}) (q₂ : PFunctor.{qA₂, qB})
+    (r : PFunctor.{rA, rB}) :
+    ihom (PFunctor.sum q₁ q₂) r ≃ₗ PFunctor.prod (ihom q₁ r) (ihom q₂ r) :=
+  PFunctor.Equiv.toLensEquiv (ihomSumPEquiv q₁ q₂ r)
+
+
+-- @@ L167-167 verbatim
+end PFunctor

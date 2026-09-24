@@ -1,0 +1,207 @@
+/-
+Copyright (c) 2026 PolyFun Contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Quang Dao
+-/
+
+module
+
+public import PolyFun.PFunctor.Display.Basic
+public import PolyFun.PFunctor.Chart.Basic
+
+
+-- @@ L12-27 verbatim
+/-!
+# Displays as polynomial charts
+
+A display over `P` has a normalized total polynomial whose positions and
+directions are the total spaces of the displayed position and direction
+families. Projecting those total spaces gives a chart back to `P`.
+
+This is a comparison theorem, not the primary representation: keeping the
+fibers as `PFunctor.Display.position` and `PFunctor.Display.direction` avoids
+the equality transports required to recover them from an arbitrary chart.
+
+Conversely, `Display.ofChart f` takes the literal fibers of an arbitrary chart
+`f : Chart Q P`. Its displayed positions and directions therefore contain
+equality witnesses. Thus displays are a fiberwise normal form for charts into
+`P`, while a display is preferable when those fibers are the primitive data.
+-/
+
+
+-- @@ L29-29 verbatim
+@[expose] public section
+
+
+-- @@ L31-31 verbatim
+universe uA uB uC uD uA' uB'
+
+
+-- @@ L33-33 verbatim
+namespace PFunctor
+
+-- @@ L34-34 verbatim
+namespace Display
+
+
+-- @@ L36-36 verbatim
+variable {P : PFunctor.{uA, uB}}
+
+
+-- @@ L38-44 verbatim
+/-- The total polynomial of a display. Its positions pair a base position
+with a displayed position, and its directions pair a base direction with a
+displayed direction above it. -/
+def total (S : Display.{uA, uB, uC, uD} P) :
+    PFunctor.{max uA uC, max uB uD} where
+  A := Σ a, S.position a
+  B ac := Σ b, S.direction ac.1 ac.2 b
+
+
+-- @@ L46-49 verbatim
+@[simp]
+theorem total_A (S : Display.{uA, uB, uC, uD} P) :
+    S.total.A = (Σ a, S.position a) :=
+  rfl
+
+
+-- @@ L51-55 verbatim
+@[simp]
+theorem total_B (S : Display.{uA, uB, uC, uD} P)
+    (a : P.A) (c : S.position a) :
+    S.total.B ⟨a, c⟩ = (Σ b, S.direction a c b) :=
+  rfl
+
+
+-- @@ L57-60 verbatim
+/-- The chart forgetting displayed positions and directions. -/
+def forget (S : Display.{uA, uB, uC, uD} P) : Chart S.total P where
+  toFunA ac := ac.1
+  toFunB _ bd := bd.1
+
+
+-- @@ L62-66 verbatim
+@[simp]
+theorem forget_toFunA (S : Display.{uA, uB, uC, uD} P)
+    (a : P.A) (c : S.position a) :
+    S.forget.toFunA ⟨a, c⟩ = a :=
+  rfl
+
+
+-- @@ L68-73 verbatim
+@[simp]
+theorem forget_toFunB (S : Display.{uA, uB, uC, uD} P)
+    (a : P.A) (c : S.position a) (b : P.B a)
+    (d : S.direction a c b) :
+    S.forget.toFunB ⟨a, c⟩ ⟨b, d⟩ = b :=
+  rfl
+
+
+-- @@ L75-75 verbatim
+/-! ## Recovering fibers from a chart -/
+
+
+-- @@ L77-87 verbatim
+/-- The display whose positions and directions are the literal fibers of a
+chart into `P`.
+
+Unlike a primitive display, this representation carries equality witnesses
+and transports because the source polynomial was not originally presented as
+dependent fibers over `P`. -/
+def ofChart {Q : PFunctor.{uA', uB'}} (f : Chart Q P) :
+    Display.{uA, uB, uA', uB'} P where
+  position a := {q : Q.A // f.toFunA q = a}
+  direction _a q b :=
+    {d : Q.B q.1 // q.2 ▸ f.toFunB q.1 d = b}
+
+
+-- @@ L89-93 verbatim
+@[simp]
+theorem ofChart_position {Q : PFunctor.{uA', uB'}} (f : Chart Q P)
+    (a : P.A) :
+    (ofChart f).position a = {q : Q.A // f.toFunA q = a} :=
+  rfl
+
+
+-- @@ L95-100 verbatim
+@[simp]
+theorem ofChart_direction {Q : PFunctor.{uA', uB'}} (f : Chart Q P)
+    (a : P.A) (q : (ofChart f).position a) (b : P.B a) :
+    (ofChart f).direction a q b =
+      {d : Q.B q.1 // q.2 ▸ f.toFunB q.1 d = b} :=
+  rfl
+
+
+-- @@ L102-107 verbatim
+/-- Forget the equality witnesses in the total polynomial of the fiber display
+of a chart. -/
+def ofChartSource {Q : PFunctor.{uA', uB'}} (f : Chart Q P) :
+    Chart (ofChart f).total Q where
+  toFunA aq := aq.2.1
+  toFunB _ bd := bd.2.1
+
+
+-- @@ L109-114 verbatim
+/-- Present each source position and direction as an inhabitant of its literal
+fiber in `ofChart f`. -/
+def ofChartLift {Q : PFunctor.{uA', uB'}} (f : Chart Q P) :
+    Chart Q (ofChart f).total where
+  toFunA q := ⟨f.toFunA q, ⟨q, rfl⟩⟩
+  toFunB q d := ⟨f.toFunB q d, ⟨d, rfl⟩⟩
+
+
+-- @@ L116-120 verbatim
+@[simp]
+theorem ofChartSource_toFunA {Q : PFunctor.{uA', uB'}} (f : Chart Q P)
+    (a : P.A) (q : (ofChart f).position a) :
+    (ofChartSource f).toFunA ⟨a, q⟩ = q.1 :=
+  rfl
+
+
+-- @@ L122-127 verbatim
+@[simp]
+theorem ofChartSource_toFunB {Q : PFunctor.{uA', uB'}} (f : Chart Q P)
+    (a : P.A) (q : (ofChart f).position a) (b : P.B a)
+    (d : (ofChart f).direction a q b) :
+    (ofChartSource f).toFunB ⟨a, q⟩ ⟨b, d⟩ = d.1 :=
+  rfl
+
+
+-- @@ L129-133 verbatim
+@[simp]
+theorem ofChartLift_toFunA {Q : PFunctor.{uA', uB'}} (f : Chart Q P)
+    (q : Q.A) :
+    (ofChartLift f).toFunA q = ⟨f.toFunA q, ⟨q, rfl⟩⟩ :=
+  rfl
+
+
+-- @@ L135-139 verbatim
+@[simp]
+theorem ofChartLift_toFunB {Q : PFunctor.{uA', uB'}} (f : Chart Q P)
+    (q : Q.A) (d : Q.B q) :
+    (ofChartLift f).toFunB q d = ⟨f.toFunB q d, ⟨d, rfl⟩⟩ :=
+  rfl
+
+
+-- @@ L141-154 verbatim
+/-- The total polynomial of the literal fiber display of a chart is chart-
+equivalent to its source polynomial. This makes the fiber-normal-form claim
+precise. -/
+def ofChartEquiv {Q : PFunctor.{uA', uB'}} (f : Chart Q P) :
+    (ofChart f).total ≃c Q where
+  toChart := ofChartSource f
+  invChart := ofChartLift f
+  left_inv := by
+    ext ac bd <;> obtain ⟨a, q, hq⟩ := ac <;> cases hq
+    · rfl
+    · obtain ⟨b, d, hd⟩ := bd
+      cases hd
+      rfl
+  right_inv := rfl
+
+
+-- @@ L156-156 verbatim
+end Display
+
+-- @@ L157-157 verbatim
+end PFunctor

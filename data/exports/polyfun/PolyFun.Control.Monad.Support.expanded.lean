@@ -1,0 +1,1489 @@
+/-
+Copyright (c) 2026 PolyFun Contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Devon Tuma
+-/
+module
+
+public import PolyFun.Control.Monad.Algebra
+public import Mathlib.Data.Set.Functor
+public import Mathlib.Control.Monad.Writer
+
+
+-- @@ L12-63 verbatim
+/-!
+# Exact Monadic Support
+
+Lean core's `MonadAttach` already provides the notion this layer needs: a predicate
+`MonadAttach.CanReturn x a`, meaning `a` is a possible return value of `x`, together with
+`attach`, which decorates a computation's results with proofs of that predicate.
+`LawfulMonadAttach` further pins `CanReturn` down as *the* strongest postcondition. This
+file adds the missing half and the `Set`-valued view:
+
+* `ExactMonadAttach` — the *introduction* rules for `CanReturn`. Core proves only
+  elimination rules (`canReturn_bind_imp'`, `eq_of_canReturn_pure`, `canReturn_map_imp'`),
+  which bound the support from above. Those alone do not pin it down: the monad
+  `fun _ => PUnit` with `CanReturn := fun _ _ => False` satisfies `LawfulMonadAttach`
+  vacuously, since every core law is an implication *out of* `CanReturn`. Assuming the two
+  introduction rules turns each of core's implications into an equivalence, which is what
+  support reasoning actually rewrites with.
+* `MonadAttach.support x : Set α` — the `Set`-valued view of `CanReturn`, definitionally
+  the predicate itself, so `a ∈ support x ↔ CanReturn x a` is `Iff.rfl`.
+* The qualitative judgments `AllOutputs` ("always"), `SomeOutput`, and `NoOutput`
+  ("never"), with scoped notation `x ⊨ₐ p`, `x ⊨ₛ p`, and `x ⊭ p`.
+
+`ExactMonadAttach` extends `LawfulMonadAttach` rather than the weak class: that excludes
+`MonadAttach.trivial` (`CanReturn := fun _ _ => True`, i.e. `support = univ`), while the
+introduction rules exclude the empty model. Between them the support is exact.
+
+`AllOutputs` induces the demonic `Prop`-carrier ordered monad algebra `MAlgOrdered m Prop`,
+identifying "always" with the trivial-precondition Hoare triple
+(`triple_top_iff_allOutputs`); `SomeOutput` gives the angelic companion. Both
+algebras are named definitions rather than global instances: transformer
+algebras such as `MAlgOrdered.instOptionT` give failures a different meaning,
+so a generic global support instance would be incoherent with them.
+
+## Scope
+
+Support is a *value*-level notion here. Core states the limitation directly: `CanReturn`
+"neither depends on the prior internal state of the monad, nor does it contain information
+about how the state of the monad changes". Concretely, `StateT σ m` and `ReaderT ρ m` do
+have `MonadAttach` instances — quantifying existentially over the initial state — and those
+supports are canonical, so the elimination theory applies. But `ExactMonadAttach` is *false*
+for them: flattened premises may choose unrelated initial indices on the two sides of a
+`bind`. For `StateT` this can let the continuation observe a state the prefix did not
+produce; for `ReaderT` it can let the two premises use different environments. Reason about
+those per run instead, via
+`mem_support_stateT_iff` / `mem_support_readerT_iff`; `PolyFunTest` pins the failure with a
+counterexample. Oracle- and state-relative supports belong at the specification layer
+(`PolyFun.PFunctor.Free.WP`), which indexes the notion by a per-operation answer assignment.
+
+A second limitation is inherited from `MonadAttach`: obtaining an instance requires
+producing `attach`, which for continuation-passing monads is impossible to do
+non-trivially. CPS encodings such as `PolyFun.Control.Monad.FreeContT` therefore cannot be
+`ExactMonadAttach`, matching core's treatment of `StateCpsT` and `ExceptCpsT`.
+-/
+
+
+-- @@ L65-65 verbatim
+@[expose] public section
+
+
+-- @@ L67-67 verbatim
+universe u v w
+
+
+-- @@ L69-83 verbatim
+/-- A monad whose `MonadAttach.CanReturn` predicate is *exact*: besides being the strongest
+postcondition (`LawfulMonadAttach`), it is closed under the monad's introduction rules, so
+the possible outputs of `pure` and `bind` are exactly what one expects.
+
+Core assumes only the elimination direction of each law, which leaves `CanReturn` free to be
+uniformly `False`. These two fields rule that out; together with the `LawfulMonadAttach`
+parent — which rules out the uniformly-`True` model — they determine the support exactly. -/
+class ExactMonadAttach (m : Type u → Type v) [Monad m] [MonadAttach m]
+    extends LawfulMonadAttach m where
+  /-- A pure computation can return its own value. -/
+  canReturn_pure {α : Type u} (a : α) : MonadAttach.CanReturn (pure a : m α) a
+  /-- Possible outputs compose along `bind`. -/
+  canReturn_bind {α β : Type u} {x : m α} {f : α → m β} {a : α} {b : β} :
+    MonadAttach.CanReturn x a → MonadAttach.CanReturn (f a) b →
+      MonadAttach.CanReturn (x >>= f) b
+
+
+-- @@ L85-85 verbatim
+namespace MonadAttach
+
+
+-- @@ L87-87 verbatim
+variable {m : Type u → Type v} {α β : Type u}
+
+
+-- @@ L89-93 verbatim
+/-- The set of possible outputs of a monadic computation: the `Set`-valued view of
+`CanReturn`. Available for any `MonadAttach`; the structural equations are gated behind
+`ExactMonadAttach`. -/
+def support [MonadAttach m] (x : m α) : Set α :=
+  {a | CanReturn x a}
+
+
+-- @@ L95-99 verbatim
+/-- Membership in `support` is `CanReturn`, definitionally.
+
+Stated as a simp lemma because `Set.ofPred` and `Set.Mem` are `implicit_reducible`: `rfl`
+and `exact` see through them, but `simp`'s reducible-transparency discharge does not. -/
+@[simp, grind =]
+
+-- @@ L100-102 verbatim
+theorem mem_support [MonadAttach m] {x : m α} {a : α} :
+    a ∈ support x ↔ CanReturn x a :=
+  Iff.rfl
+
+
+-- @@ L104-129 verbatim
+/-! ### Automation contract
+
+Two normal forms, one per layer, chosen so the two do not fight:
+
+* **Membership normalizes to `CanReturn`.** `mem_support` is `@[simp, grind =]`, so
+  `a ∈ support x` becomes the atomic reachability predicate, and the per-monad
+  `canReturn_iff` lemmas take it the rest of the way to a concrete equation. Those
+  lemmas key on `CanReturn`, not on membership, precisely so that they extend the
+  chain rather than race `mem_support` for the same left-hand side.
+* **Set-level laws produce `support` terms.** `support_pure`, `support_bind`,
+  `support_map` are `@[simp]`, so a structural goal is first decomposed at the set
+  level and only then unfolded pointwise.
+
+`grind` tags go on the *directed, single-variable* bridges only: membership
+unfoldings and the closed-form supports of `pure`/`none`/`error`. The
+characterizations that quantify over the support — `support_eq_empty_iff`,
+`support_nonempty_iff`, and the `AllOutputs`/`SomeOutput` iffs — stay `@[simp]`-only.
+Those are saturation hazards: `grind` case-splits the iff, Skolemizes the support
+quantifier into a fresh witness, and the always-tagged `bind` expansions turn that
+witness back into more `support` terms with no finite grounding. A proof that needs
+one re-supplies it locally, as `grind [allOutputs_iff_forall_support]`.
+
+### Emptiness and branching
+
+These need no exactness: they are about the shape of the `Set`, not about how the
+monad's operations act on it. -/
+
+
+-- @@ L131-134 verbatim
+theorem support_eq_empty_iff [MonadAttach m] {x : m α} :
+    support x = ∅ ↔ ∀ a, ¬ CanReturn x a := by
+  rw [Set.eq_empty_iff_forall_notMem]
+  exact Iff.rfl
+
+
+-- @@ L136-138 verbatim
+theorem support_nonempty_iff [MonadAttach m] {x : m α} :
+    (support x).Nonempty ↔ ∃ a, CanReturn x a :=
+  Iff.rfl
+
+
+-- @@ L140-142 verbatim
+theorem not_mem_support_iff [MonadAttach m] {x : m α} {a : α} :
+    a ∉ support x ↔ ¬ CanReturn x a :=
+  Iff.rfl
+
+
+-- @@ L144-147 verbatim
+@[simp]
+theorem support_ite [MonadAttach m] (c : Prop) [Decidable c] (x y : m α) :
+    support (if c then x else y) = if c then support x else support y := by
+  split <;> rfl
+
+
+-- @@ L149-152 verbatim
+@[simp]
+theorem support_dite [MonadAttach m] (c : Prop) [Decidable c] (x : c → m α) (y : ¬ c → m α) :
+    support (if h : c then x h else y h) = if h : c then support (x h) else support (y h) := by
+  split <;> rfl
+
+
+-- @@ L154-154 verbatim
+section Laws
+
+
+-- @@ L156-156 verbatim
+variable [Monad m] [LawfulMonad m] [MonadAttach m] [ExactMonadAttach m]
+
+
+-- @@ L158-164 verbatim
+@[simp]
+theorem support_pure (b : α) : support (pure b : m α) = {b} := by
+  ext c
+  refine ⟨fun h => (LawfulMonadAttach.eq_of_canReturn_pure h).symm, fun h => ?_⟩
+  rw [Set.mem_singleton_iff] at h
+  subst h
+  exact ExactMonadAttach.canReturn_pure c
+
+
+-- @@ L166-173 verbatim
+@[simp]
+theorem support_bind (x : m α) (f : α → m β) :
+    support (x >>= f) = ⋃ a ∈ support x, support (f a) := by
+  ext b
+  simp only [Set.mem_iUnion]
+  refine ⟨fun h => ?_, fun ⟨a, ha, hb⟩ => ExactMonadAttach.canReturn_bind ha hb⟩
+  obtain ⟨a, ha, hb⟩ := LawfulMonadAttach.canReturn_bind_imp' h
+  exact ⟨a, ha, hb⟩
+
+
+-- @@ L175-176 verbatim
+theorem mem_support_pure {a b : α} : a ∈ support (pure b : m α) ↔ a = b := by
+  simp
+
+
+-- @@ L178-190 verbatim
+/-! #### The structural laws on `CanReturn`
+
+The same three equations keyed on the reachability predicate rather than on set
+membership. `support_pure`/`support_bind`/`support_map` decompose a goal at the set
+level; these finish it pointwise, and they are what makes `CanReturn` a usable normal
+form rather than a dead end. Core supplies only the elimination halves
+(`eq_of_canReturn_pure`, `canReturn_bind_imp'`, `canReturn_map_imp'`); the
+introduction halves are exactly `ExactMonadAttach`'s two fields, so the equivalences
+need both classes.
+
+Their orientation matches the corresponding `mem_support_*` lemmas, so the two routes
+through the simp set — unfold membership first, or rewrite the set first — converge on
+the same normal form instead of racing. -/
+
+
+-- @@ L192-192 verbatim
+@[simp, grind =]
+
+-- @@ L193-195 verbatim
+theorem canReturn_pure_iff {a b : α} : CanReturn (pure b : m α) a ↔ a = b :=
+  ⟨fun h => (LawfulMonadAttach.eq_of_canReturn_pure h).symm,
+    fun h => by subst h; exact ExactMonadAttach.canReturn_pure _⟩
+
+
+-- @@ L197-197 verbatim
+@[simp, grind =]
+
+-- @@ L198-201 verbatim
+theorem canReturn_bind_iff {x : m α} {f : α → m β} {b : β} :
+    CanReturn (x >>= f) b ↔ ∃ a, CanReturn x a ∧ CanReturn (f a) b :=
+  ⟨LawfulMonadAttach.canReturn_bind_imp',
+    fun ⟨_, ha, hb⟩ => ExactMonadAttach.canReturn_bind ha hb⟩
+
+
+-- @@ L203-203 verbatim
+@[simp, grind =]
+
+-- @@ L204-209 verbatim
+theorem canReturn_map_iff {g : α → β} {x : m α} {b : β} :
+    CanReturn (g <$> x) b ↔ ∃ a, CanReturn x a ∧ g a = b :=
+  ⟨LawfulMonadAttach.canReturn_map_imp',
+    fun ⟨a, ha, hab⟩ => hab ▸ by
+      rw [← bind_pure_comp]
+      exact ExactMonadAttach.canReturn_bind ha (ExactMonadAttach.canReturn_pure _)⟩
+
+
+-- @@ L211-213 verbatim
+theorem mem_support_bind {x : m α} {f : α → m β} {b : β} :
+    b ∈ support (x >>= f) ↔ ∃ a ∈ support x, b ∈ support (f a) := by
+  simp
+
+
+-- @@ L215-219 verbatim
+@[simp]
+theorem support_map (g : α → β) (x : m α) : support (g <$> x) = g '' support x := by
+  rw [← bind_pure_comp, support_bind]
+  ext b
+  simp [eq_comm]
+
+
+-- @@ L221-225 verbatim
+@[simp]
+theorem support_seq (f : m (α → β)) (x : m α) :
+    support (f <*> x) = ⋃ g ∈ support f, g '' support x := by
+  rw [seq_eq_bind_map, support_bind]
+  simp only [support_map]
+
+
+
+-- @@ L228-228 verbatim
+end Laws
+
+
+-- @@ L230-230 verbatim
+/-! ## Always / some / never output judgments -/
+
+
+-- @@ L232-241 verbatim
+/-- Every possible output of `x` satisfies `p` — the "always true" judgment.
+
+Stated over `CanReturn` rather than as a bounded quantifier over `support`, because the
+modality does not need to expose a `Set` in its interface. This makes the same shape easy
+to index when a flattened set of values is too coarse, as for `StateT`; the indexed
+carrier there is still the honest set of value/final-state pairs. The two unindexed
+spellings are definitionally interchangeable — `allOutputs_iff_forall_support` and
+`allOutputs_iff_forall_canReturn` are both `Iff.rfl` — so nothing downstream has to choose. -/
+def AllOutputs [MonadAttach m] (p : α → Prop) (x : m α) : Prop :=
+  ∀ a, CanReturn x a → p a
+
+
+-- @@ L243-246 verbatim
+/-- Some possible output of `x` satisfies `p`. The angelic half of the pair; see
+`AllOutputs` for why it is stated over `CanReturn`. -/
+def SomeOutput [MonadAttach m] (p : α → Prop) (x : m α) : Prop :=
+  ∃ a, CanReturn x a ∧ p a
+
+
+-- @@ L248-250 verbatim
+/-- No possible output of `x` satisfies `p` — the "never true" judgment. -/
+def NoOutput [MonadAttach m] (p : α → Prop) (x : m α) : Prop :=
+  AllOutputs (fun a => ¬ p a) x
+
+
+-- @@ L252-253 verbatim
+@[inherit_doc AllOutputs]
+scoped notation:50 x:51 " ⊨ₐ " p:51 => MonadAttach.AllOutputs p x
+
+
+-- @@ L255-256 verbatim
+@[inherit_doc SomeOutput]
+scoped notation:50 x:51 " ⊨ₛ " p:51 => MonadAttach.SomeOutput p x
+
+
+-- @@ L258-259 verbatim
+@[inherit_doc NoOutput]
+scoped notation:50 x:51 " ⊭ " p:51 => MonadAttach.NoOutput p x
+
+
+-- @@ L261-261 verbatim
+section Judgments
+
+
+-- @@ L263-263 verbatim
+variable [MonadAttach m]
+
+
+-- @@ L265-267 verbatim
+theorem allOutputs_iff_forall_support (p : α → Prop) (x : m α) :
+    AllOutputs p x ↔ ∀ a ∈ support x, p a :=
+  Iff.rfl
+
+
+-- @@ L269-271 verbatim
+theorem someOutput_iff_exists_support (p : α → Prop) (x : m α) :
+    SomeOutput p x ↔ ∃ a ∈ support x, p a :=
+  Iff.rfl
+
+
+-- @@ L273-275 verbatim
+theorem noOutput_iff_forall_support (p : α → Prop) (x : m α) :
+    NoOutput p x ↔ ∀ a ∈ support x, ¬ p a :=
+  Iff.rfl
+
+
+-- @@ L277-279 verbatim
+theorem allOutputs_iff_forall_canReturn (p : α → Prop) (x : m α) :
+    AllOutputs p x ↔ ∀ a, CanReturn x a → p a :=
+  Iff.rfl
+
+
+-- @@ L281-292 verbatim
+/-- `support` is the *equality instance* of the angelic judgment: a value is a possible
+output exactly when "some output equals it" holds.
+
+The two presentations of the layer meet here. `support` is the `Set`-valued carrier and
+`AllOutputs`/`SomeOutput` are the demonic and angelic modalities over it; this equation
+says nothing is lost by reading the carrier off the modality instead. The modality is the
+more flexible presentation: its shape can be indexed when a flattened set of values is
+too coarse, as in the `StateT` section below. It is also what the weakest-precondition
+bridge consumes: `MonadAttach.toWP` is built from `AllOutputs`, not from `support`. -/
+theorem support_eq_setOf_someOutput (x : m α) :
+    support x = {a | SomeOutput (· = a) x} :=
+  Set.ext fun a => ⟨fun ha => ⟨a, ha, rfl⟩, fun ⟨_, hb, hba⟩ => hba ▸ hb⟩
+
+
+-- @@ L294-298 verbatim
+/-- The angelic judgment at an equality predicate is membership in the support. The
+pointwise form of `support_eq_setOf_someOutput`. -/
+theorem someOutput_eq_iff_mem_support (x : m α) (a : α) :
+    SomeOutput (· = a) x ↔ a ∈ support x :=
+  ⟨fun ⟨_, hb, hba⟩ => hba ▸ hb, fun ha => ⟨a, ha, rfl⟩⟩
+
+
+-- @@ L300-302 verbatim
+theorem not_someOutput_iff_noOutput (p : α → Prop) (x : m α) :
+    ¬ SomeOutput p x ↔ NoOutput p x := by
+  simp [SomeOutput, NoOutput, AllOutputs]
+
+
+-- @@ L304-307 verbatim
+theorem allOutputs_and (p q : α → Prop) (x : m α) :
+    AllOutputs (fun a => p a ∧ q a) x ↔ AllOutputs p x ∧ AllOutputs q x :=
+  ⟨fun h => ⟨fun a ha => (h a ha).1, fun a ha => (h a ha).2⟩,
+    fun ⟨hp, hq⟩ a ha => ⟨hp a ha, hq a ha⟩⟩
+
+
+-- @@ L309-311 verbatim
+theorem allOutputs_mono {p q : α → Prop} (h : ∀ a, p a → q a) {x : m α}
+    (hx : AllOutputs p x) : AllOutputs q x :=
+  fun a ha => h a (hx a ha)
+
+
+-- @@ L313-315 verbatim
+theorem someOutput_mono {p q : α → Prop} (h : ∀ a, p a → q a) {x : m α}
+    (hx : SomeOutput p x) : SomeOutput q x :=
+  hx.imp fun a ⟨ha, hpa⟩ => ⟨ha, h a hpa⟩
+
+
+-- @@ L317-319 verbatim
+theorem noOutput_mono {p q : α → Prop} (h : ∀ a, q a → p a) {x : m α}
+    (hx : NoOutput p x) : NoOutput q x :=
+  fun a ha hqa => hx a ha (h a hqa)
+
+
+-- @@ L321-324 verbatim
+/-! #### Negation
+
+Classically, the pair is dual: the demonic judgment is the negation of the angelic one
+at the negated predicate, and conversely. Only one direction was available before. -/
+
+
+-- @@ L326-329 verbatim
+theorem not_allOutputs_iff (p : α → Prop) (x : m α) :
+    ¬ AllOutputs p x ↔ SomeOutput (fun a => ¬ p a) x := by
+  simp only [AllOutputs, SomeOutput, not_forall]
+  exact ⟨fun ⟨a, ha⟩ => ⟨a, by simpa using ha⟩, fun ⟨a, ha, hna⟩ => ⟨a, by simp [ha, hna]⟩⟩
+
+
+-- @@ L331-335 verbatim
+theorem not_noOutput_iff (p : α → Prop) (x : m α) :
+    ¬ NoOutput p x ↔ SomeOutput p x := by
+  rw [NoOutput, not_allOutputs_iff]
+  exact ⟨fun h => h.imp fun _ ⟨ha, hp⟩ => ⟨ha, not_not.mp hp⟩,
+    fun h => h.imp fun _ ⟨ha, hp⟩ => ⟨ha, not_not.mpr hp⟩⟩
+
+
+-- @@ L337-339 verbatim
+theorem someOutput_iff_not_noOutput (p : α → Prop) (x : m α) :
+    SomeOutput p x ↔ ¬ NoOutput p x :=
+  (not_noOutput_iff p x).symm
+
+
+-- @@ L341-343 verbatim
+theorem noOutput_iff_allOutputs_not (p : α → Prop) (x : m α) :
+    NoOutput p x ↔ AllOutputs (fun a => ¬ p a) x :=
+  Iff.rfl
+
+
+-- @@ L345-349 verbatim
+/-! #### Disjunction, conjunction, and monotonicity in the computation
+
+`allOutputs_and` was already available; these complete the square. Note the
+directions: the demonic judgment distributes over `∧` and only absorbs `∨`, and the
+angelic one is the mirror image. -/
+
+
+-- @@ L351-359 verbatim
+theorem someOutput_or (p q : α → Prop) (x : m α) :
+    SomeOutput (fun a => p a ∨ q a) x ↔ SomeOutput p x ∨ SomeOutput q x := by
+  constructor
+  · rintro ⟨a, ha, hp | hq⟩
+    · exact Or.inl ⟨a, ha, hp⟩
+    · exact Or.inr ⟨a, ha, hq⟩
+  · rintro (⟨a, ha, hp⟩ | ⟨a, ha, hq⟩)
+    · exact ⟨a, ha, Or.inl hp⟩
+    · exact ⟨a, ha, Or.inr hq⟩
+
+
+-- @@ L361-363 verbatim
+theorem allOutputs_or_of_left {p q : α → Prop} {x : m α} (h : AllOutputs p x) :
+    AllOutputs (fun a => p a ∨ q a) x :=
+  fun a ha => Or.inl (h a ha)
+
+
+-- @@ L365-367 verbatim
+theorem someOutput_and_left {p q : α → Prop} {x : m α}
+    (h : SomeOutput (fun a => p a ∧ q a) x) : SomeOutput p x :=
+  h.imp fun _ ⟨ha, hpq⟩ => ⟨ha, hpq.1⟩
+
+
+-- @@ L369-374 verbatim
+/-- Monotonicity in the *computation*, not the predicate: a demonic obligation
+transfers to anything with a smaller support. `allOutputs_mono` varies only the
+predicate. -/
+theorem allOutputs_of_support_subset {p : α → Prop} {x y : m α}
+    (hsub : support x ⊆ support y) (h : AllOutputs p y) : AllOutputs p x :=
+  fun a ha => h a (hsub ha)
+
+
+-- @@ L376-378 verbatim
+theorem someOutput_of_support_subset {p : α → Prop} {x y : m α}
+    (hsub : support x ⊆ support y) (h : SomeOutput p x) : SomeOutput p y :=
+  h.imp fun _ ⟨ha, hp⟩ => ⟨hsub ha, hp⟩
+
+
+-- @@ L380-382 verbatim
+@[simp]
+theorem allOutputs_true (x : m α) : AllOutputs (fun _ => True) x :=
+  fun _ _ => trivial
+
+
+-- @@ L384-386 verbatim
+@[simp]
+theorem someOutput_false_iff (x : m α) : SomeOutput (fun _ => False) x ↔ False := by
+  simp [SomeOutput]
+
+
+-- @@ L388-390 verbatim
+theorem allOutputs_congr {p q : α → Prop} (h : ∀ a, p a ↔ q a) (x : m α) :
+    AllOutputs p x ↔ AllOutputs q x :=
+  ⟨allOutputs_mono fun a => (h a).mp, allOutputs_mono fun a => (h a).mpr⟩
+
+
+-- @@ L392-394 verbatim
+theorem someOutput_congr {p q : α → Prop} (h : ∀ a, p a ↔ q a) (x : m α) :
+    SomeOutput p x ↔ SomeOutput q x :=
+  ⟨someOutput_mono fun a => (h a).mp, someOutput_mono fun a => (h a).mpr⟩
+
+
+-- @@ L396-396 verbatim
+end Judgments
+
+
+-- @@ L398-398 verbatim
+section JudgmentLaws
+
+
+-- @@ L400-400 verbatim
+variable [Monad m] [LawfulMonad m] [MonadAttach m] [ExactMonadAttach m]
+
+
+-- @@ L402-405 verbatim
+@[simp]
+theorem allOutputs_pure (p : α → Prop) (a : α) :
+    AllOutputs p (pure a : m α) ↔ p a := by
+  simp [AllOutputs]
+
+
+-- @@ L407-415 verbatim
+@[simp]
+theorem allOutputs_bind (p : β → Prop) (x : m α) (f : α → m β) :
+    AllOutputs p (x >>= f) ↔ ∀ a ∈ support x, AllOutputs p (f a) := by
+  constructor
+  · intro h a ha b hb
+    exact h b (mem_support_bind.mpr ⟨a, ha, hb⟩)
+  · intro h b hb
+    obtain ⟨a, ha, hb⟩ := mem_support_bind.mp hb
+    exact h a ha b hb
+
+
+-- @@ L417-420 verbatim
+@[simp]
+theorem someOutput_pure (p : α → Prop) (a : α) :
+    SomeOutput p (pure a : m α) ↔ p a := by
+  simp [SomeOutput]
+
+
+-- @@ L422-430 verbatim
+@[simp]
+theorem someOutput_bind (p : β → Prop) (x : m α) (f : α → m β) :
+    SomeOutput p (x >>= f) ↔ ∃ a ∈ support x, SomeOutput p (f a) := by
+  constructor
+  · rintro ⟨b, hb, hp⟩
+    obtain ⟨a, ha, hb⟩ := mem_support_bind.mp hb
+    exact ⟨a, ha, b, hb, hp⟩
+  · rintro ⟨a, ha, b, hb, hp⟩
+    exact ⟨b, mem_support_bind.mpr ⟨a, ha, hb⟩, hp⟩
+
+
+-- @@ L432-435 verbatim
+@[simp]
+theorem noOutput_pure (p : α → Prop) (a : α) :
+    NoOutput p (pure a : m α) ↔ ¬ p a := by
+  simp [NoOutput]
+
+
+-- @@ L437-440 verbatim
+@[simp]
+theorem noOutput_bind (p : β → Prop) (x : m α) (f : α → m β) :
+    NoOutput p (x >>= f) ↔ ∀ a ∈ support x, NoOutput p (f a) := by
+  simp [NoOutput]
+
+
+-- @@ L442-442 verbatim
+end JudgmentLaws
+
+
+-- @@ L444-450 verbatim
+/-! ## Induced ordered monad algebras on `Prop`
+
+`AllOutputs` is the demonic `Prop`-carrier ordered monad algebra: its induced
+`MAlgOrdered.wp` is the support-based weakest precondition, and the trivial-precondition
+triple is exactly the "always" judgment. The angelic companion built from `SomeOutput` is
+provided as a plain definition rather than an instance, since the two share an instance
+head. -/
+
+
+-- @@ L452-452 verbatim
+section PropAlgebra
+
+
+-- @@ L454-454 verbatim
+variable {m : Type → Type v} [Monad m] [LawfulMonad m] [MonadAttach m] [ExactMonadAttach m]
+
+-- @@ L455-455 verbatim
+variable {α : Type}
+
+
+-- @@ L457-469 verbatim
+/-- The demonic `Prop`-carrier ordered monad algebra of a monad with exact support:
+`μ` asserts that every possible output is a true proposition. This is deliberately
+not a global instance: for example, the existing `OptionT` algebra interprets
+`none` as `⊥`, whereas exact-support partial correctness interprets its empty
+support vacuously. Install this definition locally when support semantics is
+intended. -/
+@[instance_reducible]
+def mAlgOrderedPropDemonic : MAlgOrdered m Prop where
+  μ x := AllOutputs id x
+  μ_pure x := propext (allOutputs_pure id x)
+  μ_bind_mono f g hfg x := by
+    simp only [allOutputs_bind]
+    exact fun h a ha => hfg a (h a ha)
+
+
+-- @@ L471-471 verbatim
+attribute [local instance] mAlgOrderedPropDemonic
+
+
+-- @@ L473-479 verbatim
+/-- Support-based characterization of the demonic `Prop`-valued weakest precondition. -/
+theorem wp_iff_forall_support (x : m α) (post : α → Prop) :
+    MAlgOrdered.wp (l := Prop) x post ↔ ∀ a ∈ support x, post a := by
+  change AllOutputs id (x >>= fun a => pure (post a)) ↔ _
+  rw [allOutputs_bind]
+  exact ⟨fun h a ha => (allOutputs_pure id (post a)).mp (h a ha),
+    fun h a ha => (allOutputs_pure id (post a)).mpr (h a ha)⟩
+
+
+-- @@ L481-484 verbatim
+/-- The demonic `Prop`-valued weakest precondition is the "always" judgment. -/
+theorem wp_iff_allOutputs (x : m α) (post : α → Prop) :
+    MAlgOrdered.wp (l := Prop) x post ↔ AllOutputs post x :=
+  wp_iff_forall_support x post
+
+
+-- @@ L486-491 verbatim
+/-- The trivial-precondition `Prop`-valued triple is exactly the "always" judgment:
+`⊤`-precondition triples assert that every possible output satisfies `post`. -/
+theorem triple_top_iff_allOutputs (x : m α) (post : α → Prop) :
+    MAlgOrdered.Triple (l := Prop) ⊤ x post ↔ AllOutputs post x := by
+  rw [MAlgOrdered.Triple, top_le_iff, ← wp_iff_allOutputs x post]
+  exact ⟨fun h => h ▸ trivial, fun h => eq_true h⟩
+
+
+-- @@ L493-497 verbatim
+/-- The trivial-precondition `Prop`-valued triple against a negated postcondition is
+exactly the "never" judgment. -/
+theorem triple_top_not_iff_noOutput (x : m α) (post : α → Prop) :
+    MAlgOrdered.Triple (l := Prop) ⊤ x (fun a => ¬ post a) ↔ NoOutput post x :=
+  triple_top_iff_allOutputs x fun a => ¬ post a
+
+
+-- @@ L499-508 verbatim
+/-- The angelic `Prop`-carrier ordered monad algebra: `μ` asserts that some possible output
+is a true proposition. Not an instance — it shares an instance head with the demonic
+`mAlgOrderedPropDemonic`. -/
+@[instance_reducible]
+def mAlgOrderedPropAngelic : MAlgOrdered m Prop where
+  μ x := SomeOutput id x
+  μ_pure x := propext (someOutput_pure id x)
+  μ_bind_mono f g hfg x := by
+    simp only [someOutput_bind]
+    exact fun ⟨a, ha, h⟩ => ⟨a, ha, hfg a h⟩
+
+
+-- @@ L510-510 verbatim
+section Angelic
+
+
+-- @@ L512-512 verbatim
+attribute [local instance] mAlgOrderedPropAngelic
+
+
+-- @@ L514-521 verbatim
+/-- Support-based characterization of the angelic `Prop`-valued weakest precondition —
+the mirror of `wp_iff_forall_support`. -/
+theorem wp_angelic_iff_exists_support (x : m α) (post : α → Prop) :
+    MAlgOrdered.wp (l := Prop) x post ↔ ∃ a ∈ support x, post a := by
+  change SomeOutput id (x >>= fun a => pure (post a)) ↔ _
+  rw [someOutput_bind]
+  exact ⟨fun ⟨a, ha, h⟩ => ⟨a, ha, (someOutput_pure id (post a)).mp h⟩,
+    fun ⟨a, ha, h⟩ => ⟨a, ha, (someOutput_pure id (post a)).mpr h⟩⟩
+
+
+-- @@ L523-526 verbatim
+/-- The angelic `Prop`-valued weakest precondition is the "sometimes" judgment. -/
+theorem wp_angelic_iff_someOutput (x : m α) (post : α → Prop) :
+    MAlgOrdered.wp (l := Prop) x post ↔ SomeOutput post x :=
+  wp_angelic_iff_exists_support x post
+
+
+-- @@ L528-533 verbatim
+/-- The trivial-precondition angelic triple is exactly the "sometimes" judgment — the
+mirror of `triple_top_iff_allOutputs`. -/
+theorem triple_top_iff_someOutput (x : m α) (post : α → Prop) :
+    MAlgOrdered.Triple (l := Prop) ⊤ x post ↔ SomeOutput post x := by
+  rw [MAlgOrdered.Triple, top_le_iff, ← wp_angelic_iff_someOutput x post]
+  exact ⟨fun h => h ▸ trivial, fun h => eq_true h⟩
+
+
+-- @@ L535-539 verbatim
+/-- Against a negated postcondition the angelic triple says that the demonic guarantee
+does not hold. -/
+theorem triple_top_not_iff_not_allOutputs (x : m α) (post : α → Prop) :
+    MAlgOrdered.Triple (l := Prop) ⊤ x (fun a => ¬ post a) ↔ ¬ AllOutputs post x := by
+  rw [triple_top_iff_someOutput, ← not_allOutputs_iff]
+
+
+-- @@ L541-541 verbatim
+end Angelic
+
+
+-- @@ L543-543 verbatim
+end PropAlgebra
+
+
+-- @@ L545-567 verbatim
+/-! ## Recovering the `MonadLiftT` presentation
+
+`MonadAttach` is the canonical interface for reachability here: it is core's, it carries
+a lawfulness hierarchy, and core supplies instances for the transformers this library
+cares about. The `MonadLiftT m SetM` spelling below is a **compatibility shim for a
+downstream still phrased that way**, not the recommended API — register it locally when
+migrating, rather than building against it.
+
+Two things this does *not* say. `SetM` remains perfectly good as a **carrier**:
+`support : Set α` is unchanged, and `PFunctor.FreeM.support_eq_liftM_univ` — which
+genuinely folds into `SetM` as a monad — stays. What is being demoted is the lift as an
+*interface*. And unlike the probability layer's `PMF` retirement, there is no upstream
+force here: `SetM` is not being deprecated by Mathlib. This is a project standardizing
+on core's vocabulary, nothing more.
+
+One concrete argument for the direction, which is otherwise recorded nowhere:
+`support_eq_liftM_univ` is restricted to `{γ : Type uB}`, because `FreeM.liftM` pins the
+payload universe to the *direction* universe. `MonadAttach.support` on `FreeM P` carries
+no such restriction. The attach-based presentation is strictly more universe-polymorphic
+than the fold.
+
+The two declarations are deliberately not instances, so that support reasoning does not
+perturb monad-lift instance search. -/
+
+
+-- @@ L569-573 verbatim
+/-- The support map as a monad lift into `SetM`. Not an instance. -/
+@[instance_reducible]
+def toMonadLiftT (m : Type u → Type v) [MonadAttach m] :
+    MonadLiftT m SetM where
+  monadLift x := (support x : SetM _)
+
+
+-- @@ L575-582 verbatim
+/-- The support lift is lawful. Not an instance. -/
+theorem toLawfulMonadLiftT (m : Type u → Type v) [Monad m] [LawfulMonad m] [MonadAttach m]
+    [ExactMonadAttach m] :
+    letI := toMonadLiftT m
+    LawfulMonadLiftT m SetM :=
+  letI := toMonadLiftT m
+  { monadLift_pure := fun a => support_pure a
+    monadLift_bind := fun x f => support_bind x f }
+
+
+-- @@ L584-595 verbatim
+/-! ## Transport along a monad lift
+
+Core proves the elimination half — lifting cannot *create* possible outputs — so a
+lift can only shrink the support, and a demonic obligation therefore transfers along
+it for free.
+
+The introduction half is **not** available generically, and cannot be: nothing in
+`MonadLiftT` or its lawfulness class says the lift preserves reachability, and a lift
+into a monad whose `CanReturn` is uniformly `False` satisfies every law while losing
+every output. A caller that needs `support (liftM x) = support x` must supply that
+equation for its particular lift; `FreeM`'s powerset fold
+(`PFunctor.FreeM.support_eq_liftM_univ`) is the worked instance. -/
+
+
+-- @@ L597-597 verbatim
+section Transport
+
+
+-- @@ L599-599 verbatim
+variable {m : Type u → Type v} {n : Type u → Type w} {α : Type u}
+
+-- @@ L600-600 verbatim
+variable [Monad m] [LawfulMonad m] [MonadAttach m] [LawfulMonadAttach m]
+
+-- @@ L601-601 verbatim
+variable [Monad n] [LawfulMonad n] [MonadAttach n] [LawfulMonadAttach n]
+
+-- @@ L602-602 verbatim
+variable [MonadLiftT m n] [LawfulMonadLiftT m n]
+
+
+-- @@ L604-607 verbatim
+/-- Lifting cannot create possible outputs. The set form of core's
+`LawfulMonadAttach.canReturn_liftM_imp'`. -/
+theorem support_liftM_subset (x : m α) : support (liftM x : n α) ⊆ support x :=
+  fun _ h => LawfulMonadAttach.canReturn_liftM_imp' h
+
+
+-- @@ L609-614 verbatim
+/-- A demonic guarantee survives lifting: the lifted computation has no outputs the
+original did not have, so a property of all of the original's outputs holds of all of
+the lift's. -/
+theorem allOutputs_liftM {p : α → Prop} {x : m α} (h : AllOutputs p x) :
+    AllOutputs p (liftM x : n α) :=
+  fun a ha => h a (support_liftM_subset x ha)
+
+
+-- @@ L616-619 verbatim
+/-- Dually, an angelic fact about the lift transfers back to the original. -/
+theorem someOutput_of_someOutput_liftM {p : α → Prop} {x : m α}
+    (h : SomeOutput p (liftM x : n α)) : SomeOutput p x :=
+  h.imp fun _ ⟨ha, hp⟩ => ⟨support_liftM_subset x ha, hp⟩
+
+
+-- @@ L621-624 verbatim
+/-- And a "never" guarantee survives lifting. -/
+theorem noOutput_liftM {p : α → Prop} {x : m α} (h : NoOutput p x) :
+    NoOutput p (liftM x : n α) :=
+  fun a ha => h a (support_liftM_subset x ha)
+
+
+-- @@ L626-626 verbatim
+end Transport
+
+
+-- @@ L628-632 verbatim
+/-! ## Base instances
+
+Core supplies `MonadAttach` and `LawfulMonadAttach` for `Id`, `Option`, `OptionT`,
+`ExceptT`, `StateT`, and `ReaderT`; only the exactness fields are needed here. `Except` and
+`SetM` have no core instance and are supplied below. -/
+
+
+-- @@ L634-634 verbatim
+section Instances
+
+
+-- @@ L636-643 verbatim
+/-- Core provides no `MonadAttach (Except ε)` at this pin, only the transformer version; this
+mirrors core's `Option` instance. An identical declaration has landed upstream and ships in
+Lean v4.35, so delete this instance and the one below it at that toolchain bump. -/
+instance instMonadAttachExcept {ε : Type u} : MonadAttach (Except ε) where
+  CanReturn x a := x = Except.ok a
+  attach
+    | .ok a => .ok ⟨a, rfl⟩
+    | .error e => .error e
+
+
+-- @@ L645-650 verbatim
+instance instLawfulMonadAttachExcept {ε : Type u} : LawfulMonadAttach (Except ε) where
+  map_attach {_ x} := by cases x <;> rfl
+  canReturn_map_imp {_ _ x _} h := by
+    cases x with
+    | error e => cases h
+    | ok z => cases h; exact z.2
+
+
+-- @@ L652-657 verbatim
+/-- Core's `MonadAttach (ExceptT ε m)` is stated at `max`-joined universes, which blocks
+synthesis in a universe-polymorphic context; this alias instantiates it at a single
+universe. Delete once the upstream declaration is repaired. -/
+instance instMonadAttachExceptT {ε : Type u} {m : Type u → Type v} [Monad m]
+    [MonadAttach m] : MonadAttach (ExceptT ε m) :=
+  instMonadAttachExceptTOfMonad.{u, u, v}
+
+
+-- @@ L659-662 verbatim
+/-- The powerset monad is its own support. -/
+instance instMonadAttachSetM : MonadAttach SetM where
+  CanReturn s a := a ∈ SetM.run s
+  attach _ := (Set.univ : Set _)
+
+
+-- @@ L664-671 verbatim
+instance instLawfulMonadAttachSetM : LawfulMonadAttach SetM where
+  map_attach {_ x} := by
+    change Subtype.val '' (Set.univ : Set {a // a ∈ SetM.run x}) = x
+    ext a
+    simp [SetM.run]
+  canReturn_map_imp {_ _ _ _} h := by
+    obtain ⟨z, -, hz⟩ := h
+    exact hz ▸ z.2
+
+
+-- @@ L673-678 verbatim
+instance instExactMonadAttachId : ExactMonadAttach Id where
+  canReturn_pure _ := rfl
+  canReturn_bind h h' := by
+    simp only [CanReturn, Id.run] at *
+    subst h
+    exact h'
+
+
+-- @@ L680-685 verbatim
+instance instExactMonadAttachOption : ExactMonadAttach Option where
+  canReturn_pure _ := rfl
+  canReturn_bind {_ _ _ _ _ _} h h' := by
+    simp only [CanReturn] at *
+    subst h
+    simpa using h'
+
+
+-- @@ L687-689 verbatim
+instance instExactMonadAttachExcept {ε : Type u} : ExactMonadAttach (Except ε) where
+  canReturn_pure _ := rfl
+  canReturn_bind ha hb := by cases ha; exact hb
+
+
+-- @@ L691-693 verbatim
+instance instExactMonadAttachSetM : ExactMonadAttach SetM where
+  canReturn_pure _ := rfl
+  canReturn_bind {_ _ _ _ a _} ha hb := Set.mem_iUnion.mpr ⟨a, Set.mem_iUnion.mpr ⟨ha, hb⟩⟩
+
+
+-- @@ L695-695 verbatim
+variable {m : Type u → Type v} [Monad m] [LawfulMonad m] [MonadAttach m] [ExactMonadAttach m]
+
+
+-- @@ L697-709 verbatim
+instance instExactMonadAttachOptionT : ExactMonadAttach (OptionT m) where
+  canReturn_pure {α} a := by
+    change CanReturn ((pure a : OptionT m α)).run (some a)
+    rw [OptionT.run_pure]
+    exact ExactMonadAttach.canReturn_pure _
+  canReturn_bind {α β x f a b} h h' := by
+    change CanReturn ((x >>= f : OptionT m β)).run (some b)
+    have hrun : ((x >>= f : OptionT m β)).run = x.run >>= fun o =>
+        match o with
+        | some c => (f c).run
+        | none => pure none := rfl
+    rw [hrun]
+    exact ExactMonadAttach.canReturn_bind (a := some a) h h'
+
+
+-- @@ L711-723 verbatim
+instance instExactMonadAttachExceptT {ε : Type u} : ExactMonadAttach (ExceptT ε m) where
+  canReturn_pure {α} a := by
+    change CanReturn ((pure a : ExceptT ε m α)).run (Except.ok a)
+    rw [ExceptT.run_pure]
+    exact ExactMonadAttach.canReturn_pure _
+  canReturn_bind {α β x f a b} h h' := by
+    change CanReturn ((x >>= f : ExceptT ε m β)).run (Except.ok b)
+    have hrun : ((x >>= f : ExceptT ε m β)).run = x.run >>= fun e =>
+        match e with
+        | Except.ok c => (f c).run
+        | Except.error e => pure (Except.error e) := rfl
+    rw [hrun]
+    exact ExactMonadAttach.canReturn_bind (a := Except.ok a) h h'
+
+
+-- @@ L725-729 verbatim
+/-! ### Per-monad unfoldings
+
+Each base monad's `CanReturn` is a concrete predicate, so membership in its support
+has a concrete spelling. Every one of these is `Iff.rfl`; naming them keeps callers
+from reaching through `support` and `CanReturn` with `change`. -/
+
+
+-- @@ L731-731 verbatim
+section Unfoldings
+
+
+-- @@ L733-733 verbatim
+variable {α : Type u}
+
+
+-- @@ L735-735 verbatim
+@[simp, grind =]
+
+-- @@ L736-737 verbatim
+theorem Id.canReturn_iff {x : Id α} {a : α} : CanReturn x a ↔ x.run = a :=
+  Iff.rfl
+
+
+-- @@ L739-743 verbatim
+@[simp]
+theorem Id.support_eq_singleton (x : Id α) : support x = {x.run} := by
+  ext a
+  rw [mem_support, Id.canReturn_iff, Set.mem_singleton_iff]
+  exact eq_comm
+
+
+-- @@ L745-745 verbatim
+@[simp, grind =]
+
+-- @@ L746-747 verbatim
+theorem Option.canReturn_iff {x : Option α} {a : α} : CanReturn x a ↔ x = some a :=
+  Iff.rfl
+
+
+-- @@ L749-749 verbatim
+@[simp, grind =]
+
+-- @@ L750-753 verbatim
+theorem Option.support_some (a : α) : support (some a) = {a} := by
+  ext b
+  rw [mem_support, Option.canReturn_iff, Set.mem_singleton_iff]
+  exact ⟨fun h => (Option.some.inj h).symm, fun h => by rw [h]⟩
+
+
+-- @@ L755-755 verbatim
+@[simp, grind =]
+
+-- @@ L756-759 verbatim
+theorem Option.support_none : support (none : Option α) = ∅ := by
+  ext b
+  rw [mem_support, Option.canReturn_iff]
+  simp
+
+
+-- @@ L761-761 verbatim
+@[simp, grind =]
+
+-- @@ L762-764 verbatim
+theorem Except.canReturn_iff {ε : Type u} {x : Except ε α} {a : α} :
+    CanReturn x a ↔ x = Except.ok a :=
+  Iff.rfl
+
+
+-- @@ L766-766 verbatim
+@[simp, grind =]
+
+-- @@ L767-770 verbatim
+theorem Except.support_ok {ε : Type u} (a : α) : support (Except.ok a : Except ε α) = {a} := by
+  ext b
+  rw [mem_support, Except.canReturn_iff, Set.mem_singleton_iff]
+  exact ⟨fun h => (Except.ok.inj h).symm, fun h => by rw [h]⟩
+
+
+-- @@ L772-772 verbatim
+@[simp, grind =]
+
+-- @@ L773-777 verbatim
+theorem Except.support_error {ε : Type u} (e : ε) :
+    support (Except.error e : Except ε α) = ∅ := by
+  ext b
+  rw [mem_support, Except.canReturn_iff]
+  simp
+
+
+-- @@ L779-779 verbatim
+@[simp, grind =]
+
+-- @@ L780-781 verbatim
+theorem SetM.canReturn_iff {x : SetM α} {a : α} : CanReturn x a ↔ a ∈ SetM.run x :=
+  Iff.rfl
+
+
+-- @@ L783-785 verbatim
+@[simp]
+theorem SetM.support_eq_run (x : SetM α) : support x = SetM.run x :=
+  Set.ext fun _ => Iff.rfl
+
+
+-- @@ L787-787 verbatim
+variable {m : Type u → Type v} [Monad m] [MonadAttach m]
+
+
+-- @@ L789-789 verbatim
+@[simp, grind =]
+
+-- @@ L790-792 verbatim
+theorem OptionT.canReturn_iff {x : OptionT m α} {a : α} :
+    CanReturn x a ↔ some a ∈ support x.run :=
+  Iff.rfl
+
+
+-- @@ L794-794 verbatim
+@[simp, grind =]
+
+-- @@ L795-797 verbatim
+theorem ExceptT.canReturn_iff {ε : Type u} {x : ExceptT ε m α} {a : α} :
+    CanReturn x a ↔ Except.ok a ∈ support x.run :=
+  Iff.rfl
+
+
+-- @@ L799-799 verbatim
+end Unfoldings
+
+
+-- @@ L801-809 verbatim
+/-! ### The writer transformer
+
+`WriterT ω m` accumulates an output alongside the value, so the honest reading of its
+support is the one that keeps that output: a value is possible exactly when it is
+returned *together with some accumulator*. This is the same rule the measure semantics
+uses for the same transformer — a writer computation denotes the underlying `m (α × ω)`
+rather than discarding `ω` — and unlike `StateT` it costs nothing, because there is no
+*input* index to choose. Both introduction rules survive: `pure` writes the unit, and
+two composable outputs compose with their accumulators multiplied. -/
+
+
+-- @@ L811-811 verbatim
+section WriterT
+
+
+-- @@ L813-813 verbatim
+variable {ω : Type u} [Monoid ω]
+
+
+-- @@ L815-818 verbatim
+instance instMonadAttachWriterT : MonadAttach (WriterT ω m) where
+  CanReturn x a := ∃ w, CanReturn x.run (a, w)
+  attach x := WriterT.mk <|
+    (fun p => (⟨p.1.1, ⟨p.1.2, p.2⟩⟩, p.1.2)) <$> MonadAttach.attach x.run
+
+
+-- @@ L820-823 verbatim
+omit [LawfulMonad m] [ExactMonadAttach m] [Monoid ω] in
+theorem mem_support_writerT_iff {x : WriterT ω m α} {a : α} :
+    a ∈ support x ↔ ∃ w, (a, w) ∈ support x.run :=
+  Iff.rfl
+
+
+-- @@ L825-828 verbatim
+omit [LawfulMonad m] [ExactMonadAttach m] [Monoid ω] in
+theorem mem_support_of_run_writerT {x : WriterT ω m α} {a : α} {w : ω}
+    (h : (a, w) ∈ support x.run) : a ∈ support x :=
+  ⟨w, h⟩
+
+
+-- @@ L830-840 verbatim
+instance instWeaklyLawfulMonadAttachWriterT :
+    WeaklyLawfulMonadAttach (WriterT ω m) where
+  map_attach {α x} := by
+    refine WriterT.ext _ _ ?_
+    rw [WriterT.run_map]
+    have hrun : (MonadAttach.attach x : WriterT ω m (Subtype (CanReturn x))).run
+        = (fun p : Subtype (CanReturn x.run) =>
+            ((⟨p.1.1, ⟨p.1.2, p.2⟩⟩ : Subtype (CanReturn x)), p.1.2))
+          <$> MonadAttach.attach x.run := rfl
+    rw [hrun, Functor.map_map]
+    simpa [Function.comp_def] using WeaklyLawfulMonadAttach.map_attach (m := m) (x := x.run)
+
+
+-- @@ L842-849 verbatim
+instance instLawfulMonadAttachWriterT : LawfulMonadAttach (WriterT ω m) where
+  canReturn_map_imp {α P x a} h := by
+    obtain ⟨w, hw⟩ := h
+    rw [WriterT.run_map] at hw
+    obtain ⟨q, -, hqa⟩ := LawfulMonadAttach.canReturn_map_imp' hw
+    obtain ⟨⟨v, hv⟩, w'⟩ := q
+    cases hqa
+    exact hv
+
+
+-- @@ L851-864 verbatim
+/-- Both introduction rules hold: `pure` writes the unit accumulator, and composable
+outputs compose with their accumulators multiplied. This is what `StateT` cannot have —
+there is no input index to quantify over, so nothing is flattened away. -/
+instance instExactMonadAttachWriterT : ExactMonadAttach (WriterT ω m) where
+  canReturn_pure {α} a := ⟨1, ExactMonadAttach.canReturn_pure _⟩
+  canReturn_bind {α β x f a b} h h' := by
+    obtain ⟨w₁, hw₁⟩ := h
+    obtain ⟨w₂, hw₂⟩ := h'
+    refine ⟨w₁ * w₂, ?_⟩
+    change CanReturn (x.run >>= fun p => (fun q => (q.1, p.2 * q.2)) <$> (f p.1).run) (b, w₁ * w₂)
+    refine ExactMonadAttach.canReturn_bind (a := (a, w₁)) hw₁ ?_
+    have hmem : ((b, w₂) : β × ω) ∈ support (f a).run := hw₂
+    have himg := Set.mem_image_of_mem (fun q : β × ω => (q.1, w₁ * q.2)) hmem
+    rwa [← support_map] at himg
+
+
+-- @@ L866-866 verbatim
+end WriterT
+
+
+-- @@ L868-873 verbatim
+/-! ### Stateful monads
+
+`StateT` and `ReaderT` do have core `MonadAttach` instances, existentially quantified over
+the initial state or environment, and those supports are canonical. They are *not*
+`ExactMonadAttach`: possible outputs do not compose along `bind`, because its flattened
+premises may be witnessed at different initial indices. Reason per run instead. -/
+
+
+-- @@ L875-878 verbatim
+omit [LawfulMonad m] [ExactMonadAttach m] in
+theorem mem_support_stateT_iff {σ : Type u} {x : StateT σ m α} {a : α} :
+    a ∈ support x ↔ ∃ s s', (a, s') ∈ support (x.run s) :=
+  Iff.rfl
+
+
+-- @@ L880-883 verbatim
+omit [LawfulMonad m] [ExactMonadAttach m] in
+theorem mem_support_readerT_iff {ρ : Type u} {x : ReaderT ρ m α} {a : α} :
+    a ∈ support x ↔ ∃ r, a ∈ support (x.run r) :=
+  Iff.rfl
+
+
+-- @@ L885-888 verbatim
+omit [LawfulMonad m] [ExactMonadAttach m] in
+theorem mem_support_of_run_stateT {σ : Type u} {x : StateT σ m α} {a : α} {s s' : σ}
+    (h : (a, s') ∈ support (x.run s)) : a ∈ support x :=
+  ⟨s, s', h⟩
+
+
+-- @@ L890-893 verbatim
+omit [LawfulMonad m] [ExactMonadAttach m] in
+theorem mem_support_of_run_readerT {ρ : Type u} {x : ReaderT ρ m α} {a : α} {r : ρ}
+    (h : a ∈ support (x.run r)) : a ∈ support x :=
+  ⟨r, h⟩
+
+
+-- @@ L895-907 verbatim
+/-! #### Indexed support
+
+The flattened support above is canonical but coarse: it quantifies the initial state
+existentially, and independently on each side of a `bind`, which is exactly why
+`ExactMonadAttach` fails. Indexing repairs that. `supportFrom s x` is the set of
+result/final-state pairs reachable *from `s`*, and its bind law is exact — the
+continuation is only ever run from states the prefix actually produced — needing no
+exactness on the transformer, because nothing is flattened away.
+
+This is the same move the probabilistic semantics makes for the same transformer:
+state-indexed computations denote a `Kernel σ (α × σ)` rather than a measure, because
+there is no canonical initial state to integrate over. Kernels are to measures as
+indexed support is to support. -/
+
+
+-- @@ L909-911 verbatim
+/-- The result/final-state pairs reachable by running `x` from the initial state `s`. -/
+def StateT.supportFrom {σ : Type u} (s : σ) (x : StateT σ m α) : Set (α × σ) :=
+  support (x.run s)
+
+
+-- @@ L913-915 verbatim
+/-- The outputs reachable by running `x` in the environment `r`. -/
+def ReaderT.supportAt {ρ : Type u} (r : ρ) (x : ReaderT ρ m α) : Set α :=
+  support (x.run r)
+
+
+-- @@ L917-920 verbatim
+omit [Monad m] [LawfulMonad m] [ExactMonadAttach m] in
+theorem StateT.mem_supportFrom_iff {σ : Type u} {s : σ} {x : StateT σ m α} {p : α × σ} :
+    p ∈ StateT.supportFrom s x ↔ p ∈ support (x.run s) :=
+  Iff.rfl
+
+
+-- @@ L922-925 verbatim
+omit [Monad m] [LawfulMonad m] [ExactMonadAttach m] in
+theorem ReaderT.mem_supportAt_iff {ρ : Type u} {r : ρ} {x : ReaderT ρ m α} {a : α} :
+    a ∈ ReaderT.supportAt r x ↔ a ∈ support (x.run r) :=
+  Iff.rfl
+
+
+-- @@ L927-932 verbatim
+omit [LawfulMonad m] [ExactMonadAttach m] in
+/-- The flattened support is the union of the indexed ones. Recovers
+`mem_support_stateT_iff` and pins that indexing loses nothing. -/
+theorem StateT.mem_support_iff_exists_supportFrom {σ : Type u} {x : StateT σ m α} {a : α} :
+    a ∈ support x ↔ ∃ s s', (a, s') ∈ StateT.supportFrom s x :=
+  Iff.rfl
+
+
+-- @@ L934-937 verbatim
+omit [LawfulMonad m] [ExactMonadAttach m] in
+theorem ReaderT.mem_support_iff_exists_supportAt {ρ : Type u} {x : ReaderT ρ m α} {a : α} :
+    a ∈ support x ↔ ∃ r, a ∈ ReaderT.supportAt r x :=
+  Iff.rfl
+
+
+-- @@ L939-939 verbatim
+@[simp, grind =]
+
+-- @@ L940-942 verbatim
+theorem StateT.supportFrom_pure {σ : Type u} (s : σ) (a : α) :
+    StateT.supportFrom s (pure a : StateT σ m α) = {(a, s)} := by
+  rw [StateT.supportFrom, StateT.run_pure, support_pure]
+
+
+-- @@ L944-944 verbatim
+@[simp, grind =]
+
+-- @@ L945-947 verbatim
+theorem ReaderT.supportAt_pure {ρ : Type u} (r : ρ) (a : α) :
+    ReaderT.supportAt r (pure a : ReaderT ρ m α) = {a} := by
+  rw [ReaderT.supportAt, ReaderT.run_pure, support_pure]
+
+
+-- @@ L949-960 verbatim
+/-- **The exact bind law.** Unlike the flattened `support`, this composes: the
+continuation is run only from states the prefix actually produces, so no witness is
+chosen independently on the two sides. Needs only `[ExactMonadAttach m]` on the base
+monad — `StateT σ m` itself is deliberately not `ExactMonadAttach`, and does not need
+to be. -/
+@[simp]
+theorem StateT.supportFrom_bind {σ : Type u} (s : σ) (x : StateT σ m α)
+    (f : α → StateT σ m β) :
+    StateT.supportFrom s (x >>= f)
+      = ⋃ p ∈ StateT.supportFrom s x, StateT.supportFrom p.2 (f p.1) := by
+  rw [StateT.supportFrom, StateT.run_bind, support_bind]
+  rfl
+
+
+-- @@ L962-969 verbatim
+/-- The environment version, where the same `r` is threaded to both sides. -/
+@[simp]
+theorem ReaderT.supportAt_bind {ρ : Type u} (r : ρ) (x : ReaderT ρ m α)
+    (f : α → ReaderT ρ m β) :
+    ReaderT.supportAt r (x >>= f)
+      = ⋃ a ∈ ReaderT.supportAt r x, ReaderT.supportAt r (f a) := by
+  rw [ReaderT.supportAt, ReaderT.run_bind, support_bind]
+  rfl
+
+
+-- @@ L971-976 verbatim
+@[simp]
+theorem StateT.supportFrom_map {σ : Type u} (s : σ) (g : α → β) (x : StateT σ m α) :
+    StateT.supportFrom s (g <$> x)
+      = (fun p => (g p.1, p.2)) '' StateT.supportFrom s x := by
+  rw [StateT.supportFrom, StateT.run_map, support_map]
+  rfl
+
+
+-- @@ L978-982 verbatim
+@[simp]
+theorem ReaderT.supportAt_map {ρ : Type u} (r : ρ) (g : α → β) (x : ReaderT ρ m α) :
+    ReaderT.supportAt r (g <$> x) = g '' ReaderT.supportAt r x := by
+  rw [ReaderT.supportAt, ReaderT.run_map, support_map]
+  rfl
+
+
+-- @@ L984-990 verbatim
+/-! #### Indexed judgments
+
+The modal pair, indexed. These are the primary indexed notions and `supportFrom` is
+their equality instance, exactly as `support` is `SomeOutput`'s in the unindexed case
+(`support_eq_setOf_someOutput`). The state-indexed predicate ranges over the *pair*: a
+`StateT` computation's outcome is a value together with a final state, and forgetting
+the state is what makes the flattened judgments fail to compose. -/
+
+
+-- @@ L992-994 verbatim
+/-- Every outcome reachable from `s` satisfies `p`. -/
+def StateT.AllOutputsFrom {σ : Type u} (s : σ) (p : α → σ → Prop) (x : StateT σ m α) : Prop :=
+  ∀ q ∈ StateT.supportFrom s x, p q.1 q.2
+
+
+-- @@ L996-998 verbatim
+/-- Some outcome reachable from `s` satisfies `p`. -/
+def StateT.SomeOutputFrom {σ : Type u} (s : σ) (p : α → σ → Prop) (x : StateT σ m α) : Prop :=
+  ∃ q ∈ StateT.supportFrom s x, p q.1 q.2
+
+
+-- @@ L1000-1002 verbatim
+/-- No outcome reachable from `s` satisfies `p`. -/
+def StateT.NoOutputFrom {σ : Type u} (s : σ) (p : α → σ → Prop) (x : StateT σ m α) : Prop :=
+  StateT.AllOutputsFrom s (fun a s' => ¬ p a s') x
+
+
+-- @@ L1004-1005 verbatim
+@[inherit_doc StateT.AllOutputsFrom]
+scoped notation:50 x:51 " ⊨ₐ[" s "] " p:51 => MonadAttach.StateT.AllOutputsFrom s p x
+
+
+-- @@ L1007-1008 verbatim
+@[inherit_doc StateT.SomeOutputFrom]
+scoped notation:50 x:51 " ⊨ₛ[" s "] " p:51 => MonadAttach.StateT.SomeOutputFrom s p x
+
+
+-- @@ L1010-1011 verbatim
+@[inherit_doc StateT.NoOutputFrom]
+scoped notation:50 x:51 " ⊭[" s "] " p:51 => MonadAttach.StateT.NoOutputFrom s p x
+
+
+-- @@ L1013-1018 verbatim
+omit [Monad m] [LawfulMonad m] [ExactMonadAttach m] in
+/-- `supportFrom` is the equality instance of the indexed angelic judgment — the indexed
+counterpart of `support_eq_setOf_someOutput`. -/
+theorem StateT.supportFrom_eq_setOf_someOutputFrom {σ : Type u} (s : σ) (x : StateT σ m α) :
+    StateT.supportFrom s x = {q | StateT.SomeOutputFrom s (fun a s' => (a, s') = q) x} :=
+  Set.ext fun q => ⟨fun hq => ⟨q, hq, rfl⟩, fun ⟨_, hb, hbq⟩ => hbq ▸ hb⟩
+
+
+-- @@ L1020-1023 verbatim
+@[simp]
+theorem StateT.allOutputsFrom_pure {σ : Type u} (s : σ) (p : α → σ → Prop) (a : α) :
+    StateT.AllOutputsFrom s p (pure a : StateT σ m α) ↔ p a s := by
+  simp [StateT.AllOutputsFrom]
+
+
+-- @@ L1025-1028 verbatim
+@[simp]
+theorem StateT.someOutputFrom_pure {σ : Type u} (s : σ) (p : α → σ → Prop) (a : α) :
+    StateT.SomeOutputFrom s p (pure a : StateT σ m α) ↔ p a s := by
+  simp [StateT.SomeOutputFrom]
+
+
+-- @@ L1030-1043 verbatim
+/-- The indexed demonic bind rule. This is the judgment-level form of
+`StateT.supportFrom_bind`, and like it needs no exactness on the transformer. -/
+@[simp]
+theorem StateT.allOutputsFrom_bind {σ : Type u} (s : σ) (p : β → σ → Prop)
+    (x : StateT σ m α) (f : α → StateT σ m β) :
+    StateT.AllOutputsFrom s p (x >>= f)
+      ↔ ∀ q ∈ StateT.supportFrom s x, StateT.AllOutputsFrom q.2 p (f q.1) := by
+  constructor
+  · intro h q hq a ha
+    exact h a (by rw [StateT.supportFrom_bind]; exact Set.mem_biUnion hq ha)
+  · intro h a ha
+    rw [StateT.supportFrom_bind] at ha
+    obtain ⟨q, hq, ha'⟩ := Set.mem_iUnion₂.mp ha
+    exact h q hq a ha'
+
+
+-- @@ L1045-1052 verbatim
+/-- The indexed angelic bind rule. -/
+@[simp]
+theorem StateT.someOutputFrom_bind {σ : Type u} (s : σ) (p : β → σ → Prop)
+    (x : StateT σ m α) (f : α → StateT σ m β) :
+    StateT.SomeOutputFrom s p (x >>= f)
+      ↔ ∃ q ∈ StateT.supportFrom s x, StateT.SomeOutputFrom q.2 p (f q.1) := by
+  simp only [StateT.SomeOutputFrom, StateT.supportFrom_bind, Set.mem_iUnion, exists_prop]
+  tauto
+
+
+-- @@ L1054-1058 verbatim
+omit [Monad m] [LawfulMonad m] [ExactMonadAttach m] in
+theorem StateT.not_someOutputFrom_iff_noOutputFrom {σ : Type u} (s : σ) (p : α → σ → Prop)
+    (x : StateT σ m α) :
+    ¬ StateT.SomeOutputFrom s p x ↔ StateT.NoOutputFrom s p x := by
+  simp [StateT.SomeOutputFrom, StateT.NoOutputFrom, StateT.AllOutputsFrom]
+
+
+-- @@ L1060-1064 verbatim
+omit [Monad m] [LawfulMonad m] [ExactMonadAttach m] in
+theorem StateT.allOutputsFrom_mono {σ : Type u} {s : σ} {p q : α → σ → Prop}
+    (h : ∀ a s', p a s' → q a s') {x : StateT σ m α}
+    (hx : StateT.AllOutputsFrom s p x) : StateT.AllOutputsFrom s q x :=
+  fun r hr => h r.1 r.2 (hx r hr)
+
+
+-- @@ L1066-1071 verbatim
+omit [LawfulMonad m] [ExactMonadAttach m] in
+/-- Indexed demonic implies flattened demonic: if a value-only `p` holds of every outcome
+from every initial state, it holds of every possible output. -/
+theorem StateT.allOutputs_of_allOutputsFrom {σ : Type u} {p : α → Prop} {x : StateT σ m α}
+    (h : ∀ s, StateT.AllOutputsFrom s (fun a _ => p a) x) : AllOutputs p x :=
+  fun _ ⟨s, s', hs⟩ => h s (_, s') hs
+
+
+-- @@ L1073-1079 verbatim
+omit [LawfulMonad m] [ExactMonadAttach m] in
+/-- A flattened value-only guarantee holds at every initial state. Flattening loses the
+ability to mention the final state, but it loses nothing for postconditions on values
+alone. -/
+theorem StateT.allOutputsFrom_of_allOutputs {σ : Type u} {p : α → Prop} {x : StateT σ m α}
+    (h : AllOutputs p x) (s : σ) : StateT.AllOutputsFrom s (fun a _ => p a) x :=
+  fun q hq => h q.1 ⟨s, q.2, hq⟩
+
+
+-- @@ L1081-1087 verbatim
+omit [LawfulMonad m] [ExactMonadAttach m] in
+/-- For value-only postconditions, flattened demonic support is exactly the universal
+closure of the indexed judgment. -/
+theorem StateT.allOutputs_iff_forall_allOutputsFrom {σ : Type u} {p : α → Prop}
+    {x : StateT σ m α} :
+    AllOutputs p x ↔ ∀ s, StateT.AllOutputsFrom s (fun a _ => p a) x :=
+  ⟨fun h s => StateT.allOutputsFrom_of_allOutputs h s, StateT.allOutputs_of_allOutputsFrom⟩
+
+
+-- @@ L1089-1089 verbatim
+end Instances
+
+
+-- @@ L1091-1091 verbatim
+end MonadAttach
