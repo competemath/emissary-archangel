@@ -63,3 +63,4 @@ next-env.d.ts
 # pipeline panel state (pids, logs, machine-specific config)
 /data/pipeline/
 /data/pipeline-config.json
+.proof-term-fix-marker
