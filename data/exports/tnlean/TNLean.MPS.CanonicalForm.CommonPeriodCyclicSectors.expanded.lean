@@ -1,0 +1,71 @@
+/-
+Copyright (c) 2026 TNLean contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: TNLean contributors
+-/
+import TNLean.MPS.Core.Blocking
+import TNLean.MPS.Core.BlockingInfrastructure
+
+
+-- @@ L9-17 verbatim
+/-!
+# Common-period cyclic-sector blocking
+
+The common-period blocking operation sends each cyclic-sector block to the
+period `lcmPeriod periods`, giving a family with physical dimension
+`blockPhysDim d (lcmPeriod periods)` and the same block-dependent bond
+dimensions. Per-block primitivity witnesses are transported along the
+divisibility `periods i ∣ lcmPeriod periods`.
+-/
+
+
+-- @@ L19-19 verbatim
+namespace MPSTensor
+
+
+-- @@ L21-21 verbatim
+variable {d k : ℕ}
+
+
+-- @@ L23-33 verbatim
+/-- Block each family member to the common `lcmPeriod`.
+
+This keeps a uniform physical dimension across the common-period family while
+allowing the bond dimension to vary with the index. The resulting family is the
+basic input for common-period cyclic-sector comparison.
+-/
+noncomputable def commonPeriodBlocking
+    {dim : Fin k → ℕ}
+    (blocks : (i : Fin k) → MPSTensor d (dim i)) (periods : Fin k → ℕ) :
+    (i : Fin k) → MPSTensor (blockPhysDim d (lcmPeriod periods)) (dim i) :=
+  fun i => blockTensor (d := d) (D := dim i) (blocks i) (lcmPeriod periods)
+
+
+-- @@ L35-57 verbatim
+/-- If each block has a primitive transfer map at its own period, then blocking the whole family
+to the common LCM period preserves that primitivity witness for every member. -/
+theorem isPrimitive_transferMap_commonPeriodBlocking
+    {dim : Fin k → ℕ}
+    (hDim : ∀ i, 0 < dim i)
+    (blocks : (i : Fin k) → MPSTensor d (dim i)) (periods : Fin k → ℕ)
+    (hPeriodsPos : ∀ i, 0 < periods i)
+    (hPrim : ∀ i,
+      _root_.IsPrimitive
+        (Kraus.transferMap (d := blockPhysDim d (periods i)) (D := dim i)
+          (blockTensor (d := d) (D := dim i) (blocks i) (periods i)))) :
+    ∀ i,
+      _root_.IsPrimitive
+        (Kraus.transferMap (d := blockPhysDim d (lcmPeriod periods)) (D := dim i)
+          (commonPeriodBlocking (d := d) blocks periods i)) := by
+  intro i
+  let : NeZero (dim i) := ⟨Nat.ne_of_gt (hDim i)⟩
+  simpa [commonPeriodBlocking] using
+    isPrimitive_transferMap_blockTensor_of_dvd
+      (d := d) (D := dim i)
+      (A := blocks i)
+      (p := periods i) (q := lcmPeriod periods)
+      (dvd_lcmPeriod periods i) (lcmPeriod_pos hPeriodsPos) (hPrim i)
+
+
+-- @@ L59-59 verbatim
+end MPSTensor

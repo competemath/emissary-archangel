@@ -1,0 +1,1 @@
+{"names":["StarSubalgebra.exists_starAlgEquiv_matrix_and_finrank_of_isCentral"],"modules":["TNLean.Algebra.CentralStarSubalgebraMatrix"],"moduleOf":{"StarSubalgebra.exists_starAlgEquiv_matrix_and_finrank_of_isCentral":"TNLean.Algebra.CentralStarSubalgebraMatrix"},"deps":{"StarSubalgebra.exists_starAlgEquiv_matrix_and_finrank_of_isCentral":[]}}

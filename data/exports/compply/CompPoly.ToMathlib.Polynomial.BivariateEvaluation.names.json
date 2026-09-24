@@ -1,0 +1,1 @@
+{"names":["Polynomial.Bivariate.eval_comm"],"modules":["CompPoly.ToMathlib.Polynomial.BivariateEvaluation"],"moduleOf":{"Polynomial.Bivariate.eval_comm":"CompPoly.ToMathlib.Polynomial.BivariateEvaluation"},"deps":{"Polynomial.Bivariate.eval_comm":[]}}

@@ -936,14 +936,17 @@
       "licence": "Apache-2.0"
     },
     "tauceti": {
-      "label": "tauceti",
-      "repo": "https://github.com/CBirkbeck/TauCeti",
-      "commit": "7b42845ff2c77548d51f3789ee9ae5cc9c2795d9",
-      "toolchain": "leanprover/lean4:v4.31.0",
+      "label": "Tau Ceti (TauCetiProject)",
+      "repo": "https://github.com/TauCetiProject/TauCeti",
+      "commit": "5e78744999f40e73287839f294c246a0c434d18e",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
       "roots": [
         "TauCeti"
       ],
-      "licence": "Apache-2.0"
+      "licence": "Apache-2.0",
+      "tentative": [
+        "tauceti.jsonl"
+      ]
     },
     "tautology": {
       "label": "tautology",
@@ -1083,6 +1086,86 @@
       "licence": "Apache-2.0",
       "tentative": [
         "navier-stokes-euler.jsonl"
+      ]
+    },
+    "lean-pool": {
+      "label": "Lean Pool (216 pooled projects)",
+      "repo": "https://github.com/Vilin97/lean-pool",
+      "commit": "fdcf13c7cab6cd0eed22dc6b2f83672b6c4deb4d",
+      "toolchain": "leanprover/lean4:v4.34.0",
+      "roots": [
+        "LeanPool",
+        "Challenge",
+        "Solution"
+      ],
+      "licence": "Apache-2.0",
+      "tentative": [
+        "lean-pool.jsonl"
+      ]
+    },
+    "merely-true": {
+      "label": "merely-true",
+      "repo": "https://github.com/merely-true/merely-true",
+      "commit": "f4ff319d4622f410e001ebab016c4e7d23f9cd97",
+      "toolchain": "leanprover/lean4:v4.29.0",
+      "roots": [
+        "MerelyTrue"
+      ],
+      "licence": "Apache-2.0",
+      "tentative": [
+        "merely-true.jsonl"
+      ]
+    },
+    "ten-proofs": {
+      "label": "OpenAI ten proofs",
+      "repo": "https://github.com/openai/ten-proofs",
+      "commit": "94bc0feb6a9ff12c7d31d6de640a725c9d43d2b6",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "CompactnessAndDegeneracy",
+        "MulticolorTriangleRamsey",
+        "QuantumParallelRepetition",
+        "SpherePacking",
+        "MetricCodes",
+        "ConnesRigidity",
+        "NonSoficGroup",
+        "GapCVP",
+        "EhrhartVolumeInequality",
+        "ComparatorChallenges",
+        "Permanent",
+        "All"
+      ],
+      "licence": "Apache-2.0",
+      "tentative": [
+        "ten-proofs.jsonl"
+      ]
+    },
+    "prime-gaps-186": {
+      "label": "OpenAI prime gaps ≤ 186",
+      "repo": "https://github.com/openai/PrimeGaps186",
+      "commit": "61340d0b74163003b32756bb16e91d9209a5e330",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "PrimeGaps186",
+        "Challenge"
+      ],
+      "licence": "Apache-2.0",
+      "tentative": [
+        "prime-gaps-186.jsonl"
+      ]
+    },
+    "long-gaps-between-primes": {
+      "label": "OpenAI long gaps between primes",
+      "repo": "https://github.com/openai/LongGapsBetweenPrimes",
+      "commit": "03a1190d0bc5502d9f54eeb60ad3e45e22b0df0b",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "LongGapsBetweenPrimes",
+        "Challenge"
+      ],
+      "licence": "Apache-2.0",
+      "tentative": [
+        "long-gaps-between-primes.jsonl"
       ]
     }
   }

@@ -1,0 +1,1 @@
+{"names":["Finset.sum_eq_sum_subtype_ne_zero"],"modules":["TNLean.Algebra.FinsetSubtypeSum"],"moduleOf":{"Finset.sum_eq_sum_subtype_ne_zero":"TNLean.Algebra.FinsetSubtypeSum"},"deps":{"Finset.sum_eq_sum_subtype_ne_zero":[]}}

@@ -1,0 +1,821 @@
+/-
+Copyright (c) 2024-2025 ArkLib Contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Quang Dao
+-/
+module
+
+public import Mathlib.Algebra.BigOperators.Fin
+public import ArkLib.Data.Fin.Basic
+public import ArkLib.Data.Fin.Fold
+public import ArkLib.Data.Fin.Tuple.Lemmas
+
+
+-- @@ L13-17 verbatim
+/-!
+# Fin Sigma Equivalences
+
+We re-define big-operators sum and product over `Fin` to have good definitional equalities.
+-/
+
+
+-- @@ L19-19 verbatim
+@[expose] public section
+
+
+-- @@ L21-21 verbatim
+universe u v w
+
+
+-- @@ L23-23 verbatim
+open Finset
+
+
+-- @@ L25-25 verbatim
+namespace Fin
+
+
+-- @@ L27-27 verbatim
+def addCast {n : ℕ} (m : ℕ) (i : Fin n) : Fin (m + n) := ⟨i, Nat.lt_add_left m i.2⟩
+
+
+-- @@ L29-29 verbatim
+section BigOperators
+
+
+-- @@ L31-31 verbatim
+variable {α : Type*}
+
+
+-- @@ L33-38 verbatim
+/-- Version of multiplying over `Fin` vectors with good definitional equalities, using `dfoldl'`.
+
+The definitional equality we want is that:
+`vprod a = a 0 * (a 1 * (... * (a (n-1) * 1)))`
+-/
+@[to_additive vsum 
+-- @@ L38-49 verbatim
+/-- Version of summing over `Fin` vectors with good definitional equalities,
+using `dfoldl'`.
+
+The definitional equality we want is that: `vsum a = a 0 + (a 1 + (... + (a (n-1) + 0)))`.
+
+When `x + 0 = x` definitionally in `α`, we have the following definitional equalities:
+- `vsum !v[] = 0`
+- `vsum !v[a] = a`
+- `vsum !v[a, b] = a + b`
+- `vsum !v[a, b, c] = a + (b + c)`
+- and so on
+-/]
+
+-- @@ L50-51 verbatim
+def vprod [CommMonoid α] {n : ℕ} (a : Fin n → α) : α :=
+  Fin.dfoldr' n (fun _ => α) (fun i acc => a i * acc) 1
+
+
+-- @@ L53-53 verbatim
+attribute [implicit_reducible] vprod vsum
+
+
+-- @@ L55-55 verbatim
+variable {n : ℕ}
+
+
+-- @@ L57-58 verbatim
+@[to_additive (attr := simp) vsum_zero]
+lemma vprod_zero [CommMonoid α] {a : Fin 0 → α} : vprod a = 1 := rfl
+
+
+-- @@ L60-61 verbatim
+@[to_additive (attr := simp) vsum_succ]
+lemma vprod_succ [CommMonoid α] {a : Fin (n + 1) → α} : vprod a = a 0 * vprod (a ∘ Fin.succ) := rfl
+
+
+-- @@ L63-68 verbatim
+/-- `vprod a` is equivalent to the standard `Finset`-based definition, `∏ i, a i`. -/
+@[to_additive vsum_eq_univ_sum]
+lemma vprod_eq_univ_prod [CommMonoid α] {a : Fin n → α} : vprod a = ∏ i, a i := by
+  induction n with
+  | zero => simp
+  | succ n ih => simp [ih, Fin.prod_univ_succ]
+
+
+-- @@ L70-79 verbatim
+@[to_additive vsum_castSucc]
+lemma vprod_castSucc [CommMonoid α] {a : Fin (n + 1) → α} :
+    vprod a = vprod (a ∘ Fin.castSucc) * a (last n) := by
+  induction n with
+  | zero => simp
+  | succ n ih =>
+    rw [vprod_succ, ih, vprod_succ]
+    simp only [Function.comp_apply, succ_last, Nat.succ_eq_add_one, castSucc_zero]
+    have : (a ∘ succ) ∘ castSucc = (a ∘ castSucc) ∘ succ := by ext i; simp
+    rw [this, mul_assoc (a 0)]
+
+
+-- @@ L81-81 verbatim
+end BigOperators
+
+
+-- @@ L83-83 verbatim
+end Fin
+
+
+-- @@ L85-85 verbatim
+namespace Fin
+
+
+-- @@ L87-87 verbatim
+section Sigma
+
+
+-- @@ L89-89 verbatim
+variable {m : ℕ} {n : Fin m → ℕ}
+
+
+-- @@ L91-98 verbatim
+/-- Embed nested indices `(i : Fin m, j : Fin (n i))` into a single index `Fin (vsum n)`. This
+  converts from nested indexing to indexing into the vector sum, preserving lexicographic order. -/
+@[implicit_reducible]
+def embedSum {m : ℕ} {n : Fin m → ℕ} (i : Fin m) (j : Fin (n i)) : Fin (vsum n) := match m with
+  | 0 => i
+  | _ + 1 => match i with
+    | 0 => Fin.castAdd _ j
+    | ⟨i + 1, h⟩ => Fin.natAdd _ (embedSum ⟨i, Nat.succ_lt_succ_iff.mp h⟩ j)
+
+
+-- @@ L100-101 verbatim
+@[simp]
+theorem embedSum_zero {n : Fin 0 → ℕ} {i : Fin 0} (j : Fin (n i)) : embedSum i j = i := rfl
+
+
+-- @@ L103-106 verbatim
+theorem embedSum_succ {m : ℕ} {n : Fin (m + 1) → ℕ} {i : Fin (m + 1)} (j : Fin (n i)) :
+    embedSum i j = (match i with
+    | 0 => Fin.castAdd _ j
+    | ⟨i + 1, h⟩ => Fin.natAdd _ (embedSum ⟨i, Nat.succ_lt_succ_iff.mp h⟩ j)) := rfl
+
+
+-- @@ L108-110 verbatim
+@[simp]
+theorem embedSum_succ_zero {n : Fin (m + 1) → ℕ} {j : Fin (n 0)} :
+    embedSum 0 j = Fin.castAdd _ j := rfl
+
+
+-- @@ L112-114 verbatim
+@[simp]
+theorem embedSum_succ_succ {n : Fin (m + 1) → ℕ} {i : Fin m} (j : Fin (n i.succ)) :
+    embedSum (i.succ) j = Fin.natAdd _ (embedSum i j) := rfl
+
+
+-- @@ L116-130 verbatim
+/-- The underlying value of `embedSum i j` is the sum of `n` over all indices before `i`,
+plus the value of `j`. -/
+theorem val_embedSum {m : ℕ} {n : Fin m → ℕ} (i : Fin m) (j : Fin (n i)) :
+    (embedSum i j).val = (∑ i' : Fin i.val, n (castLE i.isLt.le i')) + j.val := by
+  induction m with
+  | zero => exact Fin.elim0 i
+  | succ m ih =>
+    induction i using Fin.cases with
+    | zero => simp
+    | succ i =>
+      have key : (∑ i' : Fin i.succ.val, n (castLE i.succ.isLt.le i'))
+          = n 0 + ∑ i' : Fin i.val, n ((castLE i.isLt.le i').succ) :=
+        Fin.sum_univ_succ (fun i' : Fin (i.val + 1) => n (castLE i.succ.isLt.le i'))
+      rw [embedSum_succ_succ, val_natAdd, ih (n := fun i => n i.succ) i j]
+      omega
+
+
+-- @@ L132-140 verbatim
+/-- Split a vector sum index `k : Fin (vsum n)` into nested indices `(i : Fin m) × Fin (n i)`.
+This converts from indexing into the vector sum back to nested indexing, inverse of `embedSum`. -/
+@[implicit_reducible]
+def splitSum {m : ℕ} {n : Fin m → ℕ} (k : Fin (vsum n)) : (i : Fin m) × Fin (n i) := match m with
+  | 0 => Fin.elim0 k
+  | _ + 1 => Fin.dappend
+    (fun k => ⟨0, k⟩)
+    (fun k => ⟨(splitSum k).1.succ, (splitSum k).2⟩)
+    k
+
+
+-- @@ L142-143 verbatim
+@[simp]
+theorem splitSum_zero {n : Fin 0 → ℕ} {k : Fin (vsum n)} : splitSum k = Fin.elim0 k := rfl
+
+
+-- @@ L145-150 verbatim
+@[simp]
+theorem splitSum_succ {n : Fin (m + 1) → ℕ} {k : Fin (vsum n)} :
+    splitSum k = Fin.dappend
+      (fun k => ⟨0, k⟩)
+      (fun k => ⟨(splitSum k).1.succ, (splitSum k).2⟩)
+      k := rfl
+
+
+-- @@ L152-162 verbatim
+@[simp]
+theorem embedSum_splitSum {m : ℕ} {n : Fin m → ℕ} (k : Fin (vsum n)) :
+    embedSum (splitSum k).1 (splitSum k).2 = k := by
+  induction m with
+  | zero => exact Fin.elim0 k
+  | succ m ih =>
+    induction k using Fin.addCases with
+    | left k₀ => rw [splitSum_succ]; erw [dappend_left]; rfl
+    | right k₁ =>
+      rw [splitSum_succ]; erw [dappend_right]
+      simp only [embedSum_succ_succ, ih]
+
+
+-- @@ L164-174 verbatim
+@[simp]
+theorem splitSum_embedSum {m : ℕ} {n : Fin m → ℕ} (i : Fin m) (j : Fin (n i)) :
+    splitSum (embedSum i j) = ⟨i, j⟩ := by
+  induction m with
+  | zero => exact Fin.elim0 i
+  | succ m ih =>
+    induction i using Fin.cases with
+    | zero => rw [embedSum_succ_zero, splitSum_succ]; erw [dappend_left]
+    | succ i' =>
+      rw [embedSum_succ_succ, splitSum_succ]; erw [dappend_right]
+      rw [ih]
+
+
+-- @@ L176-180 verbatim
+def finSum'FinEquiv' {m : ℕ} {n : Fin m → ℕ} : (i : Fin m) × Fin (n i) ≃ Fin (vsum n) where
+  toFun := fun ij => embedSum ij.1 ij.2
+  invFun := splitSum
+  left_inv := fun ij => splitSum_embedSum ij.1 ij.2
+  right_inv := embedSum_splitSum
+
+
+-- @@ L182-182 verbatim
+end Sigma
+
+
+-- @@ L184-184 verbatim
+end Fin
+
+
+-- @@ L186-186 verbatim
+namespace Fin
+
+
+-- @@ L188-188 verbatim
+variable {α : Sort*}
+
+
+-- @@ L190-204 verbatim
+/-- Dependent flatten with unified motive: flattens a nested dependent vector
+`(i : Fin m) → (j : Fin (n i)) → motive (embedSum i j)` into a single dependent vector
+`(k : Fin (vsum n)) → motive k`, preserving element order.
+
+This is meant to replace nested iteration for dependent families with a unified motive. -/
+@[elab_as_elim, implicit_reducible]
+def dflatten {m : ℕ} {n : Fin m → ℕ} {motive : (k : Fin (vsum n)) → Sort*}
+    (v : (i : Fin m) → (j : Fin (n i)) → motive (embedSum i j)) (k : Fin (vsum n)) : motive k :=
+  match m with
+  | 0 => Fin.elim0 k
+  | _ + 1 =>
+    dappend
+      (fun j => v 0 j)
+      (fun j => dflatten (motive := fun j => motive (natAdd _ j)) (fun i => v i.succ) j)
+      k
+
+
+-- @@ L206-209 verbatim
+@[simp]
+theorem dflatten_zero {n : Fin 0 → ℕ} {motive : (k : Fin (vsum n)) → Sort*}
+    {v : (i : Fin 0) → (j : Fin (n i)) → motive (embedSum i j)} :
+    dflatten (motive := motive) v = fun k => Fin.elim0 k := rfl
+
+
+-- @@ L211-214 verbatim
+@[simp]
+theorem dflatten_succ {m : ℕ} {n : Fin (m + 1) → ℕ} {motive : (k : Fin (vsum n)) → Sort*}
+    {v : (i : Fin (m + 1)) → (j : Fin (n i)) → motive (embedSum i j)} :
+    dflatten (motive := motive) v = dappend (v 0) (dflatten (fun i => v i.succ)) := rfl
+
+
+-- @@ L216-219 verbatim
+@[simp]
+theorem dflatten_one {n : Fin 1 → ℕ} {motive : (k : Fin (vsum n)) → Sort*}
+    {v : (i : Fin 1) → (j : Fin (n i)) → motive (embedSum i j)} :
+    dflatten (motive := motive) v = v 0 := rfl
+
+
+-- @@ L221-233 verbatim
+@[simp]
+theorem dflatten_two_eq_append {n : Fin 2 → ℕ} {motive : (k : Fin (vsum n)) → Sort*}
+    {v : (i : Fin 2) → (j : Fin (n i)) → motive (embedSum i j)} :
+    dflatten (motive := motive) v = dappend (v 0) (v 1) := rfl
+
+-- theorem dflatten_eq_append_last {m : ℕ} {n : Fin (m + 1) → ℕ}
+--     {motive : (k : Fin (vsum n)) → Sort*}
+--     {v : (i : Fin (m + 1)) → (j : Fin (n i)) → motive (embedSum i j)} (k : Fin (vsum n)) :
+--     dflatten (motive := motive) v k =
+--       dappend (dflatten (motive := sorry) (fun i => v i.castSucc)) (v (last _)) := by
+--   induction m with
+--   | zero => exact Fin.elim0 k
+--   | succ m ih => sorry
+
+
+-- @@ L235-249 verbatim
+@[simp]
+theorem dflatten_embedSum {m : ℕ} {n : Fin m → ℕ} {motive : (k : Fin (vsum n)) → Sort*}
+    (v : (i : Fin m) → (j : Fin (n i)) → motive (embedSum i j)) (i : Fin m) (j : Fin (n i)) :
+    dflatten (motive := motive) v (embedSum i j) = v i j := by
+  induction m with
+  | zero => exact Fin.elim0 i
+  | succ m ih =>
+    induction i using induction with
+    | zero =>
+      simp only [embedSum_succ_zero, dflatten_succ]
+      erw [dappend_left]
+    | succ i ih' =>
+      simp only [embedSum_succ_succ, dflatten_succ]
+      erw [dappend_right]
+      exact ih (motive := fun i => motive (natAdd (n 0) i)) (fun i => v i.succ) i j
+
+
+-- @@ L251-256 verbatim
+@[simp]
+theorem dflatten_splitSum {m : ℕ} {n : Fin m → ℕ} {motive : (k : Fin (vsum n)) → Sort*}
+    (v : (k : Fin (vsum n)) → motive k) (k : Fin (vsum n)) :
+    dflatten (motive := motive) (fun i j => v (embedSum i j)) k = v k := by
+  rw [← embedSum_splitSum k]
+  exact dflatten_embedSum (fun i j => v (embedSum i j)) (splitSum k).1 (splitSum k).2
+
+
+-- @@ L258-263 verbatim
+/-- Homogeneous flatten: flattens a nested homogeneous vector
+`(i : Fin m) → (j : Fin (n i)) → α` into a single homogeneous vector `Fin (vsum n) → α`
+by specializing `dflatten` to the constant-type motive `fun _ => α`. -/
+def vflatten {m : ℕ} {n : Fin m → ℕ} (v : (i : Fin m) → Fin (n i) → α) :
+    Fin (vsum n) → α :=
+  dflatten v
+
+
+-- @@ L265-266 verbatim
+@[simp]
+theorem vflatten_zero {n : Fin 0 → ℕ} {v : (i : Fin 0) → Fin (n i) → α} : vflatten v = !v[] := rfl
+
+
+-- @@ L268-270 verbatim
+@[simp]
+theorem vflatten_succ {m : ℕ} {n : Fin (m + 1) → ℕ} {v : (i : Fin (m + 1)) → Fin (n i) → α} :
+    vflatten v = vappend (v 0) (vflatten (fun i => v i.succ)) := rfl
+
+
+-- @@ L272-274 verbatim
+@[simp]
+theorem vflatten_one {n : Fin 1 → ℕ} {v : (i : Fin 1) → Fin (n i) → α} :
+    vflatten v = v 0 := rfl
+
+
+-- @@ L276-278 verbatim
+@[simp]
+theorem vflatten_two_eq_append {n : Fin 2 → ℕ} {v : (i : Fin 2) → Fin (n i) → α} :
+    vflatten v = vappend (v 0) (v 1) := rfl
+
+
+-- @@ L280-283 verbatim
+@[simp]
+theorem vflatten_splitSum {m : ℕ} {n : Fin m → ℕ} (v : (k : Fin (vsum n)) → α) (k : Fin (vsum n)) :
+    vflatten (fun i j => v (embedSum i j)) k = v k :=
+  dflatten_splitSum v k
+
+
+-- @@ L285-288 verbatim
+@[simp]
+theorem vflatten_embedSum {m : ℕ} {n : Fin m → ℕ} (v : (i : Fin m) → Fin (n i) → α) (i : Fin m)
+    (j : Fin (n i)) : vflatten v (embedSum i j) = v i j :=
+  dflatten_embedSum (motive := fun _ => α) v i j
+
+
+-- @@ L290-315 verbatim
+theorem vflatten_eq_vappend_last {m : ℕ} {n : Fin (m + 1) → ℕ}
+    {v : (i : Fin (m + 1)) → Fin (n i) → α} :
+    vflatten v =
+      vappend (vflatten (fun i => v i.castSucc)) (v (last _)) ∘ Fin.cast vsum_castSucc := by
+  funext k
+  have hk : embedSum (splitSum k).1 (splitSum k).2 = k := embedSum_splitSum k
+  rcases hs : splitSum k with ⟨i, j⟩
+  rw [hs] at hk
+  clear hs
+  subst hk
+  dsimp only
+  rw [vflatten_embedSum, Function.comp_apply]
+  induction i using Fin.lastCases with
+  | last =>
+    refine (vappend_right (vflatten fun i => v i.castSucc) (v (last m)) j).symm.trans ?_
+    congr 1
+    apply Fin.ext
+    simp only [Fin.val_natAdd, Fin.val_cast, val_embedSum, Fin.val_last, vsum_eq_univ_sum]
+    rfl
+  | cast i =>
+    refine (vflatten_embedSum (fun i => v i.castSucc) i j).symm.trans ?_
+    rw [← vappend_left (vflatten fun i => v i.castSucc) (v (last m)) (embedSum i j)]
+    congr 1
+    apply Fin.ext
+    simp only [Fin.val_castAdd, Fin.val_cast, val_embedSum, Fin.val_castSucc]
+    rfl
+
+
+-- @@ L317-328 verbatim
+/-- Functorial flatten: flattens a nested heterogeneous tuple
+`(i : Fin m) → (j : Fin (n i)) → F (α i j)` into a single heterogeneous tuple with type
+`(k : Fin (vsum n)) → F (vflatten α k)` where `vflatten` operates on the vector of types `α`.
+
+Unlike `dflatten` which requires an explicit unified motive, `fflatten` uses `vflatten` to
+automatically construct the motive from the input type family. -/
+def fflatten {A : Sort u} {F : A → Sort v} {m : ℕ} {n : Fin m → ℕ}
+    {α : (i : Fin m) → (j : Fin (n i)) → A}
+    (v : (i : Fin m) → (j : Fin (n i)) → F (α i j)) : (k : Fin (vsum n)) → F (Fin.vflatten α k) :=
+  match m with
+  | 0 => !h[]
+  | _ + 1 => fappend (v 0) (fflatten (fun i => v i.succ))
+
+
+-- @@ L330-333 verbatim
+@[simp]
+theorem fflatten_zero {A : Sort u} {F : A → Sort v} {n : Fin 0 → ℕ}
+    {α : (i : Fin 0) → (j : Fin (n i)) → A}
+    {v : (i : Fin 0) → (j : Fin (n i)) → F (α i j)} : fflatten v = !h[] := rfl
+
+
+-- @@ L335-339 verbatim
+@[simp]
+theorem fflatten_succ {A : Sort u} {F : A → Sort v} {m : ℕ} {n : Fin (m + 1) → ℕ}
+    {α : (i : Fin (m + 1)) → (j : Fin (n i)) → A}
+    {v : (i : Fin (m + 1)) → (j : Fin (n i)) → F (α i j)} :
+    fflatten v = fappend (v 0) (fflatten (fun i => v i.succ)) := rfl
+
+
+-- @@ L341-345 verbatim
+@[simp]
+theorem fflatten_one {A : Sort u} {F : A → Sort v} {n : Fin 1 → ℕ}
+    {α : (i : Fin 1) → (j : Fin (n i)) → A}
+    {v : (i : Fin 1) → (j : Fin (n i)) → F (α i j)} :
+    fflatten v = v 0 := rfl
+
+
+-- @@ L347-351 verbatim
+@[simp]
+theorem fflatten_two_eq_append {A : Sort u} {F : A → Sort v} {n : Fin 2 → ℕ}
+    {α : (i : Fin 2) → (j : Fin (n i)) → A}
+    {v : (i : Fin 2) → (j : Fin (n i)) → F (α i j)} :
+    fflatten v = fappend (F := F) (v 0) (v 1) := rfl
+
+
+-- @@ L353-369 verbatim
+@[simp]
+theorem fflatten_embedSum {A : Sort u} {F : A → Sort v} {m : ℕ} {n : Fin m → ℕ}
+    {α : (i : Fin m) → (j : Fin (n i)) → A}
+    (v : (i : Fin m) → (j : Fin (n i)) → F (α i j)) (i : Fin m) (j : Fin (n i)) :
+    fflatten v (embedSum i j) = cast (by simp) (v i j) := by
+  induction m with
+  | zero => exact Fin.elim0 i
+  | succ m ih =>
+    induction i using Fin.cases with
+    | zero =>
+      simp only [embedSum_succ_zero, fflatten_succ]
+      erw [fappend_left]
+      rfl
+    | succ i =>
+      simp only [embedSum_succ_succ, fflatten_succ]
+      erw [fappend_right, ih (fun i => v i.succ) i j, _root_.cast_cast]
+      rfl
+
+
+-- @@ L371-381 verbatim
+@[simp]
+theorem fflatten_splitSum {A : Sort u} {F : A → Sort v} {m : ℕ} {n : Fin m → ℕ}
+    {α : (i : Fin (vsum n)) → A}
+    (v : (k : Fin (vsum n)) → F (α k)) (k : Fin (vsum n)) :
+    fflatten (fun i j => v (embedSum i j)) k = cast (by simp) (v k) := by
+  have hk : embedSum (splitSum k).1 (splitSum k).2 = k := embedSum_splitSum k
+  rcases hs : splitSum k with ⟨i, j⟩
+  rw [hs] at hk
+  clear hs
+  subst hk
+  exact fflatten_embedSum _ i j
+
+
+-- @@ L383-395 verbatim
+/-- Functorial flatten with two arguments: flattens two nested heterogeneous tuple
+`(i : Fin m) → (j : Fin (n i)) → F (α i j)` into a single heterogeneous tuple with type
+`(k : Fin (vsum n)) → F (vflatten α k)` where `vflatten` operates on the vector of types `α`.
+
+Unlike `dflatten` which requires an explicit unified motive, `fflatten` uses `vflatten` to
+automatically construct the motive from the input type family. -/
+def fflatten₂ {A : Sort u} {B : Sort v} {F : A → B → Sort w} {m : ℕ} {n : Fin m → ℕ}
+    {α : (i : Fin m) → (j : Fin (n i)) → A} {β : (i : Fin m) → (j : Fin (n i)) → B}
+    (v : (i : Fin m) → (j : Fin (n i)) → F (α i j) (β i j)) :
+    (k : Fin (vsum n)) → F (Fin.vflatten α k) (Fin.vflatten β k) :=
+  match m with
+  | 0 => !h[]
+  | _ + 1 => fappend₂ (v 0) (fflatten₂ (fun i => v i.succ))
+
+
+-- @@ L397-401 verbatim
+@[simp]
+theorem fflatten₂_zero {A : Sort u} {B : Sort v} {F : A → B → Sort w} {n : Fin 0 → ℕ}
+    {α : (i : Fin 0) → (j : Fin (n i)) → A}
+    {β : (i : Fin 0) → (j : Fin (n i)) → B}
+    {v : (i : Fin 0) → (j : Fin (n i)) → F (α i j) (β i j)} : fflatten₂ v = !h[] := rfl
+
+
+-- @@ L403-408 verbatim
+@[simp]
+theorem fflatten₂_succ {A : Sort u} {B : Sort v} {F : A → B → Sort w} {m : ℕ} {n : Fin (m + 1) → ℕ}
+    {α : (i : Fin (m + 1)) → (j : Fin (n i)) → A}
+    {β : (i : Fin (m + 1)) → (j : Fin (n i)) → B}
+    {v : (i : Fin (m + 1)) → (j : Fin (n i)) → F (α i j) (β i j)} :
+    fflatten₂ v = fappend₂ (v 0) (fflatten₂ (fun i => v i.succ)) := rfl
+
+
+-- @@ L410-415 verbatim
+@[simp]
+theorem fflatten₂_one {A : Sort u} {B : Sort v} {F : A → B → Sort w} {n : Fin 1 → ℕ}
+    {α : (i : Fin 1) → (j : Fin (n i)) → A}
+    {β : (i : Fin 1) → (j : Fin (n i)) → B}
+    {v : (i : Fin 1) → (j : Fin (n i)) → F (α i j) (β i j)} :
+    fflatten₂ v = v 0 := rfl
+
+
+-- @@ L417-422 verbatim
+@[simp]
+theorem fflatten₂_two_eq_append {A : Sort u} {B : Sort v} {F : A → B → Sort w} {n : Fin 2 → ℕ}
+    {α : (i : Fin 2) → (j : Fin (n i)) → A}
+    {β : (i : Fin 2) → (j : Fin (n i)) → B}
+    {v : (i : Fin 2) → (j : Fin (n i)) → F (α i j) (β i j)} :
+    fflatten₂ v = fappend₂ (F := F) (v 0) (v 1) := rfl
+
+
+-- @@ L424-441 verbatim
+@[simp]
+theorem fflatten₂_embedSum {A : Sort u} {B : Sort v} {F : A → B → Sort w} {m : ℕ} {n : Fin m → ℕ}
+    {α : (i : Fin m) → (j : Fin (n i)) → A}
+    {β : (i : Fin m) → (j : Fin (n i)) → B}
+    (v : (i : Fin m) → (j : Fin (n i)) → F (α i j) (β i j)) (i : Fin m) (j : Fin (n i)) :
+    fflatten₂ v (embedSum i j) = cast (by simp) (v i j) := by
+  induction m with
+  | zero => exact Fin.elim0 i
+  | succ m ih =>
+    induction i using Fin.cases with
+    | zero =>
+      simp only [embedSum_succ_zero, fflatten₂_succ]
+      erw [fappend₂_left]
+      rfl
+    | succ i =>
+      simp only [embedSum_succ_succ, fflatten₂_succ]
+      erw [fappend₂_right, ih (fun i => v i.succ) i j, _root_.cast_cast]
+      rfl
+
+
+-- @@ L443-454 verbatim
+@[simp]
+theorem fflatten₂_splitSum {A : Sort u} {B : Sort v} {F : A → B → Sort w} {m : ℕ} {n : Fin m → ℕ}
+    {α : (i : Fin m) → (j : Fin (n i)) → A}
+    {β : (i : Fin m) → (j : Fin (n i)) → B}
+    (v : (k : Fin (vsum n)) → F (vflatten α k) (vflatten β k)) (k : Fin (vsum n)) :
+    fflatten₂ (fun i j => v (embedSum i j)) k = cast (by simp) (v k) := by
+  have hk : embedSum (splitSum k).1 (splitSum k).2 = k := embedSum_splitSum k
+  rcases hs : splitSum k with ⟨i, j⟩
+  rw [hs] at hk
+  clear hs
+  subst hk
+  exact fflatten₂_embedSum _ i j
+
+
+-- @@ L456-467 verbatim
+/-- Heterogeneous flatten: flattens a nested heterogeneous tuple
+`(i : Fin m) → (j : Fin (n i)) → α i j` into a single heterogeneous tuple with type
+`(k : Fin (vsum n)) → vflatten α k` where `vflatten` operates on the vector of types `α`.
+
+Unlike `dflatten` which requires an explicit unified motive, `hflatten` uses `vflatten` to
+automatically construct the motive from the input type family. -/
+def hflatten {m : ℕ} {n : Fin m → ℕ} {α : (i : Fin m) → (j : Fin (n i)) → Sort*}
+    (v : (i : Fin m) → (j : Fin (n i)) → α i j) : (k : Fin (vsum n)) → Fin.vflatten α k :=
+  fflatten (F := id) v
+  -- match m with
+  -- | 0 => !h[]
+  -- | _ + 1 => happend (v 0) (hflatten (fun i => v i.succ))
+
+
+-- @@ L469-472 verbatim
+@[simp]
+theorem hflatten_zero {n : Fin 0 → ℕ} {α : (i : Fin 0) → (j : Fin (n i)) → Sort*}
+    {v : (i : Fin 0) → (j : Fin (n i)) → α i j} : hflatten v = !h[] :=
+  fflatten_zero (F := id)
+
+
+-- @@ L474-479 verbatim
+@[simp]
+theorem hflatten_succ {m : ℕ} {n : Fin (m + 1) → ℕ}
+    {α : (i : Fin (m + 1)) → (j : Fin (n i)) → Sort*}
+    {v : (i : Fin (m + 1)) → (j : Fin (n i)) → α i j} :
+    hflatten v = happend (v 0) (hflatten (fun i => v i.succ)) :=
+  fflatten_succ (F := id)
+
+
+-- @@ L481-484 verbatim
+@[simp]
+theorem hflatten_one {n : Fin 1 → ℕ} {α : (i : Fin 1) → (j : Fin (n i)) → Sort*}
+    {v : (i : Fin 1) → (j : Fin (n i)) → α i j} : hflatten v = v 0 :=
+  fflatten_one (F := id)
+
+
+-- @@ L486-489 verbatim
+@[simp]
+theorem hflatten_two_eq_append {n : Fin 2 → ℕ} {α : (i : Fin 2) → (j : Fin (n i)) → Sort*}
+    {v : (i : Fin 2) → (j : Fin (n i)) → α i j} : hflatten v = happend (v 0) (v 1) :=
+  fflatten_two_eq_append (F := id)
+
+
+-- @@ L491-495 verbatim
+@[simp]
+theorem hflatten_splitSum {m : ℕ} {n : Fin m → ℕ} {α : (k : Fin (vsum n)) → Sort*}
+    (v : (k : Fin (vsum n)) → α k) (k : Fin (vsum n)) :
+    hflatten (fun i j => v (embedSum i j)) k = cast (vflatten_splitSum α k).symm (v k) :=
+  fflatten_splitSum (F := id) v k
+
+
+-- @@ L497-503 verbatim
+@[simp]
+theorem hflatten_embedSum {m : ℕ} {n : Fin m → ℕ} {α : (i : Fin m) → (j : Fin (n i)) → Sort*}
+    (v : (i : Fin m) → (j : Fin (n i)) → α i j) (i : Fin m) (j : Fin (n i)) :
+    hflatten v (embedSum i j) = cast (vflatten_embedSum α i j).symm (v i j) :=
+  fflatten_embedSum (F := id) v i j
+
+/- The rest are old stuff... -/
+
+
+-- @@ L505-505 verbatim
+section FinSigmaFinEquiv
+
+
+-- @@ L507-507 verbatim
+variable {n : ℕ}
+
+
+-- @@ L509-510 verbatim
+def map {α β : Fin n → Sort*} (f : (i : Fin n) → α i → β i) (a : (i : Fin n) → α i) :
+    (i : Fin n) → β i := fun i => f i (a i)
+
+
+-- @@ L512-512 verbatim
+def range (n : ℕ) : Fin n → ℕ := fun i => i
+
+
+-- @@ L514-522 verbatim
+def ranges {n : ℕ} (a : Fin n → ℕ) : (i : Fin n) → Fin (a i) → ℕ :=
+  match n with
+  | 0 => fun i => elim0 i
+  | n + 1 => fun i => by
+    by_cases h : i = 0
+    · exact val
+    · letI rest := ranges (tail a) (i.pred h)
+      simp only [tail, pred, subNat_one_succ] at rest
+      exact fun j => rest j + a 0
+
+
+-- @@ L524-530 verbatim
+/-- Find the first index `i` such that `k` is smaller than `∑ j < i, a j`, and return `none`
+  otherwise.
+
+  This is the dependent version of `Fin.divNat`.
+-/
+def divSum? {m : ℕ} (n : Fin m → ℕ) (k : ℕ) : Option (Fin m) :=
+  Fin.find? (fun i => k < ∑ j, n (castLE i.isLt j))
+
+
+-- @@ L532-538 verbatim
+/-- The sum of `n` over the first `i + 1` indices is at most the total sum. -/
+theorem partialSum_le_sum {m : ℕ} (n : Fin m → ℕ) (i : Fin m) :
+    ∑ j : Fin (i.val + 1), n (castLE i.isLt j) ≤ ∑ j, n j := by
+  have h : (i.val + 1) + (m - i.val - 1) = m := by omega
+  conv_rhs => rw [← Fin.sum_congr' n h, Fin.sum_univ_add]
+  refine le_of_eq_of_le (Finset.sum_congr rfl fun j _ => ?_) (Nat.le_add_right _ _)
+  rfl
+
+
+-- @@ L540-570 verbatim
+theorem divSum?_is_some_iff_lt_sum {m : ℕ} {n : Fin m → ℕ} {k : ℕ} :
+    (divSum? n k).isSome ↔ k < ∑ i, n i := by
+  rw [divSum?, Fin.isSome_find?_iff]
+  constructor
+  · rintro ⟨i, hi⟩
+    rw [decide_eq_true_eq] at hi
+    exact lt_of_lt_of_le hi (partialSum_le_sum n i)
+  · intro hk
+    obtain ⟨m', rfl⟩ : ∃ m', m = m' + 1 := by
+      cases m with
+      | zero => simp at hk
+      | succ m' => exact ⟨m', rfl⟩
+    refine ⟨Fin.last m', ?_⟩
+    rw [decide_eq_true_eq]
+    refine lt_of_lt_of_le hk (le_of_eq (Finset.sum_congr rfl fun j _ => ?_))
+    rfl
+  -- constructor
+  -- · intro h
+  --   simp only [divSum?, Nat.succ_eq_add_one, castLE, isSome_find_iff] at h
+  --   obtain ⟨i, hi⟩ := h
+  --   have : i.val + 1 + (m - i.val - 1) = m := by omega
+  --   rw [← Fin.sum_congr' _ this, Fin.sum_univ_add]
+  --   simp only [gt_iff_lt]
+  --   exact Nat.lt_add_right _ hi
+  -- · intro isLt
+  --   have : m ≠ 0 := fun h => by subst h; simp at isLt
+  --   refine Fin.isSome_find_iff.mpr ?_
+  --   have hm : (m - 1) + 1 = m := by omega
+  --   refine ⟨Fin.cast hm (Fin.last (m - 1)), ?_⟩
+  --   simp only [coe_cast, val_last, Nat.succ_eq_add_one, Fin.castLE_of_eq hm,
+  --       Fin.sum_congr' n hm, isLt]
+
+
+-- @@ L572-573 verbatim
+def divSum {m : ℕ} {n : Fin m → ℕ} (k : Fin (∑ j, n j)) : Fin m :=
+  (divSum? n k).get (divSum?_is_some_iff_lt_sum.mpr k.isLt)
+
+
+-- @@ L575-590 verbatim
+theorem sum_le_of_divSum?_eq_some {m : ℕ} {n : Fin m → ℕ} {k : Fin (∑ j, n j)} {i : Fin m}
+    (hi : divSum? n k = some i) : ∑ j : Fin i, n (castLE i.isLt.le j) ≤ k := by
+  by_cases hi' : 0 = i.val
+  · rw [← Fin.sum_congr' _ hi']
+    simp only [Finset.univ_eq_empty, Finset.sum_empty, _root_.zero_le]
+  · have hone : (i.val - 1) + 1 = i.val := by omega
+    rw [← Fin.sum_congr' _ hone]
+    have hj : (decide (↑k < ∑ j, n (castLE (Fin.mk (i.val - 1) (by omega) : Fin m).isLt j)))
+        = false :=
+      Fin.eq_false_of_find?_eq_some_of_lt hi ⟨i.val - 1, by omega⟩ (by simp [Fin.lt_def]; omega)
+    rw [decide_eq_false_iff_not, not_lt] at hj
+    refine le_trans (le_of_eq (Finset.sum_congr rfl fun j _ => ?_)) hj
+    rfl
+    -- have := Fin.find_min (Option.mem_def.mp hi) (j := ⟨i.val - 1, by omega⟩) <| Fin.lt_def.mpr
+    --   (by simp only; omega)
+    -- exact not_lt.mp this
+
+
+-- @@ L592-603 verbatim
+def modSum {m : ℕ} {n : Fin m → ℕ} (k : Fin (∑ j, n j)) : Fin (n (divSum k)) :=
+  ⟨k - ∑ j, n (Fin.castLE (divSum k).isLt.le j), by
+    have divSum_mem : divSum k ∈ divSum? n k := by
+      simp only [divSum, divSum?, Option.mem_def, Option.some_get]
+    have hk : (k : ℕ) < ∑ j, n (Fin.castLE (divSum k).isLt j) := by
+      have := Fin.eq_true_of_find?_eq_some (p := fun i => decide ((k : ℕ) <
+        ∑ j, n (castLE i.isLt j))) divSum_mem
+      simpa using this
+    simp only [Fin.sum_univ_succAbove _ (Fin.last (divSum k)), succAbove_last] at hk
+    rw [Nat.sub_lt_iff_lt_add' (sum_le_of_divSum?_eq_some divSum_mem)]
+    rw [add_comm]
+    exact hk⟩
+
+
+-- @@ L605-629 verbatim
+/-- Equivalence between `(i : Fin m) × Fin (n i)` and `Fin (∑ i, n i)`.
+
+Put this as the prime version since it already exists in mathlib (though with a different definition
+that's not def'eq to this one). -/
+def finSigmaFinEquiv' {m : ℕ} {n : Fin m → ℕ} : (i : Fin m) × Fin (n i) ≃ Fin (∑ i, n i) :=
+  .ofRightInverseOfCardLE (le_of_eq <| by simp_rw [Fintype.card_sigma, Fintype.card_fin])
+    (fun ⟨i, j⟩ => ⟨∑ k, n (Fin.castLE i.isLt.le k) + j, by
+      have hi : i.val + 1 + (m - i.val - 1) = m := by omega
+      conv_rhs => rw [← Fin.sum_congr' n hi, Fin.sum_univ_add, Fin.sum_univ_add, add_assoc]
+      have hk {k : Fin i} : Fin.castLE i.isLt.le k =
+            Fin.cast hi (Fin.castAdd (m - i - 1) (Fin.castAdd 1 k)) := by
+        simp only [Fin.castLE, Fin.cast, Fin.val_castAdd]
+      simp_rw [hk, Nat.add_lt_add_iff_left, univ_unique, sum_singleton]
+      exact Nat.lt_add_right _ (by simp only [Fin.cast, Fin.val_castAdd, Fin.val_natAdd,
+          Fin.val_eq_zero, add_zero, Fin.is_lt])⟩)
+    (fun k => ⟨k.divSum, k.modSum⟩)
+    (by
+      intro a
+      induction n using Fin.consInduction with
+      | elim0 =>
+        simp only [univ_eq_empty, sum_empty] at a
+        exact Fin.elim0 a
+      | cons =>
+        ext
+        exact Nat.add_sub_cancel' (Fin.sum_le_of_divSum?_eq_some (Option.some_get _).symm))
+
+
+-- @@ L631-633 verbatim
+@[simp]
+theorem finSigmaFinEquiv'_apply {m : ℕ} {n : Fin m → ℕ} (k : (i : Fin m) × Fin (n i)) :
+    (finSigmaFinEquiv' k : ℕ) = ∑ i : Fin k.1, n (Fin.castLE k.1.isLt.le i) + k.2 := rfl
+
+
+-- @@ L635-637 verbatim
+theorem finSigmaFinEquiv'_pair {m : ℕ} {n : Fin m → ℕ} (i : Fin m) (k : Fin (n i)) :
+    (finSigmaFinEquiv' ⟨i, k⟩ : ℕ) = ∑ j, n (Fin.castLE i.isLt.le j) + k := by
+  simp only [finSigmaFinEquiv', Equiv.ofRightInverseOfCardLE_apply]
+
+
+-- @@ L639-639 verbatim
+end FinSigmaFinEquiv
+
+
+-- @@ L641-641 verbatim
+end Fin

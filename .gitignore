@@ -55,7 +55,6 @@ next-env.d.ts
 /gate2/gate2_sandbox.lean
 
 # run state and caches
-/data/exports/
 /data/export.ndjson
 /data/recurse-prefix-cache.json
 /data/*.corrupted-backup

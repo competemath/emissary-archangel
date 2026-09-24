@@ -1,0 +1,1 @@
+{"names":["Matrix.pow_dvd_det_of_forall_mem_col_dvd"],"modules":["ArkLib.ToMathlib.LinearAlgebra.Matrix.Determinant"],"moduleOf":{"Matrix.pow_dvd_det_of_forall_mem_col_dvd":"ArkLib.ToMathlib.LinearAlgebra.Matrix.Determinant"},"deps":{"Matrix.pow_dvd_det_of_forall_mem_col_dvd":[]}}

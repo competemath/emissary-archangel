@@ -1,0 +1,1 @@
+{"names":["Polynomial.smul_divByMonic"],"modules":["CompPoly.ToMathlib.Polynomial.Div"],"moduleOf":{"Polynomial.smul_divByMonic":"CompPoly.ToMathlib.Polynomial.Div"},"deps":{"Polynomial.smul_divByMonic":[]}}

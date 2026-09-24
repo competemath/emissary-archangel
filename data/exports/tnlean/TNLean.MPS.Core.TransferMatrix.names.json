@@ -1,0 +1,1 @@
+{"names":["MPSTensor.transferMatrix_eq"],"modules":["TNLean.MPS.Core.TransferMatrix"],"moduleOf":{"MPSTensor.transferMatrix_eq":"TNLean.MPS.Core.TransferMatrix"},"deps":{"MPSTensor.transferMatrix_eq":[]}}

@@ -1,0 +1,822 @@
+/-
+Copyright (c) 2025 TNLean contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: TNLean contributors
+-/
+import TNLean.MPS.Periodic.Defs
+import QICLean.Algebra.ScalarPowerSumIdentity
+import TNLean.MPS.Overlap.Basic
+import TNLean.MPS.Periodic.Overlap
+import TNLean.MPS.Periodic.ZGauge
+import TNLean.MPS.SharedInfra.Scaling
+import TNLean.MPS.Tactic.Basic
+
+
+-- @@ L14-69 verbatim
+/-!
+# Components of the periodic Fundamental Theorem of MPS
+
+This file develops conditional block-matching results toward the periodic
+Fundamental Theorem of arXiv:1708.00029, Section 3, and the Z-gauge theory used
+in its equal-case strengthening:
+
+* **Conditional block matching** (`fundamentalTheorem_periodic_proportional`):
+  if two non-repeated block families satisfy a supplied periodic-overlap
+  hypothesis, their blocks match bijectively up to `RepeatedBlocks`. Source
+  theorem `thm:bd` instead assumes proportionality of the assembled MPV
+  families. The companion module `ProportionalOverlap` proves the deduction
+  for literal multiplicity-bearing families of spectrally periodic blocks,
+  including transport through their sectorwise Perron similarities, and
+  assembles the source-labelled theorem
+  `fundamentalTheorem_periodic_proportional_sectorDecomposition` over the
+  stronger witness `PeriodicBasisMatchingWitness`, which retains equality of
+  the matched periods.
+
+* **Supporting lemmas for the equal-case theorem `thm:bdequal`**: The equal-case
+  strengthening produces per-block Z-gauge data (diagonal Z with Z^m = 1) from the
+  Newton–Girard identity on multiplicity entries.
+  The Z-gauge construction is packaged in `zgauge_construction`.
+
+## Conditional block matching from periodic overlaps
+
+The block-matching conclusion used toward theorem `thm:bd` has two conditional
+forms:
+
+* `fundamentalTheorem_periodic_proportional` takes a `PeriodicOverlapHypothesis` directly,
+  leaving callers free to supply the dichotomy from any source.
+* `fundamentalTheorem_periodic_proportional_of_isPeriodic` is a variant that no
+  longer takes `PeriodicOverlapHypothesis` as a parameter: the
+  `hetRepeatedBlocks_of_nondecaying` field is filled inside
+  `PeriodicOverlapHypothesis.ofIsPeriodic` via `periodicOverlapDichotomy`.
+  Callers only need to supply per-block `IsPeriodic` data
+  plus the existence of non-decaying cross-family overlaps
+  (`exists_nondecaying_A/B`). The companion module `ProportionalOverlap`
+  derives these witnesses from nonzero proportionality for literal
+  multiplicity-bearing families of normalized periodic blocks, and also for
+  the more restrictive scalar-weight irreducible-form representation.
+
+  The overlap dichotomy, including the full-cycle contraction with \(F_u\),
+  \(\Omega_u\), and the phases \(\kappa_v\), is proved in
+  `TNLean.MPS.Periodic.Overlap.SectorMatch` and assembled in
+  `TNLean.MPS.Periodic.Overlap.Dichotomy`.
+
+The Z-gauge construction (the scalar-entry part of `thm:bdequal`) is fully proved.
+
+## Key references
+
+* arXiv:1708.00029 (De las Cuevas–Cirac–Schuch–Pérez-García, 2017)
+* `MPSTensor.ft_sector_bnt_proportional_sector_match_witnesses` — current
+  sector-decomposition matching template for the non-periodic theorem
+* Z-gauge construction lemmas in `ZGauge.lean`
+-/
+
+-- @@ L70-70 verbatim
+open scoped Matrix BigOperators
+
+
+-- @@ L72-72 verbatim
+namespace MPSTensor
+
+
+-- @@ L74-74 verbatim
+variable {d : ℕ}
+
+
+-- @@ L76-76 verbatim
+/-! ## Repeated blocks for different bond dimensions -/
+
+
+-- @@ L78-84 verbatim
+/-- Version of `RepeatedBlocks` for blocks with different ambient bond dimensions.
+
+The witness includes equality of the two bond dimensions, avoiding explicit
+`cast` manipulation in theorems involving families of varying-dimension blocks
+(for example, `IsIrreducibleForm`). -/
+def HetRepeatedBlocks {D₁ D₂ : ℕ} (A : MPSTensor d D₁) (B : MPSTensor d D₂) : Prop :=
+  ∃ (h : D₁ = D₂), RepeatedBlocks (cast (congr_arg (MPSTensor d) h) A) B
+
+
+-- @@ L86-88 verbatim
+theorem HetRepeatedBlocks.dim_eq {D₁ D₂ : ℕ} {A : MPSTensor d D₁} {B : MPSTensor d D₂}
+    (h : HetRepeatedBlocks A B) : D₁ = D₂ :=
+  h.1
+
+
+-- @@ L90-93 verbatim
+theorem HetRepeatedBlocks.symm {D₁ D₂ : ℕ} {A : MPSTensor d D₁} {B : MPSTensor d D₂}
+    (h : HetRepeatedBlocks A B) : HetRepeatedBlocks B A := by
+  obtain ⟨heq, hrep⟩ := h
+  subst heq; exact ⟨rfl, hrep.symm⟩
+
+
+-- @@ L95-102 verbatim
+theorem HetRepeatedBlocks.trans {D₁ D₂ D₃ : ℕ}
+    {A : MPSTensor d D₁} {B : MPSTensor d D₂} {C : MPSTensor d D₃}
+    (h₁ : HetRepeatedBlocks A B) (h₂ : HetRepeatedBlocks B C) :
+    HetRepeatedBlocks A C := by
+  obtain ⟨heq₁, hrep₁⟩ := h₁
+  obtain ⟨heq₂, hrep₂⟩ := h₂
+  subst heq₁; subst heq₂
+  exact ⟨rfl, hrep₁.trans hrep₂⟩
+
+
+-- @@ L104-106 verbatim
+theorem HetRepeatedBlocks.of_repeatedBlocks {D : ℕ} {A B : MPSTensor d D}
+    (h : RepeatedBlocks A B) : HetRepeatedBlocks A B :=
+  ⟨rfl, h⟩
+
+
+-- @@ L108-117 verbatim
+/-- A pure bond-space similarity is a repeated-block relation with unit phase,
+also in the heterogeneous-dimension formulation.
+
+Source: arXiv:1708.00029, definition `def:repeated` and equation `eq:rep`,
+lines 276--284; the pure normalization similarities used here occur at
+lines 313--332. -/
+theorem GaugeEquiv.toHetRepeatedBlocks {D : ℕ} {A B : MPSTensor d D}
+    (h : GaugeEquiv A B) : HetRepeatedBlocks A B :=
+  HetRepeatedBlocks.of_repeatedBlocks
+    ((equivalentBlocks_iff_gaugeEquiv.mpr h).to_repeatedBlocks)
+
+
+-- @@ L119-119 verbatim
+/-! ## Phase powers carried by a repeated-block relation -/
+
+
+-- @@ L121-140 verbatim
+/-- Two repeated blocks have proportional matrix-product vectors at every chain
+length, and the proportionality scalar at length `N` is the `N`-th power of a
+single unit-modulus phase.
+
+This is the matrix-product-vector reading of the repeated-block relation
+`A_j^i = e^{i ξ} Y B_k^i Y^{-1}`: the similarity drops out under the closed-chain
+trace, and each of the `N` sites contributes one factor of the phase. In
+particular, the proportionality scalar genuinely depends on the length; already
+the one-site tensors `B^0 = 1` and `A^0 = e^{i ξ}` have `V_N(A) = e^{i N ξ} V_N(B)`.
+
+Source: arXiv:1708.00029, definition `def:repeated` and equation `eq:rep`,
+lines 276--284; the proportional statement compared at every length is the
+hypothesis of theorem `thm:bd`, lines 613--623. -/
+theorem HetRepeatedBlocks.exists_unit_phase_power_mpv {D₁ D₂ : ℕ}
+    {A : MPSTensor d D₁} {B : MPSTensor d D₂} (h : HetRepeatedBlocks A B) :
+    ∃ ζ : ℂ, ‖ζ‖ = 1 ∧ ∀ (N : ℕ) (σ : Fin N → Fin d), mpv A σ = ζ ^ N * mpv B σ := by
+  obtain ⟨hDim, ξ, Y, hξ, hGauge⟩ := h
+  refine ⟨ξ, hξ, fun N σ => ?_⟩
+  rw [← mpv_cast_dim hDim A N σ]
+  exact mpv_eq_pow_mul_of_gaugePhase B (cast (congr_arg (MPSTensor d) hDim) A) Y ξ hGauge N σ
+
+
+-- @@ L142-164 verbatim
+/-- The phase of a repeated-block relation can be absorbed into one of the two
+blocks: rescaling the first block by the reciprocal phase makes the two
+matrix-product-vector families equal at every positive chain length.
+
+Source: arXiv:1708.00029, definition `def:repeated` and equation `eq:rep`, lines
+276--284; the absorption of a repeated-block phase into the multiplicities is
+used at lines 302--305 and again in the proof of theorem `thm:bdequal`, lines
+667--671.
+
+**Scope restriction (blockwise phase):** the phase produced here belongs to one
+matched pair of basis tensors. Distinct matched pairs may carry distinct phases,
+so no single phase is asserted for the assembled tensors of lines 286--305; see
+`docs/paper-gaps/dccsp17_periodic_overlap_route_alignment.tex`. -/
+theorem HetRepeatedBlocks.exists_phase_rescaling_sameMPV₂Pos {D₁ D₂ : ℕ}
+    {A : MPSTensor d D₁} {B : MPSTensor d D₂} (h : HetRepeatedBlocks A B) :
+    ∃ ξ : ℂ, ‖ξ‖ = 1 ∧ SameMPV₂Pos (fun i => ξ • A i) B := by
+  obtain ⟨ζ, hζ, hmpv⟩ := h.exists_unit_phase_power_mpv
+  have hζ0 : ζ ≠ 0 := Complex.ne_zero_of_norm_eq_one hζ
+  refine ⟨ζ⁻¹, by rw [norm_inv, hζ, inv_one], ?_⟩
+  mpv_ext
+  have hscale : mpv (fun i => ζ⁻¹ • A i) σ = ζ⁻¹ ^ N * mpv A σ :=
+    mpv_eq_pow_mul_of_gaugePhase A (fun i => ζ⁻¹ • A i) 1 ζ⁻¹ (fun i => by simp) N σ
+  rw [hscale, hmpv N σ, ← mul_assoc, ← mul_pow, inv_mul_cancel₀ hζ0, one_pow, one_mul]
+
+-- @@ L165-165 verbatim
+/-! ## Repeated blocks have a common period -/
+
+
+-- @@ L167-195 verbatim
+/-- Repeated blocks have the same peripheral transfer spectrum.
+
+Multiplying every matrix of a block by a unit-modulus phase leaves its transfer
+map unchanged, and the remaining bond-space similarity conjugates that map.
+Neither operation moves the unit-circle eigenvalues.
+
+Source: arXiv:1708.00029, definition `def:repeated` and equation `eq:rep`,
+lines 276--284; the spectral invariance supports the last clause of proposition
+`equal-or-orthogonal-generalized`, lines 602--604. -/
+theorem RepeatedBlocks.peripheralEigenvalues_transferMap_eq {D : ℕ}
+    {A B : MPSTensor d D} (h : RepeatedBlocks A B) :
+    peripheralEigenvalues (Kraus.transferMap (d := d) (D := D) A) =
+      peripheralEigenvalues (Kraus.transferMap (d := d) (D := D) B) := by
+  obtain ⟨ξ, Y, hξ, hRel⟩ := h
+  have hGauge : GaugeEquiv B (fun i =>
+      (Y : Matrix (Fin D) (Fin D) ℂ) * B i *
+        (((Y⁻¹ : GL (Fin D) ℂ) : Matrix (Fin D) (Fin D) ℂ))) :=
+    ⟨Y, fun _ => rfl⟩
+  have hSmul : Kraus.transferMap (d := d) (D := D) A =
+      Kraus.transferMap (d := d) (D := D) (fun i =>
+        (Y : Matrix (Fin D) (Fin D) ℂ) * B i *
+          (((Y⁻¹ : GL (Fin D) ℂ) : Matrix (Fin D) (Fin D) ℂ))) := by
+    have hAeq : A = fun i => ξ • ((Y : Matrix (Fin D) (Fin D) ℂ) * B i *
+        (((Y⁻¹ : GL (Fin D) ℂ) : Matrix (Fin D) (Fin D) ℂ))) := funext hRel
+    rw [hAeq]
+    exact transferMap_smul_eq_of_norm_eq_one _ ξ hξ
+  obtain ⟨C, hC, hMap⟩ := hGauge.transferMap_eq_similarityMap
+  rw [hSmul, hMap]
+  exact peripheralEigenvalues_similarityMap_eq (D := D) C hC _
+
+
+-- @@ L197-209 verbatim
+/-- Repeated spectrally periodic blocks have the same period.
+
+This is the last clause of arXiv:1708.00029, proposition
+`equal-or-orthogonal-generalized`, lines 602--604: the repeated-block relation
+can only hold between blocks of equal period. -/
+theorem IsSpectrallyPeriodic.period_eq_of_hetRepeatedBlocks
+    {D₁ D₂ m n : ℕ} {A : MPSTensor d D₁} {B : MPSTensor d D₂}
+    (hA : IsSpectrallyPeriodic m A) (hB : IsSpectrallyPeriodic n B)
+    (h : HetRepeatedBlocks A B) : m = n := by
+  obtain ⟨hDim, hRep⟩ := h
+  subst hDim
+  exact hA.period_eq_of_peripheralEigenvalues_eq hB
+    hRep.peripheralEigenvalues_transferMap_eq
+
+
+-- @@ L211-211 verbatim
+/-! ## Periodic block matching witness -/
+
+
+-- @@ L213-223 verbatim
+/-- Witness for periodic block matching: equal block counts, a bijection, and per-block
+`RepeatedBlocks` equivalence after matching bond dimensions. This is the periodic analogue of
+`BlockPermutationGaugePhaseConclusion`. -/
+abbrev PeriodicBlockMatchingWitness
+    {rA rB : ℕ}
+    {dimA : Fin rA → ℕ} {dimB : Fin rB → ℕ}
+    (A : (j : Fin rA) → MPSTensor d (dimA j))
+    (B : (k : Fin rB) → MPSTensor d (dimB k)) : Prop :=
+  ∃ _h : rA = rB,
+    ∃ perm : Fin rA ≃ Fin rB,
+      ∀ j : Fin rA, HetRepeatedBlocks (A j) (B (perm j))
+
+
+-- @@ L225-242 verbatim
+/-- Witness for the matching conclusion of the proportional fundamental theorem
+for tensors in irreducible form: equal numbers of blocks, a bijection between
+the two bases of periodic tensors, equality of the two matched periods, and the
+repeated-block relation for every matched pair.
+
+This strengthens `PeriodicBlockMatchingWitness` by the period equality asserted
+in arXiv:1708.00029, theorem `thm:bd`, lines 616--620 ("there is exactly one
+`k ∈ K` (with the same period)"). -/
+abbrev PeriodicBasisMatchingWitness
+    {rA rB : ℕ}
+    {dimA : Fin rA → ℕ} {dimB : Fin rB → ℕ}
+    (A : (j : Fin rA) → MPSTensor d (dimA j))
+    (B : (k : Fin rB) → MPSTensor d (dimB k))
+    (periodA : Fin rA → ℕ) (periodB : Fin rB → ℕ) : Prop :=
+  ∃ _h : rA = rB,
+    ∃ perm : Fin rA ≃ Fin rB,
+      ∀ j : Fin rA,
+        periodA j = periodB (perm j) ∧ HetRepeatedBlocks (A j) (B (perm j))
+
+
+-- @@ L244-244 verbatim
+/-! ## Periodic overlap dichotomy hypothesis -/
+
+
+-- @@ L246-264 verbatim
+/-- Hypothesis giving the periodic overlap dichotomy
+(arXiv:1708.00029, proposition `equal-or-orthogonal-generalized`).
+
+The `hetRepeatedBlocks_of_nondecaying` field can be filled via the proved
+`periodicOverlapDichotomy` (see `PeriodicOverlapHypothesis.ofIsPeriodic`). The fields
+capture the essential results:
+1. For each block in one family, a non-decaying overlap partner exists in the other.
+2. Non-decaying overlap forces `HetRepeatedBlocks`.
+
+Injectivity of the matching uses only `HetRepeatedBlocks.trans` and the non-repetition
+hypothesis — no separate cross-overlap decay field is needed. -/
+structure PeriodicOverlapHypothesis
+    {rA rB : ℕ}
+    {dimA : Fin rA → ℕ} {dimB : Fin rB → ℕ}
+    (A : (j : Fin rA) → MPSTensor d (dimA j))
+    (B : (k : Fin rB) → MPSTensor d (dimB k)) where
+  /-- For each A-block, ∃ B-block with non-decaying overlap. -/
+  exists_nondecaying_A : ∀ j₀ : Fin rA, ∃ k₀ : Fin rB,
+    ¬ Filter.Tendsto (fun N => mpvOverlap (d := d) (A j₀) (B k₀) N) Filter.atTop (nhds 0)
+  
+-- @@ L265-267 verbatim
+/-- For each B-block, ∃ A-block with non-decaying overlap. -/
+  exists_nondecaying_B : ∀ k₀ : Fin rB, ∃ j₀ : Fin rA,
+    ¬ Filter.Tendsto (fun N => mpvOverlap (d := d) (A j₀) (B k₀) N) Filter.atTop (nhds 0)
+  
+-- @@ L268-271 verbatim
+/-- Non-decaying cross-family overlap forces `HetRepeatedBlocks`. -/
+  hetRepeatedBlocks_of_nondecaying : ∀ j k,
+    ¬ Filter.Tendsto (fun N => mpvOverlap (d := d) (A j) (B k) N) Filter.atTop (nhds 0) →
+    HetRepeatedBlocks (A j) (B k)
+
+
+-- @@ L273-327 verbatim
+/-- Pure bond-space similarities transport a periodic overlap hypothesis back to the
+original block families.
+
+Every closed-chain matrix-product coefficient is invariant under similarity, so each
+mixed overlap agrees exactly before and after the two gauges. Hence decay, and therefore
+non-decay, is unchanged. The repeated-block conclusion is transported by composing the
+pure-gauge repeated-block relations on its two sides.
+
+Source: arXiv:1708.00029, lines 313--332 (blockwise pure normalization similarities),
+and proposition `equal-or-orthogonal-generalized`, lines 589--609. -/
+theorem PeriodicOverlapHypothesis.of_gaugeEquiv
+    {rA rB : ℕ}
+    {dimA : Fin rA → ℕ} {dimB : Fin rB → ℕ}
+    {A A' : (j : Fin rA) → MPSTensor d (dimA j)}
+    {B B' : (k : Fin rB) → MPSTensor d (dimB k)}
+    (hGaugeA : ∀ j, GaugeEquiv (A j) (A' j))
+    (hGaugeB : ∀ k, GaugeEquiv (B k) (B' k))
+    (hOverlap : PeriodicOverlapHypothesis A' B') :
+    PeriodicOverlapHypothesis A B := by
+  classical
+  have hRepA : ∀ j, HetRepeatedBlocks (A j) (A' j) := fun j =>
+    (hGaugeA j).toHetRepeatedBlocks
+  have hRepB : ∀ k, HetRepeatedBlocks (B k) (B' k) := fun k =>
+    (hGaugeB k).toHetRepeatedBlocks
+  have hOverlapEq : ∀ j k N,
+      mpvOverlap (d := d) (A j) (B k) N = mpvOverlap (d := d) (A' j) (B' k) N := by
+    intro j k N
+    apply Finset.sum_congr rfl
+    intro σ _
+    rw [(hGaugeA j).sameMPV N σ, (hGaugeB k).sameMPV N σ]
+  refine
+    { exists_nondecaying_A := ?_
+      exists_nondecaying_B := ?_
+      hetRepeatedBlocks_of_nondecaying := ?_ }
+  · intro j
+    obtain ⟨k, hNondecay⟩ := hOverlap.exists_nondecaying_A j
+    refine ⟨k, ?_⟩
+    intro hDecay
+    apply hNondecay
+    exact hDecay.congr' (Filter.Eventually.of_forall fun N ↦ hOverlapEq j k N)
+  · intro k
+    obtain ⟨j, hNondecay⟩ := hOverlap.exists_nondecaying_B k
+    refine ⟨j, ?_⟩
+    intro hDecay
+    apply hNondecay
+    exact hDecay.congr' (Filter.Eventually.of_forall fun N ↦ hOverlapEq j k N)
+  · intro j k hNondecay
+    have hNondecay' : ¬ Filter.Tendsto
+        (fun N ↦ mpvOverlap (d := d) (A' j) (B' k) N) Filter.atTop (nhds 0) := by
+      intro hDecay
+      apply hNondecay
+      exact hDecay.congr'
+        (Filter.Eventually.of_forall fun N ↦ (hOverlapEq j k N).symm)
+    exact (hRepA j).trans
+      ((hOverlap.hetRepeatedBlocks_of_nondecaying j k hNondecay').trans (hRepB k).symm)
+
+
+-- @@ L329-368 verbatim
+/-- **Build `PeriodicOverlapHypothesis` from `IsPeriodic` data via the overlap dichotomy.**
+
+For periodic blocks, `periodicOverlapDichotomy` shows that every non-decaying
+cross-family overlap yields `HetRepeatedBlocks`: its decay alternative contradicts
+non-decay, leaving the repeated-block alternative.
+
+The `exists_nondecaying_A/B` fields remain as explicit hypotheses — they encode the
+paper's content that proportional total MPVs force non-vanishing per-block overlaps.
+The companion `ProportionalOverlap` module derives them both for literal
+multiplicity-bearing normalized periodic forms and for scalar-weight
+irreducible-form witnesses.
+
+All branches of `periodicOverlapDichotomy` are proved in the split overlap development:
+`SelfOverlap` supplies the cyclic-sector setup, `NoSectorMatch` supplies the decay route,
+`SectorMatch` supplies the repeated-block route, and `Dichotomy` performs the final case
+split. -/
+theorem PeriodicOverlapHypothesis.ofIsPeriodic
+    {rA rB : ℕ}
+    {dimA : Fin rA → ℕ} {dimB : Fin rB → ℕ}
+    (A : (j : Fin rA) → MPSTensor d (dimA j))
+    (B : (k : Fin rB) → MPSTensor d (dimB k))
+    (periodA : Fin rA → ℕ) (periodB : Fin rB → ℕ)
+    (hPerA : ∀ j, IsPeriodic (periodA j) (A j))
+    (hPerB : ∀ k, IsPeriodic (periodB k) (B k))
+    (hExA : ∀ j₀ : Fin rA, ∃ k₀ : Fin rB,
+      ¬ Filter.Tendsto (fun N => mpvOverlap (d := d) (A j₀) (B k₀) N)
+        Filter.atTop (nhds 0))
+    (hExB : ∀ k₀ : Fin rB, ∃ j₀ : Fin rA,
+      ¬ Filter.Tendsto (fun N => mpvOverlap (d := d) (A j₀) (B k₀) N)
+        Filter.atTop (nhds 0)) :
+    PeriodicOverlapHypothesis A B where
+  exists_nondecaying_A := hExA
+  exists_nondecaying_B := hExB
+  hetRepeatedBlocks_of_nondecaying := by
+    intro j k hnd
+    have : NeZero (dimA j) := ⟨(hPerA j).bondDim_ne_zero⟩
+    have : NeZero (dimB k) := ⟨(hPerB k).bondDim_ne_zero⟩
+    rcases periodicOverlapDichotomy (A j) (B k) (hPerA j) (hPerB k) with hdecay | hrep
+    · exact absurd hdecay hnd
+    · exact hrep
+
+
+-- @@ L370-370 verbatim
+/-! ## Conditional block matching toward theorem `thm:bd` -/
+
+
+-- @@ L372-372 verbatim
+section ProportionalCase
+
+
+-- @@ L374-375 verbatim
+variable {rA rB : ℕ}
+    {dimA : Fin rA → ℕ} {dimB : Fin rB → ℕ}
+
+
+-- @@ L377-421 verbatim
+/-- **Peripheral proportional case from positive-length MPV equality.**
+
+If two periodic tensors generate the same MPV family at every positive length, then their bond
+dimensions agree and they are repeated blocks after identifying those bond spaces. This is the
+single-block uniqueness direction behind the source theorem `thm:bd` once the proportionality
+scalar has been absorbed into one side.
+
+The proof combines `periodicOverlapDichotomy` with `periodicSelfOverlap_tendsto`:
+the decay branch would force the self-overlap of `A` to tend to `0`, contradicting
+its periodic self-overlap limit `m_a` along the subsequence `m_a * ℕ`.
+
+Source: arXiv:1708.00029, theorem `thm:bd`, lines 613--623, with the periodic overlap
+dichotomy from Appendix A, lines 1023--1117. The positive-length formulation is recorded in
+`docs/paper-gaps/dccsp17_periodic_overlap_route_alignment.tex`.
+-/
+theorem peripheralProportionalCase_periodicFT_of_sameMPV₂Pos
+    {D₁ D₂ : ℕ} [NeZero D₁] [NeZero D₂]
+    (A : MPSTensor d D₁) (B : MPSTensor d D₂) {m_a m_b : ℕ}
+    (hA : IsPeriodic m_a A) (hB : IsPeriodic m_b B)
+    (hSame : SameMPV₂Pos A B) :
+    HetRepeatedBlocks A B := by
+  rcases periodicOverlapDichotomy A B hA hB with hDecay | ⟨hdim, hRep⟩
+  · have hSameOverlap : ∀ᶠ N : ℕ in Filter.atTop,
+        mpvOverlap (d := d) A B N = mpvOverlap A A N := by
+      filter_upwards [Filter.eventually_gt_atTop 0] with N hN
+      unfold mpvOverlap
+      refine Finset.sum_congr rfl ?_
+      intro σ _
+      rw [hSame N hN σ]
+    have hSelfZero : Filter.Tendsto (fun N => mpvOverlap A A N) Filter.atTop (nhds 0) :=
+      Filter.Tendsto.congr' hSameOverlap hDecay
+    have hMulAtTop : Filter.Tendsto (fun k : ℕ => m_a * k) Filter.atTop Filter.atTop := by
+      rw [Filter.tendsto_atTop]
+      intro n
+      exact Filter.eventually_atTop.2 ⟨n, fun k hk => by
+        have hm_a : 1 ≤ m_a := Nat.succ_le_of_lt hA.period_pos
+        exact le_trans hk <| by simpa using Nat.mul_le_mul_right k hm_a⟩
+    have hSelfZeroMul :
+        Filter.Tendsto (fun k : ℕ => mpvOverlap A A (m_a * k)) Filter.atTop (nhds 0) :=
+      hSelfZero.comp hMulAtTop
+    have hm_ne : (m_a : ℂ) ≠ 0 := by
+      exact_mod_cast Nat.ne_of_gt hA.period_pos
+    exact False.elim <| hm_ne <|
+      tendsto_nhds_unique (periodicSelfOverlap_tendsto A hA) hSelfZeroMul
+  · exact ⟨hdim, hRep⟩
+
+
+-- @@ L423-520 verbatim
+/-- **Conditional block matching from a periodic-overlap hypothesis.**
+
+If two non-repeated block families satisfy the periodic overlap dichotomy, then
+their bases of periodic tensors match: equal block counts, a bijection, and per-block
+`HetRepeatedBlocks` equivalence.
+
+**Scope restriction (conditional overlap hypothesis):** source theorem
+`thm:bd` at arXiv:1708.00029, lines 613--623 assumes proportional assembled
+MPVs. Here the required non-decaying partners and their repeated-block
+classification are supplied directly through `PeriodicOverlapHypothesis`.
+Thus this theorem is a conditional matching lemma toward `thm:bd`, not its
+formalization. The gap is recorded in
+`docs/paper-gaps/dccsp17_periodic_overlap_route_alignment.tex`.
+
+The proof follows the same finite-matching pattern as the current
+sector-decomposition matching theorem:
+1. Non-decaying overlap → `HetRepeatedBlocks` matching for each block.
+2. Injectivity from `HetRepeatedBlocks.trans` + non-repetition.
+3. Injective maps on finite types → equal cardinalities.
+4. Bijection construction.
+
+The single-block equal-MPV theorem
+`peripheralProportionalCase_periodicFT_of_sameMPV₂Pos` yields the repeated-block
+conclusion for different bond dimensions. The companion module
+`ProportionalOverlap` supplies the multi-block non-decaying cross-overlap
+hypotheses for literal multiplicity-bearing normalized periodic forms, with
+`PeriodicOverlapHypothesis.ofIsIrreducibleForm` as a scalar-weight
+specialization. Its theorem
+`PeriodicOverlapHypothesis.ofSpectrallyPeriodicSectorDecompositions` performs
+the sectorwise Perron normalization and transports the hypothesis back to the
+original spectral-radius-one blocks. Combining the two gives the source-labelled
+`fundamentalTheorem_periodic_proportional_sectorDecomposition`, which also
+retains equality of the matched periods.
+
+The `PeriodicOverlapHypothesis` parameter can be supplied via
+`PeriodicOverlapHypothesis.ofIsPeriodic`, which uses the proved
+`periodicOverlapDichotomy` to fill the `hetRepeatedBlocks_of_nondecaying` field; see
+`fundamentalTheorem_periodic_proportional_of_isPeriodic`. -/
+theorem fundamentalTheorem_periodic_proportional
+    (A : (j : Fin rA) → MPSTensor d (dimA j))
+    (B : (k : Fin rB) → MPSTensor d (dimB k))
+    (hNonRepA : ∀ j₁ j₂ : Fin rA, j₁ ≠ j₂ →
+      ¬ HetRepeatedBlocks (A j₁) (A j₂))
+    (hNonRepB : ∀ k₁ k₂ : Fin rB, k₁ ≠ k₂ →
+      ¬ HetRepeatedBlocks (B k₁) (B k₂))
+    (hOverlap : PeriodicOverlapHypothesis A B) :
+    PeriodicBlockMatchingWitness (d := d) A B := by
+  classical
+  -- Step 1: Matching function from A-blocks to B-blocks.
+  let fA : Fin rA → Fin rB := fun j => (hOverlap.exists_nondecaying_A j).choose
+  have hfA_nd : ∀ j,
+      ¬ Filter.Tendsto (fun N => mpvOverlap (d := d) (A j) (B (fA j)) N)
+        Filter.atTop (nhds 0) :=
+    fun j => (hOverlap.exists_nondecaying_A j).choose_spec
+  -- Step 2: HetRepeatedBlocks from overlap dichotomy.
+  have hfA_rep : ∀ j, HetRepeatedBlocks (A j) (B (fA j)) :=
+    fun j => hOverlap.hetRepeatedBlocks_of_nondecaying j (fA j) (hfA_nd j)
+  -- Step 3: fA is injective.
+  -- If fA(j₁) = fA(j₂) with j₁ ≠ j₂, then A j₁ ~ B(fA j₁) and A j₂ ~ B(fA j₂) = B(fA j₁).
+  -- By symmetry + transitivity: A j₁ ~ B(fA j₁) ~ A j₂, i.e., HetRepeatedBlocks (A j₁) (A j₂).
+  -- This contradicts hNonRepA.
+  have hfA_inj : Function.Injective fA := by
+    intro j₁ j₂ hfj
+    by_contra hne
+    have h₁ := hfA_rep j₁         -- A j₁ ~ B(fA j₁)
+    have h₂ := (hfA_rep j₂).symm  -- B(fA j₂) ~ A j₂
+    have h₂' : HetRepeatedBlocks (B (fA j₁)) (A j₂) := hfj ▸ h₂
+    exact hNonRepA j₁ j₂ hne (h₁.trans h₂')
+  -- Step 4: Matching function from B-blocks to A-blocks, also injective.
+  let gB : Fin rB → Fin rA := fun k => (hOverlap.exists_nondecaying_B k).choose
+  have hgB_nd : ∀ k,
+      ¬ Filter.Tendsto (fun N => mpvOverlap (d := d) (A (gB k)) (B k) N)
+        Filter.atTop (nhds 0) :=
+    fun k => (hOverlap.exists_nondecaying_B k).choose_spec
+  have hgB_rep : ∀ k, HetRepeatedBlocks (A (gB k)) (B k) :=
+    fun k => hOverlap.hetRepeatedBlocks_of_nondecaying (gB k) k (hgB_nd k)
+  have hgB_inj : Function.Injective gB := by
+    intro k₁ k₂ hgk
+    by_contra hne
+    have h₁ := (hgB_rep k₁).symm  -- B k₁ ~ A(gB k₁)
+    have h₂ := hgB_rep k₂          -- A(gB k₂) ~ B k₂
+    have h₂' : HetRepeatedBlocks (A (gB k₁)) (B k₂) := hgk ▸ h₂
+    exact hNonRepB k₁ k₂ hne (h₁.trans h₂')
+  -- Step 5: rA = rB from injective maps between finite types.
+  have hrA_le_rB : Fintype.card (Fin rA) ≤ Fintype.card (Fin rB) :=
+    Fintype.card_le_of_injective fA hfA_inj
+  have hrB_le_rA : Fintype.card (Fin rB) ≤ Fintype.card (Fin rA) :=
+    Fintype.card_le_of_injective gB hgB_inj
+  simp only [Fintype.card_fin] at hrA_le_rB hrB_le_rA
+  have hrAB : rA = rB := le_antisymm hrA_le_rB hrB_le_rA
+  refine ⟨hrAB, ?_⟩
+  subst hrAB
+  -- fA is injective on Fin rA, hence bijective; build the permutation.
+  have hfA_bij : Function.Bijective fA :=
+    ⟨hfA_inj, Finite.injective_iff_surjective.mp hfA_inj⟩
+  exact ⟨Equiv.ofBijective fA hfA_bij, fun j => by
+    change HetRepeatedBlocks (A j) (B (fA j))
+    exact hfA_rep j⟩
+
+
+-- @@ L522-556 verbatim
+/-- **Conditional block matching from periodic block data.**
+
+This variant of `fundamentalTheorem_periodic_proportional` no longer takes
+`PeriodicOverlapHypothesis` as a parameter; instead, the dichotomy field is filled via
+`periodicOverlapDichotomy`. The caller only needs to supply `IsPeriodic` data plus the
+existence of non-decaying cross-family overlaps.
+
+The overlap-dichotomy input is unconditional: its sector-match branch uses the proved
+full-cycle contraction `sectorTensor_proportional_of_blockedMatch`. The explicit
+non-decaying cross-family overlap hypotheses remain additional inputs.
+
+**Scope restriction (conditional non-decay witnesses):** source theorem
+`thm:bd` at arXiv:1708.00029, lines 613--623 assumes proportionality of the
+assembled MPVs and derives these witnesses. This declaration is only the
+subsequent finite matching step. The gap is recorded in
+`docs/paper-gaps/dccsp17_periodic_overlap_route_alignment.tex`. -/
+theorem fundamentalTheorem_periodic_proportional_of_isPeriodic
+    (A : (j : Fin rA) → MPSTensor d (dimA j))
+    (B : (k : Fin rB) → MPSTensor d (dimB k))
+    (periodA : Fin rA → ℕ) (periodB : Fin rB → ℕ)
+    (hPerA : ∀ j, IsPeriodic (periodA j) (A j))
+    (hPerB : ∀ k, IsPeriodic (periodB k) (B k))
+    (hNonRepA : ∀ j₁ j₂ : Fin rA, j₁ ≠ j₂ →
+      ¬ HetRepeatedBlocks (A j₁) (A j₂))
+    (hNonRepB : ∀ k₁ k₂ : Fin rB, k₁ ≠ k₂ →
+      ¬ HetRepeatedBlocks (B k₁) (B k₂))
+    (hExA : ∀ j₀ : Fin rA, ∃ k₀ : Fin rB,
+      ¬ Filter.Tendsto (fun N => mpvOverlap (d := d) (A j₀) (B k₀) N)
+        Filter.atTop (nhds 0))
+    (hExB : ∀ k₀ : Fin rB, ∃ j₀ : Fin rA,
+      ¬ Filter.Tendsto (fun N => mpvOverlap (d := d) (A j₀) (B k₀) N)
+        Filter.atTop (nhds 0)) :
+    PeriodicBlockMatchingWitness (d := d) A B :=
+  fundamentalTheorem_periodic_proportional A B hNonRepA hNonRepB
+    (PeriodicOverlapHypothesis.ofIsPeriodic A B periodA periodB hPerA hPerB hExA hExB)
+
+
+-- @@ L558-558 verbatim
+end ProportionalCase
+
+
+-- @@ L560-560 verbatim
+/-! ## Multiplicity-entry Z-gauge construction from `thm:bdequal` -/
+
+
+-- @@ L562-562 verbatim
+section ZGaugeConstruction
+
+
+-- @@ L564-583 verbatim
+/-- **Multiplicity-entry Z-gauge from matched m-th powers.**
+
+If two lists of multiplicity entries have equal `m`-th powers and the denominator
+entries are nonzero, the diagonal matrix `Z = diag(μ_i / ν_i)` satisfies
+`Z^m = 1` and `Z · diag(ν) = diag(μ)`. This is the scalar-entry orientation of the
+source relation `Z_j R_j = S_j` after choosing which multiplicity matrix is named
+`μ` and which is named `ν`.
+
+Combines `zGaugeDiagonal_pow_eq_one` and `zGaugeDiagonal_mul_diagonal`. -/
+theorem zgauge_construction
+    {n : Type*} [Fintype n] [DecidableEq n]
+    (m : ℕ) (μ ν : n → ℂ)
+    (hpow : ∀ i, μ i ^ m = ν i ^ m)
+    (hν : ∀ i, ν i ≠ 0) :
+    ∃ Z : Matrix n n ℂ,
+      Z ^ m = 1 ∧
+      Z * Matrix.diagonal ν = Matrix.diagonal μ :=
+  ⟨zGaugeDiagonal μ ν,
+   zGaugeDiagonal_pow_eq_one m μ ν hpow hν,
+   zGaugeDiagonal_mul_diagonal μ ν hν⟩
+
+
+-- @@ L585-610 verbatim
+/-- **Scalar multiplicity-entry Z-gauge construction.**
+
+Given two multiplicity-entry families where:
+1. The `m`-th powers agree pointwise,
+2. The denominator entries are nonzero,
+3. Power sums agree for all positive exponents,
+
+produces: multiplicity-entry multiset equality, a diagonal Z with `Z^m = 1`, and
+`Z · diag(ν) = diag(μ)`.
+
+In the source theorem `thm:bdequal`, hypothesis (3) follows from BNT linear
+independence + equal MPVs (via `power_sums_eq_of_eventually_eq_hetero`), and
+hypothesis (1) is the Newton-Girard consequence of (3) restricted to multiples of `m`.
+The source theorem uses matrix-valued multiplicities `R_j` and `S_j`; this theorem is
+the scalar-entry component used by the current Lean statement. -/
+theorem equalCase_zgauge_of_power_sums
+    {r : ℕ} (m : ℕ) (μ ν : Fin r → ℂ)
+    (hν : ∀ i, ν i ≠ 0)
+    (hPow : ∀ i, μ i ^ m = ν i ^ m)
+    (hPS : ∀ k : ℕ, 0 < k → ∑ i : Fin r, μ i ^ k = ∑ i : Fin r, ν i ^ k) :
+    ∃ Z : Matrix (Fin r) (Fin r) ℂ,
+      Z ^ m = 1 ∧
+      Z * Matrix.diagonal ν = Matrix.diagonal μ ∧
+      Finset.univ.val.map μ = Finset.univ.val.map ν :=
+  let ⟨Z, hZm, hZmul⟩ := zgauge_construction m μ ν hPow hν
+  ⟨Z, hZm, hZmul, Matrix.sum_pow_eq_implies_multiset_eq μ ν hPS⟩
+
+
+-- @@ L612-612 verbatim
+end ZGaugeConstruction
+
+
+-- @@ L614-628 verbatim
+/-! ## Conditional scalar components toward theorem `thm:bdequal`
+
+The source equal-case Fundamental Theorem at arXiv:1708.00029, lines 643--690,
+combines:
+
+1. **Multiplicity-bearing proportional block matching** from theorem `thm:bd`.
+2. **Z-gauge construction** (`equalCase_zgauge_of_power_sums`):
+   Newton–Girard plus a scalar multiplicity-entry Z-gauge diagonal.
+
+The declarations below provide conditional matching and one-dimensional
+multiplicity components. They do not prove the source theorem: the unrestricted
+non-decaying partners, the grouped multiplicity power relations, and their
+assembly into the source matrices remain to be derived. The Z-gauge construction
+itself is fully proved.
+-/
+
+
+-- @@ L630-630 verbatim
+section EqualCase
+
+
+-- @@ L632-632 verbatim
+variable {D₁ D₂ : ℕ}
+
+
+-- @@ L634-659 verbatim
+/-- **Conditional block-matching component toward the equal case.**
+
+If two tensors in irreducible form with non-repeated blocks satisfy the periodic overlap
+dichotomy, their bases of periodic tensors match: equal block counts, a bijection, and
+per-block `HetRepeatedBlocks` equivalence.
+
+Convenience reformulation of `fundamentalTheorem_periodic_proportional` that extracts block
+families from `IsIrreducibleForm`.
+
+**Scope restriction (conditional overlap hypothesis):** this declaration takes
+`PeriodicOverlapHypothesis` as an additional premise. Source theorem
+`thm:bdequal` at arXiv:1708.00029, lines 643--690 instead assumes equality of
+the multiplicity-bearing MPV families. Thus this is a conditional component,
+not the source theorem. The gap is recorded in
+`docs/paper-gaps/dccsp17_periodic_overlap_route_alignment.tex`. -/
+theorem fundamentalTheorem_periodic_equalCase_matching
+    (A : MPSTensor d D₁) (B : MPSTensor d D₂)
+    (hA : IsIrreducibleForm A) (hB : IsIrreducibleForm B)
+    (hNonRepA : ∀ j₁ j₂ : Fin hA.r, j₁ ≠ j₂ →
+      ¬ HetRepeatedBlocks (hA.blocks j₁) (hA.blocks j₂))
+    (hNonRepB : ∀ k₁ k₂ : Fin hB.r, k₁ ≠ k₂ →
+      ¬ HetRepeatedBlocks (hB.blocks k₁) (hB.blocks k₂))
+    (hOverlap : PeriodicOverlapHypothesis hA.blocks hB.blocks) :
+    PeriodicBlockMatchingWitness (d := d) hA.blocks hB.blocks :=
+  fundamentalTheorem_periodic_proportional hA.blocks hB.blocks
+    hNonRepA hNonRepB hOverlap
+
+
+-- @@ L661-728 verbatim
+/-- **Scalar component of the equal-case periodic FT (arXiv:1708.00029).**
+
+If two MPS tensors in irreducible form with non-repeated blocks satisfy the periodic
+overlap dichotomy and per-block multiplicity-entry power equality, then:
+
+1. **Block matching**: equal block counts, a bijection, and per-block `HetRepeatedBlocks`.
+2. **Scalar multiplicity-entry Z-gauge**: for each matched pair with period `m_j`,
+   there exists a `1 × 1` diagonal matrix `Z_j` with `Z_j^{m_j} = 1` and
+   `Z_j * diag(μA_j) = diag(μB_{perm j})`.
+3. **Multiplicity-entry equality**: `μA_j` and `μB_{perm j}` determine the same
+   singleton multiset.
+
+This composes the conditional block-matching lemma with the scalar Z-gauge
+construction.
+
+**Scope restriction (conditional scalar component):** the declaration assumes
+both `PeriodicOverlapHypothesis` and the power equality `hPowEq`, and it treats
+only one-dimensional multiplicity spaces. Source theorem `thm:bdequal` at
+arXiv:1708.00029, lines 643--690 derives the corresponding facts from equal
+MPVs and allows arbitrary diagonal multiplicity matrices `R_j, S_j`. Hence the
+present result is not the full source theorem. The gap is recorded in
+`docs/paper-gaps/dccsp17_periodic_overlap_route_alignment.tex`. -/
+theorem fundamentalTheorem_periodic_equalCase
+    (A : MPSTensor d D₁) (B : MPSTensor d D₂)
+    (hA : IsIrreducibleForm A) (hB : IsIrreducibleForm B)
+    (hNonRepA : ∀ j₁ j₂ : Fin hA.r, j₁ ≠ j₂ →
+      ¬ HetRepeatedBlocks (hA.blocks j₁) (hA.blocks j₂))
+    (hNonRepB : ∀ k₁ k₂ : Fin hB.r, k₁ ≠ k₂ →
+      ¬ HetRepeatedBlocks (hB.blocks k₁) (hB.blocks k₂))
+    (hOverlap : PeriodicOverlapHypothesis hA.blocks hB.blocks)
+    (hPowEq : ∀ (perm : Fin hA.r ≃ Fin hB.r),
+      (∀ j, HetRepeatedBlocks (hA.blocks j) (hB.blocks (perm j))) →
+      ∀ j N, 0 < N → (hA.μ j) ^ N = (hB.μ (perm j)) ^ N) :
+    -- Block matching:
+    ∃ (_ : hA.r = hB.r) (perm : Fin hA.r ≃ Fin hB.r),
+      -- Per-block HetRepeatedBlocks:
+      (∀ j, HetRepeatedBlocks (hA.blocks j) (hB.blocks (perm j))) ∧
+      -- Per-block Z-gauge + multiplicity-entry multiset equality:
+      (∀ j, ∃ Z : Matrix (Fin 1) (Fin 1) ℂ,
+        Z ^ (hA.period j) = 1 ∧
+        Z * Matrix.diagonal (fun _ : Fin 1 => hA.μ j) =
+          Matrix.diagonal (fun _ : Fin 1 => hB.μ (perm j)) ∧
+        ({hA.μ j} : Multiset ℂ) = {hB.μ (perm j)}) := by
+  -- Step 1: block matching via the conditional matching lemma.
+  obtain ⟨hrAB, perm, hRep⟩ :=
+    fundamentalTheorem_periodic_equalCase_matching A B hA hB hNonRepA hNonRepB hOverlap
+  refine ⟨hrAB, perm, hRep, fun j => ?_⟩
+  -- Step 2: Per-block multiplicity-entry power equality from hypothesis.
+  have hPowEqJ : ∀ N : ℕ, 0 < N → (hA.μ j) ^ N = (hB.μ (perm j)) ^ N :=
+    hPowEq perm hRep j
+  -- Step 3: Z-gauge construction from matched multiplicity entries.
+  have hPow_period : (hA.μ j) ^ (hA.period j) = (hB.μ (perm j)) ^ (hA.period j) :=
+    hPowEqJ (hA.period j) (hA.periodic j).period_pos
+  have hμA_ne : hA.μ j ≠ 0 := by
+    intro hzero
+    have hcontr : (0 : ℝ) < 0 := by
+      simpa [hzero] using (hA.weight_pos j).1
+    exact (lt_irrefl (0 : ℝ)) hcontr
+  obtain ⟨Z, hZpow, hZmul, hMultiset⟩ :=
+    equalCase_zgauge_of_power_sums (hA.period j)
+      (fun _ : Fin 1 => hB.μ (perm j)) (fun _ : Fin 1 => hA.μ j)
+      (fun _ => hμA_ne)
+      (fun _ => hPow_period.symm)
+      (fun k hk => by simp only [Fin.sum_univ_one, (hPowEqJ k hk).symm])
+  refine ⟨Z, hZpow, hZmul, ?_⟩
+  -- Convert Finset.univ.val.map to multiset singleton equality.
+  simp only [Finset.univ_unique] at hMultiset
+  exact hMultiset.symm
+
+
+-- @@ L730-730 verbatim
+end EqualCase
+
+
+-- @@ L732-732 verbatim
+end MPSTensor

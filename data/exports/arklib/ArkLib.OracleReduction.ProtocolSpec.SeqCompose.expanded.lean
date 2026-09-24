@@ -1,0 +1,946 @@
+/-
+Copyright (c) 2024-2025 ArkLib Contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Quang Dao
+-/
+module
+
+public import ArkLib.Data.Fin.Sigma
+public import ArkLib.OracleReduction.ProtocolSpec.Cast
+
+
+-- @@ L11-14 verbatim
+/-! # Sequential Composition of Protocol Specifications
+
+This file collects all definitions and theorems about sequentially composing `ProtocolSpec`s and
+their associated data. -/
+
+
+-- @@ L16-16 verbatim
+@[expose] public section
+
+
+-- @@ L18-18 verbatim
+universe u v
+
+
+-- @@ L20-20 verbatim
+open OracleComp OracleSpec
+
+
+-- @@ L22-22 verbatim
+namespace ProtocolSpec
+
+
+-- @@ L24-24 verbatim
+/-! ### Composition of Two Protocol Specifications -/
+
+
+-- @@ L26-26 verbatim
+variable {m n : ℕ}
+
+
+-- @@ L28-31 verbatim
+/-- Adding a round with direction `dir` and type `Message` to the beginning of a `ProtocolSpec` -/
+abbrev cons (pSpec : ProtocolSpec n) (dir : Direction) (Message : Type) :
+    ProtocolSpec (n + 1) :=
+  ⟨Fin.vcons dir pSpec.dir, Fin.vcons Message pSpec.Type⟩
+
+
+-- @@ L33-36 verbatim
+/-- Concatenate a round with direction `dir` and type `Message` to the end of a `ProtocolSpec` -/
+abbrev concat (pSpec : ProtocolSpec n) (dir : Direction) (Message : Type) :
+    ProtocolSpec (n + 1) :=
+  ⟨Fin.vconcat pSpec.dir dir, Fin.vconcat pSpec.Type Message⟩
+
+
+-- @@ L38-40 verbatim
+/-- Appending two `ProtocolSpec`s -/
+abbrev append (pSpec : ProtocolSpec m) (pSpec' : ProtocolSpec n) : ProtocolSpec (m + n) :=
+  ⟨Fin.vappend pSpec.dir pSpec'.dir, Fin.vappend pSpec.Type pSpec'.Type⟩
+
+
+-- @@ L42-43 verbatim
+@[inherit_doc]
+infixl : 65 " ++ₚ " => ProtocolSpec.append
+
+
+-- @@ L45-50 verbatim
+@[simp]
+theorem append_cast_left {n m : ℕ} {pSpec : ProtocolSpec n} {pSpec' : ProtocolSpec m} (n' : ℕ)
+    (h : n + m = n' + m) :
+      dcast h (pSpec ++ₚ pSpec') = (dcast (Nat.add_right_cancel h) pSpec) ++ₚ pSpec' := by
+  simp only [append, dcast, ProtocolSpec.cast, Fin.vappend_eq_append]
+  simp
+
+
+-- @@ L52-56 verbatim
+@[simp]
+theorem append_cast_right {n m : ℕ} (pSpec : ProtocolSpec n) (pSpec' : ProtocolSpec m) (m' : ℕ)
+    (h : n + m = n + m') :
+      dcast h (pSpec ++ₚ pSpec') = pSpec ++ₚ (dcast (Nat.add_left_cancel h) pSpec') := by
+  simp only [append, dcast, ProtocolSpec.cast, Fin.vappend_eq_append, Fin.append_cast_right]
+
+
+-- @@ L58-66 verbatim
+theorem append_left_injective {pSpec : ProtocolSpec n} :
+    Function.Injective (@ProtocolSpec.append m n · pSpec) := by
+  simp only [append, Fin.vappend_eq_append]
+  intro x y h
+  simp only [mk.injEq] at h
+  obtain ⟨hDir, hType⟩ := h
+  ext i
+  · simp [Fin.append_left_injective pSpec.dir hDir]
+  · simp [Fin.append_left_injective pSpec.Type hType]
+
+
+-- @@ L68-77 verbatim
+theorem append_right_injective {pSpec : ProtocolSpec m} :
+    Function.Injective (@ProtocolSpec.append m n pSpec) := by
+  unfold ProtocolSpec.append
+  simp only [Fin.vappend_eq_append]
+  intro x y h
+  simp only [mk.injEq] at h
+  obtain ⟨hDir, hType⟩ := h
+  ext i
+  · simp [Fin.append_right_injective pSpec.dir hDir]
+  · simp [Fin.append_right_injective pSpec.Type hType]
+
+
+-- @@ L79-82 verbatim
+@[simp]
+theorem append_left_cancel_iff {pSpec : ProtocolSpec n} {p1 p2 : ProtocolSpec m} :
+    p1 ++ₚ pSpec = p2 ++ₚ pSpec ↔ p1 = p2 :=
+  ⟨fun h => append_left_injective h, fun h => by rw [h]⟩
+
+
+-- @@ L84-87 verbatim
+@[simp]
+theorem append_right_cancel_iff {pSpec : ProtocolSpec m} {p1 p2 : ProtocolSpec n} :
+    pSpec ++ₚ p1 = pSpec ++ₚ p2 ↔ p1 = p2 :=
+  ⟨fun h => append_right_injective h, fun h => by rw [h]⟩
+
+
+-- @@ L89-95 verbatim
+@[simp]
+theorem snoc_take {pSpec : ProtocolSpec n} (k : ℕ) (h : k < n) :
+    (pSpec.take k (Nat.le_of_succ_le h) ++ₚ ⟨![pSpec.dir ⟨k, h⟩], ![pSpec.Type ⟨k, h⟩]⟩)
+      = pSpec.take (k + 1) h := by
+  simp only [append, take, Fin.vappend_eq_append, Fin.append_right_eq_snoc,
+    Fin.take_succ_eq_snoc]
+  ext : 1 <;> simp
+
+
+-- @@ L97-97 verbatim
+variable {pSpec₁ : ProtocolSpec m} {pSpec₂ : ProtocolSpec n}
+
+
+-- @@ L99-103 verbatim
+@[simp]
+theorem take_append_left :
+    (pSpec₁ ++ₚ pSpec₂).take m (Nat.le_add_right m n) = pSpec₁ := by
+  simp only [take, Fin.vappend_eq_append]
+  ext <;> simp [Fin.take_apply]
+
+
+-- @@ L105-107 verbatim
+@[simp]
+theorem take_append_left' : (pSpec₁ ++ₚ pSpec₂)⟦:m⟧ = pSpec₁ :=
+  take_append_left
+
+
+-- @@ L109-113 verbatim
+@[simp]
+theorem rtake_append_right :
+    (pSpec₁ ++ₚ pSpec₂).rtake n (Nat.le_add_left n m) = pSpec₂ := by
+  simp only [rtake, Fin.vappend_eq_append]
+  ext i : 2 <;> simp [Fin.rtake, Fin.append_right]
+
+
+-- @@ L115-119 verbatim
+/-- Left type transport for `++ₚ` at a `castAdd` index: the appended spec's type
+at an index in the first half is the left spec's type. -/
+theorem append_Type_castAdd (i : Fin m) :
+    (pSpec₁ ++ₚ pSpec₂).«Type» (Fin.castAdd n i) = pSpec₁.«Type» i := by
+  simp only [Fin.vappend_eq_append, Fin.append_left]
+
+
+-- @@ L121-125 verbatim
+/-- Right type transport for `++ₚ` at a `natAdd` index: the appended spec's type
+at an index in the second half is the right spec's type. -/
+theorem append_Type_natAdd (i : Fin n) :
+    (pSpec₁ ++ₚ pSpec₂).«Type» (Fin.natAdd m i) = pSpec₂.«Type» i := by
+  simp only [Fin.vappend_eq_append, Fin.append_right]
+
+
+-- @@ L127-127 verbatim
+namespace Transcript
+
+
+-- @@ L129-129 verbatim
+variable {k : Fin (m + n + 1)}
+
+
+-- @@ L131-139 verbatim
+/-- The first half of a partial transcript for a concatenated protocol, up to round `k < m + n + 1`.
+
+This is defined to be the full transcript for the first half if `k ≥ m`. -/
+def fst (T : (pSpec₁ ++ₚ pSpec₂).Transcript k) : pSpec₁.Transcript ⟨min k m, by omega⟩ :=
+  fun i => by
+    have him : (i : ℕ) < min (k : ℕ) m := i.isLt
+    exact _root_.cast
+      (append_Type_castAdd (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂) ⟨i.val, by omega⟩)
+      (T ⟨i.val, by omega⟩)
+
+
+-- @@ L141-148 verbatim
+/-- The second half of a partial transcript for a concatenated protocol. -/
+def snd (T : (pSpec₁ ++ₚ pSpec₂).Transcript k) : pSpec₂.Transcript ⟨k - m, by omega⟩ :=
+  fun i => by
+    have him : (i : ℕ) < (k : ℕ) - m := i.isLt
+    have hk := k.isLt
+    exact _root_.cast
+      (append_Type_natAdd (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂) ⟨i.val, by omega⟩)
+      (T ⟨m + i.val, by omega⟩)
+
+
+-- @@ L150-164 verbatim
+/-- While a run of `pSpec₁ ++ₚ pSpec₂` is still inside the first protocol (round `k ≤ m`), the
+second protocol's half of the partial transcript is empty.
+
+This is the left-phase invariant an induction over the appended protocol's rounds needs: up to
+round `m`, an appended run carries no `pSpec₂` data at all. Stated with `HEq` because the index
+`⟨k - m, _⟩` is only propositionally `0`. -/
+theorem snd_of_le {k : Fin (m + n + 1)} (hk : k.val ≤ m)
+    (T : (pSpec₁ ++ₚ pSpec₂).Transcript k) :
+    HEq (T.snd) (default : pSpec₂.Transcript ⟨0, by omega⟩) := by
+  have h : (k.val - m) = 0 := by omega
+  have h0 : (⟨k.val - m, by omega⟩ : Fin (n + 1)) = ⟨0, by omega⟩ := Fin.ext h
+  rw! (castMode := .all) [h0]
+  apply heq_of_eq
+  funext i
+  exact Fin.elim0 i
+
+
+-- @@ L166-166 verbatim
+end Transcript
+
+
+-- @@ L168-168 verbatim
+namespace FullTranscript
+
+
+-- @@ L170-173 verbatim
+/-- Appending two transcripts for two `ProtocolSpec`s -/
+def append (T₁ : FullTranscript pSpec₁) (T₂ : FullTranscript pSpec₂) :
+    FullTranscript (pSpec₁ ++ₚ pSpec₂) :=
+  Fin.happend T₁ T₂
+
+
+-- @@ L175-176 verbatim
+@[inherit_doc]
+infixl : 65 " ++ₜ " => append
+
+
+-- @@ L178-198 verbatim
+/-- Adding a message with a given direction and type to the end of a `Transcript` -/
+def concat {pSpec : ProtocolSpec n} {NextMessage : Type}
+    (T : FullTranscript pSpec) (dir : Direction) (msg : NextMessage) :
+        FullTranscript (pSpec ++ₚ ⟨!v[dir], !v[NextMessage]⟩) :=
+  Fin.hconcat T msg
+
+-- TODO: fill
+
+-- @[simp]
+-- theorem append_cast_left {n m : ℕ} {pSpec₁ pSpec₂ : ProtocolSpec n} {pSpec' : ProtocolSpec m}
+--     {T₁ : FullTranscript pSpec₁} {T₂ : FullTranscript pSpec'} (n' : ℕ)
+--     (h : n + m = n' + m) (hSpec : dcast h pSpec₁ = pSpec₂) :
+--       dcast₂ h (by simp) (T₁ ++ₜ T₂) = (dcast₂ (Nat.add_right_cancel h) (by simp) T₁) ++ₜ T₂ :=
+-- by
+--   simp [append, dcast₂, ProtocolSpec.cast, Fin.append_cast_left]
+
+-- @[simp]
+-- theorem append_cast_right {n m : ℕ} (pSpec : ProtocolSpec n) (pSpec' : ProtocolSpec m) (m' : ℕ)
+--     (h : n + m = n + m') :
+--       dcast h (pSpec ++ₚ pSpec') = pSpec ++ₚ (dcast (Nat.add_left_cancel h) pSpec') := by
+--   simp [append, dcast, ProtocolSpec.cast, Fin.append_cast_right]
+
+
+-- @@ L200-209 verbatim
+@[simp]
+theorem take_append_left (T : FullTranscript pSpec₁) (T' : FullTranscript pSpec₂) :
+    (T ++ₜ T').take m (Nat.le_add_right m n) =
+      T.cast rfl (by simp [ProtocolSpec.append]) := by
+  ext i
+  simp only [take, append, ProtocolSpec.append, Fin.castLE, FullTranscript.cast,
+    Transcript.cast, Fin.take_apply]
+  have : ⟨i.val, by omega⟩ = Fin.castAdd n i := by ext; simp
+  rw! (castMode := .all) [this, Fin.happend_left]
+  rfl
+
+
+-- @@ L211-221 verbatim
+@[simp]
+theorem rtake_append_right (T : FullTranscript pSpec₁) (T' : FullTranscript pSpec₂) :
+    (T ++ₜ T').rtake n (Nat.le_add_left n m) =
+      T'.cast rfl (by simp [ProtocolSpec.append]) := by
+  ext i
+  simp only [rtake, Fin.rtake, append, Fin.cast, Fin.val_natAdd, FullTranscript.cast,
+    Transcript.cast, Fin.val_last, Fin.cast_eq_self, take_Type]
+  have : ⟨m + n - n + i.val, by omega⟩ = Fin.natAdd m i := by ext; simp
+  rw! (castMode := .all) [this, Fin.happend_right]
+  apply eq_of_heq
+  exact ((eqRec_heq _ _).trans (cast_heq _ _)).trans (cast_heq _ _).symm
+
+
+-- @@ L223-227 verbatim
+/-- The first half of a transcript for a concatenated protocol -/
+def fst (T : FullTranscript (pSpec₁ ++ₚ pSpec₂)) : FullTranscript pSpec₁ :=
+  fun i => by
+    simpa [ProtocolSpec.append, Fin.vappend_eq_append, Fin.append_left]
+      using T (Fin.castAdd n i)
+
+
+-- @@ L229-233 verbatim
+/-- The second half of a transcript for a concatenated protocol -/
+def snd (T : FullTranscript (pSpec₁ ++ₚ pSpec₂)) : FullTranscript pSpec₂ :=
+  fun i => by
+    simpa [ProtocolSpec.append, Fin.vappend_eq_append, Fin.append_right]
+      using T (Fin.natAdd m i)
+
+
+-- @@ L235-239 verbatim
+@[simp]
+theorem append_fst (T₁ : FullTranscript pSpec₁) (T₂ : FullTranscript pSpec₂) :
+    (T₁ ++ₜ T₂).fst = T₁ := by
+  funext i
+  simp [fst, append]
+
+
+-- @@ L241-245 verbatim
+@[simp]
+theorem append_snd (T₁ : FullTranscript pSpec₁) (T₂ : FullTranscript pSpec₂) :
+    (T₁ ++ₜ T₂).snd = T₂ := by
+  funext i
+  simp [snd, append]
+
+
+-- @@ L247-254 verbatim
+/-- Splitting a transcript of an appended protocol and reassembling it is the identity. -/
+@[simp]
+theorem append_fst_snd (T : FullTranscript (pSpec₁ ++ₚ pSpec₂)) :
+    T.fst ++ₜ T.snd = T := by
+  funext i
+  induction i using Fin.addCases
+  · rw [append, Fin.happend_left]; simp [fst]
+  · rw [append, Fin.happend_right]; simp [snd]
+
+
+-- @@ L256-256 verbatim
+end FullTranscript
+
+
+-- @@ L258-259 verbatim
+def MessageIdx.inl (i : MessageIdx pSpec₁) : MessageIdx (pSpec₁ ++ₚ pSpec₂) :=
+  ⟨Fin.castAdd n i.1, by simpa only [Fin.vappend_eq_append, Fin.append_left] using i.2⟩
+
+
+-- @@ L261-262 verbatim
+def MessageIdx.inr (i : MessageIdx pSpec₂) : MessageIdx (pSpec₁ ++ₚ pSpec₂) :=
+  ⟨Fin.natAdd m i.1, by simpa only [Fin.vappend_eq_append, Fin.append_right] using i.2⟩
+
+
+-- @@ L264-282 verbatim
+@[simps!]
+def MessageIdx.sumEquiv :
+    MessageIdx pSpec₁ ⊕ MessageIdx pSpec₂ ≃ MessageIdx (pSpec₁ ++ₚ pSpec₂) where
+  toFun := Sum.elim (MessageIdx.inl) (MessageIdx.inr)
+  invFun := fun ⟨i, h⟩ => by
+    by_cases hi : i < m
+    · exact Sum.inl ⟨⟨i, hi⟩, by
+        convert h using 1; simp [Fin.vappend_eq_append, Fin.append, Fin.addCases, hi];
+          congr⟩
+    · exact Sum.inr ⟨⟨i - m, by omega⟩, by
+        convert h using 1; simp [Fin.vappend_eq_append, Fin.append, Fin.addCases, hi];
+          congr⟩
+  left_inv := fun i => by
+    rcases i with ⟨⟨i, isLt⟩, h⟩ | ⟨⟨i, isLt⟩, h⟩ <;>
+    simp [MessageIdx.inl, MessageIdx.inr, isLt]
+  right_inv := fun ⟨i, h⟩ => by
+    by_cases hi : i < m <;>
+    simp [MessageIdx.inl, MessageIdx.inr, hi]
+    congr; omega
+
+
+-- @@ L284-285 verbatim
+def ChallengeIdx.inl (i : ChallengeIdx pSpec₁) : ChallengeIdx (pSpec₁ ++ₚ pSpec₂) :=
+  ⟨Fin.castAdd n i.1, by simpa only [Fin.vappend_eq_append, Fin.append_left] using i.2⟩
+
+
+-- @@ L287-288 verbatim
+def ChallengeIdx.inr (i : ChallengeIdx pSpec₂) : ChallengeIdx (pSpec₁ ++ₚ pSpec₂) :=
+  ⟨Fin.natAdd m i.1, by simpa only [Fin.vappend_eq_append, Fin.append_right] using i.2⟩
+
+
+-- @@ L290-294 verbatim
+/-- Restrict challenges for an appended protocol to its first component. -/
+def Challenges.fst (challenges : (pSpec₁ ++ₚ pSpec₂).Challenges) : pSpec₁.Challenges :=
+  fun i => by
+    simpa [ChallengeIdx.inl, ProtocolSpec.append, Fin.vappend_eq_append,
+      Fin.append_left] using challenges (ChallengeIdx.inl i)
+
+
+-- @@ L296-300 verbatim
+/-- Restrict challenges for an appended protocol to its second component. -/
+def Challenges.snd (challenges : (pSpec₁ ++ₚ pSpec₂).Challenges) : pSpec₂.Challenges :=
+  fun i => by
+    simpa [ChallengeIdx.inr, ProtocolSpec.append, Fin.vappend_eq_append,
+      Fin.append_right] using challenges (ChallengeIdx.inr i)
+
+
+-- @@ L302-306 verbatim
+/-- Restrict messages for an appended protocol to its first component. -/
+def Messages.fst (messages : (pSpec₁ ++ₚ pSpec₂).Messages) : pSpec₁.Messages :=
+  fun i => by
+    simpa [MessageIdx.inl, ProtocolSpec.append, Fin.vappend_eq_append,
+      Fin.append_left] using messages (MessageIdx.inl i)
+
+
+-- @@ L308-312 verbatim
+/-- Restrict messages for an appended protocol to its second component. -/
+def Messages.snd (messages : (pSpec₁ ++ₚ pSpec₂).Messages) : pSpec₂.Messages :=
+  fun i => by
+    simpa [MessageIdx.inr, ProtocolSpec.append, Fin.vappend_eq_append,
+      Fin.append_right] using messages (MessageIdx.inr i)
+
+
+-- @@ L314-332 verbatim
+@[simps!]
+def ChallengeIdx.sumEquiv :
+    ChallengeIdx pSpec₁ ⊕ ChallengeIdx pSpec₂ ≃ ChallengeIdx (pSpec₁ ++ₚ pSpec₂) where
+  toFun := Sum.elim (ChallengeIdx.inl) (ChallengeIdx.inr)
+  invFun := fun ⟨i, h⟩ => by
+    by_cases hi : i < m
+    · exact Sum.inl ⟨⟨i, hi⟩, by
+        convert h using 1; simp [Fin.vappend_eq_append, Fin.append, Fin.addCases, hi];
+          congr⟩
+    · exact Sum.inr ⟨⟨i - m, by omega⟩, by
+        convert h using 1; simp [Fin.vappend_eq_append, Fin.append, Fin.addCases, hi];
+          congr⟩
+  left_inv := fun i => by
+    rcases i with ⟨⟨i, isLt⟩, h⟩ | ⟨⟨i, isLt⟩, h⟩ <;>
+    simp [ChallengeIdx.inl, ChallengeIdx.inr, isLt]
+  right_inv := fun ⟨i, h⟩ => by
+    by_cases hi : i < m <;>
+    simp [ChallengeIdx.inl, ChallengeIdx.inr, hi]
+    congr; omega
+
+
+-- @@ L334-339 verbatim
+/-- `sumEquiv.symm` maps a left-embedded composed challenge index back to `Sum.inl`. -/
+@[simp]
+theorem ChallengeIdx.sumEquiv_symm_inl (i₁ : ChallengeIdx pSpec₁) :
+    (ChallengeIdx.sumEquiv (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)).symm (ChallengeIdx.inl i₁)
+      = Sum.inl i₁ := by
+  rw [Equiv.symm_apply_eq]; simp
+
+
+-- @@ L341-346 verbatim
+/-- `sumEquiv.symm` maps a right-embedded composed challenge index back to `Sum.inr`. -/
+@[simp]
+theorem ChallengeIdx.sumEquiv_symm_inr (i₂ : ChallengeIdx pSpec₂) :
+    (ChallengeIdx.sumEquiv (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)).symm (ChallengeIdx.inr i₂)
+      = Sum.inr i₂ := by
+  rw [Equiv.symm_apply_eq]; simp
+
+
+-- @@ L348-362 verbatim
+/-- Sequential composition of a family of `ProtocolSpec`s, indexed by `i : Fin m`.
+
+Defined for definitional equality, so that:
+- `seqCompose !v[] = !p[]`
+- `seqCompose !v[pSpec₁] = pSpec₁`
+- `seqCompose !v[pSpec₁, pSpec₂] = pSpec₁ ++ₚ pSpec₂`
+- `seqCompose !v[pSpec₁, pSpec₂, pSpec₃] = pSpec₁ ++ₚ (pSpec₂ ++ₚ pSpec₃)`
+- and so on.
+
+TODO: add notation `∑ i, pSpec i` for `seqCompose` -/
+@[inline]
+def seqCompose {m : ℕ} {n : Fin m → ℕ} (pSpec : ∀ i, ProtocolSpec (n i)) :
+    ProtocolSpec (Fin.vsum n) where
+  dir := Fin.vflatten (fun i => (pSpec i).dir)
+  «Type» := Fin.vflatten (fun i => (pSpec i).Type)
+
+
+-- @@ L364-367 verbatim
+@[simp]
+lemma seqCompose_dir {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)} :
+    (seqCompose pSpec).dir = Fin.vflatten (fun i => (pSpec i).dir) := by
+  rfl
+
+
+-- @@ L369-372 verbatim
+@[simp]
+lemma seqCompose_type {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)} :
+    (seqCompose pSpec).Type = Fin.vflatten (fun i => (pSpec i).Type) := by
+  rfl
+
+
+-- @@ L374-377 verbatim
+@[simp]
+theorem seqCompose_zero {n : Fin 0 → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)} :
+    seqCompose pSpec = !p[] := by
+  rfl
+
+
+-- @@ L379-382 verbatim
+@[simp]
+theorem seqCompose_one {n : Fin 1 → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)} :
+    seqCompose pSpec = pSpec 0 := by
+  rfl
+
+
+-- @@ L384-387 verbatim
+@[simp]
+theorem seqCompose_two_eq_append {n : Fin 2 → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)} :
+    seqCompose pSpec = append (pSpec 0) (pSpec 1) := by
+  rfl
+
+
+-- @@ L389-392 verbatim
+@[simp]
+theorem seqCompose_succ_eq_append {m : ℕ} {n : Fin (m + 1) → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)} :
+    seqCompose pSpec = append (pSpec 0) (seqCompose (fun i => pSpec (Fin.succ i))) := by
+  rfl
+
+
+-- @@ L394-397 verbatim
+@[simp]
+theorem seqCompose_succ_dir {m : ℕ} {n : Fin (m + 1) → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)} :
+    (seqCompose pSpec).dir = Fin.vflatten (fun i => (pSpec i).dir) := by
+  rfl
+
+
+-- @@ L399-402 verbatim
+@[simp]
+theorem seqCompose_succ_type {m : ℕ} {n : Fin (m + 1) → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)} :
+    (seqCompose pSpec).Type = Fin.vflatten (fun i => (pSpec i).Type) := by
+  rfl
+
+
+-- @@ L404-404 verbatim
+namespace FullTranscript
+
+
+-- @@ L406-419 verbatim
+/-- Sequential composition of a family of `FullTranscript`s, indexed by `i : Fin m`.
+
+Defined for definitional equality, so that the following holds definitionally:
+- `seqCompose !h[] = !h[]`
+- `seqCompose !h[T₁] = T₁`
+- `seqCompose !h[T₁, T₂] = T₁ ++ₜ T₂`
+- `seqCompose !h[T₁, T₂, T₃] = T₁ ++ₜ (T₂ ++ₜ T₃)`
+- and so on.
+
+TODO: add notation `∑ i, T i` for `seqCompose` -/
+@[inline]
+def seqCompose {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)}
+    (T : ∀ i, FullTranscript (pSpec i)) : FullTranscript (seqCompose pSpec) :=
+  Fin.hflatten T
+
+
+-- @@ L421-424 verbatim
+@[simp]
+theorem seqCompose_zero {n : Fin 0 → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)}
+    {T : ∀ i, FullTranscript (pSpec i)} :
+    seqCompose T = !h[] := rfl
+
+
+-- @@ L426-430 verbatim
+@[simp]
+theorem seqCompose_succ_eq_append {m : ℕ} {n : Fin (m + 1) → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)}
+    {T : ∀ i, FullTranscript (pSpec i)} :
+    seqCompose T = append (T 0) (seqCompose (fun i => T (Fin.succ i))) := by
+  rfl
+
+
+-- @@ L432-436 verbatim
+@[simp]
+theorem seqCompose_embedSum {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)}
+    {T : ∀ i, FullTranscript (pSpec i)} (i : Fin m) (j : Fin (n i)) :
+    seqCompose T (Fin.embedSum i j) = cast (by simp) (T i j) := by
+  simp [seqCompose, cast]; congr 1
+
+
+-- @@ L438-438 verbatim
+end FullTranscript
+
+
+-- @@ L440-440 verbatim
+section Append
+
+
+-- @@ L442-443 verbatim
+variable {ι : Type} {oSpec : OracleSpec ι} {Stmt₁ Wit₁ Stmt₂ Wit₂ Stmt₃ Wit₃ : Type}
+  {m n : ℕ} {pSpec₁ : ProtocolSpec m} {pSpec₂ : ProtocolSpec n}
+
+
+-- @@ L445-454 verbatim
+/-- If two protocols have sampleable challenges, then their concatenation also has sampleable
+  challenges. -/
+@[inline]
+instance [h₁ : ∀ i, SampleableType (pSpec₁.Challenge i)]
+    [h₂ : ∀ i, SampleableType (pSpec₂.Challenge i)] :
+    ∀ i, SampleableType ((pSpec₁ ++ₚ pSpec₂).Challenge i) :=
+  fun ⟨i, h⟩ => Fin.fappend₂ (A := Direction) (B := Type)
+    (F := fun dir type => (h : dir = .V_to_P) → SampleableType type)
+    (α₁ := pSpec₁.dir) (β₁ := pSpec₂.dir)
+    (α₂ := pSpec₁.Type) (β₂ := pSpec₂.Type) (fun i h => h₁ ⟨i, h⟩) (fun i h => h₂ ⟨i, h⟩) i h
+
+
+-- @@ L456-465 verbatim
+/-- If two protocols' challenge types are inhabited, then their concatenation's challenge types are
+    also inhabited. -/
+@[inline]
+instance [h₁ : ∀ i, Inhabited (pSpec₁.Challenge i)]
+    [h₂ : ∀ i, Inhabited (pSpec₂.Challenge i)] :
+    ∀ i, Inhabited ((pSpec₁ ++ₚ pSpec₂).Challenge i) :=
+  fun ⟨i, h⟩ => Fin.fappend₂ (A := Direction) (B := Type)
+    (F := fun dir type => (h : dir = .V_to_P) → Inhabited type)
+    (α₁ := pSpec₁.dir) (β₁ := pSpec₂.dir)
+    (α₂ := pSpec₁.Type) (β₂ := pSpec₂.Type) (fun i h => h₁ ⟨i, h⟩) (fun i h => h₂ ⟨i, h⟩) i h
+
+
+-- @@ L467-476 verbatim
+/-- If two protocols' challenge types are finite, then their concatenation's challenge types are
+    also finite. -/
+@[inline]
+instance [h₁ : ∀ i, Fintype (pSpec₁.Challenge i)]
+    [h₂ : ∀ i, Fintype (pSpec₂.Challenge i)] :
+    ∀ i, Fintype ((pSpec₁ ++ₚ pSpec₂).Challenge i) :=
+  fun ⟨i, h⟩ => Fin.fappend₂ (A := Direction) (B := Type)
+    (F := fun dir type => (h : dir = .V_to_P) → Fintype type)
+    (α₁ := pSpec₁.dir) (β₁ := pSpec₂.dir)
+    (α₂ := pSpec₁.Type) (β₂ := pSpec₂.Type) (fun i h => h₁ ⟨i, h⟩) (fun i h => h₂ ⟨i, h⟩) i h
+
+
+-- @@ L478-486 verbatim
+/-- If two protocols' messages have oracle representations, then their concatenation's messages also
+    have oracle representations. -/
+instance [O₁ : ∀ i, OracleInterface (pSpec₁.Message i)]
+    [O₂ : ∀ i, OracleInterface (pSpec₂.Message i)] :
+    ∀ i, OracleInterface ((pSpec₁ ++ₚ pSpec₂).Message i) :=
+  fun ⟨i, h⟩ => Fin.fappend₂ (A := Direction) (B := Type)
+    (F := fun dir type => (h : dir = .P_to_V) → OracleInterface type)
+    (α₁ := pSpec₁.dir) (β₁ := pSpec₂.dir)
+    (α₂ := pSpec₁.Type) (β₂ := pSpec₂.Type) (fun i h => O₁ ⟨i, h⟩) (fun i h => O₂ ⟨i, h⟩) i h
+
+
+-- @@ L488-488 verbatim
+instance : ∀ i, OracleInterface ((pSpec₁ ++ₚ pSpec₂).Challenge i) := challengeOracleInterface
+
+
+-- @@ L490-496 verbatim
+/-- The challenge type of an appended protocol at a left-injected challenge index agrees with the
+challenge type of the left component. This is the transport fact needed to move challenge data
+across `++ₚ`; it is `append_Type_castAdd` at the underlying round index, since `ChallengeIdx.inl`
+is `Fin.castAdd` on rounds. -/
+theorem challenge_append_inl (i : ChallengeIdx pSpec₁) :
+    (pSpec₁ ++ₚ pSpec₂).Challenge (ChallengeIdx.inl i) = pSpec₁.Challenge i :=
+  append_Type_castAdd (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂) i.1
+
+
+-- @@ L498-503 verbatim
+/-- The challenge type of an appended protocol at a right-injected challenge index agrees with the
+challenge type of the right component. Dually to `challenge_append_inl`, this is
+`append_Type_natAdd` at the underlying round index. -/
+theorem challenge_append_inr (i : ChallengeIdx pSpec₂) :
+    (pSpec₁ ++ₚ pSpec₂).Challenge (ChallengeIdx.inr i) = pSpec₂.Challenge i :=
+  append_Type_natAdd (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂) i.1
+
+
+-- @@ L505-509 verbatim
+/-- The challenge oracles of the left component embed into those of the appended protocol,
+by reindexing along `ChallengeIdx.inl`. -/
+instance subSpec_challenge_append_left :
+    [pSpec₁.Challenge]ₒ ⊂ₒ [(pSpec₁ ++ₚ pSpec₂).Challenge]ₒ :=
+  subSpecOfChallengeReindex ChallengeIdx.inl (challenge_append_inl (pSpec₂ := pSpec₂))
+
+
+-- @@ L511-515 verbatim
+/-- The left inclusion is lawful, so lifting along it preserves the distribution and support of
+challenge queries. -/
+instance lawfulSubSpec_challenge_append_left :
+    [pSpec₁.Challenge]ₒ ˡ⊂ₒ [(pSpec₁ ++ₚ pSpec₂).Challenge]ₒ :=
+  lawfulSubSpecOfChallengeReindex ChallengeIdx.inl (challenge_append_inl (pSpec₂ := pSpec₂))
+
+
+-- @@ L517-526 verbatim
+/-- The challenge oracles of the right component embed into those of the appended protocol,
+by reindexing along `ChallengeIdx.inr`.
+
+Note that for the degenerate `pSpec ++ₚ pSpec` both this and `subSpec_challenge_append_left` apply,
+and typeclass resolution picks this one (declared later), routing challenges into the second copy.
+That mirrors VCV-io's `subSpec_add_left` / `subSpec_add_right` for `spec + spec`; pass the intended
+instance explicitly if the two components can coincide. -/
+instance subSpec_challenge_append_right :
+    [pSpec₂.Challenge]ₒ ⊂ₒ [(pSpec₁ ++ₚ pSpec₂).Challenge]ₒ :=
+  subSpecOfChallengeReindex ChallengeIdx.inr (challenge_append_inr (pSpec₁ := pSpec₁))
+
+
+-- @@ L528-532 verbatim
+/-- The right inclusion is lawful, so lifting along it preserves the distribution and support of
+challenge queries. -/
+instance lawfulSubSpec_challenge_append_right :
+    [pSpec₂.Challenge]ₒ ˡ⊂ₒ [(pSpec₁ ++ₚ pSpec₂).Challenge]ₒ :=
+  lawfulSubSpecOfChallengeReindex ChallengeIdx.inr (challenge_append_inr (pSpec₁ := pSpec₁))
+
+
+-- @@ L534-549 verbatim
+/-- The two inclusions occupy disjoint parts of the appended challenge interface: a left-injected
+round index is `< m` and a right-injected one is `≥ m`. This is what rules out the two components'
+challenge queries aliasing each other after composition.
+
+Currently unconsumed: recorded because `Verifier.append_soundness` will need it, and because VCV-io
+ships the analogue for `spec₁ + spec₂`. -/
+instance disjointSubSpec_challenge_append_left_right :
+    OracleSpec.DisjointSubSpec
+      [pSpec₁.Challenge]ₒ [pSpec₂.Challenge]ₒ [(pSpec₁ ++ₚ pSpec₂).Challenge]ₒ :=
+  disjointSubSpecOfChallengeReindex _ (challenge_append_inl (pSpec₂ := pSpec₂))
+    _ (challenge_append_inr (pSpec₁ := pSpec₁)) <| by
+      intro i i' h
+      have hv := congrArg (fun (j : ChallengeIdx (pSpec₁ ++ₚ pSpec₂)) => (j.1 : ℕ)) h
+      simp only [ChallengeIdx.inl, ChallengeIdx.inr, Fin.val_castAdd, Fin.val_natAdd] at hv
+      have := i.1.isLt
+      omega
+
+
+-- @@ L551-557 verbatim
+/-- `disjointSubSpec_challenge_append_left_right` with the two components swapped, matching
+VCV-io's pairing of `disjointSubSpec_add_left_right` / `disjointSubSpec_add_right_left`. -/
+instance disjointSubSpec_challenge_append_right_left :
+    OracleSpec.DisjointSubSpec
+      [pSpec₂.Challenge]ₒ [pSpec₁.Challenge]ₒ [(pSpec₁ ++ₚ pSpec₂).Challenge]ₒ where
+  disjoint_onQuery t₂ t₁ h :=
+    (disjointSubSpec_challenge_append_left_right.disjoint_onQuery t₁ t₂ h.symm)
+
+
+-- @@ L559-572 verbatim
+/-! ### Pinned lifts across `++ₚ`
+
+`liftM` chooses its `SubSpec` instance by unification. When `pSpec₁` and `pSpec₂` are the *same*
+protocol spec (e.g. a protocol that repeats an identical round structure), both
+`subSpec_challenge_append_left` and `subSpec_challenge_append_right` unify with the goal, and
+instance resolution picks the later-declared one — the *right* inclusion — even for a
+left-component computation. Statements that lift both components with a bare `liftM` are therefore
+not valid in general on the diagonal `pSpec ++ₚ pSpec`.
+
+The two abbreviations below pin the intended inclusion, so a statement can say which copy a
+component's challenge queries belong to. On the off-diagonal they are definitionally what `liftM`
+already produced. On the diagonal they can differ: when challenge indices exist, a component
+challenge query is tagged left or right by the respective lift. Empty or challenge-free protocols
+and pure computations do not witness such a difference. -/
+
+
+-- @@ L574-574 verbatim
+variable {ι : Type} {oSpec : OracleSpec ι} {α : Type}
+
+
+-- @@ L576-583 verbatim
+/-- Lift a left-component computation into the appended protocol, with the left challenge
+inclusion pinned. -/
+abbrev liftAppendLeft (pSpec₂ : ProtocolSpec n)
+    (oa : OracleComp (oSpec + [pSpec₁.Challenge]ₒ) α) :
+    OracleComp (oSpec + [(pSpec₁ ++ₚ pSpec₂).Challenge]ₒ) α :=
+  letI : [pSpec₁.Challenge]ₒ ⊂ₒ [(pSpec₁ ++ₚ pSpec₂).Challenge]ₒ :=
+    subSpec_challenge_append_left
+  liftM oa
+
+
+-- @@ L585-592 verbatim
+/-- Lift a right-component computation into the appended protocol, with the right challenge
+inclusion pinned. -/
+abbrev liftAppendRight (pSpec₁ : ProtocolSpec m)
+    (oa : OracleComp (oSpec + [pSpec₂.Challenge]ₒ) α) :
+    OracleComp (oSpec + [(pSpec₁ ++ₚ pSpec₂).Challenge]ₒ) α :=
+  letI : [pSpec₂.Challenge]ₒ ⊂ₒ [(pSpec₁ ++ₚ pSpec₂).Challenge]ₒ :=
+    subSpec_challenge_append_right
+  liftM oa
+
+
+-- @@ L594-594 verbatim
+/-! Query computation rules specify both the injected index and the response transport. -/
+
+
+-- @@ L596-601 verbatim
+/-- Lifting a left-component challenge query queries the appended protocol at the left-injected
+index and transports the response back along `challenge_append_inl`. -/
+@[simp] theorem liftM_challenge_append_inl (i : ChallengeIdx pSpec₁) :
+    (liftM (OracleSpec.query (spec := [pSpec₁.Challenge]ₒ) ⟨i, ()⟩) :
+        OracleQuery [(pSpec₁ ++ₚ pSpec₂).Challenge]ₒ (pSpec₁.Challenge i))
+      = ⟨⟨ChallengeIdx.inl i, ()⟩, cast (challenge_append_inl (pSpec₂ := pSpec₂) i)⟩ := rfl
+
+
+-- @@ L603-608 verbatim
+/-- Lifting a right-component challenge query queries the appended protocol at the right-injected
+index and transports the response back along `challenge_append_inr`. -/
+@[simp] theorem liftM_challenge_append_inr (i : ChallengeIdx pSpec₂) :
+    (liftM (OracleSpec.query (spec := [pSpec₂.Challenge]ₒ) ⟨i, ()⟩) :
+        OracleQuery [(pSpec₁ ++ₚ pSpec₂).Challenge]ₒ (pSpec₂.Challenge i))
+      = ⟨⟨ChallengeIdx.inr i, ()⟩, cast (challenge_append_inr (pSpec₁ := pSpec₁) i)⟩ := rfl
+
+
+-- @@ L610-615 verbatim
+/-- Lifting a left challenge query uses the left index and casts the response back. -/
+@[simp] theorem liftM_getChallenge_append_inl (i : ChallengeIdx pSpec₁) :
+    (liftM (pSpec₁.getChallenge i) :
+        OracleComp [(pSpec₁ ++ₚ pSpec₂).Challenge]ₒ (pSpec₁.Challenge i))
+      = cast (challenge_append_inl (pSpec₂ := pSpec₂) i) <$>
+          (pSpec₁ ++ₚ pSpec₂).getChallenge (ChallengeIdx.inl i) := rfl
+
+
+-- @@ L617-622 verbatim
+/-- Lifting a right challenge query uses the right index and casts the response back. -/
+@[simp] theorem liftM_getChallenge_append_inr (i : ChallengeIdx pSpec₂) :
+    (liftM (pSpec₂.getChallenge i) :
+        OracleComp [(pSpec₁ ++ₚ pSpec₂).Challenge]ₒ (pSpec₂.Challenge i))
+      = cast (challenge_append_inr (pSpec₁ := pSpec₁) i) <$>
+          (pSpec₁ ++ₚ pSpec₂).getChallenge (ChallengeIdx.inr i) := rfl
+
+
+-- @@ L624-624 verbatim
+end Append
+
+
+-- @@ L626-626 verbatim
+section SeqCompose
+
+
+-- @@ L628-630 verbatim
+def sigmaChallengeIdxToSeqCompose {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)}
+    (i : Fin m) (j : (pSpec i).ChallengeIdx) : (seqCompose pSpec).ChallengeIdx :=
+  ⟨Fin.embedSum i j.1, by simp [j.property]⟩
+
+
+-- @@ L632-641 verbatim
+def seqComposeChallengeIdxToSigma {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)}
+    (k : (seqCompose pSpec).ChallengeIdx) : (i : Fin m) × (pSpec i).ChallengeIdx :=
+  let ij := Fin.splitSum k.1
+  ⟨ij.1, ⟨ij.2, by
+    simp only [ij]
+    have := k.property
+    simp only [seqCompose_dir] at this
+    have hk : k.1 = Fin.embedSum ij.1 ij.2 := by simp [ij]
+    simp only [hk, Fin.vflatten_embedSum] at this
+    exact this⟩⟩
+
+
+-- @@ L643-654 verbatim
+/-- The challenge type of a sequential composition at a combined challenge index equals the
+challenge type of the component protocol at the decoded component challenge index. This is the
+transport fact needed whenever per-round challenge data must be moved across `seqCompose`. -/
+theorem seqCompose_challenge_eq {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)}
+    (i : (seqCompose pSpec).ChallengeIdx) :
+    (seqCompose pSpec).Challenge i =
+      (pSpec (seqComposeChallengeIdxToSigma i).1).Challenge
+        (seqComposeChallengeIdxToSigma i).2 := by
+  unfold ProtocolSpec.Challenge seqComposeChallengeIdxToSigma
+  simp only [seqCompose_type]
+  conv_lhs => rw [← Fin.embedSum_splitSum i.1]
+  rw [Fin.vflatten_embedSum]
+
+
+-- @@ L656-668 verbatim
+/-- The equivalence between the challenge indices of the individual protocols and the challenge
+    indices of the sequential composition. -/
+def seqComposeChallengeEquiv {m : ℕ} {n : Fin m → ℕ} (pSpec : ∀ i, ProtocolSpec (n i)) :
+    (i : Fin m) × (pSpec i).ChallengeIdx ≃ (seqCompose pSpec).ChallengeIdx where
+  -- TODO: write lemmas about `finSigmaFinEquiv` in mathlib with the one defined via `Fin.dfoldl`
+  toFun := fun ⟨i, j⟩ => sigmaChallengeIdxToSeqCompose i j
+  invFun := seqComposeChallengeIdxToSigma
+  left_inv := by
+    intro ⟨i, j⟩
+    simp only [seqComposeChallengeIdxToSigma, sigmaChallengeIdxToSeqCompose]
+    rw! (castMode := .all) [Fin.splitSum_embedSum i j.1]
+    rfl
+  right_inv := by intro; simp [seqComposeChallengeIdxToSigma, sigmaChallengeIdxToSeqCompose]
+
+
+-- @@ L670-672 verbatim
+def sigmaMessageIdxToSeqCompose {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)}
+    (i : Fin m) (j : (pSpec i).MessageIdx) : (seqCompose pSpec).MessageIdx :=
+  ⟨Fin.embedSum i j.1, by simp [j.property]⟩
+
+
+-- @@ L674-683 verbatim
+def seqComposeMessageIdxToSigma {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)}
+    (k : (seqCompose pSpec).MessageIdx) : (i : Fin m) × (pSpec i).MessageIdx :=
+  let ij := Fin.splitSum k.1
+  ⟨ij.1, ⟨ij.2, by
+    simp only [ij]
+    have := k.property
+    simp only [seqCompose_dir] at this
+    have hk : k.1 = Fin.embedSum ij.1 ij.2 := by simp [ij]
+    simp only [hk, Fin.vflatten_embedSum] at this
+    exact this⟩⟩
+
+
+-- @@ L685-696 verbatim
+/-- The equivalence between the message indices of the individual protocols and the message
+    indices of the sequential composition. -/
+def seqComposeMessageEquiv {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)} :
+    (i : Fin m) × (pSpec i).MessageIdx ≃ (seqCompose pSpec).MessageIdx where
+  toFun := fun ⟨i, msgIdx⟩ => sigmaMessageIdxToSeqCompose i msgIdx
+  invFun := seqComposeMessageIdxToSigma
+  left_inv := by
+    intro ⟨i, j⟩
+    simp only [seqComposeMessageIdxToSigma, sigmaMessageIdxToSeqCompose]
+    rw! (castMode := .all) [Fin.splitSum_embedSum i j.1]
+    rfl
+  right_inv := by intro; simp [seqComposeMessageIdxToSigma, sigmaMessageIdxToSeqCompose]
+
+
+-- @@ L698-703 verbatim
+instance {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)}
+    [inst : ∀ i, ∀ j, SampleableType ((pSpec i).Challenge j)] :
+    ∀ k, SampleableType ((seqCompose pSpec).Challenge k) :=
+  fun ⟨k, h⟩ => Fin.fflatten₂
+    (A := Direction) (B := Type) (F := fun dir type => (h : dir = .V_to_P) → SampleableType type)
+    (fun i' j' h' => inst i' ⟨j', h'⟩) k h
+
+
+-- @@ L705-710 verbatim
+instance {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)}
+    [inst : ∀ i, ∀ j, Inhabited ((pSpec i).Challenge j)] :
+    ∀ k, Inhabited ((seqCompose pSpec).Challenge k) :=
+  fun ⟨k, h⟩ => Fin.fflatten₂
+    (A := Direction) (B := Type) (F := fun dir type => (h : dir = .V_to_P) → Inhabited type)
+    (fun i' j' h' => inst i' ⟨j', h'⟩) k h
+
+
+-- @@ L712-717 verbatim
+instance {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)}
+    [inst : ∀ i, ∀ j, Fintype ((pSpec i).Challenge j)] :
+    ∀ k, Fintype ((seqCompose pSpec).Challenge k) :=
+  fun ⟨k, h⟩ => Fin.fflatten₂
+    (A := Direction) (B := Type) (F := fun dir type => (h : dir = .V_to_P) → Fintype type)
+    (fun i' j' h' => inst i' ⟨j', h'⟩) k h
+
+
+-- @@ L719-726 verbatim
+/-- If all protocols' messages have oracle interfaces, then the messages of their sequential
+  composition also have oracle interfaces. -/
+instance {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)}
+    [Oₘ : ∀ i, ∀ j, OracleInterface ((pSpec i).Message j)] :
+    ∀ k, OracleInterface ((seqCompose pSpec).Message k) :=
+  fun ⟨k, h⟩ => Fin.fflatten₂
+    (A := Direction) (B := Type) (F := fun dir type => (h : dir = .P_to_V) → OracleInterface type)
+    (fun i' j' h' => Oₘ i' ⟨j', h'⟩) k h
+
+
+-- @@ L728-728 verbatim
+end SeqCompose
+
+
+-- @@ L730-730 verbatim
+end ProtocolSpec

@@ -1,0 +1,1 @@
+{"names":["monadLift_bind_map","monadLift_bind_fst"],"modules":["ArkLib.ToMathlib.Control.MonadLift"],"moduleOf":{"monadLift_bind_map":"ArkLib.ToMathlib.Control.MonadLift","monadLift_bind_fst":"ArkLib.ToMathlib.Control.MonadLift"},"deps":{"monadLift_bind_map":[],"monadLift_bind_fst":["monadLift_bind_map"]}}

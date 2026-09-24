@@ -1,0 +1,1 @@
+{"names":["Matrix.swapMatrix_isUnitaryBetween","Matrix.IsUnitaryBetween.eq_1"],"modules":["TNLean.Algebra.SwapMatrix"],"moduleOf":{"Matrix.swapMatrix_isUnitaryBetween":"TNLean.Algebra.SwapMatrix","Matrix.IsUnitaryBetween.eq_1":"TNLean.Algebra.SwapMatrix"},"deps":{"Matrix.swapMatrix_isUnitaryBetween":["Matrix.IsUnitaryBetween.eq_1"],"Matrix.IsUnitaryBetween.eq_1":[]}}

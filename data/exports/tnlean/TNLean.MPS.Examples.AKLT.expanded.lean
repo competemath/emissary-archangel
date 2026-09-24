@@ -1,0 +1,727 @@
+/-
+Copyright (c) 2026 TNLean contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: TNLean contributors
+-/
+import TNLean.MPS.RFP.Defs
+import TNLean.MPS.Symmetry.Defs
+import TNLean.MPS.Examples.ZMod2
+import TNLean.Algebra.CocycleCohomology
+import TNLean.Algebra.ComplexSqrt
+
+
+-- @@ L12-40 verbatim
+/-!
+# AKLT state as a Matrix Product State
+
+This module defines the AKLT (Affleck-Kennedy-Lieb-Tasaki) state as a concrete
+MPS tensor with physical dimension `d = 3` (spin-1) and bond dimension `D = 2`,
+and proves its key properties.
+
+## Main definitions
+
+* `akltTensor` : the AKLT MPS tensor with `A⁰ = (1/√3) σz`,
+  `A¹ = (√2/√3) σ⁺`, `A² = -(√2/√3) σ⁻`
+* `akltZ2Action` : the Z₂ on-site representation via spin-1 Rx(π) rotation
+* `akltZ2Z2Action` : the Z₂ × Z₂ on-site representation via the commuting spin-1
+  rotations Rx(π) and Rz(π)
+
+## Main results
+
+* `aklt_not_isInjective` : the AKLT tensor is not 1-block injective
+* `aklt_isNormal` : the AKLT tensor is normal (2-block injective)
+* `aklt_transferMap_one` : the identity is a fixed point of the transfer map
+* `aklt_isOnSiteSymmetric_Z2` : the AKLT tensor is on-site symmetric under Z₂
+* `aklt_isOnSiteSymmetric_Z2Z2` : the AKLT tensor is on-site symmetric under
+  Z₂ × Z₂, with anticommuting virtual gauges σz and iσy
+
+## References
+
+* Affleck, Kennedy, Lieb, Tasaki (1987) — original AKLT construction
+* RMP review (arXiv:2011.12127) Section III.A
+-/
+
+
+-- @@ L42-42 verbatim
+open scoped Matrix BigOperators
+
+-- @@ L43-43 verbatim
+open Matrix Finset MPSTensor
+
+
+-- @@ L45-45 verbatim
+noncomputable section
+
+
+-- @@ L47-47 verbatim
+namespace MPSTensor
+
+
+-- @@ L49-49 verbatim
+/-! ### Definition -/
+
+
+-- @@ L51-60 verbatim
+/-- The AKLT MPS tensor: a spin-1 chain (d=3) with bond dimension D=2.
+
+* `A⁰ = (1/√3) σz = (1/√3) · !![1, 0; 0, -1]`
+* `A¹ = (√2/√3) σ⁺ = (√2/√3) · !![0, 1; 0, 0]`
+* `A² = -(√2/√3) σ⁻ = -(√2/√3) · !![0, 0; 1, 0]` -/
+def akltTensor : MPSTensor 3 2 := fun i =>
+  match i with
+  | 0 => (↑(1 / Real.sqrt 3) : ℂ) • !![1, 0; 0, -1]
+  | 1 => (↑(Real.sqrt 2 / Real.sqrt 3) : ℂ) • !![0, 1; 0, 0]
+  | 2 => -(↑(Real.sqrt 2 / Real.sqrt 3) : ℂ) • !![0, 0; 1, 0]
+
+
+-- @@ L62-64 verbatim
+@[simp]
+lemma akltTensor_zero :
+    akltTensor 0 = (↑(1 / Real.sqrt 3) : ℂ) • !![1, 0; 0, -1] := rfl
+
+
+-- @@ L66-68 verbatim
+@[simp]
+lemma akltTensor_one :
+    akltTensor 1 = (↑(Real.sqrt 2 / Real.sqrt 3) : ℂ) • !![0, 1; 0, 0] := rfl
+
+
+-- @@ L70-72 verbatim
+@[simp]
+lemma akltTensor_two :
+    akltTensor 2 = -(↑(Real.sqrt 2 / Real.sqrt 3) : ℂ) • !![0, 0; 1, 0] := rfl
+
+
+-- @@ L74-74 verbatim
+/-! ### Non-injectivity -/
+
+
+-- @@ L76-82 verbatim
+/-- The AKLT tensor is **not** injective: the span of {A⁰, A¹, A²} is the 3-dimensional
+space of traceless matrices, not the full 4-dimensional matrix algebra M₂(ℂ). -/
+theorem aklt_not_isInjective : ¬ Kraus.IsInjective akltTensor :=
+  Kraus.not_isInjective_of_linearMap
+    (Matrix.entryLinearMap ℂ ℂ 0 0 + Matrix.entryLinearMap ℂ ℂ 1 1)
+    (fun k => by fin_cases k <;> simp [akltTensor])
+    (1 : Matrix (Fin 2) (Fin 2) ℂ) (by norm_num [Matrix.one_apply])
+
+
+-- @@ L84-84 verbatim
+/-! ### Transfer map -/
+
+
+-- @@ L86-99 verbatim
+/-- The conjugate transpose of each AKLT matrix. -/
+@[simp]
+lemma akltTensor_conjTranspose (k : Fin 3) :
+    (akltTensor k)ᴴ = match k with
+    | 0 => (↑(1 / Real.sqrt 3) : ℂ) • !![1, 0; 0, -1]
+    | 1 => (↑(Real.sqrt 2 / Real.sqrt 3) : ℂ) • !![0, 0; 1, 0]
+    | 2 => -(↑(Real.sqrt 2 / Real.sqrt 3) : ℂ) • !![0, 1; 0, 0] := by
+  fin_cases k <;> simp only [akltTensor] <;>
+    rw [show ∀ (c : ℂ) (M : Matrix (Fin 2) (Fin 2) ℂ), (c • M)ᴴ = star c • Mᴴ from
+      fun c M => conjTranspose_smul c M] <;>
+    simp only [Complex.star_def, Complex.conj_ofReal, map_neg] <;>
+    congr 1 <;>
+    ext a b <;> fin_cases a <;> fin_cases b <;>
+    simp [Matrix.conjTranspose_apply, star_one, star_zero, star_neg]
+
+
+-- @@ L101-118 verbatim
+/-- The identity is a fixed point of the AKLT transfer map: `E(I) = I`. -/
+theorem aklt_transferMap_one :
+    Kraus.transferMap akltTensor 1 = 1 := by
+  ext i j
+  simp only [Kraus.transferMap_apply, Fin.sum_univ_three, Matrix.add_apply,
+    akltTensor_conjTranspose]
+  fin_cases i <;> fin_cases j <;>
+    simp only [akltTensor, one_div, Complex.ofReal_inv, smul_of, smul_cons,
+      smul_eq_mul, mul_one, mul_zero, Matrix.smul_empty, mul_neg,
+      Fin.zero_eta, Fin.isValue, Fin.mk_one, mul_apply, of_apply, cons_val',
+      cons_val_fin_one, cons_val_zero, cons_val_one, Fin.sum_univ_two,
+      zero_mul, add_zero, zero_add, Complex.ofReal_div, neg_smul, neg_of,
+      neg_cons, neg_zero, Matrix.neg_empty, ne_eq, zero_ne_one, one_ne_zero,
+      not_false_eq_true, one_apply_eq, one_apply_ne, neg_mul, neg_neg] <;> (
+      rw [div_mul_div_comm, ← _root_.mul_inv_rev, ← sq, ← sq,
+        Complex.ofReal_sqrt_sq 3 (by positivity),
+        Complex.ofReal_sqrt_sq 2 (by positivity)]
+      norm_num)
+
+
+-- @@ L120-120 verbatim
+/-! ### Normality (2-block injectivity) -/
+
+
+-- @@ L122-124 verbatim
+private lemma product_in_wordSpan (i j : Fin 3) :
+    akltTensor i * akltTensor j ∈ Kraus.wordSpan akltTensor 2 := by
+  simpa [Kraus.evalWord] using Kraus.evalWord_mem_wordSpan akltTensor [i, j]
+
+
+-- @@ L126-130 verbatim
+/-- Nonzero coefficient for the off-diagonal products. -/
+private lemma aklt_coeff_ne_zero :
+    (↑(1 / Real.sqrt 3) : ℂ) * ↑(Real.sqrt 2 / Real.sqrt 3) ≠ 0 :=
+  mul_ne_zero (Complex.ofReal_ne_zero.mpr (by positivity))
+    (Complex.ofReal_ne_zero.mpr (by positivity))
+
+
+-- @@ L132-147 verbatim
+private lemma single_00_in_wordSpan :
+    Matrix.single (0 : Fin 2) (0 : Fin 2) (1 : ℂ) ∈ Kraus.wordSpan akltTensor 2 := by
+  -- A¹ * A² = -(c₁²) e₀₀ for c₁ = √2/√3
+  have hne : (↑(Real.sqrt 2 / Real.sqrt 3) : ℂ) * ↑(Real.sqrt 2 / Real.sqrt 3) ≠ 0 :=
+    mul_ne_zero (Complex.ofReal_ne_zero.mpr (by positivity))
+      (Complex.ofReal_ne_zero.mpr (by positivity))
+  have h : akltTensor 1 * akltTensor 2 =
+      -(↑(Real.sqrt 2 / Real.sqrt 3) * ↑(Real.sqrt 2 / Real.sqrt 3) : ℂ) •
+        Matrix.single 0 0 1 := by
+    ext a b; fin_cases a <;> fin_cases b <;>
+      simp [akltTensor, Matrix.mul_apply, Fin.sum_univ_two, smul_eq_mul, Matrix.single]
+  have hmem := product_in_wordSpan 1 2
+  rw [h] at hmem
+  have hmem' := Submodule.smul_mem (Kraus.wordSpan akltTensor 2)
+    (-(↑(Real.sqrt 2 / Real.sqrt 3) * ↑(Real.sqrt 2 / Real.sqrt 3) : ℂ))⁻¹ hmem
+  rwa [smul_smul, inv_mul_cancel₀ (neg_ne_zero.mpr hne), one_smul] at hmem'
+
+
+-- @@ L149-164 verbatim
+private lemma single_11_in_wordSpan :
+    Matrix.single (1 : Fin 2) (1 : Fin 2) (1 : ℂ) ∈ Kraus.wordSpan akltTensor 2 := by
+  -- A² * A¹ = -(c₁²) e₁₁
+  have hne : (↑(Real.sqrt 2 / Real.sqrt 3) : ℂ) * ↑(Real.sqrt 2 / Real.sqrt 3) ≠ 0 :=
+    mul_ne_zero (Complex.ofReal_ne_zero.mpr (by positivity))
+      (Complex.ofReal_ne_zero.mpr (by positivity))
+  have h : akltTensor 2 * akltTensor 1 =
+      -(↑(Real.sqrt 2 / Real.sqrt 3) * ↑(Real.sqrt 2 / Real.sqrt 3) : ℂ) •
+        Matrix.single 1 1 1 := by
+    ext a b; fin_cases a <;> fin_cases b <;>
+      simp [akltTensor, Matrix.mul_apply, Fin.sum_univ_two, smul_eq_mul, Matrix.single]
+  have hmem := product_in_wordSpan 2 1
+  rw [h] at hmem
+  have hmem' := Submodule.smul_mem (Kraus.wordSpan akltTensor 2)
+    (-(↑(Real.sqrt 2 / Real.sqrt 3) * ↑(Real.sqrt 2 / Real.sqrt 3) : ℂ))⁻¹ hmem
+  rwa [smul_smul, inv_mul_cancel₀ (neg_ne_zero.mpr hne), one_smul] at hmem'
+
+
+-- @@ L166-178 verbatim
+private lemma single_01_in_wordSpan :
+    Matrix.single (0 : Fin 2) (1 : Fin 2) (1 : ℂ) ∈ Kraus.wordSpan akltTensor 2 := by
+  -- A⁰ * A¹ = (c₀ c₁) e₀₁
+  suffices h : akltTensor 0 * akltTensor 1 =
+      (↑(1 / Real.sqrt 3) * ↑(Real.sqrt 2 / Real.sqrt 3) : ℂ) •
+        Matrix.single 0 1 1 by
+    rw [show Matrix.single (0 : Fin 2) 1 (1 : ℂ) =
+        (↑(1 / Real.sqrt 3) * ↑(Real.sqrt 2 / Real.sqrt 3) : ℂ)⁻¹ •
+          (akltTensor 0 * akltTensor 1) from by
+      rw [h, smul_smul, inv_mul_cancel₀ aklt_coeff_ne_zero, one_smul]]
+    exact Submodule.smul_mem _ _ (product_in_wordSpan 0 1)
+  ext a b; fin_cases a <;> fin_cases b <;>
+    simp [akltTensor, Matrix.mul_apply, Fin.sum_univ_two, smul_eq_mul, Matrix.single]
+
+
+-- @@ L180-192 verbatim
+private lemma single_10_in_wordSpan :
+    Matrix.single (1 : Fin 2) (0 : Fin 2) (1 : ℂ) ∈ Kraus.wordSpan akltTensor 2 := by
+  -- A⁰ * A² = (c₀ c₁) e₁₀ (the double negation gives positive)
+  suffices h : akltTensor 0 * akltTensor 2 =
+      (↑(1 / Real.sqrt 3) * ↑(Real.sqrt 2 / Real.sqrt 3) : ℂ) •
+        Matrix.single 1 0 1 by
+    rw [show Matrix.single (1 : Fin 2) 0 (1 : ℂ) =
+        (↑(1 / Real.sqrt 3) * ↑(Real.sqrt 2 / Real.sqrt 3) : ℂ)⁻¹ •
+          (akltTensor 0 * akltTensor 2) from by
+      rw [h, smul_smul, inv_mul_cancel₀ aklt_coeff_ne_zero, one_smul]]
+    exact Submodule.smul_mem _ _ (product_in_wordSpan 0 2)
+  ext a b; fin_cases a <;> fin_cases b <;>
+    simp [akltTensor, Matrix.mul_apply, Fin.sum_univ_two, smul_eq_mul, Matrix.single]
+
+
+-- @@ L194-205 verbatim
+/-- The AKLT tensor is 2-block injective: products of length 2 span M₂(ℂ). -/
+theorem aklt_isNBlkInjective_two : Kraus.IsNBlkInjective akltTensor 2 := by
+  rw [Kraus.IsNBlkInjective]
+  apply (Submodule.eq_top_iff_forall_basis_mem
+    (Matrix.stdBasis ℂ (Fin 2) (Fin 2))).2
+  rintro ⟨i, j⟩
+  rw [Matrix.stdBasis_eq_single]
+  fin_cases i <;> fin_cases j
+  · exact single_00_in_wordSpan
+  · exact single_01_in_wordSpan
+  · exact single_10_in_wordSpan
+  · exact single_11_in_wordSpan
+
+
+-- @@ L207-209 verbatim
+/-- The AKLT tensor is normal: it is `2`-block-injective. -/
+theorem aklt_isNormal : Kraus.IsNormal akltTensor :=
+  ⟨2, Nat.zero_lt_succ 1, aklt_isNBlkInjective_two⟩
+
+
+-- @@ L211-211 verbatim
+/-! ### Z₂ on-site symmetry -/
+
+
+-- @@ L213-227 verbatim
+/-- The Z₂ physical action on the spin-1 basis ${|+1\rangle, |0\rangle, |-1\rangle}$:
+the generator acts as the matrix
+$\begin{pmatrix} -1 & 0 & 0 \\ 0 & 0 & 1 \\ 0 & 1 & 0 \end{pmatrix}$. -/
+def akltZ2Action :
+    Multiplicative (ZMod 2) →* Matrix (Fin 3) (Fin 3) ℂ where
+  toFun g := if Multiplicative.toAdd g = 0 then 1
+    else !![(-1 : ℂ), 0, 0; 0, 0, 1; 0, 1, 0]
+  map_one' := by simp [toAdd_one]
+  map_mul' a b := by
+    rcases zmod2_cases a with rfl | rfl <;> rcases zmod2_cases b with rfl | rfl <;>
+      simp only [one_mul, mul_one, toAdd_one, toAdd_ofAdd, toAdd_mul,
+        zmod2_one_add_one, one_ne_zero, ↓reduceIte]
+    ext i j; fin_cases i <;> fin_cases j <;>
+      simp [Matrix.mul_apply, Fin.sum_univ_three, Matrix.of_apply,
+        Matrix.cons_val_zero, Matrix.cons_val_one]
+
+
+-- @@ L229-230 verbatim
+private def akltGaugeMat : Matrix (Fin 2) (Fin 2) ℂ :=
+  !![0, 1; -1, 0]
+
+
+-- @@ L232-234 verbatim
+private lemma akltGaugeMat_det_ne_zero :
+    akltGaugeMat.det ≠ 0 := by
+  simp [akltGaugeMat, Matrix.det_fin_two]
+
+
+-- @@ L236-237 verbatim
+private def akltGaugeGL : GL (Fin 2) ℂ :=
+  Matrix.GeneralLinearGroup.mkOfDetNeZero akltGaugeMat akltGaugeMat_det_ne_zero
+
+
+-- @@ L239-241 verbatim
+@[simp] private lemma akltGaugeGL_val :
+    (akltGaugeGL : Matrix (Fin 2) (Fin 2) ℂ) = akltGaugeMat :=
+  Matrix.GeneralLinearGroup.val_mkOfDetNeZero _ _
+
+
+-- @@ L243-246 verbatim
+private lemma akltGaugeMat_sq : akltGaugeMat * akltGaugeMat = -1 := by
+  ext i j
+  fin_cases i <;> fin_cases j <;>
+    simp [akltGaugeMat, Matrix.mul_apply, Fin.sum_univ_two]
+
+
+-- @@ L248-253 verbatim
+private lemma akltGaugeGL_inv_val :
+    ((akltGaugeGL⁻¹ : GL (Fin 2) ℂ) : Matrix (Fin 2) (Fin 2) ℂ) = !![0, -1; 1, 0] := by
+  rw [Matrix.GeneralLinearGroup.coe_inv, akltGaugeGL_val]
+  refine Matrix.inv_eq_right_inv ?_
+  ext i j; fin_cases i <;> fin_cases j <;>
+    simp [akltGaugeMat, Matrix.mul_apply, Fin.sum_univ_two]
+
+
+-- @@ L255-266 verbatim
+private lemma aklt_twisted_generator_eq (i : Fin 3) :
+    twistedTensor akltTensor akltZ2Action (Multiplicative.ofAdd 1) i =
+      match i with
+      | 0 => -akltTensor 0
+      | 1 => akltTensor 2
+      | 2 => akltTensor 1 := by
+  simp only [twistedTensor, akltZ2Action, MonoidHom.coe_mk, OneHom.coe_mk,
+    toAdd_ofAdd, Fin.sum_univ_three]
+  fin_cases i <;>
+    ext a b <;> fin_cases a <;> fin_cases b <;>
+    simp [akltTensor, Matrix.of_apply, Matrix.cons_val_zero, Matrix.cons_val_one,
+      Matrix.smul_apply, Matrix.neg_apply, Matrix.add_apply, Matrix.zero_apply]
+
+
+-- @@ L268-277 verbatim
+private lemma aklt_gaugeEquiv_twisted :
+    GaugeEquiv akltTensor
+      (twistedTensor akltTensor akltZ2Action (Multiplicative.ofAdd 1)) := by
+  refine ⟨akltGaugeGL, fun i => ?_⟩
+  rw [aklt_twisted_generator_eq]
+  rw [akltGaugeGL_inv_val, akltGaugeGL_val, akltGaugeMat]
+  fin_cases i <;>
+    (ext a b; fin_cases a <;> fin_cases b <;>
+    simp [akltTensor, Matrix.mul_apply, Fin.sum_univ_two, Matrix.smul_apply,
+      Matrix.neg_apply])
+
+
+-- @@ L279-285 verbatim
+/-- The AKLT tensor is on-site symmetric under Z₂ = {1, Rx(π)}. -/
+theorem aklt_isOnSiteSymmetric_Z2 :
+    IsOnSiteSymmetric akltTensor akltZ2Action := by
+  intro g
+  rcases zmod2_cases g with rfl | rfl
+  · rw [twistedTensor_one]; exact fun _ _ => rfl
+  · exact aklt_gaugeEquiv_twisted.sameMPV
+
+
+-- @@ L287-298 verbatim
+/-! ### Z₂ × Z₂ on-site symmetry
+
+The single Z₂ above is generated by a spin-1 `π`-rotation.  Adjoining a second,
+commuting spin-1 `π`-rotation about an orthogonal axis extends the symmetry to a
+`Z₂ × Z₂` subgroup of `SO(3)`.  (In the basis used here the two generators are
+the matrices below; each is real orthogonal with determinant `1` and eigenvalues
+`{1, -1, -1}`, hence a `π`-rotation, but they are not the literal x- and
+z-rotations of the standard `|m⟩` basis.)  On the bond space the two rotations
+are implemented by the anticommuting virtual gauges `iσy` and `σz`; their
+anticommutation (proved as `aklt_gauge_anticomm`) is the projective obstruction
+that distinguishes the AKLT phase.  The cohomological reading of that obstruction
+is recorded in `docs/paper-gaps/rmp_aklt_continuous_rotation_gap.tex`. -/
+
+
+-- @@ L300-303 verbatim
+/-- The first physical generator, a spin-1 `π`-rotation
+$\begin{pmatrix} -1 & 0 & 0 \\ 0 & 0 & 1 \\ 0 & 1 & 0 \end{pmatrix}$. -/
+private def akltPhysP1 : Matrix (Fin 3) (Fin 3) ℂ :=
+  !![(-1 : ℂ), 0, 0; 0, 0, 1; 0, 1, 0]
+
+
+-- @@ L305-308 verbatim
+/-- The second physical generator, a commuting spin-1 `π`-rotation
+`diag(1, -1, -1)` about an orthogonal axis. -/
+private def akltPhysP2 : Matrix (Fin 3) (Fin 3) ℂ :=
+  !![(1 : ℂ), 0, 0; 0, -1, 0; 0, 0, -1]
+
+
+-- @@ L310-312 verbatim
+private lemma akltPhysP1_sq : akltPhysP1 * akltPhysP1 = 1 := by
+  ext i j; fin_cases i <;> fin_cases j <;>
+    simp [akltPhysP1, Matrix.mul_apply, Fin.sum_univ_three]
+
+
+-- @@ L314-316 verbatim
+private lemma akltPhysP2_sq : akltPhysP2 * akltPhysP2 = 1 := by
+  ext i j; fin_cases i <;> fin_cases j <;>
+    simp [akltPhysP2, Matrix.mul_apply, Fin.sum_univ_three]
+
+
+-- @@ L318-320 verbatim
+private lemma akltPhysP1P2_comm : akltPhysP1 * akltPhysP2 = akltPhysP2 * akltPhysP1 := by
+  ext i j; fin_cases i <;> fin_cases j <;>
+    simp [akltPhysP1, akltPhysP2, Matrix.mul_apply, Fin.sum_univ_three]
+
+
+-- @@ L322-325 verbatim
+private lemma akltPhysP1_conjTranspose : akltPhysP1ᴴ = akltPhysP1 := by
+  ext i j
+  fin_cases i <;> fin_cases j <;>
+    simp [akltPhysP1, Matrix.conjTranspose_apply]
+
+
+-- @@ L327-330 verbatim
+private lemma akltPhysP2_conjTranspose : akltPhysP2ᴴ = akltPhysP2 := by
+  ext i j
+  fin_cases i <;> fin_cases j <;>
+    simp [akltPhysP2, Matrix.conjTranspose_apply]
+
+
+-- @@ L332-337 verbatim
+/-- The `Z₂ × Z₂` on-site representation on the spin-1 physical space.  The two
+generators act by two commuting spin-1 `π`-rotations about orthogonal axes. -/
+def akltZ2Z2Action :
+    Multiplicative (ZMod 2 × ZMod 2) →* Matrix (Fin 3) (Fin 3) ℂ :=
+  ofCommutingInvolutions akltPhysP1 akltPhysP2
+    akltPhysP1_sq akltPhysP2_sq akltPhysP1P2_comm
+
+
+-- @@ L339-342 verbatim
+@[simp] private lemma akltZ2Z2Action_10 :
+    akltZ2Z2Action (Multiplicative.ofAdd ((1, 0) : ZMod 2 × ZMod 2)) = akltPhysP1 := by
+  exact ofCommutingInvolutions_ofAdd_10 akltPhysP1 akltPhysP2
+    akltPhysP1_sq akltPhysP2_sq akltPhysP1P2_comm
+
+
+-- @@ L344-347 verbatim
+@[simp] private lemma akltZ2Z2Action_01 :
+    akltZ2Z2Action (Multiplicative.ofAdd ((0, 1) : ZMod 2 × ZMod 2)) = akltPhysP2 := by
+  exact ofCommutingInvolutions_ofAdd_01 akltPhysP1 akltPhysP2
+    akltPhysP1_sq akltPhysP2_sq akltPhysP1P2_comm
+
+
+-- @@ L349-353 verbatim
+@[simp] private lemma akltZ2Z2Action_11 :
+    akltZ2Z2Action (Multiplicative.ofAdd ((1, 1) : ZMod 2 × ZMod 2)) =
+      akltPhysP1 * akltPhysP2 := by
+  exact ofCommutingInvolutions_ofAdd_11 akltPhysP1 akltPhysP2
+    akltPhysP1_sq akltPhysP2_sq akltPhysP1P2_comm
+
+
+-- @@ L355-355 verbatim
+/-! #### Virtual gauges `σz` and `iσy σz` -/
+
+
+-- @@ L357-359 verbatim
+/-- The virtual gauge `σz = diag(1, -1)` for the second generator. -/
+private def akltGaugeZ : GL (Fin 2) ℂ :=
+  Matrix.GeneralLinearGroup.mkOfDetNeZero !![1, 0; 0, -1] (by norm_num [Matrix.det_fin_two])
+
+
+-- @@ L361-363 verbatim
+@[simp] private lemma akltGaugeZ_val :
+    (akltGaugeZ : Matrix (Fin 2) (Fin 2) ℂ) = !![1, 0; 0, -1] :=
+  Matrix.GeneralLinearGroup.val_mkOfDetNeZero _ _
+
+
+-- @@ L365-370 verbatim
+private lemma akltGaugeZ_sq :
+    (!![(1 : ℂ), 0; 0, -1] : Matrix (Fin 2) (Fin 2) ℂ) *
+        !![(1 : ℂ), 0; 0, -1] = 1 := by
+  ext i j
+  fin_cases i <;> fin_cases j <;>
+    simp [Matrix.mul_apply, Fin.sum_univ_two]
+
+
+-- @@ L372-375 verbatim
+private lemma akltGaugeZ_inv_val :
+    ((akltGaugeZ⁻¹ : GL (Fin 2) ℂ) : Matrix (Fin 2) (Fin 2) ℂ) = !![1, 0; 0, -1] := by
+  rw [Matrix.GeneralLinearGroup.coe_inv, akltGaugeZ_val]
+  exact Matrix.inv_eq_right_inv akltGaugeZ_sq
+
+
+-- @@ L377-379 verbatim
+/-- The virtual gauge for the combined element, `iσy · σz = [[0, -1], [-1, 0]]`. -/
+private def akltGaugeYZ : GL (Fin 2) ℂ :=
+  Matrix.GeneralLinearGroup.mkOfDetNeZero !![0, -1; -1, 0] (by norm_num [Matrix.det_fin_two])
+
+
+-- @@ L381-383 verbatim
+@[simp] private lemma akltGaugeYZ_val :
+    (akltGaugeYZ : Matrix (Fin 2) (Fin 2) ℂ) = !![0, -1; -1, 0] :=
+  Matrix.GeneralLinearGroup.val_mkOfDetNeZero _ _
+
+
+-- @@ L385-390 verbatim
+private lemma akltGaugeYZ_inv_val :
+    ((akltGaugeYZ⁻¹ : GL (Fin 2) ℂ) : Matrix (Fin 2) (Fin 2) ℂ) = !![0, -1; -1, 0] := by
+  rw [Matrix.GeneralLinearGroup.coe_inv, akltGaugeYZ_val]
+  refine Matrix.inv_eq_right_inv ?_
+  ext i j; fin_cases i <;> fin_cases j <;>
+    simp [Matrix.mul_apply, Fin.sum_univ_two]
+
+
+-- @@ L392-400 verbatim
+/-- The two virtual gauges `iσy = [[0, 1], [-1, 0]]` and `σz = diag(1, -1)`
+implementing the `Z₂ × Z₂` symmetry anticommute: the physical generators commute,
+but their virtual representatives do not.  This anticommutation is the projective
+obstruction distinguishing the AKLT phase. -/
+lemma aklt_gauge_anticomm :
+    (!![(0 : ℂ), 1; -1, 0]) * !![(1 : ℂ), 0; 0, -1] =
+      -(!![(1 : ℂ), 0; 0, -1] * !![(0 : ℂ), 1; -1, 0]) := by
+  ext i j; fin_cases i <;> fin_cases j <;>
+    simp [Matrix.mul_apply, Fin.sum_univ_two, Matrix.neg_apply]
+
+
+-- @@ L402-408 verbatim
+private lemma aklt_gauge_anticomm' :
+    (!![(1 : ℂ), 0; 0, -1]) * akltGaugeMat =
+      -(akltGaugeMat * !![(1 : ℂ), 0; 0, -1]) := by
+  rw [akltGaugeMat]
+  have h := congrArg Neg.neg aklt_gauge_anticomm
+  rw [neg_neg] at h
+  exact h.symm
+
+
+-- @@ L410-410 verbatim
+/-! #### Twists by the second and combined generators -/
+
+
+-- @@ L412-422 verbatim
+private lemma aklt_twisted_P2_eq (i : Fin 3) :
+    twistedTensor akltTensor akltZ2Z2Action (Multiplicative.ofAdd ((0, 1) : ZMod 2 × ZMod 2)) i =
+      match i with
+      | 0 => akltTensor 0
+      | 1 => -akltTensor 1
+      | 2 => -akltTensor 2 := by
+  simp only [twistedTensor, akltZ2Z2Action_01, akltPhysP2, Fin.sum_univ_three]
+  fin_cases i <;>
+    ext a b <;> fin_cases a <;> fin_cases b <;>
+    simp [akltTensor, Matrix.of_apply, Matrix.cons_val_zero, Matrix.cons_val_one,
+      Matrix.smul_apply, Matrix.neg_apply, Matrix.add_apply, Matrix.zero_apply]
+
+
+-- @@ L424-435 verbatim
+private lemma aklt_twisted_P1P2_eq (i : Fin 3) :
+    twistedTensor akltTensor akltZ2Z2Action (Multiplicative.ofAdd ((1, 1) : ZMod 2 × ZMod 2)) i =
+      match i with
+      | 0 => -akltTensor 0
+      | 1 => -akltTensor 2
+      | 2 => -akltTensor 1 := by
+  simp only [twistedTensor, akltZ2Z2Action_11, akltPhysP1, akltPhysP2, Matrix.mul_apply,
+    Fin.sum_univ_three]
+  fin_cases i <;>
+    ext a b <;> fin_cases a <;> fin_cases b <;>
+    simp [akltTensor, Matrix.of_apply, Matrix.cons_val_zero, Matrix.cons_val_one,
+      Matrix.neg_apply, Matrix.add_apply, Matrix.zero_apply]
+
+
+-- @@ L437-447 verbatim
+private lemma aklt_gaugeEquiv_P1 :
+    GaugeEquiv akltTensor
+      (twistedTensor akltTensor akltZ2Z2Action
+        (Multiplicative.ofAdd ((1, 0) : ZMod 2 × ZMod 2))) := by
+  refine ⟨akltGaugeGL, fun i => ?_⟩
+  simp only [twistedTensor, akltZ2Z2Action_10, akltPhysP1, Fin.sum_univ_three]
+  rw [akltGaugeGL_inv_val, akltGaugeGL_val, akltGaugeMat]
+  fin_cases i <;>
+    (ext a b; fin_cases a <;> fin_cases b <;>
+    simp [akltTensor, Matrix.of_apply, Matrix.cons_val_zero, Matrix.cons_val_one,
+      Matrix.mul_apply, Fin.sum_univ_two, Matrix.add_apply, Matrix.zero_apply])
+
+
+-- @@ L449-457 verbatim
+private lemma aklt_gaugeEquiv_P2 :
+    GaugeEquiv akltTensor
+      (twistedTensor akltTensor akltZ2Z2Action
+        (Multiplicative.ofAdd ((0, 1) : ZMod 2 × ZMod 2))) := by
+  refine ⟨akltGaugeZ, fun i => ?_⟩
+  rw [aklt_twisted_P2_eq, akltGaugeZ_inv_val, akltGaugeZ_val]
+  fin_cases i <;>
+    (ext a b; fin_cases a <;> fin_cases b <;>
+    simp [akltTensor, Matrix.mul_apply, Fin.sum_univ_two, Matrix.neg_apply])
+
+
+-- @@ L459-467 verbatim
+private lemma aklt_gaugeEquiv_P1P2 :
+    GaugeEquiv akltTensor
+      (twistedTensor akltTensor akltZ2Z2Action
+        (Multiplicative.ofAdd ((1, 1) : ZMod 2 × ZMod 2))) := by
+  refine ⟨akltGaugeYZ, fun i => ?_⟩
+  rw [aklt_twisted_P1P2_eq, akltGaugeYZ_inv_val, akltGaugeYZ_val]
+  fin_cases i <;>
+    (ext a b; fin_cases a <;> fin_cases b <;>
+    simp [akltTensor, Matrix.mul_apply, Fin.sum_univ_two, Matrix.neg_apply])
+
+
+-- @@ L469-483 verbatim
+/-- The AKLT tensor is on-site symmetric under a `Z₂ × Z₂ ⊂ SO(3)` subgroup
+generated by two commuting spin-1 `π`-rotations about orthogonal axes.  The
+virtual gauges `σz` and `iσy` anticommute (proved as `aklt_gauge_anticomm`),
+which is the projective obstruction that distinguishes the AKLT phase.  The full
+continuous `SO(3)` symmetry, the minimality of this subgroup, and the
+cohomological classification of the obstruction are not formalized here; they are
+discussed in `docs/paper-gaps/rmp_aklt_continuous_rotation_gap.tex`. -/
+theorem aklt_isOnSiteSymmetric_Z2Z2 :
+    IsOnSiteSymmetric akltTensor akltZ2Z2Action := by
+  intro g
+  rcases zmod2sq_cases g with rfl | rfl | rfl | rfl
+  · rw [twistedTensor_one]; exact fun _ _ => rfl
+  · exact aklt_gaugeEquiv_P1.sameMPV
+  · exact aklt_gaugeEquiv_P2.sameMPV
+  · exact aklt_gaugeEquiv_P1P2.sameMPV
+
+
+-- @@ L485-493 verbatim
+/-- The `Z₂ × Z₂` on-site representation is unitary on every group element: the two
+generators act by real symmetric involutive matrices, so each group element equals
+its own adjoint inverse. -/
+theorem aklt_isUnitary_Z2Z2 (g : Multiplicative (ZMod 2 × ZMod 2)) :
+    akltZ2Z2Action g * (akltZ2Z2Action g)ᴴ = 1 := by
+  exact ofCommutingInvolutions_mul_conjTranspose akltPhysP1 akltPhysP2
+    akltPhysP1_sq akltPhysP2_sq akltPhysP1P2_comm
+    (by rw [akltPhysP1_conjTranspose, akltPhysP1_sq])
+    (by rw [akltPhysP2_conjTranspose, akltPhysP2_sq]) g
+
+
+-- @@ L495-503 verbatim
+/-! ### The AKLT factor system is the non-trivial class of `H²(Z₂ × Z₂, ℂˣ)`
+
+The anticommuting virtual gauges `iσy` and `σz` assemble into an explicit
+projective representation of `Z₂ × Z₂` on the bond space.  Its factor system
+`akltOmega` sends `(g, h)` to `-1` exactly when the first component of `h` is
+nonzero and the two components of `g` differ, the cocycle `(-1)^{(g₁+g₂) h₁}`;
+the extra diagonal term over the cluster case reflects `(iσy)² = -I`.  Its
+commutator phase on the two generators is `-1`, so the commutator-phase test
+shows its class is the non-trivial element of `H²(Z₂ × Z₂, ℂˣ) = Z₂`. -/
+
+
+-- @@ L505-511 verbatim
+open TNLean.Algebra in
+/-- The AKLT factor system on `Z₂ × Z₂`: `ω(g, h) = (-1)^{(g₁ + g₂) h₁}`, the
+value `-1` when `g₁ + g₂ = 1` and `h₁ = 1`, and `1` otherwise. -/
+def akltOmega : ScalarCocycle (Multiplicative (ZMod 2 × ZMod 2)) :=
+  fun g h =>
+    if (Multiplicative.toAdd g).1 + (Multiplicative.toAdd g).2 = 1 ∧
+        (Multiplicative.toAdd h).1 = 1 then -1 else 1
+
+
+-- @@ L513-517 verbatim
+/-- The virtual action of the explicit AKLT projective representation:
+`1 ↦ I`, `(1,0) ↦ iσy`, `(0,1) ↦ σz`, `(1,1) ↦ iσy σz`. -/
+def akltRepX (g : Multiplicative (ZMod 2 × ZMod 2)) : GL (Fin 2) ℂ :=
+  (if (Multiplicative.toAdd g).1 = 0 then 1 else akltGaugeGL) *
+    (if (Multiplicative.toAdd g).2 = 0 then 1 else akltGaugeZ)
+
+
+-- @@ L519-523 verbatim
+private lemma akltOmega_apply_val (g h : Multiplicative (ZMod 2 × ZMod 2)) :
+    (akltOmega g h : ℂ) =
+      if (Multiplicative.toAdd g).1 + (Multiplicative.toAdd g).2 = 1 ∧
+          (Multiplicative.toAdd h).1 = 1 then -1 else 1 := by
+  rw [akltOmega]; split <;> simp
+
+
+-- @@ L525-545 verbatim
+open TNLean.Algebra in
+/-- The explicit `Z₂ × Z₂` projective representation on the bond space carrying
+`akltOmega`.  The two generators act by the anticommuting gauges `iσy` and `σz`;
+the third nontrivial element acts by their product `iσy σz`. -/
+def akltProjRep : ProjectiveRepresentation (D := 2) akltOmega where
+  X := akltRepX
+  map_mul' g h := by
+    rw [akltOmega_apply_val]
+    have hY (p : Prop) [Decidable p] :
+        ((if p then 1 else akltGaugeGL : GL (Fin 2) ℂ) :
+          Matrix (Fin 2) (Fin 2) ℂ) =
+          if p then 1 else akltGaugeMat := by
+      split <;> simp
+    have hZ (p : Prop) [Decidable p] :
+        ((if p then 1 else akltGaugeZ : GL (Fin 2) ℂ) :
+          Matrix (Fin 2) (Fin 2) ℂ) =
+          if p then 1 else !![(1 : ℂ), 0; 0, -1] := by
+      split <;> simp
+    simp only [akltRepX, Units.val_mul, hY, hZ]
+    exact mul_of_anticommuting_neg_involution _ _
+      akltGaugeMat_sq akltGaugeZ_sq aklt_gauge_anticomm' g h
+
+
+-- @@ L547-552 verbatim
+open TNLean.Algebra in
+/-- `akltOmega` is a genuine `2`-cocycle: it is the factor system of the
+projective representation `akltProjRep`, so its class lives in
+`H²(Z₂ × Z₂, ℂˣ)`. -/
+lemma akltOmega_isCocycle : ScalarCocycle.IsCocycle akltOmega :=
+  ScalarCocycle.isCocycle_of_projRep akltProjRep (by norm_num)
+
+
+-- @@ L554-561 verbatim
+open TNLean.Algebra in
+/-- The commutator phase of `akltOmega` on the two generators is `-1`. -/
+lemma aklt_commPhase_eq_neg_one :
+    ScalarCocycle.commPhase akltOmega
+      (Multiplicative.ofAdd (1, 0)) (Multiplicative.ofAdd (0, 1)) = -1 := by
+  simp only [ScalarCocycle.commPhase, akltOmega, toAdd_ofAdd]
+  apply Units.ext
+  norm_num
+
+
+-- @@ L563-573 verbatim
+open TNLean.Algebra in
+/-- The AKLT factor system represents the non-trivial element of
+`H²(Z₂ × Z₂, ℂˣ) = Z₂`: the AKLT state is a non-trivial SPT phase. -/
+theorem aklt_isNontrivialSPT : ScalarCocycle.IsNontrivialClass akltOmega := by
+  refine ScalarCocycle.isNontrivialClass_of_commPhase_ne_one
+    (g := Multiplicative.ofAdd (1, 0)) (h := Multiplicative.ofAdd (0, 1)) ?_ ?_
+  · rfl
+  · rw [aklt_commPhase_eq_neg_one]
+    intro hcon
+    have : ((-1 : Units ℂ) : ℂ) = ((1 : Units ℂ) : ℂ) := congrArg _ hcon
+    norm_num at this
+
+
+-- @@ L575-575 verbatim
+end MPSTensor
+
+
+-- @@ L577-577 verbatim
+end

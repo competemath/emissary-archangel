@@ -1,0 +1,1 @@
+{"names":["MPSTensor.evalWord_mul_cyclicProj"],"modules":["TNLean.MPS.Core.TransferPeripheral"],"moduleOf":{"MPSTensor.evalWord_mul_cyclicProj":"TNLean.MPS.Core.TransferPeripheral"},"deps":{"MPSTensor.evalWord_mul_cyclicProj":[]}}

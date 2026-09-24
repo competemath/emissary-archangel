@@ -1,0 +1,882 @@
+/-
+Copyright (c) 2024-2025 ArkLib Contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: František Silváši, Julian Sutherland, Ilia Vlasov
+
+[BCIKS20] refers to the paper "Proximity Gaps for Reed-Solomon Codes" by Eli Ben-Sasson,
+Dan Carmon, Yuval Ishai, Swastik Kopparty, and Shubhangi Saraf.
+
+Using {https://eprint.iacr.org/2020/654}, version 20210703:203025.
+-/
+module
+
+public import Mathlib.LinearAlgebra.AffineSpace.AffineSubspace.Defs
+
+public import ArkLib.Data.CodingTheory.Basic.DecodingRadius
+public import ArkLib.Data.CodingTheory.Basic.Distance
+public import ArkLib.Data.CodingTheory.Basic.LinearCode
+public import ArkLib.Data.CodingTheory.Basic.RelativeDistance
+public import ArkLib.Data.CodingTheory.InterleavedCode
+public import ArkLib.Data.CodingTheory.Prelims
+public import ArkLib.Data.CodingTheory.ProximityGap.Basic
+public import ArkLib.Data.CodingTheory.ReedSolomon
+public import ArkLib.Data.Domain.CosetFftDomain.Defs
+public import ArkLib.Data.Probability.Notation
+public import ArkLib.ProofSystem.BatchedFri.Spec.General
+public import ArkLib.ProofSystem.Fri.Spec.General
+public import ArkLib.ProofSystem.Fri.Spec.SingleRound
+public import ArkLib.OracleReduction.Security.Basic
+public import ToMathlib.Control.OptionT
+public import ArkLib.ToMathlib.List.Basic
+public import ArkLib.ToMathlib.Finset.Basic
+public import Mathlib.Algebra.Ring.NonZeroDivisors
+
+
+-- @@ L34-38 verbatim
+/-!
+# ArkLib.ProofSystem.BatchedFri.Security
+
+Definitions and results for this component of ArkLib.
+-/
+
+
+-- @@ L40-40 verbatim
+@[expose] public section
+
+
+-- @@ L42-42 verbatim
+namespace Fri
+
+-- @@ L43-43 verbatim
+section Fri
+
+
+-- @@ L45-45 verbatim
+open OracleComp OracleSpec ProtocolSpec ReedSolomon Domain
+
+-- @@ L46-46 verbatim
+open NNReal Finset Function ProbabilityTheory
+
+
+-- @@ L48-48 verbatim
+variable {𝔽 : Type} [NonBinaryField 𝔽] [Fintype 𝔽] [DecidableEq 𝔽]
+
+-- @@ L49-49 verbatim
+variable (n : ℕ)
+
+-- @@ L50-50 verbatim
+variable (g : 𝔽ˣ) {k : ℕ}
+
+-- @@ L51-51 verbatim
+variable (s : Fin (k + 1) → ℕ+) (d : ℕ+)
+
+-- @@ L52-52 verbatim
+variable {i : Fin (k + 1)}
+
+-- @@ L53-53 verbatim
+variable {ω : SmoothCosetFftDomain n 𝔽}
+
+
+-- @@ L55-55 verbatim
+attribute [instance high] Spec.QueryRound.instOracleInterfaceMessagePSpec
+
+
+-- @@ L57-60 verbatim
+instance {F : Type} [Field F] {a : F} [inst : NeZero a] : Invertible a where
+  invOf := a⁻¹
+  invOf_mul_self := by field_simp [inst.out]
+  mul_invOf_self := by field_simp [inst.out]
+
+
+-- @@ L62-62 verbatim
+section Completeness
+
+
+-- @@ L64-66 verbatim
+abbrev evalDomainSigma {n k : ℕ} (s : Fin (k + 1) → ℕ+)
+  (ω : SmoothCosetFftDomain n 𝔽) (i : ℕ) :=
+  ω.subdomain (∑ j' ∈ finRangeTo (k + 1) i, s j')
+
+
+-- @@ L68-110 verbatim
+def cosetEnum (s₀ : evalDomainSigma s ω i) (k_le_n : ∑ j', (s j').1 ≤ n)
+    (j : Fin (2 ^ (s i).1)) : evalDomainSigma s ω ↑i :=
+  let r : {x | x ∈ ω.toFftDomain.subdomain (n - ↑(s i))} :=
+    ⟨ω.toFftDomain.subdomain (n - (s i).1)
+      ⟨j.1, by
+          have s_i_lim : (s i).1 < n + 1 := by
+            apply Nat.lt_succ_of_le
+            rw [Finset.sum_eq_sum_sdiff_singleton_add (i := i) (by simp)] at k_le_n
+            apply (swap <| Nat.le_trans) k_le_n
+            omega
+          rcases j with ⟨j, h⟩
+          have : n - (n - (s i).1) = (s i).1 := by
+            apply Nat.sub_sub_self
+            exact Nat.le_of_lt_succ s_i_lim
+          rw [this]
+          convert h
+      ⟩,
+      CosetFftDomainClass.mem_self
+    ⟩
+  let x : (evalDomainSigma s ω ↑i).toFinset := ⟨
+    s₀.1 * r.1,
+    by {
+      rw [CosetFftDomainClass.mem_toFinset_iff_mem]
+      exact CosetFftDomainClass.mem_subdomain_of_mem_subdomain_of_mem_fft_subdomain (by {
+        apply Nat.le_sub_of_add_le
+        apply le_trans
+          (b := ∑ j' ∈ finRangeTo (k + 1) ↑i, (s j').1 + (s i).1)
+          (c := n)
+        · constructor
+        · rw [←sum_finRangeTo_add_one]
+          apply le_trans (b := ∑ j', (s j').1) <;> try omega
+          apply Finset.sum_le_sum_of_subset
+          simp
+      })  (by {
+        rcases s₀ with ⟨s₀, hs₀⟩
+        simp only
+        simp only [evalDomainSigma] at hs₀
+        rw [CosetFftDomain.mem_toFinset_iff_mem] at hs₀
+        exact hs₀
+      }) r.2
+    }
+  ⟩
+  ↑x
+
+
+-- @@ L112-116 verbatim
+def cosetG (s₀ : evalDomainSigma s ω ↑i) : Finset (evalDomainSigma s ω ↑i) :=
+  if k_le_n : ∑ j', (s j').1 ≤ n
+  then
+    (Finset.univ).image (cosetEnum n s s₀ k_le_n)
+  else ∅
+
+
+-- @@ L118-119 verbatim
+def pows (z : 𝔽) (ℓ : ℕ) : Matrix Unit (Fin ℓ) 𝔽 :=
+  Matrix.of <| fun _ j => z ^ j.val
+
+
+-- @@ L121-125 verbatim
+def VDM (s₀ : evalDomainSigma s ω ↑i) :
+    Matrix (Fin (2 ^ (s i : ℕ))) (Fin (2 ^ (s i : ℕ))) 𝔽 :=
+  if k_le_n : (∑ j', (s j').1) ≤ n
+  then Matrix.vandermonde (fun j => (cosetEnum n s s₀ k_le_n j).1)
+  else 1
+
+
+-- @@ L127-133 verbatim
+def cosetEnum' (s₀ : evalDomainSigma s ω ↑i)
+    (k_le_n : ∑ j', (s j').1 ≤ n)
+  (j : Fin (2 ^ (s i).1)) : cosetG n s s₀ :=
+  ⟨
+    cosetEnum n s s₀ k_le_n j,
+    by simp only [cosetG, k_le_n, ↓reduceDIte]; exact mem_image_of_mem _ (mem_univ _)
+  ⟩
+
+
+-- @@ L135-153 verbatim
+noncomputable def fin_equiv_coset (s₀ : evalDomainSigma s ω ↑i)
+    (k_le_n : ∑ j', (s j').1 ≤ n) :
+    (Fin (2 ^ (s i).1)) ≃ { x // x ∈ cosetG n s s₀ } := by
+  apply Equiv.ofBijective (cosetEnum' n s s₀ k_le_n)
+  unfold cosetEnum' cosetEnum
+  unfold Function.Bijective
+  apply And.intro
+  · intros a b h
+    have h := congr_arg (fun x ↦ (x.1.1 : 𝔽)) h
+    have hs₀_ne : (s₀ : 𝔽) ≠ 0 := CosetFftDomainClass.ne_zero_dep s₀
+    have h := mul_left_cancel₀ hs₀_ne h
+    have h := FftDomain.injective h
+    exact Fin.ext (by simpa using h)
+  · rintro ⟨⟨y, h'⟩, h⟩
+    simp only [cosetG, k_le_n, ↓reduceDIte] at h
+    obtain ⟨a, -, ha⟩ := Finset.mem_image.mp h
+    have ha := congr_arg Subtype.val ha
+    simp only [cosetEnum] at ha
+    exact ⟨a, by aesop⟩
+
+
+-- @@ L155-192 verbatim
+@[instance_reducible]
+def invertibleDomain (s₀ : evalDomainSigma s ω ↑i) : Invertible (VDM n s s₀) := by
+  haveI : NeZero (VDM n s s₀).det := by
+    constructor
+    unfold VDM
+    split_ifs with cond
+    · simp only [Matrix.det_vandermonde]
+      rw [Finset.prod_ne_zero_iff]
+      intros i' _
+      rw [Finset.prod_ne_zero_iff]
+      intros j' h'
+      have : i' ≠ j' := by
+        rename_i a
+        simp_all only [mem_univ, mem_Ioi, ne_eq]
+        obtain ⟨val, property⟩ := s₀
+        simp_all only [finRangeTo]
+        apply Aesop.BuiltinRules.not_intro
+        intro a
+        subst a
+        simp_all only [lt_self_iff_false]
+      intros contra
+      apply this
+      rw [sub_eq_zero] at contra
+      unfold cosetEnum at contra
+      simp only [finRangeTo, mul_eq_mul_left_iff] at contra
+      rcases contra with contra | contra
+      · have h := FftDomain.injective contra
+        simp only [Fin.mk.injEq] at h
+        ext
+        exact (symm h)
+      · rcases s₀ with ⟨s₀, hs₀⟩
+        subst contra
+        simp only [evalDomainSigma] at hs₀
+        rw [CosetFftDomainClass.mem_toFinset_iff_mem] at hs₀
+        have hs₀ := CosetFftDomainClass.not_zero_mem hs₀
+        simp at hs₀
+    · simp
+  apply @Matrix.invertibleOfDetInvertible
+
+
+-- @@ L194-212 verbatim
+noncomputable def VDMInv (s₀ : evalDomainSigma s ω ↑i)
+  (k_le_n : ∑ j', (s j').1 ≤ n) :
+  Matrix (Fin (2 ^ (s i).1)) (cosetG n s s₀) 𝔽 :=
+  Matrix.reindex (Equiv.refl _) (fin_equiv_coset n s s₀ k_le_n)
+  (invertibleDomain n s s₀).invOf
+
+lemma g_elem_zpower_iff_exists_nat {G : Type} [Group G] [Finite G] {gen g : G} :
+    g ∈ Subgroup.zpowers gen ↔ ∃ n : ℕ, g = gen ^ n ∧ n < orderOf gen := by
+  have := isOfFinOrder_of_finite gen
+  refine ⟨fun h ↦ ?p₁, ?p₂⟩
+  · obtain ⟨k, h⟩ := Subgroup.mem_zpowers_iff.1 h
+    let k' := k % orderOf gen
+    have pow_pos : 0 ≤ k' := by apply Int.emod_nonneg; simp [*]
+    obtain ⟨n, h'⟩ : ∃ n : ℕ, n = k' := by rcases k' with k' | k' <;> [(use k'; grind); aesop]
+    use n
+    have : gen ^ n = gen ^ k := by have := zpow_mod_orderOf gen k; grind [zpow_natCast]
+    have : n < orderOf gen := by zify; rw [h']; apply Int.emod_lt; simp [isOfFinOrder_of_finite gen]
+    grind
+  · grind [Subgroup.npow_mem_zpowers]
+
+
+-- @@ L214-248 verbatim
+open Matrix in
+noncomputable def f_succ'
+  (f : evalDomainSigma s ω ↑i → 𝔽)
+  (z : 𝔽) (k_le_n : ∑ j', ↑(s j') ≤ n)
+  (s₀' : evalDomainSigma s ω (↑i + 1)) : 𝔽 :=
+  have :
+    ∃ s₀ : (ω.subdomain (∑ j' ∈ finRangeTo _ (i.1), (s j').1)).toFinset,
+      s₀.1 ^ (2 ^ (s i).1) = s₀'.1 := by
+    rcases s₀' with ⟨s₀', hs₀'⟩
+    simp only [evalDomainSigma] at hs₀'
+    rw [CosetFftDomain.mem_toFinset_iff_mem] at hs₀'
+    rw [CosetFftDomainClass.mem_subdomain_of_eq_vals
+      (ω := ω)
+      (j := (∑ j' ∈ finRangeTo (k + 1) ↑i, (s j').1 + (s i).1))
+      (by
+        rw [←sum_finRangeTo_add_one]
+        rfl
+      )] at hs₀'
+    have h := CosetFftDomainClass.root_exists (ω := ω)
+      (i := (∑ j' ∈ finRangeTo (k + 1) ↑i, ↑(s j')))
+      (j := (s i).1)
+      (by
+        trans (∑ j' ∈ finRangeTo _ (i.1 + 1), (s j').1)
+        · rw [sum_finRangeTo_add_one]
+          rfl
+        · apply (swap le_trans) k_le_n
+          apply Finset.sum_le_sum_of_subset (by simp))
+      hs₀'
+    rcases h with ⟨y, ⟨h1, h2⟩⟩
+    exists ⟨y, by
+      rw [CosetFftDomain.mem_toFinset_iff_mem]
+      exact h1
+    ⟩
+  let s₀ := Classical.choose this
+  (pows z _ *ᵥ VDMInv n s s₀ k_le_n *ᵥ Finset.restrict (cosetG n s s₀) f) ()
+
+
+-- @@ L250-266 verbatim
+omit [Fintype 𝔽] in
+/-- This theorem asserts that given an appropriate codeword,
+  `f` of an appropriate Reed-Solomon code, the result of honestly folding the corresponding
+  polynomial is then itself a member of the next Reed-Solomon code.
+
+  Corresponds to Claim 8.1 of [BCIKS20] -/
+lemma fri_round_consistency_completeness
+    {f : ReedSolomon.code
+    (⟨fun x => x, by simp⟩ : evalDomainSigma s ω i ↪ 𝔽)
+    (2 ^ (n - (∑ j' ∈ finRangeTo _ i, (s j' : ℕ))))}
+  {z : 𝔽}
+  (k_le_n : ∑ j', ↑(s j') ≤ n) :
+  f_succ' n s f.val z k_le_n ∈
+    (ReedSolomon.code
+      (⟨fun x => x, by simp⟩ : (evalDomainSigma s ω (i.1 + 1)).toFinset ↪ 𝔽)
+      (2 ^ (n - (∑ j' ∈ finRangeTo _ (i.1 + 1), (s j' : ℕ))))
+    ).carrier := by sorry
+
+
+-- @@ L268-268 verbatim
+end Completeness
+
+
+-- @@ L270-270 verbatim
+section Soundness
+
+
+-- @@ L272-272 verbatim
+variable (domain_size_cond : (2 ^ (∑ i, (s i : ℕ))) * d ≤ 2 ^ n)
+
+
+-- @@ L274-277 verbatim
+/-- Affine space: {g | ∃ x : Fin t.succ → 𝔽, x 0 = 1 ∧ g = ∑ i, x i • f i  }
+-/
+def Fₛ {ι : Type} [Fintype ι] {t : ℕ} (f : Fin t.succ → (ι → 𝔽)) : AffineSubspace 𝔽 (ι → 𝔽) :=
+  f 0 +ᵥ affineSpan 𝔽 (Finset.univ.image (f ∘ Fin.succ))
+
+
+-- @@ L279-285 verbatim
+noncomputable def correlated_agreement_density {ι : Type} [Fintype ι]
+  (Fₛ : AffineSubspace 𝔽 (ι → 𝔽)) (V : Submodule 𝔽 (ι → 𝔽)) : ℝ :=
+  haveI : Fintype Fₛ.carrier := Set.Finite.fintype (Set.toFinite _)
+  haveI : Fintype V.carrier := Set.Finite.fintype (Set.toFinite _)
+  let Fc := Fₛ.carrier.toFinset
+  let Vc := V.carrier.toFinset
+  (Fc ∩ Vc).card / Fc.card
+
+
+-- @@ L287-287 verbatim
+open Polynomial
+
+
+-- @@ L289-326 verbatim
+noncomputable def oracleImpl
+    (l : ℕ) (z : Fin (k + 1) → 𝔽) (f : (ω.subdomain 0) → 𝔽) :
+  QueryImpl
+    ([]ₒ + ([Spec.FinalOracleStatement s ω]ₒ + [(Spec.QueryRound.pSpec l (ω := ω)).Message]ₒ))
+    (OracleComp [(Spec.QueryRound.pSpec (ω := ω) l).Message]ₒ) := by
+  intro q
+  rcases q with i | q
+  · exact PEmpty.elim i
+  · rcases q with q | q
+    · rcases q with ⟨i, dom⟩
+      let f0 := Lagrange.interpolate Finset.univ (fun v => v.1) f
+      let chals : List (Fin (k + 1) × 𝔽) :=
+        ((List.finRange (k + 1)).map fun i => (i, z i)).take i.1
+      let fi : 𝔽[X] := List.foldl (fun f (i, α) => FoldingPolynomial.polyFold f (s i) α) f0 chals
+      let st : Spec.FinalOracleStatement (F := 𝔽) s ω i :=
+        if h : i.1 = k + 1 then
+          cast (by simp [Spec.FinalOracleStatement, h]; rfl)
+            (⟨fi.toImpl, CompPoly.CPolynomial.Raw.isCanonical_toImpl fi⟩ :
+              CompPoly.CPolynomial 𝔽)
+        else
+          cast
+            (by {
+              simp [Spec.FinalOracleStatement, h]
+              rfl
+            })
+            (fun x : ω.subdomain (∑ j' ∈ finRangeTo _ i.1, s j') => fi.eval x.1)
+      exact pure <| (Spec.finalOracleStatementInterface s (ω := ω) i).answer st dom
+    · rcases q with ⟨i, t⟩
+      exact liftM <|
+        cast
+          (β := OracleQuery
+            [(Spec.QueryRound.pSpec l (ω := ω)).Message]ₒ
+            (([]ₒ +
+                ([Spec.FinalOracleStatement s (ω := ω)]ₒ +
+                  [(Spec.QueryRound.pSpec l (ω := ω)).Message]ₒ)).Range
+              (Sum.inr (Sum.inr ⟨i, t⟩))))
+          rfl
+          (query (spec := [(Spec.QueryRound.pSpec l (ω := ω)).Message]ₒ) ⟨i, t⟩)
+
+
+-- @@ L328-334 verbatim
+instance {l : ℕ} : ([(Spec.QueryRound.pSpec l (ω := ω)).Message]ₒ).Inhabited where
+  inhabitedB := by
+    intro i
+    unfold Spec.QueryRound.pSpec MessageIdx at i
+    have : i.1.1 = 0 := by omega
+    have h := this ▸ i.1.2
+    simp at h
+
+
+-- @@ L336-342 verbatim
+instance {l : ℕ} : ([(Spec.QueryRound.pSpec l (ω := ω)).Message]ₒ).Fintype where
+  fintypeB := by
+    intro i
+    unfold Spec.QueryRound.pSpec MessageIdx at i
+    have : i.1.1 = 0 := by omega
+    have h := this ▸ i.1.2
+    simp at h
+
+
+-- @@ L344-345 verbatim
+noncomputable instance {l : ℕ} : IsUniformSpec ([(Spec.QueryRound.pSpec l (ω := ω)).Message]ₒ) :=
+  IsUniformSpec.ofFintypeInhabited _
+
+
+-- @@ L347-354 verbatim
+omit [Fintype 𝔽] in
+open ENNReal in
+noncomputable def εC
+    (𝔽 : Type) [Fintype 𝔽] (n : ℕ) {k : ℕ} (s : Fin (k + 1) → ℕ+) (m : ℕ) (ρ_sqrt : ℝ≥0) : ℝ≥0∞ :=
+  ENNReal.ofReal <|
+      (m + (1 : ℚ)/2)^7 * (2^n)^2
+        / ((2 * ρ_sqrt ^ 3) * (Fintype.card 𝔽))
+      + (∑ i, 2 ^ (s i).1) * (2 * m + 1) * (2 ^ n + 1) / (Fintype.card 𝔽 * ρ_sqrt)
+
+
+-- @@ L356-359 verbatim
+abbrev fullChallengeProtocol (t l : ℕ) (ω : SmoothCosetFftDomain n 𝔽) :=
+  (BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+    (Spec.pSpecFold k (ω := ω) s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+      Spec.QueryRound.pSpec l (ω := ω))
+
+
+-- @@ L361-432 verbatim
+noncomputable instance {t l : ℕ} {ω : SmoothCosetFftDomain n 𝔽} :
+    ∀ j,
+      Inhabited
+        ((fullChallengeProtocol
+            n
+            (𝔽 := 𝔽) (ω := ω) (k := k) (s := s) t l).Challenge j) := by
+  letI : ∀ j, Inhabited ((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t).Challenge j) := by
+    infer_instance
+  letI : ∀ j, Inhabited ((Spec.pSpecFold k (ω := ω) s).Challenge j) := by
+    infer_instance
+  letI : ∀ j, Inhabited ((Spec.FinalFoldPhase.pSpec 𝔽).Challenge j) := by
+    infer_instance
+  letI : ∀ j, Inhabited ((Spec.QueryRound.pSpec (ω := ω) l).Challenge j) := by
+    infer_instance
+  letI :
+      ∀ j,
+        Inhabited
+          ((Spec.pSpecFold (ω := ω) k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽).Challenge j) := by
+    intro ⟨i, h⟩
+    exact Fin.fappend₂ (A := Direction) (B := Type)
+      (F := fun dir type => (h : dir = .V_to_P) → Inhabited type)
+      (α₁ := (Spec.pSpecFold k s).dir)
+      (β₁ := (Spec.FinalFoldPhase.pSpec 𝔽).dir)
+      (α₂ := (Spec.pSpecFold k s).Type)
+      (β₂ := (Spec.FinalFoldPhase.pSpec 𝔽).Type)
+      (fun i h =>
+        inferInstanceAs (Inhabited ((Spec.pSpecFold k s).Challenge ⟨i, h⟩)))
+      (fun i h =>
+        inferInstanceAs (Inhabited ((Spec.FinalFoldPhase.pSpec 𝔽).Challenge ⟨i, h⟩)))
+      i h
+  letI :
+      ∀ j,
+        Inhabited
+          ((Spec.pSpecFold k (ω := ω) s ++ₚ
+              Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                Spec.QueryRound.pSpec (ω := ω) l).Challenge j) := by
+    intro ⟨i, h⟩
+    exact Fin.fappend₂ (A := Direction) (B := Type)
+      (F := fun dir type => (h : dir = .V_to_P) → Inhabited type)
+      (α₁ := (Spec.pSpecFold (ω := ω) k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽).dir)
+      (β₁ := (Spec.QueryRound.pSpec (ω := ω) l).dir)
+      (α₂ := (Spec.pSpecFold (ω := ω) k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽).Type)
+      (β₂ := (Spec.QueryRound.pSpec (ω := ω) l).Type)
+      (fun i h =>
+        inferInstanceAs
+          (Inhabited
+            ((Spec.pSpecFold (ω := ω) k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽).Challenge
+              ⟨i, h⟩)))
+      (fun i h =>
+        inferInstanceAs (Inhabited ((Spec.QueryRound.pSpec (ω := ω) l).Challenge ⟨i, h⟩)))
+      i h
+  intro ⟨i, h⟩
+  exact Fin.fappend₂ (A := Direction) (B := Type)
+    (F := fun dir type => (h : dir = .V_to_P) → Inhabited type)
+    (α₁ := (BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t).dir)
+    (β₁ := (Spec.pSpecFold (ω := ω) k s ++ₚ
+      Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+        Spec.QueryRound.pSpec (ω := ω) l).dir)
+    (α₂ := (BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t).Type)
+    (β₂ := (Spec.pSpecFold (ω := ω) k s ++ₚ
+      Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+        Spec.QueryRound.pSpec (ω := ω) l).Type)
+    (fun i h =>
+      inferInstanceAs (Inhabited ((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t).Challenge ⟨i, h⟩)))
+    (fun i h =>
+      inferInstanceAs
+        (Inhabited
+          ((Spec.pSpecFold (ω := ω) k s ++ₚ
+              Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                Spec.QueryRound.pSpec (ω := ω) l).Challenge
+            ⟨i, h⟩)))
+    i h
+
+
+-- @@ L434-505 verbatim
+noncomputable instance {t l : ℕ} {ω : SmoothCosetFftDomain n 𝔽} :
+    ∀ j,
+      Fintype
+        ((fullChallengeProtocol
+            n
+            (𝔽 := 𝔽) (ω := ω) (k := k) (s := s) t l).Challenge j) := by
+  letI : ∀ j, Fintype ((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t).Challenge j) := by
+    infer_instance
+  letI : ∀ j, Fintype ((Spec.pSpecFold (ω := ω) k s).Challenge j) := by
+    infer_instance
+  letI : ∀ j, Fintype ((Spec.FinalFoldPhase.pSpec 𝔽).Challenge j) := by
+    infer_instance
+  letI : ∀ j, Fintype ((Spec.QueryRound.pSpec (ω := ω) l).Challenge j) := by
+    infer_instance
+  letI :
+      ∀ j,
+        Fintype
+          ((Spec.pSpecFold (ω := ω) k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽).Challenge j) := by
+    intro ⟨i, h⟩
+    exact Fin.fappend₂ (A := Direction) (B := Type)
+      (F := fun dir type => (h : dir = .V_to_P) → Fintype type)
+      (α₁ := (Spec.pSpecFold (ω := ω) k s).dir)
+      (β₁ := (Spec.FinalFoldPhase.pSpec 𝔽).dir)
+      (α₂ := (Spec.pSpecFold (ω := ω) k s).Type)
+      (β₂ := (Spec.FinalFoldPhase.pSpec 𝔽).Type)
+      (fun i h =>
+        inferInstanceAs (Fintype ((Spec.pSpecFold (ω := ω) k s).Challenge ⟨i, h⟩)))
+      (fun i h =>
+        inferInstanceAs (Fintype ((Spec.FinalFoldPhase.pSpec 𝔽).Challenge ⟨i, h⟩)))
+      i h
+  letI :
+      ∀ j,
+        Fintype
+          ((Spec.pSpecFold (ω := ω) k s ++ₚ
+              Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                Spec.QueryRound.pSpec (ω := ω) l).Challenge j) := by
+    intro ⟨i, h⟩
+    exact Fin.fappend₂ (A := Direction) (B := Type)
+      (F := fun dir type => (h : dir = .V_to_P) → Fintype type)
+      (α₁ := (Spec.pSpecFold (ω := ω) k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽).dir)
+      (β₁ := (Spec.QueryRound.pSpec (ω := ω) l).dir)
+      (α₂ := (Spec.pSpecFold (ω := ω) k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽).Type)
+      (β₂ := (Spec.QueryRound.pSpec (ω := ω) l).Type)
+      (fun i h =>
+        inferInstanceAs
+          (Fintype
+            ((Spec.pSpecFold (ω := ω) k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽).Challenge
+              ⟨i, h⟩)))
+      (fun i h =>
+        inferInstanceAs (Fintype ((Spec.QueryRound.pSpec (ω := ω) l).Challenge ⟨i, h⟩)))
+      i h
+  intro ⟨i, h⟩
+  exact Fin.fappend₂ (A := Direction) (B := Type)
+    (F := fun dir type => (h : dir = .V_to_P) → Fintype type)
+    (α₁ := (BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t).dir)
+    (β₁ := (Spec.pSpecFold k (ω := ω) s ++ₚ
+      Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+        Spec.QueryRound.pSpec (ω := ω) l).dir)
+    (α₂ := (BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t).Type)
+    (β₂ := (Spec.pSpecFold k (ω := ω) s ++ₚ
+      Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+        Spec.QueryRound.pSpec l (ω := ω)).Type)
+    (fun i h =>
+      inferInstanceAs (Fintype ((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t).Challenge ⟨i, h⟩)))
+    (fun i h =>
+      inferInstanceAs
+        (Fintype
+          ((Spec.pSpecFold k (ω := ω) s ++ₚ
+              Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                Spec.QueryRound.pSpec l (ω := ω)).Challenge
+            ⟨i, h⟩)))
+    i h
+
+
+-- @@ L507-516 verbatim
+noncomputable instance {t l : ℕ} {ω : SmoothCosetFftDomain n 𝔽} :
+    ([(fullChallengeProtocol
+        n (𝔽 := 𝔽) (ω := ω) (k := k) (s := s) t l).Challenge]ₒ).Inhabited where
+  inhabitedB := by
+    intro q
+    rcases q with ⟨i, u⟩
+    cases u
+    change Inhabited
+      ((fullChallengeProtocol n (𝔽 := 𝔽) (k := k) (s := s) t l ω).Challenge i)
+    infer_instance
+
+
+-- @@ L518-527 verbatim
+noncomputable instance {t l : ℕ} {ω : SmoothCosetFftDomain n 𝔽} :
+    ([(fullChallengeProtocol
+        n (𝔽 := 𝔽) (ω := ω) (k := k) (s := s) t l).Challenge]ₒ).Fintype where
+  fintypeB := by
+    intro q
+    rcases q with ⟨i, u⟩
+    cases u
+    change Fintype
+      ((fullChallengeProtocol n (𝔽 := 𝔽) (k := k) (s := s) t l (ω := ω)).Challenge i)
+    infer_instance
+
+
+-- @@ L529-540 verbatim
+noncomputable instance {t l : ℕ} {ω : SmoothCosetFftDomain n 𝔽} :
+    ∀ j, Inhabited
+      (((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+          (Spec.pSpecFold k (ω := ω) s ++ₚ
+            Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+              Spec.QueryRound.pSpec (ω := ω) l)).Challenge j) := by
+  simpa [fullChallengeProtocol] using
+    (inferInstance :
+      ∀ j,
+        Inhabited
+          ((fullChallengeProtocol
+              n (𝔽 := 𝔽) (ω := ω) (k := k) (s := s) t l).Challenge j))
+
+
+-- @@ L542-553 verbatim
+noncomputable instance {t l : ℕ} {ω : SmoothCosetFftDomain n 𝔽} :
+    ∀ j, Fintype
+      (((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+          (Spec.pSpecFold (ω := ω) k s ++ₚ
+            Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+              Spec.QueryRound.pSpec (ω := ω) l)).Challenge j) := by
+  simpa [fullChallengeProtocol] using
+    (inferInstance :
+      ∀ j,
+        Fintype
+          ((fullChallengeProtocol
+              n (𝔽 := 𝔽) (ω := ω) (k := k) (s := s) t l).Challenge j))
+
+
+-- @@ L555-560 verbatim
+noncomputable instance {t l : ℕ} {ω : SmoothCosetFftDomain n 𝔽} :
+    ([((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+        (Spec.pSpecFold (ω := ω) k s ++ₚ
+          Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+            Spec.QueryRound.pSpec (ω := ω) l)).Challenge]ₒ).Inhabited := by
+  infer_instance
+
+
+-- @@ L562-567 verbatim
+noncomputable instance {t l : ℕ} {ω : SmoothCosetFftDomain n 𝔽} :
+    ([((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+        (Spec.pSpecFold (ω := ω) k s ++ₚ
+          Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+            Spec.QueryRound.pSpec (ω := ω) l)).Challenge]ₒ).Fintype := by
+  infer_instance
+
+
+-- @@ L569-589 verbatim
+noncomputable instance {t l : ℕ} {ω : SmoothCosetFftDomain n 𝔽} :
+    ([]ₒ +
+      [((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+          (Spec.pSpecFold (ω := ω) k s ++ₚ
+            Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+              Spec.QueryRound.pSpec (ω := ω) l)).Challenge]ₒ).Inhabited where
+  inhabitedB := by
+    intro q
+    cases q with
+    | inl q => exact PEmpty.elim q
+    | inr q =>
+        change Inhabited
+          (([((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+              (Spec.pSpecFold (ω := ω) k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                Spec.QueryRound.pSpec (ω := ω) l)).Challenge]ₒ).Range q)
+        exact (inferInstance :
+            Inhabited
+              (([((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+                  (Spec.pSpecFold (ω := ω) k s ++ₚ
+                    Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                      Spec.QueryRound.pSpec (ω := ω) l)).Challenge]ₒ).Range q))
+
+
+-- @@ L591-611 verbatim
+noncomputable instance {t l : ℕ} {ω : SmoothCosetFftDomain n 𝔽} :
+    ([]ₒ +
+      [((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+          (Spec.pSpecFold (ω := ω) k s ++ₚ
+            Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+              Spec.QueryRound.pSpec (ω := ω) l)).Challenge]ₒ).Fintype where
+  fintypeB := by
+    intro q
+    cases q with
+    | inl q => exact PEmpty.elim q
+    | inr q =>
+        change Fintype
+          (([((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+              (Spec.pSpecFold (ω := ω) k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                Spec.QueryRound.pSpec (ω := ω) l)).Challenge]ₒ).Range q)
+        exact (inferInstance :
+            Fintype
+              (([((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+                  (Spec.pSpecFold (ω := ω) k s ++ₚ
+                    Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                      Spec.QueryRound.pSpec (ω := ω) l)).Challenge]ₒ).Range q))
+
+
+-- @@ L613-620 verbatim
+noncomputable instance {t l : ℕ} {ω : SmoothCosetFftDomain n 𝔽} :
+    IsUniformSpec
+      ([]ₒ +
+        [((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+            (Spec.pSpecFold (ω := ω) k s ++ₚ
+              Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                Spec.QueryRound.pSpec (ω := ω) l)).Challenge]ₒ) :=
+  IsUniformSpec.ofFintypeInhabited _
+
+
+-- @@ L622-740 verbatim
+open ENNReal in
+/-- Corresponds to Claim 8.2 of [BCIKS20] -/
+lemma fri_query_soundness
+    {t : ℕ}
+  {α : ℝ}
+  (f : Fin t.succ → (ω.subdomain 0 → 𝔽))
+  (h_agreement :
+    correlated_agreement_density
+      (Fₛ f)
+      (ReedSolomon.code (⟨fun x => x, by simp⟩ : ω.subdomain 0 ↪ 𝔽) (2 ^ n))
+    ≤ α)
+  {m : ℕ}
+  (m_ge_3 : m ≥ 3) :
+    let ρ_sqrt :=
+      ReedSolomon.sqrtRate
+        (2 ^ n)
+        (⟨fun x => x, by simp⟩ : ω.subdomain 0 ↪ 𝔽)
+    let α0 : ℝ≥0∞ := ENNReal.ofReal (max α (ρ_sqrt * (1 + 1 / (2 * (m : ℝ≥0)))))
+    let εQ  (x : Fin t → 𝔽)
+            (z : Fin (k + 1) → 𝔽) :=
+      Pr_{let samp ←$ᵖ (ω.subdomain 0)}[
+        Pr[
+          fun _ => True |
+          (
+            (do
+              simulateQ
+                (oracleImpl n (ω := ω) s 1 z (fun v ↦ f 0 v + ∑ i, x i * f i.succ v))
+                ((
+                    Fri.Spec.QueryRound.queryVerifier
+                      (ω := ω)
+                      (n := n) s
+                      ( by
+                          apply Spec.round_bound (d := d)
+                          transitivity
+                          · exact domain_size_cond
+                          · apply pow_le_pow (by decide) (by decide)
+                            simp
+                      )
+                      1
+                  ).verify
+                    z
+                    (fun i => by
+                        simpa only
+                          [
+                            Spec.QueryRound.pSpec, Challenge,
+                            show i.1 = 0 by omega, Fin.isValue,
+                            Fin.vcons_zero
+                          ] using fun _ => samp
+                    )
+                )
+            )
+          )]
+        = 1
+      ]
+    Pr_{let x ←$ᵖ (Fin t → 𝔽); let z ←$ᵖ (Fin (k + 1) → 𝔽)}[ εQ x z > α0 ] ≤ εC 𝔽 n s m ρ_sqrt := by
+  sorry
+
+-- set_option diagnostics true
+  -- refine @OracleSpec.instFiniteRangeSumAppend (h₁ := inferInstance) (h₂ := ?_) ..
+  -- refine @instFinRangeOfAppend _ _ _ _ ?_ ?_
+  -- · unfold BatchedFri.Spec.BatchingRound.batchSpec Challenge OracleInterface.toOracleSpec
+  --   simp only [Fin.vcons_fin_zero, Nat.reduceAdd, ChallengeIdx]
+  --   constructor
+  --   · intros i
+  --     unfold OracleSpec.range
+  --     simp only
+  --     rcases i with ⟨i, h⟩
+  --     have : i = 0 := by omega
+  --     subst this
+  --     simp
+  --     unfold OracleInterface.Response challengeOracleInterface
+  --     simp only
+  --     unfold Challenge
+  --     simp
+  --     haveI : Inhabited 𝔽 := ⟨0⟩
+  --     infer_instance
+  --   · intros i
+  --     unfold OracleSpec.range
+  --     simp only
+  --     rcases i with ⟨i, h⟩
+  --     have : i = 0 := by omega
+  --     subst this
+  --     simp
+  --     unfold OracleInterface.Response challengeOracleInterface
+  --     simp only
+  --     unfold Challenge
+  --     simp
+  --     haveI : Inhabited 𝔽 := ⟨0⟩
+  --     infer_instance
+  -- · refine @instFinRangeOfAppend _ _ _ _ ?_ ?_
+  --   · refine @instFinRangeOfAppend _ _ _ _ ?_ ?_
+  --     unfold Spec.pSpecFold Challenge OracleInterface.toOracleSpec
+  --     constructor
+  --     · intros i
+  --       unfold OracleSpec.range
+  --       simp only
+  --       rcases i with ⟨i, h⟩
+  --       have : i = 0 := by omega
+  --       subst this
+  --       simp
+  --       unfold OracleInterface.Response challengeOracleInterface
+  --       simp only
+  --       unfold Challenge
+  --       simp
+  --       haveI : Inhabited 𝔽 := ⟨0⟩
+  --       infer_instance
+
+
+
+
+
+
+
+
+  -- refine { range_inhabited' := ?_, range_fintype' := ?_ }
+  -- refine fun i ↦ ?_
+  -- rcases i with i | i
+  -- · rcases i
+  -- ·
+
+
+-- @@ L742-769 verbatim
+open ENNReal in
+/-- Corresponds to Claim 8.3 of [BCIKS20] -/
+lemma fri_soundness
+    {t l m : ℕ}
+  (f : Fin t.succ → (ω → 𝔽))
+  (m_ge_3 : m ≥ 3) :
+    let ρ_sqrt :=
+      ReedSolomon.sqrtRate
+        (2 ^ n)
+        (⟨fun x => x, by simp⟩ : ω ↪ 𝔽)
+    let α : ℝ≥0 := (ρ_sqrt * (1 + 1 / (2 * (m : ℝ≥0))))
+    (∃ prov : OracleProver (WitOut := Unit) ..,
+        Pr[fun _ => True |
+          OracleReduction.run () f ()
+            ⟨
+              prov,
+              (BatchedFri.Spec.batchedFRIreduction
+                (ω := ω) (n := n) k s d domain_size_cond l t).verifier
+            ⟩
+        ] > εC 𝔽 n s m ρ_sqrt + α ^ l) →
+      Code.jointAgreement
+        (F := 𝔽)
+        (κ := Fin t.succ)
+        (ι := ω)
+        (C := (ReedSolomon.code (⟨fun x => x, by simp⟩ : ω ↪ 𝔽) (2 ^ n)).carrier)
+        (δ := 1 - α)
+        (W := f) := by
+  sorry
+
+
+-- @@ L771-771 verbatim
+end Soundness
+
+
+-- @@ L773-773 verbatim
+end Fri
+
+-- @@ L774-774 verbatim
+end Fri

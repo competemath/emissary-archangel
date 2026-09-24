@@ -1,0 +1,1 @@
+{"names":["Polynomial.sum_rootMultiplicity_le_natDegree"],"modules":["ArkLib.ToMathlib.Polynomial.RootMultiplicity"],"moduleOf":{"Polynomial.sum_rootMultiplicity_le_natDegree":"ArkLib.ToMathlib.Polynomial.RootMultiplicity"},"deps":{"Polynomial.sum_rootMultiplicity_le_natDegree":[]}}

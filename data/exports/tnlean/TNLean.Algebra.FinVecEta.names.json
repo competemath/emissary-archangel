@@ -1,0 +1,1 @@
+{"names":["Matrix.eq_vecCons_fin_two","Matrix.eq_vecCons_fin_three"],"modules":["TNLean.Algebra.FinVecEta"],"moduleOf":{"Matrix.eq_vecCons_fin_two":"TNLean.Algebra.FinVecEta","Matrix.eq_vecCons_fin_three":"TNLean.Algebra.FinVecEta"},"deps":{"Matrix.eq_vecCons_fin_two":[],"Matrix.eq_vecCons_fin_three":[]}}

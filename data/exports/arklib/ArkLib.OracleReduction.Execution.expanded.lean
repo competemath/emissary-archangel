@@ -1,0 +1,837 @@
+/-
+Copyright (c) 2024-2026 ArkLib Contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Quang Dao, Alexander Hicks, Devon Tuma, Pietro Monticone, Tobias Rothmann
+-/
+module
+
+public import ArkLib.OracleReduction.Basic
+public import ArkLib.Data.Fin.Basic
+public import ArkLib.ToMathlib.Control.MonadLift
+public import ArkLib.ToVCVio.OracleComp.EvalDist
+-- Owns `OracleComp.support_ofFn_mapM_index`, used in `Verifier.run_all_eq_bind` below.
+public import VCVio.OracleComp.Constructions.Replicate
+public import VCVio.OracleComp.QueryTracking.LoggingOracle
+
+
+-- @@ L16-21 verbatim
+/-!
+  # Execution Semantics of Interactive Oracle Reductions
+
+  We define what it means to execute an interactive oracle reduction, and prove some basic
+  properties.
+-/
+
+
+-- @@ L23-23 verbatim
+@[expose] public section
+
+
+-- @@ L25-25 verbatim
+open OracleComp OracleSpec SubSpec ProtocolSpec
+
+
+-- @@ L27-78 verbatim
+universe u v
+
+-- namespace loggingOracle
+
+-- variable {ι : Type u} {spec : OracleSpec ι} {α β : Type u}
+
+-- @[simp]
+-- theorem impl_run {i : ι} {t : spec.domain i} :
+--     (loggingOracle.impl (query i t)).run = (do let u ← query i t; return (u, [⟨i, ⟨t, u⟩⟩])) :=
+--   rfl
+
+-- @[simp]
+-- theorem simulateQ_map_fst (oa : OracleComp spec α) :
+--     Prod.fst <$> (simulateQ loggingOracle oa).run = oa := by
+--   induction oa using OracleComp.induction with
+--   | pure a => simp
+--   | query_bind i t oa ih => simp [simulateQ_bind, ih]
+--   | failure => simp
+
+-- @[simp]
+-- theorem simulateQ_bind_fst (oa : OracleComp spec α) (f : α → OracleComp spec β) :
+--     (do let a ← (simulateQ loggingOracle oa).run; f a.1) = oa >>= f := by
+--   induction oa using OracleComp.induction with
+--   | pure a => simp
+--   | query_bind i t oa ih => simp [simulateQ_bind, ih]
+--   | failure => simp
+
+-- /-- We often have to specify `oa` and `f` for this to be applied -/
+-- theorem simulateQ_bind_fst_comp (oa : OracleComp spec α) (f : α → OracleComp spec β) :
+--     (do let a ← (simulateQ loggingOracle oa).run; f a.1) = (do let a ← oa; f a) := by
+--   induction oa using OracleComp.induction with
+--   | pure a => simp
+--   | query_bind i t oa ih => simp [simulateQ_bind, ih]
+--   | failure => simp
+
+-- /-- Ideally, this theorem can also compare the logs of the two oracle computations.
+
+-- For this to work, we need an extra function mapping `superSpec.QueryLog` to `spec.QueryLog`.
+
+-- This function always exists if `superSpec` is `spec + something`, and extensions thereof, but may
+-- not be guaranteed to exist in general, if we just have the current fields in the type class. -/
+-- @[simp]
+-- theorem simulateQ_run_liftComp_fst {ι' : Type u} {superSpec : OracleSpec ι'}
+--     (oa : OracleComp spec α) [SubSpec spec superSpec] :
+--       Prod.fst <$> (simulateQ loggingOracle oa).run.liftComp superSpec =
+--         Prod.fst <$> (simulateQ loggingOracle (oa.liftComp superSpec)).run := by
+--   induction oa using OracleComp.induction with
+--   | pure a => simp
+--   | query_bind i t oa ih => simp [simulateQ_bind, ih]
+--   | failure => simp
+
+-- end loggingOracle
+
+
+-- @@ L80-80 verbatim
+section Execution
+
+
+-- @@ L82-87 verbatim
+variable {ι : Type} {oSpec : OracleSpec ι}
+  {StmtIn : Type} {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type} [Oₛᵢ : ∀ i, OracleInterface (OStmtIn i)]
+ {WitIn : Type}
+  {StmtOut : Type} {ιₛₒ : Type} {OStmtOut : ιₛₒ → Type}
+  [Oₛₒ : ∀ i, OracleInterface (OStmtOut i)] {WitOut : Type}
+  {n : ℕ} {pSpec : ProtocolSpec n}
+
+
+-- @@ L89-89 verbatim
+namespace Prover
+
+
+-- @@ L91-110 verbatim
+/--
+Prover's function for processing the next round, given the current result of the previous round, and
+a function for getting the challenge.
+-/
+@[inline, specialize]
+def processRound (j : Fin n)
+    (prover : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec)
+    (currentResult : OracleComp (oSpec + [pSpec.Challenge]ₒ)
+      (pSpec.Transcript j.castSucc × prover.PrvState j.castSucc)) :
+      OracleComp (oSpec + [pSpec.Challenge]ₒ)
+        (pSpec.Transcript j.succ × prover.PrvState j.succ) := do
+  let ⟨transcript, state⟩ ← currentResult
+  match hDir : pSpec.dir j with
+  | .V_to_P => do
+    let challenge ← pSpec.getChallenge ⟨j, hDir⟩
+    letI newState := (← prover.receiveChallenge ⟨j, hDir⟩ state) challenge
+    return ⟨transcript.concat challenge, newState⟩
+  | .P_to_V => do
+    let ⟨msg, newState⟩ ← prover.sendMessage ⟨j, hDir⟩ state
+    return ⟨transcript.concat msg, newState⟩
+
+
+-- @@ L112-123 verbatim
+/-- Run the prover in an interactive reduction up to round index `i`, via first inputting the
+  statement and witness, and then processing each round up to round `i`. Returns the transcript up
+  to round `i`, and the prover's state after round `i`.
+-/
+@[inline, specialize]
+def runToRound (i : Fin (n + 1))
+    (stmt : StmtIn) (wit : WitIn) (prover : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      OracleComp (oSpec + [pSpec.Challenge]ₒ) (pSpec.Transcript i × prover.PrvState i) :=
+  Fin.induction
+    (pure ⟨default, prover.input (stmt, wit)⟩)
+    (prover.processRound)
+    i
+
+
+-- @@ L125-135 verbatim
+/-- Run the prover in an interactive reduction up to round `i`, logging all the queries made by the
+  prover. Returns the transcript up to that round, the prover's state after that round, and the
+  log of the prover's oracle queries. This basically just wraps `runToRound` with a logging
+  oracle.
+-/
+@[inline, specialize]
+def runWithLogToRound (i : Fin (n + 1))
+    (stmt : StmtIn) (wit : WitIn) (prover : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      OracleComp (oSpec + [pSpec.Challenge]ₒ)
+        ((pSpec.Transcript i × prover.PrvState i) × QueryLog (oSpec + [pSpec.Challenge]ₒ)) :=
+  WriterT.run (simulateQ loggingOracle (prover.runToRound i stmt wit))
+
+
+-- @@ L137-142 verbatim
+@[simp]
+lemma runWithLogToRound_discard_log_eq_runToRound (i : Fin (n + 1))
+    (stmt : StmtIn) (wit : WitIn) (prover : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      Prod.fst <$> prover.runWithLogToRound i stmt wit =
+        prover.runToRound i stmt wit := by
+  simp [runWithLogToRound, runToRound]
+
+
+-- @@ L144-153 verbatim
+/-- Run the prover in an interactive reduction. Returns the output statement and witness, and the
+  transcript. See `runWithLog` for a version that additionally returns the log of the
+  prover's oracle queries.
+-/
+@[inline, specialize]
+def run (stmt : StmtIn) (wit : WitIn)
+    (prover : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      OracleComp (oSpec + [pSpec.Challenge]ₒ) (FullTranscript pSpec × StmtOut × WitOut) := do
+  let ⟨transcript, state⟩ ← prover.runToRound (Fin.last n) stmt wit
+  return ⟨transcript, ← prover.output state⟩
+
+
+-- @@ L155-165 verbatim
+/-- Run the prover in an interactive reduction, logging all the queries made by the prover. Returns
+  the transcript, the output statement and witness, and the log of the prover's oracle queries.
+
+Note: this is just a wrapper around `run` that logs the queries made by the prover.
+-/
+@[inline, specialize]
+def runWithLog (stmt : StmtIn) (wit : WitIn)
+    (prover : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      OracleComp (oSpec + [pSpec.Challenge]ₒ)
+        ((FullTranscript pSpec × StmtOut × WitOut) × QueryLog (oSpec + [pSpec.Challenge]ₒ)) :=
+  (simulateQ loggingOracle (prover.run stmt wit)).run
+
+
+-- @@ L167-171 verbatim
+@[simp]
+lemma runWithLog_discard_log_eq_run (stmt : StmtIn) (wit : WitIn)
+    (prover : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      Prod.fst <$> prover.runWithLog stmt wit = prover.run stmt wit := by
+  simp [runWithLog]
+
+
+-- @@ L173-173 verbatim
+end Prover
+
+
+-- @@ L175-181 verbatim
+/-- Run the (non-oracle) verifier in an interactive reduction. It takes in the input statement and
+  the transcript, and return the output statement.
+-/
+@[inline, specialize, reducible]
+def Verifier.run (stmt : StmtIn) (transcript : FullTranscript pSpec)
+    (verifier : Verifier oSpec StmtIn StmtOut pSpec) : OptionT (OracleComp oSpec) StmtOut :=
+  verifier.verify stmt transcript
+
+
+-- @@ L183-191 verbatim
+/-- Run the oracle verifier in the interactive protocol. Returns the verifier's output, including
+    both the output statement and oracle statements, and the log of queries made by the verifier.
+-/
+@[inline, specialize]
+def OracleVerifier.run [Oₘ : ∀ i, OracleInterface (pSpec.Message i)]
+    (stmt : StmtIn) (oStmtIn : ∀ i, OStmtIn i) (transcript : FullTranscript pSpec)
+    (verifier : OracleVerifier oSpec StmtIn OStmtIn StmtOut OStmtOut pSpec) :
+      OptionT (OracleComp oSpec) (StmtOut × (∀ i, OStmtOut i)) :=
+  verifier.toVerifier.run ⟨stmt, oStmtIn⟩ transcript
+
+
+-- @@ L193-199 verbatim
+/-- Running an oracle verifier then is equal to running its non-oracle counterpart -/
+@[simp]
+theorem OracleVerifier.run_eq_run_verifier [Oₘ : ∀ i, OracleInterface (pSpec.Message i)]
+    {stmt : StmtIn} {oStmt : ∀ i, OStmtIn i} {transcript : FullTranscript pSpec}
+    {verifier : OracleVerifier oSpec StmtIn OStmtIn StmtOut OStmtOut pSpec} :
+      verifier.run stmt oStmt transcript =
+        verifier.toVerifier.run ⟨stmt, oStmt⟩ transcript := rfl
+
+
+-- @@ L201-216 verbatim
+/-- An execution of an interactive reduction on a given initial statement and witness. Consists of
+  first running the prover, and then the verifier. Returns the full transcript, the output statement
+  and witness from the prover, and the output statement from the verifier.
+
+  See `Reduction.runWithLog` for a version that additionally returns the logs of the prover's and
+  the verifier's oracle queries.
+-/
+@[inline, specialize]
+def Reduction.run (stmt : StmtIn) (wit : WitIn)
+    (reduction : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      OptionT (OracleComp (oSpec + [pSpec.Challenge]ₒ))
+        ((FullTranscript pSpec × StmtOut × WitOut) × StmtOut) := do
+  -- `ctxOut` contains both the output statement and witness after running the prover
+  let proverResult ← reduction.prover.run stmt wit
+  let stmtOut ← liftM (reduction.verifier.run stmt proverResult.1).run
+  return ⟨proverResult, ← stmtOut.getM⟩
+
+
+-- @@ L218-224 verbatim
+/-- Run a reduction and return only the verifier's output statement, discarding the full transcript
+  and prover witness. Useful when only the final verdict matters (e.g. for `Proof`s). -/
+def Reduction.verdict (stmt : StmtIn) (wit : WitIn)
+    (reduction : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      OptionT (OracleComp (oSpec + [pSpec.Challenge]ₒ)) StmtOut := do
+  let ⟨_, stmtOut⟩ ← reduction.run stmt wit
+  return stmtOut
+
+
+-- @@ L226-233 verbatim
+/-- Running `Reduction.verdict` is running the reduction and projecting the verdict. -/
+lemma Reduction.verdict_run_eq_map_run
+    (reduction : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec)
+    (stmt : StmtIn) (wit : WitIn) :
+    (reduction.verdict stmt wit).run =
+      Option.map (fun result : (FullTranscript pSpec × StmtOut × WitOut) × StmtOut =>
+        result.2) <$> (reduction.run stmt wit).run := by
+  simp [Reduction.verdict, OptionT.run_map]
+
+
+-- @@ L235-244 verbatim
+/-- Run a reduction on `L` instances (given by indexed statements and witnesses), and sequence the
+  full successful run results. Returns `none` if any instance fails, otherwise returns a function
+  from indices to the full run data. -/
+def Reduction.allRuns {L : ℕ}
+    (stmts : Fin L → StmtIn) (wits : Fin L → WitIn)
+    (reduction : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      OracleComp (oSpec + [pSpec.Challenge]ₒ)
+        (Option (Fin L → ((FullTranscript pSpec × StmtOut × WitOut) × StmtOut))) := do
+  let results ← (Vector.ofFn id).mapM fun i => (reduction.run (stmts i) (wits i)).run
+  return (results.mapM id).map fun v => fun i => v[i]
+
+
+-- @@ L246-254 verbatim
+/-- Run a reduction on `L` instances and project each successful full run result through `extract`.
+  Returns `none` if any instance fails, otherwise returns the indexed extracted outputs. -/
+def Reduction.allOutputs {L : ℕ} {α : Type}
+    (extract : ((FullTranscript pSpec × StmtOut × WitOut) × StmtOut) → α)
+    (stmts : Fin L → StmtIn) (wits : Fin L → WitIn)
+    (reduction : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      OracleComp (oSpec + [pSpec.Challenge]ₒ) (Option (Fin L → α)) := do
+  let results ← reduction.allRuns stmts wits
+  return results.map fun resultOf => fun i => extract (resultOf i)
+
+
+-- @@ L256-264 verbatim
+/-- Run a reduction on `L` instances (given by indexed statements and witnesses), and sequence the
+  results. Returns `none` if any instance fails, otherwise returns a function from indices to
+  the verifier's output statements. -/
+def Reduction.allVerdicts {L : ℕ}
+    (stmts : Fin L → StmtIn) (wits : Fin L → WitIn)
+    (reduction : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      OracleComp (oSpec + [pSpec.Challenge]ₒ) (Option (Fin L → StmtOut)) := do
+  let results ← (Vector.ofFn id).mapM fun i => (reduction.verdict (stmts i) (wits i)).run
+  return (results.mapM id).map fun v => fun i => v[i]
+
+
+-- @@ L266-338 verbatim
+/-- `allVerdicts` has the same distribution as `allOutputs` with a projection retaining the
+  verifier output as the first component; it differs only by a pure post-map. -/
+lemma Reduction.allVerdicts_eq_map_allOutputs_fst {L : ℕ} {β : Type}
+    (extract : ((FullTranscript pSpec × StmtOut × WitOut) × StmtOut) → β)
+    (stmts : Fin L → StmtIn) (wits : Fin L → WitIn)
+    (reduction : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+    reduction.allVerdicts stmts wits =
+      (Option.map (fun resultOf => fun i => (resultOf i).1)) <$>
+        reduction.allOutputs (fun result => (result.2, extract result)) stmts wits := by
+  unfold Reduction.allVerdicts Reduction.allOutputs Reduction.allRuns
+  simp only [map_eq_bind_pure_comp, bind_assoc, pure_bind, Function.comp_apply]
+  rw [Vector.mapM_bind_map_eq
+    (v := Vector.ofFn (id : Fin L → Fin L))
+    (f₁ := fun i => (reduction.verdict (stmts i) (wits i)).run)
+    (f₂ := fun i => (reduction.run (stmts i) (wits i)).run)
+    (g := Option.map (fun result : (FullTranscript pSpec × StmtOut × WitOut) × StmtOut =>
+      result.2))
+    (post₁ := fun results =>
+      pure ((results.mapM id).map fun v => fun i => v[i]))
+    (post₂ := fun results =>
+      pure (Option.map (fun resultOf => fun i => (resultOf i).1)
+        (Option.map (fun resultOf => fun i => ((resultOf i).2, extract (resultOf i)))
+          (Option.map (fun v => fun i => v[i]) (results.mapM id)))))]
+  · intro i
+    exact Reduction.verdict_run_eq_map_run reduction (stmts i) (wits i)
+  · intro results
+    congr 1
+    rw [Vector.mapM_id_option_map_comm]
+    cases h : results.mapM id with
+    | none => simp
+    | some v =>
+        simp only [Option.map_some, Option.some.injEq]
+        funext i
+        simp
+
+lemma Reduction.support_allOutputs_index
+    {StmtIn WitIn StmtOut WitOut α : Type} {n : ℕ} {pSpec : ProtocolSpec n} {L : ℕ}
+    (extract : ((FullTranscript pSpec × StmtOut × WitOut) × StmtOut) → α)
+    (stmts : Fin L → StmtIn) (wits : Fin L → WitIn)
+    (reduction : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec)
+    {y : Option (Fin L → α)}
+    (hy : y ∈ support (reduction.allOutputs extract stmts wits))
+    {resultOf : Fin L → α} (hy_eq : y = some resultOf) (i : Fin L) :
+      ∃ result, some result ∈ support (reduction.run (stmts i) (wits i)).run ∧
+        extract result = resultOf i := by
+  unfold Reduction.allOutputs at hy
+  rw [mem_support_bind_iff] at hy
+  obtain ⟨runsOpt, hrunsOpt, hy_mem⟩ := hy
+  rw [mem_support_pure_iff] at hy_mem
+  rw [hy_eq] at hy_mem
+  cases hruns : runsOpt with
+  | none => simp [hruns] at hy_mem
+  | some runOf =>
+      simp only [hruns, Option.map_some, Option.some.injEq] at hy_mem
+      unfold Reduction.allRuns at hrunsOpt
+      rw [mem_support_bind_iff] at hrunsOpt
+      obtain ⟨results, hresults, hrunsOpt⟩ := hrunsOpt
+      rw [mem_support_pure_iff] at hrunsOpt
+      cases hseq : results.mapM id with
+      | none => simp [hseq, hruns] at hrunsOpt
+      | some results' =>
+          simp only [hseq, Option.map_some] at hrunsOpt
+          rw [hruns] at hrunsOpt
+          simp only [Option.some.injEq] at hrunsOpt
+          have hidx : results[i] = some results'[i] :=
+            Vector.mapM_id_some_index hseq i
+          refine ⟨results'[i], ?_, ?_⟩
+          · simpa [hidx] using
+              OracleComp.support_ofFn_mapM_index
+                (fun i => (reduction.run (stmts i) (wits i)).run) hresults i
+          · have hrunOf_i := congrFun hrunsOpt i
+            have hresult_i := congrFun hy_mem i
+            rw [hresult_i, hrunOf_i]
+
+
+-- @@ L340-377 verbatim
+/-- If a reduction's verifier is a pure function `f` of the input statement and full transcript,
+    then the verifier output of any complete result in the support of `Reduction.run` equals
+    `f stmt td` applied to the input statement and the produced transcript. -/
+lemma Reduction.support_run_pure_verifier
+    {StmtIn WitIn StmtOut WitOut : Type}
+    {n : ℕ} {pSpec : ProtocolSpec n}
+    (reduction : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec)
+    (f : StmtIn → FullTranscript pSpec → StmtOut)
+    (hf : ∀ stmt td,
+      reduction.verifier.verify stmt td =
+        (pure (f stmt td) : OptionT (OracleComp oSpec) StmtOut))
+    (stmt : StmtIn) (wit : WitIn)
+    {y : Option ((FullTranscript pSpec × StmtOut × WitOut) × StmtOut)}
+    (hy : y ∈ support (reduction.run stmt wit).run)
+    {td : FullTranscript pSpec} {prv : StmtOut × WitOut} {vOut : StmtOut}
+    (heq : y = some ((td, prv), vOut)) : vOut = f stmt td := by
+  rw [heq] at hy
+  unfold Reduction.run at hy
+  simp only [OptionT.run_bind, Option.elimM] at hy
+  rw [mem_support_bind_iff] at hy
+  obtain ⟨proverResultOpt, _hprover, hy⟩ := hy
+  cases proverResultOpt with
+  | none =>
+      exfalso
+      simp at hy
+  | some proverResult =>
+      simp only [Option.elim_some] at hy
+      rw [mem_support_bind_iff] at hy
+      obtain ⟨stmtOutOpt, hstmtOutOpt, hy⟩ := hy
+      simp only [ChallengeIdx, Challenge, Verifier.run, hf, OptionT.run_pure, liftM_pure,
+        support_pure, Set.mem_singleton_iff] at hstmtOutOpt
+      subst stmtOutOpt
+      simp only [Option.elim_some, Option.getM_some, OptionT.run_pure] at hy
+      injection hy with hpair
+      have htd : td = proverResult.1 := congrArg Prod.fst (congrArg Prod.fst hpair)
+      have hvOut : vOut = f stmt proverResult.1 := congrArg Prod.snd hpair
+      rw [htd]
+      exact hvOut
+
+
+-- @@ L379-394 verbatim
+/-- An execution of an interactive reduction on a given initial statement and witness. Consists of
+  first running the prover, and then the verifier. Returns the full transcript, the output statement
+  and witness from the prover, and the output statement from the verifier, along with the logs of
+  the prover's and the verifier's oracle queries.
+-/
+@[inline, specialize]
+def Reduction.runWithLog (stmt : StmtIn) (wit : WitIn)
+    (reduction : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      OptionT (OracleComp (oSpec + [pSpec.Challenge]ₒ))
+        (((FullTranscript pSpec × StmtOut × WitOut) × StmtOut) ×
+          QueryLog (oSpec + [pSpec.Challenge]ₒ) × QueryLog oSpec) := do
+  -- `ctxOut` contains both the output statement and witness after running the prover
+  let ⟨proverResult, proveQueryLog⟩ ← reduction.prover.runWithLog stmt wit
+  let ⟨stmtOut, verifyQueryLog⟩ ←
+    liftM (simulateQ loggingOracle (reduction.verifier.run stmt proverResult.1)).run
+  return ⟨⟨proverResult, ← stmtOut.getM⟩, proveQueryLog, verifyQueryLog⟩
+
+
+-- @@ L396-425 verbatim
+/-- Logging the queries made by both parties do not change the output of the reduction.
+
+Both logs are discarded the same way: `monadLift_bind_fst` pulls the `Prod.fst` projection inside
+the lift, which exposes the party's logged run to the lemma that strips its log —
+`Prover.runWithLog_discard_log_eq_run` for the prover and VCV-io's
+`loggingOracle.fst_map_run_simulateQ` for the verifier. The `▸`/`exact` spelling is forced rather
+than stylistic: after `simp only` the goal is not type-correct at `instances` transparency (ArkLib's
+`Verifier.run` is an `OptionT`, which `kabstract` sees as `OracleComp _ (Option _)`), so `rw`
+cannot operate on it. -/
+@[simp]
+theorem Reduction.runWithLog_discard_logs_eq_run
+    {stmt : StmtIn} {wit : WitIn}
+    {reduction : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec} :
+      Prod.fst <$>
+        reduction.runWithLog stmt wit = reduction.run stmt wit := by
+  simp only [Reduction.runWithLog, Reduction.run, map_bind, map_pure]
+  have hProver := monadLift_bind_fst (m := OracleComp (oSpec + [pSpec.Challenge]ₒ))
+    (n := OptionT (OracleComp (oSpec + [pSpec.Challenge]ₒ)))
+    (Prover.runWithLog stmt wit reduction.prover)
+    (fun proverResult =>
+      liftM (simulateQ loggingOracle (Verifier.run stmt proverResult.1 reduction.verifier)).run
+        >>= fun a_1 => (fun a_2 => (proverResult, a_2)) <$> a_1.1.getM)
+  exact hProver ▸ by
+    rw [Prover.runWithLog_discard_log_eq_run]
+    congr 1; ext proverResult
+    have hVerif := monadLift_bind_fst (m := OracleComp oSpec)
+      (n := OptionT (OracleComp (oSpec + [pSpec.Challenge]ₒ)))
+      (simulateQ loggingOracle (Verifier.run stmt proverResult.1 reduction.verifier)).run
+      (fun stmtOut => (fun a_2 => (proverResult, a_2)) <$> stmtOut.getM)
+    exact hVerif ▸ by rw [loggingOracle.fst_map_run_simulateQ]; rfl
+
+
+-- @@ L427-440 verbatim
+/-- Run an interactive oracle reduction. Returns the full transcript, the output statement and
+  witness, the log of all prover's oracle queries, and the log of all verifier's oracle queries to
+  the prover's messages and to the shared oracle.
+-/
+@[inline, specialize]
+def OracleReduction.run [∀ i, OracleInterface (pSpec.Message i)]
+    (stmt : StmtIn) (oStmt : ∀ i, OStmtIn i) (wit : WitIn)
+    (reduction : OracleReduction oSpec StmtIn OStmtIn WitIn StmtOut OStmtOut WitOut pSpec) :
+      OptionT (OracleComp (oSpec + [pSpec.Challenge]ₒ))
+        ((FullTranscript pSpec × (StmtOut × ∀ i, OStmtOut i) × WitOut) ×
+          (StmtOut × ∀ i, OStmtOut i)) := do
+  let proverResult ← reduction.prover.run ⟨stmt, oStmt⟩ wit
+  let stmtOut ← liftM (reduction.verifier.run stmt oStmt proverResult.1).run
+  return ⟨proverResult, ← stmtOut.getM⟩
+
+
+-- @@ L442-458 verbatim
+/-- Run an interactive oracle reduction. Returns the full transcript, the output statement and
+  witness, the log of all prover's oracle queries, and the log of all verifier's oracle queries to
+  the prover's messages and to the shared oracle.
+-/
+@[inline, specialize]
+def OracleReduction.runWithLog [∀ i, OracleInterface (pSpec.Message i)]
+    (stmt : StmtIn) (oStmt : ∀ i, OStmtIn i) (wit : WitIn)
+    (reduction : OracleReduction oSpec StmtIn OStmtIn WitIn StmtOut OStmtOut WitOut pSpec) :
+      OptionT (OracleComp (oSpec + [pSpec.Challenge]ₒ))
+        ((FullTranscript pSpec × (StmtOut × ∀ i, OStmtOut i) × WitOut) ×
+          (StmtOut × ∀ i, OStmtOut i) ×
+            QueryLog (oSpec + [pSpec.Challenge]ₒ) × QueryLog oSpec) := do
+  let ⟨proverResult, proveQueryLog⟩ ←
+    (simulateQ loggingOracle (reduction.prover.run ⟨stmt, oStmt⟩ wit)).run
+  let ⟨stmtOut, verifyQueryLog⟩ ←
+    liftM (simulateQ loggingOracle (reduction.verifier.run stmt oStmt proverResult.1)).run
+  return ⟨proverResult, ← stmtOut.getM, proveQueryLog, verifyQueryLog⟩
+
+
+-- @@ L460-468 verbatim
+/-- Running an oracle reduction is equal to running its non-oracle counterpart -/
+@[simp]
+theorem OracleReduction.run_eq_run_reduction [∀ i, OracleInterface (pSpec.Message i)]
+    {stmt : StmtIn} {oStmt : ∀ i, OStmtIn i} {wit : WitIn}
+    {oracleReduction : OracleReduction oSpec StmtIn OStmtIn WitIn StmtOut OStmtOut WitOut pSpec} :
+      oracleReduction.run stmt oStmt wit =
+        oracleReduction.toReduction.run ⟨stmt, oStmt⟩ wit := by
+  simp only [OracleReduction.run, Reduction.run, OracleVerifier.run_eq_run_verifier,
+    OracleReduction.toReduction]
+
+
+-- @@ L470-479 verbatim
+/-- Running an oracle reduction with logging of queries to the shared oracle is equal to running its
+  non-oracle counterpart with logging of queries to the shared oracle -/
+@[simp]
+theorem OracleReduction.runWithLog_eq_runWithLog_reduction [∀ i, OracleInterface (pSpec.Message i)]
+    {stmt : StmtIn} {oStmt : ∀ i, OStmtIn i} {wit : WitIn}
+    {oracleReduction : OracleReduction oSpec StmtIn OStmtIn WitIn StmtOut OStmtOut WitOut pSpec} :
+      oracleReduction.run stmt oStmt wit =
+        oracleReduction.toReduction.run ⟨stmt, oStmt⟩ wit := by
+  simp only [OracleReduction.run, Reduction.run, OracleVerifier.run_eq_run_verifier,
+    OracleReduction.toReduction]
+
+
+-- @@ L481-485 verbatim
+@[simp]
+theorem Prover.runToRound_zero_of_prover_first
+    (stmt : StmtIn) (wit : WitIn) (prover : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      prover.runToRound 0 stmt wit = (pure (default, prover.input (stmt, wit))) := by
+  simp [Prover.runToRound]
+
+
+-- @@ L487-494 verbatim
+/-- One-step unfolding of `runToRound`: running to round `i.succ` is running to round
+`i.castSucc` and then processing round `i`. The workhorse for collapsing concrete
+protocol executions round by round (e.g. in component completeness proofs). -/
+theorem Prover.runToRound_succ (i : Fin n)
+    (stmt : StmtIn) (wit : WitIn) (prover : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      prover.runToRound i.succ stmt wit =
+        prover.processRound i (prover.runToRound i.castSucc stmt wit) :=
+  Fin.induction_succ _ _ _
+
+
+-- @@ L496-515 verbatim
+/-- **Per-direction unfold of `processRound` (verifier-to-prover round).** When round `j` is a
+challenge round (`pSpec.dir j = .V_to_P`), processing it reads the previous result, draws the
+challenge, feeds it to `receiveChallenge`, and appends it to the transcript. This resolves the
+internal dependent `match hDir : pSpec.dir j` *once, at the framework level*, so concrete-protocol
+proofs no longer re-derive the direction split (and its `⟨j, hDir⟩` index proofs) by hand. Pairs
+with `processRound_of_dir_eq_P_to_V`, and with the `runToRound` unfolding lemmas above, to give a
+clean, monad-law-friendly challenge-first normal form for any `Prover.run`. -/
+theorem Prover.processRound_of_dir_eq_V_to_P (j : Fin n) (hDir : pSpec.dir j = .V_to_P)
+    (prover : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec)
+    (currentResult : OracleComp (oSpec + [pSpec.Challenge]ₒ)
+      (pSpec.Transcript j.castSucc × prover.PrvState j.castSucc)) :
+    prover.processRound j currentResult = (do
+      let ⟨transcript, state⟩ ← currentResult
+      let challenge ← pSpec.getChallenge ⟨j, hDir⟩
+      let newState := (← prover.receiveChallenge ⟨j, hDir⟩ state) challenge
+      return ⟨transcript.concat challenge, newState⟩) := by
+  simp only [Prover.processRound]
+  split <;> rename_i h
+  · rfl
+  · exact absurd (hDir.symm.trans h) (by decide)
+
+
+-- @@ L517-532 verbatim
+/-- **Per-direction unfold of `processRound` (prover-to-verifier round).** When round `j` is a
+message round (`pSpec.dir j = .P_to_V`), processing it reads the previous result, runs
+`sendMessage`, and appends the message to the transcript. The framework-level counterpart of
+`processRound_of_dir_eq_V_to_P`; see its docstring. -/
+theorem Prover.processRound_of_dir_eq_P_to_V (j : Fin n) (hDir : pSpec.dir j = .P_to_V)
+    (prover : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec)
+    (currentResult : OracleComp (oSpec + [pSpec.Challenge]ₒ)
+      (pSpec.Transcript j.castSucc × prover.PrvState j.castSucc)) :
+    prover.processRound j currentResult = (do
+      let ⟨transcript, state⟩ ← currentResult
+      let ⟨msg, newState⟩ ← prover.sendMessage ⟨j, hDir⟩ state
+      return ⟨transcript.concat msg, newState⟩) := by
+  simp only [Prover.processRound]
+  split <;> rename_i h
+  · exact absurd (hDir.symm.trans h) (by decide)
+  · rfl
+
+
+-- @@ L534-534 verbatim
+end Execution
+
+
+-- @@ L536-541 verbatim
+variable {ι : Type} {oSpec : OracleSpec ι}
+  {StmtIn : Type} {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type} [Oₛᵢ : ∀ i, OracleInterface (OStmtIn i)]
+  {WitIn : Type}
+  {StmtOut : Type} {ιₛₒ : Type} {OStmtOut : ιₛₒ → Type} [Oₛₒ : ∀ i, OracleInterface (OStmtOut i)]
+  {WitOut : Type}
+  {n : ℕ} {pSpec : ProtocolSpec n} [Oₘ : ∀ i, OracleInterface (pSpec.Message i)]
+
+
+-- @@ L543-543 verbatim
+section Trivial
+
+
+-- @@ L545-552 verbatim
+/-- Running the identity or trivial reduction results in the same input statement and witness, and
+  empty transcript. -/
+@[simp]
+theorem Reduction.id_run (stmt : StmtIn) (wit : WitIn) :
+    (Reduction.id : Reduction oSpec StmtIn WitIn _ _ _).run stmt wit =
+      pure ⟨⟨default, stmt, wit⟩, stmt⟩ := by
+  simp [Reduction.run, Reduction.id, Prover.run, Verifier.run, Prover.id, Verifier.id]
+  rfl
+
+
+-- @@ L554-561 verbatim
+/-- Running the identity or trivial reduction, with logging of queries to the shared oracle,
+  results in the same input statement and witness, empty transcript, and empty query logs. -/
+@[simp]
+theorem Reduction.id_runWithLog (stmt : StmtIn) (wit : WitIn) :
+    (Reduction.id : Reduction oSpec StmtIn WitIn _ _ _).runWithLog stmt wit =
+      pure ⟨⟨⟨default, stmt, wit⟩, stmt⟩, [], []⟩ := by
+  simp_all only [ChallengeIdx, Challenge]
+  rfl
+
+
+-- @@ L563-569 verbatim
+/-- Running the identity or trivial oracle reduction results in the same input statement, oracle
+  statement, and witness. -/
+@[simp]
+theorem OracleReduction.id_run (stmt : StmtIn) (oStmt : ∀ i, OStmtIn i) (wit : WitIn) :
+    (OracleReduction.id : OracleReduction oSpec StmtIn OStmtIn WitIn _ _ _ _).run stmt oStmt wit =
+      pure ⟨⟨default, ⟨stmt, oStmt⟩, wit⟩, ⟨stmt, oStmt⟩⟩ := by
+  simp_all only [ChallengeIdx, Challenge, run_eq_run_reduction, id_toReduction, Reduction.id_run]
+
+
+-- @@ L571-581 verbatim
+/-- Running the identity or trivial oracle reduction results in the same input statement, oracle
+  statement, and witness. -/
+@[simp]
+theorem OracleReduction.id_runWithLog (stmt : StmtIn) (oStmt : ∀ i, OStmtIn i) (wit : WitIn) :
+    (OracleReduction.id : OracleReduction oSpec StmtIn OStmtIn WitIn _ _ _ _).runWithLog
+      stmt oStmt wit = pure ⟨⟨default, ⟨stmt, oStmt⟩, wit⟩, ⟨stmt, oStmt⟩, [], []⟩ := by
+  simp only [OracleReduction.runWithLog, OracleVerifier.run, Prover.run, OracleReduction.id,
+    OracleProver.id, OracleVerifier.id, Prover.id,
+    Prover.runToRound,
+    monadLift_pure, pure_bind, Option.getM]
+  rfl
+
+
+-- @@ L583-583 verbatim
+end Trivial
+
+
+-- @@ L585-585 verbatim
+section SingleMessage
+
+
+-- @@ L587-587 verbatim
+/-! Simplification lemmas for protocols with a single message -/
+
+
+-- @@ L589-589 verbatim
+variable {pSpec : ProtocolSpec 1}
+
+
+-- @@ L591-611 verbatim
+@[simp]
+theorem Prover.runToRound_one_of_prover_first [ProverOnly pSpec] (stmt : StmtIn) (wit : WitIn)
+    (prover : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      prover.runToRound 1 stmt wit = (do
+        let state := prover.input (stmt, wit)
+        let ⟨msg, state⟩ ← liftComp (prover.sendMessage ⟨0, prover_first pSpec⟩ state) _
+        return (fun i => match i with | ⟨0, _⟩ => msg, state)) := by
+  have hDir : pSpec.dir 0 = .P_to_V := by simp
+  change prover.runToRound (Fin.succ (0 : Fin 1)) stmt wit = _
+  rw [Prover.runToRound_succ, Prover.processRound_of_dir_eq_P_to_V 0 hDir]
+  simp only [Fin.castSucc_zero, Prover.runToRound_zero_of_prover_first,
+    ChallengeIdx, Challenge, Fin.isValue, Message,
+    Fin.succ_zero_eq_one, liftComp_eq_liftM, Nat.reduceAdd,
+    Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, pure_bind, bind_pure_comp]
+  congr
+  funext a
+  congr
+  funext i
+  have hi : i = Fin.last 0 := by ext; omega
+  subst i
+  exact Transcript.concat_last a.1 (default : pSpec.Transcript 0)
+
+
+-- @@ L613-639 verbatim
+@[simp]
+theorem Prover.runToRound_one_of_verifier_first [VerifierOnly pSpec] (stmt : StmtIn) (wit : WitIn)
+    (prover : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      prover.runToRound 1 stmt wit = (do
+        let state := prover.input (stmt, wit)
+        let challenge ← liftComp (pSpec.getChallenge ⟨0, by simp⟩) _
+        letI newState := (← liftComp (prover.receiveChallenge ⟨0, by simp⟩ state) _) challenge
+        return (fun i => match i with | ⟨0, _⟩ => challenge, newState)) := by
+  have hDir : pSpec.dir 0 = .V_to_P := by simp
+  change prover.runToRound (Fin.succ (0 : Fin 1)) stmt wit = _
+  rw [Prover.runToRound_succ, Prover.processRound_of_dir_eq_V_to_P 0 hDir]
+  simp only [Fin.castSucc_zero, Prover.runToRound_zero_of_prover_first,
+    ChallengeIdx, Challenge, Fin.isValue,
+    HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod,
+    Nat.reduceMod, take_Type, pure_bind, bind_pure_comp]
+  congr 1
+  funext challenge
+  congr 1
+  funext f
+  simp only [default, Prod.mk.injEq]
+  constructor
+  · funext i
+    have hi : i = Fin.last 0 := by ext; omega
+    subst i
+    exact Transcript.concat_last challenge (default : pSpec.Transcript 0)
+  · trivial
+
+
+-- @@ L641-650 verbatim
+@[simp]
+theorem Prover.run_of_verifier_first [VerifierOnly pSpec] (stmt : StmtIn) (wit : WitIn)
+    (prover : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      prover.run stmt wit = (do
+        let state := prover.input (stmt, wit)
+        let challenge ← liftComp (pSpec.getChallenge ⟨0, by simp⟩) _
+        let f ← liftComp (prover.receiveChallenge ⟨0, by simp⟩ state) _
+        let ctxOut ← prover.output (f challenge)
+        return ((fun i => match i with | ⟨0, _⟩ => challenge), ctxOut)) := by
+  simp [Prover.run]; rfl
+
+
+-- @@ L652-662 verbatim
+@[simp]
+theorem Prover.run_of_prover_first [ProverOnly pSpec] (stmt : StmtIn) (wit : WitIn)
+    (prover : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      prover.run stmt wit = (do
+        let state := prover.input (stmt, wit)
+        let ⟨msg, state⟩ ← liftComp (prover.sendMessage ⟨0, prover_first pSpec⟩ state) _
+        let ctxOut ← prover.output state
+        return ((fun i => match i with | ⟨0, _⟩ => msg), ctxOut)) := by
+  simp [Prover.run]; rfl
+
+-- @[simp]
+
+-- @@ L663-675 verbatim
+theorem Reduction.run_of_prover_first [ProverOnly pSpec] (stmt : StmtIn) (wit : WitIn)
+    (reduction : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+      reduction.run stmt wit = (do
+        let state := reduction.prover.input (stmt, wit)
+        let ⟨msg, state⟩ ← (reduction.prover.sendMessage ⟨0, prover_first pSpec⟩ state)
+        let ctxOut ← reduction.prover.output state
+        let transcript : pSpec.FullTranscript := fun i => match i with | ⟨0, _⟩ => msg
+        let stmtOut ← (reduction.verifier.verify stmt transcript).run
+        return (⟨transcript, ctxOut⟩, ← stmtOut.getM)) := by
+  simp only [Reduction.run, Verifier.run]
+  rw [Prover.run_of_prover_first]
+  simp only [liftComp_eq_liftM, bind_assoc, pure_bind, monadLift_bind, monadLift_pure,
+    monadLift_liftM_OptionT]
+
+
+-- @@ L677-677 verbatim
+end SingleMessage
+
+
+-- @@ L679-679 verbatim
+section Classes
+
+
+-- @@ L681-723 verbatim
+variable {ι : Type} {oSpec : OracleSpec ι}
+    {StmtIn WitIn StmtOut WitOut : Type}
+    {pSpec : ProtocolSpec 2}
+
+-- /-- Simplification of the prover's execution in a single-round, two-message protocol where the
+--   prover speaks first -/
+-- theorem Prover.run_of_isSingleRound [IsSingleRound pSpec] (stmt : StmtIn) (wit : WitIn)
+--     (prover : Prover pSpec oSpec StmtIn WitIn StmtOut WitOut) :
+--       prover.run stmt wit = (do
+--         let state ← liftComp (prover.load stmt wit)
+--         let ⟨⟨msg, state⟩, queryLog⟩ ← liftComp
+--           (simulate loggingOracle ∅ (prover.sendMessage default state emptyTranscript))
+--         let challenge ← query (Sum.inr default) ()
+--         let state ← liftComp (prover.receiveChallenge default state transcript challenge)
+--         let transcript := Transcript.mk2 msg challenge
+--         let witOut := prover.output state
+--         return (transcript, queryLog, witOut)) := by
+--   simp [Prover.run, Prover.runToRound, Fin.reduceFinMk, Fin.val_two,
+--     Fin.val_zero, Fin.coe_castSucc, Fin.val_succ, dir_apply, bind_pure_comp, getType_apply,
+--     Fin.induction_two, Fin.val_one, pure_bind, map_bind, liftComp]
+--   split <;> rename_i hDir0
+--   · exfalso; simp only [prover_first, reduceCtorEq] at hDir0
+--   split <;> rename_i hDir1
+--   swap
+--   · exfalso; simp only [verifier_last_of_two, reduceCtorEq] at hDir1
+--   simp only [Functor.map_map, bind_map_left, default]
+--   congr; funext x; congr; funext y;
+--   simp only [Fin.isValue, map_bind, Functor.map_map, dir_apply, Fin.succ_one_eq_two,
+--     Fin.succ_zero_eq_one, queryBind_inj', true_and, exists_const]
+--   funext chal; simp [OracleSpec.append] at chal
+--   congr; funext state; congr
+--   rw [← Transcript.mk2_eq_toFull_snoc_snoc _ _]
+
+-- theorem Reduction.run_of_isSingleRound [IsSingleRound pSpec]
+--     (reduction : Reduction pSpec oSpec StmtIn WitIn StmtOut WitOut PrvState)
+--     (stmt : StmtIn) (wit : WitIn) :
+--       reduction.run stmt wit = do
+--         let state := reduction.prover.load stmt wit
+--         let ⟨⟨msg, state⟩, queryLog⟩ ← liftComp (simulate loggingOracle ∅
+--           (reduction.prover.sendMessage default state))
+--         let challenge := reduction.prover.receiveChallenge default state
+--         let stmtOut ← reduction.verifier.verify stmt transcript
+--         return (transcript, queryLog, stmtOut, reduction.prover.output state) := by sorry
+
+
+-- @@ L725-725 verbatim
+end Classes

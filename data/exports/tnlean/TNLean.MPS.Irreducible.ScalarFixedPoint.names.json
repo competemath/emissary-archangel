@@ -1,0 +1,1 @@
+{"names":["MPSTensor.fixed_eq_scalar_of_isIrreducibleTensor_unital"],"modules":["TNLean.MPS.Irreducible.ScalarFixedPoint"],"moduleOf":{"MPSTensor.fixed_eq_scalar_of_isIrreducibleTensor_unital":"TNLean.MPS.Irreducible.ScalarFixedPoint"},"deps":{"MPSTensor.fixed_eq_scalar_of_isIrreducibleTensor_unital":[]}}

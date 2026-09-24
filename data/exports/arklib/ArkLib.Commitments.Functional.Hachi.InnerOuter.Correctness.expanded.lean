@@ -1,0 +1,284 @@
+/-
+Copyright (c) 2024-2026 ArkLib Contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Tobias Rothmann
+-/
+module
+
+public import ArkLib.Commitments.Functional.Hachi.InnerOuter.Scheme
+public import ArkLib.Commitments.Ordinary.Ajtai.Simple.Correctness
+public import ArkLib.Commitments.Functional.Hachi.Gadget.Norms
+
+
+-- @@ L12-50 verbatim
+/-!
+# Correctness of the Inner-Outer Ajtai Commitment
+
+Perfect correctness for lawful gadget decompositions: if the message and inner gadget
+decompositions invert their gadget matrices, an honest commitment always verifies.
+
+The honest opening pairs the committer's decompositions with the trivial challenge `cᵢ = 1`,
+under which the weak verifier `verify_weak` (Hachi's relaxed opening check, see
+`InnerOuter.Scheme`) collapses to the ordinary honest check. Correctness therefore splits into
+the structural gadget relations, which follow from lawfulness alone over any field, and the weak
+verifier's shortness side conditions, which Hachi's balanced base-`b` digit decomposition of
+`ZMod q` satisfies via the centered norm bounds of `Gadget/Norms`.
+
+## Main results
+
+Block-level facts about the honest decompositions `generateDecomps`, over any field `R`:
+
+* `generateDecomps_derivedMessage`: the derived message recovers the message, `G · sᵢ = mᵢ`.
+* `generateDecomps_inner_eq`: the inner gadget relation `G · t̂ᵢ = A sᵢ` holds.
+
+Perfect correctness of the bundled `commitmentScheme`, over `R = ZMod q` (where the norms live):
+
+* `perfectlyCorrect_of_lawful`: for any lawful decompositions, assuming the trivial challenge is
+  admissible (`0 < ‖1‖₁ ≤ κ`) and the honest decompositions meet the shortness bounds
+  (`‖sᵢ‖₂² ≤ βSq`, `‖t̂‖∞ ≤ γ`).
+* `perfectlyCorrect_of_digits`: for an arbitrary `DigitDecomposition`; lawfulness is
+  discharged by `gadgetDecompose_lawful`, the shortness bounds remain hypotheses.
+* `perfectlyCorrect`: unconditional, for the concrete decomposition
+  `balancedZmodDigitDecomposition` (the Hachi gadget inverse `G⁻¹`, [NOZ26] §2.1), with
+  `βSq := (mr·md)·(deg φ)·⌊b/2⌋²` and `γ := ⌊b/2⌋` discharged by `Gadget/Norms`, under only the
+  digit-reconstruction hypotheses (`1 < b`, `q ≤ b^digits`, `1 ≤ deg φ`), `1 ≤ κ`, and the
+  no-wraparound condition `b ≤ q/2`.
+
+## References
+
+* [Nguyen, N. K., and Seiler, G., *Greyhound: Fast Polynomial Commitments from Lattices*][NS24]
+* [Nguyen, N. K., O'Rourke, G., and Zhang, J., *Hachi: Efficient Lattice-Based Multilinear
+    Polynomial Commitments over Extension Fields*][NOZ26]
+-/
+
+
+-- @@ L52-52 verbatim
+@[expose] public section
+
+
+-- @@ L54-55 verbatim
+open OracleComp CommitmentScheme CompPoly ArkLib.Lattices ArkLib.Lattices.CyclotomicModulus
+  ArkLib.Lattices.Ajtai
+
+
+-- @@ L57-57 verbatim
+namespace ArkLib.Lattices.Ajtai.InnerOuter
+
+
+-- @@ L59-59 verbatim
+variable {R : Type} [Field R] [BEq R] [LawfulBEq R] (Φ : CyclotomicModulus R) [IsCyclotomic Φ]
+
+-- @@ L60-60 verbatim
+variable {innerRows messageRows messageDigits outerRows blocks innerDigits : Nat}
+
+-- @@ L61-61 verbatim
+variable [DecidableEq (PolyVec (Rq Φ) messageRows)]
+
+-- @@ L62-62 verbatim
+variable [DecidableEq (PolyVec (Rq Φ) innerRows)]
+
+
+-- @@ L64-72 verbatim
+omit [DecidableEq (PolyVec (Rq Φ) messageRows)] [DecidableEq (PolyVec (Rq Φ) innerRows)] in
+/-- Honest message decompositions recover the message: `G · sᵢ = mᵢ` (`derivedMessage = m`). -/
+theorem generateDecomps_derivedMessage (base : R)
+    (decomp : Decomposition Φ messageRows messageDigits innerRows innerDigits)
+    (hMessageDecomp : IsLawfulGadgetDecomposition Φ base decomp.message)
+    (pp : PublicParams Φ innerRows messageRows messageDigits outerRows blocks innerDigits)
+    (m : Message Φ messageRows blocks) (i : Fin blocks) :
+    derivedMessage Φ base (generateDecomps Φ decomp pp m) i = m i := by
+  simpa [derivedMessage, Simple.commit, gadgetMul, generateDecomps] using hMessageDecomp (m i)
+
+
+-- @@ L74-85 verbatim
+omit [DecidableEq (PolyVec (Rq Φ) messageRows)] [DecidableEq (PolyVec (Rq Φ) innerRows)] in
+/-- Honest inner decompositions satisfy the inner gadget relation `G · t̂ᵢ = A sᵢ`. -/
+theorem generateDecomps_inner_eq (base : R)
+    (decomp : Decomposition Φ messageRows messageDigits innerRows innerDigits)
+    (hInnerDecomp : IsLawfulGadgetDecomposition Φ base decomp.inner)
+    (pp : PublicParams Φ innerRows messageRows messageDigits outerRows blocks innerDigits)
+    (m : Message Φ messageRows blocks) (i : Fin blocks) :
+    Simple.commit Φ (gadgetMatrix Φ base innerRows innerDigits)
+        ((generateDecomps Φ decomp pp m).innerDecomp i) =
+      Simple.commit Φ pp.innerMatrix ((generateDecomps Φ decomp pp m).message i) := by
+  simpa [Simple.commit, gadgetMul, generateDecomps] using
+    hInnerDecomp (Simple.commit Φ pp.innerMatrix (decomp.message (m i)))
+
+
+-- @@ L87-87 verbatim
+end ArkLib.Lattices.Ajtai.InnerOuter
+
+
+-- @@ L89-94 verbatim
+/-! ## Concrete instantiation over `ZMod q`
+
+Hachi's balanced base-`b` gadget decomposition `balancedZmodDigitDecomposition` instantiates the
+inner-outer commitment over `R = ZMod q`, giving perfect correctness whenever `1 < b`, every
+residue fits in the chosen digit count (`q ≤ b ^ digits`), `1 ≤ deg φ`, and the digits do not wrap
+(`b ≤ q/2`). -/
+
+
+-- @@ L96-96 verbatim
+namespace ArkLib.Lattices.Ajtai.InnerOuter
+
+
+-- @@ L98-98 verbatim
+section ZMod
+
+
+-- @@ L100-101 verbatim
+variable {q : ℕ} [NeZero q] [Fact (Nat.Prime q)] [BEq (ZMod q)] [LawfulBEq (ZMod q)]
+  (Φ : CyclotomicModulus (ZMod q)) [IsCyclotomic Φ]
+
+-- @@ L102-102 verbatim
+variable {innerRows messageRows messageDigits outerRows blocks innerDigits : Nat}
+
+-- @@ L103-105 verbatim
+variable
+  [SampleableType (Simple.PublicParams Φ innerRows (messageRows * messageDigits))]
+  [SampleableType (Simple.PublicParams Φ outerRows (blocks * (innerRows * innerDigits)))]
+
+
+-- @@ L107-156 verbatim
+omit [NeZero q] in
+/-- **Perfect correctness of the inner-outer Ajtai commitment for lawful decompositions.**
+
+The honest opening uses the trivial challenge `cᵢ = 1`, under which `verify_weak` reduces to the
+ordinary honest check. Correctness therefore needs, beyond gadget lawfulness:
+* the trivial challenge is an admissible challenge: `0 < ‖1‖₁` and `‖1‖₁ ≤ κ`;
+* each honest message decomposition is `ℓ₂²`-short: `‖sᵢ‖₂² ≤ βSq`;
+* the flattened honest inner decomposition is `ℓ∞`-short: `‖t̂‖∞ ≤ γ`.
+
+The gadget relations (`derivedMessage = m`, inner `A sᵢ = G t̂ᵢ`, outer commit) hold structurally
+from lawfulness; the bounds are exactly the weak-verifier side conditions for the honest case. -/
+theorem perfectlyCorrect_of_lawful (base : ZMod q) (βSq γ κ : Nat)
+    (decomp : Decomposition Φ messageRows messageDigits innerRows innerDigits)
+    (hMessageDecomp : IsLawfulGadgetDecomposition Φ base decomp.message)
+    (hInnerDecomp : IsLawfulGadgetDecomposition Φ base decomp.inner)
+    (hκpos : 0 < ‖(1 : Rq Φ)‖₁)
+    (hκle : ‖(1 : Rq Φ)‖₁ ≤ κ)
+    (hβ : ∀ (pp : PublicParams Φ innerRows messageRows messageDigits outerRows blocks innerDigits)
+            (m : Message Φ messageRows blocks) (i : Fin blocks),
+            ‖(generateDecomps Φ decomp pp m).message i‖₂² ≤ βSq)
+    (hγ : ∀ (pp : PublicParams Φ innerRows messageRows messageDigits outerRows blocks innerDigits)
+            (m : Message Φ messageRows blocks),
+            vecLInftyNorm Φ
+              (PolyVec.flattenBlocks (generateDecomps Φ decomp pp m).innerDecomp) ≤ γ) :
+    (commitmentScheme Φ (outerRows := outerRows) (blocks := blocks) base βSq γ κ
+      decomp).PerfectlyCorrect := by
+  intro pp _ m cd hmem
+  simp only [commitmentScheme, support_pure, Set.mem_singleton_iff] at hmem
+  rcases hmem with rfl
+  simp only [commitmentScheme, Bool.and_eq_true]
+  refine ⟨?_, ?_⟩
+  · -- the claimed message is the derived message of every block
+    rw [List.all_eq_true]
+    intro i _
+    rw [decide_eq_true_eq]
+    exact generateDecomps_derivedMessage Φ base decomp hMessageDecomp pp m i
+  · -- the honest opening (challenge `cᵢ = 1`) passes weak verification
+    have hone : ∀ (v : PolyVec (Rq Φ) (messageRows * messageDigits)),
+        (1 : Rq Φ) •ᵥ v = v := fun v => by funext j; simp
+    simp only [verify_weak, Bool.and_eq_true]
+    refine ⟨⟨?_, ?_⟩, ?_⟩
+    · rw [List.all_eq_true]
+      intro i _
+      simp only [Bool.and_eq_true, decide_eq_true_eq]
+      refine ⟨⟨⟨hκpos, hκle⟩, ?_⟩, ?_⟩
+      · rw [hone]; exact hβ pp m i
+      · rw [Simple.verify_eq_true_iff]
+        exact generateDecomps_inner_eq Φ base decomp hInnerDecomp pp m i
+    · rw [decide_eq_true_eq]; exact hγ pp m
+    · rw [Simple.verify_eq_true_iff]; rfl
+
+
+-- @@ L158-183 verbatim
+omit [NeZero q] in
+/-- **Perfect correctness for genuine base-`b` (Hachi gadget `G⁻¹`) decompositions**, modulo the
+weak-verifier shortness side conditions. Instantiates `perfectlyCorrect_of_lawful` with
+`gadgetDecompose` (lawful by `gadgetDecompose_lawful`), discharging gadget lawfulness; the
+trivial-challenge admissibility (`hκpos`, `hκle`) and the honest shortness bounds (`hβ`, `hγ`)
+remain explicit. For the concrete balanced decomposition they are discharged unconditionally by
+`perfectlyCorrect` below (via `Rq.l1Norm_one` and the `Gadget/Norms` bounds). -/
+theorem perfectlyCorrect_of_digits (base : ZMod q) (βSq γ κ : Nat)
+    (hdeg : 1 ≤ Φ.φ.natDegree) (hmsg : 0 < messageDigits) (hinner : 0 < innerDigits)
+    (ddMsg : DigitDecomposition base messageDigits)
+    (ddInner : DigitDecomposition base innerDigits)
+    (hκpos : 0 < ‖(1 : Rq Φ)‖₁) (hκle : ‖(1 : Rq Φ)‖₁ ≤ κ)
+    (hβ : ∀ (pp : PublicParams Φ innerRows messageRows messageDigits outerRows blocks innerDigits)
+            (m : Message Φ messageRows blocks) (i : Fin blocks),
+            ‖(generateDecomps Φ (Decomposition.ofDigits Φ ddMsg ddInner) pp m).message i‖₂² ≤ βSq)
+    (hγ : ∀ (pp : PublicParams Φ innerRows messageRows messageDigits outerRows blocks innerDigits)
+            (m : Message Φ messageRows blocks),
+            vecLInftyNorm Φ (PolyVec.flattenBlocks
+              (generateDecomps Φ (Decomposition.ofDigits Φ ddMsg ddInner) pp m).innerDecomp) ≤ γ) :
+    (commitmentScheme Φ (messageRows := messageRows) (innerRows := innerRows)
+      (outerRows := outerRows) (blocks := blocks) base βSq γ κ
+      (Decomposition.ofDigits Φ ddMsg ddInner)).PerfectlyCorrect :=
+  perfectlyCorrect_of_lawful Φ base βSq γ κ (Decomposition.ofDigits Φ ddMsg ddInner)
+    (gadgetDecompose_lawful Φ hmsg hdeg ddMsg)
+    (gadgetDecompose_lawful Φ hinner hdeg ddInner)
+    hκpos hκle hβ hγ
+
+
+-- @@ L185-212 verbatim
+/-- **Unconditional perfect correctness with Hachi's balanced decomposition.** Both message and
+inner decompositions are the balanced base-`b` digit decomposition of `ZMod q`
+(`balancedZmodDigitDecomposition`, the Hachi gadget inverse `G⁻¹` of [NOZ26] §2.1, whose digits lie
+in the box `S_b`). All weak-verifier side conditions are discharged automatically: the trivial
+challenge `cᵢ = 1` is short (`Rq.l1Norm_one`), and the digit decompositions are short
+(`Gadget/Norms`, through `balancedZmodDigit_natAbs_le`), with `βSq := (mr·md)·(deg φ)·⌊b/2⌋²` and
+`γ := ⌊b/2⌋`. The hypotheses are exactly those for reconstruction (`1 < b`, `q ≤ bᵈⁱᵍⁱᵗˢ`,
+`1 ≤ deg φ`, positive digit counts), plus `1 ≤ κ` and the no-wraparound condition `b ≤ q/2` for
+the centered digit range. -/
+theorem perfectlyCorrect (b κ : ℕ) (hb : 1 < b) (hκ : 1 ≤ κ) (hbq : b ≤ q / 2)
+    (hdeg : 1 ≤ Φ.φ.natDegree) (hmsg : 0 < messageDigits) (hinner : 0 < innerDigits)
+    (hqm : q ≤ b ^ messageDigits) (hqi : q ≤ b ^ innerDigits) :
+    (commitmentScheme Φ (messageRows := messageRows) (innerRows := innerRows)
+        (outerRows := outerRows) (blocks := blocks) (b : ZMod q)
+        (messageRows * messageDigits * (Φ.φ.natDegree * (b / 2) ^ 2))
+        (b / 2) κ
+        (Decomposition.ofDigits Φ (balancedZmodDigitDecomposition b messageDigits hb hqm)
+          (balancedZmodDigitDecomposition b innerDigits hb hqi))).PerfectlyCorrect := by
+  refine perfectlyCorrect_of_digits Φ (b : ZMod q) _ _ κ hdeg hmsg hinner _ _ ?_ ?_ ?_ ?_
+  · rw [Rq.l1Norm_one Φ hdeg]; norm_num
+  · rw [Rq.l1Norm_one Φ hdeg]; exact hκ
+  · intro pp m i
+    exact gadgetDecompose_vecL2NormSq_le_of_digit_le Φ _
+      (fun c e => balancedZmodDigit_natAbs_le hb hqm hbq c e) (m i)
+  · intro pp m
+    exact vecLInftyNorm_flattenBlocks_le Φ _ (fun i =>
+      gadgetDecompose_vecLInftyNorm_le_of_digit_le Φ _
+        (fun c e => balancedZmodDigit_natAbs_le hb hqi hbq c e) _)
+
+
+-- @@ L214-223 verbatim
+/-! ## The honest opening as a weak opening
+
+`commitmentScheme`'s `commit` returns the honest decompositions paired with the trivial challenge
+`cᵢ = 1`; `honestOpening` names that pair, and `perfectlyCorrect` above says it passes `verify`.
+
+The *structured* repackaging as a `WeakBinding.VerifiedOpening` — the form Hachi §4.2's `relIn`
+consumes — cannot live here, because `InnerOuter/Security.lean` (where `VerifiedOpening` is defined)
+imports this file. It is `verifiedOpening_honestOpening` in `Commitment.lean`, the honest
+commitment layer, together with the balanced-box membership and the `relInBox` packaging. The three
+notions stay separate there: weak-opening validity, evaluation consistency, and box membership. -/
+
+
+-- @@ L225-232 verbatim
+/-- The honest opening of `commitmentScheme.commit`: the honest decompositions
+(`generateDecomps`) with the trivial challenge `cᵢ = 1`. -/
+def honestOpening (decomp : Decomposition Φ messageRows messageDigits innerRows innerDigits)
+    (pp : PublicParams Φ innerRows messageRows messageDigits outerRows blocks innerDigits)
+    (m : Message Φ messageRows blocks) :
+    Opening Φ innerRows messageRows messageDigits blocks innerDigits where
+  toDecomp := generateDecomps Φ decomp pp m
+  challenge := fun _ => 1
+
+
+-- @@ L234-234 verbatim
+end ZMod
+
+
+-- @@ L236-236 verbatim
+end ArkLib.Lattices.Ajtai.InnerOuter

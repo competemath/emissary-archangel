@@ -1,0 +1,245 @@
+/-
+Copyright (c) 2026 TNLean contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: TNLean contributors
+-/
+import TNLean.MPS.Core.RepeatedWord
+
+
+-- @@ L8-15 verbatim
+/-!
+# Scratch counterexample for naive block separation
+
+This file records a concrete counterexample to the naive implication from the
+weighted MPV cancellation identity to per-block `SameMPV`. It is imported by
+neither `TNLean` nor `TNLean.Experimental`; it is retained only as documentary
+scratch material explaining why the naive separation statement is false.
+-/
+
+
+-- @@ L17-17 verbatim
+open scoped Matrix BigOperators
+
+
+
+-- @@ L20-20 verbatim
+namespace MPSTensor
+
+
+-- @@ L22-23 verbatim
+/-- A 1×1 matrix with entry `z`. -/
+def mat1 (z : ℂ) : Matrix (Fin 1) (Fin 1) ℂ := fun _ _ => z
+
+
+-- @@ L25-28 verbatim
+@[simp] lemma mat1_apply (z : ℂ) (i j : Fin 1) : mat1 z i j = z := rfl
+
+-- We take `r = 2`, `d = 1`, and 1-dimensional blocks. Then `mpv` depends only on the length `N`.
+-- We can arrange cancellation in the weighted sum without having per-block equality.
+
+-- @@ L29-29 verbatim
+section
+
+
+-- @@ L31-31 verbatim
+/-! ### Basic calculations for `mat1` -/
+
+
+-- @@ L33-34 verbatim
+@[simp] lemma mat1_add (a b : ℂ) : mat1 (a + b) = mat1 a + mat1 b := by
+  ext i j; simp [mat1]
+
+
+-- @@ L36-37 verbatim
+@[simp] lemma mat1_smul (c a : ℂ) : mat1 (c • a) = c • mat1 a := by
+  ext i j; simp [mat1]
+
+
+-- @@ L39-42 verbatim
+@[simp] lemma mat1_mul (a b : ℂ) : mat1 a * mat1 b = mat1 (a * b) := by
+  ext i j
+  -- `Fin 1` has a unique element, so matrix multiplication is a 1-term sum.
+  simp [mat1, Matrix.mul_apply]
+
+
+-- @@ L44-50 verbatim
+@[simp] lemma mat1_one : mat1 (1 : ℂ) = (1 : Matrix (Fin 1) (Fin 1) ℂ) := by
+  ext i j
+  -- There is only one index, so we're on the diagonal.
+  have hi : i = 0 := Fin.eq_zero i
+  have hj : j = 0 := Fin.eq_zero j
+  subst hi; subst hj
+  simp [mat1]
+
+
+-- @@ L52-56 verbatim
+@[simp] lemma mat1_pow (a : ℂ) : ∀ n : ℕ, (mat1 a) ^ n = mat1 (a ^ n)
+  | 0 => by
+      simp [pow_zero, mat1_one]
+  | n + 1 => by
+      simp [pow_succ, mat1_pow a n]
+
+
+-- @@ L58-59 verbatim
+@[simp] lemma trace_mat1 (a : ℂ) : Matrix.trace (mat1 a) = a := by
+  simp [Matrix.trace_fin_one, mat1]
+
+
+-- @@ L61-62 verbatim
+@[simp] lemma trace_mat1_pow (a : ℂ) (n : ℕ) : Matrix.trace ((mat1 a) ^ n) = a ^ n := by
+  simp [mat1_pow, trace_mat1]
+
+
+-- @@ L64-64 verbatim
+/-! ### The counterexample -/
+
+
+-- @@ L66-69 verbatim
+/-- `μ` for the counterexample: `μ 0 = 1`, `μ 1 = 2`. -/
+noncomputable def μEx : Fin 2 → ℂ
+  | 0 => 1
+  | 1 => 2
+
+
+-- @@ L71-71 verbatim
+noncomputable def dimEx : Fin 2 → ℕ := fun _ => 1
+
+
+-- @@ L73-76 verbatim
+/-- Blocks `A₀ = 1`, `A₁ = 3/2`. -/
+noncomputable def AEx : (k : Fin 2) → MPSTensor 1 (dimEx k)
+  | 0 => fun _ => mat1 1
+  | 1 => fun _ => mat1 ((3 : ℂ) / 2)
+
+
+-- @@ L78-88 verbatim
+/-- Blocks `B₀ = 3`, `B₁ = 1/2`. -/
+noncomputable def BEx : (k : Fin 2) → MPSTensor 1 (dimEx k)
+  | 0 => fun _ => mat1 3
+  | 1 => fun _ => mat1 ((1 : ℂ) / 2)
+
+lemma μEx_injective : Function.Injective μEx := by
+  intro a b hab
+  fin_cases a <;> fin_cases b <;> simp [μEx] at hab ⊢
+
+lemma μEx_ne_zero : ∀ k, μEx k ≠ 0 := by
+  intro k; fin_cases k <;> simp [μEx]
+
+
+-- @@ L90-104 verbatim
+/-- Each `AEx k` is injective in the sense `span (range _) = ⊤`.
+
+This holds because for `D = 1` the matrix algebra is 1-dimensional and is spanned by any nonzero
+matrix. -/
+lemma span_mat1_eq_top (a : ℂ) (ha : a ≠ 0) : (ℂ ∙ mat1 a) = ⊤ := by
+  -- Use the standard characterisation of the span of a singleton.
+  refine (Submodule.span_singleton_eq_top_iff ℂ (mat1 a)).2 ?_
+  intro v
+  refine ⟨v 0 0 / a, ?_⟩
+  ext i j
+  have hi : i = 0 := Fin.eq_zero i
+  have hj : j = 0 := Fin.eq_zero j
+  subst hi; subst hj
+  -- Now it’s a scalar identity.
+  simp [mat1, div_eq_mul_inv, ha]
+
+
+-- @@ L106-124 verbatim
+/-- A one-letter family whose single matrix spans is injective: the range of a
+constant family is the singleton containing that matrix. -/
+private lemma isInjective_of_singleton_span {M : Matrix (Fin 1) (Fin 1) ℂ}
+    (h : (ℂ ∙ M) = ⊤) : Kraus.IsInjective (fun _ : Fin 1 => M) := by
+  unfold Kraus.IsInjective
+  rw [Set.range_const]
+  exact h
+
+lemma AEx_isInjective : ∀ k, Kraus.IsInjective (AEx k) := by
+  classical
+  intro k
+  fin_cases k
+  · -- k = 0
+    exact isInjective_of_singleton_span (span_mat1_eq_top 1 one_ne_zero)
+  · -- k = 1
+    -- Here `3/2 ≠ 0`.
+    have hne : ((3 : ℂ) / 2) ≠ 0 := by
+      norm_num
+    exact isInjective_of_singleton_span (span_mat1_eq_top (3 / 2) hne)
+
+
+-- @@ L126-162 verbatim
+/-- The weighted MPV sum cancels for all system sizes (here `d = 1`, so there is only one σ at each
+size). -/
+lemma hδEx : ∀ N (σ : Fin N → Fin 1),
+    ∑ k : Fin 2, (μEx k) ^ N • (mpv (AEx k) σ - mpv (BEx k) σ) = 0 := by
+  classical
+  intro N σ
+  -- `Fin 1` is subsingleton, so `σ` is the constant-0 configuration.
+  have hσ : σ = (fun _ => (0 : Fin 1)) := by
+    funext i
+    exact Fin.eq_zero (σ i)
+  subst hσ
+  have h23 : (2 : ℂ) ^ N * ((3 : ℂ) / 2) ^ N = (3 : ℂ) ^ N := by
+    calc
+      (2 : ℂ) ^ N * ((3 : ℂ) / 2) ^ N = ((2 : ℂ) * ((3 : ℂ) / 2)) ^ N := by
+        exact (mul_pow (2 : ℂ) ((3 : ℂ) / 2) N).symm
+      _ = (3 : ℂ) ^ N := by
+        have hbase : (2 : ℂ) * ((3 : ℂ) / 2) = (3 : ℂ) := by
+          norm_num
+        simp [hbase]
+  have h21 : (2 : ℂ) ^ N * ((1 : ℂ) / 2) ^ N = (1 : ℂ) ^ N := by
+    calc
+      (2 : ℂ) ^ N * ((1 : ℂ) / 2) ^ N = ((2 : ℂ) * ((1 : ℂ) / 2)) ^ N := by
+        exact (mul_pow (2 : ℂ) ((1 : ℂ) / 2) N).symm
+      _ = (1 : ℂ) ^ N := by
+        simp
+  have hgoal :
+      (1 : ℂ) ^ N * ((1 : ℂ) ^ N - (3 : ℂ) ^ N) +
+        (2 : ℂ) ^ N * (((3 : ℂ) / 2) ^ N - ((1 : ℂ) / 2) ^ N) = 0 := by
+    calc
+      (1 : ℂ) ^ N * ((1 : ℂ) ^ N - (3 : ℂ) ^ N) +
+          (2 : ℂ) ^ N * (((3 : ℂ) / 2) ^ N - ((1 : ℂ) / 2) ^ N)
+          = 1 - (3 : ℂ) ^ N + (3 : ℂ) ^ N - 1 := by
+              simp [mul_sub, h23]
+      _ = 0 := by
+        ring
+  simpa [AEx, BEx, μEx, dimEx, mpv_const_eq_trace_pow, evalWord_replicate,
+    mat1_pow, trace_mat1_pow, smul_eq_mul, h21, h23] using hgoal
+
+
+-- @@ L164-178 verbatim
+/-- The per-block MPVs are *not* equal: block 0 differs at `N = 1`. -/
+lemma not_perBlock_sameMPV : ¬ (∀ k : Fin 2, SameMPV (AEx k) (BEx k)) := by
+  intro h
+  have h0 := h 0 1 (fun _ => (0 : Fin 1))
+  -- Compute the two MPVs explicitly.
+  -- For `N = 1`, `mpv` is just the trace of the single-site matrix.
+  have h13 : (1 : ℂ) = 3 := by
+    -- `N = 1` forces `trace(mat1 1) = trace(mat1 3)`, i.e. `1 = 3`.
+    -- The left-hand side simplifies to the trace of the identity, i.e. `D = 1`.
+    have h13' := h0
+    simp [AEx, BEx, dimEx] at h13'
+  -- Contradiction.
+  have : False := by
+    norm_num at h13
+  exact this
+
+
+-- @@ L180-188 verbatim
+/-- Summary: there exist data satisfying the hypotheses of the naive separation statement, but not
+its conclusion. -/
+theorem counterexample_block_powsum_separation :
+    (Function.Injective μEx) ∧ (∀ k, μEx k ≠ 0) ∧
+    (∀ k, Kraus.IsInjective (AEx k)) ∧
+    (∀ N (σ : Fin N → Fin 1),
+      ∑ k : Fin 2, (μEx k) ^ N • (mpv (AEx k) σ - mpv (BEx k) σ) = 0) ∧
+    ¬ (∀ k : Fin 2, SameMPV (AEx k) (BEx k)) := by
+  refine ⟨μEx_injective, μEx_ne_zero, AEx_isInjective, hδEx, not_perBlock_sameMPV⟩
+
+
+
+-- @@ L191-191 verbatim
+end
+
+
+-- @@ L193-193 verbatim
+end MPSTensor

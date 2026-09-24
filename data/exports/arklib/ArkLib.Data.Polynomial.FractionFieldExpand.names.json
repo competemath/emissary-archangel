@@ -1,0 +1,1 @@
+{"names":["Polynomial.exists_fractionField_separable_expand"],"modules":["ArkLib.Data.Polynomial.FractionFieldExpand"],"moduleOf":{"Polynomial.exists_fractionField_separable_expand":"ArkLib.Data.Polynomial.FractionFieldExpand"},"deps":{"Polynomial.exists_fractionField_separable_expand":[]}}

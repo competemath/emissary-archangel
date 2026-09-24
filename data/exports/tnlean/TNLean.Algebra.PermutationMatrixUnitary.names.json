@@ -1,0 +1,1 @@
+{"names":["Equiv.Perm.permMatrix_mem_unitaryGroup"],"modules":["TNLean.Algebra.PermutationMatrixUnitary"],"moduleOf":{"Equiv.Perm.permMatrix_mem_unitaryGroup":"TNLean.Algebra.PermutationMatrixUnitary"},"deps":{"Equiv.Perm.permMatrix_mem_unitaryGroup":[]}}

@@ -1,0 +1,270 @@
+/-
+Copyright (c) 2024-2025 ArkLib Contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: František Silváši, Ilia Vlasov
+-/
+module
+
+public import Init.Data.List.FinRange
+public import Mathlib.Algebra.Field.Basic
+public import Mathlib.Algebra.Polynomial.Basic
+public import Mathlib.Algebra.Polynomial.Degree.Defs
+public import Mathlib.Algebra.Polynomial.FieldDivision
+public import Mathlib.Data.Finset.Insert
+public import Mathlib.Data.Fintype.Card
+public import Mathlib.Data.Matrix.Mul
+
+public import ArkLib.Data.CodingTheory.Basic.DecodingRadius
+public import ArkLib.Data.CodingTheory.Basic.Distance
+public import ArkLib.Data.CodingTheory.Basic.LinearCode
+public import ArkLib.Data.CodingTheory.Basic.RelativeDistance
+public import ArkLib.Data.Fin.Lift
+
+-- @@ L22-22 verbatim
+/-! # Berlekamp-Welch Error-Locator Polynomials -/
+
+
+-- @@ L24-24 verbatim
+@[expose] public section
+
+
+
+-- @@ L27-27 verbatim
+namespace BerlekampWelch
+
+
+-- @@ L29-30 verbatim
+variable {F : Type} [Field F]
+         {m n : ℕ} {p : Polynomial F}
+
+-- @@ L31-31 verbatim
+variable [DecidableEq F]
+
+
+-- @@ L33-33 verbatim
+section ElocPoly
+
+
+-- @@ L35-35 verbatim
+open Polynomial
+
+
+-- @@ L37-41 verbatim
+protected noncomputable def ElocPoly (n : ℕ) (ωs f : ℕ → F) (p : Polynomial F) : Polynomial F :=
+  List.prod <| (List.range n).map fun i =>
+    if f i = p.eval (ωs i)
+    then 1
+    else X - C (ωs i)
+
+
+-- @@ L43-43 verbatim
+section
+
+
+-- @@ L45-45 verbatim
+open BerlekampWelch (ElocPoly)
+
+
+-- @@ L47-47 verbatim
+variable {ωs f : ℕ → F}
+
+
+-- @@ L49-50 verbatim
+@[simp]
+protected lemma elocPoly_zero : ElocPoly 0 ωs f p = 1 := rfl
+
+
+-- @@ L52-55 verbatim
+@[simp]
+protected lemma elocPoly_one :
+    ElocPoly 1 ωs f p = if f 0 ≠ p.eval (ωs 0) then X - (C (ωs 0)) else 1 := by
+  simp [ElocPoly, List.range_succ]
+
+
+-- @@ L57-65 verbatim
+@[simp]
+protected lemma elocPoly_two :
+    ElocPoly 2 ωs f p =
+  if f 1 = eval (ωs 1) p
+  then if f 0 = eval (ωs 0) p then 1
+       else X - C (ωs 0)
+  else if f 0 = eval (ωs 0) p then X - C (ωs 1)
+       else (X - C (ωs 0)) * (X - C (ωs 1)) := by
+  simp [ElocPoly, List.range_succ]
+
+
+-- @@ L67-76 verbatim
+@[simp]
+protected lemma elocPoly_succ :
+    ElocPoly (n + 1) ωs f p =
+  ElocPoly n ωs f p *
+    if f n = p.eval (ωs n)
+    then 1
+    else X - C (ωs n) := by
+  conv_lhs => unfold ElocPoly
+  rw [List.range_succ, List.map_append, List.prod_append, ←ElocPoly.eq_def]
+  simp
+
+
+-- @@ L78-89 verbatim
+open BerlekampWelch (elocPoly_succ) in
+protected lemma roots_of_eloc_poly {x : F}
+    (h : (ElocPoly n ωs f p).eval x = 0) :
+  ∃ i, i < n ∧ f i ≠ p.eval (ωs i) := by
+  induction n generalizing x with
+  | zero => aesop
+  | succ n ih =>
+    rw [elocPoly_succ, Polynomial.eval_mul, mul_eq_zero] at h
+    rcases h with heval | heval
+    · obtain ⟨i, _⟩ := ih heval
+      aesop (add safe [(by existsi i), (by omega)])
+    · aesop (add safe (by use n))
+
+
+-- @@ L91-99 verbatim
+protected lemma errors_are_roots_of_elocPoly {i : ℕ}
+    (hi : i < n) (h : f i ≠ p.eval (ωs i)) : (ElocPoly n ωs f p).eval (ωs i) = 0 := by
+  induction n with
+  | zero => aesop
+  | succ n ih =>
+    by_cases i = n
+    · aesop
+    · have : i < n := by omega
+      aesop
+
+
+-- @@ L101-105 verbatim
+@[simp]
+protected lemma elocPoly_ne_zero : ElocPoly n ωs f p ≠ 0 := by
+  induction n with
+  | zero => simp
+  | succ n hn => aesop (add simp [sub_eq_zero]) (add safe forward (Polynomial.X_ne_C (ωs n)))
+
+
+-- @@ L107-111 verbatim
+@[simp]
+protected lemma elocPoly_leading_coeff_one : (ElocPoly n ωs f p).leadingCoeff = 1 := by
+  induction n with
+  | zero => simp
+  | succ n _ => aesop
+
+
+-- @@ L113-113 verbatim
+section
+
+
+-- @@ L115-115 verbatim
+open Fin
+
+
+-- @@ L117-127 verbatim
+protected lemma elocPoly_congr {ωs' f' : ℕ → F}
+    (h₁ : ∀ {m}, m < n → ωs m = ωs' m) (h₂ : ∀ {m}, m < n → f m = f' m) :
+  ElocPoly n ωs f = ElocPoly n ωs' f' := by
+  ext p
+  unfold ElocPoly
+  rw [
+    ←List.pmap_eq_map (p := (·<n)) (H := by simp),
+    ←List.pmap_eq_map (p := (·<n)) (H := by simp),
+    List.pmap_eq_map_attach, List.pmap_eq_map_attach
+  ]
+  aesop (add simp List.mem_range)
+
+
+-- @@ L129-129 verbatim
+open BerlekampWelch (elocPoly_congr)
+
+
+-- @@ L131-132 verbatim
+noncomputable def ElocPolyF (ωs f : Fin n → F) (p : Polynomial F) : Polynomial F :=
+  ElocPoly n (liftF ωs) (liftF f) p
+
+
+-- @@ L134-137 verbatim
+@[simp]
+protected lemma elocPolyF_eq_elocPoly :
+    ElocPolyF (n := n) (liftF' ωs) (liftF' f) = ElocPoly n ωs f :=
+  elocPoly_congr liftF_liftF'_of_lt liftF_liftF'_of_lt
+
+
+-- @@ L139-141 verbatim
+@[simp]
+protected lemma elocPolyF_eq_elocPoly' {ωs f : Fin n → F} :
+    ElocPolyF ωs f p = ElocPoly n (liftF ωs) (liftF f) p := rfl
+
+
+-- @@ L143-146 verbatim
+protected lemma elocPoly_leftF_leftF_eq_contract {ωs f : Fin m → F} :
+    ElocPoly n (liftF ωs) (liftF f) =
+  ElocPoly n (contract n ωs) (contract n f) := by
+  rw [elocPoly_congr contract_eq_liftF_of_lt contract_eq_liftF_of_lt]
+
+
+-- @@ L148-150 verbatim
+protected lemma elocPolyF_ne_zero {ωs f : Fin m → F} :
+    ElocPolyF ωs f p ≠ 0 := by
+  aesop (add simp [BerlekampWelch.elocPoly_ne_zero])
+
+
+-- @@ L152-158 verbatim
+protected lemma errors_are_roots_of_elocPolyF {i : Fin n} {ωs f : Fin n → F}
+    (h : f i ≠ p.eval (ωs i)) : (ElocPolyF ωs f p).eval (ωs i) = 0 := by
+  rw [←liftF_eval (f := ωs)]
+  aesop (config := {warnOnNonterminal := false})
+  rw [BerlekampWelch.errors_are_roots_of_elocPoly
+    (i.isLt)
+    (by aesop (add simp [liftF_eval]))]
+
+
+-- @@ L160-163 verbatim
+@[simp]
+protected lemma elocPolyF_leading_coeff_one {ωs f : Fin n → F} :
+    (ElocPolyF ωs f p).leadingCoeff = 1 := by
+  aesop
+
+
+-- @@ L165-167 verbatim
+open BerlekampWelch
+  (elocPolyF_eq_elocPoly' elocPoly_leftF_leftF_eq_contract
+   elocPoly_zero elocPoly_succ)
+
+-- @@ L168-168 verbatim
+open Fin
+
+
+-- @@ L170-188 verbatim
+@[simp]
+lemma elocPolyF_deg {ωs f : Fin n → F} : (ElocPolyF ωs f p).natDegree = Δ₀(f, p.eval ∘ ωs) := by
+  rw [elocPolyF_eq_elocPoly']
+  induction n with
+  | zero =>
+    simp only [elocPoly_zero, natDegree_one, hamming_zero_eq_dist]
+    exact funext_iff.2 (Fin.elim0 ·)
+  | succ n ih =>
+    rw [
+      elocPoly_succ,
+      natDegree_mul (by simp)
+                    (by aesop (erase simp liftF_succ)
+                              (add simp [sub_eq_zero])
+                              (add safe forward (X_ne_C (liftF ωs n)))),
+      elocPoly_leftF_leftF_eq_contract
+    ]
+    aesop (config := {warnOnNonterminal := false}) (add simp [
+      hammingDist.eq_def, Finset.card_filter, Finset.sum_fin_eq_sum_range, Finset.sum_range_succ
+    ]) <;> (apply Finset.sum_congr rfl; aesop (add safe (by omega)))
+
+
+-- @@ L190-190 verbatim
+end
+
+
+-- @@ L192-192 verbatim
+end
+
+
+-- @@ L194-194 verbatim
+end ElocPoly
+
+
+-- @@ L196-196 verbatim
+end BerlekampWelch
