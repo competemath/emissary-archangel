@@ -945,7 +945,8 @@
       ],
       "licence": "Apache-2.0",
       "tentative": [
-        "tauceti-project.jsonl"
+        "tauceti-project-001.jsonl",
+        "tauceti-project-002.jsonl"
       ]
     },
     "tautology": {
@@ -1100,7 +1101,11 @@
       ],
       "licence": "Apache-2.0",
       "tentative": [
-        "lean-pool.jsonl"
+        "lean-pool-001.jsonl",
+        "lean-pool-002.jsonl",
+        "lean-pool-003.jsonl",
+        "lean-pool-004.jsonl",
+        "lean-pool-005.jsonl"
       ]
     },
     "merely-true": {
