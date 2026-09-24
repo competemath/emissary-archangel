@@ -945,7 +945,7 @@
       ],
       "licence": "Apache-2.0",
       "tentative": [
-        "tauceti.jsonl"
+        "tauceti-project.jsonl"
       ]
     },
     "tautology": {
