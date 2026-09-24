@@ -1,0 +1,143 @@
+import Clean.Gadgets.Xor.Xor32
+import Clean.Gadgets.BLAKE3.BLAKE3State
+import Clean.Specs.BLAKE3
+import Clean.Circuit.Provable
+import Clean.Utils.Tactics
+
+
+-- @@ L7-7 verbatim
+namespace Gadgets.BLAKE3.FinalStateUpdate
+
+-- @@ L8-8 verbatim
+variable {p : ℕ} [Fact p.Prime] [p_large_enough: Fact (p > 2^16 + 2^8)]
+
+-- @@ L9-9 verbatim
+instance : Fact (p > 512) := .mk (by linarith [p_large_enough.elim])
+
+
+-- @@ L11-11 verbatim
+open Specs.BLAKE3 (finalStateUpdate)
+
+
+-- @@ L13-16 verbatim
+structure Inputs (F : Type) where
+  state : BLAKE3State F
+  chaining_value : Vector (U32 F) 8
+deriving ProvableStruct
+
+
+-- @@ L18-39 verbatim
+def main (input : Var Inputs (F p)) : Circuit (F p) (Var BLAKE3State (F p)) := do
+  -- XOR first 8 words with last 8 words
+  let s0 ← Xor32.circuit ⟨input.state[0], input.state[8]⟩
+  let s1 ← Xor32.circuit ⟨input.state[1], input.state[9]⟩
+  let s2 ← Xor32.circuit ⟨input.state[2], input.state[10]⟩
+  let s3 ← Xor32.circuit ⟨input.state[3], input.state[11]⟩
+  let s4 ← Xor32.circuit ⟨input.state[4], input.state[12]⟩
+  let s5 ← Xor32.circuit ⟨input.state[5], input.state[13]⟩
+  let s6 ← Xor32.circuit ⟨input.state[6], input.state[14]⟩
+  let s7 ← Xor32.circuit ⟨input.state[7], input.state[15]⟩
+
+  -- XOR last 8 words with chaining value
+  let s8 ← Xor32.circuit ⟨input.chaining_value[0], input.state[8]⟩
+  let s9 ← Xor32.circuit ⟨input.chaining_value[1], input.state[9]⟩
+  let s10 ← Xor32.circuit ⟨input.chaining_value[2], input.state[10]⟩
+  let s11 ← Xor32.circuit ⟨input.chaining_value[3], input.state[11]⟩
+  let s12 ← Xor32.circuit ⟨input.chaining_value[4], input.state[12]⟩
+  let s13 ← Xor32.circuit ⟨input.chaining_value[5], input.state[13]⟩
+  let s14 ← Xor32.circuit ⟨input.chaining_value[6], input.state[14]⟩
+  let s15 ← Xor32.circuit ⟨input.chaining_value[7], input.state[15]⟩
+
+  return #v[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15]
+
+
+-- @@ L41-42 verbatim
+@[reducible] instance elaborated : ElaboratedCircuit (F p) Inputs BLAKE3State main := by
+  elaborate_circuit
+
+
+-- @@ L44-46 verbatim
+def Assumptions (input : Inputs (F p)) :=
+  let { state, chaining_value } := input
+  state.Normalized ∧ (∀ i : Fin 8, chaining_value[i].Normalized)
+
+
+-- @@ L48-50 verbatim
+def Spec (input : Inputs (F p)) (out : BLAKE3State (F p)) :=
+  let { state, chaining_value } := input
+  out.value = finalStateUpdate state.value (chaining_value.map U32.value) ∧ out.Normalized
+
+
+-- @@ L52-87 verbatim
+theorem soundness : Soundness (F p) main Assumptions Spec := by
+  circuit_proof_start [Xor32.circuit, Xor32.elaborated]
+
+  simp only [Xor32.Assumptions, getElem_eval_vector, h_input, Xor32.Spec, and_imp] at h_holds
+
+  ring_nf at h_holds
+
+  simp only [BLAKE3State.Normalized] at h_assumptions
+  obtain ⟨state_norm, chaining_value_norm⟩ := h_assumptions
+
+  obtain ⟨c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15⟩ := h_holds
+  specialize c0 (state_norm 0) (state_norm 8)
+  specialize c1 (state_norm 1) (state_norm 9)
+  specialize c2 (state_norm 2) (state_norm 10)
+  specialize c3 (state_norm 3) (state_norm 11)
+  specialize c4 (state_norm 4) (state_norm 12)
+  specialize c5 (state_norm 5) (state_norm 13)
+  specialize c6 (state_norm 6) (state_norm 14)
+  specialize c7 (state_norm 7) (state_norm 15)
+  specialize c8 (chaining_value_norm 0) (state_norm 8)
+  specialize c9 (chaining_value_norm 1) (state_norm 9)
+  specialize c10 (chaining_value_norm 2) (state_norm 10)
+  specialize c11 (chaining_value_norm 3) (state_norm 11)
+  specialize c12 (chaining_value_norm 4) (state_norm 12)
+  specialize c13 (chaining_value_norm 5) (state_norm 13)
+  specialize c14 (chaining_value_norm 6) (state_norm 14)
+  specialize c15 (chaining_value_norm 7) (state_norm 15)
+
+  simp [circuit_norm, eval_vector, BLAKE3State.value, BLAKE3State.Normalized, finalStateUpdate]
+  ring_nf
+  simp only [c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, and_self,
+    true_and]
+
+  simp only [Fin.forall_fin_succ, Fin.isValue, Fin.val_zero, List.getElem_cons_zero, c0,
+    Fin.val_succ, List.getElem_cons_succ, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13,
+    c14, Fin.val_eq_zero, zero_add, c15, implies_true, and_self]
+
+
+-- @@ L89-107 verbatim
+theorem completeness : Completeness (F p) main Assumptions := by
+  circuit_proof_start [BLAKE3State.Normalized]
+
+  obtain ⟨h_input_state, h_input_cv⟩ := h_input
+  obtain ⟨state_norm, chaining_value_norm⟩ := h_assumptions
+
+  dsimp only [main, circuit_norm, Xor32.circuit, Xor32.elaborated] at h_env ⊢
+  simp only [h_input_state, h_input_cv, circuit_norm, and_imp,
+    Xor32.Assumptions, Xor32.Spec, getElem_eval_vector] at h_env ⊢
+
+  -- Prove all normalization facts from the universal hypotheses
+  refine ⟨⟨state_norm 0, state_norm 8⟩, ⟨state_norm 1, state_norm 9⟩,
+    ⟨state_norm 2, state_norm 10⟩, ⟨state_norm 3, state_norm 11⟩,
+    ⟨state_norm 4, state_norm 12⟩, ⟨state_norm 5, state_norm 13⟩,
+    ⟨state_norm 6, state_norm 14⟩, ⟨state_norm 7, state_norm 15⟩,
+    ⟨chaining_value_norm 0, state_norm 8⟩, ⟨chaining_value_norm 1, state_norm 9⟩,
+    ⟨chaining_value_norm 2, state_norm 10⟩, ⟨chaining_value_norm 3, state_norm 11⟩,
+    ⟨chaining_value_norm 4, state_norm 12⟩, ⟨chaining_value_norm 5, state_norm 13⟩,
+    ⟨chaining_value_norm 6, state_norm 14⟩, chaining_value_norm 7, state_norm 15⟩
+
+
+-- @@ L109-115 verbatim
+def circuit : FormalCircuit (F p) Inputs BLAKE3State where
+  main := main
+  elaborated := elaborated
+  Assumptions := Assumptions
+  Spec := Spec
+  soundness := soundness
+  completeness := completeness
+
+
+-- @@ L117-117 verbatim
+end Gadgets.BLAKE3.FinalStateUpdate
