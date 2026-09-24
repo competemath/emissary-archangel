@@ -116,7 +116,18 @@ function runToFile(cmd, args, outPath, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 
     p.on("close", (code) => { clearTimeout(t); closeSync(fd); res({ code: code ?? 1, tail }) })
   })
 }
-const moduleOfPath = (p) => p.replace(/\.lean$/, "").replace(/\//g, ".")
+// A path component that is not a plain identifier (formal-conjectures' arXiv directories,
+// `Arxiv/1102.4662/`) is a module-name component only when written `«1102.4662»`: Lean reads
+// `A.1102.4662.C` as four components and the import fails. Same rule both ways.
+const PLAIN_COMPONENT = /^[\p{L}_][\p{L}\p{N}_'!?]*$/u
+const moduleOfPath = (p) =>
+  p
+    .replace(/\.lean$/, "")
+    .split("/")
+    .map((c) => (PLAIN_COMPONENT.test(c) ? c : `«${c}»`))
+    .join(".")
+const moduleComponents = (m) => [...m.matchAll(/«[^»]*»|[^.]+/g)].map((x) => x[0].replace(/^«|»$/g, ""))
+const pathOfModule = (m) => moduleComponents(m).join("/") + ".lean"
 
 // ---- 1. toolchain ---------------------------------------------------------------
 async function ensureToolchain() {
@@ -337,7 +348,7 @@ async function closures(modules) {
   // A module the build did not produce would fail its whole batch (tnlean: one missing
   // .olean sent 1,156 modules down the one-process-each path, a minute apiece). Skip
   // those up front; the export step reports them as unbuilt.
-  const oleanOf = (m) => join(REPO, ".lake", "build", "lib", "lean", ...m.split(".")) + ".olean"
+  const oleanOf = (m) => join(REPO, ".lake", "build", "lib", "lean", pathOfModule(m).replace(/\.lean$/, ".olean"))
   const unbuilt = new Set(modules.filter((m) => !existsSync(oleanOf(m))))
   if (unbuilt.size) log(`closures: ${unbuilt.size} modules have no .olean — skipped: ${[...unbuilt].slice(0, 6).join(", ")}${unbuilt.size > 6 ? ", …" : ""}`)
   const todo = modules.filter((m) => !unbuilt.has(m) && !existsSync(join(EXPORTS, `${m}.names.json`)))
@@ -547,7 +558,7 @@ async function expand(modules) {
   const syntax = corpusSyntax()
   const mayUseNotation = (m) => {
     if (syntax === null) return true
-    const p = join(REPO, ...m.split(".")) + ".lean"
+    const p = join(REPO, pathOfModule(m))
     if (!existsSync(p) || syntax.declaring.has(p)) return true
     const text = readFileSync(p, "utf8")
     return syntax.decls.some((atoms) => atoms.every((a) => occurs(text, a)))

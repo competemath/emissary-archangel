@@ -13496,7 +13496,9 @@ function stripCorpusAttrs(text) {
     .replace(/^[ \t]*module[ \t]*$/gm, "")
 }
 function modulePathOf(repoRoot, moduleName) {
-  return join(repoRoot, ...moduleName.split(".")) + ".lean"
+  // `A.«1102.4662».C` (a directory with a dot in its name) is A/1102.4662/C.lean
+  const parts = [...moduleName.matchAll(/«[^»]*»|[^.]+/g)].map((x) => x[0].replace(/^«|»$/g, ""))
+  return join(repoRoot, ...parts) + ".lean"
 }
 function corpusImportsOf(repoRoot, moduleName, pfx) {
   try {
