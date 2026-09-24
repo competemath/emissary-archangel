@@ -945,8 +945,8 @@
       ],
       "licence": "Apache-2.0",
       "tentative": [
-        "tauceti-project-001.jsonl",
-        "tauceti-project-002.jsonl"
+        "tauceti/project-001.jsonl",
+        "tauceti/project-002.jsonl"
       ]
     },
     "tautology": {
@@ -1101,11 +1101,11 @@
       ],
       "licence": "Apache-2.0",
       "tentative": [
-        "lean-pool-001.jsonl",
-        "lean-pool-002.jsonl",
-        "lean-pool-003.jsonl",
-        "lean-pool-004.jsonl",
-        "lean-pool-005.jsonl"
+        "lean-pool/records-001.jsonl",
+        "lean-pool/records-002.jsonl",
+        "lean-pool/records-003.jsonl",
+        "lean-pool/records-004.jsonl",
+        "lean-pool/records-005.jsonl"
       ]
     },
     "merely-true": {
@@ -1118,7 +1118,7 @@
       ],
       "licence": "Apache-2.0",
       "tentative": [
-        "merely-true.jsonl"
+        "merely-true/records.jsonl"
       ]
     },
     "ten-proofs": {
@@ -1142,7 +1142,7 @@
       ],
       "licence": "Apache-2.0",
       "tentative": [
-        "ten-proofs.jsonl"
+        "ten-proofs/records.jsonl"
       ]
     },
     "prime-gaps-186": {
@@ -1156,7 +1156,7 @@
       ],
       "licence": "Apache-2.0",
       "tentative": [
-        "prime-gaps-186.jsonl"
+        "prime-gaps-186/records.jsonl"
       ]
     },
     "long-gaps-between-primes": {
@@ -1170,7 +1170,7 @@
       ],
       "licence": "Apache-2.0",
       "tentative": [
-        "long-gaps-between-primes.jsonl"
+        "long-gaps-between-primes/records.jsonl"
       ]
     }
   }
