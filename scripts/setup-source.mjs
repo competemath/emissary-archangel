@@ -42,6 +42,10 @@ const flag = (name, dflt) => {
 // Leak services already hold theirs. Three at once pushed the machine into swap.
 const CONCURRENCY = Number(flag("concurrency", 1))
 const EXPORT_BATCH = Math.max(1, Number(flag("export-batch", 8)))
+// Per-process sizes; a library of tens of thousands of tiny modules (flt-anthropic) wants them
+// large: every process pays the environment import, the modules themselves cost seconds.
+const BUILD_CHUNK = Math.max(1, Number(flag("build-chunk", 150)))
+const CLOSURE_BATCH = Math.max(1, Number(flag("closure-batch", 120)))
 const KEEP_BUILD = argv.includes("--keep-build")
 const RESEED = argv.includes("--reseed")
 const UNINSTALL_TC = argv.includes("--uninstall-toolchain")
@@ -62,7 +66,10 @@ if (!src) fail(`unknown source ${key} (sources.json)`)
 if (!src.repo || !src.commit || !src.toolchain || !src.roots?.length) fail(`${key}: sources.json entry needs repo, commit, toolchain, roots`)
 
 const INFRA = join(APP_ROOT, "infra", key)
-const REPO = src.corpusRoot ? resolve(APP_ROOT, src.corpusRoot) : join(INFRA, "repo")
+// The clone, and the Lake project inside it (`subdir`, for a repository of several projects such as
+// anthropics/formal-math, whose zeta23/ has its own lakefile and toolchain).
+const CLONE = src.corpusRoot ? resolve(APP_ROOT, src.corpusRoot) : join(INFRA, "repo")
+const REPO = src.subdir ? join(CLONE, src.subdir) : CLONE
 const EXPORTS = join(APP_ROOT, "data", "exports", key)
 const QUEUE = join(APP_ROOT, "data", src.queueFile || `queue-${key}.json`)
 // One tentative file per source, or several for a repo the harvester sharded (leanbridge-001…015).
@@ -121,9 +128,9 @@ async function ensureToolchain() {
 
 // ---- 2. clone -------------------------------------------------------------------
 async function ensureClone() {
-  if (!existsSync(join(REPO, ".git"))) {
-    mkdirSync(dirname(REPO), { recursive: true })
-    const r = await run("git", ["clone", "-q", "--filter=blob:none", src.repo, REPO], { timeoutMs: 30 * 60 * 1000 })
+  if (!existsSync(join(CLONE, ".git"))) {
+    mkdirSync(dirname(CLONE), { recursive: true })
+    const r = await run("git", ["clone", "-q", "--filter=blob:none", src.repo, CLONE], { timeoutMs: 30 * 60 * 1000 })
     if (r.code !== 0) fail(`git clone: ${r.tail.slice(-500)}`)
   }
   const head = (await x("git", ["rev-parse", "HEAD"], { cwd: REPO, env: ENV })).stdout.trim()
@@ -217,8 +224,9 @@ function seedQueue() {
       stats.skippedNoFile++
       continue
     }
-    const [, ownerRepo, commit, path] = m
+    let [, ownerRepo, commit, path] = m
     let line = Number(m[4])
+    if (src.subdir && path.startsWith(src.subdir + "/")) path = path.slice(src.subdir.length + 1) // records are repository-relative
     if (!roots.has(path.split("/")[0]) || path.includes("..")) {
       stats.skippedRoot++
       continue
@@ -299,10 +307,17 @@ async function build(modules) {
     if (r.code !== 0) log(`WARNING: lake exe cache get exited ${r.code}: ${r.tail.slice(-300)} — building from source`)
   }
   // Only the modules that carry entries (and, through lake, what they import).
-  for (let i = 0; i < modules.length; i += 150) {
-    const chunk = modules.slice(i, i + 150)
+  for (let i = 0; i < modules.length; i += BUILD_CHUNK) {
+    const chunk = modules.slice(i, i + BUILD_CHUNK)
     const r = await run("lake", ["build", ...chunk], { cwd: REPO, timeoutMs: 6 * 3600 * 1000 })
-    if (r.code !== 0) log(`WARNING: lake build chunk ${i / 150 + 1} exited ${r.code}: ${r.tail.slice(-400)} — modules that did not build are reported at export`)
+    if (r.code !== 0) log(`WARNING: lake build chunk ${i / BUILD_CHUNK + 1} exited ${r.code}: ${r.tail.slice(-400)} — modules that did not build are reported at export`)
+  }
+  // A Mathlib the cache did not serve (a pin off Mathlib's master) was compiled here, hours of
+  // work: pack it into the local cache, which lives on until the toolchain group ends, so the
+  // next library pinning the same commit gets it from `cache get` instead of compiling it again.
+  if (hasMathlib) {
+    const r = await run("lake", ["exe", "cache", "pack"], { cwd: REPO, timeoutMs: 60 * 60 * 1000 })
+    if (r.code !== 0) log(`WARNING: lake exe cache pack exited ${r.code}: ${r.tail.slice(-300)}`)
   }
 }
 
@@ -331,8 +346,8 @@ async function closures(modules) {
   const byPfx = new Map()
   for (const m of todo) byPfx.set(m.split(".")[0], [...(byPfx.get(m.split(".")[0]) || []), m])
   for (const [pfx, mods] of byPfx) {
-    for (let i = 0; i < mods.length; i += 120) {
-      const chunk = mods.slice(i, i + 120)
+    for (let i = 0; i < mods.length; i += CLOSURE_BATCH) {
+      const chunk = mods.slice(i, i + CLOSURE_BATCH)
       log(`closure: ${chunk.length} modules under ${pfx} (${i + 1}-${i + chunk.length} of ${mods.length})`)
       let stdout = ""
       try {
@@ -588,9 +603,11 @@ async function cleanup() {
   }
   // Mathlib's cache tool keeps every downloaded archive under ~/.cache/mathlib;
   // across a hundred libraries on different Mathlib commits that is hundreds of
-  // GB. A re-download costs minutes; the disk does not come back.
+  // GB. A re-download costs minutes; the disk does not come back. It is kept
+  // until the toolchain group ends: libraries on one toolchain often pin the same
+  // Mathlib commit, and one the cache never served was compiled and packed here.
   const mlcache = join(HOME, ".cache", "mathlib")
-  if (existsSync(mlcache)) {
+  if (UNINSTALL_TC && existsSync(mlcache)) {
     rmSync(mlcache, { recursive: true, force: true })
     log(`removed ${mlcache}`)
   }

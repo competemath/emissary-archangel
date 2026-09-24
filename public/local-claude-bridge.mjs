@@ -13358,7 +13358,7 @@ function repoRootFor(source) {
   const s = SOURCES_REGISTRY.sources?.[source]
   if (!s || !s.repo || !/^[a-z0-9][a-z0-9-]*$/.test(String(source))) return null
   const env = process.env[`CORPUS_ROOT_${String(source).toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`]
-  const root = env || (String(s.corpusRoot || "").startsWith("/") ? s.corpusRoot : join(APP_ROOT, s.corpusRoot || join("infra", source, "repo")))
+  const root = env || join(String(s.corpusRoot || "").startsWith("/") ? s.corpusRoot : join(APP_ROOT, s.corpusRoot || join("infra", source, "repo")), s.subdir || "")
   return root.replace(/\/+$/, "")
 }
 // The registry key a checkout belongs to. Exports live under

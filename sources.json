@@ -1052,6 +1052,23 @@
         "zkLean"
       ],
       "licence": "BSD-3-Clause"
+    },
+    "formal-math": {
+      "label": "Anthropic formal-math: zeta23",
+      "repo": "https://github.com/anthropics/formal-math",
+      "commit": "fbdc36bbf17d20af3fd0447c6d1a8a02773c9844",
+      "toolchain": "leanprover/lean4:v4.33.0-rc2",
+      "roots": [
+        "Zeta23",
+        "ChallengeDeps",
+        "Challenge",
+        "Solution"
+      ],
+      "subdir": "zeta23",
+      "licence": "Apache-2.0",
+      "tentative": [
+        "formal-math.jsonl"
+      ]
     }
   }
 }

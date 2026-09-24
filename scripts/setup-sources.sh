@@ -1,4 +1,12 @@
 #!/bin/bash
+
+# An outage must pause the runner, not fail every remaining library in a second each.
+wait_for_network() {
+  until curl -sI -m 10 https://github.com >/dev/null 2>&1; do
+    echo "[$(date +%T)] network down (github.com unreachable) — waiting"
+    sleep 60
+  done
+}
 # Set up every corpus source in sources.json that is not set up yet, one at a
 # time, grouped by toolchain (the tree's own first). One build is on disk at a
 # time: each library's .lake is removed when its exports exist, and a toolchain
@@ -41,6 +49,7 @@ for k in $KEYS; do
   next_tc=""; [ -n "$next" ] && next_tc=$(python3 -c "import json; print(json.load(open('sources.json'))['sources']['$next']['toolchain'])")
   uninstall=""; [ "$next_tc" != "$tc" ] && uninstall="--uninstall-toolchain"
   echo "[$(date +%T)] === $k ($tc) → data/pipeline/setup-$k.log"
+  wait_for_network
   node scripts/setup-source.mjs "$k" $uninstall > "data/pipeline/setup-$k.log" 2>&1
   rc=$?
   tail -3 "data/pipeline/setup-$k.log" | sed 's/^/    /'

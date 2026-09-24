@@ -15,6 +15,7 @@ export interface SourceSpec {
   toolchain?: string;
   roots?: string[];
   corpusRoot?: string;
+  subdir?: string; // the Lake project inside the clone (a repository of several projects)
   queueFile?: string;
   targetToolchain?: string;
 }
@@ -58,7 +59,7 @@ export function corpusRootFor(source: string): string | null {
   const s = sourceSpec(source);
   if (!s || !s.repo) return null;
   const env = process.env[`CORPUS_ROOT_${source.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`];
-  return env || path.resolve(APP_ROOT, s.corpusRoot || path.join("infra", source, "repo"));
+  return env || path.resolve(APP_ROOT, s.corpusRoot || path.join("infra", source, "repo"), s.subdir || "");
 }
 
 /** The toolchain a verified entry of this source compiles under (the tree's, unless the source proves directly). */
