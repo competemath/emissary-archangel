@@ -1,0 +1,1 @@
+{"names":["IsEmpty.eq_elim","IsEmpty.eq_elim'"],"modules":["Foundation.Vorspiel.IsEmpty"],"moduleOf":{"IsEmpty.eq_elim":"Foundation.Vorspiel.IsEmpty","IsEmpty.eq_elim'":"Foundation.Vorspiel.IsEmpty"},"deps":{"IsEmpty.eq_elim":[],"IsEmpty.eq_elim'":[]}}

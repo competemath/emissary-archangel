@@ -1,0 +1,1 @@
+{"names":["Function.funEqOn","Function.funEqOn.of_subset"],"modules":["Foundation.Vorspiel.Function"],"moduleOf":{"Function.funEqOn":"Foundation.Vorspiel.Function","Function.funEqOn.of_subset":"Foundation.Vorspiel.Function"},"deps":{"Function.funEqOn":[],"Function.funEqOn.of_subset":["Function.funEqOn"]}}
