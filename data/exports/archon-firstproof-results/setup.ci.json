@@ -1,0 +1,36 @@
+{
+  "key": "archon-firstproof-results",
+  "repo": "https://github.com/frenzymath/Archon-FirstProof-Results",
+  "commit": "35550f2bc0a58289bbe2342a64f10a46ada0f52f",
+  "toolchain": "leanprover/lean4:v4.28.0",
+  "roots": [
+    "FirstProof"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/archon-firstproof-results/repo",
+  "entries": 222,
+  "modules": 25,
+  "exported": 25,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 52,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 222,
+    "kept": 222,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 8,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 5062656,
+  "minutes": 6,
+  "finishedAt": "2026-09-25T14:25:23.410Z"
+}
