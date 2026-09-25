@@ -1,0 +1,36 @@
+{
+  "key": "quantumoptimization",
+  "repo": "https://github.com/urikol/QuantumOptimization",
+  "commit": "2f92a179f796b36a89ccdf858a83f96a0e7ac7d0",
+  "toolchain": "leanprover/lean4:v4.28.0",
+  "roots": [
+    "QuantumOptimization"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/quantumoptimization/repo",
+  "entries": 1399,
+  "modules": 69,
+  "exported": 69,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1400,
+    "kept": 1399,
+    "skippedRoot": 0,
+    "skippedDup": 1,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 84,
+    "lineUnverified": 0,
+    "nameFixed": 1,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 31006720,
+  "minutes": 20,
+  "finishedAt": "2026-09-25T15:45:05.052Z"
+}
