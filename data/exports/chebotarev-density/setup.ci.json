@@ -1,0 +1,36 @@
+{
+  "key": "chebotarev-density",
+  "repo": "https://github.com/CBirkbeck/chebotarev-density",
+  "commit": "c64095e6cc6483b401849c7fd9182d983d3bf261",
+  "toolchain": "leanprover/lean4:v4.32.0-rc1",
+  "roots": [
+    "CebotarevDensity"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/chebotarev-density/repo",
+  "entries": 32,
+  "modules": 5,
+  "exported": 5,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 32,
+    "kept": 32,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 2,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 335872,
+  "minutes": 3,
+  "finishedAt": "2026-09-25T14:22:58.431Z"
+}
