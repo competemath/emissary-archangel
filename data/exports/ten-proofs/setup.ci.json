@@ -1,0 +1,47 @@
+{
+  "key": "ten-proofs",
+  "repo": "https://github.com/openai/ten-proofs",
+  "commit": "94bc0feb6a9ff12c7d31d6de640a725c9d43d2b6",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "CompactnessAndDegeneracy",
+    "MulticolorTriangleRamsey",
+    "QuantumParallelRepetition",
+    "SpherePacking",
+    "MetricCodes",
+    "ConnesRigidity",
+    "NonSoficGroup",
+    "GapCVP",
+    "EhrhartVolumeInequality",
+    "ComparatorChallenges",
+    "Permanent",
+    "All"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/ten-proofs/repo",
+  "entries": 0,
+  "modules": 0,
+  "exported": 0,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 18223,
+    "kept": 0,
+    "skippedRoot": 18223,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 4096,
+  "minutes": 2,
+  "finishedAt": "2026-09-25T15:45:43.434Z"
+}
