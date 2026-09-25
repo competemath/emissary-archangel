@@ -1,0 +1,36 @@
+{
+  "key": "erdos-unit-distance-1",
+  "repo": "https://github.com/kim-em/erdos-unit-distance",
+  "commit": "d748fd08b40a72f61e982325f2f0599228ca08b3",
+  "toolchain": "leanprover/lean4:v4.32.2",
+  "roots": [
+    "ErdosUnitDistance"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/erdos-unit-distance-1/repo",
+  "entries": 102,
+  "modules": 9,
+  "exported": 9,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 25,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 102,
+    "kept": 102,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 33,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 2322432,
+  "minutes": 11,
+  "finishedAt": "2026-09-25T14:35:45.788Z"
+}
