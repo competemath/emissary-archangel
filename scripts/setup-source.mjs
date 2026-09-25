@@ -41,6 +41,12 @@ const flag = (name, dflt) => {
 // One Lean process at a time: each import of Mathlib is a few GB, and the resident
 // Leak services already hold theirs. Three at once pushed the machine into swap.
 const CONCURRENCY = Number(flag("concurrency", 1))
+// Lake has NO -j flag (it rejects it: "unknown short option"); its job pool is the Lean task pool,
+// capped by LEAN_NUM_THREADS in ENV below. Three libraries were built with -j on 2026-09-24 and lost their build.
+// Every `lean --run` (closures, notation expansion) is capped: one runaway expansion reached 18 GB and
+// filled the swap and the disk. Past the cap Lean aborts with an out-of-memory error and the module is
+// recorded as failed instead of taking the machine (EMISSARY_LEAN_MB, default 6144).
+const LEAN_MB = Math.max(1024, Number(process.env.EMISSARY_LEAN_MB || 6144))
 const EXPORT_BATCH = Math.max(1, Number(flag("export-batch", 8)))
 // Per-process sizes; a library of tens of thousands of tiny modules (flt-anthropic) wants them
 // large: every process pays the environment import, the modules themselves cost seconds.
@@ -320,6 +326,8 @@ async function build(modules) {
   // Only the modules that carry entries (and, through lake, what they import).
   for (let i = 0; i < modules.length; i += BUILD_CHUNK) {
     const chunk = modules.slice(i, i + BUILD_CHUNK)
+    // `-j`: Lake defaults to one worker per core; on a 16 GB machine a handful of Mathlib-heavy modules at once is
+    // already swapping, so the worker count is capped (EMISSARY_JOBS, default 2).
     const r = await run("lake", ["build", ...chunk], { cwd: REPO, timeoutMs: 6 * 3600 * 1000 })
     if (r.code !== 0) log(`WARNING: lake build chunk ${i / BUILD_CHUNK + 1} exited ${r.code}: ${r.tail.slice(-400)} — modules that did not build are reported at export`)
   }
@@ -362,12 +370,12 @@ async function closures(modules) {
       log(`closure: ${chunk.length} modules under ${pfx} (${i + 1}-${i + chunk.length} of ${mods.length})`)
       let stdout = ""
       try {
-        ;({ stdout } = await x("lake", ["env", "lean", "--run", CLOSURE_LEAN, pfx, ...chunk], { cwd: REPO, env: ENV, maxBuffer: 512 * 1024 * 1024, timeout: 60 * 60 * 1000 }))
+        ;({ stdout } = await x("lake", ["env", "lean", "-M", String(LEAN_MB), "--run", CLOSURE_LEAN, pfx, ...chunk], { cwd: REPO, env: ENV, maxBuffer: 512 * 1024 * 1024, timeout: 60 * 60 * 1000 }))
       } catch (e) {
         log(`WARNING: closure batch failed (${(e.stderr || e.message || "").toString().slice(-600)}) — falling back to one module per process`)
         for (const m of chunk) {
           try {
-            ;({ stdout } = await x("lake", ["env", "lean", "--run", CLOSURE_LEAN, pfx, m], { cwd: REPO, env: ENV, maxBuffer: 256 * 1024 * 1024, timeout: 20 * 60 * 1000 }))
+            ;({ stdout } = await x("lake", ["env", "lean", "-M", String(LEAN_MB), "--run", CLOSURE_LEAN, pfx, m], { cwd: REPO, env: ENV, maxBuffer: 256 * 1024 * 1024, timeout: 20 * 60 * 1000 }))
             writeClosureSections(stdout)
           } catch (e2) {
             log(`closure failed for ${m}: ${(e2.stderr || e2.message || "").toString().slice(-300)}`)
@@ -576,7 +584,7 @@ async function expand(modules) {
     while (chunks.length) {
       const chunk = chunks.shift()
       try {
-        const { stdout } = await x("lake", ["env", "lean", "--run", EXPAND_LEAN, EXPORTS, src.roots.join(","), ...chunk], { cwd: REPO, env: ENV, maxBuffer: 64 * 1024 * 1024, timeout: 60 * 60 * 1000 })
+        const { stdout } = await x("lake", ["env", "lean", "-M", String(LEAN_MB), "--run", EXPAND_LEAN, EXPORTS, src.roots.join(","), ...chunk], { cwd: REPO, env: ENV, maxBuffer: 64 * 1024 * 1024, timeout: 60 * 60 * 1000 })
         for (const line of stdout.split("\n")) {
           const [m, e, v, u] = line.split("\t")
           if (m && u != null) {
@@ -590,7 +598,7 @@ async function expand(modules) {
         // One bad module must not take its chunk down: retry each alone.
         for (const m of chunk) {
           try {
-            await x("lake", ["env", "lean", "--run", EXPAND_LEAN, EXPORTS, src.roots.join(","), m], { cwd: REPO, env: ENV, maxBuffer: 64 * 1024 * 1024, timeout: 20 * 60 * 1000 })
+            await x("lake", ["env", "lean", "-M", String(LEAN_MB), "--run", EXPAND_LEAN, EXPORTS, src.roots.join(","), m], { cwd: REPO, env: ENV, maxBuffer: 64 * 1024 * 1024, timeout: 20 * 60 * 1000 })
           } catch (e2) {
             failed.push([m, (e2.stderr || e2.message || String(e2)).toString().slice(-300).replace(/\s+/g, " ")])
           }
