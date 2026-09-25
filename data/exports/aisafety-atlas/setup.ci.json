@@ -1,0 +1,36 @@
+{
+  "key": "aisafety-atlas",
+  "repo": "https://github.com/mbrcic/ai-safety-formalization-atlas",
+  "commit": "a65e32f8047584686320a3013720624b5efa39ee",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "roots": [
+    "AISafetyAtlas"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/aisafety-atlas/repo",
+  "entries": 683,
+  "modules": 84,
+  "exported": 84,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 715,
+    "kept": 683,
+    "skippedRoot": 1,
+    "skippedDup": 3,
+    "skippedNoFile": 0,
+    "skippedCommented": 28,
+    "lineFixed": 265,
+    "lineUnverified": 0,
+    "nameFixed": 3,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 34189312,
+  "minutes": 19,
+  "finishedAt": "2026-09-25T14:37:59.707Z"
+}
