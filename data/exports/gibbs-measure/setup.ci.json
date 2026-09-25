@@ -1,0 +1,36 @@
+{
+  "key": "gibbs-measure",
+  "repo": "https://github.com/YaelDillies/gibbs-measure",
+  "commit": "70012e298f6e57410c6b00e972273f4bab37a378",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "GibbsMeasure"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/gibbs-measure/repo",
+  "entries": 94,
+  "modules": 16,
+  "exported": 16,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 20,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 94,
+    "kept": 94,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 87,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 950272,
+  "minutes": 3,
+  "finishedAt": "2026-09-25T14:38:20.408Z"
+}
