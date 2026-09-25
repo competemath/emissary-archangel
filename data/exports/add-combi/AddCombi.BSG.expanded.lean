@@ -1,0 +1,631 @@
+/-
+Copyright (c) 2023 Yaël Dillies, Bhavik Mehta. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Yaël Dillies, Bhavik Mehta
+-/
+module
+
+public import AddCombi.Mathlib.Combinatorics.Additive.Energy
+public import Mathlib.Basic.Real.Basic
+
+import AddCombi.Convolution.Finite.Order
+import AddCombi.Mathlib.Algebra.Star.Pi
+import AddCombi.Mathlib.Algebra.Order.GroupWithZero.Indicator
+import Mathlib.Algebra.BigOperators.Field
+import Mathlib.Algebra.Group.Pointwise.Finset.Density
+import Mathlib.Algebra.Order.Star.Real
+import Mathlib.Data.Finset.CastCard
+import Mathlib.Data.NNRat.BigOperators
+import Mathlib.Tactic.Positivity
+
+
+-- @@ L21-28 verbatim
+/-!
+# The Balog-Szemerédi-Gowers theorem
+
+A straightforward calculation shows that sets of small doubling have large additive energy.
+The converse is *almost* true, in the sense that a set of large additive energy contains a large set
+of small doubling. This is the content of the Balog-Szemerédi-Gowers theorem, which this file
+proves.
+-/
+
+
+-- @@ L30-30 verbatim
+open Finset hiding card
+
+-- @@ L31-31 verbatim
+open Fintype
+
+-- @@ L32-32 verbatim
+open scoped BigOperators Pointwise Combinatorics.Additive' Indicator
+
+
+-- @@ L34-34 verbatim
+section
+
+-- @@ L35-36 verbatim
+variable {α : Type*} [Fintype α] [DecidableEq α] {H : Finset (α × α)} {A B X : Finset α} {a b x : α}
+  {K : ℝ}
+
+
+-- @@ L38-42 verbatim
+omit [Fintype α] in
+lemma oneOfPair_aux (hH : H ⊆ X ×ˢ X) : #{yz ∈ H | yz.1 = x} = #{c ∈ X | (x, c) ∈ H} := by
+  refine card_nbij' Prod.snd (fun c ↦ (x, c)) ?_ (by simp [Set.MapsTo])
+    (by grind [Set.LeftInvOn]) (by simp [Set.LeftInvOn])
+  simpa +contextual [Set.MapsTo, eq_comm] using fun a b hab _ ↦ (mem_product.1 (hH hab)).2
+
+
+-- @@ L44-45 verbatim
+noncomputable def oneOfPair (H : Finset (α × α)) (X : Finset α) : Finset α :=
+  {x ∈ X | (3 / 4 : ℝ) * X.dens ≤ {c ∈ X | (x, c) ∈ H}.dens}
+
+
+-- @@ L47-47 verbatim
+lemma oneOfPair_subset : oneOfPair H X ⊆ X := filter_subset ..
+
+
+-- @@ L49-50 verbatim
+lemma mem_oneOfPair :
+    x ∈ oneOfPair H X ↔ x ∈ X ∧ (3 / 4 : ℝ) * X.dens ≤ {c ∈ X | (x, c) ∈ H}.dens := mem_filter
+
+
+-- @@ L52-59 verbatim
+lemma oneOfPair_bound_one :
+    (∑ x ∈ X \ oneOfPair H X, {c ∈ X | (x, c) ∈ H}.dens : ℝ) / card α ≤ (3 / 4) * X.dens ^ 2 := calc
+  _ ≤ (∑ _x ∈ X \ oneOfPair H X, 3 / 4 * X.dens : ℝ) / card α := by
+    gcongr
+    grind [oneOfPair]
+  _ = (X \ oneOfPair H X).dens * (3 / 4 * X.dens) := by simp [dens]; ring
+  _ ≤ X.dens * (3 / 4 * X.dens) := by grw [sdiff_subset]
+  _ = _ := by ring
+
+
+-- @@ L61-75 verbatim
+lemma oneOfPair_bound_two (hH : H ⊆ X ×ˢ X) (Hcard : (7 / 8 : ℝ) * X.dens ^ 2 ≤ H.dens) :
+    (1 / 8 : ℝ) * X.dens ^ 2 ≤ X.dens * (oneOfPair H X).dens := calc
+  _ ≤ H.dens - (3 / 4 : ℝ) * X.dens ^ 2 := by linarith
+  _ ≤ H.dens - (∑ x ∈ X \ oneOfPair H X, {c ∈ X | (x, c) ∈ H}.dens : ℝ) / card α := by
+    gcongr; exact oneOfPair_bound_one
+  _ = H.dens - (∑ x ∈ X, {c ∈ X | (x, c) ∈ H}.dens : ℝ) / card α
+    + (∑ x ∈ oneOfPair H X, {c ∈ X | (x, c) ∈ H}.dens : ℝ) / card α := by
+    rw [sum_sdiff_eq_sub oneOfPair_subset, sub_add, sub_div]
+  _ = (∑ x ∈ oneOfPair H X, {c ∈ X | (x, c) ∈ H}.dens : ℝ) / card α := by
+    simp only [dens, Fintype.card_prod, Nat.cast_mul, NNRat.cast_div, NNRat.cast_natCast,
+      NNRat.cast_mul, ← sum_div, div_div, add_eq_right, sub_eq_zero, ← oneOfPair_aux hH]
+    norm_cast
+    rw [← card_eq_sum_card_fiberwise fun x hx ↦ (mem_product.1 (hH hx)).1]
+  _ ≤ (∑ _x ∈ oneOfPair H X, (X.dens : ℝ)) / card α := by gcongr with i; exact filter_subset ..
+  _ = X.dens * (oneOfPair H X).dens := by simp [dens]; ring
+
+
+-- @@ L77-83 verbatim
+private lemma oneOfPair_bound (hH : H ⊆ X ×ˢ X) (hX : X.Nonempty)
+    (Hcard : (7 / 8 : ℝ) * X.dens ^ 2 ≤ H.dens) (h : A.dens / (2 * K) ≤ X.dens) :
+    A.dens / (2 ^ 4 * K : ℝ) ≤ (oneOfPair H X).dens := calc
+    _ = (A.dens / (2 * K) : ℝ) / 8 := by ring
+    _ ≤ (X.dens / 8 : ℝ) := by gcongr
+    _ ≤ (oneOfPair H X).dens :=
+      le_of_mul_le_mul_left ((oneOfPair_bound_two hH Hcard).trans_eq' (by ring)) <| by positivity
+
+
+-- @@ L85-90 verbatim
+lemma quadruple_bound_c {a b : α} (ha : a ∈ oneOfPair H X) (hb : b ∈ oneOfPair H X) :
+    (X.dens : ℝ) / 2 ≤ {c ∈ X | (a, c) ∈ H ∧ (b, c) ∈ H}.dens := by
+  rw [mem_oneOfPair] at ha hb
+  rw [filter_and, cast_dens_inter, ← filter_or]
+  have : ({c ∈ X | (a, c) ∈ H ∨ (b, c) ∈ H}.dens : ℝ) ≤ X.dens := by grw [filter_subset]
+  linarith [ha.2, hb.2, this]
+
+
+-- @@ L92-92 verbatim
+end
+
+
+-- @@ L94-94 verbatim
+variable {G : Type*} [AddCommGroup G] [Fintype G] [DecidableEq G] {A B : Finset G} {x : G}
+
+
+-- @@ L96-104 verbatim
+omit [Fintype G] in
+lemma quadruple_bound_right {a b : G} (H : Finset (G × G)) (X : Finset G) (h : x = a - b) :
+    (#({c ∈ X | (a, c) ∈ H ∧ (b, c) ∈ H}.sigma fun c ↦ ((B ×ˢ B) ×ˢ B ×ˢ B).filter
+        fun ⟨⟨a₁, a₂⟩, a₃, a₄⟩ ↦ a₁ - a₂ = a - c ∧ a₃ - a₄ = b - c) : ℝ)
+      ≤ #(((B ×ˢ B) ×ˢ B ×ˢ B).filter fun ⟨⟨a₁, a₂⟩, a₃, a₄⟩ ↦ (a₁ - a₂) - (a₃ - a₄) = a - b) := by
+  rw [← h, Nat.cast_le]
+  refine card_le_card_of_injOn Sigma.snd (by simp +contextual [Set.MapsTo, *]) ?_
+  simp +contextual [Set.InjOn]
+  aesop
+
+
+-- @@ L106-106 verbatim
+variable {K : Type*} [Semifield K] [CharZero K] [StarRing K]
+
+
+-- @@ L108-108 verbatim
+section lemma1
+
+
+-- @@ L110-112 expanded
+lemma claim_one :
+    𝔼 x : G,
+        (dconv (Set.indicator A fun _ ↦ (1 : K)) (Set.indicator B fun _ ↦ (1 : _))) x *
+          (A ∩ (x +ᵥ B)).dens =
+      Finset.addEnergy' A B :=
+  by
+  simp only [← expect_indicator_one_dconv_indicator_sq, ← indicator_one_dconv_indicator_one_eq_dens,
+    sq]
+
+
+-- @@ L114-130 expanded
+lemma claim_two :
+    (Finset.addEnergy' A B) ^ 2 / (A.dens * B.dens) ≤
+      𝔼 x,
+        (dconv (Set.indicator (A : Set G) fun _ ↦ (1 : ℝ)) (Set.indicator B fun _ ↦ (1 : _))) x *
+          (A ∩ (x +ᵥ B)).dens ^ 2 :=
+  by
+  let f := fun x ↦
+    ((dconv (Set.indicator (A : Set G) fun _ ↦ (1 : ℝ)) (Set.indicator B fun _ ↦ (1 : _))) x).sqrt
+  have hf :
+    ∀ x, f x ^ 2 = (dconv (Set.indicator A fun _ ↦ (1 : ℝ)) (Set.indicator B fun _ ↦ (1 : _))) x :=
+    by
+    intro x
+    rw [Real.sq_sqrt]
+    exact dconv_apply_nonneg Set.indicator_one_nonneg Set.indicator_one_nonneg x
+  have := expect_mul_sq_le_sq_mul_sq univ f (fun x ↦ f x * (A ∩ (x +ᵥ B)).dens)
+  refine div_le_of_le_mul₀ (by positivity) ?_ ?_
+  · refine
+      expect_nonneg fun i _ ↦
+        ?_
+          -- FIXME: `Set.indicator_one_nonneg` should be a positivity lemma.
+          
+    exact
+      mul_nonneg (dconv_apply_nonneg Set.indicator_one_nonneg Set.indicator_one_nonneg _)
+        (by positivity)
+  simp only [← sq, ← mul_assoc, hf, expect_indicator_one_dconv_indicator_one, mul_pow,
+    claim_one] at this
+  grind
+
+
+-- @@ L132-145 expanded
+lemma claim_three {H : Finset (G × G)} (hH : H ⊆ A ×ˢ A) :
+    𝔼 x : G,
+        (dconv (Set.indicator A fun _ ↦ (1 : ℝ)) (Set.indicator B fun _ ↦ (1 : _))) x *
+          ((A ∩ (x +ᵥ B)) ×ˢ (A ∩ (x +ᵥ B)) ∩ H).dens =
+      (∑ ab ∈ H,
+          𝔼 x,
+            (dconv (Set.indicator A fun _ ↦ (1 : ℝ)) (Set.indicator B fun _ ↦ (1 : _))) x *
+              ((Set.indicator B fun _ ↦ (1 : _)) (ab.1 - x) *
+                (Set.indicator B fun _ ↦ (1 : _)) (ab.2 - x))) /
+        card G ^ 2 :=
+  by
+  simp only [dens, Fintype.card_prod, Nat.cast_mul, NNRat.cast_div, NNRat.cast_natCast,
+    NNRat.cast_mul, mul_div, Fintype.expect_eq_sum_div_card, ← sum_div]
+  field_simp
+  simp only [sum_comm (s := H), mul_sum, card_eq_sum_ones, Nat.cast_sum, Nat.cast_one]
+  congr! 1 with x
+  rw [inter_comm, ← filter_mem_eq_inter, sum_filter]
+  congr! 1 with ⟨a, b⟩ hab
+  have : a ∈ A ∧ b ∈ A := by simpa using hH hab
+  simp [this, Set.indicator_apply, ← neg_vadd_mem_iff, neg_add_eq_sub]
+  grind
+
+
+-- @@ L147-169 expanded
+lemma claim_four (ab : G × G) :
+    𝔼 x : G,
+        (dconv (Set.indicator A fun _ ↦ (1 : ℝ)) (Set.indicator B fun _ ↦ (1 : _))) x *
+          ((Set.indicator B fun _ ↦ (1 : _)) (ab.1 - x) *
+            (Set.indicator B fun _ ↦ (1 : _)) (ab.2 - x)) ≤
+      B.dens *
+        (dconv (Set.indicator B fun _ ↦ (1 : _)) (Set.indicator B fun _ ↦ (1 : _))) (ab.1 - ab.2) :=
+  by
+  obtain ⟨a, b⟩ := ab
+  have (x : G) :
+    (dconv (Set.indicator A fun _ ↦ (1 : ℝ)) (Set.indicator B fun _ ↦ (1 : _))) x ≤ B.dens :=
+    by
+    simp only [dconv_eq_expect_add, Set.conj_indicator_one_apply, dens,
+      Fintype.expect_eq_sum_div_card, NNRat.cast_div, NNRat.cast_natCast]
+    gcongr
+    simp only [card_eq_sum_ones, Nat.cast_sum, Nat.cast_one]
+    simp only [Set.indicator_apply, mul_boole, SetLike.mem_coe, ← sum_filter (· ∈ B),
+      filter_mem_eq_inter, univ_inter]
+    gcongr with i
+    grind
+  have :
+    𝔼 x : G,
+        (dconv (Set.indicator A fun _ ↦ (1 : ℝ)) (Set.indicator B fun _ ↦ (1 : _))) x *
+          ((Set.indicator B fun _ ↦ (1 : _)) ((a, b).1 - x) *
+            (Set.indicator B fun _ ↦ (1 : _)) ((a, b).2 - x)) ≤
+      B.dens *
+        𝔼 x : G,
+          ((Set.indicator B fun _ ↦ (1 : _)) ((a, b).1 - x) *
+            (Set.indicator B fun _ ↦ (1 : _)) ((a, b).2 - x)) :=
+    by
+    rw [mul_expect]
+    gcongr with s hs
+    · exact mul_nonneg Set.indicator_one_apply_nonneg Set.indicator_one_apply_nonneg
+    · exact this _
+  refine this.trans_eq ?_
+  congr 1
+  simp only [dconv_eq_expect_add]
+  exact Fintype.expect_equiv (Equiv.subLeft b) _ _ <| by simp
+
+
+-- @@ L171-174 expanded
+lemma claim_five {H : Finset (G × G)} (hH : H ⊆ A ×ˢ A) :
+    𝔼 x : G,
+        (dconv (Set.indicator A fun _ ↦ (1 : ℝ)) (Set.indicator B fun _ ↦ (1 : _))) x *
+          ((A ∩ (x +ᵥ B)) ×ˢ (A ∩ (x +ᵥ B)) ∩ H).dens ≤
+      B.dens *
+          (∑ ab ∈ H,
+            (dconv (Set.indicator B fun _ ↦ (1 : _)) (Set.indicator B fun _ ↦ (1 : _)))
+              (ab.1 - ab.2)) /
+        card G ^ 2 :=
+  by rw [claim_three hH, mul_sum]; gcongr; exact claim_four _
+
+
+-- @@ L176-178 expanded
+noncomputable def choiceH (A B : Finset G) (c : ℝ) : Finset (G × G) :=
+  {ab ∈ A ×ˢ A |
+    (dconv (Set.indicator B fun _ ↦ (1 : ℝ)) (Set.indicator B fun _ ↦ (1 : _))) (ab.1 - ab.2) ≤
+      c / 2 * (Finset.addEnergy' A B ^ 2 / (A.dens ^ 3 * B.dens ^ 2))}
+
+
+-- @@ L180-180 verbatim
+lemma choiceH_subset {c : ℝ} : choiceH A B c ⊆ A ×ˢ A := filter_subset ..
+
+
+-- @@ L182-195 expanded
+lemma claim_six (c : ℝ) (hc : 0 ≤ c) :
+    𝔼 x : G,
+        (dconv (Set.indicator A fun _ ↦ (1 : ℝ)) (Set.indicator B fun _ ↦ (1 : _))) x *
+          ((A ∩ (x +ᵥ B)) ×ˢ (A ∩ (x +ᵥ B)) ∩ choiceH A B c).dens ≤
+      c / 2 * (Finset.addEnergy' A B ^ 2 / (A.dens * B.dens)) :=
+  by
+  have :
+    ∑ ab ∈ choiceH A B c,
+        (dconv (Set.indicator B fun _ ↦ (1 : _)) (Set.indicator B fun _ ↦ (1 : _))) (ab.1 - ab.2) ≤
+      #(choiceH A B c) * (c / 2 * (Finset.addEnergy' A B ^ 2 / (A.dens ^ 3 * B.dens ^ 2))) :=
+    by
+    rw [← nsmul_eq_mul]
+    exact sum_le_card_nsmul _ _ _ fun x hx ↦ (mem_filter.1 hx).2
+  replace :
+    (∑ ab ∈ choiceH A B c,
+          (dconv (Set.indicator B fun _ ↦ (1 : _)) (Set.indicator B fun _ ↦ (1 : _)))
+            (ab.1 - ab.2)) /
+        card G ^ 2 ≤
+      (choiceH A B c).dens * (c / 2 * (Finset.addEnergy' A B ^ 2 / (A.dens ^ 3 * B.dens ^ 2))) :=
+    by grw [this, mul_div_right_comm]; simp [dens, sq]
+  have hH : ((choiceH A B c).dens : ℝ) ≤ A.dens ^ 2 := by grw [choiceH_subset]; simp [sq]
+  grw [claim_five choiceH_subset, ← mul_div, this, hH]
+  field_simp
+  rfl
+
+
+-- @@ L197-213 expanded
+lemma claim_seven {c : ℝ} (hc : 0 ≤ c) :
+    𝔼 x : G,
+        (dconv (Set.indicator A fun _ ↦ (1 : ℝ)) (Set.indicator B fun _ ↦ (1 : _))) x *
+          ((c / 2) * (Finset.addEnergy' A B ^ 2 / (A.dens ^ 2 * B.dens ^ 2)) +
+            ((A ∩ (x +ᵥ B)) ×ˢ (A ∩ (x +ᵥ B)) ∩ choiceH A B c).dens) ≤
+      𝔼 x : G,
+        (dconv (Set.indicator A fun _ ↦ (1 : ℝ)) (Set.indicator B fun _ ↦ (1 : _))) x *
+          (c * (A ∩ (x +ᵥ B)).dens ^ 2) :=
+  calc
+    _ =
+        (c / 2 * (Finset.addEnergy' A B ^ 2 / (A.dens * B.dens))) +
+          𝔼 x : G,
+            (dconv (Set.indicator A fun _ ↦ (1 : ℝ)) (Set.indicator B fun _ ↦ (1 : _))) x *
+              ((A ∩ (x +ᵥ B)) ×ˢ (A ∩ (x +ᵥ B)) ∩ choiceH A B c).dens :=
+      by
+      simp only [mul_add, expect_add_distrib, expect_indicator_one_dconv_indicator_one,
+        ← expect_mul, ← mul_pow]
+      field_simp
+    _ ≤ _ := by
+      grw [claim_six c hc, ← add_mul, add_halves]
+      simp only [mul_left_comm _ c, ← mul_expect]
+      gcongr
+      exact claim_two
+
+
+-- @@ L215-230 expanded
+lemma claim_eight {c : ℝ} (hc : 0 ≤ c) (A B : Finset G) :
+    ∃ x : G,
+      ((c / 2) * (Finset.addEnergy' A B ^ 2 / (A.dens ^ 2 * B.dens ^ 2)) +
+          ((A ∩ (x +ᵥ B)) ×ˢ (A ∩ (x +ᵥ B)) ∩ choiceH A B c).dens) ≤
+        c * (A ∩ (x +ᵥ B)).dens ^ 2 :=
+  by
+  obtain rfl | hA := A.eq_empty_or_nonempty
+  · simp
+  obtain rfl | hB := B.eq_empty_or_nonempty
+  · simp
+  by_contra!
+  refine (claim_seven hc (A := A) (B := B)).not_gt <| expect_lt_expect (fun x _ ↦ ?_) ?_
+  · grw [this x]
+    exact dconv_apply_nonneg Set.indicator_one_nonneg Set.indicator_one_nonneg x
+  have : 0 < dconv (Set.indicator (A : Set G) fun _ ↦ (1 : ℝ)) (Set.indicator B fun _ ↦ (1 : _)) :=
+    by apply dconv_pos <;> simpa
+  rw [Pi.lt_def] at this
+  obtain ⟨-, i, hi : 0 < _⟩ := this
+  exact ⟨i, by simp, mul_lt_mul_of_pos_left (this i) hi⟩
+
+
+-- @@ L232-258 expanded
+lemma lemma_one {c K : ℝ} (hc : 0 < c) (hK : 0 < K)
+    (hE : K⁻¹ * (A.dens ^ 2 * B.dens) ≤ Finset.addEnergy' A B) (hA : A.Nonempty) (hB : B.Nonempty) :
+    ∃ x : G,
+      ∃ X ⊆ A ∩ (x +ᵥ B),
+        A.dens / (Real.sqrt 2 * K) ≤ X.dens ∧
+          (1 - c) * X.dens ^ 2 ≤
+            ((X ×ˢ X).filter fun ⟨a, b⟩ ↦
+                c / 2 * (K ^ 2)⁻¹ * A.dens ≤
+                  (dconv (Set.indicator B fun _ ↦ (1 : _)) (Set.indicator B fun _ ↦ (1 : _)))
+                    (a - b)).dens :=
+  by
+  obtain ⟨x, hx⟩ := claim_eight hc.le A B
+  set X := A ∩ (x +ᵥ B)
+  refine ⟨x, X, subset_rfl, ?_, ?_⟩
+  · have : (2 : ℝ)⁻¹ * (Finset.addEnergy' A B / (A.dens * B.dens)) ^ 2 ≤ X.dens ^ 2 :=
+      by
+      refine le_of_mul_le_mul_left (hx.trans' ?_) hc
+      exact (le_add_of_nonneg_right <| NNRat.cast_nonneg _).trans_eq' (by ring)
+    grw [← sq_le_sq₀ (by positivity) (by positivity), ← this, ← hE]
+      -- TODO: `field_simp` doesn't know how to handle `Real.sqrt`.
+      
+    field_simp
+    norm_num
+  rw [one_sub_mul, sub_le_comm]
+  refine ((le_add_of_nonneg_left (by positivity)).trans hx).trans' ?_
+  rw [sq, ← NNRat.cast_mul, ← dens_product, ← cast_dens_sdiff (filter_subset _ _), ← filter_not, ←
+    filter_mem_eq_inter]
+  gcongr ↑(dens ?_)
+  rintro ⟨a, b⟩
+  simp +contextual only [not_le, mem_product, mem_inter, and_imp, mem_filter, choiceH, and_self,
+    true_and, X]
+  rintro _ _ _ _ h
+  grw [h, ← hE]
+  apply le_of_eq
+  field_simp [hA, hB, hK, le_div_iff₀, div_le_iff₀] at hE ⊢
+
+
+-- @@ L260-269 expanded
+lemma lemma_one' {c K : ℝ} (hc : 0 < c) (hK : 0 < K)
+    (hE : K⁻¹ * (A.dens ^ 2 * B.dens) ≤ Finset.addEnergy' A B) (hA : A.Nonempty) (hB : B.Nonempty) :
+    ∃ x : G,
+      ∃ X ⊆ A ∩ (x +ᵥ B),
+        A.dens / (2 * K) ≤ X.dens ∧
+          (1 - c) * X.dens ^ 2 ≤
+            ((X ×ˢ X).filter fun ⟨a, b⟩ ↦
+                c / 2 * (K ^ 2)⁻¹ * A.dens ≤
+                  (dconv (Set.indicator B fun _ ↦ (1 : _)) (Set.indicator B fun _ ↦ (1 : _)))
+                    (a - b)).dens :=
+  by
+  obtain ⟨x, X, hX₁, hX₂, hX₃⟩ := lemma_one hc hK hE hA hB
+  refine ⟨x, X, hX₁, hX₂.trans' ?_, hX₃⟩
+  gcongr _ / (?_ * _)
+  rw [Real.sqrt_le_iff]
+  norm_num
+
+
+-- @@ L271-271 verbatim
+end lemma1
+
+
+-- @@ L273-273 verbatim
+section lemma2
+
+-- @@ L274-274 verbatim
+variable {H : Finset (G × G)} {X : Finset G}
+
+
+-- @@ L276-286 expanded
+lemma quadruple_bound_other {a b c : G} {K : ℝ} {H : Finset (G × G)} (hac : (a, c) ∈ H)
+    (hbc : (b, c) ∈ H)
+    (hH :
+      ∀ x ∈ H,
+        A.dens / (2 ^ 4 * K ^ 2) ≤
+          (dconv (Set.indicator B fun _ ↦ (1 : _)) (Set.indicator B fun _ ↦ (1 : _))) (x.1 - x.2)) :
+    (A.dens / (2 ^ 4 * K ^ 2)) ^ 2 ≤
+      #(((B ×ˢ B) ×ˢ B ×ˢ B).filter fun ⟨⟨a₁, a₂⟩, a₃, a₄⟩ ↦ a₁ - a₂ = a - c ∧ a₃ - a₄ = b - c) /
+        card G ^ 2 :=
+  by
+  rw [filter_product (s := B ×ˢ B) (t := B ×ˢ B) (fun z ↦ z.1 - z.2 = a - c)
+      (fun z ↦ z.1 - z.2 = b - c),
+    card_product, sq, sq (card G : ℝ), Nat.cast_mul, mul_div_mul_comm]
+  gcongr ?_ * ?_
+  · grw [card_sub_eq, hH _ hac, indicator_one_dconv_indicator_one_eq_addConvolution_div]
+  · grw [card_sub_eq, hH _ hbc, indicator_one_dconv_indicator_one_eq_addConvolution_div]
+
+
+-- @@ L288-308 expanded
+lemma quadruple_bound_left {a b : G} {K : ℝ} {H : Finset (G × G)} (ha : a ∈ oneOfPair H X)
+    (hb : b ∈ oneOfPair H X)
+    (hH :
+      ∀ x ∈ H,
+        A.dens / (2 ^ 4 * K ^ 2) ≤
+          (dconv (Set.indicator B fun _ ↦ (1 : _)) (Set.indicator B fun _ ↦ (1 : _))) (x.1 - x.2)) :
+    X.dens / 2 * (A.dens / (2 ^ 4 * K ^ 2)) ^ 2 ≤
+      #({c ∈ X | (a, c) ∈ H ∧ (b, c) ∈ H}.sigma fun c ↦
+            ((B ×ˢ B) ×ˢ B ×ˢ B).filter fun ⟨⟨a₁, a₂⟩, a₃, a₄⟩ ↦
+              a₁ - a₂ = a - c ∧ a₃ - a₄ = b - c) /
+        card G ^ 3 :=
+  calc
+    _ ≤ (∑ c ∈ X with (a, c) ∈ H ∧ (b, c) ∈ H, ((A.dens / (2 ^ 4 * K ^ 2)) ^ 2 : ℝ)) / card G :=
+      by
+      grw [sum_const, quadruple_bound_c ha hb]
+      apply le_of_eq
+      simp [dens]
+      ring
+    _ ≤
+        (∑ c ∈ X with (a, c) ∈ H ∧ (b, c) ∈ H,
+              #(((B ×ˢ B) ×ˢ B ×ˢ B).filter fun ((a₁, a₂), a₃, a₄) ↦
+                    a₁ - a₂ = a - c ∧ a₃ - a₄ = b - c) /
+                card G ^ 2 :
+            ℝ) /
+          card G :=
+      by
+      gcongr with i hi
+      simp only [mem_filter] at hi
+      convert quadruple_bound_other hi.2.1 hi.2.2 hH
+    _ = _ := by rw [card_sigma, Nat.cast_sum, ← sum_div]; ring
+
+
+-- @@ L310-319 expanded
+lemma quadruple_bound {K : ℝ} {x : G} (hx : x ∈ oneOfPair H X - oneOfPair H X)
+    (hH :
+      ∀ x ∈ H,
+        A.dens / (2 ^ 4 * K ^ 2) ≤
+          (dconv (Set.indicator B fun _ ↦ (1 : _)) (Set.indicator B fun _ ↦ (1 : _))) (x.1 - x.2)) :
+    (A.dens ^ 2 * X.dens) / (2 ^ 9 * K ^ 4) ≤
+      #(((B ×ˢ B) ×ˢ B ×ˢ B).filter fun ⟨⟨a₁, a₂⟩, a₃, a₄⟩ ↦ (a₁ - a₂) - (a₃ - a₄) = x) /
+        card G ^ 3 :=
+  by
+  rw [mem_sub] at hx
+  obtain ⟨a, ha, b, hb, rfl⟩ := hx
+  grw [← quadruple_bound_right H X rfl, ← quadruple_bound_left ha hb hH]
+  apply le_of_eq
+  ring
+
+
+-- @@ L321-343 expanded
+lemma big_quadruple_bound {K : ℝ}
+    (hH :
+      ∀ x ∈ H,
+        A.dens / (2 ^ 4 * K ^ 2) ≤
+          (dconv (Set.indicator B fun _ ↦ (1 : _)) (Set.indicator B fun _ ↦ (1 : _))) (x.1 - x.2))
+    (hX : A.dens / (2 * K) ≤ X.dens) :
+    (oneOfPair H X - oneOfPair H X).dens * (A.dens ^ 3 / (2 ^ 10 * K ^ 5)) ≤ B.dens ^ 4 :=
+  calc
+    _ =
+        (oneOfPair H X - oneOfPair H X).dens *
+          ((A.dens ^ 2 * (A.dens / (2 * K))) / (2 ^ 9 * K ^ 4)) :=
+      by ring
+    _ ≤ (oneOfPair H X - oneOfPair H X).dens * ((A.dens ^ 2 * X.dens) / (2 ^ 9 * K ^ 4)) := by
+      gcongr
+    _ =
+        (∑ _x ∈ oneOfPair H X - oneOfPair H X, (A.dens ^ 2 * X.dens) / (2 ^ 9 * K ^ 4) : ℝ) /
+          card G :=
+      by simp [dens]; ring
+    _ ≤
+        (∑ x ∈ oneOfPair H X - oneOfPair H X,
+              #(((B ×ˢ B) ×ˢ B ×ˢ B).filter fun ⟨⟨a₁, a₂⟩, a₃, a₄⟩ ↦ (a₁ - a₂) - (a₃ - a₄) = x) /
+                card G ^ 3 :
+            ℝ) /
+          card G :=
+      by gcongr (∑ _ ∈ _, ?_) / _ with x hx; exact quadruple_bound hx hH
+    _ ≤
+        𝔼 x,
+          (#(((B ×ˢ B) ×ˢ B ×ˢ B).filter fun ⟨⟨a₁, a₂⟩, a₃, a₄⟩ ↦ (a₁ - a₂) - (a₃ - a₄) = x) /
+              card G ^ 3 :
+            ℝ) :=
+      by grw [Fintype.expect_eq_sum_div_card, ← subset_univ]
+    _ = _ := by
+      rw [Fintype.expect_eq_sum_div_card, ← sum_div]
+      norm_cast
+      rw [← card_eq_sum_card_fiberwise (by simp [Set.mapsTo_univ])]
+      simp [dens]
+      field_simp
+
+
+-- @@ L345-363 expanded
+lemma BSG_aux {K : ℝ} (hK : 0 < K) (hA : A.Nonempty) (hB : B.Nonempty)
+    (hAB : K⁻¹ * (A.dens ^ 2 * B.dens) ≤ Finset.addEnergy' A B) :
+    ∃ x : G,
+      ∃ A' ⊆ A ∩ (x +ᵥ B),
+        (2 ^ 4)⁻¹ * K⁻¹ * A.dens ≤ A'.dens ∧
+          (A' - A').dens ≤ 2 ^ 10 * K ^ 5 * B.dens ^ 4 / A.dens ^ 3 :=
+  by
+  obtain ⟨x, X, hX₁, hX₂, hX₃⟩ := lemma_one' (c := 1 / 8) (by norm_num) hK hAB hA hB
+  set H : Finset (G × G) :=
+    (X ×ˢ X).filter fun ⟨a, b⟩ ↦
+      A.dens / (2 ^ 4 * K ^ 2) ≤
+        (dconv (Set.indicator B fun _ ↦ (1 : _)) (Set.indicator B fun _ ↦ (1 : _))) (a - b)
+  have : (0 : ℝ) < X.dens := hX₂.trans_lt' (by positivity)
+  refine ⟨x, oneOfPair H X, (filter_subset _ _).trans hX₁, ?_, ?_⟩
+  · rw [← mul_inv, inv_mul_eq_div]
+    refine oneOfPair_bound (filter_subset _ _) (by simpa using this) ?_ hX₂
+    convert hX₃ using 2
+    · norm_num
+    · unfold H
+      ring_nf
+  have := big_quadruple_bound (H := H) (fun x hx ↦ (mem_filter.1 hx).2) hX₂
+  rw [le_div_iff₀ (by positivity)]
+  rw [mul_div_assoc', div_le_iff₀ (by positivity)] at this
+  grind
+
+
+-- @@ L365-365 verbatim
+end lemma2
+
+
+-- @@ L367-379 expanded
+/-- The **Balog-Szemerédi-Gowers theorem** for two sets.
+
+If two sets `A` and `B` have large energy, then there exists a large subset `A'` of `A` of small
+difference. -/
+public theorem BSG {K : ℝ} (hK : 0 ≤ K) (hB : B.Nonempty)
+    (hAB : K⁻¹ * (A.dens ^ 2 * B.dens) ≤ Finset.addEnergy' A B) :
+    ∃ A' ⊆ A,
+      (2 ^ 4)⁻¹ * K⁻¹ * A.dens ≤ A'.dens ∧
+        (A' - A').dens ≤ 2 ^ 10 * K ^ 5 * B.dens ^ 4 / A.dens ^ 3 :=
+  by
+  obtain rfl | hA := A.eq_empty_or_nonempty
+  · simp
+  obtain rfl | hK := eq_or_lt_of_le hK
+  · simp
+  · grind [BSG_aux]
+
+
+-- @@ L381-401 expanded
+/-- The **Balog-Szemerédi-Gowers theorem** for two sets.
+
+If two sets `A` and `B` have large energy, then there exist large subsets `A'` of `A` and `B'` of
+`B` of small difference.
+
+Note that the statement is subtly asymmetric in `A` and `B`, because largeness of both `A'` and `B'`
+is measured in terms of `A`. -/
+public theorem BSG₂ {K : ℝ} (hK : 0 ≤ K) (hB : B.Nonempty)
+    (hAB : K⁻¹ * (A.dens ^ 2 * B.dens) ≤ Finset.addEnergy' A B) :
+    ∃ A' ⊆ A,
+      ∃ B' ⊆ B,
+        (2 ^ 4)⁻¹ * K⁻¹ * A.dens ≤ A'.dens ∧
+          (2 ^ 4)⁻¹ * K⁻¹ * A.dens ≤ B'.dens ∧
+            (A' - B').dens ≤ 2 ^ 10 * K ^ 5 * B.dens ^ 4 / A.dens ^ 3 :=
+  by
+  obtain rfl | hA := A.eq_empty_or_nonempty
+  · exact ⟨∅, by simp, ∅, by simp⟩
+  obtain rfl | hK := eq_or_lt_of_le hK
+  · exact ⟨∅, by simp, ∅, by simp⟩
+  obtain ⟨x, A', hA, h⟩ := BSG_aux hK (by simpa [card_pos]) (by simpa [card_pos]) hAB
+  refine ⟨A', hA.trans inter_subset_left, -x +ᵥ A', ?_, h.1, ?_, ?_⟩
+  · grw [hA, inter_subset_right, neg_vadd_vadd]
+  · simp_all
+  · simpa [sub_eq_add_neg, add_vadd_comm] using h.2
+
+
+-- @@ L403-408 expanded
+/-- The **Balog-Szemerédi-Gowers theorem** for two sets.
+
+If a set `A` has large energy, then there exists a large subset `A'` of `A` of small difference. -/
+public theorem BSG_self {K : ℝ} (hK : 0 ≤ K) (hA : A.Nonempty)
+    (hAK : K⁻¹ * A.dens ^ 3 ≤ Finset.addEnergy' A A) :
+    ∃ A' ⊆ A, (2 ^ 4)⁻¹ * K⁻¹ * A.dens ≤ A'.dens ∧ (A' - A').dens ≤ 2 ^ 10 * K ^ 5 * A.dens := by
+  convert BSG hK hA ?_ using 5 <;> grind
+
+
+-- @@ L410-420 expanded
+/-- The **Balog-Szemerédi-Gowers theorem** for two sets.
+
+If a set `A` has large energy, then there exists a large subset `A'` of `A` of small difference. -/
+public theorem BSG_self' {K : ℝ} (hK : 0 ≤ K) (hA : A.Nonempty)
+    (hAK : K⁻¹ * A.dens ^ 3 ≤ Finset.addEnergy' A A) :
+    ∃ A' ⊆ A, (2 ^ 4)⁻¹ * K⁻¹ * A.dens ≤ A'.dens ∧ (A' - A').dens ≤ 2 ^ 14 * K ^ 6 * A'.dens :=
+  by
+  obtain ⟨A', hA', hAA', hAK'⟩ := BSG_self hK hA hAK
+  refine ⟨A', hA', hAA', hAK'.trans ?_⟩
+  calc
+    _ = 2 ^ 14 * K ^ 6 * ((2 ^ 4)⁻¹ * K⁻¹ * A.dens) := ?_
+    _ ≤ _ := by gcongr
+  grind
+

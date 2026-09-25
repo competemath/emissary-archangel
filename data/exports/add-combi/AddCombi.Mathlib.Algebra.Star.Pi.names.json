@@ -1,0 +1,1 @@
+{"names":["Set.conj_indicator_one","Set.conj_indicator_one_apply"],"modules":["AddCombi.Mathlib.Algebra.Star.Pi"],"moduleOf":{"Set.conj_indicator_one":"AddCombi.Mathlib.Algebra.Star.Pi","Set.conj_indicator_one_apply":"AddCombi.Mathlib.Algebra.Star.Pi"},"deps":{"Set.conj_indicator_one":["Set.conj_indicator_one_apply"],"Set.conj_indicator_one_apply":[]}}
