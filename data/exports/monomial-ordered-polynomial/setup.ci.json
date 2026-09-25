@@ -1,0 +1,36 @@
+{
+  "key": "monomial-ordered-polynomial",
+  "repo": "https://github.com/WuProver/MonomialOrderedPolynomial",
+  "commit": "395c5f73357e6f8a377c97108ae8eb2123c4bfe1",
+  "toolchain": "leanprover/lean4:v4.29.0-rc8",
+  "roots": [
+    "MonomialOrderedPolynomial"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/monomial-ordered-polynomial/repo",
+  "entries": 238,
+  "modules": 9,
+  "exported": 9,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 238,
+    "kept": 238,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 227,
+    "lineUnverified": 3,
+    "nameFixed": 51,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 12660736,
+  "minutes": 8,
+  "finishedAt": "2026-09-25T15:25:00.614Z"
+}
