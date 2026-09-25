@@ -1,0 +1,494 @@
+/-
+Copyright (c) 2025-present Ching-Tsun Chou All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Ching-Tsun Chou
+-/
+
+import AutomataTheory.Automata.Hist
+import AutomataTheory.Languages.RegLang
+import AutomataTheory.Sequences.InfOcc
+
+
+-- @@ L11-16 verbatim
+/-!
+The languages corresponding to pairs of states of an NA defined in
+this file are used to define the Buchi congruence in `Congruences.BuchiCongr`
+and to prove an important theorem characterizing ω-regular languages (see
+`omega_reg_lang_finite_union_form` below).
+-/
+
+
+-- @@ L18-18 verbatim
+open Function Set Filter Stream'
+
+
+-- @@ L20-20 verbatim
+namespace Automata
+
+
+-- @@ L22-22 verbatim
+section PairLang
+
+
+-- @@ L24-24 verbatim
+variable {A : Type}
+
+
+-- @@ L26-29 verbatim
+/-- A run of `M` that starts from `s` and ends at `s'`.
+-/
+def NA.PairPath (M : NA A) (s s' : M.State) (al : List A) (ss : Stream' M.State) :=
+  ss 0 = s ∧ ss al.length = s' ∧ ∀ k, (h : k < al.length) → ss (k + 1) ∈ M.next (ss k) (al[k]'h)
+
+
+-- @@ L31-35 verbatim
+/-- A run of `M` that starts from `s` and ends at `s'` and (including `s` and `s'`)
+passes through an accepting state at least once.
+-/
+def NA.PairAccPath (M : NA A) (acc : Set M.State) (s s' : M.State) (al : List A) (ss : Stream' M.State) :=
+  M.PairPath s s' al ss ∧ ∃ k < al.length + 1, ss k ∈ acc
+
+
+-- @@ L37-40 verbatim
+/-- The language induced by runs of `M` that start from `s` and end at `s'`.
+-/
+def NA.PairLang (M : NA A) (s s' : M.State) : Set (List A) :=
+  { al | ∃ ss, M.PairPath s s' al ss }
+
+
+-- @@ L42-46 verbatim
+/-- The language induced by runs of `M` that start from `s` and end at `s'` and
+(including `s` and `s'`) pass through an accepting state at least once.
+-/
+def NA.PairAccLang (M : NA A) (acc : Set M.State) (s s' : M.State) : Set (List A) :=
+  { al | ∃ ss, M.PairAccPath acc s s' al ss }
+
+
+-- @@ L48-48 verbatim
+variable {M : NA A} {acc : Set M.State}
+
+
+-- @@ L50-59 verbatim
+/-- The following intuitive obvious results are needed to prove that
+Buchi congruence is indeed a right congruence.
+-/
+
+theorem pair_lang_fin_subseq {as : Stream' A} {ss : Stream' M.State} {m n : ℕ}
+    (h_next : ∀ k, ss (k + 1) ∈ M.next (ss k) (as k)) (h_m_n : m ≤ n) :
+    as.extract m n ∈ M.PairLang (ss m) (ss n) := by
+  use (fun k ↦ ss (k + m))
+  simp (disch := omega) [NA.PairPath, length_extract, get_extract', (show n - m + m = n by omega)]
+  intro k h_k ; grind
+
+
+-- @@ L61-70 verbatim
+theorem pair_path_split {s s' : M.State} {al0 al1 : List A} {ss : Stream' M.State}
+    (h : M.PairPath s s' (al0 ++ al1) ss) :
+    M.PairPath s (ss al0.length) al0 ss ∧ M.PairPath (ss al0.length) s' al1 (ss.drop al0.length) := by
+  obtain ⟨rfl, rfl, h_next⟩ := h
+  constructor
+  · simp [NA.PairPath]
+    grind
+  · simp [NA.PairPath, get_drop', Nat.add_comm]
+    intro k h_k ; specialize h_next (al0.length + k) (by simpa)
+    grind
+
+
+-- @@ L72-78 verbatim
+theorem pair_lang_split {s s' : M.State} {al0 al1 : List A}
+    (h : al0 ++ al1 ∈ M.PairLang s s') : ∃ t, al0 ∈ M.PairLang s t ∧ al1 ∈ M.PairLang t s' := by
+  obtain ⟨ss, h_path⟩ := h
+  have ⟨h_path0, h_path1⟩ := pair_path_split h_path
+  use (ss al0.length) ; constructor
+  · use ss
+  · use (ss.drop al0.length)
+
+
+-- @@ L80-95 verbatim
+theorem pair_acc_lang_split {s s' : M.State} {al0 al1 : List A}
+    (h : al0 ++ al1 ∈ M.PairAccLang acc s s') :
+    ∃ t, (al0 ∈ M.PairAccLang acc s t ∧ al1 ∈ M.PairLang t s') ∨
+         (al0 ∈ M.PairLang s t ∧ al1 ∈ M.PairAccLang acc t s') := by
+  obtain ⟨ss, h_path, n, h_n, h_acc⟩ := h
+  obtain ⟨h_path0, h_path1⟩ := pair_path_split h_path
+  use (ss al0.length)
+  rcases Classical.em (n < al0.length + 1) with h_n' | h_n'
+  · left ; constructor
+    · use ss ; simp [NA.PairAccPath, h_path0] ; use n
+    · use (ss.drop al0.length)
+  · right ; constructor
+    · use ss
+    · use (ss.drop al0.length) ; simp [NA.PairAccPath, h_path1]
+      use (n - al0.length) ; simp [get_drop']
+      grind
+
+
+-- @@ L97-110 verbatim
+theorem pair_path_concat {s s' t: M.State} {al0 al1 : List A} {ss0 ss1 : Stream' M.State}
+    (h0 : M.PairPath s t al0 ss0) (h1 : M.PairPath t s' al1 ss1) :
+    M.PairPath s s' (al0 ++ al1) (fun k ↦ if k < al0.length + 1 then ss0 k else ss1 (k - al0.length)) := by
+  obtain ⟨rfl, rfl, h_next0⟩ := h0
+  obtain ⟨h_s1, rfl, h_next1⟩ := h1
+  simp [NA.PairPath] ; constructor
+  · grind
+  intro k h_k
+  rcases (show k < al0.length ∨ k = al0.length ∨ k > al0.length by omega) with h_k' | h_k' | h_k'
+  · grind
+  · simp [h_k', ← h_s1]
+    grind
+  · specialize h_next1 (k - al0.length) (by omega)
+    grind
+
+
+-- @@ L112-117 verbatim
+theorem pair_lang_concat {s s' t: M.State} {al0 al1 : List A}
+    (h0 : al0 ∈ M.PairLang s t) (h1 : al1 ∈ M.PairLang t s') : al0 ++ al1 ∈ M.PairLang s s' := by
+  obtain ⟨ss0, h_path0⟩ := h0
+  obtain ⟨ss1, h_path1⟩ := h1
+  use (fun k ↦ if k < al0.length + 1 then ss0 k else ss1 (k - al0.length))
+  exact pair_path_concat h_path0 h_path1
+
+
+-- @@ L119-126 verbatim
+theorem pair_acc_lang_concat_0 {s s' t: M.State} {al0 al1 : List A}
+    (h0 : al0 ∈ M.PairAccLang acc s t) (h1 : al1 ∈ M.PairLang t s') : al0 ++ al1 ∈ M.PairAccLang acc s s' := by
+  obtain ⟨ss0, h_path0, n, h_n, h_acc⟩ := h0
+  obtain ⟨ss1, h_path1⟩ := h1
+  use (fun k ↦ if k < al0.length + 1 then ss0 k else ss1 (k - al0.length))
+  constructor
+  · exact pair_path_concat h_path0 h_path1
+  · use n ; grind
+
+
+-- @@ L128-140 verbatim
+theorem pair_acc_lang_concat_1 {s s' t: M.State} {al0 al1 : List A}
+    (h0 : al0 ∈ M.PairLang s t) (h1 : al1 ∈ M.PairAccLang acc t s') : al0 ++ al1 ∈ M.PairAccLang acc s s' := by
+  obtain ⟨ss0, h_path0⟩ := h0
+  obtain ⟨ss1, h_path1, n, h_n, h_acc⟩ := h1
+  use (fun k ↦ if k < al0.length + 1 then ss0 k else ss1 (k - al0.length))
+  constructor
+  · exact pair_path_concat h_path0 h_path1
+  · use (n + al0.length)
+    simp [(show n + al0.length < al0.length + al1.length + 1 by omega)]
+    rcases (show n > 0 ∨ n = 0 by omega) with h_n' | rfl
+    · grind
+    · obtain ⟨rfl⟩ := h_path1.1
+      simp [h_path0.2.1, h_acc]
+
+
+-- @@ L142-167 verbatim
+/-- If accepting states appear infinitely often in a run and φ : Stream' ℕ is StrictMono,
+then there exist infinitely many `m` such that the segment of the run from `φ(m)` to `φ(m + 1)`
+contains at least one accepting state.
+-/
+theorem pair_acc_lang_frequently_from_run {as : Stream' A} {ss : Stream' M.State} {φ : Stream' ℕ}
+    (h_next : ∀ k, ss (k + 1) ∈ M.next (ss k) (as k)) (h_acc : ∃ᶠ k in Filter.atTop, ss k ∈ acc) (h_mono : StrictMono φ) :
+    ∃ᶠ m in Filter.atTop, as.extract (φ m) (φ (m + 1)) ∈ M.PairAccLang acc (ss (φ m)) (ss (φ (m + 1))) := by
+  have h_acc' := frequently_atTop.mp h_acc
+  have h_mono' := frequently_atTop.mp <| Nat.frequently_atTop_iff_infinite.mpr <| strict_mono_infinite h_mono
+  apply frequently_atTop.mpr ; intro m
+  obtain ⟨k, h_k, h_k_acc⟩ := h_acc' (φ m)
+  let n := Segment' φ k
+  use n ; constructor
+  · exact segment'_lower_val h_mono h_k
+  · use (fun k ↦ ss (k + φ n)) ; constructor
+    · have : φ n < φ (n + 1) := h_mono (show n < n + 1 by omega)
+      simp (disch := omega) [NA.PairPath, length_extract, get_extract', (show φ (n + 1) - φ n + φ n = φ (n + 1) by omega)]
+      intro j h_j ; have := h_next (j + φ n)
+      simpa [(show j + 1 + φ n = j + φ n + 1 by omega), (show φ n + j = j + φ n by omega)]
+    · have : φ 0 ≤ φ m := by simp [StrictMono.le_iff_le h_mono]
+      have h1 : φ 0 ≤ k := by omega
+      have : φ n ≤ k := by exact segment'_lower_bound h_mono h1
+      use (k - φ n)
+      simp [h_k_acc, length_extract, (show k - φ n + φ n = k by omega)]
+      have : k < φ (n + 1) := by exact segment'_upper_bound h_mono h1
+      omega
+
+
+-- @@ L169-238 verbatim
+/-- The following result is technical and used to prove the saturation property of
+the Buchi congruence.  Its main purpose is to "fill in" the states between the
+successive `ss' m` to produce a well-formed run in which the accepting states appear
+infinitely often.  Note that `ss` needs to agree with `ss'` only at positions `φ m`:
+`∀ m, ss (φ m) = ss' m`.
+-/
+theorem pair_acc_lang_frequently_to_run {φ : Stream' ℕ} {as : Stream' A} (ss' : Stream' M.State)
+    (h_mono : StrictMono φ) (h_zero : φ 0 = 0)
+    (h_pair : ∀ m, as.extract (φ m) (φ (m + 1)) ∈ M.PairLang (ss' m) (ss' (m + 1)))
+    (h_inf : ∃ᶠ m in atTop, as.extract (φ m) (φ (m + 1)) ∈ M.PairAccLang acc (ss' m) (ss' (m + 1))) :
+    ∃ ss : Stream' M.State, (∀ m, ss (φ m) = ss' m) ∧
+      (∀ k, ss (k + 1) ∈ M.next (ss k) (as (k))) ∧ (∃ᶠ k in atTop, ss k ∈ acc) := by
+  have h_exists : ∀ m, ∃ ps, M.PairPath (ss' m) (ss' (m + 1)) (as.extract (φ m) (φ (m + 1))) ps ∧
+    ( as.extract (φ m) (φ (m + 1)) ∈ M.PairAccLang acc (ss' m) (ss' (m + 1)) →
+      M.PairAccPath acc (ss' m) (ss' (m + 1)) (as.extract (φ m) (φ (m + 1))) ps ) := by
+    intro m
+    rcases Classical.em (as.extract (φ m) (φ (m + 1)) ∈ M.PairAccLang acc (ss' m) (ss' (m + 1))) with h_acc | h_acc
+    <;> simp [h_acc]
+    · obtain ⟨ps, h_ps⟩ := h_acc
+      use ps ; simp [h_ps, h_ps.1]
+    · obtain ⟨ps, h_ps⟩ := h_pair m
+      use ps
+  choose ps h_ps using h_exists
+  use (fun k ↦ ps (Segment φ k) (k - φ (Segment φ k)))
+  constructorm* _ ∧ _
+  · intro m
+    have h0 := (h_ps (Segment φ (φ m))).1.1
+    simp [segment_idem h_mono] at h0
+    simp [segment_idem h_mono, h0]
+  · intro k
+    have := segment_lower_bound h_mono h_zero k
+    have := segment_upper_bound h_mono h_zero k
+    have h_next := (h_ps (Segment φ k)).1.2.2 (k - φ (Segment φ k))
+    simp [length_extract, get_extract',
+      (show φ (Segment φ k) + (k - φ (Segment φ k)) = k by omega),
+      (show k - φ (Segment φ k) + 1 = k + 1 - φ (Segment φ k) by omega),
+      (show k - φ (Segment φ k) < φ (Segment φ k + 1) - φ (Segment φ k) by omega)] at h_next
+    rcases (show k + 1 < φ (Segment φ k + 1) ∨ k + 1 = φ (Segment φ k + 1) by omega) with h_k | h_k
+    · have h1 := segment_range_val h_mono (by omega) h_k
+      simp [h1, h_next]
+    · have h1 := (h_ps (Segment φ k)).1.2.1
+      simp [length_extract] at h1
+      simp [h_k, h1] at h_next
+      have h2 : Segment φ (k + 1) = Segment φ k + 1 := by simp [h_k, segment_idem h_mono]
+      have h3 := (h_ps (Segment φ k + 1)).1.1
+      simp [← h_k, h2, h3, h_next]
+  · have h_inf' : ∃ᶠ m in atTop, ∃ k < φ (m + 1) - φ m + 1, ps m k ∈ acc := by
+      apply Frequently.mono h_inf
+      intro m h_m
+      obtain ⟨_, k, h_k, h_acc⟩ := (h_ps m).2 h_m
+      simp [length_extract] at h_k
+      use k
+    have h_φ_inf := Filter.frequently_atTop'.mp <| Nat.frequently_atTop_iff_infinite.mpr <| strict_mono_infinite h_mono
+    apply Filter.frequently_atTop'.mpr
+    intro k0
+    obtain ⟨k1, h_k1, m1, rfl⟩ := h_φ_inf k0
+    obtain ⟨m2, h_m2, k2, h_k2, h_acc⟩ := Filter.frequently_atTop'.mp h_inf' m1
+    have := h_mono h_m2
+    have : φ m2 < φ (m2 + 1) := by apply h_mono ; omega
+    rcases (show k2 < φ (m2 + 1) - φ m2 ∨ k2 = φ (m2 + 1) - φ m2 by omega) with h_k2' | rfl
+    · use (k2 + φ m2) ; constructor
+      · omega
+      have h1 := segment_range_val h_mono (show φ m2 ≤ k2 + φ m2 by omega) (by omega)
+      simp [h1, h_acc]
+    · use (φ (m2 + 1)) ; constructor
+      · omega
+      have h2 := (h_ps (m2)).1.2.1
+      simp [length_extract] at h2
+      simp [h2] at h_acc
+      simp [segment_idem h_mono, (h_ps (m2 + 1)).1.1, h_acc]
+
+
+-- @@ L240-243 verbatim
+def NA.SingleInit (s : M.State) : NA A where
+  State := M.State
+  init := {s}
+  next := M.next
+
+
+-- @@ L245-255 verbatim
+theorem pair_path_fin_run [Inhabited A] {s s' : M.State} {al : List A} {ss : Stream' M.State} :
+    M.PairPath s s' al ss ↔ (M.SingleInit s).FinRun al.length al.padDefault ss ∧ ss al.length = s' := by
+  constructor
+  · rintro ⟨rfl, rfl, h_next⟩
+    simp [NA.FinRun, NA.SingleInit, List.padDefault]
+    intro k h_k ; simp [h_k, h_next]
+  · rintro ⟨⟨h_init, h_next⟩, rfl⟩
+    simp [NA.SingleInit] at h_init h_next
+    simp [NA.PairPath, h_init]
+    intro k h_k ; specialize h_next k h_k
+    simp [List.padDefault, h_k] at h_next ; exact h_next
+
+
+-- @@ L257-273 verbatim
+/-- If `M` is finite-state, then `M.PairLang s s'` is regular for any pair of
+states `s` and `s'`.
+-/
+theorem pair_lang_regular [Inhabited A] [h_fin : Finite M.State] {s s' : M.State} :
+    RegLang (M.PairLang s s') := by
+  use (M.SingleInit s), {s'} ; constructor
+  · assumption
+  ext al ; constructor
+  · rintro ⟨n, as, ⟨ss, ⟨h_init, h_next⟩, rfl⟩, rfl⟩
+    use ss ; apply pair_path_fin_run.mpr
+    simp [NA.FinRun, h_init, length_extract]
+    intro k h_k
+    have h1 : k < (as.extract 0 n).length := by simp [length_extract, h_k]
+    simp (disch := omega) [padDefault_elt_left h1, get_extract', h_next]
+  · rintro ⟨ss, h_path⟩
+    use al.length, al.padDefault ; simp [extract_padDefault]
+    use ss ; exact pair_path_fin_run.mp h_path
+
+
+-- @@ L275-330 verbatim
+/-- If `M` is finite-state, then `M.PairAccLang acc s s'` is regular for any pair of
+states `s` and `s'`.  Note that we need to use the history NA construction to
+prove this result, because the NA needs to remember whether an accepting state
+has been visited.
+-/
+theorem pair_acc_lang_regular [Inhabited A] [h_fin : Finite M.State] {s s' : M.State} :
+    RegLang (M.PairAccLang acc s s') := by
+  let M' := (M.SingleInit s).addHist {False} (fun s a ↦ {s.2 ∨ s.1 ∈ acc})
+  use M', {p | p.1 = s' ∧ (p.2 ∨ s' ∈ acc) } ; constructor
+  · simp [M', NA.SingleInit] ; exact Finite.instProd
+  ext al ; constructor
+  · rintro ⟨n, as, ⟨ss', h_run', rfl, h_acc⟩, rfl⟩
+    have h_run := na_hist_fin_run_proj h_run'
+    use (Prod.fst ∘ ss')
+    constructor
+    · apply pair_path_fin_run.mpr ; simp [length_extract]
+      apply na_FinRun_modulo (hr := h_run)
+      · intro k h_k
+        have h1 : k < (as.extract 0 n).length := by simp [length_extract, h_k]
+        simp (disch := omega) [padDefault_elt_left h1, get_extract']
+      · simp
+    simp
+    obtain (h_acc | h_acc) := h_acc.symm
+    · use n ; simp [h_acc, length_extract]
+    by_contra! h_contra
+    suffices h : ∀ k < n + 1, ¬ (ss' k).2 by simp [h n (by omega)] at h_acc
+    intro k h_k ; induction' k with k h_ind
+    · have h_init := h_run'.1
+      simp [M', NA.addHist] at h_init
+      simp [h_init]
+    specialize h_ind (by omega)
+    specialize h_contra k (by simp [length_extract] ; omega)
+    have h_next := h_run'.2 k (by omega)
+    simp [M', NA.addHist, h_ind, h_contra] at h_next
+    simp [h_next]
+  · rintro ⟨ss, h_path, k0, h_k0, h_k0_acc⟩
+    use al.length, al.padDefault ; simp [extract_padDefault]
+    obtain ⟨h_run, rfl⟩ := pair_path_fin_run.mp h_path
+    have h_ne_init : Set.Nonempty {False} := by simp
+    have h_ne_next : ∀ (s : (M.SingleInit s).State × Prop) (a : A), Set.Nonempty {s.2 ∨ s.1 ∈ acc} := by simp
+    obtain ⟨hist, h_run'⟩ := na_hist_fin_run_exists h_ne_init h_ne_next h_run
+    use (fun k ↦ (ss k, hist k)) ; simp [M', h_run']
+    obtain (rfl | h_k0) := show k0 = al.length ∨ k0 < al.length by omega
+    · simp [h_k0_acc]
+    suffices h : ∀ k > k0, k < al.length + 1 → hist k by simp [h al.length h_k0]
+    intro k h_k
+    obtain ⟨j, rfl⟩ := show ∃ j, k = k0 + j + 1 by use (k - k0 - 1) ; omega
+    clear h_k ; induction' j with j h_ind
+    · have h_next := h_run'.2 k0 h_k0
+      simp [NA.addHist, h_k0_acc] at h_next
+      simp [h_next]
+    intro h_j
+    specialize h_ind (by omega)
+    have h_next := h_run'.2 (k0 + j + 1) (by omega)
+    simp [NA.addHist, h_ind] at h_next
+    simp [h_next, (show k0 + (j + 1) + 1 = k0 + j + 1 + 1 by omega)]
+
+
+-- @@ L332-423 expanded
+/-- The ω-regular language accepted by a finite-state NA `M` is the union of ω-languages
+of the form `(M.PairLang s0 sa) * (M.PairLang sa sa)^ω`, where `s0` and `sa` range over initial
+and accepting states respectively.
+-/
+theorem omega_reg_lang_finite_union_form [h_fin : Finite M.State] :
+    M.AcceptedOmegaLang acc =
+      ⋃ s0 ∈ M.init, ⋃ sa ∈ acc, (M.PairLang s0 sa) * OmegaPower.omegaPower (M.PairLang sa sa) :=
+  by
+  ext as; simp; constructor
+  · rintro ⟨ss, ⟨h_init, h_next⟩, h_acc⟩
+    obtain ⟨sa, h_sa, h_acc⟩ := frequently_in_finite_set.mp h_acc
+    use (ss 0); simp [h_init]
+    use sa; simp [h_sa]
+    have h_inf := Nat.frequently_atTop_iff_infinite.mp h_acc
+    let nth_sa := Nat.nth (fun k ↦ ss k = sa)
+    have h_nth_sa : ∀ n, ss (nth_sa n) = sa := by exact Nat.nth_mem_of_infinite h_inf
+    have h_mono : StrictMono nth_sa := by exact Nat.nth_strictMono h_inf
+    use (as.extract 0 (nth_sa 0)), (as.drop (nth_sa 0))
+    simp [append_extract_drop]; constructor
+    · use ss; simp (disch := omega) [NA.PairPath, h_nth_sa, h_next, length_extract, get_extract']
+    use (fun n ↦ nth_sa n - nth_sa 0); simp; constructor
+    · intro m n h_mn; simp
+      have h_nth_mn := h_mono h_mn
+      have h_nth_0m := StrictMono.monotone h_mono (show 0 ≤ m by omega)
+      have h_nth_0n := StrictMono.monotone h_mono (show 0 ≤ n by omega)
+      omega
+    intro n
+    have h_nth_0n := StrictMono.monotone h_mono (show 0 ≤ n by omega)
+    have h_nth_nn1 := h_mono (show n < n + 1 by omega)
+    have h1 : nth_sa 0 + (nth_sa n - nth_sa 0) = nth_sa n := by omega
+    have h2 : nth_sa 0 + (nth_sa (n + 1) - nth_sa 0) = nth_sa (n + 1) := by omega
+    simp [extract_drop, h1, h2]
+    use (ss.drop (nth_sa n))
+    simp (disch := omega) [NA.PairPath, h_nth_sa, length_extract, get_drop', get_extract']
+    intro k h_k; specialize h_next (k + nth_sa n)
+    have h3 : nth_sa n + (k + 1) = k + nth_sa n + 1 := by omega
+    have h4 : nth_sa n + k = k + nth_sa n := by omega
+    simp [h_next, h3, h4]
+  · rintro ⟨s0, h_s0, sa, h_sa, al0, as1, ⟨ss0, h_path0⟩, ⟨nth_sa, h_mono, h_sa_0, h_path1⟩, rfl⟩
+    choose nth_ss h_nth_ss using h_path1
+    let seg k := Segment nth_sa (k - al0.length)
+    let ss k := if k < al0.length then ss0 k else nth_ss (seg k) (k - nth_sa (seg k) - al0.length)
+    use ss; constructor
+    · constructor
+      · rcases (show al0.length > 0 ∨ al0.length = 0 by omega) with h_al0 | h_al0
+        · simp [ss, h_al0, h_path0.1, h_s0]
+        have h_seg_0 : seg 0 = 0 := by simp [seg, segment_zero h_mono h_sa_0]
+        simp [ss, h_al0, h_seg_0, (h_nth_ss 0).1, ← h_path0.2.1, h_path0.1, h_s0]
+      intro k
+      rcases (show k + 1 < al0.length ∨ k + 1 = al0.length ∨ k ≥ al0.length by omega) with h_k |
+        h_k | h_k
+      · have h_k' : k < al0.length := by omega
+        have h_next := h_path0.2.2 k h_k'
+        simp [ss, h_k, h_k', h_next, get_append_left']
+      · have h_k' : k < al0.length := by omega
+        have h_next := h_path0.2.2 k h_k'
+        simp [h_k, h_path0.2.1] at h_next
+        simp [ss, h_k, h_k', seg, segment_zero h_mono h_sa_0, (h_nth_ss 0).1, h_next,
+          get_append_left']
+      · have h_k' : ¬k < al0.length := by omega
+        have h_k'' : ¬k + 1 < al0.length := by omega
+        have h_lo := segment_lower_bound h_mono h_sa_0 (k - al0.length)
+        have h_hi := segment_upper_bound h_mono h_sa_0 (k - al0.length)
+        simp [ss, h_k', h_k'', seg]
+        have h_next :=
+          (h_nth_ss (Segment nth_sa (k - al0.length))).2.2 <|
+            (k - nth_sa (Segment nth_sa (k - al0.length)) - al0.length)
+        simp (disch := omega) [length_extract, get_extract'] at h_next
+        specialize h_next (by omega)
+        have h1 :
+          nth_sa (Segment nth_sa (k - al0.length)) +
+              (k - nth_sa (Segment nth_sa (k - al0.length)) - al0.length) =
+            k - al0.length :=
+          by omega
+        have h2 :
+          k - nth_sa (Segment nth_sa (k - al0.length)) - al0.length + 1 =
+            k + 1 - nth_sa (Segment nth_sa (k - al0.length)) - al0.length :=
+          by omega
+        simp [h1, h2] at h_next
+        rcases
+          (show
+            k + 1 - al0.length < nth_sa (Segment nth_sa (k - al0.length) + 1) ∨
+              k + 1 - al0.length = nth_sa (Segment nth_sa (k - al0.length) + 1)
+            by omega) with
+          h_k1 | h_k1
+        · have h3 : Segment nth_sa (k + 1 - al0.length) = Segment nth_sa (k - al0.length) := by
+            exact segment_range_val h_mono (hu := h_k1) (hl := by omega)
+          simp [h3, h_next, get_append_right' h_k]
+        · have h3 : k + 1 - nth_sa (Segment nth_sa (k - al0.length) + 1) - al0.length = 0 := by
+            omega
+          have h4 := (h_nth_ss (Segment nth_sa (k - al0.length) + 1)).1
+          simp [h_k1, segment_idem h_mono, h3, h4]
+          have h5 := (h_nth_ss (Segment nth_sa (k - al0.length))).2.1
+          have h6 :
+            k + 1 - al0.length - nth_sa (Segment nth_sa (k - al0.length)) =
+              k + 1 - nth_sa (Segment nth_sa (k - al0.length)) - al0.length :=
+            by omega
+          simp [← h_k1, h6, length_extract] at h5
+          simp [h5] at h_next
+          simp (disch := omega) [get_append_right', h_next]
+    · let φ k := nth_sa k + al0.length
+      have h_φ_mono : StrictMono φ := by intro m n h_mn; simp [φ]; apply h_mono h_mn
+      have h_φ_range : range φ ⊆ {k | ss k ∈ acc} :=
+        by
+        rintro k ⟨n, rfl⟩
+        simp [φ, ss, seg, segment_idem h_mono, (h_nth_ss n).1, h_sa]
+      apply Nat.frequently_atTop_iff_infinite.mpr
+      apply Infinite.mono h_φ_range
+      exact strict_mono_infinite h_φ_mono
+
+
+-- @@ L425-425 verbatim
+end PairLang

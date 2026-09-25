@@ -1,0 +1,36 @@
+{
+  "key": "automatatheory",
+  "repo": "https://github.com/ctchou/AutomataTheory",
+  "commit": "f196548710ce1ba8e7d4aa73b1cf846248ecfcb8",
+  "toolchain": "leanprover/lean4:v4.24.0-rc1",
+  "roots": [
+    "AutomataTheory"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/automatatheory/repo",
+  "entries": 231,
+  "modules": 25,
+  "exported": 25,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 32,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 231,
+    "kept": 231,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 116,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 6406144,
+  "minutes": 6,
+  "finishedAt": "2026-09-25T14:26:39.675Z"
+}

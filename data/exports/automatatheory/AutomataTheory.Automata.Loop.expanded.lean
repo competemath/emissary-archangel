@@ -1,0 +1,389 @@
+/-
+Copyright (c) 2025-present Ching-Tsun Chou All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Ching-Tsun Chou
+-/
+
+import AutomataTheory.Automata.Basic
+import AutomataTheory.Languages.Basic
+import AutomataTheory.Sequences.Segments
+
+
+-- @@ L11-15 verbatim
+/-!
+The loop construction of an NA is used to prove that the
+regular language is closed under the Kleene star and the ω-power
+of a regular language is an ω-regular language.
+-/
+
+
+-- @@ L17-17 verbatim
+open Function Set Sum Filter Stream'
+
+-- @@ L18-18 verbatim
+open Classical
+
+-- @@ L19-19 verbatim
+open scoped Computability
+
+
+-- @@ L21-21 verbatim
+namespace Automata
+
+
+-- @@ L23-23 verbatim
+section AutomataLoop
+
+
+-- @@ L25-25 verbatim
+variable {A : Type}
+
+
+-- @@ L27-39 verbatim
+/-- The loop NA of `M` mimics `M`, but can nondeterministically decide
+to transition from an accepting state of `M` to an initial state of `M`.
+The special state `inl ()` marks the boundaries between successive runs of `M`
+and is the only accepting state of the loop NA.
+-/
+def NA.Loop (M : NA A) (acc : Set M.State) : NA A where
+  State := Unit ⊕ M.State
+  init := {inl ()}
+  next := fun s a ↦ match (s) with
+    | inl () => inr '' { s' | ∃ s0 ∈ M.init, s' ∈ M.next s0 a } ∪
+                if ∃ s0 ∈ M.init, ∃ s' ∈ acc, s' ∈ M.next s0 a then {inl ()} else ∅
+    | inr s  => inr '' (M.next s a) ∪
+                if ∃ s' ∈ acc, s' ∈ M.next s a then {inl ()} else ∅
+
+
+-- @@ L41-41 verbatim
+variable {M : NA A} {acc : Set M.State}
+
+
+-- @@ L43-50 verbatim
+private lemma not_inl_unit {s : (M.Loop acc).State} :
+    s ≠ inl () ↔ ∃ s' : M.State, s = inr s' := by
+  constructor
+  · rw [← isRight_iff, ← not_isLeft, isLeft_iff]
+    rintro h1 ⟨u, h_s⟩
+    have h_u := Unit.ext u ()
+    simp [h_s] at h1
+  · rintro ⟨s', h_s'⟩ ; simp [h_s']
+
+
+-- @@ L52-127 verbatim
+/-- A finite run of the loop NA that contains the `inl ()` marker only
+at the beginning and at the end is an accepting run of `M`.
+-/
+theorem na_loop_fin_run {n : ℕ} {as : Stream' A} {ss : Stream' (M.Loop acc).State} (h : n > 0) :
+    (M.Loop acc).FinRun n as ss ∧ ss n = inl () ∧ (∀ k < n, k > 0 → ss k ∈ range inr) ↔
+    ∃ ss', M.FinRun n as ss' ∧ ss' n ∈ acc ∧ ss 0 = inl () ∧ ss n = inl () ∧ (∀ k < n, k > 0 → ss k = inr (ss' k)) := by
+  constructor
+  · rintro ⟨⟨h_init, h_next⟩, h_inl_n, h_inr⟩
+    simp [NA.Loop] at h_init
+    rcases (show n = 1 ∨ n > 1 by omega) with h_n | h_n
+    · obtain ⟨rfl⟩ := h_n
+      specialize h_next 0 (by omega)
+      simp [h_init, h_inl_n, NA.Loop] at h_next
+      obtain ⟨s0, h_s0, s1, h_acc, h_next⟩ := h_next
+      use (fun k ↦ if k = 0 then s0 else if k = 1 then s1 else s0)
+      simp [h_init, h_acc, h_inl_n, NA.FinRun, h_s0, h_next]
+    · obtain ⟨s1, h_s1⟩ := h_inr 1 h_n (by omega)
+      have h_next_0 := h_next 0 h
+      simp [h_init, ← h_s1, NA.Loop] at h_next_0
+      obtain ⟨s0, h_s0, h_next_0⟩ := h_next_0
+      obtain ⟨sn1, h_sn1⟩ := h_inr (n - 1) (by omega) (by omega)
+      have h_next_n1 := h_next (n - 1) (by omega)
+      have h_n1 : n - 1 + 1 = n := by omega
+      simp [h_n1, h_inl_n, ← h_sn1, NA.Loop] at h_next_n1
+      obtain ⟨sn, h_sn, h_next_n1⟩ := h_next_n1
+      have h_ss' : ∀ k, k > 0 → k < n → ∃ ss', ss k = inr ss' := by
+        intro k h_k_0 h_k_n
+        obtain ⟨s', h_s'⟩ := h_inr k h_k_n h_k_0
+        use s' ; simp [h_s']
+      choose ss' h_ss' using h_ss'
+      use (fun k ↦ if h0 : k = 0 then s0 else if hn : k < n then ss' k (by omega) hn else if k = n then sn else s0)
+      simp [(show n ≠ 0 by omega), h_init, h_inl_n, h_sn, NA.FinRun, h_s0]
+      constructor
+      · intro k h_k_n
+        rcases (show k = 0 ∨ k = n - 1 ∨ k > 0 ∧ k < n - 1 by omega) with h_k_0 | h_k_n' | ⟨h_k_0, h_k_n'⟩
+        · obtain ⟨rfl⟩ := h_k_0
+          have h_ss_1 := h_ss' 1 (by omega) (h_n)
+          rw [← h_s1, inr.inj_iff] at h_ss_1
+          simp [h_n, ← h_ss_1, h_next_0]
+        · obtain ⟨rfl⟩ := h_k_n'
+          have h_ss_n1 := h_ss' (n - 1) (by omega) h_k_n
+          rw [← h_sn1, inr.inj_iff] at h_ss_n1
+          simp [(show n - 1 + 1 = n by omega), (show n - 1 ≠ 0 by omega), h, ← h_ss_n1, h_next_n1]
+        · have h_ss_k := h_ss' k h_k_0 h_k_n
+          have h_ss_k1 := h_ss' (k + 1) (by omega) (by omega)
+          have h_next_k := h_next k h_k_n
+          simp [h_ss_k, h_ss_k1, NA.Loop] at h_next_k
+          simp [(show k + 1 < n by omega), (show k ≠ 0 by omega), h_k_n, h_next_k]
+      · intro k h_k_n h_k_0
+        simp [h_k_n, h_k_0, (show k ≠ 0 by omega), h_ss']
+  · rintro ⟨ss', ⟨h_init, h_next⟩, h_acc, h_inl_0, h_inl_n, h_inr⟩
+    constructor <;> [constructor ; constructor]
+    · simp [h_inl_0, NA.Loop]
+    · intro k h_k_n
+      rcases (show k = 0 ∨ k > 0 by omega) with h_k_0 | h_k_0
+      · specialize h_next 0 h
+        rcases (show n = 1 ∨ n > 1 by omega) with h_n | h_n
+        · obtain ⟨rfl⟩ := h_n
+          simp [h_k_0, h_inl_0, NA.Loop, h_inl_n]
+          use (ss' 0) ; simp [h_init] ; use (ss' 1)
+        · specialize h_inr 1 h_n (by omega)
+          simp [h_k_0, h_inl_0, NA.Loop, h_inr]
+          use (ss' 0)
+      · specialize h_next k (h_k_n)
+        have h_ss_k := h_inr k h_k_n h_k_0
+        rcases (show k + 1 < n ∨ k = n - 1 by omega) with h_k_n' | h_k_n'
+        · have h_ss_k' := h_inr (k + 1) h_k_n' (by omega)
+          simpa [h_ss_k, h_ss_k', NA.Loop]
+        · obtain ⟨rfl⟩ := h_k_n'
+          have h_n1 : n - 1 + 1 = n := by omega
+          simp [h_n1] at h_next
+          simp [h_n1, h_ss_k, h_inl_n, NA.Loop]
+          use (ss' n)
+    · exact h_inl_n
+    · intro k h_k_n h_k_0
+      simp [h_inr k h_k_n h_k_0]
+
+
+-- @@ L129-142 verbatim
+/-- Conversely, for any finite accepting run of `M`, there is a finite run of the
+loop NA that contains the `inl ()` marker only at the beginning and at the end.
+-/
+theorem na_loop_fin_run_exists {n : ℕ} {as : Stream' A} {ss' : Stream' M.State}
+    (h_run' : M.FinRun n as ss') (h_acc' : ss' n ∈ acc) :
+    ∃ ss, (M.Loop acc).FinRun n as ss ∧ ss n = inl () ∧ (∀ k < n, k > 0 → ss k = inr (ss' k)) := by
+  rcases (show n = 0 ∨ n > 0 by omega) with ⟨rfl⟩ | h_n
+  · use (fun k ↦ inl ()) ; simp [NA.FinRun, NA.Loop]
+  let ss k := if k = 0 ∨ k = n then inl () else inr (ss' k)
+  suffices h : ∃ ss', M.FinRun n as ss' ∧ ss' n ∈ acc ∧ ss 0 = inl () ∧ ss n = inl () ∧ (∀ k < n, k > 0 → ss k = inr (ss' k)) by
+    obtain ⟨h_run, h_ss_n, _⟩ := (na_loop_fin_run h_n).mpr h
+    use ss ; simp [h_run, h_ss_n]
+    intro k h_k_n h_k_0 ; simp [ss] ; omega
+  use ss' ; simp [h_run', h_acc', ss] ; omega
+
+
+-- @@ L144-144 verbatim
+end AutomataLoop
+
+
+-- @@ L146-146 verbatim
+section AcceptedLangLoop
+
+
+-- @@ L148-148 verbatim
+variable {A : Type} {M : NA A} {acc : Set M.State}
+
+
+-- @@ L150-184 verbatim
+/-- The concatenation of the language accepted by the loop NA with itself
+is a subset of itself.
+-/
+theorem acc_lang_loop_concat :
+    ((M.Loop acc).AcceptedLang {inl ()}) * ((M.Loop acc).AcceptedLang {inl ()}) ⊆
+    (M.Loop acc).AcceptedLang {inl ()} := by
+  rintro al ⟨al1, al2, ⟨n1, as1, ⟨ss1, h_run1, h_acc1⟩, rfl⟩, ⟨n2, as2, ⟨ss2, h_run2, h_acc2⟩, rfl⟩, rfl⟩
+  use (n1 + n2), ((as1.extract 0 n1) ++ₛ as2) ; symm ; constructor
+  · have h1 : (as1.extract 0 n1).length ≤ n1 + n2 := by simp [length_extract]
+    simp [extract_append_zero_right h1, length_extract]
+  let ss k := if k < n1 then ss1 k else ss2 (k - n1)
+  use ss ; symm ; constructor
+  · simp at h_acc2 ; simp [ss, h_acc2]
+  constructor
+  · suffices h_0 : ss 0 = inl () by simp [h_0, NA.Loop]
+    rcases (show n1 = 0 ∨ n1 > 0 by omega) with h_n1 | h_n1 <;> simp [ss, h_n1]
+    · exact h_run2.1
+    · exact h_run1.1
+  intro k h_k
+  rcases (show k + 1 < n1 ∨ k + 1 = n1 ∨ k + 1 > n1 by omega) with h_k | h_k | h_k
+  · have h1 : k < (as1.extract 0 n1).length := by simp [length_extract] ; omega
+    simp (disch := omega) [get_append_left' h1, get_extract']
+    have h_next := h_run1.2 k (by omega)
+    simp [ss, h_next, h_k, (show k < n1 by omega)]
+  · have h_next := h_run1.2 k (by omega)
+    suffices h_n1 : ss2 0 = ss1 (k + 1) by
+      have h1 : k < (as1.extract 0 n1).length := by simp [length_extract] ; omega
+      simp (disch := omega) [get_append_left' h1, get_extract']
+      simp [ss, ← h_k, h_n1, h_next]
+    simp [← h_k] at h_acc1
+    simp [h_acc1] ; exact h_run2.1
+  · have h_next := h_run2.2 (k - n1) (by omega)
+    have h1 : (as1.extract 0 n1).length ≤ k := by simp [length_extract] ; omega
+    simp [get_append_right' h1, length_extract, ss, h_next,
+      (show ¬ k + 1 < n1 by omega), (show ¬ k < n1 by omega), (show k + 1 - n1 = k - n1 + 1 by omega)]
+
+
+-- @@ L186-257 verbatim
+/-- The language accepted by the loop NA is the Kleene star of
+the language accepted by `M`.
+-/
+theorem acc_lang_loop [Inhabited A] :
+    (M.Loop acc).AcceptedLang {inl ()} = (M.AcceptedLang acc)∗ := by
+  ext al ; constructor
+  · rintro ⟨n, as, ⟨ss, h_run, h_acc⟩, h_al⟩ ; simp [instIterStar, IterStar]
+    revert al
+    induction' n using Nat.strong_induction_on with n h_ind
+    intro al h_al
+    let loop k := 0 < k ∧ k < n ∧ ss k = inl ()
+    rcases Classical.em (∃ k, loop k) with h_loop | h_loop
+    · let m := Nat.findGreatest loop n
+      have h_m : loop m := by
+        obtain ⟨k, h_loop⟩ := h_loop
+        apply Nat.findGreatest_spec (m := k) (by omega) h_loop
+      obtain ⟨h_m_0, h_m_n, h_m_inl⟩ := h_m
+      let al' := as.extract 0 m
+      have h_run' := na_FinRun_imp_FinRun h_m_n h_run
+      obtain ⟨j, h_j⟩ := h_ind m h_m_n h_run' (by simp [h_m_inl]) (al') (by simp [al'])
+      have h_d : n - m > 0 := by omega
+      have h_run'' : (M.Loop acc).FinRun (n - m) (as.drop m) (ss.drop m) := by
+        constructor
+        · simp [NA.Loop, get_drop', h_m_inl]
+        intro k h_k
+        have h_next := h_run.2 (k + m) (by omega)
+        simp [h_next, get_drop', (show m + (k + 1) = k + m + 1 by omega), (show m + k = k + m by omega)]
+      have h_inl'' : (ss.drop m) (n - m) = inl () := by
+        simp at h_acc
+        simp [get_drop', (show m + (n - m) = n by omega), h_acc]
+      have h_inr'' : ∀ k < n - m, k > 0 → (ss.drop m) k ∈ range inr := by
+        intro k h_k_d h_k_0
+        have h_not_loop : ¬ loop (k + m) := by
+          exact Nat.findGreatest_is_greatest (show m < k + m by omega) (by omega)
+        simp [loop, -add_pos_iff] at h_not_loop
+        obtain ⟨s', h_s'⟩ := not_inl_unit.mp <| h_not_loop (by omega) (by omega)
+        simp [get_drop'] ; use s' ; rw [add_comm] ; simp [h_s']
+      obtain ⟨ss'', h_run'', h_acc'', _⟩ := (na_loop_fin_run h_d).mp ⟨h_run'', h_inl'', h_inr''⟩
+      let al'' := as.extract m n
+      use (j + 1) ; simp [instIterFin, IterFin]
+      use al', al'' ; constructorm* _ ∧ _
+      · exact h_j
+      · use (n - m), (as.drop m)
+        simp [al'', extract_drop, (show m + (n - m) = n by omega)]
+        use ss''
+      · simp (disch := omega) [← h_al, al', al'', append_extract_extract]
+    · rcases (show n = 0 ∨ n > 0 by omega) with ⟨rfl⟩ | h_n
+      · use 0 ; simp [← h_al, instIterFin, IterFin, extract_eq_nil]
+      simp [loop] at h_loop
+      have h_inr : ∀ k < n, k > 0 → ss k ∈ range inr := by
+        intro k h_k_n h_k_0
+        obtain ⟨s', h_s'⟩ := not_inl_unit.mp <| h_loop k h_k_0 h_k_n
+        use s' ; simp [h_s']
+      simp at h_acc
+      obtain ⟨ss', h_run', h_acc', _⟩ := (na_loop_fin_run h_n).mp ⟨h_run, h_acc, h_inr⟩
+      use 1 ; simp [instIterFin, IterFin, epsilon_ConcatFin]
+      use n, as ; simp [h_al]
+      use ss'
+  · rintro ⟨L, ⟨i, rfl⟩, h_al⟩ ; simp at h_al
+    revert al
+    induction' i with i h_ind
+    · intro al ; simp [instIterFin, IterFin] ; rintro ⟨rfl⟩
+      use 0 ; simp [extract_eq_nil]
+      use (fun k ↦ default), (fun k ↦ inl ()) ; simp [NA.FinRun, NA.Loop]
+    rintro al ⟨al1, al2, h_al1, h_al2, h_al⟩
+    specialize h_ind al1 h_al1
+    suffices _ : al2 ∈ (M.Loop acc).AcceptedLang {inl ()} by
+      apply acc_lang_loop_concat ; use al1, al2
+    obtain ⟨n2, as2, ⟨ss2', h_run2, h_acc2⟩, h_al2⟩ := h_al2
+    obtain ⟨ss2, h_run2, h_acc2, _⟩ := na_loop_fin_run_exists h_run2 h_acc2
+    use n2, as2 ; simp [h_al2]
+    use ss2 ; simp [h_run2, h_acc2]
+
+
+-- @@ L259-335 expanded
+/-- The ω-language accepted by the loop NA is the ω-power of
+the language accepted by `M`.
+-/
+theorem acc_omega_lang_loop :
+    (M.Loop acc).AcceptedOmegaLang {inl ()} = OmegaPower.omegaPower (M.AcceptedLang acc) :=
+  by
+  ext as; constructor
+  · rintro ⟨ss, h_run, h_acc⟩; simp at h_acc
+    let φ m := Nat.nth (fun k ↦ ss k = inl ()) m
+    have h_inf : {k | ss k = inl ()}.Infinite := by simpa [← Nat.frequently_atTop_iff_infinite]
+    have h_mono : StrictMono φ := by exact Nat.nth_strictMono h_inf
+    use φ; simp [h_mono]; constructor
+    · have h_init := h_run.1
+      simp [NA.Loop] at h_init
+      apply Nat.nth_zero_of_zero h_init
+    · intro m
+      use (φ (m + 1) - φ m), (as.drop (φ m)); constructor
+      · have h_mono_m : φ (m + 1) - φ m > 0 := by have := h_mono (show m < m + 1 by omega); omega
+        let ss1 := ss.drop (φ m)
+        have h_run1 : (M.Loop acc).FinRun (φ (m + 1) - φ m) (as.drop (φ m)) ss1 :=
+          by
+          constructor
+          · simp [ss1, get_drop', NA.Loop]
+            apply Nat.nth_mem_of_infinite (p := fun k ↦ ss k = inl ()) h_inf
+          intro k h_k
+          simp [ss1, get_drop', ← add_assoc, h_run.2 (φ m + k)]
+        have h_inl : ss1 (φ (m + 1) - φ m) = inl () :=
+          by
+          simp [ss1, get_drop', (show φ m + (φ (m + 1) - φ m) = φ (m + 1) by omega)]
+          apply Nat.nth_mem_of_infinite (p := fun k ↦ ss k = inl ()) h_inf
+        have h_inr : ∀ k < φ (m + 1) - φ m, k > 0 → ss1 k ∈ range inr :=
+          by
+          intro k h_k1 h_k0
+          obtain ⟨s', h_s'⟩ := not_inl_unit.mp <| nth_succ_gap h_inf m k h_k1 h_k0
+          use s'; rw [add_comm] at h_s'
+          simp [φ, ss1, ← h_s', get_drop']
+        obtain ⟨ss', h_run', h_acc', _⟩ := (na_loop_fin_run h_mono_m).mp ⟨h_run1, h_inl, h_inr⟩
+        use ss'
+      · have := h_mono (show m < m + 1 by omega)
+        simp [extract_drop, (show φ m + (φ (m + 1) - φ m) = φ (m + 1) by omega)]
+  · rintro ⟨φ, h_mono, h_0, h_acc⟩
+    choose len as' h_acc h_as' using h_acc
+    choose ss' h_run h_acc using h_acc
+    let seg k := Segment φ k
+    let ss : Stream' (Unit ⊕ NA.State A) := fun k ↦
+      if k ∈ range φ then inl () else inr (ss' (seg k) (k - φ (seg k)))
+    use ss; constructor <;> [constructor; skip]
+    · have h_0' : ∃ k, φ k = 0 := by use 0
+      simp [ss, h_0', NA.Loop]
+    · intro k
+      have h_seg_k : φ (seg k) ≤ k := by exact segment_lower_bound h_mono h_0 k
+      have h_seg_k1 : k < φ (seg k + 1) := by exact segment_upper_bound h_mono h_0 k
+      have h_mono_k : φ (seg k + 1) - φ (seg k) > 0 := by omega
+      suffices h_lhs :
+        (M.Loop acc).FinRun (φ (seg k + 1) - φ (seg k)) (as.drop (φ (seg k)))
+            (ss.drop (φ (seg k))) ∧
+          (ss.drop (φ (seg k))) (φ (seg k + 1) - φ (seg k)) = inl () ∧
+            (∀ j < φ (seg k + 1) - φ (seg k), j > 0 → (ss.drop (φ (seg k))) j ∈ range inr)
+        by
+        have h_run_k :=
+          h_lhs.1.2 (k - φ (seg k)) (show k - φ (seg k) < φ (seg k + 1) - φ (seg k) by omega)
+        simp [get_drop', (show φ (seg k) + (k - φ (seg k)) = k by omega),
+          (show φ (seg k) + (k - φ (seg k) + 1) = k + 1 by omega)] at h_run_k
+        exact h_run_k
+      apply (na_loop_fin_run h_mono_k).mpr
+      use (ss' (seg k))
+      obtain ⟨h_len_k, h_as'_k⟩ := extract_eq_extract <| h_as' (seg k)
+      simp at h_len_k h_as'_k
+      simp [← h_len_k, get_drop']
+      constructorm* _ ∧ _
+      · apply
+          na_FinRun_modulo (n := len (seg k)) (as := as' (seg k)) (ss := ss' (seg k)) (hr :=
+            h_run (seg k))
+        · intro j h_j; simp [get_drop', h_as'_k j h_j, add_comm]
+        · simp
+      · exact h_acc (seg k)
+      · simp [ss]
+      · simp [ss, (show φ (seg k) + len (seg k) = φ (seg k + 1) by omega)]
+      · intro j h_j_1 h_j_0
+        have h_j_2 : ¬∃ m, φ m = φ (seg k) + j := by
+          exact
+            segment_range_gap h_mono (show φ (seg k) < φ (seg k) + j by omega)
+              (show φ (seg k) + j < φ (seg k + 1) by omega)
+        have h_j_3 : seg (φ (seg k) + j) = seg k := by
+          exact
+            segment_range_val h_mono (show φ (seg k) ≤ φ (seg k) + j by omega)
+              (show φ (seg k) + j < φ (seg k + 1) by omega)
+        simp [ss, h_j_2, h_j_3]
+    · have h_uset : {k | ss k = inl ()} = range φ := by ext k; simp [ss]
+      simp [Nat.frequently_atTop_iff_infinite, h_uset]
+      exact strict_mono_infinite h_mono
+
+
+-- @@ L337-337 verbatim
+end AcceptedLangLoop

@@ -1,0 +1,307 @@
+/-
+Copyright (c) 2025-present Ching-Tsun Chou All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Ching-Tsun Chou
+-/
+
+import AutomataTheory.Automata.OI2
+import AutomataTheory.Congruences.BuchiCongr
+import AutomataTheory.Languages.ChouekaLemma
+
+
+-- @@ L11-15 verbatim
+/-!
+This file proves various closure properties of ω-regular langauges.
+Note that we do require that the Automata.NA accepting an ω-regular language
+to have a finite state type.
+-/
+
+
+-- @@ L17-17 verbatim
+open Function Set Filter Sum Stream'
+
+-- @@ L18-18 verbatim
+open scoped Computability
+
+
+-- @@ L20-20 verbatim
+section OmegaRegLang
+
+
+-- @@ L22-22 verbatim
+open Classical
+
+
+-- @@ L24-24 verbatim
+variable {A : Type}
+
+
+-- @@ L26-30 verbatim
+/-- An ω-language is regular iff it is accepted by a finite-state Automata.NA using
+the Büchi acceptance condition.
+-/
+def OmegaRegLang (L : Set (Stream' A)) :=
+  ∃ M : Automata.NA A, ∃ acc : Set M.State, Finite M.State ∧ M.AcceptedOmegaLang acc = L
+
+
+-- @@ L32-39 verbatim
+/-- The language `∅` is ω-regular.
+-/
+theorem omega_reg_lang_empty :
+    OmegaRegLang (∅ : Set (Stream' A)) := by
+  let M := Automata.NA.mk (A := A) Unit ∅ (fun _ _ ↦ ∅)
+  use M, ∅ ; constructor
+  · exact Finite.of_fintype Unit
+  ext as ; simp [Automata.NA.AcceptedOmegaLang, Automata.NA.BuchiAccept]
+
+
+-- @@ L41-51 verbatim
+/-- The language `univ` is ω-regular.
+-/
+theorem omega_reg_lang_univ :
+    OmegaRegLang (univ : Set (Stream' A)) := by
+  let M := Automata.NA.mk (A := A) Unit {()} (fun _ _ ↦ {()})
+  use M, {()} ; constructor
+  · exact Finite.of_fintype Unit
+  ext as ; simp [Automata.NA.AcceptedOmegaLang, Automata.NA.BuchiAccept]
+  use (fun _ ↦ ()) ; constructor
+  · simp [Automata.NA.InfRun, M]
+  · simp [atTop_neBot]
+
+
+-- @@ L53-70 verbatim
+/-- ω-regular languages are closed under union.
+-/
+theorem omega_reg_lang_union {L0 L1 : Set (Stream' A)}
+    (h0 : OmegaRegLang L0) (h1 : OmegaRegLang L1) : OmegaRegLang (L0 ∪ L1) := by
+  obtain ⟨M0, acc0, h_fin0, h_l0⟩ := h0
+  obtain ⟨M1, acc1, h_fin1, h_l1⟩ := h1
+  let M_u : (i : Fin 2) → Automata.NA A
+    | 0 => M0
+    | 1 => M1
+  let acc_u : (i : Fin 2) → Set (M_u i).State
+    | 0 => acc0
+    | 1 => acc1
+  use (Automata.NA.Sum M_u), (Automata.NA.Sum_Acc M_u acc_u)
+  constructor
+  · have h_fin : ∀ i, Finite (M_u i).State := by simp [Fin.forall_fin_two, M_u, h_fin0, h_fin1]
+    exact Finite.instSigma
+  · ext as
+    simp [h_l0, h_l1, Automata.acc_omega_lang_union M_u acc_u, Fin.exists_fin_two, M_u, acc_u]
+
+
+-- @@ L72-81 verbatim
+/-- ω-regular languages are closed under finite bounded indexed union.
+-/
+theorem omega_reg_lang_biUnion {I : Type} [Finite I] {s : Set I} {L : I → Set (Stream' A)}
+    (h : ∀ i ∈ s, OmegaRegLang (L i)) : OmegaRegLang (⋃ i ∈ s, L i) := by
+  generalize h_n : s.ncard = n
+  induction' n with n h_ind generalizing s
+  . obtain ⟨rfl⟩ := (ncard_eq_zero (s := s)).mp h_n
+    simp [omega_reg_lang_empty]
+  obtain ⟨i, t, h_i, rfl, rfl⟩ := (ncard_eq_succ (s := s)).mp h_n
+  simp ; apply omega_reg_lang_union <;> grind
+
+
+-- @@ L83-102 verbatim
+/-- ω-regular languages are closed under intersection.
+-/
+theorem omega_reg_lang_inter {L0 L1 : Set (Stream' A)}
+    (h0 : OmegaRegLang L0) (h1 : OmegaRegLang L1) : OmegaRegLang (L0 ∩ L1) := by
+  obtain ⟨M0, acc0, h_fin0, h_l0⟩ := h0
+  obtain ⟨M1, acc1, h_fin1, h_l1⟩ := h1
+  let M_u : (i : Fin 2) → Automata.NA A
+    | 0 => M0
+    | 1 => M1
+  let acc_u : (i : Fin 2) → Set (M_u i).State
+    | 0 => acc0
+    | 1 => acc1
+  use (Automata.NA.OI2 M_u acc_u), (Automata.NA.OI2_Acc M_u acc_u)
+  constructor
+  · simp [Automata.NA.OI2, Automata.NA.addHist, Automata.NA.Prod]
+    have h_fin1 : ∀ i, Finite (M_u i).State := by simp [Fin.forall_fin_two, M_u, h_fin0, h_fin1]
+    have h_fin2 : Finite ((i : Fin 2) → (M_u i).State) := by exact Pi.finite
+    exact Finite.instProd
+  · ext as
+    simp [h_l0, h_l1, Automata.acc_omega_lang_inter2 M_u acc_u, Fin.forall_fin_two, M_u, acc_u]
+
+
+-- @@ L104-113 verbatim
+/-- ω-regular languages are closed under finite bounded indexed intersection.
+-/
+theorem omega_reg_lang_biInter {I : Type} [Finite I] {s : Set I} {L : I → Set (Stream' A)}
+    (h : ∀ i ∈ s, OmegaRegLang (L i)) : OmegaRegLang (⋂ i ∈ s, L i) := by
+  generalize h_n : s.ncard = n
+  induction' n with n h_ind generalizing s
+  . obtain ⟨rfl⟩ := (ncard_eq_zero (s := s)).mp h_n
+    simp [omega_reg_lang_univ]
+  obtain ⟨i, t, h_i, rfl, rfl⟩ := (ncard_eq_succ (s := s)).mp h_n
+  simp ; apply omega_reg_lang_inter <;> grind
+
+
+-- @@ L115-124 verbatim
+/-- The concatenation of a regular language and an ω-regular language is ω-regular.
+-/
+theorem omega_reg_lang_concat {L0 : Set (List A)} {L1 : Set (Stream' A)}
+    (h0 : RegLang L0) (h1 : OmegaRegLang L1) : OmegaRegLang (L0 * L1) := by
+  obtain ⟨M0, acc0, h_fin0, h_l0⟩ := h0
+  obtain ⟨M1, acc1, h_fin1, h_l1⟩ := h1
+  use (M0.Concat acc0 M1), (inr '' acc1)
+  constructor
+  · exact Finite.instSum
+  · simp [h_l0, h_l1, Automata.acc_omega_lang_concat]
+
+
+-- @@ L126-134 expanded
+/-- The ω-power of a regular language is ω-regular.
+-/
+theorem omega_reg_lang_omega_iter {L : Set (List A)} (h : RegLang L) :
+    OmegaRegLang (OmegaPower.omegaPower L) :=
+  by
+  obtain ⟨M, acc, h_fin, h_l⟩ := h
+  use (M.Loop acc), {inl ()}
+  constructor
+  · exact Finite.instSum
+  · simp [h_l, Automata.acc_omega_lang_loop]
+
+
+-- @@ L136-143 expanded
+/-- The ω-limit of a regular language is ω-regular.
+-/
+theorem omega_reg_lang_omega_limit {L : Set (List A)} (h : RegLang L) :
+    OmegaRegLang (OmegaLimitCls.omegaLimit L) :=
+  by
+  obtain ⟨M, acc, h_fin, rfl⟩ := reg_lang_det_accept h
+  use M.toNA, acc; constructor
+  · exact h_fin
+  · exact Automata.da_acc_omega_lang
+
+
+-- @@ L145-197 expanded
+/-- An ω-language is ω-regular if and only if it is the finite union of sets
+of the form `U * V^ω`, where all `U`s and `V`s are regular languages.
+-/
+theorem omega_reg_lang_iff_finite_union_form [Inhabited A] {L : Set (Stream' A)} :
+    OmegaRegLang L ↔
+      ∃ n : ℕ,
+        ∃ U V : Fin n → Set (List A),
+          (∀ i, RegLang (U i) ∧ RegLang (V i)) ∧ L = ⋃ i, (U i) * OmegaPower.omegaPower (V i) :=
+  by
+  constructor
+  · rintro ⟨M, acc, h_fin, rfl⟩
+    rw [Automata.omega_reg_lang_finite_union_form]
+    have eq_init : Fin (Nat.card ↑M.init) ≃ ↑M.init := by
+      exact (Finite.equivFin ↑Automata.NA.init).symm
+    have eq_acc : Fin (Nat.card ↑acc) ≃ ↑acc := by exact (Finite.equivFin ↑acc).symm
+    have eq_prod := Equiv.prodCongr eq_init eq_acc
+    have eq_fin_prod := (finProdFinEquiv (m := Nat.card ↑M.init) (n := Nat.card ↑acc)).symm
+    have eq := Equiv.trans eq_fin_prod eq_prod
+    use (Nat.card ↑M.init * Nat.card ↑acc)
+    use (fun i ↦ M.PairLang (eq i).1 (eq i).2)
+    use (fun i ↦ M.PairLang (eq i).2 (eq i).2)
+    constructor
+    · intro i; constructor <;> exact Automata.pair_lang_regular
+    · ext as; simp; constructor
+      · rintro ⟨s0, h_s0, sa, h_sa, h_mem⟩
+        use (eq.invFun (⟨s0, h_s0⟩, ⟨sa, h_sa⟩))
+        simp [h_mem]
+      · rintro ⟨i, h_mem⟩
+        use (eq i).1; simp
+        use (eq i).2; simp [h_mem]
+  · rintro ⟨n, U, V, h_reg, rfl⟩
+    induction' n with n h_ind
+    · use { State := Unit, init := { }, next := fun _ _ ↦ { } }, { }; constructor
+      · exact Finite.of_fintype Unit
+      ext as; simp; by_contra h_contra
+      obtain ⟨ss, h_run, _⟩ := h_contra
+      simp [Automata.NA.InfRun] at h_run
+    let U' := (fun i : Fin n ↦ U i.castSucc)
+    let V' := (fun i : Fin n ↦ V i.castSucc)
+    specialize h_ind U' V' (by intro i; simp [U', V', h_reg i.castSucc])
+    have h :
+      (⋃ i, (U i) * OmegaPower.omegaPower (V i)) =
+        (⋃ i, (U' i) * OmegaPower.omegaPower (V' i)) ∪
+          (U (Fin.last n)) * OmegaPower.omegaPower (V (Fin.last n)) :=
+      by
+      ext as; simp; constructor
+      · rintro ⟨i, h_i⟩
+        obtain (⟨i', rfl⟩ | rfl) := Fin.eq_castSucc_or_eq_last i
+        . left; use i'
+        . right; assumption
+      · rintro (⟨i, h_i⟩ | h_n)
+        · use i.castSucc
+        · use (Fin.last n)
+    rw [h]
+    apply omega_reg_lang_union h_ind
+    apply omega_reg_lang_concat
+    · exact (h_reg (Fin.last n)).1
+    · apply omega_reg_lang_omega_iter
+      exact (h_reg (Fin.last n)).2
+
+
+-- @@ L199-225 verbatim
+/-- If a congruence is of finite index, is ample, and saturates an ω-language `L`,
+then `L` is ω-regular.
+-/
+theorem omega_reg_lang_fin_idx_congr [Inhabited A] {c : Congruence A} {L : Set (Stream' A)}
+    (h_fin : Finite (c.QuotType)) (h_amp : c.Ample) (h_sat : c.Saturates L) : OmegaRegLang L := by
+  rw [congruence_ample_saturates_union h_amp h_sat, omega_reg_lang_iff_finite_union_form]
+  have eq_quot : Fin (Nat.card c.QuotType) ≃ c.QuotType := by exact (Finite.equivFin c.QuotType).symm
+  have eq_prod := Equiv.prodCongr eq_quot eq_quot
+  have eq_fin_prod := (finProdFinEquiv (m := Nat.card c.QuotType) (n := Nat.card c.QuotType)).symm
+  have eq := Equiv.trans eq_fin_prod eq_prod
+  use (Nat.card c.QuotType * Nat.card c.QuotType)
+  use (fun i ↦ if (c.ConcatOmegaLang (eq i).1 (eq i).2 ∩ L).Nonempty then c.EqvCls (eq i).1 else ∅)
+  use (fun i ↦ c.EqvCls (eq i).2)
+  constructor
+  · intro i
+    have h_reg1 := reg_lang_fin_idx_congr h_fin (eq i).1
+    have h_reg2 := reg_lang_fin_idx_congr h_fin (eq i).2
+    rcases Classical.em ((c.ConcatOmegaLang (eq i).1 (eq i).2 ∩ L).Nonempty) with h | h
+    <;> simp [h, h_reg1, h_reg2, reg_lang_empty]
+  ext as ; simp ; constructor
+  · rintro ⟨s, t, h_ne, h_as⟩
+    use (eq.invFun (s, t)) ; simp [h_ne] ; exact h_as
+  · rintro ⟨i, h_as⟩
+    rcases Classical.em ((c.ConcatOmegaLang (eq i).1 (eq i).2 ∩ L).Nonempty) with h | h
+    <;> simp [h] at h_as
+    · use (eq i).1, (eq i).2 ; simpa [h]
+    · simp [empty_ConcatInf] at h_as
+
+
+-- @@ L227-233 verbatim
+/-- If a congruence is of finite index, is ample, and saturates an ω-language `L`,
+then the complement of `L` is ω-regular as well.
+-/
+theorem omega_reg_lang_fin_idx_congr_compl [Inhabited A] {c : Congruence A} {L : Set (Stream' A)}
+    (h_fin : Finite (c.QuotType)) (h_amp : c.Ample) (h_sat : c.Saturates L) : OmegaRegLang Lᶜ := by
+  have h_sat' := congruence_saturates_compl h_sat
+  exact omega_reg_lang_fin_idx_congr h_fin h_amp h_sat'
+
+
+-- @@ L235-241 verbatim
+/-- ω-regular languages are closed under complementation.
+-/
+theorem omega_reg_lang_compl [Inhabited A] {L : Set (Stream' A)}
+    (h : OmegaRegLang L) : OmegaRegLang Lᶜ := by
+  obtain ⟨M, acc, h_fin, rfl⟩ := h
+  exact omega_reg_lang_fin_idx_congr_compl (c := M.BuchiCongr acc)
+    Automata.buchi_congr_finite_index Automata.buchi_congr_ample Automata.buchi_congr_saturates
+
+
+-- @@ L243-252 expanded
+/-- The Choueka lemma, which converts an ω-power to the concatenation of a
+Kleene star followed by an ω-limit, the latter of which is a natural fit for
+deterministic Muller automata.
+-/
+theorem choueka_lemma [Inhabited A] {L : Set (List A)} (h : RegLang L) :
+    ∃ L' : Set (List A), RegLang L' ∧ OmegaPower.omegaPower L = L∗ * OmegaLimitCls.omegaLimit L' :=
+  by
+  obtain ⟨M, acc, h_fin, h_lang⟩ := reg_lang_det_accept <| reg_lang_iter h
+  use (M.ChouekaLang acc); constructor
+  · apply Automata.choueka_lang_regular
+  · apply Automata.choueka_lang_omega_power_eq_omega_limit h_lang.symm
+
+
+-- @@ L254-254 verbatim
+end OmegaRegLang
