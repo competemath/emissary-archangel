@@ -1,0 +1,36 @@
+{
+  "key": "anderson-conjecture",
+  "repo": "https://github.com/frenzymath/Anderson-Conjecture",
+  "commit": "b8bd37b72ced46bb2d52fef583b8656a29019d3c",
+  "toolchain": "leanprover/lean4:v4.29.0-rc8",
+  "roots": [
+    "Anderson"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/anderson-conjecture/repo",
+  "entries": 262,
+  "modules": 41,
+  "exported": 41,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 263,
+    "kept": 262,
+    "skippedRoot": 0,
+    "skippedDup": 1,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 83,
+    "lineUnverified": 0,
+    "nameFixed": 19,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 31252480,
+  "minutes": 18,
+  "finishedAt": "2026-09-25T14:37:46.530Z"
+}
