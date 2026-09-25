@@ -1,0 +1,37 @@
+{
+  "key": "prime-gaps-186",
+  "repo": "https://github.com/openai/PrimeGaps186",
+  "commit": "61340d0b74163003b32756bb16e91d9209a5e330",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "PrimeGaps186",
+    "Challenge"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/prime-gaps-186/repo",
+  "entries": 0,
+  "modules": 0,
+  "exported": 0,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 3504,
+    "kept": 0,
+    "skippedRoot": 3504,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 4096,
+  "minutes": 4,
+  "finishedAt": "2026-09-25T15:23:41.599Z"
+}
