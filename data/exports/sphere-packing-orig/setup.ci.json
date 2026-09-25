@@ -1,0 +1,36 @@
+{
+  "key": "sphere-packing-orig",
+  "repo": "https://github.com/thefundamentaltheor3m/Sphere-Packing-Lean",
+  "commit": "9b2ddfc66330f9da18cc8feb0dca2dc01bfa0a85",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "SpherePacking"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/sphere-packing-orig/repo",
+  "entries": 922,
+  "modules": 67,
+  "exported": 67,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 102,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 923,
+    "kept": 922,
+    "skippedRoot": 0,
+    "skippedDup": 1,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 603,
+    "lineUnverified": 2,
+    "nameFixed": 260,
+    "sorryOriginals": 0,
+    "emptyProofs": 5
+  },
+  "exportsBytes": 15011840,
+  "minutes": 13,
+  "finishedAt": "2026-09-25T15:43:06.317Z"
+}

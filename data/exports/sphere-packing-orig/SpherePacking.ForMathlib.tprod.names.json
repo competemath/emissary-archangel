@@ -1,0 +1,1 @@
+{"names":["hasProd_le_nonneg","tprod_le_of_nonneg_of_multipliable"],"modules":["SpherePacking.ForMathlib.tprod"],"moduleOf":{"hasProd_le_nonneg":"SpherePacking.ForMathlib.tprod","tprod_le_of_nonneg_of_multipliable":"SpherePacking.ForMathlib.tprod"},"deps":{"hasProd_le_nonneg":[],"tprod_le_of_nonneg_of_multipliable":["hasProd_le_nonneg"]}}
