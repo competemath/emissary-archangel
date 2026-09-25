@@ -30,7 +30,7 @@ const PATH = [join(HOME, ".elan", "bin"), "/opt/homebrew/bin", "/usr/local/bin",
 // LEAN_NUM_THREADS bounds the Lean runtime's task pool, which is what Lake builds
 // with: 2 compilers at a time (each a few GB on Mathlib-heavy files) instead of
 // one per core. The setup must stay well under 20 GB alongside the Leak services.
-const ENV = { ...process.env, PATH, HOME, LEAN_NUM_THREADS: process.env.LEAN_NUM_THREADS || "2" }
+const ENV = { ...process.env, PATH, HOME, LEAN_NUM_THREADS: process.env.LEAN_NUM_THREADS || "4" }
 
 const argv = process.argv.slice(2)
 const key = argv.find((a) => !a.startsWith("--") && !/^\d+$/.test(a))
@@ -45,8 +45,11 @@ const CONCURRENCY = Number(flag("concurrency", 1))
 // capped by LEAN_NUM_THREADS in ENV below. Three libraries were built with -j on 2026-09-24 and lost their build.
 // Every `lean --run` (closures, notation expansion) is capped: one runaway expansion reached 18 GB and
 // filled the swap and the disk. Past the cap Lean aborts with an out-of-memory error and the module is
-// recorded as failed instead of taking the machine (EMISSARY_LEAN_MB, default 6144).
-const LEAN_MB = Math.max(1024, Number(process.env.EMISSARY_LEAN_MB || 6144))
+// recorded as failed instead of taking the machine (EMISSARY_LEAN_MB, default 11264). Lean's check counts
+// resident memory, and a process importing all of Mathlib maps ~7 GB of .olean files into it (the expander
+// on a formal-conjectures module: 7 GB resident, 136 MB real footprint), so a 6 GB cap failed every
+// Mathlib-wide import; 11 GB still stops a runaway like the 18 GB one.
+const LEAN_MB = Math.max(1024, Number(process.env.EMISSARY_LEAN_MB || 11264))
 const EXPORT_BATCH = Math.max(1, Number(flag("export-batch", 8)))
 // Per-process sizes; a library of tens of thousands of tiny modules (flt-anthropic) wants them
 // large: every process pays the environment import, the modules themselves cost seconds.
@@ -542,6 +545,7 @@ const EXPAND_LEAN = join(APP_ROOT, "scripts", "expand-notations.lean")
 // when a global declaration has no atom, in which case every module is expanded as before.
 const SYNTAX_DECL_RE = /^\s*(?:@\[[^\]]*\]\s*)*(?:(?:scoped(?:\[[^\]]*\])?|local)\s+)?(?:notation3?|macro|syntax|infixl?|infixr|prefix|postfix|elab)\b/
 const LOCAL_DECL_RE = /^\s*(?:@\[[^\]]*\]\s*)*local\s/
+const SYNTAX_ABBREV_RE = /^\s*(?:@\[[^\]]*\]\s*)*(?:(?:scoped(?:\[[^\]]*\])?|local)\s+)?syntax\s+[^\s:"(]+\s*:=/
 const IDENT_ATOM_RE = /^[\p{L}\p{N}_'.₀-₉]+$/u
 function leanFilesUnder(dir) {
   const out = []
@@ -568,7 +572,10 @@ function corpusSyntax() {
           declaring.add(f)
           let cmd = line
           for (let j = i + 1; j < lines.length && /^\s+\S/.test(lines[j]); j++) cmd += "\n" + lines[j]
-          if (!LOCAL_DECL_RE.test(line)) {
+          // `syntax name := parser` only names a parser for other syntax declarations: nothing uses it
+          // directly (formal-conjectures' `syntax subjectList := many(num)` had no atom and switched the
+          // filter off, sending all 626 modules through the expander).
+          if (!SYNTAX_ABBREV_RE.test(line) && !LOCAL_DECL_RE.test(line)) {
             const atoms = [...cmd.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((s) => s[1].trim()).filter(Boolean)
             if (!atoms.length) return null
             decls.push(atoms)

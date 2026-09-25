@@ -72,7 +72,8 @@ unsafe def main (args : List String) : IO Unit := do
   initSearchPath (← findSysroot)
   IO.FS.createDirAll outDir
   for modStr in mods do
-    let path : System.FilePath := ⟨String.intercalate "/" (modStr.splitOn ".") ++ ".lean"⟩
+    -- the module's file: components may be «»-escaped (`Arxiv.«1102.4662»` is Arxiv/1102.4662/), so no dot-splitting
+    let path : System.FilePath := modToFilePath "." modStr.toName "lean"
     let input ← IO.FS.readFile path
     let bytes := input.toUTF8
     let inputCtx := Parser.mkInputContext input path.toString
