@@ -1,0 +1,36 @@
+{
+  "key": "chandra-furst-lipton",
+  "repo": "https://github.com/YaelDillies/chandra-furst-lipton",
+  "commit": "7e89eb02cb3adeab5c70f84067d1463a5a1cbc98",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "ChandraFurstLipton"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/chandra-furst-lipton/repo",
+  "entries": 10,
+  "modules": 3,
+  "exported": 3,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 10,
+    "kept": 10,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 10,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 233472,
+  "minutes": 2,
+  "finishedAt": "2026-09-25T13:39:17.312Z"
+}
