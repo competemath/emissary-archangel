@@ -1,0 +1,4 @@
+# partial outputs of a setup that was killed mid-write; never outputs
+*.tmp
+*.tmp-*
+.batch-*.tsv

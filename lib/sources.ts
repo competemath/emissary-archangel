@@ -18,6 +18,8 @@ export interface SourceSpec {
   subdir?: string; // the Lake project inside the clone (a repository of several projects)
   queueFile?: string;
   targetToolchain?: string;
+  /** scripts/setup-sources.mjs only: extra setup-source.mjs flags, and "last" for a library that takes days. */
+  setup?: { args?: string[]; order?: "last" };
 }
 
 export interface SourcesDoc {

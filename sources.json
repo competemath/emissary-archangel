@@ -405,6 +405,7 @@
     },
     "flt-anthropic": {
       "label": "flt-anthropic",
+      "setup": { "order": "last", "args": ["--build-chunk", "1000", "--closure-batch", "600", "--export-batch", "400"] },
       "repo": "https://github.com/anthropics/fermats-last-theorem",
       "commit": "aa2d8b34692b16c70f699536de0d8e75b9a3e9ef",
       "toolchain": "leanprover/lean4:v4.33.1",

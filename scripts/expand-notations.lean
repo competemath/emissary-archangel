@@ -125,5 +125,8 @@ unsafe def main (args : List String) : IO Unit := do
       else nUnexp := nUnexp + 1
       out := out ++ s!"\n-- @@ L{startLine}-{endLine} {kind}\n" ++ text
     let outPath : System.FilePath := ⟨outDir ++ "/" ++ modStr ++ ".expanded.lean"⟩
-    IO.FS.writeFile outPath out
+    -- whole or not at all: a killed run must not leave a truncated file that the next run skips as done
+    let tmpPath : System.FilePath := ⟨outPath.toString ++ ".tmp"⟩
+    IO.FS.writeFile tmpPath out
+    IO.FS.rename tmpPath outPath
     IO.println s!"{modStr}\t{nExp}\t{nVerb}\t{nUnexp}"

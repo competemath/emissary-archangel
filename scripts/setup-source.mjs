@@ -134,6 +134,22 @@ const moduleOfPath = (p) =>
     .join(".")
 const moduleComponents = (m) => [...m.matchAll(/«[^»]*»|[^.]+/g)].map((x) => x[0].replace(/^«|»$/g, ""))
 const pathOfModule = (m) => moduleComponents(m).join("/") + ".lean"
+// Lake's build layout: .lake/build/lib/lean/ since about v4.3, build/lib/ before (the v4.0–v4.2 sources).
+const oleanOf = (m) => {
+  const rel = pathOfModule(m).replace(/\.lean$/, ".olean")
+  const cur = join(REPO, ".lake", "build", "lib", "lean", rel)
+  const old = join(REPO, "build", "lib", rel)
+  return !existsSync(cur) && existsSync(old) ? old : cur
+}
+// Every file a later run treats as "done" is written whole or not at all: the setup can be killed at
+// any moment (sleep, a closed network, a restart) and the next run skips whatever exists.
+function writeAtomic(path, data) {
+  const tmp = `${path}.tmp-${process.pid}`
+  writeFileSync(tmp, data)
+  renameSync(tmp, path)
+}
+// github.com reachable: a failure while offline is an interruption, not a verdict on the library.
+const online = () => x("curl", ["-sI", "-m", "10", "https://github.com"], { env: ENV }).then(() => true, () => false)
 
 // ---- 1. toolchain ---------------------------------------------------------------
 async function ensureToolchain() {
@@ -310,7 +326,7 @@ function seedQueue() {
     })
     stats.kept++
   }
-  writeFileSync(QUEUE, JSON.stringify(entries, null, 2))
+  writeAtomic(QUEUE, JSON.stringify(entries, null, 2))
   log(`seeded ${QUEUE}: ${JSON.stringify(stats)}`)
   return { entries, stats }
 }
@@ -321,16 +337,20 @@ async function build(modules) {
   const hasMathlib = existsSync(manifest) && /"name":\s*"mathlib"/.test(readFileSync(manifest, "utf8"))
   if (hasMathlib) {
     const r = await run("lake", ["exe", "cache", "get"], { cwd: REPO, timeoutMs: 90 * 60 * 1000 })
+    if (r.code !== 0 && !(await online())) fail(`lake exe cache get exited ${r.code} while offline — rerun when the network is back`)
     if (r.code !== 0) log(`WARNING: lake exe cache get exited ${r.code}: ${r.tail.slice(-300)} — building from source`)
   }
   // Only the modules that carry entries (and, through lake, what they import).
   for (let i = 0; i < modules.length; i += BUILD_CHUNK) {
     const chunk = modules.slice(i, i + BUILD_CHUNK)
-    // `-j`: Lake defaults to one worker per core; on a 16 GB machine a handful of Mathlib-heavy modules at once is
-    // already swapping, so the worker count is capped (EMISSARY_JOBS, default 2).
     const r = await run("lake", ["build", ...chunk], { cwd: REPO, timeoutMs: 6 * 3600 * 1000 })
     if (r.code !== 0) log(`WARNING: lake build chunk ${i / BUILD_CHUNK + 1} exited ${r.code}: ${r.tail.slice(-400)} — modules that did not build are reported at export`)
   }
+  // None of the modules built (an invalid lake flag, a dependency that failed to fetch): writing setup.json
+  // now would record a library with 0 exports as done — zkevm-clean, aisafety-atlas and algolean were.
+  const built = modules.filter((m) => existsSync(oleanOf(m))).length
+  if (modules.length && !built) fail(`lake build produced none of the ${modules.length} modules — not recording this library as set up`)
+  log(`build: ${built}/${modules.length} modules have an .olean`)
   // A Mathlib the cache did not serve (a pin off Mathlib's master) was compiled here, hours of
   // work: pack it into the local cache, which lives on until the toolchain group ends, so the
   // next library pinning the same commit gets it from `cache get` instead of compiling it again.
@@ -356,7 +376,6 @@ async function closures(modules) {
   // A module the build did not produce would fail its whole batch (tnlean: one missing
   // .olean sent 1,156 modules down the one-process-each path, a minute apiece). Skip
   // those up front; the export step reports them as unbuilt.
-  const oleanOf = (m) => join(REPO, ".lake", "build", "lib", "lean", pathOfModule(m).replace(/\.lean$/, ".olean"))
   const unbuilt = new Set(modules.filter((m) => !existsSync(oleanOf(m))))
   if (unbuilt.size) log(`closures: ${unbuilt.size} modules have no .olean — skipped: ${[...unbuilt].slice(0, 6).join(", ")}${unbuilt.size > 6 ? ", …" : ""}`)
   const todo = modules.filter((m) => !unbuilt.has(m) && !existsSync(join(EXPORTS, `${m}.names.json`)))
@@ -414,10 +433,13 @@ function writeClosureSections(stdout) {
       log(`closure of ${m} is empty — not written`)
       continue
     }
-    writeFileSync(join(EXPORTS, `${m}.names.json`), JSON.stringify({ names: a.names, modules: Array.from(a.modules), moduleOf: a.moduleOf, deps: a.deps }))
+    writeAtomic(join(EXPORTS, `${m}.names.json`), JSON.stringify({ names: a.names, modules: Array.from(a.modules), moduleOf: a.moduleOf, deps: a.deps }))
   }
 }
 
+function removeLeftovers() {
+  for (const f of readdirSync(EXPORTS)) if (/\.tmp(-\d+)?$/.test(f) || /^\.batch-.*\.tsv$/.test(f)) rmSync(join(EXPORTS, f), { force: true })
+}
 async function exports(modules) {
   const failed = []
   const todo = modules.filter((m) => !existsSync(join(EXPORTS, `${m}.ndjson`)))
@@ -572,7 +594,9 @@ async function expand(modules) {
     return syntax.decls.some((atoms) => atoms.every((a) => occurs(text, a)))
   }
   const missing = modules.filter((m) => !existsSync(join(EXPORTS, `${m}.expanded.lean`)))
-  const todo = missing.filter(mayUseNotation)
+  const unbuilt = missing.filter((m) => !existsSync(oleanOf(m)))
+  if (unbuilt.length) log(`expand: ${unbuilt.length} modules have no .olean — skipped: ${unbuilt.slice(0, 6).join(", ")}${unbuilt.length > 6 ? ", …" : ""}`)
+  const todo = missing.filter((m) => existsSync(oleanOf(m)) && mayUseNotation(m))
   log(
     `expand: ${todo.length} to do, ${modules.length - missing.length} present, ${missing.length - todo.length} cannot use a corpus notation (${syntax ? syntax.decls.length : "?"} global syntax declarations, ${syntax ? syntax.declaring.size : "?"} declaring modules), concurrency ${CONCURRENCY}`,
   )
@@ -620,6 +644,12 @@ async function cleanup() {
     rmSync(lake, { recursive: true, force: true })
     log(`removed ${lake}`)
   }
+  // Pre-v4.3 Lake builds into build/ — removed only when git does not track anything there.
+  const oldBuild = join(REPO, "build")
+  if (existsSync(join(oldBuild, "lib")) && !(await x("git", ["ls-files", "build"], { cwd: REPO, env: ENV })).stdout.trim()) {
+    rmSync(oldBuild, { recursive: true, force: true })
+    log(`removed ${oldBuild}`)
+  }
   // Mathlib's cache tool keeps every downloaded archive under ~/.cache/mathlib;
   // across a hundred libraries on different Mathlib commits that is hundreds of
   // GB. A re-download costs minutes; the disk does not come back. It is kept
@@ -646,6 +676,7 @@ const dirSize = (p) => {
 
 async function main() {
   const t0 = Date.now()
+  removeLeftovers()
   log(`setup ${key}: ${src.repo} @ ${src.commit.slice(0, 12)} on ${src.toolchain}, roots ${src.roots.join(", ")}`)
   await ensureToolchain()
   await ensureClone()
@@ -680,7 +711,7 @@ async function main() {
     minutes: Math.round((Date.now() - t0) / 60000),
     finishedAt: new Date().toISOString(),
   }
-  writeFileSync(SETUP_JSON, JSON.stringify(report, null, 2))
+  writeAtomic(SETUP_JSON, JSON.stringify(report, null, 2))
   log(`exports: ${exported.length}/${modules.length} modules (${failed.length} failed) → ${EXPORTS}`)
   for (const [m, why] of failed.slice(0, 15)) log(`  failed ${m}: ${why}`)
   await cleanup()
