@@ -1,0 +1,36 @@
+{
+  "key": "flt",
+  "repo": "https://github.com/ImperialCollegeLondon/FLT",
+  "commit": "81d8bee0f708ac41cb975da76ed3c43ad99fae72",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "FLT"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/flt/repo",
+  "entries": 2196,
+  "modules": 207,
+  "exported": 207,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 55,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 2198,
+    "kept": 2196,
+    "skippedRoot": 1,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 1,
+    "lineFixed": 1339,
+    "lineUnverified": 9,
+    "nameFixed": 115,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 197832704,
+  "minutes": 66,
+  "finishedAt": "2026-09-25T15:33:56.530Z"
+}

@@ -1,0 +1,162 @@
+/-
+Copyright (c) 2024 Kevin Buzzard. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Kevin Buzzard
+-/
+module
+
+public import Mathlib.AlgebraicGeometry.EllipticCurve.Affine.Point
+public import Mathlib.Topology.Instances.ZMod
+public import FLT.Deformations.RepresentationTheory.GaloisRep
+
+
+-- @@ L12-21 verbatim
+/-!
+
+See
+https://leanprover.zulipchat.com/#narrow/stream/217875-Is-there-code-for-X.3F/topic/n-torsion.20or.20multiplication.20by.20n.20as.20an.20additive.20group.20hom/near/429096078
+
+The main theorems in this file are part of the PhD thesis work of David Angdinata, one of KB's
+PhD students. It would be great if anyone who is interested in working on these results
+could talk to David first. Note that he has already made substantial progress.
+
+-/
+
+
+-- @@ L23-23 verbatim
+@[expose] public section
+
+
+-- @@ L25-25 verbatim
+universe u
+
+
+-- @@ L27-27 verbatim
+variable {k : Type u} [Field k] (E : WeierstrassCurve k) [E.IsElliptic] [DecidableEq k]
+
+
+-- @@ L29-29 verbatim
+open WeierstrassCurve WeierstrassCurve.Affine
+
+
+-- @@ L31-38 verbatim
+/-- The `n`-torsion subgroup of an elliptic curve `E` over `k`: the kernel of multiplication
+by `n` on the group of `k`-points of `E`. -/
+abbrev WeierstrassCurve.nTorsion (n : ℕ) : Type u := Submodule.torsionBy ℤ (E⁄k).Point n
+
+--variable (n : ℕ) in
+--#synth AddCommGroup (E.nTorsion n)
+
+-- not sure if this instance will cause more trouble than it's worth
+
+-- @@ L39-45 verbatim
+noncomputable instance (n : ℕ) : Module (ZMod n) (E.nTorsion n) :=
+  AddCommGroup.zmodModule <| by
+  intro ⟨P, hP⟩
+  simpa using hP
+
+-- This theorem needs e.g. a theory of division polynomials. It's ongoing work of David Angdinata.
+-- Please do not work on it without talking to KB and David first.
+
+-- @@ L46-50 verbatim
+theorem WeierstrassCurve.n_torsion_finite {n : ℕ} (hn : 0 < n) : Finite (E.nTorsion n) := sorry
+
+-- This theorem needs e.g. a theory of division polynomials. It's ongoing work of David Angdinata.
+-- Please do not work on it without talking to KB and David first.
+-- This theorem was well-known in the early part of the 20th century.
+
+-- @@ L51-54 verbatim
+theorem WeierstrassCurve.n_torsion_card [IsSepClosed k] {n : ℕ} (hn : (n : k) ≠ 0) :
+    Nat.card (E.nTorsion n) = n^2 := sorry
+
+-- This theorem was well-known in the early part of the 20th century.
+
+-- @@ L55-61 verbatim
+theorem group_theory_lemma {A : Type*} [AddCommGroup A] {n : ℕ} (hn : 0 < n) (r : ℕ)
+    (h : ∀ d : ℕ, d ∣ n → Nat.card (Submodule.torsionBy ℤ A d) = d ^ r) :
+    Nonempty ((Submodule.torsionBy ℤ A n) ≃+ (Fin r → (ZMod n))) := sorry
+
+-- I only need this if n is prime but there's no harm thinking about it in general I guess.
+-- It follows from the previous theorem using pure group theory (possibly including the
+-- structure theorem for finite abelian groups)
+
+-- @@ L62-73 verbatim
+theorem WeierstrassCurve.n_torsion_dimension [IsSepClosed k] {n : ℕ} (hn : (n : k) ≠ 0) :
+    Nonempty (E.nTorsion n ≃+ (ZMod n) × (ZMod n)) := by
+  obtain ⟨φ⟩ : Nonempty (E.nTorsion n ≃+ (Fin 2 → (ZMod n))) := by
+    apply group_theory_lemma (Nat.pos_of_ne_zero fun h ↦ by simp [h] at hn)
+    intro d hd
+    apply E.n_torsion_card
+    contrapose! hn
+    rcases hd with ⟨c, rfl⟩
+    simp [hn]
+  exact ⟨φ.trans (RingEquiv.piFinTwo _).toAddEquiv⟩
+
+-- follows easily from the above
+
+-- @@ L74-77 verbatim
+noncomputable instance (n : ℕ) : Module.Finite (ZMod n) (E.nTorsion n) := by
+  sorry
+
+-- This should be a straightforward but perhaps long unravelling of the definition
+
+-- @@ L78-82 verbatim
+/-- The map on points for an elliptic curve over `k` induced by a morphism of `k`-algebras
+is a group homomorphism. -/
+noncomputable def WeierstrassCurve.Points.map {K L : Type u} [Field K] [Field L] [Algebra k K]
+    [Algebra k L] [DecidableEq K] [DecidableEq L]
+    (f : K →ₐ[k] L) : (E⁄K).Point →+ (E⁄L).Point := WeierstrassCurve.Affine.Point.map f
+
+
+-- @@ L84-88 verbatim
+omit [E.IsElliptic] [DecidableEq k] in
+lemma WeierstrassCurve.Points.map_id (K : Type u) [Field K] [DecidableEq K] [Algebra k K] :
+    WeierstrassCurve.Points.map E (AlgHom.id k K) = AddMonoidHom.id _ := by
+      ext
+      exact WeierstrassCurve.Affine.Point.map_id _
+
+
+-- @@ L90-97 verbatim
+omit [E.IsElliptic] [DecidableEq k] in
+lemma WeierstrassCurve.Points.map_comp (K L M : Type u) [Field K] [Field L] [Field M]
+    [DecidableEq K] [DecidableEq L] [DecidableEq M] [Algebra k K] [Algebra k L] [Algebra k M]
+    (f : K →ₐ[k] L) (g : L →ₐ[k] M) :
+    (WeierstrassCurve.Affine.Point.map g).comp (WeierstrassCurve.Affine.Point.map f) =
+    WeierstrassCurve.Affine.Point.map (W' := E) (g.comp f) := by
+  ext P
+  exact WeierstrassCurve.Affine.Point.map_map _ _ _
+
+
+-- @@ L99-103 verbatim
+/-- The Galois action on the points of an elliptic curve. -/
+noncomputable instance WeierstrassCurve.galoisRepresentationSmul
+    (K : Type u) [Field K] [DecidableEq K] [Algebra k K] :
+    SMul (K ≃ₐ[k] K) (E⁄K).Point := ⟨
+  fun g P ↦ WeierstrassCurve.Affine.Point.map (g : K →ₐ[k] K) P⟩
+
+
+-- @@ L105-115 verbatim
+/-- The Galois action on the points of an elliptic curve. -/
+noncomputable instance WeierstrassCurve.galoisRepresentation
+    (K : Type u) [Field K] [DecidableEq K] [Algebra k K] :
+    DistribMulAction (K ≃ₐ[k] K) (E⁄K).Point where
+      one_smul := sorry -- these should all be easy
+      mul_smul := sorry
+      smul_zero := sorry
+      smul_add := sorry
+
+-- the next `sorry` is data but the only thing which should be missing is
+-- the continuity argument, which follows from the finiteness asserted above.
+
+
+-- @@ L117-119 verbatim
+/-- A classical decidable instance on `AlgebraicClosure ℚ`, given that there is
+no hope of a constructive one with the current definition of algebraic closure. -/
+noncomputable instance : DecidableEq (AlgebraicClosure ℚ) := Classical.typeDecidableEq _
+
+
+-- @@ L121-124 verbatim
+/-- The continuous Galois representation associated to an elliptic curve over a field. -/
+def WeierstrassCurve.galoisRep {K : Type u} [Field K] (E : WeierstrassCurve K) [E.IsElliptic]
+    [DecidableEq K] [DecidableEq (AlgebraicClosure K)] (n : ℕ) (hn : 0 < n) :
+  GaloisRep K (ZMod n) ((E.map (algebraMap K (AlgebraicClosure K))).nTorsion n) := sorry

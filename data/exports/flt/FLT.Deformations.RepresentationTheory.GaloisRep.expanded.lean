@@ -1,0 +1,592 @@
+/-
+Copyright (c) 2025 Kevin Buzzard. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Kevin Buzzard, Ruben Van de Velde, Pietro Monticone
+-/
+module
+
+public import FLT.Deformations.RepresentationTheory.AbsoluteGaloisGroup
+public import FLT.Deformations.RepresentationTheory.Etale
+public import Mathlib.LinearAlgebra.Charpoly.Basic
+public import Mathlib.LinearAlgebra.Matrix.Unique
+public import Mathlib.RingTheory.Bialgebra.TensorProduct
+public import Mathlib.RingTheory.HopfAlgebra.Basic
+public import Mathlib.RepresentationTheory.Irreducible
+
+
+-- @@ L16-22 verbatim
+/-!
+# Galois representations
+
+The type `GaloisRep K A M` of `A`-linear continuous representations of the
+absolute Galois group of a field `K` on an `A`-module `M`, together with the
+basic API (kernel, etc.).
+-/
+
+
+-- @@ L24-24 verbatim
+@[expose] public section
+
+
+-- @@ L26-26 verbatim
+open NumberField
+
+
+-- @@ L28-28 verbatim
+universe uK
+
+
+-- @@ L30-30 verbatim
+variable {K : Type uK} {L : Type*} [Field K] [Field L]
+
+-- @@ L31-31 verbatim
+variable {A : Type*} [CommRing A] [TopologicalSpace A]
+
+-- @@ L32-32 verbatim
+variable {B : Type*} [CommRing B] [TopologicalSpace B]
+
+-- @@ L33-33 verbatim
+variable {M N : Type*} [AddCommGroup M] [Module A M] [AddCommGroup N] [Module A N]
+
+-- @@ L34-34 verbatim
+variable {n : Type*} [Fintype n] [DecidableEq n]
+
+
+-- @@ L36-36 verbatim
+variable [NumberField K] (v : IsDedekindDomain.HeightOneSpectrum (𝓞 K))
+
+
+-- @@ L38-38 verbatim
+local notation3 "Γ" K:max => Field.absoluteGaloisGroup K
+
+-- @@ L39-39 verbatim
+local notation3 K:max "ᵃˡᵍ" => AlgebraicClosure K
+
+-- @@ L40-40 verbatim
+local notation3 "𝔪" => IsLocalRing.maximalIdeal
+
+-- @@ L41-41 verbatim
+local notation3 "κ" => IsLocalRing.ResidueField
+
+-- @@ L42-42 verbatim
+local notation "Ω" K => IsDedekindDomain.HeightOneSpectrum (𝓞 K)
+
+-- @@ L43-43 verbatim
+local notation "Kᵥ" => IsDedekindDomain.HeightOneSpectrum.adicCompletion K v
+
+-- @@ L44-44 verbatim
+local notation "𝒪ᵥ" => IsDedekindDomain.HeightOneSpectrum.adicCompletionIntegers K v
+
+-- @@ L45-45 verbatim
+local notation "Frobᵥ" => Field.AbsoluteGaloisGroup.adicArithFrob v
+
+
+-- @@ L47-51 expanded
+variable (K A M) in
+/-- `GaloisRep K A M` are the `A`-linear galois reps of a field `K` on the `A`-module `M`. -/
+def GaloisRep :=
+  letI := moduleTopology A (Module.End A M)
+  Field.absoluteGaloisGroup K →ₜ* Module.End A M
+
+
+-- @@ L53-55 expanded
+noncomputable instance : FunLike (GaloisRep K A M) (Field.absoluteGaloisGroup K) (Module.End A M) :=
+  letI := moduleTopology A (Module.End A M)
+  ContinuousMonoidHom.instFunLike
+
+
+-- @@ L57-59 expanded
+instance : MonoidHomClass (GaloisRep K A M) (Field.absoluteGaloisGroup K) (Module.End A M) :=
+  letI := moduleTopology A (Module.End A M)
+  ContinuousMonoidHom.instMonoidHomClass
+
+
+-- @@ L61-65 verbatim
+omit [NumberField K] in
+@[ext]
+lemma GaloisRep.ext {ρ ρ' : GaloisRep K A M} (H : ∀ σ, ρ σ = ρ' σ) : ρ = ρ' :=
+  letI := moduleTopology A (Module.End A M)
+  ContinuousMonoidHom.ext H
+
+
+-- @@ L67-71 expanded
+/-- The kernel of a galois rep. -/
+noncomputable nonrec abbrev GaloisRep.ker (ρ : GaloisRep K A M) :
+    Subgroup (Field.absoluteGaloisGroup K) :=
+  letI := moduleTopology A (Module.End A M)
+  ρ.ker
+
+
+-- @@ L73-80 verbatim
+/-- A field extension induces a map between galois reps.
+Note that this relies on an arbitrarily chosen embedding of the algebraic closures. -/
+noncomputable
+def GaloisRep.map (ρ : GaloisRep K A M) (f : K →+* L) : GaloisRep L A M :=
+  letI := moduleTopology A (Module.End A M)
+  ρ.comp (Field.absoluteGaloisGroup.map f)
+
+-- remark: `.toMonoidHom` added in bump to v4.30.0-rc1
+
+-- @@ L81-84 verbatim
+omit [NumberField K] in
+@[simp]
+lemma GaloisRep.ker_map (ρ : GaloisRep K A M) (f : K →+* L) :
+    (ρ.map f).ker = ρ.ker.comap (Field.absoluteGaloisGroup.map f).toMonoidHom := rfl
+
+
+-- @@ L86-89 verbatim
+variable (K A n) in
+/-- A framed galois rep is a galois rep with a distinguished basis.
+We implement it by via a galois rep on `Aⁿ`. -/
+abbrev FramedGaloisRep := GaloisRep K A (n → A)
+
+
+-- @@ L91-95 verbatim
+/-- A field extension induces a map between framed galois reps.
+Note that this relies on an arbitrarily chosen embedding of the algebraic closures. -/
+noncomputable
+abbrev FramedGaloisRep.map (ρ : FramedGaloisRep K A n) (f : K →+* L) : FramedGaloisRep L A n :=
+  GaloisRep.map ρ f
+
+
+-- @@ L97-104 verbatim
+/-- We can conjugate a galois rep by a linear isomorphism on the space. -/
+noncomputable
+def GaloisRep.conj (ρ : GaloisRep K A M) (e : M ≃ₗ[A] N) : GaloisRep K A N :=
+  letI := moduleTopology A (Module.End A M)
+  letI := moduleTopology A (Module.End A N)
+  let e' : Module.End A M ≃A[A] Module.End A N :=
+    .ofIsModuleTopology <| LinearEquiv.conjAlgEquiv A e
+  e'.toContinuousAlgHom.toContinuousMonoidHom.comp ρ
+
+
+-- @@ L106-108 expanded
+omit [NumberField K] in
+lemma GaloisRep.conj_apply (ρ : GaloisRep K A M) (e : M ≃ₗ[A] N) (σ : Field.absoluteGaloisGroup K) :
+    ρ.conj e σ = e.conj (ρ σ) :=
+  rfl
+
+
+-- @@ L110-113 expanded
+omit [NumberField K] in
+@[simp]
+lemma GaloisRep.conj_apply_apply (ρ : GaloisRep K A M) (e : M ≃ₗ[A] N)
+    (σ : Field.absoluteGaloisGroup K) (x : N) : ρ.conj e σ x = e (ρ σ (e.symm x)) :=
+  rfl
+
+
+-- @@ L115-118 verbatim
+omit [NumberField K] in
+@[simp]
+lemma GaloisRep.map_conj (ρ : GaloisRep K A M) (e : M ≃ₗ[A] N) (f : K →+* L) :
+    (ρ.conj e).map f = (ρ.map f).conj e := rfl
+
+
+-- @@ L120-127 verbatim
+set_option backward.isDefEq.respectTransparency.types false in
+omit [NumberField K] in
+@[simp]
+lemma GaloisRep.ker_conj (ρ : GaloisRep K A M) (e : M ≃ₗ[A] N) :
+    (ρ.conj e).ker = ρ.ker := by
+  let := moduleTopology A (Module.End A M)
+  let := moduleTopology A (Module.End A N)
+  ext; simp [conj]
+
+
+-- @@ L129-135 verbatim
+/-- Equivalent modules have equivalent set of galois reps. -/
+noncomputable
+def GaloisRep.conjEquiv (e : M ≃ₗ[A] N) : GaloisRep K A M ≃ GaloisRep K A N where
+  toFun := (conj · e)
+  invFun := (conj · e.symm)
+  left_inv _ := by ext; simp
+  right_inv _ := by ext; simp
+
+
+-- @@ L137-140 verbatim
+/-- Given a basis, we may frame a galois rep into a framed galois rep. -/
+noncomputable
+def GaloisRep.frame (ρ : GaloisRep K A M) (b : Module.Basis n A M) : FramedGaloisRep K A n :=
+  ρ.conj (b.repr ≪≫ₗ Finsupp.linearEquivFunOnFinite A A n)
+
+
+-- @@ L142-148 verbatim
+/-- Given a basis of `M`, we may realize a framed galois rep as a galois rep on `M`. -/
+noncomputable
+def FramedGaloisRep.unframe (ρ : FramedGaloisRep K A n) (b : Module.Basis n A M) :
+    GaloisRep K A M :=
+  ρ.conj (b.repr ≪≫ₗ Finsupp.linearEquivFunOnFinite A A n).symm
+
+-- **TODO** this should be frame_unframe maybe?
+
+-- @@ L149-153 verbatim
+omit [DecidableEq n] [NumberField K] in
+@[simp]
+lemma GaloisRep.unframe_frame (ρ : GaloisRep K A M) (b : Module.Basis n A M) :
+    (ρ.frame b).unframe b = ρ := by
+  ext; simp [frame, FramedGaloisRep.unframe]
+
+
+-- @@ L155-159 verbatim
+omit [DecidableEq n] [NumberField K] in
+@[simp]
+lemma FramedGaloisRep.unframe_frame (ρ : FramedGaloisRep K A n) (b : Module.Basis n A M) :
+    (ρ.unframe b).frame b = ρ := by
+  ext; simp [unframe, GaloisRep.frame]
+
+
+-- @@ L161-161 verbatim
+variable [IsTopologicalRing A]
+
+
+-- @@ L163-174 expanded
+set_option backward.isDefEq.respectTransparency.types false in
+/-- `A`-linear framed galois reps are equivalent to continuous homomorphisms into `GLₙ(A)`. -/
+noncomputable def FramedGaloisRep.GL :
+    FramedGaloisRep K A n ≃ (Field.absoluteGaloisGroup K →ₜ* GL n A) :=
+  letI := moduleTopology A (Module.End A (n → A))
+  letI : ContinuousMul _ := ⟨IsModuleTopology.continuous_mul_of_finite A (Module.End A (n → A))⟩
+  letI e : Module.End A (n → A) ≃A[A] Matrix n n A :=
+    .ofIsModuleTopology LinearMap.toMatrixAlgEquiv'
+  { toFun ρ := (e.toContinuousAlgHom.toContinuousMonoidHom.comp ρ).toHomUnits
+    invFun ρ := e.symm.toContinuousAlgHom.toContinuousMonoidHom.comp ((Units.coeHomₜ _).comp ρ)
+    left_inv _ := by ext; simp [GaloisRep]
+    right_inv _ := by ext; simp }
+
+
+-- @@ L176-178 verbatim
+omit [NumberField K] in
+@[simp]
+lemma FramedGaloisRep.GL_apply (ρ : FramedGaloisRep K A n) (σ) : (ρ.GL σ).1 = (ρ σ).toMatrix' := rfl
+
+
+-- @@ L180-182 verbatim
+/-- Make an `A`-linear framed galois reps from a continuous hom into `GLₙ(A)`. -/
+noncomputable
+abbrev FramedGaloisRep.ofGL := FramedGaloisRep.GL (K := K) (A := A) (n := n).symm
+
+
+-- @@ L184-186 expanded
+omit [NumberField K] in
+@[simp]
+lemma FramedGaloisRep.GL_symm_apply (ρ : Field.absoluteGaloisGroup K →ₜ* GL n A) (σ) :
+    «GL».symm ρ σ = (ρ σ).toLin :=
+  rfl
+
+
+-- @@ L188-190 expanded
+omit [NumberField K] in
+@[simp]
+lemma FramedGaloisRep.ofGL_apply (ρ : Field.absoluteGaloisGroup K →ₜ* GL n A) (σ) :
+    ofGL ρ σ = (ρ σ).toLin :=
+  rfl
+
+
+-- @@ L192-203 expanded
+set_option backward.isDefEq.respectTransparency.types false in
+/-- `1`-dimensional framed galois reps are equivalent to (continuous) characters. -/
+noncomputable def FramedGaloisRep.equivChar {n : Type*} [Unique n] :
+    FramedGaloisRep K A n ≃ (Field.absoluteGaloisGroup K →ₜ* A) :=
+  letI := moduleTopology A (Module.End A (n → A))
+  letI : ContinuousMul _ := ⟨IsModuleTopology.continuous_mul_of_finite A (Module.End A (n → A))⟩
+  letI e : Module.End A (n → A) ≃A[A] A :=
+    .ofIsModuleTopology (LinearMap.toMatrixAlgEquiv'.trans Matrix.uniqueAlgEquiv)
+  { toFun ρ := e.toContinuousAlgHom.toContinuousMonoidHom.comp ρ
+    invFun ρ := e.symm.toContinuousAlgHom.toContinuousMonoidHom.comp ρ
+    left_inv _ := by ext; simp [GaloisRep]
+    right_inv _ := by ext; simp }
+
+
+-- @@ L205-209 expanded
+/-- The determinant of a galois rep. -/
+noncomputable def GaloisRep.det (ρ : GaloisRep K A M) : Field.absoluteGaloisGroup K →ₜ* A :=
+  letI := moduleTopology A (Module.End A M)
+  .comp ⟨LinearMap.det, IsModuleTopology.continuous_det⟩ ρ
+
+
+-- @@ L211-229 verbatim
+open TensorProduct in
+variable (B) in
+/-- Make a `A`-linear galois rep on `M` into a `B`-linear rep on `B ⊗ M`. -/
+noncomputable
+def GaloisRep.baseChange [IsTopologicalRing B] [Algebra A B] [ContinuousSMul A B]
+    [Module.Finite A M] [Module.Free A M]
+    (ρ : GaloisRep K A M) : GaloisRep K B (B ⊗[A] M) :=
+  letI := moduleTopology A (Module.End A M)
+  letI := moduleTopology B (Module.End B (B ⊗[A] M))
+  letI : ContinuousMul _ := ⟨IsModuleTopology.continuous_mul_of_finite B (Module.End B (B ⊗[A] M))⟩
+  letI := IsModuleTopology.toContinuousAdd B (Module.End B (B ⊗[A] M))
+  let F : Module.End A M →+* Module.End B (B ⊗[A] M) := Module.End.baseChangeHom A B M
+  have : Continuous F := by
+    have : IsTopologicalSemiring (Module.End B (B ⊗[A] M)) := ⟨⟩
+    have : Continuous (algebraMap A (Module.End B (B ⊗[A] M))) := by
+      rw [IsScalarTower.algebraMap_eq A B, RingHom.coe_comp]
+      exact (continuous_algebraMap _ _).comp (continuous_algebraMap _ _)
+    exact IsModuleTopology.continuous_of_ringHom (R := A) F (by simpa [F])
+  .comp ⟨F, this⟩ ρ
+
+
+-- @@ L231-236 expanded
+omit [IsTopologicalRing A] [NumberField K] in
+open TensorProduct in
+@[simp]
+lemma GaloisRep.baseChange_tmul [IsTopologicalRing B] [Algebra A B] [ContinuousSMul A B]
+    [Module.Finite A M] [Module.Free A M] (ρ : GaloisRep K A M) (σ : Field.absoluteGaloisGroup K)
+    (r : B) (x : M) : ρ.baseChange B σ (r ⊗ₜ x) = r ⊗ₜ (ρ σ x) :=
+  rfl
+
+
+-- @@ L238-243 verbatim
+set_option backward.isDefEq.respectTransparency.types false in
+omit [IsTopologicalRing A] [NumberField K] in
+lemma GaloisRep.ker_baseChange [IsTopologicalRing B] [Algebra A B] [ContinuousSMul A B]
+    [Module.Finite A M] [Module.Free A M] (ρ : GaloisRep K A M) :
+    ρ.ker ≤ (ρ.baseChange B).ker := by
+  intro _; simp +contextual [baseChange]
+
+
+-- @@ L245-248 verbatim
+omit [IsTopologicalRing A] [NumberField K] in
+lemma GaloisRep.baseChange_map [IsTopologicalRing B] [Algebra A B] [ContinuousSMul A B]
+    [Module.Finite A M] [Module.Free A M]
+    (ρ : GaloisRep K A M) (f : K →+* L) : (ρ.baseChange B).map f = (ρ.map f).baseChange B := rfl
+
+
+-- @@ L250-255 verbatim
+/-- Make a framed `n` dimensional `A`-linear galois rep into a `B`-linear rep by composing with
+`GLₙ(A) → GLₙ(B)`. -/
+noncomputable
+def FramedGaloisRep.baseChange [IsTopologicalRing B]
+    (ρ : FramedGaloisRep K A n) (f : A →+* B) (hf : Continuous f) : FramedGaloisRep K B n :=
+  .ofGL (.comp (Units.mapₜ ⟨f.mapMatrix.toMonoidHom, continuous_id.matrix_map hf⟩) ρ.GL)
+
+
+-- @@ L257-262 verbatim
+omit [NumberField K] in
+@[simp]
+lemma FramedGaloisRep.baseChange_GL [IsTopologicalRing B]
+    (ρ : FramedGaloisRep K A n) (f : A →+* B) (hf : Continuous f) {σ i j} :
+    (ρ.baseChange f hf).GL σ i j = f (ρ.GL σ i j) := by
+  simp [baseChange]
+
+
+-- @@ L264-273 verbatim
+omit [NumberField K] in
+variable (B) in
+lemma GaloisRep.frame_baseChange [IsTopologicalRing B] [Algebra A B] [ContinuousSMul A B]
+    [Module.Finite A M] [Module.Free A M]
+    (ρ : GaloisRep K A M) (b : Module.Basis n A M) :
+    (ρ.baseChange B).frame (b.baseChange B) =
+      (ρ.frame b).baseChange _ (continuous_algebraMap A B) := by
+  apply FramedGaloisRep.GL.injective
+  ext σ i j
+  simp [GaloisRep.frame, Algebra.smul_def]
+
+
+-- @@ L275-285 verbatim
+omit [NumberField K] in
+lemma FramedGaloisRep.baseChange_def [IsTopologicalRing B]
+    (ρ : FramedGaloisRep K A n) (f : A →+* B) (hf : Continuous f) :
+    ρ.baseChange f hf =
+      letI := f.toAlgebra
+      haveI : ContinuousSMul A B := continuousSMul_of_algebraMap A B hf
+      (GaloisRep.baseChange B ρ).frame ((Pi.basisFun A n).baseChange B) := by
+  let := f.toAlgebra
+  have : ContinuousSMul A B := continuousSMul_of_algebraMap A B hf
+  rw [GaloisRep.frame_baseChange]
+  rfl
+
+
+-- @@ L287-290 verbatim
+omit [NumberField K] in
+lemma FramedGaloisRep.baseChange_map [IsTopologicalRing B]
+    (ρ : FramedGaloisRep K A n) (f : A →+* B) (hf : Continuous f)
+    (g : K →+* L) : (ρ.baseChange f hf).map g = (ρ.map g).baseChange f hf := rfl
+
+
+-- @@ L292-296 verbatim
+lemma Matrix.map_det {F α β n : Type*} [CommRing β] [CommRing α] [Fintype n]
+    [DecidableEq n]
+    (M : Matrix n n α) (f : F) [FunLike F α β] [RingHomClass F α β] :
+    (M.map f).det = f M.det :=
+  (RingHom.map_det (f : α →+* β) M).symm
+
+
+-- @@ L298-300 verbatim
+lemma LinearMap.trace_toLin' {R n : Type*} [CommSemiring R] [DecidableEq n]
+    [Fintype n] (M : Matrix n n R) : LinearMap.trace _ _ M.toLin' = M.trace := by
+  simp
+
+
+-- @@ L302-310 verbatim
+set_option backward.isDefEq.respectTransparency false in
+omit [NumberField K] in
+lemma FramedGaloisRep.det_baseChange [IsTopologicalRing B]
+    (ρ : FramedGaloisRep K A n) (f : A →+* B) (hf : Continuous f) :
+    (ρ.baseChange f hf).det = .comp ⟨f, hf⟩ ρ.det := by
+  ext σ
+  dsimp [baseChange, GaloisRep.det]
+  rw [GL_symm_apply]
+  simp [← Matrix.toLin'_apply', Matrix.map_det]
+
+
+-- @@ L312-317 expanded
+/-- Given a (global) galois rep, this is the local galois rep at a finite prime `v`.
+Note: this fixes an arbitrary embedding `Kᵃˡᵍ → Kᵥᵃˡᵍ`, or equivalently,
+an arbitrary choice of valuation on `Kᵃˡᵍ` extending `v`. -/
+noncomputable abbrev GaloisRep.toLocal (ρ : GaloisRep K A M)
+    (v : IsDedekindDomain.HeightOneSpectrum (𝓞 K)) : GaloisRep (v.adicCompletion K) A M :=
+  ρ.map (algebraMap _ _)
+
+
+-- @@ L319-319 verbatim
+universe v u
+
+-- @@ L320-320 verbatim
+variable {R : Type u} [CommRing R]
+
+
+-- @@ L322-326 expanded
+/-- The class of galois reps unramified at `v`. -/
+class GaloisRep.IsUnramifiedAt (ρ : GaloisRep K A M)
+    (v : IsDedekindDomain.HeightOneSpectrum (𝓞 K)) : Prop where
+  localInertiaGroup_le :
+    letI := moduleTopology A (Module.End A M)
+    localInertiaGroup v ≤ (ρ.toLocal v).ker
+
+
+-- @@ L328-330 expanded
+instance (ρ : GaloisRep K A M) (v : IsDedekindDomain.HeightOneSpectrum (𝓞 K)) [ρ.IsUnramifiedAt v]
+    (e : M ≃ₗ[A] N) : (ρ.conj e).IsUnramifiedAt v where
+  localInertiaGroup_le := (GaloisRep.IsUnramifiedAt.localInertiaGroup_le (ρ := ρ)).trans (by simp)
+
+
+-- @@ L332-336 expanded
+instance [IsTopologicalRing B] [Algebra A B] [ContinuousSMul A B] [Module.Finite A M]
+    [Module.Free A M] (ρ : GaloisRep K A M) (v : IsDedekindDomain.HeightOneSpectrum (𝓞 K))
+    [ρ.IsUnramifiedAt v] : (ρ.baseChange B).IsUnramifiedAt v :=
+  ⟨(GaloisRep.IsUnramifiedAt.localInertiaGroup_le (ρ := ρ)).trans
+      (((ρ.toLocal v).ker_baseChange (B := B)))⟩
+
+
+-- @@ L338-338 verbatim
+variable [Module.Free A M] [Module.Finite A M] [Module.Free A N] [Module.Finite A N]
+
+
+-- @@ L340-344 expanded
+/-- The characteristic polynomial of the frobenious conjugacy class at `v` under `ρ`. -/
+noncomputable def GaloisRep.charFrob (ρ : GaloisRep K A M) : Polynomial A :=
+  (ρ.toLocal v (Field.AbsoluteGaloisGroup.adicArithFrob v)).charpoly
+
+
+-- @@ L345-345 expanded
+noncomputable instance : CommRing (IsDedekindDomain.HeightOneSpectrum.adicCompletion K v) :=
+  inferInstance
+
+
+-- @@ L347-357 unexpanded
+set_option backward.isDefEq.respectTransparency false in
+omit [IsTopologicalRing A] in
+lemma GaloisRep.charFrob_eq (ρ : GaloisRep K A M) [ρ.IsUnramifiedAt v] (σ : Γ Kᵥ)
+    (hσ : IsArithFrobAt 𝒪ᵥ σ (𝔪 (IntegralClosure 𝒪ᵥ (Kᵥᵃˡᵍ)))) :
+    (ρ.toLocal v σ).charpoly = ρ.charFrob v := by
+  have := IsUnramifiedAt.localInertiaGroup_le (ρ := ρ)
+    (hσ.mul_inv_mem_inertia (Field.AbsoluteGaloisGroup.isArithFrobAt_adicArithFrob v))
+  replace this := congr($this * ρ.toLocal v Frobᵥ)
+  simp only [ContinuousMonoidHom.coe_toMonoidHom, ← map_mul, MonoidHom.coe_coe, one_mul,
+    inv_mul_cancel_right] at this
+  rw [this, charFrob]
+
+
+-- @@ L359-359 verbatim
+section Flat
+
+
+-- @@ L361-365 verbatim
+set_option linter.unusedVariables false in
+/-- The underlying space of a galois rep. This is a type class synonym that allows `G` to act
+on it via `ρ`. -/
+@[nolint unusedArguments]
+def GaloisRep.Space (ρ : GaloisRep K A M) : Type _ := M
+
+
+-- @@ L367-369 verbatim
+instance (ρ : GaloisRep K A M) : AddCommGroup ρ.Space := inferInstanceAs (AddCommGroup M)
+
+-- dirty hack
+
+-- @@ L370-376 expanded
+set_option backward.isDefEq.respectTransparency false in
+noncomputable instance (ρ : GaloisRep K A M) :
+    DistribMulAction (Field.absoluteGaloisGroup K) ρ.Space
+    where
+  smul g v := ρ g v
+  one_smul b := by unfold HSMul.hSMul; simp [instHSMul]
+  mul_smul := by unfold HSMul.hSMul; simp [instHSMul]
+  smul_zero := by unfold HSMul.hSMul; simp [instHSMul]
+  smul_add := by unfold HSMul.hSMul; simp [instHSMul]
+
+
+-- @@ L378-394 expanded
+open TensorProduct in
+/-- A galois rep `ρ : Γ K → Aut_A(M)` has a flat prolongation at `v` if `M` (when viewed as a
+`Γ Kᵥ`) module is isomorphic to the geometric points of a finite etale hopf algebra over `Kᵥ`, and
+there exists an finite flat hopf algebra over `𝒪ᵥ` whose generic fiber is isomorphic to it.
+In particular this requires `M` (and by extension `A`) to have finite cardinality.
+
+Note that the `Algebra.Etale Kᵥ (Kᵥ ⊗[𝒪ᵥ] G)` condition is redundant because `Kᵥ` has char 0
+and all finite flat group schemes over `Kᵥ` are etale.
+But this would be hard to prove in general, while in the applications they would come from
+finite groups so it would be easy to show that they are etale. If this turns out to not be the case,
+we can remove this condition and state the aforementioned result as a sorry.
+-/
+def GaloisRep.HasFlatProlongationAt (ρ : GaloisRep K A M) : Prop :=
+  ∃ (G : Type uK) (_ : CommRing G) (_ :
+    HopfAlgebra (IsDedekindDomain.HeightOneSpectrum.adicCompletionIntegers K v) G) (_ :
+    Module.Flat (IsDedekindDomain.HeightOneSpectrum.adicCompletionIntegers K v) G) (_ :
+    Module.Finite (IsDedekindDomain.HeightOneSpectrum.adicCompletionIntegers K v) G) (_ :
+    Algebra.Etale (IsDedekindDomain.HeightOneSpectrum.adicCompletion K v)
+      (IsDedekindDomain.HeightOneSpectrum.adicCompletion K
+          v ⊗[IsDedekindDomain.HeightOneSpectrum.adicCompletionIntegers K v]
+        G))
+    (f :
+    Additive
+        (IsDedekindDomain.HeightOneSpectrum.adicCompletion K
+              v ⊗[IsDedekindDomain.HeightOneSpectrum.adicCompletionIntegers K v]
+            G →ₐ[IsDedekindDomain.HeightOneSpectrum.adicCompletion K v]
+          AlgebraicClosure
+            (IsDedekindDomain.HeightOneSpectrum.adicCompletion K
+              v)) →+[Field.absoluteGaloisGroup
+        (IsDedekindDomain.HeightOneSpectrum.adicCompletion K v)]
+      (ρ.toLocal v).Space),
+    Function.Bijective f
+
+
+-- @@ L396-400 verbatim
+/-- A galois rep `ρ : Γ K → Aut_A(M)` is flat at `v` if `A/I ⊗ M` has a flat prolongation at `v`
+for all open ideals `I`. -/
+class GaloisRep.IsFlatAt [IsLocalRing A] (ρ : GaloisRep K A M) : Prop where
+  cond : ∀ (I : Ideal A), IsOpen (I : Set A) →
+    (ρ.baseChange (A ⧸ I)).HasFlatProlongationAt v
+
+
+-- @@ L402-402 verbatim
+end Flat
+
+
+-- @@ L404-408 expanded
+/-- A Galois representation is a representation (note that we
+are forgetting topological information here). -/
+def GaloisRep.toRepresentation (ρ : GaloisRep K A M) :
+    Representation A (Field.absoluteGaloisGroup K) M :=
+  letI :=
+    moduleTopology A
+      (Module.End A M) -- ?!
+        
+  ρ.toMonoidHom
+
+
+-- @@ L410-412 verbatim
+/-- Irreducibility of a Galois representation over a field. -/
+def GaloisRep.IsIrreducible {k : Type*} [Field k] [TopologicalSpace k] [Module k M]
+    (ρ : GaloisRep K k M) : Prop := ρ.toRepresentation.IsIrreducible

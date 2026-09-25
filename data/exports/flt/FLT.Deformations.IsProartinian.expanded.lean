@@ -1,0 +1,137 @@
+/-
+Copyright (c) 2025 Andrew Yang. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Andrew Yang, Kevin Buzzard, Ruben Van de Velde
+-/
+module
+
+public import FLT.Patching.Utils.AdicTopology
+import FLT.Deformations.Lemmas
+import Mathlib.CategoryTheory.Category.Init
+import Mathlib.RingTheory.Artinian.Ring
+import Mathlib.Topology.Connected.Separation
+
+
+-- @@ L14-22 verbatim
+/-!
+# Proartinian topological rings
+
+A topological ring is *proartinian* if it is linearly topologized, complete
+and Hausdorff, and every open ideal is the open kernel of a continuous
+homomorphism to a finite (Artinian) ring. We provide the basic API and
+show that complete Noetherian local rings with finite residue field are
+proartinian under their adic topology.
+-/
+
+
+-- @@ L24-24 verbatim
+@[expose] public section
+
+
+-- @@ L26-27 verbatim
+variable {R S : Type*} [CommRing R] [TopologicalSpace R] [IsTopologicalRing R]
+  [CommRing S] [TopologicalSpace S] [IsTopologicalRing S]
+
+
+-- @@ L29-36 verbatim
+variable (R) in
+/-- A topological ring is proartinian if it is linearly topologized, complete hausdorff,
+and all its discrete quotients are artinian.
+
+This is also called the category of "pseudo-compact" rings in section 0 of Exp VII_B of SGA3. -/
+class IsProartinian : Prop extends IsLinearTopology R R, T0Space R,
+    letI := IsTopologicalAddGroup.rightUniformSpace R; CompleteSpace R where
+  isArtinianRing_quotient (I : Ideal R) : IsOpen (X := R) I → IsArtinianRing (R ⧸ I)
+
+
+-- @@ L38-39 verbatim
+attribute [instance low] IsProartinian.toIsLinearTopology
+  IsProartinian.toT0Space IsProartinian.toCompleteSpace
+
+
+-- @@ L41-46 verbatim
+lemma isProartinian_iff_isArtinianRing [DiscreteTopology R] :
+    IsProartinian R ↔ IsArtinianRing R := by
+  constructor <;> intro
+  · have := IsProartinian.isArtinianRing_quotient (⊥ : Ideal R) (isOpen_discrete _)
+    exact (RingEquiv.quotientBot R).surjective.isArtinianRing
+  · exact ⟨fun I _ ↦ inferInstance⟩
+
+
+-- @@ L48-49 verbatim
+instance [DiscreteTopology R] [IsArtinianRing R] : IsProartinian R := by
+  rwa [isProartinian_iff_isArtinianRing]
+
+
+-- @@ L51-55 verbatim
+instance [IsLocalRing R] [IsLocalRing.IsAdicTopology R] [IsNoetherianRing R] [CompactSpace R] :
+    IsProartinian R where
+  isArtinianRing_quotient I hI :=
+    have : Finite (R ⧸ I) := AddSubgroup.quotient_finite_of_isOpen _ hI
+    inferInstance
+
+
+-- @@ L57-57 verbatim
+section IsLocalRing
+
+
+-- @@ L59-59 verbatim
+open IsLocalRing
+
+
+-- @@ L61-61 verbatim
+variable [IsLocalRing R] [IsLocalRing S]
+
+
+-- @@ L63-66 verbatim
+lemma isOpen_maximalIdeal_of_isProartinian [IsProartinian R] :
+    IsOpen (X := R) (maximalIdeal R) := by
+  obtain ⟨I, hI, hI'⟩ := IsLinearTopology.exists_ideal_isMaximal_and_isOpen R
+  exact (isMaximal_iff _).mp hI ▸ hI'
+
+
+-- @@ L68-81 verbatim
+lemma exists_maximalIdeal_pow_le_of_isProartinian [IsProartinian R]
+    (I : Ideal R) (hI : IsOpen (X := R) I) :
+    ∃ n, maximalIdeal R ^ n ≤ I := by
+  by_cases hI' : I = ⊤
+  · exact ⟨1, by simp [hI']⟩
+  have := IsProartinian.isArtinianRing_quotient I hI
+  have : Nontrivial (R ⧸ I) := Ideal.Quotient.nontrivial_iff.2 hI'
+  have : IsLocalRing (R ⧸ I) := .of_surjective' _ Ideal.Quotient.mk_surjective
+  obtain ⟨n, hn⟩ := IsArtinianRing.isNilpotent_jacobson_bot (R := R ⧸ I)
+  rw [jacobson_eq_maximalIdeal _ bot_ne_top,
+    ← IsLocalRing.map_maximalIdeal_of_surjective _ Ideal.Quotient.mk_surjective,
+    ← Ideal.map_pow, Ideal.zero_eq_bot, ← le_bot_iff, Ideal.map_le_iff_le_comap,
+    ← RingHom.ker, Ideal.mk_ker] at hn
+  exact ⟨n, hn⟩
+
+
+-- @@ L83-94 verbatim
+lemma isContinuous_of_isProartinian_of_isLocalHom
+    [IsLocalRing.IsAdicTopology R]
+    (f : R →+* S) [IsProartinian S] [IsLocalHom f] : Continuous f := by
+  apply continuous_of_continuousAt_zero
+  simp only [ContinuousAt, map_zero]
+  rw [(IsLocalRing.hasBasis_maximalIdeal_pow R).tendsto_iff
+    (IsLinearTopology.hasBasis_open_ideal (R := S))]
+  intro I hI
+  obtain ⟨n, hn⟩ := exists_maximalIdeal_pow_le_of_isProartinian I hI
+  replace hn := (Ideal.pow_right_mono (((local_hom_TFAE f).out 1 3).mp ‹_›) n).trans hn
+  rw [← Ideal.map_pow, Ideal.map_le_iff_le_comap] at hn
+  exact ⟨n, trivial, hn⟩
+
+
+-- @@ L96-103 verbatim
+lemma isLocalHom_of_isContinuous_of_isProartinian
+    [IsProartinian R] (f : R →+* S) [IsProartinian S] (h : Continuous f) : IsLocalHom f := by
+  constructor
+  intro a ha
+  by_contra ha'
+  obtain ⟨n, hn⟩ := exists_maximalIdeal_pow_le_of_isProartinian ((maximalIdeal S).comap f)
+    (isOpen_maximalIdeal_of_isProartinian.preimage h)
+  refine hn (Ideal.pow_mem_pow ha' n) (by simpa using ha.pow n)
+
+
+-- @@ L105-105 verbatim
+end IsLocalRing

@@ -1,0 +1,42 @@
+/-
+Copyright (c) 2026 Kevin Buzzard. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Kevin Buzzard
+-/
+module
+
+public import Mathlib.LinearAlgebra.TensorProduct.Pi
+public import Mathlib.LinearAlgebra.FreeModule.Finite.Basic
+
+
+-- @@ L11-15 verbatim
+/-!
+# Finite Free
+
+Material destined for Mathlib.
+-/
+
+
+-- @@ L17-17 verbatim
+@[expose] public section
+
+
+-- @@ L19-19 verbatim
+open TensorProduct
+
+
+-- @@ L21-34 verbatim
+/--
+The M-algebra isomorphism `M ⊗ V ≃ₗ[M] (ι → M)` coming from the canonical
+`ι`-indexed basis of a finite free `R`-module `V`.
+-/
+noncomputable def LinearEquiv.chooseBasisPiScalarRight (R : Type*) (M : Type*) (V : Type*)
+    -- Probably OK for Semirings?
+    -- commutativity needed in the below construction for `TensorProduct.piScalarRight`
+    [CommSemiring M] [CommRing R] [Algebra R M]
+    [AddCommGroup V] [Module R V] [Module.Finite R V] [Module.Free R V] :
+    (M ⊗[R] V) ≃ₗ[M] (Module.Free.ChooseBasisIndex R V → M) := by
+  letI b := Module.Free.chooseBasis R V
+  letI f := b.equivFun
+  refine (LinearEquiv.baseChange R M V (Module.Free.ChooseBasisIndex R V → R) f) ≪≫ₗ ?_
+  exact TensorProduct.piScalarRight R M M (Module.Free.ChooseBasisIndex R V)
