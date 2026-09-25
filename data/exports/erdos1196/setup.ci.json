@@ -1,0 +1,36 @@
+{
+  "key": "erdos1196",
+  "repo": "https://github.com/math-inc/Erdos1196",
+  "commit": "02fba13be7487cc51315f68d8fa7ef277633d3c8",
+  "toolchain": "leanprover/lean4:v4.30.0-rc1",
+  "roots": [
+    "PrimitiveSetsAboveX"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/erdos1196/repo",
+  "entries": 123,
+  "modules": 12,
+  "exported": 12,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 123,
+    "kept": 123,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 6,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 1
+  },
+  "exportsBytes": 2727936,
+  "minutes": 4,
+  "finishedAt": "2026-09-25T14:29:50.586Z"
+}
