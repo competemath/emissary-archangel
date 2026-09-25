@@ -1,0 +1,1 @@
+{"names":["Fin.coe_lt_succ","Fin.coe_succ_le_iff_le"],"modules":["SphereEversion.ToMathlib.Unused.Fin"],"moduleOf":{"Fin.coe_lt_succ":"SphereEversion.ToMathlib.Unused.Fin","Fin.coe_succ_le_iff_le":"SphereEversion.ToMathlib.Unused.Fin"},"deps":{"Fin.coe_lt_succ":[],"Fin.coe_succ_le_iff_le":[]}}
