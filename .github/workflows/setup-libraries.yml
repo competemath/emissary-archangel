@@ -1,0 +1,111 @@
+name: setup-libraries
+# Self-contains registered libraries on GitHub's runners, up to 20 at once (free for a public repository),
+# instead of one at a time on a laptop. Each job runs scripts/setup-source.mjs, the same script the laptop
+# runs (toolchain, clone, Mathlib cache, build, closures, notation expansion, lean4export), then commits
+# data/exports/<key> together with setup.ci.json, the runner's setup record. The laptop's
+# scripts/setup-sources.mjs pulls those commits and setup-source.mjs adopts the record instead of building:
+# it only clones the source and seeds the queue. A library that fails or runs out of time commits nothing
+# and is left for the next run, or for the laptop.
+on:
+  workflow_dispatch:
+    inputs:
+      keys:
+        description: "Space-separated source keys. Empty: every registered source whose exports are not committed yet."
+        required: false
+        default: ""
+      exclude:
+        description: "Space-separated keys to leave out (being set up elsewhere, or too big for one 6-hour job)."
+        required: false
+        default: "formal-conjectures flt-anthropic"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: setup-libraries
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      keys: ${{ steps.plan.outputs.keys }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { filter: "blob:none", sparse-checkout: "scripts" }
+      - id: plan
+        env: { KEYS: "${{ inputs.keys }}", EXCLUDE: "${{ inputs.exclude }}" }
+        run: |
+          python3 - <<'EOF'
+          import json, os, subprocess
+          reg = json.load(open("sources.json"))["sources"]
+          tracked = subprocess.run(["git", "ls-tree", "-r", "--name-only", "HEAD", "data/exports"], capture_output=True, text=True, check=True).stdout.split()
+          # committed exports mean done: set up here before, or on a laptop after the proof-term fix
+          done = {p.split("/")[2] for p in tracked if p.count("/") >= 3 and p.endswith((".ndjson", "setup.ci.json"))}
+          exclude = set(os.environ["EXCLUDE"].split())
+          keys = os.environ["KEYS"].split() or sorted(k for k, s in reg.items() if s.get("repo") and k not in done and k not in exclude)
+          unknown = [k for k in keys if k not in reg]
+          assert not unknown, f"unknown keys: {unknown}"
+          print(f"{len(keys)} libraries: {' '.join(keys)}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write("keys=" + json.dumps(keys) + "\n")
+          EOF
+
+  setup:
+    needs: plan
+    if: needs.plan.outputs.keys != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        key: ${{ fromJSON(needs.plan.outputs.keys) }}
+    env:
+      KEY: ${{ matrix.key }}
+      LEAN_NUM_THREADS: "4"
+      EMISSARY_LEAN_MB: "12288"
+      EMISSARY_TENTATIVE_DIR: ${{ github.workspace }}/tengoku/data/tentative
+    steps:
+      - name: Free disk (a Mathlib cache plus a library build need ~20 GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift
+          df -h /
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { filter: "blob:none", fetch-depth: 0, sparse-checkout: "scripts" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: "22" }
+      - name: This library's tentative records (only its own files from the tree repository)
+        run: |
+          files=$(python3 -c "import json, os; s = json.load(open('sources.json'))['sources'][os.environ['KEY']]; print(' '.join('data/tentative/' + f for f in s.get('tentative', [os.environ['KEY'] + '.jsonl'])))")
+          git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
+          git -C tengoku sparse-checkout set --no-cone $files
+          git -C tengoku checkout -q
+          ls -la tengoku/data/tentative
+      - name: elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Set up ${{ matrix.key }}
+        run: |
+          args=$(python3 -c "import json, os; print(' '.join(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('setup', {}).get('args', [])))")
+          node scripts/setup-source.mjs "$KEY" $args
+      - name: Bank the exports
+        run: |
+          test -f "infra/$KEY/setup.json"
+          cp "infra/$KEY/setup.json" "data/exports/$KEY/setup.ci.json"
+          # GitHub refuses a file over 100 MB; a module left out this way is set up again where it is adopted
+          find "data/exports/$KEY" -type f -size +95M -print -delete
+          find "data/exports/$KEY" -type f \( -name '*.tmp' -o -name '*.tmp-*' -o -name '.batch-*.tsv' \) -delete
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --sparse -- "data/exports/$KEY"
+          summary=$(python3 -c "import json, os; j = json.load(open('data/exports/' + os.environ['KEY'] + '/setup.ci.json')); print(f\"{j['exported']}/{j['modules']} modules exported on {j['toolchain']} ({j['repo']} @ {j['commit'][:12]})\")")
+          git commit -q -m "exports: $KEY (runner)" -m "$summary. Set up on a GitHub runner by .github/workflows/setup-libraries.yml, run $GITHUB_RUN_ID; a laptop's setup-source.mjs adopts setup.ci.json instead of building." -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+          # up to 20 jobs push to main at once: replay on top of whatever landed meanwhile (different paths)
+          for i in $(seq 1 30); do
+            if git pull -q --rebase origin main && git push -q origin HEAD:main; then echo "banked $KEY"; exit 0; fi
+            sleep $((RANDOM % 25 + 5))
+          done
+          echo "could not push after 30 attempts"; exit 1

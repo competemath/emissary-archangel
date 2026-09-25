@@ -180,6 +180,31 @@ function push() {
   log(r.status === 0 ? `pushed ${ahead} commit(s)` : `push failed, commits stay local: ${(r.stderr || "").trim().slice(-300)}`)
 }
 
+// Libraries set up on GitHub's runners (.github/workflows/setup-libraries.yml) arrive as commits on origin/main:
+// bring them in, so setup-source.mjs can adopt them instead of building. An export file the laptop wrote but
+// never committed (a stale, pre-fix export) is removed first where an incoming commit replaces it, or git
+// would refuse to overwrite it.
+function pullRunnerResults() {
+  if (git(["branch", "--show-current"]).stdout.trim() !== "main" || !online()) return
+  if (git(["fetch", "-q", "origin", "main"]).status !== 0) return
+  const incoming = git(["diff", "--name-only", "--diff-filter=A", "HEAD...origin/main", "--", "data/exports"]).stdout.split("\n").filter(Boolean)
+  if (!incoming.length && git(["rev-list", "--count", "HEAD..origin/main"]).stdout.trim() === "0") return
+  let cleared = 0
+  for (const f of incoming) {
+    if (fs.existsSync(path.join(ROOT, f)) && git(["ls-files", "--error-unmatch", "--", f]).status !== 0) {
+      fs.rmSync(path.join(ROOT, f), { force: true })
+      cleared++
+    }
+  }
+  const busy = ["rebase-merge", "rebase-apply", "MERGE_HEAD"].some((x) => fs.existsSync(path.join(ROOT, ".git", x)))
+  const r = busy ? { status: 1, stderr: "a rebase or merge is in progress" } : git(["pull", "-q", "--rebase", "--autostash", "origin", "main"])
+  if (r.status !== 0) {
+    if (!busy) git(["rebase", "--abort"])
+    return log(`pull of runner results failed, retried next loop: ${(r.stderr || "").trim().slice(-200)}`)
+  }
+  log(`pulled runner results (${incoming.length} new export files${cleared ? `, ${cleared} stale local copies replaced` : ""})`)
+}
+
 // A done library whose exports are not committed yet, or whose build outlived its cleanup.
 async function sweep(rows) {
   let banked = false
@@ -234,7 +259,15 @@ let startedAt = new Date().toISOString()
 const writeLock = (extra = {}) => writeAtomic(LOCK, JSON.stringify({ pid: process.pid, startedAt, ...extra }))
 
 function prepare(r, todo) {
-  if (r.state === "stale") {
+  const ci = readJSON(path.join(ROOT, "data", "exports", r.key, "setup.ci.json"))
+  if (r.state === "stale" && ci?.commit === r.src.commit) {
+    // redone on a runner: its exports replaced the stale ones; setup-source.mjs adopts them. An untouched
+    // queue is still reseeded, so its module names match the runner's fresh seed.
+    const q = readJSON(queuePath(r.key, r.src), [])
+    if (!q.length || q.every((e) => e.status === "pending")) fs.writeFileSync(reseedFile(r.key), new Date().toISOString())
+    fs.rmSync(setupJson(r.key), { force: true })
+    log(`${r.key}: stale export already redone on a runner — adopting it`)
+  } else if (r.state === "stale") {
     // Exported before proof terms were dropped. A queue nobody has worked on is reseeded too (it
     // picks up every seeding fix since, aintlib's and ieantn's misnamed dotted directories among
     // them) and its exports are redone from scratch; otherwise only the .ndjson files are.
@@ -371,6 +404,7 @@ async function main() {
   if (RETRY_GAVE_UP) for (const r of plan().rows.filter((r) => r.state === "gave-up")) fs.rmSync(stateFile(r.key), { force: true })
   log(`driver ${process.pid} up: ${plan().todo.length} libraries to do`)
   while (!stopping) {
+    pullRunnerResults()
     await sweep(plan().rows)
     if (!plan().todo.length) break
     await until(() => !strays().length, `another setup-source.mjs is running (${strays().join(", ")})`)

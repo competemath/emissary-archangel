@@ -82,7 +82,11 @@ const REPO = src.subdir ? join(CLONE, src.subdir) : CLONE
 const EXPORTS = join(APP_ROOT, "data", "exports", key)
 const QUEUE = join(APP_ROOT, "data", src.queueFile || `queue-${key}.json`)
 // One tentative file per source, or several for a repo the harvester sharded (leanbridge-001…015).
-const TENTATIVE_FILES = (src.tentative || [`${key}.jsonl`]).map((f) => resolve(APP_ROOT, registry.tentativeDir || "../compete-math/tengoku/data/tentative", f))
+const TENTATIVE_FILES = (src.tentative || [`${key}.jsonl`]).map((f) =>
+  resolve(APP_ROOT, process.env.EMISSARY_TENTATIVE_DIR || registry.tentativeDir || "../compete-math/tengoku/data/tentative", f),
+)
+// Written next to the exports by .github/workflows/setup-libraries.yml: the library was set up on a runner.
+const CI_RECORD = join(EXPORTS, "setup.ci.json")
 const TC_SLUG = src.toolchain.replace(/[^A-Za-z0-9.-]+/g, "_")
 const L4E_DIR = join(APP_ROOT, "infra", "lean4export", TC_SLUG)
 const L4E_BIN = join(L4E_DIR, ".lake", "build", "bin", "lean4export")
@@ -681,16 +685,52 @@ const dirSize = (p) => {
   }
 }
 
+// A runner already set this library up at this commit: its exports are committed, so this machine needs only
+// the checkout (the bridge reads source text from it) and the queue. Nothing is built, no toolchain installed.
+// Adopted only when every module that carries an entry was handled there (exported, or recorded as failed).
+function adopt(entries, modules, stats, t0) {
+  if (!existsSync(CI_RECORD)) return false
+  let ci
+  try {
+    ci = JSON.parse(readFileSync(CI_RECORD, "utf8"))
+  } catch {
+    return false
+  }
+  if (ci.commit !== src.commit) {
+    log(`runner record is for ${String(ci.commit).slice(0, 12)}, not ${src.commit.slice(0, 12)} — setting up here`)
+    return false
+  }
+  const handled = new Set([...(ci.failed || []).map((f) => f.module), ...modules.filter((m) => existsSync(join(EXPORTS, `${m}.ndjson`)))])
+  const missing = modules.filter((m) => !handled.has(m))
+  if (missing.length) {
+    log(`runner record does not cover ${missing.length} modules (${missing.slice(0, 3).join(", ")}) — setting up here`)
+    return false
+  }
+  const report = {
+    ...ci,
+    corpusRoot: REPO,
+    entries: entries.length,
+    seed: stats,
+    adoptedFrom: "setup.ci.json",
+    minutes: Math.round((Date.now() - t0) / 60000),
+    finishedAt: new Date().toISOString(),
+  }
+  writeAtomic(SETUP_JSON, JSON.stringify(report, null, 2))
+  log(`adopted the runner's setup: ${ci.exported}/${ci.modules} modules exported on ${ci.toolchain} — nothing built here`)
+  return true
+}
+
 async function main() {
   const t0 = Date.now()
   removeLeftovers()
   log(`setup ${key}: ${src.repo} @ ${src.commit.slice(0, 12)} on ${src.toolchain}, roots ${src.roots.join(", ")}`)
-  await ensureToolchain()
   await ensureClone()
   const { entries, stats } = seedQueue()
   const modules = Array.from(new Set(entries.map((e) => moduleOfPath(e.sourcePath)))).sort()
   log(`${entries.length} entries in ${modules.length} modules`)
   if (ONLY === "seed") return
+  if (!ONLY && adopt(entries, modules, stats, t0)) return
+  await ensureToolchain()
   if (ONLY !== "export") await build(modules)
   await closures(modules)
   const expansion = await expand(closureModules(modules))
