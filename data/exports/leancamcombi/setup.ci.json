@@ -1,0 +1,36 @@
+{
+  "key": "leancamcombi",
+  "repo": "https://github.com/YaelDillies/LeanCamCombi",
+  "commit": "bc161bb205d5ffb557dedce22290a0924771225a",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "CamCombi"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/leancamcombi/repo",
+  "entries": 61,
+  "modules": 12,
+  "exported": 12,
+  "failed": [],
+  "expansion": {
+    "expanded": 8,
+    "verbatim": 15,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 61,
+    "kept": 61,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 39,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 679936,
+  "minutes": 3,
+  "finishedAt": "2026-09-25T14:52:03.606Z"
+}
