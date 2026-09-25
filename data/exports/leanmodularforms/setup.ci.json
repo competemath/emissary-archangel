@@ -1,0 +1,36 @@
+{
+  "key": "leanmodularforms",
+  "repo": "https://github.com/CBirkbeck/LeanModularForms",
+  "commit": "7c41b9b1747d47298f76bdb51f07031087702198",
+  "toolchain": "leanprover/lean4:v4.31.0-rc2",
+  "roots": [
+    "LeanModularForms"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/leanmodularforms/repo",
+  "entries": 3686,
+  "modules": 203,
+  "exported": 203,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 3699,
+    "kept": 3686,
+    "skippedRoot": 0,
+    "skippedDup": 10,
+    "skippedNoFile": 0,
+    "skippedCommented": 3,
+    "lineFixed": 1712,
+    "lineUnverified": 0,
+    "nameFixed": 190,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 159420416,
+  "minutes": 37,
+  "finishedAt": "2026-09-25T15:30:53.719Z"
+}
