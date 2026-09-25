@@ -1,0 +1,36 @@
+{
+  "key": "tautology",
+  "repo": "https://github.com/siqiliu-tsinghua/tautology",
+  "commit": "261012c7540673d59a4015371b7618b7573d43da",
+  "toolchain": "leanprover/lean4:v4.30.0",
+  "roots": [
+    "Tautology"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/tautology/repo",
+  "entries": 9688,
+  "modules": 457,
+  "exported": 457,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 9706,
+    "kept": 9688,
+    "skippedRoot": 0,
+    "skippedDup": 13,
+    "skippedNoFile": 0,
+    "skippedCommented": 5,
+    "lineFixed": 6162,
+    "lineUnverified": 19,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 47
+  },
+  "exportsBytes": 632082432,
+  "minutes": 4,
+  "finishedAt": "2026-09-25T15:47:49.039Z"
+}
