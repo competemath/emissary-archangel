@@ -1,0 +1,36 @@
+{
+  "key": "uniform-sheafy-tate-domains",
+  "repo": "https://github.com/CBirkbeck/uniform-sheafy-tate-domains-lean",
+  "commit": "2f45865e87d20dd460cc5a14d04850bf03be4570",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "roots": [
+    "Palomar"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/uniform-sheafy-tate-domains/repo",
+  "entries": 108,
+  "modules": 4,
+  "exported": 4,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 279,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 5846,
+    "kept": 108,
+    "skippedRoot": 5738,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 80,
+    "lineUnverified": 0,
+    "nameFixed": 1,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 3198976,
+  "minutes": 26,
+  "finishedAt": "2026-09-25T16:11:55.119Z"
+}
