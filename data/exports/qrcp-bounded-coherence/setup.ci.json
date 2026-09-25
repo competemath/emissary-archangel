@@ -1,0 +1,36 @@
+{
+  "key": "qrcp-bounded-coherence",
+  "repo": "https://github.com/frenzymath/qrcp-bounded-coherence-obstruction",
+  "commit": "9a6a1fb96d97d1e3eb0f81f34915e7c332176828",
+  "toolchain": "leanprover/lean4:v4.30.0-rc2",
+  "roots": [
+    "QRCPProof"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/qrcp-bounded-coherence/repo",
+  "entries": 102,
+  "modules": 18,
+  "exported": 18,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 103,
+    "kept": 102,
+    "skippedRoot": 0,
+    "skippedDup": 1,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 71,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 3932160,
+  "minutes": 13,
+  "finishedAt": "2026-09-25T15:37:01.127Z"
+}

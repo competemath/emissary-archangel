@@ -1,0 +1,1 @@
+{"names":["coherence_bound","mu","coherence_bound_product"],"modules":["QRCPProof.CoherenceBound","QRCPProof.Definitions"],"moduleOf":{"coherence_bound":"QRCPProof.CoherenceBound","mu":"QRCPProof.Definitions","coherence_bound_product":"QRCPProof.CoherenceBound"},"deps":{"coherence_bound":["mu"],"mu":[],"coherence_bound_product":["mu"]}}
