@@ -1,0 +1,1 @@
+{"names":["ZMod.mk_eq_natCast","ZMod.val_mk"],"modules":["APAP.Mathlib.Data.ZMod.Basic"],"moduleOf":{"ZMod.mk_eq_natCast":"APAP.Mathlib.Data.ZMod.Basic","ZMod.val_mk":"APAP.Mathlib.Data.ZMod.Basic"},"deps":{"ZMod.mk_eq_natCast":[],"ZMod.val_mk":[]}}

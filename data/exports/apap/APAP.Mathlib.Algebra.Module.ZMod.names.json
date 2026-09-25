@@ -1,0 +1,1 @@
+{"names":["AddChar.map_zmod_smul","ZMod.mk_eq_natCast"],"modules":["APAP.Mathlib.Algebra.Module.ZMod","APAP.Mathlib.Data.ZMod.Basic"],"moduleOf":{"AddChar.map_zmod_smul":"APAP.Mathlib.Algebra.Module.ZMod","ZMod.mk_eq_natCast":"APAP.Mathlib.Data.ZMod.Basic"},"deps":{"AddChar.map_zmod_smul":["ZMod.mk_eq_natCast"],"ZMod.mk_eq_natCast":[]}}

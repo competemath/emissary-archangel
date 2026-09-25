@@ -1,0 +1,36 @@
+{
+  "key": "apap",
+  "repo": "https://github.com/YaelDillies/apap",
+  "commit": "ce27f3d432cf35d19c442223cbddceaa7e91c688",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "APAP"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/apap/repo",
+  "entries": 643,
+  "modules": 46,
+  "exported": 46,
+  "failed": [],
+  "expansion": {
+    "expanded": 29,
+    "verbatim": 125,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 646,
+    "kept": 643,
+    "skippedRoot": 0,
+    "skippedDup": 3,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 559,
+    "lineUnverified": 0,
+    "nameFixed": 1,
+    "sorryOriginals": 0,
+    "emptyProofs": 24
+  },
+  "exportsBytes": 10502144,
+  "minutes": 11,
+  "finishedAt": "2026-09-25T14:30:39.924Z"
+}

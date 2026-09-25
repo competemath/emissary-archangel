@@ -1,0 +1,1 @@
+{"names":["indicator_one_neg","indicator_one_inv"],"modules":["APAP.Mathlib.Algebra.Group.Pointwise.Set.Basic"],"moduleOf":{"indicator_one_neg":"APAP.Mathlib.Algebra.Group.Pointwise.Set.Basic","indicator_one_inv":"APAP.Mathlib.Algebra.Group.Pointwise.Set.Basic"},"deps":{"indicator_one_neg":[],"indicator_one_inv":[]}}

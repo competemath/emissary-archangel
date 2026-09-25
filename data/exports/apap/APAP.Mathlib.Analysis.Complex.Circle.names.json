@@ -1,0 +1,1 @@
+{"names":["Circle.cos_eq_cos_of_exp_eq_exp","Circle.sin_eq_sin_of_exp_eq_exp"],"modules":["APAP.Mathlib.Analysis.Complex.Circle"],"moduleOf":{"Circle.cos_eq_cos_of_exp_eq_exp":"APAP.Mathlib.Analysis.Complex.Circle","Circle.sin_eq_sin_of_exp_eq_exp":"APAP.Mathlib.Analysis.Complex.Circle"},"deps":{"Circle.cos_eq_cos_of_exp_eq_exp":[],"Circle.sin_eq_sin_of_exp_eq_exp":[]}}

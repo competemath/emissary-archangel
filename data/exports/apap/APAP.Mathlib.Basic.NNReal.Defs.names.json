@@ -1,0 +1,1 @@
+{"names":["NNReal.coe_comp_indicator_one","NNReal.coe_indicator_one"],"modules":["APAP.Mathlib.Basic.NNReal.Defs"],"moduleOf":{"NNReal.coe_comp_indicator_one":"APAP.Mathlib.Basic.NNReal.Defs","NNReal.coe_indicator_one":"APAP.Mathlib.Basic.NNReal.Defs"},"deps":{"NNReal.coe_comp_indicator_one":["NNReal.coe_indicator_one"],"NNReal.coe_indicator_one":[]}}
