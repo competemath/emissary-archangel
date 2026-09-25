@@ -621,16 +621,6 @@
       ],
       "licence": "MIT"
     },
-    "lean-wasm": {
-      "label": "lean-wasm",
-      "repo": "https://github.com/T-Brick/lean-wasm",
-      "commit": "43b051f30b920e4d1253d83ae08b3dc83b4d6d88",
-      "toolchain": "leanprover/lean4:v4.25.0",
-      "roots": [
-        "Wasm"
-      ],
-      "licence": "GPL-3.0"
-    },
     "lean4-analysis-tao": {
       "label": "lean4-analysis-tao",
       "repo": "https://github.com/vltanh/lean4-analysis-tao",
@@ -885,16 +875,6 @@
         "Sendov"
       ],
       "licence": "Apache-2.0"
-    },
-    "software-foundations-lean": {
-      "label": "software-foundations-lean",
-      "repo": "https://github.com/PnVDiscord/software-foundations-lean",
-      "commit": "bc5e4983350b7d15340f357a92764f00936a7dcf",
-      "toolchain": "leanprover/lean4:v4.21.0",
-      "roots": [
-        "SoftwareFoundations"
-      ],
-      "licence": "AGPL-3.0"
     },
     "sphere-eversion": {
       "label": "sphere-eversion",
