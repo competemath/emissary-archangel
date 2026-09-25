@@ -1,0 +1,36 @@
+{
+  "key": "merely-true",
+  "repo": "https://github.com/merely-true/merely-true",
+  "commit": "f4ff319d4622f410e001ebab016c4e7d23f9cd97",
+  "toolchain": "leanprover/lean4:v4.29.0",
+  "roots": [
+    "MerelyTrue"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/merely-true/repo",
+  "entries": 286,
+  "modules": 38,
+  "exported": 38,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 286,
+    "kept": 286,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 8,
+    "lineUnverified": 0,
+    "nameFixed": 216,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 8306688,
+  "minutes": 9,
+  "finishedAt": "2026-09-25T15:16:08.807Z"
+}
