@@ -1,0 +1,36 @@
+{
+  "key": "forbidden-matrix",
+  "repo": "https://github.com/YaelDillies/forbidden-matrix",
+  "commit": "a938c04974d145131c446e8d488b834797ab6ed0",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "ForbiddenMatrix"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/forbidden-matrix/repo",
+  "entries": 60,
+  "modules": 5,
+  "exported": 5,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 60,
+    "kept": 60,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 54,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 790528,
+  "minutes": 3,
+  "finishedAt": "2026-09-25T14:31:42.164Z"
+}
