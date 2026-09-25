@@ -1,0 +1,37 @@
+{
+  "key": "carleson",
+  "repo": "https://github.com/fpvandoorn/Carleson",
+  "commit": "6e7b18b655ead52b9a4eb46906f7d99bc6bc241c",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "Carleson",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/carleson/repo",
+  "entries": 2494,
+  "modules": 113,
+  "exported": 113,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 2510,
+    "kept": 2494,
+    "skippedRoot": 3,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 13,
+    "lineFixed": 1825,
+    "lineUnverified": 1,
+    "nameFixed": 247,
+    "sorryOriginals": 0,
+    "emptyProofs": 1
+  },
+  "exportsBytes": 234631168,
+  "minutes": 25,
+  "finishedAt": "2026-09-25T14:46:48.990Z"
+}

@@ -1,0 +1,1 @@
+{"names":["AEEqFun.mk_sum","sum_attach_insert"],"modules":["Carleson.ToMathlib.MeasureTheory.Function.AEEqFun","Carleson.ToMathlib.Misc"],"moduleOf":{"AEEqFun.mk_sum":"Carleson.ToMathlib.MeasureTheory.Function.AEEqFun","sum_attach_insert":"Carleson.ToMathlib.Misc"},"deps":{"AEEqFun.mk_sum":["sum_attach_insert"],"sum_attach_insert":[]}}

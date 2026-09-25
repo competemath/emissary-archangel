@@ -1,0 +1,1 @@
+{"names":["NNReal.div_self_eq_ite","Real.nnnorm_le_nnnorm"],"modules":["Carleson.ToMathlib.Data.NNReal"],"moduleOf":{"NNReal.div_self_eq_ite":"Carleson.ToMathlib.Data.NNReal","Real.nnnorm_le_nnnorm":"Carleson.ToMathlib.Data.NNReal"},"deps":{"NNReal.div_self_eq_ite":[],"Real.nnnorm_le_nnnorm":[]}}
