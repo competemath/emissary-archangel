@@ -1,0 +1,1 @@
+{"names":["FormalSLT.Concentration.SubGamma.condExp_sq_eq_condVar_of_centered"],"modules":["FormalSLT.Concentration.SubGamma.CondVarianceFromSquare"],"moduleOf":{"FormalSLT.Concentration.SubGamma.condExp_sq_eq_condVar_of_centered":"FormalSLT.Concentration.SubGamma.CondVarianceFromSquare"},"deps":{"FormalSLT.Concentration.SubGamma.condExp_sq_eq_condVar_of_centered":[]}}

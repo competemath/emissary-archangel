@@ -1,0 +1,36 @@
+{
+  "key": "formalslt",
+  "repo": "https://github.com/Robby955/FormalSLT",
+  "commit": "5e41e98ed3e1c270efe3089a4eb86ee6dd920995",
+  "toolchain": "leanprover/lean4:v4.32.2",
+  "roots": [
+    "FormalSLT"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/formalslt/repo",
+  "entries": 7016,
+  "modules": 337,
+  "exported": 337,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 8584,
+    "kept": 7016,
+    "skippedRoot": 1561,
+    "skippedDup": 2,
+    "skippedNoFile": 0,
+    "skippedCommented": 5,
+    "lineFixed": 3844,
+    "lineUnverified": 66,
+    "nameFixed": 2,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 130461696,
+  "minutes": 41,
+  "finishedAt": "2026-09-25T15:14:08.424Z"
+}
