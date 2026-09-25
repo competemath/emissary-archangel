@@ -1,0 +1,37 @@
+{
+  "key": "algolean",
+  "repo": "https://github.com/Shreyas4991/Algolean",
+  "commit": "f64556d69fd625f083f86304cb7b97a16852b657",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "roots": [
+    "Algolean",
+    "AlgoleanTests"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/algolean/repo",
+  "entries": 365,
+  "modules": 35,
+  "exported": 35,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 35,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 365,
+    "kept": 365,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 270,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 1
+  },
+  "exportsBytes": 8298496,
+  "minutes": 20,
+  "finishedAt": "2026-09-25T14:42:47.171Z"
+}
