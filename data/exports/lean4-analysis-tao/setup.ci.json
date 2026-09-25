@@ -1,0 +1,36 @@
+{
+  "key": "lean4-analysis-tao",
+  "repo": "https://github.com/vltanh/lean4-analysis-tao",
+  "commit": "bac39612b3745469e620212947a573eb91154166",
+  "toolchain": "leanprover/lean4:v4.29.0",
+  "roots": [
+    "Lean4AnalysisTao"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lean4-analysis-tao/repo",
+  "entries": 66,
+  "modules": 8,
+  "exported": 8,
+  "failed": [],
+  "expansion": {
+    "expanded": 201,
+    "verbatim": 178,
+    "unexpanded": 48,
+    "failed": []
+  },
+  "seed": {
+    "records": 66,
+    "kept": 66,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 64,
+    "lineUnverified": 0,
+    "nameFixed": 16,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 1093632,
+  "minutes": 5,
+  "finishedAt": "2026-09-25T14:50:10.021Z"
+}
