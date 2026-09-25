@@ -1,0 +1,36 @@
+{
+  "key": "brownian-motion",
+  "repo": "https://github.com/RemyDegenne/brownian-motion",
+  "commit": "314f04a34ff75e18fd383917ae7fe7d77beb1b6f",
+  "toolchain": "leanprover/lean4:v4.33.0-rc1",
+  "roots": [
+    "BrownianMotion"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/brownian-motion/repo",
+  "entries": 1441,
+  "modules": 82,
+  "exported": 82,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1441,
+    "kept": 1441,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 1115,
+    "lineUnverified": 0,
+    "nameFixed": 13,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 32755712,
+  "minutes": 9,
+  "finishedAt": "2026-09-25T14:30:59.013Z"
+}
