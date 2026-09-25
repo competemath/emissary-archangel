@@ -1,0 +1,846 @@
+/-
+Copyright (c) 2024 Kei Tsukamoto. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Kei Tsukamoto, Kazumi Kasaura, Naoto Onda, Yuma Mizuno, Sho Sonoda
+-/
+import StatsMLlib.LearningTheory.Rademacher.Complexity
+import StatsMLlib.LearningTheory.UniformDeviation.Defs
+import StatsMLlib.Probability.Concentration.McDiarmid
+import StatsMLlib.LearningTheory.UniformDeviation.BoundedDifference
+import StatsMLlib.Topology.SeparableSpace.Supremum
+import StatsMLlib.MeasureTheory.Measure.Real
+
+
+-- @@ L13-27 verbatim
+/-!
+# Uniform-Deviation Bounds
+
+Expected and high-probability uniform-deviation bounds obtained from Rademacher complexity and
+McDiarmid's inequality.
+
+## Main definitions
+
+This module uses `uniformDeviation` and the expected Rademacher complexity of a function class.
+
+## Main results
+
+* `uniform_deviation_tail_bound_countable`: tail bound for a countable function class.
+* `uniform_deviation_tail_bound_separable`: tail bound for a separable function class.
+-/
+
+
+-- @@ L29-29 verbatim
+section
+
+
+-- @@ L31-31 verbatim
+universe u v w
+
+
+-- @@ L33-33 verbatim
+open MeasureTheory ProbabilityTheory Real
+
+-- @@ L34-34 verbatim
+open scoped ENNReal
+
+
+-- @@ L36-36 verbatim
+variable {n : ℕ}
+
+-- @@ L37-37 verbatim
+variable {Ω : Type u} [MeasurableSpace Ω] {ι : Type v} {𝒳 : Type w}
+
+-- @@ L38-38 verbatim
+variable {μ : Measure Ω} {f : ι → 𝒳 → ℝ}
+
+
+-- @@ L40-40 verbatim
+local notation "μⁿ" => Measure.pi (fun _ ↦ μ)
+
+
+-- @@ L42-67 verbatim
+/-- The expected empirical uniform deviation is bounded by twice the Rademacher complexity. -/
+theorem uniform_deviation_expectation_le_two_smul_rademacher_complexity
+    [Nonempty ι] [Countable ι] [IsProbabilityMeasure μ]
+    (hn : 0 < n) (X : Ω → 𝒳)
+    (hf : ∀ i, Measurable (f i ∘ X))
+    {b : ℝ} (hb : 0 ≤ b) (hf' : ∀ i x, |f i x| ≤ b) :
+    μⁿ[fun ω : Fin n → Ω ↦ uniformDeviation n f μ X (X ∘ ω)] ≤ 2 * rademacherComplexity n f μ X := by
+  apply le_of_mul_le_mul_left _ (Nat.cast_pos.mpr hn)
+  calc
+    (n : ℝ) * μⁿ[fun ω : Fin n → Ω ↦ uniformDeviation n f μ X (X ∘ ω)] =
+        μⁿ[fun ω : Fin n → Ω ↦ ⨆ i,
+          |∑ k : Fin n, f i (X (ω k)) - n • μ[fun ω' ↦ f i (X ω')]|] := by
+      rw [← integral_const_mul]
+      apply integral_congr_ae (Filter.EventuallyEq.of_eq _)
+      ext ω
+      rw [uniformDeviation, Real.mul_iSup_of_nonneg (by norm_num)]
+      apply congr_arg _ (funext (fun i ↦ ?_))
+      rw [← show |(n : ℝ)| = n from abs_of_nonneg (by norm_num), ← abs_mul]
+      apply congr_arg
+      simp only [Nat.abs_cast, Function.comp_apply, nsmul_eq_mul]
+      field_simp
+    _ ≤ (2 * n) • rademacherComplexity n f μ X :=
+      expectation_le_rademacher (μ := μ) (n := n) hf hb hf'
+    _ = (n : ℝ) * (2 * rademacherComplexity n f μ X) := by
+      simp only [nsmul_eq_mul, Nat.cast_mul, Nat.cast_ofNat]
+      ring
+
+
+-- @@ L69-101 verbatim
+/-- McDiarmid tail bound for the centered empirical uniform deviation. -/
+theorem uniform_deviation_mcdiarmid_tail
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty ι] [Countable ι]
+    [IsProbabilityMeasure μ]
+    {X : Ω → 𝒳} (hX : Measurable X)
+    (hf : ∀ i, Measurable (f i))
+    {b : ℝ} (hf': ∀ i x, |f i x| ≤ b)
+    {t : ℝ} (ht' : t * b ^ 2 ≤ 1 / 2)
+    {ε : ℝ} (hε : 0 ≤ ε) :
+    (μⁿ (fun ω : Fin n → Ω ↦ uniformDeviation n f μ X (X ∘ ω) -
+      μⁿ[fun ω : Fin n → Ω ↦ uniformDeviation n f μ X (X ∘ ω)] ≥ ε)).toReal ≤
+        (- ε ^ 2 * t * n).exp := by
+  by_cases hn : n = 0
+  · subst n
+    simp only [Nat.cast_zero, mul_zero, Real.exp_zero]
+    change μⁿ.real _ ≤ 1
+    exact measureReal_le_one
+  have hn : 0 < n := Nat.pos_of_ne_zero hn
+  have hn' : 0 < (n : ℝ) := Nat.cast_pos.mpr hn
+  let c : Fin n → ℝ := fun i ↦ (n : ℝ)⁻¹ * 2 * b
+  have ht' : (n : ℝ) * t / 2 * ∑ i, (c i) ^ 2 ≤ 1 := by
+    apply le_of_mul_le_mul_left _ (show (0 : ℝ) < 1 / 2 from by linarith)
+    calc
+      _ = t * b ^ 2 := by
+        simp only [c, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+        field_simp
+      _ ≤ _ := by linarith
+  have hfX : ∀ i, Measurable (f i ∘ X) := fun i => (hf i).comp hX
+  calc
+    _ ≤ (-2 * ε ^ 2 * (n * t / 2)).exp :=
+      mcdiarmid_inequality_pos' hX (uniformDeviation_bounded_difference hn X hfX hf')
+        (uniformDeviation_measurable X hf) hε ht'
+    _ = _ := congr_arg _ (by ring)
+
+
+-- @@ L103-127 verbatim
+/-- (Main Theorem) Countable-class tail bound via symmetrization and McDiarmid's inequality. -/
+theorem uniform_deviation_tail_bound_countable
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty ι] [Countable ι] [IsProbabilityMeasure μ]
+    (f : ι → 𝒳 → ℝ) (hf : ∀ i, Measurable (f i))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    {b : ℝ} (hb : 0 ≤ b) (hf' : ∀ i x, |f i x| ≤ b)
+    {t : ℝ} (ht' : t * b ^ 2 ≤ 1 / 2)
+    {ε : ℝ} (hε : 0 ≤ ε) :
+    (μⁿ (fun ω ↦ 2 * rademacherComplexity n f μ X + ε ≤ uniformDeviation n f μ X (X ∘ ω))).toReal ≤
+      (- ε ^ 2 * t * n).exp := by
+  by_cases hn : n = 0
+  · subst n
+    simp only [Nat.cast_zero, mul_zero, Real.exp_zero]
+    change μⁿ.real _ ≤ 1
+    exact measureReal_le_one
+  have hn : 0 < n := Nat.pos_of_ne_zero hn
+  apply le_trans _ (uniform_deviation_mcdiarmid_tail (μ := μ) hX hf hf' ht' hε)
+  apply ENNReal.toReal_mono (measure_ne_top _ _)
+  apply measure_mono
+  intro ω h
+  have : 2 * rademacherComplexity n f μ X + ε ≤ uniformDeviation n f μ X (X ∘ ω) := h
+  have : μⁿ[fun ω ↦ uniformDeviation n f μ X (X ∘ ω)] ≤ 2 * rademacherComplexity n f μ X :=
+    uniform_deviation_expectation_le_two_smul_rademacher_complexity hn X (fun i ↦ (hf i).comp hX) hb hf'
+  show ε ≤ uniformDeviation n f μ X (X ∘ ω) - μⁿ[fun ω ↦ uniformDeviation n f μ X (X ∘ ω)]
+  linarith
+
+
+-- @@ L129-143 verbatim
+/-- (Main Theorem) Optimized countable-class tail bound with `t = 1 / (2 * b^2)`. -/
+theorem uniform_deviation_tail_bound_countable_of_pos
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty ι] [Countable ι] [IsProbabilityMeasure μ]
+    (f : ι → 𝒳 → ℝ) (hf : ∀ i, Measurable (f i))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    {b : ℝ} (hb : 0 < b) (hf' : ∀ i x, |f i x| ≤ b)
+    {ε : ℝ} (hε : 0 ≤ ε) :
+    (μⁿ (fun ω ↦ 2 * rademacherComplexity n f μ X + ε ≤ uniformDeviation n f μ X (X ∘ ω))).toReal ≤
+      (- ε ^ 2 * n / (2 * b ^ 2)).exp := by
+  let t := 1 / (2 * b ^ 2)
+  have ht' : t * b ^ 2 ≤ 1 / 2 := le_of_eq (by dsimp only [t]; field_simp)
+  calc
+    _ ≤ (- ε ^ 2 * t * n).exp :=
+      uniform_deviation_tail_bound_countable (μ := μ) f hf X hX (le_of_lt hb) hf' ht' hε
+    _ = _ := by dsimp only [t]; field_simp
+
+
+-- @@ L145-145 verbatim
+open TopologicalSpace
+
+
+-- @@ L147-155 verbatim
+lemma empiricalRademacherComplexity_eq
+    [Nonempty ι] [TopologicalSpace ι] [SeparableSpace ι]
+    (n : ℕ) {f : ι → (𝒳 → ℝ)} (hf : ∀ x : 𝒳, Continuous fun i ↦ f i x) (S : Fin n → 𝒳) :
+    empiricalRademacherComplexity n f S = empiricalRademacherComplexity n (f ∘ denseSeq ι) S := by
+  dsimp [empiricalRademacherComplexity]
+  congr
+  ext i
+  apply separableSpaceSup_eq_real
+  continuity
+
+
+-- @@ L157-165 verbatim
+lemma RademacherComplexity_eq
+    [Nonempty ι] [TopologicalSpace ι] [SeparableSpace ι]
+    (n : ℕ) (f : ι → (𝒳 → ℝ)) (hf : ∀ x : 𝒳, Continuous fun i ↦ f i x)
+    (μ : Measure Ω) (X : Ω → 𝒳) :
+    rademacherComplexity n f μ X = rademacherComplexity n (f ∘ denseSeq ι) μ X := by
+  dsimp [rademacherComplexity]
+  congr
+  ext i
+  exact empiricalRademacherComplexity_eq n hf (X ∘ i)
+
+
+-- @@ L167-193 verbatim
+lemma uniformDeviation_eq
+    [MeasurableSpace 𝒳]
+    [Nonempty ι] [TopologicalSpace ι] [SeparableSpace ι] [FirstCountableTopology ι]
+    (n : ℕ) (f : ι → 𝒳 → ℝ)
+    (hf : ∀ i, Measurable (f i))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    {b : ℝ} (hf' : ∀ i x, |f i x| ≤ b)
+    (hf'' : ∀ x : 𝒳, Continuous fun i ↦ f i x)
+    (μ : Measure Ω) [IsFiniteMeasure μ] :
+    uniformDeviation n f μ X = uniformDeviation n (f ∘ denseSeq ι) μ X := by
+  ext y
+  dsimp [uniformDeviation]
+  apply separableSpaceSup_eq_real
+  apply Continuous.abs
+  apply Continuous.sub
+  · continuity
+  · have : ∀ (x : ι), ∀ᵐ (a : Ω) ∂μ, ‖f x (X a)‖ ≤ b := by
+      intro i
+      filter_upwards with ω
+      exact hf' i (X ω)
+    apply MeasureTheory.continuous_of_dominated _ this
+    · apply MeasureTheory.integrable_const
+    · filter_upwards with ω
+      continuity
+    · intro i
+      apply Measurable.aestronglyMeasurable
+      measurability
+
+
+-- @@ L195-219 verbatim
+/-- (Main Theorem) Separable-class tail bound obtained via reduction to a countable dense subclass. -/
+theorem uniform_deviation_tail_bound_separable
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty ι]
+    [TopologicalSpace ι] [SeparableSpace ι]  [FirstCountableTopology ι]
+    [IsProbabilityMeasure μ]
+    (f : ι → 𝒳 → ℝ) (hf : ∀ i, Measurable (f i))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    {b : ℝ} (hb : 0 ≤ b) (hf' : ∀ i x, |f i x| ≤ b)
+    (hf'' : ∀ x : 𝒳, Continuous fun i ↦ f i x)
+    {t : ℝ} (ht' : t * b ^ 2 ≤ 1 / 2)
+    {ε : ℝ} (hε : 0 ≤ ε) :
+    (μⁿ (fun ω ↦ 2 * rademacherComplexity n f μ X + ε ≤ uniformDeviation n f μ X (X ∘ ω))).toReal ≤
+      (- ε ^ 2 * t * n).exp := by
+  let f' := f ∘ denseSeq ι
+  calc
+    _ = (μⁿ (fun ω ↦ 2 * rademacherComplexity n f' μ X + ε ≤ uniformDeviation n f' μ X (X ∘ ω))).toReal := by
+      congr
+      ext ω
+      rw [RademacherComplexity_eq n f hf'' μ X]
+      rw [uniformDeviation_eq n f hf X hX hf' hf'' μ]
+    _ ≤ (- ε ^ 2 * t * n).exp := by
+      apply uniform_deviation_tail_bound_countable f' _ X hX hb _ ht' hε
+      · intro i
+        measurability
+      · exact fun i x ↦ hf' (denseSeq ι i) x
+
+
+-- @@ L221-238 verbatim
+/-- (Main Theorem) Optimized separable-class tail bound with `t = 1 / (2 * b^2)`. -/
+theorem uniform_deviation_tail_bound_separable_of_pos
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty ι]
+    [TopologicalSpace ι] [SeparableSpace ι] [FirstCountableTopology ι]
+    [IsProbabilityMeasure μ]
+    (f : ι → 𝒳 → ℝ) (hf : ∀ i, Measurable (f i))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    {b : ℝ} (hb : 0 < b) (hf' : ∀ i x, |f i x| ≤ b)
+    (hf'' : ∀ x : 𝒳, Continuous fun i ↦ f i x)
+    {ε : ℝ} (hε : 0 ≤ ε) :
+    (μⁿ (fun ω ↦ 2 * rademacherComplexity n f μ X + ε ≤ uniformDeviation n f μ X (X ∘ ω))).toReal ≤
+      (- ε ^ 2 * n / (2 * b ^ 2)).exp := by
+  let t := 1 / (2 * b ^ 2)
+  have ht' : t * b ^ 2 ≤ 1 / 2 := le_of_eq (by dsimp only [t]; field_simp)
+  calc
+    _ ≤ (- ε ^ 2 * t * n).exp :=
+      uniform_deviation_tail_bound_separable (μ := μ) f hf X hX (le_of_lt hb) hf' hf'' ht' hε
+    _ = _ := by dsimp only [t]; field_simp
+
+
+
+-- @@ L241-249 verbatim
+private lemma normalized_two_mul_bound_mcdiarmid_scale
+    (hn : 0 < n) {b t : ℝ} (ht : t * b ^ 2 ≤ 1 / 2) :
+    ((n : ℝ) * t / 2) * (n : ℝ) * ((n : ℝ)⁻¹ * 2 * b) ^ 2 ≤ 1 := by
+  calc
+    ((n : ℝ) * t / 2) * (n : ℝ) * ((n : ℝ)⁻¹ * 2 * b) ^ 2 =
+        2 * (t * b ^ 2) := by
+          field_simp
+    _ ≤ 2 * (1 / 2 : ℝ) := by gcongr
+    _ = 1 := by norm_num
+
+
+-- @@ L251-269 verbatim
+/--
+Bridge from an upper bound on expected Rademacher complexity to an expected
+uniform-deviation bound.
+-/
+theorem uniform_deviation_expectation_le_of_rademacher_le
+    [Nonempty ι] [Countable ι] [IsProbabilityMeasure μ]
+    (hn : 0 < n) (X : Ω → 𝒳)
+    (hf : ∀ i, Measurable (f i ∘ X))
+    {b C : ℝ} (hb : 0 ≤ b) (hf' : ∀ i x, |f i x| ≤ b)
+    (hC : rademacherComplexity n f μ X ≤ C) :
+    μⁿ[fun ω : Fin n → Ω ↦ uniformDeviation n f μ X (X ∘ ω)] ≤
+      2 * C := by
+  calc
+    _ ≤ 2 * rademacherComplexity n f μ X :=
+      uniform_deviation_expectation_le_two_smul_rademacher_complexity
+        hn X hf hb hf'
+    _ ≤ 2 * C := by
+      simpa only [nsmul_eq_mul] using
+        mul_le_mul_of_nonneg_left hC (show (0 : ℝ) ≤ 2 by norm_num)
+
+
+-- @@ L271-284 verbatim
+/--
+A uniform fixed-sample upper bound on empirical Rademacher complexity bounds
+the expected uniform deviation.
+-/
+theorem uniform_deviation_expectation_le_of_empirical_le_countable
+    [Nonempty ι] [Countable ι] [IsProbabilityMeasure μ]
+    (hn : 0 < n) (X : Ω → 𝒳)
+    (hf : ∀ i, Measurable (f i ∘ X))
+    {b C : ℝ} (hb : 0 ≤ b) (hf' : ∀ i x, |f i x| ≤ b)
+    (hC : ∀ S : Fin n → 𝒳, empiricalRademacherComplexity n f S ≤ C) :
+    μⁿ[fun ω : Fin n → Ω ↦ uniformDeviation n f μ X (X ∘ ω)] ≤
+      2 * C := by
+  apply uniform_deviation_expectation_le_of_rademacher_le hn X hf hb hf'
+  exact rademacherComplexity_le_of_empirical_le_countable hf hb hf' hC
+
+
+-- @@ L286-318 verbatim
+/--
+Lower-tail concentration of empirical Rademacher complexity around its
+expectation.
+-/
+theorem empiricalRademacherComplexity_lower_tail_countable
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty ι] [Countable ι]
+    [IsProbabilityMeasure μ]
+    (f : ι → 𝒳 → ℝ) (hf : ∀ i, Measurable (f i))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    {b : ℝ} (hf' : ∀ i x, |f i x| ≤ b)
+    {t : ℝ} (ht : t * b ^ 2 ≤ 1 / 2)
+    {ε : ℝ} (hε : 0 ≤ ε) :
+    (μⁿ {ω : Fin n → Ω |
+      empiricalRademacherComplexity n f (X ∘ ω) -
+        rademacherComplexity n f μ X ≤ -ε}).toReal ≤
+      (-ε ^ 2 * t * n).exp := by
+  by_cases hn : n = 0
+  · simp [hn, ← measureReal_def]
+  have hn : 0 < n := Nat.pos_of_ne_zero hn
+  calc
+    _ ≤ (-2 * ε ^ 2 * ((n : ℝ) * t / 2)).exp := by
+      simpa only [rademacherComplexity, Set.ofPred] using
+        (mcdiarmid_inequality_neg_iid_of_const
+          (μ := μ) (ι := Fin n) (X' := X)
+          (f' := fun S : Fin n → 𝒳 ↦ empiricalRademacherComplexity n f S)
+          (c := (n : ℝ)⁻¹ * 2 * b) hX
+          (empiricalRademacherComplexity_bounded_difference
+            (n := n) (f := f) hn hf')
+          (measurable_empiricalRademacherComplexity_comp
+            (Ω := 𝒳) (Z := 𝒳) (n := n) (f := f) (X := id)
+            (fun i ↦ by simpa using hf i))
+          hε (by simpa using normalized_two_mul_bound_mcdiarmid_scale hn ht))
+    _ = _ := congr_arg _ (by ring)
+
+
+-- @@ L320-342 verbatim
+/-- Optimized empirical-complexity lower tail with `t = 1 / (2 * b^2)`. -/
+theorem empiricalRademacherComplexity_lower_tail_countable_of_pos
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty ι] [Countable ι]
+    [IsProbabilityMeasure μ]
+    (f : ι → 𝒳 → ℝ) (hf : ∀ i, Measurable (f i))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    {b : ℝ} (hb : 0 < b) (hf' : ∀ i x, |f i x| ≤ b)
+    {ε : ℝ} (hε : 0 ≤ ε) :
+    (μⁿ {ω : Fin n → Ω |
+      empiricalRademacherComplexity n f (X ∘ ω) -
+        rademacherComplexity n f μ X ≤ -ε}).toReal ≤
+      (-ε ^ 2 * n / (2 * b ^ 2)).exp := by
+  let t := 1 / (2 * b ^ 2)
+  have ht : t * b ^ 2 ≤ 1 / 2 := le_of_eq (by
+    dsimp only [t]
+    field_simp)
+  calc
+    _ ≤ (-ε ^ 2 * t * n).exp :=
+      empiricalRademacherComplexity_lower_tail_countable
+        (μ := μ) f hf X hX hf' ht hε
+    _ = _ := by
+      dsimp only [t]
+      field_simp
+
+
+-- @@ L344-368 verbatim
+/--
+Replace expected Rademacher complexity in the countable-class tail bound by
+any deterministic upper bound `C`.
+-/
+theorem uniform_deviation_tail_bound_countable_of_rademacher_le
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty ι] [Countable ι]
+    [IsProbabilityMeasure μ]
+    (f : ι → 𝒳 → ℝ) (hf : ∀ i, Measurable (f i))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    {b C : ℝ} (hb : 0 < b) (hf' : ∀ i x, |f i x| ≤ b)
+    (hC : rademacherComplexity n f μ X ≤ C)
+    {ε : ℝ} (hε : 0 ≤ ε) :
+    (μⁿ {ω |
+      2 * C + ε ≤ uniformDeviation n f μ X (X ∘ ω)}).toReal ≤
+      (-ε ^ 2 * n / (2 * b ^ 2)).exp := by
+  calc
+    _ ≤ (μⁿ {ω |
+        2 * rademacherComplexity n f μ X + ε ≤
+          uniformDeviation n f μ X (X ∘ ω)}).toReal := by
+      apply measureReal_superlevel_mono
+      intro ω
+      gcongr
+    _ ≤ _ :=
+      uniform_deviation_tail_bound_countable_of_pos
+        (μ := μ) f hf X hX hb hf' hε
+
+
+-- @@ L370-388 verbatim
+/--
+Optimized countable-class tail bound with a uniform fixed-sample upper bound
+on empirical Rademacher complexity.
+-/
+theorem uniform_deviation_tail_bound_countable_of_empirical_le
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty ι] [Countable ι]
+    [IsProbabilityMeasure μ]
+    (f : ι → 𝒳 → ℝ) (hf : ∀ i, Measurable (f i))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    {b C : ℝ} (hb : 0 < b) (hf' : ∀ i x, |f i x| ≤ b)
+    (hC : ∀ S : Fin n → 𝒳, empiricalRademacherComplexity n f S ≤ C)
+    {ε : ℝ} (hε : 0 ≤ ε) :
+    (μⁿ {ω |
+      2 * C + ε ≤ uniformDeviation n f μ X (X ∘ ω)}).toReal ≤
+      (-ε ^ 2 * n / (2 * b ^ 2)).exp := by
+  apply uniform_deviation_tail_bound_countable_of_rademacher_le
+    (μ := μ) f hf X hX hb hf' _ hε
+  exact rademacherComplexity_le_of_empirical_le_countable
+    (fun i ↦ (hf i).comp hX) hb.le hf' hC
+
+
+-- @@ L390-444 verbatim
+/--
+Sample-dependent countable-class tail bound. The threshold contains the
+empirical Rademacher complexity of the observed sample. The factor `3` is
+obtained by combining two concentration events with a union bound.
+-/
+theorem uniform_deviation_tail_bound_countable_of_empirical_complexity
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty ι] [Countable ι]
+    [IsProbabilityMeasure μ]
+    (f : ι → 𝒳 → ℝ) (hf : ∀ i, Measurable (f i))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    {b : ℝ} (hb : 0 < b) (hf' : ∀ i x, |f i x| ≤ b)
+    {ε : ℝ} (hε : 0 ≤ ε) :
+    (μⁿ {ω : Fin n → Ω |
+      2 * empiricalRademacherComplexity n f (X ∘ ω) + 3 * ε ≤
+        uniformDeviation n f μ X (X ∘ ω)}).toReal ≤
+      2 * (-ε ^ 2 * n / (2 * b ^ 2)).exp := by
+  let A : Set (Fin n → Ω) :=
+    {ω | 2 * rademacherComplexity n f μ X + ε ≤
+      uniformDeviation n f μ X (X ∘ ω)}
+  let B : Set (Fin n → Ω) :=
+    {ω | empiricalRademacherComplexity n f (X ∘ ω) -
+      rademacherComplexity n f μ X ≤ -ε}
+  have hsubset :
+      {ω : Fin n → Ω |
+        2 * empiricalRademacherComplexity n f (X ∘ ω) + 3 * ε ≤
+          uniformDeviation n f μ X (X ∘ ω)} ⊆ A ∪ B := by
+    intro ω hω
+    simp only [Set.mem_ofPred_eq] at hω
+    simp only [Set.mem_union, Set.mem_ofPred_eq, A, B]
+    by_cases hA :
+        2 * rademacherComplexity n f μ X + ε ≤
+          uniformDeviation n f μ X (X ∘ ω)
+    · exact Or.inl hA
+    · right
+      simp only [not_le] at hA
+      norm_num at hω hA ⊢
+      linarith
+  calc
+    _ ≤ (μⁿ).real (A ∪ B) := measureReal_mono hsubset
+    _ ≤ (μⁿ).real A + (μⁿ).real B := measureReal_union_le A B
+    _ ≤ (-ε ^ 2 * n / (2 * b ^ 2)).exp +
+          (-ε ^ 2 * n / (2 * b ^ 2)).exp := by
+      apply add_le_add
+      · exact uniform_deviation_tail_bound_countable_of_pos
+          (μ := μ) f hf X hX hb hf' hε
+      · exact empiricalRademacherComplexity_lower_tail_countable_of_pos
+          (μ := μ) f hf X hX hb hf' hε
+    _ ≤ 2 * (-ε ^ 2 * n / (2 * b ^ 2)).exp := by
+      have h :
+          (-ε ^ 2 * n / (2 * b ^ 2)).exp +
+              (-ε ^ 2 * n / (2 * b ^ 2)).exp =
+            2 * (-ε ^ 2 * n / (2 * b ^ 2)).exp := by
+        ring
+      exact h.le
+  all_goals exact le_rfl
+
+
+-- @@ L446-478 verbatim
+/--
+Sample-dependent countable-class tail bound with an arbitrary pointwise upper
+bound `C S` on empirical Rademacher complexity.
+-/
+theorem uniform_deviation_tail_bound_countable_of_sample_empirical_le
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty ι] [Countable ι]
+    [IsProbabilityMeasure μ]
+    (f : ι → 𝒳 → ℝ) (hf : ∀ i, Measurable (f i))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    (C : (Fin n → 𝒳) → ℝ)
+    {b : ℝ} (hb : 0 < b) (hf' : ∀ i x, |f i x| ≤ b)
+    (hC : ∀ S : Fin n → 𝒳, empiricalRademacherComplexity n f S ≤ C S)
+    {ε : ℝ} (hε : 0 ≤ ε) :
+    (μⁿ {ω : Fin n → Ω |
+      2 * C (X ∘ ω) + 3 * ε ≤
+        uniformDeviation n f μ X (X ∘ ω)}).toReal ≤
+      2 * (-ε ^ 2 * n / (2 * b ^ 2)).exp := by
+  calc
+    _ ≤ (μⁿ {ω : Fin n → Ω |
+        2 * empiricalRademacherComplexity n f (X ∘ ω) + 3 * ε ≤
+          uniformDeviation n f μ X (X ∘ ω)}).toReal := by
+      apply measureReal_superlevel_mono
+      intro ω
+      gcongr
+      exact hC (X ∘ ω)
+    _ ≤ _ :=
+      uniform_deviation_tail_bound_countable_of_empirical_complexity
+        (μ := μ) f hf X hX hb hf' hε
+
+
+-- The separable results below are indexed by a topological hypothesis space `H`,
+-- while the countable results above use a bare index type `ι`. The two play
+-- different roles, so both names are kept.
+
+-- @@ L479-479 verbatim
+variable {H : Type v}
+
+
+-- @@ L481-495 verbatim
+/--
+Empirical Rademacher complexity is unchanged after restricting a continuous
+family to the chosen countable dense sequence.
+-/
+lemma empiricalRademacherComplexity_denseRestriction
+    [Nonempty H] [TopologicalSpace H] [SeparableSpace H]
+    (n : ℕ) {F : H → 𝒳 → ℝ}
+    (hF : ∀ x : 𝒳, Continuous fun h ↦ F h x) (S : Fin n → 𝒳) :
+    empiricalRademacherComplexity n F S =
+      empiricalRademacherComplexity n (denseRestriction F) S := by
+  dsimp [empiricalRademacherComplexity]
+  congr
+  ext σ
+  apply separableSpaceSup_eq_real
+  continuity
+
+
+-- @@ L497-511 verbatim
+/--
+Expected Rademacher complexity is unchanged after restriction to
+`denseRestriction F`.
+-/
+lemma rademacherComplexity_denseRestriction
+    [Nonempty H] [TopologicalSpace H] [SeparableSpace H]
+    (n : ℕ) (F : H → 𝒳 → ℝ)
+    (hF : ∀ x : 𝒳, Continuous fun h ↦ F h x)
+    (μ : Measure Ω) (X : Ω → 𝒳) :
+    rademacherComplexity n F μ X =
+      rademacherComplexity n (denseRestriction F) μ X := by
+  dsimp [rademacherComplexity]
+  congr
+  ext S
+  exact empiricalRademacherComplexity_denseRestriction n hF (X ∘ S)
+
+
+-- @@ L513-534 verbatim
+/--
+A uniform fixed-sample bound for a separable class lifts to expected
+Rademacher complexity through `denseRestriction`.
+-/
+theorem rademacherComplexity_le_of_empirical_le_separable
+    [Nonempty H] [TopologicalSpace H] [SeparableSpace H]
+    [IsProbabilityMeasure μ]
+    (F : H → 𝒳 → ℝ) (X : Ω → 𝒳)
+    (hF_meas : ∀ h, Measurable (F h ∘ X))
+    {b C : ℝ} (hb : 0 ≤ b) (hF_bound : ∀ h x, |F h x| ≤ b)
+    (hF_cont : ∀ x : 𝒳, Continuous fun h ↦ F h x)
+    (hC : ∀ S : Fin n → 𝒳, empiricalRademacherComplexity n F S ≤ C) :
+    rademacherComplexity n F μ X ≤ C := by
+  rw [rademacherComplexity_denseRestriction n F hF_cont μ X]
+  apply rademacherComplexity_le_of_empirical_le_countable
+    (f := denseRestriction F) (μ := μ)
+  · exact fun i ↦ hF_meas (denseSeq H i)
+  · exact hb
+  · exact abs_denseRestriction_le hF_bound
+  · intro S
+    rw [← empiricalRademacherComplexity_denseRestriction n hF_cont S]
+    exact hC S
+
+
+-- @@ L536-568 verbatim
+/--
+Uniform deviation is unchanged after restricting a continuous and uniformly
+bounded family to `denseRestriction F`.
+-/
+lemma uniformDeviation_denseRestriction
+    [MeasurableSpace 𝒳]
+    [Nonempty H] [TopologicalSpace H] [SeparableSpace H]
+    [FirstCountableTopology H]
+    (n : ℕ) (F : H → 𝒳 → ℝ)
+    (hF_meas : ∀ h, Measurable (F h))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    {b : ℝ} (hF_bound : ∀ h x, |F h x| ≤ b)
+    (hF_cont : ∀ x : 𝒳, Continuous fun h ↦ F h x)
+    (μ : Measure Ω) [IsFiniteMeasure μ] :
+    uniformDeviation n F μ X =
+      uniformDeviation n (denseRestriction F) μ X := by
+  ext S
+  dsimp [uniformDeviation]
+  apply separableSpaceSup_eq_real
+  apply Continuous.abs
+  apply Continuous.sub
+  · continuity
+  · have hdominated :
+        ∀ h : H, ∀ᵐ ω : Ω ∂μ, ‖F h (X ω)‖ ≤ b := by
+      intro h
+      filter_upwards with ω
+      exact hF_bound h (X ω)
+    apply MeasureTheory.continuous_of_dominated _ hdominated
+    · exact MeasureTheory.integrable_const _
+    · filter_upwards with ω
+      continuity
+    · intro h
+      exact (hF_meas h).comp hX |>.aestronglyMeasurable
+
+
+-- @@ L570-603 verbatim
+/--
+Expected uniform-deviation bound for a separable class from a deterministic
+fixed-sample empirical Rademacher bound.
+-/
+theorem uniform_deviation_expectation_le_of_empirical_le_separable
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty H]
+    [TopologicalSpace H] [SeparableSpace H] [FirstCountableTopology H]
+    [IsProbabilityMeasure μ]
+    (hn : 0 < n)
+    (F : H → 𝒳 → ℝ) (hF_meas : ∀ h, Measurable (F h))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    {b C : ℝ} (hb : 0 ≤ b) (hF_bound : ∀ h x, |F h x| ≤ b)
+    (hF_cont : ∀ x : 𝒳, Continuous fun h ↦ F h x)
+    (hC : ∀ S : Fin n → 𝒳, empiricalRademacherComplexity n F S ≤ C) :
+    μⁿ[fun S : Fin n → Ω ↦ uniformDeviation n F μ X (X ∘ S)] ≤
+      2 * C := by
+  calc
+    μⁿ[fun S : Fin n → Ω ↦ uniformDeviation n F μ X (X ∘ S)] =
+        μⁿ[fun S : Fin n → Ω ↦
+          uniformDeviation n (denseRestriction F) μ X (X ∘ S)] := by
+      apply integral_congr_ae
+      filter_upwards with S
+      exact congrFun
+        (uniformDeviation_denseRestriction
+          n F hF_meas X hX hF_bound hF_cont μ) (X ∘ S)
+    _ ≤ 2 * C := by
+      apply uniform_deviation_expectation_le_of_empirical_le_countable
+        (f := denseRestriction F) (μ := μ) hn X
+      · exact fun i ↦ (hF_meas (denseSeq H i)).comp hX
+      · exact hb
+      · exact abs_denseRestriction_le hF_bound
+      · intro S
+        rw [← empiricalRademacherComplexity_denseRestriction n hF_cont S]
+        exact hC S
+
+
+-- @@ L605-631 verbatim
+/--
+Replace expected Rademacher complexity in the separable-class tail bound by
+any deterministic upper bound `C`.
+-/
+theorem uniform_deviation_tail_bound_separable_of_rademacher_le
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty H]
+    [TopologicalSpace H] [SeparableSpace H] [FirstCountableTopology H]
+    [IsProbabilityMeasure μ]
+    (F : H → 𝒳 → ℝ) (hF_meas : ∀ h, Measurable (F h))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    {b C : ℝ} (hb : 0 < b) (hF_bound : ∀ h x, |F h x| ≤ b)
+    (hF_cont : ∀ x : 𝒳, Continuous fun h ↦ F h x)
+    (hC : rademacherComplexity n F μ X ≤ C)
+    {ε : ℝ} (hε : 0 ≤ ε) :
+    (μⁿ {S |
+      2 * C + ε ≤ uniformDeviation n F μ X (X ∘ S)}).toReal ≤
+      (-ε ^ 2 * n / (2 * b ^ 2)).exp := by
+  calc
+    _ ≤ (μⁿ {S |
+        2 * rademacherComplexity n F μ X + ε ≤
+          uniformDeviation n F μ X (X ∘ S)}).toReal := by
+      apply measureReal_superlevel_mono
+      intro S
+      gcongr
+    _ ≤ _ :=
+      uniform_deviation_tail_bound_separable_of_pos
+        (μ := μ) F hF_meas X hX hb hF_bound hF_cont hε
+
+
+-- @@ L633-653 verbatim
+/--
+Separable-class tail bound with a deterministic fixed-sample upper bound on
+empirical Rademacher complexity.
+-/
+theorem uniform_deviation_tail_bound_separable_of_empirical_le
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty H]
+    [TopologicalSpace H] [SeparableSpace H] [FirstCountableTopology H]
+    [IsProbabilityMeasure μ]
+    (F : H → 𝒳 → ℝ) (hF_meas : ∀ h, Measurable (F h))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    {b C : ℝ} (hb : 0 < b) (hF_bound : ∀ h x, |F h x| ≤ b)
+    (hF_cont : ∀ x : 𝒳, Continuous fun h ↦ F h x)
+    (hC : ∀ S : Fin n → 𝒳, empiricalRademacherComplexity n F S ≤ C)
+    {ε : ℝ} (hε : 0 ≤ ε) :
+    (μⁿ {S |
+      2 * C + ε ≤ uniformDeviation n F μ X (X ∘ S)}).toReal ≤
+      (-ε ^ 2 * n / (2 * b ^ 2)).exp := by
+  apply uniform_deviation_tail_bound_separable_of_rademacher_le
+    (μ := μ) F hF_meas X hX hb hF_bound hF_cont _ hε
+  exact rademacherComplexity_le_of_empirical_le_separable
+    F X (fun h ↦ (hF_meas h).comp hX) hb.le hF_bound hF_cont hC
+
+
+-- @@ L655-686 verbatim
+/--
+Sample-dependent separable-class tail bound retaining the observed empirical
+Rademacher complexity in the threshold.
+-/
+theorem uniform_deviation_tail_bound_separable_of_empirical_complexity
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty H]
+    [TopologicalSpace H] [SeparableSpace H] [FirstCountableTopology H]
+    [IsProbabilityMeasure μ]
+    (F : H → 𝒳 → ℝ) (hF_meas : ∀ h, Measurable (F h))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    {b : ℝ} (hb : 0 < b) (hF_bound : ∀ h x, |F h x| ≤ b)
+    (hF_cont : ∀ x : 𝒳, Continuous fun h ↦ F h x)
+    {ε : ℝ} (hε : 0 ≤ ε) :
+    (μⁿ {S : Fin n → Ω |
+      2 * empiricalRademacherComplexity n F (X ∘ S) + 3 * ε ≤
+        uniformDeviation n F μ X (X ∘ S)}).toReal ≤
+      2 * (-ε ^ 2 * n / (2 * b ^ 2)).exp := by
+  calc
+    _ = (μⁿ {S : Fin n → Ω |
+        2 * empiricalRademacherComplexity n (denseRestriction F) (X ∘ S) +
+            3 * ε ≤
+          uniformDeviation n (denseRestriction F) μ X (X ∘ S)}).toReal := by
+      congr
+      ext S
+      rw [empiricalRademacherComplexity_denseRestriction n hF_cont (X ∘ S)]
+      rw [uniformDeviation_denseRestriction
+        n F hF_meas X hX hF_bound hF_cont μ]
+    _ ≤ _ :=
+      uniform_deviation_tail_bound_countable_of_empirical_complexity
+        (μ := μ) (denseRestriction F)
+        (measurable_denseRestriction_apply hF_meas)
+        X hX hb (abs_denseRestriction_le hF_bound) hε
+
+
+-- @@ L688-717 verbatim
+/--
+Sample-dependent separable-class tail bound with a pointwise upper bound
+`C S` on empirical Rademacher complexity.
+-/
+theorem uniform_deviation_tail_bound_separable_of_sample_empirical_le
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty H]
+    [TopologicalSpace H] [SeparableSpace H] [FirstCountableTopology H]
+    [IsProbabilityMeasure μ]
+    (F : H → 𝒳 → ℝ) (hF_meas : ∀ h, Measurable (F h))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    (C : (Fin n → 𝒳) → ℝ)
+    {b : ℝ} (hb : 0 < b) (hF_bound : ∀ h x, |F h x| ≤ b)
+    (hF_cont : ∀ x : 𝒳, Continuous fun h ↦ F h x)
+    (hC : ∀ S : Fin n → 𝒳, empiricalRademacherComplexity n F S ≤ C S)
+    {ε : ℝ} (hε : 0 ≤ ε) :
+    (μⁿ {S : Fin n → Ω |
+      2 * C (X ∘ S) + 3 * ε ≤
+        uniformDeviation n F μ X (X ∘ S)}).toReal ≤
+      2 * (-ε ^ 2 * n / (2 * b ^ 2)).exp := by
+  calc
+    _ ≤ (μⁿ {S : Fin n → Ω |
+        2 * empiricalRademacherComplexity n F (X ∘ S) + 3 * ε ≤
+          uniformDeviation n F μ X (X ∘ S)}).toReal := by
+      apply measureReal_superlevel_mono
+      intro S
+      gcongr
+      exact hC (X ∘ S)
+    _ ≤ _ :=
+      uniform_deviation_tail_bound_separable_of_empirical_complexity
+        (μ := μ) F hF_meas X hX hb hF_bound hF_cont hε
+
+
+-- @@ L719-723 verbatim
+/-! ## Examples
+
+Worked uses of this module's public API. They are elaborated with the library, so they
+double as acceptance tests that these statements stay usable as written.
+-/
+
+
+-- @@ L725-743 verbatim
+/-!
+## The observed empirical complexity
+
+The basic sample-dependent theorem keeps the empirical Rademacher complexity
+of the observed sample in the threshold:
+
+$$
+\Pr\!\left\{
+  \operatorname{UD}_n(F;S)
+  \ge 2\widehat{\mathfrak R}_n(F;S)+3\varepsilon
+\right\}
+\le
+2\exp\!\left(-\frac{n\varepsilon^2}{2b^2}\right).
+$$
+
+Thus this single statement exhibits the three commonly used variants
+requested at once: a separable hypothesis class, a high-probability estimate,
+and empirical rather than expected Rademacher complexity.
+-/
+
+
+-- @@ L745-760 verbatim
+/-- Basic separable high-probability bound using observed empirical complexity. -/
+example
+    [MeasurableSpace 𝒳] [Nonempty 𝒳] [Nonempty H]
+    [TopologicalSpace H] [SeparableSpace H] [FirstCountableTopology H]
+    [IsProbabilityMeasure μ]
+    (F : H → 𝒳 → ℝ) (hF_meas : ∀ h, Measurable (F h))
+    (X : Ω → 𝒳) (hX : Measurable X)
+    {b : ℝ} (hb : 0 < b) (hF_bound : ∀ h x, |F h x| ≤ b)
+    (hF_cont : ∀ x : 𝒳, Continuous fun h ↦ F h x)
+    {ε : ℝ} (hε : 0 ≤ ε) :
+    (μⁿ {S : Fin n → Ω |
+      2 * empiricalRademacherComplexity n F (X ∘ S) + 3 * ε ≤
+        uniformDeviation n F μ X (X ∘ S)}).toReal ≤
+      2 * (-ε ^ 2 * n / (2 * b ^ 2)).exp := by
+  exact uniform_deviation_tail_bound_separable_of_empirical_complexity
+    (μ := μ) F hF_meas X hX hb hF_bound hF_cont hε
+
+
+-- @@ L762-762 verbatim
+end

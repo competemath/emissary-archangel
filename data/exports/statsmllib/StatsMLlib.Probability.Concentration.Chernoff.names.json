@@ -1,0 +1,1 @@
+{"names":["chernoff_bound_subGaussian","chernoff_bound_cgf"],"modules":["StatsMLlib.Probability.Concentration.Chernoff"],"moduleOf":{"chernoff_bound_subGaussian":"StatsMLlib.Probability.Concentration.Chernoff","chernoff_bound_cgf":"StatsMLlib.Probability.Concentration.Chernoff"},"deps":{"chernoff_bound_subGaussian":["chernoff_bound_cgf"],"chernoff_bound_cgf":[]}}

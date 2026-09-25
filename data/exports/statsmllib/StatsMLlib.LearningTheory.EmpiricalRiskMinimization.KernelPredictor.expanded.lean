@@ -1,0 +1,283 @@
+/-
+Copyright (c) 2026 Kei Tsukamoto. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Sho Sonoda, Kei Tsukamoto
+-/
+import StatsMLlib.LearningTheory.EmpiricalRiskMinimization.Generalization
+import StatsMLlib.LearningTheory.Rademacher.Contraction
+import StatsMLlib.LearningTheory.FunctionClass.KernelPredictor
+import StatsMLlib.LearningTheory.Rademacher.Reindex
+
+
+-- @@ L11-19 verbatim
+/-!
+# RKHS model selection with a Lipschitz loss
+
+This module combines the contraction theorem with the feature-map RKHS trace
+estimate and the approximate-ERM oracle inequality, giving a loss-to-excess-risk
+endpoint for a weight family indexed by an arbitrary separable, first-countable
+parameter space.  The uniform bound the contraction step needs comes from the
+kernel diagonal bound.
+-/
+
+
+-- @@ L21-21 verbatim
+noncomputable section
+
+
+-- @@ L23-23 verbatim
+universe u v w x y
+
+
+-- @@ L25-25 verbatim
+open MeasureTheory ProbabilityTheory Real TopologicalSpace
+
+-- @@ L26-26 verbatim
+open scoped ENNReal
+
+
+-- @@ L28-28 verbatim
+variable {n : ℕ}
+
+-- @@ L29-29 verbatim
+variable {Ω : Type u} [MeasurableSpace Ω]
+
+-- @@ L30-30 verbatim
+variable {𝒳 : Type v} {𝒴 : Type w}
+
+-- @@ L31-32 verbatim
+variable {E : Type x} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
+  [CompleteSpace E]
+
+-- @@ L33-34 verbatim
+variable {G : Type y} [Nonempty G]
+  [TopologicalSpace G] [SeparableSpace G] [FirstCountableTopology G]
+
+-- @@ L35-35 verbatim
+variable {μ : Measure Ω}
+
+
+-- @@ L37-37 verbatim
+local notation "μⁿ" => Measure.pi (fun _ ↦ μ)
+
+
+-- @@ L39-179 verbatim
+/--
+Sample-dependent excess-risk bound for an approximate ERM over a continuously
+parametrized family of RKHS weights.
+
+The loss must vanish at prediction zero and be `L`-Lipschitz.  The resulting
+threshold contains
+
+`4 * (2 L Λ / n * sqrt(trace K_S))`,
+
+where the factor `2` is the contraction constant for this repository's
+absolute empirical Rademacher complexity.
+-/
+theorem rkhs_approxERM_excessRisk_tail_bound_delta
+    [MeasurableSpace (𝒳 × 𝒴)] [Nonempty (𝒳 × 𝒴)]
+    [IsProbabilityMeasure μ]
+    (hn : 0 < n)
+    (Φ : 𝒳 → E)
+    (Λ r : ℝ) (hΛ : 0 < Λ) (hr : 0 < r)
+    (hdiag : ∀ x, kernelOfFeatureMap Φ x x ≤ r ^ 2)
+    (weights : G → Metric.closedBall (0 : E) Λ) (hweights : Continuous weights)
+    (loss : ℝ → 𝒴 → ℝ)
+    {L b η : ℝ} (hL : 0 ≤ L)
+    (hloss_zero : ∀ y, loss 0 y = 0)
+    (hloss_lip : ∀ y u v, |loss u y - loss v y| ≤ L * |u - v|)
+    (hclass_meas :
+      ∀ g, Measurable
+        (supervisedLossClass
+          (fun g x ↦ rkhsPredictor Φ (weights g) x) loss g))
+    (hb : 0 < b)
+    (hclass_bound :
+      ∀ g z,
+        |supervisedLossClass
+          (fun g x ↦ rkhsPredictor Φ (weights g) x) loss g z| ≤ b)
+    (Z : Ω → 𝒳 × 𝒴) (hZ : Measurable Z)
+    (A : (Fin n → 𝒳 × 𝒴) → G)
+    (hA : ∀ S,
+      IsApproxERM η n
+        (supervisedLossClass
+          (fun g x ↦ rkhsPredictor Φ (weights g) x) loss)
+        S (A S))
+    (gstar : G) {δ : ℝ} (hδ : 0 < δ) (hδ_one : δ ≤ 1) :
+    (μⁿ {S : Fin n → Ω |
+      4 *
+          (2 * L *
+            (Λ * (n : ℝ)⁻¹ *
+              Real.sqrt
+                (kernelTrace Φ (fun k ↦ (Z (S k)).1)))) +
+          6 * sampleConfidenceRadius b δ n + η ≤
+        excessRisk
+          (supervisedLossClass
+            (fun g x ↦ rkhsPredictor Φ (weights g) x) loss)
+          μ Z (A (Z ∘ S)) gstar}).toReal ≤ δ := by
+  let predictor : G → 𝒳 → ℝ :=
+    fun g x ↦ rkhsPredictor Φ (weights g) x
+  let lossClass : G → (𝒳 × 𝒴) → ℝ :=
+    supervisedLossClass predictor loss
+  let C : (Fin n → 𝒳 × 𝒴) → ℝ :=
+    fun S ↦
+      2 * L *
+        (Λ * (n : ℝ)⁻¹ *
+          Real.sqrt (kernelTrace Φ (fun k ↦ (S k).1)))
+  have hC : ∀ S,
+      empiricalRademacherComplexity n lossClass S ≤ C S := by
+    intro S
+    have hcontract :
+        empiricalRademacherComplexity n lossClass S ≤
+          2 * L *
+            empiricalRademacherComplexity n
+              (fun (g : G) (z : 𝒳 × 𝒴) ↦ predictor g z.1) S := by
+      apply empiricalRademacherComplexity_contraction
+        n (fun (g : G) (z : 𝒳 × 𝒴) ↦ predictor g z.1)
+          (fun z u ↦ loss u z.2) S hL (mul_nonneg hr.le hΛ.le)
+        (fun g z ↦ abs_rkhsPredictor_le Φ hΛ.le hr.le hdiag (weights g) z.1)
+      · exact fun z ↦ hloss_zero z.2
+      · exact fun z u v ↦ hloss_lip z.2 u v
+    have hsubclass :
+        empiricalRademacherComplexity n
+            (fun (g : G) (z : 𝒳 × 𝒴) ↦ predictor g z.1) S ≤
+          empiricalRademacherComplexity n
+            (fun (w : Metric.closedBall (0 : E) Λ) (z : 𝒳 × 𝒴) ↦
+              rkhsPredictor Φ w z.1) S := by
+      exact empiricalRademacherComplexity_reindex_le
+        (fun (w : Metric.closedBall (0 : E) Λ) (z : 𝒳 × 𝒴) ↦
+          rkhsPredictor Φ w z.1)
+        weights S
+        (mul_nonneg hr.le hΛ.le)
+        (fun w z ↦ abs_rkhsPredictor_le
+          Φ hΛ.le hr.le hdiag w z.1)
+    have htrace :
+        empiricalRademacherComplexity n
+            (fun (w : Metric.closedBall (0 : E) Λ) (z : 𝒳 × 𝒴) ↦
+              rkhsPredictor Φ w z.1) S ≤
+          Λ * (n : ℝ)⁻¹ *
+            Real.sqrt (kernelTrace Φ (fun k ↦ (S k).1)) := by
+      -- `rkhsPredictor (fun z ↦ Φ z.1)` and `fun w z ↦ rkhsPredictor Φ w z.1` are
+      -- definitionally equal, but `simp` cannot unfold the first: it occurs
+      -- unapplied. Restating through a typed `have` forces the check instead.
+      have h :
+          empiricalRademacherComplexity n
+              (fun (w : Metric.closedBall (0 : E) Λ) (z : 𝒳 × 𝒴) ↦
+                rkhsPredictor Φ w z.1) S ≤
+            Λ * (n : ℝ)⁻¹ *
+              Real.sqrt (∑ k, inner ℝ (Φ (S k).1) (Φ (S k).1)) :=
+        rkhs_empiricalRademacherComplexity_le_kernelTrace
+          (Φ := fun z : 𝒳 × 𝒴 ↦ Φ z.1) Λ hΛ.le S
+      simpa only [kernelTrace, kernelOfFeatureMap] using h
+    calc
+      empiricalRademacherComplexity n lossClass S ≤
+          2 * L *
+            empiricalRademacherComplexity n
+              (fun (g : G) (z : 𝒳 × 𝒴) ↦ predictor g z.1) S :=
+        hcontract
+      _ ≤ 2 * L *
+          (Λ * (n : ℝ)⁻¹ *
+            Real.sqrt (kernelTrace Φ (fun k ↦ (S k).1))) := by
+        gcongr
+        exact hsubclass.trans htrace
+      _ = C S := rfl
+  have hloss_cont : ∀ y : 𝒴, Continuous fun u : ℝ ↦ loss u y := by
+    intro y
+    have hlip : LipschitzWith ⟨L, hL⟩ fun u : ℝ ↦ loss u y := by
+      apply LipschitzWith.of_dist_le_mul
+      intro u v
+      rw [Real.dist_eq, Real.dist_eq]
+      exact hloss_lip y u v
+    exact hlip.continuous
+  have hclass_cont : ∀ z : 𝒳 × 𝒴, Continuous fun g ↦ lossClass g z := by
+    intro z
+    exact (hloss_cont z.2).comp
+      ((continuous_rkhsPredictor_weight Φ z.1).comp hweights)
+  have htail :=
+    approxERM_excessRisk_tail_bound_separable_of_sample_empirical_le_delta
+      (μ := μ) hn lossClass
+      (by simpa only [lossClass, predictor] using hclass_meas)
+      Z hZ C hb
+      (by simpa only [lossClass, predictor] using hclass_bound)
+      hclass_cont
+      A
+      (by simpa only [lossClass, predictor] using hA)
+      hC gstar hδ hδ_one
+  simpa only [lossClass, predictor, C, Function.comp_apply] using htail
+
+
+
+-- @@ L182-186 verbatim
+/-! ## Examples
+
+Worked uses of this module's public API. They are elaborated with the library, so they
+double as acceptance tests that these statements stay usable as written.
+-/
+
+
+-- @@ L188-202 verbatim
+/-!
+For a continuously parametrized family of weights in an RKHS ball, the
+contraction theorem also connects a centered Lipschitz loss to the kernel
+trace estimate.  If the loss vanishes at zero, then
+
+$$
+\widehat{\mathfrak R}_n(\ell\circ F;S)
+\le
+2L\,\frac{\Lambda}{n}
+\sqrt{\sum_k K(x_k,x_k)}
+$$
+
+Combining this with the approximate-ERM oracle inequality yields an excess
+risk statement.
+-/
+
+
+-- @@ L204-247 verbatim
+/-- RKHS, Lipschitz-loss, and approximate-ERM end-to-end example. -/
+example
+    [MeasurableSpace (𝒳 × 𝒴)] [Nonempty (𝒳 × 𝒴)]
+    [IsProbabilityMeasure μ]
+    (hn : 0 < n)
+    (Φ : 𝒳 → E)
+    (Λ r : ℝ) (hΛ : 0 < Λ) (hr : 0 < r)
+    (hdiag : ∀ x, kernelOfFeatureMap Φ x x ≤ r ^ 2)
+    (weights : G → Metric.closedBall (0 : E) Λ) (hweights : Continuous weights)
+    (loss : ℝ → 𝒴 → ℝ)
+    {L b η : ℝ} (hL : 0 ≤ L)
+    (hloss_zero : ∀ y, loss 0 y = 0)
+    (hloss_lip : ∀ y u v, |loss u y - loss v y| ≤ L * |u - v|)
+    (hclass_meas :
+      ∀ g, Measurable
+        (supervisedLossClass
+          (fun g x ↦ rkhsPredictor Φ (weights g) x) loss g))
+    (hb : 0 < b)
+    (hclass_bound :
+      ∀ g z,
+        |supervisedLossClass
+          (fun g x ↦ rkhsPredictor Φ (weights g) x) loss g z| ≤ b)
+    (Z : Ω → 𝒳 × 𝒴) (hZ : Measurable Z)
+    (A : (Fin n → 𝒳 × 𝒴) → G)
+    (hA : ∀ S,
+      IsApproxERM η n
+        (supervisedLossClass
+          (fun g x ↦ rkhsPredictor Φ (weights g) x) loss)
+        S (A S))
+    (gstar : G) {δ : ℝ} (hδ : 0 < δ) (hδ_one : δ ≤ 1) :
+    (μⁿ {S : Fin n → Ω |
+      4 *
+          (2 * L *
+            (Λ * (n : ℝ)⁻¹ *
+              Real.sqrt
+                (kernelTrace Φ (fun k ↦ (Z (S k)).1)))) +
+          6 * sampleConfidenceRadius b δ n + η ≤
+        excessRisk
+          (supervisedLossClass
+            (fun g x ↦ rkhsPredictor Φ (weights g) x) loss)
+          μ Z (A (Z ∘ S)) gstar}).toReal ≤ δ := by
+  exact rkhs_approxERM_excessRisk_tail_bound_delta
+    hn Φ Λ r hΛ hr hdiag weights hweights loss hL hloss_zero hloss_lip
+    hclass_meas hb hclass_bound Z hZ A hA gstar hδ hδ_one
+
+
+-- @@ L249-249 verbatim
+end
