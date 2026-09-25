@@ -1,0 +1,1 @@
+{"names":["Int.fract_abs_le_one"],"modules":["PrimeNumberTheoremAnd.Mathlib.Algebra.Order.Floor.Ring"],"moduleOf":{"Int.fract_abs_le_one":"PrimeNumberTheoremAnd.Mathlib.Algebra.Order.Floor.Ring"},"deps":{"Int.fract_abs_le_one":[]}}

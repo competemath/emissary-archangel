@@ -1,0 +1,1 @@
+{"names":["Real.tendsto_pow_log_div_pow_atTop"],"modules":["PrimeNumberTheoremAnd.Mathlib.Analysis.SpecialFunctions.Log.Basic"],"moduleOf":{"Real.tendsto_pow_log_div_pow_atTop":"PrimeNumberTheoremAnd.Mathlib.Analysis.SpecialFunctions.Log.Basic"},"deps":{"Real.tendsto_pow_log_div_pow_atTop":[]}}
