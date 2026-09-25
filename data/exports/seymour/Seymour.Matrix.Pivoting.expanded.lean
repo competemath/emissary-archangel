@@ -1,0 +1,661 @@
+import Mathlib.LinearAlgebra.Matrix.Permutation
+import Mathlib.LinearAlgebra.Matrix.SchurComplement
+import Seymour.Basic.Fin
+import Seymour.Basic.SignTypeCast
+import Seymour.Matrix.TotalUnimodularity
+
+
+-- @@ L7-11 verbatim
+/-!
+# Pivoting
+
+This file defines and studies pivoting in matrices. Pivoting is later used in many auxiliary constructions.
+-/
+
+
+-- @@ L13-13 verbatim
+open scoped Matrix
+
+
+-- @@ L15-15 verbatim
+variable {X Y F : Type*}
+
+
+
+-- @@ L18-18 verbatim
+/-! ## Elementary row operations -/
+
+
+-- @@ L20-20 verbatim
+/-! All declarations in this section are private. -/
+
+
+-- @@ L22-25 verbatim
+/-- Multiply column `y` of `A` by factor `q` and keep the rest of `A` unchanged. -/
+private def Matrix.mulCol [DecidableEq Y] [Mul F] (A : Matrix X Y F) (y : Y) (q : F) :
+    Matrix X Y F :=
+  A.updateCol y (q • Aᵀ y)
+
+
+-- @@ L27-32 verbatim
+/-- If column `x` of `A` is multiplied by factor `q` then the determinant is multiplied by factor `q`. -/
+private lemma Matrix.mulCol_det [DecidableEq X] [Fintype X] [CommRing F] (A : Matrix X X F) (x : X) (q : F) :
+    (A.mulCol x q).det = q * A.det := by
+  rw [Matrix.mulCol, Matrix.det_updateCol_smul]
+  show q * (A.updateCol x (A · x)).det = q * A.det
+  rw [Matrix.updateCol_eq_self]
+
+
+-- @@ L34-63 verbatim
+/-- Multiplying column `y` by a non-zero factor preserves linear (in)dependence. -/
+private lemma Matrix.mulCol_linearIndepOn [DecidableEq Y] [Field F] (A : Matrix X Y F) (y : Y) {q : F}
+    (hq : q ≠ 0) (S : Set X) :
+    LinearIndepOn F (A.mulCol y q) S ↔ LinearIndepOn F A S := by
+  rw [Matrix.mulCol, linearIndepOn_iffₛ, linearIndepOn_iffₛ]
+  constructor
+  <;> intro hFFS
+  <;> peel hFFS with c hc d hd hcd
+  <;> intro hcdA
+  <;> apply hcd
+  <;> rw [Finsupp.linearCombination_apply, Finsupp.linearCombination_apply, Finsupp.sum, Finsupp.sum] at hcdA ⊢
+  <;> ext y'
+  <;> rw [funext_iff] at hcdA
+  <;> have hcdAy' := hcdA y'
+  <;> simp_rw [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, Matrix.updateCol_apply, Pi.smul_apply, smul_eq_mul, mul_ite,
+        Finset.sum_ite_irrel] at hcdA hcdAy' ⊢
+  · split_ifs with hyy
+    · subst hyy
+      conv => enter [1, 2, x]; rw [←mul_assoc, mul_comm (c x), mul_assoc]
+      conv => enter [2, 2, x]; rw [←mul_assoc, mul_comm (d x), mul_assoc]
+      rw [←Finset.mul_sum, ←Finset.mul_sum]
+      exact congr_arg (q * ·) hcdAy'
+    · exact hcdAy'
+  · split_ifs at hcdAy' with hyy
+    · subst hyy
+      conv at hcdAy' => enter [1, 2, x]; rw [←mul_assoc, mul_comm (c x), mul_assoc]
+      conv at hcdAy' => enter [2, 2, x]; rw [←mul_assoc, mul_comm (d x), mul_assoc]
+      rw [←Finset.mul_sum, ←Finset.mul_sum] at hcdAy'
+      exact mul_left_cancel₀ hq hcdAy'
+    · exact hcdAy'
+
+
+-- @@ L65-68 verbatim
+/-- Multiply row `x` of `A` by factor `q` and keep the rest of `A` unchanged. -/
+private def Matrix.mulRow [DecidableEq X] [Mul F] (A : Matrix X Y F) (x : X) (q : F) :
+    Matrix X Y F :=
+  A.updateRow x (q • A x)
+
+
+-- @@ L70-73 verbatim
+/-- If row `x` of `A` is multiplied by factor `q` then the determinant is multiplied by factor `q`. -/
+private lemma Matrix.mulRow_det [DecidableEq X] [Fintype X] [CommRing F] (A : Matrix X X F) (x : X) (q : F) :
+    (A.mulRow x q).det = q * A.det := by
+  rw [Matrix.mulRow, Matrix.det_updateRow_smul, Matrix.updateRow_eq_self]
+
+
+-- @@ L75-82 verbatim
+/-- Multiplying row `x` by a non-zero factor preserves linear (in)dependence on the transpose. -/
+private lemma Matrix.mulRow_linearIndepOn [DecidableEq X] [Field F] (A : Matrix X Y F) (x : X) {q : F}
+    (hq : q ≠ 0) (S : Set Y) :
+    LinearIndepOn F (A.mulRow x q)ᵀ S ↔ LinearIndepOn F Aᵀ S := by
+  rw [Matrix.mulRow, ←Matrix.updateCol_transpose]
+  let B := Aᵀ
+  rw [show Aᵀ = B by rfl, show A = Bᵀ by rfl, ←Matrix.mulCol]
+  exact B.mulCol_linearIndepOn x hq S
+
+
+-- @@ L84-107 verbatim
+/-- Multiplying a row by a `0, ±1` factor preserves total unimodularity. -/
+private lemma Matrix.IsTotallyUnimodular.mulRow [DecidableEq X] [CommRing F] {A : Matrix X Y F}
+    (hA : A.IsTotallyUnimodular) (x : X) {q : F} (hq : q ∈ SignType.cast.range) :
+    (A.mulRow x q).IsTotallyUnimodular := by
+  intro k f g hf hg
+  if hi : ∃ i : Fin k, f i = x then
+    obtain ⟨i, rfl⟩ := hi
+    convert_to ((A.submatrix f g).updateRow i (q • (A.submatrix id g) (f i))).det ∈ SignType.cast.range
+    · congr
+      ext i' j'
+      if hii : i' = i then
+        simp [Matrix.mulRow, hii]
+      else
+        have hfii : f i' ≠ f i := (hii <| hf ·)
+        simp [Matrix.mulRow, hii, hfii]
+    rw [Matrix.det_updateRow_smul]
+    apply in_signTypeCastRange_mul_in_signTypeCastRange hq
+    have hAf := hA.submatrix f id
+    convert hAf.det id g
+    rw [Matrix.submatrix_submatrix, Function.comp_id, Function.id_comp]
+    exact (A.submatrix f g).updateRow_eq_self i
+  else
+    convert hA k f g hf hg using 2
+    simp_all [Matrix.submatrix, Matrix.mulRow]
+
+
+-- @@ L109-112 verbatim
+/-- Add column `y` of `A` multiplied by `q` (where `q` is different for each column) to every column of `A` except `y`. -/
+private def Matrix.addColMultiples [DecidableEq Y] [Add F] [SMul F F] (A : Matrix X Y F) (y : Y) (q : Y → F) :
+    Matrix X Y F :=
+  fun i : X => fun j : Y => if j = y then A i y else A i j + q j • A i y
+
+
+-- @@ L114-141 verbatim
+/-- `Matrix.addColMultiples` preserves linear (in)dependence on the transpose. -/
+private lemma Matrix.addColMultiples_linearIndepOn [DecidableEq Y] [Field F]
+    (A : Matrix X Y F) (y : Y) (q : Y → F) (S : Set X) :
+    LinearIndepOn F (A.addColMultiples y q) S ↔ LinearIndepOn F A S := by
+  rw [linearIndepOn_iffₛ, linearIndepOn_iffₛ]
+  constructor
+  <;> intro hFFS
+  <;> peel hFFS with c hc d hd hcd
+  <;> intro hcdA
+  <;> apply hcd
+  <;> rw [Finsupp.linearCombination_apply, Finsupp.linearCombination_apply, Finsupp.sum, Finsupp.sum] at hcdA ⊢
+  <;> ext y'
+  <;> rw [funext_iff] at hcdA
+  <;> have hcdAy' := hcdA y'
+  <;> simp_rw [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, Matrix.addColMultiples] at hcdA hcdAy' ⊢
+  · split_ifs with hy'
+    · exact hy' ▸ hcdAy'
+    · conv => enter [1, 2, x]; rw [left_distrib, smul_eq_mul, mul_comm (q y'), ←mul_assoc]
+      conv => enter [2, 2, x]; rw [left_distrib, smul_eq_mul, mul_comm (q y'), ←mul_assoc]
+      rw [Finset.sum_add_distrib, Finset.sum_add_distrib, ←Finset.sum_mul, ←Finset.sum_mul, hcdAy', hcdA y]
+  · split_ifs at hcdAy' with hy'
+    · exact hy' ▸ hcdAy'
+    · conv at hcdAy' => enter [1, 2, x]; rw [left_distrib, smul_eq_mul, mul_comm (q y'), ←mul_assoc]
+      conv at hcdAy' => enter [2, 2, x]; rw [left_distrib, smul_eq_mul, mul_comm (q y'), ←mul_assoc]
+      rw [Finset.sum_add_distrib, Finset.sum_add_distrib, ←Finset.sum_mul, ←Finset.sum_mul] at hcdAy'
+      have hcdAy := hcdA y
+      simp only [↓reduceIte] at hcdAy
+      rwa [hcdAy, add_left_inj] at hcdAy'
+
+
+-- @@ L143-146 verbatim
+/-- Add row `x` of `A` multiplied by factor `q` (where `q` is different for each row) to every row of `A` except `x`. -/
+private def Matrix.addRowMultiples [DecidableEq X] [Add F] [SMul F F] (A : Matrix X Y F) (x : X) (q : X → F) :
+    Matrix X Y F :=
+  fun i : X => if i = x then A x else A i + q i • A x
+
+
+-- @@ L148-152 verbatim
+private lemma Matrix.addRowMultiples_tranpose_eq [DecidableEq X] [Add F] [SMul F F] (A : Matrix X Y F) (x : X) (q : X → F) :
+    (A.addRowMultiples x q)ᵀ = Aᵀ.addColMultiples x q := by
+  ext
+  dsimp only [Matrix.addRowMultiples, Matrix.addColMultiples, Matrix.transpose_apply]
+  split_ifs <;> rfl
+
+
+-- @@ L154-159 verbatim
+/-- `Matrix.addRowMultiples` preserves linear (in)dependence on the transpose. -/
+private lemma Matrix.addRowMultiples_linearIndepOn [DecidableEq X] [Field F]
+    (A : Matrix X Y F) (x : X) (q : X → F) (S : Set Y) :
+    LinearIndepOn F (A.addRowMultiples x q)ᵀ S ↔ LinearIndepOn F Aᵀ S := by
+  rw [Matrix.addRowMultiples_tranpose_eq]
+  exact Matrix.addColMultiples_linearIndepOn Aᵀ x q S
+
+
+-- @@ L161-166 verbatim
+/-- Adding multiples of a row to all other rows of a matrix does not change the determinant of the matrix. -/
+private lemma Matrix.addRowMultiples_det [DecidableEq X] [Fintype X] [CommRing F] (A : Matrix X X F) (x : X) (q : X → F) :
+    (A.addRowMultiples x q).det = A.det := by
+  apply Matrix.det_eq_of_forall_row_eq_smul_add_const (fun i : X => if i = x then 0 else q i) x (if_pos rfl)
+  unfold Matrix.addRowMultiples
+  aesop
+
+
+-- @@ L168-268 expanded
+/-- Adding multiples of a row to all other rows of a matrix preserves total unimodularity. -/
+private lemma Matrix.IsTotallyUnimodular.addRowMultiples [DecidableEq X] [Field F]
+    {A : Matrix X Y F} (hA : A.IsTotallyUnimodular) {x : X} {y : Y} (hAxy : A x y ≠ 0) :
+    (A.addRowMultiples x (-A · y / A x y)).IsTotallyUnimodular :=
+  by
+  intro k f g hf hg
+  if hx : ∃ x' : Fin k, f x' = x then 
+    obtain ⟨x', hx'⟩ := hx
+    convert_to
+      ((A.submatrix f g).addRowMultiples x' (fun i : Fin k => (-A (f i) y / A x y))).det ∈
+        SignType.cast.range using
+      2
+    · ext i j
+      if hix' : i = x' then simp [Matrix.addRowMultiples, hix', hx']
+      else
+        have hfi : f i ≠ x := (hix' <| hf <| ·.trans hx'.symm)
+        simp [Matrix.addRowMultiples, hix', hx', hfi]
+    rw [Matrix.addRowMultiples_det]
+    exact hA k f g hf hg
+  else
+    if hy : ∃ y' : Fin k, g y' = y then
+      
+      convert zero_in_signTypeCastRange
+      obtain ⟨y', hy'⟩ := hy
+      apply Matrix.det_eq_zero_of_column_eq_zero y'
+      intro i
+      rw [Matrix.submatrix_apply, hy']
+      have hi : f i ≠ x := (hx ⟨i, ·⟩)
+      simp_all [Matrix.addRowMultiples]
+        -- Else perform the expansion on the `y` column, the smaller determinant is equal to ± the bigger determinant.
+    else
+      let f' : Fin k.succ → X := Fin.cons x f
+      let g' : Fin k.succ → Y := Fin.cons y g
+      have hf0 : f' 0 = x := rfl
+      have hg0 : g' 0 = y := rfl
+      have hf' : f'.Injective
+      · intro a b hab
+        by_cases ha : a = 0
+        · by_cases hb : b = 0
+          · rw [ha, hb]
+          · exfalso
+            let b' := b.pred hb
+            simp [f', ha] at hab
+            have hab' : f b' = x
+            · convert hab.symm
+              have hb' : b'.succ = b := b.succ_pred hb
+              rw [← hb']
+              simp
+            exact hx ⟨b', hab'⟩
+        · by_cases hb : b = 0
+          · exfalso
+            let a' := a.pred ha
+            simp [f', hb] at hab
+            have hab' : f a' = x
+            · convert hab
+              have ha' : a'.succ = a := a.succ_pred ha
+              rw [← ha']
+              simp
+            exact hx ⟨a', hab'⟩
+          · let a' := a.pred ha
+            let b' := b.pred hb
+            have ha' : a'.succ = a := a.succ_pred ha
+            have hb' : b'.succ = b := b.succ_pred hb
+            rw [← ha', ← hb'] at hab ⊢
+            simp [f'] at hab
+            rw [hf hab]
+      have similar :
+        ((A.addRowMultiples x (-A · y / A x y)).submatrix f' g').det ∈ SignType.cast.range
+      · convert_to
+          ((A.submatrix f' g').addRowMultiples 0
+                (fun i : Fin k.succ => (-A (f' i) y / A x y))).det ∈
+            SignType.cast.range using
+          2
+        · ext i j
+          if hi0 : i = 0 then simp [Matrix.addRowMultiples, hi0, hf0]
+          else
+            have hfi : f' i ≠ x := (hi0 <| hf' <| ·.trans hf0.symm)
+            simp [Matrix.addRowMultiples, hi0, hf0, hfi]
+        rw [Matrix.addRowMultiples_det]
+        exact hA.det f' g'
+      have laplaced :
+        ((A.addRowMultiples x (-A · y / A x y)).submatrix f' g').det =
+          (A.addRowMultiples x (-A · y / A x y)) x y *
+            ((A.addRowMultiples x (-A · y / A x y)).submatrix f g).det
+      · rw [Matrix.det_succ_column_zero, sum_over_fin_succ_of_only_zeroth_nonzero]
+        have my_pow_zero : (-1 : F) ^ (0 : Fin k.succ).val = 1 := (Iff.mpr pow_eq_one_iff_modEq) rfl
+        rw [my_pow_zero, one_mul]
+        have hff : Fin.cons x f ∘ Fin.succ = f := rfl
+        have hgg : Fin.cons y g ∘ Fin.succ = g := rfl
+        simp [Matrix.submatrix_apply, f', g', hff, hgg]
+        · intro i hi
+          rw [Matrix.submatrix_apply]
+          have hfi : f' i ≠ x := hf0 ▸ (hi <| hf' <| ·)
+          simp_all [Matrix.addRowMultiples]
+      have eq_Axy : (A.addRowMultiples x (-A · y / A x y)) x y = A x y
+      · simp [Matrix.addRowMultiples]
+      rw [laplaced, eq_Axy] at similar
+      if hAxy1 : A x y = 1 then simpa [hAxy1] using similar
+      else
+        if hAxy9 : A x y = -1 then exact in_signTypeCastRange_of_neg_one_mul (hAxy9 ▸ similar)
+        else
+          exfalso
+          obtain ⟨s, hs⟩ := hA.apply x y
+          cases s with
+          | zero => exact hAxy hs.symm
+          | pos => exact hAxy1 hs.symm
+          | neg => exact hAxy9 hs.symm
+
+
+-- @@ L271-271 verbatim
+/-! ## Long-tableau pivoting -/
+
+
+-- @@ L273-282 verbatim
+/-- The result of pivoting in a long tableau. This definition makes sense only if `A x y` is non-zero.
+    The recommending spelling when calling the function is `(A.longTableauPivot x y) i j` when pivoting in `A` on `[x,y]` and
+    indexing at `[i,j]` even tho the `( )` is redundant. -/
+def Matrix.longTableauPivot [One F] [SMul F F] [Div F] [Sub F] [DecidableEq X] (A : Matrix X Y F) (x : X) (y : Y) :
+    Matrix X Y F :=
+  Matrix.of <| fun i : X =>
+    if i = x then
+      (1 / A x y) • A i
+    else
+      A i - (A i y / A x y) • A x
+
+
+-- @@ L284-288 verbatim
+/-- Long-tableau pivoting changes the nonzero pivot to one. -/
+lemma Matrix.longTableauPivot_elem_pivot_eq_one [DecidableEq X] [DivisionSemiring F] [Sub F] (A : Matrix X Y F) {x : X} {y : Y}
+    (hAxy : A x y ≠ 0) :
+    (A.longTableauPivot x y) x y = 1 := by
+  simp [hAxy, Matrix.longTableauPivot]
+
+
+-- @@ L290-294 verbatim
+/-- Long-tableau pivoting changes all nonpivot elements in the pivot column to zeros. -/
+lemma Matrix.longTableauPivot_elem_in_pivot_col_eq_zero [DecidableEq X] [DivisionRing F] (A : Matrix X Y F) {x i : X} {y : Y}
+    (hix : i ≠ x) (hAxy : A x y ≠ 0) :
+    (A.longTableauPivot x y) i y = 0 := by
+  simp [hix, hAxy, Matrix.longTableauPivot]
+
+
+-- @@ L296-300 verbatim
+/-- Long-tableau pivoting preserves zeros of all nonpivot elements in the pivot row. -/
+lemma Matrix.longTableauPivot_elem_in_pivot_row_eq_zero [DecidableEq X] [NonAssocSemiring F] [Sub F] [Div F] (A : Matrix X Y F)
+    {x : X} {j : Y} (hAxj : A x j = 0) (y : Y) :
+    (A.longTableauPivot x y) x j = 0 := by
+  simp [hAxj, Matrix.longTableauPivot]
+
+
+-- @@ L302-306 verbatim
+/-- Long-tableau pivoting preserves the original values in the nonpivot row whereëver the pivot row has zeros. -/
+lemma Matrix.longTableauPivot_elem_of_zero_in_pivot_row [DecidableEq X] [NonAssocRing F] [Div F] (A : Matrix X Y F)
+    {x i : X} {j : Y} (hix : i ≠ x) (hAxj : A x j = 0) (y : Y) :
+    (A.longTableauPivot x y) i j = A i j := by
+  simp [hix, hAxj, Matrix.longTableauPivot]
+
+
+-- @@ L308-315 verbatim
+/-- Long-tableau pivoting expressed via elementary row operations. -/
+private lemma Matrix.longTableauPivot_eq [DecidableEq X] [DivisionRing F] (A : Matrix X Y F) (x : X) (y : Y) :
+    A.longTableauPivot x y = (A.addRowMultiples x (- A · y / A x y)).mulRow x (1 / A x y) := by
+  ext i j
+  if hi : i = x then
+    simp [Matrix.longTableauPivot, Matrix.addRowMultiples, Matrix.mulRow, hi]
+  else
+    simp [Matrix.longTableauPivot, Matrix.addRowMultiples, Matrix.mulRow, hi, sub_eq_add_neg, neg_mul, neg_div]
+
+
+-- @@ L317-324 verbatim
+/-- Long-tableau pivoting preserves total unimodularity. -/
+lemma Matrix.IsTotallyUnimodular.longTableauPivot [DecidableEq X] [Field F] {A : Matrix X Y F}
+    (hA : A.IsTotallyUnimodular) (x : X) (y : Y) (hAxy : A x y ≠ 0) :
+    (A.longTableauPivot x y).IsTotallyUnimodular := by
+  rw [A.longTableauPivot_eq x y]
+  have h1Axy : 1 / A x y ∈ SignType.cast.range
+  · rw [inv_eq_self_of_in_signTypeCastRange] <;> exact hA.apply x y
+  exact (hA.addRowMultiples hAxy).mulRow x h1Axy
+
+
+-- @@ L326-330 verbatim
+/-- Long-tableau pivoting preserves linear independence on transpose. -/
+lemma Matrix.longTableauPivot_linearIndepenOn [DecidableEq X] [Field F] (A : Matrix X Y F) {x : X} {y : Y}
+    (hAxy : A x y ≠ 0) (S : Set Y) :
+    LinearIndepOn F (A.longTableauPivot x y)ᵀ S ↔ LinearIndepOn F Aᵀ S := by
+  rw [A.longTableauPivot_eq, Matrix.mulRow_linearIndepOn _ _ (one_div_ne_zero hAxy), A.addRowMultiples_linearIndepOn]
+
+
+
+-- @@ L333-333 verbatim
+/-! ## Short-tableau pivoting -/
+
+
+-- @@ L335-341 expanded
+/--
+The result of pivoting in a short tableau. This definition makes sense only if `A x y` is non-zero.
+    The recommending spelling when calling the function is `(A.shortTableauPivot x y) i j` when pivoting in `A` on `[x,y]` and
+    indexing at `[i,j]` even tho the `( )` is redundant. -/
+def Matrix.shortTableauPivot [One F] [SMul F F] [Div F] [Zero F] [Sub F] [DecidableEq X]
+    [DecidableEq Y] (A : Matrix X Y F) (x : X) (y : Y) : Matrix X Y F :=
+  ((1 ◫ A).longTableauPivot x (Sum.inr y)).submatrix id
+    (fun j : Y => if j = y then Sum.inl x else Sum.inr j)
+
+
+-- @@ L343-361 verbatim
+/-- Explicit formula for the short-tableau pivoting. -/
+@[simp]
+lemma Matrix.shortTableauPivot_eq [DivisionRing F] [DecidableEq X] [DecidableEq Y] (A : Matrix X Y F) (x : X) (y : Y) :
+    A.shortTableauPivot x y =
+    Matrix.of (fun i : X => fun j : Y =>
+      if i = x then
+        if j = y then
+          1 / A x y
+        else
+          (1 / A x y) * A x j
+      else
+        if j = y then
+          - A i y / A x y
+        else
+          A i j - A i y / A x y * A x j
+    ) := by
+  ext i j
+  by_cases hi : i = x <;> by_cases hj : j = y
+  <;> simp [hi, hj, Matrix.shortTableauPivot, Matrix.longTableauPivot, mul_one, neg_div']
+
+
+-- @@ L363-367 expanded
+/-- Short-tableau pivoting preserves total unimodularity. -/
+lemma Matrix.IsTotallyUnimodular.shortTableauPivot [DecidableEq X] [DecidableEq Y] [Field F]
+    {A : Matrix X Y F} (hA : A.IsTotallyUnimodular) {x : X} {y : Y} (hAxy : A x y ≠ 0) :
+    (A.shortTableauPivot x y).IsTotallyUnimodular :=
+  ((hA.one_fromCols).longTableauPivot x (Sum.inr y) hAxy).submatrix id
+    (fun j : Y => if j = y then Sum.inl x else Sum.inr j)
+
+
+-- @@ L369-373 verbatim
+lemma Matrix.shortTableauPivot_zero {X' Y' : Type*} [DecidableEq X] [DecidableEq Y] [DecidableEq X'] [DivisionRing F]
+    (A : Matrix X Y F) (x : X') (y : Y) (f : X' → X) (g : Y' → Y) (hg : y ∉ g.range) (hAfg : ∀ i j, A (f i) (g j) = 0) :
+    ∀ i : X', ∀ j : Y', (A.shortTableauPivot (f x) y) (f i) (g j) = 0 := by
+  unfold Matrix.shortTableauPivot Matrix.longTableauPivot
+  aesop
+
+
+-- @@ L375-379 verbatim
+lemma Matrix.shortTableauPivot_submatrix_zero_external_row [DivisionRing F] [DecidableEq X] [DecidableEq Y] (A : Matrix X Y F)
+    (x : X) (y : Y) {X' Y' : Type*} (f : X' → X) (g : Y' → Y) (hf : x ∉ f.range) (hg : y ∉ g.range) (hAg : ∀ j, A x (g j) = 0) :
+    (A.shortTableauPivot x y).submatrix f g = A.submatrix f g := by
+  unfold Matrix.shortTableauPivot Matrix.longTableauPivot
+  aesop
+
+
+-- @@ L381-389 verbatim
+lemma Matrix.submatrix_shortTableauPivot [DecidableEq X] [DecidableEq Y] {X' Y' : Type*} [DecidableEq X'] [DecidableEq Y']
+    [DivisionRing F] {f : X' → X} {g : Y' → Y}
+    (A : Matrix X Y F) (hf : f.Injective) (hg : g.Injective) (x : X') (y : Y') :
+    (A.submatrix f g).shortTableauPivot x y = (A.shortTableauPivot (f x) (g y)).submatrix f g := by
+  ext i j
+  have hfix : f i = f x → i = x := (hf ·)
+  have hgjy : g j = g y → j = y := (hg ·)
+  unfold Matrix.shortTableauPivot Matrix.longTableauPivot
+  aesop
+
+
+
+-- @@ L392-392 verbatim
+/-! ## Lemma 1 of Proof of Regularity of 2-Sum and 3-Sum of Matroids -/
+
+
+-- @@ L394-398 verbatim
+private lemma Matrix.shortTableauPivot_submatrix_succAbove_pivot_apply [Field F] {k : ℕ} {x y : Fin k.succ}
+    (A : Matrix (Fin k.succ) (Fin k.succ) F) (i j : Fin k) :
+    (A.shortTableauPivot x y).submatrix x.succAbove y.succAbove i j =
+    A (x.succAbove i) (y.succAbove j) - A (x.succAbove i) y * A x (y.succAbove j) / A x y := by
+  simp [Matrix.shortTableauPivot, Matrix.longTableauPivot, y.succAbove_ne j, x.succAbove_ne i, div_mul_eq_mul_div]
+
+
+-- @@ L400-405 verbatim
+private lemma Matrix.shortTableauPivot_submatrix_eq [Field F] {k : ℕ} {x y : Fin k.succ}
+    (A : Matrix (Fin k.succ) (Fin k.succ) F) :
+    (A.shortTableauPivot x y).submatrix x.succAbove y.succAbove =
+    Matrix.of (fun i j : Fin k => A (x.succAbove i) (y.succAbove j) - A (x.succAbove i) y * A x (y.succAbove j) / A x y) := by
+  ext i j
+  exact A.shortTableauPivot_submatrix_succAbove_pivot_apply i j
+
+
+-- @@ L407-408 expanded
+private abbrev Fin.reindexFun {n : ℕ} (i : Fin n.succ) : Fin 1 ⊕ Fin n → Fin n.succ :=
+  (·.casesOn (fun _ => i) i.succAbove)
+
+
+-- @@ L410-434 expanded
+private lemma Fin.reindexFun_bijective {n : ℕ} (i : Fin n.succ) : i.reindexFun.Bijective :=
+  ⟨fun a b : Fin 1 ⊕ Fin n => fun hab : i.reindexFun a = i.reindexFun b => by
+    cases a with
+    | inl a₁ =>
+      cases b with
+      | inl b₁ =>
+        congr
+        apply fin1_eq_fin1
+      | inr bₙ =>
+        exfalso
+        apply i.succAbove_ne bₙ
+        simpa using hab.symm
+    | inr aₙ =>
+      cases b with
+      | inl b₁ =>
+        exfalso
+        apply i.succAbove_ne aₙ
+        simpa using hab
+      | inr bₙ => simpa using hab,
+    (by if hi : i = · then use Sum.inl 0 else aesop)⟩
+
+
+-- @@ L436-437 verbatim
+private noncomputable def Fin.reindexing {n : ℕ} (i : Fin n.succ) : Fin 1 ⊕ Fin n ≃ Fin n.succ :=
+  Equiv.ofBijective i.reindexFun i.reindexFun_bijective
+
+
+-- @@ L439-450 expanded
+private lemma reindexing_symm_eq_left {n : ℕ} (i k : Fin n.succ) (j : Fin 1) :
+    i.reindexing.symm k = Sum.inl j ↔ i = k :=
+  by
+  unfold Fin.reindexing
+  constructor <;> intro hk
+  on_goal 1 =>
+    apply_fun i.reindexFun at hk
+    rw [Equiv.ofBijective_apply_symm_apply i.reindexFun i.reindexFun_bijective k] at hk
+  on_goal 2 =>
+    apply_fun i.reindexFun using i.reindexFun_bijective.left
+    rw [Equiv.ofBijective_apply_symm_apply i.reindexFun i.reindexFun_bijective k]
+  all_goals simp [hk]
+
+
+-- @@ L452-463 expanded
+private lemma reindexing_symm_eq_right {n : ℕ} (i k : Fin n.succ) (j : Fin n) :
+    i.reindexing.symm k = Sum.inr j ↔ k = (i.succAbove j) :=
+  by
+  unfold Fin.reindexing
+  constructor <;> intro hkj
+  on_goal 1 =>
+    apply_fun i.reindexFun at hkj
+    rw [Equiv.ofBijective_apply_symm_apply i.reindexFun i.reindexFun_bijective k] at hkj
+  on_goal 2 =>
+    apply_fun i.reindexFun using i.reindexFun_bijective.1
+    rw [Equiv.ofBijective_apply_symm_apply i.reindexFun i.reindexFun_bijective k]
+  all_goals simp [hkj]
+
+
+-- @@ L465-466 verbatim
+private abbrev Matrix.block₁₁ {k : ℕ} (A : Matrix (Fin k.succ) (Fin k.succ) F) (x y : Fin k.succ) : Matrix (Fin 1) (Fin 1) F :=
+  !![A x y]
+
+
+-- @@ L468-469 verbatim
+private abbrev Matrix.block₁₂ {k : ℕ} (A : Matrix (Fin k.succ) (Fin k.succ) F) (x y : Fin k.succ) : Matrix (Fin 1) (Fin k) F :=
+  Matrix.of (fun _ : Fin 1 => fun j : Fin k => A x (y.succAbove j))
+
+
+-- @@ L471-472 verbatim
+private abbrev Matrix.block₂₁ {k : ℕ} (A : Matrix (Fin k.succ) (Fin k.succ) F) (x y : Fin k.succ) : Matrix (Fin k) (Fin 1) F :=
+  Matrix.of (fun i : Fin k => fun _ : Fin 1 => A (x.succAbove i) y)
+
+
+-- @@ L474-475 verbatim
+private abbrev Matrix.block₂₂ {k : ℕ} (A : Matrix (Fin k.succ) (Fin k.succ) F) (x y : Fin k.succ) : Matrix (Fin k) (Fin k) F :=
+  Matrix.of (fun i : Fin k => fun j : Fin k => A (x.succAbove i) (y.succAbove j))
+
+
+-- @@ L477-493 expanded
+private lemma Matrix.succAboveAt_block [DivisionRing F] {k : ℕ}
+    (A : Matrix (Fin k.succ) (Fin k.succ) F) (x y : Fin k.succ) :
+    A =
+      (Matrix.fromBlocks (A.block₁₁ x y) (A.block₁₂ x y) (A.block₂₁ x y) (A.block₂₂ x y)).submatrix
+        x.reindexing.symm y.reindexing.symm :=
+  by
+  ext i j
+  rw [Matrix.submatrix_apply]
+  cases hx : x.reindexing.symm i <;> cases hy : y.reindexing.symm j
+  on_goal 1 => rw [Matrix.fromBlocks_apply₁₁]
+  on_goal 2 => rw [Matrix.fromBlocks_apply₁₂]
+  on_goal 3 => rw [Matrix.fromBlocks_apply₂₁]
+  on_goal 4 => rw [Matrix.fromBlocks_apply₂₂]
+  all_goals
+    try rw [reindexing_symm_eq_left] at hx
+    try rw [reindexing_symm_eq_left] at hy
+    try rw [reindexing_symm_eq_right] at hx
+    try rw [reindexing_symm_eq_right] at hy
+    subst hx hy
+    simp
+
+
+-- @@ L495-503 verbatim
+private lemma Matrix.shortTableauPivot_submatrix_eq_blockish [Field F] {k : ℕ}
+    (A : Matrix (Fin k.succ) (Fin k.succ) F) (x y : Fin k.succ) :
+    (A.shortTableauPivot x y).submatrix x.succAbove y.succAbove =
+    (A.block₂₂ x y) - (A.block₂₁ x y) * (A.block₁₁ x y)⁻¹ * (A.block₁₂ x y) := by
+  rw [Matrix.shortTableauPivot_submatrix_eq]
+  conv in _ / _ => rw [div_eq_mul_inv _ (A x y)]
+  rw [show (A.block₁₁ x y)⁻¹ = !![(A x y)⁻¹] from Matrix.ext (by simp [·.eq_zero, ·.eq_zero])]
+  ext i j
+  simp [Matrix.mul_apply, mul_right_comm]
+
+
+-- @@ L505-511 verbatim
+private noncomputable instance invertible_matrix_fin1_of_ne_zero [Field F] {A : Matrix (Fin 1) (Fin 1) F}
+    [hA0 : NeZero (A 0 0)] :
+    Invertible A :=
+  A.invertibleOfLeftInverse A⁻¹ (by
+    ext i j
+    rw [i.eq_zero, j.eq_zero]
+    simp [IsUnit.inv_mul_cancel (IsUnit.mk0 _ hA0.out)])
+
+
+-- @@ L513-522 expanded
+private lemma shortTableauPivot_submatrix_succAbove_succAbove_det_abs_eq_div [LinearOrderedField F]
+    {k : ℕ} {A : Matrix (Fin k.succ) (Fin k.succ) F} {x y : Fin k.succ} (hAxy : A x y ≠ 0) :
+    |((A.shortTableauPivot x y).submatrix x.succAbove y.succAbove).det| = |A.det| / |A x y| :=
+  by
+  have : NeZero (A.block₁₁ x y 0 0) := ⟨by simpa⟩
+  rw [Matrix.shortTableauPivot_submatrix_eq_blockish,
+    eq_div_iff_mul_eq ((Iff.mpr abs_ne_zero) hAxy), mul_comm, ←
+    show (A.block₁₁ x y).det = A x y from Matrix.det_fin_one_of _, ← abs_mul, ←
+    (A.block₁₁ x y).invOf_eq_nonsing_inv, ← Matrix.det_fromBlocks₁₁]
+  nth_rw 5 [A.succAboveAt_block x y]
+  exact (Matrix.abs_det_submatrix_equiv_equiv ..).symm
+
+
+-- @@ L524-528 expanded
+lemma shortTableauPivot_submatrix_det_abs_eq_div [LinearOrderedField F] {k : ℕ}
+    {A : Matrix (Fin k.succ) (Fin k.succ) F} {x y : Fin k.succ} (hAxy : A x y ≠ 0) :
+    ∃ f : Fin k → Fin k.succ,
+      ∃ g : Fin k → Fin k.succ,
+        |((A.shortTableauPivot x y).submatrix f g).det| = |A.det| / |A x y| :=
+  ⟨x.succAbove, y.succAbove, shortTableauPivot_submatrix_succAbove_succAbove_det_abs_eq_div hAxy⟩
+
+
+-- @@ L530-544 expanded
+lemma Matrix.abs_det_eq_shortTableauPivot_submatrix_abs_det [LinearOrderedField F] {k : ℕ}
+    (A : Matrix (Fin k.succ) (Fin k.succ) F) {i j : Fin k.succ} (hAij : A i j = 1 ∨ A i j = -1) :
+    ∃ f : Fin k → Fin k.succ,
+      ∃ g : Fin k → Fin k.succ, |A.det| = |((A.shortTableauPivot i j).submatrix f g).det| :=
+  by
+  have hAij0 : A i j ≠ 0
+  ·
+    cases hAij with
+    | inl h1 => exact ne_zero_of_eq_one h1
+    | inr h9 => simp [h9]
+  obtain ⟨f, g, hAfg⟩ := shortTableauPivot_submatrix_det_abs_eq_div hAij0
+  have hAij1 : |A i j| = 1
+  ·
+    cases hAij with
+    | inl h1 => rw [h1, abs_one]
+    | inr h9 => rw [h9, abs_neg, abs_one]
+  rw [hAij1, div_one] at hAfg
+  exact ⟨f, g, hAfg.symm⟩
+

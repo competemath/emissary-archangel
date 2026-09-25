@@ -1,0 +1,36 @@
+{
+  "key": "seymour",
+  "repo": "https://github.com/Ivan-Sergeyev/seymour",
+  "commit": "2769b10cb73fda17bafc0f13890dc057a2f4ff2a",
+  "toolchain": "leanprover/lean4:v4.18.0",
+  "roots": [
+    "Seymour"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/seymour/repo",
+  "entries": 468,
+  "modules": 33,
+  "exported": 33,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 468,
+    "kept": 468,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 349,
+    "lineUnverified": 8,
+    "nameFixed": 67,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 18931712,
+  "minutes": 36,
+  "finishedAt": "2026-09-25T16:02:26.376Z"
+}

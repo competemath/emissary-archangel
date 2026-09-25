@@ -1,0 +1,87 @@
+import Seymour.Matrix.TotalUnimodularityTest
+import Seymour.Matroid.Graphicness
+
+
+-- @@ L4-8 verbatim
+/-!
+# Matroid R10
+
+Here we study the R10 matroid.
+-/
+
+
+-- @@ L10-15 verbatim
+def matrixR10auxZ2 : Matrix (Fin 5) (Fin 5) Z2 := !![
+  1, 0, 0, 1, 1;
+  1, 1, 0, 0, 1;
+  0, 1, 1, 0, 1;
+  0, 0, 1, 1, 1;
+  1, 1, 1, 1, 1]
+
+
+-- @@ L17-18 verbatim
+def matrixR10auxRat : Matrix (Fin 5) (Fin 5) ℚ :=
+  matrixR10auxZ2.map (·.val)
+
+
+-- @@ L20-21 verbatim
+lemma matrixR10auxRat_isTotallyUnimodular : matrixR10auxRat.IsTotallyUnimodular :=
+  matrixR10auxRat.isTotallyUnimodular_of_testTotallyUnimodularFast (by decide +kernel)
+
+
+-- @@ L23-26 verbatim
+def matrixR10Z2 : Matrix { x : Fin 10 | x.val < 5 } { x : Fin 10 | 5 ≤ x.val } Z2 :=
+  matrixR10auxZ2.submatrix
+    (fun i => ⟨i.val.val, i.property⟩)
+    (fun j => ⟨j.val.val - 5, by omega⟩)
+
+
+-- @@ L28-29 verbatim
+def matrixR10Rat : Matrix { x : Fin 10 | x.val < 5 } { x : Fin 10 | 5 ≤ x.val } ℚ :=
+  matrixR10Z2.map (·.val)
+
+
+-- @@ L31-33 verbatim
+lemma matrixR10Rat_eq_coe_matrixR10auxRat :
+    matrixR10Rat = matrixR10auxRat.submatrix (·.val) (⟨·.val.val - 5, by omega⟩) := by
+  decide
+
+
+-- @@ L35-45 verbatim
+/-- Matroid R10 (see Klaus Truemper, 9.2.13). -/
+def matroidR10 : StandardRepr (Fin 10) Z2 where
+  X := { x : Fin 10 | x.val < 5 }
+  Y := { x : Fin 10 | 5 ≤ x.val }
+  hXY := by
+    rw [Set.disjoint_iff_inter_eq_empty]
+    ext
+    simp
+  B := matrixR10Z2
+  decmemX := (·.val.decLt 5)
+  decmemY := Fin.decLe 5
+
+
+-- @@ L47-47 verbatim
+@[simp] lemma matroidR10_X_eq : matroidR10.X = { x : Fin 10 | x.val < 5 } := rfl
+
+-- @@ L48-48 verbatim
+@[simp] lemma matroidR10_Y_eq : matroidR10.Y = { x : Fin 10 | 5 ≤ x.val } := rfl
+
+-- @@ L49-49 verbatim
+@[simp] lemma matroidR10_B_eq : matroidR10.B = matrixR10Z2 := rfl
+
+
+-- @@ L51-61 expanded
+@[simp]
+theorem matroidR10.isRegular : matroidR10.toMatroid.IsRegular :=
+  by
+  rw [StandardRepr.toMatroid_isRegular_iff_hasTuSigning]
+  use matrixR10Rat
+  simp_rw [Matrix.IsTuSigningOf]
+  refine ⟨?_, (fun _ => (fun _ => ?_))⟩
+  · rw [matrixR10Rat_eq_coe_matrixR10auxRat]
+    apply matrixR10auxRat_isTotallyUnimodular.submatrix
+  · rw [matrixR10Rat, matroidR10_B_eq]
+    simp_rw [Set.coe_setOf, Matrix.map_apply, abs_eq_self]
+    apply Nat.cast_nonneg
+
