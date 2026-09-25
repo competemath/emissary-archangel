@@ -1,0 +1,1 @@
+{"names":["MathFin.submartingale_optional_sampling"],"modules":["MathFin.Foundations.OptionalSamplingInequality"],"moduleOf":{"MathFin.submartingale_optional_sampling":"MathFin.Foundations.OptionalSamplingInequality"},"deps":{"MathFin.submartingale_optional_sampling":[]}}

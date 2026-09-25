@@ -1,0 +1,1 @@
+{"names":["MathFin.TriangleNoArb","MathFin.triangleNoArb_solve_third"],"modules":["MathFin.Foundations.TriangleArbitrage"],"moduleOf":{"MathFin.TriangleNoArb":"MathFin.Foundations.TriangleArbitrage","MathFin.triangleNoArb_solve_third":"MathFin.Foundations.TriangleArbitrage"},"deps":{"MathFin.TriangleNoArb":[],"MathFin.triangleNoArb_solve_third":["MathFin.TriangleNoArb"]}}

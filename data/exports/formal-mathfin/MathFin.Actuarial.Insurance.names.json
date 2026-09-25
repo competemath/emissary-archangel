@@ -1,0 +1,1 @@
+{"names":["MathFin.net_premium_principle","MathFin.annuityDue_closed_form"],"modules":["MathFin.Actuarial.Insurance"],"moduleOf":{"MathFin.net_premium_principle":"MathFin.Actuarial.Insurance","MathFin.annuityDue_closed_form":"MathFin.Actuarial.Insurance"},"deps":{"MathFin.net_premium_principle":[],"MathFin.annuityDue_closed_form":[]}}

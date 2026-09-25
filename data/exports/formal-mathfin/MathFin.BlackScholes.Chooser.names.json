@@ -1,0 +1,1 @@
+{"names":["MathFin.chooser_via_pcp","MathFin.chooser_payoff_decompose"],"modules":["MathFin.BlackScholes.Chooser"],"moduleOf":{"MathFin.chooser_via_pcp":"MathFin.BlackScholes.Chooser","MathFin.chooser_payoff_decompose":"MathFin.BlackScholes.Chooser"},"deps":{"MathFin.chooser_via_pcp":["MathFin.chooser_payoff_decompose"],"MathFin.chooser_payoff_decompose":[]}}

@@ -1,0 +1,36 @@
+{
+  "key": "formal-mathfin",
+  "repo": "https://github.com/formal-applied-math/formal-mathfin",
+  "commit": "9f8ec70949d72af1358444ce8f9056f0e82db3f6",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "MathFin"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/formal-mathfin/repo",
+  "entries": 2874,
+  "modules": 444,
+  "exported": 444,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 2889,
+    "kept": 2874,
+    "skippedRoot": 2,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 13,
+    "lineFixed": 921,
+    "lineUnverified": 0,
+    "nameFixed": 20,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 175566848,
+  "minutes": 56,
+  "finishedAt": "2026-09-25T15:27:41.012Z"
+}
