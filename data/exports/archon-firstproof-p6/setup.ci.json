@@ -1,0 +1,36 @@
+{
+  "key": "archon-firstproof-p6",
+  "repo": "https://github.com/frenzymath/Archon-FirstProof-problem6-augmentation",
+  "commit": "8070ba0088146093e5bb57cbddade9b55bf84e67",
+  "toolchain": "leanprover/lean4:v4.28.0",
+  "roots": [
+    "FirstProof"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/archon-firstproof-p6/repo",
+  "entries": 55,
+  "modules": 8,
+  "exported": 8,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 108,
+    "kept": 55,
+    "skippedRoot": 0,
+    "skippedDup": 53,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 1,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 954368,
+  "minutes": 6,
+  "finishedAt": "2026-09-25T14:27:06.746Z"
+}
