@@ -1,0 +1,1 @@
+{"names":["IMOSL.IMO2009N1.main_lemma","IMOSL.IMO2009N1.final_solution"],"modules":["IMOSLLean4.Main.IMO2009.N1"],"moduleOf":{"IMOSL.IMO2009N1.main_lemma":"IMOSLLean4.Main.IMO2009.N1","IMOSL.IMO2009N1.final_solution":"IMOSLLean4.Main.IMO2009.N1"},"deps":{"IMOSL.IMO2009N1.main_lemma":[],"IMOSL.IMO2009N1.final_solution":["IMOSL.IMO2009N1.main_lemma"]}}

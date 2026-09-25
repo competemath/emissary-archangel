@@ -1,0 +1,36 @@
+{
+  "key": "imoshortlist",
+  "repo": "https://github.com/mortarsanjaya/IMOSLLean4",
+  "commit": "49e7596ffb3e88d357eba3e450c29ad9f85f3cc5",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "IMOSLLean4"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/imoshortlist/repo",
+  "entries": 2365,
+  "modules": 202,
+  "exported": 202,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 2367,
+    "kept": 2365,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 2,
+    "lineFixed": 1061,
+    "lineUnverified": 0,
+    "nameFixed": 49,
+    "sorryOriginals": 0,
+    "emptyProofs": 37
+  },
+  "exportsBytes": 20721664,
+  "minutes": 9,
+  "finishedAt": "2026-09-25T14:48:19.475Z"
+}
