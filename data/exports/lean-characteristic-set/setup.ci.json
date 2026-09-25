@@ -1,0 +1,36 @@
+{
+  "key": "lean-characteristic-set",
+  "repo": "https://github.com/WuProver/lean_characteristic_set",
+  "commit": "8631b1326942799529814c4d319aef6813ea6e32",
+  "toolchain": "leanprover/lean4:v4.29.0-rc6",
+  "roots": [
+    "CharacteristicSet"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lean-characteristic-set/repo",
+  "entries": 394,
+  "modules": 14,
+  "exported": 14,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 394,
+    "kept": 394,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 375,
+    "lineUnverified": 0,
+    "nameFixed": 1,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 7675904,
+  "minutes": 18,
+  "finishedAt": "2026-09-25T15:00:25.962Z"
+}
