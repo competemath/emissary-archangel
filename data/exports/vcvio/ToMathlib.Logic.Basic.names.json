@@ -1,0 +1,1 @@
+{"names":["instInhabitedSubtypeForallBijective_toMathlib","Prod.mk.injective2"],"modules":["ToMathlib.Logic.Basic"],"moduleOf":{"instInhabitedSubtypeForallBijective_toMathlib":"ToMathlib.Logic.Basic","Prod.mk.injective2":"ToMathlib.Logic.Basic"},"deps":{"instInhabitedSubtypeForallBijective_toMathlib":[],"Prod.mk.injective2":[]}}

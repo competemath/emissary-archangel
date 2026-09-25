@@ -1,0 +1,167 @@
+/-
+Copyright (c) 2025 Devon Tuma. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Devon Tuma
+-/
+
+module
+public import VCVio.EvalDist.Defs.NeverFails
+public import VCVio.EvalDist.Monad.Map
+
+
+-- @@ L11-16 verbatim
+/-!
+# Probability Distributions on `Option` return types
+
+Lemmas about `evalSPMF` and the associated probabilities for computations
+returning an `Option`.
+-/
+
+
+-- @@ L18-18 verbatim
+@[expose] public section
+
+
+-- @@ L20-20 verbatim
+universe u v w
+
+
+-- @@ L22-23 verbatim
+variable {m : Type u → Type v} [Monad m] [LawfulMonad m] [MonadLiftT m SPMF]
+  [LawfulMonadLiftT m SPMF] {α β γ : Type u}
+
+
+-- @@ L25-28 expanded
+@[simp, grind =]
+lemma probOutput_some_map_some (mx : m α) (x : α) :
+    probOutput (some <$> mx) (some x) = probOutput mx x :=
+  probOutput_map_injective mx (Option.some_injective α) x
+
+
+-- @@ L30-35 expanded
+@[simp, grind =]
+lemma probOutput_some_map_none (mx : m α) : probOutput (some <$> mx) none = 0 := by
+  classical
+  rw [probOutput_map_eq_tsum_ite]
+  simp
+
+
+-- @@ L37-37 verbatim
+section double_option
+
+
+-- @@ L39-39 verbatim
+variable (mx : m (Option α))
+
+
+-- @@ L41-45 expanded
+omit [Monad m] [LawfulMonadLiftT m SPMF] in
+omit [LawfulMonad m] in
+lemma probOutput_none_add_tsum_some :
+    probOutput mx none + ∑' x, probOutput mx (some x) = 1 - probFailure mx := by
+  rw [← tsum_probOutput_eq_sub mx, ← tsum_option _ ENNReal.summable]
+
+
+-- @@ L47-55 expanded
+omit [Monad m] [LawfulMonad m] [LawfulMonadLiftT m SPMF] in
+/-- The probability of returning `some` is the total mass of all `some`
+outputs, without requiring the computation to be failure-free. -/
+lemma probEvent_isSome_eq_tsum_probOutput_some :
+    (probEvent mx fun r => r.isSome) = ∑' x, probOutput mx (some x) :=
+  by
+  rw [probEvent_eq_tsum_ite]
+  simpa only [Option.isSome, Bool.false_eq_true, eq_self, ite_false, ite_true, zero_add] using
+    (tsum_option (fun r : Option α => if r.isSome = true then probOutput mx r else 0)
+      ENNReal.summable)
+
+
+-- @@ L57-87 expanded
+omit [Monad m] [LawfulMonad m] [LawfulMonadLiftT m SPMF] in
+/-- Selector fibers inside an optional output are disjoint, so their finite
+sum is bounded by the probability of returning any `some` value. -/
+lemma sum_probEvent_option_map_eq_some_le_isSome [Fintype γ] (select : α → Option γ) :
+    (∑ k : γ, probEvent mx fun r => r.map select = some (some k)) ≤
+      probEvent mx fun r => r.isSome :=
+  by
+  classical
+    calc
+    (∑ k : γ, probEvent mx fun r => r.map select = some (some k)) ≤
+        ∑' x : α, probOutput mx (some x) :=
+      by
+      simp_rw [probEvent_eq_tsum_ite]
+      have hsplit :
+        ∀ k : γ,
+          (∑' r : Option α, if r.map select = some (some k) then probOutput mx r else 0) =
+            ∑' x : α, if select x = some k then probOutput mx (some x) else 0 :=
+        by
+        intro k
+        simpa only [Option.map, reduceCtorEq, ite_false, zero_add, Option.some.injEq] using
+          tsum_option
+            (fun r : Option α => if r.map select = some (some k) then probOutput mx r else 0)
+            ENNReal.summable
+      simp_rw [hsplit]
+      rw [← tsum_fintype (L := .unconditional _), ENNReal.tsum_comm]
+      refine ENNReal.tsum_le_tsum fun x => ?_
+      rw [tsum_fintype (L := .unconditional _)]
+      rcases hselect : select x with _ | k₀
+      · simp
+      · rw [Finset.sum_eq_single k₀ (by intro k _ hne; simp [Ne.symm hne]) (by simp)]
+        simp
+    _ = probEvent mx fun r => r.isSome := (probEvent_isSome_eq_tsum_probOutput_some mx).symm
+
+
+-- @@ L89-101 expanded
+omit [LawfulMonadLiftT m SPMF] in
+omit [LawfulMonad m] in
+lemma probEvent_isSome_eq_one_sub_probOutput_none [NeverFail mx] :
+    (probEvent mx fun r => r.isSome) = 1 - probOutput mx none :=
+  by
+  rw [probEvent_eq_tsum_ite,
+    tsum_option (fun r : Option α => if r.isSome then probOutput mx r else 0) ENNReal.summable]
+  simp only [Option.isSome, reduceCtorEq, ↓reduceIte, zero_add]
+  have hnone_ne_top : probOutput mx none ≠ ⊤ :=
+    ne_top_of_le_ne_top ENNReal.one_ne_top probOutput_le_one
+  have htotal : (∑' x, probOutput mx (some x)) + probOutput mx none = 1 := by
+    simpa [probFailure_eq_zero (mx := mx), tsub_zero, add_comm] using
+      probOutput_none_add_tsum_some (mx := mx)
+  exact ENNReal.eq_sub_of_add_eq hnone_ne_top htotal
+
+
+-- @@ L103-114 expanded
+omit [Monad m] [LawfulMonadLiftT m SPMF] in
+omit [LawfulMonad m] in
+lemma sum_probOutput_some_le_one [Fintype α] : ∑ x : α, probOutput mx (some x : Option α) ≤ 1 := by
+  classical
+    calc
+    ∑ x : α, probOutput mx (some x : Option α) ≤ ∑' y : Option α, probOutput mx y :=
+      by
+      rw [← tsum_fintype (L := .unconditional _),
+        tsum_option (fun y : Option α => probOutput mx y) ENNReal.summable]
+      exact le_add_self
+    _ ≤ 1 := tsum_probOutput_le_one
+
+
+-- @@ L116-121 expanded
+@[simp]
+lemma probOutput_some_map_option_map {f : α → β} (hf : f.Injective) (x : α) :
+    probOutput (Option.map f <$> mx) (some (f x)) = probOutput mx (some x) :=
+  by
+  refine probOutput_map_injective mx ?_ (some x)
+  intro a b h
+  cases a <;> cases b <;> simp_all [Option.map, hf.eq_iff]
+
+
+-- @@ L123-131 expanded
+@[simp]
+lemma probOutput_none_map_option_map (f : α → β) :
+    probOutput (Option.map f <$> mx) none = probOutput mx none := by
+  classical
+  rw [probOutput_map_eq_tsum_ite]
+  refine (tsum_eq_single none fun x hx => ?_).trans (by simp)
+  cases x with
+  | none => exact absurd rfl hx
+  | some => simp
+
+
+-- @@ L133-133 verbatim
+end double_option

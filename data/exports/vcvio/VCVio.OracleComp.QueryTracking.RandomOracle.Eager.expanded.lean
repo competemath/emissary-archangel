@@ -1,0 +1,327 @@
+/-
+Copyright (c) 2024 Devon Tuma. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Devon Tuma, Quang Dao
+-/
+
+module
+public import VCVio.OracleComp.Constructions.GenerateSeed
+
+
+-- @@ L10-21 verbatim
+/-!
+# Eager Random Oracle
+
+The eager random oracle serves answers from a pre-generated `QuerySeed`, consuming values
+sequentially and falling back to fresh uniform sampling when exhausted. Different calls to
+the same oracle consume different seed values. State: `QuerySeed`.
+
+This gives INDEPENDENT samples (each call consumes a different seed value), unlike
+`randomOracle` which gives CONSISTENT samples (same input → same output via caching).
+When averaged over a uniformly sampled seed, the eager version matches the fresh
+independent-query semantics of `evalSPMF`.
+-/
+
+
+-- @@ L23-23 verbatim
+@[expose] public section
+
+
+-- @@ L25-25 verbatim
+open OracleComp OracleSpec
+
+
+-- @@ L27-27 verbatim
+universe u v w
+
+
+-- @@ L29-29 verbatim
+open scoped OracleSpec.PrimitiveQuery
+
+
+-- @@ L31-31 verbatim
+variable {ι : Type u} [DecidableEq ι] {spec : OracleSpec ι}
+
+
+-- @@ L33-51 expanded
+/-- The eager random oracle: serves answers from a pre-generated `QuerySeed`, consuming
+seed values sequentially and falling back to fresh uniform sampling when exhausted.
+
+Concretely, on query `t`:
+- If `seed t` is non-empty, return the head and advance to the tail.
+- If `seed t` is empty, sample `$ᵗ spec.Range t` uniformly and leave the seed unchanged.
+
+**Important**: This gives INDEPENDENT samples (each call consumes a different seed value),
+unlike `randomOracle` which gives CONSISTENT samples (same input → same output via caching).
+The two models agree when no oracle index is queried more than once.
+
+This is definitionally equal to `uniformSampleImpl.withPregen` (from `SeededOracle.lean`). -/
+@[inline, reducible]
+def eagerRandomOracle {ι} [DecidableEq ι] {spec : OracleSpec ι}
+    [∀ t : spec.Domain, SampleableType (spec.Range t)] :
+    QueryImpl spec (StateT (QuerySeed spec) ProbComp) := fun t =>
+  StateT.mk fun seed =>
+    match seed t with
+    | u :: us => pure (u, seed.update t us)
+    | [] => (·, seed) <$> (uniformSample (spec.Range t))
+
+
+-- @@ L53-53 verbatim
+namespace eagerRandomOracle
+
+
+-- @@ L55-56 verbatim
+variable {ι₀ : Type} [DecidableEq ι₀] {spec₀ : OracleSpec.{0, 0} ι₀}
+  [∀ t : spec₀.Domain, SampleableType (spec₀.Range t)]
+
+
+-- @@ L58-62 expanded
+lemma apply_eq (t : spec₀.Domain) :
+    (eagerRandomOracle (spec := spec₀)) t =
+      StateT.mk fun seed =>
+        match seed t with
+        | u :: us => pure (u, seed.update t us)
+        | [] => (·, seed) <$> (uniformSample (spec₀.Range t)) :=
+  rfl
+
+
+-- @@ L64-68 verbatim
+/-- A seeded eager query consumes the head value through `QuerySeed.update`. -/
+lemma run_cons {t : spec₀.Domain} {seed : QuerySeed spec₀} {u : spec₀.Range t}
+    {us : List (spec₀.Range t)} (h : seed t = u :: us) :
+    (eagerRandomOracle t).run seed = pure (u, seed.update t us) := by
+  rw [apply_eq, StateT.run_mk, h]
+
+
+-- @@ L70-73 expanded
+/-- An eager query with no seed value samples uniformly and preserves the seed. -/
+lemma run_nil {t : spec₀.Domain} {seed : QuerySeed spec₀} (h : seed t = []) :
+    (eagerRandomOracle t).run seed = (·, seed) <$> (uniformSample (spec₀.Range t)) := by
+  rw [apply_eq, StateT.run_mk, h]
+
+
+-- @@ L75-96 expanded
+/-- With an empty seed, the eager random oracle reduces to `uniformSampleImpl`:
+every query falls through to fresh uniform sampling with no state change.
+This is a faithful simulation (preserves `evalSPMF`). -/
+theorem evalSPMF_simulateQ_run'_empty [IsUniformSpec spec₀] {α : Type} (oa : OracleComp spec₀ α) :
+    evalSPMF ((simulateQ (eagerRandomOracle (spec := spec₀)) oa).run' ∅) = evalSPMF oa := by
+  induction oa using OracleComp.inductionOn with
+  | pure a => simp [simulateQ_pure]
+  | query_bind t f
+    ih =>
+    rw [simulateQ_bind,
+      show simulateQ eagerRandomOracle (liftM (OracleSpec.query t)) = eagerRandomOracle t by
+        rw [simulateQ_query]; simp [OracleQuery.cont_query, OracleQuery.input_query, id_map],
+      evalSPMF_query_bind]
+    have hsimp :
+      (eagerRandomOracle t >>= fun u => simulateQ eagerRandomOracle (f u)).run'
+          (∅ : QuerySeed spec₀) =
+        uniformSample (spec₀.Range t) >>= fun u => (simulateQ eagerRandomOracle (f u)).run' ∅ :=
+      by
+      change
+        Prod.fst <$>
+            ((eagerRandomOracle t).run ∅ >>= fun p =>
+              (simulateQ eagerRandomOracle (f p.1)).run p.2) =
+          uniformSample (spec₀.Range t) >>= fun u =>
+            Prod.fst <$> (simulateQ eagerRandomOracle (f u)).run ∅
+      simp [eagerRandomOracle]
+    rw [hsimp, evalSPMF_bind, evalSPMF_uniformSample]
+    exact congrArg _ (funext ih)
+
+
+-- @@ L98-98 verbatim
+end eagerRandomOracle
+
+
+-- @@ L100-113 expanded
+/-- Helper: the `run'` of the eager oracle bind reduces to uniform sampling
+when `seed t = []`. -/
+private lemma eagerRandomOracle_run'_nil {ι₀ : Type} [DecidableEq ι₀] {spec₀ : OracleSpec.{0, 0} ι₀}
+    [∀ t : spec₀.Domain, SampleableType (spec₀.Range t)] {α : Type} (t : spec₀.Domain)
+    (f : spec₀.Range t → OracleComp spec₀ α) (seed : QuerySeed spec₀) (ht : seed t = []) :
+    (eagerRandomOracle t >>= fun u => simulateQ eagerRandomOracle (f u)).run' seed =
+      (uniformSample (spec₀.Range t)) >>= fun u => (simulateQ eagerRandomOracle (f u)).run' seed :=
+  by
+  change
+    Prod.fst <$>
+        ((eagerRandomOracle t).run seed >>= fun p =>
+          (simulateQ eagerRandomOracle (f p.1)).run p.2) =
+      _
+  have h :
+    (eagerRandomOracle (spec := spec₀) t).run seed =
+      (fun u => (u, seed)) <$> (uniformSample (spec₀.Range t)) :=
+    by exact eagerRandomOracle.run_nil ht
+  rw [h]; simp
+
+
+-- @@ L115-130 verbatim
+/-- Helper: the `run'` of the eager oracle bind consumes the head
+when `seed t = u :: us`. -/
+private lemma eagerRandomOracle_run'_cons {ι₀ : Type} [DecidableEq ι₀]
+    {spec₀ : OracleSpec.{0, 0} ι₀} [∀ t : spec₀.Domain, SampleableType (spec₀.Range t)]
+    {α : Type} (t : spec₀.Domain) (f : spec₀.Range t → OracleComp spec₀ α)
+    (seed : QuerySeed spec₀) (u : spec₀.Range t) (us : List (spec₀.Range t))
+    (ht : seed t = u :: us) :
+    (eagerRandomOracle t >>= fun v => simulateQ eagerRandomOracle (f v)).run' seed =
+    (simulateQ eagerRandomOracle (f u)).run' (seed.update t us) := by
+  change Prod.fst <$> ((eagerRandomOracle t).run seed >>= fun p =>
+      (simulateQ eagerRandomOracle (f p.1)).run p.2) = _
+  have h : (eagerRandomOracle (spec := spec₀) t).run seed =
+      pure (u, seed.update t us) := by
+    exact eagerRandomOracle.run_cons ht
+  rw [h, pure_bind]
+  exact (StateT.run'_eq (simulateQ eagerRandomOracle (f u)) (seed.update t us)).symm
+
+
+-- @@ L132-170 expanded
+/-- Helper for the `query_bind` step of `eagerRandomOracle_evalSPMF_generateSeed_bind` when
+`qc t * js.count t = 0`: every generated seed has `seed t = []`, so each query falls through
+to fresh uniform sampling and the seed average matches a fresh uniform query. -/
+private lemma eagerRandomOracle_evalSPMF_generateSeed_bind_step_zero {ι₀ : Type} [DecidableEq ι₀]
+    {spec₀ : OracleSpec.{0, 0} ι₀} [∀ t : spec₀.Domain, SampleableType (spec₀.Range t)]
+    [IsUniformSpec spec₀] {α : Type} (t : spec₀.Domain) (f : spec₀.Range t → OracleComp spec₀ α)
+    (qc : ι₀ → ℕ) (js : List ι₀) (x : α)
+    (ih :
+      ∀ (u : spec₀.Range t) (qc : ι₀ → ℕ) (js : List ι₀),
+        (evalSPMF do
+            let seed ← generateSeed spec₀ qc js
+            (simulateQ eagerRandomOracle (f u)).run' seed) =
+          evalSPMF (f u))
+    (hcount : qc t * js.count t = 0) :
+    ∑' seed,
+        probOutput (generateSeed spec₀ qc js) seed *
+          probOutput
+            ((eagerRandomOracle t >>= fun u => simulateQ eagerRandomOracle (f u)).run' seed) x =
+      ∑' u, (↑(Fintype.card (spec₀.Range t)))⁻¹ * probOutput (f u) x :=
+  by
+  have hih :
+    ∀ u,
+      ∑' seed,
+          probOutput (generateSeed spec₀ qc js) seed *
+            probOutput ((simulateQ eagerRandomOracle (f u)).run' seed) x =
+        probOutput (f u) x :=
+    fun u => by
+    rw [← probOutput_bind_eq_tsum]
+    simpa only [probOutput_def] using DFunLike.congr_fun (ih u qc js) x
+  have hnil : ∀ seed ∈ support (generateSeed spec₀ qc js), seed t = [] := fun s hs =>
+    eq_nil_of_mem_support_generateSeed spec₀ qc js s t hs hcount
+  have hstep :
+    ∀ seed,
+      probOutput (generateSeed spec₀ qc js) seed *
+          probOutput
+            ((eagerRandomOracle t >>= fun u => simulateQ eagerRandomOracle (f u)).run' seed) x =
+        probOutput (generateSeed spec₀ qc js) seed *
+          (∑' u,
+            (↑(Fintype.card (spec₀.Range t)))⁻¹ *
+              probOutput ((simulateQ eagerRandomOracle (f u)).run' seed) x) :=
+    by
+    intro seed
+    by_cases hs : seed ∈ support (generateSeed spec₀ qc js)
+    · rw [eagerRandomOracle_run'_nil t f seed (hnil seed hs), probOutput_bind_eq_tsum]
+      simp only [probOutput_uniformSample]
+    · simp [(probOutput_eq_zero_iff _ _).mpr hs]
+  simp_rw [hstep, ENNReal.tsum_mul_left, ← mul_assoc,
+    mul_comm (probOutput (generateSeed _ _ _) _) _, mul_assoc, ENNReal.tsum_mul_left]
+  congr 1
+  simp_rw [← ENNReal.tsum_mul_left (a := probOutput (generateSeed _ _ _) _)]
+  rw [ENNReal.tsum_comm]; congr 1; ext u; exact hih u
+
+
+-- @@ L172-222 expanded
+/-- Helper for the `query_bind` step of `eagerRandomOracle_evalSPMF_generateSeed_bind` when
+`qc t * js.count t ≠ 0`: every generated seed has `seed t = u :: us`, so the head is consumed
+and `prependValues` injectivity reindexes the seed average onto a fresh uniform query. -/
+private lemma eagerRandomOracle_evalSPMF_generateSeed_bind_step_pos {ι₀ : Type} [DecidableEq ι₀]
+    {spec₀ : OracleSpec.{0, 0} ι₀} [∀ t : spec₀.Domain, SampleableType (spec₀.Range t)]
+    [IsUniformSpec spec₀] {α : Type} (t : spec₀.Domain) (f : spec₀.Range t → OracleComp spec₀ α)
+    (qc : ι₀ → ℕ) (js : List ι₀) (x : α)
+    (ih :
+      ∀ (u : spec₀.Range t) (qc : ι₀ → ℕ) (js : List ι₀),
+        (evalSPMF do
+            let seed ← generateSeed spec₀ qc js
+            (simulateQ eagerRandomOracle (f u)).run' seed) =
+          evalSPMF (f u))
+    (hpos : 0 < qc t * js.count t) :
+    ∑' seed,
+        probOutput (generateSeed spec₀ qc js) seed *
+          probOutput
+            ((eagerRandomOracle t >>= fun u => simulateQ eagerRandomOracle (f u)).run' seed) x =
+      ∑' u, (↑(Fintype.card (spec₀.Range t)))⁻¹ * probOutput (f u) x :=
+  by
+  have hstep :
+    ∀ seed,
+      probOutput (generateSeed spec₀ qc js) seed *
+          probOutput
+            ((eagerRandomOracle t >>= fun u => simulateQ eagerRandomOracle (f u)).run' seed) x =
+        probOutput (generateSeed spec₀ qc js) seed *
+          (match seed t with
+          | u :: us => probOutput ((simulateQ eagerRandomOracle (f u)).run' (seed.update t us)) x
+          | [] => 0) :=
+    by
+    intro seed
+    by_cases hs : seed ∈ support (generateSeed spec₀ qc js)
+    · obtain ⟨u, us, hc⟩ := exists_cons_of_mem_support_generateSeed spec₀ qc js seed t hs hpos
+      rw [eagerRandomOracle_run'_cons t f seed u us hc, hc]
+    · simp [(probOutput_eq_zero_iff _ _).mpr hs]
+  simp_rw [hstep]
+  rw [←
+    (QuerySeed.prependValues_singleton_injective t).tsum_eq
+      (by
+        intro seed hseed; simp only [Function.mem_support] at hseed
+        have hmem : seed ∈ support (generateSeed spec₀ qc js) := by by_contra h;
+          exact hseed (by simp [(probOutput_eq_zero_iff _ _).mpr h])
+        obtain ⟨u, us, hc⟩ := exists_cons_of_mem_support_generateSeed spec₀ qc js seed t hmem hpos
+        exact
+          ⟨(u, seed.update t us),
+            QuerySeed.eq_prependValues_of_pop_eq_some
+              (QuerySeed.pop_eq_some_of_cons seed t u us hc)⟩)]
+  simp only [QuerySeed.prependValues, List.singleton_append, QuerySeed.update_self,
+    QuerySeed.update_idem, QuerySeed.update_eq_self]
+  rw [ENNReal.tsum_prod']; congr 1; ext u
+  simp only [show
+        ∀ b : QuerySeed spec₀, (u, b).2.update t ((u, b).1 :: (u, b).2 t) = b.prependValues [u] from
+        fun b => by simp [QuerySeed.prependValues]]
+  simp_rw [probOutput_generateSeed_prependValues spec₀ qc js u _ hpos, mul_assoc,
+    ENNReal.tsum_mul_left]
+  congr 1; rw [← probOutput_bind_eq_tsum]
+  simpa only [probOutput_def] using DFunLike.congr_fun (ih u _ js.dedup) x
+
+
+-- @@ L224-255 expanded
+/-- The eager random oracle, averaged over a uniformly sampled seed, matches the
+fresh independent-query semantics of `evalSPMF`. This is because the pre-sampled
+seed values are i.i.d. uniform, exactly matching fresh oracle queries.
+
+This is the analog of `seededOracle.evalSPMF_liftComp_generateSeed_bind_simulateQ_run'`
+but for `eagerRandomOracle` (which falls back to `ProbComp` rather than `OracleComp spec`). -/
+theorem eagerRandomOracle_evalSPMF_generateSeed_bind {ι₀ : Type} [DecidableEq ι₀]
+    {spec₀ : OracleSpec.{0, 0} ι₀} [∀ t : spec₀.Domain, SampleableType (spec₀.Range t)]
+    [IsUniformSpec spec₀] {α : Type} (oa : OracleComp spec₀ α) (qc : ι₀ → ℕ) (js : List ι₀) :
+    (evalSPMF do
+        let seed ← generateSeed spec₀ qc js
+        (simulateQ (eagerRandomOracle (spec := spec₀)) oa).run' seed) =
+      evalSPMF oa :=
+  by
+  classical
+  revert qc js
+  induction oa using OracleComp.inductionOn with
+  | pure a => intro qc js; apply evalSPMF_ext; intro; simp
+  | query_bind t f ih =>
+    intro qc js; apply evalSPMF_ext; intro x
+    have hsimQ :
+      ∀ seed : QuerySeed spec₀,
+        (simulateQ eagerRandomOracle (liftM (OracleSpec.query t) >>= f)).run' seed =
+          (eagerRandomOracle t >>= fun u => simulateQ eagerRandomOracle (f u)).run' seed :=
+      fun _ => by congr 1
+    simp_rw [hsimQ]
+    rw [probOutput_bind_eq_tsum (liftM (OracleSpec.query t)) f x]
+    simp_rw [probOutput_query t]
+    rw [probOutput_bind_eq_tsum]
+    by_cases hcount : qc t * js.count t = 0
+    · exact eagerRandomOracle_evalSPMF_generateSeed_bind_step_zero t f qc js x ih hcount
+    ·
+      exact
+        eagerRandomOracle_evalSPMF_generateSeed_bind_step_pos t f qc js x ih
+          (Nat.pos_of_ne_zero hcount)
+

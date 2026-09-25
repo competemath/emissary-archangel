@@ -1,0 +1,670 @@
+/-
+Copyright (c) 2026 Quang Dao. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Quang Dao
+-/
+
+module
+public import VCVio.OracleComp.Coercions.Add
+public import VCVio.OracleComp.SimSemantics.StateT.Basic
+public import PolyFun.PFunctor.Handler.Stateful
+public import PolyFun.PFunctor.Lens.State
+
+
+-- @@ L13-21 verbatim
+/-!
+# Stateful query implementations
+
+`QueryImpl.Stateful I E σ` is a thin abbreviation for handlers that implement
+an export interface `E` by running `StateT σ (OracleComp I)`. It is the
+unbundled stateful-handler layer used by state-separating proofs: the handler
+and initial state are supplied separately instead of being bundled in a package
+record.
+-/
+
+
+-- @@ L23-23 verbatim
+@[expose] public section
+
+
+-- @@ L25-25 verbatim
+universe uᵢ uₘ uₑ vᵢ v
+
+
+-- @@ L27-27 verbatim
+open OracleSpec OracleComp
+
+
+-- @@ L29-29 verbatim
+open scoped OracleSpec.PrimitiveQuery
+
+
+-- @@ L31-31 verbatim
+namespace QueryImpl
+
+
+-- @@ L33-49 verbatim
+/-- A stateful implementation of export queries `E` using import queries `I`.
+
+`QueryImpl.Stateful I E σ` is the raw handler shape
+`QueryImpl E (StateT σ (OracleComp I))`: each export query may inspect and
+update private state `σ`, while making import queries in `I`.
+
+The surrounding `QueryImpl.Stateful` namespace develops the state-separating
+composition API for these handlers. Composition can use the canonical product
+state, via `link` and `par`, or an explicit `Frame` that describes how two
+component states are embedded as separated lawful state lenses inside a larger
+state.
+-/
+@[reducible] def Stateful
+    {ιᵢ : Type uᵢ} {ιₑ : Type uₑ}
+    (I : OracleSpec.{uᵢ, vᵢ} ιᵢ) (E : OracleSpec.{uₑ, v} ιₑ) (σ : Type v) :
+    Type _ :=
+  QueryImpl E (StateT σ (OracleComp I))
+
+
+-- @@ L51-57 verbatim
+/-- `QueryImpl.Stateful` is definitionally PolyFun's generic effectful
+stateful-handler interface specialized to oracle computations. -/
+theorem Stateful.eq_handler
+    {ιᵢ : Type uᵢ} {ιₑ : Type uₑ}
+    (I : OracleSpec.{uᵢ, vᵢ} ιᵢ) (E : OracleSpec.{uₑ, v} ιₑ) (σ : Type v) :
+    QueryImpl.Stateful I E σ =
+      PFunctor.Handler.Stateful (OracleComp I) σ E.toPFunctor := rfl
+
+
+-- @@ L59-59 verbatim
+namespace Stateful
+
+
+-- @@ L61-63 verbatim
+variable {ιᵢ : Type uᵢ} {ιₘ : Type uₘ} {ιₑ : Type uₑ}
+  {I : OracleSpec.{uᵢ, vᵢ} ιᵢ} {M : OracleSpec.{uₘ, v} ιₘ} {E : OracleSpec.{uₑ, v} ιₑ}
+  {σ σ₁ σ₂ σ' : Type v}
+
+
+-- @@ L65-65 verbatim
+/-! ## State frames -/
+
+
+-- @@ L67-87 verbatim
+/-- A frame specifying how two component states sit inside a larger state.
+
+The component projections are state lenses in the sense of
+`PFunctor.Lens.State`: each one has a getter and a putter satisfying the
+standard very-well-behaved lens laws. The `separated` field says the two lenses
+are non-interfering: each update leaves the other view unchanged, and the two
+updates commute. Composition operators such as `linkWith` and `parSumWith` use
+this explicit frame to run handlers over a larger state than the canonical
+product state.
+-/
+structure Frame (σ σ₁ σ₂ : Type v) where
+  /-- Lens selecting and updating the left component state. -/
+  left : PFunctor.Lens.State σ σ₁
+  /-- Lens selecting and updating the right component state. -/
+  right : PFunctor.Lens.State σ σ₂
+  /-- The left component lens satisfies `PutGet`, `GetPut`, and `PutPut`. -/
+  [left_isVeryWellBehaved : PFunctor.Lens.State.IsVeryWellBehaved left]
+  /-- The right component lens satisfies `PutGet`, `GetPut`, and `PutPut`. -/
+  [right_isVeryWellBehaved : PFunctor.Lens.State.IsVeryWellBehaved right]
+  /-- The two component lenses are non-interfering separated views of the source state. -/
+  [separated : PFunctor.Lens.State.IsSeparated left right]
+
+
+-- @@ L89-89 verbatim
+namespace Frame
+
+
+-- @@ L91-94 verbatim
+/-- The canonical product-state frame. -/
+def prod (σ₁ σ₂ : Type v) : Frame (σ₁ × σ₂) σ₁ σ₂ where
+  left := PFunctor.Lens.State.fst σ₁ σ₂
+  right := PFunctor.Lens.State.snd σ₁ σ₂
+
+
+-- @@ L96-98 verbatim
+instance instLeftIsVeryWellBehaved (F : Frame σ σ₁ σ₂) :
+    PFunctor.Lens.State.IsVeryWellBehaved F.left :=
+  F.left_isVeryWellBehaved
+
+
+-- @@ L100-102 verbatim
+instance instRightIsVeryWellBehaved (F : Frame σ σ₁ σ₂) :
+    PFunctor.Lens.State.IsVeryWellBehaved F.right :=
+  F.right_isVeryWellBehaved
+
+
+-- @@ L104-106 verbatim
+instance instSeparated (F : Frame σ σ₁ σ₂) :
+    PFunctor.Lens.State.IsSeparated F.left F.right :=
+  F.separated
+
+
+-- @@ L108-118 verbatim
+/-- Reshape the result of a linked handler run back into the source state
+described by a frame.
+
+The input carries an output value, the updated left component state, and the
+updated right component state. The frame writes those component states back into
+the original source state `s`.
+-/
+@[reducible]
+def linkReshape {α : Type v} (F : Frame σ σ₁ σ₂) (s : σ) :
+    (α × σ₁) × σ₂ → α × σ := fun p =>
+  (p.1.1, F.right.put p.2 (F.left.put p.1.2 s))
+
+
+-- @@ L120-120 verbatim
+end Frame
+
+
+-- @@ L122-122 verbatim
+/-! ## Basic handlers and evaluation -/
+
+
+-- @@ L124-128 verbatim
+/-- The identity stateful handler forwards each query to the same interface,
+threading a trivial state. -/
+protected def id (E : OracleSpec.{uₑ, v} ιₑ) :
+    QueryImpl.Stateful E E PUnit.{v + 1} :=
+  (QueryImpl.id' E).liftTarget (StateT PUnit.{v + 1} (OracleComp E))
+
+
+-- @@ L130-134 verbatim
+/-- Lift a stateless implementation into a stateful implementation with
+trivial state. -/
+def ofStateless (h : QueryImpl E (OracleComp I)) :
+    QueryImpl.Stateful I E PUnit.{v + 1} :=
+  h.liftTarget (StateT PUnit.{v + 1} (OracleComp I))
+
+
+-- @@ L136-140 verbatim
+/-- Run a stateful handler from an explicit initial state, discarding the final
+state. -/
+def run {α : Type v} (h : QueryImpl.Stateful I E σ) (s₀ : σ) (A : OracleComp E α) :
+    OracleComp I α :=
+  (simulateQ h A).run' s₀
+
+
+-- @@ L142-147 verbatim
+/-- Run a stateful handler from the default initial state, discarding the final
+state. This is convenient for heap states, where `default = Heap.empty`, and
+for product states assembled from default components. -/
+def run₀ {α : Type v} [Inhabited σ] (h : QueryImpl.Stateful I E σ)
+    (A : OracleComp E α) : OracleComp I α :=
+  h.run default A
+
+
+-- @@ L149-153 verbatim
+/-- Run a stateful handler from an explicit initial state, keeping the final
+state. -/
+def runState {α : Type v} (h : QueryImpl.Stateful I E σ) (s₀ : σ) (A : OracleComp E α) :
+    OracleComp I (α × σ) :=
+  (simulateQ h A).run s₀
+
+
+-- @@ L155-159 verbatim
+/-- `QueryImpl.Stateful.runState` is the `OracleSpec` specialization of the
+generic PolyFun effectful-stateful handler runner. -/
+theorem runState_eq_handler_run {α : Type v} (h : QueryImpl.Stateful I E σ)
+    (s₀ : σ) (A : OracleComp E α) :
+    h.runState s₀ A = PFunctor.Handler.Stateful.run h A s₀ := rfl
+
+
+-- @@ L161-165 verbatim
+/-- Run a stateful handler from the default initial state, keeping the final
+state. -/
+def runState₀ {α : Type v} [Inhabited σ] (h : QueryImpl.Stateful I E σ)
+    (A : OracleComp E α) : OracleComp I (α × σ) :=
+  h.runState default A
+
+
+-- @@ L167-174 verbatim
+@[simp]
+lemma runState_ofStateless {α : Type v} (h : QueryImpl E (OracleComp I))
+    (A : OracleComp E α) :
+    QueryImpl.Stateful.runState (ofStateless h) PUnit.unit A =
+      (·, PUnit.unit) <$> simulateQ h A := by
+  induction A using OracleComp.inductionOn with
+  | pure x => simp [runState, ofStateless]
+  | query_bind t k ih => simp [runState, ofStateless, monad_norm]
+
+
+-- @@ L176-179 verbatim
+@[simp]
+lemma run_ofStateless {α : Type v} (h : QueryImpl E (OracleComp I)) (A : OracleComp E α) :
+    QueryImpl.Stateful.run (ofStateless h) PUnit.unit A = simulateQ h A := by
+  simp [run, ofStateless]
+
+
+-- @@ L181-184 verbatim
+@[simp]
+lemma run_pure {α : Type v} (h : QueryImpl.Stateful I E σ) (s₀ : σ) (x : α) :
+    h.run s₀ (pure x) = pure x := by
+  simp [run]
+
+
+-- @@ L186-189 verbatim
+@[simp]
+lemma runState_pure {α : Type v} (h : QueryImpl.Stateful I E σ) (s₀ : σ) (x : α) :
+    h.runState s₀ (pure x) = pure (x, s₀) := by
+  simp [runState]
+
+
+-- @@ L191-196 verbatim
+@[simp]
+lemma runState_bind {α β : Type v} (h : QueryImpl.Stateful I E σ) (s₀ : σ)
+    (A : OracleComp E α) (f : α → OracleComp E β) :
+    h.runState s₀ (A >>= f) =
+      h.runState s₀ A >>= fun (a, s) => (simulateQ h (f a)).run s := by
+  simp [runState]
+
+
+-- @@ L198-219 verbatim
+/-- A stateful handler that transparently forwards lifted queries also
+forwards every lifted computation.
+
+The hypothesis is query-local: each lifted input query runs as the same query in
+the base interface and leaves the state unchanged. The conclusion lifts this to
+all computations by free-monad induction. -/
+theorem simulateQ_liftComp_run_of_query
+    {I₀ : OracleSpec.{uᵢ, v} ιᵢ} {M₀ : OracleSpec.{uₘ, v} ιₘ}
+    [MonadLiftT (OracleQuery I₀) (OracleQuery M₀)]
+    (h : QueryImpl.Stateful I₀ M₀ σ)
+    (hquery : ∀ (t : I₀.Domain) (s : σ),
+      (simulateQ h (OracleComp.liftComp (liftM (I₀.query t) :
+        OracleComp I₀ (I₀.Range t)) M₀)).run s =
+        (fun a => (a, s)) <$> (liftM (I₀.query t) : OracleComp I₀ (I₀.Range t)))
+    {α : Type v} (oa : OracleComp I₀ α) (s : σ) :
+    (simulateQ h (OracleComp.liftComp oa M₀)).run s =
+      (fun a => (a, s)) <$> oa := by
+  induction oa using OracleComp.inductionOn generalizing s with
+  | pure x => simp
+  | query_bind t k ih =>
+      simp only [OracleComp.liftComp_bind, simulateQ_bind, StateT.run_bind, hquery,
+        bind_map_left, map_bind, ih]
+
+
+-- @@ L221-224 verbatim
+/-- Transport a stateful handler along a state equivalence. -/
+def transportState (h : QueryImpl.Stateful I E σ) (φ : σ ≃ σ') :
+    QueryImpl.Stateful I E σ' := fun t =>
+  StateT.mk fun s' => Prod.map id φ <$> (h t).run (φ.symm s')
+
+
+-- @@ L226-229 verbatim
+@[simp]
+lemma transportState_apply_run (h : QueryImpl.Stateful I E σ) (φ : σ ≃ σ')
+    (t : E.Domain) (s' : σ') :
+    (h.transportState φ t).run s' = Prod.map id φ <$> (h t).run (φ.symm s') := rfl
+
+
+-- @@ L231-231 verbatim
+/-! ## Sequential composition -/
+
+
+-- @@ L233-246 verbatim
+/-- Sequential composition of two stateful handlers using an explicit
+state frame.
+
+The frame specifies how the outer state `σ₁` and inner state `σ₂` are viewed
+and updated inside the combined state `σ`. The linked handler reads both
+component states from the source state, runs the usual nested simulation, then
+writes back the updated outer and inner states through the frame lenses.
+-/
+def linkWith (F : Frame σ σ₁ σ₂)
+    (outer : QueryImpl.Stateful M E σ₁) (inner : QueryImpl.Stateful I M σ₂) :
+    QueryImpl.Stateful I E σ := fun t =>
+  StateT.mk fun s =>
+    F.linkReshape s <$>
+      (simulateQ inner ((outer t).run (F.left.get s))).run (F.right.get s)
+
+
+-- @@ L248-254 verbatim
+@[simp]
+lemma linkWith_apply_run (F : Frame σ σ₁ σ₂)
+    (outer : QueryImpl.Stateful M E σ₁) (inner : QueryImpl.Stateful I M σ₂)
+    (t : E.Domain) (s : σ) :
+    ((outer.linkWith F inner) t).run s =
+      F.linkReshape s <$>
+        (simulateQ inner ((outer t).run (F.left.get s))).run (F.right.get s) := rfl
+
+
+-- @@ L256-260 verbatim
+/-- Sequential composition of two stateful handlers. The outer handler exports
+`E` and imports `M`; the inner handler exports `M` and imports `I`. -/
+def link (outer : QueryImpl.Stateful M E σ₁) (inner : QueryImpl.Stateful I M σ₂) :
+    QueryImpl.Stateful I E (σ₁ × σ₂) :=
+  outer.linkWith (Frame.prod σ₁ σ₂) inner
+
+
+-- @@ L262-266 verbatim
+lemma link_impl_apply_run (outer : QueryImpl.Stateful M E σ₁)
+    (inner : QueryImpl.Stateful I M σ₂) (t : E.Domain) (s₁ : σ₁) (s₂ : σ₂) :
+    ((outer.link inner) t).run (s₁, s₂) =
+      (Frame.prod σ₁ σ₂).linkReshape (s₁, s₂) <$>
+        (simulateQ inner ((outer t).run s₁)).run s₂ := rfl
+
+
+-- @@ L268-288 verbatim
+/-- Structural form of linked simulation through an explicit state frame. -/
+theorem simulateQ_linkWith_run {α : Type v} (F : Frame σ σ₁ σ₂)
+    (outer : QueryImpl.Stateful M E σ₁) (inner : QueryImpl.Stateful I M σ₂)
+    (A : OracleComp E α) (s : σ) :
+    (simulateQ (outer.linkWith F inner) A).run s =
+      F.linkReshape s <$>
+        (simulateQ inner ((simulateQ outer A).run (F.left.get s))).run (F.right.get s) := by
+  induction A using OracleComp.inductionOn generalizing s with
+  | pure x => simp [Frame.linkReshape, PFunctor.Lens.State.put_get]
+  | query_bind t k ih =>
+    simp only [simulateQ_bind, simulateQ_query, OracleQuery.cont_query,
+      OracleQuery.input_query, id_map, StateT.run_bind, linkWith_apply_run, bind_map_left,
+      map_bind]
+    refine bind_congr fun p => ?_
+    rw [ih p.1.1 (F.right.put p.2 (F.left.put p.1.2 s)),
+      PFunctor.Lens.State.left_get_put_right, PFunctor.Lens.State.get_put,
+      PFunctor.Lens.State.get_put]
+    congr 1
+    funext z
+    simp [Frame.linkReshape, PFunctor.Lens.State.put_comm (L := F.left) (R := F.right),
+      PFunctor.Lens.State.put_put]
+
+
+-- @@ L290-297 verbatim
+/-- Structural form of linked simulation as nested simulations. -/
+theorem simulateQ_link_run {α : Type v}
+    (outer : QueryImpl.Stateful M E σ₁) (inner : QueryImpl.Stateful I M σ₂)
+    (A : OracleComp E α) (s₁ : σ₁) (s₂ : σ₂) :
+    (simulateQ (outer.link inner) A).run (s₁, s₂) =
+      (Frame.prod σ₁ σ₂).linkReshape (s₁, s₂) <$>
+        (simulateQ inner ((simulateQ outer A).run s₁)).run s₂ :=
+  simulateQ_linkWith_run (Frame.prod σ₁ σ₂) outer inner A (s₁, s₂)
+
+
+-- @@ L299-303 verbatim
+/-- Absorb a stateful outer handler and starting state into the client
+computation. -/
+def shiftLeft (outer : QueryImpl.Stateful M E σ₁) (s₀ : σ₁)
+    {α : Type v} (A : OracleComp E α) : OracleComp M α :=
+  outer.run s₀ A
+
+
+-- @@ L305-308 verbatim
+@[simp]
+lemma shiftLeft_pure (outer : QueryImpl.Stateful M E σ₁) (s₀ : σ₁) {α : Type v} (x : α) :
+    outer.shiftLeft s₀ (pure x) = pure x := by
+  simp [shiftLeft]
+
+
+-- @@ L310-313 verbatim
+lemma shiftLeft_map (outer : QueryImpl.Stateful M E σ₁) (s₀ : σ₁)
+    {α β : Type v} (f : α → β) (A : OracleComp E α) :
+    outer.shiftLeft s₀ (f <$> A) = f <$> outer.shiftLeft s₀ A := by
+  simp [shiftLeft, run]
+
+
+-- @@ L315-320 verbatim
+/-- Program-level linked-game reduction with explicit initial states. -/
+theorem run_link_eq_run_shiftLeft {α : Type v}
+    (outer : QueryImpl.Stateful M E σ₁) (inner : QueryImpl.Stateful I M σ₂)
+    (s₁ : σ₁) (s₂ : σ₂) (A : OracleComp E α) :
+    (outer.link inner).run (s₁, s₂) A = inner.run s₂ (outer.shiftLeft s₁ A) := by
+  simp [run, shiftLeft, simulateQ_link_run]
+
+
+-- @@ L322-326 verbatim
+theorem run_link_left_ofStateless {α : Type v}
+    (h : QueryImpl E (OracleComp M)) (inner : QueryImpl.Stateful I M σ₂)
+    (s₂ : σ₂) (A : OracleComp E α) :
+    ((ofStateless h).link inner).run (PUnit.unit, s₂) A = inner.run s₂ (simulateQ h A) := by
+  simp [run_link_eq_run_shiftLeft, shiftLeft]
+
+
+-- @@ L328-334 verbatim
+@[simp]
+theorem run_link_ofStateless {α : Type v}
+    (hP : QueryImpl E (OracleComp M)) (hQ : QueryImpl M (OracleComp I))
+    (A : OracleComp E α) :
+    ((ofStateless hP).link (ofStateless hQ)).run (PUnit.unit, PUnit.unit) A =
+      simulateQ hQ (simulateQ hP A) := by
+  rw [run_link_left_ofStateless, run_ofStateless]
+
+
+-- @@ L336-336 verbatim
+/-! ## Parallel composition -/
+
+
+-- @@ L338-340 verbatim
+variable {ιᵢ₁ : Type uᵢ} {ιᵢ₂ : Type uᵢ} {ιₑ₁ : Type uₑ} {ιₑ₂ : Type uₑ}
+  {I₁ : OracleSpec.{uᵢ, v} ιᵢ₁} {I₂ : OracleSpec.{uᵢ, v} ιᵢ₂}
+  {E₁ : OracleSpec.{uₑ, v} ιₑ₁} {E₂ : OracleSpec.{uₑ, v} ιₑ₂}
+
+
+-- @@ L342-353 verbatim
+/-- A typed routing of a named export interface into a two-component parallel
+composition.
+
+Each external query is owned by exactly one component. The equivalence transports
+between the external response type and the selected component response type. -/
+structure ExportRoute
+    {ιₑ : Type uₑ} (E : OracleSpec.{uₑ, v} ιₑ)
+    {ιₑ₁ : Type uₑ} (E₁ : OracleSpec.{uₑ, v} ιₑ₁)
+    {ιₑ₂ : Type uₑ} (E₂ : OracleSpec.{uₑ, v} ιₑ₂) where
+  route : (t : E.Domain) →
+    (Σ t₁ : E₁.Domain, E.Range t ≃ E₁.Range t₁) ⊕
+    (Σ t₂ : E₂.Domain, E.Range t ≃ E₂.Range t₂)
+
+
+-- @@ L355-355 verbatim
+namespace ExportRoute
+
+
+-- @@ L357-362 verbatim
+/-- The tagged component query selected by an export route. -/
+def target {ιₑ : Type uₑ} {E : OracleSpec.{uₑ, v} ιₑ}
+    (R : ExportRoute E E₁ E₂) (t : E.Domain) : E₁.Domain ⊕ E₂.Domain :=
+  match R.route t with
+  | .inl q => .inl q.1
+  | .inr q => .inr q.1
+
+
+-- @@ L364-368 verbatim
+/-- The canonical route for the sum of two export interfaces. -/
+def sum : ExportRoute (E₁ + E₂) E₁ E₂ where
+  route
+    | .inl t => .inl ⟨t, Equiv.refl _⟩
+    | .inr t => .inr ⟨t, Equiv.refl _⟩
+
+
+-- @@ L370-370 verbatim
+end ExportRoute
+
+
+-- @@ L372-384 verbatim
+/-- An export route with no aliases.
+
+This says the named external interface is injective into the tagged component
+query space. It is the right assumption for transporting query-count predicates
+from a routed interface to its component interfaces without double-counting
+aliases. -/
+structure LawfulExportRoute
+    {ιₑ : Type uₑ} (E : OracleSpec.{uₑ, v} ιₑ)
+    {ιₑ₁ : Type uₑ} (E₁ : OracleSpec.{uₑ, v} ιₑ₁)
+    {ιₑ₂ : Type uₑ} (E₂ : OracleSpec.{uₑ, v} ιₑ₂)
+    extends ExportRoute E E₁ E₂ where
+  /-- The route does not alias two external query names to one tagged component query. -/
+  target_injective : Function.Injective toExportRoute.target
+
+
+-- @@ L386-399 verbatim
+/-- A named export interface that is equivalent to the sum of two component
+interfaces.
+
+This is the strongest route law: every component query is exposed exactly once,
+and every external query is a named presentation of a tagged component query. -/
+structure ExportRouteEquiv
+    {ιₑ : Type uₑ} (E : OracleSpec.{uₑ, v} ιₑ)
+    {ιₑ₁ : Type uₑ} (E₁ : OracleSpec.{uₑ, v} ιₑ₁)
+    {ιₑ₂ : Type uₑ} (E₂ : OracleSpec.{uₑ, v} ιₑ₂)
+    extends ExportRoute E E₁ E₂ where
+  /-- The query-domain equivalence induced by the route. -/
+  targetEquiv : E.Domain ≃ E₁.Domain ⊕ E₂.Domain
+  /-- The route's tagged target agrees with `targetEquiv`. -/
+  target_eq : ∀ t, toExportRoute.target t = targetEquiv t
+
+
+-- @@ L401-401 verbatim
+namespace ExportRouteEquiv
+
+
+-- @@ L403-411 verbatim
+/-- Forget an equivalence route to a no-alias lawful route. -/
+def toLawfulExportRoute
+    {ιₑ : Type uₑ} {E : OracleSpec.{uₑ, v} ιₑ}
+    (R : ExportRouteEquiv E E₁ E₂) : LawfulExportRoute E E₁ E₂ where
+  toExportRoute := R.toExportRoute
+  target_injective := by
+    intro t₁ t₂ h
+    apply R.targetEquiv.injective
+    rwa [← R.target_eq t₁, ← R.target_eq t₂]
+
+
+-- @@ L413-417 verbatim
+/-- The canonical equivalence route for the sum of two export interfaces. -/
+def sum : ExportRouteEquiv (E₁ + E₂) E₁ E₂ where
+  toExportRoute := ExportRoute.sum
+  targetEquiv := Equiv.refl _
+  target_eq t := by cases t <;> rfl
+
+
+-- @@ L419-419 verbatim
+end ExportRouteEquiv
+
+
+-- @@ L421-443 verbatim
+/-- Parallel composition of two stateful handlers over a named export interface
+using an explicit state frame and ambient import interface.
+
+The frame specifies where each side's private state lives in the shared source
+state. A left query updates only the left view, and a right query updates only
+the right view. The frame's separation law records that these two updates are
+non-interfering.
+-/
+def parRouteWith
+    {ιᵢ : Type uᵢ} {I : OracleSpec.{uᵢ, v} ιᵢ} {ιₑ : Type uₑ}
+    {E : OracleSpec.{uₑ, v} ιₑ} (F : Frame σ σ₁ σ₂)
+    (R : ExportRoute E E₁ E₂)
+    [MonadLiftT (OracleQuery I₁) (OracleQuery I)]
+    [MonadLiftT (OracleQuery I₂) (OracleQuery I)]
+    (h₁ : QueryImpl.Stateful I₁ E₁ σ₁) (h₂ : QueryImpl.Stateful I₂ E₂ σ₂) :
+    QueryImpl.Stateful I E σ := fun t =>
+  match R.route t with
+  | .inl q => StateT.mk fun s =>
+      (Prod.map q.2.symm fun s₁' => F.left.put s₁' s) <$>
+        liftComp ((h₁ q.1).run (F.left.get s)) I
+  | .inr q => StateT.mk fun s =>
+      (Prod.map q.2.symm fun s₂' => F.right.put s₂' s) <$>
+        liftComp ((h₂ q.1).run (F.right.get s)) I
+
+
+-- @@ L445-454 verbatim
+/-- Parallel composition of two stateful handlers over a named export interface
+and canonical product state. -/
+def parRoute
+    {ιᵢ : Type uᵢ} {I : OracleSpec.{uᵢ, v} ιᵢ} {ιₑ : Type uₑ}
+    {E : OracleSpec.{uₑ, v} ιₑ} (R : ExportRoute E E₁ E₂)
+    [MonadLiftT (OracleQuery I₁) (OracleQuery I)]
+    [MonadLiftT (OracleQuery I₂) (OracleQuery I)]
+    (h₁ : QueryImpl.Stateful I₁ E₁ σ₁) (h₂ : QueryImpl.Stateful I₂ E₂ σ₂) :
+    QueryImpl.Stateful I E (σ₁ × σ₂) :=
+  parRouteWith (Frame.prod σ₁ σ₂) R h₁ h₂
+
+
+-- @@ L456-464 verbatim
+/-- Parallel composition of two stateful handlers using an explicit state
+frame and ambient import interface. The export interface is the canonical sum. -/
+def parWithImports
+    {ιᵢ : Type uᵢ} {I : OracleSpec.{uᵢ, v} ιᵢ} (F : Frame σ σ₁ σ₂)
+    [MonadLiftT (OracleQuery I₁) (OracleQuery I)]
+    [MonadLiftT (OracleQuery I₂) (OracleQuery I)]
+    (h₁ : QueryImpl.Stateful I₁ E₁ σ₁) (h₂ : QueryImpl.Stateful I₂ E₂ σ₂) :
+    QueryImpl.Stateful I (E₁ + E₂) σ :=
+  parRouteWith F ExportRoute.sum h₁ h₂
+
+
+-- @@ L466-477 expanded
+/-- Routed parallel composition over an ambient import interface whose two
+component import embeddings are known to have disjoint query images. The
+implementation is the same as `parRouteWith`; the extra hypothesis is available
+to downstream proofs that need sum-like import separation. -/
+def parRouteSeparatedWith {ιᵢ : Type uᵢ} {I : OracleSpec.{uᵢ, v} ιᵢ} {ιₑ : Type uₑ}
+    {E : OracleSpec.{uₑ, v} ιₑ} (F : Frame σ σ₁ σ₂) (R : ExportRoute E E₁ E₂) [SubSpec I₁ I]
+    [LawfulSubSpec I₁ I] [SubSpec I₂ I] [LawfulSubSpec I₂ I] [DisjointSubSpec I₁ I₂ I]
+    (h₁ : QueryImpl.Stateful I₁ E₁ σ₁) (h₂ : QueryImpl.Stateful I₂ E₂ σ₂) :
+    QueryImpl.Stateful I E σ :=
+  parRouteWith F R h₁ h₂
+
+
+-- @@ L479-489 verbatim
+/-- Parallel composition of two stateful handlers using an explicit state
+frame and disjoint sum import and export interfaces. -/
+def parSumWith (F : Frame σ σ₁ σ₂)
+    (h₁ : QueryImpl.Stateful I₁ E₁ σ₁) (h₂ : QueryImpl.Stateful I₂ E₂ σ₂) :
+    QueryImpl.Stateful (I₁ + I₂) (E₁ + E₂) σ
+  | .inl t => StateT.mk fun s =>
+      (Prod.map id fun s₁' => F.left.put s₁' s) <$>
+        liftComp ((h₁ t).run (F.left.get s)) (I₁ + I₂)
+  | .inr t => StateT.mk fun s =>
+      (Prod.map id fun s₂' => F.right.put s₂' s) <$>
+        liftComp ((h₂ t).run (F.right.get s)) (I₁ + I₂)
+
+
+-- @@ L491-497 verbatim
+@[simp]
+lemma parSumWith_apply_inl_run (F : Frame σ σ₁ σ₂)
+    (h₁ : QueryImpl.Stateful I₁ E₁ σ₁) (h₂ : QueryImpl.Stateful I₂ E₂ σ₂)
+    (t : E₁.Domain) (s : σ) :
+    ((h₁.parSumWith F h₂) (Sum.inl t)).run s =
+      (Prod.map id fun s₁' => F.left.put s₁' s) <$>
+        liftComp ((h₁ t).run (F.left.get s)) (I₁ + I₂) := rfl
+
+
+-- @@ L499-505 verbatim
+@[simp]
+lemma parSumWith_apply_inr_run (F : Frame σ σ₁ σ₂)
+    (h₁ : QueryImpl.Stateful I₁ E₁ σ₁) (h₂ : QueryImpl.Stateful I₂ E₂ σ₂)
+    (t : E₂.Domain) (s : σ) :
+    ((h₁.parSumWith F h₂) (Sum.inr t)).run s =
+      (Prod.map id fun s₂' => F.right.put s₂' s) <$>
+        liftComp ((h₂ t).run (F.right.get s)) (I₁ + I₂) := rfl
+
+
+-- @@ L507-510 verbatim
+/-- Parallel composition of two stateful handlers over disjoint sum interfaces. -/
+def parSum (h₁ : QueryImpl.Stateful I₁ E₁ σ₁) (h₂ : QueryImpl.Stateful I₂ E₂ σ₂) :
+    QueryImpl.Stateful (I₁ + I₂) (E₁ + E₂) (σ₁ × σ₂) :=
+  h₁.parSumWith (Frame.prod σ₁ σ₂) h₂
+
+
+-- @@ L512-516 verbatim
+@[simp]
+lemma parSum_apply_inl_run (h₁ : QueryImpl.Stateful I₁ E₁ σ₁)
+    (h₂ : QueryImpl.Stateful I₂ E₂ σ₂) (t : E₁.Domain) (s₁ : σ₁) (s₂ : σ₂) :
+    ((h₁.parSum h₂) (Sum.inl t)).run (s₁, s₂) =
+      (Prod.map id (·, s₂)) <$> liftComp ((h₁ t).run s₁) (I₁ + I₂) := rfl
+
+
+-- @@ L518-522 verbatim
+@[simp]
+lemma parSum_apply_inr_run (h₁ : QueryImpl.Stateful I₁ E₁ σ₁)
+    (h₂ : QueryImpl.Stateful I₂ E₂ σ₂) (t : E₂.Domain) (s₁ : σ₁) (s₂ : σ₂) :
+    ((h₁.parSum h₂) (Sum.inr t)).run (s₁, s₂) =
+      (Prod.map id (s₁, ·)) <$> liftComp ((h₂ t).run s₂) (I₁ + I₂) := rfl
+
+
+-- @@ L524-524 verbatim
+end Stateful
+
+
+-- @@ L526-526 verbatim
+end QueryImpl

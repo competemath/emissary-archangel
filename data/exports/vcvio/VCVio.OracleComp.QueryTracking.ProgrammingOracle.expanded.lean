@@ -1,0 +1,600 @@
+/-
+Copyright (c) 2026 Quang Dao. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Quang Dao
+-/
+
+module
+public import VCVio.OracleComp.QueryTracking.CachingOracle
+public import VCVio.OracleComp.SimSemantics.StateT.StateProjection
+
+
+-- @@ L11-50 verbatim
+/-!
+# Programmable Oracles
+
+This file defines combinators for **programming** an oracle: forcing chosen query points to
+return chosen pre-decided values, with a bookkeeping flag tracking whether the programming has
+been used (the canonical "bad event" of the identical-until-bad pattern).
+
+## Main definitions
+
+- `OracleSpec.ProgrammingPolicy spec` — partial function `t ↦ Option (programmed answer)`.
+- `OracleSpec.ProgrammingPolicy.empty` — the all-`none` policy (no programming).
+- `QueryImpl.withRedirect so redirect` — replace every query with a user-supplied callback.
+- `QueryImpl.withProgramming so policy` — wrap `so` in `StateT (QueryCache × Bool)` so that
+  policy hits override the underlying impl, set the bad flag, and are cached for consistency.
+
+## Design notes
+
+The state of `withProgramming` is `(QueryCache × Bool)`:
+
+* The `QueryCache` ensures *consistent answering*: re-querying a programmed point returns the
+  same value (so the adversary cannot detect programming via repeat queries).
+* The `Bool` flag is set the **first time** the policy fires on an uncached query — i.e. when
+  the programming would be observable relative to standard caching semantics. This is the
+  canonical bad event for the identical-until-bad bound coming in a follow-up PR.
+
+The flag is monotone (`bad_monotone`): once set, it stays set throughout execution. With the
+empty policy, the flag stays `false` and the impl is structurally an `extendState`-lift of
+`withCaching` (`withProgramming_empty_run_proj_eq`).
+
+## Auxiliary tracker
+
+`QueryImpl.withCachingTrackingPolicy so policy` is `withCaching so` lifted to
+`StateT (QueryCache × Bool) m`, with the bad flag set on the same cache-miss-and-policy-fire
+condition as `withProgramming` but **without actually programming**: the oracle is queried
+normally and the (fresh) value is cached. Its purpose is to be the relational bridge between
+`withCaching` (cache-side projection) and `withProgramming` (the "identical-until-bad" partner
+of `withProgramming`); see `OracleComp.ProgramLogic.Relational.ProgrammingOracle` for the
+actual TV-distance bound (`tvDist_simulateQ_withCaching_withProgramming_le_probEvent_bad`)
+and its `programming_collision_bound{,_qP_qH_β}` repackagings.
+-/
+
+
+-- @@ L52-52 verbatim
+@[expose] public section
+
+
+-- @@ L54-54 verbatim
+universe u v
+
+
+-- @@ L56-56 verbatim
+open OracleComp OracleSpec
+
+
+-- @@ L58-58 verbatim
+variable {ι : Type u} [DecidableEq ι] {spec : OracleSpec ι}
+
+
+-- @@ L60-60 verbatim
+namespace OracleSpec
+
+
+-- @@ L62-67 verbatim
+/-- A programming policy: a partial assignment of programmed answers to oracle inputs.
+
+`policy t = some v` means "force the oracle to return `v` when queried at `t`".
+`policy t = none` means "leave the oracle unchanged at `t`". -/
+def ProgrammingPolicy (spec : OracleSpec ι) : Type _ :=
+  (t : spec.Domain) → Option (spec.Range t)
+
+
+-- @@ L69-69 verbatim
+namespace ProgrammingPolicy
+
+
+-- @@ L71-71 verbatim
+instance : Inhabited (ProgrammingPolicy spec) := ⟨fun _ => none⟩
+
+
+-- @@ L73-75 verbatim
+/-- The empty programming policy: no point is programmed. Specializing `withProgramming` to
+this policy recovers `withCaching` (modulo the auxiliary `Bool` flag). -/
+@[reducible] def empty : ProgrammingPolicy spec := fun _ => none
+
+
+-- @@ L77-79 verbatim
+omit [DecidableEq ι] in
+@[simp] lemma empty_apply (t : spec.Domain) :
+    (empty : ProgrammingPolicy spec) t = none := rfl
+
+
+-- @@ L81-81 verbatim
+end ProgrammingPolicy
+
+
+-- @@ L83-83 verbatim
+end OracleSpec
+
+
+-- @@ L85-85 verbatim
+namespace QueryImpl
+
+
+-- @@ L87-87 verbatim
+variable {m : Type u → Type v} [Monad m]
+
+
+-- @@ L89-89 verbatim
+/-! ## Redirect -/
+
+
+-- @@ L91-100 verbatim
+/-- Redirect every oracle query to a user-supplied callback. The base impl `so` is **discarded**
+on every query, and `redirect t : m (spec.Range t)` is consulted instead.
+
+`withRedirect so redirect = redirect` definitionally; the named wrapper exists to expose intent
+at call sites and to compose with `withProgramming` (which uses `withRedirect` internally for the
+"programmed branch" of each query). -/
+def withRedirect (_so : QueryImpl spec m)
+    (redirect : (t : spec.Domain) → m (spec.Range t)) :
+    QueryImpl spec m :=
+  redirect
+
+
+-- @@ L102-105 verbatim
+omit [DecidableEq ι] [Monad m] in
+@[simp] lemma withRedirect_apply (so : QueryImpl spec m)
+    (redirect : (t : spec.Domain) → m (spec.Range t)) (t : spec.Domain) :
+    so.withRedirect redirect t = redirect t := rfl
+
+
+-- @@ L107-107 verbatim
+/-! ## Programming -/
+
+
+-- @@ L109-129 verbatim
+/-- Wrap a query implementation `so` to honor a programming `policy`.
+
+State: `StateT (spec.QueryCache × Bool) m`.
+
+* The `QueryCache` is consulted first; cache hits return the cached value (consistent answers
+  on repeated queries).
+* On a cache miss:
+  * `policy t = some v` → return `v`, cache it, **set the bad flag**.
+  * `policy t = none` → fall through to `so t`, cache the result, leave the flag untouched.
+
+Specialising to `policy = ProgrammingPolicy.empty` recovers `withCaching` lifted via
+`extendState`; see `withProgramming_empty_run_proj_eq`. -/
+def withProgramming
+    (so : QueryImpl spec m) (policy : ProgrammingPolicy spec) :
+    QueryImpl spec (StateT (spec.QueryCache × Bool) m) :=
+  withCachingAux
+    (fun _ _ _ bad => bad)
+    (fun (t : spec.Domain) (_ : spec.QueryCache) (bad : Bool) =>
+      match policy t with
+      | some v => (pure (v, true) : m (spec.Range t × Bool))
+      | none => (fun u => (u, bad)) <$> so t)
+
+
+-- @@ L131-140 verbatim
+@[simp] lemma withProgramming_apply (so : QueryImpl spec m) (policy : ProgrammingPolicy spec)
+    (t : spec.Domain) :
+    so.withProgramming policy t =
+      StateT.mk fun s => match s.1 t with
+      | some v => pure (v, s)
+      | none =>
+          (fun p : spec.Range t × Bool => (p.1, (s.1.cacheQuery t p.1, p.2))) <$>
+            (match policy t with
+            | some v => pure (v, true)
+            | none => (fun u => (u, s.2)) <$> so t) := rfl
+
+
+-- @@ L142-142 verbatim
+/-! ## Bad-flag monotonicity -/
+
+
+-- @@ L144-144 verbatim
+variable [LawfulMonad m] [MonadLiftT m SetM] [LawfulMonadLiftT m SetM]
+
+
+-- @@ L146-169 verbatim
+/-- The bad flag of `withProgramming` is monotone: once set, every query keeps it set. -/
+lemma withProgramming_bad_monotone
+    (so : QueryImpl spec m) (policy : ProgrammingPolicy spec) (t : spec.Domain)
+    (cache : spec.QueryCache) (z)
+    (hz : z ∈ support ((so.withProgramming policy t).run (cache, true))) :
+    z.2.2 = true := by
+  simpa [withProgramming] using withCachingAux_aux_inv_of_mem
+    (hit := fun _ _ _ bad => bad)
+    (miss := fun (t : spec.Domain) (_ : spec.QueryCache) (bad : Bool) =>
+      match policy t with
+      | some v => (pure (v, true) : m (spec.Range t × Bool))
+      | none => (fun u => (u, bad)) <$> so t)
+    (inv := fun bad => bad = true)
+    (fun _ _ _ _ hbad => hbad)
+    (by
+      intro t _ bad hbad p hp
+      cases hpol : policy t with
+      | some v => rw [show p = (v, true) by simpa [hpol] using hp]
+      | none =>
+          simp only [hpol] at hp
+          rw [support_map] at hp
+          rcases hp with ⟨u, _, hp⟩
+          rw [← hp, hbad])
+    rfl hz
+
+
+-- @@ L171-178 verbatim
+/-- `PreservesInv` packaging of `withProgramming_bad_monotone` for `ProbComp`. -/
+lemma PreservesInv.withProgramming_bad
+    {ι₀ : Type} {spec₀ : OracleSpec.{0, 0} ι₀} [DecidableEq ι₀]
+    (so : QueryImpl spec₀ ProbComp) (policy : ProgrammingPolicy spec₀) :
+    QueryImpl.PreservesInv (so.withProgramming policy)
+      (fun (s : spec₀.QueryCache × Bool) => s.2 = true) := by
+  rintro t ⟨cache, _⟩ rfl
+  exact withProgramming_bad_monotone so policy t cache
+
+
+-- @@ L180-180 verbatim
+/-! ## Tracker partner of `withProgramming` -/
+
+
+-- @@ L182-200 verbatim
+/-- `withCaching` lifted to `StateT (QueryCache × Bool) m` with the bad flag set on
+exactly the same cache-miss-and-policy-fire condition as `withProgramming`, but **without
+actually programming**: the underlying oracle is queried normally and the fresh value `u` is
+cached.
+
+This is the "identical-until-bad" partner of `withProgramming`: at every step they either
+* produce the same `(value, cache, bad)` distribution (cache hit, or cache miss with no policy
+  hit), or
+* both produce a step whose output flags `bad := true`, with possibly different `value`/`cache`
+  components on the bad branch.
+
+That is the exact shape needed to apply the output-bad version of "identical until bad". -/
+def withCachingTrackingPolicy
+    (so : QueryImpl spec m) (policy : ProgrammingPolicy spec) :
+    QueryImpl spec (StateT (spec.QueryCache × Bool) m) :=
+  withCachingAux
+    (fun _ _ _ bad => bad)
+    (fun (t : spec.Domain) (_ : spec.QueryCache) (bad : Bool) =>
+      (fun u => (u, if (policy t).isSome then true else bad)) <$> so t)
+
+
+-- @@ L202-210 verbatim
+omit [LawfulMonad m] [MonadLiftT m SetM] in
+@[simp] lemma withCachingTrackingPolicy_apply
+    (so : QueryImpl spec m) (policy : ProgrammingPolicy spec) (t : spec.Domain) :
+    so.withCachingTrackingPolicy policy t =
+      StateT.mk fun s => match s.1 t with
+      | some v => pure (v, s)
+      | none =>
+          (fun p : spec.Range t × Bool => (p.1, (s.1.cacheQuery t p.1, p.2))) <$>
+            ((fun u => (u, if (policy t).isSome then true else s.2)) <$> so t) := rfl
+
+
+-- @@ L212-231 verbatim
+/-- The bad flag of `withCachingTrackingPolicy` is monotone: once set, every query keeps it
+set. -/
+lemma withCachingTrackingPolicy_bad_monotone
+    (so : QueryImpl spec m) (policy : ProgrammingPolicy spec) (t : spec.Domain)
+    (cache : spec.QueryCache) (z)
+    (hz : z ∈ support ((so.withCachingTrackingPolicy policy t).run (cache, true))) :
+    z.2.2 = true := by
+  simpa [withCachingTrackingPolicy] using withCachingAux_aux_inv_of_mem
+    (hit := fun _ _ _ bad => bad)
+    (miss := fun (t : spec.Domain) (_ : spec.QueryCache) (bad : Bool) =>
+      (fun u => (u, if (policy t).isSome then true else bad)) <$> so t)
+    (inv := fun bad => bad = true)
+    (fun _ _ _ _ hbad => hbad)
+    (by
+      intro t _ bad hbad p hp
+      rw [support_map] at hp
+      rcases hp with ⟨u, _, hp⟩
+      rw [← hp]
+      by_cases hpol : (policy t).isSome <;> simp [hpol, hbad])
+    rfl hz
+
+
+-- @@ L233-240 verbatim
+/-- `PreservesInv` packaging of `withCachingTrackingPolicy_bad_monotone` for `ProbComp`. -/
+lemma PreservesInv.withCachingTrackingPolicy_bad
+    {ι₀ : Type} {spec₀ : OracleSpec.{0, 0} ι₀} [DecidableEq ι₀]
+    (so : QueryImpl spec₀ ProbComp) (policy : ProgrammingPolicy spec₀) :
+    QueryImpl.PreservesInv (so.withCachingTrackingPolicy policy)
+      (fun (s : spec₀.QueryCache × Bool) => s.2 = true) := by
+  rintro t ⟨cache, _⟩ rfl
+  exact withCachingTrackingPolicy_bad_monotone so policy t cache
+
+
+-- @@ L242-242 verbatim
+end QueryImpl
+
+
+-- @@ L244-244 verbatim
+/-! ## `withProgramming empty` ≡ `withCaching` (cache-side projection) -/
+
+
+-- @@ L246-246 verbatim
+namespace OracleComp.ProgramLogic.Relational
+
+
+-- @@ L248-248 verbatim
+variable {α : Type} [IsUniformSpec spec]
+
+
+-- @@ L250-268 verbatim
+/-- Cache-side projection: running `withProgramming so empty` and projecting away the bad flag
+gives the same distribution as running `so.withCaching` directly.
+
+This is the "specializes to caching" sanity check for `withProgramming`, witnessing that the
+empty policy adds no observable behavior beyond `withCaching` plus a trivial bookkeeping flag. -/
+theorem withProgramming_empty_run_proj_eq
+    {ι : Type} [DecidableEq ι] {spec : OracleSpec ι} (so : QueryImpl spec ProbComp)
+    (oa : OracleComp spec α) (cache : spec.QueryCache) (bad : Bool) :
+    Prod.map id Prod.fst <$>
+        (simulateQ (so.withProgramming ProgrammingPolicy.empty) oa).run (cache, bad) =
+      (simulateQ so.withCaching oa).run cache := by
+  simpa [QueryImpl.withProgramming, ProgrammingPolicy.empty] using
+    (QueryImpl.withCachingAux_run_proj_eq
+      (base := so)
+      (hit := fun _ _ _ bad => bad)
+      (miss := fun (t : spec.Domain) (_ : spec.QueryCache) (bad : Bool) =>
+        (fun u => (u, bad)) <$> so t)
+      (hmiss := by simp)
+      (oa := oa) (cache := cache) (q := bad))
+
+
+-- @@ L270-282 verbatim
+/-- `run'` projection corollary of `withProgramming_empty_run_proj_eq`. -/
+theorem withProgramming_empty_run'_eq
+    {ι : Type} [DecidableEq ι] {spec : OracleSpec ι} (so : QueryImpl spec ProbComp)
+    (oa : OracleComp spec α) (cache : spec.QueryCache) (bad : Bool) :
+    (simulateQ (so.withProgramming ProgrammingPolicy.empty) oa).run' (cache, bad) =
+      (simulateQ so.withCaching oa).run' cache := by
+  rw [StateT.run', StateT.run']
+  have hmap := congrArg (fun p => Prod.fst <$> p)
+    (withProgramming_empty_run_proj_eq so oa cache bad)
+  change (fun a => id a.1) <$>
+      (simulateQ (so.withProgramming ProgrammingPolicy.empty) oa).run (cache, bad) =
+    Prod.fst <$> (simulateQ so.withCaching oa).run cache
+  simpa only [Functor.map_map, Function.comp_def, Prod.map] using hmap
+
+
+-- @@ L284-284 verbatim
+/-! ## `withCachingTrackingPolicy` ≡ `withCaching` (cache-side projection) -/
+
+
+-- @@ L286-303 verbatim
+/-- Cache-side projection (general spec'): running `so.withCachingTrackingPolicy policy` and
+projecting away the bad flag gives the same distribution as running `so.withCaching` directly,
+irrespective of the initial bad value or the policy used to compute the (discarded) tracking. -/
+theorem withCachingTrackingPolicy_run_proj_eq'
+    {ι ι' : Type} [DecidableEq ι] {spec : OracleSpec ι} {spec' : OracleSpec ι'}
+    (so : QueryImpl spec (OracleComp spec')) (policy : ProgrammingPolicy spec)
+    (oa : OracleComp spec α) (cache : spec.QueryCache) (bad : Bool) :
+    Prod.map id Prod.fst <$>
+        (simulateQ (so.withCachingTrackingPolicy policy) oa).run (cache, bad) =
+      (simulateQ so.withCaching oa).run cache := by
+  simpa [QueryImpl.withCachingTrackingPolicy] using
+    (QueryImpl.withCachingAux_run_proj_eq
+      (base := so)
+      (hit := fun _ _ _ bad => bad)
+      (miss := fun (t : spec.Domain) (_ : spec.QueryCache) (bad : Bool) =>
+        (fun u => (u, if (policy t).isSome then true else bad)) <$> so t)
+      (hmiss := by simp)
+      (oa := oa) (cache := cache) (q := bad))
+
+
+-- @@ L305-318 verbatim
+/-- `run'` projection corollary of `withCachingTrackingPolicy_run_proj_eq'`. -/
+theorem withCachingTrackingPolicy_run'_eq'
+    {ι ι' : Type} [DecidableEq ι] {spec : OracleSpec ι} {spec' : OracleSpec ι'}
+    (so : QueryImpl spec (OracleComp spec')) (policy : ProgrammingPolicy spec)
+    (oa : OracleComp spec α) (cache : spec.QueryCache) (bad : Bool) :
+    (simulateQ (so.withCachingTrackingPolicy policy) oa).run' (cache, bad) =
+      (simulateQ so.withCaching oa).run' cache := by
+  rw [StateT.run', StateT.run']
+  have hmap := congrArg (fun p => Prod.fst <$> p)
+    (withCachingTrackingPolicy_run_proj_eq' so policy oa cache bad)
+  change (fun a => id a.1) <$>
+      (simulateQ (so.withCachingTrackingPolicy policy) oa).run (cache, bad) =
+    Prod.fst <$> (simulateQ so.withCaching oa).run cache
+  simpa only [Functor.map_map, Function.comp_def, Prod.map] using hmap
+
+
+-- @@ L320-328 verbatim
+/-- `ProbComp` specialization of `withCachingTrackingPolicy_run_proj_eq'`. -/
+theorem withCachingTrackingPolicy_run_proj_eq
+    {ι : Type} [DecidableEq ι] {spec : OracleSpec ι}
+    (so : QueryImpl spec ProbComp) (policy : ProgrammingPolicy spec)
+    (oa : OracleComp spec α) (cache : spec.QueryCache) (bad : Bool) :
+    Prod.map id Prod.fst <$>
+        (simulateQ (so.withCachingTrackingPolicy policy) oa).run (cache, bad) =
+      (simulateQ so.withCaching oa).run cache :=
+  withCachingTrackingPolicy_run_proj_eq' so policy oa cache bad
+
+
+-- @@ L330-337 verbatim
+/-- `ProbComp` specialization of `withCachingTrackingPolicy_run'_eq'`. -/
+theorem withCachingTrackingPolicy_run'_eq
+    {ι : Type} [DecidableEq ι] {spec : OracleSpec ι}
+    (so : QueryImpl spec ProbComp) (policy : ProgrammingPolicy spec)
+    (oa : OracleComp spec α) (cache : spec.QueryCache) (bad : Bool) :
+    (simulateQ (so.withCachingTrackingPolicy policy) oa).run' (cache, bad) =
+      (simulateQ so.withCaching oa).run' cache :=
+  withCachingTrackingPolicy_run'_eq' so policy oa cache bad
+
+
+-- @@ L339-342 verbatim
+/-! ### Forward query bounds for `withCachingTrackingPolicy`
+
+The bad-flag overlay projects away to `withCaching` (via `withCachingTrackingPolicy_run_proj_eq'`)
+and makes no underlying queries, so the `withCaching` bounds transfer directly. -/
+
+
+-- @@ L344-357 verbatim
+theorem isTotalQueryBound_run_simulateQ_withCachingTrackingPolicy
+    {ι ι' : Type} [DecidableEq ι] {spec : OracleSpec ι} {spec' : OracleSpec ι'}
+    [IsUniformSpec spec']
+    (so : QueryImpl spec (OracleComp spec')) (policy : ProgrammingPolicy spec)
+    {oa : OracleComp spec α} {n : ℕ}
+    (h : OracleComp.IsTotalQueryBound oa n)
+    (hstep : ∀ t, OracleComp.IsTotalQueryBound (so t) 1)
+    (cache : spec.QueryCache) (bad : Bool) :
+    OracleComp.IsTotalQueryBound
+      ((simulateQ (so.withCachingTrackingPolicy policy) oa).run (cache, bad)) n :=
+  (OracleComp.isQueryBound_iff_of_map_eq
+      (withCachingTrackingPolicy_run_proj_eq' so policy oa cache bad) _ _).mpr
+    (OracleComp.IsTotalQueryBound.simulateQ_run_withCaching
+      (spec := spec) (spec' := spec') so h hstep cache)
+
+
+-- @@ L359-373 verbatim
+theorem isQueryBoundP_run_simulateQ_withCachingTrackingPolicy
+    {ι ι' : Type} [DecidableEq ι] {spec : OracleSpec ι} {spec' : OracleSpec ι'}
+    [IsUniformSpec spec']
+    (so : QueryImpl spec (OracleComp spec')) (policy : ProgrammingPolicy spec)
+    {oa : OracleComp spec α}
+    {p : ι → Prop} [DecidablePred p] {q : ι' → Prop} [DecidablePred q] {n : ℕ}
+    (h : OracleComp.IsQueryBoundP oa p n)
+    (hstep_p : ∀ t, p t → OracleComp.IsQueryBoundP (so t) q 1)
+    (hstep_np : ∀ t, ¬ p t → OracleComp.IsQueryBoundP (so t) q 0)
+    (cache : spec.QueryCache) (bad : Bool) :
+    OracleComp.IsQueryBoundP
+      ((simulateQ (so.withCachingTrackingPolicy policy) oa).run (cache, bad)) q n :=
+  (OracleComp.isQueryBoundP_iff_of_map_eq
+      (withCachingTrackingPolicy_run_proj_eq' so policy oa cache bad)).mpr
+    (OracleComp.IsQueryBoundP.simulateQ_run_withCaching so h hstep_p hstep_np cache)
+
+
+-- @@ L375-386 verbatim
+theorem isPerIndexQueryBound_run_simulateQ_withCachingTrackingPolicy
+    {ι : Type} [DecidableEq ι] {spec : OracleSpec ι} [IsUniformSpec spec]
+    (so : QueryImpl spec (OracleComp spec)) (policy : ProgrammingPolicy spec)
+    {oa : OracleComp spec α} {qb : ι → ℕ}
+    (h : OracleComp.IsPerIndexQueryBound oa qb)
+    (hstep : ∀ t, OracleComp.IsPerIndexQueryBound (so t) (Function.update 0 t 1))
+    (cache : spec.QueryCache) (bad : Bool) :
+    OracleComp.IsPerIndexQueryBound
+      ((simulateQ (so.withCachingTrackingPolicy policy) oa).run (cache, bad)) qb :=
+  (OracleComp.isPerIndexQueryBound_iff_of_map_eq
+      (withCachingTrackingPolicy_run_proj_eq' so policy oa cache bad)).mpr
+    (OracleComp.IsPerIndexQueryBound.simulateQ_run_withCaching so h hstep cache)
+
+
+-- @@ L388-393 verbatim
+/-! ### Forward query bounds for `withProgramming`
+
+A wrapped step makes ≤ 1 underlying query (zero on a cache hit or programmed value, one on
+a true miss). Unlike `withCachingTrackingPolicy`, the policy can short-circuit on cache
+miss, so the proof case-splits on cache × policy rather than reusing the `withCaching`
+projection. -/
+
+
+-- @@ L395-395 verbatim
+section WithProgrammingBounds
+
+
+-- @@ L397-398 verbatim
+variable {ι ι' : Type} [DecidableEq ι] {spec : OracleSpec ι} {spec' : OracleSpec ι'}
+  [IsUniformSpec spec']
+
+
+-- @@ L400-415 verbatim
+omit [IsUniformSpec spec'] in
+private lemma isTotalQueryBound_run_withProgramming
+    (so : QueryImpl spec (OracleComp spec')) (policy : ProgrammingPolicy spec)
+    (t : spec.Domain) {n : ℕ} (h : OracleComp.IsTotalQueryBound (so t) n)
+    (s : spec.QueryCache × Bool) :
+    OracleComp.IsTotalQueryBound ((so.withProgramming policy t).run s) n := by
+  obtain ⟨cache, _⟩ := s
+  simp only [QueryImpl.withProgramming_apply, StateT.run_mk]
+  cases cache t with
+  | some _ => trivial
+  | none =>
+    cases policy t with
+    | some _ => exact (OracleComp.isQueryBound_map_iff _ _ _ _ _).mpr trivial
+    | none =>
+      exact (OracleComp.isQueryBound_map_iff _ _ _ _ _).mpr
+        ((OracleComp.isQueryBound_map_iff _ _ _ _ _).mpr h)
+
+
+-- @@ L417-432 verbatim
+omit [IsUniformSpec spec'] in
+private lemma isQueryBoundP_run_withProgramming
+    (so : QueryImpl spec (OracleComp spec')) (policy : ProgrammingPolicy spec)
+    (t : spec.Domain) {q : ι' → Prop} [DecidablePred q] {n : ℕ}
+    (h : OracleComp.IsQueryBoundP (so t) q n) (s : spec.QueryCache × Bool) :
+    OracleComp.IsQueryBoundP ((so.withProgramming policy t).run s) q n := by
+  obtain ⟨cache, _⟩ := s
+  simp only [QueryImpl.withProgramming_apply, StateT.run_mk]
+  cases cache t with
+  | some _ => trivial
+  | none =>
+    cases policy t with
+    | some _ => exact (OracleComp.isQueryBoundP_map_iff (p := q) _ _ _).mpr trivial
+    | none =>
+      exact (OracleComp.isQueryBoundP_map_iff (p := q) _ _ _).mpr
+        ((OracleComp.isQueryBoundP_map_iff (p := q) _ _ _).mpr h)
+
+
+-- @@ L434-447 verbatim
+private lemma isPerIndexQueryBound_run_withProgramming [IsUniformSpec spec]
+    (so : QueryImpl spec (OracleComp spec)) (policy : ProgrammingPolicy spec) (t : spec.Domain)
+    {qb : ι → ℕ} (h : OracleComp.IsPerIndexQueryBound (so t) qb) (s : spec.QueryCache × Bool) :
+    OracleComp.IsPerIndexQueryBound ((so.withProgramming policy t).run s) qb := by
+  obtain ⟨cache, _⟩ := s
+  simp only [QueryImpl.withProgramming_apply, StateT.run_mk]
+  cases cache t with
+  | some _ => trivial
+  | none =>
+    cases policy t with
+    | some _ => exact (OracleComp.isPerIndexQueryBound_map_iff _ _ _).mpr trivial
+    | none =>
+      exact (OracleComp.isPerIndexQueryBound_map_iff _ _ _).mpr
+        ((OracleComp.isPerIndexQueryBound_map_iff _ _ _).mpr h)
+
+
+-- @@ L449-458 verbatim
+theorem isTotalQueryBound_run_simulateQ_withProgramming
+    (so : QueryImpl spec (OracleComp spec')) (policy : ProgrammingPolicy spec)
+    {oa : OracleComp spec α} {n : ℕ}
+    (h : OracleComp.IsTotalQueryBound oa n)
+    (hstep : ∀ t, OracleComp.IsTotalQueryBound (so t) 1)
+    (cache : spec.QueryCache) (bad : Bool) :
+    OracleComp.IsTotalQueryBound
+      ((simulateQ (so.withProgramming policy) oa).run (cache, bad)) n :=
+  OracleComp.IsTotalQueryBound.simulateQ_run_of_step h
+    (fun t s => isTotalQueryBound_run_withProgramming so policy t (hstep t) s) (cache, bad)
+
+
+-- @@ L460-473 verbatim
+theorem isQueryBoundP_run_simulateQ_withProgramming
+    (so : QueryImpl spec (OracleComp spec')) (policy : ProgrammingPolicy spec)
+    {oa : OracleComp spec α}
+    {p : ι → Prop} [DecidablePred p] {q : ι' → Prop} [DecidablePred q] {n : ℕ}
+    (h : OracleComp.IsQueryBoundP oa p n)
+    (hstep_p : ∀ t, p t → OracleComp.IsQueryBoundP (so t) q 1)
+    (hstep_np : ∀ t, ¬ p t → OracleComp.IsQueryBoundP (so t) q 0)
+    (cache : spec.QueryCache) (bad : Bool) :
+    OracleComp.IsQueryBoundP
+      ((simulateQ (so.withProgramming policy) oa).run (cache, bad)) q n :=
+  OracleComp.IsQueryBoundP.simulateQ_run_of_step h
+    (fun t hp s => isQueryBoundP_run_withProgramming so policy t (hstep_p t hp) s)
+    (fun t hnp s => isQueryBoundP_run_withProgramming so policy t (hstep_np t hnp) s)
+    (cache, bad)
+
+
+-- @@ L475-484 verbatim
+theorem isPerIndexQueryBound_run_simulateQ_withProgramming [IsUniformSpec spec]
+    (so : QueryImpl spec (OracleComp spec)) (policy : ProgrammingPolicy spec)
+    {oa : OracleComp spec α} {qb : ι → ℕ}
+    (h : OracleComp.IsPerIndexQueryBound oa qb)
+    (hstep : ∀ t, OracleComp.IsPerIndexQueryBound (so t) (Function.update 0 t 1))
+    (cache : spec.QueryCache) (bad : Bool) :
+    OracleComp.IsPerIndexQueryBound
+      ((simulateQ (so.withProgramming policy) oa).run (cache, bad)) qb :=
+  OracleComp.IsPerIndexQueryBound.simulateQ_run_of_uniform_step h
+    (fun t s => isPerIndexQueryBound_run_withProgramming so policy t (hstep t) s) (cache, bad)
+
+
+-- @@ L486-486 verbatim
+end WithProgrammingBounds
+
+
+-- @@ L488-488 verbatim
+end OracleComp.ProgramLogic.Relational

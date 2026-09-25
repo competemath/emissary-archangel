@@ -1,0 +1,574 @@
+/-
+Copyright (c) 2026 Quang Dao. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Quang Dao
+-/
+
+module
+public import Examples.ElGamal.Common
+public import VCVio.CryptoFoundations.AsymmEncAlg.INDCPA
+public import VCVio.CryptoFoundations.HardnessAssumptions.DiffieHellman
+public import VCVio.CryptoFoundations.HardnessAssumptions.EntropySmoothing
+public import VCVio.EvalDist.Bool
+
+
+-- @@ L14-40 verbatim
+/-!
+# Hashed ElGamal Encryption
+
+This file defines hashed ElGamal encryption and proves that its one-time IND-CPA
+advantage is bounded by the DDH advantage plus the entropy smoothing advantage.
+
+Unlike standard ElGamal (where the message space is the group `G`), hashed ElGamal
+uses a hash function `hash : HK → G → M` to map the DH shared secret into the
+message space `M`. This allows encrypting messages in an arbitrary additive group `M`
+(e.g. `BitVec n` with XOR).
+
+## Security proof (4-game hop)
+
+| Game | Description | Distance to next |
+|------|-------------|-----------------|
+| Game 0 (CPA) | Real hashed ElGamal | = DDH real |
+| Game 1 | Replace the DH shared secret with an independent random multiple of `g` | DDH advantage |
+| Game 2 (= Game 1) | Reinterpret as entropy smoothing real | 0 |
+| Game 3 | Replace hash output with random | ES advantage |
+| Game 4 (= 1/2) | The masking term is uniform, so the challenge bit is hidden | 0 |
+
+Main theorem: `|Pr[CPA wins] - 1/2| ≤ ddhAdvantage + esAdvantage`.
+
+## References
+
+Port of EasyCrypt's `hashed_elgamal_std.ec`.
+-/
+
+
+-- @@ L42-42 verbatim
+@[expose] public section
+
+
+
+-- @@ L45-45 verbatim
+open OracleComp OracleSpec ENNReal DiffieHellman
+
+
+-- @@ L47-47 verbatim
+/-! ## Hashed ElGamal Scheme -/
+
+
+-- @@ L49-74 expanded
+/-- Hashed ElGamal encryption over a module `Module F G` with hash `hash : HK → G → M`.
+
+| Operation | Definition |
+|-----------|-----------|
+| Keygen | Sample `hk ← $ᵗ HK`, `sk ← $ᵗ F`; PK = `(hk, sk • g)`, SK = `(hk, sk)` |
+| Encrypt(pk, msg) | Sample `y ← $ᵗ F`; output `(y • g, hash hk (y • pk.2) + msg)` |
+| Decrypt(sk, c) | Compute `c.2 - hash sk.1 (sk.2 • c.1)` |
+
+The additive group operation `+` on `M` plays the role of XOR.
+Following `elGamalAsymmEnc`, `F` and `G` are explicit type parameters. -/
+@[simps!]
+def hashedElGamal (F : Type) [Field F] [Fintype F] [DecidableEq F] [SampleableType F] {G : Type}
+    [AddCommGroup G] [Module F G] {HK : Type} [SampleableType HK] {M : Type} [AddCommGroup M]
+    [SampleableType M] (g : G) (hash : HK → G → M) :
+    AsymmEncAlg ProbComp (M := M) (PK := HK × G) (SK := HK × F) (C := G × M)
+    where
+  keygen := do
+    let hk ← uniformSample HK
+    let sk ← uniformSample F
+    return ((hk, sk • g), (hk, sk))
+  encrypt pk
+    msg := do
+    let y ← uniformSample F
+    return (y • g, hash pk.1 (y • pk.2) + msg)
+  decrypt sk c := return (some (c.2 - hash sk.1 (sk.2 • c.1)))
+
+
+-- @@ L76-76 verbatim
+namespace hashedElGamal
+
+
+-- @@ L78-78 verbatim
+variable {F : Type} [Field F] [Fintype F] [DecidableEq F] [SampleableType F]
+
+-- @@ L79-79 verbatim
+variable {G : Type} [AddCommGroup G] [Module F G] [DecidableEq G]
+
+-- @@ L80-80 verbatim
+variable {HK : Type} [SampleableType HK]
+
+-- @@ L81-81 verbatim
+variable {M : Type} [AddCommGroup M] [SampleableType M] [DecidableEq M]
+
+-- @@ L82-82 verbatim
+variable {g : G} {hash : HK → G → M}
+
+
+-- @@ L84-84 verbatim
+/-! ## Correctness -/
+
+
+-- @@ L86-98 expanded
+omit [DecidableEq G] in
+theorem correct : (hashedElGamal F g hash).PerfectlyCorrect ProbCompRuntime.probComp :=
+  by
+  have hcomm : ∀ (a b : F), a • (b • g) = b • (a • g) := by intro a b;
+    rw [← mul_smul, mul_comm, mul_smul]
+  intro msg
+  simp only [ProbCompRuntime.evalSPMF, ProbCompRuntime.probComp, AsymmEncAlg.CorrectExp,
+    hashedElGamal, bind_pure_comp, map_pure, Option.some.injEq, Functor.map_map, hcomm, bind_assoc,
+    bind_map_left, add_sub_cancel_left, decide_true, SPMFSemantics.ofMonadLift_evalSPMF, liftM_bind,
+    evalSPMF_uniformSample, liftM_map, probOutput_bind_const, SPMF.probFailure_liftM,
+    probFailure_of_liftM_PMF, tsub_zero, probOutput_map_const, probOutput_pure, ↓reduceIte, mul_one]
+  change 1 - probFailure (uniformSample HK : ProbComp HK) = 1
+  simp
+
+
+-- @@ L100-100 verbatim
+/-! ## DDH Reduction -/
+
+
+-- @@ L102-102 verbatim
+section Security
+
+
+-- @@ L104-117 expanded
+/-- Construct a DDH adversary from a CPA adversary for hashed ElGamal.
+Given DDH challenge `(g, A, B, T)`:
+- Set `pk = (hk, A)` where `hk ← $ᵗ HK`
+- Let adversary choose messages
+- Encrypt using `B` as first ciphertext component, `hash hk T + m_b` as second
+- Return adversary's guess -/
+def ddhReduction (adv : AsymmEncAlg.IND_CPA_Adv (hashedElGamal F g hash)) : DDHAdversary F G :=
+  fun _g A B T => do
+  let hk ← uniformSample HK
+  let (m₁, m₂, st) ← adv.chooseMessages (hk, A)
+  let b ← uniformSample Bool
+  let c : G × M := (B, hash hk T + (if b then m₁ else m₂))
+  let b' ← adv.distinguish st c
+  return (b == b')
+
+
+-- @@ L119-119 verbatim
+/-! ## Entropy Smoothing Reduction -/
+
+
+-- @@ L121-137 expanded
+/-- Construct an ES adversary from a CPA adversary for hashed ElGamal.
+Given `(hk, v)` where `v` is either `hash hk (z • g)` or random:
+- Sample a fresh secret key `sk` and encryption randomness `y`
+- Set `pk = sk • g`
+- Let adversary choose messages
+- Encrypt using `(y • g, v + m_b)` as ciphertext
+- Return adversary's guess -/
+def esReduction (adv : AsymmEncAlg.IND_CPA_Adv (hashedElGamal F g hash)) : HK × M → ProbComp Bool :=
+  fun (hk, v) => do
+  let sk ← (uniformSample F)
+  let (m₁, m₂, st) ← adv.chooseMessages (hk, sk • g)
+  let b ← uniformSample Bool
+  let y ← (uniformSample F)
+  let c : G × M := (y • g, v + (if b then m₁ else m₂))
+  let b' ← adv.distinguish st c
+  return (b == b')
+
+
+-- @@ L139-139 verbatim
+/-! ## Game-hop lemmas -/
+
+
+-- @@ L141-229 expanded
+omit [DecidableEq G] [DecidableEq M] in
+/-- Game 0 = CPA game equals DDH real branch (by construction). -/
+theorem cpaGame_eq_ddhReal (adv : AsymmEncAlg.IND_CPA_Adv (hashedElGamal F g hash)) :
+    probOutput (AsymmEncAlg.IND_CPA_OneTime_Game_ProbComp (encAlg := hashedElGamal F g hash) adv)
+        true =
+      probOutput (ddhExpReal g (ddhReduction (F := F) (hash := hash) adv)) true :=
+  by
+  let cpaCanonical : ProbComp Bool := do
+    let b ← (uniformSample Bool)
+    let hk ← (uniformSample HK)
+    let a ← (uniformSample F)
+    let x ← adv.chooseMessages (hk, a • g)
+    let y ← (uniformSample F)
+    let b' ← adv.distinguish x.2.2 (y • g, hash hk (y • (a • g)) + if b then x.1 else x.2.1)
+    pure (b == b')
+  let ddhCanonical : ProbComp Bool := do
+    let hk ← (uniformSample HK)
+    let a ← (uniformSample F)
+    let x ← adv.chooseMessages (hk, a • g)
+    let b ← (uniformSample Bool)
+    let y ← (uniformSample F)
+    let b' ← adv.distinguish x.2.2 (y • g, hash hk (y • (a • g)) + if b then x.1 else x.2.1)
+    pure (b == b')
+  have hleft :
+    probOutput (AsymmEncAlg.IND_CPA_OneTime_Game_ProbComp (encAlg := hashedElGamal F g hash) adv)
+        true =
+      probOutput cpaCanonical true :=
+    by
+    simp [AsymmEncAlg.IND_CPA_OneTime_Game_ProbComp, hashedElGamal, cpaCanonical,
+      map_eq_bind_pure_comp, smul_smul, mul_comm]
+  have hswap : probOutput cpaCanonical true = probOutput ddhCanonical true := by
+    simpa [cpaCanonical, ddhCanonical, monad_norm] using
+      (probOutput_bind_bind_swap (uniformSample Bool)
+        (do
+          let hk ← (uniformSample HK)
+          let a ← (uniformSample F)
+          let x ← adv.chooseMessages (hk, a • g)
+          pure (hk, a, x))
+        (fun b ⟨hk, a, x⟩ => do
+          let y ← (uniformSample F)
+          let b' ← adv.distinguish x.2.2 (y • g, hash hk (y • (a • g)) + if b then x.1 else x.2.1)
+          pure (b == b'))
+        true)
+  have hright :
+    probOutput (ddhExpReal g (ddhReduction (F := F) (hash := hash) adv)) true =
+      probOutput ddhCanonical true :=
+    by
+    trans
+      probOutput
+        (do
+          let a ← (uniformSample F)
+          let hk ← (uniformSample HK)
+          let x ← adv.chooseMessages (hk, a • g)
+          let b ← (uniformSample Bool)
+          let y ← (uniformSample F)
+          let b' ← adv.distinguish x.2.2 (y • g, hash hk (y • (a • g)) + if b then x.1 else x.2.1)
+          pure (b == b'))
+        true
+    ·
+      simpa [ddhExpReal, ddhReduction, monad_norm, smul_smul, mul_comm] using
+        (probOutput_bind_congr' (uniformSample F) true
+          (fun a => by
+            simpa [monad_norm, smul_smul, mul_comm] using
+              (probOutput_bind_bind_swap (uniformSample F)
+                (do
+                  let hk ← (uniformSample HK)
+                  let x ← adv.chooseMessages (hk, a • g)
+                  let b ← (uniformSample Bool)
+                  pure (hk, x, b))
+                (fun y ⟨hk, x, b⟩ => do
+                  let b' ←
+                    adv.distinguish x.2.2 (y • g, hash hk (y • (a • g)) + if b then x.1 else x.2.1)
+                  pure (b == b'))
+                true)))
+    ·
+      simpa [ddhCanonical, monad_norm] using
+        (probOutput_bind_bind_swap (uniformSample F) (uniformSample HK)
+          (fun a hk => do
+            let x ← adv.chooseMessages (hk, a • g)
+            let b ← (uniformSample Bool)
+            let y ← (uniformSample F)
+            let b' ← adv.distinguish x.2.2 (y • g, hash hk (y • (a • g)) + if b then x.1 else x.2.1)
+            pure (b == b'))
+          true)
+  exact hleft.trans (hswap.trans hright.symm)
+
+
+-- @@ L231-334 expanded
+omit [DecidableEq G] [DecidableEq M] in
+/-- DDH random branch equals ES real experiment (by construction). -/
+theorem ddhRand_eq_esReal (adv : AsymmEncAlg.IND_CPA_Adv (hashedElGamal F g hash)) :
+    probOutput (ddhExpRand g (ddhReduction (F := F) (hash := hash) adv)) true =
+      probOutput (EntropySmoothing.realExp F g hash (esReduction (F := F) (g := g) adv)) true :=
+  by
+  let canonical : ProbComp Bool := do
+    let hk ← (uniformSample HK)
+    let a ← (uniformSample F)
+    let x ← adv.chooseMessages (hk, a • g)
+    let b ← (uniformSample Bool)
+    let z ← (uniformSample F)
+    let y ← (uniformSample F)
+    let b' ← adv.distinguish x.2.2 (y • g, hash hk (z • g) + if b then x.1 else x.2.1)
+    pure (b == b')
+  have hleft :
+    probOutput (ddhExpRand g (ddhReduction (F := F) (hash := hash) adv)) true =
+      probOutput canonical true :=
+    by
+    trans
+      probOutput
+        (do
+          let a ← (uniformSample F)
+          let z ← (uniformSample F)
+          let hk ← (uniformSample HK)
+          let x ← adv.chooseMessages (hk, a • g)
+          let b ← (uniformSample Bool)
+          let y ← (uniformSample F)
+          let b' ← adv.distinguish x.2.2 (y • g, hash hk (z • g) + if b then x.1 else x.2.1)
+          pure (b == b'))
+        true
+    ·
+      simpa [ddhExpRand, ddhReduction, monad_norm] using
+        (probOutput_bind_congr' (uniformSample F) true
+          (fun a => by
+            simpa [monad_norm] using
+              (probOutput_bind_bind_swap (uniformSample F)
+                (do
+                  let z ← (uniformSample F)
+                  let hk ← (uniformSample HK)
+                  let x ← adv.chooseMessages (hk, a • g)
+                  let b ← (uniformSample Bool)
+                  pure (z, hk, x, b))
+                (fun y ⟨z, hk, x, b⟩ => do
+                  let b' ← adv.distinguish x.2.2 (y • g, hash hk (z • g) + if b then x.1 else x.2.1)
+                  pure (b == b'))
+                true)))
+    · trans
+        probOutput
+          (do
+            let a ← (uniformSample F)
+            let hk ← (uniformSample HK)
+            let x ← adv.chooseMessages (hk, a • g)
+            let b ← (uniformSample Bool)
+            let z ← (uniformSample F)
+            let y ← (uniformSample F)
+            let b' ← adv.distinguish x.2.2 (y • g, hash hk (z • g) + if b then x.1 else x.2.1)
+            pure (b == b'))
+          true
+      ·
+        simpa [monad_norm] using
+          (probOutput_bind_congr' (uniformSample F) true
+            (fun a => by
+              simpa [monad_norm] using
+                (probOutput_bind_bind_swap (uniformSample F)
+                  (do
+                    let hk ← (uniformSample HK)
+                    let x ← adv.chooseMessages (hk, a • g)
+                    let b ← (uniformSample Bool)
+                    pure (hk, x, b))
+                  (fun z ⟨hk, x, b⟩ => do
+                    let y ← (uniformSample F)
+                    let b' ←
+                      adv.distinguish x.2.2 (y • g, hash hk (z • g) + if b then x.1 else x.2.1)
+                    pure (b == b'))
+                  true)))
+      ·
+        simpa [canonical, monad_norm] using
+          (probOutput_bind_bind_swap (uniformSample F) (uniformSample HK)
+            (fun a hk => do
+              let x ← adv.chooseMessages (hk, a • g)
+              let b ← (uniformSample Bool)
+              let z ← (uniformSample F)
+              let y ← (uniformSample F)
+              let b' ← adv.distinguish x.2.2 (y • g, hash hk (z • g) + if b then x.1 else x.2.1)
+              pure (b == b'))
+            true)
+  have hright :
+    probOutput (EntropySmoothing.realExp F g hash (esReduction (F := F) (g := g) adv)) true =
+      probOutput canonical true :=
+    by
+    refine probOutput_bind_congr' (uniformSample HK) true ?_
+    intro hk
+    simpa [EntropySmoothing.realExp, esReduction, canonical, monad_norm] using
+      (probOutput_bind_bind_swap (uniformSample F)
+        (do
+          let a ← (uniformSample F)
+          let x ← adv.chooseMessages (hk, a • g)
+          let b ← (uniformSample Bool)
+          pure (a, x, b))
+        (fun z ⟨a, x, b⟩ => do
+          let y ← (uniformSample F)
+          let b' ← adv.distinguish x.2.2 (y • g, hash hk (z • g) + if b then x.1 else x.2.1)
+          pure (b == b'))
+        true)
+  exact hleft.trans hright.symm
+
+
+-- @@ L335-442 expanded
+omit [DecidableEq G] [DecidableEq M] in
+/-- ES ideal experiment: the ciphertext `v + m_b` with uniform `v` is uniform
+regardless of `b`, so the game reduces to random guessing.
+Uses the same uniform-masking principle as the one-time pad. -/
+theorem esIdeal_eq_half (adv : AsymmEncAlg.IND_CPA_Adv (hashedElGamal F g hash)) :
+    probOutput (EntropySmoothing.idealExp (esReduction (F := F) (g := g) adv)) true = 1 / 2 :=
+  by
+  let inner : HK → ProbComp Bool := fun hk => do
+    let h ← (uniformSample M)
+    let sk ← (uniformSample F)
+    let (m₁, m₂, st) ← adv.chooseMessages (hk, sk • g)
+    let b ← (uniformSample Bool)
+    let y ← (uniformSample F)
+    let b' ← adv.distinguish st (y • g, h + if b then m₁ else m₂)
+    pure (decide (b = b'))
+  let f : HK → Bool → ProbComp Bool := fun hk b => do
+    let sk ← (uniformSample F)
+    let (m₁, m₂, st) ← adv.chooseMessages (hk, sk • g)
+    let y ← (uniformSample F)
+    let h ← (uniformSample M)
+    adv.distinguish st (y • g, h + if b then m₁ else m₂)
+  have hf : ∀ hk, evalSPMF (f hk true) = evalSPMF (f hk false) :=
+    by
+    intro hk
+    unfold f
+    rw [evalSPMF_bind, evalSPMF_bind]
+    congr 1
+    funext sk
+    rw [evalSPMF_bind, evalSPMF_bind]
+    congr 1
+    funext x
+    rcases x with ⟨m₁, m₂, st⟩
+    rw [evalSPMF_bind, evalSPMF_bind]
+    congr 1
+    funext y
+    simpa [add_comm, add_left_comm, add_assoc] using
+      ElGamalExamples.uniformMaskedCipher_bind_dist_indep (head := y • g) (m₁ := m₁) (m₂ := m₂)
+        (cont := adv.distinguish st)
+  have hrepr :
+    ∀ hk,
+      probOutput (inner hk) true =
+        probOutput
+          (do
+            let b ← (uniformSample Bool)
+            let b' ← f hk b
+            pure (decide (b = b')))
+          true :=
+    by
+    intro hk
+    trans
+      probOutput
+        (do
+          let sk ← (uniformSample F)
+          let x ← adv.chooseMessages (hk, sk • g)
+          let b ← (uniformSample Bool)
+          let y ← (uniformSample F)
+          let h ← (uniformSample M)
+          let b' ← adv.distinguish x.2.2 (y • g, h + if b then x.1 else x.2.1)
+          pure (decide (b = b')))
+        true
+    ·
+      simpa [inner, monad_norm] using
+        (probOutput_bind_bind_swap (uniformSample M)
+          (do
+            let sk ← (uniformSample F)
+            let x ← adv.chooseMessages (hk, sk • g)
+            let b ← (uniformSample Bool)
+            let y ← (uniformSample F)
+            pure (sk, x, b, y))
+          (fun h ⟨_sk, x, b, y⟩ => do
+            let b' ← adv.distinguish x.2.2 (y • g, h + if b then x.1 else x.2.1)
+            pure (decide (b = b')))
+          true)
+    · trans
+        probOutput
+          (do
+            let b ← (uniformSample Bool)
+            let b' ← f hk b
+            pure (decide (b = b')))
+          true
+      ·
+        simpa [f, monad_norm] using
+          (probOutput_bind_bind_swap
+            (do
+              let sk ← (uniformSample F)
+              let x ← adv.chooseMessages (hk, sk • g)
+              pure (sk, x))
+            (uniformSample Bool)
+            (fun ⟨_sk, x⟩ b => do
+              let y ← (uniformSample F)
+              let h ← (uniformSample M)
+              let b' ← adv.distinguish x.2.2 (y • g, h + if b then x.1 else x.2.1)
+              pure (decide (b = b')))
+            true)
+      · rfl
+  have hhalf : ∀ hk, probOutput (inner hk) true = 1 / 2 :=
+    by
+    intro hk
+    rw [hrepr hk]
+    exact probOutput_decide_eq_uniformBool_half (f hk) (hf hk)
+  calc
+    probOutput (EntropySmoothing.idealExp (esReduction (F := F) (g := g) adv)) true =
+        probOutput
+          (do
+            let hk ← (uniformSample HK)
+            inner hk)
+          true :=
+      by
+      simp [EntropySmoothing.idealExp, esReduction,
+        show ∀ a b : Bool, (a == b) = decide (a = b) from by decide, inner]
+    _ =
+        probOutput
+          (do
+            let hk ← (uniformSample HK)
+            (uniformSample Bool))
+          true :=
+      (probOutput_bind_congr' (uniformSample HK) true
+        (fun hk => by simpa [probOutput_uniformSample] using hhalf hk))
+    _ = 1 / 2 := by
+      rw [probOutput_bind_eq_tsum]
+      have hbool : probOutput (uniformSample Bool) true = (1 / 2 : ℝ≥0∞) := by
+        simp [probOutput_uniformSample]
+      simp_rw [hbool]
+      have hsum : ∑' x : HK, probOutput (uniformSample HK) x = 1 :=
+        tsum_probOutput_of_liftM_PMF (uniformSample HK)
+      rw [ENNReal.tsum_mul_right, hsum, one_mul]
+
+
+-- @@ L444-444 verbatim
+/-! ## Main theorem -/
+
+
+-- @@ L446-494 expanded
+omit [DecidableEq G] [DecidableEq M] in
+/-- **Main theorem.** The one-time IND-CPA bias of hashed ElGamal is bounded by
+the DDH distinguishing advantage plus the entropy smoothing advantage:
+
+`|Pr[CPA wins] - 1/2| ≤ ddhDistAdvantage(D) + EntropySmoothing.advantage(E)`
+
+where `D` is the DDH reduction and `E` is the ES reduction, both constructed
+from the CPA adversary. -/
+theorem hashedElGamal_IND_CPA_bound (adv : AsymmEncAlg.IND_CPA_Adv (hashedElGamal F g hash)) :
+    |(probOutput (AsymmEncAlg.IND_CPA_OneTime_Game_ProbComp (encAlg := hashedElGamal F g hash) adv)
+              true).toReal -
+          1 / 2| ≤
+      ddhDistAdvantage g (ddhReduction (F := F) (hash := hash) adv) +
+        EntropySmoothing.advantage F g hash (esReduction (F := F) (g := g) adv) :=
+  by
+  rw [cpaGame_eq_ddhReal (F := F) (g := g) (hash := hash)]
+  rw [ddhDistAdvantage, EntropySmoothing.advantage]
+  have hesHalf := esIdeal_eq_half (F := F) (g := g) (hash := hash) adv
+  have hddhEs :
+    |(probOutput (ddhExpReal g (ddhReduction (F := F) (hash := hash) adv)) true).toReal - 1 / 2| =
+      |(probOutput (ddhExpReal g (ddhReduction (F := F) (hash := hash) adv)) true).toReal -
+          (probOutput (EntropySmoothing.idealExp (esReduction (F := F) (g := g) adv))
+              true).toReal| :=
+    by
+    rw [hesHalf, ENNReal.toReal_div]
+    simp
+  rw [hddhEs]
+  have hreal :
+    (probOutput (ddhExpRand g (ddhReduction (F := F) (hash := hash) adv)) true).toReal =
+      (probOutput (EntropySmoothing.realExp F g hash (esReduction (F := F) (g := g) adv))
+          true).toReal :=
+    by
+    congr 1
+    exact ddhRand_eq_esReal (F := F) (g := g) (hash := hash) adv
+  calc
+    |(probOutput (ddhExpReal g (ddhReduction (F := F) (hash := hash) adv)) true).toReal -
+            (probOutput (EntropySmoothing.idealExp (esReduction (F := F) (g := g) adv))
+                true).toReal| ≤
+        |(probOutput (ddhExpReal g (ddhReduction (F := F) (hash := hash) adv)) true).toReal -
+              (probOutput (ddhExpRand g (ddhReduction (F := F) (hash := hash) adv)) true).toReal| +
+          |(probOutput (ddhExpRand g (ddhReduction (F := F) (hash := hash) adv)) true).toReal -
+              (probOutput (EntropySmoothing.idealExp (esReduction (F := F) (g := g) adv))
+                  true).toReal| :=
+      abs_sub_le _ _ _
+    _ =
+        ddhDistAdvantage g (ddhReduction (F := F) (hash := hash) adv) +
+          |(probOutput (EntropySmoothing.realExp F g hash (esReduction (F := F) (g := g) adv))
+                  true).toReal -
+              (probOutput (EntropySmoothing.idealExp (esReduction (F := F) (g := g) adv))
+                  true).toReal| :=
+      by
+      rw [ddhDistAdvantage]
+      congr 1
+      rw [hreal]
+    _ =
+        ddhDistAdvantage g (ddhReduction (F := F) (hash := hash) adv) +
+          EntropySmoothing.advantage F g hash (esReduction (F := F) (g := g) adv) :=
+      by rw [EntropySmoothing.advantage]
+
+
+-- @@ L496-496 verbatim
+end Security
+
+
+-- @@ L498-498 verbatim
+end hashedElGamal

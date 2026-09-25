@@ -1,0 +1,103 @@
+/-
+Copyright (c) 2024 Quang Dao. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Quang Dao
+-/
+
+module
+
+public import VCVio.CryptoFoundations.MerkleTree.Inductive.Defs
+public import VCVio.OracleComp.QueryTracking.RandomOracle.Simulation
+
+
+-- @@ L12-26 verbatim
+/-!
+# Completeness of Inductive Merkle Trees
+
+This file proves the completeness theorem for the inductive Merkle tree
+construction defined in `VCVio.CryptoFoundations.MerkleTree.Inductive.Defs`:
+honestly generated proofs verify against honestly built roots.
+
+The proof is split into two pieces:
+
+* `InductiveMerkleTree.functional_completeness` is a purely functional
+  statement about `getPutativeRootWithHash` and `buildMerkleTreeWithHash`,
+  proven by induction on the leaf index.
+* `InductiveMerkleTree.completeness` lifts the functional statement to the
+  monadic API by reducing through `simulateQ`.
+-/
+
+
+-- @@ L28-28 verbatim
+@[expose] public section
+
+
+-- @@ L30-30 verbatim
+namespace InductiveMerkleTree
+
+
+-- @@ L32-32 verbatim
+open List OracleSpec OracleComp BinaryTree
+
+
+-- @@ L34-34 verbatim
+variable {α : Type _}
+
+
+-- @@ L36-52 verbatim
+/--
+A functional form of the completeness theorem for Merkle trees.
+This references the functional versions of `getPutativeRoot` and `buildMerkleTreeWithHash`
+-/
+@[grind =]
+theorem functional_completeness {s : Skeleton}
+    (idx : SkeletonLeafIndex s)
+    (leaf_data_tree : LeafData α s)
+    (hash : α → α → α) :
+  getPutativeRootWithHash
+    idx
+    (leaf_data_tree.get idx)
+    (generateProof (buildMerkleTreeWithHash leaf_data_tree hash) idx)
+    hash =
+  (buildMerkleTreeWithHash leaf_data_tree hash).getRootValue := by
+  induction idx <;> cases leaf_data_tree <;>
+    grind [List.Vector.tail_cons, List.Vector.head_cons, SkeletonLeafIndex.depth]
+
+
+-- @@ L54-77 expanded
+/-- Completeness theorem for Merkle trees.
+
+The proof proceeds by reducing to the functional completeness theorem by a theorem about
+the OracleComp monad,
+and then applying the functional version of the completeness theorem.
+-/
+theorem completeness [DecidableEq α] [Inhabited α] [SampleableType α] {s}
+    (leaf_data_tree : LeafData α s) (idx : BinaryTree.SkeletonLeafIndex s)
+    (preexisting_cache : (spec α).QueryCache) :
+    (probEvent
+        ((simulateQ (spec α).randomOracle
+              (do
+                let cache ← buildMerkleTree leaf_data_tree
+                let proof := generateProof cache idx
+                let verified ←
+                  (verifyProof (m := OracleComp (spec α)) idx (leaf_data_tree.get idx)
+                      (cache.getRootValue) proof)
+                return verified)).run
+          preexisting_cache)
+        fun v => v.1 = true) =
+      1 :=
+  by
+  refine
+    (probEvent_eq_one_simulateQ_randomOracle_run_iff (spec := spec α) (p := fun b : Bool =>
+          b = true) _ _).mpr
+      ?_
+  intro f _hf
+  simp only [evalWithAnswerFn, verifyProof, simulateQ_bind, simulateQ_pure,
+    simulateQ_buildMerkleTree, simulateQ_getPutativeRoot]
+  change ((_ : α) == _) = true
+  rw [beq_iff_eq]
+  exact functional_completeness idx leaf_data_tree fun left right => f (left, right)
+
+
+-- @@ L79-79 verbatim
+end InductiveMerkleTree

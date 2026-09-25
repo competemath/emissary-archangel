@@ -1,0 +1,152 @@
+/-
+Copyright (c) 2024 Devon Tuma. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Devon Tuma, Quang Dao
+-/
+
+module
+public import VCVio.CryptoFoundations.SymmEncAlg
+public import VCVio.OracleComp.Constructions.BitVec
+public import VCVio.ProgramLogic.Tactics.Relational
+public import VCVioWidgets.GameHop.Panel
+
+
+-- @@ L13-25 verbatim
+/-!
+# One Time Pad
+
+This file defines the one-time pad scheme, proves correctness, and proves perfect secrecy
+in the canonical independence form used by `SymmEncAlg.perfectSecrecyAt`.
+
+The file includes two proof styles:
+1. **Direct probability calculations** (`perfectSecrecyAt`): computes joint/marginal
+   probabilities directly using `probOutput_pair_xor_uniform`.
+2. **Relational / game-hopping** (`cipherGivenMsg_equiv`, `ciphertextRowsEqual`):
+   proves that any two messages yield the same ciphertext distribution via a bijection
+   coupling, using the `by_equiv` / `rvcstep` tactic workflow.
+-/
+
+
+-- @@ L27-27 verbatim
+@[expose] public section
+
+
+-- @@ L29-29 verbatim
+show_panel_widgets [local VCVioWidgets.GameHop.GameHopPanel]
+
+
+-- @@ L31-31 verbatim
+open Mathlib OracleSpec OracleComp ENNReal
+
+
+-- @@ L33-41 verbatim
+/-- The one-time-pad scheme body, parameterized only by its key sampler.
+
+Keeping encryption and decryption here gives the discrete and measure-native examples one shared
+scheme implementation. -/
+abbrev oneTimePadOfKeygen {m : Type → Type} [Monad m] (sp : ℕ) (keygen : m (BitVec sp)) :
+    SymmEncAlg m (BitVec sp) (BitVec sp) (BitVec sp) where
+  keygen := keygen
+  encrypt k m := return k ^^^ m
+  decrypt k σ := return some (k ^^^ σ)
+
+
+-- @@ L43-46 expanded
+/-- The ordinary probabilistic one-time pad with the standard uniform `BitVec` sampler. -/
+def oneTimePad (sp : ℕ) : SymmEncAlg ProbComp (BitVec sp) (BitVec sp) (BitVec sp) :=
+  oneTimePadOfKeygen sp (uniformSample (BitVec sp))
+
+
+-- @@ L48-48 verbatim
+namespace oneTimePad
+
+
+-- @@ L50-60 expanded
+/-- Encryption and decryption are inverses for any OTP key. -/
+lemma complete (sp : ℕ) : (oneTimePad sp).Complete :=
+  by
+  intro msg
+  have hsimp :
+    (oneTimePad sp).CompleteExp msg =
+      (fun _ : BitVec sp => (some msg : Option (BitVec sp))) <$>
+        (uniformSample (BitVec sp) : ProbComp (BitVec sp)) :=
+    by simp [SymmEncAlg.CompleteExp, oneTimePad, monad_norm]
+  rw [hsimp, probOutput_eq_one_iff]
+  exact
+    ⟨probFailure_of_liftM_PMF _,
+      support_map_const (mx := (uniformSample (BitVec sp) : ProbComp (BitVec sp))) (y := some msg)
+        (by simp [support_uniformSample])⟩
+
+
+-- @@ L62-68 expanded
+lemma probOutput_cipher_uniform (sp : ℕ) (mgen : ProbComp (BitVec sp)) (σ : BitVec sp) :
+    probOutput ((oneTimePad sp).PerfectSecrecyCipherExp mgen) σ =
+      (Fintype.card (BitVec sp) : ℝ≥0∞)⁻¹ :=
+  by
+  simpa [SymmEncAlg.PerfectSecrecyCipherExp, SymmEncAlg.PerfectSecrecyExp, oneTimePad,
+    monad_norm] using probOutput_cipher_from_pair_uniform sp (mx := mgen) σ
+
+
+-- @@ L70-80 expanded
+/-- The one-time pad is perfectly secret in the canonical independence form. -/
+lemma perfectSecrecyAt (sp : ℕ) : (oneTimePad sp).perfectSecrecyAt :=
+  by
+  intro mgen msg σ
+  have hpair :
+    probOutput ((oneTimePad sp).PerfectSecrecyExp mgen) (msg, σ) =
+      probOutput mgen msg * (Fintype.card (BitVec sp) : ℝ≥0∞)⁻¹ :=
+    by
+    simpa [SymmEncAlg.PerfectSecrecyExp, oneTimePad, monad_norm] using
+      probOutput_pair_xor_uniform sp (mx := mgen) msg σ
+  rw [hpair, ← probOutput_cipher_uniform]
+
+
+-- @@ L82-83 verbatim
+/-- The one-time pad is perfectly secret for all security parameters. -/
+lemma perfectSecrecy : ∀ sp, (oneTimePad sp).perfectSecrecyAt := perfectSecrecyAt
+
+
+-- @@ L85-88 verbatim
+/-! ### Relational proof of ciphertext uniformity
+
+Alternative proof that encrypting any two messages with a random OTP key yields
+the same ciphertext distribution. Uses the bijection coupling `k ↦ k ⊕ m₀ ⊕ m₁`. -/
+
+
+-- @@ L90-110 expanded
+open OracleComp.ProgramLogic in
+/-- Encrypting any two messages with a random OTP key yields the same distribution,
+proved via a bijection coupling. -/
+lemma cipherGivenMsg_equiv (sp : ℕ) (msg₀ msg₁ : BitVec sp) :
+    GameEquiv ((oneTimePad sp).PerfectSecrecyCipherGivenMsgExp msg₀)
+      ((oneTimePad sp).PerfectSecrecyCipherGivenMsgExp msg₁) :=
+  by
+  simp only [SymmEncAlg.PerfectSecrecyCipherGivenMsgExp, oneTimePad]
+  let c := msg₀ ^^^ msg₁
+  have hxor : Function.Bijective (fun x : BitVec sp => x ^^^ c) :=
+    Function.Involutive.bijective fun x => by
+      rw [BitVec.xor_assoc, BitVec.xor_self, BitVec.xor_zero]
+  change
+    GameEquiv ((uniformSample (BitVec sp)) >>= fun k => pure (k ^^^ msg₀))
+      ((uniformSample (BitVec sp)) >>= fun k => pure (k ^^^ msg₁))
+  first
+  | apply OracleComp.ProgramLogic.GameEquiv.of_relTriple
+  | (change OracleComp.ProgramLogic.Relational.RelTriple _ _ _)
+  | (apply OracleComp.ProgramLogic.Relational.evalSPMF_eq_of_relTriple_eqRel)
+  rvcstep using(fun k : BitVec sp => k ^^^ c)
+  · apply Relational.relTriple_pure_pure
+    simp only [show c = msg₀ ^^^ msg₁ from rfl, BitVec.xor_assoc, BitVec.xor_self, BitVec.xor_zero]
+    rfl
+  · exact hxor
+
+
+-- @@ L112-116 verbatim
+/-- The one-time pad has equal ciphertext rows: all messages yield the same
+ciphertext distribution. Derived from the relational `GameEquiv` proof above. -/
+@[game_hop_root]
+lemma ciphertextRowsEqual (sp : ℕ) : (oneTimePad sp).ciphertextRowsEqualAt :=
+  fun msg₀ msg₁ σ => (cipherGivenMsg_equiv sp msg₀ msg₁).probOutput_eq σ
+
+
+-- @@ L118-118 verbatim
+end oneTimePad

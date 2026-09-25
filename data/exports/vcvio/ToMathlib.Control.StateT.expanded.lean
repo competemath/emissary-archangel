@@ -1,0 +1,155 @@
+/-
+Copyright (c) 2024 Devon Tuma. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Devon Tuma
+-/
+module
+
+public import PolyFun.Control.Monad.Free
+public import ToMathlib.Control.Monad.Fold
+public import Batteries.Control.Lemmas
+
+
+-- @@ L12-14 verbatim
+/-!
+# Lemmas about `StateT`
+-/
+
+
+-- @@ L16-16 verbatim
+@[expose] public section
+
+
+-- @@ L18-18 verbatim
+universe u v w
+
+
+-- @@ L20-20 verbatim
+namespace StateT
+
+
+-- @@ L22-23 verbatim
+variable {m : Type u → Type v} {m' : Type u → Type w}
+  {σ α β : Type u}
+
+
+-- @@ L25-26 verbatim
+instance [MonadLift m m'] : MonadLift (StateT σ m) (StateT σ m') where
+  monadLift x := StateT.mk fun s => liftM ((x.run) s)
+
+
+-- @@ L28-30 verbatim
+@[simp]
+lemma liftM_of_liftM_eq [MonadLift m m'] (x : StateT σ m α) :
+    (liftM x : StateT σ m' α) = StateT.mk fun s => liftM (x.run s) := rfl
+
+
+-- @@ L32-32 verbatim
+lemma liftM_def [Monad m] (x : m α) : (liftM x : StateT σ m α) = StateT.lift x := rfl
+
+
+-- @@ L34-38 verbatim
+@[simp]
+lemma run_liftM [Monad m] (x : m α) (s : σ) :
+    (liftM x : StateT σ m α).run s = x >>= fun a => pure (a, s) := rfl
+
+-- TODO: should this be simp?
+
+-- @@ L39-40 verbatim
+lemma monad_pure_def [Monad m] (x : α) :
+    (pure x : StateT σ m α) = StateT.pure x := rfl
+
+
+-- @@ L42-43 verbatim
+lemma monad_bind_def [Monad m] (x : StateT σ m α) (f : α → StateT σ m β) :
+    x >>= f = StateT.bind x f := rfl
+
+
+-- @@ L45-46 verbatim
+lemma monad_failure_eq [AlternativeMonad m] :
+    (failure : StateT σ m α) = StateT.failure := rfl
+
+
+-- @@ L48-52 verbatim
+@[simp]
+lemma run_failure' [AlternativeMonad m] :
+    (failure : StateT σ m α).run = fun _ => failure := by
+  funext s
+  simp
+
+
+-- @@ L54-56 verbatim
+@[simp]
+lemma mk_pure_eq_pure [Monad m] (x : α) :
+  StateT.mk (fun s ↦ pure (x, s)) = (pure x : StateT σ m α) := rfl
+
+
+-- @@ L58-58 verbatim
+/-! ## `StateT.run'` lemmas -/
+
+
+-- @@ L60-60 verbatim
+section run'
+
+
+-- @@ L62-62 verbatim
+variable [Monad m] [LawfulMonad m]
+
+
+-- @@ L64-66 verbatim
+lemma run'_pure' (x : α) (s : σ) :
+    (pure x : StateT σ m α).run' s = pure x := by
+  simp [StateT.run'_eq]
+
+
+-- @@ L68-71 verbatim
+lemma run'_bind' (x : StateT σ m α) (f : α → StateT σ m β) (s : σ) :
+    (x >>= f).run' s = x.run s >>= fun ⟨a, s'⟩ => (f a).run' s' := by
+  simp only [StateT.run'_eq, StateT.run, monad_bind_def, StateT.bind,
+    map_eq_bind_pure_comp, bind_assoc]
+
+
+-- @@ L73-75 verbatim
+lemma run'_map' (x : StateT σ m α) (f : α → β) (s : σ) :
+    (f <$> x).run' s = f <$> x.run' s := by
+  simp [StateT.run'_eq, Functor.map_map]
+
+
+-- @@ L77-79 verbatim
+lemma run'_lift' (x : m α) (s : σ) :
+    (StateT.lift x : StateT σ m α).run' s = x := by
+  simp [StateT.run'_eq, map_eq_bind_pure_comp, bind_assoc]
+
+
+-- @@ L81-86 verbatim
+/-- A lifted base computation can be sampled before running a stateful continuation from the
+unchanged initial state. -/
+lemma run'_liftM_bind (x : m α) (f : α → StateT σ m β) (s : σ) :
+    ((liftM x : StateT σ m α) >>= f).run' s = x >>= fun a => (f a).run' s := by
+  rw [run'_bind', run_liftM]
+  simp
+
+
+-- @@ L88-91 verbatim
+/-- A lifted base-monad continuation can be moved outside a discarded-state run. -/
+lemma run'_bind_liftM (x : StateT σ m α) (f : α → m β) (s : σ) :
+    (x >>= fun a => (liftM (f a) : StateT σ m β)).run' s = x.run' s >>= f := by
+  simp [StateT.run'_eq, bind_map_left]
+
+
+-- @@ L93-99 verbatim
+/-- If two `StateT` computations agree after mapping into a common result type, then they
+still agree after projecting away the final state with `run'` from any initial state. -/
+lemma map_run'_eq_of_map_eq {γ : Type u} {f : α → γ} {g : β → γ}
+    {mx : StateT σ m α} {my : StateT σ m β} (s : σ)
+    (h : f <$> mx = g <$> my) :
+    f <$> mx.run' s = g <$> my.run' s := by
+  rw [← StateT.run'_map', ← StateT.run'_map', h]
+
+
+-- @@ L101-101 verbatim
+end run'
+
+
+-- @@ L103-103 verbatim
+end StateT

@@ -1,0 +1,469 @@
+/-
+Copyright (c) 2026 Quang Dao. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Quang Dao
+-/
+
+module
+
+public import VCVio.CryptoFoundations.FiatShamir.WithAbort
+public import VCVio.OracleComp.QueryTracking.QueryCost
+
+
+-- @@ L12-20 verbatim
+/-!
+# Cost accounting for Fiat-Shamir with aborts
+
+Exact per-query-class cost accounting for `fsAbortSignLoop` and
+`FiatShamirWithAbort.sign`/`verify`. Each lemma characterises the weighted
+query cost or the number of hash queries made by one signing/verification
+invocation; the expected-value versions live in
+`FiatShamir.WithAbort.ExpectedCost`.
+-/
+
+
+-- @@ L22-22 verbatim
+@[expose] public section
+
+
+-- @@ L24-24 verbatim
+universe u v
+
+
+-- @@ L26-26 verbatim
+open OracleComp OracleSpec
+
+
+-- @@ L28-28 verbatim
+variable {Stmt Wit Commit PrvState Chal Resp : Type} {rel : Stmt → Wit → Bool}
+
+
+-- @@ L30-30 verbatim
+namespace FiatShamirWithAbort
+
+
+-- @@ L32-32 verbatim
+section costAccounting
+
+
+-- @@ L34-34 verbatim
+variable (ids : IdenSchemeWithAbort Stmt Wit Commit PrvState Chal Resp rel) (M : Type)
+
+
+-- @@ L36-37 verbatim
+variable {m : Type → Type u} [Monad m] [LawfulMonad m]
+  [MonadLiftT ProbComp m]
+
+
+-- @@ L39-73 expanded
+private lemma signAttempt_run_withAddCost_eq {ω : Type} [AddMonoid ω]
+    (runtime : QueryImpl (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m) (pk : Stmt)
+    (sk : Wit) (msg : M) (costFn : M × Commit → ω) :
+    WriterT.run
+        (HasQuery.Program.withAddCost
+          (fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) (AddWriterT ω m)] =>
+            fsAbortSignAttempt (m := AddWriterT ω m) ids M pk sk msg)
+          runtime costFn) =
+      (fun attempt : Commit × Option Resp =>
+          (attempt, Multiplicative.ofAdd (costFn (msg, attempt.1)))) <$>
+        HasQuery.Program.eval
+          (fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m] =>
+            fsAbortSignAttempt (m := m) ids M pk sk msg)
+          runtime :=
+  by
+  suffices h :
+    (do
+        let a ← WriterT.run (monadLift (ids.commit pk sk) : AddWriterT ω m (Commit × PrvState))
+        let c ← runtime (msg, a.1.1)
+        let z ← WriterT.run (monadLift (ids.respond pk sk a.1.2 c) : AddWriterT ω m (Option Resp))
+        pure ((a.1.1, z.1), a.2 * (Multiplicative.ofAdd (costFn (msg, a.1.1)) * z.2))) =
+      (do
+        let a ← (monadLift (ids.commit pk sk) : m (Commit × PrvState))
+        let c ← runtime (msg, a.1)
+        let z ← (monadLift (ids.respond pk sk a.2 c) : m (Option Resp))
+        pure ((a.1, z), Multiplicative.ofAdd (costFn (msg, a.1))))
+    by
+    simpa [HasQuery.Program.eval, HasQuery.Program.withAddCost, fsAbortSignAttempt,
+      QueryImpl.withAddCost_apply, AddWriterT.addTell] using h
+  change
+    (do
+        let a ←
+          WriterT.run
+              (monadLift ((monadLift (ids.commit pk sk) : m (Commit × PrvState))) :
+                AddWriterT ω m (Commit × PrvState))
+        let c ← runtime (msg, a.1.1)
+        let z ←
+          WriterT.run
+              (monadLift ((monadLift (ids.respond pk sk a.1.2 c) : m (Option Resp))) :
+                AddWriterT ω m (Option Resp))
+        pure ((a.1.1, z.1), a.2 * (Multiplicative.ofAdd (costFn (msg, a.1.1)) * z.2))) =
+      _
+  simp
+
+
+-- @@ L75-87 expanded
+private lemma signAttempt_outputs_withAddCost_eq_eval {ω : Type} [AddMonoid ω]
+    (runtime : QueryImpl (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m) (pk : Stmt)
+    (sk : Wit) (msg : M) (costFn : M × Commit → ω) :
+    AddWriterT.outputs
+        (HasQuery.Program.withAddCost
+          (fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) (AddWriterT ω m)] =>
+            fsAbortSignAttempt (m := AddWriterT ω m) ids M pk sk msg)
+          runtime costFn) =
+      HasQuery.Program.eval
+        (fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m] =>
+          fsAbortSignAttempt (m := m) ids M pk sk msg)
+        runtime :=
+  by simp [AddWriterT.outputs, signAttempt_run_withAddCost_eq, Functor.map_map]
+
+
+-- @@ L89-102 expanded
+private lemma signAttempt_costs_withAddCost_eq {ω : Type} [AddMonoid ω]
+    (runtime : QueryImpl (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m) (pk : Stmt)
+    (sk : Wit) (msg : M) (costFn : M × Commit → ω) :
+    AddWriterT.costs
+        (HasQuery.Program.withAddCost
+          (fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) (AddWriterT ω m)] =>
+            fsAbortSignAttempt (m := AddWriterT ω m) ids M pk sk msg)
+          runtime costFn) =
+      (fun attempt ↦ costFn (msg, attempt.1)) <$>
+        HasQuery.Program.eval
+          (fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m] =>
+            fsAbortSignAttempt (m := m) ids M pk sk msg)
+          runtime :=
+  by simp [signAttempt_run_withAddCost_eq]
+
+
+-- @@ L104-125 expanded
+/-- Unit-cost specialization of the run formula: each signing attempt run tags its output with a
+single unit of cost (cf. `signAttempt_run_withAddCost_eq`). -/
+lemma signAttempt_run_withUnitCost_eq
+    (runtime : QueryImpl (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m) (pk : Stmt)
+    (sk : Wit) (msg : M) :
+    WriterT.run
+        (HasQuery.Program.withUnitCost
+          (fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) (AddWriterT ℕ m)] =>
+            fsAbortSignAttempt (m := AddWriterT ℕ m) ids M pk sk msg)
+          runtime) =
+      (fun attempt : Commit × Option Resp => (attempt, Multiplicative.ofAdd 1)) <$>
+        HasQuery.Program.eval
+          (fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m] =>
+            fsAbortSignAttempt (m := m) ids M pk sk msg)
+          runtime :=
+  by
+  change
+    WriterT.run
+        (HasQuery.Program.withAddCost
+          (fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) (AddWriterT ℕ m)] =>
+            fsAbortSignAttempt (m := AddWriterT ℕ m) ids M pk sk msg)
+          runtime (fun _ ↦ 1)) =
+      _
+  exact
+    signAttempt_run_withAddCost_eq (ids := ids) (M := M) (runtime := runtime) (pk := pk) (sk := sk)
+      (msg := msg) (costFn := fun _ ↦ (1 : ℕ))
+
+
+-- @@ L127-137 expanded
+/-- A single signing attempt has query cost determined by its output: the returned commitment
+`w'` is exactly the random-oracle query point. -/
+theorem signAttempt_usesCostAsQueryCost {ω : Type} [AddMonoid ω]
+    (runtime : QueryImpl (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m) (pk : Stmt)
+    (sk : Wit) (msg : M) (costFn : M × Commit → ω) :
+    HasQuery.UsesCostAs
+      (fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) (AddWriterT ω m)] =>
+        fsAbortSignAttempt (m := AddWriterT ω m) ids M pk sk msg)
+      runtime costFn (fun attempt ↦ costFn (msg, attempt.1)) :=
+  by
+  rw [HasQuery.UsesCostAs, AddWriterT.costsAs_iff, signAttempt_outputs_withAddCost_eq_eval]
+  exact signAttempt_costs_withAddCost_eq ids M runtime pk sk msg costFn
+
+
+-- @@ L139-171 expanded
+/-- The expected weighted query cost of one signing attempt is the expectation of the queried
+commitment cost over the attempt output distribution. -/
+theorem signAttempt_expectedQueryCost_eq_outputExpectation {ω : Type} [AddMonoid ω]
+    [MonadLiftT m SPMF] [LawfulMonadLiftT m SPMF] [MonadLiftT m SetM] [LawfulMonadLiftT m SetM]
+    [EvalDistCompatible m]
+    (runtime : QueryImpl (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m) (pk : Stmt)
+    (sk : Wit) (msg : M) (costFn : M × Commit → ω) (val : ω → ENNReal) :
+    HasQuery.expectedQueryCost
+        (((fun [HasQuery _ _] => fsAbortSignAttempt ids M pk sk msg) :
+          [HasQuery _ (AddWriterT _ _)] → AddWriterT _ _ _))
+        runtime costFn val =
+      ∑' attempt : Commit × Option Resp,
+        probOutput
+            (HasQuery.Program.eval
+              (fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m] =>
+                fsAbortSignAttempt (m := m) ids M pk sk msg)
+              runtime)
+            attempt *
+          val (costFn (msg, attempt.1)) :=
+  by
+  calc
+    HasQuery.expectedQueryCost
+          (((fun [HasQuery _ _] => fsAbortSignAttempt ids M pk sk msg) :
+            [HasQuery _ (AddWriterT _ _)] → AddWriterT _ _ _))
+          runtime costFn val =
+        ∑' attempt : Commit × Option Resp,
+          probOutput
+              (AddWriterT.outputs
+                (HasQuery.Program.withAddCost
+                  (fun
+                      [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal))
+                          (AddWriterT ω m)] =>
+                    fsAbortSignAttempt (m := AddWriterT ω m) ids M pk sk msg)
+                  runtime costFn))
+              attempt *
+            val (costFn (msg, attempt.1)) :=
+      HasQuery.expectedQueryCost_eq_tsum_outputs_of_usesCostAs
+        (signAttempt_usesCostAsQueryCost ids M runtime pk sk msg costFn)
+    _ =
+        ∑' attempt : Commit × Option Resp,
+          probOutput
+              (HasQuery.Program.eval
+                (fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m] =>
+                  fsAbortSignAttempt (m := m) ids M pk sk msg)
+                runtime)
+              attempt *
+            val (costFn (msg, attempt.1)) :=
+      by rw [signAttempt_outputs_withAddCost_eq_eval]
+
+
+-- @@ L173-173 verbatim
+section queryBounds
+
+
+-- @@ L175-175 verbatim
+variable [MonadLiftT m SetM] [LawfulMonadLiftT m SetM]
+
+
+-- @@ L177-218 expanded
+private lemma signAttempt_usesWeightedQueryCostAtMost {κ : Type} [AddCommMonoid κ] [PartialOrder κ]
+    [IsOrderedAddMonoid κ] [CanonicallyOrderedAdd κ]
+    (runtime : QueryImpl (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m) (pk : Stmt)
+    (sk : Wit) (msg : M) (costFn : M × Commit → κ) (w : κ) (hcost : ∀ t, costFn t ≤ w) :
+    HasQuery.UsesCostAtMost
+      (fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) (AddWriterT κ m)] =>
+        fsAbortSignAttempt (m := AddWriterT κ m) ids M pk sk msg)
+      runtime costFn w :=
+  by
+  change
+    AddWriterT.PathwiseCostAtMost
+      (do
+        let a ←
+          (monadLift (ids.commit pk sk : ProbComp (Commit × PrvState)) :
+              AddWriterT κ m (Commit × PrvState))
+        let c ← (runtime.withAddCost costFn) (msg, a.1)
+        let oz ←
+          (monadLift (ids.respond pk sk a.2 c : ProbComp (Option Resp)) :
+              AddWriterT κ m (Option Resp))
+        pure (a.1, oz))
+      w
+  have hQuery (a : Commit × PrvState) :
+    AddWriterT.PathwiseCostAtMost ((runtime.withAddCost costFn) (msg, a.1)) w :=
+    AddWriterT.pathwiseCostAtMost_of_hasCost
+      (HasQuery.hasCost_withAddCost_query (runtime := runtime) (costFn := costFn) (t := (msg, a.1)))
+      (hcost (msg, a.1))
+  have hRespond (a : Commit × PrvState) (c : Chal) :
+    AddWriterT.PathwiseCostAtMost
+      (monadLift (ids.respond pk sk a.2 c : ProbComp (Option Resp)) : AddWriterT κ m (Option Resp))
+      0 :=
+    AddWriterT.pathwiseCostAtMost_probCompLift (m := m) (ω := κ) (ids.respond pk sk a.2 c)
+  simpa [zero_add, add_comm] using
+    (AddWriterT.pathwiseCostAtMost_bind (w₁ := 0) (w₂ := w)
+      (AddWriterT.pathwiseCostAtMost_probCompLift (m := m) (ω := κ) (ids.commit pk sk))
+      (fun a ↦ by
+        simpa [zero_add, add_comm] using
+          (AddWriterT.pathwiseCostAtMost_bind (w₁ := w) (w₂ := 0) (hQuery a)
+            (fun c ↦ by
+              simpa [zero_add] using
+                (AddWriterT.pathwiseCostAtMost_bind (w₁ := 0) (w₂ := 0) (hRespond a c)
+                  (fun oz ↦
+                    AddWriterT.pathwiseCostAtMost_pure (m := m) (ω := κ) (x := (a.1, oz))))))))
+
+
+-- @@ L220-264 expanded
+/-- The retry loop makes weighted query cost at most `n • w` when each query costs at most `w`.
+-/
+theorem fsAbortSignLoop_usesWeightedQueryCostAtMost {κ : Type} [AddCommMonoid κ] [PartialOrder κ]
+    [IsOrderedAddMonoid κ] [CanonicallyOrderedAdd κ]
+    (runtime : QueryImpl (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m) (pk : Stmt)
+    (sk : Wit) (msg : M) (costFn : M × Commit → κ) (w : κ) (hcost : ∀ t, costFn t ≤ w) :
+    ∀ n,
+      HasQuery.UsesCostAtMost
+        (fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) (AddWriterT κ m)] =>
+          fsAbortSignLoop (m := AddWriterT κ m) ids M pk sk msg n)
+        runtime costFn (n • w)
+  | 0 => by
+    simpa [HasQuery.UsesCostAtMost, HasQuery.Program.withAddCost, fsAbortSignLoop] using
+      AddWriterT.pathwiseCostAtMost_pure (x := (none : Option (Commit × Resp)))
+  | n + 1 =>
+    by
+    have hStep :=
+      signAttempt_usesWeightedQueryCostAtMost (ids := ids) (M := M) (runtime := runtime) (pk := pk)
+        (sk := sk) (msg := msg) (costFn := costFn) (w := w) hcost
+    have hRec :=
+      fsAbortSignLoop_usesWeightedQueryCostAtMost (runtime := runtime) (pk := pk) (sk := sk) (msg :=
+        msg) (costFn := costFn) (w := w) hcost n
+    let cont : Commit × Option Resp → AddWriterT κ m (Option (Commit × Resp)) := fun attempt =>
+      match attempt.2 with
+      | some z => pure (some (attempt.1, z))
+      | none =>
+        HasQuery.Program.withAddCost
+          (fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) (AddWriterT κ m)] =>
+            fsAbortSignLoop (m := AddWriterT κ m) ids M pk sk msg n)
+          runtime costFn
+    have hCont : ∀ attempt, AddWriterT.PathwiseCostAtMost (cont attempt) (n • w) :=
+      by
+      intro attempt
+      cases hAttempt : attempt.2 with
+      | some z =>
+        simpa only [cont, hAttempt] using
+          (AddWriterT.pathwiseCostAtMost_mono
+            (AddWriterT.pathwiseCostAtMost_pure (x :=
+              (some (attempt.1, z) : Option (Commit × Resp))))
+            (zero_le))
+      | none => simpa [cont, hAttempt, HasQuery.UsesCostAtMost] using hRec
+    unfold HasQuery.UsesCostAtMost HasQuery.Program.withAddCost at hStep hRec ⊢
+    simp only [fsAbortSignLoop, succ_nsmul']
+    exact AddWriterT.pathwiseCostAtMost_bind (w₁ := w) (w₂ := n • w) hStep hCont
+
+
+-- @@ L266-266 verbatim
+section schemeCost
+
+
+-- @@ L268-268 verbatim
+variable (hr : GenerableRelation Stmt Wit rel)
+
+
+-- @@ L270-280 expanded
+/-- Signing makes weighted query cost at most `maxAttempts • w` when each query costs at most
+`w`. -/
+theorem sign_usesWeightedQueryCostAtMost {κ : Type} [AddCommMonoid κ] [PartialOrder κ]
+    [IsOrderedAddMonoid κ] [CanonicallyOrderedAdd κ]
+    (runtime : QueryImpl (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m) (pk : Stmt)
+    (sk : Wit) (msg : M) (costFn : M × Commit → κ) (w : κ) (hcost : ∀ t, costFn t ≤ w)
+    (maxAttempts : ℕ) :
+    HasQuery.UsesCostAtMost
+      (((fun [HasQuery _ _] => (FiatShamirWithAbort ids hr M maxAttempts).sign pk sk msg) :
+        [HasQuery _ (AddWriterT _ _)] → AddWriterT _ _ _))
+      runtime costFn (maxAttempts • w) :=
+  fsAbortSignLoop_usesWeightedQueryCostAtMost ids M runtime pk sk msg costFn w hcost maxAttempts
+
+
+-- @@ L282-293 expanded
+/-- Unit-cost specialization: signing makes at most `maxAttempts` random-oracle queries. -/
+theorem sign_usesAtMostMaxAttemptsQueries
+    (runtime : QueryImpl (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m) (pk : Stmt)
+    (sk : Wit) (msg : M) (maxAttempts : ℕ) :
+    HasQuery.UsesAtMostQueries
+      (((fun [HasQuery _ _] => (FiatShamirWithAbort ids hr M maxAttempts).sign pk sk msg) :
+        [HasQuery _ (AddWriterT ℕ _)] → AddWriterT ℕ _ _))
+      runtime maxAttempts :=
+  by
+  simpa [HasQuery.UsesAtMostQueries, HasQuery.UsesCostAtMost, AddWriterT.QueryBoundedAboveBy,
+    HasQuery.Program.withUnitCost_eq_withAddCost, nsmul_eq_mul] using
+    sign_usesWeightedQueryCostAtMost ids M hr runtime pk sk msg (fun _ ↦ (1 : ℕ)) 1 (fun _ ↦ le_rfl)
+      maxAttempts
+
+
+-- @@ L295-295 verbatim
+end schemeCost
+
+
+-- @@ L297-297 verbatim
+end queryBounds
+
+
+-- @@ L299-299 verbatim
+section expectedCost
+
+
+-- @@ L301-302 verbatim
+variable [MonadLiftT m SPMF] [LawfulMonadLiftT m SPMF]
+  [MonadLiftT m SetM] [LawfulMonadLiftT m SetM] [EvalDistCompatible m]
+
+
+-- @@ L304-304 verbatim
+section schemeCost
+
+
+-- @@ L306-306 verbatim
+variable (hr : GenerableRelation Stmt Wit rel)
+
+
+-- @@ L308-329 expanded
+/-- Tail-sum formula for the expected number of signing queries in Fiat-Shamir with aborts.
+
+The random variable on the right is the unit-cost query count of the signer. The event `i < q`
+means that the signer performed at least `i + 1` random-oracle queries, equivalently that the
+`(i + 1)`-st signing attempt was reached. Since the signer performs at most `maxAttempts`
+iterations, the infinite tail sum truncates to `Finset.range maxAttempts`. -/
+theorem sign_expectedQueries_eq_sum_reachedAttemptProbabilities
+    (runtime : QueryImpl (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m) (pk : Stmt)
+    (sk : Wit) (msg : M) (maxAttempts : ℕ) :
+    HasQuery.expectedQueries
+        (((fun [HasQuery _ _] => (FiatShamirWithAbort ids hr M maxAttempts).sign pk sk msg) :
+          [HasQuery _ (AddWriterT ℕ _)] → AddWriterT ℕ _ _))
+        runtime =
+      ∑ i ∈ Finset.range maxAttempts,
+        probEvent
+          (HasQuery.queryCountDist
+            (fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) (AddWriterT ℕ m)] =>
+              (FiatShamirWithAbort ids hr M maxAttempts).sign pk sk msg)
+            runtime)
+          fun q ↦ i < q :=
+  HasQuery.expectedQueries_eq_sum_tail_probs_of_usesAtMostQueries (oa :=
+    fun [HasQuery (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) (AddWriterT ℕ m)] =>
+    (FiatShamirWithAbort ids hr M maxAttempts).sign pk sk msg)
+    (sign_usesAtMostMaxAttemptsQueries ids M hr runtime pk sk msg maxAttempts)
+
+
+-- @@ L331-344 expanded
+omit [LawfulMonadLiftT m SPMF] in
+/-- Expected weighted query cost of signing is bounded by the worst-case `maxAttempts • w`
+budget whenever every query costs at most `w`. -/
+theorem sign_expectedQueryCost_le {κ : Type} [AddCommMonoid κ] [PartialOrder κ]
+    [IsOrderedAddMonoid κ] [CanonicallyOrderedAdd κ]
+    (runtime : QueryImpl (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m) (pk : Stmt)
+    (sk : Wit) (msg : M) (costFn : M × Commit → κ) (w : κ) (val : κ → ENNReal)
+    (hcost : ∀ t, costFn t ≤ w) (hval : Monotone val) (maxAttempts : ℕ) :
+    HasQuery.expectedQueryCost
+        (((fun [HasQuery _ _] => (FiatShamirWithAbort ids hr M maxAttempts).sign pk sk msg) :
+          [HasQuery _ (AddWriterT _ _)] → AddWriterT _ _ _))
+        runtime costFn val ≤
+      val (maxAttempts • w) :=
+  HasQuery.expectedQueryCost_le_of_usesCostAtMost
+    (sign_usesWeightedQueryCostAtMost ids M hr runtime pk sk msg costFn w hcost maxAttempts) hval
+
+
+-- @@ L346-355 expanded
+omit [LawfulMonadLiftT m SPMF] in
+/-- Unit-cost specialization: the expected number of signing queries is at most `maxAttempts`. -/
+theorem sign_expectedQueries_le
+    (runtime : QueryImpl (OracleSpec.ofFn (ι := M × Commit) (fun _ => Chal)) m) (pk : Stmt)
+    (sk : Wit) (msg : M) (maxAttempts : ℕ) :
+    HasQuery.expectedQueries
+        (((fun [HasQuery _ _] => (FiatShamirWithAbort ids hr M maxAttempts).sign pk sk msg) :
+          [HasQuery _ (AddWriterT ℕ _)] → AddWriterT ℕ _ _))
+        runtime ≤
+      maxAttempts :=
+  HasQuery.expectedQueries_le_of_usesAtMostQueries
+    (sign_usesAtMostMaxAttemptsQueries ids M hr runtime pk sk msg maxAttempts)
+
+
+-- @@ L357-357 verbatim
+end schemeCost
+
+
+-- @@ L359-359 verbatim
+end expectedCost
+
+
+-- @@ L361-361 verbatim
+end costAccounting
+
+
+-- @@ L363-363 verbatim
+end FiatShamirWithAbort

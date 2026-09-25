@@ -1,0 +1,1 @@
+{"names":["Fintype.card_bitVec","BitVec.xor_self_xor"],"modules":["ToMathlib.Data.BitVec"],"moduleOf":{"Fintype.card_bitVec":"ToMathlib.Data.BitVec","BitVec.xor_self_xor":"ToMathlib.Data.BitVec"},"deps":{"Fintype.card_bitVec":[],"BitVec.xor_self_xor":[]}}

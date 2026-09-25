@@ -1,0 +1,138 @@
+/-
+Copyright (c) 2026 Quang Dao. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Quang Dao
+-/
+
+module
+
+public meta import VCVio.ProgramLogic.Tactics.Common.Core
+
+
+-- @@ L11-18 verbatim
+/-! # VC Spec Intermediate Representation
+
+Tactic-level intermediate representation used to classify program-logic
+specification rules for diagnostic messages, registry bookkeeping, and
+structural candidate filtering. The discrimination-tree indexing itself lives
+in `Registry.lean` and operates on `Lean.Meta.Sym.Pattern`; the IR defined
+here is a light-weight summary attached to each `@[vcspec]` entry.
+-/
+
+
+-- @@ L20-20 verbatim
+public meta section
+
+
+-- @@ L22-22 verbatim
+open Lean Elab Meta
+
+
+-- @@ L24-24 verbatim
+namespace OracleComp.ProgramLogic
+
+
+-- @@ L26-33 verbatim
+/-- Broad category of a `@[vcspec]` rule, derived from the head of the
+theorem's statement (`Triple`, `wp`, `RelTriple`, `RelWP`). -/
+inductive VCSpecKind where
+  | unaryTriple
+  | unaryWP
+  | relTriple
+  | relWP
+  deriving Inhabited, BEq, Repr
+
+
+-- @@ L35-40 verbatim
+/-- Coarse lookup shape used to route a rule into the right discrimination
+tree partition (unary vs relational) at registration time. -/
+inductive VCSpecLookupKey where
+  | unary (head : Name)
+  | relational (leftHead rightHead : Name)
+  deriving Inhabited, BEq, Repr
+
+
+-- @@ L42-56 verbatim
+/-- Outer syntactic shape of a single oracle computation slot of a
+`@[vcspec]` rule. Used for coarse secondary filtering when the
+discrimination tree returns multiple candidates. -/
+inductive VCSpecCompForm where
+  | bind
+  | pure
+  | ite
+  | map
+  | replicate
+  | listMapM
+  | listFoldlM
+  | query
+  | simulateQ
+  | other
+  deriving Inhabited, BEq, Repr
+
+
+-- @@ L58-63 verbatim
+/-- Combined comp-form of a rule's computation slot(s). Unary rules record
+a single form; relational rules record both sides. -/
+inductive VCSpecCompPattern where
+  | unary (form : VCSpecCompForm)
+  | relational (leftForm rightForm : VCSpecCompForm)
+  deriving Inhabited, BEq, Repr
+
+
+-- @@ L65-73 verbatim
+/-- Normalized summary of a `@[vcspec]` rule attached to every registered
+entry. The discrimination tree is the primary index; this summary powers
+kind-filtered iteration helpers and structural-compatibility scoring in
+the planner. -/
+structure NormalizedVCSpec where
+  kind : VCSpecKind
+  lookupKey : VCSpecLookupKey
+  compPattern : VCSpecCompPattern
+  deriving Inhabited, BEq, Repr
+
+
+-- @@ L75-98 verbatim
+/-- Rough structural summary of the outer head of a computation slot,
+keyed on the standard monad operations (`>>=`, `pure`, `query`, `if`, …). -/
+def classifyVCSpecCompForm (comp : Expr) : VCSpecCompForm :=
+  let comp := comp.consumeMData
+  if isBindExpr comp then
+    .bind
+  else if isPureExpr comp then
+    .pure
+  else if isIfExpr comp then
+    .ite
+  else if isMapExpr comp then
+    .map
+  else if isReplicateExpr comp then
+    .replicate
+  else if isListMapMExpr comp then
+    .listMapM
+  else if isListFoldlMExpr comp then
+    .listFoldlM
+  else if isSimulateQAction comp then
+    .simulateQ
+  else if (findAppWithHead? ``query comp).isSome then
+    .query
+  else
+    .other
+
+
+-- @@ L100-104 verbatim
+/-- Wrap the `classifyVCSpecCompForm` summary of a single computation slot into
+a `.unary` `VCSpecCompPattern`, the comp-pattern shape used by non-relational
+(unary) `@[vcspec]` rules. -/
+def classifyUnaryCompPattern (comp : Expr) : VCSpecCompPattern :=
+  .unary (classifyVCSpecCompForm comp)
+
+
+-- @@ L106-110 verbatim
+/-- Pair the `classifyVCSpecCompForm` summaries of the two computation slots
+`oa`/`ob` into a `.relational` `VCSpecCompPattern`, the comp-pattern shape used
+by relational `@[vcspec]` rules. -/
+def classifyRelationalCompPattern (oa ob : Expr) : VCSpecCompPattern :=
+  .relational (classifyVCSpecCompForm oa) (classifyVCSpecCompForm ob)
+
+
+-- @@ L112-112 verbatim
+end OracleComp.ProgramLogic

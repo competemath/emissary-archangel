@@ -1,0 +1,534 @@
+/-
+Copyright (c) 2026 James Waters. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: James Waters, Quang Dao
+-/
+
+module
+public import VCVio.OracleComp.QueryTracking.Birthday
+public import VCVio.OracleComp.QueryTracking.ProgrammingOracle
+public import VCVio.OracleComp.Constructions.SampleableType
+
+
+-- @@ L12-33 verbatim
+/-!
+# ROM Unpredictability and Collision Win Bounds
+
+Fresh query uniformity, cache preimage bounds, and the collision-based win
+probability theorem.
+
+## Unpredictability
+
+`HasUnpredictableSample samples β` packages "the probability of any specific outcome of
+`samples : ProbComp α` is at most `β`". It is the abstract handle through which downstream
+collision bounds ingest min-entropy of a sample distribution without re-deriving uniform-sample
+arithmetic at each call site.
+
+Instances:
+* `HasUnpredictableSample.uniformSample`: `$ᵗ α` is `1/|α|`-unpredictable.
+* `HasUnpredictableSample.mono`: `β`-unpredictability transports up to any `β' ≥ β`.
+
+The TV-distance "programming collision" bound that consumes this typeclass lives downstream in
+`VCVio/ProgramLogic/Relational/ProgrammingOracle.lean` (see `programming_collision_bound` and
+its `qP * qH * β` repackaging), keeping the relational theorem in the `ProgramLogic` layer
+while the unpredictability primitive stays here in `QueryTracking`.
+-/
+
+
+-- @@ L35-35 verbatim
+@[expose] public section
+
+
+-- @@ L37-37 verbatim
+open OracleSpec OracleComp ENNReal Finset
+
+
+-- @@ L39-39 verbatim
+open scoped OracleSpec.PrimitiveQuery
+
+
+-- @@ L41-41 verbatim
+universe u
+
+
+-- @@ L43-43 verbatim
+namespace OracleComp
+
+
+-- @@ L45-45 verbatim
+/-! ## Unpredictability -/
+
+
+-- @@ L47-47 verbatim
+section Unpredictability
+
+
+-- @@ L49-51 verbatim
+variable {ι : Type u} [DecidableEq ι] {spec : OracleSpec.{u, u} ι}
+  [spec.DecidableEq] [IsUniformSpec spec]
+  {spec' : OracleSpec.{u, u} ι} [spec'.DecidableEq] [IsUniformSpec spec']
+
+
+-- @@ L53-63 expanded
+omit [spec'.DecidableEq] in
+/-- **Fresh query uniformity**: querying `cachingOracle` at an uncached point
+yields each value with probability `1/|C|`. -/
+theorem probOutput_fresh_cachingOracle_query (t : spec'.Domain) (u : spec'.Range t)
+    (cache₀ : QueryCache spec') (hfresh : cache₀ t = none) :
+    probOutput ((cachingOracle t).run cache₀) (u, cache₀.cacheQuery t u) =
+      (Fintype.card (spec'.Range t) : ℝ≥0∞)⁻¹ :=
+  by
+  rw [cachingOracle.run_none hfresh,
+    probOutput_map_injective _ fun a b hab => (Prod.ext_iff.mp hab).1]
+  exact probOutput_query t u
+
+
+-- @@ L65-80 expanded
+omit [spec'.DecidableEq] in
+/-- **WARNING: trivially true.** The proof uses only `probEvent_le_one`; the query bound
+`hbound` and `target` are completely unused. The conclusion `Pr[...] * |C|⁻¹ ≤ |C|⁻¹`
+holds for any computation regardless of how many queries it makes.
+
+A meaningful unpredictability bound should use `hbound` to establish that the queried point
+is fresh, giving a tight `1/|C|` bound on the probability of guessing the ROM output. -/
+theorem probEvent_unqueried_match_le {α : Type u} {t : ℕ} (oa : OracleComp spec' α)
+    (_hbound : IsPerIndexQueryBound oa (fun _ => t)) (predict : spec'.Domain)
+    (_target : spec'.Range predict) :
+    (probEvent ((simulateQ cachingOracle oa).run ∅) fun z => z.2 predict = none) *
+        (Fintype.card (spec'.Range predict) : ℝ≥0∞)⁻¹ ≤
+      (Fintype.card (spec'.Range predict) : ℝ≥0∞)⁻¹ :=
+  (mul_le_mul' probEvent_le_one le_rfl).trans_eq (one_mul _)
+
+
+-- @@ L82-247 expanded
+/-- **Cache preimage bound**: if the initial cache contains at most one preimage
+of a target value `v₀`, then the probability that `simulateQ cachingOracle oa`
+creates a fresh cache entry equal to `v₀` is at most `n / |C|`, where `n` is the
+total query bound. Each cache miss is a fresh uniform draw, so a union bound
+over the at most `n` misses gives the result.
+
+This is the reusable ROM lemma for the extractability "fresh target hit" case. -/
+theorem probEvent_cache_has_value_le_of_unique_preimage {α : Type u} [Inhabited ι]
+    (oa : OracleComp spec α) (n : ℕ) (hbound : IsTotalQueryBound oa n)
+    (hrange : ∀ t, Fintype.card (spec.Range default) ≤ Fintype.card (spec.Range t))
+    (v₀ : spec.Range default) (cache₀ : QueryCache spec)
+    (hunique_v₀ :
+      ∀ t₀ t₁ : spec.Domain,
+        ∀ v₁ : spec.Range t₀,
+          ∀ v₂ : spec.Range t₁,
+            cache₀ t₀ = some v₁ → cache₀ t₁ = some v₂ → HEq v₁ v₀ → HEq v₂ v₀ → t₀ = t₁) :
+    (probEvent ((simulateQ cachingOracle oa).run cache₀) fun z =>
+        ∃ t₀ : spec.Domain, ∃ v : spec.Range t₀, z.2 t₀ = some v ∧ cache₀ t₀ = none ∧ HEq v v₀) ≤
+      (n : ℝ≥0∞) * (Fintype.card (spec.Range default) : ℝ≥0∞)⁻¹ :=
+  by
+  classical
+  let C := (Fintype.card (spec.Range default) : ℝ≥0∞)
+  induction oa using OracleComp.inductionOn generalizing n cache₀ with
+  | pure x =>
+    refine le_of_eq_of_le (b := 0) ?_ zero_le
+    rw [simulateQ_pure]
+    refine probEvent_eq_zero fun z hz h => ?_
+    change z ∈ support (pure (x, cache₀) : OracleComp _ _) at hz
+    rw [support_pure, Set.mem_singleton_iff] at hz
+    subst hz
+    obtain ⟨t₀, v, hcache, hnone, _⟩ := h
+    simp [hnone] at hcache
+  | query_bind t mx ih =>
+    rw [isTotalQueryBound_query_bind_iff] at hbound
+    obtain ⟨hpos, hrest⟩ := hbound
+    by_cases ht : ∃ v, cache₀ t = some v
+    · obtain ⟨v, hv⟩ := ht
+      have hrun :
+        (simulateQ cachingOracle (liftM (OracleSpec.query t) >>= mx)).run cache₀ =
+          (simulateQ cachingOracle (mx v)).run cache₀ :=
+        by
+        simp only [simulateQ_query_bind, OracleQuery.input_query, StateT.run_bind]
+        have hcache :
+          (liftM (cachingOracle t) : StateT _ (OracleComp spec) _).run cache₀ = pure (v, cache₀) :=
+          by
+          simp [liftM, MonadLiftT.monadLift, MonadLift.monadLift, StateT.run_bind, StateT.run_get,
+            hv, pure_bind, StateT.run_pure]
+        rw [hcache, pure_bind]
+        simp [OracleQuery.cont_query]
+      rw [hrun]
+      calc
+        (probEvent ((simulateQ cachingOracle (mx v)).run cache₀) fun z =>
+              ∃ t₀ v, z.2 t₀ = some v ∧ cache₀ t₀ = none ∧ HEq v v₀) ≤
+            ((n - 1 : ℕ) : ℝ≥0∞) * C⁻¹ :=
+          ih v (n - 1) (hrest v) cache₀ hunique_v₀
+        _ ≤ (n : ℝ≥0∞) * C⁻¹ := by gcongr; exact_mod_cast Nat.sub_le n 1
+    · push Not at ht
+      have ht_none : cache₀ t = none := Option.eq_none_iff_forall_ne_some.mpr ht
+      have hrun :
+        (simulateQ cachingOracle (liftM (OracleSpec.query t) >>= mx)).run cache₀ =
+          (liftM (OracleSpec.query t) >>= fun u =>
+            (simulateQ cachingOracle (mx u)).run (cache₀.cacheQuery t u)) :=
+        by
+        simp only [simulateQ_query_bind, OracleQuery.input_query, StateT.run_bind]
+        have hstep :
+          (liftM (cachingOracle t) : StateT _ (OracleComp spec) _).run cache₀ =
+            (liftM (OracleSpec.query t) >>= fun u => pure (u, cache₀.cacheQuery t u) :
+              OracleComp spec _) :=
+          by
+          simp only [cachingOracle.apply_eq, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+            StateT.run_bind, StateT.run_get, pure_bind, ht_none]
+          change (StateT.lift (PFunctor.FreeM.lift (P := spec.toPFunctor) t) cache₀ >>= _) = _
+          simp only [StateT.lift, monad_norm, modifyGet, MonadState.modifyGet,
+            MonadStateOf.modifyGet, StateT.modifyGet, StateT.run]
+          rfl
+        rw [hstep]; simp [monad_norm]
+      rw [hrun, probEvent_bind_eq_tsum]
+      have hih :
+        ∀ u : spec.Range t,
+          ¬HEq u v₀ →
+            (probEvent ((simulateQ cachingOracle (mx u)).run (cache₀.cacheQuery t u)) fun z =>
+                ∃ t₀ v, z.2 t₀ = some v ∧ cache₀ t₀ = none ∧ HEq v v₀) ≤
+              ((n - 1 : ℕ) : ℝ≥0∞) * C⁻¹ :=
+        by
+        intro u heq_v₀
+        have hunique_v₀' :
+          ∀ t₀ t₁ : spec.Domain,
+            ∀ v₁ : spec.Range t₀,
+              ∀ v₂ : spec.Range t₁,
+                (cache₀.cacheQuery t u) t₀ = some v₁ →
+                  (cache₀.cacheQuery t u) t₁ = some v₂ → HEq v₁ v₀ → HEq v₂ v₀ → t₀ = t₁ :=
+          by
+          intro t₀ t₁ v₁ v₂ hcache₁ hcache₂ hheq₁ hheq₂
+          by_cases heq_t₀ : t₀ = t
+          · subst heq_t₀
+            rw [QueryCache.cacheQuery_self] at hcache₁
+            cases hcache₁
+            exact (heq_v₀ hheq₁).elim
+          · by_cases heq_t₁ : t₁ = t
+            · subst heq_t₁
+              rw [QueryCache.cacheQuery_self] at hcache₂
+              cases hcache₂
+              exact (heq_v₀ hheq₂).elim
+            · rw [QueryCache.cacheQuery_of_ne _ _ heq_t₀] at hcache₁
+              rw [QueryCache.cacheQuery_of_ne _ _ heq_t₁] at hcache₂
+              exact hunique_v₀ t₀ t₁ v₁ v₂ hcache₁ hcache₂ hheq₁ hheq₂
+        calc
+          (probEvent ((simulateQ cachingOracle (mx u)).run (cache₀.cacheQuery t u)) fun z =>
+                ∃ t₀ v, z.2 t₀ = some v ∧ cache₀ t₀ = none ∧ HEq v v₀) ≤
+              probEvent ((simulateQ cachingOracle (mx u)).run (cache₀.cacheQuery t u)) fun z =>
+                ∃ t₀ v, z.2 t₀ = some v ∧ (cache₀.cacheQuery t u) t₀ = none ∧ HEq v v₀ :=
+            by
+            apply probEvent_mono
+            intro z hz ⟨t₀, v, hcache_f, hnone₀, hheq⟩
+            by_cases heq_t : t₀ = t
+            · exfalso
+              subst heq_t
+              have hle := simulateQ_cachingOracle_cache_le (mx u) (cache₀.cacheQuery t₀ u) _ hz
+              have hcu := QueryCache.cacheQuery_self cache₀ t₀ u
+              have hzu : z.2 t₀ = some u := hle hcu
+              rw [hzu] at hcache_f; cases hcache_f
+              exact heq_v₀ hheq
+            · exact ⟨t₀, v, hcache_f, QueryCache.cacheQuery_of_ne _ _ heq_t ▸ hnone₀, hheq⟩
+          _ ≤ ((n - 1 : ℕ) : ℝ≥0∞) * C⁻¹ := ih u (n - 1) (hrest u) _ hunique_v₀'
+      calc
+        (∑' u,
+              probOutput (spec.query t : OracleComp spec _) u *
+                probEvent ((simulateQ cachingOracle (mx u)).run (cache₀.cacheQuery t u)) fun z =>
+                  ∃ t₀ v, z.2 t₀ = some v ∧ cache₀ t₀ = none ∧ HEq v v₀) ≤
+            ∑' u,
+              ((if HEq u v₀ then C⁻¹ else 0) +
+                probOutput (spec.query t : OracleComp spec _) u * (((n - 1 : ℕ) : ℝ≥0∞) * C⁻¹)) :=
+          by
+          refine ENNReal.tsum_le_tsum fun u => ?_
+          by_cases h : HEq u v₀
+          · simp only [h, ite_true]
+            calc
+              (probOutput (spec.query t : OracleComp spec _) u *
+                    probEvent ((simulateQ cachingOracle (mx u)).run (cache₀.cacheQuery t u))
+                      fun z => ∃ t₀ v, z.2 t₀ = some v ∧ cache₀ t₀ = none ∧ HEq v v₀) ≤
+                  probOutput (spec.query t : OracleComp spec _) u * 1 :=
+                mul_le_mul' le_rfl probEvent_le_one
+              _ = probOutput (spec.query t : OracleComp spec _) u := (mul_one _)
+              _ ≤ (Fintype.card (spec.Range t) : ℝ≥0∞)⁻¹ := (probOutput_query t u).le
+              _ ≤ C⁻¹ := (ENNReal.inv_le_inv.mpr (Nat.cast_le.mpr (hrange t)))
+              _ ≤ C⁻¹ + _ := le_add_right le_rfl
+          · simp only [h, ite_false, zero_add]
+            exact mul_le_mul' le_rfl (hih u h)
+        _ =
+            (∑' u, (if HEq u v₀ then C⁻¹ else 0)) +
+              (∑' u, probOutput (spec.query t : OracleComp spec _) u) *
+                (((n - 1 : ℕ) : ℝ≥0∞) * C⁻¹) :=
+          by rw [ENNReal.tsum_add, ENNReal.tsum_mul_right]
+        _ ≤ C⁻¹ + 1 * (((n - 1 : ℕ) : ℝ≥0∞) * C⁻¹) :=
+          by
+          apply add_le_add
+          ·
+            calc
+              ∑' u, (if HEq u v₀ then C⁻¹ else (0 : ℝ≥0∞)) ≤
+                  ∑' u, (if HEq u v₀ then (1 : ℝ≥0∞) else 0) * C⁻¹ :=
+                by
+                refine ENNReal.tsum_le_tsum fun u => ?_
+                split_ifs <;> simp
+              _ = (∑' u, if HEq u v₀ then (1 : ℝ≥0∞) else 0) * C⁻¹ := ENNReal.tsum_mul_right
+              _ ≤ 1 * C⁻¹ := by
+                apply mul_le_mul' _ le_rfl
+                rw [tsum_eq_sum (s := Finset.univ) (by simp),
+                  show
+                    ∑ u : spec.Range t, (if HEq u v₀ then (1 : ℝ≥0∞) else 0) =
+                      ((Finset.univ.filter (fun u : spec.Range t => HEq u v₀)).card : ℝ≥0∞)
+                    from by
+                    rw [Finset.sum_ite, Finset.sum_const_zero, add_zero, Finset.sum_const,
+                      nsmul_eq_mul, mul_one]]
+                exact_mod_cast
+                  Finset.card_le_one.mpr fun a ha b hb =>
+                    by
+                    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ha hb
+                    exact eq_of_heq (ha.trans hb.symm)
+              _ = C⁻¹ := one_mul _
+          · exact mul_le_mul' tsum_probOutput_le_one le_rfl
+        _ = (n : ℝ≥0∞) * C⁻¹ := by
+          rw [one_mul, ← one_add_mul, ← Nat.cast_one, ← Nat.cast_add, Nat.add_sub_cancel' hpos]
+
+
+-- @@ L249-267 expanded
+/-- Special case of
+`probEvent_cache_has_value_le_of_unique_preimage` when the initial cache
+contains at most one preimage of `v₀` because the cache is collision-free. -/
+theorem probEvent_cache_has_value_le_of_noCollision {α : Type u} [Inhabited ι]
+    (oa : OracleComp spec α) (n : ℕ) (hbound : IsTotalQueryBound oa n)
+    (hrange : ∀ t, Fintype.card (spec.Range default) ≤ Fintype.card (spec.Range t))
+    (v₀ : spec.Range default) (cache₀ : QueryCache spec) (hno : ¬CacheHasCollision cache₀) :
+    (probEvent ((simulateQ cachingOracle oa).run cache₀) fun z =>
+        ∃ t₀ : spec.Domain, ∃ v : spec.Range t₀, z.2 t₀ = some v ∧ cache₀ t₀ = none ∧ HEq v v₀) ≤
+      (n : ℝ≥0∞) * (Fintype.card (spec.Range default) : ℝ≥0∞)⁻¹ :=
+  probEvent_cache_has_value_le_of_unique_preimage (oa := oa) (n := n) hbound hrange v₀ cache₀
+    fun t₀ t₁ v₁ v₂ hcache₀ hcache₁ hheq₀ hheq₁ =>
+    not_not.1 fun hne => hno ⟨t₀, t₁, v₁, v₂, hne, hcache₀, hcache₁, hheq₀.trans hheq₁.symm⟩
+
+
+-- @@ L269-286 expanded
+/-- Special case of
+`probEvent_cache_has_value_le_of_unique_preimage` when the initial cache
+contains no preimage of `v₀`. -/
+theorem probEvent_cache_has_value_le {α : Type u} [Inhabited ι] (oa : OracleComp spec α) (n : ℕ)
+    (hbound : IsTotalQueryBound oa n)
+    (hrange : ∀ t, Fintype.card (spec.Range default) ≤ Fintype.card (spec.Range t))
+    (v₀ : spec.Range default) (cache₀ : QueryCache spec)
+    (hno_v₀ : ∀ t₀ : spec.Domain, ∀ v : spec.Range t₀, cache₀ t₀ = some v → ¬HEq v v₀) :
+    (probEvent ((simulateQ cachingOracle oa).run cache₀) fun z =>
+        ∃ t₀ : spec.Domain, ∃ v : spec.Range t₀, z.2 t₀ = some v ∧ cache₀ t₀ = none ∧ HEq v v₀) ≤
+      (n : ℝ≥0∞) * (Fintype.card (spec.Range default) : ℝ≥0∞)⁻¹ :=
+  probEvent_cache_has_value_le_of_unique_preimage (oa := oa) (n := n) hbound hrange v₀ cache₀
+    fun t₀ _ v₁ _ hcache₁ _ hheq₁ _ => (hno_v₀ t₀ v₁ hcache₁ hheq₁).elim
+
+
+-- @@ L288-332 expanded
+/-- **Finite-target cache-hit bound**: suppose every value in `targets` has at most one
+preimage in the initial cache. If `oa` makes at most `n` queries, then the probability that its
+cached execution creates a fresh entry whose value belongs to `targets` is at most
+`|targets| * n / |Range default|`.
+
+`targets.card` counts distinct output values, not positions or labels carrying those values.
+A consumer that starts from a positional collection can deduplicate its values into a `Finset`
+and then weaken the result using the corresponding cardinality bound. -/
+theorem probEvent_cache_hits_targets_le_of_unique_preimage {α : Type u} [Inhabited ι]
+    (oa : OracleComp spec α) (n : ℕ) (hbound : IsTotalQueryBound oa n)
+    (hrange : ∀ t, Fintype.card (spec.Range default) ≤ Fintype.card (spec.Range t))
+    (targets : Finset (spec.Range default)) (cache₀ : QueryCache spec)
+    (hunique :
+      ∀ v₀ ∈ targets,
+        ∀ t₀ t₁ : spec.Domain,
+          ∀ v₁ : spec.Range t₀,
+            ∀ v₂ : spec.Range t₁,
+              cache₀ t₀ = some v₁ → cache₀ t₁ = some v₂ → HEq v₁ v₀ → HEq v₂ v₀ → t₀ = t₁) :
+    (probEvent ((simulateQ cachingOracle oa).run cache₀) fun z =>
+        ∃ v₀ ∈ targets,
+          ∃ t₀ : spec.Domain, ∃ v : spec.Range t₀, z.2 t₀ = some v ∧ cache₀ t₀ = none ∧ HEq v v₀) ≤
+      ((targets.card * n : ℕ) : ℝ≥0∞) * (Fintype.card (spec.Range default) : ℝ≥0∞)⁻¹ :=
+  by
+  calc
+    (probEvent ((simulateQ cachingOracle oa).run cache₀) fun z =>
+          ∃ v₀ ∈ targets,
+            ∃ t₀ : spec.Domain,
+              ∃ v : spec.Range t₀, z.2 t₀ = some v ∧ cache₀ t₀ = none ∧ HEq v v₀) ≤
+        ∑ v₀ ∈ targets,
+          probEvent ((simulateQ cachingOracle oa).run cache₀) fun z =>
+            ∃ t₀ : spec.Domain,
+              ∃ v : spec.Range t₀, z.2 t₀ = some v ∧ cache₀ t₀ = none ∧ HEq v v₀ :=
+      probEvent_exists_finset_le_sum targets _ _
+    _ ≤ ∑ _v₀ ∈ targets, (n : ℝ≥0∞) * (Fintype.card (spec.Range default) : ℝ≥0∞)⁻¹ :=
+      by
+      refine Finset.sum_le_sum fun v₀ hv₀ => ?_
+      exact
+        probEvent_cache_has_value_le_of_unique_preimage oa n hbound hrange v₀ cache₀
+          (hunique v₀ hv₀)
+    _ = ((targets.card * n : ℕ) : ℝ≥0∞) * (Fintype.card (spec.Range default) : ℝ≥0∞)⁻¹ := by
+      simp [Nat.cast_mul, mul_assoc]
+
+
+-- @@ L334-351 expanded
+/-- Finite-target cache-hit bound specialized to a collision-free initial cache. Collision
+freeness ensures that each distinct target value has at most one initial preimage. -/
+theorem probEvent_cache_hits_targets_le_of_noCollision {α : Type u} [Inhabited ι]
+    (oa : OracleComp spec α) (n : ℕ) (hbound : IsTotalQueryBound oa n)
+    (hrange : ∀ t, Fintype.card (spec.Range default) ≤ Fintype.card (spec.Range t))
+    (targets : Finset (spec.Range default)) (cache₀ : QueryCache spec)
+    (hno : ¬CacheHasCollision cache₀) :
+    (probEvent ((simulateQ cachingOracle oa).run cache₀) fun z =>
+        ∃ v₀ ∈ targets,
+          ∃ t₀ : spec.Domain, ∃ v : spec.Range t₀, z.2 t₀ = some v ∧ cache₀ t₀ = none ∧ HEq v v₀) ≤
+      ((targets.card * n : ℕ) : ℝ≥0∞) * (Fintype.card (spec.Range default) : ℝ≥0∞)⁻¹ :=
+  probEvent_cache_hits_targets_le_of_unique_preimage oa n hbound hrange targets cache₀
+    fun _ _ t₀ t₁ v₁ v₂ hcache₀ hcache₁ hheq₀ hheq₁ =>
+    not_not.1 fun hne => hno ⟨t₀, t₁, v₁, v₂, hne, hcache₀, hcache₁, hheq₀.trans hheq₁.symm⟩
+
+
+-- @@ L353-396 expanded
+/-- Homogeneous finite-target fresh-hit bound without an artificial inhabited-domain
+assumption.  If the query domain is empty, the event is impossible; otherwise this is the
+homogeneous specialization of `probEvent_cache_hits_targets_le_of_noCollision`. -/
+theorem probEvent_cache_hits_targets_le_of_noCollision_homogeneous {ι Y α : Type u} [DecidableEq ι]
+    [Finite Y] [Inhabited Y] [IsUniformSpec (OracleSpec.ofFn (ι := ι) (fun _ => Y))]
+    (oa : OracleComp (OracleSpec.ofFn (ι := ι) (fun _ => Y)) α) (n : ℕ)
+    (hbound : IsTotalQueryBound oa n) (targets : Finset Y)
+    (cache₀ : (OracleSpec.ofFn (ι := ι) (fun _ => Y)).QueryCache)
+    (hno : ¬CacheHasCollision cache₀) :
+    (probEvent ((simulateQ (OracleSpec.ofFn (ι := ι) (fun _ => Y)).cachingOracle oa).run cache₀)
+        fun z =>
+        ∃ target ∈ targets,
+          ∃ input : ι, ∃ value : Y, z.2 input = some value ∧ cache₀ input = none ∧ value = target) ≤
+      ((targets.card * n : ℕ) : ℝ≥0∞) * (Nat.card Y : ℝ≥0∞)⁻¹ :=
+  by
+  classical
+    cases isEmpty_or_nonempty ι with
+  | inl hempty =>
+    let _ : IsEmpty ι := hempty
+    refine le_of_eq_of_le (probEvent_eq_zero fun z _ hhit => ?_) zero_le
+    obtain ⟨_, _, input, _⟩ := hhit
+    exact isEmptyElim input
+  | inr hnonempty =>
+    let _ : Nonempty ι := hnonempty
+    let _ : Inhabited ι := Classical.inhabited_of_nonempty inferInstance
+    have hbase :=
+      probEvent_cache_hits_targets_le_of_noCollision (spec := OracleSpec.ofFn (ι := ι) (fun _ => Y))
+        oa n hbound
+        (fun input => by
+          apply Nat.le_of_eq
+          exact
+            @Fintype.card_congr ((OracleSpec.ofFn (ι := ι) (fun _ => Y)).Range default)
+              ((OracleSpec.ofFn (ι := ι) (fun _ => Y)).Range input)
+              (OracleSpec.instFintypeRangeOfFintype default)
+              (OracleSpec.instFintypeRangeOfFintype input) (Equiv.refl Y))
+        targets cache₀ hno
+    have hcard :
+      @Fintype.card ((OracleSpec.ofFn (ι := ι) (fun _ => Y)).Range default)
+          (OracleSpec.instFintypeRangeOfFintype default) =
+        Nat.card Y :=
+      by
+      calc
+        @Fintype.card ((OracleSpec.ofFn (ι := ι) (fun _ => Y)).Range default)
+              (OracleSpec.instFintypeRangeOfFintype default) =
+            Nat.card ((OracleSpec.ofFn (ι := ι) (fun _ => Y)).Range default) :=
+          (@Nat.card_eq_fintype_card ((OracleSpec.ofFn (ι := ι) (fun _ => Y)).Range default)
+              (OracleSpec.instFintypeRangeOfFintype default)).symm
+        _ = Nat.card Y := Nat.card_congr (Equiv.refl Y)
+    simpa only [hcard, heq_eq_eq] using hbase
+
+
+-- @@ L398-398 verbatim
+end Unpredictability
+
+
+-- @@ L400-400 verbatim
+/-! ## Collision-Based Win Bound -/
+
+
+-- @@ L402-402 verbatim
+section CollisionBasedWinBound
+
+
+-- @@ L404-405 verbatim
+variable {ι : Type} [DecidableEq ι] {spec : OracleSpec.{0, 0} ι}
+  [spec.DecidableEq] [IsUniformSpec spec]
+
+
+-- @@ L407-426 expanded
+omit [spec.DecidableEq] in
+/-- **WARNING: vacuously true.** The `[Unique ι]` hypothesis means `ι` has exactly one element,
+but `CacheHasCollision` (used via `probEvent_cacheCollision_le_birthday'`) requires two *distinct*
+oracle indices `t₁ ≠ t₂ : ι`, which is impossible when `ι` is unique. The event
+`CacheHasCollision z.2` is therefore always false, making the bound trivially `0 ≤ ...`.
+
+For a useful single-oracle collision bound, state it over `LogHasCollision` (which checks for
+equal outputs on distinct *inputs* within the same oracle index) rather than `CacheHasCollision`
+(which requires distinct indices). -/
+theorem probEvent_collision_win_le {α : Type} {t : ℕ} [Inhabited ι] [Unique ι]
+    (oa : OracleComp spec α) (win : α × QueryCache spec → Prop)
+    (hbound : IsPerIndexQueryBound oa (fun _ => t))
+    (hrange : ∀ t, Fintype.card (spec.Range default) ≤ Fintype.card (spec.Range t))
+    (hwin : ∀ z ∈ support ((simulateQ cachingOracle oa).run ∅), win z → CacheHasCollision z.2) :
+    probEvent ((simulateQ cachingOracle oa).run ∅) win ≤
+      (t ^ 2 : ℝ≥0∞) / (2 * Fintype.card (spec.Range default)) :=
+  (probEvent_mono hwin).trans (probEvent_cacheCollision_le_birthday' oa hbound hrange)
+
+
+-- @@ L428-428 verbatim
+end CollisionBasedWinBound
+
+
+-- @@ L430-430 verbatim
+/-! ## `HasUnpredictableSample` -/
+
+
+-- @@ L432-441 expanded
+/-- A probabilistic computation `samples : ProbComp α` is **`β`-unpredictable** if every specific
+outcome occurs with probability at most `β`. This is the standard "min-entropy at level
+`log₂(1/β)`" notion, packaged as a structured proposition so that downstream collision bounds
+can ingest it generically.
+
+Equivalent to `∀ x, Pr[= x | samples] ≤ β`; the structure shape lets it serve as the canonical
+abstract hypothesis for "values drawn from `samples` are hard to guess". -/
+@[mk_iff]
+structure HasUnpredictableSample {α : Type} (samples : ProbComp α) (β : ℝ≥0∞) : Prop where
+  prob_le : ∀ x : α, probOutput samples x ≤ β
+
+
+-- @@ L443-443 verbatim
+namespace HasUnpredictableSample
+
+
+-- @@ L445-445 verbatim
+variable {α : Type} {samples : ProbComp α} {β β' : ℝ≥0∞}
+
+
+-- @@ L447-451 verbatim
+/-- Monotonicity in the bound: a `β`-unpredictable sample is also `β'`-unpredictable for any
+`β' ≥ β`. -/
+lemma mono (h : HasUnpredictableSample samples β) (hβ : β ≤ β') :
+    HasUnpredictableSample samples β' :=
+  ⟨fun x => (h.prob_le x).trans hβ⟩
+
+
+-- @@ L453-456 expanded
+/-- `$ᵗ α` is `(|α|)⁻¹`-unpredictable for any nonempty `Fintype`. -/
+lemma uniformSample {α : Type} [SampleableType α] [Fintype α] [Nonempty α] :
+    HasUnpredictableSample (uniformSample α) ((Fintype.card α : ℝ≥0∞)⁻¹) :=
+  ⟨fun x => (probOutput_uniformSample α x).le⟩
+
+
+-- @@ L458-458 verbatim
+end HasUnpredictableSample
+
+
+-- @@ L460-460 verbatim
+/-! ## Sanity check: uniform sampling reproduces the canonical `1/|α|` shape -/
+
+
+-- @@ L462-469 expanded
+/-- For a `β`-unpredictable sampling distribution from a fintype, the per-sample bound
+matches `(Fintype.card α)⁻¹` exactly when `samples = $ᵗ α`. This pins the textbook
+"uniform draw from `α` has min-entropy `log₂|α|`" arithmetic so downstream collision bounds
+can substitute `β = 1/|α|` algebraically. -/
+lemma HasUnpredictableSample.uniformSample_apply {α : Type} [SampleableType α] [Fintype α]
+    [Nonempty α] (x : α) :
+    probOutput (uniformSample α : ProbComp α) x = (Fintype.card α : ℝ≥0∞)⁻¹ :=
+  probOutput_uniformSample α x
+
+
+-- @@ L471-471 verbatim
+end OracleComp

@@ -1,0 +1,73 @@
+{
+  "key": "vcvio",
+  "repo": "https://github.com/Verified-zkEVM/VCVio",
+  "commit": "6d5c7d502ad97f676293a84c3d364c518cbde117",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "VCVioTest",
+    "LatticeCrypto",
+    "Examples",
+    "VCVio",
+    "Extern",
+    "HashSig",
+    "Interop",
+    "HashSigTest",
+    "ToMathlib"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/vcvio/repo",
+  "entries": 6500,
+  "modules": 479,
+  "exported": 472,
+  "failed": [
+    {
+      "module": "Interop.Hax.Adc",
+      "why": "no closure"
+    },
+    {
+      "module": "Interop.Hax.Barrett",
+      "why": "no closure"
+    },
+    {
+      "module": "Interop.Hax.Bridge",
+      "why": "no closure"
+    },
+    {
+      "module": "Interop.Hax.CenteredBinomial",
+      "why": "no closure"
+    },
+    {
+      "module": "Interop.Hax.Computation",
+      "why": "no closure"
+    },
+    {
+      "module": "Interop.Hax.Division",
+      "why": "no closure"
+    },
+    {
+      "module": "Interop.Hax.Examples",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 6634,
+    "kept": 6500,
+    "skippedRoot": 109,
+    "skippedDup": 14,
+    "skippedNoFile": 0,
+    "skippedCommented": 11,
+    "lineFixed": 2849,
+    "lineUnverified": 2,
+    "nameFixed": 59,
+    "sorryOriginals": 0,
+    "emptyProofs": 12
+  },
+  "exportsBytes": 193847296,
+  "minutes": 87,
+  "finishedAt": "2026-09-25T17:13:48.320Z"
+}
