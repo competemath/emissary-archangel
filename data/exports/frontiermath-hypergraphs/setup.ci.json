@@ -1,0 +1,41 @@
+{
+  "key": "frontiermath-hypergraphs",
+  "repo": "https://github.com/math-inc/FrontierMathOpen-Hypergraphs",
+  "commit": "0f5a301e61492e0751a9ed8a04dc946f706941a5",
+  "toolchain": "leanprover/lean4:v4.28.0",
+  "roots": [
+    "FrontierMathOpenHypergraphs"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/frontiermath-hypergraphs/repo",
+  "entries": 339,
+  "modules": 4,
+  "exported": 4,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "FrontierMathOpenHypergraphs.Uniform",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/frontiermath-hypergraphs FrontierMathOpenHypergraphs FrontierMathOpenHypergraphs.Uniform "
+      }
+    ]
+  },
+  "seed": {
+    "records": 340,
+    "kept": 339,
+    "skippedRoot": 0,
+    "skippedDup": 1,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 297,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 7454720,
+  "minutes": 29,
+  "finishedAt": "2026-09-25T15:02:02.396Z"
+}
