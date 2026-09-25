@@ -3,6 +3,11 @@
 //   node scripts/setup-sources.mjs [key...]          run until nothing is left (default: every source)
 //   node scripts/setup-sources.mjs --status          what is done, pending and given up; changes nothing
 //   node scripts/setup-sources.mjs --retry-gave-up   also retry the libraries that gave up
+//   node scripts/setup-sources.mjs --adopt [key...]  only the named libraries and those a GitHub runner set up
+//                                                     (.github/workflows/setup-libraries.yml), which it adopts
+//   ... --wait-for-runners                           while a setup-libraries run is queued or running: adopt its
+//                                                     results as they land, hold `setup.order: "last"` libraries,
+//                                                     and wait instead of exiting when nothing is left
 //
 // Stateless. Nothing is carried in memory from one library to the next and nothing assumes the run
 // finishes in one go: the machine can sleep, the network can be switched off, the driver can be
@@ -47,6 +52,8 @@ const argv = process.argv.slice(2)
 const ONLY = argv.filter((a) => !a.startsWith("--"))
 const STATUS = argv.includes("--status")
 const RETRY_GAVE_UP = argv.includes("--retry-gave-up")
+const ADOPT = argv.includes("--adopt")
+const WAIT_FOR_RUNNERS = argv.includes("--wait-for-runners")
 
 const ts = () => new Date().toTimeString().slice(0, 8)
 const log = (s) => console.log(`[${ts()}] ${s}`)
@@ -113,7 +120,9 @@ function plan() {
   const tree = reg.targetToolchain
   const rows = []
   for (const [key, src] of Object.entries(reg.sources)) {
-    if (!src.repo || (ONLY.length && !ONLY.includes(key))) continue
+    if (!src.repo) continue
+    const byRunner = readJSON(path.join(ROOT, "data", "exports", key, "setup.ci.json"))?.commit === src.commit
+    if (ADOPT ? !(ONLY.includes(key) || byRunner) : ONLY.length && !ONLY.includes(key)) continue
     rows.push({ key, src, state: stateOf(key), parked: fs.existsSync(path.join(repoDir(key, src), ".lake")) })
   }
   const tier = (r) => (r.state === "stale" ? 2 : r.src.setup?.order === "last" ? 1 : 0)
@@ -217,6 +226,13 @@ async function sweep(rows) {
     }
   }
   if (banked || Number(git(["rev-list", "--count", "origin/main..main"]).stdout.trim() || 0)) push()
+}
+
+// A setup-libraries run queued or in progress on GitHub (gh answers for this checkout's origin); when gh cannot
+// tell (offline), assume one is, so a days-long local library is not started early.
+function runnersActive() {
+  const r = spawnSync("gh", ["run", "list", "--workflow", "setup-libraries.yml", "--limit", "20", "--json", "status", "--jq", '[.[] | select(.status != "completed")] | length'], { cwd: ROOT, env: ENV, encoding: "utf8" })
+  return r.status !== 0 || Number(r.stdout.trim() || 0) > 0
 }
 
 // ---- waiting --------------------------------------------------------------------------------------
@@ -411,15 +427,22 @@ async function main() {
   while (!stopping) {
     pullRunnerResults()
     await sweep(plan().rows)
-    if (!plan().todo.length) break
+    if (!plan().todo.length && !(WAIT_FOR_RUNNERS && runnersActive())) break
     await until(() => !strays().length, `another setup-source.mjs is running (${strays().join(", ")})`)
     await until(online, "github.com unreachable")
     makeRoom()
     await until(() => freeGB() >= MIN_FREE_GB / 2, `under ${MIN_FREE_GB / 2} GB of free disk`, 10 * 60000)
     if (stopping) break
     const { todo } = plan() // re-read: a stray may have finished a library while we waited
-    if (!todo.length) continue
-    await runOne(todo[0], todo)
+    const active = WAIT_FOR_RUNNERS && runnersActive()
+    const next = todo.find((r) => !(active && r.src.setup?.order === "last"))
+    if (!next) {
+      if (!active) continue
+      log(`waiting: runners still setting libraries up; checking again in 10 min${todo.length ? ` (holding ${todo.map((r) => r.key).join(", ")})` : ""}`)
+      await sleep(10 * 60000)
+      continue
+    }
+    await runOne(next, todo)
   }
   if (!stopping) {
     const { rows } = plan()
