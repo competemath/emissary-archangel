@@ -1,0 +1,36 @@
+{
+  "key": "degiorgi",
+  "repo": "https://github.com/scottnarmstrong/DeGiorgi",
+  "commit": "4c1b3077d3782b24065184df4ba59501b2e56fc7",
+  "toolchain": "leanprover/lean4:v4.29.0-rc6",
+  "roots": [
+    "DeGiorgi"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/degiorgi/repo",
+  "entries": 1183,
+  "modules": 77,
+  "exported": 77,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1192,
+    "kept": 1183,
+    "skippedRoot": 0,
+    "skippedDup": 9,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 514,
+    "lineUnverified": 0,
+    "nameFixed": 7,
+    "sorryOriginals": 0,
+    "emptyProofs": 2
+  },
+  "exportsBytes": 82313216,
+  "minutes": 78,
+  "finishedAt": "2026-09-25T15:42:44.395Z"
+}
