@@ -1,0 +1,36 @@
+{
+  "key": "leray-hopf",
+  "repo": "https://github.com/uda-lab/leray-hopf",
+  "commit": "e704400f2fb2f26b2ee7f4372c3e1ecbbc82f3dc",
+  "toolchain": "leanprover/lean4:v4.31.0-rc2",
+  "roots": [
+    "LerayHopf"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/leray-hopf/repo",
+  "entries": 1149,
+  "modules": 102,
+  "exported": 102,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1156,
+    "kept": 1149,
+    "skippedRoot": 0,
+    "skippedDup": 2,
+    "skippedNoFile": 0,
+    "skippedCommented": 5,
+    "lineFixed": 158,
+    "lineUnverified": 0,
+    "nameFixed": 7,
+    "sorryOriginals": 0,
+    "emptyProofs": 2
+  },
+  "exportsBytes": 65327104,
+  "minutes": 20,
+  "finishedAt": "2026-09-25T15:22:34.700Z"
+}
