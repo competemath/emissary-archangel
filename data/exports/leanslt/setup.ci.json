@@ -1,0 +1,36 @@
+{
+  "key": "leanslt",
+  "repo": "https://github.com/YuanheZ/lean-stat-learning-theory",
+  "commit": "d0f506f0a695018265dccb33bcb05e2f5ca1c876",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "SLT"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/leanslt/repo",
+  "entries": 1663,
+  "modules": 65,
+  "exported": 65,
+  "failed": [],
+  "expansion": {
+    "expanded": 1,
+    "verbatim": 178,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1663,
+    "kept": 1663,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 337,
+    "lineUnverified": 0,
+    "nameFixed": 12,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 22343680,
+  "minutes": 17,
+  "finishedAt": "2026-09-25T15:13:33.961Z"
+}
