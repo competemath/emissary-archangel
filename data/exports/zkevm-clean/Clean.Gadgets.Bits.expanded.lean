@@ -1,0 +1,96 @@
+import Clean.Gadgets.Equality
+import Clean.Gadgets.Boolean
+import Clean.Utils.Bits
+import Clean.Utils.Tactics
+
+
+-- @@ L6-6 verbatim
+namespace Gadgets.ToBits
+
+-- @@ L7-7 verbatim
+open Utils.Bits
+
+-- @@ L8-8 verbatim
+variable {p : ℕ} [prime: Fact p.Prime] [p_large_enough: Fact (p > 2)]
+
+
+-- @@ L10-21 expanded
+def main (n : ℕ) (x : Expression (F p)) : Circuit (F p) (Vector (Expression (F p)) n) := do
+  -- witness the bits of `x`
+  
+  let bits ←
+    witnessVector n
+        (x.bits n)
+          -- add boolean constraints on all bits
+          
+  Circuit.forEach bits assertBool
+  HasAssertEq.assert_eq x (fieldFromBitsExpr bits)
+  return bits
+
+
+-- @@ L23-65 verbatim
+def toBits (n : ℕ) (hn : 2^n < p) : GeneralFormalCircuit (F p) field (fields n) where
+  main := main n
+
+  ProverAssumptions (x : F p) _ _ := x.val < 2^n
+
+  Spec (x : F p) (bits : Vector (F p) n) _ :=
+    x.val < 2^n ∧ bits = fieldToBits n x
+
+  soundness := by
+    circuit_proof_start
+    obtain ⟨ h_bits, h_eq ⟩ := h_holds
+
+    let bit_vars : Vector (Expression (F p)) n := .mapRange n (var ⟨i₀ + ·⟩)
+    let bits : Vector (F p) n := bit_vars.map env
+
+    replace h_bits (i : ℕ) (hi : i < n) : IsBool bits[i] := by
+      simp only [circuit_norm, bits, bit_vars]
+      exact h_bits ⟨ i, hi ⟩
+
+    change input = env (fieldFromBitsExpr bit_vars) at h_eq
+    rw [h_eq, fieldFromBits_eval bit_vars, fieldToBits_fieldFromBits hn bits h_bits]
+    use fieldFromBits_lt _ h_bits
+
+  completeness := by
+    circuit_proof_start
+
+    constructor
+    · intro i
+      rw [h_env i]
+      rcases Nat.mod_two_eq_zero_or_one (input.val >>> i.val) with h | h <;> simp [h, IsBool]
+
+    let bit_vars : Vector (Expression (F p)) n := .mapRange n (var ⟨i₀ + ·⟩)
+
+    have h_bits_eq : bit_vars.map env = fieldToBits n input := by
+      rw [Vector.ext_iff]
+      intro i hi
+      simp only [circuit_norm, bit_vars]
+      rw [h_env ⟨ i, hi ⟩, getElem_fieldToBits]
+
+    show input = env (fieldFromBitsExpr bit_vars)
+    rw [fieldFromBits_eval bit_vars, h_bits_eq, fieldFromBits_fieldToBits h_assumptions]
+
+-- formal assertion that uses the same circuit to implement a range check. without input assumption
+
+
+-- @@ L67-75 verbatim
+def rangeCheck (n : ℕ) (hn : 2^n < p) : FormalAssertion (F p) field where
+  main x := do
+    -- we wrap the toBits circuit but ignore the output
+    let _ ← toBits n hn x
+
+  Spec (x : F p) := x.val < 2^n
+
+  soundness := by circuit_proof_all [toBits]
+  completeness := by circuit_proof_all [toBits]
+
+
+-- @@ L77-77 verbatim
+end ToBits
+
+-- @@ L78-78 verbatim
+export ToBits (toBits)
+
+-- @@ L79-79 verbatim
+end Gadgets

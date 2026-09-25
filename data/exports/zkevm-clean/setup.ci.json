@@ -1,0 +1,49 @@
+{
+  "key": "zkevm-clean",
+  "repo": "https://github.com/Verified-zkEVM/clean",
+  "commit": "93c9d1ef45be9f687214625d7857889cf2485504",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "Clean"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/zkevm-clean/repo",
+  "entries": 1733,
+  "modules": 117,
+  "exported": 114,
+  "failed": [
+    {
+      "module": "Clean.Circomlib.Poseidon",
+      "why": "no closure"
+    },
+    {
+      "module": "Clean.Gadgets.SHA256.And32",
+      "why": "no closure"
+    },
+    {
+      "module": "Clean.Tables.Addition8",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1736,
+    "kept": 1733,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 3,
+    "lineFixed": 1107,
+    "lineUnverified": 0,
+    "nameFixed": 2,
+    "sorryOriginals": 0,
+    "emptyProofs": 1
+  },
+  "exportsBytes": 686448640,
+  "minutes": 19,
+  "finishedAt": "2026-09-25T16:07:49.503Z"
+}

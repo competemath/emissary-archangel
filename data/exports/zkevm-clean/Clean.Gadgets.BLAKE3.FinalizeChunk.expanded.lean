@@ -1,0 +1,324 @@
+import Clean.Gadgets.BLAKE3.Compress
+import Clean.Gadgets.BLAKE3.ApplyRounds
+import Clean.Gadgets.BLAKE3.BLAKE3State
+import Clean.Gadgets.Or.Or32
+import Clean.Gadgets.IsZero
+import Clean.Specs.BLAKE3
+import Clean.Tables.BLAKE3.ProcessBlocksInductive
+import Clean.Circuit.Provable
+import Clean.Utils.Tactics
+
+
+-- @@ L11-11 verbatim
+namespace Gadgets.BLAKE3.FinalizeChunk
+
+-- @@ L12-12 verbatim
+variable {p : ℕ} [Fact p.Prime] [p_large_enough : Fact (p > 2^16 + 2^8)]
+
+-- @@ L13-13 verbatim
+instance : Fact (p > 512) := .mk (by linarith [p_large_enough.elim])
+
+
+-- @@ L15-15 verbatim
+open Specs.BLAKE3
+
+-- @@ L16-16 verbatim
+open Tables.BLAKE3.ProcessBlocksInductive
+
+
+-- @@ L18-19 verbatim
+/-- 64-byte buffer represented as field elements (keeps eval unexpanded) -/
+@[reducible] def BLAKE3Buffer := ProvableVector field 64
+
+
+-- @@ L21-29 verbatim
+/--
+Input structure for finalizeChunk circuit.
+-/
+structure Inputs (F : Type) where
+  state : ProcessBlocksState F          -- Current state (cv, counter, blocks_compressed)
+  buffer_len : F                        -- Number of valid bytes (0-64)
+  buffer_data : BLAKE3Buffer F          -- Buffer bytes (only first buffer_len are valid, rest are zeros)
+  base_flags : U32 F                    -- Additional flags (KEYED_HASH, etc.)
+deriving ProvableStruct
+
+
+-- @@ L31-43 verbatim
+/--
+Convert 64 bytes to 16 U32 words (little-endian).
+Each U32 word is formed from 4 consecutive bytes.
+This is just a data reorganization, no constraints needed.
+-/
+def bytesToWords {F} (bytes : Vector F 64) : Vector (U32 F) 16 :=
+  Vector.ofFn fun (i : Fin 16) =>
+    let base := i.val*4
+    U32.mk
+      bytes[base]
+      bytes[base + 1]
+      bytes[base + 2]
+      bytes[base + 3]
+
+
+-- @@ L45-57 verbatim
+omit p_large_enough in
+lemma bytesToWords_normalized (env : Environment (F p)) (bytes_var : BLAKE3Buffer (Expression (F p)))
+    (h_bytes : ∀ i : Fin 64, (eval env bytes_var)[i].val < 256) :
+    ∀ i : Fin 16,
+      (eval env (bytesToWords bytes_var : ProvableVector U32 16 (Expression (F p))))[i].Normalized := by
+  rintro ⟨i, h_i⟩
+  simp only [bytesToWords, Fin.getElem_fin]
+  have h0 := h_bytes ⟨ i*4, by omega ⟩
+  have h1 := h_bytes ⟨ i*4 + 1, by omega ⟩
+  have h2 := h_bytes ⟨ i*4 + 2, by omega ⟩
+  have h3 := h_bytes ⟨ i*4 + 3, by omega ⟩
+  simp only [circuit_norm, eval_vector] at h0 h1 h2 h3 ⊢
+  and_intros <;> assumption
+
+
+-- @@ L59-63 verbatim
+omit p_large_enough in
+lemma block_len_normalized (buffer_len : F p) (h : buffer_len.val ≤ 64) :
+    (U32.mk buffer_len 0 0 0 : U32 (F p)).Normalized := by
+  simp [U32.Normalized, ZMod.val_zero]
+  omega
+
+
+-- @@ L65-65 verbatim
+attribute [local circuit_norm] ZMod.val_zero ZMod.val_one chunkStart add_zero startFlag pow_zero zero_mul
+
+
+-- @@ L67-94 verbatim
+/--
+Main circuit that processes the final block of a chunk with CHUNK_END flag.
+-/
+def main (input : Var Inputs (F p)) : Circuit (F p) (Var (ProvableVector U32 8) (F p)) := do
+
+  -- Convert bytes to words (just reorganization, no circuit needed)
+  let block_words := bytesToWords input.buffer_data
+
+  -- Compute start flag (CHUNK_START if blocks_compressed = 0)
+  let isFirstBlock ← IsZero.circuit input.state.blocks_compressed
+  let start_flag : Var U32 (F p) := ⟨isFirstBlock*(chunkStart : F p), 0, 0, 0⟩
+
+  -- Compute final flags: base_flags | start_flag | CHUNK_END
+  let chunk_end_flag : Var U32 (F p) := ⟨(chunkEnd : F p), 0, 0, 0⟩
+  let flags_with_start ← Or32.circuit { x := input.base_flags, y := start_flag }
+  let final_flags ← Or32.circuit { x := flags_with_start, y := chunk_end_flag }
+
+  -- Use compress
+  let compress_input : Var ApplyRounds.Inputs (F p) := {
+    chaining_value := input.state.chaining_value
+    block_words := block_words
+    counter_high := ⟨0, 0, 0, 0⟩
+    counter_low := input.state.chunk_counter
+    block_len := ⟨input.buffer_len, 0, 0, 0⟩  -- Convert length to U32
+    flags := final_flags
+  }
+  let final_state ← Compress.circuit compress_input
+  return final_state.take 8
+
+
+-- @@ L96-97 verbatim
+instance elaborated : ElaboratedCircuit (F p) Inputs (ProvableVector U32 8) main := by
+  elaborate_circuit
+
+
+-- @@ L99-104 verbatim
+def Assumptions (input : Inputs (F p)) : Prop :=
+  input.state.Normalized ∧
+  input.buffer_len.val ≤ 64 ∧
+  (∀ i : Fin 64, input.buffer_data[i].val < 256) ∧
+  (∀ i : Fin 64, i.val ≥ input.buffer_len.val → input.buffer_data[i] = 0) ∧
+  input.base_flags.Normalized
+
+
+-- @@ L106-114 verbatim
+def Spec (input : Inputs (F p)) (output : ProvableVector U32 8 (F p)) : Prop :=
+  let chunk_state : ChunkState := {
+    chaining_value := input.state.chaining_value.map U32.value
+    chunk_counter := input.state.chunk_counter.value
+    blocks_compressed := input.state.blocks_compressed.value
+    block_buffer := (input.buffer_data.take input.buffer_len.val).toList.map (·.val)
+  }
+  output.map U32.value = Specs.BLAKE3.finalizeChunk chunk_state input.base_flags.value ∧
+  (∀ i : Fin 8, output[i].Normalized)
+
+
+-- @@ L116-120 verbatim
+private lemma ZMod_val_chunkEnd :
+    ZMod.val (n:=p) ↑chunkEnd = 2 := by
+  have := p_large_enough.elim
+  simp only [ZMod.val_natCast, chunkEnd, pow_one]
+  rw [Nat.mod_eq_of_lt]; omega
+
+
+-- @@ L122-130 verbatim
+omit p_large_enough in
+private lemma eval_bytesToWords (env : Environment (F p))
+    (input_var_buffer_data : BLAKE3Buffer (Expression (F p))) :
+  eval env (bytesToWords input_var_buffer_data : ProvableVector U32 16 (Expression (F p))) =
+      bytesToWords (eval env input_var_buffer_data : BLAKE3Buffer (F p)) := by
+  simp only [bytesToWords, circuit_norm, eval_vector]
+  rw [Vector.ext_iff]
+  intro i hi
+  simp only [Vector.getElem_map, Vector.getElem_ofFn, U32.eval_of_literal]
+
+
+-- @@ L132-141 verbatim
+omit p_large_enough in
+private lemma eval_take_normalized (env : Environment (F p)) (v : BLAKE3State (Expression (F p)))
+    (h : ∀ i : Fin 16, (eval env v : BLAKE3State (F p))[i.val].Normalized) (i : ℕ) (h_i : i < 8) :
+    ((eval env (v.take 8) : ProvableVector U32 8 (F p))[i]'(by omega)).Normalized := by
+  have h_eq : (eval env (v.take 8) : ProvableVector U32 8 (F p)) =
+      (eval env v : BLAKE3State (F p)).take 8 := eval_vector_take env v 8
+  rw [h_eq]
+  show (((eval env v : BLAKE3State (F p)).take 8)[i]'(by omega)).Normalized
+  simp only [Vector.getElem_take]
+  exact h ⟨i, by omega⟩
+
+
+-- @@ L143-207 verbatim
+theorem soundness : Soundness (F p) main Assumptions Spec := by
+  circuit_proof_start [IsZero.circuit, Or32.circuit, Compress.circuit, ApplyRounds.circuit,
+    IsZero.Spec, IsZero.Assumptions,
+    Or32.Spec, Or32.Assumptions,
+    Compress.Spec, Compress.Assumptions,
+    ApplyRounds.Spec, ApplyRounds.Assumptions,
+    FinalStateUpdate.circuit, FinalStateUpdate.Spec, FinalStateUpdate.Assumptions]
+  rcases h_holds with ⟨h_IsZero, h_Or32_1, h_Or32_2, h_Compress⟩
+  simp_all only [chunkEnd, ProcessBlocksState.Normalized, ge_iff_le, mul_one, Nat.ofNat_pos, and_true, true_and,
+    Nat.reduceMul, and_imp, Nat.reducePow, mul_zero, add_zero]
+  specialize h_Or32_1 (by
+    split <;> simp [ZMod.val_one])
+
+  simp_all only [forall_const]
+  have val_two : (2 : F p).val = 2 := FieldUtils.val_lt_p 2 (by linarith [p_large_enough.elim])
+  specialize h_Or32_2 (by simp [val_two])
+  specialize h_Compress (by simp_all)
+    (by apply bytesToWords_normalized; simp_all [circuit_norm, eval_vector])
+    (by linarith)
+    h_Or32_2.2.1 h_Or32_2.2.2.1 h_Or32_2.2.2.2.1 h_Or32_2.2.2.2.2
+  simp_all only [Fin.getElem_fin, Nat.cast_ofNat, BLAKE3State.value]
+  have h_compress' := congrArg (fun v => v.take 8) h_Compress.1
+  simp only [Vector.map_take, BLAKE3State, eval_vector] at h_compress'
+  rw [← eval_vector] at h_compress'
+  simp only [Vector.take_eq_extract, Vector.extract_mk, Nat.sub_zero, List.extract_toArray,
+    List.extract_eq_take_drop, tsub_zero, List.drop_zero, List.take_succ_cons, List.take_zero,
+    Vector.map_map] at h_compress'
+  rw [← Vector.take_eq_extract] at h_compress'
+  apply And.intro
+  · simp only [Vector.take_eq_extract, Vector.extract_mk, Nat.sub_zero, List.extract_toArray,
+    List.extract_eq_take_drop, tsub_zero, List.drop_zero, List.take_succ_cons, List.take_zero]
+    refine h_compress'.trans ?_
+    simp only [finalizeChunk]
+    apply congrArg (fun (v : Vector ℕ 16) => v.take 8)
+    have : Vector.map (U32.value ∘ eval env) (bytesToWords input_var_buffer_data) =
+        (Specs.BLAKE3.bytesToWords
+        (List.map (fun x ↦ ZMod.val x) (input_buffer_data.extract 0 (ZMod.val input_buffer_len)).toList)) := by
+      clear h_compress' h_Or32_2 h_Or32_1 h_IsZero h_Compress
+      rw [← Vector.map_map, ← eval_vector, eval_bytesToWords]
+      have h_buf : (eval env input_var_buffer_data : BLAKE3Buffer (F p)) = input_buffer_data := by
+        simp only [circuit_norm]
+        exact h_input.2.2.1
+      rw [h_buf]
+      simp only [bytesToWords, Specs.BLAKE3.bytesToWords]
+      ext i hi
+      simp only [explicit_provable_type, circuit_norm, Vector.getElem_ofFn, List.getElem_append,
+        List.length_map, Vector.length_toList, Vector.getElem_extract,
+        List.getElem_map, Vector.getElem_toList, List.getElem_replicate, dite_mul, zero_mul]
+      have h_rest := h_assumptions.2.2.2.1
+      congr <;> (
+        split
+        · ac_rfl
+        · simp only [Nat.reducePow, mul_eq_zero, ZMod.val_eq_zero, OfNat.ofNat_ne_zero, or_false]
+          exact h_rest ⟨ _, by omega ⟩ (by simp only; omega))
+    rw [this]
+    congr 1
+    · rw [List.length_map, Vector.length_toList, left_eq_inf]
+      linarith
+    · congr
+      simp only [startFlag, chunkStart]
+      split <;> simp_all [circuit_norm]
+  · rintro ⟨i, h_i⟩
+    rcases h_Compress with ⟨h_Compress_value, h_Compress_Normalized⟩
+    simp only [BLAKE3State.Normalized] at h_Compress_Normalized
+    exact eval_take_normalized env _ h_Compress_Normalized i h_i
+
+
+-- @@ L209-274 verbatim
+theorem completeness : Completeness (F p) main Assumptions := by
+  circuit_proof_start
+  apply And.intro
+  · trivial
+  rcases h_env with ⟨h_iszero, h_env⟩
+  specialize h_iszero trivial
+  simp only [IsZero.circuit, IsZero.Spec] at h_iszero
+  apply And.intro
+  · simp only [Or32.circuit, Or32.Assumptions]
+    apply And.intro
+    · aesop
+    · simp only [circuit_norm]
+      simp only [IsZero.circuit]
+      rw [h_iszero]
+      split
+      · norm_num
+        simp only [circuit_norm]
+        omega
+      · norm_num
+  rcases h_env with ⟨h_or, h_env⟩
+  specialize h_or (by
+    simp only [Or32.circuit, Or32.Assumptions]
+    apply And.intro
+    · aesop
+    · simp only [IsZero.circuit]
+      rw [h_iszero]
+      norm_num
+      split
+      · simp only [circuit_norm]
+        omega
+      · simp only [circuit_norm]
+        norm_num)
+  simp only [Or32.circuit, Or32.Spec] at h_or
+  apply And.intro
+  · simp only [Or32.circuit, Or32.Assumptions]
+    simp only [h_or]
+    constructor
+    · trivial
+    simp only [circuit_norm]
+    rw [ZMod_val_chunkEnd]
+    omega
+  simp only [Compress.circuit, Compress.Assumptions, ApplyRounds.Assumptions]
+  rcases h_env with ⟨h_or2, h_env⟩
+  specialize h_or2 (by
+  · simp only [Or32.circuit, Or32.Assumptions]
+    simp only [h_or]
+    constructor
+    · trivial
+    simp only [circuit_norm]
+    rw [ZMod_val_chunkEnd]
+    omega
+  )
+  simp only [Or32.circuit, Or32.Spec] at h_or2
+  simp only [circuit_norm, ProcessBlocksState.Normalized] at h_assumptions
+  simp only [circuit_norm, h_assumptions]
+  clear h_or h_env
+  constructor
+  · apply bytesToWords_normalized
+    simp_all [circuit_norm, eval_vector]
+  · constructor
+    · norm_num
+    · constructor
+      · constructor
+        · omega
+        · norm_num
+      · exact h_or2.2
+
+
+-- @@ L276-278 verbatim
+def circuit : FormalCircuit (F p) Inputs (ProvableVector U32 8) := {
+  main, elaborated, Assumptions, Spec, soundness, completeness
+}
+
+
+-- @@ L280-280 verbatim
+end Gadgets.BLAKE3.FinalizeChunk

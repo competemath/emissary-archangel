@@ -1,0 +1,104 @@
+import Clean.Types.U64
+import Clean.Circuit.Subcircuit
+import Clean.Utils.Rotation
+import Clean.Gadgets.Rotation64.Theorems
+import Clean.Gadgets.Rotation64.Rotation64Bytes
+import Clean.Gadgets.Rotation64.Rotation64Bits
+import Clean.Circuit.Provable
+
+
+-- @@ L9-9 verbatim
+namespace Gadgets.Rotation64
+
+-- @@ L10-10 verbatim
+variable {p : ℕ} [Fact p.Prime]
+
+-- @@ L11-11 verbatim
+variable [p_large_enough: Fact (p > 2^16 + 2^8)]
+
+
+-- @@ L13-15 verbatim
+instance : Fact (p > 512) := by
+  constructor
+  linarith [p_large_enough.elim]
+
+
+-- @@ L17-17 verbatim
+open Utils.Rotation (rotRight64_composition)
+
+
+-- @@ L19-28 verbatim
+/--
+  Rotate the 64-bit integer by `offset` bits
+-/
+def main (offset : Fin 64) (x : Var U64 (F p)) : Circuit (F p) (Var U64 (F p)) := do
+  let byte_offset : Fin 8 := ⟨ offset.val / 8, by omega ⟩
+  let bit_offset : Fin 8 := ⟨ offset.val % 8, by omega ⟩
+
+  -- rotation is performed by combining a bit and a byte rotation
+  let byte_rotated ← Rotation64Bytes.circuit byte_offset x
+  Rotation64Bits.circuit bit_offset byte_rotated
+
+
+-- @@ L30-30 verbatim
+def Assumptions (input : U64 (F p)) := input.Normalized
+
+
+-- @@ L32-34 verbatim
+def Spec (offset : Fin 64) (x : U64 (F p)) (y : U64 (F p)) :=
+  y.value = rotRight64 x.value offset.val
+  ∧ y.Normalized
+
+
+-- @@ L36-37 verbatim
+def output (offset : Fin 64) (i0 : ℕ) : U64 (Expression (F p)) :=
+  Rotation64Bits.output ⟨ offset.val % 8, by omega ⟩ i0
+
+
+-- @@ L39-42 verbatim
+@[reducible] instance elaborated (off : Fin 64) : ElaboratedCircuit (F p) U64 U64 (main off) := by
+  elaborate_circuit_with {
+    output _inputs i0 := output off i0
+  }
+
+
+-- @@ L44-61 verbatim
+theorem soundness (offset : Fin 64) : Soundness (F p) (main offset) Assumptions (Spec offset) := by
+  circuit_proof_start [Rotation64Bits.circuit, Rotation64Bits.elaborated,
+    Rotation64Bytes.circuit, Rotation64Bytes.elaborated]
+
+  -- abstract away intermediate U64
+  let byte_offset : Fin 8 := ⟨ offset.val / 8, by omega ⟩
+  let bit_offset : Fin 8 := ⟨ offset.val % 8, by omega ⟩
+  set byte_rotated := eval env
+    ((Rotation64Bytes.circuit byte_offset).output input_var i₀)
+
+  simp only [Rotation64Bytes.Assumptions, Rotation64Bytes.Spec,
+    Rotation64Bits.Assumptions, Rotation64Bits.Spec, output] at h_holds ⊢
+  set y : U64 (F p) := eval env (Rotation64Bits.output (p:=p) ⟨ offset.val % 8, by omega ⟩ i₀)
+  simp_all only [forall_const, and_true]
+
+  -- reason about rotation
+  rw [rotRight64_composition _ _ _ (U64.value_lt_of_normalized h_assumptions),
+    Nat.div_add_mod']
+
+
+-- @@ L63-66 verbatim
+theorem completeness (offset : Fin 64) : Completeness (F p) (main offset) Assumptions := by
+  circuit_proof_all [Rotation64Bits.circuit, Rotation64Bits.elaborated,
+    Rotation64Bits.Assumptions, Rotation64Bytes.circuit,
+    Rotation64Bytes.Assumptions, Rotation64Bytes.Spec]
+
+
+-- @@ L68-74 verbatim
+def circuit (offset : Fin 64) : FormalCircuit (F p) U64 U64 where
+  main := main offset
+  elaborated := elaborated offset
+  Assumptions
+  Spec := Spec offset
+  soundness := soundness offset
+  completeness := completeness offset
+
+
+-- @@ L76-76 verbatim
+end Gadgets.Rotation64

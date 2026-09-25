@@ -1,0 +1,166 @@
+import Clean.Gadgets.Xor.Xor32
+import Clean.Gadgets.BLAKE3.BLAKE3State
+import Clean.Gadgets.Addition32.Addition32
+import Clean.Gadgets.Rotation32.Rotation32
+import Clean.Specs.BLAKE3
+import Clean.Utils.Tactics
+
+
+-- @@ L8-8 verbatim
+namespace Gadgets.BLAKE3.G
+
+-- @@ L9-9 verbatim
+variable {p : ℕ} [Fact p.Prime] [p_large_enough: Fact (p > 2^16 + 2^8)]
+
+-- @@ L10-10 verbatim
+instance : Fact (p > 512) := .mk (by linarith [p_large_enough.elim])
+
+
+-- @@ L12-12 verbatim
+open Specs.BLAKE3 (g)
+
+
+-- @@ L14-18 verbatim
+structure Inputs (F : Type) where
+  state : BLAKE3State F
+  x : U32 F
+  y : U32 F
+deriving ProvableStruct
+
+
+-- @@ L20-49 verbatim
+def main (a b c d : Fin 16) (input : Var Inputs (F p)) : Circuit (F p) (Var BLAKE3State (F p)) := do
+  let state := input.state
+  let x := input.x
+  let y := input.y
+
+  let state_a ← Addition32.circuit ⟨state[a], ← Addition32.circuit ⟨state[b], x⟩⟩
+
+  let state_d ← Rotation32.circuit 16 <|
+    ← Xor32.circuit ⟨state[d], state_a⟩
+
+  let state_c ← Addition32.circuit ⟨state[c], state_d⟩
+
+  let state_b ← Rotation32.circuit 12 <|
+    ← Xor32.circuit ⟨state[b], state_c⟩
+
+  let state_a ← Addition32.circuit ⟨state_a, ← Addition32.circuit ⟨state_b, y⟩⟩
+
+  let state_d ← Rotation32.circuit 8 <|
+    ← Xor32.circuit ⟨state_d, state_a⟩
+
+  let state_c ← Addition32.circuit ⟨state_c, state_d⟩
+
+  let state_b ← Rotation32.circuit 7 <|
+    ← Xor32.circuit ⟨state_b, state_c⟩
+
+  return state
+    |>.set a state_a
+    |>.set b state_b
+    |>.set c state_c
+    |>.set d state_d
+
+
+-- @@ L51-56 verbatim
+def output (a b c d : Fin 16) (state : BLAKE3State (Expression (F p))) (i₀ : ℕ) : Vector (U32 (Expression (F p))) 16 :=
+  (state : Vector (U32 (Expression (F p))) 16)
+    |>.set a (⟨var ⟨i₀ + 56⟩, var ⟨i₀ + 58⟩, var ⟨i₀ + 60⟩, var ⟨i₀ + 62⟩⟩) a.is_lt
+    |>.set b (Rotation32.output 7 (i₀ + 88)) b.is_lt
+    |>.set c (⟨var ⟨i₀ + 76⟩, var ⟨i₀ + 78⟩, var ⟨i₀ + 80⟩, var ⟨i₀ + 82⟩⟩) c.is_lt
+    |>.set d (Rotation32.output 8 (i₀ + 68)) d.is_lt
+
+
+-- @@ L58-62 verbatim
+@[reducible]
+instance elaborated (a b c d : Fin 16): ElaboratedCircuit (F p) Inputs BLAKE3State (main a b c d) := by
+  elaborate_circuit_with {
+    output inputs i0 := output a b c d inputs.state i0
+  }
+
+
+-- @@ L64-66 verbatim
+def Assumptions (input : Inputs (F p)) :=
+  let { state, x, y } := input
+  state.Normalized ∧ x.Normalized ∧ y.Normalized
+
+
+-- @@ L68-70 verbatim
+def Spec (a b c d : Fin 16) (input : Inputs (F p)) (out : BLAKE3State (F p)) :=
+  let { state, x, y } := input
+  out.value = g state.value a b c d x.value y.value ∧ out.Normalized
+
+
+-- @@ L72-117 verbatim
+theorem soundness (a b c d : Fin 16) : Soundness (F p) (main a b c d) Assumptions (Spec a b c d) := by
+  circuit_proof_start [output, BLAKE3State.Normalized, Xor32.circuit, Addition32.circuit,
+    Rotation32.circuit, Rotation32.elaborated, and_imp,
+    Addition32.Assumptions, Addition32.Spec, Rotation32.Assumptions, Rotation32.Spec,
+    Xor32.Assumptions, Xor32.Spec, getElem_eval_vector]
+
+  obtain ⟨c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14⟩ := h_holds
+
+  -- resolve all chains of assumptions, fortunately this is easy
+  simp_all only [forall_const]
+
+  -- In c9, c11, c12, and c14, we now have the correct hypotheses regarding the
+  -- updated values in the output state.
+  -- From this point onward, we need to prove that the updated values are consistent with the spec.
+  -- Unfortunately, this is not trivial because we do not require that a, b, c, and d are distinct.
+  -- Therefore, there could be overwriting of values in the state update chain, requiring
+  -- case-by-case reasoning on the indices.
+  -- NOTE: This is not a bug, we are following the BLAKE specification of the g function verbatim.
+  -- See, for example, https://www.ietf.org/archive/id/draft-aumasson-blake3-00.html#name-quarter-round-function-g
+  constructor
+  · ext i hi
+    simp only [BLAKE3State.value, eval_vector, Vector.map_set, Vector.map_map, ↓Vector.getElem_set,
+      Vector.getElem_map, g, Fin.getElem_fin, add32]
+    repeat' split
+    · rw [c11.left]
+    · simp only [circuit_norm]
+      rw [c12.left]
+    · rw [c14.left]
+    · simp only [circuit_norm]
+      rw [c9.left]
+    · rw [Function.comp_apply, ←h_input.left, getElem_eval_vector]
+
+  · intro i
+    simp only [eval_vector, Vector.map_set, ↓Vector.getElem_set]
+    repeat' split
+    · exact c11.right
+    · simp only [U32.Normalized, explicit_provable_type, Vector.map_mk, List.map_toArray,
+        List.map_cons, List.map_nil, fromElements] at c12 ⊢
+      simp +arith only [Nat.reducePow, Nat.add_mod_mod, Nat.reduceMod] at c12 ⊢
+      exact c12.right
+    · exact c14.right
+    · simp only [U32.Normalized, explicit_provable_type, Vector.map_mk, List.map_toArray,
+        List.map_cons, List.map_nil, fromElements] at c9 ⊢
+      simp +arith only [Nat.reducePow, Nat.add_mod_mod, Nat.reduceMod] at c9 ⊢
+      exact c9.right
+    · simp only [Vector.getElem_map, getElem_eval_vector, h_input, h_assumptions]
+
+
+-- @@ L119-128 verbatim
+theorem completeness (a b c d : Fin 16) : Completeness (F p) (main a b c d) Assumptions := by
+  circuit_proof_start [BLAKE3State.Normalized]
+
+  dsimp only [main, circuit_norm, Xor32.circuit, Addition32.circuit, Rotation32.circuit] at h_env ⊢
+  simp only [circuit_norm, and_imp,
+    Addition32.Assumptions, Addition32.Spec, Rotation32.Assumptions, Rotation32.Spec,
+    Xor32.Assumptions, Xor32.Spec, getElem_eval_vector] at h_env ⊢
+
+  -- resolve all chains of assumptions
+  simp_all only [forall_const, and_true]
+
+
+-- @@ L130-136 verbatim
+def circuit (a b c d : Fin 16) : FormalCircuit (F p) Inputs BLAKE3State where
+  main := main a b c d
+  elaborated := elaborated a b c d
+  Assumptions
+  Spec := Spec a b c d
+  soundness := soundness a b c d
+  completeness := completeness a b c d
+
+
+-- @@ L138-138 verbatim
+end Gadgets.BLAKE3.G
