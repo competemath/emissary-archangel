@@ -1,0 +1,1 @@
+{"names":["ENat.prod_eq_top","ENat.prod_eq_top._simp_1"],"modules":["MeanFourier.Mathlib.Data.ENat.BigOperators"],"moduleOf":{"ENat.prod_eq_top":"MeanFourier.Mathlib.Data.ENat.BigOperators","ENat.prod_eq_top._simp_1":"MeanFourier.Mathlib.Data.ENat.BigOperators"},"deps":{"ENat.prod_eq_top":[],"ENat.prod_eq_top._simp_1":["ENat.prod_eq_top"]}}

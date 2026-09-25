@@ -1,0 +1,36 @@
+{
+  "key": "mean-fourier",
+  "repo": "https://github.com/YaelDillies/mean-fourier",
+  "commit": "36975c9b7f20dbfc051b6907668954716ce1999d",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "MeanFourier"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/mean-fourier/repo",
+  "entries": 290,
+  "modules": 39,
+  "exported": 39,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 290,
+    "kept": 290,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 232,
+    "lineUnverified": 0,
+    "nameFixed": 2,
+    "sorryOriginals": 0,
+    "emptyProofs": 3
+  },
+  "exportsBytes": 5353472,
+  "minutes": 6,
+  "finishedAt": "2026-09-25T15:10:23.589Z"
+}

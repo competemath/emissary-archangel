@@ -1,0 +1,1 @@
+{"names":["ENNReal.prod_eq_top._simp_1","ENNReal.prod_eq_top"],"modules":["MeanFourier.Mathlib.Basic.ENNReal.BigOperators"],"moduleOf":{"ENNReal.prod_eq_top._simp_1":"MeanFourier.Mathlib.Basic.ENNReal.BigOperators","ENNReal.prod_eq_top":"MeanFourier.Mathlib.Basic.ENNReal.BigOperators"},"deps":{"ENNReal.prod_eq_top._simp_1":["ENNReal.prod_eq_top"],"ENNReal.prod_eq_top":[]}}
