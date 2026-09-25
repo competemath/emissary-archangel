@@ -1,0 +1,37 @@
+{
+  "key": "long-gaps-between-primes",
+  "repo": "https://github.com/openai/LongGapsBetweenPrimes",
+  "commit": "03a1190d0bc5502d9f54eeb60ad3e45e22b0df0b",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "roots": [
+    "LongGapsBetweenPrimes",
+    "Challenge"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/long-gaps-between-primes/repo",
+  "entries": 0,
+  "modules": 0,
+  "exported": 0,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 244,
+    "kept": 0,
+    "skippedRoot": 244,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 4096,
+  "minutes": 3,
+  "finishedAt": "2026-09-25T15:05:03.795Z"
+}
