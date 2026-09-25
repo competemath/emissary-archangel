@@ -1,0 +1,36 @@
+{
+  "key": "formalbook",
+  "repo": "https://github.com/mo271/FormalBook",
+  "commit": "5f67ecf6b7dc2763b84bfc1d0111d4604410f49c",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "FormalBook"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/formalbook/repo",
+  "entries": 279,
+  "modules": 28,
+  "exported": 28,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 279,
+    "kept": 279,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 106,
+    "lineUnverified": 0,
+    "nameFixed": 9,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 4014080,
+  "minutes": 9,
+  "finishedAt": "2026-09-25T14:40:26.713Z"
+}
