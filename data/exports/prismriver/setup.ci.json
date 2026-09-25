@@ -1,0 +1,36 @@
+{
+  "key": "prismriver",
+  "repo": "https://github.com/lenianiva/Prismriver",
+  "commit": "b54efbfaf259e9cf4d6186c8fb7998456821d568",
+  "toolchain": "leanprover/lean4:v4.28.0",
+  "roots": [
+    "Prismriver"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/prismriver/repo",
+  "entries": 52,
+  "modules": 4,
+  "exported": 4,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 277,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 52,
+    "kept": 52,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 51,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 1892352,
+  "minutes": 3,
+  "finishedAt": "2026-09-25T15:23:41.849Z"
+}
