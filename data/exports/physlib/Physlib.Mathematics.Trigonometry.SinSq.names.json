@@ -1,0 +1,1 @@
+{"names":["Real.sin_half_sq_lt_one","Real.sin_sq_lt_one"],"modules":["Physlib.Mathematics.Trigonometry.SinSq"],"moduleOf":{"Real.sin_half_sq_lt_one":"Physlib.Mathematics.Trigonometry.SinSq","Real.sin_sq_lt_one":"Physlib.Mathematics.Trigonometry.SinSq"},"deps":{"Real.sin_half_sq_lt_one":["Real.sin_sq_lt_one"],"Real.sin_sq_lt_one":[]}}

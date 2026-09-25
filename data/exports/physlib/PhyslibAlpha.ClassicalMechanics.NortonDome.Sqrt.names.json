@@ -1,0 +1,1 @@
+{"names":["hasDerivAt_sqrt_pow_three","not_lipschitzOnWith_sqrt"],"modules":["PhyslibAlpha.ClassicalMechanics.NortonDome.Sqrt"],"moduleOf":{"hasDerivAt_sqrt_pow_three":"PhyslibAlpha.ClassicalMechanics.NortonDome.Sqrt","not_lipschitzOnWith_sqrt":"PhyslibAlpha.ClassicalMechanics.NortonDome.Sqrt"},"deps":{"hasDerivAt_sqrt_pow_three":[],"not_lipschitzOnWith_sqrt":[]}}

@@ -1,0 +1,1 @@
+{"names":["Matrix.dotProduct_mulVec_orthogonal"],"modules":["Physlib.Mathematics.OrthogonalMatrix"],"moduleOf":{"Matrix.dotProduct_mulVec_orthogonal":"Physlib.Mathematics.OrthogonalMatrix"},"deps":{"Matrix.dotProduct_mulVec_orthogonal":[]}}

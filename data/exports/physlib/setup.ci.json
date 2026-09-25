@@ -1,0 +1,56 @@
+{
+  "key": "physlib",
+  "repo": "https://github.com/leanprover-community/physlib",
+  "commit": "889c09c66fb5f3c4a27182a43cafbed9e00b9d0a",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "roots": [
+    "QuantumInfo",
+    "Physlib",
+    "PhyslibAlpha"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/physlib/repo",
+  "entries": 10589,
+  "modules": 706,
+  "exported": 703,
+  "failed": [
+    {
+      "module": "QuantumInfo.Entropy.Axiomatized.Defs",
+      "why": "no closure"
+    },
+    {
+      "module": "QuantumInfo.Regularized",
+      "why": "no closure"
+    },
+    {
+      "module": "QuantumInfo.ResourceTheory.ResourceTheory",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "Physlib.Relativity.PauliMatrices.Relations",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/physlib QuantumInfo,Physlib,PhyslibAlpha Physlib.Relativity.PauliMatrices.Relations "
+      }
+    ]
+  },
+  "seed": {
+    "records": 10616,
+    "kept": 10589,
+    "skippedRoot": 0,
+    "skippedDup": 14,
+    "skippedNoFile": 0,
+    "skippedCommented": 13,
+    "lineFixed": 6542,
+    "lineUnverified": 5,
+    "nameFixed": 509,
+    "sorryOriginals": 0,
+    "emptyProofs": 46
+  },
+  "exportsBytes": 675889152,
+  "minutes": 256,
+  "finishedAt": "2026-09-25T19:34:45.558Z"
+}
