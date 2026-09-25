@@ -1,0 +1,36 @@
+{
+  "key": "groebner-proj",
+  "repo": "https://github.com/WuProver/groebner_proj",
+  "commit": "fb6681985b9ebba0a74b2f57466ce2acba3f498e",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "Groebner"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/groebner-proj/repo",
+  "entries": 221,
+  "modules": 13,
+  "exported": 13,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 327,
+    "kept": 221,
+    "skippedRoot": 103,
+    "skippedDup": 3,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 181,
+    "lineUnverified": 9,
+    "nameFixed": 13,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 3895296,
+  "minutes": 38,
+  "finishedAt": "2026-09-25T15:16:32.763Z"
+}
