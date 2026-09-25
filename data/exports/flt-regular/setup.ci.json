@@ -1,0 +1,36 @@
+{
+  "key": "flt-regular",
+  "repo": "https://github.com/leanprover-community/flt-regular",
+  "commit": "faae830a27a7b39748b61487a9f2aa81a6d14450",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "FltRegular"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/flt-regular/repo",
+  "entries": 195,
+  "modules": 25,
+  "exported": 25,
+  "failed": [],
+  "expansion": {
+    "expanded": 1,
+    "verbatim": 18,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 195,
+    "kept": 195,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 104,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 15065088,
+  "minutes": 6,
+  "finishedAt": "2026-09-25T14:35:17.952Z"
+}
