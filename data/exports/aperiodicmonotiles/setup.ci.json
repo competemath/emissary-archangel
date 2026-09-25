@@ -1,0 +1,36 @@
+{
+  "key": "aperiodicmonotiles",
+  "repo": "https://github.com/jsm28/AperiodicMonotilesLean",
+  "commit": "4f3ca4044650f0c1b62dafdddc27217252ecb8e1",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "AM"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/aperiodicmonotiles/repo",
+  "entries": 311,
+  "modules": 10,
+  "exported": 10,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 311,
+    "kept": 311,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 290,
+    "lineUnverified": 0,
+    "nameFixed": 6,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 6119424,
+  "minutes": 2,
+  "finishedAt": "2026-09-25T14:22:01.506Z"
+}
