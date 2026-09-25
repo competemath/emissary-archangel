@@ -1,0 +1,1 @@
+{"names":["Imo1964P2.schur","Imo1964P2.imo1964_p2"],"modules":["Compfiles.Imo1964P2"],"moduleOf":{"Imo1964P2.schur":"Compfiles.Imo1964P2","Imo1964P2.imo1964_p2":"Compfiles.Imo1964P2"},"deps":{"Imo1964P2.schur":[],"Imo1964P2.imo1964_p2":["Imo1964P2.schur"]}}

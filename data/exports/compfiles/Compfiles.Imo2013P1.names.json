@@ -1,0 +1,1 @@
+{"names":["Imo2013P1.prod_lemma","Imo2013P1.imo2013_p1"],"modules":["Compfiles.Imo2013P1"],"moduleOf":{"Imo2013P1.prod_lemma":"Compfiles.Imo2013P1","Imo2013P1.imo2013_p1":"Compfiles.Imo2013P1"},"deps":{"Imo2013P1.prod_lemma":[],"Imo2013P1.imo2013_p1":["Imo2013P1.prod_lemma"]}}

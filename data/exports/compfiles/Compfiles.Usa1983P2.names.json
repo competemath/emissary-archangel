@@ -1,0 +1,1 @@
+{"names":["Usa1983P2.vieta","Usa1983P2.ineqs","Usa1983P2.usa1983_p2"],"modules":["Compfiles.Usa1983P2"],"moduleOf":{"Usa1983P2.vieta":"Compfiles.Usa1983P2","Usa1983P2.ineqs":"Compfiles.Usa1983P2","Usa1983P2.usa1983_p2":"Compfiles.Usa1983P2"},"deps":{"Usa1983P2.vieta":[],"Usa1983P2.ineqs":["Usa1983P2.vieta"],"Usa1983P2.usa1983_p2":["Usa1983P2.ineqs"]}}

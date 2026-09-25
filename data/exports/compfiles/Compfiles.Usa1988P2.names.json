@@ -1,0 +1,1 @@
+{"names":["Usa1988P2.usa1988_p2","Usa1988P2.vieta"],"modules":["Compfiles.Usa1988P2"],"moduleOf":{"Usa1988P2.usa1988_p2":"Compfiles.Usa1988P2","Usa1988P2.vieta":"Compfiles.Usa1988P2"},"deps":{"Usa1988P2.usa1988_p2":["Usa1988P2.vieta"],"Usa1988P2.vieta":[]}}

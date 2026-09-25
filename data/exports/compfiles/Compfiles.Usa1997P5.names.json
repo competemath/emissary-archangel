@@ -1,0 +1,1 @@
+{"names":["Usa1997P5.usa1997_p5","Usa1997P5.main_sum","Usa1997P5.bound"],"modules":["Compfiles.Usa1997P5"],"moduleOf":{"Usa1997P5.usa1997_p5":"Compfiles.Usa1997P5","Usa1997P5.main_sum":"Compfiles.Usa1997P5","Usa1997P5.bound":"Compfiles.Usa1997P5"},"deps":{"Usa1997P5.usa1997_p5":["Usa1997P5.main_sum"],"Usa1997P5.main_sum":["Usa1997P5.bound"],"Usa1997P5.bound":[]}}

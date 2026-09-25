@@ -1,0 +1,1 @@
+{"names":["Imo2001P2.imo2001_p2","Imo2001P2.imo2001_p2'","Imo2001P2.bound"],"modules":["Compfiles.Imo2001P2"],"moduleOf":{"Imo2001P2.imo2001_p2":"Compfiles.Imo2001P2","Imo2001P2.imo2001_p2'":"Compfiles.Imo2001P2","Imo2001P2.bound":"Compfiles.Imo2001P2"},"deps":{"Imo2001P2.imo2001_p2":["Imo2001P2.imo2001_p2'"],"Imo2001P2.imo2001_p2'":["Imo2001P2.bound"],"Imo2001P2.bound":[]}}

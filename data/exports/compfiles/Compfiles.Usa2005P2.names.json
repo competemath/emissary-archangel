@@ -1,0 +1,1 @@
+{"names":["Usa2005P2.usa2005_p2","Usa2005P2.lemma1"],"modules":["Compfiles.Usa2005P2"],"moduleOf":{"Usa2005P2.usa2005_p2":"Compfiles.Usa2005P2","Usa2005P2.lemma1":"Compfiles.Usa2005P2"},"deps":{"Usa2005P2.usa2005_p2":["Usa2005P2.lemma1"],"Usa2005P2.lemma1":[]}}

@@ -1,0 +1,4176 @@
+/-
+Copyright (c) 2026 lean-tom. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: lean-tom (with assistance from Gemini)
+-/
+
+module
+
+public import Mathlib.Analysis.MeanInequalities
+public import Mathlib.Algebra.Order.Group.Nat
+public import Mathlib.Data.Finset.Max
+public import Mathlib.Data.Fintype.Powerset
+public import Mathlib.Data.Set.Monotone
+public import Mathlib.Order.Interval.Finset.Nat
+public import ProblemExtraction
+
+
+-- @@ L17-17 verbatim
+@[expose] public section
+
+
+-- @@ L19-19 verbatim
+open Finset Function
+
+
+-- @@ L21-21 verbatim
+problem_file { tags := [.Combinatorics] }
+
+
+-- @@ L23-33 verbatim
+/-!
+# International Mathematical Olympiad 2025, Problem 6
+
+Consider a 2025 × 2025 grid of unit squares. Matilda wishes to place
+on the grid some rectangular tiles, possibly of different sizes,
+such that each side of every tile lies on a grid line and
+every unit square is covered by at most one tile.
+Determine the minimum number of tiles Matilda needs to place
+so that each row and each column of the grid has exactly one unit square
+that is not covered by any tile.
+-/
+
+
+-- @@ L35-35 verbatim
+namespace Imo2025P6
+
+
+-- @@ L37-37 verbatim
+variable {n : ℕ}
+
+-- @@ L38-38 verbatim
+abbrev Point (n : ℕ) := Fin n × Fin n
+
+-- @@ L39-39 verbatim
+variable {all_black : Finset (Point n)}
+
+
+-- @@ L41-41 verbatim
+section ProblemSetup
+
+-- @@ L42-42 verbatim
+variable [NeZero n]
+
+-- @@ L43-43 verbatim
+abbrev px (p : Point n) : ℕ := p.1.val
+
+-- @@ L44-44 verbatim
+abbrev py (p : Point n) : ℕ := p.2.val
+
+
+-- @@ L46-55 verbatim
+structure Matilda (n : ℕ) [NeZero n] (all_black : Finset (Point n)) where
+  x_min : ℕ
+  x_max : ℕ
+  y_min : ℕ
+  y_max : ℕ
+  h_x_le : x_min ≤ x_max
+  h_y_le : y_min ≤ y_max
+  h_x_bound : x_max < n
+  h_y_bound : y_max < n
+  h_disjoint : ∀ p ∈ all_black, ¬(x_min ≤ px p ∧ px p ≤ x_max ∧ y_min ≤ py p ∧ py p ≤ y_max)
+
+-- @@ L56-58 verbatim
+@[simp]
+def Matilda.mem (m : Matilda n all_black) (p : Point n) : Prop :=
+  m.x_min ≤ px p ∧ px p ≤ m.x_max ∧ m.y_min ≤ py p ∧ py p ≤ m.y_max
+
+
+-- @@ L60-65 verbatim
+def IsValidConfiguration (n : ℕ) [NeZero n]
+  (all_black : Finset (Point n)) (partition : Finset (Matilda n all_black)) : Prop :=
+  all_black.card = n ∧
+  (∀ p ∈ all_black, ∀ q ∈ all_black, px p = px q → p = q) ∧
+  (∀ p ∈ all_black, ∀ q ∈ all_black, py p = py q → p = q) ∧
+  (∀ p : Point n, p ∉ all_black → ∃! m ∈ partition, m.mem p)
+
+
+-- @@ L67-71 verbatim
+def IsMinMatildaCount (n : ℕ) [NeZero n] (m : ℕ) : Prop :=
+  (∀ (all_black : Finset (Point n)) (partition : Finset (Matilda n all_black)),
+      IsValidConfiguration n all_black partition → m ≤ partition.card) ∧
+  (∃ (all_black : Finset (Point n)) (partition : Finset (Matilda n all_black)),
+      IsValidConfiguration n all_black partition ∧ partition.card = m)
+
+
+-- @@ L73-73 verbatim
+end ProblemSetup
+
+
+-- @@ L75-75 verbatim
+snip begin
+
+
+-- @@ L77-81 verbatim
+/-!
+The Erdős–Szekeres result below is adapted from
+`Archive.Wiedijk100Theorems.AscendingDescendingSequences`, by Bhavik Mehta.
+It is kept here because that archive file has not migrated to the module system.
+-/
+
+
+-- @@ L83-83 verbatim
+section ErdosSzekeres
+
+
+-- @@ L85-85 verbatim
+variable {α β : Type*} [Fintype α] [LinearOrder α] [LinearOrder β]
+
+-- @@ L86-86 verbatim
+variable {f : α → β} {i : α}
+
+
+-- @@ L88-90 verbatim
+private noncomputable def incSequencesTo (f : α → β) (i : α) : Finset ℕ :=
+  open scoped Classical in
+  image card {t : Finset α | IsGreatest t i ∧ StrictMonoOn f t}
+
+
+-- @@ L92-94 verbatim
+private noncomputable def decSequencesTo (f : α → β) (i : α) : Finset ℕ :=
+  open scoped Classical in
+  image card {t : Finset α | IsGreatest t i ∧ StrictAntiOn f t}
+
+
+-- @@ L96-96 verbatim
+private lemma one_mem_incSequencesTo : 1 ∈ incSequencesTo f i := mem_image.2 ⟨{i}, by simp⟩
+
+
+-- @@ L98-99 verbatim
+private lemma one_mem_decSequencesTo : 1 ∈ decSequencesTo f i :=
+  one_mem_incSequencesTo (β := βᵒᵈ)
+
+
+-- @@ L101-102 verbatim
+private lemma incSequencesTo_nonempty : (incSequencesTo f i).Nonempty :=
+  ⟨1, one_mem_incSequencesTo⟩
+
+
+-- @@ L104-105 verbatim
+private lemma decSequencesTo_nonempty : (decSequencesTo f i).Nonempty :=
+  ⟨1, one_mem_decSequencesTo⟩
+
+
+-- @@ L107-108 verbatim
+private noncomputable def maxIncSequencesTo (f : α → β) (i : α) : ℕ :=
+  max' (incSequencesTo f i) incSequencesTo_nonempty
+
+
+-- @@ L110-111 verbatim
+private noncomputable def maxDecSequencesTo (f : α → β) (i : α) : ℕ :=
+  max' (decSequencesTo f i) decSequencesTo_nonempty
+
+
+-- @@ L113-114 verbatim
+private lemma one_le_maxIncSequencesTo : 1 ≤ maxIncSequencesTo f i :=
+  le_max' _ _ one_mem_incSequencesTo
+
+
+-- @@ L116-117 verbatim
+private lemma one_le_maxDecSequencesTo : 1 ≤ maxDecSequencesTo f i :=
+  le_max' _ _ one_mem_decSequencesTo
+
+
+-- @@ L119-120 verbatim
+private lemma maxIncSequencesTo_mem : maxIncSequencesTo f i ∈ incSequencesTo f i :=
+  max'_mem _ incSequencesTo_nonempty
+
+
+-- @@ L122-123 verbatim
+private lemma maxDecSequencesTo_mem : maxDecSequencesTo f i ∈ decSequencesTo f i :=
+  max'_mem _ decSequencesTo_nonempty
+
+
+-- @@ L125-149 verbatim
+private lemma maxIncSequencesTo_lt {i j : α} (hij : i < j) (hfij : f i < f j) :
+    maxIncSequencesTo f i < maxIncSequencesTo f j := by
+  rw [Nat.lt_iff_add_one_le]
+  refine le_max' _ _ ?_
+  have : maxIncSequencesTo f i ∈ incSequencesTo f i := max'_mem _ incSequencesTo_nonempty
+  simp only [incSequencesTo, mem_image, mem_filter, mem_univ, true_and, and_assoc] at this
+  obtain ⟨t, hti, ht₁, ht₂⟩ := this
+  simp only [incSequencesTo, mem_image, mem_filter, mem_univ, true_and, and_assoc]
+  have : ∀ x ∈ t, x < j := by
+    intro x hx
+    exact (hti.2 hx).trans_lt hij
+  refine ⟨insert j t, ?_, ?_, ?_⟩
+  next =>
+    convert hti.insert j
+    next => simp
+    next => rw [max_eq_left hij.le]
+  next =>
+    simp only [coe_insert]
+    rw [strictMonoOn_insert_iff_of_forall_le]
+    · refine ⟨?_, ht₁⟩
+      intro x hx hxj
+      exact (ht₁.monotoneOn hx hti.1 (hti.2 hx)).trans_lt hfij
+    · exact fun x hx ↦ (this x hx).le
+  have : j ∉ t := fun hj ↦ lt_irrefl _ (this _ hj)
+  simp [this, ht₂]
+
+
+-- @@ L151-153 verbatim
+private lemma maxDecSequencesTo_gt {i j : α} (hij : i < j) (hfij : f j < f i) :
+    maxDecSequencesTo f i < maxDecSequencesTo f j :=
+  maxIncSequencesTo_lt (β := βᵒᵈ) hij hfij
+
+
+-- @@ L155-156 verbatim
+private noncomputable def paired (f : α → β) (i : α) : ℕ × ℕ :=
+  (maxIncSequencesTo f i, maxDecSequencesTo f i)
+
+
+-- @@ L158-163 verbatim
+private lemma paired_injective (hf : Injective f) : Injective (paired f) := by
+  apply Injective.of_lt_imp_ne
+  intro i j hij q
+  cases lt_or_gt_of_ne (hf.ne hij.ne)
+  case inl h => exact (maxIncSequencesTo_lt hij h).ne congr($q.1)
+  case inr h => exact (maxDecSequencesTo_gt hij h).ne congr($q.2)
+
+
+-- @@ L165-186 verbatim
+private theorem erdos_szekeres {r s : ℕ} {f : α → β}
+    (hn : r * s < Fintype.card α) (hf : Injective f) :
+    (∃ t : Finset α, r < #t ∧ StrictMonoOn f t) ∨
+      ∃ t : Finset α, s < #t ∧ StrictAntiOn f t := by
+  rsuffices ⟨i, hi⟩ : ∃ i, r < maxIncSequencesTo f i ∨ s < maxDecSequencesTo f i
+  · refine Or.imp ?_ ?_ hi
+    on_goal 1 =>
+      have : maxIncSequencesTo f i ∈ image card _ := maxIncSequencesTo_mem
+    on_goal 2 =>
+      have : maxDecSequencesTo f i ∈ image card _ := maxDecSequencesTo_mem
+    all_goals
+      intro hi
+      obtain ⟨t, ht₁, ht₂⟩ := mem_image.1 this
+      refine ⟨t, by rwa [ht₂], ?_⟩
+      classical
+      rw [mem_filter] at ht₁
+      exact ht₁.2.2
+  by_contra! q
+  have : Set.MapsTo (paired f) (univ : Finset α) (Icc 1 r ×ˢ Icc 1 s : Finset _) := by
+    simp [paired, one_le_maxIncSequencesTo, one_le_maxDecSequencesTo, Set.MapsTo, *]
+  refine hn.not_ge ?_
+  simpa using card_le_card_of_injOn (paired f) this (paired_injective hf).injOn
+
+
+-- @@ L188-188 verbatim
+end ErdosSzekeres
+
+
+-- @@ L190-194 verbatim
+def rect (n : ℕ) (x_min x_max y_min y_max : ℕ) : Finset (Point n) :=
+  univ.filter (fun p =>
+    x_min ≤ px p ∧ px p < x_max ∧
+    y_min ≤ py p ∧ py p < y_max
+  )
+
+
+-- @@ L196-201 verbatim
+@[simp]
+lemma mem_rect {x_min x_max y_min y_max : ℕ} {p : Point n} :
+    p ∈ rect n x_min x_max y_min y_max ↔
+    x_min ≤ px p ∧ px p < x_max ∧
+    y_min ≤ py p ∧ py p < y_max := by
+  simp [rect]
+
+
+-- @@ L203-207 verbatim
+macro "solve_grid" : tactic =>
+  `(tactic| (
+    simp only [Fin.le_iff_val_le_val, px, py] at *
+    linarith
+  ))
+
+
+-- @@ L209-209 verbatim
+section ChainProperties
+
+
+-- @@ L211-211 verbatim
+variable {u v : Finset (Point n)}
+
+
+-- @@ L213-220 verbatim
+lemma chain_u_mono_le
+    (h_u_mono : ∀ a ∈ u, ∀ b ∈ u, px a < px b → py a < py b)
+    (h_u_inj : ∀ a ∈ u, ∀ b ∈ u, px a = px b → a = b)
+    : ∀ a ∈ u, ∀ b ∈ u, px a ≤ px b → py a ≤ py b := by
+  intro a ha b hb hx
+  rcases lt_or_eq_of_le hx with h_lt | h_eq
+  · exact le_of_lt (h_u_mono a ha b hb h_lt)
+  · have := h_u_inj a ha b hb h_eq; subst this; exact le_refl _
+
+
+-- @@ L222-229 verbatim
+lemma chain_v_mono_le
+    (h_v_mono : ∀ a ∈ v, ∀ b ∈ v, px a < px b → py b < py a)
+    (h_v_inj : ∀ a ∈ v, ∀ b ∈ v, px a = px b → a = b)
+    : ∀ a ∈ v, ∀ b ∈ v, px a ≤ px b → py b ≤ py a := by
+  intro a ha b hb hx
+  rcases lt_or_eq_of_le hx with h_lt | h_eq
+  · exact le_of_lt (h_v_mono a ha b hb h_lt)
+  · have := h_v_inj a ha b hb h_eq; subst this; exact le_refl _
+
+
+-- @@ L231-239 verbatim
+lemma chain_u_inj_y
+    (h_u_mono : ∀ a ∈ u, ∀ b ∈ u, px a < px b → py a < py b)
+    (h_u_inj : ∀ a ∈ u, ∀ b ∈ u, px a = px b → a = b)
+    : ∀ a ∈ u, ∀ b ∈ u, py a = py b → a = b := by
+  intro a ha b hb hy
+  rcases lt_trichotomy (px a) (px b) with h_lt | h_eq | h_gt
+  · have := h_u_mono a ha b hb h_lt; linarith
+  · exact h_u_inj a ha b hb h_eq
+  · have := h_u_mono b hb a ha h_gt; linarith
+
+
+-- @@ L241-249 verbatim
+lemma chain_v_inj_y
+    (h_v_mono : ∀ a ∈ v, ∀ b ∈ v, px a < px b → py b < py a)
+    (h_v_inj : ∀ a ∈ v, ∀ b ∈ v, px a = px b → a = b)
+    : ∀ a ∈ v, ∀ b ∈ v, py a = py b → a = b := by
+  intro a ha b hb hy
+  rcases lt_trichotomy (px a) (px b) with h_lt | h_eq | h_gt
+  · have := h_v_mono a ha b hb h_lt; linarith
+  · exact h_v_inj a ha b hb h_eq
+  · have := h_v_mono b hb a ha h_gt; linarith
+
+
+-- @@ L251-251 verbatim
+end ChainProperties
+
+
+-- @@ L253-253 verbatim
+section Regions
+
+
+-- @@ L255-255 verbatim
+variable (u v : Finset (Point n))
+
+
+-- @@ L257-257 verbatim
+def u_lower (u : Finset (Point n)): Finset (Point n) := u.biUnion (fun q => rect n (px q) n 0 ((py q) + 1))
+
+-- @@ L258-258 verbatim
+def u_upper (u : Finset (Point n)): Finset (Point n) := u.biUnion (fun q => rect n 0 ((px q) + 1) (py q) n)
+
+-- @@ L259-259 verbatim
+def v_lower (v : Finset (Point n)): Finset (Point n) := v.biUnion (fun r => rect n 0 ((px r) + 1) 0 ((py r) + 1))
+
+-- @@ L260-260 verbatim
+def v_upper (v : Finset (Point n)): Finset (Point n) := v.biUnion (fun r => rect n (px r) n (py r) n)
+
+
+-- @@ L262-265 verbatim
+@[simp]
+lemma mem_u_lower (p : Point n) :
+    p ∈ u_lower u ↔ ∃ q ∈ u, px q ≤ px p ∧ py p ≤ py q := by
+  simp [u_lower, mem_rect]
+
+-- @@ L266-269 verbatim
+@[simp]
+lemma mem_u_upper (p : Point n) :
+    p ∈ u_upper u ↔ ∃ q ∈ u, px p ≤ px q ∧ py q ≤ py p := by
+  simp [u_upper, mem_rect]
+
+-- @@ L270-273 verbatim
+@[simp]
+lemma mem_v_lower (p : Point n) :
+    p ∈ v_lower v ↔ ∃ r ∈ v, px p ≤ px r ∧ py p ≤ py r := by
+  simp [v_lower, mem_rect]
+
+-- @@ L274-277 verbatim
+@[simp]
+lemma mem_v_upper (p : Point n) :
+    p ∈ v_upper v ↔ ∃ r ∈ v, px r ≤ px p ∧ py r ≤ py p := by
+  simp [v_upper, mem_rect]
+
+
+-- @@ L279-279 verbatim
+end Regions
+
+
+-- @@ L281-281 verbatim
+section MainRegions
+
+
+-- @@ L283-283 verbatim
+variable {n : ℕ}  (u v : Finset (Point n)) (all_black : Finset (Point n))
+
+
+-- @@ L285-285 verbatim
+def regionWExtend (u v : Finset (Point n)): Finset (Point n) := (u_lower u) ∩ (v_lower v)
+
+-- @@ L286-286 verbatim
+def regionNExtend (u v : Finset (Point n)): Finset (Point n) := (u_upper u) ∩ (v_lower v)
+
+-- @@ L287-287 verbatim
+def regionSExtend (u v : Finset (Point n)): Finset (Point n) := (u_lower u) ∩ (v_upper v)
+
+-- @@ L288-288 verbatim
+def regionEExtend (u v : Finset (Point n)): Finset (Point n) := (u_upper u) ∩ (v_upper v)
+
+
+-- @@ L290-292 verbatim
+@[simp]
+lemma mem_regionWExtend (p : Point n) :
+    p ∈ regionWExtend u v ↔ p ∈ u_lower u ∧ p ∈ v_lower v := by unfold regionWExtend; simp
+
+-- @@ L293-295 verbatim
+@[simp]
+lemma mem_regionNExtend (p : Point n) :
+    p ∈ regionNExtend u v ↔ p ∈ u_upper u ∧ p ∈ v_lower v := by unfold regionNExtend; simp
+
+-- @@ L296-298 verbatim
+@[simp]
+lemma mem_regionSExtend (p : Point n) :
+    p ∈ regionSExtend u v ↔ p ∈ u_lower u ∧ p ∈ v_upper v := by unfold regionSExtend; simp
+
+-- @@ L299-301 verbatim
+@[simp]
+lemma mem_regionEExtend (p : Point n) :
+    p ∈ regionEExtend u v ↔ p ∈ u_upper u ∧ p ∈ v_upper v := by unfold regionEExtend; simp
+
+
+-- @@ L303-304 verbatim
+def targetsW (u v all_black : Finset (Point n)) : Finset (Point n) :=
+  all_black.filter (fun p => p ∈ regionWExtend u v)
+
+-- @@ L305-306 verbatim
+def targetsN (u v all_black : Finset (Point n)) : Finset (Point n) :=
+  all_black.filter (fun p => p ∈ regionNExtend u v)
+
+-- @@ L307-308 verbatim
+def targetsS (u v all_black : Finset (Point n)) : Finset (Point n) :=
+  all_black.filter (fun p => p ∈ regionSExtend u v)
+
+-- @@ L309-310 verbatim
+def targetsE (u v all_black : Finset (Point n)) : Finset (Point n) :=
+  all_black.filter (fun p => p ∈ regionEExtend u v)
+
+
+-- @@ L312-315 verbatim
+@[simp]
+lemma mem_targetsW (p : Point n) :
+    p ∈ targetsW u v all_black ↔ p ∈ all_black ∧ p ∈ regionWExtend u v := by
+  simp [targetsW]
+
+-- @@ L316-319 verbatim
+@[simp]
+lemma mem_targetsN (p : Point n) :
+    p ∈ targetsN u v all_black ↔ p ∈ all_black ∧ p ∈ regionNExtend u v := by
+  simp [targetsN]
+
+-- @@ L320-323 verbatim
+@[simp]
+lemma mem_targetsS (p : Point n) :
+    p ∈ targetsS u v all_black ↔ p ∈ all_black ∧ p ∈ regionSExtend u v := by
+  simp [targetsS]
+
+-- @@ L324-327 verbatim
+@[simp]
+lemma mem_targetsE (p : Point n) :
+    p ∈ targetsE u v all_black ↔ p ∈ all_black ∧ p ∈ regionEExtend u v := by
+  simp [targetsE]
+
+
+-- @@ L329-329 verbatim
+def targetsWin : Finset (Point n) := (targetsW u v all_black).filter (fun p => 0 < py p)
+
+-- @@ L330-330 verbatim
+def targetsNin : Finset (Point n) := (targetsN u v all_black).filter (fun p => 0 < px p)
+
+-- @@ L331-331 verbatim
+def targetsSin : Finset (Point n) := (targetsS u v all_black).filter (fun p => px p < n - 1)
+
+-- @@ L332-332 verbatim
+def targetsEin : Finset (Point n) := (targetsE u v all_black).filter (fun p => py p < n - 1)
+
+
+-- @@ L334-336 verbatim
+@[simp]
+lemma mem_targetsWin {p : Point n} :
+    p ∈ targetsWin u v all_black ↔ p ∈ targetsW u v all_black ∧ 0 < py p := by simp [targetsWin]
+
+-- @@ L337-339 verbatim
+@[simp]
+lemma mem_targetsNin {p : Point n} :
+    p ∈ targetsNin u v all_black ↔ p ∈ targetsN u v all_black ∧ 0 < px p := by simp [targetsNin]
+
+-- @@ L340-342 verbatim
+@[simp]
+lemma mem_targetsSin {p : Point n} :
+    p ∈ targetsSin u v all_black ↔ p ∈ targetsS u v all_black ∧ px p < n - 1 := by simp [targetsSin]
+
+-- @@ L343-345 verbatim
+@[simp]
+lemma mem_targetsEin {p : Point n} :
+    p ∈ targetsEin u v all_black ↔ p ∈ targetsE u v all_black ∧ py p < n - 1 := by simp [targetsEin]
+
+
+-- @@ L347-353 verbatim
+lemma card_filter_ge_sub_one {α : Type*} [DecidableEq α]
+    (S : Finset α) (P : α → Prop) [DecidablePred P]
+    (h_boundary : (S.filter (fun x => ¬ P x)).card ≤ 1) :
+    (S.filter P).card ≥ S.card - 1 := by
+  have h_card_split : S.card = (S.filter P).card + (S.filter (fun x => ¬ P x)).card := by
+    rw [← card_union_of_disjoint (disjoint_filter_filter_not S S P), filter_union_filter_not_eq]
+  lia
+
+
+-- @@ L355-370 verbatim
+macro "solve_boundary_count" S:term "," P:term "," h_unique:term "," mem_thm:term : tactic =>
+  `(tactic| (
+    apply card_filter_ge_sub_one ($S) ($P)
+    rw [card_le_one_iff]
+    intro p q hp hq
+    have h_mem := ($mem_thm)
+    simp only [mem_filter, not_lt, h_mem] at hp hq
+    have hp_blk : p ∈ all_black := hp.1.1
+    have hq_blk : q ∈ all_black := hq.1.1
+    have hpxp : px p < n := p.1.isLt
+    have hpyp : py p < n := p.2.isLt
+    have hpxq : px q < n := q.1.isLt
+    have hpyq : py q < n := q.2.isLt
+    apply ($h_unique) p hp_blk q hq_blk
+    lia
+  ))
+
+
+-- @@ L372-376 expanded
+theorem targetsWin_inequality (h_unique_y : ∀ p ∈ all_black, ∀ q ∈ all_black, py p = py q → p = q) :
+    (targetsWin u v all_black).card ≥ (targetsW u v all_black).card - 1 := by
+  ( apply card_filter_ge_sub_one ((targetsW u v all_black)) ((fun p => 0 < py p))
+    rw [card_le_one_iff]
+    intro p q hp hq
+    have h_mem := (mem_targetsW (n := n))
+    simp only [mem_filter, not_lt, h_mem] at hp hq
+    have hp_blk : p ∈ all_black := hp.1.1
+    have hq_blk : q ∈ all_black := hq.1.1
+    have hpxp : px p < n := p.1.isLt
+    have hpyp : py p < n := p.2.isLt
+    have hpxq : px q < n := q.1.isLt
+    have hpyq : py q < n := q.2.isLt
+    apply (h_unique_y) p hp_blk q hq_blk
+    lia)
+
+
+-- @@ L378-382 expanded
+theorem targetsNin_inequality (h_unique_x : ∀ p ∈ all_black, ∀ q ∈ all_black, px p = px q → p = q) :
+    (targetsNin u v all_black).card ≥ (targetsN u v all_black).card - 1 := by
+  ( apply card_filter_ge_sub_one ((targetsN u v all_black)) ((fun p => 0 < px p))
+    rw [card_le_one_iff]
+    intro p q hp hq
+    have h_mem := (mem_targetsN (n := n))
+    simp only [mem_filter, not_lt, h_mem] at hp hq
+    have hp_blk : p ∈ all_black := hp.1.1
+    have hq_blk : q ∈ all_black := hq.1.1
+    have hpxp : px p < n := p.1.isLt
+    have hpyp : py p < n := p.2.isLt
+    have hpxq : px q < n := q.1.isLt
+    have hpyq : py q < n := q.2.isLt
+    apply (h_unique_x) p hp_blk q hq_blk
+    lia)
+
+
+-- @@ L384-388 expanded
+theorem targetsSin_inequality (h_unique_x : ∀ p ∈ all_black, ∀ q ∈ all_black, px p = px q → p = q) :
+    (targetsSin u v all_black).card ≥ (targetsS u v all_black).card - 1 := by
+  ( apply card_filter_ge_sub_one ((targetsS u v all_black)) ((fun p => px p < n - 1))
+    rw [card_le_one_iff]
+    intro p q hp hq
+    have h_mem := (mem_targetsS (n := n))
+    simp only [mem_filter, not_lt, h_mem] at hp hq
+    have hp_blk : p ∈ all_black := hp.1.1
+    have hq_blk : q ∈ all_black := hq.1.1
+    have hpxp : px p < n := p.1.isLt
+    have hpyp : py p < n := p.2.isLt
+    have hpxq : px q < n := q.1.isLt
+    have hpyq : py q < n := q.2.isLt
+    apply (h_unique_x) p hp_blk q hq_blk
+    lia)
+
+
+-- @@ L390-394 expanded
+theorem targetsEin_inequality (h_unique_y : ∀ p ∈ all_black, ∀ q ∈ all_black, py p = py q → p = q) :
+    (targetsEin u v all_black).card ≥ (targetsE u v all_black).card - 1 := by
+  ( apply card_filter_ge_sub_one ((targetsE u v all_black)) ((fun p => py p < n - 1))
+    rw [card_le_one_iff]
+    intro p q hp hq
+    have h_mem := (mem_targetsE (n := n))
+    simp only [mem_filter, not_lt, h_mem] at hp hq
+    have hp_blk : p ∈ all_black := hp.1.1
+    have hq_blk : q ∈ all_black := hq.1.1
+    have hpxp : px p < n := p.1.isLt
+    have hpyp : py p < n := p.2.isLt
+    have hpxq : px q < n := q.1.isLt
+    have hpyq : py q < n := q.2.isLt
+    apply (h_unique_y) p hp_blk q hq_blk
+    lia)
+
+
+-- @@ L396-396 verbatim
+end MainRegions
+
+
+-- @@ L398-398 verbatim
+section IncidenceCount
+
+
+-- @@ L400-400 verbatim
+variable {u v all_black : Finset (Point n)}
+
+
+-- @@ L402-406 verbatim
+def incidence_count (u v all_black : Finset (Point n)) (p : Point n) : ℕ :=
+  (if p ∈ targetsW u v all_black then 1 else 0) +
+  (if p ∈ targetsN u v all_black then 1 else 0) +
+  (if p ∈ targetsE u v all_black then 1 else 0) +
+  (if p ∈ targetsS u v all_black then 1 else 0)
+
+
+-- @@ L408-420 verbatim
+lemma sum_card_eq_sum_incidence :
+    (targetsW u v all_black).card + (targetsN u v all_black).card +
+    (targetsE u v all_black).card + (targetsS u v all_black).card
+    = ∑ p ∈  all_black, incidence_count u v all_black p := by
+  simp only [incidence_count]
+  rw [sum_add_distrib, sum_add_distrib, sum_add_distrib]
+  congr 3
+  all_goals {
+    rw [card_eq_sum_ones]; rw [← sum_filter]
+    apply sum_congr
+    · ext x; simp only [mem_filter]; simp  [targetsW, targetsN, targetsE, targetsS]
+    · intro x hx; rfl
+  }
+
+
+-- @@ L422-440 expanded
+lemma u_parts_intersection_eq_u (h_u_mono : ∀ a ∈ u, ∀ b ∈ u, px a < px b → py a < py b)
+    (h_u_inj : ∀ a ∈ u, ∀ b ∈ u, px a = px b → a = b) : u_lower u ∩ u_upper u = u :=
+  by
+  ext p; simp
+  constructor
+  · intro ⟨⟨qx, qy, hq_u, hq_bx, hq_by⟩, ⟨rx, ry, hr_u, hr_bx, hr_by⟩⟩
+    let q : Point n := (qx, qy); let r : Point n := (rx, ry)
+    have hq_mem : q ∈ u := hq_u; have hr_mem : r ∈ u := hr_u
+    rcases lt_trichotomy (px q) (px r) with h_lt | h_eq | h_gt
+    · have := h_u_mono q hq_mem r hr_mem h_lt
+      ( simp only [Fin.le_iff_val_le_val, px, py] at *
+        linarith)
+    · have h_same : q = r := h_u_inj q hq_mem r hr_mem h_eq
+      rw [Prod.ext_iff] at h_same; obtain ⟨rfl, rfl⟩ := h_same
+      convert hq_mem
+      ext <;>
+        ( simp only [Fin.le_iff_val_le_val, px, py] at *
+          linarith)
+    · ( simp only [Fin.le_iff_val_le_val, px, py] at *
+        linarith)
+  · intro hp
+    constructor <;>
+      { use p.1, p.2, hp
+      }
+
+
+-- @@ L442-460 expanded
+lemma v_parts_intersection_eq_v (h_v_mono : ∀ a ∈ v, ∀ b ∈ v, px a < px b → py b < py a)
+    (h_v_inj : ∀ a ∈ v, ∀ b ∈ v, px a = px b → a = b) : v_lower v ∩ v_upper v = v :=
+  by
+  ext p; simp
+  constructor
+  · intro ⟨⟨qx, qy, hq_v, hq_bx, hq_by⟩, ⟨rx, ry, hr_v, hr_bx, hr_by⟩⟩
+    let q : Point n := (qx, qy); let r : Point n := (rx, ry)
+    have hq_mem : q ∈ v := hq_v; have hr_mem : r ∈ v := hr_v
+    rcases lt_trichotomy (px r) (px q) with h_lt | h_eq | h_gt
+    · have := h_v_mono r hr_mem q hq_mem h_lt
+      ( simp only [Fin.le_iff_val_le_val, px, py] at *
+        linarith)
+    · have h_same : r = q := h_v_inj r hr_mem q hq_mem h_eq
+      rw [Prod.ext_iff] at h_same; obtain ⟨rfl, rfl⟩ := h_same
+      convert hq_mem
+      ext <;>
+        ( simp only [Fin.le_iff_val_le_val, px, py] at *
+          linarith)
+    · ( simp only [Fin.le_iff_val_le_val, px, py] at *
+        linarith)
+  · intro hp
+    constructor <;>
+      { use p.1, p.2, hp
+      }
+
+
+-- @@ L462-479 verbatim
+lemma inter_card_le_one
+    (h_u_mono : ∀ a ∈ u, ∀ b ∈ u, px a < px b → py a < py b)
+    (h_v_mono : ∀ a ∈ v, ∀ b ∈ v, px a < px b → py b < py a)
+    (h_u_inj : ∀ a ∈ u, ∀ b ∈ u, px a = px b → a = b)
+    : (u ∩ v).card ≤ 1 := by
+  by_contra h_gt_one
+  rw [not_le, one_lt_card_iff] at h_gt_one
+  obtain ⟨p, q, hp, hq, h_ne⟩ := h_gt_one
+  rw [mem_inter] at hp hq
+  rcases lt_trichotomy (px p) (px q) with h_lt | h_eq | h_gt
+  · have h_u_inc : py p < py q := h_u_mono p hp.1 q hq.1 h_lt
+    have h_v_dec : py q < py p := h_v_mono p hp.2 q hq.2 h_lt
+    linarith
+  · have h_same : p = q := h_u_inj p hp.1 q hq.1 h_eq
+    contradiction
+  · have h_u_inc : py q < py p := h_u_mono q hq.1 p hp.1 h_gt
+    have h_v_dec : py p < py q := h_v_mono q hq.2 p hp.2 h_gt
+    linarith
+
+
+-- @@ L481-499 verbatim
+lemma incidence_count_of_pivot
+    (pivot : Point n)
+    (h_inter : u ∩ v = {pivot})
+    (h_piv_in_all : pivot ∈ all_black)
+    : incidence_count u v all_black pivot = 4 := by
+  have h_piv_u : pivot ∈ u := mem_of_mem_inter_left (by rw [h_inter]; simp)
+  have h_piv_v : pivot ∈ v := mem_of_mem_inter_right (by rw [h_inter]; simp)
+  have h_u_lo : pivot ∈ u_lower u := by rw [mem_u_lower]; use pivot
+  have h_u_up : pivot ∈ u_upper u := by rw [mem_u_upper]; use pivot
+  have h_v_lo : pivot ∈ v_lower v := by rw [mem_v_lower]; use pivot
+  have h_v_up : pivot ∈ v_upper v := by rw [mem_v_upper]; use pivot
+  have hW : pivot ∈ regionWExtend u v := by rw [mem_regionWExtend]; exact ⟨h_u_lo, h_v_lo⟩
+  have hN : pivot ∈ regionNExtend u v := by rw [mem_regionNExtend]; exact ⟨h_u_up, h_v_lo⟩
+  have hE : pivot ∈ regionEExtend u v := by rw [mem_regionEExtend]; exact ⟨h_u_up, h_v_up⟩
+  have hS : pivot ∈ regionSExtend u v := by rw [mem_regionSExtend]; exact ⟨h_u_lo, h_v_up⟩
+  unfold incidence_count
+  simp only [mem_targetsW, mem_targetsN, mem_targetsS, mem_targetsE]
+  simp only [h_piv_in_all, hW, hN, hE, hS]
+  rfl
+
+
+-- @@ L501-547 verbatim
+lemma incidence_count_of_u_diff
+    (p : Point n) (hp : p ∈ u) (hp_not_v : p ∉ v)
+    (pivot : Point n) (h_inter : u ∩ v = {pivot})
+    (hu_sub : u ⊆ all_black)
+    (h_u_mono : ∀ a ∈ u, ∀ b ∈ u, px a < px b → py a < py b)
+    (h_v_mono : ∀ a ∈ v, ∀ b ∈ v, px a < px b → py b < py a)
+    (h_u_inj : ∀ a ∈ u, ∀ b ∈ u, px a = px b → a = b)
+    (h_v_inj : ∀ a ∈ v, ∀ b ∈ v, px a = px b → a = b)
+    : incidence_count u v all_black p = 2 := by
+
+  have hp_all : p ∈ all_black := hu_sub hp
+  have h_piv_v : pivot ∈ v := mem_of_mem_inter_right (by rw [h_inter]; simp)
+  have h_piv_u : pivot ∈ u := mem_of_mem_inter_left (by rw [h_inter]; simp)
+  have h_u_lo : p ∈ u_lower u := by
+    rw [mem_u_lower]; exact ⟨p, hp, le_refl (px p), le_refl (py p)⟩
+  have h_u_up : p ∈ u_upper u := by
+    rw [mem_u_upper]; exact ⟨p, hp, le_refl (px p), le_refl (py p)⟩
+  have h_in_W : p ∈ regionWExtend u v ↔ p ∈ v_lower v := by
+    rw [regionWExtend, mem_inter, and_iff_right h_u_lo]
+  have h_in_N : p ∈ regionNExtend u v ↔ p ∈ v_lower v := by
+    rw [regionNExtend, mem_inter, and_iff_right h_u_up]
+  have h_in_E : p ∈ regionEExtend u v ↔ p ∈ v_upper v := by
+    rw [regionEExtend, mem_inter, and_iff_right h_u_up]
+  have h_in_S : p ∈ regionSExtend u v ↔ p ∈ v_upper v := by
+    rw [regionSExtend, mem_inter, and_iff_right h_u_lo]
+  have h_not_both : ¬(p ∈ v_lower v ∧ p ∈ v_upper v) := by
+    intro h_both
+    have h_in_v : p ∈ v := by
+      rw [← v_parts_intersection_eq_v h_v_mono h_v_inj, mem_inter]
+      exact h_both
+    contradiction
+  unfold incidence_count
+  rcases lt_trichotomy (px p) (px pivot) with h_lt | h_eq | h_gt
+  · have h_lo : p ∈ v_lower v := by
+      have hy : py p < py pivot := h_u_mono p hp pivot h_piv_u h_lt
+      rw [mem_v_lower]; use pivot; exact ⟨h_piv_v, le_of_lt h_lt, le_of_lt hy⟩
+    have h_not_up : p ∉ v_upper v := fun h_up => h_not_both ⟨h_lo, h_up⟩
+    simp [h_in_W, h_in_N, h_in_E, h_in_S, h_lo, h_not_up, hp_all]
+  · have h_p_eq_pivot: p = pivot := by
+      refine h_u_inj p hp pivot h_piv_u h_eq
+    subst h_p_eq_pivot
+    contradiction
+  · have h_up : p ∈ v_upper v := by
+      have hy : py pivot < py p := h_u_mono pivot h_piv_u p hp h_gt
+      rw [mem_v_upper]; use pivot; exact ⟨h_piv_v, le_of_lt h_gt, le_of_lt hy⟩
+    have h_not_lo : p ∉ v_lower v := fun h_lo => h_not_both ⟨h_lo, h_up⟩
+    simp [h_in_W, h_in_N, h_in_E, h_in_S, h_up, h_not_lo, hp_all]
+
+
+-- @@ L549-594 verbatim
+lemma incidence_count_of_v_diff
+    (p : Point n) (hp : p ∈ v) (hp_not_u : p ∉ u)
+    (pivot : Point n) (h_inter : u ∩ v = {pivot})
+    (hv_sub : v ⊆ all_black)
+    (h_u_mono : ∀ a ∈ u, ∀ b ∈ u, px a < px b → py a < py b)
+    (h_v_mono : ∀ a ∈ v, ∀ b ∈ v, px a < px b → py b < py a)
+    (h_u_inj : ∀ a ∈ u, ∀ b ∈ u, px a = px b → a = b)
+    (h_v_inj : ∀ a ∈ v, ∀ b ∈ v, px a = px b → a = b)
+    : incidence_count u v all_black p = 2 := by
+  have hp_all : p ∈ all_black := hv_sub hp
+  have h_piv_v : pivot ∈ v := mem_of_mem_inter_right (by rw [h_inter]; simp)
+  have h_piv_u : pivot ∈ u := mem_of_mem_inter_left (by rw [h_inter]; simp)
+  have h_v_lo : p ∈ v_lower v := by
+    rw [mem_v_lower]; exact ⟨p, hp, le_refl (px p), le_refl (py p)⟩
+  have h_v_up : p ∈ v_upper v := by
+    rw [mem_v_upper]; exact ⟨p, hp, le_refl (px p), le_refl (py p)⟩
+  have h_in_W : p ∈ regionWExtend u v ↔ p ∈ u_lower u := by
+    rw [regionWExtend, mem_inter, and_iff_left h_v_lo]
+  have h_in_N : p ∈ regionNExtend u v ↔ p ∈ u_upper u := by
+    rw [regionNExtend, mem_inter, and_iff_left h_v_lo];
+  have h_in_E : p ∈ regionEExtend u v ↔ p ∈ u_upper u := by
+    rw [regionEExtend, mem_inter, and_iff_left h_v_up]
+  have h_in_S : p ∈ regionSExtend u v ↔ p ∈ u_lower u := by
+    rw [regionSExtend, mem_inter, and_iff_left h_v_up]
+  have h_not_both : ¬(p ∈ u_lower u ∧ p ∈ u_upper u) := by
+    intro h_both
+    have h_in_u : p ∈ u := by
+      rw [← u_parts_intersection_eq_u h_u_mono h_u_inj, mem_inter]
+      exact h_both
+    contradiction
+  unfold incidence_count
+  rcases lt_trichotomy (px p) (px pivot) with h_lt | h_eq | h_gt
+  · have h_up : p ∈ u_upper u := by
+      have hy : py pivot < py p := h_v_mono p hp pivot h_piv_v h_lt
+      rw [mem_u_upper]; use pivot; exact ⟨h_piv_u, le_of_lt h_lt, le_of_lt hy⟩
+    have h_not_lo : p ∉ u_lower u := fun h_lo => h_not_both ⟨h_lo, h_up⟩
+    simp [h_in_W, h_in_N, h_in_E, h_in_S, h_up, h_not_lo, hp_all]
+  · have h_p_eq_pivot: p = pivot := by
+      refine h_v_inj p hp pivot h_piv_v h_eq
+    subst h_p_eq_pivot
+    contradiction
+  · have h_lo : p ∈ u_lower u := by
+      have hy : py p < py pivot := h_v_mono pivot h_piv_v p hp h_gt
+      rw [mem_u_lower]; use pivot; exact ⟨h_piv_u, le_of_lt h_gt, le_of_lt hy⟩
+    have h_not_lo : p ∉ u_upper u := fun h_up => h_not_both ⟨h_lo, h_up⟩
+    simp [h_in_W, h_in_N, h_in_E, h_in_S, h_lo, h_not_lo, hp_all]
+
+
+-- @@ L596-614 verbatim
+lemma covering_of_maximal_u
+    (p : Point n) (hp : p ∈ all_black) (hp_not_u : p ∉ u)
+    (h_maximal : ∀ p ∈ all_black, p ∉ u →
+        (∀ q ∈ u, px q < px p → py q < py p) →
+        (∀ q ∈ u, px p < px q → py p < py q) →
+        False)
+    : p ∈ u_lower u ∨ p ∈ u_upper u := by
+  by_contra h_not_covered
+  push Not at h_not_covered
+  obtain ⟨h_not_lo, h_not_up⟩ := h_not_covered
+  simp only [mem_u_lower, not_exists, not_and] at h_not_lo
+  simp only [mem_u_upper, not_exists, not_and] at h_not_up
+  apply h_maximal p hp hp_not_u
+  · intro q hq hx_lt
+    specialize h_not_lo q hq
+    exact Nat.lt_of_not_le (h_not_lo (le_of_lt hx_lt))
+  · intro q hq hx_lt
+    specialize h_not_up q hq
+    exact Nat.lt_of_not_le (h_not_up (le_of_lt hx_lt))
+
+
+-- @@ L616-638 verbatim
+lemma covering_of_maximal_v
+    (p : Point n) (hp : p ∈ all_black) (hp_not_v : p ∉ v)
+    (h_maximal : ∀ p ∈ all_black, p ∉ v →
+        (∀ q ∈ v, px q < px p → py p < py q) →
+        (∀ q ∈ v, px p < px q → py q < py p) →
+        False)
+    : p ∈ v_lower v ∨ p ∈ v_upper v := by
+  by_contra h_not_covered
+  push Not at h_not_covered
+  obtain ⟨h_not_lo, h_not_up⟩ := h_not_covered
+  simp only [mem_v_lower, not_exists, not_and] at h_not_lo
+  simp only [mem_v_upper, not_exists, not_and] at h_not_up
+  apply h_maximal p hp hp_not_v
+  · intro q hq hx_lt
+    specialize h_not_up q hq
+    have h_x_le : px q ≤ px p := le_of_lt hx_lt
+    have h_not_y_le : ¬(py q ≤ py p) := fun h => h_not_up h_x_le h
+    linarith
+  · intro q hq hx_lt
+    specialize h_not_lo q hq
+    have h_x_le : px p ≤ px q := le_of_lt hx_lt
+    have h_not_y_le : ¬(py p ≤ py q) := fun h => h_not_lo h_x_le h
+    linarith
+
+
+-- @@ L640-672 verbatim
+lemma incidence_count_of_others
+    (p : Point n) (hp : p ∈ all_black) (hp_not_u : p ∉ u) (hp_not_v : p ∉ v)
+    (h_u_mono : ∀ a ∈ u, ∀ b ∈ u, px a < px b → py a < py b)
+    (h_v_mono : ∀ a ∈ v, ∀ b ∈ v, px a < px b → py b < py a)
+    (h_u_inj : ∀ a ∈ u, ∀ b ∈ u, px a = px b → a = b)
+    (h_v_inj : ∀ a ∈ v, ∀ b ∈ v, px a = px b → a = b)
+    (h_u_max : ∀ p ∈ all_black, p ∉ u →
+        (∀ q ∈ u, px q < px p → py q < py p) →
+        (∀ q ∈ u, px p < px q → py p < py q) → False)
+    (h_v_max : ∀ p ∈ all_black, p ∉ v →
+        (∀ q ∈ v, px q < px p → py p < py q) →
+        (∀ q ∈ v, px p < px q → py q < py p) → False)
+    : incidence_count u v all_black p = 1 := by
+  have h_u_cover := covering_of_maximal_u p hp hp_not_u h_u_max
+  have h_u_excl : ¬(p ∈ u_lower u ∧ p ∈ u_upper u) := by
+    intro ⟨h1, h2⟩
+    exact hp_not_u (by rw [← u_parts_intersection_eq_u h_u_mono h_u_inj]; exact mem_inter.mpr ⟨h1, h2⟩)
+  have h_v_cover := covering_of_maximal_v p hp hp_not_v h_v_max
+  have h_v_excl : ¬(p ∈ v_lower v ∧ p ∈ v_upper v) := by
+    intro ⟨h1, h2⟩
+    exact hp_not_v (by rw [← v_parts_intersection_eq_v h_v_mono h_v_inj]; exact mem_inter.mpr ⟨h1, h2⟩)
+  unfold incidence_count
+  simp only [mem_targetsW, mem_targetsN, mem_targetsS, mem_targetsE, hp, true_and,
+    regionWExtend, regionNExtend, regionEExtend, regionSExtend, mem_inter]
+  rcases h_u_cover with h_ulo | h_uup <;> rcases h_v_cover with h_vlo | h_vup
+  · simp [h_ulo, h_vlo, show p ∉ u_upper u from fun h => h_u_excl ⟨h_ulo, h⟩,
+      show p ∉ v_upper v from fun h => h_v_excl ⟨h_vlo, h⟩]
+  · simp [h_ulo, h_vup, show p ∉ u_upper u from fun h => h_u_excl ⟨h_ulo, h⟩,
+      show p ∉ v_lower v from fun h => h_v_excl ⟨h, h_vup⟩]
+  · simp [h_uup, h_vlo, show p ∉ u_lower u from fun h => h_u_excl ⟨h, h_uup⟩,
+      show p ∉ v_upper v from fun h => h_v_excl ⟨h_vlo, h⟩]
+  · simp [h_uup, h_vup, show p ∉ u_lower u from fun h => h_u_excl ⟨h, h_uup⟩,
+      show p ∉ v_lower v from fun h => h_v_excl ⟨h, h_vup⟩]
+
+
+-- @@ L674-674 verbatim
+end IncidenceCount
+
+
+-- @@ L676-676 verbatim
+section LabelingConsistency
+
+
+-- @@ L678-678 verbatim
+variable {n : ℕ} {all_black : Finset (Point n)}
+
+
+-- @@ L680-680 verbatim
+@[simp] lemma px_mk_val (x y : Fin n) : px (x, y) = x.val := rfl
+
+-- @@ L681-681 verbatim
+@[simp] lemma py_mk_val (x y : Fin n) : py (x, y) = y.val := rfl
+
+
+-- @@ L683-683 verbatim
+variable {n : ℕ} [NeZero n] {all_black : Finset (Point n)}
+
+
+-- @@ L685-687 verbatim
+lemma fin_val_sub_one_eq {i : Fin n} (h : 0 < i.val) :
+    (i - 1).val = i.val - 1 := by
+  apply Fin.val_sub_one_of_ne_zero; exact ne_of_gt h
+
+
+-- @@ L689-691 verbatim
+lemma fin_val_add_one_eq {i : Fin n} (h : i.val < n - 1) :
+    (i + 1).val = i.val + 1 := by
+  rw [Fin.val_add]; simp; rw [Nat.mod_eq_of_lt]; lia
+
+
+-- @@ L693-702 verbatim
+lemma source_on_face_W (m : Matilda n all_black) (bw : Point n)
+    (hbw : bw ∈ all_black) (hbw_pos : 0 < py bw)
+    (h_in : m.mem ⟨bw.1, bw.2 - 1⟩) :
+    py bw = m.y_max + 1 ∧ m.x_min ≤ px bw ∧ px bw ≤ m.x_max := by
+  simp only [Matilda.mem, px_mk_val, py_mk_val] at h_in
+  have hsub := fin_val_sub_one_eq hbw_pos
+  simp only [px, py] at hbw_pos hsub ⊢
+  have h_not := m.h_disjoint bw hbw; simp only [px, py] at h_not; push Not at h_not
+  have hlt := h_not (by lia) (by lia) (by lia)
+  exact ⟨by lia, by lia, by lia⟩
+
+
+-- @@ L704-716 verbatim
+lemma source_on_face_E (m : Matilda n all_black) (be : Point n)
+    (hbe : be ∈ all_black) (hbe_bound : py be < n - 1)
+    (h_in : m.mem ⟨be.1, be.2 + 1⟩) :
+    m.y_min = py be + 1 ∧ m.x_min ≤ px be ∧ px be ≤ m.x_max := by
+  simp only [Matilda.mem, px_mk_val, py_mk_val] at h_in
+  have hadd := fin_val_add_one_eq hbe_bound
+  simp only [px, py] at hbe_bound hadd ⊢
+  have h_not := m.h_disjoint be hbe; simp only [px, py] at h_not; push Not at h_not
+  -- source is below tile: py be < m.y_min, since py be + 1 ≥ m.y_min and py be ≤ m.y_max would put source in tile
+  by_contra h_neg; push Not at h_neg
+  by_cases h_ymin : m.y_min ≤ ↑be.2
+  · exact absurd (h_not (by lia) (by lia) h_ymin) (by lia)
+  · push Not at h_ymin; lia
+
+
+-- @@ L718-729 verbatim
+lemma source_on_face_N (m : Matilda n all_black) (bn : Point n)
+    (hbn : bn ∈ all_black) (hbn_pos : 0 < px bn)
+    (h_in : m.mem ⟨bn.1 - 1, bn.2⟩) :
+    px bn = m.x_max + 1 ∧ m.y_min ≤ py bn ∧ py bn ≤ m.y_max := by
+  simp only [Matilda.mem, px_mk_val, py_mk_val] at h_in
+  have hsub := fin_val_sub_one_eq hbn_pos
+  simp only [px, py] at hbn_pos hsub ⊢
+  have h_not := m.h_disjoint bn hbn; simp only [px, py] at h_not; push Not at h_not
+  by_contra h_neg; push Not at h_neg
+  by_cases h_xmax : ↑bn.1 ≤ m.x_max
+  · exact absurd (h_not (by lia) h_xmax (by lia)) (by lia)
+  · push Not at h_xmax; lia
+
+
+-- @@ L731-742 verbatim
+lemma source_on_face_S (m : Matilda n all_black) (bs : Point n)
+    (hbs : bs ∈ all_black) (hbs_bound : px bs < n - 1)
+    (h_in : m.mem ⟨bs.1 + 1, bs.2⟩) :
+    m.x_min = px bs + 1 ∧ m.y_min ≤ py bs ∧ py bs ≤ m.y_max := by
+  simp only [Matilda.mem, px_mk_val, py_mk_val] at h_in
+  have hadd := fin_val_add_one_eq hbs_bound
+  simp only [px, py] at hbs_bound hadd ⊢
+  have h_not := m.h_disjoint bs hbs; simp only [px, py] at h_not; push Not at h_not
+  by_contra h_neg; push Not at h_neg
+  by_cases h_xmin : m.x_min ≤ ↑bs.1
+  · exact absurd (h_not h_xmin (by lia) (by lia)) (by lia)
+  · push Not at h_xmin; lia
+
+
+-- @@ L744-744 verbatim
+end LabelingConsistency
+
+
+-- @@ L746-746 verbatim
+section LabelingMachinery
+
+-- @@ L747-747 verbatim
+variable [NeZero n]
+
+
+-- @@ L749-760 verbatim
+lemma matilda_eq_iff_bounds_eq (m1 m2 : Matilda n all_black) :
+    m1 = m2 ↔
+    m1.x_min = m2.x_min ∧ m1.x_max = m2.x_max ∧
+    m1.y_min = m2.y_min ∧ m1.y_max = m2.y_max := by
+  constructor
+  · intro h; rw [h]; simp
+  · intro h
+    rcases m1 with ⟨x1, X1, y1, Y1, _, _, _, _⟩
+    rcases m2 with ⟨x2, X2, y2, Y2, _, _, _, _⟩
+    simp at h
+    rcases h with ⟨rfl, rfl, rfl, rfl⟩
+    congr
+
+
+-- @@ L762-774 verbatim
+instance : Finite (Matilda n all_black) := by
+  let f (m : Matilda n all_black) : (Fin n × Fin n × Fin n × Fin n) :=
+    (
+      ⟨m.x_min, lt_of_le_of_lt m.h_x_le m.h_x_bound⟩,
+      ⟨m.x_max, m.h_x_bound⟩,
+      ⟨m.y_min, lt_of_le_of_lt m.h_y_le m.h_y_bound⟩,
+      ⟨m.y_max, m.h_y_bound⟩
+    )
+  apply Finite.of_injective f
+  intro m1 m2 h
+  simp [f] at h
+  rw [matilda_eq_iff_bounds_eq]
+  exact h
+
+
+-- @@ L776-777 verbatim
+noncomputable instance : Fintype (Matilda n all_black) :=
+  Fintype.ofFinite _
+
+
+-- @@ L779-781 verbatim
+inductive LabelType
+  | W | N | E | S | X
+  deriving DecidableEq, Repr
+
+
+-- @@ L783-785 verbatim
+instance : Fintype LabelType where
+  elems := ⟨↑[LabelType.W, LabelType.N, LabelType.E, LabelType.S, LabelType.X], by decide⟩
+  complete := fun x => by cases x <;> decide
+
+
+-- @@ L787-790 verbatim
+structure Label (n : ℕ) where
+  source : Point n
+  type : LabelType
+  deriving DecidableEq, Repr, Fintype
+
+
+-- @@ L792-795 verbatim
+omit [NeZero n] in
+private lemma Label.source_ne_of_ne {l1 l2 : Label n}
+    (h_ne : l1 ≠ l2) (h_type : l1.type = l2.type) : l1.source ≠ l2.source := by
+  intro h_src; exact h_ne (by rcases l1; rcases l2; simp_all)
+
+
+-- @@ L797-799 verbatim
+@[simp]
+def Label.emb (t : LabelType) : Point n ↪ Label n :=
+  ⟨fun p => ⟨p, t⟩, by intro a b h; injection h⟩
+
+
+-- @@ L801-809 verbatim
+@[simp]
+def label_pos (l : Label n) : Point n × Point n :=
+  let p := l.source
+  match l.type with
+  | .W => (p, (p.1, p.2 - 1))
+  | .N => (p, (p.1 - 1, p.2))
+  | .E => (p, (p.1, p.2 + 1))
+  | .S => (p, (p.1 + 1, p.2))
+  | .X => (p, p)
+
+
+-- @@ L811-813 verbatim
+@[simp]
+def covers (m : Matilda n all_black) (l : Label n) : Prop :=
+  m.mem (label_pos l).2
+
+
+-- @@ L815-817 verbatim
+instance (m : Matilda n all_black) : DecidablePred (covers m) := by
+  intro l
+  cases l.type <;> (simp [covers, label_pos, Matilda.mem]; infer_instance)
+
+
+-- @@ L819-819 verbatim
+end LabelingMachinery
+
+
+-- @@ L821-821 verbatim
+section LabelingCore
+
+-- @@ L822-822 verbatim
+variable [NeZero n]
+
+-- @@ L823-823 verbatim
+variable {all_black : Finset (Point n)}
+
+
+-- @@ L825-852 verbatim
+lemma matilda_count_ge_label_count
+  (L : Finset (Label n))
+  (h_white : ∀ l ∈ L, (label_pos l).2 ∉ all_black)
+  (h_one : ∀ m : Matilda n all_black, ({l ∈ L | covers m l}).card ≤ 1)
+  (matildas_partition : Finset (Matilda n all_black))
+  (h_partition : ∀ p : Point n, p ∉ all_black → ∃! m ∈ matildas_partition, m.mem p) :
+    L.card ≤ matildas_partition.card := by
+  let f : { l // l ∈ L } → { m // m ∈ matildas_partition } := fun ⟨l, hl⟩ =>
+    let m_obj := (h_partition (label_pos l).2 (h_white l hl)).choose
+    ⟨m_obj, (h_partition (label_pos l).2 (h_white l hl)).choose_spec.1.1⟩
+  have f_inj : Function.Injective f := by
+    intro x1 x2 h_eq
+    rcases x1 with ⟨l1, hl1⟩; rcases x2 with ⟨l2, hl2⟩
+    simp only [f, Subtype.mk.injEq] at h_eq
+    set M :=
+      (h_partition (label_pos l1).2 (h_white l1 hl1)).choose
+    have h_cov1 : covers M l1 :=
+      (h_partition (label_pos l1).2 (h_white l1 hl1)).choose_spec.1.2
+    have h_cov2 : covers M l2 := by
+      rw [h_eq]
+      exact (h_partition (label_pos l2).2 (h_white l2 hl2)).choose_spec.1.2
+    have h_at_most_one := h_one M
+    rw [card_le_one_iff] at h_at_most_one
+    apply Subtype.ext
+    apply h_at_most_one
+    · exact Finset.mem_filter.mpr ⟨hl1, h_cov1⟩
+    · exact Finset.mem_filter.mpr ⟨hl2, h_cov2⟩
+  exact card_le_card_of_injective f_inj
+
+
+-- @@ L854-854 verbatim
+end LabelingCore
+
+
+-- @@ L856-863 verbatim
+private lemma fin_ne_sub_one {n : ℕ} [NeZero n] (h_n : 2 ≤ n) (a : Fin n)
+    (h : 0 < a.val) : a ≠ a - 1 := by
+  intro h_eq; apply Fin.ext_iff.mp at h_eq
+  have h_le : (1 : Fin n) ≤ a := by
+    rw [Fin.le_def]; show 1 % n ≤ a.val; rw [Nat.mod_eq_of_lt h_n]; lia
+  rw [Fin.sub_val_of_le h_le] at h_eq
+  have : (1 : Fin n).val = 1 := by show 1 % n = 1; rw [Nat.mod_eq_of_lt h_n]
+  lia
+
+
+-- @@ L865-871 verbatim
+private lemma fin_ne_add_one {n : ℕ} [NeZero n] (a : Fin n)
+    (h : a.val < n - 1) : a ≠ a + 1 := by
+  intro h_eq; apply Fin.ext_iff.mp at h_eq
+  rw [Fin.val_add] at h_eq
+  have h1v : (1 : Fin n).val = 1 % n := rfl
+  rw [Nat.mod_eq_of_lt (by lia : 1 < n)] at h1v; rw [h1v] at h_eq
+  rw [Nat.mod_eq_of_lt (by lia)] at h_eq; lia
+
+
+-- @@ L873-879 verbatim
+private lemma label_pos_W_absurd {n : ℕ} [NeZero n] (h_n : 2 ≤ n)
+    {all_black : Finset (Point n)}
+    (h_unique_x : ∀ p ∈ all_black, ∀ q ∈ all_black, px p = px q → p = q)
+    {p : Point n} (hp : p ∈ all_black) (h_pos : 0 < p.2.val)
+    (h_adj : (p.1, p.2 - 1) ∈ all_black) : False := by
+  have h_eq := h_unique_x p hp (p.1, p.2 - 1) h_adj (by simp [px])
+  exact absurd (Prod.ext_iff.mp h_eq).2 (fin_ne_sub_one h_n p.2 h_pos)
+
+
+-- @@ L881-887 verbatim
+private lemma label_pos_N_absurd {n : ℕ} [NeZero n] (h_n : 2 ≤ n)
+    {all_black : Finset (Point n)}
+    (h_unique_y : ∀ p ∈ all_black, ∀ q ∈ all_black, py p = py q → p = q)
+    {p : Point n} (hp : p ∈ all_black) (h_pos : 0 < p.1.val)
+    (h_adj : (p.1 - 1, p.2) ∈ all_black) : False := by
+  have h_eq := h_unique_y p hp (p.1 - 1, p.2) h_adj (by simp [py])
+  exact absurd (Prod.ext_iff.mp h_eq).1 (fin_ne_sub_one h_n p.1 h_pos)
+
+
+-- @@ L889-895 verbatim
+private lemma label_pos_E_absurd {n : ℕ} [NeZero n]
+    {all_black : Finset (Point n)}
+    (h_unique_x : ∀ p ∈ all_black, ∀ q ∈ all_black, px p = px q → p = q)
+    {p : Point n} (hp : p ∈ all_black) (h_bound : p.2.val < n - 1)
+    (h_adj : (p.1, p.2 + 1) ∈ all_black) : False := by
+  have h_eq := h_unique_x p hp (p.1, p.2 + 1) h_adj (by simp [px])
+  exact absurd (Prod.ext_iff.mp h_eq).2 (fin_ne_add_one p.2 h_bound)
+
+
+-- @@ L897-903 verbatim
+private lemma label_pos_S_absurd {n : ℕ} [NeZero n]
+    {all_black : Finset (Point n)}
+    (h_unique_y : ∀ p ∈ all_black, ∀ q ∈ all_black, py p = py q → p = q)
+    {p : Point n} (hp : p ∈ all_black) (h_bound : p.1.val < n - 1)
+    (h_adj : (p.1 + 1, p.2) ∈ all_black) : False := by
+  have h_eq := h_unique_y p hp (p.1 + 1, p.2) h_adj (by simp [py])
+  exact absurd (Prod.ext_iff.mp h_eq).1 (fin_ne_add_one p.1 h_bound)
+
+
+-- @@ L905-917 verbatim
+lemma am_gm_bound_nat (a b n : ℕ) (h_mul : n ≤ a * b) :
+    (4 * n).sqrt ≤ a + b := by
+  have h1 : 4 * n ≤ 4 * (a * b) := Nat.mul_le_mul_left 4 h_mul
+  have h2 : 4 * (a * b) ≤ (a + b) * (a + b) := by
+    calc
+      4 * (a * b) = 2 * a * b + 2 * (a * b) := by ring
+        _ ≤ (a ^ 2 + b ^ 2) + 2 * (a * b) := Nat.add_le_add_right (two_mul_le_add_sq a b) _
+        _ = (a + b) * (a + b) := by ring
+  calc
+    (4 * n).sqrt
+      ≤ (4 * (a * b)).sqrt       := Nat.sqrt_le_sqrt h1
+    _ ≤ ((a + b) * (a + b)).sqrt := Nat.sqrt_le_sqrt h2
+    _ = a + b                    := Nat.sqrt_eq (a + b)
+
+
+-- @@ L919-944 verbatim
+structure BaseSetup (n : ℕ) [NeZero n] where
+  u : Finset (Point n)
+  v : Finset (Point n)
+  all_black : Finset (Point n)
+  a : ℕ
+  b : ℕ
+  hu : u.card = a
+  hv : v.card = b
+  hu_sub : u ⊆ all_black
+  hv_sub : v ⊆ all_black
+  h_n : all_black.card = n
+
+  h_u_mono : ∀ p ∈ u, ∀ q ∈ u, px p < px q → py p < py q
+  h_v_mono : ∀ p ∈ v, ∀ q ∈ v, px p < px q → py q < py p
+  h_u_inj : ∀ p ∈ u, ∀ q ∈ u, px p = px q → p = q
+  h_v_inj : ∀ p ∈ v, ∀ q ∈ v, px p = px q → p = q
+
+  h_u_max : ∀ p ∈ all_black, p ∉ u →
+      (∀ q ∈ u, px q < px p → py q < py p) →
+      (∀ q ∈ u, px p < px q → py p < py q) → False
+  h_v_max : ∀ p ∈ all_black, p ∉ v →
+      (∀ q ∈ v, px q < px p → py p < py q) →
+      (∀ q ∈ v, px p < px q → py q < py p) → False
+
+  h_unique_x : ∀ p ∈ all_black, ∀ q ∈ all_black, px p = px q → p = q
+  h_unique_y : ∀ p ∈ all_black, ∀ q ∈ all_black, py p = py q → p = q
+
+
+-- @@ L946-946 verbatim
+namespace BaseSetup
+
+
+-- @@ L948-948 verbatim
+variable {n : ℕ} [NeZero n] (c : BaseSetup n)
+
+
+-- @@ L950-951 verbatim
+lemma u_mono_le : ∀ a ∈ c.u, ∀ b ∈ c.u, px a ≤ px b → py a ≤ py b :=
+  chain_u_mono_le c.h_u_mono c.h_u_inj
+
+-- @@ L952-953 verbatim
+lemma v_mono_le : ∀ a ∈ c.v, ∀ b ∈ c.v, px a ≤ px b → py b ≤ py a :=
+  chain_v_mono_le c.h_v_mono c.h_v_inj
+
+-- @@ L954-955 verbatim
+lemma u_inj_y : ∀ a ∈ c.u, ∀ b ∈ c.u, py a = py b → a = b :=
+  chain_u_inj_y c.h_u_mono c.h_u_inj
+
+-- @@ L956-957 verbatim
+lemma v_inj_y : ∀ a ∈ c.v, ∀ b ∈ c.v, py a = py b → a = b :=
+  chain_v_inj_y c.h_v_mono c.h_v_inj
+
+
+-- @@ L959-959 verbatim
+lemma union_sub : c.u ∪ c.v ⊆ c.all_black := union_subset c.hu_sub c.hv_sub
+
+
+-- @@ L961-961 verbatim
+end BaseSetup
+
+
+-- @@ L963-1236 verbatim
+lemma matilda_covers_at_most_one_core {n : ℕ} [NeZero n]
+    {all_black u v : Finset (Point n)}
+    (h_uniq_x : ∀ p ∈ all_black, ∀ q ∈ all_black, px p = px q → p = q)
+    (h_uniq_y : ∀ p ∈ all_black, ∀ q ∈ all_black, py p = py q → p = q)
+    (h_u_mono : ∀ a ∈ u, ∀ b ∈ u, px a ≤ px b → py a ≤ py b)
+    (h_v_mono : ∀ a ∈ v, ∀ b ∈ v, px a ≤ px b → py b ≤ py a)
+    (_h_u_inj : ∀ a ∈ u, ∀ b ∈ u, py a = py b → a = b)
+    (h_v_inj : ∀ a ∈ v, ∀ b ∈ v, py a = py b → a = b)
+    (m : Matilda n all_black) (l1 l2 : Label n)
+    (h_ne : l1 ≠ l2) (h_cov1 : m.mem (label_pos l1).2) (h_cov2 : m.mem (label_pos l2).2)
+    (props1 : (l1.type = .W → l1.source ∈ targetsWin u v all_black) ∧
+              (l1.type = .N → l1.source ∈ targetsNin u v all_black) ∧
+              (l1.type = .E → l1.source ∈ targetsEin u v all_black) ∧
+              (l1.type = .S → l1.source ∈ targetsSin u v all_black))
+    (props2 : (l2.type = .W → l2.source ∈ targetsWin u v all_black) ∧
+              (l2.type = .N → l2.source ∈ targetsNin u v all_black) ∧
+              (l2.type = .E → l2.source ∈ targetsEin u v all_black) ∧
+              (l2.type = .S → l2.source ∈ targetsSin u v all_black))
+    (h_not_X1 : l1.type ≠ .X) (h_not_X2 : l2.type ≠ .X) : False := by
+  let p1 := l1.source; let p2 := l2.source
+  cases h1 : l1.type <;> cases h2 : l2.type
+  · -- W.W: both sources on top face → py equal → same source, contradiction
+    have hp1 := props1.1 h1; have hp2 := props2.1 h2
+    simp only [mem_targetsWin, mem_targetsW] at hp1 hp2
+    simp [h1, h2] at h_cov1 h_cov2
+    have f1 := source_on_face_W m p1 hp1.1.1 hp1.2 h_cov1
+    have f2 := source_on_face_W m p2 hp2.1.1 hp2.2 h_cov2
+    exact Label.source_ne_of_ne h_ne (by rw [h1, h2])
+      (h_uniq_y p1 hp1.1.1 p2 hp2.1.1 (by lia))
+  · -- W.N: bw on top face, bn on right face → chain contradiction
+    have hW := props1.1 h1; have hN := props2.2.1 h2
+    simp only [mem_targetsWin, mem_targetsW] at hW
+    simp only [mem_targetsNin, mem_targetsN] at hN
+    simp [h1, h2] at h_cov1 h_cov2
+    have fw := source_on_face_W m p1 hW.1.1 hW.2 h_cov1
+    have fn := source_on_face_N m p2 hN.1.1 hN.2 h_cov2
+    -- p1 on top face: px p1 ∈ [x_min, x_max], py p1 = y_max + 1
+    -- p2 on right face: py p2 ∈ [y_min, y_max], px p2 = x_max + 1
+    -- So px p1 ≤ x_max < x_max + 1 = px p2 and py p2 ≤ y_max < y_max + 1 = py p1
+    simp only [mem_regionWExtend] at hW; simp only [mem_regionNExtend] at hN
+    rcases (mem_u_lower u p1).mp hW.1.2.1 with ⟨u1, hu1_mem, hu1_x, hu1_y⟩
+    rcases (mem_u_upper u p2).mp hN.1.2.1 with ⟨u2, hu2_mem, hu2_x, hu2_y⟩
+    have : py u1 ≤ py u2 := h_u_mono u1 hu1_mem u2 hu2_mem (by lia)
+    linarith
+  · -- W.E: opposite faces (top/bottom) → chain contradiction
+    have hW := props1.1 h1; have hE := props2.2.2.1 h2
+    simp only [mem_targetsWin, mem_targetsW] at hW
+    simp only [mem_targetsEin, mem_targetsE] at hE
+    simp [h1, h2] at h_cov1 h_cov2
+    have fw := source_on_face_W m p1 hW.1.1 hW.2 h_cov1
+    have fe := source_on_face_E m p2 hE.1.1 hE.2 h_cov2
+    -- p1 on top: py p1 = y_max + 1; p2 on bottom: y_min = py p2 + 1
+    -- So py p2 < py p1. We need chain witnesses from both u and v.
+    obtain ⟨h_bw_u, h_bw_v⟩ := (mem_regionWExtend u v p1).mp hW.1.2
+    obtain ⟨h_be_u, h_be_v⟩ := (mem_regionEExtend u v p2).mp hE.1.2
+    rcases (mem_u_lower u p1).mp h_bw_u with ⟨u1, hu1_mem, hu1_x, hu1_y⟩
+    rcases (mem_u_upper u p2).mp h_be_u with ⟨u2, hu2_mem, hu2_x, hu2_y⟩
+    rcases (mem_v_lower v p1).mp h_bw_v with ⟨v1, hv1_mem, hv1_x, hv1_y⟩
+    rcases (mem_v_upper v p2).mp h_be_v with ⟨v2, hv2_mem, hv2_x, hv2_y⟩
+    -- u-chain: py p1 ≤ py u1, py u2 ≤ py p2, so py u2 < py u1 → px u2 < px u1
+    -- But we need px u1 ≤ px u2 to apply u_mono. Actually:
+    -- If px u1 ≤ px u2, then py u1 ≤ py u2 (by u_mono), contradicting py u2 ≤ py p2 < py p1 ≤ py u1
+    -- So px u2 < px u1.
+    have h_u_y : py u2 < py u1 := by linarith
+    have h_u_x : px u2 < px u1 :=
+      lt_imp_lt_of_le_imp_le (h_u_mono u1 hu1_mem u2 hu2_mem) h_u_y
+    -- v-chain: py p1 ≤ py v1, py v2 ≤ py p2
+    -- If px v1 ≤ px v2, then py v2 ≤ py v1 (by v_anti_mono), so both orderings consistent.
+    -- But we need contradiction from x-coordinates.
+    -- From u: px u2 < px u1, so px p2 ≤ px u2 < px u1 ≤ ... but we only know px u1 ≤ px p1.
+    -- Actually: px bw ≤ px u1 (wait, the region gives px u1 ≤ px bw and py bw ≤ py u1)
+    -- u_lower: u1 ∈ u with px u1 ≤ px p1 and py p1 ≤ py u1
+    -- u_upper: u2 ∈ u with px p2 ≤ px u2 and py u2 ≤ py p2
+    -- v_lower: v1 ∈ v with px p1 ≤ px v1 and py p1 ≤ py v1
+    -- v_upper: v2 ∈ v with px v2 ≤ px p2 and py v2 ≤ py p2
+    -- From x: px u2 < px u1 ≤ px p1 ≤ px v1, and px v2 ≤ px p2 ≤ px u2
+    -- So px v2 ≤ px u2 < px u1 ≤ px v1, hence px v2 < px v1
+    -- v_mono: px v2 ≤ px v1 → py v1 ≤ py v2
+    have h_v_mono := h_v_mono v2 hv2_mem v1 hv1_mem (by lia)
+    -- py v1 ≤ py v2. But py p1 ≤ py v1 and py v2 ≤ py p2, so py p1 ≤ py p2. Contradiction.
+    linarith
+  · -- W.S: bw on top face, bs on left face → chain contradiction (via v)
+    have hW := props1.1 h1; have hS := props2.2.2.2 h2
+    simp only [mem_targetsWin, mem_targetsW] at hW
+    simp only [mem_targetsSin, mem_targetsS] at hS
+    simp [h1, h2] at h_cov1 h_cov2
+    have fw := source_on_face_W m p1 hW.1.1 hW.2 h_cov1
+    have fs := source_on_face_S m p2 hS.1.1 hS.2 h_cov2
+    -- p1 top: py p1 = y_max + 1; p2 left: x_min = px p2 + 1
+    -- So px p2 < px p1 (since px p1 ≥ x_min = px p2 + 1) and py p2 < py p1
+    simp only [mem_regionWExtend] at hW; simp only [mem_regionSExtend] at hS
+    rcases (mem_v_lower v p1).mp hW.1.2.2 with ⟨v1, hv1_mem, hv1_x, hv1_y⟩
+    rcases (mem_v_upper v p2).mp hS.1.2.2 with ⟨v2, hv2_mem, hv2_x, hv2_y⟩
+    have : py v1 ≤ py v2 := h_v_mono v2 hv2_mem v1 hv1_mem (by lia)
+    linarith
+  · exact absurd h2 h_not_X2
+  · -- N.W: symmetric to W.N
+    have hN := props1.2.1 h1; have hW := props2.1 h2
+    simp only [mem_targetsWin, mem_targetsW] at hW
+    simp only [mem_targetsNin, mem_targetsN] at hN
+    simp [h1, h2] at h_cov1 h_cov2
+    have fn := source_on_face_N m p1 hN.1.1 hN.2 h_cov1
+    have fw := source_on_face_W m p2 hW.1.1 hW.2 h_cov2
+    simp only [mem_regionWExtend] at hW; simp only [mem_regionNExtend] at hN
+    rcases (mem_u_lower u p2).mp hW.1.2.1 with ⟨u1, hu1_mem, hu1_x, hu1_y⟩
+    rcases (mem_u_upper u p1).mp hN.1.2.1 with ⟨u2, hu2_mem, hu2_x, hu2_y⟩
+    have : py u1 ≤ py u2 := h_u_mono u1 hu1_mem u2 hu2_mem (by lia)
+    linarith
+  · -- N.N: both on right face → px equal → same source, contradiction
+    have hp1 := props1.2.1 h1; have hp2 := props2.2.1 h2
+    simp only [mem_targetsNin, mem_targetsN] at hp1 hp2
+    simp [h1, h2] at h_cov1 h_cov2
+    have f1 := source_on_face_N m p1 hp1.1.1 hp1.2 h_cov1
+    have f2 := source_on_face_N m p2 hp2.1.1 hp2.2 h_cov2
+    exact Label.source_ne_of_ne h_ne (by rw [h1, h2])
+      (h_uniq_x p1 hp1.1.1 p2 hp2.1.1 (by lia))
+  · -- N.E: bn on right face, be on bottom face → chain contradiction (via v)
+    have hN := props1.2.1 h1; have hE := props2.2.2.1 h2
+    simp only [mem_targetsNin, mem_targetsN] at hN
+    simp only [mem_targetsEin, mem_targetsE] at hE
+    simp [h1, h2] at h_cov1 h_cov2
+    have fn := source_on_face_N m p1 hN.1.1 hN.2 h_cov1
+    have fe := source_on_face_E m p2 hE.1.1 hE.2 h_cov2
+    -- p1 right: px p1 = x_max + 1; p2 bottom: y_min = py p2 + 1
+    -- So px p2 < px p1 and py p1 < py p2 + 1 = y_min ≤ py p1? No:
+    -- py p1 ∈ [y_min, y_max] and y_min = py p2 + 1, so py p2 + 1 ≤ py p1, i.e. py p2 < py p1
+    simp only [mem_regionEExtend] at hE; simp only [mem_regionNExtend] at hN
+    rcases (mem_v_upper v p2).mp hE.1.2.2 with ⟨v1, hv1_mem, hv1_x, hv1_y⟩
+    rcases (mem_v_lower v p1).mp hN.1.2.2 with ⟨v2, hv2_mem, hv2_x, hv2_y⟩
+    have : py v2 ≤ py v1 := h_v_mono v1 hv1_mem v2 hv2_mem (by lia)
+    linarith
+  · -- N.S: opposite faces (right/left) → chain contradiction
+    have hN := props1.2.1 h1; have hS := props2.2.2.2 h2
+    simp only [mem_targetsNin, mem_targetsN] at hN
+    simp only [mem_targetsSin, mem_targetsS] at hS
+    simp [h1, h2] at h_cov1 h_cov2
+    have fn := source_on_face_N m p1 hN.1.1 hN.2 h_cov1
+    have fs := source_on_face_S m p2 hS.1.1 hS.2 h_cov2
+    -- p1 right: px p1 = x_max + 1; p2 left: x_min = px p2 + 1
+    obtain ⟨h_bn_u, h_bn_v⟩ := (mem_regionNExtend u v p1).mp hN.1.2
+    obtain ⟨h_bs_u, h_bs_v⟩ := (mem_regionSExtend u v p2).mp hS.1.2
+    rcases (mem_u_upper u p1).mp h_bn_u with ⟨u1, hu1_mem, hu1_x, hu1_y⟩
+    rcases (mem_u_lower u p2).mp h_bs_u with ⟨u2, hu2_mem, hu2_x, hu2_y⟩
+    rcases (mem_v_lower v p1).mp h_bn_v with ⟨v1, hv1_mem, hv1_x, hv1_y⟩
+    rcases (mem_v_upper v p2).mp h_bs_v with ⟨v2, hv2_mem, hv2_x, hv2_y⟩
+    -- u-chain: px u2 ≤ px p2 < px p1 ≤ px u1 → px u2 ≤ px u1
+    have h_u_x : px u2 ≤ px u1 := by lia
+    have h_u_y : py u2 ≤ py u1 := h_u_mono u2 hu2_mem u1 hu1_mem h_u_x
+    -- v-chain: py v2 ≤ py p2 and py p1 ≤ py v1
+    -- From u: py u1 ≤ py p1 and py p2 ≤ py u2, combined with h_u_y: py p2 ≤ py u2 ≤ py u1 ≤ py p1
+    -- So py v2 ≤ py p2 ≤ py p1 ≤ py v1
+    have h_v_y : py v2 ≤ py v1 := by linarith
+    -- If px v1 < px v2, v_mono gives py v2 ≤ py v1, which is fine.
+    -- We need: px v1 ≤ px v2 from somewhere to get contradiction.
+    -- px v1 ≥ px p1 = x_max + 1 and px v2 ≤ px p2. px p2 ≤ x_max (from fs: x_min = px p2 + 1 ≤ x_max... wait)
+    -- Actually px p2 + 1 = x_min ≤ x_max, so px p2 ≤ x_max - 1 < x_max < x_max + 1 = px p1
+    -- px v2 ≤ px p2 ≤ x_max - 1 and px p1 ≤ px v1
+    -- So px v2 < px v1 → v_mono: py v1 ≤ py v2 → combined with py v2 ≤ py v1: py v1 = py v2
+    -- Then v_inj: v1 = v2, so px v1 = px v2, contradicting px v2 < px v1
+    have h_v_x : px v2 ≤ px v1 := by lia
+    have h_v_anti : py v1 ≤ py v2 := h_v_mono v2 hv2_mem v1 hv1_mem h_v_x
+    have h_v_y_eq : py v1 = py v2 := by lia
+    have h_v_eq : v1 = v2 := h_v_inj v1 hv1_mem v2 hv2_mem h_v_y_eq
+    rw [h_v_eq] at hv1_x; lia
+  · exact absurd h2 h_not_X2
+  · -- E.W: symmetric to W.E
+    have hE := props1.2.2.1 h1; have hW := props2.1 h2
+    simp only [mem_targetsEin, mem_targetsE] at hE
+    simp only [mem_targetsWin, mem_targetsW] at hW
+    simp [h1, h2] at h_cov1 h_cov2
+    have fe := source_on_face_E m p1 hE.1.1 hE.2 h_cov1
+    have fw := source_on_face_W m p2 hW.1.1 hW.2 h_cov2
+    obtain ⟨h_bw_u, h_bw_v⟩ := (mem_regionWExtend u v p2).mp hW.1.2
+    obtain ⟨h_be_u, h_be_v⟩ := (mem_regionEExtend u v p1).mp hE.1.2
+    rcases (mem_u_lower u p2).mp h_bw_u with ⟨u1, hu1_mem, hu1_x, hu1_y⟩
+    rcases (mem_u_upper u p1).mp h_be_u with ⟨u2, hu2_mem, hu2_x, hu2_y⟩
+    rcases (mem_v_lower v p2).mp h_bw_v with ⟨v1, hv1_mem, hv1_x, hv1_y⟩
+    rcases (mem_v_upper v p1).mp h_be_v with ⟨v2, hv2_mem, hv2_x, hv2_y⟩
+    have h_u_y : py u2 < py u1 := by linarith
+    have h_u_x : px u2 < px u1 :=
+      lt_imp_lt_of_le_imp_le (h_u_mono u1 hu1_mem u2 hu2_mem) h_u_y
+    have h_v_mono := h_v_mono v2 hv2_mem v1 hv1_mem (by lia)
+    linarith
+  · -- E.N: symmetric to N.E
+    have hE := props1.2.2.1 h1; have hN := props2.2.1 h2
+    simp only [mem_targetsEin, mem_targetsE] at hE
+    simp only [mem_targetsNin, mem_targetsN] at hN
+    simp [h1, h2] at h_cov1 h_cov2
+    have fe := source_on_face_E m p1 hE.1.1 hE.2 h_cov1
+    have fn := source_on_face_N m p2 hN.1.1 hN.2 h_cov2
+    simp only [mem_regionEExtend] at hE; simp only [mem_regionNExtend] at hN
+    rcases (mem_v_upper v p1).mp hE.1.2.2 with ⟨v1, hv1_mem, hv1_x, hv1_y⟩
+    rcases (mem_v_lower v p2).mp hN.1.2.2 with ⟨v2, hv2_mem, hv2_x, hv2_y⟩
+    have : py v2 ≤ py v1 := h_v_mono v1 hv1_mem v2 hv2_mem (by lia)
+    linarith
+  · -- E.E: both on bottom face → py equal → same source, contradiction
+    have hp1 := props1.2.2.1 h1; have hp2 := props2.2.2.1 h2
+    simp only [mem_targetsEin, mem_targetsE] at hp1 hp2
+    simp [h1, h2] at h_cov1 h_cov2
+    have f1 := source_on_face_E m p1 hp1.1.1 hp1.2 h_cov1
+    have f2 := source_on_face_E m p2 hp2.1.1 hp2.2 h_cov2
+    exact Label.source_ne_of_ne h_ne (by rw [h1, h2])
+      (h_uniq_y p1 hp1.1.1 p2 hp2.1.1 (by lia))
+  · -- E.S: be on bottom face, bs on left face → chain contradiction (via u)
+    have hE := props1.2.2.1 h1; have hS := props2.2.2.2 h2
+    simp only [mem_targetsEin, mem_targetsE] at hE
+    simp only [mem_targetsSin, mem_targetsS] at hS
+    simp [h1, h2] at h_cov1 h_cov2
+    have fe := source_on_face_E m p1 hE.1.1 hE.2 h_cov1
+    have fs := source_on_face_S m p2 hS.1.1 hS.2 h_cov2
+    -- p1 bottom: y_min = py p1 + 1; p2 left: x_min = px p2 + 1
+    -- px p1 ≥ x_min = px p2 + 1, so px p2 < px p1
+    -- py p2 ≥ y_min = py p1 + 1, so py p1 < py p2
+    simp only [mem_regionEExtend] at hE; simp only [mem_regionSExtend] at hS
+    rcases (mem_u_upper u p1).mp hE.1.2.1 with ⟨u1, hu1_mem, hu1_x, hu1_y⟩
+    rcases (mem_u_lower u p2).mp hS.1.2.1 with ⟨u2, hu2_mem, hu2_x, hu2_y⟩
+    have : py u2 ≤ py u1 := h_u_mono u2 hu2_mem u1 hu1_mem (by lia)
+    linarith
+  · exact absurd h2 h_not_X2
+  · -- S.W: symmetric to W.S
+    have hS := props1.2.2.2 h1; have hW := props2.1 h2
+    simp only [mem_targetsSin, mem_targetsS] at hS
+    simp only [mem_targetsWin, mem_targetsW] at hW
+    simp [h1, h2] at h_cov1 h_cov2
+    have fs := source_on_face_S m p1 hS.1.1 hS.2 h_cov1
+    have fw := source_on_face_W m p2 hW.1.1 hW.2 h_cov2
+    simp only [mem_regionSExtend] at hS; simp only [mem_regionWExtend] at hW
+    rcases (mem_v_upper v p1).mp hS.1.2.2 with ⟨v2, hv2_mem, hv2_x, hv2_y⟩
+    rcases (mem_v_lower v p2).mp hW.1.2.2 with ⟨v1, hv1_mem, hv1_x, hv1_y⟩
+    have : py v1 ≤ py v2 := h_v_mono v2 hv2_mem v1 hv1_mem (by lia)
+    linarith
+  · -- S.N: symmetric to N.S
+    have hS := props1.2.2.2 h1; have hN := props2.2.1 h2
+    simp only [mem_targetsSin, mem_targetsS] at hS
+    simp only [mem_targetsNin, mem_targetsN] at hN
+    simp [h1, h2] at h_cov1 h_cov2
+    have fs := source_on_face_S m p1 hS.1.1 hS.2 h_cov1
+    have fn := source_on_face_N m p2 hN.1.1 hN.2 h_cov2
+    obtain ⟨h_bn_u, h_bn_v⟩ := (mem_regionNExtend u v p2).mp hN.1.2
+    obtain ⟨h_bs_u, h_bs_v⟩ := (mem_regionSExtend u v p1).mp hS.1.2
+    rcases (mem_u_upper u p2).mp h_bn_u with ⟨u1, hu1_mem, hu1_x, hu1_y⟩
+    rcases (mem_u_lower u p1).mp h_bs_u with ⟨u2, hu2_mem, hu2_x, hu2_y⟩
+    rcases (mem_v_lower v p2).mp h_bn_v with ⟨v1, hv1_mem, hv1_x, hv1_y⟩
+    rcases (mem_v_upper v p1).mp h_bs_v with ⟨v2, hv2_mem, hv2_x, hv2_y⟩
+    have h_u_x : px u2 ≤ px u1 := by lia
+    have h_u_y : py u2 ≤ py u1 := h_u_mono u2 hu2_mem u1 hu1_mem h_u_x
+    have h_v_x : px v2 ≤ px v1 := by lia
+    have h_v_anti : py v1 ≤ py v2 := h_v_mono v2 hv2_mem v1 hv1_mem h_v_x
+    have h_v_y_eq : py v1 = py v2 := by lia
+    have h_v_eq : v1 = v2 := h_v_inj v1 hv1_mem v2 hv2_mem h_v_y_eq
+    rw [h_v_eq] at hv1_x; lia
+  · -- S.E: symmetric to E.S
+    have hS := props1.2.2.2 h1; have hE := props2.2.2.1 h2
+    simp only [mem_targetsSin, mem_targetsS] at hS
+    simp only [mem_targetsEin, mem_targetsE] at hE
+    simp [h1, h2] at h_cov1 h_cov2
+    have fs := source_on_face_S m p1 hS.1.1 hS.2 h_cov1
+    have fe := source_on_face_E m p2 hE.1.1 hE.2 h_cov2
+    simp only [mem_regionEExtend] at hE; simp only [mem_regionSExtend] at hS
+    rcases (mem_u_upper u p2).mp hE.1.2.1 with ⟨u1, hu1_mem, hu1_x, hu1_y⟩
+    rcases (mem_u_lower u p1).mp hS.1.2.1 with ⟨u2, hu2_mem, hu2_x, hu2_y⟩
+    have : py u2 ≤ py u1 := h_u_mono u2 hu2_mem u1 hu1_mem (by lia)
+    linarith
+  · -- S.S: both on left face → px equal → same source, contradiction
+    have hp1 := props1.2.2.2 h1; have hp2 := props2.2.2.2 h2
+    simp only [mem_targetsSin, mem_targetsS] at hp1 hp2
+    simp [h1, h2] at h_cov1 h_cov2
+    have f1 := source_on_face_S m p1 hp1.1.1 hp1.2 h_cov1
+    have f2 := source_on_face_S m p2 hp2.1.1 hp2.2 h_cov2
+    exact Label.source_ne_of_ne h_ne (by rw [h1, h2])
+      (h_uniq_x p1 hp1.1.1 p2 hp2.1.1 (by lia))
+  · exact absurd h2 h_not_X2
+  case X.W | X.N | X.E | X.S | X.X =>
+    exact absurd h1 h_not_X1
+
+
+-- @@ L1238-1240 verbatim
+structure IntersectionSetup (n : ℕ) [NeZero n] extends BaseSetup n where
+  pivot : Point n
+  h_inter : u ∩ v = {pivot}
+
+
+-- @@ L1242-1242 verbatim
+namespace IntersectionSetup
+
+
+-- @@ L1244-1244 verbatim
+variable {n : ℕ} [NeZero n] (c : IntersectionSetup n)
+
+
+-- @@ L1246-1247 verbatim
+lemma pivot_mem_u : c.pivot ∈ c.u :=
+  mem_of_mem_inter_left (by rw [c.h_inter]; simp)
+
+-- @@ L1248-1249 verbatim
+lemma pivot_mem_v : c.pivot ∈ c.v :=
+  mem_of_mem_inter_right (by rw [c.h_inter]; simp)
+
+
+-- @@ L1251-1252 verbatim
+lemma a_pos : 1 ≤ c.a :=
+  c.hu ▸ card_pos.mpr ⟨c.pivot, c.pivot_mem_u⟩
+
+-- @@ L1253-1254 verbatim
+lemma b_pos : 1 ≤ c.b :=
+  c.hv ▸ card_pos.mpr ⟨c.pivot, c.pivot_mem_v⟩
+
+
+-- @@ L1256-1256 verbatim
+lemma disj_piv_u : Disjoint {c.pivot} (c.u \ {c.pivot}) := disjoint_sdiff_self_right
+
+-- @@ L1257-1257 verbatim
+lemma disj_piv_v : Disjoint {c.pivot} (c.v \ {c.pivot}) := disjoint_sdiff_self_right
+
+-- @@ L1258-1259 verbatim
+lemma disj_u_v_diff : Disjoint (c.u \ {c.pivot}) (c.v \ {c.pivot}) := by
+   rw [disjoint_iff_inter_eq_empty]; ext p; simp [← h_inter]; tauto
+
+-- @@ L1260-1261 verbatim
+lemma disj_middle : Disjoint ({c.pivot} ∪ (c.u \ {c.pivot})) (c.v \ {c.pivot}) := by
+  rw [disjoint_union_left]; exact ⟨c.disj_piv_v, c.disj_u_v_diff⟩
+
+
+-- @@ L1263-1263 verbatim
+def Others := c.all_black \ (c.u ∪ c.v)
+
+
+-- @@ L1265-1271 verbatim
+lemma partition_eq :
+    c.all_black = {c.pivot} ∪ (c.u \ {c.pivot}) ∪ (c.v \ {c.pivot}) ∪ c.Others := by
+  rw [← c.h_inter]; dsimp [Others]
+  ext p
+  have h_u : p ∈ c.u → p ∈ c.all_black := fun h => c.hu_sub h
+  have h_v : p ∈ c.v → p ∈ c.all_black := fun h => c.hv_sub h
+  simp only [mem_union, mem_inter, mem_sdiff]; tauto
+
+
+-- @@ L1273-1275 verbatim
+lemma disj_others :
+    Disjoint ({c.pivot} ∪ (c.u \ {c.pivot}) ∪ (c.v \ {c.pivot})) c.Others := by
+  rw [disjoint_iff_inter_eq_empty]; ext p; rw [← h_inter]; simp [Others]; tauto
+
+
+-- @@ L1277-1352 verbatim
+theorem total_labels_eq_sum :
+    (targetsW c.u c.v c.all_black).card + (targetsN c.u c.v c.all_black).card +
+    (targetsE c.u c.v c.all_black).card + (targetsS c.u c.v c.all_black).card
+    = n + c.a + c.b + 1 := by
+  let u := c.u; let v := c.v; let pivot := c.pivot; let all_black := c.all_black
+  rw [sum_card_eq_sum_incidence]
+  nth_rewrite 1 [c.partition_eq]
+  rw [sum_union c.disj_others]
+  rw [sum_union c.disj_middle]
+  rw [sum_union c.disj_piv_u]
+  have sum_pivot : ∑ x ∈ {pivot}, incidence_count u v all_black x = 4 := by
+    rw [sum_singleton]
+    exact incidence_count_of_pivot pivot c.h_inter (c.hu_sub c.pivot_mem_u)
+  have sum_u : ∑ x ∈ u \ {pivot}, incidence_count u v all_black x = (c.a - 1) * 2 := by
+    calc
+       ∑ x ∈ u \ {pivot}, incidence_count u v all_black x
+           = ∑ x ∈ u \ {pivot}, 2 := by
+             apply sum_congr rfl
+             intro x hx
+             rw [← c.h_inter, mem_sdiff] at hx
+             have hx_not_v : x ∉ v := by
+              intro hv
+              have : x ∈ u ∩ v := by rw [mem_inter]; exact ⟨hx.1, hv⟩
+              tauto
+             exact incidence_count_of_u_diff x hx.1 hx_not_v pivot
+              c.h_inter c.hu_sub c.h_u_mono c.h_v_mono c.h_u_inj c.h_v_inj
+        _ = (c.a - 1) * 2 := by
+            simp; rw [card_sdiff, c.hu]; congr 1
+            rw [singleton_inter_of_mem c.pivot_mem_u]; simp
+  have sum_v : ∑ x ∈ v \ {pivot}, incidence_count u v all_black x = (c.b - 1) * 2 := by
+    calc
+      ∑ x ∈ v \ {pivot}, incidence_count u v all_black x
+          = ∑ x ∈ v \ {pivot}, 2 := by
+            apply sum_congr rfl
+            intro x hx
+            rw [← c.h_inter, mem_sdiff] at hx
+            have hx_not_u : x ∉ u := by
+              intro hu
+              have : x ∈ u ∩ v := by rw [mem_inter]; exact ⟨hu, hx.1⟩
+              tauto
+            exact incidence_count_of_v_diff x hx.1 hx_not_u pivot
+              c.h_inter c.hv_sub c.h_u_mono c.h_v_mono c.h_u_inj c.h_v_inj
+        _ = (c.b - 1) * 2 := by
+            simp; rw [card_sdiff, c.hv]; congr 1
+            rw [singleton_inter_of_mem c.pivot_mem_v]; simp
+  have sum_others : ∑ x ∈ c.Others, incidence_count u v all_black x = n - (c.a + c.b - 1) := by
+    calc
+      ∑ x ∈ c.Others, incidence_count u v all_black x
+          = ∑ x ∈ c.Others, 1 := by
+            apply sum_congr rfl
+            intro x hx
+            rw [Others, mem_sdiff, mem_union, not_or] at hx
+            exact incidence_count_of_others x hx.1 hx.2.1 hx.2.2
+              c.h_u_mono c.h_v_mono c.h_u_inj c.h_v_inj c.h_u_max c.h_v_max
+      _ = c.Others.card := by simp
+      _ = n - (c.a + c.b - 1) := by
+          simp only [Others]; rw [card_sdiff]; rw [c.h_n]
+          congr 1
+          have h_reduction : (u ∪ v) ∩ all_black = u ∪ v :=
+            inter_eq_left.mpr c.union_sub
+          rw [h_reduction]; rw [card_union]
+          rw [c.hu, c.hv, c.h_inter, card_singleton]
+
+  rw [sum_pivot, sum_u, sum_v, sum_others]
+  have h_le : c.a + c.b - 1 ≤ n := by
+    calc
+      c.a + c.b - 1 = (c.u ∪ c.v).card  := by
+                        rw [card_union c.u c.v, c.hu, c.hv,c.h_inter, card_singleton]
+      _             ≤ c.all_black.card  := card_le_card c.union_sub
+      _             = n                 := c.h_n
+
+  have ha := c.a_pos
+  have hb := c.b_pos
+
+  zify [ha, hb, h_le]
+  lia
+
+
+-- @@ L1354-1376 verbatim
+theorem labels_total_intersection :
+    (targetsWin c.u c.v c.all_black).card + (targetsNin c.u c.v c.all_black).card +
+    (targetsEin c.u c.v c.all_black).card + (targetsSin c.u c.v c.all_black).card
+    ≥ n + c.a + c.b - 3 := by
+  have h_sum_eq := total_labels_eq_sum c
+  have hW : (targetsWin c.u c.v c.all_black).card + 1 ≥ (targetsW c.u c.v c.all_black).card :=
+    Nat.le_add_of_sub_le (targetsWin_inequality c.u c.v c.all_black c.h_unique_y)
+  have hN : (targetsNin c.u c.v c.all_black).card + 1 ≥ (targetsN c.u c.v c.all_black).card :=
+    Nat.le_add_of_sub_le (targetsNin_inequality c.u c.v c.all_black c.h_unique_x)
+  have hS : (targetsSin c.u c.v c.all_black).card + 1 ≥ (targetsS c.u c.v c.all_black).card :=
+    Nat.le_add_of_sub_le (targetsSin_inequality c.u c.v c.all_black c.h_unique_x)
+  have hE : (targetsEin c.u c.v c.all_black).card + 1 ≥ (targetsE c.u c.v c.all_black).card :=
+    Nat.le_add_of_sub_le (targetsEin_inequality c.u c.v c.all_black c.h_unique_y)
+  have ha_pos := c.a_pos
+  have hb_pos := c.b_pos
+  have h_total_ge_3 : 3 ≤ n + c.a + c.b := by
+    have h_a_le_n : c.a ≤ n := calc
+      c.a = c.u.card         := c.hu.symm
+      _   ≤ c.all_black.card := card_le_card c.hu_sub
+      _   = n                := c.h_n
+    linarith
+  zify [h_total_ge_3] at hW hN hE hS h_sum_eq ⊢
+  linarith
+
+
+-- @@ L1378-1382 verbatim
+noncomputable def validLabels : Finset (Label n) :=
+  (targetsWin c.u c.v c.all_black).map (Label.emb .W) ∪
+  (targetsNin c.u c.v c.all_black).map (Label.emb .N) ∪
+  (targetsEin c.u c.v c.all_black).map (Label.emb .E) ∪
+  (targetsSin c.u c.v c.all_black).map (Label.emb .S)
+
+
+-- @@ L1384-1397 verbatim
+lemma card_validLabels :
+    (validLabels c).card =
+    (targetsWin c.u c.v c.all_black).card + (targetsNin c.u c.v c.all_black).card +
+    (targetsEin c.u c.v c.all_black).card + (targetsSin c.u c.v c.all_black).card := by
+  rw [validLabels]
+  repeat rw [card_union_of_disjoint]
+  · simp only [card_map]
+  all_goals {
+    rw [disjoint_left]
+    intro x h1 h2
+    simp only [mem_union, mem_map, Label.emb, Function.Embedding.coeFn_mk] at h1 h2
+    rcases x with ⟨p, type⟩
+    cases type <;> simp at h1 h2
+  }
+
+
+-- @@ L1399-1399 verbatim
+open Classical
+
+
+-- @@ L1401-1405 verbatim
+lemma not_valid_label_X {n : ℕ} [NeZero n] (c : IntersectionSetup n) (l : Label n)
+    (h_valid : l ∈ validLabels c) (h_type : l.type = .X) : False := by
+  simp only [validLabels, mem_union, mem_map, or_assoc] at h_valid
+  rcases h_valid with ⟨_, _, rfl⟩ | ⟨_, _, rfl⟩ | ⟨_, _, rfl⟩ | ⟨_, _, rfl⟩
+  <;> simp at h_type
+
+
+-- @@ L1407-1428 verbatim
+lemma matilda_covers_at_most_one (m : Matilda n c.all_black) :
+    ({l ∈ validLabels c | covers m l}).card ≤ 1 := by
+  rw [card_le_one_iff]
+  intro l1 l2 hl1 hl2
+  rw [mem_filter] at hl1 hl2
+  obtain ⟨h_valid1, h_cov1⟩ := hl1; obtain ⟨h_valid2, h_cov2⟩ := hl2
+  by_contra h_ne
+  have get_props : ∀ l ∈ validLabels c,
+      (l.type = .W → l.source ∈ targetsWin c.u c.v c.all_black) ∧
+      (l.type = .N → l.source ∈ targetsNin c.u c.v c.all_black) ∧
+      (l.type = .E → l.source ∈ targetsEin c.u c.v c.all_black) ∧
+      (l.type = .S → l.source ∈ targetsSin c.u c.v c.all_black) := by
+    intros l hl
+    simp only [validLabels, mem_union, mem_map, or_assoc] at hl
+    rcases hl with ⟨p, hp, rfl⟩ | ⟨p, hp, rfl⟩ | ⟨p, hp, rfl⟩ | ⟨p, hp, rfl⟩
+    <;> simp [hp]
+  exact matilda_covers_at_most_one_core c.h_unique_x c.h_unique_y
+    c.u_mono_le c.v_mono_le c.u_inj_y c.v_inj_y m l1 l2 h_ne
+    (by simp at h_cov1; exact h_cov1) (by simp at h_cov2; exact h_cov2)
+    (get_props l1 h_valid1) (get_props l2 h_valid2)
+    (fun h => (not_valid_label_X c l1 h_valid1 h).elim)
+    (fun h => (not_valid_label_X c l2 h_valid2 h).elim)
+
+
+-- @@ L1430-1437 verbatim
+lemma grid_size_ge_two_of_label {source : Point n} {lbl : LabelType}
+    (hl : { source := source, type := lbl } ∈ c.validLabels) : 2 ≤ n := by
+  cases lbl <;>
+  { simp only [validLabels, mem_targetsWin, mem_targetsW,
+               mem_union, mem_map] at hl
+    simp_all
+    try lia
+  }
+
+
+-- @@ L1439-1477 verbatim
+lemma valid_label_pos_not_black {n : ℕ} [NeZero n] (c : IntersectionSetup n)
+    (l : Label n) (hl : l ∈ validLabels c) : (label_pos l).2 ∉ c.all_black := by
+  intro h_pos_black
+  rcases l with ⟨source, type⟩
+  have h_n_ge_2 := grid_size_ge_two_of_label c hl
+  simp only [label_pos] at h_pos_black
+  have h_src_black : source ∈ c.all_black := by
+    simp only [validLabels, mem_targetsWin, mem_targetsW,
+               mem_targetsNin, mem_targetsN,
+               mem_targetsEin, mem_targetsE,
+               mem_targetsSin, mem_targetsS,
+               mem_union, mem_map] at hl
+    rcases type <;> simp_all
+  cases type
+  · have h_pos : 0 < source.2.val := by
+      simp only [validLabels, mem_union, mem_map] at hl
+      rcases hl with h | h
+      · simp at h; lia
+      · simp at h
+    exact label_pos_W_absurd h_n_ge_2 c.h_unique_x h_src_black h_pos h_pos_black
+  · have h_pos : 0 < source.1.val := by
+      simp only [validLabels, mem_union, mem_map] at hl
+      rcases hl with h | h
+      · simp at h; lia
+      · simp at h
+    exact label_pos_N_absurd h_n_ge_2 c.h_unique_y h_src_black h_pos h_pos_black
+  · have h_lt : source.2.val < n - 1 := by
+      simp only [validLabels, mem_union, mem_map] at hl
+      rcases hl with h | h
+      · simp at h; linarith
+      · simp at h
+    exact label_pos_E_absurd c.h_unique_x h_src_black h_lt h_pos_black
+  · have h_lt : source.1.val < n - 1 := by
+      simp only [validLabels, mem_union, mem_map] at hl
+      rcases hl with h | h
+      · simp at h
+      · simp at h; linarith
+    exact label_pos_S_absurd c.h_unique_y h_src_black h_lt h_pos_black
+  · exact (not_valid_label_X c { source := source, type := .X } hl rfl).elim
+
+
+-- @@ L1479-1490 verbatim
+theorem matildas_count_ge_intersection_bound
+    (matildas_partition : Finset (Matilda n c.all_black))
+    (h_partition : ∀ p : Point n, p ∉ c.all_black → ∃! m ∈ matildas_partition, m.mem p) :
+    n + c.a + c.b - 3 ≤ matildas_partition.card := by
+  have h_ge_labels :=
+    matilda_count_ge_label_count (L := validLabels c)
+      (h_white := valid_label_pos_not_black c)
+      (h_one := matilda_covers_at_most_one c)
+      matildas_partition h_partition
+  rw [card_validLabels] at h_ge_labels
+  have h_labels_bound := labels_total_intersection c
+  exact Nat.le_trans h_labels_bound h_ge_labels
+
+
+-- @@ L1492-1503 verbatim
+theorem intersection_case_final_bound
+    (matildas_partition : Finset (Matilda n c.all_black))
+    (h_partition : ∀ p : Point n, p ∉ c.all_black → ∃! m ∈ matildas_partition, m.mem p)
+    (h_erdos_szekeres : n ≤ c.a * c.b) :
+    n + (4 * n).sqrt - 3 ≤ matildas_partition.card := by
+  have h_geom := matildas_count_ge_intersection_bound c matildas_partition h_partition
+  have h_alg := am_gm_bound_nat c.a c.b n h_erdos_szekeres
+  calc
+    n + (4 * n).sqrt - 3
+      ≤ n + (c.a + c.b) - 3       := Nat.sub_le_sub_right (Nat.add_le_add_left h_alg n) 3
+    _ = n + c.a + c.b - 3         := by ring_nf
+    _ ≤ matildas_partition.card   := h_geom
+
+
+-- @@ L1505-1505 verbatim
+end IntersectionSetup
+
+
+-- @@ L1507-1508 verbatim
+structure DisjointSetup (n : ℕ) [NeZero n] extends BaseSetup n where
+  h_disj : Disjoint u v
+
+
+-- @@ L1510-1510 verbatim
+namespace DisjointSetup
+
+
+-- @@ L1512-1512 verbatim
+variable {n : ℕ} [NeZero n] (c : DisjointSetup n)
+
+
+-- @@ L1514-1517 verbatim
+lemma mem_of_mem_lower_of_mem_upper {p : Point n}
+    (h_lo : p ∈ v_lower c.v) (h_up : p ∈ v_upper c.v) : p ∈ c.v := by
+  rw [← v_parts_intersection_eq_v c.h_v_mono c.h_v_inj, mem_inter]
+  exact ⟨h_lo, h_up⟩
+
+
+-- @@ L1519-1524 verbatim
+lemma px_ne_of_mem_disjoint {p q : Point n} (hp : p ∈ c.u) (hq : q ∈ c.v) :
+    px p ≠ px q := by
+  intro h_eq
+  have h_same : p = q := c.h_unique_x p (c.hu_sub hp) q (c.hv_sub hq) h_eq
+  subst h_same
+  exact disjoint_left.mp c.h_disj hp hq
+
+
+-- @@ L1526-1531 verbatim
+lemma py_ne_of_mem_disjoint {p q : Point n} (hp : p ∈ c.u) (hq : q ∈ c.v) :
+    py p ≠ py q := by
+  intro h_eq
+  have h_same : p = q := c.h_unique_y p (c.hu_sub hp) q (c.hv_sub hq) h_eq
+  subst h_same
+  exact disjoint_left.mp c.h_disj hp hq
+
+
+-- @@ L1533-1547 verbatim
+lemma u_min_mem_v_lower (u₀ : Point n) (hu₀ : u₀ ∈ c.u)
+    (hmin : ∀ q ∈ c.u, px u₀ ≤ px q) : u₀ ∈ v_lower c.v := by
+  rcases covering_of_maximal_v u₀ (c.hu_sub hu₀)
+    (disjoint_left.mp c.h_disj hu₀) c.h_v_max with h_lo | h_up
+  · exact h_lo
+  · exfalso
+    rw [mem_v_upper] at h_up
+    obtain ⟨vj, hvj, hx_le, hy_le⟩ := h_up
+    have hx_lt : px vj < px u₀ := hx_le.lt_of_ne (c.px_ne_of_mem_disjoint hu₀ hvj).symm
+    have hy_lt : py vj < py u₀ := hy_le.lt_of_ne (c.py_ne_of_mem_disjoint hu₀ hvj).symm
+    apply c.h_u_max vj (c.hv_sub hvj) (fun h => absurd (hmin vj h) (not_le.mpr hx_lt))
+    · intro q hq h_ord
+      have := hmin q hq; lia
+    · intro q hq _
+      exact lt_of_lt_of_le hy_lt (c.u_mono_le u₀ hu₀ q hq (hmin q hq))
+
+
+-- @@ L1549-1563 verbatim
+lemma u_max_mem_v_upper (u₁ : Point n) (hu₁ : u₁ ∈ c.u)
+    (hmax : ∀ q ∈ c.u, px q ≤ px u₁) : u₁ ∈ v_upper c.v := by
+  rcases covering_of_maximal_v u₁ (c.hu_sub hu₁)
+    (disjoint_left.mp c.h_disj hu₁) c.h_v_max with h_lo | h_up
+  · exfalso
+    rw [mem_v_lower] at h_lo
+    obtain ⟨vj, hvj, hx_le, hy_le⟩ := h_lo
+    have hx_lt : px u₁ < px vj := hx_le.lt_of_ne (c.px_ne_of_mem_disjoint hu₁ hvj)
+    have hy_lt : py u₁ < py vj := hy_le.lt_of_ne (c.py_ne_of_mem_disjoint hu₁ hvj)
+    apply c.h_u_max vj (c.hv_sub hvj) (fun h => absurd (hmax vj h) (not_le.mpr hx_lt))
+    · intro q hq _
+      exact lt_of_le_of_lt (c.u_mono_le q hq u₁ hu₁ (hmax q hq)) hy_lt
+    · intro q hq h_ord
+      have := hmax q hq; lia
+  · exact h_up
+
+
+-- @@ L1565-1579 verbatim
+lemma v_min_mem_u_upper (v₀ : Point n) (hv₀ : v₀ ∈ c.v)
+    (hmin : ∀ q ∈ c.v, px v₀ ≤ px q) : v₀ ∈ u_upper c.u := by
+  rcases covering_of_maximal_u v₀ (c.hv_sub hv₀)
+    (disjoint_right.mp c.h_disj hv₀) c.h_u_max with h_lo | h_up
+  · exfalso
+    rw [mem_u_lower] at h_lo
+    obtain ⟨ui, hui, hx_le, hy_le⟩ := h_lo
+    have hx_lt : px ui < px v₀ := hx_le.lt_of_ne (c.px_ne_of_mem_disjoint hui hv₀)
+    have hy_lt : py v₀ < py ui := hy_le.lt_of_ne (c.py_ne_of_mem_disjoint hui hv₀).symm
+    apply c.h_v_max ui (c.hu_sub hui) (fun h => absurd (hmin ui h) (not_le.mpr hx_lt))
+    · intro q hq h_ord
+      have := hmin q hq; lia
+    · intro q hq _
+      exact lt_of_le_of_lt (c.v_mono_le v₀ hv₀ q hq (hmin q hq)) hy_lt
+  · exact h_up
+
+
+-- @@ L1581-1595 verbatim
+lemma v_max_mem_u_lower (v₁ : Point n) (hv₁ : v₁ ∈ c.v)
+    (hmax : ∀ q ∈ c.v, px q ≤ px v₁) : v₁ ∈ u_lower c.u := by
+  rcases covering_of_maximal_u v₁ (c.hv_sub hv₁)
+    (disjoint_right.mp c.h_disj hv₁) c.h_u_max with h_lo | h_up
+  · exact h_lo
+  · exfalso
+    rw [mem_u_upper] at h_up
+    obtain ⟨ui, hui, hx_le, hy_le⟩ := h_up
+    have hx_lt : px v₁ < px ui := hx_le.lt_of_ne (c.px_ne_of_mem_disjoint hui hv₁).symm
+    have hy_lt : py ui < py v₁ := hy_le.lt_of_ne (c.py_ne_of_mem_disjoint hui hv₁)
+    apply c.h_v_max ui (c.hu_sub hui) (fun h => absurd (hmax ui h) (not_le.mpr hx_lt))
+    · intro q hq _
+      exact lt_of_lt_of_le hy_lt (c.v_mono_le q hq v₁ hv₁ (hmax q hq))
+    · intro q hq h_ord
+      have := hmax q hq; lia
+
+
+-- @@ L1597-1604 verbatim
+lemma a_ge_two (ha_pos : 0 < c.a) : 2 ≤ c.a := by
+  by_contra h_lt
+  obtain ⟨u₀, h_eq⟩ := card_eq_one.mp (show c.u.card = 1 by rw [c.hu]; lia)
+  have hu₀ : u₀ ∈ c.u := by rw [h_eq]; exact mem_singleton_self u₀
+  have h_only : ∀ q ∈ c.u, q = u₀ := fun q hq => by rwa [h_eq, mem_singleton] at hq
+  have h_lo := c.u_min_mem_v_lower u₀ hu₀ fun q hq => (congrArg px (h_only q hq)).ge
+  have h_up := c.u_max_mem_v_upper u₀ hu₀ fun q hq => (congrArg px (h_only q hq)).le
+  exact disjoint_left.mp c.h_disj hu₀ (c.mem_of_mem_lower_of_mem_upper h_lo h_up)
+
+
+-- @@ L1606-1635 verbatim
+lemma exists_crossing_u (ha_pos : 0 < c.a) :
+    ∃ p ∈ c.u, ∃ p1 ∈ c.u,
+      px p < px p1 ∧ (∀ q ∈ c.u, px p < px q → px p1 ≤ px q) ∧
+      p ∈ v_lower c.v ∧ p1 ∈ v_upper c.v := by
+  have hu_ne : c.u.Nonempty := card_pos.mp (by rw [c.hu]; exact ha_pos)
+  have hS_ne : (c.u.filter (· ∈ v_lower c.v)).Nonempty := by
+    obtain ⟨u₀, hu₀, hmin⟩ := c.u.exists_min_image px hu_ne
+    exact ⟨u₀, mem_filter.mpr ⟨hu₀, c.u_min_mem_v_lower u₀ hu₀ hmin⟩⟩
+  obtain ⟨uk, hukS, huk_max⟩ := (c.u.filter (· ∈ v_lower c.v)).exists_max_image px hS_ne
+  rw [mem_filter] at hukS
+  obtain ⟨huk_u, huk_lo⟩ := hukS
+  have hT_ne : (c.u.filter (fun q => px uk < px q)).Nonempty := by
+    obtain ⟨u₁, hu₁, hmax⟩ := c.u.exists_max_image px hu_ne
+    refine ⟨u₁, mem_filter.mpr ⟨hu₁, lt_of_le_of_ne (hmax uk huk_u) fun h_eq => ?_⟩⟩
+    have h_up : uk ∈ v_upper c.v := by
+      rw [c.h_u_inj uk huk_u u₁ hu₁ h_eq]
+      exact c.u_max_mem_v_upper u₁ hu₁ hmax
+    exact disjoint_left.mp c.h_disj huk_u (c.mem_of_mem_lower_of_mem_upper huk_lo h_up)
+  obtain ⟨uk1, huk1T, huk1_min⟩ :=
+    (c.u.filter (fun q => px uk < px q)).exists_min_image px hT_ne
+  rw [mem_filter] at huk1T
+  obtain ⟨huk1_u, huk1_gt⟩ := huk1T
+  refine ⟨uk, huk_u, uk1, huk1_u, huk1_gt,
+    fun q hq h_gt => huk1_min q (mem_filter.mpr ⟨hq, h_gt⟩), huk_lo, ?_⟩
+  have h_not_lo : uk1 ∉ v_lower c.v := fun h_in =>
+    absurd (huk_max uk1 (mem_filter.mpr ⟨huk1_u, h_in⟩)) (not_le.mpr huk1_gt)
+  rcases covering_of_maximal_v uk1 (c.hu_sub huk1_u)
+    (disjoint_left.mp c.h_disj huk1_u) c.h_v_max with h | h
+  · exact absurd h h_not_lo
+  · exact h
+
+
+-- @@ L1637-1647 verbatim
+lemma b_ge_two (hb_pos : 0 < c.b) : 2 ≤ c.b := by
+  by_contra h_lt
+  obtain ⟨v₀, h_eq⟩ := card_eq_one.mp (show c.v.card = 1 by rw [c.hv]; lia)
+  have hv₀ : v₀ ∈ c.v := by rw [h_eq]; exact mem_singleton_self v₀
+  have h_only : ∀ q ∈ c.v, q = v₀ := fun q hq => by rwa [h_eq, mem_singleton] at hq
+  have h_up := c.v_min_mem_u_upper v₀ hv₀ fun q hq => (congrArg px (h_only q hq)).ge
+  have h_lo := c.v_max_mem_u_lower v₀ hv₀ fun q hq => (congrArg px (h_only q hq)).le
+  have h_in_u : v₀ ∈ c.u := by
+    have h_both := mem_inter.mpr ⟨h_lo, h_up⟩
+    rwa [u_parts_intersection_eq_u c.h_u_mono c.h_u_inj] at h_both
+  exact disjoint_right.mp c.h_disj hv₀ h_in_u
+
+
+-- @@ L1649-1681 verbatim
+lemma exists_crossing_v (hb_pos : 0 < c.b) :
+    ∃ p ∈ c.v, ∃ p1 ∈ c.v,
+      px p < px p1 ∧ (∀ q ∈ c.v, px p < px q → px p1 ≤ px q) ∧
+      p ∈ u_upper c.u ∧ p1 ∈ u_lower c.u := by
+  have hv_ne : c.v.Nonempty := card_pos.mp (by rw [c.hv]; exact hb_pos)
+  have hS_ne : (c.v.filter (· ∈ u_upper c.u)).Nonempty := by
+    obtain ⟨v₀, hv₀, hmin⟩ := c.v.exists_min_image px hv_ne
+    exact ⟨v₀, mem_filter.mpr ⟨hv₀, c.v_min_mem_u_upper v₀ hv₀ hmin⟩⟩
+  obtain ⟨vl, hvlS, hvl_max⟩ := (c.v.filter (· ∈ u_upper c.u)).exists_max_image px hS_ne
+  rw [mem_filter] at hvlS
+  obtain ⟨hvl_v, hvl_up⟩ := hvlS
+  have hT_ne : (c.v.filter (fun q => px vl < px q)).Nonempty := by
+    obtain ⟨v₁, hv₁, hmax⟩ := c.v.exists_max_image px hv_ne
+    refine ⟨v₁, mem_filter.mpr ⟨hv₁, lt_of_le_of_ne (hmax vl hvl_v) fun h_eq => ?_⟩⟩
+    have h_lo : vl ∈ u_lower c.u := by
+      rw [c.h_v_inj vl hvl_v v₁ hv₁ h_eq]
+      exact c.v_max_mem_u_lower v₁ hv₁ hmax
+    have h_in_u : vl ∈ c.u := by
+      have h_both := mem_inter.mpr ⟨h_lo, hvl_up⟩
+      rwa [u_parts_intersection_eq_u c.h_u_mono c.h_u_inj] at h_both
+    exact disjoint_right.mp c.h_disj hvl_v h_in_u
+  obtain ⟨vl1, hvl1T, hvl1_min⟩ :=
+    (c.v.filter (fun q => px vl < px q)).exists_min_image px hT_ne
+  rw [mem_filter] at hvl1T
+  obtain ⟨hvl1_v, hvl1_gt⟩ := hvl1T
+  refine ⟨vl, hvl_v, vl1, hvl1_v, hvl1_gt,
+    fun q hq h_gt => hvl1_min q (mem_filter.mpr ⟨hq, h_gt⟩), hvl_up, ?_⟩
+  have h_not_up : vl1 ∉ u_upper c.u := fun h_in =>
+    absurd (hvl_max vl1 (mem_filter.mpr ⟨hvl1_v, h_in⟩)) (not_le.mpr hvl1_gt)
+  rcases covering_of_maximal_u vl1 (c.hv_sub hvl1_v)
+    (disjoint_right.mp c.h_disj hvl1_v) c.h_u_max with h | h
+  · exact h
+  · exact absurd h h_not_up
+
+
+-- @@ L1683-1699 verbatim
+structure CrossingPoints where
+  uk  : Point n
+  uk1 : Point n
+  vl  : Point n
+  vl1 : Point n
+  mem_uk  : uk ∈ c.u
+  mem_uk1 : uk1 ∈ c.u
+  mem_vl  : vl ∈ c.v
+  mem_vl1 : vl1 ∈ c.v
+  h_uk_lt : px uk < px uk1
+  h_vl_lt : px vl < px vl1
+  h_u_adj : ∀ q ∈ c.u, px uk < px q → px uk1 ≤ px q
+  h_v_adj : ∀ q ∈ c.v, px vl < px q → px vl1 ≤ px q
+  h_uk_lo  : uk ∈ v_lower c.v
+  h_uk1_up : uk1 ∈ v_upper c.v
+  h_vl_up  : vl ∈ u_upper c.u
+  h_vl1_lo : vl1 ∈ u_lower c.u
+
+
+-- @@ L1701-1709 verbatim
+noncomputable def getCrossingPoints (ha_pos : 0 < c.a) (hb_pos : 0 < c.b) :
+    CrossingPoints c :=
+  Classical.choice <| by
+    obtain ⟨uk, huk, uk1, huk1, h_uk_lt, h_u_adj, h_uk_lo, h_uk1_up⟩ :=
+      c.exists_crossing_u ha_pos
+    obtain ⟨vl, hvl, vl1, hvl1, h_vl_lt, h_v_adj, h_vl_up, h_vl1_lo⟩ :=
+      c.exists_crossing_v hb_pos
+    exact ⟨⟨uk, uk1, vl, vl1, huk, huk1, hvl, hvl1, h_uk_lt, h_vl_lt,
+      h_u_adj, h_v_adj, h_uk_lo, h_uk1_up, h_vl_up, h_vl1_lo⟩⟩
+
+
+-- @@ L1711-1711 verbatim
+variable (cp : CrossingPoints c)
+
+
+-- @@ L1713-1716 verbatim
+def Pivot : Finset (Point n) :=
+  let range_x := (Ico (px cp.uk) (px cp.uk1)) ∩ (Ico (px cp.vl) (px cp.vl1))
+  let range_y := (Ico (py cp.uk) (py cp.uk1)) ∩ (Ico (py cp.vl1) (py cp.vl))
+  univ.filter (fun p => px p ∈ range_x ∧ py p ∈ range_y)
+
+
+-- @@ L1718-1820 verbatim
+lemma pivot_nonempty : (Pivot c cp).Nonempty := by
+  let uk := cp.uk; let uk1 := cp.uk1; let vl := cp.vl; let vl1 := cp.vl1
+  by_contra h_not_nonempty
+  rw [not_nonempty_iff_eq_empty] at h_not_nonempty
+  rw [Pivot] at h_not_nonempty
+  rw [filter_eq_empty_iff] at h_not_nonempty
+  let range_x := (Ico (px uk) (px uk1)) ∩ (Ico (px vl) (px vl1))
+  let range_y := (Ico (py uk) (py uk1)) ∩ (Ico (py vl1) (py vl))
+  have h_range_empty : range_x = ∅ ∨ range_y = ∅ := by
+    by_contra h_both_nonempty; push Not at h_both_nonempty
+    obtain ⟨x, hx⟩ := h_both_nonempty.1
+    obtain ⟨y, hy⟩ := h_both_nonempty.2
+    have hx_lt : x < n := by
+      rw [mem_inter] at hx; have := hx.1; rw [mem_Ico] at this
+      exact lt_trans this.2 uk1.1.isLt
+    have hy_lt : y < n := by
+      rw [mem_inter] at hy; have := hy.1; rw [mem_Ico] at this
+      exact lt_trans this.2 uk1.2.isLt
+    let p : Point n := (⟨x, hx_lt⟩, ⟨y, hy_lt⟩)
+    have hp_in : p ∈ Pivot c cp := by
+      simp only [Pivot, mem_filter, mem_univ, true_and]
+      exact ⟨hx, hy⟩
+    rw [← filter_eq_empty_iff, ← not_nonempty_iff_eq_empty] at h_not_nonempty
+    exact h_not_nonempty ⟨p, hp_in⟩
+  have mem_uk : uk ∈ c.u := cp.mem_uk
+  have mem_uk1 : uk1 ∈ c.u := cp.mem_uk1
+  have mem_vl : vl ∈ c.v := cp.mem_vl
+  have mem_vl1 : vl1 ∈ c.v := cp.mem_vl1
+  rcases h_range_empty with h_x_empty | h_y_empty
+  · simp only [range_x] at h_x_empty
+    rw [Ico_inter_Ico, Ico_eq_empty_iff] at h_x_empty
+    have h_u_lt : px uk < px uk1 := cp.h_uk_lt
+    have h_v_lt : px vl < px vl1 := cp.h_vl_lt
+    have h_split : px uk1 ≤ px vl ∨ px vl1 ≤ px uk := by
+      by_contra h_not_or; push Not at h_not_or
+      push Not at  h_x_empty
+      simp only [min_le_iff, le_max_iff] at h_x_empty
+      lia
+    rcases h_split with h_le1 | h_le2
+    · by_cases h_y : py uk1 ≤ py vl
+      · have : uk1 ∈ v_lower c.v := by
+          rw [mem_v_lower]; use vl
+        have in_v : uk1 ∈ c.v := c.mem_of_mem_lower_of_mem_upper this cp.h_uk1_up
+        exact disjoint_left.mp c.h_disj mem_uk1 in_v
+      · push Not at h_y
+        have : vl ∈ u_lower c.u := by
+          rw [mem_u_lower]; use uk1; exact ⟨mem_uk1, h_le1, le_of_lt h_y⟩
+        have in_u : vl ∈ c.u := by
+          have h_both : vl ∈ u_lower c.u ∩ u_upper c.u :=
+            mem_inter.mpr ⟨this, cp.h_vl_up⟩
+          rw [u_parts_intersection_eq_u c.h_u_mono c.h_u_inj] at h_both
+          exact h_both
+        exact disjoint_right.mp c.h_disj mem_vl in_u
+    · by_cases h_y : py vl1 ≤ py uk
+      · have : uk ∈ v_upper c.v := by
+          rw [mem_v_upper]; use vl1
+        have in_v : uk ∈ c.v := c.mem_of_mem_lower_of_mem_upper cp.h_uk_lo this
+        exact disjoint_left.mp c.h_disj mem_uk in_v
+      · push Not at h_y
+        have : vl1 ∈ u_upper c.u := by
+          rw [mem_u_upper]; use uk; exact ⟨mem_uk, h_le2, le_of_lt h_y⟩
+        have in_u : vl1 ∈ c.u := by
+          have h_both : vl1 ∈ u_lower c.u ∩ u_upper c.u :=
+            mem_inter.mpr ⟨cp.h_vl1_lo, this⟩
+          rw [u_parts_intersection_eq_u c.h_u_mono c.h_u_inj] at h_both
+          exact h_both
+        exact disjoint_right.mp c.h_disj mem_vl1 in_u
+  · simp only [range_y] at h_y_empty
+    rw [Ico_inter_Ico, Ico_eq_empty_iff] at h_y_empty
+    have h_u_py_lt : py uk < py uk1 := c.h_u_mono uk mem_uk uk1 mem_uk1 cp.h_uk_lt
+    have h_v_py_lt : py vl1 < py vl := c.h_v_mono vl mem_vl vl1 mem_vl1 cp.h_vl_lt
+    have h_split : py uk1 ≤ py vl1 ∨ py vl ≤ py uk := by
+      by_contra h_not_or; push Not at h_not_or h_y_empty
+      simp only [min_le_iff, le_max_iff] at h_y_empty
+      lia
+    rcases h_split with h_le1 | h_le2
+    · by_cases h_x : px uk1 ≤ px vl1
+      · have : uk1 ∈ v_lower c.v := by rw [mem_v_lower]; use vl1
+        have in_v : uk1 ∈ c.v := c.mem_of_mem_lower_of_mem_upper this cp.h_uk1_up
+        exact disjoint_left.mp c.h_disj mem_uk1 in_v
+      · push Not at h_x
+        have : vl1 ∈ u_upper c.u := by
+           rw [mem_u_upper]; use uk1; exact ⟨mem_uk1, le_of_lt h_x, h_le1⟩
+        have in_u : vl1 ∈ c.u := by
+          have h_both : vl1 ∈ u_lower c.u ∩ u_upper c.u :=
+             mem_inter.mpr ⟨cp.h_vl1_lo, this⟩
+          rw [u_parts_intersection_eq_u c.h_u_mono c.h_u_inj] at h_both
+          exact h_both
+        exact disjoint_right.mp c.h_disj mem_vl1 in_u
+    · by_cases h_x : px vl ≤ px uk
+      · have : uk ∈ v_upper c.v := by
+          rw [mem_v_upper]; use vl
+        have in_v : uk ∈ c.v := c.mem_of_mem_lower_of_mem_upper cp.h_uk_lo this
+        exact disjoint_left.mp c.h_disj mem_uk in_v
+      · push Not at h_x
+        have : vl ∈ u_lower c.u := by
+          rw [mem_u_lower]; use uk; exact ⟨mem_uk, le_of_lt h_x, h_le2⟩
+        have in_u : vl ∈ c.u := by
+          have h_both : vl ∈ u_lower c.u ∩ u_upper c.u :=
+             mem_inter.mpr ⟨this, cp.h_vl_up⟩
+          rw [u_parts_intersection_eq_u c.h_u_mono c.h_u_inj] at h_both
+          exact h_both
+        exact disjoint_right.mp c.h_disj mem_vl in_u
+
+
+-- @@ L1822-1824 verbatim
+private lemma u_not_between_uk_uk1 (cp : CrossingPoints c) (q : Point n)
+    (hq : q ∈ c.u) (hbetween : px cp.uk < px q ∧ px q < px cp.uk1) : False :=
+  absurd (cp.h_u_adj q hq hbetween.1) (not_le.mpr hbetween.2)
+
+
+-- @@ L1826-1828 verbatim
+private lemma v_not_between_vl_vl1 (cp : CrossingPoints c) (q : Point n)
+    (hq : q ∈ c.v) (hbetween : px cp.vl < px q ∧ px q < px cp.vl1) : False :=
+  absurd (cp.h_v_adj q hq hbetween.1) (not_le.mpr hbetween.2)
+
+
+-- @@ L1830-1899 verbatim
+lemma pivot_no_black (cp : CrossingPoints c) :
+    ∀ p ∈ Pivot c cp, p ∉ c.all_black := by
+  let uk := cp.uk; let uk1 := cp.uk1
+  let vl := cp.vl; let vl1 := cp.vl1
+  have mem_uk : uk ∈ c.u := cp.mem_uk
+  have mem_uk1 : uk1 ∈ c.u := cp.mem_uk1
+  have mem_vl : vl ∈ c.v := cp.mem_vl
+  have mem_vl1 : vl1 ∈ c.v := cp.mem_vl1
+  intro p hp_piv hp_blk
+  rw [Pivot, mem_filter] at hp_piv
+  obtain ⟨_, ⟨hx_range, hy_range⟩⟩ := hp_piv
+  rw [mem_inter, mem_Ico, mem_Ico] at hx_range
+  rw [mem_inter, mem_Ico, mem_Ico] at hy_range
+  obtain ⟨h_px_u_le, h_px_u_lt⟩ := hx_range.1
+  obtain ⟨h_py_u_le, h_py_u_lt⟩ := hy_range.1
+  obtain ⟨h_px_v_le, h_px_v_lt⟩ := hx_range.2
+  obtain ⟨h_py_v_le, h_py_v_lt⟩ := hy_range.2
+  have h_p_eq_uk : p = uk := by
+    rcases lt_or_eq_of_le h_px_u_le with h_px_strict | h_px_eq
+    · rcases lt_or_eq_of_le h_py_u_le with h_py_strict | h_py_eq
+      · exfalso
+        have h_p_not_in_u : p ∉ c.u :=
+          fun h_in => c.u_not_between_uk_uk1 cp p h_in ⟨h_px_strict, h_px_u_lt⟩
+        apply c.h_u_max p hp_blk h_p_not_in_u
+        · intro q hq hq_lt_p
+          have h_qx_le : px q ≤ px uk := by
+            by_contra h_gt; push Not at h_gt
+            exact c.u_not_between_uk_uk1 cp q hq ⟨h_gt, lt_trans hq_lt_p h_px_u_lt⟩
+          have : py q ≤ py uk :=
+            BaseSetup.u_mono_le c.toBaseSetup q hq uk mem_uk h_qx_le
+          exact lt_of_le_of_lt this h_py_strict
+        · intro q hq hp_lt_q
+          have h_qx_ge : px uk1 ≤ px q := by
+            by_contra h_lt; push Not at h_lt
+            exact c.u_not_between_uk_uk1 cp q hq ⟨lt_trans h_px_strict hp_lt_q, h_lt⟩
+          have : py uk1 ≤ py q :=
+            BaseSetup.u_mono_le c.toBaseSetup uk1 mem_uk1 q hq h_qx_ge
+          exact lt_of_lt_of_le h_py_u_lt this
+      · exact c.h_unique_y p hp_blk uk (c.hu_sub mem_uk) h_py_eq.symm
+    · exact c.h_unique_x p hp_blk uk (c.hu_sub mem_uk) h_px_eq.symm
+  have h_p_eq_vl : p = vl := by
+    rcases lt_or_eq_of_le h_px_v_le with h_px_strict | h_px_eq
+    · rcases lt_or_eq_of_le h_py_v_le with h_py_strict | h_py_eq
+      · exfalso
+        have h_p_not_in_v : p ∉ c.v :=
+          fun h_in => c.v_not_between_vl_vl1 cp p h_in ⟨h_px_strict, h_px_v_lt⟩
+        apply c.h_v_max p hp_blk h_p_not_in_v
+        · intro q hq hq_lt_p
+          have h_qx_le : px q ≤ px vl := by
+            by_contra h_gt; push Not at h_gt
+            exact c.v_not_between_vl_vl1 cp q hq ⟨h_gt, lt_trans hq_lt_p h_px_v_lt⟩
+          have : py vl ≤ py q :=
+            BaseSetup.v_mono_le c.toBaseSetup q hq vl mem_vl h_qx_le
+          exact lt_of_lt_of_le h_py_v_lt this
+        · intro q hq hp_lt_q
+          have h_qx_ge : px vl1 ≤ px q := by
+            by_contra h_lt; push Not at h_lt
+            exact c.v_not_between_vl_vl1 cp q hq ⟨lt_trans h_px_strict hp_lt_q, h_lt⟩
+          have : py q ≤ py vl1 := c.v_mono_le vl1 mem_vl1 q hq h_qx_ge
+          exact lt_of_le_of_lt this h_py_strict
+      · exfalso
+        have h_p_eq_vl1 : p = vl1 :=
+          c.h_unique_y p hp_blk vl1 (c.hv_sub mem_vl1) h_py_eq.symm
+        rw [h_p_eq_vl1] at h_px_v_lt
+        exact (lt_self_iff_false _).mp h_px_v_lt
+    · exact c.h_unique_x p hp_blk vl (c.hv_sub mem_vl) h_px_eq.symm
+  have h_eq : uk = vl := by rw [← h_p_eq_uk, h_p_eq_vl]
+  have h_uk_in_v : uk ∈ c.v := by rw [h_eq]; exact mem_vl
+  have h_uk_not_in_v : uk ∉ c.v := disjoint_left.mp c.h_disj mem_uk
+  contradiction
+
+
+-- @@ L1901-1920 verbatim
+lemma incidence_count_of_u_disjoint
+    (p : Point n) (hp : p ∈ c.u) :
+    incidence_count c.u c.v c.all_black p = 2 := by
+  have h_lo : p ∈ u_lower c.u := by rw [mem_u_lower]; exact ⟨p, hp, le_refl _, le_refl _⟩
+  have h_up : p ∈ u_upper c.u := by rw [mem_u_upper]; exact ⟨p, hp, le_refl _, le_refl _⟩
+  have hp_not_v : p ∉ c.v := disjoint_left.mp c.h_disj hp
+  have h_cover := covering_of_maximal_v p (c.hu_sub hp) hp_not_v c.h_v_max
+  have h_excl : ¬(p ∈ v_lower c.v ∧ p ∈ v_upper c.v) := by
+    intro h; rw [← mem_inter] at h
+    rw [v_parts_intersection_eq_v c.h_v_mono c.h_v_inj] at h
+    exact hp_not_v h
+  have hp_all : p ∈ c.all_black := c.hu_sub hp
+  simp only [incidence_count, mem_targetsW, mem_targetsN, mem_targetsS, mem_targetsE,
+             mem_regionWExtend, mem_regionNExtend, mem_regionEExtend, mem_regionSExtend]
+  simp only [hp_all, h_lo, h_up, true_and]
+  rcases h_cover with h_v_lo | h_v_up
+  · have h_not_up : p ∉ v_upper c.v := fun h => h_excl ⟨h_v_lo, h⟩
+    simp [h_v_lo, h_not_up]
+  · have h_not_lo : p ∉ v_lower c.v := fun h => h_excl ⟨h, h_v_up⟩
+    simp [h_v_up, h_not_lo]
+
+
+-- @@ L1922-1941 verbatim
+lemma incidence_count_of_v_disjoint
+    (p : Point n) (hp : p ∈ c.v) :
+    incidence_count c.u c.v c.all_black p = 2 := by
+  have h_lo : p ∈ v_lower c.v := by rw [mem_v_lower]; exact ⟨p, hp, le_refl _, le_refl _⟩
+  have h_up : p ∈ v_upper c.v := by rw [mem_v_upper]; exact ⟨p, hp, le_refl _, le_refl _⟩
+  have hp_not_u : p ∉ c.u := disjoint_right.mp c.h_disj hp
+  have h_cover := covering_of_maximal_u p (c.hv_sub hp) hp_not_u c.h_u_max
+  have h_excl : ¬(p ∈ u_lower c.u ∧ p ∈ u_upper c.u) := by
+    intro h; rw [← mem_inter] at h
+    rw [u_parts_intersection_eq_u c.h_u_mono c.h_u_inj] at h
+    exact hp_not_u h
+  have hp_all : p ∈ c.all_black := c.hv_sub hp
+  simp only [incidence_count, mem_targetsW, mem_targetsN, mem_targetsS, mem_targetsE,
+             mem_regionWExtend, mem_regionNExtend, mem_regionEExtend, mem_regionSExtend]
+  simp only [hp_all, h_lo, h_up]
+  rcases h_cover with h_u_lo | h_u_up
+  · have h_not_up : p ∉ u_upper c.u := fun h => h_excl ⟨h_u_lo, h⟩
+    simp [h_u_lo, h_not_up]
+  · have h_not_lo : p ∉ u_lower c.u := fun h => h_excl ⟨h, h_u_up⟩
+    simp [h_u_up, h_not_lo]
+
+
+-- @@ L1943-1984 verbatim
+theorem total_labels_eq_sum_disjoint :
+    (targetsW c.u c.v c.all_black).card + (targetsN c.u c.v c.all_black).card +
+    (targetsE c.u c.v c.all_black).card + (targetsS c.u c.v c.all_black).card
+    = n + c.a + c.b := by
+  rw [sum_card_eq_sum_incidence]
+  let others := c.all_black \ (c.u ∪ c.v)
+  have h_disj_uv : Disjoint c.u c.v := c.h_disj
+  have h_disj_others : Disjoint (c.u ∪ c.v) others := disjoint_sdiff_self_right
+  have h_union : c.all_black = c.u ∪ c.v ∪ others := by
+    exact (union_sdiff_of_subset c.union_sub).symm
+  nth_rewrite 1 [h_union]
+  rw [sum_union h_disj_others]
+  rw [sum_union h_disj_uv]
+  have sum_u : ∑ x ∈ c.u, incidence_count c.u c.v c.all_black x = 2 * c.a := by
+    rw [sum_congr rfl (fun x hx => incidence_count_of_u_disjoint c x hx)]
+    simp [c.hu, mul_comm]
+  have sum_v : ∑ x ∈ c.v, incidence_count c.u c.v c.all_black x = 2 * c.b := by
+    rw [sum_congr rfl (fun x hx => incidence_count_of_v_disjoint c x hx)]
+    simp [c.hv, mul_comm]
+  have sum_others : ∑ x ∈ others, incidence_count c.u c.v c.all_black x = n - (c.a + c.b) := by
+    calc
+      ∑ x ∈ others, incidence_count c.u c.v c.all_black x
+          = ∑ x ∈ others, 1 := by
+            apply sum_congr rfl
+            intro x hx
+            simp only [others, mem_sdiff, mem_union, not_or] at hx
+            exact incidence_count_of_others x hx.1 hx.2.1 hx.2.2
+              c.h_u_mono c.h_v_mono c.h_u_inj c.h_v_inj c.h_u_max c.h_v_max
+      _ = others.card := by simp
+      _ = n - (c.a + c.b) := by
+          simp only [others]; rw [card_sdiff]; rw [c.h_n]
+          congr 1
+          rw [inter_eq_left.mpr c.union_sub]
+          rw [card_union_of_disjoint c.h_disj]
+          rw [c.hu, c.hv]
+  rw [sum_u, sum_v, sum_others]
+  have h_le : c.a + c.b ≤ n := calc
+    c.a + c.b = c.u.card + c.v.card := by rw [c.hu, c.hv]
+    _         = (c.u ∪ c.v).card    := by rw [card_union_of_disjoint c.h_disj]
+    _         ≤ c.all_black.card    := card_le_card c.union_sub
+    _         = n                   := c.h_n
+  lia
+
+
+-- @@ L1986-2005 verbatim
+theorem labels_total_disjoint (ha_pos : 0 < c.a) (hb_pos : 0 < c.b) :
+    (targetsWin c.u c.v c.all_black).card + (targetsNin c.u c.v c.all_black).card +
+    (targetsEin c.u c.v c.all_black).card + (targetsSin c.u c.v c.all_black).card
+    + 1
+    ≥ n + c.a + c.b - 3 := by
+  have h_sum_eq := total_labels_eq_sum_disjoint c
+  have hW : (targetsWin c.u c.v c.all_black).card + 1 ≥ (targetsW c.u c.v c.all_black).card :=
+    Nat.le_add_of_sub_le (targetsWin_inequality c.u c.v c.all_black c.h_unique_y)
+  have hN : (targetsNin c.u c.v c.all_black).card + 1 ≥ (targetsN c.u c.v c.all_black).card :=
+    Nat.le_add_of_sub_le (targetsNin_inequality c.u c.v c.all_black c.h_unique_x)
+  have hS : (targetsSin c.u c.v c.all_black).card + 1 ≥ (targetsS c.u c.v c.all_black).card :=
+    Nat.le_add_of_sub_le (targetsSin_inequality c.u c.v c.all_black c.h_unique_x)
+  have hE : (targetsEin c.u c.v c.all_black).card + 1 ≥ (targetsE c.u c.v c.all_black).card :=
+    Nat.le_add_of_sub_le (targetsEin_inequality c.u c.v c.all_black c.h_unique_y)
+  zify [hW, hN, hS, hE, h_sum_eq]
+  have ha_ge_2 := c.a_ge_two ha_pos
+  have hb_ge_2 := c.b_ge_two hb_pos
+  have h_total_ge_3 : 3 ≤ n + c.a + c.b := by linarith
+  zify [h_total_ge_3] at hW hN hE hS h_sum_eq ⊢
+  linarith
+
+
+-- @@ L2007-2008 verbatim
+noncomputable def wx (cp : CrossingPoints c) : Point n :=
+  (c.pivot_nonempty cp).choose
+
+
+-- @@ L2010-2011 verbatim
+lemma wx_mem_pivot (cp : CrossingPoints c) : c.wx cp ∈ Pivot c cp :=
+  (c.pivot_nonempty cp).choose_spec
+
+
+-- @@ L2013-2024 verbatim
+lemma wx_bounds (cp : CrossingPoints c) :
+    let p := c.wx cp
+    (px cp.uk ≤ px p ∧ px p < px cp.uk1) ∧
+    (px cp.vl ≤ px p ∧ px p < px cp.vl1) ∧
+    (py cp.uk ≤ py p ∧ py p < py cp.uk1) ∧
+    (py cp.vl1 ≤ py p ∧ py p < py cp.vl) := by
+  have h := c.wx_mem_pivot cp
+  simp only [Pivot, mem_filter, mem_univ, true_and] at h
+  rw [mem_inter, mem_Ico, mem_Ico] at h
+  rw [mem_inter, mem_Ico, mem_Ico] at h
+  rcases h with ⟨⟨hx_u, hx_v⟩, ⟨hy_u, hy_v⟩⟩
+  exact ⟨hx_u, hx_v, hy_u, hy_v⟩
+
+
+-- @@ L2026-2027 verbatim
+lemma wx_not_black (cp : CrossingPoints c) : c.wx cp ∉ c.all_black :=
+  c.pivot_no_black cp (c.wx cp) (c.wx_mem_pivot cp)
+
+
+-- @@ L2029-2034 verbatim
+noncomputable def validLabels (cp : CrossingPoints c) : Finset (Label n) :=
+  (targetsWin c.u c.v c.all_black).map (Label.emb .W) ∪
+  (targetsNin c.u c.v c.all_black).map (Label.emb .N) ∪
+  (targetsEin c.u c.v c.all_black).map (Label.emb .E) ∪
+  (targetsSin c.u c.v c.all_black).map (Label.emb .S) ∪
+  map (Label.emb .X) {c.wx cp}
+
+
+-- @@ L2036-2039 verbatim
+lemma pivot_overlap_x (cp : CrossingPoints c) :
+    px cp.vl < px cp.uk1 := by
+  have h := c.wx_bounds cp
+  linarith [h.1.2, h.2.1.1]
+
+
+-- @@ L2041-2047 verbatim
+lemma u_y_le_uk_of_x_lt_uk1 (cp : CrossingPoints c) (q : Point n)
+    (hq : q ∈ c.u) (hx : px q < px cp.uk1) : py q ≤ py cp.uk := by
+  have h_px : px q ≤ px cp.uk := by
+    by_contra h_gt
+    have := cp.h_u_adj q hq (not_le.mp h_gt)
+    lia
+  exact c.u_mono_le q hq cp.uk cp.mem_uk h_px
+
+
+-- @@ L2049-2052 verbatim
+lemma v_y_le_vl1_of_x_ge_uk1 (cp : CrossingPoints c) (q : Point n)
+    (hq : q ∈ c.v) (hx : px cp.uk1 ≤ px q) : py q ≤ py cp.vl1 :=
+  c.v_mono_le cp.vl1 cp.mem_vl1 q hq
+    (cp.h_v_adj q hq (lt_of_lt_of_le (c.pivot_overlap_x cp) hx))
+
+
+-- @@ L2054-2077 verbatim
+lemma disjoint_label_X_W (cp : CrossingPoints c) (m : Matilda n c.all_black) (bw : Point n)
+    (hbw : bw ∈ c.all_black) (hbw_pos : 0 < py bw)
+    (h_w_in : m.mem ⟨bw.1, bw.2 - 1⟩)
+    (h_x_in : m.mem (c.wx cp))
+    (h_bw_reg : bw ∈ regionWExtend c.u c.v) : False := by
+  obtain ⟨hx_u, hx_v, hy_u, hy_v⟩ := c.wx_bounds cp
+  have ⟨h_face_y, _, _⟩ := source_on_face_W m bw hbw hbw_pos h_w_in
+  simp only [Matilda.mem] at h_x_in
+  rw [mem_regionWExtend] at h_bw_reg
+  obtain ⟨h_bw_u_lo, h_bw_v_lo⟩ := h_bw_reg
+  have h_py_le : py bw ≤ py (c.wx cp) := by
+    by_cases h_split : px bw < px cp.uk1
+    · rw [mem_u_lower] at h_bw_u_lo
+      obtain ⟨ui, hui, hx_le, hy_ge⟩ := h_bw_u_lo
+      have h_ui_lt : px ui < px cp.uk1 := lt_of_le_of_lt hx_le h_split
+      have h_y_bound : py ui ≤ py cp.uk := c.u_y_le_uk_of_x_lt_uk1 cp ui hui h_ui_lt
+      linarith [hy_ge, hy_u.1]
+    · push Not at h_split
+      rw [mem_v_lower] at h_bw_v_lo
+      obtain ⟨vj, hvj, hx_le, hy_ge⟩ := h_bw_v_lo
+      have h_vj_ge : px cp.uk1 ≤ px vj := le_trans h_split hx_le
+      have h_y_bound : py vj ≤ py cp.vl1 := c.v_y_le_vl1_of_x_ge_uk1 cp vj hvj h_vj_ge
+      linarith [hy_ge, hy_v.1]
+  have := h_x_in.2.2.2; lia
+
+
+-- @@ L2079-2084 verbatim
+lemma u_x_le_uk_of_y_lt_uk1 (cp : CrossingPoints c) (q : Point n)
+    (hq : q ∈ c.u) (hy : py q < py cp.uk1) : px q ≤ px cp.uk := by
+  by_contra h_gt
+  have h_ge := cp.h_u_adj q hq (not_le.mp h_gt)
+  have := c.u_mono_le cp.uk1 cp.mem_uk1 q hq h_ge
+  lia
+
+
+-- @@ L2086-2089 verbatim
+lemma pivot_overlap_y (cp : CrossingPoints c) :
+    py cp.vl1 < py cp.uk1 := by
+  have h := c.wx_bounds cp
+  linarith [h.1, h.2]
+
+
+-- @@ L2091-2097 verbatim
+lemma v_x_le_vl_of_y_ge_uk1 (cp : CrossingPoints c) (q : Point n)
+    (hq : q ∈ c.v) (hy : py cp.uk1 ≤ py q) : px q ≤ px cp.vl := by
+  by_contra h_gt
+  have h_ge := cp.h_v_adj q hq (not_le.mp h_gt)
+  have h_le := c.v_mono_le cp.vl1 cp.mem_vl1 q hq h_ge
+  have := c.pivot_overlap_y cp
+  lia
+
+
+-- @@ L2099-2122 verbatim
+lemma disjoint_label_X_N (cp : CrossingPoints c) (m : Matilda n c.all_black) (bn : Point n)
+    (hbn : bn ∈ c.all_black) (hbn_pos : 0 < px bn)
+    (h_n_in : m.mem ⟨bn.1 - 1, bn.2⟩)
+    (h_x_in : m.mem (c.wx cp))
+    (h_bn_reg : bn ∈ regionNExtend c.u c.v) : False := by
+  obtain ⟨hx_u, hx_v, hy_u, hy_v⟩ := c.wx_bounds cp
+  have ⟨h_face_x, _, _⟩ := source_on_face_N m bn hbn hbn_pos h_n_in
+  simp only [Matilda.mem] at h_x_in
+  rw [mem_regionNExtend] at h_bn_reg
+  obtain ⟨h_bn_u_up, h_bn_v_lo⟩ := h_bn_reg
+  have h_px_le : px bn ≤ px (c.wx cp) := by
+    by_cases h_split : py bn < py cp.uk1
+    · rw [mem_u_upper] at h_bn_u_up
+      obtain ⟨ui, hui, hx_le, hy_le⟩ := h_bn_u_up
+      have h_ui_lt : py ui < py cp.uk1 := lt_of_le_of_lt hy_le h_split
+      have h_x_bound : px ui ≤ px cp.uk := c.u_x_le_uk_of_y_lt_uk1 cp ui hui h_ui_lt
+      linarith [hx_le, hx_u.1]
+    · push Not at h_split
+      rw [mem_v_lower] at h_bn_v_lo
+      obtain ⟨vj, hvj, hx_le, hy_le⟩ := h_bn_v_lo
+      have h_vj_ge : py cp.uk1 ≤ py vj := le_trans h_split hy_le
+      have h_x_bound : px vj ≤ px cp.vl := c.v_x_le_vl_of_y_ge_uk1 cp vj hvj h_vj_ge
+      linarith [hx_le, hx_v.1]
+  have := h_x_in.2.1; lia
+
+
+-- @@ L2124-2130 verbatim
+lemma v_y_ge_vl_of_x_lt_vl1 (cp : CrossingPoints c) (q : Point n)
+    (hq : q ∈ c.v) (hx : px q < px cp.vl1) : py cp.vl ≤ py q := by
+  have h_px : px q ≤ px cp.vl := by
+    by_contra h_gt
+    have := cp.h_v_adj q hq (not_le.mp h_gt)
+    lia
+  exact c.v_mono_le q hq cp.vl cp.mem_vl h_px
+
+
+-- @@ L2132-2168 verbatim
+lemma disjoint_label_X_E (cp : CrossingPoints c) (m : Matilda n c.all_black) (be : Point n)
+    (hbe : be ∈ c.all_black) (hbe_bound : py be < n - 1)
+    (h_x_in : m.mem (c.wx cp))
+    (h_e_in : m.mem ⟨be.1, be.2 + 1⟩)
+    (h_be_reg : be ∈ regionEExtend c.u c.v) : False := by
+  obtain ⟨hx_u, hx_v, hy_u, hy_v⟩ := c.wx_bounds cp
+  have ⟨h_face_y, _, _⟩ := source_on_face_E m be hbe hbe_bound h_e_in
+  simp only [Matilda.mem] at h_x_in
+  rw [mem_regionEExtend] at h_be_reg
+  obtain ⟨h_be_u_up, h_be_v_up⟩ := h_be_reg
+  have h_py_le : py (c.wx cp) ≤ py be := by
+    by_cases h_split_u : px cp.uk1 ≤ px be
+    · rw [mem_u_upper] at h_be_u_up
+      obtain ⟨qi, hqi, hx_le, hy_le⟩ := h_be_u_up
+      have h_idx_le : px cp.uk1 ≤ px qi := le_trans h_split_u hx_le
+      have h_y_le : py cp.uk1 ≤ py qi :=
+        c.u_mono_le cp.uk1 cp.mem_uk1 qi hqi h_idx_le
+      linarith [hy_u.2, hy_le]
+    · push Not at h_split_u
+      by_cases h_split_v : px be < px cp.vl1
+      · rw [mem_v_upper] at h_be_v_up
+        obtain ⟨rj, hrj, hx_le, hy_le⟩ := h_be_v_up
+        have h_rj_lt : px rj < px cp.vl1 := lt_of_le_of_lt hx_le h_split_v
+        linarith [hy_v.2, c.v_y_ge_vl_of_x_lt_vl1 cp rj hrj h_rj_lt]
+      · push Not at h_split_v
+        rw [mem_u_upper] at h_be_u_up
+        obtain ⟨qi, hqi, hx_le, hy_le⟩ := h_be_u_up
+        have h_uk_lt_qi : px cp.uk < px qi := by
+           have h_uk_lt_vl1 : px cp.uk < px cp.vl1 := by
+             have h := c.wx_bounds cp
+             linarith [h.1, h.2]
+           linarith
+        have h_uk1_le_qi : px cp.uk1 ≤ px qi := cp.h_u_adj qi hqi h_uk_lt_qi
+        have h_y_ge_uk1 : py cp.uk1 ≤ py qi :=
+          c.u_mono_le cp.uk1 cp.mem_uk1 qi hqi h_uk1_le_qi
+        linarith [hy_u.2, hy_le]
+  have := h_x_in.2.2.1; lia
+
+
+-- @@ L2170-2173 verbatim
+lemma pivot_overlap_y_2 (cp : CrossingPoints c) :
+    py cp.uk < py cp.vl := by
+  have h := c.wx_bounds cp
+  linarith [h.2]
+
+
+-- @@ L2175-2181 verbatim
+lemma u_x_ge_uk1_of_y_ge_vl (cp : CrossingPoints c) (q : Point n)
+    (hq : q ∈ c.u) (hy : py cp.vl ≤ py q) : px cp.uk1 ≤ px q := by
+  apply cp.h_u_adj q hq
+  by_contra hg
+  have h1 := c.u_mono_le q hq cp.uk cp.mem_uk (not_lt.mp hg)
+  have h2 := c.pivot_overlap_y_2 cp
+  lia
+
+
+-- @@ L2183-2207 verbatim
+lemma disjoint_label_X_S (cp : CrossingPoints c) (m : Matilda n c.all_black) (bs : Point n)
+    (hbs : bs ∈ c.all_black) (hbs_bound : px bs < n - 1)
+    (h_s_in : m.mem ⟨bs.1 + 1, bs.2⟩)
+    (h_x_in : m.mem (c.wx cp))
+    (h_bs_reg : bs ∈ regionSExtend c.u c.v) : False := by
+  obtain ⟨hx_u, hx_v, hy_u, hy_v⟩ := c.wx_bounds cp
+  have ⟨h_face_x, _, _⟩ := source_on_face_S m bs hbs hbs_bound h_s_in
+  simp only [Matilda.mem] at h_x_in
+  rw [mem_regionSExtend] at h_bs_reg
+  obtain ⟨h_bs_u_lo, h_bs_v_up⟩ := h_bs_reg
+  have h_px_le : px (c.wx cp) ≤ px bs := by
+    by_cases h_split : px bs < px cp.vl1
+    · rw [mem_v_upper] at h_bs_v_up
+      obtain ⟨vj, hvj, hx_le, hy_le⟩ := h_bs_v_up
+      have h_vj_lt_vl1 : px vj < px cp.vl1 := lt_of_le_of_lt hx_le h_split
+      have h_y_ge_vl : py cp.vl ≤ py vj := c.v_y_ge_vl_of_x_lt_vl1 cp vj hvj h_vj_lt_vl1
+      have h_bs_y_ge : py cp.vl ≤ py bs := le_trans h_y_ge_vl hy_le
+      rw [mem_u_lower] at h_bs_u_lo
+      obtain ⟨ui, hui, h_ui_x_le, h_ui_y_ge⟩ := h_bs_u_lo
+      have h_ui_y_ge : py cp.vl ≤ py ui := le_trans h_bs_y_ge h_ui_y_ge
+      have h_ui_x_ge : px cp.uk1 ≤ px ui := c.u_x_ge_uk1_of_y_ge_vl cp ui hui h_ui_y_ge
+      linarith [hx_u.2, h_ui_x_le]
+    · push Not at h_split
+      linarith [hx_v.2]
+  have := h_x_in.1; lia
+
+
+-- @@ L2209-2209 verbatim
+open Classical
+
+
+-- @@ L2211-2231 verbatim
+private lemma covers_X_other (cp : CrossingPoints c) (m : Matilda n c.all_black)
+    (h_x_in : m.mem (c.wx cp)) (l : Label n) (h_not_X : l.type ≠ .X)
+    (h_cov : m.mem (label_pos l).2)
+    (h_props : (l.type = .W → l.source ∈ targetsWin c.u c.v c.all_black) ∧
+               (l.type = .N → l.source ∈ targetsNin c.u c.v c.all_black) ∧
+               (l.type = .E → l.source ∈ targetsEin c.u c.v c.all_black) ∧
+               (l.type = .S → l.source ∈ targetsSin c.u c.v c.all_black)) : False := by
+  cases h : l.type
+  · simp only [label_pos, h] at h_cov
+    have hW := h_props.1 h; simp only [mem_targetsWin, mem_targetsW] at hW
+    exact c.disjoint_label_X_W cp m l.source hW.1.1 hW.2 h_cov h_x_in hW.1.2
+  · simp only [label_pos, h] at h_cov
+    have hN := h_props.2.1 h; simp only [mem_targetsNin, mem_targetsN] at hN
+    exact c.disjoint_label_X_N cp m l.source hN.1.1 hN.2 h_cov h_x_in hN.1.2
+  · simp only [label_pos, h] at h_cov
+    have hE := h_props.2.2.1 h; simp only [mem_targetsEin, mem_targetsE] at hE
+    exact c.disjoint_label_X_E cp m l.source hE.1.1 hE.2 h_x_in h_cov hE.1.2
+  · simp only [label_pos, h] at h_cov
+    have hS := h_props.2.2.2 h; simp only [mem_targetsSin, mem_targetsS] at hS
+    exact c.disjoint_label_X_S cp m l.source hS.1.1 hS.2 h_cov h_x_in hS.1.2
+  · exact absurd h h_not_X
+
+
+-- @@ L2233-2272 verbatim
+lemma matilda_covers_at_most_one (cp : CrossingPoints c) (m : Matilda n c.all_black) :
+    ({l ∈ validLabels c cp | covers m l}).card ≤ 1 := by
+  rw [card_le_one_iff]
+  intro l1 l2 hl1 hl2
+  rw [mem_filter] at hl1 hl2
+  obtain ⟨h_valid1, h_cov1⟩ := hl1; obtain ⟨h_valid2, h_cov2⟩ := hl2
+  by_contra h_ne
+  let p1 := l1.source; let p2 := l2.source
+  have get_props : ∀ l ∈ validLabels c cp,
+      (l.type = .W → l.source ∈ targetsWin c.u c.v c.all_black) ∧
+      (l.type = .N → l.source ∈ targetsNin c.u c.v c.all_black) ∧
+      (l.type = .E → l.source ∈ targetsEin c.u c.v c.all_black) ∧
+      (l.type = .S → l.source ∈ targetsSin c.u c.v c.all_black) ∧
+      (l.type = .X → l.source = c.wx cp) := by
+    intros l hl
+    simp only [validLabels, mem_union, mem_map, or_assoc] at hl
+    rcases hl with ⟨p, hp, rfl⟩ | ⟨p, hp, rfl⟩ | ⟨p, hp, rfl⟩ | ⟨p, hp, rfl⟩ | ⟨p, hp, rfl⟩
+    <;> simp_all [mem_singleton]
+  have props1 := get_props l1 h_valid1; have props2 := get_props l2 h_valid2
+  simp only [covers] at h_cov1 h_cov2
+  -- Handle non-X cases via shared helper
+  by_cases h1X : l1.type = .X <;> by_cases h2X : l2.type = .X
+  · -- Both X: derive l1 = l2
+    have h_eq : l1 = l2 := by
+      cases l1; cases l2; simp only [Label.mk.injEq]
+      exact ⟨(props1.2.2.2.2 h1X).trans (props2.2.2.2.2 h2X).symm, h1X.trans h2X.symm⟩
+    contradiction
+  · -- l1 is X, l2 is WNSE
+    simp only [label_pos, h1X] at h_cov1; rw [props1.2.2.2.2 h1X] at h_cov1
+    exact c.covers_X_other cp m h_cov1 l2 h2X h_cov2
+      ⟨props2.1, props2.2.1, props2.2.2.1, props2.2.2.2.1⟩
+  · -- l1 is WNSE, l2 is X
+    simp only [label_pos, h2X] at h_cov2; rw [props2.2.2.2.2 h2X] at h_cov2
+    exact c.covers_X_other cp m h_cov2 l1 h1X h_cov1
+      ⟨props1.1, props1.2.1, props1.2.2.1, props1.2.2.2.1⟩
+  · -- Neither is X: use shared core lemma
+    exact matilda_covers_at_most_one_core c.h_unique_x c.h_unique_y
+      c.u_mono_le c.v_mono_le c.u_inj_y c.v_inj_y m l1 l2 h_ne h_cov1 h_cov2
+      ⟨props1.1, props1.2.1, props1.2.2.1, props1.2.2.2.1⟩
+      ⟨props2.1, props2.2.1, props2.2.2.1, props2.2.2.2.1⟩ h1X h2X
+
+
+-- @@ L2274-2289 verbatim
+lemma grid_size_ge_two_of_label {source : Point n} {lbl : LabelType}
+    (ha_pos : 0 < c.a) (hb_pos : 0 < c.b)
+    (hl : { source := source, type := lbl } ∈ c.validLabels cp) : 2 ≤ n := by
+  simp only [validLabels, mem_union, mem_map, or_assoc] at hl
+  rcases hl with h | h | h | h | h
+  · simp at h; lia
+  · simp at h; lia
+  · simp at h; lia
+  · simp at h; lia
+  · have ha := c.a_ge_two ha_pos; have hb := c.b_ge_two hb_pos
+    have h_card : c.u.card + c.v.card ≤ c.all_black.card := by
+      rw [← card_union_of_disjoint c.h_disj]
+      apply card_le_card
+      exact c.union_sub
+    rw [c.hu, c.hv, c.h_n] at h_card
+    lia
+
+
+-- @@ L2291-2323 verbatim
+lemma valid_label_pos_not_black (ha_pos : 0 < c.a) (hb_pos : 0 < c.b)
+    (l : Label n) (hl : l ∈ c.validLabels cp) :
+    (label_pos l).2 ∉ c.all_black := by
+  have h_n_ge_2 := c.grid_size_ge_two_of_label cp ha_pos hb_pos hl
+  intro h_pos_black
+  rcases l with ⟨source, type⟩
+  simp only [label_pos] at h_pos_black
+  simp only [validLabels, mem_union, mem_map, or_assoc] at hl
+  rcases hl with hW | hN | hE | hS | hX
+  · rcases hW with ⟨p, hp, heq⟩
+    simp at heq; obtain ⟨rfl, rfl⟩ := heq
+    simp only [mem_targetsWin, mem_targetsW] at hp
+    simp at h_pos_black
+    exact label_pos_W_absurd h_n_ge_2 c.h_unique_x hp.1.1 hp.2 h_pos_black
+  · rcases hN with ⟨p, hp, heq⟩
+    simp at heq; obtain ⟨rfl, rfl⟩ := heq
+    simp only [mem_targetsNin, mem_targetsN] at hp
+    simp at h_pos_black
+    exact label_pos_N_absurd h_n_ge_2 c.h_unique_y hp.1.1 hp.2 h_pos_black
+  · rcases hE with ⟨p, hp, heq⟩
+    simp at heq; obtain ⟨rfl, rfl⟩ := heq
+    simp only [mem_targetsEin, mem_targetsE] at hp
+    simp at h_pos_black
+    exact label_pos_E_absurd c.h_unique_x hp.1.1 hp.2 h_pos_black
+  · rcases hS with ⟨p, hp, heq⟩
+    simp at heq; obtain ⟨rfl, rfl⟩ := heq
+    simp only [mem_targetsSin, mem_targetsS] at hp
+    simp at h_pos_black
+    exact label_pos_S_absurd c.h_unique_y hp.1.1 hp.2 h_pos_black
+  · rcases hX with ⟨p, hp, heq⟩
+    simp at heq; obtain ⟨rfl, rfl⟩ := heq
+    simp at hp; subst p; simp at h_pos_black
+    exact absurd h_pos_black (c.wx_not_black cp)
+
+
+-- @@ L2325-2341 verbatim
+lemma card_validLabels_disjoint :
+    (c.validLabels cp).card =
+    (targetsWin c.u c.v c.all_black).card + (targetsNin c.u c.v c.all_black).card +
+    (targetsEin c.u c.v c.all_black).card + (targetsSin c.u c.v c.all_black).card + 1 := by
+  rw [validLabels]
+  rw [card_union_of_disjoint, card_union_of_disjoint, card_union_of_disjoint,
+    card_union_of_disjoint]
+  · simp only [card_map, card_singleton]
+  all_goals {
+    try rw [disjoint_left]
+    try intro x h1 h2
+    try simp only [mem_union, mem_map, Label.emb, Function.Embedding.coeFn_mk] at h1 h2
+    try {
+      rcases x with ⟨src, type⟩
+      cases type <;> simp at h1 h2
+    }
+  }
+
+
+-- @@ L2343-2364 verbatim
+theorem disjoint_case_final_bound
+    (ha_pos : 0 < c.a) (hb_pos : 0 < c.b)
+    (cp : c.CrossingPoints)
+    (matildas_partition : Finset (Matilda n c.all_black))
+    (h_partition : ∀ p : Point n, p ∉ c.all_black → ∃! m ∈ matildas_partition, m.mem p)
+    (h_dilworth : n ≤ c.a * c.b) :
+    n + (4 * n).sqrt - 3 ≤ matildas_partition.card := by
+  have h_labels_ge : (c.validLabels cp).card ≥ n + c.a + c.b - 3 := by
+    rw [c.card_validLabels_disjoint cp]
+    apply c.labels_total_disjoint ha_pos hb_pos
+  have h_matilda_ge : matildas_partition.card ≥ (c.validLabels cp).card :=
+    matilda_count_ge_label_count (L := c.validLabels cp)
+      (h_white := c.valid_label_pos_not_black cp ha_pos hb_pos)
+      (h_one := c.matilda_covers_at_most_one cp)
+      matildas_partition h_partition
+  have h_alg := am_gm_bound_nat c.a c.b n h_dilworth
+  calc
+    n + (4 * n).sqrt - 3
+      ≤ n + (c.a + c.b) - 3     := Nat.sub_le_sub_right (Nat.add_le_add_left h_alg n) 3
+    _ = n + c.a + c.b - 3       := by ring_nf
+    _ ≤ (c.validLabels cp).card := h_labels_ge
+    _ ≤ matildas_partition.card := h_matilda_ge
+
+
+-- @@ L2366-2366 verbatim
+end DisjointSetup
+
+
+-- @@ L2368-2368 verbatim
+section ErdosSzekeresBridge
+
+
+-- @@ L2370-2370 verbatim
+variable {all_black : Finset (Point n)}
+
+-- @@ L2371-2371 verbatim
+variable (h_card_n : all_black.card = n)
+
+-- @@ L2372-2372 verbatim
+variable (h_unique_x : ∀ p ∈ all_black, ∀ q ∈ all_black, px p = px q → p = q)
+
+-- @@ L2373-2373 verbatim
+variable (h_unique_y : ∀ p ∈ all_black, ∀ q ∈ all_black, py p = py q → p = q)
+
+
+-- @@ L2375-2406 verbatim
+lemma exists_y_for_x [NeZero n] (h_card_n : all_black.card = n)
+  (h_unique_x : ∀ p ∈ all_black, ∀ q ∈ all_black, px p = px q → p = q) (x : Fin n)
+  : ∃ y, (x, y) ∈ all_black := by
+  by_contra h_none
+  push Not at h_none
+  let black_rows := all_black.image Prod.fst
+  let other_rows := univ.erase x
+  have h_subset : all_black.image Prod.fst ⊆ other_rows := by
+    intro r hr
+    rw [mem_image] at hr
+    obtain ⟨p, hp, rfl⟩ := hr
+    rw [mem_erase]
+    constructor
+    · by_contra h_eq
+      have p_eq : p = (x, p.2) := by
+        ext
+        · rw [h_eq]
+        · rfl
+      rw [p_eq] at hp
+      exact h_none p.2 hp
+    · exact mem_univ p.1
+  have h_inj_on : Set.InjOn Prod.fst (all_black : Set (Point n)) := by
+    intros p hp q hq h_eq
+    apply h_unique_x p hp q hq
+    dsimp [px]; rw [h_eq]
+  have h_card_le : all_black.card ≤ other_rows.card := calc
+    all_black.card = black_rows.card := (card_image_of_injOn h_inj_on).symm
+    _              ≤ other_rows.card := card_le_card h_subset
+  rw [h_card_n] at h_card_le
+  simp [other_rows , card_univ] at h_card_le
+  have h_pos : 0 < n := NeZero.pos n
+  lia
+
+
+-- @@ L2408-2409 verbatim
+noncomputable def blackPerm [NeZero n] : Fin n → Fin n := fun x =>
+  (exists_y_for_x h_card_n h_unique_x x).choose
+
+
+-- @@ L2411-2412 verbatim
+lemma blackPerm_spec [NeZero n](x : Fin n) : (x, blackPerm h_card_n h_unique_x x) ∈ all_black :=
+  (exists_y_for_x h_card_n h_unique_x x).choose_spec
+
+
+-- @@ L2414-2424 verbatim
+lemma blackPerm_injective [NeZero n]
+  (h_unique_y : ∀ p ∈ all_black, ∀ q ∈ all_black, py p = py q → p = q)
+    : Function.Injective (blackPerm h_card_n h_unique_x) := by
+  intros x1 x2 h_eq
+  let p1 : Point n := (x1, blackPerm h_card_n h_unique_x x1)
+  let p2 : Point n := (x2, blackPerm h_card_n h_unique_x x2)
+  have m1 := blackPerm_spec h_card_n h_unique_x x1
+  have m2 := blackPerm_spec h_card_n h_unique_x x2
+  have hy : py p1 = py p2 := by simp [p1, p2, py]; rw [h_eq]
+  have hp : p1 = p2 := h_unique_y p1 m1 p2 m2 hy
+  injection hp
+
+
+-- @@ L2426-2426 verbatim
+open Classical
+
+
+-- @@ L2428-2429 verbatim
+def IsChain (s : Finset (Point n)) : Prop :=
+  ∀ p ∈ s, ∀ q ∈ s, px p < px q → py p < py q
+
+-- @@ L2430-2431 verbatim
+def IsAntiChain (s : Finset (Point n)) : Prop :=
+  ∀ p ∈ s, ∀ q ∈ s, px p < px q → py q < py p
+
+
+-- @@ L2433-2455 verbatim
+private lemma exists_maximal_subset (P : Finset (Point n) → Prop)
+    (s : Finset (Point n)) (h_s : s ⊆ all_black) (h_prop : P s) :
+    ∃ m, s ⊆ m ∧ m ⊆ all_black ∧ P m ∧
+    (∀ p, p ∉ m → p ∈ all_black → ¬P (insert p m)) := by
+  let candidates := all_black.powerset.filter (fun t => s ⊆ t ∧ P t)
+  have h_nonempty : candidates.Nonempty := by
+    use s
+    simp only [candidates, mem_filter, mem_powerset]
+    exact ⟨h_s, subset_refl _, h_prop⟩
+  obtain ⟨m, hm_mem, hm_max⟩ := exists_mem_eq_sup candidates h_nonempty card
+  simp only [candidates, mem_filter, mem_powerset] at hm_mem
+  refine ⟨m, hm_mem.2.1, hm_mem.1, hm_mem.2.2, ?_⟩
+  intros p hp_not_m hp_in_all h_prop_insert
+  have h_in : insert p m ∈ candidates := by
+    simp only [candidates, mem_filter, mem_powerset]
+    refine ⟨insert_subset hp_in_all hm_mem.1, ?_, h_prop_insert⟩
+    trans m
+    · exact hm_mem.2.1
+    · exact subset_insert p m
+  have h_card_gt : (insert p m).card > m.card := by simp [hp_not_m]
+  have h_card_le : (insert p m).card ≤ m.card := by
+    rw [← hm_max]; exact le_sup h_in
+  linarith
+
+
+-- @@ L2457-2460 verbatim
+lemma exists_maximal_chain (s : Finset (Point n)) (h_s : s ⊆ all_black) (h_chain : IsChain s) :
+    ∃ m, s ⊆ m ∧ m ⊆ all_black ∧ IsChain m ∧
+    (∀ p, p ∉ m → p ∈ all_black → ¬IsChain (insert p m)) :=
+  exists_maximal_subset IsChain s h_s h_chain
+
+
+-- @@ L2462-2466 verbatim
+lemma exists_maximal_antichain (s : Finset (Point n))
+  (h_s : s ⊆ all_black) (h_antichain : IsAntiChain s) :
+    ∃ m, s ⊆ m ∧ m ⊆ all_black ∧ IsAntiChain m ∧
+    (∀ p, p ∉ m → p ∈ all_black → ¬IsAntiChain (insert p m)) :=
+  exists_maximal_subset IsAntiChain s h_s h_antichain
+
+
+-- @@ L2468-2469 verbatim
+def incSubsets (f : Fin n → Fin n) : Finset (Finset (Fin n)) :=
+  univ.powerset.filter (fun t => StrictMonoOn f (t : Set (Fin n)))
+
+-- @@ L2470-2471 verbatim
+def decSubsets (f : Fin n → Fin n) : Finset (Finset (Fin n)) :=
+  univ.powerset.filter (fun t => StrictAntiOn f (t : Set (Fin n)))
+
+
+-- @@ L2473-2476 verbatim
+@[simp]
+lemma mem_incSubsets {f : Fin n → Fin n} {t : Finset (Fin n)} :
+    t ∈ incSubsets f ↔ StrictMonoOn f (t : Set (Fin n)) := by
+  simp [incSubsets]
+
+-- @@ L2477-2480 verbatim
+@[simp]
+lemma mem_decSubsets {f : Fin n → Fin n} {t : Finset (Fin n)} :
+    t ∈ decSubsets f ↔ StrictAntiOn f (t : Set (Fin n)) := by
+  simp [decSubsets]
+
+
+-- @@ L2482-2483 verbatim
+lemma incSubsets_nonempty (f : Fin n → Fin n) : (incSubsets f).Nonempty := by
+  use ∅; simp [incSubsets, StrictMonoOn]
+
+
+-- @@ L2485-2486 verbatim
+lemma decSubsets_nonempty (f : Fin n → Fin n) : (decSubsets f).Nonempty := by
+  use ∅; simp [decSubsets, StrictAntiOn]
+
+
+-- @@ L2488-2489 verbatim
+noncomputable def lisLength (f : Fin n → Fin n) : ℕ :=
+  (incSubsets f).sup card
+
+-- @@ L2490-2491 verbatim
+noncomputable def ldsLength (f : Fin n → Fin n) : ℕ :=
+  (decSubsets f).sup card
+
+
+-- @@ L2493-2511 verbatim
+theorem erdos_szekeres_direct (n : ℕ) (f : Fin n → Fin n) (hf : Function.Injective f) :
+    n ≤ (lisLength f) * (ldsLength f) := by
+  let a := lisLength f
+  let b := ldsLength f
+  by_contra h_contra
+  rw [not_le] at h_contra
+  have h_card_lt : a * b < Fintype.card (Fin n) := by
+    rw [Fintype.card_fin]
+    exact h_contra
+  have h_thm := erdos_szekeres h_card_lt hf
+  rcases h_thm with ⟨t_inc, _, h_mono_inc⟩ | ⟨t_dec, _, h_mono_dec⟩
+  · have h_mem : t_inc ∈ incSubsets f := by
+      exact mem_incSubsets.mpr h_mono_inc
+    have h_le : t_inc.card ≤ a := le_sup h_mem
+    linarith
+  · have h_mem : t_dec ∈ decSubsets f := by
+      simp [decSubsets]; exact h_mono_dec
+    have h_le : t_dec.card ≤ b := le_sup h_mem
+    linarith
+
+
+-- @@ L2513-2514 verbatim
+def toGridSubset (f : Fin n → Fin n) (t : Finset (Fin n)) : Finset (Point n) :=
+  t.image (fun r => (r, f r))
+
+
+-- @@ L2516-2519 verbatim
+@[simp]
+lemma card_toGridSubset (f : Fin n → Fin n) (t : Finset (Fin n)) :
+    (toGridSubset f t).card = t.card :=
+  card_image_of_injective t (fun _ _ h => by injection h)
+
+
+-- @@ L2521-2528 verbatim
+lemma is_chain_of_strict_mono {f : Fin n → Fin n} {t : Finset (Fin n)}
+    (h : StrictMonoOn f t) : IsChain (toGridSubset f t) := by
+  intros p hp q hq hx
+  simp [toGridSubset] at hp hq
+  rcases hp with ⟨r1, hr1, rfl⟩
+  rcases hq with ⟨r2, hr2, rfl⟩
+  simp only [px_mk_val] at hx
+  exact Fin.lt_def.mp (h hr1 hr2 hx)
+
+
+-- @@ L2530-2537 verbatim
+lemma is_antichain_of_strict_anti {f : Fin n → Fin n} {t : Finset (Fin n)}
+    (h : StrictAntiOn f t) : IsAntiChain (toGridSubset f t) := by
+  intros p hp q hq hx
+  simp [toGridSubset] at hp hq
+  rcases hp with ⟨r1, hr1, rfl⟩
+  rcases hq with ⟨r2, hr2, rfl⟩
+  simp only [px_mk_val] at hx
+  exact Fin.lt_def.mp (h hr1 hr2 hx)
+
+
+-- @@ L2539-2618 verbatim
+theorem exists_optimal_u_v [NeZero n] (h_card_n : all_black.card = n)
+   (h_unique_x : ∀ p ∈ all_black, ∀ q ∈ all_black, px p = px q → p = q)
+   (h_unique_y : ∀ p ∈ all_black, ∀ q ∈ all_black, py p = py q → p = q) :
+    ∃ (u v : Finset (Point n)),
+      u ⊆ all_black ∧ v ⊆ all_black ∧
+      n ≤ u.card * v.card ∧
+      (∀ p ∈ u, ∀ q ∈ u, px p < px q → py p < py q) ∧
+      (∀ p ∈ u, ∀ q ∈ u, px p = px q → p = q) ∧
+      (∀ p ∈ all_black, p ∉ u →
+        (∀ q ∈ u, px q < px p → py q < py p) →
+        (∀ q ∈ u, px p < px q → py p < py q) → False) ∧
+      (∀ p ∈ v, ∀ q ∈ v, px p < px q → py q < py p) ∧
+      (∀ p ∈ v, ∀ q ∈ v, px p = px q → p = q) ∧
+      (∀ p ∈ all_black, p ∉ v →
+        (∀ q ∈ v, px q < px p → py p < py q) →
+        (∀ q ∈ v, px p < px q → py q < py p) → False) := by
+  let f := blackPerm h_card_n h_unique_x
+  have hf_inj := blackPerm_injective h_card_n h_unique_x h_unique_y
+  have h_es := erdos_szekeres_direct n f hf_inj
+  obtain ⟨t_inc, ht_inc, ha_eq⟩ :=
+  exists_mem_eq_sup (incSubsets f) (incSubsets_nonempty f) card
+  obtain ⟨t_dec, ht_dec, hb_eq⟩ :=
+    exists_mem_eq_sup (decSubsets f) (decSubsets_nonempty f) card
+  let u0 := toGridSubset f t_inc
+  let v0 := toGridSubset f t_dec
+  have h_u0_sub : u0 ⊆ all_black := by
+    intros p hp; simp [u0, toGridSubset] at hp
+    rcases hp with ⟨r, _, rfl⟩; exact blackPerm_spec h_card_n h_unique_x r
+  have h_v0_sub : v0 ⊆ all_black := by
+    intros p hp; simp [v0, toGridSubset] at hp
+    rcases hp with ⟨r, _, rfl⟩; exact blackPerm_spec h_card_n h_unique_x r
+
+  have h_u0_chain : IsChain u0 := by
+    rw [mem_incSubsets] at ht_inc; apply is_chain_of_strict_mono ht_inc
+  have h_v0_antichain : IsAntiChain v0 := by
+    rw [mem_decSubsets] at ht_dec; apply is_antichain_of_strict_anti ht_dec
+  obtain ⟨u, hu_sub, hu_all, hu_chain, hu_max⟩ :=
+    exists_maximal_chain u0 h_u0_sub h_u0_chain
+  obtain ⟨v, hv_sub, hv_all, hv_chain, hv_max⟩ :=
+    exists_maximal_antichain v0 h_v0_sub h_v0_antichain
+  use u, v
+  have h_dilworth : n ≤ u.card * v.card := by
+    have h_a : lisLength f ≤ u.card := by
+      simp only [lisLength]; rw [ha_eq, ← card_toGridSubset f t_inc]
+      exact card_le_card hu_sub
+    have h_b : ldsLength f ≤ v.card := by
+      simp only [ldsLength]; rw [hb_eq, ← card_toGridSubset f t_dec]
+      exact card_le_card hv_sub
+    calc n ≤ lisLength f * ldsLength f := h_es
+         _ ≤ u.card * v.card := Nat.mul_le_mul h_a h_b
+
+  refine ⟨hu_all, hv_all, h_dilworth, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · exact hu_chain
+  · intros p _ q _ hx
+    exact h_unique_x p (hu_all ‹_›) q (hu_all ‹_›) hx
+  · intros p hp_blk hp_not_u h_left h_right
+    apply hu_max p hp_not_u hp_blk
+    intros a ha b hb hx
+    simp at ha hb
+    rcases ha with rfl | ha_u
+    · rcases hb with rfl | hb_u
+      · linarith
+      · apply h_right b hb_u hx
+    · rcases hb with rfl | hb_u
+      · exact h_left a ha_u hx
+      · exact hu_chain a ha_u b hb_u hx
+  · exact hv_chain
+  · intros p _ q _ hx
+    exact h_unique_x p (hv_all ‹_›) q (hv_all ‹_›) hx
+  · intros p hp_blk hp_not_v h_left h_right
+    apply hv_max p hp_not_v hp_blk
+    intros a ha b hb hx
+    simp at ha hb
+    rcases ha with rfl | ha_v
+    · rcases hb with rfl | hb_v
+      · linarith
+      · apply h_right b hb_v hx
+    · rcases hb with rfl | hb_v
+      · exact h_left a ha_v hx
+      · exact hv_chain a ha_v b hb_v hx
+
+
+-- @@ L2620-2620 verbatim
+end ErdosSzekeresBridge
+
+
+-- @@ L2622-2622 verbatim
+section LowerBound
+
+
+-- @@ L2624-2681 verbatim
+theorem matilda_lower_bound [NeZero n]
+    (h_card_n : all_black.card = n)
+    (h_unique_x : ∀ p ∈ all_black, ∀ q ∈ all_black, px p = px q → p = q)
+    (h_unique_y : ∀ p ∈ all_black, ∀ q ∈ all_black, py p = py q → p = q)
+    (matildas_partition : Finset (Matilda n all_black))
+    (h_partition : ∀ p : Point n, p ∉ all_black → ∃! m ∈ matildas_partition, m.mem p) :
+    n + (4 * n).sqrt - 3 ≤ matildas_partition.card := by
+  obtain ⟨u, v, hu_sub, hv_sub, h_dilworth,
+          h_u_mono, h_u_inj, h_u_max,
+          h_v_mono, h_v_inj, h_v_max⟩ :=
+    exists_optimal_u_v h_card_n h_unique_x h_unique_y
+  have h_prod_pos : 0 < u.card * v.card := lt_of_lt_of_le (NeZero.pos (a := n)) h_dilworth
+  have ha_pos : 0 < u.card := pos_of_mul_pos_left h_prod_pos (Nat.zero_le _)
+  have hb_pos : 0 < v.card := pos_of_mul_pos_right h_prod_pos (Nat.zero_le _)
+  let base : BaseSetup n := {
+    all_black := all_black
+    u := u
+    v := v
+    a := u.card
+    b := v.card
+    hu := rfl
+    hv := rfl
+    hu_sub := hu_sub
+    hv_sub := hv_sub
+    h_n := h_card_n
+    h_u_mono := h_u_mono
+    h_v_mono := h_v_mono
+    h_u_inj := h_u_inj
+    h_v_inj := h_v_inj
+    h_u_max := h_u_max
+    h_v_max := h_v_max
+    h_unique_x := h_unique_x
+    h_unique_y := h_unique_y
+  }
+  by_cases h_inter : (u ∩ v).Nonempty
+  · let pivot := h_inter.choose
+    have h_pivot_mem : pivot ∈ u ∩ v := h_inter.choose_spec
+    have h_inter_eq : u ∩ v = {pivot} := by
+      have h_le_one := inter_card_le_one h_u_mono h_v_mono h_u_inj
+      apply eq_singleton_iff_unique_mem.mpr
+      constructor
+      · exact h_pivot_mem
+      · intros x hx
+        rw [card_le_one_iff] at h_le_one
+        exact h_le_one hx h_pivot_mem
+    let c : IntersectionSetup n := { base with
+      pivot := pivot
+      h_inter := h_inter_eq
+    }
+    apply c.intersection_case_final_bound matildas_partition h_partition h_dilworth
+
+  · rw [not_nonempty_iff_eq_empty] at h_inter
+    have h_disjoint : Disjoint u v := disjoint_iff_inter_eq_empty.mpr h_inter
+    let c : DisjointSetup n := { base with
+      h_disj := h_disjoint
+    }
+    let cp := c.getCrossingPoints ha_pos hb_pos
+    apply c.disjoint_case_final_bound ha_pos hb_pos cp matildas_partition h_partition h_dilworth
+
+
+-- @@ L2683-2683 verbatim
+end LowerBound
+
+
+-- @@ L2685-2685 verbatim
+section Construction
+
+
+-- @@ L2687-2687 verbatim
+variable (k : ℕ)
+
+-- @@ L2688-2688 verbatim
+local notation "n" => k * k
+
+-- @@ L2689-2689 verbatim
+abbrev mod_base : ℤ := (k : ℤ)^2 + 1
+
+
+-- @@ L2691-2691 verbatim
+lemma mod_base_pos : 0 < mod_base k := by positivity
+
+
+-- @@ L2693-2693 verbatim
+abbrev val_s (p : Point n) : ℤ := (p.1 : ℤ) + k * p.2 + k + 1
+
+-- @@ L2694-2694 verbatim
+abbrev val_t (p : Point n) : ℤ := (k : ℤ) * p.1 - p.2 + k^2 + k
+
+
+-- @@ L2696-2696 verbatim
+def calc_s (p : Point n) : Int := (val_s k p) / (mod_base k)
+
+-- @@ L2697-2697 verbatim
+def calc_t (p : Point n) : Int := (val_t k p) / (mod_base k)
+
+-- @@ L2698-2700 verbatim
+def all_black_k : Finset (Point n) :=
+  univ.filter fun p =>
+    ((val_s k p) % (mod_base k) == 0) ∧ ((val_t k p) % (mod_base k) == 0)
+
+
+-- @@ L2702-2703 verbatim
+@[simp]
+def b_st_coords (s t : Int) : Int × Int := ((s - 1) + (t - 1) * k, s * k - t)
+
+-- @@ L2704-2711 verbatim
+def make_b_point (s t : Int)
+    (h_bounds : let b := b_st_coords k s t
+                0 ≤ b.1 ∧ b.1 < n ∧ 0 ≤ b.2 ∧ b.2 < n) : Point n :=
+  let b := b_st_coords k s t
+  ⟨⟨b.1.toNat,
+    by zify [h_bounds.1]; rw [Int.toNat_of_nonneg h_bounds.1]; exact h_bounds.2.1⟩,
+   ⟨b.2.toNat,
+    by zify [h_bounds.2.2.1]; rw [Int.toNat_of_nonneg h_bounds.2.2.1]; exact h_bounds.2.2.2⟩⟩
+
+-- @@ L2712-2713 verbatim
+def M_st (s t : Int) : Finset (Point n) :=
+  univ.filter fun p => p ∉ all_black_k k ∧ calc_s k p = s ∧ calc_t k p = t
+
+-- @@ L2714-2716 verbatim
+def in_white_rect (s t : Int) (p : Point n) : Prop :=
+  ((s - 1) + (t - 1) * k + 1 ≤ (p.1 : ℤ) ∧ (p.1 : ℤ) ≤ (s - 1) + t * k) ∧
+  (s * k - t ≤ (p.2 : ℤ) ∧ (p.2 : ℤ) ≤ (s + 1) * k - t - 1)
+
+
+-- @@ L2718-2721 verbatim
+structure BlackPointProps (s t : Int) (p : Point n) : Prop where
+  is_s : calc_s k p = s
+  is_t : calc_t k p = t
+  is_black : p ∈ all_black_k k
+
+
+-- @@ L2723-2741 verbatim
+lemma b_st_props (s t : Int)
+    (h_bounds : let b := b_st_coords k s t
+                0 ≤ b.1 ∧ b.1 < n ∧ 0 ≤ b.2 ∧ b.2 < n) :
+    BlackPointProps k s t (make_b_point k s t h_bounds) := by
+  let p := make_b_point k s t h_bounds
+  have h_pos : 0 < mod_base k := Int.add_pos_of_nonneg_of_pos (sq_nonneg _) (by decide)
+  have h_coords : (p.1 : ℤ) = (b_st_coords k s t).1 ∧ (p.2 : ℤ) = (b_st_coords k s t).2 := by
+    dsimp [p, make_b_point]
+    exact ⟨Int.toNat_of_nonneg h_bounds.1, Int.toNat_of_nonneg h_bounds.2.2.1⟩
+  have h_vals : val_s k p = s * mod_base k ∧ val_t k p = t * mod_base k := by
+    constructor <;> {
+      dsimp [val_s, val_t]; rw [h_coords.1, h_coords.2]; dsimp; ring
+    }
+  constructor
+  · rw [calc_s, h_vals.1]; exact Int.mul_ediv_cancel _ (ne_of_gt h_pos)
+  · rw [calc_t, h_vals.2]; exact Int.mul_ediv_cancel _ (ne_of_gt h_pos)
+  · simp only [all_black_k, mem_filter, mem_univ, true_and]
+    rw [beq_iff_eq, beq_iff_eq]; rw [h_vals.1, h_vals.2];
+    exact ⟨Int.mul_emod_left _ _, Int.mul_emod_left _ _⟩
+
+
+-- @@ L2743-2797 verbatim
+lemma M_subset_rect (s t : Int) (p : Point n) (hk : 2 ≤ k) :
+    p ∈ M_st k s t → in_white_rect k s t p := by
+  intro h_mem
+  rw [M_st, mem_filter] at h_mem
+  obtain ⟨_, hp_white, hs_eq, ht_eq⟩ := h_mem
+  have hM : (0 : ℤ) < mod_base k := mod_base_pos k
+  have hk_pos : (0 : ℤ) < k := by lia
+  unfold calc_s at hs_eq; rw [Int.ediv_eq_iff_of_pos hM] at hs_eq
+  rw [calc_t, Int.ediv_eq_iff_of_pos hM] at ht_eq
+  -- ds, dt are the "remainders": 0 ≤ ds, dt < M
+  set ds := val_s k p - s * mod_base k
+  set dt := val_t k p - t * mod_base k
+  have hds : 0 ≤ ds ∧ ds < mod_base k := ⟨by linarith [hs_eq.1], by linarith [hs_eq.2]⟩
+  have hdt : 0 ≤ dt ∧ dt < mod_base k := ⟨by linarith [ht_eq.1], by linarith [ht_eq.2]⟩
+  -- Key identities relating coordinates to remainders
+  have hx : mod_base k * ((p.1 : ℤ) - ((s - 1) + (t - 1) * k)) = ds + k * dt := by
+    simp only [ds, dt, val_s, val_t, mod_base]; ring
+  have hy : mod_base k * ((p.2 : ℤ) - (s * k - t)) = k * ds - dt := by
+    simp only [ds, dt, val_s, val_t, mod_base]; ring
+  have hkdt_nn : 0 ≤ k * dt := mul_nonneg hk_pos.le hdt.1
+  have hkds_nn : 0 ≤ k * ds := mul_nonneg hk_pos.le hds.1
+  -- ds + k*dt > 0 because equality would make p black
+  have hx_pos : 0 < ds + k * dt := by
+    rcases lt_or_eq_of_le (by linarith : 0 ≤ ds + k * dt) with h | h
+    · exact h
+    · exfalso
+      have hds0 : ds = 0 := by linarith
+      have hkdt0 : k * dt = 0 := by linarith
+      have hdt0 : dt = 0 := (mul_eq_zero.mp hkdt0).resolve_left (by lia)
+      simp only [ds] at hds0; simp only [dt] at hdt0
+      exact hp_white (by simp [all_black_k, beq_iff_eq, show val_s k p = s * mod_base k by linarith,
+        show val_t k p = t * mod_base k by linarith, Int.mul_emod_left])
+  refine ⟨⟨?_, ?_⟩, ⟨?_, ?_⟩⟩
+  · -- x lower: ds + k*dt > 0 and M > 0, so p.1 - xb ≥ 1
+    by_contra! hc
+    have := Int.lt_add_one_iff.mp hc
+    linarith [mul_nonpos_of_nonneg_of_nonpos hM.le (show (p.1 : ℤ) - ((s-1)+(t-1)*k) ≤ 0 by linarith)]
+  · -- x upper: ds + k*dt < M + k*M = M*(k+1)
+    by_contra! hc
+    have h1 := Int.add_one_le_iff.mpr hc
+    have h2 : (t : ℤ) * k - (t - 1) * k = k := by ring
+    have h3 := mul_le_mul_of_nonneg_left (show (k : ℤ)+1 ≤ (p.1 : ℤ) - ((s - 1) + (t - 1) * k) by linarith) hM.le
+    have h4 : mod_base k + k * mod_base k = mod_base k * (↑k + 1) := by ring
+    linarith [hds.2, Int.mul_lt_mul_of_pos_left hdt.2 hk_pos]
+  · -- y lower: k*ds - dt > -M
+    by_contra! hc
+    have h1 := mul_le_mul_of_nonneg_left (show (p.2 : ℤ) - (s * k - t) ≤ -1 by clear * - hc; lia) hM.le
+    linarith [hy, hdt.2]
+  · -- y upper: k*ds - dt < k*M
+    by_contra! hc
+    have h1 := Int.add_one_le_iff.mpr hc
+    have h2 : (s + 1 : ℤ) * k - s * k = k := by ring
+    have h3 := mul_le_mul_of_nonneg_left (show (k : ℤ) ≤ (p.2 : ℤ) - (s * k - t) by linarith) hM.le
+    clear * - h3 hds hdt hk_pos
+    linarith [Int.mul_lt_mul_of_pos_left hds.2 hk_pos, hdt.1]
+
+
+-- @@ L2799-2859 verbatim
+lemma rect_subset_M (s t : Int) (p : Point n)
+    (hk : 2 ≤ k) :
+    in_white_rect k s t p → p ∈ M_st k s t := by
+  intro h_rect
+  let M := mod_base k
+  have h_pos : 0 < M := mod_base_pos k
+  rcases h_rect with ⟨⟨hx_ge, hx_le⟩, ⟨hy_ge, hy_le⟩⟩
+  have h_val_s_strict : s * M < val_s k p ∧ val_s k p < (s + 1) * M := by
+    constructor
+    · calc s * M
+        _ = ((s - 1) + (t - 1) * k + 1) + k * (s * k - t) + k + 1 - val_s k p + val_s k p -1 := by
+            dsimp [val_s, M]; ring
+        _ ≤ p.1 + k * p.2 + k := by
+            dsimp [val_s]; simp; gcongr
+        _ = val_s k p - 1 := by ring
+        _ < val_s k p := by simp
+    · calc val_s k p
+        _ = p.1 + k * p.2 + k + 1 := rfl
+        _ ≤ ((s - 1) + t * k) + k * ((s + 1) * k - t - 1) + k + 1 := by gcongr
+        _ = s * M + k^2 := by dsimp [M]; ring
+        _ < s * M + (k^2 + 1) := by simp
+        _ = (s + 1) * M := by dsimp [M]; ring
+  have h_val_t_strict : t * M < val_t k p ∧ val_t k p < (t + 1) * M := by
+    constructor
+    · calc t * M
+        _ = k * ((s - 1) + (t - 1) * k + 1) - ((s + 1) * k - t - 1) + k^2 + k - 1 := by
+             dsimp [val_t, M]; ring
+        _ ≤ k * p.1 - p.2 + k^2 + k - 1 := by gcongr
+        _ = val_t k p - 1 := by ring
+        _ < val_t k p := by simp
+    · calc val_t k p
+        _ = k * p.1 - p.2 + k^2 + k := rfl
+        _ ≤ k * ((s - 1) + t * k) - (s * k - t) + k^2 + k := by gcongr
+        _ = t * M + k^2 := by dsimp [M]; ring
+        _ < t * M + (k^2 + 1) := by simp
+        _ = (t + 1) * M := (add_one_mul t M).symm
+  simp only  [M_st, mem_filter, mem_univ, true_and]
+  constructor
+  · simp only [all_black_k, mem_filter]
+    rw [not_and_or]
+    right
+    rw [beq_iff_eq]
+    have h_val_s_mod_ne_zero: val_s k p % M ≠ 0 := by
+      rw [← Int.sub_mul_emod_self_right (val_s k p) s M]
+      have h_diff_pos : 0 < val_s k p - s * M := by linarith [h_val_s_strict.1]
+      have h_diff_lt  : val_s k p - s * M < M := by linarith [h_val_s_strict.2]
+      rw [Int.emod_eq_of_lt (le_of_lt h_diff_pos) h_diff_lt]
+      exact ne_of_gt h_diff_pos
+    change ¬(val_s k p % M = 0 ∧ _)
+    simp [h_val_s_mod_ne_zero]
+  · constructor
+    · rw [calc_s]
+      rw [Int.ediv_eq_iff_of_pos h_pos]
+      constructor
+      · exact le_of_lt h_val_s_strict.1
+      · linarith [h_val_s_strict.2]
+    · rw [calc_t]
+      rw [Int.ediv_eq_iff_of_pos h_pos]
+      constructor
+      · exact le_of_lt h_val_t_strict.1
+      · linarith [h_val_t_strict.2]
+
+
+-- @@ L2861-2862 verbatim
+instance (k : ℕ) (s t : Int) : DecidablePred (in_white_rect k s t) := by
+  intro p; unfold in_white_rect; infer_instance
+
+
+-- @@ L2864-2865 verbatim
+def rect_finset (s t : Int) : Finset (Point n) :=
+  univ.filter (in_white_rect k s t)
+
+
+-- @@ L2867-2871 verbatim
+lemma M_st_eq_rect (s t : Int) (hk : 2 ≤ k) :
+    M_st k s t = rect_finset k s t := by
+  ext p
+  simp only [rect_finset, mem_filter, mem_univ, true_and]
+  exact ⟨M_subset_rect k s t p hk, rect_subset_M k s t p hk⟩
+
+
+-- @@ L2873-2876 verbatim
+lemma mem_rect_iff_idx_eq (p : Point (k * k)) (s t : ℤ) (hk : 2 ≤ k) :
+    p ∈ rect_finset k s t ↔ (p ∉ all_black_k k ∧ calc_s k p = s ∧ calc_t k p = t) := by
+  rw [← M_st_eq_rect k s t hk]
+  simp [M_st]
+
+
+-- @@ L2878-2924 verbatim
+lemma s_t_range (hk : 2 ≤ k) (p : Point n) :
+    0 ≤ calc_s k p ∧ calc_s k p ≤ k ∧
+    0 ≤ calc_t k p ∧ calc_t k p ≤ k := by
+  let M := mod_base k
+  have h_pos : 0 < M := mod_base_pos k
+  have hk_pos : 0 < (k : ℤ) := by lia
+  have hx : 0 ≤ (p.1 : ℤ) ∧ (p.1 : ℤ) ≤ k^2 - 1 := by
+    constructor
+    · exact Int.natCast_nonneg _
+    · have h := p.1.isLt
+      zify at h; linarith
+  have hy : 0 ≤ (p.2 : ℤ) ∧ (p.2 : ℤ) ≤ k^2 - 1 := by
+    constructor
+    · exact Int.natCast_nonneg _
+    · have h := p.2.isLt
+      zify at h; linarith
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [calc_s]
+    exact Int.ediv_nonneg (Int.zero_le_ofNat _) (le_of_lt h_pos)
+  · dsimp [calc_s]
+    rw [Int.le_iff_lt_add_one]
+    rw [Int.ediv_lt_iff_lt_mul h_pos]
+    dsimp [val_s, M, mod_base]
+    calc (p.1 : ℤ) + k * p.2 + k + 1
+      _ ≤ (k^2 - 1) + k * (k^2 - 1) + k + 1 := by
+        gcongr
+        · exact hx.2
+        · exact hy.2
+      _ = k^3 + k^2 := by ring
+      _ < k^3 + k^2 + k + 1 := by simp
+      _ = (k+1) * (k^2 + 1) := by ring
+  · rw [calc_t]
+    apply Int.ediv_nonneg
+    · dsimp [val_t]; nlinarith
+    · exact le_of_lt h_pos
+  · dsimp [calc_t]
+    rw [Int.le_iff_lt_add_one]
+    rw [Int.ediv_lt_iff_lt_mul h_pos]
+    dsimp [val_t, M, mod_base]
+    calc (k:ℤ) * p.1 - p.2 + k^2 + k
+      _ ≤ k * (k^2 - 1) - 0 + k^2 + k := by
+        gcongr
+        · exact hx.2
+        · exact hy.1
+      _ = (k + 1) * k^2 := by ring
+      _ < k^3 + k^2 + k + 1 := by linarith
+      _ = (k+1) * (k^2 + 1) := by ring
+
+
+-- @@ L2926-2949 verbatim
+lemma M_00_empty (hk : 2 ≤ k) : M_st k 0 0 = ∅ := by
+  rw [eq_empty_iff_forall_notMem]
+  intro p hp
+  rw [M_st, mem_filter] at hp
+  obtain ⟨_, _, hs, ht⟩ := hp
+  let M := mod_base k
+  have h_pos : 0 < M := mod_base_pos k
+  have hk_pos : 0 < (k : ℤ) := by lia
+  rw [calc_s, Int.ediv_eq_iff_of_pos h_pos] at hs
+  rw [calc_t, Int.ediv_eq_iff_of_pos h_pos] at ht
+  simp only [Int.zero_mul, Int.zero_add] at hs ht
+  have h_y_lower : (k : ℤ) * p.1 + k ≤ p.2 := by
+    dsimp [val_t, M] at ht
+    linarith [ht.2]
+  have h_contra : val_s k p > (k : ℤ)^2 + k := by
+    calc val_s k p
+      _ = p.1 + k * p.2 + k + 1 := rfl
+      _ ≥ p.1 + k * (k * p.1 + k) + k + 1 := by gcongr
+      _ = p.1 * (1 + k^2) + k^2 + k + 1 := by ring
+      _ ≥ 0 * (1 + k^2) + k^2 + k + 1 := by gcongr; exact Int.natCast_nonneg p.1
+      _ = k^2 + k + 1 := by ring
+      _ > k^2 + k := Int.lt_succ _
+  dsimp [M] at hs
+  linarith [hs.2, h_contra, (by lia : 0 < (k : ℤ))]
+
+
+-- @@ L2951-2970 verbatim
+lemma M_k0_empty : M_st k k 0 = ∅ := by
+  rw [eq_empty_iff_forall_notMem]
+  intro p hp
+  simp only [M_st, mem_filter, mem_univ, true_and] at hp
+  obtain ⟨_, hs, ht⟩ := hp
+  let M := mod_base k
+  have h_pos : 0 < M := mod_base_pos k
+  rw [calc_s, Int.ediv_eq_iff_of_pos h_pos] at hs
+  rw [calc_t, Int.ediv_eq_iff_of_pos h_pos] at ht
+  simp only [Int.zero_mul, Int.zero_add] at hs ht
+  have h_y_upper : (p.2 : ℤ) < k^2 := by
+    let hp_lt := p.2.isLt
+    zify at hp_lt; rw [pow_two]; exact hp_lt
+  have h_y_ge : (p.2 : ℤ) ≥ k * p.1 + k := by
+    dsimp [val_t, M] at ht
+    linarith [ht.2]
+  have h_s_bound : (p.1 : ℤ) + k * p.2 ≥ k^3 - 1 := by
+    dsimp [val_s, M] at hs
+    linarith [hs.1]
+  nlinarith [h_y_ge, h_s_bound, h_y_upper]
+
+
+-- @@ L2972-2989 verbatim
+lemma M_0k_empty (hk : 2 ≤ k) : M_st k 0 k = ∅ := by
+  rw [eq_empty_iff_forall_notMem]
+  intro p hp
+  simp only [M_st, mem_filter, mem_univ, true_and] at hp
+  obtain ⟨_, hs, ht⟩ := hp
+  let M := mod_base k
+  have h_pos : 0 < M := mod_base_pos k
+  rw [calc_s, Int.ediv_eq_iff_of_pos h_pos] at hs
+  rw [calc_t, Int.ediv_eq_iff_of_pos h_pos] at ht
+  simp only [Int.zero_mul, Int.zero_add] at hs
+  have h_s_upper : (p.1 : ℤ) + k * p.2 < k^2 - k := by
+    dsimp [val_s, M] at hs
+    linarith [hs.2]
+  have h_t_lower : (k : ℤ) * p.1 - p.2 ≥ k^3 - k^2 := by
+    dsimp [val_t, M] at ht
+    linarith [ht.1]
+  have hp_y_nonneg : 0 ≤ (p.2 : ℤ) := Int.natCast_nonneg p.2
+  nlinarith [h_s_upper, h_t_lower, hp_y_nonneg]
+
+
+-- @@ L2991-3040 verbatim
+lemma M_kk_empty (_ : 2 ≤ k) : M_st k k k = ∅ := by
+  rw [eq_empty_iff_forall_notMem]
+  intro p hp
+  simp only [M_st, mem_filter, mem_univ, true_and] at hp
+  obtain ⟨_, hs, ht⟩ := hp
+  let M := mod_base k
+  have h_pos : 0 < M := mod_base_pos k
+  rw [calc_s, Int.ediv_eq_iff_of_pos h_pos] at hs
+  rw [calc_t, Int.ediv_eq_iff_of_pos h_pos] at ht
+  have h_x_bound : (p.1 : ℤ) ≤  k^2 - 1 := by
+    let hp_lt := p.1.isLt
+    zify at hp_lt; rw [pow_two]; exact Int.le_sub_one_of_lt hp_lt
+  have h_y_bound : (p.2 : ℤ) ≤  k^2 - 1  := by
+    let hp_lt := p.2.isLt
+    zify at hp_lt; rw [pow_two]; exact Int.le_sub_one_of_lt hp_lt
+  have h_t_ge : (k : ℤ) * p.1 - p.2 + k^2 + k ≥ k * M := ht.1
+  have h_s_ge : (p.1 : ℤ) + k * p.2 + k + 1 ≥ k * M := hs.1
+  dsimp [val_s, val_t, M] at h_t_ge h_s_ge
+  have h_combine : (k : ℤ) * (k * p.1 - p.2 + k^2 + k) + (p.1 + k * p.2 + k + 1)
+    ≥ (k : ℤ) * (k * M) + k * M := by nlinarith [h_t_ge, h_s_ge]
+  have h_x_eq : (p.1 : ℤ) = k^2 - 1 := by
+    dsimp [M, mod_base] at h_combine
+    have h_lhs: (k : ℤ) * (k * p.1 - p.2 + k^2 + k) + (p.1 + k * p.2 + k + 1)
+         = (k^2 + 1) * p.1 + (k^3 + k^2 + k + 1) := by ring
+    rw [h_lhs] at h_combine
+    have h_rhs: (k : ℤ) * (k * (k^2 + 1)) + k * (k^2 + 1)
+         = (k^2 + 1) * (k^2 + k) := by ring
+    rw [h_rhs] at h_combine
+    nlinarith [h_x_bound, h_combine, (by lia : 0 < (k : ℤ))]
+  have h_y_eq : (p.2 : ℤ) = k^2 - k := by
+    rw [h_x_eq] at h_s_ge h_t_ge
+    dsimp [M, mod_base] at h_s_ge h_t_ge
+    apply le_antisymm
+    · linarith [h_t_ge, h_s_ge]
+    · nlinarith [h_t_ge, h_s_ge]
+  have h_black : p ∈ all_black_k k := by
+    simp only [all_black_k, mem_filter, mem_univ, true_and]
+    rw [beq_iff_eq, beq_iff_eq]
+    constructor
+    · dsimp [val_s, M, mod_base]
+      rw [h_x_eq, h_y_eq]
+      have h_eq: (k^2 - 1 : ℤ) + k * (k^2 - k) + k + 1 = k * (k^2 + 1) := by ring
+      rw [h_eq]
+      exact Int.mul_emod_left _ _
+    · dsimp [val_t, M, mod_base]
+      rw [h_x_eq, h_y_eq]
+      have h_eq: (k : ℤ) * (k^2 - 1) - (k^2 - k) + k^2 + k = k * (k^2 + 1) := by ring
+      rw [h_eq]
+      exact Int.mul_emod_left _ _
+  contradiction
+
+
+-- @@ L3042-3090 verbatim
+def clipped_rect [NeZero k] (hk : 2 ≤ k) (s t : Int) : Option (Matilda (k * k) (all_black_k k)) :=
+  let r_xmin := (s - 1) + (t - 1) * k + 1
+  let r_xmax := (s - 1) + t * k
+  let r_ymin := s * k - t
+  let r_ymax := (s + 1) * k - t - 1
+  let new_xmin := max 0 r_xmin
+  let new_xmax := min (k * k - 1 : ℤ) r_xmax
+  let new_ymin := max 0 r_ymin
+  let new_ymax := min (k * k - 1 : ℤ) r_ymax
+  if h_valid : new_xmin ≤ new_xmax ∧ new_ymin ≤ new_ymax then
+    some {
+      x_min := new_xmin.toNat
+      x_max := new_xmax.toNat
+      y_min := new_ymin.toNat
+      y_max := new_ymax.toNat
+      h_x_le := Int.toNat_le_toNat h_valid.1
+      h_y_le := Int.toNat_le_toNat h_valid.2
+      h_x_bound := by
+        zify; simp; exact ⟨lt_of_le_of_lt (min_le_left _ _) (by lia), by lia⟩
+      h_y_bound := by
+        zify; simp; exact ⟨lt_of_le_of_lt (min_le_left _ _) (by lia), by lia⟩
+      h_disjoint := by
+        intro p hp h_in_rect
+        zify at h_in_rect
+        obtain ⟨hx1, hx2, hy1, hy2⟩ := h_in_rect
+        try zify at hx1 hx2 hy1 hy2
+        have h_xmin_nonneg : 0 ≤ new_xmin := le_max_left 0 r_xmin
+        have h_ymin_nonneg : 0 ≤ new_ymin := le_max_left 0 r_ymin
+        have h_xmax_nonneg : 0 ≤ new_xmax := le_trans h_xmin_nonneg h_valid.1
+        have h_ymax_nonneg : 0 ≤ new_ymax := le_trans h_ymin_nonneg h_valid.2
+        simp only [Int.toNat_of_nonneg h_xmin_nonneg] at hx1
+        simp only [Int.toNat_of_nonneg h_xmax_nonneg] at hx2
+        simp only [Int.toNat_of_nonneg h_ymin_nonneg] at hy1
+        simp only [Int.toNat_of_nonneg h_ymax_nonneg] at hy2
+        have h_wr : in_white_rect k s t p := by
+          constructor
+          · constructor
+            · linarith [le_max_right 0 r_xmin, hx1]
+            · exact le_of_le_min_right hx2
+          · constructor
+            · linarith [le_max_right 0 r_ymin, hy1]
+            · exact le_of_le_min_right hy2
+        have h_in_M := rect_subset_M k s t p hk h_wr
+        rw [M_st, mem_filter] at h_in_M
+        rcases h_in_M with ⟨_, h_not_black, _⟩
+        contradiction
+    }
+  else
+    none
+
+
+-- @@ L3092-3122 verbatim
+lemma matilda_upper_bound_sum (k : ℕ) (hk : 2 ≤ k) :
+    let kz : ℤ := k
+    let range_sq := Finset.Icc 0 kz ×ˢ Finset.Icc 0 kz
+    let corners : Finset (ℤ × ℤ) := {(0, 0), (kz, 0), (0, kz), (kz, kz)}
+    let valid_indices := range_sq \ corners
+    valid_indices.card = k^2 + 2 * k - 3 := by
+  intro kz range_sq corners valid_indices
+  have h_total : range_sq.card = (k + 1) * (k + 1) := by
+    dsimp [range_sq]
+    rw [Finset.card_product]
+    simp only [Int.card_Icc]
+    have : (kz + 1 - 0).toNat = k + 1 := by dsimp [kz]; simp
+    rw [this]
+  have h_corners : corners.card = 4 := by
+    dsimp [corners]
+    have h_ne : kz ≠ 0 := by dsimp [kz]; lia
+    repeat rw [card_insert_of_notMem] <;> try (simp [Prod.mk.injEq]; lia)
+    rw [card_singleton]
+  have h_subset : corners ⊆ range_sq := by
+    intro p hp
+    simp only [corners, mem_insert, mem_singleton] at hp
+    rcases hp with rfl | rfl | rfl | rfl
+    all_goals (
+      simp only [range_sq, mem_product, mem_Icc]
+      constructor <;> constructor <;> lia
+    )
+  rw [card_sdiff, inter_eq_left.mpr h_subset]
+  rw [h_total, h_corners]
+  have h_eq: (k + 1) * (k + 1) = k^2 + 2 * k + 1 := by ring
+  rw [h_eq]
+  lia
+
+
+-- @@ L3124-3147 verbatim
+lemma eq_of_modEq_fin {k : ℕ} (_ : 2 ≤ k) {a b : Fin (k * k)}
+    (h_equiv : (a : ℤ) ≡ b [ZMOD mod_base k]) : a = b := by
+  let M := mod_base k
+  rw [Int.modEq_iff_dvd] at h_equiv
+  let diff : ℤ := (b : ℤ) - (a : ℤ)
+  change M ∣ diff at h_equiv
+  have h_diff_zero : diff = 0 := by
+    by_contra h_ne
+    have h_abs_lt : |diff| < M := by
+      rw [abs_sub_lt_iff]
+      have ha : (a : ℤ) < k^2 := by rw [pow_two]; exact Int.ofNat_lt.mpr a.isLt
+      have hb : (b : ℤ) < k^2 := by rw [pow_two]; exact Int.ofNat_lt.mpr b.isLt
+      constructor
+      · calc (b : ℤ) - a
+          _ < (k:ℤ)^2 - 0 := by linarith [Int.natCast_nonneg b]
+          _ < M           := by lia
+      · calc (a : ℤ) - b
+          _ < (k:ℤ)^2 - 0 := by linarith [Int.natCast_nonneg a]
+          _ < M          := by lia
+    have h_dvd_abs : M ∣ |diff| := by rw [dvd_abs]; exact h_equiv
+    have h_le : M ≤ |diff| :=
+      Int.le_of_dvd (abs_pos.mpr h_ne) h_dvd_abs
+    lia
+  omega
+
+
+-- @@ L3149-3175 verbatim
+lemma unique_row_all_black (k : ℕ) (hk : 2 ≤ k) :
+    ∀ p1 ∈ all_black_k k, ∀ p2 ∈ all_black_k k, px p1 = px p2 → p1 = p2 := by
+  intro p1 hp1 p2 hp2 hx
+  simp only [all_black_k, mem_filter, beq_iff_eq] at hp1 hp2
+  obtain ⟨_, ht1⟩ := hp1
+  obtain ⟨_, ht2⟩ := hp2
+  let M := mod_base k
+  have h_pos : M > 0 := by apply Int.add_pos_of_nonneg_of_pos (sq_nonneg _) (by decide)
+  have h_equiv : val_t k p1 ≡ val_t k p2 [ZMOD M] := ht1.2.trans ht2.2.symm
+  dsimp [val_t] at h_equiv
+  rw [Int.ofNat_inj.mpr hx] at h_equiv
+  let C := (k : ℤ) * p2.1 + k^2 + k
+  have h_step : (k : ℤ) * p2.1 - p1.2 + k^2 + k = C - p1.2 := by
+    dsimp [C]; ring
+  have h_step2 : (k : ℤ) * p2.1 - p2.2 + k^2 + k = C - p2.2 := by
+    dsimp [C]; ring
+  rw [h_step, h_step2] at h_equiv
+  rw [sub_eq_add_neg, sub_eq_add_neg] at h_equiv
+  have h_neg_y : -(p1.2 : ℤ) ≡ -(p2.2 : ℤ) [ZMOD M] := by
+    exact Int.ModEq.add_left_cancel  (Int.ModEq.refl C) h_equiv
+  have h_y_equiv : (p1.2 : ℤ) ≡ p2.2 [ZMOD M] := by
+    apply Int.ModEq.neg at h_neg_y
+    simpa using h_neg_y
+  have h_y_eq : p1.2 = p2.2 := eq_of_modEq_fin hk h_y_equiv
+  ext
+  · exact hx
+  · rw [h_y_eq]
+
+
+-- @@ L3177-3196 verbatim
+lemma unique_col_all_black (k : ℕ) (hk : 2 ≤ k) :
+    ∀ p1 ∈ all_black_k k, ∀ p2 ∈ all_black_k k, py p1 = py p2 → p1 = p2 := by
+  intro p1 hp1 p2 hp2 hy
+  simp only [all_black_k, mem_filter, beq_iff_eq] at hp1 hp2
+  obtain ⟨_, hs1⟩ := hp1
+  obtain ⟨_, hs2⟩ := hp2
+  let M := mod_base k
+  have h_pos : M > 0 := by apply Int.add_pos_of_nonneg_of_pos (sq_nonneg _) (by decide)
+  have h_equiv : val_s k p1 ≡ val_s k p2 [ZMOD M] := hs1.1.trans hs2.1.symm
+  dsimp [val_s] at h_equiv
+  rw [Int.ofNat_inj.mpr hy] at h_equiv
+  let C := (k : ℤ) * p2.2 + k + 1
+  have h_step1 : (p1.1 : ℤ) + k * p2.2 + k + 1 = p1.1 + C := by dsimp [C]; ring
+  have h_step2 : (p2.1 : ℤ) + k * p2.2 + k + 1 = p2.1 + C := by dsimp [C]; ring
+  rw [h_step1, h_step2] at h_equiv
+  have h_x_equiv : (p1.1 : ℤ) ≡ p2.1 [ZMOD M] := Int.ModEq.add_right_cancel' C h_equiv
+  have h_x_eq : p1.1 = p2.1 := eq_of_modEq_fin hk h_x_equiv
+  ext
+  · rw [h_x_eq]
+  · exact hy
+
+
+-- @@ L3198-3205 verbatim
+theorem card_all_black_le (k : ℕ) (hk : 2 ≤ k) :
+    (all_black_k k).card ≤ k * k := by
+  nth_rewrite 2 [← Fintype.card_fin (k * k)]
+  rw [← card_univ]
+  apply card_le_card_of_injOn (fun p => p.1)
+  · intro p hp; exact mem_univ p.1
+  · intro p1 hp1 p2 hp2 hx
+    exact unique_row_all_black k hk p1 hp1 p2 hp2 (congrArg Fin.val hx)
+
+
+-- @@ L3207-3226 verbatim
+lemma b_st_bounds_valid (k : ℕ) (hk : 2 ≤ k) (s t : ℕ)
+    (hs : 1 ≤ s ∧ s ≤ k) (ht : 1 ≤ t ∧ t ≤ k) :
+    let b := b_st_coords k s t
+    0 ≤ b.1 ∧ b.1 < k * k ∧ 0 ≤ b.2 ∧ b.2 < k * k := by
+  dsimp [b_st_coords]
+  zify at hs ht hk
+  refine ⟨?_,?_, ?_, ?_⟩
+  · apply add_nonneg
+    · linarith
+    · apply mul_nonneg <;> linarith
+  · calc ((s : ℤ) - 1) + ((t : ℤ) - 1) * k
+      _ ≤ (k - 1) + (k - 1) * k := by gcongr <;> lia
+      _ = k^2 - 1 := by ring
+      _ < k * k := by linarith
+  · calc (s : ℤ) * k - t
+      _ ≥ 1 * k - k := by gcongr <;> lia
+      _ = 0 := by ring
+  · calc (s : ℤ) * k - t
+      _ ≤ k * k - 1 := by gcongr <;> lia
+      _ < k * k := by linarith
+
+
+-- @@ L3228-3277 verbatim
+theorem card_all_black_ge (k : ℕ) (hk : 2 ≤ k) :
+    k * k ≤ (all_black_k k).card := by
+  let domain : Finset (Fin k × Fin k) := univ
+  let f : (Fin k × Fin k) → Point (k * k) := fun ⟨i, j⟩ =>
+    let s := (i.val : ℤ) + 1
+    let t := (j.val : ℤ) + 1
+    have : s ≤ k ∧ t ≤ k := by omega
+    make_b_point k s t (by
+      apply b_st_bounds_valid k hk _ _
+      · constructor <;> linarith
+      · constructor <;> linarith
+    )
+  have h_card : domain.card = k * k := by
+    dsimp [domain]
+    rw [Fintype.card_prod, Fintype.card_fin]
+  nth_rewrite 1 [← h_card]
+  apply Finset.card_le_card_of_injOn f
+  · intro ⟨i, j⟩ _
+    dsimp [f]
+    let s := (i.val : ℤ) + 1
+    let t := (j.val : ℤ) + 1
+    have : s ≤ k ∧ t ≤ k := by omega
+    have h_props := b_st_props k s t (by
+       apply b_st_bounds_valid k hk _ _ <;> constructor <;> linarith
+    )
+    exact h_props.is_black
+  · intro ⟨i1, j1⟩ _ ⟨i2, j2⟩ _ h_eq
+    dsimp [f] at h_eq
+    let s1 := (i1.val : ℤ) + 1; let t1 := (j1.val : ℤ) + 1
+    let s2 := (i2.val : ℤ) + 1; let t2 := (j2.val : ℤ) + 1
+    have h_ineq: s1 ≤ k ∧ s2 ≤ k ∧ t1 ≤ k ∧ t2 ≤ k := by omega
+    have h_prop1 := b_st_props k s1 t1 (by
+      apply b_st_bounds_valid k hk _ _ <;> constructor <;> linarith)
+    have h_prop2 := b_st_props k s2 t2 (by
+      apply b_st_bounds_valid k hk _ _ <;> constructor <;> linarith)
+    have h_s_val_eq :
+    calc_s k (make_b_point k s1 t1
+      (by apply b_st_bounds_valid k hk _ _ <;> constructor <;> linarith))
+      = calc_s k (make_b_point k s2 t2
+        (by apply b_st_bounds_valid k hk _ _ <;> constructor <;> linarith)) :=
+      congrArg (calc_s k) h_eq
+    rw [h_prop1.is_s, h_prop2.is_s] at h_s_val_eq
+    have h_s_eq : s1 = s2 := h_s_val_eq
+    have h_t_val_eq := congrArg (calc_t k) h_eq
+    rw [h_prop1.is_t, h_prop2.is_t] at h_t_val_eq
+    have h_t_eq : t1 = t2 := h_t_val_eq
+    simp [s1, s2, t1, t2] at h_s_eq h_t_eq
+    ext
+    · simp; exact h_s_eq
+    · simp; exact h_t_eq
+
+
+-- @@ L3279-3281 verbatim
+lemma card_all_black_k_eq_n (k : ℕ) (hk : 2 ≤ k) :
+    (all_black_k k).card = k * k :=
+  le_antisymm (card_all_black_le k hk) (card_all_black_ge k hk)
+
+
+-- @@ L3283-3296 verbatim
+noncomputable def construct_partition (k : ℕ) (hk : 2 ≤ k) [NeZero k]
+    [DecidableEq (Matilda (k * k) (all_black_k k))] :
+    Finset (Matilda (k * k) (all_black_k k)) :=
+  let kz : ℤ := k
+  have : NeZero (k * k) := ⟨Nat.mul_ne_zero NeZero.out NeZero.out⟩
+  let valid_indices := (Icc 0 kz ×ˢ Icc 0 kz) \
+                       {(0, 0), (kz, 0), (0, kz), (kz, kz)}
+  let P_list := valid_indices.toList.filterMap (fun x =>
+    match clipped_rect k hk x.1 x.2 with
+    | some m => some (cast (by dsimp) m)
+    | none => none
+  )
+
+  P_list.toFinset
+
+
+-- @@ L3298-3298 verbatim
+variable {k : ℕ} (hk : 2 ≤ k) [NeZero k]
+
+-- @@ L3299-3299 verbatim
+def f (p : Point (k * k)) : ℤ × ℤ := (calc_s k p, calc_t k p)
+
+
+-- @@ L3301-3303 verbatim
+lemma mem_M_st_iff_fiber {k : ℕ} {p : Point (k * k)} {s t : ℤ} :
+    p ∈ M_st k s t ↔ (f p = (s, t) ∧ p ∉ all_black_k k) := by
+  simp [f, M_st]; tauto
+
+
+-- @@ L3305-3354 verbatim
+lemma mem_matilda_iff_mem_M_st {k : ℕ} {hk : 2 ≤ k} [NeZero k]
+    {idx : ℤ × ℤ} {m : Matilda (k * k) (all_black_k k)}
+    (h_clipped : clipped_rect k hk idx.1 idx.2 = some m) {p : Point (k * k)} :
+    m.mem p ↔ p ∈ M_st k idx.1 idx.2 := by
+  simp [M_st, mem_filter, mem_univ, true_and]
+  unfold clipped_rect at h_clipped
+  simp (config := { zeta := true }) at h_clipped
+  obtain ⟨h_valid, h_eq⟩ := h_clipped
+  subst h_eq
+  simp only [px, py]
+  have hx_p : 0 ≤ (p.1 : ℤ) ∧ (p.1 : ℤ) ≤ ↑(k * k) - 1 :=
+  ⟨by linarith, by omega⟩
+  have hy_p : 0 ≤ (p.2 : ℤ) ∧ (p.2 : ℤ) ≤ ↑(k * k) - 1 :=
+  ⟨by linarith, by omega⟩
+  zify at *
+  simp [hx_p, hy_p] at *
+  constructor
+  · intro h
+    rw [← mem_rect_iff_idx_eq k p idx.1 idx.2 hk]
+    simp [rect_finset, in_white_rect]
+    rcases h.2.1 with hx_le | hp1_zero
+    · constructor
+      · exact (And.imp_left (fun a ↦ hx_le) h.symm).symm
+      · constructor
+        · exact h.2.2.1
+        · rcases h.2.2.2 with hy_le | hp2_zero
+          · exact hy_le
+          · have : ↑↑p.2 = 0 := by rw [hp2_zero]; simp
+            rw [this]; zify; linarith [h_valid.2.2.1]
+    · constructor
+      · constructor
+        · exact h.1
+        · have : ↑↑p.1 = 0 := Fin.val_eq_zero_iff.mpr hp1_zero
+          linarith [h_valid]
+      · constructor
+        · exact h.2.2.1
+        · rcases h.2.2.2 with hy_le | hp2_zero
+          · exact hy_le
+          · have : ↑↑p.2 = 0 := Fin.val_eq_zero_iff.mpr hp2_zero
+            simp [this]; exact h_valid.2.2.1
+  · intro h_M
+    rw [← mem_rect_iff_idx_eq k p idx.1 idx.2 hk] at h_M
+    simp [rect_finset, in_white_rect] at h_M
+    constructor
+    · exact h_M.1.1
+    · constructor
+      · left; exact h_M.1.2
+      · constructor
+        · exact h_M.2.1
+        · left; exact h_M.2.2
+
+
+-- @@ L3356-3433 verbatim
+lemma construction_is_valid_partition (k : ℕ) (hk : 2 ≤ k) [NeZero k]
+    [DecidableEq (Matilda (k * k) (all_black_k k))] :
+    ∀ p ∉ all_black_k k, ∃! m ∈ construct_partition k hk, m.mem p := by
+  intro p hp_white
+  let s := calc_s k p; let t := calc_t k p
+  have h_range := s_t_range k hk p
+  have h_in_M : p ∈ M_st k s t := by
+    simp [M_st]; exact ⟨hp_white, rfl, rfl⟩
+  let kz : ℤ := k
+  have h_pos : 0 < kz * kz - 1 := by
+    have h_kk_ge_4 : 4 ≤ k * k := Nat.mul_le_mul hk hk
+    linarith
+  let valid_indices := (Finset.Icc 0 kz ×ˢ Finset.Icc 0 kz) \ {(0, 0), (kz, 0), (0, kz), (kz, kz)}
+  have h_idx_valid : (s, t) ∈ valid_indices := by
+    rw [show calc_s k p = s from rfl, show calc_t k p = t from rfl] at h_range
+    simp only [valid_indices, mem_sdiff, mem_product, mem_Icc, mem_insert, mem_singleton]
+    refine ⟨⟨⟨h_range.1, h_range.2.1⟩, ⟨h_range.2.2.1, h_range.2.2.2⟩⟩, ?_⟩
+    intro h_corner
+    rcases h_corner with h_eq | h_eq | h_eq | h_eq
+    · simp at h_eq; obtain ⟨hs ,ht⟩ := h_eq;
+      rw [hs, ht] at h_in_M; rw [M_00_empty k hk] at h_in_M; contradiction
+    · simp at h_eq; obtain ⟨hs, ht⟩ := h_eq
+      rw [hs, ht] at h_in_M; rw [M_k0_empty k] at h_in_M; contradiction
+    · simp at h_eq; obtain ⟨hs, ht⟩ := h_eq
+      rw [hs, ht] at h_in_M; rw [M_0k_empty k hk] at h_in_M; contradiction
+    · simp at h_eq; obtain ⟨hs, ht⟩ := h_eq
+      rw [hs, ht] at  h_in_M; rw [M_kk_empty k hk] at h_in_M; contradiction
+  have h_eq_rect := M_st_eq_rect k s t hk
+  rw [h_eq_rect] at h_in_M
+  have hx_range : 0 ≤ (p.1 : ℤ) ∧ (p.1 : ℤ) ≤ k * k - 1 := by omega
+  have hy_range : 0 ≤ (p.2 : ℤ) ∧ (p.2 : ℤ) ≤ k * k - 1 := by omega
+  obtain ⟨m_target, h_some, h_mem_p⟩ : ∃ m, clipped_rect k hk s t = some m ∧ m.mem p := by
+    unfold clipped_rect
+    simp only
+    split_ifs with h_valid
+    · refine ⟨{ x_min := _, x_max := _, y_min := _, y_max := _, h_x_le := _,
+                h_y_le := _, h_x_bound := _, h_y_bound := _, h_disjoint := _ }, rfl, ?_⟩
+      simp only [rect_finset, mem_filter, mem_univ, true_and] at h_in_M
+      unfold Matilda.mem
+      simp only [px, py]
+      zify
+      simp at *
+      repeat (first | constructor | linarith[hx_range, hy_range,
+        h_in_M.1.1, h_in_M.1.2, h_in_M.2.1, h_in_M.2.2])
+    · exfalso
+      simp only [rect_finset, mem_filter, mem_univ, true_and, in_white_rect] at h_in_M
+      obtain ⟨⟨hx_low, hx_high⟩, ⟨hy_low, hy_high⟩⟩ := h_in_M
+
+      exact h_valid ⟨by simp only [max_le_iff, le_min_iff]; exact ⟨⟨by linarith, by linarith⟩, by linarith, by linarith⟩,
+        by simp only [max_le_iff, le_min_iff]; exact ⟨⟨Int.le_of_lt h_pos, by linarith⟩, by linarith, by linarith⟩⟩
+  exists m_target
+  constructor
+  · constructor
+    · dsimp [construct_partition]
+      rw [List.mem_toFinset, List.mem_filterMap]
+      exact ⟨(s, t), ⟨mem_toList.mpr h_idx_valid, by simp [h_some]⟩⟩
+    · exact h_mem_p
+  · intro m' h_cond
+    obtain ⟨hm', h_mem_p'⟩ := h_cond
+    obtain ⟨idx', ⟨h_idx_valid', h_some'⟩⟩ := by
+      dsimp [construct_partition] at hm'
+      rw [List.mem_toFinset, List.mem_filterMap] at hm'
+      exact hm'
+    cases h_res : clipped_rect k hk idx'.1 idx'.2 with
+    | none =>
+      simp [h_res] at h_some'
+    | some m_val =>
+      simp [h_res] at h_some'
+      rw [h_some'] at h_res
+      rw [mem_matilda_iff_mem_M_st h_res] at h_mem_p'
+      rw [mem_M_st_iff_fiber] at h_mem_p'
+      have h_idx_match : (s, t) = idx' := by
+        have h_f_p : f p = (s, t) := rfl
+        rw [← h_f_p]
+        exact h_mem_p'.left
+      rw [← h_idx_match] at h_res
+      rw [h_res] at h_some
+      injection h_some with h_final
+
+
+-- @@ L3435-3435 verbatim
+end Construction
+
+
+-- @@ L3437-3442 verbatim
+private lemma sqrt_kk (k : ℕ) :
+    k * k + (4 * (k * k)).sqrt - 3 = k ^ 2 + 2 * k - 3 := by
+  have h_sqrt : (4 * (k * k)).sqrt = 2 * k := by
+    have : 4 * (k * k) = (2 * k) * (2 * k) := by ring
+    rw [this, Nat.sqrt_eq]
+  rw [h_sqrt]; ring_nf
+
+
+-- @@ L3444-3485 verbatim
+theorem matilda_solution_general (k : ℕ) (hk : 2 ≤ k) :
+    let n := k * k
+    have : NeZero n := ⟨by positivity⟩
+    IsMinMatildaCount n (k^2 + 2 * k - 3) := by
+  intro n
+  let m_ans := k^2 + 2 * k - 3
+  have : NeZero n := ⟨by positivity⟩
+  dsimp [IsMinMatildaCount]
+  constructor
+  · intro all_black partition h_valid
+    obtain ⟨h_card, h_row, h_col, h_part⟩ := h_valid
+    have h_raw := matilda_lower_bound h_card h_row h_col partition h_part
+    rw [sqrt_kk k] at h_raw
+    exact h_raw
+  · have : NeZero k := ⟨by positivity⟩
+    let : DecidableEq (Matilda (k * k) (all_black_k k)) := Classical.decEq _
+    let P := construct_partition k hk
+    exists (all_black_k k), P
+    constructor
+    · refine ⟨?_, ?_, ?_, ?_⟩
+      · exact card_all_black_k_eq_n k hk
+      · exact unique_row_all_black k hk
+      · exact unique_col_all_black k hk
+      · exact construction_is_valid_partition k hk
+    · apply le_antisymm
+      · dsimp [P]
+        rw [construct_partition]
+        dsimp
+        apply le_trans (List.toFinset_card_le _)
+        apply le_trans (List.length_filterMap_le _ _)
+        rw [length_toList]
+        rw [matilda_upper_bound_sum k hk]
+      · have h_valid_P : IsValidConfiguration n (all_black_k k) P := ⟨
+          card_all_black_k_eq_n k hk,
+          unique_row_all_black k hk,
+          unique_col_all_black k hk,
+          by dsimp [P]; exact construction_is_valid_partition k hk
+        ⟩
+        have h_lower := matilda_lower_bound
+          h_valid_P.1 h_valid_P.2.1 h_valid_P.2.2.1 P h_valid_P.2.2.2
+        rw [sqrt_kk k] at h_lower
+        exact h_lower
+
+
+-- @@ L3487-3487 verbatim
+snip end
+
+
+-- @@ L3489-3489 verbatim
+determine solution_value : ℕ := 2112
+
+
+-- @@ L3491-3492 verbatim
+problem imo2025_p6 : IsMinMatildaCount 2025  solution_value := by
+  simpa [solution_value] using matilda_solution_general 45 (by norm_num)
+
+
+-- @@ L3494-3494 verbatim
+end Imo2025P6

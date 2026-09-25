@@ -1,0 +1,1 @@
+{"names":["Usa2003P5.usa2003_p5","Usa2003P5.bound"],"modules":["Compfiles.Usa2003P5"],"moduleOf":{"Usa2003P5.usa2003_p5":"Compfiles.Usa2003P5","Usa2003P5.bound":"Compfiles.Usa2003P5"},"deps":{"Usa2003P5.usa2003_p5":["Usa2003P5.bound"],"Usa2003P5.bound":[]}}
