@@ -1,0 +1,36 @@
+{
+  "key": "ieantn",
+  "repo": "https://github.com/teorth/IEANTN",
+  "commit": "0096280ba7440f268701abffe25ccf8f2c2389da",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "IEANTN"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/ieantn/repo",
+  "entries": 6,
+  "modules": 4,
+  "exported": 4,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1522,
+    "kept": 6,
+    "skippedRoot": 1516,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 77824,
+  "minutes": 3,
+  "finishedAt": "2026-09-25T14:42:21.968Z"
+}
