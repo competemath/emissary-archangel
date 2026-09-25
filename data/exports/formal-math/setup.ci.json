@@ -1,0 +1,39 @@
+{
+  "key": "formal-math",
+  "repo": "https://github.com/anthropics/formal-math",
+  "commit": "fbdc36bbf17d20af3fd0447c6d1a8a02773c9844",
+  "toolchain": "leanprover/lean4:v4.33.0-rc2",
+  "roots": [
+    "Zeta23",
+    "ChallengeDeps",
+    "Challenge",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/formal-math/repo/zeta23",
+  "entries": 4560,
+  "modules": 303,
+  "exported": 303,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 4578,
+    "kept": 4560,
+    "skippedRoot": 18,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 8,
+    "lineUnverified": 3,
+    "nameFixed": 4139,
+    "sorryOriginals": 0,
+    "emptyProofs": 1
+  },
+  "exportsBytes": 154071040,
+  "minutes": 76,
+  "finishedAt": "2026-09-25T15:44:48.364Z"
+}
