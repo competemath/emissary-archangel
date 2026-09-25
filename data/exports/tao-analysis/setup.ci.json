@@ -1,0 +1,36 @@
+{
+  "key": "tao-analysis",
+  "repo": "https://github.com/teorth/analysis",
+  "commit": "245b2e16e2501170cd3d2c234edf74d298dbdc60",
+  "toolchain": "leanprover/lean4:v4.29.0-rc8",
+  "roots": [
+    "Analysis"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/tao-analysis/repo",
+  "entries": 1481,
+  "modules": 96,
+  "exported": 96,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 54,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1481,
+    "kept": 1481,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 743,
+    "lineUnverified": 1,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 1
+  },
+  "exportsBytes": 37650432,
+  "minutes": 113,
+  "finishedAt": "2026-09-25T17:27:17.142Z"
+}
