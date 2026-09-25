@@ -1,0 +1,1 @@
+{"names":["Finset.measurable_prod''","Finset.measurable_sum''"],"modules":["PFR.Mathlib.MeasureTheory.Group.Arithmetic"],"moduleOf":{"Finset.measurable_prod''":"PFR.Mathlib.MeasureTheory.Group.Arithmetic","Finset.measurable_sum''":"PFR.Mathlib.MeasureTheory.Group.Arithmetic"},"deps":{"Finset.measurable_prod''":[],"Finset.measurable_sum''":[]}}

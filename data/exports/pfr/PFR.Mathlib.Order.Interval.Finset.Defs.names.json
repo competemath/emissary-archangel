@@ -1,0 +1,1 @@
+{"names":["Finset.Ici_zero","Finset.Ici_one"],"modules":["PFR.Mathlib.Order.Interval.Finset.Defs"],"moduleOf":{"Finset.Ici_zero":"PFR.Mathlib.Order.Interval.Finset.Defs","Finset.Ici_one":"PFR.Mathlib.Order.Interval.Finset.Defs"},"deps":{"Finset.Ici_zero":[],"Finset.Ici_one":[]}}

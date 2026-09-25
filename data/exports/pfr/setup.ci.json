@@ -1,0 +1,37 @@
+{
+  "key": "pfr",
+  "repo": "https://github.com/teorth/pfr",
+  "commit": "3d7898164ebff70a809dce618f9082a7b39e7850",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "PFR",
+    "PFRPalomar"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/pfr/repo",
+  "entries": 921,
+  "modules": 66,
+  "exported": 66,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 921,
+    "kept": 921,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 432,
+    "lineUnverified": 0,
+    "nameFixed": 7,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 50798592,
+  "minutes": 14,
+  "finishedAt": "2026-09-25T15:32:43.045Z"
+}
