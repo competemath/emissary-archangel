@@ -103,9 +103,10 @@ jobs:
           git add --sparse -- "data/exports/$KEY"
           summary=$(python3 -c "import json, os; j = json.load(open('data/exports/' + os.environ['KEY'] + '/setup.ci.json')); print(f\"{j['exported']}/{j['modules']} modules exported on {j['toolchain']} ({j['repo']} @ {j['commit'][:12]})\")")
           git commit -q -m "exports: $KEY (runner)" -m "$summary. Set up on a GitHub runner by .github/workflows/setup-libraries.yml, run $GITHUB_RUN_ID; a laptop's setup-source.mjs adopts setup.ci.json instead of building." -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-          # up to 20 jobs push to main at once: replay on top of whatever landed meanwhile (different paths)
+          # up to 20 jobs push to main at once: replay on top of whatever landed meanwhile (different paths);
+          # --autostash: the setup rewrites data/queue-equational-theories.json, the one tracked queue file
           for i in $(seq 1 30); do
-            if git pull -q --rebase origin main && git push -q origin HEAD:main; then echo "banked $KEY"; exit 0; fi
+            if git pull -q --rebase --autostash origin main && git push -q origin HEAD:main; then echo "banked $KEY"; exit 0; fi
             sleep $((RANDOM % 25 + 5))
           done
           echo "could not push after 30 attempts"; exit 1
