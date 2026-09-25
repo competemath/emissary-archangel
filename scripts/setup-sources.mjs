@@ -265,8 +265,13 @@ function prepare(r, todo) {
     // queue is still reseeded, so its module names match the runner's fresh seed.
     const q = readJSON(queuePath(r.key, r.src), [])
     if (!q.length || q.every((e) => e.status === "pending")) fs.writeFileSync(reseedFile(r.key), new Date().toISOString())
+    // what the stale local run left that the runner did not replace (an expansion the runner's filter
+    // skipped, say) is not part of the runner's result: it goes, or the bank would commit it
+    const dir = path.join("data", "exports", r.key)
+    const leftovers = git(["ls-files", "--others", "--exclude-standard", "--", dir]).stdout.split("\n").filter(Boolean)
+    for (const f of leftovers) fs.rmSync(path.join(ROOT, f), { force: true })
     fs.rmSync(setupJson(r.key), { force: true })
-    log(`${r.key}: stale export already redone on a runner — adopting it`)
+    log(`${r.key}: stale export already redone on a runner — adopting it${leftovers.length ? ` (${leftovers.length} leftover local files removed)` : ""}`)
   } else if (r.state === "stale") {
     // Exported before proof terms were dropped. A queue nobody has worked on is reseeded too (it
     // picks up every seeding fix since, aintlib's and ieantn's misnamed dotted directories among

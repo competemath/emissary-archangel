@@ -31,24 +31,36 @@ def isCorpusKind (env : Environment) (roots : List String) (kind : Name) : Bool 
     | none => false
   | none => env.contains kind
 
-/-- Expand corpus macros everywhere in `stx`, repeatedly; `true` when one fired. -/
-partial def expandCorpus (env : Environment) (roots : List String) : Syntax → MacroM (Syntax × Bool)
+/-- Expansions allowed per command, and nested expansions per chain: a macro whose output contains
+itself again, or keeps growing, otherwise expands until memory runs out (one formal-conjectures
+command reached 33 GB). Past either budget the command is left verbatim. -/
+def maxExpansions : Nat := 2000
+def maxExpansionDepth : Nat := 64
+
+/-- Expand corpus macros everywhere in `stx`, repeatedly; `true` when one fired. The state is the
+number of expansions still allowed for this command. -/
+partial def expandCorpus (env : Environment) (roots : List String) (depth : Nat := 0) : Syntax → StateT Nat MacroM (Syntax × Bool)
   | stx@(.node info kind args) => do
     if isCorpusKind env roots kind then
       -- expandMacroImpl? rather than Macro.expandMacro?: the latter answered `none`
       -- for every notation3 through the command-elab adapter.
-      match (← Lean.Elab.expandMacroImpl? env stx) with
-      | some (_, .ok stx') => return ((← expandCorpus env roots stx').1, true)
+      match (← liftM (Lean.Elab.expandMacroImpl? env stx : MacroM _)) with
+      | some (_, .ok stx') =>
+        let left ← get
+        if left == 0 || depth ≥ maxExpansionDepth then
+          liftM (Macro.throwError "expansion budget exceeded" : MacroM Unit)
+        set (left - 1)
+        return ((← expandCorpus env roots (depth + 1) stx').1, true)
       | _ => expandArgs info kind args
     else
       expandArgs info kind args
   | stx => return (stx, false)
 where
-  expandArgs (info : SourceInfo) (kind : SyntaxNodeKind) (args : Array Syntax) : MacroM (Syntax × Bool) := do
+  expandArgs (info : SourceInfo) (kind : SyntaxNodeKind) (args : Array Syntax) : StateT Nat MacroM (Syntax × Bool) := do
     let mut fired := false
     let mut out := #[]
     for a in args do
-      let (a', f) ← expandCorpus env roots a
+      let (a', f) ← expandCorpus env roots depth a
       out := out.push a'
       fired := fired || f
     return (.node info kind out, fired)
@@ -93,7 +105,7 @@ unsafe def main (args : List String) : IO Unit := do
         let mut acc : Array (Option (Option String)) := #[]
         for cmd in cmds do
           let r : Option (Option String) ← (do
-              let (stx, fired) ← liftMacroM (expandCorpus env roots cmd)
+              let ((stx, fired), _) ← liftMacroM ((expandCorpus env roots 0 cmd).run maxExpansions)
               if !fired then return none
               let fmt ← Command.liftCoreM (ppCommand ⟨eraseScopes stx⟩)
               return some (some (fmt.pretty 100)))

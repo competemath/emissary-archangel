@@ -720,8 +720,67 @@ function adopt(entries, modules, stats, t0) {
   return true
 }
 
+// ---- memory watchdog ------------------------------------------------------------
+// `lean -M` counts resident memory, and macOS compresses a runaway's pages instead of keeping them
+// resident: a notation expansion reached 33 GB (30 GB compressed, 3 GB resident) far past an 11 GB cap.
+// Every 10 s this reads the real footprint of every process under this one (macOS: top's MEM, which
+// counts compressed pages; Linux: VmRSS + VmSwap) and kills any process over EMISSARY_FOOTPRINT_MB
+// (default 10240). The killed command fails like any other and its module is recorded as failed.
+const FOOTPRINT_MB = Number(process.env.EMISSARY_FOOTPRINT_MB || 10240)
+const UNIT_MB = { B: 1 / 1048576, K: 1 / 1024, M: 1, G: 1024, T: 1048576 }
+function descendants(root) {
+  const kids = new Map()
+  for (const line of execFileSync("ps", ["-A", "-o", "pid=,ppid="]).toString().trim().split("\n")) {
+    const [pid, ppid] = line.trim().split(/\s+/).map(Number)
+    kids.set(ppid, [...(kids.get(ppid) || []), pid])
+  }
+  const out = []
+  for (const stack = [root]; stack.length; ) for (const c of kids.get(stack.pop()) || []) out.push(c), stack.push(c)
+  return out
+}
+function footprintsMB(pids) {
+  const want = new Set(pids)
+  const out = new Map()
+  if (!want.size) return out
+  if (process.platform === "darwin") {
+    for (const line of execFileSync("top", ["-l", "1", "-stats", "pid,mem"]).toString().split("\n")) {
+      const m = line.match(/^\s*(\d+)\s+([\d.]+)([BKMGT])[+-]?\s*$/)
+      if (m && want.has(Number(m[1]))) out.set(Number(m[1]), Number(m[2]) * UNIT_MB[m[3]])
+    }
+  } else {
+    for (const pid of want) {
+      try {
+        const st = readFileSync(`/proc/${pid}/status`, "utf8")
+        const kb = (k) => Number((st.match(new RegExp(`^${k}:\\s+(\\d+)`, "m")) || [0, 0])[1])
+        out.set(pid, (kb("VmRSS") + kb("VmSwap")) / 1024)
+      } catch {
+        /* exited */
+      }
+    }
+  }
+  return out
+}
+function watchMemory() {
+  try {
+    for (const [pid, mb] of footprintsMB(descendants(process.pid))) {
+      if (mb <= FOOTPRINT_MB) continue
+      let cmd = "?"
+      try {
+        cmd = execFileSync("ps", ["-o", "command=", "-p", String(pid)]).toString().trim().slice(0, 160)
+      } catch {
+        /* exited */
+      }
+      process.kill(pid, "SIGKILL")
+      log(`memory watchdog: killed ${pid} at ${Math.round(mb)} MB (limit ${FOOTPRINT_MB} MB): ${cmd}`)
+    }
+  } catch (e) {
+    log(`memory watchdog: ${e.message}`)
+  }
+}
+
 async function main() {
   const t0 = Date.now()
+  setInterval(watchMemory, 10000).unref()
   removeLeftovers()
   log(`setup ${key}: ${src.repo} @ ${src.commit.slice(0, 12)} on ${src.toolchain}, roots ${src.roots.join(", ")}`)
   await ensureClone()
