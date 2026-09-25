@@ -1,0 +1,36 @@
+{
+  "key": "expdb",
+  "repo": "https://github.com/teorth/expdb",
+  "commit": "088040634e8300f87e80f431d8bdc38c42cc8e11",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "Expdb"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/expdb/repo",
+  "entries": 193,
+  "modules": 16,
+  "exported": 16,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 80,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 194,
+    "kept": 193,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 1,
+    "lineFixed": 83,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 3072000,
+  "minutes": 3,
+  "finishedAt": "2026-09-25T14:30:12.507Z"
+}
