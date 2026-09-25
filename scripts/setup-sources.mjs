@@ -204,13 +204,20 @@ async function until(cond, what, everyMs = 60000) {
   }
   if (said && !stopping) log(`resumed: ${what}`)
 }
-// A setup-source.mjs this driver did not start (one that outlived a killed driver, or run by hand).
+// A setup-source.mjs of THIS checkout that this driver did not start (one that outlived a killed driver,
+// or run by hand): its command line names the checkout, or its working directory is the checkout.
 const strays = () =>
   spawnSync("pgrep", ["-f", "scripts/setup-source\\.mjs"], { encoding: "utf8" })
     .stdout.split("\n")
     .filter(Boolean)
     .map(Number)
     .filter((p) => p !== child?.pid)
+    .filter((p) => {
+      const cmd = spawnSync("ps", ["-o", "command=", "-p", String(p)], { encoding: "utf8" }).stdout
+      if (cmd.includes(path.join(ROOT, "scripts", "setup-source.mjs"))) return true
+      const cwd = spawnSync("lsof", ["-a", "-d", "cwd", "-Fn", "-p", String(p)], { encoding: "utf8" }).stdout.split("\n").find((l) => l.startsWith("n"))
+      return cwd?.slice(1) === ROOT
+    })
 function makeRoom() {
   if (freeGB() >= MIN_FREE_GB) return
   const cache = path.join(HOME, ".cache", "mathlib")
