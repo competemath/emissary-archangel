@@ -1,0 +1,36 @@
+{
+  "key": "toric",
+  "repo": "https://github.com/YaelDillies/toric",
+  "commit": "85451213e92b35500738b91424032e2c63044c90",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "Toric"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/toric/repo",
+  "entries": 95,
+  "modules": 12,
+  "exported": 12,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 95,
+    "kept": 95,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 55,
+    "lineUnverified": 0,
+    "nameFixed": 8,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 4456448,
+  "minutes": 5,
+  "finishedAt": "2026-09-25T15:54:13.699Z"
+}
