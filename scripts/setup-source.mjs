@@ -540,6 +540,7 @@ function closureModules(modules) {
 // pastes is free of them (the tree's content lint refuses notation and macro
 // declarations, and dropping a declaration breaks every use).
 const EXPAND_LEAN = join(APP_ROOT, "scripts", "expand-notations.lean")
+const EXPAND_CHUNK = Math.max(1, Number(process.env.EMISSARY_EXPAND_CHUNK || 1))
 // Every notation, macro or syntax the corpus declares: the modules declaring one are always
 // expanded (a `local` notation is usable only there), and a module can use a global one only if
 // every atom (string literal) of its declaration occurs in the text — identifier-like atoms as
@@ -614,7 +615,11 @@ async function expand(modules) {
   const failed = []
   const stats = { expanded: 0, verbatim: 0, unexpanded: 0 }
   const chunks = []
-  for (let i = 0; i < todo.length; i += 8) chunks.push(todo.slice(i, i + 8))
+  // One module per process by default: the expander imports each module's own header separately anyway, so a
+  // chunk saves only process start-up, while its imports pile up in one process (formal-conjectures: every
+  // chunk of 8 passed 11 GB and was killed; each module alone went through).
+  for (let i = 0; i < todo.length; i += EXPAND_CHUNK) chunks.push(todo.slice(i, i + EXPAND_CHUNK))
+  let processed = 0
   const worker = async () => {
     while (chunks.length) {
       const chunk = chunks.shift()
@@ -639,7 +644,8 @@ async function expand(modules) {
           }
         }
       }
-      log(`expand: ${modules.length - chunks.length * 8 - todo.length + (todo.length - chunks.length * 8)} … ${chunks.length} chunks left, ${failed.length} failed`)
+      processed += chunk.length
+      if (processed % 25 < chunk.length || !chunks.length) log(`expand: ${processed}/${todo.length} done, ${failed.length} failed`)
     }
   }
   await Promise.all(Array.from({ length: Math.max(1, CONCURRENCY) }, worker))
