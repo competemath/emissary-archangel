@@ -1,0 +1,36 @@
+{
+  "key": "misc-yd",
+  "repo": "https://github.com/YaelDillies/misc-yd",
+  "commit": "338b7f4f07603fe386ec93c0b07cdd6fa23646a4",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "MiscYD"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/misc-yd/repo",
+  "entries": 146,
+  "modules": 12,
+  "exported": 12,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 94,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 147,
+    "kept": 146,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 1,
+    "lineFixed": 124,
+    "lineUnverified": 3,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 10
+  },
+  "exportsBytes": 2154496,
+  "minutes": 3,
+  "finishedAt": "2026-09-25T15:19:01.298Z"
+}
