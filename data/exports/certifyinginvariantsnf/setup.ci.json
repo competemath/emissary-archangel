@@ -1,0 +1,49 @@
+{
+  "key": "certifyinginvariantsnf",
+  "repo": "https://github.com/CBirkbeck/CertifyingInvariantsNF",
+  "commit": "f1392cbb63a41b51581e225951dd6f915ca4afbd",
+  "toolchain": "leanprover/lean4:v4.30.0-rc1",
+  "roots": [
+    "IdealArithmetic"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/certifyinginvariantsnf/repo",
+  "entries": 1674,
+  "modules": 96,
+  "exported": 93,
+  "failed": [
+    {
+      "module": "IdealArithmetic.ComputableAlgebras",
+      "why": "no closure"
+    },
+    {
+      "module": "IdealArithmetic.ExperimentsDiscr",
+      "why": "no closure"
+    },
+    {
+      "module": "IdealArithmetic.PrimeIdealsKummer",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 74,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 2257,
+    "kept": 1674,
+    "skippedRoot": 0,
+    "skippedDup": 565,
+    "skippedNoFile": 0,
+    "skippedCommented": 18,
+    "lineFixed": 1688,
+    "lineUnverified": 0,
+    "nameFixed": 6,
+    "sorryOriginals": 0,
+    "emptyProofs": 24
+  },
+  "exportsBytes": 347934720,
+  "minutes": 66,
+  "finishedAt": "2026-09-25T15:25:45.685Z"
+}
