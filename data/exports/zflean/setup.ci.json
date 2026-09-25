@@ -1,0 +1,36 @@
+{
+  "key": "zflean",
+  "repo": "https://github.com/VTrelat/ZFLean",
+  "commit": "ae928234e7ed6b26241344ef4ba6d7cf98c0ed91",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "roots": [
+    "ZFLean"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/zflean/repo",
+  "entries": 826,
+  "modules": 13,
+  "exported": 13,
+  "failed": [],
+  "expansion": {
+    "expanded": 8,
+    "verbatim": 343,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 892,
+    "kept": 826,
+    "skippedRoot": 63,
+    "skippedDup": 3,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 698,
+    "lineUnverified": 1,
+    "nameFixed": 10,
+    "sorryOriginals": 0,
+    "emptyProofs": 2
+  },
+  "exportsBytes": 5693440,
+  "minutes": 7,
+  "finishedAt": "2026-09-25T15:54:37.479Z"
+}
