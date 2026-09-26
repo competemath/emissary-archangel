@@ -1,8 +1,9 @@
 name: setup-sharded
 # One library too big for one 6-hour job (flt-anthropic, lean-pool, tauceti, navier-stokes-euler), split across
-# runners. The prime job builds what fits in its time budget (lake builds the modules in name order, and their
-# imports first, so the shared modules land here) and hands the build to the shards as an artifact. Each shard
-# restores it, builds the rest of its slice (a stable hash of the module name picks it), runs closures, notation
+# runners. Every shard starts at once: it builds its slice of the modules (a stable hash of the module name picks
+# it) with their imports, so a module many slices import is compiled on each of them; on free runners that
+# duplicated work costs nothing, and waiting for one runner to compile the shared modules first cost hours. A
+# prime build (prime_minutes > 0) is still there for a later round, which resumes from it. The shard runs closures, notation
 # expansion and lean4export for that slice with scripts/setup-source.mjs --phase shard, and hands what it produced
 # to the finish job as an artifact. The shards run the library's own Lean code, so they only read: their token can
 # write nothing and is never stored in a checkout. The finish job, which runs no Lean, commits every shard's
@@ -20,9 +21,9 @@ on:
         required: false
         default: "16"
       prime_minutes:
-        description: "Time budget of the prime build, in minutes."
+        description: "Minutes of shared build on one runner before the shards start (0: none, every shard builds its own slice at once)."
         required: false
-        default: "120"
+        default: "0"
       expand_chunk:
         description: "Modules per notation-expansion process (EMISSARY_EXPAND_CHUNK); raise it for many tiny modules."
         required: false
@@ -63,6 +64,7 @@ jobs:
       shards: ${{ steps.plan.outputs.shards }}
     steps:
       - name: Free disk (a Mathlib cache plus a library build need ~20 GB)
+        if: inputs.prime_minutes != '0'
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift
           df -h /
@@ -82,20 +84,23 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: "22" }
       - name: This library's tentative records (only its own files from the tree repository)
+        if: inputs.prime_minutes != '0'
         run: |
           files=$(python3 -c "import json, os; s = json.load(open('sources.json'))['sources'][os.environ['KEY']]; print(' '.join('data/tentative/' + f for f in s.get('tentative', [os.environ['KEY'] + '.jsonl'])))")
           git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
           git -C tengoku sparse-checkout set --no-cone $files
           git -C tengoku checkout -q
       - name: elan
+        if: inputs.prime_minutes != '0'
         run: |
           curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: The previous round's build
-        if: inputs.resume_run != ''
+        if: inputs.resume_run != '' && inputs.prime_minutes != '0'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { name: build, run-id: "${{ inputs.resume_run }}", github-token: "${{ github.token }}" }
       - name: Build what fits in ${{ inputs.prime_minutes }} minutes
+        if: inputs.prime_minutes != '0'
         env: { PRIME_MINUTES: "${{ inputs.prime_minutes }}" }
         run: |
           args=$(python3 -c "import json, os; print(' '.join(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('setup', {}).get('args', [])))")
