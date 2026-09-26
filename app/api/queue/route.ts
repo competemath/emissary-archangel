@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { loadConfig } from "@/lib/pipeline";
 import { existingNames, openRecordsPr } from "@/lib/tengoku-pr";
 import { corpusRootFor, queuePathFor, targetToolchainFor } from "@/lib/sources";
+import { stagingRecord } from "@/lib/stage-record.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -182,52 +183,6 @@ function sanitizeSegment(s: string): string {
 // corpus's definition modules from it) and which toolchain a verified entry
 // compiles under: both from sources.json (lib/sources.ts).
 
-// Best-effort: a clean source_url if the queue entry already has one
-// (CompeteMath entries do, via `sourceUrl`), else try to pull one out of
-// equational-theories' own free-text `sourceRef` convention
-// ("owner/repo@<commit>:path/to/File.lean ..." — see queue-equational-
-// theories.json), else fall back to the raw text so the record still
-// carries SOME provenance rather than silently dropping the field.
-function resolveSourceUrl(entry: Record<string, unknown>): string | null {
-  if (typeof entry.sourceUrl === "string" && entry.sourceUrl) return entry.sourceUrl;
-  const ref = typeof entry.sourceRef === "string" ? entry.sourceRef : null;
-  if (!ref) return null;
-  const m = ref.match(/^([\w.-]+\/[\w.-]+)@([0-9a-f]{7,40}):(\S+?\.lean)/);
-  return m ? `https://github.com/${m[1]}/blob/${m[2]}/${m[3]}` : ref;
-}
-
-// Tengoku's record shape (see tengoku/README.md "Record shape") splits the
-// declaration header from its proof body at the FIRST `:=` — this mirrors
-// every other entry already in data/tentative|trusted/*.jsonl.
-// A verified script is no longer a single theorem: it carries everything the
-// theorem needs to be self-contained (the corpus modules it depends on, its
-// own file's earlier declarations), then the theorem. Splitting at the first
-// `:=` in the file put a `Magma.op` definition into `proof`. Split at the
-// TARGET declaration instead: `context` = everything before it, `statement` =
-// its header up to its own `:=`, `proof` = from that `:=` to the end.
-function splitStatementAndProof(fullText: string, name: string): { context: string; statement: string; proof: string } | null {
-  const bare = name.split(".").pop() ?? name;
-  const declRe = new RegExp(
-    `^[ \\t]*(?:@\\[[^\\]]*\\][ \\t]*)*(?:(?:private|protected|nonrec)[ \\t]+)*(?:theorem|lemma)[ \\t]+(?:[\\w'.«»]*\\.)?${bare.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w'])`,
-    "gm",
-  );
-  let decl: RegExpExecArray | null = null;
-  for (let m = declRe.exec(fullText); m; m = declRe.exec(fullText)) decl = m; // last one: helpers come first
-  const start = decl ? decl.index : -1;
-  if (start === -1) {
-    const idx = fullText.indexOf(":=");
-    if (idx === -1) return null;
-    return { context: "", statement: fullText.slice(0, idx).trim(), proof: fullText.slice(idx).trim() };
-  }
-  const idx = fullText.indexOf(":=", start);
-  if (idx === -1) return null;
-  return {
-    context: fullText.slice(0, start).replace(/\s+$/, ""),
-    statement: fullText.slice(start, idx).trim(),
-    proof: fullText.slice(idx).trim(),
-  };
-}
-
 // A dedicated mutex for git itself — separate from the per-source queue
 // lock above, because it protects a DIFFERENT resource (the one shared git
 // working tree) that every source's verified entries commit into. Multiple
@@ -246,32 +201,9 @@ async function stageVerifiedTheorem(
   entry: Record<string, unknown>,
 ): Promise<{ staged: boolean; detail?: string }> {
   const name = String(entry.name ?? entry.id);
-  // Tengoku's generator supplies the tree's own root import for every module; a leading
-  // `import ...` line here (e.g. `import Tengoku.All`, `import Mathlib`) would land in
-  // `context` and fail the gate's content-lint ("no import inside a record"). Found live:
-  // it had been silently landing in `context` since before that check existed (50 of 8,920
-  // already-trusted equational-theories records carry it, all promoted pre-2026-09-16) —
-  // harmless before the gate, a hard failure on every submission since.
-  const fullText = String(entry.proof ?? "").replace(/^(?:\s*import\s+\S+\s*\n)+/, "");
-  if (!fullText.trim()) return { staged: false, detail: "no proof text on entry" };
-  const split = splitStatementAndProof(fullText, name);
-  if (!split) return { staged: false, detail: "no ':=' found — can't split into statement/proof" };
-
-  const record = {
-    name,
-    statement: split.statement,
-    proof: split.proof,
-    // Everything the theorem needed in front of it to be self-contained
-    // (corpus modules it depends on, its file's earlier declarations) — the
-    // tree generator folds this into the module for `source_path`.
-    context: split.context,
-    source_path: typeof entry.sourcePath === "string" ? entry.sourcePath : null,
-    status: "staging",
-    staged_at: new Date().toISOString(),
-    library: source,
-    source_url: resolveSourceUrl(entry),
-    toolchain: targetToolchainFor(source),
-  };
+  const built = stagingRecord(source, entry, targetToolchainFor(source));
+  if (!built.record) return { staged: false, detail: built.error };
+  const record = built.record;
 
   if (viaPrs()) return stageViaPr(source, name, record);
 

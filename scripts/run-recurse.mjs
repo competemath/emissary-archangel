@@ -13,6 +13,10 @@ const ARCHANGEL = process.env.EMISSARY_GATE2_URL || "http://127.0.0.1:7872/sse"
 // RECURSE_LOG="" disables the file (the pipeline panel captures stdout instead).
 const LOG = process.env.RECURSE_LOG === "" ? null : (process.env.RECURSE_LOG || new URL("../recurse-run.log", import.meta.url).pathname)
 const TIMEOUT_MS = Number(process.env.EMISSARY_RUN_TIMEOUT_MS) || 20 * 60 * 1000
+// EMISSARY_NO_AGENT=1: mechanical only (entries that need the agent stay pending). EMISSARY_RESULTS_FILE: one JSON line
+// per entry with its outcome (the cloud run's ledger).
+const NO_AGENT = process.env.EMISSARY_NO_AGENT === "1"
+const RESULTS = process.env.EMISSARY_RESULTS_FILE || null
 
 const ts = () => new Date().toISOString().slice(11, 19)
 const log = (line) => {
@@ -43,7 +47,7 @@ log(`source ${SOURCE} | servers: ${mcpServers.map((s) => s.name).join(", ")} | s
 // Plain node:http, not fetch: Node's fetch aborts a response body that stays
 // silent for 5 minutes (UND_ERR_BODY_TIMEOUT), and a cold first entry can
 // easily be silent that long while the services load the tree.
-const reqBody = JSON.stringify({ source: SOURCE, scope, archangelUrl: ARCHANGEL, verifyUrl: LEAK_IV, mcpServers, timeoutMs: TIMEOUT_MS })
+const reqBody = JSON.stringify({ source: SOURCE, scope, archangelUrl: ARCHANGEL, verifyUrl: LEAK_IV, mcpServers, timeoutMs: TIMEOUT_MS, noAgent: NO_AGENT })
 const res = await new Promise((resolve, reject) => {
   const req = request(
     {
@@ -74,6 +78,10 @@ for await (const chunk of res) {
     let o
     try { o = JSON.parse(line.slice(6)) } catch { continue }
     if (o.type === "progress" || o.type === "done") log(`${o.type.toUpperCase()} ${o.processed}/${o.total} ${JSON.stringify(o.summary)}`)
+    else if (o.type === "entry-result") {
+      log(`RESULT #${o.id} ${o.name}: ${o.outcome}`)
+      if (RESULTS) appendFileSync(RESULTS, JSON.stringify({ id: o.id, name: o.name, sourcePath: o.sourcePath, outcome: o.outcome, at: new Date().toISOString(), ...(o.error ? { error: o.error } : {}) }) + "\n")
+    }
     else if (o.type === "message-annotation") {
       const t = String(o.thought || "").replace(/\s+/g, " ")
       if (o.subtype === "tool_intent") log(`  → ${o.tool} ${String(o.input || "").slice(0, 160)}`)

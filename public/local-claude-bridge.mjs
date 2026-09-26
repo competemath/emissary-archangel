@@ -14724,10 +14724,12 @@ if (req.method === "POST" && url.pathname === "/archangel-translate") {
           send({ type: "message-annotation", subtype: "error", thought: `🛑 Stopping recursion — a verifier/Gate 2 infra block is active.` })
           break
         }
-        const noAgent = usageBlocked() || authFailureBlocked()
+        // body.noAgent: a mechanical-only pass (the cloud's first pass needs no Claude account at all)
+        const noAgent = !!body.noAgent || usageBlocked() || authFailureBlocked()
         if (noAgent && !noAgentNoticed) {
           noAgentNoticed = true
-          send({ type: "message-annotation", subtype: "error", thought: `⚠️ Agent unavailable (${(usageBlock || authFailureBlock)?.message || "account block"}) — continuing mechanically; entries that need the agent are deferred, not failed.` })
+          const why = body.noAgent ? "mechanical-only run" : (usageBlock || authFailureBlock)?.message || "account block"
+          send({ type: "message-annotation", subtype: "error", thought: `⚠️ Agent unavailable (${why}) — continuing mechanically; entries that need the agent are deferred, not failed.` })
         }
         try {
           const r = await recurseOneEntry(entry, {
@@ -14744,9 +14746,11 @@ if (req.method === "POST" && url.pathname === "/archangel-translate") {
             noAgent,
           })
           summary[r.outcome] = (summary[r.outcome] || 0) + 1
+          send({ type: "entry-result", id: entry.id, name: entry.name, sourcePath: entry.sourcePath, outcome: r.outcome })
         } catch (e) {
           summary.failed++
           send({ type: "message-annotation", subtype: "error", thought: `⚠️ #${entry.id} ${entry.name}: unexpected error — ${e?.message || e}` })
+          send({ type: "entry-result", id: entry.id, name: entry.name, sourcePath: entry.sourcePath, outcome: "failed", error: String(e?.message || e).slice(0, 300) })
         }
         processed++
         send({ type: "progress", processed, total: matches.length, summary })

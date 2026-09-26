@@ -1,0 +1,214 @@
+name: translate
+run-name: translate ${{ inputs.key }} (${{ inputs.mode }}, ${{ inputs.shards }} shards)
+# Translate one library into the Tengoku tree, unattended, on runners. Each shard hosts its own verifier (Leak IV) and
+# entailment gate (Archangel, gate2/) on the tree's attested cache, and runs the recursion engine
+# (public/local-claude-bridge.mjs /archangel-recurse) over its slice of the library's queue: a slice is a hash of the
+# source file, so one file's entries share a job and its prefix cache. The Next.js app is not needed:
+# scripts/queue-server.mjs serves the slice and banks verified records.
+#
+#   mode mechanical  no Claude: every entry that compiles unchanged in the tree and passes both gates is banked; the
+#                    rest are recorded as needing the agent (the ledger), and an agent run takes exactly those
+#   mode agent       the same, then the agent (claude CLI, secret CLAUDE_CODE_OAUTH_TOKEN) on what is left; a Claude
+#                    usage limit only defers entries, it never fails them
+#
+# The finish job folds the shards' outcomes into data/translate/<key>.jsonl (+ the prefix cache) and the verified
+# records into data/bank/<key>/<run>.jsonl, and commits them; scripts/bank-flush.mjs turns the bank into tengoku PRs
+# when the TENGOKU_BOT_TOKEN secret exists.
+on:
+  workflow_dispatch:
+    inputs:
+      key: { description: "A key of sources.json", required: true }
+      mode: { description: "mechanical | agent", required: true, default: mechanical }
+      shards: { description: "Parallel jobs (a hash of the source file picks each entry's job)", required: true, default: "8" }
+      limit: { description: "Entries per shard, 0 = all (a quick test: 2)", required: true, default: "0" }
+      agent_attempts: { description: "Agent attempts per entry across runs", required: true, default: "1" }
+
+permissions: {}
+
+concurrency:
+  group: translate-${{ inputs.key }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  KEY: ${{ inputs.key }}
+  MODE: ${{ inputs.mode }}
+  TENGOKU_VERIFY: require        # the tree's cache is used only if its build attestation checks out
+  LEAK_IV_REPO: https://github.com/mikael-bashir/leak-iv
+  LEAK_IV_COMMIT: 9c5dfa7da7d6eef044a3a71c9c32aca96cb73598  # pragma: allowlist secret (tengoku-env, as deployed on the Space)
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - id: plan
+        env: { SHARDS: "${{ inputs.shards }}", LIMIT: "${{ inputs.limit }}", ATTEMPTS: "${{ inputs.agent_attempts }}" }
+        run: |
+          [[ "$KEY" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "::error::bad key"; exit 1; }
+          [[ "$MODE" =~ ^(mechanical|agent)$ ]] || { echo "::error::mode is mechanical or agent"; exit 1; }
+          [[ "$SHARDS" =~ ^[0-9]+$ && "$SHARDS" -ge 1 && "$SHARDS" -le 64 ]] || { echo "::error::shards is 1..64"; exit 1; }
+          [[ "$LIMIT" =~ ^[0-9]+$ && "$ATTEMPTS" =~ ^[0-9]+$ ]] || { echo "::error::limit and agent_attempts are numbers"; exit 1; }
+          echo "shards=$(python3 -c "import json, os; print(json.dumps(list(range(int(os.environ['SHARDS'])))))")" >> "$GITHUB_OUTPUT"
+
+  translate:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    permissions: { contents: read }
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    env:
+      SHARD: ${{ matrix.shard }}
+      SHARDS: ${{ inputs.shards }}
+      LIMIT: ${{ inputs.limit }}
+      ATTEMPTS: ${{ inputs.agent_attempts }}
+      LEAN_NUM_THREADS: "4"
+    steps:
+      - name: Free disk (the tree's cache, the library's exports)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift
+          df -h /
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          filter: "blob:none"
+          persist-credentials: false
+          sparse-checkout: |
+            scripts
+            lib
+            public
+            gate2
+            data/translate
+            data/exports/${{ inputs.key }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: "22" }
+      - name: elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: The Tengoku tree, compiled (its attested cache)
+        env: { GH_TOKEN: "${{ github.token }}" }   # gh attestation verify
+        run: |
+          git clone -q --filter=blob:none https://github.com/competemath/tengoku tree
+          cd tree
+          scripts/cache.sh get 2>&1 | tail -5
+          lake build Tengoku.All 2>&1 | tail -2
+          echo "tree at $(git rev-parse HEAD)"
+      - name: The library's source and queue (seeded from the tree's tentative records)
+        env: { EMISSARY_TENTATIVE_DIR: "${{ github.workspace }}/tree/data/tentative" }
+        run: node scripts/setup-source.mjs "$KEY" --only seed 2>&1 | tail -4
+      - name: Leak IV and Archangel, on the tree, as a separate user
+        # They elaborate the library's and the agent's Lean, which can run code: as the user `lean` they cannot read the
+        # bridge's environment (where an agent run's Claude token lives) or anything the runner user owns privately.
+        run: |
+          sudo useradd -m lean
+          sudo chmod o+x "$HOME"
+          sudo python3 -m venv /opt/svc
+          sudo /opt/svc/bin/pip install -q "mcp==1.30.0" "uvicorn==0.52.4" "starlette==1.6.0"
+          git clone -q --filter=blob:none "$LEAK_IV_REPO" leak-iv && git -C leak-iv checkout -q "$LEAK_IV_COMMIT"
+          # Archangel elaborates in the tree checked out here, not a git copy of it
+          python3 - <<'PY'
+          import re
+          p = "gate2/lakefile.toml"
+          t = open(p).read()
+          t, n = re.subn(r'\[\[require\]\]\nname = "tengoku"\ngit = "[^"]*"\nrev = "[^"]*"', '[[require]]\nname = "tengoku"\npath = "../tree"', t)
+          assert n == 1, "gate2/lakefile.toml: the tengoku require moved"
+          open(p, "w").write(t)
+          PY
+          (cd gate2 && lake update 2>&1 | tail -2 && lake build 2>&1 | tail -2)
+          sudo chown -R lean tree gate2 leak-iv
+          # the toolchain's own binaries, not elan's proxies: nothing the services run can write to the runner's elan
+          bin="$HOME/.elan/toolchains/$(sed 's|/|--|; s|:|---|' tree/lean-toolchain)/bin"
+          test -x "$bin/lake"
+          svc() { sudo -u lean env -i HOME=/home/lean PATH="$bin:/usr/bin:/bin" LEAN_NUM_THREADS=4 "$@"; }
+          svc PORT=7871 LEAN_PROJECT_PATH="$PWD/tree" TENGOKU_IMPORTS="import Tengoku.All" TENGOKU_AUTO_REFRESH=0 \
+            /opt/svc/bin/python leak-iv/server.py > leak-iv.log 2>&1 &
+          svc PORT=7872 TENGOKU_DIR="$PWD/tree" EMISSARY_OLD_EXPORT="$PWD/data/export.ndjson" \
+            /opt/svc/bin/python gate2/server.py > gate2.log 2>&1 &
+          for port in 7871 7872; do
+            for _ in $(seq 1 120); do
+              curl -s -m 3 -o /dev/null "http://127.0.0.1:$port/sse" -H 'Accept: text/event-stream' && break
+              sleep 5
+            done
+          done
+          # the first verification cold-loads Tengoku.All; wait for Leak IV's warm-up so the first entry does not time out
+          for _ in $(seq 1 120); do grep -q "Warmup complete" leak-iv.log && break; sleep 5; done
+          tail -3 leak-iv.log; tail -3 gate2.log
+      - name: The agent (agent mode only)
+        if: inputs.mode == 'agent'
+        run: npm install -g -q @anthropic-ai/claude-code && claude --version
+      - name: Translate this shard
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.mode == 'agent' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+        run: |
+          mkdir -p out
+          touch out/bank.jsonl out/results.jsonl
+          [ -f "data/translate/$KEY.prefix-cache.json" ] && cp "data/translate/$KEY.prefix-cache.json" out/prefix-cache.json
+          node scripts/queue-server.mjs --source "$KEY" --bank out/bank.jsonl --shard "$SHARD/$SHARDS" --limit "$LIMIT" \
+            --tree tree --ledger "data/translate/$KEY.jsonl" --mode "$MODE" --agent-attempts "$ATTEMPTS" > out/queue-server.log 2>&1 &
+          token=$(openssl rand -hex 24)
+          noagent=1
+          if [ "$MODE" = agent ]; then
+            if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then noagent=0; else echo "::warning::agent mode without the CLAUDE_CODE_OAUTH_TOKEN secret: running mechanically"; fi
+          fi
+          # the token reaches the bridge (and the claude it starts) only; the Lean services run as another user
+          PORT=4125 BRIDGE_TOKEN="$token" EMISSARY_APP_ROOT="$PWD" QUEUE_APP_URL=http://127.0.0.1:3000 \
+            RECURSE_PREFIX_CACHE_PATH="$PWD/out/prefix-cache.json" node public/local-claude-bridge.mjs > out/bridge.log 2>&1 &
+          for _ in $(seq 1 60); do curl -s -m 2 -o /dev/null http://127.0.0.1:4125/ && break; sleep 1; done
+          head -1 out/queue-server.log
+          EMISSARY_RUN_SOURCE="$KEY" EMISSARY_NO_AGENT="$noagent" EMISSARY_RESULTS_FILE="$PWD/out/results.jsonl" RECURSE_LOG="$PWD/out/recurse.log" \
+            EMISSARY_LEAK_IV_URL=http://127.0.0.1:7871/sse EMISSARY_GATE2_URL=http://127.0.0.1:7872/sse EMISSARY_LEAK_I_URL=http://127.0.0.1:9/sse \
+            node scripts/run-recurse.mjs 4125 "$token" '{"type":"all"}' "$KEY" | grep -E '^\[..:..:..\] (source|DONE|RESULT|ERROR|HTTP)' || true
+          echo "outcomes: $(python3 -c "import collections, json; print(dict(collections.Counter(json.loads(l)['outcome'] for l in open('out/results.jsonl') if l.strip())))")"
+          echo "banked: $(wc -l < out/bank.jsonl)"
+      - name: Service logs (on failure)
+        if: failure()
+        run: tail -40 leak-iv.log gate2.log out/bridge.log out/queue-server.log 2>/dev/null || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with: { name: "shard-${{ matrix.shard }}", path: out/, retention-days: 7, if-no-files-found: ignore }
+
+  finish:
+    needs: translate
+    if: always() && needs.translate.result != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: { contents: write }   # the ledger and the bank, committed here
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          filter: "blob:none"
+          persist-credentials: false
+          sparse-checkout: |
+            scripts
+            lib
+            data/translate
+            data/bank
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: "22" }
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { pattern: "shard-*", path: shards }
+      - name: Fold the shards into the ledger and the bank, and commit them
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          mkdir -p shards
+          node scripts/translate-finish.mjs "$KEY" "$GITHUB_RUN_ID" shards
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --sparse -- data/translate data/bank
+          git diff --cached --quiet && { echo "nothing new"; exit 0; }
+          git commit -q -m "translate: $KEY ($MODE, run $GITHUB_RUN_ID)" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+          for _ in $(seq 1 30); do
+            if git pull -q --rebase origin main && git push -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main; then echo "committed"; exit 0; fi
+            sleep $((RANDOM % 20 + 5))
+          done
+          echo "could not push after 30 attempts"; exit 1
