@@ -20,7 +20,7 @@
 import { createServer } from "node:http"
 import { spawn, execFile } from "node:child_process"
 import { randomBytes, timingSafeEqual, randomUUID, createHash } from "node:crypto"
-import { mkdtempSync, writeFileSync, readFileSync, renameSync, mkdirSync, appendFileSync, existsSync, rmSync } from "node:fs"
+import { mkdtempSync, writeFileSync, readFileSync, renameSync, mkdirSync, appendFileSync, existsSync, rmSync, createReadStream } from "node:fs"
 import { tmpdir, homedir } from "node:os"
 import { join, basename } from "node:path"
 import { promisify } from "node:util"
@@ -14028,6 +14028,7 @@ export async function corpusClosureNames(repoRoot, moduleName) {
 // a module — from the file saved by corpusClosureNames, computed once if it
 // is missing or in an older format.
 async function corpusClosureInfo(repoRoot, moduleName) {
+  await ensureLibraryArchive(repoRoot)
   try {
     if (existsSync(corpusNamesPath(repoRoot, moduleName))) {
       const parsed = JSON.parse(readFileSync(corpusNamesPath(repoRoot, moduleName), "utf8"))
@@ -14055,6 +14056,56 @@ function corpusNamesPath(repoRoot, moduleName) {
   return join(GATE2_EXPORTS_DIR, sourceOfRepoRoot(repoRoot), `${moduleName}.names.json`)
 }
 
+// A library set up across runners (.github/workflows/setup-sharded.yml) keeps its machine exports (.ndjson,
+// .names.json) in ONE release archive, not in git: its setup.ci.json names the archive and its sha256. The first
+// time a translation needs the library, the archive is downloaded, checked and unpacked into data/exports/<key>/
+// (scripts/fetch-exports.mjs does the same by hand); a marker records it, so this runs once. If it fails, the
+// callers fall back to exporting each module from the checkout, as they always could: slower, never wrong.
+const libraryArchiveFetches = new Map()
+function ensureLibraryArchive(repoRoot) {
+  const key = sourceOfRepoRoot(repoRoot)
+  if (!key) return Promise.resolve()
+  if (!libraryArchiveFetches.has(key)) {
+    libraryArchiveFetches.set(
+      key,
+      fetchLibraryArchive(key).catch((e) => {
+        libraryArchiveFetches.delete(key) // retried on the next need
+        console.error(`[exports] ${key}: ${e?.message || e} — exporting modules from the checkout instead`)
+      }),
+    )
+  }
+  return libraryArchiveFetches.get(key)
+}
+
+async function fetchLibraryArchive(key) {
+  const dir = join(GATE2_EXPORTS_DIR, key)
+  const recPath = join(dir, "setup.ci.json")
+  if (!existsSync(recPath)) return
+  const a = JSON.parse(readFileSync(recPath, "utf8")).archive
+  if (!a?.sha256) return // exports kept in git
+  const marker = join(dir, `.archive-${a.sha256.slice(0, 16)}`)
+  if (existsSync(marker)) return
+  const urls = a.parts?.length ? a.parts.map((p) => p.url) : [a.url]
+  const tmp = join(dir, `.archive-download-${process.pid}`)
+  console.log(`[exports] ${key}: first use — downloading ${a.asset} (${Math.round(a.bytes / 1048576)} MB)`)
+  try {
+    rmSync(tmp, { force: true })
+    for (const u of urls) {
+      await execFileAsync("sh", ["-c", 'curl -fsSL --retry 3 "$1" >> "$2"', "sh", u, tmp], { maxBuffer: 1024 * 1024, timeout: 2 * 3600 * 1000 })
+    }
+    const got = await new Promise((res, rej) => {
+      const h = createHash("sha256")
+      createReadStream(tmp).on("data", (d) => h.update(d)).on("end", () => res(h.digest("hex"))).on("error", rej)
+    })
+    if (got !== a.sha256) throw new Error(`downloaded archive has sha256 ${got.slice(0, 16)}…, the record says ${a.sha256.slice(0, 16)}…`)
+    await execFileAsync("tar", ["--zstd", "-xf", tmp, "-C", dir], { maxBuffer: 16 * 1024 * 1024, timeout: 2 * 3600 * 1000 })
+    writeFileSync(marker, `${a.asset}\n`)
+    console.log(`[exports] ${key}: unpacked ${a.files} files`)
+  } finally {
+    rmSync(tmp, { force: true })
+  }
+}
+
 // The original module's corpus-side names (full names and last components),
 // from the file saved by corpusClosureNames — computed once if it is missing.
 export async function moduleCorpusNames(repoRoot, moduleName) {
@@ -14077,6 +14128,7 @@ export async function ensureModuleExport(repoRoot, moduleName) {
   const sub = sourceOfRepoRoot(repoRoot)
   const oldId = sub ? `${sub}/${moduleName}` : moduleName
   const exportPath = join(GATE2_EXPORTS_DIR, sub, `${moduleName}.ndjson`)
+  if (!existsSync(exportPath)) await ensureLibraryArchive(repoRoot)
   if (existsSync(exportPath)) return oldId
   const runExport = async () => {
     const names = await corpusClosureNames(repoRoot, moduleName)

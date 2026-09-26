@@ -7,9 +7,13 @@ name: setup-sharded
 # expansion and lean4export for that slice with scripts/setup-source.mjs --phase shard, and hands what it produced
 # to the finish job as an artifact. The shards run the library's own Lean code, so they only read: their token can
 # write nothing and is never stored in a checkout. The finish job, which runs no Lean, commits every shard's
-# exports. Every stage skips outputs that are already committed, so a shard that runs out of time loses nothing:
-# the finish job writes setup.ci.json once every module is exported or recorded as failed, and otherwise
-# dispatches the next round, which resumes from this round's build (at most `max_rounds`).
+# outputs. Such a library's machine exports (.ndjson, .names.json: many GB, kept only until the library is
+# translated) go into ONE release archive, `<key>@<commit>-exports.tar.zst` under the release `exports-<key>`;
+# git gets its setup.ci.json, which names the archive and its sha256, and the readable .expanded.lean files. The
+# bridge downloads the archive the first time a translation needs the library (scripts/fetch-exports.mjs by hand).
+# Every stage skips outputs that already exist, so a shard that runs out of time loses nothing: the finish job
+# publishes once every module is exported or recorded as failed, and otherwise hands the outputs so far to the next
+# round as an artifact and dispatches it (at most `max_rounds`). `bank_run` publishes an earlier run's shard outputs.
 on:
   workflow_dispatch:
     inputs:
@@ -37,7 +41,11 @@ on:
         required: false
         default: "4"
       resume_run:
-        description: "internal: the run whose prime build this round resumes"
+        description: "internal: the run whose outputs (and prime build) this round resumes"
+        required: false
+        default: ""
+      bank_run:
+        description: "Publish the shard outputs of this earlier run instead of running shards (their artifacts last 3 days)."
         required: false
         default: ""
 
@@ -57,6 +65,7 @@ env:
 
 jobs:
   prime:
+    if: inputs.bank_run == ''
     runs-on: ubuntu-latest
     timeout-minutes: 350
     permissions: { contents: read, actions: read }
@@ -157,22 +166,31 @@ jobs:
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { name: build }
+      - name: The previous round's outputs
+        if: inputs.resume_run != ''
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { name: exports-partial, run-id: "${{ inputs.resume_run }}", github-token: "${{ github.token }}" }
+      - name: Everything present before this shard runs
+        run: |
+          d="data/exports/$KEY"
+          mkdir -p "$d"
+          if [ -f exports-partial.tar.zst ]; then tar --zstd -xf exports-partial.tar.zst -C "$d"; rm exports-partial.tar.zst; fi
+          find "$d" -type f | sort > before.lst
       - name: Shard ${{ matrix.shard }} of ${{ inputs.shards }}
         run: |
           args=$(python3 -c "import json, os; print(' '.join(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('setup', {}).get('args', [])))")
-          timeout -k 2m 300m node scripts/setup-source.mjs "$KEY" --phase shard --shard "$I/$SHARDS" --restore build.tar.zst $args || echo "::notice::shard $I stopped before finishing; committing what it produced"
+          timeout -k 2m 300m node scripts/setup-source.mjs "$KEY" --phase shard --shard "$I/$SHARDS" --restore build.tar.zst $args || echo "::notice::shard $I stopped before finishing; handing on what it produced"
           pkill -f 'bin/lake|bin/lean' || true
           rm -f build.tar.zst
       - name: What this shard produced
         if: always()
         run: |
           d="data/exports/$KEY"
-          # GitHub refuses a file over 100 MB; a module left out this way is handled again by the next round
-          find "$d" -type f -size +95M -print -delete || true
           find "$d" -type f \( -name '*.tmp' -o -name '*.tmp-*' -o -name '.batch-*.tsv' \) -delete || true
-          git ls-files --others --modified --exclude-standard -z -- "$d" > produced.lst
-          echo "$(tr -cd '\0' < produced.lst | wc -c) files"
-          tar --null -T produced.lst --zstd -cf "out-$I.tar.zst"
+          find "$d" -type f | sort > after.lst
+          comm -13 before.lst after.lst | sed "s|^$d/||" > produced.lst
+          echo "$(wc -l < produced.lst | tr -d ' ') files"
+          tar -C "$d" -T produced.lst --zstd -cf "out-$I.tar.zst"
           ls -la "out-$I.tar.zst"
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -180,9 +198,9 @@ jobs:
 
   finish:
     needs: [prime, shard]
-    if: always() && needs.prime.result == 'success'
+    if: always() && (needs.prime.result == 'success' || inputs.bank_run != '')
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 150
     permissions: { contents: write, actions: write }
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -202,27 +220,25 @@ jobs:
           git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
           git -C tengoku sparse-checkout set --no-cone $files
           git -C tengoku checkout -q
+      - name: The previous round's outputs
+        if: inputs.resume_run != ''
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { name: exports-partial, run-id: "${{ inputs.resume_run }}", github-token: "${{ github.token }}" }
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         continue-on-error: true   # a round in which no shard uploaded anything still dispatches the next one
-        with: { pattern: "out-*", path: shard-out, merge-multiple: true }
-      - name: Bank every shard's exports
-        env: { GH_TOKEN: "${{ github.token }}", ROUND: "${{ inputs.round }}" }
+        with: { pattern: "out-*", path: shard-out, merge-multiple: true, run-id: "${{ inputs.bank_run || github.run_id }}", github-token: "${{ github.token }}" }
+      - name: Every output so far, in one place
         run: |
           shopt -s nullglob
-          for f in shard-out/out-*.tar.zst; do tar --zstd -xf "$f"; done
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add --sparse -- "data/exports/$KEY"
-          if git diff --cached --quiet; then echo "the shards produced nothing new"; exit 0; fi
-          git commit -q -m "exports: $KEY round $ROUND ($(ls shard-out | wc -l | tr -d ' ') shards, runner)" -m "Run $GITHUB_RUN_ID of .github/workflows/setup-sharded.yml." -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-          for i in $(seq 1 30); do
-            if git pull -q --rebase --autostash origin main && git push -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main; then echo "banked round $ROUND"; exit 0; fi
-            sleep $((RANDOM % 25 + 5))
-          done
-          echo "could not push after 30 attempts"; exit 1
+          d="data/exports/$KEY"
+          mkdir -p "$d"
+          if [ -f exports-partial.tar.zst ]; then tar --zstd -xf exports-partial.tar.zst -C "$d"; rm exports-partial.tar.zst; fi
+          for f in shard-out/out-*.tar.zst; do tar --zstd -xf "$f" -C "$d"; done
+          rm -rf shard-out
+          echo "$(find "$d" -name '*.ndjson' | wc -l | tr -d ' ') exports, $(du -sh "$d" | cut -f1)"
       - name: Every module exported or recorded as failed?
         run: node scripts/setup-source.mjs "$KEY" --phase finish
-      - name: Bank the setup record, or dispatch the next round
+      - name: Publish the archive and the setup record, or hand on to the next round
         env:
           GH_TOKEN: ${{ github.token }}
           ROUND: ${{ inputs.round }}
@@ -230,20 +246,69 @@ jobs:
           PRIME_MINUTES: ${{ inputs.prime_minutes }}
           EXPAND_CHUNK: ${{ inputs.expand_chunk }}
         run: |
-          if [ -f "infra/$KEY/setup.json" ]; then
-            cp "infra/$KEY/setup.json" "data/exports/$KEY/setup.ci.json"
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add --sparse -- "data/exports/$KEY/setup.ci.json"
-            summary=$(python3 -c "import json, os; j = json.load(open('data/exports/' + os.environ['KEY'] + '/setup.ci.json')); print(f\"{j['exported']}/{j['modules']} modules exported on {j['toolchain']} ({j['repo']} @ {j['commit'][:12]}), {len(j['failed'])} failed\")")
-            git commit -q -m "exports: $KEY (sharded runner)" -m "$summary. Set up across runners by .github/workflows/setup-sharded.yml in $ROUND round(s); a laptop's setup-source.mjs adopts setup.ci.json instead of building." -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-            for i in $(seq 1 30); do
-              if git pull -q --rebase --autostash origin main && git push -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main; then echo "banked $KEY"; exit 0; fi
-              sleep $((RANDOM % 25 + 5))
-            done
-            echo "could not push after 30 attempts"; exit 1
+          d="data/exports/$KEY"
+          machine() { (cd "$d" && find . -type f \( -name '*.ndjson' -o -name '*.names.json' \) | sed 's|^\./||' | sort); }
+          if [ ! -f "infra/$KEY/setup.json" ]; then
+            if [ "$ROUND" -ge "$MAX_ROUNDS" ]; then echo "::error::$KEY is not finished after $ROUND rounds: see the step above"; exit 1; fi
+            (cd "$d" && find . -type f | sed 's|^\./||') > partial.lst
+            tar -C "$d" -T partial.lst --zstd -cf exports-partial.tar.zst
+            echo "partial=1" >> "$GITHUB_ENV"
+            exit 0
           fi
-          if [ "$ROUND" -ge "$MAX_ROUNDS" ]; then echo "::error::$KEY is not finished after $ROUND rounds: see the finish step"; exit 1; fi
+          # the machine exports: ONE archive, compressed hard enough to stay under GitHub's 2 GB per file
+          # (--long=27 is the widest window a plain `tar --zstd -xf` still unpacks)
+          commit=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']]['commit'][:12])")
+          asset="$KEY@$commit-exports.tar.zst"
+          machine > archive.lst
+          tar -C "$d" -T archive.lst -cf - | zstd -q -19 --long=27 -T0 -o "$asset"
+          bytes=$(stat -c %s "$asset"); sha=$(sha256sum "$asset" | cut -d' ' -f1)
+          echo "$asset: $(wc -l < archive.lst | tr -d ' ') files, $bytes bytes, sha256 $sha"
+          files=("$asset")
+          if [ "$bytes" -gt 2000000000 ]; then
+            split -b 1900m -d -a 2 "$asset" "$asset.part-"; rm "$asset"; files=("$asset".part-*)
+            echo "::warning::$asset is over 2 GB: published in ${#files[@]} parts, which the bridge joins"
+          fi
+          tag="exports-$KEY"
+          gh release view "$tag" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1 || gh release create "$tag" -R "$GITHUB_REPOSITORY" --target main --title "exports: $KEY" \
+            --notes "The machine exports (lean4export .ndjson and closure .names.json) of $KEY, kept here until the library is translated. data/exports/$KEY/setup.ci.json names the archive for each pinned commit, with its sha256; the bridge downloads it on first use. By hand: node scripts/fetch-exports.mjs $KEY, or download and run: tar --zstd -xf <archive> -C data/exports/$KEY"
+          gh release upload "$tag" "${files[@]}" -R "$GITHUB_REPOSITORY" --clobber
+          python3 - "$asset" "$bytes" "$sha" "$(wc -l < archive.lst)" "${files[@]}" <<'PY'
+          import json, os, sys
+          asset, size, sha, count, *files = sys.argv[1:]
+          base = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/exports-{os.environ['KEY']}/"
+          rec_path = f"infra/{os.environ['KEY']}/setup.json"
+          rec = json.load(open(rec_path))
+          rec["archive"] = {"release": f"exports-{os.environ['KEY']}", "asset": asset, "url": base + asset, "bytes": int(size), "sha256": sha,
+                            "files": int(count), "unpack": f"tar --zstd -xf {asset} -C data/exports/{os.environ['KEY']}"}
+          if files != [asset]:
+              rec["archive"]["parts"] = [{"asset": f, "url": base + f} for f in files]
+          json.dump(rec, open(f"data/exports/{os.environ['KEY']}/setup.ci.json", "w"), indent=2)
+          PY
+          # git keeps the record, the readable .expanded.lean files and the shard records; never the machine exports
+          printf '%s\n' '# machine exports: in the release archive named by setup.ci.json (scripts/fetch-exports.mjs)' '*.ndjson' '*.names.json' '.archive-*' > "$d/.gitignore"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --sparse -- "$d"
+          if git diff --cached --name-only | grep -E '\.(ndjson|names\.json)$'; then echo "::error::a machine export was staged"; exit 1; fi
+          summary=$(python3 -c "import json, os; j = json.load(open('data/exports/' + os.environ['KEY'] + '/setup.ci.json')); print(f\"{j['exported']}/{j['modules']} modules exported on {j['toolchain']} ({j['repo']} @ {j['commit'][:12]}), {len(j['failed'])} failed\")")
+          git commit -q -m "exports: $KEY (sharded runner)" -m "$summary. Set up across runners by .github/workflows/setup-sharded.yml; the machine exports are the release archive $asset (sha256 ${sha:0:16}…), which the bridge downloads on first use." -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+          for i in $(seq 1 30); do
+            if git pull -q --rebase --autostash origin main && git push -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main; then echo "published $KEY"; exit 0; fi
+            sleep $((RANDOM % 25 + 5))
+          done
+          echo "could not push after 30 attempts"; exit 1
+      - if: env.partial == '1'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: exports-partial, path: exports-partial.tar.zst, retention-days: 7, compression-level: 0 }
+      - name: Dispatch the next round
+        if: env.partial == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROUND: ${{ inputs.round }}
+          MAX_ROUNDS: ${{ inputs.max_rounds }}
+          PRIME_MINUTES: ${{ inputs.prime_minutes }}
+          EXPAND_CHUNK: ${{ inputs.expand_chunk }}
+        run: |
           gh workflow run setup-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$KEY" -f shards="$SHARDS" -f prime_minutes="$PRIME_MINUTES" \
             -f expand_chunk="$EXPAND_CHUNK" -f round="$((ROUND + 1))" -f max_rounds="$MAX_ROUNDS" -f resume_run="$GITHUB_RUN_ID"
           echo "::notice::dispatched round $((ROUND + 1))"

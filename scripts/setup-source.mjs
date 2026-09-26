@@ -739,7 +739,10 @@ function adopt(entries, modules, stats, t0) {
     log(`runner record is for ${String(ci.commit).slice(0, 12)}, not ${src.commit.slice(0, 12)} — setting up here`)
     return false
   }
-  const handled = new Set([...(ci.failed || []).map((f) => f.module), ...modules.filter((m) => existsSync(join(EXPORTS, `${m}.ndjson`)))])
+  // A library set up across runners keeps its machine exports in a release archive (ci.archive), which the bridge
+  // downloads the first time a translation needs it: there the record, not the local files, says what was exported.
+  const archived = ci.archive && ci.modules === modules.length && ci.exported + (ci.failed || []).length === ci.modules
+  const handled = new Set([...(ci.failed || []).map((f) => f.module), ...modules.filter((m) => archived || existsSync(join(EXPORTS, `${m}.ndjson`)))])
   const missing = modules.filter((m) => !handled.has(m))
   if (missing.length) {
     log(`runner record does not cover ${missing.length} modules (${missing.slice(0, 3).join(", ")}) — setting up here`)
@@ -755,7 +758,7 @@ function adopt(entries, modules, stats, t0) {
     finishedAt: new Date().toISOString(),
   }
   writeAtomic(SETUP_JSON, JSON.stringify(report, null, 2))
-  log(`adopted the runner's setup: ${ci.exported}/${ci.modules} modules exported on ${ci.toolchain} — nothing built here`)
+  log(`adopted the runner's setup: ${ci.exported}/${ci.modules} modules exported on ${ci.toolchain} — nothing built here${archived ? ` (exports in ${ci.archive.asset}, downloaded on first use)` : ""}`)
   return true
 }
 
@@ -771,7 +774,8 @@ async function shard(modules, t0) {
   const entryModules = new Set(modules)
   const mine = modules.filter(inShard)
   log(`shard ${SHARD.i}/${SHARD.n}: ${mine.length} of ${modules.length} modules`)
-  await build(mine) // what the build phase did not reach; lake skips the rest
+  // what neither the build phase nor an earlier round reached: a module exported in an earlier round is done
+  await build(mine.filter((m) => !existsSync(join(EXPORTS, `${m}.ndjson`))))
   await closures(mine)
   // A module that carries entries is expanded by its own shard; one that only appears in closures is expanded
   // by every shard that needs it (the same text, so the commits merge).
