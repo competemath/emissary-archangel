@@ -1,0 +1,53 @@
+{
+  "key": "navier-stokes-euler",
+  "repo": "https://github.com/openai/NavierStokesAndEuler",
+  "commit": "f9e8bc5b38b6e212696e8a30e3e91517af887bbd",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "NavierStokes",
+    "Euler",
+    "ComparatorChallenges"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/navier-stokes-euler/repo",
+  "entries": 38530,
+  "modules": 2613,
+  "exported": 2613,
+  "failed": [],
+  "expansion": {
+    "expanded": 66,
+    "verbatim": 3352,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 38530,
+    "kept": 38530,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 38,
+    "lineUnverified": 0,
+    "nameFixed": 38530,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "sharded": {
+    "records": 16,
+    "shards": [
+      16
+    ]
+  },
+  "exportsBytes": 22515494912,
+  "minutes": 281,
+  "finishedAt": "2026-09-26T18:52:29.530Z",
+  "archive": {
+    "release": "exports-navier-stokes-euler",
+    "asset": "navier-stokes-euler@f9e8bc5b38b6-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-navier-stokes-euler/navier-stokes-euler@f9e8bc5b38b6-exports.tar.zst",
+    "bytes": 1954884914,
+    "sha256": "b69946c447cb7ee94d0338438d13bda6db383277d080f80f8817808d69061945",
+    "files": 5226,
+    "unpack": "tar --zstd -xf navier-stokes-euler@f9e8bc5b38b6-exports.tar.zst -C data/exports/navier-stokes-euler"
+  }
+}
