@@ -16,6 +16,15 @@
 //                  the source files from here on; --keep-build keeps it, --uninstall-toolchain also
 //                  removes a toolchain that is neither the tree's nor 4.29.1
 // Writes infra/<key>/setup.json with the counts. Re-runnable: finished steps are skipped.
+//
+// Split across runners (.github/workflows/setup-sharded.yml), for a library too big for one 6-hour job:
+//   --phase build                   toolchain, clone, build in module-name order (shared modules first); stops
+//                                   there and keeps the build, which the workflow hands to the shards
+//   --phase shard --shard i/N       --restore <build.tar.zst>, then build the rest of this shard's modules (a stable
+//                                   hash of the module name picks them) and run closures, notation expansion and
+//                                   exports for them; writes data/exports/<key>/.shards/<i>-of-<N>.json when done
+//   --phase finish                  writes setup.json from the exports and the shard records, once every module
+//                                   is exported or recorded as failed by a shard that finished
 import { execFile, execFileSync, spawn } from "node:child_process"
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync, readdirSync, statSync } from "node:fs"
 import os from "node:os"
@@ -73,6 +82,25 @@ const registry = JSON.parse(readFileSync(join(APP_ROOT, "sources.json"), "utf8")
 const src = registry.sources[key]
 if (!src) fail(`unknown source ${key} (sources.json)`)
 if (!src.repo || !src.commit || !src.toolchain || !src.roots?.length) fail(`${key}: sources.json entry needs repo, commit, toolchain, roots`)
+
+const PHASE = flag("phase", null)
+if (PHASE && !["build", "shard", "finish"].includes(PHASE)) fail(`--phase is build, shard or finish, not ${PHASE}`)
+const SHARD = (() => {
+  const s = flag("shard", null)
+  if (!s) return null
+  const [i, n] = String(s).split("/").map(Number)
+  if (!(Number.isInteger(i) && Number.isInteger(n) && n > 0 && i >= 0 && i < n)) fail(`--shard wants i/N with 0 <= i < N, not ${s}`)
+  return { i, n }
+})()
+if (PHASE === "shard" && !SHARD) fail("--phase shard needs --shard i/N")
+const RESTORE = flag("restore", null)
+// FNV-1a of the module name: the same module lands in the same shard on every runner and every dispatch.
+const shardOf = (m) => {
+  let h = 0x811c9dc5
+  for (const c of Buffer.from(m, "utf8")) h = Math.imul(h ^ c, 0x01000193) >>> 0
+  return h % SHARD.n
+}
+const inShard = (m) => !SHARD || shardOf(m) === SHARD.i
 
 const INFRA = join(APP_ROOT, "infra", key)
 // The clone, and the Lake project inside it (`subdir`, for a repository of several projects such as
@@ -339,7 +367,7 @@ function seedQueue() {
 }
 
 // ---- 4. build -------------------------------------------------------------------
-async function build(modules) {
+async function mathlibCache() {
   const manifest = join(REPO, "lake-manifest.json")
   const hasMathlib = existsSync(manifest) && /"name":\s*"mathlib"/.test(readFileSync(manifest, "utf8"))
   if (hasMathlib) {
@@ -347,6 +375,11 @@ async function build(modules) {
     if (r.code !== 0 && !(await online())) fail(`lake exe cache get exited ${r.code} while offline — rerun when the network is back`)
     if (r.code !== 0) log(`WARNING: lake exe cache get exited ${r.code}: ${r.tail.slice(-300)} — building from source`)
   }
+  return hasMathlib
+}
+
+async function build(modules) {
+  const hasMathlib = await mathlibCache()
   // Only the modules that carry entries (and, through lake, what they import).
   for (let i = 0; i < modules.length; i += BUILD_CHUNK) {
     const chunk = modules.slice(i, i + BUILD_CHUNK)
@@ -361,7 +394,7 @@ async function build(modules) {
   // A Mathlib the cache did not serve (a pin off Mathlib's master) was compiled here, hours of
   // work: pack it into the local cache, which lives on until the toolchain group ends, so the
   // next library pinning the same commit gets it from `cache get` instead of compiling it again.
-  if (hasMathlib) {
+  if (hasMathlib && !PHASE) {
     const r = await run("lake", ["exe", "cache", "pack"], { cwd: REPO, timeoutMs: 60 * 60 * 1000 })
     if (r.code !== 0) log(`WARNING: lake exe cache pack exited ${r.code}: ${r.tail.slice(-300)}`)
   }
@@ -726,6 +759,82 @@ function adopt(entries, modules, stats, t0) {
   return true
 }
 
+// ---- sharded setup (.github/workflows/setup-sharded.yml) ----------------------------
+const SHARD_DIR = join(EXPORTS, ".shards")
+
+async function shard(modules, t0) {
+  await mathlibCache() // resolves the packages, and Mathlib's .oleans, before the build is laid over them
+  if (RESTORE) {
+    const r = await run("tar", ["--zstd", "-xf", resolve(RESTORE), "-C", REPO], { timeoutMs: 60 * 60 * 1000 })
+    if (r.code !== 0) fail(`could not restore the build from ${RESTORE}: ${r.tail.slice(-300)}`)
+  }
+  const entryModules = new Set(modules)
+  const mine = modules.filter(inShard)
+  log(`shard ${SHARD.i}/${SHARD.n}: ${mine.length} of ${modules.length} modules`)
+  await build(mine) // what the build phase did not reach; lake skips the rest
+  await closures(mine)
+  // A module that carries entries is expanded by its own shard; one that only appears in closures is expanded
+  // by every shard that needs it (the same text, so the commits merge).
+  const expansion = await expand(closureModules(mine).filter((m) => !entryModules.has(m) || inShard(m)))
+  await ensureLean4export()
+  const failed = await exports(mine)
+  const record = {
+    shard: SHARD.i,
+    shards: SHARD.n,
+    commit: src.commit,
+    toolchain: src.toolchain,
+    modules: mine.length,
+    exported: mine.filter((m) => existsSync(join(EXPORTS, `${m}.ndjson`))).length,
+    failed: failed.map(([m, why]) => ({ module: m, why })),
+    expansion: { ...expansion.stats, failed: expansion.failed.map(([m, why]) => ({ module: m, why })) },
+    minutes: Math.round((Date.now() - t0) / 60000),
+    finishedAt: new Date().toISOString(),
+  }
+  mkdirSync(SHARD_DIR, { recursive: true })
+  writeAtomic(join(SHARD_DIR, `${SHARD.i}-of-${SHARD.n}.json`), JSON.stringify(record, null, 2))
+  log(`shard ${SHARD.i}/${SHARD.n} done: ${record.exported}/${mine.length} exported, ${failed.length} failed, ${record.minutes} min`)
+}
+
+// Every module exported, or recorded as failed by a shard that finished (on this commit): then setup.json.
+// Anything else is not done — dispatch the workflow again and the shards carry on from what is committed.
+function finish(entries, modules, stats, t0) {
+  const records = existsSync(SHARD_DIR)
+    ? readdirSync(SHARD_DIR)
+        .filter((f) => /^\d+-of-\d+\.json$/.test(f))
+        .map((f) => JSON.parse(readFileSync(join(SHARD_DIR, f), "utf8")))
+        .filter((r) => r.commit === src.commit)
+    : []
+  const exported = new Set(modules.filter((m) => existsSync(join(EXPORTS, `${m}.ndjson`))))
+  const why = new Map(records.flatMap((r) => r.failed.map((f) => [f.module, f.why])))
+  const missing = modules.filter((m) => !exported.has(m) && !why.has(m))
+  if (missing.length) {
+    log(`not finished: ${missing.length} of ${modules.length} modules neither exported nor recorded as failed (${missing.slice(0, 3).join(", ")}) — dispatch again`)
+    return
+  }
+  const failed = modules.filter((m) => !exported.has(m)).map((m) => ({ module: m, why: why.get(m) }))
+  const sum = (k) => records.reduce((a, r) => a + (r.expansion?.[k] || 0), 0)
+  const report = {
+    key,
+    repo: src.repo,
+    commit: src.commit,
+    toolchain: src.toolchain,
+    roots: src.roots,
+    corpusRoot: REPO,
+    entries: entries.length,
+    modules: modules.length,
+    exported: exported.size,
+    failed,
+    expansion: { expanded: sum("expanded"), verbatim: sum("verbatim"), unexpanded: sum("unexpanded"), failed: records.flatMap((r) => r.expansion?.failed || []) },
+    seed: stats,
+    sharded: { records: records.length, shards: [...new Set(records.map((r) => r.shards))] },
+    exportsBytes: dirSize(EXPORTS),
+    minutes: Math.round((Date.now() - t0) / 60000) + records.reduce((a, r) => Math.max(a, r.minutes || 0), 0),
+    finishedAt: new Date().toISOString(),
+  }
+  writeAtomic(SETUP_JSON, JSON.stringify(report, null, 2))
+  log(`done ${key} (sharded): ${exported.size}/${modules.length} modules exported, ${failed.length} failed, from ${records.length} shard records — ${SETUP_JSON}`)
+}
+
 // ---- memory watchdog ------------------------------------------------------------
 // `lean -M` counts resident memory, and macOS compresses a runaway's pages instead of keeping them
 // resident: a notation expansion reached 33 GB (30 GB compressed, 3 GB resident) far past an 11 GB cap.
@@ -794,8 +903,14 @@ async function main() {
   const modules = Array.from(new Set(entries.map((e) => moduleOfPath(e.sourcePath)))).sort()
   log(`${entries.length} entries in ${modules.length} modules`)
   if (ONLY === "seed") return
-  if (!ONLY && adopt(entries, modules, stats, t0)) return
+  if (PHASE === "finish") return finish(entries, modules, stats, t0)
+  if (!ONLY && !PHASE && adopt(entries, modules, stats, t0)) return
   await ensureToolchain()
+  if (PHASE === "build") {
+    await build(modules)
+    return log(`done ${key} (build phase): the build stays for the shards`)
+  }
+  if (PHASE === "shard") return shard(modules, t0)
   if (ONLY !== "export") await build(modules)
   await closures(modules)
   const expansion = await expand(closureModules(modules))

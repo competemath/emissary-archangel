@@ -18,8 +18,7 @@ on:
         required: false
         default: "formal-conjectures flt-anthropic"
 
-permissions:
-  contents: write
+permissions: {}
 
 concurrency:
   group: setup-libraries
@@ -29,11 +28,12 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions: { contents: read }
     outputs:
       keys: ${{ steps.plan.outputs.keys }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with: { filter: "blob:none", sparse-checkout: "scripts" }
+        with: { filter: "blob:none", sparse-checkout: "scripts", persist-credentials: false }
       - id: plan
         env: { KEYS: "${{ inputs.keys }}", EXCLUDE: "${{ inputs.exclude }}" }
         run: |
@@ -57,6 +57,8 @@ jobs:
     if: needs.plan.outputs.keys != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 350
+    # the push at the end; the token is never stored in the checkout, where the library's own Lean code runs
+    permissions: { contents: write }
     strategy:
       fail-fast: false
       max-parallel: 20
@@ -73,7 +75,7 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift
           df -h /
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with: { filter: "blob:none", fetch-depth: 0, sparse-checkout: "scripts" }
+        with: { filter: "blob:none", fetch-depth: 0, sparse-checkout: "scripts", persist-credentials: false }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: "22" }
       - name: This library's tentative records (only its own files from the tree repository)
@@ -92,6 +94,7 @@ jobs:
           args=$(python3 -c "import json, os; print(' '.join(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('setup', {}).get('args', [])))")
           node scripts/setup-source.mjs "$KEY" $args
       - name: Bank the exports
+        env: { GH_TOKEN: "${{ github.token }}" }
         run: |
           test -f "infra/$KEY/setup.json"
           cp "infra/$KEY/setup.json" "data/exports/$KEY/setup.ci.json"
@@ -106,7 +109,7 @@ jobs:
           # up to 20 jobs push to main at once: replay on top of whatever landed meanwhile (different paths);
           # --autostash: the setup rewrites data/queue-equational-theories.json, the one tracked queue file
           for i in $(seq 1 30); do
-            if git pull -q --rebase --autostash origin main && git push -q origin HEAD:main; then echo "banked $KEY"; exit 0; fi
+            if git pull -q --rebase --autostash origin main && git push -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main; then echo "banked $KEY"; exit 0; fi
             sleep $((RANDOM % 25 + 5))
           done
           echo "could not push after 30 attempts"; exit 1
