@@ -1,0 +1,137 @@
+/-
+Copyright 2026 The Formal Conjectures Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-/
+
+import FormalConjecturesUtil
+
+
+-- @@ L19-41 verbatim
+/-!
+# Ramsey numbers
+
+The (graph) Ramsey number $R(k,\ell)$ is the least natural number $n$ such that every simple graph
+on $n$ vertices contains either a clique of size $k$ or an independent set of size $\ell$
+(equivalently, the complement graph contains a clique of size $\ell$).
+
+We formalize the classical open problem of determining $R(5,5)$, together with the currently best
+known bounds $43 \le R(5,5) \le 46$.
+
+Note: the diagonal Ramsey number $R(n,n)$ can also be formulated in terms of 2-colorings of
+$2$-subsets, as `Combinatorics.hypergraphRamsey 2 n` (see `FormalConjecturesForMathlib/Combinatorics/Ramsey.lean`).
+
+*References:*
+- [Wikipedia: Ramsey number](https://en.wikipedia.org/wiki/Ramsey_number)
+- [Rad] S. P. Radziszowski, *Small Ramsey Numbers*, Electronic Journal of Combinatorics, Dynamic
+  Survey DS1. (Updated periodically.) https://www.combinatorics.org/ojs/index.php/eljc/article/view/DS1
+- [Exoo89] G. Exoo, *A lower bound for* $R(5,5)$, Journal of Graph Theory 13 (1989), 97–98.
+  DOI: 10.1002/jgt.3190130113
+- [AM24] V. Angeltveit and B. McKay, *$R(5,5) \le 46$*, arXiv:2409.15709 (2024).
+- [OEIS A212954](https://oeis.org/A212954)
+- [MathWorld: Ramsey Number](https://mathworld.wolfram.com/RamseyNumber.html)
+-/
+
+
+-- @@ L43-43 verbatim
+namespace RamseyNumbers
+
+
+-- @@ L45-52 verbatim
+/--
+`IsGraphRamsey n k l` means that for every simple graph `G` on `n` vertices, either
+- `G` contains a clique of size `k`, or
+- the complement graph `Gᶜ` contains a clique of size `l` (equivalently, `G` contains an
+  independent set of size `l`).
+-/
+def IsGraphRamsey (n k l : ℕ) : Prop :=
+  ∀ G : SimpleGraph (Fin n), ¬ (G.CliqueFree k ∧ (Gᶜ).CliqueFree l)
+
+
+-- @@ L54-66 verbatim
+/-- Monotonicity in the number of vertices. -/
+@[category API, AMS 5]
+theorem IsGraphRamsey.succ (n k l : ℕ) :
+    IsGraphRamsey n k l → IsGraphRamsey (n + 1) k l := by
+  intro h G
+  -- Restrict to the induced subgraph on the first `n` vertices.
+  let H : SimpleGraph (Fin n) := G.comap (Fin.castSuccEmb : Fin n ↪ Fin (n + 1))
+  have emb : H ↪g G := SimpleGraph.Embedding.comap (Fin.castSuccEmb : Fin n ↪ Fin (n + 1)) G
+  have embc : (Hᶜ) ↪g (Gᶜ) := (SimpleGraph.Embedding.complEquiv (G := H) (H := G)).toFun emb
+  rintro ⟨hG, hGc⟩
+  have hH : H.CliqueFree k := SimpleGraph.CliqueFree.comap emb.isContained hG
+  have hHc : (Hᶜ).CliqueFree l := SimpleGraph.CliqueFree.comap embc.isContained hGc
+  exact (h H) ⟨hH, hHc⟩
+
+
+-- @@ L68-74 verbatim
+/-- Symmetry in the clique / independent set sizes. -/
+@[category API, AMS 5]
+theorem IsGraphRamsey.symm (n k l : ℕ) :
+    IsGraphRamsey n k l ↔ IsGraphRamsey n l k := by
+  constructor <;> intro h G
+  · simpa [IsGraphRamsey, and_comm, and_left_comm, and_assoc] using h (Gᶜ)
+  · simpa [IsGraphRamsey, and_comm, and_left_comm, and_assoc] using h (Gᶜ)
+
+
+-- @@ L76-84 verbatim
+/-- The shared Ramsey number agrees with the clique-free formulation. -/
+@[category API, AMS 5]
+theorem classicalRamsey_eq_sInf (k l : ℕ) :
+    SimpleGraph.classicalRamsey k l = sInf {n : ℕ | IsGraphRamsey n k l} := by
+  classical
+  simp only [SimpleGraph.classicalRamsey, SimpleGraph.graphRamsey,
+    IsGraphRamsey, not_and_or, SimpleGraph.not_cliqueFree_iff_top_isContained]
+
+-- Notation used in the literature.
+
+-- @@ L85-85 verbatim
+local notation "R(" k ", " l ")" => SimpleGraph.classicalRamsey k l
+
+
+-- @@ L87-95 verbatim
+/--
+The open problem: determine the Ramsey number $R(5,5)$.
+
+It is known that $43 \le R(5,5) \le 46$.
+-/
+@[category research open, AMS 5]
+theorem ramsey_number_five_five :
+    R(5, 5) = answer(sorry) := by
+  sorry
+
+
+-- @@ L97-104 verbatim
+/--
+Lower bound $43 \le R(5,5)$, equivalently: there exists a graph on $42$ vertices with no
+$5$-clique and no independent set of size $5$.
+-/
+@[category research solved, AMS 5]
+theorem ramsey_number_five_five_lower_bound :
+    ∃ G : SimpleGraph (Fin 42), G.CliqueFree 5 ∧ (Gᶜ).CliqueFree 5 := by
+  sorry
+
+
+-- @@ L106-113 verbatim
+/--
+Upper bound $R(5,5) \le 46$, i.e. every graph on $46$ vertices contains a $5$-clique or an
+independent set of size $5$.
+-/
+@[category research solved, AMS 5]
+theorem ramsey_number_five_five_upper_bound :
+    IsGraphRamsey 46 5 5 := by
+  sorry
+
+
+-- @@ L115-115 verbatim
+end RamseyNumbers

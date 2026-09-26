@@ -1,0 +1,1 @@
+{"names":["Finset.Coprime","Finset.Coprime_pair_iff"],"modules":["FormalConjecturesForMathlib.Data.Nat.Prime.Finset"],"moduleOf":{"Finset.Coprime":"FormalConjecturesForMathlib.Data.Nat.Prime.Finset","Finset.Coprime_pair_iff":"FormalConjecturesForMathlib.Data.Nat.Prime.Finset"},"deps":{"Finset.Coprime":[],"Finset.Coprime_pair_iff":["Finset.Coprime"]}}

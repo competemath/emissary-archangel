@@ -1,0 +1,16 @@
+{"meta":{"exporter":{"name":"lean4export","version":"3.1.0"},"format":{"version":"3.1.0"},"lean":{"githash":"819816b2e0a3bf405af45ae5c7af2491d8f5bee6","version":"4.33.1"}}}
+{"in":1,"str":{"pre":0,"str":"LatexDocstringLinter"}}
+{"in":2,"str":{"pre":1,"str":"flagged_with_legacy_url_link"}}
+{"in":3,"str":{"pre":0,"str":"True"}}
+{"const":{"name":3,"us":[]},"ie":0}
+{"in":4,"str":{"pre":3,"str":"intro"}}
+{"const":{"name":4,"us":[]},"ie":1}
+{"thm":{"all":[2],"levelParams":[],"name":2,"type":0,"value":1}}
+{"in":5,"str":{"pre":1,"str":"not_flagged_with_good_math"}}
+{"thm":{"all":[5],"levelParams":[],"name":5,"type":0,"value":1}}
+{"in":6,"str":{"pre":1,"str":"flagged_with_paren_math"}}
+{"thm":{"all":[6],"levelParams":[],"name":6,"type":0,"value":1}}
+{"in":7,"str":{"pre":1,"str":"flagged_with_bracket_math"}}
+{"thm":{"all":[7],"levelParams":[],"name":7,"type":0,"value":1}}
+{"in":8,"str":{"pre":1,"str":"not_flagged_with_inline_url_link"}}
+{"thm":{"all":[8],"levelParams":[],"name":8,"type":0,"value":1}}

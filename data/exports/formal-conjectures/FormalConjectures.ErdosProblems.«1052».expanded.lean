@@ -1,0 +1,102 @@
+/-
+Copyright 2025 The Formal Conjectures Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-/
+
+import FormalConjecturesUtil
+
+
+-- @@ L19-23 verbatim
+/-!
+# Erdős Problem 1052
+
+*Reference:* [erdosproblems.com/1052](https://www.erdosproblems.com/1052)
+-/
+
+
+-- @@ L25-25 verbatim
+namespace Erdos1052
+
+
+-- @@ L27-30 verbatim
+/-- A proper unitary divisor of $n$ is a divisor $d$ of $n$
+such that $d$ is coprime to $n/d$, and $d < n$. -/
+def properUnitaryDivisors (n : ℕ) : Finset ℕ :=
+  {d ∈ Finset.Ico 1 n | d ∣ n ∧ d.Coprime (n / d)}
+
+
+-- @@ L32-34 verbatim
+/-- A number $n > 0$ is a unitary perfect number if it is the sum of its proper unitary divisors. -/
+def IsUnitaryPerfect (n : ℕ) : Prop :=
+  ∑ i ∈ properUnitaryDivisors n, i = n ∧ 0 < n
+
+
+-- @@ L36-41 verbatim
+/--
+Are there only finitely many unitary perfect numbers? -/
+@[category research open, AMS 11]
+theorem erdos_1052 :
+    answer(sorry) ↔ {n | IsUnitaryPerfect n}.Finite := by
+  sorry
+
+
+-- @@ L43-50 verbatim
+/--
+All unitary perfect numbers are even.
+
+Formal proof linked here provided by AlphaProof.
+-/
+@[category research solved, AMS 11, formal_proof using formal_conjectures at "https://github.com/mzhorvath1/formal-conjectures/blob/b70a2ddf5e55f743aac9d4f4a907786b39bc9807/FormalConjectures/ErdosProblems/1052.lean#L46"]
+theorem even_of_isUnitaryPerfect (n : ℕ) (hn : IsUnitaryPerfect n) : Even n := by
+  sorry
+
+
+-- @@ L52-55 verbatim
+@[category test, AMS 11]
+theorem isUnitaryPerfect_6 : IsUnitaryPerfect 6 := by
+  norm_num [IsUnitaryPerfect, properUnitaryDivisors]
+  decide +kernel
+
+
+-- @@ L57-60 verbatim
+@[category test, AMS 11]
+theorem isUnitaryPerfect_60 : IsUnitaryPerfect 60 := by
+  norm_num [IsUnitaryPerfect, properUnitaryDivisors]
+  decide +kernel
+
+
+-- @@ L62-65 verbatim
+@[category test, AMS 11]
+theorem isUnitaryPerfect_90 : IsUnitaryPerfect 90 := by
+  norm_num [IsUnitaryPerfect, properUnitaryDivisors]
+  decide +kernel
+
+
+-- @@ L67-72 verbatim
+@[category test, AMS 11]
+theorem isUnitaryPerfect_87360 : IsUnitaryPerfect 87360 := by
+  -- TODO: Find a quicker proof. This one is too slow.
+  stop
+  norm_num [IsUnitaryPerfect, properUnitaryDivisors]
+  decide +kernel
+
+
+-- @@ L74-76 verbatim
+@[category test, AMS 11, formal_proof using formal_conjectures at "https://github.com/Sanexxxx777/formal-conjectures/blob/be8aed15e8888a08bbe723170698e26c046412a4/FormalConjectures/ErdosProblems/1052.lean#L346"]
+theorem isUnitaryPerfect_146361946186458562560000 : IsUnitaryPerfect 146361946186458562560000 := by
+  sorry
+
+
+-- @@ L78-78 verbatim
+end Erdos1052

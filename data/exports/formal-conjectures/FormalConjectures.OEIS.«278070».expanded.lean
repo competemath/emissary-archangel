@@ -1,0 +1,99 @@
+/-
+Copyright 2026 The Formal Conjectures Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-/
+
+import FormalConjecturesUtil
+
+
+-- @@ L19-31 verbatim
+/-!
+# Congruences $a(n+k) \equiv a(n) \pmod k$ for hypergeometric values ${}_2F_1(n, -n; ; -1)$
+
+a: $a(n) = \text{hypergeometric}([n, -n], [], -1)$.
+This is equivalent to the combinatorial sum:
+$$a(n) = \sum_{k=0}^n \binom{n}{k} \binom{n+k-1}{k} k!$$
+The expression uses $\mathbb{N}$ arithmetic throughout, safely handling
+the subtraction via `Nat.pred`.
+
+*References:*
+- [A278070](https://oeis.org/A278070)
+- [arxiv/2605.22763](https://arxiv.org/abs/2605.22763) *Advancing Mathematics Research with AI-Driven Formal Proof Search* by George Tsoukalas et al.
+-/
+
+
+-- @@ L33-33 verbatim
+namespace OeisA278070
+
+
+
+-- @@ L36-36 verbatim
+open Nat Finset
+
+
+-- @@ L38-47 verbatim
+/--
+a: $a(n) = \text{hypergeometric}([n, -n], [], -1)$.
+This is equivalent to the combinatorial sum:
+$$a(n) = \sum_{k=0}^n \binom{n}{k} \binom{n+k-1}{k} k!$$
+The expression uses $\mathbb{N}$ arithmetic throughout, safely handling
+the subtraction via `Nat.pred`.
+-/
+def a (n : ℕ) : ℕ :=
+  (Finset.range (n + 1)).sum fun k =>
+    (n.choose k) * ((n + k).pred.choose k) * (k.factorial)
+
+
+
+-- @@ L50-51 verbatim
+@[category test, AMS 11]
+lemma a_0 : a 0 = 1 := by rfl
+
+
+-- @@ L53-54 verbatim
+@[category test, AMS 11]
+lemma a_1 : a 1 = 2 := by rfl
+
+
+-- @@ L56-57 verbatim
+@[category test, AMS 11]
+lemma a_2 : a 2 = 11 := by rfl
+
+
+-- @@ L59-60 verbatim
+@[category test, AMS 11]
+lemma a_3 : a 3 = 106 := by rfl
+
+
+-- @@ L62-63 verbatim
+@[category test, AMS 11]
+lemma a_4 : a 4 = 1457 := by rfl
+
+
+
+-- @@ L66-75 verbatim
+/--
+Conjecture: $a(n+k) \equiv a(n) \pmod{k}$ for all $n$ and $k$. - _Peter Bala_, Mar 12 2023
+
+A formal proof has been found with the methods described in
+[arxiv/2605.22763](https://arxiv.org/abs/2605.22763).
+-/
+@[category research solved, AMS 11, formal_proof using formal_conjectures at
+"https://github.com/mo271/formal-conjectures/blob/a32396489dcb8f86c3549b93aa358ac6a10a3a1f/FormalConjectures/OEIS/278070.wip.lean#L68"]
+theorem a_modeq : ∀ (n k : ℕ), Nat.ModEq k (a (n + k)) (a n) := by
+    sorry
+
+
+-- @@ L77-77 verbatim
+end OeisA278070
