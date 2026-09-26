@@ -174,7 +174,16 @@ jobs:
         run: |
           d="data/exports/$KEY"
           mkdir -p "$d"
-          if [ -f exports-partial.tar.zst ]; then tar --zstd -xf exports-partial.tar.zst -C "$d"; rm exports-partial.tar.zst; fi
+          # an archive holds paths relative to the library's export folder; one from before 2026-09-26 holds
+          # data/exports/<key>/... paths from the repository root: both land in the folder itself
+          unpack() {
+            local first; first=$(tar --zstd -tf "$1" | head -n 1 || true)
+            case "$first" in
+              data/exports/*) tar --zstd -xf "$1" -C "$d" --strip-components=3 ;;
+              *) tar --zstd -xf "$1" -C "$d" ;;
+            esac
+          }
+          if [ -f exports-partial.tar.zst ]; then unpack exports-partial.tar.zst; rm exports-partial.tar.zst; fi
           find "$d" -type f | sort > before.lst
       - name: Shard ${{ matrix.shard }} of ${{ inputs.shards }}
         run: |
@@ -232,8 +241,17 @@ jobs:
           shopt -s nullglob
           d="data/exports/$KEY"
           mkdir -p "$d"
-          if [ -f exports-partial.tar.zst ]; then tar --zstd -xf exports-partial.tar.zst -C "$d"; rm exports-partial.tar.zst; fi
-          for f in shard-out/out-*.tar.zst; do tar --zstd -xf "$f" -C "$d"; done
+          # an archive holds paths relative to the library's export folder; one from before 2026-09-26 holds
+          # data/exports/<key>/... paths from the repository root: both land in the folder itself
+          unpack() {
+            local first; first=$(tar --zstd -tf "$1" | head -n 1 || true)
+            case "$first" in
+              data/exports/*) tar --zstd -xf "$1" -C "$d" --strip-components=3 ;;
+              *) tar --zstd -xf "$1" -C "$d" ;;
+            esac
+          }
+          if [ -f exports-partial.tar.zst ]; then unpack exports-partial.tar.zst; rm exports-partial.tar.zst; fi
+          for f in shard-out/out-*.tar.zst; do unpack "$f"; done
           rm -rf shard-out
           echo "$(find "$d" -name '*.ndjson' | wc -l | tr -d ' ') exports, $(du -sh "$d" | cut -f1)"
       - name: Every module exported or recorded as failed?
