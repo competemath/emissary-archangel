@@ -273,12 +273,13 @@ jobs:
             echo "partial=1" >> "$GITHUB_ENV"
             exit 0
           fi
-          # the machine exports: ONE archive, compressed hard enough to stay under GitHub's 2 GB per file
-          # (--long=27 is the widest window a plain `tar --zstd -xf` still unpacks)
+          # the machine exports: ONE archive (split into parts only when over GitHub's 2 GB per file). Level 12:
+          # level 19 took 110 of this job's 150 minutes on navier-stokes-euler (1.95 GB); 12 is several times faster.
+          # --long=27 is the widest window a plain `tar --zstd -xf` still unpacks.
           commit=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']]['commit'][:12])")
           asset="$KEY@$commit-exports.tar.zst"
           machine > archive.lst
-          tar -C "$d" -T archive.lst -cf - | zstd -q -19 --long=27 -T0 -o "$asset"
+          tar -C "$d" -T archive.lst -cf - | zstd -q -12 --long=27 -T0 -o "$asset"
           bytes=$(stat -c %s "$asset"); sha=$(sha256sum "$asset" | cut -d' ' -f1)
           echo "$asset: $(wc -l < archive.lst | tr -d ' ') files, $bytes bytes, sha256 $sha"
           files=("$asset")
