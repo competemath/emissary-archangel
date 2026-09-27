@@ -1,0 +1,341 @@
+/-
+Copyright (c) 2026 Palalansoukî. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Palalansoukî
+-/
+module
+
+public import Aesop.BuiltinRules
+public import Mathlib.Basic.Finite.Defs
+public import Mathlib.Order.Lattice
+import Mathlib.Data.Fintype.Pigeonhole
+import Mathlib.Order.WellFounded
+import Mathlib.Tactic.Bound.Init
+
+
+-- @@ L15-15 verbatim
+/-! # BinaryRelations -/
+
+
+-- @@ L17-17 verbatim
+@[expose] public section
+
+
+
+
+-- @@ L21-21 verbatim
+section «lp_section_1»
+
+
+-- @@ L23-23 verbatim
+variable {α : Type u} (rel : α → α → Prop)
+
+-- @@ L24-24 verbatim
+local infix:50 " ≺ " => rel
+
+
+-- @@ L26-29 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def IsSymmetric := ∀ ⦃x y⦄, x ≺ y → y ≺ x
+
+-- NOTE: Another convention uses `x ≺ y → x ≺ z → y ≺ z`.
+
+-- @@ L30-31 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def Euclidean := ∀ ⦃x y z⦄, x ≺ y → x ≺ z → z ≺ y
+
+
+-- @@ L33-34 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def Serial := ∀ x, ∃ y, x ≺ y
+
+
+-- @@ L36-37 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def Confluent := ∀ ⦃x y z⦄, ((x ≺ y ∧ x ≺ z) → ∃ w, (y ≺ w ∧ z ≺ w))
+
+
+-- @@ L39-40 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def _root_.RelDense := ∀ ⦃x y⦄, x ≺ y → ∃z, x ≺ z ∧ z ≺ y
+
+
+-- @@ L42-43 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def Connected := ∀ ⦃x y z⦄, x ≺ y ∧ x ≺ z → y ≺ z ∨ z ≺ y
+
+
+-- @@ L45-46 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def Functional := ∀ ⦃x y z⦄, x ≺ y ∧ x ≺ z → y = z
+
+
+-- @@ L48-49 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def RightConvergent := ∀ ⦃x y z⦄, x ≺ y ∧ x ≺ z → y ≺ z ∨ z ≺ y ∨ y = z
+
+
+-- @@ L51-52 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def Coreflexive := ∀ ⦃x y⦄, x ≺ y → x = y
+
+
+-- @@ L54-55 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def Equality := ∀ ⦃x y⦄, x ≺ y ↔ x = y
+
+
+-- @@ L57-58 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def Isolated := ∀ ⦃x y⦄, ¬(x ≺ y)
+
+
+-- @@ L60-61 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def Assymetric := ∀ ⦃x y⦄, (x ≺ y) → ¬(y ≺ x)
+
+
+-- @@ L63-64 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def Universal := ∀ ⦃x y⦄, x ≺ y
+
+
+-- @@ L66-67 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+abbrev ConverseWellFounded := WellFounded <| flip (· ≺ ·)
+
+
+-- @@ L69-69 verbatim
+end «lp_section_1»
+
+
+
+-- @@ L72-72 verbatim
+section «lp_section_2»
+
+
+-- @@ L74-74 verbatim
+variable {α : Type u}
+
+-- @@ L75-75 verbatim
+variable {rel : α → α → Prop}
+
+
+
+-- @@ L78-78 verbatim
+lemma serial_of_refl (hRefl : ∀ x, rel x x) : Serial rel := fun w => ⟨w, hRefl w⟩
+
+
+-- @@ L80-82 verbatim
+lemma eucl_of_symm_trans (hSymm : IsSymmetric rel)
+    (hTrans : ∀ ⦃x y z⦄, rel x y → rel y z → rel x z) :
+    Euclidean rel := fun _ _ _ Rxy Rxz => hSymm <| hTrans (hSymm Rxy) Rxz
+
+
+-- @@ L84-86 verbatim
+lemma trans_of_symm_eucl (hSymm : IsSymmetric rel) (hEucl : Euclidean rel) :
+    ∀ ⦃x y z⦄, rel x y → rel y z → rel x z :=
+  fun _ _ _ Rxy Ryz => hSymm <| hEucl (hSymm Rxy) Ryz
+
+
+-- @@ L88-89 verbatim
+lemma symm_of_refl_eucl (hRefl : ∀ x, rel x x) (hEucl : Euclidean rel) :
+    IsSymmetric rel := fun {x} {_} Rxy => hEucl (hRefl x) Rxy
+
+
+-- @@ L91-93 verbatim
+lemma trans_of_refl_eucl (hRefl : ∀ x, rel x x) (hEucl : Euclidean rel) :
+    ∀ ⦃x y z⦄, rel x y → rel y z → rel x z :=
+  trans_of_symm_eucl (symm_of_refl_eucl hRefl hEucl) hEucl
+
+
+-- @@ L95-100 verbatim
+lemma refl_of_symm_serial_eucl (hSymm : IsSymmetric rel) (hSerial : Serial rel) (hEucl :
+    Euclidean rel) :
+    ∀ x, rel x x := by
+  rintro x;
+  obtain ⟨y, Rxy⟩ := hSerial x;
+  exact trans_of_symm_eucl hSymm hEucl Rxy (hSymm Rxy);
+
+
+-- @@ L102-104 verbatim
+lemma corefl_of_refl_assym_eucl (hRefl : ∀ x, rel x x)
+    (hAntisymm : ∀ ⦃x y⦄, rel x y → rel y x → x = y) (hEucl : Euclidean rel) :
+    Coreflexive rel := fun {x} {_} Rxy => hAntisymm Rxy (hEucl (hRefl x) Rxy)
+
+
+-- @@ L106-107 verbatim
+lemma equality_of_refl_corefl (hRefl : ∀ x, rel x x) (hCorefl : Coreflexive rel) :
+    Equality rel := fun {x} {_} => ⟨fun Rxy => hCorefl Rxy, by rintro rfl; exact hRefl x⟩
+
+
+-- @@ L109-112 verbatim
+lemma equality_of_refl_assym_eucl (hRefl : ∀ x, rel x x)
+    (hAntisymm : ∀ ⦃x y⦄, rel x y → rel y x → x = y) (hEucl : Euclidean rel) :
+    Equality rel :=
+  equality_of_refl_corefl hRefl (corefl_of_refl_assym_eucl hRefl hAntisymm hEucl)
+
+
+-- @@ L114-114 verbatim
+lemma refl_of_equality (h : Equality rel) : ∀ x, rel x x := fun _ => h.mpr rfl
+
+
+-- @@ L116-116 verbatim
+lemma corefl_of_equality (h : Equality rel) : Coreflexive rel := fun {_} {_} Rxy => h.mp Rxy
+
+
+-- @@ L118-119 verbatim
+lemma irreflexive_of_assymetric (hAssym : Assymetric rel) : ∀ x, ¬ rel x x :=
+  fun _ Rxx => hAssym Rxx Rxx
+
+
+-- @@ L121-121 verbatim
+lemma refl_of_universal (h : Universal rel) : ∀ x, rel x x := fun x => @h x x
+
+
+-- @@ L123-123 verbatim
+lemma eucl_of_universal (h : Universal rel) : Euclidean rel := fun {_} {_} {_} _ _ => @h _ _
+
+
+-- @@ L125-130 verbatim
+lemma confluent_of_refl_connected (hRefl : ∀ x, rel x x) (hConfl : Connected rel) :
+    Confluent rel := by
+  rintro x y z ⟨Rxy, Rxz⟩;
+  rcases @hConfl x y z ⟨Rxy, Rxz⟩ with (Ryz | Rzy);
+  · exact ⟨z, Ryz, hRefl z⟩;
+  · exact ⟨y, hRefl y, Rzy⟩;
+
+
+-- @@ L132-132 verbatim
+section «lp_section_3»
+
+
+-- @@ L134-136 verbatim
+lemma ConverseWellFounded.iff_has_max : ConverseWellFounded r ↔ (∀ (s :
+    Set α), Set.Nonempty s → ∃ m ∈ s, ∀ x ∈ s, ¬(r m x)) := by
+  simp [ConverseWellFounded, WellFounded.wellFounded_iff_has_min, flip]
+
+
+-- @@ L138-144 verbatim
+lemma Finite.converseWellFounded_of_trans_irrefl
+    [Finite α] [IsTrans α rel] [Std.Irrefl rel] : ConverseWellFounded rel := by
+  have : IsTrans α (flip rel) :=
+    ⟨fun a b c rba rcb => IsTrans.trans c b a rcb rba⟩
+  have : Std.Irrefl (flip rel) :=
+    ⟨fun a h => Std.Irrefl.irrefl (r := rel) a h⟩
+  exact Finite.wellFounded_of_trans_of_irrefl (flip rel)
+
+
+-- @@ L146-151 verbatim
+lemma Finite.converseWellFounded_of_trans_irrefl'
+    (hFinite : Finite α) (hTrans : ∀ ⦃x y z⦄, rel x y → rel y z → rel x z)
+  (hIrrefl : ∀ x, ¬ rel x x) : ConverseWellFounded rel :=
+  @Finite.wellFounded_of_trans_of_irrefl _ _ _
+    ⟨fun _ _ _ ba cb ↦ hTrans cb ba⟩
+    ⟨hIrrefl⟩
+
+
+-- @@ L153-153 verbatim
+end «lp_section_3»
+
+
+
+-- @@ L156-158 verbatim
+@[simp]
+lemma WellFounded.trivial_wellfounded : WellFounded (α := α) (fun _ _ => False) :=
+  ⟨fun a => ⟨a, fun _ h => h.elim⟩⟩
+
+
+-- @@ L160-161 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def Relation.IrreflGen (R : α → α → Prop) := fun x y => x ≠ y ∧ R x y
+
+
+
+-- @@ L164-165 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+abbrev WeaklyConverseWellFounded (R : α → α → Prop) := ConverseWellFounded (Relation.IrreflGen R)
+
+-- @@ L166-166 verbatim
+alias WCWF := WeaklyConverseWellFounded
+
+
+
+-- @@ L169-169 verbatim
+section «lp_section_4»
+
+
+-- @@ L171-181 verbatim
+lemma dependent_choice {R : α → α → Prop} (h : ∃ s : Set α, s.Nonempty ∧ ∀ a ∈ s, ∃ b ∈ s, R a b)
+  : ∃ f : ℕ → α, ∀ x, R (f x) (f (x + 1)) := by
+  obtain ⟨s, ⟨x, hx⟩, h'⟩ := h;
+  choose! f hfs hR using h';
+  use fun n ↦ f^[n] x;
+  intro n;
+  simp only [Function.iterate_succ'];
+  refine hR (f^[n] x) ?a;
+  induction n with
+  | zero => simpa;
+  | succ n ih => simp only [Function.iterate_succ']; apply hfs _ ih;
+
+
+-- @@ L183-191 verbatim
+lemma Finite.exists_ne_map_eq_of_infinite_lt {α β} [LinearOrder α] [Infinite α] [Finite β] (f :
+    α → β)
+  : ∃ x y : α, (x < y) ∧ f x = f y
+  := by
+    obtain ⟨i, j, hij, e⟩ := Finite.exists_ne_map_eq_of_infinite f;
+    rcases lt_trichotomy i j with (hij | rfl | hij);
+    · exact ⟨i, j, hij, e⟩;
+    · contradiction;
+    · exact ⟨j, i, hij, e.symm⟩;
+
+
+-- @@ L193-205 verbatim
+lemma antisymm_of_WCWF {R : α → α → Prop} : WCWF R → ∀ ⦃x y⦄, R x y → R y x → x = y := by
+  contrapose;
+  simp only [not_forall, forall_exists_index];
+  intro x y Rxy Ryz hxy;
+  apply ConverseWellFounded.iff_has_max.not.mpr;
+  push Not;
+  use {x, y};
+  constructor;
+  · simp;
+  · intro z hz;
+    by_cases z = x;
+    · use y; simp_all [Relation.IrreflGen];
+    · use x; simp_all [Relation.IrreflGen];
+
+
+-- @@ L207-229 verbatim
+lemma WCWF_of_finite_trans_antisymm {R : α → α → Prop} (hFin : Finite α)
+    (R_trans : ∀ ⦃x y z⦄, R x y → R y z → R x z) :
+    (∀ ⦃x y⦄, R x y → R y x → x = y) → WCWF R := by
+    contrapose;
+    intro hWCWF;
+    replace hWCWF := ConverseWellFounded.iff_has_max.not.mp hWCWF;
+    push Not at hWCWF;
+    obtain ⟨f, hf⟩ := dependent_choice hWCWF; clear hWCWF;
+    replace hf : ∀ x, f x ≠ f (x + 1) ∧ R (f x) (f (x + 1)) := by
+      intro x
+      exact hf x
+    push Not
+    obtain ⟨i, j, hij, e⟩ := Finite.exists_ne_map_eq_of_infinite_lt f;
+    use (f i), (f (i + 1));
+    have ⟨hi₁, hi₂⟩ := hf i;
+    refine ⟨(by assumption), ?_, (by assumption)⟩;
+    have : i + 1 < j := lt_iff_le_and_ne.mpr ⟨by omega, by aesop⟩;
+    have H : ∀ i j, i < j → R (f i) (f j) := by
+      intro i j hij
+      induction hij with
+      | refl => exact hf i |>.2;
+      | step _ ih => exact R_trans ih <| hf _ |>.2;
+    simp_all
+
+
+-- @@ L231-231 verbatim
+end «lp_section_4»
+
+
+-- @@ L233-233 verbatim
+end «lp_section_2»

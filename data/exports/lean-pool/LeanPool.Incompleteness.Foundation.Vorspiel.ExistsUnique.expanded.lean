@@ -1,0 +1,50 @@
+/-
+Copyright (c) 2026 Palalansoukî. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Palalansoukî
+-/
+module
+
+public import Aesop.BuiltinRules
+public import Mathlib.Basic.ExistsUnique
+import Mathlib.Data.Finset.Attr
+import Mathlib.Tactic.Bound.Init
+import Mathlib.Tactic.Finiteness.Attr
+import Mathlib.Tactic.SetLike
+
+
+-- @@ L15-15 verbatim
+/-! # ExistsUnique -/
+
+
+-- @@ L17-17 verbatim
+@[expose] public section
+
+
+
+-- @@ L20-20 verbatim
+namespace Classical
+
+-- @@ L21-21 verbatim
+variable {α : Sort*} {φ : α → Prop} (h : ∃! x, φ x)
+
+
+-- @@ L23-24 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+noncomputable def «choose!» : α := choose h.exists
+
+
+-- @@ L26-26 verbatim
+lemma «choose!_spec» : φ (choose! h) := choose_spec h.exists
+
+
+-- @@ L28-28 verbatim
+lemma choose_uniq (hx : φ x) : x = choose! h := h.unique hx (choose!_spec h)
+
+
+-- @@ L30-30 verbatim
+lemma «choose!_eq_iff» : x = choose! h ↔ φ x := ⟨by rintro rfl; exact choose!_spec h, choose_uniq _⟩
+
+
+-- @@ L32-32 verbatim
+end Classical

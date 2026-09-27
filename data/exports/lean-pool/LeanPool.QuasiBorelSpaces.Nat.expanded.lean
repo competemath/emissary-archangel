@@ -1,0 +1,141 @@
+/-
+Copyright (c) 2026 Anthony Vandikas, Kiarash Sotoudeh. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Anthony Vandikas, Kiarash Sotoudeh
+-/
+module
+
+public import LeanPool.QuasiBorelSpaces.Prod
+import LeanPool.QuasiBorelSpaces.Basic
+import LeanPool.QuasiBorelSpaces.Prop
+
+
+-- @@ L12-16 verbatim
+/-!
+# LeanPool.QuasiBorelSpaces.Nat
+
+Imported Lean Pool material for `LeanPool.QuasiBorelSpaces.Nat`.
+-/
+
+
+-- @@ L18-18 verbatim
+@[expose] public section
+
+
+-- @@ L20-20 verbatim
+namespace QuasiBorelSpace.Nat
+
+
+-- @@ L22-22 verbatim
+example : DiscreteQuasiBorelSpace ℕ := inferInstance
+
+
+-- @@ L24-27 verbatim
+variable
+  {A : Type*} [QuasiBorelSpace A]
+  {B : Type*} [QuasiBorelSpace B]
+  {C : Type*} [QuasiBorelSpace C]
+
+
+-- @@ L29-43 verbatim
+@[fun_prop]
+lemma isHom_rec
+    {f : A → B} (hf : IsHom f)
+    {g : A → ℕ → B → B} (hg : IsHom fun (x, y, z) ↦ g x y z)
+    {h : A → ℕ} (hh : IsHom h)
+    : IsHom (fun x ↦ (Nat.rec (f x) (g x) (h x) : B)) := by
+  apply isHom_cases (ix := h) (f := fun n x ↦ (Nat.rec (f x) (g x) n : B)) hh
+  intro n
+  induction n with
+    | zero =>
+      simp only [Nat.rec_zero]
+      fun_prop
+    | succ n ih =>
+      simp only
+      fun_prop
+
+
+-- @@ L45-47 verbatim
+@[local fun_prop]
+lemma isHom_lt : IsHom (fun x : ℕ × ℕ ↦ x.1 < x.2) := by
+  simp only [isHom_of_discrete_countable]
+
+
+-- @@ L49-54 verbatim
+@[fun_prop]
+lemma isHom_lt'
+    {f : A → ℕ} (hf : IsHom f)
+    {g : A → ℕ} (hg : IsHom g)
+    : IsHom (fun x ↦ f x < g x) := by
+  fun_prop
+
+
+-- @@ L56-58 verbatim
+@[local fun_prop]
+lemma isHom_add : IsHom (fun x : ℕ × ℕ ↦ x.1 + x.2) := by
+  simp only [isHom_of_discrete_countable]
+
+
+-- @@ L60-65 verbatim
+@[fun_prop]
+lemma isHom_add'
+    {f : A → ℕ} (hf : IsHom f)
+    {g : A → ℕ} (hg : IsHom g)
+    : IsHom (fun x ↦ f x + g x) := by
+  fun_prop
+
+
+-- @@ L67-98 verbatim
+@[fun_prop]
+lemma isHom_find
+    {p : A → ℕ → Prop}
+    [∀ x, DecidablePred (p x)]
+    {q : ∀ x, ∃ n, p x n}
+    (hp : ∀ n, IsHom (p · n))
+    : IsHom fun x ↦ Nat.find (q x) := by
+  rw [isHom_def,]
+  intro φ hφ
+  simp only [isHom_ofMeasurableSpace]
+  intro X hX
+  have : (fun r ↦ Nat.find (q (φ r))) ⁻¹' X
+       = {r | ∃n ∈ X, p (φ r) n ∧ ∀{m}, m < n → ¬p (φ r) m} := by
+    ext r
+    simp only [Set.mem_preimage, Set.mem_ofPred_eq]
+    apply Iff.intro
+    · intro h
+      use Nat.find (q (φ r))
+      use h
+      use Nat.find_spec (q (φ r))
+      use Nat.find_min (q (φ r))
+    · rintro ⟨n, hn₁, hn₂, hn₃⟩
+      suffices Nat.find (q (φ r)) = n by simp_all only [MeasurableSpace.measurableSet_top]
+      rw [Nat.find_eq_iff]
+      grind
+  rw [this, measurableSet_setOfPred, ←isHom_iff_measurable]
+  apply Prop.isHom_exists fun n ↦ Prop.isHom_and ?_ (Prop.isHom_and ?_ ?_)
+  · simp only [isHom_const']
+  · fun_prop
+  · apply Prop.isHom_forall fun m ↦ ?_
+    apply Prop.isHom_forall fun hmn ↦ ?_
+    fun_prop
+
+
+-- @@ L100-100 verbatim
+end QuasiBorelSpace.Nat
+
+
+-- @@ L102-102 verbatim
+namespace QuasiBorelSpace.Fin
+
+
+-- @@ L104-105 verbatim
+@[simps!]
+instance {n} : QuasiBorelSpace (Fin n) := ofMeasurableSpace
+
+
+-- @@ L107-107 verbatim
+example {n} : DiscreteQuasiBorelSpace (Fin n) := inferInstance
+
+
+-- @@ L109-109 verbatim
+end QuasiBorelSpace.Fin

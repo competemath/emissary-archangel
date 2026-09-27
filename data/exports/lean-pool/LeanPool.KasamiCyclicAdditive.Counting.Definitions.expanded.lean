@@ -1,0 +1,77 @@
+/-
+Copyright (c) 2026 D.S. McNeil, Gábor P. Nagy, Attila Vajda. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: D.S. McNeil, Gábor P. Nagy, Attila Vajda
+-/
+module
+
+public import LeanPool.KasamiCyclicAdditive.Statement.Definitions
+public import Mathlib.Algebra.Group.AddChar
+public import Mathlib.Basic.Complex.Basic
+import Mathlib.CategoryTheory.Category.Init
+import Mathlib.Combinatorics.Matroid.Init
+import Mathlib.MeasureTheory.Integral.Bochner.Basic
+import Mathlib.NumberTheory.ArithmeticFunction.Misc
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L17-28 verbatim
+/-!
+# Counting definitions
+
+The normalized slope form of the triple count, the Walsh coefficient of the
+derivative image, and the admissible slopes.
+
+The conjecture is stated in `Challenge.lean` in coefficient form, with
+coefficients `v₁, v₂, v₁+v₂`.  Dividing through by `v₁` puts it in the slope
+form used throughout the proof, indexed by `ρ = v₂/v₁`;
+`Statement/CoefficientForm.lean`
+relates the two.
+-/
+
+
+-- @@ L30-30 verbatim
+@[expose] public section
+
+
+-- @@ L32-32 verbatim
+open Finset
+
+
+-- @@ L34-34 verbatim
+namespace KasamiCyclicAdditive
+
+
+-- @@ L36-36 verbatim
+variable {K : Type*} [Field K] [Fintype K] [DecidableEq K]
+
+
+-- @@ L38-44 verbatim
+/-- `N(ρ) = #{(x,y,z) ∈ Δ³ : x + ρ y + σ z = 0}` with `σ = 1 + ρ`.  This is the
+normalised form of the triple count of the conjecture, obtained from the
+original `v₁ x + v₂ y + v₃ z = 0` by dividing through by `v₁` and setting
+`ρ = v₂/v₁`. -/
+def slopeTripleCount (k : ℕ) (ρ : K) : ℕ :=
+  (((derivativeImage k K) ×ˢ (derivativeImage k K) ×ˢ (derivativeImage k K)).filter
+    (fun p => p.1 + ρ * p.2.1 + (1 + ρ) * p.2.2 = 0)).card
+
+
+-- @@ L46-48 verbatim
+/-- The Walsh coefficient `S(a) = ∑_{x ∈ Δ} ψ(a x)`. -/
+noncomputable def walshCoefficient (k : ℕ) (ψ : AddChar K ℂ) (a : K) : ℂ :=
+  ∑ x ∈ derivativeImage k K, ψ (a * x)
+
+
+-- @@ L50-51 verbatim
+/-- The admissible slopes `ρ ≠ 0, 1`. -/
+def AdmissibleSlope (ρ : K) : Prop := ρ ≠ 0 ∧ ρ ≠ 1
+
+
+-- @@ L53-55 verbatim
+/-- The finset of admissible slopes. -/
+def slopes (K : Type*) [Field K] [Fintype K] [DecidableEq K] : Finset K :=
+  Finset.univ.filter (fun r : K => r ≠ 0 ∧ r ≠ 1)
+
+
+-- @@ L57-57 verbatim
+end KasamiCyclicAdditive

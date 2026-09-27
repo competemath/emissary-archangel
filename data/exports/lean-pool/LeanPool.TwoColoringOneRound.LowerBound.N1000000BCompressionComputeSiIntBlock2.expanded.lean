@@ -1,0 +1,72 @@
+/-
+Copyright (c) 2026 Jukka Suomela. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Jukka Suomela
+-/
+module
+
+public import LeanPool.TwoColoringOneRound.LowerBound.N1000000BCompressionComputeSiIntGoal
+import LeanPool.TwoColoringOneRound.LowerBound.N1000000BCompressionComputeSiIntBlock2Vars0to3
+import LeanPool.TwoColoringOneRound.LowerBound.N1000000BCompressionComputeSiIntBlock2Vars12to15
+import LeanPool.TwoColoringOneRound.LowerBound.N1000000BCompressionComputeSiIntBlock2Vars16to19
+import LeanPool.TwoColoringOneRound.LowerBound.N1000000BCompressionComputeSiIntBlock2Vars20to22
+import LeanPool.TwoColoringOneRound.LowerBound.N1000000BCompressionComputeSiIntBlock2Vars4to7
+import LeanPool.TwoColoringOneRound.LowerBound.N1000000BCompressionComputeSiIntBlock2Vars8to11
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L17-19 verbatim
+/-!
+# LeanPool.TwoColoringOneRound.LowerBound.N1000000BCompressionComputeSiIntBlock2
+-/
+
+
+-- @@ L21-21 verbatim
+@[expose] public section
+
+
+-- @@ L23-23 verbatim
+namespace Distributed2Coloring.LowerBound
+
+
+-- @@ L25-25 verbatim
+namespace N1000000BCompressionCompute
+
+
+-- @@ L27-54 verbatim
+theorem siIntGoal_block2 :
+    ∀ i : Var, ∀ p q : Fin 3,
+      SiIntGoal (r := (⟨2, by decide⟩ : Block)) (i := i) p q := by
+  intro i p q
+  fin_cases i
+  · simpa using (siIntGoal_block2_var0 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var1 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var2 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var3 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var4 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var5 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var6 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var7 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var8 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var9 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var10 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var11 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var12 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var13 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var14 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var15 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var16 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var17 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var18 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var19 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var20 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var21 (p := p) (q := q))
+  · simpa using (siIntGoal_block2_var22 (p := p) (q := q))
+
+
+-- @@ L56-56 verbatim
+end N1000000BCompressionCompute
+
+
+-- @@ L58-58 verbatim
+end Distributed2Coloring.LowerBound

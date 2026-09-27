@@ -1,0 +1,56 @@
+/-
+Copyright (c) 2026 György Kurucz. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: György Kurucz
+-/
+module
+
+
+public import LeanPool.LeanModelChecking.LTLNBWStatement
+import LeanPool.LeanModelChecking.ABWNBW
+import LeanPool.LeanModelChecking.NNFABW
+import Mathlib.Basic.Finite.Prod
+import Mathlib.Data.Fintype.Powerset
+import Mathlib.Data.Rat.Cast.Order
+import Mathlib.Tactic.NormNum.Abs
+import Mathlib.Tactic.NormNum.DivMod
+import Mathlib.Tactic.NormNum.OfScientific
+import Mathlib.Tactic.NormNum.Pow
+
+
+-- @@ L20-29 verbatim
+/-!
+# Every LTL formula has an equivalent finite-state Büchi automaton
+
+We assemble the translations `LTL → NNF → ABW → NBW` to conclude that for any
+linear temporal logic formula there is an equivalent finite-state
+nondeterministic Büchi automaton accepting the same language. Finiteness comes
+from the construction: the alternating automaton's states are subformulas of
+the (negation normal form of the) input formula, and the Miyano–Hayashi
+breakpoint construction squares that state space to pairs of subsets.
+-/
+
+
+-- @@ L31-31 verbatim
+@[expose] public section
+
+
+-- @@ L33-33 verbatim
+namespace LeanModelChecking
+
+
+-- @@ L35-44 verbatim
+theorem for_any_LTL_formula_exists_an_equivalent_NBW :
+    forAnyLTLFormulaExistsAnEquivalentNBWStatement := by
+  unfold forAnyLTLFormulaExistsAnEquivalentNBWStatement
+  intros _ φ
+  obtain ⟨Q, qfin, A, lang_eq⟩ := exists_ABW_lang_for_LTL φ
+  exists A.toNBW
+  constructor
+  · have := qfin
+    exact inferInstanceAs (Finite ((Set Q) × (Set Q)))
+  · rw [lang_eq, ABW.toNBW.lang_eq]
+
+
+-- @@ L46-46 verbatim
+end LeanModelChecking

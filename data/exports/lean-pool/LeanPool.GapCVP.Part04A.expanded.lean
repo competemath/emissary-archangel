@@ -1,0 +1,1117 @@
+/-
+Copyright (c) 2026 OpenAI and Dean Cureton. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: OpenAI, Dean Cureton
+-/
+
+module
+
+public import LeanPool.GapCVP.Part03
+
+
+-- @@ L11-11 verbatim
+/-! # GapCVP proof, part 04 -/
+
+
+-- @@ L13-13 verbatim
+@[expose] public section
+
+
+-- @@ L15-15 verbatim
+noncomputable section
+
+
+-- @@ L17-17 verbatim
+open StateTransition (EvalsToInTime)
+
+-- @@ L18-18 verbatim
+open scoped BigOperators
+
+
+-- @@ L20-20 verbatim
+namespace GapCVP
+
+
+-- @@ L22-22 verbatim
+open GapCVP.TraceGolf (oneStep rebound)
+
+
+-- @@ L24-24 verbatim
+namespace CNFFiniteRecordSort
+
+
+-- @@ L26-26 verbatim
+open Computability Turing GapCVP.ThreeCNFReduction
+
+
+-- @@ L28-32 verbatim
+/-- GapCVP reduction support. -/
+def sourceOrderedDistinctRecords
+    {α : Type} [Encodable α] [DecidableEq α]
+    (records : List α) : List α :=
+  sortedElements records.toFinset
+
+
+-- @@ L34-39 verbatim
+@[simp] theorem sourceOrderedDistinctRecords_sortedElements
+    {α : Type} [Encodable α] [DecidableEq α]
+    (records : Finset α) :
+    sourceOrderedDistinctRecords (sortedElements records) =
+      sortedElements records := by
+  simp only [sourceOrderedDistinctRecords, sortedElements, Finset.sort_toFinset]
+
+
+-- @@ L41-41 verbatim
+end CNFFiniteRecordSort
+
+
+-- @@ L43-43 verbatim
+namespace CNFInputDependentRecordSort
+
+
+-- @@ L45-45 verbatim
+open Computability Turing GapCVP.CNFFiniteRecordSort
+
+
+-- @@ L47-72 verbatim
+theorem sourceOrderedDistinctRecords_eq_of_nodup_pairwise
+    {α : Type} [Encodable α] [DecidableEq α]
+    (source candidate : List α)
+    (hmembership : ∀ record : α,
+      record ∈ candidate ↔ record ∈ source)
+    (hnodup : candidate.Nodup)
+    (hpairwise : candidate.Pairwise
+      (fun first second =>
+        Encodable.encode first ≤ Encodable.encode second)) :
+    sourceOrderedDistinctRecords source = candidate := by
+  let relation : α → α → Prop :=
+    fun first second =>
+      Encodable.encode first ≤ Encodable.encode second
+  let : IsTrans α relation :=
+    ⟨fun _ _ _ hab hbc => Nat.le_trans hab hbc⟩
+  let : Std.Antisymm relation :=
+    ⟨fun _ _ hab hba =>
+      Encodable.encode_injective (Nat.le_antisymm hab hba)⟩
+  let : Std.Total relation :=
+    ⟨fun _ _ => Nat.le_total _ _⟩
+  have hset : source.toFinset = candidate.toFinset := by
+    ext record
+    simpa only [List.mem_toFinset] using (hmembership record).symm
+  change source.toFinset.sort relation = candidate
+  rw [hset]
+  exact (List.toFinset_sort relation hnodup).2 hpairwise
+
+
+-- @@ L74-74 verbatim
+end CNFInputDependentRecordSort
+
+
+-- @@ L76-76 verbatim
+namespace CNFNaturalOrderComparator
+
+
+-- @@ L78-78 verbatim
+open Computability Turing GapCVP.BinaryEncoding GapCVP.CNFEncodedClauseSort
+
+
+-- @@ L80-84 verbatim
+/-- GapCVP reduction support. -/
+def littleEndianNaturalValue : List Bool → ℕ
+  | [] => 0
+  | false :: remaining => 2 * littleEndianNaturalValue remaining
+  | true :: remaining => 2 * littleEndianNaturalValue remaining + 1
+
+
+-- @@ L86-97 verbatim
+@[simp] private theorem littleEndianNaturalValue_encodePosNum (number : PosNum) :
+    littleEndianNaturalValue (Computability.encodePosNum number) =
+      (number : ℕ) := by
+  induction number with
+  | one => rfl
+  | bit0 number ih =>
+      simp only [encodePosNum, littleEndianNaturalValue, ih, PosNum.cast_bit0]
+      omega
+  | bit1 number ih =>
+      simp only [encodePosNum, littleEndianNaturalValue, ih, PosNum.cast_bit1,
+          Nat.add_right_cancel_iff]
+      omega
+
+
+-- @@ L99-105 verbatim
+@[simp] private theorem littleEndianNaturalValue_encodeNum (number : Num) :
+    littleEndianNaturalValue (Computability.encodeNum number) =
+      (number : ℕ) := by
+  cases number with
+  | zero => rfl
+  | pos number =>
+      exact littleEndianNaturalValue_encodePosNum number
+
+
+-- @@ L107-111 verbatim
+@[simp] theorem littleEndianNaturalValue_encodeNat (number : ℕ) :
+    littleEndianNaturalValue (Computability.encodeNat number) = number := by
+  change littleEndianNaturalValue
+    (Computability.encodeNum (number : Num)) = number
+  rw [littleEndianNaturalValue_encodeNum, Num.to_of_nat]
+
+
+-- @@ L113-134 verbatim
+/-- Compare two little-endian bit words, updating the order at each higher bit. -/
+def littleEndianNaturalFold :
+    EncodedWordOrdering → List Bool → List Bool → EncodedWordOrdering
+  | current, [], [] => current
+  | current, false :: first, [] =>
+      littleEndianNaturalFold current first []
+  | _, true :: first, [] =>
+      littleEndianNaturalFold .greater first []
+  | current, [], false :: second =>
+      littleEndianNaturalFold current [] second
+  | _, [], true :: second =>
+      littleEndianNaturalFold .less [] second
+  | current, false :: first, false :: second =>
+      littleEndianNaturalFold current first second
+  | _, false :: first, true :: second =>
+      littleEndianNaturalFold .less first second
+  | _, true :: first, false :: second =>
+      littleEndianNaturalFold .greater first second
+  | current, true :: first, true :: second =>
+      littleEndianNaturalFold current first second
+termination_by _ first second => first.length + second.length
+decreasing_by all_goals simp_wf <;> omega
+
+
+-- @@ L136-139 verbatim
+/-- GapCVP reduction support. -/
+def littleEndianNaturalOrdering
+    (first second : List Bool) : EncodedWordOrdering :=
+  littleEndianNaturalFold .equal first second
+
+
+-- @@ L141-166 verbatim
+private theorem littleEndianNaturalFold_eq_value_order
+    (first second : List Bool) (current : EncodedWordOrdering) :
+    littleEndianNaturalFold current first second =
+      if littleEndianNaturalValue first <
+          littleEndianNaturalValue second then .less
+      else if littleEndianNaturalValue second <
+          littleEndianNaturalValue first then .greater
+      else current := by
+  induction first generalizing second current with
+  | nil =>
+      induction second generalizing current with
+      | nil => simp only [littleEndianNaturalFold, littleEndianNaturalValue, lt_self_iff_false,
+          ↓reduceIte]
+      | cons bit remaining ih =>
+          cases bit <;>
+            simp [littleEndianNaturalFold, littleEndianNaturalValue, ih]
+  | cons bit first ih =>
+      cases second with
+      | nil =>
+          cases bit <;>
+            simp [littleEndianNaturalFold, littleEndianNaturalValue, ih] <;>
+            split_ifs <;> simp_all
+      | cons next second =>
+          cases bit <;> cases next <;>
+            simp [littleEndianNaturalFold, littleEndianNaturalValue, ih] <;>
+            split_ifs <;> simp_all <;> omega
+
+
+-- @@ L168-176 verbatim
+theorem littleEndianNaturalOrdering_eq_value_order
+    (first second : List Bool) :
+    littleEndianNaturalOrdering first second =
+      if littleEndianNaturalValue first <
+          littleEndianNaturalValue second then .less
+      else if littleEndianNaturalValue second <
+          littleEndianNaturalValue first then .greater
+      else .equal := by
+  exact littleEndianNaturalFold_eq_value_order first second .equal
+
+
+-- @@ L178-186 verbatim
+@[simp] theorem littleEndianNaturalOrdering_encodeNat
+    (first second : ℕ) :
+    littleEndianNaturalOrdering
+        (Computability.encodeNat first)
+        (Computability.encodeNat second) =
+      if first < second then .less
+      else if second < first then .greater
+      else .equal := by
+  simp only [littleEndianNaturalOrdering_eq_value_order, littleEndianNaturalValue_encodeNat]
+
+
+-- @@ L188-196 verbatim
+/-- GapCVP reduction support. -/
+def delimitedNaturalPairOrdering (input : List Bool) :
+    EncodedWordOrdering :=
+  match readLengthPrefixedWord input with
+  | none => .invalid
+  | some (first, remaining) =>
+      match readLengthPrefixedWord remaining with
+      | none => .invalid
+      | some (second, _) => littleEndianNaturalOrdering first second
+
+
+-- @@ L198-202 verbatim
+/-- GapCVP reduction support. -/
+def sourcePreservingDelimitedNaturalComparisonWord
+    (input : List Bool) : List Bool :=
+  lengthPrefixedWord input ++
+    encodedWordOrderingWord (delimitedNaturalPairOrdering input)
+
+
+-- @@ L204-211 verbatim
+/-- Internal support shared across GapCVP continuation modules. -/
+theorem delimitedNaturalPairOrdering_valid
+    (first second suffix : List Bool) :
+    delimitedNaturalPairOrdering
+      (lengthPrefixedWord first ++
+        lengthPrefixedWord second ++ suffix) =
+      littleEndianNaturalOrdering first second := by
+  simp only [delimitedNaturalPairOrdering, List.append_assoc, readLengthPrefixedWord_append]
+
+
+-- @@ L213-222 verbatim
+theorem delimitedNaturalPairOrdering_encodeNat
+    (first second : ℕ) (suffix : List Bool) :
+    delimitedNaturalPairOrdering
+      (lengthPrefixedWord (Computability.encodeNat first) ++
+        lengthPrefixedWord (Computability.encodeNat second) ++ suffix) =
+      if first < second then .less
+      else if second < first then .greater
+      else .equal := by
+  rw [delimitedNaturalPairOrdering_valid,
+    littleEndianNaturalOrdering_encodeNat]
+
+
+-- @@ L224-231 verbatim
+/-- Pop the next bit from each comparator stack before continuing. -/
+def naturalCompareConsumeBoth
+    (continuation : Turing.TM2.Stmt
+      (fun _ : Fin 10 => Bool) (Fin 12)
+      DelimitedPairComparisonState) :
+    Turing.TM2.Stmt (fun _ : Fin 10 => Bool) (Fin 12)
+      DelimitedPairComparisonState :=
+  delimitedComparePop 5 (delimitedComparePop 6 continuation)
+
+
+-- @@ L233-257 verbatim
+/-- Internal support shared across GapCVP continuation modules. -/
+def naturalCompareWordsStatement :
+    Turing.TM2.Stmt (fun _ : Fin 10 => Bool) (Fin 12)
+      DelimitedPairComparisonState :=
+  delimitedComparePeekFirst 5
+    (delimitedComparePeekSecond 6
+      (.branch (fun state => state.first = state.second)
+        (naturalCompareConsumeBoth (delimitedCompareGoto 6))
+        (.branch (fun state => state.first = some false)
+          (naturalCompareConsumeBoth
+            (delimitedCompareSetOutcome .less 6))
+          (naturalCompareConsumeBoth
+            (delimitedCompareSetOutcome .greater 6))))
+      (.branch (fun state => state.first = some false)
+        (delimitedComparePop 5 (delimitedCompareGoto 6))
+        (delimitedComparePop 5
+          (delimitedCompareSetOutcome .greater 6))))
+    (delimitedComparePeekSecond 6
+      (.branch (fun state => state.second = some false)
+        (delimitedComparePop 6 (delimitedCompareGoto 6))
+        (delimitedComparePop 6
+          (delimitedCompareSetOutcome .less 6)))
+      (.branch (fun state => state.outcome = .invalid)
+        (delimitedCompareSetOutcome .equal 7)
+        (delimitedCompareGoto 7)))
+
+
+-- @@ L259-293 verbatim
+/-- Internal support shared across GapCVP continuation modules. -/
+abbrev delimitedNaturalComparisonMachine : Turing.FinTM2 where
+  K := Fin 10
+  k₀ := 0
+  k₁ := 9
+  Γ _ := Bool
+  Λ := Fin 12
+  main := 0
+  σ := DelimitedPairComparisonState
+  initialState := ⟨none, none, .invalid⟩
+  m phase :=
+    if phase = (0 : Fin 12) then
+      delimitedCompareFirstPrefixStatement
+    else if phase = (1 : Fin 12) then
+      delimitedCompareFirstPayloadStatement
+    else if phase = (2 : Fin 12) then
+      delimitedCompareSecondPrefixStatement
+    else if phase = (3 : Fin 12) then
+      delimitedCompareSecondPayloadStatement
+    else if phase = (4 : Fin 12) then
+      delimitedCompareReverseFirstStatement
+    else if phase = (5 : Fin 12) then
+      delimitedCompareReverseSecondStatement
+    else if phase = (6 : Fin 12) then
+      naturalCompareWordsStatement
+    else if phase = (7 : Fin 12) then
+      delimitedCompareCleanupStatement
+    else if phase = (8 : Fin 12) then
+      delimitedCompareTrailingStatement
+    else if phase = (9 : Fin 12) then
+      delimitedCompareOutcomeStatement
+    else if phase = (10 : Fin 12) then
+      delimitedCompareSourceStatement
+    else
+      delimitedComparePrefixStatement
+
+
+-- @@ L295-303 verbatim
+/-- Internal support shared across GapCVP continuation modules. -/
+def naturalCompareConfiguration (phase : Fin 12)
+    (outcome : EncodedWordOrdering)
+    (input firstCounter firstReversed secondCounter secondReversed
+      firstForward secondForward source sourcePrefix output : List Bool) :
+    delimitedNaturalComparisonMachine.Cfg :=
+  delimitedCompareConfiguration phase outcome
+    input firstCounter firstReversed secondCounter secondReversed
+    firstForward secondForward source sourcePrefix output
+
+
+-- @@ L305-310 verbatim
+/-- Internal support shared across GapCVP continuation modules. -/
+theorem delimitedNaturalComparisonMachine_init (input : List Bool) :
+    Turing.initList delimitedNaturalComparisonMachine input =
+      naturalCompareConfiguration 0 .invalid
+        input [] [] [] [] [] [] [] [] [] := by
+  exact delimitedPairComparisonMachine_init input
+
+
+-- @@ L312-341 verbatim
+/-- Executes the `naturalCompareStepTac` machine-step simplifier. -/
+macro "naturalCompareStepTac" : tactic =>
+  `(tactic|
+    (first
+      | rfl
+      | (simp [delimitedNaturalComparisonMachine,
+          naturalCompareConfiguration, delimitedCompareConfiguration,
+          naturalCompareWordsStatement, naturalCompareConsumeBoth,
+          delimitedComparePeekFirst, delimitedComparePeekSecond,
+          delimitedComparePop, delimitedComparePushFirst,
+          delimitedComparePushConstant, delimitedCompareGoto,
+          delimitedCompareSetOutcome,
+          delimitedCompareFirstPrefixStatement,
+          delimitedCompareFirstPayloadStatement,
+          delimitedCompareSecondPrefixStatement,
+          delimitedCompareSecondPayloadStatement,
+          delimitedCompareReverseFirstStatement,
+          delimitedCompareReverseSecondStatement,
+          delimitedCompareCleanupStatement,
+          delimitedCompareTrailingStatement,
+          delimitedCompareOutcomeStatement,
+          delimitedCompareSourceStatement,
+          delimitedComparePrefixStatement,
+          encodedWordOrderingWord,
+          encodedWordOrderingFirst, encodedWordOrderingSecond,
+          Turing.haltList, Turing.FinTM2.step,
+          Turing.TM2.step, Turing.TM2.stepAux] <;>
+          try { congr 2; funext stack; fin_cases stack <;>
+            (first | rfl | simp [Function.update]) } <;>
+          try rfl)))
+
+
+-- @@ L343-355 expanded
+theorem naturalCompareWordsEqualBit (outcome : EncodedWordOrdering) (bit : Bool)
+    (input firstCounter firstReversed secondCounter secondReversed firstForward secondForward source
+      sourcePrefix output : List Bool) :
+    delimitedNaturalComparisonMachine.step
+        (naturalCompareConfiguration 6 outcome input firstCounter firstReversed secondCounter
+          secondReversed (bit :: firstForward) (bit :: secondForward) source sourcePrefix output) =
+      some
+        (naturalCompareConfiguration 6 outcome input firstCounter firstReversed secondCounter
+          secondReversed firstForward secondForward source sourcePrefix output) :=
+  by
+  cases bit <;>
+    (first
+      | rfl
+      |
+        (simp [delimitedNaturalComparisonMachine, naturalCompareConfiguration,
+                delimitedCompareConfiguration, naturalCompareWordsStatement,
+                naturalCompareConsumeBoth, delimitedComparePeekFirst, delimitedComparePeekSecond,
+                delimitedComparePop, delimitedComparePushFirst, delimitedComparePushConstant,
+                delimitedCompareGoto, delimitedCompareSetOutcome,
+                delimitedCompareFirstPrefixStatement, delimitedCompareFirstPayloadStatement,
+                delimitedCompareSecondPrefixStatement, delimitedCompareSecondPayloadStatement,
+                delimitedCompareReverseFirstStatement, delimitedCompareReverseSecondStatement,
+                delimitedCompareCleanupStatement, delimitedCompareTrailingStatement,
+                delimitedCompareOutcomeStatement, delimitedCompareSourceStatement,
+                delimitedComparePrefixStatement, encodedWordOrderingWord, encodedWordOrderingFirst,
+                encodedWordOrderingSecond, Turing.haltList, Turing.FinTM2.step, Turing.TM2.step,
+                Turing.TM2.stepAux] <;>
+              try { congr 2; funext stack;
+                fin_cases stack <;>
+                  (first
+                    | rfl
+                    | simp [Function.update])
+              } <;>
+            try rfl))
+
+
+-- @@ L357-369 expanded
+theorem naturalCompareWordsLessBit (outcome : EncodedWordOrdering)
+    (input firstCounter firstReversed secondCounter secondReversed firstForward secondForward source
+      sourcePrefix output : List Bool) :
+    delimitedNaturalComparisonMachine.step
+        (naturalCompareConfiguration 6 outcome input firstCounter firstReversed secondCounter
+          secondReversed (false :: firstForward) (true :: secondForward) source sourcePrefix
+          output) =
+      some
+        (naturalCompareConfiguration 6 .less input firstCounter firstReversed secondCounter
+          secondReversed firstForward secondForward source sourcePrefix output) :=
+  by
+  (first
+    | rfl
+    |
+      (simp [delimitedNaturalComparisonMachine, naturalCompareConfiguration,
+              delimitedCompareConfiguration, naturalCompareWordsStatement,
+              naturalCompareConsumeBoth, delimitedComparePeekFirst, delimitedComparePeekSecond,
+              delimitedComparePop, delimitedComparePushFirst, delimitedComparePushConstant,
+              delimitedCompareGoto, delimitedCompareSetOutcome,
+              delimitedCompareFirstPrefixStatement, delimitedCompareFirstPayloadStatement,
+              delimitedCompareSecondPrefixStatement, delimitedCompareSecondPayloadStatement,
+              delimitedCompareReverseFirstStatement, delimitedCompareReverseSecondStatement,
+              delimitedCompareCleanupStatement, delimitedCompareTrailingStatement,
+              delimitedCompareOutcomeStatement, delimitedCompareSourceStatement,
+              delimitedComparePrefixStatement, encodedWordOrderingWord, encodedWordOrderingFirst,
+              encodedWordOrderingSecond, Turing.haltList, Turing.FinTM2.step, Turing.TM2.step,
+              Turing.TM2.stepAux] <;>
+            try { congr 2; funext stack;
+              fin_cases stack <;>
+                (first
+                  | rfl
+                  | simp [Function.update])
+            } <;>
+          try rfl))
+
+
+-- @@ L371-383 expanded
+theorem naturalCompareWordsGreaterBit (outcome : EncodedWordOrdering)
+    (input firstCounter firstReversed secondCounter secondReversed firstForward secondForward source
+      sourcePrefix output : List Bool) :
+    delimitedNaturalComparisonMachine.step
+        (naturalCompareConfiguration 6 outcome input firstCounter firstReversed secondCounter
+          secondReversed (true :: firstForward) (false :: secondForward) source sourcePrefix
+          output) =
+      some
+        (naturalCompareConfiguration 6 .greater input firstCounter firstReversed secondCounter
+          secondReversed firstForward secondForward source sourcePrefix output) :=
+  by
+  (first
+    | rfl
+    |
+      (simp [delimitedNaturalComparisonMachine, naturalCompareConfiguration,
+              delimitedCompareConfiguration, naturalCompareWordsStatement,
+              naturalCompareConsumeBoth, delimitedComparePeekFirst, delimitedComparePeekSecond,
+              delimitedComparePop, delimitedComparePushFirst, delimitedComparePushConstant,
+              delimitedCompareGoto, delimitedCompareSetOutcome,
+              delimitedCompareFirstPrefixStatement, delimitedCompareFirstPayloadStatement,
+              delimitedCompareSecondPrefixStatement, delimitedCompareSecondPayloadStatement,
+              delimitedCompareReverseFirstStatement, delimitedCompareReverseSecondStatement,
+              delimitedCompareCleanupStatement, delimitedCompareTrailingStatement,
+              delimitedCompareOutcomeStatement, delimitedCompareSourceStatement,
+              delimitedComparePrefixStatement, encodedWordOrderingWord, encodedWordOrderingFirst,
+              encodedWordOrderingSecond, Turing.haltList, Turing.FinTM2.step, Turing.TM2.step,
+              Turing.TM2.stepAux] <;>
+            try { congr 2; funext stack;
+              fin_cases stack <;>
+                (first
+                  | rfl
+                  | simp [Function.update])
+            } <;>
+          try rfl))
+
+
+-- @@ L385-396 expanded
+theorem naturalCompareWordsFirstEmptyFalse (outcome : EncodedWordOrdering)
+    (input firstCounter firstReversed secondCounter secondReversed secondForward source sourcePrefix
+      output : List Bool) :
+    delimitedNaturalComparisonMachine.step
+        (naturalCompareConfiguration 6 outcome input firstCounter firstReversed secondCounter
+          secondReversed [] (false :: secondForward) source sourcePrefix output) =
+      some
+        (naturalCompareConfiguration 6 outcome input firstCounter firstReversed secondCounter
+          secondReversed [] secondForward source sourcePrefix output) :=
+  by
+  (first
+    | rfl
+    |
+      (simp [delimitedNaturalComparisonMachine, naturalCompareConfiguration,
+              delimitedCompareConfiguration, naturalCompareWordsStatement,
+              naturalCompareConsumeBoth, delimitedComparePeekFirst, delimitedComparePeekSecond,
+              delimitedComparePop, delimitedComparePushFirst, delimitedComparePushConstant,
+              delimitedCompareGoto, delimitedCompareSetOutcome,
+              delimitedCompareFirstPrefixStatement, delimitedCompareFirstPayloadStatement,
+              delimitedCompareSecondPrefixStatement, delimitedCompareSecondPayloadStatement,
+              delimitedCompareReverseFirstStatement, delimitedCompareReverseSecondStatement,
+              delimitedCompareCleanupStatement, delimitedCompareTrailingStatement,
+              delimitedCompareOutcomeStatement, delimitedCompareSourceStatement,
+              delimitedComparePrefixStatement, encodedWordOrderingWord, encodedWordOrderingFirst,
+              encodedWordOrderingSecond, Turing.haltList, Turing.FinTM2.step, Turing.TM2.step,
+              Turing.TM2.stepAux] <;>
+            try { congr 2; funext stack;
+              fin_cases stack <;>
+                (first
+                  | rfl
+                  | simp [Function.update])
+            } <;>
+          try rfl))
+
+
+-- @@ L398-409 expanded
+theorem naturalCompareWordsFirstEmptyTrue (outcome : EncodedWordOrdering)
+    (input firstCounter firstReversed secondCounter secondReversed secondForward source sourcePrefix
+      output : List Bool) :
+    delimitedNaturalComparisonMachine.step
+        (naturalCompareConfiguration 6 outcome input firstCounter firstReversed secondCounter
+          secondReversed [] (true :: secondForward) source sourcePrefix output) =
+      some
+        (naturalCompareConfiguration 6 .less input firstCounter firstReversed secondCounter
+          secondReversed [] secondForward source sourcePrefix output) :=
+  by
+  (first
+    | rfl
+    |
+      (simp [delimitedNaturalComparisonMachine, naturalCompareConfiguration,
+              delimitedCompareConfiguration, naturalCompareWordsStatement,
+              naturalCompareConsumeBoth, delimitedComparePeekFirst, delimitedComparePeekSecond,
+              delimitedComparePop, delimitedComparePushFirst, delimitedComparePushConstant,
+              delimitedCompareGoto, delimitedCompareSetOutcome,
+              delimitedCompareFirstPrefixStatement, delimitedCompareFirstPayloadStatement,
+              delimitedCompareSecondPrefixStatement, delimitedCompareSecondPayloadStatement,
+              delimitedCompareReverseFirstStatement, delimitedCompareReverseSecondStatement,
+              delimitedCompareCleanupStatement, delimitedCompareTrailingStatement,
+              delimitedCompareOutcomeStatement, delimitedCompareSourceStatement,
+              delimitedComparePrefixStatement, encodedWordOrderingWord, encodedWordOrderingFirst,
+              encodedWordOrderingSecond, Turing.haltList, Turing.FinTM2.step, Turing.TM2.step,
+              Turing.TM2.stepAux] <;>
+            try { congr 2; funext stack;
+              fin_cases stack <;>
+                (first
+                  | rfl
+                  | simp [Function.update])
+            } <;>
+          try rfl))
+
+
+-- @@ L411-422 expanded
+theorem naturalCompareWordsSecondEmptyFalse (outcome : EncodedWordOrdering)
+    (input firstCounter firstReversed secondCounter secondReversed firstForward source sourcePrefix
+      output : List Bool) :
+    delimitedNaturalComparisonMachine.step
+        (naturalCompareConfiguration 6 outcome input firstCounter firstReversed secondCounter
+          secondReversed (false :: firstForward) [] source sourcePrefix output) =
+      some
+        (naturalCompareConfiguration 6 outcome input firstCounter firstReversed secondCounter
+          secondReversed firstForward [] source sourcePrefix output) :=
+  by
+  (first
+    | rfl
+    |
+      (simp [delimitedNaturalComparisonMachine, naturalCompareConfiguration,
+              delimitedCompareConfiguration, naturalCompareWordsStatement,
+              naturalCompareConsumeBoth, delimitedComparePeekFirst, delimitedComparePeekSecond,
+              delimitedComparePop, delimitedComparePushFirst, delimitedComparePushConstant,
+              delimitedCompareGoto, delimitedCompareSetOutcome,
+              delimitedCompareFirstPrefixStatement, delimitedCompareFirstPayloadStatement,
+              delimitedCompareSecondPrefixStatement, delimitedCompareSecondPayloadStatement,
+              delimitedCompareReverseFirstStatement, delimitedCompareReverseSecondStatement,
+              delimitedCompareCleanupStatement, delimitedCompareTrailingStatement,
+              delimitedCompareOutcomeStatement, delimitedCompareSourceStatement,
+              delimitedComparePrefixStatement, encodedWordOrderingWord, encodedWordOrderingFirst,
+              encodedWordOrderingSecond, Turing.haltList, Turing.FinTM2.step, Turing.TM2.step,
+              Turing.TM2.stepAux] <;>
+            try { congr 2; funext stack;
+              fin_cases stack <;>
+                (first
+                  | rfl
+                  | simp [Function.update])
+            } <;>
+          try rfl))
+
+
+-- @@ L424-435 expanded
+theorem naturalCompareWordsSecondEmptyTrue (outcome : EncodedWordOrdering)
+    (input firstCounter firstReversed secondCounter secondReversed firstForward source sourcePrefix
+      output : List Bool) :
+    delimitedNaturalComparisonMachine.step
+        (naturalCompareConfiguration 6 outcome input firstCounter firstReversed secondCounter
+          secondReversed (true :: firstForward) [] source sourcePrefix output) =
+      some
+        (naturalCompareConfiguration 6 .greater input firstCounter firstReversed secondCounter
+          secondReversed firstForward [] source sourcePrefix output) :=
+  by
+  (first
+    | rfl
+    |
+      (simp [delimitedNaturalComparisonMachine, naturalCompareConfiguration,
+              delimitedCompareConfiguration, naturalCompareWordsStatement,
+              naturalCompareConsumeBoth, delimitedComparePeekFirst, delimitedComparePeekSecond,
+              delimitedComparePop, delimitedComparePushFirst, delimitedComparePushConstant,
+              delimitedCompareGoto, delimitedCompareSetOutcome,
+              delimitedCompareFirstPrefixStatement, delimitedCompareFirstPayloadStatement,
+              delimitedCompareSecondPrefixStatement, delimitedCompareSecondPayloadStatement,
+              delimitedCompareReverseFirstStatement, delimitedCompareReverseSecondStatement,
+              delimitedCompareCleanupStatement, delimitedCompareTrailingStatement,
+              delimitedCompareOutcomeStatement, delimitedCompareSourceStatement,
+              delimitedComparePrefixStatement, encodedWordOrderingWord, encodedWordOrderingFirst,
+              encodedWordOrderingSecond, Turing.haltList, Turing.FinTM2.step, Turing.TM2.step,
+              Turing.TM2.stepAux] <;>
+            try { congr 2; funext stack;
+              fin_cases stack <;>
+                (first
+                  | rfl
+                  | simp [Function.update])
+            } <;>
+          try rfl))
+
+
+-- @@ L437-447 expanded
+theorem naturalCompareWordsBothEmptyInvalid
+    (input firstCounter firstReversed secondCounter secondReversed source sourcePrefix output :
+      List Bool) :
+    delimitedNaturalComparisonMachine.step
+        (naturalCompareConfiguration 6 .invalid input firstCounter firstReversed secondCounter
+          secondReversed [] [] source sourcePrefix output) =
+      some
+        (naturalCompareConfiguration 7 .equal input firstCounter firstReversed secondCounter
+          secondReversed [] [] source sourcePrefix output) :=
+  by
+  (first
+    | rfl
+    |
+      (simp [delimitedNaturalComparisonMachine, naturalCompareConfiguration,
+              delimitedCompareConfiguration, naturalCompareWordsStatement,
+              naturalCompareConsumeBoth, delimitedComparePeekFirst, delimitedComparePeekSecond,
+              delimitedComparePop, delimitedComparePushFirst, delimitedComparePushConstant,
+              delimitedCompareGoto, delimitedCompareSetOutcome,
+              delimitedCompareFirstPrefixStatement, delimitedCompareFirstPayloadStatement,
+              delimitedCompareSecondPrefixStatement, delimitedCompareSecondPayloadStatement,
+              delimitedCompareReverseFirstStatement, delimitedCompareReverseSecondStatement,
+              delimitedCompareCleanupStatement, delimitedCompareTrailingStatement,
+              delimitedCompareOutcomeStatement, delimitedCompareSourceStatement,
+              delimitedComparePrefixStatement, encodedWordOrderingWord, encodedWordOrderingFirst,
+              encodedWordOrderingSecond, Turing.haltList, Turing.FinTM2.step, Turing.TM2.step,
+              Turing.TM2.stepAux] <;>
+            try { congr 2; funext stack;
+              fin_cases stack <;>
+                (first
+                  | rfl
+                  | simp [Function.update])
+            } <;>
+          try rfl))
+
+
+-- @@ L449-465 expanded
+theorem naturalCompareWordsBothEmpty (outcome : EncodedWordOrdering) (hvalid : outcome ≠ .invalid)
+    (input firstCounter firstReversed secondCounter secondReversed source sourcePrefix output :
+      List Bool) :
+    delimitedNaturalComparisonMachine.step
+        (naturalCompareConfiguration 6 outcome input firstCounter firstReversed secondCounter
+          secondReversed [] [] source sourcePrefix output) =
+      some
+        (naturalCompareConfiguration 7 outcome input firstCounter firstReversed secondCounter
+          secondReversed [] [] source sourcePrefix output) :=
+  by
+  cases outcome with
+  | invalid => exact (hvalid rfl).elim
+  | less =>
+    (first
+      | rfl
+      |
+        (simp [delimitedNaturalComparisonMachine, naturalCompareConfiguration,
+                delimitedCompareConfiguration, naturalCompareWordsStatement,
+                naturalCompareConsumeBoth, delimitedComparePeekFirst, delimitedComparePeekSecond,
+                delimitedComparePop, delimitedComparePushFirst, delimitedComparePushConstant,
+                delimitedCompareGoto, delimitedCompareSetOutcome,
+                delimitedCompareFirstPrefixStatement, delimitedCompareFirstPayloadStatement,
+                delimitedCompareSecondPrefixStatement, delimitedCompareSecondPayloadStatement,
+                delimitedCompareReverseFirstStatement, delimitedCompareReverseSecondStatement,
+                delimitedCompareCleanupStatement, delimitedCompareTrailingStatement,
+                delimitedCompareOutcomeStatement, delimitedCompareSourceStatement,
+                delimitedComparePrefixStatement, encodedWordOrderingWord, encodedWordOrderingFirst,
+                encodedWordOrderingSecond, Turing.haltList, Turing.FinTM2.step, Turing.TM2.step,
+                Turing.TM2.stepAux] <;>
+              try { congr 2; funext stack;
+                fin_cases stack <;>
+                  (first
+                    | rfl
+                    | simp [Function.update])
+              } <;>
+            try rfl))
+  | equal =>
+    (first
+      | rfl
+      |
+        (simp [delimitedNaturalComparisonMachine, naturalCompareConfiguration,
+                delimitedCompareConfiguration, naturalCompareWordsStatement,
+                naturalCompareConsumeBoth, delimitedComparePeekFirst, delimitedComparePeekSecond,
+                delimitedComparePop, delimitedComparePushFirst, delimitedComparePushConstant,
+                delimitedCompareGoto, delimitedCompareSetOutcome,
+                delimitedCompareFirstPrefixStatement, delimitedCompareFirstPayloadStatement,
+                delimitedCompareSecondPrefixStatement, delimitedCompareSecondPayloadStatement,
+                delimitedCompareReverseFirstStatement, delimitedCompareReverseSecondStatement,
+                delimitedCompareCleanupStatement, delimitedCompareTrailingStatement,
+                delimitedCompareOutcomeStatement, delimitedCompareSourceStatement,
+                delimitedComparePrefixStatement, encodedWordOrderingWord, encodedWordOrderingFirst,
+                encodedWordOrderingSecond, Turing.haltList, Turing.FinTM2.step, Turing.TM2.step,
+                Turing.TM2.stepAux] <;>
+              try { congr 2; funext stack;
+                fin_cases stack <;>
+                  (first
+                    | rfl
+                    | simp [Function.update])
+              } <;>
+            try rfl))
+  | greater =>
+    (first
+      | rfl
+      |
+        (simp [delimitedNaturalComparisonMachine, naturalCompareConfiguration,
+                delimitedCompareConfiguration, naturalCompareWordsStatement,
+                naturalCompareConsumeBoth, delimitedComparePeekFirst, delimitedComparePeekSecond,
+                delimitedComparePop, delimitedComparePushFirst, delimitedComparePushConstant,
+                delimitedCompareGoto, delimitedCompareSetOutcome,
+                delimitedCompareFirstPrefixStatement, delimitedCompareFirstPayloadStatement,
+                delimitedCompareSecondPrefixStatement, delimitedCompareSecondPayloadStatement,
+                delimitedCompareReverseFirstStatement, delimitedCompareReverseSecondStatement,
+                delimitedCompareCleanupStatement, delimitedCompareTrailingStatement,
+                delimitedCompareOutcomeStatement, delimitedCompareSourceStatement,
+                delimitedComparePrefixStatement, encodedWordOrderingWord, encodedWordOrderingFirst,
+                encodedWordOrderingSecond, Turing.haltList, Turing.FinTM2.step, Turing.TM2.step,
+                Turing.TM2.stepAux] <;>
+              try { congr 2; funext stack;
+                fin_cases stack <;>
+                  (first
+                    | rfl
+                    | simp [Function.update])
+              } <;>
+            try rfl))
+
+
+-- @@ L467-470 verbatim
+/-- Treat an uninitialized comparison result as equality. -/
+def naturalComparisonEffectiveOutcome
+    (outcome : EncodedWordOrdering) : EncodedWordOrdering :=
+  if outcome = .invalid then .equal else outcome
+
+
+-- @@ L472-627 verbatim
+/-- Compare both encoded natural-number words and record their final order. -/
+def naturalCompareWordsTrace
+    (outcome : EncodedWordOrdering)
+    (first second input firstCounter firstReversed
+      secondCounter secondReversed source sourcePrefix output : List Bool) :
+    EvalsToInTime delimitedNaturalComparisonMachine.step
+      (naturalCompareConfiguration 6 outcome
+        input firstCounter firstReversed secondCounter secondReversed
+        first second source sourcePrefix output)
+      (some (naturalCompareConfiguration 7
+        (littleEndianNaturalFold
+          (naturalComparisonEffectiveOutcome outcome) first second)
+        input firstCounter firstReversed secondCounter secondReversed
+        [] [] source sourcePrefix output))
+      (first.length + second.length + 1) := by
+  induction first generalizing second outcome with
+  | nil =>
+      induction second generalizing outcome with
+      | nil =>
+          cases outcome with
+          | invalid =>
+              simpa only [FinTM2.step, Fin.isValue, naturalComparisonEffectiveOutcome, ↓reduceIte,
+                  littleEndianNaturalFold,
+                  List.length_nil, add_zero, zero_add] using
+                  oneStep _ _
+                    (naturalCompareWordsBothEmptyInvalid input firstCounter firstReversed
+                        secondCounter secondReversed source
+                      sourcePrefix output)
+          | less =>
+              simpa only [FinTM2.step, Fin.isValue, naturalComparisonEffectiveOutcome,
+                  reduceCtorEq, ↓reduceIte,
+                  littleEndianNaturalFold, List.length_nil, add_zero, zero_add] using
+                  oneStep _ _
+                    (naturalCompareWordsBothEmpty .less (by decide) input firstCounter
+                        firstReversed secondCounter secondReversed
+                      source sourcePrefix output)
+          | equal =>
+              simpa only [FinTM2.step, Fin.isValue, naturalComparisonEffectiveOutcome,
+                  reduceCtorEq, ↓reduceIte,
+                  littleEndianNaturalFold, List.length_nil, add_zero, zero_add] using
+                  oneStep _ _
+                    (naturalCompareWordsBothEmpty .equal (by decide) input firstCounter
+                        firstReversed secondCounter secondReversed
+                      source sourcePrefix output)
+          | greater =>
+              simpa only [FinTM2.step, Fin.isValue, naturalComparisonEffectiveOutcome,
+                  reduceCtorEq, ↓reduceIte,
+                  littleEndianNaturalFold, List.length_nil, add_zero, zero_add] using
+                  oneStep _ _
+                    (naturalCompareWordsBothEmpty .greater (by decide) input firstCounter
+                        firstReversed secondCounter secondReversed
+                      source sourcePrefix output)
+      | cons bit remaining ih =>
+          cases bit with
+          | false =>
+              have hfirst := oneStep _ _ (naturalCompareWordsFirstEmptyFalse outcome
+                  input firstCounter firstReversed
+                  secondCounter secondReversed remaining
+                  source sourcePrefix output)
+              have hrest := ih (outcome := outcome)
+              have hfull := EvalsToInTime.trans delimitedNaturalComparisonMachine.step
+                _ _ _ _ _ hfirst hrest
+              simpa only [FinTM2.step, Fin.isValue, littleEndianNaturalFold, List.length_nil,
+                  List.length_cons, zero_add,
+                  Nat.add_assoc, Nat.reduceAdd] using hfull
+          | true =>
+              have hfirst := oneStep _ _ (naturalCompareWordsFirstEmptyTrue outcome
+                  input firstCounter firstReversed
+                  secondCounter secondReversed remaining
+                  source sourcePrefix output)
+              have hrest := ih (outcome := .less)
+              have hfull := EvalsToInTime.trans delimitedNaturalComparisonMachine.step
+                _ _ _ _ _ hfirst hrest
+              simpa only [FinTM2.step, Fin.isValue, naturalComparisonEffectiveOutcome,
+                  littleEndianNaturalFold,
+                  List.length_nil, List.length_cons, zero_add, Nat.add_assoc, Nat.reduceAdd,
+                      reduceCtorEq, ↓reduceIte] using hfull
+  | cons bit remaining ih =>
+      cases second with
+      | nil =>
+          cases bit with
+          | false =>
+              have hfirst := oneStep _ _ (naturalCompareWordsSecondEmptyFalse outcome
+                  input firstCounter firstReversed
+                  secondCounter secondReversed remaining
+                  source sourcePrefix output)
+              have hrest := ih (second := []) (outcome := outcome)
+              have hfull := EvalsToInTime.trans delimitedNaturalComparisonMachine.step
+                _ _ _ _ _ hfirst hrest
+              simpa only [FinTM2.step, Fin.isValue, littleEndianNaturalFold, List.length_cons,
+                  List.length_nil, add_zero,
+                  Nat.add_assoc, Nat.reduceAdd] using hfull
+          | true =>
+              have hfirst := oneStep _ _ (naturalCompareWordsSecondEmptyTrue outcome
+                  input firstCounter firstReversed
+                  secondCounter secondReversed remaining
+                  source sourcePrefix output)
+              have hrest := ih (second := []) (outcome := .greater)
+              have hfull := EvalsToInTime.trans delimitedNaturalComparisonMachine.step
+                _ _ _ _ _ hfirst hrest
+              simpa only [FinTM2.step, Fin.isValue, naturalComparisonEffectiveOutcome,
+                  littleEndianNaturalFold,
+                  List.length_cons, List.length_nil, add_zero, Nat.add_assoc, Nat.reduceAdd,
+                      reduceCtorEq, ↓reduceIte] using hfull
+      | cons next second =>
+          cases bit <;> cases next
+          · have hfirst := oneStep _ _ (naturalCompareWordsEqualBit outcome false
+                input firstCounter firstReversed
+                secondCounter secondReversed remaining second
+                source sourcePrefix output)
+            have hrest := ih (second := second) (outcome := outcome)
+            have hfull := EvalsToInTime.trans delimitedNaturalComparisonMachine.step
+              1 (remaining.length + second.length + 1) _ _ _ hfirst hrest
+            exact rebound (oldBudget := remaining.length + second.length + 2)
+              (by
+                simpa only [FinTM2.step, Fin.isValue, littleEndianNaturalFold,
+                  Nat.add_assoc, Nat.add_comm, Nat.add_left_comm, Nat.reduceAdd] using hfull)
+              (by simp only [List.length_cons]; omega)
+          · have hfirst := oneStep _ _ (naturalCompareWordsLessBit outcome
+                input firstCounter firstReversed
+                secondCounter secondReversed remaining second
+                source sourcePrefix output)
+            have hrest := ih (second := second) (outcome := .less)
+            have hfull := EvalsToInTime.trans delimitedNaturalComparisonMachine.step
+              1 (remaining.length + second.length + 1) _ _ _ hfirst hrest
+            exact rebound (oldBudget := remaining.length + second.length + 2)
+              (by
+                simpa only [FinTM2.step, Fin.isValue, naturalComparisonEffectiveOutcome,
+                  littleEndianNaturalFold, reduceCtorEq, ↓reduceIte, Nat.add_assoc,
+                  Nat.add_comm, Nat.add_left_comm, Nat.reduceAdd] using hfull)
+              (by simp only [List.length_cons]; omega)
+          · have hfirst := oneStep _ _ (naturalCompareWordsGreaterBit outcome
+                input firstCounter firstReversed
+                secondCounter secondReversed remaining second
+                source sourcePrefix output)
+            have hrest := ih (second := second) (outcome := .greater)
+            have hfull := EvalsToInTime.trans delimitedNaturalComparisonMachine.step
+              1 (remaining.length + second.length + 1) _ _ _ hfirst hrest
+            exact rebound (oldBudget := remaining.length + second.length + 2)
+              (by
+                simpa only [FinTM2.step, Fin.isValue, naturalComparisonEffectiveOutcome,
+                  littleEndianNaturalFold, reduceCtorEq, ↓reduceIte, Nat.add_assoc,
+                  Nat.add_comm, Nat.add_left_comm, Nat.reduceAdd] using hfull)
+              (by simp only [List.length_cons]; omega)
+          · have hfirst := oneStep _ _ (naturalCompareWordsEqualBit outcome true
+                input firstCounter firstReversed
+                secondCounter secondReversed remaining second
+                source sourcePrefix output)
+            have hrest := ih (second := second) (outcome := outcome)
+            have hfull := EvalsToInTime.trans delimitedNaturalComparisonMachine.step
+              1 (remaining.length + second.length + 1) _ _ _ hfirst hrest
+            exact rebound (oldBudget := remaining.length + second.length + 2)
+              (by
+                simpa only [FinTM2.step, Fin.isValue, littleEndianNaturalFold,
+                  Nat.add_assoc, Nat.add_comm, Nat.add_left_comm, Nat.reduceAdd] using hfull)
+              (by simp only [List.length_cons]; omega)
+
+
+-- @@ L629-647 verbatim
+/-- Internal support shared across GapCVP continuation modules. -/
+def naturalCompareWordsTraceInitial
+    (first second input firstCounter firstReversed
+      secondCounter secondReversed source sourcePrefix output : List Bool) :
+    EvalsToInTime delimitedNaturalComparisonMachine.step
+      (naturalCompareConfiguration 6 .invalid
+        input firstCounter firstReversed secondCounter secondReversed
+        first second source sourcePrefix output)
+      (some (naturalCompareConfiguration 7
+        (littleEndianNaturalOrdering first second)
+        input firstCounter firstReversed secondCounter secondReversed
+        [] [] source sourcePrefix output))
+      (first.length + second.length + 1) := by
+  simpa only [FinTM2.step, Fin.isValue, littleEndianNaturalOrdering,
+      naturalComparisonEffectiveOutcome,
+      ↓reduceIte] using
+      naturalCompareWordsTrace .invalid first second input firstCounter firstReversed
+          secondCounter secondReversed source
+        sourcePrefix output
+
+
+-- @@ L649-649 verbatim
+end CNFNaturalOrderComparator
+
+
+-- @@ L651-651 verbatim
+namespace CNFNaturalOrderTotalComparator
+
+
+-- @@ L653-653 verbatim
+open Computability Turing GapCVP.BinaryEncoding GapCVP.CNFEncodedClauseSort
+
+-- @@ L654-654 verbatim
+open GapCVP.CNFNaturalOrderComparator
+
+
+-- @@ L656-661 verbatim
+/-- Internal support shared across GapCVP continuation modules. -/
+@[simp] theorem delimitedNaturalPairOrdering_missingFirst
+    (count : ℕ) :
+    delimitedNaturalPairOrdering (List.replicate count true) = .invalid := by
+  simp only [delimitedNaturalPairOrdering, readLengthPrefixedWord,
+      SourceTotalStructuralDecoder.readUnaryPrefix_missing]
+
+
+-- @@ L663-671 verbatim
+/-- Internal support shared across GapCVP continuation modules. -/
+theorem delimitedNaturalPairOrdering_shortFirst
+    (count : ℕ) (payload : List Bool)
+    (hshort : payload.length < count) :
+    delimitedNaturalPairOrdering
+      (List.replicate count true ++ false :: payload) = .invalid := by
+  have hnot : ¬ count ≤ payload.length := by omega
+  simp only [delimitedNaturalPairOrdering, readLengthPrefixedWord, readUnaryPrefix_replicate, hnot,
+      ↓reduceIte]
+
+
+-- @@ L673-682 verbatim
+/-- Internal support shared across GapCVP continuation modules. -/
+@[simp] theorem delimitedNaturalPairOrdering_missingSecond
+    (first : List Bool) (count : ℕ) :
+    delimitedNaturalPairOrdering
+      (lengthPrefixedWord first ++
+        List.replicate count true) = .invalid := by
+  unfold delimitedNaturalPairOrdering
+  rw [readLengthPrefixedWord_append first
+    (List.replicate count true)]
+  simp only [readLengthPrefixedWord, SourceTotalStructuralDecoder.readUnaryPrefix_missing]
+
+
+-- @@ L684-695 verbatim
+/-- Internal support shared across GapCVP continuation modules. -/
+theorem delimitedNaturalPairOrdering_shortSecond
+    (first : List Bool) (count : ℕ) (payload : List Bool)
+    (hshort : payload.length < count) :
+    delimitedNaturalPairOrdering
+      (lengthPrefixedWord first ++
+        (List.replicate count true ++ false :: payload)) = .invalid := by
+  unfold delimitedNaturalPairOrdering
+  rw [readLengthPrefixedWord_append first
+    (List.replicate count true ++ false :: payload)]
+  have hnot : ¬ count ≤ payload.length := by omega
+  simp only [readLengthPrefixedWord, readUnaryPrefix_replicate, hnot, ↓reduceIte]
+
+
+-- @@ L697-708 verbatim
+theorem sourcePreservingNaturalComparison_valid
+    (first second suffix : List Bool) :
+    sourcePreservingDelimitedNaturalComparisonWord
+        (lengthPrefixedWord first ++
+          lengthPrefixedWord second ++ suffix) =
+      lengthPrefixedWord
+        (lengthPrefixedWord first ++
+          lengthPrefixedWord second ++ suffix) ++
+        encodedWordOrderingWord
+          (littleEndianNaturalOrdering first second) := by
+  simp only [sourcePreservingDelimitedNaturalComparisonWord]
+  rw [delimitedNaturalPairOrdering_valid]
+
+
+-- @@ L710-710 verbatim
+end CNFNaturalOrderTotalComparator
+
+
+-- @@ L712-712 verbatim
+namespace CNFNaturalOrderCertifiedComparator
+
+
+-- @@ L714-714 verbatim
+open Computability Turing GapCVP.BinaryEncoding GapCVP.SourceTotalStructuralDecoder
+
+-- @@ L715-715 verbatim
+open GapCVP.CNFSortingDedup GapCVP.CNFEncodedClauseSort GapCVP.CNFNaturalOrderComparator
+
+-- @@ L716-716 verbatim
+open GapCVP.CNFNaturalOrderTotalComparator
+
+
+-- @@ L718-741 verbatim
+/-- Internal support shared across GapCVP continuation modules. -/
+theorem certifiedNatural_step_eq_old
+    (configuration : delimitedNaturalComparisonMachine.Cfg)
+    (hphase : configuration.l ≠ some (6 : Fin 12)) :
+    delimitedNaturalComparisonMachine.step configuration =
+      delimitedPairComparisonMachine.step configuration := by
+  rcases configuration with ⟨phase, state, stackWords⟩
+  cases phase with
+  | none =>
+      simp only [FinTM2.step, TM2.step]
+      rfl
+  | some phase =>
+      have hnot : phase ≠ (6 : Fin 12) := by
+        simpa only [Fin.isValue, ne_eq, Option.some.injEq] using hphase
+      have hprogram :
+          delimitedNaturalComparisonMachine.m phase =
+            delimitedPairComparisonMachine.m phase := by
+        simp only [delimitedNaturalComparisonMachine, Fin.isValue, hnot, ↓reduceIte]
+      change
+        some (Turing.TM2.stepAux
+          (delimitedNaturalComparisonMachine.m phase) state stackWords) =
+        some (Turing.TM2.stepAux
+          (delimitedPairComparisonMachine.m phase) state stackWords)
+      rw [hprogram]
+
+
+-- @@ L743-743 verbatim
+end CNFNaturalOrderCertifiedComparator
+
+
+-- @@ L745-745 verbatim
+end GapCVP
+
+
+-- @@ L747-747 verbatim
+end

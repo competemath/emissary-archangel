@@ -1,0 +1,185 @@
+/-
+Copyright (c) 2024 Yunzhou Xie. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Yunzhou Xie, Jujian Zhang
+-/
+module
+
+public import LeanPool.BrauerGroupNew.BrauerGroup
+public import LeanPool.BrauerGroupNew.SplittingOfCSA
+import LeanPool.BrauerGroupNew.Wedderburn
+import LeanPool.BrauerGroupNew.ZeroSevenFourE
+import Mathlib.Combinatorics.Matroid.Init
+import Mathlib.LinearAlgebra.FreeModule.PID
+import Mathlib.LinearAlgebra.Matrix.FiniteDimensional
+import Mathlib.MeasureTheory.Integral.Bochner.Basic
+import Mathlib.NumberTheory.ArithmeticFunction.Misc
+import Mathlib.RingTheory.DedekindDomain.Basic
+import Mathlib.RingTheory.SimpleRing.Matrix
+
+
+-- @@ L20-30 verbatim
+/-!
+# Relative Brauer Group
+
+# Main results
+
+* `BrauerGroup.split_iff`: Let `A` be a CSA over F, then `⟦A⟧ ∈ Br(K/F)` if and only if K
+  splits A.
+* `isSplit_iff_dimension`: Let `A` be a CSA over F, then `⟦A⟧ ∈ Br(K/F)` if and only if
+  there exists another `F`-CSA `B` such that `⟦A⟧ = ⟦B⟧`, `K ⊆ B`, and
+  `dim_F B = (dim_F K)^2`.
+-/
+
+
+-- @@ L32-32 verbatim
+@[expose] public section
+
+
+-- @@ L34-34 verbatim
+suppress_compilation
+
+
+-- @@ L36-36 verbatim
+universe u
+
+
+-- @@ L38-38 verbatim
+open TensorProduct BrauerGroup
+
+
+-- @@ L40-40 verbatim
+section Defs
+
+
+-- @@ L42-42 verbatim
+variable (K F : Type u) [Field K] [Field F] [Algebra F K]
+
+
+-- @@ L44-45 verbatim
+/-- The relative Brauer group `Br(K/F)` is the kernel of the base-change map `Br F → Br K`. -/
+abbrev RelativeBrGroup := (BrauerGroupHom.BaseChange (K := F) (E := K)).ker
+
+
+-- @@ L47-87 verbatim
+/-- A central simple algebra is split by `K` iff its Brauer class base-changes to `1`. -/
+lemma BrauerGroup.split_iff (A : CSA F) : isSplit F A K ↔
+    BrauerGroupHom.BaseChange (K := F) (Quotient.mk'' A) = (1 : BrauerGroup K) :=
+  ⟨by
+    rintro ⟨n, hn, ⟨iso⟩⟩
+    simp only [MonoidHom.coe_mk, OneHom.coe_mk, Quotient.map'_mk'']
+    change _ = Quotient.mk'' _
+    simp only [Quotient.eq'', oneIn']
+    exact ⟨1, n, one_ne_zero, hn.1, ⟨dimOneIso (K ⊗[F] A) |>.trans iso⟩⟩,
+    fun hA ↦ by
+      simp only [MonoidHom.coe_mk, OneHom.coe_mk, Quotient.map'_mk''] at hA
+      change _ = Quotient.mk'' _ at hA
+      simp only [Quotient.eq'', oneIn'] at hA
+      change IsBrauerEquivalent _ _ at hA
+      obtain ⟨n, m, hn, hm, ⟨iso⟩⟩ := hA
+      let p : ℕ := WedderburnArtin_algebra_version K (K ⊗[F] A) |>.choose
+      let hp := WedderburnArtin_algebra_version K (K ⊗[F] A) |>.choose_spec.1
+      let D := WedderburnArtin_algebra_version K (K ⊗[F] A) |>.choose_spec.2.choose
+      let := WedderburnArtin_algebra_version K (K ⊗[F] A) |>.choose_spec.2.choose_spec.choose
+      let := WedderburnArtin_algebra_version K (K ⊗[F] A) |>.choose_spec.2.choose_spec
+        |>.choose_spec.choose
+      let iso' := WedderburnArtin_algebra_version K (K ⊗[F] A) |>.choose_spec
+        |>.2.choose_spec.choose_spec.choose_spec.some
+      change K ⊗[F] A ≃ₐ[K] Matrix (Fin p) (Fin p) D at iso'
+      have e := Matrix.reindexAlgEquiv K _ (finProdFinEquiv.symm) |>.trans <|
+        Matrix.compAlgEquiv _ _ _ _ |>.symm.trans <|
+        iso.mapMatrix (m := (Fin p)) |>.symm.trans <|
+        (Matrix.compAlgEquiv (Fin p) (Fin n) D K |>.trans <| Matrix.reindexAlgEquiv K D
+        (Equiv.prodComm (Fin p) (Fin n)) |>.trans <| Matrix.compAlgEquiv (Fin n) (Fin p) D K
+        |>.symm.trans <| iso'.mapMatrix.symm).symm.mapMatrix |>.trans <|
+        Matrix.compAlgEquiv (Fin p) (Fin p) _ K |>.trans <| Matrix.reindexAlgEquiv K _
+        (finProdFinEquiv) |>.trans <| Matrix.compAlgEquiv _ _  D K |>.trans <|
+        Matrix.reindexAlgEquiv K _ (finProdFinEquiv)
+      have D_findim := is_fin_dim_of_wdb K (K ⊗[F] A) hp D iso'
+      have : NeZero (p * p * n) := ⟨by simpa [hn]⟩
+      have : NeZero (p * m) := ⟨by simpa [hm]⟩
+      have := WedderburnArtin_uniqueness₀ K (Matrix (Fin (p * p * n)) (Fin (p * p * n)) D)
+        (p * p * n) (p * m) D AlgEquiv.refl K e.symm
+      exact ⟨p, ⟨hp⟩, ⟨iso'.trans <| WedderburnArtin_uniqueness₀ K
+        (Matrix (Fin (p * p * n)) (Fin (p * p * n)) D)
+        (p * p * n) (p * m) D .refl K e.symm |>.some.mapMatrix⟩⟩⟩
+
+
+-- @@ L89-93 verbatim
+/-- Membership in the relative Brauer group is equivalent to being split by `K`. -/
+lemma mem_relativeBrGroup (A : CSA F) :
+    Quotient.mk'' A ∈ RelativeBrGroup K F ↔
+    isSplit F A K :=
+  BrauerGroup.split_iff K F A |>.symm
+
+
+-- @@ L95-100 verbatim
+/-- Brauer-equivalent central simple algebras have the same splitting fields. -/
+lemma split_sound (A B : CSA F) (h0 : IsBrauerEquivalent A B) (h : isSplit F A K) :
+    isSplit F B K := by
+  rw [split_iff] at h ⊢
+  rw [show (Quotient.mk'' B : BrauerGroup F) = Quotient.mk'' A from Eq.symm <|
+    Quotient.sound h0, h]
+
+
+-- @@ L102-105 verbatim
+/-- Brauer-equivalent central simple algebras are split by `K` simultaneously. -/
+lemma split_sound' (A B : CSA F) (h0 : IsBrauerEquivalent A B) :
+    isSplit F A K ↔ isSplit F B K :=
+  ⟨split_sound K F A B h0, split_sound K F B A <| h0.symm⟩
+
+
+-- @@ L107-107 verbatim
+end Defs
+
+
+-- @@ L109-109 verbatim
+namespace IsBrauerEquivalent
+
+
+-- @@ L111-111 verbatim
+open BrauerGroup
+
+
+-- @@ L113-113 verbatim
+variable (K : Type u) [Field K]
+
+
+-- @@ L115-147 verbatim
+/-- Brauer-equivalent central simple algebras have matrix forms over a common division algebra. -/
+lemma exists_common_division_algebra (A B : CSA.{u, u} K) (h : IsBrauerEquivalent A B) :
+    ∃ (D : Type u) (_ : DivisionRing D) (_ : Algebra K D)
+      (m n : ℕ) (_ : NeZero m) (_ : NeZero n),
+      Nonempty (A ≃ₐ[K] Matrix (Fin m) (Fin m) D) ∧
+      Nonempty (B ≃ₐ[K] Matrix (Fin n) (Fin n) D) := by
+  obtain ⟨n, hn, SA, _, _, ⟨isoA⟩⟩ := WedderburnArtin_algebra_version K A
+  have : Algebra.IsCentral K (Matrix (Fin n) (Fin n) SA) := isoA.isCentral
+  have : Algebra.IsCentral K SA := is_central_of_wdb _ _ _ _ hn isoA
+  have : FiniteDimensional K (Matrix (Fin n) (Fin n) SA) :=
+    Module.Finite.of_injective isoA.symm.toLinearMap isoA.symm.injective
+  have : FiniteDimensional K SA := is_fin_dim_of_wdb _ _ hn _ isoA
+  have eq1 : IsBrauerEquivalent ⟨.of K SA⟩ A :=
+    ⟨n, 1, hn, one_ne_zero, ⟨AlgEquiv.symm <| AlgEquiv.trans (dimOneIso A) isoA⟩⟩
+  obtain ⟨m, hm, SB, _, _, ⟨isoB⟩⟩ := WedderburnArtin_algebra_version K B
+  have : Algebra.IsCentral K (Matrix (Fin m) (Fin m) SB) := isoB.isCentral
+  have : Algebra.IsCentral K SB := is_central_of_wdb _ _ _ _ hm isoB
+  have : FiniteDimensional K (Matrix (Fin m) (Fin m) SB) :=
+    .of_injective isoB.symm.toLinearMap isoB.symm.injective
+  have : FiniteDimensional K SB := is_fin_dim_of_wdb _ _ hm _ isoB
+  have eq2 : IsBrauerEquivalent ⟨.of K SA⟩ B := .trans eq1 h
+  obtain ⟨a, a', ha, ha', ⟨e⟩⟩ := eq2
+  have : FiniteDimensional K (Matrix (Fin a') (Fin a') B) :=
+    LinearEquiv.finiteDimensional (matrixEquivTensor (Fin a') K B).toLinearEquiv.symm
+  have : NeZero a' := ⟨ha'⟩
+  have : NeZero a := ⟨ha⟩
+  have : NeZero m := ⟨hm⟩
+  obtain ⟨isoAB⟩ := WedderburnArtin_uniqueness₀ K (Matrix (Fin a') (Fin a') B) a (a' * m)
+    SA e.symm SB <|
+      (AlgEquiv.mapMatrix ‹_›).trans <| (Matrix.compAlgEquiv _ _ _ _).trans <|
+        IsBrauerEquivalent.matrixEqv' _ _ _
+  exact ⟨SA, inferInstance, inferInstance, n, m, ⟨hn⟩, ⟨hm⟩, ⟨isoA⟩,
+    ⟨isoB.trans isoAB.symm.mapMatrix⟩⟩
+
+
+-- @@ L149-149 verbatim
+end IsBrauerEquivalent

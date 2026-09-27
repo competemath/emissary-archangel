@@ -1,0 +1,78 @@
+/-
+Copyright (c) 2026 Shangtong Zhang. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Shangtong Zhang
+-/
+module
+
+public import Mathlib.Data.Matrix.Mul
+
+public import Mathlib.Basic.Real.Basic
+import Mathlib.Tactic.Ring.RingNF
+
+
+-- @@ L13-15 verbatim
+/-!
+# LeanPool.RlTheoryInLean.Data.Matrix.Mul
+-/
+
+
+-- @@ L17-17 verbatim
+@[expose] public section
+
+
+-- @@ L19-19 verbatim
+open Finset Real
+
+
+-- @@ L21-21 verbatim
+namespace Matrix
+
+
+-- @@ L23-23 verbatim
+variable {m n β : Type*} [Fintype m]
+
+
+-- @@ L25-33 verbatim
+omit [Fintype m] in
+lemma mul_diagonal_mulVec
+  [DecidableEq n] [Fintype n] (d : n → ℝ) (x : n → ℝ) (A : Matrix m n ℝ) :
+  (A * Matrix.diagonal d) *ᵥ x = ∑ i, d i • x i • A.col i := by
+  ext j
+  simp only [mulVec, dotProduct, mul_diagonal, sum_apply, Pi.smul_apply, col_apply, smul_eq_mul]
+  apply sum_congr rfl
+  intro i hi
+  ring_nf
+
+
+-- @@ L35-35 verbatim
+section square
+
+
+-- @@ L37-37 verbatim
+variable {A : Matrix m m ℝ}
+
+
+-- @@ L39-41 verbatim
+lemma dotProduct_transpose_mulVec_real (x y : m → ℝ) :
+   x ⬝ᵥ Aᵀ *ᵥ y = y ⬝ᵥ A *ᵥ x := by
+  simpa using Matrix.dotProduct_transpose_mulVec (A := A) (x := x) (y := y)
+
+
+-- @@ L43-50 verbatim
+lemma vecMul_diagonal_dotProduct
+  [DecidableEq m] (d x y : m → ℝ) :
+  x ᵥ* Matrix.diagonal d ⬝ᵥ y = ∑ i, d i * x i * y i := by
+  simp only [dotProduct, vecMul, diagonal, of_apply, mul_ite, mul_zero, sum_ite_eq', mem_univ,
+    ↓reduceIte]
+  apply sum_congr rfl
+  ring_nf
+  simp
+
+
+-- @@ L52-52 verbatim
+end square
+
+
+-- @@ L54-54 verbatim
+end Matrix

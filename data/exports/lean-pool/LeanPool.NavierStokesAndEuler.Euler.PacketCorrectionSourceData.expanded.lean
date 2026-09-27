@@ -1,0 +1,275 @@
+/-
+Copyright (c) 2026 OpenAI. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: OpenAI
+-/
+module
+
+public import LeanPool.NavierStokesAndEuler.Euler.PacketFieldTower
+public import LeanPool.NavierStokesAndEuler.Euler.PacketSourceCorrectionCoefficients
+
+
+-- @@ L11-12 verbatim
+/-! Actual all-order correction data from the source deformation and two
+prescribed packet fields. No correction solution or energy budget is assumed. -/
+
+
+-- @@ L14-14 verbatim
+section
+
+
+-- @@ L16-17 verbatim
+/-! Positivity and the literal inverse identity for the pressure metric.
+Both follow from the prescribed deformation and its two-sided inverse. -/
+
+
+-- @@ L19-19 verbatim
+@[expose] public section
+
+
+-- @@ L21-21 verbatim
+noncomputable section
+
+
+-- @@ L23-23 verbatim
+namespace EulerPacketCorrectionCoefficients
+
+
+-- @@ L25-26 verbatim
+open Set ContinuousLinearMap InnerProductSpace EulerSmoothLimit
+  EulerLiftedGradientSpace
+
+
+-- @@ L28-42 verbatim
+theorem norm_sq_lower_of_inverse {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
+    (A B : E →L[ℝ] E) (b : ℝ) (hb : 0 < b)
+    (hBA : ∀ v, B (A v) = v) (hB : ‖B‖ ≤ b) (v : E) :
+    b⁻¹^2*‖v‖^2 ≤ ‖A v‖^2 := by
+  have hn : ‖v‖ ≤ b*‖A v‖ := by
+    calc
+      ‖v‖ = ‖B (A v)‖ := by rw [hBA]
+      _ ≤ ‖B‖*‖A v‖ := B.le_opNorm _
+      _ ≤ b*‖A v‖ := mul_le_mul_of_nonneg_right hB (norm_nonneg _)
+  have hd : b⁻¹*‖v‖ ≤ ‖A v‖ := by
+    rw [← div_eq_inv_mul]
+    exact (div_le_iff₀ hb).2 (by simpa only [mul_comm] using hn)
+  have hs := (sq_le_sq₀ (mul_nonneg (inv_nonneg.mpr hb.le) (norm_nonneg _))
+    (norm_nonneg (A v))).2 hd
+  simpa only [mul_pow] using hs
+
+
+-- @@ L44-45 verbatim
+variable {U : Type*} [NormedAddCommGroup U] [InnerProductSpace ℝ U]
+  (D : EulerTransversePacketProvider.Data U)
+
+
+-- @@ L47-51 verbatim
+theorem frame_adjoint_inverse (t : Icc (0 : ℝ) D.T) (x v : Space) :
+    (D.F.field t x).adjoint ((D.FInv.field t x).adjoint v) = v := by
+  apply ext_inner_right ℝ
+  intro w
+  rw [adjoint_inner_left,adjoint_inner_left,D.inverse_left]
+
+
+-- @@ L53-57 verbatim
+theorem inverse_adjoint_frame (t : Icc (0 : ℝ) D.T) (x v : Space) :
+    (D.FInv.field t x).adjoint ((D.F.field t x).adjoint v) = v := by
+  apply ext_inner_right ℝ
+  intro w
+  rw [adjoint_inner_left,adjoint_inner_left,D.inverse_right]
+
+
+-- @@ L59-63 verbatim
+theorem metric_inner (t : Icc (0 : ℝ) D.T) (x v w : Space) :
+    ⟪(metricCoefficient D).path t x v,w⟫_ℝ =
+      ⟪(D.FInv.field t x).adjoint v,(D.FInv.field t x).adjoint w⟫_ℝ := by
+  change ⟪D.FInv.field t x ((D.FInv.field t x).adjoint v),w⟫_ℝ = _
+  rw [← adjoint_inner_right]
+
+
+-- @@ L65-69 verbatim
+theorem inverseMetric_inner (t : Icc (0 : ℝ) D.T) (x v w : Space) :
+    ⟪(inverseMetricCoefficient D).path t x v,w⟫_ℝ =
+      ⟪D.F.field t x v,D.F.field t x w⟫_ℝ := by
+  change ⟪(D.F.field t x).adjoint (D.F.field t x v),w⟫_ℝ = _
+  rw [adjoint_inner_left]
+
+
+-- @@ L71-76 verbatim
+theorem metric_coercive (t : Icc (0 : ℝ) D.T) (x v : Space) :
+    D.normalLower*‖v‖^2 ≤ ⟪(metricCoefficient D).path t x v,v⟫_ℝ := by
+  rw [metric_inner,real_inner_self_eq_norm_sq]
+  exact norm_sq_lower_of_inverse (D.FInv.field t x).adjoint (D.F.field t x).adjoint
+    D.frameBound D.frameBound_pos (frame_adjoint_inverse D t x)
+    (by simpa only [ContinuousLinearMap.adjoint.norm_map] using D.frame_norm t x) v
+
+
+-- @@ L78-82 verbatim
+theorem inverseMetric_coercive (t : Icc (0 : ℝ) D.T) (x v : Space) :
+    D.frameLower*‖v‖^2 ≤ ⟪(inverseMetricCoefficient D).path t x v,v⟫_ℝ := by
+  rw [inverseMetric_inner,real_inner_self_eq_norm_sq]
+  exact norm_sq_lower_of_inverse (D.F.field t x) (D.FInv.field t x)
+    D.inverseBound D.inverseBound_pos (D.inverse_left t x) (D.inverse_norm t x) v
+
+
+-- @@ L84-88 verbatim
+theorem inverseMetric_inverse (t : Icc (0 : ℝ) D.T) (x v : Space) :
+    (inverseMetricCoefficient D).path t x ((metricCoefficient D).path t x v) = v := by
+  change (D.F.field t x).adjoint
+    (D.F.field t x (D.FInv.field t x ((D.FInv.field t x).adjoint v))) = v
+  rw [D.inverse_right,frame_adjoint_inverse]
+
+
+-- @@ L90-94 verbatim
+theorem metric_inverseMetric (t : Icc (0 : ℝ) D.T) (x v : Space) :
+    (metricCoefficient D).path t x ((inverseMetricCoefficient D).path t x v) = v := by
+  change D.FInv.field t x
+    ((D.FInv.field t x).adjoint ((D.F.field t x).adjoint (D.F.field t x v))) = v
+  rw [inverse_adjoint_frame,D.inverse_left]
+
+
+-- @@ L96-105 verbatim
+theorem metric_symmetric (t : Icc (0 : ℝ) D.T) (x v w : Space) :
+    ⟪(metricCoefficient D).path t x v,w⟫_ℝ =
+      ⟪v,(metricCoefficient D).path t x w⟫_ℝ := by
+  calc
+    _ = ⟪(D.FInv.field t x).adjoint v,(D.FInv.field t x).adjoint w⟫_ℝ :=
+      metric_inner D t x v w
+    _ = ⟪(D.FInv.field t x).adjoint w,(D.FInv.field t x).adjoint v⟫_ℝ :=
+      real_inner_comm _ _
+    _ = ⟪(metricCoefficient D).path t x w,v⟫_ℝ := (metric_inner D t x w v).symm
+    _ = _ := real_inner_comm _ _
+
+
+-- @@ L107-115 verbatim
+theorem inverseMetric_symmetric (t : Icc (0 : ℝ) D.T) (x v w : Space) :
+    ⟪(inverseMetricCoefficient D).path t x v,w⟫_ℝ =
+      ⟪v,(inverseMetricCoefficient D).path t x w⟫_ℝ := by
+  calc
+    _ = ⟪D.F.field t x v,D.F.field t x w⟫_ℝ := inverseMetric_inner D t x v w
+    _ = ⟪D.F.field t x w,D.F.field t x v⟫_ℝ := real_inner_comm _ _
+    _ = ⟪(inverseMetricCoefficient D).path t x w,v⟫_ℝ :=
+      (inverseMetric_inner D t x w v).symm
+    _ = _ := real_inner_comm _ _
+
+
+-- @@ L117-117 verbatim
+variable (P : ℝ) [Fact (0 < P)]
+
+
+-- @@ L119-121 verbatim
+theorem metricTower_coercive (t : Icc (0 : ℝ) D.T) (x : LiftDomain P) (v : Space) :
+    D.normalLower*‖v‖^2 ≤ ⟪((metricTower D P).coefficient t).coefficient x v,v⟫_ℝ :=
+  metric_coercive D t x.1 v
+
+
+-- @@ L123-127 verbatim
+theorem inverseMetricTower_inverse (t : Icc (0 : ℝ) D.T)
+    (x : LiftDomain P) (v : Space) :
+    ((inverseMetricTower D P).coefficient t).coefficient x
+      (((metricTower D P).coefficient t).coefficient x v) = v :=
+  inverseMetric_inverse D t x.1 v
+
+
+-- @@ L129-129 verbatim
+end EulerPacketCorrectionCoefficients
+
+
+-- @@ L131-131 verbatim
+end
+
+-- @@ L132-132 verbatim
+end
+
+
+-- @@ L134-134 verbatim
+end
+
+
+-- @@ L136-136 verbatim
+@[expose] public section
+
+
+-- @@ L138-138 verbatim
+noncomputable section
+
+
+-- @@ L140-140 verbatim
+namespace EulerPacketCorrectionCoefficients
+
+
+-- @@ L142-143 verbatim
+open Set EulerSmoothLimit EulerPacketPointJets EulerPacketCylinderField
+  EulerAllOrderCorrectionData EulerLiftedGradientSpace EulerPacketProfileRecursion
+
+
+-- @@ L145-146 verbatim
+variable {U : Type*} [NormedAddCommGroup U] [InnerProductSpace ℝ U]
+  (D : EulerTransversePacketProvider.Data U) (P : ℝ) [Fact (0 < P)]
+
+
+-- @@ L148-164 verbatim
+/-- Correction data, bundling `κ`, `direction`, `scale_bound`, `direction_bound` and the
+required compatibility proofs. -/
+def correctionData (κ : ℝ) (hκ : |κ| ≤ 1)
+    (approximation residual : FieldTower P D.T) : Data P D.T where
+  κ := κ
+  direction := D.m₀
+  scale_bound := hκ
+  direction_bound := D.m₀_unit.le
+  metric := metricTower D P
+  metric_continuous := metricTower_continuous D P
+  coercivity := D.normalLower
+  coercivity_pos := D.normalLower_pos
+  metric_pos := metricTower_coercive D P
+  linear := linearTower D P
+  quadratic := quadraticTower D P κ
+  approximation := approximation
+  residual := residual
+
+
+-- @@ L166-169 verbatim
+/-- Correction data of fields, given by `correctionData D P κ hκ Z.toFieldTower G.toFieldTower`. -/
+def correctionDataOfFields (κ : ℝ) (hκ : |κ| ≤ 1)
+    {z r : VectorField} (Z : Field P D.T z) (G : Field P D.T r) : Data P D.T :=
+  correctionData D P κ hκ Z.toFieldTower G.toFieldTower
+
+
+-- @@ L171-173 verbatim
+@[simp] theorem correctionDataOfFields_approximation (κ : ℝ) (hκ : |κ| ≤ 1)
+    {z r : VectorField} (Z : Field P D.T z) (G : Field P D.T r) :
+    (correctionDataOfFields D P κ hκ Z G).approximation.field = Z.path := rfl
+
+
+-- @@ L175-177 verbatim
+@[simp] theorem correctionDataOfFields_residual (κ : ℝ) (hκ : |κ| ≤ 1)
+    {z r : VectorField} (Z : Field P D.T z) (G : Field P D.T r) :
+    (correctionDataOfFields D P κ hκ Z G).residual.field = G.path := rfl
+
+
+-- @@ L179-182 verbatim
+@[simp] theorem correctionData_metric (κ : ℝ) (hκ : |κ| ≤ 1)
+    (Z G : FieldTower P D.T) (t : Icc (0 : ℝ) D.T) (x : LiftDomain P) :
+    (((correctionData D P κ hκ Z G).metric).coefficient t).coefficient x =
+      (D.FInv.field t x.1).comp (D.FInv.field t x.1).adjoint := rfl
+
+
+-- @@ L184-187 verbatim
+@[simp] theorem correctionData_linear (κ : ℝ) (hκ : |κ| ≤ 1)
+    (Z G : FieldTower P D.T) (t : Icc (0 : ℝ) D.T) (x : LiftDomain P) :
+    (((correctionData D P κ hκ Z G).linear).coefficient t).coefficient x =
+      (2 : ℝ) • (D.FInv.field t x.1).comp (D.F₁.field t x.1) := rfl
+
+
+-- @@ L189-195 verbatim
+theorem correctionData_quadratic (κ : ℝ) (hκ : |κ| ≤ 1)
+    (Z G : FieldTower P D.T) (i : Fin 3) (t : Icc (0 : ℝ) D.T) (x : LiftDomain P) :
+    (((correctionData D P κ hκ Z G).quadratic i).coefficient t).coefficient x =
+      κ • (D.FInv.field t x.1).comp
+        (fderiv ℝ (D.F.field t : Space → Space →L[ℝ] Space) x.1
+          (EuclideanSpace.single i 1)) :=
+  quadraticTower_apply D P κ i t x
+
+
+-- @@ L197-197 verbatim
+end EulerPacketCorrectionCoefficients

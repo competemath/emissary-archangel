@@ -1,0 +1,1177 @@
+/-
+Copyright (c) 2026 Sven Manthe. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Sven Manthe
+-/
+module
+
+
+public import LeanPool.AFormalizationOfBorelDeterminacyInLean.Proof.Zero.Lift
+import Mathlib.Data.Nat.SuccPred
+import Mathlib.Data.Rat.Cast.Order
+import Mathlib.Order.Lattice.Nat
+import Mathlib.Tactic.Linarith.Frontend
+import Mathlib.Tactic.NormNum.Abs
+import Mathlib.Tactic.NormNum.DivMod
+import Mathlib.Tactic.NormNum.OfScientific
+
+
+-- @@ L18-22 verbatim
+/-!
+# LeanPool.AFormalizationOfBorelDeterminacyInLean.Proof.Zero.TreeLift
+
+Auxiliary declarations for the Borel determinacy formalization.
+-/
+
+
+-- @@ L24-24 verbatim
+@[expose] public section
+
+
+
+-- @@ L27-27 verbatim
+namespace GaleStewartGame.BorelDet.Zero
+
+-- @@ L28-28 verbatim
+open Stream'.Discrete Descriptive Tree Game PreStrategy
+
+-- @@ L29-29 verbatim
+open CategoryTheory
+
+
+-- @@ L31-31 verbatim
+variable {A : Type*} {G : Game A} {k : ℕ} {hyp : Hyp G k} {m n : ℕ}
+
+
+-- @@ L33-33 verbatim
+noncomputable section «Section1»
+
+
+-- @@ L35-57 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+noncomputable def stratMap (lvl : ℕ) (R : ResStrategy (gameAsTrees hyp) Player.zero lvl) :
+  ResStrategy (oldAsTrees hyp) Player.zero lvl := by
+  classical
+  exact fun x hp hlen ↦
+    if hxlen : x.val.length ≤ 2 * k then
+      (ResStrategy.fromMap (treeHom hyp)) (R.res hlen) x hp le_rfl
+    else
+      let pL : PreLift hyp :=
+        ⟨x, Nat.lt_of_not_ge hxlen,
+          R.res ((Nat.le_of_lt (Nat.lt_of_not_ge hxlen)).trans hlen)⟩
+      if hpL : pL.ConShort then
+        (Lift.mk pL (by
+          have hgt := Nat.lt_of_not_ge hxlen
+          have hpos := hp
+          unfold pL
+          change 2 * k + 1 < x.val.length
+          have hne : x.val.length ≠ 2 * k + 1 := by
+            intro hEq
+            rw [IsPosition] at hpos
+            simp_all
+          omega) hpL).extension hp (R.res hlen)
+      else Classical.choice (hyp.pruned x)
+
+-- @@ L58-60 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+def stratMap' (R : Strategy (gameTree hyp) Player.zero) : Strategy G.tree Player.zero :=
+  fun x hp ↦ stratMap x.val.length ((strategyEquivSystem R).str _) x hp le_rfl
+
+-- @@ L61-68 verbatim
+lemma stratMap'_short R x hp (hx : x.val.length ≤ 2 * k) :
+  stratMap' R x hp = (ResStrategy.fromMap (treeHom hyp))
+    ((strategyEquivSystem («T» := gameAsTrees hyp) R).str x.val.length)
+    x hp le_rfl := by
+  unfold stratMap' stratMap
+  split_ifs with hxlen
+  · rfl
+  · exact (hxlen hx).elim
+
+
+-- @@ L70-77 verbatim
+variable (hyp) in
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+@[ext 900] structure TreeLift where
+  /-- Auxiliary declaration for the Borel determinacy formalization. -/
+  R : Strategy (gameTree hyp) Player.zero
+  /-- Auxiliary declaration for the Borel determinacy formalization. -/
+  x : (stratMap' R).pre.subtree
+  hlvl : 2 * k < x.val.length (α := no_index _)
+
+-- @@ L78-78 verbatim
+namespace TreeLift
+
+-- @@ L79-80 verbatim
+@[ext] lemma ext' {H H' : TreeLift hyp} (hR : H.R = H'.R) (hx : H.x.val = H'.x.val) : H = H' := by
+  ext <;> [skip; rw [Subtype.heq_iff_coe_heq]] <;> simp [*]
+
+-- @@ L81-81 verbatim
+variable (H : TreeLift hyp)
+
+-- @@ L82-82 verbatim
+attribute [simp] hlvl
+
+-- @@ L83-84 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+lemma hlvl_le : 2 * k + 1 ≤ H.x.val.length (α := no_index _) := by linarith [H.hlvl]
+
+-- @@ L85-85 verbatim
+@[simp] lemma hlvl' : 2 * k ≤ H.x.val.length (α := no_index _) := by linarith [H.hlvl]
+
+-- @@ L86-88 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+@[simps!] def preLift : PreLift hyp := ⟨subtreeIncl _ H.x,
+  H.hlvl, (strategyEquivSystem H.R).str (2 * k)⟩
+
+-- @@ L89-89 verbatim
+attribute [simp_lengths] preLift_x_coe
+
+-- @@ L90-93 verbatim
+lemma pInv_fixing (h : n ≤ 2 * k) :
+    Fixing (((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x)).val.length) (treeHom hyp) := by
+    apply Fixing.mon (f := treeHom hyp) (k := 2 * k) inferInstance
+    simp only [subtreeIncl_coe, take_coe, List.length_take, min_le_iff, h, true_or]
+
+-- @@ L94-104 verbatim
+attribute [local implicit_reducible] upA oldAsTrees gameAsTrees in
+lemma pInv_isPosition (h : n ≤ 2 * k) {p : Player} (hp : IsPosition (H.x.val.take n) p) :
+    IsPosition
+      ((pInv (treeHom hyp) ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x))
+        (H.pInv_fixing h)).val) p := by
+    rw [IsPosition] at hp ⊢
+    rw [pInv_treeHom_val]
+    · change (pInvTreeHomMap hyp (List.take n H.x.val)).length % 2 = p.toNat
+      rwa [pInvTreeHomMap_len]
+    · change (List.take n H.x.val).length ≤ 2 * k
+      exact (List.length_take_le n H.x.val).trans h
+
+-- @@ L105-109 verbatim
+lemma pInv_fixing_short :
+    Fixing (Tree.take (2 * k) ((stratMap' H.R).pre.subtreeIncl H.x)).val.length
+      (treeHom hyp) := by
+    apply Fixing.mon (f := treeHom hyp) (k := 2 * k) inferInstance
+    simp [take_coe]
+
+-- @@ L110-119 verbatim
+attribute [local implicit_reducible] upA oldAsTrees gameAsTrees in
+lemma pInv_isPosition_short :
+      IsPosition
+        ((pInv (treeHom hyp) (Tree.take (2 * k) ((stratMap' H.R).pre.subtreeIncl H.x))
+          H.pInv_fixing_short).val) Player.zero := by
+    rw [IsPosition, pInv_treeHom_val]
+    · change (pInvTreeHomMap hyp (List.take (2 * k) H.x.val)).length % 2 =
+        Player.zero.toNat
+      simp_all
+    · simp [take_coe]
+
+-- @@ L120-124 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+@[simps] def take (n : ℕ) (hk : 2 * k < n) : TreeLift hyp where
+  R := H.R
+  x := Tree.take n H.x
+  hlvl := by simp [hk]
+
+-- @@ L125-125 verbatim
+attribute [simp_lengths] preLift_x_coe take_x
+
+-- @@ L126-126 verbatim
+lemma take_of_length_le {h} (h' : H.x.val.length ≤ n) : H.take n h = H := by ext1 <;> simp [h']
+
+-- @@ L127-128 verbatim
+@[simp] lemma take_rfl : H.take (H.x.val.length (α := no_index _)) H.hlvl = H :=
+  H.take_of_length_le le_rfl
+
+-- @@ L129-134 verbatim
+@[simp] lemma take_trans hm hn : (H.take m hm).take n hn
+  = H.take (min m n) (by as_aux_lemma => omega) := by
+  ext1
+  · rfl
+  · change List.take n (List.take m H.x.val) = List.take (min m n) H.x.val
+    rw [List.take_take, min_comm]
+
+-- @@ L135-135 verbatim
+@[simp] lemma preLift_take hk : (H.take n hk).preLift = H.preLift.take n hk := by ext <;> simp
+
+-- @@ L136-187 expanded
+attribute [local implicit_reducible] upA oldAsTrees gameAsTrees in
+lemma conShort : H.preLift.ConShort :=
+  by
+  dsimp [PreLift.ConShort, strategyEquivSystem, preLift, PreLift.liftShort, ResStrategy.res,
+    res.val', ExtensionsAt.val']
+  change H.x.val[2 * k] = _
+  have hx :=
+    congr_arg Subtype.val <|
+      subtree_compatible _ (Tree.take (2 * k) H.x) (a := H.x.val[2 * k]'H.hlvl)
+        (by have := H.hlvl';
+          first
+          | done
+          |
+            (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                  simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                    simp_lengths] <;>
+                omega))
+        (by simp [Tree.take_mem])
+  conv at hx => simp [stratMap'_short, strategyEquivSystem, ResStrategy.fromMap]
+  simp_all only [ExtensionsAt.valT'_coe]
+  have hbaseLen :
+    (pInv (treeHom hyp) (Tree.take (2 * k) ((stratMap' H.R).pre.subtreeIncl H.x))
+          H.pInv_fixing_short).val.length =
+      2 * k :=
+    by
+    rw [pInv_treeHom_val]
+    · change (pInvTreeHomMap hyp (List.take (2 * k) H.x.val)).length = 2 * k
+      simp_all
+    · simp [take_coe]
+  have hlast :
+    ((H.R
+              (pInv (treeHom hyp) (Tree.take (2 * k) ((stratMap' H.R).pre.subtreeIncl H.x))
+                H.pInv_fixing_short)
+              H.pInv_isPosition_short).val'[2 *
+            k]'(by
+            let a :=
+              H.R
+                (pInv (treeHom hyp) (Tree.take (2 * k) ((stratMap' H.R).pre.subtreeIncl H.x))
+                  H.pInv_fixing_short)
+                H.pInv_isPosition_short
+            have hbaseLen' :
+              (pInv (treeHom hyp) (Tree.take (2 * k) ((stratMap' H.R).pre.subtreeIncl H.x))
+                    H.pInv_fixing_short).val.length =
+                2 * k :=
+              hbaseLen
+            have htarget : a.val'.length = 2 * k + 1 := by
+              calc
+                a.val'.length =
+                    (pInv (treeHom hyp) (Tree.take (2 * k) ((stratMap' H.R).pre.subtreeIncl H.x))
+                          H.pInv_fixing_short).val.length +
+                      1 :=
+                  ExtensionsAt.val'_length a
+                _ = 2 * k + 1 := by rw [hbaseLen']
+            exact Nat.lt_of_lt_of_eq (Nat.lt_succ_self (2 * k)) htarget.symm)).1 =
+      (H.R
+            (pInv (treeHom hyp) (Tree.take (2 * k) ((stratMap' H.R).pre.subtreeIncl H.x))
+              H.pInv_fixing_short)
+            H.pInv_isPosition_short).val.1 :=
+    congrArg Prod.fst (ExtensionsAt.val'_get_last_of_eq _ hbaseLen.symm)
+  erw [hlast]
+  have harg :
+    pInv (treeHom hyp) ((stratMap' H.R).pre.subtreeIncl (Tree.take (2 * k) H.x))
+        (H.pInv_fixing le_rfl) =
+      pInv (treeHom hyp) (Tree.take (2 * k) ((stratMap' H.R).pre.subtreeIncl H.x))
+        H.pInv_fixing_short :=
+    by
+    ext1
+    rw [pInv_treeHom_val]
+    · rw [pInv_treeHom_val]
+      · change
+          pInvTreeHomMap hyp (List.take (2 * k) H.x.val) =
+            pInvTreeHomMap hyp (List.take (2 * k) H.x.val)
+        rfl
+      · simp_all
+    · change (List.take (2 * k) H.x.val).length ≤ 2 * k
+      exact List.length_take_le (2 * k) H.x.val
+  simp [stratMap', stratMap, ResStrategy.fromMap, harg]
+
+
+-- @@ L188-192 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+@[simps toPreLift] def lift (h : 2 * k + 2 ≤ H.x.val.length) : Lift hyp where
+  toPreLift := H.preLift
+  h'lvl := h
+  conShort := H.conShort
+
+-- @@ L193-193 verbatim
+attribute [simp_lengths] lift_toPreLift
+
+-- @@ L194-196 expanded
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+def extension (hp : IsPosition H.x.val Player.zero) :=
+  (H.lift
+        (by have := H.hlvl;
+          first
+          | done
+          |
+            (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                  simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                    simp_lengths] <;>
+                omega))).extension
+    hp ((strategyEquivSystem H.R).str _)
+
+
+-- @@ L197-200 verbatim
+@[congr] lemma extension_val_congr {H H' : TreeLift hyp} (h : H = H') {hp} :
+  (H.extension hp).val = (H'.extension (by subst h; exact hp)).val := by
+  subst h
+  rfl
+
+-- @@ L201-204 expanded
+@[simp]
+lemma lift_take hk h' :
+    (H.take n hk).lift h' =
+      (H.lift
+            (by
+              as_aux_lemma =>
+                first
+                | done
+                |
+                  (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                        simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                          simp_lengths] <;>
+                      omega))).take
+        n
+        (by
+          as_aux_lemma =>
+            first
+            | done
+            |
+              (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                    simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                      simp_lengths] <;>
+                  omega)) :=
+  by ext1; simp
+
+
+-- @@ L205-212 verbatim
+attribute [local implicit_reducible] upA oldAsTrees gameAsTrees in
+lemma stratMap'_extend : stratMap' H.R (subtreeIncl _ H.x) = H.extension := by
+  ext hp; dsimp [stratMap', stratMap]; split_ifs with h h'
+  · change H.x.val.length ≤ 2 * k at h
+    have := H.hlvl
+    omega
+  · rfl
+  · cases h' H.conShort
+
+-- @@ L213-214 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+@[simps!] def dropLast (h : 2 * k + 2 ≤ H.x.val.length) := H.take (H.x.val.length - 1) (by omega)
+
+-- @@ L215-215 verbatim
+attribute [simp_lengths] dropLast_x_coe
+
+
+-- @@ L217-226 expanded
+lemma x_mem_tree h (hp : IsPosition H.x.val Player.one) :
+    H.x.val[H.x.val.length - 1]'(by as_aux_lemma => have := H.hlvl; omega) =
+      ((H.dropLast h).extension
+          (by
+            as_aux_lemma =>
+              first
+              | done
+              |
+                (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                      simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                        simp_lengths] <;>
+                    omega))).val :=
+  by
+  have hx := H.x.prop
+  simp_rw (config :=
+    {
+      singlePass :=
+        true }) [H.x.val.eq_take_concat (H.x.val.length - 1)
+      (by as_aux_lemma => have := H.hlvl; omega)] at hx
+  replace hx :=
+    subtree_compatible _ (Tree.take _ H.x)
+      (by
+        as_aux_lemma =>
+          first
+          | done
+          |
+            (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                  simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                    simp_lengths] <;>
+                omega))
+      hx
+  change _ = stratMap' (H.dropLast h).R ⟨(H.dropLast h).x.val, _⟩ _ at hx
+  erw [stratMap'_extend] at hx
+  exact congrArg Subtype.val hx
+
+
+-- @@ L227-231 expanded
+lemma x_mem_tree' h (hp : IsPosition H.x.val Player.one) :
+    H.preLift.x =
+      ((H.dropLast h).extension
+          (by
+            as_aux_lemma =>
+              first
+              | done
+              |
+                (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                      simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                        simp_lengths] <;>
+                    omega))).valT' :=
+  by
+  ext1
+  conv => simp [ExtensionsAt.val']
+  rw [← H.x_mem_tree h hp, ← List.eq_take_concat]; omega
+
+
+-- @@ L233-275 expanded
+lemma conLong_or_lost : H.preLift.ConLong ∨ ∃ h, (H.lift h).Lost :=
+  by
+  let ⟨n, hn⟩ := le_iff_exists_add.mp H.hlvl_le
+  induction n generalizing H with
+  | zero =>
+    left
+    rw [PreLift.ConLong, ← hn, List.drop_of_length_le (by simp)]
+    exact (getTree_ne_and_pruned H.preLift.liftShort).1
+  | succ n ih =>
+    let Ht := H.dropLast (by omega)
+    specialize ih Ht (by simp [Ht, hn])
+    by_cases ih' : ∃ h, (Ht.lift h).Lost
+    · right; use by omega
+      have ⟨h', ih'⟩ := ih'; simp_rw [Ht, dropLast] at ih'
+      rw [lift_take _ _ (by simpa [Ht] using h')] at ih'
+      apply ih'.extend
+    · left; conv at ih => simp [ih']
+      by_cases hp : IsPosition H.x.val Player.zero
+      · conv at ih => simp [PreLift.ConLong, Ht, dropLast, preLift_take, List.drop_take, hn]
+        conv => simp [PreLift.ConLong, Ht, dropLast, preLift_take, List.drop_take, hn]
+        rw [(H.x.val.drop (2 * k + 1)).eq_take_concat n (by simp [hn])]
+        apply
+          H.preLift.getTree_fair ih (by simp [IsPosition] at hp ⊢; omega)
+            (by
+              conv => simp [-List.getElem_drop]
+              rw [← H.lift_toPreLift (by omega), Lift.liftShort_val_map]
+              simpa [← List.take_add] using subtree_sub _ <| take_mem H.x)
+      by_cases ih'' : ∃ h, (Ht.lift h).Losable
+      · have hW :
+          (Ht.lift
+              (by dsimp [Ht];
+                first
+                | done
+                |
+                  (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                        simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                          simp_lengths] <;>
+                      omega))).Losable :=
+          ih''.2
+        conv at ih' => simp
+        have hm :=
+          H.x_mem_tree' (by as_aux_lemma => omega)
+            (by
+              as_aux_lemma =>
+                first
+                | done
+                |
+                  (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                        simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                          simp_lengths] <;>
+                      omega))
+        conv at hm => simp [extension, Lift.extension, hW, ih', Ht]
+        generalize_proofs _ _ hL hp at hm
+        convert (hL.extension_losable hp).1; ext1
+        · exact hm
+        · rfl
+      · have hW :
+          (Ht.lift
+              (by dsimp [Ht];
+                first
+                | done
+                |
+                  (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                        simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                          simp_lengths] <;>
+                      omega))).Winnable :=
+          fun hW ↦
+          ih''
+            ⟨by dsimp [Ht];
+              first
+              | done
+              |
+                (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                      simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                        simp_lengths] <;>
+                    omega),
+              ⟨ih, hW⟩⟩
+        have hm :=
+          H.x_mem_tree' (by as_aux_lemma => omega)
+            (by
+              as_aux_lemma =>
+                first
+                | done
+                |
+                  (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                        simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                          simp_lengths] <;>
+                      omega))
+        simp_rw [extension] at hm
+        erw [Lift.extension_winnable _ _ _ hW] at hm
+        convert
+          hW.extension_conLong
+            (by
+              as_aux_lemma => dsimp [Ht] at *;
+                first
+                | done
+                |
+                  (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                        simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                          simp_lengths] <;>
+                      omega))
+            ((strategyEquivSystem H.R).str _)
+        ext1
+        · ext1; simp_rw [hm]; rfl
+        · rfl
+
+
+-- @@ L276-281 verbatim
+variable {H} in
+lemma lost_of_lost' {h} (hL : (H.lift h).Lost') : (H.lift h).Lost := by
+    rcases H.conLong_or_lost with h' | h'
+    · use hL; convert H.preLift.conLong_take (h := hL.mk.takeMin.hlvl) h'
+      simp [Lift.LLift.takeMin]; congr; simpa using hL.mk.minLength_le
+    · exact h'.2
+
+
+-- @@ L283-362 verbatim
+attribute [local implicit_reducible] upA oldAsTrees gameAsTrees in
+lemma x_mem_tree_short' h' (h : n ≤ 2 * k) (hp : IsPosition (H.x.val.take n) Player.zero) :
+    Tree.take (n + 1) (H.lift h').liftShort =
+    (H.R (pInv (treeHom hyp) ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x))
+      (H.pInv_fixing h))
+      (H.pInv_isPosition h hp)).valT' := by
+  have hx := (Tree.take (n + 1) H.x).prop; have := H.hlvl
+  rw [take_coe, ← List.take_concat_get' _ _ (by as_aux_lemma => omega)] at hx
+  replace hx := subtree_compatible _ (Tree.take n H.x) hp hx
+  change _ = stratMap' H.R ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x)) hp at hx
+  erw [stratMap'_short _ _ _ (by
+    simp only [subtreeIncl_coe, take_coe, List.length_take, min_le_iff, h, true_or])] at hx
+  rcases h.lt_or_eq with h | rfl
+  · have hvalT := congrArg (fun e ↦ e.valT') hx
+    apply Fixing.inj (f := treeHom hyp) (ht := by
+      apply Fixing.mon (f := treeHom hyp) (k := 2 * k) inferInstance
+      rw [take_coe]
+      exact (List.length_take_le (n + 1) (H.lift h').liftShort.val).trans (by omega))
+    erw [take_apply (treeHom hyp), Lift.liftShort_lift]
+    convert hvalT using 1
+    case e'_1 => rfl
+    case e'_2 =>
+      ext1
+      simp only [lift_toPreLift, take_take, add_le_add_iff_right, h.le,
+        inf_of_le_left, take_coe, preLift_x_coe,
+        ExtensionsAt.valT', ExtensionsAt.val', subtreeIncl_coe, List.take_append_getElem]
+    case e'_3 =>
+      have hcancel :
+          treeHom hyp
+              (pInv (treeHom hyp)
+                ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x))
+                (H.pInv_fixing h.le)) =
+            (stratMap' H.R).pre.subtreeIncl (Tree.take n H.x) :=
+        cancel_pInv_right _ _ _
+      exact (ExtensionsAt.map_valT' (f := treeHom hyp)
+        (x := pInv (treeHom hyp) ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x))
+          (H.pInv_fixing h.le))
+        (y := (stratMap' H.R).pre.subtreeIncl (Tree.take n H.x))
+        (h := hcancel)
+        (a := H.R (pInv (treeHom hyp) ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x))
+          (H.pInv_fixing h.le)) (H.pInv_isPosition h.le hp))).symm
+  · have hsystem := strategyEquivSystem_apply_str H.R (2 * k)
+      (pInv (treeHom hyp) (Tree.take (2 * k) H.preLift.x))
+      H.preLift.pInv_take_position H.preLift.pInv_take_length_le
+    ext1
+    conv => simp [← List.take_append_getElem, ExtensionsAt.val']
+    constructor <;> (conv => simp [PreLift.liftShort, ResStrategy.res])
+    · rw [hsystem]
+      have htake :
+          List.take (2 * k)
+              (H.R (pInv (treeHom hyp) (Tree.take (2 * k) H.preLift.x))
+                H.preLift.pInv_take_position).val' =
+            (pInv (treeHom hyp) (Tree.take (2 * k) H.preLift.x)).val :=
+        ExtensionsAt.val'_take_of_eq _ H.preLift.pInv_take_length.symm
+      calc
+        List.take (2 * k)
+            (H.R (pInv (treeHom hyp) (Tree.take (2 * k) H.preLift.x))
+              H.preLift.pInv_take_position).val' =
+            (pInv (treeHom hyp) (Tree.take (2 * k) H.preLift.x)).val := htake
+        _ = pInvTreeHomMap hyp (List.take (2 * k) H.x.val) := by
+          rw [pInv_treeHom_val]
+          all_goals simp [take_coe]
+    · let a := (strategyEquivSystem H.R).str (2 * k)
+          (pInv (treeHom hyp) (Tree.take (2 * k) H.preLift.x))
+          H.preLift.pInv_take_position H.preLift.pInv_take_length_le
+      have hindex : 2 * k < a.val'.length := by
+        have htarget : a.val'.length = 2 * k + 1 := by
+          calc
+            a.val'.length =
+                (pInv (treeHom hyp) (Tree.take (2 * k) H.preLift.x)).val.length + 1 :=
+              ExtensionsAt.val'_length a
+            _ = 2 * k + 1 := by rw [H.preLift.pInv_take_length]
+        exact Nat.lt_of_lt_of_eq (Nat.lt_succ_self (2 * k)) htarget.symm
+      have hlast :
+          a.val'[2 * k]'hindex = a.val :=
+        ExtensionsAt.val'_get_last_of_eq _ H.preLift.pInv_take_length.symm
+      change a.val'[2 * k]'hindex =
+        (H.R (pInv (treeHom hyp) ((stratMap' H.R).pre.subtreeIncl (Tree.take (2 * k) H.x))
+          (H.pInv_fixing h)) (H.pInv_isPosition h hp)).val
+      exact hlast.trans (congrArg Subtype.val hsystem)
+
+-- @@ L363-396 verbatim
+attribute [local implicit_reducible] upA oldAsTrees gameAsTrees in
+lemma x_mem_tree_short h' (h : n ≤ 2 * k) (hp : IsPosition (H.x.val.take n) Player.zero) :
+    (H.lift h').liftShort.val[n]'(by simpa [Nat.lt_iff_add_one_le]) =
+    (H.R (pInv (treeHom hyp) ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x))
+      (H.pInv_fixing h))
+      (H.pInv_isPosition h hp)).val := by
+  have hget := congr_arg (fun x ↦ x.val[n]?) (H.x_mem_tree_short' h' h hp)
+  simp only [lift_toPreLift, take_coe, List.getElem?_take_of_lt (Nat.lt_succ_self n),
+    ExtensionsAt.valT'_coe] at hget
+  apply Option.some_injective
+  erw [← List.getElem?_eq_getElem (by simpa [Nat.lt_iff_add_one_le]), hget,
+    List.getElem?_eq_getElem (by
+      have hlen := h_length_pInv (f := treeHom hyp)
+        ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x)) (H.pInv_fixing h)
+      have hnbase :
+          n = (pInv (treeHom hyp) ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x))
+            (H.pInv_fixing h)).val.length := by
+        calc
+          n = ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x)).val.length := by
+            simp [subtreeIncl_coe, take_coe, List.length_take]
+            omega
+          _ = (pInv (treeHom hyp) ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x))
+              (H.pInv_fixing h)).val.length := hlen.symm
+      rw [ExtensionsAt.val'_length]
+      exact hnbase ▸ Nat.lt_succ_self _)]
+  erw [ExtensionsAt.val'_get_last_of_eq _ (by
+    have hlen := h_length_pInv (f := treeHom hyp)
+      ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x)) (H.pInv_fixing h)
+    calc
+      n = ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x)).val.length := by
+        simp [subtreeIncl_coe, take_coe, List.length_take]
+        omega
+      _ = (pInv (treeHom hyp) ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x))
+          (H.pInv_fixing h)).val.length := hlen.symm)]
+
+
+-- @@ L398-399 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+def WinnableOrLost := ∃ h, (H.lift h).Winnable ∨ (H.lift h).Lost
+
+-- @@ L400-400 verbatim
+variable (hWL : H.WinnableOrLost)
+
+-- @@ L401-409 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+noncomputable def wLLift' : WLLift' hyp := by
+  classical
+  exact
+    if hW : (H.lift hWL.1).Winnable then
+      hW.toWLift'
+    else
+      have hL : (H.lift hWL.1).Lost := by unfold WinnableOrLost at hWL; tauto
+      hL.toLLift'
+
+-- @@ L410-411 verbatim
+@[simp, simp_lengths] lemma wLLift'_to_lift : (H.wLLift' hWL).toLift = H.lift hWL.1 := by
+  unfold wLLift'; split_ifs <;> rfl
+
+-- @@ L412-414 verbatim
+lemma wLift'_eq_wLLift' {h} (hW : (H.lift h).Winnable) :
+  hW.toWLift' = (H.wLLift' ⟨h, Or.inl hW⟩) := by
+  unfold wLLift'; split_ifs <;> rfl
+
+-- @@ L415-419 verbatim
+lemma lLift'_eq_wLLift' {h} (hL : (H.lift h).Lost) :
+  hL.toLLift' = H.wLLift' ⟨h, Or.inr hL⟩ := by
+  unfold wLLift'; split_ifs with h
+  · cases h (hL.1.mk.losable h.conLong).2
+  · rfl
+
+
+-- @@ L421-448 expanded
+attribute [local implicit_reducible] upA oldAsTrees gameAsTrees in
+lemma lift_mem_tree_short n (hn : n < 2 * k + 1) hp :
+    (H.wLLift' hWL).liftVal[n]'(by as_aux_lemma => simp; have := H.hlvl; omega) =
+      (H.R (Tree.take n ((H.wLLift' hWL).lift)) hp).val :=
+  by
+  have hl :=
+    H.x.prop.2 (y := H.x.val.take n) (a := H.x.val[n]'(by as_aux_lemma => have := H.hlvl; omega))
+      (by simpa using List.take_prefix _ _)
+      (by
+        as_aux_lemma =>
+          first
+          | done
+          |
+            (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                  simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                    simp_lengths] <;>
+                omega))
+  conv => lhs; rw [List.getElem_take' _ hn]
+  simp only [WLLift.liftVal_take_short, wLLift'_to_lift]
+  erw [H.x_mem_tree_short _ (by as_aux_lemma => omega)
+      (by
+        as_aux_lemma =>
+          first
+          | done
+          |
+            (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                  simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                    simp_lengths] <;>
+                omega))]
+  congr!
+  apply
+    Fixing.inj (f := treeHom hyp) (ht :=
+      by
+      apply Fixing.mon (f := treeHom hyp) (k := 2 * k) inferInstance
+      have hlen :=
+        h_length_pInv (f := treeHom hyp) ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x))
+          (H.pInv_fixing (by omega))
+      calc
+        (pInv (treeHom hyp) ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x))
+                (H.pInv_fixing (by omega))).val.length =
+            ((stratMap' H.R).pre.subtreeIncl (Tree.take n H.x)).val.length :=
+          hlen
+        _ ≤ 2 * k := by
+          simp [subtreeIncl_coe, take_coe, List.length_take]
+          omega)
+  ext1
+  rw [cancel_pInv_right]
+  erw [take_apply (treeHom hyp), WLLift'.lift_lift]
+  simp [subtreeIncl_coe, take_coe, wLLift'_to_lift]
+
+
+-- @@ L449-454 verbatim
+lemma wLift'_eq_wLLift'_long {h} (hW : (H.lift h).Winnable) hp :
+  (H.R (Tree.take n hW.toWLift'.lift) hp).val
+  = (H.R (Tree.take n (H.wLLift' ⟨h, Or.inl hW⟩).lift)
+    (by rw [← H.wLift'_eq_wLLift' hW]; exact hp)).val := by
+  apply Strategy.eval_val_congr H.R H.R rfl
+  exact congrArg (fun L ↦ Tree.take n L.lift) (H.wLift'_eq_wLLift' hW)
+
+-- @@ L455-460 verbatim
+lemma lLift'_eq_wLLift'_long {h} (hL : (H.lift h).Lost) hp :
+  (H.R (Tree.take n hL.toLLift'.lift) hp).val
+  = (H.R (Tree.take n (H.wLLift' ⟨h, Or.inr hL⟩).lift)
+    (by rw [← H.lLift'_eq_wLLift' hL]; exact hp)).val := by
+  apply Strategy.eval_val_congr H.R H.R rfl
+  exact congrArg (fun L ↦ Tree.take n L.lift) (H.lLift'_eq_wLLift' hL)
+
+
+-- @@ L462-465 verbatim
+lemma get_eq_get_take (hn : n < H.x.val.length) (hk : 2 * k ≤ n) : H.x.val[n] =
+  (H.take (n + 1) (by as_aux_lemma => omega)).x.val[
+    (H.take (n + 1) (by as_aux_lemma => omega)).x.val.length - 1]'
+    (by as_aux_lemma => simp; omega) := by simp; congr; omega
+
+-- @@ L466-512 expanded
+attribute [local implicit_reducible] upA oldAsTrees gameAsTrees in
+lemma wLift_mem_tree h (hW : (H.lift h).Winnable) : hW.toWLift'.liftVal ∈ H.R.pre.subtree :=
+  by
+  apply subtree_induction (S := ⊤) (by simpa using hW.toWLift'.hlift)
+  intro n hn _ hp _; rcases lt_or_ge n (2 * k + 1) with hn' | hn'
+  · change _ = H.R (Tree.take n hW.toWLift'.lift) _; ext1
+    let W := H.wLLift' ⟨h, Or.inl hW⟩
+    have heq : hW.toWLift' = W := H.wLift'_eq_wLLift' hW
+    have hvals : hW.toWLift'.liftVal = W.liftVal := congrArg (fun L ↦ L.liftVal) heq
+    have htrees : Tree.take n hW.toWLift'.lift = Tree.take n W.lift :=
+      congrArg (fun L ↦ Tree.take n L.lift) heq
+    have hnW : n < W.liftVal.length := by rw [← hvals]; exact hn
+    have hleft : hW.toWLift'.liftVal[n] = W.liftVal[n] :=
+      by
+      have hopt := congrArg (fun x ↦ x[n]?) hvals
+      rw [List.getElem?_eq_getElem (by exact hn), List.getElem?_eq_getElem (by exact hnW)] at hopt
+      exact Option.some.inj hopt
+    have hpW : IsPosition (Tree.take n W.lift).val Player.zero := htrees ▸ hp
+    have hshort := H.lift_mem_tree_short ⟨h, Or.inl hW⟩ n hn' hpW
+    have hright := Strategy.eval_val_congr H.R H.R rfl _ _ htrees hp
+    exact hleft.trans (hshort.trans hright.symm)
+  · apply
+      extensionsAt_ext_fst (x := Tree.take n hW.toWLift'.lift) _ _
+        (by
+          have hnx : n < H.x.val.length := by simpa using hn
+          have hlen : (Tree.take n hW.toWLift'.lift).val.length = n := by simp [take_coe, hnx.le]
+          have hpos := hp
+          rw [IsPosition] at hpos
+          change (List.take n hW.toWLift'.liftVal).length % 2 = 0 at hpos
+          rw [List.length_take, min_eq_left hn.le] at hpos
+          calc
+            2 * k + 2 ≤ n := by omega
+            _ = (Tree.take n hW.toWLift'.lift).val.length := hlen.symm)
+    conv => simp;
+      rw [H.get_eq_get_take _ (by as_aux_lemma => omega),
+        x_mem_tree _
+          (by
+            as_aux_lemma =>
+              first
+              | done
+              |
+                (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                      simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                        simp_lengths] <;>
+                    omega))
+          (by
+            as_aux_lemma =>
+              first
+              | done
+              |
+                (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                      simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                        simp_lengths] <;>
+                    omega))]
+    unfold extension
+    erw [Lift.extension_winnable (h := by as_aux_lemma => simpa [dropLast] using hW.take _ _)]
+    conv => simp [WLLift'.extensionMap, WLLift'.extension, strategyEquivSystem]
+    congr! 1
+    apply Strategy.eval_val_congr
+    · rfl
+    · ext1
+      simp only [dropLast, take_coe, take_trans, lift_take, WLLift'.lift_coe,
+        Lift.Winnable.toWLift'_toWLLift, Lift.liftVal_take, subtreeIncl_coe, List.take_eq_take_iff]
+      first
+      | done
+      |
+        (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+              simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                simp_lengths] <;>
+            omega)
+
+
+-- @@ L513-620 expanded
+attribute [local implicit_reducible] upA oldAsTrees gameAsTrees in
+lemma lLift_mem_tree h (hL : (H.lift h).Lost) : hL.toLLift'.liftVal ∈ H.R.pre.subtree :=
+  by
+  apply subtree_induction (S := ⊤) (by simpa using hL.toLLift'.hlift)
+  intro n hn _ hp _
+  simp only [Lift.Lost.toLLift'_toWLLift]
+  rcases lt_or_ge n (2 * k + 1) with hn' | hn'
+  · change _ = H.R (Tree.take n hL.toLLift'.lift) _; apply Subtype.ext
+    let W := H.wLLift' ⟨h, Or.inr hL⟩
+    have heq : hL.toLLift' = W := H.lLift'_eq_wLLift' hL
+    have hvals : hL.toLLift'.liftVal = W.liftVal := congrArg (fun L ↦ L.liftVal) heq
+    have htrees : Tree.take n hL.toLLift'.lift = Tree.take n W.lift :=
+      congrArg (fun L ↦ Tree.take n L.lift) heq
+    have hnW : n < W.liftVal.length := by rw [← hvals]; exact hn
+    have hleft : hL.toLLift'.liftVal[n] = W.liftVal[n] :=
+      by
+      have hopt := congrArg (fun x ↦ x[n]?) hvals
+      rw [List.getElem?_eq_getElem (by exact hn), List.getElem?_eq_getElem (by exact hnW)] at hopt
+      exact Option.some.inj hopt
+    have hpW : IsPosition (Tree.take n W.lift).val Player.zero := htrees ▸ hp
+    have hshort := H.lift_mem_tree_short ⟨h, Or.inr hL⟩ n hn' hpW
+    have hright := Strategy.eval_val_congr H.R H.R rfl _ _ htrees hp
+    exact hleft.trans (hshort.trans hright.symm)
+  by_cases hL' :
+    (((H.take n (by as_aux_lemma => omega))).lift
+        (by
+          as_aux_lemma =>
+            first
+            | done
+            |
+              (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                    simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                      simp_lengths] <;>
+                  omega))).Lost'
+  · apply
+      extensionsAt_ext_fst (x := Tree.take n hL.toLLift'.lift) _ _
+        (by
+          have hnx : n < H.x.val.length := by simpa [Lift.Lost.toLLift'_toWLLift] using hn
+          have hlen : (Tree.take n hL.toLLift'.lift).val.length = n := by simp [take_coe, hnx.le]
+          have hpos := hp
+          rw [IsPosition] at hpos
+          change (List.take n hL.toLLift'.liftVal).length % 2 = 0 at hpos
+          rw [List.length_take, min_eq_left hn.le] at hpos
+          calc
+            2 * k + 2 ≤ n := by omega
+            _ = (Tree.take n hL.toLLift'.lift).val.length := hlen.symm)
+    conv => simp
+    generalize_proofs --not for performance
+      
+    rw [H.get_eq_get_take _ (by as_aux_lemma => omega),
+      x_mem_tree _
+        (by
+          as_aux_lemma =>
+            first
+            | done
+            |
+              (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                    simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                      simp_lengths] <;>
+                  omega))
+        (by
+          as_aux_lemma =>
+            first
+            | done
+            |
+              (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                    simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                      simp_lengths] <;>
+                  omega))]
+    have hLost :
+      (((H.take (n + 1) (by omega)).dropLast
+              (by
+                first
+                | done
+                |
+                  (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                        simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                          simp_lengths] <;>
+                      omega))).lift
+          (by
+            first
+            | done
+            |
+              (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                    simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                      simp_lengths] <;>
+                  omega))).Lost :=
+      lost_of_lost'
+        (by
+          conv at hL' => simp [dropLast]
+          conv => simp [dropLast]
+          convert hL'
+          first
+          | done
+          |
+            (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                  simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                    simp_lengths] <;>
+                omega))
+    dsimp [extension]
+    erw [Lift.extension_lost _ _ _ hLost]
+    conv => simp [WLLift'.extensionMap, WLLift'.extension, strategyEquivSystem]
+    congr! 1
+    apply Strategy.eval_val_congr
+    · rfl
+    · ext1
+      simp only [dropLast, take_x, take_coe, List.length_take, take_trans, lift_take,
+        subtreeIncl_coe, WLLift'.lift_coe]
+      generalize_proofs _ prf
+      simp (disch := omega) only [min_eq_left, min_eq_right] at prf
+      change _ = ((H.lift h).extend' prf.1).toWLLift.liftVal.take n
+      simp only [Lift.Lost.toLLift'_toWLLift]
+      have hnx : n < H.x.val.length := by simpa [Lift.Lost.toLLift'_toWLLift] using hn
+      convert (Lift.liftVal_extend' prf.1).symm using 2
+      · ext1
+        · simp [hnx]
+        · simp [Lift.LLift.toWLLift, Lift.Lost'.mk, Lift.LLift.takeMin, take_coe, hnx]
+      all_goals omega
+  · have hnLift := hn
+    replace hn : n < H.x.val.length := by simpa using hn
+    apply
+      extensionsAt_eq_of_lost (x := Tree.take n hL.toLLift'.lift) hL.toLLift'.lift
+        (List.take_prefix _ _)
+        (by
+          have hlen : (Tree.take n hL.toLLift'.lift).val.length = n := by simp [take_coe, hn.le]
+          have hpos := hp
+          rw [IsPosition] at hpos
+          change (List.take n hL.toLLift'.liftVal).length % 2 = 0 at hpos
+          rw [List.length_take, min_eq_left hnLift.le] at hpos
+          calc
+            2 * k + 2 ≤ n := by omega
+            _ = (Tree.take n hL.toLLift'.lift).val.length := hlen.symm)
+    · unfold Lift.Lost' at hL'; convert hL' using 2
+      · change
+          (treeHom hyp (Tree.take n hL.toLLift'.lift)).val =
+            ((H.take n (by omega)).lift
+                (by
+                  first
+                  | done
+                  |
+                    (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                          simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                            simp_lengths] <;>
+                        omega))).x.val
+        rw [take_apply (treeHom hyp)]
+        have hlift := congrArg Subtype.val (WLLift'.lift_lift hL.toLLift')
+        change (treeHom hyp hL.toLLift'.lift).val = H.x.val at hlift
+        exact congrArg (List.take n) hlift
+      · have heven1 : (Tree.take n hL.toLLift'.lift).val.length % 2 = 0 := by
+          simpa [IsPosition] using hp
+        have heven2 :
+          ((H.take n (by omega)).lift
+                  (by
+                    first
+                    | done
+                    |
+                      (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                            simpAtStar (config :=
+                              { failIfUnchanged := false }) only [simp_isPosition, simp_lengths] <;>
+                          omega))).x.val.length %
+              2 =
+            0 :=
+          by
+          first
+          | done
+          |
+            (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                  simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                    simp_lengths] <;>
+                omega)
+        unfold Player.residual
+        split
+        · rfl
+        · contradiction
+    · let hLost := hL
+      have hLost' := hLost.1
+      unfold Lift.Lost' at hLost'
+      convert hLost' using 1
+      · change (treeHom hyp hLost.toLLift'.lift).val = (H.lift h).x.val
+        rw [WLLift'.lift_lift]
+        simp [Lift.Lost.toLLift'_toWLLift]
+      ·
+        first
+        | done
+        |
+          (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                  simp_lengths] <;>
+              omega)
+
+
+-- @@ L622-683 expanded
+private lemma losable_subtree_aux {h} (hConLong : H.preLift.ConLong)
+    (hWinning : WinningPrefix H.preLift.game Player.one (H.x.val.drop (2 * k + 1)))
+    (hnL : ¬∃ h', ((H.dropLast h).lift h').Lost) :
+    H.x.val.drop (2 * k + 1 + hWinning.num) ∈ hWinning.strat.pre.subtree :=
+  by
+  have hLosable : (H.lift h).Losable := by
+    constructor
+    · simpa [lift_toPreLift] using hConLong
+    · simpa [lift_toPreLift, preLift_x_coe] using hWinning
+  apply
+    subtree_induction (S := ⊤)
+      (by
+        refine ⟨?_, ?_⟩
+        · simp only [residual_tree, mem_subAt, List.drop_take_append_drop]
+          exact hConLong
+        · intros
+          exact Set.mem_univ _)
+  intro n hn _ _ _
+  conv at hn => simp
+  conv => simp
+  have htr :=
+    (H.take (2 * k + 1 + hWinning.num + n + 1) (by as_aux_lemma => omega)).x_mem_tree
+      (by
+        as_aux_lemma =>
+          first
+          | done
+          |
+            (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                  simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                    simp_lengths] <;>
+                omega))
+      (by
+        as_aux_lemma =>
+          first
+          | done
+          |
+            (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                  simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                    simp_lengths] <;>
+                omega));
+  conv at htr => simp
+  simp (disch := omega) only [min_eq_left, Nat.add_sub_cancel] at htr
+  have hbound : 2 * k + 1 + hWinning.num + n + 1 ≤ H.x.val.length := by omega
+  have hdrop :
+    (H.take (2 * k + 1 + hWinning.num + n + 1) (by omega)).dropLast
+        (by
+          first
+          | done
+          |
+            (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                  simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                    simp_lengths] <;>
+                omega)) =
+      H.take (2 * k + 1 + hWinning.num + n) (by omega) :=
+    by
+    unfold dropLast
+    rw [take_trans]
+    congr 1
+    have hlength :
+      (H.take (2 * k + 1 + hWinning.num + n + 1) (by omega)).x.val.length =
+        2 * k + 1 + hWinning.num + n + 1 :=
+      by
+      simp only [take_x, take_coe, List.length_take]
+      exact min_eq_left hbound
+    rw [hlength]
+    omega
+  apply Subtype.ext; dsimp; rw [htr]
+  simp only [hdrop]
+  have :
+    ((H.take (2 * k + 1 + hWinning.num + n) (by omega)).lift
+        (by
+          first
+          | done
+          |
+            (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                  simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                    simp_lengths] <;>
+                omega))).Losable :=
+    hLosable.take
+      (by
+        first
+        | done
+        |
+          (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                  simp_lengths] <;>
+              omega))
+  dsimp [extension]
+  by_cases hi :
+    ((H.take (2 * k + 1 + hWinning.num + n) (by omega)).lift
+        (by
+          first
+          | done
+          |
+            (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                  simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                    simp_lengths] <;>
+                omega))).Lost
+  ·
+    cases
+      hnL
+        ⟨by
+          first
+          | done
+          |
+            (focus repeat all_goals casesPlayer <;> (try apply_fun List.length at *) <;>
+                  simpAtStar (config := { failIfUnchanged := false }) only [simp_isPosition,
+                    simp_lengths] <;>
+                omega),
+          by
+          apply hi.lost_of_le
+          conv => simp [dropLast]
+          exact
+            (Lift.take_le_take _ _ _).mpr
+              (Or.inl
+                (by
+                  rw [hWinning.prefix_num (by simp) (by simp) rfl]
+                  have hbound : n + (2 * k + 1 + hWinning.num) < H.x.val.length :=
+                    Nat.lt_sub_iff_add_lt.mp hn
+                  omega))⟩
+  · erw [Lift.extension_losable _ _ _ hi this]
+    symm
+    unfold Lift.Losable.extension Lift.Losable.a Lift.Losable.x'
+    apply this.2.prefix_strat_apply' ((List.take_prefix _ _).drop _) (by simp) rfl
+    · conv => simp [List.take_drop]
+      congr 2
+      generalize_proofs pf3
+      exact pf3.prefix_num ((List.take_prefix _ _).drop _) rfl rfl
+
+
+-- @@ L685-702 verbatim
+lemma losable_subtree {h} (hL : (H.lift h).Losable) (hnL : ¬ ∃ h', ((H.dropLast h).lift h').Lost) :
+    H.x.val.drop (2 * k + 1 + hL.2.num) ∈ hL.2.strat.pre.subtree := by
+  have hConLong : H.preLift.ConLong := by
+    simpa [lift_toPreLift] using hL.1
+  have hWinning :
+      WinningPrefix H.preLift.game Player.one (H.x.val.drop (2 * k + 1)) := by
+    simpa [lift_toPreLift, preLift_x_coe] using hL.2
+  have haux := H.losable_subtree_aux hConLong hWinning hnL
+  have htype :
+      WinningPrefix H.preLift.game Player.one (H.x.val.drop (2 * k + 1)) =
+        WinningPrefix (H.lift h).game Player.one
+          ((H.lift h).x.val.drop (2 * k + 1)) := by
+    simp [lift_toPreLift, preLift_x_coe]
+  have hcast : cast htype hWinning = hL.2 := Subsingleton.elim _ _
+  have heq : HEq hWinning hL.2 := by
+    exact (cast_heq htype hWinning).symm.trans (heq_of_eq hcast)
+  cases heq
+  exact haux
+
+-- @@ L703-703 verbatim
+end TreeLift
+
+
+-- @@ L705-705 verbatim
+end «Section1»
+
+-- @@ L706-706 verbatim
+end GaleStewartGame.BorelDet.Zero

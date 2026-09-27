@@ -1,0 +1,85 @@
+/-
+Copyright (c) 2026 Jiazhen Xia. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Jiazhen Xia
+-/
+module
+
+public import Mathlib.Analysis.InnerProductSpace.PiL2
+public import Mathlib.Topology.Category.TopCat.Basic
+
+
+-- @@ L11-15 verbatim
+/-!
+# LeanPool.WhiteheadTheorem.Shapes.Disk
+
+Imported Lean Pool material for `LeanPool.WhiteheadTheorem.Shapes.Disk`.
+-/
+
+
+-- @@ L17-17 verbatim
+@[expose] public section
+
+
+
+-- @@ L20-20 verbatim
+namespace TopCat
+
+
+-- @@ L22-25 verbatim
+/-- The `n`-disk is the set of points in ℝⁿ whose norm is at most `1`,
+endowed with the subspace topology. -/
+noncomputable def disk (n : ℕ) : TopCat.{u} :=
+  TopCat.of <| ULift <| Metric.closedBall (0 : EuclideanSpace ℝ (Fin n)) 1
+
+
+-- @@ L27-29 verbatim
+/-- The boundary of the `n`-disk. -/
+noncomputable def diskBoundary (n : ℕ) : TopCat.{u} :=
+  TopCat.of <| ULift <| Metric.sphere (0 : EuclideanSpace ℝ (Fin n)) 1
+
+
+-- @@ L31-34 verbatim
+/-- The `n`-sphere is the set of points in ℝⁿ⁺¹ whose norm equals `1`,
+endowed with the subspace topology. -/
+noncomputable def sphere (n : ℕ) : TopCat.{u} :=
+  diskBoundary (n + 1)
+
+
+-- @@ L36-37 verbatim
+/-- `𝔻 n` denotes the `n`-disk. -/
+scoped prefix:arg "𝔻 " => disk
+
+
+-- @@ L39-40 verbatim
+/-- `∂𝔻 n` denotes the boundary of the `n`-disk. -/
+scoped prefix:arg "∂𝔻 " => diskBoundary
+
+
+-- @@ L42-43 verbatim
+/-- `𝕊 n` denotes the `n`-sphere. -/
+scoped prefix:arg "𝕊 " => sphere
+
+
+-- @@ L45-51 verbatim
+/-- The inclusion `∂𝔻 n ⟶ 𝔻 n` of the boundary of the `n`-disk. -/
+def diskBoundaryIncl (n : ℕ) : diskBoundary.{u} n ⟶ disk.{u} n :=
+  ofHom
+    { toFun := fun ⟨p, hp⟩ ↦ ⟨p, le_of_eq hp⟩
+      continuous_toFun := ⟨fun t ⟨s, ⟨r, hro, hrs⟩, hst⟩ ↦ by
+        rw [isOpen_induced_iff, ← hst, ← hrs]
+        tauto⟩ }
+
+
+-- @@ L53-59 verbatim
+instance isEmpty_diskBoundary_zero : IsEmpty (diskBoundary.{u} 0) := by
+  unfold diskBoundary
+  simp_all only [isEmpty_ulift, Set.isEmpty_coe_sort]
+  apply Set.subset_empty_iff.mp
+  intro x hx
+  have x0 : ‖x‖ = 0 := by rw [Subsingleton.elim x 0, norm_zero]
+  simp_all
+
+
+-- @@ L61-61 verbatim
+end TopCat

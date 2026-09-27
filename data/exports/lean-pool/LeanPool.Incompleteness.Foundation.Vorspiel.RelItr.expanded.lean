@@ -1,0 +1,108 @@
+/-
+Copyright (c) 2026 Palalansoukî. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Palalansoukî
+-/
+module
+
+public import Mathlib.Basic.Rel
+public import Mathlib.Tactic.ToAdditive
+import Mathlib.Algebra.Group.Nat.Defs
+import Mathlib.Data.Finset.Attr
+import Mathlib.Tactic.Bound.Init
+import Mathlib.Tactic.SetLike
+
+
+-- @@ L15-15 verbatim
+/-! # RelItr -/
+
+
+-- @@ L17-17 verbatim
+@[expose] public section
+
+
+
+-- @@ L20-23 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def Rel.iterate (R : Rel α α) : ℕ → α → α → Prop
+  | 0 => (· = ·)
+  | n + 1 => fun x y ↦ ∃ z, R x z ∧ R.iterate n z y
+
+
+-- @@ L25-25 verbatim
+namespace Rel
+
+-- @@ L26-26 verbatim
+namespace iterate
+
+
+-- @@ L28-28 verbatim
+variable {R : Rel α α} {n m : ℕ}
+
+
+-- @@ L30-31 verbatim
+@[simp]
+lemma iff_zero {x y : α} : R.iterate 0 x y ↔ x = y := iff_of_eq rfl
+
+
+-- @@ L33-34 verbatim
+@[simp]
+lemma iff_succ {x y : α} : R.iterate (n + 1) x y ↔ ∃ z, R x z ∧ R.iterate n z y := iff_of_eq rfl
+
+
+-- @@ L36-40 verbatim
+@[simp]
+lemma eq : Rel.iterate (α := α) (· = ·) n = (· = ·) := by
+  induction n with
+  | zero => rfl;
+  | succ n ih => aesop
+
+
+-- @@ L42-51 verbatim
+lemma forward : (R.iterate (n + 1) x y) ↔ ∃ z, R.iterate n x z ∧ R z y := by
+  induction n generalizing x y with
+  | zero => simp_all;
+  | succ n ih =>
+    constructor;
+    · rintro ⟨z, Rxz, Rzy⟩;
+      obtain ⟨w, Rzw, Rwy⟩ := ih.mp Rzy;
+      exact ⟨w, ⟨z, Rxz, Rzw⟩, Rwy⟩;
+    · rintro ⟨z, ⟨w, Rxw, Rwz⟩, Rzy⟩;
+      exact ⟨w, Rxw, ih.mpr ⟨z, Rwz, Rzy⟩⟩;
+
+
+-- @@ L53-56 verbatim
+lemma true_any (h : x = y) : Rel.iterate (fun _ _ => True) n x y := by
+  induction n with
+  | zero => simpa;
+  | succ n ih => use x;
+
+
+-- @@ L58-58 verbatim
+lemma congr (h : R.iterate n x y) (he : n = m) : R.iterate m x y := he ▸ h
+
+
+-- @@ L60-75 verbatim
+lemma comp : (∃ z, R.iterate n x z ∧ R.iterate m z y) ↔ R.iterate (n + m) x y := by
+  constructor;
+  · rintro ⟨z, hzx, hzy⟩;
+    induction n generalizing x with
+    | zero => simp_all;
+    | succ n ih =>
+      suffices R.iterate (n + m + 1) x y by apply congr this (by omega);
+      obtain ⟨w, hxw, hwz⟩ := hzx;
+      exact ⟨w, hxw, @ih w hwz⟩;
+  · rintro h;
+    induction n generalizing x with
+    | zero => simp_all;
+    | succ n ih =>
+      obtain ⟨w, rxw, rwy⟩ := congr h (by omega : n + 1 + m = n + m + 1);
+      obtain ⟨u, rwu, ruy⟩ := @ih w rwy;
+      exact ⟨u, ⟨w, rxw, rwu⟩, ruy⟩;
+
+
+-- @@ L77-77 verbatim
+end iterate
+
+-- @@ L78-78 verbatim
+end Rel

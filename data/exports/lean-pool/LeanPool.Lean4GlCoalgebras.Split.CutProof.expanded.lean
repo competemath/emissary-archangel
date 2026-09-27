@@ -1,0 +1,241 @@
+/-
+Copyright (c) 2026 Madeleine Gignoux. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Madeleine Gignoux
+-/
+module
+
+public import LeanPool.Lean4GlCoalgebras.Logic.Syntax
+public import Mathlib.CategoryTheory.Types.Basic
+import Mathlib.Data.Rat.Cast.Order
+import Mathlib.Tactic.NormNum.Abs
+import Mathlib.Tactic.NormNum.DivMod
+import Mathlib.Tactic.NormNum.OfScientific
+import Mathlib.Tactic.NormNum.Pow
+
+
+-- @@ L16-20 verbatim
+/-! ## Defining GL-ext+skip proof systems.
+
+Here we define the GL-ext proof system along with finitization and basic properties. We use the
+namespace ExtSkip to distinguish from our general GL-proofs.
+-/
+
+
+-- @@ L22-22 verbatim
+@[expose] public section
+
+
+-- @@ L24-24 verbatim
+namespace Lean4GlCoalgebras
+
+
+-- @@ L26-26 verbatim
+namespace ExtSkip
+
+
+-- @@ L28-28 verbatim
+/-! # Basic components of the GL-ext+skip proof system.-/
+
+
+-- @@ L30-48 expanded
+/-- Rule applications for the GL-ext+skip proof system. -/
+inductive RuleApp
+  | skp : (Δ : SplitSequent) → RuleApp
+  | cutₗ : (Δ : SplitSequent) → (A : Formula) → RuleApp
+  | cutᵣ : (Δ : SplitSequent) → (A : Formula) → RuleApp
+  | wkₗ : (Δ : SplitSequent) → (A : Formula) → (Sum.inl A) ∈ Δ → RuleApp
+  | wkᵣ : (Δ : SplitSequent) → (A : Formula) → (Sum.inr A) ∈ Δ → RuleApp
+  | topₗ : (Δ : SplitSequent) → (Sum.inl ⊤) ∈ Δ → RuleApp
+  | topᵣ : (Δ : SplitSequent) → (Sum.inr ⊤) ∈ Δ → RuleApp
+  |
+  axₗₗ : (Δ : SplitSequent) → (n : Nat) → (Sum.inl (atom n) ∈ Δ ∧ Sum.inl (negAtom n) ∈ Δ) → RuleApp
+  |
+  axₗᵣ : (Δ : SplitSequent) → (n : Nat) → (Sum.inl (atom n) ∈ Δ ∧ Sum.inr (negAtom n) ∈ Δ) → RuleApp
+  |
+  axᵣₗ : (Δ : SplitSequent) → (n : Nat) → (Sum.inr (atom n) ∈ Δ ∧ Sum.inl (negAtom n) ∈ Δ) → RuleApp
+  |
+  axᵣᵣ : (Δ : SplitSequent) → (n : Nat) → (Sum.inr (atom n) ∈ Δ ∧ Sum.inr (negAtom n) ∈ Δ) → RuleApp
+  | andₗ : (Δ : SplitSequent) → (A : Formula) → (B : Formula) → Sum.inl (and A B) ∈ Δ → RuleApp
+  | andᵣ : (Δ : SplitSequent) → (A : Formula) → (B : Formula) → Sum.inr (and A B) ∈ Δ → RuleApp
+  | orₗ : (Δ : SplitSequent) → (A : Formula) → (B : Formula) → Sum.inl (or A B) ∈ Δ → RuleApp
+  | orᵣ : (Δ : SplitSequent) → (A : Formula) → (B : Formula) → Sum.inr (or A B) ∈ Δ → RuleApp
+  | boxₗ : (Δ : SplitSequent) → (A : Formula) → Sum.inl (box A) ∈ Δ → RuleApp
+  | boxᵣ : (Δ : SplitSequent) → (A : Formula) → Sum.inr (box A) ∈ Δ → RuleApp
+
+
+-- @@ L50-58 verbatim
+/-- Endofunctor for the GL-ext+skip proof system. -/
+@[simp] def T : (CategoryTheory.Functor Type Type) where
+  obj := fun X ↦ (RuleApp × List X)
+  map := fun {X Y} f ↦
+    TypeCat.ofHom fun x ↦
+      match x with
+      | (r, A) => (r, A.map (CategoryTheory.ConcreteCategory.hom f))
+  map_id := by aesop_cat
+  map_comp := by aesop_cat
+
+
+-- @@ L60-78 expanded
+/-- Given a RuleApp, obtain the principal formulas. -/
+def fₚ : RuleApp → SplitSequent
+  | RuleApp.skp _ => ∅
+  | RuleApp.cutₗ _ _ => ∅
+  | RuleApp.cutᵣ _ _ => ∅
+  | RuleApp.wkₗ _ A _ => {Sum.inl A}
+  | RuleApp.wkᵣ _ A _ => {Sum.inr A}
+  | RuleApp.topₗ _ _ => {Sum.inl ⊤}
+  | RuleApp.topᵣ _ _ => {Sum.inr ⊤}
+  | RuleApp.axₗₗ _ n _ => {Sum.inl (atom n), Sum.inl (negAtom n)}
+  | RuleApp.axₗᵣ _ n _ => {Sum.inl (atom n), Sum.inr (negAtom n)}
+  | RuleApp.axᵣₗ _ n _ => {Sum.inr (atom n), Sum.inl (negAtom n)}
+  | RuleApp.axᵣᵣ _ n _ => {Sum.inr (atom n), Sum.inr (negAtom n)}
+  | RuleApp.andₗ _ A B _ => {Sum.inl (and A B)}
+  | RuleApp.andᵣ _ A B _ => {Sum.inr (and A B)}
+  | RuleApp.orₗ _ A B _ => {Sum.inl (or A B)}
+  | RuleApp.orᵣ _ A B _ => {Sum.inr (or A B)}
+  | RuleApp.boxₗ _ A _ => {Sum.inl (box A)}
+  | RuleApp.boxᵣ _ A _ => {Sum.inr (box A)}
+
+
+-- @@ L80-98 verbatim
+/-- Given a RuleApp, obtain the split sequent. -/
+def f : RuleApp → SplitSequent
+  | RuleApp.skp Δ => Δ
+  | RuleApp.cutₗ Δ _ => Δ
+  | RuleApp.cutᵣ Δ _ => Δ
+  | RuleApp.wkₗ Δ _ _ => Δ
+  | RuleApp.wkᵣ Δ _ _ => Δ
+  | RuleApp.topₗ Δ _ => Δ
+  | RuleApp.topᵣ Δ _ => Δ
+  | RuleApp.axₗₗ Δ _ _ => Δ
+  | RuleApp.axₗᵣ Δ _ _ => Δ
+  | RuleApp.axᵣₗ Δ _ _ => Δ
+  | RuleApp.axᵣᵣ Δ _ _ => Δ
+  | RuleApp.andₗ Δ _ _ _ => Δ
+  | RuleApp.andᵣ Δ _ _ _ => Δ
+  | RuleApp.orₗ Δ _ _ _ => Δ
+  | RuleApp.orᵣ Δ _ _ _ => Δ
+  | RuleApp.boxₗ Δ _ _ => Δ
+  | RuleApp.boxᵣ Δ _ _ => Δ
+
+
+-- @@ L100-101 verbatim
+/-- Given a RuleApp, obtain the non-principal formulas. -/
+def fₙ : RuleApp → SplitSequent := fun r ↦ f r \ fₚ r
+
+
+-- @@ L103-121 expanded
+/-- Relating principal formulas, non-principal formulas, and the split sequent. -/
+lemma fₙ_alternate (r : RuleApp) :
+    fₙ r =
+      match r with
+      | RuleApp.skp Δ => Δ
+      | RuleApp.cutₗ Δ _ => Δ
+      | RuleApp.cutᵣ Δ _ => Δ
+      | RuleApp.wkₗ Δ A _ => Δ \ {Sum.inl A}
+      | RuleApp.wkᵣ Δ A _ => Δ \ {Sum.inr A}
+      | RuleApp.topₗ Δ _ => Δ \ {Sum.inl ⊤}
+      | RuleApp.topᵣ Δ _ => Δ \ {Sum.inr ⊤}
+      | RuleApp.axₗₗ Δ n _ => Δ \ {Sum.inl (atom n), Sum.inl (negAtom n)}
+      | RuleApp.axₗᵣ Δ n _ => Δ \ {Sum.inl (atom n), Sum.inr (negAtom n)}
+      | RuleApp.axᵣₗ Δ n _ => Δ \ {Sum.inr (atom n), Sum.inl (negAtom n)}
+      | RuleApp.axᵣᵣ Δ n _ => Δ \ {Sum.inr (atom n), Sum.inr (negAtom n)}
+      | RuleApp.andₗ Δ A B _ => Δ \ {Sum.inl (and A B)}
+      | RuleApp.andᵣ Δ A B _ => Δ \ {Sum.inr (and A B)}
+      | RuleApp.orₗ Δ A B _ => Δ \ {Sum.inl (or A B)}
+      | RuleApp.orᵣ Δ A B _ => Δ \ {Sum.inr (or A B)}
+      | RuleApp.boxₗ Δ A _ => Δ \ {Sum.inl (box A)}
+      | RuleApp.boxᵣ Δ A _ => Δ \ {Sum.inr (box A)} :=
+  by cases r <;> simp [fₙ, f, fₚ]
+
+
+-- @@ L123-127 verbatim
+/-- Auxiliary declaration used in the GL coalgebra development. -/
+def RuleApp.isBox : RuleApp → Prop
+  | RuleApp.boxₗ _ _ _ => true
+  | RuleApp.boxᵣ _ _ _ => true
+  | _ => false
+
+
+-- @@ L129-130 verbatim
+/-- Get RuleApp of a node (first projection). -/
+def r {X : Type} (α : X → T.obj X) (x : X) := (α x).1
+
+
+-- @@ L132-133 verbatim
+/-- Get premises of a node (second projection). -/
+def p {X : Type} (α : X → T.obj X) (x : X) := (α x).2
+
+
+-- @@ L135-136 verbatim
+/-- Edge relation induced by `p`. -/
+def edge {X : Type} (α : X → T.obj X) (x y : X) : Prop := y ∈ p α x
+
+
+-- @@ L138-179 expanded
+/-- Definition of GL-ext+skip proof. -/
+structure Proof where
+  /-- Auxiliary declaration used in the GL coalgebra development. -/
+  X : Type
+  /-- Auxiliary declaration used in the GL coalgebra development. -/
+  α : X → T.obj X
+  step :
+    ∀ (x : X),
+      match r α x with
+      | RuleApp.skp _ => (p α x).map (fun x ↦ f (r α x)) = [(f (r α x))]
+      | RuleApp.cutₗ _ A =>
+        (p α x).map (fun x ↦ f (r α x)) =
+          [(fₙ (r α x)).filterRight ∪ {Sum.inl A},
+            (fₙ (r α x)).filterLeft ∪ {Sum.inr (Formula.neg A)}]
+      | RuleApp.cutᵣ _ A =>
+        (p α x).map (fun x ↦ f (r α x)) =
+          [(fₙ (r α x)).filterLeft ∪ {Sum.inr A},
+            (fₙ (r α x)).filterRight ∪ {Sum.inl (Formula.neg A)}]
+      | RuleApp.wkₗ _ _ _ => (p α x).map (fun x ↦ f (r α x)) = [fₙ (r α x)]
+      | RuleApp.wkᵣ _ _ _ => (p α x).map (fun x ↦ f (r α x)) = [fₙ (r α x)]
+      | RuleApp.topₗ _ _ => p α x = ∅
+      | RuleApp.topᵣ _ _ => p α x = ∅
+      | RuleApp.axₗₗ _ _ _ => p α x = ∅
+      | RuleApp.axₗᵣ _ _ _ => p α x = ∅
+      | RuleApp.axᵣₗ _ _ _ => p α x = ∅
+      | RuleApp.axᵣᵣ _ _ _ => p α x = ∅
+      | RuleApp.andₗ _ A B _ =>
+        (p α x).map (fun x ↦ f (r α x)) = [(fₙ (r α x)) ∪ {Sum.inl A}, (fₙ (r α x)) ∪ {Sum.inl B}]
+      | RuleApp.andᵣ _ A B _ =>
+        (p α x).map (fun x ↦ f (r α x)) = [(fₙ (r α x)) ∪ {Sum.inr A}, (fₙ (r α x)) ∪ {Sum.inr B}]
+      | RuleApp.orₗ _ A B _ =>
+        (p α x).map (fun x ↦ f (r α x)) = [(fₙ (r α x)) ∪ {Sum.inl A, Sum.inl B}]
+      | RuleApp.orᵣ _ A B _ =>
+        (p α x).map (fun x ↦ f (r α x)) = [(fₙ (r α x)) ∪ {Sum.inr A, Sum.inr B}]
+      | RuleApp.boxₗ _ A _ => (p α x).map (fun x ↦ f (r α x)) = [(fₙ (r α x)).D ∪ {Sum.inl A}]
+      | RuleApp.boxᵣ _ A _ => (p α x).map (fun x ↦ f (r α x)) = [(fₙ (r α x)).D ∪ {Sum.inr A}]
+  path :
+    ∀ x,
+      ∀ f : { f : ℕ → X // f 0 = x ∧ ∀ (n : ℕ), edge α (f n) (f (n + 1)) },
+        ∀ n, ∃ m, (r α (f.1 (n + m))).isBox
+
+
+-- @@ L181-182 verbatim
+/-- Auxiliary declaration used in the GL coalgebra development. -/
+def proves (𝕏 : Proof) (Δ : SplitSequent) : Prop := ∃ x : 𝕏.X, f (r 𝕏.α x) = Δ
+
+-- @@ L183-184 verbatim
+/-- Auxiliary declaration used in the GL coalgebra development. -/
+def SplitSequent.isTrue (Δ : SplitSequent) : Prop := ∃ (𝕏 : Proof), proves 𝕏 Δ
+
+
+-- @@ L186-187 verbatim
+/-- Auxiliary declaration used in the GL coalgebra development. -/
+infixr:6 "⊢" => proves
+
+-- @@ L188-189 verbatim
+/-- Auxiliary declaration used in the GL coalgebra development. -/
+prefix:40 "⊢" => SplitSequent.isTrue
+
+
+-- @@ L191-191 verbatim
+end ExtSkip
+
+-- @@ L192-192 verbatim
+end Lean4GlCoalgebras

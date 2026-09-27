@@ -1,0 +1,139 @@
+/-
+Copyright (c) 2026 Sven Manthe. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Sven Manthe
+-/
+module
+
+public import LeanPool.AFormalizationOfBorelDeterminacyInLean.Game.Games
+import LeanPool.AFormalizationOfBorelDeterminacyInLean.Basic.Meta
+import Mathlib.Algebra.Order.Module.Field
+import Mathlib.CategoryTheory.Category.Init
+import Mathlib.Data.EReal.Inv
+import Mathlib.Tactic.Measurability.Init
+import Mathlib.Topology.Algebra.InfiniteSum.Order
+import Mathlib.Topology.MetricSpace.Bounded
+
+
+-- @@ L17-21 verbatim
+/-!
+# LeanPool.AFormalizationOfBorelDeterminacyInLean.Applications.Choquet
+
+Auxiliary declarations for the Borel determinacy formalization.
+-/
+
+
+-- @@ L23-23 verbatim
+@[expose] public section
+
+
+
+-- @@ L26-26 verbatim
+open GaleStewartGame
+
+-- @@ L27-27 verbatim
+open Descriptive
+
+
+-- @@ L29-29 verbatim
+namespace Choquet
+
+
+-- @@ L31-31 verbatim
+variable {X : Type*} (V : Set (Set X)) (PO : Set (Set X))
+
+-- @@ L32-35 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+def chainTree : tree V where
+    val := {x | x.IsChain (· ≥ ·)}
+    property _ _ := List.IsChain.left_of_append
+
+-- @@ L36-36 verbatim
+lemma def_chainTree (x : List V) : x ∈ chainTree V ↔ x.IsChain (· ≥ ·) := by simp [chainTree]
+
+-- @@ L37-37 verbatim
+lemma nil_mem_chainTree : [] ∈ chainTree V := by simp [chainTree]
+
+-- @@ L38-41 verbatim
+lemma concat_mem_chainTree {x A} :
+    x ++ [A] ∈ chainTree V ↔ x ∈ chainTree V ∧ ∀ hx, A ≤ x.getLast hx := by
+    simp_rw [def_chainTree, List.isChain_append, List.isChain_singleton]
+    obtain rfl | ⟨x, ⟨B, rfl⟩⟩ := x.eq_nil_or_concat' <;> simp
+
+-- @@ L42-45 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+def chainTree.concat (x : chainTree V) (A : V) (h : ∀ hx, A ≤ x.val.getLast hx) : chainTree V where
+    val := x.val ++ [A]
+    property := by rw [concat_mem_chainTree]; use x.prop
+
+-- @@ L46-49 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+def interGame : Game V where
+    tree := chainTree V
+    payoff A := PO (⋂ n, A.1 n)
+
+-- @@ L50-50 verbatim
+variable {V}
+
+-- @@ L51-51 verbatim
+variable {W : Set (Set X)} (hWV : W ⊆ V) (hW : ∀ A ∈ V, ∃ B ∈ W, B ⊆ A)
+
+-- @@ L52-53 verbatim
+lemma extend_mem_iff (x : List W) : x.map (Set.inclusion hWV) ∈ chainTree V ↔ x ∈ chainTree W := by
+    simp [chainTree, List.isChain_map]
+
+-- @@ L54-57 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+@[simps] def extend (x : chainTree W) : chainTree V where
+    val := x.1.map (Set.inclusion hWV)
+    property := by simpa only [extend_mem_iff] using x.2
+
+-- @@ L58-64 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+@[simps] def extend' {x : chainTree W} (a : Tree.ExtensionsAt x) :
+    Tree.ExtensionsAt (extend hWV x) where
+    val := Set.inclusion hWV a.val
+    property := by
+        rw [← List.map_singleton, extend_coe, ← List.map_append, extend_mem_iff]
+        exact a.prop
+
+-- @@ L65-68 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+def choosePair (A : V) : W where
+    val := (hW A A.coe_prop).choose
+    property := (hW A A.coe_prop).choose_spec.1
+
+-- @@ L69-69 verbatim
+lemma choosePairSub A : (choosePair hW A).val ⊆ A.val := (hW A A.coe_prop).choose_spec.2
+
+-- @@ L70-78 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+def shrink' {x : chainTree W} (a : Tree.ExtensionsAt (extend hWV x)) :
+    Tree.ExtensionsAt x := ⟨_, (chainTree.concat W x (choosePair hW a.val) (by
+        intro hx; apply (choosePairSub hW a.val).trans
+        have ha := a.prop; rw [concat_mem_chainTree] at ha
+        have hlast : a.val ≤ Set.inclusion hWV (x.val.getLast hx) := by
+          simpa [extend_coe, List.getLast_map] using ha.2 (by simpa [extend_coe] using hx)
+        change a.val.val ⊆ (Set.inclusion hWV (x.val.getLast hx)).val
+        exact hlast)).prop⟩
+
+-- @@ L79-79 verbatim
+attribute [simp_lengths] extend_coe
+
+
+-- @@ L81-81 verbatim
+variable (X)
+
+-- @@ L82-82 verbatim
+variable [TopologicalSpace X]
+
+-- @@ L83-84 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+def game := interGame (X := X) {A | IsOpen A ∧ A.Nonempty} {∅}
+
+-- @@ L85-86 verbatim
+/-- Auxiliary declaration for the Borel determinacy formalization. -/
+def IsChoquet := (game X).ExistsWinning Player.one
+
+-- @@ L87-87 verbatim
+end Choquet

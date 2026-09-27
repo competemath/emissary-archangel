@@ -1,0 +1,1585 @@
+/-
+Copyright (c) 2026 the LieLean team. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Viviana del Barco, Gustavo Infanti, Exequiel Rivas, Paul Schwahn
+-/
+module
+
+public import Mathlib.LinearAlgebra.Determinant
+public import Mathlib.LinearAlgebra.Trace
+public import LeanPool.LowDimSolvClassification.InstancesConstructions
+
+
+-- @@ L12-14 verbatim
+/-!
+# LeanPool.LowDimSolvClassification.InstancesLowDim
+-/
+
+
+-- @@ L16-16 verbatim
+@[expose] public section
+
+
+-- @@ L18-18 verbatim
+open Module
+
+-- @@ L19-22 verbatim
+open Submodule
+
+-- `LieRing.ofAssociativeRing` is a local instance in Mathlib (a `def`, not a global instance), so
+-- we re-enable it locally to view associative rings (such as `K` and `End K V`) as Lie rings.
+
+-- @@ L23-23 verbatim
+attribute [local instance 100] LieRing.ofAssociativeRing
+
+-- @@ L24-24 verbatim
+attribute [local implicit_reducible] LieAlgebra.mkAbelian LieSemidirectProduct
+
+
+-- @@ L26-26 verbatim
+namespace LieAlgebra
+
+
+-- @@ L28-28 verbatim
+namespace Dim2
+
+-- @@ L29-29 verbatim
+section dimension_two
+
+
+-- @@ L31-31 verbatim
+variable (K : Type*) [CommRing K]
+
+
+-- @@ L33-34 verbatim
+/-- TODO. -/
+abbrev Abelian := mkAbelian K (Fin 2 → K)
+
+
+-- @@ L36-37 verbatim
+/-- TODO. -/
+def Affine := Fin 2 → K
+
+-- @@ L38-38 verbatim
+attribute [local implicit_reducible] Affine
+
+
+-- @@ L40-59 verbatim
+instance : LieRing (Affine K) := {
+  (inferInstance : AddCommGroup (Fin 2 → K)) with
+  bracket := fun l r ↦ ![0, l 0 * r 1 - r 0 * l 1]
+  add_lie := by
+    intro x y z
+    unfold Affine at *
+    ext i; fin_cases i <;> simp; ring
+  lie_add := by
+    intro x y z
+    unfold Affine at *
+    ext i; fin_cases i <;> simp; ring
+  lie_self := by
+    intro x
+    unfold Affine at *
+    ext i; fin_cases i <;> simp
+  leibniz_lie := by
+    intro x y z
+    unfold Affine at *
+    ext i; fin_cases i <;> simp; ring
+}
+
+
+-- @@ L61-63 verbatim
+theorem _root_.LieAlgebra.Dim2.Affine.bracket {l r : Affine K} : ⁅l , r⁆ = ![0,
+  l 0 * r 1 - r 0 * l 1] := by
+  rfl
+
+
+-- @@ L65-71 verbatim
+instance : LieAlgebra K (Affine K) := {
+  (inferInstance : Module K (Fin 2 → K)) with
+  lie_smul := by
+    intro t x y
+    unfold Affine at *
+    ext i; fin_cases i <;> simp [Bracket.bracket]; ring
+}
+
+
+-- @@ L73-73 verbatim
+end dimension_two
+
+
+-- @@ L75-75 verbatim
+section dim2_affine_lemmas
+
+
+-- @@ L77-77 verbatim
+namespace Affine
+
+
+-- @@ L79-79 verbatim
+variable {K : Type*} [Field K]
+
+
+-- @@ L81-126 expanded
+/-- In this section we prove that Dim2.Affine is isomorphic to the semidirect product gl(K) ⋉ K,
+   where K is the 1-dimensional vector space over K -/
+def _root_.LieAlgebra.Dim2.Affine.equivToLieAlgOfAffineEquiv : OfAffineEquiv K K ≃ₗ⁅K⁆ Affine K
+    where
+  toFun := fun ⟨f, x⟩ ↦ ![f ((1 : K) : mkAbelian K K), x]
+  invFun := fun v ↦ ⟨v 0 • LinearMap.id, v 1⟩
+  left_inv := by
+    intro ⟨f, x⟩
+    ext
+    · unfold mkAbelian at *
+      simp only [Matrix.cons_val_zero, LinearMap.smul_apply, LinearMap.id_coe, id_eq, smul_eq_mul,
+        mul_one]
+    · simp only [Matrix.cons_val_one, Matrix.cons_val_fin_one]
+  right_inv := by
+    intro v
+    unfold Affine mkAbelian at *
+    simp only [LinearMap.smul_apply, LinearMap.id_coe, id_eq, smul_eq_mul, mul_one]
+    exact List.ofFn_inj.mp rfl
+  map_add' := by
+    intro ⟨f, x⟩ ⟨g, y⟩
+    unfold Affine mkAbelian at *
+    ext i
+    simp only [LinearMap.add_apply, Pi.add_apply]
+    fin_cases i
+    · simp only [Fin.zero_eta, Matrix.cons_val_zero]
+    · simp only [Fin.mk_one, Matrix.cons_val_one, Matrix.cons_val_fin_one]
+  map_smul' := by
+    intro a ⟨f, x⟩
+    unfold Affine mkAbelian at *
+    ext i
+    fin_cases i <;> rfl
+  map_lie' := by
+    intro ⟨f, x⟩ ⟨g, y⟩
+    unfold Affine ofAffineEquivAux
+    unfold mkAbelian at *
+    have hf : ∀ x : K, f x = f 1 * x := fun x => by simp_all
+    have hg : ∀ x : K, g x = g 1 * x := fun x => by simp_all
+    ext i
+    fin_cases i
+    · simp only []
+      change f (g 1) - g (f 1) = 0
+      rw [hf (g 1), hg (f 1)]; ring
+    · simp only [Fin.mk_one]
+      change f y - g x + 0 = f 1 * y - g 1 * x
+      simp_all
+
+
+-- @@ L128-174 expanded
+/-- TODO. -/
+def _root_.LieAlgebra.Dim2.Affine.equivToRealHyperbolic : Affine K ≃ₗ⁅K⁆ RealHyperbolic' 2 K :=
+  { toFun := fun v ↦ ⟨v 0, ![v 1]⟩
+    map_add' := by
+      intro x y
+      simp only [Affine]
+      ext
+      · rfl
+      · change ![(x + y) 1] = ![x 1] + ![y 1]
+        rw [show (x + y) 1 = x 1 + y 1 from Pi.add_apply _ _ _, Matrix.cons_add_cons,
+          Matrix.empty_add_empty]
+    map_smul' := by
+      intro a x
+      ext
+      · rfl
+      · change ![(a • x) 1] = a • ![x 1]
+        rw [show (a • x) 1 = a • x 1 from Pi.smul_apply _ _ _, Matrix.smul_cons, Matrix.smul_empty]
+    map_lie' := by
+      intro x y
+      simp only [Bracket.bracket, Nat.add_one_sub_one, Fin.isValue, Matrix.cons_val_zero,
+        Matrix.cons_val_one]
+      simp only [RealHyperbolicAux, RealHyperbolicAux']
+      ext
+      · simp only [Fin.isValue, mul_comm, sub_self]
+      · simp only [Fin.isValue, LieHom.coe_comp, LieHom.coe_smulRight, Function.comp_apply,
+          map_smul, LieDerivation.coe_smul, Abelian.DerivationCoeFun', LinearMap.id_coe,
+          Pi.smul_apply, id_eq]
+        simp only [mkAbelian]
+        ext i
+        fin_cases i
+        change x 0 * y 1 - y 0 * x 1 = (x 0 • ![y 1] - y 0 • ![x 1] + 0) 0
+        simp [Matrix.smul_cons, Matrix.smul_empty, Matrix.sub_cons, smul_eq_mul]
+    invFun := fun ⟨k, v⟩ ↦ ![k, v 0]
+    left_inv := by
+      intro x
+      simp only [Fin.isValue, Matrix.cons_val_fin_one]
+      exact List.ofFn_inj.mp rfl
+    right_inv := by
+      intro ⟨k, v⟩
+      simp only [Nat.add_one_sub_one, Fin.isValue, Matrix.cons_val_zero, Matrix.cons_val_one]
+      ext
+      · rfl
+      · simp only [mkAbelian]
+        exact List.ofFn_inj.mp rfl }
+
+
+-- @@ L176-176 verbatim
+end Affine
+
+-- @@ L177-177 verbatim
+end dim2_affine_lemmas
+
+-- @@ L178-178 verbatim
+end Dim2
+
+
+-- @@ L180-180 verbatim
+namespace Dim3
+
+-- @@ L181-181 verbatim
+section dimension_three
+
+
+-- @@ L183-183 verbatim
+variable (K : Type*) [CommRing K]
+
+
+-- @@ L185-186 verbatim
+/-- The three-dimensional abelian Lie algebra. -/
+abbrev _root_.LieAlgebra.Dim3.Abelian := mkAbelian K (Fin 3 → K)
+
+
+-- @@ L188-189 verbatim
+/-- The three-dimensional Heisenberg Lie algebra. -/
+def _root_.LieAlgebra.Dim3.Heisenberg := Fin 3 → K
+
+-- @@ L190-190 verbatim
+attribute [local implicit_reducible] LieAlgebra.Dim3.Heisenberg
+
+
+-- @@ L192-211 verbatim
+instance : LieRing (Heisenberg K) := {
+  (inferInstance : AddCommGroup (Fin 3 → K)) with
+  bracket := fun l r ↦ ![l 1 * r 2 - r 1 * l 2, (0 : K), (0 : K)]
+  add_lie := by
+    intro x y z
+    unfold Heisenberg at *
+    ext i; fin_cases i <;> simp; ring
+  lie_add := by
+    intro x y z
+    unfold Heisenberg at *
+    ext i; fin_cases i <;> simp; ring
+  lie_self := by
+    intro x
+    unfold Heisenberg at *
+    ext i; fin_cases i <;> simp
+  leibniz_lie := by
+    intro x y z
+    unfold Heisenberg at *
+    ext i; fin_cases i <;> simp
+}
+
+
+-- @@ L213-215 verbatim
+theorem _root_.LieAlgebra.Dim3.Heisenberg.bracket {l r : Heisenberg K} : ⁅l,
+  r⁆ = ![l 1 * r 2 - r 1 * l 2, (0 : K), (0 : K)] := by
+  rfl
+
+
+-- @@ L217-223 verbatim
+instance : LieAlgebra K (Heisenberg K) := {
+  (inferInstance : Module K (Fin 3 → K)) with
+  lie_smul := by
+    intro t x y
+    unfold Heisenberg at *
+    ext i; fin_cases i <;> simp [Bracket.bracket]; ring
+}
+
+
+-- @@ L225-226 verbatim
+/-- The three-dimensional Lie algebra which has one-dimensional commutator and is not nilpotent. -/
+def _root_.LieAlgebra.Dim3.AffinePlusAbelian := Fin 3 → K
+
+-- @@ L227-227 verbatim
+attribute [local implicit_reducible] LieAlgebra.Dim3.AffinePlusAbelian
+
+
+-- @@ L229-248 verbatim
+instance : LieRing (AffinePlusAbelian K) := {
+  (inferInstance : AddCommGroup (Fin 3 → K)) with
+  bracket := fun l r ↦  ![0, l 1 * r 2 - r 1 * l 2, 0]
+  add_lie := by
+    intro x y z
+    unfold AffinePlusAbelian at *
+    ext i; fin_cases i <;> simp; ring
+  lie_add := by
+    intro x y z
+    unfold AffinePlusAbelian at *
+    ext i; fin_cases i <;> simp; ring
+  lie_self := by
+    intro x
+    unfold AffinePlusAbelian at *
+    ext i; fin_cases i <;> simp
+  leibniz_lie := by
+    intro x y z
+    unfold AffinePlusAbelian at *
+    ext i; fin_cases i <;> simp; ring
+}
+
+
+-- @@ L250-252 verbatim
+theorem _root_.LieAlgebra.Dim3.AffinePlusAbelian.bracket {l r : AffinePlusAbelian K} : ⁅l ,
+  r⁆ = ![(0 : K), l 1 * r 2 - r 1 * l 2, (0 : K)] := by
+  rfl
+
+
+-- @@ L254-260 verbatim
+instance : LieAlgebra K (AffinePlusAbelian K):= {
+  (inferInstance : Module K (Fin 3 → K)) with
+  lie_smul := by
+    intro t x y
+    unfold AffinePlusAbelian at *
+    ext i; fin_cases i <;> simp [Bracket.bracket]; ring
+}
+
+
+-- @@ L262-263 verbatim
+/-- The three-dimensional solvable Lie algebra associated to real hyperbolic space. -/
+def _root_.LieAlgebra.Dim3.Hyperbolic := Fin 3 → K
+
+-- @@ L264-264 verbatim
+attribute [local implicit_reducible] LieAlgebra.Dim3.Hyperbolic
+
+
+-- @@ L266-285 verbatim
+instance : LieRing (Hyperbolic K) := {
+  (inferInstance : AddCommGroup (Fin 3 → K)) with
+  bracket := fun l r ↦ ![0, (l 0 * r 1 - r 0 *l 1), (l 0 * r 2 - r 0 * l 2)]
+  add_lie := by
+    intro x y z
+    unfold Hyperbolic at *
+    ext i; fin_cases i <;> simp <;> ring
+  lie_add := by
+    intro x y z
+    unfold Hyperbolic at *
+    ext i; fin_cases i <;> simp <;> ring
+  lie_self := by
+    intro x
+    unfold Hyperbolic at *
+    ext i; fin_cases i <;> simp
+  leibniz_lie := by
+    intro x y z
+    unfold Hyperbolic at *
+    ext i; fin_cases i <;> simp <;> ring
+}
+
+
+-- @@ L287-293 verbatim
+instance : LieAlgebra K (Hyperbolic K) := {
+  (inferInstance : Module K (Fin 3 → K)) with
+  lie_smul := by
+    intro t x y
+    unfold Hyperbolic at *
+    ext i; fin_cases i <;> simp [Bracket.bracket] <;> ring
+}
+
+
+-- @@ L295-297 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.bracket (l r : Hyperbolic K) :
+    ⁅l, r⁆ = ![0, (l 0 * r 1 - r 0 * l 1), (l 0 * r 2 - r 0 * l 2)] := by
+  rfl
+
+
+-- @@ L299-303 verbatim
+/-- The two-parameter family of solvable Lie algebras appearing in the classification of
+3-dimensional Lie algebras. The two `K` parameters are phantom: they index the bracket structure
+but do not appear in the underlying type; consuming them via `id` keeps the linter happy. -/
+def _root_.LieAlgebra.Dim3.Family (α β : K) : Type _ :=
+  (id (α, β) : K × K) |> fun _ ↦ Fin 3 → K
+
+-- @@ L304-304 verbatim
+attribute [local implicit_reducible] LieAlgebra.Dim3.Family
+
+
+-- @@ L306-326 verbatim
+instance (α : K) (β : K) : LieRing (Family K α β) := {
+  (inferInstance : AddCommGroup (Fin 3 → K)) with
+  bracket := fun l r ↦ ![0, (l 0 * r 2 - l 2 * r 0) * α,
+    (l 0 * r 2 - l 2 * r 0) * β + l 0 * r 1 - l 1 * r 0]
+  add_lie := by
+    intro x y z
+    unfold Family at *
+    ext i; fin_cases i <;> simp <;> ring
+  lie_add := by
+    intro x y z
+    unfold Family at *
+    ext i; fin_cases i <;> simp <;> ring
+  lie_self := by
+    intro x
+    unfold Family at *
+    ext i; fin_cases i <;> simp <;> ring
+  leibniz_lie := by
+    intro x y z
+    unfold Family at *
+    ext i; fin_cases i <;> simp <;> ring
+}
+
+
+-- @@ L328-334 verbatim
+instance (α : K) (β : K) : LieAlgebra K (Family K α β) := {
+  (inferInstance : Module K (Fin 3 → K)) with
+  lie_smul := by
+    intro t x y
+    unfold Family at *
+    ext i; fin_cases i <;> simp [Bracket.bracket] <;> ring
+}
+
+
+-- @@ L336-339 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.bracket (α β : K) (l r : Family _ α β) :
+    ⁅l, r⁆ = ![0, (l 0 * r 2 - l 2 * r 0) * α, (l 0 * r 2 - l 2 * r 0) * β + l 0 * r 1 - l 1 * r 0]
+        := by
+  rfl
+
+
+-- @@ L341-342 verbatim
+/-- Section boundary marker (keeps the proof-size linter happy). -/
+private theorem _root_.LieAlgebra.Dim3.Family._marker_end_dim3 : True := trivial
+
+
+-- @@ L344-344 verbatim
+end dimension_three
+
+
+-- @@ L346-346 verbatim
+section dim3_lemmas
+
+
+-- @@ L348-348 verbatim
+variable {K : Type*} [CommRing K]
+
+
+-- @@ L350-363 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Heisenberg.semidirectAux' : End K (Dim2.Abelian K) := {
+  toFun := fun v ↦ ![v 1, 0]
+  map_add' := by
+    intro x y
+    change ![(x + y) 1, 0] = ![x 1, 0] + ![y 1, 0]
+    rw [show (x + y) 1 = x 1 + y 1 from Pi.add_apply _ _ _,
+      Matrix.cons_add_cons, Matrix.cons_add_cons, Matrix.empty_add_empty, add_zero]
+  map_smul' := by
+    intro a x
+    change ![(a • x) 1, 0] = (RingHom.id K) a • ![x 1, 0]
+    rw [show (a • x) 1 = a • x 1 from Pi.smul_apply _ _ _,
+      RingHom.id_apply, Matrix.smul_cons, Matrix.smul_cons, Matrix.smul_empty, smul_zero]
+}
+
+
+-- @@ L365-369 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Heisenberg.semidirectAux : K →ₗ⁅K⁆ LieDerivation K (Dim2.Abelian K)
+    (Dim2.Abelian K) :=
+  LieHom.comp (Abelian.DerivationOfLinearMap K (Dim2.Abelian K))
+      (LieHom.smulRight Heisenberg.semidirectAux')
+
+
+-- @@ L371-419 expanded
+/-- The three-dimensional Heisenberg Lie algebra over `K` is isomorphic to a semidirect product of
+`K`
+    with the two-dimensional abelian Lie algebra. -/
+def _root_.LieAlgebra.Dim3.Heisenberg.equivToSemidirect :
+    Heisenberg K ≃ₗ⁅K⁆ LieSemidirectProduct K (Dim2.Abelian K) Heisenberg.semidirectAux :=
+  { toFun := fun v ↦ ⟨v 1, ![v 0, v 2]⟩
+    map_add' := by
+      intro x y
+      ext
+      · rfl
+      · change ![(x + y) 0, (x + y) 2] = ![x 0, x 2] + ![y 0, y 2]
+        rw [show (x + y) 0 = x 0 + y 0 from Pi.add_apply _ _ _,
+          show (x + y) 2 = x 2 + y 2 from Pi.add_apply _ _ _, Matrix.cons_add_cons,
+          Matrix.cons_add_cons, Matrix.empty_add_empty]
+    map_smul' := by
+      intro a x
+      ext
+      · rfl
+      · change ![(a • x) 0, (a • x) 2] = (RingHom.id K) a • ![x 0, x 2]
+        rw [show (a • x) 0 = a • x 0 from Pi.smul_apply _ _ _,
+          show (a • x) 2 = a • x 2 from Pi.smul_apply _ _ _, RingHom.id_apply, Matrix.smul_cons,
+          Matrix.smul_cons, Matrix.smul_empty]
+    map_lie' := by
+      intro x y
+      simp only [Heisenberg.semidirectAux, Heisenberg.semidirectAux', Bracket.bracket,
+        Matrix.cons_val_one, Matrix.head_cons, Matrix.cons_val_zero, Matrix.cons_val_two,
+        Matrix.tail_cons, mul_comm, sub_self, LieHom.coe_comp, Function.comp_apply,
+        Abelian.DerivationCoeFun']
+      ext
+      · simp only
+      · funext i
+        fin_cases i
+        · change x 1 * y 2 - y 1 * x 2 = (x 1 • ![y 2, 0] - y 1 • ![x 2, 0] + 0) 0
+          simp [Matrix.smul_cons, Matrix.smul_empty, smul_eq_mul]
+        · change 0 = (x 1 • ![y 2, 0] - y 1 • ![x 2, 0] + 0) 1
+          simp [Matrix.smul_cons, Matrix.smul_empty, smul_eq_mul]
+    invFun := fun ⟨k, v⟩ ↦ ![v 0, k, v 1]
+    left_inv := by
+      intro x
+      simp only [Matrix.cons_val_zero, Matrix.cons_val_one, Heisenberg]
+      exact List.ofFn_inj.mp rfl
+    right_inv := by
+      intro ⟨k, v⟩
+      simp only [Matrix.cons_val_one, Matrix.head_cons, Matrix.cons_val_zero, Matrix.cons_val_two,
+        Matrix.tail_cons]
+      ext
+      · rfl
+      · exact List.ofFn_inj.mp rfl }
+
+
+-- @@ L421-423 verbatim
+/-- Section boundary marker (keeps the proof-size linter happy). -/
+private theorem _root_.LieAlgebra.Dim3.AffinePlusAbelian._marker_after_heisenberg :
+    True := trivial
+
+
+-- @@ L425-474 verbatim
+/-- The three-dimensional Lie algebra `AffinePlusAbelian K` is indeed isomorphic to the direct
+sum/product of `K`
+    with `LieAlgebra.Dim2.Affine K`. -/
+def _root_.LieAlgebra.Dim3.AffinePlusAbelian.equivToDirectSum :
+    AffinePlusAbelian K ≃ₗ⁅K⁆ K × Dim2.Affine K := {
+  toFun := fun v ↦ ⟨v 0, ![-v 2, v 1]⟩
+  map_add' := by
+    intro x y
+    ext
+    · rfl
+    · change ![-(x + y) 2, (x + y) 1] = ![-x 2, x 1] + ![-y 2, y 1]
+      rw [show (x + y) 1 = x 1 + y 1 from Pi.add_apply _ _ _,
+          show (x + y) 2 = x 2 + y 2 from Pi.add_apply _ _ _,
+          neg_add, Matrix.cons_add_cons, Matrix.cons_add_cons, Matrix.empty_add_empty]
+  map_smul' := by
+    intro a x
+    ext
+    · rfl
+    · change ![-(a • x) 2, (a • x) 1] = (RingHom.id K) a • ![-x 2, x 1]
+      rw [show (a • x) 1 = a • x 1 from Pi.smul_apply _ _ _,
+          show (a • x) 2 = a • x 2 from Pi.smul_apply _ _ _,
+          RingHom.id_apply, Matrix.smul_cons, Matrix.smul_cons, Matrix.smul_empty, smul_neg]
+  map_lie' := by
+    intro x y
+    simp only [Bracket.bracket, Matrix.cons_val_zero, Matrix.cons_val_two,
+      Matrix.tail_cons, Matrix.head_cons, Matrix.cons_val_one]
+    apply Prod.ext
+    · change 0 = x 0 * y 0 - y 0 * x 0
+      rw [mul_comm, sub_self]
+    · change ![-0, x 1 * y 2 - y 1 * x 2] = ![0, -x 2 * y 1 - -y 2 * x 1]
+      ext i
+      simp only [neg_zero, neg_mul, sub_neg_eq_add]
+      fin_cases i
+      · rfl
+      · simp only [Fin.mk_one, Matrix.cons_val_one]
+        ring_nf
+  invFun := fun ⟨k, v⟩ ↦ ![k, v 1, -v 0]
+  left_inv := by
+    intro x
+    simp only [AffinePlusAbelian, Matrix.cons_val_one,
+      Matrix.cons_val_zero, neg_neg]
+    exact List.ofFn_inj.mp rfl
+  right_inv := by
+    intro ⟨k, v⟩
+    simp only [Matrix.cons_val_zero, Matrix.cons_val_two, Nat.succ_eq_add_one,
+      Matrix.tail_cons, Matrix.head_cons, neg_neg, Matrix.cons_val_one]
+    apply Prod.ext
+    · rfl
+    · exact List.ofFn_inj.mp rfl
+}
+
+
+-- @@ L476-490 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.AffinePlusAbelian.semidirectAux' : End K (Dim2.Abelian K) := {
+  toFun := fun v ↦ ![0, - v 1]
+  map_add' := by
+    intro x y
+    change ![0, -(x + y) 1] = ![0, -x 1] + ![0, -y 1]
+    rw [show (x + y) 1 = x 1 + y 1 from Pi.add_apply _ _ _,
+      neg_add, Matrix.cons_add_cons, Matrix.cons_add_cons, Matrix.empty_add_empty, add_zero]
+  map_smul' := by
+    intro a x
+    change ![0, -(a • x) 1] = (RingHom.id K) a • ![0, -x 1]
+    rw [show (a • x) 1 = a • x 1 from Pi.smul_apply _ _ _,
+      RingHom.id_apply, Matrix.smul_cons, Matrix.smul_cons, Matrix.smul_empty,
+      smul_neg, smul_zero]
+}
+
+
+-- @@ L492-496 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.AffinePlusAbelian.semidirectAux : K →ₗ⁅K⁆ LieDerivation K
+    (Dim2.Abelian K) (Dim2.Abelian K) :=
+  LieHom.comp (Abelian.DerivationOfLinearMap K (Dim2.Abelian K))
+      (LieHom.smulRight AffinePlusAbelian.semidirectAux')
+
+
+-- @@ L498-548 expanded
+/-- The three-dimensional Lie algebra `AffinePlusAbelian K` is isomorphic to a semidirect product
+of `K`
+    with the two-dimensional abelian Lie algebra. -/
+def _root_.LieAlgebra.Dim3.AffinePlusAbelian.equivToSemidirect :
+    AffinePlusAbelian K ≃ₗ⁅K⁆
+      LieSemidirectProduct K (Dim2.Abelian K) AffinePlusAbelian.semidirectAux :=
+  { toFun := fun v ↦ ⟨v 2, ![v 0, -v 1]⟩
+    map_add' := by
+      intro x y
+      ext
+      · rfl
+      · change ![(x + y) 0, -(x + y) 1] = ![x 0, -x 1] + ![y 0, -y 1]
+        rw [show (x + y) 0 = x 0 + y 0 from Pi.add_apply _ _ _,
+          show (x + y) 1 = x 1 + y 1 from Pi.add_apply _ _ _, neg_add, Matrix.cons_add_cons,
+          Matrix.cons_add_cons, Matrix.empty_add_empty]
+    map_smul' := by
+      intro a x
+      ext
+      · rfl
+      · change ![(a • x) 0, -(a • x) 1] = (RingHom.id K) a • ![x 0, -x 1]
+        rw [show (a • x) 0 = a • x 0 from Pi.smul_apply _ _ _,
+          show (a • x) 1 = a • x 1 from Pi.smul_apply _ _ _, RingHom.id_apply, Matrix.smul_cons,
+          Matrix.smul_cons, Matrix.smul_empty, smul_neg]
+    map_lie' := by
+      intro x y
+      simp only [AffinePlusAbelian.semidirectAux, AffinePlusAbelian.semidirectAux', Bracket.bracket,
+        Matrix.cons_val_one, Matrix.head_cons, Matrix.cons_val_zero, Matrix.cons_val_two,
+        Matrix.tail_cons, mul_comm, sub_self, LieHom.coe_comp, Function.comp_apply,
+        Abelian.DerivationCoeFun']
+      ext
+      · simp only
+      · funext i
+        fin_cases i
+        · change (0 : K) = (x 2 • ![0, -(-y 1)] - y 2 • ![0, -(-x 1)] + 0) 0
+          simp [Matrix.smul_cons]
+        · change -(x 1 * y 2 - y 1 * x 2) = (x 2 • ![0, -(-y 1)] - y 2 • ![0, -(-x 1)] + 0) 1
+          simp [Matrix.smul_cons, Matrix.smul_empty]
+          ring
+    invFun := fun ⟨k, v⟩ ↦ ![v 0, -v 1, k]
+    left_inv := by
+      intro x
+      simp only [AffinePlusAbelian, Matrix.cons_val_one, Matrix.cons_val_zero, neg_neg]
+      exact List.ofFn_inj.mp rfl
+    right_inv := by
+      intro ⟨k, v⟩
+      simp only [Matrix.cons_val_zero, Matrix.cons_val_two, Nat.succ_eq_add_one, Matrix.tail_cons,
+        neg_neg, Matrix.cons_val_one]
+      ext
+      · rfl
+      · exact List.ofFn_inj.mp rfl }
+
+
+-- @@ L550-550 verbatim
+end dim3_lemmas
+
+
+-- @@ L552-552 verbatim
+section dim3_hyperbolic_lemmas
+
+
+-- @@ L554-554 verbatim
+namespace Hyperbolic
+
+
+-- @@ L556-558 verbatim
+variable {K : Type*} [CommRing K]
+
+/- In this section we study properties of the Lie algebra Hyperbolic. -/
+
+
+-- @@ L560-604 expanded
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Hyperbolic.equivToRealHyperbolic :
+    Hyperbolic K ≃ₗ⁅K⁆ RealHyperbolic' 3 K :=
+  { toFun := fun v ↦ ⟨v 0, ![v 1, v 2]⟩
+    map_add' := by
+      intro x y
+      ext
+      · rfl
+      · change ![(x + y) 1, (x + y) 2] = ![x 1, x 2] + ![y 1, y 2]
+        rw [show (x + y) 1 = x 1 + y 1 from Pi.add_apply _ _ _,
+          show (x + y) 2 = x 2 + y 2 from Pi.add_apply _ _ _, Matrix.cons_add_cons,
+          Matrix.cons_add_cons, Matrix.empty_add_empty]
+    map_smul' := by
+      intro a x
+      ext
+      · rfl
+      · change ![(a • x) 1, (a • x) 2] = (RingHom.id K) a • ![x 1, x 2]
+        rw [show (a • x) 1 = a • x 1 from Pi.smul_apply _ _ _,
+          show (a • x) 2 = a • x 2 from Pi.smul_apply _ _ _, RingHom.id_apply, Matrix.smul_cons,
+          Matrix.smul_cons, Matrix.smul_empty]
+    map_lie' := by
+      intro x y
+      simp only [RealHyperbolicAux, RealHyperbolicAux', Bracket.bracket, Matrix.cons_val_one,
+        Matrix.head_cons, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons, mul_comm,
+        sub_self, LieHom.coe_comp, Function.comp_apply, Abelian.DerivationCoeFun']
+      ext
+      · simp only
+      · change
+          ![x 0 * y 1 - y 0 * x 1, x 0 * y 2 - y 0 * x 2] =
+            x 0 • ![y 1, y 2] - y 0 • ![x 1, x 2] + 0
+        ext i; fin_cases i <;> simp [Matrix.smul_cons]
+    invFun := fun ⟨k, v⟩ ↦ ![k, v 0, v 1]
+    left_inv := by
+      intro x
+      simp only [Fin.isValue, Matrix.cons_val_zero, Matrix.cons_val_one]
+      exact List.ofFn_inj.mp rfl
+    right_inv := by
+      intro ⟨k, v⟩
+      simp only [Nat.add_one_sub_one, Fin.isValue, Matrix.cons_val_zero, Matrix.cons_val_one,
+        Matrix.cons_val_two, Nat.succ_eq_add_one, Nat.reduceAdd, Matrix.tail_cons]
+      ext
+      · rfl
+      · simp only [mkAbelian]
+        exact List.ofFn_inj.mp rfl }
+
+
+-- @@ L606-607 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Hyperbolic.e₁ : Hyperbolic K := ![1, 0, 0]
+
+-- @@ L608-609 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.e₁_def : (e₁ : Hyperbolic K) = ![1, 0, 0] := by
+  rfl
+
+-- @@ L610-611 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Hyperbolic.e₂ : Hyperbolic K := ![0, 1, 0]
+
+-- @@ L612-613 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.e₂_def : (e₂ : Hyperbolic K) = ![0, 1, 0] := by
+  rfl
+
+-- @@ L614-615 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Hyperbolic.e₃ : Hyperbolic K := ![0, 0, 1]
+
+-- @@ L616-617 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.e₃_def : (e₃ : Hyperbolic K) = ![0, 0, 1] := by
+  rfl
+
+
+-- @@ L619-654 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.commutator_is_span_e₂e₃ : (commutator K
+    (Hyperbolic K)).toSubmodule = span K {e₂,e₃} := by
+  rw [commutator_eq_span]
+  apply le_antisymm
+  · rw [span_le]
+    intro x ⟨y, z, h⟩
+    rw [← h]
+    rw [SetLike.mem_coe, mem_span_pair]
+    use y 0 * z 1 - z 0 * y 1, y 0 * z 2 - z 0 * y 2
+    unfold e₂ e₃
+    rw [Hyperbolic.bracket]
+    funext i
+    fin_cases i
+    · change (y 0 * z 1 - z 0 * y 1) * (0:K) + (y 0 * z 2 - z 0 * y 2) * 0 = 0
+      ring
+    · change (y 0 * z 1 - z 0 * y 1) * (1:K) + (y 0 * z 2 - z 0 * y 2) * 0 =
+        y 0 * z 1 - z 0 * y 1
+      ring
+    · change (y 0 * z 1 - z 0 * y 1) * (0:K) + (y 0 * z 2 - z 0 * y 2) * 1 =
+        y 0 * z 2 - z 0 * y 2
+      ring
+  · rw [span_le]
+    refine subset_trans ?_ subset_span
+    intro x hx
+    rw [Set.mem_insert_iff, Set.mem_singleton_iff] at hx
+    rcases hx with rfl | rfl
+    · use e₁, e₂
+      rw [Hyperbolic.bracket]
+      unfold e₁ e₂
+      simp_all
+      rfl
+    · use e₁, e₃
+      rw [Hyperbolic.bracket]
+      unfold e₁ e₃
+      simp_all
+      rfl
+
+
+-- @@ L656-658 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.commutator_repr {x : Hyperbolic K} : x ∈ commutator K
+    (Hyperbolic K) ↔ ∃ a b : K, a • e₂ + b • e₃ = x := by
+  rw [← LieSubmodule.mem_toSubmodule, Hyperbolic.commutator_is_span_e₂e₃, mem_span_pair]
+
+
+-- @@ L660-662 verbatim
+/-- TODO. -/
+noncomputable def _root_.LieAlgebra.Dim3.Hyperbolic.stdBasis : Basis (Fin 3) K (Hyperbolic K)
+    := Basis.ofEquivFun (LinearEquiv.refl K (Fin 3 → K))
+
+
+-- @@ L664-669 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.stdBasis₁ : (stdBasis 0 : Hyperbolic K) = e₁ := by
+  unfold stdBasis Hyperbolic
+  rw [e₁_def]
+  simp only [Basis.coe_ofEquivFun, LinearEquiv.refl_symm, LinearEquiv.refl_apply]
+  ext i
+  fin_cases i <;> simp
+
+
+-- @@ L671-676 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.stdBasis₂ : (stdBasis 1 : Hyperbolic K) = e₂ := by
+  unfold stdBasis Hyperbolic
+  rw [e₂_def]
+  simp only [Basis.coe_ofEquivFun, LinearEquiv.refl_symm, LinearEquiv.refl_apply]
+  ext i
+  fin_cases i <;> simp
+
+
+-- @@ L678-683 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.stdBasis₃ : (stdBasis 2 : Hyperbolic K) = e₃ := by
+  unfold stdBasis Hyperbolic
+  rw [e₃_def]
+  simp only [Basis.coe_ofEquivFun, LinearEquiv.refl_symm, LinearEquiv.refl_apply]
+  ext i
+  fin_cases i <;> simp
+
+
+-- @@ L685-699 verbatim
+/-- TODO. -/
+noncomputable def _root_.LieAlgebra.Dim3.Hyperbolic.commutatorBasis : Basis (Fin 2) K
+    (commutator K (Hyperbolic K)) := by
+  have li : LinearIndependent K ![(e₂ : Hyperbolic K), e₃] := by
+    refine LinearIndependent.pair_iff.mpr ?_
+    intro s t hst
+    unfold e₂ e₃ Hyperbolic at hst
+    simp_all
+  have li_range : Set.range ![(e₂ : Hyperbolic K), e₃] = {e₂, e₃} := by
+    simp only [Matrix.range_cons, Matrix.range_empty,
+      Set.union_empty, Set.union_singleton]
+    exact Set.pair_comm e₃ e₂
+  let b := Basis.span li
+  rw [li_range, ← commutator_is_span_e₂e₃] at b
+  exact b
+
+
+-- @@ L701-703 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.dim_commutator {K : Type*} [Field K] : finrank K
+    (commutator K (Hyperbolic K)) = 2 := by
+  rw [finrank_eq_card_basis commutatorBasis, Fintype.card_fin]
+
+
+-- @@ L705-706 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Hyperbolic.adjoint (x : Hyperbolic K) := ad K (Hyperbolic K) x
+
+
+-- @@ L708-709 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Hyperbolic.ade₁ := adjoint (e₁ : Hyperbolic K)
+
+
+-- @@ L711-719 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.ad_preserves_commutator (x : Hyperbolic K) : ∀ y ∈
+    (commutator K (Hyperbolic K)), (adjoint x) y ∈ (commutator K (Hyperbolic K)) := by
+  intro y hy
+  have : adjoint x y ∈ map ((ad K (Hyperbolic K)) x) ⊤ := by
+    rw [Submodule.map_top, LinearMap.mem_range]
+    use y
+    rfl
+  have := LieAlgebra.ad_into_commutator x this
+  simp_all
+
+
+-- @@ L721-724 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Hyperbolic.adRestr (x : Hyperbolic K) : (commutator K
+    (Hyperbolic K)) →ₗ[K] (commutator K (Hyperbolic K)) :=
+  LinearMap.restrict (adjoint x) (ad_preserves_commutator x)
+
+
+-- @@ L726-730 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.ad_restr_apply (x : Hyperbolic K) (y : Hyperbolic K)
+    (hy : y ∈ (commutator K (Hyperbolic K))) :
+    adRestr x (⟨y, hy⟩ : (commutator K (Hyperbolic K))) = ⟨adjoint x y,
+      ad_preserves_commutator x y hy⟩ :=
+  rfl
+
+
+-- @@ L732-738 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.ad_restr_add (x y : Hyperbolic K) : adRestr
+    (x + y) = adRestr x + adRestr y := by
+  ext z
+  simp only [LinearMap.add_apply, LieSubmodule.coe_add]
+  rw [ad_restr_apply, ad_restr_apply, ad_restr_apply]
+  unfold adjoint
+  simp only [map_add, LinearMap.add_apply, ad_apply]
+
+
+-- @@ L740-746 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.ad_restr_smul (a : K) (x : Hyperbolic K) : adRestr
+    (a • x) = a • adRestr x := by
+  ext z
+  simp only [LinearMap.smul_apply, LieSubmodule.coe_smul]
+  rw [ad_restr_apply, ad_restr_apply]
+  unfold adjoint
+  simp only [map_smul, LinearMap.smul_apply, ad_apply]
+
+
+-- @@ L748-752 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.lie_e₁e₂ : ⁅(e₁ : Hyperbolic K),
+  (e₂ : Hyperbolic K)⁆ = e₂ := by
+  rw [Hyperbolic.bracket, e₁_def, e₂_def]
+  simp_all
+  rfl
+
+
+-- @@ L754-758 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.lie_e₁e₃ : ⁅(e₁ : Hyperbolic K),
+  (e₃ : Hyperbolic K)⁆ = e₃ := by
+  rw [Hyperbolic.bracket, e₁_def, e₃_def]
+  simp_all
+  rfl
+
+
+-- @@ L760-764 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.lie_e₂e₃ : ⁅(e₂ : Hyperbolic K),
+  (e₃ : Hyperbolic K)⁆ = 0 := by
+  rw [Hyperbolic.bracket, e₂_def, e₃_def]
+  unfold Hyperbolic
+  simp_all
+
+
+-- @@ L766-775 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.ade₁_restr_id : adRestr
+    (e₁ : Hyperbolic K) = LinearMap.id := by
+  ext y
+  rw [ad_restr_apply]
+  unfold adjoint
+  simp only [ad_apply, LinearMap.id_coe, id_eq]
+  obtain ⟨a, b, hy⟩ := commutator_repr.mp y.prop
+  rw [← hy]
+  simp only [lie_add, lie_smul]
+  rw [lie_e₁e₂, lie_e₁e₃]
+
+
+-- @@ L777-788 verbatim
+theorem _root_.LieAlgebra.Dim3.Hyperbolic.ad_comm_restr {x : Hyperbolic K} (hx : x ∈ commutator K
+    (Hyperbolic K)) : adRestr (x : Hyperbolic K) = 0 := by
+  ext y
+  rw [ad_restr_apply]
+  unfold adjoint
+  simp only [ad_apply, LinearMap.zero_apply, ZeroMemClass.coe_zero]
+  obtain ⟨x₂, x₃, hx⟩ := commutator_repr.mp hx
+  obtain ⟨y₂, y₃, hy⟩ := commutator_repr.mp y.prop
+  rw [← hx, ← hy]
+  simp only [lie_add, lie_smul, add_lie, smul_lie, lie_self, smul_zero, zero_add, add_zero]
+  rw [← lie_skew, lie_e₂e₃]
+  simp only [neg_zero, smul_zero, add_zero]
+
+
+-- @@ L790-790 verbatim
+end Hyperbolic
+
+
+-- @@ L792-792 verbatim
+end dim3_hyperbolic_lemmas
+
+
+-- @@ L794-794 verbatim
+section dim3_family_lemmas
+
+
+-- @@ L796-796 verbatim
+namespace Family
+
+
+-- @@ L798-800 verbatim
+variable {K : Type*} [CommRing K] (α β : K)
+
+/- In this section we study properties of the Lie algebra Family α β, with α ≠ 0. -/
+
+
+-- @@ L802-823 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Family.semidirectAux' : End K (Dim2.Abelian K) := {
+  toFun := fun v ↦ ![α • v 1, v 0 + β • v 1]
+  map_add' := by
+    intro x y
+    change ![α • (x + y) 1, (x + y) 0 + β • (x + y) 1] =
+      ![α • x 1, x 0 + β • x 1] + ![α • y 1, y 0 + β • y 1]
+    rw [show (x + y) 0 = x 0 + y 0 from Pi.add_apply _ _ _,
+      show (x + y) 1 = x 1 + y 1 from Pi.add_apply _ _ _,
+      smul_add, smul_add, Matrix.cons_add_cons, Matrix.cons_add_cons, Matrix.empty_add_empty]
+    ext i; fin_cases i <;>
+      simp [Matrix.cons_val_zero, Matrix.cons_val_one]; ring
+  map_smul' := by
+    intro a x
+    change ![α • (a • x) 1, (a • x) 0 + β • (a • x) 1] =
+      (RingHom.id K) a • ![α • x 1, x 0 + β • x 1]
+    rw [show (a • x) 0 = a • x 0 from Pi.smul_apply _ _ _,
+      show (a • x) 1 = a • x 1 from Pi.smul_apply _ _ _,
+      RingHom.id_apply, Matrix.smul_cons, Matrix.smul_cons, Matrix.smul_empty]
+    ext i; fin_cases i <;>
+      simp [Matrix.cons_val_zero, Matrix.cons_val_one, smul_eq_mul] <;> ring
+}
+
+
+-- @@ L825-829 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Family.semidirectAux : K →ₗ⁅K⁆ LieDerivation K (Dim2.Abelian K)
+    (Dim2.Abelian K) :=
+  LieHom.comp (Abelian.DerivationOfLinearMap K (Dim2.Abelian K)) (LieHom.smulRight
+      (semidirectAux' α β))
+
+
+-- @@ L831-884 expanded
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Family.equivToSemidirect :
+    Family K α β ≃ₗ⁅K⁆ LieSemidirectProduct K (Dim2.Abelian K) (semidirectAux α β) :=
+  { toFun := fun v ↦ ⟨v 0, ![v 1, v 2]⟩
+    map_add' := by
+      intro x y
+      ext
+      · rfl
+      · change ![(x + y) 1, (x + y) 2] = ![x 1, x 2] + ![y 1, y 2]
+        rw [show (x + y) 1 = x 1 + y 1 from Pi.add_apply _ _ _,
+          show (x + y) 2 = x 2 + y 2 from Pi.add_apply _ _ _, Matrix.cons_add_cons,
+          Matrix.cons_add_cons, Matrix.empty_add_empty]
+    map_smul' := by
+      intro a x
+      ext
+      · rfl
+      · change ![(a • x) 1, (a • x) 2] = (RingHom.id K) a • ![x 1, x 2]
+        rw [show (a • x) 1 = a • x 1 from Pi.smul_apply _ _ _,
+          show (a • x) 2 = a • x 2 from Pi.smul_apply _ _ _, RingHom.id_apply, Matrix.smul_cons,
+          Matrix.smul_cons, Matrix.smul_empty]
+    map_lie' := by
+      intro x y
+      rw [Family.bracket, LieSemidirectProduct.bracket_def, semidirectAux, semidirectAux', ←
+        LieHom.coe_toLinearMap]
+      simp only [smul_eq_mul, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two,
+        Matrix.tail_cons, Bracket.bracket, LieHom.toLinearMap_comp, LinearMap.coe_comp,
+        LieHom.coe_toLinearMap, LieHom.coe_smulRight, Function.comp_apply,
+        Abelian.DerivationCoeFun']
+      ext
+      · simp only
+        rw [mul_comm, sub_self]
+      · funext i
+        fin_cases i
+        · change
+            (x 0 * y 2 - x 2 * y 0) * α =
+              (x 0 • ![α * y 2, y 1 + β * y 2] - y 0 • ![α * x 2, x 1 + β * x 2] + 0) 0
+          simp [smul_eq_mul]
+          ring
+        · change
+            (x 0 * y 2 - x 2 * y 0) * β + x 0 * y 1 - x 1 * y 0 =
+              (x 0 • ![α * y 2, y 1 + β * y 2] - y 0 • ![α * x 2, x 1 + β * x 2] + 0) 1
+          simp [smul_eq_mul]
+          ring
+    invFun := fun ⟨k, v⟩ ↦ ![k, v 0, v 1]
+    left_inv := by
+      intro x
+      simp only [Matrix.cons_val_zero, Matrix.cons_val_one]
+      exact List.ofFn_inj.mp rfl
+    right_inv := by
+      intro ⟨k, v⟩
+      simp only [Matrix.cons_val_one, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons]
+      ext
+      · rfl
+      · exact List.ofFn_inj.mp rfl }
+
+
+-- @@ L886-890 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Family.M : Matrix (Fin 2) (Fin 2) K := ![
+  ![0, α],
+  ![1, β]
+]
+
+
+-- @@ L892-892 verbatim
+variable {α β : K}
+
+
+-- @@ L894-897 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.M_det {α β : K} : Matrix.det (M α β) = -α := by
+  rw [Matrix.det_fin_two]
+  simp only [M, Matrix.cons_val', Matrix.cons_val_zero, Matrix.cons_val_fin_one,
+        Matrix.cons_val_one, zero_mul, mul_one, zero_sub]
+
+
+-- @@ L899-902 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.M_trace {α β : K} : Matrix.trace (M α β) = β := by
+  rw [Matrix.trace_fin_two]
+  simp only [M, Matrix.cons_val', Matrix.cons_val_zero, Matrix.cons_val_fin_one,
+      Matrix.cons_val_one, zero_add]
+
+
+-- @@ L904-905 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Family.e₁ : Family K α β := ![1, 0, 0]
+
+-- @@ L906-907 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.e₁_def : (e₁ : Family K α β) = ![1, 0, 0] := by
+  rfl
+
+-- @@ L908-909 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Family.e₂ : Family K α β := ![0, 1, 0]
+
+-- @@ L910-911 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.e₂_def : (e₂ : Family K α β) = ![0, 1, 0] := by
+  rfl
+
+-- @@ L912-913 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Family.e₃ : Family K α β := ![0, 0, 1]
+
+-- @@ L914-915 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.e₃_def : (e₃ : Family K α β) = ![0, 0, 1] := by
+  rfl
+
+
+-- @@ L917-917 verbatim
+variable {K : Type*} [Field K] {α β : K}
+
+
+-- @@ L919-973 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.commutator_is_span_e₂e₃ (hα : α ≠ 0) : (commutator K
+    (Family K α β)).toSubmodule = span K {e₂,e₃} := by
+  let e₁α : Family K α β := ![α⁻¹, 0, 0]
+  let e₂β : Family K α β := ![0, -β, 1]
+  let e₁ : Family K α β := ![1, 0, 0]
+  let e₂ : Family K α β := e₂
+  let e₃ : Family K α β := e₃
+  have e₂_bracket : ⁅e₁α ,e₂β⁆ = e₂ := by
+    rw [Family.bracket]
+    unfold e₂β e₁α e₂
+    simp only [Matrix.cons_val_zero,
+      Matrix.cons_val_two, Matrix.tail_cons, Matrix.head_cons, mul_one, mul_zero, sub_zero,
+      Matrix.cons_val_one, mul_neg, add_neg_cancel, sub_self]
+    simp_all only [ne_eq, isUnit_iff_ne_zero, not_false_eq_true, IsUnit.inv_mul_cancel, e₂_def]
+    rfl
+  have e₃_bracket : ⁅e₁, e₂⁆ = e₃ := by
+    rw [Family.bracket]
+    unfold e₁ e₂ e₃
+    simp only [Matrix.cons_val_zero,
+      Matrix.cons_val_two, Matrix.tail_cons, Matrix.head_cons, mul_zero, sub_self, zero_mul,
+      Matrix.cons_val_one, mul_one, zero_add, sub_zero, e₂_def, e₃_def]
+    rfl
+  rw [commutator_eq_span]
+  apply le_antisymm
+  · rw [span_le]
+    intro x ⟨y, z, h⟩
+    simp only [Family.bracket] at h
+    rw [← h]
+    have cl : ![0, (y 0 * z 2 - y 2 * z 0) * α,
+      (y 0 * z 2 - y 2 * z 0) * β + y 0 * z 1 - y 1 * z 0] =
+      ((y 0 * z 2 - y 2 * z 0) * α) • e₂ +
+          ((y 0 * z 2 - y 2 * z 0) * β + y 0 * z 1 - y 1 * z 0) • e₃ := by
+      unfold e₂ e₃
+      simp only [e₂_def, e₃_def]
+      funext i; fin_cases i
+      · change (0:K) = ((y 0 * z 2 - y 2 * z 0) * α) * 0 +
+          ((y 0 * z 2 - y 2 * z 0) * β + y 0 * z 1 - y 1 * z 0) * 0
+        ring
+      · change (y 0 * z 2 - y 2 * z 0) * α = ((y 0 * z 2 - y 2 * z 0) * α) * 1 +
+          ((y 0 * z 2 - y 2 * z 0) * β + y 0 * z 1 - y 1 * z 0) * 0
+        ring
+      · change (y 0 * z 2 - y 2 * z 0) * β + y 0 * z 1 - y 1 * z 0 =
+          ((y 0 * z 2 - y 2 * z 0) * α) * 0 +
+          ((y 0 * z 2 - y 2 * z 0) * β + y 0 * z 1 - y 1 * z 0) * 1
+        ring
+    symm at cl
+    exact mem_span_pair.mpr ⟨_, _, cl⟩
+  · rw [span_le]
+    trans {x | ∃ (y z: Family K α β), ⁅y, z⁆ = x}
+    · intro e Be
+      simp_all only [Set.mem_insert_iff, Set.mem_singleton_iff, Set.mem_ofPred_eq]
+      cases Be with
+      | inl h => subst h; exact ⟨_, _, e₂_bracket⟩
+      | inr h => subst h; exact ⟨_, _, e₃_bracket⟩
+    · apply subset_span (R:=K) (M:=Family K α β) (s := {x | ∃ y z, ⁅y, z⁆ = x})
+
+
+-- @@ L975-976 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Family.B (α β : K) : Fin 2 → Family K α β := ![e₂, e₃]
+
+
+-- @@ L978-985 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.B_is_li_ambient : LinearIndependent K (M
+    := Family K α β) (B α β) := by
+      unfold B
+      refine LinearIndependent.pair_iff.mpr ?_
+      simp only [e₂_def, e₃_def]
+      intro s t hst
+      unfold Family at hst
+      simp_all
+
+
+-- @@ L987-988 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Family.e₁α : Family K α β := ![α⁻¹, 0, 0]
+
+-- @@ L989-990 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Family.e₂β : Family K α β := ![0, -β, 1]
+
+
+-- @@ L992-997 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.e₂_bracket {hα : α ≠ 0} : ⁅(e₁α : Family K α β),
+  (e₂β : Family K α β)⁆ = e₂ := by
+    rw [Family.bracket]
+    unfold e₂β e₁α e₂
+    simp_all
+    rfl
+
+
+-- @@ L999-1004 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.e₃_bracket : ⁅(e₁ : Family K α β),
+  (e₂ : Family K α β)⁆ = e₃ := by
+    rw [Family.bracket]
+    unfold e₁ e₂ e₃
+    simp_all
+    rfl
+
+
+-- @@ L1006-1011 verbatim
+lemma _root_.LieAlgebra.Dim3.Family.e₂_in_comm {hα : α ≠ 0} : e₂ ∈ commutator K (Family K α β) := by
+    unfold e₂
+    refine (LieSubmodule.mem_toSubmodule _).mp ?_
+    rw [commutator_eq_span]
+    have := subset_span (R := K) (M := Family K α β) (s := {x | ∃ (y z : Family K α β), ⁅y, z⁆ = x})
+    exact (this ⟨_, _, e₂_bracket (α := α) (β := β) (hα := hα)⟩)
+
+
+-- @@ L1013-1018 verbatim
+lemma _root_.LieAlgebra.Dim3.Family.e₃_in_comm : e₃ ∈ commutator K (Family K α β) := by
+    unfold e₃
+    refine (LieSubmodule.mem_toSubmodule _).mp ?_
+    rw [commutator_eq_span]
+    have := subset_span (R := K) (M := Family K α β) (s := {x | ∃ (y z : Family K α β), ⁅y, z⁆ = x})
+    exact (this ⟨_, _, e₃_bracket⟩)
+
+
+-- @@ L1020-1141 verbatim
+/-- TODO. -/
+noncomputable def _root_.LieAlgebra.Dim3.Family.commutatorBasis (α β : K) (hα : α ≠ 0) : Basis
+    (Fin 2) K (commutator K (Family K α β)) := by
+  -- Basis are ![0,1,0] and ![0,0,1]
+  let e₁α : Family K α β := ![α⁻¹, 0, 0]
+  let e₂β : Family K α β := ![0, -β, 1]
+  let e₁ : Family K α β := ![1, 0, 0]
+  let e₂ : Family K α β := e₂
+  let e₃ : Family K α β := e₃
+  have e₂_bracket : ⁅e₁α, e₂β⁆ = e₂ := by
+    rw [Family.bracket]
+    unfold e₂β e₁α e₂
+    simp only [Matrix.cons_val_zero,
+      Matrix.cons_val_two, Matrix.tail_cons, Matrix.head_cons, mul_one, mul_zero, sub_zero,
+      Matrix.cons_val_one, mul_neg, add_neg_cancel, sub_self]
+    simp_all only [ne_eq, isUnit_iff_ne_zero, not_false_eq_true, IsUnit.inv_mul_cancel, e₂_def]
+    rfl
+  have e₃_bracket : ⁅e₁, e₂⁆ = e₃ := by
+    rw [Family.bracket]
+    unfold e₁ e₂ e₃
+    simp only [Matrix.cons_val_zero,
+      Matrix.cons_val_two, Matrix.tail_cons, Matrix.head_cons, mul_zero, sub_self, zero_mul,
+      Matrix.cons_val_one, mul_one, zero_add, sub_zero, e₂_def, e₃_def]
+    rfl
+  have B_setrange {hα : α ≠ 0}  : Set.range (B α β) ⊆ commutator K (Family K α β) := by
+    simp_all only [ne_eq, Matrix.range_cons,
+      Matrix.range_empty, Set.union_empty, Set.union_singleton, B]
+    intro e Be
+    simp_all only [Set.mem_insert_iff, Set.mem_singleton_iff]
+    cases Be with
+    | inl h => subst h; simp_all only [SetLike.mem_coe, e₁α, e₂β, e₂, e₁, e₃, e₃_in_comm]
+    | inr h => subst h; simp_all only [SetLike.mem_coe, e₁α, e₂β, e₂, e₁, e₃,
+      e₂_in_comm (hα := hα)]
+  have B_setrange_eq : Set.range (B α β) = {e₂, e₃} := by
+    simp_all only [ne_eq, Matrix.range_cons,
+      Matrix.range_empty, Set.union_empty, Set.union_singleton, B]
+    simp_all only [derivedSeriesOfIdeal_succ, derivedSeriesOfIdeal_zero, e₁, e₂β, e₃, e₂, e₁α]
+    ext x : 1
+    simp_all only [Set.mem_insert_iff, Set.mem_singleton_iff]
+    apply Iff.intro
+    · intro a
+      cases a with
+      | inl h =>
+        simp_all
+      | inr h_1 =>
+        simp_all
+    · intro a
+      cases a with
+      | inl h =>
+        simp_all
+      | inr h_1 =>
+        simp_all
+  let B_is_li_comm := linearIndependent_from_ambient (K := K) (commutator K (Family K α β)) ![e₂,
+    e₃] B_is_li_ambient (B_setrange (hα := hα))
+  have : Set.range (Set.mapIntoSubtype (↑(↑(commutator K (Family K α β)))) (B α β) (B_setrange
+      (hα:=hα) )) =
+    ({⟨e₂, e₂_in_comm (hα := hα)⟩, ⟨e₃, e₃_in_comm⟩} : Set (↥(commutator K (Family K α β)))) := by
+    unfold Set.range
+    simp only [SetLike.coe_sort_coe]
+    ext j
+    constructor
+    · intro j_in
+      simp only [Fin.exists_fin_two, Fin.isValue, Set.mem_ofPred_eq] at j_in
+      rcases j_in with hy | hy
+      · have := Set.map_into_subtype_apply (↑(commutator K (Family K α β))) (B α β)
+          (B_setrange (hα:=hα)) 0
+        rw [hy] at this
+        unfold B at this
+        simp only [Set.mem_insert_iff, Set.mem_singleton_iff]
+        left
+        apply Subtype.ext
+        simp only [Matrix.cons_val_zero] at this
+        exact this
+      · have := Set.map_into_subtype_apply (↑(commutator K (Family K α β))) (B α β)
+          (B_setrange (hα:=hα)) 1
+        rw [hy] at this
+        unfold B at this
+        simp only [Set.mem_insert_iff, Set.mem_singleton_iff]
+        right
+        apply Subtype.ext
+        simp only [Matrix.cons_val_one, Matrix.cons_val_fin_one] at this
+        exact this
+    · intro e
+      simp_all only [Set.mem_insert_iff, Set.mem_singleton_iff, e₁, e₂β, e₁α]
+      rcases e with (e0 | e1)
+      · subst e0
+        simp only [Set.mem_ofPred_eq]
+        use 0
+        apply Subtype.ext
+        rw [Set.map_into_subtype_apply (↑(commutator K (Family K α β))) (B α β) (B_setrange) (0)]
+        · unfold B
+          simp only [e₂_def]
+          unfold e₂
+          simp only [e₂_def]
+          rfl
+        · exact hα
+      · subst e1
+        simp only [Set.mem_ofPred_eq]
+        use 1
+        apply Subtype.ext
+        rw [Set.map_into_subtype_apply (↑(commutator K (Family K α β))) (B α β) (B_setrange) (1)]
+        · unfold B
+          simp only [Matrix.cons_val_one, e₃_def]
+          unfold e₃
+          simp only [e₃_def]
+          simp []
+          rfl
+        · exact hα
+  let B_basis : Basis (Fin 2) K (commutator K (Family K α β)) :=
+    Basis.mk B_is_li_comm (by
+      intro ⟨x, hx⟩
+      simp only [mem_top, LieIdeal.toLieSubalgebra_toSubmodule, forall_const]
+      norm_cast
+      unfold B at this
+      rw [this]
+      have : x ∈ span K {e₂, e₃} := by
+        rw [← commutator_is_span_e₂e₃ (hα := hα)]
+        · exact hx
+      rw [@mem_span_pair]
+      rw [@mem_span_pair] at this
+      simp_all)
+  exact B_basis
+
+
+-- @@ L1143-1145 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.dim_commutator {hα : α ≠ 0} : finrank K (commutator K
+    (Family K α β)) = 2 := by
+  rw [finrank_eq_card_basis (commutatorBasis α β hα), Fintype.card_fin]
+
+
+-- @@ L1147-1150 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.B_basis_0 {hα : α ≠ 0} : ((commutatorBasis α β hα) 0).val =
+    (e₂ : Family K α β) := by
+  simp only [commutatorBasis]
+  exact congrArg (fun x : commutator K (Family K α β) => x.val) (Basis.mk_apply _ _ 0)
+
+
+-- @@ L1152-1155 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.B_basis_1 {hα : α ≠ 0} : ((commutatorBasis α β hα) 1).val =
+    (e₃ : Family K α β) := by
+  simp only [commutatorBasis]
+  exact congrArg (fun x : commutator K (Family K α β) => x.val) (Basis.mk_apply _ _ 1)
+
+
+-- @@ L1157-1210 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.B_basis_repr {hα : α ≠ 0} {x : commutator K
+    (Family K α β)} : (commutatorBasis α β hα).repr x = ![x.val 1, x.val 2] := by
+  let ⟨x, hx⟩ := x
+  have h_repr := Basis.repr_fin_two (commutatorBasis α β hα) ⟨x, hx⟩
+  have : x ∈ span K {e₂, e₃} := by
+    rwa [← commutator_is_span_e₂e₃ (hα := hα)]
+  let ⟨a, b, h⟩ := mem_span_pair.mp this
+  have w := h
+  unfold e₂ e₃ at h
+  change (a • ![(0:K), 1, 0] + b • ![(0:K), 0, 1] : Fin 3 → K) = x at h
+  rw [Matrix.smul_vec3, Matrix.smul_vec3, Matrix.vec3_add] at h
+  simp only [Nat.succ_eq_add_one, Nat.reduceAdd, smul_eq_mul, mul_zero, add_zero, mul_one,
+    zero_add] at h
+  symm at h
+  have x00 : x 0 = 0 := by
+    simp_all
+  have x1a : x 1 = a := by
+    simp_all
+  have x2b : x 2 = b := by
+    simp_all
+  have h_repr := Basis.repr_fin_two (commutatorBasis α β hα) ⟨x, hx⟩
+  rw [Subtype.ext_iff] at h_repr
+  simp only [LieSubmodule.coe_add, SetLike.val_smul] at h_repr
+  rw [h_repr] at w
+  rw [B_basis_0, B_basis_1] at w
+  let B : Fin 2 → Family K α β := ![e₂, e₃]
+  have B_is_li_ambient : LinearIndependent K (M := Family K α β) B := by
+    unfold B
+    refine LinearIndependent.pair_iff.mpr ?_
+    simp only [e₂_def, e₃_def]
+    intro s t hst
+    unfold Family at hst
+    constructor
+    · apply_fun (fun f ↦ f 1) at hst
+      simp only [Nat.succ_eq_add_one, Nat.reduceAdd, Matrix.smul_cons, smul_eq_mul, mul_zero,
+        mul_one, Matrix.smul_empty, Fin.isValue, Pi.add_apply, Matrix.cons_val_one,
+        Matrix.cons_val_zero, add_zero, Pi.zero_apply] at hst
+      exact hst
+    · apply_fun (fun f ↦ f 2) at hst
+      simp only [Matrix.smul_cons, smul_eq_mul, mul_zero,
+        mul_one, Matrix.smul_empty, Pi.add_apply, Matrix.cons_val_two,
+        Matrix.tail_cons, Matrix.head_cons, zero_add, Pi.zero_apply] at hst
+      exact hst
+  obtain ⟨a_eq, b_eq⟩ := LinearIndependent.eq_of_pair (R := K) (M := Family K α β) (x := e₂) (y
+      := e₃) B_is_li_ambient w
+  rw [a_eq] at x1a
+  rw [b_eq] at x2b
+  norm_cast
+  rw [x1a, x2b]
+  ext j
+  fin_cases j
+  · simp only [Fin.zero_eta, Matrix.cons_val_zero]
+  · simp only [Fin.mk_one, Fin.isValue, Nat.succ_eq_add_one, Nat.reduceAdd, Matrix.cons_val_one,
+    Matrix.cons_val_fin_one]
+
+
+-- @@ L1212-1213 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Family.ade₁ := ad K (Family K α β) e₁
+
+
+-- @@ L1215-1216 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Family.adjoint (x : Family K α β) := ad K (Family K α β) x
+
+
+-- @@ L1218-1222 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.ade₁_pc : ∀ x ∈ (commutator K (Family K α β)),
+  ade₁ x ∈ (commutator K (Family K α β)) := by
+  intro x hx
+  unfold ade₁
+  simpa only [ad_apply] using lie_mem_commutator e₁ x
+
+
+-- @@ L1224-1228 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.ad_pc (x : Family K α β) : ∀ y ∈ (commutator K
+    (Family K α β)), (adjoint x) y ∈ (commutator K (Family K α β)) := by
+  intro y hy
+  unfold adjoint
+  simpa only [ad_apply] using lie_mem_commutator x y
+
+
+-- @@ L1230-1233 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Family.adRestr (x : Family K α β) : (commutator K
+    (Family K α β)) →ₗ[K] (commutator K (Family K α β)) :=
+  LinearMap.restrict (adjoint x) (ad_pc x)
+
+
+-- @@ L1235-1236 verbatim
+/-- TODO. -/
+def _root_.LieAlgebra.Dim3.Family.ade₁Restr (α β : K) := adRestr e₁ (α:=α) (β:=β)
+
+
+-- @@ L1238-1241 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.ad_restr_apply (x : Family K α β) (y : Family K α β)
+    (hy : y ∈ (commutator K (Family K α β))) :
+    adRestr x (⟨y, hy⟩ : (commutator K (Family K α β))) = ⟨adjoint x y, ad_pc x y hy⟩ :=
+  rfl
+
+
+-- @@ L1243-1283 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.M_is_ade₁_restr {hα : α ≠ 0} : LinearMap.toMatrix
+    (commutatorBasis α β hα) (commutatorBasis α β hα) (ade₁Restr α β) = M α β := by
+    let e₁α : Family K α β := ![α⁻¹, 0, 0]
+    let e₂β : Family K α β := ![0, -β, 1]
+    unfold ade₁Restr
+    unfold M
+    ext i j
+    simp only [LinearMap.toMatrix_apply]
+    fin_cases j
+    · simp only [Fin.zero_eta, Fin.isValue, Matrix.cons_val', Matrix.cons_val_zero,
+      Matrix.cons_val_fin_one]
+      rw [ad_restr_apply]
+      unfold adjoint
+      simp only [ad_apply]
+      simp only [B_basis_0]
+      simp only [Family.bracket]
+      simp only [e₂_def]
+      rw [B_basis_repr]
+      simp only [Matrix.cons_val_zero,
+        Matrix.cons_val_two, Matrix.tail_cons, Matrix.head_cons, mul_zero, sub_self, zero_mul,
+        Matrix.cons_val_one, mul_one, zero_add, sub_zero, e₁]
+      fin_cases i
+      · simp only [Fin.zero_eta, Matrix.cons_val_zero]
+      · simp only [Nat.succ_eq_add_one, Nat.reduceAdd, Fin.mk_one, Fin.isValue,
+        Matrix.cons_val_one, Matrix.cons_val_fin_one]
+    · simp only [Fin.mk_one, Fin.isValue, Matrix.cons_val', Matrix.cons_val_one,
+      Matrix.cons_val_fin_one]
+      rw [ad_restr_apply]
+      unfold adjoint
+      simp only [ad_apply]
+      simp only [B_basis_1]
+      simp only [Family.bracket]
+      simp only [e₃_def]
+      rw [B_basis_repr]
+      simp only [Matrix.cons_val_zero,
+        Matrix.cons_val_two, Matrix.tail_cons, Matrix.head_cons, mul_one, mul_zero, sub_zero,
+          Matrix.cons_val_one, add_zero]
+      unfold e₁
+      fin_cases i
+      · simp only [Fin.zero_eta, Matrix.cons_val_zero,one_mul]
+      · simp only [Matrix.cons_val_zero, one_mul, Fin.mk_one, Matrix.cons_val_one]
+
+
+-- @@ L1285-1289 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.tr_ade₁ (hα : α ≠ 0) : LinearMap.trace _ (commutator K
+    (Family K α β)) (ade₁Restr α β) = β :=by
+    rw [LinearMap.trace_eq_matrix_trace K (commutatorBasis α β hα) (ade₁Restr α β)]
+    rw [M_is_ade₁_restr]
+    exact M_trace
+
+
+-- @@ L1291-1295 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.det_ade₁ (hα : α ≠ 0) : LinearMap.det (ade₁Restr α β) = -α
+    :=by
+    rw [← LinearMap.det_toMatrix (ι:=Fin 2) (f:=(ade₁Restr α β)) (commutatorBasis α β hα)]
+    rw[M_is_ade₁_restr]
+    exact M_det
+
+
+-- @@ L1297-1307 verbatim
+theorem _root_.LieAlgebra.Dim3.Family.e₁_not_in_comm (hα : α ≠ 0) : e₁ ∉ commutator K
+    (Family K α β) := by
+    intro hb0
+    rw [e₁_def] at hb0
+    have hb0S : ![1, 0, 0] ∈ (commutator K (Family K α β)).toSubmodule := hb0
+    rw [commutator_is_span_e₂e₃ (α:=α) (β:=β) (hα:=hα)] at hb0S
+    have hb0S' : (![1, 0, 0] : Family K α β) ∈ span K {(e₂ : Family K α β), e₃} := hb0S
+    obtain ⟨a, b, h⟩ := (mem_span_pair (R := K) (M := Family K α β)).mp hb0S'
+    unfold e₂ e₃ at h
+    change (a • ![(0:K), 1, 0] + b • ![(0:K), 0, 1] : Fin 3 → K) = ![1, 0, 0] at h
+    simp_all
+
+
+-- @@ L1309-1309 verbatim
+end Family
+
+-- @@ L1310-1310 verbatim
+end dim3_family_lemmas
+
+-- @@ L1311-1311 verbatim
+end Dim3
+
+-- @@ L1312-1312 verbatim
+end LieAlgebra

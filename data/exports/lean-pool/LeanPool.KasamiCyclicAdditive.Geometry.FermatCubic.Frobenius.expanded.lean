@@ -1,0 +1,57 @@
+/-
+Copyright (c) 2026 D.S. McNeil, Gábor P. Nagy, Attila Vajda. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: D.S. McNeil, Gábor P. Nagy, Attila Vajda
+-/
+module
+
+public import Aesop.BuiltinRules
+public import Mathlib.Algebra.Field.Defs
+public import Mathlib.Algebra.Group.Nat.Defs
+import LeanPool.KasamiCyclicAdditive.Preliminaries.Arithmetic
+import Mathlib.CategoryTheory.Category.Init
+import Mathlib.Combinatorics.Matroid.Init
+import Mathlib.MeasureTheory.Integral.Bochner.Basic
+import Mathlib.NumberTheory.ArithmeticFunction.Misc
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L18-26 verbatim
+/-!
+# Frobenius periodicity
+
+If an element of a field of characteristic two is fixed by `pi^k` and by `pi^n`,
+where `pi` is the Frobenius `x -> x^2` and `gcd (k, n) = 1`, then it is fixed by `pi`, hence lies
+in the prime field `F_2`.
+
+No algebraic closedness is needed: `x^2 = x` already forces `x = 0` or `x = 1` in any field.
+-/
+
+
+-- @@ L28-28 verbatim
+@[expose] public section
+
+
+-- @@ L30-30 verbatim
+namespace KasamiCyclicAdditive.FermatCubic
+
+
+-- @@ L32-32 verbatim
+variable {K : Type*} [Field K]
+
+
+-- @@ L34-43 verbatim
+/-- An element fixed by `pi^k` and `pi^n` with `gcd (k, n) = 1`
+lies in `F_2`, i.e. equals `0` or `1`. -/
+theorem eq_zero_or_one_of_frobenius_fixed {x : K} {k n : ℕ} (hkn : Nat.gcd k n = 1)
+    (hk : x ^ 2 ^ k = x) (hn : x ^ 2 ^ n = x) : x = 0 ∨ x = 1 := by
+  have h := pow_two_pow_gcd hk hn
+  rw [hkn, pow_one] at h
+  have : x * (x - 1) = 0 := by ring_nf; linear_combination h
+  rcases mul_eq_zero.mp this with h0 | h1
+  · exact Or.inl h0
+  · exact Or.inr (sub_eq_zero.mp h1)
+
+
+-- @@ L45-45 verbatim
+end KasamiCyclicAdditive.FermatCubic

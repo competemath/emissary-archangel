@@ -1,0 +1,58 @@
+/-
+Copyright (c) 2026 OpenAI. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: OpenAI
+-/
+
+module
+
+import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
+public import Mathlib.Analysis.Calculus.Deriv.Basic
+public import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
+
+
+-- @@ L13-13 verbatim
+/-! The mean of a genuine derivative of a periodic field is zero. -/
+
+
+-- @@ L15-15 verbatim
+@[expose] public section
+
+
+
+-- @@ L18-18 verbatim
+noncomputable section
+
+
+-- @@ L20-20 verbatim
+namespace EulerPeriodicDerivativeMean
+
+
+-- @@ L22-22 verbatim
+open MeasureTheory
+
+
+-- @@ L24-24 verbatim
+variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E] [CompleteSpace E]
+
+
+-- @@ L26-31 verbatim
+theorem integral_derivative_eq_zero (P : ℝ) (f f' : ℝ → E)
+    (hf : ∀ θ, HasDerivAt f (f' θ) θ) (hf' : Continuous f')
+    (hper : Function.Periodic f P) : (∫ θ in 0..P, f' θ)=0 := by
+  rw [intervalIntegral.integral_eq_sub_of_hasDerivAt (fun θ _ => hf θ)
+    (hf'.intervalIntegrable 0 P)]
+  simpa only [zero_add] using sub_eq_zero.mpr (hper 0)
+
+
+-- @@ L33-38 verbatim
+/-- A coefficient independent of angle cannot change this zero-mean conclusion. -/
+theorem integral_constant_smul_derivative_eq_zero (P c : ℝ) (f f' : ℝ → E)
+    (hf : ∀ θ, HasDerivAt f (f' θ) θ) (hf' : Continuous f')
+    (hper : Function.Periodic f P) : (∫ θ in 0..P, c • f' θ)=0 := by
+  rw [intervalIntegral.integral_smul, integral_derivative_eq_zero P f f' hf hf' hper,
+    smul_zero]
+
+
+-- @@ L40-40 verbatim
+end EulerPeriodicDerivativeMean

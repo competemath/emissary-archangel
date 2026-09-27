@@ -1,0 +1,114 @@
+/-
+Copyright (c) 2026 OpenAI. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: OpenAI
+-/
+
+module
+
+public import LeanPool.NavierStokesAndEuler.Euler.PacketProfileRegularity
+public import LeanPool.NavierStokesAndEuler.Euler.PacketRecursiveBase
+public import LeanPool.NavierStokesAndEuler.Euler.TransversePacketCorrectorOperator
+public import LeanPool.NavierStokesAndEuler.Euler.PacketCylinderHighForcing
+import LeanPool.NavierStokesAndEuler.Euler.TransversePacketCorrectorSupport
+public import LeanPool.NavierStokesAndEuler.Euler.TransversePacketPressureGradientProperties
+
+
+-- @@ L16-16 verbatim
+/-! The genuine homogeneous high-mode solution supplies the primary profile's regularity. -/
+
+
+-- @@ L18-18 verbatim
+@[expose] public section
+
+
+
+-- @@ L21-21 verbatim
+noncomputable section
+
+
+-- @@ L23-23 verbatim
+namespace EulerPacketCylinderField
+
+
+-- @@ L25-25 verbatim
+open Set MeasureTheory EulerSmoothLimit EulerPacketPointJets EulerPacketProfileRecursion
+
+
+-- @@ L27-27 verbatim
+variable {P T : ℝ} [Fact (0 < P)]
+
+
+-- @@ L29-34 verbatim
+/-- Change time as an element of `ProfileRegularity P T' hT' S a`. -/
+def ProfileRegularity.changeTime {T' : ℝ} {hT : 0 ≤ T} {S : Set Space} {a : Profile}
+    (G : ProfileRegularity P T hT S a) (h : T = T') (hT' : 0 ≤ T') :
+    ProfileRegularity P T' hT' S a := by
+  subst T'
+  exact G
+
+
+-- @@ L36-37 verbatim
+variable {U : Type*} [NormedAddCommGroup U] [InnerProductSpace ℝ U] [CompleteSpace U]
+  {D : EulerTransversePacketProvider.Data U} {raw : VectorField}
+
+
+-- @@ L39-66 verbatim
+/-- Primary, bundling `high`, `mean`, `corrector`, `pressure` and the required compatibility
+proofs. -/
+def ProfileRegularity.primary (G : EulerTransversePacketProvider.Forcing P D raw)
+    (I : EulerTransversePacketProvider.InitialData P D) (O : Operators)
+    (hcorrector : O.curlCorrector = D.curlCorrector P) :
+    ProfileRegularity P D.T D.T_pos.le D.support (primaryProfile O (G.vector I) (G.scalar I)) where
+  high := G.vectorField I
+  mean := Field.zero P D.T
+  corrector := (G.curlCorrectorField I).congr (fun _ _ _ => by
+    change O.curlCorrector (G.vector I) _ = D.curlCorrector P (G.vector I) _
+    rw [hcorrector])
+  pressure := G.scalarGradientField I
+  highT := G.vectorDerivative I
+  meanT := 0
+  correctorT := G.correctorDerivative I
+  highDerivative := G.vectorDerivativeField I
+  meanDerivative := Field.zero P D.T
+  correctorDerivative := G.correctorDerivativeField I
+  high_time := G.vectorField_time I
+  mean_time := Field.zero_time D.T_pos.le
+  corrector_time := G.curlCorrectorField_time I
+  high_zero t x hx θ := G.vector_zero_outside I t x hx θ
+  corrector_zero t x hx θ := by
+    change O.curlCorrector (G.vector I) (t,(x,θ)) = 0
+    rw [hcorrector,G.curlCorrector_eq I t x θ]
+    exact G.corrector_zero_outside I t x hx θ
+  pressure_zero t x hx θ := G.scalarGradient_zero_outside I t x hx θ
+  mean_angle _ _ _ := rfl
+
+
+-- @@ L68-71 verbatim
+/-- Zero forcing is an actual supported smooth cylinder path with zero angular integral. -/
+def homogeneousForcing (D : EulerTransversePacketProvider.Data U) :
+    EulerTransversePacketProvider.Forcing P D (0 : VectorField) :=
+  (Field.zero P D.T).transverseForcingOfRaw D (fun _ _ _ _ => rfl) (fun _ _ => by simp)
+
+
+-- @@ L73-78 verbatim
+/-- Homogeneous primary, given by `primaryProfile O ((homogeneousForcing (P := P) D).vector I)
+((homogeneousForcing (P := P) D).scalar I)`. -/
+def homogeneousPrimary (D : EulerTransversePacketProvider.Data U)
+    (I : EulerTransversePacketProvider.InitialData P D) (O : Operators) : Profile :=
+  primaryProfile O ((homogeneousForcing (P := P) D).vector I) ((homogeneousForcing (P := P)
+      D).scalar I)
+
+
+-- @@ L80-86 verbatim
+/-- Homogeneous primary regularity, given by `ProfileRegularity.primary (homogeneousForcing D) I
+O hcorrector`. -/
+def homogeneousPrimaryRegularity (D : EulerTransversePacketProvider.Data U)
+    (I : EulerTransversePacketProvider.InitialData P D) (O : Operators)
+    (hcorrector : O.curlCorrector = D.curlCorrector P) :
+    ProfileRegularity P D.T D.T_pos.le D.support (homogeneousPrimary D I O) :=
+  ProfileRegularity.primary (homogeneousForcing D) I O hcorrector
+
+
+-- @@ L88-88 verbatim
+end EulerPacketCylinderField

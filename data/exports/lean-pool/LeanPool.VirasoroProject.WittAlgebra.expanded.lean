@@ -1,0 +1,222 @@
+/-
+Copyright (c) 2026 Kalle Kytölä. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Kalle Kytölä
+-/
+module
+
+public import LeanPool.VirasoroProject.CyclicTripleSum
+public import LeanPool.VirasoroProject.ToMathlib.LinearAlgebra.Basis.Defs
+public import Mathlib.Algebra.Lie.Basic
+public import Mathlib.Algebra.NoZeroSMulDivisors.Defs
+public import Mathlib.LinearAlgebra.DFinsupp
+import Mathlib.Data.Rat.Cast.Order
+import Mathlib.LinearAlgebra.Basis.Bilinear
+import Mathlib.Tactic.ContinuousFunctionalCalculus
+import Mathlib.Tactic.NormNum.Abs
+import Mathlib.Tactic.NormNum.DivMod
+import Mathlib.Tactic.NormNum.OfScientific
+
+
+-- @@ L20-54 verbatim
+/-!
+# Witt algebra
+
+This file defines the Witt algebra, an infinite-dimensional Lie algebra.
+A few assumptions are made of the ground ring `𝕜`, mainly that it is of characteristic zero.
+
+Typical interpretations of the Witt algebra are the following:
+ * In the case that the ground field is the real numbers, `𝕜 = ℝ`, the Witt algebra is the Lie
+   algebra of polynomial vector fields on the circle.
+ * In the case that the ground field is the complex numbers, `𝕜 = ℂ`, the Witt algebra is the
+   Lie algebra of meromorphic vector fields on the Riemann sphere with poles only at 0 and ∞.
+
+## Main definitions
+
+* `WittAlgebra`: The Witt algebra.
+* `WittAlgebra.lgen`: The (commonly used) basis {ℓₙ : n ∈ ℤ} of the Witt algebra.
+
+## Main statements
+
+* `WittAlgebra.instLieAlgebra`: The Witt algebra is a Lie algebra.
+
+## Implementation notes
+
+We define the Witt algebra based on an explicit basis indexed by the integers `ℤ`. This should be
+the most basic implementation.
+
+TODO: Prove that the Witt algebra is isomorphic, e.g., to the Lie algebra of meromorphic vector
+fields on the Riemann sphere with poles only at 0 and ∞. (This of course needs some amount of
+differential geometry to be added to Lean.)
+
+## Tags
+
+Witt algebra
+
+-/
+
+
+-- @@ L56-56 verbatim
+@[expose] public section
+
+
+-- @@ L58-58 verbatim
+namespace VirasoroProject
+
+
+-- @@ L60-60 verbatim
+open Module
+
+
+-- @@ L62-62 verbatim
+variable (𝕜 : Type*) [CommRing 𝕜]
+
+
+-- @@ L64-65 verbatim
+/-- The Witt algebra: an ∞-dimensional Lie algebra (polynomial vector fields on a circle). -/
+def WittAlgebra := ℤ →₀ 𝕜
+
+
+-- @@ L67-67 verbatim
+noncomputable instance : AddCommGroup (WittAlgebra 𝕜) := Finsupp.instAddCommGroup
+
+
+-- @@ L69-69 verbatim
+noncomputable instance : Module 𝕜 (WittAlgebra 𝕜) := Finsupp.module ..
+
+
+-- @@ L71-71 verbatim
+namespace WittAlgebra
+
+
+-- @@ L73-74 verbatim
+/-- The basis of `ℓₙ` generators of the Witt algebra (indices `n : ℤ`). -/
+noncomputable def lgen : Basis ℤ 𝕜 (WittAlgebra 𝕜) := Finsupp.basisFun _ _
+
+
+-- @@ L76-76 verbatim
+lemma lgen_eq_single (n : ℤ) : lgen 𝕜 n = Finsupp.single n 1 := rfl
+
+
+-- @@ L78-81 verbatim
+/-- The Lie bracket for the Witt algebra `WittAlgebra` as a bilinear map. -/
+noncomputable def bracket :
+    (WittAlgebra 𝕜) →ₗ[𝕜] (WittAlgebra 𝕜) →ₗ[𝕜] (WittAlgebra 𝕜) :=
+  (lgen 𝕜).constr 𝕜 <| fun n ↦ (lgen 𝕜).constr 𝕜 <| fun m ↦ (n - m : 𝕜) • lgen 𝕜 (n + m)
+
+
+-- @@ L83-87 verbatim
+/-- `⁅ℓ(n), ℓ(m)⁆ = (n-m) • ℓ(n+m)` in `WittAlgebra`. -/
+@[simp]
+lemma bracket_lgen_lgen' (n m : ℤ) :
+    bracket 𝕜 (lgen 𝕜 n) (lgen 𝕜 m) = (n - m : 𝕜) • lgen 𝕜 (n + m) := by
+  simp only [bracket, Basis.constr_basis]
+
+
+-- @@ L89-93 verbatim
+lemma bracket_eq_neg_flip :
+    bracket 𝕜 = -(bracket 𝕜).flip := by
+  apply LinearMap.ext_basis (lgen _) (lgen _)
+  intro n m
+  simp [add_comm m, ← neg_smul, neg_sub]
+
+
+-- @@ L95-95 verbatim
+variable {𝕜}
+
+
+-- @@ L97-100 verbatim
+/-- Antisymmetry of the Lie bracket of the Witt algebra `WittAlgebra`. -/
+lemma bracket_antisymm (X Y : WittAlgebra 𝕜) :
+    bracket 𝕜 X Y = - bracket 𝕜 Y X := by
+  simpa using LinearMap.congr_fun (LinearMap.congr_fun (bracket_eq_neg_flip 𝕜) X) Y
+
+
+-- @@ L102-109 verbatim
+/-- Antisymmetry (`⁅X, X⁆ = 0` form) of the Lie bracket of the Witt algebra `WittAlgebra`. -/
+lemma bracket_self [CharZero 𝕜] [NoZeroSMulDivisors 𝕜 (WittAlgebra 𝕜)] (X : WittAlgebra 𝕜) :
+    bracket 𝕜 X X = 0 := by
+  have aux : (2 : 𝕜) • bracket 𝕜 X X = 0 := by
+    rw [two_smul]
+    nth_rw 1 [bracket_antisymm X X]
+    abel
+  simpa only [OfNat.ofNat_ne_zero, false_or] using eq_zero_or_eq_zero_of_smul_eq_zero aux
+
+
+-- @@ L111-111 verbatim
+variable (𝕜)
+
+
+-- @@ L113-126 verbatim
+/-- The Jacobi identity of the Lie bracket of the Witt algebra `WittAlgebra`. -/
+lemma bracketCyclic_eq_zero :
+    cyclicTripleSumHom (bracket 𝕜) (bracket 𝕜) = 0 := by
+  apply LinearMap.ext_basis (lgen _) (lgen _)
+  intro n m
+  apply (lgen _).ext
+  intro k
+  simp only [cyclicTripleSumHom_apply, bracket_lgen_lgen', map_smul, Int.cast_add, smul_smul,
+             LinearMap.zero_apply]
+  rw [show n + (m + k) = n + m + k by ring,
+      show m + (k + n) = n + m + k by ring,
+      show k + (n + m) = n + m + k by ring]
+  match_scalars
+  ring
+
+
+-- @@ L128-128 verbatim
+variable {𝕜}
+
+
+-- @@ L130-140 verbatim
+/-- The Leibniz property (Jacobi identity) of the Lie bracket of the Witt algebra `WittAlgebra`. -/
+lemma bracket_leibniz (X Y Z : WittAlgebra 𝕜) :
+    bracket 𝕜 X (bracket 𝕜 Y Z) =
+      bracket 𝕜 (bracket 𝕜 X Y) Z + bracket 𝕜 Y (bracket 𝕜 X Z) := by
+  have key := LinearMap.congr_fun (LinearMap.congr_fun (LinearMap.congr_fun
+                (bracketCyclic_eq_zero 𝕜) X) Y) Z
+  simp only [cyclicTripleSumHom_apply, LinearMap.zero_apply] at key
+  rw [add_assoc (bracket 𝕜 X _)] at key
+  rw [eq_neg_of_add_eq_zero_left key]
+  rw [bracket_antisymm Z X, bracket_antisymm Z _]
+  simp
+
+
+-- @@ L142-142 verbatim
+variable [CharZero 𝕜] [NoZeroSMulDivisors 𝕜 (WittAlgebra 𝕜)]
+
+
+-- @@ L144-150 verbatim
+/-- The Lie ring structure on the Witt algebra `WittAlgebra`. -/
+noncomputable instance : LieRing (WittAlgebra 𝕜) where
+  bracket X Y := bracket _ X Y
+  add_lie X₁ X₂ Y := by simp only [bracket, map_add, LinearMap.add_apply]
+  lie_add X Y₁ Y₂ := by simp only [map_add]
+  lie_self X := bracket_self X
+  leibniz_lie X Y Z := bracket_leibniz X Y Z
+
+
+-- @@ L152-154 verbatim
+/-- The Lie algebra structure on the Witt algebra `WittAlgebra`. -/
+noncomputable instance : LieAlgebra 𝕜 (WittAlgebra 𝕜) where
+  lie_smul c X Y := map_smul (bracket 𝕜 X) c Y
+
+
+-- @@ L156-156 verbatim
+variable (𝕜)
+
+
+-- @@ L158-162 verbatim
+/-- `⁅ℓ(n), ℓ(m)⁆ = (n-m) • ℓ(n+m)` in `WittAlgebra`. -/
+@[simp]
+lemma bracket_lgen_lgen (n m : ℤ) :
+    ⁅lgen 𝕜 n, lgen 𝕜 m⁆ = (n - m : 𝕜) • lgen 𝕜 (n + m) :=
+  bracket_lgen_lgen' 𝕜 n m
+
+
+-- @@ L164-164 verbatim
+end WittAlgebra -- namespace
+
+
+-- @@ L166-166 verbatim
+end VirasoroProject -- namespace

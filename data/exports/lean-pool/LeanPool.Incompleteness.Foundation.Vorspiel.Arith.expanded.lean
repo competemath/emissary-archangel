@@ -1,0 +1,986 @@
+/-
+Copyright (c) 2026 Palalansoukî. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Palalansoukî
+-/
+module
+
+public import Mathlib.Computability.PartrecBasis
+public import Mathlib.Logic.Godel.GodelBetaFunction
+import LeanPool.Incompleteness.Foundation.Vorspiel.Vorspiel
+
+
+-- @@ L12-12 verbatim
+/-! # Arith -/
+
+
+-- @@ L14-14 verbatim
+@[expose] public section
+
+
+
+-- @@ L17-17 verbatim
+open Mathlib List.Vector Part
+
+
+-- @@ L19-19 verbatim
+namespace Nat
+
+
+-- @@ L21-21 verbatim
+lemma pos_of_eq_one (h : n = 1) : 0 < n := by simp[h]
+
+
+-- @@ L23-24 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def isEqNat (n m : ℕ) : ℕ := if n = m then 1 else 0
+
+
+-- @@ L26-27 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def isLtNat (n m : ℕ) : ℕ := if n < m then 1 else 0
+
+
+-- @@ L29-30 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def isLeNat (n m : ℕ) : ℕ := if n ≤ m then 1 else 0
+
+
+-- @@ L32-33 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def isDvdNat (n m : ℕ) : ℕ := if n ∣ m then 1 else 0
+
+
+-- @@ L35-36 verbatim
+@[simp] lemma isEqNat_pos_iff :
+    0 < isEqNat n m ↔ n = m := by simp[isEqNat]; by_cases n = m <;> simp[*]
+
+
+-- @@ L38-39 verbatim
+@[simp] lemma isLtNat_pos_iff :
+    0 < isLtNat n m ↔ n < m := by simp[isLtNat]; by_cases n < m <;> simp[*]
+
+
+-- @@ L41-42 verbatim
+@[simp] lemma isLeNat_pos_iff :
+    0 < isLeNat n m ↔ n ≤ m := by simp[isLeNat]; by_cases n ≤ m <;> simp[*]
+
+
+-- @@ L44-45 verbatim
+@[simp] lemma isDvdNat_pos_iff :
+    0 < isDvdNat n m ↔ n ∣ m := by simp[isDvdNat]; by_cases n ∣ m <;> simp[*]
+
+
+-- @@ L47-48 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def inv (n : ℕ) : ℕ := isEqNat n 0
+
+
+-- @@ L50-51 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def pos (n : ℕ) : ℕ := isLtNat 0 n
+
+
+-- @@ L53-53 verbatim
+@[simp] lemma inv_zero : inv 0 = 1 := rfl
+
+
+-- @@ L55-55 verbatim
+@[simp] lemma inv_iff_ne_zero : inv n = 0 ↔ 0 < n := by simp[inv, isEqNat, zero_lt_iff]
+
+
+-- @@ L57-57 verbatim
+@[simp] lemma inv_ne_zero (h : n ≠ 0) : inv n = 0 := by simp[inv, isEqNat, h]
+
+
+-- @@ L59-59 verbatim
+@[simp] lemma pos_zero : pos 0 = 0 := rfl
+
+
+-- @@ L61-61 verbatim
+@[simp] lemma pos_ne_zero (h : n ≠ 0) : pos n = 1 := by simp[pos, isLtNat, h]
+
+
+-- @@ L63-64 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def and (n m : ℕ) : ℕ := isLtNat 0 (n * m)
+
+
+-- @@ L66-67 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def or (n m : ℕ) : ℕ := isLtNat 0 (n + m)
+
+
+-- @@ L69-70 verbatim
+lemma and_eq (n m : ℕ) :
+    and n m = if 0 < n ∧ 0 < m then 1 else 0 := by simp [mul_pos_iff, and, isLtNat]
+
+
+-- @@ L72-73 verbatim
+lemma and_eq_one (n m : ℕ) :
+    and n m = 1 ↔ 0 < n ∧ 0 < m := by simp[and_eq, imp_false, Nat.pos_iff_ne_zero]
+
+
+-- @@ L75-75 verbatim
+lemma or_eq (n m : ℕ) : or n m = if 0 < n ∨ 0 < m then 1 else 0 := by simp[or, isLtNat]
+
+
+-- @@ L77-78 verbatim
+@[simp] lemma and_pos_iff (n m : ℕ) :
+    0 < and n m ↔ 0 < n ∧ 0 < m := by simp[and_eq]; by_cases 0 < n ∧ 0 < m <;> simp[*]
+
+
+-- @@ L80-81 verbatim
+@[simp] lemma or_pos_iff' (n m : ℕ) :
+    0 < or n m ↔ 0 < n ∨ 0 < m := by simp[or_eq]; by_cases 0 < n ∨ 0 < m <;> simp[*]
+
+
+-- @@ L83-83 verbatim
+@[simp] lemma inv_pos_iff (n : ℕ) : 0 < inv n ↔ ¬0 < n := by simp[inv]
+
+
+-- @@ L85-85 verbatim
+@[simp] lemma pos_pos_iff (n : ℕ) : 0 < pos n ↔ 0 < n := by simp[pos]
+
+
+-- @@ L87-88 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def ball (n : ℕ) (φ : ℕ → ℕ) : ℕ := n.rec 1 (fun n ih => (φ n).pos.and ih)
+
+
+-- @@ L90-101 verbatim
+@[simp] lemma ball_pos_iff {φ : ℕ → ℕ} {n : ℕ} : 0 < ball n φ ↔ ∀ m < n, 0 < φ m := by
+  induction n with
+  | zero => simp [ball]
+  | succ n ih =>
+    simp only [ball, and_pos_iff, pos_pos_iff, Nat.lt_succ_iff] at *
+    simp only [ih]; exact ⟨
+    by
+      rintro ⟨hn, hp⟩ m hm
+      rcases lt_or_eq_of_le hm with (hm | rfl)
+      · exact hp _ hm
+      · exact hn,
+    by intro h; exact ⟨h n (Nat.le_refl n), fun m hm => h m (le_of_lt hm)⟩⟩
+
+
+-- @@ L103-104 verbatim
+@[simp] lemma ball_eq_zero_iff {φ : ℕ → ℕ} {n : ℕ} : ball n φ = 0 ↔ ∃ m < n, φ m = 0 := by
+  simpa[-ball_pos_iff] using not_iff_not.mpr (ball_pos_iff (φ := φ) (n := n))
+
+
+-- @@ L106-113 verbatim
+lemma ball_pos_iff_eq_one {φ : ℕ → ℕ} {n : ℕ} : ball n φ = 1 ↔ 0 < ball n φ := by
+  induction n with
+  | zero => simp [ball]
+  | succ n _ =>
+    simp only [ball, and_pos_iff, pos_pos_iff] at *
+    constructor
+    · intro h; simpa using pos_of_eq_one h
+    · intro h; simpa[and_eq_one] using h
+
+
+-- @@ L115-130 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+inductive ArithPart₁ : ∀ {n}, (List.Vector ℕ n →. ℕ) → Prop
+  | zero {n} : @ArithPart₁ n (fun _ => 0)
+  | one {n} : @ArithPart₁ n (fun _ => 1)
+  | add {n} (i j : Fin n) : @ArithPart₁ n (fun v => v.get i + v.get j : List.Vector ℕ n → ℕ)
+  | mul {n} (i j : Fin n) : @ArithPart₁ n (fun v => v.get i * v.get j : List.Vector ℕ n → ℕ)
+  | proj {n} (i : Fin n) : @ArithPart₁ n (fun v => v.get i : List.Vector ℕ n → ℕ)
+  | equal {n} (i j : Fin n) : @ArithPart₁ n (fun v =>
+    isEqNat (v.get i) (v.get j) : List.Vector ℕ n → ℕ)
+  | lt {n} (i j : Fin n) : @ArithPart₁ n (fun v =>
+    isLtNat (v.get i) (v.get j) : List.Vector ℕ n → ℕ)
+  | comp {m n f} (g : Fin n → List.Vector ℕ m →. ℕ) :
+    ArithPart₁ f → (∀ i, ArithPart₁ (g i)) → ArithPart₁ fun v =>
+      (List.Vector.mOfFn fun i => g i v) >>= f
+  | rfind {n} {f : List.Vector ℕ (n + 1) → ℕ} :
+    ArithPart₁ (n := n + 1) f → ArithPart₁ (fun v => rfind fun n => Part.some (f (n ::ᵥ v) = 0))
+
+
+-- @@ L132-133 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def Arith₁ (f : List.Vector ℕ n → ℕ) := ArithPart₁ (n := n) f
+
+
+-- @@ L135-135 verbatim
+end Nat
+
+
+-- @@ L137-137 verbatim
+namespace Nat.ArithPart₁
+
+
+-- @@ L139-139 verbatim
+open _root_.Nat.Primrec
+
+
+-- @@ L141-175 verbatim
+lemma to_partrec' {n} {f : List.Vector ℕ n →. ℕ} (hf : ArithPart₁ f) : Partrec' f := by
+  induction hf
+  case zero => exact Partrec'.of_part (Partrec.const' 0)
+  case one  => exact Partrec'.of_part (Partrec.const' 1)
+  case add n i j =>
+    exact (Partrec'.of_part ((Primrec.nat_add.comp
+      (Primrec.vector_get.comp _root_.Primrec.id (_root_.Primrec.const i))
+      (Primrec.vector_get.comp _root_.Primrec.id (_root_.Primrec.const j))).to_comp.partrec))
+  case mul n i j =>
+    exact (Partrec'.of_part ((Primrec.nat_mul.comp
+      (Primrec.vector_get.comp _root_.Primrec.id (_root_.Primrec.const i))
+      (Primrec.vector_get.comp _root_.Primrec.id (_root_.Primrec.const j))).to_comp.partrec))
+  case proj n i =>
+    exact Partrec'.of_part
+      (Primrec.vector_get.comp _root_.Primrec.id (_root_.Primrec.const i)).to_comp.partrec
+  case equal n i j =>
+    have : Primrec (fun (v : List.Vector ℕ n) => if v.get i = v.get j then 1 else 0) :=
+      Primrec.ite
+        (Primrec.eq.comp
+          (Primrec.vector_get.comp _root_.Primrec.id (_root_.Primrec.const i))
+          (Primrec.vector_get.comp _root_.Primrec.id (_root_.Primrec.const j)))
+        (_root_.Primrec.const 1)
+        (_root_.Primrec.const 0)
+    exact Partrec'.of_part this.to_comp.partrec
+  case lt n i j =>
+    have : Primrec (fun (v : List.Vector ℕ n) => if v.get i < v.get j then 1 else 0) :=
+      Primrec.ite
+        (Primrec.nat_lt.comp
+          (Primrec.vector_get.comp _root_.Primrec.id (_root_.Primrec.const i))
+          (Primrec.vector_get.comp _root_.Primrec.id (_root_.Primrec.const j)))
+        (_root_.Primrec.const 1)
+        (_root_.Primrec.const 0)
+    exact Partrec'.of_part this.to_comp.partrec
+  case comp m n f g _ _ hf hg => exact Partrec'.comp g hf hg
+  case rfind f _ hf => exact Partrec'.rfind hf
+
+
+-- @@ L177-179 verbatim
+lemma of_eq {n} {f g : List.Vector ℕ n →. ℕ} (hf : ArithPart₁ f) (H : ∀ i, f i = g i) :
+    ArithPart₁ g :=
+  (funext H : f = g) ▸ hf
+
+
+-- @@ L181-236 expanded
+lemma bind (f : List.Vector ℕ n → ℕ →. ℕ) (hf : @ArithPart₁ (n + 1) fun v => f v.tail v.head) {g}
+    (hg : @ArithPart₁ n g) : @ArithPart₁ n fun v => (g v).bind (f v) :=
+  (hf.comp (vecCons g fun i v => v.get i)
+        (fun i => by
+          cases i using Fin.cases
+          · simpa using hg
+          · exact proj _)).of_eq
+    (by
+      intro v
+      rcases Part.eq_none_or_eq_some (g v) with (hgv | ⟨x, hgv⟩)
+      · have hm : List.Vector.mOfFn (fun i => (vecCons g fun j v => v.get j) i v) = Part.none :=
+          by
+          apply Part.eq_none_iff.mpr
+          intro w hw
+          have hall := mem_vector_mOfFn.mp hw
+          have hx : w.get 0 ∈ g v := hall 0
+          rw [hgv] at hx
+          exact Part.notMem_none _ hx
+        calc
+          (List.Vector.mOfFn fun i => (vecCons g fun j v => v.get j) i v) >>=
+                (fun w => f w.tail w.head) =
+              Part.none.bind (fun w : List.Vector ℕ (n + 1) => f w.tail w.head) :=
+            congrArg (fun p => p.bind (fun w : List.Vector ℕ (n + 1) => f w.tail w.head)) hm
+          _ = Part.none := (Part.bind_none _)
+          _ = Part.none.bind (f v) := (Part.bind_none (f v)).symm
+          _ = (g v).bind (f v) := congrArg (fun p => p.bind (f v)) hgv.symm
+      · have hm :
+          List.Vector.mOfFn (fun i => (vecCons g fun j v => v.get j) i v) = Part.some (x ::ᵥ v) :=
+          by
+          apply Part.eq_some_iff.mpr
+          apply mem_vector_mOfFn.mpr
+          intro i
+          cases i using Fin.cases with
+          | zero =>
+            have hx : x ∈ g v := Part.eq_some_iff.mp hgv
+            exact hx
+          | succ i => exact Part.mem_some_iff.mpr (get_cons_succ (a := x) (v := v) i).symm
+        have hf : (fun w => f w.tail w.head : List.Vector ℕ (n + 1) →. ℕ) (x ::ᵥ v) = f v x := by
+          rfl
+        calc
+          (List.Vector.mOfFn fun i => (vecCons g fun j v => v.get j) i v) >>=
+                (fun w => f w.tail w.head) =
+              (Part.some (x ::ᵥ v)).bind (fun w : List.Vector ℕ (n + 1) => f w.tail w.head) :=
+            congrArg (fun p => p.bind (fun w : List.Vector ℕ (n + 1) => f w.tail w.head)) hm
+          _ = (fun w => f w.tail w.head : List.Vector ℕ (n + 1) →. ℕ) (x ::ᵥ v) :=
+            (Part.bind_some _ _)
+          _ = f v x := hf
+          _ = (Part.some x).bind (f v) := (Part.bind_some x (f v)).symm
+          _ = (g v).bind (f v) := congrArg (fun p => p.bind (f v)) hgv.symm)
+
+
+-- @@ L238-242 verbatim
+lemma map (f : List.Vector ℕ n → ℕ → ℕ) (hf : @Arith₁ (n + 1) fun v => f v.tail v.head) {g} (hg :
+    @ArithPart₁ n g) :
+    @ArithPart₁ n fun v => (g v).map (f v) :=
+  (bind (Part.some <| f · ·) (hf.of_eq <| by simp) hg).of_eq <| by
+  intro v; rcases Part.eq_none_or_eq_some (g v) with (_ | ⟨x, _⟩) <;> simp[*]
+
+
+-- @@ L244-246 verbatim
+lemma comp₁ (f : ℕ →. ℕ) (hf : @ArithPart₁ 1 fun v => f (v.get 0)) {n g} (hg : @Arith₁ n g) :
+    @ArithPart₁ n fun v => f (g v) :=
+  (hf.comp _ fun _ => hg).of_eq (by simp)
+
+
+-- @@ L248-257 verbatim
+lemma comp₂ (f : ℕ → ℕ →. ℕ) (hf : @ArithPart₁ 2 fun v => f (v.get 0) (v.get 1)) {n g h} (hg :
+    @Arith₁ n g) (hh :
+    @Arith₁ n h) :
+    @ArithPart₁ n fun v => f (g v) (h v) :=
+  (hf.comp ![g, h] (fun i => i.cases hg (fun i => by simpa [Arith₁] using hh))).of_eq
+    (by intro i
+        have : (fun j =>
+          (![↑g, h] : Fin 2 → List.Vector ℕ n →. ℕ) j i) = (fun j => pure (![g i, h i] j)) := by
+          funext j; cases j using Fin.cases <;> simp[Fin.eq_zero]
+        simp[]; simp[this] )
+
+
+-- @@ L259-262 verbatim
+lemma rfind' {n} {f : ℕ → List.Vector ℕ n → ℕ} (h :
+    Arith₁ (n :=
+  n + 1) (fun v => f v.head v.tail)) :
+    ArithPart₁ (fun v => Nat.rfind fun n => Part.some (f n v = 0)) := rfind h
+
+
+-- @@ L264-268 verbatim
+lemma rfind'₁ {n} (i : Fin n) {f : ℕ → ℕ → ℕ} (h :
+    Arith₁ (n :=
+  2) (fun v => f (v.get 0) (v.get 1))) :
+    ArithPart₁ (fun v => Nat.rfind fun n => Part.some (f n (v.get i) = 0)) :=
+  (rfind h).comp₁ (fun m => Nat.rfind fun n => Part.some (f n m = 0)) (proj i)
+
+
+-- @@ L270-270 verbatim
+end Nat.ArithPart₁
+
+
+-- @@ L272-272 verbatim
+namespace Nat.Arith₁
+
+
+-- @@ L274-275 verbatim
+lemma of_eq {n} {f g : List.Vector ℕ n → ℕ} (hf : Arith₁ f) (H : ∀ i, f i = g i) : Arith₁ g :=
+  (funext H : f = g) ▸ hf
+
+
+-- @@ L277-277 verbatim
+lemma zero {n} : @Arith₁ n (fun _ => 0 : List.Vector ℕ n → ℕ) := Nat.ArithPart₁.zero
+
+
+-- @@ L279-279 verbatim
+lemma one {n} : @Arith₁ n (fun _ => 1 : List.Vector ℕ n → ℕ) := Nat.ArithPart₁.one
+
+
+-- @@ L281-281 verbatim
+lemma add {n} (i j : Fin n) : @Arith₁ n (fun v => v.get i + v.get j) := Nat.ArithPart₁.add i j
+
+
+-- @@ L283-283 verbatim
+lemma mul {n} (i j : Fin n) : @Arith₁ n (fun v => v.get i * v.get j) := Nat.ArithPart₁.mul i j
+
+
+-- @@ L285-285 verbatim
+lemma proj {n} (i : Fin n) : @Arith₁ n (fun v => v.get i) := Nat.ArithPart₁.proj i
+
+
+-- @@ L287-287 verbatim
+lemma head {n} : @Arith₁ (n + 1) (fun v => v.head) := (Nat.ArithPart₁.proj 0).of_eq <| by simp
+
+
+-- @@ L289-291 verbatim
+lemma equal {n} (i j : Fin n) :
+    @Arith₁ n (fun v => isEqNat (v.get i) (v.get j)) :=
+  Nat.ArithPart₁.equal i j
+
+
+-- @@ L293-295 verbatim
+lemma lt {n} (i j : Fin n) :
+    @Arith₁ n (fun v => isLtNat (v.get i) (v.get j)) :=
+  Nat.ArithPart₁.lt i j
+
+
+-- @@ L297-319 verbatim
+lemma comp {m n f} (g : Fin n → List.Vector ℕ m → ℕ) (hf : Arith₁ f) (hg : ∀ i, Arith₁ (g i)) :
+    Arith₁ fun v => f (List.Vector.ofFn fun i => g i v) :=
+  (Nat.ArithPart₁.comp (fun i => g i : Fin n → List.Vector ℕ m →. ℕ) hf hg).of_eq <| by
+    intro v
+    let w := List.Vector.ofFn fun i => g i v
+    have hgi : (fun i => (g i : List.Vector ℕ m →. ℕ) v) =
+        fun i => Part.some (g i v) := by
+      funext i
+      exact PFun.coe_val (g i) v
+    have hm : (List.Vector.mOfFn fun i => (g i : List.Vector ℕ m →. ℕ) v) =
+        Part.some w := by
+      rw [hgi]
+      simpa only [w] using Vector.mOfFn_part_some (fun i => g i v)
+    calc
+      (List.Vector.mOfFn fun i => (g i : List.Vector ℕ m →. ℕ) v) >>=
+          (f : List.Vector ℕ n →. ℕ) =
+        (Part.some w).bind (f : List.Vector ℕ n →. ℕ) :=
+          congrArg (fun p => p.bind (f : List.Vector ℕ n →. ℕ)) hm
+      _ = (f : List.Vector ℕ n →. ℕ) w := Part.bind_some _ _
+      _ = Part.some (f w) := PFun.coe_val f w
+      _ = ((fun v => f (List.Vector.ofFn fun i => g i v)) :
+          List.Vector ℕ m →. ℕ) v := by
+        exact (PFun.coe_val (fun v => f (List.Vector.ofFn fun i => g i v)) v).symm
+
+
+-- @@ L321-322 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def Vec {n m} (f : List.Vector ℕ n → List.Vector ℕ m) : Prop := ∀ i, Arith₁ fun v => (f v).get i
+
+
+-- @@ L324-324 verbatim
+protected lemma nil {n} : @Vec n 0 (fun _ => nil) := fun i => i.elim0
+
+
+-- @@ L326-327 verbatim
+protected lemma cons {n m f g} (hf : @Arith₁ n f) (hg : @Vec n m g) :
+    Vec (fun v => f v ::ᵥ g v) := fun i => Fin.cases (by simp [*]) (fun i => by simp [hg i]) i
+
+
+-- @@ L329-331 verbatim
+lemma tail {n f} (hf : @Arith₁ n f) : @Arith₁ n.succ fun v => f v.tail :=
+  (hf.comp _ fun i => @proj _ i.succ).of_eq fun v => by
+    rw[←ofFn_get v.tail]; congr; funext i; exact (List.Vector.get_tail_succ v i).symm
+
+
+-- @@ L333-334 verbatim
+lemma comp' {n m f g} (hf : @Arith₁ m f) (hg : @Vec n m g) : Arith₁ fun v => f (g v) :=
+  (hf.comp _ hg).of_eq fun v => by simp
+
+
+-- @@ L336-338 verbatim
+lemma comp₁ (f : ℕ → ℕ) (hf : @Arith₁ 1 fun v => f (v.get 0)) {n g} (hg : @Arith₁ n g) :
+    @Arith₁ n fun v => f (g v) :=
+  (hf.comp _ fun _ => hg).of_eq (by simp)
+
+
+-- @@ L340-345 verbatim
+lemma comp₂ (f : ℕ → ℕ → ℕ) (hf : @Arith₁ 2 fun v => f (v.get 0) (v.get 1)) {n g h} (hg :
+    @Arith₁ n g) (hh :
+    @Arith₁ n h) :
+    @Arith₁ n fun v => f (g v) (h v) :=
+  (hf.comp ![g, h] (fun i =>
+    i.cases hg (fun i => by simpa using hh))).of_eq (by intro i; simp[])
+
+
+-- @@ L347-347 verbatim
+lemma succ {n} (i : Fin n) : Arith₁ (fun v => v.get i + 1) := (add 0 1).comp₂ _ (proj i) one
+
+
+-- @@ L349-351 verbatim
+lemma const {n} : ∀ m, @Arith₁ n fun _ => m
+  | 0     => zero
+  | m + 1 => (succ 0).comp₁ _ (const m)
+
+
+-- @@ L353-353 verbatim
+lemma inv {n} (i : Fin n) : Arith₁ (fun v => inv (v.get i)) := (equal 0 1).comp₂ _ (proj i) zero
+
+
+-- @@ L355-355 verbatim
+lemma pos {n} (i : Fin n) : Arith₁ (fun v => pos (v.get i)) := (lt 0 1).comp₂ _ zero (proj i)
+
+
+-- @@ L357-359 verbatim
+lemma and {n} (i j : Fin n) :
+    Arith₁ (fun v => and (v.get i) (v.get j)) :=
+  (lt 0 1).comp₂ _ zero (mul i j)
+
+
+-- @@ L361-363 verbatim
+lemma or {n} (i j : Fin n) :
+    Arith₁ (fun v => or (v.get i) (v.get j)) :=
+  (lt 0 1).comp₂ _ zero (add i j)
+
+
+-- @@ L365-366 verbatim
+lemma le {n} (i j : Fin n) : @Arith₁ n (fun v => isLeNat (v.get i) (v.get j)) :=
+  ((or 0 1).comp₂ _ (lt i j) (equal i j)).of_eq <| by simp[Nat.or_eq, Nat.le_iff_lt_or_eq, isLeNat]
+
+
+-- @@ L368-375 verbatim
+lemma if_pos {n} {f g h : List.Vector ℕ n → ℕ} (hf : Arith₁ f) (hg : Arith₁ g) (hh : Arith₁ h) :
+    Arith₁ (fun v => if 0 < f v then g v else h v) := by
+  have : Arith₁ (fun v => (f v).pos * (g v) + (f v).inv * (h v)) :=
+    (add 0 1).comp₂ _
+      ((mul 0 1).comp₂ _ ((pos 0).comp₁ _ hf) hg)
+      ((mul 0 1).comp₂ _ ((inv 0).comp₁ _ hf) hh)
+  exact this.of_eq <| by
+    intro i; by_cases hf : f i = 0 <;> simp[hf, zero_lt_iff]
+
+
+-- @@ L377-377 verbatim
+lemma to_arith₁ {f : List.Vector ℕ n → ℕ} (h : Arith₁ f) : @ArithPart₁ n (fun x => f x) := h
+
+
+-- @@ L379-379 verbatim
+end Nat.Arith₁
+
+
+-- @@ L381-381 verbatim
+namespace Nat.ArithPart₁
+
+
+-- @@ L383-385 verbatim
+lemma rfindPos {n} {f : List.Vector ℕ (n + 1) → ℕ} (h : Arith₁ f) :
+    ArithPart₁ (fun v => Nat.rfind fun n => Part.some (0 < f (n ::ᵥ v))) :=
+  (ArithPart₁.rfind ((Arith₁.inv 0).comp₁ _ ((Arith₁.lt 0 1).comp₂ _ zero h))).of_eq <| by simp
+
+
+-- @@ L387-391 verbatim
+lemma rfindPos₁ {n} (i : Fin n) {f : ℕ → ℕ → ℕ} (h :
+    Arith₁ (n :=
+  2) (fun v => f (v.get 0) (v.get 1))) :
+    ArithPart₁ (fun v => Nat.rfind fun n => Part.some (0 < f n (v.get i))) :=
+  (rfindPos h).comp₁ (fun m => Nat.rfind fun n => Part.some (0 < f n m)) (proj i)
+
+
+-- @@ L393-399 verbatim
+lemma inv_fun {n} (i : Fin n) (f : ℕ → ℕ) (hf : Arith₁ (n := 1) (fun v => f (v.get 0))) :
+    ArithPart₁ (fun v => Nat.rfind (fun x => Part.some (f x ≤ v.get i ∧ v.get i < f (x + 1)))) := by
+  let F : ℕ → ℕ → ℕ := fun x y => (isLeNat (f x) y).and (isLtNat y (f (x + 1)))
+  have := rfindPos₁ i (f := F) <| (Arith₁.and 0 1).comp₂ _
+      ((Arith₁.le 0 1).comp₂ _ (hf.comp₁ _ (proj 0)) (proj 1))
+      ((Arith₁.lt 0 1).comp₂ _ (proj 1) (hf.comp₁ _ <| (Arith₁.succ 0).comp₁ _ <| proj 0))
+  exact this.of_eq <| by intro v; simp [F]
+
+
+-- @@ L401-416 verbatim
+lemma implicit_fun {n} (i : Fin n) (f : List.Vector ℕ n → ℕ → ℕ)
+  (hf : Arith₁ (n := n + 1) (fun v => f v.tail v.head)) :
+    ArithPart₁ (fun v =>
+      Nat.rfind (fun x => Part.some (f v x ≤ v.get i ∧ v.get i < f v (x + 1)))) := by
+  let F : List.Vector ℕ (n + 1) → ℕ :=
+    fun v =>
+      (isLeNat (f v.tail v.head) (v.get i.succ)).and (isLtNat (v.get i.succ) (f v.tail (v.head +
+        1)))
+  have : Arith₁ F :=
+    (Arith₁.and 0 1).comp₂ _
+      ((Arith₁.le 0 1).comp₂ _ hf (proj i.succ))
+      ((Arith₁.lt 0 1).comp₂ _ (proj i.succ)
+        (Arith₁.comp' hf (Arith₁.cons
+          ((Arith₁.add 0 1).comp₂ _ Arith₁.head one) (fun i => Arith₁.tail (proj i)))))
+  have := rfindPos this
+  exact this.of_eq <| by intro v; simp [F]
+
+
+-- @@ L418-418 verbatim
+end Nat.ArithPart₁
+
+
+-- @@ L420-420 verbatim
+namespace Nat.Arith₁
+
+
+-- @@ L422-434 verbatim
+protected lemma sqrt {n} (i : Fin n) : Arith₁ (fun v => sqrt (v.get i)) := by
+  have := ArithPart₁.implicit_fun i (fun _ x => x * x) ((mul 0 1).comp₂ _ head head)
+  exact this.of_eq <| by
+    intro v; simp only [Bool.decide_and, PFun.coe_val, eq_some_iff]
+    refine Nat.mem_rfind.mpr ?_
+    simp only [mem_some_iff]
+    constructor
+    · symm; simp only [Bool.and_eq_true, decide_eq_true_eq]; constructor
+      · exact sqrt_le (List.Vector.get v i)
+      · exact lt_succ_sqrt (List.Vector.get v i)
+    · intro m hm; symm
+      simp only [Bool.and_eq_false_eq_eq_false_or_eq_false, decide_eq_false_iff_not, not_le, not_lt]
+      right; exact Iff.mp le_sqrt hm
+
+
+-- @@ L436-461 verbatim
+lemma sub {n} (i j : Fin n) : Arith₁ (fun v => v.get i - v.get j) := by
+  let F : List.Vector ℕ (n + 1) → ℕ := fun v =>
+    (isEqNat (v.head + v.get j.succ) (v.get i.succ)).or
+    ((isLtNat (v.get i.succ) (v.get j.succ)).and (isEqNat v.head 0))
+  have : Arith₁ F :=
+    (or 0 1).comp₂ _
+      ((equal 0 1).comp₂ _ ((add 0 1).comp₂ _ head (proj j.succ)) (proj i.succ))
+      ((and 0 1).comp₂ _ ((lt 0 1).comp₂ _ (proj i.succ) (proj j.succ)) ((equal 0 1).comp₂ _ head
+        zero))
+  exact (ArithPart₁.rfindPos this).of_eq <| by
+    intro v
+    simp only [head_cons, get_cons_succ, or_pos_iff', isEqNat_pos_iff, and_pos_iff,
+      isLtNat_pos_iff, Bool.decide_or, Bool.decide_and, PFun.coe_val, eq_some_iff, F]
+    refine Nat.mem_rfind.mpr ?_
+    simp only [mem_some_iff]
+    constructor
+    · symm; simp only [Bool.or_eq_true, decide_eq_true_eq, Bool.and_eq_true]
+      have : v.get i < v.get j ∨ v.get j ≤ v.get i := Nat.lt_or_ge _ _
+      rcases this with (hv | hv)
+      · right; exact ⟨hv, Nat.sub_eq_zero_of_le (Nat.le_of_lt hv)⟩
+      · left; exact Nat.sub_add_cancel hv
+    · intro m hm; symm
+      simp only [Bool.or_eq_false_eq_eq_false_and_eq_false,
+        decide_eq_false_iff_not, Bool.and_eq_false_eq_eq_false_or_eq_false, not_lt]
+      have : m + v.get j < v.get i := add_lt_of_lt_sub hm
+      exact ⟨ne_of_lt this, by left; exact le_trans le_add_self (le_of_lt this)⟩
+
+
+-- @@ L463-468 verbatim
+protected lemma pair {n} (i j : Fin n) : Arith₁ (fun v => (v.get i).pair (v.get j)) := by
+  have := if_pos (lt i j)
+    ((add 0 1).comp₂ _ (mul j j) (proj i))
+    ((add 0 1).comp₂ _ ((add 0 1).comp₂ _ (mul i i) (proj i)) (proj j))
+  exact this.of_eq <| by
+    intro v; simp[pair]
+
+
+-- @@ L470-481 verbatim
+lemma unpair₁ {n} (i : Fin n) : Arith₁ (fun v => (v.get i).unpair.1) := by
+  have hf : Arith₁ (fun v => isLtNat (v.get i - (v.get i).sqrt * (v.get i).sqrt) (v.get i).sqrt) :=
+    (lt 0 1).comp₂ _
+      ((Arith₁.sub 0 1).comp₂ _ (proj i) ((mul 0 1).comp₂ _ (Arith₁.sqrt i) (Arith₁.sqrt i)))
+      (Arith₁.sqrt i)
+  have hg : Arith₁ (fun v => v.get i - (v.get i).sqrt * (v.get i).sqrt) :=
+    (sub 0 1).comp₂ _ (proj i) ((mul 0 1).comp₂ _ (Arith₁.sqrt i) (Arith₁.sqrt i))
+  have hh : Arith₁ (fun v => sqrt (v.get i)) := Arith₁.sqrt i
+  have := if_pos hf hg hh
+  exact this.of_eq <| by
+    intro v; simp only [isLtNat_pos_iff, unpair]
+    by_cases v.get i - (v.get i).sqrt * (v.get i).sqrt < sqrt (v.get i) <;> simp[*]
+
+
+-- @@ L483-495 verbatim
+lemma unpair₂ {n} (i : Fin n) : Arith₁ (fun v => (v.get i).unpair.2) := by
+  have hf : Arith₁ (fun v => isLtNat (v.get i - (v.get i).sqrt * (v.get i).sqrt) (v.get i).sqrt) :=
+    (lt 0 1).comp₂ _
+      ((Arith₁.sub 0 1).comp₂ _ (proj i) ((mul 0 1).comp₂ _ (Arith₁.sqrt i) (Arith₁.sqrt i)))
+      (Arith₁.sqrt i)
+  have hg : Arith₁ (fun v => sqrt (v.get i)) := Arith₁.sqrt i
+  have hh : Arith₁ (fun v => v.get i - (v.get i).sqrt * (v.get i).sqrt - (v.get i).sqrt) :=
+    (sub 0 1).comp₂ _ ((sub 0 1).comp₂ _ (proj i) ((mul 0 1).comp₂ _ (Arith₁.sqrt i) (Arith₁.sqrt
+      i))) (Arith₁.sqrt i)
+  have := if_pos hf hg hh
+  exact this.of_eq <| by
+    intro v; simp only [isLtNat_pos_iff, unpair]
+    by_cases v.get i - (v.get i).sqrt * (v.get i).sqrt < sqrt (v.get i) <;> simp[*]
+
+
+-- @@ L497-536 verbatim
+lemma dvd (i j : Fin n) : Arith₁ (fun v => isDvdNat (v.get i) (v.get j)) := by
+  have hr : @Arith₁ (n + 1) (fun v =>
+    (isEqNat (v.head * (v.get i.succ)) (v.get j.succ)).or (isLtNat (v.get j.succ) v.head)) :=
+    (or 0 1).comp₂ _
+      ((equal 0 1).comp₂ _ ((mul 0 1).comp₂ _ head (proj i.succ)) (proj j.succ))
+      ((lt 0 1).comp₂ _ (proj j.succ) head)
+  have : @Arith₁ (n + 1) (fun v => isLeNat v.head (v.tail.get j)) :=
+    (le 0 1).comp₂ _ head ((proj j.succ).of_eq <| by
+      intro v
+      exact (List.Vector.get_tail_succ v j).symm)
+  have := ArithPart₁.map (fun v x => isLeNat x (v.get j)) this (ArithPart₁.rfindPos hr)
+  exact this.of_eq <| by
+    intro v
+    simp only [head_cons, get_cons_succ, or_pos_iff', isEqNat_pos_iff, isLtNat_pos_iff,
+      Bool.decide_or, isDvdNat, PFun.coe_val, eq_some_iff, mem_map_iff]
+    by_cases hv : v.get i ∣ v.get j
+    · simp only [hv, ↓reduceIte]
+      rcases least_number _ hv with ⟨k, hk, hkm⟩
+      have hkvj : k ≤ v.get j := by
+        by_cases hkz : k = 0
+        · simp[hkz]
+        · rw[hk]; exact Nat.le_mul_of_pos_left _ (Nat.zero_lt_of_ne_zero <| fun hvi => by
+            simp[hvi] at hk
+            have : v.get j ≠ 0 := hkm 0 (Nat.pos_of_ne_zero hkz)
+            contradiction)
+      refine ⟨k, Nat.mem_rfind.mpr ?_, by simp[isLeNat, hkvj]⟩
+      simp only [mem_some_iff]
+      exact ⟨by symm; simp only [Bool.or_eq_true, decide_eq_true_eq]; left; simp[hk, mul_comm],
+         by intro m hm; symm; simp[mul_comm m, Ne.symm (hkm m hm),
+           le_of_lt (lt_of_lt_of_le hm hkvj)]⟩
+    · simp only [hv, ↓reduceIte]
+      refine ⟨v.get j + 1, Nat.mem_rfind.mpr ?_, by simp [isLeNat]⟩
+      simp only [mem_some_iff]
+      exact ⟨by symm; simp, by
+        intro m hm; symm
+        simp only [Bool.or_eq_false_iff, decide_eq_false_iff_not, not_lt,
+          Nat.lt_succ_iff.mp hm, and_true]
+        intro A
+        have : v.get i ∣ v.get j := by rw[←A]; exact Nat.dvd_mul_left (List.Vector.get v i) m
+        contradiction⟩
+
+
+-- @@ L538-569 verbatim
+lemma rem (i j : Fin n) : Arith₁ (fun v => v.get i % v.get j) := by
+  let F : List.Vector ℕ (n + 1) → ℕ := fun v => isDvdNat (v.get j.succ) (v.get i.succ - v.head)
+  have : Arith₁ F := (dvd 0 1).comp₂ _ (proj j.succ) ((sub 0 1).comp₂ _ (proj i.succ) head)
+  exact (ArithPart₁.rfindPos this).of_eq <| by
+    intro v
+    apply Part.eq_some_iff.mpr
+    apply Nat.mem_rfind.mpr
+    constructor
+    · simp only [Part.mem_some_iff, true_eq_decide_iff, get_cons_succ, head_cons,
+        isDvdNat_pos_iff, F]
+      exact Nat.dvd_sub_mod (n := v.get j) (v.get i)
+    · intro m hm
+      simp only [Part.mem_some_iff, false_eq_decide_iff, get_cons_succ, head_cons,
+        isDvdNat_pos_iff, F]
+      intro A
+      have hmvi : m < v.get i := lt_of_lt_of_le hm <| Nat.mod_le (v.get i) (v.get j)
+      have hsub : v.get j ∣ v.get i % v.get j - m := by
+        have : v.get i - m - (v.get i - v.get i % v.get j) = v.get i % v.get j - m := by
+          rw[Nat.sub_eq_iff_eq_add (Nat.sub_le_sub_left (le_of_lt hm) _),
+            Nat.sub_eq_iff_eq_add (le_of_lt hmvi),
+            ←Nat.sub_add_comm (le_of_lt hm), Nat.add_sub_of_le (Nat.mod_le (v.get i) (v.get j)),
+            Nat.sub_add_cancel (le_of_lt hmvi)]
+        rw[←this]
+        exact Nat.dvd_sub A (Nat.dvd_sub_mod (n := v.get j) (v.get i))
+      have hpos : 0 < v.get i % v.get j - m := Nat.lt_sub_of_add_lt (by simpa using hm)
+      have : v.get i % v.get j - m < v.get j := by
+        have : v.get i % v.get j < v.get j :=
+          Nat.mod_lt _ (Nat.pos_of_ne_zero <| fun h =>
+            (Nat.not_lt.mpr (by simpa [Nat.sub_eq_zero_iff_le, h] using hsub)) hmvi)
+        exact lt_of_le_of_lt (sub_le _ _) this
+      have : ¬v.get j ∣ v.get i % v.get j - m := Nat.not_dvd_of_pos_of_lt hpos this
+      contradiction
+
+
+-- @@ L571-573 verbatim
+lemma beta (i j : Fin n) : Arith₁ (fun v => Nat.beta (v.get i) (v.get j)) :=
+  (rem 0 1).comp₂ _ ((unpair₁ 0).comp₁ (·.unpair.1) (proj i))
+    ((succ 0).comp₁ _ <| (mul 0 1).comp₂ _ (succ j) ((unpair₂ 0).comp₁ (·.unpair.2) (proj i)))
+
+
+-- @@ L575-632 verbatim
+lemma ball {φ : List.Vector ℕ n → ℕ → ℕ} (hp : @Arith₁ (n + 1) (fun v => φ v.tail v.head)) (i) :
+    Arith₁ (fun v => ball (v.get i) (φ v)) := by
+  let F : List.Vector ℕ (n + 1) → ℕ := fun v =>
+    (φ v.tail v.head).inv.or (isLeNat (v.get i.succ) v.head)
+  have hF : Arith₁ F := (or 0 1).comp₂ _ ((inv 0).comp₁ _ hp) ((le 0 1).comp₂ _ (proj i.succ) head)
+  have : @Arith₁ (n + 1) (fun v => isEqNat v.head (v.get i.succ)) :=
+    (equal 0 1).comp₂ _ head (proj i.succ)
+  have := ArithPart₁.map (fun v x => isEqNat x (v.get i))
+    (this.of_eq <| by
+      intro v
+      change v.head.isEqNat (v.get i.succ) = v.head.isEqNat (v.tail.get i)
+      rw [List.Vector.get_tail_succ])
+    (ArithPart₁.rfindPos hF)
+  exact this.of_eq <| by
+    intro v
+    rw [PFun.coe_val]
+    apply Part.eq_some_iff.mpr
+    apply (Part.mem_map_iff _).mpr
+    by_cases H : ∀ m < v.get i, 0 < φ v m
+    · refine ⟨v.get i, Nat.mem_rfind.mpr ⟨?_, ?_⟩, ?_⟩
+      · simp only [Part.mem_some_iff, true_eq_decide_iff, tail_cons, head_cons,
+          get_cons_succ, or_pos_iff', inv_pos_iff, not_lt, nonpos_iff_eq_zero,
+          isLeNat_pos_iff, F]
+        exact Or.inr le_rfl
+      · intro m hm
+        simp only [Part.mem_some_iff, false_eq_decide_iff, tail_cons, head_cons,
+          get_cons_succ, or_pos_iff', inv_pos_iff, not_lt, nonpos_iff_eq_zero,
+          isLeNat_pos_iff, F]
+        rintro (hzero | hle)
+        · exact (Nat.ne_zero_of_lt (H m hm)) hzero
+        · exact (Nat.not_le_of_lt hm) hle
+      · simp only [isEqNat, ↓reduceIte]
+        symm
+        exact ball_pos_iff_eq_one.mpr (ball_pos_iff.mpr H)
+    · have : ∃ x < List.Vector.get v i, φ v x = 0 ∧ ∀ y < x, φ v y ≠ 0 := by
+        simp only [not_forall, not_lt, nonpos_iff_eq_zero] at H
+        rcases least_number _ H with ⟨x, hx, hxl⟩
+        exact ⟨x, hx.1, hx.2, by
+          intro y hy; have : y < v.get i → φ v y ≠ 0 := by simpa using hxl y hy
+          exact this (lt_trans hy hx.1)⟩
+      rcases this with ⟨x, hx, hpx, hlx⟩
+      refine ⟨x, Nat.mem_rfind.mpr ⟨?_, ?_⟩, ?_⟩
+      · simp only [Part.mem_some_iff, true_eq_decide_iff, tail_cons, head_cons,
+          get_cons_succ, or_pos_iff', inv_pos_iff, not_lt, nonpos_iff_eq_zero,
+          isLeNat_pos_iff, F]
+        exact Or.inl hpx
+      · intro m hm
+        simp only [Part.mem_some_iff, false_eq_decide_iff, tail_cons, head_cons,
+          get_cons_succ, or_pos_iff', inv_pos_iff, not_lt, nonpos_iff_eq_zero,
+          isLeNat_pos_iff, F]
+        rintro (hzero | hle)
+        · exact (hlx m hm) hzero
+        · exact (Nat.not_le_of_lt (lt_trans hm hx)) hle
+      · have hne : x ≠ v.get i := ne_of_lt hx
+        have : isEqNat x (v.get i) = 0 := by simp only [isEqNat, hne, ↓reduceIte]
+        rw [this]
+        symm
+        exact ball_eq_zero_iff.mpr ⟨x, hx, hpx⟩
+
+
+-- @@ L634-638 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def recSequence (f : List.Vector ℕ n → ℕ) (g : List.Vector ℕ (n + 2) → ℕ) (z : ℕ) (v :
+    List.Vector ℕ n) :
+    List ℕ :=
+  List.ofFn fun i : Fin (z + 1) => Nat.recOn i (f v) (fun y IH => g (y ::ᵥ IH ::ᵥ v))
+
+
+-- @@ L640-647 verbatim
+lemma beta_unbeta_recSequence_eq (f : List.Vector ℕ n → ℕ) (g : List.Vector ℕ (n + 2) → ℕ) (z :
+    ℕ) (v :
+    List.Vector ℕ n)
+  (m : ℕ) (hm : m < z + 1) :
+    Nat.beta (unbeta (recSequence f g z v)) m = m.rec (f v) (fun y IH => g (y ::ᵥ IH ::ᵥ v)) := by
+  have : (unbeta (recSequence f g z v)).beta m = (recSequence f g z v).get ⟨m, _⟩ :=
+    Nat.beta_unbeta_coe (recSequence f g z v) ⟨m, by simp[recSequence, hm]⟩
+  rw [this]; simp [List.get_ofFn, recSequence, -List.get_eq_getElem]
+
+
+-- @@ L649-653 verbatim
+lemma beta_unbeta_recSequence_zero (f : List.Vector ℕ n → ℕ) (g : List.Vector ℕ (n + 2) → ℕ) (z :
+    ℕ) (v :
+    List.Vector ℕ n) :
+    Nat.beta (unbeta (recSequence f g z v)) 0 = f v := by
+  simpa using beta_unbeta_recSequence_eq f g z v 0 (inv_iff_ne_zero.mp rfl)
+
+
+-- @@ L655-662 verbatim
+lemma beta_unbeta_recSequence_succ (f : List.Vector ℕ n → ℕ) (g : List.Vector ℕ (n + 2) → ℕ) (z :
+    ℕ) (v :
+    List.Vector ℕ n)
+  {m : ℕ} (hm : m < z) :
+    Nat.beta (unbeta (recSequence f g z v)) (m + 1) =
+        g (m ::ᵥ Nat.beta (unbeta (recSequence f g z v)) m ::ᵥ v) := by
+  rw [beta_unbeta_recSequence_eq f g z v m (Nat.lt_add_right 1 hm),
+    beta_unbeta_recSequence_eq f g z v (m + 1) (Nat.add_lt_add_right hm 1)]
+
+
+-- @@ L664-671 verbatim
+lemma beta_eq_rec (f : List.Vector ℕ n → ℕ) (g : List.Vector ℕ (n + 2) → ℕ) {z : ℕ} {v}
+  (h0 : z.beta 0 = f v) (hs : ∀ i < m, z.beta (i + 1) = g (i ::ᵥ z.beta i ::ᵥ v)) :
+    z.beta m = m.rec (f v) (fun y IH => g (y ::ᵥ IH ::ᵥ v)) := by
+  induction m with
+  | zero => simp [h0]
+  | succ m ih =>
+    simp only
+    rw [hs m (Nat.lt_add_one m), ←ih (fun i hi => hs i (Nat.lt_succ_of_lt hi))]
+
+
+-- @@ L673-714 verbatim
+lemma prec {n f g} (hf : @Arith₁ n f) (hg : @Arith₁ (n + 2) g) :
+    @Arith₁ (n + 1) (fun v => v.head.rec (f v.tail) fun y IH => g (y ::ᵥ IH ::ᵥ v.tail)) := by
+  let F : List.Vector ℕ (n + 2) → ℕ := fun v =>
+    (isEqNat (Nat.beta v.head 0) (f v.tail.tail)).and
+    (Nat.ball v.tail.head <| fun i =>
+      isEqNat (Nat.beta v.head (i + 1)) (g (i ::ᵥ Nat.beta v.head i ::ᵥ v.tail.tail)))
+  have hp : @Arith₁ (n + 3) (fun v =>
+    isEqNat (Nat.beta v.tail.head (v.head + 1))
+    (g (v.head ::ᵥ Nat.beta v.tail.head v.head ::ᵥ v.tail.tail.tail))) :=
+    (equal 0 1).comp₂ _
+      ((beta 0 1).comp₂ _ head.tail ((succ 0).comp₁ _ head))
+      (hg.comp' <| head.cons <| ((beta 0 1).comp₂ _ head.tail head).cons <| by
+        intro i
+        exact (proj i).tail.tail.tail)
+  have hF : Arith₁ F := (and 0 1).comp₂ _
+    ((equal 0 1).comp₂ _ ((beta 0 1).comp₂ _ head zero) hf.tail.tail)
+    ((@ball (n + 2) (fun v i =>
+      isEqNat (Nat.beta v.head (i + 1))
+        (g (i ::ᵥ Nat.beta v.head i ::ᵥ v.tail.tail))) hp 1).of_eq <| by
+        simp[List.Vector.get_one])
+  have : @Arith₁ (n + 2) (fun v => Nat.beta v.head v.tail.head) :=
+    (beta 0 1).of_eq (by simp [List.Vector.get_one])
+  exact (ArithPart₁.map (fun v x => Nat.beta x v.head) this (ArithPart₁.rfindPos hF)).of_eq <| by
+    intro v
+    rw [PFun.coe_val]
+    apply Part.eq_some_iff.mpr
+    apply (Part.mem_map_iff _).mpr
+    suffices ∃ z : ℕ, z.beta 0 = f v.tail ∧ ∀ i < v.head, z.beta (i + 1) =
+      g (i ::ᵥ z.beta i ::ᵥ v.tail) by
+      rcases least_number _ this with ⟨z, ⟨hz0, hzs⟩, hzm⟩
+      refine ⟨z, Nat.mem_rfind.mpr ⟨?_, ?_⟩, beta_eq_rec f g hz0 hzs⟩
+      · simp only [Part.mem_some_iff, true_eq_decide_iff, add_succ_sub_one, head_cons,
+          tail_cons, and_pos_iff, isEqNat_pos_iff, ball_pos_iff, F]
+        exact ⟨hz0, hzs⟩
+      · intro m hm
+        simp only [Part.mem_some_iff, false_eq_decide_iff, add_succ_sub_one, head_cons,
+          tail_cons, and_pos_iff, isEqNat_pos_iff, ball_pos_iff, F]
+        exact hzm m hm
+    let l : List ℕ := recSequence f g v.head v.tail
+    exact ⟨unbeta l,
+      beta_unbeta_recSequence_zero f g v.head v.tail,
+      fun i hi => beta_unbeta_recSequence_succ f g v.head v.tail hi⟩
+
+
+-- @@ L716-722 verbatim
+lemma of_primrec {f : List.Vector ℕ n → ℕ} (hf : Primrec' f) : Arith₁ f := by
+  induction hf
+  case zero               => exact zero
+  case succ               => exact (@succ 1 0).of_eq (by simp)
+  case get i              => exact proj i
+  case comp f g _ _ hf hg => exact hf.comp _ hg
+  case prec f g _ _ hf hg => exact hf.prec hg
+
+
+-- @@ L724-729 verbatim
+lemma _root_.Nat.ArithPart₁.of_partrec {f : List.Vector ℕ n →. ℕ} (hf : Partrec' f) :
+    ArithPart₁ f := by
+  induction hf
+  case prim f hf          => exact of_primrec hf
+  case comp f g _ _ hf hg => exact hf.comp _ hg
+  case rfind f _ hf       => exact ArithPart₁.rfind hf
+
+
+-- @@ L731-731 verbatim
+end Nat.Arith₁
+
+
+-- @@ L733-733 verbatim
+namespace Nat.ArithPart₁
+
+
+-- @@ L735-745 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+inductive Code : ℕ → Type
+  | zero (n) : Code n
+  | one (n) : Code n
+  | add {n} (i j : Fin n) : Code n
+  | mul {n} (i j : Fin n) : Code n
+  | proj {n} (i : Fin n) : Code n
+  | equal {n} (i j : Fin n) : Code n
+  | lt {n} (i j : Fin n) : Code n
+  | comp {m n} : Code n → (Fin n → Code m) → Code m
+  | rfind {n} : Code (n + 1) → Code n
+
+
+-- @@ L747-747 verbatim
+instance (k) : Inhabited (Code k) := ⟨Code.zero k⟩
+
+
+-- @@ L749-763 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+inductive _root_.Nat.ArithPart₁.Code.eval : {n : ℕ} → Code n → (List.Vector ℕ n →. ℕ) → Prop
+  | zero {n} : Code.eval (Code.zero n) (fun _ => 0)
+  | one  {n} : Code.eval (Code.one n)  (fun _ => 1)
+  | add  {n} (i j : Fin n) : Code.eval (Code.add i j) (fun v => ↑(v.get i + v.get j))
+  | mul  {n} (i j : Fin n) : Code.eval (Code.mul i j) (fun v => ↑(v.get i * v.get j))
+  | proj {n} (i : Fin n)   : Code.eval (Code.proj i) (fun v => v.get i)
+  | equal {n} (i j : Fin n)   : Code.eval (Code.equal i j) (fun v => isEqNat (v.get i) (v.get j))
+  | lt {n} (i j : Fin n) : Code.eval (Code.lt i j) (fun v => isLtNat (v.get i) (v.get j))
+  | comp {m n} (c : Code n) (d : Fin n → Code m) (f : List.Vector ℕ n →. ℕ) (g : Fin n →
+    (List.Vector ℕ m →. ℕ)) :
+      Code.eval c f → (∀ i, Code.eval (d i) (g i)) →
+      Code.eval (c.comp d) (fun v => (List.Vector.mOfFn fun i => g i v) >>= f)
+  | rfind {n} (c : Code (n + 1)) (f : List.Vector ℕ (n + 1) → ℕ) :
+      Code.eval c f → Code.eval c.rfind (fun v => Nat.rfind fun n => Part.some (f (n ::ᵥ v) = 0))
+
+
+-- @@ L765-779 verbatim
+lemma exists_code : ∀ {n : ℕ} {f : List.Vector ℕ n →. ℕ}, ArithPart₁ f → ∃ c : Code n, c.eval f
+  | n, _, ArithPart₁.zero                => ⟨Code.zero n, Code.eval.zero⟩
+  | n, _, ArithPart₁.one                 => ⟨Code.one n, Code.eval.one⟩
+  | _, _, ArithPart₁.add i j             => ⟨Code.add i j, Code.eval.add i j⟩
+  | _, _, ArithPart₁.mul i j             => ⟨Code.mul i j, Code.eval.mul i j⟩
+  | _, _, ArithPart₁.proj i              => ⟨Code.proj i, Code.eval.proj i⟩
+  | _, _, ArithPart₁.equal i j           => ⟨Code.equal i j, Code.eval.equal i j⟩
+  | _, _, ArithPart₁.lt i j              => ⟨Code.lt i j, Code.eval.lt i j⟩
+  | _, _, @ArithPart₁.comp _ _ f g hf hg => by
+    rcases exists_code hf with ⟨cf, hcf⟩
+    choose cg hcg using fun i            => exists_code (hg i)
+    exact ⟨cf.comp cg, Code.eval.comp cf cg f g hcf hcg⟩
+  | _, _, @ArithPart₁.rfind _ f hf       => by
+    rcases exists_code hf with ⟨cf, hcf⟩
+    exact ⟨cf.rfind, Code.eval.rfind cf f hcf⟩
+
+
+-- @@ L781-781 verbatim
+end Nat.ArithPart₁

@@ -1,0 +1,22 @@
+{
+  "shard": 8,
+  "shards": 16,
+  "commit": "fdcf13c7cab6cd0eed22dc6b2f83672b6c4deb4d",
+  "toolchain": "leanprover/lean4:v4.34.0",
+  "modules": 422,
+  "exported": 421,
+  "failed": [
+    {
+      "module": "LeanPool.Incompleteness.Arith.First",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 795,
+    "verbatim": 21609,
+    "unexpanded": 1,
+    "failed": []
+  },
+  "minutes": 267,
+  "finishedAt": "2026-09-27T01:15:34.997Z"
+}

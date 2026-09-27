@@ -1,0 +1,201 @@
+/-
+Copyright (c) 2026 Utensil Song. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Utensil Song
+-/
+module
+
+public import LeanPool.ConnesRigidity.Paper.Section3.DualAutomorphism
+public import Mathlib.MeasureTheory.Measure.ProbabilityMeasure
+
+
+-- @@ L11-13 verbatim
+/-!
+Invariant dual-measure transport for Zhou's finite chart detector. Paper: §4.
+-/
+
+
+-- @@ L15-15 verbatim
+@[expose] public section
+
+
+-- @@ L17-17 verbatim
+namespace Connes
+
+-- @@ L18-18 verbatim
+namespace PaperChartMeasure
+
+
+-- @@ L20-20 verbatim
+open MeasureTheory
+
+-- @@ L21-21 verbatim
+open Construction
+
+-- @@ L22-22 verbatim
+open Construction.PaperKernel
+
+-- @@ L23-23 verbatim
+open BinaryPontryaginDual
+
+-- @@ L24-24 verbatim
+open PaperDualHaar
+
+-- @@ L25-25 verbatim
+open PaperDualTopology
+
+
+-- @@ L27-27 verbatim
+noncomputable section
+
+
+-- @@ L29-32 verbatim
+/--
+The `k` construction used in the Connes rigidity formalization.
+-/
+abbrev k := Construction.k
+
+-- @@ L33-36 verbatim
+/--
+The `D` construction used in the Connes rigidity formalization.
+-/
+abbrev D := PaperKernel.D
+
+-- @@ L37-40 verbatim
+/--
+The `CharacterSpace` construction used in the Connes rigidity formalization.
+-/
+abbrev CharacterSpace := PaperDualTopology.CharacterSpace
+
+
+-- @@ L42-55 verbatim
+/--
+The `dualCharacterEquivOfAction` construction used in the Connes rigidity formalization.
+-/
+def dualCharacterEquivOfAction {H : CountableDiscreteGroup}
+    (action : H →* Multiplicative (AddAut D)) (h : H) :
+    CharacterSpace ≃+ CharacterSpace :=
+  PaperDualAutomorphism.dualCharacterEquiv
+    (Multiplicative.toAdd (action h))
+
+/- The paper-facing action is kept on the additive character model. The
+existing generic criterion uses the raw Pontryagin-dual model, so this
+definition records the same transport without pretending those two types are
+definitionally equal. Paper: §4.
+-/
+
+-- @@ L56-61 verbatim
+/--
+The `paperDualCharacterAction` construction used in the Connes rigidity formalization.
+-/
+def paperDualCharacterAction {H : CountableDiscreteGroup}
+    (action : H →* Multiplicative (AddAut D)) (h : H) :
+    CharacterSpace → CharacterSpace := dualCharacterEquivOfAction action h
+
+
+-- @@ L63-68 verbatim
+/-- The additive character action is continuous. Paper: §4. -/
+theorem continuous_paperDualCharacterAction {H : CountableDiscreteGroup}
+    (action : H →* Multiplicative (AddAut D)) (h : H) :
+    Continuous (paperDualCharacterAction action h) :=
+  PaperDualAutomorphism.dualCharacterEquiv_continuous
+    (Multiplicative.toAdd (action h))
+
+
+-- @@ L70-74 verbatim
+/-- The additive character action is measurable. Paper: §4. -/
+theorem measurable_paperDualCharacterAction {H : CountableDiscreteGroup}
+    (action : H →* Multiplicative (AddAut D)) (h : H) :
+    Measurable (paperDualCharacterAction action h) :=
+  (continuous_paperDualCharacterAction action h).measurable
+
+
+-- @@ L76-83 verbatim
+/-- Invariant probability measure for the additive character action, whose
+measurability is recorded above. Paper: §4.
+-/
+def IsInvariantPaperSpectralMeasure {H : CountableDiscreteGroup}
+    (action : H →* Multiplicative (AddAut D))
+    (μ : ProbabilityMeasure CharacterSpace) : Prop :=
+  ∀ h : H,
+    (μ : Measure CharacterSpace).map (paperDualCharacterAction action h) = μ
+
+
+-- @@ L85-90 verbatim
+/--
+The `linearDetector` construction used in the Connes rigidity formalization.
+-/
+def linearDetector (d : D) : Set CharacterSpace :=
+  {χ | BinaryPontryaginDual.characterLinear (M := D)
+      (Additive.toMul χ) d = 1}
+
+
+-- @@ L92-95 verbatim
+theorem measurableSet_linearDetector (d : D) :
+    MeasurableSet (linearDetector d) := by
+  exact (PaperDualTopology.continuous_characterLinear_eval d).measurable
+    (MeasurableSet.singleton 1)
+
+
+-- @@ L97-126 verbatim
+theorem paperDualCharacterAction_preimage_linearDetector
+    {H : CountableDiscreteGroup} (action : H →* Multiplicative (AddAut D))
+    (h : H) (d e : D)
+    (he : Multiplicative.toAdd (action h⁻¹) e = d) :
+    paperDualCharacterAction action h ⁻¹' linearDetector e = linearDetector d := by
+  ext χ
+  change BinaryPontryaginDual.characterLinear (M := D)
+      (Additive.toMul (paperDualCharacterAction action h χ)) e = 1 ↔
+    BinaryPontryaginDual.characterLinear (M := D)
+      (Additive.toMul χ) d = 1
+  have heval :
+      BinaryPontryaginDual.characterLinear (M := D)
+          (Additive.toMul (paperDualCharacterAction action h χ)) e =
+        BinaryPontryaginDual.characterLinear (M := D)
+          (Additive.toMul χ) d := by
+    apply ZMod.injective_toCircle
+    rw [BinaryPontryaginDual.characterLinear_circle,
+      BinaryPontryaginDual.characterLinear_circle]
+    change (Additive.toMul
+        (PaperDualAutomorphism.dualCharacterEquiv
+          (Multiplicative.toAdd (action h)) χ))
+          (Multiplicative.ofAdd e) =
+      (Additive.toMul χ) (Multiplicative.ofAdd d)
+    rw [PaperDualAutomorphism.dualCharacterEquiv_apply]
+    have haction :
+        (Multiplicative.toAdd (action h)).symm e =
+          Multiplicative.toAdd (action h⁻¹) e := by
+      simp
+    rw [haction, he]
+  rw [heval]
+
+
+-- @@ L128-145 verbatim
+theorem detector_measure_eq_of_invariant
+    {H : CountableDiscreteGroup} (action : H →* Multiplicative (AddAut D))
+    (μ : ProbabilityMeasure CharacterSpace)
+    (hinv : IsInvariantPaperSpectralMeasure action μ)
+    (h : H) (d e : D)
+    (he : Multiplicative.toAdd (action h⁻¹) e = d) :
+    (μ : Measure CharacterSpace) (linearDetector e) =
+      (μ : Measure CharacterSpace) (linearDetector d) := by
+  calc
+    (μ : Measure CharacterSpace) (linearDetector e) =
+        (Measure.map (paperDualCharacterAction action h) μ)
+          (linearDetector e) := by rw [hinv h]
+    _ = (μ : Measure CharacterSpace)
+        (paperDualCharacterAction action h ⁻¹' linearDetector e) := by
+      rw [Measure.map_apply (measurable_paperDualCharacterAction action h)
+        (measurableSet_linearDetector e)]
+    _ = (μ : Measure CharacterSpace) (linearDetector d) := by
+      rw [paperDualCharacterAction_preimage_linearDetector action h d e he]
+
+
+-- @@ L147-147 verbatim
+end
+
+-- @@ L148-148 verbatim
+end PaperChartMeasure
+
+-- @@ L149-149 verbatim
+end Connes

@@ -1,0 +1,177 @@
+/-
+Copyright (c) 2026 Math Inc. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Math Inc
+-/
+module
+
+public import Mathlib.Analysis.Calculus.Deriv.Basic
+public import Mathlib.MeasureTheory.Integral.Bochner.Basic
+public import Mathlib.MeasureTheory.Integral.IntegrableOn
+public import Mathlib.MeasureTheory.Measure.Haar.OfBasis
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.Arctan
+import Mathlib.NumberTheory.Chebyshev
+
+
+-- @@ L15-29 verbatim
+/-!
+# Auxiliary tail lemmas for primitive sets above `x`
+
+This file contains the standalone calculus lemmas reused in the proof of `tailEstimate`.
+Its main output is a small API for the model kernels `1 / (t log(ct)^2)` and
+`2 / (t log(ct)^3)`: each kernel is integrable on an admissible tail, and its tail integral can
+be computed exactly.
+
+## Main statements
+
+* `integrableOn_Ioi_inv_log_sq`
+* `integral_Ioi_inv_log_sq`
+* `integrableOn_Ioi_two_inv_log_cube`
+* `integral_Ioi_two_inv_log_cube`
+-/
+
+
+-- @@ L31-31 verbatim
+@[expose] public section
+
+
+-- @@ L33-33 verbatim
+open scoped ArithmeticFunction BigOperators Topology
+
+-- @@ L34-34 verbatim
+open Filter MeasureTheory
+
+
+-- @@ L36-36 verbatim
+namespace PrimitiveSetsAboveX
+
+
+-- @@ L38-56 verbatim
+/--
+The logarithmic antiderivative underlying `tailEstimate` has derivative
+`-1 / (t log(ct)^2)`.
+-/
+lemma hasDerivAt_inv_log_mul {c t : ℝ} (hc : 0 < c) (hct : 1 < c * t) :
+    HasDerivAt (fun u => (Real.log (c * u))⁻¹)
+      (-(1 / (t * Real.log (c * t) ^ 2))) t := by
+  have hmul : HasDerivAt (fun u => c * u) c t := by
+    simpa [mul_comm] using (hasDerivAt_id t).const_mul c
+  have hlog : HasDerivAt (fun u => Real.log (c * u)) ((c * t)⁻¹ * c) t :=
+    (Real.hasDerivAt_log (show c * t ≠ 0 by positivity)).comp t hmul
+  have hlog_ne : Real.log (c * t) ≠ 0 :=
+    Real.log_ne_zero.mpr ⟨by linarith, by constructor <;> linarith⟩
+  have ht_ne : t ≠ 0 := by
+    simp_all
+  have hval : -((c * t)⁻¹ * c) / Real.log (c * t) ^ 2
+      = -(1 / (t * Real.log (c * t) ^ 2)) := by field_simp
+  rw [← hval]
+  exact hlog.inv hlog_ne
+
+
+-- @@ L58-74 verbatim
+/--
+Squaring the inverse logarithm gives the exact derivative
+`-2 / (t log(ct)^3)`.
+-/
+lemma hasDerivAt_inv_log_sq_mul {c t : ℝ} (hc : 0 < c) (hct : 1 < c * t) :
+    HasDerivAt (fun u => (Real.log (c * u))⁻¹ ^ 2)
+      (-(2 / (t * Real.log (c * t) ^ 3))) t := by
+  have h := (hasDerivAt_inv_log_mul hc hct).pow 2
+  have hlog_ne : Real.log (c * t) ≠ 0 :=
+    Real.log_ne_zero.mpr ⟨by linarith, by constructor <;> linarith⟩
+  have ht_ne : t ≠ 0 := by
+    simp_all
+  have hval : (↑2 * (Real.log (c * t))⁻¹ ^ (2 - 1) * -(1 / (t * Real.log (c * t) ^ 2)))
+      = -(2 / (t * Real.log (c * t) ^ 3)) := by
+    push_cast
+    field_simp
+  rwa [← hval]
+
+
+-- @@ L76-100 verbatim
+/-- The logarithmic kernel `1 / (t log(ct)^2)` is integrable on every admissible tail, and its
+integral is exactly `1 / log(cy)`. -/
+private lemma integrableOn_Ioi_inv_log_sq_and_integral_eq {c y : ℝ} (hc : 0 < c)
+    (hy : 1 < c * y) :
+    IntegrableOn (fun t => (1 : ℝ) / (t * Real.log (c * t) ^ 2)) (Set.Ioi y) ∧
+      ∫ t in Set.Ioi y, (1 : ℝ) / (t * Real.log (c * t) ^ 2) = (Real.log (c * y))⁻¹ := by
+  have hderiv : ∀ x ∈ Set.Ici y, HasDerivAt (fun u => (Real.log (c * u))⁻¹)
+      (-(1 / (x * Real.log (c * x) ^ 2))) x := fun x hx =>
+    hasDerivAt_inv_log_mul hc (lt_of_lt_of_le hy (mul_le_mul_of_nonneg_left hx hc.le))
+  have hlim_log : Tendsto (fun u => Real.log (c * u)) atTop atTop :=
+    Real.tendsto_log_atTop.comp
+      (by simpa [mul_comm] using tendsto_id.const_mul_atTop' hc : Tendsto (c * ·) atTop atTop)
+  have hlim : Tendsto (fun u => (Real.log (c * u))⁻¹) atTop (𝓝 0) :=
+    tendsto_inv_atTop_zero.comp hlim_log
+  have hint : IntegrableOn (fun x => -(1 / (x * Real.log (c * x) ^ 2))) (Set.Ioi y) := by
+    refine integrableOn_Ioi_deriv_of_nonpos' hderiv ?_ hlim
+    intro x hx
+    have hx' : 1 < c * x := lt_trans hy (mul_lt_mul_of_pos_left hx hc)
+    have hx0 : 0 < x := by nlinarith [hc, hx']
+    linarith [div_nonneg one_pos.le (mul_nonneg hx0.le (sq_nonneg (Real.log (c * x))))]
+  have hmain := integral_Ioi_of_hasDerivAt_of_tendsto' hderiv hint hlim
+  refine ⟨by simpa [integrableOn_neg_iff] using hint, ?_⟩
+  have hneg := congrArg Neg.neg hmain
+  simpa [sub_eq_add_neg, integral_neg, div_eq_mul_inv, mul_comm, mul_left_comm, mul_assoc] using
+    hneg
+
+
+-- @@ L102-105 verbatim
+/-- The logarithmic kernel `1 / (t log(ct)^2)` is integrable on every admissible tail. -/
+lemma integrableOn_Ioi_inv_log_sq {c y : ℝ} (hc : 0 < c) (hy : 1 < c * y) :
+    IntegrableOn (fun t => (1 : ℝ) / (t * Real.log (c * t) ^ 2)) (Set.Ioi y) :=
+  (integrableOn_Ioi_inv_log_sq_and_integral_eq hc hy).1
+
+
+-- @@ L107-110 verbatim
+/-- The integral of `1 / (t log(ct)^2)` over a tail is exactly `1 / log(cy)`. -/
+lemma integral_Ioi_inv_log_sq {c y : ℝ} (hc : 0 < c) (hy : 1 < c * y) :
+    ∫ t in Set.Ioi y, (1 : ℝ) / (t * Real.log (c * t) ^ 2) = (Real.log (c * y))⁻¹ :=
+  (integrableOn_Ioi_inv_log_sq_and_integral_eq hc hy).2
+
+
+-- @@ L112-137 verbatim
+/-- The cubic logarithmic kernel `2 / (t log(ct)^3)` is integrable on every admissible tail, and
+its integral equals the square of the inverse logarithm. -/
+private lemma integrableOn_Ioi_two_inv_log_cube_and_integral_eq {c y : ℝ} (hc : 0 < c)
+    (hy : 1 < c * y) :
+    IntegrableOn (fun t => 2 / (t * Real.log (c * t) ^ 3)) (Set.Ioi y) ∧
+      ∫ t in Set.Ioi y, 2 / (t * Real.log (c * t) ^ 3) = (Real.log (c * y))⁻¹ ^ 2 := by
+  have hderiv : ∀ x ∈ Set.Ici y, HasDerivAt (fun u => (Real.log (c * u))⁻¹ ^ 2)
+      (-(2 / (x * Real.log (c * x) ^ 3))) x := fun x hx =>
+    hasDerivAt_inv_log_sq_mul hc (lt_of_lt_of_le hy (mul_le_mul_of_nonneg_left hx hc.le))
+  have hlim_log : Tendsto (fun u => Real.log (c * u)) atTop atTop :=
+    Real.tendsto_log_atTop.comp
+      (by simpa [mul_comm] using tendsto_id.const_mul_atTop' hc : Tendsto (c * ·) atTop atTop)
+  have hlim : Tendsto (fun u => (Real.log (c * u))⁻¹ ^ 2) atTop (𝓝 0) :=
+    by simpa using (tendsto_inv_atTop_zero.comp hlim_log).pow 2
+  have hint : IntegrableOn (fun x => -(2 / (x * Real.log (c * x) ^ 3))) (Set.Ioi y) := by
+    refine integrableOn_Ioi_deriv_of_nonpos' hderiv ?_ hlim
+    intro x hx
+    have hx' : 1 < c * x := lt_trans hy (mul_lt_mul_of_pos_left hx hc)
+    have hlog : 0 < Real.log (c * x) := Real.log_pos hx'
+    have hx0 : 0 < x := by nlinarith [hc, hx']
+    linarith [show 0 ≤ 2 / (x * Real.log (c * x) ^ 3) by positivity]
+  have hmain := integral_Ioi_of_hasDerivAt_of_tendsto' hderiv hint hlim
+  refine ⟨by simpa [integrableOn_neg_iff] using hint, ?_⟩
+  have hneg := congrArg Neg.neg hmain
+  simpa [sub_eq_add_neg, integral_neg, div_eq_mul_inv, mul_comm, mul_left_comm, mul_assoc] using
+    hneg
+
+
+-- @@ L139-142 verbatim
+/-- The cubic logarithmic kernel `2 / (t log(ct)^3)` is integrable on every admissible tail. -/
+lemma integrableOn_Ioi_two_inv_log_cube {c y : ℝ} (hc : 0 < c) (hy : 1 < c * y) :
+    IntegrableOn (fun t => 2 / (t * Real.log (c * t) ^ 3)) (Set.Ioi y) :=
+  (integrableOn_Ioi_two_inv_log_cube_and_integral_eq hc hy).1
+
+
+-- @@ L144-147 verbatim
+/-- The integral of `2 / (t log(ct)^3)` over a tail equals the square of the inverse logarithm. -/
+lemma integral_Ioi_two_inv_log_cube {c y : ℝ} (hc : 0 < c) (hy : 1 < c * y) :
+    ∫ t in Set.Ioi y, 2 / (t * Real.log (c * t) ^ 3) = (Real.log (c * y))⁻¹ ^ 2 :=
+  (integrableOn_Ioi_two_inv_log_cube_and_integral_eq hc hy).2
+
+
+-- @@ L149-149 verbatim
+end PrimitiveSetsAboveX

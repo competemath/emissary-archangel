@@ -1,0 +1,411 @@
+/-
+Copyright (c) 2026 Matevz Miščič, Maša Žaucer, Job Petrovčič. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Matevz Miščič, Maša Žaucer, Job Petrovčič
+-/
+module
+
+public import LeanPool.ArtinWedderburn.IdealProd
+public import Mathlib.RingTheory.SimpleRing.Defs
+import LeanPool.ArtinWedderburn.SetProd
+import Mathlib.Data.Rat.Cast.Order
+import Mathlib.RingTheory.SimpleRing.Basic
+import Mathlib.Tactic.ContinuousFunctionalCalculus
+import Mathlib.Tactic.NoncommRing
+import Mathlib.Tactic.NormNum.Abs
+import Mathlib.Tactic.NormNum.DivMod
+import Mathlib.Tactic.NormNum.OfScientific
+
+
+-- @@ L19-25 verbatim
+/-!
+# Prime rings
+
+Defines `IsPrimeRing R` (the ideal product version) and proves equivalence to the
+elementwise version `aRb = 0 → a = 0 ∨ b = 0` and to the two-sided ideal version.
+Concludes that simple rings are prime.
+-/
+
+
+-- @@ L27-27 verbatim
+@[expose] public section
+
+
+-- @@ L29-29 verbatim
+namespace LeanPool.ArtinWedderburn
+
+
+-- @@ L31-33 verbatim
+variable {R : Type*} [Ring R]
+
+-- A ring is prime if from I * J = 0 it follows that I = 0 or J = 0 for any ideals I, J
+
+-- @@ L34-42 verbatim
+/-- A ring is *prime* when the product of two left ideals can be zero only if at least one
+of the factors is zero. -/
+def IsPrimeRing (R : Type*) [Ring R] : Prop :=
+  ∀ (I J : Ideal R), (I * J) = ⊥ → I = ⊥ ∨ J = ⊥
+
+-- A ring is prime if any of the following equivalent statements hold
+-- 1) from I * J = 0 follows I = 0 or J = 0
+-- 2) for all a, b: if a R b = 0 then a = 0 or b = 0
+-- 3) for all TWO-SIDED ideals I, J: I * J = 0 implies I = 0 or J = 0
+
+
+-- @@ L44-46 verbatim
+open Pointwise Set
+
+-- equivalence between 1) and 2)
+
+-- @@ L47-94 verbatim
+theorem prime_ring_equiv :
+    IsPrimeRing R ↔ ∀ (a b : R), bothMul a b = {0} → a = 0 ∨ b = 0 := by
+  constructor
+  · intro hR a b hab
+    have rhs : ∀ x ∈ (leftMul a) * (leftMul b), x = (0 : R) := by
+      rintro x hx
+      rw [both_mul_zero_one_left_zero a b hab] at hx
+      trivial
+    have h := hR (leftIdealOfElement a) (leftIdealOfElement b) (Ideal.span_eq_bot.mpr rhs)
+    cases h with
+    | inl ha =>
+      apply Or.inl
+      have ainbot : a ∈ leftIdealOfElement a := by use 1; simp
+      simp_all
+    | inr hb =>
+      apply Or.inr
+      have binbot : b ∈ leftIdealOfElement b := by use 1; simp
+      simp_all
+  · intro h I J hIJ
+    have hI : I = ⊥ ∨ I ≠ ⊥ := by apply Classical.em
+    cases hI with
+    | inl hi => apply Or.inl; exact hi
+    | inr hi =>
+      apply Or.inr
+      refine (Submodule.eq_bot_iff J).mpr ?_
+      obtain ⟨x, hx, hnz⟩ := Submodule.exists_mem_ne_zero_of_ne_bot hi
+      intro y hy
+      have hxRy : bothMul x y = {0} := by
+        apply Set.ext_iff.mpr
+        intro z
+        constructor
+        · rintro ⟨r, hr⟩
+          rw [hr]
+          have hry : r * y ∈ J := Ideal.mul_mem_left J r hy
+          have hz : x * (r * y) ∈ (↑I : Set R) * (↑J : Set R) :=
+            ⟨x, hx, r * y, hry, rfl⟩
+          have k : x * r * y = 0 := by
+            calc
+              x * r * y = x * (r * y) := by noncomm_ring
+              _ = 0 := Ideal.span_eq_bot.mp hIJ (x * (r * y)) hz
+          simp_all
+        · intro hz
+          rw [Set.mem_singleton_iff] at hz
+          rw [hz]
+          exact ⟨0, by noncomm_ring⟩
+      cases h x y hxRy with
+      | inl hx => contradiction
+      | inr hy => exact hy
+
+
+-- @@ L96-99 verbatim
+theorem span_le_two_sided_span (S : Set R) :
+    Ideal.span S ≤ TwoSidedIdeal.asIdeal (TwoSidedIdeal.span S) := by
+  have h : S ⊆ TwoSidedIdeal.asIdeal (TwoSidedIdeal.span S) := TwoSidedIdeal.subset_span
+  exact Ideal.span_le.mpr h
+
+
+-- @@ L101-102 verbatim
+theorem two_sided_ideal_equality (I J : TwoSidedIdeal R) :
+    I = J ↔ (↑I : Set R) = (↑J : Set R) := SetLike.ext'_iff
+
+
+-- @@ L104-104 verbatim
+theorem ideal_equality (I J : Ideal R) : I = J ↔ (↑I : Set R) = (↑J : Set R) := SetLike.ext'_iff
+
+
+-- @@ L106-107 verbatim
+theorem equal_sets (I : TwoSidedIdeal R) :
+    (↑(TwoSidedIdeal.asIdeal I) : Set R) = (↑I : Set R) := rfl
+
+
+-- @@ L109-116 verbatim
+theorem ideal_eq_to_two_sided_ideal_eq (I J : TwoSidedIdeal R) :
+    I = J ↔ TwoSidedIdeal.asIdeal I = TwoSidedIdeal.asIdeal J := by
+  constructor
+  · simp_all
+  · intro h
+    apply (two_sided_ideal_equality I J).mpr
+    rw [← equal_sets I, ← equal_sets J]
+    exact (ideal_equality (TwoSidedIdeal.asIdeal I) (TwoSidedIdeal.asIdeal J)).mp h
+
+
+-- @@ L118-119 verbatim
+theorem two_sided_bot_iff_set_zero (I : TwoSidedIdeal R) : I = ⊥ ↔ (I : Set R) = {0} :=
+  Iff.symm (StrictMono.apply_eq_bot_iff fun ⦃_ _⦄ a ↦ a)
+
+
+-- @@ L121-122 verbatim
+theorem ideal_bot_iff_set_zero (I : Ideal R) : I = ⊥ ↔ (I : Set R) = {0} :=
+  Iff.symm (StrictMono.apply_eq_bot_iff fun ⦃_ _⦄ a ↦ a)
+
+
+-- @@ L124-129 verbatim
+theorem ideal_bot (I : TwoSidedIdeal R) : I = ⊥ ↔ TwoSidedIdeal.asIdeal I = ⊥ := by
+  constructor
+  · simp_all
+  · intro h
+    apply (two_sided_bot_iff_set_zero I).mpr
+    apply (ideal_bot_iff_set_zero (TwoSidedIdeal.asIdeal I)).mp h
+
+
+-- @@ L131-132 verbatim
+theorem ideal_span_sub_two_sided_ideal_span (S : Set R) :
+    Ideal.span S ≤ TwoSidedIdeal.asIdeal (TwoSidedIdeal.span S) := span_le_two_sided_span S
+
+
+-- @@ L134-146 verbatim
+theorem same_prod (I J : TwoSidedIdeal R) :
+    I * J = ⊥ → (TwoSidedIdeal.asIdeal I) * (TwoSidedIdeal.asIdeal J) = ⊥ := by
+  intro h
+  apply Ideal.ext
+  intro x
+  rw [Submodule.mem_bot]
+  constructor
+  · intro hx
+    have rwhx : x ∈ Ideal.span ((I : Set R) * (J : Set R)) := hx
+    have span_ineq := ideal_span_sub_two_sided_ideal_span ((I : Set R) * (J : Set R))
+    apply span_ineq at rwhx
+    simp_all
+  · simp_all
+
+
+-- @@ L148-155 verbatim
+theorem prime_ring_implies_prime_by_two_sided :
+    IsPrimeRing R → ∀ (I J : TwoSidedIdeal R), I * J = ⊥ → I = ⊥ ∨ J = ⊥ := by
+  rintro hR I J hIJ
+  have hIJasIdeals := same_prod I J hIJ
+  have h := hR (TwoSidedIdeal.asIdeal I) (TwoSidedIdeal.asIdeal J) hIJasIdeals
+  cases h with
+  | inl hi => apply Or.inl; exact (ideal_bot I).mpr hi
+  | inr hj => apply Or.inr; exact (ideal_bot J).mpr hj
+
+
+-- @@ L157-161 verbatim
+theorem two_sided_span_bot_el_zero (a : R) : TwoSidedIdeal.span {a} = ⊥ → a = 0 := by
+  intro h
+  have ha : a ∈ TwoSidedIdeal.span {a} :=
+    TwoSidedIdeal.mem_span_iff.mpr fun _ a_1 ↦ a_1 rfl
+  simp_all
+
+
+-- @@ L163-164 verbatim
+/-- The two-sided multiplicative closure `RaR = {y * a * z | y, z : R}` of `a`. -/
+def mulClosure (a : R) : Set R := {x : R | ∃ y z : R, x = y * a * z}
+
+
+-- @@ L166-170 verbatim
+theorem mul_closure_left (a : R) :
+    ∀ x y, y ∈ mulClosure a → x * y ∈ mulClosure a := by
+  rintro x y ⟨y1, y2, hy⟩
+  use x * y1, y2
+  simp only [mul_assoc, hy]
+
+
+-- @@ L172-176 verbatim
+theorem mul_closure_right (a : R) :
+    ∀ y x, y ∈ mulClosure a → y * x ∈ mulClosure a := by
+  rintro y x ⟨y1, y2, hy⟩
+  use y1, y2 * x
+  simp only [mul_assoc, hy]
+
+
+-- @@ L178-184 verbatim
+theorem mul_closure_sub_span (a : R) : mulClosure a ⊆ TwoSidedIdeal.span {a} := by
+  rintro x ⟨y, z, hx⟩
+  rw [hx]
+  have a_in_span : a ∈ TwoSidedIdeal.span {a} :=
+    TwoSidedIdeal.mem_span_iff.mpr fun _ a_1 ↦ a_1 rfl
+  exact TwoSidedIdeal.mul_mem_right (TwoSidedIdeal.span {a}) (y * a) z
+    (TwoSidedIdeal.mul_mem_left (TwoSidedIdeal.span {a}) y a a_in_span)
+
+
+-- @@ L186-192 verbatim
+theorem ideal_mul_closure (a : R) :
+    AddSubgroup.closure (mulClosure a) = ((TwoSidedIdeal.span (mulClosure a)) : Set R) := by
+  ext x
+  have lem :=
+    @TwoSidedIdeal.mem_span_iff_mem_addSubgroup_closure_absorbing R _ (mulClosure a)
+      (mul_closure_left a) (mul_closure_right a) x
+  exact id (Iff.symm lem)
+
+
+-- @@ L194-196 verbatim
+theorem sub_span (s : Set R) (I : TwoSidedIdeal R) : s ⊆ I → TwoSidedIdeal.span s ≤ I := by
+  intro h x hx
+  exact TwoSidedIdeal.mem_span_iff.mp hx I h
+
+
+-- @@ L198-207 verbatim
+theorem span_mul_closure_eq_span (a : R) :
+    TwoSidedIdeal.span (mulClosure a) = TwoSidedIdeal.span {a} := by
+  apply le_antisymm
+  · apply sub_span (mulClosure a) (TwoSidedIdeal.span {a})
+    exact mul_closure_sub_span a
+  · apply TwoSidedIdeal.span_mono
+    intro x hx
+    rw [hx]
+    use 1, 1
+    simp
+
+
+-- @@ L209-219 verbatim
+lemma both_mul_zero {a b x y : R} (hab : bothMul a b = {0}) (hx : x ∈ mulClosure a)
+    (hy : y ∈ mulClosure b) : x * y = 0 := by
+  obtain ⟨x1, x2, hx⟩ := hx
+  obtain ⟨y1, y2, hy⟩ := hy
+  have prod_in_both_mul : a * (x2 * y1) * b ∈ bothMul a b := ⟨x2 * y1, rfl⟩
+  have prod_zero : a * (x2 * y1) * b = 0 := by
+    simp_all
+  rw [hx, hy]
+  calc
+    x1 * a * x2 * (y1 * b * y2) = x1 * (a * (x2 * y1) * b) * y2 := by noncomm_ring
+    _ = 0 := by rw [prod_zero]; noncomm_ring
+
+
+-- @@ L221-230 verbatim
+lemma span_mul_closure_bot_forall {a b x y : R} (hab : bothMul a b = {0})
+    (hx : x ∈ AddSubgroup.closure (mulClosure a)) (hy : y ∈ mulClosure b) : x * y = 0 := by
+  induction hx using AddSubgroup.closure_induction with
+  | mem z hz => apply both_mul_zero hab hz hy
+  | zero => simp
+  | add u v hu hv ihu ihv =>
+    noncomm_ring
+    simp_all
+  | neg u hu ihu =>
+    simp_all
+
+
+-- @@ L232-239 verbatim
+lemma span_mul_closure_bot_forall' {a b x y : R} (hab : bothMul a b = {0})
+    (hx : x ∈ TwoSidedIdeal.span {a}) (hy : y ∈ mulClosure b) : x * y = 0 := by
+  rw [← span_mul_closure_eq_span a] at hx
+  apply span_mul_closure_bot_forall hab
+  · have hx' : x ∈ (AddSubgroup.closure (mulClosure a) : Set R) := by
+      rwa [ideal_mul_closure a]
+    exact hx'
+  · exact hy
+
+
+-- @@ L241-252 verbatim
+theorem span_mul_closure_bot (a b : R) (hab : bothMul a b = {0}) :
+    (TwoSidedIdeal.span {a} : Set R) * (mulClosure b) = {0} := by
+  ext x
+  constructor
+  · rintro ⟨y, hy, z, hz, h⟩
+    simp only at h
+    rw [span_mul_closure_bot_forall' hab hy hz] at h
+    simp_all
+  · intro hx
+    rw [Set.mem_singleton_iff] at hx
+    rw [hx]
+    refine ⟨0, TwoSidedIdeal.zero_mem _, 0, ⟨0, 0, by noncomm_ring⟩, by noncomm_ring⟩
+
+
+-- @@ L254-267 verbatim
+lemma two_sided_span_bot_forall {a b x y : R} (hab : bothMul a b = {0})
+    (hx : x ∈ TwoSidedIdeal.span {a}) (hy : y ∈ AddSubgroup.closure (mulClosure b)) :
+    x * y = 0 := by
+  induction hy using AddSubgroup.closure_induction with
+  | mem z hz =>
+    apply span_mul_closure_bot_forall' hab
+    · exact hx
+    · exact hz
+  | zero => simp
+  | add u v hu hv ihu ihv =>
+    noncomm_ring
+    simp_all
+  | neg u hu ihu =>
+    simp_all
+
+
+-- @@ L269-281 verbatim
+lemma span_mul_span_bot' (a b : R) (hab : bothMul a b = {0}) :
+    (TwoSidedIdeal.span {a} : Set R) * (AddSubgroup.closure (mulClosure b)) = {0} := by
+  ext x
+  constructor
+  · rintro ⟨y, hy, z, hz, h⟩
+    simp only at h
+    rw [two_sided_span_bot_forall hab hy hz] at h
+    simp_all
+  · intro hx
+    rw [Set.mem_singleton_iff] at hx
+    rw [hx]
+    refine ⟨0, TwoSidedIdeal.zero_mem _, 0,
+      zero_mem (AddSubgroup.closure (mulClosure b)), by noncomm_ring⟩
+
+
+-- @@ L283-288 verbatim
+theorem span_mul_span_bot (a b : R) (hab : bothMul a b = {0}) :
+    (TwoSidedIdeal.span {a} : Set R) * (TwoSidedIdeal.span {b} : Set R) = {0} := by
+  have k : (TwoSidedIdeal.span {b} : Set R) = AddSubgroup.closure (mulClosure b) := by
+    rw [← span_mul_closure_eq_span b, ideal_mul_closure b]
+  rw [k]
+  exact span_mul_span_bot' a b hab
+
+
+-- @@ L290-297 verbatim
+theorem bothmul_zero_implies_prod_zero (a b : R) :
+    bothMul a b = {0} → TwoSidedIdeal.span {a} * TwoSidedIdeal.span {b} = ⊥ := by
+  intro hab
+  have k : TwoSidedIdeal.span ({0} : Set R) = ⊥ := Eq.symm (TwoSidedIdealProd.ideal_eq_span ⊥)
+  rw [TwoSidedIdealProd.mul_two_sided_ideal_eq_span]
+  unfold TwoSidedIdealProd.ringSubsetProdTwoSidedIdeal
+  rw [← k]
+  rw [span_mul_span_bot a b hab]
+
+
+-- @@ L299-310 verbatim
+theorem prime_for_two_sided_implies_condition2 :
+    (∀ (I J : TwoSidedIdeal R), I * J = ⊥ → I = ⊥ ∨ J = ⊥) →
+      (∀ (a b : R), bothMul a b = {0} → a = 0 ∨ b = 0) := by
+  rintro hR a b hab
+  have RaRbR_zero : TwoSidedIdeal.span {a} * TwoSidedIdeal.span {b} = ⊥ :=
+    bothmul_zero_implies_prod_zero a b hab
+  have h := hR (TwoSidedIdeal.span {a}) (TwoSidedIdeal.span {b}) RaRbR_zero
+  cases h with
+  | inl ha => apply Or.inl; exact two_sided_span_bot_el_zero a ha
+  | inr hb => apply Or.inr; exact two_sided_span_bot_el_zero b hb
+
+-- equivalence between 1) and 3)
+
+-- @@ L311-318 verbatim
+theorem prime_ring_equiv' :
+    IsPrimeRing R ↔ ∀ (I J : TwoSidedIdeal R), I * J = ⊥ → I = ⊥ ∨ J = ⊥ := by
+  constructor
+  · exact prime_ring_implies_prime_by_two_sided
+  · intro hR
+    exact prime_ring_equiv.mpr (prime_for_two_sided_implies_condition2 hR)
+
+-- Every simple ring is prime
+
+-- @@ L319-333 verbatim
+theorem simple_ring_is_prime [IsSimpleRing R] : IsPrimeRing R := by
+  apply prime_ring_equiv'.mpr
+  intro I J hIJ
+  cases eq_bot_or_eq_top I with
+  | inl hi => apply Or.inl; exact hi
+  | inr hi =>
+    apply Or.inr
+    cases eq_bot_or_eq_top J with
+    | inl hj => exact hj
+    | inr hj =>
+      have h : I * J = ⊤ := by
+        apply (TwoSidedIdeal.one_mem_iff (I * J)).mp
+        apply TwoSidedIdeal.subset_span
+        refine ⟨1, by rw [hi]; trivial, 1, by rw [hj]; trivial, by noncomm_ring⟩
+      simp_all
+
+
+-- @@ L335-335 verbatim
+end LeanPool.ArtinWedderburn

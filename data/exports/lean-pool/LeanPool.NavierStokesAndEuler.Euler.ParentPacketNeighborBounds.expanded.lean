@@ -1,0 +1,237 @@
+/-
+Copyright (c) 2026 OpenAI. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: OpenAI
+-/
+
+module
+
+public import LeanPool.NavierStokesAndEuler.Euler.ParentPacketScaledBounds
+public import LeanPool.NavierStokesAndEuler.Euler.PacketActivationLipschitz
+import LeanPool.NavierStokesAndEuler.Euler.TransverseHistoryLipschitz
+
+
+-- @@ L13-15 verbatim
+/-! The actual source coefficient differences retain a factor ell.
+The stationary history sensitivity is linear in these differences, so
+its computed Lipschitz constant retains that factor as well. -/
+
+
+-- @@ L17-17 verbatim
+@[expose] public section
+
+
+
+-- @@ L20-20 verbatim
+noncomputable section
+
+
+-- @@ L22-22 verbatim
+namespace EulerMeanCoefficients.SmoothCoefficientPath
+
+
+-- @@ L24-24 verbatim
+open Set EulerSmoothLimit
+
+-- @@ L25-25 verbatim
+open scoped BoundedContinuousFunction
+
+
+-- @@ L27-28 verbatim
+variable {J V : Type} [TopologicalSpace J] [CompactSpace J]
+  [NormedAddCommGroup V] [NormedSpace ℝ V]
+
+
+-- @@ L30-32 verbatim
+/-- Cache the standard `NormedAddCommGroup (Space →L[ℝ] V)` instance to shorten typeclass
+synthesis. -/
+local instance instParentPacketNeighborBounds1 : NormedAddCommGroup (Space →L[ℝ] V) := inferInstance
+
+-- @@ L33-34 verbatim
+/-- Cache the standard `NormedSpace ℝ (Space →L[ℝ] V)` instance to shorten typeclass synthesis. -/
+local instance instParentPacketNeighborBounds2 : NormedSpace ℝ (Space →L[ℝ] V) := inferInstance
+
+-- @@ L35-38 verbatim
+/-- Cache the standard `NormedAddCommGroup (Space →ᵇ (Space →L[ℝ] V))` instance to shorten
+typeclass synthesis. -/
+local instance instParentPacketNeighborBounds3 : NormedAddCommGroup (Space →ᵇ (Space →L[ℝ] V)) :=
+    inferInstance
+
+-- @@ L39-42 verbatim
+/-- Cache the standard `NormedSpace ℝ (Space →ᵇ (Space →L[ℝ] V))` instance to shorten typeclass
+synthesis. -/
+local instance instParentPacketNeighborBounds4 : NormedSpace ℝ (Space →ᵇ (Space →L[ℝ] V)) :=
+    inferInstance
+
+
+-- @@ L44-53 verbatim
+theorem derivative_norm_le_of_bound (A : SmoothCoefficientPath J V) (C : ℝ) (hC : 0 ≤ C)
+    (hb : ∀ t x, ‖iteratedFDeriv ℝ 1 (A.field t : Space → V) x‖ ≤ C) :
+    ‖A.derivative.field‖ ≤ C := by
+  apply (ContinuousMap.norm_le _ hC).2
+  intro t
+  apply (BoundedContinuousFunction.norm_le hC).2
+  intro x
+  change ‖A.derivativeField t x‖ ≤ C
+  rw [A.derivativeField_eq]
+  simpa only [norm_iteratedFDeriv_one] using hb t x
+
+
+-- @@ L55-55 verbatim
+end EulerMeanCoefficients.SmoothCoefficientPath
+
+
+-- @@ L57-57 verbatim
+namespace EulerParentPacketFrames.LabelData
+
+
+-- @@ L59-62 verbatim
+open Set ContinuousLinearMap EulerSmoothLimit EulerMeanCoefficients
+  EulerPacketParentLabelBounds EulerPacketCofactor EulerGevrey EulerTransverseBoundedFrame
+  EulerTransverseFrameCoordinates EulerTransversePacketProvider EulerPacketActivationHistory
+  EulerTransverseHistoryBounds
+
+-- @@ L63-63 verbatim
+open scoped BoundedContinuousFunction
+
+
+-- @@ L65-67 verbatim
+variable {G : Parent} (L : LabelData G)
+  {U : Type} [NormedAddCommGroup U] [InnerProductSpace ℝ U]
+  (m : Space) (hm : ‖m‖ = 1) (R : U ≃ₗᵢ[ℝ] referencePlane m) (S : Set Space) (hS : IsCompact S)
+
+
+-- @@ L69-70 verbatim
+/-- Frame difference cost, given by `frameAmplitude L.K*coefficientRadius L.K`. -/
+def frameDifferenceCost : ℝ := frameAmplitude L.K*coefficientRadius L.K
+
+-- @@ L71-72 verbatim
+/-- First difference cost, given by `gradientAmplitude L.K*coefficientRadius L.K`. -/
+def firstDifferenceCost : ℝ := gradientAmplitude L.K*coefficientRadius L.K
+
+-- @@ L73-74 verbatim
+/-- Normal difference cost, given by `9*(frameAmplitude L.K)^2*coefficientRadius L.K`. -/
+def normalDifferenceCost : ℝ := 9*(frameAmplitude L.K)^2*coefficientRadius L.K
+
+-- @@ L75-78 verbatim
+/-- Strain difference cost, given by `27*(frameAmplitude L.K)^2*gradientAmplitude
+L.K*coefficientRadius L.K`. -/
+def strainDifferenceCost : ℝ := 27*(frameAmplitude L.K)^2*gradientAmplitude L.K*coefficientRadius
+    L.K
+
+
+-- @@ L80-83 verbatim
+theorem scaled_first_majorant (A : ℝ) :
+    A*majorant L.scaledRadius 0 1=(A*coefficientRadius L.K)*G.ell := by
+  norm_num [majorant,scaledRadius]
+  ring
+
+
+-- @@ L85-96 verbatim
+theorem source_frame_derivative_norm :
+    ‖(G.transverseData m hm R S hS).frame.derivative.field‖ ≤ L.frameDifferenceCost*G.ell := by
+  have h0 := frameAmplitude_nonneg L.K
+  have h1 := coefficientRadius_nonneg L.K
+  have hell := G.ell_pos
+  apply SmoothCoefficientPath.derivative_norm_le_of_bound _ _ (by
+      unfold frameDifferenceCost; positivity)
+  intro t x
+  have h := coefficient_derivative_bound m R G.frame.toSmoothCoefficientPath 1
+    (frameAmplitude L.K*majorant L.scaledRadius 0 1) (L.frame_scaled_bound 1) t x
+  rw [L.scaled_first_majorant] at h
+  exact h
+
+
+-- @@ L98-110 verbatim
+theorem source_first_derivative_norm :
+    ‖(G.transverseData m hm R S hS).frameDerivative.derivative.field‖ ≤ L.firstDifferenceCost*G.ell
+        := by
+  have h0 := gradientAmplitude_nonneg L.K
+  have h1 := coefficientRadius_nonneg L.K
+  have hell := G.ell_pos
+  apply SmoothCoefficientPath.derivative_norm_le_of_bound _ _ (by
+      unfold firstDifferenceCost; positivity)
+  intro t x
+  have h := coefficient_derivative_bound m R G.first.toSmoothCoefficientPath 1
+    (gradientAmplitude L.K*majorant L.scaledRadius 0 1) (L.first_scaled_bound 1) t x
+  rw [L.scaled_first_majorant] at h
+  exact h
+
+
+-- @@ L112-122 verbatim
+theorem source_normal_derivative_norm :
+    ‖(G.transverseData m hm R S hS).normal.derivative.field‖ ≤ L.normalDifferenceCost*G.ell := by
+  have h1 := coefficientRadius_nonneg L.K
+  have hell := G.ell_pos
+  apply SmoothCoefficientPath.derivative_norm_le_of_bound _ _ (by
+      unfold normalDifferenceCost; positivity)
+  intro t x
+  have h := normalCoefficient_derivative_bound m G.inverse.toSmoothCoefficientPath hm 1
+    ((9*(frameAmplitude L.K)^2)*majorant L.scaledRadius 0 1) (L.inverse_scaled_bound 1) t x
+  rw [L.scaled_first_majorant] at h
+  exact h
+
+
+-- @@ L124-134 verbatim
+theorem source_strain_derivative_norm :
+    ‖(G.transverseData m hm R S hS).M.derivative.field‖ ≤ L.strainDifferenceCost*G.ell := by
+  have h0 := gradientAmplitude_nonneg L.K
+  have h1 := coefficientRadius_nonneg L.K
+  have hell := G.ell_pos
+  apply SmoothCoefficientPath.derivative_norm_le_of_bound _ _ (by
+      unfold strainDifferenceCost; positivity)
+  intro t x
+  have h := L.strain_scaled_bound 1 t x
+  rw [L.scaled_first_majorant] at h
+  exact h
+
+
+-- @@ L136-146 verbatim
+theorem source_curvature_derivative_norm (H : LowBounds G) :
+    ‖(G.historyData m hm R S hS H).H.derivative.field‖ ≤ L.strainDifferenceCost*G.ell := by
+  have h0 := gradientAmplitude_nonneg L.K
+  have h1 := coefficientRadius_nonneg L.K
+  have hell := G.ell_pos
+  apply SmoothCoefficientPath.derivative_norm_le_of_bound _ _ (by
+      unfold strainDifferenceCost; positivity)
+  intro t x
+  have h := L.curvature_scaled_bound 1 t x
+  rw [L.scaled_first_majorant] at h
+  exact h
+
+
+-- @@ L148-148 verbatim
+variable [CompleteSpace U]
+
+
+-- @@ L150-157 verbatim
+/-- History difference scale cost as an element of `ℝ`. -/
+def historyDifferenceScaleCost (H : LowBounds G) : ℝ :=
+  let D := G.transverseData m hm R S hS
+  let B := G.historyData m hm R S hS H
+  historyDifferenceCost G.T D.frameLower ‖D.frame.field‖ ‖D.frameDerivative.field‖
+    (G.T*‖D.frameDerivative.field‖+‖D.frame.field‖) (1+G.T^2*‖B.H.field‖)
+    (historyTransportCost (D := D)) L.frameDifferenceCost L.firstDifferenceCost
+        L.strainDifferenceCost
+
+
+-- @@ L159-173 verbatim
+omit [CompleteSpace U] in
+theorem source_history_derivative_scale (H : LowBounds G) :
+    historyLabelDifferenceCost (G.historyData m hm R S hS H) ≤
+      L.historyDifferenceScaleCost m hm R S hS H*G.ell := by
+  apply historyDifferenceCost_le_scale
+  · exact G.T_pos.le
+  · exact (G.transverseData m hm R S hS).frameLower_pos.le
+  · positivity
+  · positivity
+  · exact add_nonneg (mul_nonneg G.T_pos.le (norm_nonneg _)) (norm_nonneg _)
+  · positivity
+  · exact historyTransportCost_nonneg
+  · exact L.source_frame_derivative_norm m hm R S hS
+  · exact L.source_first_derivative_norm m hm R S hS
+  · exact L.source_curvature_derivative_norm m hm R S hS H
+
+
+-- @@ L175-175 verbatim
+end EulerParentPacketFrames.LabelData

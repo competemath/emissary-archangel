@@ -1,0 +1,389 @@
+/-
+Copyright (c) 2026 ruplet. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: ruplet
+-/
+module
+
+public import Mathlib.ModelTheory.Syntax
+
+public import LeanPool.FormalizationOfBoundedArithmetic.IsEnum
+
+
+-- @@ L12-14 verbatim
+/-!
+# LeanPool.FormalizationOfBoundedArithmetic.Syntax
+-/
+
+
+-- @@ L16-16 verbatim
+@[expose] public section
+
+
+-- @@ L18-18 verbatim
+namespace FirstOrder
+
+-- @@ L19-19 verbatim
+namespace Language
+
+
+-- @@ L21-21 verbatim
+universe u
+
+-- @@ L22-22 verbatim
+variable {L : Language}
+
+-- @@ L23-23 verbatim
+variable {α β : Type u} {n : Nat}
+
+
+-- @@ L25-25 verbatim
+namespace BoundedFormula
+
+
+-- @@ L27-29 verbatim
+/-- Computable finite supremum over an explicitly enumerated type. -/
+def iSup' [enum : IsEnum β] (f : β → L.BoundedFormula α n) : L.BoundedFormula α n :=
+  (enum.toList.map f).foldr (· ⊔ ·) ⊥
+
+
+-- @@ L31-33 verbatim
+/-- Computable finite infimum over an explicitly enumerated type. -/
+def iInf' [enum : IsEnum β] (f : β → L.BoundedFormula α n) : L.BoundedFormula α n :=
+  (enum.toList.map f).foldr (· ⊓ ·) ⊤
+
+
+-- @@ L35-35 verbatim
+end BoundedFormula
+
+
+-- @@ L37-37 verbatim
+namespace Formula
+
+
+-- @@ L39-41 verbatim
+/-- Computable finite universal closure over an explicitly enumerated type. -/
+def iAlls' [enum : IsEnum β] (φ : L.Formula (α ⊕ β)) : L.Formula α :=
+  (BoundedFormula.relabel (fun a => Sum.map id enum.toIdx a) φ).alls
+
+
+-- @@ L43-45 verbatim
+/-- Computable finite existential closure over an explicitly enumerated type. -/
+def iExs' [enum : IsEnum β] (φ : L.Formula (α ⊕ β)) : L.Formula α :=
+  (BoundedFormula.relabel (fun a => Sum.map id enum.toIdx a) φ).exs
+
+
+-- @@ L47-51 verbatim
+/-- Computable finite unique-existence formula over an explicitly enumerated type. -/
+def iExsUnique' [enum : IsEnum β] (φ : L.Formula (α ⊕ β)) : L.Formula α :=
+  iExs' <| φ ⊓ iAlls'
+    ((φ.relabel (fun a => Sum.elim (.inl ∘ .inl) .inr a)).imp <|
+      .iInf' fun g => Term.equal (var (.inr g)) (var (.inl (.inr g))))
+
+
+-- @@ L53-55 verbatim
+/-- Computable finite supremum for formulas over an explicitly enumerated type. -/
+def iSup' [enum : IsEnum α] (f : α → L.Formula β) : L.Formula β :=
+  BoundedFormula.iSup' f
+
+
+-- @@ L57-59 verbatim
+/-- Computable finite infimum for formulas over an explicitly enumerated type. -/
+def iInf' [enum : IsEnum α] (f : α → L.Formula β) : L.Formula β :=
+  BoundedFormula.iInf' f
+
+
+-- @@ L61-61 verbatim
+end Formula
+
+
+
+-- @@ L64-64 verbatim
+namespace BoundedFormula
+
+
+
+-- @@ L67-67 verbatim
+namespace relabelEquiv
+
+
+-- @@ L69-72 verbatim
+@[simp]
+theorem falsum {α β} (g : α ≃ β) {k} :
+    (falsum : L.BoundedFormula α k).relabelEquiv g = falsum :=
+  rfl
+
+
+-- @@ L74-77 verbatim
+@[simp]
+theorem imp {α β} (g : α ≃ β) {k} (φ ψ : L.BoundedFormula α k) :
+    (φ.imp ψ).relabelEquiv g = (φ.relabelEquiv g).imp (ψ.relabelEquiv g) :=
+  rfl
+
+
+-- @@ L79-82 verbatim
+@[simp]
+theorem not {α β} (g : α ≃ β) {k} (φ : L.BoundedFormula α k) :
+    φ.not.relabelEquiv g = (φ.relabelEquiv g).not :=
+  rfl
+
+
+-- @@ L84-87 verbatim
+@[simp]
+theorem nf {α β} (g : α ≃ β) {k} (φ ψ : L.BoundedFormula α k) :
+    (φ ⊓ ψ).relabelEquiv g = (φ.relabelEquiv g) ⊓ (ψ.relabelEquiv g) :=
+  rfl
+
+
+-- @@ L89-92 verbatim
+@[simp]
+theorem sup {α β} (g : α ≃ β) {k} (φ ψ : L.BoundedFormula α k) :
+    (φ ⊔ ψ).relabelEquiv g = (φ.relabelEquiv g) ⊔ (ψ.relabelEquiv g) :=
+  rfl
+
+
+-- @@ L94-102 verbatim
+@[simp]
+theorem rel {L : Language} {a b} {n} (g : a ≃ b) {k} {R : L.Relations k}
+    {ts : Fin k -> L.Term (a ⊕ Fin n)} :
+    ((BoundedFormula.rel R ts).relabelEquiv g : L.BoundedFormula b n) =
+      (BoundedFormula.rel R (fun i =>
+        (ts i).relabel (Sum.map g id : a ⊕ Fin n -> b ⊕ Fin n)) :
+          L.BoundedFormula b n) :=
+by
+  rfl
+
+
+-- @@ L104-114 verbatim
+@[simp]
+theorem eq {L : Language} {a b} {n} (g : a ≃ b) {t1 t2 : L.Term (a ⊕ Fin n)}
+  : ((t1 =' t2).relabelEquiv g : L.BoundedFormula b n)
+    =
+      (
+        (t1.relabel (Sum.map g id : a ⊕ Fin n -> b ⊕ Fin n)
+        =' t2.relabel (Sum.map g id : a ⊕ Fin n -> b ⊕ Fin n)
+        ) : L.BoundedFormula b n
+      ) :=
+by
+  rfl
+
+
+-- @@ L116-123 verbatim
+theorem bdEqual {L : Language} {a b} {n} (g : a ≃ b) {t1 t2 : L.Term (a ⊕ Fin n)}
+  : ((t1 =' t2).relabelEquiv g)
+    =
+    (t1.relabel (Sum.map g id)) =' (t2.relabel (Sum.map g id)) :=
+by
+  rfl
+
+-- TODO: this was very hard to prove. simp sets of Equiv and of mapTermRel are bad.
+
+-- @@ L124-140 verbatim
+theorem comp_inv {L : Language} {α β} {m} {φ : L.BoundedFormula α m} (f : α ≃ β)
+  : (relabelEquiv f.symm ((relabelEquiv f) φ)) = φ :=
+by
+  have hfun : ∀ x : ℕ,
+      (⇑(f.symm.sumCongr (_root_.Equiv.refl (Fin x))) ∘
+        ⇑(f.sumCongr (_root_.Equiv.refl (Fin x)))) = id := by
+    intro x
+    funext a
+    cases a <;> simp
+  have hcomp : ∀ x : ℕ,
+      (⇑(Term.relabelEquiv (L := L) (f.symm.sumCongr (_root_.Equiv.refl (Fin x)))) ∘
+        ⇑(Term.relabelEquiv (f.sumCongr (_root_.Equiv.refl (Fin x))))) = id := by
+    intro x
+    funext t
+    simp [Term.relabel_relabel, hfun x]
+  simp only [relabelEquiv, mapTermRelEquiv, Equiv.coe_fn_mk, mapTermRel_mapTermRel, hcomp]
+  apply mapTermRel_id_id_id
+
+
+-- @@ L142-142 verbatim
+end relabelEquiv
+
+
+-- @@ L144-144 verbatim
+namespace relabel
+
+
+-- @@ L146-149 verbatim
+@[simp]
+theorem sup {L : Language} {α β} {n} (g : α → β ⊕ (Fin n)) {k} (φ ψ : L.BoundedFormula α k) :
+    (φ ⊔ ψ).relabel g = (φ.relabel g) ⊔ (ψ.relabel g) :=
+  rfl
+
+
+-- @@ L151-154 verbatim
+@[simp]
+theorem inf {L : Language} {α β} {n} (g : α → β ⊕ (Fin n)) {k} (φ ψ : L.BoundedFormula α k) :
+    (φ ⊓ ψ).relabel g = (φ.relabel g) ⊓ (ψ.relabel g) :=
+  rfl
+
+
+-- @@ L156-156 verbatim
+end relabel
+
+
+-- @@ L158-158 verbatim
+namespace relabelEquiv
+
+
+-- @@ L160-169 verbatim
+@[simp]
+theorem all {α β} (g : α ≃ β) {k} (φ : L.BoundedFormula α (k + 1)) :
+    φ.all.relabelEquiv g = (φ.relabelEquiv g).all := by
+  rw [relabelEquiv]
+  rw [mapTermRelEquiv]
+  rw [relabelEquiv]
+  rw [mapTermRelEquiv]
+  simp only [Equiv.coe_refl, Equiv.refl_symm, Equiv.coe_fn_mk]
+  conv => lhs; unfold mapTermRel
+  simp
+
+
+-- @@ L171-176 verbatim
+@[simp]
+theorem ex {α β} (g : α ≃ β) {k} (φ : L.BoundedFormula α (k + 1)) :
+    φ.ex.relabelEquiv g = (φ.relabelEquiv g).ex := by
+  simp only [BoundedFormula.ex, BoundedFormula.not]
+  simp only [relabelEquiv.imp, all, imp.injEq, all.injEq, true_and, Bot.bot]
+  simp_all
+
+
+
+-- @@ L179-187 verbatim
+@[simp]
+theorem alls {α β} (g : α ≃ β) {k} (φ : L.BoundedFormula α k) :
+    φ.alls.relabelEquiv g = (φ.relabelEquiv g).alls := by
+  induction k with
+  | zero =>
+    unfold BoundedFormula.alls
+    simp only
+  | succ m ih =>
+    apply ih
+
+
+
+-- @@ L190-198 verbatim
+@[simp]
+theorem exs {α β} (g : α ≃ β) {k} (φ : L.BoundedFormula α k) :
+    φ.exs.relabelEquiv g = (φ.relabelEquiv g).exs := by
+  induction k with
+  | zero =>
+    unfold BoundedFormula.exs
+    simp only
+  | succ m ih =>
+    apply ih
+
+
+-- @@ L200-215 verbatim
+theorem relabelAux_sumCongr [enum : IsEnum β] (g : α ≃ γ) (k : ℕ) :
+    ∀ x : (α ⊕ β) ⊕ Fin k,
+      (g.sumCongr (_root_.Equiv.refl (Fin (enum.size + k))))
+          (BoundedFormula.relabelAux (fun a : α ⊕ β => Sum.map id enum.toIdx a) k x)
+        = BoundedFormula.relabelAux (fun a : γ ⊕ β => Sum.map id enum.toIdx a) k
+          (((g.sumCongr (_root_.Equiv.refl β)).sumCongr (_root_.Equiv.refl (Fin k))) x) := by
+  intro x
+  cases x with
+  | inl ab =>
+      cases ab with
+      | inl a =>
+          simp [BoundedFormula.relabelAux, Equiv.sumCongr, Equiv.sumAssoc]
+      | inr b =>
+          simp [BoundedFormula.relabelAux, Equiv.sumCongr, Equiv.sumAssoc]
+  | inr i =>
+      simp [BoundedFormula.relabelAux, Equiv.sumCongr, Equiv.sumAssoc]
+
+
+-- @@ L217-259 verbatim
+theorem relabel_relabelSum [enum : IsEnum β] (g : α ≃ γ) :
+    ∀ {k} (φ : L.BoundedFormula (α ⊕ β) k),
+      BoundedFormula.relabelEquiv g
+          (BoundedFormula.relabel (fun a : α ⊕ β => Sum.map id enum.toIdx a) φ)
+        = BoundedFormula.relabel (fun a : γ ⊕ β => Sum.map id enum.toIdx a)
+          (BoundedFormula.relabelEquiv (Equiv.sumCongr g (_root_.Equiv.refl β)) φ) := by
+  intro k φ
+  have hterm :
+      ∀ {n} (t : L.Term ((α ⊕ β) ⊕ Fin n)),
+        (Term.relabelEquiv (g.sumCongr (_root_.Equiv.refl (Fin (enum.size + n)))))
+            (Term.relabel (BoundedFormula.relabelAux
+              (fun a : α ⊕ β => Sum.map id enum.toIdx a) n) t)
+          =
+        Term.relabel (BoundedFormula.relabelAux
+            (fun a : γ ⊕ β => Sum.map id enum.toIdx a) n)
+            ((Term.relabelEquiv
+              ((g.sumCongr (_root_.Equiv.refl β)).sumCongr (_root_.Equiv.refl (Fin n)))) t) := by
+    intro n t
+    have hfun :
+        ((g.sumCongr (_root_.Equiv.refl (Fin (enum.size + n)))) ∘
+            BoundedFormula.relabelAux (fun a : α ⊕ β => Sum.map id enum.toIdx a) n)
+          =
+        (BoundedFormula.relabelAux (fun a : γ ⊕ β => Sum.map id enum.toIdx a) n ∘
+          ((g.sumCongr (_root_.Equiv.refl β)).sumCongr (_root_.Equiv.refl (Fin n)))) := by
+      funext x
+      exact relabelAux_sumCongr g n x
+    simp_all
+  induction φ with
+  | falsum => rfl
+  | equal t1 t2 =>
+      simp only [BoundedFormula.relabelEquiv, mapTermRelEquiv_apply,
+        BoundedFormula.relabel, BoundedFormula.mapTermRel, Term.relabelEquiv_apply,
+        Term.relabel_relabel]
+      simp_all
+  | rel R ts =>
+      simp only [BoundedFormula.relabelEquiv, mapTermRelEquiv_apply,
+        BoundedFormula.relabel, BoundedFormula.mapTermRel, Term.relabelEquiv_apply,
+        Term.relabel_relabel]
+      simp_all
+  | imp φ ψ ihφ ihψ =>
+      simpa only [relabel_imp, imp, imp.injEq] using ⟨ihφ, ihψ⟩
+  | all φ ih =>
+      simpa only [relabel_all, Nat.add_eq, all, all.injEq] using ih
+
+
+-- @@ L261-270 verbatim
+@[simp]
+theorem iExs' {α β γ} [henum : IsEnum β] (g : α ≃ γ)
+    (φ : L.Formula (α ⊕ β)) :
+    BoundedFormula.relabelEquiv g (φ.iExs')
+    = Formula.iExs' (φ.relabelEquiv (Equiv.sumCongr g (_root_.Equiv.refl β))) :=
+by
+  unfold Formula.iExs'
+  rw [exs]
+  congr
+  exact relabel_relabelSum g φ
+
+
+-- @@ L272-281 verbatim
+@[simp]
+theorem iAlls' {α β γ} [henum : IsEnum β] (g : α ≃ γ)
+    (φ : L.Formula (α ⊕ β)) :
+    BoundedFormula.relabelEquiv g (φ.iAlls')
+    = Formula.iAlls' (φ.relabelEquiv (Equiv.sumCongr g (_root_.Equiv.refl β))) :=
+by
+  unfold Formula.iAlls'
+  rw [alls]
+  congr
+  exact relabel_relabelSum g φ
+
+
+-- @@ L283-286 verbatim
+@[simp]
+theorem inf {L : Language} {α β} (g : α ≃ β) {k} (φ ψ : L.BoundedFormula α k) :
+    (φ ⊓ ψ).relabelEquiv g = (φ.relabelEquiv g) ⊓ (ψ.relabelEquiv g) :=
+  rfl
+
+
+
+-- @@ L289-289 verbatim
+end relabelEquiv
+
+
+-- @@ L291-291 verbatim
+end BoundedFormula
+
+-- @@ L292-292 verbatim
+end Language
+
+-- @@ L293-293 verbatim
+end FirstOrder

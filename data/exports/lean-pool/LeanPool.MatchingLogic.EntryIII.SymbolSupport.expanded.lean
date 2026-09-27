@@ -1,0 +1,83 @@
+/-
+Copyright (c) 2026 Aurélien Eveil. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Aurélien Eveil, Anthropic, OpenAI
+-/
+
+/- Finite symbol support for reducing arbitrary signatures to finite ones. -/
+module
+
+public import LeanPool.MatchingLogic.ProofSystem
+public import Mathlib.Data.Finset.Union
+public import Mathlib.Data.Fintype.Basic
+
+
+-- @@ L14-16 verbatim
+/-!
+# MatchingLogic.EntryIII.SymbolSupport
+-/
+
+
+-- @@ L18-18 verbatim
+@[expose] public section
+
+
+-- @@ L20-20 verbatim
+namespace MatchingLogic
+
+
+-- @@ L22-22 verbatim
+variable {S : Signature} {Var : Type}
+
+
+-- @@ L24-24 verbatim
+namespace Pattern
+
+
+-- @@ L26-32 verbatim
+/-- The finite set of signature symbols occurring in a pattern. -/
+def symbolSupport [DecidableEq S.Sym] : Pattern S Var → Finset S.Sym
+  | .var _ => ∅
+  | .bot => ∅
+  | .app sigma args => insert sigma (Finset.univ.biUnion (fun i => (args i).symbolSupport))
+  | .imp phi psi => phi.symbolSupport ∪ psi.symbolSupport
+  | .ex _ phi => phi.symbolSupport
+
+
+-- @@ L34-38 verbatim
+/-- Every head symbol belongs to the support of its application pattern. -/
+theorem head_mem_symbolSupport [DecidableEq S.Sym]
+    (sigma : S.Sym) (args : Fin (S.arity sigma) → Pattern S Var) :
+    sigma ∈ (Pattern.app sigma args).symbolSupport := by
+  simp [symbolSupport]
+
+
+-- @@ L40-46 verbatim
+/-- Every symbol of an argument belongs to the support of the whole application. -/
+theorem argument_symbolSupport_subset [DecidableEq S.Sym]
+    (sigma : S.Sym) (args : Fin (S.arity sigma) → Pattern S Var) (i : Fin (S.arity sigma)) :
+    (args i).symbolSupport ⊆ (Pattern.app sigma args).symbolSupport := by
+  intro tau htau
+  simp only [symbolSupport, Finset.mem_insert, Finset.mem_biUnion]
+  exact Or.inr ⟨i, Finset.mem_univ i, htau⟩
+
+
+-- @@ L48-57 verbatim
+/-- The support of a finite conjunction is the union of the supports of its members. -/
+theorem symbolSupport_conj [DecidableEq S.Sym]
+    (l : List (Pattern S Var)) :
+    (conj l).symbolSupport =
+      l.foldr (fun p support => p.symbolSupport ∪ support) ∅ := by
+  induction l with
+  | nil => simp [conj, Pattern.tp, symbolSupport]
+  | cons phi l ih =>
+      simp [conj, Pattern.and, Pattern.nt, symbolSupport, ih,
+        Finset.union_comm]
+
+
+-- @@ L59-59 verbatim
+end Pattern
+
+
+-- @@ L61-61 verbatim
+end MatchingLogic

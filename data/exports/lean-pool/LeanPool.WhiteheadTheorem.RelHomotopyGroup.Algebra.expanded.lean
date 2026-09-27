@@ -1,0 +1,169 @@
+/-
+Copyright (c) 2026 Jiazhen Xia. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Jiazhen Xia
+-/
+module
+
+public import Aesop.BuiltinRules
+public import Mathlib.Data.Set.Operations
+public import Mathlib.Basic.Unique
+import Mathlib.Data.Finset.Attr
+import Mathlib.Data.Rat.Cast.Order
+import Mathlib.Tactic.Measurability.Init
+import Mathlib.Tactic.NormNum.Abs
+import Mathlib.Tactic.NormNum.DivMod
+import Mathlib.Tactic.NormNum.OfScientific
+import Mathlib.Tactic.NormNum.Pow
+
+
+
+-- @@ L20-22 verbatim
+/-!
+TODO: Use `Pointed` (the category of pointed types) in Mathlib.
+-/
+
+
+-- @@ L24-27 verbatim
+@[expose] public section
+
+
+/- A pointed map from `(X, x₀)` to `(Y, y₀)` is a function `f : X → Y` such that `f x₀ = y₀`. -/
+
+-- @@ L28-30 verbatim
+/-- `IsPointedMap` -/
+class IsPointedMap {X Y : Type*} [Inhabited X] [Inhabited Y] (f : X → Y) : Prop where
+  map_default : f default = default
+
+
+-- @@ L32-32 verbatim
+namespace IsPointedMap
+
+
+-- @@ L34-34 verbatim
+variable {X Y : Type*} [Inhabited X] [Inhabited Y] (f : X → Y) [IsPointedMap f]
+
+
+-- @@ L36-37 verbatim
+lemma default_mem_image_of_default_mem {A : Set X} : default ∈ A → default ∈ f '' A :=
+  fun h ↦ (Set.mem_image _ _ _).mpr ⟨default, ⟨h, IsPointedMap.map_default⟩⟩
+
+
+-- @@ L39-42 verbatim
+lemma default_mem_preimage_default : default ∈ f ⁻¹' {default} := by
+  apply Set.mem_preimage.mpr
+  rw [(IsPointedMap.map_default : f _ = _)]
+  exact Set.mem_singleton _
+
+
+-- @@ L44-45 verbatim
+lemma default_subset_preimage_default : {default} ⊆ f ⁻¹' {default} :=
+  Set.singleton_subset_iff.mpr (default_mem_preimage_default _)
+
+
+-- @@ L47-51 verbatim
+lemma default_eq_image_preimage_default : {default} = f '' (f ⁻¹' {default}) := by
+  refine Set.Subset.antisymm ?_ (Set.image_preimage_subset f {default})
+  apply Set.singleton_subset_iff.mpr
+  apply default_mem_image_of_default_mem
+  exact default_mem_preimage_default f
+
+
+-- @@ L53-53 verbatim
+end IsPointedMap
+
+
+
+-- @@ L56-59 verbatim
+namespace ExactSeq
+
+/- The sequence `X --f-> Y --g-> Z` of pointed sets is said to be exact at `Y`
+if `Ker g = Im f`. -/
+
+-- @@ L60-63 verbatim
+/-- `IsExactAt` -/
+def IsExactAt {X Y Z : Type*} [Inhabited Z]
+    (f : X → Y) (g : Y → Z) : Prop :=
+  g ⁻¹' {default} = Set.range f
+
+
+-- @@ L65-74 verbatim
+lemma isExactAt_of_ker_supset_im_of_ker_subset_im
+    {X Y Z : Type*} [Inhabited Z] {f : X → Y} {g : Y → Z}
+    (hsup : ∀ y, (∃ x, f x = y) → g y = default)
+    (hsub : ∀ y, (g y = default) → ∃ x, f x = y) :
+    IsExactAt f g := by
+  apply Set.eq_of_subset_of_subset
+  · intro y hy
+    exact Set.mem_range.mpr <| hsub y <| Set.mem_preimage.mp hy
+  · intro y hy
+    exact Set.mem_preimage.mpr <| Set.mem_singleton_iff.mpr <| hsup y <| Set.mem_range.mp hy
+
+
+-- @@ L76-86 verbatim
+/-!
+Given an exact sequence
+`A --a-> B --b-> C --c-> D --d-> E`
+of five pointed sets, if `a` is surjective and `d` is injective, then `C = 0`.
+*proof.*
+- `Ker b = Im a = B` (since `a` is surjective)
+- Hence `Im b = 0`
+- `0 = Ker d = Im c` (since `d` is injective)
+- Hence `Ker c = C`
+- Use `Ker c = Im b` to conclude `C = 0`.
+-/
+
+
+-- @@ L88-88 verbatim
+variable {A B C D E : Type*}
+
+-- @@ L89-89 verbatim
+variable [Inhabited A] [Inhabited B] [Inhabited C] [Inhabited D] [Inhabited E]
+
+
+-- @@ L91-96 verbatim
+omit [Inhabited A] in
+private lemma im_B_eq_zero (a : A → B) (b : B → C) (a_surj : Function.Surjective a)
+    (exb : IsExactAt a b) :
+    Set.range b = {default} := by
+  rw [IsExactAt, Set.range_eq_univ.mpr a_surj] at exb
+  simp_all
+
+
+-- @@ L98-111 verbatim
+omit [Inhabited C] in
+private lemma ker_c_eq_C (c : C → D) (d : D → E) (d_inj : Function.Injective d)
+    [IsPointedMap d] (exd : IsExactAt c d) :
+    c ⁻¹' {default} = Set.univ := by
+  rw [IsExactAt] at exd
+  have : d ⁻¹' {default} = {default} := by
+    refine Set.Subset.antisymm ?_ (IsPointedMap.default_subset_preimage_default _)
+    apply Set.subset_singleton_iff.mpr
+    intro x hx
+    rw [Set.mem_preimage, Set.mem_singleton_iff] at hx
+    apply @d_inj x default
+    rw [hx]
+    exact Eq.symm IsPointedMap.map_default
+  simp_all
+
+
+-- @@ L113-127 verbatim
+omit [Inhabited A] in
+/-- `C = {0}` if there is an exact sequence `A --a-> B --b-> C --c-> D --d-> E`
+of five pointed sets such that `a` is surjective and `d` is injective. -/
+theorem unique_mid_of_five (a : A → B) (b : B → C) (c : C → D) (d : D → E)
+    [IsPointedMap d]
+    (a_surj : Function.Surjective a) (d_inj : Function.Injective d)
+    (exb : IsExactAt a b) (exc : IsExactAt b c) (exd : IsExactAt c d) :
+    Nonempty (Unique C) :=
+  Nonempty.intro <|
+    { uniq := fun x ↦ by
+        have h1 := im_B_eq_zero a b a_surj exb
+        have h2 := ker_c_eq_C c d d_inj exd
+        have h : @Set.univ C = {default} := h2.symm.trans exc |>.trans h1
+        apply Set.eq_singleton_iff_unique_mem.mp h |>.right
+        simp only [Set.mem_univ] }
+
+
+-- @@ L129-129 verbatim
+end ExactSeq

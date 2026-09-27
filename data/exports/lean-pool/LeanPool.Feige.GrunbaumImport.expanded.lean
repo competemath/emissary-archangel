@@ -1,0 +1,112 @@
+/-
+Copyright (c) 2026 Zhengqing Zhou and contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Zhengqing Zhou, GPT-5.6 Pro
+-/
+module
+
+public import LeanPool.Feige.SimplexGeometry
+public import LeanPool.Feige.Grunbaum.Sharpness
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.Arctan
+import Mathlib.MeasureTheory.Covering.Besicovitch
+import Mathlib.MeasureTheory.Measure.Haar.InnerProductSpace
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L15-21 verbatim
+/-!
+# Basic interface to the Grünbaum formalization
+
+This file registers the first, purely measure-theoretic part of the bridge
+between the coordinate-function model used by `Feige` and Mathlib's
+`EuclideanSpace` model used by `Grunbaum`.
+-/
+
+
+-- @@ L23-23 verbatim
+@[expose] public section
+
+
+-- @@ L25-25 verbatim
+open Set MeasureTheory
+
+
+-- @@ L27-27 verbatim
+namespace Feige
+
+
+-- @@ L29-32 verbatim
+/-- The canonical passage from coordinate functions to Euclidean space. -/
+def simplexToEuclidean (n : ℕ) :
+    (Fin n → ℝ) → Grunbaum.SimplexE n :=
+  WithLp.toLp 2
+
+
+-- @@ L34-38 verbatim
+theorem measurable_simplexToEuclidean (n : ℕ) :
+    Measurable (simplexToEuclidean n) :=
+  by
+    simpa [simplexToEuclidean] using
+      (PiLp.volume_preserving_toLp (Fin n)).measurable
+
+
+-- @@ L40-44 verbatim
+@[simp]
+theorem simplexToEuclidean_apply
+    (n : ℕ) (x : Fin n → ℝ) (i : Fin n) :
+    simplexToEuclidean n x i = x i :=
+  PiLp.toLp_apply 2 (fun _ : Fin n => ℝ) x i
+
+
+-- @@ L46-54 verbatim
+/-- The two projects use exactly the same standard simplex, modulo the
+canonical `PiLp.toLp` wrapper. -/
+theorem simplexToEuclidean_mem_simplexSet_iff
+    (n : ℕ) (x : Fin n → ℝ) :
+    simplexToEuclidean n x ∈ Grunbaum.simplexSet n ↔
+      x ∈ fullSimplex (Fin n) := by
+  simp only [Grunbaum.mem_simplexSet, fullSimplex,
+    Set.mem_ofPred_eq, Grunbaum.coordinateSum_apply,
+    simplexToEuclidean_apply]
+
+
+-- @@ L56-60 verbatim
+theorem simplexToEuclidean_preimage_simplexSet (n : ℕ) :
+    simplexToEuclidean n ⁻¹' Grunbaum.simplexSet n =
+      fullSimplex (Fin n) := by
+  ext x
+  exact simplexToEuclidean_mem_simplexSet_iff n x
+
+
+-- @@ L62-71 verbatim
+/-- Lebesgue volume of the simplex is unchanged by the canonical
+coordinate-function/Euclidean-space identification. -/
+theorem volume_simplexSet_eq_volume_fullSimplex (n : ℕ) :
+    volume (Grunbaum.simplexSet n) =
+      volume (fullSimplex (Fin n)) := by
+  rw [← (PiLp.volume_preserving_toLp (Fin n)).measure_preimage
+    (Grunbaum.isClosed_simplexSet n).measurableSet.nullMeasurableSet]
+  change volume (simplexToEuclidean n ⁻¹' Grunbaum.simplexSet n) =
+    volume (fullSimplex (Fin n))
+  rw [simplexToEuclidean_preimage_simplexSet]
+
+
+-- @@ L73-86 verbatim
+/-- Transport of intersections with the standard simplex.  This is the
+form needed to compare the two normalized halfspace-volume ratios. -/
+theorem volume_simplexSet_inter_eq_volume_fullSimplex_inter_preimage
+    (n : ℕ) {A : Set (Grunbaum.SimplexE n)}
+    (hA : MeasurableSet A) :
+    volume (Grunbaum.simplexSet n ∩ A) =
+      volume (fullSimplex (Fin n) ∩ simplexToEuclidean n ⁻¹' A) := by
+  rw [← (PiLp.volume_preserving_toLp (Fin n)).measure_preimage
+    ((Grunbaum.isClosed_simplexSet n).measurableSet.inter hA).nullMeasurableSet]
+  change
+    volume (simplexToEuclidean n ⁻¹'
+      (Grunbaum.simplexSet n ∩ A)) =
+      volume (fullSimplex (Fin n) ∩ simplexToEuclidean n ⁻¹' A)
+  rw [preimage_inter, simplexToEuclidean_preimage_simplexSet]
+
+
+-- @@ L88-88 verbatim
+end Feige

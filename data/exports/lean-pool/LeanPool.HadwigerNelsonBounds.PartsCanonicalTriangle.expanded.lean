@@ -1,0 +1,98 @@
+/-
+Copyright (c) 2026 Egor Lyfar. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Egor Lyfar
+-/
+module
+
+public import Mathlib.Combinatorics.SimpleGraph.Coloring.Vertex
+public import LeanPool.HadwigerNelsonBounds.PartsRootDecisionCore
+import LeanPool.HadwigerNelsonBounds.PartsRootDecision
+
+
+-- @@ L12-17 verbatim
+/-!
+# The canonical non-monochromatic sqrt-three triangle
+
+The checked Parts certificate rules out a monochromatic copy of its canonical
+equilateral triangle in every proper four-coloring of the plane.
+-/
+
+
+-- @@ L19-19 verbatim
+@[expose] public section
+
+
+-- @@ L21-21 verbatim
+namespace HadwigerNelsonBounds
+
+
+-- @@ L23-26 verbatim
+/-- Rename a distinguished color to zero and a different color to three. -/
+def partsColorEquiv (triple center : Fin 4) : Fin 4 ≃ Fin 4 :=
+  (Equiv.swap triple 0).trans
+    (Equiv.swap ((Equiv.swap triple 0) center) 3)
+
+
+-- @@ L28-31 verbatim
+lemma partsColorEquiv_spec {triple center : Fin 4} (hne : triple ≠ center) :
+    partsColorEquiv triple center triple = 0 ∧
+      partsColorEquiv triple center center = 3 := by
+  fin_cases triple <;> fin_cases center <;> revert hne <;> decide
+
+
+-- @@ L33-34 verbatim
+/-- First vertex of the canonical equilateral triangle in the Parts graph. -/
+noncomputable def partsTriangleA : R2 := (partsPoint 195).toR2
+
+
+-- @@ L36-37 verbatim
+/-- Second vertex of the canonical equilateral triangle in the Parts graph. -/
+noncomputable def partsTriangleB : R2 := (partsPoint 205).toR2
+
+
+-- @@ L39-40 verbatim
+/-- Third vertex of the canonical equilateral triangle in the Parts graph. -/
+noncomputable def partsTriangleC : R2 := (partsPoint 215).toR2
+
+
+-- @@ L42-43 verbatim
+/-- The origin, adjacent to all three canonical triangle vertices. -/
+noncomputable def partsTriangleCenter : R2 := (partsPoint 0).toR2
+
+
+-- @@ L45-74 verbatim
+/-- The full Parts certificate: its canonical sqrt-three triangle is never
+monochromatic in a proper four-coloring of the unit-distance graph. -/
+theorem parts_canonical_triangle_not_monochromatic
+    (planeColoring : unitDistanceGraph.Coloring (Fin 4)) :
+    ¬(planeColoring partsTriangleA = planeColoring partsTriangleB ∧
+      planeColoring partsTriangleB = planeColoring partsTriangleC) := by
+  rintro ⟨hab, hbc⟩
+  let triple := planeColoring partsTriangleA
+  let center := planeColoring partsTriangleCenter
+  have hadj : partsAdjacent 0 195 = true := by decide
+  have hcenter : center ≠ triple := by
+    exact planeColoring.valid (unitDistanceGraph_adj_of_partsAdjacent hadj)
+  let rename := partsColorEquiv triple center
+  have hrename := partsColorEquiv_spec hcenter.symm
+  let coloring : Fin 481 → Fin 4 := fun vertex =>
+    rename (planeColoring (partsPoint vertex).toR2)
+  have hproper : PartsProper coloring := by
+    intro v w hvw heq
+    apply planeColoring.valid (unitDistanceGraph_adj_of_partsAdjacent hvw)
+    exact rename.injective heq
+  have hroots : PartsExtends coloring partsNormalizedRootPath := by
+    intro assignment hin
+    simp only [partsNormalizedRootPath, List.mem_cons] at hin
+    rcases hin with rfl | rfl | rfl | rfl | hin
+    · exact hrename.2
+    · exact hrename.1
+    · exact (congrArg rename hab).symm.trans hrename.1
+    · exact (congrArg rename (hab.trans hbc)).symm.trans hrename.1
+    · simp at hin
+  exact no_parts_coloring_of_normalized_root hproper hroots
+
+
+-- @@ L76-76 verbatim
+end HadwigerNelsonBounds

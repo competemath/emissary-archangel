@@ -1,0 +1,36 @@
+/-
+Copyright (c) 2026 Monica Omar. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Monica Omar
+-/
+module
+
+public import Mathlib.Data.Matrix.PEquiv
+public import Mathlib.LinearAlgebra.UnitaryGroup
+import LeanPool.Monlib4.Preq.Ites
+import Mathlib.Algebra.Order.Algebra
+import Mathlib.Analysis.SpecialFunctions.Pow.NNReal
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L15-19 verbatim
+/-!
+# LeanPool.Monlib4.Preq.Equiv
+
+Imported Lean Pool material for `LeanPool.Monlib4.Preq.Equiv`.
+-/
+
+
+-- @@ L21-21 verbatim
+@[expose] public section
+
+
+-- @@ L23-30 verbatim
+theorem Equiv.Perm.ToPequiv.toMatrix_mem_unitaryGroup {n : Type _} [DecidableEq n]
+    [Fintype n] {𝕜 : Type _} [CommRing 𝕜] [StarRing 𝕜] (σ : Equiv.Perm n) :
+    (Equiv.toPEquiv σ).toMatrix ∈ Matrix.unitaryGroup n 𝕜 := by
+  rw [Matrix.mem_unitaryGroup_iff]
+  ext i j
+  by_cases h : i = j <;>
+    simp [Matrix.mul_apply, PEquiv.toMatrix_apply, Equiv.toPEquiv_apply, Matrix.one_apply,
+      Function.Injective.eq_iff (Equiv.injective σ), eq_comm, h]

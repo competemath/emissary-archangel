@@ -1,0 +1,791 @@
+/-
+Copyright (c) 2026 Jiazhen Xia. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Jiazhen Xia
+-/
+module
+
+public import LeanPool.WhiteheadTheorem.Compressible.Defs
+public import LeanPool.WhiteheadTheorem.Shapes.MappingCylinder
+public import LeanPool.WhiteheadTheorem.RelHomotopyGroup.Defs
+public import LeanPool.WhiteheadTheorem.Shapes.Disk
+import LeanPool.WhiteheadTheorem.HEP.CubeJar
+import LeanPool.WhiteheadTheorem.HomotopyGroup.ChangeBasePt
+import LeanPool.WhiteheadTheorem.RelHomotopyGroup.LongExactSeq
+import LeanPool.WhiteheadTheorem.Shapes.DiskHomeoCube
+import Mathlib.Tactic.Measurability.Init
+
+
+-- @@ L18-24 verbatim
+/-!
+This file proves that if `f : C(X, Y)` is a weak homotopy equivalence,
+then the inclusion map `MapCyl.domInclFromTop` from `X` to the mapping cylinder of `f`
+is `n`-compressible for every natural number `n`, i.e.,
+it is compressible with respect to `TopCat.diskBoundaryIncl n : ∂𝔻 n ⟶ 𝔻 n`
+for each `n`.
+-/
+
+
+-- @@ L26-26 verbatim
+@[expose] public section
+
+
+-- @@ L28-28 verbatim
+open CategoryTheory TopCat
+
+-- @@ L29-29 verbatim
+open scoped unitInterval ContinuousMap Topology Topology.Homotopy
+
+
+
+
+-- @@ L33-37 verbatim
+universe u
+
+-- variable (n : ℕ) {X Y : Type u} [TopologicalSpace X] [TopologicalSpace Y]
+-- variable (x₀ : X)
+-- variable (f : C(X, Y))
+
+-- @@ L38-38 verbatim
+variable (n : ℕ) {X Y : TopCat.{u}} (f : X ⟶ Y)
+
+-- @@ L39-39 verbatim
+variable (x₀ : X)
+
+
+-- @@ L41-41 verbatim
+namespace HomotopyGroup
+
+
+-- @@ L43-62 verbatim
+/-- If the map `πₙ(X, x₀) ⟶ πₙ(Y, f x₀)` induced by `f` is an isomorphism,
+then the map `πₙ(X, x₀) ⟶ πₙ(MapCyl f, ⋯)` induced by inclusion into the mapping cylinder
+is an isomorphism. -/
+lemma isIso_inducedPointedHom'_mapCyl_domIncl_of_isIso
+    (hf : IsIso <| inducedPointedHom' n x₀ f) :
+    IsIso <| inducedPointedHom' n x₀ (MapCyl.domIncl f) := by
+  have f_i_r := inducedPointedHom'_comp_isoTarget_eq_comp n x₀ (MapCyl.domIncl_retr_eq f).symm
+  have iso_r : IsIso <| inducedPointedHom'
+      n (ConcreteCategory.hom (MapCyl.domIncl f) x₀) (MapCyl.retr f) := by
+    apply isIso_inducedPointedHom'_of_isHomotopyEquiv
+    exact MapCyl.isHomotopyEquiv_retr f
+  -- We provide all `IsIso` instances explicitly to avoid synthesis failure on the abbreviated
+  -- `Pointed.of default` form.
+  have h_isoTarget : IsIso
+      (inducedPointedHom'.isoTarget n x₀ (MapCyl.domIncl_retr_eq f).symm).hom :=
+    Iso.isIso_hom _
+  have : IsIso (inducedPointedHom' n x₀ f ≫
+      (inducedPointedHom'.isoTarget n x₀ (MapCyl.domIncl_retr_eq f).symm).hom) :=
+    @IsIso.comp_isIso _ _ _ _ _ _ _ hf h_isoTarget
+  exact @IsIso.of_isIso_fac_right _ _ _ _ _ _ _ _ iso_r (by assumption) f_i_r.symm
+
+
+-- @@ L64-86 verbatim
+/-- If the map `πₙ(X, x₀) ⟶ πₙ(Y, f x₀)` induced by `f` is an isomorphism,
+then the map `πₙ(X, MapCyl.top f) ⟶ πₙ(MapCyl f, ⋯)` induced by
+the inclusion `domInclFromTop f : C(top f, MapCyl f)` is an isomorphism. -/
+lemma isIso_inducedPointedHom_mapCyl_domInclFromTop_of_isIso
+    (hf : IsIso <| inducedPointedHom' n x₀ f) :
+    IsIso <| inducedPointedHom n (MapCyl.domInclToTop f x₀) (MapCyl.domInclFromTop f) := by
+  have hf := isIso_inducedPointedHom'_mapCyl_domIncl_of_isIso _ _ _ hf
+  have hf' : IsIso (inducedPointedHom n x₀ (Hom.hom (MapCyl.domIncl f))) := hf
+  have i_it_if := inducedPointedHom_comp_isoTarget_eq_comp n x₀
+    (MapCyl.domIncl_hom_eq_domInclFromTop_comp_domInclToTop f)
+  have iso_it : IsIso <| inducedPointedHom n x₀ (MapCyl.domInclToTop f) := by
+    apply HomotopyGroup.isIso_inducedPointedHom'_of_isHomeomorph
+    exact MapCyl.isHomeomorph_domInclToTop f
+  -- `(domIncl).hom ≫ isoTarget.hom = domInclToTop ≫ domInclFromTop` ⇒ `domInclFromTop` iso.
+  have h_isoTarget : IsIso
+      (inducedPointedHom.isoTarget n x₀
+        (MapCyl.domIncl_hom_eq_domInclFromTop_comp_domInclToTop f)).hom :=
+    Iso.isIso_hom _
+  have : IsIso (inducedPointedHom n x₀ (Hom.hom (MapCyl.domIncl f)) ≫
+      (inducedPointedHom.isoTarget n x₀
+        (MapCyl.domIncl_hom_eq_domInclFromTop_comp_domInclToTop f)).hom) :=
+    @IsIso.comp_isIso _ _ _ _ _ _ _ hf' h_isoTarget
+  exact @IsIso.of_isIso_fac_left _ _ _ _ _ _ _ _ iso_it (by assumption) i_it_if.symm
+
+
+-- @@ L88-88 verbatim
+end HomotopyGroup
+
+
+
+-- @@ L91-91 verbatim
+namespace RelHomotopyGroup
+
+
+-- @@ L93-93 verbatim
+open HomotopyGroup
+
+
+-- @@ L95-99 verbatim
+lemma inducedPointedHom_subtype_val_eq_iStar
+    (n : ℕ) {X : Type u} [TopologicalSpace X] (A : Set X) (a : A) :
+    ⇑(inducedPointedHom n a (⟨Subtype.val, continuous_subtype_val⟩ : C(A, X))) =
+      iStar n X A a :=
+  rfl
+
+
+-- @@ L101-109 verbatim
+/-- If the map `πₙ(X, x₀) ⟶ πₙ(Y, f x₀)` induced by `f` is an isomorphism,
+then the map `iStar : πₙ(X, MapCyl.top f) → πₙ(MapCyl f, ⋯)` is bijective. -/
+lemma bijective_iStar_mapCyl_of_isIso
+    (hf : IsIso <| inducedPointedHom' n x₀ f) :
+    Function.Bijective <| iStar n (MapCyl f) (MapCyl.top f) (MapCyl.domInclToTop f x₀) := by
+  rw [← inducedPointedHom_subtype_val_eq_iStar]
+  apply (Pointed.isIso_iff_bijective _).mp
+  apply isIso_inducedPointedHom_mapCyl_domInclFromTop_of_isIso
+  exact hf
+
+
+-- @@ L111-119 expanded
+/-- If `f` is a weak homotopy equivalence, then the relative homotopy group
+`π_rel n (MapCyl f) (MapCyl.top f) (MapCyl.domInclToTop f x₀)` is zero for all `n ≥ 1` and `x`. -/
+theorem unique_pi_mapCyl_of_isWeakHomotopyEquiv (hf : IsWeakHomotopyEquiv f.hom) :
+    Nonempty <|
+      Unique <| RelHomotopyGroup (n + 1) (MapCyl f) (MapCyl.top f) (MapCyl.domInclToTop f x₀) :=
+  by
+  replace hf := isIso_inducedPointedHom_of_isWeakHomotopyEquiv hf
+  apply unique_relHomotopyGroup_of_bijective_iStar
+  intro n
+  apply bijective_iStar_mapCyl_of_isIso
+  exact hf n x₀
+
+
+-- @@ L121-121 verbatim
+end RelHomotopyGroup
+
+
+
+
+
+-- @@ L126-126 verbatim
+namespace Cube
+
+
+-- @@ L128-128 verbatim
+variable {n : ℕ} (X : Type u) [TopologicalSpace X] (A : Set X)
+
+
+-- @@ L130-132 expanded
+/-- A continuous map from the `n`-dimensional cube to `X` is called a map of pairs to `(X, A)`
+if it sends the boundary `∂I^n` into `A`. -/
+abbrev IsMapOfPairs (f : C(I^Fin n, X)) : Prop :=
+  ∀ y ∈ Cube.boundary (Fin n), f y ∈ A
+
+
+-- @@ L134-236 expanded
+/-- For `n ≥ 1`, if `f` is a continuous map of pairs from `(I^ Fin n, ∂I^n)` to `(X, A)`,
+then it is as a map of pairs homotopic to a `RelGenLoop`. -/
+lemma exists_relGenLoop_homotopicWith_isMapOfPairs (f : C(I^Fin (n + 1), X))
+    (hf : IsMapOfPairs X A f) :
+    ∃ a : A, ∃ g : RelGenLoop (n + 1) X A a, f.HomotopicWith g fun h ↦ IsMapOfPairs X A h :=
+  by
+  let fb : C(Cube.boundary (Fin (n + 1)), A) := ⟨fun y ↦ ⟨f y, hf y y.property⟩, by fun_prop⟩
+  let fj : C(Cube.boundaryJar (n + 1), A) := fb.comp <| boundaryJarInclToBoundary (n + 1)
+  obtain ⟨y₀, Hfj⟩ :=
+    contractible_iff_id_nullhomotopic (Cube.boundaryJar (n + 1)) |>.mp
+      instContractibleSpaceBoundaryJar
+  replace Hfj := (ContinuousMap.Homotopy.refl fj).comp Hfj.some
+  simp only [ContinuousMap.comp_id, ContinuousMap.comp_const] at Hfj
+  let a₀ : A := ⟨fj y₀, by simp_all⟩
+  use a₀
+  let fb' : C(cubeBoundary (n + 1), A) := fb.comp ⟨ULift.down.{u}, continuous_uliftDown⟩
+  let Hfj' : C((cubeBoundaryJar (n + 1)) × I, A) :=
+    Hfj.toContinuousMap.argSwap.comp <|
+      ContinuousMap.prodMap ⟨ULift.down.{u}, continuous_uliftDown⟩ (ContinuousMap.id _)
+  have : ⇑fb' ∘ (cubeBoundaryJarInclToBoundary.{u} (n + 1)).hom = ⇑Hfj' ∘ fun x ↦ (x, 0) :=
+    by
+    unfold cubeBoundaryJarInclToBoundary boundaryJarInclToBoundary
+    ext y
+    simp only [ContinuousMap.coe_mk, Function.comp_apply]
+    unfold fb' fb Hfj' ContinuousMap.argSwap
+    simp only [ContinuousMap.comp_apply, ContinuousMap.coe_mk, ContinuousMap.comp_assoc,
+      ContinuousMap.prodMap_apply, ContinuousMap.coe_id, Prod.map_apply, id_eq,
+      ContinuousMap.prodSwap_apply, ContinuousMap.Homotopy.coe_toContinuousMap,
+      ContinuousMap.Homotopy.apply_zero]
+    rfl
+  obtain ⟨H1, H1prop⟩ := cubeBoundaryJarInclToBoundary_hasHEP.{u} n A fb' Hfj' this
+  let f' : C(cube (n + 1), X) := f.comp ⟨ULift.down.{u}, continuous_uliftDown⟩
+  let H1' : C((cubeBoundary (n + 1)) × I, X) :=
+    ContinuousMap.comp ⟨Subtype.val, continuous_subtype_val⟩ H1
+  have := cubeBoundaryIncl_hasHEP.{u} (n + 1) X f'
+  replace : ⇑f' ∘ (cubeBoundaryIncl.{u} (n + 1)).hom = ⇑H1' ∘ fun x ↦ (x, 0) :=
+    by
+    unfold cubeBoundaryIncl f' H1'
+    ext ⟨y, hy⟩
+    simp only [ContinuousMap.coe_comp, ContinuousMap.coe_mk]
+    let yb : cubeBoundary (n + 1) := ULift.up.{u} ⟨y, hy⟩
+    have hzero := congr_fun H1prop.left yb
+    change f y = ↑(H1 (yb, 0))
+    change (fb' yb : A) = H1 (yb, 0) at hzero
+    exact congrArg Subtype.val hzero
+  obtain ⟨H2, H2prop⟩ := cubeBoundaryIncl_hasHEP.{u} (n + 1) X f' H1' this
+  let g : C(I^Fin (n + 1), X) := ⟨fun y ↦ H2 ⟨⟨y⟩, 1⟩, by fun_prop⟩
+  have gprop : g ∈ RelGenLoop (n + 1) X A a₀ :=
+    by
+    unfold g
+    constructor
+    · intro y hy
+      simp only [ContinuousMap.coe_mk]
+      have := congr_fun H2prop.right ⟨⟨y, hy⟩, 1⟩
+      simp only [cubeBoundaryIncl, Function.comp_apply] at this
+      change _ = H2 ({ down := y }, 1) at this
+      rw [← this]
+      unfold H1'
+      simp only [ContinuousMap.comp_apply, ContinuousMap.coe_mk, Subtype.coe_prop]
+    · intro y hy
+      have hy' := boundaryJar_subset_boundary _ hy
+      simp only [ContinuousMap.coe_mk]
+      have := congr_fun H2prop.right ⟨⟨y, hy'⟩, 1⟩
+      simp only [cubeBoundaryIncl, Function.comp_apply] at this
+      change _ = H2 ({ down := y }, 1) at this
+      rw [← this]
+      replace := congr_fun H1prop.right ⟨⟨y, hy⟩, 1⟩
+      simp only [cubeBoundaryJarInclToBoundary, boundaryJarInclToBoundary, ContinuousMap.coe_mk,
+        Function.comp_apply] at this
+      change _ = H1 ({ down := ⟨y, hy'⟩ }, 1) at this
+      unfold H1'
+      simp only [ContinuousMap.comp_apply, ContinuousMap.coe_mk]
+      rw [← this]
+      have hHfj := congrArg Subtype.val (Hfj.apply_one ⟨y, hy⟩)
+      convert hHfj using 1 <;> rfl
+  use ⟨g, gprop⟩
+  let iup : C(I^Fin (n + 1), cube (n + 1)) := ⟨ULift.up.{u}, continuous_uliftUp⟩
+  exact
+    Nonempty.intro <|
+      { toContinuousMap := H2.argSwap.comp <| (ContinuousMap.id _).prodMap iup
+        map_zero_left
+          y := by
+          unfold ContinuousMap.argSwap
+          simp only [ContinuousMap.coe_mk, ContinuousMap.comp_assoc, ContinuousMap.toFun_eq_coe,
+            ContinuousMap.comp_apply, ContinuousMap.prodMap_apply, ContinuousMap.coe_id,
+            Prod.map_apply, id_eq, ContinuousMap.prodSwap_apply]
+          have hzero := congr_fun H2prop.left (iup y)
+          change f y = H2 (iup y, 0) at hzero
+          exact hzero.symm
+        map_one_left
+          y := by
+          unfold ContinuousMap.argSwap g
+          simp only [ContinuousMap.coe_mk, ContinuousMap.comp_assoc, ContinuousMap.toFun_eq_coe,
+            ContinuousMap.comp_apply, ContinuousMap.prodMap_apply, ContinuousMap.coe_id,
+            Prod.map_apply, id_eq, ContinuousMap.prodSwap_apply]
+          rfl
+        prop' t y
+          hy := by
+          unfold ContinuousMap.argSwap
+          simp only [ContinuousMap.coe_mk, ContinuousMap.comp_assoc, ContinuousMap.toFun_eq_coe,
+            ContinuousMap.comp_apply, ContinuousMap.prodMap_apply, ContinuousMap.coe_id,
+            Prod.map_apply, id_eq, ContinuousMap.prodSwap_apply]
+          have := congr_fun H2prop.right ⟨⟨y, hy⟩, t⟩
+          simp only [ContinuousMap.comp_apply, ContinuousMap.coe_mk, cubeBoundaryIncl,
+            Function.comp_apply, H1'] at this
+          change _ = H2 (iup y, t) at this
+          rw [← this]
+          exact Subtype.coe_prop (H1 (ULift.up.{u} ⟨y, hy⟩, t)) }
+
+
+-- @@ L238-245 verbatim
+lemma homotopicWith_isMapOfPairs_of_relGenLoop_homotopic
+    {X : Type u} [TopologicalSpace X] {A : Set X}
+    {a : A} {f g : RelGenLoop n X A a} (fg : RelGenLoop.Homotopic f g) :
+    f.val.HomotopicWith g.val fun h ↦ IsMapOfPairs X A h := by
+  replace fg := fg.some
+  exact Nonempty.intro <|
+    { toHomotopy := fg.toHomotopy
+      prop' t y hy := (fg.prop' t).left y hy }
+
+
+-- @@ L247-260 expanded
+/-- Suppose `n ≥ 1` and the relative homotopy group `π_rel n X A a` is zero for all `a : A`.
+If `f` is a continuous map of pairs from `(I^ Fin n, ∂I^n)` to `(X, A)`,
+then it is as a map of pairs homotopic to a constant map. -/
+theorem homotopicWith_const_isMapOfPairs_of_unique_pi (f : C(I^Fin (n + 1), X))
+    (hf : IsMapOfPairs X A f)
+    (hpi : ∀ a : A, Nonempty <| Unique <| RelHomotopyGroup (n + 1) X A a) :
+    ∃ a : A, f.HomotopicWith (ContinuousMap.const _ a) fun h ↦ IsMapOfPairs X A h :=
+  by
+  obtain ⟨a, g, H⟩ := exists_relGenLoop_homotopicWith_isMapOfPairs X A f hf
+  have g0 := (hpi a |>.some.uniq ⟦g⟧).trans (hpi a |>.some.uniq ⟦RelGenLoop.const⟧).symm
+  change @Quotient.mk _ _ _ = @Quotient.mk _ _ _ at g0
+  rw [Quotient.eq] at g0
+  change RelGenLoop.Homotopic .. at g0
+  use a
+  exact H.trans <| homotopicWith_isMapOfPairs_of_relGenLoop_homotopic g0
+
+
+-- @@ L262-262 verbatim
+end Cube
+
+
+
+-- @@ L265-265 verbatim
+namespace TopCat.disk
+
+
+-- @@ L267-267 verbatim
+open TopCat
+
+
+-- @@ L269-269 verbatim
+variable {n : ℕ} (X : Type u) [TopologicalSpace X] (A : Set X)
+
+
+-- @@ L271-273 expanded
+/-- A continuous map from the `n`-dimensional disk to `X` is called a map of pairs to `(X, A)`
+if it sends the boundary `∂𝔻 n` into `A`. -/
+abbrev IsMapOfPairs (f : C(disk n, X)) : Prop :=
+  ∀ y : diskBoundary n, f (diskBoundaryIncl n y) ∈ A
+
+
+-- @@ L275-332 expanded
+/-- Suppose `n ≥ 1` and the relative homotopy group `π_rel n X A a` is zero for all `a : A`.
+If `f` is a continuous map of pairs from `(∂𝔻 n, 𝔻 n)` to `(X, A)`,
+then it is as a map of pairs homotopic to a constant map. -/
+theorem homotopicWith_const_isMapOfPairs_of_unique_pi (f : C(disk.{u} (n + 1), X))
+    (hf : IsMapOfPairs X A f)
+    (hpi : ∀ a : A, Nonempty <| Unique <| RelHomotopyGroup (n + 1) X A a) :
+    ∃ a : A, f.HomotopicWith (ContinuousMap.const _ a) fun h ↦ IsMapOfPairs X A h :=
+  by
+  let e := diskPair.homeoCubePairULift.{u} (n + 1)
+  let idown : C(cube (n + 1), I^Fin (n + 1)) := ⟨ULift.down.{u}, continuous_uliftDown⟩
+  let iup : C(I^Fin (n + 1), cube (n + 1)) := ⟨ULift.up.{u}, continuous_uliftUp⟩
+  let i_d : C(I^Fin (n + 1), disk (n + 1)) := e.inv.right.hom.comp iup
+  let d_i : C(disk (n + 1), I^Fin (n + 1)) := idown.comp e.hom.right.hom
+  let f' : C(I^Fin (n + 1), X) := f.comp i_d
+  have hf' : Cube.IsMapOfPairs X A f' := fun y hy ↦
+    by
+    unfold f' i_d iup
+    simp only [ContinuousMap.comp_apply]
+    change f ((cubeBoundaryIncl (n + 1) ≫ e.inv.right) ⟨⟨y, hy⟩⟩) ∈ A
+    change f ((e.inv.left ≫ diskBoundaryIncl (n + 1)) ⟨⟨y, hy⟩⟩) ∈ A
+    change f (diskBoundaryIncl (n + 1) <| e.inv.left ⟨⟨y, hy⟩⟩) ∈ A
+    apply hf
+  obtain ⟨a, H⟩ := Cube.homotopicWith_const_isMapOfPairs_of_unique_pi X A f' hf' hpi
+  use a
+  replace H := H.some
+  let H' := H.toHomotopy.comp (ContinuousMap.Homotopy.refl d_i)
+  have f'_d_i : f'.comp d_i = f := by
+    unfold f' d_i i_d
+    simp only [ContinuousMap.comp_assoc]
+    change _ = f.comp (ContinuousMap.id _)
+    congr 1
+    change e.inv.right.hom.comp ((iup.comp idown).comp e.hom.right.hom) = _
+    rw [(by rfl : iup.comp idown = ContinuousMap.id _), ContinuousMap.id_comp]
+    rw [show e.inv.right.hom.comp e.hom.right.hom = (e.hom.right ≫ e.inv.right).hom from rfl,
+      Arrow.hom_inv_id_right, hom_id]
+    rfl
+  exact
+    Nonempty.intro <|
+      { toContinuousMap := H'.toContinuousMap
+        map_zero_left x := by rw [H'.map_zero_left x, f'_d_i]
+        map_one_left x := by rw [H'.map_one_left x]; rfl
+        prop' t
+          x := by
+          unfold H' d_i diskBoundaryIncl
+          simp only [ContinuousMap.coe_mk]
+          apply H.prop' t
+          change
+            idown ((diskBoundaryIncl (n + 1) ≫ e.hom.right) x) ∈
+              _
+                -- diskPair.homeoCubePairULift_comm
+                
+          change idown ((e.hom.left ≫ cubeBoundaryIncl (n + 1)) x) ∈ _
+          change idown (cubeBoundaryIncl (n + 1) (e.hom.left x)) ∈ Cube.boundary (Fin (n + 1))
+          have : ∀ z, idown (cubeBoundaryIncl (n + 1) z) ∈ Cube.boundary (Fin (n + 1)) :=
+            by
+            intro ⟨z, hz⟩
+            unfold idown cubeBoundaryIncl
+            simp_all only [Subtype.forall, ContinuousMap.comp_assoc, f', i_d, e, iup, d_i, idown]
+            obtain ⟨val, property⟩ := a
+            obtain ⟨val_1, property_1⟩ := t
+            simp_all only [Set.mem_Icc]
+            obtain ⟨left, right⟩ := property_1
+            exact hz
+          apply this }
+
+
+-- @@ L334-381 verbatim
+/-- `stretchToWall` -/
+noncomputable def _root_.TopCat.Cyl.stretchToWall :
+    C(I × (disk.{u} (n + 1)), I × (disk.{u} (n + 1))) := by
+  refine
+    { toFun := fun ⟨t, ⟨x, hx⟩⟩ ↦
+        ⟨⟨2 - max (2 * ‖x‖) (2 - t), ?_⟩,
+          ⟨(2 / max (2 * ‖x‖) (2 - t)) • x, ?_⟩⟩
+      continuous_toFun := ?_ }
+  · change 0 ≤ 2 - max (2 * ‖x‖) (2 - (t : ℝ)) ∧
+      2 - max (2 * ‖x‖) (2 - (t : ℝ)) ≤ 1
+    have hxnorm : ‖x‖ ≤ 1 := by
+      simpa only [Metric.mem_closedBall, dist_zero_right] using hx
+    have hmaxle : max (2 * ‖x‖) (2 - (t : ℝ)) ≤ 2 := by
+      apply max_le
+      · linarith only [hxnorm]
+      · linarith only [t.property.left]
+    have hmaxge : 1 ≤ max (2 * ‖x‖) (2 - (t : ℝ)) := by
+      have ht : 1 ≤ (2 : ℝ) - t := by linarith only [t.property.right]
+      exact ht.trans (le_max_right _ _)
+    constructor <;> linarith
+  · rw [Metric.mem_closedBall, dist_zero_right, norm_smul]
+    let b : ℝ := max (2 * ‖x‖) (2 - (t : ℝ))
+    have hbpos : 0 < b := by
+      have ht : 0 < (2 : ℝ) - t := by linarith only [t.property.right]
+      exact ht.trans_le (le_max_right _ _)
+    have hxb : 2 * ‖x‖ ≤ b := le_max_left _ _
+    rw [Real.norm_of_nonneg (div_nonneg (by norm_num) hbpos.le)]
+    change (2 / b) * ‖x‖ ≤ 1
+    rw [show (2 / b) * ‖x‖ = (2 * ‖x‖) / b by ring]
+    exact (div_le_one hbpos).2 hxb
+  · apply Continuous.prodMk
+    · apply Continuous.subtype_mk
+      fun_prop
+    · apply continuous_uliftUp.comp
+      apply Continuous.subtype_mk
+      let scalar : I × disk.{u} (n + 1) → ℝ :=
+        fun ⟨t, ⟨x, _⟩⟩ ↦ 2 / max (2 * ‖x‖) (2 - t)
+      have hscalar : Continuous scalar := by
+        apply Continuous.div
+        · exact continuous_const
+        · fun_prop
+        · intro ⟨t, ⟨x, hx⟩⟩
+          have ht : 0 < (2 : ℝ) - t := by linarith only [t.property.right]
+          exact ne_of_gt (ht.trans_le (le_max_right _ _))
+      have hvector : Continuous
+          (fun z : I × disk.{u} (n + 1) ↦ z.2.down.val) := by
+        fun_prop
+      exact hscalar.smul hvector
+
+
+-- @@ L383-389 verbatim
+@[simp]
+lemma _root_.TopCat.Cyl.stretchToWall_fst_coe
+    {n : ℕ} (t : I) (x : EuclideanSpace ℝ (Fin (n + 1)))
+    (hx : x ∈ Metric.closedBall 0 1) :
+    ((Cyl.stretchToWall.{u} (t, ULift.up.{u} ⟨x, hx⟩)).1 : ℝ) =
+      2 - max (2 * ‖x‖) (2 - t) :=
+  rfl
+
+
+-- @@ L391-397 verbatim
+@[simp]
+lemma _root_.TopCat.Cyl.stretchToWall_snd_down_val
+    {n : ℕ} (t : I) (x : EuclideanSpace ℝ (Fin (n + 1)))
+    (hx : x ∈ Metric.closedBall 0 1) :
+    (Cyl.stretchToWall.{u} (t, ULift.up.{u} ⟨x, hx⟩)).2.down.val =
+      (2 / max (2 * ‖x‖) (2 - t)) • x :=
+  rfl
+
+
+-- @@ L399-413 verbatim
+lemma _root_.TopCat.Cyl.stretchToWall_zero
+    {n : ℕ} (x : disk.{u} (n + 1)) :
+    Cyl.stretchToWall.{u} (0, x) = (0, x) := by
+  obtain ⟨x, hx⟩ := x
+  have hxnorm : ‖x‖ ≤ 1 := by
+    simpa only [Metric.mem_closedBall, dist_zero_right] using hx
+  have hmax : max (2 * ‖x‖) 2 = 2 :=
+    max_eq_right (by linarith only [hxnorm])
+  apply Prod.ext
+  · apply Subtype.ext
+    simp only [Cyl.stretchToWall_fst_coe, Set.Icc.coe_zero, sub_zero, hmax, sub_self]
+  · apply ULift.ext
+    apply Subtype.ext
+    simp only [Cyl.stretchToWall_snd_down_val, Set.Icc.coe_zero, sub_zero, hmax,
+      div_self (by norm_num : (2 : ℝ) ≠ 0), one_smul]
+
+
+-- @@ L415-429 verbatim
+lemma _root_.TopCat.Cyl.stretchToWall_eq_zero_of_norm_eq_one
+    {n : ℕ} {t : I} {x : EuclideanSpace ℝ (Fin (n + 1))} {hx : x ∈ Metric.closedBall 0 1}
+    (hx1 : ‖x‖ = 1) :
+    Cyl.stretchToWall.{u} (t, ULift.up.{u} ⟨x, hx⟩) =
+      (0, ULift.up.{u} ⟨x, hx⟩) := by
+  have hmax : max (2 * ‖x‖) (2 - (t : ℝ)) = 2 := by
+    rw [hx1, mul_one]
+    exact max_eq_left (sub_le_self 2 t.property.left)
+  apply Prod.ext
+  · apply Subtype.ext
+    simp only [Cyl.stretchToWall_fst_coe, hmax, sub_self, Set.Icc.coe_zero]
+  · apply ULift.ext
+    apply Subtype.ext
+    simp only [Cyl.stretchToWall_snd_down_val, hmax,
+      div_self (by norm_num : (2 : ℝ) ≠ 0), one_smul]
+
+
+-- @@ L431-523 verbatim
+/-- Suppose `n ≥ 1` and `f` is a continuous map of pairs from `(∂𝔻 n, 𝔻 n)` to `(X, A)`.
+If `f` is as a map of pairs homotopic to a map into `A`,
+then `f` is relative to `∂𝔻 n` homotopic to a map into `A`. -/
+theorem homotopicRel_boundary_of_homotopicWith_isMapOfPairs
+    (f : C(disk.{u} (n + 1), X)) -- (hf : IsMapOfPairs X A f)
+    (H : ∃ g : C(disk.{u} (n + 1), X),
+      Set.range g ⊆ A ∧ f.HomotopicWith g fun h ↦ IsMapOfPairs X A h) :
+    ∃ l : C(disk.{u} (n + 1), X),
+      Set.range l ⊆ A ∧ f.HomotopicRel l (Set.range (diskBoundaryIncl.{u} _)) := by
+  obtain ⟨g, gA, H⟩ := H
+  replace H := H.some
+  let H' := H.toContinuousMap.comp Cyl.stretchToWall
+  let l : C(disk.{u} (n + 1), X) := ⟨fun x ↦ H' ⟨1, x⟩, by
+    have := ContinuousMap.continuous H'; fun_prop ⟩
+  use l
+  constructor
+  · apply Set.range_subset_iff.mpr
+    intro ⟨x, hx⟩
+    let xd : disk.{u} (n + 1) := ULift.up.{u} ⟨x, hx⟩
+    change H (Cyl.stretchToWall.{u} (1, xd)) ∈ A
+    by_cases hx1 : 2 * ‖x‖ ≥ 1
+    · have hxnorm : ‖x‖ ≤ 1 := by
+        simpa only [Metric.mem_closedBall, dist_zero_right] using hx
+      have hnorm : 0 < ‖x‖ := by linarith only [hx1]
+      let twall : I := ⟨2 - 2 * ‖x‖, by
+        constructor <;> linarith only [hx1, hxnorm]⟩
+      have xmem : ‖x‖⁻¹ • x ∈ Metric.sphere 0 1 := by
+        apply Metric.mem_sphere.mpr
+        rw [dist_eq_norm, sub_zero, norm_smul, norm_inv, norm_norm]
+        apply inv_mul_cancel₀
+        exact ne_of_gt hnorm
+      let xb : diskBoundary.{u} (n + 1) := ULift.up.{u} ⟨‖x‖⁻¹ • x, xmem⟩
+      let xwall : disk.{u} (n + 1) :=
+        ULift.up.{u} ⟨‖x‖⁻¹ • x, Metric.sphere_subset_closedBall xmem⟩
+      have hincl : diskBoundaryIncl.{u} (n + 1) xb = xwall := rfl
+      have hmax : max (2 * ‖x‖) 1 = 2 * ‖x‖ := max_eq_left hx1
+      have hscalar : (2 : ℝ) / (2 * ‖x‖) = ‖x‖⁻¹ := by field_simp
+      have hone : (2 : ℝ) - ((1 : I) : ℝ) = 1 := by norm_num
+      have hstretch : Cyl.stretchToWall.{u} (1, xd) = (twall, xwall) := by
+        apply Prod.ext
+        · apply Subtype.ext
+          simp only [xd, Cyl.stretchToWall_fst_coe, twall]
+          rw [hone, hmax]
+        · apply ULift.ext
+          apply Subtype.ext
+          simp only [xd, Cyl.stretchToWall_snd_down_val, xwall]
+          rw [hone, hmax, hscalar]
+      rw [hstretch, ← hincl]
+      exact H.prop' twall xb
+    · replace hx1 := le_of_not_ge hx1
+      have hmax : max (2 * ‖x‖) 1 = 1 := max_eq_right hx1
+      have xtwice_mem : (2 : ℝ) • x ∈ Metric.closedBall 0 1 := by
+        rw [Metric.mem_closedBall, dist_zero_right, norm_smul,
+          Real.norm_of_nonneg (by norm_num : (0 : ℝ) ≤ 2)]
+        exact hx1
+      let xtwice : disk.{u} (n + 1) := ULift.up.{u} ⟨(2 : ℝ) • x, xtwice_mem⟩
+      have hone : (2 : ℝ) - ((1 : I) : ℝ) = 1 := by norm_num
+      have hstretch : Cyl.stretchToWall.{u} (1, xd) = (1, xtwice) := by
+        apply Prod.ext
+        · apply Subtype.ext
+          simp only [xd, Cyl.stretchToWall_fst_coe]
+          rw [hone, hmax]
+          norm_num
+        · apply ULift.ext
+          apply Subtype.ext
+          simp only [xd, Cyl.stretchToWall_snd_down_val, xtwice]
+          rw [hone, hmax, div_one]
+      rw [hstretch, H.apply_one]
+      exact gA (Set.mem_range_self xtwice)
+  · exact Nonempty.intro <|
+      { toContinuousMap := H'
+        map_zero_left := fun x ↦ by
+          unfold H'
+          change H (Cyl.stretchToWall (0, x)) = f x
+          rw [Cyl.stretchToWall_zero, H.apply_zero]
+        map_one_left x := by unfold l; rfl
+        prop' t x hy := by
+          unfold H'
+          simp only [ContinuousMap.toFun_eq_coe, ContinuousMap.comp_apply,
+            ContinuousMap.Homotopy.coe_toContinuousMap, ContinuousMap.HomotopyWith.coe_toHomotopy,
+            ContinuousMap.coe_mk]
+          obtain ⟨x, hx⟩ := x
+          obtain ⟨⟨y, hy⟩, hy'⟩ := Set.mem_range.mp hy
+          simp only [diskBoundaryIncl] at hy'
+          replace hy' := (congr_arg (Subtype.val ∘ ULift.down) hy')
+          simp only [Function.comp_apply] at hy'
+          have hx1 : ‖x‖ = 1 := by
+            rw [← hy']
+            change ‖y‖ = 1
+            convert Metric.mem_sphere.mp hy using 1
+            exact Eq.symm (dist_zero_right y)
+          rw [Cyl.stretchToWall_eq_zero_of_norm_eq_one hx1]
+          exact H.apply_zero (⟨⟨x, hx⟩⟩ : disk.{u} (n + 1)) }
+
+
+-- @@ L525-537 expanded
+/-- Suppose `n ≥ 1` and the relative homotopy group `π_rel n X A a` is zero for all `a : A`.
+If `f` is a continuous map of pairs from `(∂𝔻 n, 𝔻 n)` to `(X, A)`,
+then it is relative to `∂𝔻 n` homotopic to a map into `A`. -/
+theorem homotopicRel_boundary_of_unique_pi (f : C(disk.{u} (n + 1), X)) (hf : IsMapOfPairs X A f)
+    (hpi : ∀ a : A, Nonempty <| Unique <| RelHomotopyGroup (n + 1) X A a) :
+    ∃ l : C(disk.{u} (n + 1), X),
+      Set.range l ⊆ A ∧ f.HomotopicRel l (Set.range (diskBoundaryIncl.{u} _)) :=
+  by
+  obtain ⟨a, H⟩ := homotopicWith_const_isMapOfPairs_of_unique_pi X A f hf hpi
+  let g : C(disk.{u} (n + 1), X) := ContinuousMap.const (disk (n + 1)) a
+  have gr : Set.range g ⊆ A := Set.range_subset_iff.mpr fun _ ↦ a.property
+  apply homotopicRel_boundary_of_homotopicWith_isMapOfPairs X A
+  use g
+
+
+-- @@ L539-572 expanded
+/-- For `n ≥ 1`, if the relative homotopy group `π_rel (n + 1) X A a` is zero
+(regardless of the basepoint `a`), then the inclusion map form `A` to `X` is `n`-compressible. -/
+theorem isCompressible_subtype_val_of_unique_pi (n : ℕ) (X : Type u) [TopologicalSpace X]
+    (A : Set X) (hpi : ∀ a : A, Nonempty <| Unique <| RelHomotopyGroup (n + 1) X A a) :
+    IsCompressible (diskBoundaryIncl (n + 1))
+      (ofHom ⟨Subtype.val, continuous_subtype_val⟩ : of A ⟶ of X)
+    where
+  sq_hasLift := fun {F f} sq ↦ by
+    constructor
+    have F_pair : disk.IsMapOfPairs X A F.hom := fun x ↦
+      by
+      change (diskBoundaryIncl (n + 1) ≫ F) x ∈ A
+      rw [← sq.w]
+      simp_all
+    obtain ⟨l, lA, H⟩ := disk.homotopicRel_boundary_of_unique_pi X A F.hom F_pair hpi
+    replace lA := Set.range_subset_iff.mp lA
+    let l' : C(disk.{u} (n + 1), A) :=
+      ⟨fun x ↦ ⟨l x, lA x⟩, by have := ContinuousMap.continuous l; fun_prop⟩
+    refine Nonempty.intro ⟨ofHom l', ?_, ?_⟩
+    · ext x
+      unfold l'
+      let x' := diskBoundaryIncl (n + 1) x
+      have x'r : x' ∈ Set.range (diskBoundaryIncl (n + 1)) := Set.mem_range_self x
+      have := H.some.prop' 1 x' x'r
+      simp only [ContinuousMap.toFun_eq_coe, ContinuousMap.Homotopy.coe_toContinuousMap,
+        ContinuousMap.Homotopy.apply_one, ContinuousMap.coe_mk] at this
+      convert this using 2
+      · rfl
+      · unfold x'
+        change (ConcreteCategory.hom f) x = (diskBoundaryIncl (n + 1) ≫ F) x
+        rw [← sq.w]
+        simp only [hom_comp, hom_ofHom, ContinuousMap.comp_apply, ContinuousMap.coe_mk]
+    · convert H
+      ext y
+      rfl
+
+
+-- @@ L574-626 expanded
+open RelHomotopyGroup in
+/-- If `iStar : π_ 0 A pt → π_ 0 X pt` is bijective (for some basepoint `pt`, which is irrelevant),
+then the inclusion map from `A` to `X` is `0`-compressible. -/
+theorem isCompressible_zero_subtype_val_of_bijective_iStar_zero (X : Type u) [TopologicalSpace X]
+    (A : Set X) (pt : A) (hbi : Function.Bijective <| iStar 0 X A pt) :
+    IsCompressible (diskBoundaryIncl 0)
+      (ofHom ⟨Subtype.val, continuous_subtype_val⟩ : of A ⟶ of X) :=
+  by
+  constructor
+  intro F f sq
+  have xD0 : 0 ∈ Metric.closedBall (0 : EuclideanSpace ℝ (Fin 0)) 1 := by simp
+  let x : X := F.hom ⟨0, xD0⟩
+  let β' : GenLoop (Fin 0) X pt :=
+    ⟨ContinuousMap.const _ x, fun y hy ↦ isEmptyElim (⟨y, hy⟩ : Cube.boundary (Fin 0))⟩
+  let β : π_ 0 X pt := ⟦β'⟧
+  obtain ⟨α, iα⟩ := hbi.surjective β
+  let α' := α.out
+  have hα : (⟦α'⟧ : π_ 0 A pt) = α := Quotient.out_eq α
+  replace iα : iStar 0 X A pt ⟦α'⟧ = ⟦β'⟧ := by
+    rw [hα]
+    exact iα
+  change iStar' .. = _ at iα
+  have H : ContinuousMap.HomotopicRel .. := Quotient.eq.mp iα.symm
+  replace H := H.some
+  let a : X := H ⟨1, ![]⟩
+  have aA : a ∈ A := by
+    unfold a
+    simp_all
+  let l : C(disk.{u} 0, A) := ContinuousMap.const _ ⟨a, aA⟩
+  constructor
+  refine ⟨ofHom l, ?_, ?_⟩
+  · ext x
+    exact isEmptyElim x
+  ·
+    exact
+      Nonempty.intro
+        { toFun := fun ⟨t, _⟩ ↦ H ⟨t, ![]⟩
+          continuous_toFun :=
+            by
+            have : Continuous H := ContinuousMap.HomotopyWith.continuous H
+            fun_prop
+          map_zero_left
+            y :=
+            by
+            simp only [ContinuousMap.const_apply, ContinuousMap.HomotopyWith.apply_zero, β', x]
+            congr
+            apply Subsingleton.elim
+          map_one_left
+            y := by
+            unfold l a
+            simp only [ContinuousMap.coe_mk, Function.comp_apply,
+              ContinuousMap.HomotopyWith.apply_one, Subtype.coe_eta, ]
+            rfl
+          prop' t
+            x := by
+            simp only [Set.mem_range, IsEmpty.exists_iff, ContinuousMap.coe_mk,
+              IsEmpty.forall_iff] }
+
+
+-- @@ L628-651 expanded
+/-- If `φ` is a weak homotopy equivalence,
+then the inclusion map `MapCyl.domInclFromTop φ`
+from the top surface of the mapping cylinder of `φ` to the mapping cylinder of `φ`
+is `n`-compressible for each natural number `n`. -/
+lemma isCompressible_mapcyl_domInclFromTop_of_isWeakHomotopyEquiv (n : ℕ) {X Y : TopCat.{u}}
+    (φ : X ⟶ Y) (hφ : IsWeakHomotopyEquiv φ.hom) :
+    IsCompressible (diskBoundaryIncl n) <| ofHom <| MapCyl.domInclFromTop φ := by
+  induction n with
+  | zero =>
+    have x := hφ.left.some
+    replace hφ := isIso_inducedPointedHom_of_isWeakHomotopyEquiv hφ 0
+    have hbi :
+      Function.Bijective <|
+        RelHomotopyGroup.iStar 0 (MapCyl φ) (MapCyl.top φ) (MapCyl.domInclToTop φ x) :=
+      RelHomotopyGroup.bijective_iStar_mapCyl_of_isIso 0 φ x (hφ x)
+    exact isCompressible_zero_subtype_val_of_bijective_iStar_zero _ _ _ hbi
+  | succ
+    n =>
+    have hpi a : Nonempty <| Unique <| RelHomotopyGroup (n + 1) (MapCyl φ) (MapCyl.top φ) a :=
+      by
+      let x := (TopCat.MapCyl.domHomeoTop φ).invFun a
+      convert RelHomotopyGroup.unique_pi_mapCyl_of_isWeakHomotopyEquiv n φ x hφ
+      unfold MapCyl.domInclToTop x
+      simp only [Equiv.invFun_as_coe, Homeomorph.coe_symm_toEquiv, ContinuousMap.coe_coe,
+        Homeomorph.apply_symm_apply]
+    convert isCompressible_subtype_val_of_unique_pi n (MapCyl φ) (MapCyl.top φ) hpi using 3
+    rfl
+
+
+-- @@ L653-683 verbatim
+/-- If `φ : X ⟶ Y` is a weak homotopy equivalence,
+then the inclusion map `MapCyl.domIncl φ` from `X` to the mapping cylinder of `φ`
+is `n`-compressible for each natural number `n`. -/
+theorem isCompressible_mapCyl_domIncl_of_isWeakHomotopyEquiv
+    (n : ℕ) {X Y : TopCat.{u}} (φ : X ⟶ Y) (hφ : IsWeakHomotopyEquiv φ.hom) :
+    IsCompressible (diskBoundaryIncl n) (MapCyl.domIncl φ) where
+  sq_hasLift := fun {F f} sq ↦ by
+    have com := isCompressible_mapcyl_domInclFromTop_of_isWeakHomotopyEquiv n φ hφ
+    have sq' : CommSq (f ≫ (ofHom <| MapCyl.domInclToTop φ)) (diskBoundaryIncl n)
+      -- (domIncl f).hom = (domInclFromTop f).comp (domInclToTop f)
+      (ofHom <| MapCyl.domInclFromTop φ) F := ⟨sq.w⟩
+    let l := com.sq_hasLift sq' |>.hasLift.some
+    let inv : C(MapCyl.top φ, X) := toContinuousMap (MapCyl.domHomeoTop φ).symm
+    use l.l ≫ ofHom inv
+    · have := congrArg₂ CategoryStruct.comp l.fac_left (Eq.refl (ofHom inv))
+      convert this using 1
+      all_goals rw [Category.assoc]
+      all_goals unfold inv MapCyl.domInclToTop
+      all_goals ext x : 1
+      simp_all
+    · convert l.H using 2
+      rw [Category.assoc]
+      congr 1
+      ext x
+      change ((MapCyl.domIncl φ).hom ∘ inv) x = _
+      rw [MapCyl.domIncl_hom_eq_domInclFromTop_comp_domInclToTop]
+      unfold inv
+      simp only [ContinuousMap.coe_comp, ContinuousMap.coe_coe, Function.comp_apply, hom_ofHom]
+      congr 1
+      unfold MapCyl.domInclToTop
+      simp only [ContinuousMap.coe_coe, Homeomorph.apply_symm_apply]
+
+
+-- @@ L685-685 verbatim
+end TopCat.disk

@@ -1,0 +1,166 @@
+/-
+Copyright (c) 2026 Adam Benenson. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Adam Benenson
+-/
+module
+
+public import Mathlib.InformationTheory.KullbackLeibler.Basic
+public import Mathlib.MeasureTheory.Measure.ProbabilityMeasure
+public import Mathlib.Probability.Kernel.Composition.CompNotation
+import Mathlib.Probability.Kernel.Composition.MeasureComp
+
+
+-- @@ L13-32 verbatim
+/-!
+# ChannelCapacity.Basic
+
+Measure-theoretic primitives for Shannon mutual information over a Markov kernel.
+
+This file keeps the surface small:
+
+- `ProbabilityMeasure.convexCombination`
+- `jointLaw`
+- `outputPrior`
+- `independentJointLaw`
+- `mutualInformation`
+
+The mutual information is defined directly from Mathlib's `klDiv`.
+
+`ProbabilityMeasure.convexCombination` is the one deliberate local primitive here. Mathlib already
+has the corresponding affine structure on measures, but not yet on the subtype of probability
+measures, so this file provides the subtype-level wrapper needed by the strict-concavity and finite
+uniqueness arguments.
+-/
+
+
+-- @@ L34-34 verbatim
+@[expose] public section
+
+
+-- @@ L36-36 verbatim
+open MeasureTheory
+
+-- @@ L37-37 verbatim
+open ProbabilityTheory
+
+-- @@ L38-38 verbatim
+open scoped ENNReal
+
+
+-- @@ L40-40 verbatim
+namespace ProbabilityMeasure
+
+
+-- @@ L42-42 verbatim
+variable {Ω : Type*} [MeasurableSpace Ω]
+
+
+-- @@ L44-64 verbatim
+/-- Convex combination of two probability measures.
+
+This is a subtype-level wrapper around convex combinations of measures. It exists because Mathlib
+does not currently provide an affine-space structure on `ProbabilityMeasure Ω`. -/
+noncomputable def convexCombination (μ ν : ProbabilityMeasure Ω) (t : NNReal)
+    (ht : t ≤ (1 : NNReal)) :
+    ProbabilityMeasure Ω :=
+  ⟨t • μ.toMeasure + ((1 : NNReal) - t) • ν.toMeasure, by
+    refine ⟨?_⟩
+    calc
+      (t • μ.toMeasure + ((1 : NNReal) - t) • ν.toMeasure) Set.univ =
+          (t • μ.toMeasure) Set.univ + (((1 : NNReal) - t) • ν.toMeasure) Set.univ := by
+            rw [Measure.add_apply]
+      _ = t • (μ.toMeasure Set.univ) + ((1 : NNReal) - t) • (ν.toMeasure Set.univ) := by
+            simp [Measure.smul_apply]
+      _ = t • (1 : ENNReal) + ((1 : NNReal) - t) • (1 : ENNReal) := by simp
+      _ = 1 := by
+            change (t : ENNReal) * 1 + (((1 : NNReal) - t : NNReal) : ENNReal) * 1 = 1
+            rw [mul_one, mul_one]
+            have h : t + (1 - t) = (1 : NNReal) := add_tsub_cancel_of_le ht
+            exact_mod_cast h⟩
+
+
+-- @@ L66-71 verbatim
+@[simp]
+lemma convexCombination_toMeasure (μ ν : ProbabilityMeasure Ω) (t : NNReal)
+    (ht : t ≤ (1 : NNReal)) :
+    (convexCombination μ ν t ht).toMeasure =
+      t • μ.toMeasure + ((1 : NNReal) - t) • ν.toMeasure :=
+  rfl
+
+
+-- @@ L73-78 verbatim
+lemma convexCombination_apply (μ ν : ProbabilityMeasure Ω) (t : NNReal)
+    (ht : t ≤ (1 : NNReal))
+    {s : Set Ω} (_hs : MeasurableSet s) :
+    (convexCombination μ ν t ht).toMeasure s =
+      (t : ENNReal) * μ.toMeasure s + (((1 : NNReal) - t : NNReal) : ENNReal) * ν.toMeasure s := by
+  simp [convexCombination_toMeasure, Measure.add_apply, Measure.smul_apply]
+
+
+-- @@ L80-80 verbatim
+end ProbabilityMeasure
+
+
+-- @@ L82-82 verbatim
+namespace ChannelCapacity
+
+
+-- @@ L84-84 verbatim
+variable {α β : Type*} [MeasurableSpace α] [MeasurableSpace β]
+
+
+-- @@ L86-89 verbatim
+/-- The output prior induced by pushing a prior through a Markov kernel. -/
+noncomputable def outputPrior (k : Kernel α β) [IsMarkovKernel k] (p : ProbabilityMeasure α) :
+    ProbabilityMeasure β :=
+  ⟨k ∘ₘ p.toMeasure, by infer_instance⟩
+
+
+-- @@ L91-94 verbatim
+@[simp]
+lemma outputPrior_toMeasure (k : Kernel α β) [IsMarkovKernel k] (p : ProbabilityMeasure α) :
+    (outputPrior k p).toMeasure = k ∘ₘ p.toMeasure :=
+  rfl
+
+
+-- @@ L96-99 verbatim
+/-- The joint law `p ⊗ k` on `α × β`. -/
+noncomputable def jointLaw (k : Kernel α β) [IsMarkovKernel k] (p : ProbabilityMeasure α) :
+    ProbabilityMeasure (α × β) :=
+  ⟨p.toMeasure ⊗ₘ k, by infer_instance⟩
+
+
+-- @@ L101-104 verbatim
+@[simp]
+lemma jointLaw_toMeasure (k : Kernel α β) [IsMarkovKernel k] (p : ProbabilityMeasure α) :
+    (jointLaw k p).toMeasure = p.toMeasure ⊗ₘ k :=
+  rfl
+
+
+-- @@ L106-110 verbatim
+/-- The independent coupling with the same input prior and induced output prior. -/
+noncomputable def independentJointLaw (k : Kernel α β) [IsMarkovKernel k]
+    (p : ProbabilityMeasure α) : ProbabilityMeasure (α × β) :=
+  let q := outputPrior k p
+  ⟨p.toMeasure ⊗ₘ Kernel.const α q.toMeasure, by infer_instance⟩
+
+
+-- @@ L112-117 verbatim
+@[simp]
+lemma independentJointLaw_toMeasure (k : Kernel α β) [IsMarkovKernel k]
+    (p : ProbabilityMeasure α) :
+    (independentJointLaw k p).toMeasure =
+      p.toMeasure ⊗ₘ Kernel.const α (outputPrior k p).toMeasure :=
+  rfl
+
+
+-- @@ L119-122 verbatim
+/-- Shannon mutual information between an input prior and a Markov kernel. -/
+noncomputable def mutualInformation (p : ProbabilityMeasure α) (k : Kernel α β)
+    [IsMarkovKernel k] : ℝ :=
+  (InformationTheory.klDiv (jointLaw k p).toMeasure (independentJointLaw k p).toMeasure).toReal
+
+
+-- @@ L124-124 verbatim
+end ChannelCapacity

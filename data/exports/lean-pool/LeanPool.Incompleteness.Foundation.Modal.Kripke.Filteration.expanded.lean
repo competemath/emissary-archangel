@@ -1,0 +1,397 @@
+/-
+Copyright (c) 2026 Palalansoukî. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Palalansoukî
+-/
+module
+
+public import LeanPool.Incompleteness.Foundation.Modal.Kripke.Closure
+public import LeanPool.Incompleteness.Foundation.Modal.Subformulas
+import Mathlib.Data.Set.Finite.Powerset
+import Mathlib.Order.ConditionallyCompleteLattice.Basic
+
+
+-- @@ L13-13 verbatim
+/-! # Filteration -/
+
+
+-- @@ L15-15 verbatim
+@[expose] public section
+
+
+-- @@ L17-17 verbatim
+universe u v
+
+
+
+-- @@ L20-20 verbatim
+namespace LO
+
+-- @@ L21-21 verbatim
+namespace Modal
+
+
+-- @@ L23-23 verbatim
+namespace Kripke
+
+
+-- @@ L25-25 verbatim
+open Formula (atom)
+
+-- @@ L26-26 verbatim
+open Formula.Kripke
+
+-- @@ L27-27 verbatim
+open FormulaSet.SubformulaClosed
+
+
+
+-- @@ L30-30 verbatim
+section «lp_section_1»
+
+
+-- @@ L32-34 expanded
+/-- Imported declaration from the Incompleteness formalization. -/
+def filterEquiv (M : Kripke.Model) (T : FormulaSet ℕ) (x y : M.World) :=
+  ∀ φ, (_ : φ ∈ T := by trivial) → Realize x φ ↔ Realize y φ
+
+
+-- @@ L36-36 verbatim
+variable (M : Kripke.Model) (T : FormulaSet ℕ) [T.SubformulaClosed]
+
+
+-- @@ L38-44 verbatim
+omit [T.SubformulaClosed] in
+lemma _root_.LO.Modal.Kripke.filterEquiv.equivalence : Equivalence (filterEquiv M T) where
+  refl := by intro x φ _; rfl;
+  symm := by intro x y h φ hp; exact h _ hp |>.symm;
+  trans := by
+    intro x y z exy eyz φ hp;
+    exact Iff.trans (exy φ hp) (eyz φ hp)
+
+
+-- @@ L46-47 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+def FilterEqvSetoid : Setoid (M.World) := ⟨filterEquiv M T, filterEquiv.equivalence M T⟩
+
+
+-- @@ L49-50 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+abbrev FilterEqvQuotient := Quotient (FilterEqvSetoid M T)
+
+
+-- @@ L52-80 expanded
+omit [T.SubformulaClosed] in
+lemma _root_.LO.Modal.Kripke.FilterEqvQuotient.finite (T_finite : T.Finite) :
+    Finite (FilterEqvQuotient M T) :=
+  by
+  have : Finite (𝒫 T) := Set.Finite.powerset T_finite
+  let f : FilterEqvQuotient M T → 𝒫 T := fun (Qx : FilterEqvQuotient M T) =>
+    Quotient.lift (fun x => ⟨{φ ∈ T | Realize x φ}, (by simp_all)⟩)
+      (by
+        intro x y hxy;
+        suffices {φ | φ ∈ T ∧ Satisfies M x φ} = {φ | φ ∈ T ∧ Satisfies M y φ} by simpa;
+        apply Set.eq_of_subset_of_subset; · rintro φ ⟨hp, hx⟩; exact ⟨hp, (hxy φ hp).mp hx⟩;
+        · rintro φ ⟨hp, hy⟩; exact ⟨hp, (hxy φ hp).mpr hy⟩; )
+      Qx
+  have hf : Function.Injective f := by
+    intro Qx Qy h; obtain ⟨x, rfl⟩ := Quotient.exists_rep Qx;
+    obtain ⟨y, rfl⟩ := Quotient.exists_rep Qy; simp [f] at h; apply Quotient.eq''.mpr; intro φ hp;
+    constructor;
+    · intro hpx; have : ∀ a ∈ T, Realize x a → a ∈ T ∧ Realize y a := by simpa using h.subset;
+      exact this φ hp hpx |>.2;
+    · intro hpy; have := h.symm.subset; simp only [Set.ofPred_subset_ofPred, and_imp] at this;
+      exact this φ hp hpy |>.2;
+  exact Finite.of_injective f hf
+
+
+-- @@ L82-82 verbatim
+instance : Nonempty (FilterEqvQuotient M T) := ⟨⟦M.toFrame.world_nonempty.some⟧⟩
+
+
+-- @@ L84-107 expanded
+/-- Imported declaration from the Incompleteness formalization. -/
+class FilterOf (FM : Model) (M : Model) (T : FormulaSet ℕ) [T.SubformulaClosed] : Prop where
+  def_world : FM.World = FilterEqvQuotient M T := by rfl
+  def_rel₁ :
+    ∀ {x y : M.toFrame},
+      Frame.Rel' x y → Frame.Rel' (cast def_world.symm ⟦x⟧) (cast def_world.symm ⟦y⟧) := by
+    tauto;
+  def_box :
+    ∀ {Qx Qy : FM.World},
+      Frame.Rel' Qx Qy →
+        Quotient.lift₂ (fun x y => ∀ φ, Box.box φ ∈ T → (Realize x (Box.box φ) → Realize y φ))
+          (by
+            intro x₁ y₁ x₂ y₂ hx hy; apply eq_iff_iff.mpr; constructor;
+            · intro h φ hp sp₂;
+              exact
+                hy φ (FormulaSet.SubformulaClosed.mem_box hp) |>.mp <|
+                  h φ hp <| hx (Box.box φ) hp |>.mpr sp₂;
+            · intro h φ hp sp₁;
+              exact
+                hy φ (FormulaSet.SubformulaClosed.mem_box hp) |>.mpr <|
+                  h φ hp <| hx (Box.box φ) hp |>.mp sp₁;
+              )
+          (cast def_world Qx) (cast def_world Qy)
+  def_valuation Qx a :
+    (ha : (atom a) ∈ T := by trivial) →
+      FM Qx a ↔
+        Quotient.lift (fun x => M x a)
+          (by
+            intro x y h; apply eq_iff_iff.mpr; constructor; · intro hx; exact h a ha |>.mp hx;
+            · intro hy; exact h a ha |>.mpr hy; )
+          (cast def_world Qx) := by
+    tauto;
+
+
+-- @@ L109-109 verbatim
+section «lp_section_2»
+
+
+-- @@ L111-111 verbatim
+variable {M T} {FM : Model}
+
+
+-- @@ L113-118 verbatim
+lemma reflexive_filterOf_of_reflexive (h_filter : FilterOf FM M T) (hRefl : Std.Refl M.toFrame) :
+    Std.Refl FM.Rel := by
+  constructor
+  intro Qx;
+  obtain ⟨x, hx⟩ := Quotient.exists_rep (cast (h_filter.def_world) Qx);
+  convert h_filter.def_rel₁ <| hRefl.refl x <;> simp_all;
+
+
+-- @@ L120-127 verbatim
+lemma serial_filterOf_of_serial (h_filter : FilterOf FM M T) (hSerial : Serial M.toFrame) :
+    Serial FM.Rel := by
+  intro Qx;
+  obtain ⟨x, hx⟩ := Quotient.exists_rep (cast (h_filter.def_world) Qx);
+  obtain ⟨y, Rxy⟩ := hSerial x;
+  use (cast (h_filter.def_world.symm) ⟦y⟧);
+  convert h_filter.def_rel₁ <| Rxy;
+  simp_all;
+
+
+-- @@ L129-129 verbatim
+end «lp_section_2»
+
+
+
+-- @@ L132-140 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+abbrev standardFilterationValuation (Qx : FilterEqvQuotient M T) (a : ℕ) := (ha :
+    (atom a) ∈ T) → Quotient.lift (fun x => M x a) (by
+  intro x y h;
+  apply eq_iff_iff.mpr;
+  constructor;
+  · intro hx; exact h a ha |>.mp hx;
+  · intro hy; exact h a ha |>.mpr hy;
+) Qx
+
+
+
+-- @@ L143-156 expanded
+/-- Imported declaration from the Incompleteness formalization. -/
+abbrev coarsestFilterationFrame (M : Model) (T : FormulaSet ℕ) [T.SubformulaClosed] : Kripke.Frame
+    where
+  World := FilterEqvQuotient M T
+  Rel Qx
+    Qy :=
+    Quotient.lift₂ (fun x y => ∀ φ, Box.box φ ∈ T → (Realize x (Box.box φ) → Realize y φ))
+      (by
+        intro x₁ y₁ x₂ y₂ hx hy; apply eq_iff_iff.mpr; constructor;
+        · intro h φ hp sp₂;
+          exact
+            hy φ (FormulaSet.SubformulaClosed.mem_box hp) |>.mp <|
+              h φ hp <| hx (Box.box φ) hp |>.mpr sp₂;
+        · intro h φ hp sp₁;
+          exact
+            hy φ (FormulaSet.SubformulaClosed.mem_box hp) |>.mpr <|
+              h φ hp <| hx (Box.box φ) hp |>.mp sp₁;
+          )
+      Qx Qy
+
+
+-- @@ L158-162 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+abbrev coarsestFilterationModel (M : Model) (T : FormulaSet ℕ) [T.SubformulaClosed] :
+    Kripke.Model where
+  toFrame := coarsestFilterationFrame M T
+  Val := standardFilterationValuation M T
+
+
+-- @@ L164-166 verbatim
+instance _root_.LO.Modal.Kripke.coarsestFilterationModel.filterOf {M} {T :
+    FormulaSet ℕ} [T.SubformulaClosed] : FilterOf (coarsestFilterationModel M T) M T where
+  def_box := by tauto
+
+
+
+-- @@ L169-172 expanded
+/-- Imported declaration from the Incompleteness formalization. -/
+abbrev finestFilterationFrame (M : Model) (T : FormulaSet ℕ) : Kripke.Frame
+    where
+  World := FilterEqvQuotient M T
+  Rel Qx Qy := ∃ x y, Qx = ⟦x⟧ ∧ Qy = ⟦y⟧ ∧ Frame.Rel' x y
+
+
+-- @@ L174-177 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+abbrev finestFilterationModel (M : Model) (T : FormulaSet ℕ) : Kripke.Model where
+  toFrame := finestFilterationFrame M T
+  Val := standardFilterationValuation M T
+
+
+-- @@ L179-179 verbatim
+namespace finestFilterationModel
+
+
+-- @@ L181-181 verbatim
+variable {M T}
+
+
+-- @@ L183-187 verbatim
+instance filterOf : FilterOf (finestFilterationModel M T) M T where
+  def_box := by
+    intro Qx Qy rQxQy;
+    obtain ⟨x, y, rfl, rfl, _⟩ := rQxQy;
+    simp_all [Satisfies];
+
+
+-- @@ L189-195 verbatim
+omit [T.SubformulaClosed] in
+lemma symmetric_of_symmetric (hSymm : IsSymmetric M.toFrame) :
+    IsSymmetric (finestFilterationModel M T).Rel := by
+  intro Qx Qy RQxQy;
+  obtain ⟨x, y, hx, hy, h⟩ := RQxQy; subst_vars;
+  use y, x;
+  refine ⟨by trivial, by trivial, hSymm h⟩;
+
+
+-- @@ L197-197 verbatim
+end finestFilterationModel
+
+
+
+-- @@ L200-203 expanded
+/-- Imported declaration from the Incompleteness formalization. -/
+abbrev finestFilterationTransitiveClosureModel (M : Model) (T : FormulaSet ℕ) : Kripke.Model
+    where
+  toFrame := Frame.TransitiveClosure (finestFilterationFrame M T)
+  Val := standardFilterationValuation M T
+
+
+-- @@ L205-205 verbatim
+namespace finestFilterationTransitiveClosureModel
+
+
+-- @@ L207-207 verbatim
+variable {M T}
+
+
+-- @@ L209-234 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+theorem filterOf (M_trans : IsTrans M.World M.Rel) :
+    FilterOf (finestFilterationTransitiveClosureModel M T) M T where
+  def_rel₁ := by
+    intro x y hxy;
+    apply Frame.TransitiveClosure.single;
+    tauto;
+  def_box := by
+    intro Qx Qy RQxQy;
+    induction RQxQy using Relation.TransGen.head_induction_on with
+    | single rxy =>
+      obtain ⟨x, y, rfl, rfl, rxy⟩ := rxy;
+      simp_all
+    | head ha hxy ih =>
+      obtain ⟨x, y, rfl, rfl, rxy⟩ := ha;
+      obtain ⟨w, z, _, rfl, _⟩ := hxy;
+      · intro φ hp hpx;
+        apply ih φ hp;
+        intro v ryv;
+        exact hpx _ (M_trans.trans _ _ _ rxy ryv);
+      · rename_i h;
+        obtain ⟨w, z, rfl, rfl, _⟩ := h;
+        intro φ hp hpx;
+        apply ih φ hp;
+        intro v ryv;
+        exact hpx _ (M_trans.trans _ _ _ rxy ryv);
+
+
+-- @@ L236-239 verbatim
+omit [T.SubformulaClosed] in
+lemma transitive : IsTrans (finestFilterationTransitiveClosureModel M T).World
+      (finestFilterationTransitiveClosureModel M T).Rel :=
+  Frame.TransitiveClosure.rel_transitive
+
+
+-- @@ L241-244 verbatim
+omit [T.SubformulaClosed] in
+lemma symmetric_of_symmetric (M_symm : IsSymmetric M.Rel) :
+    IsSymmetric (finestFilterationTransitiveClosureModel M T).Rel :=
+  Frame.TransitiveClosure.rel_symmetric <| finestFilterationModel.symmetric_of_symmetric M_symm
+
+
+-- @@ L246-248 verbatim
+lemma reflexive_of_transitive_reflexive (M_trans : IsTrans M.World M.Rel) (M_refl :
+    Std.Refl M.Rel) : Std.Refl (finestFilterationTransitiveClosureModel M T).Rel := by
+  exact reflexive_filterOf_of_reflexive (filterOf M_trans) M_refl;
+
+
+-- @@ L250-250 verbatim
+end finestFilterationTransitiveClosureModel
+
+
+-- @@ L252-252 verbatim
+end «lp_section_1»
+
+
+
+-- @@ L255-255 verbatim
+section «lp_section_3»
+
+
+-- @@ L257-258 verbatim
+variable {M : Model} {T : FormulaSet ℕ} [T.SubformulaClosed]
+         (FM : Model) (filterOf : FilterOf FM M T)
+
+
+-- @@ L260-283 expanded
+theorem filteration {x : M.World} {φ : Formula ℕ} (hs : φ ∈ T) :
+    Realize x φ ↔ Realize (cast (filterOf.def_world.symm) ⟦x⟧) φ := by
+  induction φ using Formula.rec' generalizing x with
+  | hatom a => have := filterOf.def_valuation (cast filterOf.def_world.symm ⟦x⟧) a;
+    simp_all [Satisfies];
+  | hbox φ ihp =>
+    constructor;
+    · intro h Qy rQxQy; obtain ⟨y, ey⟩ := Quotient.exists_rep (cast (filterOf.def_world) Qy);
+      have this := filterOf.def_box rQxQy; simp [← ey] at this;
+      simpa [ey] using ihp (FormulaSet.SubformulaClosed.mem_box hs) |>.mp <| @this φ hs h;
+    · intro h y rxy; have rQxQy := filterOf.def_rel₁ rxy;
+      exact ihp (FormulaSet.SubformulaClosed.mem_box hs) |>.mpr <| h _ rQxQy;
+  | himp φ ψ ihp ihq =>
+    constructor;
+    · rintro hxy hp;
+      exact
+        ihq (FormulaSet.SubformulaClosed.mem_imp₂ hs) |>.mp <|
+          hxy (ihp (FormulaSet.SubformulaClosed.mem_imp₁ hs) |>.mpr hp);
+    · rintro hxy hp;
+      exact
+        ihq (FormulaSet.SubformulaClosed.mem_imp₂ hs) |>.mpr <|
+          hxy (ihp (FormulaSet.SubformulaClosed.mem_imp₁ hs) |>.mp hp);
+  | _ => trivial
+
+
+-- @@ L285-285 verbatim
+end «lp_section_3»
+
+
+-- @@ L287-287 verbatim
+end Kripke
+
+
+-- @@ L289-289 verbatim
+end Modal
+
+-- @@ L290-290 verbatim
+end LO

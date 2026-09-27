@@ -1,0 +1,976 @@
+/-
+Copyright (c) 2026 Yunzhou Xie and contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Yunzhou Xie, Yichen Feng, Jujian Zhang, Yael Dillies
+-/
+module
+
+public import Mathlib.Algebra.QuaternionBasis
+public import LeanPool.BrauerGroupNew.Subfield.Defs
+public import Mathlib.Algebra.Central.Defs
+public import Mathlib.Analysis.Complex.Basic
+public import Mathlib.LinearAlgebra.FiniteDimensional.Defs
+import LeanPool.BrauerGroupNew.DoubleCentralizer
+import LeanPool.BrauerGroupNew.SkolemNoether
+import LeanPool.BrauerGroupNew.Subfield.FiniteDimensional
+import LeanPool.BrauerGroupNew.Subfield.Subfield
+import Mathlib.Analysis.Complex.Polynomial.Basic
+import Mathlib.FieldTheory.PurelyInseparable.Basic
+import Mathlib.LinearAlgebra.FreeModule.PID
+import Mathlib.NumberTheory.ArithmeticFunction.Misc
+
+
+-- @@ L22-26 verbatim
+/-!
+# LeanPool.BrauerGroupNew.FrobeniusTheorem
+
+Imported Lean Pool material for `LeanPool.BrauerGroupNew.FrobeniusTheorem`.
+-/
+
+
+-- @@ L28-28 verbatim
+@[expose] public section
+
+
+-- @@ L30-30 verbatim
+suppress_compilation
+
+
+-- @@ L32-32 verbatim
+open FiniteDimensional Module TensorProduct
+
+
+-- @@ L34-34 verbatim
+variable {D : Type} [DivisionRing D]
+
+
+-- @@ L36-36 verbatim
+section prerequisites
+
+
+-- @@ L38-41 verbatim
+theorem rank_1_D_iso_R [Algebra ℝ D] : Module.finrank ℝ D = 1 →
+    Nonempty (D ≃ₐ[ℝ] ℝ) := fun h ↦ by
+  exact ⟨(AlgEquiv.ofBijective (Algebra.ofId ℝ D)
+    (Algebra.finrank_eq_one_iff_bijective_algebraMap.mp h)).symm⟩
+
+
+-- @@ L43-72 verbatim
+lemma RealExtension_is_RorC (K : Type) [Field K] [Algebra ℝ K] [FiniteDimensional ℝ K] :
+    Nonempty (K ≃ₐ[ℝ] ℝ) ∨ Nonempty (K ≃ₐ[ℝ] ℂ) := by
+  let CC := AlgebraicClosure K
+  let : Algebra ℝ CC := AlgebraicClosure.instAlgebra K
+  have : IsAlgClosure ℝ CC := ⟨inferInstance, Algebra.IsAlgebraic.trans ℝ K CC⟩
+  have : IsAlgClosure ℝ ℂ := ⟨inferInstance, inferInstance⟩
+  let e : ℂ ≃ₐ[ℝ] CC := IsAlgClosure.equiv ℝ _ _
+  have dim_eq1 : Module.finrank ℝ CC = 2 := by
+    exact e.toLinearEquiv.finrank_eq.symm.trans Complex.finrank_real_complex
+  have dim_eq2 : Module.finrank ℝ K * Module.finrank K CC = 2 := by
+    rw [Module.finrank_mul_finrank, dim_eq1]
+  have : Module.Finite ℝ CC := by
+    exact FiniteDimensional.of_finrank_eq_succ (by simpa using dim_eq1)
+  have : Module.Finite K CC := Module.Finite.right ℝ K CC
+  have dim_eq3 : Module.finrank ℝ K = 1 ∨ Module.finrank ℝ K = 2 := by
+    have ineq1 : 0 < Module.finrank ℝ K := Module.finrank_pos
+    have ineq2 : 0 < Module.finrank K CC := Module.finrank_pos
+    have : Module.finrank ℝ K ∈ Nat.divisors 2 := by
+      simpa using ⟨Module.finrank K CC, dim_eq2.symm⟩
+    rw [show Nat.divisors 2 = {1, 2} from rfl] at this
+    simpa using this
+  rcases dim_eq3 with ⟨h1⟩ | ⟨h2⟩
+  · left
+    exact Nonempty.intro <| AlgEquiv.symm <| AlgEquiv.ofBijective (Algebra.ofId _ _)
+      (bijective_of_dim_eq_of_isCentralSimple _ _ _ _ <| by simp [h1])
+  · right
+    exact Nonempty.intro <| AlgEquiv.ofBijective
+      (e.symm.toAlgHom.comp <| Algebra.ofId K CC |>.restrictScalars ℝ)
+      (bijective_of_dim_eq_of_isCentralSimple _ _ _ _ <| by
+        simp_all)
+
+
+-- @@ L74-74 verbatim
+end prerequisites
+
+
+-- @@ L76-76 verbatim
+namespace BrauerGroupNew
+
+
+-- @@ L78-78 verbatim
+variable [hD' : IsSimpleRing D] [Algebra ℝ D] (k : SubField ℝ D) (hk : IsMax k) (e : k ≃ₐ[ℝ] ℂ)
+
+
+-- @@ L80-80 verbatim
+open ComplexConjugate
+
+
+-- @@ L82-91 verbatim
+/-- The conjugation automorphism of a maximal subfield identified with `ℂ`. -/
+abbrev f : k →ₐ[ℝ] k where
+  toFun kk := e.symm <| conj (e kk)
+  map_one' := by simp only [map_one]
+  map_mul' := by simp only [map_mul, implies_true]
+  map_zero' := by simp only [map_zero]
+  map_add' x y := by simp only [map_add]
+  commutes' := fun r ↦ by
+    simp only [AlgEquiv.commutes, Complex.coe_algebraMap, Complex.conj_ofReal]
+    exact e.symm.commutes r
+
+
+-- @@ L93-100 verbatim
+omit hD' in
+lemma f_injective : Function.Injective (f k e) := by
+  intro x y h
+  simp only [AlgHom.coe_mk, RingHom.coe_mk, MonoidHom.coe_mk, OneHom.coe_mk,
+    EmbeddingLike.apply_eq_iff_eq] at h
+  have : Function.Injective <| starRingEnd ℂ := by exact RingHom.injective (starRingEnd ℂ)
+  apply this at h
+  simp_all
+
+
+-- @@ L102-104 verbatim
+omit hD' in
+@[simp]
+lemma f_apply (x : k) : f k e x = e.symm (conj (e x)) := rfl
+
+
+-- @@ L106-108 verbatim
+omit hD' in
+lemma f_apply_apply (z : ℂ) : f k e (e.symm z) = e.symm (conj z) := by
+  simp_all
+
+
+-- @@ L110-131 verbatim
+omit hD' in
+lemma linindep_one_xsq (x : Dˣ) (hxx : ¬x.1 ^ 2 ∈ Subalgebra.center ℝ D) :
+    LinearIndependent ℝ ![(1 : D), x.1^2] := by
+  rw [LinearIndependent.pair_iff]
+  by_contra! hh
+  obtain ⟨s, t, ⟨hst1, hst2⟩⟩ := hh
+  if hs : s = 0 then
+    simp_all
+  else
+    if ht : t = 0 then
+      simp_all
+    else
+      rw [add_eq_zero_iff_eq_neg, ← neg_smul] at hst1
+      apply_fun ((-t)⁻¹ • ·) at hst1
+      rw [← smul_assoc, ← smul_assoc, smul_eq_mul,
+        smul_eq_mul, inv_mul_cancel₀ (by simp_all), one_smul] at hst1
+      have : x.1^2 ∈ Subalgebra.center ℝ D := by
+        rw [Subalgebra.mem_center_iff]
+        intro d
+        rw [← hst1]
+        simp only [Algebra.mul_smul_comm, mul_one, Algebra.smul_mul_assoc, one_mul]
+      exact hxx this
+
+
+-- @@ L133-152 verbatim
+omit hD' in
+lemma x2_comm_k (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z) :
+    ∀ (y : k), x.1^2 * k.val y = k.val y * x.1^2 := by
+  have hx2 := hx
+  intro y
+  specialize hx y
+  simp only [Subalgebra.coe_val] at hx
+  erw [Subtype.ext_iff.1 (f_apply k e y)] at hx
+  apply_fun (x.1 * · * x.1⁻¹) at hx
+  erw [← mul_assoc, ← mul_assoc] at hx
+  have : k.val y = (x.1⁻¹ * x.1⁻¹) * k.val y * (x.1 * x.1) := by
+    nth_rw 1 [← hx2 y, show ((f k e y) : D) = k.val (f k e y) from rfl,
+      ← hx2, show (f k e (f k e y)) = y by simp, show (y : D) = k.val y from rfl]
+    simp [← mul_assoc]
+  apply_fun (x.1 * x.1 * · ) at this
+  erw [← mul_assoc, ← mul_assoc, ← mul_assoc, ← mul_assoc, mul_assoc x.1 x.1 x.1⁻¹,
+    mul_inv_cancel₀ (by simp only [ne_eq, Units.ne_zero, not_false_eq_true]), mul_one,
+    mul_inv_cancel₀ (by simp only [ne_eq, Units.ne_zero, not_false_eq_true]), one_mul,
+    ← pow_two, mul_assoc, ← pow_two] at this
+  exact this
+
+
+-- @@ L154-157 verbatim
+omit hD' in
+lemma i_mul_i : (e.symm ⟨0, 1⟩ : D) * e.symm ⟨0, 1⟩ = (-1 : ℝ) • 1 := by
+  rw [← Subalgebra.coe_mul, ← _root_.map_mul e.symm, ← Complex.I, Complex.I_mul_I, map_neg,
+    map_one, Subalgebra.coe_neg, Subalgebra.coe_one]; simp
+
+
+-- @@ L159-165 verbatim
+omit hD' in
+lemma i_ne_zero : (e.symm ⟨0, 1⟩ : D) ≠ 0 := by
+  intro h
+  change _ = ((0 : k) : D) at h
+  simp only [ZeroMemClass.coe_zero, ZeroMemClass.coe_eq_zero, EmbeddingLike.map_eq_zero_iff] at h
+  rw [Complex.ext_iff] at h
+  simp_all
+
+
+-- @@ L167-179 verbatim
+omit hD' in
+lemma linindep1i :
+    LinearIndependent ℝ ![(1 : D), ↑(e.symm { re := 0, im := 1 })] := by
+  rw [LinearIndependent.pair_iff']
+  · intro r
+    rw [show (1 : D) = (1 : k) from rfl, ← Subalgebra.coe_smul,
+      ← _root_.map_one e.symm, ← map_smul e.symm]
+    suffices (r : ℂ) ≠ (⟨0, 1⟩ : ℂ) by
+      simp_all
+    intro h
+    rw [Complex.ext_iff] at h
+    norm_num at h
+  · exact one_ne_zero
+
+
+-- @@ L181-181 verbatim
+variable [Algebra.IsCentral ℝ D] [FiniteDimensional ℝ D]
+
+
+-- @@ L183-193 verbatim
+lemma f_is_conjugation : ∃ (x : Dˣ), ∀ z, x.1⁻¹ * f k e z * x = k.val z := by
+  obtain ⟨x, hx⟩ := SkolemNoether' ℝ D k k.val (k.val.comp (f k e))
+  use x
+  intro z
+  have hx2 := hx
+  specialize hx z
+  apply_fun fun y ↦ ↑x⁻¹ * y * ↑x at hx
+  nth_rw 2 [mul_assoc, mul_assoc] at hx
+  simp only [Units.val_inv_eq_inv_val, isUnit_iff_ne_zero, ne_eq, Units.ne_zero, not_false_eq_true,
+    IsUnit.inv_mul_cancel, mul_one, IsUnit.inv_mul_cancel_left] at hx
+  exact hx
+
+
+-- @@ L195-205 verbatim
+lemma xsq_ink (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (hDD : Module.finrank ℝ D = 4) : x.1^2 ∈ k := by
+  have := cor_two_1to2 ℝ D k|>.2 (by
+    rw [hDD, e.toLinearEquiv.finrank_eq]
+    simp_all)
+  change x.1^2 ∈ k.1
+  rw [← this, Subalgebra.mem_centralizer_iff]
+  simp only [SubField.coe_toSubalgebra, SetLike.mem_coe]
+  intro z hz
+  have := (x2_comm_k _ _ _ hx ⟨z, hz⟩).symm
+  simp_all
+
+
+-- @@ L207-216 verbatim
+lemma indep' (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (hDD : Module.finrank ℝ D = 4) (hxx : ¬x.1 ^ 2 ∈ Subalgebra.center ℝ D) :
+    LinearIndependent ℝ (M := k) ![1, ⟨x.1^2, (xsq_ink _ _ _ hx hDD)⟩] := by
+  have indep := linindep_one_xsq _ hxx
+  rw [LinearIndependent.pair_iff] at *
+  intro s t hst'
+  specialize indep s t
+  apply_fun k.val at hst'
+  rw [_root_.map_add, map_smul, map_smul] at hst'
+  simp_all
+
+
+-- @@ L218-240 verbatim
+/-- The two-element basis of a maximal subfield generated by `1` and `x ^ 2`. -/
+abbrev IsBasis (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (hDD : Module.finrank ℝ D = 4) (hxx : ¬x.1 ^ 2 ∈ Subalgebra.center ℝ D) :
+    Basis (Fin (Nat.succ 0).succ) ℝ k :=
+  .mk (M := k) (v := ![1, ⟨x.1^2, xsq_ink _ _ _ hx hDD⟩]) (indep' _ _ _ hx hDD hxx) <| by
+  simp only [Nat.succ_eq_add_one, Nat.reduceAdd, Matrix.range_cons,
+    Matrix.range_empty, Set.union_empty, Set.union_singleton, top_le_iff]
+  have : Module.finrank ℝ (Submodule.span ℝ {⟨x.1^2, xsq_ink _ _ _ hx hDD⟩, (1 : k)}) = 2 := by
+    have indep' := indep' _ _ _ hx hDD hxx
+    apply LinearIndependent.span_eq_top_of_card_eq_finrank' at indep'
+    simp only [Nat.succ_eq_add_one, zero_add, Nat.reduceAdd, Fintype.card_fin,
+      Matrix.range_cons, Matrix.range_empty, Set.union_empty, Set.union_singleton] at indep'
+    have : 2 = Module.finrank ℝ k := by
+      rw [LinearEquiv.finrank_eq e.toLinearEquiv]
+      simp_all
+    apply indep' at this
+    rw [this, finrank_top]
+    change Module.finrank ℝ k = 2
+    rw [LinearEquiv.finrank_eq e.toLinearEquiv]
+    exact Complex.finrank_real_complex
+  have eq := Submodule.topEquiv.finrank_eq.trans <|
+    e.toLinearEquiv.finrank_eq.trans Complex.finrank_real_complex
+  exact Submodule.eq_of_le_of_finrank_eq le_top <| this.trans eq.symm
+
+
+-- @@ L242-244 verbatim
+lemma IsBasis0 (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (hDD : Module.finrank ℝ D = 4) (hxx : ¬x.1 ^ 2 ∈ Subalgebra.center ℝ D) :
+    IsBasis _ _ _ hx hDD hxx 0 = 1 := by simp [IsBasis]
+
+
+-- @@ L246-248 verbatim
+lemma IsBasis1 (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (hDD : Module.finrank ℝ D = 4) (hxx : ¬x.1 ^ 2 ∈ Subalgebra.center ℝ D) :
+    IsBasis _ _ _ hx hDD hxx 1 = ⟨x.1^2, xsq_ink _ _ _ hx hDD⟩ := by simp [IsBasis]
+
+
+-- @@ L250-290 verbatim
+lemma x2_is_real (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (hDD : Module.finrank ℝ D = 4) : x.1^2 ∈ (algebraMap ℝ D).range := by
+  let hx2 := hx
+  have x2_is_central : x.1^2 ∈ Subalgebra.center ℝ D := by
+      have x2_commutes_K := x2_comm_k _ _ _ hx
+      by_contra! hxx
+      have xink := xsq_ink _ _ _ hx hDD
+      have indep' := indep' _ _ _ hx hDD hxx
+      let IsBasis := IsBasis _ _ _ hx hDD hxx
+      have x_commutes_k : ∀ (y : k), x.1 * k.val y = k.val y * x.1 := by
+        intro y
+        have := Basis.linearCombination_repr IsBasis y|>.symm
+        rw [this, Finsupp.linearCombination_apply, Finsupp.sum_fintype]
+        · simp only [Nat.succ_eq_add_one, Nat.reduceAdd, Fin.sum_univ_two, Fin.isValue]
+          rw [IsBasis0, IsBasis1]
+          erw [mul_add, add_mul]
+          rw [Subalgebra.coe_smul, mul_smul_comm, smul_mul_assoc, Subalgebra.coe_one,
+            one_mul, mul_one, add_right_inj, Subalgebra.coe_smul, mul_smul_comm,
+            show ((⟨x.1^2, xink⟩ : k) : D) = x.1^2 by rfl, pow_two, ← mul_assoc, smul_mul_assoc]
+        · exact fun _ ↦ Subtype.ext_iff.2 <| zero_smul _ _
+      specialize x_commutes_k <| e.symm ⟨0,1⟩
+      specialize hx <| e.symm ⟨0,1⟩
+      simp only [Subalgebra.coe_val] at hx
+      simp only [Subalgebra.coe_val] at x_commutes_k
+      apply_fun (· * x.1⁻¹) at x_commutes_k
+      simp only [isUnit_iff_ne_zero, ne_eq, Units.ne_zero, not_false_eq_true,
+        IsUnit.mul_inv_cancel_right] at x_commutes_k
+      erw [← hx, f_apply] at x_commutes_k
+      simp only [AlgEquiv.apply_symm_apply] at x_commutes_k
+      have : starRingEnd ℂ ⟨0, 1⟩ = ⟨0, -1⟩:= rfl
+      simp only [this, mul_assoc, isUnit_iff_ne_zero, ne_eq, Units.ne_zero, not_false_eq_true,
+        IsUnit.mul_inv_cancel, mul_one, IsUnit.mul_inv_cancel_left] at x_commutes_k
+      unfold f at hx2
+      specialize hx2 <| e.symm ⟨0,1⟩
+      simp only [this, f_apply, AlgEquiv.apply_symm_apply, Subalgebra.coe_val] at hx2
+      erw [← mul_assoc, hx2] at x_commutes_k
+      simp only [SetLike.coe_eq_coe, EmbeddingLike.apply_eq_iff_eq, Complex.mk.injEq, true_and]
+        at x_commutes_k
+      norm_num at x_commutes_k
+  change _ ∈ (⊥ : Subalgebra ℝ D)
+  rwa [← Algebra.IsCentral.center_eq_bot ℝ D]
+
+
+-- @@ L292-294 verbatim
+open scoped algebraMap in
+/-- The set of elements whose square is a negative real scalar. -/
+abbrev V : Set D := {x | ∃ r : ℝ, r < 0 ∧ x^2 = (r : D)}
+
+
+-- @@ L296-297 verbatim
+omit [Algebra.IsCentral ℝ D] [FiniteDimensional ℝ D] hD' in
+lemma V_def (x : D) : x ∈ V ↔ ∃ r < 0, x ^ 2 = algebraMap ℝ D r := .rfl
+
+
+-- @@ L299-322 verbatim
+omit [Algebra.IsCentral ℝ D] [FiniteDimensional ℝ D] hD' in
+lemma real_sq_in_R_or_V (x : D) :
+    x ^ 2 ∈ (algebraMap ℝ D).range → x ∈ (algebraMap ℝ D).range ∨ x ∈ V := by
+  rintro ⟨r, hr⟩
+  if h'' : x ∈ V then
+    exact Or.inr h''
+  else
+    left
+    simp only [V_def, not_exists, not_and] at h''
+    have : r ≥ 0 := by
+      specialize h'' r
+      simp_all
+    have eq1 : (x - algebraMap ℝ D (Real.sqrt r)) * ( x + algebraMap ℝ D (Real.sqrt r)) = 0 := by
+      simp only [mul_add, sub_mul]
+      rw [← pow_two, ← hr, ← map_mul,
+        show algebraMap ℝ D √r * x = x * algebraMap ℝ D √r from Algebra.commutes' _ _]
+      simp_all
+    simp only [mul_eq_zero] at eq1
+    rcases eq1 with eq1|eq1
+    · use Real.sqrt r
+      rw [sub_eq_zero] at eq1
+      rw [eq1]
+    · use - Real.sqrt r
+      rwa [map_neg, eq_comm, eq_neg_iff_add_eq_zero]
+
+
+-- @@ L324-348 verbatim
+lemma x_is_in_V (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x.1 = k.val z)
+    (hDD : Module.finrank ℝ D = 4) : x.1 ∈ V := by
+  let hx3 := hx
+  apply x2_is_real _ at hx
+  let hx' := hx hDD
+  have hx := real_sq_in_R_or_V _ hx'
+  have : x.1 ∉ (algebraMap ℝ D).range := by
+    by_contra! hxx
+    obtain ⟨r, hr⟩ := hxx
+    have xcomm : ∀ (y : k), x.1⁻¹ * k.val y * x.1 = k.val y := by
+      intro y
+      rw [← hr, mul_assoc]
+      simp only [Subalgebra.coe_val, ← Algebra.commutes, ← mul_assoc]
+      rw [mul_inv_cancel₀ (by simp [hr, Units.ne_zero]), one_mul]
+    specialize xcomm (e.symm Complex.I)
+    specialize hx3 (e.symm Complex.I)
+    rw [← xcomm] at hx3
+    symm at hx3
+    simp only [f_apply, AlgEquiv.apply_symm_apply, Complex.conj_I, map_neg, NegMemClass.coe_neg,
+      mul_neg, neg_mul, Subalgebra.coe_val, eq_neg_iff_add_eq_zero, ← two_mul, mul_eq_zero] at hx3
+    obtain hx31 | hx32 := hx3
+    · rw [show (2 : D) = (1 : D) + (1 : D) by norm_num, ← two_smul ℝ,
+        smul_eq_zero] at hx31; aesop
+    · simp_all
+  simp_all only [Set.mem_ofPred_eq, false_or, RingHom.mem_range, not_exists]
+
+
+-- @@ L350-357 verbatim
+lemma x_corre_R (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x.1 = k.val z)
+    (hDD : Module.finrank ℝ D = 4) :
+    ∃(r : ℝ), algebraMap ℝ D r = - x.1^2 := by
+  have := x_is_in_V _ _ _ hx
+  rw [V_def] at this
+  obtain ⟨r, hr1, hr2⟩ := this hDD
+  use -r
+  simp only [map_neg, hr2]
+
+
+-- @@ L359-373 verbatim
+lemma r_pos (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x.1 = k.val z)
+    (hDD : Module.finrank ℝ D = 4) :
+    0 < (x_corre_R _ _ _ hx hDD).choose := by
+  have eq1 := x_is_in_V _ _ _ hx
+  rw [V_def] at eq1
+  obtain ⟨r, hr1, hr2⟩ := eq1 hDD
+  have eq2 := x_corre_R _ _ _ hx hDD|>.choose_spec
+  have : -r = (x_corre_R _ _ _ hx hDD).choose := by
+    apply_fun -(·) at hr2
+    simp only [Pi.neg_apply] at hr2
+    have := eq2.trans hr2
+    simp only [← map_neg] at this
+    exact FaithfulSMul.algebraMap_injective _ _ this|>.symm
+  rw [← this]
+  simp only [Left.neg_pos_iff, hr1]
+
+
+-- @@ L375-391 verbatim
+lemma j_mul_j (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (hDD : Module.finrank ℝ D = 4) :
+    (algebraMap ℝ D) (Real.sqrt (x_corre_R _ _ _ hx hDD).choose)⁻¹ * ↑x *
+    ((algebraMap ℝ D) (Real.sqrt (x_corre_R _ _ _ hx hDD).choose)⁻¹ * ↑x) = (-1 : ℝ) • 1 := by
+  rw [← mul_assoc, show algebraMap ℝ D _ = (algebraMap ℝ k _ : D) from rfl]
+  have hx1 := hx
+  specialize hx <| (algebraMap ℝ k (Real.sqrt (x_corre_R _ _ _ hx hDD).choose)⁻¹)
+  simp only [AlgHom.commutes, Subalgebra.coe_val] at hx
+  apply_fun (x.1 * · ) at hx
+  rw [← mul_assoc, ← mul_assoc, mul_inv_cancel₀ (Units.ne_zero x), one_mul] at hx
+  rw [mul_assoc _ x.1, ← hx, ← mul_assoc, ← Subalgebra.coe_mul, ← map_mul (algebraMap ℝ k),
+    ← mul_inv, ← pow_two, Real.sq_sqrt, show (algebraMap ℝ k _ : D) =
+    algebraMap ℝ D _ from rfl, map_inv₀ (algebraMap ℝ D) (x_corre_R _ _ _ hx1 hDD).choose,
+    (x_corre_R _ _ _ hx1 hDD).choose_spec, mul_assoc, ← pow_two, ← neg_inv, neg_mul,
+    inv_mul_cancel₀ (by simp_all)]
+  · simp only [neg_smul, one_smul]
+  · exact (r_pos _ _ _ hx1 hDD).le
+
+
+-- @@ L393-413 verbatim
+lemma jij_eq_negi (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (hDD : Module.finrank ℝ D = 4) :
+    ((algebraMap ℝ D) (Real.sqrt (x_corre_R _ _ _ hx hDD).choose)⁻¹ * x.1) * e.symm ⟨0, 1⟩ *
+    ((algebraMap ℝ D) (Real.sqrt (x_corre_R _ _ _ hx hDD).choose)⁻¹ * x.1)⁻¹ = - e.symm ⟨0, 1⟩ := by
+  rw [show algebraMap ℝ D _ = (algebraMap ℝ k _ : D) from rfl, mul_inv_rev, ← mul_assoc]
+  have hx1 := hx
+  specialize hx <| e.symm ⟨0, 1⟩
+  apply_fun (x.1 * · * x.1⁻¹) at hx
+  rw [← mul_assoc, ← mul_assoc, mul_inv_cancel₀ (Units.ne_zero x), one_mul, mul_assoc,
+    mul_inv_cancel₀ (Units.ne_zero x), mul_one] at hx
+  simp only [f_apply, AlgEquiv.apply_symm_apply, Subalgebra.coe_val] at hx
+  rw [mul_assoc, mul_assoc, mul_assoc]; nth_rw 2 [← mul_assoc, ← mul_assoc]
+  rw [← hx, ← Complex.I, Complex.conj_I, ← mul_assoc, ← Subalgebra.coe_mul, mul_comm,
+    Subalgebra.coe_mul, mul_assoc, mul_inv_cancel₀, mul_one, map_neg, Subalgebra.coe_neg]
+  simp only [map_inv₀, ne_eq, ZeroMemClass.coe_eq_zero, inv_eq_zero, map_eq_zero]
+  by_contra! zero
+  apply_fun (·)^2 at zero
+  rw [Pi.pow_apply, Real.sq_sqrt (le_of_lt (r_pos _ _ _ hx1 hDD)), Pi.pow_apply,
+    pow_two 0, zero_mul] at zero
+  have := r_pos _ _ _ hx1
+  simp_all
+
+
+-- @@ L415-438 verbatim
+lemma k_sq_eq_negone (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (hDD : Module.finrank ℝ D = 4) :
+    (e.symm ⟨0, 1⟩ * ((algebraMap ℝ D (Real.sqrt
+    (x_corre_R k e x hx hDD).choose)⁻¹) * x.1))^2 = -1 := by
+  rw [pow_two]
+  set j := (algebraMap ℝ D (Real.sqrt (x_corre_R k e x hx hDD).choose)⁻¹) * x.1 with j_eq
+  nth_rw 2 [← mul_one (e.symm { re := 0, im := 1 })]
+  rw [Subalgebra.coe_mul, Subalgebra.coe_one]
+  nth_rw 1 [← @inv_mul_cancel₀ _ _ j (by
+    simp only [j_eq, map_inv₀, ne_eq, mul_eq_zero, inv_eq_zero, map_eq_zero,
+      Units.ne_zero, or_false]
+    by_contra! heq
+    apply_fun (·)^2 at heq
+    rw [Pi.pow_apply, Real.sq_sqrt (le_of_lt (r_pos _ _ _ hx hDD)), Pi.pow_apply,
+      pow_two 0, zero_mul] at heq
+    have := r_pos _ _ _ hx
+    simp_all only [Real.sqrt_zero, inv_zero, map_zero, zero_mul, lt_self_iff_false]), mul_assoc]
+  nth_rw 2 [← mul_assoc, ← mul_assoc, ← mul_assoc, ← mul_assoc]
+  rw [jij_eq_negi _ _ _ hx, ← Subalgebra.coe_neg, ← map_neg e.symm, ← mul_assoc,
+    ← mul_assoc, ← mul_assoc, ← Subalgebra.coe_mul, ← map_mul e.symm, ← Complex.I, mul_neg,
+    Complex.I_mul_I, neg_neg, map_one, Subalgebra.coe_one, one_mul, mul_assoc, j_mul_j _ _ _ hx]
+  · simp
+  · exact hDD
+  · exact hDD
+
+
+-- @@ L440-448 verbatim
+lemma j_ne_zero (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z) (hDD : Module.finrank ℝ D = 4) :
+    (algebraMap ℝ D (Real.sqrt (x_corre_R _ _ _ hx hDD).choose)⁻¹) * x.1 ≠ 0 := by
+  intro h
+  simp only [mul_eq_zero, Units.ne_zero, or_false] at h
+  simp only [map_inv₀, inv_eq_zero, map_eq_zero] at h
+  apply_fun (· ^ 2) at h
+  rw [Real.sq_sqrt (r_pos _ _ _ hx _).le, pow_two 0, zero_mul] at h
+  · exact (r_pos _ _ _ hx hDD).ne' h
+  · exact hDD
+
+
+-- @@ L450-452 verbatim
+lemma k_ne_zero (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z) (hDD : Module.finrank ℝ D = 4) :
+    e.symm ⟨0, 1⟩ * (algebraMap ℝ D (Real.sqrt (x_corre_R k e x hx hDD).choose)⁻¹ * x.1) ≠ 0 :=
+  mul_ne_zero (i_ne_zero k e) (j_ne_zero _ _ _ hx hDD)
+
+
+-- @@ L454-472 verbatim
+lemma j_mul_i_eq_neg_i_mul_j (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (hDD : Module.finrank ℝ D = 4) :
+    (algebraMap ℝ D) (Real.sqrt (x_corre_R _ _ _ hx hDD).choose)⁻¹ * ↑x *
+    ↑(e.symm { re := 0, im := 1 }) = -(↑(e.symm { re := 0, im := 1 }) *
+    ((algebraMap ℝ D) (Real.sqrt (x_corre_R _ _ _ hx hDD).choose)⁻¹ * ↑x)) := by
+  have := k_sq_eq_negone _ _ _ hx hDD
+  rw [pow_two] at this
+  set j := (algebraMap ℝ D (Real.sqrt (x_corre_R k e x hx hDD).choose)⁻¹) * x.1 with j_eq
+  apply_fun (· * ((↑(e.symm { re := 0, im := 1 }) * j)⁻¹)) at this
+  rw [mul_assoc, mul_inv_cancel₀ (k_ne_zero _ _ _ hx hDD), mul_one, mul_inv_rev] at this
+  have jinv : j⁻¹ = -j := by
+    rw [← mul_eq_one_iff_inv_eq₀ (j_ne_zero _ _ _ hx hDD) , mul_neg, j_mul_j _ _ _ hx]
+    · simp
+    · exact hDD
+  have iinv : ((e.symm { re := 0, im := 1 })).1⁻¹ = - (e.symm { re := 0, im := 1 }).1 := by
+    rw [← mul_eq_one_iff_inv_eq₀ (i_ne_zero _ _), mul_neg, ← Subalgebra.coe_mul,
+      ← map_mul e.symm, ← Complex.I, Complex.I_mul_I, map_neg, map_one, Subalgebra.coe_neg,
+      neg_neg]; rfl
+  simp_all
+
+
+-- @@ L474-474 verbatim
+open Quaternion
+
+
+-- @@ L476-486 verbatim
+/-- The quaternion basis inside `D` determined by the constructed elements. -/
+abbrev quatBasis (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (hDD : Module.finrank ℝ D = 4) : QuaternionAlgebra.Basis D (-1 : ℝ) 0 (-1 : ℝ) where
+  i := e.symm ⟨0, 1⟩
+  j := (algebraMap ℝ D (Real.sqrt (x_corre_R k e x hx hDD).choose)⁻¹) * x.1
+  k := e.symm ⟨0, 1⟩ * ((algebraMap ℝ D (Real.sqrt (x_corre_R k e x hx hDD).choose)⁻¹) * x.1)
+  i_mul_i := by rw [i_mul_i _ e, zero_smul, add_zero]
+  j_mul_j := j_mul_j _ _ _ hx hDD
+  i_mul_j := by rfl
+  j_mul_i := by
+    rw [j_mul_i_eq_neg_i_mul_j _ _ _ hx hDD, zero_smul, zero_sub]
+
+
+-- @@ L488-491 verbatim
+/-- The algebra homomorphism from Hamilton quaternions determined by the constructed basis. -/
+abbrev toFun (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (hDD : Module.finrank ℝ D = 4) :
+    ℍ[ℝ] →ₐ[ℝ] D := QuaternionAlgebra.lift (R := ℝ) (A := D) (quatBasis k e x hx hDD)
+
+
+-- @@ L493-498 verbatim
+/-- The ordered quaternion basis `k, j, 1, i` inside the division algebra. -/
+abbrev basisijk (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z) (hDD : Module.finrank ℝ D = 4) :
+    Fin 4 → D :=
+  Fin.cons (e.symm ⟨0, 1⟩ * ((algebraMap ℝ D (Real.sqrt (x_corre_R k e x hx hDD).choose)⁻¹) * x.1))
+  (Fin.cons ((algebraMap ℝ D (Real.sqrt (x_corre_R k e x hx hDD).choose)⁻¹) * x.1)
+    ![(1 : D), e.symm ⟨0, 1⟩])
+
+
+-- @@ L500-543 verbatim
+lemma linindep1ij (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (hDD : Module.finrank ℝ D = 4) :
+    LinearIndependent ℝ
+      (Fin.cons (algebraMap ℝ D (Real.sqrt (x_corre_R _ _ _ hx hDD).choose)⁻¹ * ↑x)
+        ![1, ↑(e.symm { re := 0, im := 1 })]) := by
+  rw [linearIndependent_finCons]
+  constructor
+  · exact linindep1i _ _
+  · simp only [map_inv₀, Matrix.range_cons, Matrix.range_empty,
+      Set.union_empty, Set.union_singleton]
+    rw [Submodule.mem_span_pair]
+    by_contra! h
+    obtain ⟨a, b, hab⟩ := h
+    rw [show (1 : D) = (1 : k) from rfl, ← Subalgebra.coe_smul, ← Subalgebra.coe_smul,
+        ← _root_.map_one e.symm, ← map_smul e.symm, ← map_smul e.symm, ← Subalgebra.coe_add,
+        ← map_add e.symm] at hab
+    have hsum : a • (⟨0, 1⟩ : ℂ) + b • (1 : ℂ) = (⟨b, a⟩ : ℂ) := by
+      apply Complex.ext <;> simp
+    replace hab : ((e.symm (⟨b, a⟩ : ℂ) : k) : D) =
+        ((algebraMap ℝ D) √(x_corre_R k e x hx hDD).choose)⁻¹ * ↑x := by
+      rwa [← hsum]
+    apply_fun ((algebraMap ℝ D) (Real.sqrt (x_corre_R _ _ _ hx hDD).choose) * · ) at hab
+    rw [← mul_assoc, mul_inv_cancel₀ (by
+      simp_all only [ne_eq, map_eq_zero]
+      by_contra! eqzero
+      rw [Real.sqrt_eq_zero (le_of_lt (r_pos _ _ _ hx hDD))] at eqzero
+      have := r_pos _ _ _ hx
+      simp_all only [Real.sqrt_zero, map_zero, zero_mul, inv_zero, mul_zero, lt_self_iff_false]),
+      one_mul] at hab
+    rw [show algebraMap ℝ D _ = (algebraMap ℝ k _ : D) from rfl, ← Subalgebra.coe_mul] at hab
+    have : ∃(y : k), y = x.1 := ⟨_, hab⟩
+    obtain ⟨y, hy⟩ := this
+    have hyy : x.1 ≠ 0 := Units.ne_zero x
+    rw [← hy] at hx hyy
+    rw [show y.1⁻¹ = (y⁻¹ : k) by
+      apply_fun (· * (y : D)) using (mul_left_injective₀ hyy)
+      simp only
+      rw [inv_mul_cancel₀ hyy, ← Subalgebra.coe_mul, inv_mul_cancel₀ (Subtype.coe_ne_coe.1 hyy)]
+      rfl] at hx
+    simp_rw [← Subalgebra.coe_mul] at hx
+    change ∀(z : k), _ = (z : D) at hx
+    simp_rw [Subtype.coe_inj, mul_comm, ← mul_assoc,
+      mul_inv_cancel₀ (Subtype.coe_ne_coe.1 hyy), one_mul] at hx
+    simpa [Complex.ext_iff, neg_one_eq_one_iff] using congr(e $(hx <| e.symm Complex.I))
+
+
+-- @@ L545-636 verbatim
+lemma linindepijk (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (hDD : Module.finrank ℝ D = 4) :
+    LinearIndependent ℝ (basisijk k e x hx hDD) := by
+  rw [linearIndependent_finCons]
+  refine ⟨linindep1ij _ _ _ hx hDD, ?_⟩
+  by_contra! h
+  simp only [Fin.range_cons, Matrix.range_cons, Matrix.range_empty, Set.union_empty,
+    Set.union_singleton, Submodule.mem_span_insert] at h
+  simp_rw [Submodule.mem_span_singleton] at h
+  obtain ⟨c, d, ⟨b, d', ⟨a, hc⟩, had⟩, heq⟩ := h
+  rw [← hc] at had; rw [had] at heq
+  rw [add_comm] at heq; nth_rw 2 [add_comm] at heq
+  clear hc had
+  set k' := ↑(e.symm { re := 0, im := 1 }) *
+    (algebraMap ℝ D (Real.sqrt (x_corre_R _ _ _ hx hDD).choose)⁻¹ * ↑x) with k_eq
+  have := k_sq_eq_negone _ _ _ hx hDD
+  set j := algebraMap ℝ D (Real.sqrt (x_corre_R _ e x hx hDD).choose)⁻¹ * x.1 with j_eq
+  set i := e.symm ⟨0, 1⟩ with i_eq
+  rw [← k_eq, heq, pow_two, mul_add, mul_add, add_mul, add_mul, add_mul, add_mul, add_mul,
+    add_mul] at this
+  simp only [Algebra.mul_smul_comm, mul_one, Algebra.smul_mul_assoc, one_mul] at this
+  rw [j_mul_j _ _ _ hx hDD, j_mul_i_eq_neg_i_mul_j _ _ _ hx hDD, i_mul_i _ _, ← j_eq,
+    ← i_eq, ← k_eq] at this
+  replace this : (a * a - b * b - c * c + (1 : ℝ)) • (1 : D) + (2 * a * b) • i +
+    (2 * a * c) • j = 0 := by linear_combination (norm := module) this
+  have ijindep := linindep1ij _ _ _ hx hDD
+  rw [← i_eq, ← j_eq, Fintype.linearIndependent_iff] at ijindep
+  specialize ijindep ![(2 * a * c), (a * a - b * b - c * c + (1 : ℝ)), (2 * a * b)]
+  simp only [Nat.succ_eq_add_one, Nat.reduceAdd] at ijindep
+  specialize ijindep (by
+    simp only [Fin.sum_univ_three, Fin.isValue, Matrix.cons_val_zero, Fin.cons_zero,
+      Matrix.cons_val_one, Matrix.head_cons, Fin.cons_one, Matrix.cons_val_two,
+      Nat.succ_eq_add_one, Nat.reduceAdd, Matrix.tail_cons]
+    rw [← Fin.succ_one_eq_two, Fin.cons_succ]
+    simp only [Fin.isValue, Matrix.cons_val_one]
+    rw [add_assoc, add_comm]; exact this)
+  have h1 := ijindep ⟨0, by omega⟩
+  have h2 := ijindep ⟨1, by omega⟩
+  have h3 := ijindep ⟨2, by omega⟩
+  simp only [Fin.zero_eta, Fin.isValue, Matrix.cons_val_zero, mul_eq_zero, OfNat.ofNat_ne_zero,
+    false_or, Fin.mk_one, Matrix.cons_val_one, Matrix.head_cons, Fin.reduceFinMk,
+    Matrix.cons_val_two, Nat.succ_eq_add_one, Nat.reduceAdd, Matrix.tail_cons] at h1 h2 h3
+  obtain rfl : a = 0 := by
+    by_contra! h
+    simp only [h, false_or] at h1 h3
+    simp only [h3, mul_zero, sub_zero, h1, add_eq_zero_iff_eq_neg] at h2
+    rw [← pow_two] at h2
+    have haa := h2
+    apply_fun Real.sqrt at h2
+    if ha1 : a < 0 then
+    have e1: 0 < a^2 := sq_pos_of_ne_zero h
+    have e2: a^2 < 0 := by rw [haa]; simp
+    linarith
+    else
+    simp only [not_lt] at ha1
+    rw [Real.sqrt_sq ha1, Real.sqrt_eq_zero_of_nonpos (by linarith)] at h2
+    simp_all
+  simp only [mul_zero, zero_sub, zero_smul, zero_add] at h2 heq
+  obtain rfl : b = 0 := by
+    have heq' := heq
+    apply_fun (i.1 * ·) at heq
+    nth_rw 1 [k_eq, ← mul_assoc, i_mul_i] at heq
+    simp only [neg_smul, one_smul, neg_mul, one_mul, mul_add, Algebra.mul_smul_comm] at heq
+    rw [← k_eq, heq'] at heq
+    simp only [smul_add, smul_smul, ← add_assoc] at heq
+    symm at heq
+    rw [eq_neg_iff_add_eq_zero, add_assoc _ _ j] at heq
+    nth_rw 2 [← one_smul ℝ j] at heq; rw [← add_smul, i_mul_i _ _] at heq
+    have h1 := linindep1ij _ _ _ hx hDD
+    rw [Fintype.linearIndependent_iff] at h1
+    specialize h1 ![(c * c + 1), -b, (c * b)]
+    simp only [Nat.succ_eq_add_one, Nat.reduceAdd, Fin.sum_univ_three, Fin.isValue,
+      Matrix.cons_val_zero, Fin.cons_zero, Matrix.cons_val_one, Matrix.head_cons, Fin.cons_one,
+      Matrix.cons_val_two, Matrix.tail_cons, ← j_eq, ← i_eq] at h1
+    rw [← Fin.succ_one_eq_two, Fin.cons_succ] at h1
+    simp only [Fin.isValue, Matrix.cons_val_one] at h1
+    rw [add_comm, ← add_assoc, neg_smul, one_smul, smul_neg, ← neg_smul] at heq
+    specialize h1 heq ⟨1, by omega⟩
+    simpa using h1
+  obtain rfl : c = 0 := by
+    simp only [zero_smul, zero_add] at heq
+    rw [Algebra.smul_def, k_eq, mul_eq_mul_right_iff] at heq
+    have : j ≠ 0 := j_ne_zero _ _ _ hx hDD
+    simp only [this, or_false] at heq
+    change _ = (algebraMap ℝ k _ : D) at heq
+    simp only [SetLike.coe_eq_coe, i_eq] at heq
+    apply_fun e at heq
+    rw [e.apply_symm_apply] at heq
+    simp only [AlgEquiv.commutes, Complex.coe_algebraMap] at heq
+    change ⟨0, 1⟩ = (⟨c, 0⟩ : ℂ) at heq
+    simp_all
+  simp_all
+
+
+-- @@ L638-646 verbatim
+/-- The constructed `ℝ`-basis of a four-dimensional central real division algebra. -/
+abbrev isBasisijk (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (h : Module.finrank ℝ D = 4) : Basis (Fin 4) ℝ D := .mk
+    (v := basisijk _ _ _ hx h) (linindepijk _ _ _ hx h)
+    (by
+      suffices (⊤ : Submodule ℝ D) = Submodule.span ℝ (Set.range (basisijk _ _ _ hx h))
+        from le_of_eq this
+      exact LinearIndependent.span_eq_top_of_card_eq_finrank (K := ℝ) (b := basisijk _ _ _ hx h)
+        (linindepijk _ _ _ hx h) (by simp only [Fintype.card_fin, h])|>.symm )
+
+
+-- @@ L648-656 verbatim
+/-- The linear equivalence from Hamilton quaternions to the constructed basis. -/
+abbrev linEquivH (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (h : Module.finrank ℝ D = 4) : ℍ[ℝ] ≃ₗ[ℝ] D :=
+  Basis.equiv (QuaternionAlgebra.basisOneIJK (-1 : ℝ) 0 (-1 : ℝ)) (isBasisijk _ _ _ hx h) {
+    toFun := ![2, 3, 1, 0]
+    invFun := ![3, 2, 0, 1]
+    left_inv i := by fin_cases i <;> simp
+    right_inv i := by fin_cases i <;> simp
+  }
+
+
+-- @@ L658-667 verbatim
+lemma toFun_i_eq (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (h : Module.finrank ℝ D = 4) :
+    toFun _ _ _ hx h ((QuaternionAlgebra.basisOneIJK (-1 : ℝ) 0 (-1 : ℝ)) 1) = e.symm ⟨0, 1⟩ := by
+  simp only [QuaternionAlgebra.lift_apply]
+  rw [show ((QuaternionAlgebra.basisOneIJK (-1 : ℝ) 0 (-1 : ℝ)) 1) =
+      ({ re := 0, imI := 1, imJ := 0, imK := 0 } : ℍ[ℝ]) by
+    ext <;> simp [QuaternionAlgebra.basisOneIJK]]
+  change ((quatBasis k e x hx h).liftHom
+      ({ re := 0, imI := 1, imJ := 0, imK := 0 } : ℍ[ℝ])) = ↑(e.symm { re := 0, im := 1 })
+  simp [QuaternionAlgebra.Basis.lift, QuaternionAlgebra.Basis.liftHom, quatBasis]
+
+
+-- @@ L669-678 verbatim
+lemma toFun_one_eq (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (h : Module.finrank ℝ D = 4) :
+    toFun _ _ _ hx h ((QuaternionAlgebra.basisOneIJK (-1 : ℝ) 0 (-1 : ℝ)) 0) = 1 := by
+  simp only [QuaternionAlgebra.lift_apply]
+  rw [show ((QuaternionAlgebra.basisOneIJK (-1 : ℝ) 0 (-1 : ℝ)) 0) =
+      ({ re := 1, imI := 0, imJ := 0, imK := 0 } : ℍ[ℝ]) by
+    ext <;> simp [QuaternionAlgebra.basisOneIJK]]
+  change ((quatBasis k e x hx h).liftHom
+      ({ re := 1, imI := 0, imJ := 0, imK := 0 } : ℍ[ℝ])) = 1
+  simp [QuaternionAlgebra.Basis.lift, QuaternionAlgebra.Basis.liftHom, quatBasis]
+
+
+-- @@ L680-691 verbatim
+lemma toFun_j_eq (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (h : Module.finrank ℝ D = 4) :
+    toFun _ _ _ hx h ((QuaternionAlgebra.basisOneIJK (-1 : ℝ) 0 (-1 : ℝ)) 2) =
+      (algebraMap ℝ D) (√(x_corre_R k e x hx h).choose)⁻¹ * ↑x := by
+  simp only [QuaternionAlgebra.lift_apply]
+  rw [show ((QuaternionAlgebra.basisOneIJK (-1 : ℝ) 0 (-1 : ℝ)) 2) =
+      ({ re := 0, imI := 0, imJ := 1, imK := 0 } : ℍ[ℝ]) by
+    ext <;> simp [QuaternionAlgebra.basisOneIJK]]
+  change ((quatBasis k e x hx h).liftHom
+      ({ re := 0, imI := 0, imJ := 1, imK := 0 } : ℍ[ℝ])) =
+      (algebraMap ℝ D) (√(x_corre_R k e x hx h).choose)⁻¹ * ↑x
+  simp [QuaternionAlgebra.Basis.lift, QuaternionAlgebra.Basis.liftHom, quatBasis]
+
+
+-- @@ L693-706 verbatim
+lemma toFun_k_eq (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (h : Module.finrank ℝ D = 4) :
+    toFun _ _ _ hx h ((QuaternionAlgebra.basisOneIJK (-1 : ℝ) 0 (-1 : ℝ)) 3) =
+      ↑(e.symm { re := 0, im := 1 }) *
+        ((algebraMap ℝ D) (√(x_corre_R k e x hx h).choose)⁻¹ * ↑x) := by
+  simp only [QuaternionAlgebra.lift_apply]
+  rw [show ((QuaternionAlgebra.basisOneIJK (-1 : ℝ) 0 (-1 : ℝ)) 3) =
+      ({ re := 0, imI := 0, imJ := 0, imK := 1 } : ℍ[ℝ]) by
+    ext <;> simp [QuaternionAlgebra.basisOneIJK]]
+  change ((quatBasis k e x hx h).liftHom
+      ({ re := 0, imI := 0, imJ := 0, imK := 1 } : ℍ[ℝ])) =
+      ↑(e.symm { re := 0, im := 1 }) *
+        ((algebraMap ℝ D) (√(x_corre_R k e x hx h).choose)⁻¹ * ↑x)
+  simp [QuaternionAlgebra.Basis.lift, QuaternionAlgebra.Basis.liftHom, quatBasis]
+
+
+-- @@ L708-708 verbatim
+@[simp] theorem succ_two_eq_three (n : ℕ) : Fin.succ (2 : Fin (n + 3)) = 3 := rfl
+
+
+-- @@ L710-725 verbatim
+lemma linEquivH_eq_toFun (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (h : Module.finrank ℝ D = 4) : (linEquivH _ _ _ hx h).toLinearMap = toFun _ _ _ hx h := by
+  apply Basis.ext (QuaternionAlgebra.basisOneIJK (-1 : ℝ) 0 (-1 : ℝ))
+  intro i
+  change (linEquivH _ _ _ hx h) _ = (toFun _ _ _ hx h) _
+  fin_cases i <;>
+  · erw [Basis.equiv_apply
+      (b := QuaternionAlgebra.basisOneIJK (-1 : ℝ) 0 (-1 : ℝ))
+      (b' := isBasisijk k e x hx h)]
+    simp only [isBasisijk, basisijk, Equiv.coe_fn_mk, Basis.coe_mk]
+    norm_num
+    first
+    | simpa [toFun, QuaternionAlgebra.lift_apply] using (toFun_one_eq k e x hx h).symm
+    | simpa [toFun, QuaternionAlgebra.lift_apply] using (toFun_i_eq k e x hx h).symm
+    | simpa [toFun, QuaternionAlgebra.lift_apply] using (toFun_j_eq k e x hx h).symm
+    | simpa [toFun, QuaternionAlgebra.lift_apply] using (toFun_k_eq k e x hx h).symm
+
+
+-- @@ L727-737 verbatim
+lemma bij_tofun (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (h : Module.finrank ℝ D = 4) : Function.Bijective (toFun _ _ _ hx h) := by
+  have eq1 := linEquivH_eq_toFun _ _ _ hx h
+  have := LinearEquiv.bijective (linEquivH _ _ _ hx h)
+  have eq2 : @DFunLike.coe (ℍ[ℝ] ≃ₗ[ℝ] D) ℍ[ℝ] (fun x ↦ D) EquivLike.toFunLike
+      (linEquivH k e x hx h) = @DFunLike.coe (ℍ[ℝ] →ₐ[ℝ] D) ℍ[ℝ] (fun x ↦ D)
+      AlgHom.funLike (toFun k e x hx h) := by
+    ext x
+    change (linEquivH _ _ _ hx h) x = (toFun _ _ _ hx h).toLinearMap x
+    exact DFunLike.congr eq1.symm rfl|>.symm
+  rw [← eq2]; exact this
+
+
+-- @@ L739-741 verbatim
+theorem rank4_iso_H (x : Dˣ) (hx : ∀ z, x.1⁻¹ * f k e z * x = k.val z)
+    (h : Module.finrank ℝ D = 4) : Nonempty (ℍ[ℝ] ≃ₐ[ℝ] D) :=
+  ⟨AlgEquiv.ofBijective (toFun _ _ _ hx h) (bij_tofun _ _ _ hx h)⟩
+
+
+-- @@ L743-743 verbatim
+attribute [-instance] Module.complexToReal
+
+
+-- @@ L745-752 verbatim
+/-- The complex scalar action induced by an isomorphism from `ℂ` to the center. -/
+abbrev SmulCA (A : Type) [DivisionRing A] [Algebra ℝ A]
+    (e : ℂ ≃ₐ[ℝ] (Subalgebra.center ℝ A)) : ℂ →+* A where
+  toFun z := e z
+  map_one' := by simp
+  map_mul' := by simp
+  map_zero' := by simp
+  map_add' z1 z2 := by simp
+
+
+-- @@ L754-762 verbatim
+/-- The resulting complex algebra structure on a real division algebra. -/
+abbrev AlgCA (A : Type) [DivisionRing A] [Algebra ℝ A]
+    (e : ℂ ≃ₐ[ℝ] (Subalgebra.center ℝ A)) : Algebra ℂ A where
+  __ := SmulCA A e
+  smul z a := (SmulCA A e z) * a
+  algebraMap := _
+  commutes' z _ := by
+    simp [Subalgebra.mem_center_iff.1 (e z).2]
+  smul_def' _ _ := rfl
+
+
+-- @@ L764-768 verbatim
+lemma smulCRassoc (A : Type) [DivisionRing A] [Algebra ℝ A]
+    (e : ℂ ≃ₐ[ℝ] (Subalgebra.center ℝ A)) (r : ℝ) (z : ℂ) (a : A) : e (r • z) * a =
+    r • (e z * a) := by
+  have hz : e (r • z) = r • e z := map_smul e r z
+  simp_all
+
+
+-- @@ L770-791 verbatim
+theorem centereqvCisoC (A : Type) [DivisionRing A] [Algebra ℝ A] [FiniteDimensional ℝ A]
+    (hA : Nonempty (Subalgebra.center ℝ A ≃ₐ[ℝ] ℂ)) : Nonempty (A ≃ₐ[ℝ] ℂ) := by
+  have hfiniteReal : Module.Finite ℝ A := ‹FiniteDimensional ℝ A›
+  have e := hA.some.symm
+  let : Algebra ℂ A := AlgCA A e
+  let : Module ℝ ℂ := Algebra.toModule
+  have : IsScalarTower ℝ ℂ A := { smul_assoc := smulCRassoc A e }
+  have : Module.Finite ℝ A := hfiniteReal
+  have : IsNoetherian ℝ A := IsNoetherian.iff_fg.2 hfiniteReal
+  have : FiniteDimensional ℂ A := .right ℝ ℂ A
+  have bij := IsAlgClosed.algebraMap_bijective_of_isIntegral (k := ℂ) (K := A)
+  exact ⟨.symm <| .ofBijective {
+    toFun := algebraMap ℂ A
+    map_one' := _
+    map_mul' := _
+    map_zero' := _
+    map_add' := _
+    commutes' r := by
+      simp only [Complex.coe_algebraMap]
+      change (algebraMap ℂ A) (algebraMap ℝ ℂ r) = _
+      rw [Algebra.algebraMap_eq_smul_one, Algebra.algebraMap_eq_smul_one,
+        Algebra.algebraMap_eq_smul_one, smul_assoc, one_smul]} bij⟩
+
+
+-- @@ L793-797 verbatim
+lemma center_eq_bot_of_iso_real (A : Type) [DivisionRing A] [Algebra ℝ A]
+    [FiniteDimensional ℝ A] (hR : Subalgebra.center ℝ A ≃ₐ[ℝ] ℝ) :
+    Subalgebra.center ℝ A = ⊥ := by
+  have hfinrank := LinearEquiv.finrank_eq hR.toLinearEquiv
+  simp_all
+
+
+-- @@ L799-806 verbatim
+lemma subfield_finrank_one_or_two (A : Type) [DivisionRing A] [Algebra ℝ A]
+    [FiniteDimensional ℝ A] (L : SubField ℝ A) :
+    Module.finrank ℝ L = 1 ∨ Module.finrank ℝ L = 2 := by
+  obtain hR | hH := RealExtension_is_RorC L
+  · have hfinrank := LinearEquiv.finrank_eq hR.some.toLinearEquiv
+    simp_all
+  · have hfinrank := LinearEquiv.finrank_eq hH.some.toLinearEquiv
+    exact Or.inr (hfinrank.trans Complex.finrank_real_complex)
+
+
+-- @@ L808-812 verbatim
+lemma not_real_subfield_of_finrank_two (A : Type) [DivisionRing A] [Algebra ℝ A]
+    (L : SubField ℝ A) (h2 : Module.finrank ℝ L = 2)
+    (e1 : L ≃ₐ[ℝ] ℝ) : False := by
+  have hfinrank := LinearEquiv.finrank_eq e1.toLinearEquiv
+  simp_all
+
+
+-- @@ L814-829 verbatim
+lemma central_division_iso_real_or_quaternion (A : Type) [DivisionRing A] [Algebra ℝ A]
+    [FiniteDimensional ℝ A] [Algebra.IsCentral ℝ A] :
+    Nonempty (A ≃ₐ[ℝ] ℝ) ∨ Nonempty (A ≃ₐ[ℝ] ℍ[ℝ]) := by
+  obtain ⟨L, hL⟩ := SubField.exists_isMax ℝ A
+  have dimeq := dim_max_subfield ℝ A L hL
+  obtain h1 | h2 := subfield_finrank_one_or_two A L
+  · left
+    simp only [h1, mul_one] at dimeq
+    exact rank_1_D_iso_R dimeq
+  · right
+    simp only [h2, Nat.reduceMul] at dimeq
+    obtain hReal | e2 := RealExtension_is_RorC L
+    · obtain ⟨e1⟩ := hReal
+      exact False.elim (not_real_subfield_of_finrank_two A L h2 e1)
+    · exact ⟨(rank4_iso_H L e2.some (f_is_conjugation L e2.some).choose
+        (f_is_conjugation L e2.some).choose_spec dimeq).some.symm⟩
+
+
+-- @@ L831-838 verbatim
+theorem FrobeniusTheorem (A : Type) [DivisionRing A] [Algebra ℝ A] [FiniteDimensional ℝ A] :
+    Nonempty (A ≃ₐ[ℝ] ℂ) ∨ Nonempty (A ≃ₐ[ℝ] ℝ) ∨ Nonempty (A ≃ₐ[ℝ] ℍ[ℝ]) := by
+  obtain ⟨⟨hR⟩⟩ | hC := RealExtension_is_RorC (Subalgebra.center ℝ A)
+  · right
+    have hcenter : Subalgebra.center ℝ A = ⊥ := center_eq_bot_of_iso_real A hR
+    have : Algebra.IsCentral ℝ A := ⟨le_of_eq hcenter⟩
+    exact central_division_iso_real_or_quaternion A
+  · left; exact centereqvCisoC A hC
+
+
+-- @@ L840-840 verbatim
+end BrauerGroupNew

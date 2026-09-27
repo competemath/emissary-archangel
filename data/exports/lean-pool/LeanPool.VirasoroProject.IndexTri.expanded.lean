@@ -1,0 +1,90 @@
+/-
+Copyright (c) 2026 Kalle Kytölä. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Kalle Kytölä
+-/
+module
+
+public import Mathlib.Basic.Sign.Defs
+public import Mathlib.Order.CompletePartialOrder
+public import Mathlib.Data.Set.BooleanAlgebra
+import Mathlib.Algebra.Order.Ring.Star
+import Mathlib.Analysis.Normed.Group.Basic
+import Mathlib.Data.EReal.Operations
+import Mathlib.Data.Int.ConditionallyCompleteOrder
+import Mathlib.Data.Int.Star
+import Mathlib.Topology.Algebra.InfiniteSum.Order
+import Mathlib.Topology.MetricSpace.Bounded
+
+
+-- @@ L19-29 verbatim
+/-!
+# An auxiliary tri-partition of indices
+
+This file contains a simple tri-partition of an index set that is used to form
+the triangular decompositions of both the Virasoro algebra and the Heisenberg algebra.
+
+## Main definitions
+
+* `indexTri`: A partition of `Option ℤ` into three parts.
+
+-/
+
+
+-- @@ L31-31 verbatim
+@[expose] public section
+
+
+-- @@ L33-33 verbatim
+namespace VirasoroProject
+
+
+-- @@ L35-39 verbatim
+/-- The partition of `Option ℤ` into zero, positive, and negative parts. -/
+def indexTri (ε : SignType) : Set (Option ℤ) := match ε with
+  | SignType.zero => {none, some 0}
+  | SignType.pos => some '' {n : ℤ | 0 < n}
+  | SignType.neg => some '' {n : ℤ | n < 0}
+
+
+-- @@ L41-60 verbatim
+lemma pairwise_disjoint_indexTri :
+    Pairwise fun ε₁ ε₂ ↦ Disjoint (indexTri ε₁) (indexTri ε₂) := by
+  intro ε₁ ε₂ h
+  simp only [indexTri]
+  cases ε₁
+  · cases ε₂ <;> aesop
+  · cases ε₂
+    · aesop
+    · aesop
+    · apply Set.disjoint_image_image fun k hk l hl ↦ ?_
+      by_contra con
+      simp only [Set.mem_ofPred_eq, Option.some.injEq] at hk hl con
+      linarith
+  · cases ε₂
+    · aesop
+    · apply Set.disjoint_image_image fun k hk l hl ↦ ?_
+      by_contra con
+      simp only [Set.mem_ofPred_eq, Option.some.injEq] at hk hl con
+      linarith
+    · aesop
+
+
+-- @@ L62-74 verbatim
+lemma iUnion_indexTri :
+    ⋃ ε, indexTri ε = Set.univ := by
+  simp only [indexTri, Set.iUnion_eq_univ_iff]
+  intro i
+  match i with
+  | none => refine ⟨0, by decide⟩
+  | some n =>
+    by_cases hn0 : n = 0
+    · refine ⟨0, by simp [hn0]⟩
+    by_cases n_pos : 0 < n
+    · refine ⟨1, by simp [n_pos]⟩
+    · have n_neg : n < 0 := by grind
+      refine ⟨-1, by simp [n_neg]⟩
+
+
+-- @@ L76-76 verbatim
+end VirasoroProject

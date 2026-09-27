@@ -1,0 +1,1432 @@
+/-
+Copyright (c) 2026 Makoto Yamashita. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Makoto Yamashita
+-/
+module
+
+public import LeanPool.HSDInteriorPointLP.NewtonSystem
+import Mathlib.Algebra.BigOperators.Field
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L12-29 verbatim
+/-!
+# Fixed local neighborhood estimates
+
+This file contains the local predictor/corrector estimates that are considered
+fixed.  It should be edited only when the mathematical local estimates themselves
+change.
+
+Naming convention: this refactor uses `YTM` consistently.  In this development,
+`YTM` refers to the Ye--Todd--Mizuno homogeneous LP / neighborhood framework used
+by the proof.  Earlier mixed alternative abbreviations in comments and identifiers have been renamed
+to avoid two names for the same local-estimate layer.
+
+Lean-reading hints for beginners:
+* `linarith` proves goals from linear equalities/inequalities over ordered rings.
+* `nlinarith` is the nonlinear version; it can use products and squares.
+* `ring` proves polynomial identities such as rearrangements of sums/products.
+* `field_simp` clears denominators after you provide nonzero-denominator proofs.
+-/
+
+
+-- @@ L31-31 verbatim
+@[expose] public section
+
+-- @@ L32-32 verbatim
+noncomputable section
+
+
+-- @@ L34-34 verbatim
+open scoped BigOperators
+
+
+-- @@ L36-36 verbatim
+namespace HSDInteriorPointLP
+
+
+-- @@ L38-52 verbatim
+/-!
+## Short Lean proof-command guide
+
+The file is written for readers who know the interior-point algebra but may be new
+to Lean.
+
+* `intro` introduces an assumption or quantified variable from the current goal.
+* `have h : P := by ...` proves and names an intermediate claim.
+* `rcases h with ⟨...⟩` unpacks conjunctions, existentials, and structures.
+* `simp only [...]` performs controlled rewriting using only the listed facts.
+* `simpa [defs] using h` simplifies the goal and the type of `h`, then applies `h`.
+* `linarith` closes linear real-arithmetic goals from the available hypotheses.
+* `nlinarith` is the same idea for nonlinear arithmetic such as products/squares.
+* `ring` proves polynomial identities over rings such as `ℝ`.
+-/
+
+
+-- @@ L54-60 verbatim
+/-!
+# Active YTM local estimates, refactored
+
+This file keeps only the active local estimates needed by the current skeleton.
+The imported core file contains the HLP block operator, Schur-complement
+complementarity arguments, and all warning-clean fixed lemmas.
+-/
+
+
+-- @@ L62-62 verbatim
+/-! ## Corrector-side algebra already derivable from the HSD equations -/
+
+
+-- @@ L64-71 verbatim
+/-- The scalar quadratic estimate shared by the vector and scalar corrector pairs. -/
+theorem complementarity_second_order_upper {x s dx ds μ : ℝ}
+    (h : x * ds + s * dx = μ - x * s) :
+    4 * (x * s) * (dx * ds) ≤ (μ - x * s) ^ 2 := by
+  calc
+    4 * (x * s) * (dx * ds) = 4 * (x * ds) * (s * dx) := by ring
+    _ ≤ (x * ds + s * dx) ^ 2 := four_mul_le_sq_add _ _
+    _ = (μ - x * s) ^ 2 := congrArg (fun a : ℝ => a ^ 2) h
+
+
+-- @@ L73-77 verbatim
+/-- Convert a squared centrality deviation to the corresponding product lower bound. -/
+theorem product_lower_of_deviation_sq {μ z β : ℝ} (hβ : 0 ≤ β * μ)
+    (h : (μ - z) ^ 2 ≤ (β * μ) ^ 2) : (1 - β) * μ ≤ z := by
+  have hdeviation := (abs_le.mp (abs_le_of_sq_le_sq h hβ)).2
+  linarith only [hdeviation]
+
+
+-- @@ L79-88 verbatim
+/-- A full corrector step preserves the homogenized complementarity gap, hence also
+preserves `mu`.  This is only the gap algebra; the central-neighborhood estimate is
+handled separately below. -/
+theorem corrector_mu_full_step {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hdir : HSDStepDirection w d 1) :
+    mu (addStep w d 1) = mu w := by
+  unfold mu
+  rw [gap_addStep_of_HSDStepDirection w d 1 1 hdir]
+  ring
+
+
+-- @@ L90-107 verbatim
+/-- Product identity for the vector complementarity pairs after a full corrector step. -/
+theorem corrector_component_product_full_step {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hdir : HSDStepDirection w d 1) (i : Fin n) :
+    (addStep w d 1).x i * (addStep w d 1).s i =
+      mu w + d.dx i * d.ds i := by
+  have hc := hdir.compl.component_eq i
+  dsimp [addStep]
+  calc
+    (w.x i + 1 * d.dx i) * (w.s i + 1 * d.ds i)
+        = w.x i * w.s i + (w.x i * d.ds i + w.s i * d.dx i)
+            + d.dx i * d.ds i := by
+            ring
+    _ = w.x i * w.s i + (1 * mu w - w.x i * w.s i)
+            + d.dx i * d.ds i := by
+            rw [hc]
+    _ = mu w + d.dx i * d.ds i := by
+            ring
+
+
+-- @@ L109-126 verbatim
+/-- Product identity for the scalar complementarity pair after a full corrector step. -/
+theorem corrector_scalar_product_full_step {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hdir : HSDStepDirection w d 1) :
+    (addStep w d 1).tau * (addStep w d 1).kappa =
+      mu w + d.dtau * d.dkappa := by
+  have hc := hdir.compl.scalar_eq
+  dsimp [addStep]
+  calc
+    (w.tau + 1 * d.dtau) * (w.kappa + 1 * d.dkappa)
+        = w.tau * w.kappa + (w.tau * d.dkappa + w.kappa * d.dtau)
+            + d.dtau * d.dkappa := by
+            ring
+    _ = w.tau * w.kappa + (1 * mu w - w.tau * w.kappa)
+            + d.dtau * d.dkappa := by
+            rw [hc]
+    _ = mu w + d.dtau * d.dkappa := by
+            ring
+
+
+-- @@ L128-140 verbatim
+/-- After a full corrector step, the new centrality residual is exactly the squared
+norm of the second-order complementarity products. -/
+theorem corrector_centerSq_full_step_eq_cross_sq {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hdir : HSDStepDirection w d 1) :
+    centerSq (addStep w d 1).x (addStep w d 1).tau
+      (addStep w d 1).s (addStep w d 1).kappa
+      (mu (addStep w d 1)) =
+      (∑ i : Fin n, (d.dx i * d.ds i) ^ 2) +
+        (d.dtau * d.dkappa) ^ 2 := by
+  simp only [centerSq, corrector_mu_full_step w d hdir,
+    corrector_component_product_full_step w d hdir,
+    corrector_scalar_product_full_step w d hdir, add_sub_cancel_left]
+
+
+
+-- @@ L143-143 verbatim
+/-! ## Elementary estimates for the corrector obligation -/
+
+
+-- @@ L145-149 verbatim
+/-- The homogenized dimension `n + 1` is strictly positive. -/
+theorem hdim_pos (n : Nat) : 0 < hdim n := by
+  unfold hdim
+  have hn : (0 : ℝ) ≤ (n : ℝ) := by exact_mod_cast Nat.zero_le n
+  linarith
+
+
+-- @@ L151-161 verbatim
+/-- Interior points have positive complementarity gap. -/
+theorem gap_pos_of_interior {n : Nat} (w : HSState n)
+    (hinterior : Interior w) : 0 < gap w := by
+  rcases hinterior with ⟨hxpos, htpos, hspos, hkpos⟩
+  have hdot_nonneg : 0 ≤ dot w.x w.s := by
+    unfold dot
+    exact Finset.sum_nonneg (fun i _ =>
+      mul_nonneg (le_of_lt (hxpos i)) (le_of_lt (hspos i)))
+  have hscalar_pos : 0 < w.tau * w.kappa := mul_pos htpos hkpos
+  unfold gap hdot
+  linarith
+
+
+-- @@ L163-167 verbatim
+/-- Interior points have positive duality measure. -/
+theorem mu_pos_of_interior {n : Nat} (w : HSState n)
+    (hinterior : Interior w) : 0 < mu w := by
+  unfold mu
+  exact div_pos (gap_pos_of_interior w hinterior) (hdim_pos n)
+
+
+-- @@ L169-175 verbatim
+/-- The skew-orthogonality part of a step direction, written as the finite sum of
+second-order complementarity products. -/
+theorem corrector_second_order_sum_zero {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hdir : HSDStepDirection w d 1) :
+    (∑ i : Fin n, d.dx i * d.ds i) + d.dtau * d.dkappa = 0 := by
+  simpa [hdot, dot] using hdir.skew.cross_zero
+
+
+-- @@ L177-186 verbatim
+/-- Componentwise quadratic estimate obtained from the corrector linearized
+complementarity equation.  This is the elementary identity
+`(x Δs - s Δx)^2 = (μ - xs)^2 - 4xs ΔxΔs` together with nonnegativity of squares. -/
+theorem corrector_component_second_order_upper {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hdir : HSDStepDirection w d 1) (i : Fin n) :
+    4 * (w.x i * w.s i) * (d.dx i * d.ds i) ≤
+      (mu w - w.x i * w.s i) ^ 2 := by
+  apply complementarity_second_order_upper
+  simpa only [one_mul] using hdir.compl.component_eq i
+
+
+
+-- @@ L189-196 verbatim
+/-- Scalar analogue of `corrector_component_second_order_upper`. -/
+theorem corrector_scalar_second_order_upper {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hdir : HSDStepDirection w d 1) :
+    4 * (w.tau * w.kappa) * (d.dtau * d.dkappa) ≤
+      (mu w - w.tau * w.kappa) ^ 2 := by
+  apply complementarity_second_order_upper
+  simpa only [one_mul] using hdir.compl.scalar_eq
+
+
+
+-- @@ L199-204 verbatim
+/-- Extract the centrality bound from an `HSDNeighborhood`.  Keeping this as a
+separate lemma prevents later proofs from repeatedly destructing the nested `And`. -/
+theorem neighborhood_centerSq_le {n : Nat} (β : ℝ) (w : HSState n)
+    (hneigh : HSDNeighborhood β w) :
+    centerSq w.x w.tau w.s w.kappa (mu w) ≤ (β * mu w) ^ 2 := by
+  exact hneigh.2.2.2
+
+
+-- @@ L206-210 verbatim
+/-- A point in a central neighborhood has positive `mu`. -/
+theorem mu_pos_of_neighborhood {n : Nat} (β : ℝ) (w : HSState n)
+    (hneigh : HSDNeighborhood β w) :
+    0 < mu w := by
+  exact mu_pos_of_interior w hneigh.1
+
+
+-- @@ L212-221 verbatim
+/-- Each vector complementarity product has squared deviation bounded by the whole
+centrality residual. -/
+theorem neighborhood_component_dev_sq_le_bound {n : Nat} (β : ℝ)
+    (w : HSState n) (hneigh : HSDNeighborhood β w) (i : Fin n) :
+    (mu w - w.x i * w.s i) ^ 2 ≤ (β * mu w) ^ 2 := by
+  rw [sub_sq_comm]
+  exact (Finset.single_le_sum (fun j _ => sq_nonneg (w.x j * w.s j - mu w))
+    (Finset.mem_univ i)).trans
+    ((le_add_of_nonneg_right (sq_nonneg _)).trans
+      (neighborhood_centerSq_le β w hneigh))
+
+
+
+-- @@ L224-232 verbatim
+/-- The scalar complementarity product has squared deviation bounded by the whole
+centrality residual. -/
+theorem neighborhood_scalar_dev_sq_le_bound {n : Nat} (β : ℝ)
+    (w : HSState n) (hneigh : HSDNeighborhood β w) :
+    (mu w - w.tau * w.kappa) ^ 2 ≤ (β * mu w) ^ 2 := by
+  rw [sub_sq_comm]
+  exact (le_add_of_nonneg_left
+    (Finset.sum_nonneg (fun j _ => sq_nonneg (w.x j * w.s j - mu w)))).trans
+    (neighborhood_centerSq_le β w hneigh)
+
+
+
+-- @@ L235-245 verbatim
+/-- In the wide neighborhood, every vector complementarity product is at least
+`mu/2`.  This keeps the scalar `τκ` separate from the `Fin n` sum, as in the
+separated proof plan. -/
+theorem neighborhood_component_product_lower_wide {n : Nat}
+    (w : HSState n) (hneigh : HSDNeighborhood ytmBetaWide w) (i : Fin n) :
+    mu w / 2 ≤ w.x i * w.s i := by
+  have hlower := product_lower_of_deviation_sq
+    (mul_nonneg hneigh.2.1.le (mu_pos_of_neighborhood ytmBetaWide w hneigh).le)
+    (neighborhood_component_dev_sq_le_bound ytmBetaWide w hneigh i)
+  norm_num only [ytmBetaWide, show (1 : ℝ) - 1 / 2 = 1 / 2 by norm_num] at hlower
+  simpa only [one_div_mul_eq_div] using hlower
+
+
+
+-- @@ L248-256 verbatim
+/-- Scalar analogue of `neighborhood_component_product_lower_wide`. -/
+theorem neighborhood_scalar_product_lower_wide {n : Nat}
+    (w : HSState n) (hneigh : HSDNeighborhood ytmBetaWide w) :
+    mu w / 2 ≤ w.tau * w.kappa := by
+  have hlower := product_lower_of_deviation_sq
+    (mul_nonneg hneigh.2.1.le (mu_pos_of_neighborhood ytmBetaWide w hneigh).le)
+    (neighborhood_scalar_dev_sq_le_bound ytmBetaWide w hneigh)
+  norm_num only [ytmBetaWide, show (1 : ℝ) - 1 / 2 = 1 / 2 by norm_num] at hlower
+  simpa only [one_div_mul_eq_div] using hlower
+
+
+
+-- @@ L259-261 verbatim
+/-- Positive part used in the YTM corrector estimate.  It is deliberately kept as a
+small elementary definition instead of using an order-theory abstraction. -/
+def posPart (a : ℝ) : ℝ := if 0 ≤ a then a else 0
+
+
+-- @@ L263-269 verbatim
+/-- A positive denominator turns a product upper bound into a positive-part bound. -/
+theorem posPart_le_of_mul_le {a b c : ℝ} (ha : 0 < a) (hc : 0 ≤ c)
+    (h : a * b ≤ c) : posPart b ≤ c / a := by
+  unfold posPart
+  split_ifs
+  · exact (le_div_iff₀ ha).2 (by simpa only [mul_comm] using h)
+  · exact div_nonneg hc ha.le
+
+
+-- @@ L271-283 verbatim
+/-- Absolute value expressed through the positive part.  This identity is useful for
+turning the skew relation `Σ δᵢ + η = 0` into an `ℓ₁` bound. -/
+theorem abs_eq_two_posPart_sub (a : ℝ) :
+    |a| = 2 * posPart a - a := by
+  unfold posPart
+  by_cases h : 0 ≤ a
+  · have h_abs : |a| = a := abs_of_nonneg h
+    rw [ite_eq_left h, h_abs]
+    ring
+  · have hlt : a < 0 := lt_of_not_ge h
+    have h_abs : |a| = -a := abs_of_neg hlt
+    rw [ite_eq_right h, h_abs]
+    ring
+
+
+-- @@ L285-304 verbatim
+/-- The positive part of each vector second-order complementarity product is bounded
+by the corresponding squared centrality deviation divided by `2 mu`.  This is the
+componentwise bridge from the corrector identity to the positive-part summation
+argument. -/
+theorem corrector_component_posPart_bound {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hneigh : HSDNeighborhood ytmBetaWide w)
+    (hdir : HSDStepDirection w d 1) (i : Fin n) :
+    posPart (d.dx i * d.ds i) ≤
+      (mu w - w.x i * w.s i) ^ 2 / (2 * mu w) := by
+  have hmu := mu_pos_of_neighborhood ytmBetaWide w hneigh
+  by_cases hproduct : 0 ≤ d.dx i * d.ds i
+  · apply posPart_le_of_mul_le (mul_pos (by norm_num) hmu) (sq_nonneg _)
+    have hcoefficient := neighborhood_component_product_lower_wide w hneigh i
+    have hscaled : 2 * mu w ≤ 4 * (w.x i * w.s i) := by
+      linarith only [hcoefficient]
+    exact (mul_le_mul_of_nonneg_right hscaled hproduct).trans
+      (corrector_component_second_order_upper w d hdir i)
+  · rw [posPart, ite_eq_right hproduct]
+    exact div_nonneg (sq_nonneg _) (mul_nonneg (by norm_num) hmu.le)
+
+
+
+-- @@ L307-323 verbatim
+/-- Scalar analogue of `corrector_component_posPart_bound`. -/
+theorem corrector_scalar_posPart_bound {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hneigh : HSDNeighborhood ytmBetaWide w)
+    (hdir : HSDStepDirection w d 1) :
+    posPart (d.dtau * d.dkappa) ≤
+      (mu w - w.tau * w.kappa) ^ 2 / (2 * mu w) := by
+  have hmu := mu_pos_of_neighborhood ytmBetaWide w hneigh
+  by_cases hproduct : 0 ≤ d.dtau * d.dkappa
+  · apply posPart_le_of_mul_le (mul_pos (by norm_num) hmu) (sq_nonneg _)
+    have hcoefficient := neighborhood_scalar_product_lower_wide w hneigh
+    have hscaled : 2 * mu w ≤ 4 * (w.tau * w.kappa) := by
+      linarith only [hcoefficient]
+    exact (mul_le_mul_of_nonneg_right hscaled hproduct).trans
+      (corrector_scalar_second_order_upper w d hdir)
+  · rw [posPart, ite_eq_right hproduct]
+    exact div_nonneg (sq_nonneg _) (mul_nonneg (by norm_num) hmu.le)
+
+
+
+-- @@ L326-351 verbatim
+/-- Summed positive-part bound, still keeping the vector and scalar pieces separate.
+This is the key estimate needed before converting the zero-sum relation into an
+absolute-value bound. -/
+theorem corrector_positive_part_sum_bound {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hneigh : HSDNeighborhood ytmBetaWide w)
+    (hdir : HSDStepDirection w d 1) :
+    (∑ i : Fin n, posPart (d.dx i * d.ds i)) +
+      posPart (d.dtau * d.dkappa) ≤ mu w / 8 := by
+  have hmu := mu_pos_of_neighborhood ytmBetaWide w hneigh
+  have hden : 0 < 2 * mu w := mul_pos (by norm_num) hmu
+  calc
+    (∑ i : Fin n, posPart (d.dx i * d.ds i)) + posPart (d.dtau * d.dkappa)
+        ≤ (∑ i : Fin n, (mu w - w.x i * w.s i) ^ 2 / (2 * mu w)) +
+            (mu w - w.tau * w.kappa) ^ 2 / (2 * mu w) :=
+      add_le_add (Finset.sum_le_sum (fun i _ =>
+        corrector_component_posPart_bound w d hneigh hdir i))
+        (corrector_scalar_posPart_bound w d hneigh hdir)
+    _ = centerSq w.x w.tau w.s w.kappa (mu w) / (2 * mu w) := by
+      simp only [centerSq, sub_sq_comm (mu w), Finset.sum_div, add_div]
+    _ ≤ (ytmBetaWide * mu w) ^ 2 / (2 * mu w) :=
+      div_le_div_of_nonneg_right (neighborhood_centerSq_le ytmBetaWide w hneigh) hden.le
+    _ = mu w / 8 := by
+      unfold ytmBetaWide
+      field_simp
+      ring
+
+
+
+-- @@ L354-364 verbatim
+/-- If a finite family together with one scalar has zero total sum, then the sum of
+absolute values is twice the sum of positive parts. -/
+theorem abs_sum_add_abs_eq_two_posPart_sum_of_sum_add_zero {n : Nat}
+    (a : Fin n → ℝ) (η : ℝ)
+    (hzero : (∑ i : Fin n, a i) + η = 0) :
+    (∑ i : Fin n, |a i|) + |η| =
+      2 * ((∑ i : Fin n, posPart (a i)) + posPart η) := by
+  simp_rw [abs_eq_two_posPart_sub]
+  rw [Finset.sum_sub_distrib]
+  rw [← Finset.mul_sum]
+  nlinarith
+
+
+-- @@ L366-383 verbatim
+/-- The positive-part bound plus zero-sum relation gives an ℓ₁ bound for the
+second-order complementarity products. -/
+theorem corrector_cross_l1_bound {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hneigh : HSDNeighborhood ytmBetaWide w)
+    (hdir : HSDStepDirection w d 1) :
+    (∑ i : Fin n, |d.dx i * d.ds i|) + |d.dtau * d.dkappa| ≤ mu w / 4 := by
+  have hzero := corrector_second_order_sum_zero w d hdir
+  have hpos := corrector_positive_part_sum_bound w d hneigh hdir
+  have habs := abs_sum_add_abs_eq_two_posPart_sum_of_sum_add_zero
+    (fun i : Fin n => d.dx i * d.ds i) (d.dtau * d.dkappa) hzero
+  calc
+    (∑ i : Fin n, |d.dx i * d.ds i|) + |d.dtau * d.dkappa|
+        = 2 * ((∑ i : Fin n, posPart (d.dx i * d.ds i)) +
+            posPart (d.dtau * d.dkappa)) := habs
+    _ ≤ 2 * (mu w / 8) := by
+          exact mul_le_mul_of_nonneg_left hpos (by norm_num)
+    _ = mu w / 4 := by ring
+
+
+-- @@ L385-400 verbatim
+/-- A square-sum is bounded by the square of the corresponding ℓ₁ norm.  The scalar
+term is kept separate from the `Fin n` sum to match the HSDE notation. -/
+theorem sum_sq_add_sq_le_l1_sq {n : Nat} (a : Fin n → ℝ) (η : ℝ) :
+    (∑ i : Fin n, (a i) ^ 2) + η ^ 2 ≤
+      ((∑ i : Fin n, |a i|) + |η|) ^ 2 := by
+  have hsum := Finset.sum_sq_le_sq_sum_of_nonneg
+    (s := Finset.univ) (fun i _ => abs_nonneg (a i))
+  simp only [sq_abs] at hsum
+  calc
+    (∑ i : Fin n, (a i) ^ 2) + η ^ 2 ≤ (∑ i : Fin n, |a i|) ^ 2 + |η| ^ 2 := by
+      simpa only [sq_abs] using add_le_add hsum (le_refl (η ^ 2))
+    _ ≤ ((∑ i : Fin n, |a i|) + |η|) ^ 2 := by
+      rw [add_sq]
+      exact add_le_add (le_add_of_nonneg_right
+        (mul_nonneg (mul_nonneg (show (0 : ℝ) ≤ 2 by norm_num)
+          (Finset.sum_nonneg (fun i _ => abs_nonneg (a i)))) (abs_nonneg η))) le_rfl
+
+
+
+-- @@ L403-414 verbatim
+/-- The ℓ₁ bound implies the YTM square-sum bound for the corrector products. -/
+theorem corrector_cross_sq_sum_bound {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hneigh : HSDNeighborhood ytmBetaWide w)
+    (hdir : HSDStepDirection w d 1) :
+    (∑ i : Fin n, (d.dx i * d.ds i) ^ 2) +
+      (d.dtau * d.dkappa) ^ 2 ≤ (mu w / 4) ^ 2 := by
+  exact (sum_sq_add_sq_le_l1_sq
+    (fun i : Fin n => d.dx i * d.ds i) (d.dtau * d.dkappa)).trans
+    (pow_le_pow_left₀
+      (add_nonneg (Finset.sum_nonneg (fun i _ => abs_nonneg _)) (abs_nonneg _))
+      (corrector_cross_l1_bound w d hneigh hdir) 2)
+
+
+
+-- @@ L417-427 verbatim
+/-- Each vector second-order product is individually bounded by `mu/4` in absolute
+value. -/
+theorem corrector_component_cross_abs_le_quarter_mu {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hneigh : HSDNeighborhood ytmBetaWide w)
+    (hdir : HSDStepDirection w d 1) (i : Fin n) :
+    |d.dx i * d.ds i| ≤ mu w / 4 := by
+  exact (Finset.single_le_sum (fun j _ => abs_nonneg (d.dx j * d.ds j))
+    (Finset.mem_univ i)).trans
+    ((le_add_of_nonneg_right (abs_nonneg _)).trans
+      (corrector_cross_l1_bound w d hneigh hdir))
+
+
+
+-- @@ L430-439 verbatim
+/-- The scalar second-order product is individually bounded by `mu/4` in absolute
+value. -/
+theorem corrector_scalar_cross_abs_le_quarter_mu {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hneigh : HSDNeighborhood ytmBetaWide w)
+    (hdir : HSDStepDirection w d 1) :
+    |d.dtau * d.dkappa| ≤ mu w / 4 := by
+  exact (le_add_of_nonneg_left
+    (Finset.sum_nonneg (fun j _ => abs_nonneg (d.dx j * d.ds j)))).trans
+    (corrector_cross_l1_bound w d hneigh hdir)
+
+
+
+-- @@ L442-452 verbatim
+/-- If two factors have positive product and a positive weighted sum with positive
+weights, then both factors are positive. -/
+theorem factors_pos_of_mul_pos_and_weighted_sum_pos {a b wa wb : ℝ}
+    (hwa : 0 < wa) (hwb : 0 < wb)
+    (hmul : 0 < a * b)
+    (hsum : 0 < wb * a + wa * b) :
+    0 < a ∧ 0 < b := by
+  rcases mul_pos_iff.mp hmul with hpos | ⟨ha, hb⟩
+  · exact hpos
+  · exact False.elim ((add_neg (mul_neg_of_pos_of_neg hwb ha)
+      (mul_neg_of_pos_of_neg hwa hb)).not_gt hsum)
+
+
+
+-- @@ L455-490 verbatim
+/-- Positivity of each vector pair after the full corrector step. -/
+theorem corrector_component_pair_pos_full_step {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hneigh : HSDNeighborhood ytmBetaWide w)
+    (hdir : HSDStepDirection w d 1) (i : Fin n) :
+    0 < (addStep w d 1).x i ∧ 0 < (addStep w d 1).s i := by
+  rcases hneigh.1 with ⟨hxpos, htpos, hspos, hkpos⟩
+  have hmu : 0 < mu w := mu_pos_of_neighborhood ytmBetaWide w hneigh
+  have habs := corrector_component_cross_abs_le_quarter_mu w d hneigh hdir i
+  have hlower : -(mu w / 4) ≤ d.dx i * d.ds i := (abs_le.mp habs).1
+  have hprod_mu : 0 < mu w + d.dx i * d.ds i := by
+    nlinarith
+  have hprod : 0 < (addStep w d 1).x i * (addStep w d 1).s i := by
+    rw [corrector_component_product_full_step w d hdir i]
+    exact hprod_mu
+  have hweighted :
+      0 < w.s i * (addStep w d 1).x i + w.x i * (addStep w d 1).s i := by
+    have hc := hdir.compl.component_eq i
+    have hxs : 0 < w.x i * w.s i := mul_pos (hxpos i) (hspos i)
+    have heq :
+        w.s i * (addStep w d 1).x i + w.x i * (addStep w d 1).s i =
+          w.x i * w.s i + mu w := by
+      dsimp [addStep]
+      calc
+        w.s i * (w.x i + 1 * d.dx i) +
+            w.x i * (w.s i + 1 * d.ds i)
+            = 2 * (w.x i * w.s i) + (w.x i * d.ds i + w.s i * d.dx i) := by
+              ring_nf
+        _ = 2 * (w.x i * w.s i) + (1 * mu w - w.x i * w.s i) := by
+              rw [hc]
+        _ = w.x i * w.s i + mu w := by
+              ring_nf
+    rw [heq]
+    nlinarith
+  exact factors_pos_of_mul_pos_and_weighted_sum_pos
+    (hxpos i) (hspos i) hprod hweighted
+
+
+-- @@ L492-527 verbatim
+/-- Positivity of the scalar pair after the full corrector step. -/
+theorem corrector_scalar_pair_pos_full_step {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hneigh : HSDNeighborhood ytmBetaWide w)
+    (hdir : HSDStepDirection w d 1) :
+    0 < (addStep w d 1).tau ∧ 0 < (addStep w d 1).kappa := by
+  rcases hneigh.1 with ⟨hxpos, htpos, hspos, hkpos⟩
+  have hmu : 0 < mu w := mu_pos_of_neighborhood ytmBetaWide w hneigh
+  have habs := corrector_scalar_cross_abs_le_quarter_mu w d hneigh hdir
+  have hlower : -(mu w / 4) ≤ d.dtau * d.dkappa := (abs_le.mp habs).1
+  have hprod_mu : 0 < mu w + d.dtau * d.dkappa := by
+    nlinarith
+  have hprod : 0 < (addStep w d 1).tau * (addStep w d 1).kappa := by
+    rw [corrector_scalar_product_full_step w d hdir]
+    exact hprod_mu
+  have hweighted :
+      0 < w.kappa * (addStep w d 1).tau + w.tau * (addStep w d 1).kappa := by
+    have hc := hdir.compl.scalar_eq
+    have htk : 0 < w.tau * w.kappa := mul_pos htpos hkpos
+    have heq :
+        w.kappa * (addStep w d 1).tau + w.tau * (addStep w d 1).kappa =
+          w.tau * w.kappa + mu w := by
+      dsimp [addStep]
+      calc
+        w.kappa * (w.tau + 1 * d.dtau) +
+            w.tau * (w.kappa + 1 * d.dkappa)
+            = 2 * (w.tau * w.kappa) + (w.tau * d.dkappa + w.kappa * d.dtau) := by
+              ring_nf
+        _ = 2 * (w.tau * w.kappa) + (1 * mu w - w.tau * w.kappa) := by
+              rw [hc]
+        _ = w.tau * w.kappa + mu w := by
+              ring_nf
+    rw [heq]
+    nlinarith
+  exact factors_pos_of_mul_pos_and_weighted_sum_pos
+    htpos hkpos hprod hweighted
+
+
+-- @@ L529-540 verbatim
+/-- The full corrector step remains in the positive orthant. -/
+theorem corrector_full_step_interior {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hneigh : HSDNeighborhood ytmBetaWide w)
+    (hdir : HSDStepDirection w d 1) :
+    Interior (addStep w d 1) := by
+  have hpair : ∀ i : Fin n,
+      0 < (addStep w d 1).x i ∧ 0 < (addStep w d 1).s i := by
+    intro i
+    exact corrector_component_pair_pos_full_step w d hneigh hdir i
+  have hscalar := corrector_scalar_pair_pos_full_step w d hneigh hdir
+  exact ⟨fun i => (hpair i).1, hscalar.1, fun i => (hpair i).2, hscalar.2⟩
+
+
+-- @@ L542-582 verbatim
+/-- Scaled YTM corrector estimate for the second-order complementarity products.
+
+This is the single genuinely analytic ingredient in the corrector half.  In the usual
+notation put
+
+* `u = (x, τ)`, `v = (s, κ)`,
+* `Δu = (dx, dτ)`, `Δv = (ds, dκ)`,
+* `zᵢ = uᵢ vᵢ`, `μ = (Σ zᵢ)/(n+1)`.
+
+For a corrector direction, the linearized complementarity equations give
+
+`uᵢ Δvᵢ + vᵢ Δuᵢ = μ - zᵢ`,
+
+and skew orthogonality gives
+
+`Σ Δuᵢ Δvᵢ = 0`.
+
+The standard YTM argument sets `pᵢ = Δuᵢ/uᵢ` and `qᵢ = Δvᵢ/vᵢ`.  Then
+`pᵢ + qᵢ = μ/zᵢ - 1`, while `Σ zᵢ pᵢqᵢ = 0`.  Since `w ∈ N(1/2)`, each `zᵢ` is
+within `μ/2` of `μ`; this bounds the positive part of `zᵢ pᵢqᵢ` by the squared
+centrality residual.  Hence all full-step products stay positive and
+
+`Σ (Δuᵢ Δvᵢ)^2 ≤ (μ/4)^2`.
+
+The rest of the Lean file has already reduced the corrector theorem to exactly this
+statement.  This lemma is intentionally isolated so that the remaining paper estimate
+is no longer mixed with the bookkeeping around `centerSq` and `mu`. -/
+theorem YTM_corrector_scaled_estimate {n : Nat}
+    (w : HSState n) (d : HSDirection n) :
+    HSDNeighborhood ytmBetaWide w →
+    HSDStepDirection w d 1 →
+    Interior (addStep w d 1) ∧
+      (∑ i : Fin n, (d.dx i * d.ds i) ^ 2) +
+        (d.dtau * d.dkappa) ^ 2 ≤
+        (ytmBetaTight * mu w) ^ 2 := by
+  intro hneigh hdir
+  refine ⟨corrector_full_step_interior w d hneigh hdir, ?_⟩
+  have hsq := corrector_cross_sq_sum_bound w d hneigh hdir
+  unfold ytmBetaTight
+  convert hsq using 1
+  ring
+
+
+-- @@ L584-604 verbatim
+/-- The corrector-side local bound, reduced to the isolated scaled YTM estimate.
+
+Unlike the previous version, this theorem itself no longer contains the paper-level
+analytic obligation: after `YTM_corrector_scaled_estimate`, the proof is just the
+algebraic identities already established above. -/
+theorem YTM_corrector_interior_and_center_bound {n : Nat}
+    (w : HSState n) (d : HSDirection n) :
+    HSDNeighborhood ytmBetaWide w →
+    HSDStepDirection w d 1 →
+    Interior (addStep w d 1) ∧
+      centerSq (addStep w d 1).x (addStep w d 1).tau
+        (addStep w d 1).s (addStep w d 1).kappa
+        (mu (addStep w d 1)) ≤
+        (ytmBetaTight * mu (addStep w d 1)) ^ 2 := by
+  intro hneigh hdir
+  rcases YTM_corrector_scaled_estimate w d hneigh hdir with
+    ⟨hinterior, hsecond⟩
+  refine ⟨hinterior, ?_⟩
+  rw [corrector_centerSq_full_step_eq_cross_sq w d hdir]
+  rw [corrector_mu_full_step w d hdir]
+  exact hsecond
+
+
+-- @@ L606-622 verbatim
+/-- Corrector full-step local estimate, now reduced to the explicit analytic bound
+`YTM_corrector_interior_and_center_bound`; no placeholder remains in this wrapper. -/
+theorem YTM_corrector_full_step_local_estimate {n : Nat}
+    (w : HSState n) (d : HSDirection n) :
+    HSDNeighborhood ytmBetaWide w →
+    HSDStepDirection w d 1 →
+    Interior (addStep w d 1) ∧ HSDNeighborhood ytmBetaTight (addStep w d 1) := by
+  intro hneigh hdir
+  rcases YTM_corrector_interior_and_center_bound w d hneigh hdir with
+    ⟨hinterior, hcenter⟩
+  have hbeta_pos : 0 < ytmBetaTight := by
+    unfold ytmBetaTight
+    norm_num
+  have hbeta_lt : ytmBetaTight < 1 := by
+    unfold ytmBetaTight
+    norm_num
+  exact ⟨hinterior, ⟨hinterior, ⟨hbeta_pos, ⟨hbeta_lt, hcenter⟩⟩⟩⟩
+
+
+
+
+-- @@ L626-626 verbatim
+/-! ## Predictor-side elementary step-size and product identities -/
+
+
+-- @@ L628-631 verbatim
+/-- The fixed YTM predictor step constant is positive. -/
+theorem ytmStepConstant_pos : 0 < ytmStepConstant := by
+  unfold ytmStepConstant
+  positivity
+
+
+-- @@ L633-641 verbatim
+/-- The fixed YTM predictor step constant is at most one. -/
+theorem ytmStepConstant_le_one : ytmStepConstant ≤ 1 := by
+  unfold ytmStepConstant
+  have hsqrt_ge_one : (1 : ℝ) ≤ Real.sqrt (8 : ℝ) := by
+    simp_all
+  have hden_pos : 0 < (8 : ℝ) ^ 2 * Real.sqrt (8 : ℝ) := by
+    positivity
+  rw [div_le_iff₀ hden_pos]
+  nlinarith [hsqrt_ge_one]
+
+
+-- @@ L643-646 verbatim
+/-- The homogenized dimension is at least one. -/
+theorem one_le_hdim (n : Nat) : (1 : ℝ) ≤ hdim n := by
+  unfold hdim
+  simp_all
+
+
+-- @@ L648-650 verbatim
+/-- The square root of the homogenized dimension is positive. -/
+theorem sqrt_hdim_pos (n : Nat) : 0 < Real.sqrt (hdim n) := by
+  exact Real.sqrt_pos.2 (hdim_pos n)
+
+
+-- @@ L652-655 verbatim
+/-- The square root of the homogenized dimension is at least one. -/
+theorem one_le_sqrt_hdim (n : Nat) : (1 : ℝ) ≤ Real.sqrt (hdim n) := by
+  have h := Real.sqrt_le_sqrt (one_le_hdim n)
+  simpa using h
+
+
+-- @@ L657-660 verbatim
+/-- Positivity of the fixed predictor step length. -/
+theorem predictor_alpha_fixed_pos (n : Nat) :
+    0 < ytmStepConstant / Real.sqrt (hdim n) := by
+  exact div_pos ytmStepConstant_pos (sqrt_hdim_pos n)
+
+
+-- @@ L662-666 verbatim
+/-- The fixed predictor step length is at most one. -/
+theorem predictor_alpha_fixed_le_one (n : Nat) :
+    ytmStepConstant / Real.sqrt (hdim n) ≤ 1 := by
+  exact (div_le_one (sqrt_hdim_pos n)).2
+    (ytmStepConstant_le_one.trans (one_le_sqrt_hdim n))
+
+
+
+-- @@ L669-677 verbatim
+/-- Predictor step formula for `mu`.  For `γ = 0`, the homogenized gap and hence
+`mu` are multiplied by `1 - α`. -/
+theorem predictor_mu_step {n : Nat}
+    (w : HSState n) (d : HSDirection n) (α : ℝ)
+    (hdir : HSDStepDirection w d 0) :
+    mu (addStep w d α) = (1 - α) * mu w := by
+  unfold mu
+  rw [gap_addStep_of_HSDStepDirection w d α 0 hdir]
+  ring
+
+
+-- @@ L679-696 verbatim
+/-- Predictor product identity for each vector complementarity pair. -/
+theorem predictor_component_product_step {n : Nat}
+    (w : HSState n) (d : HSDirection n) (α : ℝ)
+    (hdir : HSDStepDirection w d 0) (i : Fin n) :
+    (addStep w d α).x i * (addStep w d α).s i =
+      (1 - α) * (w.x i * w.s i) + α ^ 2 * (d.dx i * d.ds i) := by
+  have hc := hdir.compl.component_eq i
+  dsimp [addStep]
+  calc
+    (w.x i + α * d.dx i) * (w.s i + α * d.ds i)
+        = w.x i * w.s i + α * (w.x i * d.ds i + w.s i * d.dx i) +
+            α ^ 2 * (d.dx i * d.ds i) := by
+            ring
+    _ = w.x i * w.s i + α * (0 * mu w - w.x i * w.s i) +
+            α ^ 2 * (d.dx i * d.ds i) := by
+            rw [hc]
+    _ = (1 - α) * (w.x i * w.s i) + α ^ 2 * (d.dx i * d.ds i) := by
+            ring
+
+
+-- @@ L698-715 verbatim
+/-- Predictor product identity for the scalar complementarity pair. -/
+theorem predictor_scalar_product_step {n : Nat}
+    (w : HSState n) (d : HSDirection n) (α : ℝ)
+    (hdir : HSDStepDirection w d 0) :
+    (addStep w d α).tau * (addStep w d α).kappa =
+      (1 - α) * (w.tau * w.kappa) + α ^ 2 * (d.dtau * d.dkappa) := by
+  have hc := hdir.compl.scalar_eq
+  dsimp [addStep]
+  calc
+    (w.tau + α * d.dtau) * (w.kappa + α * d.dkappa)
+        = w.tau * w.kappa + α * (w.tau * d.dkappa + w.kappa * d.dtau) +
+            α ^ 2 * (d.dtau * d.dkappa) := by
+            ring
+    _ = w.tau * w.kappa + α * (0 * mu w - w.tau * w.kappa) +
+            α ^ 2 * (d.dtau * d.dkappa) := by
+            rw [hc]
+    _ = (1 - α) * (w.tau * w.kappa) + α ^ 2 * (d.dtau * d.dkappa) := by
+            ring
+
+
+
+
+
+
+-- @@ L721-721 verbatim
+/-! ## Predictor positivity bookkeeping -/
+
+
+-- @@ L723-745 verbatim
+/-- Predictor weighted-sum identity for each vector pair.
+
+Together with positivity of the product after the step, this identity lets us recover
+positivity of each individual factor.  This is useful because the remaining YTM
+estimate naturally controls the products. -/
+theorem predictor_component_weighted_sum_step {n : Nat}
+    (w : HSState n) (d : HSDirection n) (α : ℝ)
+    (hdir : HSDStepDirection w d 0) (i : Fin n) :
+    w.s i * (addStep w d α).x i + w.x i * (addStep w d α).s i =
+      (2 - α) * (w.x i * w.s i) := by
+  have hc := hdir.compl.component_eq i
+  dsimp [addStep]
+  calc
+    w.s i * (w.x i + α * d.dx i) +
+        w.x i * (w.s i + α * d.ds i)
+        = 2 * (w.x i * w.s i) +
+            α * (w.x i * d.ds i + w.s i * d.dx i) := by
+            ring
+    _ = 2 * (w.x i * w.s i) +
+            α * (0 * mu w - w.x i * w.s i) := by
+            rw [hc]
+    _ = (2 - α) * (w.x i * w.s i) := by
+            ring
+
+
+-- @@ L747-765 verbatim
+/-- Predictor weighted-sum identity for the scalar pair. -/
+theorem predictor_scalar_weighted_sum_step {n : Nat}
+    (w : HSState n) (d : HSDirection n) (α : ℝ)
+    (hdir : HSDStepDirection w d 0) :
+    w.kappa * (addStep w d α).tau + w.tau * (addStep w d α).kappa =
+      (2 - α) * (w.tau * w.kappa) := by
+  have hc := hdir.compl.scalar_eq
+  dsimp [addStep]
+  calc
+    w.kappa * (w.tau + α * d.dtau) +
+        w.tau * (w.kappa + α * d.dkappa)
+        = 2 * (w.tau * w.kappa) +
+            α * (w.tau * d.dkappa + w.kappa * d.dtau) := by
+            ring
+    _ = 2 * (w.tau * w.kappa) +
+            α * (0 * mu w - w.tau * w.kappa) := by
+            rw [hc]
+    _ = (2 - α) * (w.tau * w.kappa) := by
+            ring
+
+
+-- @@ L767-785 verbatim
+/-- If the predictor step keeps the product of one vector complementarity pair
+positive, then the two factors themselves are positive. -/
+theorem predictor_component_pair_pos_of_product_pos {n : Nat}
+    (w : HSState n) (d : HSDirection n) (α : ℝ)
+    (hinterior : Interior w)
+    (hdir : HSDStepDirection w d 0)
+    (hαle : α ≤ 1) (i : Fin n)
+    (hprod : 0 < (addStep w d α).x i * (addStep w d α).s i) :
+    0 < (addStep w d α).x i ∧ 0 < (addStep w d α).s i := by
+  rcases hinterior with ⟨hxpos, htpos, hspos, hkpos⟩
+  have hxs : 0 < w.x i * w.s i := mul_pos (hxpos i) (hspos i)
+  have hcoef : 0 < 2 - α := by nlinarith
+  have hweighted :
+      0 < w.s i * (addStep w d α).x i +
+        w.x i * (addStep w d α).s i := by
+    rw [predictor_component_weighted_sum_step w d α hdir i]
+    exact mul_pos hcoef hxs
+  exact factors_pos_of_mul_pos_and_weighted_sum_pos
+    (hxpos i) (hspos i) hprod hweighted
+
+
+-- @@ L787-804 verbatim
+/-- Scalar analogue of `predictor_component_pair_pos_of_product_pos`. -/
+theorem predictor_scalar_pair_pos_of_product_pos {n : Nat}
+    (w : HSState n) (d : HSDirection n) (α : ℝ)
+    (hinterior : Interior w)
+    (hdir : HSDStepDirection w d 0)
+    (hαle : α ≤ 1)
+    (hprod : 0 < (addStep w d α).tau * (addStep w d α).kappa) :
+    0 < (addStep w d α).tau ∧ 0 < (addStep w d α).kappa := by
+  rcases hinterior with ⟨hxpos, htpos, hspos, hkpos⟩
+  have htk : 0 < w.tau * w.kappa := mul_pos htpos hkpos
+  have hcoef : 0 < 2 - α := by nlinarith
+  have hweighted :
+      0 < w.kappa * (addStep w d α).tau +
+        w.tau * (addStep w d α).kappa := by
+    rw [predictor_scalar_weighted_sum_step w d α hdir]
+    exact mul_pos hcoef htk
+  exact factors_pos_of_mul_pos_and_weighted_sum_pos
+    htpos hkpos hprod hweighted
+
+
+-- @@ L806-824 verbatim
+/-- Product positivity for all complementarity pairs implies that the predictor step
+stays in the interior. -/
+theorem predictor_step_interior_of_product_pos {n : Nat}
+    (w : HSState n) (d : HSDirection n) (α : ℝ)
+    (hinterior : Interior w)
+    (hdir : HSDStepDirection w d 0)
+    (hαle : α ≤ 1)
+    (hprod_vec : ∀ i : Fin n,
+      0 < (addStep w d α).x i * (addStep w d α).s i)
+    (hprod_scalar : 0 < (addStep w d α).tau * (addStep w d α).kappa) :
+    Interior (addStep w d α) := by
+  have hpair : ∀ i : Fin n,
+      0 < (addStep w d α).x i ∧ 0 < (addStep w d α).s i := by
+    intro i
+    exact predictor_component_pair_pos_of_product_pos
+      w d α hinterior hdir hαle i (hprod_vec i)
+  have hscalar := predictor_scalar_pair_pos_of_product_pos
+    w d α hinterior hdir hαle hprod_scalar
+  exact ⟨fun i => (hpair i).1, hscalar.1, fun i => (hpair i).2, hscalar.2⟩
+
+
+
+-- @@ L827-840 verbatim
+/-- Predictor residual identity for each vector complementarity pair.  This is the
+main bookkeeping formula needed for the remaining neighborhood estimate: the new
+centrality residual is the old residual contracted by `1 - α`, plus the second-order
+predictor product. -/
+theorem predictor_component_center_residual_step {n : Nat}
+    (w : HSState n) (d : HSDirection n) (α : ℝ)
+    (hdir : HSDStepDirection w d 0) (i : Fin n) :
+    (addStep w d α).x i * (addStep w d α).s i -
+        mu (addStep w d α) =
+      (1 - α) * (w.x i * w.s i - mu w) +
+        α ^ 2 * (d.dx i * d.ds i) := by
+  rw [predictor_component_product_step w d α hdir i]
+  rw [predictor_mu_step w d α hdir]
+  ring
+
+
+-- @@ L842-852 verbatim
+/-- Scalar version of the predictor residual identity. -/
+theorem predictor_scalar_center_residual_step {n : Nat}
+    (w : HSState n) (d : HSDirection n) (α : ℝ)
+    (hdir : HSDStepDirection w d 0) :
+    (addStep w d α).tau * (addStep w d α).kappa -
+        mu (addStep w d α) =
+      (1 - α) * (w.tau * w.kappa - mu w) +
+        α ^ 2 * (d.dtau * d.dkappa) := by
+  rw [predictor_scalar_product_step w d α hdir]
+  rw [predictor_mu_step w d α hdir]
+  ring
+
+
+-- @@ L854-885 verbatim
+/-- Exact expansion of the predictor centrality residual after an arbitrary
+predictor step.  No estimate is used here; this only isolates the expression that
+has to be bounded in the remaining YTM predictor argument. -/
+theorem predictor_centerSq_step_eq {n : Nat}
+    (w : HSState n) (d : HSDirection n) (α : ℝ)
+    (hdir : HSDStepDirection w d 0) :
+    centerSq (addStep w d α).x (addStep w d α).tau
+      (addStep w d α).s (addStep w d α).kappa
+      (mu (addStep w d α)) =
+      (∑ i : Fin n,
+        ((1 - α) * (w.x i * w.s i - mu w) +
+          α ^ 2 * (d.dx i * d.ds i)) ^ 2) +
+        ((1 - α) * (w.tau * w.kappa - mu w) +
+          α ^ 2 * (d.dtau * d.dkappa)) ^ 2 := by
+  have hsum :
+      (∑ i : Fin n,
+        ((addStep w d α).x i * (addStep w d α).s i -
+          mu (addStep w d α)) ^ 2) =
+      ∑ i : Fin n,
+        ((1 - α) * (w.x i * w.s i - mu w) +
+          α ^ 2 * (d.dx i * d.ds i)) ^ 2 := by
+    apply Finset.sum_congr rfl
+    intro i _
+    rw [predictor_component_center_residual_step w d α hdir i]
+  have hscalar :
+      ((addStep w d α).tau * (addStep w d α).kappa -
+          mu (addStep w d α)) ^ 2 =
+        ((1 - α) * (w.tau * w.kappa - mu w) +
+          α ^ 2 * (d.dtau * d.dkappa)) ^ 2 := by
+    rw [predictor_scalar_center_residual_step w d α hdir]
+  unfold centerSq
+  exact congrArg₂ (fun a b : ℝ => a + b) hsum hscalar
+
+
+-- @@ L887-894 verbatim
+/-- Fixed-step specialization of `predictor_mu_step`. -/
+theorem predictor_fixed_mu_step {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hdir : HSDStepDirection w d 0) :
+    mu (addStep w d (ytmStepConstant / Real.sqrt (hdim n))) =
+      (1 - ytmStepConstant / Real.sqrt (hdim n)) * mu w := by
+  simpa using
+    predictor_mu_step w d (ytmStepConstant / Real.sqrt (hdim n)) hdir
+
+
+-- @@ L896-908 verbatim
+/-- Fixed-step specialization of the vector predictor product identity. -/
+theorem predictor_fixed_component_product_step {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hdir : HSDStepDirection w d 0) (i : Fin n) :
+    (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).x i *
+        (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).s i =
+      (1 - ytmStepConstant / Real.sqrt (hdim n)) *
+          (w.x i * w.s i) +
+        (ytmStepConstant / Real.sqrt (hdim n)) ^ 2 *
+          (d.dx i * d.ds i) := by
+  simpa using
+    predictor_component_product_step w d
+      (ytmStepConstant / Real.sqrt (hdim n)) hdir i
+
+
+-- @@ L910-922 verbatim
+/-- Fixed-step specialization of the scalar predictor product identity. -/
+theorem predictor_fixed_scalar_product_step {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hdir : HSDStepDirection w d 0) :
+    (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).tau *
+        (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).kappa =
+      (1 - ytmStepConstant / Real.sqrt (hdim n)) *
+          (w.tau * w.kappa) +
+        (ytmStepConstant / Real.sqrt (hdim n)) ^ 2 *
+          (d.dtau * d.dkappa) := by
+  simpa using
+    predictor_scalar_product_step w d
+      (ytmStepConstant / Real.sqrt (hdim n)) hdir
+
+
+-- @@ L924-944 verbatim
+/-- Fixed-step specialization of the exact predictor centrality-residual expansion. -/
+theorem predictor_fixed_centerSq_step_eq {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hdir : HSDStepDirection w d 0) :
+    centerSq (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).x
+      (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).tau
+      (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).s
+      (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).kappa
+      (mu (addStep w d (ytmStepConstant / Real.sqrt (hdim n)))) =
+      (∑ i : Fin n,
+        ((1 - ytmStepConstant / Real.sqrt (hdim n)) *
+            (w.x i * w.s i - mu w) +
+          (ytmStepConstant / Real.sqrt (hdim n)) ^ 2 *
+            (d.dx i * d.ds i)) ^ 2) +
+        ((1 - ytmStepConstant / Real.sqrt (hdim n)) *
+            (w.tau * w.kappa - mu w) +
+          (ytmStepConstant / Real.sqrt (hdim n)) ^ 2 *
+            (d.dtau * d.dkappa)) ^ 2 := by
+  simpa using
+    predictor_centerSq_step_eq w d
+      (ytmStepConstant / Real.sqrt (hdim n)) hdir
+
+
+-- @@ L946-960 verbatim
+/-- Fixed-parameter YTM local theory.
+
+This version matches the proof in Ye--Todd--Mizuno: predictor moves from the
+`1/4` neighborhood to the `1/2` neighborhood with a step of order
+`8^{-2.5}/sqrt(n+1)`, while corrector moves from the `1/2` neighborhood back to
+`1/4` using the full step. -/
+structure YTMFixedLocalTheory (n : Nat) where
+  predictor_estimate_fixed : ∀ (w : HSState n) (d : HSDirection n),
+    HSDNeighborhood ytmBetaTight w →
+    HSDStepDirection w d 0 →
+    ∃ α, PredictorStepGuarantee ytmBetaWide ytmStepConstant w d α
+  corrector_estimate_fixed : ∀ (w : HSState n) (d : HSDirection n),
+    HSDNeighborhood ytmBetaWide w →
+    HSDStepDirection w d 1 →
+    CorrectorStepGuarantee ytmBetaTight w d
+
+
+
+
+-- @@ L964-974 verbatim
+/-- Predictor estimate used in the YTM proof.
+
+This packages the two ingredients of the predictor half of Theorem 6:
+starting from the tight neighborhood `N(1/4)`, the predictor direction with `γ = 0`
+has a step of length at least `ytmStepConstant / sqrt(n+1)` and the resulting point
+remains in the wide neighborhood `N(1/2)` with the corresponding gap decrease. -/
+structure YTMPredictorEstimate (n : Nat) : Prop where
+  estimate : ∀ (w : HSState n) (d : HSDirection n),
+    HSDNeighborhood ytmBetaTight w →
+    HSDStepDirection w d 0 →
+    ∃ α, PredictorStepGuarantee ytmBetaWide ytmStepConstant w d α
+
+
+-- @@ L976-992 verbatim
+/-- A lower bound on the second-order predictor products implies positivity of all
+fixed-step vector complementarity products.  This is purely algebraic: the product
+identity says `x⁺ᵢs⁺ᵢ = (1 - α) xᵢsᵢ + α² ΔxᵢΔsᵢ`. -/
+theorem predictor_fixed_component_product_pos_of_cross_lower {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hdir : HSDStepDirection w d 0)
+    (hcross : ∀ i : Fin n,
+      -((1 - ytmStepConstant / Real.sqrt (hdim n)) *
+          (w.x i * w.s i)) <
+        (ytmStepConstant / Real.sqrt (hdim n)) ^ 2 *
+          (d.dx i * d.ds i)) :
+    ∀ i : Fin n,
+      0 < (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).x i *
+        (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).s i := by
+  intro i
+  rw [predictor_fixed_component_product_step w d hdir i]
+  nlinarith [hcross i]
+
+
+-- @@ L994-1006 verbatim
+/-- Scalar analogue of `predictor_fixed_component_product_pos_of_cross_lower`. -/
+theorem predictor_fixed_scalar_product_pos_of_cross_lower {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hdir : HSDStepDirection w d 0)
+    (hcross :
+      -((1 - ytmStepConstant / Real.sqrt (hdim n)) *
+          (w.tau * w.kappa)) <
+        (ytmStepConstant / Real.sqrt (hdim n)) ^ 2 *
+          (d.dtau * d.dkappa)) :
+    0 < (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).tau *
+      (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).kappa := by
+  rw [predictor_fixed_scalar_product_step w d hdir]
+  nlinarith [hcross]
+
+
+
+
+-- @@ L1010-1023 verbatim
+/-- If the fixed predictor step keeps both factors of a vector pair positive, then
+its second-order product cannot cancel the first-order complementarity product. -/
+theorem predictor_fixed_component_cross_lower_of_step_product_pos {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hdir : HSDStepDirection w d 0) (i : Fin n)
+    (hprod :
+      0 < (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).x i *
+        (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).s i) :
+      -((1 - ytmStepConstant / Real.sqrt (hdim n)) *
+          (w.x i * w.s i)) <
+        (ytmStepConstant / Real.sqrt (hdim n)) ^ 2 *
+          (d.dx i * d.ds i) := by
+  rw [predictor_fixed_component_product_step w d hdir i] at hprod
+  nlinarith
+
+
+-- @@ L1025-1037 verbatim
+/-- Scalar analogue of `predictor_fixed_component_cross_lower_of_step_product_pos`. -/
+theorem predictor_fixed_scalar_cross_lower_of_step_product_pos {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hdir : HSDStepDirection w d 0)
+    (hprod :
+      0 < (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).tau *
+        (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).kappa) :
+      -((1 - ytmStepConstant / Real.sqrt (hdim n)) *
+          (w.tau * w.kappa)) <
+        (ytmStepConstant / Real.sqrt (hdim n)) ^ 2 *
+          (d.dtau * d.dkappa) := by
+  rw [predictor_fixed_scalar_product_step w d hdir] at hprod
+  nlinarith
+
+
+-- @@ L1039-1054 verbatim
+/-- Relative componentwise bounds imply positivity of a vector complementarity
+product after the fixed predictor step. -/
+theorem predictor_fixed_component_product_pos_of_relative_bounds {n : Nat}
+    (w : HSState n) (d : HSDirection n) (i : Fin n)
+    (hxrel : |(ytmStepConstant / Real.sqrt (hdim n)) * d.dx i| < w.x i)
+    (hsrel : |(ytmStepConstant / Real.sqrt (hdim n)) * d.ds i| < w.s i) :
+    0 < (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).x i *
+      (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).s i := by
+  dsimp [addStep]
+  have hxlower := (abs_lt.mp hxrel).1
+  have hslower := (abs_lt.mp hsrel).1
+  have hxpos : 0 < w.x i + (ytmStepConstant / Real.sqrt (hdim n)) * d.dx i := by
+    linarith
+  have hspos : 0 < w.s i + (ytmStepConstant / Real.sqrt (hdim n)) * d.ds i := by
+    linarith
+  exact mul_pos hxpos hspos
+
+
+-- @@ L1056-1070 verbatim
+/-- Scalar analogue of `predictor_fixed_component_product_pos_of_relative_bounds`. -/
+theorem predictor_fixed_scalar_product_pos_of_relative_bounds {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (htrel : |(ytmStepConstant / Real.sqrt (hdim n)) * d.dtau| < w.tau)
+    (hkrel : |(ytmStepConstant / Real.sqrt (hdim n)) * d.dkappa| < w.kappa) :
+    0 < (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).tau *
+      (addStep w d (ytmStepConstant / Real.sqrt (hdim n))).kappa := by
+  dsimp [addStep]
+  have htlower := (abs_lt.mp htrel).1
+  have hklower := (abs_lt.mp hkrel).1
+  have htpos : 0 < w.tau + (ytmStepConstant / Real.sqrt (hdim n)) * d.dtau := by
+    linarith
+  have hkpos : 0 < w.kappa + (ytmStepConstant / Real.sqrt (hdim n)) * d.dkappa := by
+    linarith
+  exact mul_pos htpos hkpos
+
+
+
+-- @@ L1073-1086 verbatim
+/-- Elementary conversion from a scaled relative bound to an unscaled relative bound. -/
+theorem abs_step_lt_of_scaled_abs_lt_one
+    (x a α : ℝ) (hx : 0 < x)
+    (hscaled : |α * (a / x)| < 1) :
+    |α * a| < x := by
+  have hxne : x ≠ 0 := ne_of_gt hx
+  have hinner : α * a = x * (α * (a / x)) := by
+    field_simp [hxne]
+  calc
+    |α * a| = |x * (α * (a / x))| := by rw [hinner]
+    _ = |x| * |α * (a / x)| := by rw [abs_mul]
+    _ = x * |α * (a / x)| := by rw [abs_of_pos hx]
+    _ < x * 1 := mul_lt_mul_of_pos_left hscaled hx
+    _ = x := by ring
+
+
+-- @@ L1088-1093 verbatim
+/-! ## Fixed predictor scaled residual notation
+
+The last remaining predictor estimate is easier to read if the fixed step length,
+the scaled direction components, and the explicit post-predictor centrality
+residual are named.  These definitions do not add new assumptions; they are just
+abbreviations for the formulas already used in `PredictorFixedScaledNormBounds`. -/
+
+
+-- @@ L1095-1097 verbatim
+/-- The fixed predictor step length used in the YTM local analysis. -/
+abbrev predictorFixedAlpha (n : Nat) : ℝ :=
+  ytmStepConstant / Real.sqrt (hdim n)
+
+
+-- @@ L1099-1102 verbatim
+/-- Scaled `x`-direction component multiplied by the fixed predictor step. -/
+abbrev predictorScaledDx {n : Nat} (w : HSState n) (d : HSDirection n)
+    (i : Fin n) : ℝ :=
+  predictorFixedAlpha n * (d.dx i / w.x i)
+
+
+-- @@ L1104-1107 verbatim
+/-- Scaled `s`-direction component multiplied by the fixed predictor step. -/
+abbrev predictorScaledDs {n : Nat} (w : HSState n) (d : HSDirection n)
+    (i : Fin n) : ℝ :=
+  predictorFixedAlpha n * (d.ds i / w.s i)
+
+
+-- @@ L1109-1112 verbatim
+/-- Scaled `tau`-direction component multiplied by the fixed predictor step. -/
+abbrev predictorScaledDtau {n : Nat} (w : HSState n)
+    (d : HSDirection n) : ℝ :=
+  predictorFixedAlpha n * (d.dtau / w.tau)
+
+
+-- @@ L1114-1117 verbatim
+/-- Scaled `kappa`-direction component multiplied by the fixed predictor step. -/
+abbrev predictorScaledDkappa {n : Nat} (w : HSState n)
+    (d : HSDirection n) : ℝ :=
+  predictorFixedAlpha n * (d.dkappa / w.kappa)
+
+
+-- @@ L1119-1123 verbatim
+/-- Explicit vector residual after substituting the predictor product identity. -/
+abbrev predictorVecResidualAfter {n : Nat} (w : HSState n)
+    (d : HSDirection n) (i : Fin n) : ℝ :=
+  (1 - predictorFixedAlpha n) * (w.x i * w.s i - mu w) +
+    (predictorFixedAlpha n) ^ 2 * (d.dx i * d.ds i)
+
+
+-- @@ L1125-1129 verbatim
+/-- Explicit scalar residual after substituting the predictor product identity. -/
+abbrev predictorScalarResidualAfter {n : Nat} (w : HSState n)
+    (d : HSDirection n) : ℝ :=
+  (1 - predictorFixedAlpha n) * (w.tau * w.kappa - mu w) +
+    (predictorFixedAlpha n) ^ 2 * (d.dtau * d.dkappa)
+
+
+-- @@ L1131-1146 verbatim
+/-- Core form of the remaining fixed-step YTM estimate.
+
+Compared with `PredictorFixedScaledNormBounds`, this version uses named scaled
+variables and named residuals.  Thus the final predictor obligation is precisely the
+mathematical YTM estimate, rather than a long expanded expression. -/
+structure PredictorFixedScaledCoreBounds {n : Nat}
+    (w : HSState n) (d : HSDirection n) : Prop where
+  scaled_vec : ∀ i : Fin n,
+    |predictorScaledDx w d i| < 1 ∧
+    |predictorScaledDs w d i| < 1
+  scaled_tau : |predictorScaledDtau w d| < 1
+  scaled_kappa : |predictorScaledDkappa w d| < 1
+  center :
+    (∑ i : Fin n, (predictorVecResidualAfter w d i) ^ 2) +
+      (predictorScalarResidualAfter w d) ^ 2 ≤
+      (ytmBetaWide * ((1 - predictorFixedAlpha n) * mu w)) ^ 2
+
+
+
+-- @@ L1149-1173 verbatim
+/-- Fixed-step scaled-norm bounds for the predictor direction.
+
+This is the same analytic information as the relative-step formulation below, but
+written in the natural YTM scaled variables `dx/x`, `ds/s`, `dtau/tau`, and
+`dkappa/kappa`.  The surrounding lemmas convert these scaled bounds into the
+unscaled relative inequalities needed for positivity of the step. -/
+structure PredictorFixedScaledNormBounds {n : Nat}
+    (w : HSState n) (d : HSDirection n) : Prop where
+  scaled_vec : ∀ i : Fin n,
+    |(ytmStepConstant / Real.sqrt (hdim n)) * (d.dx i / w.x i)| < 1 ∧
+    |(ytmStepConstant / Real.sqrt (hdim n)) * (d.ds i / w.s i)| < 1
+  scaled_tau : |(ytmStepConstant / Real.sqrt (hdim n)) * (d.dtau / w.tau)| < 1
+  scaled_kappa : |(ytmStepConstant / Real.sqrt (hdim n)) * (d.dkappa / w.kappa)| < 1
+  center :
+    (∑ i : Fin n,
+      ((1 - ytmStepConstant / Real.sqrt (hdim n)) *
+          (w.x i * w.s i - mu w) +
+        (ytmStepConstant / Real.sqrt (hdim n)) ^ 2 *
+          (d.dx i * d.ds i)) ^ 2) +
+      ((1 - ytmStepConstant / Real.sqrt (hdim n)) *
+          (w.tau * w.kappa - mu w) +
+        (ytmStepConstant / Real.sqrt (hdim n)) ^ 2 *
+          (d.dtau * d.dkappa)) ^ 2 ≤
+      (ytmBetaWide *
+        ((1 - ytmStepConstant / Real.sqrt (hdim n)) * mu w)) ^ 2
+
+
+-- @@ L1175-1200 verbatim
+/-- Fixed-step scaled-direction bounds needed in the predictor half of the YTM proof.
+
+This record isolates the genuinely analytic estimate from the surrounding Lean
+bookkeeping.  Its first three fields say that the fixed predictor step is
+componentwise small relative to the current interior point.  The last field is
+the explicit `N(1/2)` centrality estimate after substituting the predictor
+product identities. -/
+structure PredictorFixedScaledDirectionBounds {n : Nat}
+    (w : HSState n) (d : HSDirection n) : Prop where
+  rel_vec : ∀ i : Fin n,
+    |(ytmStepConstant / Real.sqrt (hdim n)) * d.dx i| < w.x i ∧
+    |(ytmStepConstant / Real.sqrt (hdim n)) * d.ds i| < w.s i
+  rel_tau : |(ytmStepConstant / Real.sqrt (hdim n)) * d.dtau| < w.tau
+  rel_kappa : |(ytmStepConstant / Real.sqrt (hdim n)) * d.dkappa| < w.kappa
+  center :
+    (∑ i : Fin n,
+      ((1 - ytmStepConstant / Real.sqrt (hdim n)) *
+          (w.x i * w.s i - mu w) +
+        (ytmStepConstant / Real.sqrt (hdim n)) ^ 2 *
+          (d.dx i * d.ds i)) ^ 2) +
+      ((1 - ytmStepConstant / Real.sqrt (hdim n)) *
+          (w.tau * w.kappa - mu w) +
+        (ytmStepConstant / Real.sqrt (hdim n)) ^ 2 *
+          (d.dtau * d.dkappa)) ^ 2 ≤
+      (ytmBetaWide *
+        ((1 - ytmStepConstant / Real.sqrt (hdim n)) * mu w)) ^ 2
+
+
+-- @@ L1202-1228 verbatim
+/-- Convert the natural scaled-norm bounds into the relative-step bounds used in
+the positivity bookkeeping. -/
+theorem predictor_fixed_scaled_norm_bounds_to_direction_bounds {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hneigh : HSDNeighborhood ytmBetaTight w)
+    (hbounds : PredictorFixedScaledNormBounds w d) :
+    PredictorFixedScaledDirectionBounds w d := by
+  rcases hneigh.1 with ⟨hxpos, htpos, hspos, hkpos⟩
+  refine
+    { rel_vec := ?_
+      rel_tau := ?_
+      rel_kappa := ?_
+      center := hbounds.center }
+  · intro i
+    exact ⟨
+      abs_step_lt_of_scaled_abs_lt_one
+        (w.x i) (d.dx i) (ytmStepConstant / Real.sqrt (hdim n))
+        (hxpos i) (hbounds.scaled_vec i).1,
+      abs_step_lt_of_scaled_abs_lt_one
+        (w.s i) (d.ds i) (ytmStepConstant / Real.sqrt (hdim n))
+        (hspos i) (hbounds.scaled_vec i).2⟩
+  · exact abs_step_lt_of_scaled_abs_lt_one
+      w.tau d.dtau (ytmStepConstant / Real.sqrt (hdim n))
+      htpos hbounds.scaled_tau
+  · exact abs_step_lt_of_scaled_abs_lt_one
+      w.kappa d.dkappa (ytmStepConstant / Real.sqrt (hdim n))
+      hkpos hbounds.scaled_kappa
+
+
+-- @@ L1230-1244 verbatim
+/-- Convert the named core estimate back to the expanded scaled-norm package. -/
+theorem predictor_fixed_scaled_core_to_norm_bounds {n : Nat}
+    (w : HSState n) (d : HSDirection n)
+    (hcore : PredictorFixedScaledCoreBounds w d) :
+    PredictorFixedScaledNormBounds w d := by
+  refine
+    { scaled_vec := ?_
+      scaled_tau := ?_
+      scaled_kappa := ?_
+      center := ?_ }
+  · intro i
+    exact hcore.scaled_vec i
+  · exact hcore.scaled_tau
+  · exact hcore.scaled_kappa
+  · exact hcore.center
+
+
+-- @@ L1246-1246 verbatim
+end HSDInteriorPointLP

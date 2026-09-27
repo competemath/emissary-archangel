@@ -1,0 +1,231 @@
+/-
+Copyright (c) 2026 Dhruv Gupta. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Dhruv Gupta
+-/
+module
+
+public import LeanPool.FormalLearningTheory.Learner.Core
+import Mathlib.Algebra.Order.Module.Field
+import Mathlib.Data.EReal.Inv
+import Mathlib.Topology.Algebra.InfiniteSum.Order
+import Mathlib.Topology.MetricSpace.Bounded
+
+
+-- @@ L14-41 verbatim
+/-!
+# Version Space Learner: Measurable Selection via Countable Enumeration
+
+A version space learner outputs the first hypothesis (in a fixed enumeration)
+consistent with the training data. For concept classes with a measurable
+enumeration `enum : ℕ → Concept X Bool`, `Nat.find` provides a constructive
+measurable selector.
+
+## Main Result
+
+`versionSpaceLearner_measurableBatchLearner`: the version space learner
+satisfies `MeasurableBatchLearner`  -  it is a valid RL policy class.
+
+## Proof Architecture
+
+For Y = Bool, the preimage of each singleton under the evaluation map
+decomposes as a countable union of measurable rectangles:
+
+  {(S, x) | learn S x = true} = ⋃ n, ({S | firstConsistent = n} ×ˢ {x | enum n x = true})
+
+Measurability follows from `measurable_to_countable'` (Mathlib).
+
+## References
+
+- Mitchell (1982): version spaces in computational learning theory
+- Kuratowski-Ryll-Nardzewski: measurable selection (NOT in Mathlib  -  motivates
+  the countable restriction)
+-/
+
+
+-- @@ L43-43 verbatim
+@[expose] public section
+
+
+-- @@ L45-45 verbatim
+universe u
+
+
+-- @@ L47-47 verbatim
+open MeasureTheory Set
+
+
+-- @@ L49-49 verbatim
+/-! ## Definitions -/
+
+
+-- @@ L51-53 verbatim
+/-- Consistency: hypothesis h predicts correctly on every example in sample S. -/
+def IsSampleConsistent {X : Type u} (h : Concept X Bool) {m : ℕ} (S : Fin m → X × Bool) : Prop :=
+  ∀ i, h (S i).1 = (S i).2
+
+
+-- @@ L55-59 verbatim
+/-- Decidability of consistency (finite conjunction of Bool equality). -/
+instance isSampleConsistentDecidable
+    {X : Type u} (h : Concept X Bool) {m : ℕ} (S : Fin m → X × Bool) :
+    Decidable (IsSampleConsistent h S) :=
+  Fintype.decidableForallFintype
+
+
+-- @@ L61-65 verbatim
+/-- The "first consistent index is n" predicate, stated without Nat.find.
+    This is the measurability-friendly version: no proof-term dependence. -/
+def IsFirstConsistent {X : Type u} (enum : ℕ → Concept X Bool)
+    {m : ℕ} (S : Fin m → X × Bool) (n : ℕ) : Prop :=
+  IsSampleConsistent (enum n) S ∧ ∀ k, k < n → ¬ IsSampleConsistent (enum k) S
+
+
+-- @@ L67-84 verbatim
+/-- Version space learner: select the first consistent hypothesis in the enumeration.
+    Falls back to the zero concept (always false) if no hypothesis is consistent. -/
+noncomputable def versionSpaceLearner
+    {X : Type u}
+    (enum : ℕ → Concept X Bool) : BatchLearner X Bool where
+  hypotheses := range enum ∪ {fun _ => false}
+  learn S := by
+    classical
+    exact if h : ∃ n, IsSampleConsistent (enum n) S
+      then enum (Nat.find h)
+      else fun _ => false
+  output_in_H S := by
+    classical
+    change (if h : ∃ n, IsSampleConsistent (enum n) S then enum (Nat.find h)
+          else fun _ => false) ∈ range enum ∪ {fun _ => false}
+    by_cases h : ∃ n, IsSampleConsistent (enum n) S
+    · rw [dite_eq_left h]; exact Or.inl ⟨Nat.find h, rfl⟩
+    · rw [dite_eq_right h]; exact Or.inr rfl
+
+
+-- @@ L86-86 verbatim
+/-! ## Measurability Infrastructure -/
+
+
+-- @@ L88-101 verbatim
+/-- Each "enum n is consistent with S" event is measurable in S. -/
+theorem measurableSet_isConsistent
+    {X : Type u} [MeasurableSpace X]
+    (enum : ℕ → Concept X Bool)
+    (h_meas : ∀ n, Measurable (enum n))
+    (m : ℕ) (n : ℕ) :
+    MeasurableSet {S : Fin m → X × Bool | IsSampleConsistent (enum n) S} := by
+  unfold IsSampleConsistent
+  have : {S : Fin m → X × Bool | ∀ i, enum n (S i).1 = (S i).2}
+      = ⋂ i, {S | enum n (S i).1 = (S i).2} := by
+    ext S; simp [mem_iInter]
+  rw [this]
+  refine MeasurableSet.iInter fun i => measurableSet_eq_fun ?_ (measurable_pi_apply i).snd
+  exact (h_meas n).comp (measurable_pi_apply i).fst
+
+
+-- @@ L103-119 verbatim
+/-- The "first consistent index is n" event is measurable. -/
+theorem measurableSet_isFirstConsistent
+    {X : Type u} [MeasurableSpace X]
+    (enum : ℕ → Concept X Bool)
+    (h_meas : ∀ n, Measurable (enum n))
+    (m : ℕ) (n : ℕ) :
+    MeasurableSet {S : Fin m → X × Bool | IsFirstConsistent enum S n} := by
+  unfold IsFirstConsistent
+  have : {S : Fin m → X × Bool |
+      IsSampleConsistent (enum n) S ∧ ∀ k, k < n → ¬IsSampleConsistent (enum k) S}
+      = {S | IsSampleConsistent (enum n) S} ∩
+        (⋂ k, ⋂ (_ : k < n), {S | IsSampleConsistent (enum k) S}ᶜ) := by
+    ext S; simp [mem_inter_iff, mem_iInter, mem_compl_iff]
+  rw [this]
+  refine (measurableSet_isConsistent enum h_meas m n).inter ?_
+  exact MeasurableSet.iInter fun k => MeasurableSet.iInter fun _ =>
+    (measurableSet_isConsistent enum h_meas m k).compl
+
+
+-- @@ L121-127 verbatim
+/-- Bridge: `Nat.find h = n ↔ IsFirstConsistent`. -/
+theorem nat_find_eq_iff_isFirstConsistent
+    {X : Type u} (enum : ℕ → Concept X Bool)
+    {m : ℕ} (S : Fin m → X × Bool)
+    (h : ∃ n, IsSampleConsistent (enum n) S) (n : ℕ) :
+    Nat.find h = n ↔ IsFirstConsistent enum S n := by
+  simp only [IsFirstConsistent, Nat.find_eq_iff]
+
+
+-- @@ L129-166 verbatim
+/-- The preimage of {true} under the evaluation map is measurable.
+    Core lemma: decompose as countable union of measurable rectangles. -/
+theorem measurableSet_versionSpace_true
+    {X : Type u} [MeasurableSpace X]
+    (enum : ℕ → Concept X Bool)
+    (h_meas : ∀ n, Measurable (enum n))
+    (m : ℕ) :
+    MeasurableSet ((fun p : (Fin m → X × Bool) × X =>
+      (versionSpaceLearner enum).learn p.1 p.2) ⁻¹' {true}) := by
+  classical
+  -- Rewrite as countable union of rectangles
+  have key : (fun p : (Fin m → X × Bool) × X =>
+      (versionSpaceLearner enum).learn p.1 p.2) ⁻¹' {true}
+      = ⋃ n, ({S : Fin m → X × Bool | IsFirstConsistent enum S n} ×ˢ
+               {x : X | enum n x = true}) := by
+    ext ⟨S, x⟩
+    simp only [mem_preimage, mem_singleton_iff, mem_iUnion, mem_prod, mem_ofPred_eq]
+    constructor
+    · intro hlearn
+      show ∃ i, IsFirstConsistent enum S i ∧ enum i x = true
+      change (if h : ∃ n, IsSampleConsistent (enum n) S then enum (Nat.find h)
+            else fun _ => false) x = true at hlearn
+      by_cases hex : ∃ n, IsSampleConsistent (enum n) S
+      · simp only [dite_eq_left hex] at hlearn
+        exact ⟨Nat.find hex, (nat_find_eq_iff_isFirstConsistent enum S hex _).mp rfl, hlearn⟩
+      · rw [dite_eq_right hex] at hlearn; simp at hlearn
+    · rintro ⟨n, hfirst, henum⟩
+      change (if h : ∃ n, IsSampleConsistent (enum n) S then enum (Nat.find h)
+            else fun _ => false) x = true
+      have hex : ∃ k, IsSampleConsistent (enum k) S := ⟨n, hfirst.1⟩
+      simp only [dite_eq_left hex]
+      have heq : Nat.find hex = n :=
+        (nat_find_eq_iff_isFirstConsistent enum S hex n).mpr hfirst
+      rw [heq]; exact henum
+  rw [key]
+  exact .iUnion fun n =>
+    (measurableSet_isFirstConsistent enum h_meas m n).prod
+      ((h_meas n) (measurableSet_singleton true))
+
+
+-- @@ L168-168 verbatim
+/-! ## Main Theorem -/
+
+
+-- @@ L170-199 verbatim
+/-- **Version space learners are MeasurableBatchLearners.**
+
+    For any measurable enumeration of concepts, the learner that selects
+    the first consistent hypothesis satisfies joint measurability.
+    This makes version space learners valid RL policy classes.
+
+    Proof: `measurable_to_countable'` reduces to showing each singleton
+    preimage is MeasurableSet. For `{true}`, decompose as ⋃ₙ (Aₙ ×ˢ Bₙ).
+    For `{false}`, take the complement. -/
+theorem versionSpaceLearner_measurableBatchLearner
+    {X : Type u} [MeasurableSpace X]
+    (enum : ℕ → Concept X Bool)
+    (h_meas : ∀ n, Measurable (enum n)) :
+    MeasurableBatchLearner X (versionSpaceLearner enum) := by
+  constructor
+  intro m
+  apply measurable_to_countable'
+  intro b
+  rcases b with _ | _
+  · -- b = false: complement of the true preimage
+    have : (fun p : (Fin m → X × Bool) × X =>
+        (versionSpaceLearner enum).learn p.1 p.2) ⁻¹' {false}
+        = ((fun p : (Fin m → X × Bool) × X =>
+          (versionSpaceLearner enum).learn p.1 p.2) ⁻¹' {true})ᶜ := by
+      ext ⟨S, x⟩
+      simp_all
+    rw [this]
+    exact (measurableSet_versionSpace_true enum h_meas m).compl
+  · -- b = true: countable union of measurable rectangles
+    exact measurableSet_versionSpace_true enum h_meas m

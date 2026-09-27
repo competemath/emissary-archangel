@@ -1,0 +1,74 @@
+/-
+Copyright (c) 2026 Guanghao Li. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Guanghao Li
+-/
+module
+
+public import LeanPool.RiemannRochFunctionFields.WeilDifferential.Basic
+import LeanPool.RiemannRochFunctionFields.RiemannRochTheorem.Corollaries
+import Mathlib.Analysis.SpecialFunctions.Pow.Real
+
+
+-- @@ L12-15 verbatim
+/-!
+# Regression theorems via Riemann–Roch
+Sanity checks on `k(t)` and spot checks for the specialty index table.
+-/
+
+
+-- @@ L17-17 verbatim
+@[expose] public section
+
+
+-- @@ L19-19 verbatim
+open scoped nonZeroDivisors Polynomial RatFunc WithZero
+
+
+-- @@ L21-21 verbatim
+namespace FunctionField.Chart
+
+
+-- @@ L23-23 verbatim
+variable (k : Type*) [Field k]
+
+
+-- @@ L25-27 verbatim
+/-- `genus (RatFunc k) = 0` revisited through the corollary package. -/
+theorem genus_ratFunc_via_corollaries : genus k (RatFunc k) = 0 :=
+  genus_ratFunc k
+
+
+-- @@ L29-33 verbatim
+/-- When `g = 0`, a canonical divisor has degree `−2`. -/
+theorem deg_canonical_ratFunc {W : DivisorA k (RatFunc k)} (hW : IsCanonical k (RatFunc k) W) :
+    deg k (RatFunc k) W = -2 := by
+  rw [deg_canonical k (RatFunc k) hW, genus_ratFunc]
+  norm_num
+
+
+-- @@ L35-38 verbatim
+/-- Spot check: negative degree forces `ℓ(D) = 0` on `RatFunc k`. -/
+theorem ell_neg_deg_ratFunc (D : DivisorA k (RatFunc k)) (h : deg k (RatFunc k) D < 0) :
+    ell k (RatFunc k) D = 0 := by
+  exact RRspace_neg_deg_ell k (RatFunc k) h
+
+
+-- @@ L40-48 verbatim
+/-- Spot check: large degree forces `ℓ(D) = deg D + 1` when `g = 0`. -/
+theorem ell_large_deg_ratFunc {W : DivisorA k (RatFunc k)} (hW : IsCanonical k (RatFunc k) W)
+    (D : DivisorA k (RatFunc k)) (h : deg k (RatFunc k) D ≥ -1) :
+    (ell k (RatFunc k) D : ℤ) = deg k (RatFunc k) D + 1 := by
+  have h' : deg k (RatFunc k) D ≥ 2 * (genus k (RatFunc k) : ℤ) - 1 := by
+    rw [genus_ratFunc]
+    norm_num
+    exact h
+  simpa [genus_ratFunc] using ell_eq_of_deg_ge k (RatFunc k) hW D h'
+
+
+-- @@ L50-50 verbatim
+end FunctionField.Chart
+
+
+-- @@ L52-52 verbatim
+end

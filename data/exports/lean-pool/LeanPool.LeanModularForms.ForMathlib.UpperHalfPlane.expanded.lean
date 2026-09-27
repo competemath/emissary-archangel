@@ -1,0 +1,30 @@
+/-
+Copyright (c) 2026 Chris Birkbeck. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Chris Birkbeck
+-/
+module
+
+public import Mathlib.LinearAlgebra.Matrix.SpecialLinearGroup
+
+
+/- This is from the Sphere Pack project, so might not actually be for mathlib.-/
+
+-- Probably put it at LinearAlgebra/Matrix/SpecialLinearGroup.lean
+
+
+-- @@ L15-15 verbatim
+/-! # UpperHalfPlane -/
+
+
+-- @@ L17-17 verbatim
+@[expose] public section
+
+
+
+-- @@ L20-24 verbatim
+theorem ModularGroup.modular_S_sq : S * S = -1 := by
+  ext i j
+  fin_cases i <;> fin_cases j <;>
+    simp [ModularGroup.coe_S, Matrix.SpecialLinearGroup.coe_mul,
+      Matrix.SpecialLinearGroup.coe_neg]

@@ -1,0 +1,151 @@
+/-
+Copyright (c) 2026 Egor Lyfar. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Egor Lyfar
+-/
+module
+
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData00
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData01
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData02
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData03
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData04
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData05
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData06
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData07
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData08
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData09
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData10
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData11
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData12
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData13
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData14
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData15
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData16
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData17
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData18
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData19
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData20
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData21
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData22
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData23
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData24
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData25
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData26
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData27
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData28
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData29
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData30
+public import LeanPool.Erdos97ConvexOctagon.CoverageSummaryData31
+
+
+-- @@ L41-41 verbatim
+/-! # Aggregated lightweight coverage summaries -/
+
+
+-- @@ L43-43 verbatim
+@[expose] public section
+
+
+-- @@ L45-45 verbatim
+namespace Erdos97Octagon.RawIncidence
+
+
+-- @@ L47-81 verbatim
+/-- The 32 groups containing all lightweight pattern summaries. -/
+def patternSummaryBucketGroups : Array (Array (List PatternSummary)) := #[
+  patternSummaryBuckets00,
+  patternSummaryBuckets01,
+  patternSummaryBuckets02,
+  patternSummaryBuckets03,
+  patternSummaryBuckets04,
+  patternSummaryBuckets05,
+  patternSummaryBuckets06,
+  patternSummaryBuckets07,
+  patternSummaryBuckets08,
+  patternSummaryBuckets09,
+  patternSummaryBuckets10,
+  patternSummaryBuckets11,
+  patternSummaryBuckets12,
+  patternSummaryBuckets13,
+  patternSummaryBuckets14,
+  patternSummaryBuckets15,
+  patternSummaryBuckets16,
+  patternSummaryBuckets17,
+  patternSummaryBuckets18,
+  patternSummaryBuckets19,
+  patternSummaryBuckets20,
+  patternSummaryBuckets21,
+  patternSummaryBuckets22,
+  patternSummaryBuckets23,
+  patternSummaryBuckets24,
+  patternSummaryBuckets25,
+  patternSummaryBuckets26,
+  patternSummaryBuckets27,
+  patternSummaryBuckets28,
+  patternSummaryBuckets29,
+  patternSummaryBuckets30,
+  patternSummaryBuckets31
+]
+
+
+-- @@ L83-117 verbatim
+/-- The 32 groups containing all lightweight exact-table summaries. -/
+def hardSummaryBucketGroups : Array (Array (List HardSummary)) := #[
+  hardSummaryBuckets00,
+  hardSummaryBuckets01,
+  hardSummaryBuckets02,
+  hardSummaryBuckets03,
+  hardSummaryBuckets04,
+  hardSummaryBuckets05,
+  hardSummaryBuckets06,
+  hardSummaryBuckets07,
+  hardSummaryBuckets08,
+  hardSummaryBuckets09,
+  hardSummaryBuckets10,
+  hardSummaryBuckets11,
+  hardSummaryBuckets12,
+  hardSummaryBuckets13,
+  hardSummaryBuckets14,
+  hardSummaryBuckets15,
+  hardSummaryBuckets16,
+  hardSummaryBuckets17,
+  hardSummaryBuckets18,
+  hardSummaryBuckets19,
+  hardSummaryBuckets20,
+  hardSummaryBuckets21,
+  hardSummaryBuckets22,
+  hardSummaryBuckets23,
+  hardSummaryBuckets24,
+  hardSummaryBuckets25,
+  hardSummaryBuckets26,
+  hardSummaryBuckets27,
+  hardSummaryBuckets28,
+  hardSummaryBuckets29,
+  hardSummaryBuckets30,
+  hardSummaryBuckets31
+]
+
+
+-- @@ L119-125 verbatim
+/-- Check that a pattern summary occurs in the unique generated summary data. -/
+def PatternSummary.memberB (summary : PatternSummary) : Bool :=
+  let group := patternSummaryBucketGroups.getD (summary.origin % 256 / 8) #[]
+  match (group.getD (summary.origin % 8) []).find?
+      (fun candidate => candidate.origin == summary.origin) with
+  | some candidate => candidate.mask == summary.mask
+  | none => false
+
+
+-- @@ L127-133 verbatim
+/-- Check that a hard summary occurs in the unique generated summary data. -/
+def HardSummary.memberB (summary : HardSummary) : Bool :=
+  let group := hardSummaryBucketGroups.getD (summary.origin % 256 / 8) #[]
+  match (group.getD (summary.origin % 8) []).find?
+      (fun candidate => candidate.origin == summary.origin) with
+  | some candidate => candidate.code == summary.code
+  | none => false
+
+
+-- @@ L135-135 verbatim
+end Erdos97Octagon.RawIncidence

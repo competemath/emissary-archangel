@@ -1,0 +1,164 @@
+/-
+Copyright (c) 2026 György Kurucz. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: György Kurucz
+-/
+module
+
+
+public import LeanPool.LeanModelChecking.LTLNBWStatement
+public import Aesop.BuiltinRules
+import Mathlib.Tactic.Finiteness.Attr
+import Mathlib.Tactic.Push
+
+
+-- @@ L14-20 verbatim
+/-!
+# Negation normal form for Linear Temporal Logic
+
+We define negation normal form (NNF) formulas, their language, and a translation
+`LTL.toNNF` from `LTL` formulas to equivalent NNF formulas. The main result
+`LTL.exists_equiv_nnf` shows every `LTL` formula has an equivalent NNF formula.
+-/
+
+
+-- @@ L22-22 verbatim
+@[expose] public section
+
+
+-- @@ L24-24 verbatim
+namespace LeanModelChecking
+
+
+-- @@ L26-37 verbatim
+/-- Linear temporal logic formulas in negation normal form over atomic
+propositions `AP`: negation is pushed to the atoms (`atom`/`not_atom`), and the
+temporal operators are `next`, `until`, and the dual `release`. -/
+inductive NNF (AP : Type) where
+| atom (p : AP)
+| not_atom (p : AP)
+| and (f g : NNF AP)
+| or (f g : NNF AP)
+| next (f : NNF AP)
+| until (f g : NNF AP)
+| release (f g : NNF AP)
+deriving DecidableEq
+
+
+-- @@ L39-53 verbatim
+/-- The language of an NNF formula: the predicate on infinite words `w` that holds
+exactly when `w` satisfies `f` at position `0`. -/
+def NNF.language {AP} (f : NNF AP) (w : Nat → Letter AP) : Prop :=
+  match f with
+  | .atom p => p ∈ w 0
+  | .not_atom p => p ∉ w 0
+  | .and f g => NNF.language f w ∧ NNF.language g w
+  | .or f g => NNF.language f w ∨ NNF.language g w
+  | .next f => NNF.language f (fun j => w (j + 1))
+  | .until f g =>
+    ∃ i, NNF.language g (fun j => w (j + i)) ∧ ∀ k < i, NNF.language f (fun j => w (j + k))
+  | .release f g =>
+    ∀ i, NNF.language g (fun j => w (j + i)) ∨ ∃ k < i, NNF.language f (fun j => w (j + k))
+
+-- Code below here mostly written by GPT-5-Codex
+
+
+-- @@ L55-66 verbatim
+lemma not_exists_until_iff_forall {P Q : Nat → Prop} :
+    (¬ ∃ i, Q i ∧ ∀ k < i, P k) ↔ ∀ i, ¬ Q i ∨ ∃ k < i, ¬ P k := by
+  classical
+  constructor
+  · intro h i
+    rcases Classical.em (Q i) with hQi | hQi
+    · simp_all
+    · exact Or.inl hQi
+  · rintro h ⟨i, hQi, hPi⟩
+    rcases h i with hneg | ⟨k, hk, hk'⟩
+    · exact hneg hQi
+    · exact hk' (hPi k hk)
+
+
+-- @@ L68-68 verbatim
+namespace LTL
+
+
+-- @@ L70-83 verbatim
+/-- Translate an `LTL` formula to an NNF formula, optionally negated: the Boolean
+flag, when `true`, requests the NNF of the negation of the formula, allowing
+negation to be pushed down to the atoms recursively. -/
+def toNNFCore {AP} : Bool → LTL AP → NNF AP
+  | false, .atom p => .atom p
+  | true, .atom p => .not_atom p
+  | false, .not f => toNNFCore true f
+  | true, .not f => toNNFCore false f
+  | false, .or f g => .or (toNNFCore false f) (toNNFCore false g)
+  | true, .or f g => .and (toNNFCore true f) (toNNFCore true g)
+  | false, .next f => .next (toNNFCore false f)
+  | true, .next f => .next (toNNFCore true f)
+  | false, .until f g => .until (toNNFCore false f) (toNNFCore false g)
+  | true, .until f g => .release (toNNFCore true f) (toNNFCore true g)
+
+
+-- @@ L85-86 verbatim
+/-- The NNF formula equivalent to the `LTL` formula `f`. -/
+def toNNF {AP} (f : LTL AP) : NNF AP := toNNFCore false f
+
+
+-- @@ L88-89 verbatim
+/-- The NNF formula equivalent to the negation of the `LTL` formula `f`. -/
+def toNNFNeg {AP} (f : LTL AP) : NNF AP := toNNFCore true f
+
+
+-- @@ L91-126 verbatim
+lemma toNNFCore_sound {AP} (f : LTL AP) :
+    (∀ w, LTL.language f w ↔ NNF.language (toNNF f) w) ∧
+      (∀ w, ¬ LTL.language f w ↔ NNF.language (toNNFNeg f) w) := by
+  induction f with
+  | atom p => simp [toNNF, toNNFNeg, toNNFCore, LTL.language, NNF.language]
+  | not f ih =>
+    refine ⟨?_, ?_⟩
+    · simpa [toNNF, toNNFNeg, toNNFCore, LTL.language] using ih.2
+    · simpa [toNNF, toNNFNeg, toNNFCore, LTL.language] using ih.1
+  | or f g ihf ihg =>
+    refine ⟨?_, ?_⟩
+    · simp [toNNF, toNNFCore, LTL.language, NNF.language, ihf.1, ihg.1]
+    · simp [toNNFNeg, toNNFCore, LTL.language, NNF.language, ihf.2, ihg.2]
+  | next f ih =>
+    refine ⟨?_, ?_⟩
+    · simp [toNNF, toNNFCore, LTL.language, NNF.language, ih.1]
+    · simp [toNNFNeg, toNNFCore, LTL.language, NNF.language, ih.2]
+  | «until» f g ihf ihg =>
+    refine ⟨?_, ?_⟩
+    · simp [toNNF, toNNFCore, LTL.language, NNF.language, ihf.1, ihg.1]
+    · intro w
+      have hf : ∀ k,
+          ¬ LTL.language f (fun j => w (j + k)) ↔
+            NNF.language (toNNFNeg f) (fun j => w (j + k)) := by
+        intro k
+        simpa using ihf.2 (fun j => w (j + k))
+      have hg : ∀ k,
+          ¬ LTL.language g (fun j => w (j + k)) ↔
+            NNF.language (toNNFNeg g) (fun j => w (j + k)) := by
+        intro k
+        simpa using ihg.2 (fun j => w (j + k))
+      have hlogic :=
+        not_exists_until_iff_forall
+          (P := fun k => LTL.language f (fun j => w (j + k)))
+          (Q := fun i => LTL.language g (fun j => w (j + i)))
+      simp [toNNFNeg, toNNFCore, LTL.language, NNF.language, hf, hg, hlogic]
+
+
+-- @@ L128-130 verbatim
+end LTL
+
+-- Theorem statement written by hand
+
+-- @@ L131-134 verbatim
+theorem LTL.exists_equiv_nnf {AP} (ψ : LTL AP) :
+    ∃ (nnf : NNF AP), ψ.language = nnf.language := by
+  refine ⟨LTL.toNNF ψ, funext ?_⟩
+  simpa using (toNNFCore_sound ψ).1
+
+
+-- @@ L136-136 verbatim
+end LeanModelChecking

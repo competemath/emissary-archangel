@@ -1,0 +1,304 @@
+/-
+Copyright (c) 2026 Jineon Baek. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Jineon Baek
+-/
+module
+
+public import Mathlib.Data.Finset.Card
+public import LeanPool.ErdosTuzaValtr.Lib.List.Defs
+import Mathlib.Data.List.Chain
+
+
+-- @@ L12-16 verbatim
+/-!
+# LeanPool.ErdosTuzaValtr.Lib.List.Lemmas
+
+Imported Lean Pool material for `LeanPool.ErdosTuzaValtr.Lib.List.Lemmas`.
+-/
+
+
+-- @@ L18-18 verbatim
+@[expose] public section
+
+
+-- @@ L20-20 verbatim
+variable {α : Type _}
+
+
+-- @@ L22-22 verbatim
+section ListIn
+
+
+-- @@ L24-25 verbatim
+theorem List.in_superset {l : List α} {S T : Finset α} (h : S ⊆ T) : l.In S → l.In T :=
+  fun l_in_S _ al => h (l_in_S _ al)
+
+
+-- @@ L27-28 verbatim
+theorem List.subset_in {l1 l2 : List α} {S : Finset α} (h : l1 ⊆ l2) (h_l2 : l2.In S) : l1.In S :=
+  fun a ha => h_l2 a (h ha)
+
+
+-- @@ L30-31 verbatim
+@[simp]
+theorem List.nil_in {S : Finset α} : [].In S := by simp [List.In]
+
+
+-- @@ L33-35 verbatim
+@[simp]
+theorem List.cons_in {a : α} {l : List α} {S : Finset α} : (a :: l).In S ↔ a ∈ S ∧ l.In S := by
+  simp [List.In]
+
+
+-- @@ L37-48 verbatim
+@[simp]
+theorem List.append_in {l1 l2 : List α} {S : Finset α} : (l1 ++ l2).In S ↔ l1.In S ∧ l2.In S := by
+  constructor
+  · intro h
+    refine ⟨fun a al1 => ?_, fun a al2 => ?_⟩
+    · exact h a (List.mem_append_left l2 al1)
+    · exact h a (List.mem_append_right l1 al2)
+  · rintro ⟨h1, h2⟩ a al12
+    rw [List.mem_append] at al12
+    rcases al12 with al1 | al2
+    · exact h1 a al1
+    · exact h2 a al2
+
+
+-- @@ L50-51 verbatim
+@[simp]
+theorem List.reverse_in {l : List α} {S : Finset α} : l.reverse.In S ↔ l.In S := by simp [List.In]
+
+
+-- @@ L53-53 verbatim
+end ListIn
+
+
+-- @@ L55-55 verbatim
+theorem List.reverse_getLast {l : List α} : l.reverse.getLast? = l.head? := by cases l <;> simp
+
+
+-- @@ L57-58 verbatim
+theorem List.reverse_head {l : List α} : l.reverse.head? = l.getLast? := by
+  convert List.reverse_getLast.symm; simp
+
+
+-- @@ L60-60 verbatim
+section Mirror
+
+
+-- @@ L62-62 verbatim
+open OrderDual
+
+
+-- @@ L64-66 verbatim
+@[simp]
+theorem List.Mirror_nil : ([] : List α).Mirror = [] :=
+  rfl
+
+
+-- @@ L68-70 verbatim
+@[simp]
+theorem List.Mirror_singleton {a : α} : [a].Mirror = [toDual a] :=
+  rfl
+
+
+-- @@ L72-74 verbatim
+@[simp]
+theorem List.Mirror_cons {a : α} {l : List α} : (a :: l).Mirror = l.Mirror ++ [toDual a] := by
+  simp [List.Mirror]
+
+
+-- @@ L76-78 verbatim
+@[simp]
+theorem List.Mirror_append {l1 l2 : List α} : (l1 ++ l2).Mirror = l2.Mirror ++ l1.Mirror := by
+  simp [List.Mirror]
+
+
+-- @@ L80-82 verbatim
+@[simp]
+theorem List.ofMirror_nil : ([] : List αᵒᵈ).ofMirror = [] :=
+  rfl
+
+
+-- @@ L84-90 verbatim
+@[simp]
+theorem List.ofMirrorMirror {l : List αᵒᵈ} : l.ofMirror.Mirror = l := by
+  induction l with
+  | nil => rfl
+  | cons a l ih =>
+    rw [List.ofMirror, List.Mirror] at ih ⊢
+    simp_all
+
+
+-- @@ L92-97 verbatim
+@[simp]
+theorem Finset.ofMirrorMirror [LinearOrder α] {S : Finset αᵒᵈ} : S.ofMirror.Mirror = S :=
+  by
+  rw [Finset.ofMirror, Finset.Mirror]
+  rw [Finset.image_image]
+  simp only [Function.comp_def, OrderDual.toDual_ofDual, Finset.image_id']
+
+
+-- @@ L99-100 verbatim
+@[simp]
+theorem List.Mirror_length {l : List α} : l.Mirror.length = l.length := by rw [List.Mirror]; simp
+
+
+-- @@ L102-104 verbatim
+theorem List.chain'_mirror [LinearOrder α] {l : List α} :
+    List.IsChain (· < ·) l.Mirror ↔ List.IsChain (· < ·) l := by
+  simp_rw [List.Mirror, List.isChain_reverse, List.isChain_map, toDual_lt_toDual]
+
+
+-- @@ L106-107 verbatim
+theorem List.Mirror_getLast {l : List α} : l.Mirror.getLast? = Option.map toDual l.head? := by
+  rw [List.Mirror, List.reverse_getLast, List.head?_map]
+
+
+-- @@ L109-110 verbatim
+theorem List.Mirror_head {l : List α} : l.Mirror.head? = Option.map toDual l.getLast? := by
+  rw [List.Mirror, List.reverse_head, List.getLast?_map]
+
+
+-- @@ L112-114 verbatim
+theorem List.ofMirror_getLast {l : List αᵒᵈ} :
+    l.ofMirror.getLast? = Option.map ofDual l.head? := by
+  rw [List.ofMirror, List.reverse_getLast, List.head?_map]
+
+
+-- @@ L116-118 verbatim
+theorem List.ofMirror_head {l : List αᵒᵈ} :
+    l.ofMirror.head? = Option.map ofDual l.getLast? := by
+  rw [List.ofMirror, List.reverse_head, List.getLast?_map]
+
+
+-- @@ L120-122 verbatim
+theorem List.Mirror_mem_getLast {a : α} {l : List α} :
+    toDual a ∈ l.Mirror.getLast? ↔ a ∈ l.head? := by
+  rw [List.Mirror_getLast, Option.mem_map_of_injective toDual.injective]
+
+
+-- @@ L124-126 verbatim
+theorem List.Mirror_mem_head {a : α} {l : List α} :
+    toDual a ∈ l.Mirror.head? ↔ a ∈ l.getLast? := by
+  rw [List.Mirror_head, Option.mem_map_of_injective toDual.injective]
+
+
+-- @@ L128-131 verbatim
+@[simp]
+theorem List.Mirror_in [LinearOrder α] {l : List α} {S : Finset α} :
+    l.Mirror.In S.Mirror ↔ l.In S := by
+  rw [List.Mirror]; simp; constructor <;> simp [List.In, Finset.Mirror]
+
+
+-- @@ L133-135 verbatim
+@[simp]
+theorem Finset.memMirror [LinearOrder α] {a : α} {S : Finset α} : toDual a ∈ S.Mirror ↔ a ∈ S := by
+  simp [Finset.Mirror]
+
+
+-- @@ L137-142 verbatim
+@[simp]
+theorem Finset.Mirror_card [LinearOrder α] {S : Finset α} : S.Mirror.card = S.card :=
+  by
+  rw [Finset.Mirror]
+  apply S.card_image_of_injective
+  intro a b; simp
+
+
+-- @@ L144-144 verbatim
+end Mirror
+
+
+-- @@ L146-152 verbatim
+@[simp]
+theorem List.getLast?_cons_append_cons (a b : α) (l1 l2 : List α) :
+    (a :: (l1 ++ b :: l2)).getLast? = (b :: l2).getLast? := by
+  induction l1 generalizing a with
+  | nil => simp only [nil_append, getLast?_cons_cons]
+  | cons c l1 ih =>
+    simp_all
+
+
+-- @@ L154-157 verbatim
+/-- Split off the head of a list given a witness that `a` is its head. -/
+def List.takeHead' {a : α} : ∀ {l : List α} (_ : a ∈ l.head?), Σ' t, l = a :: t
+  | [], h => absurd h (Option.not_mem_none a)
+  | b :: t, h => ⟨t, by rw [List.head?_cons, Option.mem_some_iff] at h; rw [h]⟩
+
+
+-- @@ L159-162 verbatim
+/-- Split a nonempty list into its head and tail. -/
+def List.takeHead : ∀ {l : List α}, l ≠ [] → Σ' (h1 : α) (t : List α), l = h1 :: t
+  | [], h => absurd rfl h
+  | h1 :: t, _ => ⟨h1, t, rfl⟩
+
+
+-- @@ L164-168 verbatim
+/-- Split a list of length at least 2 into its first two elements and the rest. -/
+def List.takeHead2 : ∀ {l : List α}, 2 ≤ l.length → Σ' (h1 h2 : α) (t : List α), l = h1 :: h2 :: t
+  | [], h => absurd h (Bool.of_decide_false rfl)
+  | [_], h => absurd h (Bool.of_decide_false rfl)
+  | a :: b :: t, _ => ⟨a, b, t, rfl⟩
+
+
+-- @@ L170-176 verbatim
+/-- Split a list of length at least 3 into its first three elements and the rest. -/
+def List.takeHead3 :
+    ∀ {l : List α}, 3 ≤ l.length → Σ' (h1 h2 h3 : α) (t : List α), l = h1 :: h2 :: h3 :: t
+  | [], h => absurd h (Bool.of_decide_false rfl)
+  | [_], h => absurd h (Bool.of_decide_false rfl)
+  | [_, _], h => absurd h (Bool.of_decide_false rfl)
+  | a :: b :: c :: t, _ => ⟨a, b, c, t, rfl⟩
+
+
+-- @@ L178-187 verbatim
+/-- Split off the last element of a list given a witness that `a` is its last element. -/
+def List.takeLast' {a : α} : ∀ {l : List α} (_ : a ∈ l.getLast?), Σ' l', l = l' ++ [a]
+  | [], h => absurd h (Option.not_mem_none a)
+  | [b], h => ⟨[], by
+      rw [List.getLast?_singleton, Option.mem_some_iff] at h; rw [h, nil_append]⟩
+  | b :: c :: t, h =>
+    let h' : a ∈ (c :: t).getLast? := by
+      rw [List.getLast?_cons_cons] at h; exact h
+    let ⟨l'', hl''⟩ := List.takeLast' h'
+    ⟨b :: l'', by simp only [cons_append, cons.injEq, true_and]; exact hl''⟩
+
+
+-- @@ L189-196 verbatim
+/-- Split a nonempty list into its last element and the preceding prefix. -/
+def List.takeLast : ∀ {l : List α}, l ≠ [] → Σ' (e1 : α) (m : List α), l = m ++ [e1]
+  | [], h => absurd rfl h
+  | [a], _ => ⟨a, [], rfl⟩
+  | a :: b :: rest, _ =>
+    let h : b :: rest ≠ [] := List.cons_ne_nil b rest
+    let ⟨e1, m', eq_l'⟩ := List.takeLast h
+    ⟨e1, a :: m', congr_arg (List.cons a) eq_l'⟩
+
+
+-- @@ L198-206 verbatim
+/-- Split a list of length at least 2 into its last two elements and the preceding prefix. -/
+def List.takeLast2 : ∀ {l : List α}, 2 ≤ l.length → Σ' (e1 e2 : α) (m : List α), l = m ++ [e1, e2]
+  | [], h => absurd h (Bool.of_decide_false rfl)
+  | [_], h => absurd h (Bool.of_decide_false rfl)
+  | [a, b], _ => ⟨a, b, [], rfl⟩
+  | a :: b :: c :: t, _ =>
+    let h : 2 ≤ (b :: c :: t).length := (2 : ℕ).le_add_left (List.length t)
+    let ⟨e1, e2, m', eq_l'⟩ := List.takeLast2 h
+    ⟨e1, e2, a :: m', congr_arg (List.cons a) eq_l'⟩
+
+
+-- @@ L208-218 verbatim
+/-- Split a list of length at least 3 into its last three elements and the preceding prefix. -/
+def List.takeLast3 :
+    ∀ {l : List α}, 3 ≤ l.length → Σ' (e1 e2 e3 : α) (m : List α), l = m ++ [e1, e2, e3]
+  | [], h => absurd h (Bool.of_decide_false rfl)
+  | [_], h => absurd h (Bool.of_decide_false rfl)
+  | [_, _], h => absurd h (Bool.of_decide_false rfl)
+  | [a, b, c], _ => ⟨a, b, c, [], rfl⟩
+  | a :: b :: c :: d :: t, _ =>
+    let h : 3 ≤ (b :: c :: d :: t).length := (3 : ℕ).le_add_left (List.length t)
+    let ⟨e1, e2, e3, m', eq_l'⟩ := List.takeLast3 h
+    ⟨e1, e2, e3, a :: m', congr_arg (List.cons a) eq_l'⟩

@@ -1,0 +1,398 @@
+/-
+Copyright (c) 2026 Evan Chen, Kenny Lau, Seewoo Lee, Ken Ono, Jujian Zhang. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Evan Chen, Kenny Lau, Seewoo Lee, Ken Ono, Jujian Zhang
+-/
+module
+
+public import Mathlib.Data.PNat.Prime
+public import Mathlib.Analysis.Normed.Group.Real
+public import Mathlib.Data.Nat.Squarefree
+public import Mathlib.Data.ZMod.Basic
+public import Mathlib.Topology.Algebra.InfiniteSum.Defs
+import Mathlib.Algebra.Order.Ring.Star
+import Mathlib.Analysis.SpecialFunctions.Log.Summable
+import Mathlib.NumberTheory.SumPrimeReciprocals
+
+
+-- @@ L17-17 verbatim
+/-! ## Counting functions for joint conditions -/
+
+
+-- @@ L19-19 verbatim
+@[expose] public section
+
+
+-- @@ L21-21 verbatim
+namespace LeanPool.DeadEnds
+
+
+-- @@ L23-33 verbatim
+noncomputable instance decidablePredViolation (b : ℕ) (T : Finset ℕ) (S : Finset Nat.Primes) :
+    DecidablePred (fun N => ∃ q : Nat.Primes, q ∉ S ∧ ((q : ℕ) ^ 2 ∣ N ∨ ∃ d ∈ T, (q : ℕ) ^ 2 ∣ b *
+        N + d)) :=
+  fun _ => Classical.propDecidable _
+
+/-
+MATHLIB COVERAGE:
+- Filter.Tendsto uniqueness: tendsto_nhds_unique
+- Inclusion-exclusion for finite counting: Finset.sum_powerset_neg_one_pow_card_filter
+- Key decomposition: break into (1) joint density for each T, (2) inclusion-exclusion
+-/
+
+
+-- @@ L35-38 verbatim
+/-- A positive integer `N` is a *base-`b` dead end*: `N` is square-free, yet `b * N + d`
+fails to be square-free for every digit `d ∈ {0, …, b - 1}`. -/
+def IsBaseBDeadEnd (b : ℕ) (N : ℕ) : Prop :=
+  0 < N ∧ Squarefree N ∧ ∀ d ∈ Finset.range b, ¬Squarefree (b * N + d)
+
+
+-- @@ L40-42 verbatim
+instance (b N : ℕ) : Decidable (IsBaseBDeadEnd b N) := by
+  unfold IsBaseBDeadEnd
+  infer_instance
+
+
+-- @@ L44-46 verbatim
+/-- The number of base-`b` dead ends in `[1, X]`. -/
+def countBaseBDeadEnds (b : ℕ) (X : ℕ) : ℕ :=
+  (Finset.filter (fun N => IsBaseBDeadEnd b N) (Finset.Icc 1 X)).card
+
+
+-- @@ L48-52 verbatim
+/-- The asymptotic density of base-`b` dead ends equals `D`, i.e.
+`countBaseBDeadEnds b X / X → D` as `X → ∞`. -/
+def HasAsymptoticDensity (b : ℕ) (D : ℝ) : Prop :=
+  Filter.Tendsto (fun X : ℕ => (countBaseBDeadEnds b X : ℝ) / (X : ℝ))
+    Filter.atTop (nhds D)
+
+
+-- @@ L54-60 verbatim
+/-- The local density factor `μ_p(b, T)`: the fraction of residues `r ∈ [0, p²)` with
+`p² ∤ r` and `p² ∤ b * r + d` for every `d ∈ T`. -/
+noncomputable def localDensityFactor (p : ℕ) (b : ℕ) (T : Finset ℕ) : ℝ :=
+  let pSq := p ^ 2
+  let validResidues := (Finset.range pSq).filter fun r =>
+    ¬(pSq ∣ r) ∧ ∀ d ∈ T, ¬(pSq ∣ (b * r + d))
+  (validResidues.card : ℝ) / (pSq : ℝ)
+
+
+-- @@ L62-65 verbatim
+/-- The joint square-free density `α(b, T) = ∏_p μ_p(b, T)`, the infinite product
+over all primes. -/
+noncomputable def jointSquarefreeDensity (b : ℕ) (T : Finset ℕ) : ℝ :=
+  ∏' p : Nat.Primes, localDensityFactor (p : ℕ) b T
+
+
+-- @@ L67-70 verbatim
+/-- The explicit inclusion-exclusion formula `∑_{T ⊆ {0,…,b-1}} (-1)^{|T|} α(b, T)` for `D_b`. -/
+noncomputable def explicitDensityFormula (b : ℕ) : ℝ :=
+  ∑ T ∈ (Finset.range b).powerset,
+    ((-1 : ℝ) ^ T.card) * jointSquarefreeDensity b T
+
+
+
+-- @@ L73-76 verbatim
+/-- Count N in [1,X] such that N is squarefree and bN+d is squarefree for all d in T -/
+def countJointSquarefree (b : ℕ) (T : Finset ℕ) (X : ℕ) : ℕ :=
+  (Finset.Icc 1 X).filter (fun N =>
+    Squarefree N ∧ ∀ d ∈ T, Squarefree (b * N + d)) |>.card
+
+
+-- @@ L78-78 verbatim
+/-! ## Helper lemmas for summability of local density deviations -/
+
+
+-- @@ L80-81 verbatim
+/-- The residues `r ∈ [0, p²)` divisible by `p²` (just `r = 0`). -/
+def typeA (p : ℕ) : Finset ℕ := (Finset.range (p ^ 2)).filter fun r => (p ^ 2) ∣ r
+
+
+-- @@ L83-95 verbatim
+lemma typeA_card_eq_one (p : ℕ) (hp : Nat.Prime p) : (typeA p).card = 1 := by
+  have h₁ : (typeA p) = {0} := by
+    apply Finset.ext
+    intro x
+    simp only [Finset.mem_singleton, typeA, Finset.mem_filter, Finset.mem_range]
+    constructor
+    · intro h
+      have h₃ : p ^ 2 ∣ x := by tauto
+      by_contra h₉
+      exact absurd (Nat.le_of_dvd (Nat.pos_of_ne_zero (by simp_all)) h₃) (by linarith)
+    · intro h
+      simp_all [pow_pos hp.pos 2]
+  simp_all
+
+
+-- @@ L97-101 verbatim
+lemma b_coprime_p_sq (p : ℕ) (hp : Nat.Prime p) (b : ℕ) (hb : 2 ≤ b) (hbp : b < p) :
+    b.Coprime (p ^ 2) := by
+  apply Nat.Prime.coprime_pow_of_not_dvd hp
+  intro h_dvd
+  exact absurd (Nat.le_of_dvd (by linarith) h_dvd) (by linarith)
+
+
+-- @@ L103-125 verbatim
+lemma r_eq_inv_image (p : ℕ) (hp : Nat.Prime p) (b : ℕ) (hb : 2 ≤ b) (hbp : b < p)
+    (r : ℕ) (hr : r < p ^ 2) (d : ℕ) (hd : (p ^ 2) ∣ (b * r + d)) :
+    r = ((-((d : ℕ) : ZMod (p ^ 2))) * ((b : ℕ) : ZMod (p ^ 2))⁻¹).val := by
+  have hcop : b.Coprime (p ^ 2) := b_coprime_p_sq p hp b hb hbp
+  have hbUnit : IsUnit ((b : ℕ) : ZMod (p ^ 2)) := by rwa [ZMod.isUnit_iff_coprime]
+  have : Fact (1 < p ^ 2) := ⟨by nlinarith [hp.two_le, Nat.le_mul_self p]⟩
+  have hZero : ((b * r + d : ℕ) : ZMod (p ^ 2)) = 0 := by
+    rwa [ZMod.natCast_eq_zero_iff]
+  have hEq : (b : ZMod (p ^ 2)) * (r : ZMod (p ^ 2)) = -((d : ℕ) : ZMod (p ^ 2)) := by
+    have h1 : ((b * r + d : ℕ) : ZMod (p ^ 2)) = (b : ZMod (p ^ 2)) * (r : ZMod (p ^ 2)) +
+        ((d : ℕ) : ZMod (p ^ 2)) := by
+          simp_all
+    rw [h1] at hZero
+    linear_combination hZero
+  have hR : (r : ZMod (p ^ 2)) = -((d : ℕ) : ZMod (p ^ 2)) * ((b : ℕ) : ZMod (p ^ 2))⁻¹ := by
+    have key := ZMod.inv_mul_of_unit (b : ZMod (p ^ 2)) hbUnit
+    calc (r : ZMod (p ^ 2))
+        = ((b : ℕ) : ZMod (p ^ 2))⁻¹ * ((b : ℕ) : ZMod (p ^ 2)) * r := by
+          simp_all
+      _ = ((b : ℕ) : ZMod (p ^ 2))⁻¹ * (-((d : ℕ) : ZMod (p ^ 2))) := by rw [mul_assoc, hEq]
+      _ = -((d : ℕ) : ZMod (p ^ 2)) * ((b : ℕ) : ZMod (p ^ 2))⁻¹ := by ring
+  calc r = ((r : ℕ) : ZMod (p ^ 2)).val := (ZMod.val_natCast_of_lt hr).symm
+    _ = (-((d : ℕ) : ZMod (p ^ 2)) * ((b : ℕ) : ZMod (p ^ 2))⁻¹).val := by rw [hR]
+
+
+-- @@ L127-135 verbatim
+lemma filtered_subset_image (p : ℕ) (hp : Nat.Prime p) (b : ℕ) (hb : 2 ≤ b)
+    (hbp : b < p) (T : Finset ℕ) (_hT : T ⊆ Finset.range b) :
+    ((Finset.range (p ^ 2)).filter fun r => ∃ d ∈ T, (p ^ 2) ∣ (b * r + d)) ⊆
+    T.image (fun d : ℕ => ((-((d : ℕ) : ZMod (p ^ 2))) * ((b : ℕ) : ZMod (p ^ 2))⁻¹).val) := by
+  intro r hr
+  simp only [Finset.mem_filter, Finset.mem_range] at hr
+  obtain ⟨hr_range, d, hd_mem, hdiv⟩ := hr
+  rw [Finset.mem_image]
+  exact ⟨d, hd_mem, (r_eq_inv_image p hp b hb hbp r hr_range d hdiv).symm⟩
+
+
+-- @@ L137-144 verbatim
+lemma bad_residues_type_B_card_le (p : ℕ) (hp : Nat.Prime p) (b : ℕ) (hb : 2 ≤ b)
+    (hbp : b < p) (T : Finset ℕ) (hT : T ⊆ Finset.range b) :
+    ((Finset.range (p ^ 2)).filter fun r => ∃ d ∈ T, (p ^ 2) ∣ (b * r + d)).card ≤ T.card := by
+  calc ((Finset.range (p ^ 2)).filter fun r => ∃ d ∈ T, (p ^ 2) ∣ (b * r + d)).card
+      ≤ (T.image (fun d : ℕ => ((-((d : ℕ) : ZMod (p ^ 2))) * ((b : ℕ) : ZMod (
+          p ^ 2))⁻¹).val)).card :=
+        Finset.card_le_card (filtered_subset_image p hp b hb hbp T hT)
+    _ ≤ T.card := Finset.card_image_le
+
+
+-- @@ L146-148 verbatim
+/-- The residues `r ∈ [0, p²)` for which `p² ∣ b * r + d` for some `d ∈ T`. -/
+def typeB (p b : ℕ) (T : Finset ℕ) : Finset ℕ :=
+  (Finset.range (p ^ 2)).filter fun r => ∃ d ∈ T, (p ^ 2) ∣ (b * r + d)
+
+
+-- @@ L150-163 verbatim
+lemma bad_residues_card_le (p : ℕ) (hp : Nat.Prime p) (b : ℕ) (hb : 2 ≤ b)
+    (hbp : b < p) (T : Finset ℕ) (hT : T ⊆ Finset.range b) :
+    ((Finset.range (p ^ 2)).filter fun r => (p ^ 2) ∣ r ∨ ∃ d ∈ T, (p ^ 2) ∣ (b * r + d)).card
+    ≤ T.card + 1 := by
+  have h_eq : (Finset.range (p ^ 2)).filter (fun r => (p ^ 2) ∣ r ∨ ∃ d ∈ T, (p ^ 2) ∣ (b * r + d))
+      = typeA p ∪ typeB p b T := Finset.filter_or _ _ _
+  rw [h_eq]
+  calc (typeA p ∪ typeB p b T).card
+      ≤ (typeA p).card + (typeB p b T).card := Finset.card_union_le _ _
+    _ = 1 + (typeB p b T).card := by rw [typeA_card_eq_one p hp]
+    _ ≤ 1 + T.card := by
+        apply Nat.add_le_add_left
+        exact bad_residues_type_B_card_le p hp b hb hbp T hT
+    _ = T.card + 1 := by ring
+
+
+-- @@ L165-179 verbatim
+lemma valid_residues_card_ge (p : ℕ) (hp : Nat.Prime p) (b : ℕ) (hb : 2 ≤ b)
+    (hbp : b < p) (T : Finset ℕ) (hT : T ⊆ Finset.range b) :
+    (p ^ 2 : ℕ) - (T.card + 1) ≤
+    ((Finset.range (p ^ 2)).filter fun r => ¬(p ^ 2 ∣ r) ∧ ∀ d ∈ T, ¬(p ^ 2 ∣ (b * r + d))).card :=
+        by
+  have hbad := bad_residues_card_le p hp b hb hbp T hT
+  have hfilter_compl : ∀ r, (¬(p ^ 2 ∣ r) ∧ ∀ d ∈ T, ¬(p ^ 2 ∣ (b * r + d))) ↔
+      ¬((p ^ 2 ∣ r) ∨ ∃ d ∈ T, (p ^ 2 ∣ (b * r + d))) := by
+    simp_all
+  simp_rw [hfilter_compl]
+  have h1 : (Finset.range (p ^ 2)).card = p ^ 2 := Finset.card_range _
+  have hcard := @Finset.card_filter_add_card_filter_not ℕ (Finset.range (p ^ 2))
+      (fun r => (p ^ 2 ∣ r) ∨ ∃ d ∈ T, (p ^ 2 ∣ (b * r + d))) _ _
+  rw [h1] at hcard
+  omega
+
+
+-- @@ L181-193 verbatim
+lemma localDensityFactor_le_one (p : ℕ) (b : ℕ) (T : Finset ℕ) :
+    localDensityFactor p b T ≤ 1 := by
+  unfold localDensityFactor
+  simp only []
+  set pSq := p ^ 2
+  set validResidues := (Finset.range pSq).filter fun r =>
+    ¬(pSq ∣ r) ∧ ∀ d ∈ T, ¬(pSq ∣ (b * r + d))
+  by_cases hp : pSq = 0
+  · simp [hp]
+  · have hpSq_pos : (0 : ℝ) < pSq := by exact Nat.cast_pos.mpr (Nat.pos_of_ne_zero hp)
+    rw [div_le_one₀ hpSq_pos]
+    have h1 : validResidues.card ≤ (Finset.range pSq).card := Finset.card_filter_le _ _
+    simp_all
+
+
+-- @@ L195-198 verbatim
+lemma localDensityFactor_nonneg (p : ℕ) (b : ℕ) (T : Finset ℕ) :
+    0 ≤ localDensityFactor p b T := by
+  simp only [localDensityFactor]
+  positivity
+
+
+-- @@ L200-220 verbatim
+lemma localDensityFactor_ge_sub (p : ℕ) (hp : Nat.Prime p) (b : ℕ) (hb : 2 ≤ b)
+    (hbp : b < p) (T : Finset ℕ) (hT : T ⊆ Finset.range b) :
+    1 - (T.card + 1 : ℝ) / (p ^ 2 : ℝ) ≤ localDensityFactor p b T := by
+  unfold localDensityFactor
+  simp only
+  have hp2 : 2 ≤ p := hp.two_le
+  have hpSq_ne_zero : ((p : ℝ) ^ 2) ≠ 0 := by positivity
+  have hpSq_pos : (0 : ℝ) < (p ^ 2 : ℕ) := by positivity
+  have hcast : ((p ^ 2 : ℕ) : ℝ) = (p : ℝ) ^ 2 := by norm_cast
+  rw [hcast] at hpSq_pos ⊢
+  rw [one_sub_div hpSq_ne_zero]
+  apply div_le_div_of_nonneg_right _ (le_of_lt hpSq_pos)
+  have hcard := valid_residues_card_ge p hp b hb hbp T hT
+  have hT_card : T.card ≤ b := by
+    calc T.card ≤ (Finset.range b).card := Finset.card_le_card hT
+      _ = b := Finset.card_range b
+  have hTcard_bound : T.card + 1 ≤ p ^ 2 := by nlinarith [hp.two_le, Nat.le_mul_self p]
+  have hcast2 : ((p : ℝ) ^ 2) - (↑T.card + 1) = ((p ^ 2 - (T.card + 1) : ℕ) : ℝ) := by
+    simp_all
+  rw [hcast2]
+  exact Nat.cast_le.mpr hcard
+
+
+-- @@ L222-229 verbatim
+lemma localDensityFactor_near_one_large_prime (p : ℕ) (hp : Nat.Prime p) (b : ℕ) (hb : 2 ≤ b)
+    (hbp : b < p) (T : Finset ℕ) (hT : T ⊆ Finset.range b) :
+    |localDensityFactor p b T - 1| ≤ (T.card + 1 : ℝ) / (p ^ 2 : ℝ) := by
+  have hμ_le := localDensityFactor_le_one p b T
+  have hμ_ge := localDensityFactor_ge_sub p hp b hb hbp T hT
+  have h_div_nonneg : 0 ≤ (T.card + 1 : ℝ) / (p ^ 2 : ℝ) := by positivity
+  rw [abs_sub_comm, abs_of_nonneg (by linarith : 0 ≤ 1 - localDensityFactor p b T)]
+  linarith
+
+
+-- @@ L231-237 verbatim
+lemma primes_summable_one_div_sq : Summable (fun p : Nat.Primes => 1 / ((p : ℕ) : ℝ) ^ 2) := by
+  have h : Summable (fun p : Nat.Primes => ((p : ℕ) : ℝ) ^ (-2 : ℝ)) :=
+    Nat.Primes.summable_rpow.mpr (by norm_num)
+  refine h.congr fun p => ?_
+  have hpos : (0 : ℝ) < (p : ℕ) := by exact_mod_cast p.prop.pos
+  rw [Real.rpow_neg (le_of_lt hpos)]
+  norm_num [Real.rpow_natCast]
+
+
+-- @@ L239-243 verbatim
+lemma bound_summable (b : ℕ) (_hb : 2 ≤ b) (T : Finset ℕ) (_hT : T ⊆ Finset.range b) :
+    Summable (fun p : Nat.Primes => (T.card + 1 : ℝ) / ((p : ℕ) : ℝ) ^ 2) := by
+  simp_rw [show ∀ p : Nat.Primes, (T.card + 1 : ℝ) / ((p : ℕ) : ℝ) ^ 2 =
+      (T.card + 1 : ℝ) * (1 / ((p : ℕ) : ℝ) ^ 2) from fun p => by ring]
+  exact primes_summable_one_div_sq.mul_left _
+
+-- @@ L244-248 verbatim
+theorem deviation_bound_for_large_prime (p : ℕ) (hp : Nat.Prime p) (b : ℕ) (hb : 2 ≤ b)
+    (hbp : b < p) (T : Finset ℕ) (hT : T ⊆ Finset.range b) :
+    ‖|localDensityFactor p b T - 1|‖ ≤ (T.card + 1 : ℝ) / (p : ℝ) ^ 2 := by
+  rw [Real.norm_of_nonneg (abs_nonneg _)]
+  exact localDensityFactor_near_one_large_prime p hp b hb hbp T hT
+
+
+-- @@ L250-255 verbatim
+lemma finite_primes_le (b : ℕ) : {p : Nat.Primes | (p : ℕ) ≤ b}.Finite := by
+  have h₃ : {p : Nat.Primes | (p : ℕ) ≤ b} = Set.preimage (fun p : Nat.Primes => (p : ℕ))
+      (Set.Iic b) := by aesop
+  rw [h₃]
+  exact (Set.finite_Iic _).preimage
+    ((Set.injOn_of_injective Nat.Primes.coe_nat_injective).mono (Set.subset_univ _))
+
+
+-- @@ L257-266 verbatim
+lemma deviation_bounded_eventually (b : ℕ) (hb : 2 ≤ b) (T : Finset ℕ) (hT : T ⊆ Finset.range b) :
+    ∀ᶠ p : Nat.Primes in Filter.cofinite,
+      ‖|localDensityFactor (p : ℕ) b T - 1|‖ ≤ (T.card + 1 : ℝ) / ((p : ℕ) : ℝ) ^ 2 := by
+  rw [Filter.eventually_cofinite]
+  apply Set.Finite.subset (finite_primes_le b)
+  intro p hp
+  simp only [Set.mem_ofPred_eq] at hp ⊢
+  by_contra h
+  push Not at h
+  exact hp (deviation_bound_for_large_prime p p.prop b hb h T hT)
+
+
+-- @@ L268-275 verbatim
+/-- The sum ∑_p |μ_p(b,T) - 1| converges.
+    By localDensityFactor_near_one, |μ_p - 1| ≤ (|T|+1)/p².
+    Since ∑_p 1/p² converges (it's bounded by ∑_n 1/n² = π²/6), the sum converges. -/
+lemma sum_localDensityFactor_deviation_summable (b : ℕ) (hb : 2 ≤ b) (T : Finset ℕ)
+    (hT : T ⊆ Finset.range b) :
+    Summable (fun p : Nat.Primes => |localDensityFactor (p : ℕ) b T - 1|) := by
+  exact Summable.of_norm_bounded_eventually (bound_summable b hb T hT)
+    (deviation_bounded_eventually b hb T hT)
+
+
+-- @@ L277-286 verbatim
+/-- Multipliability from summability of deviations.
+    Write μ_p = 1 + (μ_p - 1). If ∑|μ_p - 1| converges, then ∏ μ_p converges.
+    Mathlib's `Multipliable.of_norm_bounded` or related lemmas apply when the factors
+    are close to 1, which follows from sum_localDensityFactor_deviation_summable. -/
+lemma multipliable_of_deviation_summable (b : ℕ) (_hb : 2 ≤ b) (T : Finset ℕ)
+    (_hT : T ⊆ Finset.range b)
+    (h_sum : Summable (fun p : Nat.Primes => |localDensityFactor (p : ℕ) b T - 1|)) :
+    Multipliable (fun p : Nat.Primes => localDensityFactor (p : ℕ) b T) := by
+  have h_mult := Real.multipliable_one_add_of_summable (Summable.of_abs h_sum)
+  exact h_mult.congr fun p => by ring
+
+
+-- @@ L288-291 verbatim
+lemma jointSquarefreeDensity_multipliable (b : ℕ) (hb : 2 ≤ b)
+    (T : Finset ℕ) (hT : T ⊆ Finset.range b) :
+    Multipliable (fun p : Nat.Primes => localDensityFactor (p : ℕ) b T) :=
+  multipliable_of_deviation_summable b hb T hT (sum_localDensityFactor_deviation_summable b hb T hT)
+
+
+-- @@ L293-298 verbatim
+lemma multipliable_of_deviation_summable_subtype
+    (b : ℕ) (_hb : 2 ≤ b) (T : Finset ℕ) (_hT : T ⊆ Finset.range b)
+    (U : Set Nat.Primes)
+    (h_sum : Summable (fun p : U => |localDensityFactor (p : ℕ) b T - 1|)) :
+    Multipliable (fun p : U => localDensityFactor (p : ℕ) b T) :=
+  (Real.multipliable_one_add_of_summable (Summable.of_abs h_sum)).congr fun p => by ring
+
+-- @@ L299-307 verbatim
+lemma multipliable_compl_of_multipliable (b : ℕ) (hb : 2 ≤ b) (T : Finset ℕ)
+    (hT : T ⊆ Finset.range b) (S : Finset Nat.Primes) :
+    Multipliable ((fun p : Nat.Primes => localDensityFactor (p : ℕ) b T) ∘
+      Subtype.val (p := (· ∉ S))) := by
+  have h_full_sum := sum_localDensityFactor_deviation_summable b hb T hT
+  have h_compl_sum : Summable ((fun p : Nat.Primes => |localDensityFactor (p : ℕ) b T -
+      1|) ∘ Subtype.val (p := (· ∉ S))) :=
+    h_full_sum.subtype {p | p ∉ S}
+  exact multipliable_of_deviation_summable_subtype b hb T hT {p | p ∉ S} h_compl_sum
+
+
+-- @@ L309-319 verbatim
+lemma tprod_compl_le_one (b : ℕ) (_hb : 2 ≤ b) (T : Finset ℕ) (_hT : T ⊆ Finset.range b)
+    (S : Finset Nat.Primes) :
+    (∏' (x : {p : Nat.Primes // p ∉ S}), localDensityFactor (x : ℕ) b T) ≤ 1 := by
+  apply tprod_le_of_prod_le'
+  · exact le_refl 1
+  · intro s
+    apply Finset.prod_le_one₀
+    · intro i _
+      exact localDensityFactor_nonneg (i : ℕ) b T
+    · intro i _
+      exact localDensityFactor_le_one (i : ℕ) b T
+
+
+
+-- @@ L322-322 verbatim
+end LeanPool.DeadEnds

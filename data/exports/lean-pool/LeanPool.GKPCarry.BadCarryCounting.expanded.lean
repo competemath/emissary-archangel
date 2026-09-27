@@ -1,0 +1,198 @@
+/-
+Copyright (c) 2026 Egor Lyfar. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Egor Lyfar
+-/
+module
+
+public import LeanPool.GKPCarry.BadCarryLanguage
+public import Mathlib.Data.Fintype.Vector
+public import Mathlib.Algebra.BigOperators.Group.Finset.Defs
+import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Data.Nat.SuccPred
+
+
+-- @@ L14-21 verbatim
+/-!
+# Counting deficient-carry ternary words
+
+The automaton gives an exact enumeration theorem.  Among all ternary words of
+length `m ≥ 2`, precisely `(m + 5) * 2 ^ (m - 2)` create fewer than two carries
+when doubled.  The theorem below uses the subtraction-free parameterization
+`m = n + 2`.
+-/
+
+
+-- @@ L23-23 verbatim
+@[expose] public section
+
+
+-- @@ L25-25 verbatim
+namespace GKPCarry
+
+
+-- @@ L27-27 verbatim
+open scoped BigOperators
+
+
+-- @@ L29-32 verbatim
+/-- Convert a fixed-length word over `Fin 3` to a list of natural digits. -/
+def ternaryWordDigits {length : ℕ}
+    (word : List.Vector (Fin 3) length) : List ℕ :=
+  word.toList.map Fin.val
+
+
+-- @@ L34-40 verbatim
+/-- Peel the least significant digit off a nonempty ternary word. -/
+lemma ternaryWordDigits_succ {length : ℕ}
+    (word : List.Vector (Fin 3) (length + 1)) :
+    ternaryWordDigits word =
+      (word.head : ℕ) :: ternaryWordDigits word.tail := by
+  conv_lhs => rw [← List.Vector.cons_head_tail word]
+  simp only [ternaryWordDigits, List.Vector.toList_cons, List.map_cons]
+
+
+-- @@ L42-46 verbatim
+/-- Fixed-length ternary words that remain outside `.good` when read from a
+given automaton state. -/
+abbrev BadCarryWordsFrom (state : BadCarryState) (length : ℕ) :=
+  {word : List.Vector (Fin 3) length //
+    badCarryStateAux (ternaryWordDigits word) state ≠ .good}
+
+
+-- @@ L48-50 verbatim
+/-- Fixed-length ternary words whose doubling creates fewer than two carries. -/
+abbrev BadCarryWords (length : ℕ) :=
+  BadCarryWordsFrom .zeroCarry length
+
+
+-- @@ L52-73 verbatim
+/-- Peeling the least significant digit gives the recursive decomposition of
+deficient-carry words. -/
+def badCarryWordsFromSuccEquiv (state : BadCarryState) (length : ℕ) :
+    BadCarryWordsFrom state (length + 1) ≃
+      Σ digit : Fin 3,
+        BadCarryWordsFrom (badCarryStateStep state digit.val) length where
+  toFun word :=
+    ⟨word.val.head,
+      ⟨word.val.tail, by
+        have hproperty := word.property
+        rw [ternaryWordDigits_succ] at hproperty
+        simpa [badCarryStateAux] using hproperty⟩⟩
+  invFun pair :=
+    ⟨List.Vector.cons pair.1 pair.2.val, by
+      simpa [BadCarryWordsFrom, ternaryWordDigits, badCarryStateAux] using
+        pair.2.property⟩
+  left_inv word := by
+    apply Subtype.ext
+    exact List.Vector.cons_head_tail word.val
+  right_inv pair := by
+    rcases pair with ⟨digit, word⟩
+    rfl
+
+
+-- @@ L75-80 verbatim
+/-- Recursive dynamic-programming count for words read from a given state. -/
+def badCarryWordCountFrom : BadCarryState → ℕ → ℕ
+  | state, 0 => if state = .good then 0 else 1
+  | state, length + 1 =>
+      ∑ digit : Fin 3,
+        badCarryWordCountFrom (badCarryStateStep state digit.val) length
+
+
+-- @@ L82-95 verbatim
+/-- The recursive count is the actual cardinality of the corresponding finite
+word type. -/
+theorem card_badCarryWordsFrom_eq_count
+    (state : BadCarryState) (length : ℕ) :
+    Fintype.card (BadCarryWordsFrom state length) =
+      badCarryWordCountFrom state length := by
+  induction length generalizing state with
+  | zero =>
+      cases state <;> decide
+  | succ length ih =>
+      rw [Fintype.card_congr (badCarryWordsFromSuccEquiv state length)]
+      rw [Fintype.card_sigma]
+      simp only [ih]
+      rfl
+
+
+-- @@ L97-102 verbatim
+lemma badCarryWordCountFrom_good (length : ℕ) :
+    badCarryWordCountFrom .good length = 0 := by
+  induction length with
+  | zero => simp [badCarryWordCountFrom]
+  | succ length ih =>
+      simp [badCarryWordCountFrom, badCarryStateStep, ih]
+
+
+-- @@ L104-116 verbatim
+lemma badCarryWordCountFrom_oneCarryNoCarry (length : ℕ) :
+    badCarryWordCountFrom .oneCarryNoCarry length = 2 ^ length := by
+  induction length with
+  | zero => simp [badCarryWordCountFrom]
+  | succ length ih =>
+      rw [badCarryWordCountFrom, Fin.sum_univ_three]
+      change
+        badCarryWordCountFrom .oneCarryNoCarry length +
+            badCarryWordCountFrom .oneCarryNoCarry length +
+            badCarryWordCountFrom .good length =
+          2 ^ (length + 1)
+      rw [ih, badCarryWordCountFrom_good, pow_succ]
+      ring
+
+
+-- @@ L118-122 verbatim
+lemma badCarryWordCountFrom_oneCarryOut_succ (length : ℕ) :
+    badCarryWordCountFrom .oneCarryOut (length + 1) = 2 ^ length := by
+  rw [badCarryWordCountFrom, Fin.sum_univ_three]
+  simp [badCarryStateStep, badCarryWordCountFrom_good,
+    badCarryWordCountFrom_oneCarryNoCarry]
+
+
+-- @@ L124-130 verbatim
+lemma badCarryWordCountFrom_zeroCarry_succ (length : ℕ) :
+    badCarryWordCountFrom .zeroCarry (length + 1) =
+      2 * badCarryWordCountFrom .zeroCarry length +
+        badCarryWordCountFrom .oneCarryOut length := by
+  rw [badCarryWordCountFrom, Fin.sum_univ_three]
+  simp [badCarryStateStep]
+  omega
+
+
+-- @@ L132-145 verbatim
+/-- Exact dynamic-programming count of deficient-carry ternary words. -/
+theorem badCarryWordCountFrom_zeroCarry_closed (n : ℕ) :
+    badCarryWordCountFrom .zeroCarry (n + 2) =
+      (n + 7) * 2 ^ n := by
+  induction n with
+  | zero =>
+      simp [badCarryWordCountFrom, Fin.sum_univ_three, badCarryStateStep]
+  | succ n ih =>
+      rw [show n + 1 + 2 = (n + 2) + 1 by omega]
+      rw [badCarryWordCountFrom_zeroCarry_succ, ih]
+      rw [show n + 2 = (n + 1) + 1 by omega]
+      rw [badCarryWordCountFrom_oneCarryOut_succ]
+      rw [pow_succ]
+      ring
+
+
+-- @@ L147-153 verbatim
+/-- Headline enumeration theorem: among all ternary words of length `n + 2`,
+exactly `(n + 7) * 2 ^ n` have fewer than two doubling carries. -/
+theorem card_badCarryWords (n : ℕ) :
+    Fintype.card (BadCarryWords (n + 2)) =
+      (n + 7) * 2 ^ n := by
+  rw [card_badCarryWordsFrom_eq_count]
+  exact badCarryWordCountFrom_zeroCarry_closed n
+
+
+-- @@ L155-158 verbatim
+/-- The ambient set contains all `3 ^ (n + 2)` ternary words. -/
+theorem card_allTernaryWords (n : ℕ) :
+    Fintype.card (List.Vector (Fin 3) (n + 2)) = 3 ^ (n + 2) := by
+  simp
+
+
+-- @@ L160-160 verbatim
+end GKPCarry

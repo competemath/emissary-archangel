@@ -1,0 +1,26 @@
+{
+  "shard": 5,
+  "shards": 16,
+  "commit": "fdcf13c7cab6cd0eed22dc6b2f83672b6c4deb4d",
+  "toolchain": "leanprover/lean4:v4.34.0",
+  "modules": 432,
+  "exported": 430,
+  "failed": [
+    {
+      "module": "LeanPool.Incompleteness.Arithmetization.ISigmaOne.Metamath.Coding",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.ProvabilityLogic.Basic",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 287,
+    "verbatim": 14285,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "minutes": 285,
+  "finishedAt": "2026-09-27T06:37:43.194Z"
+}

@@ -1,0 +1,598 @@
+/-
+Copyright (c) 2026 Julius Marx. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Julius Marx
+-/
+module
+
+public import LeanPool.MRiscX.Semantics.Run
+
+public import Aesop.BuiltinRules
+public import Mathlib.Data.Nat.Notation
+public import Mathlib.Data.Set.Defs
+public import Mathlib.Tactic.Attr.Core
+public import Mathlib.Tactic.Basic
+public import Mathlib.Tactic.ToAdditive
+public import Mathlib.Tactic.ToDual
+import LeanPool.MRiscX.Util.BasicTheorems
+import Mathlib.Algebra.Group.Nat.Defs
+import Mathlib.Data.Set.Basic
+import Std.Tactic.BVDecide.Normalize.BitVec
+import Std.Tactic.BVDecide.Normalize.Prop
+
+
+-- @@ L23-32 verbatim
+/-!
+Basic theorems
+
+This file contains many small lemmata about the built machine model.
+These lemmata help proving
+statements about the MRiscX language by simplifying terms.
+All these lemmata are added to the simp command with
+the `@[simp]`. This can shorten proofs because lean
+can apply these theorems with simp automatically.
+-/
+
+
+-- @@ L34-34 verbatim
+@[expose] public section
+
+
+
+-- @@ L37-37 verbatim
+namespace MState
+
+
+-- @@ L39-41 verbatim
+@[simp] theorem incPc_increments_pc : ∀ (ms:MState),
+  ms.incPc = {ms with pc := ms.pc + 1} := by
+  simp [MState.incPc]
+
+
+-- @@ L43-45 verbatim
+theorem setReg_incPc_symm : ∀(ms:MState) (r:Registers),
+  (ms.setRegister r).incPc = ms.incPc.setRegister r := by
+  simp [MState.setRegister, MState.incPc]
+
+
+-- @@ L47-49 verbatim
+theorem addReg_incPc_comm : ∀(ms:MState) (r v: UInt64),
+  (ms.addRegister r v).incPc = ms.incPc.addRegister r v:= by
+  simp [MState.addRegister, MState.incPc]
+
+
+-- @@ L51-53 verbatim
+theorem addMem_incPc_comm : ∀(ms:MState) (r v: UInt64),
+  (ms.addMemory r v).incPc = ms.incPc.addMemory r v:= by
+  simp [MState.addMemory, MState.incPc]
+
+
+-- @@ L55-57 verbatim
+theorem incPc_terminated : ∀(ms:MState),
+  ms.incPc.terminated = ms.terminated := by
+  simp [MState.incPc]
+
+
+
+-- @@ L60-62 verbatim
+@[simp] theorem setPc_terminated : ∀(ms:MState) (p:UInt64),
+  (ms.setPc p).terminated = ms.terminated := by
+  simp [MState.setPc]
+
+
+-- @@ L64-66 verbatim
+theorem addReg_terminated : ∀(ms:MState) (r v: UInt64),
+  (ms.addRegister r v).terminated = ms.terminated := by
+  simp [MState.addRegister]
+
+
+-- @@ L68-70 verbatim
+theorem addMem_terminated : ∀(ms:MState) (r v: UInt64),
+  (ms.addMemory r v).terminated = ms.terminated := by
+  simp [MState.addMemory]
+
+
+
+-- @@ L73-80 verbatim
+theorem addRegister_getRegister_neq :
+  ∀(ms:MState) (r1 r2 v : UInt64),
+  r1 ≠ r2 →
+  ((ms.addRegister r1 v).getRegisterAt r2) = (ms.getRegisterAt r2)
+  := by
+  intros ms r1 r2 v H
+  simp only [MState.addRegister, MState.getRegisterAt]
+  exact t_update_neq _ _ _ _ _ _ H
+
+
+-- @@ L82-89 verbatim
+theorem addRegister_getRegister_eq :
+  ∀(ms:MState) (r1 r2 v : UInt64),
+  r1 = r2 →
+  ((ms.addRegister r1 v).getRegisterAt r2) = v
+  := by
+  intros ms r1 r2 v H
+  simp only [MState.addRegister, MState.getRegisterAt, H]
+  exact t_update_eq _ _ _ _ _
+
+
+
+-- @@ L92-96 verbatim
+theorem setPc_getRegister_indep :
+  ∀(ms:MState) (i : UInt64) (r : UInt64),
+  ((ms.setPc i).getRegisterAt r) = (ms.getRegisterAt r)
+  := by
+  simp [MState.setPc, MState.getRegisterAt]
+
+
+-- @@ L98-102 verbatim
+theorem setPc_getRegisterAt_def_indep :
+  ∀(ms:MState) (r l: UInt64),
+  TMap.get ms.registers r = TMap.get (ms.setPc l).registers r
+  := by
+  simp [MState.setPc]
+
+
+-- @@ L104-108 verbatim
+theorem setPc_getMemory_indep :
+  ∀(ms:MState) (i : UInt64) (r : UInt64),
+  ((ms.setPc i).getMemoryAt r) = (ms.getMemoryAt r)
+  := by
+  simp [MState.setPc, MState.getMemoryAt]
+
+
+-- @@ L110-114 verbatim
+theorem setPc_getMemoryAt_def_indep :
+  ∀(ms:MState) (m l: UInt64),
+  TMap.get ms.memory m = TMap.get (ms.setPc l).memory m
+  := by
+  simp [MState.setPc]
+
+
+
+-- @@ L117-121 verbatim
+@[simp] theorem set_pc :
+  ∀(ms:MState) (i : UInt64) ,
+  (ms.setPc i).pc = i
+  := by
+  simp [MState.setPc]
+
+
+-- @@ L123-127 verbatim
+theorem incPc_getRegister_indep :
+  ∀(ms:MState) (r : UInt64),
+  ((ms.incPc).getRegisterAt r) = (ms.getRegisterAt r)
+  := by
+  simp [MState.incPc, MState.getRegisterAt]
+
+
+
+-- @@ L130-135 verbatim
+@[simp] theorem jump_set_pc : ∀ (ms:MState) (s:String) (i:UInt64),
+  (ms.code.labels.get s) = i ->
+  (ms.jump s) = {ms with pc := i} := by
+  intros ms s i H
+  unfold MState.jump
+  rw [H]
+
+
+-- @@ L137-139 verbatim
+@[simp] theorem currInstruction_unfold : ∀ (ms:MState),
+  ms.currInstruction = ms.code.instructionMap.get (ms.pc) := by
+  simp [MState.currInstruction]
+
+
+-- @@ L141-144 verbatim
+theorem runNSteps_currInstruction : ∀ (ms:MState) (n:Nat),
+  (ms.runNSteps n).currInstruction = (ms.runNSteps n).code.instructionMap.get ((ms.runNSteps n).pc)
+  := by
+  simp
+
+
+
+
+
+-- @@ L149-152 expanded
+@[simp]
+theorem addRegister_unfold (ms : MState) :
+    ∀ (i1 i2 : UInt64),
+      ms.addRegister i1 i2 = { ms with registers := TMap.put (i1) i2 ms.registers } :=
+  by simp [MState.addRegister]
+
+
+-- @@ L154-157 expanded
+@[simp]
+theorem addMemory_unfold (ms : MState) :
+    ∀ (i1 i2 : UInt64), ms.addMemory i1 i2 = { ms with memory := TMap.put (i1) i2 ms.memory } := by
+  simp [MState.addMemory]
+
+
+-- @@ L159-162 verbatim
+@[simp] theorem run_zero_steps (ms : MState) :
+  ms.runNSteps 0 = ms := by
+  unfold MState.runNSteps
+  rfl
+
+
+-- @@ L164-177 verbatim
+theorem run_n_run_one : ∀ (ms:MState) (n:Nat),
+  (ms.runNSteps n).runOneStep = ms.runNSteps (n+1) := by
+  intros ms n
+  revert ms
+  induction n
+  case zero =>
+    intros ms
+    rw [MState.run_zero_steps]
+    unfold MState.runNSteps
+    rw [MState.run_zero_steps]
+  case succ n' IHN' =>
+    intros ms
+    unfold MState.runNSteps
+    rw [IHN']
+
+
+-- @@ L179-189 verbatim
+theorem run_n_run_one_comm : ∀ (ms:MState) (n:Nat),
+  (ms.runNSteps n).runOneStep = ms.runOneStep.runNSteps n := by
+  intros ms n
+  revert ms
+  induction n
+  case zero =>
+    simp_all
+  case succ n' IHN' =>
+    intros ms
+    unfold MState.runNSteps
+    rw [IHN']
+
+
+-- @@ L191-195 verbatim
+@[simp] theorem run_one_step_eq_run_n_1 : ∀ (ms:MState),
+  ms.runOneStep = ms.runNSteps 1 := by
+  intros ms
+  unfold MState.runNSteps
+  simp
+
+
+-- @@ L197-208 verbatim
+theorem run_N_comm : ∀ (ms:MState) (n m:Nat),
+  (ms.runNSteps n).runNSteps m = (ms.runNSteps m).runNSteps n := by
+  intros ms n
+  revert ms
+  induction n
+  case zero =>
+    simp_all
+  case succ n IHN' =>
+    intros ms m
+    rw [<- MState.run_n_run_one, <- MState.run_n_run_one]
+    rw [<- IHN']
+    rw [<- MState.run_n_run_one_comm]
+
+
+-- @@ L210-220 verbatim
+@[simp] theorem run_n_m_steps_comp : ∀ (ms:MState) (n m:Nat),
+  (ms.runNSteps n).runNSteps m = ms.runNSteps (n + m) := by
+  intros ms n
+  revert ms
+  induction n
+  case zero =>
+    simp_all
+  case succ n' IHN' =>
+    intros ms m
+    rw [<- MState.run_n_run_one, Nat.add_assoc, <- IHN', Nat.add_comm,
+      <- MState.run_n_run_one, <- MState.run_n_run_one_comm]
+
+
+-- @@ L222-224 verbatim
+theorem add_reg_code_no_change : ∀ (ms:MState) (r v:UInt64),
+  (ms.addRegister r v).code = ms.code := by
+  simp [MState.addRegister]
+
+
+-- @@ L226-228 verbatim
+theorem add_mem_code_no_change : ∀ (ms:MState) (r v:UInt64),
+  (ms.addMemory r v).code = ms.code := by
+  simp [MState.addMemory]
+
+
+-- @@ L230-232 verbatim
+@[simp] theorem set_pc_code_no_change : ∀ (ms:MState) (v:UInt64),
+  (ms.setPc v).code = ms.code := by
+  simp [MState.setPc]
+
+
+-- @@ L234-236 verbatim
+@[simp] theorem set_termianted_code_no_change : ∀ (ms:MState) (v:Bool),
+  (ms.setTerminated v).code = ms.code := by
+  simp [MState.setTerminated]
+
+
+-- @@ L238-246 verbatim
+@[simp] theorem jump_register_indep : ∀ (ms:MState) (m:Memory) (r:Registers) (c:Code) (s:String),
+  ({ms with registers := r, memory := m, code := c}.jump s).pc
+    = ({ms with code := c}.jump s).pc := by
+  intros ms m r c s
+  unfold MState.jump
+  simp
+  cases PMap.get c.labels s
+  · dsimp
+  · simp
+
+
+-- @@ L248-253 verbatim
+theorem get_register_only_register :
+    ∀ (m:Memory) (r:Registers) (c:Code) (terminated:Bool) (i p:UInt64),
+  {registers := r, memory := m, code := c, pc := p,
+    terminated := terminated : MState}.getRegisterAt i =
+  TMap.get r i := by
+  simp [MState.getRegisterAt]
+
+
+-- @@ L255-260 verbatim
+theorem get_register_only_register' :
+    ∀ (ms:MState) (m:Memory) (r:Registers) (c:Code) (terminated:Bool) (i p:UInt64),
+  {ms with memory := m, registers := r, pc := p, code := c, terminated := terminated }.getRegisterAt
+    i =
+  {ms with registers := r}.getRegisterAt i := by
+  simp [MState.getRegisterAt]
+
+
+-- @@ L262-267 verbatim
+theorem get_register_only_memory :
+    ∀ (m:Memory) (r:Registers) (c:Code) (terminated:Bool) (i p:UInt64),
+  {registers := r, memory := m, code := c, pc := p,
+    terminated := terminated : MState}.getMemoryAt i =
+  TMap.get m i := by
+  simp [MState.getMemoryAt]
+
+
+-- @@ L269-274 verbatim
+theorem get_register_only_memory' :
+    ∀ (ms:MState) (m:Memory) (r:Registers) (c:Code) (terminated:Bool) (i p:UInt64),
+  {ms with memory := m, registers := r, pc := p, code := c, terminated := terminated }.getMemoryAt
+    i =
+  {ms with memory := m}.getMemoryAt i := by
+  simp [MState.getMemoryAt]
+
+
+
+-- @@ L277-280 verbatim
+@[simp] theorem get_label_from_code : ∀(ms : MState) (s : String) (l : UInt64),
+  (ms.getLabelAt s = l) = (PMap.get ms.code.labels s = l)
+  := by
+  simp [MState.getLabelAt]
+
+
+-- @@ L282-284 verbatim
+@[simp] theorem getRegisterAt_def : ∀ (ms : MState) (l : UInt64),
+  ms.getRegisterAt l = TMap.get ms.registers l := by
+  simp [MState.getRegisterAt]
+
+
+-- @@ L286-288 verbatim
+@[simp] theorem getMemoryAt_def : ∀ (ms : MState) (l : UInt64),
+  ms.getMemoryAt l = TMap.get ms.memory l := by
+  simp [MState.getMemoryAt]
+
+
+-- @@ L290-292 verbatim
+theorem TMap_register_le_zero_eq_zero : ∀(ms:MState) (l : UInt64),
+    (TMap.get ms.registers l ≤ 0) = (TMap.get ms.registers l = 0) := by
+  simp
+
+
+-- @@ L294-296 verbatim
+theorem register_le_zero_eq_zero : ∀(ms:MState) (l : UInt64),
+    (ms.getRegisterAt l ≤ 0) = (ms.getRegisterAt l = 0) := by
+  simp
+
+
+-- @@ L298-323 verbatim
+theorem runOneSteps_code_remains : ∀ (ms:MState),
+  (ms.runOneStep).code = ms.code
+  := by
+  intros ms
+  unfold MState.runOneStep
+  cases ms.terminated
+  case true => simp
+  case false =>
+    simp only [Bool.false_eq_true, ↓reduceIte, currInstruction_unfold, addRegister_unfold,
+      incPc_increments_pc, getRegisterAt_def, getMemoryAt_def, addMemory_unfold, gt_iff_lt, ne_eq,
+      decide_not]
+    cases TMap.get ms.code.instructionMap ms.pc <;> simp only [set_termianted_code_no_change]
+    case Jump s =>
+      unfold MState.jump
+      cases PMap.get ms.code.labels s <;> simp
+    case JumpEq reg1 reg2 lbl | JumpNeq reg1 reg2 lbl
+      | JumpGt reg1 reg2 lbl | JumpLe reg1 reg2 lbl =>
+      unfold MState.jif' MState.getRegisterAt MState.jump
+      simp
+      split_ifs with h
+      all_goals cases PMap.get ms.code.labels lbl <;> simp
+    case JumpEqZero reg lbl | JumpNeqZero reg lbl =>
+      unfold MState.jif MState.jump
+      simp
+      split_ifs with h
+      all_goals cases PMap.get ms.code.labels lbl <;> simp
+
+
+
+-- @@ L326-338 verbatim
+@[simp] theorem runNSteps_code_remains : ∀ (ms:MState) (n:Nat),
+  (ms.runNSteps n).code = ms.code
+  := by
+  intros ms n
+  unfold MState.runNSteps
+  induction n with
+  | zero =>
+    simp
+  | succ n' IHn' =>
+    dsimp
+    rw [<- run_n_run_one_comm, runOneSteps_code_remains]
+    unfold MState.runNSteps
+    exact IHn'
+
+
+-- @@ L340-347 verbatim
+theorem code_remains_same : ∀ (ms ms' : MState) (code : Code) (n : ℕ),
+  ms.code = code →
+  ms.runNSteps n = ms' →
+  ms'.code = code
+  := by
+  intros ms ms' code n h_code h_run
+  rw [←h_run]
+  simp [h_code]
+
+
+-- @@ L349-355 verbatim
+theorem runNSteps_diff : ∀ (s : MState) (n : Nat) (L1 L2 : Set UInt64),
+  L2 ⊆ L1 →
+  (s.runNSteps n).pc ∉ L1 →
+  (s.runNSteps n).pc ∉ L2
+  := by
+  intros s n L1 L2 HSub H
+  exact Set.notMem_subset HSub H
+
+
+-- @@ L357-363 verbatim
+theorem runNSteps_pc_in_superset : ∀ (s : MState) (n : Nat) (L1 L2 : Set UInt64),
+  L2 ⊆ L1 →
+  (s.runNSteps n).pc ∈ L2 →
+  (s.runNSteps n).pc ∈ L1
+  := by
+  intros s n L1 L2 HSub H
+  exact Set.mem_of_subset_of_mem HSub H
+
+
+-- @@ L365-371 verbatim
+theorem runNSteps_add : ∀ (s s' s'':MState) (n n' : Nat),
+  s.runNSteps n = s' →
+  s'.runNSteps n' = s'' →
+  s.runNSteps (n + n') = s'' := by
+  intros s s' s'' n n' HRun HRun'
+  rw [← run_n_m_steps_comp, HRun]
+  exact HRun'
+
+
+-- @@ L373-382 verbatim
+theorem runNSteps_pc_nin : ∀ (s s' s'': MState) (n n' : Nat) (L : Set UInt64),
+  s.runNSteps n = s' →
+  s'.runNSteps n' = s'' →
+  (s.runNSteps n).pc ∉ L →
+  (s'.runNSteps n').pc ∉ L →
+  (s.runNSteps (n + n')).pc ∉ L
+  := by
+  intros s s' s'' n n' L HRun HRun' _ HNin'
+  rw [runNSteps_add s s' s'' n n' HRun HRun', ← HRun']
+  exact HNin'
+
+
+-- @@ L384-397 verbatim
+theorem runNSteps_pc_nin_extra_step : ∀ (s s' : MState) (n : Nat) (L : Set UInt64),
+  s.runNSteps n = s' →
+  s'.pc ∉ L →
+  (∀ (n' : Nat), 0 < n' ∧ n' < n → (s.runNSteps n').pc ∉ L) →
+  ∀ (n'' : Nat), 0 < n'' ∧ n'' <= n → (s.runNSteps n'').pc ∉ L
+  := by
+  intros s s' n L HRun HPc HRunLTNin n'' Hn''
+  rcases Hn'' with ⟨HN''GtZ, HN''LeN'⟩
+  rw [← HRun] at HPc
+  cases Nat.lt_or_eq_of_le HN''LeN' with
+  | inl hlt =>
+    simp_all
+  | inr heq =>
+    simp_all
+
+
+
+
+-- @@ L401-411 verbatim
+/-- For `m < n'' < m + m'` and `s.runNSteps m = s'`, the `n''`-step run of `s`
+equals an `n'`-step run of `s'` for some `0 < n' < m'`. -/
+private theorem exists_tail_run (s s' : MState) (m m' n'' : Nat)
+    (h_eq : s.runNSteps m = s') (h : m < n'') (hnlt : n'' < m + m') :
+    ∃ n', (0 < n' ∧ n' < m') ∧ s.runNSteps n'' = s'.runNSteps n' := by
+  refine ⟨n'' - m, ⟨Nat.sub_pos_of_lt h, ?_⟩, ?_⟩
+  · exact Nat.lt_sub_left _ _ _ h hnlt
+  · rw [← h_eq]
+    simp only [run_n_m_steps_comp]
+    rw [← Nat.add_sub_assoc, Nat.add_comm, Nat.add_sub_cancel]
+    apply Nat.le_of_lt h
+
+
+-- @@ L413-425 verbatim
+theorem run_n_plus_m_pc_not_in_set :
+  ∀ (s s' : MState) (m m' : Nat) (set : Set UInt64),
+  s.runNSteps m = s' →
+  (∀ (n : ℕ), 0 < n ∧ n ≤ m → (s.runNSteps n).pc ∉ set) →
+  (∀ (n' : ℕ), 0 < n' ∧ n' < m' → (s'.runNSteps n').pc ∉ set) →
+  ∀ (n'' : ℕ), 0 < n'' ∧ n'' < m + m' → (s.runNSteps n'').pc ∉ set := by
+  intros s s' m m' set h_eq hL_b hL_b' n'' hn
+  rcases hn with ⟨hn0, hnlt⟩
+  by_cases h : n'' ≤ m
+  · exact hL_b n'' ⟨hn0, h⟩
+  · push Not at h
+    obtain ⟨n', hn'_pre, h_run_eq⟩ := exists_tail_run s s' m m' n'' h_eq h hnlt
+    simp_all
+
+
+-- @@ L427-440 verbatim
+theorem run_n_plus_m_diff_set :
+  ∀ (s s' : MState) (m m' : Nat) (L_b L_b' : Set UInt64),
+  s.runNSteps m = s' →
+  (∀ (n : ℕ), 0 < n ∧ n ≤ m → (s.runNSteps n).pc ∉ L_b) →
+  (∀ (n' : ℕ), 0 < n' ∧ n' < m' → (s'.runNSteps n').pc ∉ L_b') →
+  ∀ (n'' : ℕ), 0 < n'' ∧ n'' < m + m' → (s.runNSteps n'').pc ∉ L_b ∩ L_b'
+:= by
+  intros s s' m m' L_b L_b' h_eq hL_b hL_b' n'' hn
+  rcases hn with ⟨hn0, hnlt⟩
+  by_cases h : n'' ≤ m
+  · simp_all
+  · push Not at h
+    obtain ⟨n', hn'_pre, h_run_eq⟩ := exists_tail_run s s' m m' n'' h_eq h hnlt
+    simp_all
+
+
+
+-- @@ L443-481 verbatim
+theorem run_n_plus_m_intersect : ∀ (s s' : MState) (m m' : Nat) (L_w L_b L_w' L_b' : Set UInt64),
+  (L_w' ⊆ L_b ∧ L_w ∩ L_w' = ∅) →
+  s.runNSteps m = s' →
+  s'.pc ∈ L_w →
+  s'.pc ∉ L_b →
+  (∀ (n : ℕ), 0 < n ∧ n < m → (s.runNSteps n).pc ∉ L_w ∪ L_b) →
+  (∀ (n' : ℕ), 0 < n' ∧ n' < m' → (s'.runNSteps n').pc ∉ L_w' ∪ L_b') →
+  ∀ (n'' : ℕ), 0 < n'' ∧ n'' < m + m' → (s.runNSteps n'').pc ∉ L_w' ∪ L_b ∩ L_b'
+:= by
+  intros s s' m m' L_w L_b L_w' L_b' h_sets h_run1 h_pc_w h_pc_not_b h_safe1 h_safe2 n'' HN''
+  rcases HN'' with ⟨h_pos, h_lt⟩
+  rcases h_sets with ⟨h_Lw'SubL_b, h_LwInterLw'⟩
+  -- n'' ≤ m → s.runNSteps n'' ∉ L_b ∧ s.runNSteps n'' ∈ L_w
+  -- → s.runNSteps n'' ∉ (L_w' ∪ L_b), da L_w ∩ L_w' = ∅
+  -- n'' > m → s.runNSteps n'' ∉ L_w' ∪ L_b'
+  rw [Set.union_inter_distrib_left]
+  by_cases h: n'' ≤ m
+  · cases Nat.lt_or_eq_of_le h with
+    | inl hlt =>
+      have h_n'': 0 < n'' ∧ n'' < m := And.intro h_pos hlt
+      specialize h_safe1 n'' h_n''
+      have h_safe1_NinLw': (s.runNSteps n'').pc ∉ L_w' ∪ L_b:= by
+        rw [Set.mem_union]
+        simp only [not_or]
+        rw [Set.mem_union] at h_safe1
+        simp only [not_or] at h_safe1
+        rcases h_safe1 with ⟨_, h_safe1_r⟩
+        exact ⟨Set.notMem_subset h_Lw'SubL_b h_safe1_r, h_safe1_r⟩
+      simp_all
+    | inr heq =>
+      have h_pc_not_b' : (s.runNSteps m).pc ∉ L_b := h_run1 ▸ h_pc_not_b
+      have h_safe1_m: (s.runNSteps n'').pc ∉ L_w' ∪ L_b := by
+        rw [heq, Set.mem_union]
+        simpa only [not_or]
+          using ⟨Set.notMem_subset h_Lw'SubL_b h_pc_not_b', h_pc_not_b'⟩
+      simp_all
+  · push Not at h
+    obtain ⟨n', hn'_pre, h_run_eq⟩ := exists_tail_run s s' m m' n'' h_run1 h h_lt
+    simp_all
+
+
+-- @@ L483-483 verbatim
+end MState

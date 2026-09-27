@@ -1,0 +1,72 @@
+/-
+Copyright (c) 2026 D.S. McNeil, Gábor P. Nagy, Attila Vajda. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: D.S. McNeil, Gábor P. Nagy, Attila Vajda
+-/
+module
+
+public import Mathlib.Algebra.Field.Defs
+public import Mathlib.Data.Finset.Prod
+import Mathlib.CategoryTheory.Category.Init
+import Mathlib.Combinatorics.Matroid.Init
+import Mathlib.MeasureTheory.Integral.Bochner.Basic
+import Mathlib.NumberTheory.ArithmeticFunction.Misc
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L16-24 verbatim
+/-!
+# Statement definitions for the cyclic-additive statement surface
+
+These definitions intentionally duplicate the concrete statement definitions
+in `Challenge.lean`.  The Challenge may not import candidate-local helper
+files, so the proof development carries its own copies.  Their semantic
+agreement with the independently structured literature specification was
+checked in the source project before this import.
+-/
+
+
+-- @@ L26-26 verbatim
+@[expose] public section
+
+
+-- @@ L28-28 verbatim
+open Finset
+
+
+-- @@ L30-30 verbatim
+namespace KasamiCyclicAdditive
+
+
+-- @@ L32-32 verbatim
+variable {K : Type*} [Field K] [Fintype K] [DecidableEq K]
+
+
+-- @@ L34-35 verbatim
+/-- The Kasami exponent `4^k - 2^k + 1`. -/
+def kasamiExponent (k : ℕ) : ℕ := 4 ^ k - 2 ^ k + 1
+
+
+-- @@ L37-40 verbatim
+/-- The normalized derivative of the Kasami monomial in direction `1`:
+`δ(b) = (b+1)^d + b^d + 1`. -/
+def kasamiDerivative (k : ℕ) (b : K) : K :=
+  (b + 1) ^ kasamiExponent k + b ^ kasamiExponent k + 1
+
+
+-- @@ L42-44 verbatim
+/-- The image `Δ` of the normalized Kasami derivative. -/
+def derivativeImage (k : ℕ) (K : Type*) [Field K] [Fintype K] [DecidableEq K] : Finset K :=
+  Finset.image (kasamiDerivative k) Finset.univ
+
+
+-- @@ L46-50 verbatim
+/-- The number of triples `(x,y,z) ∈ Δ³` satisfying
+`v₁ x + v₂ y + (v₁+v₂) z = 0`. -/
+def coefficientTripleCount (k : ℕ) (v₁ v₂ : K) : ℕ :=
+  (((derivativeImage k K) ×ˢ (derivativeImage k K) ×ˢ (derivativeImage k K)).filter
+    (fun p => v₁ * p.1 + v₂ * p.2.1 + (v₁ + v₂) * p.2.2 = 0)).card
+
+
+-- @@ L52-52 verbatim
+end KasamiCyclicAdditive

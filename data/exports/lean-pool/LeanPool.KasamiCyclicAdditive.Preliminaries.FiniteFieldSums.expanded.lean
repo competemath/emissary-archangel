@@ -1,0 +1,69 @@
+/-
+Copyright (c) 2026 D.S. McNeil, Gábor P. Nagy, Attila Vajda. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: D.S. McNeil, Gábor P. Nagy, Attila Vajda
+-/
+module
+
+public import Mathlib.Algebra.Field.Defs
+public import Mathlib.Algebra.GroupWithZero.Units.Fintype
+import Mathlib.CategoryTheory.Category.Init
+import Mathlib.Combinatorics.Matroid.Init
+import Mathlib.MeasureTheory.Integral.Bochner.Basic
+import Mathlib.NumberTheory.ArithmeticFunction.Misc
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L16-22 verbatim
+/-!
+# Finite-field sum decompositions
+
+Elementary identities relating sums over the units of a finite field to sums
+over the whole field. This module is deliberately below the character-sum
+and MCM layers so that both can use the same finite-field infrastructure.
+-/
+
+
+-- @@ L24-24 verbatim
+@[expose] public section
+
+
+-- @@ L26-26 verbatim
+open Finset
+
+
+-- @@ L28-28 verbatim
+namespace KasamiCyclicAdditive
+
+
+-- @@ L30-30 verbatim
+variable {K : Type*} [Field K] [Fintype K] [DecidableEq K]
+
+
+-- @@ L32-42 verbatim
+/-- A sum over the unit group equals the sum over the whole field, for a function
+vanishing at `0`. -/
+lemma sum_units_eq_sum {M : Type*} [AddCommMonoid M] (f : K → M) (hf : f 0 = 0) :
+    ∑ b : Kˣ, f (b : K) = ∑ a : K, f a := by
+  have h0 : ∀ x ∈ (Finset.univ : Finset K), x ∉ ({0}ᶜ : Finset K) → f x = 0 := by
+    intro x _ hx
+    simp only [Finset.mem_compl, Finset.mem_singleton, not_not] at hx
+    simp [hx, hf]
+  rw [← Finset.sum_subset (Finset.subset_univ ({0}ᶜ : Finset K)) h0]
+  refine Finset.sum_nbij' (fun b => (b : K)) (fun a => if h : a = 0 then 1 else Units.mk0 a h)
+    ?_ ?_ ?_ ?_ ?_ <;> intro a ha <;> simp_all
+
+
+-- @@ L44-51 verbatim
+/-- Splitting off the value at `0` from a sum over the whole field. -/
+lemma sum_units_add {M : Type*} [AddCommMonoid M] (f : K → M) :
+    f 0 + ∑ b : Kˣ, f (b : K) = ∑ a : K, f a := by
+  have h1 : ∑ b : Kˣ, f (b : K) = ∑ a ∈ ({0} : Finset K)ᶜ, f a := by
+    refine Finset.sum_nbij' (fun b : Kˣ => (b : K))
+      (fun a : K => if h : a = 0 then 1 else Units.mk0 a h) ?_ ?_ ?_ ?_ ?_ <;>
+      intro a ha <;> simp_all
+  rw [h1, ← Finset.sum_add_sum_compl ({0} : Finset K) f, Finset.sum_singleton]
+
+
+-- @@ L53-53 verbatim
+end KasamiCyclicAdditive

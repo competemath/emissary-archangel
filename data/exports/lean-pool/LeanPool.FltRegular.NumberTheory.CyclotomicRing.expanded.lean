@@ -1,0 +1,192 @@
+/-
+Copyright (c) 2026 FltRegular contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: FltRegular contributors
+-/
+
+module
+
+public import Mathlib.NumberTheory.NumberField.Cyclotomic.Basic
+import Mathlib.NumberTheory.NumberField.Cyclotomic.Ideal
+
+
+-- @@ L12-17 verbatim
+/-!
+# Cyclotomic integers
+
+This file defines cyclotomic integers using `AdjoinRoot` and relates them to the ring of
+integers of the corresponding rational cyclotomic field.
+-/
+
+
+-- @@ L19-19 verbatim
+@[expose] public section
+
+
+-- @@ L21-21 verbatim
+noncomputable section
+
+
+-- @@ L23-23 verbatim
+open Polynomial NumberField
+
+
+-- @@ L25-25 verbatim
+variable (p : ℕ) [hpri : Fact p.Prime]
+
+
+-- @@ L27-28 verbatim
+local instance : IsCyclotomicExtension {p} ℚ (CyclotomicField p ℚ) :=
+  CyclotomicField.isCyclotomicExtension p ℚ
+
+
+-- @@ L30-31 verbatim
+/-- The cyclotomic integers of conductor `p`, defined as an `AdjoinRoot`. -/
+def CyclotomicIntegers : Type := AdjoinRoot (cyclotomic p ℤ)
+
+
+-- @@ L33-35 verbatim
+instance : CommRing (CyclotomicIntegers p) := by
+  delta CyclotomicIntegers
+  infer_instance
+
+
+-- @@ L37-45 verbatim
+open Polynomial in
+lemma IsPrimitiveRoot.cyclotomic_eq_minpoly
+    (x : 𝓞 (CyclotomicField p ℚ)) (hx : IsPrimitiveRoot x.1 p) :
+    minpoly ℤ x = cyclotomic p ℤ := by
+  apply Polynomial.map_injective (algebraMap ℤ ℚ) (RingHom.injective_int (algebraMap ℤ ℚ))
+  rw [← minpoly.isIntegrallyClosed_eq_field_fractions ℚ (CyclotomicField p ℚ)
+    (IsIntegralClosure.isIntegral _ (CyclotomicField p ℚ) _),
+    ← cyclotomic_eq_minpoly_rat (n := p) (hpos := hpri.out.pos), map_cyclotomic]
+  exact hx
+
+
+-- @@ L47-47 verbatim
+namespace CyclotomicIntegers
+
+
+-- @@ L49-59 verbatim
+/-- The canonical equivalence between `CyclotomicIntegers p` and the ring of integers of the
+`p`-th cyclotomic field. -/
+@[simps! -isSimp]
+def equiv :
+    CyclotomicIntegers p ≃+* 𝓞 (CyclotomicField p ℚ) := by
+  have H := IsCyclotomicExtension.zeta_spec p ℚ (CyclotomicField p ℚ)
+  have hH : minpoly ℤ H.integralPowerBasis.gen = cyclotomic p ℤ :=
+    H.integralPowerBasis_gen ▸ IsPrimitiveRoot.cyclotomic_eq_minpoly p H.toInteger H
+  exact (AdjoinRoot.equiv' (cyclotomic p ℤ) H.integralPowerBasis
+    (hH ▸ ((AdjoinRoot.aeval_eq _).trans AdjoinRoot.mk_self))
+    (hH ▸ minpoly.aeval _ _)).toRingEquiv
+
+
+-- @@ L61-63 verbatim
+instance : IsDomain (CyclotomicIntegers p) :=
+  AdjoinRoot.isDomain_of_prime (UniqueFactorizationMonoid.irreducible_iff_prime.mp
+    (cyclotomic.irreducible hpri.out.pos))
+
+
+-- @@ L65-66 verbatim
+/-- The tautological primitive root of unity in `CyclotomicIntegers p`. -/
+def zeta : CyclotomicIntegers p := AdjoinRoot.root _
+
+
+-- @@ L68-70 verbatim
+lemma equiv_zeta : equiv p (zeta p) = (IsCyclotomicExtension.zeta_spec
+    p ℚ (CyclotomicField p ℚ)).toInteger := by
+  simp [equiv_apply, zeta]
+
+
+-- @@ L72-77 verbatim
+lemma prime_one_sub_zeta :
+    Prime (1 - zeta p) := by
+  rw [← prime_units_mul (u := -1), Units.val_neg, Units.val_one, neg_mul, one_mul, neg_sub]
+  apply (MulEquiv.prime_iff (equiv p)).1
+  simp only [(equiv p).map_sub, (equiv p).map_one, equiv_zeta]
+  exact (IsCyclotomicExtension.zeta_spec p ℚ (CyclotomicField p ℚ)).zeta_sub_one_prime'
+
+
+-- @@ L79-81 verbatim
+lemma one_sub_zeta_mem_nonZeroDivisors :
+    1 - zeta p ∈ nonZeroDivisors (CyclotomicIntegers p) := by
+  simpa only [mem_nonZeroDivisors_iff_ne_zero] using (prime_one_sub_zeta p).1
+
+
+-- @@ L83-84 verbatim
+lemma not_isUnit_one_sub_zeta :
+    ¬ IsUnit (1 - zeta p) := (prime_one_sub_zeta p).irreducible.1
+
+
+-- @@ L86-90 verbatim
+lemma one_sub_zeta_dvd_int_iff (n : ℤ) : 1 - zeta p ∣ n ↔ ↑p ∣ n := by
+  rw [← map_dvd_iff (equiv p), map_sub, map_one, equiv_zeta, map_intCast,
+    ← neg_dvd, neg_sub]
+  exact IsCyclotomicExtension.Rat.zeta_sub_one_dvd_intCast_iff' p
+    (IsCyclotomicExtension.zeta_spec p ℚ (CyclotomicField p ℚ))
+
+
+-- @@ L92-93 verbatim
+lemma one_sub_zeta_dvd : 1 - zeta p ∣ p :=
+  (one_sub_zeta_dvd_int_iff _ _).2 dvd_rfl
+
+
+-- @@ L95-97 verbatim
+lemma isCoprime_one_sub_zeta (n : ℤ) (hn : ¬ (p : ℤ) ∣ n) : IsCoprime (1 - zeta p) n :=
+  (((Nat.prime_iff_prime_int.mp hpri.out).coprime_iff_not_dvd.mpr hn).map
+    (algebraMap ℤ <| CyclotomicIntegers p)).of_isCoprime_of_dvd_left (one_sub_zeta_dvd p)
+
+
+-- @@ L99-108 verbatim
+lemma exists_dvd_int (n : CyclotomicIntegers p) (hn : n ≠ 0) :
+    ∃ m : ℤ, m ≠ 0 ∧ n ∣ m := by
+  refine ⟨Algebra.norm ℤ ((equiv p) n), by simpa, ?_⟩
+  rw [← map_dvd_iff (equiv p), map_intCast]
+  have : IsCyclotomicExtension {p} ℚ (CyclotomicField p ℚ) :=
+    CyclotomicField.instIsCyclotomicExtensionSingletonNatSetOfCharZero p ℚ
+  have : IsGalois ℚ (CyclotomicField p ℚ) := IsCyclotomicExtension.isGalois {p} _ _
+  convert RingOfIntegers.dvd_norm ℚ (equiv p n) using 1
+  ext1
+  exact DFunLike.congr_arg (algebraMap ℚ _) (Algebra.coe_norm_int (equiv p n))
+
+
+-- @@ L110-112 verbatim
+/-- The power basis of `CyclotomicIntegers p` generated by `zeta p`. -/
+def powerBasis : PowerBasis ℤ (CyclotomicIntegers p) :=
+  AdjoinRoot.powerBasis' (cyclotomic.monic _ _)
+
+
+-- @@ L114-115 verbatim
+lemma powerBasis_dim : (powerBasis p).dim = p - 1 := by
+  simp [powerBasis, Nat.totient_prime hpri.out, natDegree_cyclotomic]
+
+
+-- @@ L117-117 verbatim
+instance : Module.Free ℤ (CyclotomicIntegers p) := ⟨_, (powerBasis p).basis⟩
+
+
+-- @@ L119-125 verbatim
+lemma nontrivial {p} (hp : p ≠ 0) : Nontrivial (CyclotomicIntegers p) := by
+  apply Ideal.Quotient.nontrivial_iff.mpr
+  simp only [ne_eq, Ideal.span_singleton_eq_top]
+  intro h
+  have hdegree := natDegree_eq_zero_of_isUnit h
+  rw [natDegree_cyclotomic] at hdegree
+  exact hdegree.not_gt (Nat.totient_pos.2 <| Nat.zero_lt_of_ne_zero hp)
+
+
+-- @@ L127-129 verbatim
+lemma charZero {p} (hp : p ≠ 0) : CharZero (CyclotomicIntegers p) :=
+  have := nontrivial hp
+  ⟨(FaithfulSMul.algebraMap_injective _ _).comp (algebraMap ℕ ℤ).injective_nat⟩
+
+
+-- @@ L131-131 verbatim
+instance : CharZero (CyclotomicIntegers p) := charZero hpri.out.ne_zero
+
+
+-- @@ L133-133 verbatim
+end CyclotomicIntegers
+
+-- @@ L134-134 verbatim
+end

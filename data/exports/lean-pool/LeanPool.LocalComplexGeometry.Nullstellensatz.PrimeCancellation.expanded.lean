@@ -1,0 +1,81 @@
+/-
+Copyright (c) 2026 BochaoKong. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: BochaoKong
+-/
+module
+
+public import LeanPool.LocalComplexGeometry.Nullstellensatz.RadicalReduction
+import Mathlib.Analysis.SpecialFunctions.Pow.NNReal
+import Mathlib.Data.Sym.Sym2.Init
+import Mathlib.Tactic.NormNum.GCD
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L14-21 verbatim
+/-!
+# Cancellation on a prime analytic zero set
+
+The generic-fiber proof repeatedly clears a denominator `D` which is not in
+the contracted prime.  If `D * c` vanishes on that prime's local zero set,
+the lower-dimensional prime theorem puts the product in the prime, and
+primality cancels `D`.
+-/
+
+
+-- @@ L23-23 verbatim
+@[expose] public section
+
+
+
+-- @@ L26-26 verbatim
+namespace LocalComplexGeometry
+
+
+-- @@ L28-28 verbatim
+noncomputable section
+
+
+-- @@ L30-35 verbatim
+/-- Cancel a nonmember from a product in a prime ideal. -/
+theorem mem_prime_of_mul_mem_of_not_mem {n : ℕ}
+    {P : Ideal (HolomorphicGerm n)} (hP : P.IsPrime)
+    {D c : HolomorphicGerm n} (hD : D ∉ P) (hDc : D * c ∈ P) :
+    c ∈ P := by
+  exact (hP.mem_or_mem hDc).resolve_left hD
+
+
+-- @@ L37-49 verbatim
+/-- Prime zero-set cancellation in the exact form used after denominator
+clearing. -/
+theorem mem_prime_of_mul_vanishes_on_zeroSet
+    {n : ℕ} (hprime : PrimeZeroSetProperty n)
+    (P : Ideal (HolomorphicGerm n)) (hP : P.IsPrime)
+    {D c : HolomorphicGerm n} (hD : D ∉ P)
+    (hvanish : idealZeroSetGerm P ≤ germZeroLocus (D * c)) :
+    c ∈ P := by
+  have hDcVanishing : D * c ∈ vanishingIdeal (idealZeroSetGerm P) := hvanish
+  have hDc : D * c ∈ P := by
+    rw [← hprime P hP]
+    exact hDcVanishing
+  exact mem_prime_of_mul_mem_of_not_mem hP hD hDc
+
+
+-- @@ L51-59 verbatim
+/-- A finite product of elements outside a prime remains outside the prime. -/
+theorem finset_prod_not_mem_prime {R : Type*} [CommRing R]
+    {P : Ideal R} (hP : P.IsPrime) {ι : Type*}
+    (S : Finset ι) (f : ι → R)
+    (hf : ∀ i ∈ S, f i ∉ P) :
+    (∏ i ∈ S, f i) ∉ P := by
+  let : P.IsPrime := hP
+  change (∏ i ∈ S, f i) ∈ P.primeCompl
+  exact Submonoid.prod_mem P.primeCompl fun i hi ↦ hf i hi
+
+
+-- @@ L61-61 verbatim
+end
+
+
+-- @@ L63-63 verbatim
+end LocalComplexGeometry

@@ -1,0 +1,553 @@
+/-
+Copyright (c) 2026 Aurélien Eveil. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Aurélien Eveil, Anthropic, OpenAI
+-/
+
+/-
+The propositional/local-theory layer of the canonical-model proof.
+
+This file deliberately contains no alpha-conversion, fresh-variable, or
+substitution-normalisation argument.  It transcribes Definitions 67--68 and
+Proposition 69 of Chen--Rosu's technical report using the repository's pinned
+right-associated finite-list conjunction `conj`.
+-/
+module
+
+public import LeanPool.MatchingLogic.ProofSystem
+public import Mathlib.Data.Set.BooleanAlgebra
+
+
+-- @@ L20-22 verbatim
+/-!
+# MatchingLogic.EntryIII.LocalTheory
+-/
+
+
+-- @@ L24-24 verbatim
+@[expose] public section
+
+
+-- @@ L26-26 verbatim
+namespace MatchingLogic
+
+
+-- @@ L28-28 verbatim
+variable {S : Signature} {Var : Type} [DecidableEq Var]
+
+
+-- @@ L30-30 verbatim
+noncomputable section
+
+
+-- @@ L32-34 verbatim
+/-- Local decidable equality used for finite local theories. -/
+local instance instDecidableEqPatternLocalTheory : DecidableEq (Pattern S Var) :=
+  Classical.decEq _
+
+
+-- @@ L36-38 verbatim
+private theorem taut_imp_refl : PForm.Taut (.imp (.atom 0) (.atom 0)) := by
+  intro v
+  cases h : v 0 <;> simp [PForm.eval, h]
+
+
+-- @@ L40-43 verbatim
+/-- Reflexivity of implication. -/
+theorem Provable.imp_refl (Gamma : Set (Pattern S Var)) (phi : Pattern S Var) :
+    Provable Gamma (.imp phi phi) := by
+  exact .taut (θ := fun _ => phi) taut_imp_refl
+
+
+-- @@ L45-50 verbatim
+private theorem taut_imp_trans :
+    PForm.Taut (.imp (.imp (.atom 0) (.atom 1))
+      (.imp (.imp (.atom 1) (.atom 2)) (.imp (.atom 0) (.atom 2)))) := by
+  intro v
+  cases h0 : v 0 <;> cases h1 : v 1 <;> cases h2 : v 2 <;>
+    simp [PForm.eval, h0, h1, h2]
+
+
+-- @@ L52-60 verbatim
+/-- Transitivity of implication. -/
+theorem Provable.imp_trans {Gamma : Set (Pattern S Var)}
+    {phi psi chi : Pattern S Var} (h1 : Provable Gamma (.imp phi psi))
+    (h2 : Provable Gamma (.imp psi chi)) : Provable Gamma (.imp phi chi) := by
+  have ht : Provable Gamma
+      (.imp (.imp phi psi) (.imp (.imp psi chi) (.imp phi chi))) := by
+    exact .taut (θ := fun n => if n = 0 then phi else if n = 1 then psi else chi)
+      taut_imp_trans
+  exact .mp h2 (.mp h1 ht)
+
+
+-- @@ L62-65 verbatim
+private theorem taut_imp_of :
+    PForm.Taut (.imp (.atom 0) (.imp (.atom 1) (.atom 0))) := by
+  intro v
+  cases h0 : v 0 <;> cases h1 : v 1 <;> simp [PForm.eval, h0, h1]
+
+
+-- @@ L67-72 verbatim
+/-- A theorem remains derivable under an arbitrary antecedent. -/
+theorem Provable.imp_of {Gamma : Set (Pattern S Var)}
+    {phi psi : Pattern S Var} (h : Provable Gamma phi) : Provable Gamma (.imp psi phi) := by
+  have ht : Provable Gamma (.imp phi (.imp psi phi)) := by
+    exact .taut (θ := fun n => if n = 0 then phi else psi) taut_imp_of
+  exact .mp h ht
+
+
+-- @@ L74-77 verbatim
+private theorem taut_and_elim_left :
+    PForm.Taut (.imp (.imp (.imp (.atom 0) (.imp (.atom 1) .bot)) .bot) (.atom 0)) := by
+  intro v
+  cases h0 : v 0 <;> cases h1 : v 1 <;> simp [PForm.eval, h0, h1]
+
+
+-- @@ L79-84 verbatim
+/-- Left conjunction elimination. -/
+theorem Provable.and_elim_left (Gamma : Set (Pattern S Var)) (phi psi : Pattern S Var) :
+    Provable Gamma (.imp (Pattern.and phi psi) phi) := by
+  simpa [PForm.subst, Pattern.and, Pattern.nt] using
+    (Provable.taut (Γ := Gamma) (θ := fun n => if n = 0 then phi else psi)
+      taut_and_elim_left)
+
+
+-- @@ L86-89 verbatim
+private theorem taut_and_elim_right :
+    PForm.Taut (.imp (.imp (.imp (.atom 0) (.imp (.atom 1) .bot)) .bot) (.atom 1)) := by
+  intro v
+  cases h0 : v 0 <;> cases h1 : v 1 <;> simp [PForm.eval, h0, h1]
+
+
+-- @@ L91-96 verbatim
+/-- Right conjunction elimination. -/
+theorem Provable.and_elim_right (Gamma : Set (Pattern S Var)) (phi psi : Pattern S Var) :
+    Provable Gamma (.imp (Pattern.and phi psi) psi) := by
+  simpa [PForm.subst, Pattern.and, Pattern.nt] using
+    (Provable.taut (Γ := Gamma) (θ := fun n => if n = 0 then phi else psi)
+      taut_and_elim_right)
+
+
+-- @@ L98-101 verbatim
+private theorem taut_or_intro_left :
+    PForm.Taut (.imp (.atom 0) (.imp (.imp (.atom 0) .bot) (.atom 1))) := by
+  intro v
+  cases h0 : v 0 <;> cases h1 : v 1 <;> simp [PForm.eval, h0, h1]
+
+
+-- @@ L103-108 verbatim
+/-- Left disjunction introduction. -/
+theorem Provable.or_intro_left (Gamma : Set (Pattern S Var)) (phi psi : Pattern S Var) :
+    Provable Gamma (.imp phi (Pattern.or phi psi)) := by
+  simpa [PForm.subst, Pattern.or, Pattern.nt] using
+    (Provable.taut (Γ := Gamma) (θ := fun n => if n = 0 then phi else psi)
+      taut_or_intro_left)
+
+
+-- @@ L110-113 verbatim
+private theorem taut_or_intro_right :
+    PForm.Taut (.imp (.atom 1) (.imp (.imp (.atom 0) .bot) (.atom 1))) := by
+  intro v
+  cases h0 : v 0 <;> cases h1 : v 1 <;> simp [PForm.eval, h0, h1]
+
+
+-- @@ L115-120 verbatim
+/-- Right disjunction introduction. -/
+theorem Provable.or_intro_right (Gamma : Set (Pattern S Var)) (phi psi : Pattern S Var) :
+    Provable Gamma (.imp psi (Pattern.or phi psi)) := by
+  simpa [PForm.subst, Pattern.or, Pattern.nt] using
+    (Provable.taut (Γ := Gamma) (θ := fun n => if n = 0 then phi else psi)
+      taut_or_intro_right)
+
+
+-- @@ L122-128 verbatim
+private theorem taut_imp_apply :
+    PForm.Taut (.imp (.imp (.atom 0) (.atom 1))
+      (.imp (.imp (.atom 0) (.imp (.atom 1) (.atom 2)))
+        (.imp (.atom 0) (.atom 2)))) := by
+  intro v
+  cases h0 : v 0 <;> cases h1 : v 1 <;> cases h2 : v 2 <;>
+    simp [PForm.eval, h0, h1, h2]
+
+
+-- @@ L130-137 verbatim
+private theorem Provable.imp_apply {Gamma : Set (Pattern S Var)}
+    {alpha beta gamma : Pattern S Var} (h1 : Provable Gamma (.imp alpha beta))
+    (h2 : Provable Gamma (.imp alpha (.imp beta gamma))) : Provable Gamma (.imp alpha gamma) := by
+  have ht : Provable Gamma
+      (.imp (.imp alpha beta) (.imp (.imp alpha (.imp beta gamma)) (.imp alpha gamma))) := by
+    exact .taut (θ := fun n => if n = 0 then alpha else if n = 1 then beta else gamma)
+      taut_imp_apply
+  exact .mp h2 (.mp h1 ht)
+
+
+-- @@ L139-145 verbatim
+private theorem taut_imp_imp_trans :
+    PForm.Taut (.imp (.imp (.atom 0) (.imp (.atom 1) (.atom 2)))
+      (.imp (.imp (.atom 2) (.atom 3))
+        (.imp (.atom 0) (.imp (.atom 1) (.atom 3))))) := by
+  intro v
+  cases h0 : v 0 <;> cases h1 : v 1 <;> cases h2 : v 2 <;> cases h3 : v 3 <;>
+    simp [PForm.eval, h0, h1, h2, h3]
+
+
+-- @@ L147-158 verbatim
+private theorem Provable.imp_imp_trans {Gamma : Set (Pattern S Var)}
+    {alpha beta gamma delta : Pattern S Var}
+    (h1 : Provable Gamma (.imp alpha (.imp beta gamma)))
+    (h2 : Provable Gamma (.imp gamma delta)) :
+    Provable Gamma (.imp alpha (.imp beta delta)) := by
+  have ht : Provable Gamma
+      (.imp (.imp alpha (.imp beta gamma))
+        (.imp (.imp gamma delta) (.imp alpha (.imp beta delta)))) := by
+    exact .taut (θ := fun n =>
+      if n = 0 then alpha else if n = 1 then beta else if n = 2 then gamma else delta)
+      taut_imp_imp_trans
+  exact .mp h2 (.mp h1 ht)
+
+
+-- @@ L160-165 verbatim
+private theorem taut_not_or :
+    PForm.Taut (.imp (.imp (.atom 0) .bot)
+      (.imp (.imp (.atom 1) .bot)
+        (.imp (.imp (.imp (.atom 0) .bot) (.atom 1)) .bot))) := by
+  intro v
+  cases h0 : v 0 <;> cases h1 : v 1 <;> simp [PForm.eval, h0, h1]
+
+
+-- @@ L167-173 verbatim
+private theorem Provable.not_or {Gamma : Set (Pattern S Var)}
+    (phi psi : Pattern S Var) :
+    Provable Gamma
+      (.imp (Pattern.nt phi) (.imp (Pattern.nt psi)
+        (Pattern.nt (Pattern.or phi psi)))) := by
+  simpa [PForm.subst, Pattern.nt, Pattern.or] using
+    (Provable.taut (Γ := Gamma) (θ := fun n => if n = 0 then phi else psi) taut_not_or)
+
+
+-- @@ L175-181 verbatim
+private theorem taut_imp_and :
+    PForm.Taut (.imp (.imp (.atom 0) (.atom 1))
+      (.imp (.imp (.atom 0) (.atom 2))
+        (.imp (.atom 0) (.imp (.imp (.atom 1) (.imp (.atom 2) .bot)) .bot)))) := by
+  intro v
+  cases h0 : v 0 <;> cases h1 : v 1 <;> cases h2 : v 2 <;>
+    simp [PForm.eval, h0, h1, h2]
+
+
+-- @@ L183-193 verbatim
+/-- Combine two consequences with the same antecedent. -/
+theorem Provable.imp_and {Gamma : Set (Pattern S Var)}
+    {alpha beta gamma : Pattern S Var} (h1 : Provable Gamma (.imp alpha beta))
+    (h2 : Provable Gamma (.imp alpha gamma)) :
+    Provable Gamma (.imp alpha (Pattern.and beta gamma)) := by
+  have ht : Provable Gamma
+      (.imp (.imp alpha beta) (.imp (.imp alpha gamma) (.imp alpha (Pattern.and beta gamma)))) := by
+    simpa [PForm.subst, Pattern.and, Pattern.nt] using
+      (Provable.taut (Γ := Gamma)
+        (θ := fun n => if n = 0 then alpha else if n = 1 then beta else gamma) taut_imp_and)
+  exact .mp h2 (.mp h1 ht)
+
+
+-- @@ L195-202 verbatim
+private theorem taut_imp_imp_and :
+    PForm.Taut (.imp (.imp (.atom 0) (.imp (.atom 1) (.atom 2)))
+      (.imp (.imp (.atom 0) (.imp (.atom 1) (.atom 3)))
+        (.imp (.atom 0) (.imp (.atom 1)
+          (.imp (.imp (.atom 2) (.imp (.atom 3) .bot)) .bot))))) := by
+  intro v
+  cases h0 : v 0 <;> cases h1 : v 1 <;> cases h2 : v 2 <;> cases h3 : v 3 <;>
+    simp [PForm.eval, h0, h1, h2, h3]
+
+
+-- @@ L204-218 verbatim
+private theorem Provable.imp_imp_and {Gamma : Set (Pattern S Var)}
+    {alpha beta gamma delta : Pattern S Var}
+    (h1 : Provable Gamma (.imp alpha (.imp beta gamma)))
+    (h2 : Provable Gamma (.imp alpha (.imp beta delta))) :
+    Provable Gamma (.imp alpha (.imp beta (Pattern.and gamma delta))) := by
+  have ht : Provable Gamma
+      (.imp (.imp alpha (.imp beta gamma))
+        (.imp (.imp alpha (.imp beta delta))
+          (.imp alpha (.imp beta (Pattern.and gamma delta))))) := by
+    simpa [PForm.subst, Pattern.and, Pattern.nt] using
+      (Provable.taut (Γ := Gamma)
+        (θ := fun n =>
+          if n = 0 then alpha else if n = 1 then beta else if n = 2 then gamma else delta)
+        taut_imp_imp_and)
+  exact .mp h2 (.mp h1 ht)
+
+
+-- @@ L220-220 verbatim
+/-! ### Definition 67: finite-premise local derivability -/
+
+
+-- @@ L222-227 verbatim
+/-- `Γ ⊢loc φ`: a finite list of premises from `Γ` has a theorem implication to
+`φ`.  Lists, rather than finite sets, are the pinned representation of the
+finite conjunction and make its bracketing explicit. -/
+def LocProvable (Gamma : Set (Pattern S Var)) (phi : Pattern S Var) : Prop :=
+  ∃ l : List (Pattern S Var), (∀ delta ∈ l, delta ∈ Gamma) ∧
+    Provable (∅ : Set (Pattern S Var)) (.imp (conj l) phi)
+
+
+-- @@ L229-231 verbatim
+/-- Definition 68: local consistency. -/
+def LocConsistent (Gamma : Set (Pattern S Var)) : Prop :=
+  ¬ LocProvable Gamma (.bot : Pattern S Var)
+
+
+-- @@ L233-236 verbatim
+/-- Definition 68: a locally consistent set with no locally consistent strict
+extension. -/
+def IsMCS (Gamma : Set (Pattern S Var)) : Prop :=
+  LocConsistent Gamma ∧ ∀ {Delta : Set (Pattern S Var)}, Gamma ⊂ Delta → ¬ LocConsistent Delta
+
+
+-- @@ L238-238 verbatim
+namespace LocProvable
+
+
+-- @@ L240-243 verbatim
+theorem mono {Gamma Delta : Set (Pattern S Var)} {phi : Pattern S Var}
+    (hGD : Gamma ⊆ Delta) (h : LocProvable Gamma phi) : LocProvable Delta phi := by
+  rcases h with ⟨l, hl, hp⟩
+  exact ⟨l, fun delta hdelta => hGD (hl delta hdelta), hp⟩
+
+
+-- @@ L245-251 verbatim
+theorem of_mem {Gamma : Set (Pattern S Var)} {phi : Pattern S Var}
+    (h : phi ∈ Gamma) : LocProvable Gamma phi := by
+  refine ⟨[phi], ?_, ?_⟩
+  · intro delta hdelta
+    have hEq : delta = phi := by simpa using hdelta
+    simpa [hEq] using h
+  · simpa [conj] using Provable.and_elim_left (∅ : Set (Pattern S Var)) phi Pattern.tp
+
+
+-- @@ L253-257 verbatim
+theorem of_provable {Gamma : Set (Pattern S Var)} {phi : Pattern S Var}
+    (h : Provable (∅ : Set (Pattern S Var)) phi) : LocProvable Gamma phi := by
+  refine ⟨[], ?_, ?_⟩
+  · simp
+  · simpa [conj] using h.imp_of
+
+
+-- @@ L259-266 verbatim
+private theorem conj_append_left (l r : List (Pattern S Var)) :
+    Provable (∅ : Set (Pattern S Var)) (.imp (conj (l ++ r)) (conj l)) := by
+  induction l with
+  | nil => simpa [conj] using (provable_top (∅ : Set (Pattern S Var))).imp_of
+  | cons phi l ih =>
+      apply Provable.imp_and
+      · exact Provable.and_elim_left _ phi (conj (l ++ r))
+      · exact (Provable.and_elim_right _ phi (conj (l ++ r))).imp_trans ih
+
+
+-- @@ L268-273 verbatim
+private theorem conj_append_right (l r : List (Pattern S Var)) :
+    Provable (∅ : Set (Pattern S Var)) (.imp (conj (l ++ r)) (conj r)) := by
+  induction l with
+  | nil => simpa using Provable.imp_refl (∅ : Set (Pattern S Var)) (conj r)
+  | cons phi l ih =>
+      exact (Provable.and_elim_right _ phi (conj (l ++ r))).imp_trans ih
+
+
+-- @@ L275-286 verbatim
+theorem mp {Gamma : Set (Pattern S Var)} {phi psi : Pattern S Var}
+    (hphi : LocProvable Gamma phi) (himp : LocProvable Gamma (.imp phi psi)) :
+    LocProvable Gamma psi := by
+  rcases hphi with ⟨lphi, hlphi, hp⟩
+  rcases himp with ⟨limp, hlimp, hi⟩
+  refine ⟨lphi ++ limp, ?_, ?_⟩
+  · intro delta hdelta
+    rcases List.mem_append.mp hdelta with hdelta | hdelta
+    · exact hlphi delta hdelta
+    · exact hlimp delta hdelta
+  · exact ((conj_append_left lphi limp).imp_trans hp).imp_apply
+      ((conj_append_right lphi limp).imp_trans hi)
+
+
+-- @@ L288-299 verbatim
+theorem and_intro {Gamma : Set (Pattern S Var)} {phi psi : Pattern S Var}
+    (hphi : LocProvable Gamma phi) (hpsi : LocProvable Gamma psi) :
+    LocProvable Gamma (Pattern.and phi psi) := by
+  rcases hphi with ⟨lphi, hlphi, hp⟩
+  rcases hpsi with ⟨lpsi, hlpsi, hq⟩
+  refine ⟨lphi ++ lpsi, ?_, ?_⟩
+  · intro delta hdelta
+    rcases List.mem_append.mp hdelta with hdelta | hdelta
+    · exact hlphi delta hdelta
+    · exact hlpsi delta hdelta
+  · exact Provable.imp_and ((conj_append_left lphi lpsi).imp_trans hp)
+      ((conj_append_right lphi lpsi).imp_trans hq)
+
+
+-- @@ L301-320 verbatim
+private theorem filter_imp_conj (phi : Pattern S Var) (l : List (Pattern S Var)) :
+    Provable (∅ : Set (Pattern S Var))
+      (.imp (conj (l.filter (fun delta => decide (delta ≠ phi)))) (.imp phi (conj l))) := by
+  classical
+  induction l with
+  | nil =>
+      simpa [conj] using ((provable_top (∅ : Set (Pattern S Var))).imp_of).imp_of
+  | cons delta l ih =>
+      by_cases hdelta : delta = phi
+      · subst delta
+        simpa [conj] using (Provable.imp_imp_and (Provable.imp_refl _ _ |>.imp_of) ih)
+      · let tail := conj (l.filter fun eta => decide (eta ≠ phi))
+        have hleft : Provable (∅ : Set (Pattern S Var))
+            (.imp (Pattern.and delta tail) (.imp phi delta)) :=
+          (Provable.and_elim_left _ delta tail).imp_trans
+            (Provable.taut (θ := fun n => if n = 0 then delta else phi) taut_imp_of)
+        have hright : Provable (∅ : Set (Pattern S Var))
+            (.imp (Pattern.and delta tail) (.imp phi (conj l))) :=
+          (Provable.and_elim_right _ delta tail).imp_trans ih
+        simpa [tail, hdelta, conj] using Provable.imp_imp_and hleft hright
+
+
+-- @@ L322-336 verbatim
+/-- A single added local premise can be discharged inside the finite-premise
+definition.  This is propositional only; it does not use the global deduction
+theorem, which would be unsound for unrestricted quantifier generalisation. -/
+theorem deduction_insert {Gamma : Set (Pattern S Var)} {phi psi : Pattern S Var}
+    (h : LocProvable (insert phi Gamma) psi) : LocProvable Gamma (.imp phi psi) := by
+  classical
+  rcases h with ⟨l, hl, hp⟩
+  refine ⟨l.filter (fun delta => decide (delta ≠ phi)), ?_, ?_⟩
+  · intro delta hdelta
+    have hlin : delta ∈ l := (List.mem_filter.mp hdelta).1
+    have hne : delta ≠ phi := of_decide_eq_true (List.mem_filter.mp hdelta).2
+    rcases hl delta hlin with hEq | hGamma
+    · exact False.elim (hne hEq)
+    · exact hGamma
+  · exact (filter_imp_conj phi l).imp_imp_trans hp
+
+
+-- @@ L338-338 verbatim
+end LocProvable
+
+
+-- @@ L340-340 verbatim
+/-! ### Proposition 69: maximal-consistent-set closure -/
+
+
+-- @@ L342-342 verbatim
+namespace IsMCS
+
+
+-- @@ L344-354 verbatim
+private theorem not_mem_loc_neg {Gamma : Set (Pattern S Var)} {phi : Pattern S Var}
+    (hM : IsMCS Gamma) (hphi : phi ∉ Gamma) : LocProvable Gamma (Pattern.nt phi) := by
+  by_contra hneg
+  have hstrict : Gamma ⊂ insert phi Gamma := by
+    refine Set.ssubset_iff_subset_ne.mpr ⟨Set.subset_insert _ _, ?_⟩
+    intro hEq
+    exact hphi (hEq ▸ Set.mem_insert phi Gamma)
+  have hbad : ¬ LocConsistent (insert phi Gamma) := hM.2 hstrict
+  apply hbad
+  intro hbot
+  exact hneg (hbot.deduction_insert)
+
+
+-- @@ L356-365 verbatim
+/-- Proposition 69(1): membership is exactly local derivability. -/
+theorem mem_iff_locProvable {Gamma : Set (Pattern S Var)} {phi : Pattern S Var}
+    (hM : IsMCS Gamma) : phi ∈ Gamma ↔ LocProvable Gamma phi := by
+  constructor
+  · exact LocProvable.of_mem
+  · intro hphi
+    by_contra hnot
+    have hneg := not_mem_loc_neg hM hnot
+    apply hM.1
+    exact hphi.mp hneg
+
+
+-- @@ L367-376 verbatim
+/-- Proposition 69(2): an MCS contains precisely one of a pattern and its
+negation. -/
+theorem neg_mem_iff_not_mem {Gamma : Set (Pattern S Var)} {phi : Pattern S Var}
+    (hM : IsMCS Gamma) : Pattern.nt phi ∈ Gamma ↔ phi ∉ Gamma := by
+  constructor
+  · intro hneg hphi
+    apply hM.1
+    exact (hM.mem_iff_locProvable.mp hphi).mp (hM.mem_iff_locProvable.mp hneg)
+  · intro hphi
+    exact hM.mem_iff_locProvable.mpr (not_mem_loc_neg hM hphi)
+
+
+-- @@ L378-392 verbatim
+/-- Proposition 69(3), binary case. -/
+theorem and_mem_iff {Gamma : Set (Pattern S Var)} {phi psi : Pattern S Var}
+    (hM : IsMCS Gamma) : Pattern.and phi psi ∈ Gamma ↔ phi ∈ Gamma ∧ psi ∈ Gamma := by
+  constructor
+  · intro hand
+    constructor
+    · exact hM.mem_iff_locProvable.mpr
+        ((hM.mem_iff_locProvable.mp hand).mp
+          (LocProvable.of_provable (Provable.and_elim_left _ phi psi)))
+    · exact hM.mem_iff_locProvable.mpr
+        ((hM.mem_iff_locProvable.mp hand).mp
+          (LocProvable.of_provable (Provable.and_elim_right _ phi psi)))
+  · rintro ⟨hphi, hpsi⟩
+    exact hM.mem_iff_locProvable.mpr
+      ((hM.mem_iff_locProvable.mp hphi).and_intro (hM.mem_iff_locProvable.mp hpsi))
+
+
+-- @@ L394-401 verbatim
+/-- Proposition 69(3), for the repository's finite-list conjunction. -/
+theorem conj_mem_iff {Gamma : Set (Pattern S Var)} (hM : IsMCS Gamma)
+    (l : List (Pattern S Var)) : conj l ∈ Gamma ↔ ∀ phi ∈ l, phi ∈ Gamma := by
+  induction l with
+  | nil =>
+      simp [conj, hM.mem_iff_locProvable.mpr (LocProvable.of_provable (provable_top _))]
+  | cons phi l ih =>
+      simp [conj, hM.and_mem_iff, ih]
+
+
+-- @@ L403-426 verbatim
+/-- Proposition 69(4), binary case. -/
+theorem or_mem_iff {Gamma : Set (Pattern S Var)} {phi psi : Pattern S Var}
+    (hM : IsMCS Gamma) : Pattern.or phi psi ∈ Gamma ↔ phi ∈ Gamma ∨ psi ∈ Gamma := by
+  constructor
+  · intro hor
+    by_contra hneither
+    have hnotphi : phi ∉ Gamma := fun hphi => hneither (Or.inl hphi)
+    have hnotpsi : psi ∉ Gamma := fun hpsi => hneither (Or.inr hpsi)
+    have hnphi : Pattern.nt phi ∈ Gamma := hM.neg_mem_iff_not_mem.mpr hnotphi
+    have hnpsi : Pattern.nt psi ∈ Gamma := hM.neg_mem_iff_not_mem.mpr hnotpsi
+    have hnotor : Pattern.nt (Pattern.or phi psi) ∈ Gamma := by
+      have hstep : LocProvable Gamma
+          (.imp (Pattern.nt psi) (Pattern.nt (Pattern.or phi psi))) :=
+        (hM.mem_iff_locProvable.mp hnphi).mp
+          (LocProvable.of_provable (Provable.not_or phi psi))
+      exact hM.mem_iff_locProvable.mpr ((hM.mem_iff_locProvable.mp hnpsi).mp hstep)
+    exact hM.1 ((hM.mem_iff_locProvable.mp hor).mp (hM.mem_iff_locProvable.mp hnotor))
+  · intro h
+    apply hM.mem_iff_locProvable.mpr
+    rcases h with hphi | hpsi
+    · exact (hM.mem_iff_locProvable.mp hphi).mp
+        (LocProvable.of_provable (Provable.or_intro_left _ phi psi))
+    · exact (hM.mem_iff_locProvable.mp hpsi).mp
+        (LocProvable.of_provable (Provable.or_intro_right _ phi psi))
+
+
+-- @@ L428-433 verbatim
+/-- Proposition 69(5). -/
+theorem mp_mem {Gamma : Set (Pattern S Var)} {phi psi : Pattern S Var}
+    (hM : IsMCS Gamma) (hphi : phi ∈ Gamma) (himp : Pattern.imp phi psi ∈ Gamma) :
+    psi ∈ Gamma :=
+  hM.mem_iff_locProvable.mpr ((hM.mem_iff_locProvable.mp hphi).mp
+    (hM.mem_iff_locProvable.mp himp))
+
+
+-- @@ L435-435 verbatim
+end IsMCS
+
+
+-- @@ L437-437 verbatim
+end
+
+
+-- @@ L439-439 verbatim
+end MatchingLogic

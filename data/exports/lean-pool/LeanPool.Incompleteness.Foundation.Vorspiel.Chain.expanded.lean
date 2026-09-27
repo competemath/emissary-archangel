@@ -1,0 +1,69 @@
+/-
+Copyright (c) 2026 Palalansoukî. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Palalansoukî
+-/
+module
+
+public import Aesop.BuiltinRules
+public import Batteries.Data.List.Basic
+public import Mathlib.Basic.Finite.Defs
+public import Mathlib.Tactic.ToAdditive
+public import Mathlib.Tactic.ToDual
+import Mathlib.Data.Fintype.EquivFin
+import Mathlib.Data.Fintype.List
+
+
+-- @@ L16-16 verbatim
+/-! # Chain -/
+
+
+-- @@ L18-18 verbatim
+@[expose] public section
+
+
+
+-- @@ L21-21 verbatim
+namespace List
+
+
+-- @@ L23-23 verbatim
+variable {l l₁ l₂ : List α}
+
+-- @@ L24-24 verbatim
+variable {R : α → α → Prop}
+
+
+-- @@ L26-34 verbatim
+lemma _root_.List.IsChain.nodup_of_trans_irreflex
+    (R_trans : IsTrans α R) (R_irrefl : Std.Irrefl R) (h_chain : l.IsChain R) :
+    l.Nodup := by
+  have : IsTrans α R := R_trans
+  by_contra hC
+  replace ⟨d, hC⟩ := List.exists_duplicate_iff_not_nodup.mpr hC
+  have hsub := List.duplicate_iff_sublist.mp hC
+  rw [List.isChain_iff_pairwise] at h_chain
+  exact R_irrefl.irrefl d (by simpa using h_chain.sublist hsub)
+
+
+-- @@ L36-38 verbatim
+instance finiteNodupList [Finite α] : Finite { l : List α // l.Nodup } := by
+  classical
+  exact (@fintypeNodupList α (Fintype.ofFinite α)).finite
+
+
+-- @@ L40-49 verbatim
+lemma chains_finite [Finite α] (R_trans : IsTrans α R) (R_irrefl : Std.Irrefl R) :
+    Finite { l : List α // l.IsChain R } := by
+  classical
+  exact Finite.of_injective
+    (fun l : { l : List α // l.IsChain R } =>
+      (⟨l.1, List.IsChain.nodup_of_trans_irreflex R_trans R_irrefl l.2⟩ :
+        { l : List α // l.Nodup }))
+    (by
+      rintro ⟨a, _⟩ ⟨b, _⟩ h
+      simpa using h)
+
+
+-- @@ L51-51 verbatim
+end List

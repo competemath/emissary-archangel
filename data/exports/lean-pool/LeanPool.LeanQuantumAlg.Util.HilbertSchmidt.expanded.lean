@@ -1,0 +1,165 @@
+/-
+Copyright (c) 2026 QudeLeap. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: QudeLeap Team
+-/
+
+module
+
+public import Mathlib.LinearAlgebra.Matrix.Kronecker
+public import Mathlib.Basic.Complex.Basic
+
+
+-- @@ L12-25 verbatim
+/-!
+# The Hilbert–Schmidt inner product on matrices
+
+The **Hilbert–Schmidt (Frobenius) inner product** of two complex matrices is
+`⟪A, B⟫ = Tr[Aᴴ B]`. Mathlib equips `Matrix` with the Frobenius *norm* but not (as a
+global instance) with this inner product, so this quantum-free helper records the
+plain bilinear data needed downstream: conjugate symmetry, sesquilinearity, and — the
+key fact for the Lie-algebraic variance formula — **multiplicativity over the
+Kronecker product**, `⟪A ⊗ C, B ⊗ D⟫ = ⟪A, B⟫ · ⟪C, D⟫`.
+
+(The genuine `InnerProductSpace` structure, when needed for Gram–Schmidt / orthonormal
+bases, is obtained separately by transport along the linear isometry to
+`EuclideanSpace ℂ (m × m)`.)
+-/
+
+
+-- @@ L27-27 verbatim
+@[expose] public section
+
+
+-- @@ L29-29 verbatim
+namespace QuantumAlg
+
+
+-- @@ L31-31 verbatim
+open Matrix
+
+-- @@ L32-32 verbatim
+open scoped Kronecker
+
+
+-- @@ L34-34 verbatim
+variable {m : Type*} [Fintype m]
+
+
+-- @@ L36-38 verbatim
+/-- The Hilbert–Schmidt (Frobenius) inner product `⟪A, B⟫ = Tr[Aᴴ B]`. Conjugate-linear
+in the first argument, linear in the second. -/
+def hsInner (A B : Matrix m m ℂ) : ℂ := (Aᴴ * B).trace
+
+
+-- @@ L40-40 verbatim
+@[simp] theorem hsInner_def (A B : Matrix m m ℂ) : hsInner A B = (Aᴴ * B).trace := rfl
+
+
+-- @@ L42-46 verbatim
+/-- Conjugate symmetry: `⟪A, B⟫ = conj ⟪B, A⟫`. -/
+theorem hsInner_conj_symm (A B : Matrix m m ℂ) :
+    hsInner A B = (starRingEnd ℂ) (hsInner B A) := by
+  rw [hsInner, hsInner, starRingEnd_apply, ← Matrix.trace_conjTranspose,
+    conjTranspose_mul, conjTranspose_conjTranspose]
+
+
+-- @@ L48-51 verbatim
+/-- Additivity in the second argument. -/
+theorem hsInner_add_right (A B C : Matrix m m ℂ) :
+    hsInner A (B + C) = hsInner A B + hsInner A C := by
+  simp [hsInner, Matrix.mul_add, Matrix.trace_add]
+
+
+-- @@ L53-56 verbatim
+/-- Additivity in the first argument. -/
+theorem hsInner_add_left (A B C : Matrix m m ℂ) :
+    hsInner (A + B) C = hsInner A C + hsInner B C := by
+  simp [hsInner, conjTranspose_add, Matrix.add_mul, Matrix.trace_add]
+
+
+-- @@ L58-61 verbatim
+/-- Subtractivity in the second argument. -/
+theorem hsInner_sub_right (A B C : Matrix m m ℂ) :
+    hsInner A (B - C) = hsInner A B - hsInner A C := by
+  simp [hsInner, Matrix.mul_sub, Matrix.trace_sub]
+
+
+-- @@ L63-66 verbatim
+/-- Subtractivity in the first argument. -/
+theorem hsInner_sub_left (A B C : Matrix m m ℂ) :
+    hsInner (A - B) C = hsInner A C - hsInner B C := by
+  simp [hsInner, conjTranspose_sub, Matrix.sub_mul, Matrix.trace_sub]
+
+
+-- @@ L68-71 verbatim
+/-- Linearity in the second argument. -/
+theorem hsInner_smul_right (c : ℂ) (A B : Matrix m m ℂ) :
+    hsInner A (c • B) = c * hsInner A B := by
+  simp [hsInner, Matrix.mul_smul, Matrix.trace_smul, smul_eq_mul]
+
+
+-- @@ L73-76 verbatim
+/-- Conjugate-linearity in the first argument. -/
+theorem hsInner_smul_left (c : ℂ) (A B : Matrix m m ℂ) :
+    hsInner (c • A) B = (starRingEnd ℂ) c * hsInner A B := by
+  simp [hsInner, conjTranspose_smul, Matrix.smul_mul, Matrix.trace_smul, smul_eq_mul]
+
+
+-- @@ L78-82 verbatim
+/-- Additivity over a finite sum in the second argument. -/
+theorem hsInner_sum_right {ι : Type*} (A : Matrix m m ℂ) (s : Finset ι)
+    (f : ι → Matrix m m ℂ) :
+    hsInner A (∑ i ∈ s, f i) = ∑ i ∈ s, hsInner A (f i) := by
+  simp only [hsInner, Matrix.mul_sum, Matrix.trace_sum]
+
+
+-- @@ L84-88 verbatim
+/-- Additivity over a finite sum in the first argument. -/
+theorem hsInner_sum_left {ι : Type*} (s : Finset ι) (f : ι → Matrix m m ℂ)
+    (B : Matrix m m ℂ) :
+    hsInner (∑ i ∈ s, f i) B = ∑ i ∈ s, hsInner (f i) B := by
+  simp only [hsInner, conjTranspose_sum, Matrix.sum_mul, Matrix.trace_sum]
+
+
+-- @@ L90-96 verbatim
+/-- **Multiplicativity over the Kronecker product** — the key identity for assembling
+the quadratic Casimir's inner products: `⟪A ⊗ C, B ⊗ D⟫ = ⟪A, B⟫ · ⟪C, D⟫`. -/
+theorem hsInner_kronecker {n : Type*} [Fintype n]
+    (A B : Matrix m m ℂ) (C D : Matrix n n ℂ) :
+    hsInner (A ⊗ₖ C) (B ⊗ₖ D) = hsInner A B * hsInner C D := by
+  rw [hsInner, hsInner, hsInner, conjTranspose_kronecker, ← mul_kronecker_mul,
+    trace_kronecker]
+
+
+-- @@ L98-101 verbatim
+/-- For Hermitian arguments the Hilbert–Schmidt inner product is symmetric. -/
+theorem hsInner_comm_of_isHermitian {A B : Matrix m m ℂ} (hA : Aᴴ = A) (hB : Bᴴ = B) :
+    hsInner A B = hsInner B A := by
+  rw [hsInner, hsInner, hA, hB, Matrix.trace_mul_comm]
+
+
+-- @@ L103-107 verbatim
+/-- For Hermitian arguments the Hilbert–Schmidt inner product is real. -/
+theorem hsInner_conj_of_isHermitian {A B : Matrix m m ℂ} (hA : Aᴴ = A) (hB : Bᴴ = B) :
+    (starRingEnd ℂ) (hsInner A B) = hsInner A B := by
+  rw [← hsInner_conj_symm]
+  exact hsInner_comm_of_isHermitian hB hA
+
+
+-- @@ L109-119 verbatim
+/-- The matrix units `single i j 1` are Hilbert–Schmidt orthonormal. -/
+theorem hsInner_single [DecidableEq m] (i j k l : m) :
+    hsInner (Matrix.single i j (1 : ℂ)) (Matrix.single k l 1)
+      = if i = k ∧ j = l then 1 else 0 := by
+  rw [hsInner, Matrix.conjTranspose_single, star_one, Matrix.trace_single_mul, one_smul]
+  by_cases h : i = k ∧ j = l
+  · simp_all
+  · rw [ite_eq_right h]
+    apply Matrix.single_apply_of_ne
+    rintro ⟨hki, hlj⟩
+    exact h ⟨hki.symm, hlj.symm⟩
+
+
+-- @@ L121-121 verbatim
+end QuantumAlg

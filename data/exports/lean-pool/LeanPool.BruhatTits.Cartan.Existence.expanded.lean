@@ -1,0 +1,997 @@
+/-
+Copyright (c) 2026 Judith Ludwig, Christian Merten. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Judith Ludwig, Christian Merten
+-/
+module
+
+public import LeanPool.BruhatTits.Utils.RingHom
+public import LeanPool.BruhatTits.Utils.Matrix
+public import LeanPool.BruhatTits.Utils.Misc
+public import Mathlib.RingTheory.DiscreteValuationRing.Basic
+import LeanPool.BruhatTits.Utils.ValuationRings
+
+
+-- @@ L14-35 verbatim
+/-!
+
+# The Cartan Decomposition of GL(n,K) for K a discretely valued field
+
+We establish the Cartan decomposition of `GL(n,K)` for `K` a discretely valued field.
+
+Given `K` as the fraction field of a DVR `R` with uniformizer `ϖ`, the Cartan decomposition
+says that any matrix `g ∈ GL(n,K)` can be written as a product `k_1 * diag * k_2`, where
+`k_i ∈ GL(n,R)` and `diag` is a diagonal matrix with entries increasing powers of the
+uniformizer.
+
+There is an analogue where one uses decreasing powers instead, both versions are used in
+mathematics. We only show the "increasing" version.
+
+Most of the linear algebra preparations below are for arbitrary valuation rings.
+In the final section we specialize to DVRs.
+
+## Implementation details
+
+This is inspired by the file https://leanprover-community.github.io/mathlib4_docs/Mathlib/LinearAlgebra/Matrix/Transvection.html.
+
+-/
+
+
+-- @@ L37-37 verbatim
+@[expose] public section
+
+
+-- @@ L39-42 verbatim
+open Module
+
+
+-- Let R be a valuation ring and K its field of fractions
+
+-- @@ L43-43 verbatim
+variable {K : Type*} [Field K]
+
+-- @@ L44-44 verbatim
+variable {R : Subring K} [ValuationRing R] [IsFractionRing R K]
+
+
+-- @@ L46-46 verbatim
+local notation "v" => ValuationRing.valuation R K
+
+
+-- @@ L48-48 verbatim
+attribute [-simp] Subring.coe_subtype
+
+
+-- @@ L50-61 expanded
+/-- We can normalize any `g : Matrix (Fin k) (Fin k) K` such that the coefficient on the bottom
+right has maximal valuation. -/
+lemma exists_normalization0 {k : ℕ+} (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K) :
+    ∃ (k₁ k₂ : GL (Fin k ⊕ Unit) R),
+      (ValuationRing.valuation R K) ((k₁.val * g * k₂.val) (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K) :=
+  by
+  -- the maximal element is in row `p.1` and column `p.2`
+  
+  let p := g.coeffsSupAt (ValuationRing.valuation R K)
+  refine ⟨.swap R (Sum.inr ()) p.1, .swap R (Sum.inr ()) p.2, ?_⟩
+  simp only [Matrix.GeneralLinearGroup.val_swap, Matrix.map_swap, Matrix.mul_swap_apply_left,
+    Matrix.swap_mul_apply_left]
+  rw [← Matrix.coeffs_sup_at_sup]
+
+
+-- @@ L63-80 expanded
+/-- We can normalize any `g : Matrix (Fin k) (Fin k) K` such that the coefficient on the bottom
+right has maximal valuation and the maximal valuation is unchanged. -/
+lemma exists_normalization0' {k : ℕ+} (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K) :
+    ∃ (k₁ k₂ : GL (Fin k ⊕ Unit) R),
+      (ValuationRing.valuation R K) ((k₁.val * g * k₂.val) (Sum.inr ()) (Sum.inr ())) =
+          (k₁.val * g * k₂.val).coeffsSup (ValuationRing.valuation R K) ∧
+        (k₁.val * g * k₂.val).coeffsSup (ValuationRing.valuation R K) =
+          g.coeffsSup (ValuationRing.valuation R K) :=
+  by
+  -- the maximal element is in row `p.1` and column `p.2`
+  
+  let p := g.coeffsSupAt (ValuationRing.valuation R K)
+  let k₁ := Matrix.GeneralLinearGroup.swap R (Sum.inr ()) p.1
+  let k₂ := Matrix.GeneralLinearGroup.swap R (Sum.inr ()) p.2
+  have hv :
+    (ValuationRing.valuation R K) ((k₁.val * g * k₂.val) (Sum.inr ()) (Sum.inr ())) =
+      (k₁.val * g * k₂.val).coeffsSup (ValuationRing.valuation R K) :=
+    by
+    simp only [Matrix.GeneralLinearGroup.val_swap, Matrix.map_swap, Matrix.mul_swap_apply_left,
+      Matrix.swap_mul_apply_left, Matrix.coeffs_sup_mul_swap, Matrix.coeffs_sup_swap_mul, k₁, p, k₂]
+    rw [← Matrix.coeffs_sup_at_sup]
+  refine ⟨.swap R (Sum.inr ()) p.1, .swap R (Sum.inr ()) p.2, hv, ?_⟩
+  · simp_all
+
+
+-- @@ L82-90 expanded
+/-- The maximal valuation of the coefficients of any element of `GL (Fin k) K` is non-zero. -/
+lemma sup_val_non_zero {k : ℕ+} (g : GL (Fin k) K) :
+    g.val.coeffsSup (ValuationRing.valuation R K) ≠ 0 :=
+  by
+  intro h
+  have hzero (i j : Fin k) : g i j = 0 :=
+    by
+    have h2 :
+      (ValuationRing.valuation R K) (g i j) ≤ g.val.coeffsSup (ValuationRing.valuation R K) :=
+      Matrix.coeff_le_coeffs_sup (ValuationRing.valuation R K) g.val i j
+    simpa [h] using h2
+  apply Units.ne_zero g
+  ext i j
+  simp only [hzero, Matrix.zero_apply]
+
+
+-- @@ L92-92 verbatim
+open Matrix
+
+
+-- @@ L94-94 verbatim
+variable {k l : ℕ+}
+
+
+-- @@ L96-96 verbatim
+noncomputable section
+
+
+-- @@ L98-114 expanded
+/-- The element of `R` used to eliminate the last row and column of `g` if
+the coefficient in the bottom-right has maximal valuation. -/
+def multFactor (g : Matrix (Fin k ⊕ Unit) (Fin l ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin l) : R :=
+  letI := Classical.typeDecidableEq K
+  let x : K := g (Sum.inr ()) (Sum.inl j)
+  have hvxvg :
+    (ValuationRing.valuation R K) x ≤ (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) :=
+    by
+    rw [h]
+    apply Matrix.coeff_le_coeffs_sup
+  have hmem (hn : g (Sum.inr ()) (Sum.inr ()) ≠ 0) : -x * (g (Sum.inr ()) (Sum.inr ()))⁻¹ ∈ R :=
+    by
+    simp only [mem_subring_iff_integer, neg_mul, Valuation.map_neg, _root_.map_mul, map_inv₀]
+    have hnz : (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) ≠ 0 :=
+      (Valuation.ne_zero_iff (ValuationRing.valuation R K)).mpr hn
+    rw [← div_eq_mul_inv]
+    exact div_le_one_of_le₀ hvxvg zero_le
+  if hn : g (Sum.inr ()) (Sum.inr ()) = 0 then 0
+  else ⟨-x * (g (Sum.inr ()) (Sum.inr ()))⁻¹, hmem hn⟩
+
+
+-- @@ L116-123 expanded
+lemma multFactor_mul (g : Matrix (Fin k ⊕ Unit) (Fin l ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin l) : g (Sum.inr ()) (Sum.inl j) + multFactor g h j * g (Sum.inr ()) (Sum.inr ()) = 0 :=
+  by
+  simp only [multFactor, neg_mul]
+  split
+  ·
+    next h1 =>
+      simpa [← h, h1] using
+        Matrix.coeff_le_coeffs_sup (ValuationRing.valuation R K) g (Sum.inr ()) (Sum.inl j)
+  · simp_all
+
+
+-- @@ L125-130 expanded
+/-- The transvection struct in `R` for the transvection eliminating the `j`-th entry in the last
+row of `g`, where the bottom-right element of `g` has maximal valuation. -/
+def rowEliminationTransvection (g : Matrix (Fin k ⊕ Unit) (Fin l ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin l) : TransvectionStruct (Fin l ⊕ Unit) R :=
+  ⟨Sum.inr (), Sum.inl j, Sum.inr_ne_inl, multFactor g h j⟩
+
+
+-- @@ L132-138 expanded
+lemma rowEliminationTransvection_mul_same (g : Matrix (Fin l ⊕ Unit) (Fin l ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin l) (a : Fin l ⊕ Unit) :
+    (g * (rowEliminationTransvection g h j).toMatrix.map R.subtype) a (Sum.inl j) =
+      g a (Sum.inl j) + multFactor g h j * g a (Sum.inr ()) :=
+  by
+  simp only [rowEliminationTransvection, TransvectionStruct.toMatrix_mk, map_transvection,
+    mul_transvection_apply_same, add_right_inj]
+  rfl
+
+
+-- @@ L140-145 expanded
+lemma rowEliminationTransvection_mul_neq {g : Matrix (Fin l ⊕ Unit) (Fin l ⊕ Unit) K}
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin l) (a b : Fin l ⊕ Unit) (hb : b ≠ Sum.inl j) :
+    (g * (rowEliminationTransvection g h j).toMatrix) a b = g a b :=
+  by
+  simp only [rowEliminationTransvection, TransvectionStruct.toMatrix_mk, map_transvection]
+  simp_all
+
+
+-- @@ L147-154 expanded
+/-- Multiplying on the right with `rowEliminationTransvection` kills all elements in the first row
+but the first. -/
+lemma rowEliminationTransvection_mul (g : Matrix (Fin l ⊕ Unit) (Fin l ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin l) : (g * (rowEliminationTransvection g h j).toMatrix) (Sum.inr ()) (Sum.inl j) = 0 :=
+  by
+  simp only [rowEliminationTransvection, TransvectionStruct.toMatrix_mk, map_transvection,
+    mul_transvection_apply_same]
+  exact multFactor_mul g h j
+
+
+-- @@ L156-183 expanded
+lemma rowEliminationTransvection_mul_coeffs_sup' (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin k) (c : R) :
+    (ValuationRing.valuation R K)
+        ((g * transvection (Sum.inr ()) (Sum.inl j) (c : K)) (Sum.inr ()) (Sum.inr ())) =
+      (g * transvection (Sum.inr ()) (Sum.inl j) (c : K)).coeffsSup (ValuationRing.valuation R K) :=
+  by
+  apply le_antisymm
+  · apply Matrix.coeff_le_coeffs_sup
+  · apply Matrix.coeffs_sup_le
+    intro a b
+    by_cases he : b = Sum.inl j
+    · subst he
+      simp only [mul_transvection_apply_same, ne_eq, reduceCtorEq, not_false_eq_true,
+        mul_transvection_apply_of_ne]
+      trans
+      · apply Valuation.map_add
+      · simp only [_root_.map_mul, max_le_iff]
+        constructor
+        · rw [h]
+          apply Matrix.coeff_le_coeffs_sup
+        · have : (ValuationRing.valuation R K) c ≤ 1 :=
+            by
+            rw [← mem_subring_iff_integer]
+            simp only [SetLike.coe_mem]
+          trans
+          · apply mul_le_mul' this (by rfl)
+          · rw [one_mul, h]
+            apply Matrix.coeff_le_coeffs_sup
+    · simp only [ne_eq, reduceCtorEq, not_false_eq_true, mul_transvection_apply_of_ne]
+      rw [mul_transvection_apply_of_ne _ _ _ _ he, h]
+      apply Matrix.coeff_le_coeffs_sup
+
+
+-- @@ L185-211 expanded
+/-- After multiplying on the right with `rowEliminationTransvection`, the maximal valuation
+of the coefficients does not change. -/
+lemma rowEliminationTransvection_mul_coeffs_sup (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin k) :
+    g.coeffsSup (ValuationRing.valuation R K) =
+      (g * (rowEliminationTransvection g h j).toMatrix).coeffsSup (ValuationRing.valuation R K) :=
+  by
+  apply le_antisymm
+  · rw [← h, ← rowEliminationTransvection_mul_neq h j _ _ Sum.inr_ne_inl]
+    apply Matrix.coeff_le_coeffs_sup
+  · apply Matrix.coeffs_sup_le
+    intro a b
+    by_cases he : b = Sum.inl j
+    · subst he
+      rw [rowEliminationTransvection_mul_same]
+      trans
+      · apply Valuation.map_add
+      · rw [_root_.map_mul, max_le_iff]
+        constructor
+        · apply Matrix.coeff_le_coeffs_sup
+        · have : (ValuationRing.valuation R K) (multFactor g h j) ≤ 1 := by
+            simp [← mem_subring_iff_integer, SetLike.coe_mem]
+          trans
+          · apply mul_le_mul' this (by rfl)
+          · rw [one_mul]
+            apply Matrix.coeff_le_coeffs_sup
+    · rw [rowEliminationTransvection_mul_neq h j _ _ he]
+      apply Matrix.coeff_le_coeffs_sup
+
+
+-- @@ L213-217 expanded
+/-- The row transvections used to eliminate the last row away from the diagonal. -/
+def rowEliminationList (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K)) :
+    List (Matrix.TransvectionStruct (Fin k ⊕ Unit) R) :=
+  List.ofFn (fun j : Fin k ↦ rowEliminationTransvection g h j)
+
+
+-- @@ L219-223 expanded
+/-- The matrix form of `rowEliminationList`. -/
+def rowEliminationListMatrix (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K)) :
+    List (Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K) :=
+  List.ofFn (fun j : Fin k ↦ (rowEliminationTransvection g h j).toMatrix)
+
+
+-- @@ L225-225 verbatim
+attribute [-simp] Fin.natCast_eq_last Fin.coe_eq_castSucc
+
+
+-- @@ L227-231 expanded
+lemma rowEliminationList_get (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (n : Fin k) :
+    (rowEliminationListMatrix g h)[n]? =
+      (some <| transvection (Sum.inr ()) (Sum.inl n) (multFactor g h n)) :=
+  by simp [rowEliminationListMatrix, rowEliminationTransvection]
+
+
+-- @@ L233-247 expanded
+lemma mul_rowEliminationListMatrix_prod_apply_lastCol_aux
+    (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin k ⊕ Unit) {r : ℕ} (hr : r ≤ k) :
+    (g * ((rowEliminationListMatrix g h).take r).prod) j (Sum.inr ()) = g j (Sum.inr ()) := by
+  induction r with
+  | zero => simp
+  | succ n ih =>
+    let n' : Fin k := ⟨n, hr⟩
+    erw [List.take_add_one, List.prod_append, rowEliminationList_get g h n']
+    simp only [Option.pure_def, Option.bind_eq_bind, Option.bind_some, map_transvection,
+      Option.toList_some, List.prod_cons, List.prod_nil, mul_one]
+    rw [← mul_assoc, mul_transvection_apply_of_ne, ih (by omega)]
+    exact Sum.inr_ne_inl
+
+
+-- @@ L249-254 expanded
+lemma mul_rowEliminationListMatrix_prod_apply_lastCol (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin k ⊕ Unit) :
+    (g * (rowEliminationListMatrix g h).prod) j (Sum.inr ()) = g j (Sum.inr ()) :=
+  by
+  have hl : (rowEliminationListMatrix g h).length = k := by simp [rowEliminationListMatrix]
+  rw [← List.take_length (l := rowEliminationListMatrix g h), hl]
+  rw [mul_rowEliminationListMatrix_prod_apply_lastCol_aux g h j le_rfl]
+
+
+-- @@ L256-292 expanded
+lemma mul_rowEliminationListMatrix_prod_apply_aux (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin k) (r : ℕ) (hrk : r ≤ k) :
+    (g * ((rowEliminationListMatrix g h).take r).prod) (Sum.inr ()) (Sum.inl j) =
+      if r ≤ j then g (Sum.inr ()) (Sum.inl j) else 0 :=
+  by
+  induction r with
+  | zero => simp
+  | succ n ih =>
+    let n' : Fin k := ⟨n, hrk⟩
+    erw [List.take_add_one, List.prod_append, rowEliminationList_get g h n']
+    simp only [Option.pure_def, Option.bind_eq_bind, Option.bind_some, map_transvection,
+      Option.toList_some, List.prod_cons, List.prod_nil, mul_one]
+    have hnk : n ≤ k := by omega
+    rw [← Matrix.mul_assoc]
+    by_cases he : n' = j
+    · subst he
+      rw [mul_transvection_apply_same, ih hnk]
+      simp only [le_refl, ↓reduceIte, Subring.subtype_apply, add_le_iff_nonpos_right,
+        nonpos_iff_eq_zero, one_ne_zero, n']
+      rw [mul_rowEliminationListMatrix_prod_apply_lastCol_aux _ _ _ hnk]
+      apply multFactor_mul g h n'
+    · have hni : n ≠ j := by
+        intro hc
+        apply he
+        ext
+        exact hc
+      rw [mul_transvection_apply_of_ne, ih hnk]
+      · by_cases hi : n + 1 ≤ (j : ℕ)
+        · simp only [n.le_succ.trans hi, ↓reduceIte, hi]
+        · rw [ite_eq_right, ite_eq_right]
+          · simpa using hi
+          · intro hnj
+            apply hni
+            omega
+      · simpa using (Ne.symm he)
+
+
+-- @@ L294-300 expanded
+lemma mul_rowEliminationListMatrix_prod_apply (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin k) : (g * ((rowEliminationListMatrix g h).prod)) (Sum.inr ()) (Sum.inl j) = 0 :=
+  by
+  have hl : (rowEliminationListMatrix g h).length = k := by simp [rowEliminationListMatrix]
+  rw [← List.take_length (l := rowEliminationListMatrix g h), hl]
+  rw [mul_rowEliminationListMatrix_prod_apply_aux g h j k le_rfl]
+  simp
+
+
+-- @@ L302-305 expanded
+/-- The product of row transvections eliminating the last row away from the diagonal. -/
+def rowEliminator (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K)) :
+    GL (Fin k ⊕ Unit) R :=
+  (List.map (fun t ↦ TransvectionStruct.toGL t) (rowEliminationList g h)).prod
+
+
+-- @@ L307-313 expanded
+lemma mul_rowEliminator_lastRow (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin k) : (g * (rowEliminator g h).val) (Sum.inr ()) (Sum.inl j) = 0 :=
+  by
+  dsimp only [rowEliminator]
+  rw [← map_listProd_toGL]
+  simp only [rowEliminationList, List.map_ofFn]
+  apply mul_rowEliminationListMatrix_prod_apply g h j
+
+
+-- @@ L315-321 expanded
+lemma mul_rowEliminator_lastCol (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin k ⊕ Unit) : (g * (rowEliminator g h).val) j (Sum.inr ()) = g j (Sum.inr ()) :=
+  by
+  dsimp only [rowEliminator]
+  rw [← map_listProd_toGL]
+  simp only [rowEliminationList, List.map_ofFn]
+  apply mul_rowEliminationListMatrix_prod_apply_lastCol g h j
+
+
+-- @@ L323-329 expanded
+/-- The column eliminator, defined by transposing and applying the row eliminator. -/
+def colEliminator (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K)) :
+    GL (Fin k ⊕ Unit) R :=
+  have :
+    (ValuationRing.valuation R K) (g.transpose (Sum.inr ()) (Sum.inr ())) =
+      g.transpose.coeffsSup (ValuationRing.valuation R K) :=
+    by simpa [coeffs_sup_transpose]
+  «GL».transpose <| rowEliminator g.transpose this
+
+
+-- @@ L331-336 expanded
+lemma colEliminator_mul_lastCol (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr k) (Sum.inr k)) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin k) : ((colEliminator g h).val * g) (Sum.inl j) (Sum.inr ()) = 0 :=
+  by
+  rw [← transpose_apply (((colEliminator g h).val.map R.subtype) * g) (Sum.inr ()) (Sum.inl j),
+    Matrix.transpose_mul]
+  apply mul_rowEliminator_lastRow
+
+
+-- @@ L338-343 expanded
+lemma colEliminator_mul_lastRow (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin k ⊕ Unit) : ((colEliminator g h).val * g) (Sum.inr ()) j = g (Sum.inr ()) j :=
+  by
+  rw [← transpose_apply (((colEliminator g h).val.map R.subtype) * g) j (Sum.inr ()),
+    Matrix.transpose_mul]
+  apply mul_rowEliminator_lastCol
+
+
+-- @@ L345-360 expanded
+lemma mul_rowEliminationListMatrix_coeffs_sup_aux (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (r : ℕ) (hrk : r ≤ k) :
+    (ValuationRing.valuation R K)
+        ((g * ((rowEliminationListMatrix g h).take r).prod) (Sum.inr ()) (Sum.inr ())) =
+      (g * ((rowEliminationListMatrix g h).take r).prod).coeffsSup (ValuationRing.valuation R K) :=
+  by
+  induction r with
+  | zero => simpa
+  | succ n ih =>
+    let n' : Fin k := ⟨n, hrk⟩
+    erw [List.take_add_one, List.prod_append, rowEliminationList_get g h n']
+    simp only [Option.pure_def, Option.bind_eq_bind, Option.bind_some, map_transvection,
+      Option.toList_some, List.prod_cons, List.prod_nil, mul_one]
+    rw [← mul_assoc]
+    apply rowEliminationTransvection_mul_coeffs_sup'
+    apply ih
+    omega
+
+
+-- @@ L362-368 expanded
+lemma mul_rowEliminationListMatrix_coeffs_sup (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K)) :
+    (ValuationRing.valuation R K)
+        ((g * (rowEliminationListMatrix g h).prod) (Sum.inr ()) (Sum.inr ())) =
+      (g * (rowEliminationListMatrix g h).prod).coeffsSup (ValuationRing.valuation R K) :=
+  by
+  have hl : (rowEliminationListMatrix g h).length = k := by simp [rowEliminationListMatrix]
+  rw [← List.take_length (l := rowEliminationListMatrix g h), hl]
+  rw [mul_rowEliminationListMatrix_coeffs_sup_aux g h k le_rfl]
+
+
+-- @@ L370-377 expanded
+lemma mul_rowEliminator_coeffs_sup (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K)) :
+    (ValuationRing.valuation R K) ((g * (rowEliminator g h).val) (Sum.inr ()) (Sum.inr ())) =
+      (g * (rowEliminator g h).val).coeffsSup (ValuationRing.valuation R K) :=
+  by
+  dsimp only [rowEliminator]
+  rw [← map_listProd_toGL]
+  simp only [rowEliminationList, List.map_ofFn]
+  apply mul_rowEliminationListMatrix_coeffs_sup
+
+
+-- @@ L379-390 expanded
+lemma colEliminator_mul_coeffs_sup (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K)) :
+    (ValuationRing.valuation R K) (((colEliminator g h).val * g) (Sum.inr ()) (Sum.inr ())) =
+      ((colEliminator g h).val * g).coeffsSup (ValuationRing.valuation R K) :=
+  by
+  simp only [colEliminator, «GL».val_transpose]
+  rw [←
+    transpose_apply (((rowEliminator g.transpose _).val).transpose.map ⇑R.subtype * g) (Sum.inr ())
+      (Sum.inr ())]
+  rw [transpose_mul]
+  rw [← coeffs_sup_transpose]
+  rw [transpose_mul]
+  rw [transpose_map, transpose_transpose]
+  apply mul_rowEliminator_coeffs_sup
+
+
+-- @@ L392-399 expanded
+lemma rowEliminator_colEliminator (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K)) :
+    rowEliminator (((colEliminator g h).val : Matrix _ _ K) * g)
+        (colEliminator_mul_coeffs_sup g h) =
+      rowEliminator g h :=
+  by
+  classical
+    simp [rowEliminator, rowEliminationList, rowEliminationTransvection, multFactor,
+    colEliminator_mul_lastRow]
+
+
+-- @@ L401-408 expanded
+lemma colEliminator_rowEliminator (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K)) :
+    colEliminator (g * (↑(rowEliminator g h).val : Matrix _ _ K))
+        (mul_rowEliminator_coeffs_sup g h) =
+      colEliminator g h :=
+  by
+  simp only [colEliminator, transpose_mul]
+  apply congrArg
+  apply rowEliminator_colEliminator
+
+
+-- @@ L410-414 expanded
+lemma colEliminator_mul_rowEliminator_lastRow (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin k) :
+    ((colEliminator g h).val * g * (rowEliminator g h).val) (Sum.inr ()) (Sum.inl j) = 0 :=
+  by
+  rw [← rowEliminator_colEliminator]
+  apply mul_rowEliminator_lastRow
+
+
+-- @@ L416-420 expanded
+lemma colEliminator_mul_rowEliminator_lastCol (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K))
+    (j : Fin k) :
+    ((colEliminator g h).val * g * (rowEliminator g h).val) (Sum.inl j) (Sum.inr ()) = 0 :=
+  by
+  rw [← colEliminator_rowEliminator, mul_assoc]
+  apply colEliminator_mul_lastCol
+
+
+-- @@ L422-427 expanded
+lemma colEliminator_mul_rowEliminator_last_last (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K)) :
+    ((colEliminator g h).val * g * (rowEliminator g h).val) (Sum.inr ()) (Sum.inr ()) =
+      g (Sum.inr ()) (Sum.inr ()) :=
+  by
+  rw [← colEliminator_rowEliminator, mul_assoc, colEliminator_mul_lastRow,
+    mul_rowEliminator_lastCol]
+
+
+-- @@ L429-433 expanded
+lemma colEliminator_mul_rowEliminator_coeffs_sup (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (h :
+      (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+        g.coeffsSup (ValuationRing.valuation R K)) :
+    ((colEliminator g h).val * g * (rowEliminator g h).val).coeffsSup
+        (ValuationRing.valuation R K) =
+      g.coeffsSup (ValuationRing.valuation R K) :=
+  by
+  rwa [← rowEliminator_colEliminator, ← mul_rowEliminator_coeffs_sup, mul_rowEliminator_lastCol,
+    colEliminator_mul_lastRow]
+
+
+-- @@ L435-439 expanded
+/-- A `(k + 1) × (k + 1)` matrix is of normal block form, if it is block diagonal and
+the bottom-right coefficient has maximal valuation. -/
+structure IsNormalBlock (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K) : Prop where
+  isTwoBlockDiagonal : IsTwoBlockDiagonal g
+  monotone :
+    (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+      g.coeffsSup (ValuationRing.valuation R K)
+
+
+-- @@ L442-467 expanded
+lemma exists_trafo_isNormalBlock (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K) :
+    ∃ (k₁ k₂ : GL (Fin k ⊕ Unit) R),
+      IsNormalBlock (R := R) ((k₁.val : Matrix _ _ K) * g * (k₂.val : Matrix _ _ K)) ∧
+        ((k₁.val : Matrix _ _ K) * g * (k₂.val : Matrix _ _ K)).coeffsSup
+            (ValuationRing.valuation R K) =
+          g.coeffsSup (ValuationRing.valuation R K) :=
+  by
+  obtain ⟨a, b, hagb, hagbv⟩ := exists_normalization0' (R := R) g
+  let g' : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K := a.val * g * b.val
+  have hg' :
+    (ValuationRing.valuation R K) (g' (Sum.inr ()) (Sum.inr ())) =
+      g'.coeffsSup (ValuationRing.valuation R K) :=
+    hagb
+  let k₁ := colEliminator g' hg' * a
+  let k₂ := b * rowEliminator g' hg'
+  have hproduct :
+    (k₁.val : Matrix _ _ K) * g * (k₂.val : Matrix _ _ K) =
+      (colEliminator g' hg').val.map R.subtype * g' * (rowEliminator g' hg').val.map R.subtype :=
+    by simp only [k₁, k₂, Units.val_mul, Matrix.map_mul, g', mul_assoc]
+  refine ⟨k₁, k₂, ?_⟩
+  rw [hproduct]
+  refine ⟨⟨⟨?_, ?_⟩, ?_⟩, ?_⟩
+  · ext j u
+    cases u
+    exact colEliminator_mul_rowEliminator_lastCol g' hg' j
+  · ext u j
+    cases u
+    exact colEliminator_mul_rowEliminator_lastRow g' hg' j
+  · rw [colEliminator_mul_rowEliminator_coeffs_sup]
+    rwa [colEliminator_mul_rowEliminator_last_last]
+  · rw [colEliminator_mul_rowEliminator_coeffs_sup]
+    exact hagbv
+
+
+-- @@ L469-473 expanded
+/-- A matrix is monotone diagonal if it is diagonal and the coefficients on the diagonal
+have monotonically increasing valuations. -/
+structure IsMonotoneDiag {n : Type*} [Fintype n] [Preorder n] (g : Matrix n n K) : Prop where
+  isDiag : IsDiag g
+  monotone : Monotone (fun j ↦ (ValuationRing.valuation R K) (g j j))
+
+
+-- @@ L475-479 expanded
+/-- An equivalent spelling of `IsMonotoneDiag` for `(k + 1) × (k + 1)`-matrices. -/
+structure IsBlockMonotoneDiag (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K) : Prop where
+  isDiag : IsDiag g
+  monotone : Monotone (fun (j : Fin k) ↦ (ValuationRing.valuation R K) (g (Sum.inl j) (Sum.inl j)))
+  max_bot_right :
+    (ValuationRing.valuation R K) (g (Sum.inr ()) (Sum.inr ())) =
+      g.coeffsSup (ValuationRing.valuation R K)
+
+
+-- @@ L481-492 expanded
+lemma monotone_of_isBlockMonotoneDiag (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (hb : IsBlockMonotoneDiag (R := R) g) :
+    Monotone fun j ↦
+      (ValuationRing.valuation R K) (g (Fin.succEquivUnit k j) (Fin.succEquivUnit k j)) :=
+  by
+  intro i j hij
+  simp only [Fin.succEquivUnit_apply]
+  split_ifs
+  · apply hb.monotone
+    simpa
+  · rw [hb.max_bot_right]
+    apply coeff_le_coeffs_sup
+  · omega
+  · rfl
+
+
+-- @@ L494-545 expanded
+lemma exists_trafo_isDiag_induction_step (g : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K)
+    (ih :
+      ∀ (h : Matrix (Fin k) (Fin k) K),
+        ∃ (k₁ k₂ : GL (Fin k) R),
+          IsMonotoneDiag (R := R) ((k₁.val : Matrix _ _ K) * h * (k₂.val : Matrix _ _ K)) ∧
+            ((k₁.val : Matrix _ _ K) * h * (k₂.val : Matrix _ _ K)).coeffsSup
+                (ValuationRing.valuation R K) =
+              h.coeffsSup (ValuationRing.valuation R K)) :
+    ∃ (k₁ k₂ : GL (Fin k ⊕ Unit) R),
+      IsBlockMonotoneDiag (R := R) ((k₁.val : Matrix _ _ K) * g * (k₂.val : Matrix _ _ K)) ∧
+        ((k₁.val : Matrix _ _ K) * g * (k₂.val : Matrix _ _ K)).coeffsSup
+            (ValuationRing.valuation R K) =
+          g.coeffsSup (ValuationRing.valuation R K) :=
+  by
+  obtain ⟨h₁, h₂, hh, hvc⟩ := exists_trafo_isNormalBlock (R := R) g
+  let g' : Matrix (Fin k ⊕ Unit) (Fin k ⊕ Unit) K :=
+    (h₁.val : Matrix _ _ K) * g * (h₂.val : Matrix _ _ K)
+  let h : Matrix (Fin k) (Fin k) K := toBlocks₁₁ g'
+  obtain ⟨l₁, l₂, hl, hv⟩ := ih h
+  let l₁' : GL (Fin k ⊕ Unit) R := «GL».diagonalBlocks l₁ 1
+  let l₂' : GL (Fin k ⊕ Unit) R := «GL».diagonalBlocks l₂ 1
+  use l₁' * h₁
+  use h₂ * l₂'
+  simp only [Units.val_mul, Matrix.map_mul]
+  have he : g' = Matrix.fromBlocks h 0 0 g'.toBlocks₂₂ :=
+    by
+    rw [Matrix.ext_iff_blocks]
+    simp only [toBlocks_fromBlocks₁₁, hh.isTwoBlockDiagonal.left, toBlocks_fromBlocks₁₂,
+      hh.isTwoBlockDiagonal.right, toBlocks_fromBlocks₂₁, toBlocks_fromBlocks₂₂, true_and, g', h]
+  have hproduct :
+    l₁'.val.map R.subtype * h₁.val.map R.subtype * g *
+        (h₂.val.map R.subtype * l₂'.val.map R.subtype) =
+      l₁'.val.map R.subtype * g' * l₂'.val.map R.subtype :=
+    by simp only [g', mul_assoc]
+  rw [hproduct]
+  have hblock :
+    l₁'.val.map R.subtype * g' * l₂'.val.map R.subtype =
+      Matrix.fromBlocks (l₁.val.map R.subtype * h * l₂.val.map R.subtype) 0 0 g'.toBlocks₂₂ :=
+    by
+    rw [he]
+    simp only [«GL».val_diagonalBlocks, Units.val_one, l₁', l₂']
+    rw [Matrix.fromBlocks_map, Matrix.fromBlocks_multiply, Matrix.fromBlocks_map,
+      Matrix.fromBlocks_multiply]
+    simp only [map_zero, Matrix.map_zero, Matrix.mul_zero, add_zero, Matrix.zero_mul,
+      _root_.map_one, Matrix.map_one, Matrix.mul_one, one_mul, zero_add, mul_one,
+      toBlocks_fromBlocks₂₂]
+  rw [hblock]
+  refine ⟨⟨?_, ?_, ?_⟩, ?_⟩
+  · exact Matrix.IsDiag.fromBlocks hl.isDiag (isDiag_of_subsingleton _)
+  · intro i j hij
+    exact hl.monotone hij
+  · simp only [fromBlocks_apply₂₂, g', coeffs_sup_fromBlocks, coeffs_sup_zero]
+    simp only [zero_le, sup_of_le_left]
+    rw [hv, coeffs_sup_unique (n := Unit)]
+    simp only [toBlocks₂₂, of_apply, hh.monotone, coeffs_sup_toBlock₁₁_le_coeffs_sup,
+      sup_of_le_right, h, g']
+  · simp only [toBlocks₂₂, coeffs_sup_fromBlocks, hv, coeffs_sup_zero, zero_le, sup_of_le_left,
+      coeffs_sup_unique (n := Unit), PUnit.default_eq_unit, of_apply, hh.monotone, hvc,
+      sup_eq_right, h, g']
+    rw [← hvc]
+    exact coeffs_sup_toBlock₁₁_le_coeffs_sup (ValuationRing.valuation R K) _
+
+
+-- @@ L547-584 expanded
+lemma exists_trafo_isDiag (g : Matrix (Fin k) (Fin k) K) :
+    ∃ (k₁ k₂ : GL (Fin k) R),
+      IsMonotoneDiag (n := Fin k) (R := R) (k₁.val * g * k₂.val) ∧
+        (k₁.val * g * k₂.val).coeffsSup (ValuationRing.valuation R K) =
+          g.coeffsSup (ValuationRing.valuation R K) :=
+  by
+  induction k using PNat.recOn with
+  | one =>
+    refine ⟨1, 1, ?_⟩
+    have : Unique (Fin (1 : ℕ+)) := inferInstanceAs <| Unique (Fin 1)
+    refine ⟨⟨isDiag_of_subsingleton _, Subsingleton.monotone _⟩, ?_⟩
+    rw [Matrix.coeffs_sup_unique (ValuationRing.valuation R K),
+      Matrix.coeffs_sup_unique (ValuationRing.valuation R K)]
+    congr 1
+    simp only [Units.val_one]
+    rw [Matrix.map_one, one_mul, mul_one] <;> rfl
+  | succ n ih =>
+    let e : Fin ↑(n + 1) ≃ Fin n ⊕ Unit := Fin.succEquivUnit n
+    let g' : Matrix (Fin n ⊕ Unit) (Fin n ⊕ Unit) K := Matrix.reindex e e g
+    obtain ⟨k₁', k₂', hk, hc⟩ := exists_trafo_isDiag_induction_step g' ih
+    have hproduct :
+      («GL».reindex e.symm k₁').val.map R.subtype * g *
+          («GL».reindex e.symm k₂').val.map R.subtype =
+        Matrix.reindex e.symm e.symm (k₁'.val.map R.subtype * g' * k₂'.val.map R.subtype) :=
+      by
+      simp only [«GL».val_reindex, reindex_apply, Equiv.symm_symm, g']
+      rw [Matrix.submatrix_mul _ _ e e e e.bijective]
+      rw [Matrix.submatrix_mul _ _ e e e e.bijective]
+      rw [Matrix.submatrix_map, Matrix.submatrix_map, Matrix.submatrix_submatrix,
+        Equiv.symm_comp_self, Matrix.submatrix_id_id]
+    refine ⟨«GL».reindex e.symm k₁', «GL».reindex e.symm k₂', ?_⟩
+    rw [hproduct]
+    refine ⟨⟨?_, ?_⟩, ?_⟩
+    · simp only [reindex_apply, Equiv.symm_symm]
+      apply IsDiag.submatrix hk.isDiag (Equiv.injective e)
+    · simp only [reindex_apply, Equiv.symm_symm, submatrix_apply]
+      apply monotone_of_isBlockMonotoneDiag _ hk
+    ·
+      simp only [g', coeffs_sup_reindex, hc]
+        -- From here onwards we work with a DVR
+
+
+-- @@ L586-586 verbatim
+variable (ϖ : R) (hϖ : Irreducible ϖ)
+
+
+-- @@ L588-591 verbatim
+omit [ValuationRing ↥R] [IsFractionRing (↥R) K] in
+private lemma coe_uniformizer_ne_zero {ϖ : R} (hϖ : Irreducible ϖ) : (↑ϖ : K) ≠ 0 := by
+  intro hzero
+  simp_all
+
+
+-- @@ L593-598 verbatim
+/-- A matrix is normal diagonal if it is diagonal, the first entries on the
+diagonal are given by powers of the uniformiser `ϖ` and the last entries by `0`. -/
+def IsNormalDiag (g : Matrix (Fin k) (Fin k) K) : Prop :=
+  ∃ (r : ℕ) (hr : r ≤ k) (f : Fin r → ℤ),
+    Monotone f ∧ (∀ (j : Fin r), g (j.castLE hr) (j.castLE hr) = ϖ ^ f j) ∧
+      ∀ (j : Fin k) (_ : r ≤ j), g j j = 0
+
+
+-- @@ L600-625 expanded
+include hϖ in
+lemma exists_normalization_of_isMonotoneDiag [IsDiscreteValuationRing R] (g : GL (Fin k) K)
+    (h : IsMonotoneDiag (R := R) g.val) :
+    ∃ (d : Fin k → Rˣ) (f : Fin k → ℤ),
+      Antitone f ∧ ∀ (j : Fin k), («GL».diagonal d * g).val j j = ϖ ^ f j :=
+  by
+  have (j : Fin k) : ∃ (n : ℤ) (u : Rˣ), g j j = u * ϖ ^ n :=
+    by
+    apply eq_unit_mul_pow_irreducible ϖ hϖ
+    apply g.apply_ne_zero_of_isDiag
+    exact h.isDiag
+  choose f d hd using this
+  use (fun j ↦ (d j)⁻¹)
+  use f
+  refine ⟨?_, ?_⟩
+  · intro i j hij
+    have hle : (ValuationRing.valuation R K) (g i i) ≤ (ValuationRing.valuation R K) (g j j) :=
+      h.monotone hij
+    rw [hd i, hd j] at hle
+    simp only [map_mul, valuation_unit_eq_one, one_mul, map_zpow₀] at hle
+    apply exp_le_exp_of_pow_le_pow ((ValuationRing.valuation R K) ϖ) _ _ hle
+    · apply valuation_lt_one_of_irreducible ϖ hϖ
+    · rw [Valuation.ne_zero_iff]
+      exact coe_uniformizer_ne_zero hϖ
+  · intro j
+    simp only [Units.val_mul, «GL».val_map, RingHom.mapMatrix_apply, «GL».val_diagonal]
+    rw [Matrix.diagonal_map (map_zero _), Matrix.diagonal_mul, hd j, ← mul_assoc,
+      Subring.coe_subtype, ← Submonoid.coe_mul, ← Units.val_mul, inv_mul_cancel, Units.val_one,
+      OneMemClass.coe_one, one_mul]
+
+
+-- @@ L627-639 verbatim
+/-- The cartan diagonal for a tuple of integers `f` is the diagonal matrix
+where the diagonal entries are given by `ϖ ^ f i`. -/
+@[simps! -isSimp]
+def cartanDiag {k : ℕ} (f : Fin k → ℤ) : GL (Fin k) K :=
+  let d (j : Fin k) : Kˣ := {
+    val := ϖ ^ f j
+    inv := ϖ ^ (-f j)
+    val_inv := by
+      rw [← zpow_add₀ (coe_uniformizer_ne_zero hϖ), add_neg_cancel, zpow_zero]
+    inv_val := by
+      rw [← zpow_add₀ (coe_uniformizer_ne_zero hϖ), neg_add_cancel, zpow_zero]
+  }
+  GL.diagonal d
+
+
+-- @@ L641-645 verbatim
+omit [ValuationRing ↥R] [IsFractionRing R K] in
+lemma cartanDiag_inv {k : ℕ} (f : Fin k → ℤ) :
+    (cartanDiag ϖ hϖ f)⁻¹ = cartanDiag ϖ hϖ (fun i ↦ - f i) := by
+  simp [cartanDiag]
+  congr
+
+
+-- @@ L647-652 verbatim
+omit [ValuationRing ↥R] [IsFractionRing (↥R) K] in
+@[simp]
+lemma cartanDiag_zero {k : ℕ} {ϖ : R} (hϖ : Irreducible ϖ) :
+    cartanDiag (k := k) ϖ hϖ 0 = 1 := by
+  ext
+  simp [cartanDiag]
+
+
+-- @@ L654-661 verbatim
+omit [ValuationRing ↥R] [IsFractionRing (↥R) K] in
+lemma conj_cartanDiag_zero_zero {ϖ : R} (hϖ : Irreducible ϖ) (g : GL (Fin 2) K) (f : Fin 2 → ℤ) :
+    MulAut.conj (cartanDiag ϖ hϖ f) g 0 0 = g 0 0 := by
+  rw [cartanDiag, Matrix.GL.conj_diagonal_apply]
+  simp only [Fin.isValue, zpow_neg, Units.inv_mk]
+  rw [mul_inv_cancel₀]
+  · simp
+  · exact zpow_ne_zero _ (coe_uniformizer_ne_zero hϖ)
+
+
+-- @@ L663-670 verbatim
+omit [ValuationRing ↥R] [IsFractionRing (↥R) K] in
+lemma conj_cartanDiag_one_one {ϖ : R} (hϖ : Irreducible ϖ) (g : GL (Fin 2) K) (f : Fin 2 → ℤ) :
+    MulAut.conj (cartanDiag ϖ hϖ f) g 1 1 = g 1 1 := by
+  rw [cartanDiag, Matrix.GL.conj_diagonal_apply]
+  simp only [Fin.isValue, zpow_neg, Units.inv_mk]
+  rw [mul_inv_cancel₀]
+  · simp
+  · exact zpow_ne_zero _ (coe_uniformizer_ne_zero hϖ)
+
+
+-- @@ L672-679 verbatim
+omit [ValuationRing ↥R] [IsFractionRing (↥R) K] in
+lemma conj_cartanDiag_one_zero {ϖ : R} (hϖ : Irreducible ϖ) (g : GL (Fin 2) K) (f : Fin 2 → ℤ) :
+    MulAut.conj (cartanDiag ϖ hϖ f) g 1 0 = ϖ.val ^ (f 1 - f 0) * g 1 0 := by
+  rw [cartanDiag, Matrix.GL.conj_diagonal_apply]
+  simp only [Fin.isValue, zpow_neg, Units.inv_mk, mul_eq_mul_right_iff]
+  rw [zpow_sub₀ (coe_uniformizer_ne_zero hϖ)]
+  ring_nf
+  simp_all
+
+
+-- @@ L681-688 verbatim
+omit [ValuationRing ↥R] [IsFractionRing (↥R) K] in
+lemma conj_cartanDiag_zero_one {ϖ : R} (hϖ : Irreducible ϖ) (g : GL (Fin 2) K) (f : Fin 2 → ℤ) :
+    MulAut.conj (cartanDiag ϖ hϖ f) g 0 1 = ϖ.val ^ (f 0 - f 1) * g 0 1 := by
+  rw [cartanDiag, Matrix.GL.conj_diagonal_apply]
+  simp only [Fin.isValue, zpow_neg, Units.inv_mk, mul_eq_mul_right_iff]
+  rw [zpow_sub₀ (coe_uniformizer_ne_zero hϖ)]
+  ring_nf
+  simp_all
+
+
+-- @@ L690-716 verbatim
+/--
+Existence part of cartan decomposition: If `R` is a discrete valuation ring with
+uniformizer `ϖ` and `g` an invertible matrix over `K`, then there exist invertible matrices `k₁` and
+`k₂` over `R` such that `k₁ * g * k₂` is a diagonal matrix with decreasing powers of `ϖ` on the
+diagonal.
+See `cartan_decomposition'` for a version where instead `g` is written as a product.
+-/
+theorem cartan_decomposition [IsDiscreteValuationRing R] (g : GL (Fin k) K) :
+    ∃ (k₁ k₂ : GL (Fin k) R) (f : Fin k → ℤ),
+      Antitone f ∧ k₁ * g * k₂ = cartanDiag ϖ hϖ f := by
+  obtain ⟨k₁', k₂, hk, _⟩ := exists_trafo_isDiag (R := R) g.val
+  obtain ⟨d, f, hf, hd⟩ :=
+    exists_normalization_of_isMonotoneDiag (R := R) ϖ hϖ
+      ((k₁' : GL _ K) * g * (k₂ : GL _ K)) (by simpa using hk)
+  refine ⟨(GL.diagonal d) * k₁', k₂, f, hf, ?_⟩
+  apply Units.ext
+  simp only [GL.map, Units.val_mul, GL.val_diagonal, _root_.map_mul, RingHom.mapMatrix_apply,
+    map_zero, diagonal_map, Units.inv_eq_val_inv, _root_.mul_inv_rev, coe_units_inv, val_cartanDiag]
+  ext i j
+  simp only [mul_assoc, mul_assoc, diagonal_mul]
+  rw [← mul_assoc]
+  by_cases hij : i = j
+  · subst hij
+    rw [diagonal_apply_eq, ← hd i]
+    simp only [Units.val_mul, GL.val_map, RingHom.mapMatrix_apply, GL.val_diagonal,
+      Matrix.diagonal_map (map_zero _), Matrix.diagonal_mul]
+  · simp [diagonal_apply_ne _ hij, hk.isDiag hij]
+
+
+-- @@ L718-725 verbatim
+/-- Variant of `cartan_decomposition` where `g` is written as a product. -/
+theorem cartan_decomposition' [IsDiscreteValuationRing R] (g : GL (Fin k) K) :
+    ∃ (k₁ k₂ : GL (Fin k) R) (f : Fin k → ℤ),
+      Antitone f ∧ k₁ * cartanDiag ϖ hϖ f * k₂ = g := by
+  obtain ⟨k₁, k₂, f, hf, hfeq⟩ := cartan_decomposition ϖ hϖ g
+  refine ⟨k₁⁻¹, k₂⁻¹, f, hf, ?_⟩
+  rw [← hfeq, mul_assoc, mul_assoc, GL.map_mul_map_inv, mul_one, ← mul_assoc, GL.map_inv_mul_map,
+    one_mul]

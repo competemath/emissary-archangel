@@ -1,0 +1,1609 @@
+/-
+Copyright (c) 2026 Vincent Trélat. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Vincent Trélat
+-/
+module
+
+public import LeanPool.ZFLean.Naturals
+public import Mathlib.Algebra.Order.Ring.Defs
+public import Mathlib.Algebra.Group.End
+import LeanPool.ZFLean.Basic
+public import Mathlib.SetTheory.Cardinal.SchroederBernstein
+import Mathlib.Tactic.NormNum.Inv
+import Mathlib.Tactic.NormNum.Pow
+
+-- @@ L15-23 verbatim
+/-! # ZFC Integers
+This file provides a construction of the integers in ZFC based on the construction of natural
+numbers. It follows the usual construction of integers as equivalence classes of pairs of natural
+numbers.
+The theory also comes with usual theorems and arithmetic operations on integers and wraps everything
+in a commutative ring structure.
+Finally, we show that that the `ZFInt` type is isomorphic to the type of elements contained in
+`ZFSet.Int` type using the Schröder-Bernstein theorem.
+-/
+
+
+-- @@ L25-25 verbatim
+@[expose] public section
+
+-- @@ L26-26 verbatim
+universe u
+
+
+-- @@ L28-28 verbatim
+namespace ZFSet
+
+-- @@ L29-30 verbatim
+/-- Imported ZFLean declaration. -/
+protected abbrev zrel (a b : ZFNat × ZFNat) : Prop := a.1 + b.2 = a.2 + b.1
+
+-- @@ L31-46 verbatim
+protected theorem zrel_eq : Equivalence ZFSet.zrel where
+  refl := fun _ => add_comm _ _
+  symm := by
+    unfold ZFSet.zrel
+    intro x y h
+    rw [add_comm, add_comm y.2]
+    simp_all
+  trans := by
+    unfold ZFSet.zrel
+    intro x y z hxy hyz
+    have : x.1 + y.2 + y.1 + z.2 = x.2 + y.1 + y.2 + z.1 := by
+      rw [hxy, ← ZFNat.add_assoc, hyz, ZFNat.add_assoc _ _ _]
+    rw [add_assoc x.1, add_comm _ (y.2 + y.1), add_assoc, add_assoc x.2, add_comm _ (y.1 + y.2),
+      add_comm y.1, ← add_assoc (y.2 + y.1)] at this
+    apply add_left_cancel (a := y.2 + y.1)
+    simpa only [add_assoc]
+
+-- @@ L47-49 verbatim
+protected instance instSetoidZFNatZFNat : Setoid (ZFNat × ZFNat) where
+  r := ZFSet.zrel
+  iseqv := ZFSet.zrel_eq
+
+-- @@ L50-51 verbatim
+/-- Imported ZFLean declaration. -/
+abbrev ZFInt := Quotient ZFSet.instSetoidZFNatZFNat
+
+-- @@ L52-52 verbatim
+namespace ZFInt
+
+-- @@ L53-54 verbatim
+/-- Imported ZFLean declaration. -/
+def mk : ZFNat × ZFNat → ZFInt := Quotient.mk''
+
+-- @@ L55-56 verbatim
+@[simp]
+theorem mk_eq (x : ZFNat × ZFNat) : @Eq ZFInt ⟦x⟧ (mk x) := rfl
+
+-- @@ L57-58 verbatim
+@[simp]
+theorem mk_out : ∀ x : ZFInt, mk x.out = x := Quotient.out_eq
+
+-- @@ L59-59 verbatim
+theorem eq {x y : ZFNat × ZFNat} : mk x = mk y ↔ ZFSet.zrel x y := Quotient.eq
+
+-- @@ L60-60 verbatim
+theorem sound {x y : ZFNat × ZFNat} (h : ZFSet.zrel x y) : mk x = mk y := Quotient.sound h
+
+-- @@ L61-61 verbatim
+theorem exact {x y : ZFNat × ZFNat} : mk x = mk y → ZFSet.zrel x y := Quotient.exact
+
+-- @@ L62-63 verbatim
+/-- Imported ZFLean declaration. -/
+abbrev zero : ZFInt := mk (0, 0)
+
+-- @@ L64-65 verbatim
+/-- Imported ZFLean declaration. -/
+abbrev one : ZFInt := mk (1, 0) -- (0,1) works too
+
+-- @@ L66-66 verbatim
+protected instance : Zero ZFInt := ⟨zero⟩
+
+-- @@ L67-67 verbatim
+protected instance : One ZFInt := ⟨one⟩
+
+-- @@ L68-68 verbatim
+theorem zero_eq : (0 : ZFInt) = mk (0, 0) := rfl
+
+-- @@ L69-69 verbatim
+theorem one_eq : (1 : ZFInt) = mk (1, 0) := rfl
+
+-- @@ L70-79 verbatim
+theorem one_ne_zero : (1 : ZFInt) ≠ 0 := by
+  rw [zero_eq, one_eq]
+  rintro h
+  rw [ZFInt.eq, ZFSet.zrel] at h
+  simp only [add_zero] at h
+  unfold_projs at h
+  injection h with h
+  rw [ZFSet.ext_iff] at h
+  simp only [mem_insert_iff, or_iff_right_iff_imp, forall_eq] at h
+  nomatch h
+
+-- @@ L80-86 verbatim
+theorem mk_eq_zero_iff {n m} : ZFInt.mk (n,m) = 0 ↔ n = m := by
+  constructor
+  · intro h
+    rw [ZFInt.zero_eq, ZFInt.eq, ZFSet.zrel] at h
+    exact ZFNat.add_right_cancel.mp h
+  · rintro rfl
+    exact ZFInt.sound rfl
+
+-- @@ L87-99 verbatim
+open ZFNat in
+/-- Imported ZFLean declaration. -/
+noncomputable abbrev add (n m : ZFInt) : ZFInt :=
+  Quotient.liftOn₂ n m (fun ⟨a, b⟩ ⟨c, d⟩ => mk (a + c, b + d)) fun x y x' y' hx hy => sound (by
+    have h1 : x.1 + x'.2 = x.2 + x'.1 := hx
+    have h2 : y.1 + y'.2 = y.2 + y'.1 := hy
+    simp only [ZFSet.zrel]
+    have : x.1 + x'.2 + y.1 + y'.2 = x.2 + x'.1 + y.2 + y'.1 := by
+      rw [h1, ← add_assoc, h2, add_assoc]
+    conv_lhs => rw [add_assoc, ← add_assoc, ← add_assoc, ZFNat.add_comm y.1, add_assoc, add_assoc,
+      ← add_assoc, ZFNat.add_comm y'.2, add_assoc, this]
+    conv_rhs => rw [add_assoc]; lhs; rw [← add_assoc]; rhs; rw [add_comm]
+    rw [add_assoc])
+
+-- @@ L100-100 verbatim
+protected noncomputable instance : Add ZFInt := ⟨ZFInt.add⟩
+
+-- @@ L101-101 verbatim
+theorem add_eq (n m : ZFNat × ZFNat) : mk n + mk m = mk (n.1 + m.1, n.2 + m.2) := rfl
+
+-- @@ L102-106 verbatim
+theorem add_assoc (n m k : ZFInt) : n + (m + k) = n + m + k := by
+  induction n using Quotient.ind
+  induction m using Quotient.ind
+  induction k using Quotient.ind
+  simp_rw [mk_eq, ZFInt.add_eq, ZFNat.add_assoc]
+
+-- @@ L107-110 verbatim
+theorem add_comm (n m : ZFInt) : n + m = m + n := by
+  induction n using Quotient.ind
+  induction m using Quotient.ind
+  simp_rw [mk_eq, ZFInt.add_eq, ZFNat.add_comm]
+
+-- @@ L111-112 verbatim
+lemma add_left_comm (n m k : ZFInt) : n + (m + k) = m + (n + k) := by
+  rw [add_assoc, add_assoc, add_comm n]
+
+-- @@ L113-114 verbatim
+lemma add_right_comm (n m k : ZFInt) : (n + m) + k = (n + k) + m := by
+  rw [← add_assoc, add_comm m, add_assoc]
+
+-- @@ L115-117 verbatim
+theorem add_zero {x : ZFInt} : x + 0 = x := by
+  induction x using Quotient.ind
+  simp_rw [mk_eq, zero_eq, ZFInt.add_eq, ZFNat.add_zero]
+
+-- @@ L118-119 verbatim
+theorem zero_add {x : ZFInt} : 0 + x = x := by
+  rw [add_comm, add_zero]
+
+-- @@ L120-125 verbatim
+/-- Imported ZFLean declaration. -/
+protected abbrev neg (n : ZFInt) : ZFInt :=
+  Quotient.liftOn n (fun x => mk (x.2, x.1)) fun x y h => sound (ZFSet.zrel_eq.symm (by
+    simp only [ZFSet.zrel]
+    rw [ZFNat.add_comm, ZFNat.add_comm y.1, ← ZFSet.zrel]
+    assumption))
+
+-- @@ L126-126 verbatim
+protected instance : Neg ZFInt := ⟨ZFInt.neg⟩
+
+-- @@ L127-127 verbatim
+theorem neg_eq (n : ZFNat × ZFNat) : -mk n = mk (n.2, n.1) := rfl
+
+-- @@ L128-130 verbatim
+theorem neg_neg (n : ZFInt) : -(-n) = n := by
+  induction n using Quotient.ind
+  rw [mk_eq, neg_eq, neg_eq]
+
+-- @@ L131-132 verbatim
+theorem neg_zero : -(0 : ZFInt) = 0 := by
+  rw [zero_eq, neg_eq]
+
+-- @@ L133-134 verbatim
+theorem neg_inj {a b : ZFInt} : -a = -b ↔ a = b :=
+  ⟨fun h => by rw [← neg_neg a, ← neg_neg b, h], congrArg _⟩
+
+-- @@ L135-135 verbatim
+theorem neg_eq_zero {a : ZFInt} : -a = 0 ↔ a = 0 := ZFInt.neg_inj (b := 0)
+
+-- @@ L136-136 verbatim
+theorem neg_ne_zero {a : ZFInt} : -a ≠ 0 ↔ a ≠ 0 := not_congr neg_eq_zero
+
+-- @@ L137-140 verbatim
+theorem add_left_neg {a : ZFInt} : -a + a = 0 := by
+  induction a using Quotient.ind
+  apply sound
+  rw [ZFNat.add_comm]
+
+-- @@ L141-143 verbatim
+theorem add_right_neg (a : ZFInt) : a + -a = 0 := by
+  rw [add_comm]
+  exact add_left_neg
+
+-- @@ L144-145 verbatim
+theorem neg_eq_of_add_eq_zero {a b : ZFInt} (h : a + b = 0) : -a = b := by
+  rw [← @add_zero (-a), ← h, add_assoc, add_left_neg, zero_add]
+
+-- @@ L146-147 verbatim
+theorem eq_neg_of_eq_neg {a b : ZFInt} (h : a = -b) : b = -a := by
+  rw [h, neg_neg]
+
+-- @@ L148-148 verbatim
+theorem eq_neg_comm {a b : ZFInt} : a = -b ↔ b = -a := ⟨eq_neg_of_eq_neg, eq_neg_of_eq_neg⟩
+
+-- @@ L149-150 verbatim
+theorem neg_eq_comm {a b : ZFInt} : -a = b ↔ -b = a := by
+  rw [eq_comm, eq_neg_comm, eq_comm]
+
+-- @@ L151-152 verbatim
+theorem neg_add_cancel_left (a b : ZFInt) : -a + (a + b) = b := by
+  rw [add_assoc, add_left_neg, zero_add]
+
+-- @@ L153-154 verbatim
+theorem add_neg_cancel_left (a b : ZFInt) : a + (-a + b) = b := by
+  rw [add_assoc, add_right_neg, zero_add]
+
+-- @@ L155-156 verbatim
+theorem add_neg_cancel_right (a b : ZFInt) : a + b + -b = a := by
+  rw [← add_assoc, add_right_neg, add_zero]
+
+-- @@ L157-158 verbatim
+theorem neg_add_cancel_right (a b : ZFInt) : a + -b + b = a := by
+  rw [← add_assoc, add_left_neg, add_zero]
+
+-- @@ L159-161 verbatim
+theorem add_left_cancel {a b c : ZFInt} (h : a + b = a + c) : b = c := by
+  have h₁ : -a + (a + b) = -a + (a + c) := by rw [h]
+  simpa [add_assoc, add_left_neg, zero_add] using h₁
+
+-- @@ L162-164 verbatim
+theorem neg_add {a b : ZFInt} : -(a + b) = -a + -b := by
+  apply add_left_cancel (a := a + b)
+  rw [add_right_neg, add_comm a, add_assoc, ← add_assoc b, add_right_neg, add_zero, add_right_neg]
+
+-- @@ L165-166 verbatim
+/-- Integer subtraction in the ZF integer model. -/
+noncomputable abbrev sub (n m : ZFInt) : ZFInt := n + -m
+
+-- @@ L167-168 verbatim
+/-- Imported ZFLean declaration. -/
+protected noncomputable instance : Sub ZFInt := ⟨ZFInt.sub⟩
+
+-- @@ L169-169 verbatim
+theorem sub_eq (n m : ZFNat × ZFNat) : mk n - mk m = mk (n.1 + m.2, n.2 + m.1) := rfl
+
+-- @@ L170-170 verbatim
+theorem sub_eq_add_neg {a b : ZFInt} : a - b = a + -b := rfl
+
+-- @@ L171-171 verbatim
+theorem add_neg_one (i : ZFInt) : i + -1 = i - 1 := rfl
+
+-- @@ L172-172 verbatim
+theorem sub_self (a : ZFInt) : a - a = 0 := by rw [sub_eq_add_neg, add_right_neg]
+
+-- @@ L173-173 verbatim
+theorem sub_zero (a : ZFInt) : a - 0 = a := by rw [sub_eq_add_neg, neg_zero, add_zero]
+
+-- @@ L174-174 verbatim
+theorem zero_sub (a : ZFInt) : 0 - a = -a := by rw [sub_eq_add_neg, zero_add]
+
+-- @@ L175-175 verbatim
+theorem sub_eq_zero_of_eq {a b : ZFInt} (h : a = b) : a - b = 0 := by rw [h, sub_self]
+
+-- @@ L176-179 verbatim
+theorem eq_of_sub_eq_zero {a b : ZFInt} (h : a - b = 0) : a = b := by
+  have : 0 + b = b := by rw [zero_add]
+  have : a - b + b = b := by rwa [h]
+  rwa [sub_eq_add_neg, neg_add_cancel_right] at this
+
+-- @@ L180-180 verbatim
+theorem sub_eq_zero {a b : ZFInt} : a - b = 0 ↔ a = b := ⟨eq_of_sub_eq_zero, sub_eq_zero_of_eq⟩
+
+-- @@ L181-182 verbatim
+theorem sub_sub (a b c : ZFInt) : a - b - c = a - (b + c) := by
+  rw [sub_eq_add_neg, sub_eq_add_neg, sub_eq_add_neg, neg_add, add_assoc]
+
+-- @@ L183-184 verbatim
+theorem neg_sub (a b : ZFInt) : -(a - b) = b - a := by
+  rw [sub_eq_add_neg, sub_eq_add_neg, neg_add, neg_neg, add_comm]
+
+-- @@ L185-186 verbatim
+theorem sub_sub_self (a b : ZFInt) : a - (a - b) = b := by
+  rw [sub_eq_add_neg, sub_eq_add_neg, neg_add, neg_neg, add_neg_cancel_left]
+
+-- @@ L187-187 verbatim
+theorem sub_neg (a b : ZFInt) : a - -b = a + b := by rw [sub_eq_add_neg, neg_neg]
+
+-- @@ L188-188 verbatim
+theorem sub_add_cancel (a b : ZFInt) : a - b + b = a := neg_add_cancel_right a b
+
+-- @@ L189-189 verbatim
+theorem add_sub_cancel (a b : ZFInt) : a + b - b = a := add_neg_cancel_right a b
+
+-- @@ L190-191 verbatim
+theorem add_sub_assoc (a b c : ZFInt) : a + b - c = a + (b - c) := by
+  rw [sub_eq_add_neg, ← add_assoc, ← sub_eq_add_neg]
+
+-- @@ L192-194 verbatim
+theorem sub_left_cancel (a b c : ZFInt) : a - c = b - c → a = b := by
+  intro h
+  rwa [← sub_eq_zero, sub_sub, sub_eq_zero, ← add_sub_assoc, add_comm, add_sub_cancel] at h
+
+-- @@ L195-197 verbatim
+theorem sub_right_cancel (a b c : ZFInt) : c - a = c - b → a = b := by
+  rw [← neg_sub a, ← neg_sub b, neg_inj]
+  apply sub_left_cancel
+
+-- @@ L198-200 verbatim
+theorem add_eq_sub_iff {a b c : ZFInt} : a + b = c ↔ a = c - b where
+  mp := fun h => by rw [← h, add_sub_cancel]
+  mpr := fun h => by rw [h, sub_add_cancel]
+
+-- @@ L201-204 verbatim
+/-- Repeated addition by a natural-number scalar. -/
+noncomputable abbrev nsmul : ℕ → ZFInt → ZFInt
+  | 0, _ => 0
+  | n+1, m => m + nsmul n m
+
+-- @@ L205-209 verbatim
+/-- Integer scalar multiplication defined using repeated addition and negation. -/
+noncomputable abbrev zsmul (n : ℤ) (x : ZFInt) : ZFInt :=
+  match n with
+  | .ofNat n => nsmul n x
+  | .negSucc n => -nsmul (n+1) x
+
+-- @@ L210-227 verbatim
+private theorem mul_wf {a b c d s t u v : ZFNat}
+  (h₁ : ZFSet.zrel (a, b) (s, t)) (h₂ : ZFSet.zrel (c, d) (u, v)) :
+  ZFSet.zrel (a * c + b * d, a * d + b * c) (s * u + t * v, s * v + t * u) := by
+  dsimp [ZFSet.zrel] at *
+  suffices h₃ : t * c + a * c + b * d + s * v + t * u = a * d + b * c + s * u + t * v + t * c by
+    simp_rw [ZFNat.add_comm _ (t*c), ← ZFNat.add_assoc (t*c)] at h₃
+    apply ZFNat.add_left_cancel.mp at h₃
+    simp_rw [ZFNat.add_assoc, h₃]
+  conv in t*c + a*c => rw [← right_distrib, ZFNat.add_comm, h₁, right_distrib]
+  conv in _ + t*v + t*c => rw [← ZFNat.add_assoc, ← left_distrib, ZFNat.add_comm v c, h₂,
+    left_distrib, ZFNat.add_assoc]
+  apply ZFNat.add_right_cancel.mpr
+  conv_rhs =>
+    rw [ZFNat.add_comm, ZFNat.add_assoc, ZFNat.add_assoc, ← right_distrib, ZFNat.add_comm t a, h₁,
+      right_distrib]
+    rw [ZFNat.add_comm (b * d + s * d), ZFNat.add_assoc, ← ZFNat.add_assoc,  ← left_distrib s, ← h₂,
+      left_distrib]
+  ac_rfl
+
+-- @@ L228-232 verbatim
+/-- Integer multiplication in the ZF integer model. -/
+noncomputable abbrev mul (n m : ZFInt) : ZFInt :=
+  Quotient.liftOn₂ n m
+    (fun ⟨a, b⟩ ⟨c, d⟩ => mk (a * c + b * d, a * d + b * c)) fun _ _ _ _ => by
+      exact (sound <| mul_wf · ·)
+
+-- @@ L233-234 verbatim
+/-- Imported ZFLean declaration. -/
+noncomputable instance : Mul ZFInt := ⟨ZFInt.mul⟩
+
+-- @@ L235-236 verbatim
+theorem mul_eq (n m : ZFNat × ZFNat) :
+  mk n * mk m = mk (n.1 * m.1 + n.2 * m.2, n.1 * m.2 + n.2 * m.1) := rfl
+
+-- @@ L237-242 verbatim
+theorem mul_comm (n m : ZFInt) : n * m = m * n := by
+  induction n using Quotient.ind
+  induction m using Quotient.ind
+  apply sound
+  rw [ZFSet.zrel]
+  ac_rfl
+
+-- @@ L243-253 verbatim
+theorem left_distrib (a b c : ZFInt) : a * (b + c) = a * b + a * c := by
+  induction a using Quotient.ind
+  induction b using Quotient.ind
+  induction c using Quotient.ind
+  rename_i a b c
+  let ⟨a₁, a₂⟩ := a
+  let ⟨b₁, b₂⟩ := b
+  let ⟨c₁, c₂⟩ := c
+  apply sound
+  simp_rw [ZFNat.left_distrib, ZFSet.zrel]
+  ac_rfl
+
+-- @@ L254-255 verbatim
+theorem right_distrib (a b c : ZFInt) : (a + b) * c = a * c + b * c := by
+  rw [mul_comm, left_distrib, mul_comm, mul_comm b c]
+
+-- @@ L256-259 verbatim
+theorem zero_mul (a : ZFInt) : 0 * a = 0 := by
+  induction a using Quotient.ind
+  apply sound
+  simp_rw [ZFNat.zero_mul]
+
+-- @@ L260-261 verbatim
+theorem mul_zero (a : ZFInt) : a * 0 = 0 := by
+  rw [mul_comm, zero_mul]
+
+-- @@ L262-268 verbatim
+theorem mul_assoc (a b c : ZFInt) : a * b * c = a * (b * c) := by
+  induction a using Quotient.ind
+  induction b using Quotient.ind
+  induction c using Quotient.ind
+  apply sound
+  simp_rw [ZFSet.zrel, ZFNat.left_distrib, ZFNat.right_distrib]
+  ac_rfl
+
+-- @@ L269-273 verbatim
+theorem one_mul (a : ZFInt) : 1 * a = a := by
+  induction a using Quotient.ind
+  apply sound
+  simp_rw [ZFNat.one_mul, ZFNat.zero_mul, ZFNat.add_zero]
+  apply ZFSet.zrel_eq.refl
+
+-- @@ L274-275 verbatim
+theorem mul_one (a : ZFInt) : a * 1 = a := by
+  rw [mul_comm, one_mul]
+
+-- @@ L276-299 verbatim
+noncomputable instance : CommRing ZFInt where
+  zero := 0
+  one := 1
+  add := add
+  add_assoc _ _ _ := by rw [add_assoc]
+  zero_add _ := zero_add
+  add_zero _ := add_zero
+  nsmul := ZFSet.ZFInt.nsmul
+  nsmul_zero _ := rfl
+  nsmul_succ _ _ := add_comm _ _
+  add_comm := add_comm
+  left_distrib := left_distrib
+  right_distrib := right_distrib
+  zero_mul := zero_mul
+  mul_zero := mul_zero
+  mul_comm := mul_comm
+  mul_assoc := mul_assoc
+  one_mul := one_mul
+  mul_one := mul_one
+  zsmul := ZFSet.ZFInt.zsmul
+  zsmul_zero' _ := rfl
+  zsmul_succ' _ _ := add_comm _ _
+  zsmul_neg' _ _ := rfl
+  neg_add_cancel _ := add_left_neg
+
+-- @@ L300-325 verbatim
+instance intLt : LT ZFInt where
+  lt x y := Quotient.liftOn₂ x y
+    (fun ⟨a, b⟩ ⟨c, d⟩ => a + d < b + c) fun ⟨a, b⟩ ⟨c, d⟩ ⟨s, t⟩ ⟨u, v⟩ h₁ h₂ => by
+      replace h₁ : a + t = b + s := h₁
+      replace h₂ : c + v = d + u := h₂
+      simp only [eq_iff_iff]
+      apply Iff.intro
+      · intro lt
+        rw [← ZFNat.add_lt_add_iff_right (k := t)] at lt
+        conv_lhs at lt => rw [← ZFNat.add_assoc, ZFNat.add_comm, ← ZFNat.add_assoc,
+          ZFNat.add_comm t, h₁, ZFNat.add_comm b, ZFNat.add_assoc]
+        conv_rhs at lt => rw [← ZFNat.add_assoc, ZFNat.add_comm]
+        rw [ZFNat.add_lt_add_iff_right, ← ZFNat.add_lt_add_iff_right (k := u)] at lt
+        conv_lhs at lt => rw [← ZFNat.add_assoc, ZFNat.add_comm, ← ZFNat.add_assoc,
+          ZFNat.add_comm u, ← h₂, ZFNat.add_assoc, ZFNat.add_comm, ZFNat.add_assoc]
+        conv_rhs at lt => rw [ZFNat.add_comm, ZFNat.add_comm c, ZFNat.add_assoc]
+        rwa [ZFNat.add_lt_add_iff_right, ZFNat.add_comm, ZFNat.add_comm u] at lt
+      · intro lt
+        rw [← ZFNat.add_lt_add_iff_right (k := b)] at lt
+        conv_lhs at lt => rw [← ZFNat.add_assoc, ZFNat.add_comm, ← ZFNat.add_assoc, ← h₁,
+          ZFNat.add_assoc]
+        conv_rhs at lt => rw [← ZFNat.add_assoc, ZFNat.add_comm]
+        rw [ZFNat.add_lt_add_iff_right, ← ZFNat.add_lt_add_iff_right (k := c)] at lt
+        conv_lhs at lt => rw [ZFNat.add_comm, ZFNat.add_assoc, h₂, ZFNat.add_comm, ZFNat.add_assoc]
+        conv_rhs at lt => rw [ZFNat.add_comm, ZFNat.add_comm u, ZFNat.add_assoc]
+        rwa [ZFNat.add_lt_add_iff_right, ZFNat.add_comm c] at lt
+
+-- @@ L326-327 verbatim
+instance intLe : LE ZFInt where
+  le x y := x < y ∨ x = y
+
+-- @@ L328-337 verbatim
+theorem lt_succ {n : ZFInt} : n < n + 1 := by
+  induction n using Quotient.ind with
+  | _ n =>
+    obtain ⟨n, m⟩ := n
+    rw [ZFInt.mk_eq, ZFInt.one_eq, ZFInt.add_eq]
+    dsimp
+    rw [ZFNat.add_zero]
+    change n+m < m+(n+1)
+    rw [ZFNat.add_comm, ZFNat.add_lt_add_iff_left, ZFNat.add_one_eq_succ]
+    exact ZFNat.lt_succ
+
+-- @@ L338-354 verbatim
+theorem lt_trans {a b c : ZFInt} : a < b → b < c → a < c := by
+  induction a using Quotient.ind
+  induction b using Quotient.ind
+  induction c using Quotient.ind
+  rename_i a b c
+  let ⟨a₁, a₂⟩ := a
+  let ⟨b₁, b₂⟩ := b
+  let ⟨c₁, c₂⟩ := c
+  intros h₁ h₂
+  let this := ZFNat.add_lt_trans h₁ h₂
+  conv at this =>
+    conv => lhs; rw [← ZFNat.add_assoc, ZFNat.add_comm b₂, ZFNat.add_comm b₁, ZFNat.add_assoc,
+      ZFNat.add_assoc]
+    conv => rhs; rw [← ZFNat.add_assoc, ZFNat.add_comm b₁, ZFNat.add_comm b₂, ← ZFNat.add_assoc,
+      ZFNat.add_comm b₂, ZFNat.add_assoc, ZFNat.add_assoc]
+    rw [ZFNat.add_lt_add_iff_right (k := b₂), ZFNat.add_lt_add_iff_right (k := b₁)]
+  assumption
+
+-- @@ L355-362 verbatim
+theorem lt_irrefl {a : ZFInt} : ¬ a < a := by
+  induction a using Quotient.ind with
+  | _ a =>
+    let ⟨a₁, a₂⟩ := a
+    intro h
+    replace h : a₁ + a₂ < a₂ + a₁ := h
+    rw [ZFNat.add_comm] at h
+    nomatch ZFNat.lt_irrefl h
+
+-- @@ L363-378 verbatim
+theorem lt_zero_iff {n m : ZFNat} : m < n ↔ 0 < ZFInt.mk (n,m) := by
+  constructor
+  · intro h
+    induction n using ZFNat.induction generalizing m with
+    | zero =>
+      rw [ZFInt.zero_eq]
+      change 0 + m < 0 + 0
+      exact ZFNat.add_lt_add_left h 0
+    | succ n ih =>
+      rw [ZFInt.zero_eq]
+      change 0 + m < 0 + n.succ
+      exact ZFNat.add_lt_add_left h 0
+  · intro h
+    rw [ZFInt.zero_eq] at h
+    change 0 + m < 0 + n at h
+    exact ZFNat.add_lt_add_iff_left.mp h
+
+-- @@ L379-379 verbatim
+theorem neg_one_lt_zero : (-1 : ZFInt) < 0 := add_left_neg ▸ lt_succ (n := (-1))
+
+-- @@ L380-380 verbatim
+theorem zero_lt_one : (0 : ZFInt) < 1 := ZFInt.zero_add (x:=1) ▸ lt_succ
+
+-- @@ L381-388 verbatim
+theorem le_trans {a b c : ZFInt} : a ≤ b → b ≤ c → a ≤ c := by
+  intro h₁ h₂
+  rcases h₁ with h₁ | rfl
+  · rcases h₂ with h₂ | rfl
+    · left
+      exact lt_trans h₁ h₂
+    · left; assumption
+  · assumption
+
+-- @@ L389-395 verbatim
+theorem le_antisymm {a b : ZFInt} : a ≤ b → b ≤ a → a = b := by
+  intro h₁ h₂
+  rcases h₁ with h₁ | rfl
+  · rcases h₂ with h₂ | rfl
+    · nomatch lt_irrefl <| lt_trans h₁ h₂
+    · rfl
+  · rfl
+
+-- @@ L396-406 verbatim
+theorem le_total {a b : ZFInt} : a ≤ b ∨ b ≤ a := by
+  induction a using Quotient.ind
+  induction b using Quotient.ind
+  rename_i a b
+  let ⟨a₁, a₂⟩ := a
+  let ⟨b₁, b₂⟩ := b
+  rcases @ZFNat.le_total (a₁ + b₂) (a₂ + b₁) with (_ | _) | (h | h)
+  · left; left; assumption
+  · left; right; apply sound; assumption
+  · right; left; rw [ZFNat.add_comm a₂, ZFNat.add_comm a₁] at h; assumption
+  · right; right; apply sound; rw [ZFNat.add_comm a₂, ZFNat.add_comm a₁] at h; assumption
+
+-- @@ L407-418 verbatim
+theorem lt_iff_le_not_ge {x y : ZFInt} : x < y ↔ x ≤ y ∧ ¬y ≤ x := by
+  apply Iff.intro
+  · intro
+    apply And.intro
+    · left
+      assumption
+    · rintro (_ | rfl)
+      · nomatch lt_irrefl (lt_trans ‹_› ‹_›)
+      · nomatch lt_irrefl ‹_›
+  · rintro ⟨h | rfl, h'⟩
+    · assumption
+    · exact False.elim (h' (Or.inr rfl))
+
+-- @@ L419-435 verbatim
+theorem lt_neg_iff {a b : ZFInt} : a < b ↔ -b < -a := by
+  constructor <;>
+  (
+    intro le
+    induction a using Quotient.ind
+    induction b using Quotient.ind
+    rename_i a b
+    let ⟨a₁, a₂⟩ := a
+    let ⟨b₁, b₂⟩ := b
+    rw [ZFInt.mk_eq, ZFInt.mk_eq] at le ⊢
+  )
+  · change a₁ + b₂ < a₂ + b₁ at le
+    change b₂ + a₁ < b₁ + a₂
+    rwa [ZFNat.add_comm b₂, ZFNat.add_comm b₁]
+  · change b₂ + a₁ < b₁ + a₂ at le
+    change a₁ + b₂ < a₂ + b₁
+    rwa [ZFNat.add_comm a₂, ZFNat.add_comm a₁]
+
+-- @@ L436-458 verbatim
+theorem le_neg_iff {a b : ZFInt} : a ≤ b ↔ -b ≤ -a := by
+  constructor <;>
+  (
+    intro le
+    induction a using Quotient.ind
+    induction b using Quotient.ind
+    rename_i a b
+    let ⟨a₁, a₂⟩ := a
+    let ⟨b₁, b₂⟩ := b
+    rw [ZFInt.mk_eq, ZFInt.mk_eq] at le ⊢
+  )
+  · rcases le with le | le
+    · left
+      exact lt_neg_iff.mp le
+    · rw [eq, ZFSet.zrel] at le
+      right
+      rwa [neg_eq, neg_eq, eq, ZFSet.zrel, ZFNat.add_comm b₂, ZFNat.add_comm b₁]
+  · rcases le with le | le
+    · left
+      exact lt_neg_iff.mpr le
+    · rw [neg_eq, neg_eq, eq, ZFSet.zrel] at le
+      right
+      rwa [eq, ZFSet.zrel, ZFNat.add_comm a₁, ZFNat.add_comm a₂]
+
+-- @@ L459-466 verbatim
+noncomputable instance : LinearOrder ZFInt where
+  le := intLe.le
+  le_refl x := Or.inr rfl
+  le_trans _ _ _ := le_trans
+  le_antisymm _ _ := le_antisymm
+  le_total _ _ := le_total
+  toDecidableLE := fun _ _ => Classical.propDecidable ((· ≤ ·) _ _)
+  lt_iff_le_not_ge _ _ := lt_iff_le_not_ge
+
+-- @@ L467-479 verbatim
+noncomputable instance : AddCommGroup ZFInt where
+  add := add
+  add_assoc := (add_assoc · · · |>.symm)
+  zero := zero
+  zero_add := @zero_add
+  add_zero := @add_zero
+  nsmul := nsmul
+  nsmul_succ x y := add_comm y (nsmul x y)
+  neg := ZFInt.neg
+  zsmul := zsmul
+  zsmul_succ' x y := add_comm y (nsmul x y)
+  neg_add_cancel := @add_left_neg
+  add_comm := @add_comm
+
+-- @@ L480-485 verbatim
+instance : PartialOrder ZFInt where
+  le := intLe.le
+  le_refl := le_refl
+  le_trans := @le_trans
+  lt_iff_le_not_ge := @lt_iff_le_not_ge
+  le_antisymm := @le_antisymm
+
+-- @@ L486-503 verbatim
+instance : IsOrderedAddMonoid ZFInt where
+  add_le_add_left x y h z := by
+    induction x using Quotient.ind
+    induction y using Quotient.ind
+    induction z using Quotient.ind
+    rename_i x y z
+    let ⟨x₁, x₂⟩ := x
+    let ⟨y₁, y₂⟩ := y
+    let ⟨z₁, z₂⟩ := z
+    simp_rw [mk_eq] at h ⊢
+    rcases h with h | h
+    · change x₁ + y₂ < x₂ + y₁ at h
+      simp_rw [add_eq]
+      left
+      change (x₁ + z₁) + (y₂ + z₂) < (x₂ + z₂) + (y₁ + z₁)
+      ac_change (x₁ + y₂) + (z₁ + z₂) <  (x₂ + y₁) + (z₁ + z₂)
+      rwa [ZFNat.add_lt_add_iff_right]
+    · simp_all
+
+-- @@ L504-515 verbatim
+lemma ind {P : ZFNat → ZFNat → Prop} (n m : ZFNat) (zero : P 0 0)
+  (succ_l : ∀ n m, P n m → P (n + 1) m) (succ_r : ∀ n m, P n m → P n (m + 1)) : P n m := by
+  induction n using ZFNat.induction with
+  | zero =>
+    induction m using ZFNat.induction with
+    | zero => exact zero
+    | succ m ih =>
+      rw [←ZFNat.add_one_eq_succ]
+      exact succ_r 0 m ih
+  | succ n ih =>
+    rw [←ZFNat.add_one_eq_succ]
+    exact succ_l n m ih
+
+-- @@ L516-555 verbatim
+lemma induction_pos {P : ZFInt → Prop} (n : ZFInt) (n_pos : 0 ≤ n)
+  (zero : P 0) (succ : ∀ k, P k → P (k + 1)) : P n := by
+  induction n using Quotient.ind
+  rename_i n
+  obtain ⟨n, m⟩ := n
+  rcases (Std.Trichotomous.rel_or_eq_or_rel_swap
+      (r := (· < · : ZFNat → ZFNat → Prop)) (a := n) (b := m)) with h | h | h
+  · exfalso
+    rw [ZFInt.lt_zero_iff] at h
+    rcases n_pos with n_pos | eq
+    · rw [ZFInt.zero_eq] at h n_pos
+      change 0 + n < 0 + m at h
+      change 0 + m < 0 + n at n_pos
+      rw [ZFNat.zero_add, ZFNat.zero_add] at h n_pos
+      nomatch ZFNat.lt_irrefl <| ZFNat.lt_trans h n_pos
+    · rw [ZFInt.mk_eq] at eq
+      rcases ZFInt.mk_eq_zero_iff.mp eq.symm with rfl
+      simp_all
+  · subst m
+    rcases n_pos with n_pos | eq
+    · rw [ZFInt.zero_eq] at n_pos
+      change 0 + n < 0 + n at n_pos
+      nomatch ZFNat.lt_irrefl n_pos
+    · rwa [←eq]
+  · let k := n - m
+    have : n = k + m := by
+      apply ZFNat.eq_add_of_sub_eq _ rfl
+      left
+      exact h
+    rw [this]
+    induction k using ZFNat.induction with
+    | zero =>
+      rw [ZFInt.zero_eq] at zero
+      rwa [ZFNat.zero_add, ZFInt.mk_eq, ZFInt.eq (x := (m,m)) (y := (0,0)) |>.mpr rfl]
+    | succ k ih =>
+      rw [ZFNat.add_comm] at ih
+      rw [←ZFNat.add_one_eq_succ, ZFNat.add_comm, ZFNat.add_assoc]
+      specialize succ <| ZFInt.mk (m+k,m)
+      rw [ZFInt.one_eq, ZFInt.add_eq] at succ
+      simp_all
+
+-- @@ L556-568 verbatim
+lemma induction_neg {P : ZFInt → Prop} (n : ZFInt) (n_neg : n ≤ 0)
+  (zero : P 0) (succ : ∀ k, P k → P (k - 1)) : P n := by
+  have  : 0 ≤ -n := by rwa [← ZFInt.neg_zero, ZFInt.le_neg_iff, neg_neg n, neg_neg 0]
+  let P' n := P (-n)
+  suffices P' (-n) by
+    unfold P' at this
+    rwa [ZFInt.neg_neg] at this
+  have succ' : ∀ k, P' k → P' (k + 1) := by
+    intro k hk
+    unfold P' at hk ⊢
+    rw [ZFInt.neg_add]
+    exact succ _ hk
+  exact induction_pos (P := P') (-n) this zero succ'
+
+-- @@ L569-576 verbatim
+@[induction_eliminator]
+theorem induction {P : ZFInt → Prop} (n : ZFInt)
+  (zero : P 0) (pos : ∀ k, P k → P (k + 1)) (neg : ∀ k, P k → P (k - 1)) : P n := by
+  rcases (Std.Trichotomous.rel_or_eq_or_rel_swap
+      (r := (· < · : ZFInt → ZFInt → Prop)) (a := n) (b := 0)) with h | h | h
+  · exact induction_neg n (Or.inl h) zero neg
+  · simp_all
+  · exact induction_pos n (Or.inl h) zero pos
+
+-- @@ L577-591 verbatim
+@[cases_eliminator]
+theorem sign_cases {P : ZFInt → Prop} (n : ZFInt)
+  (zero : P 0) (neg : n < 0 → P n) (pos : 0 < n → P n) : P n := by
+  induction n with
+  | zero => exact zero
+  | pos k ih =>
+    rcases lt_trichotomy (k+1) 0 with h | h | h
+    · exact neg h
+    · rwa [h]
+    · exact pos h
+  | neg k ih =>
+    rcases lt_trichotomy (k-1) 0 with h | h | h
+    · exact neg h
+    · rwa [h]
+    · exact pos h
+
+-- @@ L592-607 verbatim
+@[cases_eliminator]
+theorem cases {P : ZFInt → Prop} (n : ZFInt) (pos : 0 ≤ n → P n) (neg : n < 0 → P n) : P n := by
+  induction n with
+  | zero => exact pos (Or.inr rfl)
+  | pos n ih =>
+    generalize h : n + 1 = m at *
+    cases m using sign_cases with
+    | zero => exact pos (Or.inr rfl)
+    | neg h => exact neg h
+    | pos h => exact pos (Or.inl h)
+  | neg n ih =>
+    generalize h : n - 1 = m at *
+    cases m using sign_cases with
+    | zero => exact pos (Or.inr rfl)
+    | neg h => exact neg h
+    | pos h => exact pos (Or.inl h)
+
+-- @@ L608-612 verbatim
+theorem add_eq_add_sub_eq_sub {a b c d : ZFNat} : a + b = c + d → a - c = d - b := by
+  intro h
+  have : a = c + d - b := ZFNat.sub_eq_of_eq_add h.symm |>.symm
+  subst this
+  rw [←ZFNat.sub_add_distrib, ZFNat.add_comm b c, ZFNat.add_sub_add_left c d b]
+
+-- @@ L613-627 verbatim
+theorem le_of_lt_succ (n m : ZFInt) : n < m + 1 → n ≤ m := by
+  intro h
+  induction n using Quotient.ind
+  induction m using Quotient.ind
+  rename_i n m
+  obtain ⟨a, b⟩ := n
+  obtain ⟨c, d⟩ := m
+  simp_rw [mk_eq] at h ⊢
+  rw [one_eq, add_eq, ZFNat.add_zero] at h
+  change a + d < b + (c + 1) at h
+  suffices a + d ≤ b + c by
+    rcases this with h | h
+    · left; exact h
+    · right; exact sound h
+  rwa [ZFNat.add_assoc, ZFNat.add_one_eq_succ, ←ZFNat.lt_le_iff] at h
+
+-- @@ L628-633 verbatim
+theorem lt_succ_of_le (n m : ZFInt) : n ≤ m → n < m + 1 := by
+  rintro (h | rfl)
+  · trans n+1
+    · exact lt_succ
+    · exact (add_lt_add_iff_right 1).mpr h
+  · exact lt_succ
+
+-- @@ L634-636 verbatim
+theorem lt_succ_of_le_iff (n m : ZFInt) : n ≤ m ↔ n < m + 1 where
+  mp := lt_succ_of_le n m
+  mpr := le_of_lt_succ n m
+
+-- @@ L637-640 verbatim
+theorem _root_.ZFSet.ZFInt.intLe.dest {n m : ZFInt} : n ≤ m → ∃ k, 0 ≤ k ∧ n + k = m := by
+  intro h
+  exists m - n
+  simp_all
+
+-- @@ L641-659 verbatim
+theorem mul_pos_pos_pos (a b : ZFInt) (ha : 0 < a) (hb : 0 < b) : 0 < a * b := by
+  induction a using Quotient.ind
+  induction b using Quotient.ind
+  rename_i a b
+  obtain ⟨c, d⟩ := b
+  obtain ⟨a, b⟩ := a
+  simp_rw [mk_eq, zero_eq] at ha hb ⊢
+  rw [mul_eq]
+  change 0 + d < 0 + c at hb
+  change 0 + b < 0 + a at ha
+  change 0 + (a * d + b * c) < 0 + (a * c + b * d)
+  simp_rw [ZFNat.zero_add] at ha hb ⊢
+  rw [ZFNat.sub_add_cancel (Or.inl hb) |>.symm, ZFNat.left_distrib, ZFNat.left_distrib,
+    ZFNat.add_comm _ (b*d), ZFNat.add_assoc, ←ZFNat.right_distrib, ←ZFNat.add_assoc,
+    ←ZFNat.right_distrib, ZFNat.add_comm, ZFNat.add_lt_add_iff_right, ZFNat.mul_comm b,
+    ZFNat.mul_comm a]
+  apply ZFNat.mul_lt_mono
+  · exact ZFNat.pos_of_ne_zero (ZFNat.sub_ne_zero_of_lt hb).symm
+  · exact ha
+
+-- @@ L660-661 verbatim
+theorem neg_one_mul (a : ZFInt) : (-1 : ZFInt) * a = -a := by
+  simp_all
+
+-- @@ L662-663 verbatim
+theorem neg_one_mul_neg_one : (-1 : ZFInt) * (-1) = 1 := by
+  simp_all
+
+-- @@ L664-665 verbatim
+theorem mul_neg_neg (a b : ZFInt) : a * b = -a * -b := by
+  simp_all
+
+-- @@ L666-666 verbatim
+theorem neg_mul_distrib (a b : ZFInt) : -(a * b) = -a * b := neg_mul_eq_neg_mul a b
+
+-- @@ L667-669 verbatim
+theorem mul_neg_neg_pos (a b : ZFInt) (ha : a < 0) (hb : b < 0) : 0 < a * b := by
+  rw [mul_neg_neg]
+  exact mul_pos_pos_pos _ _ (Left.neg_pos_iff.mpr ha) (Left.neg_pos_iff.mpr hb)
+
+-- @@ L670-670 verbatim
+theorem neg_flip_lt (a : ZFInt) : a < 0 ↔ 0 < -a := Iff.symm Left.neg_pos_iff
+
+-- @@ L671-671 verbatim
+theorem neg_flip_le (a : ZFInt) : a ≤ 0 ↔ 0 ≤ -a := Iff.symm neg_nonneg
+
+-- @@ L672-674 verbatim
+theorem mul_neg_pos_neg (a b : ZFInt) (ha : a < 0) (hb : 0 < b) : a * b < 0 := by
+  rw [neg_flip_lt, neg_mul_eq_neg_mul]
+  exact mul_pos_pos_pos _ _ ((neg_flip_lt a).mp ha) hb
+
+-- @@ L675-677 verbatim
+theorem mul_pos_neg_neg (a b : ZFInt) (ha : 0 < a) (hb : b < 0) : a * b < 0 := by
+  rw [mul_comm, neg_flip_lt, neg_mul_eq_neg_mul]
+  exact mul_pos_pos_pos _ _ ((neg_flip_lt b).mp hb) ha
+
+-- @@ L678-684 verbatim
+theorem mul_nonneg_nonneg_nonneg (a b : ZFInt) (ha : 0 ≤ a) (hb : 0 ≤ b) : 0 ≤ a * b := by
+  rcases ha with ha | rfl <;> rcases hb with hb | rfl
+  · left
+    exact mul_pos_pos_pos a b ha hb
+  · simp_all
+  · simp_all
+  · simp_all
+
+-- @@ L685-687 verbatim
+theorem mul_nonpos_nonneg_nonpos (a b : ZFInt) (ha : a ≤ 0) (hb : 0 ≤ b) : a * b ≤ 0 := by
+  rw [neg_flip_le, neg_mul_eq_neg_mul]
+  exact mul_nonneg_nonneg_nonneg _ _ (neg_nonneg.mpr ha) hb
+
+-- @@ L688-690 verbatim
+theorem mul_nonneg_nonpos_nonpos (a b : ZFInt) (ha : 0 ≤ a) (hb : b ≤ 0) : a * b ≤ 0 := by
+  rw [mul_comm, neg_flip_le, neg_mul_eq_neg_mul]
+  exact mul_nonneg_nonneg_nonneg _ _ (neg_nonneg.mpr hb) ha
+
+-- @@ L691-693 verbatim
+theorem mul_nonpos_nonpos_nonneg (a b : ZFInt) (ha : a ≤ 0) (hb : b ≤ 0) : 0 ≤ a * b := by
+  rw [mul_neg_neg]
+  exact mul_nonneg_nonneg_nonneg _ _ (neg_nonneg.mpr ha) (neg_nonneg.mpr hb)
+
+-- @@ L694-699 verbatim
+theorem mul_le_mul_left {n m : ZFInt} (k : ZFInt) (h : n ≤ m) (h' : 0 ≤ k) : k * n ≤ k * m := by
+  obtain ⟨l, pos, hl⟩ := intLe.dest h
+  have : k * n + k * l = k * m := by rw [←hl, left_distrib]
+  rw [←this]
+  apply le_add_of_nonneg_right
+  exact mul_nonneg_nonneg_nonneg k l h' pos
+
+-- @@ L700-709 verbatim
+theorem mul_lt_mul_of_pos_left {n m k : ZFInt} (h : n < m) (hk : k > 0) : k * n < k * m := by
+  apply lt_of_lt_of_le (b := k*n+k)
+  · exact lt_add_of_pos_right _ hk
+  · conv =>
+      enter [1,2]
+      rw [←mul_one k]
+    rw [←left_distrib]
+    apply mul_le_mul_left k
+    · exact (lt_succ_of_le_iff (n + 1) m).mpr <| (add_lt_add_iff_right 1).mpr h
+    · exact le_of_lt hk
+
+-- @@ L710-721 verbatim
+theorem pos_of_mul_pos {a b : ZFInt} (h : 0 < a * b) (ha : 0 < a) : 0 < b := by
+  classical
+  by_contra hb
+  rw [not_lt_iff_eq_or_lt] at hb
+  rcases hb with rfl | hb
+  · simp_all
+  · rcases (Std.Trichotomous.rel_or_eq_or_rel_swap
+      (r := (· < · : ZFInt → ZFInt → Prop)) (a := a) (b := b)) with h' | h' | h'
+    · nomatch lt_irrefl <| lt_trans (lt_trans ha h') hb
+    · subst b
+      nomatch lt_irrefl <| lt_trans ha hb
+    · nomatch lt_irrefl <| lt_trans h <| mul_pos_neg_neg a b ha hb
+
+-- @@ L722-724 verbatim
+theorem mul_lt_mul_of_pos_right {n m k : ZFInt} (h : n < m) (hk : k > 0) : n * k < m * k := by
+  rw [mul_comm n, mul_comm m]
+  exact mul_lt_mul_of_pos_left h hk
+
+-- @@ L725-746 verbatim
+theorem mul_pos_iff {a b : ZFInt} : 0 < a * b ↔ (0 < a ∧ 0 < b) ∨ (a < 0 ∧ b < 0) := by
+  constructor
+  · intro h
+    cases a with
+    | pos pos =>
+      rcases pos with pos | rfl
+      · left
+        and_intros
+        · exact pos
+        · exact pos_of_mul_pos h pos
+      · simp_all
+    | neg neg =>
+      right
+      and_intros
+      · exact neg
+      · rw [mul_neg_neg] at h
+        rw [neg_flip_lt] at neg
+        have := pos_of_mul_pos h neg
+        rwa [←neg_flip_lt] at this
+  · rintro (⟨l, r⟩ | ⟨l, r⟩)
+    · exact mul_pos_pos_pos a b l r
+    · exact mul_neg_neg_pos a b l r
+
+-- @@ L747-755 verbatim
+theorem eq_le_iff {a b : ZFInt} : a = b ↔ a ≤ b ∧ b ≤ a := by
+  constructor
+  · simp_all
+  · rintro ⟨h₁, h₂⟩
+    rcases h₁ with h₁ | rfl <;> rcases h₂ with h₂ | h₂
+    · nomatch lt_irrefl <| lt_trans h₁ h₂
+    · exact h₂.symm
+    · rfl
+    · rfl
+
+-- @@ L756-788 verbatim
+theorem mul_eq_zero_iff {a b : ZFInt} : a * b = 0 ↔ a = 0 ∨ b = 0 := by
+  constructor
+  · intro h
+    induction a using Quotient.ind
+    induction b using Quotient.ind
+    rename_i a b
+    simp_rw [mk_eq, mul_eq, zero_eq, eq, ZFSet.zrel, ZFNat.add_zero] at h ⊢
+    rcases (Std.Trichotomous.rel_or_eq_or_rel_swap
+        (r := (· < · : ZFNat → ZFNat → Prop)) (a := b.1) (b := b.2)) with h' | eq | h'
+    · have := ZFNat.add_eq_add_sub_eq_sub h.symm
+      rw [←ZFNat.left_distrib_mul_sub, ←ZFNat.left_distrib_mul_sub] at this
+      have b₁b₂_ne_0 : b.2 - b.1 ≠ 0 := by
+        intro contr
+        rw [ZFNat.sub_eq_zero_imp_le] at contr
+        rcases contr with contr | eq
+        · nomatch ZFNat.lt_irrefl <| ZFNat.lt_trans contr h'
+        · simp_all
+      left
+      exact ZFNat.mul_right_cancel_iff b₁b₂_ne_0 |>.mp this
+    · right; assumption
+    · have := ZFNat.add_eq_add_sub_eq_sub h
+      rw [←ZFNat.left_distrib_mul_sub, ←ZFNat.left_distrib_mul_sub] at this
+      have b₁b₂_ne_0 : b.1 - b.2 ≠ 0 := by
+        intro contr
+        rw [ZFNat.sub_eq_zero_imp_le] at contr
+        rcases contr with contr | eq
+        · nomatch ZFNat.lt_irrefl <| ZFNat.lt_trans contr h'
+        · simp_all
+      left
+      exact ZFNat.mul_right_cancel_iff b₁b₂_ne_0 |>.mp this
+  · rintro (h | h)
+    · rw [h, zero_mul]
+    · rw [h, mul_zero]
+
+-- @@ L789-792 verbatim
+theorem mul_eq_zero_of_ne_zero {a b : ZFInt} : a * b = 0 → a ≠ 0 → b = 0 := by
+  intro h h'
+  rw [mul_eq_zero_iff] at h
+  exact Or.resolve_left h h'
+
+-- @@ L793-802 verbatim
+theorem mul_left_cancel_iff {a b n : ZFInt} (h : n ≠ 0) : n * a = n * b ↔ a = b := by
+  constructor
+  · intro eq
+    have : n*a - n*b = 0 := sub_eq_zero_of_eq eq
+    rw [ZFInt.sub_eq_add_neg, mul_comm n b, neg_mul_distrib, mul_comm _ n, ←left_distrib,
+      mul_eq_zero_iff] at this
+    rcases this with rfl | this
+    · nomatch h
+    · exact eq_of_sub_eq_zero this
+  · exact fun h => h ▸ rfl
+
+-- @@ L803-805 verbatim
+theorem mul_right_cancel_iff {a b n : ZFInt} (h : n ≠ 0) : a * n = b * n ↔ a = b := by
+  rw [mul_comm a n, mul_comm b n]
+  exact mul_left_cancel_iff h
+
+-- @@ L806-818 verbatim
+noncomputable instance : CommRing ZFInt where
+  add := add
+  add_assoc := (add_assoc · · · |>.symm)
+  add_comm := add_comm
+  zero_add _ := zero_add
+  add_zero _ := add_zero
+  nsmul := nsmul
+  nsmul_succ x y := add_comm y (nsmul x y)
+  left_distrib := left_distrib
+  right_distrib := right_distrib
+  zsmul := zsmul
+  zsmul_succ' x y := add_comm y (nsmul x y)
+  neg_add_cancel := @add_left_neg
+
+-- @@ L819-824 verbatim
+instance : PartialOrder ZFInt where
+  le := intLe.le
+  le_refl := le_refl
+  le_trans := @le_trans
+  le_antisymm := @le_antisymm
+  lt_iff_le_not_ge := @lt_iff_le_not_ge
+
+-- @@ L825-831 verbatim
+instance : IsOrderedRing ZFInt where
+  add_le_add_left _ _ h z := add_le_add_left h z
+  zero_le_one := Or.inl zero_lt_one
+  mul_le_mul_of_nonneg_left a b := fun _ _ ↦ (mul_le_mul_left a · b)
+  mul_le_mul_of_nonneg_right a h b c h' := by
+    rw [mul_comm b, mul_comm c]
+    exact mul_le_mul_left a h' h
+
+-- @@ L832-833 verbatim
+instance : PosMulStrictMono ZFInt where
+  mul_lt_mul_of_pos_left _ h _ _ h' := mul_lt_mul_of_pos_left h' h
+
+-- @@ L834-835 verbatim
+instance : MulPosStrictMono ZFInt where
+  mul_lt_mul_of_pos_right _ h _ _ h' := mul_lt_mul_of_pos_right h' h
+
+-- @@ L836-836 verbatim
+end ZFInt
+
+-- @@ L837-838 verbatim
+/-- The ZF set of integer representatives. -/
+noncomputable abbrev Int := Nat.prod {∅} ∪ ZFSet.prod {∅} Nat
+
+-- @@ L839-840 verbatim
+/-- Embeds a ZF natural number as a ZF integer. -/
+def _root_.ZFSet.ZFInt.ofZFNat (n : ZFNat) : ZFInt := ZFInt.mk ⟨n, 0⟩
+
+-- @@ L841-844 verbatim
+/-- Encodes a Lean integer as a ZF set. -/
+noncomputable def ofInt : ℤ → ZFSet
+  | .ofNat n => ZFSet.pair ∅ (n : ZFNat)
+  | .negSucc n => ZFSet.pair (n+1 : ZFNat) ∅
+
+-- @@ L845-848 verbatim
+/-- Imported ZFLean declaration. -/
+noncomputable def toZFInt : ℤ → ZFInt
+  | .ofNat n => ZFInt.mk (0, ↑n)
+  | .negSucc n => ZFInt.mk (↑n+1, 0)
+
+-- @@ L849-853 verbatim
+/-- The pre-set representative of an integer in the set-theoretic encoding. -/
+def ofInt' : (n : ℤ) → PSet
+  | .ofNat 0 => {{∅}}
+  | .ofNat (n+1) => {{∅}, {∅, .ofNat n}} -- (0, n)
+  | .negSucc n => {{.ofNat (n+1)}, {∅, .ofNat (n+1)}} -- (n, 0)
+
+-- @@ L854-855 verbatim
+/-- A pre-set encoding of Lean integers. -/
+def PInt' : PSet := ⟨ULift ℤ, fun n => ofInt' n.down⟩
+
+-- @@ L856-857 verbatim
+/-- Imported ZFLean declaration. -/
+def Int' : ZFSet := ZFSet.mk PInt'
+
+-- @@ L858-859 verbatim
+theorem _root_.ZFSet.ZFNat.mem_lift_lift_Nat (n : ℕ) : ↑(↑n : ZFNat) ∈ Nat := by
+  simp_all
+
+-- @@ L860-867 verbatim
+theorem mem_ofInt_Int (n : ℤ) : ofInt n ∈ Int := by
+  induction n using Int.recOn with
+  | ofNat n =>
+    rw [Int, mem_union, ofInt]
+    simp_all
+  | negSucc n =>
+    rw [Int, mem_union, ofInt]
+    simp_all
+
+-- @@ L868-872 verbatim
+theorem sub_ofInt_singleton_Int (n : ℤ) : {ofInt n} ⊆ Int := by
+  intro
+  rw [mem_singleton]
+  rintro rfl
+  exact mem_ofInt_Int n
+
+-- @@ L873-877 verbatim
+lemma _root_.ZFSet.Int.nonempty : ZFSet.Int ≠ ∅ := by
+  intro h
+  rw [ZFSet.ext_iff] at h
+  simp only [notMem_empty, iff_false] at h
+  nomatch h (ZFSet.ofInt 0) (ZFSet.mem_ofInt_Int 0)
+
+-- @@ L878-879 verbatim
+/-- First projection from the Kuratowski ordered pair encoding. -/
+def π₁ (x : ZFSet) : ZFSet := ⋃₀ (⋂₀ x)
+
+-- @@ L880-884 verbatim
+open Classical in -- couldn't find another way
+/-- Imported ZFLean declaration. -/
+noncomputable def π₂ (x : ZFSet) : ZFSet :=
+  let δ : ZFSet := (⋃₀ x \ ⋂₀ x)
+  if δ = ∅ then π₁ x else ⋃₀ δ
+
+-- @@ L885-889 verbatim
+@[simp] theorem π₁_pair (x y : ZFSet) : π₁ (x.pair y) = x := by
+  unfold π₁ pair
+  ext
+  rw [sInter_pair, mem_sUnion]
+  simp_all
+
+-- @@ L890-892 verbatim
+@[simp] theorem pair_inter {x y : ZFSet} : {x} ∩ {x, y} = ({x} : ZFSet) := by
+    ext
+    simp_all
+
+-- @@ L893-895 verbatim
+@[simp] theorem pair_union {x y : ZFSet} : {x} ∪ {x, y} = ({x, y} : ZFSet) := by
+    ext
+    simp_all
+
+-- @@ L896-905 verbatim
+@[simp] theorem pair_minus {x y : ZFSet} : x ≠ y → {x, y} \ {x} = ({y} : ZFSet) := by
+  intro x_ne_y
+  ext z
+  rw [mem_sdiff, mem_pair, mem_singleton, mem_singleton]
+  constructor
+  · rintro ⟨rfl | rfl, r⟩
+    · contradiction
+    · rfl
+  · rintro rfl
+    exact ⟨.inr rfl, x_ne_y ∘ Eq.symm⟩
+
+-- @@ L906-921 verbatim
+@[simp] theorem π₂_pair (x y : ZFSet) : π₂ (x.pair y) = y := by
+  unfold π₂
+  dsimp
+  split_ifs with h
+  · rw [π₁_pair]
+    unfold pair at h
+    rw [sUnion_pair, pair_union, sInter_pair, pair_inter] at h
+    rw [ZFSet.ext_iff] at h
+    simp_all
+  · unfold pair at *
+    rw [sUnion_pair, pair_union, sInter_pair, pair_inter] at h ⊢
+    rw [pair_minus]
+    · exact sUnion_singleton
+    · intro h'
+      rw [h'] at h
+      simp [ZFSet.ext_iff] at h
+
+-- @@ L922-925 verbatim
+theorem pair_eta {z A B : ZFSet} (h : z ∈ A.prod B) : z = z.π₁.pair z.π₂ := by
+  rw [mem_prod] at h
+  obtain ⟨a, ha, b, hb, rfl⟩ := h
+  rw [π₁_pair, π₂_pair]
+
+-- @@ L926-932 verbatim
+theorem mem_Int_proj {x : ZFSet} (h : x ∈ Int) :
+  ∃ n ∈ Nat, (x.π₁ = ∅ ∧ x.π₂ = n) ∨ (x.π₁ = n ∧ x.π₂ = ∅) := by
+  simp_rw [mem_union, mem_prod] at h
+  rcases h with ⟨a, ha, b, hb, x_eq⟩ | ⟨b, hb, a, ha, x_eq⟩
+    <;> (rw [mem_singleton] at hb; subst x_eq; rw [π₁_pair, π₂_pair]; exists a)
+  · exact ⟨ha, .inr ⟨rfl, hb⟩⟩
+  · exact ⟨ha, .inl ⟨hb, rfl⟩⟩
+
+-- @@ L933-938 verbatim
+theorem mem_Int_proj' {x : ZFSet} :
+  x ∈ Int → (x.π₁ = ∅ ∧ x.π₂ ∈ Nat) ∨ (x.π₁ ∈ Nat ∧ x.π₂ = ∅) := by
+  intro h
+  rcases mem_Int_proj h with ⟨n, hn, ⟨l, r⟩ | ⟨l, r⟩⟩
+  · simp_all
+  · simp_all
+
+-- @@ L939-939 verbatim
+namespace ZFInt
+
+
+-- @@ L941-948 verbatim
+open Classical in
+/-- Decode a member of the set-theoretic integers into its quotient representation. -/
+noncomputable def outof : {x // x ∈ Int} → ZFInt := fun ⟨n, hn⟩ =>
+  have := mem_Int_proj' hn
+  if case : n.π₁ = ∅ ∧ n.π₂ ∈ Nat then
+    ZFInt.mk ⟨0, n.π₂, case.right⟩
+  else
+    ZFInt.mk ⟨⟨n.π₁, Or.resolve_left this case |>.left⟩, 0⟩
+
+-- @@ L949-990 verbatim
+theorem _root_.ZFSet.ZFInt.outof_inj (x y : {x // x ∈ Int}) : outof x = outof y → x = y := by
+  let ⟨x, hx⟩ := x
+  let ⟨y, hy⟩ := y
+  dsimp [outof]
+  intro outof_eq
+  split_ifs at outof_eq with h₁ h₂ h₂
+    <;> (
+      first
+      | obtain ⟨l₁, r₁⟩ := h₁
+      | obtain ⟨l₁, r₁⟩ := Or.resolve_left (mem_Int_proj' hx) h₁
+      first
+      | obtain ⟨l₂, r₂⟩ := h₂
+      | obtain ⟨l₂, r₂⟩ := Or.resolve_left (mem_Int_proj' hy) h₂
+    )
+  · apply exact at outof_eq
+    dsimp [ZFSet.zrel] at outof_eq
+    simp_rw [mem_union, mem_prod] at hx hy
+    rcases hx, hy with ⟨⟨_, _, _, _, rfl⟩|⟨_, _, _, _, rfl⟩,⟨_, _, _, _, rfl⟩|⟨_, _, _, _, rfl⟩⟩
+      <;> (simp [π₁_pair, π₂_pair] at l₁ r₁ l₂ r₂ outof_eq; subst_eqs; congr)
+  · apply exact at outof_eq
+    dsimp [ZFSet.zrel] at outof_eq
+    rw [ZFNat.zero_add] at outof_eq
+    obtain ⟨l₃, r₃⟩ := ZFNat.eq_zero_of_add_eq_zero outof_eq.symm
+    injection l₃ with l₃
+    injection r₃ with r₃
+    simp_rw [mem_union, mem_prod] at hx hy
+    rcases hx, hy with ⟨⟨_, _, _, _, rfl⟩|⟨_, _, _, _, rfl⟩,⟨_, _, _, _, rfl⟩|⟨_, _, _, _, rfl⟩⟩
+      <;> (simp [π₁_pair, π₂_pair] at l₁ r₁ l₂ r₂ l₃ r₃ outof_eq; subst_eqs; congr)
+  · apply exact at outof_eq
+    dsimp [ZFSet.zrel] at outof_eq
+    rw [ZFNat.zero_add] at outof_eq
+    obtain ⟨l₃, r₃⟩ := ZFNat.eq_zero_of_add_eq_zero outof_eq
+    injection l₃ with l₃
+    injection r₃ with r₃
+    simp_rw [mem_union, mem_prod] at hx hy
+    rcases hx, hy with ⟨⟨_, _, _, _, rfl⟩|⟨_, _, _, _, rfl⟩,⟨_, _, _, _, rfl⟩|⟨_, _, _, _, rfl⟩⟩
+      <;> (simp [π₁_pair, π₂_pair] at l₁ r₁ l₂ r₂ l₃ r₃ outof_eq; subst_eqs; congr)
+  · apply exact at outof_eq
+    dsimp [ZFSet.zrel] at outof_eq
+    simp_rw [mem_union, mem_prod] at hx hy
+    rcases hx, hy with ⟨⟨_, _, _, _, rfl⟩|⟨_, _, _, _, rfl⟩,⟨_, _, _, _, rfl⟩|⟨_, _, _, _, rfl⟩⟩
+      <;> (simp [π₁_pair, π₂_pair] at l₁ r₁ l₂ r₂ outof_eq; subst_eqs; congr)
+
+
+-- @@ L992-992 verbatim
+end ZFInt
+
+
+-- @@ L994-995 verbatim
+theorem _root_.ZFSet.ZFNat.mem_Nat_sub_one {n : ZFNat} : (n - 1).1 ∈ Nat := by
+  simp_all
+
+-- @@ L996-997 verbatim
+theorem _root_.ZFSet.ZFNat.mem_Nat_sub {n m : ZFNat} : (n - m).1 ∈ Nat := by
+  simp_all
+
+-- @@ L998-1010 verbatim
+theorem mem_Int_empty_not_mem {x : ZFSet} {h : x ∈ Int} : ∅ ∉ x := by
+  intro contr
+  simp_rw [mem_union, mem_prod] at h
+  rcases h with ⟨a, _, b, _, h⟩ | ⟨a, _, b, _, h⟩
+  all_goals
+    unfold pair at h
+    subst h
+    rw [mem_insert_iff, mem_singleton] at contr
+    rcases contr with contr | contr
+    all_goals
+      simp only [ZFSet.ext_iff, notMem_empty, false_iff] at contr
+      specialize contr a
+      simp at contr
+
+-- @@ L1011-1011 verbatim
+/-! ## Well-definedness of `ZFInt` with respect to `ZFSet.Int` -/
+
+-- @@ L1012-1012 verbatim
+noncomputable section ZFIntEquivInt
+
+-- @@ L1013-1013 verbatim
+namespace ZFInt
+
+
+-- @@ L1015-1036 verbatim
+open Classical in
+/--
+This function maps `ZFInt` to `Int` by taking the first projection of the pair.
+-/
+def _root_.ZFSet.ZFInt.into (x : ZFInt) : {x // x ∈ Int} :=
+  let ⟨a,b⟩ := x.out
+  if a < b then
+    let n := ZFSet.pair ∅ (b-a).1
+    have : n ∈ Int := by
+      rw [mem_union]
+      right
+      rw [mem_prod]
+      exact ⟨∅, mem_singleton.mpr rfl, (b-a).1, ZFNat.mem_Nat_sub, rfl⟩
+    ⟨n, this⟩
+  else
+    let n := ZFSet.pair (a-b).1 ∅
+    have : n ∈ Int := by
+      rw [mem_union]
+      left
+      rw [mem_prod]
+      exact ⟨(a-b).1, ZFNat.mem_Nat_sub, ∅, mem_singleton.mpr rfl, rfl⟩
+    ⟨n, this⟩
+
+-- @@ L1037-1081 verbatim
+theorem _root_.ZFSet.ZFInt.into_inj_aux (x y : ZFInt) : into x = into y → x.out ≈ y.out := by
+  dsimp [into]
+  obtain ⟨a, b⟩ := Quotient.out x
+  obtain ⟨c, d⟩ := Quotient.out y
+  split_ifs with h₁ h₂ h₂ <;>
+    (intro eq
+     replace eq := congrArg Subtype.val eq
+     simp only [ZFSet.pair_inj, true_and, and_true] at eq)
+  · replace eq : b - a = d - c := Subtype.ext eq
+    have := ZFNat.eq_add_of_sub_eq (hle := .inl h₁) (h := eq)
+    rw [ZFNat.add_comm, ← ZFNat.add_sub_assoc (.inl h₂)] at this
+    apply ZFNat.eq_add_of_sub_eq (h := this.symm)
+    rw [ZFNat.add_comm]
+    exact ZFNat.le_trans (.inl h₂) (ZFNat.le_add_right d a)
+  · rw [not_lt] at h₂
+    obtain ⟨eq₁, eq₂⟩ := eq
+    replace eq₁ : 0 = c - d := Subtype.ext eq₁
+    replace eq₂ : b - a = 0 := Subtype.ext eq₂
+    have := ZFNat.le_antisymm (ZFNat.sub_eq_zero_imp_le.mp (eq₁.symm)) h₂
+    subst this
+    rw [eq₁] at eq₂
+    apply ZFNat.eq_add_of_sub_eq (.inl h₁) at eq₂
+    simp_all
+  · rw [not_lt] at h₁
+    obtain ⟨eq₁, eq₂⟩ := eq
+    replace eq₁ : a - b = 0 := Subtype.ext eq₁
+    replace eq₂ : 0 = d - c := Subtype.ext eq₂
+    have := ZFNat.le_antisymm (ZFNat.sub_eq_zero_imp_le.mp eq₁) h₁
+    subst this
+    rw [eq₂] at eq₁
+    apply ZFNat.eq_add_of_sub_eq h₁ at eq₁
+    rw [ZFNat.add_comm, ← ZFNat.add_sub_assoc (.inl h₂)] at eq₁
+    symm at eq₁
+    apply ZFNat.eq_add_of_sub_eq (h := eq₁)
+    left
+    rw [← @ZFNat.zero_add c]
+    apply ZFNat.add_lt_add_of_le_of_lt
+    · exact ZFNat.zero_le
+    · assumption
+  · rw [not_lt] at h₁ h₂
+    replace eq : a - b = c - d := Subtype.ext eq
+    have := ZFNat.eq_add_of_sub_eq (hle := h₁) (h := eq)
+    rw [ZFNat.add_comm, ← ZFNat.add_sub_assoc h₂] at this
+    apply Eq.symm ∘ ZFNat.eq_add_of_sub_eq (h := this.symm)
+    exact ZFNat.le_trans h₂ (ZFNat.le_add_left c b)
+
+-- @@ L1082-1085 verbatim
+theorem _root_.ZFSet.ZFInt.into_inj (x y : ZFInt) : into x = into y → x = y := by
+  intro h
+  apply ZFInt.into_inj_aux at h
+  exact Quotient.out_equiv_out.mp h
+
+-- @@ L1086-1086 verbatim
+theorem _root_.ZFSet.ZFInt.into.injective : Function.Injective into := into_inj
+
+-- @@ L1087-1087 verbatim
+theorem _root_.ZFSet.ZFInt.outof.injective : Function.Injective outof := outof_inj
+
+-- @@ L1088-1091 verbatim
+/-- Embedding from ZF integers into the ZF integer set. -/
+def _root_.ZFSet.ZFInt.EmbeddingZFIntInt : ZFInt ↪ {x // x ∈ Int} where
+  toFun := into
+  inj' := into.injective
+
+-- @@ L1092-1095 verbatim
+/-- Imported ZFLean declaration. -/
+def _root_.ZFSet.ZFInt.EmbeddingIntZFInt : {x // x ∈ Int} ↪ ZFInt where
+  toFun := outof
+  inj' := outof.injective
+
+
+-- @@ L1097-1097 verbatim
+end ZFInt
+
+-- @@ L1098-1103 verbatim
+/-- Imported ZFLean declaration. -/
+instance : LT {x // x ∈ Int} where
+  lt x y :=
+    let f := Classical.choice
+      (Function.Embedding.antisymm ZFInt.EmbeddingZFIntInt ZFInt.EmbeddingIntZFInt)
+    f.invFun x < f.invFun y
+
+-- @@ L1104-1104 verbatim
+namespace ZFInt
+
+
+-- @@ L1106-1123 verbatim
+/--
+The Schröder-Bernstein theorem provides a bijection between `ZFInt` and `{x // x ∈ Int}`, but we
+need an isomorphism in order to preserve the order structure, so that the order on `ZFInt` and
+`{x // x ∈ Int}` is the same.
+-/
+theorem _root_.ZFSet.ZFInt.exists_mono_bij :
+  Nonempty {f : ZFInt.{u} → {x // x ∈ Int.{u}} // Function.Bijective f ∧ ∀ x y, f x < f y ↔ x < y}
+  := by
+  rw [nonempty_subtype]
+  let f := Classical.choice
+    (Function.Embedding.antisymm ZFInt.EmbeddingZFIntInt ZFInt.EmbeddingIntZFInt)
+  exists f
+  apply And.intro
+  · exact Equiv.bijective f
+  · intro x y
+    unfold f
+    dsimp [LT.lt, instLTSubtypeMemInt, intLt]
+    simp_all
+
+-- @@ L1124-1148 verbatim
+theorem _root_.ZFSet.ZFInt.exists_mono_bij_zero_eq :
+  Nonempty {f : ZFInt.{u} → {x // x ∈ Int.{u}} //
+    Function.Bijective f ∧ (∀ x y, f x < f y ↔ x < y) ∧ f 0 = ⟨ofInt 0, mem_ofInt_Int 0⟩}
+  := by
+  rw [nonempty_subtype]
+  by_contra!
+  let ⟨f, bij, mono⟩ := Classical.choice ZFInt.exists_mono_bij
+  have ⟨x₀, x₀_def, x₀_unique⟩ := Function.Bijective.existsUnique bij ⟨ofInt 0, mem_ofInt_Int 0⟩
+  beta_reduce at x₀_def x₀_unique
+  let f' : ZFInt → {x // x ∈ Int} := fun x => f (x + x₀)
+  specialize this f' ?_ ?_
+  · and_intros
+    · intro x y eq
+      apply bij.1 at eq
+      rwa [add_right_cancel_iff] at eq
+    · intro y
+      obtain ⟨x, hx⟩ := bij.2 y
+      exists x - x₀
+      unfold f'
+      rwa [sub_add_cancel]
+  · intro x y
+    unfold f'
+    rw [mono _ _, add_lt_add_iff_right]
+  · unfold f' at this
+    simp_all
+
+
+-- @@ L1150-1150 verbatim
+end ZFInt
+
+
+-- @@ L1152-1161 verbatim
+/--
+The type `ZFInt` correctly represents the set `ZFSet.Int`.
+**NOTE**: There is a constructive proof of the Schröder-Bernstein theorem stating
+the equi-computability of sets. It is called the Myhill isomorphism and applies
+to countable sets only.
+-/
+@[reducible]
+def instEquivZFIntInt : ZFInt ≃ {x // x ∈ Int} :=
+  let ⟨f, bij, _⟩ := Classical.choice ZFInt.exists_mono_bij_zero_eq
+  Equiv.ofBijective f bij
+
+-- @@ L1162-1162 verbatim
+instance : Coe ZFInt {x // x ∈ Int} := ⟨instEquivZFIntInt.toFun⟩
+
+-- @@ L1163-1163 verbatim
+instance : Coe {x // x ∈ Int} ZFInt := ⟨instEquivZFIntInt.invFun⟩
+
+-- @@ L1164-1190 verbatim
+theorem _root_.ZFSet.instEquivZFIntInt.mono_iff (x y : { x // x ∈ Int.{u} }) :
+  instEquivZFIntInt.{u}.invFun x < instEquivZFIntInt.{u}.invFun y ↔ x < y := by
+  constructor
+  · intro h
+    dsimp [instEquivZFIntInt] at h
+    split at h
+    rename_i f' f bij mono eq; clear f' eq
+    unfold Equiv.ofBijective at h
+    dsimp at h
+    have := mono.1
+      (Function.surjInv (Function.Bijective.surjective bij) x)
+      (Function.surjInv (Function.Bijective.surjective bij) y) |>.mpr h
+    iterate 2 rw [Function.rightInverse_surjInv (Function.Bijective.surjective bij)] at this
+    exact this
+  · intro h
+    dsimp [instEquivZFIntInt]
+    split
+    rename_i f' f bij mono eq; clear f' eq
+    let f' := Function.surjInv (Function.Bijective.surjective bij)
+    have mono' : ∀ x y, f' x < f' y ↔ x < y := by
+      intro x y
+      have := mono.1 (f' x) (f' y)
+      iterate 2 rw [Function.rightInverse_surjInv (Function.Bijective.surjective bij)] at this
+      exact this.symm
+    unfold Equiv.ofBijective
+    dsimp
+    exact mono' x y |>.mpr h
+
+-- @@ L1191-1199 verbatim
+instance : Preorder {x // x ∈ Int} where
+  le x y := ZFInt.instPartialOrder.le x y
+  le_refl x := ZFInt.instLinearOrder.le_refl x
+  le_trans x y z := ZFInt.instLinearOrder.le_trans x y z
+  lt_iff_le_not_ge x y := by
+    symm
+    trans
+    · exact ZFInt.instLinearOrder.lt_iff_le_not_ge x y |>.symm
+    · exact instEquivZFIntInt.mono_iff x y
+
+-- @@ L1200-1209 verbatim
+instance : LinearOrder {x // x ∈ Int} where
+  le := (ZFInt.instLinearOrder.le · ·)
+  le_refl := (ZFInt.instLinearOrder.le_refl ·)
+  le_trans := (ZFInt.instLinearOrder.le_trans · · ·)
+  le_antisymm x y h h' := by
+    have := ZFInt.instLinearOrder.le_antisymm x y h h'
+    rwa [Equiv.invFun_as_coe, EmbeddingLike.apply_eq_iff_eq] at this
+  le_total := (ZFInt.instLinearOrder.le_total · ·)
+  toDecidableLE := (ZFInt.instLinearOrder.toDecidableLE · ·)
+  lt_iff_le_not_ge _ _ := lt_iff_le_not_ge --instPreorderSubtypeMemInt.lt_iff_le_not_ge
+
+-- @@ L1210-1210 verbatim
+end ZFIntEquivInt
+
+-- @@ L1211-1211 verbatim
+end ZFSet

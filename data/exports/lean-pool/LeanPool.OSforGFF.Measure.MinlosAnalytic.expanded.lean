@@ -1,0 +1,213 @@
+/-
+Copyright (c) 2026 Michael R. Douglas, Sarah Hoback, Anna Mei, Ron Nissim. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Michael R. Douglas, Sarah Hoback, Anna Mei, Ron Nissim
+-/
+module
+
+
+public import LeanPool.OSforGFF.Spacetime.Basic
+public import LeanPool.OSforGFF.Bochner.PositiveDefinite
+public import Mathlib.Analysis.CStarAlgebra.Classes
+import LeanPool.OSforGFF.Measure.Minlos
+import Mathlib.Analysis.SpecialFunctions.Bernstein
+import Mathlib.Analysis.SpecialFunctions.Gamma.Basic
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.DerivHyp
+import Mathlib.Data.Nat.Choose.Multinomial
+
+
+-- @@ L18-25 verbatim
+/-!
+# Minlos Analyticity — Symmetry and Moments for Gaussian Measures
+
+This file provides infrastructure for Gaussian measures constructed via Minlos' theorem:
+- `CovarianceForm`: Real symmetric bilinear form for covariance
+- `negMap`, `integral_neg_invariance`: Symmetry under sign flip (uses Minlos uniqueness)
+- `moment_zero_from_realCF`: Zero mean from characteristic functional symmetry
+-/
+
+
+-- @@ L27-27 verbatim
+@[expose] public section
+
+
+-- @@ L29-29 verbatim
+open TopologicalSpace MeasureTheory Complex Filter
+
+
+-- @@ L31-35 verbatim
+/-! ## Contents
+
+This file provides infrastructure for Gaussian measures via Minlos.
+No axioms declared here.
+-/
+
+
+-- @@ L37-37 verbatim
+noncomputable section
+
+
+-- @@ L39-39 verbatim
+namespace MinlosAnalytic
+
+
+-- @@ L41-54 verbatim
+/-- A real symmetric, positive semidefinite covariance form on real test functions,
+    together with a proof that the associated Gaussian characteristic functional
+    exp(-½Q(f,f)) is positive definite (in the bochner sense).
+-/
+structure CovarianceForm where
+  /-- The real covariance bilinear form. -/
+  Q : OSforGFF.TestFunction → OSforGFF.TestFunction → ℝ
+  symm : ∀ f g, Q f g = Q g f
+  psd  : ∀ f, 0 ≤ Q f f
+  cont_diag : Continuous fun f => Q f f
+  add_left : ∀ f₁ f₂ g, Q (f₁ + f₂) g = Q f₁ g + Q f₂ g
+  smul_left : ∀ (c : ℝ) f g, Q (c • f) g = c * Q f g
+  gaussian_cf_pd : IsPositiveDefinite
+    (fun f : OSforGFF.TestFunction => Complex.exp (-(1/2 : ℂ) * (Q f f : ℂ)))
+
+
+-- @@ L56-57 verbatim
+/-- The negation map on field configurations: T(ω) = -ω -/
+def negMap : FieldConfiguration → FieldConfiguration := fun ω => -ω
+
+
+-- @@ L59-83 verbatim
+/-- The negation map is measurable w.r.t. the cylinder σ-algebra. -/
+lemma negMap_measurable : Measurable negMap := by
+  rw [measurable_iff_comap_le]
+  -- Unfold the cylinder σ-algebra instance and distribute comap over iSup
+  change (⨆ f,
+    (borel ℝ).comap
+      (fun l : FieldConfiguration => (l : OSforGFF.TestFunction →L[ℝ] ℝ) f)).comap negMap ≤
+    ⨆ f, (borel ℝ).comap (fun l : FieldConfiguration => (l : OSforGFF.TestFunction →L[ℝ] ℝ) f)
+  rw [MeasurableSpace.comap_iSup]
+  apply iSup_le; intro g
+  rw [MeasurableSpace.comap_comp]
+  conv_lhs => rw [show
+    (fun l : FieldConfiguration => (l : OSforGFF.TestFunction →L[ℝ] ℝ) g) ∘ negMap =
+      Neg.neg ∘ (fun l : FieldConfiguration => (l : OSforGFF.TestFunction →L[ℝ] ℝ) g) from by
+    ext ω; change (-ω) g = -(ω g); rfl]
+  rw [← MeasurableSpace.comap_comp]
+  have h_neg_meas : (borel ℝ).comap (Neg.neg : ℝ → ℝ) ≤ borel ℝ :=
+    measurable_iff_comap_le.mp measurable_neg
+  calc
+    ((borel ℝ).comap Neg.neg).comap
+      (fun l : FieldConfiguration => (l : OSforGFF.TestFunction →L[ℝ] ℝ) g)
+      ≤ (borel ℝ).comap (fun l : FieldConfiguration => (l : OSforGFF.TestFunction →L[ℝ] ℝ) g) :=
+        MeasurableSpace.comap_mono h_neg_meas
+    _ ≤ _ := le_iSup (fun f => (borel ℝ).comap
+      (fun l : FieldConfiguration => (l : OSforGFF.TestFunction →L[ℝ] ℝ) f)) g
+
+
+-- @@ L85-161 verbatim
+/-- Symmetry under global sign flip induced by the real Gaussian CF.
+    Uses Minlos uniqueness from the bochner library.
+-/
+lemma integral_neg_invariance
+  [IsHilbertNuclear OSforGFF.TestFunction] [SeparableSpace OSforGFF.TestFunction]
+  [Nonempty OSforGFF.TestFunction]
+  [IsTopologicalAddGroup OSforGFF.TestFunction] [ContinuousSMul ℝ OSforGFF.TestFunction]
+  (C : CovarianceForm) (μ : ProbabilityMeasure FieldConfiguration)
+  (h_realCF : ∀ f : OSforGFF.TestFunction,
+     ∫ ω, Complex.exp (Complex.I * (ω f)) ∂μ.toMeasure
+       = Complex.exp (-(1/2 : ℂ) * (C.Q f f))) :
+  ∀ (f : FieldConfiguration → ℂ), Integrable f μ.toMeasure →
+    ∫ ω, f ω ∂μ.toMeasure = ∫ ω, f (-ω) ∂μ.toMeasure := by
+  intro f hInt
+  classical
+  -- Step 1: Define the pushforward measure
+  let μneg := μ.toMeasure.map negMap
+  have hμneg_prob : IsProbabilityMeasure μneg := by
+    exact (Measure.isProbabilityMeasure_map_iff
+      (Measurable.aemeasurable negMap_measurable)).mpr inferInstance
+  -- Step 2: Show characteristic functionals are equal
+  have hCF_equal : ∀ g : OSforGFF.TestFunction,
+      ∫ ω, Complex.exp (Complex.I * (distributionPairing ω g)) ∂μneg
+        = ∫ ω, Complex.exp (Complex.I * (distributionPairing ω g)) ∂μ.toMeasure := by
+    intro g
+    -- Use eval_measurable for the integrand
+    have h_inner_meas : Measurable (fun ω : FieldConfiguration => distributionPairing ω g) :=
+      WeakDual.eval_measurable g
+    have h_aestrongly_measurable : AEStronglyMeasurable (fun ω => Complex.exp (Complex.I *
+      (distributionPairing ω g))) μneg :=
+      ((Complex.continuous_exp.comp (continuous_const.mul continuous_ofReal)).measurable.comp
+        h_inner_meas).aestronglyMeasurable
+    rw [integral_map (Measurable.aemeasurable negMap_measurable) h_aestrongly_measurable]
+    have h_neg_eq : ∀ ω : FieldConfiguration,
+        distributionPairing (-ω) g = -distributionPairing ω g := by
+      intro ω
+      change (-ω) g = -(ω g)
+      rfl
+    have h_integrand_conj :
+        (fun ω => Complex.exp (Complex.I * (distributionPairing (negMap ω) g : ℂ))) =
+        (fun ω => starRingEnd ℂ (Complex.exp (Complex.I * (distributionPairing ω g : ℂ)))) := by
+      funext ω
+      rw [negMap, h_neg_eq, ← Complex.exp_conj]
+      simp_all
+    conv_lhs => rw [h_integrand_conj]
+    rw [integral_conj]
+    simp only [distributionPairing] at *
+    rw [h_realCF g]
+    have h_CF_is_real : (Complex.exp (-(1/2 : ℂ) * (C.Q g g : ℂ))).im = 0 := by
+      have h_eq : (-(1/2 : ℂ) * (C.Q g g : ℂ)) = ((-(1/2 : ℝ) * C.Q g g : ℝ) : ℂ) := by
+        simp_all
+      rw [h_eq]
+      exact Complex.exp_ofReal_im (-(1/2) * C.Q g g)
+    rw [Complex.conj_eq_iff_im.mpr h_CF_is_real]
+  -- Step 3: Apply uniqueness of measures (Minlos theorem)
+  let μneg_prob : ProbabilityMeasure FieldConfiguration := ⟨μneg, hμneg_prob⟩
+  have h_cf_cont : Continuous
+      (fun f : OSforGFF.TestFunction => Complex.exp (-(1/2 : ℂ) * (C.Q f f : ℂ))) :=
+    continuous_exp.comp (continuous_const.mul (continuous_ofReal.comp C.cont_diag))
+  have h_cf_norm : (fun f : OSforGFF.TestFunction =>
+      Complex.exp (-(1/2 : ℂ) * (C.Q f f : ℂ))) 0 = 1 := by
+    simp [show C.Q 0 0 = 0 from by simpa using C.smul_left 0 0 0]
+  have hμeq_prob : μneg_prob = μ := by
+    simp only [distributionPairing] at hCF_equal h_realCF
+    exact minlos_gaussian_uniqueness h_cf_cont C.gaussian_cf_pd h_cf_norm
+      (fun g => (hCF_equal g).trans (h_realCF g)) h_realCF
+  have hμeq : μneg = μ.toMeasure :=
+    congrArg ProbabilityMeasure.toMeasure hμeq_prob
+  -- Step 4: Use the equality of measures to get the integral identity
+  have hf_aestrongly_measurable : AEStronglyMeasurable f μneg := by
+    rw [hμeq]
+    exact hInt.aestronglyMeasurable
+  have h_cov : ∫ ω, f ω ∂μneg = ∫ ω, f (negMap ω) ∂μ.toMeasure := by
+    exact integral_map (Measurable.aemeasurable negMap_measurable) hf_aestrongly_measurable
+  rw [hμeq] at h_cov
+  rw [h_cov]
+  simp [negMap]
+
+
+-- @@ L163-187 verbatim
+/-- Zero mean from the real Gaussian characteristic functional, via symmetry and L¹. -/
+lemma moment_zero_from_realCF
+  [IsHilbertNuclear OSforGFF.TestFunction] [SeparableSpace OSforGFF.TestFunction]
+  [Nonempty OSforGFF.TestFunction]
+  [IsTopologicalAddGroup OSforGFF.TestFunction] [ContinuousSMul ℝ OSforGFF.TestFunction]
+  (C : CovarianceForm) (μ : ProbabilityMeasure FieldConfiguration)
+  (h_realCF : ∀ f : OSforGFF.TestFunction,
+     ∫ ω, Complex.exp (Complex.I * (ω f)) ∂μ.toMeasure
+       = Complex.exp (-(1/2 : ℂ) * (C.Q f f)))
+  (a : OSforGFF.TestFunction)
+  (hInt1 : Integrable (fun ω => (ω a : ℂ)) μ.toMeasure) :
+  ∫ ω, (ω a : ℂ) ∂μ.toMeasure = 0 := by
+  classical
+  -- Symmetry: ∫ f(ω) = ∫ f(-ω)
+  have hInv := integral_neg_invariance C μ h_realCF (fun ω => (ω a : ℂ)) hInt1
+  -- Flip integrand: ((-ω) a : ℂ) = - (ω a : ℂ)
+  have hflip : (fun ω : FieldConfiguration => ((-ω) a : ℂ)) = (fun ω => - (ω a : ℂ)) := by
+    funext ω
+    have : (-ω) a = -(ω a) := rfl
+    simp [this]
+  -- Hence ∫ X = ∫ -X = -∫ X
+  have : ∫ ω, (ω a : ℂ) ∂μ.toMeasure = - ∫ ω, (ω a : ℂ) ∂μ.toMeasure := by
+    simpa [hflip, integral_neg, hInt1] using hInv
+  -- 2 · ∫ X = 0 ⇒ ∫ X = 0
+  exact self_eq_neg.mp this
+
+
+-- @@ L189-189 verbatim
+end MinlosAnalytic

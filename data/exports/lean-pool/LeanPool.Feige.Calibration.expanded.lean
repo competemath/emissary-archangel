@@ -1,0 +1,59 @@
+/-
+Copyright (c) 2026 Zhengqing Zhou and contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Zhengqing Zhou, GPT-5.6 Pro
+-/
+module
+
+public import Mathlib.MeasureTheory.Integral.Bochner.Basic
+public import Mathlib.Probability.Independence.Basic
+
+
+-- @@ L11-16 verbatim
+/-!
+# Exact calibration interfaces
+
+This file contains the probability/calibration interfaces shared by the
+Vlassis--Thomas theorem and the reduction to Feige's inequality.
+-/
+
+
+-- @@ L18-18 verbatim
+@[expose] public section
+
+
+-- @@ L20-20 verbatim
+open MeasureTheory ProbabilityTheory
+
+
+-- @@ L22-22 verbatim
+namespace Feige
+
+
+-- @@ L24-36 verbatim
+/-- Abstract form of Theorem 2.1: `K` is super-uniform for every independent
+family of nonnegative random variables whose coordinate means are at most
+one. -/
+def CalibrationProperty {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) {n : ℕ}
+    (K : (Fin n → ℝ) → ℝ) : Prop :=
+  ∀ (Y : Fin n → Ω → ℝ),
+    (∀ i, Measurable (Y i)) →
+    (∀ i, Integrable (Y i) μ) →
+    iIndepFun Y μ →
+    (∀ i ω, 0 ≤ Y i ω) →
+    (∀ i, (∫ ω, Y i ω ∂μ) ≤ 1) →
+    ∀ α : ℝ, 0 ≤ α → α ≤ 1 →
+      μ.real {ω | K (fun i ↦ Y i ω) ≤ α} ≤ α
+
+
+-- @@ L38-43 verbatim
+/-- The calibration property, uniformly over all (small-universe)
+probability spaces. -/
+def UniversalCalibration {n : ℕ} (K : (Fin n → ℝ) → ℝ) : Prop :=
+  ∀ (Ω : Type) (_ : MeasurableSpace Ω) (μ : Measure Ω)
+      (_ : IsProbabilityMeasure μ),
+    CalibrationProperty μ K
+
+
+-- @@ L45-45 verbatim
+end Feige

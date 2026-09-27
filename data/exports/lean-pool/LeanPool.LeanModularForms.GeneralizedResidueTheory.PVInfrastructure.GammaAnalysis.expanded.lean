@@ -1,0 +1,294 @@
+/-
+Copyright (c) 2026 Chris Birkbeck. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Chris Birkbeck
+-/
+module
+
+public import Mathlib.Analysis.Complex.Basic
+public import Mathlib.Analysis.Calculus.ContDiff.Defs
+import Mathlib.Analysis.Calculus.Deriv.Slope
+
+
+-- @@ L12-26 verbatim
+/-!
+# PV Infrastructure: Gamma Analysis
+
+Derivative-based bounds on curves near crossing points. These are
+used in the dyadic PV limit proof for principal value convergence.
+
+## Main Results
+
+* `gamma_lower_bound_of_hasDerivAt` — lower bound
+    ‖γ - γ₀‖ ≥ (‖L‖/2)|t - t₀|
+* `gamma_upper_bound_of_hasDerivAt` — upper bound
+    ‖γ - γ₀‖ ≤ 2‖L‖|t - t₀|
+* `no_return_of_inj_continuous` — γ bounded away from γ(t₀)
+    outside nbhd
+-/
+
+
+-- @@ L28-28 verbatim
+@[expose] public section
+
+
+-- @@ L30-30 verbatim
+open Complex Set Filter Topology
+
+-- @@ L31-31 verbatim
+open scoped Real
+
+
+-- @@ L33-33 verbatim
+noncomputable section
+
+
+-- @@ L35-47 verbatim
+private lemma hasDerivAt_remainder_bound
+    {γ : ℝ → ℂ} {t₀ : ℝ} {L : ℂ}
+    (hγ : HasDerivAt γ L t₀) :
+    ∀ ε > 0, ∃ δ > 0, ∀ t, 0 < |t - t₀| →
+      |t - t₀| < δ →
+      ‖γ t - γ t₀ - (t - t₀) • L‖ ≤ ε * |t - t₀| := by
+  intro ε hε
+  rw [hasDerivAt_iff_isLittleO, Asymptotics.isLittleO_iff] at hγ
+  obtain ⟨s, hs_mem, hs⟩ := (hγ hε).exists_mem
+  obtain ⟨δ, hδ_pos, hδ_ball⟩ := Metric.mem_nhds_iff.mp hs_mem
+  refine ⟨δ, hδ_pos, fun t _ ht_lt => ?_⟩
+  have h_bound := hs t (hδ_ball (by simp [Metric.mem_ball, Real.dist_eq, ht_lt]))
+  simpa only [Real.norm_eq_abs] using h_bound
+
+
+-- @@ L49-50 verbatim
+private lemma norm_real_smul (x : ℝ) (L : ℂ) : ‖x • L‖ = |x| * ‖L‖ := by
+  simp_all
+
+
+-- @@ L52-58 verbatim
+/-- The increment norm is within `M` of the linear part `|t - t₀| * ‖L‖`. -/
+private lemma abs_norm_gamma_sub_smul_le {γ : ℝ → ℂ} {t₀ : ℝ} {L : ℂ} {M : ℝ} {t : ℝ}
+    (h_rem : ‖γ t - γ t₀ - (t - t₀) • L‖ ≤ M) :
+    |‖γ t - γ t₀‖ - |t - t₀| * ‖L‖| ≤ M := by
+  have h := abs_norm_sub_norm_le (γ t - γ t₀) ((t - t₀) • L)
+  rw [norm_real_smul] at h
+  exact le_trans h h_rem
+
+
+-- @@ L60-105 verbatim
+/-- The integrand times (t-t₀) tends to 1.
+This is the key estimate:
+(t-t₀) * (γ-γ₀)⁻¹ * γ' → 1 as t → t₀. -/
+lemma integrand_times_t_tendsto_one
+    (γ : ℝ → ℂ) (t₀ : ℝ) (L : ℂ) (hL : L ≠ 0)
+    (hγ_hasderiv : HasDerivAt γ L t₀)
+    (hγ_cont_at : ContinuousAt (deriv γ) t₀) :
+    Tendsto
+      (fun t => (↑(t - t₀) : ℂ) *
+        (γ t - γ t₀)⁻¹ * deriv γ t)
+      (𝓝[≠] t₀) (𝓝 1) := by
+  have h_deriv_tendsto : Tendsto (deriv γ) (𝓝 t₀) (𝓝 L) :=
+    hγ_hasderiv.deriv ▸ hγ_cont_at
+  have h_ratio_tendsto :
+      Tendsto (fun t => (↑(t - t₀) : ℂ) * (γ t - γ t₀)⁻¹)
+        (𝓝[≠] t₀) (𝓝 L⁻¹) := by
+    have h_slope :
+        Tendsto (fun t => (t - t₀)⁻¹ • (γ t - γ t₀))
+          (𝓝[≠] t₀) (𝓝 L) := by
+      rw [hasDerivAt_iff_tendsto_slope_zero] at hγ_hasderiv
+      have h_comp :
+          (fun t => (t - t₀)⁻¹ • (γ t - γ t₀)) =
+          (fun s => s⁻¹ • (γ (t₀ + s) - γ t₀)) ∘
+            (fun t => t - t₀) := by ext t; simp [add_sub_cancel]
+      rw [h_comp]
+      apply Tendsto.comp hγ_hasderiv
+      apply tendsto_nhdsWithin_of_tendsto_nhds_of_eventually_within
+      · have h1 : Tendsto (fun t => t - t₀) (𝓝 t₀) (𝓝 (t₀ - t₀)) :=
+          tendsto_id.sub_const t₀
+        simp only [sub_self] at h1; exact h1.mono_left nhdsWithin_le_nhds
+      · filter_upwards [self_mem_nhdsWithin] with t ht
+        simp only [Set.mem_compl_iff, Set.mem_singleton_iff, sub_ne_zero]; exact ht
+    have h_slope' : Tendsto (fun t => (γ t - γ t₀) * (↑(t - t₀) : ℂ)⁻¹) (𝓝[≠] t₀) (𝓝 L) := by
+      simp only [show ∀ t : ℝ, (γ t - γ t₀) * (↑(t - t₀) : ℂ)⁻¹ =
+        (t - t₀)⁻¹ • (γ t - γ t₀) from fun t => by rw [Algebra.smul_def]; simp [mul_comm]]
+      exact h_slope
+    have h_recip := h_slope'.inv₀ hL
+    simp_all
+  have h_prod :
+      Tendsto
+        (fun t => (↑(t - t₀) : ℂ) *
+          (γ t - γ t₀)⁻¹ * deriv γ t)
+        (𝓝[≠] t₀) (𝓝 (L⁻¹ * L)) :=
+    Tendsto.mul h_ratio_tendsto
+      (h_deriv_tendsto.mono_left nhdsWithin_le_nhds)
+  simp_all
+
+
+-- @@ L107-147 verbatim
+/-- Asymptotic control:
+‖(γ-γ₀)⁻¹ * γ' - (t-t₀)⁻¹‖ ≤ ε / |t-t₀|. -/
+lemma integrand_asymptotic
+    (γ : ℝ → ℂ) (t₀ : ℝ) (L : ℂ)
+    (_hL : L ≠ 0)
+    (_hγ_hasderiv : HasDerivAt γ L t₀)
+    (_hγ_cont_at : ContinuousAt (deriv γ) t₀)
+    (h_tendsto :
+      Tendsto
+        (fun t => (↑(t - t₀) : ℂ) *
+          (γ t - γ t₀)⁻¹ * deriv γ t)
+        (𝓝[≠] t₀) (𝓝 1)) :
+    ∀ ε > 0, ∃ δ > 0, ∀ t,
+      0 < |t - t₀| → |t - t₀| < δ →
+      ‖(γ t - γ t₀)⁻¹ * deriv γ t -
+        (↑(t - t₀))⁻¹‖ ≤ ε / |t - t₀| := by
+  intro ε hε
+  rw [Metric.tendsto_nhdsWithin_nhds] at h_tendsto
+  obtain ⟨δ, hδ_pos, hδ⟩ := h_tendsto ε hε
+  refine ⟨δ, hδ_pos, fun t ht_pos ht_lt => ?_⟩
+  have h_ne : t ≠ t₀ := fun h => by simp [h] at ht_pos
+  have h_bound := hδ h_ne (by rwa [Real.dist_eq])
+  rw [Complex.dist_eq] at h_bound
+  have h_ne_c : (↑(t - t₀) : ℂ) ≠ 0 := by
+    simpa only [ne_eq, ofReal_eq_zero, sub_eq_zero] using h_ne
+  have h_key :
+      (γ t - γ t₀)⁻¹ * deriv γ t - (↑(t - t₀))⁻¹ =
+      ((↑(t - t₀) : ℂ) * (γ t - γ t₀)⁻¹ *
+        deriv γ t - 1) * (↑(t - t₀))⁻¹ := by field_simp
+  rw [h_key]
+  calc ‖((↑(t - t₀) : ℂ) * (γ t - γ t₀)⁻¹ *
+        deriv γ t - 1) * (↑(t - t₀))⁻¹‖
+      = ‖(↑(t - t₀) : ℂ) * (γ t - γ t₀)⁻¹ *
+          deriv γ t - 1‖ *
+        ‖(↑(t - t₀) : ℂ)⁻¹‖ := norm_mul _ _
+    _ ≤ ε * ‖(↑(t - t₀) : ℂ)⁻¹‖ := by
+        apply mul_le_mul_of_nonneg_right
+          (le_of_lt h_bound) (norm_nonneg _)
+    _ = ε / |t - t₀| := by
+        rw [norm_inv, Complex.norm_real,
+          Real.norm_eq_abs, div_eq_mul_inv]
+
+
+-- @@ L149-164 verbatim
+/-- Lower bound on ‖γ t - γ t₀‖ from non-zero derivative.
+Uses `hasDerivAt_remainder_bound` + reverse triangle
+inequality. -/
+lemma gamma_lower_bound_of_hasDerivAt
+    {γ : ℝ → ℂ} {t₀ : ℝ} {L : ℂ} (hL : L ≠ 0)
+    (hγ_hasderiv : HasDerivAt γ L t₀) :
+    ∃ δ > 0, ∀ t, 0 < |t - t₀| →
+      |t - t₀| < δ →
+      ‖γ t - γ t₀‖ ≥ (‖L‖ / 2) * |t - t₀| := by
+  have hLnorm_pos : 0 < ‖L‖ := norm_pos_iff.mpr hL
+  obtain ⟨δ, hδ_pos, hδ_bound⟩ :=
+    hasDerivAt_remainder_bound hγ_hasderiv
+      (‖L‖ / 2) (half_pos hLnorm_pos)
+  refine ⟨δ, hδ_pos, fun t ht_pos ht_lt => ?_⟩
+  have h := abs_le.mp (abs_norm_gamma_sub_smul_le (hδ_bound t ht_pos ht_lt))
+  nlinarith [h.1]
+
+
+-- @@ L166-179 verbatim
+/-- Upper bound on ‖γ t - γ t₀‖ from non-zero derivative.
+Uses `hasDerivAt_remainder_bound` + triangle inequality. -/
+lemma gamma_upper_bound_of_hasDerivAt
+    {γ : ℝ → ℂ} {t₀ : ℝ} {L : ℂ} (hL : L ≠ 0)
+    (hγ_hasderiv : HasDerivAt γ L t₀) :
+    ∃ δ > 0, ∀ t, 0 < |t - t₀| →
+      |t - t₀| < δ →
+      ‖γ t - γ t₀‖ ≤ 2 * ‖L‖ * |t - t₀| := by
+  have hLnorm_pos : 0 < ‖L‖ := norm_pos_iff.mpr hL
+  obtain ⟨δ, hδ_pos, hδ_bound⟩ :=
+    hasDerivAt_remainder_bound hγ_hasderiv ‖L‖ hLnorm_pos
+  refine ⟨δ, hδ_pos, fun t ht_pos ht_lt => ?_⟩
+  have h := abs_le.mp (abs_norm_gamma_sub_smul_le (hδ_bound t ht_pos ht_lt))
+  nlinarith [h.2]
+
+
+-- @@ L181-203 verbatim
+/-- If γ is continuous on [a,b] and injective at γ(t₀),
+then γ stays bounded away from γ(t₀) outside any
+neighborhood of t₀. -/
+lemma no_return_of_inj_continuous
+    {γ : ℝ → ℂ} {a b t₀ : ℝ} {c : ℝ}
+    (hc_pos : 0 < c)
+    (hγ_cont : ContinuousOn γ (Set.Icc a b))
+    (h_inj : ∀ t ∈ Set.Icc a b,
+      γ t = γ t₀ → t = t₀) :
+    ∃ ρ > 0, ∀ t ∈ Set.Icc a b,
+      c ≤ |t - t₀| → ρ ≤ ‖γ t - γ t₀‖ := by
+  let S := Set.Icc a b ∩ {t | c ≤ |t - t₀|}
+  have hS_compact : IsCompact S := isCompact_Icc.inter_right
+    (isClosed_le continuous_const (continuous_abs.comp (continuous_id.sub continuous_const)))
+  have hf_cont : ContinuousOn (fun t => ‖γ t - γ t₀‖) S :=
+    ((hγ_cont.mono Set.inter_subset_left).sub continuousOn_const).norm
+  have hf_pos : ∀ t ∈ S, (0 : ℝ) < ‖γ t - γ t₀‖ := fun t ⟨ht_Icc, ht_dist⟩ => by
+    rw [norm_pos_iff, sub_ne_zero]
+    intro h_eq
+    have h_t_eq := h_inj t ht_Icc h_eq
+    subst h_t_eq; simp only [Set.mem_ofPred_eq, sub_self, abs_zero] at ht_dist; linarith
+  obtain ⟨ρ, hρ_pos, hρ_le⟩ := hS_compact.exists_forall_le' hf_cont hf_pos
+  exact ⟨ρ, hρ_pos, fun t ht h_dist => hρ_le t ⟨ht, h_dist⟩⟩
+
+
+-- @@ L205-223 verbatim
+/-- From γ-space upper bound to t-space upper bound:
+If ‖γ t - γ t₀‖ ≤ εC and we have the lower bound,
+then |t - t₀| ≤ 2*εC/‖L‖. -/
+lemma t_bound_from_gamma_bound
+    {γ : ℝ → ℂ} {t₀ t : ℝ} {L : ℂ} {εC δ : ℝ}
+    (hL : L ≠ 0) (_hδ_pos : 0 < δ)
+    (ht_pos : 0 < |t - t₀|)
+    (ht_lt : |t - t₀| < δ)
+    (h_lower : ∀ s, 0 < |s - t₀| →
+      |s - t₀| < δ →
+      ‖γ s - γ t₀‖ ≥ (‖L‖ / 2) * |s - t₀|)
+    (h_gamma_bound : ‖γ t - γ t₀‖ ≤ εC) :
+    |t - t₀| ≤ 2 * εC / ‖L‖ := by
+  have hL_norm_pos : 0 < ‖L‖ := norm_pos_iff.mpr hL
+  have h1 : (‖L‖ / 2) * |t - t₀| ≤ εC := le_trans (h_lower t ht_pos ht_lt) h_gamma_bound
+  calc |t - t₀|
+      = (‖L‖ / 2 * |t - t₀|) / (‖L‖ / 2) := by field_simp
+    _ ≤ εC / (‖L‖ / 2) := div_le_div_of_nonneg_right h1 (half_pos hL_norm_pos).le
+    _ = 2 * εC / ‖L‖ := by field_simp
+
+
+-- @@ L225-242 verbatim
+/-- From γ-space lower bound to t-space lower bound:
+If ‖γ t - γ t₀‖ > εC and we have the upper bound,
+then |t - t₀| > εC/(2*‖L‖). -/
+lemma t_lower_from_gamma_lower
+    {γ : ℝ → ℂ} {t₀ t : ℝ} {L : ℂ} {εC δ : ℝ}
+    (hL : L ≠ 0) (_hδ_pos : 0 < δ)
+    (ht_pos : 0 < |t - t₀|)
+    (ht_lt : |t - t₀| < δ)
+    (h_upper : ∀ s, 0 < |s - t₀| →
+      |s - t₀| < δ →
+      ‖γ s - γ t₀‖ ≤ 2 * ‖L‖ * |s - t₀|)
+    (h_gamma_lower : εC < ‖γ t - γ t₀‖) :
+    εC / (2 * ‖L‖) < |t - t₀| := by
+  have h1 : εC < 2 * ‖L‖ * |t - t₀| := lt_of_lt_of_le h_gamma_lower (h_upper t ht_pos ht_lt)
+  calc εC / (2 * ‖L‖)
+      < (2 * ‖L‖ * |t - t₀|) / (2 * ‖L‖) :=
+        div_lt_div_of_pos_right h1 (by linarith [norm_pos_iff.mpr hL])
+    _ = |t - t₀| := by field_simp
+
+
+-- @@ L244-258 verbatim
+/-- If γ is C² at t₀, then deriv γ is continuous at t₀. -/
+lemma contAt_deriv_of_contDiffAt_two
+    {γ : ℝ → ℂ} {t₀ : ℝ}
+    (hγ_C2 : ContDiffAt ℝ 2 γ t₀) :
+    ContinuousAt (deriv γ) t₀ := by
+  obtain ⟨u, hu_mem, hγ_on⟩ := hγ_C2.contDiffOn (m := 2) le_rfl (by norm_cast)
+  obtain ⟨ε, hε_pos, hball_sub⟩ := Metric.mem_nhds_iff.mp hu_mem
+  have h_fderiv_cont : ContinuousOn (fderiv ℝ γ) (Metric.ball t₀ ε) :=
+    (hγ_on.mono hball_sub).continuousOn_fderiv_of_isOpen Metric.isOpen_ball (by norm_cast)
+  have h_cont_at_fderiv : ContinuousAt (fderiv ℝ γ) t₀ :=
+    h_fderiv_cont.continuousAt (Metric.isOpen_ball.mem_nhds (Metric.mem_ball_self hε_pos))
+  have h_deriv_eq : deriv γ = (fun t => fderiv ℝ γ t 1) := funext fun t => by
+    simp_all
+  rw [h_deriv_eq]
+  exact h_cont_at_fderiv.clm_apply continuousAt_const
+
+
+-- @@ L260-260 verbatim
+end

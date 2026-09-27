@@ -1,0 +1,157 @@
+/-
+Copyright (c) 2026 Siddhartha Gadgil, Anand Rao. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Siddhartha Gadgil, Anand Rao
+-/
+module
+
+public import Mathlib.Algebra.Group.Prod
+public import Mathlib.Data.Int.Cast.Lemmas
+public import LeanPool.Polylean.UnitConjecture.EnumDecide
+
+
+-- @@ L12-27 verbatim
+/-!
+
+## Free groups
+
+The definition of a free group on a basis, along with a few properties.
+
+Free groups are defined constructively to allow automatic equality checking of
+homomorphisms on finitely generated free groups.
+
+## Overview
+- `AddFreeGroup` - the main definition.
+- `decideHomsEqual` - the crucial result that allows the
+  automatic comparison of homomorphisms by checking their values on the basis.
+- `ℤFree` - a proof that the additive group of integers is a free group on the one-element type.
+- `prodFree` - a proof that the product of free groups is free.
+-/
+
+
+-- @@ L29-29 verbatim
+@[expose] public section
+
+
+-- @@ L31-31 verbatim
+namespace LeanPool.Polylean
+
+
+
+-- @@ L34-47 verbatim
+/-- Free (Additive) Groups, implemented as a typeclass.
+    A free additive group with a basis `X` is an additive group `F` with an
+    inclusion map `ι : X → F`,
+    such that any map `f : X → A` from the basis to any Abelian group `A`
+    extends *uniquely* to an *additive group homomorphism* `φ : F →+ A`. -/
+class AddFreeGroup (F : Type _) [AddCommGroup F] (X : Type _) where
+  /-- The inclusion map from the basis to the free group. -/
+  ι : X → F
+  /-- The homomorphism from the free group induced by a map from the basis. -/
+  inducedHom : (A : Type) → [AddCommGroup A] → (X → A) → (F →+ A)
+  /-- A proof that the induced homomorphism extends the map from the basis. -/
+  induced_extends {A : Type} [AddCommGroup A] : ∀ f : X → A, (inducedHom A f) ∘ ι = f
+  /-- A proof that any homomorphism extending a map from the basis must be unique. -/
+  unique_extension {A : Type} [AddCommGroup A] (f g : F →+ A) : f ∘ ι = g ∘ ι → f = g
+
+
+
+-- @@ L50-61 verbatim
+/-- The additive group of integers `ℤ` is the free group on a singleton basis. -/
+instance ℤFree : AddFreeGroup ℤ Unit where
+  ι := fun _ => 1
+  inducedHom := fun A _ f => (zmultiplesHom A).toFun (f ())
+  induced_extends := by
+    intro A _ f
+    funext u; simp_all
+  unique_extension := by
+    intro A abg f g hyp
+    let hyp' := congrFun hyp ()
+    dsimp at hyp'
+    rwa [← zmultiplesHom_symm_apply, ← zmultiplesHom_symm_apply, Equiv.apply_eq_iff_eq] at hyp'
+
+
+
+-- @@ L64-72 verbatim
+open EnumDecide in
+/-- Equality of homomorphisms from a free group on an exhaustively searchable basis is decidable. -/
+def decideHomsEqual {F : Type _} [AddCommGroup F] {X : Type _} [DecideForall X]
+    [fgp : AddFreeGroup F X]
+    {A : Type _} [AddCommGroup A] [DecidableEq A] : DecidableEq (F →+ A) := fun f g =>
+  if c : ∀ x : X, f (fgp.ι x) = g (fgp.ι x) then
+    .isTrue (fgp.unique_extension f g (funext c))
+  else
+    .isFalse (fun contra => c (fun _ => congrFun (congrArg _ contra) _))
+
+
+-- @@ L74-74 verbatim
+namespace AddFreeGroup.Product
+
+
+-- @@ L76-76 verbatim
+variable {A B : Type _} [AddCommGroup A] [AddCommGroup B]
+
+-- @@ L77-77 verbatim
+variable {X_A X_B : Type _}
+
+-- @@ L78-78 verbatim
+variable [FAb_A : AddFreeGroup A X_A] [FAb_B : AddFreeGroup B X_B]
+
+
+-- @@ L80-83 verbatim
+/-- The inclusion map from the direct sum of the bases of two free groups into their product. -/
+def ι : (X_A ⊕ X_B) → A × B
+  | Sum.inl x_a => (FAb_A.ι x_a, 0)
+  | Sum.inr x_b => (0, FAb_B.ι x_b)
+
+
+-- @@ L85-91 verbatim
+/-- The group homomorphism from the product of two free groups induced by a map from the basis. -/
+def inducedProdHom (G : Type _) [AddCommGroup G] (f : X_A ⊕ X_B → G) : A × B →+ G :=
+    let f_A : X_A → G := f ∘ Sum.inl
+    let f_B : X_B → G := f ∘ Sum.inr
+    AddMonoidHom.coprod
+      (FAb_A.inducedHom G f_A)
+      (FAb_B.inducedHom G f_B)
+
+
+-- @@ L93-123 verbatim
+/-- The product of free groups is free. -/
+instance prodFree : AddFreeGroup (A × B) (X_A ⊕ X_B) :=
+  {
+    ι := ι
+    inducedHom := inducedProdHom
+    induced_extends := by
+      intro _ _ f
+      funext x
+      cases x with
+      | inl x =>
+        unfold inducedProdHom ι
+        dsimp
+        rw [map_zero, add_zero]
+        exact congrFun (FAb_A.induced_extends (f ∘ Sum.inl)) x
+      | inr x =>
+        unfold inducedProdHom ι
+        dsimp
+        rw [map_zero, zero_add]
+        exact congrFun (FAb_B.induced_extends (f ∘ Sum.inr)) x
+    unique_extension := by
+      intro _ _ f g hyp
+      ext ⟨a, b⟩
+      rw [show (a, b) = (a, 0) + (0, b) by simp, map_add, map_add]
+      have A_unique : f.comp (.inl A B) = g.comp (.inl A B) := by
+        apply FAb_A.unique_extension; funext x_A; apply congrFun hyp (Sum.inl x_A)
+      have B_unique : f.comp (.inr A B) = g.comp (.inr A B) := by
+        apply FAb_B.unique_extension; funext x_B; apply congrFun hyp (Sum.inr x_B)
+      change f.comp (.inl _ _) a + f.comp (.inr _ _) b =
+           g.comp (.inl _ _) a + g.comp (.inr _ _) b
+      rw [A_unique, B_unique]
+  }
+
+
+-- @@ L125-125 verbatim
+end AddFreeGroup.Product
+
+
+-- @@ L127-127 verbatim
+end LeanPool.Polylean

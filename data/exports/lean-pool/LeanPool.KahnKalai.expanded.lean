@@ -1,0 +1,69 @@
+/-
+Copyright (c) 2026 Dan Clemens Posch. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Dan Clemens Posch
+-/
+module
+
+public import LeanPool.KahnKalai.ParkPham
+import LeanPool.KahnKalai.Covering
+import Mathlib.Algebra.Order.Algebra
+import Mathlib.Algebra.Order.Floor.Semifield
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L14-23 verbatim
+/-!
+# Kahn–Kalai expectation-threshold theorem
+
+Source: arxiv:2303.02144, doi:10.37236/12266, url:https://github.com/dcposch/kahn-kalai-lean
+Authors: Dan Clemens Posch
+Status: verified
+Main declarations: `KahnKalai.covering_theorem`, `KahnKalai.park_pham`
+Tags: probabilistic-combinatorics, random-structures, threshold-phenomena, set-systems
+MSC: 05C80, 60C05
+-/
+
+
+-- @@ L25-25 verbatim
+@[expose] public section
+
+
+-- @@ L27-27 verbatim
+namespace KahnKalai
+
+
+-- @@ L29-44 verbatim
+/-- **Tran–Vu, Theorem 2.3.** If `ℓ` is at most the ground-set cardinality,
+`p ∈ [0, 1]`, `H` is `ℓ`-bounded, and `f(H) ≥ 1/2 - 2^{-(ℓ+2)}`, then the
+cardinality of `⟨H⟩` at the selected level `m_ℓ` is at least
+`(2/3 + 2^{-(ℓ+2)}) * choose(N, m_ℓ)`. When `m_ℓ ≤ N`, this is the
+corresponding level-density bound; when `N < m_ℓ`, both cardinalities vanish. -/
+theorem covering_theorem {α : Type*} [DecidableEq α] [Fintype α]
+    (H : Finset (Finset α)) (ℓ : ℕ) (p : ℝ)
+    (hℓ : ℓ ≤ Fintype.card α)
+    (hp0 : 0 ≤ p) (hp1 : p ≤ 1)
+    (hb : IsBounded H ℓ)
+    (hf : (1 : ℝ) / 2 - 1 / (2 : ℝ) ^ (ℓ + 2) ≤ coverCost p H) :
+    ((2 : ℝ) / 3 + 1 / (2 : ℝ) ^ (ℓ + 2)) *
+        ((Fintype.card α).choose (coveringLevel p (Fintype.card α) ℓ) : ℝ) ≤
+      (((generate H).filter
+          (fun S => S.card = coveringLevel p (Fintype.card α) ℓ)).card : ℝ) :=
+  covering_aux ℓ H p hℓ hp0 hp1 hb hf
+
+
+-- @@ L46-55 verbatim
+/-- **Park–Pham / Kahn–Kalai** (Tran–Vu, Theorem 1.1). There is an absolute
+constant `K` such that every `ℓ`-bounded family with `ℓ ≥ 2` satisfies
+`p_c(F) ≤ K q(F) log₂ ℓ`. -/
+theorem park_pham :
+    ∃ K : ℝ, 0 < K ∧
+      ∀ {α : Type} [DecidableEq α] [Fintype α]
+        (F : Finset (Finset α)) (ℓ : ℕ),
+        2 ≤ ℓ → IsBounded F ℓ →
+        threshold F ≤ K * expectationThreshold F * Real.logb 2 (ℓ : ℝ) :=
+  ⟨parkPhamK, parkPhamK_pos, park_pham_bound⟩
+
+
+-- @@ L57-57 verbatim
+end KahnKalai

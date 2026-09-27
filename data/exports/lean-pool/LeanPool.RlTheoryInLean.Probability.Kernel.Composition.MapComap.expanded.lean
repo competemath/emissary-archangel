@@ -1,0 +1,81 @@
+/-
+Copyright (c) 2026 Shangtong Zhang. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Shangtong Zhang
+-/
+module
+
+public import Mathlib.Probability.Kernel.Composition.Prod
+
+import LeanPool.RlTheoryInLean.MeasureTheory.Measure.Prod
+import Mathlib.MeasureTheory.Integral.Bochner.Basic
+
+
+-- @@ L13-15 verbatim
+/-!
+# LeanPool.RlTheoryInLean.Probability.Kernel.Composition.MapComap
+-/
+
+
+-- @@ L17-17 verbatim
+@[expose] public section
+
+
+-- @@ L19-19 verbatim
+open MeasureTheory MeasureTheory.Measure ProbabilityTheory.Kernel ProbabilityTheory
+
+-- @@ L20-20 verbatim
+open Finset Bornology NNReal ENNReal Preorder Filter
+
+
+-- @@ L22-22 verbatim
+namespace ProbabilityTheory.Kernel
+
+
+-- @@ L24-24 verbatim
+variable {α β γ : Type*}
+
+-- @@ L25-25 verbatim
+variable [MeasurableSpace α] [MeasurableSpace β] [MeasurableSpace γ]
+
+
+-- @@ L27-34 verbatim
+/-- Comap a kernel along the last coordinate of a finite trajectory prefix. -/
+noncomputable def comapLast
+  (κ : Kernel α α) (n : ℕ) :
+  Kernel (Iic n → α) α := by
+  let g : (Iic n → α) → α :=
+    fun history => history ⟨n, by simp [mem_Iic]⟩
+  have hg : Measurable g := by apply measurable_pi_apply
+  exact κ.comap g hg
+
+
+-- @@ L36-45 verbatim
+lemma prodMap_fst
+(κ : Kernel α β) [IsSFiniteKernel κ] (η : Kernel α γ) [IsMarkovKernel η] :
+(κ.prod η).map Prod.fst = κ := by
+  ext a s hs
+  rw [Kernel.map_apply, Measure.map_apply, Kernel.prod_apply, prod_preimage_fst]
+  · simp
+  · infer_instance
+  · measurability
+  · exact hs
+  · measurability
+
+
+-- @@ L47-56 verbatim
+lemma prodMap_snd
+  (κ : Kernel α β) [IsMarkovKernel κ] (η : Kernel α γ) [IsSFiniteKernel η] :
+  (κ.prod η).map Prod.snd = η := by
+  ext a s hs
+  rw [Kernel.map_apply, Measure.map_apply, Kernel.prod_apply, prod_preimage_snd]
+  · simp
+  · infer_instance
+  · measurability
+  · exact hs
+  · measurability
+
+
+
+-- @@ L59-59 verbatim
+end ProbabilityTheory.Kernel

@@ -1,0 +1,485 @@
+/-
+Copyright (c) 2026 Jukka Suomela. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Jukka Suomela
+-/
+module
+
+public import LeanPool.TwoColoringOneRound.LowerBound.N1000000RelaxationPsdSoundness
+public import LeanPool.TwoColoringOneRound.LowerBound.N1000000BCompressionComputeBase
+public import LeanPool.TwoColoringOneRound.LowerBound.N1000000CorrAvgMatrixDecompose
+import LeanPool.TwoColoringOneRound.LowerBound.N1000000BCompressionComputeS0
+import LeanPool.TwoColoringOneRound.LowerBound.N1000000BCompressionComputeSi
+import LeanPool.TwoColoringOneRound.LowerBound.N1000000CorrAvgMatrixSymmDecompose
+import LeanPool.TwoColoringOneRound.LowerBound.N1000000IntersectionCounting
+import LeanPool.TwoColoringOneRound.LowerBound.N1000000MaskComplete
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L18-20 verbatim
+/-!
+# LeanPool.TwoColoringOneRound.LowerBound.N1000000BCompressionForB
+-/
+
+
+-- @@ L22-22 verbatim
+@[expose] public section
+
+
+-- @@ L24-24 verbatim
+namespace Distributed2Coloring.LowerBound
+
+
+-- @@ L26-26 verbatim
+namespace N1000000BCompressionForB
+
+
+-- @@ L28-28 verbatim
+open scoped BigOperators
+
+-- @@ L29-29 verbatim
+open scoped Matrix
+
+
+-- @@ L31-31 verbatim
+open Distributed2Coloring.LowerBound.Correlation
+
+-- @@ L32-32 verbatim
+open Distributed2Coloring.LowerBound.N1000000BCompressionCompute
+
+-- @@ L33-33 verbatim
+open Distributed2Coloring.LowerBound.N1000000CorrAvgMatrixSymmDecompose
+
+-- @@ L34-34 verbatim
+open Distributed2Coloring.LowerBound.N1000000IntersectionCounting
+
+-- @@ L35-35 verbatim
+open Distributed2Coloring.LowerBound.N1000000MaskComplete
+
+-- @@ L36-36 verbatim
+open Distributed2Coloring.LowerBound.N1000000OrbitalBasis
+
+-- @@ L37-37 verbatim
+open Distributed2Coloring.LowerBound.N1000000OrbitCounting
+
+-- @@ L38-38 verbatim
+open Distributed2Coloring.LowerBound.N1000000PairTransitivity
+
+-- @@ L39-39 verbatim
+open Distributed2Coloring.LowerBound.N1000000Relaxation
+
+-- @@ L40-40 verbatim
+open Distributed2Coloring.LowerBound.N1000000RelaxationPsdSoundness
+
+-- @@ L41-41 verbatim
+open Distributed2Coloring.LowerBound.N1000000StructureConstants
+
+-- @@ L42-42 verbatim
+open Distributed2Coloring.LowerBound.N1000000Transitivity
+
+-- @@ L43-43 verbatim
+open Distributed2Coloring.LowerBound.N1000000Witness
+
+-- @@ L44-44 verbatim
+open Distributed2Coloring.LowerBound.N1000000WedderburnData
+
+-- @@ L45-45 verbatim
+open Distributed2Coloring.LowerBound.N1000000WeakDuality
+
+
+-- @@ L47-48 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev n : Nat := N1000000Data.n
+
+-- @@ L49-50 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev Q := ℚ
+
+-- @@ L51-52 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev V := Vertex n
+
+-- @@ L53-54 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev Block := N1000000WeakDuality.Block
+
+-- @@ L55-56 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev Var := N1000000WeakDuality.Var
+
+-- @@ L57-58 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev DirIdx := N1000000StructureConstants.DirIdx
+
+
+-- @@ L60-62 verbatim
+noncomputable instance : Fintype (Correlation.G n) := by infer_instance
+
+-- Candidate congruence matrices `B_r`, constant on base orbits.
+
+-- @@ L63-65 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+noncomputable def B (r : Block) : Matrix V (Fin 3) Q :=
+  fun u j => bVal r j (dirIdxBase u)
+
+
+-- @@ L67-71 verbatim
+private lemma dirIdxBase_eq_of_baseOrbit {k : DirIdx} (u : BaseOrbit k) : dirIdxBase u.1 = k := by
+  classical
+  have h1 : maskAt (dirIdxBase u.1) = dirMask baseVertex u.1 := maskAt_dirIdxBase (u := u.1)
+  have h2 : maskAt (dirIdxBase u.1) = maskAt k := by simpa using h1.trans u.2
+  exact maskAt_injective h2
+
+
+-- @@ L73-77 verbatim
+private lemma B_eq_bVal_of_baseOrbit (r : Block) {k : DirIdx} (u : BaseOrbit k) (j : Fin 3) :
+    B r u.1 j = bVal r j k := by
+  simp [B, dirIdxBase_eq_of_baseOrbit (u := u)]
+
+-- An equivalence `V ≃ Σ k, BaseOrbit k` for reindexing `Fintype` sums.
+
+-- @@ L78-99 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+noncomputable def vertexSigmaEquiv : V ≃ Σ k : DirIdx, BaseOrbit k where
+  toFun := fun u => ⟨dirIdxBase u, ⟨u, (maskAt_dirIdxBase (u := u)).symm⟩⟩
+  invFun := fun s => s.2.1
+  left_inv := by
+    intro u
+    rfl
+  right_inv := by
+    rintro ⟨k, u⟩
+    -- First, identify the index by injectivity of `maskAt`.
+    have hk : dirIdxBase u.1 = k := dirIdxBase_eq_of_baseOrbit (u := u)
+    -- Reduce to equality in the fiber using proof irrelevance.
+    refine Sigma.ext hk ?_
+    -- The predicates defining the two subtypes are equivalent by rewriting with `hk`,
+    -- so `HEq` reduces to equality of the underlying vertices.
+    have hpred :
+        ∀ x : V,
+          (dirMask baseVertex x = maskAt (dirIdxBase u.1)) ↔ (dirMask baseVertex x = maskAt k) := by
+      simp_all
+    -- Use `Subtype.heq_iff_coe_eq` to reduce the `HEq` goal.
+    have : (u.1 : V) = u.1 := rfl
+    exact (Subtype.heq_iff_coe_eq hpred).2 this
+
+
+-- @@ L101-112 verbatim
+private lemma sum_over_vertices_eq_sum_over_orbits (f : V → Q) :
+    (∑ u : V, f u) = ∑ s : Σ k : DirIdx, BaseOrbit k, f s.2.1 := by
+  classical
+  -- Reindex along `vertexSigmaEquiv`.
+  have :=
+    (Fintype.sum_equiv vertexSigmaEquiv (fun u => f u) (fun s => f s.2.1) (by
+      intro u
+      rfl))
+  simpa using this
+
+-- The intersection fiber `Inter u a d` is the same as the `a`-orbit with the additional
+-- constraint `dirMask v u = maskAt d`.
+
+-- @@ L113-122 verbatim
+private noncomputable def interEquivBaseOrbit {k : DirIdx} (u : BaseOrbit k) (a d : DirIdx) :
+    Inter u a d ≃ { v : BaseOrbit a // dirMask v.1 u.1 = maskAt d } where
+  toFun := fun w => ⟨⟨w.1, w.2.1⟩, w.2.2⟩
+  invFun := fun w => ⟨w.1.1, ⟨w.1.2, w.2⟩⟩
+  left_inv := by
+    intro w
+    rfl
+  right_inv := by
+    intro w
+    rfl
+
+
+-- @@ L124-150 verbatim
+private lemma sum_A_over_baseOrbit_eq_N {k : DirIdx} (u : BaseOrbit k) (a d : DirIdx) :
+    (∑ v : BaseOrbit a, (A d) u.1 v.1) = (N k a d : Q) := by
+  classical
+  -- First, rewrite the sum as a sum of `0/1` indicators.
+  let p : BaseOrbit a → Prop := fun v => dirMask v.1 u.1 = maskAt d
+  have hA : (∑ v : BaseOrbit a,
+    (A d) u.1 v.1) = ∑ v : BaseOrbit a,
+    (if p v then (1 : Q) else 0) := by
+    refine Fintype.sum_congr _ _ ?_
+    intro v
+    simp [N1000000OrbitalBasis.A, p]
+  rw [hA]
+  -- Sum of indicators equals the cardinality of the satisfying subtype.
+  have hsum_sub :
+      (∑ v : BaseOrbit a, (if p v then (1 : Q) else 0)) =
+        (Fintype.card { v : BaseOrbit a // p v } : Q) := by
+    rw [Finset.sum_boole, Fintype.card_subtype]
+  -- Identify this subtype with `Inter u a d` and use the exact intersection count.
+  have hcardInter :
+      (Fintype.card { v : BaseOrbit a // p v } : Q) = (N k a d : Q) := by
+    have hNat : Fintype.card { v : BaseOrbit a // p v } = Fintype.card (Inter u a d) := by
+      simpa using (Fintype.card_congr (interEquivBaseOrbit (u := u) (a := a) (d := d))).symm
+    rw [hNat]
+    exact_mod_cast (card_inter_eq_N (u := u) (a := a) (d := d))
+  exact hsum_sub.trans hcardInter
+
+-- `A`-compression: `(B_r)ᴴ * A_d * (B_r)` computed via intersection numbers.
+
+-- @@ L151-270 verbatim
+theorem congr_A_eq_compBasis (r : Block) (d : DirIdx) :
+    (B r)ᴴ * (A d) * (B r) = compBasis r d := by
+  classical
+  ext p q
+  -- Expand the `3×3` entry of the triple product as a double sum over vertices.
+  have hExpand :
+      ((B r)ᴴ * (A d) * (B r)) p q = ∑ u : V, ∑ v : V, (B r u p) * (A d u v) * (B r v q) := by
+    classical
+    -- Expand outer, then inner multiplication, distribute, swap sums, and remove `star`.
+    have sum_swap (f : V → V → Q) :
+        (∑ v : V, ∑ u : V, f u v) = ∑ u : V, ∑ v : V, f u v :=
+      Finset.sum_comm
+    calc
+      ((B r)ᴴ * (A d) * (B r)) p q
+          = ∑ v : V, ((B r)ᴴ * (A d)) p v * (B r) v q := by
+              exact (Matrix.mul_apply (M := (B r)ᴴ * (A d)) (N := (B r)) (i := p) (k := q))
+      _ = ∑ v : V, (∑ u : V, ((B r)ᴴ) p u * (A d) u v) * (B r) v q := by
+            refine Fintype.sum_congr _ _ ?_
+            intro v
+            -- Expand `((B r)ᴴ * (A d)) p v` by `Matrix.mul_apply`.
+            exact congrArg (fun t => t * (B r) v q)
+              (Matrix.mul_apply (M := (B r)ᴴ) (N := (A d)) (i := p) (k := v))
+      _ = ∑ v : V, ∑ u : V, ((B r)ᴴ) p u * (A d) u v * (B r) v q := by
+            refine Fintype.sum_congr _ _ ?_
+            intro v
+            exact Finset.sum_mul _ _ _
+      _ = ∑ u : V, ∑ v : V, ((B r)ᴴ) p u * (A d) u v * (B r) v q := by
+            simpa using (sum_swap (f := fun u v => ((B r)ᴴ) p u * (A d) u v * (B r) v q))
+      _ = ∑ u : V, ∑ v : V, (B r u p) * (A d u v) * (B r v q) := by
+            -- `((B r)ᴴ) p u = star (B r u p) = B r u p` over `ℚ`.
+            refine Fintype.sum_congr _ _ ?_
+            simp_all
+  rw [hExpand]
+  -- Reindex `u` and `v` by base orbits.
+  have hU :
+      (∑ u : V, ∑ v : V, B r u p * A d u v * B r v q)
+        =
+      ∑ su : Σ k : DirIdx, BaseOrbit k,
+        ∑ v : V, B r su.2.1 p * A d su.2.1 v * B r v q := by
+    simpa using (sum_over_vertices_eq_sum_over_orbits (f := fun u => ∑ v : V,
+      B r u p * A d u v * B r v q))
+  rw [hU]
+  have hV :
+      (∑ su : Σ k : DirIdx, BaseOrbit k, ∑ v : V, B r su.2.1 p * A d su.2.1 v * B r v q)
+        =
+      ∑ su : Σ k : DirIdx, BaseOrbit k,
+        ∑ sv : Σ a : DirIdx, BaseOrbit a,
+          B r su.2.1 p * A d su.2.1 sv.2.1 * B r sv.2.1 q := by
+    refine Fintype.sum_congr _ _ ?_
+    intro su
+    simpa using (sum_over_vertices_eq_sum_over_orbits
+      (f := fun v => B r su.2.1 p * A d su.2.1 v * B r v q))
+  rw [hV]
+  -- Convert the sigma-type sums into iterated sums over `k,u,a,v`.
+  simp only [Fintype.sum_sigma, B_eq_bVal_of_baseOrbit]
+  -- Now compute the `v`-sum using the intersection numbers.
+  -- First, factor the constants `bVal r p k` and `bVal r q a` out of the `v`-sum.
+  have hvFactor :
+      ∀ (k : DirIdx) (u : BaseOrbit k) (a : DirIdx),
+        (∑ v : BaseOrbit a, bVal r p k * (A d) u.1 v.1 * bVal r q a)
+          = bVal r p k * (∑ v : BaseOrbit a, (A d) u.1 v.1) * bVal r q a := by
+    intro k u a
+    classical
+    rw [← Finset.sum_mul, ← Finset.mul_sum]
+  -- Apply the factorization and evaluate the `v`-sum via `sum_A_over_baseOrbit_eq_N`.
+  have hvEval :
+      ∀ (k : DirIdx) (u : BaseOrbit k) (a : DirIdx),
+        (∑ v : BaseOrbit a, bVal r p k * (A d) u.1 v.1 * bVal r q a)
+          = bVal r p k * (N k a d : Q) * bVal r q a := by
+    intro k u a
+    calc
+      (∑ v : BaseOrbit a, bVal r p k * (A d) u.1 v.1 * bVal r q a)
+          = bVal r p k * (∑ v : BaseOrbit a, (A d) u.1 v.1) * bVal r q a := hvFactor k u a
+      _ = bVal r p k * (N k a d : Q) * bVal r q a := by
+            -- Rewrite the inner sum using the intersection-number formula.
+            rw [sum_A_over_baseOrbit_eq_N (u := u) (a := a) (d := d)]
+  -- Rewrite the inner `v`-sum using `hvEval`.
+  have hVsum :
+      (∑ k : DirIdx, ∑ u : BaseOrbit k, ∑ a : DirIdx,
+          ∑ v : BaseOrbit a, bVal r p k * (A d) u.1 v.1 * bVal r q a)
+        =
+        ∑ k : DirIdx, ∑ u : BaseOrbit k, ∑ a : DirIdx,
+          bVal r p k * (N k a d : Q) * bVal r q a := by
+    -- Rewrite the innermost `v`-sum everywhere.
+    simp_rw [hvEval]
+  rw [hVsum]
+  -- The remaining `u`-sum is constant; evaluate it as `baseTypeCount k`.
+  have huConst :
+      ∀ k : DirIdx,
+        (∑ _u : BaseOrbit k, (∑ a : DirIdx, bVal r p k * (N k a d : Q) * bVal r q a))
+          = (baseTypeCount k : Q) * (∑ a : DirIdx, bVal r p k * (N k a d : Q) * bVal r q a) := by
+    intro k
+    classical
+    have hcardNat : (Finset.univ : Finset (BaseOrbit k)).card = baseTypeCount k :=
+      N1000000OrbitCounting.baseOrbit_card (k := k)
+    rw [Finset.sum_const, nsmul_eq_mul, hcardNat]
+  -- Use `huConst` to remove the `u`-sum, then match `compBasis`.
+  -- First collapse the `u`-sum.
+  have hUsum :
+      (∑ k : DirIdx, ∑ _u : BaseOrbit k, ∑ a : DirIdx, bVal r p k * (N k a d : Q) * bVal r q a)
+        =
+        ∑ k : DirIdx,
+          (baseTypeCount k : Q) * (∑ a : DirIdx,
+          bVal r p k * (N k a d : Q) * bVal r q a) := by
+    refine Fintype.sum_congr _ _ ?_
+    · intro k
+      -- `∑ _u, ∑ a, ...` is definitionaly `∑ _u, (∑ a, ...)`.
+      exact huConst (k := k)
+  rw [hUsum]
+  -- Expand the remaining product and reorder to match `compBasis`.
+  classical
+  -- Unfold `compBasis` entrywise.
+  simp [compBasis,
+    N1000000BCompressionCompute.qOfNat,
+    mul_assoc,
+    mul_left_comm,
+    mul_comm,
+    Finset.mul_sum]
+
+-- Symmetric basis compression.
+
+-- @@ L271-317 verbatim
+theorem congr_ASymm_eq_compBasisSymm (r : Block) (d : DirIdx) :
+    (B r)ᴴ * (ASymm d) * (B r) = compBasisSymm r d := by
+  classical
+  by_cases hFix : tTr[d.1]! = d.1
+  · -- Fixed point: both `ASymm` and `compBasisSymm` are just the directed object.
+    have hAS : ASymm d = A d := by
+      unfold N1000000OrbitalBasis.ASymm
+      rw [dite_eq_left hFix]
+    have hCB : compBasisSymm r d = compBasis r d := by
+      unfold compBasisSymm
+      -- Avoid unfolding `tTr` by using `ite_eq_left` directly.
+      simp_all
+    rw [hAS, hCB]
+    exact congr_A_eq_compBasis (r := r) (d := d)
+  · -- Non-fixed: `ASymm d = A d + A dTr`,
+    -- and `compBasisSymm r d = compBasis r d + compBasis r (invDir d)`.
+    let dTr : DirIdx :=
+      ⟨tTr[d.1]!, by
+        -- `tTr` is a permutation of the 34 indices.
+        fin_cases d <;> decide⟩
+    have hAS : ASymm d = A d + A dTr := by
+      unfold N1000000OrbitalBasis.ASymm
+      rw [dite_eq_right hFix]
+    have hCB : compBasisSymm r d = compBasis r d + compBasis r (invDir d) := by
+      unfold compBasisSymm
+      -- Avoid unfolding `tTr` by using `ite_eq_right` directly.
+      simpa using (ite_eq_right hFix :
+        (if tTr[d.1]! = d.1 then compBasis r d else compBasis r d + compBasis r (invDir d))
+          = (compBasis r d + compBasis r (invDir d)))
+    -- Rewrite both sides using these decompositions.
+    rw [hAS, hCB]
+    -- Expand the matrix product across the sum and apply the directed compression lemma twice.
+    calc
+        (B r)ᴴ * (A d + A dTr) * (B r)
+            = (B r)ᴴ * A d * (B r) + (B r)ᴴ * A dTr * (B r) := by
+                -- Bilinearity of matrix multiplication.
+                simp [Matrix.mul_add, Matrix.add_mul, Matrix.mul_assoc]
+      _ = compBasis r d + compBasis r dTr := by
+            rw [congr_A_eq_compBasis (r := r) (d := d), congr_A_eq_compBasis (r := r) (d := dTr)]
+      _ = compBasis r d + compBasis r (invDir d) := by
+            -- `dTr` and `invDir d` have the same `.1`, so `compBasis` agrees entrywise.
+              have hEq : compBasis r dTr = compBasis r (invDir d) := by
+                ext p q
+                rfl
+              simp [hEq]
+
+-- The concrete scaled compression identity for our chosen `B`.
+
+-- @@ L318-395 verbatim
+theorem compressionHypScaledForB :
+    ∀ f : Coloring n, ∀ r : Block,
+      (blockScales[r.1]! : Q) • S (xFromColoring f) r =
+        (B r)ᴴ * (corrAvgMatrix (f := f)) * (B r) := by
+  classical
+  intro f r
+  have hDecomp := corrAvgMatrix_eq_A_id_add_sum_var (f := f)
+  -- A transpose-form of the symmetric compression lemma (since `ℚ` has trivial `star`).
+  have congr_ASymm_eq_compBasisSymm_T (d : DirIdx) :
+      (B r)ᵀ * (ASymm d) * (B r) = compBasisSymm r d := by
+    simpa using (congr_ASymm_eq_compBasisSymm (r := r) (d := d))
+  -- First, expand the compression of `corrAvgMatrix` using the symmetric orbital decomposition.
+  have hCompressed :
+      (B r)ᴴ * (corrAvgMatrix (f := f)) * (B r)
+        =
+        (blockScales[r.1]! : Q) • S0 r
+          + ∑ i : Var, (xFromColoring f i) • ((blockScales[r.1]! : Q) • Si r i) := by
+    calc
+        (B r)ᴴ * (corrAvgMatrix (f := f)) * (B r)
+            = (B r)ᴴ *
+                (A idDirIdx + ∑ i : Var, (xFromColoring f i) • ASymm (varOrbit i)) *
+                (B r) := by simp [hDecomp]
+      _ =
+          (B r)ᴴ * (A idDirIdx) * (B r)
+            + (B r)ᴴ * (∑ i : Var, (xFromColoring f i) • ASymm (varOrbit i)) * (B r) := by
+              -- Normalize to the right-associated form, distribute on the right, then re-associate
+              -- back.
+              -- (This avoids depending on definitional parenthesization.)
+              -- `simp only` keeps this purely about associativity.
+              simp only [Matrix.mul_assoc]
+              -- Distribute `(A id + sum) * B` and then `Bᴴ * (...)`.
+              rw [Matrix.add_mul, Matrix.mul_add]
+              -- The goal is already in the same (right-associated) form after rewriting by
+              -- `mul_assoc`.
+      _ =
+          compBasis r idDirIdx
+            + (B r)ᴴ * (∑ i : Var, (xFromColoring f i) • ASymm (varOrbit i)) * (B r) := by
+              rw [congr_A_eq_compBasis (r := r) (d := idDirIdx)]
+      _ =
+          compBasis r idDirIdx
+            + ∑ i : Var, (xFromColoring f i) • (compBasisSymm r (varOrbit i)) := by
+              -- Push the compression through the sum, and then use the symmetric compression lemma
+              -- termwise.
+              have hSum :
+                  (B r)ᴴ * (∑ i : Var, (xFromColoring f i) • ASymm (varOrbit i)) * (B r)
+                    =
+                    ∑ i : Var, (xFromColoring f i) • ((B r)ᴴ * (ASymm (varOrbit i)) * (B r)) := by
+                -- `Matrix.mul_sum` / `Matrix.sum_mul` rewrite `M * (∑ i, Xi) * N` into a sum of `M
+                -- * Xi * N`.
+                -- `Matrix.mul_smul` / `Matrix.smul_mul` pull scalars out.
+                simp [Matrix.mul_sum,
+                  Matrix.sum_mul,
+                  Matrix.mul_smul,
+                  Matrix.smul_mul,
+                  Matrix.mul_assoc]
+              simp_all
+      _ =
+          (blockScales[r.1]! : Q) • S0 r
+            + ∑ i : Var, (xFromColoring f i) • ((blockScales[r.1]! : Q) • Si r i) := by
+              -- The computed identities match the compressed basis with the certificate blocks.
+              simp [compBasis_id_matches_S0 (r := r), compBasisSymm_var_matches_Si (r := r)]
+  -- Now rewrite the left-hand side into the same shape and conclude.
+  calc
+    (blockScales[r.1]! : Q) • S (xFromColoring f) r
+        =
+        (blockScales[r.1]! : Q) • S0 r
+          + ∑ i : Var, (xFromColoring f i) • ((blockScales[r.1]! : Q) • Si r i) := by
+          -- Distribute the outer scale through `S = S0 + ∑ x • Si`, commuting scalars as needed.
+          -- (We use `Finset.smul_sum` since the big sum is a `Finset.univ` sum.)
+          have hComm :
+              ∀ x : Q, ∀ M : Matrix (Fin 3) (Fin 3) Q,
+                (blockScales[r.1]! : Q) • (x • M) = x • ((blockScales[r.1]! : Q) • M) := by
+            intro x M
+            -- Both sides are `(blockScales * x) • M` up to commutativity of `ℚ`.
+            simp [smul_smul, mul_comm]
+          -- Expand `S` and push scalars through the sum.
+          simp [N1000000WeakDuality.S, smul_add, Finset.smul_sum, hComm]
+    _ = (B r)ᴴ * (corrAvgMatrix (f := f)) * (B r) := by simpa using hCompressed.symm
+
+
+-- @@ L397-399 verbatim
+theorem compressionHypScaled :
+    N1000000RelaxationPsdSoundness.CompressionHypScaled :=
+  ⟨B, compressionHypScaledForB⟩
+
+
+-- @@ L401-401 verbatim
+end N1000000BCompressionForB
+
+
+-- @@ L403-403 verbatim
+end Distributed2Coloring.LowerBound

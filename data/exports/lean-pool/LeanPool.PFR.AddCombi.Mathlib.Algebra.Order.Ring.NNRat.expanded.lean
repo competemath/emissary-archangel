@@ -1,0 +1,37 @@
+/-
+Copyright (c) 2026 AddCombi contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: AddCombi contributors
+-/
+
+module
+
+public import Mathlib.Algebra.Field.Defs
+public import Mathlib.Data.NNRat.Defs
+import Mathlib.Algebra.Order.Ring.NNRat
+import Mathlib.Algebra.Order.Sub.Unbundled.Basic
+import Mathlib.Data.Rat.Cast.CharZero
+
+
+-- @@ L15-17 verbatim
+/-!
+# Cast lemmas for nonnegative rational numbers
+-/
+
+
+-- @@ L19-19 verbatim
+namespace NNRat
+
+-- @@ L20-20 verbatim
+variable {K : Type*} [DivisionRing K] [CharZero K]
+
+
+-- @@ L22-25 verbatim
+@[simp]
+public
+lemma cast_sub {p q : ℚ≥0} (h : p ≤ q) : (↑(q - p) : K) = q - p := by
+  rw [eq_sub_iff_add_eq]; norm_cast; exact tsub_add_cancel_of_le h
+
+
+-- @@ L27-27 verbatim
+end NNRat

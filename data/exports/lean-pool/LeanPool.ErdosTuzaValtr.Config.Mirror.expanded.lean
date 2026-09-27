@@ -1,0 +1,140 @@
+/-
+Copyright (c) 2026 Jineon Baek. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Jineon Baek
+-/
+
+-- Mirror configuration
+module
+
+public import LeanPool.ErdosTuzaValtr.Config.Defs
+import LeanPool.ErdosTuzaValtr.Lib.List.Chain3
+import LeanPool.ErdosTuzaValtr.Lib.List.Lemmas
+
+
+-- @@ L14-18 verbatim
+/-!
+# LeanPool.ErdosTuzaValtr.Config.Mirror
+
+Imported Lean Pool material for `LeanPool.ErdosTuzaValtr.Config.Mirror`.
+-/
+
+
+-- @@ L20-20 verbatim
+@[expose] public section
+
+
+-- @@ L22-22 verbatim
+variable {α : Type _} [LinearOrder α] (C : Config α)
+
+
+-- @@ L24-27 verbatim
+open OrderDual
+
+-- to_dual : α → αᵒᵈ
+-- of_dual : αᵒᵈ → α
+
+-- @@ L28-30 verbatim
+/-- The mirror configuration on the order dual, obtained by reversing the cup relation. -/
+def Config.Mirror : Config (OrderDual α) :=
+  ⟨Mirror3 C.Cup3, C.DecidableCup3.Mirror3⟩
+
+
+-- @@ L32-32 verbatim
+variable {C}
+
+
+-- @@ L34-38 verbatim
+@[simp]
+theorem Mirror.cap {l : List α} : C.Mirror.Cap l.Mirror ↔ C.Cap l := by
+  constructor
+  · exact fun h => ⟨List.chain'_mirror.mp h.left, List.chain3'_mirror.mp h.right⟩
+  · exact fun h => ⟨List.chain'_mirror.mpr h.left, List.chain3'_mirror.mpr h.right⟩
+
+
+-- @@ L40-44 verbatim
+@[simp]
+theorem Mirror.cup {l : List α} : C.Mirror.Cup l.Mirror ↔ C.Cup l := by
+  constructor
+  · exact fun h => ⟨List.chain'_mirror.mp h.left, List.chain3'_mirror.mp h.right⟩
+  · exact fun h => ⟨List.chain'_mirror.mpr h.left, List.chain3'_mirror.mpr h.right⟩
+
+
+-- @@ L46-53 verbatim
+theorem Mirror.gon {l1 l2 : List α} : C.Mirror.Gon l1.Mirror l2.Mirror ↔ C.Gon l1 l2 := by
+  rw [Config.Gon]; rw [Config.Gon]
+  simp only [List.Mirror_length, cap, cup, and_congr_right_iff]
+  intro _ _ _ _
+  rw [List.Mirror_getLast, List.Mirror_head, List.Mirror_getLast, List.Mirror_head]
+  have t_inj : Function.Injective (⇑toDual : α → αᵒᵈ) := fun _ _ => toDual_inj.mp
+  have ot_inj := Option.map_injective t_inj
+  rw [ot_inj.eq_iff, ot_inj.eq_iff]; tauto
+
+
+-- @@ L55-57 verbatim
+@[simp]
+theorem Mirror.ncap {n : ℕ} {l : List α} : C.Mirror.NCap n l.Mirror ↔ C.NCap n l := by
+  rw [Config.NCap]; rw [Config.NCap]; simp
+
+
+-- @@ L59-61 verbatim
+@[simp]
+theorem Mirror.ncup {n : ℕ} {l : List α} : C.Mirror.NCup n l.Mirror ↔ C.NCup n l := by
+  rw [Config.NCup]; rw [Config.NCup]; simp
+
+
+-- @@ L63-66 verbatim
+theorem Mirror.ngon {n : ℕ} {l1 l2 : List α} :
+    C.NGon n l1 l2 ↔ C.Mirror.NGon n l1.Mirror l2.Mirror := by
+  rw [Config.NGon]; rw [Config.NGon]
+  rw [Mirror.gon]; simp
+
+
+-- @@ L68-81 verbatim
+@[simp]
+theorem Mirror.hasNCap {n : ℕ} {S : Finset α} : C.Mirror.HasNCap n S.Mirror ↔ C.HasNCap n S :=
+  by
+  constructor
+  · intro h; rcases h with ⟨c, ⟨c_ncap, c_in⟩⟩
+    use c.ofMirror
+    constructor
+    · rw [← Mirror.ncap]; convert c_ncap; simp
+    · rw [← @List.ofMirrorMirror α c] at c_in c_ncap
+      set co := c.ofMirror
+      rw [← List.Mirror_in]; assumption
+  · intro h; rcases h with ⟨c, ⟨c_ncap, c_in⟩⟩
+    use c.Mirror
+    simp_all
+
+
+-- @@ L83-94 verbatim
+@[simp]
+theorem Mirror.hasNCup {n : ℕ} {S : Finset α} : C.Mirror.HasNCup n S.Mirror ↔ C.HasNCup n S :=
+  by
+  constructor
+  · intro h; rcases h with ⟨c, ⟨c_ncup, c_in⟩⟩
+    use c.ofMirror
+    rw [← @List.ofMirrorMirror α c] at c_in c_ncup
+    set co := c.ofMirror
+    simp_all
+  · intro h; rcases h with ⟨c, ⟨c_ncup, c_in⟩⟩
+    use c.Mirror
+    simp_all
+
+
+-- @@ L96-110 verbatim
+theorem Mirror.hasNGon {n : ℕ} {S : Finset α} : C.Mirror.HasNGon n S.Mirror ↔ C.HasNGon n S :=
+  by
+  constructor
+  · intro h; rcases h with ⟨c1, c2, ⟨c_ngon, c1_in, c2_in⟩⟩
+    use c1.ofMirror, c2.ofMirror
+    rw [← @List.ofMirrorMirror α c1] at c1_in c_ngon
+    rw [← @List.ofMirrorMirror α c2] at c2_in c_ngon
+    set c1o := c1.ofMirror; set c2o := c2.ofMirror
+    rw [List.Mirror_in] at c1_in c2_in
+    rw [← Mirror.ngon] at c_ngon; tauto
+  · intro h; rcases h with ⟨c1, c2, ⟨c_ngon, c1_in, c2_in⟩⟩
+    use c1.Mirror, c2.Mirror
+    constructor
+    · rw [← Mirror.ngon]; tauto
+    · simp [List.Mirror_in]; tauto

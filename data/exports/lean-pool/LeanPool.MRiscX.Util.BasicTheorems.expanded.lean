@@ -1,0 +1,212 @@
+/-
+Copyright (c) 2026 Julius Marx. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Julius Marx
+-/
+module
+
+
+public import Aesop.BuiltinRules
+public import Mathlib.Order.RelClasses
+import Batteries.Data.UInt
+import Mathlib.Data.Nat.ModEq
+import Std.Tactic.BVDecide.Normalize.Prop
+
+
+-- @@ L15-20 verbatim
+/-!
+This file contains a list of theorems required during the implementation of this dsl
+and the creation of the proof for the otp example.
+Some of them might actually already exists in the mathlib but
+i had trouble finding them.
+-/
+
+
+-- @@ L22-22 verbatim
+@[expose] public section
+
+
+-- @@ L24-30 verbatim
+theorem excluded_middle_implication : ∀ (P Q C : Prop),
+  (P ∧ Q → C) ∧ (P ∧ ¬Q → C) →
+  P →
+  C
+  := by
+  intros P Q C
+  tauto
+
+
+
+-- @@ L33-38 verbatim
+theorem Nat.mod_succ_eq {a b m : ℕ} : a % m = b % m ↔ (a + 1) % m = (b + 1) % m := by
+  constructor
+  · exact add_mod_eq_add_mod_right 1
+  · intro h₁
+    rw [← ModEq] at *
+    exact ModEq.add_right_cancel' 1 h₁
+
+
+
+-- @@ L41-43 verbatim
+theorem Nat.le_sub_one_le : ∀ (n m : Nat), n ≤ m → n - 1 ≤ m := by
+  intros n m h
+  omega
+
+
+-- @@ L45-48 verbatim
+theorem Nat.gt_zero_le_one : ∀ (n : ℕ),
+  (0 < n) ↔ 1 ≤ n := by
+  intros n
+  omega
+
+
+
+-- @@ L51-56 verbatim
+theorem Nat.add_gt_zero_gt_zero : ∀ (n m: ℕ) ,
+  0 < n →
+  0 < n + m
+  := by
+  intros n m h
+  omega
+
+
+
+
+-- @@ L60-64 verbatim
+theorem Nat.add_gt_zero : ∀ (n m : Nat),
+  n > 0 →
+  n + m > 0 := by
+  intros n m h
+  omega
+
+
+
+
+-- @@ L68-70 verbatim
+theorem Nat.gt_and_neq_succ_gt_succ : ∀ (n m : ℕ), n < m → m ≠ n + 1 → n + 1 < m := by
+  intros n m h₁ h₂
+  grind
+
+
+-- @@ L72-75 verbatim
+theorem Nat.lt_add_cancel_right : ∀ (n m k: ℕ),
+  n + k < m + k ↔ n < m
+  := by
+  simp
+
+
+
+-- @@ L78-83 verbatim
+theorem Nat.lt_sub_left : ∀ (a b c : ℕ),
+  b < a →
+  a < b + c →
+  a - b < c := by
+  intros a b c BLtA ALtBC
+  omega
+
+
+
+-- @@ L86-92 verbatim
+theorem Nat.size_sub_lt_size : ∀ (x l s: Nat),
+  l < s →
+  x ≤ l →
+  x ≥ 1 →
+  l - x + 1 < s := by
+  intros x l s hl hx h1
+  omega
+
+
+
+-- @@ L95-98 verbatim
+theorem UInt64.gt_zero_neq_zero : ∀ (u:UInt64),
+  u > 0 → u ≠ 0 := by
+  intro u h neq
+  simp_all
+
+
+-- @@ L100-101 verbatim
+theorem UInt64.lt_zero : ∀ (u:UInt64), u < 0 ↔ False := by
+  simp
+
+
+
+-- @@ L104-105 verbatim
+theorem UInt64.lt_toNat_iff : ∀ (u i : UInt64),
+  u.toNat < i.toNat ↔ u < i := fun _ _ => Iff.rfl
+
+
+-- @@ L107-108 verbatim
+theorem UInt64.le_toNat_iff : ∀ (u i : UInt64),
+  u.toNat ≤ i.toNat ↔ u ≤ i := fun _ _ => Iff.rfl
+
+
+-- @@ L110-121 verbatim
+theorem UInt64.add_lt_add : ∀ (n m k c : UInt64),
+  n < m ∧ k < c →
+  m.toNat + c.toNat < UInt64.size →
+  n + k < m + c := by
+  rintro n m k c ⟨hlt_l, hlt_r⟩ hsum
+  have hfin : n.toNat + k.toNat < m.toNat + c.toNat := Nat.add_lt_add hlt_l hlt_r
+  have mcNat : (m + c).toNat = m.toNat + c.toNat := by
+    rw [UInt64.toNat_add, Nat.mod_eq_of_lt hsum]
+  have nkNat : (n + k).toNat = n.toNat + k.toNat := by
+    rw [UInt64.toNat_add, Nat.mod_eq_of_lt (Nat.lt_trans hfin hsum)]
+  rw [←UInt64.lt_toNat_iff, mcNat, nkNat]
+  exact hfin
+
+
+
+
+-- @@ L125-127 verbatim
+theorem UInt64.add_cancel_right_iff : ∀ (u i k : UInt64),
+  u + k = i + k ↔ u = i := by
+  simp_all
+
+
+-- @@ L129-131 verbatim
+theorem UInt64.add_cancel_left_iff : ∀ (u i k: UInt64),
+  k + u = k + i ↔ u = i := by
+  simp_all
+
+
+
+-- @@ L134-139 verbatim
+theorem UInt64.add_sub_assoc : ∀ (p l x : UInt64),
+  x ≤ l →
+  x > 0 →
+  p + (l - x) + 1 = p + (l - (x - 1)) := by
+  intros p l x h_xLeL h_xGtZ
+  grind only
+
+
+
+-- @@ L142-146 verbatim
+theorem UInt64.add_right_ne_of_lt : ∀ (n i l : UInt64),
+  i < l →
+  n + l ≠ n + i := by
+  intro n i l h_iLtl neq
+  simp_all
+
+
+
+
+-- @@ L150-160 verbatim
+instance instPreorderUInt64LeanPool : Preorder UInt64 where
+  le := (· ≤ ·)
+  lt := (· < ·)
+  le_refl := by simp
+  le_trans := by apply UInt64.le_trans
+  lt_iff_le_not_ge := by
+    intros a b
+    constructor
+    · intro h
+      simpa only [UInt64.not_le] using ⟨UInt64.le_of_lt h, h⟩
+    · simp
+
+
+
+-- @@ L163-166 verbatim
+instance : WellFoundedLT UInt64 := by
+  apply Subrelation.wf (r := InvImage (· < ·) UInt64.toNat)
+    (fun h => UInt64.lt_iff_toNat_lt_toNat.mp h)
+  exact InvImage.wf _ wellFounded_lt

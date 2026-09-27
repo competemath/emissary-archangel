@@ -1,0 +1,239 @@
+/-
+Copyright (c) 2026 Jukka Suomela. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Jukka Suomela
+-/
+module
+
+
+public import LeanPool.TwoColoringOneRound.LowerBound.Correlation
+public import LeanPool.TwoColoringOneRound.LowerBound.N1000000Data
+public import LeanPool.TwoColoringOneRound.LowerBound.OverlapType
+import Mathlib.Algebra.Order.Field.Basic
+import Mathlib.Data.Nat.Bitwise
+import Mathlib.Data.Rat.Cast.Order
+import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.NormNum.Abs
+import Mathlib.Tactic.NormNum.DivMod
+import Mathlib.Tactic.NormNum.OfScientific
+import Mathlib.Tactic.NormNum.Pow
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L22-24 verbatim
+/-!
+# LeanPool.TwoColoringOneRound.LowerBound.N1000000PairTransitivity
+-/
+
+
+-- @@ L26-26 verbatim
+@[expose] public section
+
+
+-- @@ L28-28 verbatim
+namespace Distributed2Coloring.LowerBound
+
+
+-- @@ L30-30 verbatim
+namespace N1000000PairTransitivity
+
+
+-- @@ L32-32 verbatim
+open scoped BigOperators
+
+
+-- @@ L34-34 verbatim
+open Distributed2Coloring.LowerBound.Correlation
+
+-- @@ L35-35 verbatim
+open Distributed2Coloring.LowerBound.N1000000Data
+
+
+-- @@ L37-38 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev n : Nat := N1000000Data.n
+
+-- @@ L39-40 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev SymN := Distributed2Coloring.LowerBound.Sym n
+
+-- @@ L41-42 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev V := Vertex n
+
+-- @@ L43-44 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev G := Correlation.G n
+
+-- @@ L45-46 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev Mask := Distributed2Coloring.LowerBound.Mask
+
+
+-- @@ L48-48 verbatim
+noncomputable instance : Fintype G := by infer_instance
+
+
+-- @@ L50-51 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev i0 : Fin 3 := 0
+
+-- @@ L52-53 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev i1 : Fin 3 := 1
+
+-- @@ L54-55 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev i2 : Fin 3 := 2
+
+
+-- @@ L57-58 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+def bit (k : Nat) : Nat := (1 : Nat) <<< k
+
+
+-- @@ L60-72 verbatim
+/-- The directed overlap mask between two vertices, as a `3×3` partial permutation bitmask. -/
+def dirMask (u v : V) : Mask :=
+  -- We build a `9`-bit number by appending three `3`-bit rows.
+  let row0 : Nat :=
+    ((if u.1 i0 = v.1 i0 then bit 0 else 0) ||| (if u.1 i0 = v.1 i1 then bit 1 else 0)) |||
+      (if u.1 i0 = v.1 i2 then bit 2 else 0)
+  let row1 : Nat :=
+    ((if u.1 i1 = v.1 i0 then bit 0 else 0) ||| (if u.1 i1 = v.1 i1 then bit 1 else 0)) |||
+      (if u.1 i1 = v.1 i2 then bit 2 else 0)
+  let row2 : Nat :=
+    ((if u.1 i2 = v.1 i0 then bit 0 else 0) ||| (if u.1 i2 = v.1 i1 then bit 1 else 0)) |||
+      (if u.1 i2 = v.1 i2 then bit 2 else 0)
+  (row2 <<< 6) ||| ((row1 <<< 3) ||| row0)
+
+
+-- @@ L74-76 verbatim
+@[simp] lemma testBit_bit (k t : Nat) : (bit k).testBit t = decide (k = t) := by
+  -- `bit k = 2^k`.
+  simp [bit, Nat.shiftLeft_eq, Nat.testBit_two_pow]
+
+
+-- @@ L78-80 verbatim
+private lemma testBit_ite_bit {p : Prop} [Decidable p] (k t : Nat) :
+    (Nat.testBit (if p then bit k else 0) t) = (decide p && decide (k = t)) := by
+  by_cases hp : p <;> simp [hp, testBit_bit]
+
+
+-- @@ L82-93 verbatim
+private lemma decide_mod_two_ite_bit {p : Prop} [Decidable p] (k : Nat) :
+    decide (((if p then bit k else 0) % 2) = 1) = (decide p && decide (k = 0)) := by
+  by_cases hp : p
+  · cases k with
+    | zero =>
+        simp [hp, bit]
+    | succ k =>
+        have hdvd : 2 ∣ 2 ^ (Nat.succ k) := by refine ⟨2 ^ k, by simp [Nat.pow_succ, Nat.mul_comm]⟩
+        have hmod : (2 ^ (Nat.succ k)) % 2 = 0 :=
+          Nat.mod_eq_zero_of_dvd hdvd
+        simp [hp, bit, Nat.shiftLeft_eq, hmod]
+  · simp [hp]
+
+
+-- @@ L95-100 verbatim
+lemma dirMask_testBit (u v : V) (i j : Fin 3) :
+    (dirMask u v).testBit (i.1 * 3 + j.1) = decide (u.1 i = v.1 j) := by
+  -- There are only `3×3` relevant bit positions; compute each case.
+  fin_cases i <;> fin_cases j <;>
+    simp [dirMask, i0, i1, i2, testBit_ite_bit, decide_mod_two_ite_bit, Nat.testBit_or,
+      Nat.testBit_shiftLeft]
+
+
+-- @@ L102-174 verbatim
+lemma dirMask_lt (u v : V) : dirMask u v < (1 <<< 9) := by
+  -- Each row is a `3`-bit number, hence `< 2^3 = 8`.
+  have hu01 : u.1 i0 ≠ u.1 i1 := by
+    intro hEq
+    exact (by decide : (i0 : Fin 3) ≠ i1) (u.2 hEq)
+  have hu02 : u.1 i0 ≠ u.1 i2 := by
+    intro hEq
+    exact (by decide : (i0 : Fin 3) ≠ i2) (u.2 hEq)
+  have hu12 : u.1 i1 ≠ u.1 i2 := by
+    intro hEq
+    exact (by decide : (i1 : Fin 3) ≠ i2) (u.2 hEq)
+  have hv01 : v.1 i0 ≠ v.1 i1 := by
+    intro hEq
+    exact (by decide : (i0 : Fin 3) ≠ i1) (v.2 hEq)
+  have hv02 : v.1 i0 ≠ v.1 i2 := by
+    intro hEq
+    exact (by decide : (i0 : Fin 3) ≠ i2) (v.2 hEq)
+  have hv12 : v.1 i1 ≠ v.1 i2 := by
+    intro hEq
+    exact (by decide : (i1 : Fin 3) ≠ i2) (v.2 hEq)
+  have hv10 : v.1 i1 ≠ v.1 i0 := by simpa [eq_comm] using hv01
+  have hv20 : v.1 i2 ≠ v.1 i0 := by simpa [eq_comm] using hv02
+  have hv21 : v.1 i2 ≠ v.1 i1 := by simpa [eq_comm] using hv12
+  have hRow0 :
+      (let row0 : Nat :=
+        ((if u.1 i0 = v.1 i0 then bit 0 else 0) ||| (if u.1 i0 = v.1 i1 then bit 1 else 0)) |||
+          (if u.1 i0 = v.1 i2 then bit 2 else 0); row0) < 2 ^ 3 := by
+    -- There are only 8 Boolean possibilities.
+    by_cases h00 : u.1 i0 = v.1 i0 <;>
+    by_cases h01 : u.1 i0 = v.1 i1 <;>
+    by_cases h02 : u.1 i0 = v.1 i2 <;>
+    simp [h00, h01, h02, bit, hv01, hv02, hv12, hv10, hv20, hv21]
+  have hRow1 :
+      (let row1 : Nat :=
+        ((if u.1 i1 = v.1 i0 then bit 0 else 0) ||| (if u.1 i1 = v.1 i1 then bit 1 else 0)) |||
+          (if u.1 i1 = v.1 i2 then bit 2 else 0); row1) < 2 ^ 3 := by
+    by_cases h10 : u.1 i1 = v.1 i0 <;>
+    by_cases h11 : u.1 i1 = v.1 i1 <;>
+    by_cases h12 : u.1 i1 = v.1 i2 <;>
+    simp [h10, h11, h12, bit, hv01, hv02, hv12, hv10, hv20, hv21]
+  have hRow2 :
+      (let row2 : Nat :=
+        ((if u.1 i2 = v.1 i0 then bit 0 else 0) ||| (if u.1 i2 = v.1 i1 then bit 1 else 0)) |||
+          (if u.1 i2 = v.1 i2 then bit 2 else 0); row2) < 2 ^ 3 := by
+    by_cases h20 : u.1 i2 = v.1 i0 <;>
+    by_cases h21 : u.1 i2 = v.1 i1 <;>
+    by_cases h22 : u.1 i2 = v.1 i2 <;>
+    simp [h20, h21, h22, bit, hv01, hv02, hv12, hv10, hv20, hv21]
+  -- Append the rows using `Nat.append_lt`.
+  -- `row1 <<< 3 ||| row0 < 2^6`, then `row2 <<< 6 ||| ... < 2^9`.
+  have h01 :
+      (let row0 : Nat :=
+        ((if u.1 i0 = v.1 i0 then bit 0 else 0) ||| (if u.1 i0 = v.1 i1 then bit 1 else 0)) |||
+          (if u.1 i0 = v.1 i2 then bit 2 else 0)
+      let row1 : Nat :=
+        ((if u.1 i1 = v.1 i0 then bit 0 else 0) ||| (if u.1 i1 = v.1 i1 then bit 1 else 0)) |||
+          (if u.1 i1 = v.1 i2 then bit 2 else 0); (row1 <<< 3) ||| row0) <
+        2 ^ (3 + 3) := by
+    simpa using Nat.append_lt (hx := hRow0) (hy := hRow1)
+  have h012 :
+      (let row0 : Nat :=
+        ((if u.1 i0 = v.1 i0 then bit 0 else 0) ||| (if u.1 i0 = v.1 i1 then bit 1 else 0)) |||
+          (if u.1 i0 = v.1 i2 then bit 2 else 0)
+      let row1 : Nat :=
+        ((if u.1 i1 = v.1 i0 then bit 0 else 0) ||| (if u.1 i1 = v.1 i1 then bit 1 else 0)) |||
+          (if u.1 i1 = v.1 i2 then bit 2 else 0)
+      let row2 : Nat :=
+        ((if u.1 i2 = v.1 i0 then bit 0 else 0) ||| (if u.1 i2 = v.1 i1 then bit 1 else 0)) |||
+          (if u.1 i2 = v.1 i2 then bit 2 else 0); (row2 <<< 6) |||
+        ((row1 <<< 3) ||| row0)) < 2 ^ ((3 + 3) + 3) := by
+    simpa [Nat.add_assoc] using Nat.append_lt (hx := h01) (hy := hRow2)
+  -- Rewrite `dirMask` into the row form and finish.
+  simpa [dirMask] using h012
+
+
+-- @@ L176-183 verbatim
+/-!
+This module intentionally contains only the low-level `dirMask` encoding lemmas.
+
+The higher-level results that were once planned here are proved in
+`N1000000Transitivity` as:
+- `dirMask_isPartialPermMask`
+- `exists_perm_of_dirMask_eq`
+-/
+
+
+-- @@ L185-185 verbatim
+end N1000000PairTransitivity
+
+
+-- @@ L187-187 verbatim
+end Distributed2Coloring.LowerBound

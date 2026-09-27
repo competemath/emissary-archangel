@@ -1,0 +1,103 @@
+/-
+Copyright (c) 2026 Tom Adamczewski and Epoch AI. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: GPT-6 Astra, Tom Adamczewski
+-/
+module
+
+public import Mathlib.Algebra.Field.ULift
+public import Mathlib.Algebra.Field.ZMod
+public import Mathlib.FieldTheory.IsAlgClosed.AlgebraicClosure
+public import LeanPool.Koethe.Pencil
+public import Mathlib.LinearAlgebra.Matrix.Ideal
+import LeanPool.Koethe.Linearization.Nil
+import LeanPool.Koethe.MaskSequence.Universal
+import LeanPool.Koethe.Mortality.MaskMortality
+import LeanPool.Koethe.ShiftWitness.Witness
+import Mathlib.Algebra.AlgebraicCard
+import Mathlib.Algebra.Order.Algebra
+import Mathlib.Analysis.Normed.Group.Basic
+import Mathlib.Combinatorics.Matroid.Init
+import Mathlib.Data.EReal.Operations
+import Mathlib.RingTheory.Flat.TorsionFree
+import Mathlib.RingTheory.Henselian
+import Mathlib.RingTheory.RegularLocalRing.Defs
+import Mathlib.Topology.Algebra.InfiniteSum.Order
+import Mathlib.Topology.MetricSpace.Bounded
+
+
+-- @@ L28-38 verbatim
+/-!
+# The counterexample: a nil ideal with a non-nilpotent `2 × 2` matrix
+
+This file assembles the whole development. The scalar-linearization theorem
+`KoetheCounterexample.nil_of_all_pencils_nil` discharges the explicit hypothesis of
+`KoetheCounterexample.ShiftWitness.exists_nilideal_nonnil_matrix`, and the ground field
+`GroundField = AlgebraicClosure (ULift (ZMod 2))` is countable and algebraically closed, so
+`exists_universalMortalSequence` and `maskMortality` apply to it. The result is a ring `R`
+in an arbitrary universe, a nil two-sided ideal `I ⊆ R`, and a matrix in `M_2(I)` that is
+not nilpotent.
+-/
+
+
+-- @@ L40-40 verbatim
+@[expose] public section
+
+
+-- @@ L42-42 verbatim
+noncomputable section
+
+
+-- @@ L44-44 verbatim
+universe u
+
+
+-- @@ L46-46 verbatim
+namespace KoetheCounterexample
+
+
+-- @@ L48-56 verbatim
+/-- A universal mortal sequence over any field produces a nil two-sided ideal
+in a unital ring, with a nonnilpotent two-by-two matrix over that ideal. -/
+theorem exists_nilideal_nonnil_matrix_of_universal_mortal
+    {k : Type u} [Field k] (v : ℕ → Triple k) (hv : UniversalMortalSequence k v) :
+    ∃ (R : Type u) (_ : Ring R) (I : TwoSidedIdeal R),
+      (∀ x ∈ I, IsNilpotent x) ∧
+        ∃ W : Matrix (Fin 2) (Fin 2) R,
+          W ∈ TwoSidedIdeal.matrix (Fin 2) I ∧ ¬ IsNilpotent W :=
+  ShiftWitness.exists_nilideal_nonnil_matrix v hv nil_of_all_pencils_nil
+
+
+-- @@ L58-60 verbatim
+/-- The countable algebraically closed ground field `\overline{𝔽₂}`, lifted to an arbitrary
+universe so that the counterexample exists in every universe. -/
+abbrev GroundField : Type u := AlgebraicClosure (ULift.{u} (ZMod 2))
+
+
+-- @@ L62-65 verbatim
+instance countable_groundField : Countable (GroundField.{u}) :=
+  Set.countable_univ_iff.mp <|
+    (Algebraic.countable (ULift.{u} (ZMod 2)) (GroundField.{u})).mono
+      fun x _ => Algebra.IsAlgebraic.isAlgebraic x
+
+
+-- @@ L67-77 verbatim
+/-- **A counterexample to nilness of finite matrix ideals.** In every universe there is a
+ring `R` with a nil two-sided ideal `I` such that the matrix ideal `M_2(I)` of `M_2(R)`
+contains a non-nilpotent matrix. -/
+theorem counterexample :
+    ∃ (R : Type u) (_ : Ring R) (I : TwoSidedIdeal R),
+      (∀ x ∈ I, IsNilpotent x) ∧
+        ∃ W : Matrix (Fin 2) (Fin 2) R,
+          W ∈ TwoSidedIdeal.matrix (Fin 2) I ∧ ¬ IsNilpotent W := by
+  obtain ⟨v, hv⟩ := exists_universalMortalSequence (GroundField.{u})
+    (maskMortality (GroundField.{u}))
+  exact exists_nilideal_nonnil_matrix_of_universal_mortal v hv
+
+
+-- @@ L79-79 verbatim
+end KoetheCounterexample
+
+
+-- @@ L81-81 verbatim
+end

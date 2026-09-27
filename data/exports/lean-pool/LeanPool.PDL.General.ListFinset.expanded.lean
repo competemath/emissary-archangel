@@ -1,0 +1,63 @@
+/-
+Copyright (c) 2023 PDL formalization contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: PDL formalization contributors (see project card)
+-/
+
+module
+
+public import Mathlib.Data.Finset.Dedup
+public import Mathlib.Data.Finset.Image
+public import Mathlib.Data.List.Basic
+public import Mathlib.Data.Vector.Basic
+
+
+-- @@ L14-18 verbatim
+/-! # General helper lemmas
+
+Nothing in this file is about PDL. These are helper definitions and lemmas that are
+used in several places and might also be in (newer versions of) Mathlib.
+-/
+
+
+-- @@ L20-20 verbatim
+@[expose] public section
+
+
+-- @@ L22-22 verbatim
+namespace PDL
+
+
+-- @@ L24-24 verbatim
+/-! ## Helpers about `List`s and `Finset`s -/
+
+
+-- @@ L26-29 verbatim
+/-- Convert a list of formula-like lists into a finset of finsets. -/
+@[simp]
+def _root_.List.pdlToFinFin [DecidableEq α] : List (List α) → Finset (Finset α )
+  | LS => (LS.map (fun L => L.toFinset)).toFinset
+
+
+-- @@ L31-34 verbatim
+/-- Turning a mapped list into a `Finset` is the image of the `Finset`. -/
+lemma List.toFinset_map_eq_image {α β} [DecidableEq α] [DecidableEq β] (l : List α) (f : α → β) :
+    (l.map f).toFinset = l.toFinset.image f := by
+  ext x; simp
+
+
+-- @@ L36-36 verbatim
+/-! ## Helpers about `List.Vector` -/
+
+
+-- @@ L38-43 verbatim
+lemma List.Vector.tail_last_eq_last {k : Nat} (l : List.Vector α k.succ.succ) :
+    l.tail.last = l.last := by
+  rcases l with ⟨l, h_l⟩
+  cases l with
+  | nil => simp at h_l
+  | cons => rfl
+
+
+-- @@ L45-45 verbatim
+end PDL

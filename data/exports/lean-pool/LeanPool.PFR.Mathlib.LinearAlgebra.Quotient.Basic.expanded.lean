@@ -1,0 +1,24 @@
+/-
+Copyright (c) 2026 PFR contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: PFR contributors
+-/
+
+module
+
+public import Mathlib.Basic.Finite.Defs
+public import Mathlib.LinearAlgebra.Quotient.Defs
+import Mathlib.LinearAlgebra.Quotient.Basic
+
+
+-- @@ L13-15 verbatim
+/-!
+# Finiteness of quotient modules
+-/
+
+
+-- @@ L17-20 verbatim
+public
+instance Submodule.Quotient.finite {R M : Type*} [Ring R] [AddCommGroup M] [Module R M] [Finite M]
+    (S : Submodule R M) : Finite (M ⧸ S) := by
+  cases nonempty_fintype M; infer_instance

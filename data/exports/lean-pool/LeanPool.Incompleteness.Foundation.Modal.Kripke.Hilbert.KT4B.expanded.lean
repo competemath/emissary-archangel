@@ -1,0 +1,110 @@
+/-
+Copyright (c) 2026 Palalansoukî. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Palalansoukî
+-/
+module
+
+public import LeanPool.Incompleteness.Foundation.Modal.Kripke.FiniteFrame
+public import LeanPool.Incompleteness.Foundation.Modal.Hilbert.WellKnown
+import LeanPool.Incompleteness.Foundation.Modal.Kripke.Filteration
+import LeanPool.Incompleteness.Foundation.Modal.Kripke.Hilbert.Geach
+
+
+-- @@ L13-13 verbatim
+/-! # KT4B -/
+
+
+-- @@ L15-15 verbatim
+@[expose] public section
+
+
+
+-- @@ L18-18 verbatim
+namespace LO
+
+-- @@ L19-19 verbatim
+namespace Modal
+
+
+-- @@ L21-21 verbatim
+open Kripke
+
+-- @@ L22-22 verbatim
+open Geachean
+
+
+-- @@ L24-27 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+abbrev _root_.LO.Modal.Kripke.ReflexiveTransitiveSymmetricFrameClass :
+    FrameClass :=
+  { F | Std.Refl F ∧ IsTrans F.World F.Rel ∧ IsSymmetric F }
+
+-- @@ L28-31 verbatim
+/-- Imported declaration from the Incompleteness formalization. -/
+abbrev _root_.LO.Modal.Kripke.ReflexiveTransitiveSymmetricFiniteFrameClass :
+    FiniteFrameClass :=
+  { F | Std.Refl F.Rel ∧ IsTrans F.World F.Rel ∧ IsSymmetric F.Rel }
+
+
+-- @@ L33-33 verbatim
+namespace Hilbert
+
+-- @@ L34-34 verbatim
+namespace KT4B
+
+
+-- @@ L36-38 verbatim
+instance _root_.LO.Modal.Hilbert.KT4B.Kripke.consistent : Entailment.Consistent (Hilbert.KT4B) := by
+  convert Hilbert.Geach.Kripke.Consistent (G := {⟨0, 0, 1, 0⟩, ⟨0, 2, 1, 0⟩, ⟨0, 1, 0, 1⟩});
+  exact eq_Geach;
+
+
+-- @@ L40-45 verbatim
+instance _root_.LO.Modal.Hilbert.KT4B.Kripke.complete :
+    Complete (Hilbert.KT4B) (Kripke.ReflexiveTransitiveSymmetricFrameClass) := by
+  convert Hilbert.Geach.Kripke.Complete (G := {⟨0, 0, 1, 0⟩, ⟨0, 2, 1, 0⟩, ⟨0, 1, 0, 1⟩});
+  · exact eq_Geach;
+  · unfold ReflexiveTransitiveSymmetricFrameClass MultiGeacheanConfluentFrameClass MultiGeachean;
+    simp [Geachean.reflexive_def, Geachean.symmetric_def, Geachean.transitive_def];
+
+
+-- @@ L47-69 verbatim
+open finestFilterationTransitiveClosureModel in
+instance _root_.LO.Modal.Hilbert.KT4B.Kripke.finiteComplete :
+    Complete (Hilbert.KT4B) (ReflexiveTransitiveSymmetricFiniteFrameClass) :=
+  ⟨by
+  intro φ hp;
+  apply Kripke.complete.complete;
+  intro F ⟨F_refl, F_trans, F_symm⟩ V x;
+  let M : Kripke.Model := ⟨F, V⟩;
+  let FM := finestFilterationTransitiveClosureModel M φ.subformulas;
+  apply @filteration M φ.subformulas _ FM ?filterOf x φ (by simp) |>.mpr;
+  · apply hp (by
+      suffices Finite (FilterEqvQuotient M φ.subformulas) by
+        simp only [FiniteFrameClass.toFrameClass, Set.mem_image, Set.mem_ofPred_eq];
+        use ⟨FM.toFrame⟩;
+        refine ⟨⟨?refl, transitive, ?symm⟩, rfl⟩;
+        · exact reflexive_of_transitive_reflexive (by apply F_trans) F_refl;
+        · exact symmetric_of_symmetric F_symm;
+      apply FilterEqvQuotient.finite;
+      simp;
+    ) FM.Val;
+  · apply finestFilterationTransitiveClosureModel.filterOf
+    exact F_trans;
+⟩
+
+
+-- @@ L71-71 verbatim
+end KT4B
+
+-- @@ L72-72 verbatim
+end Hilbert
+
+
+
+-- @@ L75-75 verbatim
+end Modal
+
+-- @@ L76-76 verbatim
+end LO

@@ -1,0 +1,265 @@
+/-
+Copyright (c) 2023 Monica Omar. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Monica Omar
+-/
+module
+
+public import LeanPool.Monlib4.LinearAlgebra.QuantumSet.Basic
+import LeanPool.Monlib4.LinearAlgebra.Ips.TensorHilbert
+import LeanPool.Monlib4.LinearAlgebra.TensorProduct.BasicLemmas
+import LeanPool.Monlib4.LinearAlgebra.TensorProduct.FiniteDimensional
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L14-19 verbatim
+/-!
+# Tensor Products of Quantum Sets
+
+This file restores the upstream tensor-product quantum-set instance and the
+fourfold tensor-shuffle lemmas used by later quantum-graph files.
+-/
+
+
+-- @@ L21-21 verbatim
+@[expose] public section
+
+
+-- @@ L23-24 verbatim
+variable {A : Type*} [ha : starAlgebra A]
+  {B : Type*} [hb : starAlgebra B]
+
+
+-- @@ L26-26 verbatim
+open scoped TensorProduct
+
+
+-- @@ L28-50 verbatim
+noncomputable instance tensorStarAlgebra
+    :
+    starAlgebra (A ⊗[ℂ] B) where
+  star_mul x y := x.inductionOn
+    (y.inductionOn
+      (fun _ _ _ _ => by simp only [Algebra.TensorProduct.tmul_mul_tmul,
+        TensorProduct.star_tmul, star_mul])
+      (fun _ _ h1 h2 _ _ => by simp only [mul_add, star_add, h1, h2, add_mul]))
+    (fun _ _ h1 h2 => by simp only [star_add, add_mul, mul_add, h1, h2])
+  star_add := star_add
+  modAut r := AlgEquiv.TensorProduct.map (ha.modAut r) (hb.modAut r)
+  modAut_trans r s := by
+    simp_rw [AlgEquiv.ext_iff, ← AlgEquiv.toLinearMap_apply, ← LinearMap.ext_iff]
+    apply TensorProduct.ext'
+    intro _ _
+    simp only [AlgEquiv.trans_toLinearMap, LinearMap.coe_comp, Function.comp_apply,
+      AlgEquiv.toLinearMap_apply, AlgEquiv.TensorProduct.map_tmul,
+      QuantumSet.modAut_apply_modAut, add_comm]
+  modAut_star _ x := x.inductionOn
+    (fun _ _ => by
+      simp only [AlgEquiv.TensorProduct.map_tmul, TensorProduct.star_tmul,
+        starAlgebra.modAut_star])
+    (fun _ _ h1 h2 => by simp only [map_add, star_add, h1, h2])
+
+
+-- @@ L52-54 verbatim
+lemma modAut_tensor (r : ℝ) :
+    tensorStarAlgebra.modAut r = AlgEquiv.TensorProduct.map (ha.modAut r) (hb.modAut r) :=
+  rfl
+
+
+-- @@ L56-59 verbatim
+lemma modAut_tensor_tmul (r : ℝ) (x : A)
+    (y : B) :
+    tensorStarAlgebra.modAut r (x ⊗ₜ[ℂ] y) = (ha.modAut r x) ⊗ₜ[ℂ] (hb.modAut r y) :=
+  rfl
+
+
+-- @@ L61-69 verbatim
+noncomputable instance
+    [InnerProductAlgebra A] [InnerProductAlgebra B]
+    :
+    InnerProductAlgebra (A ⊗[ℂ] B) where
+  norm_smul_le := norm_smul_le
+  norm_sq_eq_inner _ := norm_sq_eq_re_inner (𝕜 := ℂ) _
+  conj_symm x y := inner_conj_symm (𝕜 := ℂ) x y
+  add_left := inner_add_left
+  smul_left r x y := inner_smul_left (𝕜 := ℂ) r x y
+
+
+-- @@ L71-113 verbatim
+noncomputable instance QuantumSet.tensorProduct
+    [hA : QuantumSet A] [hB : QuantumSet B] [h : Fact (hA.k = hB.k)] :
+    QuantumSet (A ⊗[ℂ] B) where
+  modAut_isSymmetric r _ _ := by
+    simp_rw [← AlgEquiv.toLinearMap_apply, modAut_tensor, AlgEquiv.TensorProduct.map_toLinearMap]
+    nth_rw 1 [← @modAut_isSelfAdjoint A]
+    nth_rw 1 [← @modAut_isSelfAdjoint B]
+    simp_rw [LinearMap.star_eq_adjoint, ← TensorProduct.map_adjoint]
+    exact LinearMap.adjoint_inner_left _ _ _
+  k := hA.k
+  inner_star_left a b c := a.inductionOn
+    (b.inductionOn
+      (c.inductionOn
+        (fun _ _ _ _ _ _ => by
+          simp only [TensorProduct.star_tmul, modAut_tensor,
+            Algebra.TensorProduct.tmul_mul_tmul, QuantumSet.inner_star_left,
+            TensorProduct.inner_tmul, AlgEquiv.TensorProduct.map_tmul]
+          rw [h.out])
+        (fun _ _ h1 h2 _ _ _ _ => by
+          simp only [inner_add_right, h1, h2, mul_add]))
+      (fun _ _ h1 h2 _ _ => by
+        simp only [mul_add, inner_add_left, h1, h2]))
+    (fun _ _ h1 h2 => by
+      simp only [add_mul, inner_add_left, inner_add_right, h1, h2, star_add,
+        map_add])
+  inner_conj_left a b c := a.inductionOn
+    (b.inductionOn
+      (c.inductionOn
+        (fun _ _ _ _ _ _ => by
+          simp_rw [TensorProduct.star_tmul, modAut_tensor_tmul,
+            Algebra.TensorProduct.tmul_mul_tmul, TensorProduct.inner_tmul,
+            QuantumSet.inner_conj_left]
+          rw [h.out])
+        (fun _ _ h1 h2 _ _ _ _ => by
+          simp only [inner_add_right, add_mul, h1, h2]))
+      (fun _ _ h1 h2 _ _ => by
+        simp only [mul_add, inner_add_left, inner_add_right, star_add, map_add, h1, h2]))
+    (fun _ _ h1 h2 => by
+      simp only [add_mul, inner_add_left, h1, h2])
+  n := _
+  nIsFintype := _
+  onb := hA.onb.tensorProduct hB.onb
+  nIsDecidableEq := inferInstance
+
+
+-- @@ L115-118 verbatim
+theorem QuantumSet.tensorProduct.k_eq₁ [hA : QuantumSet A] [hB : QuantumSet B]
+    [Fact (hA.k = hB.k)] :
+    (QuantumSet.tensorProduct : QuantumSet (A ⊗[ℂ] B)).k = hA.k :=
+  rfl
+
+
+-- @@ L120-124 verbatim
+theorem QuantumSet.tensorProduct.k_eq₂ [hA : QuantumSet A] [hB : QuantumSet B]
+    [h : Fact (hA.k = hB.k)] :
+    (QuantumSet.tensorProduct : QuantumSet (A ⊗[ℂ] B)).k = hB.k := by
+  rw [← h.out]
+  rfl
+
+
+-- @@ L126-141 verbatim
+theorem comul_real [hA : QuantumSet A] :
+    (Coalgebra.comul : A →ₗ[ℂ] A ⊗[ℂ] A).real =
+      (TensorProduct.comm ℂ A A).toLinearMap ∘ₗ Coalgebra.comul := by
+  let := Fact.mk (rfl : hA.k = hA.k)
+  let : starAlgebra (A ⊗[ℂ] A) := by infer_instance
+  let : QuantumSet (A ⊗[ℂ] A) := QuantumSet.tensorProduct
+  rw [Coalgebra.comul_eq_mul_adjoint, LinearMap.adjoint_real_eq (f := LinearMap.mul' ℂ A),
+    LinearMap.mul'_real, LinearMap.adjoint_comp, TensorProduct.comm_adjoint,
+    LinearMap.comp_assoc, ← LinearMap.comp_assoc, modAut_tensor,
+    AlgEquiv.TensorProduct.map_toLinearMap,
+    ← TensorProduct.comm_symm_map, ← Coalgebra.comul_eq_mul_adjoint]
+  simp_rw [LinearMap.comp_assoc, ← LinearMap.comp_assoc _ _ (TensorProduct.map _ _),
+    (QuantumSet.modAut_isCoalgHom _).2, LinearMap.comp_assoc, ← AlgEquiv.trans_toLinearMap,
+    starAlgebra.modAut_trans, neg_sub_left, add_comm,
+    QuantumSet.tensorProduct.k_eq₁, neg_add_cancel, starAlgebra.modAut_zero]
+  rfl
+
+
+-- @@ L143-154 verbatim
+/-- Swap the two middle factors in a fourfold tensor product. -/
+noncomputable def swapMiddleTensor
+    (R : Type*) [CommSemiring R] (A B C D : Type*)
+    [AddCommMonoid A] [AddCommMonoid B] [AddCommMonoid C] [AddCommMonoid D]
+    [Module R A] [Module R B] [Module R C] [Module R D] :
+    (A ⊗[R] B) ⊗[R] (C ⊗[R] D) ≃ₗ[R] (A ⊗[R] C) ⊗[R] (B ⊗[R] D) :=
+  ((TensorProduct.assoc R (A ⊗[R] B) C D).symm.trans
+      (LinearEquiv.rTensor D
+        (((TensorProduct.assoc R A B C).trans
+          ((LinearEquiv.lTensor A (TensorProduct.comm R B C)))).trans
+            (TensorProduct.assoc R A C B).symm))).trans
+    (TensorProduct.assoc R (A ⊗[R] C) _ _)
+
+
+-- @@ L156-164 verbatim
+@[simp]
+lemma swapMiddleTensor_tmul_apply
+    {R : Type*} [CommSemiring R] {A B C D : Type*}
+    [AddCommMonoid A] [AddCommMonoid B] [AddCommMonoid C] [AddCommMonoid D]
+    [Module R A] [Module R B] [Module R C] [Module R D]
+    (x : A) (y : B) (z : C) (w : D) :
+    swapMiddleTensor R A B C D ((x ⊗ₜ[R] y) ⊗ₜ[R] (z ⊗ₜ[R] w)) =
+      (x ⊗ₜ z) ⊗ₜ (y ⊗ₜ w) :=
+  rfl
+
+
+-- @@ L166-172 verbatim
+@[simp]
+lemma swapMiddleTensor_symm
+    {R : Type*} [CommSemiring R] {A B C D : Type*}
+    [AddCommMonoid A] [AddCommMonoid B] [AddCommMonoid C] [AddCommMonoid D]
+    [Module R A] [Module R B] [Module R C] [Module R D] :
+    (swapMiddleTensor R A B C D).symm = swapMiddleTensor R A C B D :=
+  rfl
+
+
+-- @@ L174-187 verbatim
+lemma swapMiddleTensor_comp_map
+    {R : Type*} [CommSemiring R] {A B C D E F G H : Type*}
+    [AddCommMonoid A] [AddCommMonoid B] [AddCommMonoid C] [AddCommMonoid D]
+    [Module R A] [Module R B] [Module R C] [Module R D]
+    [AddCommMonoid E] [AddCommMonoid F] [AddCommMonoid G] [AddCommMonoid H]
+    [Module R E] [Module R F] [Module R G] [Module R H]
+    (f : A →ₗ[R] B) (g : C →ₗ[R] D)
+    (h : E →ₗ[R] F) (k : G →ₗ[R] H) :
+    (swapMiddleTensor R B D F H).toLinearMap ∘ₗ
+        (TensorProduct.map (TensorProduct.map f g) (TensorProduct.map h k)) =
+      (TensorProduct.map (TensorProduct.map f h) (TensorProduct.map g k)) ∘ₗ
+        (swapMiddleTensor R A C E G).toLinearMap := by
+  apply TensorProduct.ext_fourfold'
+  simp
+
+
+-- @@ L189-198 verbatim
+lemma LinearMap.mul'_tensorProduct {R A B : Type*}
+    [CommSemiring R] [NonUnitalNonAssocSemiring A]
+    [NonUnitalNonAssocSemiring B] [Module R A] [Module R B]
+    [SMulCommClass R A A] [SMulCommClass R B B] [IsScalarTower R A A]
+    [IsScalarTower R B B] :
+    LinearMap.mul' R (A ⊗[R] B) =
+      (TensorProduct.map (LinearMap.mul' R A) (LinearMap.mul' R B)) ∘ₗ
+        (swapMiddleTensor R A B A B).toLinearMap := by
+  apply TensorProduct.ext_fourfold'
+  simp
+
+
+-- @@ L200-212 verbatim
+lemma swapMiddleTensor_map_conj {R A B C D E F G H : Type*} [CommSemiring R]
+    [AddCommMonoid A] [AddCommMonoid B] [AddCommMonoid C] [AddCommMonoid D]
+    [Module R A] [Module R B] [Module R C] [Module R D]
+    [AddCommMonoid E] [AddCommMonoid F] [AddCommMonoid G] [AddCommMonoid H]
+    [Module R E] [Module R F] [Module R G] [Module R H]
+    (f : A →ₗ[R] B) (g : C →ₗ[R] D)
+    (h : E →ₗ[R] F) (k : G →ₗ[R] H) :
+    (swapMiddleTensor R B D F H).toLinearMap ∘ₗ
+        (TensorProduct.map (TensorProduct.map f g) (TensorProduct.map h k)) ∘ₗ
+          (swapMiddleTensor R A C E G).symm.toLinearMap =
+      TensorProduct.map (TensorProduct.map f h) (TensorProduct.map g k) := by
+  apply TensorProduct.ext_fourfold'
+  simp
+
+
+-- @@ L214-227 verbatim
+lemma swapMiddleTensor_adjoint
+    {𝕜 E F G H : Type*} [RCLike 𝕜]
+    [NormedAddCommGroup E] [NormedAddCommGroup F]
+    [NormedAddCommGroup G] [NormedAddCommGroup H]
+    [InnerProductSpace 𝕜 E] [InnerProductSpace 𝕜 F]
+    [InnerProductSpace 𝕜 G] [InnerProductSpace 𝕜 H]
+    [FiniteDimensional 𝕜 E] [FiniteDimensional 𝕜 F]
+    [FiniteDimensional 𝕜 G] [FiniteDimensional 𝕜 H] :
+    LinearMap.adjoint (swapMiddleTensor 𝕜 E F G H).toLinearMap =
+      (swapMiddleTensor 𝕜 E F G H).symm.toLinearMap := by
+  apply TensorProduct.ext_fourfold'
+  intros x y z w
+  rw [TensorProduct.inner_ext_fourfold_iff']
+  simp [LinearMap.adjoint_inner_left, mul_mul_mul_comm]

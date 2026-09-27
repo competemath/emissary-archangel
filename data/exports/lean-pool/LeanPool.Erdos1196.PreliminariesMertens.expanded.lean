@@ -1,0 +1,260 @@
+/-
+Copyright (c) 2026 Math Inc. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Math Inc
+-/
+module
+
+public import LeanPool.Erdos1196.Basic
+import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
+import Mathlib.Analysis.SumIntegralComparisons
+import Mathlib.NumberTheory.Chebyshev
+
+
+-- @@ L13-22 verbatim
+/-!
+# Arithmetic preliminaries for primitive sets above `x`
+
+This file collects the exact divisor identities, factorial decompositions, and bounded-error
+Mertens estimate used later in the normalization and tail-sum arguments.
+
+## Main statements
+
+* `mertensEstimate`
+-/
+
+
+-- @@ L24-24 verbatim
+@[expose] public section
+
+
+-- @@ L26-26 verbatim
+open scoped ArithmeticFunction BigOperators
+
+
+-- @@ L28-28 verbatim
+namespace PrimitiveSetsAboveX
+
+
+-- @@ L30-32 verbatim
+/-- The fractional-part correction in the standard factorial proof of Mertens' estimate. -/
+private noncomputable def mertensFractionalError (t : ℕ) : ℝ :=
+  (1 / t) * ∑ m ∈ Finset.Icc 1 t, Λ m * ((t : ℝ) / m - ((t / m : ℕ) : ℝ))
+
+
+-- @@ L34-41 verbatim
+/--
+On a positive index `m`, scaling the real quotient `(t : ℝ) / m` by `1 / t` recovers division by
+`m`.
+-/
+private lemma one_div_mul_mul_natCast_div {a : ℝ} {t m : ℕ} (ht : t ≠ 0) :
+    (1 / (t : ℝ)) * (a * ((t : ℝ) / m)) = a / (m : ℝ) := by
+  have ht0 : (t : ℝ) ≠ 0 := by exact_mod_cast ht
+  grind only
+
+
+-- @@ L43-53 verbatim
+/-- The truncation error from replacing `t / m` by the integer quotient is `↑(t % m) / m`. -/
+private lemma truncation_eq_mod_div {t m : ℕ} :
+    ((t : ℝ) / m - ↑(t / m)) = ↑(t % m) / m := by
+  rcases m.eq_zero_or_pos with rfl | hm
+  · simp
+  · have hmR : (m : ℝ) ≠ 0 := by exact_mod_cast hm.ne'
+    apply (eq_div_iff hmR).2
+    have hdecomp : (↑(t % m) : ℝ) + ↑(t / m) * m = t := by
+      have h : (↑(t % m + m * (t / m)) : ℝ) = t := by exact_mod_cast (Nat.mod_add_div t m)
+      simpa [Nat.cast_add, Nat.cast_mul, mul_comm, mul_left_comm, mul_assoc] using h
+    grind only
+
+
+-- @@ L55-59 verbatim
+/-- The floor-truncation term in the Mertens decomposition is the fractional part of `t / m`. -/
+private lemma truncation_eq_fract {t m : ℕ} :
+    ((t : ℝ) / m - ↑(t / m)) = Int.fract ((t : ℝ) / m) := by
+  rw [Int.fract_div_natCast_eq_div_natCast_mod]
+  exact truncation_eq_mod_div
+
+
+-- @@ L61-90 verbatim
+/--
+Rearranging the multiple count gives the factorial identity
+`∑_{m ≤ N} Λ(m) * ⌊N / m⌋ = log (N!)`.
+-/
+private lemma sum_vonMangoldt_mul_div_eq_log_factorial (N : ℕ) :
+    (Finset.Icc 1 N).sum (fun m => Λ m * ((N / m : ℕ) : ℝ)) =
+      Real.log (Nat.factorial N) := by
+  have hI : Finset.Icc 1 N = Finset.Ioc 0 N := by
+    ext n
+    simp [Finset.mem_Icc, Finset.mem_Ioc, Nat.succ_le_iff]
+  have hprod : (∏ n ∈ Finset.Icc 1 N, (n : ℝ)) = Nat.factorial N := by
+    rw [← Finset.Ico_add_one_right_eq_Icc 1 N, Finset.prod_Ico_eq_prod_range]
+    simpa [Nat.succ_eq_add_one, add_comm] using
+      show (∏ i ∈ Finset.range N, ((i + 1 : ℕ) : ℝ)) = Nat.factorial N from
+        by exact_mod_cast Finset.prod_range_add_one_eq_factorial N
+  calc
+    (Finset.Icc 1 N).sum (fun m => Λ m * ((N / m : ℕ) : ℝ)) =
+        ∑ n ∈ Finset.Ioc 0 N, Λ n * ((N / n : ℕ) : ℝ) := by rw [hI]
+    _ = ∑ n ∈ Finset.Ioc 0 N, (ArithmeticFunction.vonMangoldt * ArithmeticFunction.zeta) n := by
+          simpa using
+            (ArithmeticFunction.sum_Ioc_mul_zeta_eq_sum ArithmeticFunction.vonMangoldt N).symm
+    _ = ∑ n ∈ Finset.Ioc 0 N, Real.log (n : ℝ) := by
+          simp [ArithmeticFunction.vonMangoldt_mul_zeta, ArithmeticFunction.log]
+    _ = Real.log (Nat.factorial N) := by
+          rw [← hI]
+          rw [show (Finset.Icc 1 N).sum (fun n => Real.log (n : ℝ)) =
+            Real.log (∏ n ∈ Finset.Icc 1 N, (n : ℝ)) from
+            (Real.log_prod (fun n hn => Nat.cast_ne_zero.mpr
+              (Nat.ne_of_gt (Nat.succ_le_iff.mp (Finset.mem_Icc.mp hn).1)))).symm,
+            hprod]
+
+
+-- @@ L92-96 verbatim
+/-- Writing `N!` as a product of the integers `1, …, N` turns `log (N!)` into a sum of logs. -/
+private lemma log_factorial_eq_sum_range (N : ℕ) :
+    Real.log (Nat.factorial N) = ∑ i ∈ Finset.range N, Real.log ((i + 1 : ℕ) : ℝ) := by
+  rw [Nat.factorial_eq_prod_range_add_one, Nat.cast_prod, Real.log_prod]
+  grind only
+
+
+-- @@ L98-110 verbatim
+/-- The lower integral comparison `∫_1^N log t dt ≤ log N!`. -/
+private lemma integral_log_le_log_factorial {N : ℕ} (hN : 1 ≤ N) :
+    ∫ x in ((1 : ℕ) : ℝ)..N, Real.log x ≤ Real.log (Nat.factorial N) := by
+  have hmono : MonotoneOn Real.log (Set.Icc ((1 : ℕ) : ℝ) (N : ℝ)) :=
+    fun x hx y _ hxy => Real.log_le_log (lt_of_lt_of_le (by norm_num) hx.1) hxy
+  calc
+    ∫ x in ((1 : ℕ) : ℝ)..N, Real.log x
+      ≤ ∑ i ∈ Finset.Ico 1 N, Real.log ((i + 1 : ℕ) : ℝ) :=
+        MonotoneOn.integral_le_sum_Ico (f := Real.log) hN hmono
+    _ = ∑ i ∈ Finset.range N, Real.log ((i + 1 : ℕ) : ℝ) := by
+        rw [Finset.sum_Ico_eq_sum_range, ← Nat.sub_add_cancel hN, Finset.sum_range_succ']
+        simp [Nat.cast_add, add_left_comm, add_comm]
+    _ = Real.log (Nat.factorial N) := (log_factorial_eq_sum_range N).symm
+
+
+-- @@ L112-127 verbatim
+/-- The upper integral comparison `log N! ≤ log N + ∫_1^N log t dt`. -/
+private lemma log_factorial_le_log_add_integral_log {N : ℕ} (hN : 1 ≤ N) :
+    Real.log (Nat.factorial N) ≤ Real.log N + ∫ x in ((1 : ℕ) : ℝ)..N, Real.log x := by
+  have hmono : MonotoneOn Real.log (Set.Icc ((1 : ℕ) : ℝ) (N : ℝ)) :=
+    fun x hx y _ hxy => Real.log_le_log (lt_of_lt_of_le (by norm_num) hx.1) hxy
+  have hsum : ∑ i ∈ Finset.Ico 1 N, Real.log (i : ℝ) ≤ ∫ x in ((1 : ℕ) : ℝ)..N, Real.log x :=
+    MonotoneOn.sum_le_integral_Ico (f := Real.log) hN hmono
+  have hsum' : ∑ i ∈ Finset.Ico 1 N, Real.log (i : ℝ) = Real.log (Nat.factorial (N - 1)) := by
+    rw [Finset.sum_Ico_eq_sum_range]
+    simpa [Nat.cast_add, add_comm] using (log_factorial_eq_sum_range (N - 1)).symm
+  have hfac : Real.log (Nat.factorial N) = Real.log N + Real.log (Nat.factorial (N - 1)) := by
+    rw [show Nat.factorial N = N * Nat.factorial (N - 1) from by
+        simpa [Nat.succ_eq_add_one, Nat.sub_add_cancel hN] using Nat.factorial_succ (N - 1),
+      Nat.cast_mul, Real.log_mul (by exact_mod_cast Nat.ne_of_gt hN)
+        (by exact_mod_cast Nat.factorial_ne_zero (N - 1))]
+  grind only
+
+
+-- @@ L129-144 verbatim
+/-- Elementary two-sided bounds for `log N! / N`. -/
+private lemma abs_log_factorial_div_sub_log_le_one {N : ℕ} (hN : 1 ≤ N) :
+    |Real.log (Nat.factorial N) / N - Real.log N| ≤ 1 := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hint : ∫ x in ((1 : ℕ) : ℝ)..N, Real.log x = (N : ℝ) * Real.log N - N + 1 := by
+    simp [integral_log]
+  have hlower : Real.log N - 1 ≤ Real.log (Nat.factorial N) / N := by
+    apply (le_div_iff₀ hNpos).2
+    linarith [show (N : ℝ) * Real.log N - N + 1 ≤ Real.log (Nat.factorial N) by
+      simpa [hint] using integral_log_le_log_factorial hN]
+  have hupper : Real.log (Nat.factorial N) / N ≤ Real.log N := by
+    apply (div_le_iff₀ hNpos).2
+    linarith [show Real.log (Nat.factorial N) ≤ Real.log N + ((N : ℝ) * Real.log N - N + 1) by
+        simpa [hint] using log_factorial_le_log_add_integral_log hN,
+      show Real.log N ≤ N - 1 by simpa using Real.log_le_sub_one_of_pos hNpos]
+  grind only [= abs.eq_1, = max_def]
+
+
+-- @@ L146-166 verbatim
+/-- The factorial decomposition of the Mertens partial sums. -/
+private lemma mertensPartialSum_eq_log_factorial_div_add_fractional (t : ℕ) :
+    mertensPartialSum t = Real.log (Nat.factorial t) / t + mertensFractionalError t := by
+  by_cases ht : t = 0
+  · subst ht
+    simp [mertensPartialSum, mertensFractionalError]
+  · rw [mertensPartialSum, mertensFractionalError]
+    calc
+      ∑ m ∈ Finset.Icc 1 t, Λ m / (m : ℝ) =
+          ∑ m ∈ Finset.Icc 1 t,
+            ((1 / (t : ℝ)) * (Λ m * (((t / m : ℕ) : ℝ))) +
+              (1 / (t : ℝ)) * (Λ m * ((t : ℝ) / m - ↑(t / m)))) :=
+            Finset.sum_congr rfl fun m _ => by
+              rw [← one_div_mul_mul_natCast_div (a := Λ m) ht]
+              ring
+      _ = (1 / (t : ℝ)) * ∑ m ∈ Finset.Icc 1 t, Λ m * (((t / m : ℕ) : ℝ)) +
+            (1 / (t : ℝ)) * ∑ m ∈ Finset.Icc 1 t, Λ m * ((t : ℝ) / m - ↑(t / m)) := by
+            rw [Finset.sum_add_distrib, Finset.mul_sum, Finset.mul_sum]
+      _ = Real.log (Nat.factorial t) / t + mertensFractionalError t := by
+            rw [sum_vonMangoldt_mul_div_eq_log_factorial, mertensFractionalError]
+            ring_nf
+
+
+-- @@ L168-175 verbatim
+/-- The fractional correction term is nonnegative. -/
+private lemma mertensFractionalError_nonneg {t : ℕ} (ht : 1 ≤ t) :
+    0 ≤ mertensFractionalError t := by
+  rw [mertensFractionalError]
+  exact mul_nonneg (one_div_nonneg.mpr (by positivity))
+    (Finset.sum_nonneg fun m _ => by
+      rw [truncation_eq_fract]
+      exact mul_nonneg ArithmeticFunction.vonMangoldt_nonneg (Int.fract_nonneg _))
+
+
+-- @@ L177-197 verbatim
+/-- The fractional correction term is uniformly bounded by Chebyshev's estimate. -/
+private lemma mertensFractionalError_le {t : ℕ} (ht : 2 ≤ t) :
+    mertensFractionalError t ≤ Real.log 4 + 4 := by
+  rw [mertensFractionalError]
+  have hsum : ∑ m ∈ Finset.Icc 1 t, Λ m * ((t : ℝ) / m - ↑(t / m)) ≤
+      ∑ m ∈ Finset.Icc 1 t, Λ m :=
+    Finset.sum_le_sum fun m _ => by
+      rw [truncation_eq_fract]
+      have hfrac := (Int.fract_lt_one ((t : ℝ) / m)).le
+      nlinarith [ArithmeticFunction.vonMangoldt_nonneg (n := m)]
+  have hcheb : Chebyshev.psi t ≤ (Real.log 4 + 4) * t :=
+    by simpa using Chebyshev.psi_le_const_mul_self (x := (t : ℝ)) (by positivity)
+  have htR : 0 < (t : ℝ) := by positivity
+  calc
+    (1 / t : ℝ) * ∑ m ∈ Finset.Icc 1 t, Λ m * ((t : ℝ) / m - ↑(t / m))
+      ≤ (1 / t : ℝ) * ∑ m ∈ Finset.Icc 1 t, Λ m :=
+        mul_le_mul_of_nonneg_left hsum (one_div_nonneg.mpr (le_of_lt htR))
+    _ = Chebyshev.psi t / t := by
+        simp [show Finset.Icc 1 t = Finset.Ioc 0 t from by ext n; simp; omega,
+          Chebyshev.psi, Nat.floor_natCast, div_eq_mul_inv, mul_comm]
+    _ ≤ Real.log 4 + 4 := (div_le_iff₀ htR).mpr hcheb
+
+
+-- @@ L199-222 verbatim
+/-- Bounded-error form of Mertens' estimate:
+`∑_{q ≤ t} Λ(q) / q = log t + O(1)` on the natural numbers. -/
+lemma mertensEstimate :
+    ∃ C : ℝ, 0 < C ∧
+      ∀ ⦃t : ℕ⦄, 2 ≤ t →
+        |mertensPartialSum t - Real.log (t : ℝ)| ≤ C := by
+  refine ⟨Real.log 4 + 5, by positivity, ?_⟩
+  intro t ht
+  have ht1 : 1 ≤ t := by omega
+  rw [mertensPartialSum_eq_log_factorial_div_add_fractional t]
+  calc
+    |Real.log (Nat.factorial t) / t + mertensFractionalError t - Real.log (t : ℝ)|
+      = |(Real.log (Nat.factorial t) / t - Real.log (t : ℝ)) + mertensFractionalError t| := by
+          congr
+          ring
+    _ ≤ |Real.log (Nat.factorial t) / t - Real.log (t : ℝ)| + |mertensFractionalError t| :=
+        abs_add_le _ _
+    _ = |Real.log (Nat.factorial t) / t - Real.log (t : ℝ)| + mertensFractionalError t := by
+        rw [abs_of_nonneg (mertensFractionalError_nonneg ht1)]
+    _ ≤ 1 + (Real.log 4 + 4) := by
+        gcongr
+        · exact abs_log_factorial_div_sub_log_le_one ht1
+        · exact mertensFractionalError_le ht
+    _ = Real.log 4 + 5 := by ring
+
+
+-- @@ L224-224 verbatim
+end PrimitiveSetsAboveX

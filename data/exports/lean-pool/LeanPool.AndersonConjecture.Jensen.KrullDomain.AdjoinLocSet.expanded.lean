@@ -1,0 +1,87 @@
+/-
+Copyright (c) 2026 FrenzyMath. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: FrenzyMath
+-/
+module
+
+public import LeanPool.AndersonConjecture.Jensen.NSubring
+import Mathlib.Analysis.Normed.Group.Basic
+import Mathlib.CategoryTheory.Category.Init
+import Mathlib.Data.EReal.Operations
+import Mathlib.Data.Nat.Totient
+import Mathlib.Topology.Algebra.InfiniteSum.Order
+import Mathlib.Topology.MetricSpace.Bounded
+
+
+-- @@ L16-22 verbatim
+/-!
+# Intersection subring definitions
+
+Defines the subrings A_i = R[x_i, y_j^{-1}] of a Noetherian
+local domain T and their intersection, used in the Krull domain
+construction of Anderson--Jensen.
+-/
+
+
+-- @@ L24-24 verbatim
+@[expose] public section
+
+
+-- @@ L26-26 verbatim
+noncomputable section
+
+
+-- @@ L28-28 verbatim
+open Cardinal Ideal Polynomial Set Pointwise
+
+
+-- @@ L30-30 verbatim
+variable {T : Type*} [CommRing T] [IsLocalRing T] [IsNoetherianRing T] [IsDomain T]
+
+
+-- @@ L32-32 verbatim
+section IntersectionDefs
+
+
+-- @@ L34-38 verbatim
+/-- The set A = R[x, y⁻¹] inside T: elements t such that t·yⁿ = f(x)
+for some f ∈ R[X] and n ∈ ℕ. This is the image of the localization
+of R[x] at the powers of y, embedded in T via evaluation. -/
+def adjoinLocSetY (R : NSubring T) (x : T) (y : R.carrier) : Set T :=
+  {t : T | ∃ (f : Polynomial R.carrier) (n : ℕ), t * (↑y : T) ^ n = aeval x f}
+
+
+-- @@ L40-43 verbatim
+/-- R ⊆ R[x, y⁻¹]. -/
+theorem R_le_adjoinLocSetY (R : NSubring T) (x : T) (y : R.carrier) :
+    ∀ r : R.carrier, (↑r : T) ∈ adjoinLocSetY R x y :=
+  fun r => ⟨C r, 0, by simp [show algebraMap R.carrier T = R.carrier.subtype from rfl]⟩
+
+
+-- @@ L45-48 verbatim
+/-- x ∈ R[x, y⁻¹]. -/
+theorem x_mem_adjoinLocSetY (R : NSubring T) (x : T) (y : R.carrier) :
+    x ∈ adjoinLocSetY R x y :=
+  ⟨X, 0, by simp⟩
+
+
+-- @@ L50-52 verbatim
+/-- The intersection Rbar = A₁ ∩ A₂ as a set in T. -/
+def intersectionSet (R : NSubring T) (x₁ x₂ : T) (y₁ y₂ : R.carrier) : Set T :=
+  adjoinLocSetY R x₁ y₂ ∩ adjoinLocSetY R x₂ y₁
+
+
+-- @@ L54-57 verbatim
+/-- R ⊆ Rbar. -/
+theorem R_le_intersectionSet (R : NSubring T) (x₁ x₂ : T) (y₁ y₂ : R.carrier) :
+    ∀ r : R.carrier, (↑r : T) ∈ intersectionSet R x₁ x₂ y₁ y₂ :=
+  fun r => ⟨R_le_adjoinLocSetY R x₁ y₂ r, R_le_adjoinLocSetY R x₂ y₁ r⟩
+
+
+-- @@ L59-59 verbatim
+end IntersectionDefs
+
+
+-- @@ L61-61 verbatim
+end

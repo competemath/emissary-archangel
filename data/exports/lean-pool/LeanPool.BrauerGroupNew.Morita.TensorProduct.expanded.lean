@@ -1,0 +1,610 @@
+/-
+Copyright (c) 2026 Yunzhou Xie and contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Yunzhou Xie, Yichen Feng, Jujian Zhang, Yael Dillies
+-/
+module
+
+public import LeanPool.BrauerGroupNew.Morita.ChangeOfRings
+public import Mathlib.RingTheory.TensorProduct.Maps
+import Mathlib.Data.Nat.Totient
+import Mathlib.Data.Rat.Floor
+import Mathlib.Data.Sym.Sym2.Init
+import Mathlib.Tactic.Continuity.Init
+import Mathlib.Tactic.ContinuousFunctionalCalculus
+import Mathlib.Tactic.NormNum.GCD
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L18-22 verbatim
+/-!
+# LeanPool.BrauerGroupNew.Morita.TensorProduct
+
+Imported Lean Pool material for `LeanPool.BrauerGroupNew.Morita.TensorProduct`.
+-/
+
+
+-- @@ L24-24 verbatim
+@[expose] public section
+
+
+-- @@ L26-26 verbatim
+universe u v w
+
+
+-- @@ L28-28 verbatim
+open scoped TensorProduct
+
+
+-- @@ L30-30 verbatim
+variable (R : Type u) [CommRing R]
+
+
+-- @@ L32-32 verbatim
+namespace ModuleCat
+
+
+-- @@ L34-40 verbatim
+/-- Bundling a scaled linear map agrees with scaling the bundled morphism. -/
+@[simp]
+lemma ofHom_smul {R S : Type*} [Ring R] [Semiring S] {M N : ModuleCat R}
+    [Module S N] [SMulCommClass R S N] (r : S) (f : M →ₗ[R] N) :
+    ofHom (r • f) = r • ofHom f := by
+  apply hom_ext
+  simp_all
+
+
+-- @@ L42-42 verbatim
+end ModuleCat
+
+
+-- @@ L44-44 verbatim
+namespace Morita
+
+
+-- @@ L46-46 verbatim
+open CategoryTheory
+
+
+-- @@ L48-50 verbatim
+variable (A B C D : Type v) [Ring A] [Ring B] [Ring C] [Ring D]
+  [Algebra R A] [Algebra R B] [Algebra R C] [Algebra R D]
+  (e1 : ModuleCat A ⥤ ModuleCat B) [e1.Additive] [e1.Linear R]
+
+
+-- @@ L52-52 verbatim
+variable (M : ModuleCat (A ⊗[R] C))
+
+
+-- @@ L54-55 verbatim
+noncomputable instance instModuleCarrierLeanPool (N : ModuleCat B) : Module R N :=
+  .compHom _ (algebraMap R B)
+
+
+-- @@ L57-57 verbatim
+instance (N : ModuleCat B) : IsScalarTower R B N := .of_algebraMap_smul fun _ _ ↦ rfl
+
+
+-- @@ L59-68 verbatim
+/-- Transport endomorphisms across an `R`-linear additive functor between module categories. -/
+noncomputable abbrev aux0 (N : ModuleCat A) : Module.End A N →ₐ[R] Module.End B (e1.obj N) where
+  toFun f := (e1.map (ModuleCat.ofHom f)).hom
+  map_one' := by ext; simp [Module.End.one_eq_id]
+  map_mul' f1 f2 := by ext; simp [Module.End.mul_eq_comp]
+  map_zero' := by ext; simp [show ModuleCat.ofHom 0 = 0 from rfl]
+  map_add' f1 f2 := by simp_all
+  commutes' r := by
+    ext n
+    simp [Algebra.algebraMap_eq_smul_one, Module.End.one_eq_id]
+
+
+-- @@ L70-75 verbatim
+/-- Restrict scalars on an endomorphism algebra to a smaller scalar ring. -/
+abbrev _root_.Module.End.restrictScalars (R S M R₁ : Type*) [Ring R] [Ring S] [CommRing R₁]
+    [AddCommGroup M] [Module R M] [Module R₁ M] [Module S M] [Algebra R₁ R] [IsScalarTower R₁ R M]
+    [Algebra R₁ S] [IsScalarTower R₁ S M] [LinearMap.CompatibleSMul M M R S] :
+    Module.End S M →ₐ[R₁] (M →ₗ[R] M) :=
+  AlgHom.ofLinearMap (LinearMap.restrictScalarsₗ R S M M R₁) (by rfl) (by intros; rfl)
+
+
+-- @@ L77-77 verbatim
+noncomputable section
+
+
+-- @@ L79-101 verbatim
+/-- The right tensor factor acts on an `A ⊗ C`-module after restriction to an `A`-module. -/
+abbrev moduleMapAux : C →ₐ[R] Module.End A ((ModuleCat.restrictScalars
+    Algebra.TensorProduct.includeLeftRingHom).obj M) where
+  toFun c := {
+    toFun (m : M) := ((1 : A) ⊗ₜ[R] c) • m
+    map_add' := by intros; exact smul_add _ _ _
+    map_smul' r (m : M) := by
+      change ((1 : A) ⊗ₜ[R] c) • ((r ⊗ₜ[R] (1 : C)) • m) =
+        (r ⊗ₜ[R] (1 : C)) • (((1 : A) ⊗ₜ[R] c) • m)
+      simp [smul_smul, Algebra.TensorProduct.tmul_mul_tmul]
+  }
+  map_one' := by
+    ext m
+    change ((1 : A) ⊗ₜ[R] (1 : C)) • m = m
+    rw [← Algebra.TensorProduct.one_def, one_smul]
+  map_mul' c1 c2 := by
+    ext m
+    change ((1 : A) ⊗ₜ[R] (c1 * c2)) • m = ((1 : A) ⊗ₜ[R] c1) • (((1 : A) ⊗ₜ[R] c2) • m)
+    rw [smul_smul, Algebra.TensorProduct.tmul_mul_tmul, one_mul]
+  map_zero' := by ext m; simp; rfl
+  map_add' c1 c2 := by ext m; simp [TensorProduct.tmul_add, add_smul]; rfl
+  commutes' r := by
+    ext m; simp [Algebra.algebraMap_eq_smul_one, ← Algebra.TensorProduct.one_def]; rfl
+
+
+-- @@ L103-112 verbatim
+/-- The tensor-product algebra action obtained after applying a Morita equivalence
+to the left factor. -/
+abbrev moduleMap : B ⊗[R] C →ₐ[R]
+    Module.End R (e1.obj ((ModuleCat.restrictScalars
+    (Algebra.TensorProduct.includeLeftRingHom)).obj M)) :=
+  Algebra.TensorProduct.lift (Algebra.lsmul _ _ _) ((Module.End.restrictScalars R B _ R).comp
+    ((aux0 R A B e1 _).comp (moduleMapAux R A C _))) fun b c ↦ by
+      ext x
+      exact (LinearMap.map_smul
+        (ModuleCat.Hom.hom (e1.map (ModuleCat.ofHom (moduleMapAux R A C M c)))) b x).symm
+
+
+-- @@ L114-117 verbatim
+instance modulefromtensor (M : ModuleCat (A ⊗[R] C)) :
+  Module (B ⊗[R] C) (e1.obj ((ModuleCat.restrictScalars
+    (Algebra.TensorProduct.includeLeftRingHom)).obj M)) :=
+  Module.compHom _ (moduleMap R A B C e1 M).toRingHom
+
+
+-- @@ L119-119 verbatim
+end
+
+
+-- @@ L121-121 verbatim
+end Morita
+
+
+-- @@ L123-123 verbatim
+noncomputable section newcat
+
+
+-- @@ L125-125 verbatim
+open CategoryTheory
+
+
+-- @@ L127-128 verbatim
+variable (R : Type u) [CommRing R] (A B C D : Type v) [Ring A] [Ring B] [Ring C] [Ring D]
+  [Algebra R A] [Algebra R B] [Algebra R C] [Algebra R D]
+
+
+-- @@ L130-135 verbatim
+/-- use `Action` instead once it's generalized to enriched categories. -/
+structure TensorModule where
+  /-- The underlying module over the left tensor factor. -/
+  carrier : ModuleCat.{v} A
+  /-- The action of the right tensor factor by left-factor-linear endomorphisms. -/
+  morphism : C →ₐ[R] Module.End A carrier
+
+
+-- @@ L137-138 verbatim
+instance : CoeSort (TensorModule R A C) (Type v) where
+  coe M := M.carrier
+
+
+-- @@ L140-146 verbatim
+/-- Morphisms of tensor modules are maps that commute with the right tensor-factor action. -/
+@[ext]
+structure TensorModule.Hom (M N : TensorModule R A C) where
+  /-- The underlying map of modules over the left tensor factor. -/
+  hom : M.carrier ⟶ N.carrier
+  /-- Compatibility with the right tensor-factor action. -/
+  commutes : ∀ c, hom ≫ ModuleCat.ofHom (N.morphism c) = ModuleCat.ofHom (M.morphism c) ≫ hom
+
+
+-- @@ L148-148 verbatim
+attribute [reassoc (attr := simp)] TensorModule.Hom.commutes
+
+
+-- @@ L150-158 verbatim
+@[simp]
+lemma TensorModule.commutes_apply (M N : TensorModule R A C) (f : TensorModule.Hom R A C M N)
+    (c : C) (m : M) : f.hom.hom ((M.morphism c) m) = (N.morphism c) (f.hom.hom m) := by
+  have := f.commutes c
+  rw [ModuleCat.hom_ext_iff, LinearMap.ext_iff] at this
+  specialize this m
+  simp only [ModuleCat.of_coe, ModuleCat.hom_comp, LinearMap.coe_comp,
+    Function.comp_apply] at this
+  exact this.symm
+
+
+-- @@ L160-172 verbatim
+instance : Category (TensorModule R A C) where
+  Hom := TensorModule.Hom R A C
+  id M := {
+    hom := 𝟙 _
+    commutes _ := rfl
+  }
+  comp f g := {
+    hom := f.hom ≫ g.hom
+    commutes _ := by simp
+  }
+  id_comp f := by simp
+  comp_id f := by simp
+  assoc _ _ := by simp
+
+
+-- @@ L174-176 verbatim
+@[simp]
+lemma TensorModule.hom_id (M : TensorModule R A C) :
+  TensorModule.Hom.hom (𝟙 M) = 𝟙 M.carrier := rfl
+
+
+-- @@ L178-180 verbatim
+@[simp]
+lemma TensorModule.hom_comp {M N K : TensorModule R A C} (f : M ⟶ N) (g : N ⟶ K) :
+  (f ≫ g).hom = f.hom ≫ g.hom := rfl
+
+
+-- @@ L182-187 verbatim
+@[ext]
+lemma TensorModule.hom_ext {M N : TensorModule R A C} (f g : M ⟶ N) (h : f.hom = g.hom) :
+  f = g := by
+  rcases f
+  rcases g
+  simp_all
+
+
+-- @@ L189-208 verbatim
+/-- Build an isomorphism of tensor modules from an isomorphism of the underlying modules. -/
+@[simps]
+def TensorModule.IsoMk {M N : TensorModule R A C} (f : M.carrier ≅ N.carrier)
+    (h : ∀ c, f.hom ≫ ModuleCat.ofHom (N.morphism c) =
+    ModuleCat.ofHom (M.morphism c) ≫ f.hom) :
+  M ≅ N := {
+  hom := {
+    hom := f.hom
+    commutes := h
+  }
+  inv := {
+    hom := f.inv
+    commutes := by
+      intro c
+      rw [f.inv_comp_eq, reassoc_of%h]
+      simp
+  }
+  hom_inv_id := by ext; simp
+  inv_hom_id := by ext; simp
+}
+
+
+-- @@ L210-211 verbatim
+instance (M N : TensorModule R A C) : Coe (M ⟶ N) (M.carrier ⟶ N.carrier) where
+  coe f := f.hom
+
+
+-- @@ L213-230 verbatim
+instance (M N : TensorModule R A C) : AddCommGroup (M ⟶ N) where
+  add f g := ⟨f.hom + g.hom, by simp⟩
+  add_assoc f g h := by ext1; exact add_assoc _ _ _
+  zero := ⟨0, by simp⟩
+  zero_add _ := by ext1; exact zero_add _
+  add_zero _ := by ext1; exact add_zero _
+  nsmul n f := ⟨n • f.hom, by simp⟩
+  nsmul_zero _ := by ext1; exact zero_nsmul _
+  nsmul_succ _ _ := by ext1; exact AddMonoid.nsmul_succ _ _
+  neg f := ⟨-f.hom, by simp⟩
+  sub f g := ⟨f.hom - g.hom, by simp⟩
+  sub_eq_add_neg f g := by ext1; exact sub_eq_add_neg _ _
+  zsmul z f := ⟨z • f.hom, by simp⟩
+  zsmul_zero' _ := by ext1; exact zero_zsmul _
+  zsmul_succ' _ _ := by ext1; exact SubNegMonoid.zsmul_succ' _ _
+  zsmul_neg' _ _ := by ext1; exact SubNegMonoid.zsmul_neg' _ _
+  neg_add_cancel _ := by ext1; exact neg_add_cancel _
+  add_comm _ _ := by ext1; exact add_comm _ _
+
+
+-- @@ L232-234 verbatim
+instance : Preadditive (TensorModule R A C) where
+  add_comp _ _ _ _ _ _ := by ext1; exact Preadditive.add_comp _ _ _ _ _ _
+  comp_add _ _ _ _ _ _ := by ext1; exact Preadditive.comp_add _ _ _ _ _ _
+
+
+-- @@ L236-243 verbatim
+instance (M N : TensorModule R A C) : Module R (M ⟶ N) where
+  smul r g := ⟨r • g.hom, by simp⟩
+  smul_add _ _ _ := by ext1; exact smul_add _ _ _
+  add_smul _ _ _ := by ext1; exact add_smul _ _ _
+  mul_smul _ _ _ := by ext1; exact mul_smul _ _ _
+  one_smul _ := by ext1; exact one_smul _ _
+  zero_smul _ := by ext1; exact zero_smul _ _
+  smul_zero _ := by ext1; exact smul_zero _
+
+
+-- @@ L245-247 verbatim
+instance : Linear R (TensorModule R A C) where
+  smul_comp _ _ _ _ _ _ := by ext1; exact Linear.smul_comp _ _ _ _ _ _
+  comp_smul _ _ _ _ _ _ := by ext1; exact Linear.comp_smul _ _ _ _ _ _
+
+
+-- @@ L249-254 verbatim
+/-- The `A ⊗ C` action associated to a tensor module. -/
+abbrev moduleAux (M : TensorModule R A C) : A ⊗[R] C →ₐ[R] Module.End R M :=
+  Algebra.TensorProduct.lift (Algebra.lsmul _ _ _)
+    ((Module.End.restrictScalars R A M R).comp M.morphism) fun a c ↦ by
+      ext x
+      exact (LinearMap.map_smul (M.morphism c) a x).symm
+
+
+-- @@ L256-257 verbatim
+lemma moduleAux_apply (M : TensorModule R A C) (a : A) (c : C) (m : M) :
+    moduleAux R A C M (a ⊗ₜ[R] c) m = a • (M.morphism c) m := rfl
+
+
+-- @@ L259-260 verbatim
+instance moduletotensor (M : TensorModule R A C) : Module (A ⊗[R] C) M :=
+  Module.compHom _ (moduleAux R A C M).toRingHom
+
+
+-- @@ L262-264 verbatim
+@[simp]
+lemma smul_tensormod (x : A ⊗[R] C) (M : TensorModule R A C) (m : M) :
+    x • m = moduleAux R A C M x m := rfl
+
+
+-- @@ L266-277 verbatim
+/-- View a tensor module as a module over the tensor-product algebra. -/
+abbrev toModuleOverTensor : TensorModule R A C ⥤ ModuleCat (A ⊗[R] C) where
+  obj M := ModuleCat.of _ M
+  map {M N} f := ModuleCat.ofHom {
+    __ := f.hom.hom
+    map_smul' ac m := by
+      induction ac using TensorProduct.inductionOn with
+      | tmul a c => simp [TensorModule.commutes_apply]
+      | add _ _ _ _ => simp_all [add_smul]
+  }
+  map_id M := by ext; simp
+  map_comp _ _ := by ext; simp
+
+
+-- @@ L279-292 verbatim
+/-- Split an `A ⊗ C`-module into an `A`-module with a compatible `C`-action. -/
+abbrev fromModuleOverTensor : ModuleCat (A ⊗[R] C) ⥤ TensorModule R A C where
+  obj M := {
+    carrier := (ModuleCat.restrictScalars (Algebra.TensorProduct.includeLeftRingHom)).obj M
+    morphism := by exact Morita.moduleMapAux R A C M
+  }
+  map f := {
+    hom := (ModuleCat.restrictScalars (Algebra.TensorProduct.includeLeftRingHom)).map f
+    commutes c := by
+      ext x
+      exact (LinearMap.map_smul (ModuleCat.Hom.hom f) ((1 : A) ⊗ₜ[R] c) x).symm
+  }
+  map_id M := by ext; simp
+  map_comp _ _ := by ext; simp
+
+
+-- @@ L294-310 verbatim
+/-- The unit component comparing tensor modules with modules over the tensor-product algebra. -/
+abbrev e01 (M : TensorModule R A C) :
+    (𝟭 (TensorModule R A C)).obj M ≅ (toModuleOverTensor R A C ⋙
+    fromModuleOverTensor R A C).obj M := TensorModule.IsoMk R A C
+  (LinearEquiv.toModuleIso (by
+    apply (config := {allowSynthFailures := true, newGoals := .all}) @LinearEquiv.mk
+    · apply (config := {allowSynthFailures := true, newGoals := .all}) @LinearMap.mk
+      · exact AddHom.id _
+      · intro a m
+        change a • m = (moduleAux R A C M (a ⊗ₜ[R] (1 : C))) m
+        simp
+    · exact id
+    · exact congrFun rfl
+    · exact congrFun rfl)) fun c ↦ by
+      ext m
+      change moduleAux R A C M ((1 : A) ⊗ₜ[R] c) m = (M.morphism c) m
+      rw [moduleAux_apply, one_smul]
+
+
+-- @@ L312-318 verbatim
+/-- Naturality of the tensor-module unit comparison. -/
+lemma e01_naturality {X Y : TensorModule R A C} (f : X ⟶ Y) :
+    (𝟭 (TensorModule R A C)).map f ≫ (e01 R A C Y).hom =
+    (e01 R A C X).hom ≫ (toModuleOverTensor R A C ⋙ fromModuleOverTensor R A C).map f := by
+  ext (x : X)
+  simp
+  rfl
+
+
+-- @@ L320-323 verbatim
+/-- The unit isomorphism for the equivalence between tensor modules and modules over `A ⊗ C`. -/
+abbrev eModunitIso : 𝟭 (TensorModule R A C) ≅ toModuleOverTensor R A C ⋙
+    fromModuleOverTensor R A C :=
+  NatIso.ofComponents (e01 R A C) <| e01_naturality R A C
+
+
+-- @@ L325-347 verbatim
+/-- The counit component comparing modules over the tensor-product algebra with tensor modules. -/
+abbrev e02 (M : ModuleCat (A ⊗[R] C)) :
+    (fromModuleOverTensor R A C ⋙ toModuleOverTensor R A C).obj M ≅
+      (𝟭 (ModuleCat (A ⊗[R] C))).obj M := LinearEquiv.toModuleIso <| by
+  apply (config := {allowSynthFailures := true, newGoals := .all}) @LinearEquiv.mk
+  · apply (config := {allowSynthFailures := true, newGoals := .all}) @LinearMap.mk
+    · exact AddHom.id _
+    · have key : ∀ (ac : A ⊗[R] C) (m : M),
+          (moduleAux R A C ((fromModuleOverTensor R A C).obj M) ac) m = ac • m := by
+        intro ac m
+        induction ac using TensorProduct.inductionOn with
+        | tmul a c =>
+          refine (moduleAux_apply R A C ((fromModuleOverTensor R A C).obj M) a c m).trans ?_
+          change (a ⊗ₜ[R] (1 : C)) • (((1 : A) ⊗ₜ[R] c) • m) = (a ⊗ₜ[R] c) • m
+          rw [smul_smul, Algebra.TensorProduct.tmul_mul_tmul, mul_one, one_mul]
+        | add x y hx hy =>
+          rw [map_add]
+          exact (LinearMap.add_apply _ _ m).trans
+            ((congrArg₂ (· + ·) hx hy).trans (add_smul x y m).symm)
+      exact key
+  · exact id
+  · exact congrFun rfl
+  · exact congrFun rfl
+
+
+-- @@ L349-352 verbatim
+/-- The counit isomorphism for the equivalence between tensor modules and modules over `A ⊗ C`. -/
+abbrev eModcounitIso :
+    fromModuleOverTensor R A C ⋙ toModuleOverTensor R A C ≅ 𝟭 (ModuleCat (A ⊗[R] C)) :=
+  NatIso.ofComponents (e02 R A C) fun {X Y} f ↦ by ext (x : X); simp; rfl
+
+
+-- @@ L354-363 verbatim
+/-- Tensor modules are equivalent to modules over the tensor-product algebra. -/
+abbrev equivModuleOverTensor : TensorModule R A C ≌ ModuleCat (A ⊗[R] C) where
+  functor := toModuleOverTensor R A C
+  inverse := fromModuleOverTensor R A C
+  unitIso := eModunitIso R A C
+  counitIso := eModcounitIso R A C
+  functor_unitIso_comp M := by
+    ext
+    simp
+    rfl
+
+
+-- @@ L365-366 verbatim
+instance : (equivModuleOverTensor R A C).functor.Additive where
+  map_add := by intros; ext; rfl
+
+
+-- @@ L368-376 verbatim
+instance : (equivModuleOverTensor R A C).functor.Linear R where
+  map_smul {M N} f r := by
+    ext m
+    simp only [ConcreteCategory.hom_ofHom, LinearMap.coe_mk, LinearMap.coe_toAddHom,
+      ModuleCat.hom_smul, LinearMap.smul_apply]
+    change (r • f.hom.hom) m = _
+    rw [LinearMap.smul_apply]
+    congr 1
+    simp
+
+
+-- @@ L378-381 verbatim
+instance : (equivModuleOverTensor R A C).inverse.Linear R where
+  map_smul {M N} f r := by
+    ext1
+    rfl
+
+
+-- @@ L383-401 verbatim
+/-- Apply an `R`-linear additive functor to the left factor of a tensor module. -/
+abbrev toBCfunctor (F : ModuleCat A ⥤ ModuleCat B) [F.Additive] [F.Linear R] :
+    TensorModule R A C ⥤ TensorModule R B C where
+  obj M := {
+    carrier := F.obj M.1
+    morphism := (Morita.aux0 R A B F M.1).comp M.morphism
+  }
+  map {M N} f := {
+    hom := F.map f.hom
+    commutes c := by
+      simp only
+      rw [AlgHom.comp_apply, AlgHom.comp_apply]
+      simp_rw [ModuleCat.of_coe, AlgHom.coe_mk, RingHom.coe_mk,
+        MonoidHom.coe_mk, OneHom.coe_mk, ModuleCat.ofHom_hom]
+      rw [← Functor.map_comp, ← Functor.map_comp]
+      simp_all
+  }
+  map_id M := by ext : 1; exact F.map_id M.1
+  map_comp f g := by ext1; exact F.map_comp f.hom g.hom
+
+
+-- @@ L403-436 verbatim
+/-- Tensor a Morita equivalence on the left with the identity on the right tensor factor. -/
+abbrev MoritaTensorAux0 (e : ModuleCat A ≌ ModuleCat B) [e.functor.Additive]
+    [e.functor.Linear R] : TensorModule R A C ≌ TensorModule R B C where
+  functor := toBCfunctor R A B C e.functor
+  inverse := toBCfunctor R B A C e.inverse
+  unitIso := NatIso.ofComponents
+    (fun M ↦ TensorModule.IsoMk _ _ _
+      (e.unitIso.app M.1) fun c ↦ by
+        change (e.unitIso.app M.carrier).hom ≫
+            e.inverse.map (e.functor.map (ModuleCat.ofHom (M.morphism c))) =
+          ModuleCat.ofHom (M.morphism c) ≫ (e.unitIso.app M.carrier).hom
+        exact (e.unitIso.hom.naturality (ModuleCat.ofHom (M.morphism c))).symm)
+    (fun {M N} f ↦ by
+      ext x
+      change (ModuleCat.Hom.hom (f.hom ≫ e.unitIso.hom.app N.carrier)) x =
+        (ModuleCat.Hom.hom
+          (e.unitIso.hom.app M.carrier ≫ e.inverse.map (e.functor.map f.hom))) x
+      exact LinearMap.ext_iff.mp (ModuleCat.hom_ext_iff.mp
+        (e.unitIso.hom.naturality f.hom)) x)
+  counitIso := NatIso.ofComponents
+    (fun M ↦ TensorModule.IsoMk _ _ _
+      (e.counitIso.app M.1) fun c ↦ by
+        change (e.counitIso.app M.carrier).hom ≫ ModuleCat.ofHom (M.morphism c) =
+          e.functor.map (e.inverse.map (ModuleCat.ofHom (M.morphism c))) ≫
+            (e.counitIso.app M.carrier).hom
+        exact (e.counitIso.hom.naturality (ModuleCat.ofHom (M.morphism c))).symm)
+    (fun {M N} f ↦ by
+      ext x
+      change (ModuleCat.Hom.hom
+          (e.functor.map (e.inverse.map f.hom) ≫ e.counitIso.hom.app N.carrier)) x =
+        (ModuleCat.Hom.hom (e.counitIso.hom.app M.carrier ≫ f.hom)) x
+      exact LinearMap.ext_iff.mp (ModuleCat.hom_ext_iff.mp
+        (e.counitIso.hom.naturality f.hom)) x)
+  functor_unitIso_comp M := by ext; simp
+
+
+-- @@ L438-440 verbatim
+instance (e : ModuleCat A ≌ ModuleCat B) [e.functor.Additive] [e.functor.Linear R] :
+    (MoritaTensorAux0 R A B C e).functor.Additive where
+  map_add := by intros; ext1; exact e.functor.map_add
+
+
+-- @@ L442-446 verbatim
+instance (e : ModuleCat A ≌ ModuleCat B) [e.functor.Additive] [e.functor.Linear R] :
+    (MoritaTensorAux0 R A B C e).functor.Linear R where
+  map_smul {M N} f r := by
+    ext1
+    exact e.functor.map_smul _ _
+
+
+-- @@ L448-452 verbatim
+/-- The induced equivalence of module categories over tensor-product algebras. -/
+abbrev MoritaTensorAux1 (e : ModuleCat A ≌ ModuleCat B) [e.functor.Additive] [e.functor.Linear R] :
+    ModuleCat (A ⊗[R] C) ≌ ModuleCat (B ⊗[R] C) :=
+  (equivModuleOverTensor R A C).symm.trans ((MoritaTensorAux0 R A B C e).trans
+      (equivModuleOverTensor R B C))
+
+
+-- @@ L454-457 verbatim
+instance : Functor.Linear R (@ModuleCat.restrictScalars A (A ⊗[R] C) _ _
+    Algebra.TensorProduct.includeLeftRingHom) where
+  map_smul {X Y} f r := by
+    ext1; rfl
+
+
+-- @@ L459-464 verbatim
+instance MoritaTensorAux1_linear (e : ModuleCat A ≌ ModuleCat B) [e.functor.Additive]
+    [e.functor.Linear R] : (MoritaTensorAux1 R A B C e).functor.Linear R := by
+  dsimp [MoritaTensorAux1]
+  change Functor.Linear R ((equivModuleOverTensor R A C).inverse ⋙
+    ((MoritaTensorAux0 R A B C e).functor ⋙ (equivModuleOverTensor R B C).functor))
+  infer_instance
+
+
+-- @@ L466-469 verbatim
+/-- Morita equivalence is preserved by tensoring on the right. -/
+theorem MoritaTensorLeft (e : IsMoritaEquivalent R A B) :
+    IsMoritaEquivalent R (A ⊗[R] C) (B ⊗[R] C) where
+  cond := ⟨⟨MoritaTensorAux1 R A B C e.cond.some.eqv, inferInstance⟩⟩
+
+
+-- @@ L471-478 verbatim
+open ModuleCat in
+/-- Tensor products of Morita equivalent algebras are Morita equivalent. -/
+theorem MoritaTensor (e1 : IsMoritaEquivalent R A B) (e2 : IsMoritaEquivalent R C D) :
+    IsMoritaEquivalent R (A ⊗[R] C) (B ⊗[R] D) :=
+  IsMoritaEquivalent.trans R (MoritaTensorLeft R A B C e1) <| IsMoritaEquivalent.trans R
+    (IsMoritaEquivalent.of_algEquiv R (Algebra.TensorProduct.comm R B C)) <|
+    IsMoritaEquivalent.trans R (MoritaTensorLeft R _ _ _ e2) <| IsMoritaEquivalent.of_algEquiv R
+    (Algebra.TensorProduct.comm R D B)
+
+
+-- @@ L480-480 verbatim
+end newcat

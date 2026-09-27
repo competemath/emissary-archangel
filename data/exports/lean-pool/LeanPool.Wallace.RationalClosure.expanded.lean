@@ -1,0 +1,100 @@
+/-
+Copyright (c) 2026 Juliane Trianon Fraga and Vinicius de Oliveira Rodrigues. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Juliane Trianon Fraga, Vinicius de Oliveira Rodrigues
+-/
+module
+
+public import LeanPool.Wallace.RationalData
+public import LeanPool.Wallace.CountableClosure
+import Mathlib.Analysis.Normed.Group.Basic
+import Mathlib.CategoryTheory.Category.Init
+import Mathlib.Combinatorics.Matroid.Init
+import Mathlib.Data.Sym.Sym2.Init
+import Mathlib.Tactic.ContinuousFunctionalCalculus
+import Mathlib.Tactic.NormNum.GCD
+import Mathlib.Tactic.Positivity.Finset
+import Mathlib.Topology.Algebra.InfiniteSum.Order
+
+
+-- @@ L19-24 verbatim
+/-!
+# Countable dependency closures for the rational direct sum
+
+Starting from the finite support of a vector, close under the supports of every prepared
+sequence whose code coordinate has entered the set.
+-/
+
+
+-- @@ L26-26 verbatim
+@[expose] public section
+
+
+-- @@ L28-28 verbatim
+open Set
+
+
+-- @@ L30-30 verbatim
+namespace Wallace
+
+-- @@ L31-31 verbatim
+namespace RationalClosure
+
+
+-- @@ L33-33 verbatim
+noncomputable section
+
+
+-- @@ L35-35 verbatim
+open RationalTriangularPreprocess
+
+-- @@ L36-36 verbatim
+open RationalData
+
+
+-- @@ L38-38 verbatim
+variable (N : ℕ → ℕ) (hN : ∀ l, 0 < N l) (M : ℕ → ℕ)
+
+
+-- @@ L40-42 verbatim
+/-- Least finite-stage dependency closure of the support of `x`. -/
+def closure (x : ContinuumRationalGroup) : Set ContinuumIndex :=
+  preparedClosure codeIndex (prepared N hN M) x
+
+
+-- @@ L44-46 verbatim
+theorem support_subset_closure (x : ContinuumRationalGroup) :
+    ↑x.support ⊆ closure N hN M x :=
+  support_subset_preparedClosure codeIndex (prepared N hN M) x
+
+
+-- @@ L48-50 verbatim
+theorem closure_countable (x : ContinuumRationalGroup) :
+    (closure N hN M x).Countable :=
+  preparedClosure_countable codeIndex (prepared N hN M) x
+
+
+-- @@ L52-56 verbatim
+theorem prepared_support_mem_closure (x : ContinuumRationalGroup)
+    (a : ContinuumIndex) (ha : codeIndex a ∈ closure N hN M x)
+    (n : ℕ) (i : ContinuumIndex) (hi : i ∈ (prepared N hN M a n).support) :
+    i ∈ closure N hN M x :=
+  preparedSupport_subset_preparedClosure codeIndex (prepared N hN M) x a ha n hi
+
+
+-- @@ L58-62 verbatim
+theorem closure_closedUnderPreparedSupports (x : ContinuumRationalGroup) :
+    RationalTransfiniteExtension.ClosedUnderPreparedSupports
+      (transfiniteData N hN M) (closure N hN M x) := by
+  intro a ha n i hi
+  exact prepared_support_mem_closure N hN M x a ha n i hi
+
+
+-- @@ L64-64 verbatim
+end
+
+-- @@ L65-65 verbatim
+end RationalClosure
+
+-- @@ L66-66 verbatim
+end Wallace

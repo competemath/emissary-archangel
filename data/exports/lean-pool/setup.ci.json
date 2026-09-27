@@ -1,0 +1,140 @@
+{
+  "key": "lean-pool",
+  "repo": "https://github.com/Vilin97/lean-pool",
+  "commit": "fdcf13c7cab6cd0eed22dc6b2f83672b6c4deb4d",
+  "toolchain": "leanprover/lean4:v4.34.0",
+  "roots": [
+    "LeanPool",
+    "Challenge",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lean-pool/repo",
+  "entries": 137299,
+  "modules": 6904,
+  "exported": 6885,
+  "failed": [
+    {
+      "module": "LeanPool.Incompleteness",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arith.D1",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arith.D3",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arith.First",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arith.FormalizedArithmetic",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arith.Second",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arith.Theory",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arithmetization.ISigmaOne.Metamath.CodedTheory",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arithmetization.ISigmaOne.Metamath.Coding",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arithmetization.ISigmaOne.Metamath.Formula.Basic",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arithmetization.ISigmaOne.Metamath.Formula.Functions",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arithmetization.ISigmaOne.Metamath.Formula.Iteration",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arithmetization.ISigmaOne.Metamath.Formula.Typed",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arithmetization.ISigmaOne.Metamath.Proof.Derivation",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arithmetization.ISigmaOne.Metamath.Proof.Typed",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arithmetization.ISigmaOne.Metamath.Term.Basic",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arithmetization.ISigmaOne.Metamath.Term.Functions",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arithmetization.ISigmaOne.Metamath.Term.Typed",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.ProvabilityLogic.Basic",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 7165,
+    "verbatim": 272923,
+    "unexpanded": 80,
+    "failed": []
+  },
+  "seed": {
+    "records": 137299,
+    "kept": 137299,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 5070,
+    "lineUnverified": 3990,
+    "nameFixed": 128316,
+    "sorryOriginals": 0,
+    "emptyProofs": 546
+  },
+  "sharded": {
+    "records": 16,
+    "shards": [
+      16
+    ]
+  },
+  "exportsBytes": 19475738624,
+  "minutes": 296,
+  "finishedAt": "2026-09-27T11:23:04.043Z",
+  "archive": {
+    "release": "exports-lean-pool",
+    "asset": "lean-pool@fdcf13c7cab6-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-lean-pool/lean-pool@fdcf13c7cab6-exports.tar.zst",
+    "bytes": 2049186001,
+    "sha256": "348608b88922f7a1d9dfdcc66a39a96d39a860cf8e18879ecb83c577605ec127",
+    "files": 13770,
+    "unpack": "tar --zstd -xf lean-pool@fdcf13c7cab6-exports.tar.zst -C data/exports/lean-pool",
+    "parts": [
+      {
+        "asset": "lean-pool@fdcf13c7cab6-exports.tar.zst.part-00",
+        "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-lean-pool/lean-pool@fdcf13c7cab6-exports.tar.zst.part-00"
+      },
+      {
+        "asset": "lean-pool@fdcf13c7cab6-exports.tar.zst.part-01",
+        "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-lean-pool/lean-pool@fdcf13c7cab6-exports.tar.zst.part-01"
+      }
+    ]
+  }
+}

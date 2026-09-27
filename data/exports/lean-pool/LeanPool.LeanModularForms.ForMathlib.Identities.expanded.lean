@@ -1,0 +1,66 @@
+/-
+Copyright (c) 2026 Chris Birkbeck. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Chris Birkbeck
+-/
+module
+
+public import Mathlib.NumberTheory.ModularForms.SlashInvariantForms
+public import LeanPool.LeanModularForms.ForMathlib.CongruenceSubgrps
+
+
+-- @@ L11-15 verbatim
+/-!
+# Identities of ModularForms and SlashInvariantForms
+
+Collection of useful identities of modular forms.
+-/
+
+
+-- @@ L17-17 verbatim
+@[expose] public section
+
+
+-- @@ L19-19 verbatim
+noncomputable section
+
+
+-- @@ L21-21 verbatim
+open ModularForm UpperHalfPlane Matrix MatrixGroups ModularGroup
+
+
+-- @@ L23-23 verbatim
+namespace SlashInvariantFormClass
+
+
+-- @@ L25-26 verbatim
+variable {Γ : Subgroup SL(2, ℤ)} {F : Type*} (f : F) (k : ℤ)
+  [FunLike F ℍ ℂ] [hF : SlashInvariantFormClass F Γ k] {n : ℤ}
+
+
+-- @@ L28-28 verbatim
+include hF -- necessary because `k` is not inferrable from the statements
+
+
+-- @@ L30-40 verbatim
+theorem vAdd_width_periodic (hn : ↑Γ.width ∣ n) (τ : ℍ) :
+    f ((n : ℝ) +ᵥ τ) = f τ := by
+  rw [← modular_T_zpow_smul τ, SlashInvariantForm.slash_action_eqn_SL'' (k := k) f
+    (Γ.T_zpow_mem_iff.mpr hn)]
+  have hdenom : denom (SpecialLinearGroup.toGL ((SpecialLinearGroup.map (Int.castRingHom ℝ))
+      (ModularGroup.T ^ n))) (↑τ : ℂ) = 1 := by
+    simp only [denom, Fin.isValue, SpecialLinearGroup.coe_GL_coe_matrix,
+      SpecialLinearGroup.map_apply_coe, coe_T_zpow, RingHom.mapMatrix_apply, Int.coe_castRingHom,
+      map_apply, of_apply, cons_val', cons_val_zero, cons_val_fin_one, cons_val_one, Int.cast_zero,
+      Complex.ofReal_zero, zero_mul, Int.cast_one, Complex.ofReal_one, zero_add]
+  rw [hdenom]; simp
+
+
+-- @@ L42-44 verbatim
+theorem T_zpow_width_invariant (hn : ↑Γ.width ∣ n) (τ : ℍ) :
+    f (ModularGroup.T ^ n • τ) = f τ := by
+  simpa [-sl_moeb, modular_T_zpow_smul] using vAdd_width_periodic f k hn τ
+
+
+-- @@ L46-46 verbatim
+end SlashInvariantFormClass

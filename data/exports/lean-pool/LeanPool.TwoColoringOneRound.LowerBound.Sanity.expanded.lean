@@ -1,0 +1,252 @@
+/-
+Copyright (c) 2026 Jukka Suomela. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Jukka Suomela
+-/
+module
+
+public import Mathlib.Order.Interval.Finset.Fin
+
+public import LeanPool.TwoColoringOneRound.LowerBound.LocalRule
+import Mathlib.Algebra.Order.Field.Basic
+import Mathlib.Data.Fintype.CardEmbedding
+import Mathlib.Data.Rat.Cast.Order
+import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.NormNum.Abs
+import Mathlib.Tactic.NormNum.DivMod
+import Mathlib.Tactic.NormNum.OfScientific
+import Mathlib.Tactic.NormNum.Pow
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L21-27 verbatim
+/-!
+Small “sanity checks” intended to validate that the Lean definitions in `Defs.lean` match the
+intended combinatorial model.
+
+This file proves, in a fully kernel-checked way, that for `n = 5` there is an explicit coloring
+with monochromatic edge fraction exactly `1/5`.
+-/
+
+
+-- @@ L29-29 verbatim
+@[expose] public section
+
+
+-- @@ L31-31 verbatim
+namespace Distributed2Coloring.LowerBound
+
+
+
+-- @@ L34-34 verbatim
+namespace Sanity
+
+
+-- @@ L36-36 verbatim
+open Distributed2Coloring.LowerBound
+
+-- @@ L37-37 verbatim
+open LocalRule
+
+
+-- @@ L39-44 verbatim
+/-!
+## `n = 5`
+
+We split the symbols into `{0,1}` (“small”) and `{2,3,4}` (“big”), round to a bit, and apply `g`.
+This yields `24` monochromatic edges out of `120`, hence `monoFraction = 1/5`.
+-/
+
+
+-- @@ L46-47 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev two5 : Sym 5 := ⟨2, by decide⟩
+
+-- @@ L48-49 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev Small5 : Type := Set.Iio two5
+
+-- @@ L50-51 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev Big5 : Type := Set.Ici two5
+
+
+-- @@ L53-55 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+def round5 (a : Sym 5) : Bool :=
+  decide (two5 ≤ a)
+
+
+-- @@ L57-57 verbatim
+@[simp] lemma round5_eq_true {a : Sym 5} : round5 a = true ↔ two5 ≤ a := by simp [round5]
+
+
+-- @@ L59-59 verbatim
+@[simp] lemma round5_eq_false {a : Sym 5} : round5 a = false ↔ a < two5 := by simp [round5, not_le]
+
+
+-- @@ L61-63 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev f5 : Coloring 5 :=
+  fun v => g (round5 (Vertex.a v)) (round5 (Vertex.b v)) (round5 (Vertex.c v))
+
+
+-- @@ L65-65 verbatim
+lemma card_Small5 : Fintype.card Small5 = 2 := by norm_num [Small5, two5]
+
+
+-- @@ L67-67 verbatim
+lemma card_Big5 : Fintype.card Big5 = 3 := by norm_num [Big5, two5]
+
+
+-- @@ L69-81 verbatim
+private lemma not_all_small (e : Edge 5) : ¬ (∀ i : Fin 4, e.1 i < two5) := by
+  classical
+  intro hall
+  let emb : Fin 4 ↪ Small5 :=
+    { toFun := fun i => ⟨e.1 i, hall i⟩
+      inj' := by
+        intro i j hij
+        apply e.2
+        exact congrArg Subtype.val hij }
+  have hle : Fintype.card (Fin 4) ≤ Fintype.card Small5 :=
+    Fintype.card_le_of_embedding emb
+  -- Turn the card inequality into a numeral contradiction.
+  simp_all
+
+
+-- @@ L83-94 verbatim
+private lemma not_all_big (e : Edge 5) : ¬ (∀ i : Fin 4, two5 ≤ e.1 i) := by
+  classical
+  intro hall
+  let emb : Fin 4 ↪ Big5 :=
+    { toFun := fun i => ⟨e.1 i, hall i⟩
+      inj' := by
+        intro i j hij
+        apply e.2
+        exact congrArg Subtype.val hij }
+  have hle : Fintype.card (Fin 4) ≤ Fintype.card Big5 :=
+    Fintype.card_le_of_embedding emb
+  simp_all
+
+
+-- @@ L96-96 verbatim
+private abbrev pat0000 : Edge 5 → Prop := EdgePatterns.Pat0000 (two := two5)
+
+-- @@ L97-97 verbatim
+private abbrev pat1111 : Edge 5 → Prop := EdgePatterns.Pat1111 (two := two5)
+
+-- @@ L98-98 verbatim
+private abbrev pat1001 : Edge 5 → Prop := EdgePatterns.Pat1001 (two := two5)
+
+-- @@ L99-99 verbatim
+private abbrev pat0110 : Edge 5 → Prop := EdgePatterns.Pat0110 (two := two5)
+
+
+-- @@ L101-133 verbatim
+private lemma monochromatic_iff_pat (e : Edge 5) :
+    Edge.monochromatic f5 e ↔ pat1001 e ∨ pat0110 e := by
+  have hpatterns :
+      Edge.monochromatic f5 e ↔ pat0000 e ∨ pat1111 e ∨ pat1001 e ∨ pat0110 e := by
+    simpa [f5, pat0000, pat1111, pat1001, pat0110] using
+      (LocalRule.monochromatic_iff_patterns (round := round5) (two := two5)
+        (hr_true := fun a => round5_eq_true (a := a))
+        (hr_false := fun a => round5_eq_false (a := a))
+        (e := e))
+  constructor
+  · intro hmono
+    rcases hpatterns.mp hmono with hall0 | hall1 | hall2 | hall3
+    · -- all bits `false` is impossible for an injective 4-tuple into `Small5` (only 2 elements)
+      have hall : ∀ i : Fin 4, e.1 i < two5 := by
+        intro i
+        fin_cases i
+        · exact hall0.1
+        · exact hall0.2.1
+        · exact hall0.2.2.1
+        · exact hall0.2.2.2
+      exact False.elim (not_all_small (e := e) hall)
+    · -- all bits `true` is impossible for an injective 4-tuple into `Big5` (only 3 elements)
+      have hall : ∀ i : Fin 4, two5 ≤ e.1 i := by
+        intro i
+        fin_cases i
+        · exact hall1.1
+        · exact hall1.2.1
+        · exact hall1.2.2.1
+        · exact hall1.2.2.2
+      exact False.elim (not_all_big (e := e) hall)
+    · exact Or.inl hall2
+    · exact Or.inr hall3
+  · simp_all
+
+-- @@ L134-140 verbatim
+private lemma card_pat1001 : Fintype.card {e : Edge 5 // pat1001 e} = 12 := by
+  classical
+  have h :
+      Fintype.card {e : Edge 5 // pat1001 e}
+        = (Fintype.card Big5).descFactorial 2 * (Fintype.card Small5).descFactorial 2 := by
+    exact EdgePatterns.card_pat1001 (n := 5) (two := two5)
+  simp_all
+
+
+-- @@ L142-148 verbatim
+private lemma card_pat0110 : Fintype.card {e : Edge 5 // pat0110 e} = 12 := by
+  classical
+  have h :
+      Fintype.card {e : Edge 5 // pat0110 e}
+        = (Fintype.card Big5).descFactorial 2 * (Fintype.card Small5).descFactorial 2 := by
+    exact EdgePatterns.card_pat0110 (n := 5) (two := two5)
+  simp_all
+
+
+-- @@ L150-161 verbatim
+theorem edgeCount_5 : edgeCount 5 = 120 := by
+  classical
+  -- `Edge 5` is equivalent to the type of embeddings `Fin 4 ↪ Fin 5`.
+  have hcongr : edgeCount 5 = Fintype.card (Fin 4 ↪ Sym 5) := by
+    have : Fintype.card (Edge 5) = Fintype.card (Fin 4 ↪ Sym 5) :=
+      Fintype.card_congr
+        { toFun := fun e => ⟨e.1, e.2⟩
+          invFun := fun x => ⟨x, x.injective⟩
+          left_inv := by intro e; apply Subtype.ext; funext i; rfl
+          right_inv := by intro x; ext i; rfl }
+    simpa [edgeCount] using this
+  simp_all
+
+
+-- @@ L163-185 verbatim
+theorem monoCount_f5 : monoCount f5 = 24 := by
+  classical
+  have hsub :
+      monoCount f5 = Fintype.card {e : Edge 5 // Edge.monochromatic f5 e} := by
+    simpa [monoCount, monoEdges] using
+      (Fintype.card_subtype (α := Edge 5) (p := Edge.monochromatic f5)).symm
+  have hmono :
+      Fintype.card {e : Edge 5 // Edge.monochromatic f5 e}
+        = Fintype.card {e : Edge 5 // pat1001 e ∨ pat0110 e} := by
+    exact Fintype.card_congr <|
+      Equiv.subtypeEquivRight (fun e => monochromatic_iff_pat (e := e))
+  have hdisj : Disjoint pat1001 pat0110 := by
+    intro r hr hs e hre
+    exact (not_lt_of_ge (hr e hre).1) (hs e hre).1
+  calc
+    monoCount f5
+        = Fintype.card {e : Edge 5 // Edge.monochromatic f5 e} := hsub
+    _ = Fintype.card {e : Edge 5 // pat1001 e ∨ pat0110 e} := hmono
+    _ = Fintype.card {e : Edge 5 // pat1001 e} + Fintype.card {e : Edge 5 // pat0110 e} := by
+          simpa using
+            (Fintype.card_subtype_or_disjoint (p := pat1001) (q := pat0110) hdisj)
+    _ = 12 + 12 := by simp [card_pat1001, card_pat0110]
+    _ = 24 := by decide
+
+
+-- @@ L187-188 verbatim
+theorem monoFraction_f5 : monoFraction f5 = (1 : ℚ) / 5 := by
+  norm_num [monoFraction, monoCount_f5, edgeCount_5]
+
+
+-- @@ L190-190 verbatim
+end Sanity
+
+
+-- @@ L192-192 verbatim
+end Distributed2Coloring.LowerBound

@@ -1,0 +1,48 @@
+/-
+Copyright (c) 2026 Chris Birkbeck. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Chris Birkbeck
+-/
+module
+
+public import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
+import Mathlib.CategoryTheory.Category.Init
+import Mathlib.Combinatorics.Matroid.Init
+import Mathlib.MeasureTheory.Integral.Bochner.Basic
+import Mathlib.NumberTheory.ArithmeticFunction.Misc
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L15-20 verbatim
+/-!
+# Shared Trigonometric Identities
+
+Euler-formula expansion of `exp(θ * I)` and exact values at `2π/3`,
+used by both `WindingWeights/Common.lean` and `RectHomotopy/HomotopyDef.lean`.
+-/
+
+
+-- @@ L22-22 verbatim
+@[expose] public section
+
+
+-- @@ L24-24 verbatim
+open Complex
+
+
+-- @@ L26-28 verbatim
+theorem exp_real_angle_I (θ : ℝ) :
+    Complex.exp (↑θ * I) = ↑(Real.cos θ) + ↑(Real.sin θ) * I := by
+  rw [Complex.exp_mul_I]; simp [Complex.ofReal_cos, Complex.ofReal_sin]
+
+
+-- @@ L30-32 verbatim
+theorem cos_two_pi_div_three : Real.cos (2 * Real.pi / 3) = -1 / 2 := by
+  rw [show (2 : ℝ) * Real.pi / 3 = Real.pi - Real.pi / 3 from by ring,
+      Real.cos_pi_sub, Real.cos_pi_div_three]; ring
+
+
+-- @@ L34-36 verbatim
+theorem sin_two_pi_div_three : Real.sin (2 * Real.pi / 3) = Real.sqrt 3 / 2 := by
+  rw [show (2 : ℝ) * Real.pi / 3 = Real.pi - Real.pi / 3 from by ring,
+      Real.sin_pi_sub]; exact Real.sin_pi_div_three

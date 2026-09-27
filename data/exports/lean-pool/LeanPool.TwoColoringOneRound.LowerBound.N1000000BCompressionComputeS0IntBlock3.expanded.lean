@@ -1,0 +1,42 @@
+/-
+Copyright (c) 2026 Jukka Suomela. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Jukka Suomela
+-/
+module
+
+public import LeanPool.TwoColoringOneRound.LowerBound.N1000000BCompressionComputeS0IntGoal
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L11-13 verbatim
+/-!
+# LeanPool.TwoColoringOneRound.LowerBound.N1000000BCompressionComputeS0IntBlock3
+-/
+
+
+-- @@ L15-15 verbatim
+@[expose] public section
+
+
+-- @@ L17-17 verbatim
+namespace Distributed2Coloring.LowerBound
+
+
+-- @@ L19-21 verbatim
+namespace N1000000BCompressionCompute
+
+-- This proof is a large `decide` check; we increase `maxHeartbeats` to avoid timeouts.
+
+-- @@ L22-24 verbatim
+theorem s0IntGoal_block3 :
+    ∀ p q : Fin 3, S0IntGoal (r := (⟨3, by decide⟩ : Block)) p q := by
+  decide +kernel
+
+
+-- @@ L26-26 verbatim
+end N1000000BCompressionCompute
+
+
+-- @@ L28-28 verbatim
+end Distributed2Coloring.LowerBound

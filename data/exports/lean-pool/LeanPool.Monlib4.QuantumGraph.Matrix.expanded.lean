@@ -1,0 +1,1342 @@
+/-
+Copyright (c) 2023 Monica Omar. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Monica Omar
+-/
+module
+
+public import LeanPool.Monlib4.QuantumGraph.PiMatFinTwo
+import LeanPool.Monlib4.LinearAlgebra.End
+import LeanPool.Monlib4.Preq.Finset
+
+
+-- @@ L12-16 verbatim
+/-!
+# LeanPool.Monlib4.QuantumGraph.Matrix
+
+Imported Lean Pool material for `LeanPool.Monlib4.QuantumGraph.Matrix`.
+-/
+
+
+-- @@ L18-18 verbatim
+@[expose] public section
+
+
+-- @@ L20-20 verbatim
+open scoped Functional MatrixOrder ComplexOrder TensorProduct Matrix
+
+
+-- @@ L22-22 verbatim
+open scoped Kronecker
+
+
+-- @@ L24-25 verbatim
+variable {n : Type*} [Fintype n] [DecidableEq n]
+  {φ : Module.Dual ℂ (Matrix n n ℂ)} [hφ : φ.IsFaithfulPosMap]
+
+
+-- @@ L27-28 verbatim
+/-- Elaborate a matrix quantum-graph statement with its finite-dimensional coalgebra. -/
+syntax "withMatrixCoalgebraQuantum[" term "] " term : term
+
+-- @@ L29-33 expanded
+macro_rules
+  |
+  `(letI := Matrix.isStarAlgebra (φ := $φ)
+      letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := $φ)
+      letI := Module.Dual.NormedAddCommGroup $φ
+      letI :=
+        (Module.Dual.NormedAddCommGroup $φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+      letI := (Module.Dual.NormedAddCommGroup $φ).toSeminormedAddCommGroup
+      letI := Module.Dual.InnerProductSpace (φ := $φ)
+      letI : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+      $p) =>
+    `(letI := Matrix.isStarAlgebra (φ := $φ)
+      letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := $φ)
+      letI := Module.Dual.NormedAddCommGroup $φ
+      letI :=
+        (Module.Dual.NormedAddCommGroup $φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+      letI := (Module.Dual.NormedAddCommGroup $φ).toSeminormedAddCommGroup
+      letI := Module.Dual.InnerProductSpace (φ := $φ)
+      letI : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+      $p)
+
+
+-- @@ L35-36 verbatim
+/-- Introduce the matrix quantum-set and finite-dimensional coalgebra instances in a proof. -/
+syntax "withMatrixCoalgebraQuantumCtx" "[" term "]" : tactic
+
+-- @@ L37-41 expanded
+macro_rules
+  |
+  `(tactic|
+      let := Matrix.isStarAlgebra (φ := $φ);
+          let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := $φ);
+          let := Module.Dual.NormedAddCommGroup $φ;
+          let :=
+            (Module.Dual.NormedAddCommGroup
+                $φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+          let := (Module.Dual.NormedAddCommGroup $φ).toSeminormedAddCommGroup;
+          let := Module.Dual.InnerProductSpace (φ := $φ);
+        let : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra) =>
+    `(tactic|
+      let := Matrix.isStarAlgebra (φ := $φ);
+        let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := $φ);
+        let := Module.Dual.NormedAddCommGroup $φ;
+        let :=
+          (Module.Dual.NormedAddCommGroup $φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+        let := (Module.Dual.NormedAddCommGroup $φ).toSeminormedAddCommGroup;
+        let := Module.Dual.InnerProductSpace (φ := $φ);
+      let : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra)
+
+
+-- @@ L43-54 expanded
+theorem lmul_toMatrix (x : Matrix n n ℂ) :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    (onb.toMatrix (lmul x) = x ⊗ₖ (1 : Matrix n n ℂ)) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+    let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+    let := Module.Dual.NormedAddCommGroup φ;
+    let := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+    let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+    let := Module.Dual.InnerProductSpace (φ := φ)
+  simp only [← Matrix.ext_iff, QuantumSet.n]
+  intro i j
+  simp_rw [OrthonormalBasis.toMatrix_apply, lmul_apply, Matrix.kroneckerMap_apply, onb,
+    Module.Dual.IsFaithfulPosMap.inner_coord hφ, hφ.orthonormalBasis_apply, mul_assoc,
+    Matrix.PosDef.rpow_mul_rpow, neg_add_cancel, Matrix.PosDef.rpow_zero, mul_one, Matrix.mul_apply,
+    Matrix.single_eq, Matrix.one_apply, mul_boole, ite_and, Finset.sum_ite_eq, Finset.mem_univ,
+    ite_true, eq_comm]
+
+
+-- @@ L56-69 expanded
+theorem rmul_toMatrix (x : Matrix n n ℂ) :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    (onb.toMatrix (rmul x) = (1 : Matrix n n ℂ) ⊗ₖ (modAut (1 / 2) x)ᵀ) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+    let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+    let := Module.Dual.NormedAddCommGroup φ;
+    let := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+    let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+    let := Module.Dual.InnerProductSpace (φ := φ)
+  simp only [← Matrix.ext_iff, QuantumSet.n]
+  intro i j
+  simp_rw [OrthonormalBasis.toMatrix_apply, rmul_apply, Matrix.kroneckerMap_apply, onb,
+    Module.Dual.IsFaithfulPosMap.inner_coord hφ, hφ.orthonormalBasis_apply, mul_assoc, modAut, ←
+    mul_assoc (Matrix.PosDef.rpow _ _), ← sig_apply, Matrix.mul_apply, Matrix.single_eq,
+    Matrix.one_apply, boole_mul, ite_and, Finset.sum_ite_irrel, Finset.sum_const_zero,
+    Finset.sum_ite_eq, Finset.mem_univ, ite_true, eq_comm]
+  rfl
+
+
+-- @@ L71-71 verbatim
+open Matrix
+
+
+-- @@ L73-76 verbatim
+theorem Matrix.single_transpose {R n p : Type*} [DecidableEq n] [DecidableEq p]
+    [Zero R] {i : n} {j : p} {α : R} :
+    (single i j α)ᵀ = single j i α :=
+by ext; simp_rw [transpose_apply, single, of_apply,  and_comm]
+
+
+-- @@ L78-83 expanded
+lemma Module.Dual.IsFaithfulPosMap.inner_coord_onb (y : Matrix n n ℂ) (i j : n) :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    (inner ℂ (onb (i, j)) y = (y * hφ.matrixIsPosDef.rpow (1 / 2)) i j) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+    let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+    let := Module.Dual.NormedAddCommGroup φ;
+    let := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+    let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+    let := Module.Dual.InnerProductSpace (φ := φ)
+  exact hφ.inner_coord _ _
+
+
+-- @@ L85-88 verbatim
+/-- Matrix transpose as a star-algebra equivalence to the opposite algebra. -/
+noncomputable abbrev Matrix.transposeStarAlgEquiv (ι : Type*) [Fintype ι] [DecidableEq ι] :
+  Matrix ι ι ℂ ≃⋆ₐ[ℂ] (Matrix ι ι ℂ)ᵐᵒᵖ :=
+StarAlgEquiv.ofAlgEquiv (transposeAlgEquiv ι ℂ ℂ) (fun _ => rfl)
+
+-- @@ L89-92 verbatim
+theorem Matrix.transposeStarAlgEquiv_apply {ι : Type*} [Fintype ι] [DecidableEq ι]
+  (x : Matrix ι ι ℂ) :
+  Matrix.transposeStarAlgEquiv ι x = MulOpposite.op (xᵀ) :=
+rfl
+
+-- @@ L93-96 verbatim
+theorem Matrix.transposeStarAlgEquiv_symm_apply {ι : Type*} [Fintype ι] [DecidableEq ι]
+  (x : (Matrix ι ι ℂ)ᵐᵒᵖ) :
+  (Matrix.transposeStarAlgEquiv ι).symm x = x.unopᵀ :=
+rfl
+
+
+-- @@ L98-159 expanded
+theorem QuantumSet.Psi_symm_transpose_kroneckerToTensor_toMatrix_rankOne (x y : Matrix n n ℂ) :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    ((QuantumSet.Psi 0 (1 / 2)).symm
+        ((StarAlgEquiv.lTensor _ (transposeStarAlgEquiv n))
+          ((kroneckerToTensor (R := ℂ) (m := n) (n := n))
+            (onb.toMatrix ((rankOne ℂ x y) : Matrix n n ℂ →ₗ[ℂ] Matrix n n ℂ)))) =
+      lmul (x * φ.matrix) * (LinearMap.adjoint (rmul (φ.matrix * y)))) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+    let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+    let := Module.Dual.NormedAddCommGroup φ;
+    let := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+    let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+    let := Module.Dual.InnerProductSpace (φ := φ)
+  simp only [← StarAlgEquiv.coe_toAlgEquiv, ← orthonormalBasis_toMatrix_eq_basis_toMatrix,
+    LinearMap.toMatrixAlgEquiv, AlgEquiv.ofLinearEquiv_apply, rankOne_toMatrix_of_onb,
+    conjTranspose_replicateCol]
+  rw [show
+      replicateCol (Fin 1) (onb.repr x).ofLp * replicateRow (Fin 1) (star (onb.repr y).ofLp) =
+        vecMulVec (onb.repr x).ofLp (star (onb.repr y).ofLp)
+      from (Matrix.vecMulVec_eq (Fin 1) (onb.repr x).ofLp (star (onb.repr y).ofLp)).symm]
+  rw [Matrix.kmul_representation (vecMulVec _ _)]
+  simp only [map_sum, _root_.map_smul, kroneckerToTensor, Matrix.kroneckerAlgEquiv_symm_apply,
+    kroneckerLinearEquiv_symm_kronecker, StarAlgEquiv.coe_toAlgEquiv, StarAlgEquiv.lTensor_tmul,
+    QuantumSet.Psi_symm_apply, QuantumSet.PsiInvFun_apply, vecMulVec_apply, neg_zero,
+    starAlgebra.modAut_zero, transposeStarAlgEquiv_apply, MulOpposite.unop_op, AlgEquiv.one_apply]
+  simp_rw [← rankOne_lm_smul_smul, Pi.star_apply, star_star, single_transpose,
+    star_eq_conjTranspose, single_conjTranspose, star_one]
+  ext1
+  simp only [LinearMap.sum_apply, ContinuousLinearMap.coe_coe, rankOne_apply, inner_smul_left,
+    QuantumSet.modAut_isSymmetric, Module.End.mul_apply, rmul_adjoint, rmul_apply, lmul_apply,
+    OrthonormalBasis.repr_apply_apply, inner_single_left,
+    Module.Dual.IsFaithfulPosMap.inner_coord_onb (hφ := hφ)]
+  simp_rw [starRingEnd_apply, smul_smul, mul_assoc, ←
+    mul_comm _ ((modAut (-(1 / 2)) (_ : Matrix n n ℂ) * φ.matrix) _ _), ]
+  rw [Finset.sum_sum_comm_sum]
+  simp only [← Finset.sum_smul, ← Finset.mul_sum, ← mul_apply]
+  rw [Matrix.k (φ := φ)]
+  simp_rw [mul_comm (star _), ← conjTranspose_apply]
+  simp_rw [← mul_apply]
+  simp_rw [← smul_single']
+  rw [← matrix_eq_sum_single]
+  simp_rw [modAut, sig_apply, star_eq_conjTranspose, conjTranspose_mul,
+    (PosDef.rpow.isPosDef _ _).1.eq, hφ.matrixIsPosDef.1.eq]
+  rw [show (modAut (-(1 / 2)) : Matrix n n ℂ ≃ₐ[ℂ] Matrix n n ℂ) = hφ.sig (-(1 / 2)) from rfl]
+  simp only [Module.Dual.IsFaithfulPosMap.sig_apply, neg_neg]
+  simp_rw [← mul_assoc]
+  nth_rw 1 [mul_assoc _ (PosDef.rpow _ _) (PosDef.rpow _ _)]
+  rw [PosDef.rpow_mul_rpow]
+  simp only [mul_assoc]
+  nth_rw 5 [← mul_assoc]
+  nth_rw 3 [← PosDef.rpow_one_eq_self hφ.matrixIsPosDef]
+  nth_rw 5 [← PosDef.rpow_one_eq_self hφ.matrixIsPosDef]
+  nth_rw 7 [← PosDef.rpow_one_eq_self hφ.matrixIsPosDef]
+  simp_rw [PosDef.rpow_mul_rpow]
+  nth_rw 4 [← mul_assoc]
+  rw [PosDef.rpow_mul_rpow]
+  ring_nf
+  simp only [PosDef.rpow_zero, mul_one]
+
+
+-- @@ L161-191 expanded
+theorem QuantumGraph.Real.matrix_isOrthogonalProjection :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    letI : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+    ∀ {A : Matrix n n ℂ →ₗ[ℂ] Matrix n n ℂ},
+      (hA : QuantumGraph.Real _ A) →
+        (ContinuousLinearMap.toLinearMapAlgEquiv.symm
+            ((onb.toMatrix.symm
+                ((tensorToKronecker (R := ℂ) (m := n) (n := n))
+                  ((StarAlgEquiv.lTensor _ (transposeStarAlgEquiv n).symm)
+                    ((QuantumSet.Psi 0 (1 / 2)) A)))) :
+              Matrix n n ℂ →ₗ[ℂ] Matrix n n ℂ)).IsOrthogonalProjection :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+      let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+      let := Module.Dual.NormedAddCommGroup φ;
+      let :=
+        (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+      let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+      let := Module.Dual.InnerProductSpace (φ := φ);
+    let : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+  intro A hA
+  rw [ContinuousLinearMap.toLinearMapAlgEquiv_symm_apply, LinearMap.isOrthogonalProjection_iff]
+  rw [IsIdempotentElem, ← _root_.map_mul, ← map_mul (tensorToKronecker (R := ℂ) (m := n) (n := n)),
+    ← map_mul (StarAlgEquiv.lTensor _ _), ← Psi.schurMul, hA.1]
+  refine ⟨rfl, ?_⟩
+  rw [isSelfAdjoint_iff, ← map_star]
+  rw [(StarAlgEquiv.injective onb.toMatrix.symm).eq_iff]
+  change
+    star
+        ((Matrix.kroneckerStarAlgEquiv n n ℂ)
+          ((StarAlgEquiv.lTensor (Matrix n n ℂ) (transposeStarAlgEquiv n).symm)
+            ((QuantumSet.Psi 0 (1 / 2)) A))) =
+      (Matrix.kroneckerStarAlgEquiv n n ℂ)
+        ((StarAlgEquiv.lTensor (Matrix n n ℂ) (transposeStarAlgEquiv n).symm)
+          ((QuantumSet.Psi 0 (1 / 2)) A))
+  rw [← map_star]
+  rw [(Matrix.kroneckerStarAlgEquiv n n ℂ).injective.eq_iff]
+  rw [← map_star]
+  rw [(StarAlgEquiv.lTensor (Matrix n n ℂ) (transposeStarAlgEquiv n).symm).injective.eq_iff]
+  simpa [QuantumSet.k] using
+    (quantumGraphReal_iff_Psi_isIdempotentElem_and_isSelfAdjoint.mp hA).2.star_eq
+
+
+-- @@ L193-203 expanded
+/-- The submodule corresponding to a real matrix quantum graph. -/
+noncomputable def QuantumGraph.Real.matrixSubmodule :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    letI : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+    ∀ {A : Matrix n n ℂ →ₗ[ℂ] Matrix n n ℂ},
+      (hA : QuantumGraph.Real _ A) → Submodule ℂ (Matrix n n ℂ) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+      let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+      let := Module.Dual.NormedAddCommGroup φ;
+      let :=
+        (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+      let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+      let := Module.Dual.InnerProductSpace (φ := φ);
+    let : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+  intro A hA
+  choose U hU using
+    orthogonal_projection_iff.mpr
+      ((And.comm.mp
+        (ContinuousLinearMap.isOrthogonalProjection_iff'.mp hA.matrix_isOrthogonalProjection)))
+  exact U
+
+
+-- @@ L205-218 expanded
+lemma QuantumGraph.Real.matrix_orthogonalProjection_eq :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    letI : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+    ∀ {A : Matrix n n ℂ →ₗ[ℂ] Matrix n n ℂ},
+      (hA : QuantumGraph.Real _ A) →
+        orthogonalProjection' (hA.matrixSubmodule (φ := φ)) =
+          ContinuousLinearMap.toLinearMapAlgEquiv.symm
+            ((onb.toMatrix.symm
+              ((tensorToKronecker (R := ℂ) (m := n) (n := n))
+                ((StarAlgEquiv.lTensor (Matrix n n ℂ) (transposeStarAlgEquiv n).symm)
+                  ((QuantumSet.Psi 0 (1 / 2)) A))))) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+      let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+      let := Module.Dual.NormedAddCommGroup φ;
+      let :=
+        (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+      let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+      let := Module.Dual.InnerProductSpace (φ := φ);
+    let : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+  intro A hA
+  rw [matrixSubmodule]
+  generalize_proofs
+  apply_assumption
+
+
+-- @@ L220-226 verbatim
+theorem StarAlgEquiv.lTensor_symm {R A B C : Type*}
+  [RCLike R] [Ring A] [Ring B] [Ring C] [Algebra R A] [Algebra R B] [Algebra R C]
+  [StarAddMonoid A] [StarAddMonoid B] [StarAddMonoid C] [StarModule R A]
+  [StarModule R B] [StarModule R C]
+  (f : A ≃⋆ₐ[R] B) :
+  (StarAlgEquiv.lTensor C f).symm = StarAlgEquiv.lTensor C f.symm :=
+rfl
+
+
+-- @@ L228-249 expanded
+theorem QuantumGraph.Real.matrix_eq_of_orthonormalBasis :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    letI : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+    ∀ {A : Matrix n n ℂ →ₗ[ℂ] Matrix n n ℂ},
+      (hA : QuantumGraph.Real _ A) →
+        ∀ {ι : Type*} [Fintype ι],
+          (u : OrthonormalBasis ι ℂ (hA.matrixSubmodule (φ := φ))) →
+            A =
+              ∑ i,
+                lmul (R := ℂ) ((((u i : hA.matrixSubmodule (φ := φ)) : Matrix n n ℂ) * φ.matrix)) *
+                  (LinearMap.adjoint
+                    (rmul (R := ℂ)
+                      (φ.matrix * ((u i : hA.matrixSubmodule (φ := φ)) : Matrix n n ℂ)))) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+      let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+      let := Module.Dual.NormedAddCommGroup φ;
+      let :=
+        (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+      let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+      let := Module.Dual.InnerProductSpace (φ := φ);
+    let : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+  intro A hA ι _ u
+  simp_rw [← QuantumSet.Psi_symm_transpose_kroneckerToTensor_toMatrix_rankOne]
+  rw [← map_sum, ← map_sum (StarAlgEquiv.lTensor (Matrix n n ℂ) (transposeStarAlgEquiv n)), ←
+    map_sum (kroneckerToTensor (R := ℂ) (m := n) (n := n)), ← map_sum onb.toMatrix, ←
+    ContinuousLinearMap.toLinearMap_sum, ← OrthonormalBasis.orthogonalProjection'_eq_sum_rankOne u,
+    hA.matrix_orthogonalProjection_eq]
+  simp only [ContinuousLinearMap.toLinearMapAlgEquiv_symm_apply]
+  simp only [LinearMap.coe_toContinuousLinearMap, StarAlgEquiv.apply_symm_apply, kroneckerToTensor,
+    tensorToKronecker]
+  simp only [AlgEquiv.symm_apply_apply, ← StarAlgEquiv.lTensor_symm, StarAlgEquiv.apply_symm_apply,
+    LinearEquiv.symm_apply_apply]
+
+
+-- @@ L251-264 expanded
+theorem QuantumGraph.Real.matrixSubmodule_exists_orthonormalBasis :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    letI : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+    ∀ {A : Matrix n n ℂ →ₗ[ℂ] Matrix n n ℂ},
+      (hA : QuantumGraph.Real _ A) →
+        ∃ u :
+          OrthonormalBasis (Fin (Module.finrank ℂ (hA.matrixSubmodule (φ := φ)))) ℂ
+            (hA.matrixSubmodule (φ := φ)),
+          A =
+            ∑ i,
+              lmul (R := ℂ) ((((u i : hA.matrixSubmodule (φ := φ)) : Matrix n n ℂ) * φ.matrix)) *
+                (LinearMap.adjoint
+                  (rmul (R := ℂ)
+                    (φ.matrix * ((u i : hA.matrixSubmodule (φ := φ)) : Matrix n n ℂ)))) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+      let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+      let := Module.Dual.NormedAddCommGroup φ;
+      let :=
+        (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+      let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+      let := Module.Dual.InnerProductSpace (φ := φ);
+    let : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+  intro A hA
+  exact ⟨stdOrthonormalBasis ℂ _, (hA.matrix_eq_of_orthonormalBasis _)⟩
+
+
+-- @@ L266-274 expanded
+/-- Rank-one real quantum graph generated by a norm-one matrix. -/
+noncomputable abbrev QuantumGraph.Real.ofNormOneMatrix :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    ({ x : Matrix n n ℂ // ‖x‖ = 1 } → Matrix n n ℂ →ₗ[ℂ] Matrix n n ℂ) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+    let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+    let := Module.Dual.NormedAddCommGroup φ;
+    let := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+    let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+    let := Module.Dual.InnerProductSpace (φ := φ)
+  exact fun u => lmul (R := ℂ) (u * φ.matrix) * (LinearMap.adjoint (rmul (R := ℂ) (φ.matrix * u)))
+
+
+-- @@ L277-287 verbatim
+theorem orthogonalProjection'_of_finrank_eq_one
+  {𝕜 E : Type*} [RCLike 𝕜] [NormedAddCommGroup E]
+  [InnerProductSpace 𝕜 E] {U : Submodule 𝕜 E} (hU : Module.finrank 𝕜 U = 1) :
+  letI : Module.Finite 𝕜 U := Module.finite_of_finrank_eq_succ hU;
+  ∃ v : { x : E // ‖x‖ = 1 },
+    orthogonalProjection' U = rankOne 𝕜 (v : E) (v : E) := by
+  let : Module.Finite 𝕜 U := Module.finite_of_finrank_eq_succ hU
+  let u : OrthonormalBasis (Fin 1) 𝕜 U := by
+    rw [← hU]; exact stdOrthonormalBasis 𝕜 U
+  rw [u.orthogonalProjection'_eq_sum_rankOne, Fin.sum_univ_one]
+  refine ⟨⟨u 0, u.norm_eq_one _⟩, rfl⟩
+
+
+-- @@ L289-347 expanded
+theorem QuantumSet.Psi_apply_matrix_one {n : Type*} [DecidableEq n] [Fintype n]
+    {φ : Module.Dual ℂ (Matrix n n ℂ)} [hφ : φ.IsFaithfulPosMap] :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    (QuantumSet.Psi 0 (1 / 2) (1 : Matrix n n ℂ →ₗ[ℂ] Matrix n n ℂ) =
+      (StarAlgEquiv.lTensor _ (transposeStarAlgEquiv n))
+        ((kroneckerToTensor (R := ℂ) (m := n) (n := n))
+          (onb.toMatrix ((rankOne ℂ (φ.matrix⁻¹) (φ.matrix⁻¹) : Matrix n n ℂ →ₗ[ℂ] _))))) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+    let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+    let := Module.Dual.NormedAddCommGroup φ;
+    let := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+    let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+    let := Module.Dual.InnerProductSpace (φ := φ)
+  nth_rw 1 [←
+    rankOne.sum_orthonormalBasis_eq_id_lm
+      (@Module.Dual.IsFaithfulPosMap.orthonormalBasis n _ _ φ _)]
+  simp only [map_sum, QuantumSet.Psi_apply, QuantumSet.PsiToFun_apply,
+    ← StarAlgEquiv.coe_toAlgEquiv, ← orthonormalBasis_toMatrix_eq_basis_toMatrix,
+    LinearMap.toMatrixAlgEquiv, AlgEquiv.ofLinearEquiv_apply, rankOne_toMatrix_of_onb, ]
+  simp_rw [StarAlgEquiv.coe_toAlgEquiv, StarAlgEquiv.eq_apply_iff_symm_eq]
+  simp_rw [AlgEquiv.eq_apply_iff_symm_eq]
+  simp_rw [map_sum, StarAlgEquiv.lTensor_symm_tmul, kroneckerToTensor_symm_apply,
+    kroneckerLinearEquiv_tmul, transposeStarAlgEquiv_symm_apply, MulOpposite.unop_op,
+    starAlgebra.modAut_zero, AlgEquiv.one_apply, conjTranspose_replicateCol]
+  rw [show
+      replicateCol (Fin 1) (onb.repr φ.matrix⁻¹).ofLp *
+          replicateRow (Fin 1) (star (onb.repr φ.matrix⁻¹).ofLp) =
+        vecMulVec (onb.repr φ.matrix⁻¹).ofLp (star (onb.repr φ.matrix⁻¹).ofLp)
+      from
+      (Matrix.vecMulVec_eq (Fin 1) (onb.repr φ.matrix⁻¹).ofLp
+          (star (onb.repr φ.matrix⁻¹).ofLp)).symm]
+  have : ∀ x, modAut (1 / 2) (hφ.orthonormalBasis x) = (hφ.orthonormalBasis x.swap)ᴴ :=
+    by
+    intro x
+    rw [show (modAut (1 / 2) : Matrix n n ℂ ≃ₐ[ℂ] Matrix n n ℂ) = hφ.sig (1 / 2) from rfl]
+    simp only [Module.Dual.IsFaithfulPosMap.sig_apply, hφ.orthonormalBasis_apply, conjTranspose_mul,
+      mul_assoc, PosDef.rpow_mul_rpow, neg_add_cancel, PosDef.rpow_zero, mul_one,
+      (PosDef.rpow.isPosDef _ _).1.eq, single_conjTranspose, star_one]
+    rfl
+  simp only [this, star_eq_conjTranspose, conjTranspose_conjTranspose]
+  ext
+  simp only [Matrix.sum_apply, kroneckerMap_apply, vecMulVec_apply, Pi.star_apply,
+    OrthonormalBasis.repr_apply_apply, transpose_apply,
+    Module.Dual.IsFaithfulPosMap.orthonormalBasis_apply]
+  simp only [mul_apply]
+  simp only [single_eq, boole_mul]
+  simp_rw [ite_and, Finset.sum_ite_irrel, Finset.sum_const_zero, Finset.sum_ite_eq, Finset.mem_univ,
+    ite_true, ite_mul, zero_mul, Prod.swap, mul_ite, mul_zero, Finset.sum_product_univ,
+    Finset.sum_ite_irrel, Finset.sum_const_zero, Finset.sum_ite_eq', Finset.mem_univ, ite_true]
+  rw [Module.Dual.IsFaithfulPosMap.inner_coord_onb,
+    Module.Dual.IsFaithfulPosMap.inner_coord_onb (hφ := hφ), ←
+    PosDef.rpow_neg_one_eq_inv_self hφ.matrixIsPosDef]
+  simp only [PosDef.rpow_mul_rpow, mul_comm]
+  ring_nf
+  rw [← conjTranspose_apply, (PosDef.rpow.isPosDef _ _).1.eq]
+
+
+-- @@ L349-357 expanded
+theorem Module.Dual.IsFaithfulPosMap.inner_dualMatrix_right (x : Matrix n n ℂ) :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    (inner ℂ x φ.matrix⁻¹ = star (x : Matrix n n ℂ).trace) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+    let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+    let := Module.Dual.NormedAddCommGroup φ;
+    let := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+    let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+    let := Module.Dual.InnerProductSpace (φ := φ)
+  simp only [hφ.inner_eq']
+  let := hφ.matrixIsPosDef.invertible
+  rw [trace_mul_cycle, inv_mul_of_invertible, one_mul, trace_conjTranspose]
+
+
+-- @@ L359-379 expanded
+theorem QuantumGraph.Real.ofNormOneMatrix_is_irreflexive_iff [Nontrivial n]
+    (x : { x : Matrix n n ℂ // ‖x‖ = 1 }) :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    letI : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+    (schurMul (ofNormOneMatrix (φ := φ) x) 1 = 0 ↔ (x : Matrix n n ℂ).trace = 0) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+      let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+      let := Module.Dual.NormedAddCommGroup φ;
+      let :=
+        (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+      let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+      let := Module.Dual.InnerProductSpace (φ := φ);
+    let : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+  simp_rw [ofNormOneMatrix, ← QuantumSet.Psi_symm_transpose_kroneckerToTensor_toMatrix_rankOne, ←
+    Function.Injective.eq_iff (QuantumSet.Psi 0 (1 / 2)).injective, Psi.schurMul,
+    LinearEquiv.apply_symm_apply, QuantumSet.Psi_apply_matrix_one]
+  rw [← _root_.map_mul, ← _root_.map_mul, ← _root_.map_mul onb.toMatrix, LinearEquiv.map_zero]
+  simp only [map_eq_zero_iff _ (StarAlgEquiv.injective _), map_eq_zero_iff _ (AlgEquiv.injective _)]
+  simp only [Module.End.mul_eq_comp, LinearMap.comp_rankOne, ContinuousLinearMap.coe_coe,
+    rankOne_apply, ContinuousLinearMap.coe_eq_zero, rankOne.eq_zero_iff, smul_eq_zero,
+    hφ.inner_dualMatrix_right, star_eq_zero]
+  let := hφ.matrixIsPosDef.invertible
+  simp only [Invertible.ne_zero, or_false,
+    ne_zero_of_norm_ne_zero (a := (x : Matrix n n ℂ))
+        (by simp only [x.property, ne_eq, one_ne_zero, not_false_eq_true])]
+
+
+-- @@ L381-388 verbatim
+/-- Normalize a nonzero vector to a unit vector. -/
+noncomputable def normalizeOfNeZero {E : Type*}
+  [NormedAddCommGroup E] [InnerProductSpace ℂ E]
+  {a : E} (ha : a ≠ 0) :
+  { x : E // ‖x‖ = 1 } := by
+  use ((1 / ‖a‖) : ℂ) • a
+  rw [norm_smul, norm_div]
+  simp_all
+
+
+-- @@ L390-399 expanded
+theorem Module.Dual.IsFaithfulPosMap.norm_sq_dualMatrix_inv :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    ((‖φ.matrix⁻¹‖ : ℂ) ^ 2 = (φ.matrix⁻¹).trace) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+    let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+    let := Module.Dual.NormedAddCommGroup φ;
+    let := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+    let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+    let := Module.Dual.InnerProductSpace (φ := φ)
+  rw [← Complex.ofReal_pow, ← inner_self_eq_norm_sq (𝕜 := ℂ)]
+  simp only [RCLike.re_to_complex]
+  rw [hφ.inner_dualMatrix_right, ← trace_conjTranspose, hφ.matrixIsPosDef.inv.1.eq]
+  refine Complex.conj_eq_iff_re.mp ?_
+  simp only [starRingEnd_apply, ← trace_conjTranspose, hφ.matrixIsPosDef.inv.1.eq]
+
+
+-- @@ L401-420 expanded
+theorem QuantumGraph.Real.ofNormOneMatrix_eq_trivialGraph [Nontrivial n] :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    letI : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+    letI : QuantumSetDeltaForm (Matrix n n ℂ) := Matrix.quantumSetDeltaForm (φ := φ)
+    (ofNormOneMatrix (φ := φ) (hφ := hφ)
+        (normalizeOfNeZero (hφ.matrixIsPosDef.inv.invertible.ne_zero)) =
+      Qam.trivialGraph (Matrix n n ℂ)) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+      let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+      let := Module.Dual.NormedAddCommGroup φ;
+      let :=
+        (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+      let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+      let := Module.Dual.InnerProductSpace (φ := φ);
+    let : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+  let : QuantumSetDeltaForm (Matrix n n ℂ) := Matrix.quantumSetDeltaForm (φ := φ)
+  let := hφ.matrixIsPosDef.invertible
+  simp only [ofNormOneMatrix, normalizeOfNeZero, Qam.trivialGraph_eq, smul_mul_assoc,
+    inv_mul_of_invertible, rmul_adjoint, StarMul.star_mul, star_smul, _root_.map_smul]
+  simp only [← StarMul.star_mul, mul_inv_of_invertible, star_one, _root_.map_one, rmul_one,
+    lmul_one, one_mul, smul_smul, star_div₀]
+  simp only [one_div, RCLike.star_def, Complex.conj_ofReal, ← pow_two]
+  simp only [inv_pow]
+  simp only [QuantumSetDeltaForm.delta, ← hφ.norm_sq_dualMatrix_inv]
+
+
+-- @@ L422-460 expanded
+theorem QuantumGraph.Real.ofNormOneMatrix_is_reflexive_iff [Nontrivial n]
+    (x : { x : Matrix n n ℂ // ‖x‖ = 1 }) :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    letI : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+    (schurMul (ofNormOneMatrix (φ := φ) x) 1 = 1 ↔
+      ∃ α : ℂˣ, (x : Matrix n n ℂ) = (α : ℂ) • φ.matrix⁻¹) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+      let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+      let := Module.Dual.NormedAddCommGroup φ;
+      let :=
+        (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+      let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+      let := Module.Dual.InnerProductSpace (φ := φ);
+    let : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+  simp_rw [ofNormOneMatrix, ← QuantumSet.Psi_symm_transpose_kroneckerToTensor_toMatrix_rankOne, ←
+    Function.Injective.eq_iff (QuantumSet.Psi 0 (1 / 2)).injective, Psi.schurMul,
+    LinearEquiv.apply_symm_apply, QuantumSet.Psi_apply_matrix_one]
+  rw [← _root_.map_mul, ← _root_.map_mul, ← _root_.map_mul onb.toMatrix]
+  simp only [(StarAlgEquiv.injective _).eq_iff, (AlgEquiv.injective _).eq_iff]
+  simp only [Module.End.mul_eq_comp, LinearMap.comp_rankOne, ContinuousLinearMap.coe_coe,
+    rankOne_apply, ContinuousLinearMap.coe_inj, hφ.inner_dualMatrix_right]
+  rw [← sub_eq_zero]
+  simp_rw [← LinearMap.sub_apply, ← map_sub]
+  let : Invertible (φ.matrix) := hφ.matrixIsPosDef.invertible
+  rw [rankOne.eq_zero_iff, sub_eq_zero]
+  simp only [Invertible.ne_zero, or_false, ← trace_conjTranspose]
+  constructor
+  · intro h
+    rw [← h]
+    have htrace : ((x : Matrix n n ℂ)ᴴ).trace ≠ 0 :=
+      by
+      intro hx
+      rw [hx, zero_smul, eq_comm] at h
+      simp only [Invertible.ne_zero] at h
+    let α := Units.mk0 (((x : Matrix n n ℂ)ᴴ).trace) htrace
+    have hα : α = ((x : Matrix n n ℂ)ᴴ).trace := rfl
+    use α⁻¹
+    simp only [← hα, smul_smul, Units.inv_mul, one_smul]
+  · intro ⟨α, hα⟩
+    simp_rw [hα, conjTranspose_smul, trace_smul, hφ.matrixIsPosDef.inv.1.eq, smul_smul, smul_eq_mul]
+    rw [mul_rotate _ _ (α : ℂ), mul_assoc _ _ (star (α : ℂ)), Complex.star_def, Complex.mul_conj,
+      Complex.normSq_eq_norm_sq, ← hφ.norm_sq_dualMatrix_inv, ← Complex.ofReal_pow, ←
+      Complex.ofReal_mul, ← mul_pow, mul_comm, ← norm_smul, ← hα, x.property, one_pow,
+      Complex.ofReal_one, one_smul]
+
+
+-- @@ L462-467 verbatim
+theorem Matrix.traceLinearMap_comp_tensorToKronecker {n : Type*} [DecidableEq n] [Fintype n] :
+  Matrix.traceLinearMap (n × n) ℂ ℂ ∘ₗ TensorProduct.toKronecker
+    = LinearMap.mul' ℂ _
+       ∘ₗ (TensorProduct.map
+         (Matrix.traceLinearMap n ℂ ℂ) (Matrix.traceLinearMap n ℂ ℂ)) :=
+by ext; simp [TensorProduct.toKronecker_apply, trace_kronecker]
+
+
+-- @@ L469-473 verbatim
+theorem traceLinearMap_comp_transposeStarAlgEquiv_symm
+  {n : Type*} [DecidableEq n] [Fintype n] :
+  traceLinearMap n ℂ ℂ ∘ₗ (transposeStarAlgEquiv n).symm.toLinearMap
+    = traceLinearMap n ℂ ℂ ∘ₗ (unop ℂ).toLinearMap :=
+by rfl
+
+
+-- @@ L475-475 verbatim
+open scoped InnerProductSpace
+
+-- @@ L476-479 verbatim
+theorem QuantumGraph.NumOfEdges_eq {A : Type*} [starAlgebra A] [QuantumSet A]
+  (B : A →ₗ[ℂ] A) :
+  QuantumGraph.NumOfEdges B = ⟪1, B 1⟫_ℂ :=
+rfl
+
+
+-- @@ L481-537 expanded
+theorem QuantumGraph.Real.matrixSubmodule_finrank_eq_numOfEdges_of_counit_eq_trace :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    letI : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+    (Coalgebra.counit (R := ℂ) (A := Matrix n n ℂ) = Matrix.traceLinearMap n ℂ ℂ) →
+      ∀ {A : Matrix n n ℂ →ₗ[ℂ] Matrix n n ℂ},
+        (hA : QuantumGraph.Real _ A) →
+          (Module.finrank ℂ (hA.matrixSubmodule (φ := φ)) : ℂ) = QuantumGraph.NumOfEdges A :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+      let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+      let := Module.Dual.NormedAddCommGroup φ;
+      let :=
+        (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+      let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+      let := Module.Dual.InnerProductSpace (φ := φ);
+    let : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+  intro hc A hA
+  simp only [← _root_.orthogonalProjection_trace, hA.matrix_orthogonalProjection_eq]
+  simp only [ContinuousLinearMap.toLinearMapAlgEquiv_symm_apply]
+  simp only [LinearMap.coe_toContinuousLinearMap]
+  rw [LinearMap.trace_eq_matrix_trace ℂ onb.toBasis]
+  have htoMatrix :
+    (LinearMap.toMatrix onb.toBasis onb.toBasis) =
+      (onb.toMatrix :
+          (Matrix n n ℂ →ₗ[ℂ] Matrix n n ℂ) ≃⋆ₐ[ℂ]
+            Matrix (n × n) (n × n) ℂ).toAlgEquiv.toLinearEquiv :=
+    by
+    rw [← orthonormalBasis_toMatrix_eq_basis_toMatrix onb]
+    rfl
+  rw [htoMatrix]
+  change
+    (((onb.toMatrix : (Matrix n n ℂ →ₗ[ℂ] Matrix n n ℂ) ≃⋆ₐ[ℂ] Matrix (n × n) (n × n) ℂ)
+          ((onb.toMatrix : (Matrix n n ℂ →ₗ[ℂ] Matrix n n ℂ) ≃⋆ₐ[ℂ] Matrix (n × n) (n × n) ℂ).symm
+            ((tensorToKronecker (R := ℂ) (m := n) (n := n))
+              ((StarAlgEquiv.lTensor (Matrix n n ℂ) (transposeStarAlgEquiv n).symm)
+                ((QuantumSet.Psi 0 (1 / 2)) A))))).trace) =
+      (QuantumGraph.NumOfEdges A : ℂ)
+  rw [StarAlgEquiv.apply_symm_apply]
+  simp only [tensorToKronecker, Matrix.kroneckerAlgEquiv_apply]
+  rw [← Matrix.traceLinearMap_apply _ ℂ]
+  change
+    (Matrix.traceLinearMap (n × n) ℂ ℂ ∘ₗ TensorProduct.toKronecker)
+        ((StarAlgEquiv.lTensor (Matrix n n ℂ) (transposeStarAlgEquiv n).symm)
+          ((QuantumSet.Psi 0 (1 / 2)) A)) =
+      QuantumGraph.NumOfEdges A
+  rw [Matrix.traceLinearMap_comp_tensorToKronecker]
+  rw [← StarAlgEquiv.toLinearMap_apply, StarAlgEquiv.lTensor_toLinearMap, ← LinearMap.comp_apply,
+    LinearMap.comp_assoc, LinearMap.map_comp_lTensor,
+    traceLinearMap_comp_transposeStarAlgEquiv_symm]
+  simp only [QuantumGraph.NumOfEdges_eq]
+  rw [oneInner_map_one_eq_oneInner_Psi_map _ 0 (1 / 2)]
+  rw [← bra_apply_apply ℂ (1 : Matrix n n ℂ ⊗[ℂ] (Matrix n n ℂ)ᵐᵒᵖ), ← ContinuousLinearMap.coe_coe,
+    ← Coalgebra.counit_self_tensor_mulOpposite_eq_bra_one]
+  simp only [TensorProduct.instCoalgebraStruct'_counit, hc, LinearMap.comp_apply]
+  congr 1
+  · apply TensorProduct.ext'
+    simp [mul_comm]
+  · rw [TensorProduct.AlgebraTensorModule.map_eq]
+    change
+      (TensorProduct.map (traceLinearMap n ℂ ℂ) (traceLinearMap n ℂ ℂ ∘ₗ (unop ℂ).toLinearMap))
+          ((QuantumSet.Psi 0 (1 / 2)) A) =
+        (TensorProduct.map (traceLinearMap n ℂ ℂ)
+            (Coalgebra.counit (R := ℂ) (A := (Matrix n n ℂ)ᵐᵒᵖ)))
+          ((QuantumSet.Psi 0 (1 / 2)) A)
+    rw [Coalgebra.counit_mulOpposite, hc]
+
+
+-- @@ L539-543 verbatim
+theorem Matrix.traceLinearMap_dualMatrix_eq
+  {n : Type*} [DecidableEq n] [Fintype n] :
+  Module.Dual.matrix (Matrix.traceLinearMap n ℂ ℂ) = 1 := by
+  refine Eq.symm (Module.Dual.apply_eq_of _ 1 (fun _ => ?_))
+  simp_all
+
+
+-- @@ L545-563 expanded
+theorem QuantumGraph.Real.ofNormOneMatrix_eq_ofNormOneMatrix_iff
+    {x y : { x : Matrix n n ℂ // ‖x‖ = 1 }} :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    (ofNormOneMatrix (φ := φ) x = ofNormOneMatrix (φ := φ) y ↔
+      ∃ α : ℂˣ, (x : Matrix n n ℂ) = (α : ℂ) • (y : Matrix n n ℂ)) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+    let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+    let := Module.Dual.NormedAddCommGroup φ;
+    let := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+    let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+    let := Module.Dual.InnerProductSpace (φ := φ)
+  simp only [ofNormOneMatrix]
+  simp only [← @QuantumSet.Psi_symm_transpose_kroneckerToTensor_toMatrix_rankOne,
+    (LinearEquiv.injective _).eq_iff, (StarAlgEquiv.injective _).eq_iff,
+    (AlgEquiv.injective _).eq_iff]
+  constructor
+  · simp_rw [ContinuousLinearMap.coe_inj]; exact colinear_of_rankOne_self_eq_rankOne_self _ _
+  · rintro ⟨α, hα⟩
+    have := x.property
+    simp only [hα, norm_smul, y.property, mul_one] at this
+    simp only [hα, _root_.map_smul, map_smulₛₗ, LinearMap.smul_apply,
+      ContinuousLinearMap.toLinearMap_smul]
+    rw [smul_smul, RCLike.conj_mul, this, RCLike.ofReal_one, one_pow, one_smul]
+
+
+-- @@ L565-611 expanded
+theorem QuantumGraph.Real.reflexive_matrix_numOfEdges_eq_one_iff_eq_trivialGraph_of_counit_eq_trace
+    [Nontrivial n] :
+    letI := Matrix.isStarAlgebra (φ := φ)
+    letI := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ)
+    letI := Module.Dual.NormedAddCommGroup φ
+    letI := (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup
+    letI := Module.Dual.InnerProductSpace (φ := φ)
+    letI : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+    letI : QuantumSetDeltaForm (Matrix n n ℂ) := Matrix.quantumSetDeltaForm (φ := φ)
+    (Coalgebra.counit (R := ℂ) (A := Matrix n n ℂ) = Matrix.traceLinearMap n ℂ ℂ) →
+      ∀ {A : Matrix n n ℂ →ₗ[ℂ] Matrix n n ℂ},
+        (hA : QuantumGraph.Real _ A) →
+          schurMul A 1 = 1 → (QuantumGraph.NumOfEdges A = 1 ↔ A = Qam.trivialGraph _) :=
+  by
+  let := Matrix.isStarAlgebra (φ := φ);
+      let := Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ);
+      let := Module.Dual.NormedAddCommGroup φ;
+      let :=
+        (Module.Dual.NormedAddCommGroup φ).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+      let := (Module.Dual.NormedAddCommGroup φ).toSeminormedAddCommGroup;
+      let := Module.Dual.InnerProductSpace (φ := φ);
+    let : Coalgebra ℂ (Matrix n n ℂ) := Coalgebra.ofFiniteDimensionalHilbertAlgebra
+  let : QuantumSetDeltaForm (Matrix n n ℂ) := Matrix.quantumSetDeltaForm (φ := φ)
+  intro hc A hA hA₂
+  constructor
+  · rw [← matrixSubmodule_finrank_eq_numOfEdges_of_counit_eq_trace hc hA]
+    simp only [Nat.cast_eq_one]
+    let := hφ.matrixIsPosDef.invertible
+    intro h
+    let u : OrthonormalBasis (Fin 1) ℂ _ := by rw [← h];
+      exact stdOrthonormalBasis ℂ (hA.matrixSubmodule (φ := φ))
+    let u' : { x : Matrix n n ℂ // ‖x‖ = 1 } := ⟨u 0, u.norm_eq_one _⟩
+    have : A = ofNormOneMatrix u' :=
+      by
+      rw [hA.matrix_eq_of_orthonormalBasis u]
+      simp only [Finset.univ_unique, Fin.default_eq_zero, Fin.isValue, Finset.sum_singleton]
+      rfl
+    rw [this, ← ofNormOneMatrix_eq_trivialGraph, ofNormOneMatrix_eq_ofNormOneMatrix_iff,
+      normalizeOfNeZero]
+    simp only [this] at *
+    rw [ofNormOneMatrix_is_reflexive_iff (φ := φ) u'] at hA₂
+    obtain ⟨α, hα⟩ := hA₂
+    simp only [u'] at *
+    let α' : ℂˣ :=
+      Units.mk0 ‖φ.matrix⁻¹‖
+        (by
+          simp only [ne_eq, Complex.ofReal_eq_zero, norm_eq_zero, Invertible.ne_zero,
+            not_false_eq_true])
+    have hα' : α' = (‖φ.matrix⁻¹‖ : ℂ) := rfl
+    use α * α'
+    rw [hα]
+    simp only [Units.val_mul, α', Units.val_mk0, smul_smul, one_div]
+    simp only [← hα']
+    simp only [isUnit_iff_ne_zero, ne_eq, Units.ne_zero, not_false_eq_true,
+      IsUnit.mul_inv_cancel_right]
+  · rintro rfl
+    rw [QuantumGraph.NumOfEdges_eq, Qam.trivialGraph_eq, LinearMap.smul_apply, inner_smul_right,
+      Module.End.one_apply]
+    have : φ = Matrix.traceLinearMap n ℂ ℂ := by rw [← hc]; exact Eq.symm counit_eq_dual
+    simp only [QuantumSetDeltaForm.delta, this, Matrix.traceLinearMap_dualMatrix_eq, inv_one,
+      hφ.inner_eq', one_mul, conjTranspose_one]
+    simp_all
+
+
+-- @@ L613-634 expanded
+theorem counit_eq_traceLinearMap_of_counit_eq_piMat_traceLinearMap {ι : Type*} [DecidableEq ι]
+    [Fintype ι] {p : ι → Type*} [Π i, Fintype (p i)] [Π i, DecidableEq (p i)]
+    {φ : Π i, Module.Dual ℂ (Matrix (p i) (p i) ℂ)} [hφ : Π i, (φ i).IsFaithfulPosMap] :
+    letI := PiMat.isStarAlgebra (ψ := φ)
+    letI := Module.Dual.pi.IsFaithfulPosMap.quantumSet (ψ := φ)
+    letI := Module.Dual.PiNormedAddCommGroup (φ := φ)
+    letI :=
+      (Module.Dual.PiNormedAddCommGroup (φ :=
+          φ)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.PiNormedAddCommGroup (φ := φ)).toSeminormedAddCommGroup
+    letI := Module.Dual.pi.InnerProductSpace (φ := φ)
+    letI := fun i => Matrix.isStarAlgebra (φ := φ i)
+    letI := fun i => Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ i)
+    letI := fun i => Module.Dual.NormedAddCommGroup (φ i)
+    letI := fun i =>
+      (Module.Dual.NormedAddCommGroup (φ i)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := fun i => (Module.Dual.NormedAddCommGroup (φ i)).toSeminormedAddCommGroup
+    letI := fun i => Module.Dual.InnerProductSpace (φ := φ i)
+    letI := PiMat.finiteDimensionalHilbertCoalgebraStruct (φ := φ)
+    letI := fun i =>
+      (Coalgebra.ofFiniteDimensionalHilbertAlgebra (R := ℂ) (A := Mat ℂ (p i)) :
+        Coalgebra ℂ (Mat ℂ (p i)))
+    (Coalgebra.counit (R := ℂ) (A := PiMat ℂ ι p) = PiMat.traceLinearMap) →
+      ∀ i : ι, Coalgebra.counit (R := ℂ) (A := Mat ℂ (p i)) = traceLinearMap (p i) ℂ ℂ :=
+  by
+  let := PiMat.isStarAlgebra (ψ := φ);
+        let := Module.Dual.pi.IsFaithfulPosMap.quantumSet (ψ := φ);
+        let := Module.Dual.PiNormedAddCommGroup (φ := φ);
+        let :=
+          (Module.Dual.PiNormedAddCommGroup (φ :=
+              φ)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+        let := (Module.Dual.PiNormedAddCommGroup (φ := φ)).toSeminormedAddCommGroup;
+        let := Module.Dual.pi.InnerProductSpace (φ := φ);
+      let := fun i => Matrix.isStarAlgebra (φ := φ i);
+      let := fun i => Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ i);
+      let := fun i => Module.Dual.NormedAddCommGroup (φ i);
+      let := fun i =>
+        (Module.Dual.NormedAddCommGroup
+            (φ i)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+      let := fun i => (Module.Dual.NormedAddCommGroup (φ i)).toSeminormedAddCommGroup;
+      let := fun i => Module.Dual.InnerProductSpace (φ := φ i);
+    let := PiMat.finiteDimensionalHilbertCoalgebraStruct (φ := φ)
+  let := fun i =>
+    (Coalgebra.ofFiniteDimensionalHilbertAlgebra (R := ℂ) (A := Mat ℂ (p i)) :
+      Coalgebra ℂ (Mat ℂ (p i)))
+  intro hc i
+  simp only [PiMat.counit_eq_dual, counit_eq_dual, LinearMap.ext_iff] at hc ⊢
+  intro x
+  specialize hc (includeBlock ((includeBlock x) i))
+  rw [Module.Dual.pi.apply_single_block, includeBlock_apply_same] at hc
+  rw [hc]
+  simp only [LinearMap.coe_comp, Function.comp_apply, AlgHom.toLinearMap_apply,
+    traceLinearMap_apply, blockDiagonal'AlgHom_apply, blockDiagonal'_includeBlock_trace']
+
+
+-- @@ L636-659 expanded
+/-- A reflexive self-adjoint quantum graph on at least two nonzero matrix blocks cannot have
+exactly one edge when the counit is the trace. -/
+theorem QuantumGraph.Real.numOfEdges_ne_one_of_isSelfAdjoint_and_reflexive {ι : Type*} [Fintype ι]
+    [DecidableEq ι] [Nontrivial ι] {p : ι → Type*} [∀ i, Fintype (p i)] [∀ i, DecidableEq (p i)]
+    [∀ i, Nonempty (p i)] {φ : Π i, Module.Dual ℂ (Matrix (p i) (p i) ℂ)}
+    [hφ : Π i, (φ i).IsFaithfulPosMap] :
+    letI := PiMat.isStarAlgebra (ψ := φ)
+    letI := Module.Dual.pi.IsFaithfulPosMap.quantumSet (ψ := φ)
+    letI := Module.Dual.PiNormedAddCommGroup (φ := φ)
+    letI :=
+      (Module.Dual.PiNormedAddCommGroup (φ :=
+          φ)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.PiNormedAddCommGroup (φ := φ)).toSeminormedAddCommGroup
+    letI := Module.Dual.pi.InnerProductSpace (φ := φ)
+    letI := fun i => Matrix.isStarAlgebra (φ := φ i)
+    letI := fun i => Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ i)
+    letI := fun i => Module.Dual.NormedAddCommGroup (φ i)
+    letI := fun i =>
+      (Module.Dual.NormedAddCommGroup (φ i)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := fun i => (Module.Dual.NormedAddCommGroup (φ i)).toSeminormedAddCommGroup
+    letI := fun i => Module.Dual.InnerProductSpace (φ := φ i)
+    letI := PiMat.finiteDimensionalHilbertCoalgebraStruct (φ := φ)
+    (Coalgebra.counit (R := ℂ) (A := PiMat ℂ ι p) = PiMat.traceLinearMap) →
+      ∀ {A : PiMat ℂ ι p →ₗ[ℂ] PiMat ℂ ι p},
+        (hA : QuantumGraph.Real _ A) →
+          LinearMap.adjoint A = A → schurMul A 1 = 1 → QuantumGraph.NumOfEdges A ≠ 1 :=
+  by
+  let := PiMat.isStarAlgebra (ψ := φ);
+        let := Module.Dual.pi.IsFaithfulPosMap.quantumSet (ψ := φ);
+        let := Module.Dual.PiNormedAddCommGroup (φ := φ);
+        let :=
+          (Module.Dual.PiNormedAddCommGroup (φ :=
+              φ)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+        let := (Module.Dual.PiNormedAddCommGroup (φ := φ)).toSeminormedAddCommGroup;
+        let := Module.Dual.pi.InnerProductSpace (φ := φ);
+      let := fun i => Matrix.isStarAlgebra (φ := φ i);
+      let := fun i => Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ i);
+      let := fun i => Module.Dual.NormedAddCommGroup (φ i);
+      let := fun i =>
+        (Module.Dual.NormedAddCommGroup
+            (φ i)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+      let := fun i => (Module.Dual.NormedAddCommGroup (φ i)).toSeminormedAddCommGroup;
+      let := fun i => Module.Dual.InnerProductSpace (φ := φ i);
+    let := PiMat.finiteDimensionalHilbertCoalgebraStruct (φ := φ)
+  intro hc A hA hself href hdim
+  rw [← QuantumGraph.dimOfPiMatSubmodule_eq_numOfEdges_of_trace_counit hc hA.toQuantumGraph,
+    Nat.cast_eq_one] at hdim
+  obtain ⟨i, hi, _⟩ :=
+    hA.exists_unique_includeMap_of_adjoint_and_dim_ofPiMatSubmodule_eq_one hself hdim
+  obtain ⟨j, hji⟩ := exists_ne i
+  have hproj : LinearMap.proj j ∘ₗ A = 0 := by
+    rw [← hi, ← LinearMap.comp_assoc, LinearMap.proj_adjoint,
+      LinearMap.proj_comp_single_ne _ _ _ _ hji, LinearMap.zero_comp]
+  have hzero := schurMul_proj_comp A 1 j
+  rw [hproj, href, LinearMap.comp_one] at hzero
+  have hone := LinearMap.congr_fun hzero (1 : PiMat ℂ ι p)
+  simp at hone
+
+
+-- @@ L661-693 expanded
+theorem QuantumGraph.Real.PiMatFinTwo_same_isSelfAdjoint_reflexive_and_numOfEdges_eq_one
+    {φ : Π i, Module.Dual ℂ (Matrix (PiFinTwoSame n i) (PiFinTwoSame n i) ℂ)}
+    [hφ : Π i, (φ i).IsFaithfulPosMap] [Nontrivial n] :
+    letI := PiMat.isStarAlgebra (ψ := φ)
+    letI := Module.Dual.pi.IsFaithfulPosMap.quantumSet (ψ := φ)
+    letI := Module.Dual.PiNormedAddCommGroup (φ := φ)
+    letI :=
+      (Module.Dual.PiNormedAddCommGroup (φ :=
+          φ)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := (Module.Dual.PiNormedAddCommGroup (φ := φ)).toSeminormedAddCommGroup
+    letI := Module.Dual.pi.InnerProductSpace (φ := φ)
+    letI := fun i => Matrix.isStarAlgebra (φ := φ i)
+    letI := fun i => Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ i)
+    letI := fun i => Module.Dual.NormedAddCommGroup (φ i)
+    letI := fun i =>
+      (Module.Dual.NormedAddCommGroup (φ i)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := fun i => (Module.Dual.NormedAddCommGroup (φ i)).toSeminormedAddCommGroup
+    letI := fun i => Module.Dual.InnerProductSpace (φ := φ i)
+    letI := PiMat.finiteDimensionalHilbertCoalgebraStruct (φ := φ)
+    letI := fun i =>
+      (Coalgebra.ofFiniteDimensionalHilbertAlgebra (R := ℂ) (A := Mat ℂ (PiFinTwoSame n i)) :
+        Coalgebra ℂ (Mat ℂ (PiFinTwoSame n i)))
+    letI := fun i =>
+      (Matrix.quantumSetDeltaForm (φ := φ i) : QuantumSetDeltaForm (Mat ℂ (PiFinTwoSame n i)))
+    (Coalgebra.counit (R := ℂ) (A := PiMat ℂ (Fin 2) (PiFinTwoSame n)) = PiMat.traceLinearMap) →
+      ∀ {A : PiMat ℂ (Fin 2) (PiFinTwoSame n) →ₗ[ℂ] PiMat ℂ (Fin 2) (PiFinTwoSame n)},
+        (hA : QuantumGraph.Real _ A) →
+          LinearMap.adjoint A = A →
+            schurMul A 1 = 1 →
+              QuantumGraph.NumOfEdges A = 1 →
+                A =
+                    LinearMap.adjoint (LinearMap.proj 0) ∘ₗ
+                      Qam.trivialGraph (Mat ℂ (PiFinTwoSame n 0)) ∘ₗ LinearMap.proj 0 ∨
+                  A =
+                    LinearMap.adjoint (LinearMap.proj 1) ∘ₗ
+                      Qam.trivialGraph (Mat ℂ (PiFinTwoSame n 1)) ∘ₗ LinearMap.proj 1 :=
+  by
+  let := PiMat.isStarAlgebra (ψ := φ);
+        let := Module.Dual.pi.IsFaithfulPosMap.quantumSet (ψ := φ);
+        let := Module.Dual.PiNormedAddCommGroup (φ := φ);
+        let :=
+          (Module.Dual.PiNormedAddCommGroup (φ :=
+              φ)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+        let := (Module.Dual.PiNormedAddCommGroup (φ := φ)).toSeminormedAddCommGroup;
+        let := Module.Dual.pi.InnerProductSpace (φ := φ);
+      let := fun i => Matrix.isStarAlgebra (φ := φ i);
+      let := fun i => Module.Dual.IsFaithfulPosMap.quantumSet (φ := φ i);
+      let := fun i => Module.Dual.NormedAddCommGroup (φ i);
+      let := fun i =>
+        (Module.Dual.NormedAddCommGroup
+            (φ i)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+      let := fun i => (Module.Dual.NormedAddCommGroup (φ i)).toSeminormedAddCommGroup;
+      let := fun i => Module.Dual.InnerProductSpace (φ := φ i);
+    let := PiMat.finiteDimensionalHilbertCoalgebraStruct (φ := φ)
+  let := fun i =>
+    (Coalgebra.ofFiniteDimensionalHilbertAlgebra (R := ℂ) (A := Mat ℂ (PiFinTwoSame n i)) :
+      Coalgebra ℂ (Mat ℂ (PiFinTwoSame n i)))
+  let := fun i =>
+    (Matrix.quantumSetDeltaForm (φ := φ i) : QuantumSetDeltaForm (Mat ℂ (PiFinTwoSame n i)))
+  intro hc A hA hA₂ hA₃ hA₄
+  exact (hA.numOfEdges_ne_one_of_isSelfAdjoint_and_reflexive hc hA₂ hA₃ hA₄).elim
+
+
+-- @@ L695-702 verbatim
+/-- Isomorphism data between two quantum graphs via a star-algebra equivalence. -/
+class QuantumGraph.equiv
+    {A B : Type*} [starAlgebra A] [QuantumSet A] [starAlgebra B] [QuantumSet B]
+    (x : A →ₗ[ℂ] A) (y : B →ₗ[ℂ] B) (f : A ≃⋆ₐ[ℂ] B) : Prop where
+  /-- The equivalence is isometric. -/
+  isIsometry : Isometry f
+  /-- The equivalence intertwines the adjacency maps. -/
+  prop : f.toLinearMap ∘ₗ x = y ∘ₗ f.toLinearMap
+
+
+-- @@ L704-708 verbatim
+lemma QuantumGraph.equiv_prop {A B : Type*} [starAlgebra A] [QuantumSet A]
+  [starAlgebra B] [QuantumSet B]
+  (x : A →ₗ[ℂ] A) (y : B →ₗ[ℂ] B) {f : A ≃⋆ₐ[ℂ] B} (hf : QuantumGraph.equiv x y f) :
+    f.toLinearMap ∘ₗ x = y ∘ₗ f.toLinearMap :=
+hf.prop
+
+
+-- @@ L710-716 verbatim
+lemma QuantumGraph.equiv_prop' {A B : Type*} [starAlgebra A] [QuantumSet A]
+  [starAlgebra B] [QuantumSet B]
+  (x : A →ₗ[ℂ] A) (y : B →ₗ[ℂ] B) {f : A ≃⋆ₐ[ℂ] B} (hf : QuantumGraph.equiv x y f) :
+    f.toLinearMap ∘ₗ x ∘ₗ LinearMap.adjoint f.toLinearMap = y := by
+  rw [← LinearMap.comp_assoc, hf.prop,
+    QuantumSet.starAlgEquiv_isometry_iff_adjoint_eq_symm.mp hf.isIsometry,
+    eq_comm, ← StarAlgEquiv.comp_eq_iff]
+
+
+-- @@ L718-726 verbatim
+lemma Pi.eq_sum_single_proj (R : Type*) {ι : Type*} [Semiring R]
+  [Fintype ι] [DecidableEq ι]
+  {φ : ι → Type*} [(i : ι) → AddCommMonoid (φ i)]
+  [(i : ι) → Module R (φ i)]
+  (x : Π i, φ i) :
+  x = ∑ i, Pi.single (i : ι) (x i) := by
+  simp_rw [← LinearMap.proj_apply (R := R) (φ := φ), ← LinearMap.single_apply (R:=R),
+    ← LinearMap.comp_apply, ← LinearMap.sum_apply, LinearMap.sum_single_comp_proj]
+  rfl
+
+
+-- @@ L728-736 verbatim
+/-- Swap the two equal blocks of a `Fin 2`-indexed `PiMat` as a star-algebra equivalence. -/
+noncomputable def PiMatFinTwoSameSwapStarAlgEquiv {n : Type*} [Fintype n] [DecidableEq n] :
+  PiMat ℂ (Fin 2) (PiFinTwoSame n) ≃⋆ₐ[ℂ] PiMat ℂ (Fin 2) (PiFinTwoSame n) :=
+  StarAlgEquiv.ofAlgEquiv (PiMatFinTwoSameSwapAlgEquiv (n := n))
+    (fun x => by
+      rw [Pi.eq_sum_single_proj ℂ x]
+      simp only [Fin.sum_univ_two, Fin.isValue, star_add, map_add, ← Pi.single_star,
+        PiMatFinTwoSameSwapAlgEquiv_apply_piSingle_one,
+        PiMatFinTwoSameSwapAlgEquiv_apply_piSingle_zero])
+
+
+-- @@ L738-746 verbatim
+lemma PiMatFinTwoSameSwapStarAlgEquiv_apply {n : Type*} [Fintype n] [DecidableEq n]
+  (x : PiMat ℂ (Fin 2) (PiFinTwoSame n)) :
+  PiMatFinTwoSameSwapStarAlgEquiv x =
+    Pi.single (0 : Fin 2) (x 1) + Pi.single (1 : Fin 2) (x 0) := by
+  nth_rw 1 [Pi.eq_sum_single_proj ℂ x]
+  simp only [Fin.sum_univ_two, Fin.isValue, map_add,
+    PiMatFinTwoSameSwapStarAlgEquiv, StarAlgEquiv.ofAlgEquiv_coe,
+    PiMatFinTwoSameSwapAlgEquiv_apply_piSingle_one,
+    PiMatFinTwoSameSwapAlgEquiv_apply_piSingle_zero, add_comm]
+
+
+-- @@ L748-750 verbatim
+lemma PiMatFinTwoSameSwapStarAlgEquiv_toAlgEquiv {n : Type*} [Fintype n] [DecidableEq n] :
+  (PiMatFinTwoSameSwapStarAlgEquiv (n := n)).toAlgEquiv = PiMatFinTwoSameSwapAlgEquiv :=
+rfl
+
+
+-- @@ L752-755 verbatim
+theorem PiMatFinTwoSameSwapStarAlgEquiv_symm {n : Type*} [Fintype n] [DecidableEq n] :
+  (PiMatFinTwoSameSwapStarAlgEquiv (n := n)).symm
+    = PiMatFinTwoSameSwapStarAlgEquiv :=
+rfl
+
+
+-- @@ L757-762 verbatim
+/-- The constant two-block functional used for two identical matrix summands. -/
+abbrev PiFinTwoSameFunctional {n : Type*}
+    (φ : Module.Dual ℂ (Matrix n n ℂ)) :
+    (i : Fin 2) → Module.Dual ℂ
+      (Matrix (PiFinTwoSame n i) (PiFinTwoSame n i) ℂ) :=
+  fun _ => φ
+
+
+-- @@ L764-787 expanded
+lemma PiMatFinTwoSameSwapStarAlgEquiv_isometry :
+    letI : ∀ i, (PiFinTwoSameFunctional φ i).IsFaithfulPosMap := fun _ => hφ
+    letI := PiMat.isStarAlgebra (ψ := PiFinTwoSameFunctional φ)
+    letI := Module.Dual.pi.IsFaithfulPosMap.quantumSet (ψ := PiFinTwoSameFunctional φ)
+    letI := Module.Dual.PiNormedAddCommGroup (φ := PiFinTwoSameFunctional φ)
+    letI :=
+      (Module.Dual.PiNormedAddCommGroup (φ :=
+          PiFinTwoSameFunctional φ)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI :=
+      (Module.Dual.PiNormedAddCommGroup (φ := PiFinTwoSameFunctional φ)).toSeminormedAddCommGroup
+    letI := Module.Dual.pi.InnerProductSpace (φ := PiFinTwoSameFunctional φ)
+    letI := fun i => Matrix.isStarAlgebra (φ := (PiFinTwoSameFunctional φ) i)
+    letI := fun i => Module.Dual.IsFaithfulPosMap.quantumSet (φ := (PiFinTwoSameFunctional φ) i)
+    letI := fun i => Module.Dual.NormedAddCommGroup ((PiFinTwoSameFunctional φ) i)
+    letI := fun i =>
+      (Module.Dual.NormedAddCommGroup
+          ((PiFinTwoSameFunctional φ) i)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := fun i =>
+      (Module.Dual.NormedAddCommGroup ((PiFinTwoSameFunctional φ) i)).toSeminormedAddCommGroup
+    letI := fun i => Module.Dual.InnerProductSpace (φ := (PiFinTwoSameFunctional φ) i)
+    (LinearMap.adjoint PiMatFinTwoSameSwapStarAlgEquiv.toLinearMap =
+      (PiMatFinTwoSameSwapStarAlgEquiv (n := n)).symm.toLinearMap) :=
+  by
+  let ψ := PiFinTwoSameFunctional φ
+  let : ∀ i, (ψ i).IsFaithfulPosMap := fun _ => hφ
+  let := PiMat.isStarAlgebra (ψ := ψ);
+      let := Module.Dual.pi.IsFaithfulPosMap.quantumSet (ψ := ψ);
+      let := Module.Dual.PiNormedAddCommGroup (φ := ψ);
+      let :=
+        (Module.Dual.PiNormedAddCommGroup (φ :=
+            ψ)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+      let := (Module.Dual.PiNormedAddCommGroup (φ := ψ)).toSeminormedAddCommGroup;
+      let := Module.Dual.pi.InnerProductSpace (φ := ψ);
+    let := fun i => Matrix.isStarAlgebra (φ := ψ i);
+    let := fun i => Module.Dual.IsFaithfulPosMap.quantumSet (φ := ψ i);
+    let := fun i => Module.Dual.NormedAddCommGroup (ψ i);
+    let := fun i =>
+      (Module.Dual.NormedAddCommGroup (ψ i)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+    let := fun i => (Module.Dual.NormedAddCommGroup (ψ i)).toSeminormedAddCommGroup;
+    let := fun i => Module.Dual.InnerProductSpace (φ := ψ i)
+  simp only [PiMatFinTwoSameSwapStarAlgEquiv_symm]
+  apply LinearMap.ext
+  intro x
+  apply ext_inner_left ℂ
+  intro y
+  simp only [LinearMap.adjoint_inner_right, StarAlgEquiv.toLinearMap_apply,
+    PiMatFinTwoSameSwapStarAlgEquiv_apply]
+  nth_rw 1 [Pi.eq_sum_single_proj ℂ x]
+  nth_rw 3 [Pi.eq_sum_single_proj ℂ y]
+  simp only [Fin.isValue, Fin.sum_univ_two]
+  simp only [inner, Fin.isValue, Pi.add_apply, Fin.sum_univ_two, Pi.single_eq_same, ne_eq,
+    zero_ne_one, not_false_eq_true, Pi.single_eq_of_ne, add_comm, zero_add, one_ne_zero]
+  rw [inner_pi_eq_sum (ψ := ψ)]
+  simp [PiFinTwoSameFunctional, Module.Dual.IsFaithfulPosMap.inner_eq, Fin.sum_univ_two]
+  simp [ψ, PiFinTwoSameFunctional]
+
+
+-- @@ L789-794 verbatim
+theorem PiMatFinTwoSameSwapStarAlgEquiv_comp_linearMapSingle_zero
+  {n : Type*} [Fintype n] [DecidableEq n] :
+  (PiMatFinTwoSameSwapStarAlgEquiv (n := n)).toLinearMap
+    ∘ₗ (LinearMap.single ℂ (fun (j : Fin 2) => Mat ℂ (PiFinTwoSame n j)) 0)
+    = LinearMap.single ℂ (fun (j : Fin 2) => Mat ℂ (PiFinTwoSame n j)) 1 :=
+PiMatFinTwoSameSwapAlgEquiv_comp_linearMapSingle_zero
+
+-- @@ L795-800 verbatim
+theorem PiMatFinTwoSameSwapStarAlgEquiv_comp_linearMapSingle_one
+  {n : Type*} [Fintype n] [DecidableEq n] :
+  (PiMatFinTwoSameSwapStarAlgEquiv (n := n)).toLinearMap
+    ∘ₗ (LinearMap.single ℂ (fun (j : Fin 2) => Mat ℂ (PiFinTwoSame n j)) 1)
+    = LinearMap.single ℂ (fun (j : Fin 2) => Mat ℂ (PiFinTwoSame n j)) 0 :=
+PiMatFinTwoSameSwapAlgEquiv_comp_linearMapSingle_one
+
+-- @@ L801-805 verbatim
+theorem PiMat_finTwo_same_proj_zero_comp_swapStarAlgEquiv
+  {n : Type*} [Fintype n] [DecidableEq n] :
+  LinearMap.proj 0 ∘ₗ (PiMatFinTwoSameSwapStarAlgEquiv (n := n)).toLinearMap
+    = LinearMap.proj 1 :=
+rfl
+
+-- @@ L806-810 verbatim
+theorem PiMat_finTwo_same_proj_one_comp_swapStarAlgEquiv
+  {n : Type*} [Fintype n] [DecidableEq n] :
+  LinearMap.proj 1 ∘ₗ (PiMatFinTwoSameSwapStarAlgEquiv (n := n)).toLinearMap
+    = LinearMap.proj 0 :=
+rfl
+
+
+-- @@ L812-833 expanded
+theorem
+  QuantumGraph.Real.piMatFinTwo_same_eq_zero_of_isSelfAdjoint_and_reflexive_and_numOfEdges_eq_one
+    [Nontrivial n] :
+    letI : ∀ i, (PiFinTwoSameFunctional φ i).IsFaithfulPosMap := fun _ => hφ
+    letI := PiMat.isStarAlgebra (ψ := PiFinTwoSameFunctional φ)
+    letI := Module.Dual.pi.IsFaithfulPosMap.quantumSet (ψ := PiFinTwoSameFunctional φ)
+    letI := Module.Dual.PiNormedAddCommGroup (φ := PiFinTwoSameFunctional φ)
+    letI :=
+      (Module.Dual.PiNormedAddCommGroup (φ :=
+          PiFinTwoSameFunctional φ)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI :=
+      (Module.Dual.PiNormedAddCommGroup (φ := PiFinTwoSameFunctional φ)).toSeminormedAddCommGroup
+    letI := Module.Dual.pi.InnerProductSpace (φ := PiFinTwoSameFunctional φ)
+    letI := fun i => Matrix.isStarAlgebra (φ := (PiFinTwoSameFunctional φ) i)
+    letI := fun i => Module.Dual.IsFaithfulPosMap.quantumSet (φ := (PiFinTwoSameFunctional φ) i)
+    letI := fun i => Module.Dual.NormedAddCommGroup ((PiFinTwoSameFunctional φ) i)
+    letI := fun i =>
+      (Module.Dual.NormedAddCommGroup
+          ((PiFinTwoSameFunctional φ) i)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace
+    letI := fun i =>
+      (Module.Dual.NormedAddCommGroup ((PiFinTwoSameFunctional φ) i)).toSeminormedAddCommGroup
+    letI := fun i => Module.Dual.InnerProductSpace (φ := (PiFinTwoSameFunctional φ) i)
+    letI := PiMat.finiteDimensionalHilbertCoalgebraStruct (φ := PiFinTwoSameFunctional φ)
+    (Coalgebra.counit (R := ℂ) (A := PiMat ℂ (Fin 2) (PiFinTwoSame n)) = PiMat.traceLinearMap) →
+      ∀ {A : PiMat ℂ (Fin 2) (PiFinTwoSame n) →ₗ[ℂ] PiMat ℂ (Fin 2) (PiFinTwoSame n)},
+        (hA : QuantumGraph.Real _ A) →
+          LinearMap.adjoint A = A → schurMul A 1 = 1 → QuantumGraph.NumOfEdges A = 1 → A = 0 :=
+  by
+  let ψ := PiFinTwoSameFunctional φ
+  let : ∀ i, (ψ i).IsFaithfulPosMap := fun _ => hφ
+  let := PiMat.isStarAlgebra (ψ := ψ);
+        let := Module.Dual.pi.IsFaithfulPosMap.quantumSet (ψ := ψ);
+        let := Module.Dual.PiNormedAddCommGroup (φ := ψ);
+        let :=
+          (Module.Dual.PiNormedAddCommGroup (φ :=
+              ψ)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+        let := (Module.Dual.PiNormedAddCommGroup (φ := ψ)).toSeminormedAddCommGroup;
+        let := Module.Dual.pi.InnerProductSpace (φ := ψ);
+      let := fun i => Matrix.isStarAlgebra (φ := ψ i);
+      let := fun i => Module.Dual.IsFaithfulPosMap.quantumSet (φ := ψ i);
+      let := fun i => Module.Dual.NormedAddCommGroup (ψ i);
+      let := fun i =>
+        (Module.Dual.NormedAddCommGroup
+            (ψ i)).toPseudoMetricSpace.toUniformSpace.toTopologicalSpace;
+      let := fun i => (Module.Dual.NormedAddCommGroup (ψ i)).toSeminormedAddCommGroup;
+      let := fun i => Module.Dual.InnerProductSpace (φ := ψ i);
+    let := PiMat.finiteDimensionalHilbertCoalgebraStruct (φ := ψ)
+  let := fun i =>
+    (Coalgebra.ofFiniteDimensionalHilbertAlgebra (R := ℂ) (A := Mat ℂ (PiFinTwoSame n i)) :
+      Coalgebra ℂ (Mat ℂ (PiFinTwoSame n i)))
+  intro hc A hA hA₂ hA₃ hA₄
+  exact (hA.numOfEdges_ne_one_of_isSelfAdjoint_and_reflexive hc hA₂ hA₃ hA₄).elim
+

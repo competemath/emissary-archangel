@@ -1,0 +1,115 @@
+/-
+Copyright (c) 2026 Jukka Suomela. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Jukka Suomela
+-/
+module
+
+
+public import LeanPool.TwoColoringOneRound.LowerBound.CorrAvgMatrix
+public import LeanPool.TwoColoringOneRound.LowerBound.N1000000Relaxation
+public import LeanPool.TwoColoringOneRound.LowerBound.N1000000WedderburnData
+import Mathlib.Data.Rat.Star
+import Mathlib.Tactic.Positivity.Finset
+
+
+-- @@ L15-17 verbatim
+/-!
+# LeanPool.TwoColoringOneRound.LowerBound.N1000000RelaxationPsdSoundness
+-/
+
+
+-- @@ L19-19 verbatim
+@[expose] public section
+
+
+-- @@ L21-21 verbatim
+namespace Distributed2Coloring.LowerBound
+
+
+-- @@ L23-23 verbatim
+namespace N1000000RelaxationPsdSoundness
+
+
+-- @@ L25-25 verbatim
+open scoped BigOperators
+
+-- @@ L26-26 verbatim
+open scoped Matrix
+
+
+-- @@ L28-28 verbatim
+open Distributed2Coloring.LowerBound.Correlation
+
+-- @@ L29-29 verbatim
+open Distributed2Coloring.LowerBound.N1000000Data
+
+-- @@ L30-30 verbatim
+open Distributed2Coloring.LowerBound.N1000000Relaxation
+
+-- @@ L31-31 verbatim
+open Distributed2Coloring.LowerBound.N1000000WeakDuality
+
+-- @@ L32-32 verbatim
+open Distributed2Coloring.LowerBound.N1000000WedderburnData
+
+
+-- @@ L34-35 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev n : Nat := N1000000Data.n
+
+-- @@ L36-37 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev Q := ℚ
+
+-- @@ L38-39 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev V := Vertex n
+
+-- @@ L40-41 verbatim
+/-- Imported auxiliary declaration for the 2-coloring one-round formalization. -/
+abbrev Block := N1000000WeakDuality.Block
+
+
+-- @@ L43-50 verbatim
+/--
+Scaled compression hypothesis: each reduced PSD block, after multiplying by its positive scale
+factor, is a congruence transform of `corrAvgMatrix f`.
+-/
+def CompressionHypScaled : Prop :=
+  ∃ B : Block → Matrix V (Fin 3) Q,
+    ∀ f : Coloring n, ∀ r : Block,
+      (blockScales[r.1]! : Q) • S (xFromColoring f) r = (B r)ᴴ * (corrAvgMatrix (f := f)) * (B r)
+
+
+-- @@ L52-56 verbatim
+private lemma posSemidef_of_pos_smul {M : Matrix (Fin 3) (Fin 3) Q} {a : Q}
+    (ha : 0 < a) (h : (a • M).PosSemidef) : M.PosSemidef := by
+  have ha' : 0 ≤ (1 / a : Q) := by exact div_nonneg (show (0 : Q) ≤ 1 by norm_num) (le_of_lt ha)
+  have := Matrix.PosSemidef.smul (x := (a • M)) h (a := (1 / a : Q)) ha'
+  simpa [smul_smul, div_eq_mul_inv, mul_assoc, inv_mul_cancel₀ (ne_of_gt ha), one_smul] using this
+
+
+-- @@ L58-71 verbatim
+theorem psd_of_compressionHypScaled (h : CompressionHypScaled) :
+    ∀ f : Coloring n, ∀ r : Block, (S (xFromColoring f) r).PosSemidef := by
+  classical
+  rcases h with ⟨B, hB⟩
+  intro f r
+  have hX : (corrAvgMatrix (f := f)).PosSemidef :=
+    Correlation.corrAvgMatrix_posSemidef (f := f)
+  have hCong :
+      ((B r)ᴴ * (corrAvgMatrix (f := f)) * (B r)).PosSemidef :=
+    Matrix.PosSemidef.conjTranspose_mul_mul_same (A := (corrAvgMatrix (f := f))) hX (B := (B r))
+  have hs : ((blockScales[r.1]! : Q) • S (xFromColoring f) r).PosSemidef := by
+    simpa [hB f r] using hCong
+  have hscale : 0 < (blockScales[r.1]! : Q) := by fin_cases r <;> decide
+  exact posSemidef_of_pos_smul (ha := hscale) hs
+
+
+-- @@ L73-73 verbatim
+end N1000000RelaxationPsdSoundness
+
+
+-- @@ L75-75 verbatim
+end Distributed2Coloring.LowerBound

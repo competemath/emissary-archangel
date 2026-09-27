@@ -1,0 +1,34 @@
+{
+  "shard": 14,
+  "shards": 16,
+  "commit": "fdcf13c7cab6cd0eed22dc6b2f83672b6c4deb4d",
+  "toolchain": "leanprover/lean4:v4.34.0",
+  "modules": 461,
+  "exported": 457,
+  "failed": [
+    {
+      "module": "LeanPool.Incompleteness.Arith.Second",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arithmetization.ISigmaOne.Metamath.Formula.Iteration",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arithmetization.ISigmaOne.Metamath.Proof.Derivation",
+      "why": "no closure"
+    },
+    {
+      "module": "LeanPool.Incompleteness.Arithmetization.ISigmaOne.Metamath.Term.Functions",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 444,
+    "verbatim": 13456,
+    "unexpanded": 2,
+    "failed": []
+  },
+  "minutes": 265,
+  "finishedAt": "2026-09-27T06:17:45.153Z"
+}

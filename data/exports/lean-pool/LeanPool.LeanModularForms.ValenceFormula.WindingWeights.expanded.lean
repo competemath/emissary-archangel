@@ -1,0 +1,64 @@
+/-
+Copyright (c) 2026 Chris Birkbeck. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Chris Birkbeck
+-/
+module
+
+public import LeanPool.LeanModularForms.ValenceFormula.WindingWeights.I
+public import LeanPool.LeanModularForms.ValenceFormula.WindingWeights.Rho
+public import LeanPool.LeanModularForms.ValenceFormula.WindingWeights.RhoPlusOne
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.Arctan
+import Mathlib.CategoryTheory.Category.Init
+import Mathlib.NumberTheory.ArithmeticFunction.Misc
+
+
+-- @@ L15-28 verbatim
+/-!
+# Winding Number Weights at Elliptic Points
+
+Explicit computation of generalized winding numbers of the
+fundamental domain boundary around the elliptic points i, ρ, ρ+1.
+
+## Main Results
+
+* `gWN_fdBoundary_H_at_i` — gWN = -1/2 at i
+* `gWN_fdBoundary_H_at_rho` — gWN = -1/6 at ρ
+* `gWN_fdBoundary_H_at_rho_plus_one` — gWN = -1/6 at ρ+1
+* `effectiveWinding_rho_eq_neg_gWN` — 1/3 = -(gWN(ρ) + gWN(ρ+1))
+* `effectiveWinding_i_eq_neg_gWN` — 1/2 = -gWN(i)
+-/
+
+
+-- @@ L30-30 verbatim
+@[expose] public section
+
+
+-- @@ L32-32 verbatim
+open Complex MeasureTheory Set Filter Topology
+
+-- @@ L33-33 verbatim
+open scoped Real Interval
+
+
+-- @@ L35-35 verbatim
+noncomputable section
+
+
+-- @@ L37-41 verbatim
+theorem effectiveWinding_rho_eq_neg_gWN (H : ℝ) (hH : Real.sqrt 3 / 2 < H) :
+    (1 : ℚ) / 3 = -(generalizedWindingNumber' (fdBoundaryH H) 0 5 ellipticPointRho +
+      generalizedWindingNumber' (fdBoundaryH H) 0 5 ellipticPointRhoPlusOne) := by
+  rw [gWN_fdBoundary_H_at_rho H hH, gWN_fdBoundary_H_at_rho_plus_one H hH]
+  push_cast; ring
+
+
+-- @@ L43-46 verbatim
+theorem effectiveWinding_i_eq_neg_gWN (H : ℝ) (hH : 1 < H) :
+    (1 : ℚ) / 2 = -(generalizedWindingNumber' (fdBoundaryH H) 0 5 I) := by
+  rw [gWN_fdBoundary_H_at_i H hH]
+  push_cast; ring
+
+
+-- @@ L48-48 verbatim
+end

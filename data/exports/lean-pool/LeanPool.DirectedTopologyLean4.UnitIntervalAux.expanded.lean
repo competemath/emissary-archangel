@@ -1,0 +1,114 @@
+/-
+Copyright (c) 2026 Dominique Lawson. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Dominique Lawson, Henning Basold, Peter Bruin
+-/
+module
+
+public import Mathlib.Topology.Path
+
+
+-- @@ L10-12 verbatim
+/-!
+# LeanPool.DirectedTopologyLean4.UnitIntervalAux
+-/
+
+
+-- @@ L14-20 verbatim
+@[expose] public section
+
+/-
+  This file contains lemmas about
+  * elements being contained in the unit interval.
+  * relations between elements in the unit interval.
+-/
+
+
+-- @@ L22-22 verbatim
+open scoped unitInterval
+
+
+-- @@ L24-24 verbatim
+namespace unitIAux
+
+
+-- @@ L26-26 verbatim
+lemma zero_le (T : I) : ⟨0, unitInterval.zero_mem⟩ ≤ T := Subtype.coe_le_coe.mp T.2.1
+
+-- @@ L27-27 verbatim
+lemma le_one (T : I) : T ≤ ⟨1, unitInterval.one_mem⟩:= Subtype.coe_le_coe.mp T.2.2
+
+
+-- @@ L29-30 verbatim
+lemma double_pos_of_pos {T : I} (hT₀ : 0 < T) : 0 < (2 * T : ℝ) :=
+  mul_pos two_pos hT₀
+
+-- @@ L31-32 verbatim
+lemma double_sigma_pos_of_lt_one {T : I} (hT₁ : T < 1) : 0 < (2 * (1 - T) : ℝ) :=
+  mul_pos two_pos (by simpa using hT₁)
+
+
+-- @@ L34-35 verbatim
+lemma double_mem_I {t : I} (ht : ↑t ≤ (2⁻¹ : ℝ)) : 2 * (t : ℝ) ∈ I :=
+  ⟨by nlinarith [t.2.1], by nlinarith⟩
+
+
+-- @@ L37-38 verbatim
+lemma double_sub_one_mem_I {t : I} (ht : (2⁻¹ : ℝ) ≤ ↑t) : 2 * (t : ℝ) - 1 ∈ I :=
+  ⟨by nlinarith, by nlinarith [t.2.2]⟩
+
+
+-- @@ L40-44 verbatim
+lemma interp_left_le_of_le (T : I) {a b : I} (hab : a ≤ b) :
+    (σ T : ℝ) * ↑a + ↑T ≤ (σ T : ℝ) * ↑b + ↑T := by
+  have hσT : (0 : ℝ) ≤ σ T := (σ T).2.1
+  have hab' : (a : ℝ) ≤ b := hab
+  nlinarith
+
+
+-- @@ L46-46 verbatim
+section
+
+
+-- @@ L48-48 verbatim
+noncomputable section
+
+
+-- @@ L50-51 verbatim
+lemma half_mem_I : (2⁻¹ : ℝ) ∈ I :=
+⟨inv_nonneg.mpr zero_le_two, inv_le_one_of_one_le₀ one_le_two⟩
+
+
+-- @@ L53-54 verbatim
+/-- The midpoint `1/2` of the unit interval. -/
+abbrev halfI : I := ⟨(2⁻¹ : ℝ), half_mem_I⟩
+
+
+-- @@ L56-71 verbatim
+lemma has_T_half {t₀ t₁ : I} (γ : Path t₀ t₁) (ht₀ : ↑t₀ < (2⁻¹ : ℝ)) (ht₁ : ↑t₁ > (2⁻¹ : ℝ)) :
+  ∃ (T : I),  0 < T ∧ T < 1 ∧ (γ T) = halfI := by
+  have : γ.toFun 0 ≤ halfI := by rw [γ.source']; exact Subtype.coe_le_coe.mp (le_of_lt ht₀)
+  have h₀ : ∃ (t : I), γ t ≤ halfI := ⟨0, this⟩
+  have : halfI ≤ γ.toFun 1 := by rw [γ.target']; exact Subtype.coe_le_coe.mp (le_of_lt ht₁)
+  have h₁ : ∃ (t : I), halfI ≤ γ t := ⟨1, this⟩
+  have hy := Set.mem_range.mp (mem_range_of_exists_le_of_exists_ge γ.continuous_toFun h₀ h₁)
+  obtain ⟨T, hT⟩ := hy
+  use T
+  have hT₀ : 0 ≠ T := by
+    rintro ⟨rfl⟩
+    simp_all
+  have hT₁ : T ≠ 1 := by
+    rintro ⟨rfl⟩
+    simp_all
+  exact ⟨lt_iff_le_and_ne.mpr ⟨T.2.1, hT₀⟩, lt_iff_le_and_ne.mpr ⟨T.2.2, hT₁⟩, hT⟩
+
+-- @@ L72-72 verbatim
+end
+
+
+-- @@ L74-74 verbatim
+end
+
+
+-- @@ L76-76 verbatim
+end unitIAux

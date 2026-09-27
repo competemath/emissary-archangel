@@ -1,0 +1,85 @@
+/-
+Copyright (c) 2026 Egor Lyfar. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Egor Lyfar
+-/
+module
+
+public import LeanPool.Erdos97ConvexOctagon.CoverageCertificateData04
+public import LeanPool.Erdos97ConvexOctagon.CoverageCertificateData05
+import Mathlib.Algebra.Order.Algebra
+import Mathlib.Analysis.SpecialFunctions.Pow.NNReal
+import Mathlib.Data.Sym.Sym2.Init
+import Mathlib.Tactic.NormNum.GCD
+
+
+-- @@ L15-15 verbatim
+/-! # Bounded coverage-certificate computation facts -/
+
+
+-- @@ L17-17 verbatim
+@[expose] public section
+
+
+-- @@ L19-19 verbatim
+namespace Erdos97Octagon.RawIncidence.StaticDirectCoverage
+
+
+-- @@ L21-24 verbatim
+/-- Root audit for fixed branch (0, 31). -/
+theorem coverageBranchRoot_0_31 :
+    branchClaimRootValidB 0 31 (.patternTwo 0) = true := by
+  decide +kernel
+
+
+-- @@ L26-29 verbatim
+/-- Root audit for fixed branch (6, 21). -/
+theorem coverageBranchRoot_6_21 :
+    branchClaimRootValidB 6 21 (.patternThree 1) = true := by
+  decide +kernel
+
+
+-- @@ L31-34 verbatim
+/-- Root audit for fixed branch (3, 5). -/
+theorem coverageBranchRoot_3_05 :
+    branchClaimRootValidB 3 5 (.search branchClaims3Row5) = true := by
+  decide +kernel
+
+
+-- @@ L36-39 verbatim
+/-- Root audit for fixed branch (3, 6). -/
+theorem coverageBranchRoot_3_06 :
+    branchClaimRootValidB 3 6 (.search branchClaims3Row6) = true := by
+  decide +kernel
+
+
+-- @@ L41-44 verbatim
+/-- Node audit for fixed branch (3, 4), starting at 64. -/
+theorem coverageBranchNodes_3_04_00064 :
+    nodeClaimChunkValidB branchClaims3Row4 64 50 = true := by
+  decide +kernel
+
+
+-- @@ L46-49 verbatim
+/-- Node audit for fixed branch (3, 5), starting at 0. -/
+theorem coverageBranchNodes_3_05_00000 :
+    nodeClaimChunkValidB branchClaims3Row5 0 64 = true := by
+  decide +kernel
+
+
+-- @@ L51-54 verbatim
+/-- Node audit for fixed branch (3, 5), starting at 64. -/
+theorem coverageBranchNodes_3_05_00064 :
+    nodeClaimChunkValidB branchClaims3Row5 64 52 = true := by
+  decide +kernel
+
+
+-- @@ L56-59 verbatim
+/-- Node audit for fixed branch (3, 6), starting at 0. -/
+theorem coverageBranchNodes_3_06_00000 :
+    nodeClaimChunkValidB branchClaims3Row6 0 64 = true := by
+  decide +kernel
+
+
+-- @@ L61-61 verbatim
+end Erdos97Octagon.RawIncidence.StaticDirectCoverage

@@ -1,0 +1,52 @@
+/-
+Copyright (c) 2026 Shangtong Zhang. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Shangtong Zhang
+-/
+module
+
+public import Mathlib.Algebra.BigOperators.Group.Finset.Defs
+public import Mathlib.Algebra.Group.Pi.Basic
+public import Mathlib.Order.Filter.Defs
+import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+import Mathlib.Algebra.Order.AbsoluteValue.Basic
+import Mathlib.Algebra.Order.Field.Basic
+import Mathlib.Order.Filter.Basic
+
+
+-- @@ L16-18 verbatim
+/-!
+# LeanPool.RlTheoryInLean.Order.Filter.Basic
+-/
+
+
+-- @@ L20-20 verbatim
+@[expose] public section
+
+
+-- @@ L22-22 verbatim
+open Finset Filter
+
+-- @@ L23-23 verbatim
+open scoped BigOperators
+
+
+-- @@ L25-25 verbatim
+namespace Filter
+
+
+-- @@ L27-36 verbatim
+lemma EventuallyEq.finset_sum {α ι β : Type*} [AddCommGroup β] {l : Filter α}
+  {s : Finset ι} {f g : ι → α → β} (hfg : ∀ i ∈ s, f i =ᶠ[l] g i) :
+  ∑ i ∈ s, f i =ᶠ[l] ∑ i ∈ s, g i := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simp
+  | insert a s ha ih =>
+    simp only [Finset.sum_insert ha]
+    exact (hfg a (Finset.mem_insert_self a s)).add
+      (ih (fun i hi => hfg i (Finset.mem_insert_of_mem hi)))
+
+
+-- @@ L38-38 verbatim
+end Filter

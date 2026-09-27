@@ -1,0 +1,569 @@
+/-
+Copyright (c) 2026 Jiazhen Xia. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Jiazhen Xia
+-/
+module
+
+public import Mathlib.CategoryTheory.Category.Pointed
+public import Mathlib.CategoryTheory.Comma.Over.Basic
+public import Mathlib.Topology.Homotopy.HomotopyGroup
+import Mathlib.Tactic.Measurability.Init
+
+
+-- @@ L13-17 verbatim
+/-!
+# LeanPool.WhiteheadTheorem.HomotopyGroup.InducedMaps
+
+Imported Lean Pool material for `LeanPool.WhiteheadTheorem.HomotopyGroup.InducedMaps`.
+-/
+
+
+-- @@ L19-19 verbatim
+@[expose] public section
+
+
+
+-- @@ L22-22 verbatim
+open CategoryTheory
+
+-- @@ L23-23 verbatim
+open scoped Topology Topology.Homotopy
+
+
+
+-- @@ L26-26 verbatim
+variable {X Y Z : Type u} [TopologicalSpace X] [TopologicalSpace Y] [TopologicalSpace Z]
+
+
+
+-- @@ L29-30 verbatim
+/-- `PointedTopCat` -/
+abbrev PointedTopCat := Under (TopCat.of PUnit)
+
+
+-- @@ L32-32 verbatim
+namespace PointedTopCat
+
+
+-- @@ L34-34 verbatim
+universe u
+
+
+-- @@ L36-38 verbatim
+/-- Make a pointed topological space from `X` and a piont in `X`. -/
+abbrev of (point : X) : PointedTopCat.{u} :=
+  Under.mk <| TopCat.ofHom <| ContinuousMap.const _ point
+
+
+-- @@ L40-43 verbatim
+/-- Typecheck a `ContinuousMap` as a morphism in `PointedTopCat`, by choosing a point in `X`. -/
+abbrev ofHom (f : C(X, Y)) (point : X) :
+    PointedTopCat.of point ⟶ PointedTopCat.of (f point) :=
+  Under.homMk (TopCat.ofHom f)
+
+
+-- @@ L45-45 verbatim
+namespace Hom
+
+
+-- @@ L47-51 verbatim
+/-- Change the target point of a morphism of `PointedTopCat`
+from `g point` to `f point`, given `g = f`.  Useful to fix definitional equality. -/
+abbrev rwTargetPt {f g : C(X, Y)} (point : X) (gf : g = f) :
+    PointedTopCat.of point ⟶ PointedTopCat.of (f point) :=
+  Under.homMk (TopCat.ofHom g)
+
+
+-- @@ L53-55 verbatim
+lemma toFun_rwTargetPt {f g : C(X, Y)} (point : X) (gf : g = f) :
+    (rwTargetPt point gf).right.hom.toFun = g :=
+  rfl
+
+
+-- @@ L57-59 verbatim
+lemma rwTargetPt_eq {f g : C(X, Y)} (point : X) (gf : g = f) :
+    rwTargetPt point gf = ofHom f point := by
+  simp_all
+
+
+-- @@ L61-61 verbatim
+end Hom
+
+
+-- @@ L63-67 verbatim
+/-- Typecheck a morphism in `TopCat` as a morphism in `PointedTopCat`,
+by choosing a point in `X`. -/
+abbrev ofHom' {X Y : TopCat.{u}} (f : X ⟶ Y) (point : X) :
+    PointedTopCat.of point ⟶ PointedTopCat.of (f point) :=
+  Under.homMk f
+
+
+-- @@ L69-69 verbatim
+namespace Hom'
+
+
+-- @@ L71-75 verbatim
+/-- Change the target point of a morphism of `PointedTopCat`
+from `g point` to `f point`, given `g = f`.  Useful to fix definitional equality. -/
+abbrev rwTargetPt {X Y : TopCat.{u}} {f g : X ⟶ Y} (point : X) (gf : g = f) :
+    PointedTopCat.of point ⟶ PointedTopCat.of (f point) :=
+  Under.homMk g
+
+
+-- @@ L77-79 verbatim
+lemma toFun_rwTargetPt {X Y : TopCat.{u}} {f g : X ⟶ Y} (point : X) (gf : g = f) :
+    (rwTargetPt point gf).right.hom.toFun = g :=
+  rfl
+
+
+-- @@ L81-83 verbatim
+lemma rwTargetPt_eq {X Y : TopCat.{u}} {f g : X ⟶ Y} (point : X) (gf : g = f) :
+    rwTargetPt point gf = ofHom' f point := by
+  simp_all
+
+
+-- @@ L85-85 verbatim
+end Hom'
+
+
+-- @@ L87-88 verbatim
+/-- Regard a pointed topological space as simply a topological space. -/
+abbrev as (X : PointedTopCat.{u}) : TopCat.{u} := X.right
+
+
+-- @@ L90-91 verbatim
+/-- The distinguished piont of a pointed topological space -/
+abbrev point (X : PointedTopCat.{u}) : X.as := (TopCat.Hom.hom X.hom) PUnit.unit
+
+
+-- @@ L93-96 verbatim
+/-- A morphism between pointed topological spaces maps the base point to the base point. -/
+lemma w {X Y : PointedTopCat.{u}} (f : X ⟶ Y) : f.right X.point = Y.point := by
+  change (TopCat.Hom.hom (X.hom ≫ f.right)) _ = _
+  rw [Under.w]
+
+
+-- @@ L98-101 verbatim
+lemma _root_.TopCat.isIso_of_isHomeomorph
+    (f : C(X, Y)) (hf : IsHomeomorph f) : IsIso (TopCat.ofHom f) :=
+  let e : TopCat.of X ≅ TopCat.of Y := TopCat.isoOfHomeo (IsHomeomorph.homeomorph f hf)
+  ⟨e.inv, ⟨e.hom_inv_id, e.inv_hom_id⟩⟩
+
+
+-- @@ L103-107 verbatim
+lemma isIso_of_isHomeomorph
+    (f : C(X, Y)) (point : X) (hf : IsHomeomorph f) : IsIso (PointedTopCat.ofHom f point) :=
+  let e : TopCat.of X ≅ TopCat.of Y := TopCat.isoOfHomeo (IsHomeomorph.homeomorph f hf)
+  let E : PointedTopCat.of point ≅ PointedTopCat.of (f point) := Under.isoMk e
+  ⟨E.inv, ⟨E.hom_inv_id, E.inv_hom_id⟩⟩
+
+
+-- @@ L109-113 verbatim
+lemma ofHom_comp (f : C(X, Y)) (g : C(Y, Z)) (point : X) :
+    ofHom (g.comp f) point = (ofHom f point) ≫ (ofHom g (f point)) := by
+  unfold ofHom
+  simp only [ContinuousMap.comp_apply, TopCat.ofHom_comp]
+  rfl
+
+
+-- @@ L115-119 verbatim
+lemma ofHom'_comp {X Y Z : TopCat.{u}} (f : X ⟶ Y) (g : Y ⟶ Z) (point : X) :
+    ofHom' (f ≫ g) point = (ofHom' f point) ≫ (ofHom' g (f point)) := by
+  unfold ofHom'
+  simp only []
+  rfl
+
+
+-- @@ L121-121 verbatim
+end PointedTopCat
+
+
+
+-- @@ L124-124 verbatim
+namespace Pointed
+
+
+-- @@ L126-149 verbatim
+lemma isIso_iff_bijective {A B : Type u} {a₀ : A} {b₀ : B}
+    (f : Pointed.of a₀ ⟶ Pointed.of b₀) : IsIso f ↔ Function.Bijective f := by
+  constructor
+  · intro isof
+    refine ⟨?_, ?_⟩
+    · intro a₁ a₂ ha
+      have h1 : (f ≫ inv f) a₁ = (f ≫ inv f) a₂ := by
+        change (inv f) (f a₁) = (inv f) (f a₂)
+        rw [ha]
+      simp_all
+    · intro b
+      refine ⟨(inv f) b, ?_⟩
+      simp_all
+  · intro bf
+    constructor
+    obtain ⟨g, ⟨gl, gr⟩⟩ := Function.bijective_iff_has_inverse.mp bf
+    use { toFun := g,
+          map_point := by
+            dsimp only
+            have : f a₀ = b₀ := f.map_point
+            rw [← this, gl a₀] }
+    constructor
+    · ext a; exact gl a
+    · ext b; exact gr b
+
+
+-- @@ L151-151 verbatim
+namespace Hom
+
+
+-- @@ L153-157 verbatim
+/-- Change the target point of a `Pointed.Hom` from `g point` to `f point`, given `g = f`.
+Useful to fix definitional equality. -/
+abbrev rwTargetPt {X Y : Type u} (point : X) {f g : X → Y} (gf : g = f) :
+    of point ⟶ of (f point) :=
+  ⟨g, by rw [gf]⟩
+
+
+-- @@ L159-161 verbatim
+lemma toFun_rwTargetPt {X Y : Type u} (point : X) {f g : X → Y} (gf : g = f) :
+    (rwTargetPt point gf).toFun = g :=
+  rfl
+
+
+-- @@ L163-165 verbatim
+lemma rwTargetPt_eq {X Y : Type u} (point : X) {f g : X → Y} (gf : g = f) :
+    rwTargetPt point gf = ⟨f, rfl⟩ := by
+  simp_all
+
+
+-- @@ L167-167 verbatim
+end Hom
+
+
+-- @@ L169-169 verbatim
+end Pointed
+
+
+
+-- @@ L172-172 verbatim
+namespace GenLoop
+
+
+-- @@ L174-180 verbatim
+/-- The map of `GenLoop`s induced by a morphism `f : X ⟶ Y` of pointed topological spaces -/
+def inducedMap' (n : ℕ) {X Y : PointedTopCat} (f : X ⟶ Y) :
+    Ω^ (Fin n) X.as X.point → Ω^ (Fin n) Y.as Y.point :=
+  fun α ↦ ⟨f.right.hom.comp α.val, fun i hi ↦ by
+    rw [ContinuousMap.comp_apply, ← PointedTopCat.w f]
+    congr 1
+    exact α.property i hi ⟩
+
+
+-- @@ L182-185 verbatim
+/-- The map of `GenLoop`s induced by a continuous map `f : C(X, Y)` -/
+abbrev inducedMap (n : ℕ) (x : X) (f : C(X, Y)) :
+    Ω^ (Fin n) X x → Ω^ (Fin n) Y (f x) :=
+  inducedMap' n (PointedTopCat.ofHom f x)
+
+
+-- @@ L187-187 verbatim
+end GenLoop
+
+
+
+-- @@ L190-190 verbatim
+namespace HomotopyGroup
+
+
+-- @@ L192-206 verbatim
+private theorem inducedMap'_respects (n : ℕ) {X Y : PointedTopCat} (f : X ⟶ Y)
+    {α β : Ω^ (Fin n) X.as X.point} (hαβ : α ≈ β) :
+    GenLoop.inducedMap' n f α ≈ GenLoop.inducedMap' n f β := by
+  let H := hαβ.some
+  have := H.toHomotopy
+  exact Nonempty.intro <|
+    { toHomotopy := (ContinuousMap.Homotopy.refl f.right.hom).comp H.toHomotopy
+      prop' t y hy := by
+        simp only [GenLoop.inducedMap', ContinuousMap.toFun_eq_coe,
+          ContinuousMap.Homotopy.coe_toContinuousMap, ContinuousMap.Homotopy.comp_apply,
+          ContinuousMap.Homotopy.refl_apply, ContinuousMap.coe_mk, ContinuousMap.comp_apply]
+        have hprop : H.toHomotopy (t, y) = α.val y := by
+          have := H.prop' t y hy
+          simpa using this
+        rw [hprop] }
+
+
+-- @@ L208-213 verbatim
+/-- The map between homotopy groups (as sets)
+induced by a morphism `f : X ⟶ Y` of pointed topological spaces -/
+def inducedMap' (n : ℕ) {X Y : PointedTopCat} (f : X ⟶ Y) :
+    π_ n X.as X.point → π_ n Y.as Y.point :=
+  Quotient.map (GenLoop.inducedMap' n f) fun {α β} hαβ ↦ by
+    exact inducedMap'_respects n f (α := α) (β := β) hαβ
+
+
+-- @@ L215-225 verbatim
+lemma inducedMap'_default (n : ℕ) {X Y : PointedTopCat} (f : X ⟶ Y) :
+    inducedMap' n f (default : π_ n X.as X.point) = (default : π_ n Y.as Y.point) := by
+  change inducedMap' n f ⟦GenLoop.const⟧ = ⟦GenLoop.const⟧
+  unfold inducedMap'
+  dsimp only [Quotient.map_mk]
+  unfold GenLoop.const
+  simp only [GenLoop.inducedMap', ContinuousMap.comp_const]
+  congr 2
+  ext y
+  rw [ContinuousMap.const_apply]
+  exact PointedTopCat.w f
+
+
+-- @@ L227-230 verbatim
+/-- The map between homotopy groups (as sets) induced by a continuous map `f : C(X, Y)` -/
+abbrev inducedMap (n : ℕ) (x : X) (f : C(X, Y)) :
+    π_ n X x → π_ n Y (f x) :=
+  inducedMap' n (PointedTopCat.ofHom f x)
+
+
+-- @@ L232-232 verbatim
+namespace inducedMap
+
+
+-- @@ L234-238 verbatim
+/-- Change an induced map's target point from `g x` to `f x`, given `g = f`.
+Useful to fix definitional equality. -/
+abbrev rwTargetPt (n : ℕ) {f g : C(X, Y)} (x : X) (gf : g = f) :
+    π_ n X x → π_ n Y (f x) :=
+  inducedMap' n (PointedTopCat.Hom.rwTargetPt x gf)
+
+
+-- @@ L240-242 verbatim
+lemma rwTargetPt_eq (n : ℕ) {f g : C(X, Y)} (x : X) (gf : g = f) :
+    rwTargetPt n x gf = inducedMap n x f := by
+  rw [rwTargetPt, PointedTopCat.Hom.rwTargetPt_eq]
+
+
+-- @@ L244-244 verbatim
+end inducedMap
+
+
+-- @@ L246-263 verbatim
+/-- `π_n` is a functor sending a based topological space `(X, x₀)`
+to its `n`-th homotopy group (as a type, ignoring its group structure) based at `x₀`. -/
+noncomputable def functorToType (n : ℕ) : PointedTopCat.{u} ⥤ Type u where
+  obj X := π_ n X.as X.point
+  map {X Y} f := TypeCat.ofHom (inducedMap' n f)
+  map_id X := by
+    ext α
+    change inducedMap' n (𝟙 X) α = α
+    simp only [inducedMap']
+    rw [← Quotient.out_eq α, Quotient.map_mk]
+    congr 1
+  map_comp {X Y Z} f g := by
+    ext α
+    change inducedMap' n (f ≫ g) α = inducedMap' n g (inducedMap' n f α)
+    simp only [inducedMap']
+    rw [← Quotient.out_eq α]
+    iterate 3 (rw [Quotient.map_mk])
+    congr 1
+
+
+-- @@ L265-290 verbatim
+/-- `π_n` is a functor sending a based topological space `(X, x₀)`
+to its `n`-th homotopy group
+(as a pointed type whose base point is the contant map, ignoring its group structure)
+based at `x₀`. -/
+noncomputable def functorToPointed (n : ℕ) : PointedTopCat.{u} ⥤ Pointed.{u} where
+  obj X := Pointed.of (default : π_ n X.as X.point)
+  map {X Y} f :=
+    { toFun := (functorToType n).map f
+      map_point := inducedMap'_default n f }
+  map_id X := by
+    simp only [
+      CategoryTheory.Functor.map_id]
+    congr
+  map_comp {X Y Z} f g := by
+    simp only [
+      Functor.map_comp]
+    congr
+
+-- TODO (phase 3): The `functorToGrp` definition was here.
+-- Its `map_mul` proof relied on subtle definitional equalities between the
+-- old `HomotopyGroup` multiplication and `GenLoop.transAt`, which changed
+-- substantially under v4.30 (the multiplicative structure now unfolds through
+-- `loopHomeo` rather than being directly `transAt`-based). Restoring this
+-- functor (whose `map` field requires the `map_mul` step) needs a new proof
+-- strategy via `HomotopyGroup.mul_spec` plus a fresh ⟦·⟧ congruence argument.
+-- It is unused elsewhere in this project. -/
+
+
+-- @@ L292-296 verbatim
+/-- The morphism $f_{*} : π_n(X, x₀) → π_n(Y, f(x₀))$ in the category `Pointed`,
+induced by the continuous map `f : C(X, Y)` -/
+noncomputable abbrev inducedPointedHom (n : ℕ) (x₀ : X) (f : C(X, Y)) :
+    Pointed.of (default : π_ n X x₀) ⟶ Pointed.of (default : π_ n Y (f x₀)) :=
+  (functorToPointed n).map (PointedTopCat.ofHom f x₀)
+
+
+-- @@ L298-302 verbatim
+/-- The morphism $f_{*} : π_n(X, x₀) → π_n(Y, f(x₀))$ in the category `Pointed`,
+induced by the morphism `f : X ⟶ Y` in `TopCat` -/
+noncomputable abbrev inducedPointedHom' (n : ℕ) {X Y : TopCat.{u}} (x₀ : X) (f : X ⟶ Y) :
+    Pointed.of (default : π_ n X x₀) ⟶ Pointed.of (default : π_ n Y (f x₀)) :=
+  (functorToPointed n).map (PointedTopCat.ofHom' f x₀)
+
+
+-- @@ L304-307 verbatim
+lemma inducedPointedHom'_eq_inducedPointedHom
+    (n : ℕ) {X Y : TopCat.{u}} (x₀ : X) (f : X ⟶ Y) :
+    inducedPointedHom' n x₀ f = inducedPointedHom n x₀ f.hom :=
+  rfl
+
+
+-- @@ L309-309 verbatim
+namespace inducedPointedHom
+
+
+-- @@ L311-314 verbatim
+/-- `isoTarget` -/
+noncomputable abbrev isoTarget (n : ℕ) {f g : C(X, Y)} (x₀ : X) (gf : g = f) :
+    Pointed.of (default : π_ n Y (g x₀)) ≅ Pointed.of (default : π_ n Y (f x₀)) :=
+  gf ▸ Iso.refl _
+
+
+-- @@ L316-320 verbatim
+/-- Change an induced pointed morphism's target point from `g x₀` to `f x₀`, given `g = f`.
+Useful to fix definitional equality. -/
+noncomputable abbrev rwTargetPt (n : ℕ) {f g : C(X, Y)} (x₀ : X) (gf : g = f) :
+    Pointed.of (default : π_ n X x₀) ⟶ Pointed.of (default : π_ n Y (f x₀)) :=
+  (functorToPointed n).map (PointedTopCat.Hom.rwTargetPt x₀ gf)
+
+
+-- @@ L322-326 verbatim
+lemma toFun_rwTargetPt
+     (n : ℕ) {f g : C(X, Y)} (x₀ : X) (gf : g = f) :
+    (rwTargetPt n x₀ gf).toFun =
+    inducedMap.rwTargetPt n x₀ gf := by
+  rfl
+
+
+-- @@ L328-330 verbatim
+lemma rwTargetPt_eq (n : ℕ) {f g : C(X, Y)} (x₀ : X) (gf : g = f) :
+    rwTargetPt n x₀ gf = inducedPointedHom n x₀ f := by
+  simp_all
+
+
+-- @@ L332-332 verbatim
+end inducedPointedHom
+
+
+-- @@ L334-334 verbatim
+namespace inducedPointedHom'
+
+
+-- @@ L336-340 verbatim
+/-- `isoTarget` -/
+noncomputable abbrev isoTarget
+    (n : ℕ) {X Y : TopCat.{u}} (x₀ : X) {f g : X ⟶ Y} (gf : g = f) :
+    Pointed.of (default : π_ n Y (g x₀)) ≅ Pointed.of (default : π_ n Y (f x₀)) :=
+  gf ▸ Iso.refl _
+
+
+-- @@ L342-347 verbatim
+/-- Change an induced pointed morphism's target point from `g x₀` to `f x₀`, given `g = f`.
+Useful to fix definitional equality. -/
+noncomputable abbrev rwTargetPt
+    (n : ℕ) {X Y : TopCat.{u}} (x₀ : X) {f g : X ⟶ Y} (gf : g = f) :
+    Pointed.of (default : π_ n X x₀) ⟶ Pointed.of (default : π_ n Y (f x₀)) :=
+  (functorToPointed n).map (PointedTopCat.Hom'.rwTargetPt x₀ gf)
+
+
+-- @@ L349-353 verbatim
+lemma toFun_rwTargetPt
+    (n : ℕ) {X Y : TopCat.{u}} (x₀ : X) {f g : X ⟶ Y} (gf : g = f) :
+    (rwTargetPt n x₀ gf).toFun =
+    inducedMap.rwTargetPt n x₀ (congr_arg TopCat.Hom.hom gf) := by
+  rfl
+
+
+-- @@ L355-358 verbatim
+lemma rwTargetPt_eq
+    (n : ℕ) {X Y : TopCat.{u}} (x₀ : X) {f g : X ⟶ Y} (gf : g = f) :
+    rwTargetPt n x₀ gf = inducedPointedHom' n x₀ f := by
+  simp_all
+
+
+-- @@ L360-360 verbatim
+end inducedPointedHom'
+
+
+-- @@ L362-366 verbatim
+lemma isIso_inducedPointedHom_of_isHomeomorph (n : ℕ) (x₀ : X) (f : C(X, Y))
+    (hf : IsHomeomorph f) : IsIso (inducedPointedHom n x₀ f) := by
+  unfold inducedPointedHom
+  have : IsIso (PointedTopCat.ofHom f x₀) := PointedTopCat.isIso_of_isHomeomorph f _ hf
+  exact Functor.map_isIso (functorToPointed n) (PointedTopCat.ofHom f x₀)
+
+
+-- @@ L368-373 verbatim
+instance isIso_inducedPointedHom_id (n : ℕ) (x₀ : X) :
+    IsIso (inducedPointedHom n x₀ (ContinuousMap.id X)) := by
+  apply isIso_inducedPointedHom_of_isHomeomorph
+  apply isHomeomorph_iff_exists_homeomorph.mpr
+  use Homeomorph.refl X
+  rfl
+
+
+-- @@ L375-380 verbatim
+lemma inducedPointedHom_comp (n : ℕ) (x₀ : X) (f : C(X, Y)) (g : C(Y, Z)) :
+    inducedPointedHom n x₀ (g.comp f) =
+    inducedPointedHom n x₀ f ≫ inducedPointedHom n (f x₀) g := by
+  unfold inducedPointedHom
+  rw [PointedTopCat.ofHom_comp]
+  exact (functorToPointed n).map_comp _ _
+
+
+-- @@ L382-388 verbatim
+lemma inducedPointedHom_comp_isoTarget_eq_comp (n : ℕ) (x₀ : X)
+    {h : C(X, Z)} {f : C(X, Y)} {g : C(Y, Z)} (hgf : h = g.comp f) :
+    inducedPointedHom n x₀ h ≫ (inducedPointedHom.isoTarget n x₀ hgf).hom =
+    inducedPointedHom n x₀ f ≫ inducedPointedHom n (f x₀) g := by
+  rw [← inducedPointedHom_comp]
+  subst hgf
+  simp only [ContinuousMap.comp_apply, Iso.refl_hom, Category.comp_id]
+
+
+-- @@ L390-394 verbatim
+lemma inducedPointedHom_eq_comp_of_eq_comp (n : ℕ) (x₀ : X)
+    {h : C(X, Z)} {f : C(X, Y)} {g : C(Y, Z)} (hgf : h = g.comp f) :
+    inducedPointedHom.rwTargetPt n x₀ hgf =
+    inducedPointedHom n x₀ f ≫ inducedPointedHom n (f x₀) g := by
+  rw [inducedPointedHom.rwTargetPt_eq, inducedPointedHom_comp]
+
+
+-- @@ L396-401 verbatim
+lemma inducedPointedHom'_comp (n : ℕ) {X Y Z : TopCat.{u}} (x₀ : X) (f : X ⟶ Y) (g : Y ⟶ Z) :
+    inducedPointedHom' n x₀ (f ≫ g) =
+    inducedPointedHom' n x₀ f ≫ inducedPointedHom' n (f x₀) g := by
+  unfold inducedPointedHom'
+  rw [PointedTopCat.ofHom'_comp]
+  exact (functorToPointed n).map_comp _ _
+
+
+-- @@ L403-409 verbatim
+lemma inducedPointedHom'_comp_isoTarget_eq_comp (n : ℕ) {X Y Z : TopCat.{u}} (x₀ : X)
+    {h : X ⟶ Z} {f : X ⟶ Y} {g : Y ⟶ Z} (hfg : h = f ≫ g) :
+    inducedPointedHom' n x₀ h ≫ (inducedPointedHom'.isoTarget n x₀ hfg).hom =
+    inducedPointedHom' n x₀ f ≫ inducedPointedHom' n (f x₀) g := by
+  rw [← inducedPointedHom'_comp]
+  subst hfg
+  simp only [TopCat.hom_comp, ContinuousMap.comp_apply, Iso.refl_hom, Category.comp_id]
+
+
+-- @@ L411-415 verbatim
+lemma inducedPointedHom'_eq_comp_of_eq_comp (n : ℕ) {X Y Z : TopCat.{u}} (x₀ : X)
+    {h : X ⟶ Z} {f : X ⟶ Y} {g : Y ⟶ Z} (hfg : h = f ≫ g) :
+    inducedPointedHom'.rwTargetPt n x₀ hfg =
+    inducedPointedHom' n x₀ f ≫ inducedPointedHom' n (f x₀) g := by
+  rw [inducedPointedHom'.rwTargetPt_eq, inducedPointedHom'_comp]
+
+
+-- @@ L417-417 verbatim
+end HomotopyGroup

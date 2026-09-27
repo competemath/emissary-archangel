@@ -1,0 +1,342 @@
+/-
+Copyright (c) 2026 Kalle Kytölä. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Kalle Kytölä
+-/
+module
+
+public import LeanPool.VirasoroProject.CentralExtension
+public import LeanPool.VirasoroProject.SectionSES
+
+
+-- @@ L11-38 verbatim
+/-!
+# Abstract central extensions of Lie algebras (characteristic predicate)
+
+This file defines the short exact sequence characteristic predicate for a central extension of
+a Lie algebra. It is proven that central extension defined by a 2-cocycle satisfy this
+characteristic predicate.
+
+## Main definitions
+
+* `LieAlgebra.IsCentralExtension`: The abstract definition (characteristic predicate) of a
+  central extension of a Lie algebra 𝓰 by an abelian Lie algebra 𝓪: there exists a short exact
+  sequence 0 ⟶ 𝓪 ⟶ 𝓮 ⟶ 𝓰 ⟶ 0 of Lie algebras, where the image of 𝓪 is contained in the centre
+  of 𝓮.
+* `LieTwoCocycle.CentralExtension.emb`: Given a 2-cocycle γ ∈ Z²(𝓰,𝓪) and the correspondingly
+  constructed central extension 𝓮, this is the map 𝓪 ⟶ 𝓮 in the short exact sequence.
+* `LieTwoCocycle.CentralExtension.proj`: Given a 2-cocycle γ ∈ Z²(𝓰,𝓪) and the correspondingly
+  constructed central extension 𝓮, this is the map 𝓮 ⟶ 𝓰 in the short exact sequence.
+
+## Main statements
+
+* `LieTwoCocycle.CentralExtension.isCentralExtension`: The central extension defined by a 2-cocycle
+  is a central extension in the abstract sense (it satisfies the characteristic predicate).
+
+## Tags
+
+Lie algebra, central extension, short exact sequence
+
+-/
+
+
+-- @@ L40-40 verbatim
+@[expose] public section
+
+
+-- @@ L42-42 verbatim
+namespace VirasoroProject
+
+
+-- @@ L44-44 verbatim
+section IsCentralExtension
+
+
+-- @@ L46-46 verbatim
+/-! ### Lie algebra central extensions defined by short exact sequences -/
+
+
+-- @@ L48-48 verbatim
+universe u
+
+-- @@ L49-49 verbatim
+variable {𝕜 : Type u} [CommRing 𝕜]
+
+-- @@ L50-51 verbatim
+variable {𝓰 𝓪 𝓮 : Type u} [LieRing 𝓰] [LieAlgebra 𝕜 𝓰] [LieRing 𝓪] [LieAlgebra 𝕜 𝓪]
+         [LieRing 𝓮] [LieAlgebra 𝕜 𝓮]
+
+
+-- @@ L53-60 verbatim
+/-- An extension `𝓮` of a Lie algebra `𝓰` by a Lie algebra `𝓪` is a short exact sequence
+`0 ⟶ 𝓪 ⟶ 𝓮 ⟶ 𝓰 ⟶ 0`. The structure `LieAlgebra.IsExtension` bundles the maps `𝓪 ⟶ 𝓮` and
+`𝓮 ⟶ 𝓰` together with their trivial kernel and full range, respectively, and the exactness
+in the middle. -/
+structure _root_.VirasoroProject.LieAlgebra.IsExtension (i : 𝓪 →ₗ⁅𝕜⁆ 𝓮) (p : 𝓮 →ₗ⁅𝕜⁆ 𝓰) : Prop where
+  ker_eq_bot : i.ker = ⊥
+  range_eq_top : p.range = ⊤
+  exact : i.range = p.ker
+
+
+-- @@ L62-67 verbatim
+/-- A central extension `𝓮` of a Lie algebra `𝓰` by a Lie algebra `𝓪` is an extension
+`0 ⟶ 𝓪 ⟶ 𝓮 ⟶ 𝓰 ⟶ 0` where the image of `𝓪` is contained in the centre of `𝓮`. -/
+structure _root_.VirasoroProject.LieAlgebra.IsCentralExtension
+    {𝓮 : Type u} [LieRing 𝓮] [LieAlgebra 𝕜 𝓮]
+    (i : 𝓪 →ₗ⁅𝕜⁆ 𝓮) (p : 𝓮 →ₗ⁅𝕜⁆ 𝓰) extends LieAlgebra.IsExtension i p where
+  central : ∀ (A : 𝓪), ∀ (E : 𝓮), ⁅i A, E⁆ = 0
+
+
+-- @@ L69-69 verbatim
+end IsCentralExtension
+
+
+-- @@ L71-71 verbatim
+section LieTwoCocycle.CentralExtension
+
+
+-- @@ L73-73 verbatim
+/-! ### Lie algebra central extensions defined by 2-cocycles -/
+
+
+-- @@ L75-75 verbatim
+universe u
+
+-- @@ L76-76 verbatim
+variable {𝕜 : Type u} [CommRing 𝕜]
+
+-- @@ L77-77 verbatim
+variable {𝓰 𝓪 : Type u} [LieRing 𝓰] [LieAlgebra 𝕜 𝓰] [LieRing 𝓪] [LieAlgebra 𝕜 𝓪]
+
+
+-- @@ L79-79 verbatim
+variable (γ : LieTwoCocycle 𝕜 𝓰 𝓪)
+
+
+-- @@ L81-81 verbatim
+namespace LieTwoCocycle.CentralExtension
+
+
+-- @@ L83-113 verbatim
+/-- If `𝓮` is the (central) extension of `𝓰` by `𝓪` defined by a 2-cocycle `γ ∈ Z²(𝓰,𝓪)`,
+then `LieTwoCocycle.CentralExtension.emb` gives the corresponding embedding `𝓪 ⟶ 𝓮`. -/
+def _root_.VirasoroProject.LieTwoCocycle.CentralExtension.emb
+    [IsLieAbelian 𝓪] : 𝓪 →ₗ⁅𝕜⁆ γ.CentralExtension where
+  toFun := fun A ↦ ⟨0, A⟩
+  map_add' A₁ A₂ := by
+    change (⟨0, A₁ + A₂⟩ : γ.CentralExtension) =
+      (⟨0, A₁⟩ : γ.CentralExtension) + (⟨0, A₂⟩ : γ.CentralExtension)
+    calc
+      (⟨0, A₁ + A₂⟩ : γ.CentralExtension) =
+          ⟨(0 : 𝓰) + 0, A₁ + A₂⟩ := by simp
+      _ = (⟨0, A₁⟩ : γ.CentralExtension) + (⟨0, A₂⟩ : γ.CentralExtension) :=
+        (CentralExtension.add_def (𝕜 := 𝕜) (γ := γ)
+          (⟨0, A₁⟩ : γ.CentralExtension)
+          (⟨0, A₂⟩ : γ.CentralExtension)).symm
+  map_smul' c A := by
+    change (⟨0, c • A⟩ : γ.CentralExtension) =
+      (RingHom.id 𝕜) c • (⟨0, A⟩ : γ.CentralExtension)
+    simp only [RingHom.id_apply]
+    calc
+      (⟨0, c • A⟩ : γ.CentralExtension) = ⟨c • (0 : 𝓰), c • A⟩ := by simp
+      _ = c • (⟨0, A⟩ : γ.CentralExtension) :=
+        (CentralExtension.smul_def (𝕜 := 𝕜) (γ := γ) c
+          (⟨0, A⟩ : γ.CentralExtension)).symm
+  map_lie' := by
+    intro A₁ A₂
+    apply CentralExtension.ext
+    · change 0 = ⁅(0 : 𝓰), 0⁆
+      simp
+    · change ⁅A₁, A₂⁆ = γ 0 0
+      simp [trivial_lie_zero]
+
+
+-- @@ L115-121 verbatim
+/-- If `𝓮` is the (central) extension of `𝓰` by `𝓪` defined by a 2-cocycle `γ ∈ Z²(𝓰,𝓪)`,
+then `LieTwoCocycle.CentralExtension.proj` gives the corresponding projection `𝓮 ⟶ 𝓰`. -/
+def _root_.VirasoroProject.LieTwoCocycle.CentralExtension.proj : γ.CentralExtension →ₗ⁅𝕜⁆ 𝓰 where
+  toFun := fun ⟨X, _⟩ ↦ X
+  map_add' := by intro ⟨X₁, A₁⟩ ⟨X₂, A₂⟩; rfl
+  map_smul' := by intro c ⟨X, A⟩; rfl
+  map_lie' := by intro ⟨X₁, A₁⟩ ⟨X₂, A₂⟩; rfl
+
+
+-- @@ L123-125 verbatim
+lemma _root_.VirasoroProject.LieTwoCocycle.CentralExtension.range_proj_eq_top :
+    (LieTwoCocycle.CentralExtension.proj γ).range = ⊤ :=
+  (LieHom.range_eq_top (proj γ)).mpr fun X ↦ ⟨⟨X, 0⟩, rfl⟩
+
+
+-- @@ L127-129 verbatim
+lemma _root_.VirasoroProject.LieTwoCocycle.CentralExtension.ker_emb_eq_bot [IsLieAbelian 𝓪] :
+    (LieTwoCocycle.CentralExtension.emb γ).ker = ⊥ :=
+  (LieHom.ker_eq_bot (emb γ)).mpr fun _ _ hA ↦ congr_arg (fun Z ↦ Z.2) hA
+
+
+-- @@ L131-142 verbatim
+lemma _root_.VirasoroProject.LieTwoCocycle.CentralExtension.mem_range_emb_iff
+    [IsLieAbelian 𝓪] (Z : γ.CentralExtension) :
+    Z ∈ (LieTwoCocycle.CentralExtension.emb γ).range ↔ Z.1 = 0 := by
+  rw [LieHom.mem_range]
+  refine ⟨?_, ?_⟩
+  · intro ⟨A, hA⟩
+    exact (congrArg (fun W : γ.CentralExtension ↦ W.1) hA).symm
+  · intro h
+    refine ⟨Z.2, ?_⟩
+    apply CentralExtension.ext
+    · exact h.symm
+    · rfl
+
+
+-- @@ L144-152 verbatim
+lemma _root_.VirasoroProject.LieTwoCocycle.CentralExtension.mem_ker_proj_iff
+    (Z : γ.CentralExtension) :
+    Z ∈ (LieTwoCocycle.CentralExtension.proj γ).ker ↔ Z.1 = 0 := by
+  rw [LieHom.mem_ker]
+  refine ⟨?_, ?_⟩
+  · intro h; simpa [proj]
+  · intro h
+    cases Z
+    simpa only [proj, LieHom.coe_mk] using h
+
+
+-- @@ L154-159 verbatim
+lemma _root_.VirasoroProject.LieTwoCocycle.CentralExtension.range_emb_eq_ker_proj [IsLieAbelian 𝓪] :
+    (LieTwoCocycle.CentralExtension.emb γ).range = (LieTwoCocycle.CentralExtension.proj γ).ker := by
+  ext Z
+  change Z ∈ (LieTwoCocycle.CentralExtension.emb γ).range
+        ↔ Z ∈ (LieTwoCocycle.CentralExtension.proj γ).ker
+  rw [mem_range_emb_iff, mem_ker_proj_iff]
+
+
+-- @@ L161-169 verbatim
+/-- If `𝓮` is the (central) extension of `𝓰` by `𝓪` defined by a 2-cocycle `γ ∈ Z²(𝓰,𝓪)`,
+then `𝓮` is an extension of `𝓰` by `𝓪` in the sense that there is a short exact sequence
+`0 ⟶ 𝓪 ⟶ 𝓮 ⟶ 𝓰 ⟶ 0` where the two maps are `LieTwoCocycle.CentralExtension.emb` and
+`LieTwoCocycle.CentralExtension.proj`. -/
+theorem _root_.VirasoroProject.LieTwoCocycle.CentralExtension.isExtension [IsLieAbelian 𝓪] :
+    LieAlgebra.IsExtension (emb γ) (proj γ) where
+  ker_eq_bot := ker_emb_eq_bot γ
+  range_eq_top := range_proj_eq_top γ
+  exact := range_emb_eq_ker_proj γ
+
+
+-- @@ L171-185 verbatim
+/-- If `𝓮` is the central extension of `𝓰` by `𝓪` defined by a 2-cocycle `γ ∈ Z²(𝓰,𝓪)`,
+then `𝓮` is a central extension of `𝓰` by `𝓪` in the sense that there is a short exact sequence
+`0 ⟶ 𝓪 ⟶ 𝓮 ⟶ 𝓰 ⟶ 0` where the two maps are `LieTwoCocycle.CentralExtension.emb` and
+`LieTwoCocycle.CentralExtension.proj` and the image of `𝓪` is contained in the centre of `𝓮`. -/
+theorem _root_.VirasoroProject.LieTwoCocycle.CentralExtension.isCentralExtension
+    [IsLieAbelian 𝓪] (γ : LieTwoCocycle 𝕜 𝓰 𝓪) :
+    LieAlgebra.IsCentralExtension (emb γ) (proj γ) where
+  __ := LieTwoCocycle.CentralExtension.isExtension γ
+  central := by
+    intro A Z
+    apply CentralExtension.ext
+    · change ⁅(0 : 𝓰), Z.1⁆ = 0
+      simp
+    · change γ 0 Z.1 = 0
+      simp
+
+
+-- @@ L187-199 verbatim
+/-- A standard section of a Lie algebra central extension associated to a Lie 2-cocycle. -/
+noncomputable def _root_.VirasoroProject.LieTwoCocycle.CentralExtension.stdSection
+    (γ : LieTwoCocycle 𝕜 𝓰 𝓪) :
+    𝓰 →ₗ[𝕜] γ.CentralExtension where
+  toFun X := ⟨X, 0⟩
+  map_add' X₁ X₂ := by
+    apply CentralExtension.ext
+    · rfl
+    · exact (zero_add (0 : 𝓪)).symm
+  map_smul' c X := by
+    apply CentralExtension.ext
+    · rfl
+    · exact (smul_zero c).symm
+
+
+-- @@ L201-204 verbatim
+lemma _root_.VirasoroProject.LieTwoCocycle.CentralExtension.stdSection_prop
+    (γ : LieTwoCocycle 𝕜 𝓰 𝓪) :
+    proj γ ∘ₗ stdSection γ = (1 : 𝓰 →ₗ[𝕜] 𝓰) :=
+  rfl
+
+
+-- @@ L206-206 verbatim
+end LieTwoCocycle.CentralExtension --namespace
+
+
+-- @@ L208-208 verbatim
+end LieTwoCocycle.CentralExtension -- section
+
+
+
+-- @@ L211-211 verbatim
+section Basis
+
+
+-- @@ L213-213 verbatim
+namespace LieAlgebra.IsExtension
+
+
+-- @@ L215-215 verbatim
+open Module
+
+
+-- @@ L217-217 verbatim
+universe u u'
+
+-- @@ L218-218 verbatim
+variable {𝕜 : Type u} [CommRing 𝕜]
+
+-- @@ L219-220 verbatim
+variable {𝓰 𝓪 𝓮 : Type u} [LieRing 𝓰] [LieAlgebra 𝕜 𝓰] [LieRing 𝓪] [LieAlgebra 𝕜 𝓪]
+         [LieRing 𝓮] [LieAlgebra 𝕜 𝓮]
+
+-- @@ L221-221 verbatim
+variable {i : 𝓪 →ₗ⁅𝕜⁆ 𝓮} {p : 𝓮 →ₗ⁅𝕜⁆ 𝓰} (ex : LieAlgebra.IsExtension i p)
+
+-- @@ L222-222 verbatim
+variable (σ : 𝓰 →ₗ[𝕜] 𝓮) (hσ : p.toLinearMap ∘ₗ σ = 1)
+
+
+-- @@ L224-230 verbatim
+/-- A basis of a central extension of Lie algebras constructed from a section and bases of the
+extending Lie algebras. -/
+noncomputable def _root_.VirasoroProject.LieAlgebra.IsExtension.basis
+    {ιA ιG : Type u'} (basA : Basis ιA 𝕜 𝓪) (basG : Basis ιG 𝕜 𝓰) :
+    Basis (ιA ⊕ ιG) 𝕜 𝓮 :=
+  sesBasis basA basG (LieSubmodule.mk_eq_bot_iff.mp ex.ker_eq_bot)
+    (congr_arg LieSubalgebra.toSubmodule ex.exact) hσ
+
+
+-- @@ L232-238 verbatim
+@[simp] lemma _root_.VirasoroProject.LieAlgebra.IsExtension.basis_eq_of_left
+    {ιA ιG : Type u'} (basA : Basis ιA 𝕜 𝓪) (basG : Basis ιG 𝕜 𝓰)
+    (ia : ιA) :
+    basis ex σ hσ basA basG (Sum.inl ia) = i (basA ia) := by
+  exact ses_basis_eq_of_left basA basG
+    (LieSubmodule.mk_eq_bot_iff.mp ex.ker_eq_bot)
+    (congr_arg LieSubalgebra.toSubmodule ex.exact) hσ ia
+
+
+-- @@ L240-246 verbatim
+@[simp] lemma _root_.VirasoroProject.LieAlgebra.IsExtension.basis_eq_of_right
+    {ιA ιG : Type u'} (basA : Basis ιA 𝕜 𝓪) (basG : Basis ιG 𝕜 𝓰)
+    (ig : ιG) :
+    basis ex σ hσ basA basG (Sum.inr ig) = σ (basG ig) := by
+  exact ses_basis_eq_of_right basA basG
+    (LieSubmodule.mk_eq_bot_iff.mp ex.ker_eq_bot)
+    (congr_arg LieSubalgebra.toSubmodule ex.exact) hσ ig
+
+
+-- @@ L248-248 verbatim
+end LieAlgebra.IsExtension
+
+
+-- @@ L250-250 verbatim
+end Basis
+
+
+-- @@ L252-252 verbatim
+end VirasoroProject -- namespace

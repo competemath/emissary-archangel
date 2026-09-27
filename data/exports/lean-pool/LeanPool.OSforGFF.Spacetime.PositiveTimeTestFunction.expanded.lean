@@ -1,0 +1,191 @@
+/-
+Copyright (c) 2026 Michael R. Douglas, Sarah Hoback, Anna Mei, Ron Nissim. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Michael R. Douglas, Sarah Hoback, Anna Mei, Ron Nissim
+-/
+module
+
+public import LeanPool.OSforGFF.Spacetime.DiscreteSymmetry
+import Mathlib.Analysis.SpecialFunctions.Bernstein
+import Mathlib.Analysis.SpecialFunctions.Gamma.Basic
+import Mathlib.Data.Nat.Factorial.DoubleFactorial
+import Mathlib.LinearAlgebra.Complex.FiniteDimensional
+
+
+-- @@ L14-32 verbatim
+/-!
+# Positive Time Test Functions and Star Operations
+
+This file defines test functions supported in the positive time region and implements
+the star operation (complex conjugation composed with time reflection) for test functions.
+
+## Main definitions
+
+* `HasPositiveTime`: Predicate for spacetime points with positive time component
+* `positiveTimeSet`: The set of all positive time points
+* `PositiveTimeTestFunction`: Test functions supported in the positive time region
+* `starTestFunction`: Star operation combining time reflection and complex conjugation
+* `starRingEnd_iteratedFDeriv_norm_eq`: Helper lemma for norm preservation under star operation
+
+## Main results
+
+* `is_open_positiveTimeSet`: The positive time set is open
+* `Star TestFunctionℂ`: Star instance for complex test functions
+-/
+
+
+-- @@ L34-34 verbatim
+@[expose] public section
+
+
+-- @@ L36-36 verbatim
+noncomputable section
+
+
+-- @@ L38-38 verbatim
+open TopologicalSpace Function SchwartzMap QFT
+
+
+-- @@ L40-41 verbatim
+/-- A spacetime point has positive time if its time component is positive -/
+def HasPositiveTime (x : SpaceTime) : Prop := getTimeComponent x > 0
+
+
+-- @@ L43-44 verbatim
+/-- The set of all spacetime points with positive time -/
+def positiveTimeSet : Set SpaceTime := {x | HasPositiveTime x}
+
+
+-- @@ L46-48 verbatim
+/-- The positive time set is open -/
+lemma is_open_positiveTimeSet : IsOpen positiveTimeSet :=
+  isOpen_lt continuous_const (PiLp.continuous_apply 2 (fun _ => ℝ) (0 : Fin STDimension))
+
+
+-- @@ L50-58 verbatim
+/-- Submodule of **real-valued** test functions supported in the positive time region -/
+def PositiveTimeTestFunctions.submodule : Submodule ℝ OSforGFF.TestFunction where
+  carrier := { f : OSforGFF.TestFunction | tsupport f ⊆ positiveTimeSet }
+  zero_mem' := by
+    simp only [Set.mem_ofPred_eq]
+    suffices h : tsupport (0 : OSforGFF.TestFunction) = ∅ by rw [h]; apply Set.empty_subset
+    rw [tsupport_eq_empty_iff]; rfl
+  add_mem' := fun {f g} hf hg => Set.Subset.trans (tsupport_add f g) (Set.union_subset hf hg)
+  smul_mem' c f hf := (tsupport_smul_subset_right (fun _ : SpaceTime => c) f).trans hf
+
+
+-- @@ L60-61 verbatim
+/-- Type of real-valued test functions supported in the positive time region -/
+abbrev PositiveTimeTestFunction : Type := PositiveTimeTestFunctions.submodule
+
+
+-- @@ L63-63 verbatim
+instance : AddCommMonoid PositiveTimeTestFunction := by infer_instance
+
+-- @@ L64-64 verbatim
+instance : AddCommGroup PositiveTimeTestFunction := by infer_instance
+
+
+-- @@ L66-74 verbatim
+/-- Linear combinations of positive-time test functions are positive-time test functions. -/
+lemma PositiveTimeTestFunction.sum_smul_mem
+    {n : ℕ} (f : Fin n → PositiveTimeTestFunction) (c : Fin n → ℝ) :
+    ∃ g : PositiveTimeTestFunction, g.val = ∑ i, c i • (f i).val := by
+  -- Use the fact that PositiveTimeTestFunctions.submodule is closed under finite linear
+  -- combinations
+  use ∑ i, c i • (f i)
+  -- The sum automatically lives in the submodule by the submodule properties
+  simp only [Submodule.coe_sum, Submodule.coe_smul_of_tower]
+
+
+-- @@ L76-86 verbatim
+/-- Submodule of **complex-valued** test functions supported in the positive time region.
+    This is a ℂ-submodule since ℂ-scalar multiplication preserves support.
+-/
+def PositiveTimeTestFunctionsℂ.submodule : Submodule ℂ TestFunctionℂ where
+  carrier := { f : TestFunctionℂ | tsupport f ⊆ positiveTimeSet }
+  zero_mem' := by
+    simp only [Set.mem_ofPred_eq]
+    suffices h : tsupport (0 : TestFunctionℂ) = ∅ by rw [h]; apply Set.empty_subset
+    rw [tsupport_eq_empty_iff]; rfl
+  add_mem' := fun {f g} hf hg => Set.Subset.trans (tsupport_add f g) (Set.union_subset hf hg)
+  smul_mem' c f hf := (tsupport_smul_subset_right (fun _ : SpaceTime => c) f).trans hf
+
+
+-- @@ L88-89 verbatim
+/-- Type of complex-valued test functions supported in the positive time region -/
+abbrev PositiveTimeTestFunctionℂ : Type := PositiveTimeTestFunctionsℂ.submodule
+
+
+-- @@ L91-91 verbatim
+instance : AddCommMonoid PositiveTimeTestFunctionℂ := by infer_instance
+
+-- @@ L92-92 verbatim
+instance : AddCommGroup PositiveTimeTestFunctionℂ := by infer_instance
+
+
+-- @@ L94-100 verbatim
+lemma PositiveTimeTestFunctionℂ.zero_on_nonpositive
+    (f : PositiveTimeTestFunctionℂ) {x : SpaceTime}
+    (hx : getTimeComponent x ≤ 0) : f.val x = 0 := by
+  refine image_eq_zero_of_notMem_tsupport (fun hx_mem => ?_)
+  have hx_pos : getTimeComponent x > 0 := by
+    simpa [positiveTimeSet, HasPositiveTime] using f.property hx_mem
+  linarith
+
+
+-- @@ L102-111 verbatim
+/-- Helper lemma: starRingEnd ℂ commutes through derivatives and preserves norms -/
+lemma starRingEnd_iteratedFDeriv_norm_eq (g : TestFunctionℂ) (n : ℕ) (x : SpaceTime) :
+  ‖iteratedFDeriv ℝ n (fun x => starRingEnd ℂ (g x)) x‖ = ‖iteratedFDeriv ℝ n g x‖ := by
+  -- Use the fact that starRingEnd ℂ = Complex.conjLIE (as functions)
+  have h : (fun x => starRingEnd ℂ (g x)) = Complex.conjLIE ∘ g := by
+    ext y
+    simp_all
+  rw [h]
+  -- Now apply the norm preservation lemma for LinearIsometryEquiv
+  exact LinearIsometryEquiv.norm_iteratedFDeriv_comp_left Complex.conjLIE g x n
+
+
+-- @@ L113-133 verbatim
+/-- Star operation on test functions: time reflection followed by complex conjugation -/
+noncomputable def starTestFunction (f : TestFunctionℂ) : TestFunctionℂ :=
+  -- Apply time reflection then complex conjugation pointwise
+  let f_reflected := compTimeReflection f
+  -- Apply complex conjugation to each value
+  ⟨fun x => starRingEnd ℂ (f_reflected x),
+   -- Smoothness: starRingEnd is smooth and compTimeReflection gives smooth functions
+   by
+     -- Apply the continuous linear map contDiff lemma
+     apply ContDiff.comp
+     · -- starRingEnd ℂ is smooth
+       exact ContinuousLinearMap.contDiff (Complex.conjLIE.toContinuousLinearMap)
+     · -- f_reflected is smooth
+       exact f_reflected.smooth ⊤,
+   -- Decay
+   fun k n => by
+     -- starRingEnd ℂ is an isometry, so it preserves derivative norms.
+     obtain ⟨C, hC⟩ := f_reflected.decay' k n
+     refine ⟨C, fun x => ?_⟩
+     rw [starRingEnd_iteratedFDeriv_norm_eq f_reflected n x]
+     exact hC x⟩
+
+
+-- @@ L135-137 verbatim
+/-- Star instance for complex test functions -/
+noncomputable instance : Star TestFunctionℂ where
+  star f := starTestFunction f
+
+
+-- @@ L139-145 verbatim
+lemma PositiveTimeTestFunction.zero_on_nonpositive
+    (f : PositiveTimeTestFunction) {x : SpaceTime}
+    (hx : getTimeComponent x ≤ 0) : f.val x = 0 := by
+  refine image_eq_zero_of_notMem_tsupport (fun hx_mem => ?_)
+  have hx_pos : getTimeComponent x > 0 := by
+    simpa [positiveTimeSet, HasPositiveTime] using f.property hx_mem
+  linarith
+
+
+-- @@ L147-147 verbatim
+end
