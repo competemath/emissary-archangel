@@ -1,0 +1,387 @@
+{
+  "BrownianMotion/Auxiliary/Filtration.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:41.416Z"
+  },
+  "BrownianMotion/Auxiliary/IsStoppingTime.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:42.340Z"
+  },
+  "BrownianMotion/Auxiliary/LinearAlgebra.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:43.031Z"
+  },
+  "BrownianMotion/Auxiliary/Martingale.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:50:11.680Z"
+  },
+  "BrownianMotion/Choquet/AnalyticSet.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:50:16.735Z"
+  },
+  "BrownianMotion/Choquet/Debut.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:56:33.125Z"
+  },
+  "BrownianMotion/StochasticIntegral/Jump.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:00:43.957Z"
+  },
+  "BrownianMotion/StochasticIntegral/LocalMonad.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:00:58.712Z"
+  },
+  "BrownianMotion/StochasticIntegral/OptionalSampling.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:01:00.978Z"
+  },
+  "BrownianMotion/StochasticIntegral/StochasticInterval.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:01:01.710Z"
+  },
+  "BrownianMotion/Auxiliary/ConvergenceInMeasure.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:08.965Z"
+  },
+  "BrownianMotion/Auxiliary/FiniteInf.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:09.660Z"
+  },
+  "BrownianMotion/Auxiliary/MeasureTheory.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:15.498Z",
+    "collisions": [
+      "Set.indicator_apply_apply"
+    ]
+  },
+  "BrownianMotion/Auxiliary/Real.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:38.402Z"
+  },
+  "BrownianMotion/Auxiliary/SetAlgebra.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:39.107Z",
+    "collisions": [
+      "MeasureTheory.MonotoneClass._root_.MeasurableSpace.DynkinSystem.has_iUnion_of_mono",
+      "MeasureTheory.MonotoneClass._root_.MeasurableSpace.DynkinSystem.has_iInter_of_anti"
+    ]
+  },
+  "BrownianMotion/Auxiliary/StoppedValue.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:48.159Z"
+  },
+  "BrownianMotion/Auxiliary/StronglyMeasurablePath.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:50:01.662Z",
+    "collisions": [
+      "MeasureTheory.pathApprox_apply",
+      "MeasureTheory.pathApprox_apply_of_isLeast"
+    ]
+  },
+  "BrownianMotion/Auxiliary/Topology.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:50:14.684Z"
+  },
+  "BrownianMotion/Continuity/KolmogorovChentsov.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:50:35.212Z"
+  },
+  "BrownianMotion/Continuity/LimitModification.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:00:41.893Z",
+    "collisions": [
+      "_root_.Measurable.of_edist_eq_zero"
+    ]
+  },
+  "BrownianMotion/Gaussian/CovMatrix.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:00:55.634Z"
+  },
+  "BrownianMotion/Gaussian/StochasticProcesses.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:01:14.340Z"
+  },
+  "BrownianMotion/StochasticIntegral/ClassD.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:01:17.362Z",
+    "collisions": [
+      "MeasureTheory.UnifIntegrable.comp"
+    ]
+  },
+  "BrownianMotion/StochasticIntegral/DoobLp.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:02:22.131Z",
+    "collisions": [
+      "ProbabilityTheory._root_.tendsto_inv_add_atTop_nhds_zero_nat"
+    ]
+  },
+  "BrownianMotion/StochasticIntegral/Komlos.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:04:24.738Z"
+  },
+  "BrownianMotion/StochasticIntegral/Locally.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:07:41.818Z",
+    "collisions": [
+      "MeasureTheory.Filtration.IsComplete"
+    ]
+  },
+  "BrownianMotion/StochasticIntegral/PredictableTime.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:08:52.892Z"
+  },
+  "BrownianMotion/StochasticIntegral/SimpleProcess.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:09:01.718Z"
+  },
+  "BrownianMotion/Auxiliary/DenseCountable.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:07.327Z"
+  },
+  "BrownianMotion/Auxiliary/HasLaw.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:08.697Z"
+  },
+  "BrownianMotion/Auxiliary/LimitProcess.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:10.136Z"
+  },
+  "BrownianMotion/Auxiliary/Metric.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:15.244Z"
+  },
+  "BrownianMotion/Auxiliary/Nat.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:18.041Z"
+  },
+  "BrownianMotion/Auxiliary/StoppedProcess.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:18.735Z"
+  },
+  "BrownianMotion/Choquet/MeasurableSection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T13:49:27.025Z"
+  },
+  "BrownianMotion/Continuity/IsKolmogorovProcess.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:28.045Z"
+  },
+  "BrownianMotion/StochasticIntegral/ConvexWeights.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:51:35.622Z"
+  },
+  "BrownianMotion/StochasticIntegral/Quasimartingale/CadlagModification.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T13:52:06.128Z"
+  },
+  "BrownianMotion/Auxiliary/Algebra.lean": {
+    "checkedAt": "2026-09-27T13:49:44.759Z",
+    "collisions": [
+      "Set.indicator_apply_apply"
+    ]
+  },
+  "BrownianMotion/Auxiliary/Indistinguishable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T13:49:54.314Z"
+  },
+  "BrownianMotion/Auxiliary/NNReal.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:54.956Z"
+  },
+  "BrownianMotion/Auxiliary/WithLp.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:55.577Z"
+  },
+  "BrownianMotion/Continuity/KolmogorovChentsovInequality.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:58.063Z"
+  },
+  "BrownianMotion/Gaussian/GaussianProcess.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:50:35.054Z"
+  },
+  "BrownianMotion/Gaussian/ProjectiveLimit.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:50:36.310Z"
+  },
+  "BrownianMotion/StochasticIntegral/ContinuousSquareIntegrable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T13:51:00.298Z"
+  },
+  "BrownianMotion/StochasticIntegral/DoobMeyer.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:51:01.236Z",
+    "collisions": [
+      "MeasureTheory.UnifIntegrable.comp",
+      "Set.indicator_apply_apply"
+    ]
+  },
+  "BrownianMotion/StochasticIntegral/LocalizingLeastGE.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:52:40.363Z"
+  },
+  "BrownianMotion/StochasticIntegral/MonotoneProcess.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:52:44.144Z",
+    "collisions": [
+      "StieltjesFunction.measurable_measure_of_isFiniteMeasure"
+    ]
+  },
+  "BrownianMotion/StochasticIntegral/QuadraticVariation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T13:53:31.073Z"
+  },
+  "BrownianMotion/StochasticIntegral/Quasimartingale/MaximalInequality.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T13:53:31.498Z"
+  },
+  "BrownianMotion/StochasticIntegral/SquareIntegrable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T13:53:33.068Z"
+  },
+  "BrownianMotion/StochasticIntegral/VariationProcess.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:53:38.059Z"
+  },
+  "BrownianMotion/Auxiliary/Analysis.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:45.080Z"
+  },
+  "BrownianMotion/Auxiliary/ContinuousBilinForm.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:49:49.698Z",
+    "collisions": [
+      "ContinuousBilinForm._root_.LinearMap.BilinForm.isPosSemidef_iff_posSemidef_toMatrix"
+    ]
+  },
+  "BrownianMotion/Auxiliary/ENNReal.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:51:17.493Z"
+  },
+  "BrownianMotion/Auxiliary/EVariationOn.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:51:27.313Z"
+  },
+  "BrownianMotion/Auxiliary/HasGaussianLaw.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:51:37.036Z"
+  },
+  "BrownianMotion/Auxiliary/Jensen.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:51:46.304Z"
+  },
+  "BrownianMotion/Auxiliary/LeftLimWithin.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:51:55.385Z",
+    "collisions": [
+      "tendsto_atTop_of_mapClusterPt"
+    ]
+  },
+  "BrownianMotion/Auxiliary/MeanInequalities.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:52:34.054Z"
+  },
+  "BrownianMotion/Auxiliary/SeparableSpace.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:52:37.791Z",
+    "collisions": [
+      "countable_isolated_inter_Ioi_aux"
+    ]
+  },
+  "BrownianMotion/Auxiliary/Upcrossing.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:52:40.269Z"
+  },
+  "BrownianMotion/Choquet/Capacity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:52:49.248Z"
+  },
+  "BrownianMotion/Choquet/CompactSystem.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:56:07.969Z",
+    "collisions": [
+      "IsCompactSystem.sum.«»"
+    ]
+  },
+  "BrownianMotion/Continuity/Chaining.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:56:36.593Z"
+  },
+  "BrownianMotion/Continuity/CoveringNumber.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:56:52.419Z",
+    "collisions": [
+      "Set.indicator_apply_apply"
+    ]
+  },
+  "BrownianMotion/Continuity/HasBoundedInternalCoveringNumber.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:57:33.396Z",
+    "collisions": [
+      "Set.indicator_apply_apply"
+    ]
+  },
+  "BrownianMotion/Gaussian/BrownianMotion.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T13:57:42.973Z",
+    "collisions": [
+      "Set.indicator_apply_apply"
+    ]
+  },
+  "BrownianMotion/Gaussian/Gaussian.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:13:22.618Z"
+  },
+  "BrownianMotion/Gaussian/Moment.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:13:28.045Z"
+  },
+  "BrownianMotion/Gaussian/MultivariateGaussian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:13:47.168Z"
+  },
+  "BrownianMotion/StochasticIntegral/ApproxSeq.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:13:48.079Z",
+    "collisions": [
+      "MeasureTheory.UnifIntegrable.comp"
+    ]
+  },
+  "BrownianMotion/StochasticIntegral/Cadlag.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:14:40.761Z"
+  },
+  "BrownianMotion/StochasticIntegral/L2M.lean": {
+    "checkedAt": "2026-09-27T14:14:52.538Z",
+    "collisions": [
+      "ProbabilityTheory._root_.MeasureTheory.Filtration.predictable_le_prod"
+    ]
+  },
+  "BrownianMotion/StochasticIntegral/LocalMartingale.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:14:56.848Z"
+  },
+  "BrownianMotion/StochasticIntegral/LocalizingSequence.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:14:58.948Z",
+    "collisions": [
+      "MeasureTheory.Filtration.IsComplete"
+    ]
+  },
+  "BrownianMotion/StochasticIntegral/Predictable.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:15:11.754Z",
+    "collisions": [
+      "MeasureTheory.roundDown_bot",
+      "MeasureTheory.roundDown_lt_of_ne_bot",
+      "MeasureTheory.roundDown_le_of_subset",
+      "MeasureTheory.StronglyAdapted.isStronglyPredictable_roundDown",
+      "MeasureTheory.Filtration.disjoint_Ioc_prod_Ioc_prod",
+      "MeasureTheory.Filtration.disjoint_singletonBot_prod_Ioc_prod"
+    ]
+  },
+  "BrownianMotion/StochasticIntegral/UniformIntegrable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:15:54.141Z"
+  }
+}
