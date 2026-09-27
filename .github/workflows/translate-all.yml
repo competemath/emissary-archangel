@@ -4,7 +4,7 @@ name: translate-all
 #      every set-up library until nothing is left for it, then an agent pass (only with the CLAUDE_CODE_OAUTH_TOKEN
 #      secret; one library at a time: the Claude account's usage limit, not the runners, is the bottleneck there).
 #      "Left" is data/translate/<key>.status.json, written by translate.yml's finish job.
-#   2. flush: turn banked records (data/bank/) into tengoku PRs with the bot token secret, TENGOKU_BOT_LYSISTRATE_TOKEN (or TENGOKU_BOT_TOKEN) (bank-flush.mjs).
+#   2. flush: turn banked records (data/bank/) into tengoku PRs with the TENGOKU_BOT_TOKEN secret (bank-flush.mjs), when TRANSLATE_FLUSH=on.
 on:
   schedule:
     - cron: "7,22,37,52 * * * *"
@@ -121,7 +121,7 @@ jobs:
         with: { node-version: "22" }
       - name: Banked records to tengoku PRs
         env:
-          BOT: ${{ secrets.TENGOKU_BOT_LYSISTRATE_TOKEN || secrets.TENGOKU_BOT_TOKEN }}
+          BOT: ${{ secrets.TENGOKU_BOT_TOKEN }}
           # on only with the repository variable TRANSLATE_FLUSH=on (the first bot account was flagged by GitHub after
           # opening 38 PRs in minutes; every PR it had opened disappeared)
           FLUSH: ${{ vars.TRANSLATE_FLUSH || 'off' }}
@@ -129,8 +129,10 @@ jobs:
           ONLY: ${{ inputs.flush_key || '' }}
           PUSH_TOKEN: ${{ github.token }}
         run: |
-          if [ "$FLUSH" != on ]; then echo "flush is off (repository variable TRANSLATE_FLUSH): the bank stays in data/bank"; exit 0; fi
-          if [ -z "$BOT" ]; then echo "no bot token secret: the bank stays in data/bank until one is set"; exit 0; fi
+          if [ -z "$BOT" ]; then echo "no TENGOKU_BOT_TOKEN secret: the bank stays in data/bank until one is set"; exit 0; fi
+          echo "the flush acts as: $(GH_TOKEN="$BOT" gh api user --jq .login 2>&1 | head -1)"
+          # a flush_key given by hand (a one-library test) runs even while the scheduled flush is off
+          if [ "$FLUSH" != on ] && [ -z "$ONLY" ]; then echo "flush is off (repository variable TRANSLATE_FLUSH): the bank stays in data/bank"; exit 0; fi
           only=(); [ -n "$ONLY" ] && only=(--key "$ONLY")
           if [ "$DRY" = true ]; then GH_TOKEN="$BOT" node scripts/bank-flush.mjs --dry-run "${only[@]}"; exit 0; fi
           # a few large PRs per run, never a burst: at most 3 PRs every quarter hour
