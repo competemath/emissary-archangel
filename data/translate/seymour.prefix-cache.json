@@ -1,0 +1,149 @@
+{
+  "Seymour/Basic/Conversions.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:26:06.085Z"
+  },
+  "Seymour/Basic/Fin.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:26:16.793Z",
+    "collisions": [
+      "fin2swap"
+    ]
+  },
+  "Seymour/Basic/FunctionDecompose.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:26:33.183Z"
+  },
+  "Seymour/Basic/FunctionToHalfSum.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:26:34.108Z"
+  },
+  "Seymour/Basic/Sets.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:26:39.871Z"
+  },
+  "Seymour/Basic/SubmoduleSpans.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:26:50.141Z"
+  },
+  "Seymour/Matrix/Basic.lean": {
+    "checkedAt": "2026-09-27T10:26:51.517Z",
+    "collisions": [
+      "Matrix.ext_col"
+    ]
+  },
+  "Seymour/Matrix/Determinants.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:26:57.359Z"
+  },
+  "Seymour/Matrix/LinearIndependenceBlock.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:00.316Z"
+  },
+  "Seymour/Matrix/Pivoting.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:03.374Z"
+  },
+  "Seymour/Matrix/SubmoduleBasis.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:05.065Z"
+  },
+  "Seymour/Matrix/TotalUnimodularity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:05.717Z"
+  },
+  "Seymour/Matrix/TotalUnimodularityTest.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:06.199Z"
+  },
+  "Seymour/Matroid/Comatroids.lean": {
+    "checkedAt": "2026-09-27T10:27:55.318Z",
+    "collisions": [
+      "Matrix.ext_col"
+    ]
+  },
+  "Seymour/Matroid/FromMatrix.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:31:37.953Z"
+  },
+  "Seymour/Matroid/Graphicness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:31:50.657Z"
+  },
+  "Seymour/Matroid/R10.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:31:59.338Z"
+  },
+  "Seymour/Matroid/Sum2.lean": {
+    "checkedAt": "2026-09-27T10:32:47.496Z",
+    "collisions": [
+      "Matrix.ext_col"
+    ]
+  },
+  "Seymour/Results/EasyDirection.lean": {
+    "checkedAt": "2026-09-27T10:40:53.076Z",
+    "collisions": [
+      "Matrix.ext_col"
+    ]
+  },
+  "Seymour/Basic/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:00.867Z"
+  },
+  "Seymour/Basic/SignTypeCast.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:01.342Z"
+  },
+  "Seymour/Matrix/Conversions.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:02.025Z"
+  },
+  "Seymour/Matrix/LinearIndependence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:03.329Z"
+  },
+  "Seymour/Matrix/PartialUnimodularity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:03.728Z"
+  },
+  "Seymour/Matrix/Signing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:04.004Z"
+  },
+  "Seymour/Matrix/Support.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:04.341Z"
+  },
+  "Seymour/Matroid/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:27:17.648Z"
+  },
+  "Seymour/Matroid/Duality.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:21.146Z"
+  },
+  "Seymour/Matroid/Regularity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:21.770Z"
+  },
+  "Seymour/Matroid/StandardRepresentation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:22.310Z"
+  },
+  "Seymour/Matroid/Sum1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:36.072Z"
+  },
+  "Seymour/Matroid/Sum3.lean": {
+    "checkedAt": "2026-09-27T10:28:08.338Z",
+    "collisions": [
+      "Matrix.ext_col"
+    ]
+  },
+  "Seymour/Results/HardDirection.lean": {
+    "checkedAt": "2026-09-27T12:27:28.965Z",
+    "collisions": [
+      "Matrix.ext_col"
+    ]
+  }
+}
