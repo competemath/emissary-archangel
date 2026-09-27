@@ -1,0 +1,150 @@
+{
+  "APAP/Mathlib/Algebra/Group/Translate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:51.806Z"
+  },
+  "APAP/Mathlib/Algebra/Module/ZMod.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:28:02.292Z"
+  },
+  "APAP/Mathlib/Algebra/Star/Conjneg.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:28:02.572Z"
+  },
+  "APAP/Mathlib/Analysis/Convolution.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:28:03.676Z"
+  },
+  "APAP/Mathlib/Basic/Complex/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:28:29.566Z"
+  },
+  "APAP/Mathlib/Basic/NNReal/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:28:29.835Z"
+  },
+  "APAP/Physics/Unbalancing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:28:35.253Z"
+  },
+  "APAP/Prereqs/Bohr/Arc.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:28:37.859Z"
+  },
+  "APAP/Prereqs/Bohr/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:28:38.578Z"
+  },
+  "APAP/Prereqs/Convolution/Compact.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:29:09.687Z"
+  },
+  "APAP/Prereqs/Convolution/Order.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:29:15.128Z"
+  },
+  "APAP/Prereqs/Energy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:29:15.450Z"
+  },
+  "APAP/Prereqs/FourierTransform/Discrete.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:29:15.766Z"
+  },
+  "APAP/Prereqs/Inner/Hoelder/Compact.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:29:16.649Z"
+  },
+  "APAP/Prereqs/Inner/Hoelder/Discrete.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:29:17.076Z"
+  },
+  "APAP/Prereqs/Mu.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:29:17.357Z"
+  },
+  "APAP/Mathlib/Algebra/Group/Action/Pointwise/Set/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:07.269Z"
+  },
+  "APAP/Mathlib/Algebra/Group/Pointwise/Set/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:07.547Z"
+  },
+  "APAP/Mathlib/Analysis/RCLike/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:27:17.712Z"
+  },
+  "APAP/Mathlib/MeasureTheory/Function/LpSeminorm/CompareExp.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:27:19.897Z"
+  },
+  "APAP/Prereqs/Chang.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:20.298Z"
+  },
+  "APAP/Prereqs/Convolution/Discrete/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:27:21.043Z"
+  },
+  "APAP/Prereqs/Convolution/Norm.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:28:33.333Z"
+  },
+  "APAP/Prereqs/FourierTransform/Compact.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:28:33.672Z"
+  },
+  "APAP/Prereqs/Inner/Function.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:28:34.041Z"
+  },
+  "APAP/Prereqs/LpNorm/Compact.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:28:34.327Z"
+  },
+  "APAP/Prereqs/LpNorm/Discrete/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:28:35.188Z"
+  },
+  "APAP/Mathlib/Algebra/BigOperators/Pi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:26:41.479Z"
+  },
+  "APAP/Mathlib/Algebra/Star/SelfAdjoint.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:26:41.763Z"
+  },
+  "APAP/Mathlib/Analysis/Complex/Circle.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:26:51.785Z"
+  },
+  "APAP/Mathlib/Analysis/Fourier/FiniteAbelian/PontryaginDuality.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:26:53.208Z"
+  },
+  "APAP/Mathlib/Analysis/Normed/Ring/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:27:04.218Z"
+  },
+  "APAP/Mathlib/Data/ZMod/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:27:07.690Z"
+  },
+  "APAP/Prereqs/Convolution/Discrete/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:13.361Z"
+  },
+  "APAP/Prereqs/LpNorm/Weighted.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:27:14.471Z"
+  },
+  "APAP/Prereqs/MarcinkiewiczZygmund.lean": {
+    "checkedAt": "2026-09-27T10:27:31.746Z",
+    "collisions": [
+      "step_six",
+      "step_seven",
+      "step_eight"
+    ]
+  }
+}
