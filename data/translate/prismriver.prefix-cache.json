@@ -1,0 +1,18 @@
+{
+  "Prismriver/Repr/Classical.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:22:30.350Z"
+  },
+  "Prismriver/Repr/Dihedral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:23:21.237Z"
+  },
+  "Prismriver/Repr/Scale.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:23:22.147Z"
+  },
+  "Prismriver/Theory/Dihedral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:23:22.800Z"
+  }
+}
