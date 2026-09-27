@@ -1,0 +1,48 @@
+{
+  "ZFLean/Quotient.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:33:06.278Z"
+  },
+  "ZFLean/Rationals.lean": {
+    "checkedAt": "2026-09-27T10:33:15.769Z",
+    "collisions": [
+      "ZFSet.some_inf"
+    ]
+  },
+  "ZFLean/Def.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:34:39.420Z"
+  },
+  "ZFLean/Transfer.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:34:47.874Z"
+  },
+  "ZFLean/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:33:30.504Z"
+  },
+  "ZFLean/Booleans.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:33:48.387Z"
+  },
+  "ZFLean/Functions.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:34:37.350Z"
+  },
+  "ZFLean/Integers.lean": {
+    "checkedAt": "2026-09-27T10:34:53.213Z",
+    "collisions": [
+      "ZFSet.some_inf"
+    ]
+  },
+  "ZFLean/Naturals.lean": {
+    "checkedAt": "2026-09-27T10:43:04.216Z",
+    "collisions": [
+      "ZFSet.some_inf"
+    ]
+  },
+  "ZFLean/Sum.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:49:19.788Z"
+  }
+}
