@@ -35,11 +35,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           MAX: ${{ inputs.max_libraries || '6' }}
+          JOB_BUDGET: "14"
           DRY: ${{ inputs.dry_run || 'false' }}
           HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
         run: |
           gh run list -R "$GITHUB_REPOSITORY" --workflow translate.yml --limit 100 --json status,displayTitle \
             --jq '.[] | select(.status != "completed") | .displayTitle' > running.txt
+          # runners are shared with the tree's own gate and merge queue (the organisation's concurrent-job limit): this
+          # repository's workflows keep to JOB_BUDGET jobs in flight, so a PR on competemath/tengoku never waits on us
+          busy=0
+          for id in $(gh run list -R "$GITHUB_REPOSITORY" --limit 60 --json databaseId,status --jq '.[] | select(.status != "completed") | .databaseId'); do
+            busy=$((busy + $(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs" --jq '[.jobs[] | select(.status != "completed")] | length')))
+          done
+          echo "$busy" > busy.txt
           python3 - <<'PY'
           import json, math, os, re, subprocess
           reg = json.load(open("sources.json"))["sources"]
@@ -63,15 +71,18 @@ jobs:
                   plan.append((1, entries, key, "agent", 2))
           plan.sort()
           slots = max(0, int(os.environ["MAX"]) - len(running))
+          jobs = int(os.environ["JOB_BUDGET"]) - int(open("busy.txt").read())
           agent_busy = any(" (agent," in t for t in open("running.txt"))
           chosen = []
           for _, entries, key, mode, shards in plan:
-              if len(chosen) >= slots:
+              if len(chosen) >= slots or jobs < 2:
                   break
               if mode == "agent" and (agent_busy or any(m == "agent" for _, m, _ in chosen)):
                   continue
+              shards = min(shards, 12)   # translate.yml runs at most 12 shards at once anyway
               chosen.append((key, mode, shards))
-          print(f"{len(ready)} libraries set up, {len(running)} running, {len(plan)} with work, {slots} slots")
+              jobs -= min(shards, 12) + 1
+          print(f"{len(ready)} libraries set up, {len(running)} running, {len(plan)} with work, {slots} library slots, {open('busy.txt').read().strip()} jobs busy")
           for key, mode, shards in chosen:
               print(f"dispatch {key} {mode} {shards} shards")
               if os.environ["DRY"] != "true":

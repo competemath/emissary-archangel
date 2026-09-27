@@ -64,7 +64,7 @@ jobs:
     permissions: { contents: read }
     strategy:
       fail-fast: false
-      max-parallel: 20
+      max-parallel: 12   # runners are shared with the tree's gate and merge queue
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     env:
