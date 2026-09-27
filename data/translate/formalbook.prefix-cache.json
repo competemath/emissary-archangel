@@ -1,0 +1,122 @@
+{
+  "FormalBook/Ch20/CauchyAMGM.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:08:01.312Z"
+  },
+  "FormalBook/Ch20/ErdosGallai.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:08:13.617Z"
+  },
+  "FormalBook/Ch28/BrouwerCovering.lean": {
+    "checkedAt": "2026-09-27T10:08:23.474Z",
+    "collisions": [
+      "acCov",
+      "sc_of_retract",
+      "nsq_eq",
+      "rA_pos",
+      "rC_nonpos",
+      "quad_at_one",
+      "rR_norm_sq_expand"
+    ]
+  },
+  "FormalBook/Ch28/SpernerBrouwer.lean": {
+    "checkedAt": "2026-09-27T10:08:33.191Z",
+    "collisions": [
+      "chapter28.odd_card_filter_eq_one",
+      "chapter28.stdSimplex2_eq",
+      "chapter28.stdSimplex2_isCompact",
+      "chapter28.spernerColor_exists",
+      "chapter28.spernerColor_boundary",
+      "chapter28.subdivCoord_mem",
+      "chapter28.subdivCoord_dist",
+      "chapter28.transitions_parity_nat",
+      "chapter28.odd_transitions",
+      "chapter28.subdivSperner_odd_sum",
+      "chapter28.rainbow_triangle_gives_vertices"
+    ]
+  },
+  "FormalBook/Ch30/EKRAuxiliary.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:10:42.851Z"
+  },
+  "FormalBook/Ch44/Auxiliary.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:11:27.982Z"
+  },
+  "FormalBook/Chapter_01.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:11:36.112Z"
+  },
+  "FormalBook/Chapter_02.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:12:01.279Z"
+  },
+  "FormalBook/Chapter_04.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:12:07.514Z"
+  },
+  "FormalBook/Chapter_06.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:12:16.152Z"
+  },
+  "FormalBook/Chapter_08.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:12:21.231Z"
+  },
+  "FormalBook/Chapter_11.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:12:21.907Z"
+  },
+  "FormalBook/Chapter_20.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:12:44.659Z"
+  },
+  "FormalBook/Chapter_21.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:13:03.936Z"
+  },
+  "FormalBook/Chapter_28.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:13:18.538Z"
+  },
+  "FormalBook/Chapter_29.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:13:35.696Z"
+  },
+  "FormalBook/Chapter_30.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:16:57.449Z"
+  },
+  "FormalBook/Chapter_35.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:17:13.449Z"
+  },
+  "FormalBook/Chapter_43.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:18:45.779Z"
+  },
+  "FormalBook/Chapter_44.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:19:56.959Z"
+  },
+  "FormalBook/Chapter_45.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:19:58.190Z"
+  },
+  "FormalBook/Mathlib/Analysis/SpecialFunctions/Integrability/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:20:07.617Z"
+  },
+  "FormalBook/Mathlib/Analysis/SpecialFunctions/Integrals/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:20:09.532Z"
+  },
+  "FormalBook/Mathlib/Analysis/SpecialFunctions/Trigonometric/Arctan.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:20:10.815Z"
+  },
+  "FormalBook/Mathlib/EdgeFinset.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:20:11.451Z"
+  }
+}
