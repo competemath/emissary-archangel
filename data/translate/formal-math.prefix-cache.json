@@ -1,0 +1,1138 @@
+{
+  "Zeta23/Assembly/SeamMult.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:40:42.648Z"
+  },
+  "Zeta23/FromPNTPlus/Fourier.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:40:50.412Z"
+  },
+  "Zeta23/FromPNTPlus/Sobolev.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:41:13.148Z"
+  },
+  "Zeta23/FromPNTPlus/Tactic/AdditiveCombination.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:41:40.502Z"
+  },
+  "Zeta23/PairCeiling/NumericCert.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:41:42.573Z"
+  },
+  "Zeta23/RvM/Fold.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:42:12.893Z"
+  },
+  "Zeta23/ThmE/MuMuChi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:42:35.183Z"
+  },
+  "Zeta23/ThmE/PPChi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:42:40.786Z"
+  },
+  "Zeta23/ThmE/SeamL.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:42:41.683Z"
+  },
+  "Zeta23/ThmE/VerticalLineChi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:43:13.932Z"
+  },
+  "Zeta23/XiPrime/Coeff/Tail.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:43:14.682Z"
+  },
+  "Zeta23/XiPrime/ExplicitFormula/FullLine.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:44:30.798Z"
+  },
+  "Zeta23/XiPrime/Hardy/EFBasic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:44:31.696Z"
+  },
+  "Zeta23/XiPrime/Hardy/EFContour.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:44:33.566Z"
+  },
+  "Zeta23/XiPrime/Hardy/EFContour/Poles.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:44:34.588Z"
+  },
+  "Zeta23/XiPrime/Window.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:44:35.715Z"
+  },
+  "Zeta23/XiPrime/ZeroCount/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:44:37.920Z"
+  },
+  "Zeta23/FromPNTPlus/StrongPNTPrefix.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:32:49.689Z"
+  },
+  "Zeta23/GammaFacts/IntMu.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:33:31.994Z"
+  },
+  "Zeta23/LinAlg/PosIndex.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:33:34.905Z"
+  },
+  "Zeta23/PairCeiling/CeilingLaw256.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:34:12.403Z"
+  },
+  "Zeta23/PairCeiling/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:34:13.223Z"
+  },
+  "Zeta23/PairCeiling/Signed.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:34:23.334Z"
+  },
+  "Zeta23/RvM/CountByIntegral.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:35:34.058Z"
+  },
+  "Zeta23/RvM/GammaSide.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:35:44.322Z"
+  },
+  "Zeta23/RvM/ReZeroCount.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:36:12.425Z"
+  },
+  "Zeta23/ThmD/Window.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:37:02.114Z"
+  },
+  "Zeta23/ThmE/Statement.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:37:05.112Z"
+  },
+  "Zeta23/TracesBoundsE.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:37:13.192Z"
+  },
+  "Zeta23/WeilEF/Effective.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:37:17.494Z"
+  },
+  "Zeta23/XiPrime/Certificate/AtOne.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:37:18.433Z"
+  },
+  "Zeta23/XiPrime/Certificate/D1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:37:19.006Z"
+  },
+  "Zeta23/XiPrime/ExplicitFormula/XiEFAssembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:37:20.165Z"
+  },
+  "Zeta23/XiPrime/Hardy/EFExpansion.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:37:20.998Z"
+  },
+  "Zeta23/XiPrime/Hardy/Seam.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:45.532Z"
+  },
+  "Zeta23/XiPrime/PrimeSide/Abel.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:00:54.130Z"
+  },
+  "Zeta23/XiPrime/QuarticWindow/Quartic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:59.265Z"
+  },
+  "Zeta23/XiPrime/ZeroCount/Generic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:14.333Z"
+  },
+  "Zeta23/Main.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:30:12.904Z"
+  },
+  "Zeta23/PairCeiling/LawN256.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:30:16.416Z"
+  },
+  "Zeta23/Poisson.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:30:28.674Z"
+  },
+  "Zeta23/PrimeSideA/EndsWeighted.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:31:53.219Z"
+  },
+  "Zeta23/RvM/ZetaGrowth.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:33:16.358Z"
+  },
+  "Zeta23/Taper/Strip.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:33:26.424Z"
+  },
+  "Zeta23/ThmD/Endgame.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:35:08.549Z"
+  },
+  "Zeta23/ThmE/FullLineChiFold.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:35:21.744Z"
+  },
+  "Zeta23/ThmE/LocalCountChi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:35:25.960Z"
+  },
+  "Zeta23/XiPrime/Certificate/Poly.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:35:26.895Z"
+  },
+  "Zeta23/XiPrime/Coeff/Upper.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:36:02.047Z"
+  },
+  "Zeta23/XiPrime/ExplicitFormula.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:39:46.414Z"
+  },
+  "Zeta23/XiPrime/FamilyHyps.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:39:50.015Z"
+  },
+  "Zeta23/XiPrime/Hardy/EFContour/Rectangle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:40:48.404Z"
+  },
+  "Zeta23/XiPrime/PrimeSide/Trace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:41:06.317Z"
+  },
+  "Zeta23/XiPrime/Seam.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:41:12.827Z"
+  },
+  "Zeta23/XiPrime/ZeroCount/Sides.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:41:13.679Z"
+  },
+  "Solution/XiPrime.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:31:06.519Z"
+  },
+  "Zeta23/Analytic/Stirling.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:31:15.713Z"
+  },
+  "Zeta23/Defs/LeafIntegrals.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:31:25.096Z"
+  },
+  "Zeta23/Final.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:32:00.700Z"
+  },
+  "Zeta23/FromPNTPlus/Rectangle.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:32:05.187Z"
+  },
+  "Zeta23/LinAlg/HermitianPosPart.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:32:19.083Z",
+    "collisions": [
+      "RHLinalg.real_posPart_mul_negPart"
+    ]
+  },
+  "Zeta23/LinAlg/Inertia.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:33:24.350Z"
+  },
+  "Zeta23/MV/Duality.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:33:28.980Z"
+  },
+  "Zeta23/MV/EigenIdentity.lean": {
+    "checkedAt": "2026-09-27T21:33:29.693Z",
+    "collisions": [
+      "Zeta23.MV.norm_sq_eq_re_mul_conj",
+      "Zeta23.MV.re_mul_conj_comm"
+    ]
+  },
+  "Zeta23/PrimeSideA/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:33:39.452Z"
+  },
+  "Zeta23/PrimeSideA/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:33:41.852Z"
+  },
+  "Zeta23/PrimeSideA/MuMu.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:34:20.027Z"
+  },
+  "Zeta23/PrimeSideB/Concrete.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:35:25.850Z"
+  },
+  "Zeta23/RvM/Backlund.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:35:52.185Z"
+  },
+  "Zeta23/Tail/Count.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:35:53.245Z"
+  },
+  "Zeta23/ThmD/AssemblyD.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:36:22.069Z"
+  },
+  "Zeta23/ThmD/Traces.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:36:40.544Z"
+  },
+  "Zeta23/ThmDE/Limit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:36:53.716Z"
+  },
+  "Zeta23/ThmE/FullLineChi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:36:57.871Z"
+  },
+  "Zeta23/ThmE/FullLineChiAssembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:38:18.516Z"
+  },
+  "Zeta23/ThmE/FullLineChiProof.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:38:34.842Z"
+  },
+  "Zeta23/ThmE/LandauChi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:38:58.633Z"
+  },
+  "Zeta23/WeilEF/FullLine.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:39:03.504Z"
+  },
+  "Zeta23/WeilEF/FullLineAssembly.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:39:04.616Z"
+  },
+  "Zeta23/WeilEF/GammaRBracket.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:39:13.136Z"
+  },
+  "Zeta23/WeilEF/GoodHeights.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:39:21.997Z"
+  },
+  "Zeta23/WeilEF/Landau.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:39:45.188Z"
+  },
+  "Zeta23/XiPrime/Coeff/LayerOne.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:39:45.949Z"
+  },
+  "Zeta23/XiPrime/Coeff/ReexpansionW.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:39:53.733Z"
+  },
+  "Zeta23/XiPrime/ExplicitFormula/GramBridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:40:54.326Z"
+  },
+  "Zeta23/XiPrime/ExplicitFormula/JTerm.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:40:54.934Z"
+  },
+  "Zeta23/XiPrime/QuarticWindow/Moments.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:40:59.831Z"
+  },
+  "Zeta23/XiPrime/Transfer/Inputs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:42:16.255Z"
+  },
+  "Zeta23/XiPrime/ZeroCount.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:42:26.846Z"
+  },
+  "Zeta23/XiPrime/ZeroCount/Y.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:42:37.747Z"
+  },
+  "Zeta23/Chebyshev.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:42:30.700Z"
+  },
+  "Zeta23/GammaFacts/Mu.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:48:04.796Z"
+  },
+  "Zeta23/LinAlg/Sylvester.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:49:09.649Z"
+  },
+  "Zeta23/LinAlg/VonNeumann.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:50:17.196Z",
+    "collisions": [
+      "RHLinalg._root_.Antitone.monovary_antitone"
+    ]
+  },
+  "Zeta23/MV/Spacing.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:50:36.603Z",
+    "collisions": [
+      "Zeta23.MV.Adm.mem_window",
+      "Zeta23.MV.Adm.window_integrable"
+    ]
+  },
+  "Zeta23/PrimeSideA/EndsNu.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:51:04.990Z"
+  },
+  "Zeta23/RvM/Halving.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:55:18.415Z"
+  },
+  "Zeta23/Taper/Params.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:55:28.729Z"
+  },
+  "Zeta23/ThmD/BridgeD.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:57:24.359Z"
+  },
+  "Zeta23/ThmD/Functional.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:57:25.440Z",
+    "collisions": [
+      "Zeta23.ThmD.hasDerivAt_left",
+      "Zeta23.ThmD.hasDerivAt_right",
+      "Zeta23.ThmD.kernel_eq"
+    ]
+  },
+  "Zeta23/ThmD/Limit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:59:17.980Z"
+  },
+  "Zeta23/ThmD/PsiC.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:59:31.872Z"
+  },
+  "Zeta23/ThmD/ZeroSideD.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:11.493Z"
+  },
+  "Zeta23/ThmDE/PP.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:26.729Z"
+  },
+  "Zeta23/ThmE/CountByIntegralChi.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:00:27.541Z"
+  },
+  "Zeta23/ThmE/CrossMuPChi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:01.323Z"
+  },
+  "Zeta23/ThmE/GammaSideChi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:02.614Z"
+  },
+  "Zeta23/XiPrime/ExplicitFormula/FamilyFacts.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:28.081Z"
+  },
+  "Zeta23/XiPrime/ExplicitFormula/PrimeTermJ.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:01:42.813Z"
+  },
+  "Zeta23/XiPrime/Hardy/EFLitCorrW.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:21.052Z"
+  },
+  "Zeta23/XiPrime/PrimeSide/Moments.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:22.314Z"
+  },
+  "Zeta23/XiPrime/Transfer/Abstract.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:02:28.813Z"
+  },
+  "Zeta23/ZetaReflect.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:49.077Z"
+  },
+  "Zeta23/Defs/Counting.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:30:59.692Z"
+  },
+  "Zeta23/Defs/Profile.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:31:08.137Z"
+  },
+  "Zeta23/ExplicitFormula/Bridge.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:31:11.291Z"
+  },
+  "Zeta23/FromPNTPlus/Mathlib/Algebra/Notation/Support.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:31:46.898Z"
+  },
+  "Zeta23/FromPNTPlus/Mathlib/Analysis/SpecialFunctions/Log/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:31:48.315Z"
+  },
+  "Zeta23/GammaFacts/Series.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:31:49.015Z"
+  },
+  "Zeta23/PrimeSideA/EndsE1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:32:32.211Z"
+  },
+  "Zeta23/PrimeSideB.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:32:32.763Z"
+  },
+  "Zeta23/RvM/LocalCount.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:32:34.720Z"
+  },
+  "Zeta23/ThmD/Mult.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:32:35.367Z"
+  },
+  "Zeta23/ThmE/FoldChi.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:32:37.256Z"
+  },
+  "Zeta23/ThmE/LGrowth.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:33:19.569Z"
+  },
+  "Zeta23/XiPrime/ExplicitFormula/DirichletLine.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:33:58.349Z"
+  },
+  "Zeta23/XiPrime/ExplicitFormula/EntryError.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:33:59.118Z"
+  },
+  "Zeta23/XiPrime/Hardy/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:34:18.971Z"
+  },
+  "Zeta23/XiPrime/Hardy/Contour.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:35:19.584Z"
+  },
+  "Zeta23/XiPrime/Hardy/ZFunction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:35:19.965Z"
+  },
+  "Zeta23/XiPrime/Hardy/ZeroFree.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:35:22.810Z"
+  },
+  "Zeta23/XiPrime/Transfer/W.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:35:29.634Z"
+  },
+  "Zeta23/XiPrime/ZeroCount/Landau.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:35:34.418Z"
+  },
+  "Zeta23/ZeroSide/Final.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:35:35.030Z"
+  },
+  "Zeta23/FromPNTPlus/Auxiliary.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:28:08.373Z"
+  },
+  "Zeta23/FromPNTPlus/Mertens.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:28:20.599Z"
+  },
+  "Zeta23/Hypotheses/GzGp.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:28:30.680Z"
+  },
+  "Zeta23/LinAlg/RankTrace.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:28:43.136Z"
+  },
+  "Zeta23/PairCeiling/NearCUE.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:29:59.779Z",
+    "collisions": [
+      "Zeta23.PairCeiling.ii_Dfun",
+      "Zeta23.PairCeiling.cubic_bounds"
+    ]
+  },
+  "Zeta23/PrimeSideA.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:34:50.923Z"
+  },
+  "Zeta23/PrimeSideA/Bridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:37:34.587Z"
+  },
+  "Zeta23/PrimeSideA/EndsE2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:37:43.483Z"
+  },
+  "Zeta23/RvM/MainTerm.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:37:50.735Z"
+  },
+  "Zeta23/Tail/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:37:51.656Z"
+  },
+  "Zeta23/ThmE/EFLitChi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:38:03.870Z"
+  },
+  "Zeta23/ThmE/Hypotheses.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:38:04.794Z"
+  },
+  "Zeta23/XiPrime/Assembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:38:23.954Z"
+  },
+  "Zeta23/XiPrime/Coeff/Abel.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:38:25.257Z"
+  },
+  "Zeta23/XiPrime/Coeff/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:39:15.417Z"
+  },
+  "Zeta23/XiPrime/Coeff/MainTerm/Asymp.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:39:36.688Z"
+  },
+  "Zeta23/XiPrime/Coeff/NonSquarefree.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:39:37.535Z"
+  },
+  "Zeta23/XiPrime/ExplicitFormula/Expansion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:43:20.115Z"
+  },
+  "Zeta23/XiPrime/FamilyHypsV.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:43:32.355Z"
+  },
+  "Zeta23/XiPrime/Hardy/EFContour/Limit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:43:58.369Z"
+  },
+  "Zeta23/Assembly.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:38:17.732Z"
+  },
+  "Zeta23/ExplicitFormula.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:43:52.457Z"
+  },
+  "Zeta23/FromPNTPlus/EulerMaclaurin.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:43:53.427Z"
+  },
+  "Zeta23/GammaFacts.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:44:01.683Z",
+    "collisions": [
+      "Zeta23.gamma_ne_neg_nat",
+      "Zeta23.analyticAt_digamma"
+    ]
+  },
+  "Zeta23/MV/Eigen.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:44:21.560Z"
+  },
+  "Zeta23/MV/Final.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:45:12.242Z"
+  },
+  "Zeta23/PairCeiling/Grid.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:45:19.062Z"
+  },
+  "Zeta23/PairCeiling/RowCert.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:46:01.008Z"
+  },
+  "Zeta23/PiFacts.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:46:55.041Z"
+  },
+  "Zeta23/PrimeSideA/Ends.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:48:49.174Z"
+  },
+  "Zeta23/PrimeSideB/PPKernel.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:48:49.669Z"
+  },
+  "Zeta23/RvM/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:48:50.226Z"
+  },
+  "Zeta23/Statement/Seam.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:48:50.907Z"
+  },
+  "Zeta23/Taper/GevreyRamps.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:49:12.741Z"
+  },
+  "Zeta23/ThmD/PP.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:50:00.272Z"
+  },
+  "Zeta23/ThmE/ChebCoprime.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:50:24.688Z"
+  },
+  "Zeta23/ThmE/Main.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:51:05.023Z"
+  },
+  "Zeta23/ThmE/MainChi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:51:06.833Z"
+  },
+  "Zeta23/WeilEF/XiLogDeriv.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:51:08.080Z"
+  },
+  "Zeta23/XiPrime/Certificate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:51:19.797Z"
+  },
+  "Zeta23/XiPrime/CertificateFn.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:51:52.031Z"
+  },
+  "Zeta23/XiPrime/Coeff/H3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:51:54.484Z"
+  },
+  "Zeta23/XiPrime/Coeff/LSeries.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:51:55.215Z"
+  },
+  "Zeta23/XiPrime/Coeff/MainTerm/Squarefree.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:52:39.727Z"
+  },
+  "Zeta23/XiPrime/Coeff/PowerSums.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:52:55.084Z"
+  },
+  "Zeta23/XiPrime/ExplicitFormula/LineBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:55:08.642Z"
+  },
+  "Zeta23/XiPrime/ExplicitFormula/TestWeight.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:55:09.267Z"
+  },
+  "Zeta23/XiPrime/ExplicitFormula/ZeroFree.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:55:13.040Z"
+  },
+  "Zeta23/XiPrime/Hardy/EFJTermW.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:58:54.063Z"
+  },
+  "Zeta23/XiPrime/Hardy/EFWeights.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:59:08.165Z"
+  },
+  "Zeta23/XiPrime/PrimeSide/Density.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:59:08.622Z"
+  },
+  "Zeta23/XiPrime/PrimeSide/Traces.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:59:09.124Z"
+  },
+  "Zeta23/XiPrime/Transfer.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:59:10.397Z"
+  },
+  "Zeta23/PairCeiling/Bridge.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:43:36.195Z"
+  },
+  "Zeta23/PairCeiling/Ceiling.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:45:01.872Z"
+  },
+  "Zeta23/PairCeiling/Stability.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:45:08.271Z"
+  },
+  "Zeta23/PrimeSideB/PP.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:48:45.005Z"
+  },
+  "Zeta23/RvM/NcountWindow.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:52:39.766Z"
+  },
+  "Zeta23/Tail/Grid.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:52:40.772Z"
+  },
+  "Zeta23/Tail/Package.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:52:50.702Z"
+  },
+  "Zeta23/Taper/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:52:52.460Z"
+  },
+  "Zeta23/Taper/Decay.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:53:14.740Z"
+  },
+  "Zeta23/Taper/Gevrey.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:58:49.749Z"
+  },
+  "Zeta23/ThmE/BacklundChi.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:58:51.192Z"
+  },
+  "Zeta23/ThmE/GammaFactsChiProof.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:59:49.361Z"
+  },
+  "Zeta23/ThmE/GzGpChi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:39.081Z"
+  },
+  "Zeta23/ThmE/ReZeroCountChi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:42.141Z"
+  },
+  "Zeta23/ThmE/TracesChi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:54.496Z"
+  },
+  "Zeta23/WeilEF/VerticalLine.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:55.178Z"
+  },
+  "Zeta23/XiPrime/Coeff/LT.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:07:58.545Z"
+  },
+  "Zeta23/XiPrime/Coeff/ReexpansionGen.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:08:07.570Z"
+  },
+  "Zeta23/XiPrime/ExplicitFormula/LitCorr.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:10:01.221Z"
+  },
+  "Zeta23/XiPrime/ExplicitFormula/Main.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:10:01.938Z"
+  },
+  "Zeta23/XiPrime/Hardy/EFContour/Analytic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:10:03.178Z"
+  },
+  "Zeta23/XiPrime/Hardy/EFFinal.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:11:41.968Z"
+  },
+  "Zeta23/XiPrime/PrimeSide/Concrete.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:11:42.787Z"
+  },
+  "Zeta23/XiPrime/QuarticWindow/Params.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:11:46.634Z"
+  },
+  "Zeta23/XiPrime/ZeroCount/ArgBound.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:12:12.064Z"
+  },
+  "Zeta23/XiPrime/ZeroCount/GenericRvM.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:12:16.982Z"
+  },
+  "Zeta23/Assembly/CertificateC3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:36:00.454Z"
+  },
+  "Zeta23/MV/Quadratic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:36:11.230Z"
+  },
+  "Zeta23/Poisson/PaperFT.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:36:45.651Z"
+  },
+  "Zeta23/RvM/BacklundDefs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:36:59.254Z"
+  },
+  "Zeta23/Tail.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:37:06.500Z"
+  },
+  "Zeta23/ThmDE/Endgame.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:39:03.140Z"
+  },
+  "Zeta23/ThmE/AssemblyQ.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:39:34.559Z"
+  },
+  "Zeta23/ThmE/IntMuChi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:41:04.414Z"
+  },
+  "Zeta23/ThmE/MainTermChi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:41:09.204Z"
+  },
+  "Zeta23/XiPrime/Coeff.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:41:11.914Z"
+  },
+  "Zeta23/XiPrime/Coeff/PrimeSums.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:41:38.147Z"
+  },
+  "Zeta23/XiPrime/Hardy/GoodHeightsW.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:42:05.928Z"
+  },
+  "Zeta23/XiPrime/PrimeSide/PP.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:42:07.573Z"
+  },
+  "Zeta23/XiPrime/QuarticWindow/ZeroSide.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:42:11.531Z"
+  },
+  "Zeta23/XiPrime/Statement.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:42:24.983Z"
+  },
+  "Zeta23/XiPrime/Transfer/Dependence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:42:25.559Z"
+  },
+  "Zeta23/Analytic/RectangleLogDeriv.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:36:37.367Z"
+  },
+  "Zeta23/FromPNTPlus/ZetaConj.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:36:47.632Z"
+  },
+  "Zeta23/LinAlg/Weyl.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:37:23.317Z"
+  },
+  "Zeta23/MV.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:37:26.444Z"
+  },
+  "Zeta23/PrimeSideA/CrossMuPCore.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:37:42.067Z"
+  },
+  "Zeta23/PrimeSideA/EndsCore.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:38:01.959Z"
+  },
+  "Zeta23/PrimeSideB/PPOffDiag.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:43:41.569Z"
+  },
+  "Zeta23/PrimeSideB/Traces.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:43:43.706Z"
+  },
+  "Zeta23/Statement.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:43:45.684Z"
+  },
+  "Zeta23/Tail/RankOne.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:43:54.719Z"
+  },
+  "Zeta23/Taper/Fourier.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:43:55.445Z"
+  },
+  "Zeta23/ThmD/WindowCore.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:45:43.535Z"
+  },
+  "Zeta23/ThmDE/Traces.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:46:40.787Z"
+  },
+  "Zeta23/ThmE/Mult.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:47:25.444Z"
+  },
+  "Zeta23/ThmE/PrimeSideChi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:47:42.534Z"
+  },
+  "Zeta23/WeilEF/ZeroSummability.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:47:45.229Z"
+  },
+  "Zeta23/XiPrime/Coeff/Reexpansion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:48:46.604Z"
+  },
+  "Zeta23/XiPrime/Hardy/Count.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:48:51.521Z"
+  },
+  "Zeta23/XiPrime/Hardy/GramBridgeW.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:49:07.458Z"
+  },
+  "Zeta23/XiPrime/Hardy/Omega.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:49:11.865Z"
+  },
+  "Zeta23/XiPrime/QuarticWindow/ModWindow.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:49:13.045Z"
+  },
+  "Zeta23/XiPrime/Window/Quartic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:49:37.054Z"
+  },
+  "Zeta23/XiPrime/ZeroCount/Contour.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:49:38.976Z"
+  },
+  "Zeta23/Assembly/Certificate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:36:38.305Z"
+  },
+  "Zeta23/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:36:48.199Z"
+  },
+  "Zeta23/FinalMult.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:36:50.148Z"
+  },
+  "Zeta23/FromPNTPlus/ResidueCalcOnRectangles.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:36:52.520Z",
+    "collisions": [
+      "HolomorphicOn"
+    ]
+  },
+  "Zeta23/GammaFacts/StirlingVert.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:37:18.908Z"
+  },
+  "Zeta23/PrimeSideA/CrossMuP.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:39:14.174Z"
+  },
+  "Zeta23/Statement/SeamClosed.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:39:17.894Z"
+  },
+  "Zeta23/Taper.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:39:29.281Z"
+  },
+  "Zeta23/Taper/Norms.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:39:32.892Z",
+    "collisions": [
+      "Zeta23.Taper.deriv_nonneg_of_monotone",
+      "Zeta23.Taper.rho_differentiable",
+      "Zeta23.Taper.deriv_phi_pos",
+      "Zeta23.Taper.integral_abs_deriv_eq_two",
+      "Zeta23.Taper.derivRho_zero_left",
+      "Zeta23.Taper.derivRho_zero_right",
+      "Zeta23.Taper.derivRho2_zero_left",
+      "Zeta23.Taper.derivRho2_zero_right",
+      "Zeta23.Taper.derivRho_continuous",
+      "Zeta23.Taper.bddAbove_abs_derivRho",
+      "Zeta23.Taper.abs_derivRho_le",
+      "Zeta23.Taper.supDeriv_nonneg",
+      "Zeta23.Taper.l1Deriv2_nonneg",
+      "Zeta23.Taper.deriv_phi_odd",
+      "Zeta23.Taper.deriv2_phi_pos",
+      "Zeta23.Taper.integral_abs_eq_two_mul",
+      "Zeta23.Taper.deriv_phi_contDiff",
+      "Zeta23.Taper.deriv2_phi_even",
+      "Zeta23.Taper.deriv2_phi_zero_out",
+      "Zeta23.Taper.L_pos",
+      "Zeta23.Taper.integrable_phi_pow"
+    ]
+  },
+  "Zeta23/ThmD/ParamsD.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:42:34.031Z"
+  },
+  "Zeta23/WeilEF/Main.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:42:40.032Z"
+  },
+  "Zeta23/XiPrime/Coeff/DiagLaw.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:42:41.278Z"
+  },
+  "Zeta23/XiPrime/ExplicitFormula/Contour.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:42:47.922Z"
+  },
+  "Zeta23/XiPrime/FamilyFlat.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:42:48.696Z"
+  },
+  "Zeta23/XiPrime/Hardy/EFMain.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:43:15.347Z"
+  },
+  "Zeta23/XiPrime/Hardy/TwoLine.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:43:17.220Z"
+  },
+  "Zeta23/XiPrime/PrimeSide/Cross.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:43:24.845Z"
+  },
+  "Zeta23/XiPrime/PrimeSide/Final.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:44:21.364Z"
+  },
+  "Zeta23/XiPrime/PrimeSide/PPUpper.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:44:29.086Z"
+  }
+}
