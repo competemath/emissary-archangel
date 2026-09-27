@@ -1,0 +1,569 @@
+{
+  "SpherePacking/Basic/PeriodicPacking/Theorem22.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:20:23.931Z"
+  },
+  "SpherePacking/CohnElkies/Prereqs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:20:35.691Z"
+  },
+  "SpherePacking/Contour/MobiusInv/WedgeSet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:20:37.876Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/CoeffMatchingComputations.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:20:46.257Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/CoeffZModel.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:20:52.748Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/TruncCoeffCertificate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:20:59.444Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/GeOne/TailNumerics/GeomRatio.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:21:00.850Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/GeOne/TruncRewrite.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:21:18.233Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/LeOne/TruncAux/ExactTruncPosRigorous/SmallEvalLe.lean": {
+    "checkedAt": "2026-09-27T20:22:05.019Z",
+    "collisions": [
+      "SpherePacking.Dim24.AppendixA.E4ZV"
+    ]
+  },
+  "SpherePacking/Dim24/MagicFunction/A/SpecialValues/Final/DerivTwoLaurent/SincExp.lean": {
+    "checkedAt": "2026-09-27T20:22:18.215Z",
+    "collisions": [
+      "SpherePacking.Dim24.SpecialValuesDerivTwoLaurent.taylorWithinEval_sin_three",
+      "SpherePacking.Dim24.SpecialValuesDerivTwoLaurent.tendsto_sin_sub_taylor_three_div_cube",
+      "SpherePacking.Dim24.SpecialValuesDerivTwoLaurent.tendsto_sinc_sub_one_div_sq"
+    ]
+  },
+  "SpherePacking/Dim24/Uniqueness/BS81/CodingTheory/Design23632Unique.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:22:31.875Z"
+  },
+  "SpherePacking/Dim24/Uniqueness/BS81/CodingTheory/SteinerS3622/PermuteFix01.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:22:35.817Z"
+  },
+  "SpherePacking/Dim8/E8/Packing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:23:05.233Z"
+  },
+  "SpherePacking/ForMathlib/ScalarOneFormDiffContOnCl.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:23:07.921Z"
+  },
+  "SpherePacking/Integration/SmoothIntegralCommon.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:23:22.400Z"
+  },
+  "SpherePacking/ModularForms/CLogArgLemmas.lean": {
+    "checkedAt": "2026-09-27T20:23:23.573Z",
+    "collisions": [
+      "arg_pow_aux",
+      "one_add_abs_half_ne_zero"
+    ]
+  },
+  "SpherePacking/ModularForms/Eisensteinqexpansions.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:23:41.004Z"
+  },
+  "SpherePacking/ModularForms/ResToImagAxis.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:23:44.191Z"
+  },
+  "SpherePacking/ModularForms/SummableLemmas/QExpansion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:23:51.400Z"
+  },
+  "SpherePacking/Tactic/NormNumI.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:23:52.187Z"
+  },
+  "SpherePacking/Basic/Domains/WedgeSet.lean": {
+    "checkedAt": "2026-09-27T20:16:35.726Z",
+    "collisions": [
+      "SpherePacking.closure_wedgeSet_subset_im_nonneg"
+    ]
+  },
+  "SpherePacking/CohnElkies/PoissonSummationSchwartz/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:16:39.442Z"
+  },
+  "SpherePacking/Contour/PermJ12FourierCurveIntegral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:16:41.942Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/VarphiLeOneNumLowerBound/CoeffModel.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:16:51.164Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/GeOne/Ineq2PsiSnum/PsiSnumCoeffs/Cert.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:16:54.353Z"
+  },
+  "SpherePacking/Dim24/MagicFunction/A/SpecialValues/Final/DerivTwoLaurent/CCancel.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:08.938Z"
+  },
+  "SpherePacking/Dim24/MagicFunction/F/Laplace/B/SubLeadingBounds/DeltaDivQLowerBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:32.823Z"
+  },
+  "SpherePacking/Dim24/Uniqueness/BS81/CodingTheory/GolayUniqueness/CodeFromOctads/OctadInterSums.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:39.667Z"
+  },
+  "SpherePacking/Dim24/Uniqueness/BS81/CodingTheory/WittDesignUniqueTheory/Step4/Aux.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:41.989Z"
+  },
+  "SpherePacking/ModularForms/CuspFormIsoModforms.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:19:58.231Z"
+  },
+  "SpherePacking/ModularForms/LogDerivLemmas.lean": {
+    "checkedAt": "2026-09-27T20:20:01.376Z",
+    "collisions": [
+      "logDeriv_one_sub_exp",
+      "func_div",
+      "deriv_EqOn_congr",
+      "logDeriv_eqOn_iff'"
+    ]
+  },
+  "SpherePacking/CohnElkies/PoissonSummationGeneral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:10.746Z"
+  },
+  "SpherePacking/CohnElkies/PoissonSummationLattices/UnitAddTorus.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:11.212Z"
+  },
+  "SpherePacking/Contour/PermJ12Contour.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:16.575Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/HeadEqualsExactTrunc.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:41.913Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/Phi2CoreTable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:46.482Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/ThetaRSeriesSpecialize.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:58.770Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/GeOne/Ineq2Varphi/CertAssemble.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:19:12.473Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/GeOne/TruncEvalRewrite.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:19:39.342Z"
+  },
+  "SpherePacking/Dim8/MagicFunction/g/CohnElkies/AnotherIntegral/B/ThetaAxis/HExpansions.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:20:15.876Z"
+  },
+  "SpherePacking/Dim8/MagicFunction/g/CohnElkies/AnotherIntegral/B/ThetaAxis/QExpansion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:20:19.040Z"
+  },
+  "SpherePacking/Dim8/MagicFunction/g/CohnElkies/LaplaceLemmas.lean": {
+    "checkedAt": "2026-09-27T20:20:30.493Z",
+    "collisions": [
+      "MagicFunction.g.CohnElkies.gamma_two",
+      "MagicFunction.g.CohnElkies.integral_exp_neg_mul_Ioi",
+      "MagicFunction.g.CohnElkies.integral_mul_exp_neg_mul_Ioi"
+    ]
+  },
+  "SpherePacking/ForMathlib/CauchyGoursat/OpenRectangular.lean": {
+    "checkedAt": "2026-09-27T20:20:32.788Z",
+    "collisions": [
+      "Complex.re_of_real_add_real_mul_I",
+      "Complex.tendsto_integral_atTop_nhds_zero_of_tendsto_im_atTop_nhds_zero",
+      "Complex.hzero",
+      "Complex.integral_boundary_rect_eq_zero_eventually_atTop_of_differentiable_on_off_countable",
+      "Complex.tendsto_integral_boundary_open_rect_one_side_atTop_nhds_sum_other_two_sides",
+      "Complex.integral_boundary_open_rect_eq_zero_of_differentiable_on_off_countable",
+      "Complex.integral_boundary_open_rect_eq_zero_of_differentiable_on_off_countable'"
+    ]
+  },
+  "SpherePacking/ForMathlib/RadialSchwartz/OneSided.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:20:44.993Z"
+  },
+  "SpherePacking/ModularForms/Delta/ImagAxis.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:21:27.361Z"
+  },
+  "SpherePacking/ModularForms/E2/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:21:46.475Z"
+  },
+  "SpherePacking/ModularForms/Eta.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:22:16.573Z"
+  },
+  "SpherePacking/ModularForms/QExpansion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:22:25.311Z"
+  },
+  "SpherePacking/ModularForms/SlashActionAuxil.lean": {
+    "checkedAt": "2026-09-27T20:22:25.990Z",
+    "collisions": [
+      "zmod_two_natCast_self"
+    ]
+  },
+  "SpherePacking/ModularForms/TSumDerivWithin.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:22:36.807Z"
+  },
+  "SpherePacking/Contour/PermJ12Tendsto.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:15:08.626Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/Phi1CoreTable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:15:14.182Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/PsiRSeriesSetup/SparseCoeffs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:15:18.645Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/SeriesSplit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:15:19.992Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/GeOneCoeffs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:15:46.727Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/LeOne/TruncAux/NumTailBound/Head.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:36.490Z"
+  },
+  "SpherePacking/Dim24/MagicFunction/B/SpecialValues/Derivatives/Theta2Trunc.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:56.922Z"
+  },
+  "SpherePacking/Dim24/Uniqueness/BS81/CodingTheory/GolayDefs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:02.509Z"
+  },
+  "SpherePacking/Dim24/Uniqueness/BS81/CodingTheory/GolayUniqueness/Weight8CountAux.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:09.467Z"
+  },
+  "SpherePacking/Dim24/Uniqueness/BS81/CodingTheory/WittDesignUniqueTheory/BiplaneUniqueness/Relabel.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:36.889Z"
+  },
+  "SpherePacking/ForMathlib/GaussianFourierCommon.lean": {
+    "checkedAt": "2026-09-27T20:19:11.344Z",
+    "collisions": [
+      "SpherePacking.ForMathlib.finrank_div_two_eq_even"
+    ]
+  },
+  "SpherePacking/ModularForms/IsCuspForm.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:19:14.542Z"
+  },
+  "SpherePacking/ModularForms/IteratedDerivs.lean": {
+    "checkedAt": "2026-09-27T20:19:16.297Z",
+    "collisions": [
+      "aut_iter_deriv'"
+    ]
+  },
+  "SpherePacking/Basic/PeriodicPacking/Aux.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:15:25.212Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/ConstBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:15:26.211Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/PsiCoeffFunAndTail/PsiCoeffFun.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:15:44.150Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/VarphiTable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:15:49.195Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/GeOne/Ineq2PsiSnum/RSeriesOps.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:15:58.112Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/GeOne/Ineq2PsiSnum/SummabilityReindex.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:16:02.355Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/GeOnePsiSnumCert/VerifyH4H2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:00.571Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/GeOnePsiSnumCert/VerifyThetaH4.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:31.076Z"
+  },
+  "SpherePacking/Dim24/MagicFunction/B/SpecialValues/Derivatives/CuspCoefficient/H4.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:50.913Z"
+  },
+  "SpherePacking/Dim24/MagicFunction/B/SpecialValues/Derivatives/H2H4/H2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:07.683Z"
+  },
+  "SpherePacking/Dim24/Uniqueness/BS81/Thm15/Lemma21/CodeCardBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:13.851Z"
+  },
+  "SpherePacking/ModularForms/E2/Transform.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:51.885Z"
+  },
+  "SpherePacking/Basic/SpherePacking.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:40.302Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/CoeffQTableRewrites.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:45.516Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/PsiRSeriesSetup/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:48.836Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/LeOne/TruncAux/ExactTruncPosRigorous/Common.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:54.608Z"
+  },
+  "SpherePacking/Dim24/MagicFunction/B/SpecialValues/Derivatives/QHalfTheta4.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:06.124Z"
+  },
+  "SpherePacking/Dim24/Uniqueness/BS81/CodingTheory/DotSupportLite.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:11.207Z"
+  },
+  "SpherePacking/Dim24/Uniqueness/BS81/CodingTheory/GolayUniqueness/CodeFromOctads/OctadInterNumbers.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:14.084Z"
+  },
+  "SpherePacking/Dim24/Uniqueness/Rigidity/Classify/IsotropicBound.lean": {
+    "checkedAt": "2026-09-27T20:18:31.200Z",
+    "collisions": [
+      "SpherePacking.Dim24.Uniqueness.RigidityClassify.FinitePairing.AddCharCircle.card_eq"
+    ]
+  },
+  "SpherePacking/Dim8/MagicFunction/g/CohnElkies/AnotherIntegral/B/ThetaAxis/InvH2Sq.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:19:18.576Z"
+  },
+  "SpherePacking/ForMathlib/SigmaBounds.lean": {
+    "checkedAt": "2026-09-27T20:19:19.813Z",
+    "collisions": [
+      "SpherePacking.ForMathlib.sigma_le_pow_succ"
+    ]
+  },
+  "SpherePacking/ModularForms/Delta/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:20:17.718Z"
+  },
+  "SpherePacking/ModularForms/MultipliableLemmas.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:20:33.408Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/PiBoundsAndTruncCompare.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:16:41.846Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/PsiCoeffFunAndTail/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:16:48.246Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/LeOne/TruncAux/ExactTruncPosRigorous/SmallIntervalLB.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:31.793Z"
+  },
+  "SpherePacking/Dim24/Uniqueness/BS81/CodingTheory/GolayConcrete.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:44.277Z"
+  },
+  "SpherePacking/Dim24/Uniqueness/BS81/CodingTheory/SteinerDerived.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:44.845Z"
+  },
+  "SpherePacking/Dim24/Uniqueness/BS81/CodingTheory/WittDesignUniqueTheory/PunctureEven.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:50.517Z"
+  },
+  "SpherePacking/Dim24/Uniqueness/BS81/CodingTheory/WittDesignUniqueTheory/Step4/Step4Iso.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:19:04.408Z"
+  },
+  "SpherePacking/Dim24/Uniqueness/BS81/CodingTheory/WittDesignUniqueTheory/Step4/VFsClassify.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:19:10.823Z"
+  },
+  "SpherePacking/Dim8/MagicFunction/b/Schwartz/PsiExpBounds/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:02:27.764Z"
+  },
+  "SpherePacking/ForMathlib/InvPowSummability.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:02:31.041Z"
+  },
+  "SpherePacking/Integration/DifferentiationUnderIntegral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:02:36.128Z"
+  },
+  "SpherePacking/Basic/PeriodicPacking/BoundaryControl.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:16.481Z"
+  },
+  "SpherePacking/CohnElkies/PoissonSummationSchwartz/PoissonSummation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:21.639Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/CoeffMatchingLemmas.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:30.378Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/DeltaHatSqTable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:38.899Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingTruncBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:46.359Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/VarphiLeOneNumLowerBound/HeadIdentification.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:17:53.607Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/GeOnePsiSnumCert/SumRange.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:16.412Z"
+  },
+  "SpherePacking/Dim24/Inequalities/VarphiNeg/LeOne/Trunc/ExactTruncPosRigorous/Positivity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:23.584Z"
+  },
+  "SpherePacking/Dim24/MagicFunction/A/SpecialValues/Final/DerivTwoLaurent/SincAux.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:25.222Z"
+  },
+  "SpherePacking/Dim8/E8/Basic.lean": {
+    "checkedAt": "2026-09-27T20:18:37.156Z",
+    "collisions": [
+      "AddCommGroup.ModEq.zsmul'"
+    ]
+  },
+  "SpherePacking/ForMathlib/ZLattice.lean": {
+    "checkedAt": "2026-09-27T20:19:45.232Z",
+    "collisions": [
+      "ZSpan.ceil_sub_mem_fundamentalDomain"
+    ]
+  },
+  "SpherePacking/ModularForms/DimGenCongLevels/Basic.lean": {
+    "checkedAt": "2026-09-27T20:19:45.944Z",
+    "collisions": [
+      "SpherePacking.ModularForms.isArithmetic_of_finiteIndex"
+    ]
+  },
+  "SpherePacking/ModularForms/DimGenCongLevels/FiniteDimensional.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:19:46.266Z"
+  },
+  "SpherePacking/ModularForms/SummableLemmas/Cotangent.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:19:47.287Z"
+  },
+  "SpherePacking/Basic/PeriodicPacking/DensityFormula.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:16:32.577Z"
+  },
+  "SpherePacking/Contour/MobiusInv/Segments.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:16:34.205Z"
+  },
+  "SpherePacking/Contour/MobiusInv/WedgeSetContour.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:16:46.692Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/ConvolutionAlgebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:16:48.101Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/BLeadingNumLowerBound/PsiCoeffMatch.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:16:52.730Z"
+  },
+  "SpherePacking/Dim24/Inequalities/AppendixA/ExpBounds.lean": {
+    "checkedAt": "2026-09-27T20:17:02.979Z",
+    "collisions": [
+      "SpherePacking.Dim24.AppendixA.x0_eq_two_mul_piLower",
+      "SpherePacking.Dim24.AppendixA.x0_nonneg",
+      "SpherePacking.Dim24.AppendixA.exp_x0_gt_535",
+      "SpherePacking.Dim24.AppendixA.exp_two_pi_gt_535"
+    ]
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/LeOne/TruncAux/ExactTruncPosRigorous/LargeEvalLe.lean": {
+    "checkedAt": "2026-09-27T20:18:03.925Z",
+    "collisions": [
+      "SpherePacking.Dim24.AppendixA.E4ZV"
+    ]
+  },
+  "SpherePacking/Dim24/Uniqueness/BS81/CodingTheory/GolayUniqueness/CodeFromOctads/OctadInterPairs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:10.691Z"
+  },
+  "SpherePacking/ForMathlib/Encard.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:20.902Z"
+  },
+  "SpherePacking/ModularForms/Cauchylems.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:42.595Z"
+  },
+  "SpherePacking/ModularForms/QExpansionLemmas/QExpansionAlgebra.lean": {
+    "checkedAt": "2026-09-27T20:18:43.397Z",
+    "collisions": [
+      "cuspFunction_congr_funLike"
+    ]
+  },
+  "SpherePacking/ModularForms/SummableLemmas/IntPNat.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:18:47.307Z"
+  },
+  "SpherePacking/Basic/PeriodicPacking/PeriodicConstant.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:14:52.123Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/GeOne/Ineq2Varphi/CertPrelude.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:14:54.305Z"
+  },
+  "SpherePacking/Dim24/Inequalities/Ineq2/LeOne/TruncAux/ExactTruncPosRigorous/SmallDefs.lean": {
+    "checkedAt": "2026-09-27T20:14:58.468Z",
+    "collisions": [
+      "SpherePacking.Dim24.AppendixA.E4ZV"
+    ]
+  },
+  "SpherePacking/Dim24/MagicFunction/F/Laplace/B/SubLeadingBounds/ExactTruncBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:15:59.144Z"
+  }
+}
