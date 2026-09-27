@@ -1,0 +1,253 @@
+{
+  "SLT/GaussianLSI/Entropy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:49:00.107Z"
+  },
+  "SLT/GaussianLSI/OneDimGLSI.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:49:00.459Z"
+  },
+  "SLT/GaussianMeasure.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:49:11.199Z"
+  },
+  "SLT/GaussianPoincare/LevyContinuity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:49:30.501Z"
+  },
+  "SLT/GaussianPoincare/RademacherApprox.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:49:46.679Z"
+  },
+  "SLT/LeastSquares/BasicInequality.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:49:58.857Z"
+  },
+  "SLT/LeastSquares/DudleyApplication.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:49:59.186Z"
+  },
+  "SLT/LeastSquares/LinearRegression/LocalizedBall.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:50:02.517Z"
+  },
+  "SLT/MatrixInfra/EYM.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:50:15.819Z"
+  },
+  "SLT/MetricEntropy.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:50:16.650Z"
+  },
+  "SLT/SeparableSpaceSup.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:54:04.979Z"
+  },
+  "SLT/CoveringNumber.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:48:32.244Z"
+  },
+  "SLT/GaussianLSI/TwoPoint.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:48:42.515Z"
+  },
+  "SLT/GaussianLipConcen.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:49:32.020Z"
+  },
+  "SLT/GaussianSobolevDense/Cutoff.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:49:37.685Z"
+  },
+  "SLT/LeastSquares/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:49:38.066Z"
+  },
+  "SLT/LeastSquares/L1Regression/L1PredictorClass.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:49:47.632Z"
+  },
+  "SLT/LeastSquares/LinearRegression/GaussianComplexity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:51:16.347Z"
+  },
+  "SLT/LeastSquares/LinearRegression/MinimaxRate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:51:19.872Z"
+  },
+  "SLT/MatrixInfra/CourantFischer.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:51:21.961Z"
+  },
+  "SLT/GaussianSobolevDense/Density.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:49:48.614Z"
+  },
+  "SLT/GaussianSobolevDense/LipschitzMollification.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:49:50.661Z"
+  },
+  "SLT/GaussianSobolevDense/Mollification.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:49:52.296Z"
+  },
+  "SLT/LeastSquares/L1Regression/L1CoveringBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:49:55.540Z"
+  },
+  "SLT/LeastSquares/L1Regression/L1ShiftedClass.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:50:06.074Z"
+  },
+  "SLT/LeastSquares/SubGaussianity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:50:06.485Z"
+  },
+  "SLT/LipschitzProperty.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:50:17.201Z"
+  },
+  "SLT/MatrixInfra/MatCalc.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:50:42.948Z"
+  },
+  "SLT/SubGaussian.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:50:44.766Z"
+  },
+  "SLT/GaussianLSI/DualEntApp.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:52:40.986Z"
+  },
+  "SLT/GaussianLSI/TensorizedGLSI.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:52:51.974Z"
+  },
+  "SLT/GaussianPoincare/TaylorBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:52:55.469Z"
+  },
+  "SLT/HansonWright.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:52:56.806Z"
+  },
+  "SLT/LeastSquares/L1Regression/L1LocalizedBall.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:02:10.521Z"
+  },
+  "SLT/LeastSquares/LinearRegression/EntropyIntegral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:02:14.908Z"
+  },
+  "SLT/LeastSquares/LinearRegression/LinearPredictorClass.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:02:15.828Z"
+  },
+  "SLT/MatrixInfra/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:02:21.201Z"
+  },
+  "SLT/RMT/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:03:31.684Z"
+  },
+  "SLT/Chaining.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:49:10.029Z"
+  },
+  "SLT/ConvergenceL1Subseq.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:50:51.115Z"
+  },
+  "SLT/Dudley.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:50:51.739Z"
+  },
+  "SLT/EfronStein.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:50:52.618Z"
+  },
+  "SLT/GaussianLSI/DualityEntropy.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:50:54.850Z"
+  },
+  "SLT/GaussianLSI/OneDimGLSICompSmo.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:51:09.322Z"
+  },
+  "SLT/GaussianPoincare/EfronSteinApp.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:51:10.099Z"
+  },
+  "SLT/GaussianSobolevDense/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:51:32.691Z"
+  },
+  "SLT/LeastSquares/CriticalRadius.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:51:35.996Z"
+  },
+  "SLT/LeastSquares/L1Regression/L1DesignMatrix.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:51:36.766Z"
+  },
+  "SLT/LeastSquares/Localization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:52:05.744Z"
+  },
+  "SLT/MeasureInfrastructure.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:52:06.495Z"
+  },
+  "SLT/RMT/MatBern.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:52:12.685Z"
+  },
+  "SLT/SmallBallProb.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:08:17.722Z",
+    "collisions": [
+      "SmallBallProbability.integrable_exp_neg_mul_of_nonneg"
+    ]
+  },
+  "SLT/TDudley.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:08:44.450Z"
+  },
+  "SLT/GaussianLSI/BernoulliLSI.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:51:25.611Z"
+  },
+  "SLT/GaussianPoincare/Limit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:52:52.682Z"
+  },
+  "SLT/LeastSquares/LinearRegression/DesignMatrix.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:52:53.959Z"
+  },
+  "SLT/LeastSquares/LinearRegression/EmpiricalProcess.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:53:03.806Z"
+  },
+  "SLT/LeastSquares/LinearRegression/EuclideanReduction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:53:04.464Z"
+  },
+  "SLT/LeastSquares/LinearRegression/IntegralBounds.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:53:05.295Z"
+  },
+  "SLT/LeastSquares/MasterErrorBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:53:24.448Z"
+  },
+  "SLT/MatrixInfra/Perturb.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:53:36.049Z"
+  },
+  "SLT/RMT/Lieb.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:53:53.591Z"
+  }
+}
