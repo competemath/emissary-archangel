@@ -1,0 +1,44 @@
+{
+  "ErdosUnitDistance/Counting.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:35:42.851Z"
+  },
+  "ErdosUnitDistance/Discriminant.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:35:51.671Z"
+  },
+  "ErdosUnitDistance/GeometricCore.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:35:52.472Z",
+    "collisions": [
+      "Erdos.cell_index_mem",
+      "Erdos.cell_index_diff",
+      "Erdos.norm_lt_of_re_im_bound",
+      "Erdos.cellCount_le"
+    ]
+  },
+  "ErdosUnitDistance/IdealFamily.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:36:52.799Z"
+  },
+  "ErdosUnitDistance/Main.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:37:16.874Z"
+  },
+  "ErdosUnitDistance/MultiquadraticField.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:37:24.951Z"
+  },
+  "ErdosUnitDistance/NormFibre.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:37:25.721Z"
+  },
+  "ErdosUnitDistance/PointCount.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:37:30.358Z"
+  },
+  "ErdosUnitDistance/PrimesMod4.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:37:36.558Z"
+  }
+}
