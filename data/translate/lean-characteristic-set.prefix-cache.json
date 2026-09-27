@@ -1,0 +1,77 @@
+{
+  "CharacteristicSet/CharacteristicSet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:25:16.916Z"
+  },
+  "CharacteristicSet/Lemmas.lean": {
+    "checkedAt": "2026-09-27T10:25:17.377Z",
+    "collisions": [
+      "MvPolynomial.degrees_eq_zero_iff_support_subset_zero",
+      "MvPolynomial.degreeOf_X_self",
+      "MvPolynomial.ne_zero_of_degreeOf_ne_zero",
+      "MvPolynomial.degreeOf_X_self_pow",
+      "MvPolynomial.le_degreeOf_of_mem_support",
+      "MvPolynomial.degreeOf_X_pow_of_ne",
+      "MvPolynomial.degreeOf_mul_X_self_pow_eq_add_of_ne_zero",
+      "MvPolynomial.degreeOf_mul_X_pow_of_ne",
+      "MvPolynomial.mem_vars_iff_degreeOf_ne_zero",
+      "MvPolynomial.support_subset_vars_of_mem_support",
+      "MvPolynomial.vars_eq_empty_iff_eq_C"
+    ]
+  },
+  "CharacteristicSet/MainDegree.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:25:30.434Z",
+    "collisions": [
+      "MvPolynomial.degrees_eq_zero_iff_support_subset_zero"
+    ]
+  },
+  "CharacteristicSet/MiniExample.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:25:37.152Z"
+  },
+  "CharacteristicSet/ParallelogramExample.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:25:37.463Z"
+  },
+  "CharacteristicSet/PseudoDivision.lean": {
+    "checkedAt": "2026-09-27T10:25:43.997Z",
+    "collisions": [
+      "MvPolynomial.degrees_eq_zero_iff_support_subset_zero"
+    ]
+  },
+  "CharacteristicSet/StandardAscendingSet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:29:01.048Z"
+  },
+  "CharacteristicSet/TriangularSet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:29:01.431Z"
+  },
+  "CharacteristicSet/AscendingSet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:24:32.144Z"
+  },
+  "CharacteristicSet/Example.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:24:32.963Z"
+  },
+  "CharacteristicSet/Initial.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:24:44.358Z"
+  },
+  "CharacteristicSet/Order.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:24:45.617Z"
+  },
+  "CharacteristicSet/Reduce.lean": {
+    "checkedAt": "2026-09-27T10:26:42.765Z",
+    "collisions": [
+      "MvPolynomial.degrees_eq_zero_iff_support_subset_zero"
+    ]
+  },
+  "CharacteristicSet/WeakAscendingSet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:27:43.293Z"
+  }
+}
