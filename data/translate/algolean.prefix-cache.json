@@ -1,0 +1,110 @@
+{
+  "Algolean/AddWriter/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:21:18.896Z"
+  },
+  "Algolean/Algorithms/KMPPatternSearch.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:21:44.319Z"
+  },
+  "Algolean/Algorithms/Karatsuba.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:21:44.887Z"
+  },
+  "Algolean/Algorithms/ListOrderedInsert.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:21:57.138Z"
+  },
+  "Algolean/Algorithms/MergeSort.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:21:57.470Z"
+  },
+  "Algolean/Algorithms/VecSearch.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:21:57.832Z"
+  },
+  "Algolean/Complexity/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:22:10.000Z"
+  },
+  "Algolean/Models/Circuits.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:22:15.502Z"
+  },
+  "Algolean/Models/FanInTwoCircuits.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:22:17.986Z"
+  },
+  "Algolean/Models/Quantum/Indexing.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:22:18.683Z"
+  },
+  "Algolean/Models/Quantum/Oracle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:22:21.068Z"
+  },
+  "Algolean/QueryModel.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:22:21.658Z"
+  },
+  "AlgoleanTests/NaivePatternSearchExamples.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:22:22.028Z"
+  },
+  "AlgoleanTests/RandomSampleExamples.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:22:23.963Z"
+  },
+  "Algolean/Algorithms/Circuits/FanInTwo/LogAnd.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:21:21.267Z"
+  },
+  "Algolean/Algorithms/ListInsertionSort.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:21:31.469Z"
+  },
+  "Algolean/Algorithms/ListLinearSearch.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:21:31.797Z"
+  },
+  "Algolean/Algorithms/NaivePatternSearch.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:21:32.112Z"
+  },
+  "Algolean/Complexity/PolytimeBasicClasses.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:21:32.434Z"
+  },
+  "Algolean/LowerBounds/ComparisonSort.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:21:32.724Z"
+  },
+  "Algolean/ModelM.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:21:42.513Z"
+  },
+  "Algolean/Models/Comparison.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:21:42.903Z"
+  },
+  "Algolean/Models/Quantum/Embed.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:21:43.189Z"
+  },
+  "Algolean/Models/RandomSample.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:21:52.570Z"
+  },
+  "Algolean/Models/ReadWriteVec.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:22:14.581Z"
+  },
+  "Algolean/QueryComposition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:22:14.871Z"
+  },
+  "AlgoleanTests/KMPExamples.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:22:15.165Z"
+  }
+}
