@@ -1,0 +1,412 @@
+{
+  "StatsMLlib/MeasureTheory/Function/L1Subsequence.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:26:37.018Z"
+  },
+  "StatsMLlib/Probability/Gaussian/Poincare/EfronStein.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:26:37.739Z"
+  },
+  "StatsMLlib/Probability/Gaussian/Poincare/Taylor.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:27:01.294Z"
+  },
+  "StatsMLlib/Probability/Gaussian/Sobolev/Mollification.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:27:06.371Z"
+  },
+  "StatsMLlib/Probability/Process/Dudley.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:27:07.222Z"
+  },
+  "StatsMLlib/Probability/Process/FiniteMaximum.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:27:08.090Z",
+    "collisions": [
+      "Finset.aemeasurable_sup'"
+    ]
+  },
+  "StatsMLlib/Probability/RandomMatrix/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:27:14.941Z"
+  },
+  "StatsMLlib/Probability/RandomMatrix/Bernstein.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:16:39.787Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/BasicInequality.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:33:51.321Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/Linear/DesignMatrix.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:33:51.625Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/Linear/EntropyIntegral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:33:58.602Z"
+  },
+  "StatsMLlib/Analysis/FiniteSample.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:28:07.928Z"
+  },
+  "StatsMLlib/Analysis/MetricEntropy/Chaining.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:28:09.128Z"
+  },
+  "StatsMLlib/LearningTheory/EmpiricalProcess/FunctionClass.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:28:39.212Z"
+  },
+  "StatsMLlib/LearningTheory/Rademacher/Symmetrization.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:28:52.911Z"
+  },
+  "StatsMLlib/LinearAlgebra/Matrix/CourantFischer.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:29:04.441Z"
+  },
+  "StatsMLlib/Probability/Concentration/Hoeffding.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:30:45.898Z"
+  },
+  "StatsMLlib/Probability/Concentration/LogSobolev/GaussianCompactSupport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:30:58.932Z"
+  },
+  "StatsMLlib/Probability/Gaussian/Poincare/LevyContinuity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:30:59.995Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/Linear/PredictorClass.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:31:14.727Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/MasterErrorBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:31:19.192Z"
+  },
+  "StatsMLlib/Analysis/MetricEntropy/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:24:12.800Z"
+  },
+  "StatsMLlib/LinearAlgebra/Matrix/EckartYoungMirsky.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:26:25.454Z"
+  },
+  "StatsMLlib/LinearAlgebra/Matrix/Perturbation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:26:29.617Z"
+  },
+  "StatsMLlib/Probability/Concentration/LogSobolev/GaussianTensorization.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:26:30.947Z"
+  },
+  "StatsMLlib/Probability/Concentration/Maximal.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:26:35.870Z"
+  },
+  "StatsMLlib/Probability/Moments/Cumulant.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:27:20.607Z"
+  },
+  "StatsMLlib/Probability/Process/SubGaussian.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:27:50.618Z"
+  },
+  "StatsMLlib/Probability/RandomMatrix/Lieb.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:28:53.820Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/L1/DesignMatrix.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:28:54.313Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/L1/ShiftedClass.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:29:02.585Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/Linear/EmpiricalProcess.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:29:14.085Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/Linear/EuclideanReduction.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:29:16.347Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/Linear/IntegralBounds.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:30:06.722Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/Localization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:30:31.422Z"
+  },
+  "StatsMLlib/Analysis/NormedSpace/CoveringNumber/Euclidean.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:24:15.845Z"
+  },
+  "StatsMLlib/LearningTheory/Rademacher/LipschitzBall.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:24:45.942Z"
+  },
+  "StatsMLlib/Probability/Concentration/EuclideanNorm.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:25:07.724Z"
+  },
+  "StatsMLlib/Probability/Concentration/McDiarmid.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:25:08.657Z"
+  },
+  "StatsMLlib/Probability/Gaussian/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:28:06.612Z"
+  },
+  "StatsMLlib/Probability/Gaussian/Lipschitz.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:28:21.150Z"
+  },
+  "StatsMLlib/Probability/Gaussian/Sobolev/Cutoff.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:28:34.460Z"
+  },
+  "StatsMLlib/Probability/Moments/SubGaussianOrlicz.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:28:43.640Z",
+    "collisions": [
+      "integral_le_of_lintegral_ofReal_le",
+      "le_exp_sq",
+      "le_exp_self",
+      "rpow_le_const_mul_exp",
+      "integral_Ioi_mul_exp_neg_mul_sq",
+      "intervalIntegral_layercake_kernel"
+    ]
+  },
+  "StatsMLlib/Topology/MetricSpace/CoveringNumber/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:30:20.589Z"
+  },
+  "StatsMLlib/Analysis/NormedSpace/CoveringNumber/L1.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:29:58.832Z"
+  },
+  "StatsMLlib/MeasureTheory/Measure/Real.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:30:43.918Z"
+  },
+  "StatsMLlib/Probability/Concentration/LogSobolev/Bernoulli.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:30:45.320Z"
+  },
+  "StatsMLlib/Probability/Concentration/LogSobolev/TwoPoint.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:32:45.590Z"
+  },
+  "StatsMLlib/Probability/Concentration/SubExponential.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:33:54.679Z"
+  },
+  "StatsMLlib/Probability/Gaussian/Sobolev/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:33:55.620Z"
+  },
+  "StatsMLlib/Probability/Gaussian/Sobolev/Density.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:34:00.663Z"
+  },
+  "StatsMLlib/Probability/Moments/Exponential.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:34:01.826Z"
+  },
+  "StatsMLlib/Probability/Process/TruncatedDudley.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:34:04.917Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/CriticalRadius.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:34:08.925Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/L1/CoveringBound.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:34:10.434Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/Linear/GaussianComplexity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:37:32.729Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/Linear/MinimaxRate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:37:35.868Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/SubGaussianity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:37:36.959Z"
+  },
+  "StatsMLlib/LearningTheory/EmpiricalRiskMinimization/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:28:17.132Z"
+  },
+  "StatsMLlib/LearningTheory/EmpiricalRiskMinimization/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:28:26.535Z"
+  },
+  "StatsMLlib/LearningTheory/FunctionClass/KernelPredictor.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:28:28.360Z"
+  },
+  "StatsMLlib/LearningTheory/FunctionClass/LinearPredictor/L1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:28:28.877Z"
+  },
+  "StatsMLlib/LearningTheory/Rademacher/Dudley.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:28:30.704Z"
+  },
+  "StatsMLlib/LinearAlgebra/Matrix/Lieb.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:28:49.137Z"
+  },
+  "StatsMLlib/LinearAlgebra/Matrix/SingularValue.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:28:51.510Z"
+  },
+  "StatsMLlib/MeasureTheory/Integral/LayerCake.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:30:31.467Z"
+  },
+  "StatsMLlib/Probability/Entropy/Variational.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:30:32.159Z"
+  },
+  "StatsMLlib/Probability/SmallBall.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:31:00.369Z",
+    "collisions": [
+      "SmallBallProbability.integrable_exp_neg_mul_of_nonneg"
+    ]
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:31:18.048Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/L1/LocalizedBall.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:31:26.533Z"
+  },
+  "StatsMLlib/Topology/SeparableSpace/Supremum.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:31:27.353Z"
+  },
+  "StatsMLlib/Analysis/NormedSpace/CoveringNumber/LipschitzBall.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:25:18.841Z"
+  },
+  "StatsMLlib/LearningTheory/FunctionClass/HilbertPredictor.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:26:09.773Z"
+  },
+  "StatsMLlib/LearningTheory/FunctionClass/LinearPredictor/L2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:26:10.179Z"
+  },
+  "StatsMLlib/LearningTheory/FunctionClass/NeuralNetwork/HiddenUnit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:26:13.786Z"
+  },
+  "StatsMLlib/LearningTheory/Rademacher/Complexity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:26:14.529Z"
+  },
+  "StatsMLlib/Probability/Concentration/Chernoff.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:26:19.307Z"
+  },
+  "StatsMLlib/Probability/Concentration/EfronStein.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:26:21.282Z"
+  },
+  "StatsMLlib/Probability/Gaussian/LipschitzConcentration.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:26:26.101Z"
+  },
+  "StatsMLlib/Probability/Gaussian/Poincare/Limit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:26:27.260Z"
+  },
+  "StatsMLlib/Probability/Gaussian/Poincare/RademacherApproximation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:26:28.574Z"
+  },
+  "StatsMLlib/Probability/Gaussian/Sobolev/LipschitzMollification.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:26:40.126Z"
+  },
+  "StatsMLlib/Probability/Independence/FinsetPi.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:26:40.934Z"
+  },
+  "StatsMLlib/Probability/Moments/Orlicz.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:26:43.435Z",
+    "collisions": [
+      "log_two_pos",
+      "exp_sq_convex_comb"
+    ]
+  },
+  "StatsMLlib/LearningTheory/EmpiricalProcess/Metric.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:27:27.605Z"
+  },
+  "StatsMLlib/LearningTheory/FunctionClass/NeuralNetwork/PathNorm.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:27:32.841Z"
+  },
+  "StatsMLlib/LearningTheory/Rademacher/Reindex.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:27:33.288Z"
+  },
+  "StatsMLlib/Order/IndexedSupremum.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:27:33.914Z"
+  },
+  "StatsMLlib/Probability/Concentration/Bernstein.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:27:38.903Z"
+  },
+  "StatsMLlib/Probability/Concentration/Confidence.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:28:30.711Z"
+  },
+  "StatsMLlib/Probability/Concentration/HansonWright.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:28:31.560Z"
+  },
+  "StatsMLlib/Probability/Concentration/LogSobolev/GaussianOneDim.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:34:58.707Z"
+  },
+  "StatsMLlib/Probability/Entropy/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:34:59.365Z"
+  },
+  "StatsMLlib/Probability/Entropy/Duality.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:35:00.028Z"
+  },
+  "StatsMLlib/Probability/Moments/Expectation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:35:11.276Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/L1/PredictorClass.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:35:15.277Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/Linear/LocalizedBall.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:35:17.170Z"
+  },
+  "StatsMLlib/Statistics/Regression/LeastSquares/LocalGaussianComplexity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:35:17.468Z"
+  }
+}
