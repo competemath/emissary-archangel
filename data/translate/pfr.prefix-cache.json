@@ -1,0 +1,210 @@
+{
+  "PFR/ForMathlib/AffineSpaceDim.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:44:37.309Z"
+  },
+  "PFR/ForMathlib/FourVariables.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:44:39.776Z"
+  },
+  "PFR/Mathlib/Algebra/BigOperators/Fin.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:09.736Z"
+  },
+  "PFR/Mathlib/Algebra/Group/Action/Pointwise/Set/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:10.791Z"
+  },
+  "PFR/Mathlib/MeasureTheory/Integral/Lebesgue/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:12.350Z"
+  },
+  "PFR/Mathlib/MeasureTheory/Measure/MeasureSpaceDef.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:13.948Z"
+  },
+  "PFR/Mathlib/Order/Interval/Finset/Fin.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:14.723Z"
+  },
+  "PFR/Mathlib/Probability/Kernel/Disintegration.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:15.572Z"
+  },
+  "PFR/RhoFunctional.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:46:32.231Z"
+  },
+  "PFR/ForMathlib/ConditionalIndependence.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:44:39.158Z",
+    "collisions": [
+      "ProbabilityTheory.CondIndepFun",
+      "ProbabilityTheory.IdentDistrib.prodMk"
+    ]
+  },
+  "PFR/ForMathlib/Entropy/Measure.lean": {
+    "checkedAt": "2026-09-27T10:44:57.157Z",
+    "collisions": [
+      "MeasureTheory.Measure.support"
+    ]
+  },
+  "PFR/HundredPercent.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:13.407Z"
+  },
+  "PFR/Main.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:45:19.999Z"
+  },
+  "PFR/Mathlib/Data/Fin/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:21.121Z"
+  },
+  "PFR/Mathlib/Data/Finset/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:23.145Z"
+  },
+  "PFR/Mathlib/MeasureTheory/Measure/Real.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:23.828Z"
+  },
+  "PFR/Mathlib/Order/Interval/Finset/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:27.525Z"
+  },
+  "PFR/Mathlib/Probability/ConditionalProbability.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:28.213Z"
+  },
+  "PFR/Mathlib/Probability/IdentDistrib.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:29.183Z",
+    "collisions": [
+      "ProbabilityTheory.IdentDistrib.prodMk"
+    ]
+  },
+  "PFR/Mathlib/Probability/Independence/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:44.765Z"
+  },
+  "PFR/ApproxHomPFR.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:44:30.873Z"
+  },
+  "PFR/BoundingMutual.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:44:42.126Z"
+  },
+  "PFR/ForMathlib/Entropy/Kernel/RuzsaDist.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:44:43.956Z"
+  },
+  "PFR/ForMathlib/FiniteRange/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:44:47.567Z"
+  },
+  "PFR/ForMathlib/ThreeVariables.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:44:54.904Z"
+  },
+  "PFR/HomPFR.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:03.165Z"
+  },
+  "PFR/Mathlib/Analysis/SpecialFunctions/NegMulLog.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:10.564Z"
+  },
+  "PFR/Mathlib/Data/Set/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:13.843Z"
+  },
+  "PFR/Mathlib/Data/Set/Card.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:14.529Z"
+  },
+  "PFR/Mathlib/LinearAlgebra/Basis/VectorSpace.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:18.053Z"
+  },
+  "PFR/Mathlib/LinearAlgebra/Dimension/FreeAndStrongRankCondition.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:18.763Z"
+  },
+  "PFR/Mathlib/MeasureTheory/Constructions/Pi.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:20.209Z"
+  },
+  "PFR/Mathlib/MeasureTheory/Measure/Dirac/Def.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:22.330Z"
+  },
+  "PFR/Mathlib/MeasureTheory/Measure/ProbabilityMeasure.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:23.036Z"
+  },
+  "PFR/Mathlib/MeasureTheory/Measure/Prod.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:26.101Z"
+  },
+  "PFR/Mathlib/Probability/Independence/Kernel/IndepFun.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:33.722Z"
+  },
+  "PFR/Mathlib/Probability/Kernel/Composition/Comp.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:39.661Z"
+  },
+  "PFR/Tactic/RPowSimp.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:57.242Z"
+  },
+  "PFR/WeakPFR.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:46:03.004Z"
+  },
+  "PFR/ForMathlib/Entropy/Kernel/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:44:24.180Z"
+  },
+  "PFR/ForMathlib/Entropy/Kernel/MutualInfo.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:44:24.613Z"
+  },
+  "PFR/ForMathlib/FiniteRange/ConditionalProbability.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:44:39.270Z"
+  },
+  "PFR/ForMathlib/FiniteRange/IdentDistrib.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:44:41.546Z",
+    "collisions": [
+      "ProbabilityTheory.IdentDistrib.prodMk"
+    ]
+  },
+  "PFR/ForMathlib/Uniform.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:45:00.517Z"
+  },
+  "PFR/Kullback.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:01.429Z"
+  },
+  "PFR/Mathlib/MeasureTheory/Integral/Lebesgue/Countable.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:16.894Z"
+  },
+  "PFR/Mathlib/MeasureTheory/Measure/Typeclasses/Probability.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:19.691Z"
+  },
+  "PFR/Mathlib/Probability/UniformOn.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:45:20.421Z"
+  },
+  "PFR/TorsionEndgame.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:45:33.964Z"
+  }
+}
