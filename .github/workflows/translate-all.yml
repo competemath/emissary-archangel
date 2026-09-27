@@ -12,6 +12,7 @@ on:
     inputs:
       max_libraries: { description: "Library runs at once (translate.yml runs in flight count)", required: true, default: "6" }
       dry_run: { description: "Print the plan, dispatch nothing", required: true, default: "false" }
+      flush_key: { description: "Flush only this library's bank (empty: all)", required: false, default: "" }
 
 permissions: {}
 
@@ -103,11 +104,13 @@ jobs:
         env:
           BOT: ${{ secrets.TENGOKU_BOT_TOKEN }}
           DRY: ${{ inputs.dry_run || 'false' }}
+          ONLY: ${{ inputs.flush_key || '' }}
           PUSH_TOKEN: ${{ github.token }}
         run: |
           if [ -z "$BOT" ]; then echo "no TENGOKU_BOT_TOKEN secret: the bank stays in data/bank until one is set"; exit 0; fi
-          if [ "$DRY" = true ]; then GH_TOKEN="$BOT" node scripts/bank-flush.mjs --dry-run; exit 0; fi
-          GH_TOKEN="$BOT" node scripts/bank-flush.mjs
+          only=(); [ -n "$ONLY" ] && only=(--key "$ONLY")
+          if [ "$DRY" = true ]; then GH_TOKEN="$BOT" node scripts/bank-flush.mjs --dry-run "${only[@]}"; exit 0; fi
+          GH_TOKEN="$BOT" node scripts/bank-flush.mjs "${only[@]}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A --sparse -- data/bank
