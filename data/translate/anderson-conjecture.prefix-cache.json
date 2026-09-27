@@ -1,0 +1,125 @@
+{
+  "Anderson/AdicKerEval.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:06:15.509Z"
+  },
+  "Anderson/AdicLocal.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:06:24.959Z"
+  },
+  "Anderson/AdicNoetherian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:06:30.529Z"
+  },
+  "Anderson/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:06:31.228Z"
+  },
+  "Anderson/CompleteDomain/CompleteDomain.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:06:36.350Z"
+  },
+  "Anderson/CompleteDomain/Domain.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:06:37.151Z"
+  },
+  "Anderson/CompleteDomain/LocalRing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:06:42.888Z"
+  },
+  "Anderson/Jensen/Adjoin/Transcendental.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:06:47.545Z"
+  },
+  "Anderson/Jensen/Application.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:07:09.185Z"
+  },
+  "Anderson/Jensen/CloseUp/Base.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:07:12.214Z"
+  },
+  "Anderson/Jensen/CloseUp/FactorDivisibility.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:07:16.561Z"
+  },
+  "Anderson/Jensen/CloseUp/GcdComplexity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:07:17.831Z"
+  },
+  "Anderson/Jensen/CloseUp/IntersectionHelpers.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:07:22.577Z"
+  },
+  "Anderson/Jensen/CloseUp/NoCommonFactor.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:07:27.102Z"
+  },
+  "Anderson/Jensen/CloseUp/TwoGen.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:07:29.961Z"
+  },
+  "Anderson/Jensen/CombinedStep.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:07:35.010Z"
+  },
+  "Anderson/Jensen/Construction/ChainHelpers.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:07:53.002Z"
+  },
+  "Anderson/Jensen/Construction/HeitmannProp.lean": {
+    "checkedAt": "2026-09-27T10:07:54.148Z",
+    "collisions": [
+      "map_maxIdeal_le_of_closed",
+      "comap_maxIdeal_le_of_local"
+    ]
+  },
+  "Anderson/Jensen/Jensen.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:08:08.312Z"
+  },
+  "Anderson/Jensen/KrullDomain/AdjoinLocSet.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:08:12.971Z"
+  },
+  "Anderson/Jensen/KrullDomain/HeightBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:08:19.744Z"
+  },
+  "Anderson/Jensen/KrullDomain/KrullDomain.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:08:24.551Z"
+  },
+  "Anderson/Jensen/KrullDomain/LocUFD.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:08:26.300Z"
+  },
+  "Anderson/Jensen/KrullDomain/Nagata.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:08:26.970Z"
+  },
+  "Anderson/Jensen/KrullDomain/Prime.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:08:35.459Z"
+  },
+  "Anderson/Jensen/KrullDomain/UFDConstruction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:08:39.439Z"
+  },
+  "Anderson/Jensen/NSubring.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:08:45.067Z"
+  },
+  "Anderson/Jensen/TransfiniteUnion.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:08:49.450Z"
+  },
+  "Anderson/Main.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:09:19.873Z"
+  },
+  "Anderson/QuasiCompleteRing/QuasiCompleteRing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:09:45.145Z"
+  }
+}
