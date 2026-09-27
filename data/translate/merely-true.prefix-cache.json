@@ -1,0 +1,140 @@
+{
+  "MerelyTrue/BinomialAdd.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:11:47.084Z"
+  },
+  "MerelyTrue/BinomialAddCorollaries.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:11:57.418Z"
+  },
+  "MerelyTrue/ForwardEuler.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:12:00.985Z"
+  },
+  "MerelyTrue/Landau/CoulombFlux.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:12:52.728Z"
+  },
+  "MerelyTrue/Landau/CoulombFluxBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:13:14.325Z"
+  },
+  "MerelyTrue/Landau/CoulombFluxConv.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:13:31.666Z"
+  },
+  "MerelyTrue/Landau/CoulombFluxDiff.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:13:43.286Z"
+  },
+  "MerelyTrue/Landau/CoulombForceTransport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:14:09.494Z"
+  },
+  "MerelyTrue/Landau/CoulombKernel.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:14:10.288Z"
+  },
+  "MerelyTrue/Landau/CoulombNonvacuous.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:14:21.248Z"
+  },
+  "MerelyTrue/Landau/CoulombPSD.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:14:38.615Z"
+  },
+  "MerelyTrue/Landau/CoulombPSDHelpers.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:14:43.038Z"
+  },
+  "MerelyTrue/Landau/CoulombSpatialTransport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:15:02.660Z"
+  },
+  "MerelyTrue/Landau/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:15:03.434Z"
+  },
+  "MerelyTrue/Landau/FlatTorus3Lemmas.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:15:17.712Z"
+  },
+  "MerelyTrue/Landau/IteratedDerivHelpers.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:15:19.028Z"
+  },
+  "MerelyTrue/Landau/LogBoundHelpers.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:15:29.597Z"
+  },
+  "MerelyTrue/Landau/NewtonianPotential.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:15:38.981Z"
+  },
+  "MerelyTrue/Landau/SchwartzDecayDefs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:15:40.185Z"
+  },
+  "MerelyTrue/Landau/Section2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:15:42.461Z"
+  },
+  "MerelyTrue/Landau/Section3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:15:50.737Z"
+  },
+  "MerelyTrue/Landau/Section3Helpers2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:15:57.063Z"
+  },
+  "MerelyTrue/Landau/Section4.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:15:59.180Z"
+  },
+  "MerelyTrue/Landau/Section5.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:16:00.018Z"
+  },
+  "MerelyTrue/Landau/Section6.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:16:00.830Z"
+  },
+  "MerelyTrue/Landau/Section7.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:16:02.400Z"
+  },
+  "MerelyTrue/Landau/Section8.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:16:11.577Z"
+  },
+  "MerelyTrue/Landau/TorusDefs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:16:12.296Z"
+  },
+  "MerelyTrue/Landau/TorusInstance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:16:42.595Z"
+  },
+  "MerelyTrue/Landau/TorusIntegration.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:16:47.011Z"
+  },
+  "MerelyTrue/Landau/VMLInputDerive.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:16:51.722Z"
+  },
+  "MerelyTrue/Landau/VelocityDecayInstance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:16:58.972Z"
+  },
+  "MerelyTrue/Wardrop.lean": {
+    "checkedAt": "2026-09-27T10:16:59.796Z",
+    "collisions": [
+      "Wardrop.mul_sub_nonneg_of_monotone",
+      "Wardrop.mul_sub_pos_of_strictMono",
+      "Wardrop.eq_of_mul_sub_eq_zero",
+      "RoutingProblem.linkFlow_sub",
+      "RoutingProblem.routeCost_eq_indicator"
+    ]
+  }
+}
