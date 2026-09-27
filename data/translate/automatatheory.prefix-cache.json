@@ -1,0 +1,90 @@
+{
+  "AutomataTheory/Automata/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:04.637Z"
+  },
+  "AutomataTheory/Automata/Concat.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:06.101Z"
+  },
+  "AutomataTheory/Automata/Congr.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:09.284Z"
+  },
+  "AutomataTheory/Automata/Det.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:09.976Z"
+  },
+  "AutomataTheory/Automata/DetConcat.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:12.518Z"
+  },
+  "AutomataTheory/Automata/DetProd.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:12.922Z"
+  },
+  "AutomataTheory/Automata/Hist.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:13.708Z"
+  },
+  "AutomataTheory/Automata/Loop.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:14.842Z"
+  },
+  "AutomataTheory/Automata/OI2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:18.957Z"
+  },
+  "AutomataTheory/Automata/PSet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:20.282Z"
+  },
+  "AutomataTheory/Automata/Pair.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:22.849Z"
+  },
+  "AutomataTheory/Automata/Prod.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:23.589Z"
+  },
+  "AutomataTheory/Automata/Sum.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:24.078Z"
+  },
+  "AutomataTheory/Congruences/BuchiCongr.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:29.451Z"
+  },
+  "AutomataTheory/Languages/DetMullerLang.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:32.557Z"
+  },
+  "AutomataTheory/Languages/OmegaRegLang.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:33.383Z"
+  },
+  "AutomataTheory/Languages/RegLang.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:36.042Z"
+  },
+  "AutomataTheory/Mathlib/InfGraphRamsey.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:00:36.815Z"
+  },
+  "AutomataTheory/Sequences/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:00:47.044Z"
+  },
+  "AutomataTheory/Sequences/InfOcc.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:01:23.064Z"
+  },
+  "AutomataTheory/Sequences/Segments.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:01:30.663Z"
+  },
+  "AutomataTheory/Sequences/Temporal.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:01:52.563Z"
+  }
+}
