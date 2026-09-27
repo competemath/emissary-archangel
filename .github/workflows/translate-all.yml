@@ -4,7 +4,7 @@ name: translate-all
 #      every set-up library until nothing is left for it, then an agent pass (only with the CLAUDE_CODE_OAUTH_TOKEN
 #      secret; one library at a time: the Claude account's usage limit, not the runners, is the bottleneck there).
 #      "Left" is data/translate/<key>.status.json, written by translate.yml's finish job.
-#   2. flush: turn banked records (data/bank/) into tengoku PRs with the TENGOKU_BOT_TOKEN secret (bank-flush.mjs).
+#   2. flush: turn banked records (data/bank/) into tengoku PRs with the bot token secret, TENGOKU_BOT_LYSISTRATE_TOKEN (or TENGOKU_BOT_TOKEN) (bank-flush.mjs).
 on:
   schedule:
     - cron: "7,22,37,52 * * * *"
@@ -121,7 +121,7 @@ jobs:
         with: { node-version: "22" }
       - name: Banked records to tengoku PRs
         env:
-          BOT: ${{ secrets.TENGOKU_BOT_TOKEN }}
+          BOT: ${{ secrets.TENGOKU_BOT_LYSISTRATE_TOKEN || secrets.TENGOKU_BOT_TOKEN }}
           DRY: ${{ inputs.dry_run || 'false' }}
           ONLY: ${{ inputs.flush_key || '' }}
           PUSH_TOKEN: ${{ github.token }}
