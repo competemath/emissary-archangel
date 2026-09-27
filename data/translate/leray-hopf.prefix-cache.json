@@ -1,0 +1,445 @@
+{
+  "LerayHopf/Analysis/BilinearExtension.lean": {
+    "checkedAt": "2026-09-27T10:53:25.196Z",
+    "collisions": [
+      "LerayHopf.BilinearExtension.eD_norm",
+      "LerayHopf.BilinearExtension.denseRange_eD",
+      "LerayHopf.BilinearExtension.extendOfNorm_eD_add",
+      "LerayHopf.BilinearExtension.extendOfNorm_eD_smul",
+      "LerayHopf.BilinearExtension.denseRange_eDL",
+      "LerayHopf.BilinearExtension.isUniformInducing_eDL",
+      "LerayHopf.BilinearExtension.beta_bound",
+      "LerayHopf.BilinearExtension.innerCLM_add",
+      "LerayHopf.BilinearExtension.innerCLM_smul",
+      "LerayHopf.BilinearExtension.innerCLM_apply_eD",
+      "LerayHopf.BilinearExtension.innerCLM_bound"
+    ]
+  },
+  "LerayHopf/Analysis/RealComplexLpBridge.lean": {
+    "checkedAt": "2026-09-27T10:53:52.169Z",
+    "collisions": [
+      "LerayHopf.reLp"
+    ]
+  },
+  "LerayHopf/Analysis/WeakLeibniz.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:54:42.748Z"
+  },
+  "LerayHopf/Bochner/DiagonalExtraction.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:54:43.679Z"
+  },
+  "LerayHopf/Bochner/ScalarEquicontinuity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:54:53.608Z"
+  },
+  "LerayHopf/Galerkin/SolutionBundles.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:54:56.078Z"
+  },
+  "LerayHopf/R3/ConvectionOperator.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:55:02.901Z",
+    "collisions": [
+      "LerayHopf.L2VF_projComponent_R3",
+      "LerayHopf.IsSchwartzDivFree_R3",
+      "LerayHopf.convFormSchwartz",
+      "LerayHopf.L2Sigma_R3"
+    ]
+  },
+  "LerayHopf/R3/DiagonalGalerkin.lean": {
+    "checkedAt": "2026-09-27T10:56:01.830Z",
+    "collisions": [
+      "LerayHopf.L2Sigma_R3"
+    ]
+  },
+  "LerayHopf/R3/DivergenceFree.lean": {
+    "checkedAt": "2026-09-27T10:56:05.065Z",
+    "collisions": [
+      "LerayHopf.L2Sigma_R3"
+    ]
+  },
+  "LerayHopf/R3/EnergyClassConvection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:56:49.116Z"
+  },
+  "LerayHopf/R3/GalerkinScheme.lean": {
+    "checkedAt": "2026-09-27T10:56:56.715Z",
+    "collisions": [
+      "LerayHopf.galerkinSpan",
+      "LerayHopf.galerkinP",
+      "LerayHopf.L2VF_projComponent_R3",
+      "LerayHopf.L2Sigma_R3"
+    ]
+  },
+  "LerayHopf/R3/Regularity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:57:20.013Z"
+  },
+  "LerayHopf/Scratch/R3StageCoherence.lean": {
+    "checkedAt": "2026-09-27T10:57:27.078Z",
+    "collisions": [
+      "LerayHopf.L2Sigma_R3"
+    ]
+  },
+  "LerayHopf/Torus/ConvectionForm.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:57:39.399Z"
+  },
+  "LerayHopf/Torus/GalerkinODESolve.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:57:42.746Z"
+  },
+  "LerayHopf/Torus/GalerkinProjection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:57:43.503Z"
+  },
+  "LerayHopf/Torus/GlobalCapstone.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:57:55.315Z"
+  },
+  "LerayHopf/Torus/H1Sigma.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:57:58.822Z",
+    "collisions": [
+      "LerayHopf.h1EnergySq_component_le"
+    ]
+  },
+  "LerayHopf/Analysis/BoundedMultiplier.lean": {
+    "checkedAt": "2026-09-27T10:54:09.815Z",
+    "collisions": [
+      "LerayHopf.BoundedMultiplier.normSq_eq_integral_normSq"
+    ]
+  },
+  "LerayHopf/Analysis/FourierParseval.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:54:19.328Z",
+    "collisions": [
+      "LerayHopf.L2VF_projComponent_R3",
+      "LerayHopf.L2VF_projComponentC_R3",
+      "LerayHopf.testSymbol_antiHermitian",
+      "LerayHopf.reflect_fourier_schwartzC_eq_conj",
+      "LerayHopf.fourier_ofReal_reflect_eq_conj"
+    ]
+  },
+  "LerayHopf/Analysis/LpInterpolation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:55:24.114Z"
+  },
+  "LerayHopf/Analysis/SpectralWeakGradient.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:56:41.887Z"
+  },
+  "LerayHopf/Analysis/TensorIntersection.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:57:03.866Z"
+  },
+  "LerayHopf/Bochner/TimeConvolution.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:57:06.965Z"
+  },
+  "LerayHopf/EnergySkeleton.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:57:11.217Z"
+  },
+  "LerayHopf/R3/GalerkinCurveBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:57:23.251Z"
+  },
+  "LerayHopf/R3/GalerkinODE.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:57:24.230Z"
+  },
+  "LerayHopf/R3/GalerkinTimeModulus.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:57:24.602Z"
+  },
+  "LerayHopf/R3/GalerkinTrilinearBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:57:55.198Z"
+  },
+  "LerayHopf/R3/SolutionInterfaces.lean": {
+    "checkedAt": "2026-09-27T10:58:07.780Z",
+    "collisions": [
+      "LerayHopf.R3NSForms.b",
+      "LerayHopf.L2Sigma_R3"
+    ]
+  },
+  "LerayHopf/R3/StokesFourier.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:58:53.838Z"
+  },
+  "LerayHopf/Torus/ConvectionExtension.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:59:02.851Z"
+  },
+  "LerayHopf/Torus/Leray.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:59:04.352Z"
+  },
+  "LerayHopf/Torus/ModeTail.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:59:20.018Z"
+  },
+  "LerayHopf/Torus/SobolevTorus.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:59:21.667Z"
+  },
+  "LerayHopf/Torus/TraceEnergy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:59:24.437Z"
+  },
+  "LerayHopf/Bochner/StepFunctionCompactness.lean": {
+    "checkedAt": "2026-09-27T10:54:46.497Z",
+    "collisions": [
+      "LerayHopf.stepCurve_apply",
+      "LerayHopf.stepCurve_stronglyMeasurable"
+    ]
+  },
+  "LerayHopf/EnergyEstimate.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:55:00.088Z"
+  },
+  "LerayHopf/Galerkin/QuadraticField.lean": {
+    "checkedAt": "2026-09-27T10:55:08.777Z",
+    "collisions": [
+      "LerayHopf.Galerkin.vectorFieldFunctional_apply",
+      "LerayHopf.Galerkin.rieszSymm_apply",
+      "LerayHopf.Galerkin.bInner_apply",
+      "LerayHopf.Galerkin.bMid_apply",
+      "LerayHopf.Galerkin.bOut_apply",
+      "LerayHopf.Galerkin.bilinearPart_apply",
+      "LerayHopf.Galerkin.sV_add_left",
+      "LerayHopf.Galerkin.sV_smul_left",
+      "LerayHopf.Galerkin.stokesInner_apply",
+      "LerayHopf.Galerkin.stokesOut_apply",
+      "LerayHopf.Galerkin.linearPart_apply",
+      "LerayHopf.Galerkin.vectorField_eq_parts"
+    ]
+  },
+  "LerayHopf/R3/ConvectionForm.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:56:53.084Z"
+  },
+  "LerayHopf/R3/CurlDensity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:57:12.298Z"
+  },
+  "LerayHopf/R3/EnergyWeakLsc.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:57:17.453Z"
+  },
+  "LerayHopf/R3/FourierL2.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:57:18.827Z",
+    "collisions": [
+      "LerayHopf.FourierL2.phaseMulCLM"
+    ]
+  },
+  "LerayHopf/R3/FrechetKolmogorov.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:58:27.953Z"
+  },
+  "LerayHopf/R3/RellichBall.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:58:54.526Z"
+  },
+  "LerayHopf/R3/SpatialCompactness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:58:55.064Z"
+  },
+  "LerayHopf/R3/TrilinearEstimate.lean": {
+    "checkedAt": "2026-09-27T10:59:00.371Z",
+    "collisions": [
+      "LerayHopf.schwartzMul_apply",
+      "LerayHopf.integrand_integrable'",
+      "LerayHopf.lineDerivOp_schwartzMul",
+      "LerayHopf.schwartz_cauchy_schwarz",
+      "LerayHopf.schwartz_integral_abs_mul_le",
+      "LerayHopf.schwartz_trilinear_bound",
+      "LerayHopf.sum_mul_le_mul_sum",
+      "LerayHopf.divFree_intLeft",
+      "LerayHopf.divFree_leibniz_pair"
+    ]
+  },
+  "LerayHopf/Torus/DiagonalGalerkin.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:00:03.823Z"
+  },
+  "LerayHopf/Torus/DivergenceFree.lean": {
+    "checkedAt": "2026-09-27T11:00:06.585Z",
+    "collisions": [
+      "LerayHopf.L2VF_projComponent",
+      "LerayHopf.L2VF_projComponentC",
+      "LerayHopf.injectComponent_projComponent_ae"
+    ]
+  },
+  "LerayHopf/Torus/Domain.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:00:12.324Z"
+  },
+  "LerayHopf/Torus/EnergyConvection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:00:14.543Z"
+  },
+  "LerayHopf/Torus/GalerkinScheme.lean": {
+    "checkedAt": "2026-09-27T11:00:17.907Z",
+    "collisions": [
+      "LerayHopf.L2VF_projComponentC",
+      "LerayHopf.velocityProjection_n",
+      "LerayHopf.L2Sigma",
+      "LerayHopf.velocitySpan",
+      "LerayHopf.fourierSpan"
+    ]
+  },
+  "LerayHopf/Torus/ProjectionAdjoint.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:01:19.020Z"
+  },
+  "LerayHopf/Torus/RellichEmbedding.lean": {
+    "checkedAt": "2026-09-27T11:01:22.693Z",
+    "collisions": [
+      "LerayHopf.fourierProjection_n"
+    ]
+  },
+  "LerayHopf/Torus/TestFamily.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:01:51.021Z"
+  },
+  "LerayHopf/Torus/VelocityGalerkin.lean": {
+    "checkedAt": "2026-09-27T11:02:01.080Z",
+    "collisions": [
+      "LerayHopf.projComponent_injectComponent",
+      "LerayHopf.projComponentC_injectComponent",
+      "LerayHopf.coeFn_conjL2C",
+      "LerayHopf.conjL2C_ofRealLp",
+      "LerayHopf.conjL2C_projComponentC",
+      "LerayHopf.L2C_ext_mFourierCoeff3",
+      "LerayHopf.mFourierCoeff3_integral",
+      "LerayHopf.mFourierCoeff3_conjL2C",
+      "LerayHopf.neg_mem_fourierBox",
+      "LerayHopf.conjL2C_fourierProjection",
+      "LerayHopf.ofRealLp_reLp_eq_self",
+      "LerayHopf.velocityProjection_n",
+      "LerayHopf.L2VF_projComponentC",
+      "LerayHopf.fourierProjection_n",
+      "LerayHopf.L2Sigma"
+    ]
+  },
+  "LerayHopf/Analysis/PlancherelKernels.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:55:51.548Z"
+  },
+  "LerayHopf/Analysis/TensorEdgeGluing.lean": {
+    "checkedAt": "2026-09-27T10:56:01.042Z",
+    "collisions": [
+      "LerayHopf.TensorEdgeGluing.edge3Sval_apply",
+      "LerayHopf.TensorEdgeGluing.edge3Bil_apply",
+      "LerayHopf.TensorEdgeGluing.edge2Lval_apply",
+      "LerayHopf.TensorEdgeGluing.edge2Bil_apply",
+      "LerayHopf.TensorEdgeGluing.edge3Lift_tmul",
+      "LerayHopf.TensorEdgeGluing.edge2Lift_tmul",
+      "LerayHopf.TensorEdgeGluing.edge3Lift_add",
+      "LerayHopf.TensorEdgeGluing.edge3Lift_smul",
+      "LerayHopf.TensorEdgeGluing.edge2Lift_add",
+      "LerayHopf.TensorEdgeGluing.edge2Lift_smul",
+      "LerayHopf.TensorEdgeGluing.edgeCompl_isCompl",
+      "LerayHopf.TensorEdgeGluing.projE_subtype",
+      "LerayHopf.TensorEdgeGluing.projE_comp_subtype",
+      "LerayHopf.TensorEdgeGluing.retr3_map_id_subtype",
+      "LerayHopf.TensorEdgeGluing.retr2_map_subtype_id",
+      "LerayHopf.TensorEdgeGluing.edge_lift_agree_map",
+      "LerayHopf.TensorEdgeGluing.edge_lift_agree",
+      "LerayHopf.TensorEdgeGluing.psi3_apply",
+      "LerayHopf.TensorEdgeGluing.psi2_apply",
+      "LerayHopf.TensorEdgeGluing.psi3_add",
+      "LerayHopf.TensorEdgeGluing.psi3_smul",
+      "LerayHopf.TensorEdgeGluing.psi2_add",
+      "LerayHopf.TensorEdgeGluing.psi2_smul"
+    ]
+  },
+  "LerayHopf/Bochner/TimeMollification.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:05:29.383Z"
+  },
+  "LerayHopf/Bochner/TimeMollifierInterval.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:05:33.469Z"
+  },
+  "LerayHopf/Bochner/TimeSobolev.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:06:00.066Z"
+  },
+  "LerayHopf/Bochner/TimeSobolevAC.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:06:14.134Z"
+  },
+  "LerayHopf/Bochner/WeakLimitToolkit.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:06:35.226Z"
+  },
+  "LerayHopf/EvolutionTriple.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:06:42.177Z"
+  },
+  "LerayHopf/Galerkin/DissipativeODE.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:06:45.638Z",
+    "collisions": [
+      "LerayHopf.Galerkin.solve_exists_on_step"
+    ]
+  },
+  "LerayHopf/Galerkin/GlobalContract.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:07:02.985Z"
+  },
+  "LerayHopf/R3/ArzelaAscoliTime.lean": {
+    "checkedAt": "2026-09-27T11:07:22.273Z",
+    "collisions": [
+      "LerayHopf.L2Sigma_R3"
+    ]
+  },
+  "LerayHopf/R3/ConvectionExtension.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:07:39.141Z"
+  },
+  "LerayHopf/R3/CurlSchwartzConstruction.lean": {
+    "checkedAt": "2026-09-27T11:07:46.584Z",
+    "collisions": [
+      "LerayHopf.compLpL_comp_compLpL",
+      "LerayHopf.L2VF_projComponent_R3"
+    ]
+  },
+  "LerayHopf/R3/GalerkinODEExistence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:08:05.354Z"
+  },
+  "LerayHopf/R3/SobolevEmbedding.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:08:08.443Z"
+  },
+  "LerayHopf/R3/WeightedFourierCommute.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:17:30.877Z"
+  },
+  "LerayHopf/Scratch/GateFixture.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:18:27.458Z"
+  },
+  "LerayHopf/Scratch/KappaReindex.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:19:05.198Z"
+  },
+  "LerayHopf/Torus/ModeCompactness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:19:18.804Z"
+  },
+  "LerayHopf/Torus/SolutionInterfaces.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:19:28.359Z"
+  },
+  "LerayHopf/Torus/ViscousLimit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:20:07.763Z"
+  }
+}
