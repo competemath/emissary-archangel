@@ -1,0 +1,51 @@
+{
+  "key": "tauceti",
+  "repo": "https://github.com/TauCetiProject/TauCeti",
+  "commit": "5e78744999f40e73287839f294c246a0c434d18e",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "TauCeti"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/tauceti/repo",
+  "entries": 73198,
+  "modules": 6931,
+  "exported": 6931,
+  "failed": [],
+  "expansion": {
+    "expanded": 54,
+    "verbatim": 5738,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 73215,
+    "kept": 73198,
+    "skippedRoot": 3,
+    "skippedDup": 0,
+    "skippedNoFile": 13,
+    "skippedCommented": 1,
+    "lineFixed": 21432,
+    "lineUnverified": 60,
+    "nameFixed": 72588,
+    "sorryOriginals": 0,
+    "emptyProofs": 20
+  },
+  "sharded": {
+    "records": 16,
+    "shards": [
+      16
+    ]
+  },
+  "exportsBytes": 5816676352,
+  "minutes": 113,
+  "finishedAt": "2026-09-27T15:05:01.302Z",
+  "archive": {
+    "release": "exports-tauceti",
+    "asset": "tauceti@5e78744999f4-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-tauceti/tauceti@5e78744999f4-exports.tar.zst",
+    "bytes": 636131504,
+    "sha256": "f363e66ba4db1836eab8c82716b3d2d40aca6e955b87acb76674d98f7ea65a7d",
+    "files": 13862,
+    "unpack": "tar --zstd -xf tauceti@5e78744999f4-exports.tar.zst -C data/exports/tauceti"
+  }
+}

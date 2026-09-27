@@ -1,0 +1,494 @@
+/-
+Copyright (c) 2026 The Tau Ceti contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: The Tau Ceti contributors
+-/
+module
+
+public import TauCeti.Topology.Sets.Opens
+public import TauCeti.AlgebraicGeometry.AdicSpace.Spa.RationalSubset.Basic
+public import TauCeti.AlgebraicGeometry.AdicSpace.Spa.Spectral
+import TauCeti.RingTheory.Huber.OpenIdeal
+
+
+-- @@ L13-82 verbatim
+/-!
+# The rational basis of the adic spectrum
+
+**Wedhorn, *Adic Spaces* (arXiv:1910.05934v1), Definition 7.29, Remark 7.30(5),
+and Theorem 7.35.**
+
+Let `P = (A₀,I)` be a pair of definition of a Huber ring. The rational subsets
+
+```text
+R(T/s) = {v ∈ Spa(A,A⁺) : v(t) ≤ v(s) ≠ 0 for every t ∈ T}
+```
+
+for which the ideal `T · A` is open form a basis of quasi-compact opens of `Spa(A,A⁺)`.
+The proof compares them with the rational basis of `Spv(A,IA)`. By Wedhorn Lemma 6.6,
+openness of `T · A` implies admissibility for `IA`; conversely, an admissible pair `(T,s)`
+has open numerator ideal after inserting `s` among the numerators, which does not change its
+rational subset. This comparison also transports closure under intersections and quasi-compactness.
+
+Closure under intersection appears in two strengths. Remark 7.30(5) is the binary statement,
+recorded here as `inter_mem_spaRationalFamily`; Theorem 7.35(2) asserts the stronger claim that
+the basis is stable under *finite* intersection. The finite form is the one a common refinement
+of a finite rational cover consumes, and it carries no nonemptiness hypothesis.
+
+The plus ring is arbitrary here. The additional condition that it be a ring of integral
+elements is part of calling the resulting space the adic spectrum of a Huber pair, but none of
+the basis arguments uses it.
+
+## Main definitions
+
+* `TauCeti.ValuationSpectrum.spaRationalFamily`: the family of rational subsets with open
+  numerator ideal, viewed as subsets of `spa Aplus`.
+* `TauCeti.ValuationSpectrum.spaRationalOpens`: the same family presented as a set of `Opens`,
+  the form the sheaf-theoretic consumers take.
+
+## Main results
+
+* `TauCeti.ValuationSpectrum.inter_mem_spaRationalFamily`: the family is closed under binary
+  intersections, which is Wedhorn Remark 7.30(5).
+* `TauCeti.ValuationSpectrum.biInter_mem_spaRationalFamily`: the family is closed under *finite*
+  intersections, which is the stability clause of Wedhorn Theorem 7.35(2). It is stated over a
+  `Finset` index, with `TauCeti.ValuationSpectrum.iInter_mem_spaRationalFamily` for a finite index
+  type and `TauCeti.ValuationSpectrum.sInter_mem_spaRationalFamily` for a finite subfamily, the
+  form a refinement argument produces.
+* `TauCeti.ValuationSpectrum.finiteInter_spaRationalFamily`: the same closure as Mathlib's
+  `FiniteInter` structure, which the three forms above are read off.
+* `TauCeti.ValuationSpectrum.inf_mem_spaRationalOpens` and
+  `TauCeti.ValuationSpectrum.finsetInf_mem_spaRationalOpens`: the same two closure statements in
+  the bundled `Opens` form, together with `TauCeti.ValuationSpectrum.top_mem_spaRationalOpens`.
+* `TauCeti.ValuationSpectrum.isTopologicalBasis_spaRationalFamily`: the family is a basis for
+  the topology of `spa Aplus`, with `TauCeti.ValuationSpectrum.isBasis_spaRationalOpens` the same
+  statement in the `Opens.IsBasis` form.
+* `TauCeti.ValuationSpectrum.isCompact_of_mem_spaRationalFamily`: every member of the family is
+  quasi-compact. Each result also has an `_of_pairOfDefinition` form for use with a specified
+  pair of definition.
+* `TauCeti.ValuationSpectrum.exists_finite_spaRationalFamily_refinement`: every open cover of a
+  member of the family admits a finite refinement by members of the family — the two results
+  above combined, and the form a sheaf criterion on this basis consumes.
+* `TauCeti.ValuationSpectrum.spa_eq_biUnion_rationalSubset_of_isTateRing_of_isOpen`: over a Tate
+  ring, if a finite set `T` generates an open ideal, then the standard rational subsets cover
+  `spa Aplus` (Wedhorn Corollary 7.53 specialization).
+
+## References
+
+* T. Wedhorn, *Adic Spaces*, arXiv:1910.05934v1, Definition 7.29, Remark 7.30, Theorem 7.35,
+  Corollary 7.53, and Lemma 6.6.
+
+One correction to the source: Wedhorn's proof of Theorem 7.35(2) cites Remark 7.30(4) for
+stability under finite intersection, but 7.30(4) is the statement that `R(T/s)` is rational
+for a unit `s`. The binary intersection this file iterates is Remark 7.30(5).
+-/
+
+
+-- @@ L84-84 verbatim
+public section
+
+
+-- @@ L86-86 verbatim
+namespace TauCeti.ValuationSpectrum
+
+
+-- @@ L88-88 verbatim
+open Set Topology _root_.TopologicalSpace TauCeti TauCeti.Huber
+
+-- @@ L89-89 verbatim
+open scoped Pointwise
+
+
+-- @@ L91-91 verbatim
+variable {A : Type*} [CommRing A] [TopologicalSpace A]
+
+
+-- @@ L93-93 verbatim
+/-! ### Open numerator ideals and admissibility -/
+
+
+-- @@ L95-95 verbatim
+section TopologicalRing
+
+
+-- @@ L97-97 verbatim
+variable [IsTopologicalRing A]
+
+
+-- @@ L99-107 verbatim
+/-- An open numerator ideal is admissible for the extended ideal of every pair of definition.
+This is Wedhorn Lemma 6.6 applied to the inclusion of the numerator span into the span obtained
+after adjoining the denominator. -/
+theorem isAdmissible_extendedIdealOfDefinition_of_isOpen_span (P : PairOfDefinition A)
+    {T : Finset A} {s : A} (hT : IsOpen (Ideal.span (T : Set A) : Set A)) :
+    IsAdmissible P.extendedIdealOfDefinition T s := by
+  rw [isAdmissible_iff]
+  refine (P.isOpen_iff_le_radical _).mp hT |>.trans (Ideal.radical_mono ?_)
+  exact Ideal.span_mono (Set.subset_insert s (T : Set A))
+
+
+-- @@ L109-115 verbatim
+/-- An admissible numerator set becomes an open numerator ideal after adjoining its denominator.
+The rational subset itself is unchanged by this operation. -/
+theorem isOpen_span_insert_of_isAdmissible_extendedIdealOfDefinition (P : PairOfDefinition A)
+    {T : Finset A} {s : A} (hT : IsAdmissible P.extendedIdealOfDefinition T s) :
+    IsOpen (Ideal.span (insert s (T : Set A)) : Set A) := by
+  rw [P.isOpen_iff_le_radical]
+  exact isAdmissible_iff.mp hT
+
+
+-- @@ L117-117 verbatim
+end TopologicalRing
+
+
+-- @@ L119-119 verbatim
+/-! ### The rational family -/
+
+
+-- @@ L121-125 verbatim
+/-- The rational family of `Spa(A,A⁺)`: rational subsets `R(T/s)` whose numerator ideal
+`T · A` is open, viewed as subsets of the subtype `spa Aplus`. -/
+def spaRationalFamily (Aplus : Subring A) : Set (Set (spa Aplus)) :=
+  {U | ∃ (T : Finset A) (s : A), IsOpen (Ideal.span (T : Set A) : Set A) ∧
+    U = Subtype.val ⁻¹' rationalSubset Aplus T s}
+
+
+-- @@ L127-132 verbatim
+/-- Membership in the rational family is a presentation as `R(T/s)` with open numerator ideal. -/
+@[simp]
+theorem mem_spaRationalFamily_iff {Aplus : Subring A} {U : Set (spa Aplus)} :
+    U ∈ spaRationalFamily Aplus ↔
+      ∃ (T : Finset A) (s : A), IsOpen (Ideal.span (T : Set A) : Set A) ∧
+        U = Subtype.val ⁻¹' rationalSubset Aplus T s := Iff.rfl
+
+
+-- @@ L134-143 verbatim
+/-- The whole adic spectrum belongs to its rational family, presented as `R({1}/1)`. -/
+theorem univ_mem_spaRationalFamily (Aplus : Subring A) :
+    Set.univ ∈ spaRationalFamily Aplus := by
+  refine ⟨{1}, 1, ?_, ?_⟩
+  · have hspan : Ideal.span (({1} : Finset A) : Set A) = ⊤ :=
+      (Ideal.eq_top_iff_one _).mpr (Ideal.subset_span (by simp))
+    rw [hspan]
+    exact isOpen_univ
+  · rw [rationalSubset_singleton_one]
+    exact (Subtype.coe_preimage_self (spa Aplus)).symm
+
+
+-- @@ L145-145 verbatim
+section TopologicalRing
+
+
+-- @@ L147-147 verbatim
+variable [IsTopologicalRing A]
+
+
+-- @@ L149-161 verbatim
+/-- **Wedhorn Remark 7.30(5).** Rational subsets with open numerator ideal are closed under
+intersection. The set identity is `rationalSubset_inter`; admissibility is multiplicative in
+`Spv(A,IA)`, and adjoining the product denominator turns it back into openness. -/
+theorem inter_mem_spaRationalFamily_of_pairOfDefinition (P : PairOfDefinition A)
+    {Aplus : Subring A}
+    {U V : Set (spa Aplus)} (hU : U ∈ spaRationalFamily Aplus)
+    (hV : V ∈ spaRationalFamily Aplus) : U ∩ V ∈ spaRationalFamily Aplus := by
+  classical
+  obtain ⟨T₁, s₁, hT₁, rfl⟩ := hU
+  obtain ⟨T₂, s₂, hT₂, rfl⟩ := hV
+  refine ⟨insert s₁ T₁ * insert s₂ T₂, s₁ * s₂,
+    P.isOpen_span_insert_mul_insert hT₁ hT₂, ?_⟩
+  rw [← Set.preimage_inter, rationalSubset_inter]
+
+
+-- @@ L163-169 verbatim
+/-- **Wedhorn Remark 7.30(5).** Over a Huber ring, the rational family is closed under binary
+intersection, without choosing a pair of definition. -/
+theorem inter_mem_spaRationalFamily [IsHuberRing A] {Aplus : Subring A}
+    {U V : Set (spa Aplus)} (hU : U ∈ spaRationalFamily Aplus)
+    (hV : V ∈ spaRationalFamily Aplus) : U ∩ V ∈ spaRationalFamily Aplus :=
+  (IsHuberRing.nonempty_pairOfDefinition (A := A)).elim
+    fun P ↦ inter_mem_spaRationalFamily_of_pairOfDefinition P hU hV
+
+
+-- @@ L171-176 verbatim
+/-- **The rational family is closed under finite intersection**, from a specified pair of
+definition, as Mathlib's `FiniteInter` structure. -/
+theorem finiteInter_spaRationalFamily_of_pairOfDefinition (P : PairOfDefinition A)
+    (Aplus : Subring A) : FiniteInter (spaRationalFamily Aplus) where
+  univ_mem := univ_mem_spaRationalFamily Aplus
+  inter_mem _ hU _ hV := inter_mem_spaRationalFamily_of_pairOfDefinition P hU hV
+
+
+-- @@ L178-182 verbatim
+/-- **The rational family is closed under finite intersection**, over a Huber ring. -/
+theorem finiteInter_spaRationalFamily [IsHuberRing A] (Aplus : Subring A) :
+    FiniteInter (spaRationalFamily Aplus) :=
+  (IsHuberRing.nonempty_pairOfDefinition (A := A)).elim
+    fun P ↦ finiteInter_spaRationalFamily_of_pairOfDefinition P Aplus
+
+
+-- @@ L184-192 verbatim
+/-- **Wedhorn Theorem 7.35(2), finite-intersection half**, for a finite subfamily: an intersection
+of finitely many rational subsets is again rational. This is the unindexed form, and the one a
+refinement argument produces, where the finite family comes out of quasi-compactness rather than
+out of an index type — see `exists_finite_spaRationalFamily_refinement`. -/
+theorem sInter_mem_spaRationalFamily [IsHuberRing A] {Aplus : Subring A}
+    {𝒮 : Set (Set (spa Aplus))} (h𝒮 : 𝒮.Finite) (h : 𝒮 ⊆ spaRationalFamily Aplus) :
+    ⋂₀ 𝒮 ∈ spaRationalFamily Aplus := by
+  rw [← h𝒮.coe_toFinset] at h ⊢
+  exact (finiteInter_spaRationalFamily Aplus).finiteInter_mem _ h
+
+
+-- @@ L194-202 verbatim
+/-- **Wedhorn Theorem 7.35(2), finite-intersection half**, indexed by a `Finset`. This is the form
+Wedhorn's Theorem 7.35(2) states — "a basis of quasi-compact open subsets which is stable under
+finite intersection" — whereas `inter_mem_spaRationalFamily` gives only the binary case. -/
+theorem biInter_mem_spaRationalFamily [IsHuberRing A] {Aplus : Subring A} {ι : Type*}
+    (s : Finset ι) {U : ι → Set (spa Aplus)} (h : ∀ i ∈ s, U i ∈ spaRationalFamily Aplus) :
+    (⋂ i ∈ s, U i) ∈ spaRationalFamily Aplus := by
+  rw [← Finset.set_biInter_coe, ← Set.sInter_image]
+  exact sInter_mem_spaRationalFamily (s.finite_toSet.image U)
+    (Set.image_subset_iff.mpr fun i hi ↦ h i hi)
+
+
+-- @@ L204-210 verbatim
+/-- **Wedhorn Theorem 7.35(2), finite-intersection half**, for a finite index type. -/
+theorem iInter_mem_spaRationalFamily [IsHuberRing A] {Aplus : Subring A} {ι : Type*} [Finite ι]
+    {U : ι → Set (spa Aplus)} (h : ∀ i, U i ∈ spaRationalFamily Aplus) :
+    (⋂ i, U i) ∈ spaRationalFamily Aplus := by
+  classical
+  cases nonempty_fintype ι
+  simpa using biInter_mem_spaRationalFamily Finset.univ (U := U) fun i _ ↦ h i
+
+
+-- @@ L212-212 verbatim
+/-! ### Basis and quasi-compactness -/
+
+
+-- @@ L214-251 verbatim
+/-- **Rational subsets form a basis of `Spa(A,A⁺)`.** The statement is made from an explicit
+pair of definition. Every rational neighbourhood in the basis of `Spv(A,IA)` becomes a member
+of `spaRationalFamily` after adjoining its denominator. -/
+theorem isTopologicalBasis_spaRationalFamily_of_pairOfDefinition
+    (P : PairOfDefinition A) (Aplus : Subring A) :
+    IsTopologicalBasis (spaRationalFamily Aplus) := by
+  classical
+  apply isTopologicalBasis_of_isOpen_of_nhds
+  · rintro U ⟨T, s, -, rfl⟩
+    exact isOpen_val_preimage_rationalSubset Aplus T s
+  · intro x U hx hU
+    obtain ⟨O, hO, rfl⟩ := Topology.IsEmbedding.subtypeVal.isInducing.isOpen_iff.mp hU
+    let hfg : ∃ J : Ideal A, J.FG ∧ P.extendedIdealOfDefinition.radical = J.radical :=
+      ⟨P.extendedIdealOfDefinition, P.fg_extendedIdealOfDefinition, rfl⟩
+    let xI : spvOfIdeal P.extendedIdealOfDefinition hfg :=
+      ⟨x, spa_subset_spvOfIdeal P Aplus x.property⟩
+    have hxO : xI ∈ Subtype.val ⁻¹' O := hx
+    have hOI : IsOpen (Subtype.val ⁻¹' O : Set (spvOfIdeal P.extendedIdealOfDefinition hfg)) :=
+      hO.preimage continuous_subtype_val
+    obtain ⟨V, hVr, hxV, hVO⟩ :=
+      (isTopologicalBasis_rationalFamily P.extendedIdealOfDefinition hfg).isOpen_iff.mp hOI xI hxO
+    obtain ⟨T, s, hadm, rfl⟩ := mem_rationalFamily_iff.mp hVr
+    let W : Set (spa Aplus) := Subtype.val ⁻¹' rationalSubset Aplus (insert s T) s
+    have hOpen : IsOpen (Ideal.span ((insert s T : Finset A) : Set A) : Set A) := by
+      simpa only [Finset.coe_insert] using
+        isOpen_span_insert_of_isAdmissible_extendedIdealOfDefinition P hadm
+    have hW : W ∈ spaRationalFamily Aplus :=
+      mem_spaRationalFamily_iff.mpr ⟨insert s T, s, hOpen, rfl⟩
+    refine ⟨W, hW, ?_, ?_⟩
+    · simp only [W]
+      rw [rationalSubset_insert_self, val_preimage_rationalSubset]
+      exact hxV
+    · intro y hy
+      simp only [W] at hy
+      rw [rationalSubset_insert_self, val_preimage_rationalSubset] at hy
+      let yI : spvOfIdeal P.extendedIdealOfDefinition hfg :=
+        ⟨y, spa_subset_spvOfIdeal P Aplus y.property⟩
+      exact hVO (a := yI) hy
+
+
+-- @@ L253-258 verbatim
+/-- **Rational subsets form a basis of `Spa(A,A⁺)`**, without choosing a pair of definition
+of the Huber ring. -/
+theorem isTopologicalBasis_spaRationalFamily [IsHuberRing A] (Aplus : Subring A) :
+    IsTopologicalBasis (spaRationalFamily Aplus) :=
+  (IsHuberRing.nonempty_pairOfDefinition (A := A)).elim
+    fun P ↦ isTopologicalBasis_spaRationalFamily_of_pairOfDefinition P Aplus
+
+
+-- @@ L260-296 verbatim
+/-- Every member of the rational family of `Spa(A,A⁺)` is quasi-compact. Its counterpart in
+`Spv(A,IA)` is a quasi-compact open, and its intersection with the pro-constructible trace of
+`spa Aplus` stays quasi-compact. -/
+theorem isCompact_of_mem_spaRationalFamily_of_pairOfDefinition
+    (P : PairOfDefinition A) {Aplus : Subring A}
+    {U : Set (spa Aplus)} (hU : U ∈ spaRationalFamily Aplus) : IsCompact U := by
+  obtain ⟨T, s, hT, rfl⟩ := hU
+  let hfg : ∃ J : Ideal A, J.FG ∧ P.extendedIdealOfDefinition.radical = J.radical :=
+    ⟨P.extendedIdealOfDefinition, P.fg_extendedIdealOfDefinition, rfl⟩
+  let S : Set (spvOfIdeal P.extendedIdealOfDefinition hfg) :=
+    Subtype.val ⁻¹' spa Aplus
+  let V : Set (spvOfIdeal P.extendedIdealOfDefinition hfg) :=
+    Subtype.val ⁻¹' basicOpenFinset T s
+  have := spectralSpace_spvOfIdeal P.extendedIdealOfDefinition hfg
+  have hS : IsProConstructible S := isProConstructible_val_preimage_spa P Aplus
+  have hVopen : IsOpen V := (isOpen_basicOpenFinset T s).preimage continuous_subtype_val
+  have hVmem : V ∈ rationalFamily P.extendedIdealOfDefinition hfg :=
+    mem_rationalFamily_iff.mpr
+      ⟨T, s, isAdmissible_extendedIdealOfDefinition_of_isOpen_span P hT, rfl⟩
+  have hVcompact : IsCompact V :=
+    isCompact_of_mem_rationalFamily P.extendedIdealOfDefinition hfg hVmem
+  let e : S ≃ₜ spa Aplus := Topology.IsEmbedding.subtypeVal.homeomorphOfSubsetRange
+    (fun x hx ↦ ⟨⟨x, spa_subset_spvOfIdeal P Aplus hx⟩, rfl⟩)
+  apply e.isCompact_preimage.mp
+  have heval (x : S) : ((e x : spa Aplus) : Spv A) =
+      ((x : spvOfIdeal P.extendedIdealOfDefinition hfg) : Spv A) := by
+    simpa only [e] using
+      (Topology.IsEmbedding.homeomorphOfSubsetRange_apply_coe
+        Topology.IsEmbedding.subtypeVal
+        (fun x hx ↦ ⟨⟨x, spa_subset_spvOfIdeal P Aplus hx⟩, rfl⟩) x)
+  have hpre : e ⁻¹' (Subtype.val ⁻¹' rationalSubset Aplus T s : Set (spa Aplus)) =
+      Subtype.val ⁻¹' V := by
+    ext x
+    simp only [Set.mem_preimage, val_preimage_rationalSubset, V]
+    rw [heval]
+  rw [hpre]
+  exact hS.isSpectralMap_subtypeVal.isCompact_preimage_of_isOpen hVopen hVcompact
+
+
+-- @@ L298-303 verbatim
+/-- Every rational subset with open numerator ideal in the adic spectrum of a Huber ring is
+quasi-compact, without choosing a pair of definition. -/
+theorem isCompact_of_mem_spaRationalFamily [IsHuberRing A] {Aplus : Subring A}
+    {U : Set (spa Aplus)} (hU : U ∈ spaRationalFamily Aplus) : IsCompact U :=
+  (IsHuberRing.nonempty_pairOfDefinition (A := A)).elim
+    fun P ↦ isCompact_of_mem_spaRationalFamily_of_pairOfDefinition P hU
+
+
+-- @@ L305-305 verbatim
+/-! ### The rational basis as a family of opens -/
+
+
+-- @@ L307-310 verbatim
+/-- The rational family of `Spa(A,A⁺)`, presented as a set of `Opens` rather than of sets. This is
+the form `Opens.IsBasis` and the sheaf criteria on a basis take. -/
+def spaRationalOpens (Aplus : Subring A) : Set (Opens (spa Aplus)) :=
+  {U : Opens (spa Aplus) | (U : Set (spa Aplus)) ∈ spaRationalFamily Aplus}
+
+
+-- @@ L312-316 verbatim
+omit [IsTopologicalRing A] in
+/-- An open lies in `spaRationalOpens` exactly when its underlying set is rational. -/
+@[simp]
+theorem mem_spaRationalOpens {Aplus : Subring A} {U : Opens (spa Aplus)} :
+    U ∈ spaRationalOpens Aplus ↔ (U : Set (spa Aplus)) ∈ spaRationalFamily Aplus := Iff.rfl
+
+
+-- @@ L318-323 verbatim
+/-- **The rational opens are a basis** in the `Opens.IsBasis` sense, which is the form the sheaf
+criterion on a basis consumes. -/
+theorem isBasis_spaRationalOpens [IsHuberRing A] (Aplus : Subring A) :
+    Opens.IsBasis (spaRationalOpens Aplus) :=
+  TauCeti.TopologicalSpace.Opens.isBasis_of_isTopologicalBasis
+    (isTopologicalBasis_spaRationalFamily Aplus)
+
+
+-- @@ L325-329 verbatim
+omit [IsTopologicalRing A] in
+/-- The whole space is a rational open, presented as `R({1}/1)`. -/
+theorem top_mem_spaRationalOpens (Aplus : Subring A) :
+    (⊤ : Opens (spa Aplus)) ∈ spaRationalOpens Aplus :=
+  mem_spaRationalOpens.mpr (univ_mem_spaRationalFamily Aplus)
+
+
+-- @@ L331-338 verbatim
+/-- **Wedhorn Remark 7.30(5)** in the bundled form: the rational opens are closed under binary
+meet. Meet of `Opens` is intersection of the underlying sets, so this is
+`inter_mem_spaRationalFamily` read through `mem_spaRationalOpens`. -/
+theorem inf_mem_spaRationalOpens [IsHuberRing A] {Aplus : Subring A}
+    {U V : Opens (spa Aplus)} (hU : U ∈ spaRationalOpens Aplus)
+    (hV : V ∈ spaRationalOpens Aplus) : U ⊓ V ∈ spaRationalOpens Aplus :=
+  mem_spaRationalOpens.mpr
+    (inter_mem_spaRationalFamily (mem_spaRationalOpens.mp hU) (mem_spaRationalOpens.mp hV))
+
+
+-- @@ L340-347 verbatim
+/-- **Wedhorn Theorem 7.35(2), finite-intersection half**, in the bundled form: the rational
+opens are closed under `Finset.inf`. This is the shape a sheaf criterion on the basis takes,
+where the finite intersections of a cover are formed in `Opens` rather than in `Set`. -/
+theorem finsetInf_mem_spaRationalOpens [IsHuberRing A] {Aplus : Subring A} {ι : Type*}
+    (s : Finset ι) {U : ι → Opens (spa Aplus)}
+    (h : ∀ i ∈ s, U i ∈ spaRationalOpens Aplus) : s.inf U ∈ spaRationalOpens Aplus := by
+  rw [mem_spaRationalOpens, Opens.coe_finset_inf, Finset.inf_set_eq_iInter]
+  exact biInter_mem_spaRationalFamily s fun i hi ↦ mem_spaRationalOpens.mp (h i hi)
+
+
+-- @@ L349-349 verbatim
+/-! ### Finite rational refinements -/
+
+
+-- @@ L351-378 verbatim
+/-- **Every open cover of a rational subset admits a finite refinement by rational subsets.**
+This is the previous two results combined: being a basis shrinks each point's cover member to a
+rational neighbourhood, and quasi-compactness then keeps finitely many of them. It is the shape a
+sheaf criterion on the rational basis consumes, where the cover is arbitrary but the Čech complex
+must be built from the basis itself.
+
+The two-step argument follows AINTLIB's `exists_finite_rational_refinement_huber` and its Tate-only
+`exists_finite_rational_refinement` (branch `dev/adic-spaces`, commit `37bbdaeb`, Apache 2.0), in
+`projects/AdicSpaces/Adic spaces/RestrictedLimitSheaf.lean`. Two differences: quasi-compactness is a
+hypothesis there and is discharged here by `isCompact_of_mem_spaRationalFamily`; and the conclusion
+there is a `Finset` of a bundled index type over `RationalLocData`, whereas this states a finite
+subfamily of `spaRationalFamily` with the containment as a side condition, matching the vocabulary
+this file already uses. -/
+theorem exists_finite_spaRationalFamily_refinement [IsHuberRing A] {Aplus : Subring A}
+    {U : Set (spa Aplus)} (hU : U ∈ spaRationalFamily Aplus) {ι : Type*}
+    (V : ι → Set (spa Aplus)) (hVopen : ∀ i, IsOpen (V i)) (hcover : U ⊆ ⋃ i, V i) :
+    ∃ 𝒲 ⊆ spaRationalFamily Aplus, 𝒲.Finite ∧ (∀ W ∈ 𝒲, ∃ i, W ⊆ V i) ∧ U ⊆ ⋃₀ 𝒲 := by
+  have hcov : U ⊆ ⋃ W ∈ {W ∈ spaRationalFamily Aplus | ∃ i, W ⊆ V i}, W := by
+    intro x hx
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp (hcover hx)
+    obtain ⟨W, hWmem, hxW, hWV⟩ :=
+      (isTopologicalBasis_spaRationalFamily Aplus).exists_subset_of_mem_open hi (hVopen i)
+    exact Set.mem_biUnion ⟨hWmem, i, hWV⟩ hxW
+  obtain ⟨𝒲, h𝒲G, h𝒲fin, h𝒲cov⟩ :=
+    (isCompact_of_mem_spaRationalFamily hU).elim_finite_subcover_image
+      (fun W hW ↦ (isTopologicalBasis_spaRationalFamily Aplus).isOpen hW.1) hcov
+  exact ⟨𝒲, fun W hW ↦ (h𝒲G hW).1, h𝒲fin, fun W hW ↦ (h𝒲G hW).2,
+    by simpa [Set.sUnion_eq_biUnion] using h𝒲cov⟩
+
+
+-- @@ L380-380 verbatim
+/-! ### Standard rational covers -/
+
+
+-- @@ L382-382 verbatim
+section Tate
+
+
+-- @@ L384-384 verbatim
+variable [IsTateRing A]
+
+
+-- @@ L386-392 verbatim
+/-- Over a Tate ring, if a finite set `T` generates an open ideal, then the standard rational
+subsets `(R(T/t))_{t ∈ T}` cover `spa Aplus`. -/
+theorem spa_eq_biUnion_rationalSubset_of_isTateRing_of_isOpen (Aplus : Subring A) {T : Finset A}
+    (hT : IsOpen ((Ideal.span (T : Set A) : Ideal A) : Set A)) :
+    spa Aplus = ⋃ t ∈ T, rationalSubset Aplus T t :=
+  spa_eq_biUnion_rationalSubset_of_span_eq_top Aplus
+    ((IsTateRing.isOpen_iff_eq_top (Ideal.span (T : Set A))).mp hT)
+
+
+-- @@ L394-394 verbatim
+end Tate
+
+
+-- @@ L396-396 verbatim
+end TopologicalRing
+
+
+-- @@ L398-398 verbatim
+end TauCeti.ValuationSpectrum
+
+
+-- @@ L400-400 verbatim
+end
