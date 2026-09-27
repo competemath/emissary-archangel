@@ -1,5 +1,5 @@
 name: translate-all
-# The unattended loop. Every hour:
+# The unattended loop. Every 15 minutes, and again whenever a library run finishes (translate.yml dispatches it):
 #   1. dispatch: keep every library's translation moving, a few libraries at a time — a mechanical pass (no Claude) for
 #      every set-up library until nothing is left for it, then an agent pass (only with the CLAUDE_CODE_OAUTH_TOKEN
 #      secret; one library at a time: the Claude account's usage limit, not the runners, is the bottleneck there).
@@ -7,10 +7,10 @@ name: translate-all
 #   2. flush: turn banked records (data/bank/) into tengoku PRs with the TENGOKU_BOT_TOKEN secret (bank-flush.mjs).
 on:
   schedule:
-    - cron: "23 * * * *"
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
     inputs:
-      max_libraries: { description: "Library runs at once (translate.yml runs in flight count)", required: true, default: "3" }
+      max_libraries: { description: "Library runs at once (translate.yml runs in flight count)", required: true, default: "6" }
       dry_run: { description: "Print the plan, dispatch nothing", required: true, default: "false" }
 
 permissions: {}
@@ -34,7 +34,7 @@ jobs:
       - name: Plan and dispatch
         env:
           GH_TOKEN: ${{ github.token }}
-          MAX: ${{ inputs.max_libraries || '3' }}
+          MAX: ${{ inputs.max_libraries || '6' }}
           DRY: ${{ inputs.dry_run || 'false' }}
           HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
         run: |
