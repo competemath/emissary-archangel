@@ -9,5 +9,18 @@
     "limited": false,
     "stalls": 0,
     "outcomes": {}
+  },
+  "agent": {
+    "run": "36317897248",
+    "at": "2026-09-27T12:12:43.733Z",
+    "shards": 1,
+    "todo": 7,
+    "processed": 7,
+    "left": 0,
+    "limited": false,
+    "stalls": 0,
+    "outcomes": {
+      "unresolved": 7
+    }
   }
 }
