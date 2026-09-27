@@ -1,0 +1,34 @@
+{
+  "FirstProof/FirstProof6_constant/Auxiliary/BarrierPotential.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:27:49.002Z"
+  },
+  "FirstProof/FirstProof6_constant/Auxiliary/ColoringFramework.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:27:56.340Z"
+  },
+  "FirstProof/FirstProof6_constant/Auxiliary/DynamicColoring.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:27:57.015Z"
+  },
+  "FirstProof/FirstProof6_constant/Auxiliary/LaplacianBasics.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:27:58.592Z"
+  },
+  "FirstProof/FirstProof6_constant/Auxiliary/LoewnerPullback.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:28:02.208Z"
+  },
+  "FirstProof/FirstProof6_constant/Auxiliary/OneSidedBarrier.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:28:21.029Z"
+  },
+  "FirstProof/FirstProof6_constant/Auxiliary/ResolventBound.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:28:59.141Z"
+  },
+  "FirstProof/FirstProof6_constant3/Problem6.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:29:00.410Z"
+  }
+}
