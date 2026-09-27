@@ -77,6 +77,9 @@ const settledNow = results.filter((l) => {
 const left = Math.max(0, todo - settledNow)
 const statusPath = join(tdir, `${key}.status.json`)
 const status = existsSync(statusPath) ? JSON.parse(readFileSync(statusPath, "utf8")) : {}
-status[mode] = { run, at: new Date().toISOString(), shards: shards.length, todo, processed: results.length, left, limited, outcomes }
+// consecutive runs that settled nothing though work was left (services that never came up, a library that always
+// times out): translate-all.yml stops dispatching the mode after three
+const stalls = left > 0 && settledNow === 0 ? (status[mode]?.stalls || 0) + 1 : 0
+status[mode] = { run, at: new Date().toISOString(), shards: shards.length, todo, processed: results.length, left, limited, stalls, outcomes }
 writeFileSync(statusPath, JSON.stringify(status, null, 2) + "\n")
 console.log(`${key} run ${run} (${mode}): ${shards.length} shards, ${todo} selected, ${results.length} processed ${JSON.stringify(outcomes)}, ${left} left${limited ? " (limited run)" : ""}, ${bank.size} records banked, ${cacheChanged} prefix-cache entries updated`)

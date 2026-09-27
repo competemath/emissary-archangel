@@ -56,7 +56,7 @@ jobs:
               if not entries:
                   continue
               st = json.loads(open(f"data/translate/{key}.status.json").read()) if os.path.exists(f"data/translate/{key}.status.json") else {}
-              need = lambda m: m not in st or st[m]["left"] > 0 or st[m].get("limited")
+              need = lambda m: m not in st or ((st[m]["left"] > 0 or st[m].get("limited")) and st[m].get("stalls", 0) < 3)
               if need("mechanical"):
                   plan.append((0, entries, key, "mechanical", max(1, min(64, math.ceil(entries / 300)))))
               elif os.environ["HAS_CLAUDE"] == "true" and need("agent"):
