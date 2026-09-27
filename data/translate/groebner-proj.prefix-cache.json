@@ -1,0 +1,60 @@
+{
+  "Groebner/Groebner.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:57:38.525Z"
+  },
+  "Groebner/Ideal.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:57:49.271Z"
+  },
+  "Groebner/MonomialOrder.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:58:10.408Z"
+  },
+  "Groebner/MonomialOrderEmbedding.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:58:11.122Z"
+  },
+  "Groebner/MulEquiv.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:58:53.848Z",
+    "collisions": [
+      "MulEquiv._root_.MonoidHom.mrangeRestrict_eq_rangeFactorization"
+    ]
+  },
+  "Groebner/Reduced.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:58:59.607Z"
+  },
+  "Groebner/Remainder.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:59:03.364Z"
+  },
+  "Groebner/ToMathlib/Finsupp.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:01:20.807Z"
+  },
+  "Groebner/ToMathlib/Function.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:01:26.351Z"
+  },
+  "Groebner/ToMathlib/List.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:01:29.079Z"
+  },
+  "Groebner/ToMathlib/MvPolynomial.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:01:32.555Z"
+  },
+  "Groebner/ToMathlib/PropLemma.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:01:33.235Z"
+  },
+  "Groebner/WeakRemainder.lean": {
+    "checkedAt": "2026-09-27T10:01:34.599Z",
+    "collisions": [
+      "MonomialOrder._root_.Finset.apply_piecewise_congr",
+      "MonomialOrder._root_.Finset.Colex.lt_iff"
+    ]
+  }
+}
