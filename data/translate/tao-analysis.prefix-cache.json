@@ -1,0 +1,267 @@
+{
+  "Analysis/Appendix_A_5.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:20:08.411Z"
+  },
+  "Analysis/MeasureTheory/Section_1_1_3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:20:41.477Z"
+  },
+  "Analysis/MeasureTheory/Section_1_4_3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:20:44.826Z"
+  },
+  "Analysis/Misc/FiniteChoice.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:20:46.674Z"
+  },
+  "Analysis/Misc/Probability.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:20:47.747Z"
+  },
+  "Analysis/Section_11_4.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:21:10.889Z"
+  },
+  "Analysis/Section_2_1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:21:11.553Z"
+  },
+  "Analysis/Section_4_3.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:21:12.437Z"
+  },
+  "Analysis/Section_5_epilogue.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:21:16.329Z"
+  },
+  "Analysis/Section_7_5.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:21:24.122Z"
+  },
+  "Analysis/Section_9_1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:21:25.832Z"
+  },
+  "Analysis/Section_9_8.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:21:26.616Z"
+  },
+  "Analysis/MeasureTheory/Section_1_1_2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:22:10.284Z"
+  },
+  "Analysis/MeasureTheory/Section_1_2_3.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:22:22.570Z"
+  },
+  "Analysis/MeasureTheory/Section_1_3_1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:26:18.548Z"
+  },
+  "Analysis/MeasureTheory/Section_1_3_3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:27:38.985Z"
+  },
+  "Analysis/Misc/erdos_707.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:27:46.814Z"
+  },
+  "Analysis/Section_11_3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:29:03.158Z"
+  },
+  "Analysis/Section_5_4.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:29:03.935Z"
+  },
+  "Analysis/Section_5_6.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:29:26.201Z"
+  },
+  "Analysis/Section_6_5.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:29:28.974Z"
+  },
+  "Analysis/Section_6_6.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:29:33.131Z"
+  },
+  "Analysis/Section_6_epilogue.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:29:34.116Z"
+  },
+  "Analysis/Appendix_A_2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:21:42.597Z"
+  },
+  "Analysis/Appendix_B_2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:22:00.441Z"
+  },
+  "Analysis/MeasureTheory/Section_1_2_1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:22:17.062Z"
+  },
+  "Analysis/MeasureTheory/Section_1_2_2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:22:51.835Z"
+  },
+  "Analysis/MeasureTheory/Section_1_4_2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:22:56.577Z"
+  },
+  "Analysis/Misc/equational.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:22:57.949Z"
+  },
+  "Analysis/Section_10_1.lean": {
+    "checkedAt": "2026-09-27T14:23:01.308Z",
+    "collisions": [
+      "Chapter10._root_.HasDerivWithinAt.iff",
+      "Chapter10._root_.DifferentiableWithinAt.iff"
+    ]
+  },
+  "Analysis/Section_11_2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:23:03.438Z"
+  },
+  "Analysis/Section_6_2.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:23:06.099Z",
+    "collisions": [
+      "EReal.IsInfinite"
+    ]
+  },
+  "Analysis/Section_7_2.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:23:11.040Z",
+    "collisions": [
+      "Chapter7.Series.partial",
+      "Chapter7.Series.convergesTo"
+    ]
+  },
+  "Analysis/Section_8_1.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:23:17.495Z"
+  },
+  "Analysis/Section_9_10.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:23:28.413Z"
+  },
+  "Analysis/Tools/ExistsUnique.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:23:31.272Z"
+  },
+  "Analysis/MeasureTheory/Notation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:20:40.730Z"
+  },
+  "Analysis/MeasureTheory/Section_1_1_1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:20:48.618Z"
+  },
+  "Analysis/Misc/erdos_379.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:22:48.995Z",
+    "collisions": [
+      "S"
+    ]
+  },
+  "Analysis/Section_10_2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:23:03.121Z"
+  },
+  "Analysis/Section_11_1.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:23:04.070Z"
+  },
+  "Analysis/Section_4_4.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:23:17.978Z"
+  },
+  "Analysis/Section_5_3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:23:35.492Z"
+  },
+  "Analysis/Section_8_2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:23:53.159Z"
+  },
+  "Analysis/Section_9_2.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:23:54.116Z"
+  },
+  "Analysis/Section_9_9.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:24:00.389Z"
+  },
+  "Analysis/Appendix_A_7.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:20:04.539Z"
+  },
+  "Analysis/Appendix_B_1.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:20:14.979Z"
+  },
+  "Analysis/MeasureTheory/Section_1_2_0.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:21:30.893Z"
+  },
+  "Analysis/MeasureTheory/Section_1_3_4.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:23:17.237Z"
+  },
+  "Analysis/Misc/NatBitwise.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:23:21.689Z"
+  },
+  "Analysis/Misc/SI.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:23:24.737Z"
+  },
+  "Analysis/Misc/erdos_613.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:23:26.529Z"
+  },
+  "Analysis/Section_11_5.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:23:59.211Z"
+  },
+  "Analysis/Section_11_6.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:24:25.935Z"
+  },
+  "Analysis/Section_11_9.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:24:33.191Z"
+  },
+  "Analysis/Section_6_1.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:24:34.566Z"
+  },
+  "Analysis/Section_6_4.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:25:02.027Z"
+  },
+  "Analysis/Section_7_3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:25:09.155Z"
+  },
+  "Analysis/Section_7_4.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:25:26.017Z"
+  },
+  "Analysis/Section_8_3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:25:29.884Z"
+  },
+  "Analysis/Section_9_5.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T14:25:31.909Z"
+  },
+  "Analysis/Section_9_6.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T14:25:32.638Z"
+  }
+}
