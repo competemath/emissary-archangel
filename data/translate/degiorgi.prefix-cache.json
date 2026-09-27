@@ -1,0 +1,270 @@
+{
+  "DeGiorgi/BallExtension.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:04:09.871Z"
+  },
+  "DeGiorgi/BallExtension/SmoothCore.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:04:10.802Z"
+  },
+  "DeGiorgi/BallScaling.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:04:39.007Z"
+  },
+  "DeGiorgi/DeGiorgiIteration/Energy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:04:41.997Z"
+  },
+  "DeGiorgi/DeGiorgiIteration/Linfty.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:04:45.233Z"
+  },
+  "DeGiorgi/DeGiorgiIteration/PreIteration.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:07:31.634Z"
+  },
+  "DeGiorgi/FiniteCover.lean": {
+    "checkedAt": "2026-09-27T11:07:41.669Z",
+    "collisions": [
+      "DeGiorgi.lintegral_biUnion_finset_le_sum",
+      "DeGiorgi.volumeReal_ball_eq",
+      "DeGiorgi.exists_maximal_separated_subfinset"
+    ]
+  },
+  "DeGiorgi/LpFunctionToolkit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:08:08.082Z"
+  },
+  "DeGiorgi/MoserIteration/CutoffPrep/Basics.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:08:11.207Z"
+  },
+  "DeGiorgi/MoserIteration/Linfty.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:08:12.412Z"
+  },
+  "DeGiorgi/Oscillation/BMO.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:08:13.693Z"
+  },
+  "DeGiorgi/Oscillation/LocalJohnNirenberg.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:08:52.574Z"
+  },
+  "DeGiorgi/PositivePart.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:09:47.937Z"
+  },
+  "DeGiorgi/SobolevSpace/Approximation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:12:51.349Z"
+  },
+  "DeGiorgi/SobolevSpace/PositivePartPrelude.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:13:02.772Z"
+  },
+  "DeGiorgi/SobolevSpace/Witnesses.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:13:03.197Z"
+  },
+  "DeGiorgi/Supersolutions/Caccioppoli.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:14:41.881Z"
+  },
+  "DeGiorgi/Supersolutions/ForwardIteration/Iteration.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:18:36.468Z"
+  },
+  "DeGiorgi/Supersolutions/InverseEnergy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:20:56.268Z"
+  },
+  "DeGiorgi/WeakFormulation/CoefficientOperator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:21:16.857Z"
+  },
+  "DeGiorgi/WeakFormulation/ExistenceTheory.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:22:05.984Z"
+  },
+  "DeGiorgi/WeakFormulation/SolutionInterfaces.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:22:15.309Z"
+  },
+  "DeGiorgi/BallExtensionEstimates.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:04:31.394Z"
+  },
+  "DeGiorgi/Localization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:04:34.046Z"
+  },
+  "DeGiorgi/MoserIteration/CutoffPrep/RegularizedEnergy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:06:38.865Z"
+  },
+  "DeGiorgi/MoserIteration/Iteration.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:10:23.413Z"
+  },
+  "DeGiorgi/StampacchiaTruncation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:10:33.912Z"
+  },
+  "DeGiorgi/Supersolutions/InverseIteration.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:19:01.083Z"
+  },
+  "DeGiorgi/Supersolutions/RegularizationSupport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:19:51.069Z"
+  },
+  "DeGiorgi/UnitBallApproximationCore/Approximation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:20:33.879Z"
+  },
+  "DeGiorgi/WholeSpaceSobolev.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:20:34.782Z",
+    "collisions": [
+      "DeGiorgi.sobolev_exp_pos",
+      "DeGiorgi.sobolev_exponent_relation"
+    ]
+  },
+  "DeGiorgi/BallExtension/Core.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:03:04.491Z"
+  },
+  "DeGiorgi/BallExtension/RoughInput.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:03:40.605Z"
+  },
+  "DeGiorgi/BallExtension/SmoothApproximation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:04:36.275Z"
+  },
+  "DeGiorgi/DeGiorgiIteration/CutoffAdmissibility.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:04:47.476Z"
+  },
+  "DeGiorgi/DeGiorgiIteration/Recurrence.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:09:43.460Z"
+  },
+  "DeGiorgi/EllipticCoefficients.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:09:54.841Z"
+  },
+  "DeGiorgi/MoserIteration/CutoffPrep/ExactRegularization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:12:45.324Z"
+  },
+  "DeGiorgi/MoserIteration/CutoffPrep/PreEstimate.lean": {
+    "checkedAt": "2026-09-27T11:17:53.784Z",
+    "collisions": [
+      "DeGiorgi.affine_scale_measure_ne_zero"
+    ]
+  },
+  "DeGiorgi/MoserIteration/CutoffPrep/RegularizedWitnesses.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:18:52.939Z"
+  },
+  "DeGiorgi/MoserIteration/Sequences.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:18:54.077Z"
+  },
+  "DeGiorgi/Oscillation/Campanato.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:18:54.411Z"
+  },
+  "DeGiorgi/Supersolutions/ForwardIteration/Basics.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:19:44.728Z"
+  },
+  "DeGiorgi/Support/IterationConstants.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:29:36.655Z"
+  },
+  "DeGiorgi/UnitBallApproximationCore/Dilation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:29:37.374Z"
+  },
+  "DeGiorgi/UnitBallApproximationCore/Profiles.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:29:39.314Z"
+  },
+  "DeGiorgi/UnitBallApproximationCore/Rescaling.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:29:39.624Z"
+  },
+  "DeGiorgi/WeakFormulation/SmoothTests.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:29:41.958Z"
+  },
+  "DeGiorgi/WeakHarnack.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:29:43.741Z"
+  },
+  "DeGiorgi/BallExtension/ApproximationControl.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:04:10.666Z"
+  },
+  "DeGiorgi/BallExtension/Geometry.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:10:06.489Z"
+  },
+  "DeGiorgi/Crossover/LocalIntegrability.lean": {
+    "checkedAt": "2026-09-27T11:12:10.911Z",
+    "collisions": [
+      "DeGiorgi.affine_scale_measure_ne_zero"
+    ]
+  },
+  "DeGiorgi/Crossover/LogGradient.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:17:08.307Z"
+  },
+  "DeGiorgi/MoserIteration/Constants.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:18:00.161Z"
+  },
+  "DeGiorgi/MoserIteration/CutoffPrep/Profiles.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:18:01.443Z"
+  },
+  "DeGiorgi/Poincare.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:18:20.101Z"
+  },
+  "DeGiorgi/SobolevChainRule.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:18:45.228Z"
+  },
+  "DeGiorgi/SobolevPoincare.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:18:46.085Z"
+  },
+  "DeGiorgi/SobolevSpace/WeakDerivatives.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:18:46.729Z"
+  },
+  "DeGiorgi/Supersolutions/ForwardIteration/Energy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:21:03.420Z"
+  },
+  "DeGiorgi/Supersolutions/ForwardIteration/OneStep.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:24:39.820Z"
+  },
+  "DeGiorgi/Supersolutions/TestFunctions.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:25:06.118Z"
+  },
+  "DeGiorgi/WeakFormulation/BilinearForm.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:25:18.642Z"
+  },
+  "DeGiorgi/WeakFormulation/WeightedEstimates.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:25:28.458Z"
+  }
+}
