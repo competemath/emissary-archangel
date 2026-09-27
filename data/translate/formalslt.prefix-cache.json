@@ -1,0 +1,1346 @@
+{
+  "FormalSLT/AnytimeValid/AllocationLogLog.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:19:16.024Z"
+  },
+  "FormalSLT/Applications/BrierMonitorSyntheticProofOfLifeReceipt.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:19:26.068Z"
+  },
+  "FormalSLT/Applications/ControlledQueueKnownKernelReceiptRows09To11.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:19:59.428Z"
+  },
+  "FormalSLT/Applications/GJPBrierMonitorReplayPathDataConstantTrainBaseRate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:20:03.077Z"
+  },
+  "FormalSLT/Applications/RandomRefreshLoadBaselines.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:21:45.032Z"
+  },
+  "FormalSLT/Azuma/BoundedDiffsAzumaInput.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:21:46.469Z",
+    "collisions": [
+      "FormalSLT.Azuma.ExposureMartingale.measurable_prefixToFull",
+      "FormalSLT.Azuma.ExposureMartingale.partialIntegral_eq_comp_prefixToFull",
+      "FormalSLT.Azuma.ExposureMartingale.splice_eq_spliceEquiv_symm",
+      "FormalSLT.Azuma.ExposureMartingale.measurePreserving_pairProj",
+      "FormalSLT.Azuma.ExposureMartingale.coordinateSubAlgebra_eq_comap_prefix",
+      "FormalSLT.Azuma.ExposureMartingale.mem_iff_of_agree_prefix"
+    ]
+  },
+  "FormalSLT/Concentration/NamedTails.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:22:03.759Z"
+  },
+  "FormalSLT/Concentration/SubGamma/Extractor.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:22:19.652Z"
+  },
+  "FormalSLT/LinearAlgebra/CommonInequalities.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:22:20.290Z"
+  },
+  "FormalSLT/PACBayes/FiniteEmpiricalBernsteinRiskCatalog.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:26.472Z"
+  },
+  "FormalSLT/PACBayes/FiniteEmpiricalBernsteinSqrt.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:26.830Z"
+  },
+  "FormalSLT/PACBayes/Generated/Cert_D.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:27.441Z"
+  },
+  "FormalSLT/PACBayes/IndicatorBernsteinTiltCatalog.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:28.239Z"
+  },
+  "FormalSLT/PACBayes/TimeUniformIIDGrid.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:30.212Z"
+  },
+  "FormalSLT/PACBayesMcAllester.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:30.557Z"
+  },
+  "FormalSLT/Probability/BorelCantelli.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:22:31.176Z"
+  },
+  "FormalSLT/Probability/LawOfLargeNumbers.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:22:33.002Z"
+  },
+  "FormalSLT/Rademacher/Massart.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:33.950Z"
+  },
+  "FormalSLT/Rademacher/RademacherBoundedDifferences.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:34.780Z"
+  },
+  "FormalSLT/StochasticDynamics/ContinuousMeasurableTrajectorySleepingCountableTiltPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:00.730Z"
+  },
+  "FormalSLT/StochasticDynamics/ContinuousMeasurableTrajectorySleepingSuffixVarianceOracle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:03.097Z"
+  },
+  "FormalSLT/StochasticDynamics/EmpiricalTransitionConfidenceCountable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:19.312Z"
+  },
+  "FormalSLT/StochasticDynamics/PrefixDynamicTargetPolicyComparator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:20.402Z"
+  },
+  "FormalSLT/StochasticDynamics/TrajectoryForwardBesselPACBayesOracle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:34.868Z"
+  },
+  "FormalSLT/StochasticDynamics/TrajectoryHalfTiltOrdinaryRiskPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:35.445Z"
+  },
+  "FormalSLT/StochasticDynamics/TrajectoryRisk.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:37.747Z"
+  },
+  "FormalSLT/TestTimeMeta/PrefixKernelPopulationDecomposition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:43.297Z"
+  },
+  "FormalSLT/VC/SampleComplexity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:47.093Z"
+  },
+  "FormalSLT/AnytimeValid/DyadicEpochCS.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:28:06.657Z"
+  },
+  "FormalSLT/AnytimeValid/SingularFractionExactOptimizer.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:31:59.705Z"
+  },
+  "FormalSLT/Applications/ControlledQueueKnownKernelReceiptRows12To14.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:32:55.687Z"
+  },
+  "FormalSLT/Applications/ControlledQueueKnownKernelReceiptRows15To17.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:33:20.116Z"
+  },
+  "FormalSLT/Applications/RandomRefreshLoadCertificate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:33:27.339Z"
+  },
+  "FormalSLT/Covering/TotalBoundedMinimalCovering.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:34:00.636Z"
+  },
+  "FormalSLT/GhostSample.lean": {
+    "checkedAt": "2026-09-27T22:34:02.035Z",
+    "collisions": [
+      "FormalSLT.GhostSample.integrable_of_bounded_measurable"
+    ]
+  },
+  "FormalSLT/PACBayes/ContinuousInfiniteEmpiricalBernsteinStitch.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:34:02.773Z"
+  },
+  "FormalSLT/PACBayes/FiniteEmpiricalVariance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:34:04.002Z"
+  },
+  "FormalSLT/PACBayes/FiniteEmpiricalVariancePACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:34:34.986Z"
+  },
+  "FormalSLT/PACBayes/FiniteEmpiricalVarianceReverse.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:34:35.977Z"
+  },
+  "FormalSLT/PACBayes/FiniteJointMeanVarianceReverseCatalog.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:34:50.460Z"
+  },
+  "FormalSLT/PACBayes/FiniteProductBernstein.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:11.039Z"
+  },
+  "FormalSLT/PACBayes/GaussianKL.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:35:11.812Z"
+  },
+  "FormalSLT/PACBayes/Generated/Cert_A.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:15.881Z"
+  },
+  "FormalSLT/PACBayes/Generated/Cert_E.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:16.283Z"
+  },
+  "FormalSLT/PACBayes/IIDContinuousGaussianGrid.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:20.865Z"
+  },
+  "FormalSLT/PACBayes/IndicatorVariance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:21.298Z"
+  },
+  "FormalSLT/PACBayes/InfiniteProductMeasureBridge.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:35:21.997Z"
+  },
+  "FormalSLT/Probability/Concentration.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:35:25.140Z"
+  },
+  "FormalSLT/Rademacher/Decoupling.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:32.757Z"
+  },
+  "FormalSLT/StochasticDynamics/ControlledKernelTV.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:35.685Z"
+  },
+  "FormalSLT/StochasticDynamics/MarkovPACBayesTiltMixture.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:00.633Z"
+  },
+  "FormalSLT/StochasticDynamics/MarkovPACBayesTiltMixtureInitialLaw.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:03.249Z"
+  },
+  "FormalSLT/StochasticDynamics/StationaryPoissonPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:05.576Z"
+  },
+  "FormalSLT/StochasticDynamics/StationaryPoissonRobustCandidate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:08.145Z"
+  },
+  "FormalSLT/StochasticDynamics/StationaryTargetPolicyRobustCandidate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:11.205Z"
+  },
+  "FormalSLT/StochasticDynamics/TargetPathChangeOfMeasure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:12.185Z"
+  },
+  "FormalSLT/StochasticDynamics/TrajectoryPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:33.391Z"
+  },
+  "FormalSLT/StochasticDynamics/TrajectoryPredictableTiltPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:33.882Z"
+  },
+  "FormalSLT/StochasticDynamics/TrajectorySleepingStrategyPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:35.488Z"
+  },
+  "FormalSLT/TestTimeMeta/BernsteinPopulationDecompositionReal.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:36.157Z"
+  },
+  "FormalSLT/TestTimeMeta/Flagship.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:36:36.984Z"
+  },
+  "FormalSLT/UniformConvergence.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:36:38.414Z"
+  },
+  "FormalSLT/AlgorithmicStability.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:19:17.016Z"
+  },
+  "FormalSLT/AnytimeValid/ContinuumPredictableBettingMixture.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:19:19.005Z"
+  },
+  "FormalSLT/AnytimeValid/OptimizedLambdaCS.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:19:20.808Z"
+  },
+  "FormalSLT/AnytimeValid/UniversalBoundaryLowerBound.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:19:31.001Z"
+  },
+  "FormalSLT/Applications/ControlledQueueOPECatalog.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:20:38.823Z"
+  },
+  "FormalSLT/Applications/ControlledQueuePersistenceConfidence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:04.302Z"
+  },
+  "FormalSLT/Applications/ControlledQueueReindex.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:18.435Z"
+  },
+  "FormalSLT/Applications/ControlledQueueTypedModel.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:30.152Z"
+  },
+  "FormalSLT/Applications/GJPBrierMonitorReplayPathDataBase.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:34.315Z"
+  },
+  "FormalSLT/Azuma/ExposureMartingale.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:22:35.049Z"
+  },
+  "FormalSLT/Concentration/SharpMcDiarmid.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:22:39.002Z"
+  },
+  "FormalSLT/Covering/TotalBoundedDudleySelectedCapstone.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:31.558Z"
+  },
+  "FormalSLT/Covering/UnitIntervalDudley.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:32.102Z"
+  },
+  "FormalSLT/PACBayes/Compiler.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:43.985Z"
+  },
+  "FormalSLT/PACBayes/ContinuousCountableSleepingEProcessPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:49.678Z"
+  },
+  "FormalSLT/PACBayes/FiniteEmpiricalBernsteinReverseSqrt.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:24:03.830Z"
+  },
+  "FormalSLT/PACBayes/ForwardBesselPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:24:13.654Z"
+  },
+  "FormalSLT/PACBayes/Generated/Cert_B.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:24:14.203Z"
+  },
+  "FormalSLT/PACBayes/IndicatorBernsteinConfidence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:24:15.538Z"
+  },
+  "FormalSLT/PACBayes/VitaleLemma.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:24:16.246Z"
+  },
+  "FormalSLT/Rademacher/FiniteSample.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:24:16.932Z"
+  },
+  "FormalSLT/Stability/BousquetElisseeff.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:24:34.161Z"
+  },
+  "FormalSLT/StochasticDynamics/StationaryPoissonDepthSelection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:24:39.842Z"
+  },
+  "FormalSLT/StochasticDynamics/StationaryPoissonRobustInvariant.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:24:42.536Z"
+  },
+  "FormalSLT/StochasticDynamics/StationaryTargetPolicyFixedRangeOPE.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:25:26.469Z"
+  },
+  "FormalSLT/TestTimeMeta/FlagshipFiveComponentAssembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:25:34.064Z"
+  },
+  "FormalSLT/TestTimeMeta/FlagshipFourComponentAssembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:25:35.795Z"
+  },
+  "FormalSLT/AnytimeValid/CountableSleepingPredictableBettingPosterior.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:20:26.103Z"
+  },
+  "FormalSLT/AnytimeValid/SingularFractionGeometry.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:20:35.976Z"
+  },
+  "FormalSLT/AnytimeValid/SingularFractionObservableLIL.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:20:46.841Z"
+  },
+  "FormalSLT/AnytimeValid/SubGaussianCS.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:23:12.220Z"
+  },
+  "FormalSLT/Applications/ControlledQueueRefreshSensitivity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:24:00.353Z"
+  },
+  "FormalSLT/Covering/TwoPointDudleyIntegral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:24:38.535Z"
+  },
+  "FormalSLT/PACBayes/ContinuousForwardPredictableMeanBesselPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:24:52.293Z"
+  },
+  "FormalSLT/PACBayes/ContinuousPriorPosterior.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:24:53.327Z"
+  },
+  "FormalSLT/PACBayes/FiniteModelCountableStrategyPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:25:05.876Z"
+  },
+  "FormalSLT/PACBayes/Generated/Cert_C.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:25:06.677Z"
+  },
+  "FormalSLT/PACBayes/TimeUniformContinuousPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:25:06.996Z"
+  },
+  "FormalSLT/PACBayes/TimeUniformGaussianPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:25:10.453Z"
+  },
+  "FormalSLT/PACBayesKL.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:25:10.782Z"
+  },
+  "FormalSLT/Rademacher/Contraction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:25:11.252Z"
+  },
+  "FormalSLT/StochasticDynamics/ContinuousMeasurableTrajectorySleepingPredictableTiltMasterProcess.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:25:12.797Z"
+  },
+  "FormalSLT/StochasticDynamics/ContinuousTrajectorySleepingPredictableTiltPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:25:48.921Z"
+  },
+  "FormalSLT/StochasticDynamics/FiniteTrajectorySleepingStrategyOrdinaryRiskPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:26:18.981Z"
+  },
+  "FormalSLT/StochasticDynamics/FiniteTrajectorySleepingSuffixVarianceOracle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:26:33.421Z"
+  },
+  "FormalSLT/StochasticDynamics/MarkovRisk.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:26:34.902Z"
+  },
+  "FormalSLT/StochasticDynamics/MeasurableTrajectoryRisk.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:29:09.873Z"
+  },
+  "FormalSLT/StochasticDynamics/TrajectoryEmpiricalBernsteinPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:29:10.984Z"
+  },
+  "FormalSLT/StochasticDynamics/TrajectoryPredictableStrategyPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:29:41.965Z"
+  },
+  "FormalSLT/TestTimeMeta/McAllesterPopulationDecomposition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:29:51.022Z"
+  },
+  "FormalSLT/VC/SauerShelah.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:29:55.785Z"
+  },
+  "FormalSLT/AnytimeValid/EProcess.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:22:02.602Z"
+  },
+  "FormalSLT/Applications/ControlledQueueKnownKernelReceiptRows18To20.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:06.566Z"
+  },
+  "FormalSLT/Applications/GJPBrierMonitorCountableStrategyCertificate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:08.181Z"
+  },
+  "FormalSLT/Applications/GJPBrierMonitorReplayPathDataFirstWeekMean.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:15.290Z"
+  },
+  "FormalSLT/Azuma/HasBoundedDifferences.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:26:32.724Z"
+  },
+  "FormalSLT/Covering/GuardedContinuousDudley.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:26:33.290Z"
+  },
+  "FormalSLT/Covering/TotalBoundedDudley.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:26:51.041Z"
+  },
+  "FormalSLT/PACBayes/ChangeOfMeasure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:26:53.992Z"
+  },
+  "FormalSLT/PACBayes/ContinuousEmpiricalBernsteinReverseSqrt.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:27:55.814Z"
+  },
+  "FormalSLT/PACBayes/ContinuousTwoSidedSingularFractionBesselPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:29:06.980Z"
+  },
+  "FormalSLT/PACBayes/FinitePMFBridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:29:07.781Z"
+  },
+  "FormalSLT/PACBayes/ForwardPredictableTiltPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:29:08.288Z"
+  },
+  "FormalSLT/PACBayes/IndicatorBernsteinMoment.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:29:10.027Z"
+  },
+  "FormalSLT/PACBayes/MaurerKL.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:29:11.275Z"
+  },
+  "FormalSLT/PACBayes/TimeUniformPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:29:11.637Z"
+  },
+  "FormalSLT/PACBayes/VCHybrid.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:29:12.027Z"
+  },
+  "FormalSLT/PACBayesFiniteProductMGF.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:29:12.821Z"
+  },
+  "FormalSLT/Probability/SubGaussianFiniteMax.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:29:30.789Z"
+  },
+  "FormalSLT/StochasticDynamics/ContinuousMeasurableTrajectoryTwoSidedSingularFractionExactOptimalPACBayes.lean": {
+    "checkedAt": "2026-09-27T22:31:09.375Z",
+    "collisions": [
+      "FormalSLT.StochasticDynamics.stronglyMeasurable_conditionalTrajectoryRisk_prefix_parameter"
+    ]
+  },
+  "FormalSLT/StochasticDynamics/ContinuousTrajectoryEmpiricalBernsteinPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:31:50.148Z"
+  },
+  "FormalSLT/StochasticDynamics/MarkovPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:32:12.729Z"
+  },
+  "FormalSLT/TestTimeMeta/MainTheorem.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:32:13.633Z"
+  },
+  "FormalSLT/VC/BinaryCapstone.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:32:14.173Z"
+  },
+  "FormalSLT/AnytimeValid/CountableEProcess.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:18:04.263Z"
+  },
+  "FormalSLT/AnytimeValid/ForwardPredictableTiltEmpiricalBernstein.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:18:16.234Z"
+  },
+  "FormalSLT/AnytimeValid/SelectionCost.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:18:16.835Z"
+  },
+  "FormalSLT/Applications/ControlledQueueContraction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:18:27.040Z"
+  },
+  "FormalSLT/Applications/ControlledQueueKnownKernelReceipt.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:18:28.915Z"
+  },
+  "FormalSLT/Applications/ControlledQueueKnownKernelReceiptNumerics.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:19:08.774Z"
+  },
+  "FormalSLT/Applications/ControlledQueueSharpStructuredReceiptCore.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:20:36.660Z"
+  },
+  "FormalSLT/Applications/RandomRefreshLoadOracleCertificate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:20:43.207Z"
+  },
+  "FormalSLT/Concentration/SubGamma/BoundedExpIntegrable.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:20:44.521Z"
+  },
+  "FormalSLT/Concentration/SubGamma/CondJensen.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:20:45.175Z"
+  },
+  "FormalSLT/Covering/FiniteDiscreteDudley.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:20:45.466Z"
+  },
+  "FormalSLT/Covering/MeasureDudley.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:20:46.396Z"
+  },
+  "FormalSLT/PACBayes/BernsteinBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:20:47.014Z"
+  },
+  "FormalSLT/PACBayes/ContinuousSleepingPredictableTiltPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:21:05.559Z"
+  },
+  "FormalSLT/PACBayes/CountableJointMeanVariancePosterior.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:21:33.596Z"
+  },
+  "FormalSLT/PACBayes/FiniteJointMeanVarianceResidual.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:21:34.086Z"
+  },
+  "FormalSLT/PACBayes/FiniteModelCountableSleepingEProcessPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:21:36.540Z"
+  },
+  "FormalSLT/PACBayes/ForwardBesselPACBayesCountable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:21:45.588Z"
+  },
+  "FormalSLT/PACBayes/VitaleAnalytic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:21:46.852Z"
+  },
+  "FormalSLT/PACBayesSeeger.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:21:49.313Z"
+  },
+  "FormalSLT/Probability/FiniteExpectation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:21:50.896Z"
+  },
+  "FormalSLT/Stability/RKHSRegularisedERM.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:21:55.206Z"
+  },
+  "FormalSLT/StochasticDynamics/ContinuousMeasurableTrajectoryCountableSleepingStrategyOrdinaryRiskPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:11.750Z"
+  },
+  "FormalSLT/StochasticDynamics/ContinuousTrajectorySleepingSuffixVarianceOracle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:21.167Z"
+  },
+  "FormalSLT/StochasticDynamics/FiniteInvariantExistence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:24.984Z"
+  },
+  "FormalSLT/StochasticDynamics/StationaryPoissonDobrushin.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:25.323Z"
+  },
+  "FormalSLT/TestTimeMeta/Assumptions.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:22:26.106Z"
+  },
+  "FormalSLT/AnytimeValid/AtTopCS.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:19:46.688Z"
+  },
+  "FormalSLT/AnytimeValid/ComputablePredictableBettingMixture.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:19:56.906Z"
+  },
+  "FormalSLT/AnytimeValid/CountableSleepingEProcessMixture.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:20:17.900Z"
+  },
+  "FormalSLT/AnytimeValid/CountableSleepingPredictableBettingMixture.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:20:18.746Z"
+  },
+  "FormalSLT/Applications/GJPBrierMonitorReplayReceipt.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:21:00.147Z"
+  },
+  "FormalSLT/Concentration/SubGamma/BennettBound.lean": {
+    "checkedAt": "2026-09-27T22:21:01.093Z",
+    "collisions": [
+      "FormalSLT.Concentration.SubGamma.factorial_two_three_pow",
+      "FormalSLT.Concentration.SubGamma.exp_sub_one_sub_id_le_bennett"
+    ]
+  },
+  "FormalSLT/Concentration/SubGamma/CondVarianceFromSquare.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:21:12.474Z"
+  },
+  "FormalSLT/Covering/Rademacher.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:21:13.357Z"
+  },
+  "FormalSLT/ERM.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:21:35.824Z"
+  },
+  "FormalSLT/OnlineToPAC/RegretConversion.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:21:36.637Z"
+  },
+  "FormalSLT/PACBayes/ContinuousJointMeanVarianceReversePACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:21:50.751Z"
+  },
+  "FormalSLT/PACBayes/ContinuousSleepingBettingPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:00.412Z"
+  },
+  "FormalSLT/PACBayes/CountableJointMeanVariancePACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:10.462Z"
+  },
+  "FormalSLT/PACBayes/FiniteEmpiricalVarianceMatching.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:12.984Z"
+  },
+  "FormalSLT/PACBayes/FiniteEmpiricalVarianceReverseEpoch.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:44.336Z"
+  },
+  "FormalSLT/PACBayes/FiniteJointMeanVarianceReverse.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:46.813Z"
+  },
+  "FormalSLT/PACBayes/FiniteJointMeanVarianceReversePACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:00.208Z"
+  },
+  "FormalSLT/PACBayes/ForwardBesselPACBayesIID.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:10.351Z"
+  },
+  "FormalSLT/PACBayes/ForwardBesselPACBayesOracle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:38.104Z"
+  },
+  "FormalSLT/PACBayes/ForwardPredictableStrategyPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:39.035Z"
+  },
+  "FormalSLT/PACBayes/InfiniteEmpiricalBernsteinStitch.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:39.512Z"
+  },
+  "FormalSLT/PACBayes/TimeUniformIID.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:41.540Z"
+  },
+  "FormalSLT/PACBayesBoundedLoss.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:45.076Z"
+  },
+  "FormalSLT/Probability/FiniteUnionBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:45.482Z"
+  },
+  "FormalSLT/Probability/KolmogorovAxioms.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:23:46.172Z"
+  },
+  "FormalSLT/Rademacher/Localized.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:51.150Z"
+  },
+  "FormalSLT/Statistics/AsymptoticStatistics.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:23:52.598Z"
+  },
+  "FormalSLT/StochasticDynamics/ControlledMarkovization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:55.708Z"
+  },
+  "FormalSLT/StochasticDynamics/DynamicTargetPolicyComparator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:56.190Z"
+  },
+  "FormalSLT/StochasticDynamics/FiniteTrajectorySleepingOrdinaryRiskPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:24:00.005Z"
+  },
+  "FormalSLT/StochasticDynamics/StationaryTargetPolicyRobustFiniteDepthOPE.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:24:11.533Z"
+  },
+  "FormalSLT/TestTimeMeta/FlagshipAnytimeValid.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:24:13.247Z"
+  },
+  "FormalSLT/AnytimeValid/BettingCS.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:32:43.527Z"
+  },
+  "FormalSLT/AnytimeValid/FiniteStrategySleepingEProcessMixture.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:33:30.010Z"
+  },
+  "FormalSLT/Applications/ControlledQueueFixedRangePersistenceConfidence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:16.026Z"
+  },
+  "FormalSLT/Applications/ControlledQueueKnownKernelReceiptRows00To02.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:14.268Z"
+  },
+  "FormalSLT/Applications/ControlledQueueKnownKernelReceiptRows21To23.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:45.358Z"
+  },
+  "FormalSLT/Applications/ControlledQueueTargetPolicyScores.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:37:28.993Z"
+  },
+  "FormalSLT/Applications/GJPBrierMonitorReplayPathDataExtremizedFinalConsensus.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:37:36.944Z"
+  },
+  "FormalSLT/Azuma/BoundedIncrementBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:40:50.135Z"
+  },
+  "FormalSLT/Azuma/ExposureIncrementCondMGF.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:40:57.862Z"
+  },
+  "FormalSLT/Azuma/GenGapTail.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:40:58.534Z"
+  },
+  "FormalSLT/Covering/ContinuousDudleyCovering.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:41:27.944Z"
+  },
+  "FormalSLT/Covering/FiniteSubGaussianChaining.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:41:29.196Z"
+  },
+  "FormalSLT/Covering/TotalBoundedDudleyCovering.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:47:17.373Z"
+  },
+  "FormalSLT/GlivenkoCantelli.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:47:18.286Z"
+  },
+  "FormalSLT/OnlineToPAC/CesaBianchi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:47:19.078Z"
+  },
+  "FormalSLT/PACBayes/ContinuousForwardPredictableMeanBesselPACBayesOracle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:48:53.119Z"
+  },
+  "FormalSLT/PACBayes/ContinuousTwoSidedSingularFractionExactOptimalPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:49:13.249Z"
+  },
+  "FormalSLT/PACBayes/FiniteEmpiricalVarianceMGF.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:49:16.268Z"
+  },
+  "FormalSLT/PACBayes/FiniteEmpiricalVarianceReverseMartingale.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:49:17.224Z"
+  },
+  "FormalSLT/PACBayes/FiniteEmpiricalVarianceTiltCatalog.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:50:11.288Z"
+  },
+  "FormalSLT/PACBayes/IIDContinuousGaussian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:50:16.100Z"
+  },
+  "FormalSLT/PACBayes/IndicatorBernsteinLowRisk.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:50:17.896Z"
+  },
+  "FormalSLT/PACBayes/McAllesterBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:50:26.579Z"
+  },
+  "FormalSLT/PACBayes/McAllesterCompilerHighProbability.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:50:33.089Z"
+  },
+  "FormalSLT/PACBayes/StabilityBridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:50:33.607Z"
+  },
+  "FormalSLT/Rademacher/MetricEntropyHighProbability.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:50:34.030Z"
+  },
+  "FormalSLT/Rademacher/ProbabilityBridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:50:34.357Z"
+  },
+  "FormalSLT/StochasticDynamics/ContinuousMeasurableTrajectoryEmpiricalBernsteinPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:50:38.654Z"
+  },
+  "FormalSLT/StochasticDynamics/FiniteInvariantUniqueness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:50:50.384Z"
+  },
+  "FormalSLT/StochasticDynamics/StationaryTargetPolicyApproximateOPE.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:51:12.936Z"
+  },
+  "FormalSLT/StochasticDynamics/StationaryTargetPolicyEmpiricalFiniteDepthOPE.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:52:22.257Z"
+  },
+  "FormalSLT/TestTimeMeta/BernsteinPopulationDecomposition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:52:23.260Z"
+  },
+  "FormalSLT/TestTimeMeta/FlagshipComposition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:52:33.575Z"
+  },
+  "FormalSLT/AnytimeValid/EmpiricalBernsteinCS.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:30:05.132Z"
+  },
+  "FormalSLT/AnytimeValid/ForwardBesselProcess.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:30:05.742Z"
+  },
+  "FormalSLT/Applications/CompactHalfTiltBrierCertificate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:30:08.171Z"
+  },
+  "FormalSLT/Applications/ControlledQueueInvariantRisk.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:30:40.043Z"
+  },
+  "FormalSLT/Applications/ControlledQueueRefreshUniqueness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:31:14.793Z"
+  },
+  "FormalSLT/Applications/ControlledQueueStructuredOPE.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:31:47.000Z"
+  },
+  "FormalSLT/Applications/GJPBrierMonitorReplayPathDataFinalConsensusMedian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:31:53.540Z"
+  },
+  "FormalSLT/Concentration/SubGamma/CondExpProduct.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:35:01.541Z"
+  },
+  "FormalSLT/Covering/ContinuousDudley.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:01.872Z"
+  },
+  "FormalSLT/Covering/DudleyChaining.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:03.860Z"
+  },
+  "FormalSLT/PACBayes/FiniteBoundedLossExponentialTilt.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:04.695Z"
+  },
+  "FormalSLT/PACBayes/FiniteEmpiricalVarianceReverseExponential.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:14.805Z"
+  },
+  "FormalSLT/PACBayes/FiniteJointMeanVariancePACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:16.089Z"
+  },
+  "FormalSLT/PACBayes/ForwardPredictableMeanBesselPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:29.391Z"
+  },
+  "FormalSLT/Probability/BernsteinMGF.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:29.923Z"
+  },
+  "FormalSLT/Probability/Martingale.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:35:30.663Z"
+  },
+  "FormalSLT/Rademacher/LinearPredictor.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:35:31.561Z",
+    "collisions": [
+      "FormalSLT.Rademacher.LinearPredictor.sup'_nonneg_mul",
+      "FormalSLT.Rademacher.LinearPredictor.linearPredictor_rademacher_innerProduct",
+      "FormalSLT.Rademacher.LinearPredictor.linearPredictor_rademacher_uniform_innerProduct"
+    ]
+  },
+  "FormalSLT/Statistics/Bernoulli.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:49.107Z"
+  },
+  "FormalSLT/StochasticDynamics/ContinuousMeasurableTrajectoryForwardBesselPACBayesOracle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:20.250Z"
+  },
+  "FormalSLT/StochasticDynamics/FiniteTrajectoryCountableSleepingStrategyOrdinaryRiskPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:22.429Z"
+  },
+  "FormalSLT/TestTimeMeta/CompositionLemmas.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:31.135Z"
+  },
+  "FormalSLT/TestTimeMeta/FlagshipSimultaneousAssembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:56.736Z"
+  },
+  "FormalSLT/TestTimeMeta/OnlinePopulationDecomposition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:37:14.396Z"
+  },
+  "FormalSLT/VC/Dimension.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:37:15.116Z"
+  },
+  "FormalSLT/VC/Rademacher.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:37:15.399Z"
+  },
+  "FormalSLT/AnytimeValid/PolynomialStitchedLIL.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:29.699Z"
+  },
+  "FormalSLT/AnytimeValid/SingularFractionBesselMixture.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:52.154Z"
+  },
+  "FormalSLT/Applications/ControlledQueueSharpStructuredRetrospectiveReceipt.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:30:45.803Z"
+  },
+  "FormalSLT/Applications/RandomRefreshLoadModel.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:31:11.982Z"
+  },
+  "FormalSLT/Azuma/ExposureIncrementHoeffding.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:33:17.822Z"
+  },
+  "FormalSLT/Azuma/SharpMcDiarmid.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:33:26.527Z"
+  },
+  "FormalSLT/Covering/ContinuousDudleyUnitInterval.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:33:32.574Z"
+  },
+  "FormalSLT/Covering/DudleyChainingSum.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:33:51.342Z"
+  },
+  "FormalSLT/Covering/DudleySumToIntegral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:33:51.806Z"
+  },
+  "FormalSLT/Covering/GuardedDudleyIntegral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:34:10.284Z"
+  },
+  "FormalSLT/Covering/TwoPointDudley.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:34:10.734Z"
+  },
+  "FormalSLT/PACBayes/ContinuousSingularFractionBesselPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:34:11.380Z"
+  },
+  "FormalSLT/PACBayes/FiniteEmpiricalBernsteinRisk.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:34:45.189Z"
+  },
+  "FormalSLT/PACBayes/McAllesterBoundGeneral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:34:52.126Z"
+  },
+  "FormalSLT/PACBayes/TimeUniformIIDTiltMixture.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:34:55.373Z"
+  },
+  "FormalSLT/Probability/IIDConcentration.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:34:57.075Z"
+  },
+  "FormalSLT/Risk.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:35:01.015Z"
+  },
+  "FormalSLT/Statistics/ExponentialFamily.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:02.049Z"
+  },
+  "FormalSLT/StochasticDynamics/ContinuousTrajectorySleepingCountableTiltPACBayesOracle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:35:18.858Z"
+  },
+  "FormalSLT/StochasticDynamics/ControlledTrajectory.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:35:20.264Z"
+  },
+  "FormalSLT/StochasticDynamics/EmpiricalTransitionConfidence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:00.632Z"
+  },
+  "FormalSLT/StochasticDynamics/StationaryPoissonContraction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:01.341Z"
+  },
+  "FormalSLT/VC/BinaryVCBridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:02.159Z"
+  },
+  "FormalSLT/VC/SampleComplexityBinary.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:36:02.569Z"
+  },
+  "FormalSLT/AnytimeValid/ForwardPredictableMeanBesselProcess.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:23.874Z"
+  },
+  "FormalSLT/AnytimeValid/MixtureCS.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:24.521Z"
+  },
+  "FormalSLT/AnytimeValid/PredictableVarianceProxy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:37.795Z"
+  },
+  "FormalSLT/Applications/ControlledQueueFixedRangeComparator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:25:19.328Z"
+  },
+  "FormalSLT/Applications/ControlledQueueSharpStructuredOPE.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:25:20.874Z"
+  },
+  "FormalSLT/Applications/RandomRefreshLoadAdaptiveSelection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:25:21.692Z"
+  },
+  "FormalSLT/Applications/RandomRefreshLoadReceipt.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:25:22.585Z"
+  },
+  "FormalSLT/Azuma/BoundedDifferences.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:25:36.226Z"
+  },
+  "FormalSLT/Concentration/SubGamma/CondMarkov.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:25:40.422Z"
+  },
+  "FormalSLT/Covering/ContinuousDudleyUnitIntervalCovering.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:26:20.636Z"
+  },
+  "FormalSLT/Covering/DudleyToRademacher.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:26:57.236Z"
+  },
+  "FormalSLT/Covering/TotalBoundedDudleyMinimalCapstone.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:27:21.976Z"
+  },
+  "FormalSLT/PACBayes/BernsteinAnalytic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:27:39.154Z"
+  },
+  "FormalSLT/PACBayes/ContinuousForwardPredictableMeanBesselPACBayesCountable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:27:58.448Z"
+  },
+  "FormalSLT/PACBayes/FiniteBoundedLossBernstein.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:28:00.121Z"
+  },
+  "FormalSLT/PACBayes/FiniteEmpiricalVarianceReverseMaximal.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:28:09.632Z"
+  },
+  "FormalSLT/PACBayes/FiniteExponentialTilt.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:28:10.339Z"
+  },
+  "FormalSLT/PACBayes/FiniteJointMeanVarianceMGF.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:28:10.871Z"
+  },
+  "FormalSLT/PACBayes/FiniteProductMeasureBridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:28:13.023Z"
+  },
+  "FormalSLT/PACBayes/TimeUniformScorePACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:28:15.523Z"
+  },
+  "FormalSLT/PACBayesBernstein.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:28:16.148Z"
+  },
+  "FormalSLT/Rademacher/MetricEntropyGeneralization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:28:17.925Z"
+  },
+  "FormalSLT/Statistics/ClassicalEstimation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:28:18.633Z"
+  },
+  "FormalSLT/Statistics/CramerRao.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:28:38.450Z"
+  },
+  "FormalSLT/StochasticDynamics/ContinuousTrajectorySleepingOrdinaryRiskPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:29:20.399Z"
+  },
+  "FormalSLT/StochasticDynamics/ContinuousTrajectorySleepingPredictableTiltOrdinaryRisk.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:29:21.595Z"
+  },
+  "FormalSLT/StochasticDynamics/TrajectoryEmpiricalBernsteinPACBayesCountable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:29:40.749Z"
+  },
+  "FormalSLT/TestTimeMeta/AnytimeVillePopulationDecomposition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:30:18.158Z"
+  },
+  "FormalSLT/Applications/ControlledQueueKnownKernelReceiptRows03To05.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:22:40.202Z"
+  },
+  "FormalSLT/Applications/ControlledQueueKnownKernelReceiptRows06To08.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:23:04.837Z"
+  },
+  "FormalSLT/Applications/GJPBrierMonitorReplayPath.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:42:27.133Z"
+  },
+  "FormalSLT/Azuma/BoundedDiffMartingale.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:42:44.132Z"
+  },
+  "FormalSLT/Concentration/HeterogeneousMcDiarmid.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:42:54.780Z"
+  },
+  "FormalSLT/Covering/TotalBoundedDudleyMinimalShift.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:44:14.787Z"
+  },
+  "FormalSLT/PACBayes/ContinuousChangeOfMeasure.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:44:16.352Z"
+  },
+  "FormalSLT/PACBayes/ContinuousFiniteStrategySleepingPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:44:25.037Z"
+  },
+  "FormalSLT/PACBayes/ContinuousJointMeanVarianceReverseCatalog.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:17.426Z"
+  },
+  "FormalSLT/PACBayes/FiniteEmpiricalVarianceReversePACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:29.608Z"
+  },
+  "FormalSLT/PACBayes/FiniteExponentialTiltProduct.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:30.972Z"
+  },
+  "FormalSLT/PACBayes/ForwardPredictableStrategyPACBayesCountable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:49.269Z"
+  },
+  "FormalSLT/PACBayes/GaussianMeasureKL.lean": {
+    "checkedAt": "2026-09-27T22:45:51.552Z",
+    "collisions": [
+      "FormalSLT.PACBayes.nnrealOfPos_ne_zero"
+    ]
+  },
+  "FormalSLT/PACBayes/TimeUniformTiltMixture.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:46:20.013Z"
+  },
+  "FormalSLT/Probability/MeasureConvergence.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:46:20.814Z"
+  },
+  "FormalSLT/Probability/Moments.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:46:22.871Z"
+  },
+  "FormalSLT/Rademacher/FiniteClassHighProb.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:46:28.705Z"
+  },
+  "FormalSLT/Rademacher/FiniteSampleSymmetrization.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:46:29.647Z"
+  },
+  "FormalSLT/Statistics/FisherInformation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:46:34.635Z"
+  },
+  "FormalSLT/Statistics/SampleStatistics.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:46:34.949Z"
+  },
+  "FormalSLT/StochasticDynamics/ContinuousMeasurableTrajectoryTwoSidedSingularFractionBesselPACBayes.lean": {
+    "checkedAt": "2026-09-27T22:48:06.008Z",
+    "collisions": [
+      "FormalSLT.StochasticDynamics.stronglyMeasurable_conditionalTrajectoryRisk_prefix_parameter"
+    ]
+  },
+  "FormalSLT/StochasticDynamics/ContinuousTrajectorySleepingCountableTiltPACBayes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:50:31.286Z"
+  },
+  "FormalSLT/StochasticDynamics/EmpiricalStationaryCatalog.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:50:57.660Z"
+  },
+  "FormalSLT/StochasticDynamics/StationaryTargetPolicyOPE.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:51:01.018Z"
+  },
+  "FormalSLT/VC/PACBridge.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:51:01.862Z"
+  }
+}
