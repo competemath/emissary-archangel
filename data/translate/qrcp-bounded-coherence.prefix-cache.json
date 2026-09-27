@@ -1,0 +1,29 @@
+{
+  "QRCPProof/BsnsThreshold.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:38:54.381Z"
+  },
+  "QRCPProof/CoherenceBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:40:53.258Z"
+  },
+  "QRCPProof/Definitions.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:40:58.592Z"
+  },
+  "QRCPProof/GammaAux.lean": {
+    "checkedAt": "2026-09-27T09:41:04.508Z",
+    "collisions": [
+      "unitary_norm_conj",
+      "iSup_inv_eq_inv_iInf"
+    ]
+  },
+  "QRCPProof/MuBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:41:08.869Z"
+  },
+  "QRCPProof/SelectedBlockPressure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:41:10.337Z"
+  }
+}
