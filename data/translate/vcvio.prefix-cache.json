@@ -1,0 +1,1311 @@
+{
+  "Examples/OneTimePad/HeapBasic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:53.813Z"
+  },
+  "Examples/PRFTagReader/MultipleToHybrid/EagerSetup.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:06.962Z"
+  },
+  "Examples/PRGfromPRF.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:08.666Z"
+  },
+  "HashSig/SLHDSA/C13/Xmss.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:13.863Z"
+  },
+  "HashSig/SLHDSA/DepthOneCompatibility.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:39.810Z"
+  },
+  "HashSig/SLHDSA/Scheme.lean": {
+    "checkedAt": "2026-09-27T22:01:50.278Z",
+    "collisions": [
+      "SLHDSA.monadHom_ofFnM"
+    ]
+  },
+  "HashSig/SLHDSA/Wots.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:30.778Z"
+  },
+  "ToMathlib/Data/ENNReal/AbsDiff.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:03:41.911Z"
+  },
+  "ToMathlib/Data/ENNReal/SumSquares.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:03:50.946Z",
+    "collisions": [
+      "ENNReal.tsum_mul_tsum_eq"
+    ]
+  },
+  "ToMathlib/MeasureTheory/Measure/Coupling.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:04:01.715Z"
+  },
+  "ToMathlib/ProbabilityTheory/Coupling.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:06.022Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Inductive/Completeness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:11.385Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Inductive/Extractor.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:21.470Z"
+  },
+  "VCVio/EvalDist/Defs/Semantics.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:22.977Z"
+  },
+  "VCVio/EvalDist/Monad/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:23.486Z"
+  },
+  "VCVio/EvalDist/Monad/Map.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:29.789Z"
+  },
+  "VCVio/Interaction/UC/StdDoBridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:34.797Z"
+  },
+  "VCVio/OracleComp/QueryTracking/ProgrammingOracle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:35.701Z"
+  },
+  "VCVioTest/MerkleTreeExtractability.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:36.714Z"
+  },
+  "Examples/ElGamal/Hash.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:52.624Z"
+  },
+  "Examples/PRFTagReader/Collision/ForgeStep.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:04.811Z"
+  },
+  "Examples/Schnorr/Signature.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:06.416Z"
+  },
+  "HashSig/SLHDSA/C13/WotsC.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:11.068Z"
+  },
+  "HashSig/SLHDSA/EncodingLemmas.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:02:23.134Z",
+    "collisions": [
+      "SLHDSA.base2bFill_consume",
+      "SLHDSA.base2bGo_bigEndian"
+    ]
+  },
+  "HashSig/SLHDSA/WotsChecksum.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:02:36.866Z",
+    "collisions": [
+      "SLHDSA.WotsChecksum.foldl_mul_add_shift",
+      "SLHDSA.WotsChecksum.foldl_acc_le",
+      "SLHDSA.WotsChecksum.checksum_each_le",
+      "SLHDSA.WotsChecksum.sum_le_length_mul",
+      "SLHDSA.WotsChecksum.Forall₂_map_checksum_rev"
+    ]
+  },
+  "LatticeCrypto/MLDSA/SecurityNMA.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:58:20.206Z"
+  },
+  "LatticeCrypto/Ring/VectorBackend.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:58:23.237Z"
+  },
+  "ToMathlib/Control/WriterT.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:58:33.828Z"
+  },
+  "ToMathlib/Logic/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:58:51.259Z"
+  },
+  "VCVio/EvalDist/Prod.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:59:02.257Z"
+  },
+  "VCVio/Interaction/UC/AsyncSecurity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:59:11.764Z"
+  },
+  "VCVio/OracleComp/QueryTracking/Structures.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:59:12.765Z"
+  },
+  "VCVio/OracleComp/SimSemantics/QueryImpl/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:59:14.539Z"
+  },
+  "VCVio/ProgramLogic/NotationCore.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:59:15.146Z"
+  },
+  "VCVioTest/CryptoFoundations/SymmEncAlgMeasure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:59:16.405Z"
+  },
+  "VCVioTest/KernelSemantics.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:59:16.694Z"
+  },
+  "VCVioTest/MerkleTreeBatch.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:59:16.974Z"
+  },
+  "Examples/CommitmentScheme/Hiding/CountBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:56.583Z"
+  },
+  "Examples/ElGamal/Common.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:57.196Z"
+  },
+  "Examples/OneTimePad/ComputationalComplexity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:57.490Z"
+  },
+  "Examples/PRFTagReader/PRFReductions/Reductions.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:13.721Z"
+  },
+  "Examples/Schnorr/SigmaProtocol.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:14.108Z"
+  },
+  "Extern/Falcon/ApproxArith.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:14.410Z"
+  },
+  "HashSig/SLHDSA/C13/Scheme.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:15.465Z"
+  },
+  "HashSig/SLHDSA/Concrete/Prehash.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:16.103Z"
+  },
+  "HashSig/SLHDSA/GeneralSchemeQueryBound.lean": {
+    "checkedAt": "2026-09-27T22:04:30.265Z",
+    "collisions": [
+      "SLHDSA.monadHom_ofFnM"
+    ]
+  },
+  "HashSig/SLHDSA/Security/EncodedTargets.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:05:02.043Z"
+  },
+  "ToMathlib/Data/Vector.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:03:27.553Z"
+  },
+  "ToMathlib/MeasureTheory/Measure/Subprobability.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:03:33.270Z"
+  },
+  "ToMathlib/Probability/Divergence/Renyi.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:03:37.019Z",
+    "collisions": [
+      "InformationTheory.inv_rpow_le_rpow_two_of_one_le_mul"
+    ]
+  },
+  "VCVio/CryptoFoundations/Asymptotics/PathSemantics.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:58.641Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Addressed/NatIndexed.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:04:08.948Z"
+  },
+  "VCVio/EvalDist/Defs/Support.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:04:09.662Z"
+  },
+  "VCVio/EvalDist/List.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:04:17.185Z"
+  },
+  "VCVio/OracleComp/OracleComp.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:04:19.873Z"
+  },
+  "VCVio/OracleComp/QueryTracking/ResourceProfile.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:04:21.644Z"
+  },
+  "VCVio/ProgramLogic/Tactics/Unary/Internals.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:04:46.821Z"
+  },
+  "VCVio/ProgramLogic/Unary/WriterTBridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:04:48.204Z"
+  },
+  "Examples/CommitmentScheme/Common.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:59:46.553Z"
+  },
+  "Examples/OneTimePad/HeapPar.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:59:48.113Z"
+  },
+  "Examples/PRFTagReader/DirectCoupling/ReaderCase.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:06.988Z"
+  },
+  "Examples/PRFTagReader/DirectCoupling/Swap.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:07.279Z"
+  },
+  "Examples/PRFTagReader/Table.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:20.469Z"
+  },
+  "Examples/PRFTagReader/UnlinkReduction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:34.054Z"
+  },
+  "HashSig/SLHDSA/Concrete/Hypertree.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:37.867Z"
+  },
+  "HashSig/SLHDSA/HypertreeGeneral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:41.316Z"
+  },
+  "HashSig/SLHDSA/Params.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:00:49.733Z"
+  },
+  "LatticeCrypto/MLDSA/Concrete/NTT.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:38:10.685Z"
+  },
+  "LatticeCrypto/Ring/SchoolbookCert.lean": {
+    "checkedAt": "2026-09-27T22:38:16.078Z",
+    "collisions": [
+      "LatticeCrypto.mkQ"
+    ]
+  },
+  "ToMathlib/Analysis/MeanInequalities.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:38:22.925Z"
+  },
+  "ToMathlib/Data/List/Count.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:38:23.677Z"
+  },
+  "ToMathlib/MeasureTheory/MeasurableSpace/Except.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:38:27.125Z"
+  },
+  "ToMathlib/MeasureTheory/MeasurableSpace/Option.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:38:29.870Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Inductive/Batch/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:38:34.399Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Inductive/Batch/Uniqueness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:38:35.103Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/MultiExtractability/Potential.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:38:35.415Z"
+  },
+  "VCVio/EvalDist/Defs/AlternativeMonad.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:38:36.004Z"
+  },
+  "VCVio/EvalDist/Defs/Measure.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:38:36.708Z"
+  },
+  "VCVio/EvalDist/Instances/ErrorT.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:38:42.529Z"
+  },
+  "VCVio/EvalDist/Monad/Seq.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:38:46.442Z"
+  },
+  "VCVio/EvalDist/PFunctor.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:38:47.107Z"
+  },
+  "VCVio/OracleComp/Coinductive/Responder.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:38:48.188Z"
+  },
+  "VCVio/OracleComp/QueryTracking/RandomOracle/EagerTable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:38:54.583Z"
+  },
+  "VCVioTest/CryptoFoundations/SignatureAlg.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:38:55.155Z"
+  },
+  "VCVioTest/RoundByRound/OneRound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:38:55.425Z"
+  },
+  "Examples/OneTimePad/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:23.755Z"
+  },
+  "Examples/PRFTagReader/Asymptotic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:14.736Z"
+  },
+  "Examples/PRFTagReader/BadEvent.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:15.459Z"
+  },
+  "Examples/PRFTagReader/MultipleBadCollision.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:35.119Z"
+  },
+  "Examples/PRFTagReader/MultipleToHybrid/Setup.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:50.441Z"
+  },
+  "HashSig/SLHDSA/C13/ForsC.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:52.847Z"
+  },
+  "HashSig/SLHDSA/Concrete/Wots.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:34.515Z"
+  },
+  "HashSig/SLHDSA/GeneralScheme.lean": {
+    "checkedAt": "2026-09-27T22:02:46.934Z",
+    "collisions": [
+      "SLHDSA.monadHom_ofFnM"
+    ]
+  },
+  "HashSig/SLHDSA/HypertreeGeneral/QueryBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:55.735Z"
+  },
+  "HashSig/SLHDSA/Xmss.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:02.167Z"
+  },
+  "ToMathlib/Control/Lawful/MonadState.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:01:13.888Z"
+  },
+  "ToMathlib/Control/Monad/Relative.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:01:17.332Z"
+  },
+  "ToMathlib/Data/IndexedBinaryTree/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:01:36.379Z"
+  },
+  "ToMathlib/Topology/Algebra/InfiniteSum/Option.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:03:08.128Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Addressed/Extractor.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:18.229Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Addressed/NatIndexed/Monadic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:19.314Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Inductive/Batch/Addressed.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:20.590Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/MultiExtractability/Evolution.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:27.529Z"
+  },
+  "VCVio/EvalDist/PFunctorPath.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:33.245Z"
+  },
+  "VCVio/Interaction/UC/Standard.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:37.331Z"
+  },
+  "VCVio/OracleComp/OracleSpec.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:03:38.372Z"
+  },
+  "VCVio/OracleComp/QueryTracking/QueryCost.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:54.447Z"
+  },
+  "VCVioTest/Asymptotics/Negligible.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:03:57.376Z"
+  },
+  "VCVioTest/Forking/WithoutReplacement.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:57.654Z"
+  },
+  "VCVioTest/MeasureSemantics.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:59.078Z"
+  },
+  "VCVioTest/SMDTOpenPREFinalValidity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:59.630Z"
+  },
+  "Examples/BR93.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:06:36.748Z"
+  },
+  "Examples/CommitmentScheme/Extractability.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:06:37.555Z"
+  },
+  "Examples/CommitmentScheme/Hiding/Main.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:06:58.740Z"
+  },
+  "Examples/ElGamal/ReductionCost.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:00.381Z"
+  },
+  "Examples/SealedSender/AspectObservation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:00.811Z"
+  },
+  "HashSig/SLHDSA/C13/Hypertree.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:05.728Z"
+  },
+  "HashSig/SLHDSA/Concrete/FIPS.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:08.687Z"
+  },
+  "HashSig/SLHDSA/Concrete/Sha2.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:07:19.365Z"
+  },
+  "HashSig/SLHDSA/FipsParams.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:07:38.489Z"
+  },
+  "HashSig/SLHDSA/Primitives.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:43.251Z"
+  },
+  "HashSig/SLHDSA/Security/ReachableTargets.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:48.403Z"
+  },
+  "HashSigTest/SLHDSA/WotsEncoding.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:51.385Z"
+  },
+  "LatticeCrypto/Ring/Core.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:07:52.249Z",
+    "collisions": [
+      "LatticeCrypto.NegacyclicQuotient.PolyBackend.toPolynomial_coeff_high"
+    ]
+  },
+  "LatticeCrypto/Ring/Norms.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:08:00.620Z"
+  },
+  "ToMathlib/Control/Monad/RelationalAlgebra.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:08:01.474Z"
+  },
+  "ToMathlib/Control/Monad/RelationalAlgebraAnchored.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:08:14.733Z"
+  },
+  "ToMathlib/Control/OptionT.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:08:15.694Z"
+  },
+  "ToMathlib/Data/IndexedBinaryTree/Perfect.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:08:21.907Z"
+  },
+  "ToMathlib/Probability/Divergence/RenyiDiscrete.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:08:32.631Z"
+  },
+  "VCVio/CryptoFoundations/Asymptotics/OracleClosure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:08:34.083Z"
+  },
+  "VCVio/CryptoFoundations/FiatShamir/Sigma/Stateful/Hops.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:08:39.211Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Addressed/Monadic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:08:41.835Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/BatchExtractability.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:08:53.542Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Inductive/Batch/Disagreement.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:08:55.699Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/MultiExtractability/Stateful.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:09:00.449Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/MultiExtractability/Targets.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:09:03.679Z"
+  },
+  "VCVio/EvalDist/Defs/Instances.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:09:07.223Z"
+  },
+  "VCVio/EvalDist/IndepProduct.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:09:11.177Z"
+  },
+  "VCVioTest/Unpredictability.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:09:12.391Z"
+  },
+  "Examples/OneTimePad/UC.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:04.095Z"
+  },
+  "Extern/MLKEM/Instance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:05.075Z"
+  },
+  "HashSig/SLHDSA/Concrete/Xmss.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:05.777Z"
+  },
+  "HashSigTest/SLHDSA/Position.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:09.383Z"
+  },
+  "LatticeCrypto/Falcon/Concrete/Encoding.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:44:33.471Z"
+  },
+  "LatticeCrypto/MLDSA/SecurityHVZK.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:44:34.062Z"
+  },
+  "ToMathlib/MeasureTheory/Measure/Monotone.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:44:50.726Z",
+    "collisions": [
+      "MeasureTheory.Measure.iSup_tsum_of_monotone",
+      "MeasureTheory.Measure.monotoneLimit_apply"
+    ]
+  },
+  "ToMathlib/MeasureTheory/Measure/TotalVariation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:44:56.289Z"
+  },
+  "ToMathlib/Probability/Divergence/TotalVariation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:44:57.594Z"
+  },
+  "ToMathlib/Probability/NegativeHypergeometric.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:44:58.267Z"
+  },
+  "ToMathlib/Probability/ProbabilityMassFunction/Measure.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:45:10.884Z"
+  },
+  "ToMathlib/ProbabilityTheory/OptimalCoupling.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:14.235Z"
+  },
+  "VCVio/CryptoFoundations/Asymptotics/ComputationalComplexity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:14.577Z"
+  },
+  "VCVio/CryptoFoundations/Asymptotics/Negligible.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:45:15.316Z"
+  },
+  "VCVio/CryptoFoundations/Asymptotics/Security.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:23.403Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Addressed/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:26.239Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Inductive/Batch/MapToSingle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:28.873Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Inductive/Batch/ToSingle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:31.147Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Inductive/Uniqueness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:31.671Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/MultiExtractability/ResourceBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:41.252Z"
+  },
+  "VCVio/EvalDist/Instances/ReaderT.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:41.777Z"
+  },
+  "VCVio/OracleComp/Constructions/Fork.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:43.157Z"
+  },
+  "VCVio/OracleComp/Constructions/WithoutReplacement.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:45:43.888Z"
+  },
+  "VCVio/ProgramLogic/Relational/Measure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:46.413Z"
+  },
+  "VCVio/StateSeparating/CellRef.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:47.851Z"
+  },
+  "VCVioTest/SMDTPRE.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:49.557Z"
+  },
+  "VCVioTest/SMDTTCR.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:45:50.067Z"
+  },
+  "Examples/CommitmentScheme/Hiding/LoggingBounds/QuerySalt.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:59:29.431Z"
+  },
+  "Examples/ElGamal/ComputationalComplexity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:59:37.959Z"
+  },
+  "Examples/PRFTagReader/PRFReductions/Structural.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:03.346Z"
+  },
+  "Examples/ProgramLogic/RelationalStep.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:03.700Z"
+  },
+  "HashSig/SLHDSA/Concrete/Keccak.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:00:13.579Z"
+  },
+  "HashSig/SLHDSA/Hypertree.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:30.019Z"
+  },
+  "HashSig/SLHDSA/MerkleExtractor.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:32.788Z"
+  },
+  "HashSig/SLHDSA/Security/TargetCounts.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:00:33.917Z"
+  },
+  "HashSig/SLHDSA/Security/TraceTargets.lean": {
+    "checkedAt": "2026-09-27T22:02:41.154Z",
+    "collisions": [
+      "SLHDSA.monadHom_ofFnM"
+    ]
+  },
+  "HashSig/SLHDSA/XmssConformance.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:04:51.188Z"
+  },
+  "ToMathlib/Control/Monad/Graded.lean": {
+    "checkedAt": "2026-09-27T22:07:02.799Z",
+    "collisions": [
+      "LawfulGradedMonad'.heq_of_subst_eq"
+    ]
+  },
+  "ToMathlib/Control/Monad/Ordered.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:03.097Z"
+  },
+  "ToMathlib/Data/FinEnum.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:07:04.097Z"
+  },
+  "ToMathlib/Data/Heap.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:07:04.770Z"
+  },
+  "ToMathlib/Probability/Kernel/Subprobability.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:07:14.487Z"
+  },
+  "ToMathlib/Probability/ProbabilityMassFunction/TotalVariation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:15.757Z"
+  },
+  "ToMathlib/ProbabilityTheory/SPMF.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:07:16.547Z"
+  },
+  "VCVio/EvalDist/Defs/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:38.128Z"
+  },
+  "VCVio/EvalDist/Kernel.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:44.255Z"
+  },
+  "VCVio/EvalDist/PFunctorMeasure/Core.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:44.562Z"
+  },
+  "VCVio/EvalDist/RenyiDivergence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:45.092Z"
+  },
+  "VCVio/Interaction/UC/Computational.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:47.745Z"
+  },
+  "VCVio/OracleComp/Coinductive/SecurityFamily.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:49.376Z"
+  },
+  "VCVio/OracleComp/Constructions/Replicate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:49.777Z"
+  },
+  "VCVio/OracleComp/OracleQuery.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:50.276Z"
+  },
+  "VCVio/OracleComp/QueryTracking/RandomOracle/DeferredSampling.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:52.257Z"
+  },
+  "VCVio/ProgramLogic/Relational/Quantitative.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:54.680Z"
+  },
+  "VCVio/ProgramLogic/Unary/Loom/Qualitative.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:08:03.874Z"
+  },
+  "VCVioTest/ITSR.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:08:04.741Z"
+  },
+  "Examples/PRFTagReader/DirectCoupling/Compose.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:59:41.005Z"
+  },
+  "Examples/ProgramLogic/RelationalDerived.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:59:41.336Z"
+  },
+  "HashSig/SLHDSA/Concrete/Instance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:59:43.918Z"
+  },
+  "HashSig/SLHDSA/Encoding.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:59:55.392Z"
+  },
+  "HashSig/SLHDSA/RandomOracle.lean": {
+    "checkedAt": "2026-09-27T22:00:06.559Z",
+    "collisions": [
+      "SLHDSA.monadHom_ofFnM"
+    ]
+  },
+  "HashSig/SLHDSA/WotsInjectivity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:13.529Z"
+  },
+  "LatticeCrypto/MLDSA/Concrete/LawBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:17.402Z"
+  },
+  "LatticeCrypto/Ring/NTTCert.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:17.999Z"
+  },
+  "ToMathlib/Control/Monad/RelWP.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:18.508Z"
+  },
+  "ToMathlib/Data/BitVec.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:00:19.219Z"
+  },
+  "ToMathlib/Data/ENNReal/Gauss.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:00:21.918Z"
+  },
+  "ToMathlib/Data/IndexedBinaryTree/Equiv.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:00:27.057Z"
+  },
+  "ToMathlib/Data/Vector/Count.lean": {
+    "checkedAt": "2026-09-27T22:00:35.440Z",
+    "collisions": [
+      "_root_.Vector.card_eq_countP"
+    ]
+  },
+  "ToMathlib/Data/Vector/Induction.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:00:36.509Z"
+  },
+  "ToMathlib/MeasureTheory/Measure/Option.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:00:37.204Z"
+  },
+  "ToMathlib/Probability/ProbabilityMassFunction/TailSums.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:00:42.084Z"
+  },
+  "ToMathlib/ProbabilityTheory/FinRatPMF.lean": {
+    "checkedAt": "2026-09-27T22:00:44.201Z",
+    "collisions": [
+      "FinRatPMF.Raw.sum_eq_zero_of_forall_eq_zero",
+      "FinRatPMF.Raw.probOfList_ne_zero_of_mem",
+      "FinRatPMF.Raw.probOfList_eq_zero_of_not_mem_supportOfList",
+      "FinRatPMF.Raw.mem_supportOfList_iff",
+      "FinRatPMF.Raw.supportOfList_eq_keys",
+      "FinRatPMF.Raw.bind_sum_aux",
+      "FinRatPMF.Raw.sum_replicate_inv_length_eq_one",
+      "FinRatPMF.Raw.filter_cons_sum",
+      "FinRatPMF.Raw.list_prob_eq_zero",
+      "FinRatPMF.Raw.list_sum_prob_eq",
+      "FinRatPMF.Raw.probOfList_map_const_eq_length_filter",
+      "FinRatPMF.Raw.filter_eq_singleton_of_nodup",
+      "FinRatPMF.Raw.probOfList_append",
+      "FinRatPMF.Raw.filter_map_mul_eq",
+      "FinRatPMF.Raw.probOfList_map_mul",
+      "FinRatPMF.Raw.list_sum_prob_mul_eq",
+      "FinRatPMF.Raw.probOfList_bind_eq_sum",
+      "FinRatPMF.Raw.getD_foldl_addWeight_eq_probOfList",
+      "FinRatPMF.Raw.getD_accumulateWeights_eq_prob",
+      "FinRatPMF.Raw.pairwise_ne_keys_toList",
+      "FinRatPMF.Raw.probOfList_eq_find?_getD",
+      "FinRatPMF.Raw.probOfList_toList_eq_getD",
+      "FinRatPMF.Raw.probOfNormalizeMap_eq_prob",
+      "FinRatPMF.Raw.snd_ne_zero_of_mem_normalizeMap_toList",
+      "FinRatPMF.Raw.normalizeMap_keys_eq_support"
+    ]
+  },
+  "VCVio/CryptoFoundations/Asymptotics/RankedRun.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:26.376Z"
+  },
+  "VCVio/CryptoFoundations/Asymptotics/ReductionCost.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:02:27.096Z"
+  },
+  "VCVio/CryptoFoundations/HardnessAssumptions/TweakableHash/OpenPREFromTCRDSPR.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:40.220Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Addressed/Uniqueness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:46.852Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/MultiExtractability/OnlineInvariant.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:54.003Z"
+  },
+  "VCVio/CryptoFoundations/SymmEncAlg/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:02:55.708Z"
+  },
+  "VCVio/EvalDist/Instances/OptionT.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:56.773Z"
+  },
+  "VCVio/OracleComp/Coinductive/Machine.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:00.146Z"
+  },
+  "VCVio/OracleComp/SimSemantics/OptionT/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:02.024Z"
+  },
+  "VCVio/ProgramLogic/Unary/HoarePropTriple.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:08.158Z"
+  },
+  "VCVioTest/CryptoFoundations/ComplexityTactics.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:10.252Z"
+  },
+  "VCVioTest/SMDTDSPRFinalValidity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:10.755Z"
+  },
+  "VCVioTest/SMDTPREFinalValidity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:11.331Z"
+  },
+  "VCVioTest/SMDTTCRFinalValidity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:11.832Z"
+  },
+  "Examples/CommitmentScheme/Binding.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:51.266Z"
+  },
+  "Examples/PRFTagReader/Auth.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:04.817Z"
+  },
+  "Examples/PRFTagReader/Collision.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:05.466Z"
+  },
+  "Examples/PRFTagReader/DirectCoupling.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:05.925Z"
+  },
+  "Examples/PRFTagReader/DirectCoupling/StepLemmas.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:33.570Z"
+  },
+  "Examples/PRFTagReader/DirectCoupling/TagSlotPositive.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:37.650Z"
+  },
+  "Examples/Pedersen.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:38.014Z"
+  },
+  "HashSig/SLHDSA/Address.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:01:48.176Z"
+  },
+  "HashSig/SLHDSA/Concrete/Codec.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:58.363Z"
+  },
+  "HashSig/SLHDSA/Concrete/Fors.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:59.303Z"
+  },
+  "HashSig/SLHDSA/Oracle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:05.033Z"
+  },
+  "HashSig/SLHDSA/Security.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:05.735Z"
+  },
+  "HashSig/SLHDSA/WotsEncoding.lean": {
+    "checkedAt": "2026-09-27T22:03:12.196Z",
+    "collisions": [
+      "SLHDSA.WotsEncoding.ceil8_padding",
+      "SLHDSA.WotsEncoding.digitsOfBaseW_eq_range",
+      "SLHDSA.WotsEncoding.shifted_fit",
+      "SLHDSA.WotsEncoding.base2b_toByte_shift_eq_digitsOfBaseW"
+    ]
+  },
+  "HashSigTest/SLHDSA/HypertreeConformanceTests.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:47.493Z"
+  },
+  "Interop/Rust/Run.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:03:47.840Z"
+  },
+  "ToMathlib/Control/StateT.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:03:48.601Z"
+  },
+  "ToMathlib/Data/ENNReal/Finiteness.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:03:58.145Z"
+  },
+  "ToMathlib/Data/IndexedBinaryTree/Lemmas.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:04:02.507Z"
+  },
+  "ToMathlib/Probability/ProbabilityMassFunction/Lemmas.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:04:06.919Z"
+  },
+  "ToMathlib/Probability/ProbabilityMassFunction/RadonNikodym.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:04:10.235Z"
+  },
+  "ToMathlib/Probability/ProbabilityMassFunction/RenyiDivergence.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:04:13.386Z"
+  },
+  "ToMathlib/Probability/UniformOn.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:04:25.373Z"
+  },
+  "VCVio/CryptoFoundations/AsymmEncAlg/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:27.300Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Inductive/Batch/Completeness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:29.428Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Inductive/Batch/Map.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:30.493Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Inductive/Batch/QueryBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:34.042Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Inductive/Binding.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:35.662Z"
+  },
+  "VCVio/OracleComp/QueryTracking/RandomOracle/ProbeEps.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:38.689Z"
+  },
+  "VCVioTest/CryptoFoundations/ComplexityAdapters.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:45.125Z"
+  },
+  "Examples/CommitmentScheme/Hiding/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:23.683Z"
+  },
+  "Examples/CommitmentScheme/Hiding/LoggingBounds/Average.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:33.923Z"
+  },
+  "Examples/EvalDistCompatible/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:34.595Z"
+  },
+  "Examples/OneTimePad/LeakageFree.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:00:35.033Z"
+  },
+  "Examples/PRFTagReader/DirectCoupling/TagSlotZero.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:06.954Z"
+  },
+  "Examples/PRFTagReader/PRFReductions/IdealHandlers.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:13.280Z"
+  },
+  "HashSig/SLHDSA/External.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:01:14.530Z"
+  },
+  "HashSig/SLHDSA/ForsConformance.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:01:27.031Z"
+  },
+  "HashSig/SLHDSA/HypertreeConformance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:00.900Z"
+  },
+  "HashSig/SLHDSA/Position.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:01.639Z"
+  },
+  "LatticeCrypto/MLKEM/Concrete/NTT.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:02.197Z"
+  },
+  "ToMathlib/Algebra/BigOperators/Finset.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:07:03.124Z"
+  },
+  "ToMathlib/Analysis/SumIntegralComparisons.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:07:04.945Z"
+  },
+  "ToMathlib/Control/AlternativeMonad.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:07:06.394Z"
+  },
+  "ToMathlib/Data/Vector/ListVector.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:07:11.869Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Extractor.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:30.661Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Inductive/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:31.532Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/MultiExtractability/Endgame.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:53.319Z"
+  },
+  "VCVio/EvalDist/Divergence/KLDivergence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:57.098Z"
+  },
+  "VCVio/EvalDist/ResumptionMeasure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:57.526Z"
+  },
+  "VCVio/EvalDist/TVDist.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:58.073Z"
+  },
+  "VCVio/OracleComp/Coinductive/Bridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:07:59.830Z"
+  },
+  "VCVio/OracleComp/QueryTracking/Birthday.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:08:09.858Z"
+  },
+  "VCVio/OracleComp/SimSemantics/Append.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:08:12.478Z"
+  },
+  "VCVioTest/CryptoFoundations/OracleClosure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:08:16.071Z"
+  },
+  "VCVioTest/SMDTUDFinalValidity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:08:16.573Z"
+  },
+  "Examples/ElGamal/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:41.516Z"
+  },
+  "Examples/ElGamal/SSP.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:41.805Z"
+  },
+  "Examples/PRFTagReader/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:42.508Z"
+  },
+  "Examples/SimpleTwoServerPIR.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:02:42.825Z"
+  },
+  "HashSig/SLHDSA/C13/Params.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:02:50.761Z"
+  },
+  "HashSig/SLHDSA/Codec.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:02:52.980Z",
+    "collisions": [
+      "SLHDSA.monadHom_ofFnM"
+    ]
+  },
+  "HashSig/SLHDSA/Fors.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:50.298Z"
+  },
+  "HashSigTest/SLHDSA/EncodedTargets.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:04:50.876Z"
+  },
+  "LatticeCrypto/DiscreteGaussian.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:04:51.503Z",
+    "collisions": [
+      "LatticeCrypto.hasSum_ofReal_discreteGaussian"
+    ]
+  },
+  "LatticeCrypto/Ring/Kernel.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:05:09.637Z"
+  },
+  "LatticeCrypto/Ring/Sampling.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:05:10.010Z"
+  },
+  "ToMathlib/Algebra/BigOperators/List.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:05:10.640Z"
+  },
+  "ToMathlib/Control/Functor/Prod.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:05:11.257Z"
+  },
+  "ToMathlib/Data/ENNReal/TsumDistrib.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:05:13.124Z"
+  },
+  "ToMathlib/Data/Fin/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T22:05:14.418Z"
+  },
+  "VCVio/CryptoFoundations/HardnessAssumptions/TweakableHash/Collection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:05:16.916Z"
+  },
+  "VCVio/CryptoFoundations/HardnessAssumptions/TweakableHash/FinalValidity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:05:17.226Z"
+  },
+  "VCVio/CryptoFoundations/MerkleTree/Inductive/Batch/Opening.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:05:18.509Z"
+  },
+  "VCVio/EvalDist/PFunctorMeasure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:05:21.859Z"
+  },
+  "VCVio/Interaction/UC/AsyncRuntime.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:05:22.146Z"
+  },
+  "VCVio/OracleComp/QueryTracking/WriterCost.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:05:27.203Z"
+  },
+  "VCVio/OracleComp/SimSemantics/QueryImpl/Constructions.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:05:30.171Z"
+  },
+  "VCVio/ProgramLogic/Unary/Loom/Probabilistic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:05:31.994Z"
+  },
+  "VCVio/ProgramLogic/Unary/Loom/Quantitative.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:05:32.629Z"
+  },
+  "VCVioTest/CryptoFoundations/ComputationalComplexitySoundness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:05:34.017Z"
+  },
+  "VCVioTest/MerkleTreeMultiExtractability.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T22:05:34.313Z"
+  }
+}
