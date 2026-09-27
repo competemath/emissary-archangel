@@ -1,0 +1,176 @@
+{
+  "SphereEversion/Global/TwistOneJetSec.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:36:05.825Z"
+  },
+  "SphereEversion/Local/AmpleRelation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:36:39.330Z"
+  },
+  "SphereEversion/Local/OneJet.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:37:02.850Z",
+    "collisions": [
+      "JetSec._root_.Filter.Eventually.isPartHolonomicAt_congr"
+    ]
+  },
+  "SphereEversion/Loops/DeltaMollifier.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:37:41.809Z"
+  },
+  "SphereEversion/ToMathlib/Algebra/Ring/Periodic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:37:52.661Z"
+  },
+  "SphereEversion/ToMathlib/Analysis/NormedSpace/Misc.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:38:01.124Z"
+  },
+  "SphereEversion/ToMathlib/Analysis/NormedSpace/OperatorNorm/Prod.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:38:10.098Z"
+  },
+  "SphereEversion/ToMathlib/Equivariant.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:38:18.142Z"
+  },
+  "SphereEversion/ToMathlib/Geometry/Manifold/VectorBundle/Misc.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:38:39.518Z"
+  },
+  "SphereEversion/ToMathlib/Topology/Algebra/Module.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:38:45.496Z"
+  },
+  "SphereEversion/ToMathlib/Topology/Path.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:38:48.180Z"
+  },
+  "SphereEversion/ToMathlib/Unused/Fin.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:39:33.672Z"
+  },
+  "SphereEversion/Indexing.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:34:41.676Z"
+  },
+  "SphereEversion/Local/ParametricHPrinciple.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:34:45.889Z"
+  },
+  "SphereEversion/Loops/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:34:47.179Z"
+  },
+  "SphereEversion/ToMathlib/Analysis/Calculus.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:35:09.650Z"
+  },
+  "SphereEversion/ToMathlib/Analysis/Calculus/AddTorsor/AffineMap.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:35:16.296Z"
+  },
+  "SphereEversion/ToMathlib/Analysis/ContDiff.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:35:21.013Z"
+  },
+  "SphereEversion/ToMathlib/Analysis/Convex/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:35:21.735Z"
+  },
+  "SphereEversion/ToMathlib/Analysis/InnerProductSpace/Projection/Submodule.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:35:35.233Z"
+  },
+  "SphereEversion/ToMathlib/Data/Nat/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:35:53.366Z"
+  },
+  "SphereEversion/ToMathlib/ExistsOfConvex.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:36:02.599Z"
+  },
+  "SphereEversion/ToMathlib/LinearAlgebra/FiniteDimensional.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:36:41.099Z"
+  },
+  "SphereEversion/ToMathlib/MeasureTheory/BorelSpace.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:36:41.734Z"
+  },
+  "SphereEversion/ToMathlib/Partition.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:36:46.749Z"
+  },
+  "SphereEversion/ToMathlib/SmoothBarycentric.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:36:55.368Z"
+  },
+  "SphereEversion/ToMathlib/Topology/Misc.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:37:04.869Z"
+  },
+  "SphereEversion/Global/OneJetBundle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:33:43.826Z"
+  },
+  "SphereEversion/Global/SmoothEmbedding.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:33:55.786Z"
+  },
+  "SphereEversion/Local/DualPair.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:34:23.382Z"
+  },
+  "SphereEversion/Local/HPrinciple.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:34:53.135Z"
+  },
+  "SphereEversion/Local/Relation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:35:02.121Z"
+  },
+  "SphereEversion/Loops/Surrounding.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:35:18.849Z"
+  },
+  "SphereEversion/ToMathlib/Analysis/CutOff.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:35:23.208Z"
+  },
+  "SphereEversion/ToMathlib/Analysis/InnerProductSpace/Dual.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:35:33.366Z"
+  },
+  "SphereEversion/ToMathlib/Geometry/Manifold/Algebra/SmoothGerm.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:35:34.781Z",
+    "collisions": [
+      "Filter.Germ._root_.smoothGerm.contMDiffAt"
+    ]
+  },
+  "SphereEversion/ToMathlib/Geometry/Manifold/IsManifold/ExtChartAt.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:36:00.732Z"
+  },
+  "SphereEversion/ToMathlib/LinearAlgebra/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:36:01.434Z"
+  },
+  "SphereEversion/ToMathlib/MeasureTheory/ParametricIntervalIntegral.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:36:09.140Z"
+  },
+  "SphereEversion/ToMathlib/Order/Filter/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:36:09.882Z"
+  },
+  "SphereEversion/ToMathlib/Topology/Paracompact.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:36:11.942Z"
+  },
+  "SphereEversion/ToMathlib/Unused/LinearAlgebra/Multilinear.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:50:26.801Z"
+  }
+}
