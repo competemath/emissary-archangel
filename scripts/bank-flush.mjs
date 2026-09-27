@@ -1,5 +1,5 @@
-// Send banked records to the tree as content PRs. Every data/bank/<key>/*.jsonl (the cloud translation's output,
-// scripts/translate-finish.mjs) becomes PRs of at most --batch records: each a per-PR staging file
+// Send banked records to the tree as content PRs. All of a library's pending data/bank/<key>/*.jsonl (the cloud
+// translation's output, scripts/translate-finish.mjs) are pooled and sent as PRs of at most --batch records: each a per-PR staging file
 // data/staging/<key>/<batch>.jsonl on a fresh branch of the tree, signed off, queued with auto-merge — the same PR
 // the app opens in PR mode (lib/tengoku-pr.ts). Records whose names are already on the tree's main are dropped.
 // A sent bank file moves to data/bank/<key>/sent/, with <file>.prs.json listing its PRs.
@@ -28,7 +28,9 @@ if (!token && !DRY) {
 }
 
 const keys = existsSync(BANK) ? readdirSync(BANK).filter((k) => (!ONLY || k === ONLY) && existsSync(join(BANK, k))) : []
-const pending = keys.flatMap((k) => readdirSync(join(BANK, k)).filter((f) => f.endsWith(".jsonl")).map((f) => ({ key: k, file: f })))
+const pending = keys
+  .map((k) => ({ key: k, files: readdirSync(join(BANK, k)).filter((f) => f.endsWith(".jsonl")).sort() }))
+  .filter((p) => p.files.length)
 if (!pending.length) {
   console.log("bank-flush: nothing banked")
   process.exit(0)
@@ -58,17 +60,24 @@ if (token) {
 }
 const git = (...a) => sh("git", ["-C", tree, "-c", `user.name=${who.name}`, "-c", `user.email=${who.email}`, ...a])
 
-for (const { key, file } of pending) {
+const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z")
+for (const { key, files } of pending) {
   const have = onMain(key)
-  const records = readFileSync(join(BANK, key, file), "utf8").split("\n").filter((l) => l.trim())
-  const fresh = records.filter((l) => !have.has(JSON.parse(l).name))
+  const records = files.flatMap((f) => readFileSync(join(BANK, key, f), "utf8").split("\n").filter((l) => l.trim()))
+  const seen = new Set()
+  const fresh = records.filter((l) => {
+    const n = JSON.parse(l).name
+    if (have.has(n) || seen.has(n)) return false
+    seen.add(n)
+    return true
+  })
   const prs = []
   for (let i = 0; i < fresh.length; i += BATCH) {
     const batch = fresh.slice(i, i + BATCH)
-    const id = `${file.replace(/\.jsonl$/, "")}-${String(i / BATCH).padStart(3, "0")}`
+    const id = `${stamp}-${String(i / BATCH).padStart(3, "0")}`
     const branch = `bank/${key}/${id}`
     const title = `Stage ${key}: ${batch.length} record${batch.length === 1 ? "" : "s"} (${id})`
-    const body = `Banked by Emissary-Archangel's cloud translation (run ${file.split("-")[0].replace(/\.jsonl$/, "")}). One per-PR staging file; the merge queue compiles exactly these records.`
+    const body = `Banked by Emissary-Archangel's cloud translation (runs ${files.map((f) => f.replace(/\.jsonl$/, "")).join(", ")}). One per-PR staging file; the merge queue compiles exactly these records.`
     if (DRY) {
       console.log(`[dry-run] ${title}`)
       continue
@@ -91,8 +100,8 @@ for (const { key, file } of pending) {
   }
   if (DRY) continue
   mkdirSync(join(BANK, key, "sent"), { recursive: true })
-  renameSync(join(BANK, key, file), join(BANK, key, "sent", file))
-  writeFileSync(join(BANK, key, "sent", `${file}.prs.json`), JSON.stringify({ records: records.length, duplicates: records.length - fresh.length, prs }, null, 2) + "\n")
-  console.log(`${key}/${file}: ${fresh.length} of ${records.length} records sent in ${prs.length} PR(s)`)
+  for (const f of files) renameSync(join(BANK, key, f), join(BANK, key, "sent", f))
+  writeFileSync(join(BANK, key, "sent", `${stamp}.prs.json`), JSON.stringify({ files, records: records.length, duplicates: records.length - fresh.length, prs }, null, 2) + "\n")
+  console.log(`${key}: ${fresh.length} of ${records.length} records from ${files.length} bank file(s) sent in ${prs.length} PR(s)`)
 }
 rmSync(tree, { recursive: true, force: true })
