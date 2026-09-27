@@ -1,13 +1,13 @@
 {
   "mechanical": {
-    "run": "36315690562",
-    "at": "2026-09-27T12:12:49.527Z",
+    "run": "36323017933",
+    "at": "2026-09-27T14:50:25.472Z",
     "shards": 3,
     "todo": 51,
     "processed": 51,
     "left": 51,
     "limited": false,
-    "stalls": 1,
+    "stalls": 2,
     "outcomes": {
       "failed": 51
     }
