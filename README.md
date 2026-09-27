@@ -55,6 +55,29 @@ Every process is spawned detached with a pid file and log under
 `data/pipeline/`, so it survives closing the tab or reloading the dev server.
 The API (`/api/pipeline`) only answers requests whose Host is localhost.
 
+## Cloud translation (unattended, on GitHub Actions)
+
+Every self-contained library (`data/exports/<key>/setup.ci.json`) is translated on runners, with no laptop and no
+Next.js app:
+
+| Piece | What it does |
+| --- | --- |
+| `.github/workflows/translate.yml` | One library in N shards (a hash of the source file picks each entry's shard). Each shard hosts its own Leak IV and Archangel on the tree's attested cache, as a separate user, and runs the recursion engine through `scripts/queue-server.mjs`, a headless `/api/queue`. Mode `mechanical` needs no Claude; mode `agent` runs the agent on what the mechanical pass could not bank. |
+| `.github/workflows/translate-all.yml` | The loop: every 15 minutes, and after each library run, a mechanical pass for every library with work left, then agent passes (one library at a time). Then it flushes the bank into tengoku PRs. |
+| `data/translate/<key>.jsonl` | Every entry outcome, run after run. Settled entries are never redone; an entry the mechanical pass could not bank waits for the agent. |
+| `data/translate/<key>.status.json` | Per mode: what the last run selected and what is left. |
+| `data/bank/<key>/<run>.jsonl` | Verified staging records waiting for their tengoku PR (`scripts/bank-flush.mjs`: per-PR staging files, signed off, auto-merge). Sent files move to `sent/` with their PR links. |
+
+Two repository secrets unlock the rest:
+
+- `CLAUDE_CODE_OAUTH_TOKEN`: the agent, billed to a Claude subscription. Run `claude setup-token` (a one-year
+  token), then `gh secret set CLAUDE_CODE_OAUTH_TOKEN -R competemath/emissary-archangel`. A usage limit only
+  defers entries; the loop picks them up again later.
+- `TENGOKU_BOT_TOKEN`: a fine-grained token (Contents and Pull requests read/write on competemath/tengoku) that
+  opens the content PRs. Without it the bank stays committed here.
+
+Watch it: `gh run list -R competemath/emissary-archangel --workflow translate.yml`, or the status files.
+
 ## Layout
 
 ```
