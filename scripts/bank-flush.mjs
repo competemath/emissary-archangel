@@ -18,6 +18,7 @@ const REPO = opt("repo", "competemath/tengoku")
 const BATCH = Number(opt("batch", "500"))
 const ONLY = opt("key")
 const DRY = argv.includes("--dry-run")
+const MAX_PRS = Number(opt("max-prs", "0")) || Infinity   // per run: a new account opening dozens of PRs at once gets flagged
 const ROOT = new URL("..", import.meta.url).pathname
 const BANK = join(ROOT, "data", "bank")
 const sh = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 }).trim()
@@ -61,7 +62,13 @@ if (token) {
 const git = (...a) => sh("git", ["-C", tree, "-c", `user.name=${who.name}`, "-c", `user.email=${who.email}`, ...a])
 
 const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z")
+let opened = 0
 for (const { key, files } of pending) {
+  const batchesNeeded = 1
+  if (opened + batchesNeeded > MAX_PRS) {
+    console.log(`bank-flush: ${MAX_PRS} PRs this run; the rest wait for the next run`)
+    break
+  }
   const have = onMain(key)
   const records = files.flatMap((f) => readFileSync(join(BANK, key, f), "utf8").split("\n").filter((l) => l.trim()))
   const seen = new Set()
@@ -96,6 +103,7 @@ for (const { key, files } of pending) {
       console.log(`  (auto-merge not enabled for ${url}: ${String(e.message).split("\n")[0]})`)
     }
     prs.push(url)
+    opened++
     console.log(`${title}: ${url}`)
   }
   if (DRY) continue

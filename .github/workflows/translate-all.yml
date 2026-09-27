@@ -122,14 +122,19 @@ jobs:
       - name: Banked records to tengoku PRs
         env:
           BOT: ${{ secrets.TENGOKU_BOT_LYSISTRATE_TOKEN || secrets.TENGOKU_BOT_TOKEN }}
+          # on only with the repository variable TRANSLATE_FLUSH=on (the first bot account was flagged by GitHub after
+          # opening 38 PRs in minutes; every PR it had opened disappeared)
+          FLUSH: ${{ vars.TRANSLATE_FLUSH || 'off' }}
           DRY: ${{ inputs.dry_run || 'false' }}
           ONLY: ${{ inputs.flush_key || '' }}
           PUSH_TOKEN: ${{ github.token }}
         run: |
-          if [ -z "$BOT" ]; then echo "no TENGOKU_BOT_TOKEN secret: the bank stays in data/bank until one is set"; exit 0; fi
+          if [ "$FLUSH" != on ]; then echo "flush is off (repository variable TRANSLATE_FLUSH): the bank stays in data/bank"; exit 0; fi
+          if [ -z "$BOT" ]; then echo "no bot token secret: the bank stays in data/bank until one is set"; exit 0; fi
           only=(); [ -n "$ONLY" ] && only=(--key "$ONLY")
           if [ "$DRY" = true ]; then GH_TOKEN="$BOT" node scripts/bank-flush.mjs --dry-run "${only[@]}"; exit 0; fi
-          GH_TOKEN="$BOT" node scripts/bank-flush.mjs "${only[@]}"
+          # a few large PRs per run, never a burst: at most 3 PRs every quarter hour
+          GH_TOKEN="$BOT" node scripts/bank-flush.mjs --batch 2000 --max-prs 3 "${only[@]}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A --sparse -- data/bank
