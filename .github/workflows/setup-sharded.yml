@@ -1,4 +1,5 @@
 name: setup-sharded
+run-name: setup-sharded ${{ inputs.key }} (round ${{ inputs.round || '1' }})
 # One library too big for one 6-hour job (flt-anthropic, lean-pool, tauceti, navier-stokes-euler), split across
 # runners. Every shard starts at once: it builds its slice of the modules (a stable hash of the module name picks
 # it) with their imports, so a module many slices import is compiled on each of them; on free runners that

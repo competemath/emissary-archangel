@@ -32,6 +32,24 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with: { filter: "blob:none", sparse-checkout: "data/translate", persist-credentials: false }
+      - name: The big setups, one at a time (the libraries not yet self-contained)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY: ${{ inputs.dry_run || 'false' }}
+          SETUP_QUEUE: "tauceti:16:1:4 flt-anthropic:64:8:8"   # key:shards:expand_chunk:max_rounds, in order
+        run: |
+          inflight=$(gh run list -R "$GITHUB_REPOSITORY" --workflow setup-sharded.yml --limit 20 --json status --jq '[.[] | select(.status != "completed")] | length')
+          if [ "$inflight" != 0 ]; then echo "a sharded setup is running"; exit 0; fi
+          for spec in $SETUP_QUEUE; do
+            IFS=: read -r key shards chunk rounds <<< "$spec"
+            git cat-file -e "HEAD:data/exports/$key/setup.ci.json" 2> /dev/null && continue   # set up already
+            failed=$(gh run list -R "$GITHUB_REPOSITORY" --workflow setup-sharded.yml --limit 100 --json displayTitle,conclusion \
+              --jq "[.[] | select((.displayTitle | startswith(\"setup-sharded $key \")) and .conclusion == \"failure\")] | length")
+            if [ "$failed" -ge 2 ]; then echo "$key: failed twice, left for a person"; continue; fi
+            echo "dispatch setup $key ($shards shards)"
+            [ "$DRY" = true ] || gh workflow run setup-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$key" -f shards="$shards" -f expand_chunk="$chunk" -f max_rounds="$rounds"
+            break
+          done
       - name: Plan and dispatch
         env:
           GH_TOKEN: ${{ github.token }}
