@@ -1,0 +1,6 @@
+{"id":2,"name":"Lcm.lt_log_89693","sourcePath":"IEANTN/Bridges/Lcm/V2ToV1.lean","outcome":"mechanical","at":"2026-09-27T09:24:12.143Z","run":"36308974491"}
+{"id":3,"name":"Lcm.bridge_v2_to_v1","sourcePath":"IEANTN/Bridges/Lcm/V2ToV1.lean","outcome":"mechanical","at":"2026-09-27T09:24:12.919Z","run":"36308974491"}
+{"id":5,"name":"IEANTN.Bridges.Platt.riemannHypothesisUpTo_mono","sourcePath":"IEANTN/Bridges/Platt/P2017ToP2015.lean","outcome":"mechanical","at":"2026-09-27T09:24:14.016Z","run":"36308974491"}
+{"id":6,"name":"IEANTN.Bridges.Platt.bridge_platt2017_to_platt2015","sourcePath":"IEANTN/Bridges/Platt/P2017ToP2015.lean","outcome":"mechanical","at":"2026-09-27T09:24:14.874Z","run":"36308974491"}
+{"id":4,"name":"IEANTN.Bridges.Platt.bridge_platt2017_to_wedeniwski","sourcePath":"IEANTN/Bridges/Platt/P2017ToWedeniwski.lean","outcome":"deferred-agent","at":"2026-09-27T09:24:15.228Z","run":"36308974491"}
+{"id":1,"name":"IEANTN.Bridges.RosserSchoenfeld.bridge_to_classical","sourcePath":"IEANTN/Bridges/RosserSchoenfeld/ToClassical.lean","outcome":"mechanical","at":"2026-09-27T09:24:17.529Z","run":"36308974491"}

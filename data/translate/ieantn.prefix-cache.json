@@ -1,0 +1,18 @@
+{
+  "IEANTN/Bridges/Lcm/V2ToV1.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:24:12.137Z"
+  },
+  "IEANTN/Bridges/Platt/P2017ToP2015.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:24:14.009Z"
+  },
+  "IEANTN/Bridges/Platt/P2017ToWedeniwski.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:24:15.222Z"
+  },
+  "IEANTN/Bridges/RosserSchoenfeld/ToClassical.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:24:17.528Z"
+  }
+}
