@@ -1,0 +1,172 @@
+{
+  "AISafetyAtlas/Conjectures/MAIS/O29Experiment.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:31:33.994Z"
+  },
+  "AISafetyAtlas/Examples/Inference/Halting.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:31:43.303Z"
+  },
+  "AISafetyAtlas/Examples/Inference/Sharpness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:31:53.749Z"
+  },
+  "AISafetyAtlas/Examples/Inference/StochasticBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:32:04.472Z"
+  },
+  "AISafetyAtlas/Examples/InformationTheory/DataProcessing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:32:06.005Z"
+  },
+  "AISafetyAtlas/Examples/InformationTheory/Fano.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:32:06.853Z"
+  },
+  "AISafetyAtlas/Inference/Complexity/Inversion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:32:24.298Z"
+  },
+  "AISafetyAtlas/Inference/Stochastic/Approximation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:32:42.003Z"
+  },
+  "AISafetyAtlas/Inference/Stochastic/Interop.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:32:52.258Z"
+  },
+  "AISafetyAtlas/SingularLearning/EliminationChart.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:33:56.015Z"
+  },
+  "AISafetyAtlas/SingularLearning/HessianBlock.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:33:57.717Z"
+  },
+  "AISafetyAtlas/Upstream/KolmogorovMathlib/Complexity/Uncomputability.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:34:38.316Z"
+  },
+  "AISafetyAtlas/Conjectures/MAIS/O7Proof.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:30:42.447Z"
+  },
+  "AISafetyAtlas/Examples/Causal/ModelSpace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:30:52.858Z"
+  },
+  "AISafetyAtlas/Examples/Conjectures/MAIS/O70.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:31:05.416Z"
+  },
+  "AISafetyAtlas/Examples/Inference/ComplexityMeasure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:32:09.057Z"
+  },
+  "AISafetyAtlas/Examples/Inference/EntropyBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:32:13.246Z"
+  },
+  "AISafetyAtlas/Examples/Inference/Existence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:32:16.214Z"
+  },
+  "AISafetyAtlas/Examples/Inference/PhysicalKnowledge/Epistemic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:32:20.181Z"
+  },
+  "AISafetyAtlas/Examples/Inference/StochasticApproximation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:32:29.528Z"
+  },
+  "AISafetyAtlas/Examples/SingularLearning/HadamardCongruence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:32:29.911Z"
+  },
+  "AISafetyAtlas/Analysis/NullImage.lean": {
+    "checkedAt": "2026-09-27T10:30:31.024Z",
+    "collisions": [
+      "AISafetyAtlas.Analysis.contDiff_restrict",
+      "AISafetyAtlas.Analysis.contDiff_wcomp",
+      "AISafetyAtlas.Analysis.isOpen_chartSet",
+      "AISafetyAtlas.Analysis.contDiffOn_chartMap"
+    ]
+  },
+  "AISafetyAtlas/Analysis/PolynomialGenericity.lean": {
+    "checkedAt": "2026-09-27T10:30:36.183Z",
+    "collisions": [
+      "AISafetyAtlas.Analysis.measurable_finCons",
+      "AISafetyAtlas.Analysis.measurable_eval_finCons",
+      "AISafetyAtlas.Analysis.ae_eval_ne_zero_pi_aux",
+      "AISafetyAtlas.Analysis.volume_measurePreserving_uncurry",
+      "AISafetyAtlas.Analysis.volume_measurePreserving_curry",
+      "AISafetyAtlas.Analysis.measurable_eval_uncurry"
+    ]
+  },
+  "AISafetyAtlas/Causal/ModelSpace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:31:14.341Z"
+  },
+  "AISafetyAtlas/Conjectures/MAIS/O29.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:31:52.604Z"
+  },
+  "AISafetyAtlas/Conjectures/MAIS/O31Chart.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:32:00.749Z"
+  },
+  "AISafetyAtlas/Examples/Conjectures/MAIS/O31.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:33:58.521Z"
+  },
+  "AISafetyAtlas/Examples/Conjectures/MAIS/O38Candidate.lean": {
+    "checkedAt": "2026-09-27T10:34:54.497Z",
+    "collisions": [
+      "AISafetyAtlas.Examples.Conjectures.MAIS.permMatrix_mul_diagonal_apply"
+    ]
+  },
+  "AISafetyAtlas/Examples/Inference/Inversion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:36:16.259Z"
+  },
+  "AISafetyAtlas/Examples/Knowledge/Accumulation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:36:16.799Z"
+  },
+  "AISafetyAtlas/Examples/NonVacuity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:36:17.607Z"
+  },
+  "AISafetyAtlas/Examples/SingularLearning/CriticalFiber.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:36:27.254Z"
+  },
+  "AISafetyAtlas/Examples/SingularLearning/IndefiniteBlockPair.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:37:18.119Z"
+  },
+  "AISafetyAtlas/Examples/SixTargets.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:37:23.652Z"
+  },
+  "AISafetyAtlas/Examples/Verification/Robot.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:37:24.062Z"
+  },
+  "AISafetyAtlas/Inference/Stochastic/Sharpness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:38:24.569Z"
+  },
+  "AISafetyAtlas/Preference/Complexity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:38:26.253Z"
+  },
+  "AISafetyAtlas/SingularLearning/ChartAnalytic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:38:40.236Z"
+  },
+  "AISafetyAtlas/SingularLearning/ChartAssembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:39:21.255Z"
+  }
+}
