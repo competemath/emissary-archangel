@@ -1,0 +1,108 @@
+{
+  "Expdb/Basic/Asymptotics.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:51:47.745Z",
+    "collisions": [
+      "Expdb.isEqUpToInfinitesimal_iff_tendsto_sub"
+    ]
+  },
+  "Expdb/Basic/AutomaticUniformity.lean": {
+    "checkedAt": "2026-09-27T09:52:03.130Z",
+    "collisions": [
+      "Expdb.extract_strictMono_subseq",
+      "Expdb.extract_bad_seq_i",
+      "Expdb.extract_bad_seq_ii",
+      "Expdb.build_increasing_thresholds",
+      "Expdb.norm_extend_subsequence_apply"
+    ]
+  },
+  "Expdb/Basic/PowerAsymptotics.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:52:19.946Z",
+    "collisions": [
+      "Expdb.tendsto_logb_of_between_const_rpow"
+    ]
+  },
+  "Expdb/ExponentialSums/ExponentSumGrowth.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:52:41.755Z"
+  },
+  "Expdb/ExponentialSums/ExponentSumGrowthNonAsymptotic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:52:51.079Z"
+  },
+  "Expdb/ExponentialSums/FixedExponentialSum.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:52:51.803Z"
+  },
+  "Expdb/ExponentialSums/LogPhase.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:52:53.742Z"
+  },
+  "Expdb/ExponentialSums/OscillatoryBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:52:54.035Z"
+  },
+  "Expdb/ExponentialSums/PhaseFunctions.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:52:57.367Z",
+    "collisions": [
+      "Expdb.modelPhaseError_sum_isChoicewiseInfinitesimal"
+    ]
+  },
+  "Expdb/ExponentialSums/ScaleTransfer.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:53:22.092Z"
+  },
+  "Expdb/ExponentialSums/TrivialBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:54:01.380Z"
+  },
+  "Expdb/ExponentialSums/UpperSemicontinuity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:54:18.597Z"
+  },
+  "Expdb/Fourier/L2Integral.lean": {
+    "checkedAt": "2026-09-27T09:54:46.347Z",
+    "collisions": [
+      "Expdb.expSumSq_nonneg",
+      "Expdb.coeff_eq_zero_of_sum_norm_sq_eq_zero",
+      "Expdb.expSumSq_continuous",
+      "Expdb.weighted_l2_identity",
+      "Expdb.local_l2_bound",
+      "Expdb.smoothingKernelAverage_eq_intervalIntegral",
+      "Expdb.smoothing_identity",
+      "Expdb.smoothing_kernel_decay",
+      "Expdb.smoothingKernelAverage_continuous",
+      "Expdb.smoothingKernel_aestronglyMeasurable",
+      "Expdb.smoothing_error_bound"
+    ]
+  },
+  "Expdb/Mathlib/EulerMaclaurin.lean": {
+    "checkedAt": "2026-09-27T09:59:34.009Z",
+    "collisions": [
+      "Expdb.EulerMaclaurin.contDiff_presaw",
+      "Expdb.EulerMaclaurin.hasDerivAt_presaw",
+      "Expdb.EulerMaclaurin.presaw_zero",
+      "Expdb.EulerMaclaurin.saw_eq_bernoulliFun_fract",
+      "Expdb.EulerMaclaurin.saw_eqOn",
+      "Expdb.EulerMaclaurin.presaw_coe_same",
+      "Expdb.EulerMaclaurin.presaw_coe_succ",
+      "Expdb.EulerMaclaurin.presaw_one_coe_succ",
+      "Expdb.EulerMaclaurin.saw_one",
+      "Expdb.EulerMaclaurin.saw_one_zero",
+      "Expdb.EulerMaclaurin.abs_bernoulliFun_le",
+      "Expdb.EulerMaclaurin.intervalIntegrable_presaw_smul",
+      "Expdb.EulerMaclaurin.integral_saw_eq_integral_presaw",
+      "Expdb.EulerMaclaurin.presaw_smul_iteratedDeriv_by_parts",
+      "Expdb.EulerMaclaurin.presaw_iterated_by_parts",
+      "Expdb.EulerMaclaurin.trapezoid_sum_zero",
+      "Expdb.EulerMaclaurin.trapezoid_sum_succ",
+      "Expdb.EulerMaclaurin.trapezoid_sum_eq_sum_Icc_sub"
+    ]
+  },
+  "Expdb/Mathlib/IteratedDeriv.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:00:37.430Z"
+  }
+}
