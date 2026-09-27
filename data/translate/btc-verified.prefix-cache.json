@@ -1,0 +1,126 @@
+{
+  "BtcVerified/BitVM/BitCommitment/Equivocation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:53:51.384Z"
+  },
+  "BtcVerified/BitVM/BitCommitment/Opening.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:53:53.852Z"
+  },
+  "BtcVerified/Block/BlockHash.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:54:00.173Z"
+  },
+  "BtcVerified/Block/BlockHeader.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:54:04.407Z"
+  },
+  "BtcVerified/Block/Chain.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:54:05.879Z"
+  },
+  "BtcVerified/Block/WitnessCommitment.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:54:10.902Z"
+  },
+  "BtcVerified/Chainstate/Apply.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:54:15.668Z"
+  },
+  "BtcVerified/Chainstate/UtxoSet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:54:17.454Z"
+  },
+  "BtcVerified/Consensus/LockTime.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:54:17.845Z"
+  },
+  "BtcVerified/Consensus/TxContextual.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:54:18.164Z"
+  },
+  "BtcVerified/Crypto/Collision.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:54:18.926Z"
+  },
+  "BtcVerified/Crypto/Hash256.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:54:22.857Z"
+  },
+  "BtcVerified/Crypto/Merkle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:54:24.787Z"
+  },
+  "BtcVerified/Crypto/Sha256.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:54:26.189Z"
+  },
+  "BtcVerified/Ext/ByteArray.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:54:29.674Z"
+  },
+  "BtcVerified/Ext/ByteSlice.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:54:30.359Z"
+  },
+  "BtcVerified/Ext/Finmap.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:54:35.541Z"
+  },
+  "BtcVerified/Ext/List.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:54:36.221Z"
+  },
+  "BtcVerified/Impl/BitcoinCore/Merkle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:54:41.077Z"
+  },
+  "BtcVerified/Packed/Bytes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:54:41.507Z"
+  },
+  "BtcVerified/Packed/Codec.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:54:42.342Z"
+  },
+  "BtcVerified/Packed/CompactSize.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:54:45.002Z"
+  },
+  "BtcVerified/Packed/CountedList.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:54:47.158Z"
+  },
+  "BtcVerified/Serialize/Bytes.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:54:47.945Z"
+  },
+  "BtcVerified/Serialize/Codec.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:55:01.484Z",
+    "collisions": [
+      "BtcVerified.Serialize.setWidth_append_low",
+      "BtcVerified.Serialize.setWidth_ushiftRight_append",
+      "BtcVerified.Serialize.append_split"
+    ]
+  },
+  "BtcVerified/Serialize/CompactSize.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:55:09.486Z",
+    "collisions": [
+      "BtcVerified.CompactSize.decode_FD",
+      "BtcVerified.CompactSize.decode_FE",
+      "BtcVerified.CompactSize.decode_FF"
+    ]
+  },
+  "BtcVerified/Serialize/CountedList.lean": {
+    "checkedAt": "2026-09-27T09:55:19.695Z",
+    "collisions": [
+      "BtcVerified.Serialize.CountedList"
+    ]
+  },
+  "BtcVerified/Transaction/Tx.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:55:26.312Z"
+  }
+}
