@@ -1,0 +1,58 @@
+{
+  "PrimitiveSetsAboveX/FirstEntryRowTerm.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:41:52.148Z"
+  },
+  "PrimitiveSetsAboveX/HitMass.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:42:17.186Z"
+  },
+  "PrimitiveSetsAboveX/Main.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:42:41.147Z"
+  },
+  "PrimitiveSetsAboveX/Markov.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:42:41.980Z"
+  },
+  "PrimitiveSetsAboveX/Normalization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:44:05.280Z"
+  },
+  "PrimitiveSetsAboveX/NormalizationCore.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:44:06.169Z"
+  },
+  "PrimitiveSetsAboveX/NormalizationSmallPrime.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:46:09.727Z"
+  },
+  "PrimitiveSetsAboveX/Preliminaries.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:46:13.192Z"
+  },
+  "PrimitiveSetsAboveX/PreliminariesMertens.lean": {
+    "checkedAt": "2026-09-27T09:46:14.355Z",
+    "collisions": [
+      "PrimitiveSetsAboveX.one_div_mul_mul_natCast_div",
+      "PrimitiveSetsAboveX.truncation_eq_mod_div",
+      "PrimitiveSetsAboveX.truncation_eq_fract",
+      "PrimitiveSetsAboveX.sum_vonMangoldt_mul_div_eq_log_factorial",
+      "PrimitiveSetsAboveX.log_factorial_eq_sum_range",
+      "PrimitiveSetsAboveX.integral_log_le_log_factorial",
+      "PrimitiveSetsAboveX.log_factorial_le_log_add_integral_log",
+      "PrimitiveSetsAboveX.abs_log_factorial_div_sub_log_le_one",
+      "PrimitiveSetsAboveX.mertensPartialSum_eq_log_factorial_div_add_fractional",
+      "PrimitiveSetsAboveX.mertensFractionalError_nonneg",
+      "PrimitiveSetsAboveX.mertensFractionalError_le"
+    ]
+  },
+  "PrimitiveSetsAboveX/PreliminariesTailAux.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:46:46.051Z"
+  },
+  "PrimitiveSetsAboveX/PrimitiveWeight.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:46:52.635Z"
+  }
+}
