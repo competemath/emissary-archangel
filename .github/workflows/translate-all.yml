@@ -56,7 +56,8 @@ jobs:
           MAX: ${{ inputs.max_libraries || '6' }}
           JOB_BUDGET: "14"
           DRY: ${{ inputs.dry_run || 'false' }}
-          HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          # agent passes also need the repository variable TRANSLATE_AGENT=on (off until the cloud agent is proven)
+          HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' && vars.TRANSLATE_AGENT == 'on' }}
         run: |
           gh run list -R "$GITHUB_REPOSITORY" --workflow translate.yml --limit 100 --json status,displayTitle \
             --jq '.[] | select(.status != "completed") | .displayTitle' > running.txt

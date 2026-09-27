@@ -8,10 +8,3 @@
 {"id":6,"name":"NOF.Protocol.le_complexity","sourcePath":"ChandraFurstLipton/NOFModel.lean","outcome":"deferred-agent","at":"2026-09-26T22:13:25.096Z","run":"36273193479"}
 {"id":7,"name":"NOF.le_funComplexity","sourcePath":"ChandraFurstLipton/NOFModel.lean","outcome":"deferred-agent","at":"2026-09-26T22:13:25.475Z","run":"36273193479"}
 {"id":8,"name":"NOF.IsForbiddenPatternWithTip.broadcast_eq","sourcePath":"ChandraFurstLipton/NOFModel.lean","outcome":"deferred-agent","at":"2026-09-26T22:13:25.849Z","run":"36273193479"}
-{"id":1,"name":"NOF.eval_eq_true","sourcePath":"ChandraFurstLipton/LowerBoundEval.lean","outcome":"unresolved","at":"2026-09-27T12:11:47.715Z","run":"36317897248"}
-{"id":2,"name":"NOF.trivial_of_isForbiddenPattern_of_isValid_eval","sourcePath":"ChandraFurstLipton/LowerBoundEval.lean","outcome":"unresolved","at":"2026-09-27T12:11:53.442Z","run":"36317897248"}
-{"id":10,"name":"NOF.isMultidimCorner_forget_of_isForbiddenPattern","sourcePath":"ChandraFurstLipton/MultidimCorners.lean","outcome":"unresolved","at":"2026-09-27T12:11:59.949Z","run":"36317897248"}
-{"id":5,"name":"NOF.Protocol.length_broadcast","sourcePath":"ChandraFurstLipton/NOFModel.lean","outcome":"unresolved","at":"2026-09-27T12:12:06.796Z","run":"36317897248"}
-{"id":6,"name":"NOF.Protocol.le_complexity","sourcePath":"ChandraFurstLipton/NOFModel.lean","outcome":"unresolved","at":"2026-09-27T12:12:12.898Z","run":"36317897248"}
-{"id":7,"name":"NOF.le_funComplexity","sourcePath":"ChandraFurstLipton/NOFModel.lean","outcome":"unresolved","at":"2026-09-27T12:12:19.253Z","run":"36317897248"}
-{"id":8,"name":"NOF.IsForbiddenPatternWithTip.broadcast_eq","sourcePath":"ChandraFurstLipton/NOFModel.lean","outcome":"unresolved","at":"2026-09-27T12:12:25.340Z","run":"36317897248"}
