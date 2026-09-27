@@ -1,0 +1,218 @@
+{
+  "QuantumOptimization/QAOA/IsingChain/Achievability/ComplementRoots.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:26:15.546Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/Achievability/Factorization.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:26:25.621Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/Achievability/Realization.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:27:29.964Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/Achievability/RootSplit.lean": {
+    "checkedAt": "2026-09-27T11:28:02.192Z",
+    "collisions": [
+      "QAOA.IsingChain.Achievability.ne_zero_of_offAxis",
+      "QAOA.IsingChain.Achievability.conj_ne_self_of_offAxis",
+      "QAOA.IsingChain.Achievability.inv_ne_self_of_offAxis",
+      "QAOA.IsingChain.Achievability.conj_inv_ne_self_of_offAxis",
+      "QAOA.IsingChain.Achievability.offAxis_conj",
+      "QAOA.IsingChain.Achievability.offAxis_inv",
+      "QAOA.IsingChain.Achievability.quad_map_conj",
+      "QAOA.IsingChain.Achievability.quad_map_inv",
+      "QAOA.IsingChain.Achievability.mem_quad",
+      "QAOA.IsingChain.Achievability.quad_nodup",
+      "QAOA.IsingChain.Achievability.quad_le"
+    ]
+  },
+  "QuantumOptimization/QAOA/IsingChain/JordanWigner/Decomposition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:28:28.498Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/JordanWigner/Decomposition/ExpReduction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:28:29.170Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/JordanWigner/Decomposition/Geometry.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:28:30.731Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/JordanWigner/Decomposition/Preservation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:28:33.110Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/JordanWigner/MomentumModes/FourierCollection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:28:35.515Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/JordanWigner/MomentumModes/ParityIdentity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:28:36.629Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/JordanWigner/Transformation/PauliAlgebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:28:38.433Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/LightCone/FGGClosure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:28:41.832Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/LightCone/NestedWindow.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:28:43.936Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/LightCone/PlusStateFactorization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:28:44.291Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/LightCone/ReducedBondInvariance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:28:45.305Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/LightCone/StructuralIdentification.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:28:52.309Z"
+  },
+  "QuantumOptimization/Qubits/NQubitSpace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:28:52.867Z"
+  },
+  "QuantumOptimization/QAOA/ExponentialRealization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:24:59.482Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/JordanWigner/MomentumModes/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:25:00.169Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/JordanWigner/PseudospinDynamics/PauliKernel.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:25:11.051Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/GroundStateEnergy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:26:02.872Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/LightCone/StateBridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:26:05.049Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/TranslationOperators.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:26:06.260Z"
+  },
+  "QuantumOptimization/Quantum/Operators/Types.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:26:07.006Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/Achievability/AlternatingPoly.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:24:58.629Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/Achievability/SinBound.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:25:35.662Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/JordanWigner/Decomposition/Heisenberg.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:25:42.665Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/JordanWigner/MomentumModes/SpectralReflection.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:25:46.735Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/JordanWigner/PseudospinDynamics/Dynamics.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:25:59.569Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/LightCone/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:26:00.639Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/LightCone/CanonicalMatching.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:26:02.983Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/LightCone/StateInvariance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:26:06.320Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/LightCone/WindowBlock.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:26:06.895Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/ReducedChain.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:26:10.971Z"
+  },
+  "QuantumOptimization/QAOA/QAOAExponentials.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:26:11.670Z"
+  },
+  "QuantumOptimization/Quantum/Operators/BraKet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:26:12.279Z"
+  },
+  "QuantumOptimization/Quantum/TensorProducts/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:26:13.512Z"
+  },
+  "QuantumOptimization/Quantum/TensorProducts/PartialTrace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:26:15.074Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/Achievability/BlochBridge.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:24:41.087Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/Achievability/Su2Class.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:25:44.640Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/JordanWigner/Decomposition/CommuteSuite.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:25:44.987Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/LightCone/NoncommProdBlock.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:26:01.823Z"
+  },
+  "QuantumOptimization/Qubits/LocalOperators.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:26:03.324Z"
+  },
+  "QuantumOptimization/IsingModel/IsingHamiltonian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:25:10.550Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/JordanWigner/MomentumModes/CostDecomposition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:25:12.166Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/JordanWigner/PseudospinDynamics/Rodrigues.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T11:25:23.764Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/LightCone/ChainIdentification.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:25:35.604Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/LightCone/LayerBlockMatch.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:25:46.052Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/LightCone/MiddleBondLocality.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:25:46.375Z"
+  },
+  "QuantumOptimization/QAOA/IsingChain/UpperBound/LightCone/Spreading.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:25:50.577Z"
+  },
+  "QuantumOptimization/QAOA/QAOAHamiltonians.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T11:25:52.491Z"
+  }
+}
