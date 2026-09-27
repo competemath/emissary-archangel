@@ -6,3 +6,7 @@
 {"id":3,"name":"Mathlib.Tactic.IsRemainder.Ideal.insert_le_of_mem_of_le","sourcePath":"GroebnerTac/Tactic.lean","outcome":"deferred-agent","at":"2026-09-27T10:55:03.053Z","run":"36308975816"}
 {"id":4,"name":"Mathlib.Tactic.IsRemainder.Rabinovich_method'","sourcePath":"GroebnerTac/Tactic.lean","outcome":"deferred-agent","at":"2026-09-27T10:55:03.053Z","run":"36308975816"}
 {"id":5,"name":"aux","sourcePath":"GroebnerTac/Template.lean","outcome":"failed","at":"2026-09-27T11:25:08.218Z","error":"Command failed: lake build GroebnerTac.Template\n","run":"36308975816"}
+{"id":6,"name":"Rabinovich_method","sourcePath":"GroebnerTac/Lemma.lean","outcome":"failed","at":"2026-09-27T12:01:41.526Z","error":"Command failed: lake build GroebnerTac.Lemma\n","run":"36315712307"}
+{"id":7,"name":"Rabinovich_method'","sourcePath":"GroebnerTac/Lemma.lean","outcome":"failed","at":"2026-09-27T12:31:47.765Z","error":"Command failed: lake build GroebnerTac.Lemma\n","run":"36315712307"}
+{"id":8,"name":"span_image_set_union_eq_span_insert","sourcePath":"GroebnerTac/Lemma.lean","outcome":"failed","at":"2026-09-27T13:01:52.102Z","error":"Command failed: lake build GroebnerTac.Lemma\n","run":"36315712307"}
+{"id":5,"name":"aux","sourcePath":"GroebnerTac/Template.lean","outcome":"failed","at":"2026-09-27T13:31:56.932Z","error":"Command failed: lake build GroebnerTac.Template\n","run":"36315712307"}
