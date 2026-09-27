@@ -1,0 +1,102 @@
+{
+  "FirstProof/FirstProof4/Auxiliary/BoxPlusRealRoots.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:59:56.794Z"
+  },
+  "FirstProof/FirstProof4/Auxiliary/Continuity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:00:08.423Z"
+  },
+  "FirstProof/FirstProof4/Auxiliary/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:01:05.222Z"
+  },
+  "FirstProof/FirstProof4/Auxiliary/Density.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:01:27.289Z"
+  },
+  "FirstProof/FirstProof4/Auxiliary/HarmonicBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:01:35.554Z"
+  },
+  "FirstProof/FirstProof4/Auxiliary/InvPhiN.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:01:38.719Z"
+  },
+  "FirstProof/FirstProof4/Auxiliary/Obreschkoff.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:01:46.400Z"
+  },
+  "FirstProof/FirstProof4/Auxiliary/Obreschkoff_Transport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:02:26.011Z"
+  },
+  "FirstProof/FirstProof4/Auxiliary/PhiN.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:02:26.932Z"
+  },
+  "FirstProof/FirstProof4/Auxiliary/RPoly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:02:55.163Z"
+  },
+  "FirstProof/FirstProof4/Auxiliary/RealRoots.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:02:55.970Z"
+  },
+  "FirstProof/FirstProof4/Auxiliary/Residue.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:03:15.186Z"
+  },
+  "FirstProof/FirstProof4/Auxiliary/RootContinuity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:04:02.154Z"
+  },
+  "FirstProof/FirstProof4/Auxiliary/SignSquarefree.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:04:11.063Z"
+  },
+  "FirstProof/FirstProof4/Auxiliary/Transport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:04:24.202Z"
+  },
+  "FirstProof/FirstProof4/Auxiliary/TransportDecomp.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:05:06.438Z"
+  },
+  "FirstProof/FirstProof4/Problem4.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:05:58.927Z"
+  },
+  "FirstProof/FirstProof6/Auxiliary/BarrierPotential.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:06:00.236Z"
+  },
+  "FirstProof/FirstProof6/Auxiliary/ColoringFramework.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:06:06.474Z"
+  },
+  "FirstProof/FirstProof6/Auxiliary/DynamicColoring.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:06:07.097Z"
+  },
+  "FirstProof/FirstProof6/Auxiliary/LaplacianBasics.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:06:08.622Z"
+  },
+  "FirstProof/FirstProof6/Auxiliary/LoewnerPullback.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:06:11.969Z"
+  },
+  "FirstProof/FirstProof6/Auxiliary/OneSidedBarrier.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:06:30.242Z"
+  },
+  "FirstProof/FirstProof6/Auxiliary/ResolventBound.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:07:06.824Z"
+  },
+  "FirstProof/FirstProof6/Problem6.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:07:08.003Z"
+  }
+}
