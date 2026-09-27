@@ -1,0 +1,716 @@
+{
+  "FLT/FreyCurve/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:10:21.485Z",
+    "collisions": [
+      "FreyCurve.j_pos_aux"
+    ]
+  },
+  "FLT/HaarMeasure/HaarChar/Ring.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:10:31.823Z"
+  },
+  "FLT/HaarMeasure/MeasurableSpacePadics.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:10:32.594Z"
+  },
+  "FLT/HaarMeasure/Quotient.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:10:45.754Z"
+  },
+  "FLT/Mathlib/Algebra/Algebra/Equiv.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:20.709Z"
+  },
+  "FLT/Mathlib/Algebra/Homology/HomologicalComplex.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:21.389Z"
+  },
+  "FLT/Mathlib/FieldTheory/Galois/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:22.352Z",
+    "collisions": [
+      "quadraticCharacter"
+    ]
+  },
+  "FLT/Mathlib/LinearAlgebra/Dimension/IsQuadraticExtension.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:28.089Z"
+  },
+  "FLT/Mathlib/NumberTheory/NumberField/AdeleRing.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:30.930Z"
+  },
+  "FLT/Mathlib/NumberTheory/NumberField/InfiniteAdeleRing.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:36.374Z"
+  },
+  "FLT/Mathlib/NumberTheory/Padics/PadicIntegers.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:38.495Z",
+    "collisions": [
+      "PadicInt._root_.AddSubgroup.comap_smul_one"
+    ]
+  },
+  "FLT/Mathlib/RingTheory/Ideal/Quotient/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:48.459Z"
+  },
+  "FLT/Mathlib/RingTheory/Unramified/LocalRing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:11:50.831Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/Module/Equiv.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:11:51.130Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/RestrictedProduct/Module.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:11:54.089Z"
+  },
+  "FLT/NumberField/Completion/Finite.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:11:54.473Z"
+  },
+  "FLT/Slop/RepresentationTheory/OddAbsIrredOrig.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:01.971Z",
+    "collisions": [
+      "Slop.OddRepOrig.adjoinRange",
+      "Slop.OddRepOrig.baseChange",
+      "Slop.OddRepOrig.IsAbsolutelyIrreducible"
+    ]
+  },
+  "FLT/AutomorphicForm/QuaternionAlgebra/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:10:22.629Z"
+  },
+  "FLT/DedekindDomain/Completion/BaseChange.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:10:31.117Z"
+  },
+  "FLT/HenselianLocalRing/EtaleDecomposition.lean": {
+    "checkedAt": "2026-09-27T19:10:43.854Z",
+    "collisions": [
+      "Algebra.exists_etale_completeOrthogonalIdempotents_forall_liesOver_eq_aux.«»"
+    ]
+  },
+  "FLT/KnownIn1980s/EllipticCurves/TateCurveBaseChange.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:10:50.913Z"
+  },
+  "FLT/KnownIn1980s/EllipticCurves/TateCurveConstruction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:10:51.252Z"
+  },
+  "FLT/Mathlib/Algebra/Algebra/Tower.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:10:54.222Z"
+  },
+  "FLT/Mathlib/Algebra/Central/TensorProduct.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:10:56.608Z"
+  },
+  "FLT/Mathlib/Algebra/Polynomial/Splits.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:08.052Z"
+  },
+  "FLT/Mathlib/AlgebraicGeometry/EllipticCurve/Affine/Point.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:09.252Z"
+  },
+  "FLT/Mathlib/FieldTheory/SeparableDegree.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:38.044Z"
+  },
+  "FLT/Mathlib/LinearAlgebra/Dimension/Constructions.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:11:38.502Z"
+  },
+  "FLT/Mathlib/MeasureTheory/Measure/Regular.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:39.199Z"
+  },
+  "FLT/Mathlib/RingTheory/AdjoinRoot.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:42.093Z"
+  },
+  "FLT/Mathlib/RingTheory/DedekindDomain/AdicValuation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:45.267Z"
+  },
+  "FLT/Mathlib/RingTheory/DedekindDomain/FiniteAdeleRing.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:45.950Z",
+    "collisions": [
+      "IsDedekindDomain.FiniteAdeleRing.structureMap"
+    ]
+  },
+  "FLT/Mathlib/Topology/Algebra/IsUniformGroup/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:16.147Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/Module/ModuleTopology.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:16.826Z"
+  },
+  "FLT/Mathlib/Topology/MetricSpace/Pseudo/Matrix.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:12:48.477Z"
+  },
+  "FLT/NumberField/Completion/Infinite.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:12:48.913Z"
+  },
+  "FLT/DedekindDomain/FiniteAdeleRing/TensorProduct.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:10:45.018Z"
+  },
+  "FLT/Deformations/ContinuousRepresentation/IsTopologicalModule.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:10:53.616Z"
+  },
+  "FLT/HaarMeasure/HaarChar/FiniteAdeleRing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:11:00.919Z"
+  },
+  "FLT/HaarMeasure/HaarChar/RealComplex.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:01.819Z"
+  },
+  "FLT/HenselianLocalRing/Finite.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:07.629Z"
+  },
+  "FLT/KnownIn1980s/EllipticCurves/QuadraticTwists/QuadraticTwists.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:28.437Z",
+    "collisions": [
+      "WeierstrassCurve.quadraticTwistBy"
+    ]
+  },
+  "FLT/KnownIn1980s/EllipticCurves/TateParameter.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:00.326Z"
+  },
+  "FLT/Mathlib/Algebra/Group/Action/Hom.lean": {
+    "checkedAt": "2026-09-27T19:12:18.531Z",
+    "collisions": [
+      "MulActionHom.evalAlgHom"
+    ]
+  },
+  "FLT/Mathlib/LinearAlgebra/Matrix/Transvection.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:19.220Z"
+  },
+  "FLT/Mathlib/MeasureTheory/Group/Action.lean": {
+    "checkedAt": "2026-09-27T19:12:25.719Z",
+    "collisions": [
+      "_root_.MeasurableEmbedding.isMulLeftInvariant_comap",
+      "_root_.MeasurableEmbedding.isMulRightInvariant_comap"
+    ]
+  },
+  "FLT/Mathlib/RingTheory/Polynomial/GaussLemma.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:28.663Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/Valued/WithZeroMulInt.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:33.344Z"
+  },
+  "FLT/Mathlib/Topology/HomToDiscrete.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:37.730Z"
+  },
+  "FLT/Patching/System.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:12:45.924Z"
+  },
+  "FLT/Patching/Ultraproduct.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:47.069Z"
+  },
+  "FLT/Patching/Utils/Depth.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:15:01.567Z"
+  },
+  "FLT/Patching/Utils/InverseLimit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:15:28.762Z"
+  },
+  "FLT/Proof.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:15:29.677Z"
+  },
+  "FLT/Slop/DimensionTheorem/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:15:30.007Z"
+  },
+  "FLT/AutomorphicForm/QuaternionAlgebra/HeckeOperators/Abstract.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:00.933Z"
+  },
+  "FLT/Data/QHat.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:20.730Z",
+    "collisions": [
+      "ZHat._root_.Nat.sum_factorial_lt_factorial_succ"
+    ]
+  },
+  "FLT/DedekindDomain/FiniteAdeleRing/TensorRestrictedProduct.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:13:05.334Z",
+    "collisions": [
+      "RestrictedProduct.lTensorLeft"
+    ]
+  },
+  "FLT/GaloisRepresentation/Cyclotomic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:14:10.335Z"
+  },
+  "FLT/HenselianLocalRing/Stuff.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:14:13.507Z"
+  },
+  "FLT/KnownIn1980s/EllipticCurves/ReductionBaseChange.lean": {
+    "checkedAt": "2026-09-27T19:14:21.806Z",
+    "collisions": [
+      "ValuativeExtension.integerMap"
+    ]
+  },
+  "FLT/Mathlib/Algebra/Category/ModuleCat/Topology/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:14:49.229Z"
+  },
+  "FLT/Mathlib/AlgebraicGeometry/EllipticCurve/Aut.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:14:50.130Z"
+  },
+  "FLT/Mathlib/Data/Real/Archimedean.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:15:00.922Z"
+  },
+  "FLT/Mathlib/LinearAlgebra/Matrix/GeneralLinearGroup/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:15:01.599Z"
+  },
+  "FLT/Mathlib/LinearAlgebra/TensorProduct/Algebra.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:15:15.512Z"
+  },
+  "FLT/Mathlib/MeasureTheory/Group/ModularCharacter.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:15:16.442Z"
+  },
+  "FLT/Mathlib/NumberTheory/NumberField/FiniteAdeleRing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:17:31.738Z"
+  },
+  "FLT/Mathlib/RepresentationTheory/Homological/ContCohomology/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:17:32.250Z"
+  },
+  "FLT/Mathlib/Topology/Polish.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:17:33.042Z"
+  },
+  "FLT/NumberField/InfinitePlace/Extension.lean": {
+    "checkedAt": "2026-09-27T19:17:34.821Z",
+    "collisions": [
+      "NumberField.ComplexEmbedding.IsExtension"
+    ]
+  },
+  "FLT/Slop/DimensionTheorem/Numeric.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:17:48.377Z",
+    "collisions": [
+      "DimensionTheorem.GrowthLE.telescope_aux",
+      "DimensionTheorem.multichoose_le_pow"
+    ]
+  },
+  "FLT/AutomorphicForm/Stuff.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:10:59.209Z"
+  },
+  "FLT/DedekindDomain/FiniteAdeleRing/LocalUnits.lean": {
+    "checkedAt": "2026-09-27T19:11:23.505Z",
+    "collisions": [
+      "IsDedekindDomain.HeightOneSpectrum.adicCompletionUniformizer"
+    ]
+  },
+  "FLT/DedekindDomain/FiniteAdeleRing/TensorPi.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:26.469Z"
+  },
+  "FLT/DedekindDomain/IntegralClosure.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:34.897Z",
+    "collisions": [
+      "IsDedekindDomain.HeightOneSpectrum._root_.Ideal.sum_ramification_inertia_extensions"
+    ]
+  },
+  "FLT/FreyCurve/FreyPackage.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:12.996Z"
+  },
+  "FLT/KnownIn1980s/RepresentationTheory/OddAbsIrred.lean": {
+    "checkedAt": "2026-09-27T19:12:25.237Z",
+    "collisions": [
+      "Slop.OddRep.IsAbsolutelyIrreducible"
+    ]
+  },
+  "FLT/Mathlib/MeasureTheory/Group/Measure.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:28.083Z"
+  },
+  "FLT/Mathlib/NumberTheory/Padics/HeightOneSpectrum.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:28.875Z",
+    "collisions": [
+      "Rat.HeightOneSpectrum.IsIntegralClosure.pow_natGenerator_dvd_iff",
+      "Rat.HeightOneSpectrum.IsIntegralClosure.natGenerator_eq_absNorm",
+      "Rat.HeightOneSpectrum.IsIntegralClosure.intValuation_eq_padicValuation_iff_multiplicity_eq_multiplicity",
+      "Rat.HeightOneSpectrum.IsIntegralClosure.adicCompletion.padicEquiv_cast"
+    ]
+  },
+  "FLT/Mathlib/RingTheory/Norm/Quotient.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:37.000Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/ContinuousMonoidHom.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:12:38.272Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/ContinuousSMulDiscrete.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:38.940Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/Group/Units.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:41.087Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/Order/Field.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:45.406Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/RestrictedProduct/Algebra.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:13:06.143Z"
+  },
+  "FLT/NumberField/DiscriminantBounds.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:13:07.952Z",
+    "collisions": [
+      "constant_approx",
+      "log_approx",
+      "rootDiscrBound_strictMono_aux3",
+      "rootDiscrBound_four_lt",
+      "rootDiscrBound_five_gt",
+      "rootDiscrBound_thirteen_lt",
+      "rootDiscrBound_fourteen_gt"
+    ]
+  },
+  "FLT/Patching/Utils/Lemmas.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:13:24.111Z"
+  },
+  "FLT/Patching/Utils/TopologicallyFG.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:14:16.561Z"
+  },
+  "FLT/QuaternionAlgebra/NumberField.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:14:17.121Z"
+  },
+  "FLT/DedekindDomain/FiniteAdeleRing/BaseChange.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:12:14.662Z"
+  },
+  "FLT/Deformations/Algebra/InverseLimit/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:25.080Z"
+  },
+  "FLT/HaarMeasure/FiniteAdeleRing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:14:14.075Z"
+  },
+  "FLT/HaarMeasure/HaarChar/Padic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:14:21.857Z"
+  },
+  "FLT/KnownIn1980s/EllipticCurves/QuadraticTwists/SplitMultiplicativeReduction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:14:54.890Z"
+  },
+  "FLT/Mathlib/AlgebraicGeometry/EllipticCurve/Weierstrass.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:14:55.980Z"
+  },
+  "FLT/Mathlib/Data/Set/Prod.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:14:58.809Z"
+  },
+  "FLT/Mathlib/FieldTheory/Separable.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:14:59.542Z"
+  },
+  "FLT/Mathlib/GroupTheory/Index.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:15:00.268Z"
+  },
+  "FLT/Mathlib/MeasureTheory/Measure/Typeclasses/Finite.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:15:00.952Z"
+  },
+  "FLT/Mathlib/NumberTheory/NumberField/InfinitePlace/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:15:01.628Z"
+  },
+  "FLT/Mathlib/Order/Filter/Cofinite.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:15:02.306Z"
+  },
+  "FLT/Mathlib/RingTheory/LocalRing/MaximalIdeal/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:15:02.984Z"
+  },
+  "FLT/Mathlib/RingTheory/Valuation/ValuationSubring.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:15:03.664Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/Module/FiniteDimension.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:15:15.617Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/Monoid.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:15:16.318Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/RestrictedProduct/TopologicalSpace.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:15:21.084Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/Valued/ValuationTopology.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:17:46.417Z"
+  },
+  "FLT/AutomorphicForm/GroupTheoryStuff.lean": {
+    "checkedAt": "2026-09-27T19:09:37.484Z",
+    "collisions": [
+      "MaximalPQuotient.mk"
+    ]
+  },
+  "FLT/AutomorphicForm/QuaternionAlgebra/HeckeOperators/Local.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:10:54.899Z"
+  },
+  "FLT/Basic/Lemmas.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:10:55.689Z"
+  },
+  "FLT/Deformations/Algebra/InverseLimit/Topology.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:22.361Z"
+  },
+  "FLT/Deformations/RepresentationTheory/Frobenius.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:29.409Z",
+    "collisions": [
+      "IsArithFrobAt._root_.isConj_arithFrobAt'"
+    ]
+  },
+  "FLT/Deformations/RepresentationTheory/IntegralClosure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:11:41.499Z"
+  },
+  "FLT/HaarMeasure/HaarChar/FiniteDimensional.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:11:56.123Z"
+  },
+  "FLT/Mathlib/AlgebraicGeometry/EllipticCurve/GaloisDescent.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:59.283Z"
+  },
+  "FLT/Mathlib/AlgebraicGeometry/EllipticCurve/Reduction.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:01.380Z"
+  },
+  "FLT/Mathlib/FieldTheory/Galois/Infinite.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:12:40.020Z"
+  },
+  "FLT/Mathlib/GroupTheory/DoubleCoset.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:40.708Z"
+  },
+  "FLT/Mathlib/MeasureTheory/Haar/Extension.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:13:51.077Z"
+  },
+  "FLT/Mathlib/RingTheory/DiscreteValuationRing/AdjoinRoot.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:13:53.411Z"
+  },
+  "FLT/Mathlib/RingTheory/DiscreteValuationRing/Separable.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:14:04.100Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/Module/TensorProduct.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:14:07.925Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/RestrictedProduct/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:14:21.358Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/RestrictedProduct/Equiv.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:14:45.334Z"
+  },
+  "FLT/Mathlib/Topology/Bases.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:14:46.075Z"
+  },
+  "FLT/Mathlib/Topology/Constructions.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:14:46.749Z"
+  },
+  "FLT/Patching/Utils/StructureFiniteness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:14:50.409Z"
+  },
+  "FLT/Patching/VanishingFilter.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:14:53.374Z"
+  },
+  "FLT/DedekindDomain/AdicValuation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:10:05.230Z"
+  },
+  "FLT/Deformations/IsProartinian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:10:11.337Z"
+  },
+  "FLT/Deformations/Lemmas.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:10:12.236Z"
+  },
+  "FLT/HaarMeasure/HaarChar/AddEquiv.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:10:55.898Z"
+  },
+  "FLT/Mathlib/Algebra/Category/ModuleCat/Topology/Homology.lean": {
+    "checkedAt": "2026-09-27T19:10:56.824Z",
+    "collisions": [
+      "TopModuleCat.cokerDesc",
+      "TopModuleCat.cokerCongr",
+      "TopModuleCat.cokerDescCLM"
+    ]
+  },
+  "FLT/Mathlib/Algebra/FixedPoints/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:07.556Z"
+  },
+  "FLT/Mathlib/Algebra/IsDirectLimit.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:10.537Z"
+  },
+  "FLT/Mathlib/Algebra/IsQuaternionAlgebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:11:24.735Z"
+  },
+  "FLT/Mathlib/Algebra/Order/AbsoluteValue/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:25.419Z"
+  },
+  "FLT/Mathlib/Algebra/Polynomial/QuadraticDiscriminant.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:39.333Z"
+  },
+  "FLT/Mathlib/AlgebraicGeometry/EllipticCurve/VariableChange.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:45.637Z"
+  },
+  "FLT/Mathlib/Data/Fin/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:11:54.643Z"
+  },
+  "FLT/Mathlib/FieldTheory/SplittingField/IsSplittingField.lean": {
+    "checkedAt": "2026-09-27T19:12:02.370Z",
+    "collisions": [
+      "Polynomial.IsSplittingField.finrank_le_factorial_aux.«»"
+    ]
+  },
+  "FLT/Mathlib/LinearAlgebra/Countable.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:03.328Z"
+  },
+  "FLT/Mathlib/LinearAlgebra/Determinant.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:04.724Z"
+  },
+  "FLT/Mathlib/LinearAlgebra/Pi.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:41.150Z"
+  },
+  "FLT/Mathlib/RepresentationTheory/Continuous/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:12:44.920Z"
+  },
+  "FLT/Mathlib/RingTheory/Localization/BaseChange.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:45.605Z"
+  },
+  "FLT/Mathlib/RingTheory/Norm/Quadratic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:51.517Z"
+  },
+  "FLT/Mathlib/RingTheory/RamificationInertia/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:12:59.319Z"
+  },
+  "FLT/Mathlib/RingTheory/SimpleRing/TensorProduct.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:13:00.001Z"
+  },
+  "FLT/Mathlib/RingTheory/Valuation/ValuativeRel/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:13:35.945Z"
+  },
+  "FLT/Mathlib/Topology/Algebra/Group/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:13:43.475Z"
+  },
+  "FLT/NumberField/Padics/RestrictedProduct.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:13:47.234Z",
+    "collisions": [
+      "RestrictedProduct.padicNatDen"
+    ]
+  },
+  "FLT/Patching/Algebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:14:45.271Z"
+  },
+  "FLT/Patching/Over.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:16:35.334Z"
+  },
+  "FLT/Patching/Utils/AdicTopology.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:16:36.084Z"
+  },
+  "FLT/Slop/NumberTheory/TsumDivisorsAntidiagonal.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:16:50.419Z"
+  },
+  "FLT/Slop/RepresentationTheory/OddAbsIrredSlop.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:16:57.313Z",
+    "collisions": [
+      "Slop.OddRep.adjoinRange",
+      "Slop.OddRep.baseChange",
+      "Slop.OddRep.IsAbsolutelyIrreducible"
+    ]
+  }
+}
