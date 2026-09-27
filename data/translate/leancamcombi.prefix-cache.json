@@ -1,0 +1,38 @@
+{
+  "CamCombi/GraphTheory/ExampleSheet1.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:29:05.957Z"
+  },
+  "CamCombi/GrowthInGroups/Lecture1.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:29:07.381Z"
+  },
+  "CamCombi/GrowthInGroups/Lecture2.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:29:09.559Z"
+  },
+  "CamCombi/GrowthInGroups/Lecture3.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:29:16.120Z"
+  },
+  "CamCombi/GrowthInGroups/Lecture4.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:29:20.243Z"
+  },
+  "CamCombi/Mathlib/Combinatorics/Additive/ApproximateSubgroup.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:29:22.724Z"
+  },
+  "CamCombi/PlainCombi/ProbLYM.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:29:23.828Z"
+  },
+  "CamCombi/PlainCombi/VanDenBergKesten.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:29:24.804Z"
+  },
+  "CamCombi/StableCombi/Rel.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:29:38.585Z"
+  }
+}
