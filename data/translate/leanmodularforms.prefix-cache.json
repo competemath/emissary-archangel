@@ -1,0 +1,919 @@
+{
+  "LeanModularForms/Eigenforms/AtkinLehner.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:24:57.817Z"
+  },
+  "LeanModularForms/ForMathlib/CauchyPrincipalValue.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:26:18.702Z"
+  },
+  "LeanModularForms/ForMathlib/CornerFTCAtRho.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:26:41.402Z"
+  },
+  "LeanModularForms/ForMathlib/CrossingAtRho.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:26:44.190Z"
+  },
+  "LeanModularForms/ForMathlib/GeneralizedResidueTheory/PVInfrastructure/SingularAnnulus.lean": {
+    "checkedAt": "2026-09-27T21:27:00.750Z",
+    "collisions": [
+      "norm_annulus_condition_iff",
+      "intervalIntegral_eq_zero_of_ae_eq_zero",
+      "integral_split_five",
+      "singular_tAnnLin_cancel",
+      "singular_symmDiff_sup_bound",
+      "singular_annulus_f_lin_measurable",
+      "lin_indicator_zero_middle",
+      "lin_indicator_eq_inv_left",
+      "lin_indicator_eq_inv_right",
+      "symmDiff_ae_version_null"
+    ]
+  },
+  "LeanModularForms/ForMathlib/HW33Clean.lean": {
+    "checkedAt": "2026-09-27T21:29:40.265Z",
+    "collisions": [
+      "Complex.avoids_delta_bound"
+    ]
+  },
+  "LeanModularForms/ForMathlib/HungerbuhlerWasem.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:29:42.463Z"
+  },
+  "LeanModularForms/ForMathlib/HungerbuhlerWasem/CrossingDataBuilder.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:29:49.640Z",
+    "collisions": [
+      "HungerbuhlerWasem.reInner_le_norm_mul_norm",
+      "HungerbuhlerWasem.reInner_add_left",
+      "HungerbuhlerWasem.reInner_add_right",
+      "HungerbuhlerWasem.reInner_smul_left",
+      "HungerbuhlerWasem.reInner_self",
+      "HungerbuhlerWasem.reInner_lower_bound_right_eventually",
+      "HungerbuhlerWasem.reInner_eq_inner_real",
+      "HungerbuhlerWasem.reInner_upper_bound_left_eventually"
+    ]
+  },
+  "LeanModularForms/ForMathlib/OrbitPairing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:30:56.322Z"
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula/PVChain/Helpers.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:30:57.185Z"
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula/WindingWeights/RhoPlusOne.lean": {
+    "checkedAt": "2026-09-27T21:31:02.913Z",
+    "collisions": [
+      "arg_ofReal_mul_I"
+    ]
+  },
+  "LeanModularForms/ForMathlib/WindingInteger.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:33:19.472Z",
+    "collisions": [
+      "Complex.prod_range_div_complex",
+      "Complex.exp_I_log_im_eq_div_norm",
+      "Complex.partition_segment_exists"
+    ]
+  },
+  "LeanModularForms/HeckeRIngs/GL2/CharacterDecomp.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:33:39.853Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/HeckeT_n.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:38:30.582Z"
+  },
+  "LeanModularForms/Modularforms/AtImInfty.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:38:32.159Z"
+  },
+  "LeanModularForms/Modularforms/DimGenCongLevels/Basic.lean": {
+    "checkedAt": "2026-09-27T21:38:32.854Z",
+    "collisions": [
+      "SpherePacking.ModularForms.isArithmetic_of_finiteIndex"
+    ]
+  },
+  "LeanModularForms/SMOObligations/LevelCommute.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:38:45.534Z"
+  },
+  "LeanModularForms/ForMathlib/ArcFTC.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:22:28.091Z"
+  },
+  "LeanModularForms/ForMathlib/ContourIntegral/SegmentFTC.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:22:33.305Z"
+  },
+  "LeanModularForms/ForMathlib/CurveMeasureZero.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:22:34.969Z"
+  },
+  "LeanModularForms/ForMathlib/DixonDef.lean": {
+    "checkedAt": "2026-09-27T21:22:49.610Z",
+    "collisions": [
+      "dslope_integrand_eq",
+      "winding_integrand_eq_const_mul"
+    ]
+  },
+  "LeanModularForms/ForMathlib/DslopeIntegral.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:23:00.980Z",
+    "collisions": [
+      "Complex.exists_compact_tube_prod"
+    ]
+  },
+  "LeanModularForms/ForMathlib/NullHomologous.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:23:28.597Z"
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula/PVChain/ArcContribution.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:23:54.744Z"
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula/PVChain/Assembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:24:39.603Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/AdjointTheory/DeltaBSystem.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:24:41.798Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/HeckeRingHomCharSpace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:29:25.607Z"
+  },
+  "LeanModularForms/HeckeRIngs/GLn/CongruenceHecke/Props.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:29:40.611Z"
+  },
+  "LeanModularForms/ForMathlib/ArcFTCLimit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:20:08.954Z"
+  },
+  "LeanModularForms/ForMathlib/CanonicalReps.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:20:16.511Z"
+  },
+  "LeanModularForms/ForMathlib/ContourIntegral/CrossingLimit.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:20:29.039Z"
+  },
+  "LeanModularForms/ForMathlib/FDWindingDataFullSeg1Seg4.lean": {
+    "checkedAt": "2026-09-27T21:22:29.840Z",
+    "collisions": [
+      "integrand_form_eq"
+    ]
+  },
+  "LeanModularForms/ForMathlib/FlatnessConditions.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:22:30.897Z"
+  },
+  "LeanModularForms/ForMathlib/GeneralizedResidueTheory/PVInfrastructure/AnnulusBounds.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:22:42.533Z"
+  },
+  "LeanModularForms/ForMathlib/GeneralizedResidueTheory/Residue/GeneralizedTheoremBase.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:23:32.927Z"
+  },
+  "LeanModularForms/ForMathlib/HungerbuhlerWasem/CrossingHigherOrder.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:23:40.916Z"
+  },
+  "LeanModularForms/ForMathlib/ModularInvariance.lean": {
+    "checkedAt": "2026-09-27T21:24:02.263Z",
+    "collisions": [
+      "mero_sub_const_fwd",
+      "mero_sub_const_bwd",
+      "filter_map_sub_const",
+      "mero_neg_inv_fwd",
+      "mero_neg_inv_bwd",
+      "filter_map_neg_inv"
+    ]
+  },
+  "LeanModularForms/ForMathlib/PVSplitting.lean": {
+    "checkedAt": "2026-09-27T21:24:17.830Z",
+    "collisions": [
+      "PVSplitting.cutoff_eq_zero_of_near",
+      "PVSplitting.cutoff_eq_integrand_ae_left",
+      "PVSplitting.cutoff_eq_integrand_ae_right",
+      "PVSplitting.cutoff_intervalIntegrable_of_ae",
+      "PVSplitting.pv_split_asymmetric"
+    ]
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:24:40.418Z"
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula/OnCurvePV/Basic.lean": {
+    "checkedAt": "2026-09-27T21:25:00.081Z",
+    "collisions": [
+      "arg_ofReal_mul_I"
+    ]
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula/PVChain/Assembly/ResidueSide.lean": {
+    "checkedAt": "2026-09-27T21:29:51.384Z",
+    "collisions": [
+      "measurableSet_norm_gt_of_continuousOn"
+    ]
+  },
+  "LeanModularForms/HeckeRIngs/GL2/LevelEmbed.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:32:27.564Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/Unified/TwistedHeckeRing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:32:39.123Z"
+  },
+  "LeanModularForms/HeckeRIngs/GLn/CongruenceHecke/AtkinLehner.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:32:42.794Z"
+  },
+  "LeanModularForms/HeckeRIngs/GLn/SL2Surjection.lean": {
+    "checkedAt": "2026-09-27T21:32:43.955Z",
+    "collisions": [
+      "SL2Reduction.natAbs_emod_lt",
+      "SL2Reduction.isCoprime_emod"
+    ]
+  },
+  "LeanModularForms/Modularforms/DimGenCongLevels/Auxiliary.lean": {
+    "checkedAt": "2026-09-27T21:32:52.109Z",
+    "collisions": [
+      "SpherePacking.ModularForms.norm_cuspFunction_div_pow_le_of_ball_bound",
+      "SpherePacking.ModularForms.norm_circleIntegral_cuspFunction_div_pow_le"
+    ]
+  },
+  "LeanModularForms/Modularforms/DimGenCongLevels/FiniteDimensional.lean": {
+    "checkedAt": "2026-09-27T21:32:54.384Z",
+    "collisions": [
+      "SpherePacking.ModularForms.qKerBelow_antitone",
+      "SpherePacking.ModularForms.qKerBelow_iInf_eq_bot",
+      "SpherePacking.ModularForms.exists_qKerBelow_eq_bot"
+    ]
+  },
+  "LeanModularForms/Modularforms/PSL2Action.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:32:57.721Z"
+  },
+  "LeanModularForms/ForMathlib/ArcGenericFTCProvider.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:18:11.898Z"
+  },
+  "LeanModularForms/ForMathlib/EllipticPoints.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:18:23.267Z",
+    "collisions": [
+      "rho_normSq_eq_one",
+      "rho_plus_one_normSq_eq_one"
+    ]
+  },
+  "LeanModularForms/ForMathlib/FDBoundaryReparametrization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:18:39.069Z"
+  },
+  "LeanModularForms/ForMathlib/FDWindingDataFullAssembly.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:18:40.481Z"
+  },
+  "LeanModularForms/ForMathlib/GeneralizedResidueTheory/Homotopy/Invariance.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:18:44.818Z"
+  },
+  "LeanModularForms/ForMathlib/Orbits.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:18:48.656Z"
+  },
+  "LeanModularForms/ForMathlib/ResidueCircleIntegral.lean": {
+    "checkedAt": "2026-09-27T21:18:49.454Z",
+    "collisions": [
+      "limUnder_eq_of_eventuallyEq",
+      "circleIntegral_eq_zero_of_analyticOnNhd_ball"
+    ]
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula/OnCurvePV/Main.lean": {
+    "checkedAt": "2026-09-27T21:19:55.805Z",
+    "collisions": [
+      "arg_ofReal_mul_I"
+    ]
+  },
+  "LeanModularForms/ForMathlib/WindingDecomposition.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:25:12.132Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/AdjointTheory/ConcreteFamily.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:26:10.733Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/FourierHecke.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:27:14.634Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/Gamma1Pair.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:27:18.262Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/Newforms/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:28:56.217Z"
+  },
+  "LeanModularForms/HeckeRIngs/GLn/TransposeAntiInvolution.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:28:57.773Z"
+  },
+  "LeanModularForms/Modularforms/LFunction.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:28:59.095Z",
+    "collisions": [
+      "LSeries.HasMeromorphicExtensionWithPole._root_.meromorphicOrderAt_div_neg_of_orderAt_lt"
+    ]
+  },
+  "LeanModularForms/SMOObligations/Lemma4_6_14.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:29:56.459Z"
+  },
+  "LeanModularForms/Eigenforms/ConductorTheorem.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:17:17.587Z"
+  },
+  "LeanModularForms/ForMathlib/AsymmetricSingleCrossing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:22:55.372Z"
+  },
+  "LeanModularForms/ForMathlib/BoundaryWindingArcProof.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:22:56.258Z"
+  },
+  "LeanModularForms/ForMathlib/BoundaryWindingSeg1Proof.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:23:41.947Z"
+  },
+  "LeanModularForms/ForMathlib/CrossingAnalysis.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:24:19.490Z",
+    "collisions": [
+      "PwC1Immersion.eventually_not_in_partition_left",
+      "PwC1Immersion.eventually_not_in_partition_right",
+      "PwC1Immersion.Icc_subset_of_Ioo_subset"
+    ]
+  },
+  "LeanModularForms/ForMathlib/GeneralizedResidueTheory/Residue/MultipointPV.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:24:36.043Z"
+  },
+  "LeanModularForms/ForMathlib/PaperPwC1Immersion.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:24:38.688Z",
+    "collisions": [
+      "ClosedPwC1Curve.derivWithin_eq_deriv_on_Ioo",
+      "consecutive_piece_induction",
+      "ClosedPwC1Curve.exists_consecutive_pair_aux",
+      "ClosedPwC1Curve.exists_consecutive_pair_containing",
+      "ClosedPwC1Immersion.exists_predecessor",
+      "ClosedPwC1Immersion.exists_successor",
+      "lipschitzOnWith_Icc_trans"
+    ]
+  },
+  "LeanModularForms/ForMathlib/Seg1FTCProvider.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:14.185Z"
+  },
+  "LeanModularForms/ForMathlib/VertSegFTCProvider.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:16.191Z"
+  },
+  "LeanModularForms/HeckeRIngs/AbstractHeckeRing/Multiplication.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:19.509Z"
+  },
+  "LeanModularForms/HeckeRIngs/AbstractHeckeRing/Ring.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:21.225Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/AdjointTheoryPetersson.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:27:58.959Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/HeckeT_p.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:28:01.569Z"
+  },
+  "LeanModularForms/HeckeRIngs/GLn/CongruenceHecke/Foundation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:28:05.677Z"
+  },
+  "LeanModularForms/HeckeRIngs/GLn/SLnTransvection.lean": {
+    "checkedAt": "2026-09-27T21:28:09.097Z",
+    "collisions": [
+      "slTransvecG_mul",
+      "slTransvecG_zero"
+    ]
+  },
+  "LeanModularForms/Modularforms/DimensionFormulas.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:28:37.799Z"
+  },
+  "LeanModularForms/Modularforms/IsCuspForm.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:28:53.103Z"
+  },
+  "LeanModularForms/ForMathlib/ArcFTCAtI.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:23:39.551Z"
+  },
+  "LeanModularForms/ForMathlib/CoreIdentityProof.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:23:44.975Z"
+  },
+  "LeanModularForms/ForMathlib/ExitTime.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:23:52.952Z"
+  },
+  "LeanModularForms/ForMathlib/GeneralizedWindingNumber.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:24:00.862Z"
+  },
+  "LeanModularForms/ForMathlib/HungerbuhlerWasem/CPVExistenceMulti.lean": {
+    "checkedAt": "2026-09-27T21:24:04.945Z",
+    "collisions": [
+      "HungerbuhlerWasem.min_pairwise_distance_pos",
+      "HungerbuhlerWasem.crossings_bounded_from_endpoints_finset",
+      "HungerbuhlerWasem.crossings_bounded_from_partition_finset"
+    ]
+  },
+  "LeanModularForms/ForMathlib/HungerbuhlerWasem/MultiCrossingCPV.lean": {
+    "checkedAt": "2026-09-27T21:25:03.332Z",
+    "collisions": [
+      "Complex.avoids_delta_bound"
+    ]
+  },
+  "LeanModularForms/ForMathlib/PiecewiseC1Path.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:34:18.352Z"
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula/PVChain/OnCurveCapture.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:34:29.737Z"
+  },
+  "LeanModularForms/ForMathlib/WindingArgDiff.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:34:32.669Z"
+  },
+  "LeanModularForms/ForMathlib/WindingWeightProofs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:34:33.323Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/AdjointTheory.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:35:49.441Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/AdjointTheory/FDTransport.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:35:50.259Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/Fricke.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:36:06.105Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/HeckeModularForm_Gamma0.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:36:14.357Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/Unified/Gamma0RingDn.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:36:15.140Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/Unified/RingTransport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:36:17.399Z"
+  },
+  "LeanModularForms/HeckeRIngs/GLn/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:36:18.569Z"
+  },
+  "LeanModularForms/HeckeRIngs/GLn/PolynomialRing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:36:49.088Z"
+  },
+  "LeanModularForms/ForMathlib/CrossingAtI.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:22:58.098Z"
+  },
+  "LeanModularForms/ForMathlib/FDBoundary.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:23:19.187Z"
+  },
+  "LeanModularForms/ForMathlib/FDBoundaryH.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:23:47.975Z",
+    "collisions": [
+      "fdBoundary_H_seg1_cont",
+      "fdBoundary_H_seg23_cont",
+      "fdBoundary_H_seg23b_cont",
+      "fdBoundary_H_seg4_cont",
+      "fdBoundary_H_seg5_cont",
+      "fdBoundary_H_eq_layered"
+    ]
+  },
+  "LeanModularForms/ForMathlib/GeneralizedResidueTheory/PVInfrastructure/StepBounds.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:24:11.883Z"
+  },
+  "LeanModularForms/ForMathlib/GeneralizedResidueTheory/Residue/MeasureHelpers.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:24:15.729Z"
+  },
+  "LeanModularForms/ForMathlib/HungerbuhlerWasem/CrossingCPV.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:24:20.232Z"
+  },
+  "LeanModularForms/ForMathlib/PiecewiseContourIntegral.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:24:21.738Z",
+    "collisions": [
+      "PiecewiseC1Path.ftc_no_partition",
+      "PiecewiseC1Path.partition_filter_card_lt_left",
+      "PiecewiseC1Path.partition_filter_card_lt_right",
+      "PiecewiseC1Path.integrability_split",
+      "PiecewiseC1Path.ftc_induction"
+    ]
+  },
+  "LeanModularForms/ForMathlib/SimplePoleIntegral.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:24:40.497Z"
+  },
+  "LeanModularForms/ForMathlib/SmoothBoundaryWindingProof.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:24:48.009Z"
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula/OnCurvePV/EndpointCorner.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:05.798Z"
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula/WindingWeights/Common.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:25:10.454Z",
+    "collisions": [
+      "ftc_log_piece_congr_aux"
+    ]
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula/WindingWeights/I.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:47.098Z"
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula/WindingWeights/Rho.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:50.316Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/HeckeT_p_GLpair.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:26:53.401Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/HeckeT_p_Gamma0.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:26:59.368Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/Newforms/MainLemma.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:28:03.753Z"
+  },
+  "LeanModularForms/Modularforms/ForMathlib_Cusps.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:28:04.885Z"
+  },
+  "LeanModularForms/ForMathlib/ContourIntegral/PVSplit.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:23:21.284Z"
+  },
+  "LeanModularForms/ForMathlib/DixonDiff.lean": {
+    "checkedAt": "2026-09-27T21:23:31.774Z",
+    "collisions": [
+      "avoids_delta_bound"
+    ]
+  },
+  "LeanModularForms/ForMathlib/FDBoundaryPath.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:18.710Z"
+  },
+  "LeanModularForms/ForMathlib/GeneralizedResidueTheory/Homotopy/Integrality.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:25:19.466Z"
+  },
+  "LeanModularForms/ForMathlib/HungerbuhlerWasem/LaurentExtraction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:25.077Z"
+  },
+  "LeanModularForms/ForMathlib/Seg4FTCProvider.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:38.709Z"
+  },
+  "LeanModularForms/ForMathlib/TrigLemmas.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:25:39.545Z"
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula/PVChain/ResidueSideInfra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:42.575Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/HeckeActionGeneral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:43.109Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/HeckeT_p_Gamma1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:43.871Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/Newforms/LevelRaiseComm.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:44.298Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/Unified/NebentypusHeckeRingHom.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:26:26.802Z"
+  },
+  "LeanModularForms/HeckeRIngs/GLn/PrimeDecomposition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:26:30.344Z"
+  },
+  "LeanModularForms/SMOObligations/StrongMultiplicityOneFull.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:28:23.879Z"
+  },
+  "LeanModularForms/ForMathlib/GeneralizedResidueTheory/OnCurvePV/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:17:47.986Z"
+  },
+  "LeanModularForms/ForMathlib/GeneralizedResidueTheory/PVInfrastructure/GammaAnalysis.lean": {
+    "checkedAt": "2026-09-27T21:17:58.773Z",
+    "collisions": [
+      "hasDerivAt_remainder_bound",
+      "norm_real_smul"
+    ]
+  },
+  "LeanModularForms/ForMathlib/HungerbuhlerWasem/LocalCutoffs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:18:16.030Z"
+  },
+  "LeanModularForms/ForMathlib/InteriorContourIntegral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:18:24.828Z"
+  },
+  "LeanModularForms/ForMathlib/InteriorWinding.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:18:25.770Z"
+  },
+  "LeanModularForms/ForMathlib/ResidueSide.lean": {
+    "checkedAt": "2026-09-27T21:20:56.946Z",
+    "collisions": [
+      "measurableSet_norm_gt_of_continuousOn"
+    ]
+  },
+  "LeanModularForms/HeckeRIngs/AbstractHeckeRing/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:24:55.621Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/CongruenceIndex.lean": {
+    "checkedAt": "2026-09-27T21:25:12.921Z",
+    "collisions": [
+      "HeckeRing.GL2.dvd_sub_val_mul",
+      "HeckeRing.GL2.SL2_entry_mul",
+      "HeckeRing.GL2.TjS_inv_10",
+      "HeckeRing.GL2.TjS_inv_11",
+      "HeckeRing.GL2.TjS_00",
+      "HeckeRing.GL2.TjS_10",
+      "HeckeRing.GL2.TjS_inv_mul_10",
+      "HeckeRing.GL2.rep_diff_10",
+      "HeckeRing.GL2.Gamma0_prime_index_inj",
+      "HeckeRing.GL2.Gamma0_prime_index_surj"
+    ]
+  },
+  "LeanModularForms/ForMathlib/FlatChordBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:21:02.578Z"
+  },
+  "LeanModularForms/ForMathlib/GeneralizedResidueTheory/ArcCalculus.lean": {
+    "checkedAt": "2026-09-27T21:21:11.364Z",
+    "collisions": [
+      "ArcCalculus.unitArc_angle_hasDerivAt"
+    ]
+  },
+  "LeanModularForms/ForMathlib/GeneralizedResidueTheory/CauchyPrimitive.lean": {
+    "checkedAt": "2026-09-27T21:21:13.985Z",
+    "collisions": [
+      "segment_subset_convex",
+      "integral_t_mul_deriv_eq",
+      "continuous_segmentMap",
+      "hasDerivAt_segmentIntegrand"
+    ]
+  },
+  "LeanModularForms/ForMathlib/GeneralizedResidueTheory/PVInfrastructure/UniformStepBound.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:21:43.512Z"
+  },
+  "LeanModularForms/ForMathlib/HungerbuhlerWasem/Crossing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:21:44.936Z"
+  },
+  "LeanModularForms/ForMathlib/ValenceFormulaBridged.lean": {
+    "checkedAt": "2026-09-27T21:25:17.839Z",
+    "collisions": [
+      "integrand_form_eq"
+    ]
+  },
+  "LeanModularForms/HeckeRIngs/AbstractHeckeRing/Commutativity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:24.192Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/HeckeAction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:29.039Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/HeckeModularForm.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:32.715Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/MultiplicationTable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:33.393Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/Unified/ShimuraHom.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:26:13.338Z"
+  },
+  "LeanModularForms/HeckeRIngs/GLn/DiagonalCosets.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:26:14.063Z"
+  },
+  "LeanModularForms/Modularforms/ResToImagAxis.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:26:19.549Z"
+  },
+  "LeanModularForms/Modularforms/SlashActionAuxil.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:26:31.669Z"
+  },
+  "LeanModularForms/Eigenforms/MainLemma.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:15:43.495Z"
+  },
+  "LeanModularForms/ForMathlib/BoundaryWinding.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:17:35.648Z"
+  },
+  "LeanModularForms/ForMathlib/ClassicalCPV.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:17:36.649Z",
+    "collisions": [
+      "PiecewiseC1Curve.notMem_innerPartition_of_notMem_partition"
+    ]
+  },
+  "LeanModularForms/ForMathlib/DixonTheorem.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:18:02.757Z"
+  },
+  "LeanModularForms/ForMathlib/GeneralizedResidueTheory/PVInfrastructure/RemainderAnalysis.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:18:03.828Z"
+  },
+  "LeanModularForms/ForMathlib/GeneralizedResidueTheory/Residue.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:18:19.408Z"
+  },
+  "LeanModularForms/ForMathlib/HungerbuhlerWasem/CPVExistence.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:18:21.461Z",
+    "collisions": [
+      "HungerbuhlerWasem.ofReal_pos_mul_mem_slitPlane"
+    ]
+  },
+  "LeanModularForms/ForMathlib/HungerbuhlerWasem/HigherOrderAsymptotics.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:18:56.845Z"
+  },
+  "LeanModularForms/ForMathlib/HungerbuhlerWasem/SectorCancellation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:19:45.123Z"
+  },
+  "LeanModularForms/ForMathlib/SegmentFTC.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:19:45.851Z"
+  },
+  "LeanModularForms/ForMathlib/SingleCrossing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:19:53.469Z"
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula/Boundary/Smooth.lean": {
+    "checkedAt": "2026-09-27T21:20:05.334Z",
+    "collisions": [
+      "arc_hasDerivAt",
+      "fdBoundary_H_eq_arc_near",
+      "arc_deriv_continuous",
+      "arc_limit_ne_zero",
+      "fdBoundary_H_hasDerivAt_seg1'",
+      "fdBoundary_H_hasDerivAt_seg5'",
+      "seg_vertical_deriv_ne_zero",
+      "tendsto_of_eventually_const_left",
+      "tendsto_of_eventually_const_right",
+      "seg4_eventuallyEq_left_4",
+      "seg5_eventuallyEq_right_4",
+      "re_arc_deriv_eq",
+      "arc_val_at_3",
+      "seg4_val_at_3",
+      "seg1_eventuallyEq_left_1",
+      "arc_val_at_1",
+      "fdBoundaryFullPartition_subset",
+      "fdBoundaryFullPartition_endpoints",
+      "deriv_continuousOn_Ioo_const",
+      "norm_cast_sub_eq"
+    ]
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula/PVChain/Seg5CuspIntegral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:23:20.878Z"
+  },
+  "LeanModularForms/ForMathlib/WindingWeightsUnconditional.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:23:24.143Z"
+  },
+  "LeanModularForms/HeckeRIngs/AbstractHeckeRing/Degree.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:23:27.456Z"
+  },
+  "LeanModularForms/HeckeRIngs/AbstractHeckeRing/Module.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:23:28.880Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/AdjointTheory/SummandAdjoint.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:23:55.940Z"
+  },
+  "LeanModularForms/HeckeRIngs/GLn/CoprimeMul.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:23:56.753Z"
+  },
+  "LeanModularForms/Modularforms/PeterssonLevelN.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:23:58.017Z"
+  },
+  "LeanModularForms/Modularforms/QExpansionSlash.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:24:24.504Z"
+  },
+  "LeanModularForms/SMOObligations/MiyakeDescend.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:28:48.837Z"
+  },
+  "LeanModularForms/ForMathlib/BoundaryWindingSeg4Proof.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:20:05.243Z"
+  },
+  "LeanModularForms/ForMathlib/GeneralizedResidueTheory/Residue/MultipointPV/DominatedConvergence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:20:12.448Z"
+  },
+  "LeanModularForms/ForMathlib/HungerbuhlerWasem/MultiPoleDCT.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:20:24.645Z"
+  },
+  "LeanModularForms/ForMathlib/MultipointPV.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:20:56.604Z"
+  },
+  "LeanModularForms/ForMathlib/PVChainProof.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:21:13.639Z"
+  },
+  "LeanModularForms/ForMathlib/SegmentAnalysis.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:21:23.353Z"
+  },
+  "LeanModularForms/ForMathlib/ValenceFormula/Boundary/Bounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:21:25.023Z"
+  },
+  "LeanModularForms/HeckeRIngs/AbstractHeckeRing/StabConjugation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:21:29.019Z"
+  },
+  "LeanModularForms/HeckeRIngs/GL2/LevelRaise.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:21:29.752Z",
+    "collisions": [
+      "HeckeRing.GL2.natCast_dvd_ediv_of_mul_dvd"
+    ]
+  },
+  "LeanModularForms/SMOObligations/DescentCosets.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:09.049Z"
+  },
+  "LeanModularForms/SMOObligations/Miyake465.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:19.698Z"
+  },
+  "LeanModularForms/SMOObligations/SquarefreeDecomp.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:25:21.808Z"
+  }
+}
