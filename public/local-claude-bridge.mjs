@@ -14751,9 +14751,14 @@ if (req.method === "POST" && url.pathname === "/archangel-translate") {
           summary[r.outcome] = (summary[r.outcome] || 0) + 1
           send({ type: "entry-result", id: entry.id, name: entry.name, sourcePath: entry.sourcePath, outcome: r.outcome })
         } catch (e) {
-          summary.failed++
-          send({ type: "message-annotation", subtype: "error", thought: `⚠️ #${entry.id} ${entry.name}: unexpected error — ${e?.message || e}` })
-          send({ type: "entry-result", id: entry.id, name: entry.name, sourcePath: entry.sourcePath, outcome: "failed", error: String(e?.message || e).slice(0, 300) })
+          // a module with no export falls back to building it in the source checkout; where that cannot succeed (a
+          // runner has no toolchain for it, or the target does not exist) the entry cannot be translated from here:
+          // final, not a failure to retry every run
+          const msg = String(e?.message || e)
+          const outcome = /Command failed: lake build|unknown target/.test(msg) ? "export-unavailable" : "failed"
+          summary[outcome] = (summary[outcome] || 0) + 1
+          send({ type: "message-annotation", subtype: "error", thought: `⚠️ #${entry.id} ${entry.name}: ${outcome === "failed" ? "unexpected error" : "no export of its module"} — ${msg}` })
+          send({ type: "entry-result", id: entry.id, name: entry.name, sourcePath: entry.sourcePath, outcome, error: msg.slice(0, 300) })
         }
         processed++
         send({ type: "progress", processed, total: matches.length, summary })
