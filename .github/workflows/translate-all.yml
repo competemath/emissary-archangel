@@ -54,7 +54,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           MAX: ${{ inputs.max_libraries || '6' }}
-          JOB_BUDGET: "14"
+          JOB_BUDGET: "16"   # of the organisation's 20 runners; the rest stay free for competemath/tengoku
           DRY: ${{ inputs.dry_run || 'false' }}
           # agent passes also need the repository variable TRANSLATE_AGENT=on (off until the cloud agent is proven)
           HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' && vars.TRANSLATE_AGENT == 'on' }}
@@ -63,9 +63,11 @@ jobs:
             --jq '.[] | select(.status != "completed") | .displayTitle' > running.txt
           # runners are shared with the tree's own gate and merge queue (the organisation's concurrent-job limit): this
           # repository's workflows keep to JOB_BUDGET jobs in flight, so a PR on competemath/tengoku never waits on us
+          # jobs RUNNING now: a matrix's jobs held back by max-parallel wait without a runner, and counting them starved
+          # translation for hours behind flt-anthropic's 64-shard setup (12 running, 52 waiting)
           busy=0
           for id in $(gh run list -R "$GITHUB_REPOSITORY" --limit 60 --json databaseId,status --jq '.[] | select(.status != "completed") | .databaseId'); do
-            busy=$((busy + $(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs" --jq '[.jobs[] | select(.status != "completed")] | length')))
+            busy=$((busy + $(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" --jq '[.jobs[] | select(.status == "in_progress")] | length')))
           done
           echo "$busy" > busy.txt
           python3 - <<'PY'
