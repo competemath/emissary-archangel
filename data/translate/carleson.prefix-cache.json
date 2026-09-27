@@ -1,0 +1,366 @@
+{
+  "Carleson/Classical/HilbertStrongType.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:57:00.379Z"
+  },
+  "Carleson/Discrete/ForestComplement.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:57:02.671Z"
+  },
+  "Carleson/Discrete/ForestUnion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:57:10.043Z"
+  },
+  "Carleson/ForestOperator/LargeSeparation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:57:11.173Z"
+  },
+  "Carleson/ToMathlib/Analysis/Fourier/AddCircle.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:57:27.453Z"
+  },
+  "Carleson/ToMathlib/Analysis/SpecialFunctions/ImproperIntegrals.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:57:29.517Z"
+  },
+  "Carleson/ToMathlib/ENorm.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:57:30.393Z",
+    "collisions": [
+      "MeasureTheory._root_.ENNReal.toNNReal_smul"
+    ]
+  },
+  "Carleson/ToMathlib/MeasureTheory/Function/LpSeminorm/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:57:56.116Z"
+  },
+  "Carleson/Classical/Approximation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:58:24.911Z"
+  },
+  "Carleson/Classical/CarlesonHuntBasic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:58:29.398Z"
+  },
+  "Carleson/Classical/Helper.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:58:39.770Z"
+  },
+  "Carleson/Classical/VanDerCorput.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:58:45.566Z"
+  },
+  "Carleson/ForestOperator/L2Estimate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:00:03.358Z"
+  },
+  "Carleson/GridStructure.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:00:07.066Z"
+  },
+  "Carleson/LipschitzNorm.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:00:38.805Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Measure/NoAtoms/Basics.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:00:47.879Z"
+  },
+  "Carleson/ToMathlib/Order/CompleteLattice/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:00:50.205Z"
+  },
+  "Carleson/ToMathlib/Topology/ContinuousOn.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:00:50.883Z"
+  },
+  "Carleson/Classical/ControlApproximationEffectBasic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:00:16.344Z"
+  },
+  "Carleson/Classical/DirichletKernel.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:00:26.346Z"
+  },
+  "Carleson/ForestOperator/QuantativeEstimate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:00:55.974Z"
+  },
+  "Carleson/ToMathlib/Analysis/RCLike/Misc.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:00:59.247Z"
+  },
+  "Carleson/ToMathlib/Analysis/SpecialFunctions/Integrals/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:01:03.108Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Function/LpSeminorm/TriangleInequality.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:01:04.096Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Integral/Bochner/ContinuousLinearMap.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:01:05.153Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Integral/IntervalIntegral/Periodic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:01:14.955Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Integral/MeanInequalities.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:01:24.310Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Integral/Periodic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:03:34.099Z"
+  },
+  "Carleson/TwoSidedCarleson/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:03:56.829Z"
+  },
+  "Carleson/HolderVanDerCorput.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:02:23.625Z"
+  },
+  "Carleson/ProofData.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:02:25.183Z"
+  },
+  "Carleson/TileStructure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:02:32.636Z"
+  },
+  "Carleson/ToMathlib/Data/NNReal.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:02:43.507Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Function/LorentzSeminorm/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:02:52.940Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Function/LpNorm/Misc.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:02:53.997Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Measure/IsDoubling.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:03:10.600Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Measure/NNReal.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:03:38.744Z"
+  },
+  "Carleson/ToMathlib/MinLayer.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:04:03.341Z"
+  },
+  "Carleson/ToMathlib/Order/ConditionallyCompleteLattice/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:04:33.717Z"
+  },
+  "Carleson/TwoSidedCarleson/RestrictedWeakType.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:04:36.163Z"
+  },
+  "Carleson/TwoSidedCarleson/WeakCalderonZygmund.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:04:37.187Z"
+  },
+  "Carleson/Antichain/TileCorrelation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:02:43.278Z"
+  },
+  "Carleson/Classical/HilbertKernel.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:02:56.725Z"
+  },
+  "Carleson/ForestOperator/PointwiseEstimate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:03:26.280Z"
+  },
+  "Carleson/MetricCarleson/Main.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:03:28.267Z"
+  },
+  "Carleson/MetricCarleson/Truncation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:03:34.778Z"
+  },
+  "Carleson/ToMathlib/Analysis/RCLike/Components.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:03:42.642Z"
+  },
+  "Carleson/ToMathlib/BoundedCompactSupport.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:03:43.356Z",
+    "collisions": [
+      "MeasureTheory.BoundedCompactSupport"
+    ]
+  },
+  "Carleson/ToMathlib/BoundedFiniteSupport.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:04:06.746Z"
+  },
+  "Carleson/ToMathlib/Data/ENNReal.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:04:15.102Z"
+  },
+  "Carleson/ToMathlib/LorentzType.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:04:47.364Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Function/LocallyIntegrable.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:04:48.263Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Function/SimpleFunc.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:04:49.627Z",
+    "collisions": [
+      "MeasureTheory.SimpleFunc.helper"
+    ]
+  },
+  "Carleson/ToMathlib/MeasureTheory/Integral/IntervalIntegral/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:05:12.816Z"
+  },
+  "Carleson/ToMathlib/RealInterpolation/Minkowski.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:05:14.612Z"
+  },
+  "Carleson/Classical/CarlesonOnTheRealLineBasic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:57:34.477Z"
+  },
+  "Carleson/Classical/CarlesonOperatorReal.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:57:36.765Z"
+  },
+  "Carleson/ToMathlib/Annulus.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T19:58:11.157Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Function/L1Integrable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T19:59:49.069Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Function/LorentzSeminorm/TriangleInequality.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:00:24.493Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Measure/Prod.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:00:25.556Z"
+  },
+  "Carleson/ToMathlib/Rearrangement.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:00:30.343Z"
+  },
+  "Carleson/Antichain/AntichainTileCount.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:04:14.651Z"
+  },
+  "Carleson/Calculations.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:04:15.182Z"
+  },
+  "Carleson/Classical/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:04:31.215Z",
+    "collisions": [
+      "partialFourierSum'"
+    ]
+  },
+  "Carleson/Discrete/MainTheorem.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:05:51.853Z"
+  },
+  "Carleson/DoublingMeasure.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:05:53.761Z"
+  },
+  "Carleson/ForestOperator/Forests.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:06:18.269Z"
+  },
+  "Carleson/HolderNorm.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:06:21.212Z"
+  },
+  "Carleson/ToMathlib/CoveredByBalls.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:06:28.061Z"
+  },
+  "Carleson/ToMathlib/Distribution.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:06:41.919Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Measure/AEMeasurable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:07:21.243Z"
+  },
+  "Carleson/ToMathlib/Misc.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:07:21.908Z"
+  },
+  "Carleson/ToMathlib/RealInterpolation/InterpolatedExponents.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:07:34.411Z"
+  },
+  "Carleson/Classical/SpectralProjectionBound.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:07:56.702Z"
+  },
+  "Carleson/MetricCarleson/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:08:08.525Z"
+  },
+  "Carleson/TileExistence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:08:09.642Z"
+  },
+  "Carleson/ToMathlib/Analysis/Convolution.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:08:11.794Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Function/LorentzSeminorm/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:08:21.209Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Function/LpSeminorm/CompareExp.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:08:24.109Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Measure/NoAtoms/Prod.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:08:24.841Z"
+  },
+  "Carleson/ToMathlib/RealInterpolation/Main.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:08:42.341Z"
+  },
+  "Carleson/ToMathlib/IntegralBallContinuity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:03:27.609Z"
+  },
+  "Carleson/ToMathlib/MeasureTheory/Integral/Lebesgue.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:04:04.461Z"
+  },
+  "Carleson/ToMathlib/RealInterpolation/Misc.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:04:14.021Z"
+  },
+  "Carleson/ToMathlib/Topology/Instances/AddCircle/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:04:15.398Z"
+  },
+  "Carleson/ToMathlib/WeakType.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:04:24.432Z"
+  },
+  "Carleson/TwoSidedCarleson/NontangentialOperator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:04:29.878Z"
+  }
+}
