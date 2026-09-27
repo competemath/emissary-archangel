@@ -37,6 +37,10 @@ on:
         description: "internal: which round this is"
         required: false
         default: "1"
+      parallel:
+        description: "Shards running at once (runners are shared with translation and the tree's gate and queue)."
+        required: false
+        default: "12"
       max_rounds:
         description: "Rounds before the workflow stops dispatching itself."
         required: false
@@ -134,7 +138,7 @@ jobs:
     permissions: { contents: read }
     strategy:
       fail-fast: false
-      max-parallel: 12   # runners are shared with the tree's gate and merge queue
+      max-parallel: ${{ fromJSON(inputs.parallel || '12') }}   # runners are shared with translation and the tree's gate and queue
       matrix:
         shard: ${{ fromJSON(needs.prime.outputs.shards) }}
     env:
@@ -328,7 +332,8 @@ jobs:
           MAX_ROUNDS: ${{ inputs.max_rounds }}
           PRIME_MINUTES: ${{ inputs.prime_minutes }}
           EXPAND_CHUNK: ${{ inputs.expand_chunk }}
+          PARALLEL: ${{ inputs.parallel || '12' }}
         run: |
           gh workflow run setup-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$KEY" -f shards="$SHARDS" -f prime_minutes="$PRIME_MINUTES" \
-            -f expand_chunk="$EXPAND_CHUNK" -f round="$((ROUND + 1))" -f max_rounds="$MAX_ROUNDS" -f resume_run="$GITHUB_RUN_ID"
+            -f expand_chunk="$EXPAND_CHUNK" -f round="$((ROUND + 1))" -f max_rounds="$MAX_ROUNDS" -f resume_run="$GITHUB_RUN_ID" -f parallel="$PARALLEL"
           echo "::notice::dispatched round $((ROUND + 1))"
