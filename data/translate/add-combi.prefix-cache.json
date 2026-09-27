@@ -1,0 +1,50 @@
+{
+  "AddCombi/BSG.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:46:46.328Z"
+  },
+  "AddCombi/Convolution/Finite/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:46:46.761Z"
+  },
+  "AddCombi/Convolution/Finite/Order.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:46:51.948Z"
+  },
+  "AddCombi/Mathlib/Algebra/BigOperators/Ring/Finset.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:46:52.251Z"
+  },
+  "AddCombi/Mathlib/Algebra/Group/Action/Pointwise/Set/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:47:02.546Z"
+  },
+  "AddCombi/Mathlib/Algebra/GroupWithZero/Indicator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:47:02.831Z"
+  },
+  "AddCombi/Mathlib/Algebra/Order/GroupWithZero/Indicator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:47:03.118Z"
+  },
+  "AddCombi/Mathlib/Algebra/Order/Ring/NNRat.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:47:03.889Z"
+  },
+  "AddCombi/Mathlib/Algebra/Star/Pi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:47:04.170Z"
+  },
+  "AddCombi/Mathlib/Combinatorics/Additive/Energy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:47:08.274Z"
+  },
+  "AddCombi/Mathlib/Combinatorics/Additive/Sidon.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:47:09.028Z"
+  },
+  "AddCombi/Mathlib/Data/Finset/Density.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:47:11.955Z"
+  }
+}
