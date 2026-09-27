@@ -1,0 +1,223 @@
+{
+  "SpherePacking/Basic/E8.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:51:16.887Z"
+  },
+  "SpherePacking/CohnElkies/Prereqs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:57:37.734Z"
+  },
+  "SpherePacking/ForMathlib/AtImInfty.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:57:38.435Z"
+  },
+  "SpherePacking/ForMathlib/CauchyGoursat/OpenRectangular.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:57:40.472Z",
+    "collisions": [
+      "Complex.hzero"
+    ]
+  },
+  "SpherePacking/ForMathlib/Finsupp.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:57:56.266Z"
+  },
+  "SpherePacking/ForMathlib/FunctionsBoundedAtInfty.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:57:56.955Z"
+  },
+  "SpherePacking/ForMathlib/InvPowSummability.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:58:07.908Z"
+  },
+  "SpherePacking/ForMathlib/tprod.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:58:08.638Z"
+  },
+  "SpherePacking/MagicFunction/a/IntegralEstimates/I1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:58:09.774Z"
+  },
+  "SpherePacking/MagicFunction/a/IntegralEstimates/I5.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:58:10.120Z"
+  },
+  "SpherePacking/ModularForms/QExpansion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:58:14.696Z"
+  },
+  "SpherePacking/ModularForms/ResToImagAxis.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:58:15.396Z"
+  },
+  "SpherePacking/Basic/PeriodicPacking.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:52:25.280Z"
+  },
+  "SpherePacking/Basic/SpherePacking.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:52:35.596Z"
+  },
+  "SpherePacking/ForMathlib/RadialSchwartz/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:53:22.932Z",
+    "collisions": [
+      "Function.IsRadial._root_.Norm.isRadial"
+    ]
+  },
+  "SpherePacking/ForMathlib/SlashActions.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:54:18.671Z"
+  },
+  "SpherePacking/ForMathlib/SpecificLimits.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:54:20.109Z"
+  },
+  "SpherePacking/ForMathlib/Vec.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:54:20.806Z"
+  },
+  "SpherePacking/ForMathlib/ZLattice.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:54:24.446Z"
+  },
+  "SpherePacking/MagicFunction/PolyFourierCoeffBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:54:42.486Z"
+  },
+  "SpherePacking/MagicFunction/a/IntegralEstimates/I4.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:54:56.943Z"
+  },
+  "SpherePacking/ModularForms/DimensionFormulas.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:54:58.582Z"
+  },
+  "SpherePacking/ModularForms/E2.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:54:59.632Z"
+  },
+  "SpherePacking/ModularForms/FG.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:55:30.899Z"
+  },
+  "SpherePacking/ModularForms/SerreDerivativeSlash.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:55:43.566Z"
+  },
+  "SpherePacking/ModularForms/exp_lems.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:55:44.359Z"
+  },
+  "SpherePacking/Tactic/Test/TendstoCont.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:55:45.828Z"
+  },
+  "SpherePacking/ForMathlib/ENNReal.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:53:01.950Z"
+  },
+  "SpherePacking/ForMathlib/Encard.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:53:02.599Z",
+    "collisions": [
+      "ENat._root_.Set.Infinite.exists_finite_subset_encard_gt"
+    ]
+  },
+  "SpherePacking/ForMathlib/MDifferentiableFunProp.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:53:30.886Z"
+  },
+  "SpherePacking/ForMathlib/VolumeOfBalls.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:53:31.808Z"
+  },
+  "SpherePacking/MagicFunction/IntegralParametrisations.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:53:33.793Z",
+    "collisions": [
+      "MagicFunction.Parametrisations._root_.ModularGroup.ST_eq",
+      "MagicFunction.Parametrisations._root_.ModularGroup.S_eq"
+    ]
+  },
+  "SpherePacking/MagicFunction/a/Eigenfunction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:54:07.829Z"
+  },
+  "SpherePacking/MagicFunction/a/Integrability/RealDecay.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:54:08.479Z"
+  },
+  "SpherePacking/MagicFunction/a/IntegralEstimates/I3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:54:09.656Z"
+  },
+  "SpherePacking/ModularForms/Delta.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:54:10.512Z"
+  },
+  "SpherePacking/ModularForms/JacobiTheta/Derivative.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:54:19.244Z"
+  },
+  "SpherePacking/ModularForms/SlashActionAuxil.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:54:20.375Z"
+  },
+  "SpherePacking/ModularForms/tsumderivWithin.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:54:21.200Z"
+  },
+  "SpherePacking/Tactic/NormNumI.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:54:24.377Z"
+  },
+  "SpherePacking/Tactic/TendstoCont.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:54:34.561Z"
+  },
+  "SpherePacking/ForMathlib/Cusps.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:51:02.819Z"
+  },
+  "SpherePacking/ForMathlib/ENat.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:51:04.693Z"
+  },
+  "SpherePacking/ForMathlib/Fourier.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:51:09.213Z"
+  },
+  "SpherePacking/ForMathlib/RadialSchwartz/Multidimensional.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:51:10.428Z"
+  },
+  "SpherePacking/MagicFunction/a/IntegralEstimates/I2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:51:33.153Z"
+  },
+  "SpherePacking/MagicFunction/a/IntegralEstimates/I6.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:51:33.922Z"
+  },
+  "SpherePacking/ModularForms/Derivative.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:51:34.667Z"
+  },
+  "SpherePacking/ModularForms/Eisenstein.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:51:35.732Z"
+  },
+  "SpherePacking/ModularForms/EisensteinAsymptotics.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:52:32.513Z"
+  },
+  "SpherePacking/ModularForms/IsCuspForm.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:52:37.225Z"
+  },
+  "SpherePacking/ModularForms/RamanujanIdentities.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:52:45.173Z"
+  }
+}
