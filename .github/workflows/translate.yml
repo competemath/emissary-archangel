@@ -74,10 +74,11 @@ jobs:
       ATTEMPTS: ${{ inputs.agent_attempts }}
       LEAN_NUM_THREADS: "4"
     steps:
-      - name: Free disk (the tree's cache, the library's exports)
+      - name: Free disk, in the background (the tree's cache, the library's exports)
+        # deleting the runner's preinstalled SDKs takes minutes; the steps that need the space wait for it only if short
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift
-          df -h /
+          nohup bash -c 'sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift; touch /tmp/disk-freed' > /dev/null 2>&1 &
+          df -h / | tail -1
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           filter: "blob:none"
@@ -99,6 +100,9 @@ jobs:
         env: { GH_TOKEN: "${{ github.token }}" }   # gh attestation verify
         run: |
           git clone -q --filter=blob:none https://github.com/competemath/tengoku tree
+          avail() { df --output=avail -BG / | tail -1 | tr -dc 0-9; }
+          while [ ! -f /tmp/disk-freed ] && [ "$(avail)" -lt 30 ]; do sleep 5; done
+          echo "free: $(avail) GB"
           cd tree
           scripts/cache.sh get 2>&1 | tail -5
           lake build Tengoku.All 2>&1 | tail -2
@@ -134,9 +138,10 @@ jobs:
             /opt/svc/bin/python leak-iv/server.py > leak-iv.log 2>&1 &
           svc PORT=7872 TENGOKU_DIR="$PWD/tree" EMISSARY_OLD_EXPORT="$PWD/data/export.ndjson" \
             /opt/svc/bin/python gate2/server.py > gate2.log 2>&1 &
+          # an SSE endpoint never finishes a response: ready means it answered 200, not that curl exited 0
           for port in 7871 7872; do
             for _ in $(seq 1 120); do
-              curl -s -m 3 -o /dev/null "http://127.0.0.1:$port/sse" -H 'Accept: text/event-stream' && break
+              [ "$(curl -s -m 2 -o /dev/null -w '%{http_code}' -H 'Accept: text/event-stream' "http://127.0.0.1:$port/sse" || true)" = 200 ] && break
               sleep 5
             done
           done
@@ -154,7 +159,7 @@ jobs:
           touch out/bank.jsonl out/results.jsonl
           [ -f "data/translate/$KEY.prefix-cache.json" ] && cp "data/translate/$KEY.prefix-cache.json" out/prefix-cache.json
           node scripts/queue-server.mjs --source "$KEY" --bank out/bank.jsonl --shard "$SHARD/$SHARDS" --limit "$LIMIT" \
-            --tree tree --ledger "data/translate/$KEY.jsonl" --mode "$MODE" --agent-attempts "$ATTEMPTS" > out/queue-server.log 2>&1 &
+            --tree tree --ledger "data/translate/$KEY.jsonl" --mode "$MODE" --agent-attempts "$ATTEMPTS" --plan out/plan.json > out/queue-server.log 2>&1 &
           token=$(openssl rand -hex 24)
           noagent=1
           if [ "$MODE" = agent ]; then
@@ -165,9 +170,11 @@ jobs:
             RECURSE_PREFIX_CACHE_PATH="$PWD/out/prefix-cache.json" node public/local-claude-bridge.mjs > out/bridge.log 2>&1 &
           for _ in $(seq 1 60); do curl -s -m 2 -o /dev/null http://127.0.0.1:4125/ && break; sleep 1; done
           head -1 out/queue-server.log
+          # stops before the job's limit: results and the bank are written entry by entry, so a cut-off shard keeps its work
+          # and the entries it never reached stay for the next run
           EMISSARY_RUN_SOURCE="$KEY" EMISSARY_NO_AGENT="$noagent" EMISSARY_RESULTS_FILE="$PWD/out/results.jsonl" RECURSE_LOG="$PWD/out/recurse.log" \
             EMISSARY_LEAK_IV_URL=http://127.0.0.1:7871/sse EMISSARY_GATE2_URL=http://127.0.0.1:7872/sse EMISSARY_LEAK_I_URL=http://127.0.0.1:9/sse \
-            node scripts/run-recurse.mjs 4125 "$token" '{"type":"all"}' "$KEY" | grep -E '^\[..:..:..\] (source|DONE|RESULT|ERROR|HTTP)' || true
+            timeout 320m node scripts/run-recurse.mjs 4125 "$token" '{"type":"all"}' "$KEY" | grep -E '^\[..:..:..\] (source|DONE|RESULT|ERROR|HTTP)' || true
           echo "outcomes: $(python3 -c "import collections, json; print(dict(collections.Counter(json.loads(l)['outcome'] for l in open('out/results.jsonl') if l.strip())))")"
           echo "banked: $(wc -l < out/bank.jsonl)"
       - name: Service logs (on failure)
@@ -198,10 +205,10 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { pattern: "shard-*", path: shards }
       - name: Fold the shards into the ledger and the bank, and commit them
-        env: { GH_TOKEN: "${{ github.token }}" }
+        env: { GH_TOKEN: "${{ github.token }}", ATTEMPTS: "${{ inputs.agent_attempts }}" }
         run: |
           mkdir -p shards
-          node scripts/translate-finish.mjs "$KEY" "$GITHUB_RUN_ID" shards
+          node scripts/translate-finish.mjs "$KEY" "$GITHUB_RUN_ID" shards "$MODE" "$ATTEMPTS"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add --sparse -- data/translate data/bank

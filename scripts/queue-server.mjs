@@ -2,6 +2,7 @@
 //
 //   node scripts/queue-server.mjs --source <key> --bank <file> [--port 3000] [--shard i/N] [--limit M]
 //        [--tree <tengoku checkout>] [--ledger data/translate/<key>.jsonl] [--mode mechanical|agent] [--agent-attempts 1]
+//        [--plan <file>]  (writes what this run selected, for translate-finish.mjs)
 //
 //   GET   /api/queue?source=<key>  this run's entries: pending, in the shard, not already on the tree's main, and
 //                                   not settled by the ledger (see `settled`)
@@ -12,7 +13,7 @@
 // is per file). The server owns its entries alone: no lock, no queue file writes; the ledger and the bank are the
 // run's outputs.
 import { createServer } from "node:http"
-import { appendFileSync, existsSync, readdirSync, readFileSync } from "node:fs"
+import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { stagingRecord } from "../lib/stage-record.mjs"
 
@@ -35,6 +36,7 @@ const TREE = opt("tree")
 const LEDGER = opt("ledger")
 const MODE = opt("mode", "agent")
 const AGENT_ATTEMPTS = Number(opt("agent-attempts", "1"))
+const PLAN = opt("plan")
 
 const sources = JSON.parse(readFileSync(join(ROOT, "sources.json"), "utf8"))
 const spec = sources.sources[SOURCE]
@@ -110,6 +112,7 @@ const mine = queue
   .sort((a, b) => a.sourcePath.localeCompare(b.sourcePath) || a.sourceLine - b.sourceLine)
   .slice(0, LIMIT)
 const byId = new Map(mine.map((e) => [e.id, e]))
+if (PLAN) writeFileSync(PLAN, JSON.stringify({ todo: mine.length, limited: mine.length === LIMIT, ...counts }) + "\n")
 console.log(`queue-server ${SOURCE} shard ${SHARD}/${SHARDS} (${MODE}): ${mine.length} to do — of ${counts.pending} pending, ${counts.otherShards} in other shards, ${counts.onTree} already on the tree, ${counts.settled} settled by the ledger`)
 
 const reply = (res, code, obj) => {

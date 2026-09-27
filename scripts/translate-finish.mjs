@@ -3,12 +3,14 @@
 //                                           reads it to skip what is settled)
 //   data/translate/<key>.prefix-cache.json  the bridge's per-file prefix cache (the newest entry per file wins)
 //   data/bank/<key>/<run>.jsonl             verified staging records not yet sent as a tengoku PR (bank-flush.mjs)
+//   data/translate/<key>.status.json        per mode, the last run: what it selected and how much is left for that mode
+//                                           (translate-all.yml stops dispatching a mode once nothing is left)
 //
-//   node scripts/translate-finish.mjs <key> <run id> <dir holding one sub-directory per shard>
+//   node scripts/translate-finish.mjs <key> <run id> <dir holding one sub-directory per shard> [mode] [agent attempts]
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-const [key, run, dir] = process.argv.slice(2)
+const [key, run, dir, mode = "mechanical", attemptsArg = "1"] = process.argv.slice(2)
 if (!key || !run || !dir) {
   console.error("usage: translate-finish.mjs <key> <run id> <dir>")
   process.exit(2)
@@ -55,4 +57,26 @@ for (const l of results) {
   const o = JSON.parse(l).outcome
   outcomes[o] = (outcomes[o] || 0) + 1
 }
-console.log(`${key} run ${run}: ${shards.length} shards, ${results.length} entries ${JSON.stringify(outcomes)}, ${bank.size} records banked, ${cacheChanged} prefix-cache entries updated`)
+
+// What is left for this mode: the entries the run selected that a run in the same mode would select again (the same
+// rules as queue-server.mjs `settled`), plus any it never reached (a shard that timed out, a crash).
+const plans = shards.map((s) => join(s, "plan.json")).filter(existsSync).map((f) => JSON.parse(readFileSync(f, "utf8")))
+const todo = plans.reduce((n, p) => n + p.todo, 0)
+const limited = plans.some((p) => p.limited)
+const done = new Set(["mechanical", "cached-mechanical", "agentic", "untranslatable", "unbankable", "export-unavailable"])
+if (mode === "mechanical") done.add("deferred-agent").add("unresolved")
+const tries = new Map()
+for (const l of lines(join(tdir, `${key}.jsonl`))) {
+  const r = JSON.parse(l)
+  if (r.outcome === "unresolved") tries.set(r.id, (tries.get(r.id) || 0) + 1)
+}
+const settledNow = results.filter((l) => {
+  const r = JSON.parse(l)
+  return done.has(r.outcome) || (r.outcome === "unresolved" && (tries.get(r.id) || 0) >= Number(attemptsArg))
+}).length
+const left = Math.max(0, todo - settledNow)
+const statusPath = join(tdir, `${key}.status.json`)
+const status = existsSync(statusPath) ? JSON.parse(readFileSync(statusPath, "utf8")) : {}
+status[mode] = { run, at: new Date().toISOString(), shards: shards.length, todo, processed: results.length, left, limited, outcomes }
+writeFileSync(statusPath, JSON.stringify(status, null, 2) + "\n")
+console.log(`${key} run ${run} (${mode}): ${shards.length} shards, ${todo} selected, ${results.length} processed ${JSON.stringify(outcomes)}, ${left} left${limited ? " (limited run)" : ""}, ${bank.size} records banked, ${cacheChanged} prefix-cache entries updated`)
