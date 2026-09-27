@@ -1,0 +1,1967 @@
+{
+  "MathFin/Binomial/Girsanov.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:51:29.385Z"
+  },
+  "MathFin/Binomial/SecondFTAP.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:51:32.154Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ComparisonCoefficients.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:36.686Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ComparisonTail.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:37.623Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/FlatTail.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:52:05.932Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ParabolicMaximum.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:52:06.802Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/SmoothValley.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:52:12.712Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualComparisonIntervals.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:27.898Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/BermudanConvergence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:31.416Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/BrownianGerm.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:31.742Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/CanonicalPrice.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:37.057Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ClassicalContact.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:39.500Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ConvexDerivativeTrace.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:55:41.905Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/DiscreteContactMartingale.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:55:43.030Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/GridReindexing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:44.345Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/PlaneDynkin.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:45.146Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/SpotShape.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:46.251Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/Verification.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:55:47.127Z"
+  },
+  "MathFin/BlackScholes/Digital.lean": {
+    "checkedAt": "2026-09-27T20:55:54.027Z",
+    "collisions": [
+      "MathFin.indicator_bsTerminal_Ioi_comp"
+    ]
+  },
+  "MathFin/BlackScholes/MertonJumpDiffusion.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:56:06.160Z"
+  },
+  "MathFin/BlackScholes/PDEFromFeynmanKac.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:57:04.956Z"
+  },
+  "MathFin/BlackScholes/PriceBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:57:09.997Z"
+  },
+  "MathFin/BlackScholes/PutStrikeConvexity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:57:12.634Z"
+  },
+  "MathFin/BlackScholes/StockNumeraire.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:57:16.733Z"
+  },
+  "MathFin/DeFi/ConstantProductAMM.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:57:22.386Z"
+  },
+  "MathFin/FixedIncome/FRA.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:57:25.131Z"
+  },
+  "MathFin/Foundations/BivariateGaussian.lean": {
+    "checkedAt": "2026-09-27T20:57:27.046Z",
+    "collisions": [
+      "MathFin.BivariateGaussianHyp.linearShift_apply"
+    ]
+  },
+  "MathFin/Foundations/ContinuousFTAP.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:57:39.741Z"
+  },
+  "MathFin/Foundations/EquivMeasure.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:57:40.503Z"
+  },
+  "MathFin/Foundations/ExponentialDiscount.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:57:41.205Z"
+  },
+  "MathFin/Foundations/GaussianGirsanov.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:57:43.235Z"
+  },
+  "MathFin/Foundations/ItoFormulaGBM.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:59:01.419Z"
+  },
+  "MathFin/Foundations/ItoFormulaTD.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:59:03.006Z"
+  },
+  "MathFin/Foundations/ItoIntegralBrownian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:59:03.321Z"
+  },
+  "MathFin/Foundations/ItoIntegralProcessLocalMartingaleInfinite.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:00:13.784Z"
+  },
+  "MathFin/Foundations/ItoSquaringIdentity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:00:14.683Z"
+  },
+  "MathFin/Foundations/MarketCompletenessInPrice.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:00:42.738Z"
+  },
+  "MathFin/Foundations/MarketMakingRiccati.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:00:43.600Z"
+  },
+  "MathFin/Foundations/PoissonRandomMeasure.lean": {
+    "checkedAt": "2026-09-27T21:00:46.746Z",
+    "collisions": [
+      "MathFin.hasSum_pw",
+      "MathFin.pw_succ_mul",
+      "MathFin.hasSum_pw_mul_id",
+      "MathFin.hasSum_pw_mul_sq",
+      "MathFin.integral_poissonMeasureENN",
+      "MathFin.integral_count_g",
+      "MathFin.hasSum_pw_compensated",
+      "MathFin.hasSum_pw_compensated_sq"
+    ]
+  },
+  "MathFin/Foundations/PricingMeasureL2Density.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:01:04.129Z"
+  },
+  "MathFin/Foundations/StandardGaussianMGF.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:01:06.413Z"
+  },
+  "MathFin/Futures/Black76.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:01:10.027Z"
+  },
+  "MathFin/Performance/DownsideMetrics.lean": {
+    "checkedAt": "2026-09-27T21:01:20.832Z",
+    "collisions": [
+      "MathFin.positivePart_sub_negativePart",
+      "MathFin.listMaximum_nonneg",
+      "MathFin.listMaximum_map_mul",
+      "MathFin.drawdownCandidates_scale"
+    ]
+  },
+  "MathFin/Portfolio/CovariancePSD.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:01:31.701Z"
+  },
+  "MathFin/Portfolio/MarkowitzNAsset.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:01:34.980Z"
+  },
+  "MathFin/Portfolio/SharpeFOCDerivation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:01:36.848Z"
+  },
+  "MathFin/Actuarial/SurvivalModel.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:48:27.347Z"
+  },
+  "MathFin/Binomial/ReplicatingUniqueness.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:48:33.626Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ComparisonHopf.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:48:45.474Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ComparisonShape.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:48:46.448Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/DividendProblem.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:48:47.318Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/TimeIncrement.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:48:48.542Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/AEHorizonValue.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:48:49.447Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualOptimality.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:49:01.200Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/BoundedLocalMartingale.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:49:01.957Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/HeatBoundaryContraction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:49:18.193Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/InteriorIto.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:49:18.608Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/MaturityTruncation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:49:19.110Z"
+  },
+  "MathFin/BlackScholes/AsianGeometricN.lean": {
+    "checkedAt": "2026-09-27T20:49:44.195Z",
+    "collisions": [
+      "MathFin.brownian_start_zero'",
+      "MathFin.geomAvg_prod_eq",
+      "MathFin.bsTerminal_geomAsian_eq"
+    ]
+  },
+  "MathFin/BlackScholes/GarmanNormalForm.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:45.072Z"
+  },
+  "MathFin/BlackScholes/PowerCall.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:46.395Z"
+  },
+  "MathFin/BlackScholes/SpotConvexity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:50:47.149Z",
+    "collisions": [
+      "MathFin.deriv_bsV_S_eq_on_Ioi",
+      "MathFin.deriv_bsV_S_eventuallyEq"
+    ]
+  },
+  "MathFin/Contracts/BlackScholes.lean": {
+    "checkedAt": "2026-09-27T20:51:22.570Z",
+    "collisions": [
+      "MathFin.Contracts.value_pay_eq"
+    ]
+  },
+  "MathFin/Contracts/Pricing.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:51:33.070Z"
+  },
+  "MathFin/FixedIncome/FirstToDefault.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:36.145Z"
+  },
+  "MathFin/FixedIncome/Immunization.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:51:37.274Z"
+  },
+  "MathFin/FixedIncome/YieldCurve.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:51:39.437Z"
+  },
+  "MathFin/Foundations/BrownianQuadraticVariation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:51:42.219Z"
+  },
+  "MathFin/Foundations/ContinuousMarket.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:51:50.921Z"
+  },
+  "MathFin/Foundations/ConvexDuality.lean": {
+    "checkedAt": "2026-09-27T20:51:54.851Z",
+    "collisions": [
+      "MathFin.functional_eq_sum_single",
+      "MathFin.functional_nonneg_on_cone"
+    ]
+  },
+  "MathFin/Foundations/DiscreteIto.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:51:59.614Z"
+  },
+  "MathFin/Foundations/DiscreteItoPolynomial.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:52:00.343Z"
+  },
+  "MathFin/Foundations/FTAPMultiState.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:52:03.886Z"
+  },
+  "MathFin/Foundations/GirsanovConstantTheta.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:52:14.564Z"
+  },
+  "MathFin/Foundations/ItoFormulaRemainder.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:52:15.732Z"
+  },
+  "MathFin/Foundations/ItoFormulaTDRemainder.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:52:16.036Z"
+  },
+  "MathFin/Foundations/ItoIntegralAgainstMartingale.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:52:53.491Z"
+  },
+  "MathFin/Foundations/ItoIntegralProcessIsometry.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:53:53.461Z"
+  },
+  "MathFin/Foundations/MatrixMarketMakingRiccati.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:53:56.664Z"
+  },
+  "MathFin/Foundations/PredictableDensityGeneral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:54:33.858Z"
+  },
+  "MathFin/Foundations/SimpleProcessPartition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:54:34.479Z"
+  },
+  "MathFin/Foundations/SuperhedgingDuality.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:54:35.581Z"
+  },
+  "MathFin/Foundations/UnifIntegrableL2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:54:37.474Z"
+  },
+  "MathFin/Foundations/VarianceSwapFromQV.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:54:39.325Z"
+  },
+  "MathFin/Foundations/WienerIntegralIndicator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:54:48.211Z"
+  },
+  "MathFin/Futures/Black76Greeks.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:55:00.178Z"
+  },
+  "MathFin/Portfolio/BlackLittermanND.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:55:23.275Z"
+  },
+  "MathFin/RiskMeasures/CoherentAxioms.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:55:26.173Z"
+  },
+  "MathFin/RiskMeasures/UtilityDerivation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:55:30.026Z"
+  },
+  "MathFin/Binomial/CRRClosedForm.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:49:39.811Z"
+  },
+  "MathFin/Binomial/MartingaleRepresentation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:50:01.004Z"
+  },
+  "MathFin/Binomial/MertonAmericanCallTree.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:50:04.075Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ComparisonAssembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:46.503Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ContinuousContact.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:50:47.542Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/IncrementPositivity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:06.847Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/OneSidedContact.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:51:08.046Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/PositivePropagation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:51:18.221Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/TangentGeometry.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:51:28.945Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/WindowComparison.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:35.940Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualIncrementPositivity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:44.708Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualLocalMeanValue.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:45.962Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualSmoothFit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:52:05.170Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualStockConvexity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:59:44.836Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/AugmentedValue.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:59:47.743Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/BrownianUsualTransition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:59:49.168Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/CompactKernelDerivative.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:59:53.100Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/CompletedSpace.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:59:53.785Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ConvexSliceGradient.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:59:59.208Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/IndependentKernel.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:00:00.124Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/StrictExerciseGeometry.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:00:05.319Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/UsualBrownianValue.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:00:07.057Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/VanishingGap.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:00:08.070Z"
+  },
+  "MathFin/BlackScholes/BarrierParity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:00:09.577Z"
+  },
+  "MathFin/BlackScholes/Dividends.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:00:14.583Z"
+  },
+  "MathFin/BlackScholes/GreekSigns.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:00:22.726Z"
+  },
+  "MathFin/BlackScholes/HigherGreeks.lean": {
+    "checkedAt": "2026-09-27T21:00:39.839Z",
+    "collisions": [
+      "MathFin.hasDerivAt_bsd1_sigma_clean"
+    ]
+  },
+  "MathFin/BlackScholes/PutGreeks.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:01:02.829Z"
+  },
+  "MathFin/BlackScholes/VarianceSwap.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:01:03.619Z"
+  },
+  "MathFin/Execution/GlostenMilgromModel.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:01:13.226Z"
+  },
+  "MathFin/FixedIncome/CDSTimeVarying.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:01:13.929Z"
+  },
+  "MathFin/FixedIncome/ConvexityImmunization.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:01:15.922Z"
+  },
+  "MathFin/FixedIncome/DurationSensitivity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:01:20.064Z"
+  },
+  "MathFin/FixedIncome/ZCB.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:01:23.090Z"
+  },
+  "MathFin/Foundations/GaussianCDFDeriv.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:01:25.968Z"
+  },
+  "MathFin/Foundations/GaussianMoments.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:01:29.082Z"
+  },
+  "MathFin/Foundations/GirsanovAdaptedTheta.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:02:00.009Z"
+  },
+  "MathFin/Foundations/ItoFormulaCLM.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:02:56.926Z"
+  },
+  "MathFin/Foundations/LpContinuousMartingaleConvergence.lean": {
+    "checkedAt": "2026-09-27T21:03:09.091Z",
+    "collisions": [
+      "MathFin.discreteSample_martingale",
+      "MathFin.eLpNorm_one_le_of_eLpNorm_p",
+      "MathFin.discreteSample_l1_bounded",
+      "MathFin.discreteSample_ae_tendsto_limitProcess",
+      "MathFin.discreteSampleLimit_integrable",
+      "MathFin.iSup_rpow_atTop_nat",
+      "MathFin.ofReal_finset_sup'",
+      "MathFin.runMaxNorm_nonneg",
+      "MathFin.runMaxNorm_mono",
+      "MathFin.discreteSampleSup_measurable",
+      "MathFin.iSup_ofReal_runMaxNorm",
+      "MathFin.lintegral_ofReal_runMaxNorm_rpow_le",
+      "MathFin.lintegral_discreteSampleSup_rpow_le",
+      "MathFin.discreteSampleSup_pow_lintegral_lt_top",
+      "MathFin.discreteSampleSup_lt_top_ae",
+      "MathFin.discreteSampleDominator_memLp",
+      "MathFin.norm_discreteSample_le_dominator"
+    ]
+  },
+  "MathFin/Foundations/MartingaleTransform.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:06:49.065Z",
+    "collisions": [
+      "MathFin.martingaleTransform_succ",
+      "MathFin.summand_stronglyMeasurable",
+      "MathFin.martingaleTransform_adapted",
+      "MathFin.integrable_summand",
+      "MathFin.integrable_martingaleTransform",
+      "MathFin.condExp_increment_eq_zero",
+      "MathFin.martingaleTransform_condExp_increment"
+    ]
+  },
+  "MathFin/Foundations/Numeraire.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:06:57.322Z"
+  },
+  "MathFin/Foundations/PoissonCounting.lean": {
+    "checkedAt": "2026-09-27T21:07:04.141Z",
+    "collisions": [
+      "MathFin.PoissonCounting.continuousOn_gammaPDFReal",
+      "MathFin.PoissonCounting.intervalIntegrable_gammaPDFReal",
+      "MathFin.PoissonCounting.gammaMeasure_Iic",
+      "MathFin.PoissonCounting.hasDerivAt_gamma_antideriv",
+      "MathFin.PoissonCounting.integral_gammaPDFReal_sub_succ",
+      "MathFin.PoissonCounting.integral_gammaPDFReal_one"
+    ]
+  },
+  "MathFin/Foundations/PoissonThinning.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:07:24.825Z",
+    "collisions": [
+      "MathFin.PoissonThinning.markedWeight_eq"
+    ]
+  },
+  "MathFin/Foundations/SDEExistence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:07:31.637Z"
+  },
+  "MathFin/Portfolio/RiskParity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:07:32.382Z"
+  },
+  "MathFin/RiskMeasures/Spectral.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:07:33.734Z"
+  },
+  "MathFin/Binomial/American.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:48:22.911Z"
+  },
+  "MathFin/Binomial/CRRCharFun.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:48:25.750Z",
+    "collisions": [
+      "MathFin.cexp_ofReal_mul_I",
+      "MathFin.tendsto_crrAngle_punctured",
+      "MathFin.tendsto_n_mul_cos_sub_one",
+      "MathFin.tendsto_n_mul_two_p_sub_one_mul_sin"
+    ]
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/BoundaryTest.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:49:13.030Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ParabolicHopf.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:49:17.708Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ParabolicUnimodality.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:49:28.047Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/BrownianHeatFlow.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:49:34.270Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/BrownianLocalVerification.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:49:50.840Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ClassicalSupermartingale.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:10.773Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ClassicalTransition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:28.013Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/DiscreteStoppingValue.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:50:30.318Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/FiniteBellmanOptimality.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:50:32.310Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/FirstContactOptimality.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:40.788Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/FlatHeatKernel.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:41.074Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/HeatBoundarySmoothing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:41.831Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/HeatPricingTransform.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:50:42.491Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/LocalPriceIto.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:50.385Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/MartingaleLimits.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:50.805Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/StrictDrift.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:50:51.443Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/UpperSupportComparison.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:53:44.254Z"
+  },
+  "MathFin/BlackScholes/AsianInequality.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:53:46.256Z"
+  },
+  "MathFin/BlackScholes/Bachelier.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:53:49.751Z",
+    "collisions": [
+      "MathFin.bachelierTerminal_gt_K_iff",
+      "MathFin.bachelier_max_payoff_eq_indicator"
+    ]
+  },
+  "MathFin/BlackScholes/CappedCall.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:53:59.602Z"
+  },
+  "MathFin/BlackScholes/ChooserComposition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:53:59.890Z"
+  },
+  "MathFin/BlackScholes/DigitalGreeks.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:54:07.068Z"
+  },
+  "MathFin/BlackScholes/MertonClassicDisplay.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:54:30.433Z"
+  },
+  "MathFin/BlackScholes/QuantoGrounding.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:54:34.090Z"
+  },
+  "MathFin/FixedIncome/CouponBonds.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:54:34.818Z"
+  },
+  "MathFin/FixedIncome/Vasicek.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:54:36.807Z"
+  },
+  "MathFin/Foundations/BracketCompensator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:44.827Z"
+  },
+  "MathFin/Foundations/BrownianExpMoment.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:48.816Z"
+  },
+  "MathFin/Foundations/ExpMin.lean": {
+    "checkedAt": "2026-09-27T20:55:49.529Z",
+    "collisions": [
+      "MathFin.expMeasure_Ioi"
+    ]
+  },
+  "MathFin/Foundations/Girsanov.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:53.880Z"
+  },
+  "MathFin/Foundations/ItoIntegralProcess.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:56:12.260Z"
+  },
+  "MathFin/Foundations/ItoIntegralRiemannBridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:56:15.231Z"
+  },
+  "MathFin/Foundations/PoissonSuperposition.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:56:15.919Z"
+  },
+  "MathFin/Foundations/SimpleDoleansExponential.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:56:20.478Z"
+  },
+  "MathFin/Performance/RatiosExtended.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:56:21.907Z"
+  },
+  "MathFin/Actuarial/ActuarialInsurance.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:47:35.111Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ComparisonMaximum.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:47:46.820Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/DelayedPrice.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:47:47.659Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/StockConclusion.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:49:13.763Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualLogConvexity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:59:45.899Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualTestFunctions.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:59:47.806Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/AmericanWaiting.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:59:58.392Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/BrownianModel.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:59:58.821Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/CompactHeatFlow.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:59:59.181Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/FiltrationExtension.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:09:09.153Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/HeatBoundaryKernel.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:09:41.339Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/IntervalHeatBoundary.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:11:22.437Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/LinearPriceComparison.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:12:15.641Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/LocalizationTimes.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:12:16.437Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/MaturityContinuity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:12:35.184Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/PricePositivity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:12:36.381Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/RectangleExit.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:12:37.144Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/Rules.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:12:47.425Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/SampledRules.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:12:49.579Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/SmoothLocalization.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:12:50.830Z"
+  },
+  "MathFin/BlackScholes/ExchangeOption.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:12:54.822Z"
+  },
+  "MathFin/Contracts/Adapted.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:13:09.251Z",
+    "collisions": [
+      "MathFin.Contracts.obsTimes_append_le"
+    ]
+  },
+  "MathFin/FixedIncome/ForwardMeasure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:13:13.355Z"
+  },
+  "MathFin/Foundations/AlmgrenChriss.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:13:14.062Z"
+  },
+  "MathFin/Foundations/BrownianMartingale.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:13:16.038Z"
+  },
+  "MathFin/Foundations/ConvexPricingFunctional.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:13:16.787Z"
+  },
+  "MathFin/Foundations/ExpMartingaleQBrownian.lean": {
+    "checkedAt": "2026-09-27T21:13:19.996Z",
+    "collisions": [
+      "MathFin.mgf_expY_eq",
+      "MathFin.integrable_expY",
+      "MathFin.condExp_expY",
+      "MathFin.condExp_Y_increment",
+      "MathFin.Y_increment_mgf",
+      "MathFin.integrable_exp_Y_increment",
+      "MathFin.Y_increments_joint_mgf",
+      "MathFin.Y_linComb_map_eq_gaussianReal"
+    ]
+  },
+  "MathFin/Foundations/FTAPOnePeriod.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:14:08.188Z"
+  },
+  "MathFin/Foundations/FTAPTwoState.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:14:18.515Z"
+  },
+  "MathFin/Foundations/ItoIntegralRiemannBridgeAdapted.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:14:54.083Z"
+  },
+  "MathFin/Foundations/MarketCompleteness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:17:31.256Z"
+  },
+  "MathFin/Foundations/OptionalSamplingInequality.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:17:34.133Z"
+  },
+  "MathFin/Foundations/PointwiseBracket.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:19:28.611Z"
+  },
+  "MathFin/Foundations/PoissonCompensatedBilinear.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:19:32.598Z",
+    "collisions": [
+      "MathFin.pastSigma_mono",
+      "MathFin.pastSigma_le_regionSigma_sub",
+      "MathFin.compensated_measurable_regionSigma",
+      "MathFin.adapted_indepFun_compensated_sub",
+      "MathFin.integral_adapted_mul_compensated_sq_sub"
+    ]
+  },
+  "MathFin/Foundations/PoissonCompensatedIntegralOperator.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:20:26.828Z"
+  },
+  "MathFin/Foundations/VarianceSwapEquipartition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:22:51.232Z"
+  },
+  "MathFin/Portfolio/MarkowitzLagrangian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:22:51.580Z"
+  },
+  "MathFin/Portfolio/RiskParityFOC.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:22:51.911Z"
+  },
+  "MathFin/Actuarial/Mortality.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:44:57.741Z"
+  },
+  "MathFin/Binomial/BinomialFromFTAP.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:45:01.566Z"
+  },
+  "MathFin/Binomial/DriftLimit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:45:08.976Z"
+  },
+  "MathFin/Binomial/PathReflection.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:45:09.699Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/BoundaryMonotonicity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:45:27.382Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ComparisonConclusion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:46:01.412Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ContinuousBoundaryProblem.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:46:03.173Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/LineIntervalConvexity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:46:04.366Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/OrderedTriples.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:46:15.545Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/SingleCrossing.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:46:20.082Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/StrictBoundarySpeed.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:46:50.616Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualContactMartingale.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:47:10.849Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualSpatialRegularity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:36.004Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualTimeIncrement.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:42.619Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/CandidatePDE.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:44.353Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ClassicalCandidate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:45.919Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/CompactLocalization.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:51:47.269Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ExerciseRegion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:53.900Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/PhysicalBoundaryConvexity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:54.259Z"
+  },
+  "MathFin/BlackScholes/AsianGeometric.lean": {
+    "checkedAt": "2026-09-27T20:52:16.689Z",
+    "collisions": [
+      "MathFin.brownian_start_zero"
+    ]
+  },
+  "MathFin/BlackScholes/BisectionIV.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:52:26.302Z"
+  },
+  "MathFin/BlackScholes/GBMLogMoments.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:52:27.955Z"
+  },
+  "MathFin/Bridges/SurvivalUnification.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:52:28.648Z"
+  },
+  "MathFin/Execution/GlostenMilgrom.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:52:29.370Z"
+  },
+  "MathFin/FixedIncome/KMVMertonStructural.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:52:53.826Z"
+  },
+  "MathFin/Foundations/ItoFormulaLocalized.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:52:54.945Z"
+  },
+  "MathFin/Foundations/ItoIntegralProcessGeneral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:53:59.835Z"
+  },
+  "MathFin/Foundations/ItoIntegralProcessMartingale.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:54:35.563Z"
+  },
+  "MathFin/Foundations/L2MartingaleConvergence.lean": {
+    "checkedAt": "2026-09-27T20:54:47.939Z",
+    "collisions": [
+      "MathFin.L2MartingaleConvergence.H_mono",
+      "MathFin.L2MartingaleConvergence.G_eq_iSup_H",
+      "MathFin.L2MartingaleConvergence.measurable_H",
+      "MathFin.L2MartingaleConvergence.measurable_G",
+      "MathFin.L2MartingaleConvergence.lintegral_enorm_sq",
+      "MathFin.L2MartingaleConvergence.H_eq_enorm_runMax",
+      "MathFin.L2MartingaleConvergence.lintegral_H_sq_le",
+      "MathFin.L2MartingaleConvergence.lintegral_G_sq_le",
+      "MathFin.L2MartingaleConvergence.exists_dominator"
+    ]
+  },
+  "MathFin/Foundations/PoissonCompensatedIsometryAdapted.lean": {
+    "checkedAt": "2026-09-27T20:56:03.398Z",
+    "collisions": [
+      "MathFin.disjoint_prod_time",
+      "MathFin.disjoint_prod_mark",
+      "MathFin.pastSet_mem_regionSigma_index",
+      "MathFin.regionSigma_le",
+      "MathFin.pastSigma_le_regionSigma",
+      "MathFin.comap_le_regionSigma"
+    ]
+  },
+  "MathFin/Foundations/PricingKernel.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:56:21.913Z"
+  },
+  "MathFin/Foundations/QuadraticVariationL2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:56:28.176Z"
+  },
+  "MathFin/Performance/KellyNumeraire.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:56:30.319Z"
+  },
+  "MathFin/Portfolio/TangentPortfolio.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:56:34.749Z"
+  },
+  "MathFin/RiskMeasures/AcceptanceSet.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:56:37.225Z"
+  },
+  "MathFin/RiskMeasures/VonNeumannMorgenstern.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:56:44.687Z"
+  },
+  "MathFin/Actuarial/CompoundPoissonMGF.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:52:32.350Z"
+  },
+  "MathFin/Binomial/Model.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:52:33.920Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/Coordinates.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:52:39.441Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/DividendContact.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:52:47.098Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ODEComparison.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:52:49.250Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/PositiveBump.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:52:49.939Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/Problem.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:52:57.692Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/TangentIntercept.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:53:06.319Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualConvexLowerComparison.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:57:36.250Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualNormalization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:57:52.359Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualSupermartingale.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:58:05.897Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/BrownianBellman.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:58:07.364Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/BrownianInteriorLocalization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:58:36.950Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ContinuationSlice.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:58:39.807Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/FiniteExerciseGrid.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:58:40.820Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/GridSampling.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:58:51.781Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/HeatBoundaryExtension.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:59:16.217Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/JointPriceContinuity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:59:18.682Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/PointwiseTests.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:59:19.933Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/PositiveExerciseBoundary.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:03:32.149Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/Reward.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:03:34.186Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/SmoothMinorants.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:03:37.830Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/SmoothPricingComparison.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:03:41.513Z"
+  },
+  "MathFin/BlackScholes/BachelierGreeks.lean": {
+    "checkedAt": "2026-09-27T21:03:51.132Z",
+    "collisions": [
+      "MathFin.hasDerivAt_bachelierD_S"
+    ]
+  },
+  "MathFin/BlackScholes/LognormalMoments.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:04:06.115Z"
+  },
+  "MathFin/BlackScholes/Lookback.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:04:11.197Z"
+  },
+  "MathFin/BlackScholes/MargrabeGrounding.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:04:12.396Z"
+  },
+  "MathFin/BlackScholes/NewtonConvergence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:04:14.291Z"
+  },
+  "MathFin/BlackScholes/PowerOption.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:04:18.743Z"
+  },
+  "MathFin/FixedIncome/Credit.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:04:23.530Z"
+  },
+  "MathFin/FixedIncome/ForwardRate.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:04:25.629Z"
+  },
+  "MathFin/FixedIncome/HazardCurve.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:04:27.143Z"
+  },
+  "MathFin/FixedIncome/VasicekSDEGaussian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:04:29.045Z"
+  },
+  "MathFin/Foundations/DoobLpMaximalInequality.lean": {
+    "checkedAt": "2026-09-27T21:04:29.738Z",
+    "collisions": [
+      "MeasureTheory.runMax_nonneg",
+      "MeasureTheory.runMax_measurable",
+      "MeasureTheory.layer_integrand_bound",
+      "MeasureTheory.A_le_layer_integral",
+      "MeasureTheory.lintegral_rpow_Ioc",
+      "MeasureTheory.inner_t_integral",
+      "MeasureTheory.fubini_swap",
+      "MeasureTheory.holder_apply",
+      "MeasureTheory.inner_t_integral_truncated",
+      "MeasureTheory.fubini_swap_truncated",
+      "MeasureTheory.A_K_le_layer_integral",
+      "MeasureTheory.holder_step_truncated",
+      "MeasureTheory.holder_step",
+      "MeasureTheory.eLpNorm_eq_lintegral_ofReal_pow",
+      "MeasureTheory.runMax_pow_lintegral_lt_top",
+      "MeasureTheory.martingale_norm_submartingale"
+    ]
+  },
+  "MathFin/Foundations/DriftProcessModification.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:06:54.096Z"
+  },
+  "MathFin/Foundations/DriftRiemannConvergence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:06:59.689Z"
+  },
+  "MathFin/Foundations/FiniteMeasureCauchySchwarz.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:07:01.160Z"
+  },
+  "MathFin/Foundations/GirsanovPredictableTheta.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:07:51.616Z"
+  },
+  "MathFin/Foundations/GirsanovSimpleDoleansMoments.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:07:53.073Z"
+  },
+  "MathFin/Foundations/ItoFormulaUnrestrictedLocMart.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:08:28.772Z"
+  },
+  "MathFin/Foundations/ItoIntegralCLM.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:08:29.510Z"
+  },
+  "MathFin/Foundations/ItoIntegralProcessContinuousModification.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:09:11.043Z"
+  },
+  "MathFin/Foundations/ItoIntegralProcessLocalMartingale.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:09:12.737Z"
+  },
+  "MathFin/Foundations/ItoLemma.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:09:13.452Z"
+  },
+  "MathFin/Foundations/ItoLemma2D.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:09:15.577Z"
+  },
+  "MathFin/Foundations/LpMulIsometry.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:09:20.912Z"
+  },
+  "MathFin/Foundations/NoArbitrageDerivations.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:09:31.652Z"
+  },
+  "MathFin/Foundations/PoissonCompensatedSimpleIntegrand.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:09:39.324Z"
+  },
+  "MathFin/Foundations/SDEUniqueness.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:09:47.583Z",
+    "collisions": [
+      "MathFin.sq_intervalIntegral_le",
+      "MathFin.drift_energy_le"
+    ]
+  },
+  "MathFin/Foundations/VarianceSwapEquivalence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:10:03.879Z"
+  },
+  "MathFin/Portfolio/Markowitz.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:10:04.760Z"
+  },
+  "MathFin/Binomial/Bermudan.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:45:57.322Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ConvexStrictMonotonicity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:46:03.661Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ExpiryBarrier.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:46:04.986Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/MovingLine.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:46:32.582Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ObstacleComparison.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:46:38.009Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ParabolicValley.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:46:51.862Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualInteriorRegularity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:47:04.864Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualStrictSpatialSlope.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:49:59.197Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ClassicalHeatComparison.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:00.639Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ContactMartingale.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:00.976Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/CoupledHeatBoundary.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:02.216Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/DelayedGrid.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:05.594Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/FirstContact.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:50:07.670Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/InteriorRegion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:15.121Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/PricingBoundaryCorrection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:15.755Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/SpotDecay.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:16.634Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/StoppedSlopeExpectation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:17.890Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/UsualGridMarkov.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:24.087Z"
+  },
+  "MathFin/BlackScholes/Chooser.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:50:24.926Z"
+  },
+  "MathFin/BlackScholes/PDEFromIto.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:26.949Z"
+  },
+  "MathFin/BlackScholes/Put.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:50:28.574Z",
+    "collisions": [
+      "MathFin.max_put_payoff_eq_indicator"
+    ]
+  },
+  "MathFin/BlackScholes/RiskNeutralProbabilities.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:50:41.284Z"
+  },
+  "MathFin/BlackScholes/StrikeGreeks.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:42.452Z"
+  },
+  "MathFin/FixedIncome/VasicekBondPrice.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:43.108Z"
+  },
+  "MathFin/FixedIncome/VasicekSDE.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:50:43.810Z"
+  },
+  "MathFin/Foundations/CarrMadan.lean": {
+    "checkedAt": "2026-09-27T20:50:45.098Z",
+    "collisions": [
+      "MathFin.secondOrder_remainder_eq_integral"
+    ]
+  },
+  "MathFin/Foundations/ChangeOfMeasure.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:50:50.204Z"
+  },
+  "MathFin/Foundations/DoleansStepRepresentation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:59.148Z"
+  },
+  "MathFin/Foundations/DoobDecomposition.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:52:00.343Z"
+  },
+  "MathFin/Foundations/DriftProcessPredictable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:52:25.415Z"
+  },
+  "MathFin/Foundations/ExitTime.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:52:27.653Z"
+  },
+  "MathFin/Foundations/FTAP.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:52:29.110Z"
+  },
+  "MathFin/Foundations/FeynmanKacHeatEquation.lean": {
+    "checkedAt": "2026-09-27T20:52:29.772Z",
+    "collisions": [
+      "MathFin.FeynmanKacHeatEquation.heatKernel_eq_gaussianPDFReal",
+      "MathFin.FeynmanKacHeatEquation.hasDerivAt_heatKernel_y",
+      "MathFin.FeynmanKacHeatEquation.hasDerivAt_heatKernel_t",
+      "MathFin.FeynmanKacHeatEquation.hasDerivAt_heatKernel_y_y",
+      "MathFin.FeynmanKacHeatEquation.hasDerivAt_heatKernel_x",
+      "MathFin.FeynmanKacHeatEquation.hasDerivAt_heatKernel_x_x",
+      "MathFin.FeynmanKacHeatEquation.heatKernel_t_eq_half_y_y",
+      "MathFin.FeynmanKacHeatEquation.integrable_mul_heatKernel_of_gaussian",
+      "MathFin.FeynmanKacHeatEquation.integrable_dK",
+      "MathFin.FeynmanKacHeatEquation.integrable_ddK",
+      "MathFin.FeynmanKacHeatEquation.ibp_heatKernel",
+      "MathFin.FeynmanKacHeatEquation.integrable_poly_heatKernel",
+      "MathFin.FeynmanKacHeatEquation.exp_mul_heatKernel",
+      "MathFin.FeynmanKacHeatEquation.sq_sub_div_le",
+      "MathFin.FeynmanKacHeatEquation.curve_sq_ratio_le",
+      "MathFin.FeynmanKacHeatEquation.curve_abs_ratio_le",
+      "MathFin.FeynmanKacHeatEquation.hasDerivAt_phi",
+      "MathFin.FeynmanKacHeatEquation.hasDerivAt_phi_heatEq",
+      "MathFin.FeynmanKacHeatEquation.tendsto_integral_heatKernel_zero",
+      "MathFin.FeynmanKacHeatEquation.integral_heatKernel_eq_one",
+      "MathFin.FeynmanKacHeatEquation.abs_half_integral_ddf_heatKernel_le",
+      "MathFin.FeynmanKacHeatEquation.integral_shift_eq_feynmanU"
+    ]
+  },
+  "MathFin/Foundations/GirsanovSimpleTheta.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:20.882Z"
+  },
+  "MathFin/Foundations/ItoFormulaProcess.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:49.304Z"
+  },
+  "MathFin/Foundations/ItoFormulaSquaredL2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:52.834Z"
+  },
+  "MathFin/Foundations/ItoIntegralCovariation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:56:28.893Z"
+  },
+  "MathFin/Foundations/ItoIntegralL2Dense.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:56:33.012Z"
+  },
+  "MathFin/Foundations/MarkovPathMeasure.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:56:33.801Z"
+  },
+  "MathFin/Foundations/PoissonCompensatedIntegralL2Dense.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:56:42.878Z"
+  },
+  "MathFin/Foundations/SDEPathwise.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:58:28.415Z"
+  },
+  "MathFin/Foundations/StatePrices.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:58:29.176Z"
+  },
+  "MathFin/Foundations/TriangleArbitrage.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:58:31.622Z"
+  },
+  "MathFin/Foundations/WienerIntegralGaussian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:58:37.869Z"
+  },
+  "MathFin/Portfolio/CAPMEquilibrium.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:58:38.591Z"
+  },
+  "MathFin/RiskMeasures/Concentration.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:58:40.077Z"
+  },
+  "MathFin/RiskMeasures/Gaussian.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:58:41.289Z"
+  },
+  "MathFin/RiskMeasures/RockafellarUryasev.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:58:45.112Z"
+  },
+  "MathFin/Actuarial/Insurance.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:48:51.914Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/Comparison.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:48:53.548Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/GaugeTransform.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:49:37.756Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/NearExpiry.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:50:53.062Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/StrongPositivity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:51:06.875Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/Tangency.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:17.783Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/TimeMonotonicity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:18.957Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualBoundaryNormalization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:51:20.052Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualContinuousContract.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:22.923Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualGradientTrace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:27.469Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualNearExpiry.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:03:41.597Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualSmoothComparison.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:03:43.935Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/AmericanValue.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:03:46.100Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/BrownianTransition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:03:47.179Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/BrownianVerification.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:03:55.722Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ContinuationRectangles.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:04:04.062Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ContinuousHeatSmoothing.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:04:39.678Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ContinuousPriceEvolution.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:05:28.791Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/GridBellman.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:05:30.889Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/GridNormalization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:05:35.205Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/OptimalStoppedMartingale.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:05:37.265Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/PricingTests.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:05:38.499Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/StationaryPutCap.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:09:41.162Z"
+  },
+  "MathFin/BlackScholes/BreedenLitzenberger.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:09:45.867Z"
+  },
+  "MathFin/BlackScholes/Call.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:09:47.126Z",
+    "collisions": [
+      "MathFin.max_payoff_eq_indicator"
+    ]
+  },
+  "MathFin/BlackScholes/Spreads.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:09:59.115Z"
+  },
+  "MathFin/Bridges/ConcentrationVariance.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:10:00.803Z"
+  },
+  "MathFin/Contracts/CappedCall.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:10:10.664Z"
+  },
+  "MathFin/Contracts/Core.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:10:11.890Z"
+  },
+  "MathFin/FixedIncome/InterestRateSwap.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:10:13.864Z"
+  },
+  "MathFin/FixedIncome/KMVMerton.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:10:18.018Z"
+  },
+  "MathFin/Foundations/BSCallHypFromBrownian.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:10:18.955Z"
+  },
+  "MathFin/Foundations/BrownianCylinderGeneration.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:10:25.941Z"
+  },
+  "MathFin/Foundations/BrownianMarkov.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:10:57.786Z"
+  },
+  "MathFin/Foundations/ErlangSum.lean": {
+    "checkedAt": "2026-09-27T21:11:00.079Z",
+    "collisions": [
+      "MathFin.ErlangSum.pdf_mul_eq",
+      "MathFin.ErlangSum.setIntegral_rpow_Ioc",
+      "MathFin.ErlangSum.lintegral_gammaPDF_mul_exponentialPDF"
+    ]
+  },
+  "MathFin/Foundations/ItoFormulaUnrestricted.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:11:23.848Z"
+  },
+  "MathFin/Foundations/ItoIntegralL2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:11:27.176Z"
+  },
+  "MathFin/Foundations/ItoIntegralProcessLocalMartingaleGeneral.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:11:28.105Z"
+  },
+  "MathFin/Foundations/ItoProcessPredictable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:14:29.583Z"
+  },
+  "MathFin/Foundations/ItoProcessQV.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:14:50.970Z"
+  },
+  "MathFin/Foundations/PoissonCompensatedIntegralL2.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:15:01.967Z"
+  },
+  "MathFin/Foundations/PoissonInterarrival.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:15:02.876Z"
+  },
+  "MathFin/Foundations/PoissonPgf.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:15:05.921Z"
+  },
+  "MathFin/Foundations/PricingFromBrownian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:15:10.805Z"
+  },
+  "MathFin/Foundations/StandardNormal.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:15:11.666Z"
+  },
+  "MathFin/Foundations/WeightedQuadraticVariation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:15:52.926Z"
+  },
+  "MathFin/Foundations/WienerIntegral.lean": {
+    "checkedAt": "2026-09-27T21:15:53.940Z",
+    "collisions": [
+      "MathFin.hasLaw_increment",
+      "MathFin.integral_increment_eq_zero",
+      "MathFin.variance_increment",
+      "MathFin.memLp_increment_two"
+    ]
+  },
+  "MathFin/Foundations/WienerIntegralL2.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:16:00.128Z",
+    "collisions": [
+      "MathFin.WienerIntegralL2.covariance_increment_arithmetic",
+      "MathFin.WienerIntegralL2.inner_wienerIncrementLp_eq",
+      "MathFin.WienerIntegralL2.setIntegral_Ioc_eq_zero_of_orthogonal",
+      "MathFin.WienerIntegralL2.setIntegral_eq_zero_of_orthogonal"
+    ]
+  },
+  "MathFin/Performance/Ratios.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:18:13.959Z"
+  },
+  "MathFin/RiskMeasures/WorstCaseRisk.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:18:22.485Z"
+  },
+  "MathFin/Binomial/BarrierReflection.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:54:32.146Z"
+  },
+  "MathFin/Binomial/CRRConvergence.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:54:38.770Z",
+    "collisions": [
+      "MathFin.tendsto_sq_nhdsWithin_ne_zero",
+      "MathFin.exp_diff_sub_eq"
+    ]
+  },
+  "MathFin/Binomial/CRRDiscreteIto.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:54:53.823Z"
+  },
+  "MathFin/Binomial/SnellEnvelope.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:54:56.179Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ComparisonUnimodality.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:20.448Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/ExerciseGeometry.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:55:21.733Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Boundary/LocalizationBarrier.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T20:55:22.460Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualBoundaryContinuity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:58:16.413Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualContact.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T20:58:18.291Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ActualNoFlatTail.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:01:22.726Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/BoundarySemicontinuity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:01:28.213Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ClassicalBridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:01:32.429Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/FiniteBellman.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:01:38.196Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/HeatBoundaryEquation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:01:51.897Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/OrderedSampling.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:02:48.792Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/PayoffSlope.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:02:52.162Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/PlaneIto.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:02:54.150Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/PricingDirichlet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:04:49.161Z"
+  },
+  "MathFin/BlackScholes/AmericanPut/Stopping/ShrinkingGrids.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:04:50.789Z"
+  },
+  "MathFin/BlackScholes/DividendsGreeks.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:05:04.719Z"
+  },
+  "MathFin/BlackScholes/Forward.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:05:18.668Z"
+  },
+  "MathFin/BlackScholes/ImpliedVolatility.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:05:23.259Z"
+  },
+  "MathFin/BlackScholes/MertonDominance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:05:24.939Z"
+  },
+  "MathFin/BlackScholes/PDE.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:05:26.437Z"
+  },
+  "MathFin/BlackScholes/StrikeConvexity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:05:27.218Z",
+    "collisions": [
+      "MathFin.deriv_bsV_eq_on_Ioi",
+      "MathFin.deriv_bsV_eventuallyEq"
+    ]
+  },
+  "MathFin/FixedIncome/ConvexitySensitivity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:06:04.698Z"
+  },
+  "MathFin/FixedIncome/MacaulayModified.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:06:07.640Z"
+  },
+  "MathFin/Foundations/AdaptedProcessToLp.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:06:26.510Z"
+  },
+  "MathFin/Foundations/ConvexSeparation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:06:28.572Z"
+  },
+  "MathFin/Foundations/ExtendOfNormIsometry.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:06:29.565Z"
+  },
+  "MathFin/Foundations/FTAPOnePeriodVector.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:06:30.737Z"
+  },
+  "MathFin/Foundations/ItoFormulaC2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:07:52.723Z"
+  },
+  "MathFin/Foundations/ItoFormulaItoProcess.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:08:58.654Z"
+  },
+  "MathFin/Foundations/ItoIntegralLocality.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:08:59.389Z"
+  },
+  "MathFin/Foundations/ItoIntegralProcessL2Infinite.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:09:00.205Z"
+  },
+  "MathFin/Foundations/ItoIntegralRiemannBridgeTD.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:09:06.069Z"
+  },
+  "MathFin/Foundations/ItoIsometryAdapted.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:09:06.913Z"
+  },
+  "MathFin/Foundations/MartingaleRepresentation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:09:54.922Z"
+  },
+  "MathFin/Foundations/NoArbitrageCore.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:09:55.891Z"
+  },
+  "MathFin/Foundations/VarianceSwapDriftImmunity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:10:11.307Z"
+  },
+  "MathFin/Foundations/VarianceSwapLimit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:10:13.827Z"
+  },
+  "MathFin/Foundations/WienerExponentialTotality.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T21:10:43.826Z"
+  },
+  "MathFin/Performance/Kelly.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:10:44.735Z"
+  },
+  "MathFin/Portfolio/BlackLitterman.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:10:51.455Z"
+  },
+  "MathFin/Portfolio/CAPM.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:10:53.593Z"
+  },
+  "MathFin/Portfolio/TwoFundSeparation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:10:56.899Z"
+  },
+  "MathFin/RiskMeasures/Additivity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T21:10:59.505Z"
+  }
+}
