@@ -3617,7 +3617,7 @@ let usageBlock = null // { at:number, message:string }
 // the OPERATOR to run `claude login` again in a terminal; nothing in this
 // loop can do that for them, so the correct response is to stop immediately
 // and say so — not keep trying the same doomed thing until the deadline.
-const AUTH_FAILURE_RE = /oauth session expired|could not be refreshed|please run.*(?:claude )?login|invalid.*api.?key|not authenticated/i
+const AUTH_FAILURE_RE = /oauth session expired|could not be refreshed|please run.*(?:claude )?login|invalid.*api.?key|not authenticated|failed to authenticate|oauth access token is invalid|authentication_error/i
 let authFailureBlock = null // { at:number, message:string }
 function noteAuthFailure(text) {
   if (authFailureBlock) return true
@@ -14394,6 +14394,9 @@ async function recurseOneEntry(entry, opts) {
     recordCollisions(result.names)
     return { id: entry.id, outcome: "untranslatable" }
   }
+  // the account failed (quota, auth), not the translation: the entry waits for the agent again
+  noteAuthFailure(`${result.finalText || ""}\n${result.stderr || ""}`)
+  if (usageBlocked() || authFailureBlocked()) return { id: entry.id, outcome: "deferred-agent" }
   return { id: entry.id, outcome: "unresolved" }
 }
 

@@ -161,6 +161,12 @@ jobs:
           node scripts/queue-server.mjs --source "$KEY" --bank out/bank.jsonl --shard "$SHARD/$SHARDS" --limit "$LIMIT" \
             --tree tree --ledger "data/translate/$KEY.jsonl" --mode "$MODE" --agent-attempts "$ATTEMPTS" --plan out/plan.json > out/queue-server.log 2>&1 &
           token=$(openssl rand -hex 24)
+          # a pasted secret can carry whitespace; its shape (never its value) goes to the log
+          CLAUDE_CODE_OAUTH_TOKEN=$(printf '%s' "$CLAUDE_CODE_OAUTH_TOKEN" | tr -d '[:space:]')
+          export CLAUDE_CODE_OAUTH_TOKEN
+          if [ "$MODE" = agent ]; then
+            echo "Claude token: ${#CLAUDE_CODE_OAUTH_TOKEN} characters, starts with sk-ant-oat: $([[ "$CLAUDE_CODE_OAUTH_TOKEN" == sk-ant-oat* ]] && echo yes || echo NO)"
+          fi
           noagent=1
           if [ "$MODE" = agent ]; then
             if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then noagent=0; else echo "::warning::agent mode without the CLAUDE_CODE_OAUTH_TOKEN secret: running mechanically"; fi
