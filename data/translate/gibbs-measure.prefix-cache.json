@@ -1,0 +1,66 @@
+{
+  "GibbsMeasure/Mathlib/Basic/ENNReal/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:00.702Z"
+  },
+  "GibbsMeasure/Mathlib/MeasureTheory/Constructions/Cylinders.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:02.103Z",
+    "collisions": [
+      "MeasureTheory._root_.Measurable.dependsOn_of_cylinderEvents",
+      "MeasureTheory._root_.Measurable.cylinderEvents_of_dependsOn"
+    ]
+  },
+  "GibbsMeasure/Mathlib/MeasureTheory/Function/ConditionalExpectation/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:09.769Z"
+  },
+  "GibbsMeasure/Mathlib/MeasureTheory/Function/ConditionalLExpectation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:10.457Z"
+  },
+  "GibbsMeasure/Mathlib/MeasureTheory/Function/L1Space/Integrable.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:12.748Z"
+  },
+  "GibbsMeasure/Mathlib/MeasureTheory/Function/LpSeminorm/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:14.801Z"
+  },
+  "GibbsMeasure/Mathlib/MeasureTheory/MeasurableSpace/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:15.479Z"
+  },
+  "GibbsMeasure/Mathlib/MeasureTheory/Measure/Ext.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:18.194Z"
+  },
+  "GibbsMeasure/Mathlib/MeasureTheory/Measure/GiryMonad.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:19.552Z"
+  },
+  "GibbsMeasure/Mathlib/MeasureTheory/Measure/Prod.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:22.366Z"
+  },
+  "GibbsMeasure/Mathlib/Probability/Kernel/Composition/IntegralCompProd.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:23.375Z"
+  },
+  "GibbsMeasure/Mathlib/Probability/Kernel/Proper.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:34:24.116Z"
+  },
+  "GibbsMeasure/Prereqs/Juxt.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:24.815Z"
+  },
+  "GibbsMeasure/Prereqs/Kernel/CondExp.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:34:29.990Z"
+  },
+  "GibbsMeasure/Specification.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:30.705Z"
+  }
+}
