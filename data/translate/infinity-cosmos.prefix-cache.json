@@ -1,0 +1,63 @@
+{
+  "InfinityCosmos/ForMathlib/AlgebraicTopology/Quasicategory/TwoTruncated.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:42:02.170Z"
+  },
+  "InfinityCosmos/ForMathlib/AlgebraicTopology/SimplicialCategory/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:42:02.710Z"
+  },
+  "InfinityCosmos/ForMathlib/AlgebraicTopology/SimplicialCategory/Cotensors.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:42:05.482Z"
+  },
+  "InfinityCosmos/ForMathlib/AlgebraicTopology/SimplicialSet/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:42:05.866Z"
+  },
+  "InfinityCosmos/ForMathlib/AlgebraicTopology/SimplicialSet/StdSimplex.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:42:06.214Z"
+  },
+  "InfinityCosmos/ForMathlib/CategoryTheory/Enriched/Cotensors.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:42:16.105Z",
+    "collisions": [
+      "CategoryTheory.Enriched.Precotensor.cone",
+      "CategoryTheory.Enriched.Precotensor.coneNatTrans",
+      "CategoryTheory.Enriched.Cotensor.postcompose",
+      "CategoryTheory.Enriched.Cotensor.IhomPrecompose",
+      "CategoryTheory.Enriched.Cotensor.EhomPrecompose"
+    ]
+  },
+  "InfinityCosmos/ForMathlib/CategoryTheory/Enriched/Limits/HasConicalLimits.lean": {
+    "checkedAt": "2026-09-27T09:42:35.514Z",
+    "collisions": [
+      "CategoryTheory.Enriched.HasConicalLimit.conicalLimit.π"
+    ]
+  },
+  "InfinityCosmos/ForMathlib/CategoryTheory/Enriched/Limits/IsConicalLimit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:42:37.272Z"
+  },
+  "InfinityCosmos/ForMathlib/CategoryTheory/Enriched/MonoidalProdCat.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:42:37.965Z"
+  },
+  "InfinityCosmos/ForMathlib/CategoryTheory/Enriched/Tensors.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:42:41.494Z"
+  },
+  "InfinityCosmos/ForMathlib/InfinityCosmos/Constructions/BrownFactorization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:42:51.176Z"
+  },
+  "InfinityCosmos/ForMathlib/InfinityCosmos/CotensorPointIso.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:42:53.685Z"
+  },
+  "InfinityCosmos/ForMathlib/InfinityCosmos/Isofibrations.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:42:54.907Z"
+  }
+}
