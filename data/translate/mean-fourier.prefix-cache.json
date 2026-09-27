@@ -1,0 +1,123 @@
+{
+  "MeanFourier/AlmostPeriod/Uniform.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:13:30.753Z"
+  },
+  "MeanFourier/BohrSet/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:13:40.831Z"
+  },
+  "MeanFourier/BohrSet/Doubling.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:13:45.133Z"
+  },
+  "MeanFourier/Mathlib/Algebra/Group/Action/Pointwise/Set/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:13:55.816Z"
+  },
+  "MeanFourier/Mathlib/Algebra/Group/Pointwise/Set/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:13:57.050Z"
+  },
+  "MeanFourier/Mathlib/Algebra/Module/Equiv/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:13:59.729Z"
+  },
+  "MeanFourier/Mathlib/Analysis/Normed/Group/Bounded.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:14:00.345Z"
+  },
+  "MeanFourier/Mathlib/Basic/ENNReal/BigOperators.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:14:01.344Z"
+  },
+  "MeanFourier/Mathlib/Basic/Real/ENatENNReal.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:14:02.055Z"
+  },
+  "MeanFourier/Mathlib/Combinatorics/Additive/ApproximateSubgroup.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:14:07.670Z"
+  },
+  "MeanFourier/Mathlib/Combinatorics/Additive/CovBySMul.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:14:08.379Z"
+  },
+  "MeanFourier/Mathlib/Combinatorics/Additive/VCDim.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:14:24.502Z"
+  },
+  "MeanFourier/Mathlib/Combinatorics/SetFamily/VCDim.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:14:33.168Z"
+  },
+  "MeanFourier/Mathlib/Data/ENat/BigOperators.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:14:33.902Z"
+  },
+  "MeanFourier/Mathlib/Data/ENat/Monoid.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:14:34.593Z"
+  },
+  "MeanFourier/Mathlib/Data/Finset/Pi.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:14:36.872Z"
+  },
+  "MeanFourier/Mathlib/Data/Fintype/BigOperators.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:14:41.035Z"
+  },
+  "MeanFourier/Mathlib/Data/Fintype/Pi.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:14:42.065Z"
+  },
+  "MeanFourier/Mathlib/Data/Set/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:14:42.748Z"
+  },
+  "MeanFourier/Mathlib/Data/Set/Card.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:14:43.435Z"
+  },
+  "MeanFourier/Mathlib/Data/Set/Prod.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:14:46.980Z"
+  },
+  "MeanFourier/Mathlib/MeasureTheory/Group/FoelnerFilter.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:14:47.669Z"
+  },
+  "MeanFourier/Mathlib/Topology/Algebra/Module/Equiv.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:14:48.354Z"
+  },
+  "MeanFourier/Mathlib/Topology/MetricSpace/Cover.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:14:50.707Z"
+  },
+  "MeanFourier/Mathlib/Topology/MetricSpace/CoveringNumbers.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T10:14:53.183Z",
+    "collisions": [
+      "Metric._root_.TotallyBounded.coveringNumber_ne_top"
+    ]
+  },
+  "MeanFourier/Mathlib/Topology/MetricSpace/MetricSeparated.lean": {
+    "checkedAt": "2026-09-27T10:15:05.007Z",
+    "collisions": [
+      "Metric._root_.AntilipschitzWith.injOn"
+    ]
+  },
+  "MeanFourier/Mathlib/Topology/MetricSpace/Pseudo/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:15:06.887Z"
+  },
+  "MeanFourier/UnitaryDual.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:15:16.283Z"
+  },
+  "MeanFourier/UnitaryRep.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T10:15:17.185Z"
+  }
+}
