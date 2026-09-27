@@ -1,0 +1,39 @@
+{
+  "Toric/Examples/SO2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:33:59.690Z"
+  },
+  "Toric/GroupScheme/Diagonalizable.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:17.305Z",
+    "collisions": [
+      "AlgebraicGeometry.Scheme.Diag.map"
+    ]
+  },
+  "Toric/Hopf/Diagonalisable.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:36.172Z"
+  },
+  "Toric/Mathlib/Algebra/Category/Ring/Under/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:40.960Z"
+  },
+  "Toric/Mathlib/Algebra/Polynomial/Bivariate.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:41.641Z"
+  },
+  "Toric/Mathlib/LinearAlgebra/Finsupp/LinearCombination.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:43.002Z"
+  },
+  "Toric/Mathlib/RingTheory/HopfAlgebra/Convolution.lean": {
+    "checkedAt": "2026-09-27T09:34:44.378Z",
+    "collisions": [
+      "AlgHom.inv_convMul_cancel"
+    ]
+  },
+  "Toric/ToricIdeal.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:34:45.537Z"
+  }
+}
