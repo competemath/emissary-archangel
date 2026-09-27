@@ -1,0 +1,238 @@
+{
+  "IdealArithmetic/ClassGroupEquiv/ClassGroupEquiv.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:50:02.517Z"
+  },
+  "IdealArithmetic/Computation/PrimeSieve.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:50:13.297Z"
+  },
+  "IdealArithmetic/DedekindProject/Auxiliary/LinearAlgebraAuxiliaryLemmas.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:55:55.335Z"
+  },
+  "IdealArithmetic/DedekindProject/Auxiliary/PolynomialRadical.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:55:56.834Z"
+  },
+  "IdealArithmetic/DedekindProject/Polynomial/BrillhartIrreducibilityTest.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:56:05.893Z"
+  },
+  "IdealArithmetic/Examples/NF4_4_54381317_1/PrimesBelow4_4_54381317_1F12.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:57:26.954Z"
+  },
+  "IdealArithmetic/Examples/NF4_4_54381317_1/PrimesBelow4_4_54381317_1F9.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:57:34.374Z"
+  },
+  "IdealArithmetic/Examples/NF5_1_3790297_2/PrimesBelow5_1_3790297_2F1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:57:40.156Z"
+  },
+  "IdealArithmetic/IdealArithmetic/IdealArithmetic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:57:42.943Z"
+  },
+  "IdealArithmetic/Signature/ResultantRecursive.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T16:01:36.310Z"
+  },
+  "IdealArithmetic/DedekindProject/Auxiliary/Semilinear.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:44:22.278Z",
+    "collisions": [
+      "Basis.comp_semilinear"
+    ]
+  },
+  "IdealArithmetic/DedekindProject/CertifyRingOfIntegers/CertifyAdjoinRoot.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:44:39.407Z"
+  },
+  "IdealArithmetic/DedekindProject/CertifyRingOfIntegers/CertifyKernel.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:44:53.518Z"
+  },
+  "IdealArithmetic/Examples/NF2_0_231_1/PrimesBelow2_0_231_1F0.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:46:06.133Z"
+  },
+  "IdealArithmetic/Examples/NF4_4_54381317_1/PrimesBelow4_4_54381317_1F0.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:46:14.297Z"
+  },
+  "IdealArithmetic/Examples/NF4_4_54381317_1/PrimesBelow4_4_54381317_1F4.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:46:22.300Z"
+  },
+  "IdealArithmetic/Generation/ClassGroupGeneration.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:46:25.160Z"
+  },
+  "IdealArithmetic/IdealArithmetic/CertifyPrimeIdeal.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:47:29.133Z"
+  },
+  "IdealArithmetic/Saturation/PrincipalityCertificate.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:47:30.288Z"
+  },
+  "IdealArithmetic/DedekindProject/Auxiliary/QuotientModules.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:43:40.047Z"
+  },
+  "IdealArithmetic/DedekindProject/Discriminant/Discriminant.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:43:54.186Z"
+  },
+  "IdealArithmetic/DedekindProject/Polynomial/IrreduciblePolynomialZModp.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:44:14.105Z"
+  },
+  "IdealArithmetic/DedekindProject/TimesTable/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:45:17.720Z"
+  },
+  "IdealArithmetic/Examples/NF4_4_54381317_1/PrimesBelow4_4_54381317_1F5.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:46:14.838Z"
+  },
+  "IdealArithmetic/Examples/NF4_4_54381317_1/Results4_4_54381317_1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:46:16.690Z"
+  },
+  "IdealArithmetic/Examples/NF6_4_19208000_1/PrimesBelow6_4_19208000_1F1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:47:01.204Z"
+  },
+  "IdealArithmetic/Saturation/CertifyTorsionOrder.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T16:19:58.999Z"
+  },
+  "IdealArithmetic/DedekindProject/Auxiliary/AlgebraAuxiliaryLemmas.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:41:10.576Z",
+    "collisions": [
+      "Algebra.adjoin_isAdjoinRoot"
+    ]
+  },
+  "IdealArithmetic/Examples/NF3_1_24843_1/PrimesBelow3_1_24843_1F0.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:42:31.017Z"
+  },
+  "IdealArithmetic/Examples/NF4_0_76176_2/PrimesBelow4_0_76176_2F0.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:42:37.811Z"
+  },
+  "IdealArithmetic/Examples/NF4_4_54381317_1/PrimesBelow4_4_54381317_1F11.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:42:46.691Z"
+  },
+  "IdealArithmetic/Examples/NF4_4_54381317_1/PrimesBelow4_4_54381317_1F2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:42:54.143Z"
+  },
+  "IdealArithmetic/Examples/NF4_4_54381317_1/RI4_4_54381317_1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:43:02.515Z"
+  },
+  "IdealArithmetic/Generation/FinAddCasesIter.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:43:04.238Z"
+  },
+  "IdealArithmetic/Saturation/ClassGroupSaturation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:43:13.612Z"
+  },
+  "IdealArithmetic/Signature/Sturm.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:43:20.499Z"
+  },
+  "IdealArithmetic/DedekindProject/Polynomial/PolynomialsAsLists.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:43:55.394Z"
+  },
+  "IdealArithmetic/Examples/NF3_1_24843_1/PrimesBelow3_1_24843_1F1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:44:35.847Z"
+  },
+  "IdealArithmetic/Examples/NF4_0_76176_2/PrimesBelow4_0_76176_2F1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:44:38.540Z"
+  },
+  "IdealArithmetic/Examples/NF4_4_54381317_1/Irreducible4_4_54381317_1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:44:44.303Z"
+  },
+  "IdealArithmetic/Examples/NF4_4_54381317_1/PrimesBelow4_4_54381317_1F1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:45:26.097Z"
+  },
+  "IdealArithmetic/Examples/NF4_4_54381317_1/PrimesBelow4_4_54381317_1F10.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:45:32.346Z"
+  },
+  "IdealArithmetic/Examples/NF4_4_54381317_1/PrimesBelow4_4_54381317_1F3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:45:38.887Z"
+  },
+  "IdealArithmetic/Examples/NF4_4_54381317_1/PrimesBelow4_4_54381317_1F7.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:45:45.668Z"
+  },
+  "IdealArithmetic/Examples/NF5_1_3790297_2/PrimesBelow5_1_3790297_2F3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:45:49.055Z"
+  },
+  "IdealArithmetic/DedekindProject/Auxiliary/PolynomialBasics.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:42:48.074Z"
+  },
+  "IdealArithmetic/DedekindProject/CertifyRingOfIntegers/CertifyMaximality.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:42:49.902Z"
+  },
+  "IdealArithmetic/DedekindProject/CertifyRingOfIntegers/DedekindCriteria.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:42:54.447Z"
+  },
+  "IdealArithmetic/DedekindProject/CertifyRingOfIntegers/MaximalAPI.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T15:43:33.441Z"
+  },
+  "IdealArithmetic/DedekindProject/TimesTable/TimesTableAsLists.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:43:41.976Z"
+  },
+  "IdealArithmetic/Examples/NF4_4_54381317_1/PrimesBelow4_4_54381317_1F6.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:44:40.768Z"
+  },
+  "IdealArithmetic/Examples/NF4_4_54381317_1/PrimesBelow4_4_54381317_1F8.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:44:49.686Z"
+  },
+  "IdealArithmetic/Examples/NF5_1_3790297_2/PrimesBelow5_1_3790297_2F0.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:44:57.099Z"
+  },
+  "IdealArithmetic/Examples/NF5_1_3790297_2/PrimesBelow5_1_3790297_2F2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:45:03.891Z"
+  },
+  "IdealArithmetic/Examples/NF6_4_19208000_1/PrimesBelow6_4_19208000_1F0.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:45:10.155Z"
+  },
+  "IdealArithmetic/Examples/NF6_4_19208000_1/PrimesBelow6_4_19208000_1F2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T15:45:16.795Z"
+  },
+  "IdealArithmetic/Saturation/LogMatrix.lean": {
+    "checkedAt": "2026-09-27T16:25:38.903Z",
+    "collisions": [
+      "LogFiniteRing"
+    ]
+  }
+}
