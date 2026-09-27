@@ -1,0 +1,22 @@
+{
+  "ForbiddenMatrix/Containment.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:28:32.221Z"
+  },
+  "ForbiddenMatrix/ExtremalFunction.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:28:36.358Z"
+  },
+  "ForbiddenMatrix/Mathlib/Data/ZMod/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:29:10.545Z"
+  },
+  "ForbiddenMatrix/PermutationPatterns.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T09:29:10.898Z"
+  },
+  "ForbiddenMatrix/SmallPatterns.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T09:29:11.726Z"
+  }
+}
