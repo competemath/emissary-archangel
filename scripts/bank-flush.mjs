@@ -133,6 +133,12 @@ for (const { key, files } of pending) {
   for (const l of records) {
     const r0 = JSON.parse(l)
     if (have.has(r0.name) || seen.has(r0.name)) continue
+    if (["statement", "proof", "context"].some((f) => String(r0[f] ?? "").includes("\ufffd"))) {
+      // garbled when banked (a character split across two stream chunks, fixed in the queue server): not the text
+      // that was verified, so never staged
+      console.log(`bank-flush: ${key}/${r0.name} skipped: its text holds U+FFFD`)
+      continue
+    }
     seen.add(r0.name)
     const r = resolveClash(r0, key)
     if (!r) continue
