@@ -51,7 +51,14 @@ jobs:
                   f.write("".join(l if l.endswith("\n") else l + "\n" for l in new))
               print(f"{lib}: {len(new)} banked records added to {len(have)} trusted")
           PY
-          cd tree && python3 scripts/generate.py --corpus /nonexistent --libraries $LIBS 2>&1 | grep -E 'records ->|Error|Traceback'
+          # each library with its corpus at the pinned commit (only its import lines are read), as the queue does
+          cd tree
+          for lib in $LIBS; do
+            spec=$(python3 -c "import json; c = json.load(open('schemas/sources.json')).get('corpora', {}).get('$lib', {}); print(c.get('repo', ''), c.get('commit', ''))")
+            read -r repo commit <<< "$spec"
+            if [ -n "$repo" ]; then git clone -q --filter=blob:none "$repo" "corpora/$lib" && git -C "corpora/$lib" checkout -q "$commit"; fi
+            python3 scripts/generate.py --corpus "corpora/$lib" --libraries "$lib" 2>&1 | grep -E 'records ->|Error|Traceback' || true
+          done
       - name: Build each library, then all of them together (clashes between libraries)
         run: |
           cd tree
