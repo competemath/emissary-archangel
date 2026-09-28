@@ -1,0 +1,2000 @@
+{
+  "Physlib/ClassicalMechanics/Pendulum/SimplePendulum/Geometric/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:49:25.854Z"
+  },
+  "Physlib/Electromagnetism/Dynamics/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:49:37.070Z"
+  },
+  "Physlib/Mathematics/InnerProductSpace/Calculus.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:49:50.510Z"
+  },
+  "Physlib/Mathematics/SchurTriangulation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:49:51.282Z"
+  },
+  "Physlib/Particles/BeyondTheStandardModel/RHN/AnomalyCancellation/PlusU1/QuadSol.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:50:29.244Z"
+  },
+  "Physlib/Particles/BeyondTheStandardModel/TwoHDM/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:50:34.950Z"
+  },
+  "Physlib/Particles/FlavorPhysics/CKMMatrix/StandardParameterization/StandardParameters.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:50:39.434Z"
+  },
+  "Physlib/Particles/StandardModel/Fermions/DownSinglet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:50:41.722Z"
+  },
+  "Physlib/Particles/SuperSymmetry/MSSMNu/AnomalyCancellation/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:50:42.419Z"
+  },
+  "Physlib/QFT/AnomalyCancellation/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:50:43.178Z"
+  },
+  "Physlib/QFT/PerturbationTheory/FieldStatistics/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:50:52.865Z"
+  },
+  "Physlib/QFT/PerturbationTheory/WickContraction/IsFull.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:17.833Z"
+  },
+  "Physlib/QFT/QED/AnomalyCancellation/BasisLinear.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:21.566Z"
+  },
+  "Physlib/QuantumMechanics/HarmonicOscillator/Eigenstates.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:22.186Z"
+  },
+  "Physlib/QuantumMechanics/HarmonicOscillator/OneDimension/TISE.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:27.311Z"
+  },
+  "Physlib/Relativity/CliffordAlgebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:27.992Z"
+  },
+  "Physlib/Relativity/Tensors/ComplexTensor/Vector/Pre/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:28.451Z"
+  },
+  "Physlib/Relativity/Tensors/RealTensor/Vector/Pre/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:35.316Z"
+  },
+  "Physlib/Units/Examples.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:46.697Z"
+  },
+  "Physlib/Units/ParametricUnits.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:51:47.472Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/CStarAlgebra/SpectralMeasure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:51.428Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Cayley/Measure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:56.571Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/ScalarMeasure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:56.881Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/WeakIntegral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:52:07.132Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/EulerLagrangeEquation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:52:14.656Z"
+  },
+  "PhyslibAlpha/QuantumMechanics/HarmonicOscillator/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:52:14.992Z"
+  },
+  "PhyslibAlpha/QuantumMechanics/QuantumHarmonicOscillator.lean": {
+    "checkedAt": "2026-09-28T00:52:16.259Z",
+    "collisions": [
+      "a_dag_eq",
+      "verify_a",
+      "verify_a_dag",
+      "verify_a_dag_a",
+      "verify_a_a_dag",
+      "commutation_relation",
+      "probabilityOf_eq_poisson_C",
+      "coherentState_only_eigenvector",
+      "distinct_eigenvectors_a",
+      "a_dagalmost_eigenvector",
+      "a_dag_nullspace"
+    ]
+  },
+  "PhyslibAlpha/QuantumMechanics/StinespringDilation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:52:46.798Z"
+  },
+  "PhyslibAlpha/SpaceAndTime/Space/Surfaces/Ring.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:52:48.160Z"
+  },
+  "QuantumInfo/Entropy/VonNeumann.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:52:52.464Z"
+  },
+  "QuantumInfo/ForMathlib/Filter.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:52:55.183Z"
+  },
+  "QuantumInfo/ForMathlib/HermitianMat/Rpow.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:54:33.757Z"
+  },
+  "QuantumInfo/ForMathlib/IsMaximalSelfAdjoint.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:54:37.448Z"
+  },
+  "QuantumInfo/States/Mixed/MState.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:26:30.557Z"
+  },
+  "QuantumInfo/States/Pure/Qubit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:26:37.303Z"
+  },
+  "Physlib/ClassicalMechanics/HarmonicOscillator/Geometric/KineticEnergy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:49:40.950Z"
+  },
+  "Physlib/ClassicalMechanics/Mass/MassUnit.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:49:49.833Z"
+  },
+  "Physlib/Mathematics/Calculus/ParametricIntegration.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:50:07.605Z"
+  },
+  "Physlib/Mathematics/Geometry/Metric/PseudoRiemannian/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:50:42.765Z",
+    "collisions": [
+      "PseudoRiemannianMetric.toBilinForm",
+      "PseudoRiemannianMetric",
+      "PseudoRiemannianMetric.val"
+    ]
+  },
+  "Physlib/Mathematics/InnerProductSpace/Gaussian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:50:54.587Z"
+  },
+  "Physlib/Mathematics/VariationalCalculus/HasVarAdjoint.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:11.230Z"
+  },
+  "Physlib/Particles/NeutrinoPhysics/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:51:12.269Z"
+  },
+  "Physlib/Particles/SuperSymmetry/MSSMNu/AnomalyCancellation/OrthogY3B3/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:25.762Z"
+  },
+  "Physlib/Particles/SuperSymmetry/MSSMNu/AnomalyCancellation/Permutations.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:35.151Z"
+  },
+  "Physlib/Particles/SuperSymmetry/SU5/ChargeSpectrum/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:51:35.905Z"
+  },
+  "Physlib/QFT/PerturbationTheory/CreateAnnihilate.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:51:37.409Z"
+  },
+  "Physlib/QuantumMechanics/HarmonicOscillator/OneDimension/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:40.454Z"
+  },
+  "Physlib/QuantumMechanics/HarmonicOscillator/OneDimension/Completeness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:47.659Z"
+  },
+  "Physlib/QuantumMechanics/Operators/StateObservables/IsEigenvector.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:51:48.514Z"
+  },
+  "Physlib/QuantumMechanics/Operators/StateObservables/Variance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:49.838Z"
+  },
+  "Physlib/Relativity/Fermions/Dirac/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:53.415Z"
+  },
+  "Physlib/Relativity/Fermions/Weyl/RightHanded.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:53.766Z"
+  },
+  "Physlib/Relativity/LorentzGroup/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:55.396Z"
+  },
+  "Physlib/Relativity/PauliMatrices/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:56.084Z"
+  },
+  "Physlib/Relativity/SpeedOfLight.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:51:58.089Z"
+  },
+  "Physlib/Relativity/Tensors/ComplexTensor/Metrics/Pre.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:52:05.635Z"
+  },
+  "Physlib/Relativity/Tensors/Contraction/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:52:06.640Z"
+  },
+  "Physlib/SpaceAndTime/Time/TimeMan.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:52:07.603Z"
+  },
+  "Physlib/SpaceAndTime/TimeAndSpace/EuclideanGroup/Action.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:52:21.767Z"
+  },
+  "Physlib/StatisticalMechanics/CanonicalEnsemble/Finite.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:52:29.158Z"
+  },
+  "Physlib/StatisticalMechanics/CanonicalEnsemble/TwoState.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:53:22.247Z"
+  },
+  "Physlib/Units/ISQBridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:53:26.131Z"
+  },
+  "Physlib/Units/SIUnitChoices.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:53:26.882Z"
+  },
+  "Physlib/Units/WithDim/Speed.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:53:50.494Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Existence/CandidateGenerator.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:54:01.962Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/OrderUnit/Effect/EffectValuedMeasure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:54:09.656Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/Representation/PVM.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:54:10.642Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/StarAlgebra/Jordan.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:54:11.352Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/Variation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:54:13.521Z"
+  },
+  "PhyslibAlpha/ClassicalMechanics/NortonDome/Solution.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:54:13.800Z"
+  },
+  "PhyslibAlpha/Particles/BeyondTheStandardModel/TwoHDM/EffectivePotential.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:54:14.639Z"
+  },
+  "PhyslibAlpha/SpaceAndTime/Space/Surfaces/HalfPlane.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:54:15.075Z"
+  },
+  "PhyslibAlpha/SpaceAndTime/Space/Surfaces/SolidCylinder.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:54:15.527Z"
+  },
+  "QuantumInfo/Entropy/Relative.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:54:15.992Z"
+  },
+  "QuantumInfo/ForMathlib/ContinuousSup.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:54:24.552Z"
+  },
+  "QuantumInfo/ForMathlib/HayataGroup/TraceInequality/BlockDiagonal.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:54:42.006Z"
+  },
+  "QuantumInfo/ForMathlib/HermitianMat/Proj.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:03.520Z"
+  },
+  "QuantumInfo/ForMathlib/HermitianMat/Reindex.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:06.729Z"
+  },
+  "QuantumInfo/ForMathlib/LimSupInf.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:55:07.601Z"
+  },
+  "QuantumInfo/States/Ensemble.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:56:06.845Z"
+  },
+  "Physlib/ClassicalMechanics/Pendulum/SimplePendulum/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:58:59.568Z"
+  },
+  "Physlib/ClassicalMechanics/Pendulum/SimplePendulum/SmallAngle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:59:05.588Z"
+  },
+  "Physlib/ClassicalMechanics/PointParticle/NewtonianSystem/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:59:31.784Z"
+  },
+  "Physlib/Electromagnetism/Charge/ChargeUnit.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:59:32.722Z"
+  },
+  "Physlib/Mathematics/LinearMaps.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:59:40.777Z"
+  },
+  "Physlib/Mathematics/OrthogonalMatrix.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:59:41.573Z"
+  },
+  "Physlib/Mathematics/Trigonometry/SinSq.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:59:42.263Z"
+  },
+  "Physlib/Particles/StandardModel/HiggsBoson/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:59:43.255Z"
+  },
+  "Physlib/QuantumMechanics/FiniteTarget.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:00:05.320Z"
+  },
+  "Physlib/QuantumMechanics/HilbertSpaces/OneDimension/PositionStates.lean": {
+    "checkedAt": "2026-09-28T01:00:09.878Z",
+    "collisions": [
+      "QuantumMechanics.OneDimension.HilbertSpace.positionState"
+    ]
+  },
+  "Physlib/QuantumMechanics/Operators/Uncertainty.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:00:11.325Z"
+  },
+  "Physlib/QuantumMechanics/SpaceDQuantumSystem.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:11.145Z"
+  },
+  "Physlib/Relativity/Fermions/Weyl/LeftHanded.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:11.596Z"
+  },
+  "Physlib/Relativity/Tensors/RealTensor/Representation/Contraction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:29.026Z"
+  },
+  "Physlib/SpaceAndTime/Time/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:02:31.245Z"
+  },
+  "Physlib/StatisticalMechanics/CanonicalEnsemble/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:32.888Z"
+  },
+  "Physlib/StatisticalMechanics/MicroCanonicalEnsemble/IdealGas.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:35.288Z"
+  },
+  "Physlib/StatisticalMechanics/MicroCanonicalEnsemble/ThermoQuantities.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:35.670Z"
+  },
+  "Physlib/Thermodynamics/Temperature/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:36.236Z"
+  },
+  "Physlib/Units/LTMCTDimensionBase.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:56.274Z"
+  },
+  "Physlib/Units/WithDim/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:01.964Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/StoneUnitaryGroup.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:03:02.810Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/OrderUnit/Composite.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:04:08.068Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/StarAlgebra/SelfAdjoint.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:04:40.018Z"
+  },
+  "QuantumInfo/Channels/Bundled.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:05:32.483Z"
+  },
+  "QuantumInfo/ForMathlib/HayataGroup/TraceInequality/LiebAndoTrace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:05:55.062Z"
+  },
+  "QuantumInfo/ForMathlib/HermitianMat/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:05:56.012Z"
+  },
+  "QuantumInfo/ForMathlib/HermitianMat/CFC.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:20:44.216Z"
+  },
+  "QuantumInfo/ForMathlib/HermitianMat/Jordan.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:20:47.587Z"
+  },
+  "QuantumInfo/ForMathlib/HermitianMat/LiebConcavity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:20:48.352Z"
+  },
+  "QuantumInfo/ForMathlib/SionMinimax.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:20:49.457Z"
+  },
+  "QuantumInfo/States/Pure/Braket.lean": {
+    "checkedAt": "2026-09-28T01:21:31.715Z",
+    "collisions": [
+      "Braket._root_.Ket.coe_fun_eq",
+      "Braket._root_.Bra.coe_fun_eq"
+    ]
+  },
+  "Physlib/ClassicalMechanics/OrbitalMechanics/VisViva.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:53:42.966Z"
+  },
+  "Physlib/ClassicalMechanics/Pendulum/SimplePendulum/Equilibria.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:53:44.730Z"
+  },
+  "Physlib/ClassicalMechanics/Pendulum/SimplePendulum/LiftInvariance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:53:45.375Z"
+  },
+  "Physlib/ClassicalMechanics/Pendulum/SimplePendulum/PeriodFormula.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:53:46.583Z"
+  },
+  "Physlib/Mathematics/Calculus/Wirtinger/Coordinate.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:53:59.199Z",
+    "collisions": [
+      "Physlib.Wirtinger.clinear_of_holomorphic",
+      "Physlib.Wirtinger.fderiv_coordProj",
+      "Physlib.Wirtinger.conjCLM_apply",
+      "Physlib.Wirtinger.conjCLM_smul_I",
+      "Physlib.Wirtinger.coordDiff_eq_add_neg"
+    ]
+  },
+  "Physlib/Mathematics/PiTensorProduct.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:55:17.290Z",
+    "collisions": [
+      "Physlib.PiTensorProduct.tmulSymm",
+      "Physlib.PiTensorProduct.tmul",
+      "Physlib.PiTensorProduct.tmulEquiv"
+    ]
+  },
+  "Physlib/Mathematics/VariationalCalculus/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:48.482Z"
+  },
+  "Physlib/Particles/BeyondTheStandardModel/RHN/AnomalyCancellation/FamilyMaps.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:52.439Z"
+  },
+  "Physlib/Particles/BeyondTheStandardModel/RHN/AnomalyCancellation/PlusU1/QuadSolToSol.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:56:05.784Z"
+  },
+  "Physlib/Particles/StandardModel/Fermions/LeptonDoublet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:56:08.052Z"
+  },
+  "Physlib/Particles/SuperSymmetry/MSSMNu/AnomalyCancellation/B3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:56:18.149Z"
+  },
+  "Physlib/Particles/SuperSymmetry/MSSMNu/AnomalyCancellation/OrthogY3B3/ToSols.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:56:23.922Z"
+  },
+  "Physlib/QFT/PerturbationTheory/WickContraction/UncontractedList.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:56:25.528Z"
+  },
+  "Physlib/QFT/QED/AnomalyCancellation/VectorLike.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:56:26.927Z"
+  },
+  "Physlib/QuantumMechanics/HarmonicOscillator/OneDimension/Eigenfunction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:56:33.068Z"
+  },
+  "Physlib/Relativity/Fermions/Weyl/Contraction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:56:38.391Z"
+  },
+  "Physlib/Relativity/Fermions/Weyl/Unit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:56:46.698Z"
+  },
+  "Physlib/Relativity/LorentzGroup/Proper.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:56:52.027Z"
+  },
+  "Physlib/Relativity/Tensors/ComponentIdx/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:56:53.262Z"
+  },
+  "Physlib/Relativity/Tensors/Contraction/Pure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:57:12.721Z"
+  },
+  "Physlib/Relativity/Tensors/Product.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:57:13.956Z"
+  },
+  "Physlib/Relativity/Tensors/RealTensor/Vector/Representation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:57:24.000Z"
+  },
+  "Physlib/SpaceAndTime/Space/EuclideanGroup/Action.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:57:41.472Z"
+  },
+  "Physlib/Thermodynamics/Temperature/TemperatureUnits.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:58:31.726Z"
+  },
+  "Physlib/Units/Dimension.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:58:42.941Z"
+  },
+  "Physlib/Units/FDeriv.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:58:56.115Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/CStarAlgebra/ConjugationSymmetry.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:58:58.764Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/CStarAlgebra/JordanDecomposition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:59:03.901Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/AnalyticVector/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:59:08.690Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Stone.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:59:30.247Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/UnitaryInfra/SpectralMeasure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:59:52.630Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/OrderUnit/Norm.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:59:56.774Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/StarAlgebra/Traciality.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:00:12.104Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/FirstVariation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:00:26.030Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/FirstVariation/Criterion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:00:30.627Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/TotalDerivative.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:00:31.152Z"
+  },
+  "PhyslibAlpha/ClassicalMechanics/CoupledSpringPotential.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:00:32.107Z"
+  },
+  "QuantumInfo/ForMathlib/HayataGroup/TraceInequality/HilbertSchmidtOperatorSpace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:01:40.466Z"
+  },
+  "QuantumInfo/ForMathlib/HayataGroup/TraceInequality/JensenOperatorInequalityIImpIV.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:22.338Z"
+  },
+  "QuantumInfo/ForMathlib/HayataGroup/TraceInequality/LownerHeinzCore.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:02:28.196Z",
+    "collisions": [
+      "LownerHeinzCore.spectrum_convexCombo_Ioi",
+      "LownerHeinzCore.posSemidef_block_one_inv",
+      "LownerHeinzCore.schur_conj_eq_diagonal",
+      "LownerHeinzCore.cfcₙ_rpowIntegrand₀₁_eq_smul_cfcR_ratio",
+      "LownerHeinzCore.cfcR_ratio_weighted_le",
+      "LownerHeinzCore.concaveOn_cfcₙ_rpowIntegrand₀₁",
+      "LownerHeinzCore.concaveOn_nnrpow_Ioo",
+      "LownerHeinzCore.concaveOn_rpow_Ioo",
+      "LownerHeinzCore.sq_mul_div_add",
+      "LownerHeinzCore.convexOn_cfcR_one_div_add_t",
+      "LownerHeinzCore.G_eqOn_rpowIntegrand₀₁_mul",
+      "LownerHeinzCore.convexOn_G_rpowIntegrand₀₁_mul",
+      "LownerHeinzCore.ae_cfcₙ_mul_id_rpowIntegrand₀₁_restrict_Ioi",
+      "LownerHeinzCore.convexOn_nnrpow_Ioo_one_add",
+      "LownerHeinzCore.convexOn_rpow_Ioo_one_two",
+      "LownerHeinzCore.cfcR_mul_self",
+      "LownerHeinzCore.sub_mul_sub",
+      "LownerHeinzCore.smul_sub_mul_sub",
+      "LownerHeinzCore.square_convexity_diff_rhs",
+      "LownerHeinzCore.square_convexity_diff_hL",
+      "LownerHeinzCore.square_convexity_diff_hCC_sum",
+      "LownerHeinzCore.square_convexity_diff_hCC",
+      "LownerHeinzCore.square_convexity_diff",
+      "LownerHeinzCore.operatorConvexOn_pow_two_Ici"
+    ]
+  },
+  "QuantumInfo/Measurements/POVM.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:23:24.057Z"
+  },
+  "Physlib/ClassicalMechanics/HarmonicOscillator/Geometric/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:48:44.701Z"
+  },
+  "Physlib/Mathematics/CrossProductMatrix.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:48:56.914Z"
+  },
+  "Physlib/Mathematics/InnerProductSpace/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:48:59.411Z"
+  },
+  "Physlib/Mathematics/List/InsertionSort.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:49:27.189Z"
+  },
+  "Physlib/Mathematics/OneParameterSubgroups/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:49:29.581Z"
+  },
+  "Physlib/Mathematics/Resolvent.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:49:38.826Z"
+  },
+  "Physlib/Mathematics/SO3/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:49:43.365Z"
+  },
+  "Physlib/Mathematics/VariationalCalculus/IsLocalizedfunctionTransform.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:50:06.082Z"
+  },
+  "Physlib/Particles/FlavorPhysics/CKMMatrix/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:50:38.963Z"
+  },
+  "Physlib/Particles/StandardModel/AnomalyCancellation/NoGrav/One/LinearParameterization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:11.178Z"
+  },
+  "Physlib/Particles/StandardModel/AnomalyCancellation/Permutations.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:14.835Z"
+  },
+  "Physlib/Particles/StandardModel/Representations.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:51:19.927Z"
+  },
+  "Physlib/QFT/PerturbationTheory/FieldStatistics/ExchangeSign.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:22.682Z"
+  },
+  "Physlib/QFT/PerturbationTheory/Koszul/KoszulSign.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:23.946Z"
+  },
+  "Physlib/QFT/PerturbationTheory/WickContraction/InsertAndContractNat.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:27.874Z"
+  },
+  "Physlib/QFT/QED/AnomalyCancellation/LowDim/Three.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:32.531Z"
+  },
+  "Physlib/QuantumMechanics/Operators/OneDimension/Parity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:33.592Z"
+  },
+  "Physlib/QuantumMechanics/Operators/SpectralTheory/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:51:34.083Z"
+  },
+  "Physlib/Relativity/Fermions/Weyl/Duals.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:52:02.327Z"
+  },
+  "Physlib/Relativity/LorentzGroup/Boosts/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:52:08.724Z"
+  },
+  "Physlib/Relativity/MinkowskiMatrix.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:52:09.568Z"
+  },
+  "Physlib/Relativity/Tensors/ComplexTensor/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:52:23.942Z"
+  },
+  "Physlib/Relativity/Tensors/RealTensor/Vector/Pre/Contraction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:52:34.391Z"
+  },
+  "Physlib/Relativity/Tensors/TensorSpecies/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:52:35.944Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Basic.lean": {
+    "checkedAt": "2026-09-28T00:52:39.601Z",
+    "collisions": [
+      "QuantumMechanics.WOTSpectralMeasure.toVectorMeasure"
+    ]
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/BoundedSelfAdjointData.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:54:26.614Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Cayley/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:54:27.510Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Existence/GeneratorInvariance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:54:49.894Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Existence/StoneReconstruction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:54:51.481Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Flow/Stone.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:40.176Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Flow/StoneInvariance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:44.513Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/SpectralIntegral/SpecTheorem.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:50.523Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/UnitaryInfra/SesquilinearForm.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:55:52.155Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/OrderUnit/Weight/Basic.lean": {
+    "checkedAt": "2026-09-28T01:03:21.495Z",
+    "collisions": [
+      "PosCone",
+      "Weight"
+    ]
+  },
+  "PhyslibAlpha/AlgebraicFramework/Representation/Covariance/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:22.088Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/FirstVariation/Density.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:32.137Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/TotalDivergence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:40.329Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/TotalDivergenceEquivalence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:46.529Z"
+  },
+  "PhyslibAlpha/ClassicalMechanics/NortonDome/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:03:47.308Z"
+  },
+  "PhyslibAlpha/ClassicalMechanics/NortonDome/Sqrt.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:04:15.879Z"
+  },
+  "PhyslibAlpha/Mathematics/LadderSystem/Irreducibility.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:04:18.390Z"
+  },
+  "PhyslibAlpha/Mathematics/LadderSystem/SymmetricPower.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:04:24.827Z"
+  },
+  "PhyslibAlpha/Particles/BeyondTheStandardModel/TwoHDM/ChargeBalance.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:04:27.384Z"
+  },
+  "PhyslibAlpha/Particles/BeyondTheStandardModel/TwoHDM/GaugeTorus.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:04:28.133Z"
+  },
+  "QuantumInfo/ForMathlib/ContinuousLinearMap.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:04:28.835Z"
+  },
+  "QuantumInfo/ForMathlib/Isometry.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:04:44.651Z"
+  },
+  "Physlib/ClassicalMechanics/HarmonicOscillator/Geometric/Trajectory.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:53:13.293Z"
+  },
+  "Physlib/CondensedMatter/TightBindingChain/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:53:14.927Z"
+  },
+  "Physlib/Mathematics/Calculus/Gradient.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:53:25.237Z"
+  },
+  "Physlib/Mathematics/FDerivCurry.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:53:31.062Z"
+  },
+  "Physlib/Mathematics/VariationalCalculus/IsTestFunction.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:54:01.870Z"
+  },
+  "Physlib/Particles/BeyondTheStandardModel/RHN/AnomalyCancellation/Ordinary/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:13.847Z"
+  },
+  "Physlib/Particles/BeyondTheStandardModel/RHN/AnomalyCancellation/PlusU1/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:14.668Z"
+  },
+  "Physlib/Particles/FlavorPhysics/CKMMatrix/Invariants.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:55:24.343Z"
+  },
+  "Physlib/Particles/SuperSymmetry/N1/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:55:25.178Z"
+  },
+  "Physlib/QFT/PerturbationTheory/WickContraction/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:34.849Z"
+  },
+  "Physlib/QFT/PerturbationTheory/WickContraction/Involutions.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:37.032Z"
+  },
+  "Physlib/QFT/PerturbationTheory/WickContraction/Uncontracted.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:38.899Z"
+  },
+  "Physlib/QuantumMechanics/FreeParticle/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:55:39.658Z"
+  },
+  "Physlib/QuantumMechanics/HilbertSpaces/OneDimension/Gaussians.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:41.317Z"
+  },
+  "Physlib/QuantumMechanics/Operators/OneDimension/Unbounded.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:43.043Z"
+  },
+  "Physlib/QuantumMechanics/PlanckConstant.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:43.330Z"
+  },
+  "Physlib/QuantumMechanics/QuantumSystem/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:43.860Z"
+  },
+  "Physlib/Relativity/Tensors/ComplexTensor/Units/Pre.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:48.789Z"
+  },
+  "Physlib/Relativity/Tensors/ComponentIdx/Single.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:50.306Z"
+  },
+  "Physlib/SpaceAndTime/GalileanGroup/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:55:51.282Z"
+  },
+  "Physlib/SpaceAndTime/Space/Derivatives/DerivativeIndex.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:55:53.019Z"
+  },
+  "Physlib/SpaceAndTime/Space/Derivatives/MultiIndex.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:55:54.563Z"
+  },
+  "Physlib/SpaceAndTime/Space/Integrals/NormPow.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:56:04.296Z"
+  },
+  "Physlib/SpaceAndTime/Time/MatrixDerivatives.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:56:04.681Z"
+  },
+  "Physlib/StringTheory/FTheory/SU5/Fluxes/NoExotics/Elems.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:56:06.441Z"
+  },
+  "Physlib/Units/WithDim/Area.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:56:38.687Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/CStarAlgebra/SharpEffect.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:56:41.086Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/CayleySpectralData/Construction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:57:04.156Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/CayleySpectralData/SpecTheorem.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:58:33.631Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Existence/IteratedKernelGrowth.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:58:38.107Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/StarAlgebra/Lie.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:59:29.332Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/FirstVariation/IntegrationByParts.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:59:50.438Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/JetPoint.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:59:51.071Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/JetPointRegularity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:59:53.497Z"
+  },
+  "PhyslibAlpha/ClassicalMechanics/NortonDome/PhysicalSpace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:59:55.143Z"
+  },
+  "PhyslibAlpha/Mathematics/LadderSystem/OccupationBasis.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:59:55.941Z"
+  },
+  "PhyslibAlpha/Mathematics/LadderSystem/Vacuum.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:00:28.360Z"
+  },
+  "PhyslibAlpha/Particles/BeyondTheStandardModel/TwoHDM/GaugeSlice.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:00:28.948Z"
+  },
+  "PhyslibAlpha/QuantumMechanics/HarmonicOscillator/Vacuum.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:00:29.833Z"
+  },
+  "QuantumInfo/Channels/CPTP.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:01:16.852Z"
+  },
+  "QuantumInfo/ForMathlib/Majorization.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:01:19.545Z"
+  },
+  "QuantumInfo/ForMathlib/Superadditive.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:10:53.025Z"
+  },
+  "QuantumInfo/States/Pure/BargmannInvariant.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:10:56.880Z"
+  },
+  "Physlib/ClassicalMechanics/HarmonicOscillator/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:04:48.817Z"
+  },
+  "Physlib/ClassicalMechanics/Pendulum/SimplePendulum/Hamiltonian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:05:02.095Z"
+  },
+  "Physlib/Cosmology/FLRW/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:05:13.931Z"
+  },
+  "Physlib/Mathematics/Fin/Involutions.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:05:21.366Z"
+  },
+  "Physlib/Mathematics/List.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:06:04.432Z"
+  },
+  "Physlib/Mathematics/OneParameterSubgroups/Unitary.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:06:05.607Z"
+  },
+  "Physlib/Particles/BeyondTheStandardModel/RHN/AnomalyCancellation/Ordinary/DimSevenPlane.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:07:09.555Z"
+  },
+  "Physlib/QFT/AnomalyCancellation/GroupActions.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:07:10.203Z"
+  },
+  "Physlib/QFT/PerturbationTheory/FieldStatistics/OfFinset.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:07:11.481Z"
+  },
+  "Physlib/QFT/PerturbationTheory/WickContraction/ExtractEquiv.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:07:13.970Z"
+  },
+  "Physlib/QFT/QED/AnomalyCancellation/Odd/LineInCubic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:07:21.607Z"
+  },
+  "Physlib/QuantumMechanics/HarmonicOscillator/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:07:21.996Z"
+  },
+  "Physlib/QuantumMechanics/Operators/SpectralTheory/SpectralMeasure.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:07:23.104Z"
+  },
+  "Physlib/Relativity/Fermions/Weyl/DualLeftHanded.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:07:32.108Z"
+  },
+  "Physlib/Relativity/LorentzAlgebra/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:07:34.850Z"
+  },
+  "Physlib/Relativity/LorentzAlgebra/Basis.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:07:45.425Z"
+  },
+  "Physlib/Relativity/PauliMatrices/SelfAdjoint.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:07:56.322Z"
+  },
+  "Physlib/Relativity/SL2C/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:07:57.844Z"
+  },
+  "Physlib/Relativity/Tensors/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:08:01.318Z"
+  },
+  "Physlib/Relativity/Tensors/Conjugation/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:08:05.770Z"
+  },
+  "Physlib/Relativity/Tensors/OfInt.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:08:16.219Z"
+  },
+  "Physlib/Relativity/Tensors/RealTensor/CoVector/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:08:17.493Z"
+  },
+  "Physlib/SpaceAndTime/ReferenceFrame.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:08:30.654Z"
+  },
+  "Physlib/StringTheory/FTheory/SU5/Quanta/TenQuanta.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:08:56.223Z"
+  },
+  "Physlib/Thermodynamics/IdealGas/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:12:19.838Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/AnalyticVector/Local.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:12:21.856Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/Measurement/Instrument.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:12:25.392Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/OrderUnit/Effect/BoundedIntegral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:12:26.747Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/Action.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:12:34.692Z"
+  },
+  "PhyslibAlpha/ClassicalMechanics/NortonDome/NewtonianSystem.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:12:35.004Z"
+  },
+  "PhyslibAlpha/Mathematics/LadderSystem/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:12:35.362Z"
+  },
+  "PhyslibAlpha/SpaceAndTime/Space/Surfaces/SolidSphere.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:12:35.685Z"
+  },
+  "QuantumInfo/Channels/Dual.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:12:44.982Z"
+  },
+  "QuantumInfo/ClassicalInfo/Prob.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:12:46.168Z"
+  },
+  "QuantumInfo/Entropy/SSA.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:13:36.286Z"
+  },
+  "QuantumInfo/ForMathlib/ComplexLaplaceTransform.lean": {
+    "checkedAt": "2026-09-28T01:13:39.898Z",
+    "collisions": [
+      "norm_complexLaplaceIntegrand_le_envelope",
+      "norm_complexLaplaceIntegrand_horizontal_le_endpointEnvelope",
+      "norm_complexLaplaceIntegrand_vertical_le_endpointEnvelope"
+    ]
+  },
+  "QuantumInfo/ForMathlib/HermitianMat/CompoundMatrix.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:15:38.306Z"
+  },
+  "QuantumInfo/ForMathlib/HermitianMat/Order.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:15:59.170Z"
+  },
+  "QuantumInfo/ForMathlib/ULift.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:16:00.202Z"
+  },
+  "QuantumInfo/States/Pure/BlochSphere.lean": {
+    "checkedAt": "2026-09-28T01:16:05.149Z",
+    "collisions": [
+      "BlochSphere.blochVecRaw_norm",
+      "BlochSphere.blochPoint_val",
+      "BlochSphere.dot_blochPoint"
+    ]
+  },
+  "Physlib/ClassicalMechanics/Pendulum/SimplePendulum/Geometric/Trajectory.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:10:20.624Z"
+  },
+  "Physlib/CondensedMatter/Thermoelectric/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:10:31.128Z"
+  },
+  "Physlib/Mathematics/Calculus/Divergence.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:10:35.506Z"
+  },
+  "Physlib/Mathematics/Calculus/Wirtinger/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:11:09.277Z",
+    "collisions": [
+      "Physlib.Wirtinger.fderiv_mul_apply",
+      "Physlib.Wirtinger.fderiv_comp_clm_apply",
+      "Physlib.Wirtinger.hasFDerivAt_fderiv_apply",
+      "Physlib.Wirtinger.hasFDerivAt_weightedDirDeriv",
+      "Physlib.Wirtinger.fderiv_weightedDirDeriv",
+      "Physlib.Wirtinger.dWirtingerAntiDir_eq_weightedDirDeriv",
+      "Physlib.Wirtinger.dWirtingerDir_eq_weightedDirDeriv",
+      "Physlib.Wirtinger.fderiv_dWirtingerAntiDir",
+      "Physlib.Wirtinger.fderiv_dWirtingerDir"
+    ]
+  },
+  "Physlib/Mathematics/CrossProduct.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:12:30.642Z"
+  },
+  "Physlib/Mathematics/LinearPMap.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:12:32.785Z"
+  },
+  "Physlib/Mathematics/List/InsertIdx.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:12:56.505Z"
+  },
+  "Physlib/Mathematics/VariationalCalculus/HasVarAdjDeriv.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:13:29.521Z"
+  },
+  "Physlib/Particles/FlavorPhysics/CKMMatrix/PhaseFreedom.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:13:38.367Z"
+  },
+  "Physlib/QFT/PerturbationTheory/Koszul/KoszulSignInsert.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:14:56.262Z"
+  },
+  "Physlib/QuantumMechanics/Operators/OneDimension/Commutation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:15:00.295Z"
+  },
+  "Physlib/Relativity/Tensors/RealTensor/Matrix/Pre.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:15:06.034Z"
+  },
+  "Physlib/Relativity/Tensors/RealTensor/Metrics/Pre.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:15:15.207Z"
+  },
+  "Physlib/Relativity/Tensors/Reindexing.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:15:17.663Z"
+  },
+  "Physlib/Relativity/Tensors/Tensorial.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:15:40.257Z"
+  },
+  "Physlib/SpaceAndTime/Space/EuclideanGroup/AffineGroup.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:15:41.302Z"
+  },
+  "Physlib/StatisticalMechanics/BoltzmannConstant.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:15:57.572Z"
+  },
+  "Physlib/StringTheory/FTheory/SU5/Fluxes/NoExotics/ChiralIndices.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:16:00.692Z"
+  },
+  "Physlib/Units/ISQDimensionBase.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:16:22.477Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/TraceClass/Basic.lean": {
+    "checkedAt": "2026-09-28T01:16:25.070Z",
+    "collisions": [
+      "hasSum_norm_sq_inner_basis",
+      "real_inner_nonneg_of_nonneg",
+      "real_inner_mono_of_le"
+    ]
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/BoundedIntegralAlgebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:17:20.204Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Conjugation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:17:22.266Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Existence/GardingVectors.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:17:44.901Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/SelfAdjointSpectralTheorem.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:18:53.775Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/OrderUnit/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:18:54.625Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/OrderUnit/Channel/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:18:58.412Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/OrderUnit/Effect/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:19:01.006Z"
+  },
+  "PhyslibAlpha/Particles/BeyondTheStandardModel/TwoHDM/Invariants.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:19:01.369Z"
+  },
+  "PhyslibAlpha/Particles/BeyondTheStandardModel/TwoHDM/OrbitRepresentative.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:19:02.147Z"
+  },
+  "PhyslibAlpha/QuantumMechanics/HarmonicOscillator/LadderOperators.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:19:03.139Z"
+  },
+  "PhyslibAlpha/SpaceAndTime/Space/Surfaces/SphericalCylinder.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:19:04.504Z"
+  },
+  "QuantumInfo/ForMathlib/LinearEquiv.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T03:51:27.253Z"
+  },
+  "Physlib/Mathematics/ConjModule.lean": {
+    "checkedAt": "2026-09-28T00:58:40.002Z",
+    "collisions": [
+      "ConjModule._root_.Basis.conj_repr_apply"
+    ]
+  },
+  "Physlib/Mathematics/InnerProductSpace/Submodule.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:58:42.703Z"
+  },
+  "Physlib/Particles/BeyondTheStandardModel/RHN/AnomalyCancellation/NoGrav/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:59:00.507Z"
+  },
+  "Physlib/Particles/StandardModel/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:59:01.237Z"
+  },
+  "Physlib/Particles/StandardModel/Fermions/LeptonSinglet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:13.345Z"
+  },
+  "Physlib/Particles/SuperSymmetry/MSSMNu/AnomalyCancellation/Y3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:22.184Z"
+  },
+  "Physlib/QFT/PerturbationTheory/WickContraction/Singleton.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:24.196Z"
+  },
+  "Physlib/QFT/QED/AnomalyCancellation/LineInPlaneCond.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:30.184Z"
+  },
+  "Physlib/QFT/QED/AnomalyCancellation/LowDim/One.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:30.864Z"
+  },
+  "Physlib/QFT/QED/AnomalyCancellation/Odd/BasisLinear.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:03:31.549Z"
+  },
+  "Physlib/QFT/QED/AnomalyCancellation/Odd/Parameterization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:04:52.908Z"
+  },
+  "Physlib/QFT/QED/AnomalyCancellation/Sorts.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:04:55.182Z"
+  },
+  "Physlib/QuantumMechanics/InfiniteSquareWell/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:04:56.850Z"
+  },
+  "Physlib/QuantumMechanics/Operators/Unbounded.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:04:58.598Z"
+  },
+  "Physlib/QuantumMechanics/RectangularBarrier/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:04:59.969Z"
+  },
+  "Physlib/Relativity/PauliMatrices/AsTensor.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:05:17.922Z"
+  },
+  "Physlib/Relativity/PauliMatrices/CliffordAlgebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:05:19.510Z"
+  },
+  "Physlib/Relativity/SL2C/AxisRotations.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:05:20.228Z"
+  },
+  "Physlib/Relativity/Tensors/RealTensor/Vector/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:05:27.485Z"
+  },
+  "Physlib/Relativity/Tensors/RealTensor/Vector/Causality/TimeLike.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:06:35.433Z"
+  },
+  "Physlib/SpaceAndTime/Space/Derivatives/Grad.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:06:36.745Z"
+  },
+  "Physlib/SpaceAndTime/Time/Derivatives.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:06:41.124Z"
+  },
+  "Physlib/StringTheory/FTheory/SU5/Fluxes/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:06:54.061Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/CStarAlgebra/Automorphism.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:06:59.049Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Dynamics/Automorphism.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:07:09.463Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Trace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:07:35.143Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Flow/StoneAPI.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:08:23.766Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/SpectralPointMass.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:09:17.160Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/OrderUnit/State/Convex.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:09:17.970Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/WStarAlgebra/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:09:19.484Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/EulerLagrange.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:09:38.056Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/FirstVariation/Regularity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:09:40.028Z"
+  },
+  "PhyslibAlpha/Particles/BeyondTheStandardModel/TwoHDM/Module.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:09:40.323Z"
+  },
+  "QuantumInfo/ForMathlib/HayataGroup/TraceInequality/LownerHeinzTheorem.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:10:49.338Z"
+  },
+  "QuantumInfo/ForMathlib/HermitianMat/NonSingular.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:18:29.424Z"
+  },
+  "QuantumInfo/ForMathlib/HermitianMat/Schatten.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:22:31.358Z"
+  },
+  "QuantumInfo/ForMathlib/HermitianMat/Sqrt.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:24:05.551Z"
+  },
+  "QuantumInfo/ForMathlib/Misc.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:24:06.392Z"
+  },
+  "QuantumInfo/ForMathlib/Unitary.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:24:11.503Z"
+  },
+  "Physlib/ClassicalMechanics/HarmonicOscillator/Solution.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:57:44.258Z"
+  },
+  "Physlib/Mathematics/Fin.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:57:57.187Z"
+  },
+  "Physlib/Mathematics/Geometry/Metric/Riemannian/Defs.lean": {
+    "checkedAt": "2026-09-28T00:58:39.972Z",
+    "collisions": [
+      "PseudoRiemannianMetric.RiemannianMetric.toPseudoRiemannianMetric",
+      "PseudoRiemannianMetric.RiemannianMetric",
+      "PseudoRiemannianMetric.val",
+      "PseudoRiemannianMetric.toQuadraticForm"
+    ]
+  },
+  "Physlib/Mathematics/KroneckerDelta/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:58:53.123Z"
+  },
+  "Physlib/Mathematics/SpecialFunctions/PhysHermite.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:59:04.704Z"
+  },
+  "Physlib/Mathematics/Trigonometry/Tanh.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:59:54.664Z"
+  },
+  "Physlib/Particles/BeyondTheStandardModel/RHN/AnomalyCancellation/PlusU1/BMinusL.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:00:13.402Z"
+  },
+  "Physlib/Particles/BeyondTheStandardModel/RHN/AnomalyCancellation/PlusU1/HyperCharge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:00:15.197Z"
+  },
+  "Physlib/Particles/FlavorPhysics/CKMMatrix/Relations.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:00:23.747Z"
+  },
+  "Physlib/Particles/FlavorPhysics/CKMMatrix/Rows.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:01:37.638Z"
+  },
+  "Physlib/Particles/FlavorPhysics/CKMMatrix/StandardParameterization/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:38.520Z"
+  },
+  "Physlib/Particles/StandardModel/Fermions/QuarkDoublet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:40.675Z"
+  },
+  "Physlib/Particles/StandardModel/HiggsBoson/EffectivePotential.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:01.787Z"
+  },
+  "Physlib/Particles/SuperSymmetry/SU5/Potential.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:03:02.976Z"
+  },
+  "Physlib/QFT/PerturbationTheory/WickContraction/Erase.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:07.029Z"
+  },
+  "Physlib/QFT/QED/AnomalyCancellation/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:11.798Z"
+  },
+  "Physlib/QFT/QED/AnomalyCancellation/Even/BasisLinear.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:12.390Z"
+  },
+  "Physlib/QuantumMechanics/HilbertSpaces/OneDimension/SchwartzSubmodule.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:14.263Z"
+  },
+  "Physlib/QuantumMechanics/Operators/OneDimension/Momentum.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:14.618Z"
+  },
+  "Physlib/QuantumMechanics/Operators/StateObservables/ExpectedValue.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:40.755Z"
+  },
+  "Physlib/Relativity/Fermions/Weyl/DualRightHanded.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:41.117Z"
+  },
+  "Physlib/Relativity/LorentzAlgebra/ExponentialMap.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:03:45.778Z"
+  },
+  "Physlib/Relativity/LorentzGroup/Boosts/Axis.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:58.020Z"
+  },
+  "Physlib/Relativity/LorentzGroup/Orthochronous/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:04:03.315Z"
+  },
+  "Physlib/Relativity/Tensors/RealTensor/Units/Pre.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:04:12.213Z"
+  },
+  "Physlib/Relativity/Tensors/UnitTensor.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:04:45.531Z"
+  },
+  "Physlib/SpaceAndTime/Space/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:04:46.277Z"
+  },
+  "Physlib/SpaceAndTime/Space/Module.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:04:53.637Z"
+  },
+  "Physlib/StringTheory/FTheory/SU5/Quanta/FiveQuanta.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:05:45.536Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/CStarAlgebra/Projection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:09:56.037Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/BoundedIntegral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:10:03.302Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Existence/GardingVectorWitness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:10:23.266Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/OrderUnit/Weight/Extension.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:10:30.483Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/StarAlgebra/Restrict.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:10:33.253Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/FirstVariation/Support.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:10:34.831Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/JetPointFiber.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:10:37.087Z"
+  },
+  "PhyslibAlpha/ClassicalMechanics/NortonDome/Determinism.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:10:40.703Z"
+  },
+  "PhyslibAlpha/SpaceAndTime/Space/Surfaces/SphericalShell.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:10:41.067Z"
+  },
+  "QuantumInfo/ForMathlib/HermitianMat/LogExp.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:11:01.688Z"
+  },
+  "QuantumInfo/ForMathlib/MatrixNorm/TraceNorm.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:11:04.799Z"
+  },
+  "QuantumInfo/ForMathlib/Minimax.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:23:41.965Z"
+  },
+  "Physlib/ClassicalMechanics/DampedHarmonicOscillator/Solution.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:06:52.688Z"
+  },
+  "Physlib/Mathematics/Calculus/AdjFDeriv.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:07:07.072Z"
+  },
+  "Physlib/Mathematics/DataStructures/Matrix/LieTrace.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:07:16.491Z"
+  },
+  "Physlib/Mathematics/HasTemperateGrowth.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:08:51.406Z"
+  },
+  "Physlib/Mathematics/VariationalCalculus/HasVarGradient.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:09:23.075Z"
+  },
+  "Physlib/Particles/BeyondTheStandardModel/RHN/AnomalyCancellation/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:09:23.894Z"
+  },
+  "Physlib/Particles/BeyondTheStandardModel/TwoHDM/GramMatrix.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:09:31.503Z"
+  },
+  "Physlib/Particles/BeyondTheStandardModel/TwoHDM/Potential.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:09:32.143Z"
+  },
+  "Physlib/Particles/SuperSymmetry/MSSMNu/AnomalyCancellation/OrthogY3B3/PlaneWithY3B3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:09:52.108Z"
+  },
+  "Physlib/Particles/SuperSymmetry/SU5/ChargeSpectrum/MinimallyAllowsTerm/OfFinset.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:09:53.029Z"
+  },
+  "Physlib/QFT/QED/AnomalyCancellation/ConstAbs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:10:01.876Z"
+  },
+  "Physlib/QFT/QED/AnomalyCancellation/Permutations.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:10:02.734Z"
+  },
+  "Physlib/QuantumMechanics/Operators/OneDimension/Position.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:10:05.021Z"
+  },
+  "Physlib/Relativity/Tensors/ComponentIdx/Product.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:10:06.512Z"
+  },
+  "Physlib/Relativity/Tensors/Contraction/SuccSuccAbove.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:10:07.238Z"
+  },
+  "Physlib/Relativity/Tensors/Evaluation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:10:38.747Z"
+  },
+  "Physlib/Units/Exponent.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:10:40.478Z",
+    "collisions": [
+      "Dimension.Exponent.gcdAux_eq_nat_gcd"
+    ]
+  },
+  "Physlib/Units/UnitDependent.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:11:11.842Z"
+  },
+  "Physlib/Units/UnitSystem.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:11:12.717Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Dynamics/Hamiltonian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:12:13.453Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Cayley/Inverse.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:12:16.090Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Existence/GaussianKernelGrowth.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:12:21.494Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/SpectralIntegral/Construction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:12:21.869Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/OrderUnit/Operation.lean": {
+    "checkedAt": "2026-09-28T01:12:23.340Z",
+    "collisions": [
+      "Operation"
+    ]
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/FirstOrder.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:12:23.686Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/FirstVariation/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:12:31.120Z"
+  },
+  "PhyslibAlpha/ClassicalFieldTheory/Local/Lagrangian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:12:32.110Z"
+  },
+  "PhyslibAlpha/Mathematics/PartialDerivativeTest.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:12:32.819Z"
+  },
+  "PhyslibAlpha/Particles/BeyondTheStandardModel/TwoHDM/SwapDoublet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:13:35.262Z"
+  },
+  "PhyslibAlpha/SpaceAndTime/Space/Surfaces/Line.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:13:35.591Z"
+  },
+  "QuantumInfo/ForMathlib/HermitianMat/Inner.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:14:00.055Z"
+  },
+  "QuantumInfo/ForMathlib/HermitianMat/Unitary.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:14:01.201Z"
+  },
+  "Physlib/ClassicalMechanics/Pendulum/SimplePendulum/Geometric/PhysicalSpace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:00:28.313Z"
+  },
+  "Physlib/ClassicalMechanics/Pendulum/SimplePendulum/Solution.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:00:30.010Z"
+  },
+  "Physlib/Mathematics/Distribution/PowMul.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:00:40.910Z"
+  },
+  "Physlib/Mathematics/InnerProductSpace/Adjoint.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:00:59.620Z"
+  },
+  "Physlib/Mathematics/RatComplexNum.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:01:00.464Z"
+  },
+  "Physlib/Mathematics/SpecialFunctions/EllipticIntegral.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:01:08.386Z"
+  },
+  "Physlib/Particles/BeyondTheStandardModel/RHN/AnomalyCancellation/Permutations.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:01:18.655Z"
+  },
+  "Physlib/Particles/BeyondTheStandardModel/RHN/AnomalyCancellation/PlusU1/BoundPlaneDim.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:01:34.299Z"
+  },
+  "Physlib/Particles/BeyondTheStandardModel/RHN/AnomalyCancellation/PlusU1/PlaneNonSols.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:01:39.994Z"
+  },
+  "Physlib/Particles/StandardModel/AnomalyCancellation/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:01:40.957Z"
+  },
+  "Physlib/Particles/StandardModel/AnomalyCancellation/NoGrav/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:01:50.229Z"
+  },
+  "Physlib/Particles/StandardModel/AnomalyCancellation/NoGrav/One/Lemmas.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:01:53.476Z"
+  },
+  "Physlib/Particles/StandardModel/Fermions/UpSinglet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:01:56.255Z"
+  },
+  "Physlib/Particles/SuperSymmetry/MSSMNu/AnomalyCancellation/LineY3B3.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:07.333Z"
+  },
+  "Physlib/QFT/PerturbationTheory/WickContraction/Card.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:16.681Z"
+  },
+  "Physlib/QFT/QED/AnomalyCancellation/Even/LineInCubic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:25.954Z"
+  },
+  "Physlib/QFT/QED/AnomalyCancellation/Even/Parameterization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:27.466Z"
+  },
+  "Physlib/QuantumMechanics/HilbertSpaces/OneDimension/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:27.971Z"
+  },
+  "Physlib/QuantumMechanics/HilbertSpaces/OneDimension/PlaneWaves.lean": {
+    "checkedAt": "2026-09-28T01:02:29.203Z",
+    "collisions": [
+      "QuantumMechanics.OneDimension.HilbertSpace.planewaveFunctional"
+    ]
+  },
+  "Physlib/QuantumMechanics/Operators/Covariance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:30.048Z"
+  },
+  "Physlib/Relativity/Fermions/Weyl/Metric.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:53.932Z"
+  },
+  "Physlib/Relativity/Fermions/Weyl/Two.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:56.080Z"
+  },
+  "Physlib/Relativity/Tensors/ComplexTensor/Matrix/Pre.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:58.448Z"
+  },
+  "Physlib/Relativity/Tensors/ComplexTensor/Vector/Pre/Modules.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:02:59.504Z"
+  },
+  "Physlib/Relativity/Tensors/Constructors.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:19.302Z"
+  },
+  "Physlib/Relativity/Tensors/Contraction/Products.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:39.786Z"
+  },
+  "Physlib/Relativity/Tensors/RealTensor/CoVector/Representation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:03:47.138Z"
+  },
+  "Physlib/Relativity/Tensors/RealTensor/Vector/Pre/Modules.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:03:48.639Z"
+  },
+  "Physlib/SpaceAndTime/Space/EuclideanGroup/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:04:12.044Z",
+    "collisions": [
+      "EuclideanGroup.det_coe_inv",
+      "EuclideanGroup.coe_inv"
+    ]
+  },
+  "Physlib/SpaceAndTime/Space/LengthUnit.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:05:04.608Z"
+  },
+  "Physlib/SpaceAndTime/Space/Origin.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:05:15.014Z"
+  },
+  "Physlib/SpaceAndTime/Time/InnerProductSpace.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:05:18.295Z"
+  },
+  "Physlib/SpaceAndTime/Time/TimeTransMan.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:05:46.721Z"
+  },
+  "Physlib/SpaceAndTime/Time/TimeUnit.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:05:47.543Z"
+  },
+  "Physlib/StringTheory/FTheory/SU5/Fluxes/NoExotics/Completeness.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:06:00.631Z"
+  },
+  "Physlib/Units/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:09:27.643Z"
+  },
+  "Physlib/Units/Integral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:09:42.262Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/CStarAlgebra/Channel.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:09:43.518Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/Cayley/Certificate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:09:51.336Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/HilbertSpace/Unbounded/RealAnalytic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:09:51.741Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/OrderUnit/Effect/Integral.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:09:52.461Z"
+  },
+  "PhyslibAlpha/AlgebraicFramework/Representation/Covariance/Finite.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:10:13.030Z"
+  },
+  "PhyslibAlpha/ClassicalMechanics/NortonDome/PosPartPow.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:10:15.680Z"
+  },
+  "QuantumInfo/Channels/MatrixMap.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:10:21.299Z"
+  },
+  "QuantumInfo/Channels/Unbundled.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T01:13:41.575Z"
+  },
+  "QuantumInfo/ClassicalInfo/ForMathlib/Analysis/SpecialFunctions/Log/NegMulLog.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:13:43.260Z"
+  },
+  "QuantumInfo/ForMathlib/Matrix.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T01:13:46.094Z"
+  }
+}
