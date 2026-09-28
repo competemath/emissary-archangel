@@ -1,0 +1,68 @@
+name: generator-trial
+run-name: generator trial (${{ inputs.tengoku_ref }}) ${{ inputs.libraries }}
+# Does the tree build what translation banked? Takes competemath/tengoku at a ref (a generator change under test),
+# its attested cache, adds every banked record of the given libraries (data/bank, sent or not) as trusted, runs
+# scripts/generate.py, and builds each library. The summary lists, per library, the modules that built and the
+# errors of those that did not. Read-only: nothing is committed or published.
+on:
+  workflow_dispatch:
+    inputs:
+      tengoku_ref: { description: "Branch or commit of competemath/tengoku", required: true, default: "main" }
+      libraries: { description: "Space-separated keys", required: true }
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  trial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    permissions: { contents: read }
+    env:
+      TENGOKU_VERIFY: require
+      LIBS: ${{ inputs.libraries }}
+      REF: ${{ inputs.tengoku_ref }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { filter: "blob:none", sparse-checkout: "data/bank", persist-credentials: false }
+      - name: elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: The tree at the ref, compiled (its attested cache)
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          git clone -q --filter=blob:none https://github.com/competemath/tengoku tree
+          git -C tree checkout -q "$REF"
+          cd tree && TENGOKU_REPO=competemath/tengoku scripts/cache.sh get 2>&1 | tail -3 && lake build Tengoku 2>&1 | tail -1
+      - name: The banked records as trusted, generated
+        run: |
+          python3 - <<'PY'
+          import glob, json, os
+          for lib in os.environ["LIBS"].split():
+              recs = [l for f in sorted(glob.glob(f"data/bank/{lib}/sent/*.jsonl") + glob.glob(f"data/bank/{lib}/*.jsonl")) for l in open(f) if l.strip()]
+              path = f"tree/data/trusted/{lib}.jsonl"
+              have = {json.loads(l).get("name") for l in open(path)} if os.path.exists(path) else set()
+              new = [l for l in recs if json.loads(l)["name"] not in have]
+              with open(path, "a") as f:
+                  f.write("".join(l if l.endswith("\n") else l + "\n" for l in new))
+              print(f"{lib}: {len(new)} banked records added to {len(have)} trusted")
+          PY
+          cd tree && python3 scripts/generate.py --corpus /nonexistent --libraries $LIBS 2>&1 | grep -E 'records ->|Error|Traceback'
+      - name: Build each library
+        run: |
+          cd tree
+          for lib in $LIBS; do
+            ns=$(python3 -c "import sys; sys.path.insert(0, 'scripts'); from generate import pascal; print(pascal('$lib'))")
+            lake build "Tengoku.$ns" > "../build-$lib.log" 2>&1 && ok=yes || ok=no
+            total=$(find "Tengoku/$ns" -name '*.lean' | wc -l)
+            failed=$(grep -oE "error: (\./)?Tengoku/$ns/[^:]+\.lean" "../build-$lib.log" | sort -u | wc -l)
+            echo "== $lib: build ok=$ok, $total modules, $failed with errors"
+            grep -E '^error: ' "../build-$lib.log" | sed -E 's/:[0-9]+:[0-9]+:/:/' | cut -c1-220 | sort | uniq -c | sort -rn | head -12
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with: { name: build-logs, path: "build-*.log", retention-days: 7 }
