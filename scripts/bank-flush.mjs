@@ -4,11 +4,18 @@
 // the app opens in PR mode (lib/tengoku-pr.ts). Records whose names are already on the tree's main are dropped.
 // A sent bank file moves to data/bank/<key>/sent/, with <file>.prs.json listing its PRs.
 //
+// Name clashes. A record whose name another library already has on main (trusted or staging), or that another
+// library claims in this same run, is resolved before it is sent (the gate refuses a name already trusted, and one
+// such record sank a whole PR):
+//   - same statement apart from the declared name: a duplicate, not sent;
+//   - otherwise renamed <name>__<library> (the last component gets the suffix), with original_name kept.
+// Every clash is appended to data/translate/clashes.jsonl for the statistics.
+//
 //   GH_TOKEN=<a token that can push branches and open PRs on the tree> node scripts/bank-flush.mjs
 //        [--repo competemath/tengoku] [--batch 500] [--key <key>] [--dry-run]
 // The commits are authored and signed off by the token's own account (its GitHub noreply address).
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import { join } from "node:path"
 
@@ -37,12 +44,62 @@ if (!pending.length) {
   process.exit(0)
 }
 
-// the tree's main: only the names (staging and trusted), for the duplicate check
+// the tree's main: every record's name and statement, trusted and staging, of every library (the clash check)
 const tree = mkdtempSync(join(os.tmpdir(), "tengoku-flush-"))
 const remote = token ? `https://x-access-token:${token}@github.com/${REPO}.git` : `https://github.com/${REPO}.git`
 sh("git", ["clone", "-q", "--filter=blob:none", "--no-checkout", remote, tree])
-sh("git", ["-C", tree, "sparse-checkout", "set", "--no-cone", ...keys.flatMap((k) => [`data/staging/${k}.jsonl`, `data/staging/${k}/`, `data/trusted/${k}.jsonl`])])
+sh("git", ["-C", tree, "sparse-checkout", "set", "--no-cone", "data/staging/", "data/trusted/"])
 sh("git", ["-C", tree, "checkout", "-q", "main"])
+const everyName = new Map() // name -> [{ lib, statement }]
+const claim = (name, lib, statement) => {
+  if (!everyName.has(name)) everyName.set(name, [])
+  everyName.get(name).push({ lib, statement })
+}
+for (const tier of ["trusted", "staging"]) {
+  const dir = join(tree, "data", tier)
+  if (!existsSync(dir)) continue
+  const walk = (d, lib) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      if (e.isDirectory()) walk(join(d, e.name), e.name)
+      else if (e.name.endsWith(".jsonl")) {
+        const l0 = lib || e.name.replace(/\.jsonl$/, "")
+        for (const l of readFileSync(join(d, e.name), "utf8").split("\n")) {
+          if (!l.trim()) continue
+          try {
+            const r = JSON.parse(l)
+            if (typeof r.name === "string") claim(r.name, l0, String(r.statement || ""))
+          } catch { /* the gate's problem */ }
+        }
+      }
+    }
+  }
+  walk(dir, null)
+}
+const DECL_RE = /^(\s*(?:@\[[^\]]*\]\s*)*(?:(?:private|protected|nonrec|noncomputable)\s+)*(?:theorem|lemma)\s+)([^\s(:{[⦃]+)/
+const bareStatement = (s) => String(s).replace(DECL_RE, "$1_").replace(/\s+/g, " ").trim()
+const suffixed = (name, key) => {
+  const cut = name.lastIndexOf(".")
+  return `${name.slice(0, cut + 1)}${name.slice(cut + 1)}__${key.replace(/[^A-Za-z0-9]/g, "_")}`
+}
+const clashes = []
+// returns the record to send (possibly renamed) or null when it must not be sent
+function resolveClash(r, key) {
+  const existing = everyName.get(r.name) || []
+  if (!existing.length) return r
+  if (existing.some((e) => e.lib === key)) return null // this library has it on main already: not a clash, just sent before
+  const same = existing.find((e) => bareStatement(e.statement) === bareStatement(r.statement))
+  if (same) {
+    clashes.push({ library: key, name: r.name, kind: "duplicate", other: same.lib })
+    return null
+  }
+  const name = suffixed(r.name, key)
+  if ((everyName.get(name) || []).some((e) => e.lib === key)) return null // renamed and sent in an earlier run
+  const decl = String(r.statement).match(DECL_RE)
+  const cut = decl ? decl[2].lastIndexOf(".") : -1
+  const statement = decl ? String(r.statement).replace(DECL_RE, `$1${decl[2].slice(0, cut + 1)}${decl[2].slice(cut + 1)}__${key.replace(/[^A-Za-z0-9]/g, "_")}`) : r.statement
+  clashes.push({ library: key, name: r.name, kind: "renamed", renamed: name, other: [...new Set(existing.map((e) => e.lib))].join(",") })
+  return { ...r, name, statement, original_name: r.name }
+}
 const onMain = (key) => {
   const names = new Set()
   const files = [join(tree, "data", "staging", `${key}.jsonl`), join(tree, "data", "trusted", `${key}.jsonl`)]
@@ -72,12 +129,16 @@ for (const { key, files } of pending) {
   const have = onMain(key)
   const records = files.flatMap((f) => readFileSync(join(BANK, key, f), "utf8").split("\n").filter((l) => l.trim()))
   const seen = new Set()
-  const fresh = records.filter((l) => {
-    const n = JSON.parse(l).name
-    if (have.has(n) || seen.has(n)) return false
-    seen.add(n)
-    return true
-  })
+  const fresh = []
+  for (const l of records) {
+    const r0 = JSON.parse(l)
+    if (have.has(r0.name) || seen.has(r0.name)) continue
+    seen.add(r0.name)
+    const r = resolveClash(r0, key)
+    if (!r) continue
+    claim(r.name, key, r.statement) // a later library in this run sees it
+    fresh.push(JSON.stringify(r))
+  }
   const prs = []
   for (let i = 0; i < fresh.length; i += BATCH) {
     const batch = fresh.slice(i, i + BATCH)
@@ -112,4 +173,11 @@ for (const { key, files } of pending) {
   writeFileSync(join(BANK, key, "sent", `${stamp}.prs.json`), JSON.stringify({ files, records: records.length, duplicates: records.length - fresh.length, prs }, null, 2) + "\n")
   console.log(`${key}: ${fresh.length} of ${records.length} records from ${files.length} bank file(s) sent in ${prs.length} PR(s)`)
 }
+if (clashes.length && !DRY) {
+  const at = new Date().toISOString()
+  mkdirSync(join(ROOT, "data", "translate"), { recursive: true })
+  appendFileSync(join(ROOT, "data", "translate", "clashes.jsonl"), clashes.map((c) => JSON.stringify({ at, ...c })).join("\n") + "\n")
+}
+const byKind = clashes.reduce((m, c) => ((m[c.kind] = (m[c.kind] || 0) + 1), m), {})
+console.log(`bank-flush: name clashes this run ${JSON.stringify(byKind)}`)
 rmSync(tree, { recursive: true, force: true })

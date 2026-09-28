@@ -118,7 +118,7 @@ jobs:
     permissions: { contents: write }   # moving sent bank files under sent/
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with: { filter: "blob:none", sparse-checkout: "scripts\ndata/bank", persist-credentials: false }
+        with: { filter: "blob:none", sparse-checkout: "scripts\ndata/bank\ndata/translate", persist-credentials: false }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: "22" }
       - name: Banked records to tengoku PRs
@@ -141,7 +141,7 @@ jobs:
           GH_TOKEN="$BOT" node scripts/bank-flush.mjs --batch 2000 --max-prs 3 "${only[@]}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A --sparse -- data/bank
+          git add -A --sparse -- data/bank data/translate/clashes.jsonl 2>/dev/null || git add -A --sparse -- data/bank
           git diff --cached --quiet && exit 0
           git commit -q -m "bank: sent to tengoku" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
           for _ in $(seq 1 30); do
