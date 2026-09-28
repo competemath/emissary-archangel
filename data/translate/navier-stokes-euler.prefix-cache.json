@@ -550,5 +550,796 @@
   "Euler/OrdinaryGradientEnergy.lean": {
     "status": "broken",
     "checkedAt": "2026-09-28T09:00:46.209Z"
+  },
+  "Euler/AnglePrimitiveSpatialRegularity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:37:35.270Z"
+  },
+  "Euler/BaseEulerFlowL2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:44:17.449Z"
+  },
+  "Euler/BaseEulerInput.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:45:52.229Z"
+  },
+  "Euler/BaseEulerUniform.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:47:03.277Z"
+  },
+  "Euler/BasePacketFrameValues.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:48:13.240Z"
+  },
+  "Euler/ClassicalPressureCurl.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:27:15.264Z"
+  },
+  "Euler/CompactPressurePairing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:31:41.814Z"
+  },
+  "Euler/CompactSmoothTimeField.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T14:34:28.341Z"
+  },
+  "Euler/CurlTimeDerivative.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T15:09:44.969Z"
+  },
+  "Euler/CylinderAnglePrimitive.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T15:32:00.426Z"
+  },
+  "Euler/CylinderCompactTranslation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T16:24:45.199Z"
+  },
+  "Euler/CylinderCoverTensor.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T16:25:22.380Z"
+  },
+  "Euler/CylinderDescentJets.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T16:25:59.163Z"
+  },
+  "Euler/BaseEulerParent.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:04:37.514Z"
+  },
+  "Euler/BaseFirstPacketScales.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:04:46.969Z"
+  },
+  "Euler/BoundedEvaluationDifferentiation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T12:08:55.081Z"
+  },
+  "Euler/BoundedPathFamily.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T12:09:00.070Z"
+  },
+  "Euler/CoerciveEndpointBounds.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T12:09:22.314Z"
+  },
+  "Euler/ComparatorMaximalSolution.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:17:40.937Z"
+  },
+  "Euler/ContinuousPathComposition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:17:48.411Z"
+  },
+  "Euler/CorrectionDifferencePDE.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:39:48.310Z"
+  },
+  "Euler/CorrectionEnergyScalar.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:51:42.682Z"
+  },
+  "Euler/CorrectionStabilityConstants.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:59:45.933Z"
+  },
+  "Euler/CylinderClassicalWordBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:01:30.716Z"
+  },
+  "Euler/CylinderRetractRepresentative.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:49:04.314Z"
+  },
+  "Euler/CylinderSpatialMeanTime.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:01:22.524Z"
+  },
+  "Euler/DivCurlRecovery.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:01:23.826Z"
+  },
+  "Euler/ElapsedTimePathWeight.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:07:37.136Z"
+  },
+  "Euler/EvolutionTimeShift.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:20:50.690Z"
+  },
+  "Euler/FiniteGradeAssembly.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T14:20:57.001Z"
+  },
+  "Euler/FixedFrameNaturality.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:25:21.465Z"
+  },
+  "Euler/GaussianHeatGenerator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:30:36.053Z"
+  },
+  "Euler/GevreyCorrectionForcing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:31:49.675Z"
+  },
+  "Euler/GevreyFixedShift.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T14:31:51.833Z"
+  },
+  "Euler/GevreyGeneratingAlgebra.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T14:34:58.047Z"
+  },
+  "Euler/GevreyNonlinearEstimate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:38:06.962Z"
+  },
+  "Euler/GevreyPressureShifted.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:47:43.840Z"
+  },
+  "Euler/GevreyTransportCommutator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:48:57.689Z"
+  },
+  "Euler/H6PressureCommutator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:49:35.285Z"
+  },
+  "Euler/H6TransportSource.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:50:12.754Z"
+  },
+  "Euler/HilbertProductSubspaceRetraction.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T14:50:19.230Z"
+  },
+  "Euler/LpDominatedDerivative.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T15:57:10.635Z"
+  },
+  "Euler/LpOperatorFieldAlgebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T16:14:47.686Z"
+  },
+  "Euler/LpSmoothField.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T16:28:13.167Z"
+  },
+  "Euler/LpSupportedSubspace.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T16:28:15.709Z"
+  },
+  "Euler/MeanBoundaryTranslation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T16:47:32.739Z"
+  },
+  "Euler/MeanCoordinatePath.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T16:50:45.776Z"
+  },
+  "Euler/MeanFixedTranslation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T17:06:48.745Z"
+  },
+  "Euler/MeanFixedSpaceInverse.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T11:59:47.252Z"
+  },
+  "Euler/MeanFormGevrey.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T11:59:52.421Z"
+  },
+  "Euler/MeanMollifierLimit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:03:21.011Z"
+  },
+  "Euler/MeanOrbitSmoothL2Field.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:04:18.609Z"
+  },
+  "Euler/MeanPacketData.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:46:15.928Z"
+  },
+  "Euler/MeanPacketForcing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:51:18.256Z"
+  },
+  "Euler/MeanPacketHomogeneity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:52:18.907Z"
+  },
+  "Euler/MeanScalarMollification.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:55:49.250Z"
+  },
+  "Euler/MeanTimeReflection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:59:45.019Z"
+  },
+  "Euler/MeanVariationalInverse.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:00:41.209Z"
+  },
+  "Euler/OrdinaryEulerUniqueness.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:01:36.465Z"
+  },
+  "Euler/OrdinaryHelmholtzField.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:02:45.817Z"
+  },
+  "Euler/OrdinaryPerturbedEnergy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:04:59.381Z"
+  },
+  "Euler/PacketChildFieldMatch.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:05:28.675Z"
+  },
+  "Euler/PacketCofactorOperator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:05:59.565Z"
+  },
+  "Euler/PacketCorrectionMetricBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:08:07.716Z"
+  },
+  "Euler/PacketCorrectionPrimitivePolynomial.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:08:11.258Z"
+  },
+  "Euler/PacketCylinderFieldBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:12:24.079Z"
+  },
+  "Euler/PacketCylinderTermBudget.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:13:20.035Z"
+  },
+  "Euler/PacketFieldGraphBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:14:22.357Z"
+  },
+  "Euler/PacketFiniteSumBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:14:24.540Z"
+  },
+  "Euler/PacketFiniteVelocityBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:14:42.929Z"
+  },
+  "Euler/PacketFirstLowBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:18:59.872Z"
+  },
+  "Euler/PacketGeometryLowBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:12:00.600Z"
+  },
+  "Euler/PacketJetAssembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:31:10.292Z"
+  },
+  "Euler/PacketPhysicalFamily.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T15:06:57.029Z"
+  },
+  "Euler/PacketPiolaPair.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T15:16:34.751Z"
+  },
+  "Euler/PacketPrimaryShearIdentity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T15:27:32.354Z"
+  },
+  "Euler/PacketRadiusCostPolynomial.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T15:29:15.985Z"
+  },
+  "Euler/PacketSourceRadiusPolynomial.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T15:38:41.586Z"
+  },
+  "Euler/PacketSourceScaleGuards.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T15:42:46.072Z"
+  },
+  "Euler/PacketTangentNorm.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T15:47:44.083Z"
+  },
+  "Euler/PacketTriangular.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T16:09:37.573Z"
+  },
+  "Euler/PacketUniformFrequencyScales.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T16:19:28.381Z"
+  },
+  "Euler/ParameterSobolevPair.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T16:19:30.697Z"
+  },
+  "Euler/ParameterWordCalculus.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T16:30:52.837Z"
+  },
+  "Euler/ParameterWordInverse.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T16:36:18.953Z"
+  },
+  "Euler/BaseEulerState.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:01:10.398Z"
+  },
+  "Euler/BoundedFieldCalculus.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:01:23.669Z"
+  },
+  "Euler/BoundedFieldTimeDerivative.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T12:01:48.304Z"
+  },
+  "Euler/ChildParticleTime.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:02:48.552Z"
+  },
+  "Euler/ContinuousAccelerationSobolev.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:08:50.154Z"
+  },
+  "Euler/ContinuousGramPath.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:09:59.808Z"
+  },
+  "Euler/ContinuousSpatialFamily.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:10:37.451Z"
+  },
+  "Euler/CorrectionBudgetRestriction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:10:42.866Z"
+  },
+  "Euler/CorrectionDifference.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:18:48.127Z"
+  },
+  "Euler/CorrectionDifferenceMetric.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:22:04.168Z"
+  },
+  "Euler/CorrectionOperators.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:22:05.867Z"
+  },
+  "Euler/CylinderDirichletMean.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:28:22.603Z"
+  },
+  "Euler/CylinderDirichletParity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:29:38.188Z"
+  },
+  "Euler/CylinderDirichletTranslation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:30:52.331Z"
+  },
+  "Euler/CylinderEndpointRegularity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:31:30.274Z"
+  },
+  "Euler/CylinderJetLpAlgebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:32:09.347Z"
+  },
+  "Euler/CylinderPathProductBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:35:29.451Z"
+  },
+  "Euler/CylinderPotentialTime.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:37:00.129Z"
+  },
+  "Euler/CylinderPotentialTimeWeight.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:38:38.141Z"
+  },
+  "Euler/CylinderScalarAverage.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:40:16.434Z"
+  },
+  "Euler/CylinderScalarTime.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:41:35.513Z"
+  },
+  "Euler/CylinderSobolevEmbedding.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:42:12.686Z"
+  },
+  "Euler/DuhamelDifferentiation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:43:29.410Z"
+  },
+  "Euler/ExactLiftedPointwise.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:47:54.525Z"
+  },
+  "Euler/ExternalTransportCommutator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:48:32.758Z"
+  },
+  "Euler/FieldTowerCanonicalGraph.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:49:52.518Z"
+  },
+  "Euler/FixedEvolutionSobolev.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:49:53.968Z"
+  },
+  "Euler/FlowEscapeBound.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T12:49:57.834Z"
+  },
+  "Euler/FrozenEvolutionGevrey.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T12:50:29.175Z"
+  },
+  "Euler/GevreyLowNorms.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:55:54.012Z"
+  },
+  "Euler/GevreyRadiusReduction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:56:31.564Z"
+  },
+  "Euler/H6NonlinearProduct.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:57:10.119Z"
+  },
+  "Euler/HeatRestart.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:58:27.630Z"
+  },
+  "Euler/HilbertCoerciveTransport.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T12:58:30.289Z"
+  },
+  "Euler/LiftedTransportComponents.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:03:41.701Z"
+  },
+  "Euler/LowerTransportSource.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:04:19.888Z"
+  },
+  "Euler/LpBochnerRealization.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T13:04:22.104Z"
+  },
+  "Euler/LpCylinderTimeWeight.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:10:30.800Z"
+  },
+  "Euler/LpCylinderTranslation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:11:08.832Z"
+  },
+  "Euler/LpCylinderUnweightedForward.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:13:36.828Z"
+  },
+  "Euler/LpDerivativeMap.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T13:13:39.429Z"
+  },
+  "Euler/LpPointwiseMultiplier.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T13:13:48.862Z"
+  },
+  "Euler/LpSmoothApproximation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:19:12.747Z"
+  },
+  "Euler/LpSmoothCoefficientContinuity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:20:24.620Z"
+  },
+  "Euler/LpSupportedEvolution.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:21:37.673Z"
+  },
+  "Euler/MeanBoundaryOperator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:22:17.677Z"
+  },
+  "Euler/MeanBoundaryPhysicalSupport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:23:39.516Z"
+  },
+  "Euler/MeanCoefficientPath.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:24:17.951Z"
+  },
+  "Euler/MeanCutoffDifferenceBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:24:56.401Z"
+  },
+  "Euler/MeanCutoffTaylor.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:25:34.211Z"
+  },
+  "Euler/MeanGradientTestSpace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:26:12.463Z"
+  },
+  "Euler/MeanGramTranslation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:27:28.047Z"
+  },
+  "Euler/MeanMomentumRegularity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:28:40.870Z"
+  },
+  "Euler/MeanPacketAngularForcing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:30:02.370Z"
+  },
+  "Euler/MeanStrongEstimates.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:00:50.117Z"
+  },
+  "Euler/MildTopWord.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:08:48.266Z"
+  },
+  "Euler/NonlinearEnergyConstants.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:12:30.195Z"
+  },
+  "Euler/OrdinaryCauchyInterpolation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T14:21:22.912Z"
+  },
+  "Euler/OrdinaryH3Products.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T15:33:40.440Z"
+  },
+  "Euler/PacketActivationScales.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T15:52:25.855Z"
+  },
+  "Euler/PacketBaseGuardScales.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T15:52:27.157Z"
+  },
+  "Euler/PacketBeforeTargetSize.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T15:57:56.378Z"
+  },
+  "Euler/PacketCofactorGevrey.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T16:18:27.499Z"
+  },
+  "Euler/BaseLiteralFirstPacket.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T11:54:31.831Z"
+  },
+  "Euler/BoundedFieldGramGevrey.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:00:44.779Z"
+  },
+  "Euler/CanonicalGraphPotential.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:01:21.154Z"
+  },
+  "Euler/CoefficientPathOrbit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:02:29.678Z"
+  },
+  "Euler/CoefficientPathSmooth.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:03:06.538Z"
+  },
+  "Euler/CoefficientPathSobolev.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:04:21.546Z"
+  },
+  "Euler/CompactSmoothL2Bounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:05:31.366Z"
+  },
+  "Euler/ComparatorSingularityNorms.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:05:32.535Z"
+  },
+  "Euler/ContinuousTimeIntegral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:05:33.512Z"
+  },
+  "Euler/ContinuousTimeWeight.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:05:36.214Z"
+  },
+  "Euler/CorrectionAssemblyPressureParity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:18:31.215Z"
+  },
+  "Euler/CylinderBoundedCover.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:29:10.261Z"
+  },
+  "Euler/CylinderDirichletData.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:30:23.055Z"
+  },
+  "Euler/CylinderEndpointParity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:37:44.102Z"
+  },
+  "Euler/CylinderPathProduct.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:37:52.696Z"
+  },
+  "Euler/CylinderSliceRepresentatives.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:43:16.672Z"
+  },
+  "Euler/CylinderTimeWords.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:44:32.840Z"
+  },
+  "Euler/DuhamelPasting.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:45:49.519Z"
+  },
+  "Euler/FieldTowerPhysicalL2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:46:26.869Z"
+  },
+  "Euler/FixedEndpointStrong.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:48:39.173Z"
+  },
+  "Euler/FunctionalVelocity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:49:17.249Z"
+  },
+  "Euler/GainedMildPasting.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:49:20.650Z"
+  },
+  "Euler/GevreyBaseTransport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T12:54:22.127Z"
+  },
+  "Euler/GevreyComposition.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T12:55:05.342Z"
+  },
+  "Euler/GevreyFlowBootstrap.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T12:55:16.457Z"
+  },
+  "Euler/HeatAllOrders.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:01:10.011Z"
+  },
+  "Euler/HeatGradientIntegral.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:02:25.753Z"
+  },
+  "Euler/InitialTimePrimitive.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:02:34.983Z"
+  },
+  "Euler/IsometricActionDerivativeBound.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T13:02:38.116Z"
+  },
+  "Euler/LiftedTransportTrace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:07:25.075Z"
+  },
+  "Euler/LpCylinderRegularSobolev.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:10:02.535Z"
+  },
+  "Euler/LpFiniteTensorReconstruction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:10:04.098Z"
+  },
+  "Euler/LpSmoothFamily.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:10:05.618Z"
+  },
+  "Euler/LpSmoothFamilyJets.lean": {
+    "checkedAt": "2026-09-28T13:10:25.252Z",
+    "collisions": [
+      "EulerLpSmoothFamily.SmoothFamily.contDiff_value_nat_aux",
+      "EulerLpSmoothFamily.SmoothFamily.norm_iteratedFDeriv_value_aux"
+    ]
+  },
+  "Euler/MeanBoundaryFrechet.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:16:05.510Z"
+  },
+  "Euler/MeanCurlTensor.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:16:44.691Z"
+  },
+  "Euler/MeanFixedReflection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:18:14.142Z"
+  },
+  "Euler/MeanFrameCoefficients.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:18:51.717Z"
+  },
+  "Euler/MeanHarmonicComponents.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:19:28.399Z"
+  },
+  "Euler/MeanHarmonicEnergy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:20:05.126Z"
+  },
+  "Euler/MeanHarmonicInteriorEnergy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:20:42.058Z"
+  },
+  "Euler/MeanLocalizedQuadraticBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:21:54.246Z"
+  },
+  "Euler/MeanMollificationHarmonic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:22:30.425Z"
+  },
+  "Euler/MeanOrdinaryLift.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:23:07.353Z"
+  },
+  "Euler/MeanPacketCylinderFields.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:24:18.877Z"
+  },
+  "Euler/MeanSmoothRepresentative.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:35:31.816Z"
+  },
+  "Euler/MeanVelocityOperator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:38:02.661Z"
+  },
+  "Euler/OperatorGevreyCalculus.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:38:39.320Z"
+  },
+  "Euler/PacketActualFrameEstimates.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T17:06:32.964Z"
   }
 }
