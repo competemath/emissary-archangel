@@ -125,8 +125,9 @@ createServer(async (req, res) => {
   if (url.searchParams.get("source") !== SOURCE) return reply(res, 400, { error: "unknown_source", detail: url.searchParams.get("source") })
   if (req.method === "GET") return reply(res, 200, mine)
   if (req.method === "PATCH") {
-    let body = ""
-    for await (const c of req) body += c
+    const chunks = []
+    for await (const c of req) chunks.push(c)
+    const body = Buffer.concat(chunks).toString("utf8") // decoded once: a chunk boundary can split a character
     const update = JSON.parse(body || "{}")
     const entry = byId.get(update.id)
     if (!entry) return reply(res, 404, { error: "not_found" })

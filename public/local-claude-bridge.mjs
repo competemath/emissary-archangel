@@ -141,6 +141,7 @@ function json(res, status, body) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = ""
+    req.setEncoding("utf8") // a character split across two chunks must not become U+FFFD
     req.on("data", (c) => {
       data += c
       if (data.length > 2 * 1024 * 1024) reject(new Error("body too large"))
@@ -206,7 +207,7 @@ const NO_MEMORY_HOOK = NO_LOCAL_LEAN_HOOK.replace(/no-local-lean\.mjs$/, "no-mem
 writeFileSync(
   NO_LOCAL_LEAN_HOOK,
   `let s = ""
-process.stdin.on("data", (d) => (s += d)).on("end", () => {
+process.stdin.setEncoding("utf8"); process.stdin.on("data", (d) => (s += d)).on("end", () => {
   let cmd = ""
   try { cmd = (JSON.parse(s).tool_input || {}).command || "" } catch {}
   if (/(^|[;&|(\\\`]|\\s)(lean|lake|elan|leanc|lean4)(\\s|$)/.test(String(cmd))) {
@@ -231,7 +232,7 @@ process.stdin.on("data", (d) => (s += d)).on("end", () => {
 writeFileSync(
   NO_MEMORY_HOOK,
   `let s = ""
-process.stdin.on("data", (d) => (s += d)).on("end", () => {
+process.stdin.setEncoding("utf8"); process.stdin.on("data", (d) => (s += d)).on("end", () => {
   let input = {}
   try { input = JSON.parse(s).tool_input || {} } catch {}
   const hit = Object.values(input).some((v) => typeof v === "string" && /\\.claude[\\/\\\\]projects|MEMORY\\.md/.test(v))
@@ -448,11 +449,11 @@ function runClaude(args, { cwd, timeoutMs, killSignal, maxOutputTokens }) {
         stderr: `Failed to launch "${CLAUDE_BIN}": ${err.message}`,
       })
     })
-    child.stdout?.on("data", (c) => {
+    child.stdout?.setEncoding("utf8"); child.stdout?.on("data", (c) => {
       bytes += c.length
       if (bytes <= MAX_OUTPUT_BYTES) stdout += c
     })
-    child.stderr?.on("data", (c) => (stderr += c))
+    child.stderr?.setEncoding("utf8"); child.stderr?.on("data", (c) => (stderr += c))
     child.on("close", (code) => {
       if (timer) clearTimeout(timer)
       const meta = extractMeta(stdout)
@@ -594,7 +595,7 @@ function runStream(res, body) {
   let usage = null
   let costUsd = null
 
-  child.stdout.on("data", (chunk) => {
+  child.stdout.setEncoding("utf8"); child.stdout.on("data", (chunk) => {
     buf += chunk.toString("utf8")
     let nl
     while ((nl = buf.indexOf("\n")) !== -1) {
@@ -661,7 +662,7 @@ function runStream(res, body) {
     }
   })
 
-  child.stderr.on("data", (c) => {
+  child.stderr.setEncoding("utf8"); child.stderr.on("data", (c) => {
     stderr += c.toString("utf8")
   })
   child.on("error", (err) => {
@@ -707,8 +708,8 @@ function getVersion() {
     child.on("error", (e) =>
       resolve({ ok: false, version: "", error: `Failed to launch "${CLAUDE_BIN}": ${e.message}` }),
     )
-    child.stdout?.on("data", (c) => (out += c))
-    child.stderr?.on("data", (c) => (err += c))
+    child.stdout?.setEncoding("utf8"); child.stdout?.on("data", (c) => (out += c))
+    child.stderr?.setEncoding("utf8"); child.stderr?.on("data", (c) => (err += c))
     child.on("close", (code) => {
       clearTimeout(timer)
       resolve({ ok: code === 0, version: out.trim(), error: code === 0 ? "" : err.trim() })
@@ -3206,7 +3207,7 @@ function runProve(theorem, mcpServers, opts = {}) {
       }
     }
 
-    child.stdout.on("data", (chunk) => {
+    child.stdout.setEncoding("utf8"); child.stdout.on("data", (chunk) => {
       buf += chunk.toString("utf8")
       let nl
       while ((nl = buf.indexOf("\n")) !== -1) {
@@ -3243,7 +3244,7 @@ function runProve(theorem, mcpServers, opts = {}) {
       }
     })
 
-    child.stderr.on("data", (c) => {
+    child.stderr.setEncoding("utf8"); child.stderr.on("data", (c) => {
       stderr += c.toString("utf8")
     })
 
@@ -3395,7 +3396,7 @@ function proveStreamRun(res, theorem, mcpServers, opts = {}) {
   // re-signal).
   let proofFoundStop = false
 
-  child.stdout.on("data", (chunk) => {
+  child.stdout.setEncoding("utf8"); child.stdout.on("data", (chunk) => {
     buf += chunk.toString("utf8")
     let nl
     while ((nl = buf.indexOf("\n")) !== -1) {
@@ -3506,7 +3507,7 @@ function proveStreamRun(res, theorem, mcpServers, opts = {}) {
     }
   })
 
-  child.stderr.on("data", (c) => {
+  child.stderr.setEncoding("utf8"); child.stderr.on("data", (c) => {
     stderr += c.toString("utf8")
   })
 
@@ -3986,7 +3987,7 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
     // no authoritative total_cost_usd was seen (costUsd === 0), so it never
     // double-counts a run that DID flush.
     let runningCostUsd = 0
-    child.stdout.on("data", (chunk) => {
+    child.stdout.setEncoding("utf8"); child.stdout.on("data", (chunk) => {
       buf += chunk.toString("utf8")
       let nl
       while ((nl = buf.indexOf("\n")) !== -1) {
@@ -4122,7 +4123,7 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
         }
       }
     })
-    child.stderr.on("data", (c) => {
+    child.stderr.setEncoding("utf8"); child.stderr.on("data", (c) => {
       stderr += c.toString("utf8")
     })
     child.on("error", (e) => {
