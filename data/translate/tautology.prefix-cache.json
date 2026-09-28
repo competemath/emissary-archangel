@@ -1,0 +1,695 @@
+{
+  "Tautology/Foundation/Cardinal/Choice.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:25:58.008Z"
+  },
+  "Tautology/Foundation/Cardinal/Maps.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:26:11.288Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Cauchy/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:26:25.767Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Dedekind/NegOrd.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:26:28.531Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Dedekind/Sign.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:26:29.575Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Eudoxus/MulNeg.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:26:32.426Z"
+  },
+  "Tautology/RealBootstrap/FiniteSum/AbsBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:26:34.350Z"
+  },
+  "Tautology/RealCompactness/ClosedInterval/FiniteToSeq.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:26:34.920Z"
+  },
+  "Tautology/RealConnectedness/Connected.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:26:35.463Z"
+  },
+  "Tautology/RealConnectedness/ConnectedComponents.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:26:36.557Z"
+  },
+  "Tautology/RealSequence/BaseExpansion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:27:26.144Z"
+  },
+  "Tautology/RealSequence/BaseExpansionExistence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:27:26.933Z"
+  },
+  "Tautology/RealSequence/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:27:28.339Z"
+  },
+  "Tautology/RealSequence/PositiveSeries.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:27:29.240Z"
+  },
+  "Tautology/RealTopology/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:27:30.908Z"
+  },
+  "Tautology/RealTopology/IntervalClosure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:27:32.576Z"
+  },
+  "Tautology/Foundation/Cardinal/Arithmetic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:23:13.165Z"
+  },
+  "Tautology/Nat/Factorial.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:23:16.919Z",
+    "collisions": [
+      "Tautology.Nat.pow_succ_le_factorialTail",
+      "Tautology.Nat.self_le_pow_of_pos_of_pos",
+      "Tautology.Nat.pow_lt_factorial_two_mul"
+    ]
+  },
+  "Tautology/RealBasic/ModuleBackend/Cauchy/Archimedean.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:23:29.147Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Cauchy/Quotient.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:23:31.444Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Dedekind/AddGroup.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:23:34.099Z"
+  },
+  "Tautology/RealBootstrap/Formal/Bell/Ordinary.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:23:39.220Z"
+  },
+  "Tautology/RealBootstrap/Lattice.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:23:40.124Z"
+  },
+  "Tautology/RealCompactness/CompactSequential.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:23:52.813Z"
+  },
+  "Tautology/RealSequence/Bounded.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:24:12.866Z"
+  },
+  "Tautology/RealSequence/Principles/FromSupCauchy.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:24:13.623Z"
+  },
+  "Tautology/RealSequence/Principles/FromSupMonotone.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:24:33.747Z"
+  },
+  "Tautology/RealSequence/Principles/FromSupNested.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:24:34.076Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Cauchy/Order.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:30:41.790Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Dedekind/InvPos.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:30:47.230Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Dedekind/MulNonneg.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:30:48.372Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Eudoxus/Estimate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:30:49.147Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Eudoxus/MulAlgebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:30:51.712Z"
+  },
+  "Tautology/RealBootstrap/Formal/Bell/ReciprocalPower.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:30:55.324Z"
+  },
+  "Tautology/RealBootstrap/IntegerPart.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:30:58.601Z"
+  },
+  "Tautology/RealBootstrap/SignAlgebra.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:31:09.374Z"
+  },
+  "Tautology/RealCompactness/ClosedInterval/FromSupSequential.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:31:14.275Z"
+  },
+  "Tautology/RealCompactness/ClosedInterval/SeqToAccum.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:31:15.024Z"
+  },
+  "Tautology/RealFunction/Elementary/Derived/SmallPower.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:31:56.144Z"
+  },
+  "Tautology/RealSequence/Principles/Dyadic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:32:09.524Z"
+  },
+  "Tautology/RealTheory/Density.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:32:12.926Z"
+  },
+  "Tautology/RealTopology/Closed.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:32:13.512Z"
+  },
+  "Tautology/RealTopology/Subspace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:32:14.035Z"
+  },
+  "Tautology/Foundation/Cardinal/Pairing.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:26:45.859Z"
+  },
+  "Tautology/Nat/Binomial.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:26:49.872Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Cauchy/Approximation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:26:58.211Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Cauchy/Complete.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:27:01.590Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Dedekind/Mul.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:27:04.190Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Eudoxus/DedekindComplete.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:27:09.705Z"
+  },
+  "Tautology/RealBootstrap/Bernoulli.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:27:11.054Z"
+  },
+  "Tautology/RealBootstrap/InternalCountable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:27:12.490Z"
+  },
+  "Tautology/RealBootstrap/InternalNat.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:27:13.127Z"
+  },
+  "Tautology/RealBootstrap/TruncatedPowerSeries.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:27:29.822Z"
+  },
+  "Tautology/RealCardinality/ContinuumUpper.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:28:14.100Z"
+  },
+  "Tautology/RealCardinality/Uncountable.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:28:16.221Z"
+  },
+  "Tautology/RealCompactness/ClosedInterval/Routes.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:28:24.184Z"
+  },
+  "Tautology/RealCompactness/LimitPointCompact.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:28:24.710Z"
+  },
+  "Tautology/RealElliptic/Landen/InternalAlgebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:28:33.517Z"
+  },
+  "Tautology/RealTopology/ClosureAlgebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:28:45.598Z"
+  },
+  "Tautology/Foundation/Cardinal/CantorBernstein.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:28:26.951Z"
+  },
+  "Tautology/Foundation/Cardinal/Sum.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:28:36.263Z"
+  },
+  "Tautology/Foundation/Cardinal/Union.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:28:37.182Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Eudoxus/Error.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:28:37.578Z"
+  },
+  "Tautology/RealBootstrap/Base.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:28:38.354Z"
+  },
+  "Tautology/RealBootstrap/FiniteSum/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:28:43.239Z"
+  },
+  "Tautology/RealBootstrap/OrderAlgebra/Identities.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:29:04.038Z"
+  },
+  "Tautology/RealBootstrap/StrictOrder.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:29:04.767Z"
+  },
+  "Tautology/RealFunction/Elementary/EulerNormalization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:29:28.333Z"
+  },
+  "Tautology/RealSequence/Order.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:29:37.427Z"
+  },
+  "Tautology/RealTheory/Order.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:29:38.146Z"
+  },
+  "Tautology/Foundation/SetPred.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:23:42.711Z"
+  },
+  "Tautology/Nat/Eventually.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:23:51.281Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Dedekind/Neg.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:23:54.820Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Eudoxus/NatBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:23:58.974Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Eudoxus/Quotient.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:23:59.822Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Int/Bounded.lean": {
+    "checkedAt": "2026-09-28T00:24:00.537Z",
+    "collisions": [
+      "Tautology.RealBasic.ModuleBackend.Int.Bounded.congr",
+      "Tautology.RealBasic.ModuleBackend.Int.Bounded.zero",
+      "Tautology.RealBasic.ModuleBackend.Int.Bounded.neg"
+    ]
+  },
+  "Tautology/RealBasic/ModuleBackend/Rat.lean": {
+    "checkedAt": "2026-09-28T00:24:03.383Z",
+    "collisions": [
+      "Tautology.RealBasic.ModuleBackend.Rat.lt_eq_gt",
+      "Tautology.RealBasic.ModuleBackend.Rat.nonpos_of_not_nonneg",
+      "Tautology.RealBasic.ModuleBackend.Rat.two_eq_one_add_one",
+      "Tautology.RealBasic.ModuleBackend.Rat.step_eq"
+    ]
+  },
+  "Tautology/RealBootstrap/Supremum.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:24:12.899Z"
+  },
+  "Tautology/RealSequence/Subsequence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:24:48.702Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Cauchy/Speedup.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:25:39.923Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Dedekind/Add.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:25:41.669Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Dedekind/Archi.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:25:42.552Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Dedekind/SubOrd.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:25:45.464Z"
+  },
+  "Tautology/RealBootstrap/Archimedean.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:25:46.019Z"
+  },
+  "Tautology/RealBootstrap/Formal/Bell/Exponential.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:25:49.820Z"
+  },
+  "Tautology/RealBootstrap/PositiveOne.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:26:01.162Z"
+  },
+  "Tautology/RealBootstrap/RationalApproximation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:26:10.339Z"
+  },
+  "Tautology/RealCardinality/ContinuumLower.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:26:23.759Z"
+  },
+  "Tautology/RealCompactness/HeineBorel.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:26:41.106Z"
+  },
+  "Tautology/RealConnectedness/OpenIntervalClassification.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:26:45.247Z"
+  },
+  "Tautology/RealSequence/InvDiv.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:27:10.428Z"
+  },
+  "Tautology/RealSequence/Mul.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:27:25.748Z"
+  },
+  "Tautology/RealSequence/Principles/FromMonotoneNested.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:27:26.428Z"
+  },
+  "Tautology/RealTopology/Intervals.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:27:31.502Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Cauchy/DedekindComplete.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:11:10.775Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Cauchy/MulOrd.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:11:18.752Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Dedekind/AddInv.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:11:22.823Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Dedekind/MulNonnegDistrib.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:11:27.265Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Dedekind/Order.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:11:27.680Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Eudoxus/Add.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:11:28.735Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Eudoxus/Inv.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:11:34.972Z"
+  },
+  "Tautology/RealBootstrap/InternalInt.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:11:35.814Z"
+  },
+  "Tautology/RealCompactness/ClosedInterval/LebesgueToFinite.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:11:36.210Z"
+  },
+  "Tautology/RealFunction/IntervalPartition/Sums.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:11:58.032Z"
+  },
+  "Tautology/RealSequence/NatTail.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:12:11.979Z"
+  },
+  "Tautology/RealTheory/Sequence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:12:30.265Z"
+  },
+  "Tautology/RealTheory/Topology.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:12:34.533Z"
+  },
+  "Tautology/Foundation/Cardinal/Countable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:30:34.645Z"
+  },
+  "Tautology/Foundation/List.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:30:44.904Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Cauchy/Bound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:30:48.849Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Cauchy/MulNeg.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:30:54.227Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Cauchy/Separation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:31:01.026Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Eudoxus/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:31:01.851Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Eudoxus/IntCast.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:31:05.042Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Eudoxus/Mul.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:31:05.975Z"
+  },
+  "Tautology/RealCardinality/BinaryIntervals.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:31:07.408Z"
+  },
+  "Tautology/RealCardinality/IntervalAvoidance.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:31:10.433Z"
+  },
+  "Tautology/RealCompactness/ClosedInterval/AccumToSeq.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:31:25.139Z"
+  },
+  "Tautology/RealCompactness/ClosedInterval/FromSupFinite.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:31:29.565Z"
+  },
+  "Tautology/RealCompactness/ClosedInterval/Selected.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:31:29.955Z"
+  },
+  "Tautology/RealCompactness/SequentialCompactness.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:31:32.126Z"
+  },
+  "Tautology/RealFunction/Curve/CantorStaircase/Digits.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:32:55.057Z"
+  },
+  "Tautology/RealFunction/Elementary/Route/EulerLimit/Estimates.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:32:55.838Z"
+  },
+  "Tautology/RealIntegral/EqualPartition/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:33:00.138Z"
+  },
+  "Tautology/RealSequence/Algebra.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:33:08.440Z"
+  },
+  "Tautology/RealSequence/BaseExpansionDigits.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:33:12.170Z"
+  },
+  "Tautology/RealSequence/LimsupMul.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:33:13.547Z"
+  },
+  "Tautology/RealTopology/RationalBasis.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:33:15.898Z"
+  },
+  "Tautology/Foundation/Cardinal/Continuum.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:14:52.094Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Cauchy/Add.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:14:59.992Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Cauchy/Inv.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:15:09.289Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Dedekind/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:15:11.139Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Eudoxus/MulOrd.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:15:20.301Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Int/Least.lean": {
+    "checkedAt": "2026-09-28T00:15:21.379Z",
+    "collisions": [
+      "Tautology.RealBasic.ModuleBackend.Int.exists_shifted",
+      "Tautology.RealBasic.ModuleBackend.Int.least_spec",
+      "Tautology.RealBasic.ModuleBackend.Int.least_min"
+    ]
+  },
+  "Tautology/RealBootstrap/Abs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:15:24.134Z"
+  },
+  "Tautology/RealBootstrap/Algebra.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:15:48.062Z"
+  },
+  "Tautology/RealBootstrap/InternalRat.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:16:11.263Z"
+  },
+  "Tautology/RealSequence/Limsup/CompleteCore.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:16:53.454Z"
+  },
+  "Tautology/RealTheory/NatIntRat.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:16:56.199Z"
+  },
+  "Tautology/RealTopology/Sequential.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:16:58.134Z"
+  },
+  "Tautology/Foundation/Cardinal/Cantor.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:18:05.991Z"
+  },
+  "Tautology/Foundation/Cardinal/Finite.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:18:12.008Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Cauchy/Mul.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:18:15.956Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Eudoxus/Order.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:18:19.114Z"
+  },
+  "Tautology/RealBootstrap/SupremumTools.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:18:20.488Z"
+  },
+  "Tautology/RealCompactness/ClosedInterval/SeqToFinite.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:18:25.174Z"
+  },
+  "Tautology/RealConnectedness/OpenDecomposition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:18:33.537Z"
+  },
+  "Tautology/RealFunction/Convex/Core.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:18:44.001Z"
+  },
+  "Tautology/RealSequence/Limsup.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:19:07.937Z"
+  },
+  "Tautology/RealSequence/Principles/FromCauchyMonotone.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:20:26.902Z"
+  },
+  "Tautology/RealSequence/Principles/FromCauchyNested.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:20:28.960Z"
+  },
+  "Tautology/RealSequence/Principles/FromMonotoneCauchy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:20:30.164Z"
+  },
+  "Tautology/RealSequence/Principles/FromNestedCauchy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:20:30.525Z"
+  },
+  "Tautology/RealSequence/Principles/FromNestedMonotone.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:20:31.763Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Dedekind/AddOrd.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:12:01.171Z"
+  },
+  "Tautology/RealBasic/ModuleBackend/Eudoxus/Slope.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:12:07.522Z"
+  },
+  "Tautology/RealBootstrap/OrderAlgebra.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:12:16.038Z",
+    "collisions": [
+      "Tautology.IsOrderedFieldBaseLike.add_four_reorder",
+      "Tautology.IsOrderedFieldBaseLike.add_square_raw",
+      "Tautology.IsOrderedFieldBaseLike.sub_sub_sub_eq_add_sub_add",
+      "Tautology.IsOrderedFieldBaseLike.cross_terms_eq",
+      "Tautology.IsOrderedFieldBaseLike.sum_squares_pair_identity"
+    ]
+  },
+  "Tautology/RealBootstrap/OrderAlgebra/AbsCore.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:13:07.544Z"
+  },
+  "Tautology/RealBootstrap/RationalDensity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:13:26.033Z"
+  },
+  "Tautology/RealCardinality/Continuum.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:13:34.263Z"
+  },
+  "Tautology/RealCompactness/ClosedInterval/FiniteToLebesgue.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:13:34.741Z"
+  },
+  "Tautology/RealCompactness/ClosedInterval/FromNestedFinite.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:13:36.231Z"
+  },
+  "Tautology/RealCompactness/ClosedInterval/FromNestedSequential.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:13:36.759Z"
+  },
+  "Tautology/RealFunction/Elementary/Route/EulerLimit/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:13:43.521Z"
+  },
+  "Tautology/RealIntegral/Riemann/Core/Darboux/Infrastructure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:13:52.541Z"
+  },
+  "Tautology/RealSequence/Principles/NestedBasic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T00:14:01.932Z"
+  },
+  "Tautology/RealTopology/Lindelof.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T00:14:10.281Z"
+  }
+}
