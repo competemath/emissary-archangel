@@ -1,0 +1,617 @@
+{
+  "PrimeNumberTheoremAnd/EulerMaclaurin.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:11:05.949Z"
+  },
+  "PrimeNumberTheoremAnd/EulerMascheroniBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:11:20.143Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/BKLNW/BKLNW_app.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:11:21.451Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/BKLNW/BKLNW_table10_rows_core.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:11:55.222Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/BKLNW/BKLNW_tables.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:12:10.130Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/CH2/CH2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:12:10.623Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/HadamardLogDerivative.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:12:22.986Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/KadiriEq11Reduction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:13:01.727Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/KadiriEq12Foundations.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:13:05.515Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/LogTables.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:14:10.733Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/MobiusLemma.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:17:02.293Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/Ramanujan/Ramanujan.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:17:06.023Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/RosserSchoenfeld/RSPrimeLower.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:17:11.114Z"
+  },
+  "PrimeNumberTheoremAnd/LaplaceInversion.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:17:30.299Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/CartanBound.lean": {
+    "checkedAt": "2026-09-27T23:20:56.193Z",
+    "collisions": [
+      "Complex.CartanBound.neg_log_le_sqrt_two_div"
+    ]
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/LocallyUniformLimit.lean": {
+    "checkedAt": "2026-09-27T23:22:36.843Z",
+    "collisions": [
+      "Complex._root_.TendstoUniformlyOn.mul_left_bounded"
+    ]
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/SpecialFunctions/Exp.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:22:37.514Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/SpecialFunctions/Gamma/DigammaSeries.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:22:38.992Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/NumberTheory/LSeries/RiemannZeta.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:24:31.203Z",
+    "collisions": [
+      "multipliable_norm_eulerFactor_inv",
+      "hasProd_nonneg_of_pos",
+      "hasProd_nnreal_of_coe",
+      "nnreal_coe_tprod"
+    ]
+  },
+  "PrimeNumberTheoremAnd/Rectangle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:24:56.372Z"
+  },
+  "PrimeNumberTheoremAnd/SincKernelErrorBounds.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:24:57.884Z"
+  },
+  "PrimeNumberTheoremAnd/Defs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:05:17.339Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/BKLNW/BKLNW_table10_rows_20_43.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:06:19.527Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/Buthe.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:07:21.630Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/FKS2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:07:24.101Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/KadiriEq12Helpers.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:07:51.645Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/KadiriEq15GammaFactor.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:08:17.998Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/Lcm.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:09:30.109Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/Norm.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:09:31.401Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Meromorphic/DivisorSupport.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:09:34.220Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/NumberTheory/LSeries/RiemannZetaAbelKernel.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:09:38.843Z",
+    "collisions": [
+      "ZetaAbelFractKernel.ae_on_Ioi_of_all",
+      "ZetaAbelFractKernel.dist_lt_of_mem_ball_half"
+    ]
+  },
+  "PrimeNumberTheoremAnd/BorelCaratheodory.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:06:26.096Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/Erdos392.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:07:11.559Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/FKS2Cor23Row4.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:07:16.510Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/FioriKadiriSwidinsky/FioriKadiriSwidinsky.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:07:20.439Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/KadiriSupport.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:07:30.690Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/eSHP/eSHP.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:09:06.336Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Algebra/Notation/Support.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:09:07.070Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Calculus/Deriv/Polynomial.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:09:08.683Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/CartanMajorantBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:09:19.453Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/Convex.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:09:25.927Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/ValueDistribution/LogCounting/Growth.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:09:28.030Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/SpecialFunctions/Gamma/CriticalLineDecay.lean": {
+    "checkedAt": "2026-09-27T23:09:28.808Z",
+    "collisions": [
+      "Complex.sin_pi_half_add_mul_I",
+      "Complex.exp_abs_div_two_le_cosh",
+      "Complex.gamma_half_vertical_norm_sq_le_exp"
+    ]
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/SpecialFunctions/Gamma/StripBounds.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:09:37.191Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/SpecialFunctions/ImproperIntegrals.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:10:23.169Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/SpecialFunctions/Pow/Deriv.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:10:26.385Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/SpecialFunctions/Pow/Real.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:10:31.503Z"
+  },
+  "PrimeNumberTheoremAnd/Auxiliary.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:06:26.669Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/FKS2Cor23Cor14Tail.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:07:50.578Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/KadiriEq13.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:07:53.099Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:07:53.946Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/CartanProductBound.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:07:55.477Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/Divisor.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:07:59.386Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/DivisorComplement.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:10:11.004Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/HadamardFactorization/Summability.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:10:13.209Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/ValueDistribution/LogCounting/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:11:39.170Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/NumberTheory/LSeries/ZetaFunctionalEquation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:11:42.870Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/NumberTheory/Sieve/AuxResults.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:11:43.566Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/NumberTheory/Sieve/Basic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:12:04.383Z"
+  },
+  "PrimeNumberTheoremAnd/Sobolev.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:12:05.601Z"
+  },
+  "PrimeNumberTheoremAnd/Backlund/ZeroCountCrude.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:02:26.988Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/PrimeInInterval.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:02:45.917Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/Ramanujan/RamanujanCalculations.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:02:46.557Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Asymptotics/Uniformly.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:03:22.723Z",
+    "collisions": [
+      "Asymptotics._root_.ContinuousOn.const_isBigOWithUniformlyOn_isCompact",
+      "Asymptotics._root_.ContinuousOn.const_isBigOWithUniformlyOn_isCompact_rev"
+    ]
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/CauchyIntegral.lean": {
+    "checkedAt": "2026-09-27T23:03:28.045Z",
+    "collisions": [
+      "_root_.Differentiable.analyticOnNhd"
+    ]
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/DivisorPartialProductFactor.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:32.296Z"
+  },
+  "PrimeNumberTheoremAnd/ResidueCalcOnRectangles.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:03:33.052Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/Goldbach.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:02:08.731Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/DivisorFiber.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:02:20.180Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/DivisorQuotientConvergence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:02.238Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/SpecialFunctions/CompletedXi.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:03:03.093Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/NumberTheory/Chebyshev.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:03:05.329Z",
+    "collisions": [
+      "Chebyshev.pi_mul_log_sqrt_le"
+    ]
+  },
+  "PrimeNumberTheoremAnd/Mathlib/NumberTheory/LSeries/RiemannZetaAbelContinuation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:29.255Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/NumberTheory/LSeries/RiemannZetaConvexity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:03:34.098Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Topology/MetricSpace/Cauchy.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:06:11.956Z"
+  },
+  "PrimeNumberTheoremAnd/RectangleArgumentPrinciple.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:06:14.099Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/BKLNW/BKLNW_app_tables.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:08:52.251Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/KadiriEq14.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:09:25.874Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/KadiriZeroCounting.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:09:26.658Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Algebra/Order/Floor/Ring.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:09:38.589Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/HadamardFactorization/Growth.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:09:46.754Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/SpecialFunctions/Log/Dyadic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:09:47.637Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/NumberTheory/LSeries/RiemannZetaHadamard.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:10:36.947Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/CH2/CH2_part1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:08:32.947Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/KadiriEq15.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:09:03.295Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/KadiriEq15LaplaceStrip.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:09:11.315Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/LnFactorialSeries.lean": {
+    "checkedAt": "2026-09-27T23:09:21.362Z",
+    "collisions": [
+      "summable_series",
+      "tail_drop_factor",
+      "tail_factor_bound",
+      "exp_series_eq"
+    ]
+  },
+  "PrimeNumberTheoremAnd/IEANTN/Mertens.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:09:51.827Z",
+    "collisions": [
+      "integrableOn_log_mul_exp_neg",
+      "integral_log_mul_exp_neg_eq_deriv_Gamma"
+    ]
+  },
+  "PrimeNumberTheoremAnd/IEANTN/RosserSchoenfeld/RosserSchoenfeldPrime.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:23:06.625Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/SecondarySummary.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:23:10.873Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/ZetaDefinitions.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:23:11.534Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/DivisorIndex.lean": {
+    "checkedAt": "2026-09-27T23:23:12.250Z",
+    "collisions": [
+      "Complex.Hadamard.divisorZeroIndex₀",
+      "Complex.Hadamard.divisorZeroIndex₀_val"
+    ]
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/Trigonometric.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:23:29.992Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/NumberTheory/AbelSummation.lean": {
+    "checkedAt": "2026-09-27T23:23:30.714Z",
+    "collisions": [
+      "_root_.Finset.sum_Icc_one_eq_sum_range"
+    ]
+  },
+  "PrimeNumberTheoremAnd/Mathlib/NumberTheory/LSeries/ZetaFiniteOrder.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:23:33.084Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/FKS2Cor23.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:24.596Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/FKS2Cor23Row8.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:28.477Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/FKS2Floor/Cor22Floor.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:29.222Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/LeanCertEnclosures.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:32.075Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/ZetaAppendix.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:35.535Z"
+  },
+  "PrimeNumberTheoremAnd/IwaniecKowalskiCh1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:44.246Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/DivisorConvergence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:03:46.755Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/ExpPoly.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:04:17.984Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/HadamardFactorization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:04:23.582Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Meromorphic/DivisorHolomorphic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:04:24.479Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/SpecialFunctions/Gamma/GammaStirlingAux.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:04:25.272Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/SpecialFunctions/Gamma/IntegralBounds.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:04:28.368Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/SpecialFunctions/Log/ExpGrowth.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:04:30.841Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/SpecialFunctions/Log/PosLog.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:04:35.427Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/NumberTheory/LSeries/RiemannZetaValues.lean": {
+    "checkedAt": "2026-09-27T23:04:37.655Z",
+    "collisions": [
+      "twenty_seven_div_fifty_lt_eulerMascheroniConstant",
+      "exp_one_hundred_twenty_seven_div_fifty_gt"
+    ]
+  },
+  "PrimeNumberTheoremAnd/Fourier.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:10:02.563Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/BKLNW/BKLNW_table10_values.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:10:53.024Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/FKS2Cor23Row9.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:11:11.318Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/Li2Bounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:11:12.174Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/SecondaryDefinitions.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:11:12.477Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/TMEEMT.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:11:12.821Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/CartanInverseFactorBound.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:11:24.781Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/DivisorQuotientRemovable.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:11:59.071Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/HadamardFactorization/Order.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:11:59.942Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/BKLNW/BKLNW.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:07:59.211Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/Chebyshev.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:08:16.665Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/Dusart.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:08:44.828Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/FKS2Cor24CheckedNumerics.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:08:47.783Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/CanonicalDecomposition.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:08:57.704Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/CanonicalProduct.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:09:03.579Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/DivisorUnits.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:09:04.373Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/ExpPoly/Growth.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:09:06.021Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/WeierstrassFactor.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:09:10.657Z",
+    "collisions": [
+      "Complex.eventually_le_norm_div_two_of_summable_inv_pow",
+      "Complex.summable_scaled_bound_of_summable_inv_pow"
+    ]
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/SpecialFunctions/Log/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:10:38.170Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/MeasureTheory/Integral/IntegrableOn.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:10:38.877Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/MeasureTheory/Integral/IntervalIntegral/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:10:39.609Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/NumberTheory/LSeries/RiemannZetaPartialSum.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:10:44.218Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Topology/MetricSpace/Annulus.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:10:44.996Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/FKS2Tables/Table4ExtGenCore.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:11:05.890Z"
+  },
+  "PrimeNumberTheoremAnd/IEANTN/Kadiri.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-27T23:12:53.356Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Asymptotics/Asymptotics.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:13:10.781Z",
+    "collisions": [
+      "Asymptotics._root_.Filter.Eventually.natCast"
+    ]
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/Complex/AbsMax.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:13:14.262Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/SpecialFunctions/Complex/LogBounds.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:13:14.920Z"
+  },
+  "PrimeNumberTheoremAnd/Mathlib/Analysis/SpecialFunctions/GammaBounds.lean": {
+    "checkedAt": "2026-09-27T23:13:24.245Z",
+    "collisions": [
+      "Real.Gamma.le_Gamma_one_half",
+      "integral_exp_neg_rpow_Ioi_one_le",
+      "integral_rpow_Ioc_zero_one"
+    ]
+  },
+  "PrimeNumberTheoremAnd/Tactic/AdditiveCombination.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-27T23:13:29.754Z"
+  }
+}
