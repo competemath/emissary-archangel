@@ -613,5 +613,9 @@
   "PrimeNumberTheoremAnd/Tactic/AdditiveCombination.lean": {
     "status": "clean",
     "checkedAt": "2026-09-27T23:13:29.754Z"
+  },
+  "PrimeNumberTheoremAnd/ZetaConj.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T13:20:59.847Z"
   }
 }
