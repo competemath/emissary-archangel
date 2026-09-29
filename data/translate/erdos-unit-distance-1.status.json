@@ -13,5 +13,22 @@
       "mechanical": 9,
       "untranslatable": 4
     }
+  },
+  "agent": {
+    "run": "36624563966",
+    "at": "2026-09-29T22:48:28.698Z",
+    "shards": 2,
+    "todo": 89,
+    "processed": 89,
+    "left": 15,
+    "limited": false,
+    "stalls": 0,
+    "outcomes": {
+      "agentic": 57,
+      "unresolved": 12,
+      "cached-mechanical": 3,
+      "untranslatable": 2,
+      "deferred-agent": 15
+    }
   }
 }
