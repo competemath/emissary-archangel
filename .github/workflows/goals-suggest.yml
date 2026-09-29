@@ -70,6 +70,9 @@ jobs:
           one sentence on why it matters.
           Keep existing suggestions that are still right; replace ones that are wrong or stale. Where you have nothing
           useful, leave the part as it is. Be concise: no filler, no restating the goal.
+          A goal need not be a theorem (translating libraries is one). The page has three sections: Open, Completed
+          and Retired. Write suggestions only for goals under Open; leave the parts of Completed and Retired goals as
+          they are. If a Tengoku theorem already proves an open goal, say so: a person moves it to Completed.
           EOF
           cd tengoku || exit 1
           claude -p "$(cat ../prompt.txt)" --output-format json --mcp-config ../mcp.json \
