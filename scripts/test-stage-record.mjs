@@ -1,4 +1,4 @@
-import { splitStatementAndProof } from "../lib/stage-record.mjs";
+import { resplitRecord, splitStatementAndProof } from "../lib/stage-record.mjs";
 // node scripts/test-stage-record.mjs — the statement/proof split of a verified script (exits 1 on a wrong split)
 const cases = [
   ["def a := 1\ntheorem foo (h : x = y) : y = x := by\n  simp [h]", "foo", "theorem foo (h : x = y) : y = x", ":= by\n  simp [h]"],
@@ -14,5 +14,15 @@ for (const [text, name, st, prStart] of cases) {
   const r = splitStatementAndProof(text, name);
   const ok = r && r.statement === st && r.proof.startsWith(prStart);
   if (!ok) { bad++; console.log("FAIL", name, JSON.stringify(r)); } else console.log("ok", name);
+}
+// records banked before the split fix are re-split by the flush
+const old = [
+  [{ statement: "@[to_additive (attr", proof: ":= simp)] theorem one_def : (1 : X).1 = 1:= rfl" }, "@[to_additive (attr := simp)] theorem one_def : (1 : X).1 = 1"],
+  [{ statement: "protected theorem add_zero : ∀ x : F, x + 0 = x\n  | O => rfl\n\nprotected theorem zero_add (x : F) : 0 + x = x", proof: ":= rfl" }, "protected theorem add_zero : ∀ x : F, x + 0 = x"],
+  [{ statement: "theorem foo (h : a = b) : b = a", proof: ":= h.symm" }, "theorem foo (h : a = b) : b = a"],
+];
+for (const [r, want] of old) {
+  const got = resplitRecord(r).statement;
+  if (got !== want) { bad++; console.log("FAIL resplit", JSON.stringify(got)); } else console.log("ok resplit");
 }
 process.exit(bad ? 1 : 0);

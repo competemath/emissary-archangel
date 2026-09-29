@@ -14,6 +14,7 @@
 //   GH_TOKEN=<a token that can push branches and open PRs on the tree> node scripts/bank-flush.mjs
 //        [--repo competemath/tengoku] [--batch 500] [--key <key>] [--dry-run]
 // The commits are authored and signed off by the token's own account (its GitHub noreply address).
+import { resplitRecord } from "../lib/stage-record.mjs"
 import { execFileSync } from "node:child_process"
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
@@ -140,7 +141,7 @@ for (const { key, files } of pending) {
       continue
     }
     seen.add(r0.name)
-    const r = resolveClash(r0, key)
+    const r = resolveClash(resplitRecord(r0), key) // statement = the header alone, even for a record banked before the split fix
     if (!r) continue
     claim(r.name, key, r.statement) // a later library in this run sees it
     fresh.push(JSON.stringify(r))
