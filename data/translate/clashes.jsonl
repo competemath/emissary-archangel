@@ -13,3 +13,4 @@
 {"at":"2026-09-29T05:27:32.801Z","library":"carleson","name":"enorm_algebraMap'","kind":"renamed","renamed":"enorm_algebraMap'__carleson","other":"mathlib-analysis"}
 {"at":"2026-09-29T05:27:32.801Z","library":"carleson","name":"a_pos","kind":"duplicate","other":"mathlib-imo"}
 {"at":"2026-09-29T05:27:32.801Z","library":"carleson","name":"ENNReal.one_le_toReal","kind":"renamed","renamed":"ENNReal.one_le_toReal__carleson","other":"brownian-motion"}
+{"at":"2026-09-29T08:05:28.363Z","library":"formalbook","name":"arctan_sqrt_three","kind":"renamed","renamed":"arctan_sqrt_three__formalbook","other":"mathlib-analysis"}
