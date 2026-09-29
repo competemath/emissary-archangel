@@ -1,5 +1,7 @@
 # Emissary-Archangel
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23047570.svg)](https://doi.org/10.5281/zenodo.23047570)
+
 Translates verified Lean theorems from a source corpus on one Lean toolchain
 into the [Tengoku](https://github.com/competemath/tengoku) tree on its
 toolchain, and vouches for each translation twice before it is banked.
