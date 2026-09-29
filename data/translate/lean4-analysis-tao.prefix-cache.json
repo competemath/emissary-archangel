@@ -1,0 +1,45 @@
+{
+  "Lean4AnalysisTao/C02_NaturalNumbers/S02_Addition.lean": {
+    "checkedAt": "2026-09-29T13:55:47.758Z",
+    "collisions": [
+      "MyNat.zero",
+      "MyNat.add",
+      "MyNat"
+    ]
+  },
+  "Lean4AnalysisTao/C03_SetTheory/S01_Fundamentals.lean": {
+    "checkedAt": "2026-09-29T13:56:09.484Z",
+    "collisions": [
+      "MySet"
+    ]
+  },
+  "Lean4AnalysisTao/C02_NaturalNumbers/S01_PeanoAxioms.lean": {
+    "checkedAt": "2026-09-29T13:58:59.711Z",
+    "collisions": [
+      "MyNat.zero",
+      "MyNat"
+    ]
+  },
+  "Lean4AnalysisTao/C02_NaturalNumbers/S03_Multiplication.lean": {
+    "checkedAt": "2026-09-29T13:59:09.696Z",
+    "collisions": [
+      "MyNat.add",
+      "MyNat.mul",
+      "MyNat"
+    ]
+  },
+  "Lean4AnalysisTao/C03_SetTheory/S03_Functions.lean": {
+    "checkedAt": "2026-09-29T13:59:23.909Z",
+    "collisions": [
+      "MySet.mem",
+      "MyFun.eval",
+      "MySet"
+    ]
+  },
+  "Lean4AnalysisTao/C03_SetTheory/solutions/Solutions_S03_Functions.lean": {
+    "checkedAt": "2026-09-29T14:00:11.000Z",
+    "collisions": [
+      "MySet"
+    ]
+  }
+}

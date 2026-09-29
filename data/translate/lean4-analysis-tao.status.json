@@ -11,5 +11,19 @@
     "outcomes": {
       "deferred-agent": 66
     }
+  },
+  "agent": {
+    "run": "36575261911",
+    "at": "2026-09-29T14:01:36.669Z",
+    "shards": 2,
+    "todo": 66,
+    "processed": 66,
+    "left": 0,
+    "limited": false,
+    "stalls": 0,
+    "outcomes": {
+      "untranslatable": 62,
+      "agentic": 4
+    }
   }
 }
