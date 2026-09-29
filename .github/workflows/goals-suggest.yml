@@ -11,6 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run: { description: "Write the suggestions and check them, open no PR", required: true, default: "false" }
+      repo: { description: "The tengoku repository (tests: competemath/tengoku-sandbox)", required: true, default: "competemath/tengoku" }
 
 permissions: {}
 
@@ -22,6 +23,9 @@ defaults:
   run:
     shell: bash
 
+env:
+  REPO: ${{ inputs.repo || 'competemath/tengoku' }}
+
 jobs:
   suggest:
     runs-on: ubuntu-latest
@@ -30,7 +34,7 @@ jobs:
     steps:
       - name: Tengoku at main (the goals, the records' names, the tree)
         run: |
-          git clone -q --filter=blob:none --sparse https://github.com/competemath/tengoku.git tengoku
+          git clone -q --filter=blob:none --sparse "https://github.com/$REPO.git" tengoku
           git -C tengoku sparse-checkout set docs schemas scripts data/trusted data/staging Tengoku
           goals=$(grep -c '^<!-- goal: ' tengoku/GOALS.md 2>/dev/null || true)
           echo "goals: ${goals:-0}"
@@ -93,8 +97,8 @@ jobs:
             echo "::error::tengoku has no scripts/ci/goals_check.py yet"; exit 1
           fi
           if [ "$DRY" = true ] || [ -z "$BOT" ]; then git --no-pager show --stat HEAD; echo "dry run (or no TENGOKU_BOT_TOKEN): no PR"; exit 0; fi
-          git push -q "https://x-access-token:${BOT}@github.com/competemath/tengoku.git" "HEAD:refs/heads/$branch"
-          GH_TOKEN="$BOT" gh pr create -R competemath/tengoku --base main --head "$branch" \
+          git push -q "https://x-access-token:${BOT}@github.com/$REPO.git" "HEAD:refs/heads/$branch"
+          GH_TOKEN="$BOT" gh pr create -R "$REPO" --base main --head "$branch" \
             --title "GOALS.md: the AI reviewer's suggestions ($(date -u +%Y-%m-%d))" \
             --body "The weekly AI review of GOALS.md (emissary-archangel goals-suggest). It changes only the Suggestions parts; tengoku's goals check verified that before this PR was opened, and checks it again here. Every \`tengoku:\` name it cites exists in the library. Keep what helps; edit or delete the rest. Anyone may change Suggestions."
-          GH_TOKEN="$BOT" gh pr merge "$branch" -R competemath/tengoku --auto || true
+          GH_TOKEN="$BOT" gh pr merge "$branch" -R "$REPO" --auto || true
