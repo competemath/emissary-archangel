@@ -62,5 +62,11 @@
   "GibbsMeasure/Specification.lean": {
     "status": "clean",
     "checkedAt": "2026-09-27T09:34:30.705Z"
+  },
+  "GibbsMeasure/Mathlib/MeasureTheory/Measure/WithDensity.lean": {
+    "checkedAt": "2026-09-29T16:20:52.302Z",
+    "collisions": [
+      "MeasureTheory.Measure._root_.Measurable.withDensity"
+    ]
   }
 }
