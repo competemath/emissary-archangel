@@ -17,3 +17,6 @@
 {"at":"2026-09-29T09:07:59.673Z","library":"leanslt","name":"contDiff_charFun","kind":"renamed","renamed":"contDiff_charFun__leanslt","other":"mathlib-measuretheory"}
 {"at":"2026-09-29T09:07:59.673Z","library":"leanslt","name":"continuous_charFun","kind":"renamed","renamed":"continuous_charFun__leanslt","other":"mathlib-measuretheory"}
 {"at":"2026-09-29T09:07:59.673Z","library":"leanslt","name":"isTightMeasureSet_of_tendsto_charFun","kind":"renamed","renamed":"isTightMeasureSet_of_tendsto_charFun__leanslt","other":"mathlib-measuretheory"}
+{"at":"2026-09-29T09:56:23.572Z","library":"pfr","name":"goursat","kind":"renamed","renamed":"goursat__pfr","other":"mathlib-grouptheory,mathlib-linearalgebra"}
+{"at":"2026-09-29T09:56:23.572Z","library":"pfr","name":"Set.ne_empty_iff_nonempty","kind":"duplicate","other":"mean-fourier"}
+{"at":"2026-09-29T09:56:23.572Z","library":"physlib","name":"singularValues_nonneg","kind":"renamed","renamed":"singularValues_nonneg__physlib","other":"mathlib-analysis"}
