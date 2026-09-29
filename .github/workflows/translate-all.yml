@@ -5,6 +5,8 @@ name: translate-all
 #      secret; one library at a time: the Claude account's usage limit, not the runners, is the bottleneck there).
 #      "Left" is data/translate/<key>.status.json, written by translate.yml's finish job.
 #   2. flush: turn banked records (data/bank/) into tengoku PRs with the TENGOKU_BOT_TOKEN secret (bank-flush.mjs), when TRANSLATE_FLUSH=on.
+#   3. adopt: a library registered in tengoku's schemas/sources.json (a tooling PR anyone can open) and unknown here
+#      gets its entry in sources.json and its setup started; the PR that registered it is told.
 on:
   schedule:
     - cron: "7,22,37,52 * * * *"
@@ -25,6 +27,44 @@ defaults:
     shell: bash
 
 jobs:
+  adopt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions: { contents: write, actions: write }   # contents: sources.json; actions: dispatch setup-libraries.yml
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { filter: "blob:none", sparse-checkout: "scripts", persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: "22" }
+      - name: Libraries registered in tengoku
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUSH_TOKEN: ${{ github.token }}
+          BOT: ${{ secrets.TENGOKU_BOT_TOKEN }}
+          DRY: ${{ inputs.dry_run || 'false' }}
+        run: |
+          if [ "$DRY" = true ]; then node scripts/adopt-tengoku-corpora.mjs --dry-run; exit 0; fi
+          out="$(node scripts/adopt-tengoku-corpora.mjs)"
+          [ -n "$out" ] || exit 0
+          echo "$out"
+          keys="$(awk '{print $2}' <<< "$out" | tr '\n' ' ')"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sources.json
+          git commit -q -m "sources: adopt $keys from tengoku's registry" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+          pushed=false
+          for _ in $(seq 1 30); do
+            if git pull -q --rebase origin main && git push -q "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main; then pushed=true; break; fi
+            sleep $((RANDOM % 20 + 5))
+          done
+          [ "$pushed" = true ] || { echo "could not push sources.json"; exit 1; }
+          gh workflow run setup-libraries.yml -R "$GITHUB_REPOSITORY" --ref main -f keys="$keys" -f exclude=""
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/setup-libraries.yml"
+          while read -r _ key toolchain pr; do
+            [ "$pr" != "-" ] && [ -n "$BOT" ] || continue
+            GH_TOKEN="$BOT" gh pr comment "$pr" -R competemath/tengoku --body "**Emissary-Archangel picked up \`$key\`** (toolchain \`$toolchain\`). Its setup is running on GitHub's runners ([setup-libraries]($run_url)): clone, build, and making each file self-contained. Translation starts when that finishes, and its theorems arrive here as staging PRs from branches \`bank/$key/…\`." || true
+          done <<< "$out"
+
   dispatch:
     runs-on: ubuntu-latest
     timeout-minutes: 10
