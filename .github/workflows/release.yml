@@ -1,0 +1,72 @@
+name: release
+# A numbered release (vX.Y.Z, on demand) with the source code as an archive, and its DOI: the archive is deposited on
+# Zenodo through its API (scripts/zenodo_deposit.py, zenodo.json). Zenodo's GitHub integration stays off for this
+# repository: it would mint a DOI for every release, the pipeline's exports-<library> ones included, and archive the
+# pipeline's 8 GB of working data with the code. The archive leaves data/ out. Running it again for a version that
+# exists only adds a missing DOI. Versions: 0.x while the scripts and workflows still change from week to week.
+on:
+  workflow_dispatch:
+    inputs:
+      version: { description: "X.Y.Z", required: true }
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions: { contents: write }
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/data/
+      - name: The version
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::the version is X.Y.Z (got '$VERSION')"; exit 1; }
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
+      - name: The release (the source without data/, and its citation)
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          mkdir -p out
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$TAG exists: its own files are deposited"
+            gh release download "$TAG" -R "$GITHUB_REPOSITORY" -D out
+            exit 0
+          fi
+          date="$(date -u +%F)"
+          git archive --format=zip --prefix="emissary-archangel-$VERSION/" -o "out/emissary-archangel-$VERSION.zip" HEAD -- . ':(exclude)data'
+          { cat CITATION.cff; printf 'version: "%s"\ndate-released: "%s"\n' "$VERSION" "$date"; } > out/CITATION.cff
+          ls -la out
+          gh release create "$TAG" out/* -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Emissary-Archangel $TAG" \
+            --notes "The source code of Emissary-Archangel $TAG (the pipeline's working data under data/ is not included). How to cite: CITATION.cff."
+      - name: A DOI on Zenodo
+        env:
+          GH_TOKEN: "${{ github.token }}"
+          ZENODO_TOKEN: "${{ secrets.ZENODO_TOKEN }}"
+        run: |
+          if [ -z "$ZENODO_TOKEN" ]; then echo "::warning::no ZENODO_TOKEN secret: $TAG has no DOI yet"; exit 0; fi
+          date="$(gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json publishedAt -q '.publishedAt[0:10]')"
+          doi="$(python3 scripts/zenodo_deposit.py --metadata zenodo.json --version "$VERSION" --date "$date" \
+            --related "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$TAG" out/*.zip out/CITATION.cff)"
+          echo "$TAG: https://doi.org/$doi" | tee -a "$GITHUB_STEP_SUMMARY"
+          body="$(gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json body -q .body)"
+          if ! grep -qF "doi.org/$doi" <<< "$body"; then
+            gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --notes "$body
+
+          DOI: https://doi.org/$doi"
+          fi

@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use Emissary-Archangel, please cite the version you used (release vX.Y.Z)."
+type: software
+title: "Emissary-Archangel: translating verified Lean theorems into one tree, checked twice"
+abstract: >-
+  Emissary-Archangel translates verified Lean 4 theorems from many formal mathematics libraries, each on its own
+  toolchain, into the Tengoku tree on one pinned toolchain, and accepts a translation only when it compiles there
+  and the kernel accepts that it proves at least what the original proved.
+authors:
+  - family-names: "Bashir"
+    given-names: "Mikael"
+repository-code: "https://github.com/competemath/emissary-archangel"
+url: "https://github.com/competemath/tengoku"
+license: Apache-2.0
+keywords:
+  - Lean 4
+  - formal mathematics
+  - theorem proving
+  - translation

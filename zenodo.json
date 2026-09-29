@@ -1,0 +1,9 @@
+{
+  "title": "Emissary-Archangel: translating verified Lean theorems into one tree, checked twice",
+  "upload_type": "software",
+  "description": "<p>Emissary-Archangel translates verified Lean 4 theorems from many formal mathematics libraries, each on its own toolchain, into the Tengoku tree on one pinned toolchain. A translation is accepted only when it elaborates on the Tengoku environment with no errors, warnings or sorry (Leak IV), and the kernel accepts that it proves at least what the original proved, replayed from an export of the original module (Archangel). It runs unattended on GitHub Actions.</p><p>This deposit is the source code of one numbered release, without the pipeline's working data. Repository: https://github.com/competemath/emissary-archangel. Tengoku: https://github.com/competemath/tengoku</p>",
+  "creators": [{ "name": "Bashir, Mikael" }],
+  "access_right": "open",
+  "license": "apache-2.0",
+  "keywords": ["Lean 4", "formal mathematics", "theorem proving", "translation", "autoformalization"]
+}
