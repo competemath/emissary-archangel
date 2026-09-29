@@ -1764,5 +1764,141 @@
   "Euler/OrdinaryQuadraticStability.lean": {
     "status": "clean",
     "checkedAt": "2026-09-29T04:10:55.457Z"
+  },
+  "Euler/MeanPacketZeroForcing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T05:39:24.890Z"
+  },
+  "Euler/MeanSpatialEvaluation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T05:43:43.505Z"
+  },
+  "Euler/MeanStrongContinuousGevrey.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T05:43:44.989Z"
+  },
+  "Euler/MeanStrongCoordinates.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T05:49:26.600Z"
+  },
+  "Euler/MeanTranslatedInverse.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T05:51:19.520Z"
+  },
+  "Euler/MixedH5Product.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T05:51:57.864Z"
+  },
+  "Euler/OrdinaryEulerRescaling.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T05:51:59.717Z"
+  },
+  "Euler/OrdinaryEulerRestriction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T05:57:43.367Z"
+  },
+  "Euler/OrdinaryGradientStability.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:01:22.246Z"
+  },
+  "Euler/OrdinaryH3Envelope.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:02:34.089Z"
+  },
+  "Euler/OrdinarySmoothWords.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:03:12.296Z"
+  },
+  "Euler/OrdinaryTameEnergy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:06:11.941Z"
+  },
+  "Euler/OrdinaryWordBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:07:25.927Z"
+  },
+  "Euler/OrdinaryWordTime.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:09:10.056Z"
+  },
+  "Euler/PacketCoarseMajorant.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:09:11.664Z"
+  },
+  "Euler/PacketConstructedPiola.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:14:34.714Z"
+  },
+  "Euler/PacketContinuousInverse.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:15:47.807Z"
+  },
+  "Euler/PacketCrossProduct.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:22:27.699Z"
+  },
+  "Euler/PacketCurlCoordinates.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:23:06.288Z"
+  },
+  "Euler/PacketCurlTime.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:24:50.742Z"
+  },
+  "Euler/PacketCylinderBoundTransfer.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:26:16.076Z"
+  },
+  "Euler/PacketCylinderRecursiveAdmissibility.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:39:46.907Z"
+  },
+  "Euler/PacketFieldDrift.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:41:09.175Z"
+  },
+  "Euler/PacketFieldJetLp.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:42:34.162Z"
+  },
+  "Euler/PacketFiniteFieldAlgebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:43:53.050Z"
+  },
+  "Euler/PacketFiniteProfileFields.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:45:08.004Z"
+  },
+  "Euler/PacketForwardGeometryAssembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:52:28.447Z"
+  },
+  "Euler/PacketForwardGeometryData.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T06:53:08.374Z"
+  },
+  "Euler/PacketFrameRenewalAlgebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T07:06:02.296Z"
+  },
+  "Euler/PacketInitialFields.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T07:23:38.576Z"
+  },
+  "Euler/PacketInitialSupport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T07:24:16.324Z"
+  },
+  "Euler/PacketNormalizedPrimary.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T10:02:04.622Z"
+  },
+  "Euler/PacketPhysicalStage.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T10:08:28.120Z"
+  },
+  "Euler/PacketPotentialMultiplier.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T10:09:06.449Z"
   }
 }
