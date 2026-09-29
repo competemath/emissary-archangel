@@ -87,7 +87,7 @@ jobs:
         run: |
           cd tengoku || exit 1
           if git diff --quiet; then echo "no suggestions changed"; exit 0; fi
-          if [ -n "$(git status --porcelain | grep -v ' GOALS.md$')" ]; then echo "::error::the reviewer changed files other than GOALS.md"; git status --short; exit 1; fi
+          if git status --porcelain | grep -qv ' GOALS.md$'; then echo "::error::the reviewer changed files other than GOALS.md"; git status --short; exit 1; fi
           login=$(GH_TOKEN="$BOT" gh api user --jq .login 2>/dev/null || echo tengoku-bot)
           git config user.name "$login"
           git config user.email "$login@users.noreply.github.com"
