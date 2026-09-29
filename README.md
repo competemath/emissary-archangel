@@ -181,3 +181,8 @@ promotion PR per source file and waits for each merge. A name already on
 `main` is refused here rather than duplicated, and a batch whose PR could not
 be opened stays under `.bank/<library>/failed/`. Promotion PRs are accepted by
 the gate only when the `gh` login on this machine is the tree's `TENGOKU_BOT`.
+
+## Licence
+
+Apache-2.0 ([LICENSE](LICENSE)), the same as [Tengoku](https://github.com/competemath/tengoku). The libraries it
+translates keep their own licences, recorded per record in Tengoku.
