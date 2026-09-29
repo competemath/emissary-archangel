@@ -1,0 +1,733 @@
+{
+  "LeanPool/ACMax/AHL/AHLMarginals.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:12:48.521Z"
+  },
+  "LeanPool/ACMax/AHL/NBWalk.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T23:12:49.230Z"
+  },
+  "LeanPool/ACMax/Counting/CherryMShape.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T23:12:52.658Z"
+  },
+  "LeanPool/ACMax/Counting/V9DischargeSharp.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T23:19:50.051Z"
+  },
+  "LeanPool/ACMax/Cuts/GoodTriangle.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:20:07.786Z"
+  },
+  "LeanPool/ACMax/Reduction/Residual.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T23:20:08.460Z"
+  },
+  "LeanPool/AFormalizationOfBorelDeterminacyInLean/Applications/RegularOpen.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T23:20:22.118Z"
+  },
+  "LeanPool/AFormalizationOfBorelDeterminacyInLean/Basic/InvLimitNat.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T23:20:26.740Z",
+    "collisions": [
+      "recComp"
+    ]
+  },
+  "LeanPool/AFormalizationOfBorelDeterminacyInLean/Game/GaleStewart.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:20:33.529Z"
+  },
+  "LeanPool/AFormalizationOfBorelDeterminacyInLean/Proof/CoveringClosedGame.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:20:38.274Z"
+  },
+  "LeanPool/AndersonConjecture/Jensen/Adjoin/Adjoin.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:20:51.440Z"
+  },
+  "LeanPool/AndersonConjecture/Jensen/CloseUp/CoprimeSplit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:21:20.724Z"
+  },
+  "LeanPool/AndersonConjecture/Jensen/Construction/HeitmannProp.lean": {
+    "checkedAt": "2026-09-28T23:21:21.598Z",
+    "collisions": [
+      "map_maxIdeal_le_of_closed",
+      "comap_maxIdeal_le_of_local",
+      "heitmann_prop1_isNoetherian"
+    ]
+  },
+  "LeanPool/Apportionment/Utils.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T23:21:25.230Z"
+  },
+  "LeanPool/ArchonFirstProofResults/FirstProof4/Problem4.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:21:39.193Z"
+  },
+  "LeanPool/ArchonFirstProofResults/FirstProof6/Auxiliary/LaplacianBasics.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T23:21:41.338Z"
+  },
+  "LeanPool/ArchonFirstProofResults/FirstProof6/Auxiliary/ResolventBound.lean": {
+    "checkedAt": "2026-09-28T23:21:46.341Z",
+    "collisions": [
+      "Problem6.psd_resolvent_conj_inv",
+      "Problem6.psd_resolvent_trace_le"
+    ]
+  },
+  "LeanPool/ArtinWedderburn/PrimeRing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:21:55.597Z"
+  },
+  "LeanPool/ArtinWedderburn/SetProd.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:21:56.123Z"
+  },
+  "LeanPool/Biswal/Theorem23.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T23:21:56.785Z",
+    "collisions": [
+      "Biswal.Theorem23.polyP_coeff_base",
+      "Biswal.Theorem23.polyP_coeff_step_pos",
+      "Biswal.Theorem23.list_prod_map_eq_fin_prod",
+      "Biswal.Theorem23.alphaProd_eq_fin_prod",
+      "Biswal.Theorem23.coe_finset_prod_eq_prod_coe",
+      "Biswal.Theorem23.inner_prod_eq",
+      "Biswal.Theorem23.coeff_fin_prod_eq_antidiag_sum'",
+      "Biswal.Theorem23.stripMatrix_submatrix_last_last",
+      "Biswal.Theorem23.submatrix_last_col_zero",
+      "Biswal.Theorem23.stripMatrix_val_eq",
+      "Biswal.Theorem23.double_submatrix_eq_stripMatrix",
+      "Biswal.Theorem23.neg_one_pow_double",
+      "Biswal.Theorem23.stripMatrix_minor_subdiag_det",
+      "Biswal.Theorem23.laplace_expansion_two_terms",
+      "Biswal.Theorem23.stripMatrix_det_recurrence",
+      "Biswal.Theorem23.md_stripMatrix_zero_of_col_ge_row_plus_two",
+      "Biswal.Theorem23.md_minor_entry_zero_left_vs_rest",
+      "Biswal.Theorem23.md_minor_left_block_det",
+      "Biswal.Theorem23.md_middle_block_upper_entry_zero",
+      "Biswal.Theorem23.md_middle_block_B_lower_triangular",
+      "Biswal.Theorem23.md_middle_block_diag_entry",
+      "Biswal.Theorem23.md_nested_subtype_card",
+      "Biswal.Theorem23.md_minor_middle_block_det",
+      "Biswal.Theorem23.md_rightBlockEquiv_symm_val",
+      "Biswal.Theorem23.md_stripMatrix_val_shift",
+      "Biswal.Theorem23.md_right_block_entry_eq",
+      "Biswal.Theorem23.md_minor_right_block_det",
+      "Biswal.Theorem23.md_rest_block_zero_middle_vs_right",
+      "Biswal.Theorem23.stripMatrix_minor_det",
+      "Biswal.Theorem23.stripMatrix_adjugate_entry",
+      "Biswal.Theorem23.matrix_inv_entry_eq",
+      "Biswal.Theorem23.coeff_zero_case",
+      "Biswal.Theorem23.coeff_succ_case",
+      "Biswal.Theorem23.rhs_coeff",
+      "Biswal.Theorem23.sum_stripMatrix_split",
+      "Biswal.Theorem23.sum_superdiag",
+      "Biswal.Theorem23.sum_subdiag",
+      "Biswal.Theorem23.mulVec_three_terms",
+      "Biswal.Theorem23.coeff_three_terms_eq",
+      "Biswal.Theorem23.stripMatrix_mulVec_pathCountVec",
+      "Biswal.Theorem23.pathCountVec_eq_inv_entry"
+    ]
+  },
+  "LeanPool/BlockSpectralSensitivity/LLL/Obstruction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:26:53.988Z"
+  },
+  "LeanPool/BooleanIsoperimetry/Cube.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T23:26:55.169Z",
+    "collisions": [
+      "BooleanIsoperimetry.ofDigits_map_eq_sum"
+    ]
+  },
+  "LeanPool/BooleanIsoperimetry/KruskalKatona.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T23:29:01.795Z"
+  },
+  "LeanPool/BooleanIsoperimetry/MacaulayMin.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:31:16.673Z"
+  },
+  "LeanPool/BooleanIsoperimetry/SimplicialCompression.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T23:31:25.054Z"
+  },
+  "LeanPool/BrauerGroupNew/Azumaya/Mul.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T23:33:44.677Z",
+    "collisions": [
+      "inclusion1",
+      "projection1",
+      "tensorInclusion2",
+      "tensorProjection2"
+    ]
+  },
+  "LeanPool/BrauerGroupNew/BrauerOverR.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:35:17.146Z"
+  },
+  "LeanPool/BrauerGroupNew/Mathlib/LinearAlgebra/Matrix/Charpoly/Basic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T23:35:17.868Z"
+  },
+  "LeanPool/BrauerGroupNew/Morita/TensorProduct.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-28T23:35:21.553Z"
+  },
+  "LeanPool/BruhatTits/Graph/Graph.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:36:52.335Z"
+  },
+  "LeanPool/BruhatTits/Utils/GLSubmoduleAction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:36:55.852Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Caccioppoli/CaccioppoliCenteredRhs.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:36:56.489Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Caccioppoli/CaccioppoliEnergyTools.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:36:58.148Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Caccioppoli/CaccioppoliRHS.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:36:58.762Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Caccioppoli/I2.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:37:00.280Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Endgame/Bootstrap.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:37:41.328Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Endgame/BootstrapDerivativeSource.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:37:53.510Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Endgame/BootstrapSourceBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:37:58.898Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Endgame/CarrierRestriction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:37:59.964Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Endgame/ProducerRegularity.lean": {
+    "checkedAt": "2026-09-28T23:38:49.461Z",
+    "collisions": [
+      "CKN.Foundation.Parabolic.vec3ScaleLinear_apply"
+    ]
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Endgame/TensorExtensionPairing.lean": {
+    "checkedAt": "2026-09-28T23:43:55.345Z",
+    "collisions": [
+      "CKN.pressure_neg_kernel_locallyIntegrable"
+    ]
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/HeatPotential/Far.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:44:07.969Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step3/PressureDecayTShape.lean": {
+    "checkedAt": "2026-09-28T23:46:20.226Z",
+    "collisions": [
+      "CKN.force_time_norm_bound"
+    ]
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step3/ThetaDecay.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:54:36.064Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step4/PressureGradientOneSidedKP.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-28T23:54:38.347Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step4/PressureGradientOriginCellInstanceTermTime.lean": {
+    "checkedAt": "2026-09-28T23:56:01.267Z",
+    "collisions": [
+      "CKN.native_euclidean_norm_add_le"
+    ]
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step4/PressureGradientOriginClauseDerivative.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:00:02.165Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step4/PressureGradientOriginClauseGauge.lean": {
+    "checkedAt": "2026-09-29T00:07:03.028Z",
+    "collisions": [
+      "CKN.support_spatialDeriv_subset"
+    ]
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step4/PressureGradientSlice.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:32:21.254Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step4/SliceSelectedGradient.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:33:58.648Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step4/SliceSelectedGradientAssembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:34:13.695Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step4/SliceSelectedGradientCentredSourceTensorDef.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:37:18.240Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step4/SliceSelectedGradientForceSlices.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:37:34.462Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step4/SliceSelectedGradientForceUnconditional.lean": {
+    "checkedAt": "2026-09-29T00:38:09.524Z",
+    "collisions": [
+      "CKN.Foundation.Heat.contDiffAt_newtonianKernel"
+    ]
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step4/SliceSelectedGradientRegularity.lean": {
+    "checkedAt": "2026-09-29T00:40:43.533Z",
+    "collisions": [
+      "CKN.Foundation.Heat.contDiffAt_newtonianKernel"
+    ]
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step4/SliceSelectedGradientSWSUnconditional.lean": {
+    "checkedAt": "2026-09-29T00:43:57.137Z",
+    "collisions": [
+      "CKN.support_spatialDeriv_subset"
+    ]
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step4/SliceSelectedGradientTensorSourcePairing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:44:11.969Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step4/SourceMorreySlice.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:44:14.506Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step4/WeakGradientGluingTForceMassEnvelope.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:44:14.849Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Core/Step4/WeakGradientGluingTRieszIdentification.lean": {
+    "checkedAt": "2026-09-29T00:46:00.860Z",
+    "collisions": [
+      "CKN.pressure_neg_kernel_locallyIntegrable"
+    ]
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Foundation/Euclidean/InterpolationTruncBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:47:56.180Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Foundation/Euclidean/LpExtensionExterior.lean": {
+    "checkedAt": "2026-09-29T00:48:42.431Z",
+    "collisions": [
+      "CKN.Foundation.Heat.contDiffAt_newtonianKernel"
+    ]
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Foundation/Euclidean/PotentialLocalLp.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:51:42.530Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Foundation/Euclidean/PotentialLocalLpExponents.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:51:43.086Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Foundation/Euclidean/PotentialLocalLpP8.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:51:46.141Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Foundation/Euclidean/RieszSecondL2Input.lean": {
+    "checkedAt": "2026-09-29T00:52:31.564Z",
+    "collisions": [
+      "CKN.pressure_neg_kernel_locallyIntegrable"
+    ]
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Foundation/Harmonic/KernelAllOrdersSphere.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:55:15.490Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Foundation/Heat/BackwardPotential.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:55:18.914Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Foundation/Heat/Integrability.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:55:23.617Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Foundation/Parabolic/Morrey/AdamsBridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:55:26.128Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Foundation/Sobolev/Cutoff/Ball.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:55:26.503Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Foundation/Sobolev/Cutoff/SpaceTime.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:55:28.519Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Foundation/Sobolev/Inequalities/H1.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:55:36.528Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Foundation/Sobolev/Inequalities/Seeley.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:55:37.944Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Foundation/Sobolev/Inequalities/SeeleyEnergy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:55:41.874Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Foundation/Sobolev/Poincare/LpConvergence.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T00:55:44.067Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Pressure/Equation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T00:55:53.293Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Pressure/HarmonicPartBoundsTerms.lean": {
+    "checkedAt": "2026-09-29T00:56:18.057Z",
+    "collisions": [
+      "CKN.Foundation.Heat.contDiffAt_newtonianKernel"
+    ]
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Pressure/Identity.lean": {
+    "checkedAt": "2026-09-29T01:00:04.909Z",
+    "collisions": [
+      "CKN.support_spatialDeriv_subset"
+    ]
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Pressure/LeibnizLaplacian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:01:29.549Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Pressure/Lin34CentredPairingSWS.lean": {
+    "checkedAt": "2026-09-29T01:02:47.628Z",
+    "collisions": [
+      "CKN.support_spatialDeriv_subset"
+    ]
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Pressure/Lin34CentredPotentialGrowth.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:02:51.264Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Pressure/ParamExtension.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:02:52.893Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Pressure/PkBoundsP7Solution.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:02:54.099Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Pressure/PkBoundsP7SolutionBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:03:35.023Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Pressure/PkBoundsUnconditionalConstants.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:03:42.023Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Setting/Energy/TimeCutoff.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:03:43.102Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Setting/ScalingInvariance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:03:53.919Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Setting/ScalingInvarianceWeak.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:03:56.077Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Setting/SobolevPoincareConstantPos.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:03:58.949Z"
+  },
+  "LeanPool/CaffarelliKohnNirenberg/Witnesses/TrivialSolution.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:04:01.211Z"
+  },
+  "LeanPool/CencovPetz/RationalDensity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:04:04.884Z"
+  },
+  "LeanPool/CencovPetz/UniformSimplex.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T01:04:09.807Z"
+  },
+  "LeanPool/ChannelCapacity/DischargedExample.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:04:14.834Z"
+  },
+  "LeanPool/Chudnovsky/Ramanujan.lean": {
+    "checkedAt": "2026-09-29T01:04:16.228Z",
+    "collisions": [
+      "Chudnovsky.pi_ne_zero'",
+      "Chudnovsky.pi_I_ne_zero",
+      "Chudnovsky.two_pi_I_ne_zero'",
+      "Chudnovsky.denom_T",
+      "Chudnovsky.E2_eq_one_sub_tsum",
+      "Chudnovsky.summable_sigma_one_norm_q",
+      "Chudnovsky.coe_S_smul",
+      "Chudnovsky.serreDerivative_slash_T",
+      "Chudnovsky.isBoundedAtImInfty_serre",
+      "Chudnovsky.tendsto_serre_atImInfty",
+      "Chudnovsky.serre_E₄_slash_S",
+      "Chudnovsky.serre_E₆_slash_S",
+      "Chudnovsky.serre_E2_slash_S",
+      "Chudnovsky.E₄sq_coe",
+      "Chudnovsky.E₄sq_ne_zero",
+      "Chudnovsky.tendsto_E₄sq_atImInfty",
+      "Chudnovsky.rank_eight",
+      "Chudnovsky.smul_const_of_tendsto",
+      "Chudnovsky.deriv_eq_two_pi_I_mul_D"
+    ]
+  },
+  "LeanPool/CircuitComplexity/Digraph/Defs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T01:06:16.336Z"
+  },
+  "LeanPool/CircuitComplexity/Internal/NF.lean": {
+    "checkedAt": "2026-09-29T01:06:18.371Z",
+    "collisions": [
+      "CircuitComplexity.xor_neg_polarity_eq_eval",
+      "CircuitComplexity.foldl_bor_eq_true",
+      "CircuitComplexity.foldl_band_eq_true",
+      "CircuitComplexity.foldl_bor_eq_list_any",
+      "CircuitComplexity.foldl_band_eq_list_all",
+      "CircuitComplexity.CNF.wireValue_gate",
+      "CircuitComplexity.Circuit.eval",
+      "CircuitComplexity.CNF.toCircuit",
+      "CircuitComplexity.Circuit.size",
+      "CircuitComplexity.DNF.wireValue_gate",
+      "CircuitComplexity.Literal.eval_update_ne",
+      "CircuitComplexity.term_eval_update"
+    ]
+  },
+  "LeanPool/ClassificationOfSurfaces/CellComplex.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T01:06:37.481Z"
+  },
+  "LeanPool/ClassificationOfSurfaces/FiniteCyclicCrosscap.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:07:09.241Z"
+  },
+  "LeanPool/ClassificationOfSurfaces/FiniteCyclicDerivedRewrites.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:07:10.485Z"
+  },
+  "LeanPool/ClassificationOfSurfaces/FiniteCyclicSignedRealization.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T01:07:13.435Z"
+  },
+  "LeanPool/ClassificationOfSurfaces/Moise/ChartInductionCore.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:13:21.322Z"
+  },
+  "LeanPool/ClassificationOfSurfaces/Moise/FacewiseComparison.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:14:06.279Z"
+  },
+  "LeanPool/ClassificationOfSurfaces/Moise/IntrinsicMarkedFan.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:14:14.926Z"
+  },
+  "LeanPool/ClassificationOfSurfaces/Moise/IntrinsicSubdivision.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T01:14:26.445Z"
+  },
+  "LeanPool/ClassificationOfSurfaces/Moise/LocallyFiniteControlledApproximation.lean": {
+    "checkedAt": "2026-09-29T01:16:24.972Z",
+    "collisions": [
+      "LeanEval.Topology.ClassificationOfSurfaces.Moise.PlaneComplex.image_cellCarrier_inter"
+    ]
+  },
+  "LeanPool/ClassificationOfSurfaces/Moise/LocallyFiniteFaceBoundary.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T03:08:00.259Z"
+  },
+  "LeanPool/Clawristotle/CoulombFluxBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:00:05.549Z"
+  },
+  "LeanPool/CommonNeighbourConjecture/Examples/EveryBase/Irreducible.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:02:27.329Z"
+  },
+  "LeanPool/CommonNeighbourConjecture/Saxl/PermWreath/Action.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T04:02:31.069Z"
+  },
+  "LeanPool/ConnesRigidity/Foundation/GroupTheory/Sp4KernelCertificate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:03:39.983Z"
+  },
+  "LeanPool/ConnesRigidity/Foundation/GroupTheory/Sp4KernelCertificateShard0.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:05:52.517Z"
+  },
+  "LeanPool/ConnesRigidity/Foundation/OperatorAlgebra/SemidirectGeneratorTransport.lean": {
+    "checkedAt": "2026-09-29T04:06:08.811Z",
+    "collisions": [
+      "Connes.SemidirectGeneratorTransport.generatorSet",
+      "Connes.leftRegularRepresentation"
+    ]
+  },
+  "LeanPool/ConnesRigidity/Foundation/OperatorAlgebra/SpectralCriterion.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T04:06:32.353Z"
+  },
+  "LeanPool/ConnesRigidity/Paper/Section3/DualHaar.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:13:32.449Z"
+  },
+  "LeanPool/ConnesRigidity/Paper/Section6/ModuleSemisimpleTransport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:13:51.075Z"
+  },
+  "LeanPool/DemazureOperatorsLean/Demazure.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T04:13:51.857Z",
+    "collisions": [
+      "Demazure.DemazureLinear"
+    ]
+  },
+  "LeanPool/Desargues/PV.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:14:19.871Z"
+  },
+  "LeanPool/DirectedTopologyLean4/FractionEqualities.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T04:14:20.599Z"
+  },
+  "LeanPool/DomainTheory/ContinuousLattice/ScottMaps.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T04:14:24.603Z"
+  },
+  "LeanPool/DomainTheory/Neighborhood/Example62A.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:14:29.273Z"
+  },
+  "LeanPool/DomainTheory/Neighborhood/Exercise115.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:14:29.734Z"
+  },
+  "LeanPool/DomainTheory/Neighborhood/Exercise216.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:14:30.114Z"
+  },
+  "LeanPool/DomainTheory/Neighborhood/Exercise317.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:14:30.447Z"
+  },
+  "LeanPool/DomainTheory/Neighborhood/Exercise421.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:14:30.882Z"
+  },
+  "LeanPool/DomainTheory/Neighborhood/Exercise515.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:14:31.186Z"
+  },
+  "LeanPool/DomainTheory/Neighborhood/Proposition67.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:14:31.503Z"
+  },
+  "LeanPool/DomainTheory/Neighborhood/Theorem74.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:19:10.863Z"
+  },
+  "LeanPool/Egrs75/CentralBinomialDigits.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T04:19:11.989Z"
+  },
+  "LeanPool/Egrs75/DigitAtToolkit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:19:21.788Z"
+  },
+  "LeanPool/Erdos132ConvexK3/CoordinatedMajorants.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:19:23.562Z"
+  },
+  "LeanPool/Erdos132N14/Main.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:19:28.650Z"
+  },
+  "LeanPool/Erdos132ThreeChain/Witnesses.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T04:19:31.419Z"
+  },
+  "LeanPool/Erdos548/Main.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T04:19:46.096Z"
+  },
+  "LeanPool/Erdos865/Folding.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T04:20:18.194Z"
+  },
+  "LeanPool/Erdos97ConvexOctagon/CoverageCertificateConflictCovers21.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:21:59.862Z"
+  },
+  "LeanPool/Erdos97ConvexOctagon/CoverageCertificateFacts11.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:28:14.183Z"
+  },
+  "LeanPool/Erdos97ConvexOctagon/CoverageCertificateFacts42.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:28:15.452Z"
+  },
+  "LeanPool/Erdos97ConvexOctagon/CoverageCertificateFacts60.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:28:16.636Z"
+  },
+  "LeanPool/Erdos97ConvexOctagon/CoverageCertificateFacts82.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:28:17.797Z"
+  },
+  "LeanPool/Erdos97ConvexOctagon/CoverageSummaryData04.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:28:21.270Z"
+  },
+  "LeanPool/Erdos97ConvexOctagon/CoverageSummaryData13.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:28:22.893Z"
+  },
+  "LeanPool/Erdos97ConvexOctagon/CoverageSummaryData26.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:28:24.500Z"
+  },
+  "LeanPool/Erdos97ConvexOctagon/Radius.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T04:28:27.051Z"
+  },
+  "LeanPool/Erdos97ConvexOctagon/ResidualAlgebra01.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T04:28:37.442Z"
+  },
+  "LeanPool/Erdos97ConvexOctagon/ResidualAlgebra05.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T04:28:50.214Z"
+  },
+  "LeanPool/ExpChaotic/HalfPlane.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T04:28:50.916Z"
+  },
+  "LeanPool/Feige/ChainFromBoolean.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:28:58.358Z"
+  },
+  "LeanPool/Feige/ConvolutionLogConcave.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T04:28:59.005Z"
+  },
+  "LeanPool/Feige/Grunbaum/FinalBridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T04:29:03.473Z"
+  }
+}
