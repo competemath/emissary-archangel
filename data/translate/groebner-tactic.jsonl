@@ -18,3 +18,11 @@
 {"id":7,"name":"Rabinovich_method'","sourcePath":"GroebnerTac/Lemma.lean","outcome":"failed","at":"2026-09-27T18:20:52.668Z","error":"Command failed: lake build GroebnerTac.Lemma\n","run":"36336275366"}
 {"id":8,"name":"span_image_set_union_eq_span_insert","sourcePath":"GroebnerTac/Lemma.lean","outcome":"failed","at":"2026-09-27T18:50:59.226Z","error":"Command failed: lake build GroebnerTac.Lemma\n","run":"36336275366"}
 {"id":5,"name":"aux","sourcePath":"GroebnerTac/Template.lean","outcome":"failed","at":"2026-09-27T19:21:08.260Z","error":"Command failed: lake build GroebnerTac.Template\n","run":"36336275366"}
+{"id":6,"name":"Rabinovich_method","sourcePath":"GroebnerTac/Lemma.lean","outcome":"export-unavailable","at":"2026-09-29T03:51:51.912Z","error":"Command failed: lake build GroebnerTac.Lemma\n","run":"36516330093"}
+{"id":7,"name":"Rabinovich_method'","sourcePath":"GroebnerTac/Lemma.lean","outcome":"export-unavailable","at":"2026-09-29T04:21:58.457Z","error":"Command failed: lake build GroebnerTac.Lemma\n","run":"36516330093"}
+{"id":8,"name":"span_image_set_union_eq_span_insert","sourcePath":"GroebnerTac/Lemma.lean","outcome":"export-unavailable","at":"2026-09-29T04:52:04.814Z","error":"Command failed: lake build GroebnerTac.Lemma\n","run":"36516330093"}
+{"id":1,"name":"Mathlib.Tactic.IsRemainder.aux_add_smul","sourcePath":"GroebnerTac/Tactic.lean","outcome":"agentic","at":"2026-09-29T04:52:31.218Z","run":"36516330093"}
+{"id":2,"name":"Mathlib.Tactic.IsRemainder.aux_smul","sourcePath":"GroebnerTac/Tactic.lean","outcome":"agentic","at":"2026-09-29T04:52:37.517Z","run":"36516330093"}
+{"id":3,"name":"Mathlib.Tactic.IsRemainder.Ideal.insert_le_of_mem_of_le","sourcePath":"GroebnerTac/Tactic.lean","outcome":"agentic","at":"2026-09-29T04:52:43.419Z","run":"36516330093"}
+{"id":4,"name":"Mathlib.Tactic.IsRemainder.Rabinovich_method'","sourcePath":"GroebnerTac/Tactic.lean","outcome":"agentic","at":"2026-09-29T04:56:27.591Z","run":"36516330093"}
+{"id":5,"name":"aux","sourcePath":"GroebnerTac/Template.lean","outcome":"export-unavailable","at":"2026-09-29T05:26:31.617Z","error":"Command failed: lake build GroebnerTac.Template\n","run":"36516330093"}

@@ -11,5 +11,19 @@
     "outcomes": {
       "failed": 4
     }
+  },
+  "agent": {
+    "run": "36516330093",
+    "at": "2026-09-29T05:26:48.661Z",
+    "shards": 2,
+    "todo": 8,
+    "processed": 8,
+    "left": 0,
+    "limited": false,
+    "stalls": 0,
+    "outcomes": {
+      "export-unavailable": 4,
+      "agentic": 4
+    }
   }
 }
