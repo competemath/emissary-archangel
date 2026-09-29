@@ -32,3 +32,14 @@
 {"id":13,"name":"IMOSL2024N1.Condition.eq_two_of_two_pow_mul","sourcePath":"IMO/IMOSL2024N1.lean","outcome":"untranslatable","at":"2026-09-27T09:36:07.953Z","run":"36308980653"}
 {"id":14,"name":"IMOSL2024N1.Condition.eq_one_or_two_or_four_or_twelve","sourcePath":"IMO/IMOSL2024N1.lean","outcome":"untranslatable","at":"2026-09-27T09:36:18.728Z","run":"36308980653"}
 {"id":15,"name":"IMOSL2024N1.result","sourcePath":"IMO/IMOSL2024N1.lean","outcome":"untranslatable","at":"2026-09-27T09:36:30.113Z","run":"36308980653"}
+{"id":16,"name":"IMOSL2024A2.zero_not_mem_x_to_finset","sourcePath":"IMO/IMOSL2024A2.lean","outcome":"export-unavailable","at":"2026-09-29T10:11:52.376Z","run":"36552394115"}
+{"id":17,"name":"IMOSL2024A2.sum_two_pow_mul_sq_optimal_x","sourcePath":"IMO/IMOSL2024A2.lean","outcome":"export-unavailable","at":"2026-09-29T10:12:12.912Z","run":"36552394115"}
+{"id":18,"name":"IMOSL2024A2.result","sourcePath":"IMO/IMOSL2024A2.lean","outcome":"export-unavailable","at":"2026-09-29T10:12:32.965Z","run":"36552394115"}
+{"id":28,"name":"IMOSL2024C1.hasRating_const","sourcePath":"IMO/IMOSL2024C1.lean","outcome":"export-unavailable","at":"2026-09-29T10:12:13.973Z","run":"36552394115"}
+{"id":29,"name":"IMOSL2024C1.score_const","sourcePath":"IMO/IMOSL2024C1.lean","outcome":"export-unavailable","at":"2026-09-29T10:12:36.153Z","run":"36552394115"}
+{"id":30,"name":"IMOSL2024C1.sum_score_const","sourcePath":"IMO/IMOSL2024C1.lean","outcome":"export-unavailable","at":"2026-09-29T10:12:58.068Z","run":"36552394115"}
+{"id":31,"name":"IMOSL2024C1.score_mul_n_le_sum_weight","sourcePath":"IMO/IMOSL2024C1.lean","outcome":"export-unavailable","at":"2026-09-29T10:13:19.899Z","run":"36552394115"}
+{"id":32,"name":"IMOSL2024C1.sum_score_mul_n_le","sourcePath":"IMO/IMOSL2024C1.lean","outcome":"export-unavailable","at":"2026-09-29T10:13:41.875Z","run":"36552394115"}
+{"id":33,"name":"IMOSL2024C1.sum_score_le","sourcePath":"IMO/IMOSL2024C1.lean","outcome":"export-unavailable","at":"2026-09-29T10:14:03.804Z","run":"36552394115"}
+{"id":34,"name":"IMOSL2024C1.result","sourcePath":"IMO/IMOSL2024C1.lean","outcome":"export-unavailable","at":"2026-09-29T10:14:26.080Z","run":"36552394115"}
+{"id":1,"name":"IMOSL2024C5.move_ssubset","sourcePath":"IMO/IMOSL2024C5.lean","outcome":"export-unavailable","at":"2026-09-29T10:17:11.451Z","run":"36552394115"}
