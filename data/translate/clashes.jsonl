@@ -14,3 +14,6 @@
 {"at":"2026-09-29T05:27:32.801Z","library":"carleson","name":"a_pos","kind":"duplicate","other":"mathlib-imo"}
 {"at":"2026-09-29T05:27:32.801Z","library":"carleson","name":"ENNReal.one_le_toReal","kind":"renamed","renamed":"ENNReal.one_le_toReal__carleson","other":"brownian-motion"}
 {"at":"2026-09-29T08:05:28.363Z","library":"formalbook","name":"arctan_sqrt_three","kind":"renamed","renamed":"arctan_sqrt_three__formalbook","other":"mathlib-analysis"}
+{"at":"2026-09-29T09:07:59.673Z","library":"leanslt","name":"contDiff_charFun","kind":"renamed","renamed":"contDiff_charFun__leanslt","other":"mathlib-measuretheory"}
+{"at":"2026-09-29T09:07:59.673Z","library":"leanslt","name":"continuous_charFun","kind":"renamed","renamed":"continuous_charFun__leanslt","other":"mathlib-measuretheory"}
+{"at":"2026-09-29T09:07:59.673Z","library":"leanslt","name":"isTightMeasureSet_of_tendsto_charFun","kind":"renamed","renamed":"isTightMeasureSet_of_tendsto_charFun__leanslt","other":"mathlib-measuretheory"}
