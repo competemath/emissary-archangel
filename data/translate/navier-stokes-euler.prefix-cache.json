@@ -2424,5 +2424,421 @@
   "Euler/MeanLocalL2Energy.lean": {
     "status": "broken",
     "checkedAt": "2026-09-29T16:54:35.672Z"
+  },
+  "Euler/SourceNormalCoefficient.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:38:43.628Z"
+  },
+  "Euler/StaticEulerCorrection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:38:46.344Z"
+  },
+  "Euler/TerminalProjectionTrial.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:47:52.084Z"
+  },
+  "Euler/TimeContinuousPrimitive.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:48:03.377Z"
+  },
+  "Euler/TimeFamily.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:48:03.761Z"
+  },
+  "Euler/TimeH1FieldProduct.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:48:08.196Z"
+  },
+  "Euler/TimeH1ReconstructionNaturality.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:48:21.739Z"
+  },
+  "Euler/TimeIntervalGlue.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T17:48:46.806Z"
+  },
+  "Euler/TimeLp.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T17:48:52.678Z"
+  },
+  "Euler/TimeLpPairing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:49:03.214Z"
+  },
+  "Euler/TransportL2Bilinear.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:54:04.966Z"
+  },
+  "Euler/TransverseActivationSelection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:54:09.370Z"
+  },
+  "Euler/TransverseHistoryLipschitz.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:55:30.832Z"
+  },
+  "Euler/TransverseMomentumRegularity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:55:40.077Z"
+  },
+  "Euler/WindowSource.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T20:58:00.795Z"
+  },
+  "NavierStokes/ActivationHolomorphic.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T20:58:04.854Z",
+    "collisions": [
+      "NavierStokes.ActivationHolomorphic.segmentExtend"
+    ]
+  },
+  "NavierStokes/ActualParticularPhysicalData.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:39:03.115Z"
+  },
+  "NavierStokes/ActualPhaseDefect.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:40:07.816Z"
+  },
+  "NavierStokes/ActualSignedNativeBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:41:03.643Z"
+  },
+  "NavierStokes/AnalyticPrimitive.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T17:42:32.267Z"
+  },
+  "NavierStokes/AssembledSlowBase.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:44:53.203Z"
+  },
+  "NavierStokes/AxisAnalyticCoefficients.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:45:25.972Z"
+  },
+  "NavierStokes/BaseContextAssembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:45:34.864Z"
+  },
+  "NavierStokes/BasePhaseGeometry.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:46:06.599Z"
+  },
+  "NavierStokes/ClosedIntervalJetAlgebra.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T17:46:09.250Z"
+  },
+  "NavierStokes/CompactSpatialForceDecay.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T17:46:51.248Z"
+  },
+  "NavierStokes/ConstructedSlowBase.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:47:32.294Z"
+  },
+  "NavierStokes/CopySolveCompatibility.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:48:31.580Z"
+  },
+  "NavierStokes/CurrentPhysicalRadialClosure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:48:33.743Z"
+  },
+  "NavierStokes/ExtendedHeatedOutgoing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:48:34.431Z"
+  },
+  "NavierStokes/FlatPrimitive.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T17:48:42.667Z"
+  },
+  "NavierStokes/FourierAlias.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:49:20.350Z"
+  },
+  "NavierStokes/GaugeExcludedBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:49:35.865Z"
+  },
+  "NavierStokes/GlobalBaseError.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:50:03.633Z"
+  },
+  "NavierStokes/GraphCalculus.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T17:50:13.068Z",
+    "collisions": [
+      "NavierStokes.GraphCalculus.hasFDerivAt_radialVector"
+    ]
+  },
+  "NavierStokes/HeatProfileExtension.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T17:50:38.049Z",
+    "collisions": [
+      "NavierStokes.BorelExtension.localScale._proof_1"
+    ]
+  },
+  "NavierStokes/LabelCountingFinite.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:53:15.658Z"
+  },
+  "NavierStokes/LocalAngularDiagonal.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:54:03.431Z"
+  },
+  "NavierStokes/LocalRankDefect.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:54:36.206Z"
+  },
+  "NavierStokes/LocalizedMomentRepair.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T17:55:12.226Z"
+  },
+  "NavierStokes/MeanMomentBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:56:41.243Z"
+  },
+  "NavierStokes/MixedCandidateAssembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:58:32.243Z"
+  },
+  "NavierStokes/MixedFiniteBackground.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:59:02.163Z"
+  },
+  "NavierStokes/ModulatedProfileJetRates.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:59:43.708Z"
+  },
+  "NavierStokes/NaturalAxisData.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T17:59:45.356Z"
+  },
+  "NavierStokes/NormalScaling.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:01:06.311Z"
+  },
+  "NavierStokes/OutgoingTail.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:01:07.568Z"
+  },
+  "NavierStokes/ParametricTerminalCompensation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:01:27.465Z"
+  },
+  "NavierStokes/PeriodicViscosity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:01:42.707Z"
+  },
+  "NavierStokes/PowerMomentMatrix.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T18:01:43.494Z"
+  },
+  "NavierStokes/PrimaryODE.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:02:13.707Z"
+  },
+  "NavierStokes/PrimaryRepresentatives.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:02:20.881Z"
+  },
+  "NavierStokes/R3/CompactForceBound.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T18:02:24.061Z"
+  },
+  "NavierStokes/R3/GradientOperator.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T18:02:31.669Z"
+  },
+  "NavierStokes/R3/HeatKernelCancellation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:03:20.996Z"
+  },
+  "NavierStokes/R3/HilbertFunctionalExtension.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T18:03:22.564Z"
+  },
+  "NavierStokes/R3/PressureFluxTest.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:03:24.058Z"
+  },
+  "NavierStokes/R3/ProblemStatement.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T18:03:26.392Z"
+  },
+  "NavierStokes/R3CompactEnergy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:03:51.279Z"
+  },
+  "NavierStokes/R3LocalizedPressureTests.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:03:55.235Z"
+  },
+  "NavierStokes/R3WeakPressure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:03:55.799Z"
+  },
+  "NavierStokes/ReferenceUniformStocks.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:03:57.448Z"
+  },
+  "NavierStokes/ScaledActualParticularControl.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:06:07.439Z"
+  },
+  "NavierStokes/SignedPhysicalSumCalculus.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:06:10.538Z"
+  },
+  "NavierStokes/SimilarityProfile.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:06:12.196Z"
+  },
+  "NavierStokes/SlotGeometry.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T18:06:13.313Z",
+    "collisions": [
+      "NavierStokes.SlotGeometry.isOpen_separationOffsets",
+      "NavierStokes.SlotGeometry.isOpen_injectiveOffsets",
+      "NavierStokes.SlotGeometry.isOpen_safeOffsets",
+      "NavierStokes.SlotGeometry.zero_mem_safeOffsets",
+      "NavierStokes.SlotGeometry.exists_safe_offset_radius"
+    ]
+  },
+  "NavierStokes/SlowBorelBase.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:07:19.763Z"
+  },
+  "NavierStokes/SmoothCutoffs.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T18:07:22.477Z"
+  },
+  "NavierStokes/SmoothLoop.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T18:07:47.719Z"
+  },
+  "NavierStokes/SmoothQuadraticBranch.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T18:08:28.871Z"
+  },
+  "NavierStokes/StateMomentBalances.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:09:00.491Z"
+  },
+  "NavierStokes/StressActivation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:09:11.776Z"
+  },
+  "NavierStokes/StressAlgebra.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T18:09:15.841Z"
+  },
+  "NavierStokes/WaveDataReindex.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:09:26.174Z"
+  },
+  "NavierStokes/ZerothStressIdentity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:09:41.690Z"
+  },
+  "Euler/SobolevCoefficientPressure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:49:18.824Z"
+  },
+  "Euler/SobolevJointEvaluation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:50:32.461Z"
+  },
+  "Euler/SobolevParityOperators.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:53:15.925Z"
+  },
+  "Euler/SobolevSmoothing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:53:53.711Z"
+  },
+  "Euler/SobolevTranslationDifferentiation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:55:08.766Z"
+  },
+  "Euler/SobolevWordLevel.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T17:55:45.795Z"
+  },
+  "Euler/SourceCylinderClassical.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:16:41.527Z"
+  },
+  "Euler/SourceCylinderParity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:25:28.993Z"
+  },
+  "Euler/SourceCylinderPressureField.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:54:25.574Z"
+  },
+  "Euler/TimeH1Reconstruction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:54:36.089Z"
+  },
+  "Euler/TimeLpCoefficientGevrey.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T18:54:45.243Z"
+  },
+  "Euler/TimeLpLinearity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-29T18:55:24.690Z"
+  },
+  "Euler/TransverseBoundedGeometry.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T19:00:42.552Z"
+  },
+  "Euler/TransverseEndpointEnergy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T19:00:58.093Z"
+  },
+  "Euler/TransverseHistoryBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T19:08:53.013Z"
+  },
+  "Euler/TransverseHistoryParentCost.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T19:10:38.041Z"
+  },
+  "Euler/TransversePacketForwardGradeBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T19:19:47.149Z"
+  },
+  "Euler/TransversePacketHistoryBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T19:21:26.704Z"
+  },
+  "Euler/TransversePacketIntervalData.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T19:57:04.222Z"
+  },
+  "Euler/TransverseStrongEquation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T22:43:41.669Z"
+  },
+  "Euler/ViscosityCauchy.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T22:43:43.313Z"
+  },
+  "NavierStokes/ActivationBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T22:45:42.372Z"
+  },
+  "NavierStokes/ActualBaseVelocityBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T22:45:54.543Z"
+  },
+  "NavierStokes/ActualCurrentParticularBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T22:48:19.131Z"
+  },
+  "NavierStokes/ActualCurrentParticularPhysical.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-29T22:58:10.428Z"
   }
 }
