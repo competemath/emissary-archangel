@@ -35,5 +35,25 @@
   "Toric/ToricIdeal.lean": {
     "status": "clean",
     "checkedAt": "2026-09-27T09:34:45.537Z"
+  },
+  "Toric/GroupScheme/MonoidAlgebra.lean": {
+    "checkedAt": "2026-09-29T18:50:34.057Z",
+    "collisions": [
+      "AlgebraicGeometry.Scheme.specCommMonAlgPullbackObjXIso",
+      "AlgebraicGeometry.Scheme.specCommMonAlgPullbackObjIso_mul_aux",
+      "AlgebraicGeometry.Scheme.specCommMonAlgPullback"
+    ]
+  },
+  "Toric/GroupScheme/Character.lean": {
+    "checkedAt": "2026-09-29T19:51:32.653Z",
+    "collisions": [
+      "AlgebraicGeometry.Scheme.cocharDiag"
+    ]
+  },
+  "Toric/ToricVariety/Defs.lean": {
+    "checkedAt": "2026-09-29T20:10:17.615Z",
+    "collisions": [
+      "AlgebraicGeometry.ToricVariety.torusEmb"
+    ]
   }
 }
