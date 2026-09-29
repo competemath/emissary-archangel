@@ -11,5 +11,18 @@
     "outcomes": {
       "export-unavailable": 42
     }
+  },
+  "agent": {
+    "run": "36580181424",
+    "at": "2026-09-29T15:53:16.245Z",
+    "shards": 2,
+    "todo": 14,
+    "processed": 14,
+    "left": 0,
+    "limited": false,
+    "stalls": 0,
+    "outcomes": {
+      "export-unavailable": 14
+    }
   }
 }
