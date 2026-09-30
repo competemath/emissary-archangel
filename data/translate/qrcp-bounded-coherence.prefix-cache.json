@@ -25,5 +25,64 @@
   "QRCPProof/SelectedBlockPressure.lean": {
     "status": "broken",
     "checkedAt": "2026-09-27T09:41:10.337Z"
+  },
+  "QRCPProof/QRCPPivotProof.lean": {
+    "checkedAt": "2026-09-29T23:51:46.043Z",
+    "collisions": [
+      "pivotPrefix_mem_of_bound",
+      "pivotPrefix_pivot_mem",
+      "norm_sq_eq_last_sq",
+      "GlobalParams.epsilon_pos",
+      "GlobalParams.epsilon_lt_one",
+      "geom_telescope",
+      "inner_zero_of_support_disjoint_aux",
+      "prefixSpan_coord_zero",
+      "residualScore_le_norm_sub_sq",
+      "orthogonalProjector_of_mem_ortho"
+    ]
+  },
+  "QRCPProof/BsnsGrowth.lean": {
+    "checkedAt": "2026-09-29T23:31:15.793Z",
+    "collisions": [
+      "eps_pos",
+      "d_pos",
+      "Rx_eq_z",
+      "bsns_ge_entry_sq",
+      "x_sq_eq_y_sq"
+    ]
+  },
+  "QRCPProof/DecompConstruction.lean": {
+    "checkedAt": "2026-09-29T23:47:20.764Z",
+    "collisions": [
+      "N_split_pos",
+      "dm_sq_pos",
+      "divNat_finProdFinEquiv"
+    ]
+  },
+  "QRCPProof/EigenBounds.lean": {
+    "checkedAt": "2026-09-29T23:48:13.289Z",
+    "collisions": [
+      "z_sq_le_d_sq",
+      "kappa_z_eq_two",
+      "sum_d_sq_le_m_alpha_sq",
+      "sum_d_sq_le_alpha_sq_div_s_sq",
+      "trace_RRt_eq_sum_sq"
+    ]
+  },
+  "QRCPProof/NormBridge.lean": {
+    "checkedAt": "2026-09-29T23:50:07.870Z",
+    "collisions": [
+      "NormBridge.toEuclideanCLM_ofLp'",
+      "NormBridge.ofLp_injective'",
+      "NormBridge.clm_norm_submatrix_finSumFinEquiv"
+    ]
+  },
+  "QRCPProof/TraceBound.lean": {
+    "checkedAt": "2026-09-30T00:14:55.272Z",
+    "collisions": [
+      "GlobalParams.R_off_diag_sq",
+      "GlobalParams.R_diag_sq",
+      "GlobalParams.row_sq_sum_le"
+    ]
   }
 }
