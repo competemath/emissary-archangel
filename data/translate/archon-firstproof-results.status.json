@@ -12,5 +12,19 @@
       "deferred-agent": 201,
       "mechanical": 21
     }
+  },
+  "agent": {
+    "run": "36750477567",
+    "at": "2026-09-30T17:24:29.268Z",
+    "shards": 2,
+    "todo": 201,
+    "processed": 201,
+    "left": 200,
+    "limited": false,
+    "stalls": 0,
+    "outcomes": {
+      "unresolved": 1,
+      "deferred-agent": 200
+    }
   }
 }
