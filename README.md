@@ -184,6 +184,22 @@ promotion PR per source file and waits for each merge. A name already on
 be opened stays under `.bank/<library>/failed/`. Promotion PRs are accepted by
 the gate only when the `gh` login on this machine is the tree's `TENGOKU_BOT`.
 
+## How to cite
+
+Cite the version you used. [10.5281/zenodo.23047570](https://doi.org/10.5281/zenodo.23047570) stands for every
+version (it resolves to the newest); each release also has its own DOI, on its release page.
+
+```bibtex
+@misc{emissary_archangel,
+  author    = {Bashir, Mikael},
+  title     = {Emissary-Archangel: translating verified Lean theorems into one tree, checked twice},
+  publisher = {Zenodo},
+  year      = {2026},
+  doi       = {10.5281/zenodo.23047570},
+  url       = {https://doi.org/10.5281/zenodo.23047570}
+}
+```
+
 ## Licence
 
 Apache-2.0 ([LICENSE](LICENSE)), the same as [Tengoku](https://github.com/competemath/tengoku). The libraries it

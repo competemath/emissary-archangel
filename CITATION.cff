@@ -1,6 +1,11 @@
 cff-version: 1.2.0
 message: "If you use Emissary-Archangel, please cite the version you used (release vX.Y.Z)."
 type: software
+doi: 10.5281/zenodo.23047570
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.23047570
+    description: "Every version (resolves to the newest); each release also has its own DOI"
 title: "Emissary-Archangel: translating verified Lean theorems into one tree, checked twice"
 abstract: >-
   Emissary-Archangel translates verified Lean 4 theorems from many formal mathematics libraries, each on its own
