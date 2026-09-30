@@ -3141,5 +3141,286 @@
   "Euler/MeanWeakHarmonicScaling.lean": {
     "status": "broken",
     "checkedAt": "2026-09-30T03:37:55.329Z"
+  },
+  "NavierStokes/ActualSignedGeometry.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:39:48.749Z"
+  },
+  "NavierStokes/AxisProfile.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T04:40:20.114Z"
+  },
+  "NavierStokes/AxisReference.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:40:47.937Z"
+  },
+  "NavierStokes/BaseAngularGrowth.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T04:40:51.227Z"
+  },
+  "NavierStokes/CoordinateAlgebra.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T04:44:47.890Z"
+  },
+  "NavierStokes/CorrectionStep.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:45:09.220Z"
+  },
+  "NavierStokes/EndpointExtension.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T04:48:25.904Z"
+  },
+  "NavierStokes/FiveRowRank.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T04:48:32.398Z"
+  },
+  "NavierStokes/FlatCutoff.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T04:51:35.834Z"
+  },
+  "NavierStokes/FlatPrimitivePaper.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T04:51:54.954Z"
+  },
+  "NavierStokes/FlatZeroExtension.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:52:12.659Z"
+  },
+  "NavierStokes/GaugeMomentBalances.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:52:24.057Z"
+  },
+  "NavierStokes/GaugeRadialResidualBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:53:19.317Z"
+  },
+  "NavierStokes/GaugeStateCoherence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:54:21.867Z"
+  },
+  "NavierStokes/GaussianTailFlat.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:55:26.783Z"
+  },
+  "NavierStokes/GenericRealizationBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:55:37.528Z"
+  },
+  "NavierStokes/GlobalStressSupport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:57:02.997Z"
+  },
+  "NavierStokes/GraphRestriction.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T04:57:09.684Z"
+  },
+  "NavierStokes/JetBounds.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T04:57:14.429Z",
+    "collisions": [
+      "NavierStokes.JetBounds.sum_choose_real",
+      "NavierStokes.JetBounds.binomial_norm_sum_le",
+      "NavierStokes.JetBounds.binomial_norm_sum_le_profile"
+    ]
+  },
+  "NavierStokes/LocalMeanPhysicalBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:59:55.004Z"
+  },
+  "NavierStokes/LocalPhysicalCopyBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:59:58.072Z"
+  },
+  "NavierStokes/MeanResidual.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:00:00.652Z"
+  },
+  "NavierStokes/ModulatedCone.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:00:02.538Z"
+  },
+  "NavierStokes/ModulatedProfileAssembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:00:46.101Z"
+  },
+  "NavierStokes/ParametricRadialExtension.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:01:51.559Z"
+  },
+  "NavierStokes/PeriodicResidualLimits.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:02:09.761Z"
+  },
+  "NavierStokes/PhysicalClassBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:05:33.806Z"
+  },
+  "NavierStokes/PhysicalCoordinateBounds.lean": {
+    "checkedAt": "2026-09-30T05:05:44.655Z",
+    "collisions": [
+      "NavierStokes.PhysicalCoordinateBounds.nat_le_infty",
+      "NavierStokes.PhysicalCoordinateBounds.infty_add_one_le"
+    ]
+  },
+  "NavierStokes/PhysicalHeatCoordinates.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:09:02.829Z"
+  },
+  "NavierStokes/PhysicalMeanJetBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:09:33.127Z"
+  },
+  "NavierStokes/PositiveAxisExistence.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T05:10:43.620Z"
+  },
+  "NavierStokes/PrimaryTargetBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:35:57.149Z"
+  },
+  "NavierStokes/R3/FourierTestDerivatives.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T05:36:20.323Z"
+  },
+  "NavierStokes/R3/H3DivCurlFourier.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T05:36:35.519Z",
+    "collisions": [
+      "NavierStokesR3.H3DivCurlFourier.ComplexL2"
+    ]
+  },
+  "NavierStokes/R3/H3WeakStrong.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:38:05.836Z"
+  },
+  "NavierStokes/R3/HeatKernelTimeBound.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:38:08.038Z"
+  },
+  "NavierStokes/R3/L2TimeDerivative.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T05:38:10.409Z"
+  },
+  "NavierStokes/R3/LocalizedDifferenceEnergy.lean": {
+    "checkedAt": "2026-09-30T05:38:36.028Z",
+    "collisions": [
+      "NavierStokesR3.LocalizedDifferenceEnergy.nat_le_infty"
+    ]
+  },
+  "NavierStokes/R3/LocalizedLaplacian.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:39:56.638Z"
+  },
+  "NavierStokes/R3/ParabolicSupport.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T05:39:59.568Z"
+  },
+  "NavierStokes/R3/PressureTestBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:40:02.846Z"
+  },
+  "NavierStokes/R3/RieszHeatRepresentation.lean": {
+    "checkedAt": "2026-09-30T05:40:10.574Z",
+    "collisions": [
+      "NavierStokesR3.Comparison.realAlgebraMap_apply",
+      "NavierStokesR3.Comparison.heatSecondTest_eq_integral",
+      "NavierStokesR3.Comparison.integrable_heatFourierProduct"
+    ]
+  },
+  "NavierStokes/R3/TemporalTestUniqueness.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T05:40:32.765Z"
+  },
+  "NavierStokes/R3SpaceTimeCalculus.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:40:38.331Z"
+  },
+  "NavierStokes/R3WeightedLp.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:40:42.594Z"
+  },
+  "NavierStokes/ReferenceEndpointRate.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:42:39.888Z"
+  },
+  "NavierStokes/ReferencePath.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:42:41.530Z"
+  },
+  "NavierStokes/ReleaseMoments.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:42:58.044Z"
+  },
+  "NavierStokes/ResetEnergyBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:43:09.796Z"
+  },
+  "NavierStokes/ResidualStability.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T05:43:12.224Z"
+  },
+  "NavierStokes/SharpCurrentModeJets.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:46:57.575Z"
+  },
+  "NavierStokes/SharpPhaseJetAlgebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:47:52.471Z"
+  },
+  "NavierStokes/SharpPhysicalLoss.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:49:09.049Z"
+  },
+  "NavierStokes/TorusCoverLattice.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:49:21.119Z"
+  },
+  "NavierStokes/WaveEnvelopeTransport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:50:44.854Z"
+  },
+  "NavierStokes/WaveInteractionBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T05:50:49.711Z"
+  },
+  "NavierStokes/IntervalCopyTransport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:39:51.386Z"
+  },
+  "NavierStokes/LocalHeatFormula.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T04:40:17.381Z"
+  },
+  "NavierStokes/LocalPaperHeat.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:46:03.348Z"
+  },
+  "NavierStokes/LocalizedWaveBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:49:10.180Z"
+  },
+  "NavierStokes/LoopVariance.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:49:13.465Z"
+  },
+  "NavierStokes/MeanChartCompatibility.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:49:24.675Z"
+  },
+  "NavierStokes/MomentRepair.lean": {
+    "status": "clean",
+    "checkedAt": "2026-09-30T04:49:29.292Z"
+  },
+  "NavierStokes/NativeBandExtension.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:49:59.341Z"
+  },
+  "NavierStokes/NaturalAxisRange.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:50:26.535Z"
+  },
+  "NavierStokes/OutgoingCone.lean": {
+    "status": "broken",
+    "checkedAt": "2026-09-30T04:51:57.362Z"
   }
 }
