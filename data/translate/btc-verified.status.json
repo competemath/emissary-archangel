@@ -15,14 +15,14 @@
     }
   },
   "agent": {
-    "run": "36722977940",
-    "at": "2026-09-30T13:42:44.125Z",
+    "run": "36723724370",
+    "at": "2026-09-30T13:47:30.014Z",
     "shards": 2,
     "todo": 9,
     "processed": 9,
     "left": 9,
     "limited": false,
-    "stalls": 2,
+    "stalls": 3,
     "outcomes": {
       "deferred-agent": 9
     }
