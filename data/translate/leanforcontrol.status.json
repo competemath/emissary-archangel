@@ -12,5 +12,18 @@
       "mechanical": 9,
       "deferred-agent": 175
     }
+  },
+  "agent": {
+    "run": "36663673664",
+    "at": "2026-09-30T03:22:08.122Z",
+    "shards": 2,
+    "todo": 175,
+    "processed": 175,
+    "left": 175,
+    "limited": false,
+    "stalls": 1,
+    "outcomes": {
+      "deferred-agent": 175
+    }
   }
 }
