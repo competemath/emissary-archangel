@@ -13,5 +13,22 @@
       "deferred-agent": 189,
       "untranslatable": 7
     }
+  },
+  "agent": {
+    "run": "36679719262",
+    "at": "2026-09-30T07:42:51.084Z",
+    "shards": 2,
+    "todo": 189,
+    "processed": 189,
+    "left": 146,
+    "limited": false,
+    "stalls": 0,
+    "outcomes": {
+      "agentic": 34,
+      "cached-mechanical": 3,
+      "unresolved": 1,
+      "deferred-agent": 146,
+      "untranslatable": 5
+    }
   }
 }
