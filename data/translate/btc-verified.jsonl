@@ -563,3 +563,12 @@
 {"id":13,"name":"BtcVerified.decodeSegwit_canonical","sourcePath":"BtcVerified/Transaction/Tx.lean","outcome":"deferred-agent","at":"2026-09-30T13:36:06.246Z","run":"36722342444"}
 {"id":14,"name":"BtcVerified.decodeLegacy_canonical","sourcePath":"BtcVerified/Transaction/Tx.lean","outcome":"deferred-agent","at":"2026-09-30T13:36:06.246Z","run":"36722342444"}
 {"id":16,"name":"BtcVerified.decodeTx_canonical","sourcePath":"BtcVerified/Transaction/Tx.lean","outcome":"deferred-agent","at":"2026-09-30T13:36:06.247Z","run":"36722342444"}
+{"id":4,"name":"BtcVerified.segwitInputs_length","sourcePath":"BtcVerified/Transaction/Tx.lean","outcome":"deferred-agent","at":"2026-09-30T13:42:22.186Z","run":"36722977940"}
+{"id":7,"name":"BtcVerified.ofNat_length_ne_zero","sourcePath":"BtcVerified/Transaction/Tx.lean","outcome":"deferred-agent","at":"2026-09-30T13:42:22.187Z","run":"36722977940"}
+{"id":8,"name":"BtcVerified.decodeSegwit_encode","sourcePath":"BtcVerified/Transaction/Tx.lean","outcome":"deferred-agent","at":"2026-09-30T13:42:22.187Z","run":"36722977940"}
+{"id":9,"name":"BtcVerified.decodeLegacy_encode","sourcePath":"BtcVerified/Transaction/Tx.lean","outcome":"deferred-agent","at":"2026-09-30T13:42:22.188Z","run":"36722977940"}
+{"id":11,"name":"BtcVerified.decodeTx_legacy_eq","sourcePath":"BtcVerified/Transaction/Tx.lean","outcome":"deferred-agent","at":"2026-09-30T13:42:22.188Z","run":"36722977940"}
+{"id":12,"name":"BtcVerified.decodeTx_encodeTx","sourcePath":"BtcVerified/Transaction/Tx.lean","outcome":"deferred-agent","at":"2026-09-30T13:42:22.188Z","run":"36722977940"}
+{"id":13,"name":"BtcVerified.decodeSegwit_canonical","sourcePath":"BtcVerified/Transaction/Tx.lean","outcome":"deferred-agent","at":"2026-09-30T13:42:22.189Z","run":"36722977940"}
+{"id":14,"name":"BtcVerified.decodeLegacy_canonical","sourcePath":"BtcVerified/Transaction/Tx.lean","outcome":"deferred-agent","at":"2026-09-30T13:42:22.189Z","run":"36722977940"}
+{"id":16,"name":"BtcVerified.decodeTx_canonical","sourcePath":"BtcVerified/Transaction/Tx.lean","outcome":"deferred-agent","at":"2026-09-30T13:42:22.189Z","run":"36722977940"}
