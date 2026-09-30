@@ -6,5 +6,13 @@
   "Palomar/Bridge/TateExt.lean": {
     "status": "broken",
     "checkedAt": "2026-09-27T09:39:11.001Z"
+  },
+  "Palomar/Bridge.lean": {
+    "checkedAt": "2026-09-30T00:27:53.243Z",
+    "collisions": [
+      "PalomarBridge.spvEquiv",
+      "PalomarBridge.palomarPlusSubring",
+      "PalomarBridge.rldTo"
+    ]
   }
 }
