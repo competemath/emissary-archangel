@@ -121,5 +121,11 @@
   "Anderson/QuasiCompleteRing/QuasiCompleteRing.lean": {
     "status": "broken",
     "checkedAt": "2026-09-27T10:09:45.145Z"
+  },
+  "Anderson/Jensen/Avoidance.lean": {
+    "checkedAt": "2026-09-30T23:10:06.912Z",
+    "collisions": [
+      "avoid_step"
+    ]
   }
 }
