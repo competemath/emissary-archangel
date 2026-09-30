@@ -14,16 +14,20 @@
     }
   },
   "agent": {
-    "run": "36666502586",
-    "at": "2026-09-30T04:00:33.738Z",
+    "run": "36666989466",
+    "at": "2026-09-30T06:42:42.553Z",
     "shards": 2,
     "todo": 153,
     "processed": 153,
-    "left": 153,
+    "left": 0,
     "limited": false,
-    "stalls": 1,
+    "stalls": 0,
     "outcomes": {
-      "deferred-agent": 153
+      "agentic": 120,
+      "unresolved": 10,
+      "untranslatable": 21,
+      "cached-mechanical": 1,
+      "unbankable": 1
     }
   }
 }
