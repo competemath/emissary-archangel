@@ -3716,5 +3716,69 @@
   "NavierStokes/ActualCandidateConstruction.lean": {
     "status": "broken",
     "checkedAt": "2026-10-01T02:38:44.984Z"
+  },
+  "NavierStokes/ActualParticularControl.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-01T03:51:28.708Z"
+  },
+  "NavierStokes/ActualPhysicalPrefixFields.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-01T03:51:54.209Z"
+  },
+  "NavierStokes/ActualPhysicalStageBounds.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-01T03:53:05.678Z"
+  },
+  "NavierStokes/ActualPrimaryCoherence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-01T03:54:12.980Z"
+  },
+  "NavierStokes/ActualSlowAxis.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-01T03:56:52.274Z"
+  },
+  "NavierStokes/BaseRadialJets.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-01T03:57:11.424Z"
+  },
+  "NavierStokes/BaseResidual.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-01T04:00:07.635Z"
+  },
+  "NavierStokes/CompactForceDecay.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-01T04:01:02.101Z"
+  },
+  "NavierStokes/DirectAngularDiagonal.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-01T04:01:19.444Z"
+  },
+  "NavierStokes/ErrorHarmonics.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-01T04:01:23.667Z"
+  },
+  "NavierStokes/ExponentLedger.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-01T04:01:26.522Z"
+  },
+  "NavierStokes/GenericAngularRecovery.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-01T04:02:29.737Z"
+  },
+  "NavierStokes/GenericDifferentialPolynomial.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-01T04:02:43.545Z"
+  },
+  "NavierStokes/GenericJetRateAlgebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-01T04:02:48.419Z"
+  },
+  "NavierStokes/GenericSupportLocalSummation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-01T04:03:30.022Z"
+  },
+  "NavierStokes/GermCandidateAssembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-01T04:03:41.615Z"
   }
 }
