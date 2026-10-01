@@ -146,5 +146,41 @@
       "step_seven",
       "step_eight"
     ]
+  },
+  "APAP/Mathlib/Topology/Algebra/PontryaginDual.lean": {
+    "checkedAt": "2026-10-01T06:35:32.845Z",
+    "collisions": [
+      "PontryaginDual.isOpen_rightHalfArc",
+      "PontryaginDual.exists_pos_cos_mul_nonpos_of_pos",
+      "PontryaginDual.exists_pos_cos_mul_nonpos",
+      "PontryaginDual.eq_one_of_forall_pow_mem_rightHalfArc"
+    ]
+  },
+  "APAP/Physics/AlmostPeriodicity.lean": {
+    "checkedAt": "2026-10-01T06:37:02.598Z",
+    "collisions": [
+      "Finset.big_shifts_step1",
+      "Finset.reindex_count",
+      "my_markov",
+      "lemma28_end",
+      "lemma28_part_one",
+      "big_shifts_step2",
+      "AlmostPeriodicity.lemma28_part_two",
+      "AlmostPeriodicity.T_bound"
+    ]
+  },
+  "APAP/Physics/DRC.lean": {
+    "checkedAt": "2026-10-01T06:48:19.043Z",
+    "collisions": [
+      "lemma_0",
+      "sum_c",
+      "dLpNorm_ddconv_pos"
+    ]
+  },
+  "APAP/Prereqs/Convolution/ThreeAP.lean": {
+    "checkedAt": "2026-10-01T07:13:09.295Z",
+    "collisions": [
+      "ddconv"
+    ]
   }
 }
