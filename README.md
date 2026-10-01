@@ -1,6 +1,7 @@
 # Emissary-Archangel
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23047570.svg)](https://doi.org/10.5281/zenodo.23047570)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fcompetemath%2Femissary-archangel.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fcompetemath%2Femissary-archangel?ref=badge_shield)
 
 Translates verified Lean theorems from a source corpus on one Lean toolchain
 into the [Tengoku](https://github.com/competemath/tengoku) tree on its
@@ -204,3 +205,6 @@ version (it resolves to the newest); each release also has its own DOI, on its r
 
 Apache-2.0 ([LICENSE](LICENSE)), the same as [Tengoku](https://github.com/competemath/tengoku). The libraries it
 translates keep their own licences, recorded per record in Tengoku.
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fcompetemath%2Femissary-archangel.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fcompetemath%2Femissary-archangel?ref=badge_large)
