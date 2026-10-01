@@ -13,18 +13,21 @@
     }
   },
   "agent": {
-    "run": "36843102632",
-    "at": "2026-10-01T10:30:39.904Z",
+    "run": "36849679802",
+    "at": "2026-10-01T12:59:42.502Z",
     "shards": 2,
-    "todo": 647,
-    "processed": 647,
-    "left": 593,
+    "todo": 593,
+    "processed": 593,
+    "left": 450,
     "limited": false,
     "stalls": 0,
     "outcomes": {
-      "unresolved": 3,
-      "deferred-agent": 593,
-      "export-unavailable": 51
+      "agentic": 84,
+      "unresolved": 31,
+      "untranslatable": 22,
+      "unbankable": 5,
+      "deferred-agent": 450,
+      "cached-mechanical": 1
     }
   }
 }

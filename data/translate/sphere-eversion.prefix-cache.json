@@ -172,5 +172,32 @@
   "SphereEversion/ToMathlib/Unused/LinearAlgebra/Multilinear.lean": {
     "status": "clean",
     "checkedAt": "2026-09-27T10:50:26.801Z"
+  },
+  "SphereEversion/Global/LocalisationData.lean": {
+    "checkedAt": "2026-10-01T11:04:20.582Z",
+    "collisions": [
+      "_root_.exists_stability_dist"
+    ]
+  },
+  "SphereEversion/Global/OneJetSec.lean": {
+    "checkedAt": "2026-10-01T11:40:30.660Z",
+    "collisions": [
+      "OneJetSec.mk'._proof_2",
+      "OneJetSec.mk'._proof_1",
+      "FamilyOneJetSec"
+    ]
+  },
+  "SphereEversion/Global/Relation.lean": {
+    "checkedAt": "2026-10-01T11:53:01.533Z",
+    "collisions": [
+      "mkFormalSol._proof_2",
+      "mkFormalSol._proof_1"
+    ]
+  },
+  "SphereEversion/Global/ParametricityForFree.lean": {
+    "checkedAt": "2026-10-01T12:52:12.966Z",
+    "collisions": [
+      "FamilyOneJetSec"
+    ]
   }
 }
