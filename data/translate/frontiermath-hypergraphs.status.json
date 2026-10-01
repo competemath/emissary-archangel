@@ -11,5 +11,18 @@
     "outcomes": {
       "deferred-agent": 339
     }
+  },
+  "agent": {
+    "run": "36812683296",
+    "at": "2026-10-01T03:58:48.861Z",
+    "shards": 2,
+    "todo": 339,
+    "processed": 339,
+    "left": 339,
+    "limited": false,
+    "stalls": 1,
+    "outcomes": {
+      "deferred-agent": 339
+    }
   }
 }
