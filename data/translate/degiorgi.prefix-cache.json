@@ -266,5 +266,13 @@
   "DeGiorgi/WeakFormulation/WeightedEstimates.lean": {
     "status": "broken",
     "checkedAt": "2026-09-27T11:25:28.458Z"
+  },
+  "DeGiorgi/Supersolutions/InverseOneStep.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-01T19:36:35.131Z"
+  },
+  "DeGiorgi/Supersolutions/StageOne.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-01T19:37:40.957Z"
   }
 }
