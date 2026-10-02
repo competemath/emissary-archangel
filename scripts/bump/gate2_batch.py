@@ -330,12 +330,36 @@ def generate(a: argparse.Namespace) -> None:
         by_module[module_of(r["sourcePath"])].append(name)
     plan, skipped = [], Counter()
     excluded = {m for m in a.exclude.split(",") if m}
+    only = {m for m in a.only.split(",") if m}
+    sys.path.insert(0, str(HERE))
+    import tolerant_build as tb
+
+    imports_memo: dict[str, set[str]] = {}
+
+    def closure(m: str) -> set[str]:
+        """m and every library module it imports, directly or not."""
+        if m not in imports_memo:
+            imports_memo[m] = {m}
+            parts = tb.split_mod(m)
+            path = lib.joinpath(*parts[:-1], parts[-1] + ".lean")
+            if path.exists():
+                for d in tb.header_imports(path.read_text(errors="replace")):
+                    if d.split(".")[0] in roots:
+                        imports_memo[m] |= closure(d)
+        return imports_memo[m]
+
+    clashed: list[str] = []
     for mod, names in sorted(by_module.items()):
         if mod not in built:
             skipped["module_not_built"] += len(names)
             continue
-        if mod in excluded:  # importing it together with the others failed (a name it declares is already declared elsewhere)
+        if only and mod not in only:
+            continue
+        # Importing the modules together failed on `excluded`: a name one declares is already declared by another (two copies of the
+        # same file, a notation Mathlib also has). The modules that import it go too; they get a pass of their own.
+        if closure(mod) & excluded:
             skipped["import_clash"] += len(names)
+            clashed.append(mod)
             continue
         plain = mod.replace("«", "").replace("»", "")  # exports may be filed under either spelling
         export = next((exports / f"{m}.ndjson" for m in (mod, plain) if (exports / f"{m}.ndjson").exists()), exports / f"{mod}.ndjson")
@@ -379,7 +403,7 @@ def generate(a: argparse.Namespace) -> None:
             body.append(f'\n-- control {k}: the original statement of {x} against the new {y}\n#tengoku_import_parse "{export.resolve()}"\n')
             body.append(f'#gate2_cross "{x}" "{y}"\n')
     Path(a.out).write_text("".join(body))
-    meta = {"modules_checked": len(plan), "declarations": sum(len(n) for _, _, n in plan), "skipped": dict(skipped), "controls": a.controls}
+    meta = {"modules_checked": len(plan), "declarations": sum(len(n) for _, _, n in plan), "skipped": dict(skipped), "controls": a.controls, "excluded_modules": clashed}
     Path(a.out).with_suffix(".plan.json").write_text(json.dumps(meta, indent=2))
     print(json.dumps(meta))
 
@@ -438,7 +462,8 @@ if __name__ == "__main__":
     for f in ("key", "lib", "exports", "ledger", "roots", "out"):
         g.add_argument(f"--{f}", required=True)
     g.add_argument("--controls", type=int, default=0)
-    g.add_argument("--exclude", default="", help="modules to leave out (comma list)")
+    g.add_argument("--exclude", default="", help="modules whose import failed: they and their importers are left out (comma list)")
+    g.add_argument("--only", default="", help="check only these modules (comma list): a pass for what an earlier pass had to leave out")
     v = sub.add_parser("emit-vendor")
     v.add_argument("--out", required=True, help="the Vendor project directory (holds Vendor.lean and Vendor/)")
     q = sub.add_parser("parse")
