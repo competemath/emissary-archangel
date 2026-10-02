@@ -68,4 +68,23 @@ out = {
     "closure_p90": sizes[int(len(sizes) * 0.9)] if sizes else 0,
     "closure_max": sizes[-1] if sizes else 0,
 }
+# what sharding would cost, for a few K: modules with ledger entries are the targets (an aggregator that imports everything is not)
+if len(sys.argv) > 3 and sys.argv[3]:
+    import plan_shards as ps
+
+    wanted = set()
+    for ln in Path(sys.argv[3]).read_text().splitlines():
+        try:
+            sp = json.loads(ln).get("sourcePath", "")
+        except ValueError:
+            continue
+        if sp.endswith(".lean"):
+            wanted.add(".".join(tb.esc(x) for x in sp[:-5].split("/")))
+    wanted &= own
+    out["modules_with_entries"] = len(wanted)
+    w_ = {m: max(1, len(p.read_text(errors="replace").splitlines())) for m, p in mods.items()}
+    out["sharding"] = {}
+    for k in (4, 8, 16, 24):
+        pl = ps.plan(imp, w_, k, wanted=wanted)
+        out["sharding"][k] = {"duplication": pl["duplication"], "max_shard_share": round(pl["max_shard_lines"] / max(1, pl["lines"]), 3)}
 print(json.dumps(out))

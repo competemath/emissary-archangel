@@ -22,6 +22,7 @@ jobs:
           sparse-checkout: |
             /scripts/
             /data/exports/*/setup.ci.json
+            /data/translate/*.jsonl
           persist-credentials: false
       - name: Graphs
         run: |
@@ -29,7 +30,7 @@ jobs:
           for k in $KEYS; do
             read -r repo commit roots < <(python3 scripts/trial-library-build.py meta "$k" | awk '{print $1, $2, $4}')
             git clone -q --filter=blob:none "$repo" "src-$k" && git -C "src-$k" checkout -q "$commit"
-            python3 scripts/bump/import_graph.py "src-$k" "$(python3 scripts/trial-library-build.py meta "$k" | cut -d' ' -f4- | tr ' ' ',')" | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); d['key']='$k'; print(json.dumps(d))" | tee -a graphs.jsonl
+            python3 scripts/bump/import_graph.py "src-$k" "$(python3 scripts/trial-library-build.py meta "$k" | cut -d' ' -f4- | tr ' ' ',')" "data/translate/$k.jsonl" | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); d['key']='$k'; print(json.dumps(d))" | tee -a graphs.jsonl
           done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: { name: graphs, path: graphs.jsonl }
