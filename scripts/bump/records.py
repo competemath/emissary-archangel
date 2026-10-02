@@ -39,9 +39,12 @@ def recModOf (env : Environment) (n : Name) : Option Name :=
   (env.getModuleIdxFor? n).bind fun i => env.header.moduleNames[i.toNat]?
 
 /-- For each name: its module, and every library constant (module, name) in the closure of its type and value (proofs
-included: the record has to compile). Where those constants are in the source is in the `.ranges.json` next to each olean. -/
+included: the record has to compile). Where those constants are in the source is in the `.ranges.json` next to each olean.
+One command for all the names: the direct library dependencies of a constant are read out of its (large) proof term ONCE and
+shared by every closure that reaches it. -/
 elab "#records_deps " names:str " in " libs:str : command => do
   let libMods : NameSet := (libs.getString.splitOn ",").foldl (fun s x => if x == "" then s else s.insert (recParse x)) {}
+  let direct ← IO.mkRef (({} : Std.HashMap Name (Array Name)))
   for s in (names.getString.splitOn ",").filter (· != "") do
     let n := recParse s
     let j ← liftTermElabM do
@@ -57,9 +60,16 @@ elab "#records_deps " names:str " in " libs:str : command => do
           stack := rest
           if seen.contains c then continue
           seen := seen.insert c
-          let some ci := env.find? c | continue
-          for u in ci.getUsedConstantsAsSet.toList do
-            if isOwn u && !seen.contains u then stack := u :: stack
+          let deps ← match (← direct.get)[c]? with
+            | some d => pure d
+            | none =>
+              let d := match env.find? c with
+                | some ci => (ci.getUsedConstantsAsSet.toList.filter isOwn).toArray
+                | none => #[]
+              direct.modify (·.insert c d)
+              pure d
+          for u in deps do
+            unless seen.contains u do stack := u :: stack
           if let some m := recModOf env c then
             consts := consts.push (Json.arr #[toJson m.toString, toJson c.toString])
       let some m := recModOf env n | return Json.mkObj [("name", toJson s), ("error", toJson "not in an imported module")]
@@ -73,10 +83,8 @@ def lean_file(a: argparse.Namespace) -> None:
     modules = sorted(names)
     lines = ["import Lean", "import Mathlib"] + [f"import {m}" for m in modules] + [LEAN]
     allmods = ",".join(modules)
-    for m in modules:
-        ns = names[m]
-        for i in range(0, len(ns), 25):
-            lines.append(f'#records_deps "{",".join(ns[i:i + 25])}" in "{allmods}"')
+    every = [n for m in modules for n in names[m]]
+    lines.append(f'#records_deps "{",".join(every)}" in "{allmods}"')
     Path(a.out).write_text("\n".join(lines) + "\n")
     print(f"{sum(len(v) for v in names.values())} names in {len(modules)} modules")
 

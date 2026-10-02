@@ -138,7 +138,7 @@ jobs:
         working-directory: emissary
         run: |
           python3 scripts/bump/records.py lean --lib lib --names passed.json --out lib/records-deps.lean
-          (cd lib && lake env lean records-deps.lean > ../records-deps.log 2>&1 || true)
+          (cd lib && timeout 90m lake env lean records-deps.lean > ../records-deps.log 2>&1 || true)
           grep -c "REC_DEPS" records-deps.log || true
           { grep -E "error" records-deps.log | grep -v "REC_" | head -5 | cut -c1-300; } || true
           python3 scripts/bump/records.py compose --lib lib --log records-deps.log --meta "data/exports/$KEY/setup.ci.json" --out composed.jsonl
