@@ -90,7 +90,6 @@ DECL = re.compile(
 CODE_ATTR = re.compile(r"@\[[^\]]*\b(?:tactic|command_elab|term_elab|macro|elab|delab|app_unexpander|parser|builtin\w*|init|initialize|simproc|dsimproc|norm_num|positivity|push_cast|ext|aesop)\b")
 IMPORT_LINE = re.compile(r"^\s*(?:(?:public|private|meta)\s+)*import\s")
 KEYWORD_LINE = re.compile(r"^\s*(?:module|prelude)\s*$")
-NOTATION = re.compile(r"^\s*(?:scoped\s+|local\s+)?(?:notation|infix[lr]?|prefix|postfix|macro|macro_rules|syntax|elab|declare_syntax_cat)\b", re.M)
 IN_PREFIX = re.compile(r"^\s*(?:open|set_option|attribute|local|universe|variable|namespace|section)\b.*\bin\s*$")
 
 
@@ -254,9 +253,10 @@ def compose(a: argparse.Namespace) -> None:
             if x not in modules:
                 continue
             body = modules[x].text(blocks.get(x, set()))
-            if blocks.get(x) or NOTATION.search(body):
-                if body.strip():
-                    prelude.append(f"-- [Emissary prelude] {x} — verbatim (imports stripped)\n{body}\n")
+            # a module with ANY text left (a declaration the theorem uses, or glue: `scoped[Indicator] notation`, an `open`, a
+            # namespace) is part of the environment the statement is read in; a module that is only comments is not
+            if re.sub(r"/-.*?-/|--[^\n]*", "", body, flags=re.S).strip():
+                prelude.append(f"-- [Emissary prelude] {x} — verbatim (imports stripped)\n{body}\n")
         prefix = own.text(keep_own, before=ts)
         src = str(own.path.relative_to(lib))
         line = old_lines.get(name, ts)
