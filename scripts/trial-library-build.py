@@ -66,22 +66,48 @@ def retarget(lib: str, mathlib: str, toolchain: str) -> None:
         assert f'rev = "{mathlib}"' in text, "no mathlib requirement found in lakefile.toml"
         toml.write_text(text)
     elif lean.exists():
-        text = lean.read_text()
-        text = "\n".join(
-            ln for ln in text.splitlines() if not re.match(r"\s*require\s+[\"«]?(" + "|".join(map(re.escape, DEV_ONLY)) + r")[\"»]?\b", ln)
-        ) + "\n"
-        new, n = re.subn(
-            r'(require\s+(?:"leanprover-community"\s*/\s*)?"?mathlib"?\s+(?:from\s+git\s+"[^"]+"|@\s*git)?)(\s*@\s*"[^"]*")?',
-            lambda m: f'{m.group(1)} @ "{mathlib}"',
-            text,
-            count=1,
-        )
-        assert n, "no mathlib requirement found in lakefile.lean"
-        lean.write_text(new)
+        lean.write_text(retarget_lean(lean.read_text(), mathlib))
     else:
         sys.exit("no lakefile")
     for stale in ("lake-manifest.json",):
         (root / stale).unlink(missing_ok=True)
+
+
+def retarget_lean(text: str, mathlib: str) -> str:
+    """lakefile.lean: each `require` is a statement (it may continue on indented lines). A development-only one is
+    dropped whole; Mathlib's is pointed at `mathlib`, in whichever of its spellings the file uses:
+        require mathlib from git "url" @ "rev"          (also with the url on the next line)
+        require "leanprover-community" / "mathlib" @ git "rev"
+    """
+    lines, out, i = text.splitlines(), [], 0
+    dev = re.compile(r'["«](?:' + "|".join(map(re.escape, DEV_ONLY)) + r')["»]|require\s+(?:' + "|".join(map(re.escape, DEV_ONLY)) + r')\b')
+    mathlib_re = re.compile(r'require\s+(?:«?mathlib»?\b|"[^"]+"\s*/\s*"mathlib")')
+    seen = False
+    while i < len(lines):
+        if not re.match(r"\s*require\b", lines[i]):
+            out.append(lines[i])
+            i += 1
+            continue
+        j = i + 1
+        while j < len(lines) and lines[j].strip() and lines[j][0] in " \t":
+            j += 1
+        stmt = "\n".join(lines[i:j])
+        if dev.search(lines[i]):
+            pass  # dropped
+        elif mathlib_re.search(lines[i]):
+            seen = True
+            if re.search(r'@\s*git\s*"[^"]*"', stmt):
+                stmt = re.sub(r'(@\s*git\s*)"[^"]*"', lambda m: f'{m.group(1)}"{mathlib}"', stmt, count=1)
+            elif re.search(r'@\s*"[^"]*"', stmt):
+                stmt = re.sub(r'(@\s*)"[^"]*"', lambda m: f'{m.group(1)}"{mathlib}"', stmt, count=1)
+            else:
+                stmt += f' @ git "{mathlib}"' if "/" in lines[i] else f' @ "{mathlib}"'
+            out.append(stmt)
+        else:
+            out.append(stmt)
+        i = j
+    assert seen, "no mathlib requirement found in lakefile.lean"
+    return "\n".join(out) + "\n"
 
 
 def modules(lib: str, roots: list[str]) -> dict[str, Path]:

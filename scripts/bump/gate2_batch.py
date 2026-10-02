@@ -48,6 +48,10 @@ SERVER = HERE.parents[1] / "gate2" / "server.py"
 BATCH_LEAN = r'''
 open Lean Elab Command TengokuImport Meta
 
+def gate2bKind : ConstantInfo → String
+  | .axiomInfo _ => "axiom" | .defnInfo _ => "def" | .thmInfo _ => "theorem" | .opaqueInfo _ => "opaque"
+  | .quotInfo _ => "quot" | .inductInfo _ => "inductive" | .ctorInfo _ => "ctor" | .recInfo _ => "rec"
+
 /-- One check: the original `oldN` (from the loaded export) against the native declaration `newN`. -/
 def gate2bCheck (oldN newN : Name) : CommandElabM Unit := do
   let all ← importedConstantsRef.get
@@ -71,14 +75,17 @@ def gate2bCheck (oldN newN : Name) : CommandElabM Unit := do
         if (env.find? c).isSome then boundary := boundary.insert c
       boundary := boundary.erase oldN
       let mut collisions : List String := []
+      let mut firstDiff : MessageData := m!""
       for c in boundary.toList do
         match all[c]?, env.find? c with
         | some ci, some native =>
           -- a name the export has is the library's own: its abbrev bodies are compared too, as the candidate's own are today
-          if !(tengokuCompatible false true ci native) then collisions := s!"{c}" :: collisions
+          if !(tengokuCompatible false true ci native) then
+            if collisions.isEmpty then firstDiff := m!"{c}: kinds old={gate2bKind ci} new={gate2bKind native}; old type = {ci.type} || new type = {native.type}"
+            collisions := s!"{c}" :: collisions
         | _, _ => pure ()
       if !collisions.isEmpty then
-        logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=name_collision names={String.intercalate "," collisions}"
+        logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=name_collision names={String.intercalate "," collisions} GATE2B_DIFF {firstDiff} GATE2B_END"
       else
         liftCoreM (TengokuImport.replayIntoCoreEnv delta)
         if tengokuCompatible true true oldCi newCi then

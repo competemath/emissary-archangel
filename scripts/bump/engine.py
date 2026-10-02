@@ -25,6 +25,8 @@ import re
 import subprocess
 from pathlib import Path
 
+# Mathlib at this commit has scripts/fix_deprecations.py (Apache-2.0, Mathlib contributors); pinned so a bump never runs a moving script
+FIXER_COMMIT = "8e30cac82f69c18f6cbe88799bdc3ebd74cc592d"
 BAD_IMPORT = re.compile(r"error: (\S+\.lean): bad import '([^']+)'")
 UNKNOWN = re.compile(r"error: (\S+\.lean):\d+:\d+: .*?[Uu]nknown (?:identifier|constant|namespace)")
 IMPORT_LINE = re.compile(r"^(?P<pre>\s*(?:(?:public|private|meta)\s+)*import\s+)(?P<mod>[\w.«»]+)\s*$")
@@ -69,6 +71,24 @@ def repair(a: argparse.Namespace) -> None:
     state = json.loads(state_path.read_text()) if state_path.exists() else {"replaced": {}}
     summary = {"round": a.round, "moved_imports": 0, "fell_back_to_all": 0, "deprecations_fixed": 0, "files_changed": []}
 
+    # 0. deprecations FIRST: Mathlib's fixer collects the last build's warnings with `lake build --no-build`, which replays
+    #    them only while every module is up to date; any edit made first (an import rewritten) makes modules stale and the
+    #    fixer then sees nothing (the first loop run fixed 0 where the trial, which ran it first, fixed 90)
+    fixer = lib / ".lake/packages/mathlib/scripts/fix_deprecations.py"
+    if a.deprecations and not fixer.exists():
+        # the script is not in every Mathlib tag (v4.34.0-rc2 has none): fetch it from a PINNED Mathlib commit, never master
+        fixer = lib / ".fix_deprecations.py"
+        if not fixer.exists():
+            import urllib.request
+
+            url = "https://raw.githubusercontent.com/leanprover-community/mathlib4/" + FIXER_COMMIT + "/scripts/fix_deprecations.py"
+            fixer.write_bytes(urllib.request.urlopen(url, timeout=60).read())
+    if a.deprecations and fixer.exists():
+        r = subprocess.run(["python3", str(fixer)], cwd=lib, capture_output=True, text=True)
+        m = re.search(r"Changed (\d+) deprecations in (\d+) files", r.stdout)
+        if m:
+            summary["deprecations_fixed"] = int(m.group(1))
+            summary["files_changed"] += [f"({m.group(2)} files by fix_deprecations)"]
     # 1. a replacement that a later build found insufficient (the file now has unknown names) becomes `import Mathlib`
     files_with_unknown = {m.group(1) for m in UNKNOWN.finditer(log)}
     for f, repl in list(state["replaced"].items()):
@@ -104,14 +124,6 @@ def repair(a: argparse.Namespace) -> None:
             summary["moved_imports"] += len(done)
             summary["files_changed"].append(f)
 
-    # 3. deprecations: Mathlib's own fixer, over the warnings of the last build (lake build --no-build replays them)
-    fixer = lib / ".lake/packages/mathlib/scripts/fix_deprecations.py"
-    if a.deprecations and fixer.exists():
-        r = subprocess.run(["python3", str(fixer)], cwd=lib, capture_output=True, text=True)
-        m = re.search(r"Changed (\d+) deprecations in (\d+) files", r.stdout)
-        if m:
-            summary["deprecations_fixed"] = int(m.group(1))
-            summary["files_changed"] += [f"({m.group(2)} files by fix_deprecations)"]
     state_path.write_text(json.dumps(state, indent=1))
     summary["changed"] = bool(summary["moved_imports"] or summary["fell_back_to_all"] or summary["deprecations_fixed"])
     Path(a.out).write_text(json.dumps(summary, indent=1))
