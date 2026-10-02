@@ -32,7 +32,6 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 DRIVER = HERE / "TolerantBuild.lean"
-IMPORT = re.compile(r"^\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)?([^\s]+)", re.M)
 MSG = re.compile(r"^(\S+?\.lean):(\d+):(\d+): (error|warning|info)(?:\([^)]*\))?: ?(.*)$")
 CORE = ("Init", "Std", "Lean", "Lake")
 
@@ -44,6 +43,15 @@ def lake_env(lib: Path) -> dict[str, str]:
     return json.loads(r.stdout.splitlines()[-1])
 
 
+def esc(part: str) -> str:
+    """A path component as Lean writes it in a module name: `1102.4662` is «1102.4662»."""
+    return part if re.fullmatch(r"[^\W\d][\w']*", part) else f"«{part}»"
+
+
+def split_mod(mod: str) -> list[str]:
+    return [m.group(0).strip("«»") for m in re.finditer(r"«[^»]*»|[^.]+", mod)]
+
+
 def module_files(lib: Path, roots: list[str]) -> dict[str, Path]:
     found: dict[str, Path] = {}
     for r in roots:
@@ -52,23 +60,41 @@ def module_files(lib: Path, roots: list[str]) -> dict[str, Path]:
             found[r] = top
         if (lib / r).is_dir():
             for p in sorted((lib / r).rglob("*.lean")):
-                found[".".join(p.relative_to(lib).with_suffix("").parts)] = p
+                found[".".join(esc(x) for x in p.relative_to(lib).with_suffix("").parts)] = p
     return found
 
 
+MODNAME = r"(?:«[^»]*»|[^\s«»])+"
+HEADER_IMPORT = re.compile(r"(?:(?:public|private|meta)[ \t]+)*import[ \t]+(?:all[ \t]+)?(" + MODNAME + ")")
+HEADER_KEYWORD = re.compile(r"(?:module|prelude)\b")
+
+
 def header_imports(text: str) -> list[str]:
-    """The imports of a file: only those in its header (before the first command)."""
-    head, out = [], []
-    for line in text.splitlines():
-        s = line.strip()
-        if not s or s.startswith("--") or s in ("module", "prelude") or re.match(r"^(?:(?:public|private|meta)\s+)*import\b", s):
-            head.append(line)
-        elif s.startswith("/-"):
-            head.append(line)  # a header comment block: its inner lines are skipped below by the regex anyway
+    """The imports of a file: the `import` lines of its header, after any comments (`/- … -/`, nested, and `--`) and a
+    `module` / `prelude` keyword, up to the first command."""
+    out, i, n = [], 0, len(text)
+    while i < n:
+        if text[i].isspace():
+            i += 1
+        elif text.startswith("--", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j + 1
+        elif text.startswith("/-", i):
+            depth, i = 1, i + 2
+            while i < n and depth:
+                if text.startswith("/-", i):
+                    depth, i = depth + 1, i + 2
+                elif text.startswith("-/", i):
+                    depth, i = depth - 1, i + 2
+                else:
+                    i += 1
         else:
-            break
-    for m in IMPORT.finditer("\n".join(head)):
-        out.append(m.group(1))
+            m = HEADER_KEYWORD.match(text, i) or HEADER_IMPORT.match(text, i)
+            if not m:
+                break
+            if m.re is HEADER_IMPORT:
+                out.append(m.group(1))
+            i = m.end()
     return out
 
 
@@ -93,24 +119,24 @@ class Builder:
         self.imports = {m: header_imports(p.read_text(errors="replace")) for m, p in self.mods.items()}
         self.ext_cache: dict[str, bool] = {}
 
-    def olean_of(self, mod: str) -> Path:
-        return self.out / (mod.replace(".", "/") + ".olean")
+    def olean_of(self, mod: str, base: Path | None = None) -> Path:
+        parts = split_mod(mod)
+        return (base or self.out).joinpath(*parts[:-1], parts[-1] + ".olean")
 
     def external_exists(self, mod: str) -> bool:
-        if mod.split(".")[0] in CORE:
+        if split_mod(mod)[0] in CORE:
             return True
         if mod not in self.ext_cache:
-            rel = mod.replace(".", "/") + ".olean"
-            self.ext_cache[mod] = any((d / rel).exists() for d in self.search)
+            self.ext_cache[mod] = any(self.olean_of(mod, d).exists() for d in self.search)
         return self.ext_cache[mod]
 
     def external_sha(self, mod: str) -> str:
-        if mod.split(".")[0] in CORE:
+        if split_mod(mod)[0] in CORE:
             return "core"
-        rel = mod.replace(".", "/") + ".olean"
         for d in self.search:
-            if (d / rel).exists():
-                st = (d / rel).stat()
+            f = self.olean_of(mod, d)
+            if f.exists():
+                st = f.stat()
                 return f"{st.st_size}:{int(st.st_mtime)}"  # an external olean only changes with the dependency's rebuild
         return "missing"
 

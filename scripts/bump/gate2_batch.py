@@ -242,8 +242,13 @@ def server_header() -> str:
     return m.group(1)
 
 
+def esc(part: str) -> str:
+    """A path component as Lean writes it in a module name: a directory `1102.4662` is «1102.4662»."""
+    return part if re.fullmatch(r"[^\W\d][\w']*", part) else f"«{part}»"
+
+
 def module_of(source_path: str) -> str:
-    return source_path[:-5].replace("/", ".") if source_path.endswith(".lean") else source_path
+    return ".".join(esc(x) for x in source_path[:-5].split("/")) if source_path.endswith(".lean") else source_path
 
 
 def ledger_latest(path: Path) -> dict[str, dict]:
@@ -260,7 +265,7 @@ def ledger_latest(path: Path) -> dict[str, dict]:
 def built_modules(lib: Path, roots: list[str]) -> set[str]:
     out = set()
     for p in (lib / ".lake" / "build" / "lib" / "lean").rglob("*.olean"):
-        mod = ".".join(p.relative_to(lib / ".lake" / "build" / "lib" / "lean").with_suffix("").parts)
+        mod = ".".join(esc(x) for x in p.relative_to(lib / ".lake" / "build" / "lib" / "lean").with_suffix("").parts)
         if any(mod == r or mod.startswith(r + ".") for r in roots):
             out.add(mod)
     return out
@@ -279,8 +284,9 @@ def generate(a: argparse.Namespace) -> None:
         if mod not in built:
             skipped["module_not_built"] += len(names)
             continue
-        export = exports / f"{mod}.ndjson"
-        namesf = exports / f"{mod}.names.json"
+        plain = mod.replace("«", "").replace("»", "")  # exports may be filed under either spelling
+        export = next((exports / f"{m}.ndjson" for m in (mod, plain) if (exports / f"{m}.ndjson").exists()), exports / f"{mod}.ndjson")
+        namesf = next((exports / f"{m}.names.json" for m in (mod, plain) if (exports / f"{m}.names.json").exists()), exports / f"{mod}.names.json")
         if not export.exists() or not namesf.exists():
             skipped["no_export_for_module"] += len(names)
             continue
