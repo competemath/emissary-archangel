@@ -62,6 +62,10 @@ import Vendor.DriverState
 import Vendor.Gate2
 
 set_option maxErrors 0
+-- The kernel's answer must reach the check that asks it. With `Elab.async` on (the command-line default) `Lean.addDecl` of a
+-- THEOREM is checked by the kernel asynchronously: a refusal is reported later, as a stray `(kernel)` error, and the caller of
+-- addDecl has already seen success (scripts/bump/tests/tolerant_smoke.sh shows both). Gate 2's bridge is such a theorem.
+set_option Elab.async false
 
 open Lean Elab Command TengokuImport
 
@@ -405,12 +409,17 @@ async def gate2_verify_entailment(
 
     pass_match = _PASS_RE.search(output)
     fail_match = _FAIL_RE.search(output)
-    if pass_match and not fail_match:
+    # a kernel refusal that surfaced as its own error line is a refusal, whatever else the output says
+    if pass_match and not fail_match and "error: (kernel)" not in output:
         logger.info("gate2 run %s: PASS", run_id)
         return f"✅ {pass_match.group(0)}"
     if fail_match:
         logger.info("gate2 run %s: FAIL", run_id)
         return f"❌ {fail_match.group(0)}"
+    if pass_match:
+        logger.info("gate2 run %s: FAIL (kernel error beside a pass line)", run_id)
+        kernel = next((ln for ln in output.splitlines() if "error: (kernel)" in ln), "")
+        return f"❌ GATE2_FAIL reason=kernel_error msg={kernel[:300]}"
     logger.warning("gate2 run %s: no verdict line found, rc=%s output=%s", run_id, rc, " ".join(output.split())[-600:])
     return f"❌ GATE2_FAIL reason=no_verdict rc={rc} output={output[-2000:]}"
 
