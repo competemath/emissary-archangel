@@ -45,7 +45,7 @@ class Planner(unittest.TestCase):
             f.parent.mkdir(parents=True, exist_ok=True)
             f.write_text(json.dumps(r))
         (d / "gate2.log").write_text("noise\nGATE2B_PASS old=Toy.uses_one_pos new=Toy.uses_one_pos via=equal\n")
-        (d / "errors.log").write_text("error: Toy/A.lean:1:0: x\nwarning: y\n")
+        (d / "errors.log").write_text(f"error: Toy/A.lean:{ln(la, 'theorem unused')}:0: x\nwarning: y\n")
         (d / "passed.json").write_text(json.dumps({"Toy.B": ["Toy.uses_one_pos"]}))
         (d / "keep.log").write_text('BUNDLE_KEEP [["Toy.B","Toy.uses_one_pos"],["Toy.A","Toy.one_pos"],["Toy.A","Toy.one"]] BUNDLE_END\n')
         (d / "mods.txt").write_text("Toy.A\nToy.B\n")
@@ -60,8 +60,8 @@ class Planner(unittest.TestCase):
         (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy", "commit": "c"}))
         subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", "--lib", str(merged), "--log", str(logs / "bundle-deps.log"), "--passed", str(logs / "passed.json"), "--meta", str(d / "setup.json"),
                         "--key", "toy", "--toolchain", "tc", "--errors", str(logs / "errors.log"), "--gate2", str(logs / "gate2.log"), "--out", str(d / "bundle"), "--src", str(d / "src")], check=True)
-        self.assertIn("theorem uses_one_pos", (d / "bundle" / "Tengoku" / "Toy" / "Toy" / "B.lean").read_text())
-        self.assertEqual(json.loads((d / "bundle" / "report.json").read_text())["theorems"], 1)
+        self.assertIn("theorem uses_one_pos", (d / "bundle-proposed" / "Tengoku" / "Toy" / "Toy" / "B.lean").read_text())
+        self.assertEqual(json.loads((d / "bundle-proposed" / "report.json").read_text())["theorems"], 1)
 
 
 if __name__ == "__main__":

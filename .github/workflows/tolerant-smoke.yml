@@ -33,6 +33,7 @@ jobs:
           python3 scripts/bump/tests/test_normalize_imports.py
           python3 scripts/bump/tests/test_retarget.py
           python3 scripts/bump/tests/test_bundle.py
+          python3 scripts/bump/tests/test_shards.py
       - name: the smoke test
         run: scripts/bump/tests/tolerant_smoke.sh "$RUNNER_TEMP/smoke"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

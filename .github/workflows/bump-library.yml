@@ -194,16 +194,20 @@ jobs:
         working-directory: emissary
         run: |
           mkdir -p lib2/.lake && cp lib/lakefile.* lib/lake-manifest.json lib/lean-toolchain lib2/ && ln -s "$PWD/lib/.lake/packages" lib2/.lake/packages
-          cp -r pruned-src/. lib2/
+          cp -r pruned-src-proposed/. lib2/
           python3 scripts/bump/tolerant_build.py --lib lib2 --roots "$ROOTS" --log verify.log --report verify.json --jobs 4 --cache lib2/.bump-cache
           python3 scripts/bump/bundle.py check --report verify.json --log verify.log --out verify-summary.json
       - name: Pack and attest
         working-directory: emissary
         run: |
-          tar -C bundle -czf "bundle-$KEY.tar.gz" .
-          sha256sum "bundle-$KEY.tar.gz" | tee bundle.sha256; ls -l "bundle-$KEY.tar.gz" | awk '{print $5, "bytes"}'; cat bundle/report.json
+          # reproducible: tengoku's gate rebuilds this archive from the files of the intake PR and checks the attestation against it
+          for mode in strict proposed; do
+            dir=bundle; [ "$mode" = proposed ] && dir=bundle-proposed
+            tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -C "$dir" -cf - . | gzip -n > "bundle-$KEY-$mode.tar.gz"
+          done
+          sha256sum bundle-"$KEY"-*.tar.gz | tee bundle.sha256; ls -l bundle-"$KEY"-*.tar.gz | awk '{print $5, $9}'; cat bundle/report.json bundle-proposed/report.json
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with: { subject-path: "emissary/bundle-${{ inputs.key }}.tar.gz" }
+        with: { subject-path: "emissary/bundle-${{ inputs.key }}-*.tar.gz" }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -224,9 +228,10 @@ jobs:
             emissary/bundle.sha256
             emissary/bundle/report.json
             emissary/bundle/manifest.jsonl
+            emissary/bundle-proposed/report.json
+            emissary/bundle-proposed/manifest.jsonl
             emissary/verify.log
-            emissary/pruned-src
-            emissary/bundle/Tengoku
+            emissary/pruned-src-proposed
             emissary/verify-summary.json
             emissary/bank.jsonl
             emissary/ledger-rows.jsonl

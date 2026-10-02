@@ -39,8 +39,8 @@ class Bundle(unittest.TestCase):
         (d / "gate2.log").write_text("GATE2B_PASS old=Toy.uses_one_pos new=Toy.uses_one_pos via=equal\n")
         subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
                         "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"), "--src", str(d / "src")], check=True)
-        a = (d / "bundle" / "Tengoku" / "ToyLib" / "Toy" / "A.lean").read_text()
-        b = (d / "bundle" / "Tengoku" / "ToyLib" / "Toy" / "B.lean").read_text()
+        a = (d / "bundle-proposed" / "Tengoku" / "ToyLib" / "Toy" / "A.lean").read_text()
+        b = (d / "bundle-proposed" / "Tengoku" / "ToyLib" / "Toy" / "B.lean").read_text()
         self.assertIn("def one : Nat := 1", a)
         self.assertIn("theorem one_pos", a)
         self.assertNotIn("theorem unused", a)  # nothing passed uses it
@@ -49,13 +49,18 @@ class Bundle(unittest.TestCase):
         self.assertIn("import Tengoku.ToyLib.Toy.A", b)  # the library's own module -> its place in the tree
         self.assertNotIn("theorem unrelated", b)
         self.assertIn("theorem uses_one_pos", b)
-        self.assertEqual((d / "bundle" / "Tengoku" / "ToyLib.lean").read_text(), "import Tengoku.ToyLib.Toy.A\nimport Tengoku.ToyLib.Toy.B\n")
-        man = [json.loads(x) for x in (d / "bundle" / "manifest.jsonl").read_text().splitlines()]
+        self.assertEqual((d / "bundle-proposed" / "Tengoku" / "ToyLib.lean").read_text(), "import Tengoku.ToyLib.Toy.A\nimport Tengoku.ToyLib.Toy.B\n")
+        man = [json.loads(x) for x in (d / "bundle-proposed" / "manifest.jsonl").read_text().splitlines()]
         self.assertEqual([m["name"] for m in man], ["Toy.uses_one_pos"])
         self.assertEqual(man[0]["via"], "equal")
         self.assertTrue(man[0]["statement"].startswith("theorem uses_one_pos"))
         # the source that gets BUILT keeps the original layout and imports
-        self.assertIn("import Mathlib.Data.Nat.Basic", (d / "src" / "Toy" / "A.lean").read_text())
+        self.assertIn("import Mathlib.Data.Nat.Basic", (d / "src-proposed" / "Toy" / "A.lean").read_text())
+        # the strict lint (tengoku's allow-list) rejects the `notation` module A, and B with it: the strict bundle is empty, and says why
+        strict = json.loads((d / "bundle" / "report.json").read_text())
+        self.assertEqual(strict["theorems"], 0)
+        self.assertTrue(any("notation" in k for k in strict["lint_cost"]), strict["lint_cost"])
+        self.assertEqual(json.loads((d / "bundle-proposed" / "report.json").read_text())["theorems"], 1)
 
     def test_a_module_importing_a_package_the_tree_lacks_takes_its_theorems_with_it(self):
         d = Path(tempfile.mkdtemp())
@@ -73,7 +78,7 @@ class Bundle(unittest.TestCase):
         (d / "build.log").write_text("")
         subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
                         "--key", "toy", "--toolchain", "tc", "--errors", str(d / "build.log"), "--out", str(d / "bundle"), "--src", str(d / "src")], check=True)
-        rep = json.loads((d / "bundle" / "report.json").read_text())
+        rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
         self.assertEqual(rep["theorems"], 0)
         self.assertEqual(rep["modules_dropped"], 2)
 

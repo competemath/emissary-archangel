@@ -203,75 +203,130 @@ def compose(a: argparse.Namespace) -> None:
         if bad:
             external[mod] = bad
     # a module that imports a package the tree does not have cannot be built there, nor can what imports it
-    dropped: dict[str, str] = {m: "imports " + ", ".join(b) for m, b in external.items()}
-    dropped.update({m: "an error outside any declaration (glue)" for m in glue_error})
-    changed = True
-    while changed:
-        changed = False
-        for mod, ds in imports.items():
-            if mod not in dropped and any(d in dropped for d in ds):
-                dropped[mod] = "imports a module that cannot go to the tree"
-                changed = True
-    needed: set[str] = set()
-
-    def need(mod: str) -> None:
-        if mod in needed or mod not in modules or mod in dropped:
-            return
-        needed.add(mod)
-        for d in imports[mod]:
-            need(d)
-
+    base_dropped: dict[str, str] = {m: "imports " + ", ".join(b) for m, b in external.items()}
+    base_dropped.update({m: "an error outside any declaration (glue)" for m in glue_error})
     sys.setrecursionlimit(100000)
+    # the pruned text of every module that could be needed (what the passed theorems are made of, and what that imports)
+    reach: set[str] = set()
+
+    def reach_from(mod: str) -> None:
+        if mod in reach or mod not in modules:
+            return
+        reach.add(mod)
+        for d in imports[mod]:
+            reach_from(d)
+
     for mod in keep_blocks:
-        need(mod)
-    # a module the tree cannot hold takes its theorems with it
-    manifest, left_out = [], defaultdict(int)
+        reach_from(mod)
+    pruned = {mod: modules[mod].text(keep_blocks.get(mod, set()), strip_imports=False) for mod in reach}
+    # The tree compiles what it takes under its content lint (an allow-list of known-inert commands, attributes and options). The
+    # copy here is tengoku's (scripts/bump/lint); the header is the bundle's own business (imports are mapped, `module` is the
+    # module system), so it is not linted. `proposed` is the same lint with notation commands allowed (notation, infix, prefix,
+    # postfix, notation3, scoped/local): they elaborate a term like any other and cannot run code of the library's, and
+    # without them most libraries' statements do not read. Both bundles are cut; which one the tree takes is a policy decision.
+    sys.path.insert(0, str(HERE / "lint"))
+    import allowlist  # noqa: E402
+
+    allowed = set(json.loads((HERE / "lint" / "allowed-options.json").read_text())["allowed"])
+    notation_ok = re.compile(r"`(?:notation3?|infix[lr]?|prefix|postfix|scoped|local)`")
+    header = re.compile(r"^\s*(?:(?:public|private|meta)\s+)*import\s|^\s*(?:module|prelude)\s*$")
+    lint: dict[str, list[str]] = {}
+    for mod, text in pruned.items():
+        body = "\n".join(("" if header.match(ln) else ln) for ln in text.split("\n"))
+        lint[mod] = allowlist.violations(body, allowed)
     repo = meta["repo"].rstrip("/").removesuffix(".git")
-    for mod, names in passed.items():
-        if mod not in needed:
-            left_out[dropped.get(mod, "module not in the bundle")] += len(names)
-            continue
-        m = modules[mod]
-        for n in names:
-            r = source_of(mod, n)
-            if not r:
-                left_out["no source range"] += 1
+    via = passed_via(a.gate2)
+    summary = {}
+    for mode in ("strict", "proposed"):
+        viol = {m: [v for v in vs if mode == "strict" or not notation_ok.search(v)] for m, vs in lint.items()}
+        dropped = dict(base_dropped)
+        dropped.update({m: "lint: " + "; ".join(vs[:3]) for m, vs in viol.items() if vs and m not in dropped})
+        changed = True
+        while changed:
+            changed = False
+            for mod, ds in imports.items():
+                if mod not in dropped and any(d in dropped for d in ds):
+                    dropped[mod] = "imports a module that cannot go to the tree"
+                    changed = True
+        needed: set[str] = set()
+
+        def need(mod: str) -> None:
+            if mod in needed or mod not in pruned or mod in dropped:
+                return
+            needed.add(mod)
+            for d in imports[mod]:
+                need(d)
+
+        for mod in keep_blocks:
+            need(mod)
+        manifest, left_out = [], defaultdict(int)
+        for mod, names in passed.items():
+            if mod not in needed:
+                left_out[dropped.get(mod, "module not in the bundle")[:120]] += len(names)
                 continue
-            text = "\n".join(m.lines[r[0] - 1 : r[1]])
-            text = re.sub(r"^\s*/--.*?-/\s*", "", text, count=1, flags=re.S)
-            lines_ = text.split("\n")
-            while lines_ and records.IN_PREFIX.match(lines_[0]):  # `open Foo in` above the declaration belongs to the module, not the statement
-                lines_.pop(0)
-            text = "\n".join(lines_)
-            he = portfolio.header_end(text, 0)
-            stmt = (text[:he] if he > 0 else text.split(":=")[0]).strip()
-            rel = str(modules[mod].path.relative_to(lib))
-            manifest.append({"name": n, "statement": stmt, "module": f"Tengoku.{pascal(a.key)}.{mod}", "source_path": rel, "library": a.key,
-                             "source_url": f"{repo}/blob/{meta['commit']}/{rel}", "toolchain": a.toolchain, "via": passed_via(a.gate2).get(n, "")})
-    tree_root = out / "Tengoku" / pascal(a.key)
-    for d in (tree_root, src):
-        d.mkdir(parents=True, exist_ok=True)
-    for mod in sorted(needed):
-        m = modules[mod]
-        pruned = m.text(keep_blocks.get(mod, set()), strip_imports=False)
-        rel = m.path.relative_to(lib)
-        (src / rel).parent.mkdir(parents=True, exist_ok=True)
-        (src / rel).write_text(pruned + "\n")
-        mapped = [map_import_line(ln, a.key, own)[0] for ln in pruned.split("\n")]
-        (tree_root / rel).parent.mkdir(parents=True, exist_ok=True)
-        (tree_root / rel).write_text("\n".join(mapped) + "\n")
-    (out / "Tengoku" / f"{pascal(a.key)}.lean").write_text("".join(f"import Tengoku.{pascal(a.key)}.{m}\n" for m in sorted(needed)))
-    (out / "manifest.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in manifest))
-    report = {"library": a.key, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]),
-              "theorems": len(manifest), "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out),
-              "kept_constants": len(kept)}
-    (out / "report.json").write_text(json.dumps(report, indent=1))
-    print(json.dumps({k: v for k, v in report.items() if k != "dropped"}))
+            m = modules[mod]
+            for n in names:
+                r = source_of(mod, n)
+                if not r:
+                    left_out["no source range"] += 1
+                    continue
+                text = "\n".join(m.lines[r[0] - 1 : r[1]])
+                text = re.sub(r"^\s*/--.*?-/\s*", "", text, count=1, flags=re.S)
+                lines_ = text.split("\n")
+                while lines_ and records.IN_PREFIX.match(lines_[0]):  # `open Foo in` above the declaration belongs to the module, not the statement
+                    lines_.pop(0)
+                text = "\n".join(lines_)
+                he = portfolio.header_end(text, 0)
+                stmt = (text[:he] if he > 0 else text.split(":=")[0]).strip()
+                rel = str(m.path.relative_to(lib))
+                manifest.append({"name": n, "statement": stmt, "module": f"Tengoku.{pascal(a.key)}.{mod}", "source_path": rel, "library": a.key,
+                                 "source_url": f"{repo}/blob/{meta['commit']}/{rel}", "toolchain": a.toolchain, "via": via.get(n, "")})
+        out_dir = out if mode == "strict" else Path(str(out) + "-proposed")
+        src_dir = src if mode == "strict" else Path(str(src) + "-proposed")
+        tree_root = out_dir / "Tengoku" / pascal(a.key)
+        for d in (tree_root, src_dir):
+            d.mkdir(parents=True, exist_ok=True)
+        for mod in sorted(needed):
+            rel = modules[mod].path.relative_to(lib)
+            (src_dir / rel).parent.mkdir(parents=True, exist_ok=True)
+            (src_dir / rel).write_text(pruned[mod] + "\n")
+            mapped = [map_import_line(ln, a.key, own)[0] for ln in pruned[mod].split("\n")]
+            (tree_root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (tree_root / rel).write_text("\n".join(mapped) + "\n")
+        (out_dir / "Tengoku" / f"{pascal(a.key)}.lean").write_text("".join(f"import Tengoku.{pascal(a.key)}.{m}\n" for m in sorted(needed)))
+        (out_dir / "manifest.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in manifest))
+        # what each rule costs: the passed theorems of a module whose lint failed, and of every module that imports it
+        importers: dict[str, set[str]] = defaultdict(set)
+        for mod_, ds in imports.items():
+            for d in ds:
+                importers[d].add(mod_)
+
+        def with_importers(root: str) -> set[str]:
+            seen_, stack = set(), [root]
+            while stack:
+                x = stack.pop()
+                if x not in seen_:
+                    seen_.add(x)
+                    stack.extend(importers[x])
+            return seen_
+
+        classes: dict[str, int] = defaultdict(int)
+        for m_, vs in viol.items():
+            if vs:
+                affected = sum(len(passed.get(x, [])) for x in with_importers(m_))
+                for v in {x[:70] for x in vs}:
+                    classes[v] += affected
+        report = {"library": a.key, "lint_mode": mode, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]),
+                  "theorems": len(manifest), "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept),
+                  "lint_cost": dict(sorted(classes.items(), key=lambda x: -x[1])[:15])}
+        (out_dir / "report.json").write_text(json.dumps(report, indent=1))
+        summary[mode] = {k: v for k, v in report.items() if k not in ("dropped", "lint_cost", "left_out")}
+    print(json.dumps(summary))
 
 
 def passed_via(gate2_log: str) -> dict[str, str]:
-    p = Path(gate2_log)
-    if not p.exists():
+    p = Path(gate2_log) if gate2_log else None
+    if p is None or not p.is_file():
         return {}
     return {m.group(1): m.group(3) for m in re.finditer(r"GATE2B_PASS old=(\S+) new=(\S+) via=(\w+)", p.read_text(errors="replace")) if m.group(1) == m.group(2)}
 
