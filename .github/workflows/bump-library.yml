@@ -2,7 +2,7 @@
 #
 # 1. the library's real files are built against the Mathlib the Tengoku tree is seeded from (trial-library-build.yml's
 #    pass 1: lake build --keep-going, in dependency order);
-# 2. Gate 2's `Vendor` modules are built into the same project;
+# 2. Gate 2's `Vendor` modules are built in a project of their own (the library's lakefile options must not apply to them);
 # 3. ONE Lean process imports every module that built and checks the statement of every ledger entry in them
 #    (scripts/bump/gate2_batch.py: the same Lean code as gate2/server.py, the original's committed export parsed once
 #    per module), plus N control pairs of unrelated statements that must all fail.
@@ -72,11 +72,8 @@ jobs:
           # an explicit list still ends at the target
           [ "$CHAIN" = direct ] || [ "$(tail -1 plan.txt | cut -d' ' -f1)" = "$MATHLIB" ] || echo "$MATHLIB $TOOLCHAIN" >> plan.txt
           echo "bump plan:"; cat plan.txt
-          # Gate 2's own Lean modules, built into the same project (they import Lean only)
           python3 scripts/trial-library-build.py retarget lib "$(head -1 plan.txt | cut -d' ' -f1)" "$(head -1 plan.txt | cut -d' ' -f2)"
           if [ "$IMPORTS" = full ]; then python3 scripts/bump/engine.py normalize-imports --lib lib --roots "$(echo "$roots" | tr ' ' ',')"; fi
-          cp -r gate2/Vendor.lean gate2/Vendor lib/
-          if [ -f lib/lakefile.toml ]; then printf '\n[[lean_lib]]\nname = "Vendor"\n' >> lib/lakefile.toml; else printf '\nlean_lib Vendor\n' >> lib/lakefile.lean; fi
       - name: Bump through the plan; at each step rebuild, repair, rebuild until nothing more can be repaired mechanically
         working-directory: emissary
         env: { GH_TOKEN: "${{ github.token }}" }
@@ -108,18 +105,26 @@ jobs:
             final=$last; prev=$tag
           done < plan.txt
           echo "final state: build-$final.log"; cp "build-$final.log" build1.log; cp "pass-$final.json" pass1.json; cp "tb-$final.json" tb-final.json
-          (cd lib && lake build Vendor 2>&1 | tail -2)
           git -C lib diff --stat | tail -3; git -C lib diff > ../repairs.patch
+      - name: Gate 2's own Lean modules, in a project of their own (the library's lakefile options, e.g. warnings as errors, must not apply to them)
+        run: |
+          mkdir vendorproj && cp -r emissary/gate2/Vendor.lean emissary/gate2/Vendor vendorproj/
+          cd vendorproj
+          echo "$TOOLCHAIN" > lean-toolchain
+          printf 'name = "V"\ndefaultTargets = ["Vendor"]\n[[lean_lib]]\nname = "Vendor"\n' > lakefile.toml
+          lake build Vendor 2>&1 | tail -5
       - name: Batched Gate 2 over every declaration of every module that built
         working-directory: emissary
         run: |
+          # the library's own search path (its Mathlib and its modules) plus Gate 2's Vendor
+          LP="$(cd lib && lake env printenv LEAN_PATH):$GITHUB_WORKSPACE/vendorproj/.lake/build/lib/lean"
           # One Lean process imports the modules together. Two library modules that declare the same name (or one that declares
           # what Mathlib has) cannot be imported together: leave the one Lean names out and go again.
           exclude=""
           for attempt in $(seq 1 15); do
             python3 scripts/bump/gate2_batch.py generate --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
               --roots "$ROOTS" --out lib/gate2-check.lean --controls "$CONTROLS" --exclude "$exclude" | tee plan.json
-            (cd lib; start=$(date +%s); timeout 120m lake env lean gate2-check.lean > ../gate2.log 2>&1 || true
+            (cd lib; start=$(date +%s); LEAN_PATH="$LP" timeout 120m lean gate2-check.lean > ../gate2.log 2>&1 || true
              echo "batched Gate 2 (attempt $attempt): $(( ($(date +%s) - start) )) seconds for $(grep -c 'GATE2B_' ../gate2.log) verdicts")
             bad=$(grep -oP "import \K\S+(?= failed)" gate2.log | head -1 || true)
             [ -z "$bad" ] && break
