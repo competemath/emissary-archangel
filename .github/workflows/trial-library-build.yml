@@ -1,0 +1,101 @@
+# A Mathlib-style pass over ONE library, as a trial (docs: why the per-theorem pipeline is slow).
+#
+# Mathlib moves to a new Lean by building the whole library in dependency order and fixing what the compiler
+# reports: a lemma's helpers always exist, one fix serves every dependant, and Lean's own deprecation warnings are
+# rewritten by a 125-line script (scripts/fix_deprecations.py in mathlib4), no AI. The translation pipeline compiles
+# every declaration as its own synthetic file instead, and sends what fails to Claude.
+#
+# This builds the library's REAL files (its pinned commit) against the Mathlib the Tengoku tree is seeded from, with no
+# Leak service and no Claude, and reports how much builds unchanged. Pass 2 applies Mathlib's own deprecation fixer
+# and rebuilds, to show what the no-AI tooling recovers.
+name: trial-library-build
+on:
+  workflow_dispatch:
+    inputs:
+      key: { description: "registered library key (data/exports/<key>/setup.ci.json)", required: true }
+      mathlib: { description: "Mathlib tag the Tengoku tree is seeded from", default: "v4.34.0-rc2" }
+      toolchain: { description: "the tree's Lean toolchain", default: "leanprover/lean4:v4.34.0-rc2" }
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  trial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    permissions: { contents: read }
+    env:
+      KEY: ${{ inputs.key }}
+      MATHLIB: ${{ inputs.mathlib }}
+      TOOLCHAIN: ${{ inputs.toolchain }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /scripts/
+            /data/exports/
+            /data/translate/
+          persist-credentials: false
+      - name: Free disk (Mathlib's build is several GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift
+          df -h / | tail -1
+      - name: elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: The library at its pinned commit
+        run: |
+          read -r repo commit source_toolchain roots < <(python3 scripts/trial-library-build.py meta "$KEY")
+          echo "library: $repo @ $commit (built by its authors on $source_toolchain; roots: $roots)"
+          git clone -q --filter=blob:none "$repo" lib
+          git -C lib checkout -q "$commit"
+          git -C lib log -1 --format='%h %ad %s' --date=short
+      - name: Point it at the Mathlib the tree is seeded from
+        run: |
+          python3 scripts/trial-library-build.py retarget lib "$MATHLIB" "$TOOLCHAIN"
+          cd lib
+          git diff --stat
+          lake update 2>&1 | tail -5
+          lake exe cache get 2>&1 | tail -4
+          df -h / | tail -1
+      - name: Pass 1 — build the whole library, in dependency order, unchanged
+        continue-on-error: true
+        working-directory: lib
+        run: |
+          keep=""; lake build --help 2>&1 | grep -q -- "--keep-going" && keep="--keep-going"
+          echo "lake build flags: ${keep:-<none: stops at the first failure>}"
+          start=$(date +%s)
+          timeout 150m lake build $keep > ../build1.log 2>&1 || true
+          echo "pass 1 took $(( ($(date +%s) - start) / 60 )) minutes"; tail -4 ../build1.log
+      - name: Pass 1 — what built, what failed, and why
+        run: python3 scripts/trial-library-build.py analyze lib "$KEY" pass1 build1.log
+      - name: Pass 2 — Mathlib's own deprecation fixer (no AI), then build again
+        continue-on-error: true
+        working-directory: lib
+        run: |
+          fixer=.lake/packages/mathlib/scripts/fix_deprecations.py
+          [ -f "$fixer" ] || { curl -sSfL https://raw.githubusercontent.com/leanprover-community/mathlib4/master/scripts/fix_deprecations.py -o fix_deprecations.py; fixer=fix_deprecations.py; }
+          python3 "$fixer" > ../fix-deprecations.log 2>&1 || true
+          tail -4 ../fix-deprecations.log
+          git diff > ../deprecations.patch; git diff --stat | tail -3
+          keep=""; lake build --help 2>&1 | grep -q -- "--keep-going" && keep="--keep-going"
+          start=$(date +%s)
+          timeout 120m lake build $keep > ../build2.log 2>&1 || true
+          echo "pass 2 took $(( ($(date +%s) - start) / 60 )) minutes"; tail -4 ../build2.log
+      - name: Pass 2 — what built after the deprecation fixer
+        run: python3 scripts/trial-library-build.py analyze lib "$KEY" pass2 build2.log
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: trial-${{ inputs.key }}
+          path: |
+            build1.log
+            build2.log
+            pass1.json
+            pass2.json
+            fix-deprecations.log
+            deprecations.patch
+          retention-days: 30
