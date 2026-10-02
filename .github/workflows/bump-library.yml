@@ -164,7 +164,7 @@ jobs:
             emissary/plan.json
           retention-days: 30
       - name: Staging records for the declarations that passed (RECORDS=on only)
-        if: env.RECORDS == 'on' (the pipeline's own record shape, from the built environment)
+        if: env.RECORDS == 'on'
         working-directory: emissary
         run: |
           python3 scripts/bump/records.py lean --lib lib --names passed.json --out lib/records-deps.lean
