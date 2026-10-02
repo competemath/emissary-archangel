@@ -88,9 +88,9 @@ it is built from are replayed under copy names beside the native ones (the origi
 proofs are irrelevant to definitional equality), and `c = c._gate2old` is added as a theorem proved by `Eq.refl`. That
 declaration is accepted exactly when the native definition and the original's are definitionally equal, their types
 included, so a changed instance path or auxiliary lemma passes and a changed meaning does not. -/
-def gate2bSameDefCore (all : Std.HashMap Name ConstantInfo) (c : Name) : CommandElabM (Bool × String) := do
+def gate2bSameDefCore (all : Std.HashMap Name ConstantInfo) (oldC c : Name) : CommandElabM (Bool × String) := do
   let env ← getEnv
-  let some oldCi := all[c]? | return (false, "not in the export")
+  let some oldCi := all[oldC]? | return (false, "not in the export")
   let some newCi := env.find? c | return (false, "no native definition")
   if oldCi.levelParams.length != newCi.levelParams.length then return (false, "universe parameter count differs")
   let lvls := newCi.levelParams.map Level.param
@@ -99,7 +99,7 @@ def gate2bSameDefCore (all : Std.HashMap Name ConstantInfo) (c : Name) : Command
     | .defnInfo a, .defnInfo b => (inst a.value).eqv (canonPrivate (stripMData b.value))
     | _, _ => false
   if (inst oldCi.type).eqv (canonPrivate (stripMData newCi.type)) && sameValue then return (true, "identical")
-  let closure := statementReach all [c]
+  let closure := statementReach all [oldC]
   let mut own : NameSet := {}
   for (n, ci) in closure.toList do
     if (env.find? n).isSome && gate2bRenamable ci then own := own.insert n
@@ -115,7 +115,7 @@ def gate2bSameDefCore (all : Std.HashMap Name ConstantInfo) (c : Name) : Command
         Lean.addDecl (Declaration.thmDecl {
           name := Name.mkStr c "_gate2b_defeq"
           levelParams := newCi.levelParams
-          type := mkApp3 (mkConst ``Eq [u]) oldTy (mkConst c lvls) (mkConst (gate2bCopyName c) lvls)
+          type := mkApp3 (mkConst ``Eq [u]) oldTy (mkConst c lvls) (mkConst (gate2bCopyName oldC) lvls)
           value := mkApp2 (mkConst ``Eq.refl [u]) oldTy (mkConst c lvls)
         })
       match r with
@@ -125,11 +125,35 @@ def gate2bSameDefCore (all : Std.HashMap Name ConstantInfo) (c : Name) : Command
 
 def gate2bSameDef (all : Std.HashMap Name ConstantInfo) (c : Name) : CommandElabM (Bool × String) := do
   if let some r := (← gate2bDefMemo.get)[c]? then return r
-  let r ← gate2bSameDefCore all c
+  let r ← gate2bSameDefCore all c c
   gate2bDefMemo.modify (·.insert c r)
   let (ok, msg) := r
   logInfo m!"GATE2B_DEF {c} result={if ok then msg else "drift"} GATE2B_DEFMSG {if ok then "" else msg} GATE2B_END"
   return r
+
+
+/-- Controls for the definition check: pairs of library definitions with the SAME type and DIFFERENT values (the original of one
+against the native other). The kernel must refuse every one: if it accepts any, the check proves nothing. -/
+elab "#gate2_defcontrols " n:num : command => do
+  let all ← importedConstantsRef.get
+  let env ← getEnv
+  let mut byType : Std.HashMap UInt64 (List Name) := {}
+  for (c, ci) in all.toList do
+    match ci, env.find? c with
+    | .defnInfo _, some (.defnInfo _) => byType := byType.insert ci.type.hash (c :: (byType.getD ci.type.hash []))
+    | _, _ => pure ()
+  let mut done := 0
+  for (_, names) in byType.toList do
+    if done ≥ n.getNat then break
+    match names with
+    | a :: b :: _ =>
+      let some (.defnInfo av) := all[a]? | continue
+      let some (.defnInfo bv) := env.find? b | continue
+      if (all[a]!).type.eqv bv.type && !(av.value.eqv bv.value) then
+        let (ok, msg) ← gate2bSameDefCore all a b
+        logInfo m!"GATE2B_DEFCONTROL {a} {b} result={if ok then "WRONGLY_PASSED" else "rejected"} GATE2B_DEFMSG {msg.take 120} GATE2B_END"
+        done := done + 1
+    | _ => pure ()
 
 /-- One check: the original `oldN` (from the loaded export) against the native declaration `newN`. -/
 def gate2bCheck (oldN newN : Name) : CommandElabM Unit := do
@@ -307,6 +331,7 @@ def generate(a: argparse.Namespace) -> None:
         body.append(f'\n-- {mod}: {len(names)} declarations\n#tengoku_import_parse "{export.resolve()}"\n')
         for i in range(0, len(names), 40):  # several per command line is fine; 40 keeps each message block small
             body.append(f'#gate2_batch "{",".join(names[i:i + 40])}"\n')
+        body.append("#gate2_defcontrols 1\n")  # same type, different value: the kernel must refuse
     if a.controls:
         rng = random.Random(7)
         # unrelated pairs inside one module: the original statement of A against the new B
@@ -351,6 +376,10 @@ def parse(a: argparse.Namespace) -> None:
         "controls": {"checked": len(cross), "wrongly_passed": [list(k) for k, v in cross.items() if v[0] == "PASS"]},
         "by_pipeline_outcome": {k: dict(v) for k, v in by_outcome.items()},
         # library definitions the statements are built on: identical, definitionally equal (kernel-checked), or changed meaning
+        "definition_controls": {
+            "rejected": len(re.findall(r"GATE2B_DEFCONTROL \S+ \S+ result=rejected", text)),
+            "wrongly_passed": re.findall(r"GATE2B_DEFCONTROL (\S+) (\S+) result=WRONGLY_PASSED", text),
+        },
         "definitions": {
             "by_result": dict(Counter(m.group(2) for m in DEFLINE.finditer(text))),
             "drifted": {m.group(1): re.sub(r"\s+", " ", m.group(3))[:300] for m in DEFLINE.finditer(text) if m.group(2) == "drift"},
