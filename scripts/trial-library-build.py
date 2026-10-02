@@ -177,6 +177,12 @@ def analyze(lib: str, key: str, label: str, log_path: str) -> None:
             m = DEPRECATED.search(msg)
             if m:
                 deps[(m.group(1), m.group(2))] += 1
+    # imports of modules that no longer exist: the library's own modules are blocked behind a failure, an EXTERNAL one
+    # (Mathlib's) was moved or renamed between the library's Mathlib and the target
+    log_text = Path(log_path).read_text(errors="replace")
+    bad = re.findall(r"error: (\S+\.lean): bad import '([^']+)'", log_text)
+    mine = set(mods)
+    missing_external = Counter(m for _, m in bad if m not in mine and not m.startswith(tuple(r + "." for r in setup["roots"])))
     per, outcomes = ledger_entries(key)
     by_src = {str(src.relative_to(lib)): mod for mod, src in mods.items()}
     entries = Counter()
@@ -190,6 +196,7 @@ def analyze(lib: str, key: str, label: str, log_path: str) -> None:
         "label": label,
         "modules": {"total": len(mods), "built": len(built), "failed_own_error": len(failed), "blocked_behind_failure": len(blocked)},
         "errors": {"distinct_error_messages": n_err, "first_error_by_module": dict(cats), "all_errors_by_class": dict(all_errors)},
+        "missing_external_modules": dict(missing_external),
         "deprecation_warnings": {"total": sum(deps.values()), "distinct_names": len(deps), "top": [[o, n, c] for (o, n), c in deps.most_common(10)]},
         "ledger": {"entries_by_module_status": dict(entries), "pipeline_outcomes": dict(outcomes)},
         "failed_modules": {m: first[next(k for k in first if k.endswith(str(mods[m].relative_to(lib))))][2][:200] for m in failed if any(k.endswith(str(mods[m].relative_to(lib))) for k in first)},
@@ -202,6 +209,7 @@ def analyze(lib: str, key: str, label: str, log_path: str) -> None:
         f"- Modules: **{len(built)} of {len(mods)} built unchanged ({pct(len(built), len(mods))})**; {len(failed)} fail with their own error; {len(blocked)} blocked behind a failed import.",
         f"- Ledger entries (what the per-theorem pipeline counts) in modules that built: **{entries['built']} of {total} ({pct(entries['built'], total)})**; in failing modules {entries['failed']}; blocked {entries['blocked']}.",
         f"- Errors reported: {n_err}. First error per failing module: " + ", ".join(f"{k} {v}" for k, v in cats.most_common()) + ".",
+        f"- Modules that no longer exist upstream (imports that fail): {dict(missing_external) or 'none'}.",
         f"- Deprecation warnings (rewritten mechanically by Mathlib's fix_deprecations.py): {sum(deps.values())} over {len(deps)} names.",
         f"- The per-theorem pipeline's own outcomes for this library: {dict(outcomes)}.",
     ]
