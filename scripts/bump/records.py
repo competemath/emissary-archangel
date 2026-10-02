@@ -142,8 +142,8 @@ class Module:
                 return (s, e)
         return None
 
-    def text(self, keep: set[tuple[int, int]], before: int | None = None) -> str:
-        """The file with every pruneable block outside `keep` removed, imports stripped, up to line `before` (exclusive)."""
+    def text(self, keep: set[tuple[int, int]], before: int | None = None, strip_imports: bool = True) -> str:
+        """The file with every pruneable block outside `keep` removed, imports stripped (unless asked not to), up to line `before` (exclusive)."""
         out, i, n = [], 1, len(self.lines) if before is None else before - 1
         starts = {s: e for s, e in self.blocks}
         while i <= n:
@@ -154,7 +154,7 @@ class Module:
                 i = e + 1
                 continue
             ln = self.lines[i - 1]
-            if not IMPORT_LINE.match(ln) and not KEYWORD_LINE.match(ln):
+            if not strip_imports or (not IMPORT_LINE.match(ln) and not KEYWORD_LINE.match(ln)):
                 out.append(ln)
             i += 1
         text = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip("\n")
