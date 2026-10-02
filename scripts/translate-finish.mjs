@@ -63,7 +63,7 @@ for (const l of results) {
 const plans = shards.map((s) => join(s, "plan.json")).filter(existsSync).map((f) => JSON.parse(readFileSync(f, "utf8")))
 const todo = plans.reduce((n, p) => n + p.todo, 0)
 const limited = plans.some((p) => p.limited)
-const done = new Set(["mechanical", "cached-mechanical", "agentic", "untranslatable", "unbankable", "export-unavailable"])
+const done = new Set(["mechanical", "cached-mechanical", "agentic", "bump", "untranslatable", "unbankable", "export-unavailable"])
 if (mode === "mechanical") done.add("deferred-agent").add("unresolved")
 const tries = new Map()
 for (const l of lines(join(tdir, `${key}.jsonl`))) {

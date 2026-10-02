@@ -76,7 +76,7 @@ function treeNames() {
 
 // The ledger: every outcome of every earlier run, one line each. An entry is settled when its latest outcome says there
 // is nothing more to do in this mode.
-const VERIFIED = new Set(["mechanical", "cached-mechanical", "agentic"])
+const VERIFIED = new Set(["mechanical", "cached-mechanical", "agentic", "bump"]) // bump: scripts/bump/ (whole-library build + batched Gate 2)
 const TERMINAL = new Set(["untranslatable", "unbankable", "export-unavailable"])
 function ledger() {
   const last = new Map()

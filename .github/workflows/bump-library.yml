@@ -138,6 +138,7 @@ jobs:
           python3 scripts/bump/records.py compose --lib lib --log records-deps.log --meta "data/exports/$KEY/setup.ci.json" --out composed.jsonl
           node scripts/bump/stage-records.mjs composed.jsonl --source "$KEY" --toolchain "$TOOLCHAIN" --out bank.jsonl
           wc -c bank.jsonl | cut -d' ' -f1
+          python3 scripts/bump/ledger_rows.py --ledger "data/translate/$KEY.jsonl" --log gate2.log --run "$GITHUB_RUN_ID" --out ledger-rows.jsonl
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -155,6 +156,7 @@ jobs:
             emissary/passed.json
             emissary/composed.jsonl
             emissary/bank.jsonl
+            emissary/ledger-rows.jsonl
             emissary/records-deps.log
             emissary/plan.json
             emissary/lib/gate2-check.lean
