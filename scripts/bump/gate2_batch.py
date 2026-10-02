@@ -11,6 +11,8 @@ The check per declaration is Gate 2's own, from the same Lean code (the header i
 copied: `statementReach`, `tengokuCompatible`, the export parser and replay are shared), with the differences the
 whole-library setting forces, each stated here:
 
+  * a library DEFINITION the statement mentions must mean what it meant (not merely have the same type): identical type
+    and value, or the kernel accepts `new = original` by `Eq.refl` with the original replayed beside it (gate2bSameDef).
   * the new declaration is the library's real one, under the original's name (per-record Gate 2 renames its candidate
     to `<name>_archangel`, because the replayed original must be able to use the original name). Here the original is
     not replayed under its name at all: its exported TYPE is compared with the native declaration's type.
@@ -54,6 +56,81 @@ def gate2bKind : ConstantInfo → String
   | .axiomInfo _ => "axiom" | .defnInfo _ => "def" | .thmInfo _ => "theorem" | .opaqueInfo _ => "opaque"
   | .quotInfo _ => "quot" | .inductInfo _ => "inductive" | .ctorInfo _ => "ctor" | .recInfo _ => "rec"
 
+
+/-- The copy of an original constant that lives beside its native twin while one definition is compared. -/
+def gate2bCopyName (n : Name) : Name := Name.mkStr n "_gate2old"
+
+def gate2bRename (own : NameSet) (e : Expr) : Expr :=
+  e.replace fun
+    | .const n ls => if own.contains n then some (.const (gate2bCopyName n) ls) else none
+    | _ => none
+
+def gate2bIsDef : ConstantInfo → Bool
+  | .defnInfo _ => true
+  | _ => false
+
+def gate2bRenamable : ConstantInfo → Bool
+  | .defnInfo _ | .axiomInfo _ | .opaqueInfo _ => true
+  | _ => false
+
+def gate2bRenameCi (own : NameSet) (ci : ConstantInfo) : ConstantInfo :=
+  let ren := gate2bRename own
+  let rn (n : Name) : Name := if own.contains n then gate2bCopyName n else n
+  match ci with
+  | .defnInfo i => .defnInfo { i with name := rn i.name, type := ren i.type, value := ren i.value, all := i.all.map rn }
+  | .axiomInfo i => .axiomInfo { i with name := rn i.name, type := ren i.type }
+  | .opaqueInfo i => .opaqueInfo { i with name := rn i.name, type := ren i.type, value := ren i.value, all := i.all.map rn }
+  | other => other
+
+/-- Does the library definition `c` mean in this environment what it meant in the original (`all`, the committed export)?
+Identical type and value: yes. Otherwise the KERNEL decides: the original definition and the original library definitions
+it is built from are replayed under copy names beside the native ones (the original's theorems as statement-only axioms:
+proofs are irrelevant to definitional equality), and `c = c._gate2old` is added as a theorem proved by `Eq.refl`. That
+declaration is accepted exactly when the native definition and the original's are definitionally equal, their types
+included, so a changed instance path or auxiliary lemma passes and a changed meaning does not. -/
+def gate2bSameDefCore (all : Std.HashMap Name ConstantInfo) (c : Name) : CommandElabM (Bool × String) := do
+  let env ← getEnv
+  let some oldCi := all[c]? | return (false, "not in the export")
+  let some newCi := env.find? c | return (false, "no native definition")
+  if oldCi.levelParams.length != newCi.levelParams.length then return (false, "universe parameter count differs")
+  let lvls := newCi.levelParams.map Level.param
+  let inst (e : Expr) : Expr := canonPrivate (stripMData (e.instantiateLevelParams oldCi.levelParams lvls))
+  let sameValue := match oldCi, newCi with
+    | .defnInfo a, .defnInfo b => (inst a.value).eqv (canonPrivate (stripMData b.value))
+    | _, _ => false
+  if (inst oldCi.type).eqv (canonPrivate (stripMData newCi.type)) && sameValue then return (true, "identical")
+  let closure := statementReach all [c]
+  let mut own : NameSet := {}
+  for (n, ci) in closure.toList do
+    if (env.find? n).isSome && gate2bRenamable ci then own := own.insert n
+  let mut copies : Std.HashMap Name ConstantInfo := {}
+  for (n, ci) in closure.toList do
+    if own.contains n then copies := copies.insert (gate2bCopyName n) (gate2bRenameCi own ci)
+  withoutModifyingEnv do
+    try
+      liftCoreM (TengokuImport.replayIntoCoreEnv copies)
+      let oldTy := gate2bRename own (oldCi.type.instantiateLevelParams oldCi.levelParams lvls)
+      let r ← liftTermElabM <| observing do
+        let u ← Meta.getLevel oldTy
+        Lean.addDecl (Declaration.thmDecl {
+          name := Name.mkStr c "_gate2b_defeq"
+          levelParams := newCi.levelParams
+          type := mkApp3 (mkConst ``Eq [u]) oldTy (mkConst c lvls) (mkConst (gate2bCopyName c) lvls)
+          value := mkApp2 (mkConst ``Eq.refl [u]) oldTy (mkConst c lvls)
+        })
+      match r with
+      | .ok _ => return (true, "defeq")
+      | .error e => return (false, s!"not definitionally equal: {(← e.toMessageData.toString).take 300}")
+    catch e => return (false, s!"replay failed: {(← e.toMessageData.toString).take 300}")
+
+def gate2bSameDef (all : Std.HashMap Name ConstantInfo) (c : Name) : CommandElabM (Bool × String) := do
+  if let some r := (← gate2bDefMemo.get)[c]? then return r
+  let r ← gate2bSameDefCore all c
+  gate2bDefMemo.modify (·.insert c r)
+  let (ok, msg) := r
+  logInfo m!"GATE2B_DEF {c} result={if ok then msg else "drift"} GATE2B_DEFMSG {if ok then "" else msg} GATE2B_END"
+  return r
+
 /-- One check: the original `oldN` (from the loaded export) against the native declaration `newN`. -/
 def gate2bCheck (oldN newN : Name) : CommandElabM Unit := do
   let all ← importedConstantsRef.get
@@ -88,12 +165,15 @@ def gate2bCheck (oldN newN : Name) : CommandElabM Unit := do
         if (env.find? c).isSome then boundary := boundary.insert c
       boundary := boundary.erase oldN
       let mut collisions : List String := []
+      let mut defsToCheck : List Name := []
       let mut firstDiff : MessageData := m!""
       for c in boundary.toList do
         match all[c]?, env.find? c with
         | some ci, some native =>
-          -- a name the export has is the library's own: its abbrev bodies are compared too, as the candidate's own are today
-          if !(tengokuCompatible false true ci native) then
+          -- a library DEFINITION: same type is not enough, the meaning must be the same (decided below, by the kernel)
+          if gate2bIsDef ci && gate2bIsDef native then
+            defsToCheck := c :: defsToCheck
+          else if !(tengokuCompatible false true ci native) then
             if collisions.isEmpty then firstDiff := m!"{c}: kinds old={gate2bKind ci} new={gate2bKind native}; old type = {ci.type} || new type = {native.type}"
             collisions := s!"{c}" :: collisions
         | _, _ => pure ()
@@ -101,7 +181,16 @@ def gate2bCheck (oldN newN : Name) : CommandElabM Unit := do
         logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=name_collision names={String.intercalate "," collisions} GATE2B_DIFF {firstDiff} GATE2B_END"
       else
         liftCoreM (TengokuImport.replayIntoCoreEnv delta)
-        if tengokuCompatible true true oldCi newCi then
+        let mut drift : List String := []
+        let mut why : String := ""
+        for c in defsToCheck do
+          let (ok, msg) ← gate2bSameDef all c
+          if !ok then
+            if drift.isEmpty then why := s!"{c}: {msg}"
+            drift := s!"{c}" :: drift
+        if !drift.isEmpty then
+          logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=name_collision names={String.intercalate "," drift} GATE2B_DIFF {why} GATE2B_END"
+        else if tengokuCompatible true true oldCi newCi then
           logInfo m!"GATE2B_PASS old={oldN} new={newN} via=equal"
         else if newCi.levelParams.length != oldCi.levelParams.length then
           logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=universe_param_count_mismatch"
@@ -225,6 +314,7 @@ def generate(a: argparse.Namespace) -> None:
     print(json.dumps(meta))
 
 
+DEFLINE = re.compile(r"GATE2B_DEF (\S+) result=(\S+) GATE2B_DEFMSG (.*?) GATE2B_END", re.S)
 LINE = re.compile(r"GATE2B_(PASS|FAIL) old=(\S+) new=(\S+)(?: via=(\w+))?(?: reason=(\w+))?")
 
 
@@ -250,6 +340,11 @@ def parse(a: argparse.Namespace) -> None:
         "fail_reasons": dict(Counter(v[1] for v in own.values() if v[0] == "FAIL")),
         "controls": {"checked": len(cross), "wrongly_passed": [list(k) for k, v in cross.items() if v[0] == "PASS"]},
         "by_pipeline_outcome": {k: dict(v) for k, v in by_outcome.items()},
+        # library definitions the statements are built on: identical, definitionally equal (kernel-checked), or changed meaning
+        "definitions": {
+            "by_result": dict(Counter(m.group(2) for m in DEFLINE.finditer(text))),
+            "drifted": {m.group(1): re.sub(r"\s+", " ", m.group(3))[:300] for m in DEFLINE.finditer(text) if m.group(2) == "drift"},
+        },
     }
     Path(a.out).write_text(json.dumps(res, indent=2))
     print(json.dumps(res, indent=2))
