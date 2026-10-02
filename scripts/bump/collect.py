@@ -32,26 +32,30 @@ def row(key: str, run: str, out: Path) -> dict:
     if not d.exists():
         d.mkdir(parents=True)
         subprocess.run(["gh", "run", "download", run, "-R", REPO, "-D", str(d)], capture_output=True)
-    art = next(iter(d.glob("bump-*")), d)
-    if (art / "tb-final.json").exists():
-        tb = json.loads((art / "tb-final.json").read_text())
+    def find(name: str):
+        return next(iter(d.rglob(name)), None)  # the early `gate2-*` artifact and the final `bump-*` one
+
+    art = d
+    if find("tb-final.json"):
+        tb = json.loads(find("tb-final.json").read_text())
         r["modules"] = tb["modules"]
         r["clean"] = tb["by_state"].get("clean", 0)
         r["errors"] = tb["by_state"].get("errors", 0)
         r["lake_would_build"] = tb["lake_would_build"]
-    if (art / "gate2-results.json").exists():
-        g = json.loads((art / "gate2-results.json").read_text())
+    if find("gate2-results.json"):
+        g = json.loads(find("gate2-results.json").read_text())
         r["checked"], r["passed"] = g["checked"], g["pass"]
         r["equal"], r["entails"] = g["pass_equal"], g["pass_entails"]
         r["fail_reasons"] = g["fail_reasons"]
         r["controls_wrongly_passed"] = len(g["controls"]["wrongly_passed"])
         r["definitions"] = g.get("definitions", {}).get("by_result", {})
         r["by_outcome"] = g["by_pipeline_outcome"]
-    if (art / "bank.jsonl").exists():
-        r["records"] = sum(1 for ln in (art / "bank.jsonl").read_text().splitlines() if ln.strip())
-    p = art / "plan.json"
-    if p.exists():
-        r["skipped"] = json.loads(p.read_text().splitlines()[0]).get("skipped")
+    if find("bank.jsonl"):
+        r["records"] = sum(1 for ln in find("bank.jsonl").read_text().splitlines() if ln.strip())
+    if find("plan.json"):
+        r["skipped"] = json.loads(find("plan.json").read_text().splitlines()[0]).get("skipped")
+    if find("gate2-results.json"):
+        r["def_controls"] = g.get("definition_controls")
     return r
 
 

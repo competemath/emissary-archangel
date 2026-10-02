@@ -134,6 +134,23 @@ jobs:
       - name: Verdicts against the per-theorem pipeline's
         working-directory: emissary
         run: python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        name: Upload the build and Gate 2 results now (the records step is the longest and must not be able to lose them)
+        if: always()
+        with:
+          name: gate2-${{ inputs.key }}
+          path: |
+            emissary/build-*.log
+            emissary/pass-*.json
+            emissary/tb-*.json
+            emissary/repair-*.json
+            emissary/portfolio-*.json
+            emissary/repairs.patch
+            emissary/gate2.log
+            emissary/gate2-results.json
+            emissary/passed.json
+            emissary/plan.json
+          retention-days: 30
       - name: Staging records for the declarations that passed (the pipeline's own record shape, from the built environment)
         working-directory: emissary
         run: |
