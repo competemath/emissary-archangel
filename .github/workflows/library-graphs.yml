@@ -18,9 +18,10 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           filter: "blob:none"
+          sparse-checkout-cone-mode: false
           sparse-checkout: |
-            scripts
-            data/exports/**/setup.ci.json
+            /scripts/
+            /data/exports/*/setup.ci.json
           persist-credentials: false
       - name: Graphs
         run: |
