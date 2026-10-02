@@ -62,12 +62,14 @@ def merge(a: argparse.Namespace) -> None:
         if not (d / "src").exists():
             continue
         for f in (d / "src").rglob("*"):
-            if f.is_file():
+            if f.is_file() and not f.is_symlink() and ".." not in f.relative_to(d / "src").parts:  # an artifact is data from a job that compiled someone's code
                 dst = out / f.relative_to(d / "src")
                 if not dst.exists():
                     dst.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(f, dst)
         for f in (d / "ranges").rglob("*.json") if (d / "ranges").exists() else []:
+            if f.is_symlink() or ".." in f.relative_to(d / "ranges").parts:
+                continue
             dst = out / ".lake" / "build" / "lib" / "lean" / f.relative_to(d / "ranges")
             if not dst.exists():
                 dst.parent.mkdir(parents=True, exist_ok=True)

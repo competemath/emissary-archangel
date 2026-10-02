@@ -29,7 +29,7 @@ jobs:
   bump:
     runs-on: ubuntu-latest
     timeout-minutes: 330
-    permissions: { contents: read, id-token: write, attestations: write }
+    permissions: { contents: read }   # this job runs the library's Lean (elaborators, tactics, initializers): it holds no signing identity
     env:
       KEY: ${{ inputs.key }}
       MATHLIB: ${{ inputs.mathlib }}
@@ -198,22 +198,10 @@ jobs:
           cp -r pruned-src-proposed/. lib2/
           python3 scripts/bump/tolerant_build.py --lib lib2 --roots "$ROOTS" --log verify.log --report verify.json --jobs 4 --cache lib2/.bump-cache
           python3 scripts/bump/bundle.py check --report verify.json --log verify.log --out verify-summary.json
-      - name: Pack and attest
-        working-directory: emissary
-        run: |
-          # the attested bytes are the .tar (scripts/bump/bundle_tar.py: canonical, the same function as tengoku's gate); the .tar.gz is for transport
-          for mode in strict proposed; do
-            dir=bundle; [ "$mode" = proposed ] && dir=bundle-proposed
-            python3 scripts/bump/bundle_tar.py "$dir" "bundle-$KEY-$mode.tar"
-            gzip -n -k "bundle-$KEY-$mode.tar"
-          done
-          sha256sum bundle-"$KEY"-*.tar | tee bundle.sha256; ls -l bundle-"$KEY"-*.tar | awk '{print $5, $9}'; cat bundle/report.json bundle-proposed/report.json
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with: { subject-path: "emissary/bundle-${{ inputs.key }}-*.tar" }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
-          name: bump-${{ inputs.key }}
+          name: results-${{ inputs.key }}
           path: |
             emissary/build-*.log
             emissary/pass-*.json
@@ -226,13 +214,8 @@ jobs:
             emissary/gate2-results.json
             emissary/passed.json
             emissary/composed.jsonl
-            emissary/bundle-*.tar
-            emissary/bundle-*.tar.gz
-            emissary/bundle.sha256
-            emissary/bundle/report.json
-            emissary/bundle/manifest.jsonl
-            emissary/bundle-proposed/report.json
-            emissary/bundle-proposed/manifest.jsonl
+            emissary/bundle
+            emissary/bundle-proposed
             emissary/verify.log
             emissary/pruned-src-proposed
             emissary/verify-summary.json
@@ -243,3 +226,34 @@ jobs:
             emissary/lib/gate2-check.lean
             emissary/lib/gate2-check.plan.json
           retention-days: 30
+  # The archive is cut and signed here, in a job that runs no code of the library: it reads the bundle directories (text) as data and
+  # attests the canonical archive of them. Signing in the job that compiled the library would let the library mint attestations.
+  attest:
+    needs: bump
+    if: ${{ needs.bump.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: { contents: read, id-token: write, attestations: write }
+    env: { KEY: "${{ inputs.key }}" }
+    steps:
+      - name: The factory's scripts
+        run: |
+          git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
+          git -C emissary sparse-checkout set --no-cone "/scripts/bump/bundle_tar.py"
+          git -C emissary checkout -q "$GITHUB_SHA"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { name: "results-${{ inputs.key }}", path: raw }
+      - name: Pack (the attested bytes are the .tar, canonical: the same function as tengoku's gate; the .tar.gz is for transport)
+        run: |
+          mkdir -p out
+          for mode in strict proposed; do
+            dir=raw/emissary/bundle; [ "$mode" = proposed ] && dir=raw/emissary/bundle-proposed
+            python3 emissary/scripts/bump/bundle_tar.py "$dir" "out/bundle-$KEY-$mode.tar"
+            gzip -n -k "out/bundle-$KEY-$mode.tar"
+            cp "$dir/report.json" "out/report-$mode.json"; cp "$dir/manifest.jsonl" "out/manifest-$mode.jsonl"
+          done
+          sha256sum out/bundle-"$KEY"-*.tar | tee out/bundle.sha256; ls -l out | awk '{print $5, $9}'
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with: { subject-path: "out/bundle-${{ inputs.key }}-*.tar" }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: "bump-${{ inputs.key }}", path: out, retention-days: 30 }
