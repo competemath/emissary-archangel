@@ -93,7 +93,12 @@ def retarget_lean(text: str, mathlib: str) -> str:
             j += 1
         stmt = "\n".join(lines[i:j])
         if dev.search(lines[i]):
-            pass  # dropped
+            # dropped whole, with the `meta if get_config? env = some "dev" then` guard that sits directly above it: left behind,
+            # that guard would take whatever is appended to the file (Gate 2's `lean_lib Vendor`) as its body
+            while out and not out[-1].strip():
+                out.pop()
+            if out and re.match(r"\s*(?:meta\s+)?if\b.*\bthen\s*$", out[-1]):
+                out.pop()
         elif mathlib_re.search(lines[i]):
             seen = True
             if re.search(r'@\s*git\s*"[^"]*"', stmt):
