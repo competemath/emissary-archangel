@@ -51,6 +51,7 @@ jobs:
           read -r repo commit _ roots < <(python3 scripts/trial-library-build.py meta "$KEY")
           echo "ROOTS=$(echo "$roots" | tr ' ' ',')" >> "$GITHUB_ENV"
           git clone -q --filter=blob:none "$repo" lib && git -C lib checkout -q "$commit"
+          echo "OLD_MATHLIB=$(python3 -c "import json; print(next(p['rev'] for p in json.load(open('lib/lake-manifest.json'))['packages'] if p['name']=='mathlib'))")" >> "$GITHUB_ENV"
           python3 scripts/trial-library-build.py retarget lib "$MATHLIB" "$TOOLCHAIN"
           # Gate 2's own Lean modules, built into the same project (they import Lean only)
           cp -r ../emissary/gate2/Vendor.lean ../emissary/gate2/Vendor lib/
@@ -58,17 +59,25 @@ jobs:
           cd lib
           lake update 2>&1 | tail -3
           lake exe cache get 2>&1 | tail -2
-      - name: Build the library (all of it, in dependency order, unchanged) and Gate 2's modules
-        working-directory: emissary/lib
-        run: |
-          keep=""; lake build --help 2>&1 | grep -q -- "--keep-going" && keep="--keep-going"
-          start=$(date +%s)
-          timeout 150m lake build $keep > ../build1.log 2>&1 || true
-          echo "library build: $(( ($(date +%s) - start) / 60 )) minutes"; tail -3 ../build1.log
-          lake build Vendor 2>&1 | tail -3
-      - name: What built
+      - name: Where Mathlib moved its modules between the library's Mathlib and the tree's
         working-directory: emissary
-        run: python3 scripts/trial-library-build.py analyze lib "$KEY" pass1 build1.log
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: python3 scripts/bump/mine_moves.py "$OLD_MATHLIB" "$MATHLIB" --out moves.json
+      - name: Build the library unchanged, then repair and rebuild until nothing more can be repaired mechanically
+        working-directory: emissary
+        run: |
+          keep=""; (cd lib && lake build --help 2>&1 | grep -q -- "--keep-going") && keep="--keep-going"
+          build() { (cd lib && timeout 100m lake build $keep > "../build-$1.log" 2>&1 || true); python3 scripts/trial-library-build.py analyze lib "$KEY" "pass-$1" "build-$1.log" | grep -E "^- (Modules|Ledger|Modules that no longer)"; }
+          start=$(date +%s); build 0; echo "baseline build: $(( ($(date +%s) - start) / 60 )) min"
+          last=0
+          for r in 1 2 3 4; do
+            python3 scripts/bump/engine.py repair --lib lib --log "build-$last.log" --roots "$ROOTS" --moves moves.json --state state.json --round "$r" --out "repair-$r.json" --deprecations
+            [ "$(python3 -c "import json; print(json.load(open('repair-$r.json'))['changed'])")" = True ] || { echo "round $r: nothing left to repair mechanically"; break; }
+            build "$r"; last=$r
+          done
+          echo "final state: build-$last.log"; cp "build-$last.log" build1.log; cp "pass-$last.json" pass1.json
+          (cd lib && lake build Vendor 2>&1 | tail -2)
+          git -C lib diff --stat | tail -3; git -C lib diff > ../repairs.patch
       - name: Batched Gate 2 over every declaration of every module that built
         working-directory: emissary
         run: |
@@ -87,8 +96,11 @@ jobs:
         with:
           name: bump-${{ inputs.key }}
           path: |
-            emissary/build1.log
-            emissary/pass1.json
+            emissary/build-*.log
+            emissary/pass-*.json
+            emissary/repair-*.json
+            emissary/moves.json
+            emissary/repairs.patch
             emissary/gate2.log
             emissary/gate2-results.json
             emissary/plan.json
