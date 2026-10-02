@@ -10,6 +10,16 @@ sys.path.insert(0, str(HERE))
 import plan_shards as ps  # noqa: E402
 
 
+class BundleTar(unittest.TestCase):
+    def test_the_archive_is_the_same_bytes_on_every_machine(self):
+        import bundle_tar
+        import tempfile
+
+        out = Path(tempfile.mkdtemp()) / "g.tar"
+        # the same vector and digest as tengoku's scripts/ci/tests/test_gates.py: the two copies of the function must not drift
+        self.assertEqual(bundle_tar.write_tar({"a.txt": b"hello\n", "dir/b.lean": b"theorem x : True := trivial\n"}, str(out)), "69860ced3534fa1c7d35bcaf779a68ea88028baf4f447748b381fab33d64e100")
+
+
 class Planner(unittest.TestCase):
     def test_shards_are_dependency_closed_and_cover_the_targets(self):
         imp = {"core": []}
