@@ -59,14 +59,20 @@ class Compose(unittest.TestCase):
             one_pos = (ln(la, "theorem one_pos"),) * 2
             unrelated = (ln(lb, "theorem unrelated"),) * 2
             uses = (ln(lb, "open Nat in"), ln(lb, "theorem uses_one_pos"))
-            mods = {"Toy.A": [one, unused, one_pos], "Toy.B": [unrelated, uses]}
-            log = "".join(f"x.lean:1:0: info: REC_MOD {json.dumps({'module': m, 'ranges': [list(r) for r in rs]})} REC_END\n" for m, rs in mods.items())
+            sidecars = {
+                "Toy/A": [["Toy.one", *one], ["Toy.unused", *unused], ["Toy.one_pos", *one_pos], ["Toy.one.match_1", *one]],
+                "Toy/B": [["Toy.unrelated", *unrelated], ["Toy.uses_one_pos", *uses]],
+            }
+            for m, rows in sidecars.items():
+                f = lib / ".lake" / "build" / "lib" / "lean" / (m + ".olean.ranges.json")
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_text(json.dumps(rows))
             deps = {
                 "name": "Toy.uses_one_pos",
                 "module": "Toy.B",
-                "blocks": [["Toy.B", uses[0], uses[1]], ["Toy.A", one_pos[0], one_pos[1]], ["Toy.A", one[0], one[1]]],
+                "consts": [["Toy.B", "Toy.uses_one_pos"], ["Toy.A", "Toy.one_pos"], ["Toy.A", "Toy.one.match_1"], ["Toy.A", "Toy.one"]],
             }
-            log += f"x.lean:1:0: info: REC_DEPS {json.dumps(deps)} REC_END\n"
+            log = f"x.lean:1:0: info: REC_DEPS {json.dumps(deps)} REC_END\n"
             (Path(d) / "deps.log").write_text(log)
             (Path(d) / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy.git", "commit": "abc123"}))
             subprocess.run([sys.executable, str(HERE / "records.py"), "compose", "--lib", str(lib), "--log", str(Path(d) / "deps.log"), "--meta", str(Path(d) / "setup.json"), "--out", str(Path(d) / "composed.jsonl")], check=True)

@@ -17,8 +17,8 @@ comments): kept whole, so scope is exactly as in the file; and a pruneable decla
 instance, structure, class, inductive, opaque, axiom) is kept only if the theorem uses it. The marker lines are the ones
 tengoku's scripts/generate.py parses. Whether a record then builds is decided where it always was: the tree's build gate.
 
-  records.py lean    --lib DIR --names names.json --modules M,M --out records-deps.lean
-  records.py compose --lib DIR --log records-deps.log --names names.json --meta setup.ci.json --out composed.jsonl [--lines old-lines.json]
+  records.py lean    --lib DIR --names passed.json --out records-deps.lean
+  records.py compose --lib DIR --log records-deps.log --meta setup.ci.json --out composed.jsonl [--lines old-lines.json]
 """
 
 from __future__ import annotations
@@ -38,30 +38,8 @@ def recParse (s : String) : Name := (s.splitOn ".").foldl (fun n part => Name.mk
 def recModOf (env : Environment) (n : Name) : Option Name :=
   (env.getModuleIdxFor? n).bind fun i => env.header.moduleNames[i.toNat]?
 
-/-- Where a constant's source is: itself, or the nearest prefix of its name that has declaration ranges
-(auxiliary definitions, matchers, recursors, projections live in their parent's source). -/
-partial def recSource (n : Name) : MetaM (Option DeclarationRanges) := do
-  if let some r ← findDeclarationRanges? n then return some r
-  match n with
-  | .str p _ | .num p _ => recSource p
-  | .anonymous => return none
-
-/-- Every declaration range of a module: what the source file's pruneable blocks are. -/
-elab "#records_modules " mods:str : command => do
-  for m in (mods.getString.splitOn ",").filter (· != "") do
-    let mn := recParse m
-    let ranges ← liftTermElabM do
-      let env ← getEnv
-      let some idx := env.getModuleIdx? mn | return #[]
-      let mut out : Array Json := #[]
-      for c in env.header.moduleData[idx.toNat]!.constNames do
-        if let some r ← recSource c then
-          out := out.push (Json.arr #[toJson r.range.pos.line, toJson r.range.endPos.line])
-      return out
-    logInfo m!"REC_MOD {(Json.mkObj [("module", toJson m), ("ranges", Json.arr ranges)]).compress} REC_END"
-
-/-- For each name: its module, and the source blocks (module, first line, last line) of every library declaration in the
-closure of its type and value (proofs included: the record has to compile). -/
+/-- For each name: its module, and every library constant (module, name) in the closure of its type and value (proofs
+included: the record has to compile). Where those constants are in the source is in the `.ranges.json` next to each olean. -/
 elab "#records_deps " names:str " in " libs:str : command => do
   let libMods : NameSet := (libs.getString.splitOn ",").foldl (fun s x => if x == "" then s else s.insert (recParse x)) {}
   for s in (names.getString.splitOn ",").filter (· != "") do
@@ -71,8 +49,7 @@ elab "#records_deps " names:str " in " libs:str : command => do
       let isOwn (c : Name) : Bool := match recModOf env c with | some m => libMods.contains m | none => false
       let mut seen : NameSet := {}
       let mut stack : List Name := [n]
-      let mut blocks : Array Json := #[]
-      let mut keys : Std.HashSet (Name × Nat × Nat) := {}
+      let mut consts : Array Json := #[]
       while !stack.isEmpty do
         match stack with
         | [] => pure ()
@@ -84,13 +61,9 @@ elab "#records_deps " names:str " in " libs:str : command => do
           for u in ci.getUsedConstantsAsSet.toList do
             if isOwn u && !seen.contains u then stack := u :: stack
           if let some m := recModOf env c then
-            if let some r ← recSource c then
-              let key := (m, r.range.pos.line, r.range.endPos.line)
-              unless keys.contains key do
-                keys := keys.insert key
-                blocks := blocks.push (Json.arr #[toJson m.toString, toJson r.range.pos.line, toJson r.range.endPos.line])
+            consts := consts.push (Json.arr #[toJson m.toString, toJson c.toString])
       let some m := recModOf env n | return Json.mkObj [("name", toJson s), ("error", toJson "not in an imported module")]
-      return Json.mkObj [("name", toJson s), ("module", toJson m.toString), ("blocks", Json.arr blocks)]
+      return Json.mkObj [("name", toJson s), ("module", toJson m.toString), ("consts", Json.arr consts)]
     logInfo m!"REC_DEPS {j.compress} REC_END"
 '''
 
@@ -99,7 +72,6 @@ def lean_file(a: argparse.Namespace) -> None:
     names = json.loads(Path(a.names).read_text())  # {module: [declaration names]}
     modules = sorted(names)
     lines = ["import Lean", "import Mathlib"] + [f"import {m}" for m in modules] + [LEAN]
-    lines.append(f'#records_modules "{",".join(modules)}"')
     allmods = ",".join(modules)
     for m in modules:
         ns = names[m]
@@ -221,16 +193,31 @@ def compose(a: argparse.Namespace) -> None:
     log = Path(a.log).read_text(errors="replace")
     meta = json.loads(Path(a.meta).read_text())
     old_lines = json.loads(Path(a.lines).read_text()) if a.lines else {}
-    mod_ranges: dict[str, list[tuple[int, int]]] = {}
-    for m in re.finditer(r"REC_MOD (\{.*?\}) REC_END", log, re.S):
-        j = json.loads(m.group(1))
-        mod_ranges[j["module"]] = [tuple(r) for r in j["ranges"]]
     deps = {}
     for m in re.finditer(r"REC_DEPS (\{.*?\}) REC_END", log, re.S):
         j = json.loads(re.sub(r"\s*\n\s*", "", m.group(1)))
         deps[j["name"]] = j
-    universe = set(mod_ranges)
-    modules = {m: Module(lib, m, mod_ranges[m]) for m in mod_ranges if (lib / (m.replace(".", "/") + ".lean")).exists()}
+    # the source ranges Lean recorded while it built each module (TolerantBuild.lean): name -> (first line, last line)
+    sidecars = {}
+    for f in (lib / ".lake" / "build" / "lib" / "lean").rglob("*.olean.ranges.json"):
+        rel = f.relative_to(lib / ".lake" / "build" / "lib" / "lean")
+        mod = ".".join(rel.parts)[: -len(".olean.ranges.json")]
+        sidecars[mod] = {n: (s, e) for n, s, e in json.loads(f.read_text())}
+    universe = set(sidecars)
+    modules = {m: Module(lib, m, list(sidecars[m].values())) for m in sidecars if (lib / (m.replace(".", "/") + ".lean")).exists()}
+
+    def source_of(mod: str, const: str):
+        """The range of a constant's source: its own, or the nearest prefix of its name that has one (auxiliary definitions,
+        matchers, recursors, projections live in their parent's source)."""
+        names = sidecars.get(mod, {})
+        parts = const.split(".")
+        while parts:
+            r = names.get(".".join(parts))
+            if r:
+                return r
+            parts.pop()
+        return None
+
     memo: dict[str, set[str]] = {}
     repo = meta["repo"].rstrip("/").removesuffix(".git")
     out, stats = [], defaultdict(int)
@@ -244,9 +231,10 @@ def compose(a: argparse.Namespace) -> None:
             stats["no_source_file"] += 1
             continue
         blocks = defaultdict(set)
-        for m, s, e in j["blocks"]:
-            blocks[m].add((s, e))
-        mine = [b for b in blocks.get(mod, ()) if own.block_of(b[0]) == b or True]
+        for m, c in j["consts"]:
+            r = source_of(m, c)
+            if r:
+                blocks[m].add(tuple(r))
         # the theorem's own block: the one among its blocks that contains no other declaration's start before it ends... use the name
         theorem_block = None
         for s, e in sorted(blocks.get(mod, ()), key=lambda b: (b[1] - b[0])):

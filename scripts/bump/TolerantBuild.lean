@@ -47,5 +47,10 @@ def main (args : List String) : IO UInt32 := do
   let env := cmdState.env
   let finalOpts := cmdState.scopes[0]!.opts
   writeModule (writeIR := !Compiler.compiler.postponeCompile.get finalOpts) env oleanFile
+  -- where this module's declarations are in the source: a file next to the olean. (`findDeclarationRanges?` on an IMPORTED
+  -- constant needs the server-side half of the module system's olean; the elaborating process has it all.)
+  let ranges := (declRangeExt.getState env).toList.map fun (n, r) =>
+    Json.arr #[toJson n.toString, toJson r.range.pos.line, toJson r.range.endPos.line]
+  IO.FS.writeFile (oleanFile ++ ".ranges.json") (Json.arr ranges.toArray).compress
   Runtime.forget snaps
   return if hasErrors then 2 else 0
