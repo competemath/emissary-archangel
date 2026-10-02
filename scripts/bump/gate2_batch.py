@@ -280,9 +280,13 @@ def generate(a: argparse.Namespace) -> None:
     for name, r in entries.items():
         by_module[module_of(r["sourcePath"])].append(name)
     plan, skipped = [], Counter()
+    excluded = {m for m in a.exclude.split(",") if m}
     for mod, names in sorted(by_module.items()):
         if mod not in built:
             skipped["module_not_built"] += len(names)
+            continue
+        if mod in excluded:  # importing it together with the others failed (a name it declares is already declared elsewhere)
+            skipped["import_clash"] += len(names)
             continue
         plain = mod.replace("«", "").replace("»", "")  # exports may be filed under either spelling
         export = next((exports / f"{m}.ndjson" for m in (mod, plain) if (exports / f"{m}.ndjson").exists()), exports / f"{mod}.ndjson")
@@ -370,6 +374,7 @@ if __name__ == "__main__":
     for f in ("key", "lib", "exports", "ledger", "roots", "out"):
         g.add_argument(f"--{f}", required=True)
     g.add_argument("--controls", type=int, default=0)
+    g.add_argument("--exclude", default="", help="modules to leave out (comma list)")
     q = sub.add_parser("parse")
     for f in ("log", "ledger", "out"):
         q.add_argument(f"--{f}", required=True)
