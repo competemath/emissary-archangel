@@ -11,6 +11,12 @@ This does the same for a library that was left behind. A round reads the build l
                   correct by construction (the content is somewhere in Mathlib), only heavier.
   deprecations    Mathlib's fix_deprecations.py algorithm over the warnings of the last build log (position-exact rewrites).
 
+  normalize       `normalize-imports`: every external import of a library file (Mathlib, Batteries, Aesop, Qq, ProofWidgets, …)
+                  becomes the umbrella imports. That is the environment a record is verified in anyway: the Tengoku tree
+                  holds ALL of Mathlib, Batteries, Aesop, Qq and ProofWidgets, and a record's own imports are stripped.
+                  Moved, split and merged Mathlib modules then stop mattering, and an instance that used to arrive through
+                  a module the library imported (and no longer does) is simply there.
+
 Every repair is checked by the next build, not trusted. Only the library's own files are edited, never a statement on
 purpose: imports and call-site names. Whether a statement still means what it did is Gate 2's job (gate2_batch.py).
 
@@ -95,6 +101,53 @@ def fix_deprecations(lib: Path, log: str) -> tuple[int, int]:
     return total, files
 
 
+UMBRELLA_ROOTS = ("Mathlib", "Batteries", "Aesop", "Qq", "ProofWidgets", "Plausible", "LeanSearchClient", "ImportGraph")
+UMBRELLA_IMPORTS = ["Mathlib", "Batteries", "Aesop", "Qq", "ProofWidgets"]
+
+
+def normalize_imports(lib: Path, roots: list[str]) -> dict:
+    """Replace each file's imports of the umbrella packages' modules by the umbrella imports (the first replaced line's
+    `public`/`meta` prefix is kept); every other import (the library's own, other packages) is untouched."""
+    changed = removed = 0
+    for path in lean_files(lib, roots):
+        lines = path.read_text().split("\n")
+        # the header: up to the first line that is not blank, a comment line, `module`/`prelude` or an import (block comments are skipped whole)
+        out, i, first, prefix, dropped, in_block = [], 0, None, "", 0, 0
+        while i < len(lines):
+            ln = lines[i]
+            s = ln.strip()
+            if in_block:
+                in_block += s.count("/-") - s.count("-/")
+                out.append(ln)
+            elif s.startswith("/-"):
+                in_block = max(1, s.count("/-") - s.count("-/")) if "-/" not in s or s.count("/-") > s.count("-/") else 0
+                out.append(ln)
+            elif not s or s.startswith("--") or s in ("module", "prelude"):
+                out.append(ln)
+            else:
+                m = IMPORT_LINE.match(ln)
+                if not m:
+                    break
+                mod = m.group("mod")
+                if mod.split(".")[0] in UMBRELLA_ROOTS:
+                    if first is None:
+                        first, prefix = len(out), m.group("pre").replace("import all", "import")
+                    dropped += 1
+                else:
+                    out.append(ln)
+            i += 1
+        if first is None:
+            continue
+        keep_prefix = prefix if prefix.strip() else "import "
+        ins = [keep_prefix + m for m in UMBRELLA_IMPORTS]
+        new = out[:first] + ins + out[first:] + lines[i:]
+        if new != lines:
+            path.write_text("\n".join(new))
+            changed += 1
+            removed += dropped
+    return {"files_changed": changed, "imports_replaced": removed}
+
+
 def repair(a: argparse.Namespace) -> None:
     lib = Path(a.lib)
     roots = [r for r in a.roots.split(",") if r]
@@ -161,5 +214,11 @@ if __name__ == "__main__":
     r.add_argument("--moves", default="")
     r.add_argument("--round", type=int, default=1)
     r.add_argument("--deprecations", action="store_true")
+    n = sub.add_parser("normalize-imports")
+    n.add_argument("--lib", required=True)
+    n.add_argument("--roots", required=True)
     args = ap.parse_args()
-    repair(args)
+    if args.cmd == "normalize-imports":
+        print(json.dumps(normalize_imports(Path(args.lib), [r for r in args.roots.split(",") if r])))
+    else:
+        repair(args)
