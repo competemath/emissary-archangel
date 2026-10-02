@@ -90,4 +90,8 @@ set_option Elab.async false
 LEAN
 lake env lean kernel.lean | tee kernel.log
 grep -q "RESULT rejected" kernel.log || { echo "with Elab.async false the kernel's refusal must raise"; exit 1; }
+# for the record: the same declaration with Elab.async on (the command-line default). Not asserted: it documents why the option is set.
+sed 's/set_option Elab.async false/set_option Elab.async true/' kernel.lean > kernel_async.lean
+lake env lean kernel_async.lean 2>&1 | tee kernel_async.log | head -12 || true
+echo "async-on result: $(grep -o 'RESULT [a-z]*' kernel_async.log | head -1); stray kernel errors in the log: $(grep -c '(kernel)' kernel_async.log || true)"
 echo "TOLERANT SMOKE OK"
