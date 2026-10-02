@@ -271,9 +271,27 @@ def passed_via(gate2_log: str) -> dict[str, str]:
     return {m.group(1): m.group(3) for m in re.finditer(r"GATE2B_PASS old=(\S+) new=(\S+) via=(\w+)", p.read_text(errors="replace")) if m.group(1) == m.group(2)}
 
 
+def check(a: argparse.Namespace) -> None:
+    """The verification build of the pruned sources: every module clean, nothing left on sorry."""
+    rep = json.loads(Path(a.report).read_text())
+    log = Path(a.log).read_text(errors="replace")
+    bad = {m: s["state"] for m, s in rep["status"].items() if s["state"] != "clean"}
+    sorries = re.findall(r"^warning: (\S+:\d+):\d+: declaration uses .sorry.", log, re.M)
+    errors = re.findall(r"^error: .*", log, re.M)
+    out = {"modules": rep["modules"], "not_clean": bad, "sorry_warnings": len(sorries), "errors": len(errors)}
+    print(json.dumps({k: (v if k != "not_clean" else dict(list(v.items())[:10])) for k, v in out.items()}))
+    Path(a.out).write_text(json.dumps(out, indent=1))
+    if bad or sorries or errors:
+        print("the pruned sources do not build clean:", errors[:5], sorries[:5])
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
+    k = sub.add_parser("check")
+    for f in ("report", "log", "out"):
+        k.add_argument(f"--{f}", required=True)
     l = sub.add_parser("lean")
     for f in ("lib", "passed", "roots", "out"):
         l.add_argument(f"--{f}", required=True)
@@ -282,4 +300,4 @@ if __name__ == "__main__":
         c.add_argument(f"--{f}", required=True)
     c.add_argument("--gate2", default="")
     args = ap.parse_args()
-    lean_file(args) if args.cmd == "lean" else compose(args)
+    {"lean": lean_file, "compose": compose, "check": check}[args.cmd](args)

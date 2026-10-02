@@ -17,6 +17,7 @@ on:
       controls: { description: "control pairs (unrelated statements) that must fail", default: "20" }
       chain: { description: "direct = one jump to `mathlib`; auto = through intermediate Mathlib releases (scripts/bump/plan_chain.py); or a comma list of tags", default: "direct" }
       step: { description: "chain=auto: at most this many Lean minor versions per step", default: "3" }
+      records: { description: "on = also stage the old per-theorem records (33 KB each, superseded by the bundle)", default: "off" }
       imports: { description: "full = every Mathlib/Batteries/Aesop/Qq/ProofWidgets import becomes the umbrellas (the environment a record is verified in); minimal = keep the library's imports and repair moved modules (mine_moves.py)", default: "full" }
       portfolio: { description: "on = at the last step, theorems whose proof failed are retried with Lean's own automation (scripts/bump/portfolio.py)", default: "on" }
 permissions: {}
@@ -27,7 +28,7 @@ jobs:
   bump:
     runs-on: ubuntu-latest
     timeout-minutes: 330
-    permissions: { contents: read }
+    permissions: { contents: read, id-token: write, attestations: write }
     env:
       KEY: ${{ inputs.key }}
       MATHLIB: ${{ inputs.mathlib }}
@@ -37,6 +38,7 @@ jobs:
       STEP: ${{ inputs.step }}
       PORTFOLIO: ${{ inputs.portfolio }}
       IMPORTS: ${{ inputs.imports }}
+      RECORDS: ${{ inputs.records }}
     steps:
       - name: Free disk (Mathlib's build is several GB)
         run: |
@@ -161,7 +163,8 @@ jobs:
             emissary/passed.json
             emissary/plan.json
           retention-days: 30
-      - name: Staging records for the declarations that passed (the pipeline's own record shape, from the built environment)
+      - name: Staging records for the declarations that passed (RECORDS=on only)
+        if: env.RECORDS == 'on' (the pipeline's own record shape, from the built environment)
         working-directory: emissary
         run: |
           python3 scripts/bump/records.py lean --lib lib --names passed.json --out lib/records-deps.lean
@@ -172,6 +175,27 @@ jobs:
           node scripts/bump/stage-records.mjs composed.jsonl --source "$KEY" --toolchain "$TOOLCHAIN" --out bank.jsonl
           wc -c bank.jsonl | cut -d' ' -f1
           python3 scripts/bump/ledger_rows.py --ledger "data/translate/$KEY.jsonl" --log gate2.log --run "$GITHUB_RUN_ID" --out ledger-rows.jsonl
+      - name: The intake bundle (only what passed, as Lean modules for the tree)
+        working-directory: emissary
+        run: |
+          python3 scripts/bump/bundle.py lean --lib lib --passed passed.json --roots "$ROOTS" --out lib/bundle-deps.lean
+          (cd lib && timeout 90m lake env lean bundle-deps.lean > ../bundle-deps.log 2>&1 || true)
+          python3 scripts/bump/bundle.py compose --lib lib --log bundle-deps.log --passed passed.json --meta "data/exports/$KEY/setup.ci.json" \
+            --key "$KEY" --toolchain "$TOOLCHAIN" --errors build1.log --gate2 gate2.log --out bundle --src pruned-src
+      - name: Build the pruned sources, they must be clean (what is shipped is exactly what was built)
+        working-directory: emissary
+        run: |
+          mkdir -p lib2/.lake && cp lib/lakefile.* lib/lake-manifest.json lib/lean-toolchain lib2/ && ln -s "$PWD/lib/.lake/packages" lib2/.lake/packages
+          cp -r pruned-src/. lib2/
+          python3 scripts/bump/tolerant_build.py --lib lib2 --roots "$ROOTS" --log verify.log --report verify.json --jobs 4 --cache lib2/.bump-cache
+          python3 scripts/bump/bundle.py check --report verify.json --log verify.log --out verify-summary.json
+      - name: Pack and attest
+        working-directory: emissary
+        run: |
+          tar -C bundle -czf "bundle-$KEY.tar.gz" .
+          sha256sum "bundle-$KEY.tar.gz" | tee bundle.sha256; ls -l "bundle-$KEY.tar.gz" | awk '{print $5, "bytes"}'; cat bundle/report.json
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with: { subject-path: "emissary/bundle-${{ inputs.key }}.tar.gz" }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -188,6 +212,12 @@ jobs:
             emissary/gate2-results.json
             emissary/passed.json
             emissary/composed.jsonl
+            emissary/bundle-*.tar.gz
+            emissary/bundle.sha256
+            emissary/bundle/report.json
+            emissary/bundle/manifest.jsonl
+            emissary/verify.log
+            emissary/verify-summary.json
             emissary/bank.jsonl
             emissary/ledger-rows.jsonl
             emissary/records-deps.log
