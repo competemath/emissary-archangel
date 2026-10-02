@@ -152,8 +152,9 @@ jobs:
           echo "--- Lean errors (not verdicts):"; { grep -E "error" gate2.log | grep -v "GATE2B_" | head -8 | cut -c1-300; } || true
       - name: Verdicts against the per-theorem pipeline's
         working-directory: emissary
-        run: python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json \
-          --tentative "../tengoku/data/tentative/$KEY.jsonl,../tengoku/data/tentative/$KEY/*.jsonl"
+        run: |
+          python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json \
+            --tentative "../tengoku/data/tentative/$KEY.jsonl,../tengoku/data/tentative/$KEY/*.jsonl"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         name: Upload the build and Gate 2 results now (the records step is the longest and must not be able to lose them)
         if: always()
