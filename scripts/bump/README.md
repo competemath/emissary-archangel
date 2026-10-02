@@ -50,3 +50,27 @@ Artifacts: `build-*.log`, `tb-*.json` (per-module state), `pass-*.json`, `repair
 `tolerant-smoke.yml` proves the tolerant build on a toy project, and runs the unit tests (`scripts/bump/tests/`).
 
 Nothing commits to `data/bank` or the ledger yet: `bank-flush.mjs` opens tengoku PRs for every banked record, and each needs approval.
+
+## From a verified library to the tree (the intake lane)
+
+Per-theorem records cannot carry this volume: a record repeats its whole context (33 KB each on average: 600 MB per 17.6k records, about
+4 GB for the registered corpus). A library goes to the tree as a **bundle**: its Lean modules, each ONCE, cut down to what the factory verified.
+
+| step | file |
+|---|---|
+| plan a big library into dependency-closed shards (a module goes to the shard that already builds most of what it imports) | `plan_shards.py`, `import_graph.py` (measured cost: `library-graphs.yml`) |
+| one shard: build its closure, repair, batched Gate 2 for its targets, the constants its passed theorems are made of | `bump-shard.yml` (called by `bump-sharded.yml`), `shard_pack.py` |
+| the bundle: keep every declaration in the closure of the passed theorems and all glue, drop the rest and any block Lean reported an error in, map imports to the tree, apply the tree's content lint, write the manifest | `bundle.py` (`lint/` is a pinned copy of tengoku's allow-list) |
+| prove the pruned sources build clean (single-job libraries; sharded ones are built by the tree's own queue) | `bundle.py check`, `bump-library.yml` |
+| one reproducible archive, attested (SLSA build provenance), `.tar.gz` for transport | `bundle_tar.py` (the same function and golden digest as tengoku's `scripts/ci/bundle_tar.py`) |
+| every library, unattended, by size, within the runner capacity | `bump-all.yml`, `orchestrate.py` |
+| a finished run -> an intake PR | `open_intake_pr.py` |
+
+Two bundles per run. `strict` is tengoku's content allow-list as it is: no `notation`, `infix`, `macro` (the lint was written for records; a record never carries a
+notation). `proposed` additionally allows the notation commands (`notation`, `infix`, `prefix`, `postfix`, `notation3`, `scoped`, `local`): they elaborate a term
+like any other and cannot run code of the library's, and without them most libraries' statements do not read. `report.json` says what each rule costs in
+theorems. Which one the tree takes is a policy decision (`vars.TENGOKU_INTAKE_LINT` in the gate).
+
+On the tengoku side (proved in tengoku-sandbox first, then ported): class `intake` (from the factory's account only, one library, nothing else),
+`scripts/ci/intake_check.py` (shape, manifest, lint, the archive rebuilt from the PR's files), `gh attestation verify` against the factory's workflows,
+the queue builds the library root (no generation, no derived-files comparison) and checks axioms of every theorem as it does for every other PR.
