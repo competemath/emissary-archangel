@@ -1,0 +1,34 @@
+# Import graphs of the big libraries (python only, no Lean): how they can be sharded.
+name: library-graphs
+on:
+  workflow_dispatch:
+    inputs:
+      keys: { description: "space-separated library keys", required: true }
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  graphs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions: { contents: read }
+    env: { KEYS: "${{ inputs.keys }}" }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          filter: "blob:none"
+          sparse-checkout: |
+            scripts
+            data/exports/**/setup.ci.json
+          persist-credentials: false
+      - name: Graphs
+        run: |
+          : > graphs.jsonl
+          for k in $KEYS; do
+            read -r repo commit roots < <(python3 scripts/trial-library-build.py meta "$k" | awk '{print $1, $2, $4}')
+            git clone -q --filter=blob:none "$repo" "src-$k" && git -C "src-$k" checkout -q "$commit"
+            python3 scripts/bump/import_graph.py "src-$k" "$(python3 scripts/trial-library-build.py meta "$k" | cut -d' ' -f4- | tr ' ' ',')" | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); d['key']='$k'; print(json.dumps(d))" | tee -a graphs.jsonl
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: graphs, path: graphs.jsonl }
