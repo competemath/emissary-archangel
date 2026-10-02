@@ -4,11 +4,11 @@
 Per-record staging puts each theorem's whole context into a record (33 KB each on average: 600 MB per 17.6k records, ~4 GB for the
 registered corpus), which cannot live in a repository. A bundle holds each module ONCE:
 
-  Tengoku/<Library>/<source path>.lean   the library's modules cut down to what the passed theorems are made of: every declaration
-                                         in the closure of the passed set (types, values and proofs, from the compiled environment),
-                                         all glue (namespaces, opens, variables, notations, macros), nothing else. A declaration that
-                                         failed, uses sorry, was not checked, or nothing passed depends on is gone, as is the text of
-                                         any block Lean reported an error in. Imports are mapped to the tree's module names.
+  Tengoku/<Library>/<source path>.lean   the library's modules cut down to what the passed theorems are made of PLUS every definition,
+                                         structure, class and instance that stands on nothing failed (glue names them: `variable [C F]`, a
+                                         notation), with the theorems those need; all glue (namespaces, opens, variables, notations, macros).
+                                         A theorem nothing needs and nothing passed is gone, as is any declaration that failed or stands on
+                                         one that did, and the text of any block Lean reported an error in. Imports are mapped to the tree's module names.
   Tengoku/<Library>.lean                 imports all of them
   manifest.jsonl                         one line per passed theorem: name, statement, module, source, how it was verified
   report.json                            counts, and what was left out and why
@@ -59,14 +59,39 @@ def bkParse (s : String) : Name := (s.splitOn ".").foldl (fun n part => Name.mkS
 def bkModOf (env : Environment) (n : Name) : Option Name :=
   (env.getModuleIdxFor? n).bind fun i => env.header.moduleNames[i.toNat]?
 
-/-- Every library constant (module, name) in the closure of the types, values and proofs of ALL the names: what must stay. -/
+/-- Does the constant stand on `sorryAx`, directly or through a library constant? (a failed proof, or anything built on one) -/
+partial def bkTainted (env : Environment) (isOwn : Name → Bool) (memo : IO.Ref (Std.HashMap Name Bool)) (c : Name) : IO Bool := do
+  if let some b := (← memo.get)[c]? then return b
+  memo.modify (·.insert c false)  -- in progress: a cycle does not taint itself
+  let some ci := env.find? c | return false
+  let used := ci.getUsedConstantsAsSet
+  let mut t := used.contains ``sorryAx
+  unless t do
+    for u in used.toList do
+      if isOwn u && (← bkTainted env isOwn memo u) then
+        t := true
+        break
+  memo.modify (·.insert c t)
+  return t
+
+/-- Every library constant (module, name) that must stay: the closure of the types, values and proofs of the passed theorems AND of every
+library constant that is not a theorem and stands on nothing failed (definitions, structures, classes, instances: glue such as `variable
+[MyClass F]` or a notation names them without any theorem using them, so cutting one breaks what is left). Theorems stay only
+where something that stays needs them. -/
 elab "#bundle_keep " names:str " in " libs:str : command => do
   let libMods : NameSet := (libs.getString.splitOn ",").foldl (fun s x => if x == "" then s else s.insert (bkParse x)) {}
   let j ← liftTermElabM do
     let env ← getEnv
     let isOwn (c : Name) : Bool := match bkModOf env c with | some m => libMods.contains m | none => false
+    let taint ← IO.mkRef (({} : Std.HashMap Name Bool))
+    let mut seeds : List Name := ((names.getString.splitOn ",").filter (· != "")).map bkParse
+    for m in libMods.toList do
+      let some idx := env.getModuleIdx? m | continue
+      for c in env.header.moduleData[idx.toNat]!.constNames do
+        if let some ci := env.find? c then
+          if !ci.isTheorem && !(← bkTainted env isOwn taint c) then seeds := c :: seeds
     let mut seen : NameSet := {}
-    let mut stack : List Name := ((names.getString.splitOn ",").filter (· != "")).map bkParse
+    let mut stack : List Name := seeds
     let mut consts : Array Json := #[]
     while !stack.isEmpty do
       match stack with
