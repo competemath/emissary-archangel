@@ -53,7 +53,7 @@ class Portfolio(unittest.TestCase):
             ]
         )
         out, rep = run(SRC, log)
-        self.assertIn("theorem broken (a b : Nat) (h : a ≤ b) : a < b + 1 := by\n  first\n  | grind", out)
+        self.assertIn("theorem broken (a b : Nat) (h : a ≤ b) : a < b + 1 := by\n  first\n  | (grind; done; trace \"PORTFOLIO grind\")", out)
         self.assertNotIn("simp at h", out)
         self.assertIn("theorem ok_one : 1 = 1 := rfl", out)  # untouched
         self.assertIn("theorem bad_statement (a : Nat) : foo a = a := by\n  simp", out)  # untouched

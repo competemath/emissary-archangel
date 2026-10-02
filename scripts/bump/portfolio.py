@@ -8,8 +8,8 @@ and Lean's general-purpose tactics (`grind`, `simp_all`, `aesop`, `omega`, `norm
 
     theorem T <header> := by
       first
-      | grind
-      | simp_all
+      | (grind; done; trace "PORTFOLIO grind")
+      | (simp_all; done; trace "PORTFOLIO simp_all")
       | …
 
 and the next build keeps whichever succeeds. Only the proof after the header's own `:=` is replaced, never the header, and
@@ -111,7 +111,9 @@ def rewrite(lines: list[str], block: tuple[int, int], tactics: list[str]) -> tup
     body = text[he + 2 :].strip()
     if body.startswith("by") is False and "\n" not in body and len(body) > 200:
         return None
-    new_proof = ":= by\n  first\n" + "\n".join(f"  | {t}" for t in tactics)
+    # each alternative must CLOSE the goal (`done`): `simp_all` or `norm_num` that merely makes progress would otherwise be
+    # taken by `first` and starve the alternatives after it. The `trace` says, in the build log, which one succeeded.
+    new_proof = ":= by\n  first\n" + "\n".join(f'  | ({t}; done; trace "PORTFOLIO {t}")' for t in tactics)
     head = text[:he].rstrip()
     trailing = len(text) - len(text.rstrip("\n"))
     new = head + " " + new_proof + ("\n" * trailing)
