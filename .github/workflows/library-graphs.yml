@@ -24,13 +24,27 @@ jobs:
             /data/exports/*/setup.ci.json
             /data/translate/*.jsonl
           persist-credentials: false
+      - name: Tengoku's tentative records (the entries)
+        run: |
+          git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
+          for k in $KEYS; do git -C tengoku sparse-checkout add --no-cone "/data/tentative/$k.jsonl" "/data/tentative/$k/" 2>/dev/null || git -C tengoku sparse-checkout set --no-cone "/data/tentative/$k.jsonl" "/data/tentative/$k/"; done
+          git -C tengoku checkout -q main
       - name: Graphs
         run: |
           : > graphs.jsonl
           for k in $KEYS; do
+            python3 - "$k" <<'PY'
+          import glob, json, sys
+          sys.path.insert(0, "scripts/bump")
+          import gate2_batch as g
+          k = sys.argv[1]
+          ents = g.tentative_entries(sorted(glob.glob(f"tengoku/data/tentative/{k}.jsonl") + glob.glob(f"tengoku/data/tentative/{k}/*.jsonl")))
+          open(f"entries-{k}.jsonl", "w").write("".join(json.dumps(r) + "\n" for r in ents.values()))
+          print(k, len(ents), "entries")
+          PY
             read -r repo commit roots < <(python3 scripts/trial-library-build.py meta "$k" | awk '{print $1, $2, $4}')
             git clone -q --filter=blob:none "$repo" "src-$k" && git -C "src-$k" checkout -q "$commit"
-            python3 scripts/bump/import_graph.py "src-$k" "$(python3 scripts/trial-library-build.py meta "$k" | cut -d' ' -f4- | tr ' ' ',')" "data/translate/$k.jsonl" | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); d['key']='$k'; print(json.dumps(d))" | tee -a graphs.jsonl
+            python3 scripts/bump/import_graph.py "src-$k" "$(python3 scripts/trial-library-build.py meta "$k" | cut -d' ' -f4- | tr ' ' ',')" "entries-$k.jsonl" | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); d['key']='$k'; print(json.dumps(d))" | tee -a graphs.jsonl
           done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: { name: graphs, path: graphs.jsonl }
