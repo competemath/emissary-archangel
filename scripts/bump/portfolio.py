@@ -113,11 +113,66 @@ def rewrite(lines: list[str], block: tuple[int, int], tactics: list[str]) -> tup
         return None
     # each alternative must CLOSE the goal (`done`): `simp_all` or `norm_num` that merely makes progress would otherwise be
     # taken by `first` and starve the alternatives after it. The `trace` says, in the build log, which one succeeded.
-    new_proof = ":= by\n  first\n" + "\n".join(f'  | ({t}; done; trace "PORTFOLIO {t}")' for t in tactics)
+    new_proof = ":= by\n" + alternatives("  ", tactics)
     head = text[:he].rstrip()
     trailing = len(text) - len(text.rstrip("\n"))
     new = head + " " + new_proof + ("\n" * trailing)
     return lines[: s - 1] + new.split("\n")[: -trailing or None] + ([""] * trailing if trailing else []) + lines[e:], text[he:].strip()
+
+
+def alternatives(ind: str, tactics: list[str]) -> str:
+    """`first | … | …` at indentation `ind`. Each alternative must CLOSE every remaining goal (`all_goals … ; done`): a `simp_all` or
+    `norm_num` that merely makes progress would otherwise be taken by `first` and starve the alternatives after it, and a
+    goal left behind by a split would fail the proof. The `trace` (printed only when the alternative succeeded) says which one did."""
+    return f"{ind}first\n" + "\n".join(f'{ind}  | (all_goals {t}; done; trace "PORTFOLIO-OK {t}")' for t in tactics)
+
+
+def indent_of(s: str) -> int:
+    return len(s) - len(s.lstrip())
+
+
+def local_edit(lines: list[str], line: int, col: int, msg: str, tactics: list[str]) -> bool:
+    """Keep what worked, replace what did not, at the place Lean reports:
+      `unsolved goals` at a `by` that ends its line, or at a `·` bullet: the block ran, goals are left: close them at the block's end;
+      any other proof error at a whole-line tactic: that tactic and the rest of ITS block become the portfolio.
+    False when the error is anywhere else (the caller then rewrites the whole proof)."""
+    i = line - 1
+    if i >= len(lines):
+        return False
+    text = lines[i]
+    rest = text[col:]
+    if re.search(r"unsolved goals", msg):
+        if re.fullmatch(r"by\s*", rest):
+            base = indent_of(text)
+            j = i + 1
+            while j < len(lines) and (not lines[j].strip() or indent_of(lines[j]) > base):
+                j += 1
+            while j > i + 1 and not lines[j - 1].strip():
+                j -= 1  # blank lines after the block stay after it
+            if j == i + 1:
+                return False
+            ind = " " * indent_of(lines[i + 1])
+            lines[j:j] = alternatives(ind, tactics).split("\n")
+            return True
+        if rest.startswith(("·", ".")):
+            ind = " " * (col + 2)
+            j = i + 1
+            while j < len(lines) and (not lines[j].strip() or indent_of(lines[j]) >= col + 2):
+                j += 1
+            while j > i + 1 and not lines[j - 1].strip():
+                j -= 1
+            lines[j:j] = alternatives(ind, tactics).split("\n")
+            return True
+        return False
+    if col == indent_of(text) and text.strip() and not text.lstrip().startswith(("·", ".", "case", "next", "|", "have", "show", "calc")):
+        j = i + 1
+        while j < len(lines) and (not lines[j].strip() or indent_of(lines[j]) >= col):
+            j += 1
+        while j > i + 1 and not lines[j - 1].strip():
+            j -= 1
+        lines[i:j] = alternatives(" " * col, tactics).split("\n")
+        return True
+    return False
 
 
 NO_GOALS = re.compile(r"no goals to be solved|no goals", re.I)
@@ -176,22 +231,43 @@ def apply(a: argparse.Namespace) -> None:
             path.write_text("\n".join(lines))
             report["files"] += 1
             continue  # positions of the other errors moved: the next build reports them again
-        edits = []
-        for b, msgs in per_block.items():
-            if not all(PROOF_ERROR.search(m) for m in msgs):
+        # per declaration: all its errors are proof errors; every one fixed in place if it can be, else the whole proof is replaced
+        proof_errs: dict[tuple[int, int], list[tuple[int, int, str]]] = defaultdict(list)
+        for line, col, msg in errs:
+            b = next((b for b in bl if b[0] <= line <= b[1]), None)
+            if b:
+                proof_errs[b].append((line, col, msg))
+        changed = False
+        locals_done = 0
+        plan = []
+        for b, es in proof_errs.items():
+            if not all(PROOF_ERROR.search(m) for _, _, m in es):
                 report["skipped"]["not_a_proof_error"] += 1
                 continue
-            edits.append(b)
-        changed = False
-        for b in sorted(edits, reverse=True):  # bottom first: earlier line numbers stay valid
+            plan.append((b, es))
+        for b, es in sorted(plan, reverse=True):  # bottom first: earlier line numbers stay valid
+            trial = list(lines)
+            ok = True
+            for line, col, msg in sorted(es, reverse=True):
+                if not local_edit(trial, line, col, msg, tactics):
+                    ok = False
+                    break
+            if ok:
+                lines = trial
+                locals_done += len(es)
+                report["theorems_rewritten"] += 1
+                report["rewritten"].append({"file": f, "line": b[0], "how": "in place", "errors": len(es)})
+                changed = True
+                continue
             r = rewrite(lines, b, tactics)
             if r is None:
                 report["skipped"]["no_header_end_or_not_a_theorem"] += 1
                 continue
             lines, old = r
-            report["rewritten"].append({"file": f, "line": b[0], "old_proof": old[:300]})
+            report["rewritten"].append({"file": f, "line": b[0], "how": "whole proof", "old_proof": old[:300]})
             report["theorems_rewritten"] += 1
             changed = True
+        report["fixed_in_place"] = report.get("fixed_in_place", 0) + locals_done
         if changed:
             path.write_text("\n".join(lines))
             report["files"] += 1

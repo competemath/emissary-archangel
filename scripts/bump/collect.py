@@ -50,6 +50,12 @@ def row(key: str, run: str, out: Path) -> dict:
         r["controls_wrongly_passed"] = len(g["controls"]["wrongly_passed"])
         r["definitions"] = g.get("definitions", {}).get("by_result", {})
         r["by_outcome"] = g["by_pipeline_outcome"]
+    logs = sorted(d.rglob("build-s*-p*.log"))
+    if logs:  # the last portfolio build: how many proofs it closed, and with what
+        import re
+        from collections import Counter
+
+        r["portfolio_closed"] = dict(Counter(re.findall(r"PORTFOLIO-OK (\w+)", logs[-1].read_text(errors="replace"))))
     if find("bank.jsonl"):
         r["records"] = sum(1 for ln in find("bank.jsonl").read_text().splitlines() if ln.strip())
     if find("plan.json"):

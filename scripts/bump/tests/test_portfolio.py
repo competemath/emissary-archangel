@@ -53,7 +53,7 @@ class Portfolio(unittest.TestCase):
             ]
         )
         out, rep = run(SRC, log)
-        self.assertIn("theorem broken (a b : Nat) (h : a ≤ b) : a < b + 1 := by\n  first\n  | (grind; done; trace \"PORTFOLIO grind\")", out)
+        self.assertIn("(all_goals grind; done; trace \"PORTFOLIO-OK grind\")", out)
         self.assertNotIn("simp at h", out)
         self.assertIn("theorem ok_one : 1 = 1 := rfl", out)  # untouched
         self.assertIn("theorem bad_statement (a : Nat) : foo a = a := by\n  simp", out)  # untouched
@@ -65,6 +65,53 @@ class Portfolio(unittest.TestCase):
         out, rep = run(SRC, "error: T.lean:14:2: unsolved goals")
         self.assertIn("  | 0 => rfl", out)
         self.assertEqual(rep["theorems_rewritten"], 0)
+
+
+class InPlace(unittest.TestCase):
+    SRC = """import Mathlib
+
+theorem a (n : Nat) : n + 0 = n := by
+  induction n with
+  | zero => rfl
+  | succ k ih =>
+    simp
+
+theorem b (x y : Nat) (h : x ≤ y) : x ≤ y + 1 := by
+  constructor
+  · simp
+    omega
+  · simp
+
+theorem c (x : Nat) : x = x := by
+  rfl
+"""
+
+    def pos(self, needle, nth=0):
+        """(line, col) of the nth line containing `needle`, col at the needle."""
+        hits = [(i + 1, ln.index(needle)) for i, ln in enumerate(self.SRC.split("\n")) if needle in ln]
+        return hits[nth]
+
+    def test_unsolved_goals_at_by_closes_the_block_in_place(self):
+        line, col = self.pos("theorem a")[0], self.SRC.split("\n")[self.pos("theorem a")[0] - 1].index(":= by") + 3
+        out, rep = run(self.SRC, f"error: T.lean:{line}:{col}: unsolved goals\n⊢ False\n")
+        # the block is kept, the portfolio is appended at its indentation
+        self.assertIn("  induction n with\n  | zero => rfl\n  | succ k ih =>\n    simp\n  first\n    | (all_goals grind; done", out)
+        self.assertEqual(rep["rewritten"][0]["how"], "in place")
+        self.assertEqual(rep.get("fixed_in_place"), 1)
+
+    def test_failing_tactic_line_is_replaced_with_the_rest_of_its_block(self):
+        # `omega` fails inside the first bullet: only that bullet's tail changes, the second bullet is untouched
+        line, col = self.pos("omega")
+        out, rep = run(self.SRC, f"error: T.lean:{line}:{col}: omega could not prove the goal\n")
+        self.assertIn("  · simp\n    first\n      | (all_goals grind", out)
+        self.assertIn("  · simp\n\ntheorem c", out)
+        self.assertNotIn("    omega", out)
+        self.assertEqual(rep["rewritten"][0]["how"], "in place")
+
+    def test_unsolved_goals_at_a_bullet(self):
+        line, col = self.pos("· simp", 0)
+        out, rep = run(self.SRC, f"error: T.lean:{line}:{col}: unsolved goals\n")
+        self.assertIn("  · simp\n    omega\n    first\n", out.split("theorem c")[0])
 
 
 class NoGoals(unittest.TestCase):
