@@ -42,7 +42,7 @@ jobs:
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
           git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
-          git -C emissary sparse-checkout set --no-cone "/scripts/" "/gate2/" "/sources.json" "/data/translate/$KEY.jsonl" "/data/exports/$KEY/"
+          git -C emissary sparse-checkout set --no-cone "/scripts/" "/gate2/" "/lib/stage-record.mjs" "/sources.json" "/data/translate/$KEY.jsonl" "/data/exports/$KEY/"
           git -C emissary checkout -q "$GITHUB_SHA"
           du -sh emissary/data/exports/"$KEY" | cut -f1
       - name: elan
@@ -109,6 +109,16 @@ jobs:
       - name: Verdicts against the per-theorem pipeline's
         working-directory: emissary
         run: python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json
+      - name: Staging records for the declarations that passed (the pipeline's own record shape, from the built environment)
+        working-directory: emissary
+        run: |
+          python3 scripts/bump/records.py lean --lib lib --names passed.json --out lib/records-deps.lean
+          (cd lib && lake env lean records-deps.lean > ../records-deps.log 2>&1 || true)
+          grep -c "REC_DEPS" records-deps.log || true
+          { grep -E "error" records-deps.log | grep -v "REC_" | head -5 | cut -c1-300; } || true
+          python3 scripts/bump/records.py compose --lib lib --log records-deps.log --meta "data/exports/$KEY/setup.ci.json" --out composed.jsonl
+          node scripts/bump/stage-records.mjs composed.jsonl --source "$KEY" --toolchain "$TOOLCHAIN" --out bank.jsonl
+          wc -c bank.jsonl | cut -d' ' -f1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -122,6 +132,10 @@ jobs:
             emissary/repairs.patch
             emissary/gate2.log
             emissary/gate2-results.json
+            emissary/passed.json
+            emissary/composed.jsonl
+            emissary/bank.jsonl
+            emissary/records-deps.log
             emissary/plan.json
             emissary/lib/gate2-check.lean
             emissary/lib/gate2-check.plan.json

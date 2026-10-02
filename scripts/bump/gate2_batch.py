@@ -353,6 +353,13 @@ def parse(a: argparse.Namespace) -> None:
         },
     }
     Path(a.out).write_text(json.dumps(res, indent=2))
+    # the declarations that passed, by module: what scripts/bump/records.py turns into records
+    passed: dict[str, list[str]] = defaultdict(list)
+    for (old, _), (kind, _) in own.items():
+        r = entries.get(old)
+        if kind == "PASS" and r:
+            passed[module_of(r["sourcePath"])].append(old)
+    Path(a.out).with_name("passed.json").write_text(json.dumps({m: sorted(ns) for m, ns in passed.items()}))
     print(json.dumps(res, indent=2))
 
 
