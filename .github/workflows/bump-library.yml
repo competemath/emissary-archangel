@@ -224,6 +224,8 @@ jobs:
             emissary/bundle/report.json
             emissary/bundle/manifest.jsonl
             emissary/verify.log
+            emissary/pruned-src
+            emissary/bundle/Tengoku
             emissary/verify-summary.json
             emissary/bank.jsonl
             emissary/ledger-rows.jsonl

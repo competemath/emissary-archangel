@@ -174,6 +174,7 @@ def compose(a: argparse.Namespace) -> None:
         if m:
             err_lines[m.group(1)].add(int(m.group(2)))
     modules: dict[str, records.Module] = {}
+    glue_error: set[str] = set()
     for mod in own:
         parts = tb.split_mod(mod)
         path = lib.joinpath(*parts[:-1], parts[-1] + ".lean")
@@ -188,6 +189,9 @@ def compose(a: argparse.Namespace) -> None:
                     m.blocks.append((s, e))
             m.blocks.sort()
         modules[mod] = m
+        # an error outside every declaration block (a `variable`, a notation) cannot be cut out: the module cannot be shipped
+        if err_lines.get(rel) and any(not any(bs <= L <= be for bs, be in m.blocks) for L in err_lines[rel]):
+            glue_error.add(mod)
     imports = {mod: [d for d in tb.header_imports("\n".join(m.lines)) if d in own] for mod, m in modules.items()}
     external = {}
     for mod, m in modules.items():
@@ -200,6 +204,7 @@ def compose(a: argparse.Namespace) -> None:
             external[mod] = bad
     # a module that imports a package the tree does not have cannot be built there, nor can what imports it
     dropped: dict[str, str] = {m: "imports " + ", ".join(b) for m, b in external.items()}
+    dropped.update({m: "an error outside any declaration (glue)" for m in glue_error})
     changed = True
     while changed:
         changed = False

@@ -144,6 +144,10 @@ def normalize_imports(lib: Path, roots: list[str], lean_path: str = "") -> dict:
         if first is None:
             continue
         keep_prefix = prefix if prefix.strip() else "import "
+        # a file of Lean's module system (`module`) exposes what it imports only through `public import`: a private umbrella made
+        # `Fact` "imported privately" in every signature of a public section (flt-regular: 6 modules of 26 broke)
+        if any(ln.strip() == "module" for ln in out) and "public" not in keep_prefix:
+            keep_prefix = "public import "
         ins = [keep_prefix + m for m in umbrellas]
         new = out[:first] + ins + out[first:] + lines[i:]
         if new != lines:

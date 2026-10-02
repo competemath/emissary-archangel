@@ -28,6 +28,11 @@ class Normalize(unittest.TestCase):
         self.assertIn("module\n\npublic import Mathlib\npublic import Batteries", out)
         self.assertIn("import Foo.Bar", out)
 
+    def test_module_files_get_public_umbrellas_even_when_the_first_import_was_private(self):
+        out = self.run_on("module\n\nimport Mathlib.Tactic.Ring\npublic import Mathlib.Logic.Basic\n\npublic section\n")
+        self.assertIn("public import Mathlib\npublic import Batteries", out)
+        self.assertNotIn("\nimport Mathlib\n", out)
+
     def test_nothing_to_do(self):
         text = "import Lib.Other\n\ntheorem x : True := trivial\n"
         self.assertEqual(self.run_on(text), text)
