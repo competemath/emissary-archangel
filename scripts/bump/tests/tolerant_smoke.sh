@@ -41,11 +41,13 @@ import T.C
 #print axioms after_broken
 LEAN
 lake env lean check.lean | tee axioms.log
-grep -q "'fine' does not depend on any axioms" axioms.log || { echo "fine must be axiom-free"; exit 1; }
-grep -q "'uses_fine' does not depend on any axioms" axioms.log || { echo "uses_fine must be axiom-free"; exit 1; }
-grep -q "'after_broken' does not depend on any axioms" axioms.log || { echo "a theorem after the failing one must survive"; exit 1; }
-grep -q "'broken' depends on axioms: \[sorryAx\]" axioms.log || { echo "broken must stand on sorryAx"; exit 1; }
-grep -q "'uses_broken' depends on axioms: \[sorryAx\]" axioms.log || { echo "uses_broken must stand on sorryAx"; exit 1; }
+# `fine` and `uses_fine` use propext (simp) but never sorryAx; `after_broken`, written after the failing proof, is untouched by it
+for n in fine uses_fine after_broken; do
+  line=$(grep "^'$n' " axioms.log) || { echo "no axioms line for $n"; exit 1; }
+  case "$line" in *sorryAx*) echo "$n must not stand on sorryAx: $line"; exit 1;; esac
+done
+grep -q "^'broken' depends on axioms:.*sorryAx" axioms.log || { echo "broken must stand on sorryAx"; exit 1; }
+grep -q "^'uses_broken' depends on axioms:.*sorryAx" axioms.log || { echo "uses_broken must stand on sorryAx"; exit 1; }
 # the cache: a second run rebuilds nothing
 python3 "$here/tolerant_build.py" --lib . --roots T --log build2.log --report tb2.json --jobs 2 --cache .bump-cache
 python3 - <<'PY'
