@@ -59,4 +59,11 @@ cached = [m for m, s in tb["status"].items() if s.get("cached")]
 print("cached on the second run:", sorted(cached))
 assert set(cached) == {"T.A", "T.B", "T.C", "T.E"}, cached
 PY
+# Gate 2's own Lean modules (they import Lean only) build in a project of their own: a compile error in them breaks every bump run
+repo=$(cd "$here/../.." && pwd)
+rm -rf "$work/vendor" && mkdir -p "$work/vendor" && cd "$work/vendor"
+printf 'name = "V"\ndefaultTargets = ["Vendor"]\n[[lean_lib]]\nname = "Vendor"\n' > lakefile.toml
+cp -r "$repo/gate2/Vendor.lean" "$repo/gate2/Vendor" .
+lake build Vendor 2>&1 | tail -40
+test "${PIPESTATUS[0]}" = 0 || { echo "Vendor does not build"; exit 1; }
 echo "TOLERANT SMOKE OK"

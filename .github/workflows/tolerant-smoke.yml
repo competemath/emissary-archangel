@@ -15,7 +15,11 @@ jobs:
     permissions: { contents: read }
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with: { sparse-checkout: scripts, persist-credentials: false }
+        with:
+          sparse-checkout: |
+            scripts
+            gate2
+          persist-credentials: false
       - name: elan and the toolchain
         env: { TOOLCHAIN: "${{ inputs.toolchain }}" }
         run: |
