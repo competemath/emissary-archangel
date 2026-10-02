@@ -247,7 +247,7 @@ jobs:
         run: |
           mkdir -p out
           for mode in strict proposed; do
-            dir=raw/emissary/bundle; [ "$mode" = proposed ] && dir=raw/emissary/bundle-proposed
+            dir=raw/bundle; [ "$mode" = proposed ] && dir=raw/bundle-proposed
             python3 emissary/scripts/bump/bundle_tar.py "$dir" "out/bundle-$KEY-$mode.tar"
             gzip -n -k "out/bundle-$KEY-$mode.tar"
             cp "$dir/report.json" "out/report-$mode.json"; cp "$dir/manifest.jsonl" "out/manifest-$mode.jsonl"
