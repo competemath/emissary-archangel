@@ -34,6 +34,11 @@ def meta(key: str) -> None:
     print(d["repo"], d["commit"], d["toolchain"], *d["roots"])
 
 
+# Packages a library requires for its own development (blueprint checks, docs, export tools): no module imports them,
+# and each pins its own Lean version, so a retargeted build drops them.
+DEV_ONLY = ("checkdecls", "doc-gen4", "lean4export", "Comparator")
+
+
 def retarget(lib: str, mathlib: str, toolchain: str) -> None:
     root = Path(lib)
     (root / "lean-toolchain").write_text(toolchain + "\n")
@@ -45,6 +50,10 @@ def retarget(lib: str, mathlib: str, toolchain: str) -> None:
             if block and any(re.match(r'\s*name\s*=\s*"mathlib"', b) for b in block):
                 block[:] = [b for b in block if not re.match(r"\s*(rev|version)\s*=", b)]
                 block.append(f'rev = "{mathlib}"')
+            if block and block[0].strip() == "[[require]]" and any(
+                re.match(r'\s*name\s*=\s*"[«]?(' + "|".join(map(re.escape, DEV_ONLY)) + r')[»]?"', b) for b in block
+            ):
+                block.clear()  # a development-only requirement: dropped
             out.extend(block)
             block.clear()
 
@@ -58,6 +67,9 @@ def retarget(lib: str, mathlib: str, toolchain: str) -> None:
         toml.write_text(text)
     elif lean.exists():
         text = lean.read_text()
+        text = "\n".join(
+            ln for ln in text.splitlines() if not re.match(r"\s*require\s+[\"«]?(" + "|".join(map(re.escape, DEV_ONLY)) + r")[\"»]?\b", ln)
+        ) + "\n"
         new, n = re.subn(
             r'(require\s+(?:"leanprover-community"\s*/\s*)?"?mathlib"?\s+(?:from\s+git\s+"[^"]+"|@\s*git)?)(\s*@\s*"[^"]*")?',
             lambda m: f'{m.group(1)} @ "{mathlib}"',
