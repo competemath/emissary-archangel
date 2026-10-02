@@ -33,5 +33,20 @@ class Normalize(unittest.TestCase):
         self.assertEqual(self.run_on(text), text)
 
 
+class Available(unittest.TestCase):
+    def test_umbrella_without_a_root_olean_is_not_imported(self):
+        d = Path(tempfile.mkdtemp())
+        (d / "Lib").mkdir()
+        (d / "Lib" / "A.lean").write_text("import Mathlib.Data.Nat.Basic\nimport ProofWidgets.Component.Basic\n\ntheorem x : True := trivial\n")
+        lp = d / "oleans"
+        lp.mkdir()
+        for m in ("Mathlib", "Batteries", "Aesop", "Qq"):  # no ProofWidgets.olean
+            (lp / f"{m}.olean").write_text("")
+        subprocess.run([sys.executable, str(HERE / "engine.py"), "normalize-imports", "--lib", str(d), "--roots", "Lib", "--lean-path", str(lp)], check=True, capture_output=True)
+        out = (d / "Lib" / "A.lean").read_text()
+        self.assertIn("import Mathlib\nimport Batteries\nimport Aesop\nimport Qq\n", out)
+        self.assertNotIn("import ProofWidgets", out)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -73,7 +73,6 @@ jobs:
           [ "$CHAIN" = direct ] || [ "$(tail -1 plan.txt | cut -d' ' -f1)" = "$MATHLIB" ] || echo "$MATHLIB $TOOLCHAIN" >> plan.txt
           echo "bump plan:"; cat plan.txt
           python3 scripts/trial-library-build.py retarget lib "$(head -1 plan.txt | cut -d' ' -f1)" "$(head -1 plan.txt | cut -d' ' -f2)"
-          if [ "$IMPORTS" = full ]; then python3 scripts/bump/engine.py normalize-imports --lib lib --roots "$(echo "$roots" | tr ' ' ',')"; fi
       - name: Bump through the plan; at each step rebuild, repair, rebuild until nothing more can be repaired mechanically
         working-directory: emissary
         env: { GH_TOKEN: "${{ github.token }}" }
@@ -87,6 +86,7 @@ jobs:
             n=$((n+1)); echo "=== step $n: Mathlib $tag ($toolchain)"
             python3 scripts/trial-library-build.py retarget lib "$tag" "$toolchain"
             (cd lib && lake update 2>&1 | tail -2 && lake exe cache get 2>&1 | tail -1)
+            if [ "$IMPORTS" = full ]; then python3 scripts/bump/engine.py normalize-imports --lib lib --roots "$ROOTS" --lean-path "$(cd lib && lake env printenv LEAN_PATH)"; fi
             if [ "$IMPORTS" = full ]; then echo '{"moves":{}}' > "moves-$n.json"; else python3 scripts/bump/mine_moves.py "$prev" "$tag" --out "moves-$n.json"; fi
             start=$(date +%s); build "s$n-0"; echo "step $n baseline build: $(( ($(date +%s) - start) / 60 )) min"
             last="s$n-0"

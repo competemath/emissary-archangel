@@ -105,9 +105,14 @@ UMBRELLA_ROOTS = ("Mathlib", "Batteries", "Aesop", "Qq", "ProofWidgets", "Plausi
 UMBRELLA_IMPORTS = ["Mathlib", "Batteries", "Aesop", "Qq", "ProofWidgets"]
 
 
-def normalize_imports(lib: Path, roots: list[str]) -> dict:
+def normalize_imports(lib: Path, roots: list[str], lean_path: str = "") -> dict:
     """Replace each file's imports of the umbrella packages' modules by the umbrella imports (the first replaced line's
-    `public`/`meta` prefix is kept); every other import (the library's own, other packages) is untouched."""
+    `public`/`meta` prefix is kept); every other import (the library's own, other packages) is untouched. An umbrella is only
+    imported if its root module exists on `lean_path` (ProofWidgets has no root olean in some builds)."""
+    umbrellas = UMBRELLA_IMPORTS
+    if lean_path:
+        dirs = [Path(d) for d in lean_path.split(":") if d]
+        umbrellas = [m for m in UMBRELLA_IMPORTS if any((d / f"{m}.olean").exists() for d in dirs)] or ["Mathlib"]
     changed = removed = 0
     for path in lean_files(lib, roots):
         lines = path.read_text().split("\n")
@@ -139,7 +144,7 @@ def normalize_imports(lib: Path, roots: list[str]) -> dict:
         if first is None:
             continue
         keep_prefix = prefix if prefix.strip() else "import "
-        ins = [keep_prefix + m for m in UMBRELLA_IMPORTS]
+        ins = [keep_prefix + m for m in umbrellas]
         new = out[:first] + ins + out[first:] + lines[i:]
         if new != lines:
             path.write_text("\n".join(new))
@@ -217,8 +222,9 @@ if __name__ == "__main__":
     n = sub.add_parser("normalize-imports")
     n.add_argument("--lib", required=True)
     n.add_argument("--roots", required=True)
+    n.add_argument("--lean-path", default="", help="only umbrellas whose root olean is on this LEAN_PATH")
     args = ap.parse_args()
     if args.cmd == "normalize-imports":
-        print(json.dumps(normalize_imports(Path(args.lib), [r for r in args.roots.split(",") if r])))
+        print(json.dumps(normalize_imports(Path(args.lib), [r for r in args.roots.split(",") if r], args.lean_path)))
     else:
         repair(args)
