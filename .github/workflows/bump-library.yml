@@ -1,0 +1,97 @@
+# EXPERIMENT: the Mathlib-style bump of ONE library, with Gate 2 batched. No Claude, no Leak.
+#
+# 1. the library's real files are built against the Mathlib the Tengoku tree is seeded from (trial-library-build.yml's
+#    pass 1: lake build --keep-going, in dependency order);
+# 2. Gate 2's `Vendor` modules are built into the same project;
+# 3. ONE Lean process imports every module that built and checks the statement of every ledger entry in them
+#    (scripts/bump/gate2_batch.py: the same Lean code as gate2/server.py, the original's committed export parsed once
+#    per module), plus N control pairs of unrelated statements that must all fail.
+# The result is compared, entry by entry, with what the per-theorem pipeline decided (the ledger).
+name: bump-library
+on:
+  workflow_dispatch:
+    inputs:
+      key: { description: "registered library key (data/exports/<key>/setup.ci.json)", required: true }
+      mathlib: { description: "Mathlib tag the Tengoku tree is seeded from", default: "v4.34.0-rc2" }
+      toolchain: { description: "the tree's Lean toolchain", default: "leanprover/lean4:v4.34.0-rc2" }
+      controls: { description: "control pairs (unrelated statements) that must fail", default: "20" }
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    permissions: { contents: read }
+    env:
+      KEY: ${{ inputs.key }}
+      MATHLIB: ${{ inputs.mathlib }}
+      TOOLCHAIN: ${{ inputs.toolchain }}
+      CONTROLS: ${{ inputs.controls }}
+    steps:
+      - name: Free disk (Mathlib's build is several GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift
+          df -h / | tail -1
+      - name: This repository, only what the experiment reads (the library's own exports, ledger and the Gate 2 sources)
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
+          git -C emissary sparse-checkout set --no-cone "/scripts/" "/gate2/" "/sources.json" "/data/translate/$KEY.jsonl" "/data/exports/$KEY/"
+          git -C emissary checkout -q "$GITHUB_SHA"
+          du -sh emissary/data/exports/"$KEY" | cut -f1
+      - name: elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: The library at its pinned commit, pointed at the tree's Mathlib
+        run: |
+          cd emissary
+          read -r repo commit _ roots < <(python3 scripts/trial-library-build.py meta "$KEY")
+          echo "ROOTS=$(echo "$roots" | tr ' ' ',')" >> "$GITHUB_ENV"
+          git clone -q --filter=blob:none "$repo" lib && git -C lib checkout -q "$commit"
+          python3 scripts/trial-library-build.py retarget lib "$MATHLIB" "$TOOLCHAIN"
+          # Gate 2's own Lean modules, built into the same project (they import Lean only)
+          cp -r ../emissary/gate2/Vendor.lean ../emissary/gate2/Vendor lib/
+          if [ -f lib/lakefile.toml ]; then printf '\n[[lean_lib]]\nname = "Vendor"\n' >> lib/lakefile.toml; else printf '\nlean_lib Vendor\n' >> lib/lakefile.lean; fi
+          cd lib
+          lake update 2>&1 | tail -3
+          lake exe cache get 2>&1 | tail -2
+      - name: Build the library (all of it, in dependency order, unchanged) and Gate 2's modules
+        working-directory: emissary/lib
+        run: |
+          keep=""; lake build --help 2>&1 | grep -q -- "--keep-going" && keep="--keep-going"
+          start=$(date +%s)
+          timeout 150m lake build $keep > ../build1.log 2>&1 || true
+          echo "library build: $(( ($(date +%s) - start) / 60 )) minutes"; tail -3 ../build1.log
+          lake build Vendor 2>&1 | tail -3
+      - name: What built
+        working-directory: emissary
+        run: python3 scripts/trial-library-build.py analyze lib "$KEY" pass1 build1.log
+      - name: Batched Gate 2 over every declaration of every module that built
+        working-directory: emissary
+        run: |
+          python3 scripts/bump/gate2_batch.py generate --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
+            --roots "$ROOTS" --out lib/gate2-check.lean --controls "$CONTROLS" | tee plan.json
+          cd lib
+          start=$(date +%s)
+          timeout 120m lake env lean gate2-check.lean > ../gate2.log 2>&1 || true
+          echo "batched Gate 2: $(( $(date +%s) - start )) seconds for $(grep -c 'GATE2B_' ../gate2.log) verdicts"
+          echo "--- Lean errors (not verdicts):"; grep -E "error" ../gate2.log | grep -v "GATE2B_" | head -8 | cut -c1-300
+      - name: Verdicts against the per-theorem pipeline's
+        working-directory: emissary
+        run: python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: bump-${{ inputs.key }}
+          path: |
+            emissary/build1.log
+            emissary/pass1.json
+            emissary/gate2.log
+            emissary/gate2-results.json
+            emissary/plan.json
+            emissary/lib/gate2-check.lean
+            emissary/lib/gate2-check.plan.json
+          retention-days: 30
