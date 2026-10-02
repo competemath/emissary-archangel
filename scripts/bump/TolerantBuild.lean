@@ -21,7 +21,7 @@ open Lean Elab
 def main (args : List String) : IO UInt32 := do
   let [file, modName, oleanFile] := args | throw <| IO.userError "usage: TolerantBuild FILE MODULE OLEAN"
   -- what the `lean` binary does before it reads a file: imported modules' `initialize` declarations (attributes, extensions) must run
-  enableInitializersExecution
+  unsafe enableInitializersExecution
   initSearchPath (← findSysroot)
   let input ← IO.FS.readFile file
   let inputCtx := Parser.mkInputContext input file
