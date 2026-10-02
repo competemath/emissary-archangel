@@ -83,7 +83,7 @@ def main() -> None:
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 """
-    sh("git", "add", "-A", cwd=str(repo))
+    sh("git", "add", "--sparse", "-A", cwd=str(repo))
     sh("git", "commit", "-q", "-s", "-m", msg + "\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>", cwd=str(repo))
     print(f"branch {branch}: {msg}; {n_files} files")
     if a.dry_run:
