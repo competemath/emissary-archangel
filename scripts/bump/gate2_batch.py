@@ -325,7 +325,15 @@ def generate(a: argparse.Namespace) -> None:
             plan.append((mod, export, present))
     header = server_header()
     imports = "".join(f"import {mod}\n" for mod, _, _ in plan)
-    header = header.replace("import Mathlib\n", "import Mathlib\n" + imports, 1)
+    # A library that never imports Mathlib (lean4-analysis-tao: "tactic shims that replace the bits of Mathlib") is checked
+    # without it: Gate 2's logic needs only Lean, and the library may declare names (a notation `≃`) Mathlib also declares,
+    # which would make the two unimportable together.
+    uses_mathlib = any(
+        re.match(r"\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)?(?:Mathlib|Batteries|Aesop|Qq|ProofWidgets|Plausible)\b", ln)
+        for f in lib.rglob("*.lean") if ".lake" not in f.parts and f.name != "gate2-check.lean"
+        for ln in f.read_text(errors="replace").splitlines()[:80]
+    )
+    header = header.replace("import Mathlib\n", ("import Mathlib\n" if uses_mathlib else "") + imports, 1)
     body = [header, BATCH_LEAN]
     for mod, export, names in plan:
         body.append(f'\n-- {mod}: {len(names)} declarations\n#tengoku_import_parse "{export.resolve()}"\n')
