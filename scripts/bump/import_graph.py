@@ -63,9 +63,9 @@ out = {
     "no_own_imports": sum(1 for v in imp.values() if not v),
     "max_depth": max(depth.values(), default=0),
     "components": len(comps),
-    "largest_component": max(len(v) for v in comps.values()),
-    "closure_median": sizes[len(sizes) // 2],
-    "closure_p90": sizes[int(len(sizes) * 0.9)],
-    "closure_max": sizes[-1],
+    "largest_component": max((len(v) for v in comps.values()), default=0),
+    "closure_median": sizes[len(sizes) // 2] if sizes else 0,
+    "closure_p90": sizes[int(len(sizes) * 0.9)] if sizes else 0,
+    "closure_max": sizes[-1] if sizes else 0,
 }
 print(json.dumps(out))
