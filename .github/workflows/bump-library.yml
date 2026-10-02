@@ -15,6 +15,8 @@ on:
       mathlib: { description: "Mathlib tag the Tengoku tree is seeded from", default: "v4.34.0-rc2" }
       toolchain: { description: "the tree's Lean toolchain", default: "leanprover/lean4:v4.34.0-rc2" }
       controls: { description: "control pairs (unrelated statements) that must fail", default: "20" }
+      chain: { description: "direct = one jump to `mathlib`; auto = through intermediate Mathlib releases (scripts/bump/plan_chain.py); or a comma list of tags", default: "direct" }
+      step: { description: "chain=auto: at most this many Lean minor versions per step", default: "3" }
 permissions: {}
 defaults:
   run:
@@ -29,6 +31,8 @@ jobs:
       MATHLIB: ${{ inputs.mathlib }}
       TOOLCHAIN: ${{ inputs.toolchain }}
       CONTROLS: ${{ inputs.controls }}
+      CHAIN: ${{ inputs.chain }}
+      STEP: ${{ inputs.step }}
     steps:
       - name: Free disk (Mathlib's build is several GB)
         run: |
@@ -45,39 +49,51 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
-      - name: The library at its pinned commit, pointed at the tree's Mathlib
+      - name: The library at its pinned commit
         run: |
           cd emissary
           read -r repo commit _ roots < <(python3 scripts/trial-library-build.py meta "$KEY")
           echo "ROOTS=$(echo "$roots" | tr ' ' ',')" >> "$GITHUB_ENV"
           git clone -q --filter=blob:none "$repo" lib && git -C lib checkout -q "$commit"
-          echo "OLD_MATHLIB=$(python3 -c "import json; print(next(p['rev'] for p in json.load(open('lib/lake-manifest.json'))['packages'] if p['name']=='mathlib'))")" >> "$GITHUB_ENV"
-          python3 scripts/trial-library-build.py retarget lib "$MATHLIB" "$TOOLCHAIN"
+          OLD_MATHLIB=$(python3 -c "import json; print(next(p['rev'] for p in json.load(open('lib/lake-manifest.json'))['packages'] if p['name']=='mathlib'))")
+          echo "OLD_MATHLIB=$OLD_MATHLIB" >> "$GITHUB_ENV"
+          # the Mathlib releases to go through, oldest first (the target last): `direct` = the target alone
+          case "$CHAIN" in
+            direct) echo "$MATHLIB $TOOLCHAIN" > plan.txt ;;
+            auto) GH_TOKEN=${{ github.token }} python3 scripts/bump/plan_chain.py "$OLD_MATHLIB" "$MATHLIB" --step "$STEP" > plan.txt ;;
+            *) : > plan.txt; for t in ${CHAIN//,/ }; do echo "$t leanprover/lean4:$(echo "$t" | sed 's/-rc.*//')" >> plan.txt; done ;;
+          esac
+          # an explicit list still ends at the target
+          [ "$CHAIN" = direct ] || [ "$(tail -1 plan.txt | cut -d' ' -f1)" = "$MATHLIB" ] || echo "$MATHLIB $TOOLCHAIN" >> plan.txt
+          echo "bump plan:"; cat plan.txt
           # Gate 2's own Lean modules, built into the same project (they import Lean only)
-          cp -r ../emissary/gate2/Vendor.lean ../emissary/gate2/Vendor lib/
+          python3 scripts/trial-library-build.py retarget lib "$(head -1 plan.txt | cut -d' ' -f1)" "$(head -1 plan.txt | cut -d' ' -f2)"
+          cp -r gate2/Vendor.lean gate2/Vendor lib/
           if [ -f lib/lakefile.toml ]; then printf '\n[[lean_lib]]\nname = "Vendor"\n' >> lib/lakefile.toml; else printf '\nlean_lib Vendor\n' >> lib/lakefile.lean; fi
-          cd lib
-          lake update 2>&1 | tail -3
-          lake exe cache get 2>&1 | tail -2
-      - name: Where Mathlib moved its modules between the library's Mathlib and the tree's
+      - name: Bump through the plan; at each step rebuild, repair, rebuild until nothing more can be repaired mechanically
         working-directory: emissary
         env: { GH_TOKEN: "${{ github.token }}" }
-        run: python3 scripts/bump/mine_moves.py "$OLD_MATHLIB" "$MATHLIB" --out moves.json
-      - name: Build the library unchanged, then repair and rebuild until nothing more can be repaired mechanically
-        working-directory: emissary
         run: |
           # scripts/bump/tolerant_build.py: every module goes through the toolchain's own frontend and its olean is written even
           # when the file has errors (a failing proof costs that declaration, not the module and everything downstream);
           # modules whose source and imports are unchanged since the last round are not rebuilt
           build() { python3 scripts/bump/tolerant_build.py --lib lib --roots "$ROOTS" --log "build-$1.log" --report "tb-$1.json" --jobs 4 --cache lib/.bump-cache; python3 scripts/trial-library-build.py analyze lib "$KEY" "pass-$1" "build-$1.log" | grep -E "^- (Modules|Ledger|Modules that no longer)"; }
-          start=$(date +%s); build 0; echo "baseline build: $(( ($(date +%s) - start) / 60 )) min"
-          last=0
-          for r in 1 2 3 4; do
-            python3 scripts/bump/engine.py repair --lib lib --log "build-$last.log" --roots "$ROOTS" --moves moves.json --state state.json --round "$r" --out "repair-$r.json" --deprecations
-            [ "$(python3 -c "import json; print(json.load(open('repair-$r.json'))['changed'])")" = True ] || { echo "round $r: nothing left to repair mechanically"; break; }
-            start=$(date +%s); build "$r"; echo "round $r build: $(( ($(date +%s) - start) / 60 )) min"; last=$r
-          done
-          echo "final state: build-$last.log"; cp "build-$last.log" build1.log; cp "pass-$last.json" pass1.json; cp "tb-$last.json" tb-final.json
+          prev=$OLD_MATHLIB; n=0; final=""
+          while read -r tag toolchain; do
+            n=$((n+1)); echo "=== step $n: Mathlib $tag ($toolchain)"
+            python3 scripts/trial-library-build.py retarget lib "$tag" "$toolchain"
+            (cd lib && lake update 2>&1 | tail -2 && lake exe cache get 2>&1 | tail -1)
+            python3 scripts/bump/mine_moves.py "$prev" "$tag" --out "moves-$n.json"
+            start=$(date +%s); build "s$n-0"; echo "step $n baseline build: $(( ($(date +%s) - start) / 60 )) min"
+            last="s$n-0"
+            for r in 1 2 3 4; do
+              python3 scripts/bump/engine.py repair --lib lib --log "build-$last.log" --roots "$ROOTS" --moves "moves-$n.json" --state "state-$n.json" --round "$r" --out "repair-s$n-$r.json" --deprecations
+              [ "$(python3 -c "import json; print(json.load(open('repair-s$n-$r.json'))['changed'])")" = True ] || { echo "step $n round $r: nothing left to repair mechanically"; break; }
+              start=$(date +%s); build "s$n-$r"; echo "step $n round $r build: $(( ($(date +%s) - start) / 60 )) min"; last="s$n-$r"
+            done
+            final=$last; prev=$tag
+          done < plan.txt
+          echo "final state: build-$final.log"; cp "build-$final.log" build1.log; cp "pass-$final.json" pass1.json; cp "tb-$final.json" tb-final.json
           (cd lib && lake build Vendor 2>&1 | tail -2)
           git -C lib diff --stat | tail -3; git -C lib diff > ../repairs.patch
       - name: Batched Gate 2 over every declaration of every module that built
