@@ -43,7 +43,7 @@ def size_of(key: str) -> tuple[int, int]:
 def jobs_needed(key: str) -> tuple[str, int]:
     modules, lines = size_of(key)
     if modules >= 350 or lines >= 200_000:
-        return BIG, min(20, max(2, math.ceil(lines / 200_000))) + 2
+        return BIG, min(8, max(2, math.ceil(lines / 200_000))) + 2  # bump-sharded runs 8 shards at once (its `parallel` input)
     return SMALL, 1
 
 
@@ -65,7 +65,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--keys", required=True)
     ap.add_argument("--repo", required=True)
-    ap.add_argument("--capacity", type=int, default=20)
+    ap.add_argument("--capacity", type=int, default=14)  # the repository has 20 runners; tengoku CI needs some
     ap.add_argument("--skip", default="")
     ap.add_argument("--deadline-min", type=int, default=330)
     ap.add_argument("--dispatch-self", action="store_true")

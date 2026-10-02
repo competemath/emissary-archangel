@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       keys: { description: "space-separated keys, or `all` (every library with exports)", default: "all" }
-      capacity: { description: "jobs of this repository to keep running at once", default: "20" }
+      capacity: { description: "jobs to keep running at once (the repository has 20 runners and tengoku CI waits for them too)", default: "14" }
       skip: { description: "keys to leave out", default: "" }
 permissions: {}
 defaults:

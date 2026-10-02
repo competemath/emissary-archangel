@@ -11,6 +11,7 @@ on:
       mathlib: { description: "Mathlib tag the Tengoku tree is seeded from", default: "v4.34.0-rc2" }
       toolchain: { description: "the tree's Lean toolchain", default: "leanprover/lean4:v4.34.0-rc2" }
       shards: { description: "number of shards (0 = one per ~200k lines, at most 20)", default: "0" }
+      parallel: { description: "shards running at once (the repository has 20 runners; tengoku's own CI waits for them too: leave it room)", default: "8" }
 permissions: {}
 defaults:
   run:
@@ -67,7 +68,7 @@ jobs:
     needs: plan
     strategy:
       fail-fast: false
-      max-parallel: 20
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
       matrix: { shard: "${{ fromJSON(needs.plan.outputs.shards) }}" }
     uses: ./.github/workflows/bump-shard.yml
     with:
