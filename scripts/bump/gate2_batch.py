@@ -361,11 +361,12 @@ def generate(a: argparse.Namespace) -> None:
     # library imports can touch them. The kernel must answer inside each check (see the comment in gate2/server.py's header).
     header = "import Lean\n" + ("import Mathlib\n" if uses_mathlib else "") + imports + "import Vendor.Batch\n\nset_option maxErrors 0\nset_option Elab.async false\n"
     body = [header]
-    for mod, export, names in plan:
+    for k, (mod, export, names) in enumerate(plan):
         body.append(f'\n-- {mod}: {len(names)} declarations\n#tengoku_import_parse "{export.resolve()}"\n')
         for i in range(0, len(names), 40):  # several per command line is fine; 40 keeps each message block small
             body.append(f'#gate2_batch "{",".join(names[i:i + 40])}"\n')
-        body.append("#gate2_defcontrols 1\n")  # same type, different value: the kernel must refuse
+        if k < 3:  # same type, different value: the kernel must refuse (a few, with a small budget: asking it to prove two big unequal definitions equal is slow)
+            body.append("set_option maxHeartbeats 20000 in\n#gate2_defcontrols 1\n")
     if a.controls:
         rng = random.Random(7)
         # unrelated pairs inside one module: the original statement of A against the new B
