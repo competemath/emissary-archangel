@@ -1,0 +1,44 @@
+# The whole bump, unattended: every library with exports, big ones sharded, as fast as 20 runners allow (scripts/bump/orchestrate.py).
+# Each run uploads its attested intake bundle as an artifact `bump-<key>`; nothing is committed or sent anywhere.
+name: bump-all
+on:
+  workflow_dispatch:
+    inputs:
+      keys: { description: "space-separated keys, or `all` (every library with exports)", default: "all" }
+      capacity: { description: "jobs of this repository to keep running at once", default: "20" }
+      skip: { description: "keys to leave out", default: "" }
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  orchestrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    permissions: { contents: read, actions: write }
+    env:
+      GH_TOKEN: ${{ github.token }}
+      KEYS: ${{ inputs.keys }}
+      CAPACITY: ${{ inputs.capacity }}
+      SKIP: ${{ inputs.skip }}
+    steps:
+      - name: Scripts and the libraries' setup files
+        run: |
+          git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" .
+          git sparse-checkout set --no-cone "/scripts/" "/data/exports/*/setup.ci.json"
+          git checkout -q "$GITHUB_SHA"
+      - name: Dispatch
+        run: |
+          if [ "$KEYS" = all ]; then
+            KEYS=$(python3 - <<'PY'
+          import json, glob
+          keys = []
+          for f in sorted(glob.glob("data/exports/*/setup.ci.json")):
+              d = json.load(open(f))
+              if d.get("exported", 0) > 0:
+                  keys.append(d["key"])
+          print(" ".join(keys))
+          PY
+            )
+          fi
+          python3 scripts/bump/orchestrate.py --repo "$GITHUB_REPOSITORY" --keys "$KEYS" --capacity "$CAPACITY" --skip "$SKIP" --dispatch-self

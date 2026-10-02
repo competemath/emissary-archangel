@@ -3,6 +3,7 @@
 # dependency-closed shards (a module goes to the shard that already builds most of what it imports); the merge unions what every shard
 # found passed and prunes the library once.
 name: bump-sharded
+run-name: bump-sharded ${{ inputs.key }}
 on:
   workflow_dispatch:
     inputs:
