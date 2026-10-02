@@ -1,0 +1,118 @@
+# A big library, bumped in shards (plan -> N shards in parallel -> merge into ONE attested intake bundle). Same checks and guarantees as
+# bump-library.yml; the difference is only that no single runner builds the whole library. scripts/bump/plan_shards.py cuts it into
+# dependency-closed shards (a module goes to the shard that already builds most of what it imports); the merge unions what every shard
+# found passed and prunes the library once.
+name: bump-sharded
+on:
+  workflow_dispatch:
+    inputs:
+      key: { description: "registered library key", required: true }
+      mathlib: { description: "Mathlib tag the Tengoku tree is seeded from", default: "v4.34.0-rc2" }
+      toolchain: { description: "the tree's Lean toolchain", default: "leanprover/lean4:v4.34.0-rc2" }
+      shards: { description: "number of shards (0 = one per ~200k lines, at most 20)", default: "0" }
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions: { contents: read }
+    env: { KEY: "${{ inputs.key }}", SHARDS: "${{ inputs.shards }}" }
+    outputs:
+      shards: ${{ steps.p.outputs.shards }}
+    steps:
+      - name: This repository (scripts, the library's setup) and tengoku's entries for it
+        run: |
+          git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
+          git -C emissary sparse-checkout set --no-cone "/scripts/" "/data/exports/$KEY/setup.ci.json"
+          git -C emissary checkout -q "$GITHUB_SHA"
+          git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
+          git -C tengoku sparse-checkout set --no-cone "/data/tentative/$KEY.jsonl" "/data/tentative/$KEY/"
+          git -C tengoku checkout -q main
+      - name: The library, its import graph, the plan
+        id: p
+        working-directory: emissary
+        run: |
+          read -r repo commit _ roots < <(python3 scripts/trial-library-build.py meta "$KEY")
+          git clone -q --filter=blob:none "$repo" lib && git -C lib checkout -q "$commit"
+          python3 - <<'PY'
+          import glob, json, math, os, sys
+          sys.path.insert(0, "scripts/bump")
+          import gate2_batch as g, plan_shards as ps
+          from pathlib import Path
+          key = os.environ["KEY"]
+          roots = [r for r in json.load(open(f"data/exports/{key}/setup.ci.json"))["roots"]]
+          ents = g.tentative_entries(sorted(glob.glob(f"../tengoku/data/tentative/{key}.jsonl") + glob.glob(f"../tengoku/data/tentative/{key}/*.jsonl")))
+          import tolerant_build as tb
+          wanted = {".".join(tb.esc(x) for x in r["sourcePath"][:-5].split("/")) for r in ents.values()}
+          imp, weight = ps.graph(Path("lib"), roots)
+          wanted &= set(imp)
+          k = int(os.environ["SHARDS"] or 0)
+          if k <= 0:
+              k = max(1, min(20, math.ceil(sum(weight.values()) / 200_000)))
+          plan = ps.plan(imp, weight, k, wanted=wanted)
+          os.makedirs("../plan", exist_ok=True)
+          json.dump(plan, open("../plan/plan.json", "w"))
+          print({kk: v for kk, v in plan.items() if kk != "shards"}, "entries:", len(ents), "modules with entries:", len(wanted))
+          shards = [s["shard"] for s in plan["shards"] if s["targets"]]
+          out = os.environ["GITHUB_OUTPUT"]
+          open(out, "a").write("shards=" + json.dumps(shards) + "\n")
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: "plan-${{ inputs.key }}", path: plan, retention-days: 14 }
+  shard:
+    needs: plan
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.shards) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+    permissions: { contents: read }
+  finish:
+    needs: [plan, shard]
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions: { contents: read, id-token: write, attestations: write }
+    env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}" }
+    steps:
+      - name: This repository (scripts, the library's setup)
+        run: |
+          git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
+          git -C emissary sparse-checkout set --no-cone "/scripts/" "/data/exports/$KEY/setup.ci.json"
+          git -C emissary checkout -q "$GITHUB_SHA"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { pattern: "shard-${{ inputs.key }}-*", path: shards }
+      - name: Merge the shards and cut the bundle
+        working-directory: emissary
+        run: |
+          mkdir -p ../merged ../logs
+          python3 scripts/bump/shard_pack.py merge --shards ../shards --out ../merged --logs ../logs
+          cat ../logs/gate2-results.json
+          python3 scripts/bump/bundle.py compose --lib ../merged --log ../logs/bundle-deps.log --passed ../logs/passed.json --meta "data/exports/$KEY/setup.ci.json" \
+            --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --out ../bundle --src ../pruned-src
+      - name: Pack and attest
+        run: |
+          tar -C bundle -czf "bundle-$KEY.tar.gz" .
+          sha256sum "bundle-$KEY.tar.gz" | tee bundle.sha256
+          cat bundle/report.json
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with: { subject-path: "bundle-${{ inputs.key }}.tar.gz" }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bump-${{ inputs.key }}
+          path: |
+            bundle-*.tar.gz
+            bundle.sha256
+            bundle/report.json
+            bundle/manifest.jsonl
+            logs/gate2-results.json
+            logs/passed.json
+          retention-days: 30

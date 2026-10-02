@@ -46,6 +46,8 @@ def pack(a: argparse.Namespace) -> None:
         shutil.copy2(a.passed, out / "passed.json")
     if Path(a.keep).exists():
         shutil.copy2(a.keep, out / "bundle-deps.log")
+    if a.results and Path(a.results).exists():
+        shutil.copy2(a.results, out / "gate2-results.json")
     print(f"packed {len(build)} modules")
 
 
@@ -53,6 +55,7 @@ def merge(a: argparse.Namespace) -> None:
     out = Path(a.out)
     (out / ".lake" / "build" / "lib" / "lean").mkdir(parents=True, exist_ok=True)
     passed: dict[str, set[str]] = {}
+    total: dict = {"shards": 0, "checked": 0, "pass": 0, "pass_equal": 0, "pass_entails": 0, "fail_reasons": {}, "definitions": {}, "controls_wrongly_passed": 0}
     logs = {"gate2.log": [], "errors.log": [], "bundle-deps.log": []}
     for d in sorted(Path(a.shards).glob("*")):
         d = next(iter(d.glob("shard-pack")), d) if d.is_dir() else d
@@ -72,11 +75,23 @@ def merge(a: argparse.Namespace) -> None:
         for name, acc in logs.items():
             if (d / name).exists():
                 acc.append((d / name).read_text(errors="replace"))
+        if (d / "gate2-results.json").exists():
+            r = json.loads((d / "gate2-results.json").read_text())
+            total["shards"] += 1
+            for k in ("checked", "pass", "pass_equal", "pass_entails"):
+                total[k] += r.get(k, 0)
+            for k in ("fail_reasons",):
+                for kk, v in r.get(k, {}).items():
+                    total[k][kk] = total[k].get(kk, 0) + v
+            for kk, v in r.get("definitions", {}).get("by_result", {}).items():
+                total["definitions"][kk] = total["definitions"].get(kk, 0) + v
+            total["controls_wrongly_passed"] += len(r.get("controls", {}).get("wrongly_passed", []))
         if (d / "passed.json").exists():
             for m, ns in json.loads((d / "passed.json").read_text()).items():
                 passed.setdefault(m, set()).update(ns)
     for name, acc in logs.items():
         (Path(a.logs) / name).write_text("\n".join(acc))
+    (Path(a.logs) / "gate2-results.json").write_text(json.dumps(total, indent=1))
     (Path(a.logs) / "passed.json").write_text(json.dumps({m: sorted(v) for m, v in passed.items()}))
     print(f"merged: {sum(len(v) for v in passed.values())} passed names in {len(passed)} modules")
 
@@ -88,6 +103,7 @@ if __name__ == "__main__":
     for f in ("lib", "roots", "out", "gate2", "errors", "passed", "keep"):
         p.add_argument(f"--{f}", required=True)
     p.add_argument("--modules", default="")
+    p.add_argument("--results", default="")
     m = sub.add_parser("merge")
     for f in ("shards", "out", "logs"):
         m.add_argument(f"--{f}", required=True)

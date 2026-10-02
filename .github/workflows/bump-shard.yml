@@ -1,0 +1,141 @@
+# One shard of a big library's bump (called by bump-sharded.yml; see scripts/bump/README.md). A shard builds a dependency-closed set of
+# modules (its targets and everything they import), repairs them, runs the batched Gate 2 for the declarations of its TARGETS and works
+# out which library constants their passed theorems are made of. It sends the merge what it needs to cut the intake bundle: the repaired
+# sources and range sidecars of its modules, its verdicts, the constants to keep.
+name: bump-shard
+on:
+  workflow_call:
+    inputs:
+      key: { type: string, required: true }
+      mathlib: { type: string, required: true }
+      toolchain: { type: string, required: true }
+      shard: { type: number, required: true }
+      controls: { type: string, default: "20" }
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  shard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    permissions: { contents: read }
+    env:
+      KEY: ${{ inputs.key }}
+      MATHLIB: ${{ inputs.mathlib }}
+      TOOLCHAIN: ${{ inputs.toolchain }}
+      SHARD: ${{ inputs.shard }}
+      CONTROLS: ${{ inputs.controls }}
+    steps:
+      - name: Free disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift
+          df -h / | tail -1
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { name: "plan-${{ inputs.key }}", path: plan }
+      - name: This shard's modules, and only the exports and entries it needs
+        run: |
+          python3 - <<'PY'
+          import json, os
+          p = json.load(open("plan/plan.json"))["shards"][int(os.environ["SHARD"])]
+          open("targets.txt", "w").write("\n".join(p["targets"]) + "\n")
+          open("build.txt", "w").write("\n".join(p["build"]) + "\n")
+          key = os.environ["KEY"]
+          pats = [f"/data/exports/{key}/setup.ci.json", f"/data/translate/{key}.jsonl"]
+          for m in p["targets"]:
+              for variant in {m, m.replace("«", "").replace("»", "")}:
+                  pats += [f"/data/exports/{key}/{variant}.ndjson", f"/data/exports/{key}/{variant}.names.json"]
+          open("sparse.txt", "w").write("\n".join(["/scripts/", "/gate2/", "/sources.json"] + pats) + "\n")
+          print(len(p["targets"]), "targets,", len(p["build"]), "modules to build")
+          PY
+          git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
+          git -C emissary sparse-checkout set --no-cone --stdin < sparse.txt
+          git -C emissary checkout -q "$GITHUB_SHA"
+          git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
+          git -C tengoku sparse-checkout set --no-cone "/data/tentative/$KEY.jsonl" "/data/tentative/$KEY/"
+          git -C tengoku checkout -q main
+          du -sh emissary/data/exports/"$KEY" | cut -f1
+      - name: elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: The library at its pinned commit, on the tree's Mathlib
+        working-directory: emissary
+        run: |
+          read -r repo commit _ roots < <(python3 scripts/trial-library-build.py meta "$KEY")
+          echo "ROOTS=$(echo "$roots" | tr ' ' ',')" >> "$GITHUB_ENV"
+          git clone -q --filter=blob:none "$repo" lib && git -C lib checkout -q "$commit"
+          python3 scripts/trial-library-build.py retarget lib "$MATHLIB" "$TOOLCHAIN"
+          (cd lib && lake update 2>&1 | tail -2 && lake exe cache get 2>&1 | tail -1)
+          python3 scripts/bump/engine.py normalize-imports --lib lib --roots "$(echo "$roots" | tr ' ' ',')" --lean-path "$(cd lib && lake env printenv LEAN_PATH)"
+      - name: Build this shard's modules, repair, rebuild
+        working-directory: emissary
+        run: |
+          cp ../build.txt build.txt; cp ../targets.txt targets.txt
+          build() { python3 scripts/bump/tolerant_build.py --lib lib --roots "$ROOTS" --modules build.txt --log "build-$1.log" --report "tb-$1.json" --jobs 4 --cache lib/.bump-cache; }
+          echo '{"moves":{}}' > moves.json
+          build s0; last=s0
+          for r in 1 2 3 4; do
+            python3 scripts/bump/engine.py repair --lib lib --log "build-$last.log" --roots "$ROOTS" --moves moves.json --state state.json --round "$r" --out "repair-$r.json" --deprecations
+            [ "$(python3 -c "import json; print(json.load(open('repair-$r.json'))['changed'])")" = True ] || break
+            build "r$r"; last="r$r"
+          done
+          for p in 1 2 3; do
+            python3 scripts/bump/portfolio.py apply --lib lib --log "build-$last.log" --out "portfolio-$p.json"
+            [ "$(python3 -c "import json; d=json.load(open('portfolio-$p.json')); print(d['theorems_rewritten'] + d.get('superfluous_tactics_deleted', 0))")" != 0 ] || break
+            build "p$p"; last="p$p"
+          done
+          cp "build-$last.log" build-final.log; cp "tb-$last.json" tb-final.json
+          python3 -c "import json; d=json.load(open('tb-final.json')); print(d['by_state'], d['seconds'], 's')"
+      - name: Gate 2's own Lean modules, in a project of their own
+        run: |
+          mkdir vendorproj && cp -r emissary/gate2/Vendor.lean emissary/gate2/Vendor vendorproj/
+          python3 emissary/scripts/bump/gate2_batch.py emit-vendor --out vendorproj
+          cd vendorproj
+          echo "$TOOLCHAIN" > lean-toolchain
+          printf 'name = "V"\ndefaultTargets = ["Vendor"]\n[[lean_lib]]\nname = "Vendor"\n' > lakefile.toml
+          lake build Vendor 2>&1 | tail -3
+      - name: Batched Gate 2 over the declarations of this shard's targets
+        working-directory: emissary
+        run: |
+          LP="$(cd lib && lake env printenv LEAN_PATH):$GITHUB_WORKSPACE/vendorproj/.lake/build/lib/lean"
+          TENT="../tengoku/data/tentative/$KEY.jsonl,../tengoku/data/tentative/$KEY/*.jsonl"
+          mine=$(paste -sd, targets.txt)
+          : > gate2.log; only="$mine"
+          for pass in 1 2 3 4 5 6; do
+            exclude=""
+            for attempt in $(seq 1 15); do
+              python3 scripts/bump/gate2_batch.py generate --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
+                --roots "$ROOTS" --out lib/gate2-check.lean --controls "$CONTROLS" --exclude "$exclude" --only "$only" --tentative "$TENT" | tee plan.json
+              (cd lib; LEAN_PATH="$LP" timeout 150m lean gate2-check.lean > ../gate2-pass.log 2>&1 || true
+               echo "pass $pass attempt $attempt: $(grep -c 'GATE2B_' ../gate2-pass.log) verdicts")
+              bad=$(grep -oP "import \K\S+(?= failed)" gate2-pass.log | head -1 || true)
+              [ -z "$bad" ] && break
+              exclude="$exclude,$bad"
+            done
+            cat gate2-pass.log >> gate2.log
+            only=$(python3 -c "import json; print(','.join(json.load(open('lib/gate2-check.lean'.replace('.lean','.plan.json'))).get('excluded_modules', [])))")
+            [ -n "$only" ] || break
+          done
+          python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json --tentative "$TENT"
+      - name: What the passed theorems are made of
+        working-directory: emissary
+        run: |
+          python3 scripts/bump/bundle.py lean --lib lib --passed passed.json --roots "$ROOTS" --out lib/bundle-deps.lean
+          (cd lib && timeout 120m lake env lean bundle-deps.lean > ../bundle-deps.log 2>&1 || true)
+          grep -c BUNDLE_KEEP bundle-deps.log || true
+      - name: Pack this shard
+        working-directory: emissary
+        run: |
+          python3 scripts/bump/shard_pack.py pack --lib lib --roots "$ROOTS" --modules build.txt --out ../shard-pack --gate2 gate2.log --errors build-final.log \
+            --passed passed.json --keep bundle-deps.log --results gate2-results.json
+          du -sh ../shard-pack | cut -f1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: shard-${{ inputs.key }}-${{ inputs.shard }}
+          path: |
+            shard-pack
+            emissary/tb-final.json
+            emissary/gate2-results.json
+          retention-days: 14
