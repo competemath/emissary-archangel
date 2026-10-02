@@ -17,6 +17,7 @@ on:
       controls: { description: "control pairs (unrelated statements) that must fail", default: "20" }
       chain: { description: "direct = one jump to `mathlib`; auto = through intermediate Mathlib releases (scripts/bump/plan_chain.py); or a comma list of tags", default: "direct" }
       step: { description: "chain=auto: at most this many Lean minor versions per step", default: "3" }
+      portfolio: { description: "on = at the last step, theorems whose proof failed are retried with Lean's own automation (scripts/bump/portfolio.py)", default: "on" }
 permissions: {}
 defaults:
   run:
@@ -33,6 +34,7 @@ jobs:
       CONTROLS: ${{ inputs.controls }}
       CHAIN: ${{ inputs.chain }}
       STEP: ${{ inputs.step }}
+      PORTFOLIO: ${{ inputs.portfolio }}
     steps:
       - name: Free disk (Mathlib's build is several GB)
         run: |
@@ -91,6 +93,12 @@ jobs:
               [ "$(python3 -c "import json; print(json.load(open('repair-s$n-$r.json'))['changed'])")" = True ] || { echo "step $n round $r: nothing left to repair mechanically"; break; }
               start=$(date +%s); build "s$n-$r"; echo "step $n round $r build: $(( ($(date +%s) - start) / 60 )) min"; last="s$n-$r"
             done
+            if [ "$PORTFOLIO" = on ] && [ "$tag" = "$MATHLIB" ]; then
+              python3 scripts/bump/portfolio.py apply --lib lib --log "build-$last.log" --out "portfolio-$n.json"
+              if [ "$(python3 -c "import json; print(json.load(open('portfolio-$n.json'))['theorems_rewritten'])")" != 0 ]; then
+                start=$(date +%s); build "s$n-p"; echo "step $n portfolio build: $(( ($(date +%s) - start) / 60 )) min"; last="s$n-p"
+              fi
+            fi
             final=$last; prev=$tag
           done < plan.txt
           echo "final state: build-$final.log"; cp "build-$final.log" build1.log; cp "pass-$final.json" pass1.json; cp "tb-$final.json" tb-final.json
@@ -128,6 +136,7 @@ jobs:
             emissary/pass-*.json
             emissary/tb-*.json
             emissary/repair-*.json
+            emissary/portfolio-*.json
             emissary/moves.json
             emissary/repairs.patch
             emissary/gate2.log
