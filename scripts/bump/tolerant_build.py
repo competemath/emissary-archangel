@@ -111,6 +111,9 @@ class Builder:
         self.timeout = a.timeout * 60
         self.jobs = a.jobs or os.cpu_count() or 2
         self.mods = module_files(self.lib, self.roots)
+        if a.modules:  # a shard: only these (a dependency-closed set: everything they import is in it)
+            keep = {ln.strip() for ln in Path(a.modules).read_text().splitlines() if ln.strip()}
+            self.mods = {m: p for m, p in self.mods.items() if m in keep}
         self.lock = threading.Lock()
         self.status: dict[str, dict] = {}
         self.log_lines: list[str] = []
@@ -250,6 +253,7 @@ def main() -> None:
     ap.add_argument("--log", default="build.log")
     ap.add_argument("--report", default="tb.json")
     ap.add_argument("--cache", default="")
+    ap.add_argument("--modules", default="", help="file with one module per line: build only these (a dependency-closed set)")
     a = ap.parse_args()
     b = Builder(a)
     res = b.run()

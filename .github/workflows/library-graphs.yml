@@ -27,7 +27,8 @@ jobs:
       - name: Tengoku's tentative records (the entries)
         run: |
           git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
-          for k in $KEYS; do git -C tengoku sparse-checkout add --no-cone "/data/tentative/$k.jsonl" "/data/tentative/$k/" 2>/dev/null || git -C tengoku sparse-checkout set --no-cone "/data/tentative/$k.jsonl" "/data/tentative/$k/"; done
+          paths=(); for k in $KEYS; do paths+=("/data/tentative/$k.jsonl" "/data/tentative/$k/"); done
+          git -C tengoku sparse-checkout set --no-cone "${paths[@]}"
           git -C tengoku checkout -q main
       - name: Graphs
         run: |
