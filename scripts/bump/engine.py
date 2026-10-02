@@ -9,7 +9,7 @@ This does the same for a library that was left behind. A round reads the build l
                   split, a merge, a deprecated stub's target); the import is replaced by those modules. A module nothing
                   is known about, or a replacement that a later round finds insufficient, becomes `import Mathlib`:
                   correct by construction (the content is somewhere in Mathlib), only heavier.
-  deprecations    Mathlib's fix_deprecations.py over the warnings of the last build.
+  deprecations    Mathlib's fix_deprecations.py algorithm over the warnings of the last build log (position-exact rewrites).
 
 Every repair is checked by the next build, not trusted. Only the library's own files are edited, never a statement on
 purpose: imports and call-site names. Whether a statement still means what it did is Gate 2's job (gate2_batch.py).
@@ -25,8 +25,9 @@ import re
 import subprocess
 from pathlib import Path
 
-# Mathlib at this commit has scripts/fix_deprecations.py (Apache-2.0, Mathlib contributors); pinned so a bump never runs a moving script
-FIXER_COMMIT = "8e30cac82f69c18f6cbe88799bdc3ebd74cc592d"
+# The deprecation fixer below is Mathlib's scripts/fix_deprecations.py (Apache-2.0, Mathlib contributors) reading our own build
+# log instead of running `lake build --no-build` (which replays only warnings Lake itself built; the tolerant build is not Lake's)
+DEPRECATED_AT = re.compile(r"^warning: (?:\./)*(\S+?\.lean):(\d+):(\d+): .*?`([^`]+)` has been deprecated.*?[Uu]se `([^`]+)` instead")
 BAD_IMPORT = re.compile(r"error: (\S+\.lean): bad import '([^']+)'")
 UNKNOWN = re.compile(r"error: (\S+\.lean):\d+:\d+: .*?[Uu]nknown (?:identifier|constant|namespace)")
 IMPORT_LINE = re.compile(r"^(?P<pre>\s*(?:(?:public|private|meta)\s+)*import\s+)(?P<mod>[\w.«»]+)\s*$")
@@ -62,6 +63,38 @@ def rewrite_imports(path: Path, replace: dict[str, list[str]]) -> dict[str, list
     return done
 
 
+def fix_deprecations(lib: Path, log: str) -> tuple[int, int]:
+    """Mathlib's scripts/fix_deprecations.py, on a log: at each `file:line:col` of a deprecation warning, the deprecated name
+    (as written, qualified or with namespace prefixes dropped) is replaced by the one the message names. Returns (rewrites, files)."""
+    by_file: dict[str, list[tuple[int, int, str, str]]] = {}
+    for ln in log.splitlines():
+        m = DEPRECATED_AT.match(ln)
+        if m and (lib / m.group(1)).exists():
+            by_file.setdefault(m.group(1), []).append((int(m.group(2)), int(m.group(3)), m.group(4), m.group(5)))
+    total = files = 0
+    for f, ws in sorted(by_file.items()):
+        path = lib / f
+        lines = path.read_text().splitlines(keepends=True)
+        changed = False
+        for line_no, col, old, new in sorted(set(ws), reverse=True):  # last position first: an edit never shifts a pending one
+            if line_no - 1 >= len(lines):
+                continue
+            text = lines[line_no - 1]
+            op, np = old.split("."), new.split(".")
+            for i in range(len(op)):
+                o = ".".join(op[i:])
+                n = ".".join(np[i:]) if i < len(np) else new
+                if text[col : col + len(o)] == o:
+                    lines[line_no - 1] = text[:col] + n + text[col + len(o) :]
+                    changed = True
+                    total += 1
+                    break
+        if changed:
+            path.write_text("".join(lines))
+            files += 1
+    return total, files
+
+
 def repair(a: argparse.Namespace) -> None:
     lib = Path(a.lib)
     roots = [r for r in a.roots.split(",") if r]
@@ -71,24 +104,13 @@ def repair(a: argparse.Namespace) -> None:
     state = json.loads(state_path.read_text()) if state_path.exists() else {"replaced": {}}
     summary = {"round": a.round, "moved_imports": 0, "fell_back_to_all": 0, "deprecations_fixed": 0, "files_changed": []}
 
-    # 0. deprecations FIRST: Mathlib's fixer collects the last build's warnings with `lake build --no-build`, which replays
-    #    them only while every module is up to date; any edit made first (an import rewritten) makes modules stale and the
-    #    fixer then sees nothing (the first loop run fixed 0 where the trial, which ran it first, fixed 90)
-    fixer = lib / ".lake/packages/mathlib/scripts/fix_deprecations.py"
-    if a.deprecations and not fixer.exists():
-        # the script is not in every Mathlib tag (v4.34.0-rc2 has none): fetch it from a PINNED Mathlib commit, never master
-        fixer = lib / ".fix_deprecations.py"
-        if not fixer.exists():
-            import urllib.request
-
-            url = "https://raw.githubusercontent.com/leanprover-community/mathlib4/" + FIXER_COMMIT + "/scripts/fix_deprecations.py"
-            fixer.write_bytes(urllib.request.urlopen(url, timeout=60).read())
-    if a.deprecations and fixer.exists():
-        r = subprocess.run(["python3", str(fixer)], cwd=lib, capture_output=True, text=True)
-        m = re.search(r"Changed (\d+) deprecations in (\d+) files", r.stdout)
-        if m:
-            summary["deprecations_fixed"] = int(m.group(1))
-            summary["files_changed"] += [f"({m.group(2)} files by fix_deprecations)"]
+    # 0. deprecations: Mathlib's fixer, over the warnings of the last build log. Done before the import edits: a warning's line
+    #    and column are positions in the file that was built, and a rewritten import line shifts every line below it
+    if a.deprecations:
+        n, nfiles = fix_deprecations(lib, log)
+        summary["deprecations_fixed"] = n
+        if nfiles:
+            summary["files_changed"].append(f"({nfiles} files by fix_deprecations)")
     # 1. a replacement that a later build found insufficient (the file now has unknown names) becomes `import Mathlib`
     files_with_unknown = {m.group(1) for m in UNKNOWN.finditer(log)}
     for f, repl in list(state["replaced"].items()):

@@ -18,6 +18,8 @@ whole-library setting forces, each stated here:
     mangling): identical statements, the strongest verdict, and no bridge proof is needed.
   * PASS via=entails: the types differ, and the bridge `fun h => h : NewType → OldType` (Gate 2's fixed bridge) is
     accepted by the kernel (`Lean.addDecl`) after peeling shared binders: exactly Gate 2's entailment.
+  * a declaration that uses `sorryAx` (a proof that failed in a tolerant build, or built on one) or any axiom beyond
+    propext/Classical.choice/Quot.sound FAILs first (uses_sorry, nonstandard_axiom).
   * everything else FAILs with a reason: the original is not in its export, the new name does not exist, a library
     definition the statement mentions changed type (`tengokuCompatible`, the same boundary check, with the library's
     own definitions compared like the candidate's own ones are today: abbrev bodies too), or the bridge is rejected.
@@ -61,6 +63,17 @@ def gate2bCheck (oldN newN : Name) : CommandElabM Unit := do
     | none, _ => logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=old_name_not_in_export"
     | _, none => logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=new_name_not_found"
     | some oldCi, some newCi =>
+      -- the tolerant build keeps a module whose declaration failed: that declaration then stands on `sorryAx`, and so does
+      -- everything built on it. Only a declaration with nothing but the three standard axioms is a translation.
+      let axs ← collectAxioms newN
+      let std : List Name := [``propext, ``Classical.choice, ``Quot.sound]
+      let extra := axs.filter (fun a => !(std.contains a))
+      if axs.contains ``sorryAx then
+        logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=uses_sorry"
+        return
+      if !extra.isEmpty then
+        logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=nonstandard_axiom axioms={extra.toList}"
+        return
       let closure := statementReach all [oldN]
       let delta := closure.filter (fun m _ => (env.find? m).isNone)
       -- the boundary: natives that a replayed declaration, or the original's own statement, mentions

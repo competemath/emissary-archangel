@@ -186,9 +186,10 @@ def analyze(lib: str, key: str, label: str, log_path: str) -> None:
     for mod, src in mods.items():
         rel = str(src.relative_to(lib))
         olean = Path(lib) / ".lake" / "build" / "lib" / "lean" / (mod.replace(".", "/") + ".olean")
-        if olean.exists():
+        has_errors = any(k.endswith(rel) or rel.endswith(k) for k in errors)
+        if olean.exists() and not has_errors:
             built.append(mod)
-        elif any(k.endswith(rel) or rel.endswith(k) for k in errors):
+        elif has_errors:  # lake leaves no olean for it; the tolerant build (scripts/bump/tolerant_build.py) does, and downstream goes on
             failed.append(mod)
         else:
             blocked.append(mod)

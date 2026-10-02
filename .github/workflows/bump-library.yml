@@ -66,16 +66,18 @@ jobs:
       - name: Build the library unchanged, then repair and rebuild until nothing more can be repaired mechanically
         working-directory: emissary
         run: |
-          keep=""; (cd lib && lake build --help 2>&1 | grep -q -- "--keep-going") && keep="--keep-going"
-          build() { (cd lib && timeout 100m lake build $keep > "../build-$1.log" 2>&1 || true); python3 scripts/trial-library-build.py analyze lib "$KEY" "pass-$1" "build-$1.log" | grep -E "^- (Modules|Ledger|Modules that no longer)"; }
+          # scripts/bump/tolerant_build.py: every module goes through the toolchain's own frontend and its olean is written even
+          # when the file has errors (a failing proof costs that declaration, not the module and everything downstream);
+          # modules whose source and imports are unchanged since the last round are not rebuilt
+          build() { python3 scripts/bump/tolerant_build.py --lib lib --roots "$ROOTS" --log "build-$1.log" --report "tb-$1.json" --jobs 4 --cache lib/.bump-cache; python3 scripts/trial-library-build.py analyze lib "$KEY" "pass-$1" "build-$1.log" | grep -E "^- (Modules|Ledger|Modules that no longer)"; }
           start=$(date +%s); build 0; echo "baseline build: $(( ($(date +%s) - start) / 60 )) min"
           last=0
           for r in 1 2 3 4; do
             python3 scripts/bump/engine.py repair --lib lib --log "build-$last.log" --roots "$ROOTS" --moves moves.json --state state.json --round "$r" --out "repair-$r.json" --deprecations
             [ "$(python3 -c "import json; print(json.load(open('repair-$r.json'))['changed'])")" = True ] || { echo "round $r: nothing left to repair mechanically"; break; }
-            build "$r"; last=$r
+            start=$(date +%s); build "$r"; echo "round $r build: $(( ($(date +%s) - start) / 60 )) min"; last=$r
           done
-          echo "final state: build-$last.log"; cp "build-$last.log" build1.log; cp "pass-$last.json" pass1.json
+          echo "final state: build-$last.log"; cp "build-$last.log" build1.log; cp "pass-$last.json" pass1.json; cp "tb-$last.json" tb-final.json
           (cd lib && lake build Vendor 2>&1 | tail -2)
           git -C lib diff --stat | tail -3; git -C lib diff > ../repairs.patch
       - name: Batched Gate 2 over every declaration of every module that built
@@ -98,6 +100,7 @@ jobs:
           path: |
             emissary/build-*.log
             emissary/pass-*.json
+            emissary/tb-*.json
             emissary/repair-*.json
             emissary/moves.json
             emissary/repairs.patch

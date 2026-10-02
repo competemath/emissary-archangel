@@ -1,0 +1,33 @@
+# EXPERIMENT: does the error-tolerant build (scripts/bump/tolerant_build.py + TolerantBuild.lean) behave on a toy project?
+name: tolerant-smoke
+on:
+  workflow_dispatch:
+    inputs:
+      toolchain: { description: "Lean toolchain", default: "leanprover/lean4:v4.34.0-rc2" }
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { sparse-checkout: scripts, persist-credentials: false }
+      - name: elan and the toolchain
+        env: { TOOLCHAIN: "${{ inputs.toolchain }}" }
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain "$TOOLCHAIN"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: the smoke test
+        run: scripts/bump/tests/tolerant_smoke.sh "$RUNNER_TEMP/smoke"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: tolerant-smoke
+          path: |
+            ${{ runner.temp }}/smoke/proj/build*.log
+            ${{ runner.temp }}/smoke/proj/tb*.json
+            ${{ runner.temp }}/smoke/proj/axioms.log
