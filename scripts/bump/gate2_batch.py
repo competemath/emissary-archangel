@@ -152,7 +152,7 @@ elab "#gate2_defcontrols " n:num : command => do
       if (all[a]!).type.eqv bv.type && !(av.value.eqv bv.value) && av.levelParams.isEmpty && bv.levelParams.isEmpty then
         -- two names for the same thing are not a control (`recOn`/`casesOn` of a structure, `IsRegularPrime := IsRegularNumber`):
         -- only a pair the elaborator itself cannot identify is expected to be refused
-        if ← liftTermElabM (Meta.isDefEq (mkConst a) (mkConst b)) then continue
+        if (← liftTermElabM (Meta.isDefEq (mkConst a) (mkConst b))) then continue
         let (ok, msg) ← gate2bSameDefCore all a b
         logInfo m!"GATE2B_DEFCONTROL {a} {b} result={if ok then "WRONGLY_PASSED" else "rejected"} GATE2B_DEFMSG {msg.take 120} GATE2B_END"
         done := done + 1
