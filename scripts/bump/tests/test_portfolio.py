@@ -67,5 +67,17 @@ class Portfolio(unittest.TestCase):
         self.assertEqual(rep["theorems_rewritten"], 0)
 
 
+class NoGoals(unittest.TestCase):
+    SRC = "import Mathlib\n\ntheorem a (x : Nat) : x + 0 = x := by\n  simp\n  rfl\n\ntheorem b (x : Nat) : x = x := by\n  simp; rfl\n\ntheorem c (x : Nat) : x = x := by\n  skip\n  rfl\n"
+
+    def test_deletes_the_superfluous_tactic(self):
+        log = "error: T.lean:5:2: no goals to be solved\nerror: T.lean:8:8: no goals to be solved\n"
+        out, rep = run(self.SRC, log)
+        self.assertEqual(rep.get("superfluous_tactics_deleted"), 2)
+        self.assertIn("theorem a (x : Nat) : x + 0 = x := by\n  simp\n\ntheorem b", out)
+        self.assertIn("theorem b (x : Nat) : x = x := by\n  simp\n\ntheorem c", out)
+        self.assertEqual(rep["theorems_rewritten"], 0)  # not rewritten by the hammer in the same round
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -16,6 +16,9 @@ and the next build keeps whichever succeeds. Only the proof after the header's o
 only for a theorem all of whose errors are of the proof-behaviour kind (unsolved goals, a tactic that made no progress or
 failed); an error in the statement, an unknown name or a type mismatch is not something a hammer fixes.
 
+Before the hammer, one exact repair: `no goals to be solved` means a tactic after the goal was already closed (a simp set that
+now proves more); the tactic is deleted (a whole line, or a `; tac` / `<;> tac` tail), nothing else changes.
+
 Nothing here decides correctness: the kernel checks the new proof, and gate2_batch.py then compares the STATEMENT with the
 original's. The rewritten proof is recorded in the repair report so it can be audited (a tactic proof replaces a human's).
 
@@ -115,6 +118,30 @@ def rewrite(lines: list[str], block: tuple[int, int], tactics: list[str]) -> tup
     return lines[: s - 1] + new.split("\n")[: -trailing or None] + ([""] * trailing if trailing else []) + lines[e:], text[he:].strip()
 
 
+NO_GOALS = re.compile(r"no goals to be solved|no goals", re.I)
+
+
+def drop_superfluous(lines: list[str], line: int, col: int) -> bool:
+    """Delete the tactic at (line, col) 1-based/0-based when it is a whole line or a `; tac` / `<;> tac` tail. True if deleted."""
+    i = line - 1
+    if i >= len(lines):
+        return False
+    text = lines[i]
+    indent = len(text) - len(text.lstrip())
+    if col == indent and text.strip() and not text.lstrip().startswith(("·", ".", "case", "next", "|")):
+        j = i + 1  # continuation lines: more indented than the tactic
+        while j < len(lines) and lines[j].strip() and (len(lines[j]) - len(lines[j].lstrip())) > indent:
+            j += 1
+        del lines[i:j]
+        return True
+    head = text[:col]
+    m = re.search(r"(?:\s*<;>|\s*;)\s*$", head)
+    if m and text[col:].strip():
+        lines[i] = head[: m.start()]
+        return True
+    return False
+
+
 def apply(a: argparse.Namespace) -> None:
     lib = Path(a.lib)
     tactics = [t for t in a.tactics.split(",") if t]
@@ -137,6 +164,16 @@ def apply(a: argparse.Namespace) -> None:
                 per_block[b].append(msg)
             else:
                 report["skipped"]["error_outside_a_declaration"] += 1
+        # exact repair first: a tactic with no goal left is deleted, bottom of the file first so line numbers stay valid
+        deleted = 0
+        for line, col, msg in sorted(errs, reverse=True):
+            if NO_GOALS.search(msg) and drop_superfluous(lines, line, col):
+                deleted += 1
+        if deleted:
+            report["superfluous_tactics_deleted"] = report.get("superfluous_tactics_deleted", 0) + deleted
+            path.write_text("\n".join(lines))
+            report["files"] += 1
+            continue  # positions of the other errors moved: the next build reports them again
         edits = []
         for b, msgs in per_block.items():
             if not all(PROOF_ERROR.search(m) for m in msgs):
@@ -158,6 +195,7 @@ def apply(a: argparse.Namespace) -> None:
             report["files"] += 1
     report["skipped"] = dict(report["skipped"])
     Path(a.out).write_text(json.dumps(report, indent=1))
+    report["theorems_rewritten"] = report["theorems_rewritten"]
     print(json.dumps({k: v for k, v in report.items() if k != "rewritten"}))
 
 

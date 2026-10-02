@@ -99,10 +99,11 @@ jobs:
               start=$(date +%s); build "s$n-$r"; echo "step $n round $r build: $(( ($(date +%s) - start) / 60 )) min"; last="s$n-$r"
             done
             if [ "$PORTFOLIO" = on ] && [ "$tag" = "$MATHLIB" ]; then
-              python3 scripts/bump/portfolio.py apply --lib lib --log "build-$last.log" --out "portfolio-$n.json"
-              if [ "$(python3 -c "import json; print(json.load(open('portfolio-$n.json'))['theorems_rewritten'])")" != 0 ]; then
-                start=$(date +%s); build "s$n-p"; echo "step $n portfolio build: $(( ($(date +%s) - start) / 60 )) min"; last="s$n-p"
-              fi
+              for p in 1 2 3; do
+                python3 scripts/bump/portfolio.py apply --lib lib --log "build-$last.log" --out "portfolio-$n-$p.json"
+                [ "$(python3 -c "import json; d=json.load(open('portfolio-$n-$p.json')); print(d['theorems_rewritten'] + d.get('superfluous_tactics_deleted', 0))")" != 0 ] || break
+                start=$(date +%s); build "s$n-p$p"; echo "step $n portfolio round $p build: $(( ($(date +%s) - start) / 60 )) min"; last="s$n-p$p"
+              done
             fi
             final=$last; prev=$tag
           done < plan.txt
