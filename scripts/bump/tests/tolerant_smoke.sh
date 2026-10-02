@@ -66,4 +66,28 @@ printf 'name = "V"\ndefaultTargets = ["Vendor"]\n[[lean_lib]]\nname = "Vendor"\n
 cp -r "$repo/gate2/Vendor.lean" "$repo/gate2/Vendor" .
 lake build Vendor 2>&1 | tail -40
 test "${PIPESTATUS[0]}" = 0 || { echo "Vendor does not build"; exit 1; }
+# The kernel's refusal must reach the caller of `addDecl` (the batched Gate 2 relies on it): with Elab.async off a theorem the
+# kernel rejects raises inside `observing`; with it on the refusal is reported later and the caller sees success.
+cd "$work/proj"
+cat > kernel.lean <<'LEAN'
+import Lean
+open Lean Elab Command Meta
+
+def tryBad : CommandElabM String := do
+  let r ← liftTermElabM <| observing do
+    Lean.addDecl (Declaration.thmDecl {
+      name := `badThm, levelParams := []
+      type := mkApp3 (mkConst ``Eq [1]) (mkConst ``Nat) (mkNatLit 1) (mkNatLit 2)
+      value := mkApp2 (mkConst ``Eq.refl [1]) (mkConst ``Nat) (mkNatLit 1) })
+  match r with
+  | .ok _ => return "accepted"
+  | .error _ => return "rejected"
+
+elab "#bad" : command => do logInfo m!"RESULT {← tryBad}"
+
+set_option Elab.async false
+#bad
+LEAN
+lake env lean kernel.lean | tee kernel.log
+grep -q "RESULT rejected" kernel.log || { echo "with Elab.async false the kernel's refusal must raise"; exit 1; }
 echo "TOLERANT SMOKE OK"

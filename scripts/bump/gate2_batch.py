@@ -334,6 +334,12 @@ def generate(a: argparse.Namespace) -> None:
         for ln in f.read_text(errors="replace").splitlines()[:80]
     )
     header = header.replace("import Mathlib\n", ("import Mathlib\n" if uses_mathlib else "") + imports, 1)
+    # The kernel must answer INSIDE each check. `Lean.addDecl` of a theorem checks asynchronously when `Elab.async` is on (the
+    # command-line default): a kernel refusal then arrives later as a stray error in the log while the check has already
+    # returned success. Found when a leray-hopf log held `(kernel) declaration type mismatch` errors beside definitions the
+    # check had called definitionally equal.
+    header = header.replace("set_option maxErrors 0\n", "set_option maxErrors 0\nset_option Elab.async false\n", 1)
+    assert "set_option Elab.async false" in header
     body = [header, BATCH_LEAN]
     for mod, export, names in plan:
         body.append(f'\n-- {mod}: {len(names)} declarations\n#tengoku_import_parse "{export.resolve()}"\n')
