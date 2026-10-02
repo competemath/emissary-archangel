@@ -1,8 +1,14 @@
 // stage-records.mjs composed.jsonl --source <library key> --toolchain <toolchain> --out bank.jsonl
 // Turns scripts/bump/records.py's composed records ({name, sourcePath, sourceUrl, proof = the whole text}) into Tengoku staging
 // records with lib/stage-record.mjs, the code every other banked record went through (statement / proof / context split).
-import { readFileSync, writeFileSync } from "node:fs"
-import { stagingRecord } from "../../lib/stage-record.mjs"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
+import { fileURLToPath, pathToFileURL } from "node:url"
+import { dirname, join } from "node:path"
+
+// lib/stage-record.mjs, or a copy of it beside this file (the bump workflow's checkout has a different `lib/`: the library's)
+const here = dirname(fileURLToPath(import.meta.url))
+const copy = join(here, "stage-record.copy.mjs")
+const { stagingRecord } = await import(pathToFileURL(existsSync(copy) ? copy : join(here, "..", "..", "lib", "stage-record.mjs")).href)
 
 const argv = process.argv.slice(2)
 const opt = (n, d = null) => (argv.includes(`--${n}`) ? argv[argv.indexOf(`--${n}`) + 1] : d)

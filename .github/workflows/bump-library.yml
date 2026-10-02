@@ -46,8 +46,10 @@ jobs:
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
           git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
-          git -C emissary sparse-checkout set --no-cone "/scripts/" "/gate2/" "/lib/stage-record.mjs" "/sources.json" "/data/translate/$KEY.jsonl" "/data/exports/$KEY/"
+          git -C emissary sparse-checkout set --no-cone "/scripts/" "/gate2/" "/sources.json" "/data/translate/$KEY.jsonl" "/data/exports/$KEY/"
           git -C emissary checkout -q "$GITHUB_SHA"
+          # the record splitter every banked record went through (not checked out as lib/: that is the library's directory)
+          git -C emissary show "$GITHUB_SHA:lib/stage-record.mjs" > emissary/scripts/bump/stage-record.copy.mjs
           du -sh emissary/data/exports/"$KEY" | cut -f1
       - name: elan
         run: |
