@@ -63,7 +63,10 @@ def retarget(lib: str, mathlib: str, toolchain: str) -> None:
             block.append(line)
         flush()
         text = "\n".join(out) + "\n"
-        assert f'rev = "{mathlib}"' in text, "no mathlib requirement found in lakefile.toml"
+        if f'rev = "{mathlib}"' not in text:
+            # Mathlib arrives only through another requirement (seymour requires `linters`, which requires Mathlib): the library's
+            # modules import it all the same, so it becomes a direct requirement (the root's wins over an inherited one)
+            text += f'\n[[require]]\nname = "mathlib"\ngit = "https://github.com/leanprover-community/mathlib4.git"\nrev = "{mathlib}"\n'
         toml.write_text(text)
     elif lean.exists():
         lean.write_text(retarget_lean(lean.read_text(), mathlib))
@@ -111,8 +114,10 @@ def retarget_lean(text: str, mathlib: str) -> str:
         else:
             out.append(stmt)
         i = j
-    assert seen, "no mathlib requirement found in lakefile.lean"
-    return "\n".join(out) + "\n"
+    text = "\n".join(out) + "\n"
+    if not seen:  # Mathlib only through another requirement: a direct one (the root's wins over an inherited one)
+        text += f'\nrequire mathlib from git "https://github.com/leanprover-community/mathlib4.git" @ "{mathlib}"\n'
+    return text
 
 
 def modules(lib: str, roots: list[str]) -> dict[str, Path]:

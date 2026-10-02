@@ -42,5 +42,22 @@ class RetargetLean(unittest.TestCase):
         self.assertIn('@ git "v9"', out)
 
 
+class InheritedMathlib(unittest.TestCase):
+    def test_toml_without_a_mathlib_require_gets_one(self):
+        import tempfile
+
+        d = Path(tempfile.mkdtemp())
+        (d / "lakefile.toml").write_text('name = "Seymour"\n\n[[require]]\nname = "linters"\ngit = "https://github.com/madvorak/leanters"\nrev = "main"\n\n[[lean_lib]]\nname = "Seymour"\n')
+        tlb.retarget(str(d), "v4.34.0-rc2", "leanprover/lean4:v4.34.0-rc2")
+        out = (d / "lakefile.toml").read_text()
+        self.assertIn('name = "mathlib"', out)
+        self.assertIn('rev = "v4.34.0-rc2"', out)
+        self.assertIn('name = "linters"', out)
+
+    def test_lean_without_a_mathlib_require_gets_one(self):
+        out = tlb.retarget_lean("import Lake\nopen Lake DSL\npackage x\nrequire linters from git \"https://x/y\"\n", "v9")
+        self.assertIn('require mathlib from git "https://github.com/leanprover-community/mathlib4.git" @ "v9"', out)
+
+
 if __name__ == "__main__":
     unittest.main()
