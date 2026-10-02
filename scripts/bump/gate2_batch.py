@@ -37,6 +37,7 @@ FAIL, or the checker is vacuous.
 from __future__ import annotations
 
 import argparse
+import glob
 import json
 import random
 import re
@@ -311,6 +312,22 @@ def ledger_latest(path: Path) -> dict[str, dict]:
     return latest
 
 
+def tentative_entries(paths: list[str]) -> dict[str, dict]:
+    """The entry list of a library: the statement records tengoku harvested (data/tentative/<lib>.jsonl and data/tentative/<lib>/*.jsonl).
+    The ledger only knows what the per-theorem pipeline got to (lean-pool: 2.9k of 137k)."""
+    out: dict[str, dict] = {}
+    for f in paths:
+        for line in Path(f).read_text(errors="replace").splitlines():
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            m = re.search(r"/blob/[0-9a-f]{7,40}/([^#]+\.lean)", r.get("source_url", ""))
+            if r.get("name") and m:
+                out[r["name"]] = {"name": r["name"], "sourcePath": m.group(1), "outcome": "untriaged"}
+    return out
+
+
 def built_modules(lib: Path, roots: list[str]) -> set[str]:
     out = set()
     for p in (lib / ".lake" / "build" / "lib" / "lean").rglob("*.olean"):
@@ -323,7 +340,11 @@ def built_modules(lib: Path, roots: list[str]) -> set[str]:
 def generate(a: argparse.Namespace) -> None:
     lib, exports = Path(a.lib), Path(a.exports)
     roots = [r for r in a.roots.split(",") if r]
-    entries = ledger_latest(Path(a.ledger))
+    entries = ledger_latest(Path(a.ledger)) if Path(a.ledger).exists() else {}
+    if a.tentative:
+        tent = tentative_entries([f for pat in a.tentative.split(",") if pat for f in sorted(glob.glob(pat))])
+        for n, r in tent.items():
+            entries.setdefault(n, r)  # the ledger's row (with the pipeline's outcome) wins
     built = built_modules(lib, roots)
     by_module: dict[str, list[str]] = defaultdict(list)
     for name, r in entries.items():
@@ -418,7 +439,10 @@ def parse(a: argparse.Namespace) -> None:
     for m in LINE.finditer(text):
         kind, old, new, via, reason = m.groups()
         verdicts[(old, new)] = (kind, via or reason or "")
-    entries = ledger_latest(Path(a.ledger))
+    entries = ledger_latest(Path(a.ledger)) if Path(a.ledger).exists() else {}
+    if a.tentative:
+        for n, r in tentative_entries([f for pat in a.tentative.split(",") if pat for f in sorted(glob.glob(pat))]).items():
+            entries.setdefault(n, r)
     own = {k: v for k, v in verdicts.items() if k[0] == k[1]}
     cross = {k: v for k, v in verdicts.items() if k[0] != k[1]}
     by_outcome: dict[str, Counter] = defaultdict(Counter)
@@ -462,6 +486,7 @@ if __name__ == "__main__":
     for f in ("key", "lib", "exports", "ledger", "roots", "out"):
         g.add_argument(f"--{f}", required=True)
     g.add_argument("--controls", type=int, default=0)
+    g.add_argument("--tentative", default="", help="comma list of globs of tengoku tentative records: the entries the ledger does not know")
     g.add_argument("--exclude", default="", help="modules whose import failed: they and their importers are left out (comma list)")
     g.add_argument("--only", default="", help="check only these modules (comma list): a pass for what an earlier pass had to leave out")
     v = sub.add_parser("emit-vendor")
@@ -469,5 +494,6 @@ if __name__ == "__main__":
     q = sub.add_parser("parse")
     for f in ("log", "ledger", "out"):
         q.add_argument(f"--{f}", required=True)
+    q.add_argument("--tentative", default="")
     args = ap.parse_args()
     {"generate": generate, "parse": parse, "emit-vendor": emit_vendor}[args.cmd](args)

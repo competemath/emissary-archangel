@@ -53,6 +53,11 @@ jobs:
           # the record splitter every banked record went through (not checked out as lib/: that is the library's directory)
           git -C emissary show "$GITHUB_SHA:lib/stage-record.mjs" > emissary/scripts/bump/stage-record.copy.mjs
           du -sh emissary/data/exports/"$KEY" | cut -f1
+          # the library's entries as tengoku harvested them (the ledger only knows what the per-theorem pipeline got to)
+          git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
+          git -C tengoku sparse-checkout set --no-cone "/data/tentative/$KEY.jsonl" "/data/tentative/$KEY/"
+          git -C tengoku checkout -q main
+          ls tengoku/data/tentative | head -3
       - name: elan
         run: |
           curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none
@@ -130,7 +135,8 @@ jobs:
             exclude=""
             for attempt in $(seq 1 15); do
               python3 scripts/bump/gate2_batch.py generate --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
-                --roots "$ROOTS" --out lib/gate2-check.lean --controls "$CONTROLS" --exclude "$exclude" --only "$only" | tee plan.json
+                --roots "$ROOTS" --out lib/gate2-check.lean --controls "$CONTROLS" --exclude "$exclude" --only "$only" \
+                --tentative "../tengoku/data/tentative/$KEY.jsonl,../tengoku/data/tentative/$KEY/*.jsonl" | tee plan.json
               (cd lib; start=$(date +%s); LEAN_PATH="$LP" timeout 120m lean gate2-check.lean > ../gate2-pass.log 2>&1 || true
                echo "batched Gate 2 (pass $pass, attempt $attempt): $(( ($(date +%s) - start) )) seconds for $(grep -c 'GATE2B_' ../gate2-pass.log) verdicts")
               bad=$(grep -oP "import \K\S+(?= failed)" gate2-pass.log | head -1 || true)
@@ -145,7 +151,8 @@ jobs:
           echo "--- Lean errors (not verdicts):"; { grep -E "error" gate2.log | grep -v "GATE2B_" | head -8 | cut -c1-300; } || true
       - name: Verdicts against the per-theorem pipeline's
         working-directory: emissary
-        run: python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json
+        run: python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json \
+          --tentative "../tengoku/data/tentative/$KEY.jsonl,../tengoku/data/tentative/$KEY/*.jsonl"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         name: Upload the build and Gate 2 results now (the records step is the longest and must not be able to lose them)
         if: always()
