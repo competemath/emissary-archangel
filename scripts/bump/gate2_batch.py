@@ -274,6 +274,28 @@ def esc(part: str) -> str:
     return part if re.fullmatch(r"[^\W\d][\w']*", part) else f"«{part}»"
 
 
+def emit_vendor(a: argparse.Namespace) -> None:
+    """Gate 2's helper Lean code as COMPILED modules of the Vendor project: Vendor/Core.lean is the definitions of gate2/server.py's
+    `_HEADER` (one source of truth, taken from it), Vendor/Batch.lean is BATCH_LEAN. The generated check file then holds only
+    commands. Parsed inside the check file, that code is read with the syntax of every library it imports, and a library that
+    defines a global notation breaks it (quantumoptimization's Dirac `|ψ⟩` made `| .mdata _ e => …` unparseable); compiled in
+    a project that imports only Lean, it cannot be, and a compile error shows up in the smoke test instead of after a 30 minute run."""
+    out = Path(a.out)
+    (out / "Vendor").mkdir(parents=True, exist_ok=True)
+    header = server_header()
+    core = header.replace("import Mathlib\n", "", 1)
+    assert "Elab.async false" in core
+    # Core is imported, so its `open` and `set_option` lines are file-local: the check file repeats the ones it needs
+    (out / "Vendor" / "Core.lean").write_text(core)
+    (out / "Vendor" / "Batch.lean").write_text("import Lean\nimport Vendor.Importer\nimport Vendor.ReplayCore\nimport Vendor.DriverState\nimport Vendor.Gate2\nimport Vendor.Core\n\nset_option Elab.async false\n" + BATCH_LEAN)
+    root = (out / "Vendor.lean").read_text() if (out / "Vendor.lean").exists() else ""
+    for m in ("Vendor.Core", "Vendor.Batch"):
+        if f"import {m}" not in root:
+            root += f"import {m}\n"
+    (out / "Vendor.lean").write_text(root)
+    print(f"wrote {out}/Vendor/Core.lean, Batch.lean")
+
+
 def module_of(source_path: str) -> str:
     return ".".join(esc(x) for x in source_path[:-5].split("/")) if source_path.endswith(".lean") else source_path
 
@@ -326,21 +348,19 @@ def generate(a: argparse.Namespace) -> None:
         skipped["name_not_in_export_closure"] += len(names) - len(present)
         if present:
             plan.append((mod, export, present))
-    header = server_header()
     imports = "".join(f"import {mod}\n" for mod, _, _ in plan)
     # A library that never imports Mathlib (lean4-analysis-tao: "tactic shims that replace the bits of Mathlib") is checked
     # without it: Gate 2's logic needs only Lean, and the library may declare names (a notation `≃`) Mathlib also declares,
     # which would make the two unimportable together.
     uses_mathlib = any(
         re.match(r"\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)?(?:Mathlib|Batteries|Aesop|Qq|ProofWidgets|Plausible)\b", ln)
-        for f in lib.rglob("*.lean") if ".lake" not in f.parts and f.name != "gate2-check.lean"
+        for f in lib.rglob("*.lean") if ".lake" not in f.parts and f.name not in ("gate2-check.lean", "records-deps.lean")
         for ln in f.read_text(errors="replace").splitlines()[:80]
     )
-    header = header.replace("import Mathlib\n", ("import Mathlib\n" if uses_mathlib else "") + imports, 1)
-    # The kernel must answer INSIDE each check: gate2/server.py's header sets `Elab.async false` (see the comment there). Found
-    # when a leray-hopf log held `(kernel) declaration type mismatch` errors beside definitions the check had called equal.
-    assert "set_option Elab.async false" in header, "gate2/server.py _HEADER must set Elab.async false"
-    body = [header, BATCH_LEAN]
+    # The helper code is compiled (Vendor.Core, Vendor.Batch: `emit-vendor`); only commands are parsed here, so no notation a
+    # library imports can touch them. The kernel must answer inside each check (see the comment in gate2/server.py's header).
+    header = "import Lean\n" + ("import Mathlib\n" if uses_mathlib else "") + imports + "import Vendor.Batch\n\nset_option maxErrors 0\nset_option Elab.async false\n"
+    body = [header]
     for mod, export, names in plan:
         body.append(f'\n-- {mod}: {len(names)} declarations\n#tengoku_import_parse "{export.resolve()}"\n')
         for i in range(0, len(names), 40):  # several per command line is fine; 40 keeps each message block small
@@ -418,8 +438,10 @@ if __name__ == "__main__":
         g.add_argument(f"--{f}", required=True)
     g.add_argument("--controls", type=int, default=0)
     g.add_argument("--exclude", default="", help="modules to leave out (comma list)")
+    v = sub.add_parser("emit-vendor")
+    v.add_argument("--out", required=True, help="the Vendor project directory (holds Vendor.lean and Vendor/)")
     q = sub.add_parser("parse")
     for f in ("log", "ledger", "out"):
         q.add_argument(f"--{f}", required=True)
     args = ap.parse_args()
-    generate(args) if args.cmd == "generate" else parse(args)
+    {"generate": generate, "parse": parse, "emit-vendor": emit_vendor}[args.cmd](args)

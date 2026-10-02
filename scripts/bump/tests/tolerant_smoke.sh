@@ -64,7 +64,8 @@ repo=$(cd "$here/../.." && pwd)
 rm -rf "$work/vendor" && mkdir -p "$work/vendor" && cd "$work/vendor"
 printf 'name = "V"\ndefaultTargets = ["Vendor"]\n[[lean_lib]]\nname = "Vendor"\n' > lakefile.toml
 cp -r "$repo/gate2/Vendor.lean" "$repo/gate2/Vendor" .
-lake build Vendor 2>&1 | tail -40
+python3 "$repo/scripts/bump/gate2_batch.py" emit-vendor --out .   # Core.lean (server.py's header) and Batch.lean (the batch commands)
+lake build Vendor 2>&1 | tail -60
 test "${PIPESTATUS[0]}" = 0 || { echo "Vendor does not build"; exit 1; }
 # The kernel's refusal must reach the caller of `addDecl` (the batched Gate 2 relies on it): with Elab.async off a theorem the
 # kernel rejects raises inside `observing`; with it on the refusal is reported later and the caller sees success.

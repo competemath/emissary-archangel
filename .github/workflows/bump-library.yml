@@ -109,6 +109,8 @@ jobs:
       - name: Gate 2's own Lean modules, in a project of their own (the library's lakefile options, e.g. warnings as errors, must not apply to them)
         run: |
           mkdir vendorproj && cp -r emissary/gate2/Vendor.lean emissary/gate2/Vendor vendorproj/
+          # the helper code of Gate 2 and of the batch, compiled here (it imports only Lean), not parsed in the check file
+          python3 emissary/scripts/bump/gate2_batch.py emit-vendor --out vendorproj
           cd vendorproj
           echo "$TOOLCHAIN" > lean-toolchain
           printf 'name = "V"\ndefaultTargets = ["Vendor"]\n[[lean_lib]]\nname = "Vendor"\n' > lakefile.toml

@@ -122,7 +122,11 @@ class Module:
         self.path = path
         self.lines = path.read_text(errors="replace").split("\n")
         self.blocks: list[tuple[int, int]] = []
+        n = len(self.lines)
         for s, e in merge_ranges(ranges):
+            if s < 1 or s > n:  # a range recorded for code that came from somewhere else (a macro, another file)
+                continue
+            e = min(e, n)
             s0 = s
             # `open Foo in` / `set_option … in` lines directly above a declaration belong to it
             while s0 > 1 and IN_PREFIX.match(self.lines[s0 - 2]):
