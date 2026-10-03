@@ -39,5 +39,25 @@ class Strip(unittest.TestCase):
         self.assertEqual(strip_attrs.strip_attributes(once), (once, {}))
 
 
+class PortfolioTraces(unittest.TestCase):
+    BLOCK = (
+        "theorem t : x = y := by\n  first\n"
+        '    | (all_goals grind; done; trace "PORTFOLIO-OK grind")\n'
+        '    | (all_goals aesop; done; trace "PORTFOLIO-OK aesop")\n'
+    )
+
+    def test_the_traces_go_and_the_block_stays(self):
+        out, n = strip_attrs.strip_portfolio_traces(self.BLOCK)
+        self.assertEqual(n, 2)
+        self.assertIn("    | (all_goals grind; done)\n", out)
+        self.assertIn("    | (all_goals aesop; done)\n", out)
+        self.assertEqual(out.count("\n"), self.BLOCK.count("\n"))  # no line moves
+
+    def test_a_trace_in_a_comment_or_a_string_is_left_alone(self):
+        text = '-- x; trace "PORTFOLIO-OK grind"\ndef s := "a; trace \\"PORTFOLIO-OK x\\""\n/- y; trace "PORTFOLIO-OK aesop" -/\n'
+        out, n = strip_attrs.strip_portfolio_traces(text)
+        self.assertEqual((out, n), (text, 0))
+
+
 if __name__ == "__main__":
     unittest.main()

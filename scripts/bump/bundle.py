@@ -276,6 +276,9 @@ def compose(a: argparse.Namespace) -> None:
     for mod in list(pruned):
         pruned[mod], c = strip_attrs.strip_attributes(pruned[mod])
         stripped_attrs.update(c)
+        pruned[mod], n_traces = strip_attrs.strip_portfolio_traces(pruned[mod])
+        if n_traces:
+            stripped_attrs["portfolio trace"] += n_traces
     # The tree compiles what it takes under its content lint (an allow-list of known-inert commands, attributes and options). The
     # copy here is tengoku's (scripts/bump/lint); the header is the bundle's own business (imports are mapped, `module` is the
     # module system), so it is not linted. `proposed` is the same lint with notation commands allowed (notation, infix, prefix,

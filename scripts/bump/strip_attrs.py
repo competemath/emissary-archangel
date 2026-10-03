@@ -105,3 +105,21 @@ def _name(code_part: str) -> str:
 def _refused_part(code_part: str) -> bool:
     name = _name(code_part)
     return bool(name) and _is_refused(name, code_part)
+
+
+PORTFOLIO_TRACE = re.compile(r';\s*trace "PORTFOLIO-OK \w+"')
+
+
+def strip_portfolio_traces(text: str) -> tuple[str, int]:
+    """The portfolio (portfolio.py) retries a failed proof with `first | (all_goals T; done; trace "PORTFOLIO-OK T") | …`; the trace only counts which
+    tactic closed what, and in a shipped module it would print a message on every build of the tree. Removed from the code (never from a string or a
+    comment); the `first` block stays, so the proof is the one the verification build checked."""
+    mask = code_mask(text)
+    out, last, n = [], 0, 0
+    for m in PORTFOLIO_TRACE.finditer(text):
+        if mask[m.start()]:  # the `;` is code (not inside a comment or a string)
+            out.append(text[last : m.start()])
+            last, n = m.end(), n + 1
+    out.append(text[last:])
+    return "".join(out), n
+
