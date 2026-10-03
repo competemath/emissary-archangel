@@ -62,6 +62,9 @@ Per-theorem records cannot carry this volume: a record repeats its whole context
 | one shard: build its closure, repair, batched Gate 2 for its targets, the constants its passed theorems are made of | `bump-shard.yml` (called by `bump-sharded.yml`), `shard_pack.py` |
 | the bundle: keep every declaration in the closure of the passed theorems and all glue, drop the rest and any block Lean reported an error in, map imports to the tree, apply the tree's content lint, write the manifest | `bundle.py` (`lint/` is a pinned copy of tengoku's allow-list) |
 | prove the pruned sources build clean (single-job libraries; sharded ones are built by the tree's own queue) | `bundle.py check`, `bump-library.yml` |
+| find what the library registers for OTHER libraries' types: global instances / simp lemmas whose statement mentions nothing of the library (they change how every other library elaborates in the one tree). Read from the compiled environment, with positions | `TengokuLeak.lean` (`lake env lean --run … --module M --prefix P --tree-prefix Tengoku.Ns`), `leakscan_args.py`; the same exe runs in the tree's merge queue (tengoku-sandbox `tengoku-leakscan`) |
+| make those registrations `local` (an edit inside lines, so the report's positions stay valid; a note at the end of the file); the sources are built again | `scope_rewrite.py`; in `bump-library.yml` after the verification build, and as the `scope` input of a recut |
+| leave modules out of a finished bundle (the tree's build named them), with what imports them | `bundle_cut.py` (`drop` input of a `bump-library.yml` recut; sharded runs cut at compose) |
 | one reproducible archive, attested (SLSA build provenance), `.tar.gz` for transport | `bundle_tar.py` (the same function and golden digest as tengoku's `scripts/ci/bundle_tar.py`) |
 | every library, unattended, by size, within the runner capacity | `bump-all.yml`, `orchestrate.py` |
 | a finished run -> an intake PR | `open_intake_pr.py` |
