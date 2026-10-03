@@ -191,13 +191,26 @@ jobs:
           (cd lib && timeout 90m lake env lean bundle-deps.lean > ../bundle-deps.log 2>&1 || true)
           python3 scripts/bump/bundle.py compose --lib lib --log bundle-deps.log --passed passed.json --meta "data/exports/$KEY/setup.ci.json" \
             --key "$KEY" --toolchain "$TOOLCHAIN" --errors build1.log --gate2 gate2.log --out bundle --src pruned-src
-      - name: Build the pruned sources, they must be clean (what is shipped is exactly what was built)
+      - name: Build the pruned sources until they are clean (what is shipped is exactly what was built; a module that does not build, and what imports it, is left out)
         working-directory: emissary
         run: |
           mkdir -p lib2/.lake && cp lib/lakefile.* lib/lake-manifest.json lib/lean-toolchain lib2/ && ln -s "$PWD/lib/.lake/packages" lib2/.lake/packages
-          cp -r pruned-src-proposed/. lib2/
-          python3 scripts/bump/tolerant_build.py --lib lib2 --roots "$ROOTS" --log verify.log --report verify.json --jobs 4 --cache lib2/.bump-cache
-          python3 scripts/bump/bundle.py check --report verify.json --log verify.log --out verify-summary.json
+          sync_sources() {
+            for r in ${ROOTS//,/ }; do
+              rm -rf "lib2/$r" "lib2/$r.lean"
+              [ -e "pruned-src-proposed/$r" ] && cp -r "pruned-src-proposed/$r" lib2/
+              [ -e "pruned-src-proposed/$r.lean" ] && cp "pruned-src-proposed/$r.lean" lib2/
+            done
+            return 0
+          }
+          sync_sources
+          for round in 1 2 3 4; do
+            python3 scripts/bump/tolerant_build.py --lib lib2 --roots "$ROOTS" --log verify.log --report verify.json --jobs 4 --cache lib2/.bump-cache
+            if python3 scripts/bump/bundle.py check --report verify.json --log verify.log --out verify-summary.json; then break; fi
+            [ "$round" = 4 ] && { echo "still not clean after three refinements"; exit 1; }
+            python3 scripts/bump/bundle.py refine --report verify.json --log verify.log --key "$KEY" --out bundle --src pruned-src
+            sync_sources
+          done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

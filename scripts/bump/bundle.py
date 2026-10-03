@@ -77,7 +77,7 @@ partial def bkTainted (env : Environment) (isOwn : Name → Bool) (memo : IO.Ref
 /-- Every library constant (module, name) that must stay: the closure of the types, values and proofs of the passed theorems AND of every
 library constant that is not a theorem and stands on nothing failed (definitions, structures, classes, instances: glue such as `variable
 [MyClass F]` or a notation names them without any theorem using them, so cutting one breaks what is left). Theorems stay only
-where something that stays needs them. -/
+where something that stays needs them, and clean simp lemmas (`simp` uses them without the proof term saying so). -/
 elab "#bundle_keep " names:str " in " libs:str : command => do
   let libMods : NameSet := (libs.getString.splitOn ",").foldl (fun s x => if x == "" then s else s.insert (bkParse x)) {}
   let j ← liftTermElabM do
@@ -85,11 +85,27 @@ elab "#bundle_keep " names:str " in " libs:str : command => do
     let isOwn (c : Name) : Bool := match bkModOf env c with | some m => libMods.contains m | none => false
     let taint ← IO.mkRef (({} : Std.HashMap Name Bool))
     let mut seeds : List Name := ((names.getString.splitOn ",").filter (· != "")).map bkParse
+    -- `simp` (and `dsimp`) use the simp lemmas of the environment; a `rfl` lemma leaves nothing of itself in the proof term, so
+    -- the closure of the passed theorems never sees it, yet the proofs that `simp` closed with it do not close without it
+    let simpNames : NameSet := (← getSimpTheorems).lemmaNames.fold (init := {}) fun s o =>
+      match o with
+      | .decl n _ _ => s.insert n
+      | _ => s
+    -- a theorem's own auxiliary definitions (`foo.match_1`, ...) are not seeds: their source range is the theorem's block, and
+    -- a seed keeps the block: a failed theorem would come back through its matcher
+    let isAuxOfTheorem (c : Name) : Bool := Id.run do
+      let mut p := c.getPrefix
+      while !p.isAnonymous do
+        if (env.find? p).any (·.isTheorem) then return true
+        p := p.getPrefix
+      return false
     for m in libMods.toList do
       let some idx := env.getModuleIdx? m | continue
       for c in env.header.moduleData[idx.toNat]!.constNames do
         if let some ci := env.find? c then
-          if !ci.isTheorem && !(← bkTainted env isOwn taint c) then seeds := c :: seeds
+          if ci.isTheorem then
+            if simpNames.contains c && !(← bkTainted env isOwn taint c) then seeds := c :: seeds
+          else if !isAuxOfTheorem c && !(← bkTainted env isOwn taint c) then seeds := c :: seeds
     let mut seen : NameSet := {}
     let mut stack : List Name := seeds
     let mut consts : Array Json := #[]
@@ -170,6 +186,8 @@ def compose(a: argparse.Namespace) -> None:
     kept = set()
     for m in re.finditer(r"BUNDLE_KEEP (\[.*?\]) BUNDLE_END", log, re.S):
         kept |= {(mod, c) for mod, c in json.loads(re.sub(r"\s*\n\s*", "", m.group(1)))}
+    if passed and not kept:  # the Lean step failed (an empty bundle would look like a library with nothing to keep)
+        sys.exit("bundle-deps.log has no BUNDLE_KEEP line although theorems passed:\n" + "\n".join(log.splitlines()[-15:]))
     sidecars = {}
     base = lib / ".lake" / "build" / "lib" / "lean"
     for f in base.rglob("*.olean.ranges.json"):
@@ -349,6 +367,55 @@ def compose(a: argparse.Namespace) -> None:
     print(json.dumps(summary))
 
 
+def refine(a: argparse.Namespace) -> None:
+    """After a verification build that was not clean: leave out the modules that did not build (and every module that imports one),
+    from both bundles and their pruned sources. What was not built in the tree's environment is not shipped; the next build must be clean."""
+    rep = json.loads(Path(a.report).read_text())
+    log = Path(a.log).read_text(errors="replace")
+    def to_mod(f: str) -> str:
+        return ".".join(tb.esc(x) for x in f.removeprefix("./")[: -len(".lean")].split("/"))
+
+    bad = {m for m, s in rep["status"].items() if s["state"] != "clean"}
+    bad |= {to_mod(f) for f in re.findall(r"^error: (\S+?\.lean)\b", log, re.M)}
+    bad |= {to_mod(f) for f in re.findall(r"^warning: (\S+?\.lean):\d+:\d+: declaration uses .sorry.", log, re.M)}
+    key = pascal(a.key)
+    summary = {}
+    for mode, out_dir, src_dir in (("strict", Path(a.out), Path(a.src)), ("proposed", Path(str(a.out) + "-proposed"), Path(str(a.src) + "-proposed"))):
+        tree_root = out_dir / "Tengoku" / key
+        if not tree_root.is_dir():
+            continue
+        mods = {to_mod(str(f.relative_to(src_dir))) for f in src_dir.rglob("*.lean")} if src_dir.is_dir() else set()
+        imports = {m: [d for d in tb.header_imports((src_dir / Path(*tb.split_mod(m)).with_suffix(".lean")).read_text()) if d in mods] for m in mods}
+        gone = {m for m in mods if m in bad}
+        changed = True
+        while changed:
+            changed = False
+            for m, ds in imports.items():
+                if m not in gone and any(d in gone for d in ds):
+                    gone.add(m)
+                    changed = True
+        for m in gone:
+            rel = Path(*tb.split_mod(m)).with_suffix(".lean")
+            for root in (src_dir, tree_root):
+                (root / rel).unlink(missing_ok=True)
+        keep = sorted(mods - gone)
+        (out_dir / "Tengoku" / f"{key}.lean").write_text("".join(f"import Tengoku.{key}.{m}\n" for m in keep))
+        rows = [json.loads(ln) for ln in (out_dir / "manifest.jsonl").read_text().splitlines() if ln.strip()]
+        kept_rows = [r for r in rows if r["module"].removeprefix(f"Tengoku.{key}.") not in gone]
+        (out_dir / "manifest.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in kept_rows))
+        report = json.loads((out_dir / "report.json").read_text())
+        cut = len(rows) - len(kept_rows)
+        report["modules_in_bundle"] = len(keep)
+        report["theorems"] = len(kept_rows)
+        report["verification_dropped"] = {**report.get("verification_dropped", {}), **{m: ("did not build in the verification build" if m in bad else "imports a module that did not build") for m in sorted(gone)}}
+        report["left_out"] = {**report.get("left_out", {}), "verification build: module did not build, or imports one": report.get("left_out", {}).get("verification build: module did not build, or imports one", 0) + cut}
+        (out_dir / "report.json").write_text(json.dumps(report, indent=1))
+        summary[mode] = {"modules": len(keep), "theorems": len(kept_rows), "dropped_modules": len(gone), "dropped_theorems": cut}
+    print(json.dumps(summary))
+    if not any(s["modules"] for s in summary.values()):
+        sys.exit("nothing is left of the bundle after the verification build")
+
+
 def passed_via(gate2_log: str) -> dict[str, str]:
     p = Path(gate2_log) if gate2_log else None
     if p is None or not p.is_file():
@@ -384,5 +451,8 @@ if __name__ == "__main__":
     for f in ("lib", "log", "passed", "meta", "key", "toolchain", "errors", "out", "src"):
         c.add_argument(f"--{f}", required=True)
     c.add_argument("--gate2", default="")
+    r = sub.add_parser("refine")
+    for f in ("report", "log", "key", "out", "src"):
+        r.add_argument(f"--{f}", required=True)
     args = ap.parse_args()
-    {"lean": lean_file, "compose": compose, "check": check}[args.cmd](args)
+    {"lean": lean_file, "compose": compose, "check": check, "refine": refine}[args.cmd](args)

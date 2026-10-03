@@ -83,5 +83,54 @@ class Bundle(unittest.TestCase):
         self.assertEqual(rep["modules_dropped"], 2)
 
 
+class Refine(unittest.TestCase):
+    """The verification build found modules that do not build: they, and what imports them, are left out of both bundles."""
+
+    def test_modules_that_did_not_build_and_their_importers_go(self):
+        d = Path(tempfile.mkdtemp())
+        mods = {"X.A": "import Mathlib\ntheorem a : True := trivial\n", "X.B": "import X.A\ntheorem b : True := trivial\n", "X.C": "import Mathlib\ntheorem c : True := trivial\n"}
+        for out, src in ((d / "bundle", d / "src"), (d / "bundle-proposed", d / "src-proposed")):
+            for m, text in mods.items():
+                rel = Path(*m.split(".")).with_suffix(".lean")
+                for root in (src, out / "Tengoku" / "ToyLib"):
+                    (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                    (root / rel).write_text(text)
+            (out / "Tengoku" / "ToyLib.lean").write_text("".join(f"import Tengoku.ToyLib.{m}\n" for m in mods))
+            rows = [{"name": n, "module": f"Tengoku.ToyLib.{m}"} for n, m in (("a", "X.A"), ("b", "X.B"), ("c", "X.C"))]
+            (out / "manifest.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+            (out / "report.json").write_text(json.dumps({"theorems": 3, "modules_in_bundle": 3, "left_out": {}}))
+        (d / "verify.json").write_text(json.dumps({"status": {"X.A": {"state": "errors"}, "X.B": {"state": "clean"}, "X.C": {"state": "clean"}}}))
+        (d / "verify.log").write_text("error: X/A.lean:2:0: unsolved goals\n")
+        r = subprocess.run([sys.executable, str(HERE / "bundle.py"), "refine", "--report", str(d / "verify.json"), "--log", str(d / "verify.log"), "--key", "toy-lib",
+                            "--out", str(d / "bundle"), "--src", str(d / "src")], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        for out in (d / "bundle", d / "bundle-proposed"):
+            self.assertFalse((out / "Tengoku" / "ToyLib" / "X" / "A.lean").exists())
+            self.assertFalse((out / "Tengoku" / "ToyLib" / "X" / "B.lean").exists())  # imports A
+            self.assertTrue((out / "Tengoku" / "ToyLib" / "X" / "C.lean").exists())
+            self.assertEqual((out / "Tengoku" / "ToyLib.lean").read_text(), "import Tengoku.ToyLib.X.C\n")
+            self.assertEqual([json.loads(x)["name"] for x in (out / "manifest.jsonl").read_text().splitlines()], ["c"])
+            rep = json.loads((out / "report.json").read_text())
+            self.assertEqual((rep["theorems"], rep["modules_in_bundle"]), (1, 1))
+            self.assertEqual(sorted(rep["verification_dropped"]), ["X.A", "X.B"])
+        self.assertFalse((d / "src-proposed" / "X" / "B.lean").exists())
+
+    def test_a_bundle_with_nothing_left_fails(self):
+        d = Path(tempfile.mkdtemp())
+        for out, src in ((d / "bundle", d / "src"), (d / "bundle-proposed", d / "src-proposed")):
+            (src / "X").mkdir(parents=True)
+            (src / "X" / "A.lean").write_text("import Mathlib\n")
+            (out / "Tengoku" / "ToyLib" / "X").mkdir(parents=True)
+            (out / "Tengoku" / "ToyLib" / "X" / "A.lean").write_text("import Mathlib\n")
+            (out / "manifest.jsonl").write_text(json.dumps({"name": "a", "module": "Tengoku.ToyLib.X.A"}) + "\n")
+            (out / "report.json").write_text("{}")
+        (d / "verify.json").write_text(json.dumps({"status": {"X.A": {"state": "errors"}}}))
+        (d / "verify.log").write_text("")
+        r = subprocess.run([sys.executable, str(HERE / "bundle.py"), "refine", "--report", str(d / "verify.json"), "--log", str(d / "verify.log"), "--key", "toy-lib",
+                            "--out", str(d / "bundle"), "--src", str(d / "src")], capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("nothing is left", r.stdout + r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
