@@ -21,12 +21,14 @@ on:
       records: { description: "on = also stage the old per-theorem records (33 KB each, superseded by the bundle)", default: "off" }
       imports: { description: "full = every Mathlib/Batteries/Aesop/Qq/ProofWidgets import becomes the umbrellas (the environment a record is verified in); minimal = keep the library's imports and repair moved modules (mine_moves.py)", default: "full" }
       portfolio: { description: "on = at the last step, theorems whose proof failed are retried with Lean's own automation (scripts/bump/portfolio.py)", default: "on" }
+      recut_from: { description: "RECUT: the id of an earlier run of this workflow for this key. No build: its bundle is packed again (with the Deps.lean marker) and attested by this run", default: "" }
 permissions: {}
 defaults:
   run:
     shell: bash
 jobs:
   bump:
+    if: ${{ inputs.recut_from == '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 330
     permissions: { contents: read }   # this job runs the library's Lean (elaborators, tactics, initializers): it holds no signing identity
@@ -248,10 +250,10 @@ jobs:
   # attests the canonical archive of them. Signing in the job that compiled the library would let the library mint attestations.
   attest:
     needs: bump
-    if: ${{ needs.bump.result == 'success' }}
+    if: ${{ !cancelled() && (inputs.recut_from != '' || needs.bump.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    permissions: { contents: read, id-token: write, attestations: write }
+    permissions: { contents: read, id-token: write, attestations: write, actions: read }  # actions: read = the results of an earlier run (recut)
     env: { KEY: "${{ inputs.key }}" }
     steps:
       - name: The factory's scripts
@@ -260,12 +262,16 @@ jobs:
           git -C emissary sparse-checkout set --no-cone "/scripts/bump/bundle_tar.py"
           git -C emissary checkout -q "$GITHUB_SHA"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with: { name: "results-${{ inputs.key }}", path: raw }
+        with: { name: "results-${{ inputs.key }}", path: raw, run-id: "${{ inputs.recut_from || github.run_id }}", github-token: "${{ github.token }}" }
       - name: Pack (the attested bytes are the canonical .tar, the same function as tengoku's gate; the .tar.gz is for transport)
         run: |
           mkdir -p out
           for mode in strict proposed; do
             dir=raw/bundle; [ "$mode" = proposed ] && dir=raw/bundle-proposed
+            # tengoku's generator keeps in All.lean the libraries that have a Deps.lean: an empty one (a comment) marks this library
+            for t in "$dir"/Tengoku/*/; do
+              [ -d "$t" ] && [ ! -f "${t}Deps.lean" ] && printf -- '-- %s: a factory bundle (data/intake/%s). This file only marks the library for Tengoku/All.lean.\n' "$(basename "$t")" "$KEY" > "${t}Deps.lean"
+            done
             python3 emissary/scripts/bump/bundle_tar.py "$dir" "out/bundle-$KEY-$mode.tar"
             gzip -n -k "out/bundle-$KEY-$mode.tar"
             cp "$dir/report.json" "out/report-$mode.json"; cp "$dir/manifest.jsonl" "out/manifest-$mode.jsonl"

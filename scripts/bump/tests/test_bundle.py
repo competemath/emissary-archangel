@@ -179,5 +179,29 @@ class ImportLines(unittest.TestCase):
         self.assertEqual(bundle.map_import_line("theorem a : True := trivial -- import Foo", "my-lib", own), ("theorem a : True := trivial -- import Foo", None))
 
 
+class ExternalImports(unittest.TestCase):
+    def test_a_docstring_line_that_starts_with_import_is_not_an_import(self):
+        d = Path(tempfile.mkdtemp())
+        lib = d / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        text = "import Mathlib.Data.Nat.Basic\n\n/-- Module doc.\nimport that into the tree and the rest follows.\n-/\n\ndef one : Nat := 1\n"
+        (lib / "Toy" / "A.lean").write_text(text)
+        la = text.split("\n")
+        n = next(i + 1 for i, x in enumerate(la) if x.startswith("def one"))
+        f = lib / ".lake" / "build" / "lib" / "lean" / "Toy/A.olean.ranges.json"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps([["Toy.one", n, n]]))
+        (d / "deps.log").write_text('x:1:0: info: BUNDLE_KEEP [["Toy.A", "Toy.one"]] BUNDLE_END\n')
+        (d / "passed.json").write_text(json.dumps({"Toy.A": ["Toy.one"]}))
+        (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy.git", "commit": "abc123"}))
+        (d / "build.log").write_text("")
+        (d / "gate2.log").write_text("GATE2B_PASS old=Toy.one new=Toy.one via=equal\n")
+        subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
+                        "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"), "--src", str(d / "src")], check=True, capture_output=True)
+        rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
+        self.assertEqual((rep["modules_in_bundle"], rep["theorems"]), (1, 1))  # it used to be dropped for "imports that"
+        self.assertFalse(rep["dropped_truncated"])
+
+
 if __name__ == "__main__":
     unittest.main()

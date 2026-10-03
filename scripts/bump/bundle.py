@@ -243,10 +243,10 @@ def compose(a: argparse.Namespace) -> None:
     external = {}
     for mod, m in modules.items():
         bad = []
-        for ln in m.lines[:200]:
-            _, kind = map_import_line(ln, a.key, own)
+        for name in tb.header_imports("\n".join(m.lines)):  # the header only: a docstring line that starts with the word "import" is prose, not an import
+            _, kind = map_import_line(f"import {name}", a.key, own)
             if kind == "external":
-                bad.append(IMPORT_RE.match(ln).group(2))
+                bad.append(name)
         if bad:
             external[mod] = bad
     # a module that imports a package the tree does not have cannot be built there, nor can what imports it
@@ -375,7 +375,7 @@ def compose(a: argparse.Namespace) -> None:
                 affected = sum(len(passed.get(x, [])) for x in with_importers(m_))
                 for v in {x[:70] for x in vs}:
                     classes[v] += affected
-        report = {"library": a.key, "lint_mode": mode, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]),
+        report = {"library": a.key, "lint_mode": mode, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]), "dropped_truncated": len(dropped) > 50,
                   "theorems": len(manifest), "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "stripped_attributes": dict(stripped_attrs.most_common(15)),
                   "lint_cost": dict(sorted(classes.items(), key=lambda x: -x[1])[:15])}
         (out_dir / "report.json").write_text(json.dumps(report, indent=1))
