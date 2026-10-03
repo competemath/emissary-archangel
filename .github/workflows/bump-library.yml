@@ -116,6 +116,9 @@ jobs:
           done < plan.txt
           echo "final state: build-$final.log"; cp "build-$final.log" build1.log; cp "pass-$final.json" pass1.json; cp "tb-$final.json" tb-final.json
           git -C lib diff --stat | tail -3; git -C lib diff > ../repairs.patch
+      - name: The old exports (a library set up across runners keeps them in a release, not in git; the others have them already)
+        working-directory: emissary
+        run: node scripts/fetch-exports.mjs "$KEY"
       - name: Gate 2's own Lean modules, in a project of their own (the library's lakefile options, e.g. warnings as errors, must not apply to them)
         run: |
           mkdir vendorproj && cp -r emissary/gate2/Vendor.lean emissary/gate2/Vendor vendorproj/

@@ -97,6 +97,9 @@ jobs:
           echo "$TOOLCHAIN" > lean-toolchain
           printf 'name = "V"\ndefaultTargets = ["Vendor"]\n[[lean_lib]]\nname = "Vendor"\n' > lakefile.toml
           lake build Vendor 2>&1 | tail -3
+      - name: The old exports of this shard's targets (a library set up across runners keeps them in a release, not in git)
+        working-directory: emissary
+        run: node scripts/fetch-exports.mjs "$KEY" --modules targets.txt
       - name: Batched Gate 2 over the declarations of this shard's targets
         working-directory: emissary
         run: |
