@@ -56,7 +56,7 @@ jobs:
           du -sh emissary/data/exports/"$KEY" | cut -f1
           # the library's entries as tengoku harvested them (the ledger only knows what the per-theorem pipeline got to)
           git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
-          git -C tengoku sparse-checkout set --no-cone "/data/tentative/$KEY.jsonl" "/data/tentative/$KEY/" "/data/trusted/" "/data/staging/"
+          git -C tengoku sparse-checkout set --no-cone "/data/tentative/$KEY.jsonl" "/data/tentative/$KEY/"
           git -C tengoku checkout -q main
           ls tengoku/data/tentative | head -3
       - name: elan
@@ -194,9 +194,8 @@ jobs:
         run: |
           python3 scripts/bump/bundle.py lean --lib lib --passed passed.json --roots "$ROOTS" --out lib/bundle-deps.lean
           (cd lib && timeout 90m lake env lean bundle-deps.lean > ../bundle-deps.log 2>&1 || true)
-          python3 scripts/bump/tree_names.py ../tengoku --lib "$KEY" --out tree-names.txt
           python3 scripts/bump/bundle.py compose --lib lib --log bundle-deps.log --passed passed.json --meta "data/exports/$KEY/setup.ci.json" \
-            --key "$KEY" --toolchain "$TOOLCHAIN" --errors build1.log --gate2 gate2.log --out bundle --src pruned-src --tree-names tree-names.txt
+            --key "$KEY" --toolchain "$TOOLCHAIN" --errors build1.log --gate2 gate2.log --out bundle --src pruned-src
       - name: Build the pruned sources until they are clean (what is shipped is exactly what was built; a module that does not build, and what imports it, is left out)
         working-directory: emissary
         run: |

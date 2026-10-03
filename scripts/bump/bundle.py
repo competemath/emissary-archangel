@@ -246,16 +246,8 @@ def compose(a: argparse.Namespace) -> None:
                 bad.append(IMPORT_RE.match(ln).group(2))
         if bad:
             external[mod] = bad
-    # a module that declares a name the tree already has cannot be imported next to it (and the intake gate refuses the manifest line)
-    tree_names = set(Path(a.tree_names).read_text().split("\n")) - {""} if a.tree_names else set()
-    clashing: dict[str, str] = {}
-    for mod in modules:
-        hit = sorted(n for n in sidecars.get(mod, {}) if n in tree_names)
-        if hit:
-            clashing[mod] = f"declares {hit[0]}{f' (+{len(hit) - 1} more)' if len(hit) > 1 else ''}, which the tree already has"
     # a module that imports a package the tree does not have cannot be built there, nor can what imports it
     base_dropped: dict[str, str] = {m: "imports " + ", ".join(b) for m, b in external.items()}
-    base_dropped.update(clashing)
     base_dropped.update({m: "an error outside any declaration (glue)" for m in glue_error})
     sys.setrecursionlimit(100000)
     # the pruned text of every module that could be needed (what the passed theorems are made of, and what that imports)
@@ -466,7 +458,6 @@ if __name__ == "__main__":
     for f in ("lib", "log", "passed", "meta", "key", "toolchain", "errors", "out", "src"):
         c.add_argument(f"--{f}", required=True)
     c.add_argument("--gate2", default="")
-    c.add_argument("--tree-names", default="", help="names the tree already declares (tree_names.py): the modules that declare one are left out")
     r = sub.add_parser("refine")
     for f in ("report", "log", "key", "out", "src"):
         r.add_argument(f"--{f}", required=True)
