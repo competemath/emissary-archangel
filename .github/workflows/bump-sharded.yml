@@ -12,12 +12,15 @@ on:
       toolchain: { description: "the tree's Lean toolchain", default: "leanprover/lean4:v4.34.0-rc2" }
       shards: { description: "number of shards (0 = one per ~200k lines, at most 20)", default: "0" }
       parallel: { description: "shards running at once (the repository has 20 runners; tengoku's own CI waits for them too: leave it room)", default: "8" }
+      recut_from: { description: "RECUT: the id of an earlier run of this workflow for this key. No plan, no shards: its shard artifacts are merged again, without the modules in `drop` (and what imports them), and the new bundle is attested by this run", default: "" }
+      drop: { description: "RECUT: modules (comma list) that did not build on the tree, from the merge queue's build of the bundle", default: "" }
 permissions: {}
 defaults:
   run:
     shell: bash
 jobs:
   plan:
+    if: ${{ inputs.recut_from == '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions: { contents: read }
@@ -66,6 +69,7 @@ jobs:
         with: { name: "plan-${{ inputs.key }}", path: plan, retention-days: 14 }
   shard:
     needs: plan
+    if: ${{ inputs.recut_from == '' }}
     strategy:
       fail-fast: false
       max-parallel: ${{ fromJSON(inputs.parallel) }}
@@ -79,12 +83,12 @@ jobs:
     permissions: { contents: read }
   finish:
     needs: [plan, shard]
-    if: ${{ !cancelled() && needs.plan.result == 'success' }}
+    if: ${{ !cancelled() && (inputs.recut_from != '' || needs.plan.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     # holds the signing identity, runs no code of the library: the shards' artifacts are read as data (shard_pack.merge refuses symlinks and `..`)
-    permissions: { contents: read, id-token: write, attestations: write }
-    env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}" }
+    permissions: { contents: read, id-token: write, attestations: write, actions: read }  # actions: read = the shard artifacts of an earlier run (recut)
+    env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}" }
     steps:
       - name: This repository (scripts, the library's setup)
         run: |
@@ -92,7 +96,7 @@ jobs:
           git -C emissary sparse-checkout set --no-cone "/scripts/" "/data/exports/$KEY/setup.ci.json"
           git -C emissary checkout -q "$GITHUB_SHA"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with: { pattern: "shard-${{ inputs.key }}-*", path: shards }
+        with: { pattern: "shard-${{ inputs.key }}-*", path: shards, run-id: "${{ inputs.recut_from || github.run_id }}", github-token: "${{ github.token }}" }
       - name: Merge the shards and cut the bundle
         working-directory: emissary
         run: |
@@ -100,7 +104,7 @@ jobs:
           python3 scripts/bump/shard_pack.py merge --shards ../shards --out ../merged --logs ../logs
           cat ../logs/gate2-results.json
           python3 scripts/bump/bundle.py compose --lib ../merged --log ../logs/bundle-deps.log --passed ../logs/passed.json --meta "data/exports/$KEY/setup.ci.json" \
-            --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --out ../bundle --src ../pruned-src
+            --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --out ../bundle --src ../pruned-src --drop-modules "$DROP"
       - name: Pack and attest
         run: |
           for mode in strict proposed; do

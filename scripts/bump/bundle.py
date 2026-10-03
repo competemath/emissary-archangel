@@ -252,6 +252,10 @@ def compose(a: argparse.Namespace) -> None:
     # a module that imports a package the tree does not have cannot be built there, nor can what imports it
     base_dropped: dict[str, str] = {m: "imports " + ", ".join(b) for m, b in external.items()}
     base_dropped.update({m: "an error outside any declaration (glue)" for m in glue_error})
+    # modules the merge queue's build of the tree could not compile (a name Mathlib has and the tree does not: a deprecated alias...): left out with what imports them
+    for m in (a.drop_modules or "").split(","):
+        if m.strip() in modules:
+            base_dropped[m.strip()] = "did not build on the tree"
     sys.setrecursionlimit(100000)
     # the pruned text of every module that could be needed (what the passed theorems are made of, and what that imports)
     reach: set[str] = set()
@@ -461,6 +465,7 @@ if __name__ == "__main__":
     for f in ("lib", "log", "passed", "meta", "key", "toolchain", "errors", "out", "src"):
         c.add_argument(f"--{f}", required=True)
     c.add_argument("--gate2", default="")
+    c.add_argument("--drop-modules", default="", help="comma list of modules to leave out (with their importers): those that did not build on the tree")
     r = sub.add_parser("refine")
     for f in ("report", "log", "key", "out", "src"):
         r.add_argument(f"--{f}", required=True)
