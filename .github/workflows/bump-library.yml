@@ -22,6 +22,7 @@ on:
       imports: { description: "full = every Mathlib/Batteries/Aesop/Qq/ProofWidgets import becomes the umbrellas (the environment a record is verified in); minimal = keep the library's imports and repair moved modules (mine_moves.py)", default: "full" }
       portfolio: { description: "on = at the last step, theorems whose proof failed are retried with Lean's own automation (scripts/bump/portfolio.py)", default: "on" }
       recut_from: { description: "RECUT: the id of an earlier run of this workflow for this key. No build: its bundle is packed again (with the Deps.lean marker) and attested by this run", default: "" }
+      drop: { description: "RECUT: modules (comma list, the library's own names) that did not build on the tree, from the merge queue's build; they and what imports them are left out (scripts/bump/bundle_cut.py)", default: "" }
       scope: { description: "RECUT: the `leak:` lines of the merge queue's leak report (separated by `;`): those registrations are made local (scripts/bump/scope_rewrite.py)", default: "" }
 permissions: {}
 defaults:
@@ -288,15 +289,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions: { contents: read, id-token: write, attestations: write, actions: read }  # actions: read = the results of an earlier run (recut)
-    env: { KEY: "${{ inputs.key }}", SCOPE: "${{ inputs.scope }}" }
+    env: { KEY: "${{ inputs.key }}", SCOPE: "${{ inputs.scope }}", DROP: "${{ inputs.drop }}" }
     steps:
       - name: The factory's scripts
         run: |
           git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
-          git -C emissary sparse-checkout set --no-cone "/scripts/bump/bundle_tar.py" "/scripts/bump/scope_rewrite.py"
+          git -C emissary sparse-checkout set --no-cone "/scripts/bump/bundle_tar.py" "/scripts/bump/scope_rewrite.py" "/scripts/bump/bundle_cut.py" "/scripts/bump/tolerant_build.py"
           git -C emissary checkout -q "$GITHUB_SHA"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { name: "results-${{ inputs.key }}", path: raw, run-id: "${{ inputs.recut_from || github.run_id }}", github-token: "${{ github.token }}" }
+      - name: Leave out the modules the tree could not build (RECUT only)
+        if: ${{ inputs.drop != '' }}
+        run: |
+          python3 emissary/scripts/bump/bundle_cut.py --bundle raw/bundle --key "$KEY" --drop "$DROP"
       - name: Make the registrations that leak into other libraries local (RECUT only)
         if: ${{ inputs.scope != '' }}
         run: python3 emissary/scripts/bump/scope_rewrite.py --bundle raw/bundle --bundle raw/bundle-proposed --leaks "$SCOPE"
