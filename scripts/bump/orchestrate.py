@@ -26,7 +26,14 @@ BIG = "bump-sharded.yml"
 
 
 def gh(*args: str, check: bool = True) -> str:
-    r = subprocess.run(["gh", *args], capture_output=True, text=True)
+    # a read (`run list`, `run view`) that hit a GitHub 5xx or a network blip is tried again: one 503 killed an orchestrator that had
+    # six hours of dispatches ahead of it. A dispatch is never repeated (a failure after it was accepted would start the run twice).
+    attempts = 6 if args[:1] == ("run",) and args[1:2] in (("list",), ("view",)) else 1
+    for attempt in range(1, attempts + 1):
+        r = subprocess.run(["gh", *args], capture_output=True, text=True)
+        if not r.returncode or attempt == attempts:
+            break
+        time.sleep(15 * attempt)
     if check and r.returncode:
         raise RuntimeError(f"gh {' '.join(args)}: {r.stderr.strip()[:300]}")
     return r.stdout.strip()
