@@ -83,6 +83,43 @@ class Bundle(unittest.TestCase):
         self.assertEqual(rep["modules_dropped"], 2)
 
 
+    def test_a_module_that_declares_a_name_the_tree_has_is_left_out_with_its_importers(self):
+        d = Path(tempfile.mkdtemp())
+        lib = d / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        A = T.A + "\ntheorem broken_header (x : Nat) : foo x = x := by\n  simp\n"
+        (lib / "Toy" / "A.lean").write_text(A)
+        (lib / "Toy" / "B.lean").write_text(T.B)
+        la, lb = A.split("\n"), T.B.split("\n")
+        ln = lambda lines, needle: next(i + 1 for i, x in enumerate(lines) if needle in x)
+        one = (ln(la, "/-- the number one"), ln(la, "def one"))
+        unused = (ln(la, "/-- never used"), ln(la, "theorem unused"))
+        one_pos = (ln(la, "theorem one_pos"),) * 2
+        unrelated = (ln(lb, "theorem unrelated"),) * 2
+        uses = (ln(lb, "open Nat in"), ln(lb, "theorem uses_one_pos"))
+        bad = ln(la, "theorem broken_header")
+        sidecars = {"Toy/A": [["Toy.one", *one], ["Toy.unused", *unused], ["Toy.one_pos", *one_pos]], "Toy/B": [["Toy.unrelated", *unrelated], ["Toy.uses_one_pos", *uses]]}
+        for m, rows in sidecars.items():
+            f = lib / ".lake" / "build" / "lib" / "lean" / (m + ".olean.ranges.json")
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(json.dumps(rows))
+        keep = [["Toy.B", "Toy.uses_one_pos"], ["Toy.A", "Toy.one_pos"], ["Toy.A", "Toy.one"]]
+        (d / "deps.log").write_text(f"x:1:0: info: BUNDLE_KEEP {json.dumps(keep)} BUNDLE_END\n")
+        (d / "passed.json").write_text(json.dumps({"Toy.B": ["Toy.uses_one_pos"]}))
+        (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy.git", "commit": "abc123"}))
+        (d / "build.log").write_text(f"error: Toy/A.lean:{bad}:30: Unknown identifier `foo`\n")
+        (d / "gate2.log").write_text("GATE2B_PASS old=Toy.uses_one_pos new=Toy.uses_one_pos via=equal\n")
+        (d / "tree.txt").write_text("Nat.add_comm\nToy.one_pos\n")
+        subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
+                        "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"), "--src", str(d / "src"), "--tree-names", str(d / "tree.txt")], check=True)
+        for out in (d / "bundle", d / "bundle-proposed"):
+            rep = json.loads((out / "report.json").read_text())
+            self.assertEqual(rep["modules_in_bundle"], 0)  # Toy.A declares Toy.one_pos; Toy.B imports Toy.A
+            self.assertEqual(rep["theorems"], 0)
+            self.assertIn("declares Toy.one_pos, which the tree already has", rep["dropped"]["Toy.A"])
+            self.assertIn("imports a module that cannot go to the tree", rep["dropped"]["Toy.B"])
+
+
 class Refine(unittest.TestCase):
     """The verification build found modules that do not build: they, and what imports them, are left out of both bundles."""
 

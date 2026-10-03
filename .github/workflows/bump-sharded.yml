@@ -91,6 +91,12 @@ jobs:
           git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
           git -C emissary sparse-checkout set --no-cone "/scripts/" "/data/exports/$KEY/setup.ci.json"
           git -C emissary checkout -q "$GITHUB_SHA"
+      - name: The names the tree already declares (a bundle that declares one cannot be imported next to it, and the intake gate refuses it)
+        run: |
+          git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
+          git -C tengoku sparse-checkout set --no-cone "/data/trusted/" "/data/staging/"
+          git -C tengoku checkout -q main
+          python3 emissary/scripts/bump/tree_names.py tengoku --lib "$KEY" --out tree-names.txt
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { pattern: "shard-${{ inputs.key }}-*", path: shards }
       - name: Merge the shards and cut the bundle
@@ -100,7 +106,7 @@ jobs:
           python3 scripts/bump/shard_pack.py merge --shards ../shards --out ../merged --logs ../logs
           cat ../logs/gate2-results.json
           python3 scripts/bump/bundle.py compose --lib ../merged --log ../logs/bundle-deps.log --passed ../logs/passed.json --meta "data/exports/$KEY/setup.ci.json" \
-            --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --out ../bundle --src ../pruned-src
+            --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --out ../bundle --src ../pruned-src --tree-names ../tree-names.txt
       - name: Pack and attest
         run: |
           for mode in strict proposed; do
