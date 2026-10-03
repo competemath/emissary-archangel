@@ -319,7 +319,7 @@ def compose(a: argparse.Namespace) -> None:
         manifest, left_out = [], defaultdict(int)
         for mod, names in passed.items():
             if mod not in needed:
-                left_out[dropped.get(mod, "module not in the bundle")[:120]] += len(names)
+                left_out[dropped.get(mod, "module not in the bundle")] += len(names)
                 continue
             m = modules[mod]
             for n in names:
@@ -351,6 +351,8 @@ def compose(a: argparse.Namespace) -> None:
             (tree_root / rel).parent.mkdir(parents=True, exist_ok=True)
             (tree_root / rel).write_text("\n".join(mapped) + "\n")
         (out_dir / "Tengoku" / f"{pascal(a.key)}.lean").write_text("".join(f"import Tengoku.{pascal(a.key)}.{m}\n" for m in sorted(needed)))
+        # tengoku's generator rewrites Tengoku/All.lean from the libraries that have a Deps.lean: an empty one (a comment) keeps this library in it
+        (tree_root / "Deps.lean").write_text(f"-- {pascal(a.key)}: a factory bundle (data/intake/{a.key}). This file only marks the library for Tengoku/All.lean.\n")
         (out_dir / "manifest.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in manifest))
         # what each rule costs: the passed theorems of a module whose lint failed, and of every module that imports it
         importers: dict[str, set[str]] = defaultdict(set)
