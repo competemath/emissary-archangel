@@ -27,13 +27,14 @@ import argparse
 import json
 import re
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import portfolio  # noqa: E402
 import records  # noqa: E402
+import strip_attrs  # noqa: E402
 import tolerant_build as tb  # noqa: E402
 
 # the tree's names for the packages it was seeded from (tengoku scripts/seed.py PACKAGES)
@@ -262,6 +263,12 @@ def compose(a: argparse.Namespace) -> None:
     for mod in keep_blocks:
         reach_from(mod)
     pruned = {mod: modules[mod].text(keep_blocks.get(mod, set()), strip_imports=False) for mod in reach}
+    # attributes the tree's allow-list refuses are left out of the declarations that stay (strip_attrs.py): they never change what a declaration
+    # says, and a proof that relied on one is found by the verification build
+    stripped_attrs: Counter = Counter()
+    for mod in list(pruned):
+        pruned[mod], c = strip_attrs.strip_attributes(pruned[mod])
+        stripped_attrs.update(c)
     # The tree compiles what it takes under its content lint (an allow-list of known-inert commands, attributes and options). The
     # copy here is tengoku's (scripts/bump/lint); the header is the bundle's own business (imports are mapped, `module` is the
     # module system), so it is not linted. `proposed` is the same lint with notation commands allowed (notation, infix, prefix,
@@ -360,7 +367,7 @@ def compose(a: argparse.Namespace) -> None:
                 for v in {x[:70] for x in vs}:
                     classes[v] += affected
         report = {"library": a.key, "lint_mode": mode, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]),
-                  "theorems": len(manifest), "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept),
+                  "theorems": len(manifest), "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "stripped_attributes": dict(stripped_attrs.most_common(15)),
                   "lint_cost": dict(sorted(classes.items(), key=lambda x: -x[1])[:15])}
         (out_dir / "report.json").write_text(json.dumps(report, indent=1))
         summary[mode] = {k: v for k, v in report.items() if k not in ("dropped", "lint_cost", "left_out")}

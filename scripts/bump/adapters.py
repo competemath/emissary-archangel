@@ -125,7 +125,38 @@ def adapt_compfiles(text: str) -> tuple[str, int]:
     return text, done
 
 
-ADAPTERS = {"compfiles": adapt_compfiles}
+# ── Physlib (https://github.com/leanprover-community/physlib, Physlib/Meta/TODO/Basic.lean) ───────────────────────────────────────
+# `TODO "text"` is a command whose elaborator only pushes the text, the module and the line into a private environment extension
+# (`todoExtension`, read by the library's own statistics) and attaches term info to the string; it adds no declaration and changes none.
+# The module that defines it holds `meta initialize` and `syntax`, which the tree cannot take: every module that imports it was lost with it.
+# Without the commands, nothing needs that import.
+PHYSLIB_TODO = re.compile(r"^TODO[ \t]+\"", re.M)
+PHYSLIB_TODO_IMPORT = re.compile(r"^[ \t]*(?:(?:public|private|meta)[ \t]+)*import[ \t]+Physlib\.Meta\.TODO\.Basic[ \t]*(?:\n|\Z)", re.M)
+
+
+def adapt_physlib(text: str) -> tuple[str, int]:
+    mask = code_mask(text)
+    edits: list[tuple[int, int, str]] = []
+    for m in PHYSLIB_TODO.finditer(text):
+        if not mask[m.start()]:
+            continue
+        j = m.end()  # just past the opening quote
+        while j < len(text) and text[j] != '"':
+            j += 2 if text[j] == "\\" else 1
+        end = min(len(text), j + 1)
+        if text[end : end + 1] == "\n":
+            end += 1
+        edits.append((m.start(), end, ""))
+    for m in PHYSLIB_TODO_IMPORT.finditer(text):
+        if mask[m.start() + len(m.group(0)) - len(m.group(0).lstrip(" \t"))]:
+            edits.append((m.start(), m.end(), ""))
+    edits.sort(reverse=True)
+    for s, e, r in edits:
+        text = text[:s] + r + text[e:]
+    return text, len(edits)
+
+
+ADAPTERS = {"compfiles": adapt_compfiles, "physlib": adapt_physlib}
 
 
 def adapt_library(key: str, lib: Path, roots: list[str]) -> tuple[int, int]:

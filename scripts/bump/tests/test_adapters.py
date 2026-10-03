@@ -91,5 +91,46 @@ class Compfiles(unittest.TestCase):
         self.assertNotIn("problem_file", (d / "Compfiles" / "A.lean").read_text())
 
 
+PHYS = """module
+
+public import Mathlib.Algebra.Order.Field.Basic
+public import Physlib.Meta.TODO.Basic
+public import Physlib.Mathematics.Foo
+
+/-! TODO "inside a comment stays" -/
+
+namespace Physlib
+
+TODO "Prove injectivity of `f` and construct the
+  full isomorphism, with an escaped \\" quote."
+
+theorem a : True := trivial
+
+TODO "second"
+-- TODO "also a comment"
+def s : String := "TODO \\"not a command\\""
+
+end Physlib
+"""
+
+
+class Physlib(unittest.TestCase):
+    def test_todo_commands_and_their_import_go(self):
+        out, n = adapters.adapt_physlib(PHYS)
+        self.assertNotIn("Physlib.Meta.TODO.Basic", out)
+        self.assertIn("public import Physlib.Mathematics.Foo", out)
+        self.assertNotIn("Prove injectivity", out)
+        self.assertNotIn('TODO "second"', out)
+        self.assertIn('/-! TODO "inside a comment stays" -/', out)
+        self.assertIn('-- TODO "also a comment"', out)
+        self.assertIn('def s : String := "TODO', out)
+        self.assertIn("theorem a : True := trivial", out)
+        self.assertEqual(n, 3)
+
+    def test_idempotent(self):
+        once, _ = adapters.adapt_physlib(PHYS)
+        self.assertEqual(adapters.adapt_physlib(once), (once, 0))
+
+
 if __name__ == "__main__":
     unittest.main()
