@@ -34,12 +34,11 @@ ATTR_CMD = re.compile(r"^\s*attribute\s*\[")
 
 
 def parse(text: str) -> list[dict]:
-    out = []
-    for part in re.split(r"[\n;]", text):
-        m = LEAK.search(part)
-        if m:
-            out.append({"kind": m["kind"], "name": m["name"], "mod": m["mod"], "line": int(m["line"]) if m["line"] else None})
-    return out
+    # every `leak:` entry of the text, whatever separates them (newlines, `;`, or the single line a log flattens them to)
+    return [
+        {"kind": m["kind"], "name": m["name"], "mod": m["mod"], "line": int(m["line"]) if m["line"] else None}
+        for m in LEAK.finditer(text)
+    ]
 
 
 PART = r"«[^»/\\]*»|[^.«»/\\\s]+"
@@ -71,60 +70,120 @@ def short(name: str) -> str:
     return n[1:-1] if n.startswith("«") and n.endswith("»") else n
 
 
-def localize(attr: str, text: str) -> str:
-    """the first bare `attr` (not already `local`/`scoped`) in an attribute list or before `instance`: prefixed by `local `"""
-    return re.sub(rf"(?<![\w.])(?<!local )(?<!scoped )\b{attr}\b", f"local {attr}", text, count=1)
-
-
-def edit_declaration(lines: list[str], line: int, kind: str) -> bool:
-    """`instance` at the declaration that starts at `line` (1-based), or `@[... simp ...]` on its attributes: one line each"""
-    for i in range(max(0, line - 1), min(len(lines), line + 14)):
-        s = lines[i]
-        code = s.split("--", 1)[0]
-        if kind == "instance":
-            if re.search(r"(?<![\w.@])instance\b", code) and not re.search(r"\b(local|scoped)\s+instance\b", code) and "attribute" not in code:
-                lines[i] = localize("instance", s) if "@[" not in code.split("instance")[0] else re.sub(r"(?<![\w.@])instance\b", "local instance", s, count=1)
-                return lines[i] != s
+def mask(text: str) -> str:
+    """the text with every comment (line, nested block, doc) and string literal blanked to spaces: same length and same columns, so a word
+    found in the mask is code, and its position is the position in the text"""
+    out, i, n = [], 0, len(text)
+    while i < n:
+        c = text[i]
+        if text.startswith("--", i):
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+            out.append(" " * (j - i))
+            i = j
+        elif text.startswith("/-", i):
+            depth, j = 1, i + 2
+            while j < n and depth:
+                if text.startswith("/-", j):
+                    depth, j = depth + 1, j + 2
+                elif text.startswith("-/", j):
+                    depth, j = depth - 1, j + 2
+                else:
+                    j += 1
+            out.append("".join("\n" if ch == "\n" else " " for ch in text[i:j]))
+            i = j
+        elif c == '"':
+            j = i + 1
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == "\\" else 1
+            j = min(j + 1, n)
+            out.append("".join("\n" if ch == "\n" else " " for ch in text[i:j]))
+            i = j
         else:
-            m = re.search(r"@\[([^\]]*)\]", code)
-            if m and re.search(r"(?<![\w.])simp\b", m.group(1)) and not re.search(r"\b(local|scoped)\s+simp\b", m.group(1)):
-                new_attrs = localize("simp", m.group(1))
-                lines[i] = s[: m.start(1)] + new_attrs + s[m.end(1) :]
-                return True
-    return False
+            out.append(c)
+            i += 1
+    return "".join(out)
 
 
-def edit_attribute_command(lines: list[str], name: str, kind: str) -> bool:
+class Lines:
+    """a file as lines, with the mask of each; an edit goes into both so that later edits find their columns"""
+
+    def __init__(self, text: str):
+        self.text, self.code = text.split("\n"), mask(text).split("\n")
+
+    def insert(self, i: int, col: int, word: str) -> None:
+        self.text[i] = self.text[i][:col] + word + self.text[i][col:]
+        self.code[i] = self.code[i][:col] + word + self.code[i][col:]
+
+
+NOT_LOCAL = r"(?<!local )(?<!scoped )"
+
+
+def edit_declaration(f: Lines, line: int, kind: str) -> str:
+    """`instance` of the declaration that starts at `line` (1-based; the range includes its doc comment and attributes), or the `simp` of an
+    `@[...]` on it: "edited", "already" when it is local/scoped already, "missing" when it is not found"""
+    for i in range(max(0, line - 1), min(len(f.text), line + 14)):
+        code = f.code[i]
+        col = None
+        if kind == "instance":
+            if ATTR_CMD.match(code):
+                continue
+            if re.search(r"\b(?:local|scoped)\s+instance\b", code):
+                return "already"
+            m = re.search(rf"(?<![\w.]){NOT_LOCAL}\binstance\b", code)
+            col = m.start() if m else None
+        else:
+            for attrs in re.finditer(r"@\[([^\]]*)\]", code):
+                if re.search(r"\b(?:local|scoped)\s+simp\b", attrs.group(1)):
+                    return "already"
+                hit = re.search(rf"(?<![\w.]){NOT_LOCAL}\bsimp\b", attrs.group(1))
+                if hit:
+                    col = attrs.start(1) + hit.start()
+                    break
+        if col is not None:
+            f.insert(i, col, "local ")
+            return "edited"
+    return "missing"
+
+
+def edit_attribute_command(f: Lines, name: str, kind: str) -> str:
     """an `attribute [instance] … name …` (or `[simp]`) command that registers a declaration of another library"""
     n = short(name)
     word = "instance" if kind == "instance" else "simp"
-    for i, s in enumerate(lines):
+    for i, s in enumerate(f.code):
         if not ATTR_CMD.match(s):
             continue
         j = i
-        while j + 1 < len(lines) and lines[j + 1].strip() and not lines[j + 1].lstrip().startswith(("theorem", "lemma", "def", "instance", "@[")):
+        while j + 1 < len(f.code) and f.code[j + 1].strip() and not f.code[j + 1].lstrip().startswith(("theorem", "lemma", "def", "instance", "@[")):
             j += 1
-        block = "\n".join(lines[i : j + 1])
-        if re.search(rf"(?<![\w]){re.escape(n)}(?![\w'])", block) and re.search(rf"\[[^\]]*(?<![\w.])(?<!local )(?<!scoped ){word}\b", block):
-            head = re.match(r"(\s*attribute\s*\[)([^\]]*)(\])", s)
-            if head and re.search(rf"(?<![\w.]){word}\b", head.group(2)):
-                lines[i] = head.group(1) + localize(word, head.group(2)) + head.group(3) + s[head.end() :]
-                return lines[i] != s
-    return False
+        block = "\n".join(f.code[i : j + 1])
+        if not re.search(rf"(?<![\w]){re.escape(n)}(?![\w'])", block):
+            continue
+        head = re.match(r"(\s*attribute\s*\[)([^\]]*)(\])", s)
+        if not head:
+            continue
+        if re.search(rf"\b(?:local|scoped)\s+{word}\b", head.group(2)):
+            return "already"
+        hit = re.search(rf"(?<![\w.]){NOT_LOCAL}\b{word}\b", head.group(2))
+        if hit:
+            f.insert(i, head.start(2) + hit.start(), "local ")
+            return "edited"
+    return "missing"
 
 
 def rewrite_file(path: Path, leaks: list[dict]) -> tuple[int, list[str]]:
-    lines = path.read_text().split("\n")
+    text = path.read_text()
+    f = Lines(text)
     done, skipped = 0, []
-    for lk in sorted(leaks, key=lambda x: -(x["line"] or 0)):  # bottom first; edits stay inside their line
-        ok = edit_declaration(lines, lk["line"], lk["kind"]) if lk["line"] else edit_attribute_command(lines, lk["name"], lk["kind"])
-        if ok:
+    for lk in sorted(leaks, key=lambda x: -(x["line"] or 0)):
+        r = edit_declaration(f, lk["line"], lk["kind"]) if lk["line"] else edit_attribute_command(f, lk["name"], lk["kind"])
+        if r == "edited":
             done += 1
-        else:
+        elif r == "missing":
             skipped.append(f"{lk['kind']} {lk['name']}")
     if done:
-        text = "\n".join(lines)
-        path.write_text(text + ("" if text.endswith("\n") else "\n") + f"-- Tengoku: {done} registration(s) of this module made local so they do not change other libraries (generated)\n")
+        new = "\n".join(f.text)
+        path.write_text(new + ("" if new.endswith("\n") else "\n") + f"-- Tengoku: {done} registration(s) of this module made local so they do not change other libraries (generated)\n")
     return done, skipped
 
 

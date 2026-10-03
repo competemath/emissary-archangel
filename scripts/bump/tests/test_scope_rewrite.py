@@ -17,46 +17,69 @@ class Parse(unittest.TestCase):
         leaks = sr.parse(REPORT)
         self.assertEqual([(x["kind"], x["name"], x["line"]) for x in leaks], [("instance", "Imo1977P2.instCoeForallIntForallReal", 4), ("simp", "Imo1979P6.Walk.take_append", 3), ("instance", "Matrix.linftyOpNormedAddCommGroup", None)])
 
+    def test_flattened_to_one_line(self):
+        self.assertEqual(len(sr.parse(REPORT.replace("\n", " "))), 3)
+
     def test_semicolon_separated(self):
         self.assertEqual(len(sr.parse(REPORT.replace("\n", ";"))), 3)
 
 
 class Rewrite(unittest.TestCase):
     def run_one(self, text, leaks):
-        lines = text.split("\n")
-        return lines, [sr.edit_declaration(lines, lk["line"], lk["kind"]) if lk["line"] else sr.edit_attribute_command(lines, lk["name"], lk["kind"]) for lk in leaks]
+        f = sr.Lines(text)
+        res = [sr.edit_declaration(f, lk["line"], lk["kind"]) if lk["line"] else sr.edit_attribute_command(f, lk["name"], lk["kind"]) for lk in leaks]
+        return f.text, res
 
     def test_instance_command(self):
-        lines, ok = self.run_one("namespace A\n\n/-- doc -/\ninstance : Coe (α → ℤ) (α → ℝ) := ⟨fun f x => f x⟩\nend A", [{"kind": "instance", "name": "A.i", "line": 3}])
-        self.assertEqual(ok, [True])
-        self.assertEqual(lines[3], "local instance : Coe (α → ℤ) (α → ℝ) := ⟨fun f x => f x⟩")
+        lines, res = self.run_one("namespace A\n\n/-- doc -/\ninstance : Coe (α → ℤ) (α → ℝ) := {\n  coe := f\n}\nend A", [{"kind": "instance", "name": "A.i", "line": 3}])
+        self.assertEqual(res, ["edited"])
+        self.assertEqual(lines[3], "local instance : Coe (α → ℤ) (α → ℝ) := {")
+
+    def test_a_docstring_that_says_instance_is_not_edited(self):
+        text = "/-- The target of the sum also carries an\n  instance thereof. -/\ninstance : Foo := x"
+        lines, res = self.run_one(text, [{"kind": "instance", "name": "foo", "line": 1}])
+        self.assertEqual(res, ["edited"])
+        self.assertEqual(lines[0], "/-- The target of the sum also carries an")
+        self.assertEqual(lines[1], "  instance thereof. -/")
+        self.assertEqual(lines[2], "local instance : Foo := x")
+
+    def test_a_comment_before_the_keyword_on_the_same_line(self):
+        lines, res = self.run_one("/-- an instance -/ instance : Foo := x", [{"kind": "instance", "name": "foo", "line": 1}])
+        self.assertEqual(res, ["edited"])
+        self.assertEqual(lines[0], "/-- an instance -/ local instance : Foo := x")
 
     def test_instance_after_modifiers_and_attributes(self):
-        lines, ok = self.run_one("@[reducible] noncomputable instance foo : Foo := x", [{"kind": "instance", "name": "foo", "line": 1}])
-        self.assertEqual(ok, [True])
+        lines, res = self.run_one("@[reducible] noncomputable instance foo : Foo := x", [{"kind": "instance", "name": "foo", "line": 1}])
+        self.assertEqual(res, ["edited"])
         self.assertEqual(lines[0], "@[reducible] noncomputable local instance foo : Foo := x")
 
     def test_an_instance_already_local_is_left_alone(self):
-        _, ok = self.run_one("local instance : Foo := x", [{"kind": "instance", "name": "foo", "line": 1}])
-        self.assertEqual(ok, [False])
+        _, res = self.run_one("local instance : Foo := x", [{"kind": "instance", "name": "foo", "line": 1}])
+        self.assertEqual(res, ["already"])
 
     def test_simp_attribute(self):
-        lines, ok = self.run_one("@[simp, to_additive]\ntheorem take_append : x = y := rfl", [{"kind": "simp", "name": "take_append", "line": 1}])
-        self.assertEqual(ok, [True])
+        lines, res = self.run_one("@[simp, to_additive]\ntheorem take_append : x = y := rfl", [{"kind": "simp", "name": "take_append", "line": 1}])
+        self.assertEqual(res, ["edited"])
         self.assertEqual(lines[0], "@[local simp, to_additive]")
 
     def test_simp_with_arrow_and_priority(self):
         lines, _ = self.run_one("@[simp ↓ high]\ntheorem t : x = y := rfl", [{"kind": "simp", "name": "t", "line": 1}])
         self.assertEqual(lines[0], "@[local simp ↓ high]")
 
+    def test_a_simp_in_a_string_or_comment_is_not_edited(self):
+        lines, res = self.run_one('-- @[simp]\n@[simp] theorem t : x = y := by simp', [{"kind": "simp", "name": "t", "line": 1}])
+        self.assertEqual(res, ["edited"])
+        self.assertEqual(lines[0], "-- @[simp]")
+        self.assertEqual(lines[1], "@[local simp] theorem t : x = y := by simp")
+
     def test_attribute_command(self):
-        lines, ok = self.run_one("open scoped Matrix.Norms.Operator\nattribute [instance] Matrix.linftyOpNormedAddCommGroup Matrix.linftyOpNormedSpace\nvariable {n : Type*}", [{"kind": "instance", "name": "Matrix.linftyOpNormedAddCommGroup", "line": None}])
-        self.assertEqual(ok, [True])
+        lines, res = self.run_one("open scoped Matrix.Norms.Operator\nattribute [instance] Matrix.linftyOpNormedAddCommGroup Matrix.linftyOpNormedSpace\nvariable {n : Type*}", [{"kind": "instance", "name": "Matrix.linftyOpNormedAddCommGroup", "line": None}, {"kind": "instance", "name": "Matrix.linftyOpNormedSpace", "line": None}])
+        self.assertEqual(res, ["edited", "already"])
         self.assertEqual(lines[1], "attribute [local instance] Matrix.linftyOpNormedAddCommGroup Matrix.linftyOpNormedSpace")
 
     def test_a_comment_mentioning_instance_is_not_edited(self):
-        lines, ok = self.run_one("-- an instance of the thing\ninstance : Foo := x", [{"kind": "instance", "name": "foo", "line": 1}])
-        self.assertEqual(ok, [True])
+        lines, res = self.run_one("-- an instance of the thing\ninstance : Foo := x", [{"kind": "instance", "name": "foo", "line": 1}])
+        self.assertEqual(res, ["edited"])
         self.assertEqual(lines[0], "-- an instance of the thing")
         self.assertEqual(lines[1], "local instance : Foo := x")
 
