@@ -15,7 +15,7 @@ This turns each of those into `local` (`instance` -> `local instance`, `@[simp]`
 a note is appended at the end of each changed file. Nothing is trusted: the tree's build of the rewritten bundle decides whether a
 module still compiles (a later module of the library that used the instance fails and is dropped, as any module that does not build).
 
-  scope_rewrite.py --bundle DIR [--bundle DIR2 …] --leaks "<report lines, separated by newlines or ;>"
+  scope_rewrite.py [--bundle DIR …] [--pruned DIR …] --leaks "<report lines, separated by newlines or ;>"
 """
 
 from __future__ import annotations
@@ -42,14 +42,25 @@ def parse(text: str) -> list[dict]:
     return out
 
 
-MODULE = re.compile(r"[\w.«»'!?]+")
+PART = r"«[^»/\\]*»|[^.«»/\\\s]+"
+MODULE_NAME = re.compile(rf"(?:{PART})(?:\.(?:{PART}))*")
 
 
-def module_file(root: Path, mod: str) -> Path | None:
-    """the bundle's file of a module; never one outside the bundle (a module name is input, and the bundle came from a build of the library's code)"""
-    if not MODULE.fullmatch(mod) or ".." in mod:
+def parts_of(mod: str) -> list[str] | None:
+    """the components of a module name (`«1102.4662»` is one), or None for anything that is not a plain module name"""
+    if not MODULE_NAME.fullmatch(mod):
         return None
-    p = root.joinpath(*mod.split(".")).with_suffix(".lean")
+    parts = [m.group(0).strip("«»") for m in re.finditer(PART, mod)]
+    return None if any(p in ("", ".", "..") for p in parts) else parts
+
+
+def module_file(root: Path, mod: str, skip: int = 0) -> Path | None:
+    """the file of a module in a bundle (`Tengoku/<Library>/…`) or, with skip=2, in the library's own layout (the leading `Tengoku.<Library>`
+    dropped); never a file outside the root (a module name is input, and the files came from a build of the library's code)"""
+    parts = parts_of(mod)
+    if parts is None or len(parts) <= skip:
+        return None
+    p = root.joinpath(*parts[skip:]).with_suffix(".lean")
     if p.is_symlink() or not p.is_file() or not p.resolve().is_relative_to(root.resolve()):
         return None
     return p
@@ -117,13 +128,13 @@ def rewrite_file(path: Path, leaks: list[dict]) -> tuple[int, list[str]]:
     return done, skipped
 
 
-def apply_bundle(root: Path, leaks: list[dict]) -> dict:
+def apply_bundle(root: Path, leaks: list[dict], skip: int = 0) -> dict:
     by_mod: dict[str, list[dict]] = {}
     for lk in leaks:
         by_mod.setdefault(lk["mod"], []).append(lk)
     report = {"rewritten": 0, "skipped": [], "missing_modules": []}
     for mod, ls in sorted(by_mod.items()):
-        f = module_file(root, mod)
+        f = module_file(root, mod, skip)
         if not f:
             report["missing_modules"].append(mod)  # a leak of a module this bundle does not carry (the other bundle: strict vs proposed)
             continue
@@ -135,18 +146,18 @@ def apply_bundle(root: Path, leaks: list[dict]) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--bundle", action="append", required=True)
+    ap.add_argument("--bundle", action="append", default=[], help="a bundle directory (Tengoku/<Library>/… inside)")
+    ap.add_argument("--pruned", action="append", default=[], help="a directory of the library's own layout (the factory's pruned sources)")
     ap.add_argument("--leaks", required=True)
     a = ap.parse_args()
     leaks = parse(a.leaks)
     if not leaks:
         print(json.dumps({"rewritten": 0, "note": "no leak lines"}))
         return
-    for b in a.bundle:
-        root = Path(b)
-        if root.exists():
-            print(b, json.dumps(apply_bundle(root, leaks)))
-    sys.exit(0)
+    for dirs, skip in ((a.bundle, 0), (a.pruned, 2)):
+        for b in dirs:
+            if Path(b).exists():
+                print(b, json.dumps(apply_bundle(Path(b), leaks, skip)))
 
 
 if __name__ == "__main__":

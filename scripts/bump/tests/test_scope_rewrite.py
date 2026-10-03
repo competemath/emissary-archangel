@@ -74,6 +74,20 @@ class Bundle(unittest.TestCase):
             self.assertTrue(text.rstrip().endswith("(generated)"))
             self.assertEqual(text.split("\n")[4], "local instance : Coe (α → ℤ) (α → ℝ) := ⟨fun f x => f x⟩")  # the line numbers did not move
 
+    def test_the_librarys_own_layout_drops_the_tree_prefix(self):
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d, "Compfiles", "Imo1977P2.lean")
+            f.parent.mkdir(parents=True)
+            f.write_text("namespace A\ninstance : Foo := x\nend A\n")
+            rep = sr.apply_bundle(Path(d), sr.parse("leak: instance A.i registered in Tengoku.Compfiles.Compfiles.Imo1977P2 (declared at line 2)"), skip=2)
+            self.assertEqual(rep["rewritten"], 1)
+            self.assertIn("local instance : Foo", f.read_text())
+
+    def test_escaped_module_names(self):
+        self.assertEqual(sr.parts_of("Tengoku.X.«1102.4662».Basic"), ["Tengoku", "X", "1102.4662", "Basic"])
+        self.assertIsNone(sr.parts_of("Tengoku.X/../Y"))
+        self.assertIsNone(sr.parts_of("a b"))
+
     def test_a_leak_of_a_module_the_bundle_lacks_is_reported_not_fatal(self):
         with tempfile.TemporaryDirectory() as d:
             rep = sr.apply_bundle(Path(d), sr.parse("leak: simp a registered in Tengoku.X.Y (declared at line 1)"))

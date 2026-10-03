@@ -219,6 +219,36 @@ jobs:
             python3 scripts/bump/bundle.py refine --report verify.json --log verify.log --key "$KEY" --out bundle --src pruned-src
             sync_sources
           done
+      - name: Leak scan (what the bundle registers for other libraries is made local, then built once more)
+        # A global instance or simp lemma that mentions nothing of the library changes how every other library's statements elaborate in the one tree
+        # (scripts/bump/TengokuLeak.lean reads the compiled environment; scope_rewrite.py edits the flagged registrations to `local`). Nothing is
+        # trusted: the edited sources are built again and a module that no longer builds is left out, as in the build above.
+        working-directory: emissary
+        run: |
+          python3 scripts/bump/leakscan_args.py --key "$KEY" --src pruned-src-proposed --roots "$ROOTS" --out leakscan.args
+          if ! (cd lib2 && xargs -0 -a ../leakscan.args lake env lean --run ../scripts/bump/TengokuLeak.lean > ../leakscan.txt 2> ../leakscan.err); then
+            echo "::warning::the leak scan did not run; the bundle ships unscanned"; tail -5 leakscan.err; exit 0
+          fi
+          tail -3 leakscan.txt
+          if grep -q '^leak:' leakscan.txt; then
+            python3 scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --pruned pruned-src --pruned pruned-src-proposed --leaks "$(cat leakscan.txt)"
+            for r in ${ROOTS//,/ }; do
+              rm -rf "lib2/$r" "lib2/$r.lean"
+              [ -e "pruned-src-proposed/$r" ] && cp -r "pruned-src-proposed/$r" lib2/
+              [ -e "pruned-src-proposed/$r.lean" ] && cp "pruned-src-proposed/$r.lean" lib2/
+            done
+            for round in 1 2 3 4; do
+              python3 scripts/bump/tolerant_build.py --lib lib2 --roots "$ROOTS" --log verify2.log --report verify2.json --jobs 4 --cache lib2/.bump-cache
+              if python3 scripts/bump/bundle.py check --report verify2.json --log verify2.log --out verify2-summary.json; then break; fi
+              [ "$round" = 4 ] && { echo "still not clean after the scope rewrite and three refinements"; exit 1; }
+              python3 scripts/bump/bundle.py refine --report verify2.json --log verify2.log --key "$KEY" --out bundle --src pruned-src
+              for r in ${ROOTS//,/ }; do
+                rm -rf "lib2/$r" "lib2/$r.lean"
+                [ -e "pruned-src-proposed/$r" ] && cp -r "pruned-src-proposed/$r" lib2/
+                [ -e "pruned-src-proposed/$r.lean" ] && cp "pruned-src-proposed/$r.lean" lib2/
+              done
+            done
+          fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -238,6 +268,9 @@ jobs:
             emissary/bundle
             emissary/bundle-proposed
             emissary/verify.log
+            emissary/leakscan.txt
+            emissary/leakscan.err
+            emissary/verify2.log
             emissary/pruned-src-proposed
             emissary/verify-summary.json
             emissary/bank.jsonl
