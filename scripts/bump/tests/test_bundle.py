@@ -132,5 +132,18 @@ class Refine(unittest.TestCase):
         self.assertIn("nothing is left", r.stdout + r.stderr)
 
 
+class ImportLines(unittest.TestCase):
+    def test_a_trailing_comment_is_dropped_and_the_module_is_mapped(self):
+        sys.path.insert(0, str(HERE))
+        import bundle
+
+        own = {"Foo.Bar"}
+        self.assertEqual(bundle.map_import_line("public import Foo.Bar -- needed for the notation", "my-lib", own), ("public import Tengoku.MyLib.Foo.Bar", "own"))
+        self.assertEqual(bundle.map_import_line("import Mathlib.Data.Nat.Basic  -- x", "my-lib", own), ("import Tengoku.Data.Nat.Basic", "tree"))
+        self.assertEqual(bundle.map_import_line("import Lean.Elab -- y", "my-lib", own), ("import Lean.Elab", "core"))
+        self.assertEqual(bundle.map_import_line("import Foo.Bar", "my-lib", own), ("import Tengoku.MyLib.Foo.Bar", "own"))
+        self.assertEqual(bundle.map_import_line("theorem a : True := trivial -- import Foo", "my-lib", own), ("theorem a : True := trivial -- import Foo", None))
+
+
 if __name__ == "__main__":
     unittest.main()

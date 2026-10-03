@@ -164,18 +164,21 @@ def lean_file(a: argparse.Namespace) -> None:
 
 
 def map_import_line(line: str, key: str, own: set[str]) -> tuple[str, str | None]:
-    """The line with its module renamed for the tree, and the module's kind: 'own' / 'tree' / 'core' / 'external'."""
+    """The line with its module renamed for the tree, and the module's kind: 'own' / 'tree' / 'core' / 'external'.
+    A comment after the module name is dropped: tengoku's header check reads a line that is nothing but the import, and a line with a trailing
+    comment is not taken for a header line (the `import` word then reaches the content lint, which refuses it)."""
     m = IMPORT_RE.match(line)
     if not m:
         return line, None
     mod = m.group(2)
+    rest = re.sub(r"\s*--.*$", "", m.group(3))
     if mod in own:
-        return f"{m.group(1)}Tengoku.{pascal(key)}.{mod}{m.group(3)}", "own"
+        return f"{m.group(1)}Tengoku.{pascal(key)}.{mod}{rest}", "own"
     head = mod.split(".")[0]
     if head in TREE:
-        return f"{m.group(1)}{TREE[head]}{mod[len(head):]}{m.group(3)}", "tree"
+        return f"{m.group(1)}{TREE[head]}{mod[len(head):]}{rest}", "tree"
     if head in CORE:
-        return line, "core"
+        return f"{m.group(1)}{mod}{rest}", "core"
     return line, "external"
 
 
