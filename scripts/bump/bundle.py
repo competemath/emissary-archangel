@@ -37,18 +37,10 @@ import records  # noqa: E402
 import strip_attrs  # noqa: E402
 import tolerant_build as tb  # noqa: E402
 
-# the tree's names for the packages it was seeded from (tengoku scripts/seed.py PACKAGES)
-TREE = {
-    "Mathlib": "Tengoku",
-    "Batteries": "Tengoku.Std",
-    "Aesop": "Tengoku.Tactic.Aesop",
-    "Qq": "Tengoku.Meta.Qq",
-    "ProofWidgets": "Tengoku.Widgets",
-    "Plausible": "Tengoku.Testing.Random",
-    "LeanSearchClient": "Tengoku.Search.LeanSearchClient",
-    "ImportGraph": "Tengoku.Meta.ImportGraph",
-    "Cli": "Tengoku.Meta.Cli",
-}
+# the packages the tree was seeded from (tengoku scripts/seed.py PACKAGES). A bundle reaches all of them through the root `Tengoku`, which
+# re-exports every seeded module: where the seed's own modules sit in the tree (Tengoku/Seed/ since tengoku's restructure) is not the
+# bundle's business, and a header of `public import Tengoku` is right before and after that move.
+SEED_PACKAGES = ("Mathlib", "Batteries", "Aesop", "Qq", "ProofWidgets", "Plausible", "LeanSearchClient", "ImportGraph", "Cli")
 CORE = ("Init", "Std", "Lean", "Lake")
 IMPORT_RE = re.compile(r"^(\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)?)(" + tb.MODNAME + r")(.*)$")
 
@@ -175,11 +167,23 @@ def map_import_line(line: str, key: str, own: set[str]) -> tuple[str, str | None
     if mod in own:
         return f"{m.group(1)}Tengoku.{pascal(key)}.{mod}{rest}", "own"
     head = mod.split(".")[0]
-    if head in TREE:
-        return f"{m.group(1)}{TREE[head]}{mod[len(head):]}{rest}", "tree"
+    if head in SEED_PACKAGES:
+        return f"{m.group(1).replace('import all', 'import')}Tengoku{rest}", "tree"
     if head in CORE:
         return f"{m.group(1)}{mod}{rest}", "core"
     return line, "external"
+
+
+def once(lines: list[str]) -> list[str]:
+    """The lines without a second copy of an import line: every seeded package now maps to the one root import."""
+    seen, out = set(), []
+    for ln in lines:
+        if IMPORT_RE.match(ln):
+            if ln.strip() in seen:
+                continue
+            seen.add(ln.strip())
+        out.append(ln)
+    return out
 
 
 def compose(a: argparse.Namespace) -> None:
@@ -350,7 +354,7 @@ def compose(a: argparse.Namespace) -> None:
             rel = modules[mod].path.relative_to(lib)
             (src_dir / rel).parent.mkdir(parents=True, exist_ok=True)
             (src_dir / rel).write_text(pruned[mod] + "\n")
-            mapped = [map_import_line(ln, a.key, own)[0] for ln in pruned[mod].split("\n")]
+            mapped = once([map_import_line(ln, a.key, own)[0] for ln in pruned[mod].split("\n")])
             (tree_root / rel).parent.mkdir(parents=True, exist_ok=True)
             (tree_root / rel).write_text("\n".join(mapped) + "\n")
         (out_dir / "Tengoku" / f"{pascal(a.key)}.lean").write_text("".join(f"import Tengoku.{pascal(a.key)}.{m}\n" for m in sorted(needed)))

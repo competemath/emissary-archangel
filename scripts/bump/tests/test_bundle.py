@@ -45,7 +45,8 @@ class Bundle(unittest.TestCase):
         self.assertIn("theorem one_pos", a)
         self.assertNotIn("theorem unused", a)  # nothing passed uses it
         self.assertNotIn("broken_header", a)  # Lean's error: no constant, no range, still gone
-        self.assertIn("import Tengoku.Data.Nat.Basic", a)  # Mathlib -> the tree's root
+        self.assertIn("import Tengoku\n", a)  # Mathlib -> the tree's root, whatever the module (the seed sits under Tengoku/Seed/ since tengoku's restructure)
+        self.assertNotIn("import Tengoku.Data", a)
         self.assertIn("import Tengoku.ToyLib.Toy.A", b)  # the library's own module -> its place in the tree
         self.assertNotIn("theorem unrelated", b)
         self.assertIn("theorem uses_one_pos", b)
@@ -117,6 +118,36 @@ class Bundle(unittest.TestCase):
         self.assertEqual(rep["modules_dropped"], 2)
 
 
+class ImportHeader(unittest.TestCase):
+    """A bundle's header reaches every seeded package through the root `Tengoku`: the same text is right before and after the seed moved
+    into Tengoku/Seed/."""
+
+    def setUp(self):
+        sys.path.insert(0, str(HERE))
+        import bundle
+
+        self.bundle = bundle
+
+    def test_every_seeded_package_becomes_the_root(self):
+        for line in ["public import Mathlib", "public import Batteries.Data.List.Basic", "import Aesop", "public meta import Qq", "import ProofWidgets.Component.Basic"]:
+            mapped, kind = self.bundle.map_import_line(line, "toy-lib", set())
+            self.assertEqual(kind, "tree", line)
+            self.assertEqual(mapped.split()[-1], "Tengoku", mapped)
+            self.assertEqual(mapped.split()[:-1], line.split()[:-1], mapped)  # the modifiers stay
+
+    def test_import_all_cannot_name_the_whole_tree(self):
+        self.assertEqual(self.bundle.map_import_line("import all Mathlib.Foo", "toy-lib", set())[0], "import Tengoku")
+
+    def test_the_librarys_own_modules_and_core_are_unchanged_in_kind(self):
+        self.assertEqual(self.bundle.map_import_line("import Toy.A", "toy-lib", {"Toy.A"}), ("import Tengoku.ToyLib.Toy.A", "own"))
+        self.assertEqual(self.bundle.map_import_line("import Lean.Elab", "toy-lib", set()), ("import Lean.Elab", "core"))
+        self.assertEqual(self.bundle.map_import_line("import Other.Pkg", "toy-lib", set())[1], "external")
+
+    def test_a_second_copy_of_an_import_line_is_dropped(self):
+        lines = ["module", "public import Tengoku", "public import Tengoku", "import Lean", "public import Tengoku", "def x := 1", "def x := 1"]
+        self.assertEqual(self.bundle.once(lines), ["module", "public import Tengoku", "import Lean", "def x := 1", "def x := 1"])
+
+
 class Refine(unittest.TestCase):
     """The verification build found modules that do not build: they, and what imports them, are left out of both bundles."""
 
@@ -173,7 +204,7 @@ class ImportLines(unittest.TestCase):
 
         own = {"Foo.Bar"}
         self.assertEqual(bundle.map_import_line("public import Foo.Bar -- needed for the notation", "my-lib", own), ("public import Tengoku.MyLib.Foo.Bar", "own"))
-        self.assertEqual(bundle.map_import_line("import Mathlib.Data.Nat.Basic  -- x", "my-lib", own), ("import Tengoku.Data.Nat.Basic", "tree"))
+        self.assertEqual(bundle.map_import_line("import Mathlib.Data.Nat.Basic  -- x", "my-lib", own), ("import Tengoku", "tree"))  # a module of the seed: the root
         self.assertEqual(bundle.map_import_line("import Lean.Elab -- y", "my-lib", own), ("import Lean.Elab", "core"))
         self.assertEqual(bundle.map_import_line("import Foo.Bar", "my-lib", own), ("import Tengoku.MyLib.Foo.Bar", "own"))
         self.assertEqual(bundle.map_import_line("theorem a : True := trivial -- import Foo", "my-lib", own), ("theorem a : True := trivial -- import Foo", None))
