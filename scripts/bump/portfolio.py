@@ -79,6 +79,44 @@ def header_end(text: str, start: int = 0) -> int:
     return -1
 
 
+LET_HAVE = re.compile(r"(?<![\w.'])(?:let|have)(?![\w'.])")
+
+
+def statement_end(text: str, start: int = 0) -> int:
+    """Like header_end, for a statement that is to be SHOWN whole: a `:=` that belongs to a `let`/`have` inside the statement (`: let S := f x; S ≤ 1`)
+    is not the end of it (header_end stops there: 36 of 8,352 manifest statements ended at `let f'`)."""
+    depth, pending, i, n = 0, 0, start, len(text)
+    while i < n:
+        c = text[i]
+        if text.startswith("--", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+            continue
+        if text.startswith("/-", i):
+            j = text.find("-/", i + 2)
+            i = n if j < 0 else j + 2
+            continue
+        if c == '"':
+            i += 1
+            while i < n and text[i] != '"':
+                i += 2 if text[i] == "\\" else 1
+        elif c in "([{⟨⦃":
+            depth += 1
+        elif c in ")]}⟩⦄":
+            depth = max(0, depth - 1)
+        elif depth == 0 and (m := LET_HAVE.match(text, i)):
+            pending += 1
+            i = m.end()
+            continue
+        elif depth == 0 and text.startswith(":=", i):
+            if pending:
+                pending -= 1
+            else:
+                return i
+        i += 1
+    return -1
+
+
 def blocks(lines: list[str]) -> list[tuple[int, int]]:
     """(first, last) 1-based lines of every top-level command: a column-0 line that starts a command ends the previous one."""
     starts = [i + 1 for i, ln in enumerate(lines) if ln and not ln[0].isspace() and COMMAND_START.match(ln)]

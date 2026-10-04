@@ -336,7 +336,7 @@ def compose(a: argparse.Namespace) -> None:
                 while lines_ and records.IN_PREFIX.match(lines_[0]):  # `open Foo in` above the declaration belongs to the module, not the statement
                     lines_.pop(0)
                 text = "\n".join(lines_)
-                he = portfolio.header_end(text, 0)
+                he = portfolio.statement_end(text, 0)
                 stmt = (text[:he] if he > 0 else text.split(":=")[0]).strip()
                 rel = str(m.path.relative_to(lib))
                 manifest.append({"name": n, "statement": stmt, "module": f"Tengoku.{pascal(a.key)}.{mod}", "source_path": rel, "library": a.key,

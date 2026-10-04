@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(HERE))
+import portfolio  # noqa: E402
 
 SRC = """import Mathlib
 
@@ -124,6 +126,25 @@ class NoGoals(unittest.TestCase):
         self.assertIn("theorem a (x : Nat) : x + 0 = x := by\n  simp\n\ntheorem b", out)
         self.assertIn("theorem b (x : Nat) : x = x := by\n  simp\n\ntheorem c", out)
         self.assertEqual(rep["theorems_rewritten"], 0)  # not rewritten by the hammer in the same round
+
+
+class StatementEnd(unittest.TestCase):
+    def cut(self, text):
+        return text[: portfolio.statement_end(text)].strip()
+
+    def test_a_let_inside_the_statement_does_not_end_it(self):
+        t = "theorem foo (T : E) : let S : E := f T; ‖S‖ ≤ 1 := by\n  intro S\n  simp"
+        self.assertEqual(self.cut(t), "theorem foo (T : E) : let S : E := f T; ‖S‖ ≤ 1")
+
+    def test_a_plain_statement_ends_at_its_own_assignment(self):
+        self.assertEqual(self.cut("theorem bar (a : ℕ) : a = a := rfl"), "theorem bar (a : ℕ) : a = a")
+
+    def test_have_and_a_default_argument(self):
+        self.assertEqual(self.cut("theorem baz : have h : 1 = 1 := rfl; True := trivial"), "theorem baz : have h : 1 = 1 := rfl; True")
+        self.assertEqual(self.cut("theorem q (f : ℕ → ℕ := fun x => x) : (let y := 2; y) = 2 := by decide"), "theorem q (f : ℕ → ℕ := fun x => x) : (let y := 2; y) = 2")
+
+    def test_letI_is_not_a_let(self):
+        self.assertEqual(self.cut("theorem t : letI := 1; True := trivial"), "theorem t : letI")
 
 
 if __name__ == "__main__":
