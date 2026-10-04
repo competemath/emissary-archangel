@@ -114,8 +114,10 @@ class Lines:
 
     def __init__(self, text: str):
         self.text, self.code = text.split("\n"), mask(text).split("\n")
+        self.edited: list[int] = []  # the line of every insertion, in order
 
     def insert(self, i: int, col: int, word: str) -> None:
+        self.edited.append(i)
         self.text[i] = self.text[i][:col] + word + self.text[i][col:]
         self.code[i] = self.code[i][:col] + word + self.code[i][col:]
 
@@ -175,17 +177,64 @@ def edit_attribute_command(f: Lines, name: str, kind: str) -> str:
     return "missing"
 
 
+OPENER = re.compile(r"^\s*(?:namespace\s+\S+|(?:@\[expose\]\s+)?(?:(?:public|noncomputable)\s+)*section\b.*|mutual\s*)$")
+CLOSER = re.compile(r"^\s*end\b")
+
+
+def scope_info(code: list[str]) -> tuple[list[tuple[int, ...]], dict[int, int]]:
+    """for every line the openers (`namespace`, `section`, `mutual`) that enclose it, and for every opener the line of its `end`"""
+    stack: list[int] = []
+    open_at, end_of = [], {}
+    for i, ln in enumerate(code):
+        open_at.append(tuple(stack))
+        if OPENER.match(ln):
+            stack.append(i)
+        elif CLOSER.match(ln) and stack:
+            end_of[stack.pop()] = i
+    return open_at, end_of
+
+
+def reregistrations(f: Lines, edits: list[tuple[int, dict]]) -> dict[int, dict[tuple[str, int | None], set[str]]]:
+    """A `local` registration ends where the namespace or section it sits in ends; what follows in the same file used to see it. For every enclosing
+    block that has code after its `end`, the registration is made again right after that `end` (outermost last): line -> (kind, priority) -> names."""
+    open_at, end_of = scope_info(f.code)
+    out: dict[int, dict[tuple[str, int | None], set[str]]] = {}
+    for i, lk in edits:
+        if not nameable(lk["name"]):
+            continue
+        for opener in open_at[i]:
+            end = end_of.get(opener)
+            if end is not None and any(ln.strip() for ln in f.code[end + 1 :]):
+                prio = lk.get("prio") if lk["kind"] == "instance" else None
+                out.setdefault(end, {}).setdefault((lk["kind"], prio), set()).add(lk["name"])
+    return out
+
+
+def attribute_lines(groups: dict[tuple[str, int | None], set[str]]) -> list[str]:
+    lines = []
+    for (kind, prio), names in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1] or 0)):
+        attr = f"local {'instance' if kind == 'instance' else 'simp'}" + (f" {prio}" if prio not in (None, 1000) else "")
+        uniq = sorted(names)
+        lines += [f"attribute [{attr}] " + " ".join(uniq[k : k + 6]) for k in range(0, len(uniq), 6)]
+    return lines
+
+
 def rewrite_file(path: Path, leaks: list[dict]) -> tuple[int, list[str]]:
     text = path.read_text()
     f = Lines(text)
     done, skipped = 0, []
+    edits: list[tuple[int, dict]] = []
     for lk in sorted(leaks, key=lambda x: -(x["line"] or 0)):
+        before = len(f.edited)
         r = edit_declaration(f, lk["line"], lk["kind"]) if lk["line"] else edit_attribute_command(f, lk["name"], lk["kind"])
         if r == "edited":
             done += 1
+            edits.append((f.edited[before], lk))
         elif r == "missing":
             skipped.append(f"{lk['kind']} {lk['name']}")
     if done:
+        for end, groups in sorted(reregistrations(f, edits).items(), reverse=True):  # bottom first: a line inserted below never moves one above
+            f.text[end + 1 : end + 1] = attribute_lines(groups)
         new = "\n".join(f.text)
         path.write_text(new + ("" if new.endswith("\n") else "\n") + f"-- Tengoku: {done} registration(s) of this module made local so they do not change other libraries (generated)\n")
     return done, skipped

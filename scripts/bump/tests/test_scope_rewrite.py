@@ -180,5 +180,41 @@ class Reexport(unittest.TestCase):
             self.assertIn("attribute [local instance] X.instFoo", (d / "B.lean").read_text())
 
 
+class Scopes(unittest.TestCase):
+    def rewrite(self, text, leaks):
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d, "Tengoku", "Lib", "A.lean")
+            f.parent.mkdir(parents=True)
+            f.write_text(text)
+            sr.apply_bundle(Path(d), sr.parse(leaks), skip=0)
+            return f.read_text().split("\n")
+
+    def test_what_follows_the_block_in_the_same_file_keeps_the_registration(self):
+        text = "namespace A\nnamespace B\ninstance : Foo := x\nend B\ntheorem t : stmt := rfl\nend A\n"
+        out = self.rewrite(text, "leak: instance A.B.instFoo registered in Tengoku.Lib.A (declared at line 3)")
+        self.assertEqual(out[2], "local instance : Foo := x")
+        self.assertEqual(out[3:5], ["end B", "attribute [local instance] A.B.instFoo"])  # code follows `end B`
+        self.assertEqual(out[5:7], ["theorem t : stmt := rfl", "end A"])  # nothing follows `end A`: no second line
+
+    def test_every_enclosing_block_with_code_after_it(self):
+        text = "namespace A\nsection S\n@[simp] theorem s : a = b := rfl\nend S\ntheorem u : True := trivial\nend A\ntheorem v : True := trivial\n"
+        out = self.rewrite(text, "leak: simp A.s registered in Tengoku.Lib.A (declared at line 3)")
+        self.assertEqual(out[2], "@[local simp] theorem s : a = b := rfl")
+        self.assertIn("attribute [local simp] A.s", out[3:5])
+        self.assertEqual(sum("attribute [local simp] A.s" in ln for ln in out), 2)  # after `end S` and after `end A`
+
+    def test_a_priority_is_kept_and_the_same_name_is_not_added_twice(self):
+        text = "namespace A\ninstance (priority := low) : Foo := x\nend A\ntheorem t : True := trivial\n"
+        out = self.rewrite(text, "leak: instance A.instFoo registered in Tengoku.Lib.A (priority 10) (declared at line 2)")
+        self.assertEqual(out[3], "attribute [local instance 10] A.instFoo")
+        self.assertEqual(sum("attribute" in ln for ln in out), 1)
+
+    def test_a_block_that_is_not_closed_or_has_nothing_after_it_adds_nothing(self):
+        out = self.rewrite("namespace A\ninstance : Foo := x\n", "leak: instance A.instFoo registered in Tengoku.Lib.A (declared at line 2)")
+        self.assertFalse(any(ln.startswith("attribute") for ln in out))
+        out = self.rewrite("namespace A\ninstance : Foo := x\nend A\n-- a comment\n", "leak: instance A.instFoo registered in Tengoku.Lib.A (declared at line 2)")
+        self.assertFalse(any(ln.startswith("attribute") for ln in out))
+
+
 if __name__ == "__main__":
     unittest.main()
