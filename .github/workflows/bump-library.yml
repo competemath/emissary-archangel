@@ -232,7 +232,7 @@ jobs:
           fi
           tail -3 leakscan.txt
           if grep -q '^leak:' leakscan.txt; then
-            python3 scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --pruned pruned-src --pruned pruned-src-proposed --leaks "$(cat leakscan.txt)"
+            python3 scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --pruned pruned-src --pruned pruned-src-proposed --leaks "$(cat leakscan.txt)" --reexport
             for r in ${ROOTS//,/ }; do
               rm -rf "lib2/$r" "lib2/$r.lean"
               [ -e "pruned-src-proposed/$r" ] && cp -r "pruned-src-proposed/$r" lib2/

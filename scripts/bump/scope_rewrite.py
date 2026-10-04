@@ -26,8 +26,12 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import tolerant_build as tb  # noqa: E402
+
 LEAK = re.compile(
     r"leak:\s+(?P<kind>instance|simp)\s+(?P<name>\S+)\s+registered in\s+(?P<mod>\S+)"
+    r"(?:\s+\(priority (?P<prio>\d+)\))?"
     r"(?:\s+\(declared at line (?P<line>\d+)\)|\s+\(declared in (?P<other>\S+?):)?"
 )
 ATTR_CMD = re.compile(r"^\s*attribute\s*\[")
@@ -36,7 +40,7 @@ ATTR_CMD = re.compile(r"^\s*attribute\s*\[")
 def parse(text: str) -> list[dict]:
     # every `leak:` entry of the text, whatever separates them (newlines, `;`, or the single line a log flattens them to)
     return [
-        {"kind": m["kind"], "name": m["name"], "mod": m["mod"], "line": int(m["line"]) if m["line"] else None}
+        {"kind": m["kind"], "name": m["name"], "mod": m["mod"], "line": int(m["line"]) if m["line"] else None, "prio": int(m["prio"]) if m["prio"] else None}
         for m in LEAK.finditer(text)
     ]
 
@@ -203,11 +207,116 @@ def apply_bundle(root: Path, leaks: list[dict], skip: int = 0) -> dict:
     return report
 
 
+
+HEADER_LINE = re.compile(r"^\s*(?:(?:public|private|meta)\s+)*(?:import\s|module\s*$|prelude\s*$)")
+SECTION = re.compile(r"^\s*(?:@\[expose\]\s*)?(?:(?:public|noncomputable)\s+)*section\b")
+
+
+def body_start(lines: list[str]) -> int:
+    """the index of the first line after the header: blank lines, comments (line and block), `module`/`prelude` and imports are the header; a
+    `section` line that opens the body is part of it (the inserted commands go inside it)"""
+    depth = 0
+    for i, ln in enumerate(lines):
+        s = ln.strip()
+        if depth:
+            depth = max(depth + s.count("/-") - s.count("-/"), 0)
+            continue
+        if not s or s.startswith("--"):
+            continue
+        if s.startswith("/-"):
+            depth = max(s.count("/-") - s.count("-/"), 0)
+            continue
+        if HEADER_LINE.match(ln):
+            continue
+        return i + 1 if SECTION.match(ln) else i
+    return len(lines)
+
+
+def nameable(n: str) -> bool:
+    """a declaration name an `attribute` command can say: not private, not a hygienic or auxiliary name"""
+    return not (n.startswith("_private") or "_@" in n or "._hyg" in n or n.startswith("_"))
+
+
+def native_names(root: Path, skip: int) -> dict[str, Path]:
+    """module (the library's own name) -> file, for a bundle directory (`Tengoku/<Library>/…`, skip=0) or the library's layout (skip=2)"""
+    base = root
+    if skip == 0:
+        libs = [d for d in (root / "Tengoku").iterdir() if d.is_dir()] if (root / "Tengoku").is_dir() else []
+        if len(libs) != 1:
+            return {}
+        base = libs[0]
+    out = {}
+    for f in base.rglob("*.lean"):
+        if f.is_symlink() or f.name == "Deps.lean":
+            continue
+        out[".".join(f.relative_to(base).with_suffix("").parts)] = f
+    return out
+
+
+def reexport(root: Path, leaks: list[dict], skip: int = 0) -> dict:
+    """What a module of the library registered globally, the library's OTHER modules saw as given: every module that imports (even
+    indirectly) a module with a flagged registration gets `attribute [local instance] X` / `[local simp] X` for it, so inside the library nothing
+    changes while the tree outside sees none of it. A module's own registrations are local already (rewrite_file)."""
+    files = native_names(root, skip)
+    if not files:
+        return {"reexported": 0, "modules": 0}
+    own_leaks: dict[str, list[dict]] = {}
+    for lk in leaks:
+        parts = parts_of(lk["mod"])
+        if parts and len(parts) > 2 and nameable(lk["name"]):
+            own_leaks.setdefault(".".join(parts[2:]), []).append(lk)
+    imports: dict[str, list[str]] = {}
+    for mod, f in files.items():
+        imports[mod] = []
+        for imp in tb.header_imports(f.read_text()):
+            parts = parts_of(imp)
+            if not parts:
+                continue
+            cand = ".".join(parts[2:]) if (skip == 0 and parts[:1] == ["Tengoku"] and len(parts) > 2) else ".".join(parts)
+            if cand in files:
+                imports[mod].append(cand)
+
+    def closure(mod: str) -> set[str]:
+        seen, stack = set(), list(imports[mod])
+        while stack:
+            m = stack.pop()
+            if m not in seen:
+                seen.add(m)
+                stack.extend(imports[m])
+        return seen
+
+    patched = names_total = 0
+    for mod, f in sorted(files.items()):
+        inherited: list[dict] = []
+        for dep in sorted(closure(mod) - {mod}):
+            inherited += own_leaks.get(dep, [])
+        if not inherited:
+            continue
+        lines = f.read_text().split("\n")
+        groups: dict[tuple[str, int | None], list[str]] = {}
+        for lk in inherited:
+            groups.setdefault((lk["kind"], lk.get("prio") if lk["kind"] == "instance" else None), []).append(lk["name"])
+        ins = []
+        for (kind, prio), ns in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1] or 0)):
+            word = "instance" if kind == "instance" else "simp"
+            attr = f"local {word}" + (f" {prio}" if prio not in (None, 1000) else "")
+            uniq = sorted(set(ns))
+            for k in range(0, len(uniq), 6):
+                ins.append(f"attribute [{attr}] " + " ".join(uniq[k : k + 6]))
+            names_total += len(uniq)
+        at = body_start(lines)
+        lines[at:at] = ins + [""]
+        f.write_text("\n".join(lines))
+        patched += 1
+    return {"reexported": names_total, "modules": patched}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--bundle", action="append", default=[], help="a bundle directory (Tengoku/<Library>/… inside)")
     ap.add_argument("--pruned", action="append", default=[], help="a directory of the library's own layout (the factory's pruned sources)")
     ap.add_argument("--leaks", required=True)
+    ap.add_argument("--reexport", action="store_true", help="also give every module that imports a flagged module the same registrations, local to it")
     a = ap.parse_args()
     leaks = parse(a.leaks)
     if not leaks:
@@ -216,7 +325,10 @@ def main() -> None:
     for dirs, skip in ((a.bundle, 0), (a.pruned, 2)):
         for b in dirs:
             if Path(b).exists():
-                print(b, json.dumps(apply_bundle(Path(b), leaks, skip)))
+                rep = apply_bundle(Path(b), leaks, skip)
+                if a.reexport:
+                    rep.update(reexport(Path(b), leaks, skip))
+                print(b, json.dumps(rep))
 
 
 if __name__ == "__main__":

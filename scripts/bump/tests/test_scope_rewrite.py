@@ -131,5 +131,54 @@ class Bundle(unittest.TestCase):
             self.assertEqual(Path(outside, "victim.lean").read_text(), "instance : Foo := x\n")
 
 
+class Reexport(unittest.TestCase):
+    def make(self, d: Path, prefix: str):
+        root = d / prefix if prefix else d
+        root.mkdir(parents=True, exist_ok=True)
+        imp = (lambda m: f"import Tengoku.Lib.{m}") if prefix else (lambda m: f"import {m}")
+        (root / "A.lean").write_text("module\n\npublic import Tengoku\n\nnamespace X\ninstance : Foo := x\n@[simp] theorem s : a = b := rfl\nend X\n")
+        (root / "B.lean").write_text(f"/-\nCopyright\n-/\nmodule\n\npublic import Tengoku\n{imp('L.A')}\n\n/-! doc -/\n\n@[expose] public section\n\ntheorem b : True := trivial\n")
+        (root / "C.lean").write_text(f"{imp('L.B')}\n\ntheorem c : True := trivial\n")
+        (root / "D.lean").write_text("import Tengoku\n\ntheorem d : True := trivial\n")
+
+    def test_importers_get_the_registrations_local_and_the_module_itself_does_not(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            self.make(d / "Tengoku" / "Lib", "L")
+            leaks = sr.parse("leak: instance X.instFoo registered in Tengoku.Lib.L.A (priority 100) (declared at line 5)\nleak: simp X.s registered in Tengoku.Lib.L.A (declared at line 6)")
+            rep = sr.reexport(d, leaks, skip=0)
+            self.assertEqual((rep["modules"], rep["reexported"]), (2, 4))
+            b = (d / "Tengoku/Lib/L/B.lean").read_text()
+            self.assertIn("attribute [local instance 100] X.instFoo", b)
+            self.assertIn("attribute [local simp] X.s", b)
+            self.assertLess(b.index("public section"), b.index("attribute [local"))  # inside the section that opens the body
+            self.assertIn("attribute [local instance 100] X.instFoo", (d / "Tengoku/Lib/L/C.lean").read_text())  # indirect importer
+            self.assertNotIn("attribute", (d / "Tengoku/Lib/L/A.lean").read_text())
+            self.assertNotIn("attribute", (d / "Tengoku/Lib/L/D.lean").read_text())
+
+    def test_a_private_or_hygienic_name_is_not_reexported(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            self.make(d / "Tengoku" / "Lib", "L")
+            leaks = sr.parse("leak: instance _private.Tengoku.Lib.L.A.0.X.inst registered in Tengoku.Lib.L.A (declared at line 5)")
+            self.assertEqual(sr.reexport(d, leaks, skip=0)["modules"], 0)
+
+    def test_the_header_ends_before_the_first_command(self):
+        lines = ["/-", "doc", "-/", "module", "", "public import A", "import B", "", "/-! m -/", "", "open X", "theorem t : True := trivial"]
+        self.assertEqual(sr.body_start(lines), 10)
+        self.assertEqual(sr.body_start(["import A", "@[expose] public section", "def x := 1"]), 2)
+
+    def test_the_librarys_own_layout(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            self.make(d, "")
+            (d / "A.lean").rename(d / "L_A.lean")  # a flat layout: module names are the file names
+            leaks = sr.parse("leak: instance X.instFoo registered in Tengoku.Lib.L_A (declared at line 5)")
+            (d / "B.lean").write_text("import L_A\n\ntheorem b : True := trivial\n")
+            rep = sr.reexport(d, leaks, skip=2)
+            self.assertEqual(rep["modules"], 1)
+            self.assertIn("attribute [local instance] X.instFoo", (d / "B.lean").read_text())
+
+
 if __name__ == "__main__":
     unittest.main()
