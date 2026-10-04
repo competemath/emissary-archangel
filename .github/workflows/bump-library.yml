@@ -230,7 +230,7 @@ jobs:
           if ! (cd lib2 && xargs -0 -a ../leakscan.args lake env lean --run ../scripts/bump/TengokuLeak.lean > ../leakscan.txt 2> ../leakscan.err); then
             echo "::warning::the leak scan did not run; the bundle ships unscanned"; tail -5 leakscan.err; exit 0
           fi
-          tail -3 leakscan.txt
+          head -3 leakscan.txt
           if grep -q '^leak:' leakscan.txt; then
             python3 scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --pruned pruned-src --pruned pruned-src-proposed --leaks "$(cat leakscan.txt)" --reexport
             for r in ${ROOTS//,/ }; do
