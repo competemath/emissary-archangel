@@ -208,8 +208,8 @@ jobs:
           sync_sources() {
             for r in ${ROOTS//,/ }; do
               rm -rf "lib2/$r" "lib2/$r.lean"
-              [ -e "pruned-src-proposed/$r" ] && cp -r "pruned-src-proposed/$r" lib2/
-              [ -e "pruned-src-proposed/$r.lean" ] && cp "pruned-src-proposed/$r.lean" lib2/
+              [ -e "pruned-src-wide/$r" ] && cp -r "pruned-src-wide/$r" lib2/
+              [ -e "pruned-src-wide/$r.lean" ] && cp "pruned-src-wide/$r.lean" lib2/
             done
             return 0
           }
@@ -227,17 +227,17 @@ jobs:
         # trusted: the edited sources are built again and a module that no longer builds is left out, as in the build above.
         working-directory: emissary
         run: |
-          python3 scripts/bump/leakscan_args.py --key "$KEY" --src pruned-src-proposed --roots "$ROOTS" --out leakscan.args
+          python3 scripts/bump/leakscan_args.py --key "$KEY" --src pruned-src-wide --roots "$ROOTS" --out leakscan.args
           if ! (cd lib2 && xargs -0 -a ../leakscan.args lake env lean --run ../scripts/bump/TengokuLeak.lean > ../leakscan.txt 2> ../leakscan.err); then
             echo "::warning::the leak scan did not run; the bundle ships unscanned"; tail -5 leakscan.err; exit 0
           fi
           head -3 leakscan.txt
           if grep -q '^leak:' leakscan.txt; then
-            python3 scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --pruned pruned-src --pruned pruned-src-proposed --leaks "$(cat leakscan.txt)" --reexport
+            python3 scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --pruned pruned-src --pruned pruned-src-proposed --pruned pruned-src-wide --leaks "$(cat leakscan.txt)" --reexport
             for r in ${ROOTS//,/ }; do
               rm -rf "lib2/$r" "lib2/$r.lean"
-              [ -e "pruned-src-proposed/$r" ] && cp -r "pruned-src-proposed/$r" lib2/
-              [ -e "pruned-src-proposed/$r.lean" ] && cp "pruned-src-proposed/$r.lean" lib2/
+              [ -e "pruned-src-wide/$r" ] && cp -r "pruned-src-wide/$r" lib2/
+              [ -e "pruned-src-wide/$r.lean" ] && cp "pruned-src-wide/$r.lean" lib2/
             done
             for round in 1 2 3 4; do
               python3 scripts/bump/tolerant_build.py --lib lib2 --roots "$ROOTS" --log verify2.log --report verify2.json --jobs 4 --cache lib2/.bump-cache
@@ -246,8 +246,8 @@ jobs:
               python3 scripts/bump/bundle.py refine --report verify2.json --log verify2.log --key "$KEY" --out bundle --src pruned-src
               for r in ${ROOTS//,/ }; do
                 rm -rf "lib2/$r" "lib2/$r.lean"
-                [ -e "pruned-src-proposed/$r" ] && cp -r "pruned-src-proposed/$r" lib2/
-                [ -e "pruned-src-proposed/$r.lean" ] && cp "pruned-src-proposed/$r.lean" lib2/
+                [ -e "pruned-src-wide/$r" ] && cp -r "pruned-src-wide/$r" lib2/
+                [ -e "pruned-src-wide/$r.lean" ] && cp "pruned-src-wide/$r.lean" lib2/
               done
             done
           fi
@@ -269,11 +269,12 @@ jobs:
             emissary/composed.jsonl
             emissary/bundle
             emissary/bundle-proposed
+            emissary/bundle-wide
             emissary/verify.log
             emissary/leakscan.txt
             emissary/leakscan.err
             emissary/verify2.log
-            emissary/pruned-src-proposed
+            emissary/pruned-src-wide
             emissary/verify-summary.json
             emissary/bank.jsonl
             emissary/ledger-rows.jsonl
@@ -299,24 +300,35 @@ jobs:
           git -C emissary checkout -q "$GITHUB_SHA"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { name: "results-${{ inputs.key }}", path: raw, run-id: "${{ inputs.recut_from || github.run_id }}", github-token: "${{ github.token }}" }
+      - name: Which bundles this run has (an older run has no `wide` one)
+        run: |
+          b="--bundle raw/bundle --bundle raw/bundle-proposed"; [ -d raw/bundle-wide ] && b="$b --bundle raw/bundle-wide"
+          echo "BUNDLES=$b" >> "$GITHUB_ENV"
       - name: Give the bundle the header the tree has today (RECUT only; a bundle composed before tengoku's Seed move names modules that moved)
         if: ${{ inputs.recut_from != '' }}
-        run: python3 emissary/scripts/bump/bundle_rehead.py --bundle raw/bundle --bundle raw/bundle-proposed
+        run: |
+          # shellcheck disable=SC2086  # the list is meant to be split into arguments
+          python3 emissary/scripts/bump/bundle_rehead.py $BUNDLES
       - name: Give the library's auto-generated instance names the tree's suffix (RECUT only; Lean's generated name depends on the module's root)
         if: ${{ inputs.recut_from != '' }}
-        run: python3 emissary/scripts/bump/autonames.py --bundle raw/bundle --bundle raw/bundle-proposed
+        run: |
+          # shellcheck disable=SC2086  # the list is meant to be split into arguments
+          python3 emissary/scripts/bump/autonames.py $BUNDLES
       - name: Leave out the modules the tree could not build (RECUT only)
         if: ${{ inputs.drop != '' }}
         run: |
           python3 emissary/scripts/bump/bundle_cut.py --bundle raw/bundle --key "$KEY" --drop "$DROP"
       - name: Make the registrations that leak into other libraries local (RECUT only)
         if: ${{ inputs.scope != '' }}
-        run: python3 emissary/scripts/bump/scope_rewrite.py --bundle raw/bundle --bundle raw/bundle-proposed --leaks "$SCOPE"
+        run: |
+          # shellcheck disable=SC2086  # the list is meant to be split into arguments
+          python3 emissary/scripts/bump/scope_rewrite.py $BUNDLES --leaks "$SCOPE"
       - name: Pack (the attested bytes are the canonical .tar, the same function as tengoku's gate; the .tar.gz is for transport)
         run: |
           mkdir -p out
-          for mode in strict proposed; do
-            dir=raw/bundle; [ "$mode" = proposed ] && dir=raw/bundle-proposed
+          for mode in strict proposed wide; do
+            dir=raw/bundle; [ "$mode" != strict ] && dir="raw/bundle-$mode"
+            [ -d "$dir" ] || { echo "no $mode bundle in this run"; continue; }
             # tengoku's generator keeps in All.lean the libraries that have a Deps.lean: an empty one (a comment) marks this library
             for t in "$dir"/Tengoku/*/; do
               [ -d "$t" ] && [ ! -f "${t}Deps.lean" ] && printf -- '-- %s: a factory bundle (data/intake/%s). This file only marks the library for Tengoku/All.lean.\n' "$(basename "$t")" "$KEY" > "${t}Deps.lean"

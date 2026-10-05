@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """open_intake_pr.py — turn a finished factory run into an intake PR on tengoku (or its sandbox).
 
-  open_intake_pr.py --key K --run RUN_ID --repo competemath/tengoku[-sandbox] [--mode strict|proposed] [--factory competemath/emissary-archangel] [--dry-run]
+  open_intake_pr.py --key K --run RUN_ID --repo competemath/tengoku[-sandbox] [--mode strict|proposed|wide] [--factory competemath/emissary-archangel] [--dry-run]
                     [--part N [--depends-on PR]]
 
 Downloads the run's artifact `bump-K`, checks the build attestation of the archive against the factory's workflows (the gate does it
@@ -65,7 +65,7 @@ def main() -> None:
     ap.add_argument("--key", required=True)
     ap.add_argument("--run", required=True)
     ap.add_argument("--repo", required=True)
-    ap.add_argument("--mode", default="strict", choices=["strict", "proposed"])
+    ap.add_argument("--mode", default="strict", choices=["strict", "proposed", "wide"])
     ap.add_argument("--factory", default="competemath/emissary-archangel")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--part", type=int, help="send this part of a library cut into parts (1 = the intake PR, later ones extend PRs)")

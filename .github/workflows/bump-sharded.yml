@@ -109,11 +109,11 @@ jobs:
             --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --out ../bundle --src ../pruned-src --drop-modules "$DROP"
       - name: Make the registrations that leak into other libraries local (RECUT only)
         if: ${{ inputs.scope != '' }}
-        run: python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --leaks "$SCOPE"
+        run: python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --leaks "$SCOPE"
       - name: Pack and attest
         run: |
-          for mode in strict proposed; do
-            dir=bundle; [ "$mode" = proposed ] && dir=bundle-proposed
+          for mode in strict proposed wide; do
+            dir=bundle; [ "$mode" != strict ] && dir="bundle-$mode"
             python3 emissary/scripts/bump/bundle_tar.py "$dir" "bundle-$KEY-$mode.tar"
             gzip -n -k "bundle-$KEY-$mode.tar"
             if [ "${PARTS:-0}" != 0 ]; then
@@ -123,7 +123,7 @@ jobs:
             fi
           done
           sha256sum bundle-"$KEY"-*.tar | tee bundle.sha256
-          cat bundle/report.json bundle-proposed/report.json
+          cat bundle/report.json bundle-proposed/report.json bundle-wide/report.json
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with: { subject-path: "bundle-${{ inputs.key }}-*.tar" }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -138,6 +138,8 @@ jobs:
             bundle/manifest.jsonl
             bundle-proposed/report.json
             bundle-proposed/manifest.jsonl
+            bundle-wide/report.json
+            bundle-wide/manifest.jsonl
             logs/gate2-results.json
             logs/passed.json
           retention-days: 90

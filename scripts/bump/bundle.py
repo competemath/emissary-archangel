@@ -124,6 +124,7 @@ elab "#bundle_keep " names:str " in " libs:str : command => do
 '''
 
 
+MODES = ("strict", "proposed", "wide")  # strict: the allow-list; proposed: + notation commands; wide: + the macro family (what the tree takes is a policy decision)
 MAX_KEEP_GAP = 0.02  # a few passed names may resolve to no constant (an alias); more than this share means the Lean step lost a part of the library
 
 
@@ -319,24 +320,30 @@ def compose(a: argparse.Namespace) -> None:
             stripped_attrs["portfolio trace"] += n_traces
     # The tree compiles what it takes under its content lint (an allow-list of known-inert commands, attributes and options). The
     # copy here is tengoku's (scripts/bump/lint); the header is the bundle's own business (imports are mapped, `module` is the
-    # module system), so it is not linted. `proposed` is the same lint with notation commands allowed (notation, infix, prefix,
+    # module system), so it is not linted. `wide` is `proposed` with the macro family allowed too (macro, macro_rules, syntax, declare_syntax_cat). `proposed` is the same lint with notation commands allowed (notation, infix, prefix,
     # postfix, notation3, scoped/local): they elaborate a term like any other and cannot run code of the library's, and
     # without them most libraries' statements do not read. Both bundles are cut; which one the tree takes is a policy decision.
     sys.path.insert(0, str(HERE / "lint"))
     import allowlist  # noqa: E402
 
     allowed = set(json.loads((HERE / "lint" / "allowed-options.json").read_text())["allowed"])
+    keywords = set(json.loads((HERE / "lint" / "command-keywords.json").read_text())["commands"])
     notation_ok = re.compile(r"`(?:notation3?|infix[lr]?|prefix|postfix|scoped|local)`")
+    macro_ok = re.compile(r"`(?:macro|macro_rules|syntax|declare_syntax_cat)`")  # `wide`: Lean's macro monad is pure, it cannot reach IO; every word that does stays refused
     header = re.compile(r"^\s*(?:(?:public|private|meta)\s+)*import\s|^\s*(?:module|prelude)\s*$")
     lint: dict[str, list[str]] = {}
     for mod, text in pruned.items():
         body = "\n".join(("" if header.match(ln) else ln) for ln in text.split("\n"))
-        lint[mod] = allowlist.violations(body, allowed)
+        lint[mod] = allowlist.violations(body, allowed, keywords)
     repo = meta["repo"].rstrip("/").removesuffix(".git")
     via = passed_via(a.gate2)
     summary = {}
-    for mode in ("strict", "proposed"):
-        viol = {m: [v for v in vs if mode == "strict" or not notation_ok.search(v)] for m, vs in lint.items()}
+    for mode in MODES:
+
+        def refused(v: str, mode: str = mode) -> bool:
+            return not (mode != "strict" and notation_ok.search(v)) and not (mode == "wide" and macro_ok.search(v))
+
+        viol = {m: [v for v in vs if refused(v)] for m, vs in lint.items()}
         dropped = dict(base_dropped)
         dropped.update({m: "lint: " + "; ".join(vs[:3]) for m, vs in viol.items() if vs and m not in dropped})
         changed = True
@@ -379,8 +386,8 @@ def compose(a: argparse.Namespace) -> None:
                 rel = str(m.path.relative_to(lib))
                 manifest.append({"name": n, "statement": stmt, "module": f"Tengoku.{pascal(a.key)}.{mod}", "source_path": rel, "library": a.key,
                                  "source_url": f"{repo}/blob/{meta['commit']}/{rel}", "toolchain": a.toolchain, "via": via.get(n, "")})
-        out_dir = out if mode == "strict" else Path(str(out) + "-proposed")
-        src_dir = src if mode == "strict" else Path(str(src) + "-proposed")
+        out_dir = out if mode == "strict" else Path(str(out) + "-" + mode)
+        src_dir = src if mode == "strict" else Path(str(src) + "-" + mode)
         tree_root = out_dir / "Tengoku" / pascal(a.key)
         for d in (tree_root, src_dir):
             d.mkdir(parents=True, exist_ok=True)
@@ -436,7 +443,7 @@ def refine(a: argparse.Namespace) -> None:
     bad |= {to_mod(f) for f in re.findall(r"^warning: (\S+?\.lean):\d+:\d+: declaration uses .sorry.", log, re.M)}
     key = pascal(a.key)
     summary = {}
-    for mode, out_dir, src_dir in (("strict", Path(a.out), Path(a.src)), ("proposed", Path(str(a.out) + "-proposed"), Path(str(a.src) + "-proposed"))):
+    for mode, out_dir, src_dir in ((m, Path(a.out) if m == "strict" else Path(str(a.out) + "-" + m), Path(a.src) if m == "strict" else Path(str(a.src) + "-" + m)) for m in MODES):
         tree_root = out_dir / "Tengoku" / key
         if not tree_root.is_dir():
             continue

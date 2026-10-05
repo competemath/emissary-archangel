@@ -6,7 +6,7 @@ declares): `drop` lists them, as the library's own module names (no `Tengoku.<Li
 composed, so this works on the bundle's files: the modules (and their importers) are deleted, the library's root file, the manifest and the
 report follow. Sharded runs cut at compose (`bundle.py compose --drop-modules`); this is the same cut for the others.
 
-  bundle_cut.py --bundle DIR --key K --drop A.B,C   (DIR and DIR-proposed are both cut)
+  bundle_cut.py --bundle DIR --key K --drop A.B,C   (DIR, DIR-proposed and DIR-wide are all cut)
 """
 
 from __future__ import annotations
@@ -73,7 +73,7 @@ def main() -> None:
     if bad:
         sys.exit(f"not module names: {bad}")
     out = {}
-    for d in (Path(a.bundle), Path(a.bundle + "-proposed")):
+    for d in (Path(a.bundle), Path(a.bundle + "-proposed"), Path(a.bundle + "-wide")):
         r = cut_dir(d, a.key, drop)
         if r:
             out[d.name] = r
