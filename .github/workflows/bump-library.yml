@@ -24,6 +24,7 @@ on:
       recut_from: { description: "RECUT: the id of an earlier run of this workflow for this key. No build: its bundle is packed again (with the Deps.lean marker) and attested by this run", default: "" }
       drop: { description: "RECUT: modules (comma list, the library's own names) that did not build on the tree, from the merge queue's build; they and what imports them are left out (scripts/bump/bundle_cut.py)", default: "" }
       scope: { description: "RECUT: the `leak:` lines of the merge queue's leak report (separated by `;`): those registrations are made local (scripts/bump/scope_rewrite.py)", default: "" }
+      parts: { description: "PARTS: cut each bundle into parts of at most this many modules (scripts/bump/bundle_layers.py), each attested as bundle-<key>-<mode>-part-NNN.tar, for a library too big for one intake PR (the queue builds ~3 s a module in 40 minutes: 300). 0 = no parts", default: "0" }
 permissions: {}
 defaults:
   run:
@@ -289,12 +290,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions: { contents: read, id-token: write, attestations: write, actions: read }  # actions: read = the results of an earlier run (recut)
-    env: { KEY: "${{ inputs.key }}", SCOPE: "${{ inputs.scope }}", DROP: "${{ inputs.drop }}" }
+    env: { KEY: "${{ inputs.key }}", SCOPE: "${{ inputs.scope }}", DROP: "${{ inputs.drop }}", PARTS: "${{ inputs.parts }}" }
     steps:
       - name: The factory's scripts
         run: |
           git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
-          git -C emissary sparse-checkout set --no-cone "/scripts/bump/bundle_tar.py" "/scripts/bump/scope_rewrite.py" "/scripts/bump/bundle_cut.py" "/scripts/bump/bundle_rehead.py" "/scripts/bump/autonames.py" "/scripts/bump/tolerant_build.py"
+          git -C emissary sparse-checkout set --no-cone "/scripts/bump/bundle_layers.py" "/scripts/bump/bundle_tar.py" "/scripts/bump/scope_rewrite.py" "/scripts/bump/bundle_cut.py" "/scripts/bump/bundle_rehead.py" "/scripts/bump/autonames.py" "/scripts/bump/tolerant_build.py"
           git -C emissary checkout -q "$GITHUB_SHA"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { name: "results-${{ inputs.key }}", path: raw, run-id: "${{ inputs.recut_from || github.run_id }}", github-token: "${{ github.token }}" }
@@ -323,6 +324,11 @@ jobs:
             python3 emissary/scripts/bump/bundle_tar.py "$dir" "out/bundle-$KEY-$mode.tar"
             gzip -n -k "out/bundle-$KEY-$mode.tar"
             cp "$dir/report.json" "out/report-$mode.json"; cp "$dir/manifest.jsonl" "out/manifest-$mode.jsonl"
+            if [ "${PARTS:-0}" != 0 ]; then
+              python3 emissary/scripts/bump/bundle_layers.py --bundle "$dir" --out "parts-$mode" --max-modules "$PARTS" --tar
+              for t in "parts-$mode"/part-*.tar; do cp "$t" "out/bundle-$KEY-$mode-$(basename "$t")"; done
+              cp "parts-$mode/plan.json" "out/parts-$mode.json"
+            fi
           done
           sha256sum out/bundle-"$KEY"-*.tar | tee out/bundle.sha256; ls -l out | awk '{print $5, $9}'
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
