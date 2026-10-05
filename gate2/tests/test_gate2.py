@@ -69,7 +69,7 @@ class Gate2Lean(unittest.TestCase):
         self.assertIn("bridge_cites_the_original", v)
 
     def test_citing_the_original_is_refused_even_for_a_statement_that_does_imply_it(self):
-        v = self.verdict(self.OLD + "theorem NewSame : ∀ m : Nat, m + 0 = m := fun m => Nat.add_zero m\n", '#gate2_verify "NewSame" "Old" "Bridge" "fun _ => Old n"')
+        v = self.verdict(self.OLD + "theorem NewSame : ∀ n : Nat, n + 0 = n := fun n => Nat.add_zero n\n", '#gate2_verify "NewSame" "Old" "Bridge" "fun _ => Old n"')
         self.assertTrue(v.startswith("GATE2_FAIL"), v)
         self.assertIn("bridge_cites_the_original", v)
 

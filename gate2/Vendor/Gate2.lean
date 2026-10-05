@@ -63,6 +63,10 @@ Fix, in two parts:
    actually guarantees soundness here, exactly as before. Not a new kind of
    trust — the same one, applied under a real local context instead of only
    at the top level.
+
+v0.0.5: the bridge proof may not cite the original (or any theorem the export replayed as a statement-only axiom). Without this, `fun _ => Old n` proved
+`NewType → OldType` for any new statement, since the original is an axiom in the session: an unrelated translation got GATE2_PASS. Definitions and
+the tree's own lemmas are still allowed in the proof; the entailment has to come from the new statement.
 -/
 
 open Lean Elab Command TengokuImport Meta
@@ -167,6 +171,13 @@ elab "#gate2_verify " newName:str oldName:str bridgeDeclName:str proofText:str :
               throwError "contains_sorry"
             if proofTerm.hasExprMVar then
               throwError "unresolved_metavariables"
+            -- v0.0.5 soundness guard. The original is in the session only as a STATEMENT-ONLY AXIOM (server.py replays theorems that way), so a proof that
+            -- cites it, `fun _ => Old n`, proves `NewType → OldType` for ANY new statement: the gate certified an unrelated translation (found by reading the
+            -- code, reproduced, then pinned by gate2/tests/test_gate2.py). A proof of new → old has to derive the old statement from the new one, so it may not
+            -- use any constant that the export has as a theorem. Definitions and the tree's own lemmas stay available.
+            let cited := proofTerm.getUsedConstants.filter fun c => match imported[c]? with | some (.thmInfo _) => true | _ => false
+            if !cited.isEmpty then
+              throwError "bridge_cites_the_original: the proof uses {cited.toList}, which the export has as theorems and the session only as statement-only axioms; a bridge must derive the old statement from the new one, not assume it"
             let finalValue ← Meta.mkLambdaFVars fvars proofTerm
             Lean.addDecl (Declaration.thmDecl {
               name := bridgeName
