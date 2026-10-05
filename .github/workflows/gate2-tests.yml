@@ -1,0 +1,31 @@
+# The real gate2/Vendor/Gate2.lean, run by a real Lean on small cases (gate2/tests/test_gate2.py): the Vendor modules import only Lean, so no tree and no cache.
+name: gate2-tests
+on:
+  push:
+    paths: ["gate2/**", ".github/workflows/gate2-tests.yml"]
+  pull_request:
+    paths: ["gate2/**", ".github/workflows/gate2-tests.yml"]
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  lean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout: gate2
+          persist-credentials: false
+      - name: elan (the installer at a fixed commit, checked against its digest before it runs)
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSfL -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh
+          echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c -
+          sh elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Gate 2 on small cases
+        run: |
+          set -o pipefail  # `| tail` would otherwise hide a failing test
+          python3 -m unittest discover -s gate2/tests -v 2>&1 | tail -25
