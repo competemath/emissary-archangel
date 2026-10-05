@@ -34,6 +34,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import portfolio  # noqa: E402
 import records  # noqa: E402
+import autonames  # noqa: E402
 import strip_attrs  # noqa: E402
 import tolerant_build as tb  # noqa: E402
 
@@ -184,6 +185,13 @@ def once(lines: list[str]) -> list[str]:
             seen.add(ln.strip())
         out.append(ln)
     return out
+
+
+def to_tree(text: str, key: str, own: set[str], rel: Path) -> str:
+    """A pruned library module as the tree writes it: imports mapped to the tree's (`once`), and the library's auto-generated instance names given the
+    tree's suffix (autonames.py: the name Lean generates depends on the module's root, which changes when the file moves into Tengoku)."""
+    mapped = once([map_import_line(ln, key, own)[0] for ln in text.split("\n")])
+    return autonames.rewrite("\n".join(mapped) + "\n", autonames.root_of(rel))[0]
 
 
 def compose(a: argparse.Namespace) -> None:
@@ -354,9 +362,8 @@ def compose(a: argparse.Namespace) -> None:
             rel = modules[mod].path.relative_to(lib)
             (src_dir / rel).parent.mkdir(parents=True, exist_ok=True)
             (src_dir / rel).write_text(pruned[mod] + "\n")
-            mapped = once([map_import_line(ln, a.key, own)[0] for ln in pruned[mod].split("\n")])
             (tree_root / rel).parent.mkdir(parents=True, exist_ok=True)
-            (tree_root / rel).write_text("\n".join(mapped) + "\n")
+            (tree_root / rel).write_text(to_tree(pruned[mod], a.key, own, rel))
         (out_dir / "Tengoku" / f"{pascal(a.key)}.lean").write_text("".join(f"import Tengoku.{pascal(a.key)}.{m}\n" for m in sorted(needed)))
         # tengoku's generator rewrites Tengoku/All.lean from the libraries that have a Deps.lean: an empty one (a comment) keeps this library in it
         (tree_root / "Deps.lean").write_text(f"-- {pascal(a.key)}: a factory bundle (data/intake/{a.key}). This file only marks the library for Tengoku/All.lean.\n")

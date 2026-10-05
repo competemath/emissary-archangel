@@ -1,0 +1,27 @@
+# The factory's own unit tests (scripts/bump/tests), on every push and pull request that touches scripts. They used to run only by hand or inside the
+# tolerant-smoke experiment, which is to say: not when something breaks. No Lean, no network, a read-only token.
+name: bump-tests
+on:
+  push:
+    branches: [main]
+    paths: ["scripts/**", ".github/workflows/bump-tests.yml"]
+  pull_request:
+    paths: ["scripts/**", ".github/workflows/bump-tests.yml"]
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout: scripts
+          persist-credentials: false
+      - name: unit tests of scripts/bump
+        run: |
+          set -o pipefail  # `| tail` would otherwise hide a failing test
+          python3 -m unittest discover -s scripts/bump/tests 2>&1 | tail -15

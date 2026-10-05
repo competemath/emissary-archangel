@@ -66,6 +66,7 @@ Per-theorem records cannot carry this volume: a record repeats its whole context
 | make those registrations `local` (an edit inside lines, so the report's positions stay valid; a note at the end of the file); the sources are built again | `scope_rewrite.py`; in `bump-library.yml` after the verification build, and as the `scope` input of a recut |
 | leave modules out of a finished bundle (the tree's build named them), with what imports them | `bundle_cut.py` (`drop` input of a `bump-library.yml` recut; sharded runs cut at compose) |
 | give a finished bundle the header the tree has today (every seeded import is the one `Tengoku`; tengoku moved its seed into `Tengoku/Seed/`) | `bundle_rehead.py` (every `bump-library.yml` recut; sharded runs re-compose at a recut) |
+| give the library's auto-generated instance names the tree's suffix (`instFoo_fLT` becomes `instFoo_tengoku`: Lean's generated name depends on the module's root) | `autonames.py` (compose, via `bundle.to_tree`, and every `bump-library.yml` recut) |
 | one reproducible archive, attested (SLSA build provenance), `.tar.gz` for transport | `bundle_tar.py` (the same function and golden digest as tengoku's `scripts/ci/bundle_tar.py`) |
 | every library, unattended, by size, within the runner capacity | `bump-all.yml`, `orchestrate.py` |
 | a finished run -> an intake PR | `open_intake_pr.py` |

@@ -9,6 +9,9 @@ HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE / "tests"))
 import test_records as T  # the toy library
 
+sys.path.insert(0, str(HERE))
+import bundle  # noqa: E402
+
 
 class Bundle(unittest.TestCase):
     def test_bundle_keeps_only_what_passed_and_maps_imports(self):
@@ -232,6 +235,20 @@ class ExternalImports(unittest.TestCase):
         rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
         self.assertEqual((rep["modules_in_bundle"], rep["theorems"]), (1, 1))  # it used to be dropped for "imports that"
         self.assertFalse(rep["dropped_truncated"])
+
+
+class ToTree(unittest.TestCase):
+    """A module as the tree writes it: imports mapped, and the library's auto-generated instance names given the tree's suffix (2026-10-05: flt's
+    `attribute [local instance] instAlgebraForall_fLT` was an `Unknown constant` in the tree, where the same instance is `_tengoku`)."""
+
+    def test_imports_and_instance_names_are_both_mapped(self):
+        text = "import Mathlib\nimport FLT.Patching.Utils.Lemmas\n\nattribute [local instance] instAlgebraForall_fLT"  # a pruned module has no final newline
+        got = bundle.to_tree(text, "flt", {"FLT.Patching.Utils.Lemmas"}, Path("FLT/Patching/Utils/AdicTopology.lean"))
+        self.assertEqual(got, "import Tengoku\nimport Tengoku.Flt.FLT.Patching.Utils.Lemmas\n\nattribute [local instance] instAlgebraForall_tengoku\n")
+
+    def test_the_suffix_is_the_files_own_root(self):
+        text = "attribute [local instance] instX_fLT instY_pFR"
+        self.assertEqual(bundle.to_tree(text, "pfr", set(), Path("PFR/A.lean")), "attribute [local instance] instX_fLT instY_tengoku\n")
 
 
 if __name__ == "__main__":
