@@ -180,7 +180,7 @@ jobs:
             emissary/gate2-results.json
             emissary/passed.json
             emissary/plan.json
-          retention-days: 30
+          retention-days: 90
       - name: Staging records for the declarations that passed (RECORDS=on only)
         if: env.RECORDS == 'on'
         working-directory: emissary
@@ -280,7 +280,7 @@ jobs:
             emissary/plan.json
             emissary/lib/gate2-check.lean
             emissary/lib/gate2-check.plan.json
-          retention-days: 30
+          retention-days: 90
   # The archive is cut and signed here, in a job that runs no code of the library: it reads the bundle directories (text) as data and
   # attests the canonical archive of them. Signing in the job that compiled the library would let the library mint attestations.
   attest:
@@ -328,4 +328,4 @@ jobs:
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with: { subject-path: "out/bundle-${{ inputs.key }}-*.tar" }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with: { name: "bump-${{ inputs.key }}", path: out, retention-days: 30 }
+        with: { name: "bump-${{ inputs.key }}", path: out, retention-days: 90 }

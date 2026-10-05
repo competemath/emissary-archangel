@@ -133,4 +133,4 @@ jobs:
             bundle-proposed/manifest.jsonl
             logs/gate2-results.json
             logs/passed.json
-          retention-days: 30
+          retention-days: 90
