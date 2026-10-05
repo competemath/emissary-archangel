@@ -65,6 +65,11 @@ class Order(unittest.TestCase):
         graph = bl.import_graph(files, bl.own_modules(files, NS))
         self.assertEqual(graph[f"Tengoku.{NS}.A"], [])
 
+    def test_the_modules_named_first_come_first(self):
+        g = {"a": [], "b": ["a"], "z": []}
+        self.assertEqual(bl.topological_order(g, ("z",)), ["z", "a", "b"])
+        self.assertEqual(bl.topological_order(g), ["a", "b", "z"])
+
     def test_the_order_is_deterministic_and_complete(self):
         rnd = random.Random(1)
         g = random_dag(rnd, 60)
@@ -119,6 +124,14 @@ class Plan(unittest.TestCase):
         files = make_bundle({"Deps": [], "A": [], "B": ["A"]}, unlisted={"Deps"})
         parts = bl.plan(files, NS, 10)
         self.assertIn(mod_path(f"Tengoku.{NS}.Deps"), parts[0].files)
+
+    def test_the_marker_is_in_the_first_part_wherever_its_name_sorts(self):
+        # `Deps` sorts after `Aa`, `Ab`, ...: the marker is still in part 1 (the intake PR carries it)
+        files = make_bundle({"Aa": [], "Ab": ["Aa"], "Ac": ["Ab"], "Deps": [], "Zz": ["Ac"]}, unlisted={"Deps"})
+        parts = bl.plan(files, NS, 2)
+        self.assertGreater(len(parts), 1)
+        self.assertIn(mod_path(f"Tengoku.{NS}.Deps"), parts[0].files)
+        self.assertTrue(all(mod_path(f"Tengoku.{NS}.Deps") not in p.files for p in parts[1:]))
         self.assertNotIn("Deps", parts[0].files[f"Tengoku/{NS}.lean"].decode())
 
     def test_a_file_that_is_no_module_goes_with_the_first_part_only(self):

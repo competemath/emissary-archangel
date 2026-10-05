@@ -64,11 +64,12 @@ def import_graph(files: dict[str, bytes], mods: dict[str, str]) -> dict[str, lis
     return {m: sorted({d for d in tb.header_imports(files[p].decode("utf-8", errors="replace")) if d in own and d != m}) for m, p in mods.items()}
 
 
-def topological_order(graph: dict[str, list[str]]) -> list[str]:
-    """Depth-first post-order over the names sorted: each module right after its imports. Raises BundleError on a cycle (Lean refuses one too)."""
+def topological_order(graph: dict[str, list[str]], first: tuple[str, ...] = ()) -> list[str]:
+    """Depth-first post-order over the names sorted (those in `first` before the rest): each module right after its imports. Raises BundleError on a cycle (Lean
+    refuses one too)."""
     state: dict[str, int] = {}  # 1 on the stack, 2 done
     out: list[str] = []
-    for root in sorted(graph):
+    for root in sorted(graph, key=lambda m: (m not in first, m)):
         if state.get(root) == 2:
             continue
         stack = [(root, iter(graph[root]))]
@@ -131,7 +132,8 @@ def plan(files: dict[str, bytes], ns: str, max_modules: int = DEFAULT_MAX) -> li
     umbrella = files[umbrella_path].decode("utf-8")
     listed = {ln.split()[-1] for ln in umbrella.split("\n") if ln.strip().startswith("import ")}
     graph = import_graph(files, mods)
-    order = topological_order(graph)
+    # the marker `Deps.lean` (it tells tengoku's generator the library is in All.lean) is what the first part, the intake PR, must carry: it goes first
+    order = topological_order(graph, (f"Tengoku.{ns}.Deps",))
     manifest = [ln for ln in files.get("manifest.jsonl", b"").decode("utf-8").split("\n") if ln.strip()]
     by_module: dict[str, list[str]] = {}
     for ln in manifest:
