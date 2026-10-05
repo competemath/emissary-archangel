@@ -294,10 +294,13 @@ jobs:
       - name: The factory's scripts
         run: |
           git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
-          git -C emissary sparse-checkout set --no-cone "/scripts/bump/bundle_tar.py" "/scripts/bump/scope_rewrite.py" "/scripts/bump/bundle_cut.py" "/scripts/bump/tolerant_build.py"
+          git -C emissary sparse-checkout set --no-cone "/scripts/bump/bundle_tar.py" "/scripts/bump/scope_rewrite.py" "/scripts/bump/bundle_cut.py" "/scripts/bump/bundle_rehead.py" "/scripts/bump/tolerant_build.py"
           git -C emissary checkout -q "$GITHUB_SHA"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { name: "results-${{ inputs.key }}", path: raw, run-id: "${{ inputs.recut_from || github.run_id }}", github-token: "${{ github.token }}" }
+      - name: Give the bundle the header the tree has today (RECUT only; a bundle composed before tengoku's Seed move names modules that moved)
+        if: ${{ inputs.recut_from != '' }}
+        run: python3 emissary/scripts/bump/bundle_rehead.py --bundle raw/bundle --bundle raw/bundle-proposed
       - name: Leave out the modules the tree could not build (RECUT only)
         if: ${{ inputs.drop != '' }}
         run: |

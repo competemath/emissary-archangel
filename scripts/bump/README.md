@@ -65,6 +65,7 @@ Per-theorem records cannot carry this volume: a record repeats its whole context
 | find what the library registers for OTHER libraries' types: global instances / simp lemmas whose statement mentions nothing of the library (they change how every other library elaborates in the one tree). Read from the compiled environment, with positions | `TengokuLeak.lean` (`lake env lean --run … --module M --prefix P --tree-prefix Tengoku.Ns`), `leakscan_args.py`; the same exe runs in the tree's merge queue (tengoku-sandbox `tengoku-leakscan`) |
 | make those registrations `local` (an edit inside lines, so the report's positions stay valid; a note at the end of the file); the sources are built again | `scope_rewrite.py`; in `bump-library.yml` after the verification build, and as the `scope` input of a recut |
 | leave modules out of a finished bundle (the tree's build named them), with what imports them | `bundle_cut.py` (`drop` input of a `bump-library.yml` recut; sharded runs cut at compose) |
+| give a finished bundle the header the tree has today (every seeded import is the one `Tengoku`; tengoku moved its seed into `Tengoku/Seed/`) | `bundle_rehead.py` (every `bump-library.yml` recut; sharded runs re-compose at a recut) |
 | one reproducible archive, attested (SLSA build provenance), `.tar.gz` for transport | `bundle_tar.py` (the same function and golden digest as tengoku's `scripts/ci/bundle_tar.py`) |
 | every library, unattended, by size, within the runner capacity | `bump-all.yml`, `orchestrate.py` |
 | a finished run -> an intake PR | `open_intake_pr.py` |
