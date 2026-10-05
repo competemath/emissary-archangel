@@ -12,7 +12,7 @@ bundle is the archive's bytes: nothing is edited on the way (tengoku's scripts/c
 A library cut into parts (the run was dispatched with `parts`, scripts/bump/bundle_layers.py) is sent part by part. `--part 1` is an ordinary intake PR with the first part's
 archive. `--part N` (N > 1) is an EXTEND PR: the library is in the tree already, the part's modules are added, the root file is the part's (the imports so far), the
 manifest is the tree's with the part's lines appended, the part's report is data/intake/K/parts/NNN.json, and Tengoku/All.lean is not touched; `--depends-on` names
-the PR of the part before (its description says `Depends-On:`, so the gate waits for it). Parts must merge in order.
+the PR of the part before (`#N` or its URL; the description says `Depends-On: #N`, which the gate waits for). Parts must merge in order.
 """
 
 from __future__ import annotations
@@ -69,12 +69,14 @@ def main() -> None:
     ap.add_argument("--factory", default="competemath/emissary-archangel")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--part", type=int, help="send this part of a library cut into parts (1 = the intake PR, later ones extend PRs)")
-    ap.add_argument("--depends-on", help="extend PRs: the PR of the part before (URL or #number), named in the description as Depends-On")
+    ap.add_argument("--depends-on", help="extend PRs: the PR of the part before (`#N` or its URL), named in the description as `Depends-On: #N`")
     a = ap.parse_args()
     if a.part is not None and a.part < 1:
         sys.exit("--part counts from 1")
     if a.depends_on and not (a.part and a.part > 1):
         sys.exit("--depends-on belongs to an extend PR (--part N, N > 1)")
+    if a.depends_on and not re.search(r"(?:^#|/pull/)(\d+)$", a.depends_on):
+        sys.exit("--depends-on is `#N` or the URL of a pull request")
     extend = a.part is not None and a.part > 1
     suffix = "" if a.part is None else f"-part-{a.part:03d}"
     work = Path(tempfile.mkdtemp())
@@ -118,7 +120,7 @@ def main() -> None:
     part_txt = "" if a.part is None else f" part {a.part}{nparts}"
     theorems, modules = report["theorems"], report.get("modules_in_bundle", report.get("modules"))
     msg = f"{what}: {a.key}{part_txt} ({theorems} verified theorems in {modules} modules)"
-    depends = f"\nDepends-On: {a.depends_on}\n" if a.depends_on else ""
+    depends = f"\nDepends-On: #{re.search(r'(\d+)$', a.depends_on).group(1)}\n" if a.depends_on else ""
     body = f"""{"The next part of" if extend else "A verified bundle of"} **{a.key}**{part_txt} from the translation factory ({a.factory}), run [{a.run}](https://github.com/{a.factory}/actions/runs/{a.run}).
 {depends}
 - {theorems} theorems{" of " + str(report["passed_total"]) + " the factory's batched Gate 2 passed" if "passed_total" in report else ""}, in {modules} modules ({n_files} files); lint mode **{a.mode}**
