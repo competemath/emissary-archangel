@@ -45,17 +45,21 @@ SEED_PACKAGES = ("Mathlib", "Batteries", "Aesop", "Qq", "ProofWidgets", "Plausib
 CORE = ("Init", "Std", "Lean", "Lake")
 IMPORT_RE = re.compile(r"^(\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)?)(" + tb.MODNAME + r")(.*)$")
 
+# This script is compiled in a file that IMPORTS the library, so every token the library defines is live while it is parsed. A library that defines the token `]!`
+# (lean-pool's Incompleteness) made `xs[i]!` unparseable: the whole command failed, a shard's bundle-deps.log had no BUNDLE_KEEP, and 6,943 theorems that had passed
+# Gate 2 silently left the bundle (found 2026-10-05). So the script uses no bracket syntax at all: `getElem?` / `getElem!` for indexing, `Array.empty` and `NameSet.empty`
+# for the empty collections, `List.nil` / `List.cons` in the pattern. test_bundle.py pins that, and compose refuses a log whose BUNDLE_KEEP leaves passed theorems out.
 LEAN = r'''
 open Lean Elab Command Meta
 
 def bkParse (s : String) : Name := (s.splitOn ".").foldl (fun n part => Name.mkStr n part) Name.anonymous
 
 def bkModOf (env : Environment) (n : Name) : Option Name :=
-  (env.getModuleIdxFor? n).bind fun i => env.header.moduleNames[i.toNat]?
+  (env.getModuleIdxFor? n).bind fun i => getElem? env.header.moduleNames i.toNat
 
 /-- Does the constant stand on `sorryAx`, directly or through a library constant? (a failed proof, or anything built on one) -/
 partial def bkTainted (env : Environment) (isOwn : Name → Bool) (memo : IO.Ref (Std.HashMap Name Bool)) (c : Name) : IO Bool := do
-  if let some b := (← memo.get)[c]? then return b
+  if let some b := (← memo.get).get? c then return b
   memo.modify (·.insert c false)  -- in progress: a cycle does not taint itself
   let some ci := env.find? c | return false
   let used := ci.getUsedConstantsAsSet
@@ -73,15 +77,15 @@ library constant that is not a theorem and stands on nothing failed (definitions
 [MyClass F]` or a notation names them without any theorem using them, so cutting one breaks what is left). Theorems stay only
 where something that stays needs them, and clean simp lemmas (`simp` uses them without the proof term saying so). -/
 elab "#bundle_keep " names:str " in " libs:str : command => do
-  let libMods : NameSet := (libs.getString.splitOn ",").foldl (fun s x => if x == "" then s else s.insert (bkParse x)) {}
+  let libMods : NameSet := (libs.getString.splitOn ",").foldl (fun s x => if x == "" then s else s.insert (bkParse x)) NameSet.empty
   let j ← liftTermElabM do
     let env ← getEnv
     let isOwn (c : Name) : Bool := match bkModOf env c with | some m => libMods.contains m | none => false
-    let taint ← IO.mkRef (({} : Std.HashMap Name Bool))
+    let taint ← IO.mkRef (default : Std.HashMap Name Bool)
     let mut seeds : List Name := ((names.getString.splitOn ",").filter (· != "")).map bkParse
     -- `simp` (and `dsimp`) use the simp lemmas of the environment; a `rfl` lemma leaves nothing of itself in the proof term, so
     -- the closure of the passed theorems never sees it, yet the proofs that `simp` closed with it do not close without it
-    let simpNames : NameSet := (← getSimpTheorems).lemmaNames.fold (init := {}) fun s o =>
+    let simpNames : NameSet := (← getSimpTheorems).lemmaNames.fold (init := NameSet.empty) fun s o =>
       match o with
       | .decl n _ _ => s.insert n
       | _ => s
@@ -95,18 +99,18 @@ elab "#bundle_keep " names:str " in " libs:str : command => do
       return false
     for m in libMods.toList do
       let some idx := env.getModuleIdx? m | continue
-      for c in env.header.moduleData[idx.toNat]!.constNames do
+      for c in (getElem! env.header.moduleData idx.toNat).constNames do
         if let some ci := env.find? c then
           if ci.isTheorem then
             if simpNames.contains c && !(← bkTainted env isOwn taint c) then seeds := c :: seeds
           else if !isAuxOfTheorem c && !(← bkTainted env isOwn taint c) then seeds := c :: seeds
-    let mut seen : NameSet := {}
+    let mut seen : NameSet := NameSet.empty
     let mut stack : List Name := seeds
-    let mut consts : Array Json := #[]
+    let mut consts : Array Json := Array.empty
     while !stack.isEmpty do
       match stack with
-      | [] => pure ()
-      | c :: rest =>
+      | List.nil => pure ()
+      | List.cons c rest =>
         stack := rest
         if seen.contains c then continue
         seen := seen.insert c
@@ -114,10 +118,31 @@ elab "#bundle_keep " names:str " in " libs:str : command => do
           for u in ci.getUsedConstantsAsSet.toList do
             if isOwn u && !seen.contains u then stack := u :: stack
           if let some m := bkModOf env c then
-            consts := consts.push (Json.arr #[toJson m.toString, toJson c.toString])
+            consts := consts.push (Json.arr ((Array.empty.push (toJson m.toString)).push (toJson c.toString)))
     return Json.arr consts
   logInfo m!"BUNDLE_KEEP {j.compress} BUNDLE_END"
 '''
+
+
+MAX_KEEP_GAP = 0.02  # a few passed names may resolve to no constant (an alias); more than this share means the Lean step lost a part of the library
+
+
+def keep_gaps(passed: dict[str, list[str]], kept: set[tuple[str, str]]) -> list[tuple[str, str]]:
+    """The passed (module, name) pairs the Lean step kept no constant for. Every passed theorem is a seed of `#bundle_keep`, so each must be there."""
+    return [(m, n) for m, ns in passed.items() for n in ns if (m, n) not in kept]
+
+
+def check_keep_gaps(passed: dict[str, list[str]], kept: set[tuple[str, str]], log: str) -> None:
+    """Refuse a bundle-deps log that leaves passed theorems out (see MAX_KEEP_GAP): the theorems would not be in the bundle and nothing would say so."""
+    gaps = keep_gaps(passed, kept)
+    total = sum(len(v) for v in passed.values())
+    if total and len(gaps) / total > MAX_KEEP_GAP:
+        errs = [ln for ln in log.splitlines() if ": error:" in ln][:4]
+        mods = sorted({m for m, _ in gaps})
+        sys.exit(
+            f"bundle-deps.log keeps nothing for {len(gaps)} of {total} passed theorems ({100 * len(gaps) / total:.1f}%, in {len(mods)} modules, e.g. {mods[:3]}): "
+            "the Lean step failed for part of the library. First errors:\n" + "\n".join(errs or log.splitlines()[-5:])
+        )
 
 
 def pascal(library: str) -> str:
@@ -204,6 +229,7 @@ def compose(a: argparse.Namespace) -> None:
         kept |= {(mod, c) for mod, c in json.loads(re.sub(r"\s*\n\s*", "", m.group(1)))}
     if passed and not kept:  # the Lean step failed (an empty bundle would look like a library with nothing to keep)
         sys.exit("bundle-deps.log has no BUNDLE_KEEP line although theorems passed:\n" + "\n".join(log.splitlines()[-15:]))
+    check_keep_gaps(passed, kept, log)
     sidecars = {}
     base = lib / ".lake" / "build" / "lib" / "lean"
     for f in base.rglob("*.olean.ranges.json"):

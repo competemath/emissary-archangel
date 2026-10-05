@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -249,6 +250,81 @@ class ToTree(unittest.TestCase):
     def test_the_suffix_is_the_files_own_root(self):
         text = "attribute [local instance] instX_fLT instY_pFR"
         self.assertEqual(bundle.to_tree(text, "pfr", set(), Path("PFR/A.lean")), "attribute [local instance] instX_fLT instY_tengoku\n")
+
+
+class KeepScript(unittest.TestCase):
+    """The Lean script of `bundle.py lean` is compiled in a file that imports the library, so a token the library defines is live while it is parsed. lean-pool defines
+    `]!`: `xs[i]!` stopped parsing, the shard's `#bundle_keep` never ran, and 6,943 theorems that had passed Gate 2 silently left the bundle (2026-10-05). Checked on
+    Leak IV: the old script fails with exactly that error when `]!` is a token, the new one keeps the same 98 constants with and without it."""
+
+    def code(self):
+        # the doc comments may name brackets; the code may not use any
+        return re.sub(r"/--.*?-/", "", bundle.LEAN, flags=re.S)
+
+    def test_the_script_uses_no_bracket_syntax(self):
+        code = self.code()
+        for bad in ("[", "]", "#[", "{}", "∅"):
+            self.assertNotIn(bad, code, f"{bad!r} can be part of a token a library defines")
+
+    def test_the_script_still_does_what_it_did(self):
+        for needle in (
+            'elab "#bundle_keep "',
+            "getElem? env.header.moduleNames",
+            "getElem! env.header.moduleData",
+            "BUNDLE_KEEP {j.compress} BUNDLE_END",
+            "bkTainted",
+        ):
+            self.assertIn(needle, bundle.LEAN)
+
+    def test_passed_names_the_step_kept_nothing_for_are_found(self):
+        passed = {"M.A": ["a", "b"], "M.B": ["c"]}
+        self.assertEqual(bundle.keep_gaps(passed, {("M.A", "a"), ("M.A", "b"), ("M.B", "c")}), [])
+        self.assertEqual(bundle.keep_gaps(passed, {("M.A", "a"), ("M.B", "c")}), [("M.A", "b")])
+        self.assertEqual(sorted(bundle.keep_gaps(passed, set())), [("M.A", "a"), ("M.A", "b"), ("M.B", "c")])
+
+    def test_a_log_that_lost_part_of_the_library_is_refused_with_the_first_errors(self):
+        passed = {f"M.{i}": [f"t{i}"] for i in range(100)}
+        log = "bundle-deps.lean:485:46: error: unexpected token ']!'; expected ':', ']' or ']''\nbundle-deps.lean:508:0: error: elaboration function has not been implemented\n"
+        kept = {(f"M.{i}", f"t{i}") for i in range(100)}
+        bundle.check_keep_gaps(passed, kept, log)  # nothing lost
+        bundle.check_keep_gaps(passed, kept - {("M.0", "t0")}, log)  # one in a hundred: an alias, tolerated
+        with self.assertRaises(SystemExit) as cm:
+            bundle.check_keep_gaps(passed, kept - {(f"M.{i}", f"t{i}") for i in range(10)}, log)
+        self.assertIn("keeps nothing for 10 of 100 passed theorems", str(cm.exception))
+        self.assertIn("unexpected token ']!'", str(cm.exception))
+
+    def test_compose_refuses_a_library_whose_keep_list_lost_the_passed_theorems(self):
+        d = Path(tempfile.mkdtemp())
+        lib = d / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        (lib / "Toy" / "A.lean").write_text(T.A)
+        (lib / "Toy" / "B.lean").write_text(T.B)
+        for m in ("Toy/A", "Toy/B"):
+            f = lib / ".lake" / "build" / "lib" / "lean" / (m + ".olean.ranges.json")
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text("[]")
+        # the keep list names a constant, but not the theorem that passed: the Lean step lost it
+        (d / "deps.log").write_text("x:485:46: error: unexpected token ']!'\nx:1:0: info: BUNDLE_KEEP " + json.dumps([["Toy.A", "Toy.one"]]) + " BUNDLE_END\n")
+        (d / "passed.json").write_text(json.dumps({"Toy.B": ["Toy.uses_one_pos"]}))
+        (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy.git", "commit": "abc123"}))
+        (d / "build.log").write_text("")
+        (d / "gate2.log").write_text("")
+        r = subprocess.run(
+            [sys.executable, str(HERE / "bundle.py"), "compose", "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
+             "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"), "--src", str(d / "src")],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("keeps nothing for 1 of 1 passed theorems", r.stderr)
+        self.assertIn("unexpected token", r.stderr)
+        self.assertFalse((d / "bundle").exists())
+
+    def test_the_threshold_is_two_percent(self):
+        passed = {"M": [f"t{i}" for i in range(100)]}
+        kept = {("M", f"t{i}") for i in range(100)}
+        bundle.check_keep_gaps(passed, kept - {("M", f"t{i}") for i in range(2)}, "")  # 2 %: tolerated
+        with self.assertRaises(SystemExit):
+            bundle.check_keep_gaps(passed, kept - {("M", f"t{i}") for i in range(3)}, "")  # 3 %: refused
 
 
 if __name__ == "__main__":
