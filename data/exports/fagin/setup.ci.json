@@ -1,0 +1,36 @@
+{
+  "key": "fagin",
+  "repo": "https://github.com/szymtor/fagin",
+  "commit": "ce4e9721bbcb28cd16bcaf208f37b40e5b45fe8f",
+  "toolchain": "leanprover/lean4:v4.30.0",
+  "roots": [
+    "Lax678846Proofs"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/fagin/repo/proofs",
+  "entries": 232,
+  "modules": 60,
+  "exported": 60,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 232,
+    "kept": 232,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 232,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 11890688,
+  "minutes": 6,
+  "finishedAt": "2026-10-06T22:04:08.462Z"
+}
