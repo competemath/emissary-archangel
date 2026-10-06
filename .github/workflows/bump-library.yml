@@ -19,6 +19,7 @@ on:
       chain: { description: "direct = one jump to `mathlib`; auto = through intermediate Mathlib releases (scripts/bump/plan_chain.py); or a comma list of tags", default: "direct" }
       step: { description: "chain=auto: at most this many Lean minor versions per step", default: "3" }
       records: { description: "on = also stage the old per-theorem records (33 KB each, superseded by the bundle)", default: "off" }
+      tengoku_ref: { description: "a branch of competemath/tengoku to read the library's tentative records from (default main), for records whose PR is not merged yet", default: "" }
       imports: { description: "full = every Mathlib/Batteries/Aesop/Qq/ProofWidgets import becomes the umbrellas (the environment a record is verified in); minimal = keep the library's imports and repair moved modules (mine_moves.py)", default: "full" }
       portfolio: { description: "on = at the last step, theorems whose proof failed are retried with Lean's own automation (scripts/bump/portfolio.py)", default: "on" }
       recut_from: { description: "RECUT: the id of an earlier run of this workflow for this key. No build: its bundle is packed again (with the Deps.lean marker) and attested by this run", default: "" }
@@ -45,6 +46,7 @@ jobs:
       PORTFOLIO: ${{ inputs.portfolio }}
       IMPORTS: ${{ inputs.imports }}
       RECORDS: ${{ inputs.records }}
+      TENGOKU_REF: ${{ inputs.tengoku_ref }}
     steps:
       - name: Free disk (Mathlib's build is several GB)
         run: |
@@ -62,7 +64,8 @@ jobs:
           # the library's entries as tengoku harvested them (the ledger only knows what the per-theorem pipeline got to)
           git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
           git -C tengoku sparse-checkout set --no-cone "/data/tentative/$KEY.jsonl" "/data/tentative/$KEY/"
-          git -C tengoku checkout -q main
+          # TENGOKU_REF: a branch of the tree repository that holds the records of a library whose PR is not merged yet (empty: main)
+          ref=${TENGOKU_REF:+origin/$TENGOKU_REF}; git -C tengoku checkout -q "${ref:-main}"
           ls tengoku/data/tentative | head -3
       - name: elan
         run: |
