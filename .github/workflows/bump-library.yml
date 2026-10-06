@@ -77,6 +77,10 @@ jobs:
           read -r repo commit _ roots < <(python3 scripts/trial-library-build.py meta "$KEY")
           echo "ROOTS=$(echo "$roots" | tr ' ' ',')" >> "$GITHUB_ENV"
           git clone -q --filter=blob:none "$repo" lib && git -C lib checkout -q "$commit"
+          # a library whose Lake project is a subdirectory of its repository (sources.json `subdir`): `lib` is that project; a symlink, so that a path dependency
+          # (`../concepts`) still resolves next to it in the clone
+          sub=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")
+          if [ -n "$sub" ]; then mv lib lib-repo && ln -s "lib-repo/$sub" lib; fi
           OLD_MATHLIB=$(python3 -c "import json; print(next(p['rev'] for p in json.load(open('lib/lake-manifest.json'))['packages'] if p['name']=='mathlib'))")
           echo "OLD_MATHLIB=$OLD_MATHLIB" >> "$GITHUB_ENV"
           # the Mathlib releases to go through, oldest first (the target last): `direct` = the target alone
