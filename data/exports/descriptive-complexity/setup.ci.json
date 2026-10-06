@@ -1,0 +1,36 @@
+{
+  "key": "descriptive-complexity",
+  "repo": "https://github.com/PierreSenellart/descriptive-complexity",
+  "commit": "969cad44c807cf247826ee9a2f1eb880c47f15cb",
+  "toolchain": "leanprover/lean4:v4.34.0",
+  "roots": [
+    "DescriptiveComplexity"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/descriptive-complexity/repo",
+  "entries": 11955,
+  "modules": 826,
+  "exported": 826,
+  "failed": [],
+  "expansion": {
+    "expanded": 665,
+    "verbatim": 39364,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 11955,
+    "kept": 11955,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 3,
+    "nameFixed": 11955,
+    "sorryOriginals": 0,
+    "emptyProofs": 12
+  },
+  "exportsBytes": 1798262784,
+  "minutes": 85,
+  "finishedAt": "2026-10-06T23:23:05.075Z"
+}

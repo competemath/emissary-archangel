@@ -1,0 +1,604 @@
+/-
+Copyright (c) 2026 Pierre Senellart. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Pierre Senellart
+-/
+import DescriptiveComplexity.Problems.Wide.Walk
+
+
+-- @@ L8-58 verbatim
+/-!
+# Incrementing the mirror
+
+The first real subroutine of a wide machine, and the one every address
+computation goes through. A program keeps a **mirror** of the address it is
+working on – one bit per element, in a track over its register file
+(`DescriptiveComplexity.IxFile`) – because the head cannot read the digits of its
+own address. Moving the working cell one to the right means adding one to the
+mirror, and adding one is:
+
+> walk the register file **downwards**, clearing the digits that are set; at the
+> first digit that is clear, set it and stop clearing.
+
+That is the binary increment of `DescriptiveComplexity.Problems.Wide.Increment`,
+whose least significant digit is the `WMLe`-*greatest* element – which is why the
+walk runs downwards – and `DescriptiveComplexity.IxFile.reachesIn_mirrorIncr`
+says the program computes it: from the last register in the carrying state with
+the mirror at `s`, the machine arrives below the first register in the stopped
+state with the mirror at `t`, for the unique `t` with `WMIncr WMLe s t`. It costs
+one move per register plus the step off the file, so a caller that is counting
+bounds the moves and gets the product.
+
+## What a caller supplies
+
+The tape is given as a function **of the mirror**, `tapeOf m`, with one coherence
+condition: changing the mirror at one element changes the tape at that element's
+cell and nowhere else. Everything else a program keeps on its tape is therefore
+carried along untouched, and no track discipline has to be fixed here. Three
+transition families do the work – clear a set digit and keep carrying, set a
+clear digit and stop, rewrite anything once stopped – plus the scanning
+transitions that carry the head between consecutive registers.
+
+The states are the caller's: `qc` for carrying, and a *family* `qd` for stopped.
+The family is the point – the machine ends in `qd u₀` where `u₀` is the **carry
+position**, the digit the increment set, and the conclusion says so along with its
+characterization. A state may hold an element, so reporting the carry costs
+nothing in the control, and it is what the fold of
+`DescriptiveComplexity.Problems.Wide.Fold` needs: which block rolled over decides
+which accumulators reset. So the caller reads both “the increment is finished” and
+“here is where it carried” off the state, and neither off the tape.
+
+## The other writing pass
+
+`DescriptiveComplexity.IxFile.reachesIn_fileWrite` is the same walk with nothing
+accumulated: one state throughout, and every register simply given its new digit.
+Copying the mirror into a spare register, clearing a track and loading a computed
+value are all that pass. Together with the read-only pass of
+`DescriptiveComplexity.Problems.Wide.Test` these are the three shapes a program's
+register work comes in – write with an accumulator, write without one, read with
+one – and nothing below them is ever a case split again.
+-/
+
+
+-- @@ L60-60 verbatim
+namespace DescriptiveComplexity
+
+
+-- @@ L62-62 verbatim
+open FirstOrder
+
+
+-- @@ L64-64 verbatim
+open Language Structure
+
+
+-- @@ L66-66 verbatim
+section Mirror
+
+
+-- @@ L68-68 verbatim
+variable {A : Type} [Language.wide.Structure A] {I : Type} {ile : I → I → Prop}
+
+
+-- @@ L70-70 verbatim
+/-! ### The mirror during the walk -/
+
+
+-- @@ L72-75 verbatim
+/-- The mirror as it stands when the walk has come down to `u`: incremented
+strictly above `u`, untouched at `u` and below. -/
+private def midMirror (ile : I → I → Prop) (s t : I → Prop) (u v : I) : Prop :=
+  (WMLt ile u v ∧ t v) ∨ (¬WMLt ile u v ∧ s v)
+
+
+-- @@ L77-77 verbatim
+variable {s t : I → Prop}
+
+
+-- @@ L79-83 verbatim
+/-- At the last register nothing has been touched yet. -/
+private theorem midMirror_top {m : I} (hm : ∀ v : I, ile v m) : midMirror ile s t m = s :=
+  funext fun v => propext
+    ⟨fun hc => hc.elim (fun hc' => absurd (hm v) hc'.1.2) fun hc' => hc'.2,
+      fun hs => Or.inr ⟨fun hlt => hlt.2 (hm v), hs⟩⟩
+
+
+-- @@ L85-92 verbatim
+/-- Off the register just processed, the mirror does not change. -/
+private theorem midMirror_agree (h : IsLinOrd ile) {u u' : I} (hs : IxSucc ile u u')
+    {v : I} (hv : v ≠ u') : midMirror ile s t u v ↔ midMirror ile s t u' v := by
+  have hiff : WMLt ile u v ↔ WMLt ile u' v := by
+    refine ⟨fun hlt => ⟨hs.2 v hlt, fun hc => hv (h.2.2.1 v u' hc (hs.2 v hlt))⟩,
+      fun hlt => ⟨h.2.1 u u' v hs.1.1 hlt.1, fun hc => hs.1.2 (h.2.1 u' v u hlt.1 hc)⟩⟩
+  unfold midMirror
+  rw [hiff]
+
+
+-- @@ L94-98 verbatim
+/-- At the register just processed the mirror holds its new digit. -/
+private theorem midMirror_at {u u' : I} (hs : IxSucc ile u u') :
+    midMirror ile s t u u' ↔ t u' :=
+  ⟨fun hc => hc.elim (fun hc' => hc'.2) fun hc' => absurd hs.1 hc'.1,
+    fun ht => Or.inl ⟨hs.1, ht⟩⟩
+
+
+-- @@ L100-105 verbatim
+/-- At the register about to be processed the mirror still holds its old
+digit. -/
+private theorem midMirror_at' (h : IsLinOrd ile) {u : I} :
+    midMirror ile s t u u ↔ s u :=
+  ⟨fun hc => hc.elim (fun hc' => absurd (h.1 u) hc'.1.2) fun hc' => hc'.2,
+    fun hs => Or.inr ⟨fun hlt => hlt.2 (h.1 u), hs⟩⟩
+
+
+-- @@ L107-107 verbatim
+/-! ### What the increment does to a digit -/
+
+
+-- @@ L109-117 verbatim
+/-- Above the carry position every digit of the increment is clear. -/
+private theorem not_incr_of_lt (h : IsLinOrd ile) (hi : WMIncr ile s t) {u₀ : I}
+    (hu₀ : ¬s u₀) (hab : ∀ v : I, WMLt ile u₀ v → s v) {v : I} (hlt : WMLt ile u₀ v) :
+    ¬t v := by
+  obtain ⟨w, hw, haw, ht⟩ := hi
+  rw [wmIncr_carry_unique h hw haw hu₀ hab] at ht
+  refine fun hc => ((ht v).mp hc).elim (fun he => hlt.2 ?_) fun hc' => hc'.2 hlt
+  rw [he]
+  exact h.1 u₀
+
+
+-- @@ L119-128 verbatim
+/-- Below the carry position the increment leaves every digit alone. -/
+private theorem incr_iff_of_lt (h : IsLinOrd ile) (hi : WMIncr ile s t) {u₀ : I}
+    (hu₀ : ¬s u₀) (hab : ∀ v : I, WMLt ile u₀ v → s v) {v : I} (hlt : WMLt ile v u₀) :
+    t v ↔ s v := by
+  obtain ⟨w, hw, haw, ht⟩ := hi
+  rw [wmIncr_carry_unique h hw haw hu₀ hab] at ht
+  refine (ht v).trans ⟨fun hc => hc.elim (fun he => absurd ?_ hlt.2) fun hc' => hc'.1,
+    fun hsv => Or.inr ⟨hsv, fun hc => hlt.2 hc.1⟩⟩
+  rw [← he]
+  exact h.1 v
+
+
+-- @@ L130-135 verbatim
+/-- At the carry position the increment sets the digit. -/
+private theorem incr_carry (h : IsLinOrd ile) (hi : WMIncr ile s t) {u₀ : I}
+    (hu₀ : ¬s u₀) (hab : ∀ v : I, WMLt ile u₀ v → s v) : t u₀ := by
+  obtain ⟨w, hw, haw, ht⟩ := hi
+  rw [wmIncr_carry_unique h hw haw hu₀ hab] at ht
+  exact (ht u₀).mpr (Or.inl rfl)
+
+
+-- @@ L137-142 verbatim
+/-! ### Processing one register
+
+The whole case analysis of the subroutine happens here, once: what the machine
+does at the register of `w` depends only on whether every digit above `w` is set
+and on whether the digit at `w` is. Everything after this is bookkeeping, and
+none of it is a case split. -/
+
+
+-- @@ L144-146 verbatim
+/-- The mirror after the register of `w` has been processed. -/
+private def procMirror (ile : I → I → Prop) (s t : I → Prop) (w : I) : I → Prop :=
+  fun v => (v = w ∧ t v) ∨ (v ≠ w ∧ midMirror ile s t w v)
+
+
+-- @@ L148-148 verbatim
+variable {qc : A} {qd : I → A}
+
+
+-- @@ L150-160 verbatim
+/-- The mirror after processing one register is the mirror on arriving at the
+next one down. -/
+private theorem procMirror_succ (h : IsLinOrd ile) {u u' : I} (hs : IxSucc ile u u') :
+    procMirror ile s t u' = midMirror ile s t u := by
+  refine funext fun v => propext ⟨fun hc => ?_, fun hc => ?_⟩
+  · rcases hc with ⟨rfl, ht⟩ | ⟨hne, hm⟩
+    · exact (midMirror_at hs).mpr ht
+    · exact (midMirror_agree h hs hne).mpr hm
+  · rcases eq_or_ne v u' with rfl | hne
+    · exact Or.inl ⟨rfl, (midMirror_at hs).mp hc⟩
+    · exact Or.inr ⟨hne, (midMirror_agree h hs hne).mp hc⟩
+
+
+-- @@ L162-171 verbatim
+/-- Processing the first register finishes the increment. -/
+private theorem procMirror_bot (h : IsLinOrd ile) {l : I} (hl : ∀ v : I, ile l v) :
+    procMirror ile s t l = t := by
+  refine funext fun v => propext ⟨fun hc => ?_, fun ht => ?_⟩
+  · rcases hc with ⟨-, ht⟩ | ⟨hne, hm⟩
+    · exact ht
+    · exact (hm.resolve_right fun hc' => hc'.1 ⟨hl v, fun hcon => hne (h.2.2.1 v l hcon (hl v))⟩).2
+  · rcases eq_or_ne v l with rfl | hne
+    · exact Or.inl ⟨rfl, ht⟩
+    · exact Or.inr ⟨hne, Or.inl ⟨⟨hl v, fun hcon => hne (h.2.2.1 v l hcon (hl v))⟩, ht⟩⟩
+
+
+-- @@ L173-173 verbatim
+variable {g : (I → Prop) → I → A}
+
+
+-- @@ L175-244 verbatim
+/-- **What the machine does at one register.** Reading the mirror's digit at `w`
+in the state it arrived in, it writes the digit the increment puts there, moves
+left, and goes to the state it leaves in. The three transition families of the
+caller cover the three cases, and this is the only place they are distinguished:
+carry on through a set digit, stop at a clear one, and rewrite once stopped. -/
+private theorem incr_process (h : IsLinOrd ile) (hi : WMIncr ile s t)
+    {u₀ : I} (hu₀ : ¬s u₀) (hab : ∀ v : I, WMLt ile u₀ v → s v)
+    (hone : ∀ (m : I → Prop) (u : I), m u → ∃ τ : A, WMTr τ ∧ WMSrc τ qc ∧
+      WMRead τ (g m u) ∧ WMDst τ qc ∧
+      WMWrite τ (g (fun v => m v ∧ v ≠ u) u) ∧ ¬WMRight τ)
+    (hzero : ∀ (m : I → Prop) (u : I), ¬m u → ∃ τ : A, WMTr τ ∧ WMSrc τ qc ∧
+      WMRead τ (g m u) ∧ WMDst τ (qd u) ∧
+      WMWrite τ (g (fun v => m v ∨ v = u) u) ∧ ¬WMRight τ)
+    (hkeep : ∀ (u : I) (m : I → Prop) (w : I), ∃ τ : A, WMTr τ ∧ WMSrc τ (qd u) ∧
+      WMRead τ (g m w) ∧ WMDst τ (qd u) ∧ WMWrite τ (g m w) ∧
+      ¬WMRight τ)
+    (w : I) :
+    ∃ τ : A, WMTr τ ∧ WMSrc τ (accState ile s qc (qd u₀) w) ∧
+      WMRead τ (g (midMirror ile s t w) w) ∧ WMDst τ (accStateAfter ile s qc (qd u₀) w) ∧
+      WMWrite τ (g (procMirror ile s t w) w) ∧ ¬WMRight τ := by
+  by_cases hcar : ∀ v : I, WMLt ile w v → s v
+  · rw [accState, ite_eq_left hcar]
+    by_cases hbit : s w
+    · -- a set digit: clear it and carry on
+      have hge : ∀ v : I, ile w v → s v := fun v hle => by
+        rcases eq_or_ne w v with rfl | hne
+        · exact hbit
+        · exact hcar v ⟨hle, fun hc => hne (h.2.2.1 w v hle hc)⟩
+      have hlt : WMLt ile u₀ w := by
+        refine ⟨(h.2.2.2 u₀ w).resolve_right fun hc => hu₀ (hge u₀ hc), fun hc => hu₀ ?_⟩
+        exact hge u₀ hc
+      have heq : procMirror ile s t w = fun v => midMirror ile s t w v ∧ v ≠ w := by
+        refine funext fun v => propext ⟨fun hc => ?_, fun hc => Or.inr ⟨hc.2, hc.1⟩⟩
+        rcases hc with ⟨rfl, ht⟩ | ⟨hne, hm⟩
+        · exact absurd ht (not_incr_of_lt h hi hu₀ hab hlt)
+        · exact ⟨hm, hne⟩
+      rw [accStateAfter, ite_eq_left hge, heq]
+      exact hone _ w ((midMirror_at' h).mpr hbit)
+    · -- a clear digit: set it and stop
+      have hw : w = u₀ := wmIncr_carry_unique h hbit hcar hu₀ hab
+      have heq : procMirror ile s t w = fun v => midMirror ile s t w v ∨ v = w := by
+        refine funext fun v => propext ⟨fun hc => ?_, fun hc => ?_⟩
+        · exact hc.elim (fun hc' => Or.inr hc'.1) fun hc' => Or.inl hc'.2
+        · rcases eq_or_ne v w with rfl | hne
+          · exact Or.inl ⟨rfl, hw ▸ incr_carry h hi hu₀ hab⟩
+          · exact Or.inr ⟨hne, hc.resolve_right hne⟩
+      rw [accStateAfter, ite_eq_right fun hall => hbit (hall w (h.1 w)), heq, ← hw]
+      exact hzero _ w fun hc => hbit ((midMirror_at' h).mp hc)
+  · -- already stopped: rewrite the symbol and walk on
+    obtain ⟨v₀, hv₀⟩ : ∃ v : I, ¬(WMLt ile w v → s v) := by
+      by_contra hc
+      exact hcar fun v hlt => not_not.mp fun hcon => hc ⟨v, fun hi' => hcon (hi' hlt)⟩
+    have hlt : WMLt ile w u₀ := by
+      have hwv : WMLt ile w v₀ := (Classical.not_imp.mp hv₀).1
+      have hnv : ¬s v₀ := (Classical.not_imp.mp hv₀).2
+      have hvu : ile v₀ u₀ := by
+        by_contra hc
+        exact hnv (hab v₀ ⟨(h.2.2.2 u₀ v₀).resolve_right hc, hc⟩)
+      exact ⟨h.2.1 w v₀ u₀ hwv.1 hvu, fun hc => hwv.2 (h.2.1 v₀ u₀ w hvu hc)⟩
+    have heq : procMirror ile s t w = midMirror ile s t w := by
+      refine funext fun v => propext ⟨fun hc => ?_, fun hc => ?_⟩
+      · rcases hc with ⟨rfl, ht⟩ | ⟨-, hm⟩
+        · exact (midMirror_at' h).mpr ((incr_iff_of_lt h hi hu₀ hab hlt).mp ht)
+        · exact hm
+      · rcases eq_or_ne v w with rfl | hne
+        · exact Or.inl ⟨rfl, (incr_iff_of_lt h hi hu₀ hab hlt).mpr ((midMirror_at' h).mp hc)⟩
+        · exact Or.inr ⟨hne, hc⟩
+    rw [accState, ite_eq_right hcar, accStateAfter,
+      ite_eq_right fun hall => hcar fun v hvlt => hall v hvlt.1, heq]
+    exact hkeep u₀ _ _
+
+
+-- @@ L246-246 verbatim
+/-! ### The subroutine -/
+
+
+-- @@ L248-248 verbatim
+variable [Finite A]
+
+
+-- @@ L250-250 verbatim
+namespace IxFile
+
+
+-- @@ L252-252 verbatim
+variable [Finite I] (F : IxFile A I ile)
+
+
+-- @@ L254-317 verbatim
+/-- **The mirror increment.** From the last register of the file, carrying, with
+the mirror at `s`, the machine walks down the file and arrives just below the
+first register, stopped, with the mirror at the increment of `s`.
+
+The three transition families do the arithmetic and the scanning ones carry the
+head between consecutive registers; the coherence condition `hcoh` is what says
+the rest of the tape – whatever else the program keeps there – comes through
+untouched. The cost is one move per register, each bounded by `w`, plus the step
+off the file. -/
+theorem reachesIn_mirrorIncr (h : IsLinOrd ile) (ha : IsLinOrd (WMLe (A := A)))
+    (hi : WMIncr ile s t)
+    {b : A} {w : ℕ} {tapeOf : (I → Prop) → (A → Prop) → A}
+    (hgap : ∀ u u' : I, IxSucc ile u u' →
+      wideRank (F.cell u') - wideRank (F.cell u) ≤ w)
+    (hcoh : ∀ (m m' : I → Prop) (u : I), (∀ v : I, v ≠ u → (m v ↔ m' v)) →
+      ∀ r : A → Prop, r ≠ F.cell u → tapeOf m r = tapeOf m' r)
+    (hone : ∀ (m : I → Prop) (u : I), m u → ∃ τ : A, WMTr τ ∧ WMSrc τ qc ∧
+      WMRead τ (tapeOf m (F.cell u)) ∧ WMDst τ qc ∧
+      WMWrite τ (tapeOf (fun v => m v ∧ v ≠ u) (F.cell u)) ∧ ¬WMRight τ)
+    (hzero : ∀ (m : I → Prop) (u : I), ¬m u → ∃ τ : A, WMTr τ ∧ WMSrc τ qc ∧
+      WMRead τ (tapeOf m (F.cell u)) ∧ WMDst τ (qd u) ∧
+      WMWrite τ (tapeOf (fun v => m v ∨ v = u) (F.cell u)) ∧ ¬WMRight τ)
+    (hkeep : ∀ (u : I) (m : I → Prop) (v : I), ∃ τ : A, WMTr τ ∧ WMSrc τ (qd u) ∧
+      WMRead τ (tapeOf m (F.cell v)) ∧ WMDst τ (qd u) ∧ WMWrite τ (tapeOf m (F.cell v)) ∧
+      ¬WMRight τ)
+    (hskip : ∀ q : A, (q = qc ∨ ∃ u : I, q = qd u) → ∀ (m : I → Prop) (r : A → Prop),
+      (∃ x : I, WMSetLe WMLe (F.cell x) r) → (∀ x : I, r ≠ F.cell x) →
+      ∃ τ : A, WMTr τ ∧ WMSrc τ q ∧ WMRead τ (tapeOf m r) ∧ WMDst τ q ∧
+        WMWrite τ (tapeOf m r) ∧ ¬WMRight τ)
+    {top bot : I} (htop : ∀ v : I, ile v top) (hbot : ∀ v : I, ile bot v) :
+    ∃ (u₀ : I) (p : A → Prop), (¬s u₀ ∧ ∀ v : I, WMLt ile u₀ v → s v) ∧
+      WMIncr WMLe p (F.cell bot) ∧
+      (wideData A).ReachesIn ((ixRank ile top - ixRank ile bot) * w + 1)
+        ⟨Sum.inr qc, Sum.inl (F.cell top), wideTape (tapeOf s) b⟩
+        ⟨Sum.inr (qd u₀), Sum.inl p, wideTape (tapeOf t) b⟩ := by
+  obtain ⟨u₀, hu₀, hab, -⟩ := id hi
+  -- The walk down the file, one register at a time.
+  have hwalk := F.reachesIn_regWalkBack h (b := b) (st := accState ile s qc (qd u₀))
+    (tp := fun u => tapeOf (midMirror ile s t u)) (u₁ := top) (w := w)
+    (fun u u' hs _ => ?_) bot (hbot top)
+  · -- The last write, at the first register, and the step off the file.
+    obtain ⟨p, hp⟩ := exists_wmPred ha (s := F.cell bot) (F.cell_nonempty bot)
+    obtain ⟨τ, htr, hsrc, hread, hdst, hwrite, hright⟩ :=
+      incr_process (g := fun m u => tapeOf m (F.cell u)) h hi hu₀ hab hone hzero hkeep bot
+    rw [accStateAfter_bot_neg hbot hu₀] at hdst
+    rw [procMirror_bot h hbot] at hwrite
+    refine ⟨u₀, p, ⟨hu₀, hab⟩, hp, TMData.ReachesIn.tail ?_
+      (step_wideTape_left ha hp htr hsrc hread hdst hwrite hright fun r hr =>
+        hcoh t (midMirror ile s t bot) bot (fun v hv => ?_) r hr)⟩
+    · rw [show accState ile s qc (qd u₀) top = qc from accState_top htop,
+        show midMirror ile s t top = s from midMirror_top htop] at hwalk
+      exact hwalk
+    · exact ⟨fun ht => Or.inl ⟨⟨hbot v, fun hc => hv (h.2.2.1 v bot hc (hbot v))⟩, ht⟩,
+        fun hm => (hm.resolve_right fun hc =>
+          hc.1 ⟨hbot v, fun hc' => hv (h.2.2.1 v bot hc' (hbot v))⟩).2⟩
+  · -- One register: what to write is the case analysis, where to go next is the walk.
+    obtain ⟨τ, htr, hsrc, hread, hdst, hwrite, hright⟩ :=
+      incr_process (g := fun m u => tapeOf m (F.cell u)) h hi hu₀ hab hone hzero hkeep u'
+    rw [accStateAfter_succ h hs] at hdst
+    rw [procMirror_succ h hs] at hwrite
+    refine TMData.ReachesIn.mono (hgap u u' hs)
+      (F.reachesIn_regStepBack ha h hs ⟨τ, htr, hsrc, hread, hdst, hwrite, hright⟩
+        (fun r hr => hcoh _ _ u' (fun v hv => midMirror_agree h hs hv) r hr) fun r hbnd hr => ?_)
+    exact hskip _ ((accState_cases u).imp id fun hc => ⟨u₀, hc⟩) _ r hbnd hr
+
+
+-- @@ L319-367 verbatim
+/-- **The mirror increment**, the budget forgotten. -/
+theorem reaches_mirrorIncr (h : IsLinOrd ile) (ha : IsLinOrd (WMLe (A := A)))
+    (hi : WMIncr ile s t)
+    {b : A} {tapeOf : (I → Prop) → (A → Prop) → A}
+    (hcoh : ∀ (m m' : I → Prop) (u : I), (∀ v : I, v ≠ u → (m v ↔ m' v)) →
+      ∀ r : A → Prop, r ≠ F.cell u → tapeOf m r = tapeOf m' r)
+    (hone : ∀ (m : I → Prop) (u : I), m u → ∃ τ : A, WMTr τ ∧ WMSrc τ qc ∧
+      WMRead τ (tapeOf m (F.cell u)) ∧ WMDst τ qc ∧
+      WMWrite τ (tapeOf (fun v => m v ∧ v ≠ u) (F.cell u)) ∧ ¬WMRight τ)
+    (hzero : ∀ (m : I → Prop) (u : I), ¬m u → ∃ τ : A, WMTr τ ∧ WMSrc τ qc ∧
+      WMRead τ (tapeOf m (F.cell u)) ∧ WMDst τ (qd u) ∧
+      WMWrite τ (tapeOf (fun v => m v ∨ v = u) (F.cell u)) ∧ ¬WMRight τ)
+    (hkeep : ∀ (u : I) (m : I → Prop) (v : I), ∃ τ : A, WMTr τ ∧ WMSrc τ (qd u) ∧
+      WMRead τ (tapeOf m (F.cell v)) ∧ WMDst τ (qd u) ∧ WMWrite τ (tapeOf m (F.cell v)) ∧
+      ¬WMRight τ)
+    (hskip : ∀ q : A, (q = qc ∨ ∃ u : I, q = qd u) → ∀ (m : I → Prop) (r : A → Prop),
+      (∃ x : I, WMSetLe WMLe (F.cell x) r) → (∀ x : I, r ≠ F.cell x) →
+      ∃ τ : A, WMTr τ ∧ WMSrc τ q ∧ WMRead τ (tapeOf m r) ∧ WMDst τ q ∧
+        WMWrite τ (tapeOf m r) ∧ ¬WMRight τ)
+    {top bot : I} (htop : ∀ v : I, ile v top) (hbot : ∀ v : I, ile bot v) :
+    ∃ (u₀ : I) (p : A → Prop), (¬s u₀ ∧ ∀ v : I, WMLt ile u₀ v → s v) ∧
+      WMIncr WMLe p (F.cell bot) ∧
+      Relation.ReflTransGen (wideData A).Step
+        ⟨Sum.inr qc, Sum.inl (F.cell top), wideTape (tapeOf s) b⟩
+        ⟨Sum.inr (qd u₀), Sum.inl p, wideTape (tapeOf t) b⟩ := by
+  obtain ⟨u₀, hu₀, hab, -⟩ := id hi
+  have hwalk := F.reaches_regWalkBack h (b := b) (st := accState ile s qc (qd u₀))
+    (tp := fun u => tapeOf (midMirror ile s t u)) (u₁ := top) (fun u u' hs _ => ?_) bot (hbot top)
+  · obtain ⟨p, hp⟩ := exists_wmPred ha (s := F.cell bot) (F.cell_nonempty bot)
+    obtain ⟨τ, htr, hsrc, hread, hdst, hwrite, hright⟩ :=
+      incr_process (g := fun m u => tapeOf m (F.cell u)) h hi hu₀ hab hone hzero hkeep bot
+    rw [accStateAfter_bot_neg hbot hu₀] at hdst
+    rw [procMirror_bot h hbot] at hwrite
+    refine ⟨u₀, p, ⟨hu₀, hab⟩, hp, Relation.ReflTransGen.tail ?_
+      (step_wideTape_left ha hp htr hsrc hread hdst hwrite hright fun r hr =>
+        hcoh t (midMirror ile s t bot) bot (fun v hv => ?_) r hr)⟩
+    · rw [show accState ile s qc (qd u₀) top = qc from accState_top htop,
+        show midMirror ile s t top = s from midMirror_top htop] at hwalk
+      exact hwalk
+    · exact ⟨fun ht => Or.inl ⟨⟨hbot v, fun hc => hv (h.2.2.1 v bot hc (hbot v))⟩, ht⟩,
+        fun hm => (hm.resolve_right fun hc =>
+          hc.1 ⟨hbot v, fun hc' => hv (h.2.2.1 v bot hc' (hbot v))⟩).2⟩
+  · obtain ⟨τ, htr, hsrc, hread, hdst, hwrite, hright⟩ :=
+      incr_process (g := fun m u => tapeOf m (F.cell u)) h hi hu₀ hab hone hzero hkeep u'
+    rw [accStateAfter_succ h hs] at hdst
+    rw [procMirror_succ h hs] at hwrite
+    refine F.reaches_regStepBack ha h hs ⟨τ, htr, hsrc, hread, hdst, hwrite, hright⟩
+      (fun r hr => hcoh _ _ u' (fun v hv => midMirror_agree h hs hv) r hr) fun r hbnd hr => ?_
+    exact hskip _ ((accState_cases u).imp id fun hc => ⟨u₀, hc⟩) _ r hbnd hr
+
+
+-- @@ L369-373 verbatim
+/-! ### Overwriting a track
+
+The same walk with nothing accumulated: the state never changes, and every
+register is simply given its new digit. Copying the mirror into a spare register,
+clearing a track and loading a computed value are all this pass. -/
+
+
+-- @@ L375-422 verbatim
+/-- **Overwriting a track.** A pass down the file in a single state, replacing the
+track's digit at every register: the machine starts at the last register with the
+track at `s` and arrives just below the first register with it at `t`.
+
+Since nothing is accumulated, `t` is arbitrary – the caller's transitions say what
+to write at each register, and may read the old digit to decide. -/
+theorem reachesIn_fileWrite (h : IsLinOrd ile) (ha : IsLinOrd (WMLe (A := A))) {b q : A}
+    {w : ℕ}
+    {tapeOf : (I → Prop) → (A → Prop) → A}
+    (hgap : ∀ u u' : I, IxSucc ile u u' →
+      wideRank (F.cell u') - wideRank (F.cell u) ≤ w)
+    (hcoh : ∀ (m m' : I → Prop) (u : I), (∀ v : I, v ≠ u → (m v ↔ m' v)) →
+      ∀ r : A → Prop, r ≠ F.cell u → tapeOf m r = tapeOf m' r)
+    (hstep : ∀ (m : I → Prop) (u : I), ∃ τ : A, WMTr τ ∧ WMSrc τ q ∧
+      WMRead τ (tapeOf m (F.cell u)) ∧ WMDst τ q ∧
+      WMWrite τ (tapeOf (fun v => (v = u ∧ t v) ∨ (v ≠ u ∧ m v)) (F.cell u)) ∧ ¬WMRight τ)
+    (hskip : ∀ (m : I → Prop) (r : A → Prop), (∃ x : I, WMSetLe WMLe (F.cell x) r) →
+      (∀ x : I, r ≠ F.cell x) →
+      ∃ τ : A, WMTr τ ∧ WMSrc τ q ∧ WMRead τ (tapeOf m r) ∧ WMDst τ q ∧
+        WMWrite τ (tapeOf m r) ∧ ¬WMRight τ)
+    {top bot : I} (htop : ∀ v : I, ile v top) (hbot : ∀ v : I, ile bot v) :
+    ∃ p : A → Prop, WMIncr WMLe p (F.cell bot) ∧
+      (wideData A).ReachesIn ((ixRank ile top - ixRank ile bot) * w + 1)
+        ⟨Sum.inr q, Sum.inl (F.cell top), wideTape (tapeOf s) b⟩
+        ⟨Sum.inr q, Sum.inl p, wideTape (tapeOf t) b⟩ := by
+  have hwalk := F.reachesIn_regWalkBack h (b := b) (st := fun _ => q)
+    (tp := fun u => tapeOf (midMirror ile s t u)) (u₁ := top) (w := w)
+    (fun u u' hs _ => ?_) bot (hbot top)
+  · obtain ⟨p, hp⟩ := exists_wmPred ha (s := F.cell bot) (F.cell_nonempty bot)
+    obtain ⟨τ, htr, hsrc, hread, hdst, hwrite, hright⟩ := hstep (midMirror ile s t bot) bot
+    rw [show (fun v => (v = bot ∧ t v) ∨ (v ≠ bot ∧ midMirror ile s t bot v)) = t from
+      procMirror_bot h hbot] at hwrite
+    refine ⟨p, hp, TMData.ReachesIn.tail ?_
+      (step_wideTape_left ha hp htr hsrc hread hdst hwrite hright fun r hr =>
+        hcoh t (midMirror ile s t bot) bot (fun v hv => ?_) r hr)⟩
+    · rw [show midMirror ile s t top = s from midMirror_top htop] at hwalk
+      exact hwalk
+    · exact ⟨fun ht => Or.inl ⟨⟨hbot v, fun hc => hv (h.2.2.1 v bot hc (hbot v))⟩, ht⟩,
+        fun hm => (hm.resolve_right fun hc =>
+          hc.1 ⟨hbot v, fun hc' => hv (h.2.2.1 v bot hc' (hbot v))⟩).2⟩
+  · obtain ⟨τ, htr, hsrc, hread, hdst, hwrite, hright⟩ := hstep (midMirror ile s t u') u'
+    rw [show (fun v => (v = u' ∧ t v) ∨ (v ≠ u' ∧ midMirror ile s t u' v)) =
+        midMirror ile s t u from
+      procMirror_succ h hs] at hwrite
+    exact TMData.ReachesIn.mono (hgap u u' hs)
+      (F.reachesIn_regStepBack ha h hs ⟨τ, htr, hsrc, hread, hdst, hwrite, hright⟩
+        (fun r hr => hcoh _ _ u' (fun v hv => midMirror_agree h hs hv) r hr)
+        fun r hbnd hr => hskip _ r hbnd hr)
+
+
+-- @@ L424-461 verbatim
+/-- **Overwriting a track**, the budget forgotten. -/
+theorem reaches_fileWrite (h : IsLinOrd ile) (ha : IsLinOrd (WMLe (A := A))) {b q : A}
+    {tapeOf : (I → Prop) → (A → Prop) → A}
+    (hcoh : ∀ (m m' : I → Prop) (u : I), (∀ v : I, v ≠ u → (m v ↔ m' v)) →
+      ∀ r : A → Prop, r ≠ F.cell u → tapeOf m r = tapeOf m' r)
+    (hstep : ∀ (m : I → Prop) (u : I), ∃ τ : A, WMTr τ ∧ WMSrc τ q ∧
+      WMRead τ (tapeOf m (F.cell u)) ∧ WMDst τ q ∧
+      WMWrite τ (tapeOf (fun v => (v = u ∧ t v) ∨ (v ≠ u ∧ m v)) (F.cell u)) ∧ ¬WMRight τ)
+    (hskip : ∀ (m : I → Prop) (r : A → Prop), (∃ x : I, WMSetLe WMLe (F.cell x) r) →
+      (∀ x : I, r ≠ F.cell x) →
+      ∃ τ : A, WMTr τ ∧ WMSrc τ q ∧ WMRead τ (tapeOf m r) ∧ WMDst τ q ∧
+        WMWrite τ (tapeOf m r) ∧ ¬WMRight τ)
+    {top bot : I} (htop : ∀ v : I, ile v top) (hbot : ∀ v : I, ile bot v) :
+    ∃ p : A → Prop, WMIncr WMLe p (F.cell bot) ∧
+      Relation.ReflTransGen (wideData A).Step
+        ⟨Sum.inr q, Sum.inl (F.cell top), wideTape (tapeOf s) b⟩
+        ⟨Sum.inr q, Sum.inl p, wideTape (tapeOf t) b⟩ := by
+  have hwalk := F.reaches_regWalkBack h (b := b) (st := fun _ => q)
+    (tp := fun u => tapeOf (midMirror ile s t u)) (u₁ := top) (fun u u' hs _ => ?_) bot (hbot top)
+  · obtain ⟨p, hp⟩ := exists_wmPred ha (s := F.cell bot) (F.cell_nonempty bot)
+    obtain ⟨τ, htr, hsrc, hread, hdst, hwrite, hright⟩ := hstep (midMirror ile s t bot) bot
+    rw [show (fun v => (v = bot ∧ t v) ∨ (v ≠ bot ∧ midMirror ile s t bot v)) = t from
+      procMirror_bot h hbot] at hwrite
+    refine ⟨p, hp, Relation.ReflTransGen.tail ?_
+      (step_wideTape_left ha hp htr hsrc hread hdst hwrite hright fun r hr =>
+        hcoh t (midMirror ile s t bot) bot (fun v hv => ?_) r hr)⟩
+    · rw [show midMirror ile s t top = s from midMirror_top htop] at hwalk
+      exact hwalk
+    · exact ⟨fun ht => Or.inl ⟨⟨hbot v, fun hc => hv (h.2.2.1 v bot hc (hbot v))⟩, ht⟩,
+        fun hm => (hm.resolve_right fun hc =>
+          hc.1 ⟨hbot v, fun hc' => hv (h.2.2.1 v bot hc' (hbot v))⟩).2⟩
+  · obtain ⟨τ, htr, hsrc, hread, hdst, hwrite, hright⟩ := hstep (midMirror ile s t u') u'
+    rw [show (fun v => (v = u' ∧ t v) ∨ (v ≠ u' ∧ midMirror ile s t u' v)) =
+        midMirror ile s t u from
+      procMirror_succ h hs] at hwrite
+    exact F.reaches_regStepBack ha h hs ⟨τ, htr, hsrc, hread, hdst, hwrite, hright⟩
+      (fun r hr => hcoh _ _ u' (fun v hv => midMirror_agree h hs hv) r hr)
+      fun r hbnd hr => hskip _ r hbnd hr
+
+
+-- @@ L463-463 verbatim
+end IxFile
+
+
+-- @@ L465-465 verbatim
+/-! ### The same, at the file the input channel marks -/
+
+
+-- @@ L467-467 verbatim
+section Marked
+
+
+-- @@ L469-469 verbatim
+variable {s t : A → Prop} {qc : A} {qd : A → A}
+
+
+-- @@ L471-495 verbatim
+/-- **The mirror increment** over the file the input channel marks. -/
+theorem reaches_mirrorIncr (h : IsLinOrd (WMLe (A := A))) (hi : WMIncr WMLe s t)
+    {b : A} {tapeOf : (A → Prop) → (A → Prop) → A}
+    (hcoh : ∀ (m m' : A → Prop) (u : A), (∀ v : A, v ≠ u → (m v ↔ m' v)) →
+      ∀ r : A → Prop, r ≠ wmSeg u → tapeOf m r = tapeOf m' r)
+    (hone : ∀ (m : A → Prop) (u : A), m u → ∃ τ : A, WMTr τ ∧ WMSrc τ qc ∧
+      WMRead τ (tapeOf m (wmSeg u)) ∧ WMDst τ qc ∧
+      WMWrite τ (tapeOf (fun v => m v ∧ v ≠ u) (wmSeg u)) ∧ ¬WMRight τ)
+    (hzero : ∀ (m : A → Prop) (u : A), ¬m u → ∃ τ : A, WMTr τ ∧ WMSrc τ qc ∧
+      WMRead τ (tapeOf m (wmSeg u)) ∧ WMDst τ (qd u) ∧
+      WMWrite τ (tapeOf (fun v => m v ∨ v = u) (wmSeg u)) ∧ ¬WMRight τ)
+    (hkeep : ∀ (u : A) (m : A → Prop) (w : A), ∃ τ : A, WMTr τ ∧ WMSrc τ (qd u) ∧
+      WMRead τ (tapeOf m (wmSeg w)) ∧ WMDst τ (qd u) ∧ WMWrite τ (tapeOf m (wmSeg w)) ∧
+      ¬WMRight τ)
+    (hskip : ∀ q : A, (q = qc ∨ ∃ u : A, q = qd u) → ∀ m r : A → Prop,
+      (∃ x : A, WMSetLe WMLe (wmSeg x) r) → (∀ x : A, r ≠ wmSeg x) →
+      ∃ τ : A, WMTr τ ∧ WMSrc τ q ∧ WMRead τ (tapeOf m r) ∧ WMDst τ q ∧
+        WMWrite τ (tapeOf m r) ∧ ¬WMRight τ)
+    {top bot : A} (htop : ∀ v : A, WMLe v top) (hbot : ∀ v : A, WMLe bot v) :
+    ∃ (u₀ : A) (p : A → Prop), (¬s u₀ ∧ ∀ v : A, WMLt WMLe u₀ v → s v) ∧
+      WMIncr WMLe p (wmSeg bot) ∧
+      Relation.ReflTransGen (wideData A).Step
+        ⟨Sum.inr qc, Sum.inl (wmSeg top), wideTape (tapeOf s) b⟩
+        ⟨Sum.inr (qd u₀), Sum.inl p, wideTape (tapeOf t) b⟩ :=
+  (wmSegFile h).toIx.reaches_mirrorIncr h h hi hcoh hone hzero hkeep hskip htop hbot
+
+
+-- @@ L497-514 verbatim
+/-- **Overwriting a track** of the file the input channel marks. -/
+theorem reaches_fileWrite (h : IsLinOrd (WMLe (A := A))) {b q : A}
+    {tapeOf : (A → Prop) → (A → Prop) → A}
+    (hcoh : ∀ (m m' : A → Prop) (u : A), (∀ v : A, v ≠ u → (m v ↔ m' v)) →
+      ∀ r : A → Prop, r ≠ wmSeg u → tapeOf m r = tapeOf m' r)
+    (hstep : ∀ (m : A → Prop) (u : A), ∃ τ : A, WMTr τ ∧ WMSrc τ q ∧
+      WMRead τ (tapeOf m (wmSeg u)) ∧ WMDst τ q ∧
+      WMWrite τ (tapeOf (fun v => (v = u ∧ t v) ∨ (v ≠ u ∧ m v)) (wmSeg u)) ∧ ¬WMRight τ)
+    (hskip : ∀ m r : A → Prop, (∃ x : A, WMSetLe WMLe (wmSeg x) r) →
+      (∀ x : A, r ≠ wmSeg x) →
+      ∃ τ : A, WMTr τ ∧ WMSrc τ q ∧ WMRead τ (tapeOf m r) ∧ WMDst τ q ∧
+        WMWrite τ (tapeOf m r) ∧ ¬WMRight τ)
+    {top bot : A} (htop : ∀ v : A, WMLe v top) (hbot : ∀ v : A, WMLe bot v) :
+    ∃ p : A → Prop, WMIncr WMLe p (wmSeg bot) ∧
+      Relation.ReflTransGen (wideData A).Step
+        ⟨Sum.inr q, Sum.inl (wmSeg top), wideTape (tapeOf s) b⟩
+        ⟨Sum.inr q, Sum.inl p, wideTape (tapeOf t) b⟩ :=
+  (wmSegFile h).toIx.reaches_fileWrite h h hcoh hstep hskip htop hbot
+
+
+-- @@ L516-516 verbatim
+end Marked
+
+
+-- @@ L518-518 verbatim
+end Mirror
+
+
+-- @@ L520-520 verbatim
+end DescriptiveComplexity

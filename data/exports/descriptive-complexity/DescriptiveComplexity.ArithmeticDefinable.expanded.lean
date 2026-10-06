@@ -1,0 +1,231 @@
+/-
+Copyright (c) 2026 Pierre Senellart. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Pierre Senellart
+-/
+import DescriptiveComplexity.Arithmetic
+import DescriptiveComplexity.FirstOrderDefinable
+import DescriptiveComplexity.Complexity
+
+
+-- @@ L10-69 verbatim
+/-!
+# AC⁰ definability: first-order logic with the numeric predicates
+
+**The class AC⁰**, as a logic: a problem is `AC⁰` definable when a single
+sentence over the *arithmetic* expansion of its vocabulary decides it on
+nonempty finite ordered structures – first-order logic with `≤`, `+` and `×` on
+the ranks of the elements (`DescriptiveComplexity.AC0Definable`). Classically
+this is `FO(≤, +, ×) = FO(≤, BIT)`, and (DLOGTIME-)uniform AC⁰ ([Immerman
+1999][immerman1999descriptive], Thm 1.17; [Barrington, Immerman & Straubing
+1990][barrington1990uniformity]; in textbook form, [Vollmer
+1999][vollmer1999introduction] Thm 4.73, with Thm 4.69 for the non-uniform
+class); here, as everywhere in this library, the logic is the *definition*, and
+the identification with a circuit model is a bridge that is not built – see
+below.
+
+## Why `+` and `×` rather than `BIT`
+
+Expressively it makes no difference (the two are classically interdefinable –
+a fact the literature states rather than proves: [Vollmer
+1999][vollmer1999introduction] p. 163 attributes it to a 1994 e-mail of Lindell
+and to [Immerman 1999][immerman1999descriptive] §1.2.1, and
+`DescriptiveComplexity.LogTime` proves it), so the choice is made by a proof
+obligation elsewhere: the closure of the class
+under first-order reductions must define the numeric predicates of the
+*interpreted* universe – lexicographically ordered tagged tuples, hence base-`n`
+digits – from those of the base. For `+` and `×` that is schoolbook arithmetic
+on a constant number of digits; for `BIT` it is base-`n`-to-base-2 conversion,
+whose only route is to define `+` and `×` on the tuples first. So `BIT` is a
+later addition, not the primitive.
+
+## Order-invariance, and the absence of an order-free variant
+
+The definition quantifies over structures carrying a `LinearOrder`, and requires
+the equivalence for *every* linear order: the sentence sees `≤, +, ×`, the
+problem does not. This is verbatim the convention of
+`DescriptiveComplexity.FODefinable`, and it is not a convenience here but a
+necessity: the numeric predicates are *functions of the order*
+(`DescriptiveComplexity.Arithmetic`), so there is no order-free reading of this
+logic to state, and no `AC0DefinableFree` in this file. Together with
+`DescriptiveComplexity.LOGSPACE`, whose logic is an operator rather than a
+fragment, this is the second place where the bottom of the ladder breaks the
+pattern of the classes above it.
+
+## What is proved here, and what is not
+
+* `FO(≤) ⊆ AC⁰` (`DescriptiveComplexity.FODefinable.ac0Definable`), by transport
+  along `DescriptiveComplexity.sumOrderToArith`; the inclusion is **strict**
+  (`DescriptiveComplexity.exists_ac0Definable_not_foDefinable`, in
+  `DescriptiveComplexity.Problems.Even`), so the numeric predicates genuinely add
+  power, unconditionally and with no complexity assumption.
+* Closure under complement (`DescriptiveComplexity.AC0Definable.compl`) – free,
+  since the defining object is a sentence, where every class above needed an
+  argument (Immerman–Szelepcsényi for NL, a determinized walk for LOGSPACE).
+* **Not** here: that AC⁰ definability is closed under first-order reductions
+  (the arithmetic of an interpreted universe, as above), and therefore no
+  `DescriptiveComplexity.ComplexityClass` yet; and no circuit model, so no
+  capture theorem. The inclusion in `DescriptiveComplexity.LOGSPACE` is proved
+  separately, through the multi-head automaton, and gives every consumer that
+  the missing closure lemma would.
+-/
+
+
+-- @@ L71-71 verbatim
+namespace DescriptiveComplexity
+
+
+-- @@ L73-73 verbatim
+open FirstOrder
+
+
+-- @@ L75-75 verbatim
+open Language
+
+
+-- @@ L77-77 verbatim
+variable {L : Language.{0, 0}} [L.IsRelational]
+
+
+-- @@ L79-79 verbatim
+/-! ### The definition -/
+
+
+-- @@ L81-91 verbatim
+/-- A decision problem is **AC⁰ definable** if a single sentence over the
+arithmetic expansion of its vocabulary decides it on nonempty finite ordered
+structures. The equivalence is required for *every* linear order, so the notion
+is order-invariant: the sentence sees `≤`, `+` and `×`, the problem does not.
+
+There is deliberately no order-free variant: the numeric predicates are computed
+from the order (`DescriptiveComplexity.arithStructure`), so without one there is
+nothing for them to mean. -/
+def AC0Definable (P : DecisionProblem L) : Prop :=
+  ∃ φ : (L.sum Language.arith).Sentence,
+    ∀ (A : Type) [L.Structure A] [LinearOrder A] [Finite A] [Nonempty A], P A ↔ A ⊨ φ
+
+
+-- @@ L93-103 verbatim
+/-- AC⁰ definability only depends on the finite instances of a problem – the
+hypothesis a `DescriptiveComplexity.ComplexityClass` demands of its membership
+predicate.
+Registered in the Lax archive as
+[`Lax895169.ACZeroFinite.ac0Definable_congr_finite`](https://laxarchive.org/lax-895169/Lax895169.ACZeroFinite.html#s-Lax895169.ACZeroFinite.ac0Definable_congr_finite). -/
+theorem ac0Definable_congr {P Q : DecisionProblem L}
+    (h : ∀ (A : Type) [L.Structure A] [Finite A], P A ↔ Q A) :
+    AC0Definable P ↔ AC0Definable Q := by
+  constructor <;> rintro ⟨φ, hφ⟩ <;> refine ⟨φ, ?_⟩ <;> intro A _ _ _ _
+  · exact (h A).symm.trans (hφ A)
+  · exact (h A).trans (hφ A)
+
+
+-- @@ L105-105 verbatim
+/-! ### First-order definability, read arithmetically -/
+
+
+-- @@ L107-119 verbatim
+/-- **`FO(≤) ⊆ AC⁰`**: an order-invariant first-order definition is an
+arithmetic one, by transport along `DescriptiveComplexity.sumOrderToArith` – the
+numeric predicates are simply not used. The inclusion is strict
+(`DescriptiveComplexity.exists_ac0Definable_not_foDefinable`).
+Registered in the Lax archive as
+[`Lax895169.FirstOrderInACZero.foDefinable_ac0Definable`](https://laxarchive.org/lax-895169/Lax895169.FirstOrderInACZero.html#s-Lax895169.FirstOrderInACZero.foDefinable_ac0Definable). -/
+theorem FODefinable.ac0Definable {P : DecisionProblem L} (h : FODefinable P) :
+    AC0Definable P := by
+  obtain ⟨φ, hφ⟩ := h
+  refine ⟨(sumOrderToArith L).onSentence φ, ?_⟩
+  intro A _ _ _ _
+  rw [hφ A]
+  exact (LHom.realize_onSentence A (sumOrderToArith L) φ).symm
+
+
+-- @@ L121-124 verbatim
+/-- An order-free first-order definition is in particular an arithmetic one. -/
+theorem FODefinableFree.ac0Definable {P : DecisionProblem L} (h : FODefinableFree P) :
+    AC0Definable P :=
+  h.foDefinable.ac0Definable
+
+
+-- @@ L126-126 verbatim
+/-! ### Boolean closure -/
+
+
+-- @@ L128-138 verbatim
+/-- **AC⁰ is closed under complement**: negate the sentence. Nothing like
+Immerman–Szelepcsényi is needed at this level – the defining object is a
+sentence, not a walk.
+Registered in the Lax archive as
+[`Lax895169.ACZeroComplement.ac0Definable_compl`](https://laxarchive.org/lax-895169/Lax895169.ACZeroComplement.html#s-Lax895169.ACZeroComplement.ac0Definable_compl). -/
+theorem AC0Definable.compl {P : DecisionProblem L} (h : AC0Definable P) :
+    AC0Definable Pᶜ := by
+  obtain ⟨φ, hφ⟩ := h
+  refine ⟨∼φ, ?_⟩
+  intro A _ _ _ _
+  exact not_congr (hφ A)
+
+
+-- @@ L140-146 verbatim
+/-! ### Terms of a relational language
+
+Every vocabulary in this library is relational, and so is
+`FirstOrder.Language.arith`: a term is a variable and nothing else. Two
+consumers need to say so – the evaluator of an arithmetic formula
+(`DescriptiveComplexity.HeadEvalArith`) and the translation of one into the bit
+logic – so it is said here, below both. -/
+
+
+-- @@ L148-148 verbatim
+/-! ### Terms of a relational language -/
+
+
+-- @@ L150-150 verbatim
+section RelTerm
+
+
+-- @@ L152-152 verbatim
+variable {L L' : Language.{0, 0}} [L.IsRelational] {β : Type}
+
+
+-- @@ L154-158 verbatim
+/-- **The variable a term of a relational vocabulary is**: with no function
+symbols, a term is nothing else. -/
+def relVar : L.Term β → β
+  | .var v => v
+  | .func f _ => isEmptyElim f
+
+
+-- @@ L160-164 verbatim
+/-- A term of a relational vocabulary, read as a term of another vocabulary: the
+identity on variables, and there is nothing else. -/
+def relTerm : L.Term β → L'.Term β
+  | .var v => .var v
+  | .func f _ => isEmptyElim f
+
+
+-- @@ L166-166 verbatim
+variable {A : Type} [L.Structure A]
+
+
+-- @@ L168-172 verbatim
+@[simp]
+theorem realize_relVar (v : β → A) (t : L.Term β) : t.realize v = v (relVar t) := by
+  cases t with
+  | var w => rfl
+  | func f _ => exact isEmptyElim f
+
+
+-- @@ L174-179 verbatim
+@[simp]
+theorem realize_relTerm [L'.Structure A] (v : β → A) (t : L.Term β) :
+    (relTerm (L' := L') t).realize v = t.realize v := by
+  cases t with
+  | var w => rfl
+  | func f _ => exact isEmptyElim f
+
+
+-- @@ L181-181 verbatim
+end RelTerm
+
+
+-- @@ L183-183 verbatim
+end DescriptiveComplexity

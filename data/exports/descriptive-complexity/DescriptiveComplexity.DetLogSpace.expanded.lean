@@ -1,0 +1,121 @@
+/-
+Copyright (c) 2026 Pierre Senellart. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Pierre Senellart
+-/
+import DescriptiveComplexity.TransitiveClosurePull
+import DescriptiveComplexity.ImmermanSzelepcsenyi
+
+
+-- @@ L9-57 verbatim
+/-!
+# LOGSPACE, by deterministic transitive closure
+
+**The class LOGSPACE**: the problems definable in FO(DTC)
+(`DescriptiveComplexity.DTCDefinable`), first-order logic with a *deterministic*
+transitive-closure operator, which captures deterministic logarithmic space on
+ordered structures ([Immerman 1987][immerman1987languages]). As everywhere in
+this library the capture theorem is the *definition*: the class is what the
+logic defines, no machine model is involved, and no axiom is added.
+
+It is called `LOGSPACE` rather than `L` because `L` is the name this
+development gives to a first-order vocabulary in almost every file.
+
+## Why an operator, and not a fragment of ∃SO
+
+`DescriptiveComplexity.PTIME` is defined by the Horn fragment and
+`DescriptiveComplexity.NL` by the Krom fragment of existential second-order logic
+([Grädel 1992][gradel1992capturing]). There is no comparable syntactic fragment
+known for deterministic logarithmic space, so this class breaks the pattern: it
+is defined by an operator-as-data logic (`DescriptiveComplexity.TCSpec` read
+through `DescriptiveComplexity.TCSpec.det`) rather than by the shape of a kernel.
+That it is nonetheless a bona fide `DescriptiveComplexity.ComplexityClass` is the
+content of `DescriptiveComplexity.TransitiveClosurePull`: FO(DTC) definability is
+closed under
+(ordered) first-order reductions, the walk on the interpreted structure being a
+walk on the base structure with the tags carried in the mode.
+
+## Where it sits
+
+`L ⊆ NL` (`DescriptiveComplexity.LOGSPACE_subset_NL`) is immediate at the level of
+definability – a determinized specification is a specification – followed by
+the FO(TC)/SO-Krom translation of `DescriptiveComplexity.ImmermanSzelepcsenyi`.
+`DescriptiveComplexity.LOGSPACE_subset_PTIME` and
+`DescriptiveComplexity.LOGSPACE_subset_NP` compose that with the inclusions of NL
+(proved downstream, with 2SAT).
+
+The canonical complete problem is REACHd, deterministic reachability, in
+`DescriptiveComplexity.Problems.ReachabilityDet`; its complement UNREACHd is complete
+too, and with it the class is closed under complement
+(`DescriptiveComplexity.LOGSPACE_eq_coLOGSPACE`, in
+`DescriptiveComplexity.Problems.ReachabilityDet.Complement`) – with no analogue of
+Immerman–Szelepcsényi needed, a deterministic walk being witnessed not to arrive
+by a step budget.
+
+What is *not* claimed, here as for the other classes: nothing relates this
+class to a machine model. `L ≠ NL` and `L = NL` are both consistent with
+everything proved here, and the containment `FO(DTC) ⊆ L` on the machine side –
+the half of Immerman's theorem this definition replaces – is not formalized.
+-/
+
+
+-- @@ L59-59 verbatim
+namespace DescriptiveComplexity
+
+
+-- @@ L61-61 verbatim
+open FirstOrder
+
+
+-- @@ L63-63 verbatim
+open Language
+
+
+-- @@ L65-65 verbatim
+variable {L : Language.{0, 0}}
+
+
+-- @@ L67-79 verbatim
+/-- **The class LOGSPACE**: the problems definable in FO(DTC), first-order logic
+with a deterministic transitive closure, which captures deterministic
+logarithmic space on ordered structures ([Immerman
+1987][immerman1987languages]).
+
+Hardness is stated cofinally, exactly as for the other classes of this library
+(`DescriptiveComplexity.CofinalHard`), which is the usual notion,
+`DescriptiveComplexity.hard_LOGSPACE_iff`. -/
+noncomputable def LOGSPACE : ComplexityClass :=
+  .ofMem (fun P => DTCDefinable P)
+    (fun f h => h.of_foReduction f)
+    (fun f h => h.of_orderedReduction f)
+    (fun h => dtcDefinable_congr h)
+
+
+-- @@ L81-83 verbatim
+/-- Membership in LOGSPACE is exactly FO(DTC) definability, by definition. -/
+theorem mem_LOGSPACE_iff [L.IsRelational] (P : DecisionProblem L) : P ∈ LOGSPACE ↔ DTCDefinable P :=
+  Iff.rfl
+
+
+-- @@ L85-91 verbatim
+/-- LOGSPACE-hardness is the usual notion: every FO(DTC) definable problem
+reduces to `P`. -/
+theorem hard_LOGSPACE_iff [L.IsRelational] (P : DecisionProblem L) :
+    LOGSPACE.Hard P ↔
+      ∀ {L'' : Language.{0, 0}} [L''.IsRelational] (Q : DecisionProblem L''),
+        DTCDefinable Q → Nonempty (Q ≤ʳᶠᵒ[≤] P) :=
+  cofinalHard_iff _ P
+
+
+-- @@ L93-99 verbatim
+/-- **L ⊆ NL**: a deterministic walk is a walk, and FO(TC) definability is
+membership in NL (`DescriptiveComplexity.tcDefinable_iff_mem_NL`, the two
+translations through the Krom fragment).
+Registered in the Lax archive as
+[`Lax485149.LSubsetNL.LOGSPACE_subset_NL`](https://laxarchive.org/lax-485149/Lax485149.LSubsetNL.html#s-Lax485149.LSubsetNL.LOGSPACE_subset_NL). -/
+theorem LOGSPACE_subset_NL : LOGSPACE ⊆ NL :=
+  fun _ _ P hP => (tcDefinable_iff_mem_NL P).mp (DTCDefinable.tcDefinable hP)
+
+
+-- @@ L101-101 verbatim
+end DescriptiveComplexity

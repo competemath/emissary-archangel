@@ -1,0 +1,144 @@
+/-
+Copyright (c) 2026 Pierre Senellart. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Pierre Senellart
+-/
+import DescriptiveComplexity.Problems.SetFamily.Defs
+import DescriptiveComplexity.Problems.SetFamily.Reductions
+import DescriptiveComplexity.Problems.SetFamily.FromGraphs
+import DescriptiveComplexity.Problems.SetFamily.Membership
+import DescriptiveComplexity.Problems.CliqueFamily
+import DescriptiveComplexity.Composition
+
+
+-- @@ L13-44 verbatim
+/-!
+# The set family is NP-complete
+
+Umbrella file for the three problems on set systems – Set Cover, Hitting Set
+and Set Packing (`DescriptiveComplexity.SetCover`, `DescriptiveComplexity.HittingSet`,
+`DescriptiveComplexity.SetPacking`, defined in
+`DescriptiveComplexity.Problems.SetFamily.Defs`) – collecting the quantifier-free
+reductions of `DescriptiveComplexity.Problems.SetFamily.Reductions` (the transposition
+relating Set Cover and Hitting Set) and
+`DescriptiveComplexity.Problems.SetFamily.FromGraphs` (the edge-incidence reading of a
+marked graph), and deriving NP-completeness from
+
+* `DescriptiveComplexity.setCover_sigmaSODefinable` and
+  `DescriptiveComplexity.setPacking_sigmaSODefinable`
+  (`DescriptiveComplexity.Problems.SetFamily.Membership`): membership, by guessing the
+  subfamily and the injection witnessing the threshold;
+* `DescriptiveComplexity.vertexCover_fo_reduction_setCover` and
+  `DescriptiveComplexity.indSet_fo_reduction_setPacking`: hardness, from the
+  NP-hardness of Vertex Cover and Independent Set
+  (`DescriptiveComplexity.Problems.CliqueFamily`), and so ultimately from the
+  Cook–Levin theorem, with no machine model anywhere.
+
+Membership then travels backward and hardness forward along the transposition,
+which relates Set Cover and Hitting Set in both directions, giving
+`DescriptiveComplexity.hittingSet_NP_complete`. This is the set-system mirror of the
+clique family: there, complementation relates the three graph problems and one
+`Σ₁` definition serves them all; here the transposition relates two of them,
+while Set Packing – whose threshold is a lower bound, like Clique's – carries
+its own definition. As with any complexity-theoretic statement, these results
+are about finite set systems only
+(`DescriptiveComplexity.ComplexityClass.mem_congr_finite`/`hard_congr_finite`).
+-/
+
+
+-- @@ L46-46 verbatim
+namespace DescriptiveComplexity
+
+
+-- @@ L48-48 verbatim
+open FirstOrder
+
+
+-- @@ L50-56 verbatim
+/-- **Vertex Cover FO-reduces to Hitting Set**, by composing the
+edge-incidence reading of a graph with the transposition of a set system. In
+the composite, the vertices are the ground elements and the edges are the sets
+to be hit – the textbook rendering of Vertex Cover as a hitting-set
+problem. -/
+noncomputable def vertexCover_fo_reduction_hittingSet : VertexCover ≤ᶠᵒ HittingSet :=
+  vertexCover_fo_reduction_setCover.trans setCover_fo_reduction_hittingSet
+
+
+-- @@ L58-58 verbatim
+/-! ### NP-completeness -/
+
+
+-- @@ L60-62 verbatim
+/-- Set Cover is in NP: it is `Σ₁`-definable. -/
+theorem setCover_mem_NP : SetCover ∈ NP :=
+  setCover_sigmaSODefinable
+
+
+-- @@ L64-67 verbatim
+/-- Set Cover is NP-hard: Vertex Cover, which is NP-hard, reduces to it by
+the edge-incidence interpretation. -/
+theorem setCover_NP_hard : NP.Hard SetCover :=
+  NP.hard_of_foReduction vertexCover_fo_reduction_setCover vertexCover_NP_hard
+
+
+-- @@ L69-74 verbatim
+/-- **Set Cover is NP-complete**, derived from the first-order reductions of
+this library and the Cook–Levin theorem.
+Registered in the Lax archive as
+[`Lax799700.SetFamily.setCover_NP_complete`](https://laxarchive.org/lax-799700/Lax799700.SetFamily.html#s-Lax799700.SetFamily.setCover_NP_complete). -/
+theorem setCover_NP_complete : NP.Complete SetCover :=
+  ⟨setCover_mem_NP, setCover_NP_hard⟩
+
+
+-- @@ L76-78 verbatim
+/-- Hitting Set is in NP: it FO-reduces to Set Cover, which is in NP. -/
+theorem hittingSet_mem_NP : HittingSet ∈ NP :=
+  NP.mem_of_foReduction hittingSet_fo_reduction_setCover setCover_mem_NP
+
+
+-- @@ L80-83 verbatim
+/-- Hitting Set is NP-hard: Set Cover, which is NP-hard, reduces to it by
+transposing the incidence relation. -/
+theorem hittingSet_NP_hard : NP.Hard HittingSet :=
+  NP.hard_of_foReduction setCover_fo_reduction_hittingSet setCover_NP_hard
+
+
+-- @@ L85-89 verbatim
+/-- **Hitting Set is NP-complete**.
+Registered in the Lax archive as
+[`Lax799700.SetFamily.hittingSet_NP_complete`](https://laxarchive.org/lax-799700/Lax799700.SetFamily.html#s-Lax799700.SetFamily.hittingSet_NP_complete). -/
+theorem hittingSet_NP_complete : NP.Complete HittingSet :=
+  ⟨hittingSet_mem_NP, hittingSet_NP_hard⟩
+
+
+-- @@ L91-93 verbatim
+/-- Set Packing is in NP: it is `Σ₁`-definable. -/
+theorem setPacking_mem_NP : SetPacking ∈ NP :=
+  setPacking_sigmaSODefinable
+
+
+-- @@ L95-98 verbatim
+/-- Set Packing is NP-hard: Independent Set, which is NP-hard, reduces to it
+by the edge-incidence interpretation. -/
+theorem setPacking_NP_hard : NP.Hard SetPacking :=
+  NP.hard_of_foReduction indSet_fo_reduction_setPacking indSet_NP_hard
+
+
+-- @@ L100-104 verbatim
+/-- **Set Packing is NP-complete**.
+Registered in the Lax archive as
+[`Lax799700.SetFamily.setPacking_NP_complete`](https://laxarchive.org/lax-799700/Lax799700.SetFamily.html#s-Lax799700.SetFamily.setPacking_NP_complete). -/
+theorem setPacking_NP_complete : NP.Complete SetPacking :=
+  ⟨setPacking_mem_NP, setPacking_NP_hard⟩
+
+
+-- @@ L106-110 verbatim
+/-- Exact Cover is in NP: it is `Σ₁`-definable – guess the subfamily, then
+check covering and disjointness first-order. Its NP-hardness, from
+exactly-one satisfiability, is in `DescriptiveComplexity.Problems.ExactCover`. -/
+theorem exactCover_mem_NP : ExactCover ∈ NP :=
+  exactCover_sigmaSODefinable
+
+
+-- @@ L112-112 verbatim
+end DescriptiveComplexity

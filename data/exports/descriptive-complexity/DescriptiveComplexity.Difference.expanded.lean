@@ -1,0 +1,529 @@
+/-
+Copyright (c) 2026 Pierre Senellart. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Pierre Senellart
+-/
+import DescriptiveComplexity.SecondOrderOrdered
+import DescriptiveComplexity.Hierarchy
+
+
+-- @@ L9-57 verbatim
+/-!
+# DP, the class of differences of NP problems
+
+**The class DP** ([Papadimitriou & Yannakakis 1984][papadimitriou1984complexity]):
+the problems that are the conjunction of an NP problem and a coNP one –
+equivalently, the *difference* `S \ U` of two NP problems, taking `U := Tᶜ`.
+Logically, and this is how the class is defined here
+(`DescriptiveComplexity.DPDefinable`), it is definability by a conjunction of a `Σ₁`
+and a `Π₁` sentence.
+
+DP is not a level of the polynomial hierarchy, and not the same thing as
+`NP ∩ coNP`: the conjunction is of *two different* problems, whereas
+`P ∈ NP ∩ coNP` asks one problem to have both kinds of definition. It sits
+just above NP and coNP and inside the second level of the hierarchy:
+`NP ∪ coNP ⊆ DP ⊆ Σ₂ᵖ ∩ Π₂ᵖ` (`DescriptiveComplexity.NP_subset_DP`,
+`DescriptiveComplexity.coNP_subset_DP`, `DescriptiveComplexity.DP_subset_sigmaP_two`,
+`DescriptiveComplexity.DP_subset_piP_two`). The lower bounds conjoin the tautology
+to the other side; the upper bounds merge `(∃X. φ) ∧ (∀Y. ψ)` into the single
+alternation `∃X ∀Y. (φ ∧ ψ)`, which is sound in both block orders because
+neither kernel mentions the other's variables.
+
+The canonical DP-complete problem, SAT-UNSAT ([Papadimitriou & Yannakakis
+1984][papadimitriou1984complexity]), lives in
+`DescriptiveComplexity.Problems.SatUnsat`: its hardness runs the Cook–Levin
+discharge of the `Σ₁` half and that of the complement of the `Π₁` half side by
+side into one paired-CNF instance.
+
+## Why closure needs the order-elimination lemma
+
+A `DescriptiveComplexity.ComplexityClass` must be closed under reductions, and for DP
+this is not inherited from the two levels it is built out of. Pulling a
+definition back through an *ordered* reduction produces a sentence over the
+ordered expansion, correct for every linear order; the existing closure
+theorems then remove the order because the problem they are given is
+order-invariant. Here the two halves are not: only their conjunction is, so
+`S (I≼.Map A)` really does depend on the order `≼`.
+
+The way out is to let the two halves disagree about the order and quantify it
+in opposite directions – existentially on the `Σ` side
+(`DescriptiveComplexity.DecisionProblem.comapExOrd`) and universally on the `Π` side
+(`DescriptiveComplexity.DecisionProblem.comapAllOrd`). Their conjunction is still
+equivalent to the pullback: for the forward direction every order works for
+both halves, and backwards the order witnessing the existential is one of
+those the universal covers. Each half is then definable at its level by
+`DescriptiveComplexity.sigmaSODefinable_of_orderPull` and
+`DescriptiveComplexity.piSODefinable_of_orderPull`, which are exactly the
+order-elimination construction stated for a sentence rather than for a
+reduction.
+-/
+
+
+-- @@ L59-59 verbatim
+namespace DescriptiveComplexity
+
+
+-- @@ L61-61 verbatim
+open FirstOrder
+
+
+-- @@ L63-63 verbatim
+open Language Structure
+
+
+-- @@ L65-65 verbatim
+variable {L L' : Language.{0, 0}}
+
+
+-- @@ L67-67 verbatim
+/-! ### Pulling a problem back along an interpretation -/
+
+
+-- @@ L69-76 verbatim
+/-- The problem pulled back along an interpretation: its yes-instances are the
+structures whose image is a yes-instance of `Q`. It is a decision problem
+because interpretations are functorial on isomorphisms
+(`DescriptiveComplexity.FOInterpretation.mapLEquiv`). -/
+def DecisionProblem.comap [L.IsRelational] [L'.IsRelational] {Tag : Type} {dim : ℕ}
+    (I : FOInterpretation L L' Tag dim) (Q : DecisionProblem L') : DecisionProblem L where
+  Holds A _ := Q (I.Map A)
+  iso_invariant e := Q.iso_invariant (I.mapLEquiv e)
+
+
+-- @@ L78-86 verbatim
+/-- The tautological reduction: the pullback of `Q` reduces to `Q`, by the
+very interpretation it was pulled back along. -/
+def FOInterpretation.comapReduction [L.IsRelational] [L'.IsRelational] {Tag : Type} {dim : ℕ}
+    [Finite Tag] [Nonempty Tag] (I : FOInterpretation L L' Tag dim)
+    (Q : DecisionProblem L') : Q.comap I ≤ᶠᵒ Q where
+  Tag := Tag
+  dim := dim
+  toInterpretation := I
+  correct _ := Iff.rfl
+
+
+-- @@ L88-91 verbatim
+/-! ### Transporting an order along an isomorphism
+
+The two order-quantified pullbacks below are decision problems, and proving it
+means moving a linear order from one structure to an isomorphic one. -/
+
+
+-- @@ L93-93 verbatim
+section OrderTransport
+
+
+-- @@ L95-95 verbatim
+variable {A B : Type} [L.Structure A] [L.Structure B]
+
+
+-- @@ L97-102 verbatim
+/-- The linear order transported along an isomorphism: `b ≤ b'` when the
+preimages compare. -/
+@[instance_reducible]
+noncomputable def transportOrder (e : A ≃[L] B) (lo : LinearOrder A) : LinearOrder B :=
+  letI := lo
+  LinearOrder.lift' e.symm e.symm.injective
+
+
+-- @@ L104-123 verbatim
+/-- An isomorphism of `L`-structures is one of the ordered expansions, once
+the order of the target is the transported one. -/
+def orderedEquivOfTransport (e : A ≃[L] B) (lo : LinearOrder A) :
+    letI := lo
+    letI := transportOrder e lo
+    A ≃[L.sum Language.order] B :=
+  letI := lo
+  letI := transportOrder e lo
+  { toEquiv := e.toEquiv
+    map_fun' := fun {_n} f x =>
+      match f with
+      | Sum.inl g => e.map_fun' g x
+      | Sum.inr g => nomatch g
+    map_rel' := fun {n} r x =>
+      match n, r with
+      | _, Sum.inl s => e.map_rel' s x
+      | _, Sum.inr .le => by
+        change e (x 0) ≤ e (x 1) ↔ x 0 ≤ x 1
+        change e.symm (e (x 0)) ≤ e.symm (e (x 1)) ↔ x 0 ≤ x 1
+        rw [e.symm_apply_apply, e.symm_apply_apply] }
+
+
+-- @@ L125-125 verbatim
+end OrderTransport
+
+
+-- @@ L127-127 verbatim
+/-! ### The two order-quantified pullbacks -/
+
+
+-- @@ L129-129 verbatim
+section OrderedComap
+
+
+-- @@ L131-132 verbatim
+variable [L'.IsRelational] {Tag : Type} {dim : ℕ}
+  (I : FOInterpretation (L.sum Language.order) L' Tag dim) (Q : DecisionProblem L')
+
+
+-- @@ L134-145 verbatim
+private theorem exOrd_iso {A B : Type} [L.Structure A] [L.Structure B] (e : A ≃[L] B)
+    (h : ∃ lo : LinearOrder A,
+      letI := lo
+      Q (I.Map A)) :
+    ∃ lo : LinearOrder B,
+      letI := lo
+      Q (I.Map B) := by
+  obtain ⟨lo, hQ⟩ := h
+  let := lo
+  let := transportOrder e lo
+  exact ⟨transportOrder e lo,
+    (Q.iso_invariant (I.mapLEquiv (orderedEquivOfTransport e lo))).mp hQ⟩
+
+
+-- @@ L147-154 verbatim
+/-- The pullback of `Q` along an *ordered* interpretation, with the order
+quantified existentially: some linear order on the instance sends it to a
+yes-instance of `Q`. -/
+def DecisionProblem.comapExOrd [L.IsRelational] : DecisionProblem L where
+  Holds A _ := ∃ lo : LinearOrder A,
+    letI := lo
+    Q (I.Map A)
+  iso_invariant e := ⟨exOrd_iso I Q e, exOrd_iso I Q e.symm⟩
+
+
+-- @@ L156-172 verbatim
+/-- The pullback of `Q` along an *ordered* interpretation, with the order
+quantified universally: every linear order on the instance sends it to a
+yes-instance of `Q`. -/
+def DecisionProblem.comapAllOrd [L.IsRelational] : DecisionProblem L where
+  Holds A _ := ∀ lo : LinearOrder A,
+    letI := lo
+    Q (I.Map A)
+  iso_invariant e := by
+    constructor
+    · intro h lo
+      let := lo
+      let := transportOrder e.symm lo
+      exact (Q.iso_invariant (I.mapLEquiv (orderedEquivOfTransport e.symm lo))).mpr (h _)
+    · intro h lo
+      let := lo
+      let := transportOrder e lo
+      exact (Q.iso_invariant (I.mapLEquiv (orderedEquivOfTransport e lo))).mpr (h _)
+
+
+-- @@ L174-174 verbatim
+end OrderedComap
+
+
+-- @@ L176-176 verbatim
+variable [L.IsRelational]
+
+
+-- @@ L178-178 verbatim
+/-! ### DP definability -/
+
+
+-- @@ L180-186 verbatim
+/-- A decision problem is **DP-definable** if, on nonempty finite structures,
+it is the conjunction of a `Σ₁`-definable and a `Π₁`-definable problem: an NP
+condition and a coNP one, imposed together. Equivalently, it is the difference
+`S \ Tᶜ` of two NP problems. -/
+def DPDefinable (P : DecisionProblem L) : Prop :=
+  ∃ S T : DecisionProblem L, SigmaSODefinable 1 S ∧ PiSODefinable 1 T ∧
+    ∀ (A : Type) [L.Structure A] [Finite A] [Nonempty A], P A ↔ (S A ∧ T A)
+
+
+-- @@ L188-194 verbatim
+/-- DP definability only depends on the finite instances of a problem. -/
+theorem dpDefinable_congr {P Q : DecisionProblem L}
+    (h : ∀ (A : Type) [L.Structure A] [Finite A], P A ↔ Q A) :
+    DPDefinable P ↔ DPDefinable Q := by
+  constructor <;> rintro ⟨S, T, hS, hT, hST⟩ <;> refine ⟨S, T, hS, hT, ?_⟩ <;> intro A _ _ _
+  · exact (h A).symm.trans (hST A)
+  · exact (h A).trans (hST A)
+
+
+-- @@ L196-196 verbatim
+/-! ### Closure under reductions -/
+
+
+-- @@ L198-211 verbatim
+/-- DP definability is closed under first-order reductions: both halves are
+pulled back along the interpretation. -/
+theorem DPDefinable.of_foReduction [L'.IsRelational] {P : DecisionProblem L}
+    {Q : DecisionProblem L'} (f : P ≤ᶠᵒ Q) (h : DPDefinable Q) : DPDefinable P := by
+  obtain ⟨S, T, hS, hT, hST⟩ := h
+  let := f.tagFinite
+  let := f.tagNonempty
+  refine ⟨S.comap f.toInterpretation, T.comap f.toInterpretation,
+    hS.of_foReduction (f.toInterpretation.comapReduction S),
+    hT.of_foReduction (f.toInterpretation.comapReduction T), ?_⟩
+  intro A _ _ _
+  have := f.toInterpretation.map_finite A
+  have := f.toInterpretation.map_nonempty A
+  exact (f.correct A).trans (hST _)
+
+
+-- @@ L213-262 verbatim
+/-- DP definability is closed under *ordered* first-order reductions. This is
+where the two halves have to be allowed to disagree about the order: the `Σ`
+half asks for some linear order, the `Π` half for all of them, and their
+conjunction is again the pullback. -/
+theorem DPDefinable.of_orderedReduction [L'.IsRelational] {P : DecisionProblem L}
+    {Q : DecisionProblem L'} (f : P ≤ᶠᵒ[≤] Q) (h : DPDefinable Q) : DPDefinable P := by
+  obtain ⟨S, T, hS, hT, hST⟩ := h
+  let := f.tagFinite
+  let := f.tagNonempty
+  refine ⟨DecisionProblem.comapExOrd f.toInterpretation S,
+    DecisionProblem.comapAllOrd f.toInterpretation T, ?_, ?_, ?_⟩
+  · obtain ⟨Bs, hk, φ, hφ⟩ := hS
+    refine sigmaSODefinable_of_orderPull (pullBlocks f.Tag f.dim Bs)
+      (by simpa [pullBlocks] using hk)
+      (pullSO Bs (L.sum Language.order) L' f.toInterpretation φ) ?_
+    intro A _ _ _
+    refine exists_congr fun lo => ?_
+    let := lo
+    have := f.toInterpretation.map_finite A
+    have := f.toInterpretation.map_nonempty A
+    exact (hφ (f.toInterpretation.Map A)).trans
+      (sorealize_pullSO f.toInterpretation A Bs φ true)
+  · obtain ⟨Bs, hk, φ, hφ⟩ := hT
+    refine piSODefinable_of_orderPull (pullBlocks f.Tag f.dim Bs)
+      (by simpa [pullBlocks] using hk)
+      (pullSO Bs (L.sum Language.order) L' f.toInterpretation φ) ?_
+    intro A _ _ _
+    refine forall_congr' fun lo => ?_
+    let := lo
+    have := f.toInterpretation.map_finite A
+    have := f.toInterpretation.map_nonempty A
+    exact (hφ (f.toInterpretation.Map A)).trans
+      (sorealize_pullSO f.toInterpretation A Bs φ false)
+  · intro A _ _ _
+    constructor
+    · intro hP
+      refine ⟨⟨finiteLinearOrder A, ?_⟩, fun lo => ?_⟩
+      · let := finiteLinearOrder A
+        have := f.toInterpretation.map_finite A
+        have := f.toInterpretation.map_nonempty A
+        exact ((hST _).mp ((f.correct A).mp hP)).1
+      · let := lo
+        have := f.toInterpretation.map_finite A
+        have := f.toInterpretation.map_nonempty A
+        exact ((hST _).mp ((f.correct A).mp hP)).2
+    · rintro ⟨⟨lo, hS'⟩, hT'⟩
+      let := lo
+      have := f.toInterpretation.map_finite A
+      have := f.toInterpretation.map_nonempty A
+      exact (f.correct A).mpr ((hST _).mpr ⟨hS', hT' lo⟩)
+
+
+-- @@ L264-271 verbatim
+/-! ### DP inside the second level
+
+The `Σ` half's guess and the `Π` half's challenge become the two blocks of a
+single alternation. The two kernels live over different expansions of the
+vocabulary, so each is transported into the doubly expanded one: the head
+kernel by `DescriptiveComplexity.soLangEmbed`, the other by
+`DescriptiveComplexity.soLangLift` along `LHom.sumInl`, which is an expansion on a
+sum structure. -/
+
+
+-- @@ L273-273 verbatim
+section Merge
+
+
+-- @@ L275-275 verbatim
+variable {P : DecisionProblem L}
+
+
+-- @@ L277-284 verbatim
+private theorem eq_singleton_of_length_one {Bs : List SOBlock} (h : Bs.length = 1) :
+    ∃ B, Bs = [B] := by
+  cases Bs with
+  | nil => simp at h
+  | cons B t =>
+    cases t with
+    | nil => exact ⟨B, rfl⟩
+    | cons _ _ => simp at h
+
+
+-- @@ L286-313 verbatim
+/-- **DP ⊆ Σ₂ᵖ**: `(∃X. φ) ∧ (∀Y. ψ)` is the single alternation
+`∃X ∀Y. (φ ∧ ψ)`. Nothing has to be guessed twice – the `Π` kernel does not
+mention `X`, which is what makes the conjunction slide inside both
+quantifiers. -/
+theorem DPDefinable.sigmaSODefinable_two (h : DPDefinable P) : SigmaSODefinable 2 P := by
+  obtain ⟨S, T, hS, hT, hST⟩ := h
+  obtain ⟨Bs₁, hk1, φ, hφ⟩ := hS
+  obtain ⟨Bs₂, hk2, ψ, hψ⟩ := hT
+  obtain ⟨B₁, rfl⟩ := eq_singleton_of_length_one hk1
+  obtain ⟨B₂, rfl⟩ := eq_singleton_of_length_one hk2
+  refine ⟨[B₁, B₂], rfl,
+    (soLangEmbed [B₂] (L.sum B₁.lang)).onSentence φ ⊓
+      (soLangLift [B₂] L (L.sum B₁.lang) LHom.sumInl).onSentence ψ, ?_⟩
+  intro A instA _ _
+  refine (hST A).trans ?_
+  constructor
+  · rintro ⟨hs, ht⟩
+    obtain ⟨ρ₁, hρ₁⟩ := (hφ A).mp hs
+    let := B₁.structure ρ₁
+    refine ⟨ρ₁, (sorealize_inf_embed [B₂] (L.sum B₁.lang) A _ φ _ false).mpr ⟨hρ₁, ?_⟩⟩
+    exact (sorealize_soLangLift [B₂] L (L.sum B₁.lang) LHom.sumInl A instA _
+      (LHom.sumInl_isExpansionOn A) ψ false).mpr ((hψ A).mp ht)
+  · rintro ⟨ρ₁, hρ₁⟩
+    let := B₁.structure ρ₁
+    obtain ⟨hf, hg⟩ := (sorealize_inf_embed [B₂] (L.sum B₁.lang) A _ φ _ false).mp hρ₁
+    refine ⟨(hφ A).mpr ⟨ρ₁, hf⟩, (hψ A).mpr ?_⟩
+    exact (sorealize_soLangLift [B₂] L (L.sum B₁.lang) LHom.sumInl A instA _
+      (LHom.sumInl_isExpansionOn A) ψ false).mp hg
+
+
+-- @@ L315-343 verbatim
+/-- **DP ⊆ Π₂ᵖ**, the same merge with the blocks in the other order:
+`∀Y ∃X. (φ ∧ ψ)`. Recovering the `Σ` half from it uses that a block always has
+*some* assignment – the constantly true one will do. -/
+theorem DPDefinable.piSODefinable_two (h : DPDefinable P) : PiSODefinable 2 P := by
+  obtain ⟨S, T, hS, hT, hST⟩ := h
+  obtain ⟨Bs₁, hk1, φ, hφ⟩ := hS
+  obtain ⟨Bs₂, hk2, ψ, hψ⟩ := hT
+  obtain ⟨B₁, rfl⟩ := eq_singleton_of_length_one hk1
+  obtain ⟨B₂, rfl⟩ := eq_singleton_of_length_one hk2
+  refine ⟨[B₂, B₁], rfl,
+    (soLangEmbed [B₁] (L.sum B₂.lang)).onSentence ψ ⊓
+      (soLangLift [B₁] L (L.sum B₂.lang) LHom.sumInl).onSentence φ, ?_⟩
+  intro A instA _ _
+  refine (hST A).trans ?_
+  constructor
+  · rintro ⟨hs, ht⟩ ρ₂
+    let := B₂.structure ρ₂
+    refine (sorealize_inf_embed [B₁] (L.sum B₂.lang) A _ ψ _ true).mpr ⟨(hψ A).mp ht ρ₂, ?_⟩
+    exact (sorealize_soLangLift [B₁] L (L.sum B₂.lang) LHom.sumInl A instA _
+      (LHom.sumInl_isExpansionOn A) φ true).mpr ((hφ A).mp hs)
+  · intro hall
+    have hs : S A := by
+      let := B₂.structure (fun _ _ => True : B₂.Assignment A)
+      obtain ⟨-, hg⟩ := (sorealize_inf_embed [B₁] (L.sum B₂.lang) A _ ψ _ true).mp
+        (hall (fun _ _ => True))
+      exact (hφ A).mpr ((sorealize_soLangLift [B₁] L (L.sum B₂.lang) LHom.sumInl A instA _
+        (LHom.sumInl_isExpansionOn A) φ true).mp hg)
+    exact ⟨hs, (hψ A).mpr fun ρ₂ =>
+      ((sorealize_inf_embed [B₁] (L.sum B₂.lang) A _ ψ _ true).mp (hall ρ₂)).1⟩
+
+
+-- @@ L345-345 verbatim
+end Merge
+
+
+-- @@ L347-347 verbatim
+/-! ### The class -/
+
+
+-- @@ L349-357 verbatim
+/-- **The class DP** ([Papadimitriou & Yannakakis
+1984][papadimitriou1984complexity]): the conjunctions of an NP condition and a
+coNP one. Hardness is stated cofinally, as for the other classes of this
+library (`DescriptiveComplexity.CofinalHard`). -/
+noncomputable def DP : ComplexityClass :=
+  .ofMem (fun P => DPDefinable P)
+    (fun f h => h.of_foReduction f)
+    (fun f h => h.of_orderedReduction f)
+    (fun h => dpDefinable_congr h)
+
+
+-- @@ L359-361 verbatim
+/-- Membership in DP is exactly DP definability, by definition. -/
+theorem mem_DP_iff (P : DecisionProblem L) : P ∈ DP ↔ DPDefinable P :=
+  Iff.rfl
+
+
+-- @@ L363-366 verbatim
+/-! ### NP and coNP inside DP
+
+Both inclusions take the other half of the conjunction to be trivial: an NP
+condition alone is an NP condition conjoined with the tautology, and dually. -/
+
+
+-- @@ L368-371 verbatim
+/-- The trivially true problem, the unit of conjunction. -/
+def DecisionProblem.triv (L : Language.{0, 0}) [L.IsRelational] : DecisionProblem L where
+  Holds _ _ := True
+  iso_invariant _ := Iff.rfl
+
+
+-- @@ L373-377 verbatim
+/-- A one-variable block, to carry the tautological kernel of the trivial
+problem: a `Σ₁` or `Π₁` witness needs a block to quantify, even an idle one. -/
+private def trivBlock : SOBlock where
+  ι := Unit
+  arity := fun _ => 1
+
+
+-- @@ L379-384 verbatim
+/-- The trivial problem is `Σ₁`-definable: guess nothing, check nothing. -/
+theorem sigmaSODefinable_triv : SigmaSODefinable 1 (DecisionProblem.triv L) := by
+  refine ⟨[trivBlock], rfl, ⊤, ?_⟩
+  intro A _ _ _
+  refine ⟨fun _ => ⟨fun _ _ => True, ?_⟩, fun _ => trivial⟩
+  exact fun h => h
+
+
+-- @@ L386-391 verbatim
+/-- The trivial problem is `Π₁`-definable. -/
+theorem piSODefinable_triv : PiSODefinable 1 (DecisionProblem.triv L) := by
+  refine ⟨[trivBlock], rfl, ⊤, ?_⟩
+  intro A _ _ _
+  refine ⟨fun _ _ => ?_, fun _ => trivial⟩
+  exact fun h => h
+
+
+-- @@ L393-400 verbatim
+/-- **NP ⊆ DP**: an NP condition is itself a DP condition, conjoined with the
+tautology.
+Registered in the Lax archive as
+[`Lax564036.DPInclusions.NP_subset_DP`](https://laxarchive.org/lax-564036/Lax564036.DPInclusions.html#s-Lax564036.DPInclusions.NP_subset_DP). -/
+theorem NP_subset_DP : NP ⊆ DP := by
+  intro L _ P hP
+  exact ⟨P, DecisionProblem.triv L, hP, piSODefinable_triv,
+    fun A _ _ _ => ⟨fun h => ⟨h, trivial⟩, And.left⟩⟩
+
+
+-- @@ L402-408 verbatim
+/-- **coNP ⊆ DP**, the mirror image.
+Registered in the Lax archive as
+[`Lax564036.DPInclusions.coNP_subset_DP`](https://laxarchive.org/lax-564036/Lax564036.DPInclusions.html#s-Lax564036.DPInclusions.coNP_subset_DP). -/
+theorem coNP_subset_DP : coNP ⊆ DP := by
+  intro L _ P hP
+  exact ⟨DecisionProblem.triv L, P, sigmaSODefinable_triv, hP,
+    fun A _ _ _ => ⟨fun h => ⟨trivial, h⟩, And.right⟩⟩
+
+
+-- @@ L410-414 verbatim
+/-- **DP ⊆ Σ₂ᵖ**, as an inclusion of classes.
+Registered in the Lax archive as
+[`Lax564036.DPInclusions.DP_subset_sigmaP_two`](https://laxarchive.org/lax-564036/Lax564036.DPInclusions.html#s-Lax564036.DPInclusions.DP_subset_sigmaP_two). -/
+theorem DP_subset_sigmaP_two : DP ⊆ SigmaP 2 :=
+  fun _ _ _ hP => DPDefinable.sigmaSODefinable_two ((mem_DP_iff _).mp hP)
+
+
+-- @@ L416-421 verbatim
+/-- **DP ⊆ Π₂ᵖ**, as an inclusion of classes: DP sits inside the second level
+of the hierarchy from both sides.
+Registered in the Lax archive as
+[`Lax564036.DPInclusions.DP_subset_piP_two`](https://laxarchive.org/lax-564036/Lax564036.DPInclusions.html#s-Lax564036.DPInclusions.DP_subset_piP_two). -/
+theorem DP_subset_piP_two : DP ⊆ PiP 2 :=
+  fun _ _ _ hP => DPDefinable.piSODefinable_two ((mem_DP_iff _).mp hP)
+
+
+-- @@ L423-429 verbatim
+/-- DP-hardness is the usual notion: every DP-definable problem reduces to
+`P`. -/
+theorem hard_DP_iff (P : DecisionProblem L) :
+    DP.Hard P ↔
+      ∀ {L'' : Language.{0, 0}} [L''.IsRelational] (Q : DecisionProblem L''),
+        DPDefinable Q → Nonempty (Q ≤ʳᶠᵒ[≤] P) :=
+  cofinalHard_iff _ P
+
+
+-- @@ L431-431 verbatim
+end DescriptiveComplexity

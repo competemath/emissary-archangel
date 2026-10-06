@@ -1,0 +1,66 @@
+/-
+Copyright (c) 2026 Pierre Senellart. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Pierre Senellart
+-/
+import DescriptiveComplexity.Problems.OneInSat.Defs
+import DescriptiveComplexity.Problems.OneInSat.Slots
+import DescriptiveComplexity.Problems.OneInSat.Reduction
+import DescriptiveComplexity.Problems.ThreeSat
+import DescriptiveComplexity.Hierarchy
+
+
+-- @@ L12-30 verbatim
+/-!
+# 1-in-SAT is NP-complete
+
+Umbrella file for `DescriptiveComplexity.OneInSAT`, exactly-one satisfiability,
+deriving NP-completeness from
+
+* `DescriptiveComplexity.oneInSat_sigmaSODefinable`
+  (`DescriptiveComplexity.Problems.OneInSat.Defs`): membership, by guessing the
+  assignment and checking that every clause has a true literal – SAT's kernel –
+  and no second one;
+* `DescriptiveComplexity.OneInRed.threeSat_ordered_fo_reduction_oneInSat`
+  (`DescriptiveComplexity.Problems.OneInSat.Reduction`): hardness, from the
+  NP-hardness of 3SAT, and so ultimately from the Cook–Levin theorem, with no
+  machine model anywhere.
+
+The gadget normalizes every clause to three *slots*
+(`DescriptiveComplexity.Problems.OneInSat.Slots`), which is what lets one uniform
+construction handle clauses of width 0, 1, 2 and 3 at once.
+-/
+
+
+-- @@ L32-32 verbatim
+namespace DescriptiveComplexity
+
+
+-- @@ L34-34 verbatim
+open FirstOrder
+
+
+-- @@ L36-38 verbatim
+/-- 1-in-SAT is in NP: it is `Σ₁`-definable. -/
+theorem oneInSat_mem_NP : OneInSAT ∈ NP :=
+  oneInSat_sigmaSODefinable
+
+
+-- @@ L40-43 verbatim
+/-- 1-in-SAT is NP-hard: 3SAT, which is NP-hard, ordered-FO-reduces to it by
+the three-slot gadget. -/
+theorem oneInSat_NP_hard : NP.Hard OneInSAT :=
+  NP.hard_of_orderedReduction OneInRed.threeSat_ordered_fo_reduction_oneInSat threeSat_NP_hard
+
+
+-- @@ L45-50 verbatim
+/-- **1-in-SAT is NP-complete**, derived from the first-order reductions of
+this library and the Cook–Levin theorem.
+Registered in the Lax archive as
+[`Lax799700.OneInSat.oneInSat_NP_complete`](https://laxarchive.org/lax-799700/Lax799700.OneInSat.html#s-Lax799700.OneInSat.oneInSat_NP_complete). -/
+theorem oneInSat_NP_complete : NP.Complete OneInSAT :=
+  ⟨oneInSat_mem_NP, oneInSat_NP_hard⟩
+
+
+-- @@ L52-52 verbatim
+end DescriptiveComplexity

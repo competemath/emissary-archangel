@@ -1,0 +1,96 @@
+/-
+Copyright (c) 2026 Pierre Senellart. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Pierre Senellart
+-/
+import DescriptiveComplexity.Problems.FinSat.Membership
+import DescriptiveComplexity.Problems.FinSat.Reduction
+
+
+-- @@ L9-47 verbatim
+/-!
+# Trakhtenbrot's theorem: finite satisfiability is RE-complete
+
+The umbrella of the `FINSAT` files. The problem
+(`DescriptiveComplexity.FINSAT`) is: *given a first-order sentence, encoded as a
+finite structure, does it have a finite model?* Its two halves are
+
+* **membership** – `DescriptiveComplexity.finsat_mem_RE`: the model is
+  *invented*, which is exactly what `∃SO[new]` (and nothing weaker) can do;
+* **hardness** – `DescriptiveComplexity.finsat_hard_of_sigmaSONewDefinable`: an
+  `∃SO[new]` certificate is “a finite extension of the universe plus relations
+  on it satisfying a fixed first-order kernel”, and a finite model of a sentence
+  is “a finite universe plus relations on it satisfying a given first-order
+  sentence”; the reduction is the translation of the first into the second.
+
+Together: `DescriptiveComplexity.FINSAT_RE_complete`.
+
+## Where the work is
+
+The mathematical content of hardness is
+`DescriptiveComplexity.FinSat.finsat_hard_of_sigmaSONewDefinable`, which builds
+the sentence `σ_A` – an existential prefix naming the elements of the instance, a
+diagram forcing them apart, and the negation-normal-form translation of the
+kernel, whose atoms of the instance's own vocabulary are read by the
+*interpretation* and never mentioned by the sentence. The construction works
+because the source vocabulary is **relational** – as every vocabulary of a
+`DescriptiveComplexity.DecisionProblem` is: the encoded sentence carries its own
+quantifiers and would otherwise have to name what a function symbol does on an
+invented value – an undefinable junk element.
+
+## What the theorem does and does not say
+
+RE here is the logically defined class of
+`DescriptiveComplexity.RecursivelyEnumerable`, so this is “finite satisfiability
+is complete for `∃SO[new]`”. It becomes *undecidability* of finite
+satisfiability only through the bridge to Mathlib's computability layer,
+`DescriptiveComplexity.Computability`, where the encoding of finite structures
+as numbers turns it into `DescriptiveComplexity.finsat_not_computable`.
+-/
+
+
+-- @@ L49-49 verbatim
+namespace DescriptiveComplexity
+
+
+-- @@ L51-51 verbatim
+open FirstOrder
+
+
+-- @@ L53-53 verbatim
+open Language
+
+
+-- @@ L55-64 verbatim
+/-- **The hardness half of Trakhtenbrot's theorem**: every `∃SO[new]`-definable
+problem admits an ordered first-order reduction to finite satisfiability –
+`DescriptiveComplexity.FinSat.finsat_hard_of_sigmaSONewDefinable`, the encoded
+sentence `σ_A`, in the relativized form hardness is stated in. -/
+theorem finsat_hard_of_sigmaSONewDefinable :
+    ∀ {L : Language.{0, 0}} [L.IsRelational] (Q : DecisionProblem L),
+      SigmaSONewDefinable Q → Nonempty (Q ≤ʳᶠᵒ[≤] FINSAT) := by
+  intro L _ Q hQ
+  obtain ⟨g⟩ := FinSat.finsat_hard_of_sigmaSONewDefinable Q hQ
+  exact ⟨g.toRel⟩
+
+
+-- @@ L66-75 verbatim
+/-- **Trakhtenbrot's theorem, in the logical form**: finite satisfiability of a
+first-order sentence is RE-complete.
+
+Membership is `DescriptiveComplexity.finsat_mem_RE`, hardness
+`DescriptiveComplexity.finsat_hard_of_sigmaSONewDefinable`.
+Registered in the Lax archive as
+[`Lax624099.FinsatREComplete.finsat_RE_complete`](https://laxarchive.org/lax-624099/Lax624099.FinsatREComplete.html#s-Lax624099.FinsatREComplete.finsat_RE_complete). -/
+theorem FINSAT_RE_complete : RE.Complete FINSAT :=
+  ⟨finsat_mem_RE,
+    (hard_RE_iff FINSAT).mpr fun Q hQ => finsat_hard_of_sigmaSONewDefinable Q hQ⟩
+
+
+-- @@ L77-78 verbatim
+/-- FINSAT is RE-hard. -/
+theorem finsat_RE_hard : RE.Hard FINSAT := FINSAT_RE_complete.hard
+
+
+-- @@ L80-80 verbatim
+end DescriptiveComplexity

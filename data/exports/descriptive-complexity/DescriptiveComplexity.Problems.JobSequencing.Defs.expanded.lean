@@ -1,0 +1,292 @@
+/-
+Copyright (c) 2026 Pierre Senellart. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Pierre Senellart
+-/
+import DescriptiveComplexity.Vocabulary
+import DescriptiveComplexity.Numbers.BinRel
+import DescriptiveComplexity.Interpretation
+import Mathlib.Algebra.BigOperators.Finprod
+
+
+-- @@ L11-47 verbatim
+/-!
+# Job sequencing: definition
+
+SEQUENCING ([Karp 1972][karp1972reducibility]): given jobs with execution
+times, deadlines and penalties, and a bound, is there a one-processor schedule
+whose jobs missing their deadline carry a total penalty at most the bound?
+Like Knapsack it is written in **binary**
+(`DescriptiveComplexity.Numbers.BinRel`) – times, deadlines, penalties and the
+bound – since under the unary encoding the problem is solvable in polynomial
+time by dynamic programming and is therefore not NP-hard at all.
+
+## The vocabulary
+
+`FirstOrder.Language.jobSeq` carries
+
+* `job j` and `posn p`, the jobs and the bit positions;
+* `time j p`, `dline j p` and `pen j p`, the bits of the execution time, of
+  the deadline and of the penalty of `j`;
+* `bnd p`, the bits of the penalty bound;
+* `le`, a linear order fixing the place values, folded into the yes-instances
+  (`DescriptiveComplexity.IsLinOrd`) as everywhere in the binary encoding.
+
+## The schedule
+
+A schedule is a **linear order on the universe** rather than a permutation of
+an initial segment: on a finite universe the two are the same thing, and a
+relation is what a `Σ₁` certificate can guess and what a first-order kernel
+can constrain. A job's completion time is then the total execution time of the
+jobs at or before it (`DescriptiveComplexity.JSCompletion`), it is late when that
+exceeds its deadline, and the schedule is good when the late jobs' penalties
+sum to at most the bound. Only jobs are summed over, so the elements of the
+universe that are bit positions ride along in the order harmlessly.
+-/
+
+/- The language of job-sequencing instances lives in Mathlib's
+`FirstOrder.Language` namespace, next to `Language.graph` and
+`Language.order`. -/
+
+-- @@ L48-48 verbatim
+namespace FirstOrder
+
+
+-- @@ L50-50 verbatim
+namespace Language
+
+
+-- @@ L52-69 verbatim
+/-- The relational language of job-sequencing instances: jobs and bit
+positions, the bits of each job's execution time, deadline and penalty, the
+bits of the penalty bound, and a linear order. -/
+fo_language jobSeq with js where
+  /-- `job j`: `j` is a job. -/
+  job : 1
+  /-- `posn p`: `p` is a bit position. -/
+  posn : 1
+  /-- `time j p`: the execution time of `j` has bit 1 at position `p`. -/
+  time : 2
+  /-- `dline j p`: the deadline of `j` has bit 1 at position `p`. -/
+  dline : 2
+  /-- `pen j p`: the penalty of `j` has bit 1 at position `p`. -/
+  pen : 2
+  /-- `bnd p`: the penalty bound has bit 1 at position `p`. -/
+  bnd : 1
+  /-- `le a b`: the linear order carrying the place values. -/
+  le : 2
+
+
+-- @@ L71-71 verbatim
+end Language
+
+
+-- @@ L73-73 verbatim
+end FirstOrder
+
+
+-- @@ L75-75 verbatim
+namespace DescriptiveComplexity
+
+
+-- @@ L77-77 verbatim
+open FirstOrder
+
+
+-- @@ L79-79 verbatim
+open Language Structure
+
+
+-- @@ L81-81 verbatim
+/-! ### The shorthands of the vocabulary -/
+
+
+-- @@ L83-83 verbatim
+section Shorthands
+
+
+-- @@ L85-85 verbatim
+variable {A : Type} [Language.jobSeq.Structure A]
+
+
+-- @@ L87-87 verbatim
+fo_predicates Language.jobSeq js
+
+
+-- @@ L89-90 verbatim
+/-- The execution time of a job, decoded. -/
+noncomputable def JSTimeVal (j : A) : ℕ := binNum JSLe JSPosn (JSTime j)
+
+
+-- @@ L92-93 verbatim
+/-- The deadline of a job, decoded. -/
+noncomputable def JSDlineVal (j : A) : ℕ := binNum JSLe JSPosn (JSDline j)
+
+
+-- @@ L95-96 verbatim
+/-- The penalty of a job, decoded. -/
+noncomputable def JSPenVal (j : A) : ℕ := binNum JSLe JSPosn (JSPen j)
+
+
+-- @@ L98-98 verbatim
+end Shorthands
+
+
+-- @@ L100-102 verbatim
+/-- The penalty bound of an instance, decoded. -/
+noncomputable def JSBound (A : Type) [Language.jobSeq.Structure A] : ℕ :=
+  binNum (JSLe (A := A)) JSPosn JSBnd
+
+
+-- @@ L104-104 verbatim
+/-! ### Schedules -/
+
+
+-- @@ L106-106 verbatim
+section Schedule
+
+
+-- @@ L108-108 verbatim
+variable {A : Type} [Language.jobSeq.Structure A]
+
+
+-- @@ L110-113 verbatim
+/-- The completion time of a job under a schedule: the total execution time of
+the jobs scheduled at or before it. -/
+noncomputable def JSCompletion (sched : A → A → Prop) (j : A) : ℕ :=
+  ∑ᶠ i ∈ {i : A | JSJob i ∧ sched i j}, JSTimeVal i
+
+
+-- @@ L115-117 verbatim
+/-- A job is late under a schedule when it completes after its deadline. -/
+def JSLate (sched : A → A → Prop) (j : A) : Prop :=
+  JSDlineVal j < JSCompletion sched j
+
+
+-- @@ L119-121 verbatim
+/-- The total penalty of the jobs a schedule leaves late. -/
+noncomputable def JSPenalty (sched : A → A → Prop) : ℕ :=
+  ∑ᶠ j ∈ {j : A | JSJob j ∧ JSLate sched j}, JSPenVal j
+
+
+-- @@ L123-123 verbatim
+end Schedule
+
+
+-- @@ L125-125 verbatim
+/-! ### The problem -/
+
+
+-- @@ L127-127 verbatim
+section Problem
+
+
+-- @@ L129-129 verbatim
+variable (A : Type) [Language.jobSeq.Structure A]
+
+
+-- @@ L131-136 verbatim
+/-- A job-sequencing instance is a yes-instance when its order is a linear
+order and some schedule – some linear order on the universe – leaves late only
+jobs whose penalties sum to at most the bound. -/
+def HasGoodSchedule : Prop :=
+  Finite A ∧ IsLinOrd (JSLe (A := A)) ∧
+    ∃ sched : A → A → Prop, IsLinOrd sched ∧ JSPenalty sched ≤ JSBound A
+
+
+-- @@ L138-138 verbatim
+end Problem
+
+
+-- @@ L140-140 verbatim
+section Iso
+
+
+-- @@ L142-142 verbatim
+variable {A B : Type} [Language.jobSeq.Structure A] [Language.jobSeq.Structure B]
+
+
+-- @@ L144-201 verbatim
+private theorem hasGoodSchedule_of_iso (e : A ≃[Language.jobSeq] B)
+    (h : HasGoodSchedule A) : HasGoodSchedule B := by
+  obtain ⟨hfin, hlin, sched, hslin, hbound⟩ := h
+  have hle : ∀ a a' : A, JSLe a a' ↔ JSLe (e a) (e a') := fun a a' =>
+    relMap_equiv₂ e jsLe a a'
+  have hposn : ∀ a : A, JSPosn a ↔ JSPosn (e a) := fun a => relMap_equiv₁ e jsPosn a
+  have hjob : ∀ a : A, JSJob a ↔ JSJob (e a) := fun a => relMap_equiv₁ e jsJob a
+  have htime : ∀ a a' : A, JSTime a a' ↔ JSTime (e a) (e a') := fun a a' =>
+    relMap_equiv₂ e jsTime a a'
+  have hdline : ∀ a a' : A, JSDline a a' ↔ JSDline (e a) (e a') := fun a a' =>
+    relMap_equiv₂ e jsDline a a'
+  have hpen : ∀ a a' : A, JSPen a a' ↔ JSPen (e a) (e a') := fun a a' =>
+    relMap_equiv₂ e jsPen a a'
+  have hbnd : ∀ a : A, JSBnd a ↔ JSBnd (e a) := fun a => relMap_equiv₁ e jsBnd a
+  have htv : ∀ a : A, JSTimeVal a = JSTimeVal (e a) := fun a =>
+    binNum_equiv e.toEquiv hle hposn (htime a)
+  have hdv : ∀ a : A, JSDlineVal a = JSDlineVal (e a) := fun a =>
+    binNum_equiv e.toEquiv hle hposn (hdline a)
+  have hpv : ∀ a : A, JSPenVal a = JSPenVal (e a) := fun a =>
+    binNum_equiv e.toEquiv hle hposn (hpen a)
+  have hbv : JSBound A = JSBound B := binNum_equiv e.toEquiv hle hposn hbnd
+  have hsymm : ∀ b : B, e (e.toEquiv.symm b) = b := fun b => e.toEquiv.apply_symm_apply b
+  have hsymm' : ∀ a : A, e.toEquiv.symm (e a) = a := fun a => e.toEquiv.symm_apply_apply a
+  have hjob' : ∀ b : B, JSJob b ↔ JSJob (e.toEquiv.symm b) := fun b => by
+    rw [hjob (e.toEquiv.symm b), hsymm b]
+  -- a sum of decoded numbers is carried along the equivalence
+  have htransport : ∀ w : A → ℕ, ∀ w' : B → ℕ, (∀ a, w a = w' (e a)) → ∀ P : A → Prop,
+      (∑ᶠ a ∈ {a : A | P a}, w a) = ∑ᶠ b ∈ {b : B | P (e.toEquiv.symm b)}, w' b := by
+    intro w w' hw P
+    refine finsum_mem_eq_of_bijOn e.toEquiv ?_ fun a _ => hw a
+    refine ⟨fun a ha => ?_, e.toEquiv.injective.injOn,
+      fun b hb => ⟨e.toEquiv.symm b, hb, e.toEquiv.apply_symm_apply b⟩⟩
+    simpa using ha
+  -- the schedule, read on the other side
+  set σ : B → B → Prop := fun b b' => sched (e.toEquiv.symm b) (e.toEquiv.symm b') with hσ
+  have hcompl : ∀ a : A, JSCompletion σ (e a) = JSCompletion sched a := by
+    intro a
+    rw [JSCompletion, JSCompletion,
+      htransport JSTimeVal JSTimeVal htv fun x => JSJob x ∧ sched x a]
+    refine finsum_mem_congr (Set.ext fun b => ?_) fun _ _ => rfl
+    simp only [Set.mem_ofPred_eq, hσ, hsymm' a]
+    exact and_congr_left fun _ => hjob' b
+  have hlate : ∀ a : A, JSLate σ (e a) ↔ JSLate sched a := by
+    intro a
+    rw [JSLate, JSLate, hcompl a, ← hdv a]
+  have hlate' : ∀ b : B, JSLate σ b ↔ JSLate sched (e.toEquiv.symm b) := by
+    intro b
+    have h := hlate (e.toEquiv.symm b)
+    rwa [hsymm b] at h
+  refine ⟨e.toEquiv.finite_iff.mp hfin, IsLinOrd.of_equiv e.toEquiv hle hlin, σ,
+    IsLinOrd.of_equiv e.toEquiv (fun a a' => by
+      simp only [hσ, e.toEquiv.symm_apply_apply]) hslin, ?_⟩
+  refine le_trans (le_of_eq ?_) (hbv ▸ hbound)
+  rw [JSPenalty, JSPenalty,
+    htransport JSPenVal JSPenVal hpv fun x => JSJob x ∧ JSLate sched x]
+  refine finsum_mem_congr (Set.ext fun b => ?_) fun _ _ => rfl
+  simp only [Set.mem_ofPred_eq]
+  exact and_congr (hjob' b) (hlate' b)
+
+
+-- @@ L203-206 verbatim
+/-- Being a yes-instance of job sequencing is isomorphism-invariant. -/
+theorem hasGoodSchedule_iso (e : A ≃[Language.jobSeq] B) :
+    HasGoodSchedule A ↔ HasGoodSchedule B :=
+  ⟨hasGoodSchedule_of_iso e, hasGoodSchedule_of_iso e.symm⟩
+
+
+-- @@ L208-208 verbatim
+end Iso
+
+
+-- @@ L210-216 verbatim
+/-- SEQUENCING, as a problem on job-sequencing instances: is there a schedule
+whose late jobs carry a total penalty at most the bound? The times, deadlines,
+penalties and bound are written in *binary*, which is what makes the problem
+NP-hard rather than polynomial-time. -/
+def JobSequencing : DecisionProblem Language.jobSeq where
+  Holds := fun A inst => @HasGoodSchedule A inst
+  iso_invariant := fun e => hasGoodSchedule_iso e
+
+
+-- @@ L218-218 verbatim
+end DescriptiveComplexity

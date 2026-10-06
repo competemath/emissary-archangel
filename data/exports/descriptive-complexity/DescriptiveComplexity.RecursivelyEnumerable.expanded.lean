@@ -1,0 +1,138 @@
+/-
+Copyright (c) 2026 Pierre Senellart. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Pierre Senellart
+-/
+import DescriptiveComplexity.SecondOrderNewOrdered
+import DescriptiveComplexity.Hierarchy
+
+
+-- @@ L9-51 verbatim
+/-!
+# The class RE, defined by value invention
+
+**RE** (`DescriptiveComplexity.RE`), the recursively enumerable problems,
+*defined* – like every class in this library – by a logic: definability in
+`∃SO[new]`, existential second-order logic over a universe extended by finitely
+many invented values (`DescriptiveComplexity.SigmaSONewDefinable`, in
+`DescriptiveComplexity.SecondOrderNew`).
+
+It is a bona fide `DescriptiveComplexity.ComplexityClass` because `∃SO[new]`
+definability is closed under (ordered) first-order reductions
+(`DescriptiveComplexity.SigmaSONewDefinable.of_foReduction` in
+`DescriptiveComplexity.SecondOrderNewPull`, and
+`DescriptiveComplexity.SigmaSONewDefinable.of_orderedReduction` in
+`DescriptiveComplexity.SecondOrderNewOrdered`): the target's extended universe
+is definable inside the source's, with the same invented values, so the kernel
+pulls back through a relativized interpretation, and the order of an ordered
+reduction is re-quantified inside the block under a guard relativized to the
+original elements.
+
+`DescriptiveComplexity.NP_subset_RE` is the inclusion `NP ⊆ RE`, by inventing
+nothing.
+
+## What this file claims, and where the rest is
+
+RE is here a *logically defined* class, exactly as NP is `Σ₁`-definability
+rather than a machine notion: a completeness proof for it is an `∃SO[new]`
+definition plus a first-order reduction. Two facts about it are proved
+elsewhere, where the class meets Mathlib's computability layer, and nothing in
+this file assumes them:
+
+* `DescriptiveComplexity.mem_RE_iff_rePred` – RE *is* recursive enumerability:
+  a problem is `∃SO[new]`-definable exactly when its concrete instances form an
+  `REPred`;
+* `DescriptiveComplexity.RE_ne_coRE` – RE differs from its complement
+  `DescriptiveComplexity.coRE`. That separation is not available here:
+  `coNP = Π₁ᵖ` has a *logical* dual definition, while `∃SO[new]` has no dual
+  reading, so nothing in this file relates the two classes. It is the
+  undecidability of an RE-complete problem, through Post's theorem, that
+  separates them.
+
+Both are in `DescriptiveComplexity.Computability.CodeHaltComplete`.
+-/
+
+
+-- @@ L53-53 verbatim
+namespace DescriptiveComplexity
+
+
+-- @@ L55-55 verbatim
+open FirstOrder
+
+
+-- @@ L57-57 verbatim
+open Language
+
+
+-- @@ L59-73 verbatim
+/-- **The class RE**: the problems definable in `∃SO[new]`, existential
+second-order logic with value invention. Unbounding the number of invented
+values is the only change from the `Σ₁` definition of NP, and it is what takes
+the class from “search a space exponential in the instance” to “search an
+unbounded space of finite witnesses”.
+
+It is a `DescriptiveComplexity.ComplexityClass` by the two closure theorems of
+`DescriptiveComplexity.SecondOrderNewPull` and
+`DescriptiveComplexity.SecondOrderNewOrdered`; hardness is *cofinal*, as
+everywhere in this development (see `DescriptiveComplexity.hard_RE_iff`). -/
+noncomputable def RE : ComplexityClass :=
+  .ofMem (fun P => SigmaSONewDefinable P)
+    (fun f h => h.of_foReduction f)
+    (fun f h => h.of_orderedReduction f)
+    (fun h => sigmaSONewDefinable_congr h)
+
+
+-- @@ L75-81 verbatim
+/-- **co-RE**: the problems whose complement is recursively enumerable. Unlike
+`coNP`, which the second-order quantifier duality identifies with `Π₁`
+definability, this is only the complement operator applied to RE: `∃SO[new]`
+has no dual reading here, and no inclusion between RE and co-RE is available at
+this level. That the two classes differ is
+`DescriptiveComplexity.RE_ne_coRE`. -/
+noncomputable abbrev coRE : ComplexityClass := RE.compl
+
+
+-- @@ L83-83 verbatim
+variable {L : Language.{0, 0}}
+
+
+-- @@ L85-87 verbatim
+@[simp]
+theorem mem_RE_iff [L.IsRelational] (P : DecisionProblem L) : P ∈ RE ↔ SigmaSONewDefinable P :=
+  Iff.rfl
+
+
+-- @@ L89-91 verbatim
+@[simp]
+theorem mem_coRE_iff [L.IsRelational] (P : DecisionProblem L) : P ∈ coRE ↔ SigmaSONewDefinable Pᶜ :=
+  Iff.rfl
+
+
+-- @@ L93-99 verbatim
+/-- Cofinal RE-hardness is the usual notion: every `∃SO[new]`-definable
+problem reduces to `P`. -/
+theorem hard_RE_iff [L.IsRelational] (P : DecisionProblem L) :
+    RE.Hard P ↔
+      ∀ {L'' : Language.{0, 0}} [L''.IsRelational] (Q : DecisionProblem L''),
+        SigmaSONewDefinable Q → Nonempty (Q ≤ʳᶠᵒ[≤] P) :=
+  cofinalHard_iff _ P
+
+
+-- @@ L101-106 verbatim
+/-- **`NP ⊆ RE`**: an existential second-order sentence is an `∃SO[new]`
+sentence that invents nothing (`DescriptiveComplexity.SigmaSODefinable.toNew`).
+Registered in the Lax archive as
+[`Lax624099.NPSubsetRE.NP_subset_RE`](https://laxarchive.org/lax-624099/Lax624099.NPSubsetRE.html#s-Lax624099.NPSubsetRE.NP_subset_RE). -/
+theorem NP_subset_RE : NP ⊆ RE :=
+  fun _ _ _ hP => SigmaSODefinable.toNew hP
+
+
+-- @@ L108-110 verbatim
+/-- `coNP ⊆ coRE`, by complementing `DescriptiveComplexity.NP_subset_RE`. -/
+theorem coNP_subset_coRE : coNP ⊆ coRE :=
+  fun _ _ P hP => NP_subset_RE ((mem_piP_iff 1 P).mp hP)
+
+
+-- @@ L112-112 verbatim
+end DescriptiveComplexity

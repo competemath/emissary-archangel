@@ -1,0 +1,106 @@
+/-
+Copyright (c) 2026 Pierre Senellart. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Pierre Senellart
+-/
+import DescriptiveComplexity.SecondOrderKromPull
+import DescriptiveComplexity.Hierarchy
+
+
+-- @@ L9-47 verbatim
+/-!
+# NL, by the Krom fragment
+
+**The class NL**: the problems definable in the Krom fragment SO-Krom of
+existential second-order logic (`DescriptiveComplexity.SigmaSOKromDefinable`), which
+captures nondeterministic logarithmic space on ordered structures ([Grädel
+1992][gradel1992capturing]). This is the same move as defining `PTIME` by the
+Horn fragment and NP by `Σ₁`-definability: the class is a *definition*, not an
+axiom, and it is a bona fide `DescriptiveComplexity.ComplexityClass` because SO-Krom
+definability is closed under (ordered) first-order reductions – the Krom shape
+survives the pullback, see `DescriptiveComplexity.SecondOrderKromPull`.
+
+NL is not a level of the polynomial hierarchy of `DescriptiveComplexity.Hierarchy`,
+which is why it lives in its own file. What relates it to that hierarchy are
+two theorems that are *not* free here:
+
+* **`NL ⊆ PTIME`** has no syntactic route: a Krom kernel is not a Horn kernel
+  (Horn clauses may be wide, Krom clauses may have two positive literals), so
+  the inclusion is not an instance of “restrict the kernel further”. It goes
+  through the complete problem instead, and is proved downstream with 2SAT
+  (`DescriptiveComplexity.NL_subset_PTIME`, with `DescriptiveComplexity.NL_subset_NP` in its
+  wake): 2SAT is in PTIME by a Horn program that guesses reachability in the
+  implication graph and rejects, by a goal clause, the instances where a
+  variable reaches its own negation and back.
+* **`NL = coNL`** (Immerman–Szelepcsényi) is not the definitional duality that
+  gives `PiP k` from `SigmaP k`: the complement of an SO-Krom definable problem
+  is not obviously SO-Krom definable. It is a genuine theorem, and the reason
+  the fixpoint logic FO(TC) is still wanted even once this fragment exists –
+  the inductive-counting proof is naturally a statement about FO(TC), and that
+  is where it is proved (`DescriptiveComplexity.TCDefinable.compl`), reaching this
+  fragment through the two translations as `DescriptiveComplexity.NL_eq_coNL` in
+  `DescriptiveComplexity.ImmermanSzelepcsenyi`.
+
+Note that the *containment* `SO-Krom ⊆ NL` on the machine side already uses
+Immerman–Szelepcsényi: satisfiability of a 2-CNF is the complement of a
+reachability condition on the implication graph. Nothing in this library
+depends on that, since NL is defined by the fragment rather than by a machine;
+it is why the fragment is the right primitive here.
+-/
+
+
+-- @@ L49-49 verbatim
+namespace DescriptiveComplexity
+
+
+-- @@ L51-51 verbatim
+open FirstOrder
+
+
+-- @@ L53-53 verbatim
+open Language
+
+
+-- @@ L55-55 verbatim
+variable {L : Language.{0, 0}}
+
+
+-- @@ L57-68 verbatim
+/-- **The class NL**: the problems definable in the Krom fragment SO-Krom of
+existential second-order logic, which captures nondeterministic logarithmic
+space on ordered structures ([Grädel 1992][gradel1992capturing]).
+
+Hardness is stated cofinally, exactly as for the other classes of this library
+(`DescriptiveComplexity.CofinalHard`), which is the usual notion,
+`DescriptiveComplexity.hard_NL_iff`. -/
+noncomputable def NL : ComplexityClass :=
+  .ofMem (fun P => SigmaSOKromDefinable P)
+    (fun f h => h.of_foReduction f)
+    (fun f h => h.of_orderedReduction f)
+    (fun h => sigmaSOKromDefinable_congr h)
+
+
+-- @@ L70-72 verbatim
+/-- Membership in NL is exactly SO-Krom definability, by definition. -/
+theorem mem_NL_iff [L.IsRelational] (P : DecisionProblem L) : P ∈ NL ↔ SigmaSOKromDefinable P :=
+  Iff.rfl
+
+
+-- @@ L74-80 verbatim
+/-- NL-hardness is the usual notion: every SO-Krom definable problem reduces
+to `P`. -/
+theorem hard_NL_iff [L.IsRelational] (P : DecisionProblem L) :
+    NL.Hard P ↔
+      ∀ {L'' : Language.{0, 0}} [L''.IsRelational] (Q : DecisionProblem L''),
+        SigmaSOKromDefinable Q → Nonempty (Q ≤ʳᶠᵒ[≤] P) :=
+  cofinalHard_iff _ P
+
+
+-- @@ L82-84 verbatim
+/-- coNL, the complement class of NL. That it coincides with NL is
+Immerman–Szelepcsényi, *not* proved here (see the module docstring). -/
+noncomputable abbrev coNL : ComplexityClass := NL.compl
+
+
+-- @@ L86-86 verbatim
+end DescriptiveComplexity

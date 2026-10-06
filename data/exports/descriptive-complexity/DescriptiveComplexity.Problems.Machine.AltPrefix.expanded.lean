@@ -1,0 +1,202 @@
+/-
+Copyright (c) 2026 Pierre Senellart. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Pierre Senellart
+-/
+import DescriptiveComplexity.Problems.Machine.AltVerdict
+
+
+-- @@ L8-24 verbatim
+/-!
+# The quantifier prefix, read from the middle
+
+`DescriptiveComplexity.altQuant` quantifies the `k` block assignments from the
+outside in, building the tuple with `Fin.cons`: the assignment of index `0` is
+the outermost, and the type shrinks as the recursion goes. That is the right
+shape for a *definition* and the wrong one for a run, which fixes the blocks in
+place and rewrites them one at a time with `Function.update`.
+
+`DescriptiveComplexity.AltQbf.AltTail` is the second shape: `AltTail P r m νs pol`
+quantifies the `r` blocks from `m` up, leaving the blocks below `m` at whatever
+`νs` says. The two agree (`DescriptiveComplexity.AltQbf.altTail_iff_altQuant`), by an
+induction that pushes one block from the tail into the prefix at a time. The
+gluing map `DescriptiveComplexity.AltQbf.glueTail` is what translates between them,
+and the whole content of the bridge is that pushing a block past it is
+`Function.update`.
+-/
+
+
+-- @@ L26-26 verbatim
+namespace DescriptiveComplexity
+
+
+-- @@ L28-28 verbatim
+namespace AltQbf
+
+
+-- @@ L30-30 verbatim
+open FirstOrder
+
+
+-- @@ L32-32 verbatim
+open Language Structure
+
+
+-- @@ L34-34 verbatim
+section Prefix
+
+
+-- @@ L36-36 verbatim
+variable {k : ℕ} {A : Type}
+
+
+-- @@ L38-38 verbatim
+/-! ### Quantification from the middle of the prefix -/
+
+
+-- @@ L40-44 verbatim
+/-- One quantifier at the polarity `pol`. -/
+def polQuant (pol : Bool) (Q : (A → Prop) → Prop) : Prop :=
+  match pol with
+  | true => ∃ ν : A → Prop, Q ν
+  | false => ∀ ν : A → Prop, Q ν
+
+
+-- @@ L46-50 verbatim
+theorem polQuant_congr {pol : Bool} {Q Q' : (A → Prop) → Prop} (h : ∀ ν, Q ν ↔ Q' ν) :
+    polQuant pol Q ↔ polQuant pol Q' := by
+  cases pol with
+  | true => exact exists_congr h
+  | false => exact forall_congr' h
+
+
+-- @@ L52-61 verbatim
+/-- **Quantifying the last `r` blocks**, the ones below `m` already fixed by
+`νs`. Each block is written in place, which is the shape a run of the machine
+produces: round `m` replaces the `m`-th assignment and leaves the others
+alone. -/
+def AltTail (P : (Fin k → A → Prop) → Prop) : ℕ → ℕ → (Fin k → A → Prop) → Bool → Prop
+  | 0, _, νs, _ => P νs
+  | r + 1, m, νs, pol =>
+      if h : m < k then
+        polQuant pol fun ν => AltTail P r (m + 1) (Function.update νs ⟨m, h⟩ ν) (!pol)
+      else P νs
+
+
+-- @@ L63-67 verbatim
+theorem altTail_succ (P : (Fin k → A → Prop) → Prop) {r m : ℕ} (h : m < k)
+    (νs : Fin k → A → Prop) (pol : Bool) :
+    AltTail P (r + 1) m νs pol =
+      polQuant pol fun ν => AltTail P r (m + 1) (Function.update νs ⟨m, h⟩ ν) (!pol) := by
+  rw [AltTail, dite_eq_left h]
+
+
+-- @@ L69-69 verbatim
+/-! ### Gluing a tail onto a prefix -/
+
+
+-- @@ L71-75 verbatim
+/-- The tuple that follows `νs` below `m` and reads the `r` blocks from `m` up
+off `σ`. -/
+def glueTail (m r : ℕ) (νs : Fin k → A → Prop) (σ : Fin r → A → Prop) (i : Fin k) : A → Prop :=
+  if (i : ℕ) < m then νs i
+  else if h : (i : ℕ) - m < r then σ ⟨(i : ℕ) - m, h⟩ else νs i
+
+
+-- @@ L77-82 verbatim
+/-- Gluing nothing leaves the prefix alone. -/
+theorem glueTail_zero (m : ℕ) (νs : Fin k → A → Prop) (σ : Fin 0 → A → Prop) :
+    glueTail m 0 νs σ = νs := by
+  funext i
+  simp only [glueTail, Nat.not_lt_zero]
+  split <;> rfl
+
+
+-- @@ L84-114 verbatim
+/-- **Pushing one block from the tail into the prefix is an update.** This is
+the whole content of the bridge between the two shapes of the prefix. -/
+theorem glueTail_cons {m r : ℕ} (h : m < k) (νs : Fin k → A → Prop) (ν : A → Prop)
+    (σ : Fin r → A → Prop) :
+    glueTail m (r + 1) νs (Fin.cons ν σ) =
+      glueTail (m + 1) r (Function.update νs ⟨m, h⟩ ν) σ := by
+  funext i
+  rcases Nat.lt_trichotomy (i : ℕ) m with hlt | heq | hgt
+  · have hne : i ≠ (⟨m, h⟩ : Fin k) := by
+      intro hcon
+      have : (i : ℕ) = m := by rw [hcon]
+      omega
+    simp only [glueTail, ite_eq_left hlt, ite_eq_left (show (i : ℕ) < m + 1 by omega),
+      Function.update_of_ne hne]
+  · have hi : i = (⟨m, h⟩ : Fin k) := Fin.ext heq
+    subst hi
+    simp only [glueTail, ite_eq_right (lt_irrefl _), ite_eq_left (Nat.lt_succ_self _),
+      Function.update_self, Nat.sub_self, dite_eq_left (Nat.succ_pos r)]
+    rfl
+  · have hne : i ≠ (⟨m, h⟩ : Fin k) := by
+      intro hcon
+      have : (i : ℕ) = m := by rw [hcon]
+      omega
+    simp only [glueTail, ite_eq_right (show ¬((i : ℕ) < m) by omega),
+      ite_eq_right (show ¬((i : ℕ) < m + 1) by omega), Function.update_of_ne hne]
+    by_cases hr : (i : ℕ) - (m + 1) < r
+    · rw [dite_eq_left (show (i : ℕ) - m < r + 1 by omega), dite_eq_left hr]
+      have hsucc : (⟨(i : ℕ) - m, show (i : ℕ) - m < r + 1 by omega⟩ : Fin (r + 1)) =
+          Fin.succ ⟨(i : ℕ) - (m + 1), hr⟩ := Fin.ext (by simp; omega)
+      rw [hsucc, Fin.cons_succ]
+    · rw [dite_eq_right (show ¬((i : ℕ) - m < r + 1) by omega), dite_eq_right hr]
+
+
+-- @@ L116-116 verbatim
+/-! ### The two shapes agree -/
+
+
+-- @@ L118-143 verbatim
+/-- **Quantifying from the middle is quantifying from the outside**, once the
+blocks already fixed are glued back on. -/
+theorem altTail_iff_altQuant (P : (Fin k → A → Prop) → Prop) :
+    ∀ (r m : ℕ), m + r ≤ k → ∀ (νs : Fin k → A → Prop) (pol : Bool),
+      AltTail P r m νs pol ↔ altQuant A r (fun σ => P (glueTail m r νs σ)) pol := by
+  intro r
+  induction r with
+  | zero =>
+    intro m _ νs pol
+    change P νs ↔ P (glueTail m 0 νs Fin.elim0)
+    rw [glueTail_zero]
+  | succ r ih =>
+    intro m hmr νs pol
+    have h : m < k := by omega
+    rw [altTail_succ P h νs pol]
+    cases pol with
+    | true =>
+      refine exists_congr fun ν => ?_
+      refine (ih (m + 1) (by omega) (Function.update νs ⟨m, h⟩ ν) false).trans ?_
+      exact altQuant_congr r _ _
+        (fun σ => iff_of_eq (congrArg P (glueTail_cons h νs ν σ)).symm) false
+    | false =>
+      refine forall_congr' fun ν => ?_
+      refine (ih (m + 1) (by omega) (Function.update νs ⟨m, h⟩ ν) true).trans ?_
+      exact altQuant_congr r _ _
+        (fun σ => iff_of_eq (congrArg P (glueTail_cons h νs ν σ)).symm) true
+
+
+-- @@ L145-152 verbatim
+/-- **The whole prefix**: quantifying every block in place is the alternating
+quantification of `DescriptiveComplexity.QbfProblem`. -/
+theorem altTail_zero_iff_altQuant (P : (Fin k → A → Prop) → Prop) (νs : Fin k → A → Prop)
+    (pol : Bool) : AltTail P k 0 νs pol ↔ altQuant A k P pol := by
+  refine (altTail_iff_altQuant P k 0 (by omega) νs pol).trans (altQuant_congr k _ _ ?_ pol)
+  intro σ
+  refine iff_of_eq (congrArg P (funext fun i => ?_))
+  simp [glueTail]
+
+
+-- @@ L154-154 verbatim
+end Prefix
+
+
+-- @@ L156-156 verbatim
+end AltQbf
+
+
+-- @@ L158-158 verbatim
+end DescriptiveComplexity

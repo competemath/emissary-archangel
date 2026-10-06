@@ -1,0 +1,789 @@
+/-
+Copyright (c) 2026 Pierre Senellart. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Pierre Senellart
+-/
+import DescriptiveComplexity.Problems.Wide.RelExpMap
+import DescriptiveComplexity.Problems.Wide.ShFinite
+import DescriptiveComplexity.Problems.Wide.DrawNo
+import DescriptiveComplexity.Problems.Wide.NexPack
+import DescriptiveComplexity.Problems.Wide.DrawPack
+import DescriptiveComplexity.Problems.Wide.Membership
+import DescriptiveComplexity.Problems.Wide.Det
+import DescriptiveComplexity.Relativized
+
+
+-- @@ L15-37 verbatim
+/-!
+# The EXPSPACE reduction, assembled
+
+Everything the reduction stands on is built elsewhere; this file chooses the
+constants and puts them together.
+
+* the **base** is the doubled universe, never a singleton, whose bottom and top
+  are the marked copy of the instance's minimum and the junk copy of its maximum
+  (`DescriptiveComplexity.Draw.isBot_dblPt`, `isTop_dblPt`);
+* the **data** is the relativized expansion packed by
+  `DescriptiveComplexity.Draw.Data.ofSource`, at a dimension wide enough for
+  both the encoding and the payload (`DescriptiveComplexity.Draw.srcDim`) – the
+  knot being that the slot inventory depends on the encoding budget, so the
+  budget is chosen first and the record built twice at the same budget.
+
+The payload bound `Fintype.card (CtlIx ⊕ SlotIx) ≤ dd` is *not* here, and the
+reason is worth recording. It is true because no budget of the record reads the
+dimension, but it is not `rfl`: `DescriptiveComplexity.Draw.Data.nOf` and every
+budget above it is defined by a match on `dt.VarIx`, so the matcher takes the
+whole record as a parameter and two records differing in *any* field are opaque
+to each other. What closes it is `Finset.sup_congr` down the chain, each step
+instantiated at a *constructor* of the index so that the matcher reduces.
+-/
+
+
+-- @@ L39-39 verbatim
+namespace DescriptiveComplexity
+
+
+-- @@ L41-41 verbatim
+namespace Draw
+
+
+-- @@ L43-43 verbatim
+open FirstOrder
+
+
+-- @@ L45-45 verbatim
+open Language Structure
+
+
+-- @@ L47-47 verbatim
+/-! ### The extremes of the doubled universe -/
+
+
+-- @@ L49-49 verbatim
+section Extremes
+
+
+-- @@ L51-51 verbatim
+variable {L : Language.{0, 0}} [L.IsRelational]
+
+-- @@ L52-52 verbatim
+variable {A : Type} [L.Structure A] [LinearOrder A]
+
+
+-- @@ L54-63 verbatim
+omit [L.IsRelational] [L.Structure A] in
+theorem isBot_dblPt {a : A} (ha : IsBot a) : IsBot (dblPt (L := L) false a) := by
+  intro p
+  refine (tagTupleLe_iff_le (dblPt (L := L) false a) p).mp ?_
+  rcases hp : p.1 with _ | _
+  · exact Or.inr ⟨hp.symm, (tupLeLex_one _ _).mpr (ha (p.2 0))⟩
+  · refine Or.inl ?_
+    change (false : Bool) < p.1
+    rw [hp]
+    decide
+
+
+-- @@ L65-74 verbatim
+omit [L.IsRelational] [L.Structure A] in
+theorem isTop_dblPt {a : A} (ha : IsTop a) : IsTop (dblPt (L := L) true a) := by
+  intro p
+  refine (tagTupleLe_iff_le p (dblPt (L := L) true a)).mp ?_
+  rcases hp : p.1 with _ | _
+  · refine Or.inl ?_
+    change p.1 < (true : Bool)
+    rw [hp]
+    decide
+  · exact Or.inr ⟨hp, (tupLeLex_one _ _).mpr (ha (p.2 0))⟩
+
+
+-- @@ L76-76 verbatim
+end Extremes
+
+
+-- @@ L78-86 verbatim
+/-! ### The budgets do not read the dimension
+
+Every budget of a `DescriptiveComplexity.Draw.Data` is a function of the
+expansion, the step definition and the packs; none reads the dimension. That is
+*not* `rfl`, though: `DescriptiveComplexity.Draw.Data.nOf` and its relatives
+are defined by a match, so their compiled matchers take the whole record as a
+parameter and two records differing in the dimension are opaque to each other.
+What closes it is a congruence at every level, each instantiated at a
+**constructor** of the scrutinee, where the matcher reduces. -/
+
+
+-- @@ L88-88 verbatim
+section Budgets
+
+
+-- @@ L90-90 verbatim
+variable {L : Language.{0, 0}} [L.IsRelational]
+
+-- @@ L91-91 verbatim
+variable {X : ExpExpansion L} {d : StepDef (X.E.sum Language.order)}
+
+-- @@ L92-92 verbatim
+variable {dd dd' : ℕ} (h : encDim X ≤ dd) (h' : encDim X ≤ dd')
+
+
+-- @@ L94-99 verbatim
+omit [L.IsRelational] in
+theorem ofSource_nOf (v : (Data.ofSource X d h).VarIx) :
+    (Data.ofSource X d h).nOf v = (Data.ofSource X d h').nOf v := by
+  match v with
+  | none => rfl
+  | some i => rfl
+
+
+-- @@ L101-106 verbatim
+omit [L.IsRelational] in
+theorem ofSource_natOf (v : (Data.ofSource X d h).VarIx) :
+    (Data.ofSource X d h).natOf v = (Data.ofSource X d h').natOf v := by
+  match v with
+  | none => rfl
+  | some i => rfl
+
+
+-- @@ L108-115 verbatim
+omit [L.IsRelational] in
+theorem ofSource_kindDepth {n : ℕ} (κ : MatAtom X d.B n) :
+    (Data.ofSource X d h).kindDepth κ = (Data.ofSource X d h').kindDepth κ := by
+  match κ with
+  | .stage _ _ => rfl
+  | .exp _ _ => rfl
+  | .eq _ _ => rfl
+  | .ord _ _ => rfl
+
+
+-- @@ L117-124 verbatim
+omit [L.IsRelational] in
+theorem ofSource_kindReads {n : ℕ} (κ : MatAtom X d.B n) :
+    (Data.ofSource X d h).kindReads κ = (Data.ofSource X d h').kindReads κ := by
+  match κ with
+  | .stage _ _ => rfl
+  | .exp _ _ => rfl
+  | .eq _ _ => rfl
+  | .ord _ _ => rfl
+
+
+-- @@ L126-133 verbatim
+omit [L.IsRelational] in
+theorem ofSource_kindArgs {n : ℕ} (κ : MatAtom X d.B n) :
+    (Data.ofSource X d h).kindArgs κ = (Data.ofSource X d h').kindArgs κ := by
+  match κ with
+  | .stage _ _ => rfl
+  | .exp _ _ => rfl
+  | .eq _ _ => rfl
+  | .ord _ _ => rfl
+
+
+-- @@ L135-138 verbatim
+omit [L.IsRelational] in
+theorem ofSource_ki : (Data.ofSource X d h).ki = (Data.ofSource X d h').ki := by
+  unfold Data.ki
+  exact Finset.sup_congr rfl fun v _ => ofSource_nOf h h' v
+
+
+-- @@ L140-144 verbatim
+omit [L.IsRelational] in
+theorem ofSource_naDim :
+    (Data.ofSource X d h).naDim = (Data.ofSource X d h').naDim := by
+  unfold Data.naDim
+  rw [ofSource_ki h h']
+
+
+-- @@ L146-150 verbatim
+omit [L.IsRelational] in
+theorem ofSource_natMax :
+    (Data.ofSource X d h).natMax = (Data.ofSource X d h').natMax := by
+  unfold Data.natMax
+  exact Finset.sup_congr rfl fun v _ => ofSource_natOf h h' v
+
+
+-- @@ L152-158 verbatim
+omit [L.IsRelational] in
+theorem ofSource_eDim : (Data.ofSource X d h).eDim = (Data.ofSource X d h').eDim := by
+  unfold Data.eDim
+  refine congrArg₂ max rfl (Finset.sup_congr rfl fun v _ => ?_)
+  match v with
+  | none => exact Finset.sup_congr rfl fun a _ => ofSource_kindDepth h h' _
+  | some i => exact Finset.sup_congr rfl fun a _ => ofSource_kindDepth h h' _
+
+
+-- @@ L160-167 verbatim
+omit [L.IsRelational] in
+theorem ofSource_nfDim :
+    (Data.ofSource X d h).nfDim = (Data.ofSource X d h').nfDim := by
+  unfold Data.nfDim
+  refine congrArg₂ max rfl (Finset.sup_congr rfl fun v _ => ?_)
+  match v with
+  | none => exact Finset.sup_congr rfl fun a _ => ofSource_kindReads h h' _
+  | some i => exact Finset.sup_congr rfl fun a _ => ofSource_kindReads h h' _
+
+
+-- @@ L169-176 verbatim
+omit [L.IsRelational] in
+theorem ofSource_ntgDim :
+    (Data.ofSource X d h).ntgDim = (Data.ofSource X d h').ntgDim := by
+  unfold Data.ntgDim
+  refine congrArg₂ (· * ·) (congrArg₂ (· + ·) (Finset.sup_congr rfl fun v _ => ?_) rfl) rfl
+  match v with
+  | none => exact Finset.sup_congr rfl fun a _ => ofSource_kindArgs h h' _
+  | some i => exact Finset.sup_congr rfl fun a _ => ofSource_kindArgs h h' _
+
+
+-- @@ L178-184 verbatim
+omit [L.IsRelational] in
+/-- **The control inventory does not read the dimension.** -/
+theorem ofSource_ctlIx :
+    (Data.ofSource X d h).CtlIx = (Data.ofSource X d h').CtlIx := by
+  unfold Data.CtlIx
+  rw [ofSource_eDim h h', ofSource_naDim h h', ofSource_natMax h h',
+    ofSource_nfDim h h', ofSource_ntgDim h h']
+
+
+-- @@ L186-192 verbatim
+omit [L.IsRelational] in
+/-- **Nor does the track inventory.** -/
+theorem ofSource_slotIx :
+    (Data.ofSource X d h).SlotIx = (Data.ofSource X d h').SlotIx := by
+  unfold Data.SlotIx
+  rw [ofSource_ki h h']
+  rfl
+
+
+-- @@ L194-194 verbatim
+end Budgets
+
+
+-- @@ L196-196 verbatim
+/-! ### The record a source is packed into, at a dimension that fits -/
+
+
+-- @@ L198-198 verbatim
+section Dim
+
+
+-- @@ L200-200 verbatim
+variable {L : Language.{0, 0}} [L.IsRelational]
+
+-- @@ L201-201 verbatim
+variable (X : ExpExpansion L) (d : StepDef (X.E.sum Language.order))
+
+
+-- @@ L203-205 verbatim
+/-- The record at the bare encoding budget: only its slot and control
+inventories are read, and neither depends on the dimension. -/
+noncomputable def srcData0 : Data L := Data.ofSource X d (le_refl (encDim X))
+
+
+-- @@ L207-210 verbatim
+/-- **The dimension the reduction works at**: one coordinate of slack beyond the
+encoding budget, and wide enough for a rule's payload. -/
+noncomputable def srcDim : ℕ :=
+  max (encDim X + 1) (Nat.card ((srcData0 X d).CtlIx ⊕ (srcData0 X d).SlotIx))
+
+
+-- @@ L212-214 verbatim
+omit [L.IsRelational] in
+theorem encDim_lt_srcDim : encDim X < srcDim X d :=
+  lt_of_lt_of_le (Nat.lt_succ_self _) (le_max_left _ _)
+
+
+-- @@ L216-218 verbatim
+/-- **The record the reduction works at.** -/
+noncomputable def srcData : Data L :=
+  Data.ofSource X d (le_of_lt (encDim_lt_srcDim X d))
+
+
+-- @@ L220-221 verbatim
+omit [L.IsRelational] in
+theorem srcData_dd0 : (srcData X d).dd0 = encDim X := rfl
+
+
+-- @@ L223-224 verbatim
+omit [L.IsRelational] in
+theorem srcData_dd : (srcData X d).dd = srcDim X d := rfl
+
+
+-- @@ L226-228 verbatim
+omit [L.IsRelational] in
+theorem srcData_dd0_lt : (srcData X d).dd0 < (srcData X d).dd :=
+  encDim_lt_srcDim X d
+
+
+-- @@ L230-240 verbatim
+omit [L.IsRelational] in
+/-- **A rule's payload fits the dimension**: the inventories do not read it, so
+the count taken at the bare encoding budget is the count at the real one. -/
+theorem srcData_payload_le :
+    Fintype.card ((srcData X d).CtlIx ⊕ (srcData X d).SlotIx) ≤ (srcData X d).dd := by
+  have hT : ((srcData X d).CtlIx ⊕ (srcData X d).SlotIx) =
+      ((srcData0 X d).CtlIx ⊕ (srcData0 X d).SlotIx) := by
+    rw [show (srcData X d).CtlIx = (srcData0 X d).CtlIx from ofSource_ctlIx _ _,
+      show (srcData X d).SlotIx = (srcData0 X d).SlotIx from ofSource_slotIx _ _]
+  rw [srcData_dd, srcDim, ← Nat.card_eq_fintype_card]
+  exact le_trans (le_of_eq (Nat.card_congr (Equiv.cast hT))) (le_max_right _ _)
+
+
+-- @@ L242-245 verbatim
+/-- The block index of the packed record is nonempty: the output pack was
+padded. -/
+noncomputable def srcKIx : (srcData X d).KIx :=
+  Sum.inrₗ ⟨0, Data.ki_pos X d (le_of_lt (encDim_lt_srcDim X d))⟩
+
+
+-- @@ L247-247 verbatim
+end Dim
+
+
+-- @@ L249-249 verbatim
+/-! ### The interpretation the reduction emits -/
+
+
+-- @@ L251-251 verbatim
+section Interp
+
+
+-- @@ L253-253 verbatim
+variable {L : Language.{0, 0}} [L.IsRelational]
+
+-- @@ L254-254 verbatim
+variable (X : ExpExpansion L) (d : StepDef (X.E.sum Language.order))
+
+
+-- @@ L256-257 verbatim
+/-- **The record the reduction runs at**: the relativized expansion, packed. -/
+noncomputable abbrev srcDt : Data (newLang L) := srcData (relExp X) d
+
+
+-- @@ L259-263 verbatim
+/-- The accepting predicate of the emitted program: the output machinery's exit
+phase, with its verdict read from the control. -/
+noncomputable def srcAccept (e : Env (newLang L)) :
+    (srcDt X d).PF → ((srcDt X d).CtlIx → e.α) → Prop :=
+  fun p f => p = OuterPh.acceptP ∧ ((srcDt X d).varArgsOf e.zero e.one none).accBit f
+
+
+-- @@ L265-269 verbatim
+theorem uGDefinable_srcAccept (p : (srcDt X d).PF) :
+    UGDefinable fun (e : Env (newLang L)) f (_ : (srcDt X d).SlotIx → e.α) =>
+      srcAccept X d e p f :=
+  (uGDefinable_const (p = OuterPh.acceptP)).and
+    (Data.uVarArgsDef_varArgsOf (dt := srcDt X d) (boolEnv (newLang L)) none).accBit
+
+
+-- @@ L271-280 verbatim
+/-- **The machine of a source, written down over the doubled universe.** -/
+noncomputable def dblWideInterp :
+    FOInterpretation ((newLang L).sum Language.order) Language.wide
+      (srcDt X d).ITag (srcDt X d).dd :=
+  letI : LinearOrder (srcDt X d).RTag := finiteLinearOrder _
+  letI : LinearOrder (srcDt X d).PF := finiteLinearOrder _
+  (srcDt X d).drawInterp (srcData_payload_le (relExp X) d)
+    (Data.uRulesDefinable_progOf (dt := srcDt X d) (boolEnv (newLang L)))
+    (uGDefinable_srcAccept X d) OuterPh.start
+    (Data.regFileMark (srcData_payload_le (relExp X) d))
+
+
+-- @@ L282-289 verbatim
+/-- **The machine of a source, written down in the instance**: the machine over
+the doubled universe, composed with the doubling. The dimension is unchanged –
+the doubling is one-dimensional – and the tags only gain a Boolean per
+coordinate. -/
+noncomputable def wideInterp :
+    FOInterpretation (L.sum Language.order) Language.wide
+      ((srcDt X d).ITag × (Fin (srcDt X d).dd → Bool)) ((srcDt X d).dd * 1) :=
+  (dblWideInterp X d).comp (dblInterp L).ordExtend
+
+
+-- @@ L291-291 verbatim
+end Interp
+
+
+-- @@ L293-293 verbatim
+/-! ### The composite's universe is the machine's -/
+
+
+-- @@ L295-295 verbatim
+section Transport
+
+
+-- @@ L297-297 verbatim
+variable {L : Language.{0, 0}} [L.IsRelational]
+
+-- @@ L298-298 verbatim
+variable (X : ExpExpansion L) (d : StepDef (X.E.sum Language.order))
+
+-- @@ L299-299 verbatim
+variable (A : Type) [L.Structure A] [LinearOrder A]
+
+
+-- @@ L301-306 verbatim
+/-- **The composite interpretation's universe is the machine's over the doubled
+universe**: the composition equivalence, followed by the order extension's. -/
+noncomputable def wideInterpEquiv :
+    (wideInterp X d).Map A ≃[Language.wide] (dblWideInterp X d).Map ((dblInterp L).Map A) :=
+  Language.Equiv.comp ((dblWideInterp X d).mapLEquiv ((dblInterp L).ordExtendLEquiv A))
+    ((dblWideInterp X d).compLEquiv (dblInterp L).ordExtend A)
+
+
+-- @@ L308-308 verbatim
+end Transport
+
+
+-- @@ L310-310 verbatim
+/-! ### The interpreted structure reads the program's table -/
+
+
+-- @@ L312-312 verbatim
+section Reads
+
+
+-- @@ L314-314 verbatim
+variable {L : Language.{0, 0}} [L.IsRelational]
+
+-- @@ L315-315 verbatim
+variable (X : ExpExpansion L) (d : StepDef (X.E.sum Language.order))
+
+-- @@ L316-316 verbatim
+variable (e : Env (newLang L))
+
+
+-- @@ L318-320 verbatim
+/-- The two orders the run layer wants on the rule names and the phases: an
+arbitrary one on each, the *same* one the interpretation compares tags with. -/
+noncomputable abbrev srcRTagOrder : LinearOrder (srcDt X d).RTag := finiteLinearOrder _
+
+
+-- @@ L322-322 verbatim
+noncomputable abbrev srcPFOrder : LinearOrder (srcDt X d).PF := finiteLinearOrder _
+
+
+-- @@ L324-345 verbatim
+/-- **The interpreted structure reads the emitted program's table.** -/
+theorem srcReads :
+    letI := srcRTagOrder X d
+    letI := srcPFOrder X d
+    letI : LinearOrder ((srcDt X d).RIx e.zero e.one e.hzo
+      fun w => (srcDt X d).varArgsOf e.zero e.one w) := srcRTagOrder X d
+    letI : Language.wide.Structure
+        (Univ e.α ((srcDt X d).RIx e.zero e.one e.hzo
+          fun w => (srcDt X d).varArgsOf e.zero e.one w)
+          (srcDt X d).PF (srcDt X d).KIx (srcDt X d).dd) :=
+      (dblWideInterp X d).mapStructure e.α
+    ((srcDt X d).progOf e.zero e.one e.hzo
+      (srcData_payload_le (relExp X) d)).table.Reads :=
+  letI := srcRTagOrder X d
+  letI := srcPFOrder X d
+  letI : Language.wide.Structure
+      (Univ e.α (srcDt X d).RTag (srcDt X d).PF (srcDt X d).KIx (srcDt X d).dd) :=
+    (dblWideInterp X d).mapStructure e.α
+  (srcDt X d).reads_progFrom (srcData_payload_le (relExp X) d)
+    (Data.uRulesDefinable_progOf (dt := srcDt X d) (boolEnv (newLang L)))
+    (uGDefinable_srcAccept X d) OuterPh.start
+    (Data.regFileMark (srcData_payload_le (relExp X) d)) e rfl
+
+
+-- @@ L347-347 verbatim
+end Reads
+
+
+-- @@ L349-349 verbatim
+/-! ### The machine decides the fixed point -/
+
+
+-- @@ L351-351 verbatim
+section Correct
+
+
+-- @@ L353-353 verbatim
+variable {L : Language.{0, 0}} [L.IsRelational]
+
+-- @@ L354-354 verbatim
+variable (X : ExpExpansion L) (d : StepDef (X.E.sum Language.order))
+
+-- @@ L355-355 verbatim
+variable (A : Type) [L.Structure A] [LinearOrder A] [Finite A] [Nonempty A]
+
+
+-- @@ L357-369 verbatim
+/-- **The environment the reduction runs at**: the doubled universe, with the
+marked copy of the instance's minimum and the junk copy of its maximum as the
+two designated elements. -/
+noncomputable def srcEnv (L : Language.{0, 0}) [L.IsRelational] (A : Type)
+    [L.Structure A] [LinearOrder A] [Finite A] [Nonempty A] : Env (newLang L) where
+  α := (dblInterp L).Map A
+  fin := (dblInterp L).map_finite A
+  ne := (dblInterp L).map_nonempty A
+  zero := dblPt false (Finite.exists_min (id : A → A)).choose
+  one := dblPt true (Finite.exists_max (id : A → A)).choose
+  hbot := isBot_dblPt (Finite.exists_min (id : A → A)).choose_spec
+  htop := isTop_dblPt (Finite.exists_max (id : A → A)).choose_spec
+  hzo := fun h => Bool.false_ne_true (congrArg Prod.fst h)
+
+
+-- @@ L371-391 verbatim
+/-- **The emitted machine accepts exactly when the partial fixed point holds**,
+read over the doubled universe and at the order the encoding pulls back. -/
+theorem dwideAcceptSpace_srcEnv_iff :
+    letI : LinearOrder ((srcDt X d).X.Map (srcEnv L A).α) :=
+      encOrder (srcDt X d).ly (srcEnv L A).zero (srcEnv L A).one (srcEnv L A).hzo
+    (DWideAcceptSpace ((dblWideInterp X d).Map (srcEnv L A).α) ↔
+      (srcDt X d).d.PFPHolds ((srcDt X d).X.Map (srcEnv L A).α)) := by
+  let : LinearOrder ((srcDt X d).X.Map (srcEnv L A).α) :=
+    encOrder (srcDt X d).ly (srcEnv L A).zero (srcEnv L A).one (srcEnv L A).hzo
+  let := srcRTagOrder X d
+  let := srcPFOrder X d
+  let : LinearOrder ((srcDt X d).RIx (srcEnv L A).zero (srcEnv L A).one
+      (srcEnv L A).hzo fun w => (srcDt X d).varArgsOf (srcEnv L A).zero
+        (srcEnv L A).one w) := srcRTagOrder X d
+  let : Language.wide.Structure
+      (Univ (srcEnv L A).α ((srcDt X d).RIx (srcEnv L A).zero (srcEnv L A).one
+        (srcEnv L A).hzo fun w => (srcDt X d).varArgsOf (srcEnv L A).zero
+          (srcEnv L A).one w) (srcDt X d).PF (srcDt X d).KIx (srcDt X d).dd) :=
+    (dblWideInterp X d).mapStructure (srcEnv L A).α
+  exact (srcDt X d).dwideAcceptSpace_iff_pfpHolds (srcReads X d (srcEnv L A))
+    (srcData_dd0_lt (relExp X) d) (srcKIx (relExp X) d) fun _ _ => Iff.rfl
+
+
+-- @@ L393-421 verbatim
+/-- **The transport from the doubled universe to the instance**, for *any*
+question asked of the emitted machine. Three isomorphisms and nothing else: the
+composite's universe is the machine's (`wideInterpEquiv`), the caller says what
+the machine decides over the doubled universe, and the relativized expansion's
+points are the original's (`relExpMapEquiv`). Which problem `PW` is – acceptance
+in bounded space, acceptance on a clock, deterministic or not – the transport
+never asks. -/
+theorem wideProblem_wideInterp_iff (PW : DecisionProblem Language.wide)
+    {Q₀ : DecisionProblem X.E}
+    (hmach :
+      letI : LinearOrder ((srcDt X d).X.Map (srcEnv L A).α) :=
+        encOrder (srcDt X d).ly (srcEnv L A).zero (srcEnv L A).one (srcEnv L A).hzo
+      letI : X.E.Structure ((relExp X).Map ((dblInterp L).Map A)) :=
+        ExpExpansion.mapStructure (relExp X) ((dblInterp L).Map A)
+      haveI : Finite ((dblInterp L).Map A) := (dblInterp L).map_finite A
+      haveI : Nonempty ((dblInterp L).Map A) := (dblInterp L).map_nonempty A
+      PW ((dblWideInterp X d).Map (srcEnv L A).α) ↔
+        Q₀ ((relExp X).Map ((dblInterp L).Map A))) :
+    PW ((wideInterp X d).Map A) ↔ Q₀ (X.Map A) := by
+  let : LinearOrder ((srcDt X d).X.Map (srcEnv L A).α) :=
+    encOrder (srcDt X d).ly (srcEnv L A).zero (srcEnv L A).one (srcEnv L A).hzo
+  have : Finite ((dblInterp L).Map A) := (dblInterp L).map_finite A
+  have : Nonempty ((dblInterp L).Map A) := (dblInterp L).map_nonempty A
+  let : LinearOrder ((relExp X).Map ((dblInterp L).Map A)) :=
+    encOrder (srcDt X d).ly (srcEnv L A).zero (srcEnv L A).one (srcEnv L A).hzo
+  let : X.E.Structure ((relExp X).Map ((dblInterp L).Map A)) :=
+    ExpExpansion.mapStructure (relExp X) ((dblInterp L).Map A)
+  refine (PW.iso_invariant (wideInterpEquiv X d A)).trans ?_
+  exact hmach.trans (Q₀.iso_invariant (relExpMapEquiv (X := X) (A := A))).symm
+
+
+-- @@ L423-440 verbatim
+/-- **The emitted instance is a yes-instance of acceptance *on a clock* exactly
+when the source is**, given the clocked machine's own correctness at the doubled
+universe. The transport is `wideProblem_wideInterp_iff`'s and nothing else –
+which problem the machine is asked about it never reads – so this half of the
+NEXPTIME reduction is free: what is not is the hypothesis, the clocked program's
+run against the kernel. -/
+theorem wideAccept_wideInterp_iff {Q₀ : DecisionProblem X.E}
+    (hmach :
+      letI : LinearOrder ((srcDt X d).X.Map (srcEnv L A).α) :=
+        encOrder (srcDt X d).ly (srcEnv L A).zero (srcEnv L A).one (srcEnv L A).hzo
+      letI : X.E.Structure ((relExp X).Map ((dblInterp L).Map A)) :=
+        ExpExpansion.mapStructure (relExp X) ((dblInterp L).Map A)
+      haveI : Finite ((dblInterp L).Map A) := (dblInterp L).map_finite A
+      haveI : Nonempty ((dblInterp L).Map A) := (dblInterp L).map_nonempty A
+      WideAccept ((dblWideInterp X d).Map (srcEnv L A).α) ↔
+        Q₀ ((relExp X).Map ((dblInterp L).Map A))) :
+    WideAccept ((wideInterp X d).Map A) ↔ Q₀ (X.Map A) :=
+  wideProblem_wideInterp_iff X d A WideAccept hmach
+
+
+-- @@ L442-458 verbatim
+/-- **The emitted instance is a yes-instance exactly when the source is**: the
+composite's universe is the machine's over the doubled universe, the machine
+decides the fixed point there, the fixed point is the problem of the relativized
+expansion, and that expansion's points are the original's. -/
+theorem dwideAcceptSpace_wideInterp_iff {Q₀ : DecisionProblem X.E}
+    (hd : ∀ (M : Type) [X.E.Structure M] [LinearOrder M] [Finite M] [Nonempty M],
+      Q₀ M ↔ d.PFPHolds M) :
+    DWideAcceptSpace ((wideInterp X d).Map A) ↔ Q₀ (X.Map A) := by
+  have : Finite ((dblInterp L).Map A) := (dblInterp L).map_finite A
+  have : Nonempty ((dblInterp L).Map A) := (dblInterp L).map_nonempty A
+  let : LinearOrder ((relExp X).Map ((dblInterp L).Map A)) :=
+    encOrder (srcDt X d).ly (srcEnv L A).zero (srcEnv L A).one (srcEnv L A).hzo
+  let : X.E.Structure ((relExp X).Map ((dblInterp L).Map A)) :=
+    ExpExpansion.mapStructure (relExp X) ((dblInterp L).Map A)
+  refine wideProblem_wideInterp_iff X d A DWideAcceptSpace ?_
+  exact (dwideAcceptSpace_srcEnv_iff X d A).trans
+    (hd ((relExp X).Map ((dblInterp L).Map A))).symm
+
+
+-- @@ L460-460 verbatim
+end Correct
+
+
+-- @@ L462-462 verbatim
+end Draw
+
+
+-- @@ L464-464 verbatim
+open FirstOrder
+
+
+-- @@ L466-466 verbatim
+open Language
+
+
+-- @@ L468-468 verbatim
+/-! ### The reduction, and EXPSPACE-hardness -/
+
+
+-- @@ L470-470 verbatim
+section Umbrella
+
+
+-- @@ L472-472 verbatim
+variable {L : Language.{0, 0}} [L.IsRelational]
+
+
+-- @@ L474-485 verbatim
+/-- **Every SO(≤, PFP) definable problem reduces to deterministic acceptance in
+bounded space on a wide machine.** -/
+theorem SOPFPDefinable.ordered_fo_reduction_dwideAcceptSpace {Q : DecisionProblem L}
+    (h : SOPFPDefinable Q) : Nonempty (Q ≤ᶠᵒ[≤] DWideAcceptSpace) := by
+  obtain ⟨X, Q₀, hpfp, hspec⟩ := h
+  obtain ⟨d, hd⟩ := hpfp
+  exact ⟨{ Tag := (Draw.srcDt X d).ITag × (Fin (Draw.srcDt X d).dd → Bool)
+           tagNonempty := ⟨(Draw.Tag.sym, fun _ => false)⟩
+           dim := (Draw.srcDt X d).dd * 1
+           toInterpretation := Draw.wideInterp X d
+           correct := fun A _ _ _ _ =>
+             (hspec A).trans (Draw.dwideAcceptSpace_wideInterp_iff X d A hd).symm }⟩
+
+
+-- @@ L487-520 verbatim
+/-- **Every NEXPTIME source problem reduces to acceptance on a clock**, given
+the clocked machine's correctness at each doubled universe. The reduction is the
+EXPSPACE one's drawing at the kernel's own step definition – the record is the
+same one (`DescriptiveComplexity.Draw.Data.ofKernel` is
+`ofSource` at `NexKernel.toStepDef`), so the dimension, the tags and the
+transport are all as they were, and only what the machine decides changes. -/
+theorem ExpDefinable.ordered_fo_reduction_wideAccept {Q : DecisionProblem L}
+    (h : ExpDefinable NP Q)
+    (hmach : ∀ (X : ExpExpansion L) (d : StepDef (X.E.sum Language.order))
+      (Q₀ : DecisionProblem X.E) (A : Type) [L.Structure A] [LinearOrder A]
+      [Finite A] [Nonempty A],
+      letI : LinearOrder ((Draw.srcDt X d).X.Map (Draw.srcEnv L A).α) :=
+        Draw.encOrder (Draw.srcDt X d).ly (Draw.srcEnv L A).zero (Draw.srcEnv L A).one
+          (Draw.srcEnv L A).hzo
+      letI : X.E.Structure ((Draw.relExp X).Map ((Draw.dblInterp L).Map A)) :=
+        ExpExpansion.mapStructure (Draw.relExp X) ((Draw.dblInterp L).Map A)
+      haveI : Finite ((Draw.dblInterp L).Map A) := (Draw.dblInterp L).map_finite A
+      haveI : Nonempty ((Draw.dblInterp L).Map A) :=
+        (Draw.dblInterp L).map_nonempty A
+      WideAccept ((Draw.dblWideInterp X d).Map (Draw.srcEnv L A).α) ↔
+        Q₀ ((Draw.relExp X).Map ((Draw.dblInterp L).Map A))) :
+    Nonempty (Q ≤ᶠᵒ[≤] WideAccept) := by
+  obtain ⟨X, Q₀, hQ, hspec⟩ := h
+  obtain ⟨B, φ, hker⟩ := exists_orderedKernel (P := Q₀) hQ
+  classical
+  refine ⟨{ Tag := (Draw.srcDt X ((⟨X, B, φ⟩ : NexKernel L).toStepDef)).ITag ×
+              (Fin (Draw.srcDt X ((⟨X, B, φ⟩ : NexKernel L).toStepDef)).dd → Bool)
+            tagNonempty := ⟨(Draw.Tag.sym, fun _ => false)⟩
+            dim := (Draw.srcDt X ((⟨X, B, φ⟩ : NexKernel L).toStepDef)).dd * 1
+            toInterpretation :=
+              Draw.wideInterp X ((⟨X, B, φ⟩ : NexKernel L).toStepDef)
+            correct := fun A _ _ _ _ => ?_ }⟩
+  exact (hspec A).trans (Draw.wideAccept_wideInterp_iff X _ A
+    (hmach X ((⟨X, B, φ⟩ : NexKernel L).toStepDef) Q₀ A)).symm
+
+
+-- @@ L522-527 verbatim
+/-- **Deterministic acceptance in bounded space on a wide machine is
+EXPSPACE-hard.** -/
+theorem dwideAcceptSpace_EXPSPACE_hard : EXPSPACE.Hard DWideAcceptSpace := by
+  refine EXPSPACE_hard_of_sopfpDefinable _ fun {_} _ Q hQ => ?_
+  exact (SOPFPDefinable.ordered_fo_reduction_dwideAcceptSpace hQ).map
+    OrderedFOReduction.toRel
+
+
+-- @@ L529-535 verbatim
+/-- **Deterministic acceptance in bounded space on a wide machine is
+EXPSPACE-complete.** The membership half is
+`DescriptiveComplexity.dwideAcceptSpace_mem_EXPSPACE`; the hardness half is the
+reduction above, run at the doubled universe so that the machine always has two
+elements to write bits with. -/
+theorem dwideAcceptSpace_EXPSPACE_complete : EXPSPACE.Complete DWideAcceptSpace :=
+  ⟨dwideAcceptSpace_mem_EXPSPACE, dwideAcceptSpace_EXPSPACE_hard⟩
+
+
+-- @@ L537-558 verbatim
+/-- **Acceptance on a clock on a wide machine is NEXPTIME-hard**, given the
+clocked machine's correctness. Everything but that hypothesis is the EXPSPACE
+route's: the same drawing, the same transport, the same discharge – which is why
+the estimate for this half was «no design». -/
+theorem wideAccept_NEXPTIME_hard
+    (hmach : ∀ {L' : Language.{0, 0}} [L'.IsRelational] (X : ExpExpansion L')
+      (d : StepDef (X.E.sum Language.order)) (Q₀ : DecisionProblem X.E) (A : Type)
+      [L'.Structure A] [LinearOrder A] [Finite A] [Nonempty A],
+      letI : LinearOrder ((Draw.srcDt X d).X.Map (Draw.srcEnv L' A).α) :=
+        Draw.encOrder (Draw.srcDt X d).ly (Draw.srcEnv L' A).zero
+          (Draw.srcEnv L' A).one (Draw.srcEnv L' A).hzo
+      letI : X.E.Structure ((Draw.relExp X).Map ((Draw.dblInterp L').Map A)) :=
+        ExpExpansion.mapStructure (Draw.relExp X) ((Draw.dblInterp L').Map A)
+      haveI : Finite ((Draw.dblInterp L').Map A) := (Draw.dblInterp L').map_finite A
+      haveI : Nonempty ((Draw.dblInterp L').Map A) :=
+        (Draw.dblInterp L').map_nonempty A
+      WideAccept ((Draw.dblWideInterp X d).Map (Draw.srcEnv L' A).α) ↔
+        Q₀ ((Draw.relExp X).Map ((Draw.dblInterp L').Map A))) :
+    NEXPTIME.Hard WideAccept := by
+  refine NEXPTIME_hard_of_expDefinable _ fun {_} _ Q hQ => ?_
+  exact (ExpDefinable.ordered_fo_reduction_wideAccept hQ
+    (fun X d Q₀ A => hmach X d Q₀ A)).map OrderedFOReduction.toRel
+
+
+-- @@ L560-579 verbatim
+/-- **Acceptance on a clock on a wide machine is NEXPTIME-complete**, given the
+clocked machine's correctness. The membership half is
+`DescriptiveComplexity.wideAccept_mem_NEXPTIME` and is unconditional; the
+hardness half is the reduction above. -/
+theorem wideAccept_NEXPTIME_complete
+    (hmach : ∀ {L' : Language.{0, 0}} [L'.IsRelational] (X : ExpExpansion L')
+      (d : StepDef (X.E.sum Language.order)) (Q₀ : DecisionProblem X.E) (A : Type)
+      [L'.Structure A] [LinearOrder A] [Finite A] [Nonempty A],
+      letI : LinearOrder ((Draw.srcDt X d).X.Map (Draw.srcEnv L' A).α) :=
+        Draw.encOrder (Draw.srcDt X d).ly (Draw.srcEnv L' A).zero
+          (Draw.srcEnv L' A).one (Draw.srcEnv L' A).hzo
+      letI : X.E.Structure ((Draw.relExp X).Map ((Draw.dblInterp L').Map A)) :=
+        ExpExpansion.mapStructure (Draw.relExp X) ((Draw.dblInterp L').Map A)
+      haveI : Finite ((Draw.dblInterp L').Map A) := (Draw.dblInterp L').map_finite A
+      haveI : Nonempty ((Draw.dblInterp L').Map A) :=
+        (Draw.dblInterp L').map_nonempty A
+      WideAccept ((Draw.dblWideInterp X d).Map (Draw.srcEnv L' A).α) ↔
+        Q₀ ((Draw.relExp X).Map ((Draw.dblInterp L').Map A))) :
+    NEXPTIME.Complete WideAccept :=
+  ⟨wideAccept_mem_NEXPTIME, wideAccept_NEXPTIME_hard hmach⟩
+
+
+-- @@ L581-585 verbatim
+/-- **Acceptance in bounded space on a wide machine is EXPSPACE-hard**: hardness
+travels forward along the reduction that adds the determinism promise. -/
+theorem wideAcceptSpace_EXPSPACE_hard : EXPSPACE.Hard WideAcceptSpace :=
+  EXPSPACE.hard_of_foReduction dwideAcceptSpace_fo_reduction_wideAcceptSpace
+    dwideAcceptSpace_EXPSPACE_hard
+
+
+-- @@ L587-589 verbatim
+/-- **Acceptance in bounded space on a wide machine is EXPSPACE-complete.** -/
+theorem wideAcceptSpace_EXPSPACE_complete : EXPSPACE.Complete WideAcceptSpace :=
+  ⟨wideAcceptSpace_mem_EXPSPACE, wideAcceptSpace_EXPSPACE_hard⟩
+
+
+-- @@ L591-591 verbatim
+end Umbrella
+
+
+-- @@ L593-593 verbatim
+end DescriptiveComplexity

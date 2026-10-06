@@ -1,0 +1,217 @@
+/-
+Copyright (c) 2026 Pierre Senellart. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Pierre Senellart
+-/
+import DescriptiveComplexity.Vocabulary
+import DescriptiveComplexity.Numbers.BinRel
+import DescriptiveComplexity.Interpretation
+import Mathlib.Algebra.BigOperators.Finprod
+
+
+-- @@ L11-42 verbatim
+/-!
+# 0-1 integer programming: definition
+
+0-1 INTEGER PROGRAMMING ([Karp 1972][karp1972reducibility]): given a matrix
+`C` and a vector `d`, is there a `0-1` vector `x` with `C x = d`? It is the
+multi-row form of Knapsack, and like it is written in **binary**
+(`DescriptiveComplexity.Numbers.BinRel`), since under the unary encoding the
+problem is solvable in polynomial time by dynamic programming and is therefore
+not NP-hard at all.
+
+## The vocabulary
+
+`FirstOrder.Language.zeroOneIP` carries
+
+* `col j`, `row r` and `posn p`, the columns (the `0-1` variables), the rows
+  (the equations) and the bit positions;
+* `coef r j p`, “the entry of row `r` in column `j` has bit 1 at position
+  `p`”, the only ternary symbol of the catalog;
+* `rhs r p`, the bits of the right-hand side of row `r`;
+* `le`, a linear order fixing the place values, folded into the yes-instances
+  (`DescriptiveComplexity.IsLinOrd`) as everywhere in the binary encoding.
+
+Entries are **natural numbers**: Karp states the problem over the integers,
+and the restriction formalized here is the one his reduction produces – a
+special case, so its NP-hardness gives his problem's a fortiori, while
+membership in NP for signed entries would need the two sides of each equation
+weighed separately and is not claimed.
+-/
+
+/- The language of 0-1 integer programs lives in Mathlib's
+`FirstOrder.Language` namespace, next to `Language.graph` and
+`Language.order`. -/
+
+-- @@ L43-43 verbatim
+namespace FirstOrder
+
+
+-- @@ L45-45 verbatim
+namespace Language
+
+
+-- @@ L47-62 verbatim
+/-- The relational language of 0-1 integer programs: columns, rows and bit
+positions, the bits of each entry and of each right-hand side, and a linear
+order. -/
+fo_language zeroOneIP with ip where
+  /-- `col j`: `j` is a column, that is, a `0-1` variable. -/
+  col : 1
+  /-- `row r`: `r` is a row, that is, an equation. -/
+  row : 1
+  /-- `posn p`: `p` is a bit position. -/
+  posn : 1
+  /-- `coef r j p`: the entry of row `r` in column `j` has bit 1 at `p`. -/
+  coef : 3
+  /-- `rhs r p`: the right-hand side of row `r` has bit 1 at `p`. -/
+  rhs : 2
+  /-- `le a b`: the linear order carrying the place values. -/
+  le : 2
+
+
+-- @@ L64-64 verbatim
+end Language
+
+
+-- @@ L66-66 verbatim
+end FirstOrder
+
+
+-- @@ L68-68 verbatim
+namespace DescriptiveComplexity
+
+
+-- @@ L70-70 verbatim
+open FirstOrder
+
+
+-- @@ L72-72 verbatim
+open Language Structure
+
+
+-- @@ L74-74 verbatim
+/-! ### The shorthands of the vocabulary -/
+
+
+-- @@ L76-76 verbatim
+section Shorthands
+
+
+-- @@ L78-78 verbatim
+variable {A : Type} [Language.zeroOneIP.Structure A]
+
+
+-- @@ L80-80 verbatim
+fo_predicates Language.zeroOneIP ip
+
+
+-- @@ L82-83 verbatim
+/-- The entry of a row in a column, decoded. -/
+noncomputable def IPCoefVal (r j : A) : ℕ := binNum IPLe IPPosn (IPCoef r j)
+
+
+-- @@ L85-86 verbatim
+/-- The right-hand side of a row, decoded. -/
+noncomputable def IPRhsVal (r : A) : ℕ := binNum IPLe IPPosn (IPRhs r)
+
+
+-- @@ L88-88 verbatim
+end Shorthands
+
+
+-- @@ L90-90 verbatim
+/-! ### The problem -/
+
+
+-- @@ L92-92 verbatim
+section Problem
+
+
+-- @@ L94-94 verbatim
+variable (A : Type) [Language.zeroOneIP.Structure A]
+
+
+-- @@ L96-102 verbatim
+/-- A 0-1 integer program is a yes-instance when its order is a linear order
+and some set of columns – the variables set to `1` – makes every equation
+hold. -/
+def HasZeroOneSolution : Prop :=
+  Finite A ∧ IsLinOrd (IPLe (A := A)) ∧
+    ∃ x : A → Prop, (∀ j, x j → IPCol j) ∧
+      ∀ r, IPRow r → (∑ᶠ j ∈ {j | x j}, IPCoefVal r j) = IPRhsVal r
+
+
+-- @@ L104-104 verbatim
+end Problem
+
+
+-- @@ L106-106 verbatim
+section Iso
+
+
+-- @@ L108-108 verbatim
+variable {A B : Type} [Language.zeroOneIP.Structure A] [Language.zeroOneIP.Structure B]
+
+
+-- @@ L110-143 verbatim
+private theorem hasZeroOneSolution_of_iso (e : A ≃[Language.zeroOneIP] B)
+    (h : HasZeroOneSolution A) : HasZeroOneSolution B := by
+  obtain ⟨hfin, hlin, x, hxc, hsum⟩ := h
+  have hle : ∀ a a' : A, IPLe a a' ↔ IPLe (e a) (e a') := fun a a' =>
+    relMap_equiv₂ e ipLe a a'
+  have hposn : ∀ a : A, IPPosn a ↔ IPPosn (e a) := fun a => relMap_equiv₁ e ipPosn a
+  have hcol : ∀ a : A, IPCol a ↔ IPCol (e a) := fun a => relMap_equiv₁ e ipCol a
+  have hrow : ∀ a : A, IPRow a ↔ IPRow (e a) := fun a => relMap_equiv₁ e ipRow a
+  have hcoef : ∀ a b c : A, IPCoef a b c ↔ IPCoef (e a) (e b) (e c) := fun a b c =>
+    relMap_equiv₃ e ipCoef a b c
+  have hrhs : ∀ a b : A, IPRhs a b ↔ IPRhs (e a) (e b) := fun a b => relMap_equiv₂ e ipRhs a b
+  have hcv : ∀ r j : A, IPCoefVal r j = IPCoefVal (e r) (e j) := fun r j =>
+    binNum_equiv e.toEquiv hle hposn (hcoef r j)
+  have hrv : ∀ r : A, IPRhsVal r = IPRhsVal (e r) := fun r =>
+    binNum_equiv e.toEquiv hle hposn (hrhs r)
+  refine ⟨e.toEquiv.finite_iff.mp hfin, IsLinOrd.of_equiv e.toEquiv hle hlin,
+    fun b => x (e.toEquiv.symm b), fun b hb => ?_, fun r hr => ?_⟩
+  · have hb' : e.toEquiv (e.toEquiv.symm b) = b := e.toEquiv.apply_symm_apply b
+    rw [← hb']
+    exact (hcol _).mp (hxc _ hb)
+  · have hsymm : ∀ b : B, e (e.toEquiv.symm b) = b := fun b => e.toEquiv.apply_symm_apply b
+    have hr' : IPRow (e.toEquiv.symm r) := by
+      rw [hrow, hsymm]
+      exact hr
+    have hbij : Set.BijOn e.toEquiv {j : A | x j} {b : B | x (e.toEquiv.symm b)} := by
+      refine ⟨fun j hj => ?_, e.toEquiv.injective.injOn,
+        fun b hb => ⟨e.toEquiv.symm b, hb, e.toEquiv.apply_symm_apply b⟩⟩
+      simpa using hj
+    have hstep : ∀ j : A, IPCoefVal (e.toEquiv.symm r) j = IPCoefVal r (e j) := by
+      intro j
+      rw [hcv (e.toEquiv.symm r) j, hsymm]
+    have hrhs' : IPRhsVal (e.toEquiv.symm r) = IPRhsVal r := by
+      rw [hrv (e.toEquiv.symm r), hsymm]
+    rw [← finsum_mem_eq_of_bijOn e.toEquiv hbij fun j _ => hstep j, hsum _ hr', hrhs']
+
+
+-- @@ L145-149 verbatim
+/-- Being a yes-instance of 0-1 integer programming is
+isomorphism-invariant. -/
+theorem hasZeroOneSolution_iso (e : A ≃[Language.zeroOneIP] B) :
+    HasZeroOneSolution A ↔ HasZeroOneSolution B :=
+  ⟨hasZeroOneSolution_of_iso e, hasZeroOneSolution_of_iso e.symm⟩
+
+
+-- @@ L151-151 verbatim
+end Iso
+
+
+-- @@ L153-159 verbatim
+/-- 0-1 INTEGER PROGRAMMING, as a problem on 0-1 integer programs: is there a
+set of columns whose entries sum, row by row, exactly to the right-hand
+sides? The entries are written in *binary*, which is what makes the problem
+NP-hard rather than polynomial-time. -/
+def ZeroOneIP : DecisionProblem Language.zeroOneIP where
+  Holds := fun A inst => @HasZeroOneSolution A inst
+  iso_invariant := fun e => hasZeroOneSolution_iso e
+
+
+-- @@ L161-161 verbatim
+end DescriptiveComplexity

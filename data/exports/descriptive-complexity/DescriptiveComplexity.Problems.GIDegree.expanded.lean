@@ -1,0 +1,57 @@
+/-
+Copyright (c) 2026 Pierre Senellart. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Pierre Senellart
+-/
+import DescriptiveComplexity.Problems.GraphIso.Hardness
+import DescriptiveComplexity.Problems.DagIso
+
+
+-- @@ L9-23 verbatim
+/-!
+# The GI degree, collected
+
+The degree is defined on `DescriptiveComplexity.GraphIso`, the undirected
+problem the literature names GI. Its members therefore reach it through the
+digraph-to-graph gadget of
+`DescriptiveComplexity.Problems.GraphIso.Hardness`, which is why the
+completeness theorems of the problems stated over the *directed* vocabulary are
+collected here rather than beside their reductions.
+
+Complete for the degree: Graph Isomorphism itself
+(`DescriptiveComplexity.graphIso_GI_complete`), Digraph Isomorphism
+(`DescriptiveComplexity.digraphIso_GI_complete`) and DAG Isomorphism
+(`DescriptiveComplexity.dagIso_GI_complete`).
+-/
+
+
+-- @@ L25-25 verbatim
+namespace DescriptiveComplexity
+
+
+-- @@ L27-30 verbatim
+/-- DAG Isomorphism belongs to the GI degree: forget the topological orders,
+then turn the digraph into a simple graph. -/
+theorem dagIso_mem_GI : DagIso ∈ GI :=
+  ⟨(dagIso_fo_reduction_digraphIso.trans digraphIso_fo_reduction_graphIso).toOrdered⟩
+
+
+-- @@ L32-35 verbatim
+/-- DAG Isomorphism is hard for the GI degree: Digraph Isomorphism, which is,
+reduces to it. -/
+theorem dagIso_GI_hard : GI.Hard DagIso :=
+  GI.hard_of_foReduction digraphIso_fo_reduction_dagIso digraphIso_GI_complete.hard
+
+
+-- @@ L37-43 verbatim
+/-- **DAG Isomorphism is GI-complete**: it reduces to Digraph Isomorphism by
+forgetting the carried topological orders, and Digraph Isomorphism reduces to it
+by subdividing every arc twice.
+Registered in the Lax archive as
+[`Lax604544.GraphIsomorphismDegree.dagIso_GI_complete`](https://laxarchive.org/lax-604544/Lax604544.GraphIsomorphismDegree.html#s-Lax604544.GraphIsomorphismDegree.dagIso_GI_complete). -/
+theorem dagIso_GI_complete : GI.Complete DagIso :=
+  ⟨dagIso_mem_GI, dagIso_GI_hard⟩
+
+
+-- @@ L45-45 verbatim
+end DescriptiveComplexity

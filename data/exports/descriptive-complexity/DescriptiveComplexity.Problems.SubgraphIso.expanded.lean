@@ -1,0 +1,653 @@
+/-
+Copyright (c) 2026 Pierre Senellart. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Pierre Senellart
+-/
+import DescriptiveComplexity.Problems.CliqueFamily
+import DescriptiveComplexity.SecondOrder
+import DescriptiveComplexity.Block
+import DescriptiveComplexity.Syntax
+
+
+-- @@ L11-55 verbatim
+/-!
+# Subgraph Isomorphism is NP-complete
+
+SUBGRAPH ISOMORPHISM: does the *host* graph contain a subgraph isomorphic to
+the *pattern* graph? Equivalently – and this is the definition used here,
+`DescriptiveComplexity.SubgraphIsoOn` – is there an injective homomorphism of the
+pattern into the host? (Not an *induced* subgraph: non-edges of the pattern
+are unconstrained, which is the standard reading and the one that makes Clique
+a special case.)
+
+## Two graphs in one structure
+
+An instance carries two graphs, so `FirstOrder.Language.twoGraphs` has two
+unary marks separating the pattern vertices from the host vertices and two
+binary relations for the two adjacency relations. As with the set systems of
+`DescriptiveComplexity.Problems.SetFamily`, nothing forces an element of the universe
+to be a vertex of either graph: elements outside both marks are junk that no
+condition mentions, which is exactly what lets a first-order interpretation
+build such a structure inside a tagged power of its input universe. The
+guessed map is likewise unconstrained off the pattern.
+
+This vocabulary pattern – several structures side by side in one universe,
+separated by marks – is the natural home for the remaining
+combinatorial-packing problems (Exact Cover, 3-Dimensional Matching), where
+the same trick applies.
+
+## Hardness: a clique is a complete pattern
+
+The reduction is from Clique (`DescriptiveComplexity.clique_fo_reduction_subgraphIso`,
+tag `Bool`, dimension 1, quantifier-free): the host is the input graph and the
+pattern is the *complete* graph on its marked set, so an injective
+homomorphism of the pattern is precisely a clique at least as large as the
+marked set. The threshold of Clique is thus consumed by the shape of the
+pattern rather than by a counting argument – no `Set.ncard` reasoning appears
+in this file beyond the embedding form
+`DescriptiveComplexity.cliqueOn_iff_embedding` that Clique already provides.
+
+The problem on *concrete* graphs – two edge sets on `Fin p` and `Fin h` – and
+its encoding, faithfulness and decoding are in
+`DescriptiveComplexity.Problems.SubgraphIso.Encoding`.
+-/
+
+/- The language of two-graph structures lives in Mathlib's
+`FirstOrder.Language` namespace, next to `Language.graph` – a project-local
+`Language` namespace would shadow Mathlib's under `open Language`. -/
+
+-- @@ L56-56 verbatim
+namespace FirstOrder
+
+
+-- @@ L58-58 verbatim
+namespace Language
+
+
+-- @@ L60-70 verbatim
+/-- The relational language of pattern-and-host graphs: two graphs sharing a
+universe, each with its own vertex mark and adjacency relation. -/
+fo_language twoGraphs with tg where
+  /-- `patV a`: `a` is a vertex of the pattern graph. -/
+  patV : 1
+  /-- `hostV a`: `a` is a vertex of the host graph. -/
+  hostV : 1
+  /-- `patE a b`: there is an edge of the pattern from `a` to `b`. -/
+  patE : 2
+  /-- `hostE a b`: there is an edge of the host from `a` to `b`. -/
+  hostE : 2
+
+
+-- @@ L72-72 verbatim
+end Language
+
+
+-- @@ L74-74 verbatim
+end FirstOrder
+
+
+-- @@ L76-76 verbatim
+namespace DescriptiveComplexity
+
+
+-- @@ L78-78 verbatim
+open FirstOrder
+
+
+-- @@ L80-80 verbatim
+open Language Structure SOBlock
+
+
+-- @@ L82-82 verbatim
+/-! ### The generic property -/
+
+
+-- @@ L84-84 verbatim
+section Generic
+
+
+-- @@ L86-86 verbatim
+variable {A : Type}
+
+
+-- @@ L88-94 verbatim
+/-- Some map sends the `PV`-vertices injectively into the `HV`-vertices,
+carrying `PE`-edges to `HE`-edges: an injective homomorphism of the pattern
+into the host. -/
+def SubgraphIsoOn (PV HV : A → Prop) (PE HE : A → A → Prop) : Prop :=
+  ∃ f : A → A, (∀ x, PV x → HV (f x)) ∧
+    (∀ x y, PV x → PV y → f x = f y → x = y) ∧
+    ∀ x y, PV x → PV y → PE x y → HE (f x) (f y)
+
+
+-- @@ L96-96 verbatim
+variable {B : Type}
+
+
+-- @@ L98-115 verbatim
+/-- `SubgraphIsoOn` transports along an equivalence commuting with the four
+predicates. -/
+theorem SubgraphIsoOn.of_equiv (u : B ≃ A) {PVB HVB : B → Prop} {PEB HEB : B → B → Prop}
+    {PVA HVA : A → Prop} {PEA HEA : A → A → Prop}
+    (hPV : ∀ b, PVB b ↔ PVA (u b)) (hHV : ∀ b, HVB b ↔ HVA (u b))
+    (hPE : ∀ b b', PEB b b' ↔ PEA (u b) (u b'))
+    (hHE : ∀ b b', HEB b b' ↔ HEA (u b) (u b'))
+    (h : SubgraphIsoOn PVB HVB PEB HEB) : SubgraphIsoOn PVA HVA PEA HEA := by
+  obtain ⟨f, hmaps, hinj, hedge⟩ := h
+  refine ⟨fun a => u (f (u.symm a)), fun x hx => ?_, fun x y hx hy hxy => ?_,
+    fun x y hx hy hxy => ?_⟩
+  · exact (hHV (f (u.symm x))).mp (hmaps _ ((hPV (u.symm x)).mpr (by simpa using hx)))
+  · have hux : u.symm x = u.symm y :=
+      hinj _ _ ((hPV _).mpr (by simpa using hx)) ((hPV _).mpr (by simpa using hy))
+        (u.injective hxy)
+    simpa using congrArg u hux
+  · refine (hHE (f (u.symm x)) (f (u.symm y))).mp (hedge _ _ ((hPV _).mpr (by simpa using hx))
+      ((hPV _).mpr (by simpa using hy)) ((hPE _ _).mpr (by simpa using hxy)))
+
+
+-- @@ L117-126 verbatim
+/-- `SubgraphIsoOn` transports along an equivalence, iff version. -/
+theorem SubgraphIsoOn.equiv_iff (u : B ≃ A) {PVB HVB : B → Prop} {PEB HEB : B → B → Prop}
+    {PVA HVA : A → Prop} {PEA HEA : A → A → Prop}
+    (hPV : ∀ b, PVB b ↔ PVA (u b)) (hHV : ∀ b, HVB b ↔ HVA (u b))
+    (hPE : ∀ b b', PEB b b' ↔ PEA (u b) (u b'))
+    (hHE : ∀ b b', HEB b b' ↔ HEA (u b) (u b')) :
+    SubgraphIsoOn PVB HVB PEB HEB ↔ SubgraphIsoOn PVA HVA PEA HEA :=
+  ⟨SubgraphIsoOn.of_equiv u hPV hHV hPE hHE,
+    SubgraphIsoOn.of_equiv u.symm (fun a => by rw [hPV]; simp) (fun a => by rw [hHV]; simp)
+      (fun a a' => by rw [hPE]; simp) fun a a' => by rw [hHE]; simp⟩
+
+
+-- @@ L128-128 verbatim
+end Generic
+
+
+-- @@ L130-130 verbatim
+/-! ### The problem -/
+
+
+-- @@ L132-132 verbatim
+section Problem
+
+
+-- @@ L134-134 verbatim
+section Shorthands
+
+
+-- @@ L136-136 verbatim
+variable {A : Type} [Language.twoGraphs.Structure A]
+
+
+-- @@ L138-138 verbatim
+fo_predicates Language.twoGraphs tg
+
+
+-- @@ L140-140 verbatim
+end Shorthands
+
+
+-- @@ L142-142 verbatim
+variable (A : Type) [Language.twoGraphs.Structure A]
+
+
+-- @@ L144-148 verbatim
+/-- The host graph contains a subgraph isomorphic to the pattern graph.
+(Finiteness of the universe is required only for uniformity with the rest of
+the catalog; the property itself makes sense in general.) -/
+def HasSubgraphIso : Prop :=
+  Finite A ∧ SubgraphIsoOn (TGPatV (A := A)) TGHostV TGPatE TGHostE
+
+
+-- @@ L150-150 verbatim
+end Problem
+
+
+-- @@ L152-152 verbatim
+section Iso
+
+
+-- @@ L154-154 verbatim
+variable {A B : Type} [Language.twoGraphs.Structure A] [Language.twoGraphs.Structure B]
+
+
+-- @@ L156-162 verbatim
+/-- The subgraph-isomorphism property is isomorphism-invariant. -/
+theorem hasSubgraphIso_iso (e : A ≃[Language.twoGraphs] B) :
+    HasSubgraphIso A ↔ HasSubgraphIso B :=
+  and_congr e.toEquiv.finite_iff
+    (SubgraphIsoOn.equiv_iff e.toEquiv (fun a => relMap_equiv₁ e tgPatV a)
+      (fun a => relMap_equiv₁ e tgHostV a) (fun a b => relMap_equiv₂ e tgPatE a b)
+      fun a b => relMap_equiv₂ e tgHostE a b)
+
+
+-- @@ L164-164 verbatim
+end Iso
+
+
+-- @@ L166-170 verbatim
+/-- SUBGRAPH ISOMORPHISM, as a problem on pattern-and-host structures: does
+the host contain a subgraph isomorphic to the pattern? -/
+def SubgraphIso : DecisionProblem Language.twoGraphs where
+  Holds := fun A inst => @HasSubgraphIso A inst
+  iso_invariant := fun e => hasSubgraphIso_iso e
+
+
+-- @@ L172-172 verbatim
+/-! ### Clique reduces to Subgraph Isomorphism -/
+
+
+-- @@ L174-186 expanded
+/-- The interpretation of Clique into Subgraph Isomorphism: the tag `true`
+carries the pattern – the complete graph on the marked set – and the tag
+`false` the host, which is the input graph. -/
+def cliquePatternInterp : FOInterpretation Language.markedGraph Language.twoGraphs Bool 1 where
+  relFormula {n}
+    R :=
+    match n, R with
+    | _, .patV => fun t =>
+      if t 0 then
+        FirstOrder.Language.Relations.formula₁ mgMarked (FirstOrder.Language.Term.var (0, 0))
+      else Bot.bot
+    | _, .hostV => fun t => if t 0 then ⊥ else ⊤
+    | _, .patE => fun t =>
+      if t 0 then
+        if t 1 then
+          FirstOrder.Language.BoundedFormula.not
+              (FirstOrder.Language.Term.equal (FirstOrder.Language.Term.var (0, 0))
+                (FirstOrder.Language.Term.var (1, 0))) ⊓
+            (FirstOrder.Language.Relations.formula₁ mgMarked (FirstOrder.Language.Term.var (0, 0)) ⊓
+              FirstOrder.Language.Relations.formula₁ mgMarked (FirstOrder.Language.Term.var (1, 0)))
+        else Bot.bot
+      else Bot.bot
+    | _, .hostE => fun t =>
+      if t 0 then Bot.bot
+      else
+        if t 1 then Bot.bot
+        else
+          FirstOrder.Language.BoundedFormula.not
+              (FirstOrder.Language.Term.equal (FirstOrder.Language.Term.var (0, 0))
+                (FirstOrder.Language.Term.var (1, 0))) ⊓
+            FirstOrder.Language.Relations.formula₂ mgAdj (FirstOrder.Language.Term.var (0, 0))
+              (FirstOrder.Language.Term.var (1, 0))
+
+
+-- @@ L188-188 verbatim
+section Points
+
+
+-- @@ L190-190 verbatim
+variable {A : Type}
+
+
+-- @@ L192-193 verbatim
+/-- The pattern copy of a vertex. -/
+def patPt (v : A) : cliquePatternInterp.Map A := (true, fun _ => v)
+
+
+-- @@ L195-196 verbatim
+/-- The host copy of a vertex. -/
+def hostPt (v : A) : cliquePatternInterp.Map A := (false, fun _ => v)
+
+
+-- @@ L198-199 verbatim
+theorem patPt_injective : Function.Injective (patPt (A := A)) :=
+  fun _ _ h => congrArg (fun p : Bool × (Fin 1 → A) => p.2 0) h
+
+
+-- @@ L201-202 verbatim
+theorem hostPt_injective : Function.Injective (hostPt (A := A)) :=
+  fun _ _ h => congrArg (fun p : Bool × (Fin 1 → A) => p.2 0) h
+
+
+-- @@ L204-205 verbatim
+theorem patPt_eta (w : Fin 1 → A) : ((true, w) : cliquePatternInterp.Map A) = patPt (w 0) :=
+  Prod.ext_iff.mpr ⟨rfl, funext fun i => congrArg w (Subsingleton.elim i 0)⟩
+
+
+-- @@ L207-208 verbatim
+theorem hostPt_eta (w : Fin 1 → A) : ((false, w) : cliquePatternInterp.Map A) = hostPt (w 0) :=
+  Prod.ext_iff.mpr ⟨rfl, funext fun i => congrArg w (Subsingleton.elim i 0)⟩
+
+
+-- @@ L210-210 verbatim
+end Points
+
+
+-- @@ L212-212 verbatim
+section Characterizations
+
+
+-- @@ L214-214 verbatim
+variable {A : Type} [Language.markedGraph.Structure A]
+
+
+-- @@ L216-219 verbatim
+@[simp]
+theorem clPat_patV (v : A) : TGPatV (patPt v) ↔ MGMarked v := by
+  rw [TGPatV, FOInterpretation.relMap_map]
+  simp [cliquePatternInterp, patPt, MGMarked, Formula.realize_rel₁]
+
+
+-- @@ L221-224 verbatim
+@[simp]
+theorem clPat_patV_host (v : A) : ¬TGPatV (hostPt v) := by
+  rw [TGPatV, FOInterpretation.relMap_map]
+  simp [cliquePatternInterp, hostPt]
+
+
+-- @@ L226-229 verbatim
+@[simp]
+theorem clPat_hostV (v : A) : TGHostV (hostPt v) := by
+  rw [TGHostV, FOInterpretation.relMap_map]
+  simp [cliquePatternInterp, hostPt]
+
+
+-- @@ L231-234 verbatim
+@[simp]
+theorem clPat_hostV_pat (v : A) : ¬TGHostV (patPt v) := by
+  rw [TGHostV, FOInterpretation.relMap_map]
+  simp [cliquePatternInterp, patPt]
+
+
+-- @@ L236-240 verbatim
+@[simp]
+theorem clPat_patE (u v : A) :
+    TGPatE (patPt u) (patPt v) ↔ u ≠ v ∧ MGMarked u ∧ MGMarked v := by
+  rw [TGPatE, FOInterpretation.relMap_map]
+  simp [cliquePatternInterp, patPt, MGMarked, Formula.realize_rel₁]
+
+
+-- @@ L242-246 verbatim
+@[simp]
+theorem clPat_hostE (u v : A) :
+    TGHostE (hostPt u) (hostPt v) ↔ u ≠ v ∧ MGAdj u v := by
+  rw [TGHostE, FOInterpretation.relMap_map]
+  simp [cliquePatternInterp, hostPt, MGAdj, Formula.realize_rel₂]
+
+
+-- @@ L248-252 verbatim
+/-- Only pattern copies are pattern vertices. -/
+theorem patV_eq_patPt {p : cliquePatternInterp.Map A} (h : TGPatV p) : ∃ v, p = patPt v := by
+  rcases p with ⟨(_ | _), w⟩
+  · exact absurd h (by rw [hostPt_eta w]; exact clPat_patV_host (w 0))
+  · exact ⟨w 0, patPt_eta w⟩
+
+
+-- @@ L254-260 verbatim
+/-- Only host copies are host vertices, so the image of a pattern vertex is a
+host copy. -/
+theorem hostV_eq_hostPt {p : cliquePatternInterp.Map A} (h : TGHostV p) :
+    ∃ v, p = hostPt v := by
+  rcases p with ⟨(_ | _), w⟩
+  · exact ⟨w 0, hostPt_eta w⟩
+  · exact absurd h (by rw [patPt_eta w]; exact clPat_hostV_pat (w 0))
+
+
+-- @@ L262-262 verbatim
+end Characterizations
+
+
+-- @@ L264-264 verbatim
+section Correctness
+
+
+-- @@ L266-266 verbatim
+variable {A : Type} [Language.markedGraph.Structure A]
+
+
+-- @@ L268-274 verbatim
+open Classical in
+/-- Where a vertex goes under the embedding of the pattern: a marked vertex to
+its image under the guessed injection into the clique, anything else to
+itself – a value no condition of the problem mentions. -/
+private noncomputable def cliqueVertex {S : A → Prop}
+    (e : {x : A // MGMarked x} ↪ {x : A // S x}) (v : A) : A :=
+  if h : MGMarked v then (e ⟨v, h⟩).1 else v
+
+
+-- @@ L276-280 verbatim
+private theorem cliqueVertex_marked {S : A → Prop}
+    (e : {x : A // MGMarked x} ↪ {x : A // S x}) {v : A} (h : MGMarked v) :
+    cliqueVertex e v = (e ⟨v, h⟩).1 := by
+  classical
+  rw [cliqueVertex, dite_eq_left h]
+
+
+-- @@ L282-329 verbatim
+/-- Correctness of the interpretation: a graph has a clique at least as large
+as its marked set iff the complete graph on that marked set embeds into it. -/
+theorem hasLargeClique_iff_subgraphIso_map (A : Type) [Language.markedGraph.Structure A] :
+    HasLargeClique A ↔ HasSubgraphIso (cliquePatternInterp.Map A) := by
+  constructor
+  · rintro ⟨hfin, hcl⟩
+    have := hfin
+    obtain ⟨S, hS, ⟨e⟩⟩ := (cliqueOn_iff_embedding _ _).mp hcl
+    refine ⟨cliquePatternInterp.map_finite A,
+      fun p => hostPt (cliqueVertex e (p.2 0)), fun p _ => clPat_hostV _, ?_, ?_⟩
+    · intro p q hp hq hpq
+      obtain ⟨u, rfl⟩ := patV_eq_patPt hp
+      obtain ⟨v, rfl⟩ := patV_eq_patPt hq
+      have hu : MGMarked u := (clPat_patV u).mp hp
+      have hv : MGMarked v := (clPat_patV v).mp hq
+      have hval : cliqueVertex e u = cliqueVertex e v := hostPt_injective hpq
+      rw [cliqueVertex_marked e hu, cliqueVertex_marked e hv] at hval
+      exact congrArg patPt (congrArg Subtype.val (e.injective (Subtype.ext hval)))
+    · intro p q hp hq hpe
+      obtain ⟨u, rfl⟩ := patV_eq_patPt hp
+      obtain ⟨v, rfl⟩ := patV_eq_patPt hq
+      have hu : MGMarked u := (clPat_patV u).mp hp
+      have hv : MGMarked v := (clPat_patV v).mp hq
+      obtain ⟨hne, -, -⟩ := (clPat_patE u v).mp hpe
+      have hne' : (e ⟨u, hu⟩).1 ≠ (e ⟨v, hv⟩).1 := fun h =>
+        hne (congrArg Subtype.val (e.injective (Subtype.ext h)))
+      change TGHostE (hostPt (cliqueVertex e u)) (hostPt (cliqueVertex e v))
+      rw [cliqueVertex_marked e hu, cliqueVertex_marked e hv]
+      exact (clPat_hostE _ _).mpr ⟨hne', hS _ _ (e ⟨u, hu⟩).2 (e ⟨v, hv⟩).2 hne'⟩
+  · rintro ⟨hfin, f, hmaps, hinj, hedge⟩
+    have hA : Finite A := Finite.of_injective _ (hostPt_injective (A := A))
+    have := hA
+    have hval : ∀ m : {x : A // MGMarked x}, ∃ w : A, f (patPt m.1) = hostPt w := fun m =>
+      hostV_eq_hostPt (hmaps _ ((clPat_patV m.1).mpr m.2))
+    choose g hg using hval
+    refine ⟨hA, (cliqueOn_iff_embedding _ _).mpr
+      ⟨fun w => ∃ v, MGMarked v ∧ f (patPt v) = hostPt w, ?_,
+        ⟨⟨fun m => ⟨g m, m.1, m.2, hg m⟩, fun m m' hmm' => ?_⟩⟩⟩⟩
+    · rintro x y ⟨u, hu, hfu⟩ ⟨v, hv, hfv⟩ hxy
+      have hpat : TGPatE (patPt u) (patPt v) :=
+        (clPat_patE u v).mpr ⟨fun h => hxy (hostPt_injective (by rw [← hfu, ← hfv, h])), hu, hv⟩
+      have hE := hedge _ _ ((clPat_patV u).mpr hu) ((clPat_patV v).mpr hv) hpat
+      rw [hfu, hfv] at hE
+      exact ((clPat_hostE x y).mp hE).2
+    · have hgg : g m = g m' := congrArg Subtype.val hmm'
+      have hfm : f (patPt m.1) = f (patPt m'.1) := by rw [hg m, hg m', hgg]
+      exact Subtype.ext (patPt_injective
+        (hinj _ _ ((clPat_patV m.1).mpr m.2) ((clPat_patV m'.1).mpr m'.2) hfm))
+
+
+-- @@ L331-331 verbatim
+end Correctness
+
+
+-- @@ L333-339 verbatim
+/-- **Clique FO-reduces to Subgraph Isomorphism**: the pattern is the
+complete graph on the marked set, the host is the input graph. -/
+def clique_fo_reduction_subgraphIso : Clique ≤ᶠᵒ SubgraphIso where
+  Tag := Bool
+  dim := 1
+  toInterpretation := cliquePatternInterp
+  correct A _ _ _ := hasLargeClique_iff_subgraphIso_map A
+
+
+-- @@ L341-341 verbatim
+/-! ### Membership -/
+
+
+-- @@ L343-343 verbatim
+section SigmaOne
+
+
+-- @@ L345-349 verbatim
+/-- The single existential block of the `Σ₁` definition of Subgraph
+Isomorphism: one binary relation variable, the guessed map. -/
+fo_block isoGuessBlock over Language.twoGraphs tg into subgraphSOLang with sg where
+  /-- The guessed map from the pattern to the host. -/
+  map : 2
+
+
+-- @@ L351-353 expanded
+/-- Kernel clause: every pattern vertex is mapped to some host vertex. -/
+private noncomputable def sgTotalClause : subgraphSOLang.Sentence :=
+  FirstOrder.Language.Formula.iAlls (Fin 1)
+    ((FirstOrder.Language.Relations.formula₁ sgPatVSym
+          (FirstOrder.Language.Term.var (Sum.inr 0))).imp
+      (FirstOrder.Language.Formula.iExs (Fin 1)
+        (FirstOrder.Language.Relations.formula₂ sgMapSym
+            (FirstOrder.Language.Term.var (Sum.inl (Sum.inr 0)))
+            (FirstOrder.Language.Term.var (Sum.inr 0)) ⊓
+          FirstOrder.Language.Relations.formula₁ sgHostVSym
+            (FirstOrder.Language.Term.var (Sum.inr 0)))))
+
+
+-- @@ L355-358 expanded
+/-- Kernel clause: the guessed map is injective on the pattern. -/
+private noncomputable def sgInjClause : subgraphSOLang.Sentence :=
+  FirstOrder.Language.Formula.iAlls (Fin 3)
+    ((FirstOrder.Language.Relations.formula₁ sgPatVSym (FirstOrder.Language.Term.var (Sum.inr 0)) ⊓
+              FirstOrder.Language.Relations.formula₁ sgPatVSym
+                (FirstOrder.Language.Term.var (Sum.inr 1)) ⊓
+            FirstOrder.Language.Relations.formula₂ sgMapSym
+              (FirstOrder.Language.Term.var (Sum.inr 0))
+              (FirstOrder.Language.Term.var (Sum.inr 2)) ⊓
+          FirstOrder.Language.Relations.formula₂ sgMapSym (FirstOrder.Language.Term.var (Sum.inr 1))
+            (FirstOrder.Language.Term.var (Sum.inr 2))).imp
+      (FirstOrder.Language.Term.equal (FirstOrder.Language.Term.var (Sum.inr 0))
+        (FirstOrder.Language.Term.var (Sum.inr 1))))
+
+
+-- @@ L360-364 expanded
+/-- Kernel clause: the guessed map carries pattern edges to host edges. -/
+private noncomputable def sgEdgeClause : subgraphSOLang.Sentence :=
+  FirstOrder.Language.Formula.iAlls (Fin 4)
+    ((FirstOrder.Language.Relations.formula₁ sgPatVSym (FirstOrder.Language.Term.var (Sum.inr 0)) ⊓
+                FirstOrder.Language.Relations.formula₁ sgPatVSym
+                  (FirstOrder.Language.Term.var (Sum.inr 1)) ⊓
+              FirstOrder.Language.Relations.formula₂ sgPatESym
+                (FirstOrder.Language.Term.var (Sum.inr 0))
+                (FirstOrder.Language.Term.var (Sum.inr 1)) ⊓
+            FirstOrder.Language.Relations.formula₂ sgMapSym
+              (FirstOrder.Language.Term.var (Sum.inr 0))
+              (FirstOrder.Language.Term.var (Sum.inr 2)) ⊓
+          FirstOrder.Language.Relations.formula₂ sgMapSym (FirstOrder.Language.Term.var (Sum.inr 1))
+            (FirstOrder.Language.Term.var (Sum.inr 3))).imp
+      (FirstOrder.Language.Relations.formula₂ sgHostESym (FirstOrder.Language.Term.var (Sum.inr 2))
+        (FirstOrder.Language.Term.var (Sum.inr 3))))
+
+
+-- @@ L366-369 verbatim
+/-- The first-order kernel of the `Σ₁` definition of Subgraph
+Isomorphism. -/
+noncomputable def subgraphKernel : subgraphSOLang.Sentence :=
+  sgTotalClause ⊓ (sgInjClause ⊓ sgEdgeClause)
+
+
+-- @@ L371-398 verbatim
+/-- Realization of the kernel under an assignment of the guessed map. -/
+private theorem realize_subgraphKernel {A : Type} [Language.twoGraphs.Structure A]
+    (ρ : isoGuessBlock.Assignment A) :
+    (@Sentence.Realize subgraphSOLang A
+        (@sumStructure _ _ A _ (isoGuessBlock.structure ρ)) subgraphKernel) ↔
+      (∀ x : A, TGPatV x → ∃ y : A, ρ .map ![x, y] ∧ TGHostV y) ∧
+        (∀ x x' y : A, TGPatV x → TGPatV x' → ρ .map ![x, y] → ρ .map ![x', y] → x = x') ∧
+        ∀ x x' y y' : A, TGPatV x → TGPatV x' → TGPatE x x' → ρ .map ![x, y] →
+          ρ .map ![x', y'] → TGHostE y y' := by
+  let := isoGuessBlock.structure ρ
+  have hsub : ∀ (w : Fin 2 → A),
+      RelMap (L := subgraphSOLang) (M := A) sgMapSym w ↔ ρ .map w := fun _ => Iff.rfl
+  rw [subgraphKernel]
+  simp only [sgTotalClause, sgInjClause, sgEdgeClause, Sentence.Realize, Formula.realize_inf,
+    Formula.realize_iAlls, Formula.realize_imp, Formula.realize_iExs, Formula.realize_rel₁,
+    Formula.realize_rel₂, Formula.realize_equal, Term.realize_var, Sum.elim_inr, Sum.elim_inl,
+    Language.relMap_sumInl, hsub]
+  refine and_congr ⟨fun h x hx => ?_, fun h i hi => ?_⟩
+    (and_congr ⟨fun h x x' y hx hx' h₁ h₂ => ?_, fun h i hi => ?_⟩
+      ⟨fun h x x' y y' hx hx' hpe h₁ h₂ => ?_, fun h i hi => ?_⟩)
+  · obtain ⟨y, hy1, hy2⟩ := h (fun _ => x) hx
+    exact ⟨y 0, hy1, hy2⟩
+  · obtain ⟨y, hy1, hy2⟩ := h (i 0) hi
+    exact ⟨fun _ => y, hy1, hy2⟩
+  · exact h ![x, x', y] ⟨⟨⟨hx, hx'⟩, h₁⟩, h₂⟩
+  · exact h (i 0) (i 1) (i 2) hi.1.1.1 hi.1.1.2 hi.1.2 hi.2
+  · exact h ![x, x', y, y'] ⟨⟨⟨⟨hx, hx'⟩, hpe⟩, h₁⟩, h₂⟩
+  · exact h (i 0) (i 1) (i 2) (i 3) hi.1.1.1.1 hi.1.1.1.2 hi.1.1.2 hi.1.2 hi.2
+
+
+-- @@ L400-434 verbatim
+/-- **Subgraph Isomorphism is `Σ₁`-definable**: existentially guess the map,
+then check first-order that it sends pattern vertices to host vertices,
+injectively, carrying pattern edges to host edges. -/
+theorem subgraphIso_sigmaSODefinable : SigmaSODefinable 1 SubgraphIso := by
+  refine ⟨[isoGuessBlock], rfl, subgraphKernel, ?_⟩
+  intro A _ _ _
+  constructor
+  · rintro ⟨-, f, hmaps, hinj, hedge⟩
+    refine ⟨fun i => match i with | .map => fun w : Fin 2 → A => f (w 0) = w 1,
+      (realize_subgraphKernel _).mpr ⟨fun x hx => ⟨f x, rfl, hmaps x hx⟩,
+        fun x x' y hx hx' h₁ h₂ => hinj x x' hx hx' (h₁.trans h₂.symm), ?_⟩⟩
+    intro x x' y y' hx hx' hpe h₁ h₂
+    have h₁' : f x = y := h₁
+    have h₂' : f x' = y' := h₂
+    rw [← h₁', ← h₂']
+    exact hedge x x' hx hx' hpe
+  · rintro ⟨ρ, hρ⟩
+    obtain ⟨htot, hinj, hedge⟩ := (realize_subgraphKernel ρ).mp hρ
+    classical
+    have hch : ∀ x : {x : A // TGPatV x}, ∃ y : A, ρ .map ![x.1, y] ∧ TGHostV y :=
+      fun x => htot x.1 x.2
+    choose g hg1 hg2 using hch
+    refine ⟨‹Finite A›, fun x => if h : TGPatV x then g ⟨x, h⟩ else x, fun x hx => ?_,
+      fun x y hx hy hxy => ?_, fun x y hx hy hxy => ?_⟩
+    · change TGHostV (if h : TGPatV x then g ⟨x, h⟩ else x)
+      rw [dite_eq_left hx]
+      exact hg2 ⟨x, hx⟩
+    · have hxy' : (if h : TGPatV x then g ⟨x, h⟩ else x) =
+          if h : TGPatV y then g ⟨y, h⟩ else y := hxy
+      rw [dite_eq_left hx, dite_eq_left hy] at hxy'
+      exact hinj x y (g ⟨x, hx⟩) hx hy (hg1 ⟨x, hx⟩) (hxy' ▸ hg1 ⟨y, hy⟩)
+    · change TGHostE (if h : TGPatV x then g ⟨x, h⟩ else x)
+        (if h : TGPatV y then g ⟨y, h⟩ else y)
+      rw [dite_eq_left hx, dite_eq_left hy]
+      exact hedge x y _ _ hx hy hxy (hg1 ⟨x, hx⟩) (hg1 ⟨y, hy⟩)
+
+
+-- @@ L436-436 verbatim
+end SigmaOne
+
+
+-- @@ L438-438 verbatim
+/-! ### NP-completeness -/
+
+
+-- @@ L440-442 verbatim
+/-- Subgraph Isomorphism is in NP: it is `Σ₁`-definable. -/
+theorem subgraphIso_mem_NP : SubgraphIso ∈ NP :=
+  subgraphIso_sigmaSODefinable
+
+
+-- @@ L444-447 verbatim
+/-- Subgraph Isomorphism is NP-hard: Clique, which is NP-hard, reduces to it
+by taking the complete graph on the marked set as pattern. -/
+theorem subgraphIso_NP_hard : NP.Hard SubgraphIso :=
+  NP.hard_of_foReduction clique_fo_reduction_subgraphIso clique_NP_hard
+
+
+-- @@ L449-454 verbatim
+/-- **Subgraph Isomorphism is NP-complete**, derived from the first-order
+reductions of this library and the Cook–Levin theorem.
+Registered in the Lax archive as
+[`Lax799700.SubgraphIso.subgraphIso_NP_complete`](https://laxarchive.org/lax-799700/Lax799700.SubgraphIso.html#s-Lax799700.SubgraphIso.subgraphIso_NP_complete). -/
+theorem subgraphIso_NP_complete : NP.Complete SubgraphIso :=
+  ⟨subgraphIso_mem_NP, subgraphIso_NP_hard⟩
+
+
+-- @@ L456-456 verbatim
+end DescriptiveComplexity
