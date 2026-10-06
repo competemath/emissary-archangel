@@ -17,6 +17,10 @@ on:
         description: "Space-separated keys to leave out (being set up elsewhere, or too big for one 6-hour job)."
         required: false
         default: "formal-conjectures flt-anthropic"
+      tengoku_ref:
+        description: "A branch of competemath/tengoku to read the library's tentative records from (default: main). For libraries whose records are in a PR that is not merged yet."
+        required: false
+        default: ""
 
 permissions: {}
 
@@ -69,6 +73,7 @@ jobs:
       LEAN_NUM_THREADS: "4"
       EMISSARY_LEAN_MB: "12288"
       EMISSARY_TENTATIVE_DIR: ${{ github.workspace }}/tengoku/data/tentative
+      TENGOKU_REF: ${{ inputs.tengoku_ref }}
     steps:
       - name: Free disk (a Mathlib cache plus a library build need ~20 GB)
         run: |
@@ -83,7 +88,8 @@ jobs:
           files=$(python3 -c "import json, os; s = json.load(open('sources.json'))['sources'][os.environ['KEY']]; print(' '.join('data/tentative/' + f for f in s.get('tentative', [os.environ['KEY'] + '.jsonl'])))")
           git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
           git -C tengoku sparse-checkout set --no-cone $files
-          git -C tengoku checkout -q
+          # TENGOKU_REF: a branch of the tree repository that holds records not merged yet (empty: the default branch)
+          if [ -n "${TENGOKU_REF:-}" ]; then git -C tengoku checkout -q "origin/$TENGOKU_REF"; else git -C tengoku checkout -q; fi
           ls -la tengoku/data/tentative
       - name: elan
         run: |

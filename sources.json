@@ -1152,6 +1152,78 @@
       "tentative": [
         "long-gaps-between-primes/records.jsonl"
       ]
+    },
+    "descriptive-complexity": {
+      "label": "Descriptive complexity (Immerman-Vardi, Fagin, games)",
+      "repo": "https://github.com/PierreSenellart/descriptive-complexity",
+      "commit": "969cad44c807cf247826ee9a2f1eb880c47f15cb",
+      "toolchain": "leanprover/lean4:v4.34.0",
+      "roots": [
+        "DescriptiveComplexity"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "immerman-vardi": {
+      "label": "Immerman-Vardi theorem (szymtor)",
+      "repo": "https://github.com/szymtor/immerman-vardi",
+      "commit": "82ef67e68fab884dc4cff117a1b871567bdaaafd",
+      "toolchain": "leanprover/lean4:v4.30.0",
+      "roots": [
+        "Lax979537Proofs"
+      ],
+      "subdir": "proofs",
+      "licence": "Apache-2.0"
+    },
+    "fagin": {
+      "label": "Fagin's theorem (szymtor)",
+      "repo": "https://github.com/szymtor/fagin",
+      "commit": "ce4e9721bbcb28cd16bcaf208f37b40e5b45fe8f",
+      "toolchain": "leanprover/lean4:v4.30.0",
+      "roots": [
+        "Lax678846Proofs"
+      ],
+      "subdir": "proofs",
+      "licence": "Apache-2.0"
+    },
+    "complexitylib": {
+      "label": "complexitylib (TMs, P/NP, Cook-Levin, circuits, PCP)",
+      "repo": "https://github.com/SamuelSchlesinger/complexitylib",
+      "commit": "a0993e7b75440f65cac83134d17350198b2ab108",
+      "toolchain": "leanprover/lean4:v4.35.0-rc3",
+      "roots": [
+        "Complexitylib"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "cslib": {
+      "label": "CSLib (Computer Science Library)",
+      "repo": "https://github.com/leanprover/cslib",
+      "commit": "e806c8e639ed114bae022841ee2a3e92c0082dbe",
+      "toolchain": "leanprover/lean4:v4.35.0-rc3",
+      "roots": [
+        "Cslib"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "causalean": {
+      "label": "Causalean (CausalSmith): DAGs, d-separation, finite positive tables",
+      "repo": "https://github.com/Jiyuan-Tan/CausalSmith",
+      "commit": "e298f64908520f29348e3f480b72db63d37dd574",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "Causalean"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "leaninfotheory": {
+      "label": "LeanInfoTheory (finite discrete information theory)",
+      "repo": "https://github.com/serhatemrecoban/LeanInfoTheory",
+      "commit": "bbead98abfd2ac94f95b615652365a65228e49c5",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "LeanInfoTheory"
+      ],
+      "licence": "Apache-2.0"
     }
   }
 }
