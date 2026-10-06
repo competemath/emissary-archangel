@@ -1,0 +1,1021 @@
+{
+  "key": "cslib",
+  "repo": "https://github.com/leanprover/cslib",
+  "commit": "e806c8e639ed114bae022841ee2a3e92c0082dbe",
+  "toolchain": "leanprover/lean4:v4.35.0-rc3",
+  "roots": [
+    "Cslib"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/cslib/repo",
+  "entries": 2634,
+  "modules": 224,
+  "exported": 224,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "Cslib.Algorithms.CCS.VendingMachine",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Algorithms.CCS.VendingMachine "
+      },
+      {
+        "module": "Cslib.Algorithms.Lean.MergeSort.MergeSort",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Algorithms.Lean.MergeSort.MergeSort "
+      },
+      {
+        "module": "Cslib.Algorithms.Lean.Sort.Insertion",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Algorithms.Lean.Sort.Insertion "
+      },
+      {
+        "module": "Cslib.Algorithms.Lean.Sort.Merge",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Algorithms.Lean.Sort.Merge "
+      },
+      {
+        "module": "Cslib.Algorithms.Lean.TimeM",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Algorithms.Lean.TimeM "
+      },
+      {
+        "module": "Cslib.Algorithms.StatefulProcesses.DiffieHellman.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Algorithms.StatefulProcesses.DiffieHellman.Basic "
+      },
+      {
+        "module": "Cslib.Computability.Automata.Acceptors.Acceptor",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.Acceptors.Acceptor "
+      },
+      {
+        "module": "Cslib.Computability.Automata.Acceptors.OmegaAcceptor",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.Acceptors.OmegaAcceptor "
+      },
+      {
+        "module": "Cslib.Computability.Automata.DA.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.DA.Basic "
+      },
+      {
+        "module": "Cslib.Computability.Automata.DA.Buchi",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.DA.Buchi "
+      },
+      {
+        "module": "Cslib.Computability.Automata.DA.Congr",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.DA.Congr "
+      },
+      {
+        "module": "Cslib.Computability.Automata.DA.Prod",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.DA.Prod "
+      },
+      {
+        "module": "Cslib.Computability.Automata.DA.ToNA",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.DA.ToNA "
+      },
+      {
+        "module": "Cslib.Computability.Automata.EpsilonNA.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.EpsilonNA.Basic "
+      },
+      {
+        "module": "Cslib.Computability.Automata.EpsilonNA.ToNA",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.EpsilonNA.ToNA "
+      },
+      {
+        "module": "Cslib.Computability.Automata.EpsilonNA.ToSingleAccept",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.EpsilonNA.ToSingleAccept "
+      },
+      {
+        "module": "Cslib.Computability.Automata.NA.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.NA.Basic "
+      },
+      {
+        "module": "Cslib.Computability.Automata.NA.BuchiEquiv",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.NA.BuchiEquiv "
+      },
+      {
+        "module": "Cslib.Computability.Automata.NA.BuchiInter",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.NA.BuchiInter "
+      },
+      {
+        "module": "Cslib.Computability.Automata.NA.Concat",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.NA.Concat "
+      },
+      {
+        "module": "Cslib.Computability.Automata.NA.EpsilonTransducer",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.NA.EpsilonTransducer "
+      },
+      {
+        "module": "Cslib.Computability.Automata.NA.Hist",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.NA.Hist "
+      },
+      {
+        "module": "Cslib.Computability.Automata.NA.Loop",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.NA.Loop "
+      },
+      {
+        "module": "Cslib.Computability.Automata.NA.Pair",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.NA.Pair "
+      },
+      {
+        "module": "Cslib.Computability.Automata.NA.Preimage",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.NA.Preimage "
+      },
+      {
+        "module": "Cslib.Computability.Automata.NA.Prod",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.NA.Prod "
+      },
+      {
+        "module": "Cslib.Computability.Automata.NA.Reverse",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.NA.Reverse "
+      },
+      {
+        "module": "Cslib.Computability.Automata.NA.Sum",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.NA.Sum "
+      },
+      {
+        "module": "Cslib.Computability.Automata.NA.ToDA",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.NA.ToDA "
+      },
+      {
+        "module": "Cslib.Computability.Automata.NA.Total",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.NA.Total "
+      },
+      {
+        "module": "Cslib.Computability.Automata.Transducers.Transducer",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.Transducers.Transducer "
+      },
+      {
+        "module": "Cslib.Computability.Automata.TwoWayNA.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.TwoWayNA.Basic "
+      },
+      {
+        "module": "Cslib.Computability.Automata.TwoWayNA.ComplToNA",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.TwoWayNA.ComplToNA "
+      },
+      {
+        "module": "Cslib.Computability.Automata.TwoWayNA.OfNA",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Automata.TwoWayNA.OfNA "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Basic "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Boolean.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Boolean.Basic "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Boolean.Counting",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Boolean.Counting "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Boolean.Lupanov",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Boolean.Lupanov "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Boolean.LupanovConstruction",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Boolean.LupanovConstruction "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Boolean.Shannon",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Boolean.Shannon "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Boolean.Synthesis",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Boolean.Synthesis "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Complexity",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Complexity "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Composition",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Composition "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Counting",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Counting "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Depth",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Depth "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Finite",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Finite "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Homomorphism",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Homomorphism "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Normalization",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Normalization "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Program",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Program "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Shannon",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Shannon "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Signature",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Signature "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Synthesis",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Synthesis "
+      },
+      {
+        "module": "Cslib.Computability.Circuit.Wire",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Circuit.Wire "
+      },
+      {
+        "module": "Cslib.Computability.Distributed.FLP.Algorithm",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Distributed.FLP.Algorithm "
+      },
+      {
+        "module": "Cslib.Computability.Distributed.FLP.CanReachVia",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Distributed.FLP.CanReachVia "
+      },
+      {
+        "module": "Cslib.Computability.Distributed.FLP.Consensus",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Distributed.FLP.Consensus "
+      },
+      {
+        "module": "Cslib.Computability.Distributed.FLP.FairScheduler",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Distributed.FLP.FairScheduler "
+      },
+      {
+        "module": "Cslib.Computability.Distributed.FLP.Impossibility",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Distributed.FLP.Impossibility "
+      },
+      {
+        "module": "Cslib.Computability.Distributed.FLP.OnePseudoConsensus",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Distributed.FLP.OnePseudoConsensus "
+      },
+      {
+        "module": "Cslib.Computability.Distributed.FLP.PseudoConsensus",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Distributed.FLP.PseudoConsensus "
+      },
+      {
+        "module": "Cslib.Computability.Distributed.FLP.ZeroConsensus",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Distributed.FLP.ZeroConsensus "
+      },
+      {
+        "module": "Cslib.Computability.Languages.Congruences.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Languages.Congruences.Basic "
+      },
+      {
+        "module": "Cslib.Computability.Languages.Congruences.BuchiCongruence",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Languages.Congruences.BuchiCongruence "
+      },
+      {
+        "module": "Cslib.Computability.Languages.Congruences.MyhillCongruence",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Languages.Congruences.MyhillCongruence "
+      },
+      {
+        "module": "Cslib.Computability.Languages.ExampleEventuallyZero",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Languages.ExampleEventuallyZero "
+      },
+      {
+        "module": "Cslib.Computability.Languages.Language",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Languages.Language "
+      },
+      {
+        "module": "Cslib.Computability.Languages.LanguageHom",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Languages.LanguageHom "
+      },
+      {
+        "module": "Cslib.Computability.Languages.MyhillNerode",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Languages.MyhillNerode "
+      },
+      {
+        "module": "Cslib.Computability.Languages.OmegaLanguage",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Languages.OmegaLanguage "
+      },
+      {
+        "module": "Cslib.Computability.Languages.OmegaRegularLanguage",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Languages.OmegaRegularLanguage "
+      },
+      {
+        "module": "Cslib.Computability.Languages.RegularLanguage",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Languages.RegularLanguage "
+      },
+      {
+        "module": "Cslib.Computability.Languages.SafetyLiveness",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Languages.SafetyLiveness "
+      },
+      {
+        "module": "Cslib.Computability.Languages.Slice",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Languages.Slice "
+      },
+      {
+        "module": "Cslib.Computability.Languages.SyntacticMonoid",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Languages.SyntacticMonoid "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.MultiTape.Combinators.Id",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.MultiTape.Combinators.Id "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.MultiTape.ConfigBound",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.MultiTape.ConfigBound "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.MultiTape.Configuration",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.MultiTape.Configuration "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.MultiTape.Deterministic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.MultiTape.Deterministic "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.MultiTape.DeterministicToNondeterministic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.MultiTape.DeterministicToNondeterministic "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.MultiTape.Nondeterministic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.MultiTape.Nondeterministic "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapes",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapes "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.MultiTape.Plumbing.InputFromTape",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.MultiTape.Plumbing.InputFromTape "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.MultiTape.Plumbing.OutputToTape",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.MultiTape.Plumbing.OutputToTape "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.MultiTape.Plumbing.RewindInput",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.MultiTape.Plumbing.RewindInput "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.MultiTape.Plumbing.RewindWork",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.MultiTape.Plumbing.RewindWork "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.MultiTape.Plumbing.Sequential",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.MultiTape.Plumbing.Sequential "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.SingleTape.Defs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.SingleTape.Defs "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.SingleTape.Deterministic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.SingleTape.Deterministic "
+      },
+      {
+        "module": "Cslib.Computability.Machines.Turing.SingleTape.NonDeterministic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.Machines.Turing.SingleTape.NonDeterministic "
+      },
+      {
+        "module": "Cslib.Computability.URM.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.URM.Basic "
+      },
+      {
+        "module": "Cslib.Computability.URM.Defs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.URM.Defs "
+      },
+      {
+        "module": "Cslib.Computability.URM.Execution",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.URM.Execution "
+      },
+      {
+        "module": "Cslib.Computability.URM.StandardForm",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.URM.StandardForm "
+      },
+      {
+        "module": "Cslib.Computability.URM.StraightLine",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Computability.URM.StraightLine "
+      },
+      {
+        "module": "Cslib.Crypto.Primitives.PRG.Asymptotic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Crypto.Primitives.PRG.Asymptotic "
+      },
+      {
+        "module": "Cslib.Crypto.Primitives.PRG.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Crypto.Primitives.PRG.Basic "
+      },
+      {
+        "module": "Cslib.Crypto.Primitives.PRG.Defs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Crypto.Primitives.PRG.Defs "
+      },
+      {
+        "module": "Cslib.Crypto.Protocols.Commitment.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Crypto.Protocols.Commitment.Basic "
+      },
+      {
+        "module": "Cslib.Crypto.Protocols.Commitment.Defs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Crypto.Protocols.Commitment.Defs "
+      },
+      {
+        "module": "Cslib.Crypto.Protocols.Commitment.Scheme",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Crypto.Protocols.Commitment.Scheme "
+      },
+      {
+        "module": "Cslib.Crypto.Protocols.PerfectSecrecy.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Crypto.Protocols.PerfectSecrecy.Basic "
+      },
+      {
+        "module": "Cslib.Crypto.Protocols.PerfectSecrecy.Defs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Crypto.Protocols.PerfectSecrecy.Defs "
+      },
+      {
+        "module": "Cslib.Crypto.Protocols.PerfectSecrecy.Encryption",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Crypto.Protocols.PerfectSecrecy.Encryption "
+      },
+      {
+        "module": "Cslib.Crypto.Protocols.PerfectSecrecy.OneTimePad",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Crypto.Protocols.PerfectSecrecy.OneTimePad "
+      },
+      {
+        "module": "Cslib.Crypto.Protocols.SecretSharing.Defs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Crypto.Protocols.SecretSharing.Defs "
+      },
+      {
+        "module": "Cslib.Crypto.Protocols.SecretSharing.Scheme",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Crypto.Protocols.SecretSharing.Scheme "
+      },
+      {
+        "module": "Cslib.Crypto.Protocols.SecretSharing.Shamir",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Crypto.Protocols.SecretSharing.Shamir "
+      },
+      {
+        "module": "Cslib.Crypto.Protocols.SecretSharing.Shamir.Polynomial",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Crypto.Protocols.SecretSharing.Shamir.Polynomial "
+      },
+      {
+        "module": "Cslib.Foundations.Combinatorics.InfiniteGraphRamsey",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Combinatorics.InfiniteGraphRamsey "
+      },
+      {
+        "module": "Cslib.Foundations.Control.Monad.Free",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Control.Monad.Free "
+      },
+      {
+        "module": "Cslib.Foundations.Control.Monad.Free.Effects",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Control.Monad.Free.Effects "
+      },
+      {
+        "module": "Cslib.Foundations.Control.Monad.Free.Fold",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Control.Monad.Free.Fold "
+      },
+      {
+        "module": "Cslib.Foundations.Control.Monad.IsMonadHom",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Control.Monad.IsMonadHom "
+      },
+      {
+        "module": "Cslib.Foundations.Control.Monad.IsMonadHom.List",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Control.Monad.IsMonadHom.List "
+      },
+      {
+        "module": "Cslib.Foundations.Data.BiTape",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.BiTape "
+      },
+      {
+        "module": "Cslib.Foundations.Data.BitString",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.BitString "
+      },
+      {
+        "module": "Cslib.Foundations.Data.DecidableEqZero",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.DecidableEqZero "
+      },
+      {
+        "module": "Cslib.Foundations.Data.FinFun.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.FinFun.Basic "
+      },
+      {
+        "module": "Cslib.Foundations.Data.FinFun.Update",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.FinFun.Update "
+      },
+      {
+        "module": "Cslib.Foundations.Data.HasFresh",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.HasFresh "
+      },
+      {
+        "module": "Cslib.Foundations.Data.List.IsChainFromTo",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.List.IsChainFromTo "
+      },
+      {
+        "module": "Cslib.Foundations.Data.Nat.Asymptotics",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.Nat.Asymptotics "
+      },
+      {
+        "module": "Cslib.Foundations.Data.Nat.Factorial",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.Nat.Factorial "
+      },
+      {
+        "module": "Cslib.Foundations.Data.Nat.Segment",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.Nat.Segment "
+      },
+      {
+        "module": "Cslib.Foundations.Data.OmegaSequence.Defs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.OmegaSequence.Defs "
+      },
+      {
+        "module": "Cslib.Foundations.Data.OmegaSequence.Flatten",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.OmegaSequence.Flatten "
+      },
+      {
+        "module": "Cslib.Foundations.Data.OmegaSequence.InfOcc",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.OmegaSequence.InfOcc "
+      },
+      {
+        "module": "Cslib.Foundations.Data.OmegaSequence.Init",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.OmegaSequence.Init "
+      },
+      {
+        "module": "Cslib.Foundations.Data.OmegaSequence.Temporal",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.OmegaSequence.Temporal "
+      },
+      {
+        "module": "Cslib.Foundations.Data.OmegaSequence.Topology",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.OmegaSequence.Topology "
+      },
+      {
+        "module": "Cslib.Foundations.Data.PFunctor.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.PFunctor.Basic "
+      },
+      {
+        "module": "Cslib.Foundations.Data.PFunctor.Free",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.PFunctor.Free "
+      },
+      {
+        "module": "Cslib.Foundations.Data.PFunctor.Free.Fold",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.PFunctor.Free.Fold "
+      },
+      {
+        "module": "Cslib.Foundations.Data.PFunctor.Free.W",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.PFunctor.Free.W "
+      },
+      {
+        "module": "Cslib.Foundations.Data.Set.Saturation",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.Set.Saturation "
+      },
+      {
+        "module": "Cslib.Foundations.Data.StackTape",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Data.StackTape "
+      },
+      {
+        "module": "Cslib.Foundations.Logic.InferenceSystem",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Logic.InferenceSystem "
+      },
+      {
+        "module": "Cslib.Foundations.Logic.LogicalEquivalence",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Logic.LogicalEquivalence "
+      },
+      {
+        "module": "Cslib.Foundations.Logic.Operators",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Logic.Operators "
+      },
+      {
+        "module": "Cslib.Foundations.MeasureTheory.FiniteSupport",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.MeasureTheory.FiniteSupport "
+      },
+      {
+        "module": "Cslib.Foundations.Relation.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Relation.Basic "
+      },
+      {
+        "module": "Cslib.Foundations.Relation.Confluence",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Relation.Confluence "
+      },
+      {
+        "module": "Cslib.Foundations.Relation.Defs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Relation.Defs "
+      },
+      {
+        "module": "Cslib.Foundations.Relation.Domain",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Relation.Domain "
+      },
+      {
+        "module": "Cslib.Foundations.Relation.Euclidean",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Relation.Euclidean "
+      },
+      {
+        "module": "Cslib.Foundations.Relation.Preserves",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Relation.Preserves "
+      },
+      {
+        "module": "Cslib.Foundations.Relation.RelatesInSteps",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Relation.RelatesInSteps "
+      },
+      {
+        "module": "Cslib.Foundations.Relation.Restriction",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Relation.Restriction "
+      },
+      {
+        "module": "Cslib.Foundations.Relation.Termination",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Relation.Termination "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.FLTS.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.FLTS.Basic "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.FLTS.FLTSToLTS",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.FLTS.FLTSToLTS "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.FLTS.LTSToFLTS",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.FLTS.LTSToFLTS "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.FLTS.Prod",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.FLTS.Prod "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.Frame.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.Frame.Basic "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.Frame.LTS",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.Frame.LTS "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.LTS.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.LTS.Basic "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.LTS.Bisimulation",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.LTS.Bisimulation "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.LTS.Divergence",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.LTS.Divergence "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.LTS.ExampleTermination",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.LTS.ExampleTermination "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.LTS.Execution",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.LTS.Execution "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.LTS.HasTau",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.LTS.HasTau "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.LTS.MapHom",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.LTS.MapHom "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.LTS.OmegaExecution",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.LTS.OmegaExecution "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.LTS.Relation",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.LTS.Relation "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.LTS.Reverse",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.LTS.Reverse "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.LTS.Simulation",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.LTS.Simulation "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.LTS.Termination",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.LTS.Termination "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.LTS.Total",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.LTS.Total "
+      },
+      {
+        "module": "Cslib.Foundations.Semantics.LTS.TraceEq",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Semantics.LTS.TraceEq "
+      },
+      {
+        "module": "Cslib.Foundations.Syntax.Congruence",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Syntax.Congruence "
+      },
+      {
+        "module": "Cslib.Foundations.Syntax.Context",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Syntax.Context "
+      },
+      {
+        "module": "Cslib.Foundations.Syntax.HasAlphaEquiv",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Syntax.HasAlphaEquiv "
+      },
+      {
+        "module": "Cslib.Foundations.Syntax.HasSubstitution",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Syntax.HasSubstitution "
+      },
+      {
+        "module": "Cslib.Foundations.Syntax.HasWellFormed",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Foundations.Syntax.HasWellFormed "
+      },
+      {
+        "module": "Cslib.Languages.CCS.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.CCS.Basic "
+      },
+      {
+        "module": "Cslib.Languages.CCS.BehaviouralTheory",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.CCS.BehaviouralTheory "
+      },
+      {
+        "module": "Cslib.Languages.CCS.Semantics",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.CCS.Semantics "
+      },
+      {
+        "module": "Cslib.Languages.CombinatoryLogic.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.CombinatoryLogic.Basic "
+      },
+      {
+        "module": "Cslib.Languages.CombinatoryLogic.Computable",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.CombinatoryLogic.Computable "
+      },
+      {
+        "module": "Cslib.Languages.CombinatoryLogic.Confluence",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.CombinatoryLogic.Confluence "
+      },
+      {
+        "module": "Cslib.Languages.CombinatoryLogic.Defs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.CombinatoryLogic.Defs "
+      },
+      {
+        "module": "Cslib.Languages.CombinatoryLogic.Evaluation",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.CombinatoryLogic.Evaluation "
+      },
+      {
+        "module": "Cslib.Languages.CombinatoryLogic.List",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.CombinatoryLogic.List "
+      },
+      {
+        "module": "Cslib.Languages.CombinatoryLogic.PartrecToSKI",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.CombinatoryLogic.PartrecToSKI "
+      },
+      {
+        "module": "Cslib.Languages.CombinatoryLogic.Recursion",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.CombinatoryLogic.Recursion "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Context",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Context "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Fsub.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Fsub.Basic "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Fsub.Opening",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Fsub.Opening "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Fsub.Reduction",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Fsub.Reduction "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Fsub.Safety",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Fsub.Safety "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Fsub.Subtype",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Fsub.Subtype "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Fsub.Typing",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Fsub.Typing "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Fsub.WellFormed",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Fsub.WellFormed "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Stlc.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Stlc.Basic "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Stlc.Safety",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Stlc.Safety "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Stlc.StrongNorm",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Stlc.StrongNorm "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.Basic "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.BetaAt",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.BetaAt "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.CallByName",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.CallByName "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.Congruence",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.Congruence "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.FullBeta",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.FullBeta "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.FullBetaConfluence",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.FullBetaConfluence "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.FullBetaEta",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.FullBetaEta "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.FullBetaEtaConfluence",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.FullBetaEtaConfluence "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.FullEta",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.FullEta "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.FullEtaConfluence",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.FullEtaConfluence "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.LcAt",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.LcAt "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.LeftmostReduction",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.LeftmostReduction "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.MultiApp",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.MultiApp "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.MultiSubst",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.MultiSubst "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.Properties",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.Properties "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.StandardReduction",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.StandardReduction "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.StrongNorm",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.LocallyNameless.Untyped.StrongNorm "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.Named.Untyped.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.Named.Untyped.Basic "
+      },
+      {
+        "module": "Cslib.Languages.LambdaCalculus.Named.Untyped.Properties",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.LambdaCalculus.Named.Untyped.Properties "
+      },
+      {
+        "module": "Cslib.Languages.Mech.LocalComputation",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.Mech.LocalComputation "
+      },
+      {
+        "module": "Cslib.Languages.StatefulProcesses.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.StatefulProcesses.Basic "
+      },
+      {
+        "module": "Cslib.Languages.StatefulProcesses.Network",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Languages.StatefulProcesses.Network "
+      },
+      {
+        "module": "Cslib.Logics.HML.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.HML.Basic "
+      },
+      {
+        "module": "Cslib.Logics.LinearLogic.CLL.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.LinearLogic.CLL.Basic "
+      },
+      {
+        "module": "Cslib.Logics.LinearLogic.CLL.EtaExpansion",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.LinearLogic.CLL.EtaExpansion "
+      },
+      {
+        "module": "Cslib.Logics.LinearLogic.CLL.MLL",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.LinearLogic.CLL.MLL "
+      },
+      {
+        "module": "Cslib.Logics.LinearLogic.CLL.PhaseSemantics.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.LinearLogic.CLL.PhaseSemantics.Basic "
+      },
+      {
+        "module": "Cslib.Logics.Modal.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.Modal.Basic "
+      },
+      {
+        "module": "Cslib.Logics.Modal.Denotation",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.Modal.Denotation "
+      },
+      {
+        "module": "Cslib.Logics.Modal.Lean.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.Modal.Lean.Basic "
+      },
+      {
+        "module": "Cslib.Logics.Modal.LogicalEquivalence",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.Modal.LogicalEquivalence "
+      },
+      {
+        "module": "Cslib.Logics.Modal.Semantics",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.Modal.Semantics "
+      },
+      {
+        "module": "Cslib.Logics.Modal.Unary.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.Modal.Unary.Basic "
+      },
+      {
+        "module": "Cslib.Logics.Modal.Unimodal.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.Modal.Unimodal.Basic "
+      },
+      {
+        "module": "Cslib.Logics.Modal.Unimodal.Cube",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.Modal.Unimodal.Cube "
+      },
+      {
+        "module": "Cslib.Logics.Modal.Unimodal.Lean.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.Modal.Unimodal.Lean.Basic "
+      },
+      {
+        "module": "Cslib.Logics.Modal.Unimodal.Lean.SMul",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.Modal.Unimodal.Lean.SMul "
+      },
+      {
+        "module": "Cslib.Logics.Propositional.Defs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.Propositional.Defs "
+      },
+      {
+        "module": "Cslib.Logics.Propositional.NaturalDeduction.Basic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.Propositional.NaturalDeduction.Basic "
+      },
+      {
+        "module": "Cslib.Logics.Propositional.NaturalDeduction.Theory",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Logics.Propositional.NaturalDeduction.Theory "
+      },
+      {
+        "module": "Cslib.MachineLearning.PACLearning.Defs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.MachineLearning.PACLearning.Defs "
+      },
+      {
+        "module": "Cslib.MachineLearning.PACLearning.VCDimension",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.MachineLearning.PACLearning.VCDimension "
+      },
+      {
+        "module": "Cslib.MachineLearning.PACLearning.VersionSpace",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.MachineLearning.PACLearning.VersionSpace "
+      },
+      {
+        "module": "Cslib.MachineLearning.PACLearning.VersionSpaceLattice",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.MachineLearning.PACLearning.VersionSpaceLattice "
+      },
+      {
+        "module": "Cslib.Probability.PMF",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Probability.PMF "
+      },
+      {
+        "module": "Cslib.Probability.StatisticalDistance",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/cslib Cslib Cslib.Probability.StatisticalDistance "
+      }
+    ]
+  },
+  "seed": {
+    "records": 2634,
+    "kept": 2634,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 66,
+    "nameFixed": 2607,
+    "sorryOriginals": 0,
+    "emptyProofs": 22
+  },
+  "exportsBytes": 87859200,
+  "minutes": 29,
+  "finishedAt": "2026-10-06T22:27:24.944Z"
+}

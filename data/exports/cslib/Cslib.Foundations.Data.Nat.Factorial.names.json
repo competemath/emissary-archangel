@@ -1,0 +1,1 @@
+{"names":["Nat.mul_log_sub_le_log_factorial"],"modules":["Cslib.Foundations.Data.Nat.Factorial"],"moduleOf":{"Nat.mul_log_sub_le_log_factorial":"Cslib.Foundations.Data.Nat.Factorial"},"deps":{"Nat.mul_log_sub_le_log_factorial":[]}}
