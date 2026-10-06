@@ -1,0 +1,50 @@
+# scripts/bump/BundleKeep.lean, run by a real Lean on a small case: the program that decides which library constants a bundle keeps imports only Lean and loads the
+# library at run time (the script it replaced was parsed with the library's tokens, and lost whole shards' theorems silently: bundle.py's header says how).
+name: bundle-keep-tests
+on:
+  push:
+    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", ".github/workflows/bundle-keep-tests.yml"]
+  pull_request:
+    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", ".github/workflows/bundle-keep-tests.yml"]
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  lean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout: |
+            gate2
+            scripts/bump
+          persist-credentials: false
+      - name: elan (the installer at a fixed commit, checked against its digest before it runs)
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSfL -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh
+          echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c -
+          sh elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: The program keeps the passed theorem and what it stands on, in a module of Lean's own library
+        working-directory: gate2
+        run: |
+          printf '%s' '{"imports": ["Init.Data.Nat.Basic"], "names": ["Nat.add_comm"], "libs": ["Init.Data.Nat.Basic"]}' > "$RUNNER_TEMP/keep.json"
+          lake env lean --run ../scripts/bump/BundleKeep.lean "$RUNNER_TEMP/keep.json" | tee "$RUNNER_TEMP/keep.out"
+          python3 - <<'PY'
+          import json, os, re
+          out = open(os.path.join(os.environ["RUNNER_TEMP"], "keep.out")).read()
+          m = re.search(r"BUNDLE_KEEP (\[.*?\]) BUNDLE_END", out, re.S)
+          assert m, out[-500:]
+          kept = {tuple(x) for x in json.loads(m.group(1))}
+          assert ("Init.Data.Nat.Basic", "Nat.add_comm") in kept, sorted(kept)[:20]
+          assert all(mod == "Init.Data.Nat.Basic" for mod, _ in kept), "only the library's own modules are kept"
+          print(len(kept), "constants kept, the passed theorem among them")
+          PY
+      - name: A name that does not exist keeps nothing and does not fail the program
+        working-directory: gate2
+        run: |
+          printf '%s' '{"imports": ["Init.Data.Nat.Basic"], "names": ["No.Such.theorem"], "libs": ["Init.Data.Nat.Basic"]}' > "$RUNNER_TEMP/keep2.json"
+          lake env lean --run ../scripts/bump/BundleKeep.lean "$RUNNER_TEMP/keep2.json" | grep -q "BUNDLE_KEEP"

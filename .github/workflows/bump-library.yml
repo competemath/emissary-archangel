@@ -197,8 +197,9 @@ jobs:
       - name: The intake bundle (only what passed, as Lean modules for the tree)
         working-directory: emissary
         run: |
-          python3 scripts/bump/bundle.py lean --lib lib --passed passed.json --roots "$ROOTS" --out lib/bundle-deps.lean
-          (cd lib && timeout 90m lake env lean bundle-deps.lean > ../bundle-deps.log 2>&1 || true)
+          # a program that imports only Lean and loads the library at run time (BundleKeep.lean says why: a script that imported the library parsed with its tokens)
+          python3 scripts/bump/bundle.py keep-input --lib lib --passed passed.json --roots "$ROOTS" --out lib/bundle-keep.json
+          (cd lib && timeout 90m lake env lean --run ../scripts/bump/BundleKeep.lean bundle-keep.json > ../bundle-deps.log 2>&1 || true)
           python3 scripts/bump/bundle.py compose --lib lib --log bundle-deps.log --passed passed.json --meta "data/exports/$KEY/setup.ci.json" \
             --key "$KEY" --toolchain "$TOOLCHAIN" --errors build1.log --gate2 gate2.log --out bundle --src pruned-src
       - name: Build the pruned sources until they are clean (what is shipped is exactly what was built; a module that does not build, and what imports it, is left out)

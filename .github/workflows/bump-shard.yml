@@ -126,8 +126,9 @@ jobs:
       - name: What the passed theorems are made of
         working-directory: emissary
         run: |
-          python3 scripts/bump/bundle.py lean --lib lib --passed passed.json --roots "$ROOTS" --out lib/bundle-deps.lean
-          (cd lib && timeout 120m lake env lean bundle-deps.lean > ../bundle-deps.log 2>&1 || true)
+          # a program that imports only Lean and loads the library at run time (BundleKeep.lean says why: a script that imported the library parsed with its tokens)
+          python3 scripts/bump/bundle.py keep-input --lib lib --passed passed.json --roots "$ROOTS" --out lib/bundle-keep.json
+          (cd lib && timeout 120m lake env lean --run ../scripts/bump/BundleKeep.lean bundle-keep.json > ../bundle-deps.log 2>&1 || true)
           grep -c BUNDLE_KEEP bundle-deps.log || true
       - name: Pack this shard
         working-directory: emissary

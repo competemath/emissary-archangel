@@ -253,28 +253,49 @@ class ToTree(unittest.TestCase):
 
 
 class KeepScript(unittest.TestCase):
-    """The Lean script of `bundle.py lean` is compiled in a file that imports the library, so a token the library defines is live while it is parsed. lean-pool defines
-    `]!`: `xs[i]!` stopped parsing, the shard's `#bundle_keep` never ran, and 6,943 theorems that had passed Gate 2 silently left the bundle (2026-10-05). Checked on
-    Leak IV: the old script fails with exactly that error when `]!` is a token, the new one keeps the same 98 constants with and without it."""
+    """What `#bundle_keep` needs is computed by scripts/bump/BundleKeep.lean, a program that imports only Lean and loads the library at run time. It used to be a script
+    compiled in a file that imported the library, so every token the library defines was live while it was parsed: lean-pool defines `]!` (`xs[i]!` stopped parsing)
+    and then, in two more shards, the `#bundle_keep` command line itself did not parse; the shard's bundle-deps.log had no BUNDLE_KEEP and 6,943 + 8,639 theorems that had
+    passed Gate 2 silently left the bundle (2026-10-05). The Lean function is checked on Leak IV against the old script (the same 98 constants of a seed module)."""
 
-    def code(self):
-        # the doc comments may name brackets; the code may not use any
-        return re.sub(r"/--.*?-/", "", bundle.LEAN, flags=re.S)
+    PROGRAM = (Path(__file__).resolve().parents[1] / "BundleKeep.lean").read_text(encoding="utf-8")
 
-    def test_the_script_uses_no_bracket_syntax(self):
-        code = self.code()
-        for bad in ("[", "]", "#[", "{}", "∅"):
-            self.assertNotIn(bad, code, f"{bad!r} can be part of a token a library defines")
+    def test_the_program_imports_only_lean(self):
+        imports = re.findall(r"^import\s+(\S+)", self.PROGRAM, re.M)
+        self.assertEqual(imports, ["Lean"], "a library's syntax must never be in scope while this file is parsed")
 
-    def test_the_script_still_does_what_it_did(self):
-        for needle in (
-            'elab "#bundle_keep "',
-            "getElem? env.header.moduleNames",
-            "getElem! env.header.moduleData",
-            "BUNDLE_KEEP {j.compress} BUNDLE_END",
-            "bkTainted",
-        ):
-            self.assertIn(needle, bundle.LEAN)
+    def test_the_program_prints_the_line_compose_reads(self):
+        self.assertIn('IO.println s!"BUNDLE_KEEP {res.compress} BUNDLE_END"', self.PROGRAM)
+        self.assertIn("enableInitializersExecution", self.PROGRAM)  # `lean --run` interprets it: the initializers of the loaded library must be allowed to run
+        line = 'x:1:0: info: BUNDLE_KEEP [["M", "c"]] BUNDLE_END'
+        self.assertTrue(re.search(r"BUNDLE_KEEP (\[.*?\]) BUNDLE_END", line, re.S))  # the pattern compose uses
+
+    def test_keep_input_names_what_the_program_loads(self):
+        d = Path(tempfile.mkdtemp())
+        lib = d / "lib"
+        base = lib / ".lake" / "build" / "lib" / "lean" / "Toy"
+        base.mkdir(parents=True)
+        for m in ("A", "B", "Unrelated"):
+            (base / f"{m}.olean").write_bytes(b"")
+        (lib / "Toy").mkdir()
+        (lib / "Toy" / "A.lean").write_text("import Mathlib.Data.Nat.Basic\n")
+        (d / "passed.json").write_text(json.dumps({"Toy.B": ["Toy.b2", "Toy.b1"], "Toy.A": ["Toy.a"]}))
+        subprocess.run([sys.executable, str(HERE / "bundle.py"), "keep-input", "--lib", str(lib), "--passed", str(d / "passed.json"), "--roots", "Toy", "--out", str(d / "k.json")], check=True, capture_output=True)
+        k = json.loads((d / "k.json").read_text())
+        self.assertEqual(k["imports"], ["Mathlib", "Toy.A", "Toy.B"])  # the tree's Mathlib when the library uses it, then the modules that have passed theorems
+        self.assertEqual(k["names"], ["Toy.a", "Toy.b2", "Toy.b1"])  # in module order, names as Gate 2 printed them
+        self.assertEqual(k["libs"], ["Toy.A", "Toy.B", "Toy.Unrelated"])  # every built module of the library, whether or not a theorem of it passed
+
+    def test_a_library_that_does_not_use_mathlib_does_not_import_it(self):
+        d = Path(tempfile.mkdtemp())
+        lib = d / "lib"
+        (lib / ".lake" / "build" / "lib" / "lean" / "Toy").mkdir(parents=True)
+        (lib / ".lake" / "build" / "lib" / "lean" / "Toy" / "A.olean").write_bytes(b"")
+        (lib / "Toy").mkdir()
+        (lib / "Toy" / "A.lean").write_text("theorem a : True := trivial\n")
+        (d / "passed.json").write_text(json.dumps({"Toy.A": ["Toy.a"]}))
+        subprocess.run([sys.executable, str(HERE / "bundle.py"), "keep-input", "--lib", str(lib), "--passed", str(d / "passed.json"), "--roots", "Toy", "--out", str(d / "k.json")], check=True, capture_output=True)
+        self.assertEqual(json.loads((d / "k.json").read_text())["imports"], ["Toy.A"])
 
     def test_passed_names_the_step_kept_nothing_for_are_found(self):
         passed = {"M.A": ["a", "b"], "M.B": ["c"]}

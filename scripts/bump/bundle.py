@@ -16,7 +16,7 @@ registered corpus), which cannot live in a repository. A bundle holds each modul
 The pruned sources (original layout and imports, umbrella Mathlib) are written to --src: the workflow builds THAT with the tolerant
 builder and requires zero errors and no sorry, so what is shipped is exactly what was built.
 
-  bundle.py lean    --lib DIR --passed passed.json --roots R,R --out bundle-deps.lean
+  bundle.py keep-input --lib DIR --passed passed.json --roots R,R --out bundle-keep.json     (then, in the library: lake env lean --run scripts/bump/BundleKeep.lean bundle-keep.json > bundle-deps.log)
   bundle.py compose --lib DIR --log bundle-deps.log --passed passed.json --meta setup.ci.json --key K --toolchain T --errors build.log
                     --gate2 gate2.log --out BUNDLE --src PRUNED_SRC
 """
@@ -44,85 +44,6 @@ import tolerant_build as tb  # noqa: E402
 SEED_PACKAGES = ("Mathlib", "Batteries", "Aesop", "Qq", "ProofWidgets", "Plausible", "LeanSearchClient", "ImportGraph", "Cli")
 CORE = ("Init", "Std", "Lean", "Lake")
 IMPORT_RE = re.compile(r"^(\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)?)(" + tb.MODNAME + r")(.*)$")
-
-# This script is compiled in a file that IMPORTS the library, so every token the library defines is live while it is parsed. A library that defines the token `]!`
-# (lean-pool's Incompleteness) made `xs[i]!` unparseable: the whole command failed, a shard's bundle-deps.log had no BUNDLE_KEEP, and 6,943 theorems that had passed
-# Gate 2 silently left the bundle (found 2026-10-05). So the script uses no bracket syntax at all: `getElem?` / `getElem!` for indexing, `Array.empty` and `NameSet.empty`
-# for the empty collections, `List.nil` / `List.cons` in the pattern. test_bundle.py pins that, and compose refuses a log whose BUNDLE_KEEP leaves passed theorems out.
-LEAN = r'''
-open Lean Elab Command Meta
-
-def bkParse (s : String) : Name := (s.splitOn ".").foldl (fun n part => Name.mkStr n part) Name.anonymous
-
-def bkModOf (env : Environment) (n : Name) : Option Name :=
-  (env.getModuleIdxFor? n).bind fun i => getElem? env.header.moduleNames i.toNat
-
-/-- Does the constant stand on `sorryAx`, directly or through a library constant? (a failed proof, or anything built on one) -/
-partial def bkTainted (env : Environment) (isOwn : Name → Bool) (memo : IO.Ref (Std.HashMap Name Bool)) (c : Name) : IO Bool := do
-  if let some b := (← memo.get).get? c then return b
-  memo.modify (·.insert c false)  -- in progress: a cycle does not taint itself
-  let some ci := env.find? c | return false
-  let used := ci.getUsedConstantsAsSet
-  let mut t := used.contains ``sorryAx
-  unless t do
-    for u in used.toList do
-      if isOwn u && (← bkTainted env isOwn memo u) then
-        t := true
-        break
-  memo.modify (·.insert c t)
-  return t
-
-/-- Every library constant (module, name) that must stay: the closure of the types, values and proofs of the passed theorems AND of every
-library constant that is not a theorem and stands on nothing failed (definitions, structures, classes, instances: glue such as `variable
-[MyClass F]` or a notation names them without any theorem using them, so cutting one breaks what is left). Theorems stay only
-where something that stays needs them, and clean simp lemmas (`simp` uses them without the proof term saying so). -/
-elab "#bundle_keep " names:str " in " libs:str : command => do
-  let libMods : NameSet := (libs.getString.splitOn ",").foldl (fun s x => if x == "" then s else s.insert (bkParse x)) NameSet.empty
-  let j ← liftTermElabM do
-    let env ← getEnv
-    let isOwn (c : Name) : Bool := match bkModOf env c with | some m => libMods.contains m | none => false
-    let taint ← IO.mkRef (default : Std.HashMap Name Bool)
-    let mut seeds : List Name := ((names.getString.splitOn ",").filter (· != "")).map bkParse
-    -- `simp` (and `dsimp`) use the simp lemmas of the environment; a `rfl` lemma leaves nothing of itself in the proof term, so
-    -- the closure of the passed theorems never sees it, yet the proofs that `simp` closed with it do not close without it
-    let simpNames : NameSet := (← getSimpTheorems).lemmaNames.fold (init := NameSet.empty) fun s o =>
-      match o with
-      | .decl n _ _ => s.insert n
-      | _ => s
-    -- a theorem's own auxiliary definitions (`foo.match_1`, ...) are not seeds: their source range is the theorem's block, and
-    -- a seed keeps the block: a failed theorem would come back through its matcher
-    let isAuxOfTheorem (c : Name) : Bool := Id.run do
-      let mut p := c.getPrefix
-      while !p.isAnonymous do
-        if (env.find? p).any (·.isTheorem) then return true
-        p := p.getPrefix
-      return false
-    for m in libMods.toList do
-      let some idx := env.getModuleIdx? m | continue
-      for c in (getElem! env.header.moduleData idx.toNat).constNames do
-        if let some ci := env.find? c then
-          if ci.isTheorem then
-            if simpNames.contains c && !(← bkTainted env isOwn taint c) then seeds := c :: seeds
-          else if !isAuxOfTheorem c && !(← bkTainted env isOwn taint c) then seeds := c :: seeds
-    let mut seen : NameSet := NameSet.empty
-    let mut stack : List Name := seeds
-    let mut consts : Array Json := Array.empty
-    while !stack.isEmpty do
-      match stack with
-      | List.nil => pure ()
-      | List.cons c rest =>
-        stack := rest
-        if seen.contains c then continue
-        seen := seen.insert c
-        if let some ci := env.find? c then
-          for u in ci.getUsedConstantsAsSet.toList do
-            if isOwn u && !seen.contains u then stack := u :: stack
-          if let some m := bkModOf env c then
-            consts := consts.push (Json.arr ((Array.empty.push (toJson m.toString)).push (toJson c.toString)))
-    return Json.arr consts
-  logInfo m!"BUNDLE_KEEP {j.compress} BUNDLE_END"
-'''
-
 
 MODES = ("strict", "proposed", "wide")  # strict: the allow-list; proposed: + notation commands; wide: + the macro family (what the tree takes is a policy decision)
 MAX_KEEP_GAP = 0.02  # a few passed names may resolve to no constant (an alias); more than this share means the Lean step lost a part of the library
@@ -170,15 +91,16 @@ def uses_mathlib(lib: Path) -> bool:
     )
 
 
-def lean_file(a: argparse.Namespace) -> None:
+def keep_input(a: argparse.Namespace) -> None:
+    """The input of scripts/bump/BundleKeep.lean: the modules to load, the passed theorems, and the library's own modules. BundleKeep is a program of its own that
+    imports only Lean, so nothing the library defines can reach it (see its header)."""
     lib = Path(a.lib)
     roots = [r for r in a.roots.split(",") if r]
     passed = json.loads(Path(a.passed).read_text())
     mods = built_modules(lib, roots)
+    imports = (["Mathlib"] if uses_mathlib(lib) else []) + sorted(passed)
     names = [n for m in sorted(passed) for n in passed[m]]
-    head = ["import Lean"] + (["import Mathlib"] if uses_mathlib(lib) else []) + [f"import {m}" for m in sorted(passed)] + [LEAN]
-    head.append(f'#bundle_keep "{",".join(names)}" in "{",".join(mods)}"')
-    Path(a.out).write_text("\n".join(head) + "\n")
+    Path(a.out).write_text(json.dumps({"imports": imports, "names": names, "libs": mods}), encoding="utf-8")
     print(f"{len(names)} passed names in {len(passed)} modules; {len(mods)} library modules")
 
 
@@ -507,7 +429,7 @@ if __name__ == "__main__":
     k = sub.add_parser("check")
     for f in ("report", "log", "out"):
         k.add_argument(f"--{f}", required=True)
-    l = sub.add_parser("lean")
+    l = sub.add_parser("keep-input")
     for f in ("lib", "passed", "roots", "out"):
         l.add_argument(f"--{f}", required=True)
     c = sub.add_parser("compose")
@@ -519,4 +441,4 @@ if __name__ == "__main__":
     for f in ("report", "log", "key", "out", "src"):
         r.add_argument(f"--{f}", required=True)
     args = ap.parse_args()
-    {"lean": lean_file, "compose": compose, "check": check, "refine": refine}[args.cmd](args)
+    {"keep-input": keep_input, "compose": compose, "check": check, "refine": refine}[args.cmd](args)
