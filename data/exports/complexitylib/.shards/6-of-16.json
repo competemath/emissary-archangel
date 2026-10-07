@@ -1,0 +1,122 @@
+{
+  "shard": 6,
+  "shards": 16,
+  "commit": "a0993e7b75440f65cac83134d17350198b2ab108",
+  "toolchain": "leanprover/lean4:v4.35.0-rc3",
+  "modules": 202,
+  "exported": 202,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "Complexitylib.Algebraic.LowerBound.Cutwidth.Aggregate.Geometry.Joint.Asymptotics",
+        "why": "ailed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Algebraic.LowerBound.Cutwidth.Aggregate.Geometry.Joint.Asymptotics "
+      },
+      {
+        "module": "Complexitylib.Algebraic.LowerBound.Cutwidth.Aggregate.Hardness",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Algebraic.LowerBound.Cutwidth.Aggregate.Hardness "
+      },
+      {
+        "module": "Complexitylib.Algebraic.LowerBound.Cutwidth.Extractor.CorrelationBreaker.Affine.PhaseOne.Program.Parameters.Internal",
+        "why": "/home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Algebraic.LowerBound.Cutwidth.Extractor.CorrelationBreaker.Affine.PhaseOne.Program.Parameters.Internal "
+      },
+      {
+        "module": "Complexitylib.Algebraic.LowerBound.Cutwidth.Extractor.Padding.Asymptotics",
+        "why": "mmand failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Algebraic.LowerBound.Cutwidth.Extractor.Padding.Asymptotics "
+      },
+      {
+        "module": "Complexitylib.Algebraic.LowerBound.Cutwidth.Extractor.Strong.Block.Recursion.Scheduled.Matched.Program",
+        "why": "M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Algebraic.LowerBound.Cutwidth.Extractor.Strong.Block.Recursion.Scheduled.Matched.Program "
+      },
+      {
+        "module": "Complexitylib.Algebraic.LowerBound.Cutwidth.Extractor.Strong.Block.Recursion.Scheduled.Program.Family",
+        "why": "-M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Algebraic.LowerBound.Cutwidth.Extractor.Strong.Block.Recursion.Scheduled.Program.Family "
+      },
+      {
+        "module": "Complexitylib.Asymptotics.PolynomialComposition",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Asymptotics.PolynomialComposition "
+      },
+      {
+        "module": "Complexitylib.BooleanAnalysis.FourierExpansion.Internal",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.BooleanAnalysis.FourierExpansion.Internal "
+      },
+      {
+        "module": "Complexitylib.Circuits.Correlation.Defs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Circuits.Correlation.Defs "
+      },
+      {
+        "module": "Complexitylib.Circuits.KarchmerWigderson.TopDown.Majority.Internal.Arithmetic",
+        "why": "d failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Circuits.KarchmerWigderson.TopDown.Majority.Internal.Arithmetic "
+      },
+      {
+        "module": "Complexitylib.Classes.Containments.Internal.LogSpaceBound",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Classes.Containments.Internal.LogSpaceBound "
+      },
+      {
+        "module": "Complexitylib.Classes.Containments.Internal.PPSubsetPSPACE",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Classes.Containments.Internal.PPSubsetPSPACE "
+      },
+      {
+        "module": "Complexitylib.Classes.L",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Classes.L "
+      },
+      {
+        "module": "Complexitylib.Classes.P.BitPolynomial.Remainder",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Classes.P.BitPolynomial.Remainder "
+      },
+      {
+        "module": "Complexitylib.Classes.P.BitPolynomial.Transpose",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Classes.P.BitPolynomial.Transpose "
+      },
+      {
+        "module": "Complexitylib.Classes.P.Defs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Classes.P.Defs "
+      },
+      {
+        "module": "Complexitylib.Classes.PCP.Internal.AlgGap",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Classes.PCP.Internal.AlgGap "
+      },
+      {
+        "module": "Complexitylib.Classes.PCP.Internal.CNFSegment",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Classes.PCP.Internal.CNFSegment "
+      },
+      {
+        "module": "Complexitylib.Classes.PCP.Internal.Mixing",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Classes.PCP.Internal.Mixing "
+      },
+      {
+        "module": "Complexitylib.Classes.PPoly.Oracle.Defs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Classes.PPoly.Oracle.Defs "
+      },
+      {
+        "module": "Complexitylib.Classes.PPoly.Uniform.Unrolling.Padded",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Classes.PPoly.Uniform.Unrolling.Padded "
+      },
+      {
+        "module": "Complexitylib.Classes.Randomized",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Classes.Randomized "
+      },
+      {
+        "module": "Complexitylib.Classes.Space",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Classes.Space "
+      },
+      {
+        "module": "Complexitylib.Models.TuringMachine.Experimental.BinaryRoutine.SpaceBounds.Defs",
+        "why": " failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Models.TuringMachine.Experimental.BinaryRoutine.SpaceBounds.Defs "
+      },
+      {
+        "module": "Complexitylib.Models.TuringMachine.SingleTape",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Models.TuringMachine.SingleTape "
+      },
+      {
+        "module": "Complexitylib.Models.TuringMachine.Subroutines.BinaryPolynomial",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/complexitylib Complexitylib Complexitylib.Models.TuringMachine.Subroutines.BinaryPolynomial "
+      }
+    ]
+  },
+  "minutes": 49,
+  "finishedAt": "2026-10-06T22:49:11.361Z"
+}
