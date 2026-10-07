@@ -221,6 +221,47 @@ class NothingEscapesPruning(unittest.TestCase):
         fine = kept_only_plain.replace("theorem plain", "open scoped Classical in\n\ntheorem plain", 1)
         self.assertEqual([x for x in m.leaks(fine, keep) if "dangling" in x], [])
 
+    def test_prose_and_comments_are_not_declarations(self):
+        """A module docstring line that starts with "lemma." or "theorem;" (complexitylib has fifty), a `--` line at column 0 inside a proof, and a
+        docstring are not commands: the guard reads only column-0 lines outside comments."""
+        sys.path.insert(0, str(HERE))
+        import records
+
+        src = "namespace Toy\n\ntheorem long : 3 = 3 :=\n  -- indented\n  rfl\n\nend Toy\n"
+        d = tempfile.mkdtemp()
+        lib = Path(d) / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        (lib / "Toy" / "D.lean").write_text(src)
+        m = records.Module(lib, "Toy.D", [(3, 5)])
+        text = (
+            "/-! # Notes\n\nlemma. If every wire has depth at most one,\ntheorem; no alternative is introduced.\nclass, not for full cover complexity.\n-/\n\n"
+            + m.text(set(m.blocks)).replace("  -- indented", "-- a comment at column 0 inside the proof")
+            + "\n/- a block comment\ntheorem inside_comment : False := sorry\n-/\n"
+        )
+        self.assertEqual(m.leaks(text, set(m.blocks)), [])
+        self.assertTrue(m.leaks(text.replace("theorem long", "theorem other"), set(m.blocks)))  # the same scan does see a real declaration
+
+    def test_a_prefix_binds_across_blank_and_comment_lines(self):
+        """`set_option maxHeartbeats 800000 in` with a blank line, then the docstring and the theorem (causalean): one block, cut together."""
+        sys.path.insert(0, str(HERE))
+        import records
+
+        src = "namespace Toy\n\nset_option maxHeartbeats 800000 in\n\n-- why the budget\ninclude h in\n/-- doc -/\ntheorem heavy : 1 = 1 := rfl\n\ntheorem light : 2 = 2 := rfl\n\nend Toy\n"
+        lines = src.split("\n")
+        ln = lambda needle: next(i + 1 for i, x in enumerate(lines) if x.startswith(needle))
+        d = tempfile.mkdtemp()
+        lib = Path(d) / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        (lib / "Toy" / "C.lean").write_text(src)
+        m = records.Module(lib, "Toy.C", [(ln("/-- doc"), ln("theorem heavy")), (ln("theorem light"),) * 2])
+        self.assertEqual(m.blocks[0], (ln("set_option"), ln("theorem heavy")))
+        pruned = m.text({m.blocks[1]})
+        for gone in ("set_option", "include h in", "heavy", "why the budget"):
+            self.assertNotIn(gone, pruned)
+        self.assertEqual(m.leaks(pruned, {m.blocks[1]}), [])
+        dangling = pruned.replace("theorem light", "set_option maxHeartbeats 800000 in\n\nend Toy\n\ntheorem light", 1)
+        self.assertTrue(any("dangling" in x for x in m.leaks(dangling, {m.blocks[1]})))
+
     def test_glue_commands_are_not_leaks(self):
         m = self.module()
         text = m.text(set(m.blocks)) + "\n\nopen Nat\n\nvariable (k : Nat)\n\nnotation \"one\" => 1\n"
