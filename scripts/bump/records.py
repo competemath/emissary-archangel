@@ -127,14 +127,52 @@ class Module:
             if s < 1 or s > n:  # a range recorded for code that came from somewhere else (a macro, another file)
                 continue
             e = min(e, n)
-            s0 = s
-            # `open Foo in` / `set_option … in` lines directly above a declaration belong to it
-            while s0 > 1 and IN_PREFIX.match(self.lines[s0 - 2]):
-                s0 -= 1
-            text = "\n".join(self.lines[s0 - 1 : e])
+            # Is it a declaration? Judged without its `open Foo in` / `set_option … in` prefix lines, wherever the range starts (Lean reports it from the
+            # docstring or the keyword; a hand-written range may include the prefix). A declaration judged WITH its prefix never matched (complexitylib,
+            # 2026-10-07: a theorem under `open scoped Classical in` was never a block, so it stayed in the module after the theorem it calls was cut, and
+            # the module no longer built). The block itself starts at the first prefix line: the prefix goes when the declaration goes.
+            d = s
+            while d < e and IN_PREFIX.match(self.lines[d - 1]):
+                d += 1
+            text = "\n".join(self.lines[d - 1 : e])
             if DECL.match(text.lstrip()) and not CODE_ATTR.match(text.lstrip()):
-                self.blocks.append((s0, e))
+                self.blocks.append((self.with_prefix(d), e))
         self.blocks.sort()
+
+    def with_prefix(self, s: int) -> int:
+        """The first line of the block whose declaration starts at line `s`: the `open Foo in` / `set_option … in` lines directly above it belong to it,
+        and go when it goes."""
+        while s > 1 and IN_PREFIX.match(self.lines[s - 2]):
+            s -= 1
+        return s
+
+    def leaks(self, text: str, keep: set[tuple[int, int]]) -> list[str]:
+        """What survived pruning that should not have: every declaration in `text` (the pruned module) that is not one of the kept blocks, and
+        every `… in` prefix line that no declaration follows. Empty when the pruned text is glue plus whole kept blocks. compose refuses a bundle on
+        which this is not empty: a declaration that escapes pruning is unverified text, and once what it calls is cut the module does not build
+        (complexitylib part 1, 2026-10-07). Declarations are compared from their keyword line on, so neither the prefix nor the docstring decides."""
+        import portfolio
+
+        lines = text.split("\n")
+        kept = {decl_core(self.lines, s, e) for s, e in self.kept_blocks(keep)}
+        out: list[str] = []
+        for s, e in portfolio.blocks(lines):
+            first = lines[s - 1]
+            if IN_PREFIX.match(first):
+                rest = [x for x in lines[e:] if x.strip()]
+                nxt = rest[0] if rest else ""
+                if not (nxt and (IN_PREFIX.match(nxt) or nxt.lstrip().startswith(("/--", "@[")) or DECL.match("\n".join(rest).lstrip()))):
+                    out.append(f"line {s}: dangling prefix: {first.strip()[:80]}")
+                continue
+            core = decl_core(lines, s, e)
+            if core and DECL.match(core) and core not in kept:
+                out.append(f"line {s}: a declaration that is not a kept block: {core.split(chr(10))[0][:80]}")
+        return out
+
+    def kept_blocks(self, keep: set[tuple[int, int]]) -> set[tuple[int, int]]:
+        """The blocks that `keep` names: by their own bounds, or by the range Lean reported for the declaration (which starts at its docstring or
+        keyword, inside the block, never at the `open … in` prefix line the block begins with)."""
+        return {b for b in (self.block_of(s) for s, _ in keep) if b}
 
     def block_of(self, line: int) -> tuple[int, int] | None:
         for s, e in self.blocks:
@@ -146,10 +184,11 @@ class Module:
         """The file with every pruneable block outside `keep` removed, imports stripped (unless asked not to), up to line `before` (exclusive)."""
         out, i, n = [], 1, len(self.lines) if before is None else before - 1
         starts = {s: e for s, e in self.blocks}
+        kept = self.kept_blocks(keep)
         while i <= n:
             if i in starts:
                 s, e = i, starts[i]
-                if (s, e) in keep:
+                if (s, e) in kept:
                     out.extend(self.lines[s - 1 : min(e, n)])
                 i = e + 1
                 continue
@@ -159,6 +198,23 @@ class Module:
             i += 1
         text = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip("\n")
         return text
+
+
+def decl_core(lines: list[str], s: int, e: int) -> str:
+    """The text of the declaration in lines s..e (1-based, inclusive) from its keyword line on: the `… in` prefix lines, docstrings and attribute
+    lines before it are skipped. Empty when no keyword line is found."""
+    i = s - 1
+    while i < e:
+        ln = lines[i].lstrip()
+        if not ln or IN_PREFIX.match(ln) or ln.startswith("@["):
+            i += 1
+        elif ln.startswith("/--") or ln.startswith("/-!"):
+            while i < e and "-/" not in lines[i]:
+                i += 1
+            i += 1
+        else:
+            break
+    return "\n".join(lines[i:e]).strip() if i < e else ""
 
 
 def library_imports(lib: Path, mod: str, mods: set[str]) -> list[str]:
