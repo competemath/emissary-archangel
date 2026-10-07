@@ -117,66 +117,64 @@ def strip_block_comments_in_doc(text: str) -> str:
     return text
 
 
+LEAD_IN = re.compile(r"^(?:/--|@\[)")  # a docstring or attribute line: it belongs to the declaration below it
+ATTR_INLINE = re.compile(r"^(?:@\[[^\]]*\]\s*)+")  # the attributes at the start of a line (`@[simp] theorem …`)
+
+
 class Module:
+    """A module's text as glue plus declaration blocks. A block is a declaration Lean can prune: its lead-in lines (`open Foo in` /
+    `set_option … in`, docstrings, attributes, comments) and the declaration itself, up to the next column-0 command. Lean's declaration
+    ranges (`*.olean.ranges.json`, one per declaration that reached the environment) are mapped onto the blocks: a block with no range is
+    text Lean never elaborated (it errored, or came after an error) and is always cut; a ranged block is kept when a kept range names it;
+    a ranged block carrying a code attribute (`@[simp]`, `@[ext]`, …) is glue that stays, since the attribute registers it for the proofs
+    that are kept. Everything else is glue and stays. (complexitylib part 1, 2026-10-07: a theorem under `open scoped Classical in`, one
+    whose docstring and keyword had comment lines between them, and theorems that never elaborated all survived the old pruning, and the
+    module did not build.)"""
+
     def __init__(self, lib: Path, mod: str, ranges: list[tuple[int, int]]):
         path = lib / (mod.replace(".", "/") + ".lean")
         self.path = path
         self.lines = path.read_text(errors="replace").split("\n")
-        self.blocks: list[tuple[int, int]] = []
         n = len(self.lines)
-        for s, e in merge_ranges(ranges):
-            if s < 1 or s > n:  # a range recorded for code that came from somewhere else (a macro, another file)
-                continue
-            e = min(e, n)
-            # Is it a declaration? Judged without its `open Foo in` / `set_option … in` prefix lines, wherever the range starts (Lean reports it from the
-            # docstring or the keyword; a hand-written range may include the prefix). A declaration judged WITH its prefix never matched (complexitylib,
-            # 2026-10-07: a theorem under `open scoped Classical in` was never a block, so it stayed in the module after the theorem it calls was cut, and
-            # the module no longer built). The block itself starts at the first prefix line: the prefix goes when the declaration goes.
-            d = s
-            while d < e and IN_PREFIX.match(self.lines[d - 1]):
-                d += 1
-            text = "\n".join(self.lines[d - 1 : e])
-            if DECL.match(text.lstrip()) and not CODE_ATTR.match(text.lstrip()):
-                self.blocks.append((self.with_prefix(d), e))
+        self.blocks: list[tuple[int, int]] = []
+        self.code_attr: set[tuple[int, int]] = set()
+        lead: int | None = None
+        for s, e in segments(self.lines):
+            while e > s and not self.lines[e - 1].strip():
+                e -= 1  # a block ends at its last line of text, not at the blank lines before the next command
+            first = self.lines[s - 1].lstrip()
+            core = decl_core(self.lines, s, e)
+            if core and DECL_LINE.match(core):
+                b = (lead if lead is not None else s, e)
+                self.blocks.append(b)
+                if any(CODE_ATTR.search(self.lines[i - 1]) for i in range(b[0], s + 1)):
+                    self.code_attr.add(b)
+                lead = None
+            elif IN_PREFIX.match(first) or first.startswith("/--") or (first.startswith("@[") and not ATTR_INLINE.sub("", first).strip()):
+                lead = s if lead is None else lead  # a docstring, an attribute line of its own or an `… in` line: it belongs to the declaration below
+            else:
+                lead = None  # glue, `@[expose] public section` included: an attribute on a command that is no declaration
         self.blocks.sort()
+        self.ranged: set[tuple[int, int]] = set()
+        for rs, re_ in merge_ranges(ranges):
+            if 1 <= rs <= n and (b := self.block_of(rs)):
+                self.ranged.add(b)
 
     def with_prefix(self, s: int) -> int:
-        """The first line of the block whose declaration starts at line `s`: the `open Foo in` / `set_option … in` lines above it belong to it (an `in`
-        binds to the next command, across blank and `--` lines), and go when it goes."""
-        i = s
-        while i > 1:
-            above = self.lines[i - 2]
-            if IN_PREFIX.match(above):
-                s = i - 1
-                i -= 1
-            elif not above.strip() or above.lstrip().startswith("--"):
-                i -= 1
-            else:
-                break
-        return s
-
-    def leaks(self, text: str, keep: set[tuple[int, int]]) -> list[str]:
-        """What survived pruning that should not have: every declaration in `text` (the pruned module) whose keyword line is not that of a kept
-        block, and every `… in` prefix that no declaration follows. Empty when the pruned text is glue plus whole kept blocks. compose refuses a
-        bundle on which this is not empty: a declaration that escapes pruning is unverified text, and once what it calls is cut the module does not
-        build (complexitylib part 1, 2026-10-07). Only column-0 lines outside comments count, so prose in a module docstring that starts with
-        "theorem" is not a declaration, and a `--` line inside a proof does not end it."""
-        kept = {decl_core(self.lines, s, e).split("\n")[0].strip() for s, e in self.kept_blocks(keep)}
-        cmds = command_lines(text.split("\n"))
-        out: list[str] = []
-        for k, (no, ln) in enumerate(cmds):
-            if IN_PREFIX.match(ln):
-                nxt = cmds[k + 1][1] if k + 1 < len(cmds) else ""
-                if not (IN_PREFIX.match(nxt) or nxt.startswith(("/--", "@[")) or DECL_LINE.match(nxt)):
-                    out.append(f"line {no}: dangling prefix: {ln.strip()[:80]}")
-            elif DECL_LINE.match(ln) and ln.strip() not in kept:
-                out.append(f"line {no}: a declaration that is not a kept block: {ln.strip()[:80]}")
-        return out
+        """The first line of the block whose declaration starts at line `s`: the lead-in lines above it (`open Foo in`, docstrings, attributes,
+        comments) belong to it and go when it goes."""
+        b = self.block_of(s)
+        return b[0] if b else s
 
     def kept_blocks(self, keep: set[tuple[int, int]]) -> set[tuple[int, int]]:
         """The blocks that `keep` names: by their own bounds, or by the range Lean reported for the declaration (which starts at its docstring or
         keyword, inside the block, never at the `open … in` prefix line the block begins with)."""
         return {b for b in (self.block_of(s) for s, _ in keep) if b}
+
+    def stays(self, block: tuple[int, int], kept: set[tuple[int, int]]) -> bool:
+        """Whether a block is in the pruned text: Lean built it (it has a range) and it is kept, or it is glue that an attribute registers.
+        A block without a range never stays, whatever names it: Lean never elaborated that text."""
+        return block in self.ranged and (block in kept or block in self.code_attr)
 
     def block_of(self, line: int) -> tuple[int, int] | None:
         for s, e in self.blocks:
@@ -185,14 +183,14 @@ class Module:
         return None
 
     def text(self, keep: set[tuple[int, int]], before: int | None = None, strip_imports: bool = True) -> str:
-        """The file with every pruneable block outside `keep` removed, imports stripped (unless asked not to), up to line `before` (exclusive)."""
+        """The file with every block that does not stay removed, imports stripped (unless asked not to), up to line `before` (exclusive)."""
         out, i, n = [], 1, len(self.lines) if before is None else before - 1
         starts = {s: e for s, e in self.blocks}
         kept = self.kept_blocks(keep)
         while i <= n:
             if i in starts:
                 s, e = i, starts[i]
-                if (s, e) in kept:
+                if self.stays((s, e), kept):
                     out.extend(self.lines[s - 1 : min(e, n)])
                 i = e + 1
                 continue
@@ -203,14 +201,40 @@ class Module:
         text = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip("\n")
         return text
 
+    def leaks(self, text: str, keep: set[tuple[int, int]]) -> list[str]:
+        """What survived pruning that should not have: every declaration in `text` (the pruned module) whose keyword line is not that of a block
+        that stays, and every `… in` prefix that no declaration follows. Empty when the pruned text is glue plus whole blocks that stay. compose
+        refuses a bundle on which this is not empty: a declaration that escapes pruning is unverified text, and once what it calls is cut the
+        module does not build. Only column-0 command lines outside comments count, so prose in a module docstring that starts with "theorem"
+        is not a declaration, and a `--` line inside a proof does not end it."""
+        kept = self.kept_blocks(keep)
+        allowed = {decl_core(self.lines, s, e).split("\n")[0].strip() for s, e in self.blocks if self.stays((s, e), kept)}
+        cmds = command_lines(text.split("\n"))
+        out: list[str] = []
+        for k, (no, ln) in enumerate(cmds):
+            if IN_PREFIX.match(ln):
+                nxt = cmds[k + 1][1] if k + 1 < len(cmds) else ""
+                if not (IN_PREFIX.match(nxt) or LEAD_IN.match(nxt) or DECL_LINE.match(nxt)):
+                    out.append(f"line {no}: dangling prefix: {ln.strip()[:80]}")
+            else:
+                core = ATTR_INLINE.sub("", ln).strip()  # `@[simp] theorem …`: the keyword line is what comes after the attribute
+                if DECL_LINE.match(core) and core not in allowed:
+                    out.append(f"line {no}: a declaration that is not a kept block: {core[:80]}")
+        return out
+
 
 def decl_core(lines: list[str], s: int, e: int) -> str:
-    """The text of the declaration in lines s..e (1-based, inclusive) from its keyword line on: the `… in` prefix lines, docstrings and attribute
-    lines before it are skipped. Empty when no keyword line is found."""
+    """The text of the declaration in lines s..e (1-based, inclusive) from its keyword line on: the `… in` prefix lines, docstrings, attribute
+    and `--` comment lines before it are skipped. Empty when no keyword line is found."""
     i = s - 1
     while i < e:
         ln = lines[i].lstrip()
-        if not ln or IN_PREFIX.match(ln) or ln.startswith("@["):
+        if ln.startswith("@["):
+            rest = ATTR_INLINE.sub("", ln).strip()
+            if rest:  # `@[simp] theorem …`: the declaration starts on this line, after the attribute
+                return "\n".join([rest, *lines[i + 1 : e]]).strip()
+            i += 1
+        elif not ln or IN_PREFIX.match(ln) or ln.startswith("--"):
             i += 1
         elif ln.startswith("/--") or ln.startswith("/-!"):
             while i < e and "-/" not in lines[i]:
@@ -222,11 +246,14 @@ def decl_core(lines: list[str], s: int, e: int) -> str:
 
 
 def command_lines(lines: list[str]) -> list[tuple[int, str]]:
-    """(1-based line, text) of every column-0 line outside block comments and not a `--` line: where a command can start. `/- … -/` nests; a
-    docstring (`/--`, `/-!`) is a block comment too, except that its opening line is reported (it leads into a declaration)."""
+    """(1-based line, text) of every column-0 line outside block comments that starts a command (portfolio.COMMAND_START: a keyword, a
+    docstring, an attribute, an `open`…; not a `|` alternative, not a `--` line). `/- … -/` nests; a docstring (`/--`, `/-!`) is a block
+    comment too, except that its opening line is reported (it leads into a declaration)."""
+    import portfolio
+
     out, depth = [], 0
     for no, ln in enumerate(lines, 1):
-        if depth == 0 and ln and not ln[0].isspace() and not ln.startswith("--"):
+        if depth == 0 and ln and not ln[0].isspace() and not ln.startswith("--") and portfolio.COMMAND_START.match(ln):
             out.append((no, ln))
         i = 0
         while i < len(ln) - 1:
@@ -242,6 +269,12 @@ def command_lines(lines: list[str]) -> list[tuple[int, str]]:
             else:
                 i += 1
     return out
+
+
+def segments(lines: list[str]) -> list[tuple[int, int]]:
+    """(first, last) lines of every top-level command: from a command line (command_lines) to the line before the next one."""
+    starts = [no for no, _ in command_lines(lines)]
+    return [(s, (starts[k + 1] - 1) if k + 1 < len(starts) else len(lines)) for k, s in enumerate(starts)]
 
 
 def library_imports(lib: Path, mod: str, mods: set[str]) -> list[str]:

@@ -181,7 +181,34 @@ class PrefixedDeclarations(unittest.TestCase):
         (lib / "Toy").mkdir(parents=True)
         (lib / "Toy" / "B.lean").write_text(PREFIXED)
         m = records.Module(lib, "Toy.B", [(ln("open Nat in"), ln("theorem prefixed")), (ln("set_option"), ln("theorem two_prefixes"))])
-        self.assertEqual(m.blocks, [(ln("open Nat in"), ln("theorem prefixed")), (ln("set_option"), ln("theorem two_prefixes"))])
+        self.assertEqual(m.blocks[:2], [(ln("open Nat in"), ln("theorem prefixed")), (ln("set_option"), ln("theorem two_prefixes"))])
+        self.assertEqual(set(m.blocks[:2]), m.ranged)
+        self.assertNotIn(m.blocks[2], m.ranged)  # `plain` has no range here: a declaration Lean never elaborated, cut whatever `keep` says
+        self.assertNotIn("theorem plain", m.text(set(m.blocks)))
+
+    def test_an_attribute_on_a_command_that_is_no_declaration_is_glue(self):
+        """`@[expose] public section` (complexitylib's NatBits) is not a lead-in of the declaration below it, and `@[simp] theorem` on one line is a declaration."""
+        sys.path.insert(0, str(HERE))
+        import records
+
+        src = "@[expose] public section\n\n/-- doc -/\ndef toBits : Nat → Nat\n| 0 => 0\n| n + 1 => n\n\n@[simp] theorem a : 1 = 1 := rfl\n@[simp] theorem b : 2 = 2 := rfl\n\n@[ext] theorem e : 3 = 3 := rfl\n\nend\n"
+        lines = src.split("\n")
+        ln = lambda needle: next(i + 1 for i, x in enumerate(lines) if x.startswith(needle))
+        d = tempfile.mkdtemp()
+        lib = Path(d) / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        (lib / "Toy" / "E.lean").write_text(src)
+        ranges = [(ln("/-- doc"), ln("| n + 1")), (ln("@[simp] theorem a"),) * 2, (ln("@[simp] theorem b"),) * 2, (ln("@[ext] theorem e"),) * 2]
+        m = records.Module(lib, "Toy.E", ranges)
+        self.assertEqual(m.blocks, [(ln("/-- doc"), ln("| n + 1")), (ln("@[simp] theorem a"),) * 2, (ln("@[simp] theorem b"),) * 2, (ln("@[ext] theorem e"),) * 2])
+        pruned = m.text({m.blocks[1]})
+        self.assertIn("@[expose] public section", pruned)
+        self.assertIn("@[simp] theorem a", pruned)
+        self.assertIn("@[ext] theorem e", pruned)  # built, and `ext` registers it for the proofs that stay: glue
+        for gone in ("toBits", "| 0 => 0", "/-- doc", "theorem b"):
+            self.assertNotIn(gone, pruned)
+        self.assertEqual(m.leaks(pruned, {m.blocks[1]}), [])
+        self.assertTrue(m.leaks(pruned.replace("theorem a", "theorem a_leaked"), {m.blocks[1]}))
 
 
 class NothingEscapesPruning(unittest.TestCase):

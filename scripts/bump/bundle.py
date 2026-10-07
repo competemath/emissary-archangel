@@ -188,14 +188,8 @@ def compose(a: argparse.Namespace) -> None:
         path = lib.joinpath(*parts[:-1], parts[-1] + ".lean")
         if not path.exists():
             continue
-        m = records.Module(lib, mod, list(sidecars[mod].values()))
+        m = records.Module(lib, mod, list(sidecars[mod].values()))  # a declaration Lean never elaborated has no range: the Module cuts it
         rel = str(path.relative_to(lib))
-        if err_lines.get(rel):
-            for s, e in portfolio.blocks(m.lines):
-                text = "\n".join(m.lines[s - 1 : e])
-                if any(s <= L <= e for L in err_lines[rel]) and records.DECL.match(text.lstrip()) and (m.with_prefix(s), e) not in m.blocks:
-                    m.blocks.append((m.with_prefix(s), e))  # with its `open Foo in` prefix, which would otherwise dangle once the declaration is cut
-            m.blocks.sort()
         modules[mod] = m
         # an error outside every declaration block (a `variable`, a notation) cannot be cut out: the module cannot be shipped
         if err_lines.get(rel) and any(not any(bs <= L <= be for bs, be in m.blocks) for L in err_lines[rel]):
@@ -231,12 +225,6 @@ def compose(a: argparse.Namespace) -> None:
     for mod in keep_blocks:
         reach_from(mod)
     pruned = {mod: modules[mod].text(keep_blocks.get(mod, set()), strip_imports=False) for mod in reach}
-    # Nothing unverified may survive the pruning: every declaration left is a kept block and no `… in` prefix dangles. A leak here is a factory bug
-    # (the bundle would carry text no gate verified, and the tree's build would find it); the run fails rather than propose it.
-    leaks = {mod: ls for mod in sorted(reach) if (ls := modules[mod].leaks(pruned[mod], keep_blocks.get(mod, set())))}
-    if leaks:
-        shown = "\n".join(f"  {mod}: {ls[0]}" + (f" (+{len(ls) - 1} more)" if len(ls) > 1 else "") for mod, ls in list(leaks.items())[:20])
-        sys.exit(f"pruning left unverified text in {len(leaks)} module(s); refusing to compose the bundle:\n{shown}")
     # attributes the tree's allow-list refuses are left out of the declarations that stay (strip_attrs.py): they never change what a declaration
     # says, and a proof that relied on one is found by the verification build
     stripped_attrs: Counter = Counter()
@@ -292,6 +280,13 @@ def compose(a: argparse.Namespace) -> None:
 
         for mod in keep_blocks:
             need(mod)
+        # Nothing unverified may survive the pruning of a module that ships: every declaration left is a block that stays and no `… in` prefix
+        # dangles. A leak here is a factory bug (the bundle would carry text no gate verified, and the tree's build would find it): the run
+        # fails rather than propose it.
+        leaks = {mod: ls for mod in sorted(needed) if (ls := modules[mod].leaks(pruned[mod], keep_blocks.get(mod, set())))}
+        if leaks:
+            shown = "\n".join(f"  {mod}: {ls[0]}" + (f" (+{len(ls) - 1} more)" if len(ls) > 1 else "") for mod, ls in list(leaks.items())[:20])
+            sys.exit(f"pruning left unverified text in {len(leaks)} module(s) of the {mode} bundle; refusing to compose it:\n{shown}")
         manifest, left_out = [], defaultdict(int)
         for mod, names in passed.items():
             if mod not in needed:
