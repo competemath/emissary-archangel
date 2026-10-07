@@ -49,7 +49,7 @@ class Planner(unittest.TestCase):
         la, lb = T.A.split("\n"), T.B.split("\n")
         ln = lambda lines, needle: next(i + 1 for i, x in enumerate(lines) if needle in x)
         rows = {"Toy/A": [["Toy.one", ln(la, "/-- the number one"), ln(la, "def one")], ["Toy.one_pos", ln(la, "theorem one_pos"), ln(la, "theorem one_pos")]],
-                "Toy/B": [["Toy.uses_one_pos", ln(lb, "open Nat in"), ln(lb, "theorem uses_one_pos")]]}
+                "Toy/B": [["Toy.unrelated", ln(lb, "theorem unrelated"), ln(lb, "theorem unrelated")], ["Toy.uses_one_pos", ln(lb, "open Nat in"), ln(lb, "theorem uses_one_pos")]]}  # every elaborated declaration has a range
         for m, r in rows.items():
             f = lib / ".lake" / "build" / "lib" / "lean" / (m + ".olean.ranges.json")
             f.parent.mkdir(parents=True, exist_ok=True)
