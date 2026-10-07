@@ -81,7 +81,16 @@ jobs:
           # (`../concepts`) still resolves next to it in the clone
           sub=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")
           if [ -n "$sub" ]; then mv lib lib-repo && ln -s "lib-repo/$sub" lib; fi
-          OLD_MATHLIB=$(python3 -c "import json; print(next(p['rev'] for p in json.load(open('lib/lake-manifest.json'))['packages'] if p['name']=='mathlib'))")
+          # Mathlib's revision the library is on: from its lake-manifest.json, or, when the project does not commit one (szymtor's immerman-vardi and fagin), from the
+          # `rev` of its mathlib requirement in lakefile.toml
+          OLD_MATHLIB=$(python3 - <<'PY'
+          import json, os, tomllib
+          if os.path.exists("lib/lake-manifest.json"):
+              print(next(p["rev"] for p in json.load(open("lib/lake-manifest.json"))["packages"] if p["name"] == "mathlib"))
+          else:
+              print(next(r["rev"] for r in tomllib.load(open("lib/lakefile.toml", "rb"))["require"] if r["name"] == "mathlib"))
+          PY
+          )
           echo "OLD_MATHLIB=$OLD_MATHLIB" >> "$GITHUB_ENV"
           # the Mathlib releases to go through, oldest first (the target last): `direct` = the target alone
           case "$CHAIN" in
