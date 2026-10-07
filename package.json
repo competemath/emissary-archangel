@@ -32,5 +32,10 @@
     "tailwindcss": "^4",
     "typescript": "^5"
   },
-  "packageManager": "pnpm@10.6.5"
+  "packageManager": "pnpm@10.6.5",
+  "pnpm": {
+    "overrides": {
+      "sharp": "-"
+    }
+  }
 }
