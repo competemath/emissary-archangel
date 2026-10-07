@@ -11,6 +11,7 @@ on:
       toolchain: { type: string, required: true }
       shard: { type: number, required: true }
       controls: { type: string, default: "20" }
+      tengoku_ref: { type: string, default: "" }
 permissions: {}
 defaults:
   run:
@@ -26,6 +27,7 @@ jobs:
       TOOLCHAIN: ${{ inputs.toolchain }}
       SHARD: ${{ inputs.shard }}
       CONTROLS: ${{ inputs.controls }}
+      TENGOKU_REF: ${{ inputs.tengoku_ref }}
     steps:
       - name: Free disk
         run: |
@@ -53,7 +55,8 @@ jobs:
           git -C emissary checkout -q "$GITHUB_SHA"
           git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
           git -C tengoku sparse-checkout set --no-cone "/data/tentative/$KEY.jsonl" "/data/tentative/$KEY/"
-          git -C tengoku checkout -q main
+          # TENGOKU_REF: a branch of the tree repository that holds the records of a library whose PR is not merged yet (empty: main)
+          ref=${TENGOKU_REF:+origin/$TENGOKU_REF}; git -C tengoku checkout -q "${ref:-main}"
           du -sh emissary/data/exports/"$KEY" | cut -f1
       - name: elan
         run: |

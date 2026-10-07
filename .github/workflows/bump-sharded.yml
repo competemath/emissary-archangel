@@ -15,6 +15,7 @@ on:
       recut_from: { description: "RECUT: the id of an earlier run of this workflow for this key. No plan, no shards: its shard artifacts are merged again, without the modules in `drop` (and what imports them), and the new bundle is attested by this run", default: "" }
       drop: { description: "RECUT: modules (comma list) that did not build on the tree, from the merge queue's build of the bundle", default: "" }
       scope: { description: "RECUT: the `leak:` lines of the merge queue's leak report (separated by `;`): those registrations are made local (scripts/bump/scope_rewrite.py)", default: "" }
+      tengoku_ref: { description: "a branch of competemath/tengoku to read the library's tentative records from (default main), for records whose PR is not merged yet", default: "" }
       parts: { description: "PARTS: cut each bundle into parts of at most this many modules (scripts/bump/bundle_layers.py), each attested as bundle-<key>-<mode>-part-NNN.tar, for a library too big for one intake PR (the queue builds ~3 s a module in 40 minutes: 300). 0 = no parts", default: "0" }
 permissions: {}
 defaults:
@@ -26,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions: { contents: read }
-    env: { KEY: "${{ inputs.key }}", SHARDS: "${{ inputs.shards }}" }
+    env: { KEY: "${{ inputs.key }}", SHARDS: "${{ inputs.shards }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}" }
     outputs:
       shards: ${{ steps.p.outputs.shards }}
     steps:
@@ -37,7 +38,8 @@ jobs:
           git -C emissary checkout -q "$GITHUB_SHA"
           git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
           git -C tengoku sparse-checkout set --no-cone "/data/tentative/$KEY.jsonl" "/data/tentative/$KEY/"
-          git -C tengoku checkout -q main
+          # TENGOKU_REF: a branch of the tree repository that holds the records of a library whose PR is not merged yet (empty: main)
+          ref=${TENGOKU_REF:+origin/$TENGOKU_REF}; git -C tengoku checkout -q "${ref:-main}"
       - name: The library, its import graph, the plan
         id: p
         working-directory: emissary
@@ -82,6 +84,7 @@ jobs:
       mathlib: ${{ inputs.mathlib }}
       toolchain: ${{ inputs.toolchain }}
       shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
     permissions: { contents: read }
   finish:
     needs: [plan, shard]
