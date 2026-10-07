@@ -39,6 +39,27 @@ def meta(key: str) -> None:
 DEV_ONLY = ("checkdecls", "doc-gen4", "lean4export", "Comparator")
 
 
+def mathlib_last(toml_text: str) -> str:
+    """lakefile.toml with the `[[require]]` of mathlib moved behind every other table. Lake resolves a dependency that several packages require by the order of the
+    requires: a library that requires another library as well (complexitylib requires cslib, which has its own Mathlib) fails with `mismatched dependencies ...
+    Try putting `require mathlib` last` unless Mathlib's own pins come last. A file without a mathlib require is returned as it is."""
+    blocks, cur = [], []
+    for line in toml_text.splitlines():
+        if re.match(r"\s*\[\[?[^\]]+\]\]?\s*$", line):
+            blocks.append(cur)
+            cur = []
+        cur.append(line)
+    blocks.append(cur)
+    is_mathlib = [bool(b) and b[0].strip() == "[[require]]" and any(re.match(r'\s*name\s*=\s*"mathlib"', x) for x in b) for b in blocks]
+    if not any(is_mathlib):
+        return toml_text
+    keep = [b for b, m in zip(blocks, is_mathlib, strict=True) if not m]
+    moved = [b for b, m in zip(blocks, is_mathlib, strict=True) if m]
+    while keep and keep[-1] and not keep[-1][-1].strip():
+        keep[-1].pop()
+    return "\n".join("\n".join(b) + ("\n" if b and b[-1].strip() else "") for b in [*keep, *[[""] + m for m in moved]]).strip("\n") + "\n"
+
+
 def retarget(lib: str, mathlib: str, toolchain: str) -> None:
     root = Path(lib)
     (root / "lean-toolchain").write_text(toolchain + "\n")
@@ -67,7 +88,7 @@ def retarget(lib: str, mathlib: str, toolchain: str) -> None:
             # Mathlib arrives only through another requirement (seymour requires `linters`, which requires Mathlib): the library's
             # modules import it all the same, so it becomes a direct requirement (the root's wins over an inherited one)
             text += f'\n[[require]]\nname = "mathlib"\ngit = "https://github.com/leanprover-community/mathlib4.git"\nrev = "{mathlib}"\n'
-        toml.write_text(text)
+        toml.write_text(mathlib_last(text))
     elif lean.exists():
         lean.write_text(retarget_lean(lean.read_text(), mathlib))
     else:

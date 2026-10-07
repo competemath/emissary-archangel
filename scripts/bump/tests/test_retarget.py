@@ -42,6 +42,54 @@ class RetargetLean(unittest.TestCase):
         self.assertIn('@ git "v9"', out)
 
 
+CL = """name = "complexitylib"
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "728a93eeff833da3173895bb0575752fdc24edb0"
+
+[[require]]
+name = "cslib"
+git = "https://github.com/leanprover/cslib"
+rev = "311d27ad8458b61e9b7461fc83a480e4be97aef2"
+
+[[lean_lib]]
+name = "Complexitylib"
+"""
+
+
+class MathlibLast(unittest.TestCase):
+    """Lake: `mismatched dependencies … Try putting `require mathlib` last` (the shards of complexitylib, which requires cslib, 2026-10-07)"""
+
+    def requires(self, text):
+        return [ln.split('"')[1] for ln in text.splitlines() if ln.startswith("name =")]
+
+    def test_mathlib_goes_behind_the_other_requires_and_the_libs(self):
+        out = tlb.mathlib_last(CL)
+        self.assertEqual(self.requires(out), ["complexitylib", "cslib", "Complexitylib", "mathlib"])
+        self.assertTrue(out.rstrip().endswith('rev = "728a93eeff833da3173895bb0575752fdc24edb0"'))
+        self.assertIn('git = "https://github.com/leanprover/cslib"', out)
+        self.assertEqual(out.count("[[require]]"), 2)
+
+    def test_a_file_that_has_it_last_or_not_at_all_is_unchanged(self):
+        last = tlb.mathlib_last(CL)
+        self.assertEqual(tlb.mathlib_last(last), last)
+        nomath = 'name = "x"\n\n[[require]]\nname = "linters"\nrev = "main"\n'
+        self.assertEqual(tlb.mathlib_last(nomath), nomath)
+
+    def test_retarget_leaves_mathlib_last_with_the_new_revision(self):
+        import tempfile
+
+        d = Path(tempfile.mkdtemp())
+        (d / "lakefile.toml").write_text(CL)
+        tlb.retarget(str(d), "v4.34.0-rc2", "leanprover/lean4:v4.34.0-rc2")
+        out = (d / "lakefile.toml").read_text()
+        self.assertEqual(self.requires(out)[-1], "mathlib")
+        self.assertTrue(out.rstrip().endswith('rev = "v4.34.0-rc2"'))
+        self.assertNotIn("728a93eeff", out)
+
+
 class InheritedMathlib(unittest.TestCase):
     def test_toml_without_a_mathlib_require_gets_one(self):
         import tempfile
