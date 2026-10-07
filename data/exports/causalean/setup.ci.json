@@ -1,0 +1,51 @@
+{
+  "key": "causalean",
+  "repo": "https://github.com/Jiyuan-Tan/CausalSmith",
+  "commit": "e298f64908520f29348e3f480b72db63d37dd574",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "roots": [
+    "Causalean"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/causalean/repo",
+  "entries": 10794,
+  "modules": 2196,
+  "exported": 2196,
+  "failed": [],
+  "expansion": {
+    "expanded": 50,
+    "verbatim": 1318,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 10794,
+    "kept": 10794,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 10794,
+    "sorryOriginals": 0,
+    "emptyProofs": 2
+  },
+  "sharded": {
+    "records": 16,
+    "shards": [
+      16
+    ]
+  },
+  "exportsBytes": 876859392,
+  "minutes": 60,
+  "finishedAt": "2026-10-07T02:26:29.021Z",
+  "archive": {
+    "release": "exports-causalean",
+    "asset": "causalean@e298f6490852-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-causalean/causalean@e298f6490852-exports.tar.zst",
+    "bytes": 87170888,
+    "sha256": "3ac8064523c21dc9a93a83b7ebf817047a8864626aaeefe81b6df690018f547d",
+    "files": 4392,
+    "unpack": "tar --zstd -xf causalean@e298f6490852-exports.tar.zst -C data/exports/causalean"
+  }
+}
