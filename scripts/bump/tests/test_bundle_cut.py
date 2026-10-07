@@ -1,4 +1,5 @@
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -50,6 +51,21 @@ class Cut(unittest.TestCase):
                 make(Path(t) / n)
             for n in ("bundle", "bundle-proposed"):
                 self.assertEqual(bc.cut_dir(Path(t) / n, "lib", {"A.Uses"})["theorems"], 3)
+
+
+class Cli(unittest.TestCase):
+    def run_cut(self, drop: str) -> subprocess.CompletedProcess:
+        d = Path(tempfile.mkdtemp()) / "bundle"
+        make(d)
+        return subprocess.run([sys.executable, str(Path(bc.__file__)), "--bundle", str(d), "--key", "lib", "--drop", drop], capture_output=True, text=True)
+
+    def test_a_list_that_names_no_module_fails(self):
+        r = self.run_cut("Nope.Missing")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("names no module of the bundle", r.stderr)
+
+    def test_a_stale_name_among_real_ones_is_tolerated(self):
+        self.assertEqual(self.run_cut("A.Cadlag,Nope.Missing").returncode, 0)
 
 
 if __name__ == "__main__":

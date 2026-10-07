@@ -208,9 +208,12 @@ def compose(a: argparse.Namespace) -> None:
     base_dropped: dict[str, str] = {m: "imports " + ", ".join(b) for m, b in external.items()}
     base_dropped.update({m: "an error outside any declaration (glue)" for m in glue_error})
     # modules the merge queue's build of the tree could not compile (a name Mathlib has and the tree does not: a deprecated alias...): left out with what imports them
-    for m in (a.drop_modules or "").split(","):
-        if m.strip() in modules:
-            base_dropped[m.strip()] = "did not build on the tree"
+    asked = [m.strip() for m in (a.drop_modules or "").split(",") if m.strip()]
+    for m in asked:
+        if m in modules:
+            base_dropped[m] = "did not build on the tree"
+    if asked and not any(m in modules for m in asked):  # a stale name among real ones is tolerated; a list that matches nothing is a wrong prefix or a typo, and the bundle would go uncut
+        sys.exit(f"--drop-modules names no module of the library: {asked[:5]} (the library's own module names, e.g. `{next(iter(modules), 'Root.Sub.Mod')}`)")
     sys.setrecursionlimit(100000)
     # the pruned text of every module that could be needed (what the passed theorems are made of, and what that imports)
     reach: set[str] = set()

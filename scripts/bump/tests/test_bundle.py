@@ -67,7 +67,8 @@ class Bundle(unittest.TestCase):
         self.assertTrue(any("notation" in k for k in strict["lint_cost"]), strict["lint_cost"])
         self.assertEqual(json.loads((d / "bundle-proposed" / "report.json").read_text())["theorems"], 1)
 
-    def test_modules_named_as_failed_on_the_tree_are_left_out_with_their_importers(self):
+    def compose_toy(self, drop: str):
+        """A two-module toy library, composed with `--drop-modules drop`; returns (work dir, the process)."""
         d = Path(tempfile.mkdtemp())
         lib = d / "lib"
         (lib / "Toy").mkdir(parents=True)
@@ -93,13 +94,25 @@ class Bundle(unittest.TestCase):
         (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy.git", "commit": "abc123"}))
         (d / "build.log").write_text(f"error: Toy/A.lean:{bad}:30: Unknown identifier `foo`\n")
         (d / "gate2.log").write_text("GATE2B_PASS old=Toy.uses_one_pos new=Toy.uses_one_pos via=equal\n")
-        subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
-                        "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"), "--src", str(d / "src"), "--drop-modules", "Toy.A, Toy.NotAModule"], check=True)
+        p = subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
+                        "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"), "--src", str(d / "src"), "--drop-modules", drop], capture_output=True, text=True)
+        return d, p
+
+    def test_modules_named_as_failed_on_the_tree_are_left_out_with_their_importers(self):
+        d, p = self.compose_toy("Toy.A, Toy.NotAModule")
+        self.assertEqual(p.returncode, 0, p.stderr)
         for out in (d / "bundle", d / "bundle-proposed"):
             rep = json.loads((out / "report.json").read_text())
             self.assertEqual((rep["modules_in_bundle"], rep["theorems"]), (0, 0))  # Toy.B imports Toy.A
             self.assertEqual(rep["dropped"]["Toy.A"], "did not build on the tree")
             self.assertIn("imports a module that cannot go to the tree", rep["dropped"]["Toy.B"])
+
+    def test_a_drop_list_that_names_no_module_fails_instead_of_cutting_nothing(self):
+        """2026-10-08: `Encoding.BitPolynomial.Defs` for the library module `Complexitylib.Encoding.BitPolynomial.Defs` was ignored and the uncut bundle published."""
+        d, p = self.compose_toy("Nope.Missing")
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("names no module of the library", p.stderr)
+        self.assertFalse((d / "bundle").exists())
 
     def test_a_module_importing_a_package_the_tree_lacks_takes_its_theorems_with_it(self):
         d = Path(tempfile.mkdtemp())
