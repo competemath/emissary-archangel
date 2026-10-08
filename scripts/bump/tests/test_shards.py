@@ -74,5 +74,35 @@ class Planner(unittest.TestCase):
         self.assertEqual(json.loads((d / "bundle-proposed" / "report.json").read_text())["theorems"], 1)
 
 
+class MergeNeedsShards(unittest.TestCase):
+    """2026-10-08: `bump-sharded` with `recut_from` naming a run whose shard artifacts were gone (a recut itself) merged nothing and published an empty bundle as a success."""
+
+    def merge(self, shards: Path) -> subprocess.CompletedProcess:
+        d = Path(tempfile.mkdtemp())
+        (d / "merged").mkdir()
+        (d / "logs").mkdir()
+        return subprocess.run([sys.executable, str(HERE / "shard_pack.py"), "merge", "--shards", str(shards), "--out", str(d / "merged"), "--logs", str(d / "logs")], capture_output=True, text=True)
+
+    def test_no_shard_at_all_fails(self):
+        empty = Path(tempfile.mkdtemp())
+        r = self.merge(empty)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("no shard pack", r.stderr)
+
+    def test_a_directory_that_is_not_a_shard_fails(self):
+        d = Path(tempfile.mkdtemp())
+        (d / "bump-complexitylib").mkdir()  # the artifact a recut leaves: a bundle, no shard
+        (d / "bump-complexitylib" / "bundle.tar").write_text("x")
+        self.assertNotEqual(self.merge(d).returncode, 0)
+
+    def test_a_shard_merges(self):
+        d = Path(tempfile.mkdtemp())
+        s = d / "shard-x-0" / "shard-pack"
+        (s / "src").mkdir(parents=True)
+        (s / "src" / "A.lean").write_text("x")
+        r = self.merge(d)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

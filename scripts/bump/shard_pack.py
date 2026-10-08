@@ -57,10 +57,12 @@ def merge(a: argparse.Namespace) -> None:
     passed: dict[str, set[str]] = {}
     total: dict = {"shards": 0, "checked": 0, "pass": 0, "pass_equal": 0, "pass_entails": 0, "fail_reasons": {}, "definitions": {}, "controls_wrongly_passed": 0}
     logs = {"gate2.log": [], "errors.log": [], "bundle-deps.log": []}
+    packs = 0
     for d in sorted(Path(a.shards).glob("*")):
         d = next(iter(d.glob("shard-pack")), d) if d.is_dir() else d
         if not (d / "src").exists():
             continue
+        packs += 1
         for f in (d / "src").rglob("*"):
             if f.is_file() and not f.is_symlink() and ".." not in f.relative_to(d / "src").parts:  # an artifact is data from a job that compiled someone's code
                 dst = out / f.relative_to(d / "src")
@@ -91,6 +93,8 @@ def merge(a: argparse.Namespace) -> None:
         if (d / "passed.json").exists():
             for m, ns in json.loads((d / "passed.json").read_text()).items():
                 passed.setdefault(m, set()).update(ns)
+    if not packs:  # 2026-10-08: a recut from a run without shard artifacts "succeeded" with an empty bundle (0 modules, 0 theorems)
+        sys.exit(f"merge: no shard pack in {a.shards} (an artifact with a src/ folder): the run named by recut_from has none (expired, or it was a recut itself)")
     for name, acc in logs.items():
         (Path(a.logs) / name).write_text("\n".join(acc))
     (Path(a.logs) / "gate2-results.json").write_text(json.dumps(total, indent=1))

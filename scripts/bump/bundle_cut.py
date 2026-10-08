@@ -77,6 +77,8 @@ def main() -> None:
         r = cut_dir(d, a.key, drop)
         if r:
             out[d.name] = r
+    if out and all(set(r["not_in_bundle"]) == drop for r in out.values()):  # a list that matches no module of any mode is a wrong prefix or a typo
+        sys.exit(f"--drop names no module of the bundle: {sorted(drop)[:5]}")
     if not any(r["modules"] for r in out.values()):
         sys.exit("nothing is left of the bundle")
     print(json.dumps(out))
