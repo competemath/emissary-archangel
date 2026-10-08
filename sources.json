@@ -405,7 +405,17 @@
     },
     "flt-anthropic": {
       "label": "flt-anthropic",
-      "setup": { "order": "last", "args": ["--build-chunk", "1000", "--closure-batch", "600", "--export-batch", "400"] },
+      "setup": {
+        "order": "last",
+        "args": [
+          "--build-chunk",
+          "1000",
+          "--closure-batch",
+          "600",
+          "--export-batch",
+          "400"
+        ]
+      },
       "repo": "https://github.com/anthropics/fermats-last-theorem",
       "commit": "aa2d8b34692b16c70f699536de0d8e75b9a3e9ef",
       "toolchain": "leanprover/lean4:v4.33.1",
@@ -1223,6 +1233,18 @@
       "roots": [
         "LeanInfoTheory"
       ],
+      "licence": "Apache-2.0"
+    },
+    "openai-math": {
+      "label": "openai-math",
+      "repo": "https://github.com/openai/math",
+      "commit": "adc7f1241b42e322a6451854ab7e4b4c146bf78a",
+      "toolchain": "leanprover/lean4:v4.34.1",
+      "roots": [
+        "OAI",
+        "ComparatorChallenges"
+      ],
+      "subdir": "lean",
       "licence": "Apache-2.0"
     }
   }
