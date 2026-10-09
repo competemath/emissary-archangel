@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -54,7 +55,8 @@ class Part:
 
 
 def module_name(path: str) -> str:
-    return path.removesuffix(".lean").replace("/", ".")
+    """The module a file is, as Lean writes it: `Tengoku/Lib/A-B.lean` is `Tengoku.Lib.«A-B»` (the manifest and the umbrella spell it that way; tao-analysis could not be cut, 2026-10-09)."""
+    return ".".join(c if re.fullmatch(r"[^\W\d][\w']*", c) else f"«{c}»" for c in path.removesuffix(".lean").split("/"))
 
 
 def own_modules(files: dict[str, bytes], ns: str) -> dict[str, str]:

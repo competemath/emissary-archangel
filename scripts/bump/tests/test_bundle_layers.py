@@ -359,5 +359,34 @@ class WorkflowsCutPartsFromTheTree(unittest.TestCase):
         self.assertEqual(last('[{"name":"002.json"},{"name":"README.md"}]'), "2")
 
 
+class GuillemetModules(unittest.TestCase):
+    """A file `Real-EReal-ENNReal.lean` is the module `«Real-EReal-ENNReal»` in the manifest, the umbrella and the imports; tao-analysis could not be cut
+    ("a manifest record names a module the bundle does not have") because the file was named without its guillemets."""
+
+    def bundle(self) -> dict[str, bytes]:
+        quoted = f"Tengoku.{NS}.Misc.«Real-EReal»"
+        files = {
+            f"Tengoku/{NS}/Misc/Real-EReal.lean": b"module\n\npublic import Tengoku\n\ntheorem a : True := trivial\n",
+            f"Tengoku/{NS}/Top.lean": f"module\n\npublic import Tengoku\npublic import {quoted}\n\ntheorem b : True := trivial\n".encode(),
+            f"Tengoku/{NS}/1102.4662.lean": b"module\n\npublic import Tengoku\n\ntheorem c : True := trivial\n",
+        }
+        files[f"Tengoku/{NS}.lean"] = f"import {quoted}\nimport Tengoku.{NS}.Top\nimport Tengoku.{NS}.«1102.4662»\n".encode()
+        recs = [{"module": m, "name": n} for m, n in ((quoted, "a"), (f"Tengoku.{NS}.Top", "b"), (f"Tengoku.{NS}.«1102.4662»", "c"))]
+        files["manifest.jsonl"] = "".join(json.dumps(r) + "\n" for r in recs).encode()
+        return files
+
+    def test_module_names_are_written_as_lean_writes_them(self):
+        self.assertEqual(bl.module_name("Tengoku/Lib/Misc/Real-EReal.lean"), "Tengoku.Lib.Misc.«Real-EReal»")
+        self.assertEqual(bl.module_name("Tengoku/Lib/1102.4662.lean"), "Tengoku.Lib.«1102.4662»")
+        self.assertEqual(bl.module_name("Tengoku/Lib/Plain.lean"), "Tengoku.Lib.Plain")
+
+    def test_a_bundle_with_such_modules_is_cut_and_the_import_orders_them(self):
+        parts = bl.plan(self.bundle(), NS, 300)
+        order = parts[0].modules
+        self.assertIn(f"Tengoku.{NS}.Misc.«Real-EReal»", order)
+        self.assertLess(order.index(f"Tengoku.{NS}.Misc.«Real-EReal»"), order.index(f"Tengoku.{NS}.Top"))  # Top imports it: the edge was seen
+        self.assertEqual(sum(len(p.manifest_lines) for p in parts), 3)
+
+
 if __name__ == "__main__":
     unittest.main()
