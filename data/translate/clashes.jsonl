@@ -148,3 +148,7 @@
 {"at":"2026-09-29T10:18:10.817Z","library":"statsmllib","name":"HansonWright.bounded_hansonWright_cgf_constant_le","kind":"duplicate","other":"leanslt"}
 {"at":"2026-09-29T10:18:10.817Z","library":"statsmllib","name":"HansonWright.exp_le_chord","kind":"duplicate","other":"leanslt"}
 {"at":"2026-09-29T10:18:10.817Z","library":"statsmllib","name":"LogSobolev.optimalU_measurable","kind":"duplicate","other":"leanslt"}
+{"at":"2026-10-09T23:11:40.046Z","library":"apap","name":"energy_nonneg","kind":"renamed","renamed":"energy_nonneg__apap","other":"mathlib-combinatorics"}
+{"at":"2026-10-09T23:11:40.046Z","library":"apap","name":"dft_apply","kind":"renamed","renamed":"dft_apply__apap","other":"mathlib-analysis"}
+{"at":"2026-10-09T23:11:40.046Z","library":"apap","name":"dft_dft","kind":"renamed","renamed":"dft_dft__apap","other":"mathlib-analysis"}
+{"at":"2026-10-09T23:11:40.046Z","library":"archon-firstproof-p6","name":"Problem6.inducedSubgraph_mono","kind":"renamed","renamed":"Problem6.inducedSubgraph_mono__archon_firstproof_p6","other":"lean-pool"}
