@@ -8,8 +8,7 @@ import uuid
 
 import uvicorn
 from lsp_driver import ResidentElaborator
-from mcp.server.fastmcp import FastMCP
-from mcp.server.transport_security import TransportSecuritySettings
+from mcp_compat import make_server, sse_app
 from starlette.middleware.cors import CORSMiddleware
 
 # =============================================================================
@@ -44,10 +43,7 @@ OLD_EXPORT_PATH = os.environ.get(
 # spurious FAILs (reason=timeout) that the harness then escalated.
 VERIFY_TIMEOUT = 900.0
 
-mcp = FastMCP(
-    "Emissary-Archangel-Gate2",
-    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
-)
+mcp = make_server("Emissary-Archangel-Gate2")
 
 # The environment Gate 2 elaborates in is the Tengoku tree. `Tengoku.All` is
 # root + every library of verified additions; a narrower module can be set
@@ -545,7 +541,7 @@ async def main_serve():
     logger.info("Booting Emissary-Archangel Gate 2 daemon...")
     logger.info("=" * 60)
 
-    http_app = mcp.sse_app()
+    http_app = sse_app(mcp)
     http_app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],

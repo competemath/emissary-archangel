@@ -97,9 +97,9 @@ export function PipelinePanel() {
   }, [runLines]);
 
   useEffect(() => {
-    refresh();
+    const first = setTimeout(refresh, 0); // not a synchronous call: the state is set after the fetch, not while the effect runs
     const t = setInterval(() => { if (!document.hidden) refresh(); }, 3000);
-    return () => clearInterval(t);
+    return () => { clearTimeout(first); clearInterval(t); };
   }, [refresh]);
 
   const act = async (action: string, extra: Record<string, unknown> = {}) => {
