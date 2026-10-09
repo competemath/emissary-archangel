@@ -70,5 +70,13 @@ class Place(unittest.TestCase):
         self.assertEqual((self.repo / "Tengoku/All.lean").read_text(), "import Tengoku.Lib\nimport Tengoku.FxLib\n")
 
 
+class PartsTotal(unittest.TestCase):
+    def test_a_cut_from_part_one_has_as_many_parts_as_the_plan_lists(self):
+        self.assertEqual(op.parts_total({"parts": [{"part": 1}, {"part": 2}, {"part": 3}]}), 3)
+
+    def test_a_cut_from_the_tree_counts_the_parts_before_it_too(self):
+        self.assertEqual(op.parts_total({"parts": [{"part": 2}, {"part": 3}, {"part": 4}, {"part": 5}]}), 5)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -27,6 +27,11 @@ import tempfile
 from pathlib import Path
 
 
+def parts_total(plan: dict) -> int:
+    """How many parts the library has: the last part's number (a recut from the tree starts at 2, so counting the plan's parts would say one too few)."""
+    return max(part["part"] for part in plan["parts"])
+
+
 def sh(*a: str, cwd: str | None = None, check: bool = True) -> str:
     r = subprocess.run(a, cwd=cwd, capture_output=True, text=True)
     if check and r.returncode:
@@ -115,7 +120,7 @@ def main() -> None:
     nparts = ""
     if a.part is not None:
         plan_file = next((work / "art").rglob(f"parts-{a.mode}.json"), None)
-        nparts = f" of {len(json.loads(plan_file.read_text())['parts'])}" if plan_file else ""
+        nparts = f" of {parts_total(json.loads(plan_file.read_text()))}" if plan_file else ""
     what = "extend" if extend else "intake"
     part_txt = "" if a.part is None else f" part {a.part}{nparts}"
     theorems, modules = report["theorems"], report.get("modules_in_bundle", report.get("modules"))
