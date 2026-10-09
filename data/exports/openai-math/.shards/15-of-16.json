@@ -1,0 +1,27 @@
+{
+  "shard": 15,
+  "shards": 16,
+  "commit": "adc7f1241b42e322a6451854ab7e4b4c146bf78a",
+  "toolchain": "leanprover/lean4:v4.34.1",
+  "modules": 192,
+  "exported": 191,
+  "failed": [
+    {
+      "module": "OAI.Geometry.Arnold.CriticalLifts",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 10349,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "OAI.Geometry.LogVolume.BrunnMinkowski",
+        "why": "ta: repository '/home/runner/work/emissary-archangel/emissary-archangel/infra/openai-math/repo/lean/.lake/packages/tate-curves-theta' has local changes warning: iut: repository '/home/runner/work/emissary-archangel/emissary-archangel/infra/openai-math/repo/lean/.lake/packages/iut' has local changes "
+      }
+    ]
+  },
+  "minutes": 177,
+  "finishedAt": "2026-10-09T16:29:27.047Z"
+}

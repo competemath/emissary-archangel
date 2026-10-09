@@ -1,0 +1,26 @@
+{
+  "shard": 11,
+  "shards": 16,
+  "commit": "adc7f1241b42e322a6451854ab7e4b4c146bf78a",
+  "toolchain": "leanprover/lean4:v4.34.1",
+  "modules": 192,
+  "exported": 190,
+  "failed": [
+    {
+      "module": "OAI.Geometry.Arnold.Quotient",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.Sphere",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 12357,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "minutes": 160,
+  "finishedAt": "2026-10-09T13:15:08.635Z"
+}

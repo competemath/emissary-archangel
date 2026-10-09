@@ -200,6 +200,10 @@ version (it resolves to the newest); each release also has its own DOI, on its r
 }
 ```
 
+## Funding and affiliation
+
+Emissary-Archangel is one of the services of [CompeteMath](https://competemath.com/about), founded by a single individual. CompeteMath has no intention of generating income with any of its projects. CompeteMath is not affiliated with, nor does it support, any particular organization, corporate entity, or political group. Anyone considering donating or partnering with us should know that Emissary-Archangel will not allow any influence over the governance of this repository, nor its accessibility, the integrity of its contents, or its goals.
+
 ## Licence
 
 Apache-2.0 ([LICENSE](LICENSE)), the same as [Tengoku](https://github.com/competemath/tengoku). The libraries it

@@ -5,9 +5,9 @@ name: bump-tests
 on:
   push:
     branches: [main]
-    paths: ["scripts/**", ".github/workflows/bump-tests.yml", ".github/workflows/bump-sharded.yml", ".github/workflows/bump-library.yml"]
+    paths: ["scripts/**", ".github/workflows/bump-tests.yml", ".github/workflows/bump-sharded.yml", ".github/workflows/bump-library.yml", ".github/workflows/bump-shard.yml", ".github/workflows/translate-all.yml", ".github/workflows/translate.yml"]
   pull_request:
-    paths: ["scripts/**", ".github/workflows/bump-tests.yml", ".github/workflows/bump-sharded.yml", ".github/workflows/bump-library.yml"]
+    paths: ["scripts/**", ".github/workflows/bump-tests.yml", ".github/workflows/bump-sharded.yml", ".github/workflows/bump-library.yml", ".github/workflows/bump-shard.yml", ".github/workflows/translate-all.yml", ".github/workflows/translate.yml"]
 permissions: {}
 defaults:
   run:

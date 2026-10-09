@@ -1,0 +1,2620 @@
+import OAI.Geometry.HarmonicGrowth.PolynomialControl
+
+
+-- @@ L3-3 verbatim
+namespace OAI
+
+
+-- @@ L5-5 verbatim
+noncomputable section
+
+-- @@ L6-6 verbatim
+open Matrix
+
+-- @@ L7-7 verbatim
+open scoped BigOperators
+
+-- @@ L8-8 verbatim
+open scoped Topology
+
+-- @@ L9-9 verbatim
+open Filter
+
+-- @@ L10-10 verbatim
+open Matrix
+
+-- @@ L11-11 verbatim
+open scoped BigOperators
+
+-- @@ L12-12 verbatim
+open Matrix MvPolynomial
+
+-- @@ L13-13 verbatim
+open Matrix
+
+
+-- @@ L15-15 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L16-16 verbatim
+attribute [local instance 100] LieRing.ofAssociativeRing
+
+-- @@ L17-17 verbatim
+variable {𝕜 ι κ : Type*} [Field 𝕜] [Fintype ι] [DecidableEq ι]
+
+
+-- @@ L19-22 verbatim
+lemma bracket_diagonal_apply (d : ι → 𝕜) (X : Matrix ι ι 𝕜) (i j : ι) :
+    ⁅diagonal d,X⁆ i j = (d i-d j)*X i j := by
+  rw [Ring.lie_def,Matrix.sub_apply,diagonal_mul,mul_diagonal]
+  ring
+
+
+-- @@ L24-26 verbatim
+/-- A normalized factor of a polynomial in a diagonal adjoint operator. -/
+def filterEntry (d : ι → 𝕜) (p q i j : ι) (X : Matrix ι ι 𝕜) : Matrix ι ι 𝕜 :=
+    ((d p-d q)-(d i-d j))⁻¹ • (⁅diagonal d,X⁆-(d i-d j) • X)
+
+
+-- @@ L28-32 verbatim
+lemma filterEntry_apply (d : ι → 𝕜) (p q i j a b : ι) (X : Matrix ι ι 𝕜) :
+    filterEntry d p q i j X a b =
+      ((d p-d q)-(d i-d j))⁻¹*((d a-d b)-(d i-d j))*X a b := by
+  simp only [filterEntry,Matrix.smul_apply,smul_eq_mul,Matrix.sub_apply,bracket_diagonal_apply]
+  ring
+
+
+-- @@ L34-37 verbatim
+lemma filterEntry_mem (L : LieSubalgebra 𝕜 (Matrix ι ι 𝕜))
+    {d : ι → 𝕜} (hd : diagonal d ∈ L) (p q i j : ι)
+    {X : Matrix ι ι 𝕜} (hX : X ∈ L) : filterEntry d p q i j X ∈ L :=
+  L.smul_mem _ (L.sub_mem (L.lie_mem hd hX) (L.smul_mem _ hX))
+
+
+-- @@ L39-77 verbatim
+/-- Finite joint-eigenvalue interpolation isolates a genuine directed matrix
+entry. Zeros of the input require no spectral separation. This is the precise
+linear-algebra step used after the torus Fourier projection in the manuscript. -/
+theorem isolate_entry (L : LieSubalgebra 𝕜 (Matrix ι ι 𝕜))
+    (d : κ → ι → 𝕜) (hd : ∀ a,diagonal (d a) ∈ L)
+    {X : Matrix ι ι 𝕜} (hX : X ∈ L) (p q : ι)
+    (hsep : ∀ i j, (i,j) ≠ (p,q) → X i j ≠ 0 →
+      ∃ a, d a p-d a q ≠ d a i-d a j) :
+    single p q (X p q) ∈ L := by
+  have construct (s : Finset (ι×ι)) (hs : (p,q) ∉ s) :
+      ∃ Z : Matrix ι ι 𝕜, Z ∈ L ∧ Z p q = X p q ∧
+        (∀ i j,X i j = 0 → Z i j = 0) ∧ (∀ r ∈ s,Z r.1 r.2 = 0) := by
+    induction s using Finset.induction_on with
+    | empty => exact ⟨X,hX,rfl,fun _ _ h => h,by simp⟩
+    | @insert r s hr ih =>
+      obtain ⟨Z,hZ,ht,hz,hsz⟩ := ih (fun h => hs (Finset.mem_insert_of_mem h))
+      by_cases hxr : X r.1 r.2 = 0
+      · exact ⟨Z,hZ,ht,hz,fun z h => (Finset.mem_insert.1 h).elim
+          (fun h => h ▸ hz r.1 r.2 hxr) (hsz z)⟩
+      · obtain ⟨a,ha⟩ := hsep r.1 r.2 (by
+          intro he; exact hs (he ▸ Finset.mem_insert_self r s)) hxr
+        refine ⟨filterEntry (d a) p q r.1 r.2 Z,filterEntry_mem L (hd a) p q _ _ hZ,?_,?_,?_⟩
+        · rw [filterEntry_apply,inv_mul_cancel₀ (sub_ne_zero.2 ha),one_mul,ht]
+        · intro i j hij
+          rw [filterEntry_apply,hz i j hij,mul_zero]
+        · intro z hz'
+          rcases Finset.mem_insert.1 hz' with rfl | hzs
+          · rw [filterEntry_apply,sub_self,mul_zero,zero_mul]
+          · rw [filterEntry_apply,hsz z hzs,mul_zero]
+  obtain ⟨Z,hZ,ht,_,hz⟩ := construct (Finset.univ.erase (p,q)) (Finset.notMem_erase _ _)
+  have he : Z = single p q (X p q) := by
+    ext i j
+    by_cases hij : (i,j) = (p,q)
+    · obtain ⟨rfl,rfl⟩ := Prod.mk.inj hij
+      simpa using ht
+    · have hs : single p q (X p q) i j = 0 :=
+        Matrix.single_apply_of_ne p q (X p q) i j (fun h => hij (Prod.ext h.1.symm h.2.symm))
+      exact (hz (i,j) (Finset.mem_erase.2 ⟨hij,Finset.mem_univ _⟩)).trans hs.symm
+  exact he ▸ hZ
+
+
+-- @@ L79-83 verbatim
+lemma normalize_entry (L : LieSubalgebra 𝕜 (Matrix ι ι 𝕜))
+    {p q : ι} {a : 𝕜} (ha : a ≠ 0) (h : single p q a ∈ L) :
+    single p q (1:𝕜) ∈ L := by
+  have h' := L.smul_mem a⁻¹ h
+  simpa only [smul_single,smul_eq_mul,inv_mul_cancel₀ ha] using h'
+
+
+-- @@ L85-85 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L87-87 verbatim
+end
+
+
+-- @@ L89-89 verbatim
+noncomputable section
+
+-- @@ L90-90 verbatim
+open Matrix
+
+-- @@ L91-91 verbatim
+open scoped BigOperators
+
+-- @@ L92-92 verbatim
+open scoped Topology
+
+-- @@ L93-93 verbatim
+open Filter
+
+-- @@ L94-94 verbatim
+open Matrix
+
+-- @@ L95-95 verbatim
+open scoped BigOperators
+
+-- @@ L96-96 verbatim
+open Matrix MvPolynomial
+
+-- @@ L97-97 verbatim
+open Matrix
+
+
+-- @@ L99-99 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L100-100 verbatim
+variable {𝕜 ι : Type*} [Field 𝕜] [CharZero 𝕜]
+
+
+-- @@ L102-120 verbatim
+/-- The joint weight differences of the diagonal quadratic operators are
+injective as soon as the shift has three nonzero coordinates. -/
+theorem weight_separation (δ v : ι → 𝕜)
+    (a b c : ι) (hab : a ≠ b) (hac : a ≠ c) (hbc : b ≠ c)
+    (ha : δ a ≠ 0) (hb : δ b ≠ 0) (hc : δ c ≠ 0)
+    (h : ∀ i j, i ≠ j → v i * δ j + v j * δ i = 0) : v = 0 := by
+  have hab' := h a b hab
+  have hac' := h a c hac
+  have hbc' := h b c hbc
+  have hva : v a = 0 := by
+    have he : (2:𝕜) * δ b * δ c * v a = 0 := by
+      linear_combination δ c * hab' + δ b * hac' - δ a * hbc'
+    exact (mul_eq_zero.1 he).resolve_left
+      (mul_ne_zero (mul_ne_zero (by norm_num) hb) hc)
+  funext i
+  by_cases hi : i = a
+  · simpa [hi] using hva
+  · have he := h i a hi
+    simpa only [hva,zero_mul,add_zero,mul_eq_zero,ha,or_false,Pi.zero_apply] using he
+
+
+-- @@ L122-125 verbatim
+omit [CharZero 𝕜] in
+lemma quadratic_weight_difference (ν δ : ι → 𝕜) (i j : ι) :
+    (ν i+δ i)*(ν j+δ j)-ν i*ν j =
+      ν i*δ j+ν j*δ i+δ i*δ j := by ring
+
+
+-- @@ L127-139 verbatim
+/-- The exact joint eigenvalues in manuscript (control-block-eigenvalues). -/
+theorem joint_weight_injective (δ : ι → 𝕜)
+    (a b c : ι) (hab : a ≠ b) (hac : a ≠ c) (hbc : b ≠ c)
+    (ha : δ a ≠ 0) (hb : δ b ≠ 0) (hc : δ c ≠ 0)
+    {ν μ : ι → 𝕜}
+    (h : ∀ i j, i ≠ j →
+      ν i*δ j+ν j*δ i+δ i*δ j = μ i*δ j+μ j*δ i+δ i*δ j) : ν = μ := by
+  have hz := weight_separation δ (ν-μ) a b c hab hac hbc ha hb hc (by
+    intro i j hij
+    have he := h i j hij
+    change (ν i-μ i)*δ j+(ν j-μ j)*δ i = 0
+    linear_combination he)
+  exact sub_eq_zero.1 hz
+
+
+-- @@ L141-141 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L143-143 verbatim
+end
+
+
+-- @@ L145-145 verbatim
+noncomputable section
+
+-- @@ L146-146 verbatim
+open Matrix
+
+-- @@ L147-147 verbatim
+open scoped BigOperators
+
+-- @@ L148-148 verbatim
+open scoped Topology
+
+-- @@ L149-149 verbatim
+open Filter
+
+-- @@ L150-150 verbatim
+open Matrix
+
+-- @@ L151-151 verbatim
+open scoped BigOperators
+
+-- @@ L152-152 verbatim
+open Matrix MvPolynomial
+
+-- @@ L153-153 verbatim
+open Matrix
+
+
+-- @@ L155-155 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L156-156 verbatim
+open Matrix
+
+-- @@ L157-157 verbatim
+attribute [local instance 100] LieRing.ofAssociativeRing
+
+-- @@ L158-158 verbatim
+variable {𝕜 ι : Type*} [Field 𝕜] [Fintype ι] [DecidableEq ι]
+
+
+-- @@ L160-163 verbatim
+lemma bracket_units (a b c : ι) (h : a ≠ c) :
+    ⁅single c b (1:𝕜),single b a (1:𝕜)⁆ = single c a 1 := by
+  rw [Ring.lie_def,single_mul_single_same,single_mul_single_of_ne (1:𝕜) b a c h (1:𝕜)]
+  simp
+
+
+-- @@ L165-183 verbatim
+/-- Nested brackets along a nonreturning directed path produce the endpoint
+unit. No associative multiplication closure of the Lie algebra is assumed. -/
+theorem unit_mem_of_path (L : LieSubalgebra 𝕜 (Matrix ι ι 𝕜))
+    (v : ℕ → ι) (r : ℕ) (hr : 0 < r)
+    (hne : ∀ j,0 < j → j ≤ r → v j ≠ v 0)
+    (hedge : ∀ j,j < r → single (v (j+1)) (v j) (1:𝕜) ∈ L) :
+    single (v r) (v 0) (1:𝕜) ∈ L := by
+  induction r with
+  | zero => omega
+  | succ r ih =>
+    by_cases hzero : r = 0
+    · subst r
+      exact hedge 0 (by omega)
+    · have he := hedge r (by omega)
+      have hi := ih (by omega) (fun j hj hjr => hne j hj (by omega))
+        (fun j hj => hedge j (by omega))
+      have hb := L.lie_mem he hi
+      rw [bracket_units _ _ _ (hne (r+1) (by omega) (by omega)).symm] at hb
+      exact hb
+
+
+-- @@ L185-189 verbatim
+lemma diagonal_difference_mem (L : LieSubalgebra 𝕜 (Matrix ι ι 𝕜))
+    {i j : ι} (hij : single i j (1:𝕜) ∈ L)
+    (hji : single j i (1:𝕜) ∈ L) : single i i (1:𝕜)-single j j 1 ∈ L := by
+  have h := L.lie_mem hij hji
+  simpa only [Ring.lie_def,single_mul_single_same,mul_one] using h
+
+
+-- @@ L191-191 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L193-193 verbatim
+end
+
+
+-- @@ L195-195 verbatim
+noncomputable section
+
+-- @@ L196-196 verbatim
+open Matrix
+
+-- @@ L197-197 verbatim
+open scoped BigOperators
+
+-- @@ L198-198 verbatim
+open scoped Topology
+
+-- @@ L199-199 verbatim
+open Filter
+
+-- @@ L200-200 verbatim
+open Matrix
+
+-- @@ L201-201 verbatim
+open scoped BigOperators
+
+-- @@ L202-202 verbatim
+open Matrix MvPolynomial
+
+-- @@ L203-203 verbatim
+open Matrix
+
+
+-- @@ L205-205 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L206-206 verbatim
+open scoped BigOperators
+
+-- @@ L207-207 verbatim
+variable {ι : Type*} [Fintype ι]
+
+
+-- @@ L209-220 verbatim
+/-- On the extreme weight layer there is no opposite pair. Equality of torus
+weight and total polynomial degree therefore determines the actual monomial,
+even among all (not necessarily harmonic) monomials. -/
+theorem extreme_weight_unique (d e : ι ⊕ ι → ℕ)
+    (he : ∀ i,e (.inl i) = 0 ∨ e (.inr i) = 0)
+    (hdeg : ∑ a,d a = ∑ a,e a)
+    (hweight : ∀ i,(d (.inl i):ℤ)-d (.inr i) = e (.inl i)-e (.inr i)) : d = e := by
+  have hle : ∀ a,e a ≤ d a := by
+    intro a
+    rcases a with i | i <;> have hw := hweight i <;> rcases he i with h | h <;> omega
+  have hsum := (Finset.sum_eq_sum_iff_of_le (fun a (_ : a ∈ Finset.univ) => hle a)).1 hdeg.symm
+  exact funext fun a => (hsum a (Finset.mem_univ a)).symm
+
+
+-- @@ L222-250 verbatim
+omit [Fintype ι] in
+/-- At a three-coordinate shift, linear torus differences and pairwise
+quadratic torus differences distinguish an extreme-to-extreme entry from
+EVERY other matrix entry. Thus weight multiplicities in the interior cannot
+silently turn a block into a rank-one operator. -/
+theorem extreme_joint_separation
+    {𝕜 : Type*} [Field 𝕜] [CharZero 𝕜]
+    {μ : Type*} (w : μ → ι → 𝕜) (p q : μ)
+    (hp : ∀ x,w x = w p → x = p) (hq : ∀ x,w x = w q → x = q)
+    (a b c : ι) (hab : a ≠ b) (hac : a ≠ c) (hbc : b ≠ c)
+    (ha : w p a-w q a ≠ 0) (hb : w p b-w q b ≠ 0) (hc : w p c-w q c ≠ 0)
+    (x y : μ) (hxy : (x,y) ≠ (p,q)) :
+    (∃ i,w p i-w q i ≠ w x i-w y i) ∨
+    ∃ i j,i ≠ j ∧ w p i*w p j-w q i*w q j ≠ w x i*w x j-w y i*w y j := by
+  by_contra! h
+  have hδ : w x = w y+(w p-w q) := by
+    funext i
+    have ht := h.1 i
+    change w x i = w y i+(w p i-w q i)
+    linear_combination -ht
+  have hpδ : w p = w q+(w p-w q) := by abel
+  have hy : w y = w q := by
+    apply joint_weight_injective (w p-w q) a b c hab hac hbc ha hb hc
+    intro i j hij
+    have ht := h.2 i j hij
+    rw [hδ,hpδ] at ht
+    simp only [Pi.add_apply,Pi.sub_apply] at ht ⊢
+    linear_combination -ht
+  exact hxy (Prod.ext (hp x (by rw [hδ,hy,← hpδ])) (hq y hy))
+
+
+-- @@ L252-252 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L254-254 verbatim
+end
+
+
+-- @@ L256-256 verbatim
+noncomputable section
+
+-- @@ L257-257 verbatim
+open Matrix
+
+-- @@ L258-258 verbatim
+open scoped BigOperators
+
+-- @@ L259-259 verbatim
+open scoped Topology
+
+-- @@ L260-260 verbatim
+open Filter
+
+-- @@ L261-261 verbatim
+open Matrix
+
+-- @@ L262-262 verbatim
+open scoped BigOperators
+
+-- @@ L263-263 verbatim
+open Matrix MvPolynomial
+
+-- @@ L264-264 verbatim
+open Matrix
+
+
+-- @@ L266-266 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L267-267 verbatim
+variable {𝕜 ι κ : Type*} [Field 𝕜] [Fintype ι] [DecidableEq ι]
+
+-- @@ L268-268 verbatim
+attribute [local instance 100] LieRing.ofAssociativeRing
+
+-- @@ L269-269 verbatim
+open Matrix
+
+-- @@ L270-273 verbatim
+lemma filterEntry_mem_normalizer (L : LieSubalgebra 𝕜 (Matrix ι ι 𝕜))
+    {d : ι → 𝕜} (hd : ∀ X ∈ L, ⁅diagonal d,X⁆ ∈ L) (p q i j : ι)
+    {X : Matrix ι ι 𝕜} (hX : X ∈ L) : filterEntry d p q i j X ∈ L :=
+  L.smul_mem _ (L.sub_mem (hd X hX) (L.smul_mem _ hX))
+
+
+-- @@ L275-313 verbatim
+/-- Finite joint-eigenvalue interpolation isolates a genuine directed matrix
+entry. Zeros of the input require no spectral separation. This is the precise
+linear-algebra step used after the torus Fourier projection in the manuscript. -/
+theorem isolate_entry_normalizers (L : LieSubalgebra 𝕜 (Matrix ι ι 𝕜))
+    (d : κ → ι → 𝕜) (hd : ∀ a X, X ∈ L → ⁅diagonal (d a),X⁆ ∈ L)
+    {X : Matrix ι ι 𝕜} (hX : X ∈ L) (p q : ι)
+    (hsep : ∀ i j, (i,j) ≠ (p,q) → X i j ≠ 0 →
+      ∃ a, d a p-d a q ≠ d a i-d a j) :
+    single p q (X p q) ∈ L := by
+  have construct (s : Finset (ι×ι)) (hs : (p,q) ∉ s) :
+      ∃ Z : Matrix ι ι 𝕜, Z ∈ L ∧ Z p q = X p q ∧
+        (∀ i j,X i j = 0 → Z i j = 0) ∧ (∀ r ∈ s,Z r.1 r.2 = 0) := by
+    induction s using Finset.induction_on with
+    | empty => exact ⟨X,hX,rfl,fun _ _ h => h,by simp⟩
+    | @insert r s hr ih =>
+      obtain ⟨Z,hZ,ht,hz,hsz⟩ := ih (fun h => hs (Finset.mem_insert_of_mem h))
+      by_cases hxr : X r.1 r.2 = 0
+      · exact ⟨Z,hZ,ht,hz,fun z h => (Finset.mem_insert.1 h).elim
+          (fun h => h ▸ hz r.1 r.2 hxr) (hsz z)⟩
+      · obtain ⟨a,ha⟩ := hsep r.1 r.2 (by
+          intro he; exact hs (he ▸ Finset.mem_insert_self r s)) hxr
+        refine ⟨filterEntry (d a) p q r.1 r.2 Z,filterEntry_mem_normalizer L (hd a) p q _ _ hZ,?_,?_,?_⟩
+        · rw [filterEntry_apply,inv_mul_cancel₀ (sub_ne_zero.2 ha),one_mul,ht]
+        · intro i j hij
+          rw [filterEntry_apply,hz i j hij,mul_zero]
+        · intro z hz'
+          rcases Finset.mem_insert.1 hz' with rfl | hzs
+          · rw [filterEntry_apply,sub_self,mul_zero,zero_mul]
+          · rw [filterEntry_apply,hsz z hzs,mul_zero]
+  obtain ⟨Z,hZ,ht,_,hz⟩ := construct (Finset.univ.erase (p,q)) (Finset.notMem_erase _ _)
+  have he : Z = single p q (X p q) := by
+    ext i j
+    by_cases hij : (i,j) = (p,q)
+    · obtain ⟨rfl,rfl⟩ := Prod.mk.inj hij
+      simpa using ht
+    · have hs : single p q (X p q) i j = 0 :=
+        Matrix.single_apply_of_ne p q (X p q) i j (fun h => hij (Prod.ext h.1.symm h.2.symm))
+      exact (hz (i,j) (Finset.mem_erase.2 ⟨hij,Finset.mem_univ _⟩)).trans hs.symm
+  exact he ▸ hZ
+
+
+
+-- @@ L316-316 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L318-318 verbatim
+end
+
+
+-- @@ L320-320 verbatim
+noncomputable section
+
+-- @@ L321-321 verbatim
+open Matrix
+
+-- @@ L322-322 verbatim
+open scoped BigOperators
+
+-- @@ L323-323 verbatim
+open scoped Topology
+
+-- @@ L324-324 verbatim
+open Filter
+
+-- @@ L325-325 verbatim
+open Matrix
+
+-- @@ L326-326 verbatim
+open scoped BigOperators
+
+-- @@ L327-327 verbatim
+open Matrix MvPolynomial
+
+-- @@ L328-328 verbatim
+open Matrix
+
+
+-- @@ L330-330 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L331-331 verbatim
+open Matrix MvPolynomial HarmonicCounterexample.Berger
+
+-- @@ L332-332 verbatim
+open HarmonicCounterexample.Berger.ComplexStructure
+
+-- @@ L333-333 verbatim
+open scoped BigOperators
+
+-- @@ L334-334 verbatim
+attribute [local instance 100] LieRing.ofAssociativeRing
+
+-- @@ L335-335 verbatim
+variable {s l : ℕ}
+
+
+-- @@ L337-338 verbatim
+def ExtremeMonomial (ν : MonomialIndex (Fin s ⊕ Fin s) l) : Prop :=
+  ∀ i,ν.1 (.inl i) = 0 ∨ ν.1 (.inr i) = 0
+
+
+-- @@ L340-352 verbatim
+lemma extreme_monomial_weight_unique (ν : MonomialIndex (Fin s ⊕ Fin s) l)
+    (hν : ExtremeMonomial ν) (μ : MonomialIndex (Fin s ⊕ Fin s) l)
+    (hw : monomialWeight μ.1 = monomialWeight ν.1) : μ = ν := by
+  apply Subtype.ext
+  apply DFunLike.ext'
+  apply extreme_weight_unique (fun a => μ.1 a) (fun a => ν.1 a) hν
+  · have hm : μ.1.degree = ∑ a,μ.1 a := Finsupp.sum_fintype μ.1 (fun _ a => a) (fun _ => rfl)
+    have hn : ν.1.degree = ∑ a,ν.1 a := Finsupp.sum_fintype ν.1 (fun _ a => a) (fun _ => rfl)
+    rw [← hm,← hn,μ.2,ν.2]
+  · intro i
+    have hi := congrFun hw i
+    change (μ.1 (.inl i):ℂ)-μ.1 (.inr i) = (ν.1 (.inl i):ℂ)-ν.1 (.inr i) at hi
+    exact_mod_cast hi
+
+
+-- @@ L354-381 verbatim
+/-- Every nonzero actual extreme-to-extreme coefficient at a shift with three
+nonzero coordinates yields a matrix unit in the actual angular Lie algebra. -/
+theorem angularLie_extreme_entry
+    (X : Matrix (MonomialIndex (Fin s ⊕ Fin s) l) (MonomialIndex (Fin s ⊕ Fin s) l) ℂ)
+    (hX : X ∈ angularLie l) (μ ν : MonomialIndex (Fin s ⊕ Fin s) l)
+    (hμ : ExtremeMonomial μ) (hν : ExtremeMonomial ν)
+    (a b c : Fin s) (hab : a ≠ b) (hac : a ≠ c) (hbc : b ≠ c)
+    (ha : monomialWeight μ.1 a-monomialWeight ν.1 a ≠ 0)
+    (hb : monomialWeight μ.1 b-monomialWeight ν.1 b ≠ 0)
+    (hc : monomialWeight μ.1 c-monomialWeight ν.1 c ≠ 0)
+    (he : X μ ν ≠ 0) : single μ ν (1:ℂ) ∈ angularLie l := by
+  let d : Fin s ⊕ {ij : Fin s × Fin s // ij.1 ≠ ij.2} →
+      MonomialIndex (Fin s ⊕ Fin s) l → ℂ := Sum.elim
+    (fun i p => monomialWeight p.1 i)
+    (fun ij p => monomialWeight p.1 ij.1.1*monomialWeight p.1 ij.1.2)
+  have hd : ∀ i Z,Z ∈ angularLie (s := s) l → ⁅diagonal (d i),Z⁆ ∈ angularLie l := by
+    rintro (i | ij) Z hZ
+    · exact angularLie_weight_normalizer l i Z hZ
+    · exact angularLie_pair_normalizer l ij.1.1 ij.1.2 ij.2 Z hZ
+  apply normalize_entry (angularLie l) he
+  apply isolate_entry_normalizers (angularLie l) d hd hX μ ν
+  intro p q hpq _
+  have hs := extreme_joint_separation (fun p : MonomialIndex (Fin s ⊕ Fin s) l =>
+    monomialWeight p.1) μ ν (extreme_monomial_weight_unique μ hμ)
+    (extreme_monomial_weight_unique ν hν) a b c hab hac hbc ha hb hc p q hpq
+  rcases hs with ⟨i,hi⟩ | ⟨i,j,hij,hij'⟩
+  · exact ⟨.inl i,hi⟩
+  · exact ⟨.inr ⟨(i,j),hij⟩,hij'⟩
+
+
+-- @@ L383-383 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L385-385 verbatim
+end
+
+
+-- @@ L387-387 verbatim
+noncomputable section
+
+-- @@ L388-388 verbatim
+open Matrix
+
+-- @@ L389-389 verbatim
+open scoped BigOperators
+
+-- @@ L390-390 verbatim
+open scoped Topology
+
+-- @@ L391-391 verbatim
+open Filter
+
+-- @@ L392-392 verbatim
+open Matrix
+
+-- @@ L393-393 verbatim
+open scoped BigOperators
+
+-- @@ L394-394 verbatim
+open Matrix MvPolynomial
+
+-- @@ L395-395 verbatim
+open Matrix
+
+
+-- @@ L397-397 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L398-398 verbatim
+open Finsupp
+
+-- @@ L399-399 verbatim
+variable {ι : Type*} [DecidableEq ι]
+
+
+-- @@ L401-403 verbatim
+/-- Exponents of a genuine term in the second-order polynomial field. -/
+def secondExponent (ν : ι →₀ ℕ) (a b c d : ι) : ι →₀ ℕ :=
+  single c 1+single d 1+(ν-single a 1-single b 1)
+
+
+-- @@ L405-417 verbatim
+/-- A deficit of two forces both differentiated variables. Natural truncated
+subtraction is handled rather than tacitly converted to a Laurent model. -/
+lemma split_forces_derivatives (ν : ι →₀ ℕ) (i j k a b c d : ι)
+    (hn : 2 ≤ ν i) (hij : i ≠ j) (hik : i ≠ k)
+    (he : secondExponent ν a b c d = secondExponent ν i i j k) : a = i ∧ b = i := by
+  have h := congrArg (fun f : ι →₀ ℕ => f i) he
+  by_cases ha : a = i <;> by_cases hb : b = i
+  · exact ⟨ha,hb⟩
+  all_goals
+    simp only [secondExponent,Finsupp.add_apply,Finsupp.tsub_apply,Finsupp.single_apply,
+      ite_eq_right hij.symm,ite_eq_right hik.symm,ha,hb,ite_true,ite_false,zero_add,
+      Nat.sub_zero] at h
+    omega
+
+
+-- @@ L419-432 verbatim
+/-- Once the differentiated variables are known, the increment at two distinct
+coordinates forces precisely the two ordered replacements. -/
+lemma split_forces_replacements (ν : ι →₀ ℕ) (i j k c d : ι)
+    (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k)
+    (he : secondExponent ν i i c d = secondExponent ν i i j k) :
+    (c = j ∧ d = k) ∨ (c = k ∧ d = j) := by
+  have h₁ := congrArg (fun f : ι →₀ ℕ => f j) he
+  have h₂ := congrArg (fun f : ι →₀ ℕ => f k) he
+  simp only [secondExponent,Finsupp.add_apply,Finsupp.tsub_apply,Finsupp.single_apply,
+    ite_eq_right hij,ite_eq_right hik,ite_eq_right hjk,ite_eq_right hjk.symm,Nat.sub_zero] at h₁ h₂
+  by_cases hcj : c = j <;> by_cases hck : c = k <;>
+    by_cases hdj : d = j <;> by_cases hdk : d = k
+  all_goals simp only [hcj,hck,hdj,hdk,hjk,hjk.symm,ite_true,ite_false] at h₁ h₂
+  all_goals first | exact Or.inl ⟨hcj,hdk⟩ | exact Or.inr ⟨hck,hdj⟩ | (exfalso; apply hjk; exact hcj.symm.trans hck) | (exfalso; apply hjk; exact hdj.symm.trans hdk) | omega
+
+
+-- @@ L434-434 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L436-436 verbatim
+end
+
+
+-- @@ L438-438 verbatim
+noncomputable section
+
+-- @@ L439-439 verbatim
+open Matrix
+
+-- @@ L440-440 verbatim
+open scoped BigOperators
+
+-- @@ L441-441 verbatim
+open scoped Topology
+
+-- @@ L442-442 verbatim
+open Filter
+
+-- @@ L443-443 verbatim
+open Matrix
+
+-- @@ L444-444 verbatim
+open scoped BigOperators
+
+-- @@ L445-445 verbatim
+open Matrix MvPolynomial
+
+-- @@ L446-446 verbatim
+open Matrix
+
+
+-- @@ L448-448 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L449-449 verbatim
+open scoped BigOperators
+
+-- @@ L450-450 verbatim
+open Matrix MvPolynomial Finsupp
+
+-- @@ L451-451 verbatim
+variable {𝕜 ι : Type*} [Field 𝕜] [Fintype ι] [DecidableEq ι]
+
+
+-- @@ L453-457 verbatim
+/-- The genuine second-order contribution, with every ordered differentiation
+and replacement included. -/
+def secondField (M : Matrix ι ι 𝕜) (P : MvPolynomial ι 𝕜) : MvPolynomial ι 𝕜 :=
+  ∑ a : ι, ∑ c : ι, ∑ b : ι, ∑ d : ι,
+    (M a c*M b d) • (X c*X d*pderiv b (pderiv a P))
+
+
+-- @@ L459-464 verbatim
+lemma linearField_square_second (M : Matrix ι ι 𝕜) (P : MvPolynomial ι 𝕜) :
+    linearField M (linearField M P) = linearField (M*M) P+secondField M P := by
+  rw [linearField_square]
+  congr 1
+  simp only [secondField,linearField_apply,Finset.mul_sum,Finset.smul_sum,
+    mul_smul_comm,smul_smul,mul_assoc]
+
+
+-- @@ L466-473 verbatim
+omit [DecidableEq ι] in
+lemma secondField_monomial (M : Matrix ι ι 𝕜) (ν : ι →₀ ℕ) :
+    secondField M (monomial ν 1) =
+      ∑ a : ι, ∑ c : ι, ∑ b : ι, ∑ d : ι,
+        monomial (secondExponent ν a b c d)
+          (M a c*M b d*((ν a:𝕜)*(((ν-single a 1 : ι →₀ ℕ) b):𝕜))) := by
+  simp only [secondField,pderiv_monomial,X,monomial_mul_monomial,smul_monomial,
+    smul_eq_mul,one_mul,mul_one,secondExponent,mul_assoc]
+
+
+-- @@ L475-480 verbatim
+lemma secondField_coeff (M : Matrix ι ι 𝕜) (ν μ : ι →₀ ℕ) :
+    (secondField M (monomial ν 1)).coeff μ =
+      ∑ a : ι, ∑ c : ι, ∑ b : ι, ∑ d : ι,
+        if secondExponent ν a b c d = μ then
+          M a c*M b d*((ν a:𝕜)*(((ν-Finsupp.single a 1 : ι →₀ ℕ) b):𝕜)) else 0 := by
+  simp only [secondField_monomial,coeff_sum,coeff_monomial]
+
+
+-- @@ L482-482 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L484-484 verbatim
+end
+
+
+-- @@ L486-486 verbatim
+noncomputable section
+
+-- @@ L487-487 verbatim
+open Matrix
+
+-- @@ L488-488 verbatim
+open scoped BigOperators
+
+-- @@ L489-489 verbatim
+open scoped Topology
+
+-- @@ L490-490 verbatim
+open Filter
+
+-- @@ L491-491 verbatim
+open Matrix
+
+-- @@ L492-492 verbatim
+open scoped BigOperators
+
+-- @@ L493-493 verbatim
+open Matrix MvPolynomial
+
+-- @@ L494-494 verbatim
+open Matrix
+
+
+-- @@ L496-496 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L497-497 verbatim
+open scoped BigOperators
+
+-- @@ L498-498 verbatim
+open Matrix MvPolynomial Finsupp
+
+-- @@ L499-499 verbatim
+variable {𝕜 ι : Type*} [Field 𝕜] [Fintype ι] [DecidableEq ι]
+
+
+-- @@ L501-513 verbatim
+omit [Fintype ι] in
+lemma secondExponent_split_iff (ν : ι →₀ ℕ) (i j k a b c d : ι)
+    (hn : 2 ≤ ν i) (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k) :
+    secondExponent ν a b c d = secondExponent ν i i j k ↔
+      a = i ∧ b = i ∧ ((c = j ∧ d = k) ∨ (c = k ∧ d = j)) := by
+  constructor
+  · intro h
+    obtain ⟨ha,hb⟩ := split_forces_derivatives ν i j k a b c d hn hij hik h
+    subst a; subst b
+    exact ⟨rfl,rfl,split_forces_replacements ν i j k c d hij hik hjk h⟩
+  · rintro ⟨rfl,rfl,(⟨rfl,rfl⟩ | ⟨rfl,rfl⟩)⟩
+    · rfl
+    · simp only [secondExponent,add_comm]
+
+
+-- @@ L515-540 verbatim
+lemma secondField_split_coeff (M : Matrix ι ι 𝕜) (ν : ι →₀ ℕ) (i j k : ι)
+    (hn : 2 ≤ ν i) (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k) :
+    (secondField M (monomial ν 1)).coeff (secondExponent ν i i j k) =
+      2*M i j*M i k*(ν i:𝕜)*((ν i-1:ℕ):𝕜) := by
+  rw [secondField_coeff]
+  have he (a c b d : ι) :
+      (if secondExponent ν a b c d = secondExponent ν i i j k then
+        M a c*M b d*((ν a:𝕜)*(((ν-Finsupp.single a 1 : ι →₀ ℕ) b):𝕜)) else 0) =
+      (if a = i then if b = i then
+        (if c = j then if d = k then M i j*M i k*((ν i:𝕜)*((ν i-1:ℕ):𝕜)) else 0 else 0)+
+        (if c = k then if d = j then M i k*M i j*((ν i:𝕜)*((ν i-1:ℕ):𝕜)) else 0 else 0)
+       else 0 else 0) := by
+    simp only [secondExponent_split_iff ν i j k a b c d hn hij hik hjk]
+    by_cases ha : a = i
+    · subst a
+      by_cases hb : b = i
+      · subst b
+        by_cases hcj : c = j <;> by_cases hck : c = k <;>
+          by_cases hdj : d = j <;> by_cases hdk : d = k
+        all_goals simp_all [Finsupp.tsub_apply]
+      · simp [hb]
+    · simp [ha]
+  simp_rw [he]
+  simp only [Finset.sum_ite_irrel,Finset.sum_add_distrib,Finset.sum_ite_eq',
+    Finset.mem_univ,ite_true,Finset.sum_const_zero]
+  ring
+
+
+-- @@ L542-542 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L544-544 verbatim
+end
+
+
+-- @@ L546-546 verbatim
+noncomputable section
+
+-- @@ L547-547 verbatim
+open Matrix
+
+-- @@ L548-548 verbatim
+open scoped BigOperators
+
+-- @@ L549-549 verbatim
+open scoped Topology
+
+-- @@ L550-550 verbatim
+open Filter
+
+-- @@ L551-551 verbatim
+open Matrix
+
+-- @@ L552-552 verbatim
+open scoped BigOperators
+
+-- @@ L553-553 verbatim
+open Matrix MvPolynomial
+
+-- @@ L554-554 verbatim
+open Matrix
+
+
+-- @@ L556-556 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L557-557 verbatim
+open scoped BigOperators
+
+-- @@ L558-558 verbatim
+open Matrix MvPolynomial Finsupp
+
+-- @@ L559-559 verbatim
+variable {𝕜 ι : Type*} [Field 𝕜] [Fintype ι] [DecidableEq ι]
+
+
+-- @@ L561-582 verbatim
+omit [Fintype ι] in
+lemma merge_forces_derivatives (ν : ι →₀ ℕ) (i j k a b c d : ι)
+    (hj : 1 ≤ ν j) (hk : 1 ≤ ν k) (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k)
+    (he : secondExponent ν a b c d = secondExponent ν j k i i) :
+    (a = j ∧ b = k) ∨ (a = k ∧ b = j) := by
+  have hj' : a = j ∨ b = j := by
+    by_contra! h
+    have ht := congrArg (fun f : ι →₀ ℕ => f j) he
+    simp only [secondExponent,Finsupp.add_apply,Finsupp.tsub_apply,Finsupp.single_apply,
+      ite_eq_right hij,ite_eq_right hjk.symm,ite_eq_right h.1,ite_eq_right h.2,ite_true,zero_add,Nat.sub_zero] at ht
+    omega
+  have hk' : a = k ∨ b = k := by
+    by_contra! h
+    have ht := congrArg (fun f : ι →₀ ℕ => f k) he
+    simp only [secondExponent,Finsupp.add_apply,Finsupp.tsub_apply,Finsupp.single_apply,
+      ite_eq_right hik,ite_eq_right hjk,ite_eq_right h.1,ite_eq_right h.2,ite_true,zero_add,Nat.sub_zero] at ht
+    omega
+  rcases hj' with ha | hb <;> rcases hk' with ha' | hb'
+  · exact (hjk (ha.symm.trans ha')).elim
+  · exact Or.inl ⟨ha,hb'⟩
+  · exact Or.inr ⟨ha',hb⟩
+  · exact (hjk (hb.symm.trans hb')).elim
+
+
+-- @@ L584-593 verbatim
+omit [Fintype ι] in
+lemma merge_forces_replacements (ν : ι →₀ ℕ) (i j k c d : ι)
+    (he : secondExponent ν j k c d = secondExponent ν j k i i) : c = i ∧ d = i := by
+  have h : single c 1+single d 1 = (single i 1+single i 1 : ι →₀ ℕ) := add_right_cancel he
+  have ht := congrArg (fun f : ι →₀ ℕ => f i) h
+  simp only [Finsupp.add_apply,Finsupp.single_apply,ite_true] at ht
+  by_cases hc : c = i <;> by_cases hd : d = i
+  · exact ⟨hc,hd⟩
+  all_goals simp only [hc,hd,ite_true,ite_false] at ht
+  all_goals omega
+
+
+-- @@ L595-611 verbatim
+omit [Fintype ι] in
+lemma secondExponent_merge_iff (ν : ι →₀ ℕ) (i j k a b c d : ι)
+    (hj : 1 ≤ ν j) (hk : 1 ≤ ν k) (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k) :
+    secondExponent ν a b c d = secondExponent ν j k i i ↔
+      ((a = j ∧ b = k) ∨ (a = k ∧ b = j)) ∧ c = i ∧ d = i := by
+  have hs (c d : ι) : secondExponent ν k j c d = secondExponent ν j k c d := by
+    simp only [secondExponent,tsub_tsub,add_comm (single k 1) (single j 1)]
+  constructor
+  · intro h
+    have hd := merge_forces_derivatives ν i j k a b c d hj hk hij hik hjk h
+    refine ⟨hd,?_⟩
+    rcases hd with ⟨ha,hb⟩ | ⟨ha,hb⟩
+    · subst a; subst b; exact merge_forces_replacements ν i j k c d h
+    · subst a; subst b; exact merge_forces_replacements ν i j k c d (by rwa [hs] at h)
+  · rintro ⟨(⟨ha,hb⟩ | ⟨ha,hb⟩),hc,hd⟩
+    · subst a; subst b; subst c; subst d; rfl
+    · subst a; subst b; subst c; subst d; exact hs _ _
+
+
+-- @@ L613-635 verbatim
+lemma secondField_merge_coeff (M : Matrix ι ι 𝕜) (ν : ι →₀ ℕ) (i j k : ι)
+    (hj : 1 ≤ ν j) (hk : 1 ≤ ν k) (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k) :
+    (secondField M (monomial ν 1)).coeff (secondExponent ν j k i i) =
+      2*M j i*M k i*(ν j:𝕜)*(ν k:𝕜) := by
+  rw [secondField_coeff]
+  have he (a c b d : ι) :
+      (if secondExponent ν a b c d = secondExponent ν j k i i then
+        M a c*M b d*((ν a:𝕜)*(((ν-Finsupp.single a 1 : ι →₀ ℕ) b):𝕜)) else 0) =
+      (if a = j then if b = k then if c = i then if d = i then
+        M j i*M k i*((ν j:𝕜)*(ν k:𝕜)) else 0 else 0 else 0 else 0)+
+      (if a = k then if b = j then if c = i then if d = i then
+        M k i*M j i*((ν k:𝕜)*(ν j:𝕜)) else 0 else 0 else 0 else 0) := by
+    simp only [secondExponent_merge_iff ν i j k a b c d hj hk hij hik hjk]
+    by_cases hc : c = i <;> by_cases hd : d = i
+    all_goals simp only [hc,hd,and_true,and_false,↓reduceIte]
+    all_goals try simp
+    by_cases haj : a = j <;> by_cases hak : a = k <;>
+      by_cases hbj : b = j <;> by_cases hbk : b = k
+    all_goals simp_all
+  simp_rw [he]
+  simp only [Finset.sum_ite_irrel,Finset.sum_add_distrib,Finset.sum_ite_eq',
+    Finset.mem_univ,ite_true,Finset.sum_const_zero]
+  ring
+
+
+-- @@ L637-637 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L639-639 verbatim
+end
+
+
+-- @@ L641-641 verbatim
+noncomputable section
+
+-- @@ L642-642 verbatim
+open Matrix
+
+-- @@ L643-643 verbatim
+open scoped BigOperators
+
+-- @@ L644-644 verbatim
+open scoped Topology
+
+-- @@ L645-645 verbatim
+open Filter
+
+-- @@ L646-646 verbatim
+open Matrix
+
+-- @@ L647-647 verbatim
+open scoped BigOperators
+
+-- @@ L648-648 verbatim
+open Matrix MvPolynomial
+
+-- @@ L649-649 verbatim
+open Matrix
+
+
+-- @@ L651-651 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L652-652 verbatim
+open scoped BigOperators
+
+-- @@ L653-653 verbatim
+open MvPolynomial Finsupp
+
+-- @@ L654-654 verbatim
+variable {𝕜 ι : Type*} [Field 𝕜] [Fintype ι] [DecidableEq ι]
+
+
+-- @@ L656-664 verbatim
+omit [Fintype ι] in
+lemma split_exponent_ne (ν : ι →₀ ℕ) (i j k : ι)
+    (hn : 2 ≤ ν i) (hij : i ≠ j) (hik : i ≠ k) :
+    secondExponent ν i i j k ≠ ν := by
+  intro h
+  have ht := congrArg (fun f : ι →₀ ℕ => f i) h
+  simp only [secondExponent,Finsupp.add_apply,Finsupp.tsub_apply,Finsupp.single_apply,
+    ite_eq_right hij.symm,ite_eq_right hik.symm,ite_true,zero_add] at ht
+  omega
+
+
+-- @@ L666-674 verbatim
+omit [Fintype ι] in
+lemma merge_exponent_ne (ν : ι →₀ ℕ) (i j k : ι)
+    (hj : 1 ≤ ν j) (hij : i ≠ j) (hjk : j ≠ k) :
+    secondExponent ν j k i i ≠ ν := by
+  intro h
+  have ht := congrArg (fun f : ι →₀ ℕ => f j) h
+  simp only [secondExponent,Finsupp.add_apply,Finsupp.tsub_apply,Finsupp.single_apply,
+    ite_eq_right hij,ite_eq_right hjk.symm,ite_true,zero_add,Nat.sub_zero] at ht
+  omega
+
+
+-- @@ L676-684 verbatim
+lemma fieldSquare_split_coeff (M : Matrix ι ι 𝕜) (hM : M*M = -1)
+    {l : ℕ} (ν : ι →₀ ℕ) (hν : (monomial ν (1:𝕜)).IsHomogeneous l) (i j k : ι)
+    (hn : 2 ≤ ν i) (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k) :
+    (linearField M (linearField M (monomial ν 1))).coeff (secondExponent ν i i j k) =
+      2*M i j*M i k*(ν i:𝕜)*((ν i-1:ℕ):𝕜) := by
+  rw [linearField_square_second,hM,linearField_neg_one _ hν,
+    AddMonoidAlgebra.coeff_add,Finsupp.add_apply,coeff_smul,
+    coeff_monomial,ite_eq_right (split_exponent_ne ν i j k hn hij hik).symm]
+  simp only [smul_zero,zero_add,secondField_split_coeff M ν i j k hn hij hik hjk]
+
+
+-- @@ L686-694 verbatim
+lemma fieldSquare_merge_coeff (M : Matrix ι ι 𝕜) (hM : M*M = -1)
+    {l : ℕ} (ν : ι →₀ ℕ) (hν : (monomial ν (1:𝕜)).IsHomogeneous l) (i j k : ι)
+    (hj : 1 ≤ ν j) (hk : 1 ≤ ν k) (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k) :
+    (linearField M (linearField M (monomial ν 1))).coeff (secondExponent ν j k i i) =
+      2*M j i*M k i*(ν j:𝕜)*(ν k:𝕜) := by
+  rw [linearField_square_second,hM,linearField_neg_one _ hν,
+    AddMonoidAlgebra.coeff_add,Finsupp.add_apply,coeff_smul,
+    coeff_monomial,ite_eq_right (merge_exponent_ne ν i j k hj hij hjk).symm]
+  simp only [smul_zero,zero_add,secondField_merge_coeff M ν i j k hj hk hij hik hjk]
+
+
+-- @@ L696-696 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L698-698 verbatim
+end
+
+
+-- @@ L700-700 verbatim
+noncomputable section
+
+-- @@ L701-701 verbatim
+open Matrix
+
+-- @@ L702-702 verbatim
+open scoped BigOperators
+
+-- @@ L703-703 verbatim
+open scoped Topology
+
+-- @@ L704-704 verbatim
+open Filter
+
+-- @@ L705-705 verbatim
+open Matrix
+
+-- @@ L706-706 verbatim
+open scoped BigOperators
+
+-- @@ L707-707 verbatim
+open Matrix MvPolynomial
+
+-- @@ L708-708 verbatim
+open Matrix
+
+
+-- @@ L710-710 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L711-711 verbatim
+open Matrix MvPolynomial HarmonicCounterexample.Berger
+
+-- @@ L712-712 verbatim
+open HarmonicCounterexample.Berger.ComplexStructure
+
+-- @@ L713-713 verbatim
+open scoped BigOperators
+
+-- @@ L714-714 verbatim
+variable {s l : ℕ}
+
+
+-- @@ L716-718 verbatim
+lemma signedIndex_ne {i j : Fin s} (h : i ≠ j) (ε β : Bool) :
+    signedIndex i ε ≠ signedIndex j β := by
+  cases ε <;> cases β <;> simp [signedIndex,h]
+
+
+-- @@ L720-721 verbatim
+lemma coordinateSign_ne_zero (a : Fin s ⊕ Fin s) : coordinateSign a ≠ 0 := by
+  rcases a with i | i <;> simp [coordinateSign]
+
+
+-- @@ L723-725 verbatim
+lemma traceFree_offdiagonal {ι : Type*} [Fintype ι] [DecidableEq ι]
+    (A : Matrix ι ι ℂ) {i j : ι} (h : i ≠ j) : traceFree A i j = A i j := by
+  simp [traceFree,h]
+
+
+-- @@ L727-733 verbatim
+lemma angularSquare_entry (J : ComplexStructure (Fin s ⊕ Fin s))
+    (μ ν : MonomialIndex (Fin s ⊕ Fin s) l) :
+    (angularRepresentation l J.matrix*angularRepresentation l J.matrix) μ ν =
+      (linearField (splitMatrix J) (linearField (splitMatrix J) (monomial ν.1 1))).coeff μ.1 := by
+  change (homogeneousMatrix l (splitFieldMatrix J.matrix)*
+    homogeneousMatrix l (splitFieldMatrix J.matrix)) μ ν = _
+  rw [splitFieldMatrix_complex,homogeneousMatrix_square_apply]
+
+
+-- @@ L735-759 verbatim
+/-- The manuscript's actual split coefficient. Its nonvanishing is not an
+assumption about a spectral surrogate. -/
+lemma angularSquare_split_coefficient (i j k : Fin s)
+    (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k) (ε β γ : Bool)
+    (μ ν : MonomialIndex (Fin s ⊕ Fin s) l)
+    (hn : 2 ≤ ν.1 (signedIndex i ε))
+    (hμ : μ.1 = secondExponent ν.1 (signedIndex i ε) (signedIndex i ε)
+      (signedIndex j β) (signedIndex k γ)) :
+    traceFree (angularRepresentation l (triple i j k).matrix*
+      angularRepresentation l (triple i j k).matrix) μ ν =
+      Complex.I*coordinateSign (signedIndex i ε)/2*
+        (ν.1 (signedIndex i ε):ℂ)*((ν.1 (signedIndex i ε)-1:ℕ):ℂ) := by
+  have hi := signedIndex_ne hij ε β
+  have hk := signedIndex_ne hik ε γ
+  have hj := signedIndex_ne hjk β γ
+  have hne : μ ≠ ν := by
+    intro h
+    have he := congrArg Subtype.val h
+    rw [hμ] at he
+    exact split_exponent_ne ν.1 _ _ _ hn hi hk he
+  rw [traceFree_offdiagonal _ hne,angularSquare_entry,hμ,
+    fieldSquare_split_coeff _ (splitMatrix_square _) ν.1
+      (isHomogeneous_monomial (1:ℂ) ν.2) _ _ _ hn hi hk hj,
+    triple_split_ij i j k hij hik hjk ε β,triple_split_ik i j k hij hik hjk ε γ]
+  ring
+
+
+-- @@ L761-772 verbatim
+lemma angularSquare_split_nonzero (i j k : Fin s)
+    (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k) (ε β γ : Bool)
+    (μ ν : MonomialIndex (Fin s ⊕ Fin s) l)
+    (hn : 2 ≤ ν.1 (signedIndex i ε))
+    (hμ : μ.1 = secondExponent ν.1 (signedIndex i ε) (signedIndex i ε)
+      (signedIndex j β) (signedIndex k γ)) :
+    traceFree (angularRepresentation l (triple i j k).matrix*
+      angularRepresentation l (triple i j k).matrix) μ ν ≠ 0 := by
+  rw [angularSquare_split_coefficient i j k hij hik hjk ε β γ μ ν hn hμ]
+  exact mul_ne_zero (mul_ne_zero (div_ne_zero
+    (mul_ne_zero Complex.I_ne_zero (coordinateSign_ne_zero _)) (by norm_num))
+      (Nat.cast_ne_zero.2 (by omega))) (Nat.cast_ne_zero.2 (by omega))
+
+
+-- @@ L774-796 verbatim
+lemma angularSquare_merge_coefficient (i j k : Fin s)
+    (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k) (ε β γ : Bool)
+    (μ ν : MonomialIndex (Fin s ⊕ Fin s) l)
+    (hnj : 1 ≤ ν.1 (signedIndex j β)) (hnk : 1 ≤ ν.1 (signedIndex k γ))
+    (hμ : μ.1 = secondExponent ν.1 (signedIndex j β) (signedIndex k γ)
+      (signedIndex i ε) (signedIndex i ε)) :
+    traceFree (angularRepresentation l (triple i j k).matrix*
+      angularRepresentation l (triple i j k).matrix) μ ν =
+      -Complex.I*coordinateSign (signedIndex i ε)/2*
+        (ν.1 (signedIndex j β):ℂ)*(ν.1 (signedIndex k γ):ℂ) := by
+  have hi := signedIndex_ne hij ε β
+  have hk := signedIndex_ne hik ε γ
+  have hj := signedIndex_ne hjk β γ
+  have hne : μ ≠ ν := by
+    intro h
+    have he := congrArg Subtype.val h
+    rw [hμ] at he
+    exact merge_exponent_ne ν.1 _ _ _ hnj hi hj he
+  rw [traceFree_offdiagonal _ hne,angularSquare_entry,hμ,
+    fieldSquare_merge_coeff _ (splitMatrix_square _) ν.1
+      (isHomogeneous_monomial (1:ℂ) ν.2) _ _ _ hnj hnk hi hk hj,
+    triple_split_ji i j k hij hik hjk ε β,triple_split_ki i j k hij hik hjk ε γ]
+  ring
+
+
+-- @@ L798-809 verbatim
+lemma angularSquare_merge_nonzero (i j k : Fin s)
+    (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k) (ε β γ : Bool)
+    (μ ν : MonomialIndex (Fin s ⊕ Fin s) l)
+    (hnj : 1 ≤ ν.1 (signedIndex j β)) (hnk : 1 ≤ ν.1 (signedIndex k γ))
+    (hμ : μ.1 = secondExponent ν.1 (signedIndex j β) (signedIndex k γ)
+      (signedIndex i ε) (signedIndex i ε)) :
+    traceFree (angularRepresentation l (triple i j k).matrix*
+      angularRepresentation l (triple i j k).matrix) μ ν ≠ 0 := by
+  rw [angularSquare_merge_coefficient i j k hij hik hjk ε β γ μ ν hnj hnk hμ]
+  exact mul_ne_zero (mul_ne_zero (div_ne_zero
+    (mul_ne_zero (neg_ne_zero.2 Complex.I_ne_zero) (coordinateSign_ne_zero _)) (by norm_num))
+      (Nat.cast_ne_zero.2 (by omega))) (Nat.cast_ne_zero.2 (by omega))
+
+
+-- @@ L811-811 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L813-813 verbatim
+end
+
+
+-- @@ L815-815 verbatim
+noncomputable section
+
+-- @@ L816-816 verbatim
+open Matrix
+
+-- @@ L817-817 verbatim
+open scoped BigOperators
+
+-- @@ L818-818 verbatim
+open scoped Topology
+
+-- @@ L819-819 verbatim
+open Filter
+
+-- @@ L820-820 verbatim
+open Matrix
+
+-- @@ L821-821 verbatim
+open scoped BigOperators
+
+-- @@ L822-822 verbatim
+open Matrix MvPolynomial
+
+-- @@ L823-823 verbatim
+open Matrix
+
+
+-- @@ L825-825 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L826-826 verbatim
+open Matrix MvPolynomial HarmonicCounterexample.Berger
+
+-- @@ L827-827 verbatim
+open HarmonicCounterexample.Berger.ComplexStructure
+
+-- @@ L828-828 verbatim
+open scoped BigOperators
+
+-- @@ L829-829 verbatim
+variable {s l : ℕ}
+
+
+-- @@ L831-835 verbatim
+lemma monomialWeight_eq_int {μ ν : Fin s ⊕ Fin s →₀ ℕ} {a : Fin s}
+    (h : monomialWeight μ a = monomialWeight ν a) :
+    (μ (.inl a):ℤ)-μ (.inr a) = (ν (.inl a):ℤ)-ν (.inr a) := by
+  unfold monomialWeight at h
+  exact_mod_cast h
+
+
+-- @@ L837-858 verbatim
+lemma split_three_weight_shifts (i j k : Fin s)
+    (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k) (ε β γ : Bool)
+    (μ ν : MonomialIndex (Fin s ⊕ Fin s) l)
+    (hn : 2 ≤ ν.1 (signedIndex i ε))
+    (hμ : μ.1 = secondExponent ν.1 (signedIndex i ε) (signedIndex i ε)
+      (signedIndex j β) (signedIndex k γ)) :
+    (monomialWeight μ.1 i-monomialWeight ν.1 i ≠ 0) ∧
+    (monomialWeight μ.1 j-monomialWeight ν.1 j ≠ 0) ∧
+    (monomialWeight μ.1 k-monomialWeight ν.1 k ≠ 0) := by
+  refine ⟨?_,?_,?_⟩
+  all_goals
+    intro h
+    have ht := monomialWeight_eq_int (sub_eq_zero.1 h)
+    rw [hμ] at ht
+    cases ε <;> cases β <;> cases γ
+    all_goals
+      simp only [signedIndex,Bool.false_eq_true,ite_false,ite_true,
+        secondExponent,Finsupp.add_apply,Finsupp.tsub_apply,Finsupp.single_apply,
+        Sum.inl.injEq,Sum.inr.injEq,Sum.inl_ne_inr,Sum.inr_ne_inl,
+        hij,hik,hjk,hij.symm,hik.symm,hjk.symm,ite_false,ite_true,
+        zero_add,add_zero,Nat.sub_zero] at ht hn
+      omega
+
+
+-- @@ L860-881 verbatim
+lemma merge_three_weight_shifts (i j k : Fin s)
+    (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k) (ε β γ : Bool)
+    (μ ν : MonomialIndex (Fin s ⊕ Fin s) l)
+    (hnj : 1 ≤ ν.1 (signedIndex j β)) (hnk : 1 ≤ ν.1 (signedIndex k γ))
+    (hμ : μ.1 = secondExponent ν.1 (signedIndex j β) (signedIndex k γ)
+      (signedIndex i ε) (signedIndex i ε)) :
+    (monomialWeight μ.1 i-monomialWeight ν.1 i ≠ 0) ∧
+    (monomialWeight μ.1 j-monomialWeight ν.1 j ≠ 0) ∧
+    (monomialWeight μ.1 k-monomialWeight ν.1 k ≠ 0) := by
+  refine ⟨?_,?_,?_⟩
+  all_goals
+    intro h
+    have ht := monomialWeight_eq_int (sub_eq_zero.1 h)
+    rw [hμ] at ht
+    cases ε <;> cases β <;> cases γ
+    all_goals
+      simp only [signedIndex,Bool.false_eq_true,ite_false,ite_true,
+        secondExponent,Finsupp.add_apply,Finsupp.tsub_apply,Finsupp.single_apply,
+        Sum.inl.injEq,Sum.inr.injEq,Sum.inl_ne_inr,Sum.inr_ne_inl,
+        hij,hik,hjk,hij.symm,hik.symm,hjk.symm,ite_false,ite_true,
+        zero_add,add_zero,Nat.sub_zero] at ht hnj hnk
+      omega
+
+
+-- @@ L883-896 verbatim
+/-- Both directions of each legal token split are genuinely generated by squared
+orthogonal complex structures. Endpoints are actual homogeneous monomials. -/
+theorem angularLie_legal_split (i j k : Fin s)
+    (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k) (ε β γ : Bool)
+    (μ ν : MonomialIndex (Fin s ⊕ Fin s) l)
+    (hexμ : ExtremeMonomial μ) (hexν : ExtremeMonomial ν)
+    (hn : 2 ≤ ν.1 (signedIndex i ε))
+    (hμ : μ.1 = secondExponent ν.1 (signedIndex i ε) (signedIndex i ε)
+      (signedIndex j β) (signedIndex k γ)) :
+    single μ ν (1:ℂ) ∈ angularLie l := by
+  obtain ⟨ha,hb,hc⟩ := split_three_weight_shifts i j k hij hik hjk ε β γ μ ν hn hμ
+  exact angularLie_extreme_entry _ (angularLie_generator l (triple i j k)) μ ν hexμ hexν
+    i j k hij hik hjk ha hb hc
+    (angularSquare_split_nonzero i j k hij hik hjk ε β γ μ ν hn hμ)
+
+
+-- @@ L898-909 verbatim
+theorem angularLie_legal_merge (i j k : Fin s)
+    (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k) (ε β γ : Bool)
+    (μ ν : MonomialIndex (Fin s ⊕ Fin s) l)
+    (hexμ : ExtremeMonomial μ) (hexν : ExtremeMonomial ν)
+    (hnj : 1 ≤ ν.1 (signedIndex j β)) (hnk : 1 ≤ ν.1 (signedIndex k γ))
+    (hμ : μ.1 = secondExponent ν.1 (signedIndex j β) (signedIndex k γ)
+      (signedIndex i ε) (signedIndex i ε)) :
+    single μ ν (1:ℂ) ∈ angularLie l := by
+  obtain ⟨ha,hb,hc⟩ := merge_three_weight_shifts i j k hij hik hjk ε β γ μ ν hnj hnk hμ
+  exact angularLie_extreme_entry _ (angularLie_generator l (triple i j k)) μ ν hexμ hexν
+    i j k hij hik hjk ha hb hc
+    (angularSquare_merge_nonzero i j k hij hik hjk ε β γ μ ν hnj hnk hμ)
+
+
+-- @@ L911-911 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L913-913 verbatim
+end
+
+
+-- @@ L915-915 verbatim
+noncomputable section
+
+-- @@ L916-916 verbatim
+open Matrix
+
+-- @@ L917-917 verbatim
+open scoped BigOperators
+
+-- @@ L918-918 verbatim
+open scoped Topology
+
+-- @@ L919-919 verbatim
+open Filter
+
+-- @@ L920-920 verbatim
+open Matrix
+
+-- @@ L921-921 verbatim
+open scoped BigOperators
+
+-- @@ L922-922 verbatim
+open Matrix MvPolynomial
+
+-- @@ L923-923 verbatim
+open Matrix
+
+
+-- @@ L925-925 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L926-926 verbatim
+open Matrix MvPolynomial HarmonicCounterexample.Berger
+
+-- @@ L927-927 verbatim
+open HarmonicCounterexample.Berger.ComplexStructure
+
+-- @@ L928-928 verbatim
+open scoped BigOperators
+
+-- @@ L929-929 verbatim
+attribute [local instance 100] LieRing.ofAssociativeRing
+
+
+-- @@ L931-933 verbatim
+/-- The explicit manuscript token branch, specialized to the n=16 witness. -/
+def branchExponent (ε : Bool) (h r t : ℕ) : Fin 8 ⊕ Fin 8 →₀ ℕ :=
+  Finsupp.single (signedIndex 0 ε) (2*(h-t)+r)+Finsupp.single (.inl 1) t+Finsupp.single (.inl 2) t
+
+
+-- @@ L935-938 verbatim
+lemma branchExponent_degree (ε : Bool) (h r t : ℕ) (ht : t ≤ h) :
+    (branchExponent ε h r t).degree = 2*h+r := by
+  simp only [branchExponent,map_add,Finsupp.degree_single]
+  omega
+
+
+-- @@ L940-942 verbatim
+def branchMonomial (ε : Bool) (h r t : ℕ) (ht : t ≤ h) :
+    MonomialIndex (Fin 8 ⊕ Fin 8) (2*h+r) :=
+  ⟨branchExponent ε h r t,branchExponent_degree ε h r t ht⟩
+
+
+-- @@ L944-955 verbatim
+lemma branchMonomial_extreme (ε : Bool) (h r t : ℕ) (ht : t ≤ h) :
+    ExtremeMonomial (branchMonomial ε h r t ht) := by
+  intro a
+  cases ε
+  · by_cases ha : a = 0
+    · left
+      subst a
+      norm_num [branchMonomial,branchExponent,signedIndex,Finsupp.single_apply,Fin.ext_iff,Sum.inr_ne_inl]
+    · right
+      simp [branchMonomial,branchExponent,signedIndex,ha,eq_comm]
+  · right
+    simp [branchMonomial,branchExponent,signedIndex]
+
+
+-- @@ L957-959 verbatim
+lemma branchMonomial_coordinate (ε : Bool) (h r t : ℕ) (ht : t ≤ h) :
+    (branchMonomial ε h r t ht).1 (.inl 1) = t := by
+  cases ε <;> norm_num [branchMonomial,branchExponent,signedIndex,Finsupp.single_apply,Fin.ext_iff,Sum.inr_ne_inl]
+
+
+-- @@ L961-966 verbatim
+lemma branchMonomial_distinct (ε : Bool) (h r a b : ℕ) (ha : a ≤ h) (hb : b ≤ h)
+    (hab : a ≠ b) : branchMonomial ε h r a ha ≠ branchMonomial ε h r b hb := by
+  intro he
+  have hh := congrArg (fun p : MonomialIndex (Fin 8 ⊕ Fin 8) (2*h+r) => p.1 (.inl 1)) he
+  rw [branchMonomial_coordinate,branchMonomial_coordinate] at hh
+  exact hab hh
+
+
+-- @@ L968-971 verbatim
+lemma branchMonomial_pair_count (ε : Bool) (h r t : ℕ) (ht : t < h) :
+    2 ≤ (branchMonomial ε h r t (Nat.le_of_lt ht)).1 (signedIndex 0 ε) := by
+  cases ε <;> norm_num [branchMonomial,branchExponent,signedIndex,Finsupp.single_apply,Fin.ext_iff,Sum.inr_ne_inl]
+  all_goals omega
+
+
+-- @@ L973-985 verbatim
+lemma branchMonomial_split (ε : Bool) (h r t : ℕ) (ht : t < h) :
+    (branchMonomial ε h r (t+1) ht).1 =
+      secondExponent (branchMonomial ε h r t (Nat.le_of_lt ht)).1
+        (signedIndex 0 ε) (signedIndex 0 ε) (.inl 1) (.inl 2) := by
+  ext a
+  rcases a with a | a
+  all_goals
+    cases ε <;> by_cases ha : a = 0 <;> by_cases hb : a = 1 <;> by_cases hc : a = 2
+    all_goals
+      simp_all only [branchMonomial,branchExponent,secondExponent,signedIndex,
+        Bool.false_eq_true,ite_false,ite_true,Finsupp.add_apply,Finsupp.tsub_apply,
+        Finsupp.single_apply,Sum.inl.injEq,Sum.inr.injEq,Sum.inl_ne_inr,
+        eq_comm,ite_false,ite_true,zero_add,add_zero,Nat.sub_zero] <;> omega
+
+
+-- @@ L987-999 verbatim
+lemma branchMonomial_merge (ε : Bool) (h r t : ℕ) (ht : t < h) :
+    (branchMonomial ε h r t (Nat.le_of_lt ht)).1 =
+      secondExponent (branchMonomial ε h r (t+1) ht).1
+        (.inl 1) (.inl 2) (signedIndex 0 ε) (signedIndex 0 ε) := by
+  ext a
+  rcases a with a | a
+  all_goals
+    cases ε <;> by_cases ha : a = 0 <;> by_cases hb : a = 1 <;> by_cases hc : a = 2
+    all_goals
+      simp_all only [branchMonomial,branchExponent,secondExponent,signedIndex,
+        Bool.false_eq_true,ite_false,ite_true,Finsupp.add_apply,Finsupp.tsub_apply,
+        Finsupp.single_apply,Sum.inl.injEq,Sum.inr.injEq,Sum.inl_ne_inr,
+        eq_comm,ite_false,ite_true,zero_add,add_zero,Nat.sub_zero] <;> omega
+
+
+-- @@ L1001-1016 verbatim
+lemma angularLie_branch_edges (ε : Bool) (h r t : ℕ) (ht : t < h) :
+    single (branchMonomial ε h r (t+1) ht) (branchMonomial ε h r t (Nat.le_of_lt ht)) (1:ℂ)
+      ∈ angularLie (2*h+r) ∧
+    single (branchMonomial ε h r t (Nat.le_of_lt ht)) (branchMonomial ε h r (t+1) ht) (1:ℂ)
+      ∈ angularLie (2*h+r) := by
+  constructor
+  · exact angularLie_legal_split 0 1 2 (by decide) (by decide) (by decide) ε true true
+      _ _ (branchMonomial_extreme ε h r (t+1) ht) (branchMonomial_extreme ε h r t (Nat.le_of_lt ht))
+      (branchMonomial_pair_count ε h r t ht) (branchMonomial_split ε h r t ht)
+  · apply angularLie_legal_merge 0 1 2 (by decide) (by decide) (by decide) ε true true
+      _ _ (branchMonomial_extreme ε h r t (Nat.le_of_lt ht)) (branchMonomial_extreme ε h r (t+1) ht)
+    · rw [show signedIndex (1:Fin 8) true = .inl 1 by rfl,branchMonomial_coordinate]
+      omega
+    · change 1 ≤ (branchMonomial ε h r (t+1) ht).1 (.inl 2)
+      cases ε <;> norm_num [branchMonomial,branchExponent,signedIndex,Finsupp.single_apply,Fin.ext_iff,Sum.inr_ne_inl]
+    · exact branchMonomial_merge ε h r t ht
+
+
+-- @@ L1018-1037 verbatim
+lemma angularLie_branch_endpoints (ε : Bool) (h r t : ℕ) (ht : t ≤ h) (hp : 0 < t) :
+    single (branchMonomial ε h r t ht) (branchMonomial ε h r 0 (Nat.zero_le h)) (1:ℂ)
+      ∈ angularLie (2*h+r) ∧
+    single (branchMonomial ε h r 0 (Nat.zero_le h)) (branchMonomial ε h r t ht) (1:ℂ)
+      ∈ angularLie (2*h+r) := by
+  induction t with
+  | zero => omega
+  | succ t ih =>
+    have he := angularLie_branch_edges ε h r t ht
+    by_cases hz : t = 0
+    · subst t; exact he
+    · have hi := ih (by omega) (by omega)
+      have hn := branchMonomial_distinct ε h r (t+1) 0 ht (Nat.zero_le h) (by omega)
+      constructor
+      · have hb := (angularLie (2*h+r)).lie_mem he.1 hi.1
+        rw [bracket_units _ _ _ hn.symm] at hb
+        exact hb
+      · have hb := (angularLie (2*h+r)).lie_mem hi.2 he.2
+        rw [bracket_units _ _ _ hn] at hb
+        exact hb
+
+
+-- @@ L1039-1039 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L1041-1041 verbatim
+end
+
+
+-- @@ L1043-1043 verbatim
+noncomputable section
+
+-- @@ L1044-1044 verbatim
+open Matrix
+
+-- @@ L1045-1045 verbatim
+open scoped BigOperators
+
+-- @@ L1046-1046 verbatim
+open scoped Topology
+
+-- @@ L1047-1047 verbatim
+open Filter
+
+-- @@ L1048-1048 verbatim
+open Matrix
+
+-- @@ L1049-1049 verbatim
+open scoped BigOperators
+
+-- @@ L1050-1050 verbatim
+open Matrix MvPolynomial
+
+-- @@ L1051-1051 verbatim
+open Matrix
+
+
+-- @@ L1053-1053 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L1054-1054 verbatim
+open Matrix MvPolynomial HarmonicCounterexample.Berger
+
+-- @@ L1055-1055 verbatim
+open HarmonicCounterexample.Berger.ComplexStructure
+
+-- @@ L1056-1056 verbatim
+attribute [local instance 100] LieRing.ofAssociativeRing
+
+
+-- @@ L1058-1059 verbatim
+def pureMonomial (ε : Bool) (l : ℕ) : MonomialIndex (Fin 8 ⊕ Fin 8) l :=
+  ⟨Finsupp.single (signedIndex 0 ε) l,Finsupp.degree_single _ _⟩
+
+
+-- @@ L1061-1065 verbatim
+lemma pureMonomial_ne {l : ℕ} (hl : 0 < l) : pureMonomial false l ≠ pureMonomial true l := by
+  intro h
+  have he := congrArg (fun p : MonomialIndex (Fin 8 ⊕ Fin 8) l => p.1 (.inl 0)) h
+  norm_num [pureMonomial,signedIndex,Finsupp.single_apply,Fin.ext_iff,Sum.inr_ne_inl] at he
+  omega
+
+
+-- @@ L1067-1070 verbatim
+lemma branchMonomial_start (ε : Bool) (h r : ℕ) :
+    branchMonomial ε h r 0 (Nat.zero_le h) = pureMonomial ε (2*h+r) := by
+  apply Subtype.ext
+  simp [branchMonomial,branchExponent,pureMonomial]
+
+
+-- @@ L1072-1075 verbatim
+lemma evenBranch_common (h : ℕ) :
+    branchMonomial false h 0 h le_rfl = branchMonomial true h 0 h le_rfl := by
+  apply Subtype.ext
+  simp [branchMonomial,branchExponent]
+
+
+-- @@ L1077-1085 verbatim
+lemma angularLie_even_endpoint (h : ℕ) (hh : 0 < h) :
+    single (pureMonomial true (2*h)) (pureMonomial false (2*h)) (1:ℂ) ∈ angularLie (2*h) := by
+  have hm := angularLie_branch_endpoints false h 0 h le_rfl hh
+  have hp := angularLie_branch_endpoints true h 0 h le_rfl hh
+  rw [evenBranch_common] at hm
+  have hb := (angularLie (2*h+0)).lie_mem hp.2 hm.1
+  rw [branchMonomial_start,branchMonomial_start] at hb
+  rw [bracket_units _ _ _ (pureMonomial_ne (by omega))] at hb
+  simpa only [Nat.add_zero] using hb
+
+
+-- @@ L1087-1091 verbatim
+/-- Common vertex of the two odd branches, using the fourth coordinate plane. -/
+def oddEndpoint (h : ℕ) (hh : 0 < h) : MonomialIndex (Fin 8 ⊕ Fin 8) (2*h+1) :=
+  ⟨Finsupp.single (.inl 1) (h-1)+Finsupp.single (.inl 2) h+Finsupp.single (.inl 3) 2,by
+    simp only [map_add,Finsupp.degree_single]
+    omega⟩
+
+
+-- @@ L1093-1096 verbatim
+lemma oddEndpoint_extreme (h : ℕ) (hh : 0 < h) : ExtremeMonomial (oddEndpoint h hh) := by
+  intro a
+  right
+  simp [oddEndpoint]
+
+
+-- @@ L1098-1103 verbatim
+lemma oddEndpoint_ne_pure (ε : Bool) (h : ℕ) (hh : 0 < h) :
+    oddEndpoint h hh ≠ pureMonomial ε (2*h+1) := by
+  intro he
+  have ht := congrArg (fun p : MonomialIndex (Fin 8 ⊕ Fin 8) (2*h+1) => p.1 (.inl 2)) he
+  cases ε <;> norm_num [oddEndpoint,pureMonomial,signedIndex,Finsupp.single_apply,Fin.ext_iff,Sum.inr_ne_inl] at ht
+  all_goals omega
+
+
+-- @@ L1105-1117 verbatim
+lemma oddEndpoint_merge (ε : Bool) (h : ℕ) (hh : 0 < h) :
+    (oddEndpoint h hh).1 = secondExponent (branchMonomial ε h 1 h le_rfl).1
+      (signedIndex 0 ε) (.inl 1) (.inl 3) (.inl 3) := by
+  ext a
+  rcases a with a | a
+  all_goals
+    cases ε <;> by_cases ha : a = 0 <;> by_cases hb : a = 1 <;>
+      by_cases hc : a = 2 <;> by_cases hd : a = 3
+    all_goals
+      simp_all only [oddEndpoint,branchMonomial,branchExponent,secondExponent,signedIndex,
+        Bool.false_eq_true,ite_false,ite_true,Finsupp.add_apply,Finsupp.tsub_apply,
+        Finsupp.single_apply,Sum.inl.injEq,Sum.inr.injEq,Sum.inl_ne_inr,
+        eq_comm,ite_false,ite_true,zero_add,add_zero,Nat.sub_zero,Nat.sub_self,mul_zero] <;> omega
+
+
+-- @@ L1119-1131 verbatim
+lemma oddEndpoint_split (ε : Bool) (h : ℕ) (hh : 0 < h) :
+    (branchMonomial ε h 1 h le_rfl).1 = secondExponent (oddEndpoint h hh).1
+      (.inl 3) (.inl 3) (signedIndex 0 ε) (.inl 1) := by
+  ext a
+  rcases a with a | a
+  all_goals
+    cases ε <;> by_cases ha : a = 0 <;> by_cases hb : a = 1 <;>
+      by_cases hc : a = 2 <;> by_cases hd : a = 3
+    all_goals
+      simp_all only [oddEndpoint,branchMonomial,branchExponent,secondExponent,signedIndex,
+        Bool.false_eq_true,ite_false,ite_true,Finsupp.add_apply,Finsupp.tsub_apply,
+        Finsupp.single_apply,Sum.inl.injEq,Sum.inr.injEq,Sum.inl_ne_inr,
+        eq_comm,ite_false,ite_true,zero_add,add_zero,Nat.sub_zero,Nat.sub_self,mul_zero] <;> omega
+
+
+-- @@ L1133-1146 verbatim
+lemma angularLie_odd_last_edges (ε : Bool) (h : ℕ) (hh : 0 < h) :
+    single (oddEndpoint h hh) (branchMonomial ε h 1 h le_rfl) (1:ℂ) ∈ angularLie (2*h+1) ∧
+    single (branchMonomial ε h 1 h le_rfl) (oddEndpoint h hh) (1:ℂ) ∈ angularLie (2*h+1) := by
+  constructor
+  · apply angularLie_legal_merge 3 0 1 (by decide) (by decide) (by decide) true ε true
+      _ _ (oddEndpoint_extreme h hh) (branchMonomial_extreme ε h 1 h le_rfl)
+    · cases ε <;> norm_num [branchMonomial,branchExponent,signedIndex,Finsupp.single_apply,Fin.ext_iff,Sum.inr_ne_inl]
+    · rw [show signedIndex (1:Fin 8) true = .inl 1 by rfl,branchMonomial_coordinate]
+      exact hh
+    · exact oddEndpoint_merge ε h hh
+  · apply angularLie_legal_split 3 0 1 (by decide) (by decide) (by decide) true ε true
+      _ _ (branchMonomial_extreme ε h 1 h le_rfl) (oddEndpoint_extreme h hh)
+    · norm_num [oddEndpoint,signedIndex,Finsupp.single_apply,Fin.ext_iff,Sum.inr_ne_inl]
+    · exact oddEndpoint_split ε h hh
+
+
+-- @@ L1148-1160 verbatim
+lemma angularLie_odd_branch_endpoints (ε : Bool) (h : ℕ) (hh : 0 < h) :
+    single (oddEndpoint h hh) (pureMonomial ε (2*h+1)) (1:ℂ) ∈ angularLie (2*h+1) ∧
+    single (pureMonomial ε (2*h+1)) (oddEndpoint h hh) (1:ℂ) ∈ angularLie (2*h+1) := by
+  have hb := angularLie_branch_endpoints ε h 1 h le_rfl hh
+  rw [branchMonomial_start] at hb
+  have he := angularLie_odd_last_edges ε h hh
+  constructor
+  · have hc := (angularLie (2*h+1)).lie_mem he.1 hb.1
+    rw [bracket_units _ _ _ (oddEndpoint_ne_pure ε h hh).symm] at hc
+    exact hc
+  · have hc := (angularLie (2*h+1)).lie_mem hb.2 he.2
+    rw [bracket_units _ _ _ (oddEndpoint_ne_pure ε h hh)] at hc
+    exact hc
+
+
+-- @@ L1162-1168 verbatim
+lemma angularLie_odd_endpoint (h : ℕ) (hh : 0 < h) :
+    single (pureMonomial true (2*h+1)) (pureMonomial false (2*h+1)) (1:ℂ) ∈ angularLie (2*h+1) := by
+  have hm := angularLie_odd_branch_endpoints false h hh
+  have hp := angularLie_odd_branch_endpoints true h hh
+  have hb := (angularLie (2*h+1)).lie_mem hp.2 hm.1
+  rw [bracket_units _ _ _ (pureMonomial_ne (by omega))] at hb
+  exact hb
+
+
+-- @@ L1170-1180 verbatim
+/-- A genuine rank-one endpoint unit on every degree needed in the n=16
+construction. This is produced, not hypothesized. -/
+theorem angularLie_endpoint (l : ℕ) (hl : 2 ≤ l) :
+    single (pureMonomial true l) (pureMonomial false l) (1:ℂ) ∈ angularLie l := by
+  rcases Nat.mod_two_eq_zero_or_one l with he | ho
+  · have hl' : l = 2*(l/2) := by omega
+    rw [hl']
+    exact angularLie_even_endpoint (l/2) (by omega)
+  · have hl' : l = 2*(l/2)+1 := by omega
+    rw [hl']
+    exact angularLie_odd_endpoint (l/2) (by omega)
+
+
+-- @@ L1182-1182 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L1184-1184 verbatim
+end
+
+
+-- @@ L1186-1186 verbatim
+noncomputable section
+
+-- @@ L1187-1187 verbatim
+open Matrix
+
+-- @@ L1188-1188 verbatim
+open scoped BigOperators
+
+-- @@ L1189-1189 verbatim
+open scoped Topology
+
+-- @@ L1190-1190 verbatim
+open Filter
+
+-- @@ L1191-1191 verbatim
+open Matrix
+
+-- @@ L1192-1192 verbatim
+open scoped BigOperators
+
+-- @@ L1193-1193 verbatim
+open Matrix MvPolynomial
+
+-- @@ L1194-1194 verbatim
+open Matrix
+
+
+-- @@ L1196-1196 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L1197-1197 verbatim
+open MvPolynomial Matrix
+
+-- @@ L1198-1198 verbatim
+open scoped BigOperators
+
+-- @@ L1199-1199 verbatim
+variable {𝕜 ι : Type*} [Field 𝕜] [Fintype ι] [DecidableEq ι]
+
+
+-- @@ L1201-1203 verbatim
+/-- Actual substitution of a linear coordinate motion in a polynomial. -/
+def linearChange (M : Matrix ι ι 𝕜) : MvPolynomial ι 𝕜 →ₐ[𝕜] MvPolynomial ι 𝕜 :=
+  aeval (fun i => ∑ j : ι,M i j • X j)
+
+
+-- @@ L1205-1207 verbatim
+omit [DecidableEq ι] in
+lemma linearChange_X (M : Matrix ι ι 𝕜) (i : ι) :
+    linearChange M (X i) = ∑ j : ι,M i j • X j := aeval_X _ _
+
+
+-- @@ L1209-1212 verbatim
+lemma linearChange_one : linearChange (1 : Matrix ι ι 𝕜) = AlgHom.id 𝕜 _ := by
+  apply MvPolynomial.algHom_ext
+  intro i
+  simp [linearChange_X,Matrix.one_apply]
+
+
+-- @@ L1214-1221 verbatim
+omit [DecidableEq ι] in
+lemma linearChange_comp (M N : Matrix ι ι 𝕜) :
+    (linearChange M).comp (linearChange N) = linearChange (N*M) := by
+  apply MvPolynomial.algHom_ext
+  intro i
+  simp only [AlgHom.comp_apply,linearChange_X,map_sum,map_smul,Matrix.mul_apply,
+    Finset.sum_smul,Finset.smul_sum,smul_smul]
+  exact Finset.sum_comm
+
+
+-- @@ L1223-1234 verbatim
+omit [DecidableEq ι] in
+lemma linearChange_linearField_X (M N K : Matrix ι ι 𝕜) (h : N*M=M*K) (i : ι) :
+    linearChange M (linearField N (X i)) = linearField K (linearChange M (X i)) := by
+  simp only [linearField_X,linearChange_X,map_sum,map_smul,Derivation.map_smul,
+    Finset.smul_sum,smul_smul]
+  conv_lhs => rw [Finset.sum_comm]
+  conv_rhs => rw [Finset.sum_comm]
+  apply Finset.sum_congr rfl
+  intro k _
+  rw [← Finset.sum_smul,← Finset.sum_smul]
+  exact congrArg (fun a : 𝕜 => a • (X k : MvPolynomial ι 𝕜))
+    (congrArg (fun A : Matrix ι ι 𝕜 => A i k) h)
+
+
+-- @@ L1236-1243 verbatim
+omit [DecidableEq ι] in
+lemma linearChange_linearField (M N K : Matrix ι ι 𝕜) (h : N*M=M*K) (P : MvPolynomial ι 𝕜) :
+    linearChange M (linearField N P) = linearField K (linearChange M P) := by
+  induction P using MvPolynomial.induction_on with
+  | C c => simp [linearChange]
+  | add P Q hp hq => simp only [map_add,hp,hq]
+  | mul_X P i hp =>
+    simp only [Derivation.leibniz,smul_eq_mul,map_add,map_mul,hp,linearChange_linearField_X M N K h]
+
+
+-- @@ L1245-1253 verbatim
+omit [DecidableEq ι] in
+lemma linearChange_homogeneous {l : ℕ} {P : MvPolynomial ι 𝕜}
+    (hP : P.IsHomogeneous l) (M : Matrix ι ι 𝕜) : (linearChange M P).IsHomogeneous l := by
+  have h := hP.aeval (fun i => ∑ j : ι,M i j • (X j : MvPolynomial ι 𝕜)) (n := 1) (by
+    intro i
+    apply IsHomogeneous.sum
+    intro j _
+    simpa only [smul_eq_C_mul] using (isHomogeneous_X 𝕜 j).C_mul (M i j))
+  simpa only [linearChange,one_mul] using h
+
+
+-- @@ L1255-1259 verbatim
+def homogeneousChange (l : ℕ) (M : Matrix ι ι 𝕜) :
+    Module.End 𝕜 (homogeneousSubmodule ι 𝕜 l) where
+  toFun P := ⟨linearChange M P.1,linearChange_homogeneous P.2 M⟩
+  map_add' _ _ := Subtype.ext (map_add _ _ _)
+  map_smul' _ _ := Subtype.ext (map_smul _ _ _)
+
+
+-- @@ L1261-1264 verbatim
+omit [DecidableEq ι] in
+lemma homogeneousChange_apply_val (l : ℕ) (M : Matrix ι ι 𝕜)
+    (P : homogeneousSubmodule ι 𝕜 l) :
+    (homogeneousChange l M P).1 = linearChange M P.1 := rfl
+
+
+-- @@ L1266-1271 verbatim
+lemma homogeneousChange_one (l : ℕ) : homogeneousChange l (1 : Matrix ι ι 𝕜) = 1 := by
+  ext P : 1
+  apply Subtype.ext
+  change linearChange 1 P.1 = P.1
+  rw [linearChange_one]
+  rfl
+
+
+-- @@ L1273-1278 verbatim
+omit [DecidableEq ι] in
+lemma homogeneousChange_mul (l : ℕ) (M N : Matrix ι ι 𝕜) :
+    homogeneousChange l M*homogeneousChange l N = homogeneousChange l (N*M) := by
+  ext P : 1
+  apply Subtype.ext
+  exact AlgHom.congr_fun (linearChange_comp M N) P.1
+
+
+-- @@ L1280-1284 verbatim
+lemma homogeneousChange_field (l : ℕ) (M N K : Matrix ι ι 𝕜) (h : N*M=M*K) :
+    homogeneousChange l M*homogeneousField l N = homogeneousField l K*homogeneousChange l M := by
+  ext P : 1
+  apply Subtype.ext
+  exact linearChange_linearField M N K h P.1
+
+
+-- @@ L1286-1288 verbatim
+def homogeneousChangeMatrix (l : ℕ) (M : Matrix ι ι 𝕜) :
+    Matrix (MonomialIndex ι l) (MonomialIndex ι l) 𝕜 :=
+  LinearMap.toMatrixAlgEquiv (homogeneousBasis l) (homogeneousChange l M)
+
+
+-- @@ L1290-1292 verbatim
+lemma homogeneousChangeMatrix_one (l : ℕ) : homogeneousChangeMatrix l (1 : Matrix ι ι 𝕜) = 1 := by
+  unfold homogeneousChangeMatrix
+  rw [homogeneousChange_one,map_one]
+
+
+-- @@ L1294-1297 verbatim
+lemma homogeneousChangeMatrix_mul (l : ℕ) (M N : Matrix ι ι 𝕜) :
+    homogeneousChangeMatrix l M*homogeneousChangeMatrix l N = homogeneousChangeMatrix l (N*M) := by
+  unfold homogeneousChangeMatrix
+  rw [← map_mul,homogeneousChange_mul]
+
+
+-- @@ L1299-1305 verbatim
+lemma homogeneousChangeMatrix_field (l : ℕ) (M N K : Matrix ι ι 𝕜) (h : N*M=M*K) :
+    homogeneousChangeMatrix l M*homogeneousMatrix l N = homogeneousMatrix l K*homogeneousChangeMatrix l M := by
+  change (LinearMap.toMatrixAlgEquiv (homogeneousBasis l) (homogeneousChange l M))*
+      (LinearMap.toMatrixAlgEquiv (homogeneousBasis l) (homogeneousField l N)) =
+    (LinearMap.toMatrixAlgEquiv (homogeneousBasis l) (homogeneousField l K))*
+      (LinearMap.toMatrixAlgEquiv (homogeneousBasis l) (homogeneousChange l M))
+  rw [← map_mul,← map_mul,homogeneousChange_field l M N K h]
+
+
+-- @@ L1307-1307 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L1309-1309 verbatim
+end
+
+
+-- @@ L1311-1311 verbatim
+noncomputable section
+
+-- @@ L1312-1312 verbatim
+open Matrix
+
+-- @@ L1313-1313 verbatim
+open scoped BigOperators
+
+-- @@ L1314-1314 verbatim
+open scoped Topology
+
+-- @@ L1315-1315 verbatim
+open Filter
+
+-- @@ L1316-1316 verbatim
+open Matrix
+
+-- @@ L1317-1317 verbatim
+open scoped BigOperators
+
+-- @@ L1318-1318 verbatim
+open Matrix MvPolynomial
+
+-- @@ L1319-1319 verbatim
+open Matrix
+
+
+-- @@ L1321-1321 verbatim
+namespace HarmonicCounterexample.Berger.ComplexStructure
+
+-- @@ L1322-1322 verbatim
+open Matrix
+
+-- @@ L1323-1323 verbatim
+variable {ι : Type*} [Fintype ι] [DecidableEq ι]
+
+
+-- @@ L1325-1339 verbatim
+/-- Orthogonal coordinate conjugation, including both orientation components. -/
+def orthogonalConjugate (J : ComplexStructure ι) (R : Matrix ι ι ℝ)
+    (hR : Rᵀ*R = 1) : ComplexStructure ι where
+  matrix := Rᵀ*J.matrix*R
+  square := by
+    have hRR : R*Rᵀ = 1 := mul_eq_one_comm.1 hR
+    calc
+      (Rᵀ*J.matrix*R)*(Rᵀ*J.matrix*R) = Rᵀ*(J.matrix*J.matrix)*R := by
+        simp only [mul_assoc,← mul_assoc R Rᵀ,hRR,one_mul]
+      _ = -1 := by rw [J.square,mul_neg,mul_one,neg_mul,hR]
+  orthogonal := by
+    have hRR : R*Rᵀ = 1 := mul_eq_one_comm.1 hR
+    simp only [transpose_mul,transpose_transpose,mul_assoc,
+      ← mul_assoc R Rᵀ,hRR,one_mul,← mul_assoc J.matrixᵀ J.matrix,J.orthogonal]
+    exact hR
+
+
+-- @@ L1341-1345 verbatim
+lemma splitFieldMatrix_one (s : ℕ) : splitFieldMatrix (1 : Matrix (Fin s ⊕ Fin s) (Fin s ⊕ Fin s) ℝ) = 1 := by
+  change splitChange s * _ * unsplitChange s = 1
+  have h : (1 : Matrix (Fin s ⊕ Fin s) (Fin s ⊕ Fin s) ℝ).map Complex.ofReal = 1 := by
+    exact Complex.ofRealHom.mapMatrix.map_one
+  rw [h,mul_one,split_unsplit]
+
+
+-- @@ L1347-1347 verbatim
+end HarmonicCounterexample.Berger.ComplexStructure
+
+
+-- @@ L1349-1349 verbatim
+end
+
+
+-- @@ L1351-1351 verbatim
+noncomputable section
+
+-- @@ L1352-1352 verbatim
+open Matrix
+
+-- @@ L1353-1353 verbatim
+open scoped BigOperators
+
+-- @@ L1354-1354 verbatim
+open scoped Topology
+
+-- @@ L1355-1355 verbatim
+open Filter
+
+-- @@ L1356-1356 verbatim
+open Matrix
+
+-- @@ L1357-1357 verbatim
+open scoped BigOperators
+
+-- @@ L1358-1358 verbatim
+open Matrix MvPolynomial
+
+-- @@ L1359-1359 verbatim
+open Matrix
+
+
+-- @@ L1361-1361 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L1362-1362 verbatim
+open Matrix MvPolynomial HarmonicCounterexample.Berger
+
+-- @@ L1363-1363 verbatim
+open HarmonicCounterexample.Berger.ComplexStructure
+
+-- @@ L1364-1364 verbatim
+attribute [local instance 100] LieRing.ofAssociativeRing
+
+-- @@ L1365-1365 verbatim
+variable {𝕜 ι : Type*} [Field 𝕜] [Fintype ι] [DecidableEq ι]
+
+
+-- @@ L1367-1372 verbatim
+lemma matrix_conjugate_traceFree (G H A : Matrix ι ι 𝕜) (hGH : G*H = 1) (hHG : H*G = 1) :
+    G*traceFree A*H = traceFree (G*A*H) := by
+  have ht : (G*A*H).trace = A.trace := by
+    rw [Matrix.trace_mul_cycle, hHG,one_mul]
+  simp only [traceFree,LinearMap.coe_mk,AddHom.coe_mk,mul_sub,sub_mul,
+    mul_smul_comm,smul_mul_assoc,mul_one,hGH,ht]
+
+
+-- @@ L1374-1377 verbatim
+lemma matrix_conjugate_lie (G H A B : Matrix ι ι 𝕜) (hHG : H*G = 1) :
+    G*⁅A,B⁆*H = ⁅G*A*H,G*B*H⁆ := by
+  change G*(A*B-B*A)*H = (G*A*H)*(G*B*H)-(G*B*H)*(G*A*H)
+  simp only [mul_sub,sub_mul,mul_assoc,← mul_assoc H G,hHG,one_mul]
+
+
+-- @@ L1379-1393 verbatim
+/-- Conjugation closure follows from closure of the actual generators. -/
+lemma conjugation_lieSpan (T : Set (Matrix ι ι 𝕜)) (G H : Matrix ι ι 𝕜) (hHG : H*G = 1)
+    (hT : ∀ A ∈ T,G*A*H ∈ LieSubalgebra.lieSpan 𝕜 _ T) :
+    ∀ A ∈ LieSubalgebra.lieSpan 𝕜 _ T,G*A*H ∈ LieSubalgebra.lieSpan 𝕜 _ T := by
+  intro A hA
+  induction hA using LieSubalgebra.lieSpan_induction with
+  | mem A hA => exact hT A hA
+  | zero => simpa only [mul_zero,zero_mul] using (LieSubalgebra.lieSpan 𝕜 _ T).zero_mem
+  | add A B hA hB ihA ihB =>
+    simpa only [mul_add,add_mul] using (LieSubalgebra.lieSpan 𝕜 _ T).add_mem ihA ihB
+  | smul c A hA ih =>
+    simpa only [mul_smul_comm,smul_mul_assoc] using (LieSubalgebra.lieSpan 𝕜 _ T).smul_mem c ih
+  | lie A B hA hB ihA ihB =>
+    rw [matrix_conjugate_lie G H A B hHG]
+    exact (LieSubalgebra.lieSpan 𝕜 _ T).lie_mem ihA ihB
+
+
+-- @@ L1395-1395 verbatim
+variable {s : ℕ}
+
+
+-- @@ L1397-1398 verbatim
+def angularChange (l : ℕ) (R : Matrix (Fin s ⊕ Fin s) (Fin s ⊕ Fin s) ℝ) :=
+  homogeneousChangeMatrix l (splitFieldMatrix R)
+
+
+-- @@ L1400-1403 verbatim
+lemma angularChange_orthogonal (l : ℕ) (R : Matrix (Fin s ⊕ Fin s) (Fin s ⊕ Fin s) ℝ)
+    (hR : Rᵀ*R = 1) : angularChange l R*angularChange l Rᵀ = 1 := by
+  unfold angularChange
+  rw [homogeneousChangeMatrix_mul,← splitFieldMatrix_mul,hR,splitFieldMatrix_one,homogeneousChangeMatrix_one]
+
+
+-- @@ L1405-1420 verbatim
+lemma angularChange_field (l : ℕ) (R : Matrix (Fin s ⊕ Fin s) (Fin s ⊕ Fin s) ℝ)
+    (hR : Rᵀ*R = 1) (J : ComplexStructure (Fin s ⊕ Fin s)) :
+    angularChange l R*angularRepresentation l J.matrix*angularChange l Rᵀ =
+      angularRepresentation l (J.orthogonalConjugate R hR).matrix := by
+  have hRR : R*Rᵀ = 1 := mul_eq_one_comm.1 hR
+  have hi : splitFieldMatrix J.matrix*splitFieldMatrix R =
+      splitFieldMatrix R*splitFieldMatrix (J.orthogonalConjugate R hR).matrix := by
+    rw [← splitFieldMatrix_mul,← splitFieldMatrix_mul]
+    congr 1
+    change J.matrix*R = R*(Rᵀ*J.matrix*R)
+    simp only [← mul_assoc,hRR,one_mul]
+  change homogeneousChangeMatrix l (splitFieldMatrix R)*homogeneousMatrix l (splitFieldMatrix J.matrix)*
+    angularChange l Rᵀ = homogeneousMatrix l (splitFieldMatrix (J.orthogonalConjugate R hR).matrix)
+  rw [homogeneousChangeMatrix_field l _ _ _ hi,mul_assoc]
+  change _*(angularChange l R*angularChange l Rᵀ) = _
+  rw [angularChange_orthogonal l R hR,mul_one]
+
+
+-- @@ L1422-1438 verbatim
+lemma angularLie_orthogonal_conjugate (l : ℕ) (R : Matrix (Fin s ⊕ Fin s) (Fin s ⊕ Fin s) ℝ)
+    (hR : Rᵀ*R = 1) : ∀ A ∈ angularLie l,
+    angularChange l R*A*angularChange l Rᵀ ∈ angularLie l := by
+  have hRR : R*Rᵀ = 1 := mul_eq_one_comm.1 hR
+  have hG := angularChange_orthogonal l R hR
+  have hH : angularChange l Rᵀ*angularChange l R = 1 := by
+    simpa only [transpose_transpose] using angularChange_orthogonal l Rᵀ (by simpa using hRR)
+  apply conjugation_lieSpan _ _ _ hH
+  rintro _ ⟨J,rfl⟩
+  rw [matrix_conjugate_traceFree _ _ _ hG hH]
+  have he : angularChange l R*(angularRepresentation l J.matrix*angularRepresentation l J.matrix)*angularChange l Rᵀ =
+      angularRepresentation l (J.orthogonalConjugate R hR).matrix*
+      angularRepresentation l (J.orthogonalConjugate R hR).matrix := by
+    rw [← angularChange_field l R hR J]
+    simp only [mul_assoc,← mul_assoc (angularChange l Rᵀ) (angularChange l R),hH,one_mul]
+  rw [he]
+  exact angularLie_generator l (J.orthogonalConjugate R hR)
+
+
+-- @@ L1440-1440 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L1442-1442 verbatim
+end
+
+
+-- @@ L1444-1444 verbatim
+noncomputable section
+
+-- @@ L1445-1445 verbatim
+open Matrix
+
+-- @@ L1446-1446 verbatim
+open scoped BigOperators
+
+-- @@ L1447-1447 verbatim
+open scoped Topology
+
+-- @@ L1448-1448 verbatim
+open Filter
+
+-- @@ L1449-1449 verbatim
+open Matrix
+
+-- @@ L1450-1450 verbatim
+open scoped BigOperators
+
+-- @@ L1451-1451 verbatim
+open Matrix MvPolynomial
+
+-- @@ L1452-1452 verbatim
+open Matrix
+
+
+-- @@ L1454-1454 verbatim
+namespace HarmonicCounterexample.Berger.ComplexStructure
+
+-- @@ L1455-1455 verbatim
+open Matrix
+
+-- @@ L1456-1456 verbatim
+variable {s : ℕ}
+
+
+-- @@ L1458-1469 verbatim
+lemma splitFieldMatrix_apply (M : Matrix (Fin s ⊕ Fin s) (Fin s ⊕ Fin s) ℝ) (a b) :
+    splitFieldMatrix M a b =
+       (1/2:ℂ)*((M (.inl (coordinatePlane a)) (.inl (coordinatePlane b)):ℂ)
+    -coordinateSign b*Complex.I*(M (.inl (coordinatePlane a)) (.inr (coordinatePlane b)):ℂ)
+    +coordinateSign a*Complex.I*(M (.inr (coordinatePlane a)) (.inl (coordinatePlane b)):ℂ)
+    +coordinateSign a*coordinateSign b*(M (.inr (coordinatePlane a)) (.inr (coordinatePlane b)):ℂ)) := by
+  rcases a with a | a <;> rcases b with b | b
+  all_goals
+    change (splitChange s*M.map Complex.ofReal*unsplitChange s) _ _ = _
+    simp [splitChange,unsplitChange,coordinatePlane,coordinateSign,
+      Matrix.mul_apply,Fintype.sum_sum_type,Matrix.one_apply]
+  all_goals ring_nf; simp only [Complex.I_sq]; ring
+
+
+-- @@ L1471-1481 verbatim
+lemma splitFieldMatrix_skew (M : Matrix (Fin s ⊕ Fin s) (Fin s ⊕ Fin s) ℝ)
+    (hM : Mᵀ = -M) (a b : Fin s ⊕ Fin s) :
+    splitFieldMatrix M b (Sum.swap a) = -splitFieldMatrix M a (Sum.swap b) := by
+  have h (i j : Fin s ⊕ Fin s) : (M j i:ℂ) = -(M i j:ℂ) := by
+    exact_mod_cast congrArg (fun N : Matrix _ _ ℝ => N i j) hM
+  rw [splitFieldMatrix_apply,splitFieldMatrix_apply]
+  rcases a with a | a <;> rcases b with b | b
+  all_goals
+    simp only [Sum.swap_inl,Sum.swap_inr,coordinatePlane,coordinateSign,Sum.elim_inl,Sum.elim_inr,id_eq]
+    rw [h (.inl a) (.inl b),h (.inr a) (.inl b),h (.inl a) (.inr b),h (.inr a) (.inr b)]
+    ring
+
+
+-- @@ L1483-1483 verbatim
+end HarmonicCounterexample.Berger.ComplexStructure
+
+
+-- @@ L1485-1485 verbatim
+end
+
+
+-- @@ L1487-1487 verbatim
+noncomputable section
+
+-- @@ L1488-1488 verbatim
+open Matrix
+
+-- @@ L1489-1489 verbatim
+open scoped BigOperators
+
+-- @@ L1490-1490 verbatim
+open scoped Topology
+
+-- @@ L1491-1491 verbatim
+open Filter
+
+-- @@ L1492-1492 verbatim
+open Matrix
+
+-- @@ L1493-1493 verbatim
+open scoped BigOperators
+
+-- @@ L1494-1494 verbatim
+open Matrix MvPolynomial
+
+-- @@ L1495-1495 verbatim
+open Matrix
+
+
+-- @@ L1497-1497 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L1498-1498 verbatim
+open Matrix
+
+-- @@ L1499-1499 verbatim
+open scoped BigOperators
+
+-- @@ L1500-1500 verbatim
+variable {ι : Type*} [Fintype ι] [DecidableEq ι]
+
+
+-- @@ L1502-1534 verbatim
+/-- Extension of an actual ordered real orthonormal two-frame to an orthogonal
+coordinate matrix. Both orientation classes are intentionally allowed. -/
+lemma orthogonalMatrix_two_rows (i j : ι) (hij : i ≠ j)
+    (u v : EuclideanSpace ℝ ι)
+    (hu : inner ℝ u u = 1) (hv : inner ℝ v v = 1) (huv : inner ℝ u v = 0) :
+    ∃ R : Matrix ι ι ℝ,Rᵀ*R = 1 ∧ (∀ a,R i a = u a) ∧ (∀ a,R j a = v a) := by
+  let f : ι → EuclideanSpace ℝ ι := fun a => if a=i then u else if a=j then v else 0
+  have hf : Orthonormal ℝ (({i,j}:Set ι).domRestrict f) := by
+    rw [orthonormal_iff_ite]
+    intro a b
+    have ha : a.1=i ∨ a.1=j := by simpa only [Set.mem_insert_iff,Set.mem_singleton_iff] using a.2
+    have hb : b.1=i ∨ b.1=j := by simpa only [Set.mem_insert_iff,Set.mem_singleton_iff] using b.2
+    rcases ha with ha | ha <;> rcases hb with hb | hb
+    all_goals
+      have ha' : (a=b) ↔ (a.1=b.1) := Subtype.ext_iff
+      simp only [ha',Set.domRestrict_apply,f,ha,hb,ite_eq_right hij,ite_eq_right hij.symm]
+      first | exact hu | exact hv | exact huv | exact (real_inner_comm u v).trans huv
+  obtain ⟨b,hb⟩ := hf.exists_orthonormalBasis_extension_of_card_eq (by simp)
+  let R : Matrix ι ι ℝ := fun a c => b a c
+  have hr : R*Rᵀ = 1 := by
+    ext a c
+    have he := (orthonormal_iff_ite.1 b.orthonormal) a c
+    change (∑ x : ι,b a x*b c x) = if a=c then 1 else 0
+    simpa only [EuclideanSpace.inner_eq_star_dotProduct,star_trivial,dotProduct,mul_comm] using he
+  refine ⟨R,mul_eq_one_comm.1 hr,?_,?_⟩
+  · intro a
+    have h := hb i (by simp)
+    simp only [f,ite_true] at h
+    exact congrArg (fun x : EuclideanSpace ℝ ι => x a) h
+  · intro a
+    have h := hb j (by simp)
+    simp only [f,Ne.symm hij,ite_false,ite_true] at h
+    exact congrArg (fun x : EuclideanSpace ℝ ι => x a) h
+
+
+-- @@ L1536-1536 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L1538-1538 verbatim
+end
+
+
+-- @@ L1540-1540 verbatim
+noncomputable section
+
+-- @@ L1541-1541 verbatim
+open Matrix
+
+-- @@ L1542-1542 verbatim
+open scoped BigOperators
+
+-- @@ L1543-1543 verbatim
+open scoped Topology
+
+-- @@ L1544-1544 verbatim
+open Filter
+
+-- @@ L1545-1545 verbatim
+open Matrix
+
+-- @@ L1546-1546 verbatim
+open scoped BigOperators
+
+-- @@ L1547-1547 verbatim
+open Matrix MvPolynomial
+
+-- @@ L1548-1548 verbatim
+open Matrix
+
+
+-- @@ L1550-1550 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L1551-1551 verbatim
+open Matrix
+
+-- @@ L1552-1552 verbatim
+open scoped BigOperators
+
+-- @@ L1553-1553 verbatim
+variable {ι : Type*} [Fintype ι] [DecidableEq ι]
+
+
+-- @@ L1555-1570 verbatim
+omit [DecidableEq ι] in
+lemma complex_null_parts (z : ι → ℂ) (hz : ∑ a : ι,z a*z a = 0) :
+    (∑ a : ι,(z a).re*(z a).re) = ∑ a : ι,(z a).im*(z a).im ∧
+    (∑ a : ι,(z a).re*(z a).im) = 0 := by
+  have hr := congrArg Complex.re hz
+  have hi := congrArg Complex.im hz
+  simp only [Complex.re_sum,Complex.mul_re,Complex.zero_re,Finset.sum_sub_distrib] at hr
+  simp only [Complex.im_sum,Complex.mul_im,Complex.zero_im] at hi
+  have he : (∑ a : ι,((z a).re*(z a).im+(z a).im*(z a).re)) =
+      2*∑ a : ι,(z a).re*(z a).im := by
+    rw [Finset.mul_sum]
+    apply Finset.sum_congr rfl
+    intro a _
+    ring
+  rw [he] at hi
+  exact ⟨sub_eq_zero.1 hr,by linarith⟩
+
+
+-- @@ L1572-1617 verbatim
+/-- Every nonzero complex-null vector really is a scalar multiple of an
+orthogonal real two-frame; this is not an orbit-transitivity assumption. -/
+lemma nullVector_orthogonal_frame (i j : ι) (hij : i ≠ j)
+    (z : ι → ℂ) (hz : ∑ a : ι,z a*z a = 0) (hn : z ≠ 0) :
+    ∃ (r : ℝ) (R : Matrix ι ι ℝ),0 < r ∧ Rᵀ*R = 1 ∧
+      ∀ a,z a = (r:ℂ)*((R i a:ℂ)+Complex.I*(R j a:ℂ)) := by
+  let u : EuclideanSpace ℝ ι := WithLp.toLp 2 (fun a => (z a).re)
+  let v : EuclideanSpace ℝ ι := WithLp.toLp 2 (fun a => (z a).im)
+  have hp := complex_null_parts z hz
+  have heq : inner ℝ u u = inner ℝ v v := by
+    simpa only [EuclideanSpace.inner_eq_star_dotProduct,dotProduct,star_trivial,u,v,
+      PiLp.toLp_apply] using hp.1
+  have huv : inner ℝ u v = 0 := by
+    simpa only [EuclideanSpace.inner_eq_star_dotProduct,dotProduct,star_trivial,u,v,
+      PiLp.toLp_apply,mul_comm] using hp.2
+  have hu : u ≠ 0 := by
+    intro h
+    have hv : v = 0 := by
+      apply (inner_self_eq_zero (𝕜 := ℝ)).1
+      rw [← heq,h,inner_zero_left]
+    apply hn
+    funext a
+    apply Complex.ext
+    · have hh := congrArg (fun x : EuclideanSpace ℝ ι => x a) h
+      exact hh
+    · have hh := congrArg (fun x : EuclideanSpace ℝ ι => x a) hv
+      exact hh
+  let r := ‖u‖
+  have hr : 0 < r := norm_pos_iff.2 hu
+  have hr0 : r ≠ 0 := ne_of_gt hr
+  have huu : inner ℝ u u = r^2 := real_inner_self_eq_norm_sq u
+  have hvv : inner ℝ v v = r^2 := heq.symm.trans huu
+  have hun : inner ℝ (r⁻¹ • u) (r⁻¹ • u) = 1 := by
+    simp only [real_inner_smul_left,inner_smul_right,huu]
+    field_simp
+  have hvn : inner ℝ (r⁻¹ • v) (r⁻¹ • v) = 1 := by
+    simp only [real_inner_smul_left,inner_smul_right,hvv]
+    field_simp
+  have huv' : inner ℝ (r⁻¹ • u) (r⁻¹ • v) = 0 := by
+    simp only [real_inner_smul_left,inner_smul_right,huv,mul_zero]
+  obtain ⟨R,hR,hRi,hRj⟩ := orthogonalMatrix_two_rows i j hij (r⁻¹ • u) (r⁻¹ • v) hun hvn huv'
+  refine ⟨r,R,hr,hR,?_⟩
+  intro a
+  rw [hRi a,hRj a]
+  change z a = (r:ℂ)*(((r⁻¹*(z a).re:ℝ):ℂ)+Complex.I*((r⁻¹*(z a).im:ℝ):ℂ))
+  apply Complex.ext <;> simp [Complex.mul_re,Complex.mul_im,hr0,← mul_assoc]
+
+
+-- @@ L1619-1619 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L1621-1621 verbatim
+end
+
+
+-- @@ L1623-1623 verbatim
+noncomputable section
+
+-- @@ L1624-1624 verbatim
+open Matrix
+
+-- @@ L1625-1625 verbatim
+open scoped BigOperators
+
+-- @@ L1626-1626 verbatim
+open scoped Topology
+
+-- @@ L1627-1627 verbatim
+open Filter
+
+-- @@ L1628-1628 verbatim
+open Matrix
+
+-- @@ L1629-1629 verbatim
+open scoped BigOperators
+
+-- @@ L1630-1630 verbatim
+open Matrix MvPolynomial
+
+-- @@ L1631-1631 verbatim
+open Matrix
+
+
+-- @@ L1633-1633 verbatim
+namespace HarmonicCounterexample.Berger.ComplexStructure
+
+-- @@ L1634-1634 verbatim
+open Matrix
+
+-- @@ L1635-1635 verbatim
+variable {s : ℕ}
+
+
+-- @@ L1637-1645 verbatim
+lemma splitFieldMatrix_transpose (R : Matrix (Fin s ⊕ Fin s) (Fin s ⊕ Fin s) ℝ)
+    (a b : Fin s ⊕ Fin s) :
+    splitFieldMatrix Rᵀ (Sum.swap b) (Sum.swap a) = splitFieldMatrix R a b := by
+  rw [splitFieldMatrix_apply,splitFieldMatrix_apply]
+  rcases a with a | a <;> rcases b with b | b
+  all_goals
+    simp only [Sum.swap_inl,Sum.swap_inr,coordinatePlane,coordinateSign,
+      Sum.elim_inl,Sum.elim_inr,id_eq,Matrix.transpose_apply]
+    ring
+
+
+-- @@ L1647-1647 verbatim
+end HarmonicCounterexample.Berger.ComplexStructure
+
+
+-- @@ L1649-1649 verbatim
+end
+
+
+-- @@ L1651-1651 verbatim
+noncomputable section
+
+-- @@ L1652-1652 verbatim
+open Matrix
+
+-- @@ L1653-1653 verbatim
+open scoped BigOperators
+
+-- @@ L1654-1654 verbatim
+open scoped Topology
+
+-- @@ L1655-1655 verbatim
+open Filter
+
+-- @@ L1656-1656 verbatim
+open Matrix
+
+-- @@ L1657-1657 verbatim
+open scoped BigOperators
+
+-- @@ L1658-1658 verbatim
+open Matrix MvPolynomial
+
+-- @@ L1659-1659 verbatim
+open Matrix
+
+
+-- @@ L1661-1661 verbatim
+namespace HarmonicCounterexample.Control
+
+-- @@ L1662-1662 verbatim
+open Matrix HarmonicCounterexample.Berger.ComplexStructure
+
+-- @@ L1663-1663 verbatim
+open scoped BigOperators
+
+-- @@ L1664-1664 verbatim
+variable {s : ℕ}
+
+
+-- @@ L1666-1710 verbatim
+/-- The null cone in complex split coordinates is the actual real orthogonal
+orbit of the first isotropic coordinate, up to a nonzero real scale. -/
+lemma split_null_row_orbit (i : Fin s) (a : (Fin s ⊕ Fin s) → ℂ)
+    (ha : ∑ j : Fin s,a (.inl j)*a (.inr j) = 0) (hn : a ≠ 0) :
+    ∃ (r : ℝ) (R : Matrix (Fin s ⊕ Fin s) (Fin s ⊕ Fin s) ℝ),
+      0 < r ∧ Rᵀ*R = 1 ∧ ∀ b,a b = (r:ℂ)*splitFieldMatrix R (.inl i) b := by
+  let z : (Fin s ⊕ Fin s) → ℂ := Sum.elim
+    (fun j => a (.inl j)+a (.inr j))
+    (fun j => Complex.I*(a (.inl j)-a (.inr j)))
+  have hz : ∑ b : Fin s ⊕ Fin s,z b*z b = 0 := by
+    rw [Fintype.sum_sum_type,← Finset.sum_add_distrib]
+    have he : ∀ j : Fin s,z (.inl j)*z (.inl j)+z (.inr j)*z (.inr j) =
+        4*(a (.inl j)*a (.inr j)) := by
+      intro j
+      dsimp [z]
+      ring_nf
+      rw [Complex.I_sq]
+      ring
+    simp only [he,← Finset.mul_sum,ha,mul_zero]
+  have hzn : z ≠ 0 := by
+    intro h
+    apply hn
+    funext b
+    rcases b with j | j
+    all_goals
+      have h1 := congrFun h (.inl j)
+      have h2 := congrFun h (.inr j)
+      change a (.inl j)+a (.inr j)=0 at h1
+      change Complex.I*(a (.inl j)-a (.inr j))=0 at h2
+      have h3 := (mul_eq_zero.1 h2).resolve_left Complex.I_ne_zero
+    · change a (.inl j) = 0
+      linear_combination (h1+h3)/2
+    · change a (.inr j) = 0
+      linear_combination (h1-h3)/2
+  obtain ⟨r,R,hr,hR,hzR⟩ := nullVector_orthogonal_frame (.inl i) (.inr i) (by simp) z hz hzn
+  refine ⟨r,R,hr,hR,?_⟩
+  rintro (j | j)
+  all_goals
+    have hx := hzR (.inl j)
+    have hy := hzR (.inr j)
+    dsimp [z] at hx hy
+    rw [splitFieldMatrix_apply]
+    simp only [coordinatePlane,coordinateSign,Sum.elim_inl,Sum.elim_inr,id_eq]
+  · linear_combination (norm := (ring_nf; rw [Complex.I_sq]; ring)) (hx-Complex.I*hy)/2
+  · linear_combination (norm := (ring_nf; rw [Complex.I_sq]; ring)) (hx+Complex.I*hy)/2
+
+
+-- @@ L1712-1712 verbatim
+end HarmonicCounterexample.Control
+
+
+-- @@ L1714-1714 verbatim
+end
+
+
+-- @@ L1716-1716 verbatim
+end OAI
