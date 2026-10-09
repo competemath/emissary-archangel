@@ -12,7 +12,8 @@ cd "$(dirname "$0")/.."
 fail() { echo "::error::smoke: $*"; exit 1; }
 
 run_dir=$(mktemp -d /tmp/claude-tree-XXXXXX)
-trap 'rm -rf "$run_dir"; rm -f /tmp/agent-smoke-pid' EXIT
+# the stand-in (running as the agent) writes its pid into the sticky /tmp, where only root may remove it
+trap 'rm -rf "$run_dir"; sudo -n rm -f /tmp/agent-smoke-pid' EXIT
 echo '{"mcpServers":{"Leak_IV":{"type":"sse","url":"http://127.0.0.1:7871/sse"}}}' > "$run_dir/mcp.json"
 echo '{}' > "$run_dir/settings.json"
 argv=(-p "prove it" --output-format stream-json --verbose --mcp-config "$run_dir/mcp.json" --tools=Bash --strict-mcp-config
@@ -30,7 +31,7 @@ grep -q '^args=-p prove it .*--tools=Bash --strict-mcp-config --dangerously-skip
 [ -z "$(sudo -n -u agent sh -c 'ls -d /home/agent/run.* 2>/dev/null' || true)" ] || fail "the run directory was not removed"
 
 echo "== 2. killing the wrapper kills the agent"
-rm -f /tmp/agent-smoke-pid
+sudo -n rm -f /tmp/agent-smoke-pid
 python3 scripts/agent-run.py "${argv[@]/prove it/SLEEP}" > /dev/null 2>&1 &
 wrapper=$!
 for _ in $(seq 1 50); do [ -s /tmp/agent-smoke-pid ] && break; sleep 0.2; done
