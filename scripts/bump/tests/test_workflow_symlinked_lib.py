@@ -57,5 +57,31 @@ class WorkflowsDoNotStepOutOfASymlinkedLib(unittest.TestCase):
             self.assertEqual(new.stdout.strip(), "verdicts")
 
 
+class PrunedBuildNextToItsPathDependencies(unittest.TestCase):
+    def test_lib2_of_a_subdir_library_is_next_to_the_siblings_lib_has(self):
+        """2026-10-09 (fagin, immerman-vardi): after the first fix the build of the pruned sources died on `Lax979537: package directory not found`: lib2 was a plain directory
+        in emissary/, and the lakefile's path dependency `../Lax979537` resolved next to lib2, not next to lib's target in the clone."""
+        doc = yaml.safe_load((WORKFLOWS / "bump-library.yml").read_text(encoding="utf-8"))
+        script = next(s["run"] for s in doc["jobs"]["bump"]["steps"] if "mkdir -p lib2/.lake" in s.get("run", ""))
+        snippet = "\n".join(ln for ln in script.splitlines() if ln.strip().startswith("if [ -L lib ]"))
+        self.assertTrue(snippet, "the step has no symlink branch for lib2")
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "emissary" / "lib-repo" / "proofs").mkdir(parents=True)
+            (root / "emissary" / "lib-repo" / "Lax979537").mkdir()
+            (root / "emissary" / "lib").symlink_to("lib-repo/proofs")
+            run = lambda s: subprocess.run(["bash", "-e", "-c", s], cwd=root / "emissary", capture_output=True, text=True)
+            done = run(snippet + "\nmkdir -p lib2/.lake\n(cd lib2 && ls ../Lax979537 >/dev/null && echo resolved)")
+            self.assertEqual(done.stdout.strip(), "resolved", done.stderr)
+            (root / "emissary" / "lib2").unlink()  # the symlink the snippet made
+            plain = run("mkdir -p lib2/.lake\n(cd lib2 && ls ../Lax979537)")  # what it was
+            self.assertNotEqual(plain.returncode, 0)
+            # a library without a subdir (lib is a real directory) is unchanged
+            (root / "emissary" / "lib").unlink()
+            (root / "emissary" / "lib").mkdir()
+            (root / "emissary" / "lib2").unlink() if (root / "emissary" / "lib2").is_symlink() else None
+            self.assertEqual(run(snippet + "\nmkdir -p lib2/.lake\ntest -d lib2/.lake && ! test -L lib2 && echo plain").stdout.strip(), "plain")
+
+
 if __name__ == "__main__":
     unittest.main()

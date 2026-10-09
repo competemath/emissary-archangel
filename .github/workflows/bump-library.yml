@@ -233,6 +233,8 @@ jobs:
       - name: Build the pruned sources until they are clean (what is shipped is exactly what was built; a module that does not build, and what imports it, is left out)
         working-directory: emissary
         run: |
+          # a library with a `subdir` has `lib` as a symlink into the clone, so that its path dependencies (`../Lax979537`) resolve next to it: the pruned build lives next to it too
+          if [ -L lib ]; then t="$(readlink lib)-pruned"; mkdir -p "$t"; ln -s "$t" lib2; fi
           mkdir -p lib2/.lake && cp lib/lakefile.* lib/lake-manifest.json lib/lean-toolchain lib2/ && ln -s "$PWD/lib/.lake/packages" lib2/.lake/packages
           sync_sources() {
             for r in ${ROOTS//,/ }; do
