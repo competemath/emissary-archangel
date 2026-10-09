@@ -423,7 +423,7 @@ class UsesWhatWasCut(unittest.TestCase):
         }
         self.assertEqual(m.dangling(m.text(keep), keep), [])
 
-    def test_a_name_in_a_comment_or_after_a_dot_or_too_short_is_not_a_use(self):
+    def test_a_name_in_a_comment_or_after_a_dot_is_not_a_use(self):
         m = self.Module(self.lib, "Toy.B", self.ranges)
         keep = {
             (self.ln("theorem other"),) * 2
@@ -436,6 +436,80 @@ class UsesWhatWasCut(unittest.TestCase):
         self.assertEqual(
             m.dangling("theorem other : 2 = 2 := helper_lemma_two", keep), []
         )  # a longer identifier
+
+
+DECLARATION_AFTER_THE_BRACKET = """namespace Toy
+
+@[deprecated Foo
+  (since := "2026-09-20")] theorem gone : 1 = 1 := rfl
+
+@[deprecated Foo
+  (since := "2026-09-20")] theorem kept : 2 = 2 := rfl
+
+end Toy
+"""
+
+SHORT_HELPER = """namespace Toy
+
+private def foo : Nat := 1
+
+theorem user : foo = 1 := rfl
+
+theorem other : 2 = 2 := rfl
+
+end Toy
+"""
+
+
+class AttributeThatClosesBeforeItsDeclaration(unittest.TestCase):
+    """CodeRabbit on emissary #7: `@[deprecated Foo` / `(since := "…")] theorem kept …` has the declaration on the line that closes the attribute. The loop that reads an
+    attribute over several lines went past that line, so the declaration had no core, was no block, and stayed as glue (or was flagged as an orphan attribute)."""
+
+    def test_attrs_end_is_where_the_attributes_stop(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        self.assertEqual(records.attrs_end("@[simp] theorem x"), len("@[simp]"))
+        self.assertEqual(records.attrs_end('@[deprecated X\n  (since := "a")] theorem x'), len('@[deprecated X\n  (since := "a")]'))
+        self.assertEqual(records.attrs_end("@[simp] @[ext] def d"), len("@[simp] @[ext]"))
+        self.assertEqual(records.attrs_end("@[deprecated X"), -1)  # still open
+        self.assertEqual(records.attrs_end("theorem x"), 0)
+
+    def test_the_declaration_after_the_closing_bracket_is_the_core_and_a_block_of_its_own(self):
+        records, Module, lib, ln = toy_module(DECLARATION_AFTER_THE_BRACKET)
+        lines = DECLARATION_AFTER_THE_BRACKET.split("\n")
+        self.assertEqual(records.decl_core(lines, 3, 4), "theorem gone : 1 = 1 := rfl")
+        m = Module(lib, "Toy.B", [(4, 4), (7, 7)])
+        self.assertEqual(m.blocks, [(3, 4), (6, 7)])  # each attribute starts its block; before the fix both were glue and no block at all
+
+    def test_pruning_takes_attribute_and_declaration_together_and_leaves_no_leak(self):
+        records, Module, lib, ln = toy_module(DECLARATION_AFTER_THE_BRACKET)
+        m = Module(lib, "Toy.B", [(4, 4), (7, 7)])
+        keep = {(6, 7)}
+        text = m.text(keep)
+        self.assertIn("theorem kept", text)
+        self.assertIn("since", text)  # the kept one has its attribute
+        self.assertNotIn("theorem gone", text)
+        self.assertEqual(text.count("deprecated"), 1)  # and the cut one's went with it: no orphan attribute
+        self.assertEqual(m.leaks(text, keep), [])
+        orphan = "namespace Toy\n\n@[deprecated Foo\n  (since := \"a\")]\n\nend Toy"
+        self.assertTrue(any("no declaration after it" in x for x in m.leaks(orphan, set())))
+
+
+class ShortNamesAreUsesToo(unittest.TestCase):
+    """CodeRabbit on emissary #7: the four-character cutoff in `Module.dangling` let a kept theorem call a cut `private def foo` unnoticed."""
+
+    def test_a_short_helper_that_is_cut_and_called_is_found(self):
+        records, Module, lib, ln = toy_module(SHORT_HELPER)
+        m = Module(lib, "Toy.B", [(ln("private def foo"),) * 2, (ln("theorem user"),) * 2, (ln("theorem other"),) * 2])
+        keep = {(ln("theorem user"),) * 2}
+        self.assertEqual(m.dangling(m.text(keep), keep), ["foo"])
+
+    def test_the_short_name_does_not_match_inside_a_longer_one(self):
+        records, Module, lib, ln = toy_module(SHORT_HELPER)
+        m = Module(lib, "Toy.B", [(ln("private def foo"),) * 2, (ln("theorem user"),) * 2, (ln("theorem other"),) * 2])
+        keep = {(ln("theorem other"),) * 2}
+        self.assertEqual(m.dangling("theorem other : 2 = 2 := foobar + a.foo + foo'", keep), [])
 
 
 if __name__ == "__main__":
