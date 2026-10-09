@@ -312,10 +312,19 @@ def ledger_latest(path: Path) -> dict[str, dict]:
     return latest
 
 
+def subdirs_of_libraries() -> dict[str, str]:
+    """library key -> the subdirectory of its repository that is the Lake project (sources.json `subdir`; fagin `proofs`, openai-math `lean`). Empty where sources.json is not checked out."""
+    try:
+        return {k: v["subdir"] for k, v in json.loads((Path(__file__).resolve().parents[2] / "sources.json").read_text())["sources"].items() if v.get("subdir")}
+    except (OSError, ValueError, KeyError):
+        return {}
+
+
 def tentative_entries(paths: list[str]) -> dict[str, dict]:
     """The entry list of a library: the statement records tengoku harvested (data/tentative/<lib>.jsonl and data/tentative/<lib>/*.jsonl).
     The ledger only knows what the per-theorem pipeline got to (lean-pool: 2.9k of 137k)."""
     out: dict[str, dict] = {}
+    subdirs = subdirs_of_libraries()
     for f in paths:
         for line in Path(f).read_text(errors="replace").splitlines():
             try:
@@ -324,7 +333,10 @@ def tentative_entries(paths: list[str]) -> dict[str, dict]:
                 continue
             m = re.search(r"/blob/[0-9a-f]{7,40}/([^#]+\.lean)", r.get("source_url", ""))
             if r.get("name") and m:
-                out[r["name"]] = {"name": r["name"], "sourcePath": m.group(1), "outcome": "untriaged"}
+                path, sub = m.group(1), subdirs.get(r.get("library", ""), "")
+                if sub and path.startswith(sub + "/"):
+                    path = path[len(sub) + 1 :]  # the link is repository-relative, the library's modules are relative to its Lake project (openai-math: lean/OAI/X.lean is module OAI.X)
+                out[r["name"]] = {"name": r["name"], "sourcePath": path, "outcome": "untriaged"}
     return out
 
 
