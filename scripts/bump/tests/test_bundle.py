@@ -114,6 +114,78 @@ class Bundle(unittest.TestCase):
         self.assertIn("names no module of the library", p.stderr)
         self.assertFalse((d / "bundle").exists())
 
+    def test_a_module_whose_kept_theorem_uses_a_cut_declaration_is_left_out(self):
+        """2026-10-08: a kept theorem called a `private theorem` the closure had not reached; the bundle carried the call without the declaration."""
+        d = Path(tempfile.mkdtemp())
+        lib = d / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        text = "namespace Toy\n\nprivate theorem helper_lemma : 1 = 1 := rfl\n\ntheorem user : 1 = 1 := helper_lemma\n\nend Toy\n"
+        (lib / "Toy" / "A.lean").write_text(text)
+        lines = text.split("\n")
+        ln = lambda needle: next(
+            i + 1 for i, x in enumerate(lines) if x.startswith(needle)
+        )
+        f = lib / ".lake" / "build" / "lib" / "lean" / "Toy" / "A.olean.ranges.json"
+        f.parent.mkdir(parents=True)
+        f.write_text(
+            json.dumps(
+                [
+                    ["Toy.helper_lemma", ln("private theorem"), ln("private theorem")],
+                    ["Toy.user", ln("theorem user"), ln("theorem user")],
+                ]
+            )
+        )
+        (d / "deps.log").write_text(
+            'x:1:0: info: BUNDLE_KEEP [["Toy.A","Toy.user"]] BUNDLE_END\n'
+        )  # the closure missed the helper
+        (d / "passed.json").write_text(json.dumps({"Toy.A": ["Toy.user"]}))
+        (d / "setup.json").write_text(
+            json.dumps({"repo": "https://github.com/o/toy.git", "commit": "abc123"})
+        )
+        (d / "build.log").write_text("")
+        (d / "gate2.log").write_text(
+            "GATE2B_PASS old=Toy.user new=Toy.user via=equal\n"
+        )
+        p = subprocess.run(
+            [
+                sys.executable,
+                str(HERE / "bundle.py"),
+                "compose",
+                "--lib",
+                str(lib),
+                "--log",
+                str(d / "deps.log"),
+                "--passed",
+                str(d / "passed.json"),
+                "--meta",
+                str(d / "setup.json"),
+                "--key",
+                "toy-lib",
+                "--toolchain",
+                "tc",
+                "--errors",
+                str(d / "build.log"),
+                "--gate2",
+                str(d / "gate2.log"),
+                "--out",
+                str(d / "bundle"),
+                "--src",
+                str(d / "src"),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(p.returncode, 0, p.stderr)
+        rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
+        self.assertEqual((rep["modules_in_bundle"], rep["theorems"]), (0, 0))
+        self.assertTrue(
+            rep["dropped"]["Toy.A"].startswith(
+                "uses a declaration the pruning left out"
+            ),
+            rep["dropped"],
+        )
+        self.assertIn("helper_lemma", rep["dropped"]["Toy.A"])
+
     def test_a_module_importing_a_package_the_tree_lacks_takes_its_theorems_with_it(self):
         d = Path(tempfile.mkdtemp())
         lib = d / "lib"

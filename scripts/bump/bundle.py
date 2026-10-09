@@ -254,6 +254,8 @@ def compose(a: argparse.Namespace) -> None:
     for mod, text in pruned.items():
         body = "\n".join(("" if header.match(ln) else ln) for ln in text.split("\n"))
         lint[mod] = allowlist.violations(body, allowed, keywords)
+    # a kept declaration that uses one the pruning removed does not build on the tree: the module is cut like one that did not compile
+    dangling = {mod: ds for mod in pruned if (ds := modules[mod].dangling(pruned[mod], keep_blocks.get(mod, set())))}
     repo = meta["repo"].rstrip("/").removesuffix(".git")
     via = passed_via(a.gate2)
     summary = {}
@@ -265,6 +267,7 @@ def compose(a: argparse.Namespace) -> None:
         viol = {m: [v for v in vs if refused(v)] for m, vs in lint.items()}
         dropped = dict(base_dropped)
         dropped.update({m: "lint: " + "; ".join(vs[:3]) for m, vs in viol.items() if vs and m not in dropped})
+        dropped.update({m: "uses a declaration the pruning left out: " + ", ".join(ds[:3]) for m, ds in dangling.items() if m not in dropped})
         changed = True
         while changed:
             changed = False
