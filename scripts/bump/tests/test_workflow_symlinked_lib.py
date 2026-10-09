@@ -83,5 +83,20 @@ class PrunedBuildNextToItsPathDependencies(unittest.TestCase):
             self.assertEqual(run(snippet + "\nmkdir -p lib2/.lake\ntest -d lib2/.lake && ! test -L lib2 && echo plain").stdout.strip(), "plain")
 
 
+class EveryCloneOfTheLibraryHandlesASubdir(unittest.TestCase):
+    def test_every_job_that_clones_the_library_makes_lib_the_lake_project(self):
+        """2026-10-09: openai-math (`subdir: lean`) planned 0 modules, 0 shards, and the merge died on `no shard pack`: bump-sharded.yml and bump-shard.yml cloned the repository into
+        `lib` and enumerated `lib/OAI`, which is `lib/lean/OAI`. bump-library.yml already made `lib` a symlink to the subdirectory."""
+        problems = []
+        for name in ("bump-library.yml", "bump-sharded.yml", "bump-shard.yml"):
+            doc = yaml.safe_load((WORKFLOWS / name).read_text(encoding="utf-8"))
+            for job, spec in doc["jobs"].items():
+                for step in spec.get("steps", []):
+                    run = step.get("run", "")
+                    if isinstance(run, str) and 'git clone -q --filter=blob:none "$repo" lib' in run and 'ln -s "lib-repo/$sub" lib' not in run:
+                        problems.append(f"{name} {job} / {step.get('name', '?')[:60]}")
+        self.assertEqual(problems, [])
+
+
 if __name__ == "__main__":
     unittest.main()

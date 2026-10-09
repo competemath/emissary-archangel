@@ -47,6 +47,10 @@ jobs:
         run: |
           read -r repo commit _ roots < <(python3 scripts/trial-library-build.py meta "$KEY")
           git clone -q --filter=blob:none "$repo" lib && git -C lib checkout -q "$commit"
+          # a library whose Lake project is a subdirectory of its repository (sources.json `subdir`): `lib` is that project, a symlink, so that a path dependency (`../concepts`)
+          # still resolves next to it in the clone (as bump-library.yml does)
+          sub=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")
+          if [ -n "$sub" ]; then mv lib lib-repo && ln -s "lib-repo/$sub" lib; fi
           python3 - <<'PY'
           import glob, json, math, os, sys
           sys.path.insert(0, "scripts/bump")
