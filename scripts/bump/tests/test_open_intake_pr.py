@@ -120,5 +120,16 @@ class WithImport(unittest.TestCase):
         self.assertEqual((d / "All.lean").read_text().count("import Tengoku."), 8)
 
 
+class RefuseEmpty(unittest.TestCase):
+    def test_a_bundle_with_no_verified_theorem_is_refused_and_says_so(self):
+        for report in ({"theorems": 0}, {}, {"theorems": None}):
+            with self.assertRaises(SystemExit) as cm:
+                op.refuse_empty(report, "bundle-x-proposed-part-001.tar")
+            self.assertIn("EMPTY BUNDLE", str(cm.exception))
+
+    def test_a_bundle_with_theorems_is_not(self):
+        op.refuse_empty({"theorems": 1}, "x")
+
+
 if __name__ == "__main__":
     unittest.main()

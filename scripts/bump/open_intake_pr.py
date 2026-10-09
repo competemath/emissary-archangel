@@ -32,6 +32,12 @@ def parts_total(plan: dict) -> int:
     return max(part["part"] for part in plan["parts"])
 
 
+def refuse_empty(report: dict, name: str) -> None:
+    """A bundle without a verified theorem is not an intake: tengoku collects theorems (2026-10-09: sphere-packing-ext, cslib and aisafety-atlas came out as 0 theorems in 1 or 2 modules)."""
+    if not report.get("theorems"):
+        sys.exit(f"EMPTY BUNDLE: no verified theorem in {name}, nothing to intake")
+
+
 def sh(*a: str, cwd: str | None = None, check: bool = True) -> str:
     r = subprocess.run(a, cwd=cwd, capture_output=True, text=True)
     if check and r.returncode:
@@ -115,6 +121,7 @@ def main() -> None:
     with tarfile.open(tar) as tf:
         tf.extractall(stage, filter="data")
     report = json.loads((stage / "report.json").read_text())
+    refuse_empty(report, tar.name)
     ns = pascal(a.key)
     repo = work / "repo"
     sh("git", "clone", "-q", "--filter=blob:none", "--no-checkout", f"https://github.com/{a.repo}", str(repo))
