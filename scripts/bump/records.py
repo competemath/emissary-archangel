@@ -119,6 +119,43 @@ def strip_block_comments_in_doc(text: str) -> str:
 
 LEAD_IN = re.compile(r"^(?:/--|@\[)")  # a docstring or attribute line: it belongs to the declaration below it
 ATTR_INLINE = re.compile(r"^(?:@\[[^\]]*\]\s*)+")  # the attributes at the start of a line (`@[simp] theorem …`)
+DECL_NAME = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s+)*(?:theorem|lemma|def|abbrev|structure|class|inductive|opaque|axiom|instance)\s+([^\s:({\[⦃]+)")
+# commands that cannot take a docstring or an attribute: one of these right after one means its declaration is gone
+NO_LEAD_IN = re.compile(r"^(?:end\b|namespace\b|section\b|variable\b|universe\b|import\b|open\b(?!.*\bin\s*$))")
+
+
+def attrs_only(text: str) -> bool:
+    """Whether `text` is attributes and nothing else: `@[simp]`, several in a row, or one spread over lines (`@[deprecated X` / `(since := "…")]`). Brackets balance across
+    lines, and a bracket inside a string does not count."""
+    i, n, seen = 0, len(text), False
+    while i < n:
+        if text[i].isspace():
+            i += 1
+            continue
+        if not text.startswith("@[", i):
+            return False
+        depth, in_str = 0, False
+        while i < n:
+            c = text[i]
+            if in_str:
+                if c == "\\":
+                    i += 1
+                elif c == '"':
+                    in_str = False
+            elif c == '"':
+                in_str = True
+            elif c == "[":
+                depth += 1
+            elif c == "]":
+                depth -= 1
+                if depth == 0:
+                    i += 1
+                    break
+            i += 1
+        else:
+            return False  # a bracket never closed
+        seen = True
+    return seen
 
 
 class Module:
@@ -150,8 +187,8 @@ class Module:
                 if any(CODE_ATTR.search(self.lines[i - 1]) for i in range(b[0], s + 1)):
                     self.code_attr.add(b)
                 lead = None
-            elif IN_PREFIX.match(first) or first.startswith("/--") or (first.startswith("@[") and not ATTR_INLINE.sub("", first).strip()):
-                lead = s if lead is None else lead  # a docstring, an attribute line of its own or an `… in` line: it belongs to the declaration below
+            elif IN_PREFIX.match(first) or first.startswith("/--") or (first.startswith("@[") and attrs_only("\n".join(self.lines[s - 1 : e]))):
+                lead = s if lead is None else lead  # a docstring, attributes of their own (on one line or several) or an `… in` line: they belong to the declaration below
             else:
                 lead = None  # glue, `@[expose] public section` included: an attribute on a command that is no declaration
         self.blocks.sort()
@@ -220,7 +257,34 @@ class Module:
                 core = ATTR_INLINE.sub("", ln).strip()  # `@[simp] theorem …`: the keyword line is what comes after the attribute
                 if DECL_LINE.match(core) and core not in allowed:
                     out.append(f"line {no}: a declaration that is not a kept block: {core[:80]}")
+                elif LEAD_IN.match(ln) and (ln.startswith("/--") or not core or core == ln.strip()):  # a docstring, or attributes on their own (not `@[expose] public section`)
+                    nxt = cmds[k + 1][1] if k + 1 < len(cmds) else ""
+                    if not nxt or NO_LEAD_IN.match(nxt):
+                        out.append(f"line {no}: a docstring or attribute with no declaration after it: {ln.strip()[:80]}")
         return out
+
+    def dangling(self, text: str, keep: set[tuple[int, int]]) -> list[str]:
+        """Names the pruning removed that the pruned text still uses. A kept theorem can lean on a declaration (a `private theorem` in the same module, usually) that
+        the closure did not reach, and then the module does not build on the tree. Only code counts (comments and strings are blanked), a name that another kept
+        declaration also bears is not reported, and neither is a name shorter than four characters. Whole identifiers only, not after a `.`."""
+        from adapters import code_mask
+
+        kept = self.kept_blocks(keep)
+        gone: dict[str, int] = {}
+        here: set[str] = set()
+        for s, e in self.blocks:
+            m = DECL_NAME.match(decl_core(self.lines, s, e))
+            if not m:
+                continue
+            if self.stays((s, e), kept):
+                here.add(m.group(1))
+            else:
+                gone.setdefault(m.group(1), s)
+        mask = code_mask(text)
+        code = "".join(c if k else (" " if c != "\n" else "\n") for c, k in zip(text, mask))
+        return sorted(
+            n for n in gone if n not in here and len(n) >= 4 and re.search(r"(?<![\w.'])" + re.escape(n) + r"(?![\w'])", code)
+        )
 
 
 def decl_core(lines: list[str], s: int, e: int) -> str:
@@ -231,9 +295,12 @@ def decl_core(lines: list[str], s: int, e: int) -> str:
         ln = lines[i].lstrip()
         if ln.startswith("@["):
             rest = ATTR_INLINE.sub("", ln).strip()
-            if rest:  # `@[simp] theorem …`: the declaration starts on this line, after the attribute
+            if rest and rest != ln.strip():  # `@[simp] theorem …`: the declaration starts on this line, after the attribute
                 return "\n".join([rest, *lines[i + 1 : e]]).strip()
-            i += 1
+            j = i
+            while rest and j < e and not attrs_only("\n".join(lines[i : j + 1])):  # an attribute that goes on over the next lines
+                j += 1
+            i = j + 1
         elif not ln or IN_PREFIX.match(ln) or ln.startswith("--"):
             i += 1
         elif ln.startswith("/--") or ln.startswith("/-!"):

@@ -295,5 +295,148 @@ class NothingEscapesPruning(unittest.TestCase):
         self.assertEqual(m.leaks(text, set(m.blocks)), [])
 
 
+MULTILINE = """namespace Toy
+
+/-- the old name -/
+@[deprecated Foo
+  (since := "2026-09-20")]
+abbrev gone : Nat := 1
+
+theorem kept : 1 = 1 := rfl
+
+end Toy
+"""
+
+DANGLING = """namespace Toy
+
+private theorem helper_lemma : 1 = 1 := rfl
+
+-- helper_lemma is described here, in a comment
+theorem user : 1 = 1 := helper_lemma
+
+theorem other : 2 = 2 := rfl
+
+end Toy
+"""
+
+
+def toy_module(text: str, mod: str = "B"):
+    sys.path.insert(0, str(HERE))
+    import records
+
+    d = tempfile.mkdtemp()
+    lib = Path(d) / "lib"
+    (lib / "Toy").mkdir(parents=True)
+    (lib / "Toy" / f"{mod}.lean").write_text(text)
+    lines = text.split("\n")
+    return (
+        records,
+        records.Module,
+        lib,
+        lambda needle: next(i + 1 for i, x in enumerate(lines) if x.startswith(needle)),
+    )
+
+
+class AttributesOverSeveralLines(unittest.TestCase):
+    """2026-10-08: causalean part 2 carried a docstring and `@[deprecated X` / `(since := "…")]` with the `abbrev` they belong to cut away, so the module did not
+    parse. The attribute is a command of its own spanning two lines, and was read as glue instead of as the lead-in of the declaration below it."""
+
+    def test_attrs_only_reads_attributes_over_several_lines(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        for text in (
+            "@[simp]",
+            "@[simp] @[ext]",
+            '@[deprecated X\n  (since := "2026-09-20")]',
+            '@[deprecated X (since := "a]b")]',
+            "@[aesop safe [(rule_sets := [a])]]",
+        ):
+            self.assertTrue(records.attrs_only(text), text)
+        for text in ("", "theorem x", "@[simp] theorem foo", "@[simp", "@[a] b"):
+            self.assertFalse(records.attrs_only(text), text)
+
+    def test_a_multiline_attribute_goes_with_its_declaration(self):
+        records, Module, lib, ln = toy_module(MULTILINE)
+        m_all = Module(
+            lib,
+            "Toy.B",
+            [(ln("/-- the old name"), ln("abbrev gone")), (ln("theorem kept"),) * 2],
+        )
+        keep = {(ln("theorem kept"),) * 2}
+        text = m_all.text(keep)
+        self.assertNotIn("deprecated", text)
+        self.assertNotIn("since", text)
+        self.assertNotIn("the old name", text)
+        self.assertIn("theorem kept", text)
+        self.assertEqual(m_all.leaks(text, keep), [])
+        # the block starts at the docstring, so the declaration is one block with both lead-ins
+        self.assertEqual(m_all.blocks[0], (ln("/-- the old name"), ln("abbrev gone")))
+
+    def test_a_docstring_or_attribute_with_nothing_after_it_is_a_leak(self):
+        records, Module, lib, ln = toy_module(MULTILINE)
+        m = Module(lib, "Toy.B", [])
+        for orphan in (
+            "namespace Toy\n\n/-- doc -/\n\nend Toy",
+            'namespace Toy\n\n@[deprecated X\n  (since := "a")]\n\nend Toy',
+            "namespace Toy\n\n@[simp]\n",
+        ):
+            self.assertTrue(
+                any("no declaration after it" in x for x in m.leaks(orphan, set())),
+                orphan,
+            )
+        # an attribute on a command that is no declaration, and a docstring on a notation, are fine
+        for fine in (
+            "@[expose] public section\n\nnamespace Toy\nend Toy",
+            'namespace Toy\n\n/-- doc -/\nnotation "x" => 1\n\nend Toy',
+        ):
+            self.assertFalse(
+                any("no declaration after it" in x for x in m.leaks(fine, set())), fine
+            )
+
+
+class UsesWhatWasCut(unittest.TestCase):
+    """2026-10-08: causalean's ThreeBlockFactorization kept two theorems and cut the three `private theorem`s their proofs call, so the tree could not build it.
+    `Module.dangling` names the removed declarations that the pruned text still uses; compose cuts such a module like one that did not compile."""
+
+    def setUp(self):
+        self.records, self.Module, self.lib, self.ln = toy_module(DANGLING)
+        ln = self.ln
+        self.ranges = [
+            (ln("private theorem helper_lemma"),) * 2,
+            (ln("theorem user"),) * 2,
+            (ln("theorem other"),) * 2,
+        ]
+
+    def test_a_kept_theorem_that_uses_a_cut_one_is_found(self):
+        m = self.Module(self.lib, "Toy.B", self.ranges)
+        keep = {(self.ln("theorem user"),) * 2}
+        text = m.text(keep)
+        self.assertIn("helper_lemma", text)
+        self.assertEqual(m.dangling(text, keep), ["helper_lemma"])
+
+    def test_nothing_is_dangling_when_the_helper_stays(self):
+        m = self.Module(self.lib, "Toy.B", self.ranges)
+        keep = {
+            (self.ln("private theorem helper_lemma"),) * 2,
+            (self.ln("theorem user"),) * 2,
+        }
+        self.assertEqual(m.dangling(m.text(keep), keep), [])
+
+    def test_a_name_in_a_comment_or_after_a_dot_or_too_short_is_not_a_use(self):
+        m = self.Module(self.lib, "Toy.B", self.ranges)
+        keep = {
+            (self.ln("theorem other"),) * 2
+        }  # `helper_lemma` is cut, and only the comment above `user` names it
+        text = m.text(keep)
+        self.assertEqual(m.dangling(text, keep), [])
+        self.assertEqual(
+            m.dangling("theorem other : 2 = 2 := h.helper_lemma", keep), []
+        )  # field notation is another name
+        self.assertEqual(
+            m.dangling("theorem other : 2 = 2 := helper_lemma_two", keep), []
+        )  # a longer identifier
+
+
 if __name__ == "__main__":
     unittest.main()
