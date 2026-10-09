@@ -77,7 +77,9 @@ jobs:
           EOF
           cd tengoku || exit 1
           claude -p "$(cat ../prompt.txt)" --output-format json --mcp-config ../mcp.json \
-            --allowedTools "Read,Grep,Glob,Edit,mcp__leak-i" --permission-mode acceptEdits > ../claude.json || true
+            --tools "Read,Grep,Glob,Edit" --strict-mcp-config \
+            --allowedTools "Read,Grep,Glob,Edit,mcp__leak-i" --permission-mode acceptEdits \
+            --max-turns 60 --max-budget-usd 5 > ../claude.json || true
           python3 -c 'import json; r = json.load(open("../claude.json")); print(str(r.get("result", ""))[-1500:])' || true
           git --no-pager diff --stat
       - name: Check it as the AI reviewer's PR is checked, then propose it
