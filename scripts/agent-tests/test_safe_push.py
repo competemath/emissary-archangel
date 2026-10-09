@@ -24,6 +24,11 @@ def commit_file(repo, name, text, message):
 
 class SafePush(unittest.TestCase):
     def setUp(self):
+        # a rebase commits: CI has no git identity, the finish job sets one with `git config`
+        for name, value in (("GIT_AUTHOR_NAME", "t"), ("GIT_AUTHOR_EMAIL", "t@example.invalid"), ("GIT_COMMITTER_NAME", "t"), ("GIT_COMMITTER_EMAIL", "t@example.invalid")):
+            saved = os.environ.get(name)
+            os.environ[name] = value
+            self.addCleanup(lambda n=name, v=saved: os.environ.__setitem__(n, v) if v is not None else os.environ.pop(n, None))
         self.root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.root, True)
         self.bare = os.path.join(self.root, "remote.git")
