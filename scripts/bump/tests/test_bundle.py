@@ -382,6 +382,31 @@ class KeepScript(unittest.TestCase):
         subprocess.run([sys.executable, str(HERE / "bundle.py"), "keep-input", "--lib", str(lib), "--passed", str(d / "passed.json"), "--roots", "Toy", "--out", str(d / "k.json")], check=True, capture_output=True)
         self.assertEqual(json.loads((d / "k.json").read_text())["imports"], ["Toy.A"])
 
+    def test_keep_input_drop_leaves_out_the_clash_and_what_imports_it(self):
+        """2026-10-09 (groebner-proj, anderson-conjecture, tao-analysis): two modules of a library declare one name, `import X failed, environment already contains …`, and BundleKeep died.
+        The later module and what imports it (directly or not) are left out of the keep step, the rest is kept."""
+        d = Path(tempfile.mkdtemp())
+        lib = d / "lib"
+        base = lib / ".lake" / "build" / "lib" / "lean" / "Toy"
+        base.mkdir(parents=True)
+        (lib / "Toy").mkdir()
+        for m, imp in (("A", ""), ("Clash", ""), ("UsesClash", "import Toy.Clash\n"), ("UsesThat", "import Toy.UsesClash\n"), ("Fine", "import Toy.A\n")):
+            (base / f"{m}.olean").write_bytes(b"")
+            (lib / "Toy" / f"{m}.lean").write_text(imp + "theorem t : True := trivial\n")
+        passed = {f"Toy.{m}": [f"Toy.{m}.t"] for m in ("A", "Clash", "UsesClash", "UsesThat", "Fine")}
+        (d / "passed.json").write_text(json.dumps(passed))
+        cmd = [sys.executable, str(HERE / "bundle.py"), "keep-input", "--lib", str(lib), "--passed", str(d / "passed.json"), "--roots", "Toy", "--out", str(d / "k.json")]
+        subprocess.run([*cmd, "--drop", "Toy.Clash"], check=True, capture_output=True)
+        k = json.loads((d / "k.json").read_text())
+        self.assertEqual(k["imports"], ["Toy.A", "Toy.Fine"])
+        self.assertEqual(k["names"], ["Toy.A.t", "Toy.Fine.t"])
+        self.assertEqual(k["libs"], ["Toy.A", "Toy.Clash", "Toy.Fine", "Toy.UsesClash", "Toy.UsesThat"])  # the library's modules are all still its own
+        subprocess.run(cmd, check=True, capture_output=True)  # no drop: as before
+        self.assertEqual(len(json.loads((d / "k.json").read_text())["names"]), 5)
+        # and the keep log only has to cover the theorems the step was asked about
+        self.assertEqual(bundle.asked_only(passed, k["names"]), {"Toy.A": ["Toy.A.t"], "Toy.Clash": [], "Toy.UsesClash": [], "Toy.UsesThat": [], "Toy.Fine": ["Toy.Fine.t"]})
+        self.assertEqual(bundle.keep_gaps(bundle.asked_only(passed, k["names"]), {("Toy.A", "Toy.A.t"), ("Toy.Fine", "Toy.Fine.t")}), [])
+
     def test_passed_names_the_step_kept_nothing_for_are_found(self):
         passed = {"M.A": ["a", "b"], "M.B": ["c"]}
         self.assertEqual(bundle.keep_gaps(passed, {("M.A", "a"), ("M.A", "b"), ("M.B", "c")}), [])

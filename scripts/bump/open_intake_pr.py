@@ -27,6 +27,17 @@ import tempfile
 from pathlib import Path
 
 
+def parts_total(plan: dict) -> int:
+    """How many parts the library has: the last part's number (a recut from the tree starts at 2, so counting the plan's parts would say one too few)."""
+    return max(part["part"] for part in plan["parts"])
+
+
+def refuse_empty(report: dict, name: str) -> None:
+    """A bundle without a verified theorem is not an intake: tengoku collects theorems (2026-10-09: sphere-packing-ext, cslib and aisafety-atlas came out as 0 theorems in 1 or 2 modules)."""
+    if not report.get("theorems"):
+        sys.exit(f"EMPTY BUNDLE: no verified theorem in {name}, nothing to intake")
+
+
 def sh(*a: str, cwd: str | None = None, check: bool = True) -> str:
     r = subprocess.run(a, cwd=cwd, capture_output=True, text=True)
     if check and r.returncode:
@@ -36,6 +47,19 @@ def sh(*a: str, cwd: str | None = None, check: bool = True) -> str:
 
 def pascal(s: str) -> str:
     return "".join(p[:1].upper() + p[1:] for p in re.split(r"[-_ ]+", s) if p)
+
+
+def with_import(text: str, line: str) -> str:
+    """`text` (Tengoku/All.lean) with the import `line` added: before the first import that sorts after it, at the end when none does. Appending every library at the end
+    made two intake PRs in the merge queue conflict on the last line (2026-10-08, #348); at its own place a library only conflicts with one that sorts into the same gap."""
+    lines = text.split("\n")
+    if line in lines:
+        return text
+    imports = [i for i, ln in enumerate(lines) if ln.startswith("import ")]
+    at = next((i for i in imports if lines[i].lower() > line.lower()), None)
+    if at is None:
+        return text + ("" if text.endswith("\n") else "\n") + line + "\n"
+    return "\n".join([*lines[:at], line, *lines[at:]])
 
 
 def place(stage: Path, repo: Path, key: str, ns: str, part: int | None) -> None:
@@ -56,8 +80,7 @@ def place(stage: Path, repo: Path, key: str, ns: str, part: int | None) -> None:
         dst.write_bytes(data)
     if not extend:
         allp = repo / "Tengoku" / "All.lean"
-        text = allp.read_text()
-        allp.write_text(text + ("" if text.endswith("\n") else "\n") + f"import Tengoku.{ns}\n")
+        allp.write_text(with_import(allp.read_text(), f"import Tengoku.{ns}"))
 
 
 def main() -> None:
@@ -98,6 +121,7 @@ def main() -> None:
     with tarfile.open(tar) as tf:
         tf.extractall(stage, filter="data")
     report = json.loads((stage / "report.json").read_text())
+    refuse_empty(report, tar.name)
     ns = pascal(a.key)
     repo = work / "repo"
     sh("git", "clone", "-q", "--filter=blob:none", "--no-checkout", f"https://github.com/{a.repo}", str(repo))
@@ -115,7 +139,7 @@ def main() -> None:
     nparts = ""
     if a.part is not None:
         plan_file = next((work / "art").rglob(f"parts-{a.mode}.json"), None)
-        nparts = f" of {len(json.loads(plan_file.read_text())['parts'])}" if plan_file else ""
+        nparts = f" of {parts_total(json.loads(plan_file.read_text()))}" if plan_file else ""
     what = "extend" if extend else "intake"
     part_txt = "" if a.part is None else f" part {a.part}{nparts}"
     theorems, modules = report["theorems"], report.get("modules_in_bundle", report.get("modules"))

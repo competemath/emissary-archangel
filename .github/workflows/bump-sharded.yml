@@ -17,6 +17,7 @@ on:
       scope: { description: "RECUT: the `leak:` lines of the merge queue's leak report (separated by `;`): those registrations are made local (scripts/bump/scope_rewrite.py)", default: "" }
       tengoku_ref: { description: "a branch of competemath/tengoku to read the library's tentative records from (default main), for records whose PR is not merged yet", default: "" }
       parts: { description: "PARTS: cut each bundle into parts of at most this many modules (scripts/bump/bundle_layers.py), each attested as bundle-<key>-<mode>-part-NNN.tar, for a library too big for one intake PR (the queue builds ~3 s a module in 40 minutes: 300). 0 = no parts", default: "0" }
+      from_tree: { description: "PARTS, on a recut after some parts merged: cut only the modules the tree does not have yet (the library's Tengoku/<Ns>.lean on tengoku main), numbered from the next part, so the new parts extend what merged (scripts/bump/bundle_layers.py --tree-umbrella)", default: "" }
 permissions: {}
 defaults:
   run:
@@ -93,7 +94,7 @@ jobs:
     timeout-minutes: 120
     # holds the signing identity, runs no code of the library: the shards' artifacts are read as data (shard_pack.merge refuses symlinks and `..`)
     permissions: { contents: read, id-token: write, attestations: write, actions: read }  # actions: read = the shard artifacts of an earlier run (recut)
-    env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}", SCOPE: "${{ inputs.scope }}", PARTS: "${{ inputs.parts }}" }
+    env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}", SCOPE: "${{ inputs.scope }}", PARTS: "${{ inputs.parts }}", FROM_TREE: "${{ inputs.from_tree }}" }
     steps:
       - name: This repository (scripts, the library's setup)
         run: |
@@ -120,7 +121,15 @@ jobs:
             python3 emissary/scripts/bump/bundle_tar.py "$dir" "bundle-$KEY-$mode.tar"
             gzip -n -k "bundle-$KEY-$mode.tar"
             if [ "${PARTS:-0}" != 0 ]; then
-              python3 emissary/scripts/bump/bundle_layers.py --bundle "$dir" --out "parts-$mode" --max-modules "$PARTS" --tar
+              from_tree=""
+              if [ "${FROM_TREE:-}" = true ]; then
+                # the library is in the tree already (its first parts merged): cut only the modules it does not have, from the next part number
+                ns=$(basename "$dir"/Tengoku/*.lean .lean)
+                curl -sSfL "https://raw.githubusercontent.com/competemath/tengoku/main/Tengoku/$ns.lean" -o "tree-umbrella-$mode.lean"
+                last=$(curl -sS "https://api.github.com/repos/competemath/tengoku/contents/data/intake/$KEY/parts" | python3 -c 'import json, re, sys; d = json.load(sys.stdin); n = [int(m.group(1)) for x in (d if isinstance(d, list) else []) for m in [re.match(r"(\d{3})\.json$", x["name"])] if m]; print(max(n, default=1))')
+                from_tree="--tree-umbrella tree-umbrella-$mode.lean --start $((last + 1))"
+              fi
+              python3 emissary/scripts/bump/bundle_layers.py --bundle "$dir" --out "parts-$mode" --max-modules "$PARTS" --tar $from_tree
               for t in "parts-$mode"/part-*.tar; do cp "$t" "bundle-$KEY-$mode-$(basename "$t")"; done
               cp "parts-$mode/plan.json" "parts-$mode.json"
             fi

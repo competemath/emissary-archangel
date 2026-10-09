@@ -35,7 +35,7 @@ class Place(unittest.TestCase):
         op.place(self.stage, self.repo, "fx-lib", "FxLib", None)
         self.assertEqual((self.repo / "data/intake/fx-lib/manifest.jsonl").read_text(), '{"name": "a"}\n')
         self.assertEqual(json.loads((self.repo / "data/intake/fx-lib/report.json").read_text()), {"part": 1})
-        self.assertEqual((self.repo / "Tengoku/All.lean").read_text(), "import Tengoku.Lib\nimport Tengoku.FxLib\n")
+        self.assertEqual((self.repo / "Tengoku/All.lean").read_text(), "import Tengoku.FxLib\nimport Tengoku.Lib\n")  # at its sorted place
         self.assertTrue((self.repo / "Tengoku/FxLib/A.lean").is_file())
 
     def test_the_first_part_is_an_intake(self):
@@ -67,7 +67,68 @@ class Place(unittest.TestCase):
         write(self.repo, "Tengoku/All.lean", "import Tengoku.Lib")
         self.bundle("", {})
         op.place(self.stage, self.repo, "fx-lib", "FxLib", None)
-        self.assertEqual((self.repo / "Tengoku/All.lean").read_text(), "import Tengoku.Lib\nimport Tengoku.FxLib\n")
+        self.assertEqual((self.repo / "Tengoku/All.lean").read_text(), "import Tengoku.FxLib\nimport Tengoku.Lib")  # inserted before it: the last line is not touched
+        write(self.repo, "Tengoku/All.lean", "import Tengoku.Abc")
+        op.place(self.stage, self.repo, "fx-lib", "FxLib", None)
+        self.assertEqual((self.repo / "Tengoku/All.lean").read_text(), "import Tengoku.Abc\nimport Tengoku.FxLib\n")  # appended: on its own line
+
+
+class PartsTotal(unittest.TestCase):
+    def test_a_cut_from_part_one_has_as_many_parts_as_the_plan_lists(self):
+        self.assertEqual(op.parts_total({"parts": [{"part": 1}, {"part": 2}, {"part": 3}]}), 3)
+
+    def test_a_cut_from_the_tree_counts_the_parts_before_it_too(self):
+        self.assertEqual(op.parts_total({"parts": [{"part": 2}, {"part": 3}, {"part": 4}, {"part": 5}]}), 5)
+
+
+class WithImport(unittest.TestCase):
+    ALL = "import Tengoku.Apap\nimport Tengoku.Carleson\nimport Tengoku.Flt\nimport Tengoku.Pfr\n"
+
+    def test_a_library_goes_to_its_own_place_in_the_sorted_imports(self):
+        got = op.with_import(self.ALL, "import Tengoku.Complexitylib")
+        self.assertEqual(got, "import Tengoku.Apap\nimport Tengoku.Carleson\nimport Tengoku.Complexitylib\nimport Tengoku.Flt\nimport Tengoku.Pfr\n")
+
+    def test_the_last_in_order_is_appended_and_the_first_is_prepended(self):
+        self.assertTrue(op.with_import(self.ALL, "import Tengoku.Zzz").endswith("import Tengoku.Pfr\nimport Tengoku.Zzz\n"))
+        self.assertTrue(op.with_import(self.ALL, "import Tengoku.Aaa").startswith("import Tengoku.Aaa\nimport Tengoku.Apap\n"))
+
+    def test_a_file_without_a_final_newline_and_a_line_already_there(self):
+        self.assertEqual(op.with_import("import Tengoku.A", "import Tengoku.B"), "import Tengoku.A\nimport Tengoku.B\n")
+        self.assertEqual(op.with_import(self.ALL, "import Tengoku.Flt"), self.ALL)
+
+    def test_two_libraries_added_apart_from_each_other_do_not_conflict_in_git(self):
+        """The reason for the change: both PRs branch from the same All.lean; appended at the end they conflict, at their own places they merge."""
+        import subprocess
+        import tempfile
+
+        d = Path(tempfile.mkdtemp())
+
+        def git(*a):
+            return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@e", *a], cwd=d, check=True, capture_output=True, text=True).stdout
+
+        base = "".join(f"import Tengoku.{x}\n" for x in ("Apap", "Carleson", "Flt", "Pfr", "Statsmllib", "Vcvio"))
+        git("init", "-q", "-b", "main")
+        (d / "All.lean").write_text(base)
+        git("add", "-A")
+        git("commit", "-q", "-m", "base")
+        for branch, lib in (("one", "Complexitylib"), ("two", "Tauceti")):
+            git("checkout", "-q", "-b", branch, "main")
+            (d / "All.lean").write_text(op.with_import(base, f"import Tengoku.{lib}"))
+            git("commit", "-qam", branch)
+        git("checkout", "-q", "one")
+        git("merge", "-q", "--no-edit", "two")  # raises on a conflict
+        self.assertEqual((d / "All.lean").read_text().count("import Tengoku."), 8)
+
+
+class RefuseEmpty(unittest.TestCase):
+    def test_a_bundle_with_no_verified_theorem_is_refused_and_says_so(self):
+        for report in ({"theorems": 0}, {}, {"theorems": None}):
+            with self.assertRaises(SystemExit) as cm:
+                op.refuse_empty(report, "bundle-x-proposed-part-001.tar")
+            self.assertIn("EMPTY BUNDLE", str(cm.exception))
+
+    def test_a_bundle_with_theorems_is_not(self):
+        op.refuse_empty({"theorems": 1}, "x")
 
 
 if __name__ == "__main__":

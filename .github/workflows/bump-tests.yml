@@ -1,12 +1,13 @@
 # The factory's own unit tests (scripts/bump/tests), on every push and pull request that touches scripts. They used to run only by hand or inside the
-# tolerant-smoke experiment, which is to say: not when something breaks. No Lean, no network, a read-only token.
+# tolerant-smoke experiment, which is to say: not when something breaks. No Lean, no network, a read-only token. The two bump workflows are checked out
+# and trigger it too: some tests read them (their `from_tree` wiring).
 name: bump-tests
 on:
   push:
     branches: [main]
-    paths: ["scripts/**", ".github/workflows/bump-tests.yml"]
+    paths: ["scripts/**", ".github/workflows/bump-tests.yml", ".github/workflows/bump-sharded.yml", ".github/workflows/bump-library.yml"]
   pull_request:
-    paths: ["scripts/**", ".github/workflows/bump-tests.yml"]
+    paths: ["scripts/**", ".github/workflows/bump-tests.yml", ".github/workflows/bump-sharded.yml", ".github/workflows/bump-library.yml"]
 permissions: {}
 defaults:
   run:
@@ -19,7 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          sparse-checkout: scripts
+          sparse-checkout: |
+            scripts
+            .github/workflows
           persist-credentials: false
       - name: unit tests of scripts/bump
         run: |

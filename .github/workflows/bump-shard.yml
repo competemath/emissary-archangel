@@ -106,6 +106,7 @@ jobs:
       - name: Batched Gate 2 over the declarations of this shard's targets
         working-directory: emissary
         run: |
+          W="$PWD"  # `lib` is a symlink for a library with a `subdir`: a ../ after `cd lib` is the target's parent, not this directory
           LP="$(cd lib && lake env printenv LEAN_PATH):$GITHUB_WORKSPACE/vendorproj/.lake/build/lib/lean"
           TENT="../tengoku/data/tentative/$KEY.jsonl,../tengoku/data/tentative/$KEY/*.jsonl"
           mine=$(paste -sd, targets.txt)
@@ -115,8 +116,8 @@ jobs:
             for attempt in $(seq 1 15); do
               python3 scripts/bump/gate2_batch.py generate --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
                 --roots "$ROOTS" --out lib/gate2-check.lean --controls "$CONTROLS" --exclude "$exclude" --only "$only" --tentative "$TENT" | tee plan.json
-              (cd lib; LEAN_PATH="$LP" timeout 150m lean gate2-check.lean > ../gate2-pass.log 2>&1 || true
-               echo "pass $pass attempt $attempt: $(grep -c 'GATE2B_' ../gate2-pass.log) verdicts")
+              (cd lib; LEAN_PATH="$LP" timeout 150m lean gate2-check.lean > "$W/gate2-pass.log" 2>&1 || true
+               echo "pass $pass attempt $attempt: $(grep -c 'GATE2B_' "$W/gate2-pass.log") verdicts")
               bad=$(grep -oP "import \K\S+(?= failed)" gate2-pass.log | head -1 || true)
               [ -z "$bad" ] && break
               exclude="$exclude,$bad"
@@ -130,8 +131,9 @@ jobs:
         working-directory: emissary
         run: |
           # a program that imports only Lean and loads the library at run time (BundleKeep.lean says why: a script that imported the library parsed with its tokens)
+          W="$PWD"  # `lib` is a symlink for a library with a `subdir`: a ../ after `cd lib` is the target's parent, not this directory
           python3 scripts/bump/bundle.py keep-input --lib lib --passed passed.json --roots "$ROOTS" --out lib/bundle-keep.json
-          (cd lib && timeout 120m lake env lean --run ../scripts/bump/BundleKeep.lean bundle-keep.json > ../bundle-deps.log 2>&1 || true)
+          (cd lib && timeout 120m lake env lean --run "$W/scripts/bump/BundleKeep.lean" bundle-keep.json > "$W/bundle-deps.log" 2>&1 || true)
           grep -c BUNDLE_KEEP bundle-deps.log || true
       - name: Pack this shard
         working-directory: emissary
