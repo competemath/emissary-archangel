@@ -1,0 +1,34 @@
+{
+  "shard": 9,
+  "shards": 16,
+  "commit": "adc7f1241b42e322a6451854ab7e4b4c146bf78a",
+  "toolchain": "leanprover/lean4:v4.34.1",
+  "modules": 197,
+  "exported": 193,
+  "failed": [
+    {
+      "module": "OAI.Geometry.Arnold.Hessian",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.Parameter",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.ThreePoints",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.RepresentationTheory.Saxl.StripReduction",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 9993,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "minutes": 226,
+  "finishedAt": "2026-10-09T14:21:34.642Z"
+}

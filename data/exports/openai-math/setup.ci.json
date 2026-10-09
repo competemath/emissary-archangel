@@ -1,0 +1,182 @@
+{
+  "key": "openai-math",
+  "repo": "https://github.com/openai/math",
+  "commit": "adc7f1241b42e322a6451854ab7e4b4c146bf78a",
+  "toolchain": "leanprover/lean4:v4.34.1",
+  "roots": [
+    "OAI",
+    "ComparatorChallenges"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/openai-math/repo/lean",
+  "entries": 57313,
+  "modules": 2893,
+  "exported": 2866,
+  "failed": [
+    {
+      "module": "OAI.Geometry.Arnold.CompactField",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.CriticalLifts",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.Degeneracy",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.Factors",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.Field",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.FieldAlgebra",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.FixedCount",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.FixedPoints",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.Hamiltonian",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.Hessian",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.Kernel",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.Main",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.Midpoint",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.MidpointDerivative",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.MidpointGeometry",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.Obstruction",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.Parameter",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.Quotient",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.Sphere",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.Geometry.Arnold.ThreePoints",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.RepresentationTheory.Saxl.CyclicTensor",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.RepresentationTheory.Saxl.DominatedQuotient",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.RepresentationTheory.Saxl.DominatedSupport",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.RepresentationTheory.Saxl.Main",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.RepresentationTheory.Saxl.RepeatedProjection",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.RepresentationTheory.Saxl.StaircaseSign",
+      "why": "no closure"
+    },
+    {
+      "module": "OAI.RepresentationTheory.Saxl.StripReduction",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 165835,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "OAI.Algebra.Drinfeld.Foundations",
+        "why": "ta: repository '/home/runner/work/emissary-archangel/emissary-archangel/infra/openai-math/repo/lean/.lake/packages/tate-curves-theta' has local changes warning: iut: repository '/home/runner/work/emissary-archangel/emissary-archangel/infra/openai-math/repo/lean/.lake/packages/iut' has local changes "
+      },
+      {
+        "module": "OAI.Combinatorics.MatroidCounting.CommonBases",
+        "why": "ta: repository '/home/runner/work/emissary-archangel/emissary-archangel/infra/openai-math/repo/lean/.lake/packages/tate-curves-theta' has local changes warning: iut: repository '/home/runner/work/emissary-archangel/emissary-archangel/infra/openai-math/repo/lean/.lake/packages/iut' has local changes "
+      },
+      {
+        "module": "OAI.Geometry.HarmonicGrowth.AngularTrace",
+        "why": "ta: repository '/home/runner/work/emissary-archangel/emissary-archangel/infra/openai-math/repo/lean/.lake/packages/tate-curves-theta' has local changes warning: iut: repository '/home/runner/work/emissary-archangel/emissary-archangel/infra/openai-math/repo/lean/.lake/packages/iut' has local changes "
+      },
+      {
+        "module": "OAI.Geometry.LogVolume.BrunnMinkowski",
+        "why": "ta: repository '/home/runner/work/emissary-archangel/emissary-archangel/infra/openai-math/repo/lean/.lake/packages/tate-curves-theta' has local changes warning: iut: repository '/home/runner/work/emissary-archangel/emissary-archangel/infra/openai-math/repo/lean/.lake/packages/iut' has local changes "
+      },
+      {
+        "module": "OAI.Geometry.HarmonicGrowth.Counting",
+        "why": "ta: repository '/home/runner/work/emissary-archangel/emissary-archangel/infra/openai-math/repo/lean/.lake/packages/tate-curves-theta' has local changes warning: iut: repository '/home/runner/work/emissary-archangel/emissary-archangel/infra/openai-math/repo/lean/.lake/packages/iut' has local changes "
+      }
+    ]
+  },
+  "seed": {
+    "records": 57313,
+    "kept": 57313,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 57313,
+    "sorryOriginals": 0,
+    "emptyProofs": 6
+  },
+  "sharded": {
+    "records": 16,
+    "shards": [
+      16
+    ]
+  },
+  "exportsBytes": 2920546304,
+  "minutes": 244,
+  "finishedAt": "2026-10-09T17:08:28.285Z",
+  "archive": {
+    "release": "exports-openai-math",
+    "asset": "openai-math@adc7f1241b42-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-openai-math/openai-math@adc7f1241b42-exports.tar.zst",
+    "bytes": 328701895,
+    "sha256": "5f5b4e313aa0c88ddb28478b7455b86eaeca4bba3bd1f2517f95cf3519dafbf5",
+    "files": 5732,
+    "unpack": "tar --zstd -xf openai-math@adc7f1241b42-exports.tar.zst -C data/exports/openai-math"
+  }
+}

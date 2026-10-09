@@ -1,0 +1,116 @@
+import OAI.Combinatorics.Sensitivity.RecursiveRepair
+
+
+-- @@ L3-3 verbatim
+namespace OAI
+
+
+-- @@ L5-5 verbatim
+/-! Unique failed children and the unique possible sink of the gate-clause list. -/
+
+
+-- @@ L7-7 verbatim
+noncomputable section
+
+-- @@ L8-8 verbatim
+open scoped Classical
+
+
+-- @@ L10-10 verbatim
+namespace Paper320
+
+
+-- @@ L12-20 verbatim
+theorem targetWitness_false {k r h : ℕ} {I : Type} (T : Tournament k)
+    (label : Fin k → Fin k → Fin r) (F : Fin (h + 1) → (I → Bool) → Bool)
+    (q : Fin h) (x : ((Fin k × Fin r) × I) → Bool) (hr : 0 < r) (i : Fin k)
+    (hi : i ∈ targetCandidates T label F q x) :
+    F (Fin.last h) (recursiveChild x i (targetWitness F x hr i)) = false := by
+  have hm : targetWitness F x hr i ∈ targetFailures F x i := by
+    rw [targetFailures_singleton T label F q x hr i hi]
+    exact Finset.mem_singleton_self _
+  exact (Finset.mem_filter.mp hm).2
+
+
+-- @@ L22-28 verbatim
+theorem targetWitness_unique {k r h : ℕ} {I : Type} (T : Tournament k)
+    (label : Fin k → Fin k → Fin r) (F : Fin (h + 1) → (I → Bool) → Bool)
+    (q : Fin h) (x : ((Fin k × Fin r) × I) → Bool) (hr : 0 < r) (i : Fin k)
+    (hi : i ∈ targetCandidates T label F q x) (c : Fin r)
+    (hc : F (Fin.last h) (recursiveChild x i c) = false) : c = targetWitness F x hr i := by
+  have hm : c ∈ targetFailures F x i := Finset.mem_filter.mpr ⟨Finset.mem_univ _, hc⟩
+  rwa [targetFailures_singleton T label F q x hr i hi, Finset.mem_singleton] at hm
+
+
+-- @@ L30-40 verbatim
+theorem gateWitness_spec {k r h : ℕ} {I : Type} (T : Tournament k)
+    (label : Fin k → Fin k → Fin r) (F : Fin (h + 1) → (I → Bool) → Bool)
+    (q : Fin h) (x : ((Fin k × Fin r) × I) → Bool) (i : Fin k)
+    (hi : i ∈ gateCandidates T label F q x) :
+    T.Adj i (gateWitness T label F q x i) ∧
+      F (gateIndex q) (recursiveChild x (gateWitness T label F q x i)
+        (label i (gateWitness T label F q x i))) = true := by
+  have hm : gateWitness T label F q x i ∈ gateFailures T label F q x i := by
+    rw [gateFailures_singleton T label F q x i hi]
+    exact Finset.mem_singleton_self _
+  exact (Finset.mem_filter.mp hm).2
+
+
+-- @@ L42-49 verbatim
+theorem gateWitness_unique {k r h : ℕ} {I : Type} (T : Tournament k)
+    (label : Fin k → Fin k → Fin r) (F : Fin (h + 1) → (I → Bool) → Bool)
+    (q : Fin h) (x : ((Fin k × Fin r) × I) → Bool) (i : Fin k)
+    (hi : i ∈ gateCandidates T label F q x) (j : Fin k) (hij : T.Adj i j)
+    (hj : F (gateIndex q) (recursiveChild x j (label i j)) = true) :
+    j = gateWitness T label F q x i := by
+  have hm : j ∈ gateFailures T label F q x i := Finset.mem_filter.mpr ⟨Finset.mem_univ _, hij, hj⟩
+  rwa [gateFailures_singleton T label F q x i hi, Finset.mem_singleton] at hm
+
+
+-- @@ L51-55 verbatim
+def gateSinks {k r h : ℕ} {I : Type} (T : Tournament k)
+    (label : Fin k → Fin k → Fin r) (F : Fin (h + 1) → (I → Bool) → Bool)
+    (q : Fin h) (x : ((Fin k × Fin r) × I) → Bool) : Finset (Fin k) :=
+  (gateCandidates T label F q x).filter fun i =>
+    ∀ j ∈ gateCandidates T label F q x, ¬ T.Adj i j
+
+
+-- @@ L57-64 verbatim
+theorem gateSinks_card {k r h : ℕ} {I : Type} (T : Tournament k)
+    (label : Fin k → Fin k → Fin r) (F : Fin (h + 1) → (I → Bool) → Bool)
+    (q : Fin h) (x : ((Fin k × Fin r) × I) → Bool) :
+    (gateSinks T label F q x).card ≤ 1 := by
+  apply Finset.card_le_one.mpr
+  intro i hi j hj
+  exact T.internal_sink_unique (Finset.mem_filter.mp hi).1 (Finset.mem_filter.mp hj).1
+    (Finset.mem_filter.mp hi).2 (Finset.mem_filter.mp hj).2
+
+
+-- @@ L66-80 verbatim
+theorem nonsink_gateWitness_mem {k r h : ℕ} {I : Type} (T : Tournament k)
+    (label : Fin k → Fin k → Fin r) (F : Fin (h + 1) → (I → Bool) → Bool)
+    (hF : NestedFamily F) (q : Fin h) (x : ((Fin k × Fin r) × I) → Bool)
+    (i : Fin k) (hi : i ∈ gateCandidates T label F q x)
+    (hs : i ∉ gateSinks T label F q x) :
+    gateWitness T label F q x i ∈ gateCandidates T label F q x := by
+  have he : ∃ j ∈ gateCandidates T label F q x, T.Adj i j := by
+    by_contra hn
+    apply hs
+    apply Finset.mem_filter.mpr
+    refine ⟨hi, ?_⟩
+    intro j hj hij
+    exact hn ⟨j, hj, hij⟩
+  obtain ⟨j, hj, hij⟩ := he
+  rwa [← gateCandidates_neighbor T label F hF q x i j hi hj hij]
+
+
+-- @@ L82-82 verbatim
+end Paper320
+
+
+-- @@ L84-84 verbatim
+end
+
+
+-- @@ L86-86 verbatim
+end OAI

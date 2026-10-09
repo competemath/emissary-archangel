@@ -1,0 +1,22 @@
+{
+  "shard": 12,
+  "shards": 16,
+  "commit": "adc7f1241b42e322a6451854ab7e4b4c146bf78a",
+  "toolchain": "leanprover/lean4:v4.34.1",
+  "modules": 156,
+  "exported": 155,
+  "failed": [
+    {
+      "module": "OAI.RepresentationTheory.Saxl.DominatedSupport",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 8764,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "minutes": 164,
+  "finishedAt": "2026-10-09T15:41:17.440Z"
+}
