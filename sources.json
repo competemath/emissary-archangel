@@ -1236,7 +1236,7 @@
       "licence": "Apache-2.0"
     },
     "openai-math": {
-      "label": "openai-math",
+      "label": "OpenAI formal mathematics release: batch 1 (Mathlib-only main results)",
       "repo": "https://github.com/openai/math",
       "commit": "adc7f1241b42e322a6451854ab7e4b4c146bf78a",
       "toolchain": "leanprover/lean4:v4.34.1",
@@ -1245,7 +1245,8 @@
         "ComparatorChallenges"
       ],
       "subdir": "lean",
-      "licence": "Apache-2.0"
+      "licence": "Apache-2.0",
+      "tentative": ["openai-math/001.jsonl", "openai-math/002.jsonl"]
     }
   }
 }
