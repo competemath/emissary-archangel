@@ -156,6 +156,7 @@ there, and commits.
 | `RECURSE_PREFIX_CACHE_PATH` | bridge | `<root>/data/recurse-prefix-cache.json` |
 | `QUEUE_APP_URL` | bridge | `http://localhost:3000` |
 | `BRIDGE_TOKEN`, `PORT`, `ALLOWED_ORIGINS` | bridge | random token, 4123, localhost |
+| `EMISSARY_JAIL`, `EMISSARY_ALLOW_BASH`, `EMISSARY_MAX_USD`, `EMISSARY_MAX_TURNS`, `EMISSARY_TRACE_DIR`, `EMISSARY_AGENT_ENV_PASS` | bridge | the agent has no shell, 20 USD and 400 turns per run, no trace; see [docs/agent-security.md](docs/agent-security.md) |
 | `TENGOKU_STAGING_REPO` | app | `../compete-math/tengoku` |
 | `GATE2_TREE_IMPORT`, `EMISSARY_OLD_EXPORT`, `PORT` | gate2 | `Tengoku.All`, `gate2/data/export.ndjson`, 7861 |
 
@@ -164,6 +165,12 @@ there, and commits.
 - It compiles only through `verify_full_script`; local `lean`/`lake`/`elan`
   and network commands are blocked by hooks, and every run starts in a
   throwaway working directory with no memory of earlier runs.
+- It is an untrusted party. It reads Lean source nobody here wrote, so it has
+  a tool set instead of a deny-list (MCP tools, and a shell only inside the
+  CI jail), an environment without the bridge's tokens, spend caps and an
+  audited trace, and in the cloud it runs as an unprivileged user behind a
+  kernel firewall. [docs/agent-security.md](docs/agent-security.md) says what
+  changed and what is still a risk.
 - It never calls Gate 2: the harness runs it on every Leak IV pass and
   appends the verdict to the same tool result.
 - It must keep the original's names (Gate 2 shares them with the replayed

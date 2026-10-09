@@ -1,0 +1,57 @@
+name: agent-selftest
+run-name: agent jail self-test
+# Proves the agent's jail on a runner without spending anything: no Lean, no model, no secrets. It builds the same agent user,
+# kernel egress rules and allowlist proxy as translate.yml (scripts/agent-jail.py), runs the escape battery (`warden selftest`) as
+# the agent user, then walks the whole launch chain with a stand-in for the model CLI: scripts/agent-run.py starts it as the
+# agent, with the allowlisted environment, under the supervisor that kills it if the wrapper dies; and the network is checked
+# from the agent's side (the model API host through the proxy yes, anything else no).
+#
+# Run it after changing scripts/agent-*.py, scripts/warden or the runner image's assumptions:  gh workflow run agent-selftest.yml
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  battery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { contents: read }
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2
+        with:
+          egress-policy: audit   # as in translate.yml: see there how to turn the observed endpoints into `block`
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout: scripts
+          persist-credentials: false
+      - name: A stand-in for the model CLI, root-owned where the real one goes
+        run: |
+          cat > "$RUNNER_TEMP/claude-stand-in" <<'STUB'
+          #!/bin/sh
+          case "$*" in *SLEEP*) echo $$ > /tmp/agent-smoke-pid; exec sleep 300;; esac
+          echo "user=$(id -un)"; echo "cwd=$PWD"; env | sort; echo "args=$*"
+          STUB
+          sudo install -d -m 0755 /opt/agent-tools/bin
+          sudo install -m 0755 -o root -g root "$RUNNER_TEMP/claude-stand-in" /opt/agent-tools/bin/claude
+      - name: The jail (the agent user, the egress rules, the proxy)
+        run: sudo python3 scripts/agent-jail.py setup --runner-user "$(id -un)" --runner-home "$HOME" --ports 4125,7871,7872
+      - name: The escape battery, as the agent user
+        run: python3 scripts/agent-jail.py ready --runner-home "$HOME" --ports 4125,7871,7872 --report "$RUNNER_TEMP/selftest-report.json"
+      - name: The launch chain and the network, with the stand-in
+        run: scripts/agent-selftest-smoke.sh
+      - name: What the proxy decided
+        if: always()
+        run: |
+          cat /var/log/emissary/egress.jsonl 2>/dev/null || true
+          cat /var/log/emissary/egress.err 2>/dev/null || true
+          python3 -c "import json,os; r=json.load(open(os.environ['RUNNER_TEMP']+'/selftest-report.json')); print(json.dumps(r.get('counts'))); print('failed:', r.get('failed'))" 2>/dev/null || true
+      - name: Take the jail down
+        if: always()
+        run: sudo python3 scripts/agent-jail.py teardown || true

@@ -14,6 +14,11 @@
 //   GH_TOKEN=<a token that can push branches and open PRs on the tree> node scripts/bank-flush.mjs
 //        [--repo competemath/tengoku] [--batch 500] [--key <key>] [--dry-run]
 // The commits are authored and signed off by the token's own account (its GitHub noreply address).
+//
+// Before a branch is pushed, scripts/bank-guard.py (tengoku-warden, vendored in scripts/warden) checks it: the staged records are
+// secret-scanned, the pull request carries a tengoku-target marker that validate_pr accepts, and the commit adds only what
+// scripts/agent-paths.json lists (data/staging/<library>/<batch>.jsonl, mode 100644, nothing deleted). If any check fails
+// nothing of that library is pushed and its bank files stay where they are; the next run tries again.
 import { resplitRecord } from "../lib/stage-record.mjs"
 import { execFileSync } from "node:child_process"
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
@@ -30,6 +35,17 @@ const MAX_PRS = Number(opt("max-prs", "0")) || Infinity   // per run: a new acco
 const ROOT = new URL("..", import.meta.url).pathname
 const BANK = join(ROOT, "data", "bank")
 const sh = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 }).trim()
+// The guard runs with nothing of ours but PATH: no GH_TOKEN, no bridge token. A guard that cannot run (no python3) is a refusal.
+const GUARD = join(ROOT, "scripts", "bank-guard.py")
+const guardEnv = { PATH: process.env.PATH, LANG: "C.UTF-8", PYTHONDONTWRITEBYTECODE: "1" }
+function guard(args) {
+  try {
+    execFileSync("python3", [GUARD, ...args], { env: guardEnv, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
+    return null
+  } catch (e) {
+    return (String(e.stdout || "") + String(e.stderr || "")).trim() || `guard did not run: ${e.message}`
+  }
+}
 const token = process.env.GH_TOKEN
 if (!token && !DRY) {
   console.log("bank-flush: no GH_TOKEN — nothing sent (the bank stays committed until a token exists)")
@@ -127,6 +143,7 @@ for (const { key, files } of pending) {
     console.log(`bank-flush: ${MAX_PRS} PRs this run; the rest wait for the next run`)
     break
   }
+  const clashMark = clashes.length
   const have = onMain(key)
   const records = files.flatMap((f) => readFileSync(join(BANK, key, f), "utf8").split("\n").filter((l) => l.trim()))
   const seen = new Set()
@@ -146,15 +163,28 @@ for (const { key, files } of pending) {
     claim(r.name, key, r.statement) // a later library in this run sees it
     fresh.push(JSON.stringify(r))
   }
-  const prs = []
-  for (let i = 0; i < fresh.length; i += BATCH) {
+  // Phase 1: build every batch's commit on a local branch and run the guard on it. Nothing leaves this machine yet, so a
+  // refusal anywhere means nothing of this library was sent and the whole bank stays for the next run.
+  const planned = []
+  let refusal = null
+  for (let i = 0; i < fresh.length && !refusal; i += BATCH) {
     const batch = fresh.slice(i, i + BATCH)
     const id = `${stamp}-${String(i / BATCH).padStart(3, "0")}`
     const branch = `bank/${key}/${id}`
     const title = `Stage ${key}: ${batch.length} record${batch.length === 1 ? "" : "s"} (${id})`
-    const body = `Banked by Emissary-Archangel's cloud translation (runs ${files.map((f) => f.replace(/\.jsonl$/, "")).join(", ")}). One per-PR staging file; the merge queue compiles exactly these records.`
+    const target = `emissary-archangel:stage/${key}/${id}`
+    // the target marker (warden safegit.make_marker's canonical form: sorted keys, compact), checked by bank-guard.py
+    const marker = `<!--tengoku-target:v1 ${JSON.stringify({ actor: "emissary-archangel", base: "main", target })}-->`
+    const body = `Banked by Emissary-Archangel's cloud translation (runs ${files.map((f) => f.replace(/\.jsonl$/, "")).join(", ")}). One per-PR staging file; the merge queue compiles exactly these records.\n\n${marker}`
+    const scratch = mkdtempSync(join(os.tmpdir(), "bank-guard-"))
+    writeFileSync(join(scratch, "body.md"), body)
+    const guardArgs = ["--title", title, "--body-file", join(scratch, "body.md"), "--branch", branch, "--base", "main", "--expect-target", target]
     if (DRY) {
-      console.log(`[dry-run] ${title}`)
+      writeFileSync(join(scratch, "records.jsonl"), batch.join("\n") + "\n")
+      refusal = guard([...guardArgs, "--file", join(scratch, "records.jsonl"), "--skip-scope"])
+      rmSync(scratch, { recursive: true, force: true })
+      console.log(`[dry-run] ${title}${refusal ? " — the guard would refuse it" : ""}`)
+      if (refusal) console.log(refusal)
       continue
     }
     git("switch", "-q", "-C", branch, "origin/main")
@@ -163,6 +193,21 @@ for (const { key, files } of pending) {
     writeFileSync(join(tree, rel), batch.join("\n") + "\n")
     git("add", "--sparse", "--", rel)
     git("commit", "-q", "-s", "-m", `${title}\n\n${body}`)
+    refusal = guard([...guardArgs, "--file", join(tree, rel), "--repo-dir", tree, "--base-rev", "origin/main", "--head-rev", "HEAD", "--policy", join(ROOT, "scripts", "agent-paths.json"), "--class", "translator"])
+    rmSync(scratch, { recursive: true, force: true })
+    planned.push({ branch, title, body })
+  }
+  if (DRY) continue
+  if (refusal) {
+    console.log(`bank-flush: ${key} REFUSED by scripts/bank-guard.py; nothing was pushed and its bank files stay in place:\n${refusal}`)
+    git("switch", "-q", "--detach", "origin/main")
+    for (const p of planned) git("branch", "-q", "-D", p.branch)
+    clashes.length = clashMark
+    continue
+  }
+  // Phase 2: push and open.
+  const prs = []
+  for (const { branch, title, body } of planned) {
     git("push", "-q", "-f", "origin", branch)
     const url = sh("gh", ["pr", "create", "-R", REPO, "--head", branch, "--title", title, "--body", body]).split("\n").pop()
     try {
@@ -174,7 +219,6 @@ for (const { key, files } of pending) {
     opened++
     console.log(`${title}: ${url}`)
   }
-  if (DRY) continue
   mkdirSync(join(BANK, key, "sent"), { recursive: true })
   for (const f of files) renameSync(join(BANK, key, f), join(BANK, key, "sent", f))
   writeFileSync(join(BANK, key, "sent", `${stamp}.prs.json`), JSON.stringify({ files, records: records.length, duplicates: records.length - fresh.length, prs }, null, 2) + "\n")

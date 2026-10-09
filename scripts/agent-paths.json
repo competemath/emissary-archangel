@@ -1,0 +1,13 @@
+{
+  "classes": {
+    "translator": { "allow": ["/data/staging/*/*.jsonl"] }
+  },
+  "protected": [],
+  "max_files": 1,
+  "max_added": 20000,
+  "max_deleted": 0,
+  "max_new_file_lines": 20000,
+  "allowed_modes": ["100644"],
+  "forbid_delete": true,
+  "forbid_binary": true
+}
