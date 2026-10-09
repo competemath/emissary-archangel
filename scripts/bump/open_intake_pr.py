@@ -43,6 +43,19 @@ def pascal(s: str) -> str:
     return "".join(p[:1].upper() + p[1:] for p in re.split(r"[-_ ]+", s) if p)
 
 
+def with_import(text: str, line: str) -> str:
+    """`text` (Tengoku/All.lean) with the import `line` added: before the first import that sorts after it, at the end when none does. Appending every library at the end
+    made two intake PRs in the merge queue conflict on the last line (2026-10-08, #348); at its own place a library only conflicts with one that sorts into the same gap."""
+    lines = text.split("\n")
+    if line in lines:
+        return text
+    imports = [i for i, ln in enumerate(lines) if ln.startswith("import ")]
+    at = next((i for i in imports if lines[i].lower() > line.lower()), None)
+    if at is None:
+        return text + ("" if text.endswith("\n") else "\n") + line + "\n"
+    return "\n".join([*lines[:at], line, *lines[at:]])
+
+
 def place(stage: Path, repo: Path, key: str, ns: str, part: int | None) -> None:
     """Write the unpacked bundle (or part) `stage` into the checkout `repo` in the tree's layout. An extend part (N > 1) appends its manifest lines to the tree's and keeps
     its report under parts/; the first part and an unparted bundle are an intake: manifest and report as they are, and the library's one line in Tengoku/All.lean."""
@@ -61,8 +74,7 @@ def place(stage: Path, repo: Path, key: str, ns: str, part: int | None) -> None:
         dst.write_bytes(data)
     if not extend:
         allp = repo / "Tengoku" / "All.lean"
-        text = allp.read_text()
-        allp.write_text(text + ("" if text.endswith("\n") else "\n") + f"import Tengoku.{ns}\n")
+        allp.write_text(with_import(allp.read_text(), f"import Tengoku.{ns}"))
 
 
 def main() -> None:
