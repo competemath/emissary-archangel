@@ -257,9 +257,12 @@ class Module:
         cmds = command_lines(tlines)
         out: list[str] = []
         for k, (no, ln) in enumerate(cmds):
+            end = cmds[k + 1][0] - 1 if k + 1 < len(cmds) else len(tlines)
+            # a declaration indented under its prefix or docstring (openai/math writes ` theorem …` with one space) is no command line, yet it is the declaration
+            indented_decl = bool(DECL_LINE.match(decl_core(tlines, no, end)))
             if IN_PREFIX.match(ln):
                 nxt = cmds[k + 1][1] if k + 1 < len(cmds) else ""
-                if not (IN_PREFIX.match(nxt) or LEAD_IN.match(nxt) or DECL_LINE.match(nxt)):
+                if not (IN_PREFIX.match(nxt) or LEAD_IN.match(nxt) or DECL_LINE.match(nxt) or indented_decl):
                     out.append(f"line {no}: dangling prefix: {ln.strip()[:80]}")
             else:
                 core = ATTR_INLINE.sub("", ln).strip()  # `@[simp] theorem …`: the keyword line is what comes after the attribute
@@ -271,7 +274,7 @@ class Module:
                     out.append(f"line {no}: a declaration that is not a kept block: {core[:80]}")
                 elif LEAD_IN.match(ln) and (ln.startswith("/--") or not core or core == ln.strip()):  # a docstring, or attributes on their own (not `@[expose] public section`)
                     nxt = cmds[k + 1][1] if k + 1 < len(cmds) else ""
-                    if not nxt or NO_LEAD_IN.match(nxt):
+                    if (not nxt or NO_LEAD_IN.match(nxt)) and not indented_decl:
                         out.append(f"line {no}: a docstring or attribute with no declaration after it: {ln.strip()[:80]}")
         return out
 
