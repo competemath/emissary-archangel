@@ -512,5 +512,26 @@ class ShortNamesAreUsesToo(unittest.TestCase):
         self.assertEqual(m.dangling("theorem other : 2 = 2 := foobar + a.foo + foo'", keep), [])
 
 
+class ModuleFile(unittest.TestCase):
+    def test_a_module_in_guillemets_is_a_file_without_them_and_dots_inside_stay(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        lib = Path("/lib")
+        self.assertEqual(records.module_file(lib, "Toy.A.B"), Path("/lib/Toy/A/B.lean"))
+        self.assertEqual(records.module_file(lib, "Analysis.Misc.«Real-EReal-ENNReal»"), Path("/lib/Analysis/Misc/Real-EReal-ENNReal.lean"))
+        self.assertEqual(records.module_file(lib, "FormalConjectures.Arxiv.«1104.1579».CunninghamChain"), Path("/lib/FormalConjectures/Arxiv/1104.1579/CunninghamChain.lean"))
+        self.assertEqual(records.module_file(lib, "FormalConjectures.Arxiv.«1104.1579»"), Path("/lib/FormalConjectures/Arxiv/1104.1579.lean"))
+        self.assertEqual(records.module_file(lib, "Root"), Path("/lib/Root.lean"))
+
+    def test_module_reads_the_file_of_a_hyphenated_module(self):
+        records, Module, lib, ln = toy_module("theorem t : True := trivial\n", mod="B")
+        d = Path(tempfile.mkdtemp())
+        (d / "Toy").mkdir()
+        (d / "Toy" / "My-File.lean").write_text("theorem t : True := trivial\n")
+        m = Module(d, "Toy.«My-File»", [])
+        self.assertEqual(m.lines[0], "theorem t : True := trivial")
+
+
 if __name__ == "__main__":
     unittest.main()

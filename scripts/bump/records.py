@@ -176,7 +176,7 @@ class Module:
     module did not build.)"""
 
     def __init__(self, lib: Path, mod: str, ranges: list[tuple[int, int]]):
-        path = lib / (mod.replace(".", "/") + ".lean")
+        path = module_file(lib, mod)
         self.path = path
         self.lines = path.read_text(errors="replace").split("\n")
         n = len(self.lines)
@@ -364,8 +364,15 @@ def segments(lines: list[str]) -> list[tuple[int, int]]:
     return [(s, (starts[k + 1] - 1) if k + 1 < len(starts) else len(lines)) for k, s in enumerate(starts)]
 
 
+def module_file(lib: Path, mod: str) -> Path:
+    """The file of a module: `Analysis.Misc.«Real-EReal-ENNReal»` is `Analysis/Misc/Real-EReal-ENNReal.lean`. A part in guillemets is one path component without them, its dots kept
+    (replacing every dot by a slash looked for `lib/Analysis/Misc/«Real-EReal-ENNReal».lean`: tao-analysis could not be bundled, 2026-10-09)."""
+    parts = [m.group(0).strip("«»") for m in re.finditer(r"«[^»]*»|[^.]+", mod)]
+    return lib.joinpath(*parts[:-1], parts[-1] + ".lean")
+
+
 def library_imports(lib: Path, mod: str, mods: set[str]) -> list[str]:
-    path = lib / (mod.replace(".", "/") + ".lean")
+    path = module_file(lib, mod)
     if not path.exists():
         return []
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -418,7 +425,7 @@ def compose(a: argparse.Namespace) -> None:
         mod = ".".join(rel.parts)[: -len(".olean.ranges.json")]
         sidecars[mod] = {n: (s, e) for n, s, e in json.loads(f.read_text())}
     universe = set(sidecars)
-    modules = {m: Module(lib, m, list(sidecars[m].values())) for m in sidecars if (lib / (m.replace(".", "/") + ".lean")).exists()}
+    modules = {m: Module(lib, m, list(sidecars[m].values())) for m in sidecars if module_file(lib, m).exists()}
 
     def source_of(mod: str, const: str):
         """The range of a constant's source: its own, or the nearest prefix of its name that has one (auxiliary definitions,
