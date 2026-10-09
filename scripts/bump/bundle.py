@@ -54,6 +54,12 @@ def keep_gaps(passed: dict[str, list[str]], kept: set[tuple[str, str]]) -> list[
     return [(m, n) for m, ns in passed.items() for n in ns if (m, n) not in kept]
 
 
+def asked_only(passed: dict[str, list[str]], asked_names: list[str]) -> dict[str, list[str]]:
+    """The passed theorems the keep step was asked about (`bundle.py keep-input --drop` leaves out the modules of an import clash and what imports them): only those can have a gap."""
+    asked = set(asked_names)
+    return {m: [n for n in ns if n in asked] for m, ns in passed.items()}
+
+
 def check_keep_gaps(passed: dict[str, list[str]], kept: set[tuple[str, str]], log: str) -> None:
     """Refuse a bundle-deps log that leaves passed theorems out (see MAX_KEEP_GAP): the theorems would not be in the bundle and nothing would say so."""
     gaps = keep_gaps(passed, kept)
@@ -91,6 +97,24 @@ def uses_mathlib(lib: Path) -> bool:
     )
 
 
+def importers_closure(lib: Path, mods: list[str], dropped: set[str]) -> set[str]:
+    """`dropped` and every module of the library that imports one of them, directly or through others."""
+    own = set(mods)
+    imports: dict[str, list[str]] = {}
+    for m in mods:
+        f = lib / Path(*tb.split_mod(m)).with_suffix(".lean")
+        imports[m] = [d for d in tb.header_imports(f.read_text(errors="replace")) if d in own] if f.exists() else []
+    out = {d for d in dropped if d in own}
+    grew = True
+    while grew:
+        grew = False
+        for m, ds in imports.items():
+            if m not in out and any(d in out for d in ds):
+                out.add(m)
+                grew = True
+    return out
+
+
 def keep_input(a: argparse.Namespace) -> None:
     """The input of scripts/bump/BundleKeep.lean: the modules to load, the passed theorems, and the library's own modules. BundleKeep is a program of its own that
     imports only Lean, so nothing the library defines can reach it (see its header)."""
@@ -98,6 +122,12 @@ def keep_input(a: argparse.Namespace) -> None:
     roots = [r for r in a.roots.split(",") if r]
     passed = json.loads(Path(a.passed).read_text())
     mods = built_modules(lib, roots)
+    # Modules that cannot be loaded together with the rest (two modules of the library declare one name: Lean says `import X failed, environment already contains …`) are
+    # left out, with what imports them, and compose is told the same list: the tree loads every module into one environment, so such a pair cannot both be in it.
+    dropped = importers_closure(lib, mods, {m.strip() for m in (a.drop or "").split(",") if m.strip()})
+    passed = {m: n for m, n in passed.items() if m not in dropped}
+    if dropped:
+        print(f"{len(dropped)} modules left out of the keep step (an import clash, and what imports it)")
     imports = (["Mathlib"] if uses_mathlib(lib) else []) + sorted(passed)
     names = [n for m in sorted(passed) for n in passed[m]]
     Path(a.out).write_text(json.dumps({"imports": imports, "names": names, "libs": mods}), encoding="utf-8")
@@ -152,7 +182,7 @@ def compose(a: argparse.Namespace) -> None:
         kept |= {(mod, c) for mod, c in json.loads(re.sub(r"\s*\n\s*", "", m.group(1)))}
     if passed and not kept:  # the Lean step failed (an empty bundle would look like a library with nothing to keep)
         sys.exit("bundle-deps.log has no BUNDLE_KEEP line although theorems passed:\n" + "\n".join(log.splitlines()[-15:]))
-    check_keep_gaps(passed, kept, log)
+    check_keep_gaps(asked_only(passed, json.loads(Path(a.keep_input).read_text())["names"]) if a.keep_input else passed, kept, log)
     sidecars = {}
     base = lib / ".lake" / "build" / "lib" / "lean"
     for f in base.rglob("*.olean.ranges.json"):
@@ -439,10 +469,12 @@ if __name__ == "__main__":
     l = sub.add_parser("keep-input")
     for f in ("lib", "passed", "roots", "out"):
         l.add_argument(f"--{f}", required=True)
+    l.add_argument("--drop", default="", help="comma list of modules not to load (an import clash found by an earlier run of BundleKeep), with their importers")
     c = sub.add_parser("compose")
     for f in ("lib", "log", "passed", "meta", "key", "toolchain", "errors", "out", "src"):
         c.add_argument(f"--{f}", required=True)
     c.add_argument("--gate2", default="")
+    c.add_argument("--keep-input", default="", help="the json keep-input wrote: only the passed theorems named in it are checked for a gap in the keep log")
     c.add_argument("--drop-modules", default="", help="comma list of modules to leave out (with their importers): those that did not build on the tree")
     r = sub.add_parser("refine")
     for f in ("report", "log", "key", "out", "src"):

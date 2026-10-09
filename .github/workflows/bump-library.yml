@@ -218,10 +218,18 @@ jobs:
         run: |
           # a program that imports only Lean and loads the library at run time (BundleKeep.lean says why: a script that imported the library parsed with its tokens)
           W="$PWD"  # `lib` is a symlink for a library with a `subdir`: a ../ after `cd lib` is the target's parent, not this directory
-          python3 scripts/bump/bundle.py keep-input --lib lib --passed passed.json --roots "$ROOTS" --out lib/bundle-keep.json
-          (cd lib && timeout 90m lake env lean --run "$W/scripts/bump/BundleKeep.lean" bundle-keep.json > "$W/bundle-deps.log" 2>&1 || true)
+          # Two modules of a library that declare one name cannot be loaded together (`import X failed, environment already contains …`), and the tree loads every
+          # module into one environment: the later one is left out with what imports it, here and in compose, and the keep step runs again on the rest.
+          drop=""
+          for attempt in $(seq 1 25); do
+            python3 scripts/bump/bundle.py keep-input --lib lib --passed passed.json --roots "$ROOTS" --drop "$drop" --out lib/bundle-keep.json
+            (cd lib && timeout 90m lake env lean --run "$W/scripts/bump/BundleKeep.lean" bundle-keep.json > "$W/bundle-deps.log" 2>&1 || true)
+            bad=$(grep -oP "import \K\S+(?= failed)" bundle-deps.log | head -1 || true)
+            [ -z "$bad" ] && break
+            echo "import clash in the keep step: $bad (and what imports it) is left out of the bundle"; drop="$drop,$bad"
+          done
           python3 scripts/bump/bundle.py compose --lib lib --log bundle-deps.log --passed passed.json --meta "data/exports/$KEY/setup.ci.json" \
-            --key "$KEY" --toolchain "$TOOLCHAIN" --errors build1.log --gate2 gate2.log --out bundle --src pruned-src
+            --key "$KEY" --toolchain "$TOOLCHAIN" --errors build1.log --gate2 gate2.log --out bundle --src pruned-src --drop-modules "${drop#,}" --keep-input lib/bundle-keep.json
       - name: Build the pruned sources until they are clean (what is shipped is exactly what was built; a module that does not build, and what imports it, is left out)
         working-directory: emissary
         run: |
