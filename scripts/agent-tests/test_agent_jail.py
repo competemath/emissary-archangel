@@ -61,6 +61,18 @@ class SetupScript(unittest.TestCase):
         for name in ("agent-supervise.py", "agent-selftest-inner.py"):
             self.assertIn("/opt/emissary-jail/" + name, self.script)
 
+    def test_what_the_hosted_image_leaves_writable_is_closed_and_the_agents_path_has_no_writable_directory(self):
+        script = jail_cli.setup_script(runner_user="runner", runner_home="/home/runner", harden_path="/usr/local/bin:/usr/bin:/opt/hostedtoolcache/node/22/x64/bin")
+        self.assertTrue(bash_syntax_ok(script)[0])
+        self.assertIn("for d in /opt /usr/local /usr/local/bin", script)
+        self.assertIn("chmod go-w", script)
+        self.assertIn("RUNNER_PATH=/usr/local/bin:/usr/bin:/opt/hostedtoolcache/node/22/x64/bin", script)
+        self.assertIn("find -L", script)
+        self.assertIn("chmod o-rwx /run/dbus/system_bus_socket", script)
+        self.assertNotIn("RUNNER_PATH", self.script, "without --harden-path nothing walks a PATH")
+        self.assertNotIn("/usr/local/bin", jail_cli.AGENT_PATH.split(":"), "the image leaves /usr/local/bin writable by everyone")
+        self.assertTrue(all(d.startswith(("/opt/agent-tools", "/usr/bin", "/bin")) for d in jail_cli.AGENT_PATH.split(":")))
+
     def test_the_lean_services_user_keeps_its_way_through_the_closed_home(self):
         script = jail_cli.setup_script(runner_user="runner", runner_home="/home/runner", traverse=["lean"])
         self.assertIn("setfacl -m u:lean:x /home/runner", script)

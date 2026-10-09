@@ -41,7 +41,7 @@ jobs:
           sudo install -d -m 0755 /opt/agent-tools/bin
           sudo install -m 0755 -o root -g root "$RUNNER_TEMP/claude-stand-in" /opt/agent-tools/bin/claude
       - name: The jail (the agent user, the egress rules, the proxy)
-        run: sudo python3 scripts/agent-jail.py setup --runner-user "$(id -un)" --runner-home "$HOME" --ports 4125,7871,7872
+        run: sudo python3 scripts/agent-jail.py setup --runner-user "$(id -un)" --runner-home "$HOME" --ports 4125,7871,7872 --harden-path "$PATH"
       - name: The escape battery, as the agent user
         run: python3 scripts/agent-jail.py ready --runner-home "$HOME" --ports 4125,7871,7872 --report "$RUNNER_TEMP/selftest-report.json"
       - name: The launch chain and the network, with the stand-in

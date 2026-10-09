@@ -187,7 +187,7 @@ jobs:
         if: inputs.mode == 'agent'
         run: |
           mkdir -p out
-          if sudo python3 scripts/agent-jail.py setup --runner-user "$(id -un)" --runner-home "$HOME" --ports 4125,7871,7872 --traverse lean \
+          if sudo python3 scripts/agent-jail.py setup --runner-user "$(id -un)" --runner-home "$HOME" --ports 4125,7871,7872 --traverse lean --harden-path "$PATH" \
              && python3 scripts/agent-jail.py ready --runner-home "$HOME" --ports 4125,7871,7872 --report out/jail-selftest.json; then
             echo "jail=1" >> "$GITHUB_OUTPUT"
           else

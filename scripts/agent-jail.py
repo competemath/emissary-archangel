@@ -40,7 +40,8 @@ from warden import jail  # noqa: E402
 
 JAIL_DIR = "/opt/emissary-jail"
 MARKER = JAIL_DIR + "/ready.json"
-AGENT_PATH = "/opt/agent-tools/bin:/usr/local/bin:/usr/bin:/bin"
+# No /usr/local/bin: the hosted runner image leaves it writable by everyone, and a PATH the agent can write is a PATH it can plant a program in.
+AGENT_PATH = "/opt/agent-tools/bin:/usr/bin:/bin"
 DEFAULT_PORTS = (4125, 7871, 7872)  # the bridge's governor, Leak IV, Archangel (translate.yml)
 PROXY_PORT = 8899
 PROXY_USER = "egress"
@@ -61,12 +62,18 @@ SKIPPED_PROBES = {
 def setup_script(
     *, agent_user: str = "agent", workspace: str = "/home/agent", runner_user: str = "runner", runner_home: str = "/home/runner",
     ports=DEFAULT_PORTS, proxy_port: int = PROXY_PORT, proxy_user: str = PROXY_USER, allow=MODEL_API, scripts_dir: str = HERE,
-    traverse=(),
+    traverse=(), harden_path: str = "",
 ) -> str:
     """Bash (run as root) that creates the jail. Fails closed: any unmet guarantee exits non-zero.
 
     ``traverse`` names accounts (the Lean services' user) that must still walk through the runner's home, which the agent user
-    script closes to everyone else: each gets an ACL entry that allows search (x) on the home directory and nothing more."""
+    script closes to everyone else: each gets an ACL entry that allows search (x) on the home directory and nothing more.
+
+    ``harden_path`` is the runner's PATH. The hosted image leaves /opt, /usr/local/bin and the tool cache writable by everyone, so
+    the agent could replace a program the runner starts later, with the runner's tokens (Tau Ceti finding F-21). The script
+    takes write permission for group and others off the system directories, off every directory of that PATH outside the runner's
+    home, off the executables in them, and off the directories above their real locations. It also closes the system D-Bus socket,
+    which any local account can otherwise connect to."""
     all_ports = sorted(set(int(p) for p in ports) | {int(proxy_port)})
     q = shlex.quote
     body = jail.agent_user_script(agent_user, workspace, runner_user=runner_user, runner_home=runner_home)
@@ -80,6 +87,24 @@ def setup_script(
             "setfacl -m u:%s:x %s" % (q(user), q(runner_home)),
         ]
     lines += [
+        "# the image leaves some directories and programs writable by everyone; the agent must not be able to replace what the runner runs later",
+        'harden() { local p; p="$(realpath -m -- "$1" 2>/dev/null)" || return 0; while [ -n "$p" ] && [ "$p" != / ]; do chmod go-w -- "$p" 2>/dev/null || true; p="$(dirname -- "$p")"; done; }',
+        "for d in /opt /usr/local /usr/local/bin /usr/local/sbin /usr/local/lib /srv /home; do if [ -d \"$d\" ]; then harden \"$d\"; fi; done",
+    ]
+    if harden_path:
+        lines += [
+            "RUNNER_PATH=%s" % q(harden_path),
+            'IFS=: read -r -a runner_path_dirs <<< "$RUNNER_PATH"',
+            'for d in "${runner_path_dirs[@]}"; do',
+            '  [ -d "$d" ] || continue',
+            '  case "$d" in "$RUNNER_HOME"|"$RUNNER_HOME"/*) continue ;; esac',
+            '  harden "$d"',
+            '  while IFS= read -r f; do harden "$f"; chmod go-w -- "$f" 2>/dev/null || true; done < <(find -L "$d" -maxdepth 1 -type f -perm /go+w 2>/dev/null)',
+            "done",
+        ]
+    lines += [
+        "# the system bus socket is connectable by every local account; the agent has no business there",
+        'if [ -S /run/dbus/system_bus_socket ]; then chmod o-rwx /run/dbus/system_bus_socket; fi',
         "# user namespaces off: the agent cannot build a sandbox of its own (the nested_userns_denied probe checks it)",
         "sysctl -w user.max_user_namespaces=0 >/dev/null",
         "# the kernel refuses everything the agent sends except TCP to these loopback ports",
@@ -252,6 +277,7 @@ def cmd_setup(ns) -> int:
     script = setup_script(
         agent_user=ns.agent_user, workspace=ns.workspace, runner_user=ns.runner_user, runner_home=ns.runner_home,
         ports=[int(p) for p in ns.ports.split(",") if p], proxy_port=ns.proxy_port, allow=ns.allow or MODEL_API, traverse=ns.traverse or (),
+        harden_path=ns.harden_path or "",
     )
     if ns.print:
         sys.stdout.write(script)
@@ -329,6 +355,7 @@ def main(argv=None) -> int:
     s.add_argument("--runner-user", default=os.environ.get("SUDO_USER") or os.environ.get("USER") or "runner")
     s.add_argument("--allow", action="append", help="HOST:PORT the proxy may tunnel to (default: %s)" % ", ".join(MODEL_API))
     s.add_argument("--traverse", action="append", help="an account that must keep walking through the runner's home (the Lean services' user)")
+    s.add_argument("--harden-path", metavar="PATH", help="the runner's PATH: take write permission for others off its directories and programs")
     s.add_argument("--print", action="store_true", help="print the script instead of running it")
     s.set_defaults(fn=cmd_setup)
     r = sub.add_parser("ready", help="run the escape battery as the agent and write the marker")

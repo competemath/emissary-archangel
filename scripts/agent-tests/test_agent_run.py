@@ -36,7 +36,7 @@ def spit(path, text=""):
 def ready(**over):
     data = {
         "version": 1, "ok": True, "agent_user": "agent", "workspace": "/home/agent", "real_claude": "/opt/agent-tools/bin/claude",
-        "path": "/opt/agent-tools/bin:/usr/local/bin:/usr/bin:/bin", "ports": [4125, 7871, 7872, 8899], "proxy": "http://127.0.0.1:8899",
+        "path": "/opt/agent-tools/bin:/usr/bin:/bin", "ports": [4125, 7871, 7872, 8899], "proxy": "http://127.0.0.1:8899",
         "bash": False, "max_usd": 20.0, "max_turns": 400, "wall_seconds": 3600,
     }
     data.update(over)
