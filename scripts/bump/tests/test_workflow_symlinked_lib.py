@@ -95,6 +95,11 @@ class EveryCloneOfTheLibraryHandlesASubdir(unittest.TestCase):
                     run = step.get("run", "")
                     if isinstance(run, str) and 'git clone -q --filter=blob:none "$repo" lib' in run and 'ln -s "lib-repo/$sub" lib' not in run:
                         problems.append(f"{name} {job} / {step.get('name', '?')[:60]}")
+                    # the snippet reads sources.json: the job's sparse checkout of emissary must have it (the plan job of bump-sharded.yml did not: `No such file: sources.json`)
+                    if isinstance(run, str) and 'ln -s "lib-repo/$sub" lib' in run and "sparse-checkout set" in "\n".join(s.get("run", "") for s in spec["steps"] if isinstance(s.get("run"), str)):
+                        sets = [ln for s in spec["steps"] if isinstance(s.get("run"), str) for ln in s["run"].splitlines() if "-C emissary sparse-checkout set" in ln]
+                        if sets and not any("/sources.json" in ln or "--stdin" in ln for ln in sets):
+                            problems.append(f"{name} {job}: the sparse checkout of emissary has no /sources.json")
         self.assertEqual(problems, [])
 
 
