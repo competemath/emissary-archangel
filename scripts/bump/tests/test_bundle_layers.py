@@ -1,5 +1,7 @@
 import json
 import random
+import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -267,6 +269,94 @@ class Output(unittest.TestCase):
         self.assertEqual(bl.namespace(make_bundle({"A": []})), NS)
         with self.assertRaises(bl.BundleError):
             bl.namespace({"Tengoku/A.lean": b"", "Tengoku/B.lean": b""})
+
+
+class FromTheTree(unittest.TestCase):
+    """2026-10-08: causalean and complexitylib were recut (a better pruner) after their part 1 had merged. Cut from scratch, the new order put merged modules in later
+    parts and new ones in part 1. With `tree_umbrella` the parts hold only the modules the tree does not have, numbered from `start`, each umbrella the tree's plus the
+    imports so far: what the extend gate (tengoku scripts/ci/intake_check.py) accepts."""
+
+    TREE = "".join(f"import Tengoku.{NS}.{m}\n" for m in ("A", "B"))
+
+    def bundle(self):
+        return make_bundle({"A": [], "B": ["A"], "C": ["B"], "D": ["C"], "E": []})
+
+    def test_only_the_modules_the_tree_lacks_are_cut_and_numbered_from_start(self):
+        files = self.bundle()
+        parts = bl.plan(files, NS, 2, self.TREE, 2)
+        self.assertEqual([(p.index, p.modules) for p in parts], [(2, [f"Tengoku.{NS}.C", f"Tengoku.{NS}.D"]), (3, [f"Tengoku.{NS}.E"])])
+        bl.check(parts, files, NS, self.TREE)
+
+    def test_each_umbrella_is_the_trees_plus_the_imports_so_far(self):
+        parts = bl.plan(self.bundle(), NS, 1, self.TREE, 2)
+        got = [p.files[f"Tengoku/{NS}.lean"].decode() for p in parts]
+        self.assertEqual(got[0], self.TREE + f"import Tengoku.{NS}.C\n")
+        self.assertEqual(got[1], self.TREE + f"import Tengoku.{NS}.C\nimport Tengoku.{NS}.D\n")
+        self.assertEqual(got[2], self.TREE + f"import Tengoku.{NS}.C\nimport Tengoku.{NS}.D\nimport Tengoku.{NS}.E\n")
+
+    def test_the_extend_gate_accepts_each_umbrella_against_the_tree_before_it(self):
+        """The two umbrella rules of intake_check.py, restated: the lines that are not the part's new imports are the tree's lines, in order, and every new module is imported once."""
+        parts = bl.plan(self.bundle(), NS, 1, self.TREE, 2)
+        base = self.TREE
+        for part in parts:
+            head = part.files[f"Tengoku/{NS}.lean"].decode()
+            wanted = {f"import {m}" for m in part.modules}
+            head_lines = head.rstrip("\n").split("\n")
+            self.assertEqual(sorted(ln for ln in head_lines if ln in wanted), sorted(wanted))
+            self.assertEqual([ln for ln in head_lines if ln not in wanted], base.rstrip("\n").split("\n"))
+            base = head  # the next part is checked against the tree this one made
+
+    def test_the_manifest_lines_are_the_new_modules_only(self):
+        parts = bl.plan(self.bundle(), NS, 10, self.TREE, 2)
+        self.assertEqual([json.loads(ln)["module"] for ln in parts[0].manifest_lines], [f"Tengoku.{NS}.{m}" for m in ("C", "D", "E")])
+
+    def test_a_module_the_tree_has_and_the_bundle_no_longer_does_is_ignored(self):
+        files = self.bundle()
+        parts = bl.plan(files, NS, 10, self.TREE + f"import Tengoku.{NS}.Gone\n", 2)
+        self.assertEqual(parts[0].modules, [f"Tengoku.{NS}.C", f"Tengoku.{NS}.D", f"Tengoku.{NS}.E"])
+        bl.check(parts, files, NS, self.TREE + f"import Tengoku.{NS}.Gone\n")
+
+    def test_without_the_tree_nothing_changes(self):
+        files = self.bundle()
+        parts = bl.plan(files, NS, 10)
+        self.assertEqual([(p.index, len(p.modules)) for p in parts], [(1, 5)])
+
+    def test_the_command_line_takes_the_tree_umbrella_and_the_start(self):
+        d = Path(tempfile.mkdtemp())
+        for path, data in self.bundle().items():
+            (d / "bundle" / path).parent.mkdir(parents=True, exist_ok=True)
+            (d / "bundle" / path).write_bytes(data)
+        (d / "tree.lean").write_text(self.TREE)
+        bl.main(["--bundle", str(d / "bundle"), "--out", str(d / "out"), "--max-modules", "2", "--tree-umbrella", str(d / "tree.lean"), "--start", "4"])
+        self.assertEqual(sorted(x.name for x in (d / "out").iterdir() if x.name.startswith("part-")), ["part-004", "part-005"])
+        rep = json.loads((d / "out" / "part-004" / "report.json").read_text())
+        self.assertEqual((rep["part"], rep["modules"]), (4, 2))
+
+
+class WorkflowsCutPartsFromTheTree(unittest.TestCase):
+    """The `from_tree` input of bump-sharded.yml and bump-library.yml reaches bundle_layers.py: the library's umbrella is fetched from tengoku main, and the next part number
+    is the highest data/intake/<key>/parts/NNN.json there plus one (2 when there is none: the intake PR was part 1)."""
+
+    WORKFLOWS = Path(__file__).resolve().parents[3] / ".github" / "workflows"
+
+    def test_both_workflows_pass_the_tree_umbrella_and_the_start(self):
+        for name in ("bump-sharded.yml", "bump-library.yml"):
+            text = (self.WORKFLOWS / name).read_text()
+            self.assertRegex(text, r"\n      from_tree: \{ description:", name)
+            self.assertIn('FROM_TREE: "${{ inputs.from_tree }}"', text, name)
+            self.assertIn("--tree-umbrella tree-umbrella-$mode.lean --start $((last + 1))", text, name)
+            self.assertIn("bundle_layers.py --bundle \"$dir\" --out \"parts-$mode\" --max-modules \"$PARTS\" --tar $from_tree", text, name)
+
+    def test_the_next_part_number_is_read_from_the_trees_parts_folder(self):
+        text = (self.WORKFLOWS / "bump-sharded.yml").read_text()
+        code = re.search(r"last=\$\(curl [^\n]*? \| python3 -c '([^']*)'\)", text).group(1)
+
+        def last(answer: str) -> str:
+            return subprocess.run(["python3", "-c", code], input=answer, capture_output=True, text=True).stdout.strip()
+
+        self.assertEqual(last('[{"name":"002.json"},{"name":"003.json"}]'), "3")
+        self.assertEqual(last('{"message":"Not Found","status":"404"}'), "1")  # no parts folder yet: the next part is 2
+        self.assertEqual(last('[{"name":"002.json"},{"name":"README.md"}]'), "2")
 
 
 if __name__ == "__main__":
