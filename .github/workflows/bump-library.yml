@@ -153,6 +153,7 @@ jobs:
       - name: Batched Gate 2 over every declaration of every module that built
         working-directory: emissary
         run: |
+          W="$PWD"  # `lib` is a symlink for a library with a `subdir`: a ../ after `cd lib` is the target's parent, not this directory
           # the library's own search path (its Mathlib and its modules) plus Gate 2's Vendor
           LP="$(cd lib && lake env printenv LEAN_PATH):$GITHUB_WORKSPACE/vendorproj/.lake/build/lib/lean"
           # One Lean process imports the modules together. Library modules that cannot be imported together (two copies of one file, a
@@ -165,8 +166,8 @@ jobs:
               python3 scripts/bump/gate2_batch.py generate --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
                 --roots "$ROOTS" --out lib/gate2-check.lean --controls "$CONTROLS" --exclude "$exclude" --only "$only" \
                 --tentative "../tengoku/data/tentative/$KEY.jsonl,../tengoku/data/tentative/$KEY/*.jsonl" | tee plan.json
-              (cd lib; start=$(date +%s); LEAN_PATH="$LP" timeout 120m lean gate2-check.lean > ../gate2-pass.log 2>&1 || true
-               echo "batched Gate 2 (pass $pass, attempt $attempt): $(( ($(date +%s) - start) )) seconds for $(grep -c 'GATE2B_' ../gate2-pass.log) verdicts")
+              (cd lib; start=$(date +%s); LEAN_PATH="$LP" timeout 120m lean gate2-check.lean > "$W/gate2-pass.log" 2>&1 || true
+               echo "batched Gate 2 (pass $pass, attempt $attempt): $(( ($(date +%s) - start) )) seconds for $(grep -c 'GATE2B_' "$W/gate2-pass.log") verdicts")
               bad=$(grep -oP "import \K\S+(?= failed)" gate2-pass.log | head -1 || true)
               [ -z "$bad" ] && break
               echo "import clash: $bad (and what imports it) left out of this pass"; exclude="$exclude,$bad"
@@ -203,8 +204,9 @@ jobs:
         if: env.RECORDS == 'on'
         working-directory: emissary
         run: |
+          W="$PWD"  # `lib` is a symlink for a library with a `subdir`: a ../ after `cd lib` is the target's parent, not this directory
           python3 scripts/bump/records.py lean --lib lib --names passed.json --out lib/records-deps.lean
-          (cd lib && timeout 90m lake env lean records-deps.lean > ../records-deps.log 2>&1 || true)
+          (cd lib && timeout 90m lake env lean records-deps.lean > "$W/records-deps.log" 2>&1 || true)
           grep -c "REC_DEPS" records-deps.log || true
           { grep -E "error" records-deps.log | grep -v "REC_" | head -5 | cut -c1-300; } || true
           python3 scripts/bump/records.py compose --lib lib --log records-deps.log --meta "data/exports/$KEY/setup.ci.json" --out composed.jsonl
@@ -215,8 +217,9 @@ jobs:
         working-directory: emissary
         run: |
           # a program that imports only Lean and loads the library at run time (BundleKeep.lean says why: a script that imported the library parsed with its tokens)
+          W="$PWD"  # `lib` is a symlink for a library with a `subdir`: a ../ after `cd lib` is the target's parent, not this directory
           python3 scripts/bump/bundle.py keep-input --lib lib --passed passed.json --roots "$ROOTS" --out lib/bundle-keep.json
-          (cd lib && timeout 90m lake env lean --run ../scripts/bump/BundleKeep.lean bundle-keep.json > ../bundle-deps.log 2>&1 || true)
+          (cd lib && timeout 90m lake env lean --run "$W/scripts/bump/BundleKeep.lean" bundle-keep.json > "$W/bundle-deps.log" 2>&1 || true)
           python3 scripts/bump/bundle.py compose --lib lib --log bundle-deps.log --passed passed.json --meta "data/exports/$KEY/setup.ci.json" \
             --key "$KEY" --toolchain "$TOOLCHAIN" --errors build1.log --gate2 gate2.log --out bundle --src pruned-src
       - name: Build the pruned sources until they are clean (what is shipped is exactly what was built; a module that does not build, and what imports it, is left out)
@@ -245,8 +248,9 @@ jobs:
         # trusted: the edited sources are built again and a module that no longer builds is left out, as in the build above.
         working-directory: emissary
         run: |
+          W="$PWD"  # `lib` is a symlink for a library with a `subdir`: a ../ after `cd lib` is the target's parent, not this directory
           python3 scripts/bump/leakscan_args.py --key "$KEY" --src pruned-src-wide --roots "$ROOTS" --out leakscan.args
-          if ! (cd lib2 && xargs -0 -a ../leakscan.args lake env lean --run ../scripts/bump/TengokuLeak.lean > ../leakscan.txt 2> ../leakscan.err); then
+          if ! (cd lib2 && xargs -0 -a "$W/leakscan.args" lake env lean --run "$W/scripts/bump/TengokuLeak.lean" > "$W/leakscan.txt" 2> "$W/leakscan.err"); then
             echo "::warning::the leak scan did not run; the bundle ships unscanned"; tail -5 leakscan.err; exit 0
           fi
           head -3 leakscan.txt
