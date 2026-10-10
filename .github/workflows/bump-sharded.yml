@@ -11,7 +11,7 @@ on:
       mathlib: { description: "Mathlib tag the Tengoku tree is seeded from", default: "v4.34.0-rc2" }
       toolchain: { description: "the tree's Lean toolchain", default: "leanprover/lean4:v4.34.0-rc2" }
       shards: { description: "number of shards (0 = automatic: as many as it takes for no shard to build more than 250k lines, at most 32)", default: "0" }
-      parallel: { description: "shards running at once (the repository has 20 runners; tengoku's own CI waits for them too: leave it room)", default: "8" }
+      parallel: { description: "shards running at once (the repository has 20 runners; tengoku's own CI waits for them too: leave it room)", default: "6" }
       recut_from: { description: "RECUT: the id of an earlier run of this workflow for this key. No plan, no shards: its shard artifacts are merged again, without the modules in `drop` (and what imports them), and the new bundle is attested by this run", default: "" }
       drop: { description: "RECUT: modules (comma list) that did not build on the tree, from the merge queue's build of the bundle", default: "" }
       scope: { description: "RECUT: the `leak:` lines of the merge queue's leak report (separated by `;`): those registrations are made local (scripts/bump/scope_rewrite.py)", default: "" }
