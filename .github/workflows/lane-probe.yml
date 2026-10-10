@@ -14,7 +14,7 @@ defaults:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions: {}
     steps:
       - id: app
@@ -24,7 +24,7 @@ jobs:
           private-key: ${{ secrets.INTAKE_APP_KEY }}
           owner: competemath
           repositories: tengoku-sandbox
-      - name: Two throwaway pull requests, and what the ruleset says about each
+      - name: Two throwaway pull requests, and what the ruleset says about each once their checks have run
         env:
           GH_TOKEN: "${{ steps.app.outputs.token }}"
           RUN: "${{ github.run_id }}"
@@ -34,23 +34,32 @@ jobs:
           mk() {  # mk CASE : makes the branch, the change and the pull request, prints its number
             case=$1; br="probe/$case-$RUN"
             gh api repos/$R/git/refs -f ref="refs/heads/$br" -f sha="$sha" --silent
-            if [ "$case" = owned ]; then
-              cur=$(gh api "repos/$R/contents/Tengoku/All.lean?ref=$br")
-              fsha=$(jq -r .sha <<< "$cur"); body=$(jq -r .content <<< "$cur" | base64 -d; echo "-- lane probe $RUN")
-              gh api "repos/$R/contents/Tengoku/All.lean" -X PUT -f message="probe: touch an owned file" -f content="$(printf '%s\n' "$body" | base64 | tr -d '\n')" -f sha="$fsha" -f branch="$br" --silent
+            so='Signed-off-by: tengoku-intake[bot] <340517417+tengoku-intake[bot]@users.noreply.github.com>'
+            if [ "$case" = owned ]; then  # a new file under scripts/: owned through the default rule, and nothing the intake classifier looks at
+              gh api "repos/$R/contents/scripts/zz-lane-probe-$RUN.txt" -X PUT -f message="probe: add a file in an owned folder"$'\n\n'"$so" -f content="$(printf 'lane probe\n' | base64)" -f branch="$br" --silent
             else
-              gh api "repos/$R/contents/Tengoku/ZzLaneProbe$RUN/Probe.lean" -X PUT -f message="probe: add a file in a new library folder" -f content="$(printf 'theorem zz_probe : True := trivial\n' | base64)" -f branch="$br" --silent
+              gh api "repos/$R/contents/Tengoku/ZzLaneProbe$RUN/Probe.lean" -X PUT -f message="probe: add a file in a new library folder"$'\n\n'"$so" -f content="$(printf 'theorem zz_probe : True := trivial\n' | base64)" -f branch="$br" --silent
             fi
             gh api repos/$R/pulls -f title="lane probe ($case), closed at once" -f head="$br" -f base=main -f body="Opened and closed by the lane probe of the intake App." --jq .number
           }
           declare -A PR
           for c in owned content; do PR[$c]=$(mk $c); done
-          sleep 45
-          for c in owned content; do
-            n=${PR[$c]}
+          show() {  # show CASE : the state GitHub reports now, and the two required checks
+            c=$1; n=${PR[$c]}
             gh api graphql -f query="query{repository(owner:\"competemath\",name:\"tengoku-sandbox\"){pullRequest(number:$n){reviewDecision mergeStateStatus mergeable reviewRequests(first:10){nodes{requestedReviewer{... on User{login}}}}}}}" \
               --jq ".data.repository.pullRequest|\"case=$c pr=#$n reviewDecision=\(.reviewDecision) mergeStateStatus=\(.mergeStateStatus) requested=\([.reviewRequests.nodes[].requestedReviewer.login]|join(\",\"))\""
+            gh pr view "$n" -R $R --json statusCheckRollup --jq '[.statusCheckRollup[]|select((.name // .context)|test("^(pr-gate|queue-gate|dco)$"))|"\(.name // .context)=\(.conclusion // .state)"]|"  required checks of #'"$n"': \(join(" "))"'
+          }
+          for i in $(seq 1 20); do  # until pr-gate has an outcome on both, at most 20 minutes
+            sleep 60
+            done=0
+            for c in owned content; do
+              r=$(gh pr view "${PR[$c]}" -R $R --json statusCheckRollup --jq '[.statusCheckRollup[]|select((.name // .context)=="pr-gate")|.conclusion // .state][0] // ""')
+              case "$r" in SUCCESS|FAILURE|ERROR|CANCELLED) done=$((done+1));; esac
+            done
+            [ "$done" = 2 ] && break
           done
+          for c in owned content; do show $c; done
           for c in owned content; do
             gh api -X PATCH "repos/$R/pulls/${PR[$c]}" -f state=closed --silent
             gh api -X DELETE "repos/$R/git/refs/heads/probe/$c-$RUN" --silent
