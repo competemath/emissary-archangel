@@ -361,6 +361,28 @@ def reexport(root: Path, leaks: list[dict], skip: int = 0) -> dict:
     return {"reexported": names_total, "modules": patched}
 
 
+def rewrite_manifest(root: Path, leaks: list[dict]) -> int:
+    """The `statement` of a manifest record whose simp lemma was made local keeps the upstream `@[simp]` unless it is changed too: the module says `@[local simp]`, the record
+    said otherwise (P1 in tengoku#418: zflean `ZFSet.prod_empty_left`, `pair_union`, `pair_minus`). `root/manifest.jsonl` is rewritten in place, in the compose format; the
+    records of other declarations and the instance leaks (no record is an instance) are left as they are. Returns how many statements changed."""
+    path = root / "manifest.jsonl"
+    if not path.is_file():
+        return 0
+    want = {(lk["mod"], lk["name"]) for lk in leaks if lk["kind"] == "simp"}
+    out, changed = [], 0
+    for line in path.read_text(encoding="utf-8").splitlines(keepends=True):
+        rec = json.loads(line) if line.strip() else None
+        if rec and (rec.get("module"), rec.get("name")) in want:
+            f = Lines(rec["statement"])
+            if edit_declaration(f, 1, "simp") == "edited":
+                rec["statement"] = "\n".join(f.text)
+                line = json.dumps(rec, ensure_ascii=False) + "\n"
+                changed += 1
+        out.append(line)
+    path.write_text("".join(out), encoding="utf-8")
+    return changed
+
+
 def for_tree(leaks: list[dict]) -> list[dict]:
     """The leaks as the tree names them. The leak scan runs on the library's own build, where Lean's auto-generated instance names carry the library's suffix
     (`instFoo_prismriver`); in the bundle they carry the tree's (`instFoo_tengoku`, autonames.py), and every line this script writes into a bundle must use those:
@@ -389,6 +411,8 @@ def main() -> None:
             if Path(b).exists():
                 use = for_tree(leaks) if skip == 0 else leaks
                 rep = apply_bundle(Path(b), use, skip)
+                if skip == 0:
+                    rep["manifest_statements"] = rewrite_manifest(Path(b), use)
                 if a.reexport:
                     rep.update(reexport(Path(b), use, skip))
                 print(b, json.dumps(rep))
