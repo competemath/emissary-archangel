@@ -1,12 +1,12 @@
 name: intake-open
-# The intake lane's opener. Every 30 minutes: for every library with a finished bundle (a successful bump run, artifacts kept 3 days), open the next intake / extend PR
+# The intake lane's opener. Every 10 minutes: for every library with a finished bundle (a successful bump run, artifacts kept 3 days), open the next intake / extend PR
 # on tengoku as the tengoku-intake App, never more than LANE_MAX_OPEN open at once, LANE_DAILY_CAP in 24 hours, 12 per run, 90 s apart (scripts/bump/intake_open.py).
 # Nothing runs unless the repository variable LANE_ENABLED is "true": setting it to anything else is the kill switch. A person starts a rehearsal with workflow_dispatch
 # (target: competemath/tengoku-sandbox, dry_run: false). With LANE_AUTOMERGE = "true" an EXTEND part also arms the merge queue; a first part never does (it adds a line to an
 # owned file and needs a person). The App's token is minted here and reaches only the target repository; this workflow runs code from this repository's default branch only.
 on:
   schedule:
-    - cron: "17,47 * * * *"
+    - cron: "3-59/10 * * * *"
   workflow_dispatch:
     inputs:
       target: { description: "Repository to open the pull requests in (tengoku, or tengoku-sandbox for a rehearsal)", required: true, default: "competemath/tengoku" }
