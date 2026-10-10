@@ -1,0 +1,58 @@
+# One-off probe, run on the pull request that adds it (close that pull request without merging). Question: with required approvals at 0, does a ruleset that
+# requires code-owner review still demand an owner's approval for a path that has an owner, and none for a path that has none? It opens two throwaway pull requests
+# in tengoku-sandbox with the intake App's token, one that touches Tengoku/All.lean (owned) and one that only adds a library file (no owner), reads reviewDecision,
+# the review requests and the merge state of each, prints them, and removes both. It prints no secret.
+name: lane-probe
+on:
+  pull_request:
+    paths: [".github/workflows/lane-probe.yml"]
+permissions: {}
+concurrency: { group: "lane-probe-${{ github.ref }}", cancel-in-progress: true }
+defaults:
+  run:
+    shell: bash
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      - id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.INTAKE_APP_ID }}
+          private-key: ${{ secrets.INTAKE_APP_KEY }}
+          owner: competemath
+          repositories: tengoku-sandbox
+      - name: Two throwaway pull requests, and what the ruleset says about each
+        env:
+          GH_TOKEN: "${{ steps.app.outputs.token }}"
+          RUN: "${{ github.run_id }}"
+        run: |
+          R=competemath/tengoku-sandbox
+          sha=$(gh api repos/$R/git/ref/heads/main --jq .object.sha)
+          mk() {  # mk CASE : makes the branch, the change and the pull request, prints its number
+            case=$1; br="probe/$case-$RUN"
+            gh api repos/$R/git/refs -f ref="refs/heads/$br" -f sha="$sha" --silent
+            if [ "$case" = owned ]; then
+              cur=$(gh api "repos/$R/contents/Tengoku/All.lean?ref=$br")
+              fsha=$(jq -r .sha <<< "$cur"); body=$(jq -r .content <<< "$cur" | base64 -d; echo "-- lane probe $RUN")
+              gh api "repos/$R/contents/Tengoku/All.lean" -X PUT -f message="probe: touch an owned file" -f content="$(printf '%s\n' "$body" | base64 | tr -d '\n')" -f sha="$fsha" -f branch="$br" --silent
+            else
+              gh api "repos/$R/contents/Tengoku/ZzLaneProbe$RUN/Probe.lean" -X PUT -f message="probe: add a file in a new library folder" -f content="$(printf 'theorem zz_probe : True := trivial\n' | base64)" -f branch="$br" --silent
+            fi
+            gh api repos/$R/pulls -f title="lane probe ($case), closed at once" -f head="$br" -f base=main -f body="Opened and closed by the lane probe of the intake App." --jq .number
+          }
+          declare -A PR
+          for c in owned content; do PR[$c]=$(mk $c); done
+          sleep 45
+          for c in owned content; do
+            n=${PR[$c]}
+            gh api graphql -f query="query{repository(owner:\"competemath\",name:\"tengoku-sandbox\"){pullRequest(number:$n){reviewDecision mergeStateStatus mergeable reviewRequests(first:10){nodes{requestedReviewer{... on User{login}}}}}}}" \
+              --jq ".data.repository.pullRequest|\"case=$c pr=#$n reviewDecision=\(.reviewDecision) mergeStateStatus=\(.mergeStateStatus) requested=\([.reviewRequests.nodes[].requestedReviewer.login]|join(\",\"))\""
+          done
+          for c in owned content; do
+            gh api -X PATCH "repos/$R/pulls/${PR[$c]}" -f state=closed --silent
+            gh api -X DELETE "repos/$R/git/refs/heads/probe/$c-$RUN" --silent
+          done
+          echo "probe pull requests closed and branches deleted"
