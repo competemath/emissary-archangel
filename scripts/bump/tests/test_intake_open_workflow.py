@@ -74,6 +74,16 @@ class IntakeOpenWorkflow(unittest.TestCase):
         crons = [s["cron"] for s in DOC[True]["schedule"]]
         self.assertEqual(crons, ["3-59/10 * * * *"])
 
+    def test_the_second_switch_arms_first_parts_only_with_the_first_switch_on(self):
+        step = run_blocks()[-1]
+        self.assertRegex(step, r'\[ "\$AUTOMERGE" = "true" \] && \[ "\$AUTOMERGE_FIRST" = "true" \] && args\+=\(--auto-merge-first\)')
+        self.assertEqual(JOB["steps"][-1]["env"]["AUTOMERGE_FIRST"], "${{ vars.LANE_AUTOMERGE_FIRST }}")
+
+    def test_a_recut_that_continues_from_the_tree_says_so_in_its_run_name(self):
+        for name in ("bump-sharded.yml", "bump-library.yml"):
+            doc = yaml.safe_load((PATH.parent / name).read_text(encoding="utf-8"))
+            self.assertIn("inputs.from_tree == 'true' && ' (from tree)'", doc["run-name"], name)  # intake_open.RUN_TITLE reads it
+
 
 if __name__ == "__main__":
     unittest.main()

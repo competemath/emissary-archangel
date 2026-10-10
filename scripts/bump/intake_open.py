@@ -10,14 +10,15 @@ For every library with a finished bundle:
   * a library whose last part merged, a library that arrived as one unparted bundle, a library that is in the tree without an intake (seeded, hand-made), and a PR closed without merging for this run are left alone;
   * a bundle with no verified theorem is refused by open_intake_pr.py and costs nothing but the attempt.
 How many it opens in one tick is the smallest of: room under --max-open open PRs, what is left of --daily-cap for the last 24 hours (counted from the App's own PRs), --per-tick.
-The pace between two PRs is --pace seconds (GitHub flagged a bot account that opened 38 in minutes). `--auto-merge` arms the merge queue on EXTEND parts only: a first part
-adds a line to Tengoku/All.lean, an owned file, and needs a person. Whether the lane is on at all is the workflow's switch (the repository variable LANE_ENABLED).
+The pace between two PRs is --pace seconds (GitHub flagged a bot account that opened 38 in minutes). `--auto-merge` arms the merge queue on EXTEND parts; `--auto-merge-first` on a first part too (the user's call, 2026-10-10: automate it all; a first part adds a line to
+Tengoku/All.lean, which CODEOWNERS no longer owns, and the gates decide who may edit it). Whether the lane is on at all is the workflow's switch (the repository variable LANE_ENABLED).
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -32,7 +33,7 @@ from open_intake_pr import pascal  # noqa: E402
 FACTORY = "competemath/emissary-archangel"
 TARGET = "competemath/tengoku"
 BRANCH = re.compile(r"^intake/(?P<key>.+)-(?P<run>\d{9,})(?:-part-(?P<part>\d+))?$")
-RUN_TITLE = re.compile(r"^bump(?:-sharded)? (?P<key>\S+)$")
+RUN_TITLE = re.compile(r"^bump(?:-sharded)? (?P<key>\S+?)(?P<tree> \(from tree\))?$")  # a recut that continues after what the tree has says so in its title (bump-sharded.yml, bump-library.yml)
 OF_TOTAL = re.compile(r"part (\d+) of (\d+)")
 KEEP = timedelta(hours=72)  # the factory's artifacts are kept 3 days
 
@@ -58,9 +59,10 @@ def parse_prs(rows: list[dict]) -> dict[str, list[Pr]]:
     return out
 
 
-def newest_bundles(rows: list[dict], now: datetime) -> dict[str, tuple[int, str]]:
-    """key -> (run id, created) of the newest successful bump run of each library whose artifacts are still kept; `rows` are `gh run list --json databaseId,displayTitle,conclusion,createdAt`."""
-    best: dict[str, tuple[int, str]] = {}
+def newest_bundles(rows: list[dict], now: datetime) -> dict[str, tuple[int, str, bool]]:
+    """key -> (run id, created, from_tree) of the newest successful bump run of each library whose artifacts are still kept; `rows` are `gh run list --json databaseId,displayTitle,conclusion,createdAt`.
+    from_tree: the run is a recut whose parts continue after the parts the tree already has."""
+    best: dict[str, tuple[int, str, bool]] = {}
     for r in rows:
         m = RUN_TITLE.match(r["displayTitle"])
         if not m or r["conclusion"] != "success":
@@ -68,7 +70,7 @@ def newest_bundles(rows: list[dict], now: datetime) -> dict[str, tuple[int, str]
         if now - datetime.fromisoformat(r["createdAt"].replace("Z", "+00:00")) > KEEP:
             continue
         if m["key"] not in best or r["createdAt"] > best[m["key"]][1]:
-            best[m["key"]] = (r["databaseId"], r["createdAt"])
+            best[m["key"]] = (r["databaseId"], r["createdAt"], bool(m["tree"]))
     return best
 
 
@@ -77,8 +79,8 @@ def last_part_merged(merged: list[Pr]) -> bool:
     return bool(t) and int(t.group(1)) >= int(t.group(2))
 
 
-def decide(mine: list[Pr], run: int | None, unmanaged_in_tree: bool) -> tuple[str, str | dict]:
-    """("open", {part, run, depends_on}) or ("skip", why) for one library."""
+def decide(mine: list[Pr], run: int | None, unmanaged_in_tree: bool, from_tree: bool = False) -> tuple[str, str | dict]:
+    """("open", {part, run, depends_on}) or ("skip", why) for one library. `from_tree`: the newest run is a recut cut from the tree, so its parts start at the next number and replace the old run's."""
     if any(p.state == "OPEN" for p in mine):
         return "skip", "a pull request of this library is open"
     merged = sorted((p for p in mine if p.state == "MERGED"), key=lambda p: p.part)
@@ -91,7 +93,7 @@ def decide(mine: list[Pr], run: int | None, unmanaged_in_tree: bool) -> tuple[st
     if not merged and unmanaged_in_tree:
         return "skip", "in the tree without an intake"
     nxt = merged[-1].part + 1 if merged else 1
-    if merged and merged[-1].run != run:
+    if merged and merged[-1].run != run and not from_tree:
         return "skip", f"part {nxt} would come from run {run}, but part {merged[-1].part} merged from run {merged[-1].run}: needs a recut from the tree"
     if any(p.state == "CLOSED" and p.run == run and p.part == nxt for p in mine):
         return "skip", "closed without merging for this run: a person decides, or a newer run comes"
@@ -143,13 +145,16 @@ class Gh:
         return self.exists(f"Tengoku/{pascal(key)}") and not self.exists(f"data/intake/{key}/manifest.jsonl")
 
 
-def open_pr(target: str, key: str, act: dict, auto_merge: bool) -> subprocess.CompletedProcess:
+def open_pr(target: str, key: str, act: dict, auto_merge: bool, auto_first: bool = False) -> subprocess.CompletedProcess:
     cmd = [sys.executable, str(Path(__file__).with_name("open_intake_pr.py")), "--key", key, "--run", str(act["run"]), "--repo", target, "--mode", "proposed", "--part", str(act["part"])]
     if act["depends_on"]:
         cmd += ["--depends-on", act["depends_on"]]
-        if auto_merge:
-            cmd += ["--auto-merge"]
-    return subprocess.run(cmd, capture_output=True, text=True)
+    env = None
+    if auto_merge and (act["depends_on"] or auto_first):  # a first part only when the lane says so: LANE_AUTOMERGE_FIRST
+        cmd += ["--auto-merge"]
+        if auto_first:
+            env = {**os.environ, "LANE_AUTOMERGE_FIRST": "true"}
+    return subprocess.run(cmd, capture_output=True, text=True, env=env)
 
 
 def tick(a: argparse.Namespace, gh: Gh, opener=open_pr, sleep=time.sleep, now: datetime | None = None) -> dict:
@@ -161,14 +166,14 @@ def tick(a: argparse.Namespace, gh: Gh, opener=open_pr, sleep=time.sleep, now: d
     bundles = newest_bundles(gh.runs(), now)
     wanted = set(a.keys.split()) if a.keys else None
     opened, skipped, failed = [], {}, []
-    for key, (run, _) in sorted(bundles.items(), key=lambda kv: kv[1][1]):  # oldest bundle first: they expire first
+    for key, (run, _, from_tree) in sorted(bundles.items(), key=lambda kv: kv[1][1]):  # oldest bundle first: they expire first
         if wanted is not None and key not in wanted:
             continue
         if len(opened) >= room:
             break
         mine = by_key.get(key, [])
         unmanaged = not mine and gh.unmanaged_in_tree(key)
-        verdict, what = decide(mine, run, unmanaged)
+        verdict, what = decide(mine, run, unmanaged, from_tree)
         if verdict == "skip":
             skipped[key] = str(what)
             continue
@@ -178,7 +183,7 @@ def tick(a: argparse.Namespace, gh: Gh, opener=open_pr, sleep=time.sleep, now: d
             print("DRY", line)
             opened.append(key)
             continue
-        r = opener(a.target, key, what, a.auto_merge)
+        r = opener(a.target, key, what, a.auto_merge, a.auto_merge_first)
         tail = (r.stdout.strip().splitlines() or [""])[-1]
         if r.returncode == 0:
             print("opened", line, "->", tail)
@@ -204,6 +209,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--pace", type=int, default=90)
     ap.add_argument("--keys", default="")
     ap.add_argument("--auto-merge", action="store_true")
+    ap.add_argument("--auto-merge-first", action="store_true", help="also arm auto-merge on a library's FIRST part (LANE_AUTOMERGE_FIRST; needs Tengoku/All.lean unowned in CODEOWNERS)")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args(argv)
     res = tick(a, Gh(a.target, a.factory, a.author))

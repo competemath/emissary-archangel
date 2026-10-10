@@ -57,11 +57,13 @@ jobs:
           MAX_OPEN: ${{ vars.LANE_MAX_OPEN || '80' }}
           DAILY_CAP: ${{ vars.LANE_DAILY_CAP || '400' }}
           AUTOMERGE: ${{ vars.LANE_AUTOMERGE }}
+          AUTOMERGE_FIRST: ${{ vars.LANE_AUTOMERGE_FIRST }}
         run: |
           bot_id=$(gh api "/users/${APP_SLUG}%5Bbot%5D" --jq .id)
           export BOT_NAME="${APP_SLUG}[bot]" BOT_EMAIL="${bot_id}+${APP_SLUG}[bot]@users.noreply.github.com"
           args=(--target "$TARGET" --author "app/${APP_SLUG}" --max-open "$MAX_OPEN" --daily-cap "$DAILY_CAP" --keys "$KEYS")
           [ "$AUTOMERGE" = "true" ] && args+=(--auto-merge)
+          [ "$AUTOMERGE" = "true" ] && [ "$AUTOMERGE_FIRST" = "true" ] && args+=(--auto-merge-first)
           [ "$DRY_RUN" = "true" ] && args+=(--dry-run)
           python3 scripts/bump/intake_open.py "${args[@]}" | tee out.txt
           { echo '### intake-open'; echo '```'; tail -40 out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

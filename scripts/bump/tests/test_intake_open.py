@@ -114,7 +114,7 @@ def run_row(run, key, hours_ago):
 
 
 def args(**kw):
-    base = dict(target="o/t", max_open=80, daily_cap=400, per_tick=12, pace=90, keys="", auto_merge=False, dry_run=False)
+    base = dict(target="o/t", max_open=80, daily_cap=400, per_tick=12, pace=90, keys="", auto_merge=False, auto_merge_first=False, dry_run=False)
     return argparse.Namespace(**{**base, **kw})
 
 
@@ -122,7 +122,7 @@ class Tick(unittest.TestCase):
     def go(self, gh, a=None, results=None):
         calls, sleeps = [], []
 
-        def opener(target, key, act, auto_merge):
+        def opener(target, key, act, auto_merge, auto_first=False):
             calls.append((key, act["part"], auto_merge))
             r = (results or {}).get(key, (0, "", "https://github.com/o/t/pull/1"))
             return subprocess.CompletedProcess([], r[0], stdout=r[2], stderr=r[1])
@@ -163,6 +163,64 @@ class Tick(unittest.TestCase):
     def test_a_library_in_the_tree_without_an_intake_is_skipped(self):
         out, calls, _ = self.go(FakeGh(runs=[run_row(1, "seeded", 1)], in_tree=["seeded"]))
         self.assertEqual((calls, out["skipped"]), ([], {"seeded": "in the tree without an intake"}))
+
+
+class FromTreeRecuts(unittest.TestCase):
+    """2026-10-10: openai-math part 2 failed in the queue, was recut from the tree (parts 2-9 cut again from a new run) and the opener skipped it ('needs a recut'): a person opened the
+    replacement and queued it by hand. A recut that says so in its title continues by itself."""
+
+    def test_the_title_of_a_from_tree_recut_is_read(self):
+        rows = [
+            {"databaseId": 1, "displayTitle": "bump-sharded openai-math (from tree)", "conclusion": "success", "createdAt": "2026-10-10T12:00:00Z"},
+            {"databaseId": 2, "displayTitle": "bump-sharded lean-pool", "conclusion": "success", "createdAt": "2026-10-10T11:00:00Z"},
+            {"databaseId": 3, "displayTitle": "bump complexitylib (from tree)", "conclusion": "success", "createdAt": "2026-10-10T10:00:00Z"},
+        ]
+        got = io.newest_bundles(rows, NOW)
+        self.assertEqual({k: (v[0], v[2]) for k, v in got.items()}, {"openai-math": (1, True), "lean-pool": (2, False), "complexitylib": (3, True)})
+
+    def test_a_from_tree_recut_opens_the_next_part_after_the_merged_one_and_a_plain_newer_run_still_waits(self):
+        merged = io.Pr(413, "MERGED", "lib", 5, 1, "intake: lib part 1 of 9 (1 verified theorems in 1 modules)", True)
+        self.assertEqual(io.decide([merged], 6, False, from_tree=True), ("open", {"part": 2, "run": 6, "depends_on": "#413"}))
+        self.assertEqual(io.decide([merged], 6, False)[0], "skip")  # an ordinary newer run is not a recut from the tree: its part 2 would not match the tree
+        self.assertEqual(io.decide([merged, io.Pr(433, "OPEN", "lib", 6, 2, "", True)], 6, False, from_tree=True)[0], "skip")  # one open PR per library still
+
+    def test_a_from_tree_recut_that_was_closed_without_merging_is_not_reopened(self):
+        merged = io.Pr(413, "MERGED", "lib", 5, 1, "intake: lib part 1 of 9 (1 verified theorems in 1 modules)", True)
+        closed = io.Pr(433, "CLOSED", "lib", 6, 2, "", True)
+        self.assertEqual(io.decide([merged, closed], 6, False, from_tree=True)[0], "skip")
+
+
+class FirstPartsAutomatic(unittest.TestCase):
+    """2026-10-10: 'automate it all': with Tengoku/All.lean unowned a first part needs no person, so the opener may arm auto-merge on it too, when LANE_AUTOMERGE_FIRST says so."""
+
+    def cmd_env(self, act, auto_merge, auto_first):
+        with mock.patch.object(io.subprocess, "run") as run:
+            io.open_pr("o/t", "lib", act, auto_merge, auto_first)
+            return run.call_args[0][0], run.call_args[1].get("env")
+
+    def test_a_first_part_is_armed_only_when_both_switches_are_on(self):
+        first = {"part": 1, "run": 5, "depends_on": None}
+        cmd, env = self.cmd_env(first, True, True)
+        self.assertIn("--auto-merge", cmd)
+        self.assertEqual(env["LANE_AUTOMERGE_FIRST"], "true")
+        self.assertNotIn("--auto-merge", self.cmd_env(first, True, False)[0])  # LANE_AUTOMERGE alone: extend parts only
+        self.assertNotIn("--auto-merge", self.cmd_env(first, False, True)[0])  # the lane's main switch is off
+
+    def test_an_extend_part_is_armed_with_the_main_switch_alone(self):
+        ext = {"part": 2, "run": 5, "depends_on": "#7"}
+        cmd, env = self.cmd_env(ext, True, False)
+        self.assertIn("--auto-merge", cmd)
+        self.assertIsNone(env)
+
+    def test_the_tick_hands_the_second_switch_to_the_opener(self):
+        seen = []
+
+        def opener(target, key, act, auto_merge, auto_first=False):
+            seen.append((auto_merge, auto_first))
+            return subprocess.CompletedProcess([], 0, stdout="https://x/pull/1", stderr="")
+
+        io.tick(args(auto_merge=True, auto_merge_first=True), FakeGh(runs=[run_row(1, "a", 1)]), opener=opener, sleep=lambda s: None, now=NOW)
+        self.assertEqual(seen, [(True, True)])
 
 
 class OpenPrCommand(unittest.TestCase):
