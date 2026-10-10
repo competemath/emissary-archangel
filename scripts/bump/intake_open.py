@@ -7,7 +7,7 @@ State is what GitHub says and nothing else: the factory's successful bump runs (
 For every library with a finished bundle:
   * one open PR per library at a time;
   * part 1 opens when the library has no PR that merged; part N+1 opens when part N is merged (`Depends-On`), from the SAME run (a later run needs a recut from the tree);
-  * a library whose last part merged, a library that is in the tree without an intake (seeded, hand-made), and a PR closed without merging for this run are left alone;
+  * a library whose last part merged, a library that arrived as one unparted bundle, a library that is in the tree without an intake (seeded, hand-made), and a PR closed without merging for this run are left alone;
   * a bundle with no verified theorem is refused by open_intake_pr.py and costs nothing but the attempt.
 How many it opens in one tick is the smallest of: room under --max-open open PRs, what is left of --daily-cap for the last 24 hours (counted from the App's own PRs), --per-tick.
 The pace between two PRs is --pace seconds (GitHub flagged a bot account that opened 38 in minutes). `--auto-merge` arms the merge queue on EXTEND parts only: a first part
@@ -45,6 +45,7 @@ class Pr:
     run: int
     part: int
     title: str
+    parted: bool = True  # the branch has `-part-NNN`: the library was cut into parts; an older bundle is a single `intake/<key>-<run>`
 
 
 def parse_prs(rows: list[dict]) -> dict[str, list[Pr]]:
@@ -53,7 +54,7 @@ def parse_prs(rows: list[dict]) -> dict[str, list[Pr]]:
     for r in rows:
         m = BRANCH.match(r["headRefName"])
         if m:
-            out.setdefault(m["key"], []).append(Pr(r["number"], r["state"], m["key"], int(m["run"]), int(m["part"] or 1), r.get("title", "")))
+            out.setdefault(m["key"], []).append(Pr(r["number"], r["state"], m["key"], int(m["run"]), int(m["part"] or 1), r.get("title", ""), bool(m["part"])))
     return out
 
 
@@ -83,6 +84,8 @@ def decide(mine: list[Pr], run: int | None, unmanaged_in_tree: bool) -> tuple[st
     merged = sorted((p for p in mine if p.state == "MERGED"), key=lambda p: p.part)
     if merged and last_part_merged(merged):
         return "skip", "every part is in the tree"
+    if merged and not merged[-1].parted and not OF_TOTAL.search(merged[-1].title):
+        return "skip", "the library arrived as one bundle, not in parts: nothing follows it"  # leaninfotheory: 'part 2' of a run that has no part archives, every 10 minutes
     if run is None:
         return "skip", "no finished bundle"
     if not merged and unmanaged_in_tree:
