@@ -20,6 +20,47 @@ class BundleTar(unittest.TestCase):
         self.assertEqual(bundle_tar.write_tar({"a.txt": b"hello\n", "dir/b.lean": b"theorem x : True := trivial\n"}, str(out)), "69860ced3534fa1c7d35bcaf779a68ea88028baf4f447748b381fab33d64e100")
 
 
+class ShardSizing(unittest.TestCase):
+    """2026-10-10: navier-stokes-euler got 4 shards from `one per ~200k lines`, but each shard rebuilds the closures it needs (duplication 2.87), so the biggest shard was
+    601k lines and Gate 2's single lean process was OOM-killed twice ('Killed', then the runner's 'shutdown signal'). The count has to come from the biggest shard, not the total."""
+
+    def library(self):
+        # many leaves each importing one of a few deep chains: a shard must carry its whole chain, so shards overlap heavily
+        imp = {}
+        for c in range(6):
+            prev = []
+            for d in range(30):
+                m = f"c{c}d{d}"
+                imp[m] = list(prev)
+                prev = [m]
+        for i in range(120):
+            imp[f"leaf{i}"] = [f"c{i % 6}d29"]
+        return imp, {m: 1000 for m in imp}
+
+    def test_k_grows_until_no_shard_is_over_the_cap(self):
+        imp, weight = self.library()
+        wanted = {m for m in imp if m.startswith("leaf")}
+        k0 = 2
+        self.assertGreater(ps.plan(imp, weight, k0, wanted=wanted)["max_shard_lines"], 60_000)  # the premise: two shards are far over the cap
+        k, p = ps.choose_k(imp, weight, wanted, k0, cap_lines=60_000)
+        self.assertGreater(k, k0)
+        self.assertLessEqual(p["max_shard_lines"], 60_000)
+        self.assertEqual(p["k"], k)
+
+    def test_k_stops_at_kmax_and_a_small_library_keeps_its_start(self):
+        imp, weight = self.library()
+        wanted = {m for m in imp if m.startswith("leaf")}
+        k, _ = ps.choose_k(imp, weight, wanted, 2, cap_lines=1, kmax=5)  # an impossible cap: stops at the maximum
+        self.assertEqual(k, 5)
+        k, _ = ps.choose_k(imp, weight, wanted, 3, cap_lines=10**9)  # nothing is over the cap: the start is kept
+        self.assertEqual(k, 3)
+
+    def test_the_plan_job_uses_it_for_the_automatic_count(self):
+        text = (Path(__file__).resolve().parents[3] / ".github" / "workflows" / "bump-sharded.yml").read_text()
+        self.assertIn("ps.choose_k(imp, weight, wanted,", text)
+        self.assertNotIn("min(20, math.ceil(sum(weight.values()) / 200_000))", text)
+
+
 class Planner(unittest.TestCase):
     def test_shards_are_dependency_closed_and_cover_the_targets(self):
         imp = {"core": []}

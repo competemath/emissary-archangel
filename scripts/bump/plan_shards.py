@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -90,6 +91,23 @@ def plan(imp: dict[str, list[str]], weight: dict[str, int], k: int, cap: float =
     dup = sum(len(x["build"]) for x in shards) / max(1, len(order))
     return {"modules": len(order), "lines": total, "k": k, "duplication": round(dup, 2),
             "max_shard_lines": max(x["lines"] for x in shards), "mean_shard_lines": round(total * dup / k), "shards": shards}
+
+
+MAX_SHARD_LINES = 250_000  # what one 7 GB runner's Gate 2 (one lean process loading the whole shard) survives; navier-stokes-euler's 601k-line shard was OOM-killed twice
+MAX_SHARDS = 32
+
+
+def choose_k(imp: dict[str, list[str]], weight: dict[str, int], wanted: set[str] | None, k0: int, cap_lines: int = MAX_SHARD_LINES, kmax: int = MAX_SHARDS) -> tuple[int, dict]:
+    """The number of shards and its plan, for `k0` or more shards: the dependency closures several shards each rebuild make the biggest shard much larger than total/k (2.87 times
+    the library on navier-stokes-euler with 4 shards), so `k0` (one per ~200k lines of the library) is only a start. Raise k until no shard builds more than `cap_lines`, or `kmax`."""
+    k = max(1, k0)
+    p = plan(imp, weight, k, wanted=wanted)
+    for _ in range(4):
+        if p["max_shard_lines"] <= cap_lines or k >= kmax:
+            break
+        k = min(kmax, max(k + 1, math.ceil(k * p["max_shard_lines"] / cap_lines)))
+        p = plan(imp, weight, k, wanted=wanted)
+    return k, p
 
 
 if __name__ == "__main__":
