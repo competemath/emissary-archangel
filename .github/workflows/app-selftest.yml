@@ -1,0 +1,35 @@
+# One-off check that the intake App, its installation and its two repository secrets work together. It mints a token scoped to the sandbox repository,
+# prints the repositories the installation covers, and proves Contents write by creating and deleting one throwaway branch there; it prints no secret and
+# changes no file. Runs on the pull request that adds it; close that pull request without merging.
+name: app-selftest
+on:
+  pull_request:
+    paths: [".github/workflows/app-selftest.yml"]
+permissions: {}
+concurrency: { group: "app-selftest-${{ github.ref }}", cancel-in-progress: true }
+defaults:
+  run:
+    shell: bash
+jobs:
+  intake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.INTAKE_APP_ID }}
+          private-key: ${{ secrets.INTAKE_APP_KEY }}
+          owner: competemath
+          repositories: tengoku-sandbox
+      - name: Who is this token, and may it write to the sandbox
+        env:
+          GH_TOKEN: "${{ steps.app.outputs.token }}"
+          RUN: "${{ github.run_id }}"
+        run: |
+          echo "repositories the installation covers:"
+          gh api /installation/repositories --jq '.repositories[].full_name'
+          sha=$(gh api repos/competemath/tengoku-sandbox/git/ref/heads/main --jq .object.sha)
+          gh api repos/competemath/tengoku-sandbox/git/refs -f ref="refs/heads/selftest/intake-$RUN" -f sha="$sha" --jq '"branch created: \(.ref)"'
+          gh api -X DELETE "repos/competemath/tengoku-sandbox/git/refs/heads/selftest/intake-$RUN" && echo "branch deleted"
