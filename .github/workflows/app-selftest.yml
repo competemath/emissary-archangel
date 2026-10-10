@@ -33,6 +33,14 @@ jobs:
           sha=$(gh api repos/competemath/tengoku-sandbox/git/ref/heads/main --jq .object.sha)
           gh api repos/competemath/tengoku-sandbox/git/refs -f ref="refs/heads/selftest/intake-$RUN" -f sha="$sha" --jq '"branch created: \(.ref)"'
           gh api -X DELETE "repos/competemath/tengoku-sandbox/git/refs/heads/selftest/intake-$RUN" && echo "branch deleted"
+          # pull-request write: a throwaway branch with one file, a draft pull request from it, then both removed
+          br="selftest/intake-pr-$RUN"
+          gh api repos/competemath/tengoku-sandbox/git/refs -f ref="refs/heads/$br" -f sha="$sha" --silent
+          gh api "repos/competemath/tengoku-sandbox/contents/selftest-$RUN.txt" -X PUT -f message="selftest: one throwaway file" -f content="$(printf 'selftest\n' | base64)" -f branch="$br" --silent
+          pr=$(gh api repos/competemath/tengoku-sandbox/pulls -f title="intake App self-test (closed at once)" -f head="$br" -f base=main -F draft=true -f body="Opened and closed by the intake App's self-test." --jq .number)
+          echo "pull request opened: #$pr"
+          gh api -X PATCH "repos/competemath/tengoku-sandbox/pulls/$pr" -f state=closed --silent && echo "pull request closed"
+          gh api -X DELETE "repos/competemath/tengoku-sandbox/git/refs/heads/$br" && echo "throwaway branch deleted"
   which-secrets:
     runs-on: ubuntu-latest
     timeout-minutes: 2
