@@ -88,7 +88,7 @@ The agent does not depend on this step. Its own network is fenced by the kernel 
 
 ## Updating pinned things
 
-- **Claude Code.** The version is `CLAUDE_CODE_VERSION` in `translate.yml` and in `goals-suggest.yml`. A test requires one exact version in both. To bump, read the release notes, change both, and run `agent-selftest.yml` and a small `translate.yml` run in agent mode. The launch flags the wrapper and the bridge rely on are `--tools`, `--strict-mcp-config`, `--mcp-config`, `--settings`, `--max-turns`, `--max-budget-usd` and `--dangerously-skip-permissions`.
+- **Claude Code.** The version is `CLAUDE_CODE_VERSION` in `translate.yml`. A test requires one exact version wherever the agent is installed. To bump, read the release notes, change it, and run `agent-selftest.yml` and a small `translate.yml` run in agent mode. The launch flags the wrapper and the bridge rely on are `--tools`, `--strict-mcp-config`, `--mcp-config`, `--settings`, `--max-turns`, `--max-budget-usd` and `--dangerously-skip-permissions`.
 - **tengoku-warden.** `scripts/warden/` is a byte-for-byte copy. `scripts/warden/PIN` records the commit and the sha256 of each file, and a test fails if they differ. To update, change tengoku-warden, then `python3 scripts/warden/refresh.py <checkout>`, then run the tests.
 - **elan.** The commit and sha256 are written in each workflow that installs it. To bump, take a new commit of `leanprover/elan`, compute `sha256sum elan-init.sh` for that commit, and change every occurrence together. The tests find stragglers.
 
@@ -104,7 +104,7 @@ Written down on purpose.
 6. **Audit mode is observation.** Until harden-runner is switched to block, the runner itself can reach any host. Only the agent is fenced.
 7. **The tool policy depends on the CLI.** `--tools=` with an empty value and the names of the tools the CLI lists in a session are as documented for Claude Code 2.1.218. The trace gate fails closed on a name it does not know, and says which; add a legitimate one to `AUDIT_EXTRA_TOOLS` in `scripts/agent_policy.py`.
 8. **Continuous sessions do not survive.** Control III in the bridge resumes one conversation across calls. Each run now gets a fresh `HOME`, so a resumed session is not found and the arm starts again each time. The cloud run's driver, `scripts/run-recurse.mjs`, does not ask for it.
-9. **Other workflows.** `goals-suggest.yml` runs the Claude CLI with `--allowedTools` and no tool set, on text from another repository. It has the same shape as the bug fixed here and is not yet moved into the jail. `trial-library-build.yml` runs a Python script it downloads from the `master` branch of mathlib4.
+9. **Other workflows.** The weekly `goals-suggest.yml` was deleted (it did not work). `trial-library-build.yml` runs a Python script it downloads from the `master` branch of mathlib4.
 
 ## Credit
 
