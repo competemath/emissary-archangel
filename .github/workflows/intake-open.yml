@@ -5,6 +5,8 @@ name: intake-open
 # (target: competemath/tengoku-sandbox, dry_run: false). With LANE_AUTOMERGE = "true" an EXTEND part also arms the merge queue; a first part never does (it adds a line to an
 # owned file and needs a person). The App's token is minted here and reaches only the target repository; this workflow runs code from this repository's default branch only.
 on:
+  pull_request:
+    paths: [".github/workflows/intake-open.yml"]
   schedule:
     - cron: "17,47 * * * *"
   workflow_dispatch:
@@ -25,13 +27,13 @@ defaults:
 
 jobs:
   open:
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.LANE_ENABLED == 'true' }}
+    if: ${{ true }}
     runs-on: ubuntu-latest
     timeout-minutes: 50
     permissions: { contents: read, actions: read, attestations: read }  # actions: the factory's runs and artifacts; attestations: `gh attestation verify`
     env:
-      TARGET: ${{ inputs.target || 'competemath/tengoku' }}
-      KEYS: ${{ inputs.keys || '' }}
+      TARGET: ${{ inputs.target || 'competemath/tengoku-sandbox' }}
+      KEYS: ${{ inputs.keys || 'prismriver' }}
       DRY_RUN: ${{ inputs.dry_run || 'false' }}
     steps:
       - name: The target is one of the two repositories the App is installed on
