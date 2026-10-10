@@ -80,11 +80,13 @@ def header_end(text: str, start: int = 0) -> int:
 
 
 LET_HAVE = re.compile(r"(?<![\w.'])(?:let|have)(?![\w'.])")
+WHERE = re.compile(r"(?<![\w.'])where(?![\w'.])")
 
 
 def statement_end(text: str, start: int = 0) -> int:
     """Like header_end, for a statement that is to be SHOWN whole: a `:=` that belongs to a `let`/`have` inside the statement (`: let S := f x; S ≤ 1`)
-    is not the end of it (header_end stops there: 36 of 8,352 manifest statements ended at `let f'`)."""
+    is not the end of it (header_end stops there: 36 of 8,352 manifest statements ended at `let f'`). A proof written as a structure instance has no `:=` before its
+    first field (`theorem t : A ↔ B where\n  mp h := …`): the top-level `where` ends the statement there, not the `:=` of `mp` (zflean `ZFSet.sep_empty_iff`: the record kept `where\n  mp h`)."""
     depth, pending, i, n = 0, 0, start, len(text)
     while i < n:
         c = text[i]
@@ -108,6 +110,8 @@ def statement_end(text: str, start: int = 0) -> int:
             pending += 1
             i = m.end()
             continue
+        elif depth == 0 and not pending and WHERE.match(text, i):
+            return i
         elif depth == 0 and text.startswith(":=", i):
             if pending:
                 pending -= 1
