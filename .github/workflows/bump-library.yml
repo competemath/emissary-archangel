@@ -8,7 +8,7 @@
 #    per module), plus N control pairs of unrelated statements that must all fail.
 # The result is compared, entry by entry, with what the per-theorem pipeline decided (the ledger).
 name: bump-library
-run-name: bump ${{ inputs.key }}
+run-name: bump ${{ inputs.key }}${{ inputs.from_tree == 'true' && ' (from tree)' || '' }}
 on:
   workflow_dispatch:
     inputs:

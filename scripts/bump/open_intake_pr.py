@@ -121,8 +121,8 @@ def main() -> None:
     a = ap.parse_args()
     if a.part is not None and a.part < 1:
         sys.exit("--part counts from 1")
-    if a.auto_merge and not (a.part and a.part > 1):
-        sys.exit("--auto-merge belongs to an extend PR (--part N, N > 1): a first part adds a line to an owned file and needs a person")
+    if a.auto_merge and not (a.part and a.part > 1) and os.environ.get("LANE_AUTOMERGE_FIRST") != "true":
+        sys.exit("--auto-merge belongs to an extend PR (--part N, N > 1) unless LANE_AUTOMERGE_FIRST=true: a first part adds a line to Tengoku/All.lean")
     if a.depends_on and not (a.part and a.part > 1):
         sys.exit("--depends-on belongs to an extend PR (--part N, N > 1)")
     if a.depends_on and not re.search(r"(?:^#|/pull/)(\d+)$", a.depends_on):

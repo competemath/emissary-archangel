@@ -161,12 +161,16 @@ class AsTheApp(unittest.TestCase):
             self.assertIn("Signed-off-by: tengoku-intake[bot] <1+tengoku-intake[bot]@users.noreply.github.com>", msg)
             self.assertIn("tengoku-intake[bot] <1+tengoku-intake[bot]@users.noreply.github.com>", msg.splitlines()[-1])
 
-    def test_auto_merge_belongs_to_an_extend_part_only(self):
+    def test_auto_merge_belongs_to_an_extend_part_unless_the_lane_allows_first_parts(self):
         script = str(Path(op.__file__))
+        env = {k: v for k, v in os.environ.items() if k != "LANE_AUTOMERGE_FIRST"}
         for extra in ([], ["--part", "1"]):
-            r = subprocess.run([sys.executable, script, "--key", "k", "--run", "1", "--repo", "o/r", "--auto-merge", *extra], capture_output=True, text=True)
+            r = subprocess.run([sys.executable, script, "--key", "k", "--run", "1", "--repo", "o/r", "--auto-merge", *extra], capture_output=True, text=True, env=env)
             self.assertNotEqual(r.returncode, 0)
             self.assertIn("extend PR", r.stderr)
+        # LANE_AUTOMERGE_FIRST=true lets a first part through the guard (it then stops at the download: the run does not exist)
+        r = subprocess.run([sys.executable, script, "--key", "k", "--run", "1", "--repo", "o/r", "--auto-merge", "--part", "1"], capture_output=True, text=True, env={**env, "LANE_AUTOMERGE_FIRST": "true", "GH_TOKEN": "x"})
+        self.assertNotIn("extend PR", r.stderr)
 
 
 if __name__ == "__main__":
