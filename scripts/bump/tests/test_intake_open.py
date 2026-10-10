@@ -26,6 +26,7 @@ class ParsePrs(unittest.TestCase):
         self.assertEqual(sorted(got), ["erdos-unit-distance-1", "prismriver"])
         self.assertEqual((got["erdos-unit-distance-1"][0].run, got["erdos-unit-distance-1"][0].part), (38055889087, 1))
         self.assertEqual(got["prismriver"][0].part, 1)  # an unparted bundle is part 1
+        self.assertEqual((got["prismriver"][0].parted, got["erdos-unit-distance-1"][0].parted), (False, True))
 
     def test_a_branch_that_is_not_an_intake_branch_is_ignored(self):
         self.assertEqual(io.parse_prs(rows((1, "OPEN", "isnad/tags", ""), (2, "OPEN", "intake/short-1", ""))), {})
@@ -66,6 +67,15 @@ class Decide(unittest.TestCase):
     def test_no_bundle_and_a_library_in_the_tree_without_an_intake_are_left_alone(self):
         self.assertEqual(io.decide([], None, False)[0], "skip")
         self.assertEqual(io.decide([], 5, True), ("skip", "in the tree without an intake"))
+
+    def test_a_library_that_came_as_one_unparted_bundle_has_no_next_part(self):
+        # 2026-10-10: leaninfotheory merged from `intake/leaninfotheory-<run>` (no `-part-`, no 'part N of M' in the title); the opener tried 'part 2' of that run every 10 minutes and failed: no archive
+        merged = io.Pr(348, "MERGED", "lib", 5, 1, "intake: lib (12 verified theorems in 3 modules)", False)
+        verdict, why = io.decide([merged], 5, False)
+        self.assertEqual(verdict, "skip")
+        self.assertIn("one bundle", why)
+        self.assertEqual(io.decide([io.Pr(348, "MERGED", "lib", 5, 1, "intake: lib part 1 of 3 (1 verified theorems in 1 modules)", True)], 5, False)[0], "open")  # a parted one continues
+        self.assertEqual(io.decide([io.Pr(348, "MERGED", "lib", 5, 1, "intake: lib part 1 of 3 (1 verified theorems in 1 modules)", False)], 5, False)[0], "open")  # so does one whose title says it is part 1 of 3
 
     def test_a_pr_closed_without_merging_for_this_run_is_not_opened_again_but_a_newer_run_is(self):
         closed = pr(3, "CLOSED", run=5, part=1)
