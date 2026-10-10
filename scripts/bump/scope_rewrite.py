@@ -27,6 +27,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import autonames  # noqa: E402
 import tolerant_build as tb  # noqa: E402
 
 LEAK = re.compile(
@@ -360,6 +361,18 @@ def reexport(root: Path, leaks: list[dict], skip: int = 0) -> dict:
     return {"reexported": names_total, "modules": patched}
 
 
+def for_tree(leaks: list[dict]) -> list[dict]:
+    """The leaks as the tree names them. The leak scan runs on the library's own build, where Lean's auto-generated instance names carry the library's suffix
+    (`instFoo_prismriver`); in the bundle they carry the tree's (`instFoo_tengoku`, autonames.py), and every line this script writes into a bundle must use those:
+    the `attribute [local instance] …` lines it inserts, and the lookup of an `attribute` command of the library. The library's own layout (`--pruned`) keeps the
+    library's names: that is the environment the factory verified."""
+    out = []
+    for lk in leaks:
+        parts = parts_of(lk["mod"])
+        out.append({**lk, "name": autonames.rewrite(lk["name"], parts[2])[0]} if parts and len(parts) > 2 else lk)
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--bundle", action="append", default=[], help="a bundle directory (Tengoku/<Library>/… inside)")
@@ -374,9 +387,10 @@ def main() -> None:
     for dirs, skip in ((a.bundle, 0), (a.pruned, 2)):
         for b in dirs:
             if Path(b).exists():
-                rep = apply_bundle(Path(b), leaks, skip)
+                use = for_tree(leaks) if skip == 0 else leaks
+                rep = apply_bundle(Path(b), use, skip)
                 if a.reexport:
-                    rep.update(reexport(Path(b), leaks, skip))
+                    rep.update(reexport(Path(b), use, skip))
                 print(b, json.dumps(rep))
 
 

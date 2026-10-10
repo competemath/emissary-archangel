@@ -176,7 +176,7 @@ class Module:
     module did not build.)"""
 
     def __init__(self, lib: Path, mod: str, ranges: list[tuple[int, int]]):
-        path = lib / (mod.replace(".", "/") + ".lean")
+        path = module_file(lib, mod)
         self.path = path
         self.lines = path.read_text(errors="replace").split("\n")
         n = len(self.lines)
@@ -257,9 +257,12 @@ class Module:
         cmds = command_lines(tlines)
         out: list[str] = []
         for k, (no, ln) in enumerate(cmds):
+            end = cmds[k + 1][0] - 1 if k + 1 < len(cmds) else len(tlines)
+            # a declaration indented under its prefix or docstring (openai/math writes ` theorem …` with one space) is no command line, yet it is the declaration
+            indented_decl = bool(DECL_LINE.match(decl_core(tlines, no, end)))
             if IN_PREFIX.match(ln):
                 nxt = cmds[k + 1][1] if k + 1 < len(cmds) else ""
-                if not (IN_PREFIX.match(nxt) or LEAD_IN.match(nxt) or DECL_LINE.match(nxt)):
+                if not (IN_PREFIX.match(nxt) or LEAD_IN.match(nxt) or DECL_LINE.match(nxt) or indented_decl):
                     out.append(f"line {no}: dangling prefix: {ln.strip()[:80]}")
             else:
                 core = ATTR_INLINE.sub("", ln).strip()  # `@[simp] theorem …`: the keyword line is what comes after the attribute
@@ -271,7 +274,7 @@ class Module:
                     out.append(f"line {no}: a declaration that is not a kept block: {core[:80]}")
                 elif LEAD_IN.match(ln) and (ln.startswith("/--") or not core or core == ln.strip()):  # a docstring, or attributes on their own (not `@[expose] public section`)
                     nxt = cmds[k + 1][1] if k + 1 < len(cmds) else ""
-                    if not nxt or NO_LEAD_IN.match(nxt):
+                    if (not nxt or NO_LEAD_IN.match(nxt)) and not indented_decl:
                         out.append(f"line {no}: a docstring or attribute with no declaration after it: {ln.strip()[:80]}")
         return out
 
@@ -364,8 +367,15 @@ def segments(lines: list[str]) -> list[tuple[int, int]]:
     return [(s, (starts[k + 1] - 1) if k + 1 < len(starts) else len(lines)) for k, s in enumerate(starts)]
 
 
+def module_file(lib: Path, mod: str) -> Path:
+    """The file of a module: `Analysis.Misc.«Real-EReal-ENNReal»` is `Analysis/Misc/Real-EReal-ENNReal.lean`. A part in guillemets is one path component without them, its dots kept
+    (replacing every dot by a slash looked for `lib/Analysis/Misc/«Real-EReal-ENNReal».lean`: tao-analysis could not be bundled, 2026-10-09)."""
+    parts = [m.group(0).strip("«»") for m in re.finditer(r"«[^»]*»|[^.]+", mod)]
+    return lib.joinpath(*parts[:-1], parts[-1] + ".lean")
+
+
 def library_imports(lib: Path, mod: str, mods: set[str]) -> list[str]:
-    path = lib / (mod.replace(".", "/") + ".lean")
+    path = module_file(lib, mod)
     if not path.exists():
         return []
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -418,7 +428,7 @@ def compose(a: argparse.Namespace) -> None:
         mod = ".".join(rel.parts)[: -len(".olean.ranges.json")]
         sidecars[mod] = {n: (s, e) for n, s, e in json.loads(f.read_text())}
     universe = set(sidecars)
-    modules = {m: Module(lib, m, list(sidecars[m].values())) for m in sidecars if (lib / (m.replace(".", "/") + ".lean")).exists()}
+    modules = {m: Module(lib, m, list(sidecars[m].values())) for m in sidecars if module_file(lib, m).exists()}
 
     def source_of(mod: str, const: str):
         """The range of a constant's source: its own, or the nearest prefix of its name that has one (auxiliary definitions,

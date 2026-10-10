@@ -26,6 +26,7 @@ on:
       drop: { description: "RECUT: modules (comma list, the library's own names) that did not build on the tree, from the merge queue's build; they and what imports them are left out (scripts/bump/bundle_cut.py)", default: "" }
       scope: { description: "RECUT: the `leak:` lines of the merge queue's leak report (separated by `;`): those registrations are made local (scripts/bump/scope_rewrite.py)", default: "" }
       parts: { description: "PARTS: cut each bundle into parts of at most this many modules (scripts/bump/bundle_layers.py), each attested as bundle-<key>-<mode>-part-NNN.tar, for a library too big for one intake PR (the queue builds ~3 s a module in 40 minutes: 300). 0 = no parts", default: "0" }
+      from_tree: { description: "PARTS, on a recut after some parts merged: cut only the modules the tree does not have yet (the library's Tengoku/<Ns>.lean on tengoku main), numbered from the next part, so the new parts extend what merged (scripts/bump/bundle_layers.py --tree-umbrella)", default: "" }
 permissions: {}
 defaults:
   run:
@@ -152,29 +153,16 @@ jobs:
       - name: Batched Gate 2 over every declaration of every module that built
         working-directory: emissary
         run: |
+          W="$PWD"  # `lib` is a symlink for a library with a `subdir`: a ../ after `cd lib` is the target's parent, not this directory
           # the library's own search path (its Mathlib and its modules) plus Gate 2's Vendor
           LP="$(cd lib && lake env printenv LEAN_PATH):$GITHUB_WORKSPACE/vendorproj/.lake/build/lib/lean"
-          # One Lean process imports the modules together. Library modules that cannot be imported together (two copies of one file, a
-          # notation Mathlib also has) are split into passes: Lean names the import that failed, that module and its importers are
-          # left out of the pass, and the next pass checks exactly what was left out. Verdicts of all passes go into one log.
-          : > gate2.log; only=""
-          for pass in 1 2 3 4 5 6; do
-            exclude=""
-            for attempt in $(seq 1 15); do
-              python3 scripts/bump/gate2_batch.py generate --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
-                --roots "$ROOTS" --out lib/gate2-check.lean --controls "$CONTROLS" --exclude "$exclude" --only "$only" \
-                --tentative "../tengoku/data/tentative/$KEY.jsonl,../tengoku/data/tentative/$KEY/*.jsonl" | tee plan.json
-              (cd lib; start=$(date +%s); LEAN_PATH="$LP" timeout 120m lean gate2-check.lean > ../gate2-pass.log 2>&1 || true
-               echo "batched Gate 2 (pass $pass, attempt $attempt): $(( ($(date +%s) - start) )) seconds for $(grep -c 'GATE2B_' ../gate2-pass.log) verdicts")
-              bad=$(grep -oP "import \K\S+(?= failed)" gate2-pass.log | head -1 || true)
-              [ -z "$bad" ] && break
-              echo "import clash: $bad (and what imports it) left out of this pass"; exclude="$exclude,$bad"
-            done
-            cat gate2-pass.log >> gate2.log
-            only=$(python3 -c "import json; print(','.join(json.load(open('lib/gate2-check.plan.json')).get('excluded_modules', [])))")
-            [ -n "$only" ] || break
-            echo "pass $((pass+1)): the $(echo "$only" | tr ',' '\n' | wc -l) modules left out"
-          done
+          # Gate 2 in chunks, each Lean process under a memory limit (scripts/bump/gate2_driver.py): one process over every declaration of the library was killed by
+          # the kernel, or took the runner down, on large libraries. Library modules that cannot be imported together (two copies of one file, a notation Mathlib
+          # also has) are split into rounds as before: Lean names the import that failed, that module and its importers are left out of the chunk and checked in a chunk
+          # of their own. A module that kills Lean alone gets no verdict and is listed in gate2-killed.json. Verdicts of all chunks go into one log.
+          python3 scripts/bump/gate2_driver.py --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
+            --roots "$ROOTS" --controls "$CONTROLS" --tentative "../tengoku/data/tentative/$KEY.jsonl,../tengoku/data/tentative/$KEY/*.jsonl" \
+            --lean-path "$LP" --budget-min 120
           echo "--- Lean errors (not verdicts):"; { grep -E "error" gate2.log | grep -v "GATE2B_" | head -8 | cut -c1-300; } || true
       - name: Verdicts against the per-theorem pipeline's
         working-directory: emissary
@@ -195,6 +183,7 @@ jobs:
             emissary/repairs.patch
             emissary/gate2.log
             emissary/gate2-results.json
+            emissary/gate2-killed.json
             emissary/passed.json
             emissary/plan.json
           retention-days: 90
@@ -202,8 +191,9 @@ jobs:
         if: env.RECORDS == 'on'
         working-directory: emissary
         run: |
+          W="$PWD"  # `lib` is a symlink for a library with a `subdir`: a ../ after `cd lib` is the target's parent, not this directory
           python3 scripts/bump/records.py lean --lib lib --names passed.json --out lib/records-deps.lean
-          (cd lib && timeout 90m lake env lean records-deps.lean > ../records-deps.log 2>&1 || true)
+          (cd lib && timeout 90m lake env lean records-deps.lean > "$W/records-deps.log" 2>&1 || true)
           grep -c "REC_DEPS" records-deps.log || true
           { grep -E "error" records-deps.log | grep -v "REC_" | head -5 | cut -c1-300; } || true
           python3 scripts/bump/records.py compose --lib lib --log records-deps.log --meta "data/exports/$KEY/setup.ci.json" --out composed.jsonl
@@ -214,13 +204,24 @@ jobs:
         working-directory: emissary
         run: |
           # a program that imports only Lean and loads the library at run time (BundleKeep.lean says why: a script that imported the library parsed with its tokens)
-          python3 scripts/bump/bundle.py keep-input --lib lib --passed passed.json --roots "$ROOTS" --out lib/bundle-keep.json
-          (cd lib && timeout 90m lake env lean --run ../scripts/bump/BundleKeep.lean bundle-keep.json > ../bundle-deps.log 2>&1 || true)
+          W="$PWD"  # `lib` is a symlink for a library with a `subdir`: a ../ after `cd lib` is the target's parent, not this directory
+          # Two modules of a library that declare one name cannot be loaded together (`import X failed, environment already contains …`), and the tree loads every
+          # module into one environment: the later one is left out with what imports it, here and in compose, and the keep step runs again on the rest.
+          drop=""
+          for attempt in $(seq 1 25); do
+            python3 scripts/bump/bundle.py keep-input --lib lib --passed passed.json --roots "$ROOTS" --drop "$drop" --out lib/bundle-keep.json
+            (cd lib && timeout 90m lake env lean --run "$W/scripts/bump/BundleKeep.lean" bundle-keep.json > "$W/bundle-deps.log" 2>&1 || true)
+            bad=$(grep -oP "import \K\S+(?= failed)" bundle-deps.log | head -1 || true)
+            [ -z "$bad" ] && break
+            echo "import clash in the keep step: $bad (and what imports it) is left out of the bundle"; drop="$drop,$bad"
+          done
           python3 scripts/bump/bundle.py compose --lib lib --log bundle-deps.log --passed passed.json --meta "data/exports/$KEY/setup.ci.json" \
-            --key "$KEY" --toolchain "$TOOLCHAIN" --errors build1.log --gate2 gate2.log --out bundle --src pruned-src
+            --key "$KEY" --toolchain "$TOOLCHAIN" --errors build1.log --gate2 gate2.log --out bundle --src pruned-src --drop-modules "${drop#,}" --keep-input lib/bundle-keep.json
       - name: Build the pruned sources until they are clean (what is shipped is exactly what was built; a module that does not build, and what imports it, is left out)
         working-directory: emissary
         run: |
+          # a library with a `subdir` has `lib` as a symlink into the clone, so that its path dependencies (`../Lax979537`) resolve next to it: the pruned build lives next to it too
+          if [ -L lib ]; then t="$(readlink lib)-pruned"; mkdir -p "$t"; ln -s "$t" lib2; fi
           mkdir -p lib2/.lake && cp lib/lakefile.* lib/lake-manifest.json lib/lean-toolchain lib2/ && ln -s "$PWD/lib/.lake/packages" lib2/.lake/packages
           sync_sources() {
             for r in ${ROOTS//,/ }; do
@@ -244,8 +245,9 @@ jobs:
         # trusted: the edited sources are built again and a module that no longer builds is left out, as in the build above.
         working-directory: emissary
         run: |
+          W="$PWD"  # `lib` is a symlink for a library with a `subdir`: a ../ after `cd lib` is the target's parent, not this directory
           python3 scripts/bump/leakscan_args.py --key "$KEY" --src pruned-src-wide --roots "$ROOTS" --out leakscan.args
-          if ! (cd lib2 && xargs -0 -a ../leakscan.args lake env lean --run ../scripts/bump/TengokuLeak.lean > ../leakscan.txt 2> ../leakscan.err); then
+          if ! (cd lib2 && xargs -0 -a "$W/leakscan.args" lake env lean --run "$W/scripts/bump/TengokuLeak.lean" > "$W/leakscan.txt" 2> "$W/leakscan.err"); then
             echo "::warning::the leak scan did not run; the bundle ships unscanned"; tail -5 leakscan.err; exit 0
           fi
           head -3 leakscan.txt
@@ -282,6 +284,7 @@ jobs:
             emissary/repairs.patch
             emissary/gate2.log
             emissary/gate2-results.json
+            emissary/gate2-killed.json
             emissary/passed.json
             emissary/composed.jsonl
             emissary/bundle
@@ -308,7 +311,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions: { contents: read, id-token: write, attestations: write, actions: read }  # actions: read = the results of an earlier run (recut)
-    env: { KEY: "${{ inputs.key }}", SCOPE: "${{ inputs.scope }}", DROP: "${{ inputs.drop }}", PARTS: "${{ inputs.parts }}" }
+    env: { KEY: "${{ inputs.key }}", SCOPE: "${{ inputs.scope }}", DROP: "${{ inputs.drop }}", PARTS: "${{ inputs.parts }}", FROM_TREE: "${{ inputs.from_tree }}" }
     steps:
       - name: The factory's scripts
         run: |
@@ -354,7 +357,15 @@ jobs:
             gzip -n -k "out/bundle-$KEY-$mode.tar"
             cp "$dir/report.json" "out/report-$mode.json"; cp "$dir/manifest.jsonl" "out/manifest-$mode.jsonl"
             if [ "${PARTS:-0}" != 0 ]; then
-              python3 emissary/scripts/bump/bundle_layers.py --bundle "$dir" --out "parts-$mode" --max-modules "$PARTS" --tar
+              from_tree=""
+              if [ "${FROM_TREE:-}" = true ]; then
+                # the library is in the tree already (its first parts merged): cut only the modules it does not have, from the next part number
+                ns=$(basename "$dir"/Tengoku/*.lean .lean)
+                curl -sSfL "https://raw.githubusercontent.com/competemath/tengoku/main/Tengoku/$ns.lean" -o "tree-umbrella-$mode.lean"
+                last=$(curl -sS "https://api.github.com/repos/competemath/tengoku/contents/data/intake/$KEY/parts" | python3 -c 'import json, re, sys; d = json.load(sys.stdin); n = [int(m.group(1)) for x in (d if isinstance(d, list) else []) for m in [re.match(r"(\d{3})\.json$", x["name"])] if m]; print(max(n, default=1))')
+                from_tree="--tree-umbrella tree-umbrella-$mode.lean --start $((last + 1))"
+              fi
+              python3 emissary/scripts/bump/bundle_layers.py --bundle "$dir" --out "parts-$mode" --max-modules "$PARTS" --tar $from_tree
               for t in "parts-$mode"/part-*.tar; do cp "$t" "out/bundle-$KEY-$mode-$(basename "$t")"; done
               cp "parts-$mode/plan.json" "out/parts-$mode.json"
             fi

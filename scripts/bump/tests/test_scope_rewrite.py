@@ -1,3 +1,4 @@
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -178,6 +179,37 @@ class Reexport(unittest.TestCase):
             rep = sr.reexport(d, leaks, skip=2)
             self.assertEqual(rep["modules"], 1)
             self.assertIn("attribute [local instance] X.instFoo", (d / "B.lean").read_text())
+
+
+class TreeNames(unittest.TestCase):
+    """2026-10-10: prismriver's Note.lean and Dihedral.lean got `attribute [local instance] Prismriver.instOrdRat_prismriver …` from --reexport. The leak scan names
+    the instances as the library's own build does (suffix `_prismriver`); in the tree Lean names them `…_tengoku`, so those two modules did not elaborate there
+    (MergeStorm found it on tengoku #397). A line written into a bundle has the tree's suffix; the library's own layout keeps the library's."""
+
+    LEAK = "leak: instance X.instFoo_l registered in Tengoku.Lib.L.A (declared at line 5)"
+
+    def layout(self, d: Path):
+        (d / "bundle" / "Tengoku" / "Lib" / "L").mkdir(parents=True)
+        (d / "pruned" / "L").mkdir(parents=True)
+        (d / "bundle" / "Tengoku" / "Lib" / "L" / "A.lean").write_text("module\n\npublic import Tengoku\n\nnamespace X\ninstance : Foo := x\nend X\n")
+        (d / "bundle" / "Tengoku" / "Lib" / "L" / "B.lean").write_text("public import Tengoku\npublic import Tengoku.Lib.L.A\n\ntheorem b : True := trivial\n")
+        (d / "pruned" / "L" / "A.lean").write_text("module\n\npublic import Tengoku\n\nnamespace X\ninstance : Foo := x\nend X\n")
+        (d / "pruned" / "L" / "B.lean").write_text("public import Tengoku\npublic import L.A\n\ntheorem b : True := trivial\n")
+
+    def test_names_are_translated_for_the_tree_and_for_nothing_else(self):
+        leaks = sr.parse(self.LEAK + "\nleak: simp X.s_l registered in Tengoku.Lib.L.A (declared at line 5)\nleak: instance X.instBar_other registered in Tengoku.Lib.L.A (declared at line 5)")
+        self.assertEqual([x["name"] for x in sr.for_tree(leaks)], ["X.instFoo_tengoku", "X.s_l", "X.instBar_other"])  # only `inst…_<the library's suffix>`
+
+    def test_the_inserted_attribute_lines_use_the_tree_suffix_in_the_bundle_and_the_library_suffix_in_the_pruned_layout(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            self.layout(d)
+            r = subprocess.run([sys.executable, str(Path(sr.__file__)), "--bundle", str(d / "bundle"), "--pruned", str(d / "pruned"), "--reexport", "--leaks", self.LEAK], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            tree_b = (d / "bundle/Tengoku/Lib/L/B.lean").read_text()
+            self.assertIn("attribute [local instance] X.instFoo_tengoku", tree_b)
+            self.assertNotIn("instFoo_l", tree_b)
+            self.assertIn("attribute [local instance] X.instFoo_l", (d / "pruned/L/B.lean").read_text())
 
 
 class Scopes(unittest.TestCase):

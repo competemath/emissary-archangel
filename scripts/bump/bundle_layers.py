@@ -17,7 +17,11 @@ What a part holds (the same layout as a bundle, which is what the gate will chec
   - a `report.json` of this part (counts, and the digest of the whole bundle it was cut from).
 A file that is not a module of the library's tree path (the marker `Deps.lean`) goes with the first part.
 
-  bundle_layers.py --bundle DIR --out OUT [--max-modules 300] [--tar]
+A bundle that is recut after some of its parts have merged (a better pruner, a module the queue refused) cannot be cut from scratch: the new order puts the merged
+modules elsewhere. `--tree-umbrella FILE` (the library's `Tengoku/<Ns>.lean` in the tree now) and `--start N` (the next part number) cut only the modules the tree does not
+have yet, numbered from N; each part's umbrella is the tree's plus the imports of the parts so far, which is exactly what the extend gate accepts.
+
+  bundle_layers.py --bundle DIR --out OUT [--max-modules 300] [--tar] [--tree-umbrella FILE --start N]
       DIR is a composed bundle (DIR/Tengoku/<Ns>.lean, DIR/Tengoku/<Ns>/**.lean, DIR/manifest.jsonl, DIR/report.json); OUT/part-NNN/ per part and OUT/plan.json
 """
 
@@ -26,6 +30,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -50,7 +55,8 @@ class Part:
 
 
 def module_name(path: str) -> str:
-    return path.removesuffix(".lean").replace("/", ".")
+    """The module a file is, as Lean writes it: `Tengoku/Lib/A-B.lean` is `Tengoku.Lib.«A-B»` (the manifest and the umbrella spell it that way; tao-analysis could not be cut, 2026-10-09)."""
+    return ".".join(c if re.fullmatch(r"[^\W\d][\w']*", c) else f"«{c}»" for c in path.removesuffix(".lean").split("/"))
 
 
 def own_modules(files: dict[str, bytes], ns: str) -> dict[str, str]:
@@ -121,8 +127,15 @@ def umbrella_after(umbrella: str, listed: set[str]) -> str:
     return text if text.endswith("\n") or not text else text + "\n"
 
 
-def plan(files: dict[str, bytes], ns: str, max_modules: int = DEFAULT_MAX) -> list[Part]:
-    """The parts of the bundle in `files` (path -> bytes), library namespace `ns`. Raises BundleError for a bundle that cannot be cut."""
+def tree_modules(tree_umbrella: str, ns: str) -> set[str]:
+    """The modules the tree already has: those its umbrella imports, and the marker `Deps` (which no umbrella lists)."""
+    named = {ln.split()[-1] for ln in tree_umbrella.split("\n") if ln.strip().removeprefix("public ").startswith("import ")}
+    return named | {f"Tengoku.{ns}.Deps"}
+
+
+def plan(files: dict[str, bytes], ns: str, max_modules: int = DEFAULT_MAX, tree_umbrella: str | None = None, start: int = 1) -> list[Part]:
+    """The parts of the bundle in `files` (path -> bytes), library namespace `ns`. Raises BundleError for a bundle that cannot be cut. With `tree_umbrella` the
+    modules it imports are in the tree already: they are left out, the parts are numbered from `start`, and each umbrella is the tree's plus the imports so far."""
     mods = own_modules(files, ns)
     if not mods:
         raise BundleError(f"no module under Tengoku/{ns}/ in the bundle")
@@ -134,6 +147,8 @@ def plan(files: dict[str, bytes], ns: str, max_modules: int = DEFAULT_MAX) -> li
     graph = import_graph(files, mods)
     # the marker `Deps.lean` (it tells tengoku's generator the library is in All.lean) is what the first part, the intake PR, must carry: it goes first
     order = topological_order(graph, (f"Tengoku.{ns}.Deps",))
+    merged = tree_modules(tree_umbrella, ns) if tree_umbrella is not None else set()
+    order = [m for m in order if m not in merged]
     manifest = [ln for ln in files.get("manifest.jsonl", b"").decode("utf-8").split("\n") if ln.strip()]
     by_module: dict[str, list[str]] = {}
     for ln in manifest:
@@ -145,17 +160,22 @@ def plan(files: dict[str, bytes], ns: str, max_modules: int = DEFAULT_MAX) -> li
     report = json.loads(files["report.json"]) if "report.json" in files else {}
     parts: list[Part] = []
     seen: set[str] = set()
-    for i, chunk in enumerate(slices(order, max_modules), 1):
+    for i, chunk in enumerate(slices(order, max_modules), start):
         seen |= set(chunk)
         part = Part(i, chunk)
         for m in chunk:
             part.files[mods[m]] = files[mods[m]]
             part.manifest_lines += by_module.get(m, [])
-        if i == 1:  # the marker and any other file outside the modules of the library
+        if i == 1 and tree_umbrella is None:  # the marker and any other file outside the modules of the library
             for p, data in files.items():
                 if p not in (umbrella_path, "manifest.jsonl", "report.json") and p not in mods.values():
                     part.files[p] = data
-        part.files[umbrella_path] = umbrella_after(umbrella, listed & seen).encode("utf-8")
+        if tree_umbrella is None:
+            part.files[umbrella_path] = umbrella_after(umbrella, listed & seen).encode("utf-8")
+        else:  # the tree's umbrella as it is, then the imports of the parts so far in the bundle's order
+            gained = [ln for ln in umbrella_after(umbrella, listed & seen & set(order)).split("\n") if ln.strip().removeprefix("public ").startswith("import ")]
+            base = tree_umbrella if tree_umbrella.endswith("\n") or not tree_umbrella else tree_umbrella + "\n"
+            part.files[umbrella_path] = (base + "".join(ln + "\n" for ln in gained)).encode("utf-8")
         part.files["manifest.jsonl"] = ("\n".join(part.manifest_lines) + ("\n" if part.manifest_lines else "")).encode("utf-8")
         part.files["report.json"] = (
             json.dumps(
@@ -176,9 +196,10 @@ def plan(files: dict[str, bytes], ns: str, max_modules: int = DEFAULT_MAX) -> li
     return parts
 
 
-def check(parts: list[Part], files: dict[str, bytes], ns: str) -> None:
+def check(parts: list[Part], files: dict[str, bytes], ns: str, tree_umbrella: str | None = None) -> None:
     """The rules that make the parts safe, checked on the result (not trusted from the construction). Raises BundleError at the first one broken."""
     mods = own_modules(files, ns)
+    merged = (tree_modules(tree_umbrella, ns) & set(mods)) if tree_umbrella is not None else set()
     graph = import_graph(files, mods)
     where: dict[str, int] = {}
     for part in parts:
@@ -186,14 +207,16 @@ def check(parts: list[Part], files: dict[str, bytes], ns: str) -> None:
             if m in where:
                 raise BundleError(f"{m} is in parts {where[m]} and {part.index}")
             where[m] = part.index
-    if set(where) != set(mods):
-        raise BundleError("the parts do not hold exactly the bundle's modules")
+    if set(where) != set(mods) - merged:
+        raise BundleError("the parts do not hold exactly the bundle's modules" + (" that the tree does not have" if merged else ""))
     for m, deps in graph.items():
+        if m in merged:
+            continue
         for d in deps:
-            if where[d] > where[m]:
+            if d not in merged and where[d] > where[m]:
                 raise BundleError(f"{m} (part {where[m]}) imports {d} (part {where[d]}), a later one")
     lines = [ln for p in parts for ln in p.manifest_lines]
-    want = [ln for ln in files.get("manifest.jsonl", b"").decode("utf-8").split("\n") if ln.strip()]
+    want = [ln for ln in files.get("manifest.jsonl", b"").decode("utf-8").split("\n") if ln.strip() and (not merged or json.loads(ln).get("module") not in merged)]
     if sorted(lines) != sorted(want):
         raise BundleError("the parts' manifest lines are not the bundle's manifest lines")
 
@@ -250,11 +273,14 @@ def main(argv: list[str]) -> None:
         action="store_true",
         help="also write each part as a canonical archive (bundle_tar.py)",
     )
+    ap.add_argument("--tree-umbrella", help="the library's Tengoku/<Ns>.lean in the tree now: cut only the modules it does not import yet")
+    ap.add_argument("--start", type=int, default=0, help="the number of the first part (with --tree-umbrella; default 2: the intake PR was part 1)")
     a = ap.parse_args(argv)
     files = read_bundle(Path(a.bundle))
     ns = namespace(files)
-    parts = plan(files, ns, a.max_modules)
-    check(parts, files, ns)
+    tree = Path(a.tree_umbrella).read_text(encoding="utf-8") if a.tree_umbrella else None
+    parts = plan(files, ns, a.max_modules, tree, (a.start or 2) if tree is not None else 1)
+    check(parts, files, ns, tree)
     summary = write_parts(parts, Path(a.out), a.tar)
     print(f"{ns}: {summary['modules']} modules, {summary['theorems']} theorems in {len(parts)} parts of at most {a.max_modules} modules")
 

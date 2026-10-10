@@ -248,6 +248,30 @@ class NothingEscapesPruning(unittest.TestCase):
         fine = kept_only_plain.replace("theorem plain", "open scoped Classical in\n\ntheorem plain", 1)
         self.assertEqual([x for x in m.leaks(fine, keep) if "dangling" in x], [])
 
+    def test_a_declaration_indented_under_its_prefix_is_a_declaration(self):
+        """openai/math writes `omit [Fintype κ] in` and `/-- doc -/` with the declaration one space in (` theorem …`). That line is no command, but the declaration
+        is under its prefix: a kept module of it was refused as 'dangling prefix' / 'no declaration after it' when `end` followed (openai-math, 15 modules, 2026-10-09)."""
+        sys.path.insert(0, str(HERE))
+        import records
+
+        src = (
+            "namespace Toy\n\nomit [Fintype κ] in\n theorem a : 1 = 1 := by\n  rfl\n\n/-- doc -/\n theorem b : 2 = 2 := by\n  rfl\n\nend Toy\n"
+        )
+        d = tempfile.mkdtemp()
+        lib = Path(d) / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        (lib / "Toy" / "I.lean").write_text(src)
+        m = records.Module(lib, "Toy.I", [(4, 5), (8, 9)])
+        keep = set(m.blocks)
+        text = m.text(keep)
+        self.assertIn("omit [Fintype κ] in\n theorem a", text)
+        self.assertEqual(m.leaks(text, keep), [])
+        # the guard still sees a prefix whose declaration is gone
+        gone = text.replace(" theorem a : 1 = 1 := by\n  rfl\n", "").replace("/-- doc -/\n theorem b : 2 = 2 := by\n  rfl\n", "")
+        self.assertTrue(any("dangling prefix" in x for x in m.leaks(gone, keep)), m.leaks(gone, keep))
+        gone_doc = text.replace(" theorem b : 2 = 2 := by\n  rfl\n", "")
+        self.assertTrue(any("no declaration after it" in x for x in m.leaks(gone_doc, keep)), m.leaks(gone_doc, keep))
+
     def test_prose_and_comments_are_not_declarations(self):
         """A module docstring line that starts with "lemma." or "theorem;" (complexitylib has fifty), a `--` line at column 0 inside a proof, and a
         docstring are not commands: the guard reads only column-0 lines outside comments."""
@@ -510,6 +534,27 @@ class ShortNamesAreUsesToo(unittest.TestCase):
         m = Module(lib, "Toy.B", [(ln("private def foo"),) * 2, (ln("theorem user"),) * 2, (ln("theorem other"),) * 2])
         keep = {(ln("theorem other"),) * 2}
         self.assertEqual(m.dangling("theorem other : 2 = 2 := foobar + a.foo + foo'", keep), [])
+
+
+class ModuleFile(unittest.TestCase):
+    def test_a_module_in_guillemets_is_a_file_without_them_and_dots_inside_stay(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        lib = Path("/lib")
+        self.assertEqual(records.module_file(lib, "Toy.A.B"), Path("/lib/Toy/A/B.lean"))
+        self.assertEqual(records.module_file(lib, "Analysis.Misc.«Real-EReal-ENNReal»"), Path("/lib/Analysis/Misc/Real-EReal-ENNReal.lean"))
+        self.assertEqual(records.module_file(lib, "FormalConjectures.Arxiv.«1104.1579».CunninghamChain"), Path("/lib/FormalConjectures/Arxiv/1104.1579/CunninghamChain.lean"))
+        self.assertEqual(records.module_file(lib, "FormalConjectures.Arxiv.«1104.1579»"), Path("/lib/FormalConjectures/Arxiv/1104.1579.lean"))
+        self.assertEqual(records.module_file(lib, "Root"), Path("/lib/Root.lean"))
+
+    def test_module_reads_the_file_of_a_hyphenated_module(self):
+        records, Module, lib, ln = toy_module("theorem t : True := trivial\n", mod="B")
+        d = Path(tempfile.mkdtemp())
+        (d / "Toy").mkdir()
+        (d / "Toy" / "My-File.lean").write_text("theorem t : True := trivial\n")
+        m = Module(d, "Toy.«My-File»", [])
+        self.assertEqual(m.lines[0], "theorem t : True := trivial")
 
 
 if __name__ == "__main__":

@@ -10,13 +10,14 @@ on:
       key: { description: "registered library key", required: true }
       mathlib: { description: "Mathlib tag the Tengoku tree is seeded from", default: "v4.34.0-rc2" }
       toolchain: { description: "the tree's Lean toolchain", default: "leanprover/lean4:v4.34.0-rc2" }
-      shards: { description: "number of shards (0 = one per ~200k lines, at most 20)", default: "0" }
+      shards: { description: "number of shards (0 = automatic: as many as it takes for no shard to build more than 250k lines, at most 32)", default: "0" }
       parallel: { description: "shards running at once (the repository has 20 runners; tengoku's own CI waits for them too: leave it room)", default: "8" }
       recut_from: { description: "RECUT: the id of an earlier run of this workflow for this key. No plan, no shards: its shard artifacts are merged again, without the modules in `drop` (and what imports them), and the new bundle is attested by this run", default: "" }
       drop: { description: "RECUT: modules (comma list) that did not build on the tree, from the merge queue's build of the bundle", default: "" }
       scope: { description: "RECUT: the `leak:` lines of the merge queue's leak report (separated by `;`): those registrations are made local (scripts/bump/scope_rewrite.py)", default: "" }
       tengoku_ref: { description: "a branch of competemath/tengoku to read the library's tentative records from (default main), for records whose PR is not merged yet", default: "" }
       parts: { description: "PARTS: cut each bundle into parts of at most this many modules (scripts/bump/bundle_layers.py), each attested as bundle-<key>-<mode>-part-NNN.tar, for a library too big for one intake PR (the queue builds ~3 s a module in 40 minutes: 300). 0 = no parts", default: "0" }
+      from_tree: { description: "PARTS, on a recut after some parts merged: cut only the modules the tree does not have yet (the library's Tengoku/<Ns>.lean on tengoku main), numbered from the next part, so the new parts extend what merged (scripts/bump/bundle_layers.py --tree-umbrella)", default: "" }
 permissions: {}
 defaults:
   run:
@@ -34,7 +35,7 @@ jobs:
       - name: This repository (scripts, the library's setup) and tengoku's entries for it
         run: |
           git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
-          git -C emissary sparse-checkout set --no-cone "/scripts/" "/data/exports/$KEY/setup.ci.json"
+          git -C emissary sparse-checkout set --no-cone "/scripts/" "/sources.json" "/data/exports/$KEY/setup.ci.json"
           git -C emissary checkout -q "$GITHUB_SHA"
           git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
           git -C tengoku sparse-checkout set --no-cone "/data/tentative/$KEY.jsonl" "/data/tentative/$KEY/"
@@ -46,6 +47,10 @@ jobs:
         run: |
           read -r repo commit _ roots < <(python3 scripts/trial-library-build.py meta "$KEY")
           git clone -q --filter=blob:none "$repo" lib && git -C lib checkout -q "$commit"
+          # a library whose Lake project is a subdirectory of its repository (sources.json `subdir`): `lib` is that project, a symlink, so that a path dependency (`../concepts`)
+          # still resolves next to it in the clone (as bump-library.yml does)
+          sub=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")
+          if [ -n "$sub" ]; then mv lib lib-repo && ln -s "lib-repo/$sub" lib; fi
           python3 - <<'PY'
           import glob, json, math, os, sys
           sys.path.insert(0, "scripts/bump")
@@ -59,9 +64,10 @@ jobs:
           imp, weight = ps.graph(Path("lib"), roots)
           wanted &= set(imp)
           k = int(os.environ["SHARDS"] or 0)
-          if k <= 0:
-              k = max(1, min(20, math.ceil(sum(weight.values()) / 200_000)))
-          plan = ps.plan(imp, weight, k, wanted=wanted)
+          if k <= 0:  # automatic: start from one shard per ~200k lines, then as many as it takes for no shard to build more than ps.MAX_SHARD_LINES (Gate 2 is one lean process: a bigger shard is OOM-killed)
+              k, plan = ps.choose_k(imp, weight, wanted, max(1, math.ceil(sum(weight.values()) / 200_000)))
+          else:
+              plan = ps.plan(imp, weight, k, wanted=wanted)
           os.makedirs("../plan", exist_ok=True)
           json.dump(plan, open("../plan/plan.json", "w"))
           print({kk: v for kk, v in plan.items() if kk != "shards"}, "entries:", len(ents), "modules with entries:", len(wanted))
@@ -93,12 +99,12 @@ jobs:
     timeout-minutes: 120
     # holds the signing identity, runs no code of the library: the shards' artifacts are read as data (shard_pack.merge refuses symlinks and `..`)
     permissions: { contents: read, id-token: write, attestations: write, actions: read }  # actions: read = the shard artifacts of an earlier run (recut)
-    env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}", SCOPE: "${{ inputs.scope }}", PARTS: "${{ inputs.parts }}" }
+    env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}", SCOPE: "${{ inputs.scope }}", PARTS: "${{ inputs.parts }}", FROM_TREE: "${{ inputs.from_tree }}" }
     steps:
       - name: This repository (scripts, the library's setup)
         run: |
           git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
-          git -C emissary sparse-checkout set --no-cone "/scripts/" "/data/exports/$KEY/setup.ci.json"
+          git -C emissary sparse-checkout set --no-cone "/scripts/" "/sources.json" "/data/exports/$KEY/setup.ci.json"
           git -C emissary checkout -q "$GITHUB_SHA"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { pattern: "shard-${{ inputs.key }}-*", path: shards, run-id: "${{ inputs.recut_from || github.run_id }}", github-token: "${{ github.token }}" }
@@ -120,7 +126,15 @@ jobs:
             python3 emissary/scripts/bump/bundle_tar.py "$dir" "bundle-$KEY-$mode.tar"
             gzip -n -k "bundle-$KEY-$mode.tar"
             if [ "${PARTS:-0}" != 0 ]; then
-              python3 emissary/scripts/bump/bundle_layers.py --bundle "$dir" --out "parts-$mode" --max-modules "$PARTS" --tar
+              from_tree=""
+              if [ "${FROM_TREE:-}" = true ]; then
+                # the library is in the tree already (its first parts merged): cut only the modules it does not have, from the next part number
+                ns=$(basename "$dir"/Tengoku/*.lean .lean)
+                curl -sSfL "https://raw.githubusercontent.com/competemath/tengoku/main/Tengoku/$ns.lean" -o "tree-umbrella-$mode.lean"
+                last=$(curl -sS "https://api.github.com/repos/competemath/tengoku/contents/data/intake/$KEY/parts" | python3 -c 'import json, re, sys; d = json.load(sys.stdin); n = [int(m.group(1)) for x in (d if isinstance(d, list) else []) for m in [re.match(r"(\d{3})\.json$", x["name"])] if m]; print(max(n, default=1))')
+                from_tree="--tree-umbrella tree-umbrella-$mode.lean --start $((last + 1))"
+              fi
+              python3 emissary/scripts/bump/bundle_layers.py --bundle "$dir" --out "parts-$mode" --max-modules "$PARTS" --tar $from_tree
               for t in "parts-$mode"/part-*.tar; do cp "$t" "bundle-$KEY-$mode-$(basename "$t")"; done
               cp "parts-$mode/plan.json" "parts-$mode.json"
             fi

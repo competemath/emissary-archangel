@@ -68,6 +68,10 @@ jobs:
           read -r repo commit _ roots < <(python3 scripts/trial-library-build.py meta "$KEY")
           echo "ROOTS=$(echo "$roots" | tr ' ' ',')" >> "$GITHUB_ENV"
           git clone -q --filter=blob:none "$repo" lib && git -C lib checkout -q "$commit"
+          # a library whose Lake project is a subdirectory of its repository (sources.json `subdir`): `lib` is that project, a symlink, so that a path dependency (`../concepts`)
+          # still resolves next to it in the clone (as bump-library.yml does)
+          sub=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")
+          if [ -n "$sub" ]; then mv lib lib-repo && ln -s "lib-repo/$sub" lib; fi
           # the library's own commands that are synonyms of plain Lean (Compfiles: problem, determine, snip) become plain Lean
           python3 scripts/bump/adapters.py "$KEY" lib "$(echo "$roots" | tr ' ' ',')"
           python3 scripts/trial-library-build.py retarget lib "$MATHLIB" "$TOOLCHAIN"
@@ -106,32 +110,22 @@ jobs:
       - name: Batched Gate 2 over the declarations of this shard's targets
         working-directory: emissary
         run: |
+          W="$PWD"  # `lib` is a symlink for a library with a `subdir`: a ../ after `cd lib` is the target's parent, not this directory
           LP="$(cd lib && lake env printenv LEAN_PATH):$GITHUB_WORKSPACE/vendorproj/.lake/build/lib/lean"
           TENT="../tengoku/data/tentative/$KEY.jsonl,../tengoku/data/tentative/$KEY/*.jsonl"
           mine=$(paste -sd, targets.txt)
-          : > gate2.log; only="$mine"
-          for pass in 1 2 3 4 5 6; do
-            exclude=""
-            for attempt in $(seq 1 15); do
-              python3 scripts/bump/gate2_batch.py generate --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
-                --roots "$ROOTS" --out lib/gate2-check.lean --controls "$CONTROLS" --exclude "$exclude" --only "$only" --tentative "$TENT" | tee plan.json
-              (cd lib; LEAN_PATH="$LP" timeout 150m lean gate2-check.lean > ../gate2-pass.log 2>&1 || true
-               echo "pass $pass attempt $attempt: $(grep -c 'GATE2B_' ../gate2-pass.log) verdicts")
-              bad=$(grep -oP "import \K\S+(?= failed)" gate2-pass.log | head -1 || true)
-              [ -z "$bad" ] && break
-              exclude="$exclude,$bad"
-            done
-            cat gate2-pass.log >> gate2.log
-            only=$(python3 -c "import json; print(','.join(json.load(open('lib/gate2-check.lean'.replace('.lean','.plan.json'))).get('excluded_modules', [])))")
-            [ -n "$only" ] || break
-          done
+          # Gate 2 in chunks, each Lean process under a memory limit (scripts/bump/gate2_driver.py): one process over every declaration of a shard was killed by the
+          # kernel, or took the runner down, on navier-stokes-euler. A module that kills Lean alone gets no verdict and is listed in gate2-killed.json.
+          python3 scripts/bump/gate2_driver.py --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
+            --roots "$ROOTS" --controls "$CONTROLS" --tentative "$TENT" --only "$mine" --lean-path "$LP" --budget-min 150
           python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json --tentative "$TENT"
       - name: What the passed theorems are made of
         working-directory: emissary
         run: |
           # a program that imports only Lean and loads the library at run time (BundleKeep.lean says why: a script that imported the library parsed with its tokens)
+          W="$PWD"  # `lib` is a symlink for a library with a `subdir`: a ../ after `cd lib` is the target's parent, not this directory
           python3 scripts/bump/bundle.py keep-input --lib lib --passed passed.json --roots "$ROOTS" --out lib/bundle-keep.json
-          (cd lib && timeout 120m lake env lean --run ../scripts/bump/BundleKeep.lean bundle-keep.json > ../bundle-deps.log 2>&1 || true)
+          (cd lib && timeout 120m lake env lean --run "$W/scripts/bump/BundleKeep.lean" bundle-keep.json > "$W/bundle-deps.log" 2>&1 || true)
           grep -c BUNDLE_KEEP bundle-deps.log || true
       - name: Pack this shard
         working-directory: emissary
@@ -147,4 +141,5 @@ jobs:
             shard-pack
             emissary/tb-final.json
             emissary/gate2-results.json
+            emissary/gate2-killed.json
           retention-days: 90
