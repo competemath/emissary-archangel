@@ -76,7 +76,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           DRY: ${{ inputs.dry_run || 'false' }}
-          SETUP_QUEUE: "tauceti:16:1:4:12 flt-anthropic:64:8:8:6"   # key:shards:expand_chunk:max_rounds:parallel, in order
+          JOB_BUDGET: "8"   # the same budget as the translate dispatch below
+          SETUP_QUEUE: "tauceti:16:1:4:6 flt-anthropic:64:8:8:6"   # key:shards:expand_chunk:max_rounds:parallel, in order
         run: |
           inflight=$(gh run list -R "$GITHUB_REPOSITORY" --workflow setup-sharded.yml --limit 20 --json status --jq '[.[] | select(.status != "completed")] | length')
           if [ "$inflight" != 0 ]; then echo "a sharded setup is running"; exit 0; fi
@@ -86,6 +87,12 @@ jobs:
             failed=$(gh run list -R "$GITHUB_REPOSITORY" --workflow setup-sharded.yml --limit 100 --json displayTitle,conclusion \
               --jq "[.[] | select((.displayTitle | startswith(\"setup-sharded $key \")) and .conclusion == \"failure\")] | length")
             if [ "$failed" -ge 2 ]; then echo "$key: failed twice, left for a person"; continue; fi
+            # jobs running in this repository now (every run that is not completed, the ones whose own status is still queued included)
+            busy=0
+            for id in $(gh run list -R "$GITHUB_REPOSITORY" --limit 60 --json databaseId,status --jq '.[] | select(.status != "completed") | .databaseId'); do
+              busy=$((busy + $(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" --jq '[.jobs[] | select(.status == "in_progress")] | length')))
+            done
+            if [ $((busy + ${parallel:-12})) -gt "$JOB_BUDGET" ]; then echo "$key: not now ($busy jobs busy, $parallel wanted, budget $JOB_BUDGET)"; break; fi
             echo "dispatch setup $key ($shards shards)"
             [ "$DRY" = true ] || gh workflow run setup-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$key" -f shards="$shards" -f expand_chunk="$chunk" -f max_rounds="$rounds" -f parallel="${parallel:-12}"
             break
@@ -94,7 +101,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           MAX: ${{ inputs.max_libraries || '6' }}
-          JOB_BUDGET: "16"   # of the organisation's 20 runners; the rest stay free for competemath/tengoku
+          JOB_BUDGET: "8"   # of the organisation's 20 runners: this repository's heavy jobs (translate, setup, bump) together stay under 8, so competemath/tengoku's gate and merge queue always have 12 (2026-10-10: a 12-shard translate, a 6-way setup and a 6-way bump ran at once and left tengoku 3-5)
           DRY: ${{ inputs.dry_run || 'false' }}
           # agent passes also need the repository variable TRANSLATE_AGENT=on (off until the cloud agent is proven)
           HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' && vars.TRANSLATE_AGENT == 'on' }}
@@ -141,9 +148,9 @@ jobs:
                   break
               if mode == "agent" and (agent_busy or any(m == "agent" for _, m, _ in chosen)):
                   continue
-              shards = min(shards, 12)   # translate.yml runs at most 12 shards at once anyway
+              shards = min(shards, 6)   # translate.yml runs at most 6 shards at once
               chosen.append((key, mode, shards))
-              jobs -= min(shards, 12) + 1
+              jobs -= shards + 1
           print(f"{len(ready)} libraries set up, {len(running)} running, {len(plan)} with work, {slots} library slots, {open('busy.txt').read().strip()} jobs busy")
           for key, mode, shards in chosen:
               print(f"dispatch {key} {mode} {shards} shards")

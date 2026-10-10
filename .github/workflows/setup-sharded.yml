@@ -40,7 +40,7 @@ on:
       parallel:
         description: "Shards running at once (runners are shared with translation and the tree's gate and queue)."
         required: false
-        default: "12"
+        default: "6"
       max_rounds:
         description: "Rounds before the workflow stops dispatching itself."
         required: false
@@ -144,7 +144,7 @@ jobs:
     permissions: { contents: read }
     strategy:
       fail-fast: false
-      max-parallel: ${{ fromJSON(inputs.parallel || '12') }}   # runners are shared with translation and the tree's gate and queue
+      max-parallel: ${{ fromJSON(inputs.parallel || '6') }}   # runners are shared with translation and the tree's gate and queue
       matrix:
         shard: ${{ fromJSON(needs.prime.outputs.shards) }}
     env:
