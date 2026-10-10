@@ -69,6 +69,11 @@ class IntakeOpenWorkflow(unittest.TestCase):
         self.assertTrue((PATH.parents[2] / "scripts" / "bump" / "intake_open.py").exists())
         self.assertTrue(re.search(r"--pace\", type=int, default=90", (PATH.parents[2] / "scripts" / "bump" / "intake_open.py").read_text()))
 
+    def test_it_runs_every_ten_minutes_and_not_on_the_busy_marks(self):
+        # a part waits for the next run after the one before it merges, so the interval is part of every part's cycle; :00 and :30 are where everyone's schedules land
+        crons = [s["cron"] for s in DOC[True]["schedule"]]
+        self.assertEqual(crons, ["3-59/10 * * * *"])
+
 
 if __name__ == "__main__":
     unittest.main()
