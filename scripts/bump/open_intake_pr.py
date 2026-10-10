@@ -2,7 +2,7 @@
 """open_intake_pr.py — turn a finished factory run into an intake PR on tengoku (or its sandbox).
 
   open_intake_pr.py --key K --run RUN_ID --repo competemath/tengoku[-sandbox] [--mode strict|proposed|wide] [--factory competemath/emissary-archangel] [--dry-run]
-                    [--part N [--depends-on PR]]
+                    [--part N [--depends-on PR]] [--auto-merge]
 
 Downloads the run's artifact `bump-K`, checks the build attestation of the archive against the factory's workflows (the gate does it
 again; refusing here saves a PR), unpacks the bundle into the tree's layout (Tengoku/<Library>/…, Tengoku/<Library>.lean,
@@ -13,13 +13,19 @@ A library cut into parts (the run was dispatched with `parts`, scripts/bump/bund
 archive. `--part N` (N > 1) is an EXTEND PR: the library is in the tree already, the part's modules are added, the root file is the part's (the imports so far), the
 manifest is the tree's with the part's lines appended, the part's report is data/intake/K/parts/NNN.json, and Tengoku/All.lean is not touched; `--depends-on` names
 the PR of the part before (`#N` or its URL; the description says `Depends-On: #N`, which the gate waits for). Parts must merge in order.
+
+In GitHub Actions (intake-open.yml) the factory's own token reads the run and verifies the attestation, and the intake App's token (TENGOKU_TOKEN) does everything on the target
+repository: the clone, the push and the pull request. The commit is then the App's, signed off as it (BOT_NAME, BOT_EMAIL). `--auto-merge` arms auto-merge (the merge queue) on the PR it
+opened; the caller passes it only for an extend part, and only when the lane is switched on.
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import re
+import os
 import subprocess
 import sys
 import tarfile
@@ -38,11 +44,29 @@ def refuse_empty(report: dict, name: str) -> None:
         sys.exit(f"EMPTY BUNDLE: no verified theorem in {name}, nothing to intake")
 
 
-def sh(*a: str, cwd: str | None = None, check: bool = True) -> str:
-    r = subprocess.run(a, cwd=cwd, capture_output=True, text=True)
+def sh(*a: str, cwd: str | None = None, check: bool = True, env: dict[str, str] | None = None) -> str:
+    r = subprocess.run(a, cwd=cwd, capture_output=True, text=True, env=env)
     if check and r.returncode:
         sys.exit(f"{' '.join(a)}: {(r.stdout + r.stderr)[-600:]}")
     return r.stdout.strip()
+
+
+def target_env(env: dict[str, str]) -> dict[str, str]:
+    """The environment for git and gh on the TARGET repository: with TENGOKU_TOKEN, that token (and nothing in the arguments: git reads the header from its config environment);
+    without it, whatever the caller is logged in as, as before."""
+    token = env.get("TENGOKU_TOKEN")
+    if not token:
+        return dict(env)
+    basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+    return {**env, "GH_TOKEN": token, "GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "http.https://github.com/.extraheader", "GIT_CONFIG_VALUE_0": f"AUTHORIZATION: basic {basic}"}
+
+
+def commit_identity(env: dict[str, str]) -> dict[str, str]:
+    """The App's name and address for the commit (and so for its sign-off), when BOT_NAME and BOT_EMAIL are given; else git's own configuration."""
+    name, email = env.get("BOT_NAME"), env.get("BOT_EMAIL")
+    if not (name and email):
+        return {}
+    return {"GIT_AUTHOR_NAME": name, "GIT_AUTHOR_EMAIL": email, "GIT_COMMITTER_NAME": name, "GIT_COMMITTER_EMAIL": email}
 
 
 def pascal(s: str) -> str:
@@ -93,9 +117,12 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--part", type=int, help="send this part of a library cut into parts (1 = the intake PR, later ones extend PRs)")
     ap.add_argument("--depends-on", help="extend PRs: the PR of the part before (`#N` or its URL), named in the description as `Depends-On: #N`")
+    ap.add_argument("--auto-merge", action="store_true", help="arm auto-merge (the merge queue) on the PR once it is open; the caller passes it for extend parts when the lane is on")
     a = ap.parse_args()
     if a.part is not None and a.part < 1:
         sys.exit("--part counts from 1")
+    if a.auto_merge and not (a.part and a.part > 1):
+        sys.exit("--auto-merge belongs to an extend PR (--part N, N > 1): a first part adds a line to an owned file and needs a person")
     if a.depends_on and not (a.part and a.part > 1):
         sys.exit("--depends-on belongs to an extend PR (--part N, N > 1)")
     if a.depends_on and not re.search(r"(?:^#|/pull/)(\d+)$", a.depends_on):
@@ -124,9 +151,10 @@ def main() -> None:
     refuse_empty(report, tar.name)
     ns = pascal(a.key)
     repo = work / "repo"
-    sh("git", "clone", "-q", "--filter=blob:none", "--no-checkout", f"https://github.com/{a.repo}", str(repo))
+    tenv = target_env(dict(os.environ))
+    sh("git", "clone", "-q", "--filter=blob:none", "--no-checkout", f"https://github.com/{a.repo}", str(repo), env=tenv)
     sh("git", "sparse-checkout", "set", "--no-cone", "/Tengoku/All.lean", f"/Tengoku/{ns}.lean", f"/Tengoku/{ns}/", f"/data/intake/{a.key}/", cwd=str(repo))
-    sh("git", "checkout", "-q", "main", cwd=str(repo))
+    sh("git", "checkout", "-q", "main", cwd=str(repo), env=tenv)
     in_tree = (repo / "Tengoku" / ns).exists() or (repo / "Tengoku" / f"{ns}.lean").exists()
     if extend and not (in_tree and (repo / "data" / "intake" / a.key / "manifest.jsonl").exists()):
         sys.exit(f"{a.repo} does not have {a.key} yet: part 1 (the intake PR) must be in before part {a.part}")
@@ -156,13 +184,17 @@ def main() -> None:
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 """
     sh("git", "add", "--sparse", "-A", cwd=str(repo))
-    sh("git", "commit", "-q", "-s", "-m", msg + "\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>", cwd=str(repo))
+    sh("git", "commit", "-q", "-s", "-m", msg + "\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>", cwd=str(repo), env={**tenv, **commit_identity(dict(os.environ))})
     print(f"branch {branch}: {msg}; {n_files} files")
     if a.dry_run:
         print(f"dry run: nothing pushed (the clone is {repo})")
         return
-    sh("git", "push", "-q", "origin", branch, cwd=str(repo))
-    print(sh("gh", "pr", "create", "-R", a.repo, "--base", "main", "--head", branch, "--title", msg, "--body", body))
+    sh("git", "push", "-q", "origin", branch, cwd=str(repo), env=tenv)
+    url = sh("gh", "pr", "create", "-R", a.repo, "--base", "main", "--head", branch, "--title", msg, "--body", body, env=tenv)
+    print(url)
+    if a.auto_merge:
+        r = subprocess.run(["gh", "pr", "merge", url, "--auto", "--merge"], capture_output=True, text=True, env=tenv)
+        print("auto-merge armed" if r.returncode == 0 else f"auto-merge NOT armed: {(r.stdout + r.stderr).strip()[-300:]}")
 
 
 if __name__ == "__main__":

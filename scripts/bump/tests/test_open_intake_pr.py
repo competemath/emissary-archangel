@@ -1,4 +1,7 @@
+import base64
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -129,6 +132,41 @@ class RefuseEmpty(unittest.TestCase):
 
     def test_a_bundle_with_theorems_is_not(self):
         op.refuse_empty({"theorems": 1}, "x")
+
+
+class AsTheApp(unittest.TestCase):
+    """The scheduled opener (intake-open.yml) acts on the target repository as the intake App: its token for git and gh, its name on the commit and the sign-off."""
+
+    def test_the_target_calls_use_the_app_token_and_it_is_in_no_argument(self):
+        env = op.target_env({"TENGOKU_TOKEN": "tok-123", "GH_TOKEN": "factory-token", "PATH": "/bin"})
+        self.assertEqual(env["GH_TOKEN"], "tok-123")  # not the factory's: the pull request and the push are the App's
+        self.assertEqual(env["GIT_CONFIG_KEY_0"], "http.https://github.com/.extraheader")
+        self.assertEqual(env["GIT_CONFIG_VALUE_0"], "AUTHORIZATION: basic " + base64.b64encode(b"x-access-token:tok-123").decode())
+        self.assertEqual(env["PATH"], "/bin")
+
+    def test_without_the_token_nothing_changes(self):
+        base = {"GH_TOKEN": "mine", "PATH": "/bin"}
+        self.assertEqual(op.target_env(base), base)
+
+    def test_the_commit_is_the_apps_and_the_signoff_says_so(self):
+        ident = op.commit_identity({"BOT_NAME": "tengoku-intake[bot]", "BOT_EMAIL": "1+tengoku-intake[bot]@users.noreply.github.com"})
+        self.assertEqual(op.commit_identity({"BOT_NAME": "only-a-name"}), {})  # half an identity is none
+        with tempfile.TemporaryDirectory() as t:
+            env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")} | {"HOME": t, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null"}
+            subprocess.run(["git", "init", "-q", t], check=True, env=env)
+            (Path(t) / "f").write_text("x")
+            subprocess.run(["git", "add", "f"], cwd=t, check=True, env=env)
+            op.sh("git", "commit", "-q", "-s", "-m", "m", cwd=t, env={**env, **ident})
+            msg = subprocess.run(["git", "log", "-1", "--format=%B%an <%ae>"], cwd=t, capture_output=True, text=True, env=env).stdout
+            self.assertIn("Signed-off-by: tengoku-intake[bot] <1+tengoku-intake[bot]@users.noreply.github.com>", msg)
+            self.assertIn("tengoku-intake[bot] <1+tengoku-intake[bot]@users.noreply.github.com>", msg.splitlines()[-1])
+
+    def test_auto_merge_belongs_to_an_extend_part_only(self):
+        script = str(Path(op.__file__))
+        for extra in ([], ["--part", "1"]):
+            r = subprocess.run([sys.executable, script, "--key", "k", "--run", "1", "--repo", "o/r", "--auto-merge", *extra], capture_output=True, text=True)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn("extend PR", r.stderr)
 
 
 if __name__ == "__main__":
