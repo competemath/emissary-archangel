@@ -29,7 +29,7 @@ jobs:
           RUN: "${{ github.run_id }}"
         run: |
           echo "repositories the installation covers:"
-          gh api /installation/repositories --jq '.repositories[].full_name'
+          gh api /installation/repositories --jq '.repositories[]|"\(.full_name) permissions=\(.permissions|tostring)"'
           sha=$(gh api repos/competemath/tengoku-sandbox/git/ref/heads/main --jq .object.sha)
           gh api repos/competemath/tengoku-sandbox/git/refs -f ref="refs/heads/selftest/intake-$RUN" -f sha="$sha" --jq '"branch created: \(.ref)"'
           gh api -X DELETE "repos/competemath/tengoku-sandbox/git/refs/heads/selftest/intake-$RUN" && echo "branch deleted"
