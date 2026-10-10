@@ -146,6 +146,16 @@ class StatementEnd(unittest.TestCase):
     def test_letI_is_not_a_let(self):
         self.assertEqual(self.cut("theorem t : letI := 1; True := trivial"), "theorem t : letI")
 
+    def test_a_structure_instance_proof_does_not_leave_its_first_field_in_the_statement(self):
+        # zflean `ZFSet.sep_empty_iff`: the statement ended at the `:=` of `mp`, so it read `... where\n  mp h`
+        t = "theorem sep_empty_iff {p : ℕ → Prop} : {x ∈ s | p x} = ∅ ↔ ∀ x ∈ s, ¬p x where\n  mp h x hx := fun hp => h ▸ hp\n  mpr h := by simp"
+        self.assertEqual(self.cut(t), "theorem sep_empty_iff {p : ℕ → Prop} : {x ∈ s | p x} = ∅ ↔ ∀ x ∈ s, ¬p x")
+
+    def test_where_is_a_keyword_only_at_the_top_level_and_as_a_whole_word(self):
+        self.assertEqual(self.cut("theorem t : (f where x := 1) = 2 := rfl"), "theorem t : (f where x := 1) = 2")  # inside brackets
+        self.assertEqual(self.cut("theorem t (somewhere : ℕ) : somewhere = where' := rfl"), "theorem t (somewhere : ℕ) : somewhere = where'")
+        self.assertEqual(self.cut("theorem t : let y := 2; y = 2 := rfl"), "theorem t : let y := 2; y = 2")  # a let's := is not the end, a where would not be either
+
 
 if __name__ == "__main__":
     unittest.main()
