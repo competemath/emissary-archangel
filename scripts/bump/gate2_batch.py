@@ -436,7 +436,8 @@ def generate(a: argparse.Namespace) -> None:
             body.append(f'\n-- control {k}: the original statement of {x} against the new {y}\n#tengoku_import_parse "{export.resolve()}"\n')
             body.append(f'#gate2_cross "{x}" "{y}"\n')
     Path(a.out).write_text("".join(body))
-    meta = {"modules_checked": len(plan), "declarations": sum(len(n) for _, _, n in plan), "skipped": dict(skipped), "controls": a.controls, "excluded_modules": clashed}
+    meta = {"modules_checked": len(plan), "declarations": sum(len(n) for _, _, n in plan), "skipped": dict(skipped), "controls": a.controls, "excluded_modules": clashed,
+            "plan_modules": [[mod, len(names)] for mod, _, names in plan]}  # gate2_driver.py cuts the check into chunks by these
     Path(a.out).with_suffix(".plan.json").write_text(json.dumps(meta, indent=2))
     print(json.dumps(meta))
 

@@ -156,27 +156,13 @@ jobs:
           W="$PWD"  # `lib` is a symlink for a library with a `subdir`: a ../ after `cd lib` is the target's parent, not this directory
           # the library's own search path (its Mathlib and its modules) plus Gate 2's Vendor
           LP="$(cd lib && lake env printenv LEAN_PATH):$GITHUB_WORKSPACE/vendorproj/.lake/build/lib/lean"
-          # One Lean process imports the modules together. Library modules that cannot be imported together (two copies of one file, a
-          # notation Mathlib also has) are split into passes: Lean names the import that failed, that module and its importers are
-          # left out of the pass, and the next pass checks exactly what was left out. Verdicts of all passes go into one log.
-          : > gate2.log; only=""
-          for pass in 1 2 3 4 5 6; do
-            exclude=""
-            for attempt in $(seq 1 15); do
-              python3 scripts/bump/gate2_batch.py generate --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
-                --roots "$ROOTS" --out lib/gate2-check.lean --controls "$CONTROLS" --exclude "$exclude" --only "$only" \
-                --tentative "../tengoku/data/tentative/$KEY.jsonl,../tengoku/data/tentative/$KEY/*.jsonl" | tee plan.json
-              (cd lib; start=$(date +%s); LEAN_PATH="$LP" timeout 120m lean gate2-check.lean > "$W/gate2-pass.log" 2>&1 || true
-               echo "batched Gate 2 (pass $pass, attempt $attempt): $(( ($(date +%s) - start) )) seconds for $(grep -c 'GATE2B_' "$W/gate2-pass.log") verdicts")
-              bad=$(grep -oP "import \K\S+(?= failed)" gate2-pass.log | head -1 || true)
-              [ -z "$bad" ] && break
-              echo "import clash: $bad (and what imports it) left out of this pass"; exclude="$exclude,$bad"
-            done
-            cat gate2-pass.log >> gate2.log
-            only=$(python3 -c "import json; print(','.join(json.load(open('lib/gate2-check.plan.json')).get('excluded_modules', [])))")
-            [ -n "$only" ] || break
-            echo "pass $((pass+1)): the $(echo "$only" | tr ',' '\n' | wc -l) modules left out"
-          done
+          # Gate 2 in chunks, each Lean process under a memory limit (scripts/bump/gate2_driver.py): one process over every declaration of the library was killed by
+          # the kernel, or took the runner down, on large libraries. Library modules that cannot be imported together (two copies of one file, a notation Mathlib
+          # also has) are split into rounds as before: Lean names the import that failed, that module and its importers are left out of the chunk and checked in a chunk
+          # of their own. A module that kills Lean alone gets no verdict and is listed in gate2-killed.json. Verdicts of all chunks go into one log.
+          python3 scripts/bump/gate2_driver.py --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
+            --roots "$ROOTS" --controls "$CONTROLS" --tentative "../tengoku/data/tentative/$KEY.jsonl,../tengoku/data/tentative/$KEY/*.jsonl" \
+            --lean-path "$LP" --budget-min 120
           echo "--- Lean errors (not verdicts):"; { grep -E "error" gate2.log | grep -v "GATE2B_" | head -8 | cut -c1-300; } || true
       - name: Verdicts against the per-theorem pipeline's
         working-directory: emissary
@@ -197,6 +183,7 @@ jobs:
             emissary/repairs.patch
             emissary/gate2.log
             emissary/gate2-results.json
+            emissary/gate2-killed.json
             emissary/passed.json
             emissary/plan.json
           retention-days: 90
@@ -297,6 +284,7 @@ jobs:
             emissary/repairs.patch
             emissary/gate2.log
             emissary/gate2-results.json
+            emissary/gate2-killed.json
             emissary/passed.json
             emissary/composed.jsonl
             emissary/bundle

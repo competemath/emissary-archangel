@@ -114,22 +114,10 @@ jobs:
           LP="$(cd lib && lake env printenv LEAN_PATH):$GITHUB_WORKSPACE/vendorproj/.lake/build/lib/lean"
           TENT="../tengoku/data/tentative/$KEY.jsonl,../tengoku/data/tentative/$KEY/*.jsonl"
           mine=$(paste -sd, targets.txt)
-          : > gate2.log; only="$mine"
-          for pass in 1 2 3 4 5 6; do
-            exclude=""
-            for attempt in $(seq 1 15); do
-              python3 scripts/bump/gate2_batch.py generate --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
-                --roots "$ROOTS" --out lib/gate2-check.lean --controls "$CONTROLS" --exclude "$exclude" --only "$only" --tentative "$TENT" | tee plan.json
-              (cd lib; LEAN_PATH="$LP" timeout 150m lean gate2-check.lean > "$W/gate2-pass.log" 2>&1 || true
-               echo "pass $pass attempt $attempt: $(grep -c 'GATE2B_' "$W/gate2-pass.log") verdicts")
-              bad=$(grep -oP "import \K\S+(?= failed)" gate2-pass.log | head -1 || true)
-              [ -z "$bad" ] && break
-              exclude="$exclude,$bad"
-            done
-            cat gate2-pass.log >> gate2.log
-            only=$(python3 -c "import json; print(','.join(json.load(open('lib/gate2-check.lean'.replace('.lean','.plan.json'))).get('excluded_modules', [])))")
-            [ -n "$only" ] || break
-          done
+          # Gate 2 in chunks, each Lean process under a memory limit (scripts/bump/gate2_driver.py): one process over every declaration of a shard was killed by the
+          # kernel, or took the runner down, on navier-stokes-euler. A module that kills Lean alone gets no verdict and is listed in gate2-killed.json.
+          python3 scripts/bump/gate2_driver.py --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
+            --roots "$ROOTS" --controls "$CONTROLS" --tentative "$TENT" --only "$mine" --lean-path "$LP" --budget-min 150
           python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json --tentative "$TENT"
       - name: What the passed theorems are made of
         working-directory: emissary
@@ -153,4 +141,5 @@ jobs:
             shard-pack
             emissary/tb-final.json
             emissary/gate2-results.json
+            emissary/gate2-killed.json
           retention-days: 90
