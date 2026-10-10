@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 import tempfile
@@ -210,6 +211,49 @@ class TreeNames(unittest.TestCase):
             self.assertIn("attribute [local instance] X.instFoo_tengoku", tree_b)
             self.assertNotIn("instFoo_l", tree_b)
             self.assertIn("attribute [local instance] X.instFoo_l", (d / "pruned/L/B.lean").read_text())
+
+
+class ManifestStatements(unittest.TestCase):
+    """2026-10-10 (P1 in tengoku#418): a simp lemma made local in its module kept `@[simp]` in the manifest record's statement (zflean). The record text follows the module."""
+
+    def run_cli(self, d: Path, leak: str):
+        return subprocess.run([sys.executable, str(Path(sr.__file__)), "--bundle", str(d / "bundle"), "--leaks", leak], capture_output=True, text=True)
+
+    def layout(self, d: Path) -> Path:
+        b = d / "bundle" / "Tengoku" / "Lib" / "L"
+        b.mkdir(parents=True)
+        (b / "A.lean").write_text("module\n\npublic import Tengoku\n\nnamespace X\n@[simp]\ntheorem s : 1 + 1 = 2 := rfl\n\ntheorem t : 2 + 2 = 4 := rfl\nend X\n")
+        rows = [
+            {"name": "X.s", "statement": "@[simp]\ntheorem s : 1 + 1 = 2", "module": "Tengoku.Lib.L.A"},
+            {"name": "X.t", "statement": "@[simp]\ntheorem t : 2 + 2 = 4", "module": "Tengoku.Lib.L.A"},  # not flagged: stays as it is
+            {"name": "X.s", "statement": "@[simp, nontriviality]\ntheorem s : 1 + 1 = 2", "module": "Tengoku.Lib.L.B"},  # another module's: stays
+        ]
+        (d / "bundle" / "manifest.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
+        return d / "bundle" / "manifest.jsonl"
+
+    def test_the_statement_of_a_flagged_simp_lemma_is_local_and_nothing_else_changes(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            m = self.layout(d)
+            r = self.run_cli(d, "leak: simp X.s registered in Tengoku.Lib.L.A (declared at line 6)")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            rows = [json.loads(ln) for ln in m.read_text().splitlines()]
+            self.assertEqual(rows[0]["statement"], "@[local simp]\ntheorem s : 1 + 1 = 2")
+            self.assertEqual(rows[1]["statement"], "@[simp]\ntheorem t : 2 + 2 = 4")
+            self.assertEqual(rows[2]["statement"], "@[simp, nontriviality]\ntheorem s : 1 + 1 = 2")
+            self.assertIn("@[local simp]", (d / "bundle/Tengoku/Lib/L/A.lean").read_text())  # the module and the record now agree
+
+    def test_a_statement_that_is_local_already_and_an_instance_leak_are_left_alone(self):
+        rec = {"name": "X.s", "statement": "@[local simp]\ntheorem s : 1 + 1 = 2", "module": "Tengoku.Lib.L.A"}
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            (d / "bundle").mkdir()
+            (d / "bundle" / "manifest.jsonl").write_text(json.dumps(rec) + "\n")
+            self.assertEqual(sr.rewrite_manifest(d / "bundle", sr.parse("leak: simp X.s registered in Tengoku.Lib.L.A (declared at line 6)")), 0)
+            self.assertEqual(json.loads((d / "bundle" / "manifest.jsonl").read_text())["statement"], rec["statement"])
+            (d / "bundle" / "manifest.jsonl").write_text(json.dumps({**rec, "statement": "@[simp]\ntheorem s : 1 + 1 = 2"}) + "\n")
+            self.assertEqual(sr.rewrite_manifest(d / "bundle", sr.parse("leak: instance X.s registered in Tengoku.Lib.L.A (declared at line 6)")), 0)  # an instance leak is no simp lemma
+            self.assertEqual(json.loads((d / "bundle" / "manifest.jsonl").read_text())["statement"], "@[simp]\ntheorem s : 1 + 1 = 2")
 
 
 class Scopes(unittest.TestCase):
