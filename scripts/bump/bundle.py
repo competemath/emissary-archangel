@@ -45,6 +45,8 @@ import tolerant_build as tb  # noqa: E402
 # bundle's business, and a header of `public import Tengoku` is right before and after that move.
 SEED_PACKAGES = ("Mathlib", "Batteries", "Aesop", "Qq", "ProofWidgets", "Plausible", "LeanSearchClient", "ImportGraph", "Cli")
 CORE = ("Init", "Std", "Lean", "Lake")
+# a message of the parser (not of the elaborator): unexpected token 'end'; expected '⟩' / unterminated comment
+PARSE_ERROR = re.compile(r"(?:unexpected |unterminated |expected )")
 IMPORT_RE = re.compile(r"^(\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)?)(" + tb.MODNAME + r")(.*)$")
 
 MODES = ("strict", "proposed", "wide")  # strict: the allow-list; proposed: + notation commands; wide: + the macro family (what the tree takes is a policy decision)
@@ -211,12 +213,16 @@ def compose(a: argparse.Namespace) -> None:
     failed_seeds: list[tuple[str, tuple[int, int]]] = []
     # lines Lean reported an error on: the text of a declaration that never made it into the environment has no range, so it looks like glue
     err_lines: dict[str, set[int]] = defaultdict(set)
+    parse_lines: dict[str, set[int]] = defaultdict(set)  # the lines where the PARSER stopped: the same text stops it again in the tree, whatever Gate 2 said of the theorem
     for ln in Path(a.errors).read_text(errors="replace").splitlines():
         m = portfolio.ERROR.match(ln)
         if m:
             err_lines[m.group(1)].add(int(m.group(2)))
+            if PARSE_ERROR.match(m.group(4)):
+                parse_lines[m.group(1)].add(int(m.group(2)))
     modules: dict[str, records.Module] = {}
     failed_blocks: dict[str, set[tuple[int, int]]] = {}
+    fatal_blocks: dict[str, set[tuple[int, int]]] = {}
     glue_error: set[str] = set()
     for mod in own:
         parts = tb.split_mod(mod)
@@ -228,6 +234,7 @@ def compose(a: argparse.Namespace) -> None:
         modules[mod] = m
         # the blocks Lean reported an error in: such a declaration is closed with a `sorry` that is not in its text, and must never be kept for the text of another
         failed_blocks[mod] = {b for b in m.blocks if any(b[0] <= L <= b[1] for L in err_lines.get(rel, ()))}
+        fatal_blocks[mod] = {b for b in m.blocks if any(b[0] <= L <= b[1] for L in parse_lines.get(rel, ()))}
         # an error outside every declaration block (a `variable`, a notation) cannot be cut out: the module cannot be shipped
         if err_lines.get(rel) and any(not any(bs <= L <= be for bs, be in m.blocks) for L in err_lines[rel]):
             glue_error.add(mod)
@@ -266,7 +273,7 @@ def compose(a: argparse.Namespace) -> None:
             blk = modules[mod].block_of(names_[name][0]) if mod in modules else None
             if blk:
                 failed_blocks.setdefault(mod, set()).add(blk)
-    textually_kept, unresolved = keep_closure.close(modules, sidecars, keep_blocks, skip=set(base_dropped), failed=failed_blocks, aux_only=aux_only, failed_seeds=failed_seeds)
+    textually_kept, unresolved = keep_closure.close(modules, sidecars, keep_blocks, skip=set(base_dropped), failed=failed_blocks, aux_only=aux_only, failed_seeds=failed_seeds, fatal=fatal_blocks)
     for mod, names_ in unresolved.items():
         base_dropped.setdefault(mod, "names a declaration with sorry that the pruning leaves out: " + ", ".join(sorted(names_)[:3]))
     sys.setrecursionlimit(100000)

@@ -99,6 +99,22 @@ class FailedDeclarations(unittest.TestCase):
         out = keep_closure.aux_only_ranges(list(ranges), lambda mod, c: ranges.get((mod, c)))
         self.assertEqual(dict(out), {"Toy.A": {(7, 8)}})  # (4,5) is also needed by the declaration itself, (10,11) is a plain declaration
 
+    def test_a_seed_block_the_parser_stopped_in_makes_the_module_unshippable(self):
+        modules, sidecars, keep = self.setup()
+        keep["Toy.A"].add((4, 5))
+        seeds = []
+        added, unresolved = keep_closure.close(modules, sidecars, keep, failed={"Toy.A": {(4, 5)}}, fatal={"Toy.A": {(4, 5)}}, failed_seeds=seeds)
+        self.assertIn("<block at line 4 does not parse>", unresolved["Toy.A"])
+        self.assertEqual(seeds, [])  # not a failed seed that stays: a parse error cannot be shipped
+
+    def test_the_parser_messages_are_told_from_the_elaborators(self):
+        import bundle
+
+        for m in ("unexpected token 'end'; expected '⟩'", "unterminated comment", "expected term"):
+            self.assertTrue(bundle.PARSE_ERROR.match(m), m)
+        for m in ("unknown identifier x", "unsolved goals", "Application type mismatch", "Tactic `tauto` failed"):
+            self.assertFalse(bundle.PARSE_ERROR.match(m), m)
+
 
 if __name__ == "__main__":
     unittest.main()

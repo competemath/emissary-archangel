@@ -157,5 +157,32 @@ class StatementEnd(unittest.TestCase):
         self.assertEqual(self.cut("theorem t : let y := 2; y = 2 := rfl"), "theorem t : let y := 2; y = 2")  # a let's := is not the end, a where would not be either
 
 
+class DropSuperfluous(unittest.TestCase):
+    """A tactic with no goal left is deleted; what closes the enclosing term stays (lean-pool Exercise113, 2026-10-11: the closing `⟩` went with `; exact List.prefix_rfl`)."""
+
+    def drop(self, line, needle):
+        lines = [line]
+        col = line.index(needle)
+        self.assertTrue(portfolio.drop_superfluous(lines, 1, col))
+        return lines[0]
+
+    def test_the_closing_bracket_of_the_enclosing_term_stays(self):
+        out = self.drop("    exact (branch_mem_iff p).mpr ⟨σ.length, by rw [hσ]; exact List.prefix_rfl⟩", "exact List.prefix_rfl")
+        self.assertEqual(out, "    exact (branch_mem_iff p).mpr ⟨σ.length, by rw [hσ]⟩")
+
+    def test_brackets_inside_the_tactic_are_its_own(self):
+        out = self.drop("  exact ⟨a, by rw [h]; exact foo (bar ⟨x, y⟩) [z]⟩ -- tail", "exact foo")
+        self.assertEqual(out, "  exact ⟨a, by rw [h]⟩ -- tail")
+
+    def test_a_tail_that_ends_the_line_is_deleted_whole(self):
+        self.assertEqual(self.drop("  simp; exact foo", "exact foo"), "  simp")
+        self.assertEqual(self.drop("  simp <;> rfl", "rfl"), "  simp")
+
+    def test_a_whole_line_tactic_is_still_deleted(self):
+        lines = ["theorem t : True := by", "  trivial", "  rfl"]
+        self.assertTrue(portfolio.drop_superfluous(lines, 3, 2))
+        self.assertEqual(lines, ["theorem t : True := by", "  trivial"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -64,10 +64,12 @@ def close(
     failed: dict[str, set[tuple[int, int]]] | None = None,
     aux_only: dict[str, set[tuple[int, int]]] | None = None,
     failed_seeds: list[tuple[str, tuple[int, int]]] | None = None,
+    fatal: dict[str, set[tuple[int, int]]] | None = None,
 ) -> tuple[int, dict[str, set[str]]]:
     """Returns (how many declarations were added, {module: names it uses that cannot be kept}). `failed`: module -> the blocks that had an error in the build."""
     failed = failed or {}
     aux_only = aux_only or {}
+    fatal = fatal or {}
     by_full: dict[str, list[tuple[str, tuple[int, int], tuple[int, int]]]] = defaultdict(list)
     by_last: dict[str, list[tuple[str, tuple[int, int], tuple[int, int]]]] = defaultdict(list)
     for mod, names in sidecars.items():
@@ -86,6 +88,11 @@ def close(
     unresolved: dict[str, set[str]] = defaultdict(set)
     for mod, rs in keep_blocks.items():
         for blk in modules[mod].kept_blocks(rs) if mod in modules else ():
+            if blk in fatal.get(mod, ()):
+                # the parser stopped inside this block in the factory's own build (a theorem can still pass Gate 2: Lean elaborates the text up to the stop): the same text stops it in the tree,
+                # so the module cannot ship (lean-pool Exercise113, 2026-10-11: a cleanup step had deleted a closing bracket)
+                unresolved[mod].add(f"<block at line {blk[0]} does not parse>")
+                continue
             if blk in failed.get(mod, ()):
                 ranges_in = {r for r in rs if blk[0] <= r[0] <= blk[1]}
                 if ranges_in and ranges_in <= aux_only.get(mod, set()):
