@@ -77,6 +77,15 @@ class FailedDeclarations(unittest.TestCase):
         self.assertEqual(bundle.sorry_users(str(log)), {"A.b", "A.e"})
         self.assertEqual(bundle.sorry_users(""), set())
 
+    def test_a_failed_block_in_the_initial_keep_set_is_not_kept_and_the_module_cannot_ship(self):
+        modules, sidecars, keep = self.setup()
+        keep["Toy.A"].add((4, 5))  # Toy.helper_lemma is a seed (a passed theorem's term needs it) and it failed in the build
+        added, unresolved = keep_closure.close(modules, sidecars, keep, failed={"Toy.A": {(4, 5)}})
+        self.assertEqual(set(unresolved), {"Toy.A"})
+        self.assertTrue(any("line 4" in t for t in unresolved["Toy.A"]), unresolved)
+        # and a kept block naming it by its full name is told so too: the seed no longer counts as already kept
+        self.assertIn("Toy.helper_lemma", unresolved["Toy.A"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -56,6 +56,34 @@ class Account(unittest.TestCase):
         self.assertEqual(r["left_out"], {"declares a record the tree already has": 3})
         self.assertFalse(r["ledger_file"])
 
+    def rewrite_ledger(self, art, **fields):
+        f = art / "bundle-proposed" / "ledger.json"
+        d = json.loads(f.read_text())
+        d.update(fields)
+        f.write_text(json.dumps(d))
+
+    def test_a_ledger_that_left_nothing_out_is_not_a_missing_key(self):
+        art, tr = self.setup(["a", "b"], {}, {}, ["a"])
+        r = completeness.account(art, tr, "lib", "proposed")
+        self.assertEqual((r["problems"], r["left_out"]), ([], {}))
+
+    def test_an_empty_ledger_left_out_is_not_replaced_by_the_reports(self):
+        art, tr = self.setup(["a"], {"lint": 2}, {"M": {"reason": "lint", "names": 2}}, ["a"])
+        self.rewrite_ledger(art, left_out={}, modules={})  # the ledger claims nothing was left out; the report says 2
+        r = completeness.account(art, tr, "lib", "proposed")
+        self.assertTrue(any("the ledger left out 0" in p and "the report 2" in p for p in r["problems"]), r["problems"])
+        self.assertEqual(r["left_out"], {})  # the ledger's own (empty) answer is what is reported, not the report's
+
+    def test_the_ledgers_verified_and_shipped_totals_must_match_the_report_and_the_manifest(self):
+        art, tr = self.setup(["a", "b"], {"lint": 1}, {"M": {"reason": "lint", "names": 1}}, ["a"])
+        self.rewrite_ledger(art, verified=9)
+        r = completeness.account(art, tr, "lib", "proposed")
+        self.assertTrue(any("the ledger says 9 verified" in p for p in r["problems"]), r["problems"])
+        art, tr = self.setup(["a", "b"], {"lint": 1}, {"M": {"reason": "lint", "names": 1}}, ["a"])
+        self.rewrite_ledger(art, shipped=5)
+        r = completeness.account(art, tr, "lib", "proposed")
+        self.assertTrue(any("the ledger says 5 shipped" in p and "the manifest has 2" in p for p in r["problems"]), r["problems"])
+
 
 if __name__ == "__main__":
     unittest.main()

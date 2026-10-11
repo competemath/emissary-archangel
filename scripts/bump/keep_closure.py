@@ -60,11 +60,16 @@ def close(
             if distinctive(last):
                 by_last[last].append((mod, blk, (s, e)))
     kept: set[tuple[str, tuple[int, int]]] = set()
+    unresolved: dict[str, set[str]] = defaultdict(set)
     for mod, rs in keep_blocks.items():
         for blk in modules[mod].kept_blocks(rs) if mod in modules else ():
+            if blk in failed.get(mod, ()):
+                # a block the build failed in is already in the initial keep set (a passed theorem's term needs it, or it is one): Gate 2 cannot have passed something built on it, so this is a
+                # hole upstream. It is not kept (it would otherwise bypass the check below as `in kept`), and the module cannot ship: it is returned, never silently shipped
+                unresolved[mod].add(f"<block at line {blk[0]} failed in the build>")
+                continue
             kept.add((mod, blk))
     work = list(kept)
-    unresolved: dict[str, set[str]] = defaultdict(set)
     added = 0
     while work:
         mod, blk = work.pop()
