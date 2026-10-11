@@ -14,6 +14,13 @@ class Strip(unittest.TestCase):
         self.assertEqual(out, "@[simp] theorem a : True := trivial\n\ndef b : Nat := 1\n\n@[reducible] def c : Nat := 2\n")
         self.assertEqual(dict(n), {"circuit_norm": 2})
 
+    def test_the_unfolding_and_generator_attributes_are_kept(self):
+        """Stripping `@[instance_reducible]` changed how Lean unfolds a definition: a proof that rewrites through it stopped closing (tauceti Bialgebra, 2026-10-11)."""
+        t = "@[instance_reducible]\nnoncomputable def a : Nat := 1\n\n@[no_expose] def b : Nat := 2\n\n@[mk_iff] inductive P : Nat -> Prop | zero : P 0\n"
+        out, n = strip_attrs.strip_attributes(t)
+        self.assertEqual(out, t)
+        self.assertEqual(dict(n), {})
+
     def test_an_attribute_command_with_nothing_left_goes_whole(self):
         t = "namespace X\n\nattribute [circuit_norm] foo bar\n  baz\n\ntheorem a : True := trivial\nattribute [simp, circuit_norm] foo\nend X\n"
         out, _ = strip_attrs.strip_attributes(t)

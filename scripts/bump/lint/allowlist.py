@@ -120,6 +120,9 @@ ATTRIBUTES = {
     "irreducible",
     "semireducible",
     "implicit_reducible",
+    "instance_reducible",  # change how Lean unfolds a definition, nothing runs: stripping one broke proofs that rewrite through the definition (tauceti, 2026-10-11)
+    "no_expose",
+    "mk_iff",  # Mathlib's generator of the iff lemma of an inductive predicate (the tree's own code)
     "inline",
     "specialize",
     "match_pattern",
