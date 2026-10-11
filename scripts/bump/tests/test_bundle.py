@@ -116,7 +116,8 @@ class Bundle(unittest.TestCase):
         d, p = self.compose_toy("Toy.A")
         self.assertEqual(p.returncode, 0, p.stderr)
         for out in (d / "bundle", d / "bundle-proposed"):
-            led = json.loads((out / "ledger.json").read_text())
+            led = json.loads((out.with_name(out.name + ".ledger.json")).read_text())
+            self.assertFalse((out / "ledger.json").exists())  # nothing inside the bundle directory: it is archived and sent to the tree
             rep = json.loads((out / "report.json").read_text())
             self.assertEqual(led["verified"], led["shipped"] + sum(led["left_out"].values()))  # nothing is missing without a reason
             self.assertEqual(led["verified"], rep["passed_total"])

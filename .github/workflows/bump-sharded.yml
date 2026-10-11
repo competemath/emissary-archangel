@@ -163,6 +163,7 @@ jobs:
             bundle-proposed/report.json
             bundle-proposed/manifest.jsonl
             bundle-wide/report.json
+            bundle*.ledger.json
             bundle-wide/manifest.jsonl
             logs/gate2-results.json
             logs/passed.json
