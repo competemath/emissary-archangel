@@ -308,6 +308,7 @@ class AutoDrops(unittest.TestCase):
         "Usr2": "import Toy.Hlp2\n\nnamespace Toy\n\ntheorem user_of_sorry : 2 = 2 := by\n  simpa only [drop_sorry_helper] using rfl\n\nend Toy\n",
         "Hlp3": "namespace Toy\n\ntheorem drop_ab : 1 = 1 := rfl\n\nend Toy\n",
         "Usr3": "import Toy.Hlp3\n\nnamespace Toy\n\ntheorem user_of_short : 2 = 2 := by\n  simpa only [drop_ab] using rfl\n\nend Toy\n",
+        "Ex": "namespace Toy\n\ntheorem kept_ex : 1 = 1 := rfl\n\nexample : 2 = 2 := rfl\n\nexample : 3 = 3 := by\n  simpa only [drop_missing_lemma_xx] using rfl\n\nend Toy\n",
         "Hlp4": "namespace Toy\n\ntheorem drop_chain_a : 1 = 1 := by\n  exact drop_chain_b_lemma\n\ntheorem drop_chain_b_lemma : 1 = 1 := rfl\n\nend Toy\n",
         "Usr4": "import Toy.Hlp4\n\nnamespace Toy\n\ntheorem user_of_chain : 2 = 2 := by\n  simpa only [drop_chain_a] using rfl\n\nend Toy\n",
     }
@@ -403,6 +404,15 @@ class AutoDrops(unittest.TestCase):
         text = self.shipped_text(d, "Hlp4")
         self.assertIn("drop_chain_a", text)
         self.assertIn("drop_chain_b_lemma", text)  # named by the declaration that was kept because of the text
+
+    def test_an_example_is_cut_it_has_no_name_and_nothing_can_need_it(self):
+        """2026-10-11: lean-pool `ChannelCapacity/Counterexample.lean` shipped `example : ... identityKernel := ...` (examples were glue and always stayed) while the instance it needs was pruned: the tree's build stopped there."""
+        d, p = self.compose([], files=["Ex"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        text = self.shipped_text(d, "Ex")
+        self.assertIn("theorem kept_ex", text)
+        self.assertNotIn("example", text)
+        self.assertNotIn("drop_missing_lemma_xx", text)
 
     def test_a_named_declaration_with_sorry_is_never_kept_and_the_module_that_names_it_goes(self):
         d, p = self.compose([], files=["Hlp2", "Usr2", "Clean"])

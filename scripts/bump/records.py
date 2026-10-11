@@ -99,7 +99,8 @@ CODE_ATTR = re.compile(r"@\[[^\]]*\b(?:tactic|command_elab|term_elab|macro|elab|
 IMPORT_LINE = re.compile(r"^\s*(?:(?:public|private|meta)\s+)*import\s")
 KEYWORD_LINE = re.compile(r"^\s*(?:module|prelude)\s*$")
 IN_PREFIX = re.compile(r"^\s*(?:open|set_option|attribute|local|universe|variable|namespace|section|include|omit)\b.*\bin\s*$")
-DECL_LINE = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s+)*(?:theorem|lemma|def|abbrev|instance|structure|class|inductive|opaque|axiom)\b")
+DECL_LINE = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s+)*(?:theorem|lemma|def|abbrev|instance|structure|class|inductive|opaque|axiom|example)\b")
+# `example` is a block like any declaration (it has no name and no range, so it is always cut): it used to be glue, stayed in every module, and broke the tree's build when it needed what the pruning left out
 
 
 def merge_ranges(rs: list[tuple[int, int]]) -> list[tuple[int, int]]:
