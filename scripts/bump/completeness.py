@@ -49,7 +49,8 @@ def account(artifact: Path, tree: Path, lib: str, mode: str) -> dict:
     if not ledger_path.exists():
         ledger_path = bdir / "ledger.json"  # artifacts of before 2026-10-11 18:00 UTC
     ledger = json.loads(ledger_path.read_text()) if ledger_path.exists() else None
-    left_out = (ledger or {}).get("left_out") or report.get("left_out", {})
+    # a ledger that says nothing was left out has `"left_out": {}`: present, and not the same as a missing key (an empty dict is falsy: `or` used to read the report instead)
+    left_out = ledger["left_out"] if ledger is not None and "left_out" in ledger else report.get("left_out", {})
     verified = report["passed_total"]
     gate2 = artifact / "logs" / "gate2-results.json"
     g2 = json.loads(gate2.read_text()) if gate2.exists() else {}
@@ -61,6 +62,14 @@ def account(artifact: Path, tree: Path, lib: str, mode: str) -> dict:
     if verified != len(shipped) + sum(left_out.values()):
         problems.append(f"verified {verified} != shipped {len(shipped)} + left out {sum(left_out.values())}")
     if ledger is not None:
+        # the ledger is a second record of the same numbers: it must agree with the report and the manifest, not just with itself
+        if ledger.get("verified") != verified:
+            problems.append(f"the ledger says {ledger.get('verified')} verified theorems, the report {verified}")
+        if ledger.get("shipped") != len(shipped):
+            problems.append(f"the ledger says {ledger.get('shipped')} shipped theorems, the manifest has {len(shipped)}")
+        ledger_left = sum(ledger.get("left_out", {}).values())
+        if "left_out" in report and ledger_left != sum(report["left_out"].values()):
+            problems.append(f"the ledger left out {ledger_left} theorems, the report {sum(report['left_out'].values())}")
         listed = sum(m["names"] for m in ledger["modules"].values())
         extra = sum(n for r, n in left_out.items() if r == "no source range")
         if listed + extra != sum(left_out.values()):

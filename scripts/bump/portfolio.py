@@ -236,7 +236,19 @@ def drop_superfluous(lines: list[str], line: int, col: int) -> bool:
     head = text[:col]
     m = re.search(r"(?:\s*<;>|\s*;)\s*$", head)
     if m and text[col:].strip():
-        lines[i] = head[: m.start()]
+        # the tactic ends at the end of the line, or at the first closing bracket that is not its own (`⟨a, by rw [h]; exact foo⟩`): what closes the enclosing term stays
+        # (2026-10-11: lean-pool Exercise113 lost its `⟩` here, the module no longer parsed, and the merge queue rejected the part)
+        tail = text[col:]
+        depth, end = 0, len(tail)
+        for k, ch in enumerate(tail):
+            if ch in "([{⟨⦃":
+                depth += 1
+            elif ch in ")]}⟩⦄":
+                if depth == 0:
+                    end = k
+                    break
+                depth -= 1
+        lines[i] = head[: m.start()] + tail[end:]
         return True
     return False
 
