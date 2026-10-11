@@ -214,6 +214,7 @@ def compose(a: argparse.Namespace) -> None:
         if m:
             err_lines[m.group(1)].add(int(m.group(2)))
     modules: dict[str, records.Module] = {}
+    failed_blocks: dict[str, set[tuple[int, int]]] = {}
     glue_error: set[str] = set()
     for mod in own:
         parts = tb.split_mod(mod)
@@ -223,6 +224,8 @@ def compose(a: argparse.Namespace) -> None:
         m = records.Module(lib, mod, list(sidecars[mod].values()))  # a declaration Lean never elaborated has no range: the Module cuts it
         rel = str(path.relative_to(lib))
         modules[mod] = m
+        # the blocks Lean reported an error in: such a declaration is closed with a `sorry` that is not in its text, and must never be kept for the text of another
+        failed_blocks[mod] = {b for b in m.blocks if any(b[0] <= L <= b[1] for L in err_lines.get(rel, ()))}
         # an error outside every declaration block (a `variable`, a notation) cannot be cut out: the module cannot be shipped
         if err_lines.get(rel) and any(not any(bs <= L <= be for bs, be in m.blocks) for L in err_lines[rel]):
             glue_error.add(mod)
@@ -254,7 +257,14 @@ def compose(a: argparse.Namespace) -> None:
         if mod in modules and hit and mod not in base_dropped:
             base_dropped[mod] = "declares a record the tree already has: " + ", ".join(hit[:3])
     # a name written in a kept declaration that its elaborated term does not contain (an unneeded `simp only [foo]` argument...) is invisible to the keep closure: keep what the text names
-    textually_kept, unresolved = keep_closure.close(modules, sidecars, keep_blocks, skip=set(base_dropped))
+    # a theorem Gate 2 rejected for sorry has no error line of its own when it only USES a failed declaration; it is just as unshippable, and so is anything that needs it
+    rejected = sorry_users(a.gate2)
+    for mod, names_ in sidecars.items():
+        for name in rejected & set(names_):
+            blk = modules[mod].block_of(names_[name][0]) if mod in modules else None
+            if blk:
+                failed_blocks.setdefault(mod, set()).add(blk)
+    textually_kept, unresolved = keep_closure.close(modules, sidecars, keep_blocks, skip=set(base_dropped), failed=failed_blocks)
     for mod, names_ in unresolved.items():
         base_dropped.setdefault(mod, "names a declaration with sorry that the pruning leaves out: " + ", ".join(sorted(names_)[:3]))
     sys.setrecursionlimit(100000)
@@ -462,6 +472,14 @@ def refine(a: argparse.Namespace) -> None:
     print(json.dumps(summary))
     if not any(s["modules"] for s in summary.values()):
         sys.exit("nothing is left of the bundle after the verification build")
+
+
+def sorry_users(gate2_log: str) -> set[str]:
+    """The declarations Gate 2 rejected because their proof, or something it uses, ends in `sorry`: they compiled (Lean closes a failed proof with a sorry), but nothing built on them can be shipped."""
+    p = Path(gate2_log) if gate2_log else None
+    if not p or not p.exists():
+        return set()
+    return {m.group(1) for m in re.finditer(r"GATE2B_FAIL old=(\S+) new=\S+ reason=uses_sorry", p.read_text(errors="replace"))}
 
 
 def passed_via(gate2_log: str) -> dict[str, str]:
