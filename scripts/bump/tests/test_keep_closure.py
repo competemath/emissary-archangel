@@ -77,14 +77,27 @@ class FailedDeclarations(unittest.TestCase):
         self.assertEqual(bundle.sorry_users(str(log)), {"A.b", "A.e"})
         self.assertEqual(bundle.sorry_users(""), set())
 
-    def test_a_failed_block_in_the_initial_keep_set_is_not_kept_and_the_module_cannot_ship(self):
+    def test_a_failed_block_that_a_passed_term_really_needs_stays_but_is_reported(self):
         modules, sidecars, keep = self.setup()
-        keep["Toy.A"].add((4, 5))  # Toy.helper_lemma is a seed (a passed theorem's term needs it) and it failed in the build
-        added, unresolved = keep_closure.close(modules, sidecars, keep, failed={"Toy.A": {(4, 5)}})
-        self.assertEqual(set(unresolved), {"Toy.A"})
-        self.assertTrue(any("line 4" in t for t in unresolved["Toy.A"]), unresolved)
-        # and a kept block naming it by its full name is told so too: the seed no longer counts as already kept
-        self.assertIn("Toy.helper_lemma", unresolved["Toy.A"])
+        keep["Toy.A"].add((4, 5))  # Toy.helper_lemma failed in the build and the term of a passed theorem needs it (not only a compiler-made sub-proof of it)
+        seeds = []
+        added, unresolved = keep_closure.close(modules, sidecars, keep, failed={"Toy.A": {(4, 5)}}, failed_seeds=seeds)
+        self.assertEqual(seeds, [("Toy.A", (4, 5))])  # accounted for: the caller puts it in the report
+        self.assertIn((4, 5), keep["Toy.A"])  # and it stays (a hard drop would lose every module that has one)
+        self.assertEqual(unresolved, {})  # a full-name mention of a kept block is no problem
+
+    def test_a_failed_declaration_needed_only_through_a_compiler_made_sub_proof_is_dropped_from_the_seed_quietly(self):
+        modules, sidecars, keep = self.setup()
+        keep["Toy.A"].add((4, 5))  # kept because a passed theorem's term names `Toy.helper_lemma._proof_1`, which maps onto the whole declaration
+        added, unresolved = keep_closure.close(modules, sidecars, keep, failed={"Toy.A": {(4, 5)}}, aux_only={"Toy.A": {(4, 5)}})
+        self.assertNotIn((4, 5), keep["Toy.A"])  # the pruner will not keep its text
+        # the kept theorem still names it in full: that module is unresolved, as before (the seed itself no longer is)
+        self.assertEqual(unresolved, {"Toy.A": {"Toy.helper_lemma"}})
+
+    def test_which_ranges_are_there_only_for_compiler_made_constants(self):
+        ranges = {("Toy.A", "Toy.f._proof_1"): (4, 5), ("Toy.A", "Toy.f"): (4, 5), ("Toy.A", "Toy.g.match_1"): (7, 8), ("Toy.A", "Toy.h"): (10, 11)}
+        out = keep_closure.aux_only_ranges(list(ranges), lambda mod, c: ranges.get((mod, c)))
+        self.assertEqual(dict(out), {"Toy.A": {(7, 8)}})  # (4,5) is also needed by the declaration itself, (10,11) is a plain declaration
 
 
 if __name__ == "__main__":

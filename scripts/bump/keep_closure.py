@@ -40,11 +40,34 @@ def visible_name(name: str) -> str | None:
     return None if any(c.startswith("_") for c in name.split(".")) or AUTO.match(last) else name
 
 
+def aux_only_ranges(kept, source_of) -> dict[str, set[tuple[int, int]]]:
+    """module -> the declaration ranges that are in the keep set ONLY because of compiler-made constants (`Foo._proof_1`, `match_1`, `eq_1`…) that map onto them. Lean extracts closed
+    sub-proofs of a declaration as `_proof_N` constants and a later theorem may reuse one: its term then names `Foo._proof_1`, and the pruner mapped that onto the whole of `Foo`. The
+    theorem's own text proves the sub-goal again, so nothing needs `Foo` itself (openai-math `differenceLaw_fresh`, 2026-10-11: Gate 2 had rejected it, and it was shipped)."""
+    flags: dict[tuple[str, tuple[int, int]], list[bool]] = defaultdict(list)
+    for mod, const in kept:
+        r = source_of(mod, const)
+        if r:
+            flags[(mod, tuple(r))].append(visible_name(const) is None)
+    out: dict[str, set[tuple[int, int]]] = defaultdict(set)
+    for (mod, r), fl in flags.items():
+        if all(fl):
+            out[mod].add(r)
+    return out
+
+
 def close(
-    modules, sidecars: dict, keep_blocks: dict[str, set], skip: set[str] = frozenset(), failed: dict[str, set[tuple[int, int]]] | None = None
+    modules,
+    sidecars: dict,
+    keep_blocks: dict[str, set],
+    skip: set[str] = frozenset(),
+    failed: dict[str, set[tuple[int, int]]] | None = None,
+    aux_only: dict[str, set[tuple[int, int]]] | None = None,
+    failed_seeds: list[tuple[str, tuple[int, int]]] | None = None,
 ) -> tuple[int, dict[str, set[str]]]:
     """Returns (how many declarations were added, {module: names it uses that cannot be kept}). `failed`: module -> the blocks that had an error in the build."""
     failed = failed or {}
+    aux_only = aux_only or {}
     by_full: dict[str, list[tuple[str, tuple[int, int], tuple[int, int]]]] = defaultdict(list)
     by_last: dict[str, list[tuple[str, tuple[int, int], tuple[int, int]]]] = defaultdict(list)
     for mod, names in sidecars.items():
@@ -64,10 +87,15 @@ def close(
     for mod, rs in keep_blocks.items():
         for blk in modules[mod].kept_blocks(rs) if mod in modules else ():
             if blk in failed.get(mod, ()):
-                # a block the build failed in is already in the initial keep set (a passed theorem's term needs it, or it is one): Gate 2 cannot have passed something built on it, so this is a
-                # hole upstream. It is not kept (it would otherwise bypass the check below as `in kept`), and the module cannot ship: it is returned, never silently shipped
-                unresolved[mod].add(f"<block at line {blk[0]} failed in the build>")
-                continue
+                ranges_in = {r for r in rs if blk[0] <= r[0] <= blk[1]}
+                if ranges_in and ranges_in <= aux_only.get(mod, set()):
+                    # only a compiler-made sub-proof of this failed declaration was needed (see aux_only_ranges): the theorem that reused it proves the sub-goal in its own text
+                    rs -= ranges_in
+                    continue
+                # a block the build failed in IS needed by the term of something that passed. It stays (parts 1-7 of openai-math shipped such blocks and merged: dropping every module that has one
+                # would lose about a tenth of the library), but it is accounted for: the caller reports it, so a rejection in the queue can be traced to it
+                if failed_seeds is not None:
+                    failed_seeds.append((mod, blk))
             kept.add((mod, blk))
     work = list(kept)
     added = 0
