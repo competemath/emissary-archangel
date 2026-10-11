@@ -9,7 +9,9 @@ build stops at 'Unknown identifier `foo`' (2026-10-11: openai-math `PerfectMatch
 `close(modules, sidecars, keep_blocks, skip)` adds those declarations to `keep_blocks` (in place) and repeats on what it added, until nothing new is named. A token matches a declaration
 of the library when it equals the declaration's full name, or when its last component equals the declaration's last component and that component is a distinctive name (8+ characters
 with an underscore or an inner capital, declared at most three times in the library): over-keeping a declaration is harmless, a missing one stops the build. A declaration that contains `sorry` is
-never kept (the tree refuses it): the module that names it is returned in `unresolved`, to be left out.
+never kept (the tree refuses it): the module that names it is returned in `unresolved`, to be left out. The same for a declaration that FAILED in the factory's own build (`failed`: the blocks
+Lean reported an error in): it has no `sorry` in its text, Lean closes it with one, and the tree would stop at the same line (2026-10-11: six of the seven modules of openai-math part 7
+that the merge queue rejected were this, each already in the factory's own error log at the same line).
 """
 
 from __future__ import annotations
@@ -38,8 +40,11 @@ def visible_name(name: str) -> str | None:
     return None if any(c.startswith("_") for c in name.split(".")) or AUTO.match(last) else name
 
 
-def close(modules, sidecars: dict, keep_blocks: dict[str, set], skip: set[str] = frozenset()) -> tuple[int, dict[str, set[str]]]:
-    """Returns (how many declarations were added, {module: names it uses that cannot be kept})."""
+def close(
+    modules, sidecars: dict, keep_blocks: dict[str, set], skip: set[str] = frozenset(), failed: dict[str, set[tuple[int, int]]] | None = None
+) -> tuple[int, dict[str, set[str]]]:
+    """Returns (how many declarations were added, {module: names it uses that cannot be kept}). `failed`: module -> the blocks that had an error in the build."""
+    failed = failed or {}
     by_full: dict[str, list[tuple[str, tuple[int, int], tuple[int, int]]]] = defaultdict(list)
     by_last: dict[str, list[tuple[str, tuple[int, int], tuple[int, int]]]] = defaultdict(list)
     for mod, names in sidecars.items():
@@ -69,11 +74,18 @@ def close(modules, sidecars: dict, keep_blocks: dict[str, set], skip: set[str] =
         for tok in set(TOKEN.findall(text)):
             tok = tok.rstrip(".")
             cands = list(by_full.get(tok, ()))
+            exact = bool(cands)
             last = tok.rsplit(".", 1)[-1]
             if not cands and distinctive(last) and 0 < len(by_last.get(last, ())) <= 3:
                 cands = list(by_last[last])
             for m2, b2, r2 in cands:
                 if (m2, b2) in kept:
+                    continue
+                if b2 in failed.get(m2, ()):
+                    # a declaration that failed in the build is never kept. The module that names it by its full name cannot go to the tree; a match by last component alone is a guess
+                    # (a local name, a field, another declaration with the same ending): it keeps nothing and does not drop the naming module
+                    if exact:
+                        unresolved[mod].add(tok)
                     continue
                 if SORRY.search("\n".join(modules[m2].lines[b2[0] - 1 : b2[1]])):
                     unresolved[mod].add(tok)
