@@ -116,5 +116,88 @@ class FailedDeclarations(unittest.TestCase):
             self.assertFalse(bundle.PARSE_ERROR.match(m), m)
 
 
+class NamespaceResolution(unittest.TestCase):
+    """A name written short is the declaration the file's namespace and `open`s say, however many declarations in the library end in it (tauceti `pointsFunctor_map`, 2026-10-11)."""
+
+    LINES = [
+        "namespace TauCeti",  # 1
+        "namespace HopfAlgebra",  # 2
+        "lemma pointsFunctor_map : True := trivial",  # 3
+        "theorem uses_it : True := by",  # 4
+        "  simp [pointsFunctor_map]",  # 5
+        "end HopfAlgebra",  # 6
+        "namespace Other",  # 7
+        "lemma pointsFunctor_map : True := trivial",  # 8
+        "lemma pointsFunctor_map_one : True := trivial",  # 9 (a different name: not a candidate)
+        "end Other",  # 10
+        "namespace Third",  # 11
+        "lemma pointsFunctor_map : True := trivial",  # 12
+        "theorem in_third : True := by",  # 13
+        "  simp [pointsFunctor_map]",  # 14
+        "end Third",  # 15
+        "namespace Fourth",  # 16
+        "lemma pointsFunctor_map : True := trivial",  # 17
+        "end Fourth",  # 18
+        "section",  # 19
+        "open TauCeti.HopfAlgebra",  # 20
+        "theorem opens_it : True := by",  # 21
+        "  simp [pointsFunctor_map]",  # 22
+        "end",  # 23
+        "theorem bare : True := by",  # 24
+        "  simp [pointsFunctor_map]",  # 25
+        "end TauCeti",  # 26
+    ]
+    BLOCKS = [(3, 3), (4, 5), (8, 8), (9, 9), (12, 12), (13, 14), (17, 17), (21, 22), (24, 25)]
+
+    def setup(self):
+        mod = FakeModule(self.LINES, self.BLOCKS)
+        sidecars = {
+            "M": {
+                "TauCeti.HopfAlgebra.pointsFunctor_map": (3, 3),
+                "TauCeti.Other.pointsFunctor_map": (8, 8),
+                "TauCeti.Third.pointsFunctor_map": (12, 12),
+                "TauCeti.Fourth.pointsFunctor_map": (17, 17),
+                "TauCeti.HopfAlgebra.uses_it": (4, 5),
+                "TauCeti.Third.in_third": (13, 14),
+                "opens_it": (21, 22),
+                "bare": (24, 25),
+            }
+        }
+        return {"M": mod}, sidecars
+
+    def kept_after(self, seed):
+        modules, sidecars, keep = (*self.setup()[:2], {"M": {seed}})
+        keep_closure.close(modules, sidecars, keep)
+        return {b for b in modules["M"].kept_blocks(keep["M"])}
+
+    def test_the_contexts_of_the_blocks(self):
+        modules, _ = self.setup()
+        ctx = keep_closure.block_contexts(modules["M"])
+        self.assertEqual(ctx[(4, 5)], ("TauCeti.HopfAlgebra", ()))
+        self.assertEqual(ctx[(21, 22)], ("TauCeti", ("TauCeti.HopfAlgebra",)))  # the `open` of the section
+        self.assertEqual(ctx[(24, 25)], ("TauCeti", ()))  # and it ended with the section
+
+    def test_a_short_name_is_the_declaration_of_the_namespace_it_is_written_in_even_when_four_end_in_it(self):
+        kept = self.kept_after((4, 5))
+        self.assertIn((3, 3), kept)  # HopfAlgebra.pointsFunctor_map
+        self.assertNotIn((8, 8), kept)
+        self.assertNotIn((12, 12), kept)
+        self.assertNotIn((17, 17), kept)
+
+    def test_an_open_namespace_resolves_it_too(self):
+        kept = self.kept_after((21, 22))
+        self.assertIn((3, 3), kept)
+        self.assertNotIn((8, 8), kept)
+
+    def test_a_name_that_no_namespace_of_the_place_makes_a_declaration_is_not_guessed(self):
+        kept = self.kept_after((24, 25))  # namespace TauCeti only: TauCeti.pointsFunctor_map does not exist, four others end in it
+        self.assertEqual(kept & {(3, 3), (8, 8), (12, 12), (17, 17)}, set())
+
+    def test_the_innermost_namespace_wins(self):
+        kept = self.kept_after((13, 14))  # in TauCeti.Third, which has its own
+        self.assertIn((12, 12), kept)
+        self.assertNotIn((3, 3), kept)
+
+
 if __name__ == "__main__":
     unittest.main()
