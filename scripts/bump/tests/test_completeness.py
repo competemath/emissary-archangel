@@ -57,7 +57,7 @@ class Account(unittest.TestCase):
         self.assertFalse(r["ledger_file"])
 
     def rewrite_ledger(self, art, **fields):
-        f = art / "bundle-proposed" / "ledger.json"
+        f = art / "bundle-proposed.ledger.json"
         d = json.loads(f.read_text())
         d.update(fields)
         f.write_text(json.dumps(d))
