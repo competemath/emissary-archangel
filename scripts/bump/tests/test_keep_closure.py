@@ -198,6 +198,15 @@ class NamespaceResolution(unittest.TestCase):
         self.assertIn((12, 12), kept)
         self.assertNotIn((3, 3), kept)
 
+    def test_a_root_declaration_is_found_from_inside_a_namespace(self):
+        lines = ["lemma root_helper_name : True := trivial", "namespace A", "theorem t : True := by", "  simp [root_helper_name]", "end A", "namespace B", "lemma root_helper_name : True := trivial", "end B"]
+        mod = FakeModule(lines, [(1, 1), (3, 4), (7, 7)])
+        sidecars = {"M": {"root_helper_name": (1, 1), "A.t": (3, 4), "B.root_helper_name": (7, 7), "C.root_helper_name": (7, 7), "D.root_helper_name": (7, 7)}}
+        keep = {"M": {(3, 4)}}
+        keep_closure.close({"M": mod}, sidecars, keep)
+        kept = mod.kept_blocks(keep["M"])
+        self.assertIn((1, 1), kept)  # the root level: four end in the name, so only the namespace reading finds it
+
 
 if __name__ == "__main__":
     unittest.main()
