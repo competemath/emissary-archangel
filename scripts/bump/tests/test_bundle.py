@@ -124,7 +124,7 @@ class Bundle(unittest.TestCase):
         d = Path(tempfile.mkdtemp())
         lib = d / "lib"
         (lib / "Toy").mkdir(parents=True)
-        text = "namespace Toy\n\nprivate theorem helper_lemma : 1 = 1 := rfl\n\ntheorem user : 1 = 1 := helper_lemma\n\nend Toy\n"
+        text = "namespace Toy\n\nprivate theorem hlp : 1 = 1 := rfl\n\ntheorem user : 1 = 1 := hlp\n\nend Toy\n"
         (lib / "Toy" / "A.lean").write_text(text)
         lines = text.split("\n")
         ln = lambda needle: next(
@@ -135,7 +135,7 @@ class Bundle(unittest.TestCase):
         f.write_text(
             json.dumps(
                 [
-                    ["Toy.helper_lemma", ln("private theorem"), ln("private theorem")],
+                    ["Toy.hlp", ln("private theorem"), ln("private theorem")],
                     ["Toy.user", ln("theorem user"), ln("theorem user")],
                 ]
             )
@@ -189,7 +189,7 @@ class Bundle(unittest.TestCase):
             ),
             rep["dropped"],
         )
-        self.assertIn("helper_lemma", rep["dropped"]["Toy.A"])
+        self.assertIn("hlp", rep["dropped"]["Toy.A"])
 
     def test_a_module_importing_a_package_the_tree_lacks_takes_its_theorems_with_it(self):
         d = Path(tempfile.mkdtemp())
@@ -301,6 +301,15 @@ class AutoDrops(unittest.TestCase):
         "Clean": "namespace Toy\n\ntheorem clean_one : 1 = 1 := rfl\n\nend Toy\n",
         "Owned": "namespace Toy\n\ntheorem owned : 1 = 1 := rfl\n\nend Toy\n",
         "AboveOwned": "import Toy.Owned\n\nnamespace Toy\n\ntheorem above_owned : 1 = 1 := rfl\n\nend Toy\n",
+        # a name the text of a kept theorem writes but its term does not contain (an unneeded `simp only` argument): the keep closure never sees it
+        "Hlp": "namespace Toy\n\ntheorem drop_helper_lemma : 1 = 1 := rfl\n\nend Toy\n",
+        "Usr": "import Toy.Hlp\n\nnamespace Toy\n\ntheorem user_of_it : 2 = 2 := by\n  simpa only [drop_helper_lemma] using rfl\n\nend Toy\n",
+        "Hlp2": "namespace Toy\n\ntheorem drop_sorry_helper : 1 = 1 := by\n  sorry\n\nend Toy\n",
+        "Usr2": "import Toy.Hlp2\n\nnamespace Toy\n\ntheorem user_of_sorry : 2 = 2 := by\n  simpa only [drop_sorry_helper] using rfl\n\nend Toy\n",
+        "Hlp3": "namespace Toy\n\ntheorem drop_ab : 1 = 1 := rfl\n\nend Toy\n",
+        "Usr3": "import Toy.Hlp3\n\nnamespace Toy\n\ntheorem user_of_short : 2 = 2 := by\n  simpa only [drop_ab] using rfl\n\nend Toy\n",
+        "Hlp4": "namespace Toy\n\ntheorem drop_chain_a : 1 = 1 := by\n  exact drop_chain_b_lemma\n\ntheorem drop_chain_b_lemma : 1 = 1 := rfl\n\nend Toy\n",
+        "Usr4": "import Toy.Hlp4\n\nnamespace Toy\n\ntheorem user_of_chain : 2 = 2 := by\n  simpa only [drop_chain_a] using rfl\n\nend Toy\n",
     }
     PASSED = {"Toy.Leaky": ["Toy.kept_leaky"], "Toy.Above": ["Toy.above"], "Toy.Clean": ["Toy.clean_one"], "Toy.Owned": ["Toy.owned"], "Toy.AboveOwned": ["Toy.above_owned"]}
 
@@ -375,6 +384,37 @@ class AutoDrops(unittest.TestCase):
         rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
         self.assertEqual(rep["dropped"]["Toy.Owned"], "declares a name another library of the tree declares: Toy.owned")
         self.assertEqual(rep["dropped"]["Toy.AboveOwned"], "imports a module that cannot go to the tree")
+
+    def shipped_text(self, d: Path, mod: str) -> str:
+        return (d / "bundle-proposed" / "Tengoku" / "ToyLib" / "Toy" / f"{mod}.lean").read_text()
+
+    def test_a_declaration_the_text_of_a_kept_theorem_names_is_kept_even_if_its_term_never_used_it(self):
+        """2026-10-11: openai-math `Face` named `polytope_eq_constraints` and navier `MeanPathLpBlocks` named `pathLpOperator_apply` in a `simp only [..]`; the term did not contain them, the pruner cut them
+        from the module that declares them, and the tree's build stopped at 'Unknown identifier' (the bump compiles the unpruned files and never saw it)."""
+        d, p = self.compose([], files=["Hlp", "Usr"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("drop_helper_lemma", self.shipped_text(d, "Hlp"))
+        self.assertIn("drop_helper_lemma", self.shipped_text(d, "Usr"))
+        self.assertEqual(json.loads((d / "bundle-proposed" / "report.json").read_text())["textually_kept"], 1)
+
+    def test_what_a_kept_declaration_names_in_turn_is_kept_too(self):
+        d, p = self.compose([], files=["Hlp4", "Usr4"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        text = self.shipped_text(d, "Hlp4")
+        self.assertIn("drop_chain_a", text)
+        self.assertIn("drop_chain_b_lemma", text)  # named by the declaration that was kept because of the text
+
+    def test_a_named_declaration_with_sorry_is_never_kept_and_the_module_that_names_it_goes(self):
+        d, p = self.compose([], files=["Hlp2", "Usr2", "Clean"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.shipped(d), ["Toy.clean_one"])
+        rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
+        self.assertIn("names a declaration with sorry", rep["dropped"]["Toy.Usr2"])
+
+    def test_a_short_name_is_not_matched_by_its_last_component(self):
+        d, p = self.compose([], files=["Hlp3", "Usr3"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertNotIn("drop_ab", (d / "bundle-proposed" / "Tengoku" / "ToyLib" / "Toy" / "Hlp3.lean").read_text() if (d / "bundle-proposed" / "Tengoku" / "ToyLib" / "Toy" / "Hlp3.lean").exists() else "")
 
     def test_without_tree_decls_a_lean_name_is_not_a_clash(self):
         d, p = self.compose([], files=["Owned", "Clean"])
