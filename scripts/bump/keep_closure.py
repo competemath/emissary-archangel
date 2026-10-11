@@ -19,6 +19,8 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 
+from adapters import code_mask
+
 TOKEN = re.compile(r"[^\W\d][\w.'!?]*")
 AUTO = re.compile(r"^(?:_|match_\d|proof_\d|eq_\d|eq_def$|induct$|inj$|injEq$|sizeOf_spec$|casesOn$|recOn$|rec$|noConfusion)")
 SORRY = re.compile(r"\bsorry\b")
@@ -62,12 +64,15 @@ def block_contexts(module) -> dict[tuple[int, int], tuple[str, tuple[str, ...]]]
     starts = {b[0]: b for b in module.blocks}
     stack: list[tuple[list[str], set[str]]] = [([], set())]  # the file's own level: an `open` there lasts to the end of the file
     out: dict[tuple[int, int], tuple[str, tuple[str, ...]]] = {}
-    for i, line in enumerate(module.lines, 1):
+    # the code of the file, comments and strings blanked: an `end` or `namespace` inside a block comment is no command (CodeRabbit on #34: a commented `end` popped a real section)
+    text = "\n".join(module.lines)
+    code = "".join(c if k or c == "\n" else " " for c, k in zip(text, code_mask(text))).split("\n")
+    for i, line in enumerate(code, 1):
         if i in starts:
             ns = ".".join(p for parts, _ in stack for p in parts)
             opens = {o for _, os_ in stack for o in os_}
             b = starts[i]
-            for ln in module.lines[b[0] - 1 : b[1]]:  # an `open X in` that leads the declaration
+            for ln in code[b[0] - 1 : b[1]]:  # an `open X in` that leads the declaration
                 m = OPEN_CMD.match(ln)
                 if m and ln.rstrip().endswith(" in"):
                     opens |= set(open_names(m.group("rest")))

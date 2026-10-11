@@ -207,6 +207,21 @@ class NamespaceResolution(unittest.TestCase):
         kept = mod.kept_blocks(keep["M"])
         self.assertIn((1, 1), kept)  # the root level: four end in the name, so only the namespace reading finds it
 
+    def test_commands_inside_a_block_comment_do_not_change_the_namespace(self):
+        """CodeRabbit on #34: a column-0 `end` inside a `/- … -/` comment popped the real namespace, and the next declaration got the wrong context."""
+        lines = [
+            "namespace TauCeti",  # 1
+            "/-",  # 2
+            "end",  # 3 (comment text)
+            "namespace Fake",  # 4 (comment text)
+            "open Elsewhere",  # 5 (comment text)
+            "-/",  # 6
+            "theorem inside : True := trivial",  # 7
+            "end TauCeti",  # 8
+        ]
+        ctx = keep_closure.block_contexts(FakeModule(lines, [(7, 7)]))
+        self.assertEqual(ctx[(7, 7)], ("TauCeti", ()))
+
 
 if __name__ == "__main__":
     unittest.main()
