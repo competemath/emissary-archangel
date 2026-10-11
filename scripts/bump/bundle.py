@@ -244,6 +244,13 @@ def compose(a: argparse.Namespace) -> None:
             base_dropped[m] = "did not build on the tree"
     if asked and not any(m in modules for m in asked):  # a stale name among real ones is tolerated; a list that matches nothing is a wrong prefix or a typo, and the bundle would go uncut
         sys.exit(f"--drop-modules names no module of the library: {asked[:5]} (the library's own module names, e.g. `{next(iter(modules), 'Root.Sub.Mod')}`)")
+    # a module that proves a record the tree already has (another library's, or an intake bundle's) cannot go in: tengoku's intake gate refuses the name, and the tree cannot load two
+    # declarations of it. The incumbent keeps it; the newcomer's module goes, with what imports it (the same cut a recut makes by hand from the merge queue's error)
+    tree_names = {ln for ln in Path(a.tree_names).read_text().split("\n") if ln} if a.tree_names else set()
+    for mod, names in passed.items():
+        hit = sorted(n for n in names if "." in n and n in tree_names)  # a name without a dot is never a clash: the gate's own rule (intake_check.py)
+        if mod in modules and hit and mod not in base_dropped:
+            base_dropped[mod] = "declares a record the tree already has: " + ", ".join(hit[:3])
     sys.setrecursionlimit(100000)
     # the pruned text of every module that could be needed (what the passed theorems are made of, and what that imports)
     reach: set[str] = set()
@@ -298,13 +305,6 @@ def compose(a: argparse.Namespace) -> None:
         dropped = dict(base_dropped)
         dropped.update({m: "lint: " + "; ".join(vs[:3]) for m, vs in viol.items() if vs and m not in dropped})
         dropped.update({m: "uses a declaration the pruning left out: " + ", ".join(ds[:3]) for m, ds in dangling.items() if m not in dropped})
-        changed = True
-        while changed:
-            changed = False
-            for mod, ds in imports.items():
-                if mod not in dropped and any(d in dropped for d in ds):
-                    dropped[mod] = "imports a module that cannot go to the tree"
-                    changed = True
         needed: set[str] = set()
 
         def need(mod: str) -> None:
@@ -314,12 +314,27 @@ def compose(a: argparse.Namespace) -> None:
             for d in imports[mod]:
                 need(d)
 
-        for mod in keep_blocks:
-            need(mod)
+        while True:
+            changed = True
+            while changed:
+                changed = False
+                for mod, ds in imports.items():
+                    if mod not in dropped and any(d in dropped for d in ds):
+                        dropped[mod] = "imports a module that cannot go to the tree"
+                        changed = True
+            needed.clear()
+            for mod in keep_blocks:
+                need(mod)
+            leaks = {mod: ls for mod in sorted(needed) if (ls := modules[mod].leaks(pruned[mod], keep_blocks.get(mod, set())))}
+            if not leaks or not a.drop_leaks:
+                break
+            # `--drop-leaks`: a module whose pruning leaves text no gate verified does not ship, like one that does not build; what imports it goes too, and the rest is checked again
+            # (2026-10-11: lean-pool needed one recut per leaking module, ~30 minutes each, and the bundle had 10)
+            for mod, ls in leaks.items():
+                dropped[mod] = "pruning left unverified text: " + ls[0]
         # Nothing unverified may survive the pruning of a module that ships: every declaration left is a block that stays and no `… in` prefix
         # dangles. A leak here is a factory bug (the bundle would carry text no gate verified, and the tree's build would find it): the run
         # fails rather than propose it.
-        leaks = {mod: ls for mod in sorted(needed) if (ls := modules[mod].leaks(pruned[mod], keep_blocks.get(mod, set())))}
         if leaks:
             shown = "\n".join(f"  {mod}: {ls[0]}" + (f" (+{len(ls) - 1} more)" if len(ls) > 1 else "") for mod, ls in list(leaks.items())[:20])
             sys.exit(f"pruning left unverified text in {len(leaks)} module(s) of the {mode} bundle; refusing to compose it:\n{shown}")
@@ -476,6 +491,8 @@ if __name__ == "__main__":
     c.add_argument("--gate2", default="")
     c.add_argument("--keep-input", default="", help="the json keep-input wrote: only the passed theorems named in it are checked for a gap in the keep log")
     c.add_argument("--drop-modules", default="", help="comma list of modules to leave out (with their importers): those that did not build on the tree")
+    c.add_argument("--tree-names", default="", help="file of the record names the tree already has, one per line (tree_names.py): the modules that prove one are left out with their importers")
+    c.add_argument("--drop-leaks", action="store_true", help="leave out a module whose pruning left unverified text (and what imports it) instead of refusing to compose")
     r = sub.add_parser("refine")
     for f in ("report", "log", "key", "out", "src"):
         r.add_argument(f"--{f}", required=True)
