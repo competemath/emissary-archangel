@@ -26,6 +26,7 @@ class TreeNames(unittest.TestCase):
         write(root, "data/intake/other/parts/001.jsonl", ["B.three"])
         write(root, "data/intake/lean-pool/manifest.jsonl", ["Own.intake"])  # parent == lib
         write(root, "data/staging/other/s.jsonl", ["C.staged"])  # not in the tree
+        write(root, "data/intake/other/parts/002.json", ["D.partfile"])  # a part's report is `.json`: not a record file
         self.assertEqual(tree_names.tree_names(root, "lean-pool"), {"A.one", "B.two", "B.three"})
 
     def test_the_cli_writes_one_name_per_line_and_refuses_an_empty_checkout(self):

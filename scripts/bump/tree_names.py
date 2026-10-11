@@ -21,7 +21,9 @@ def tree_names(root: Path, lib: str) -> set[str]:
     names: set[str] = set()
     for tier in ("trusted", "intake"):
         for f in sorted((root / "data" / tier).glob("**/*.jsonl")):
-            if f.stem == lib or f.parent.name == lib:  # the gate's own exclusion: the library's records are what the bundle translates
+            # the gate's own exclusion, to the letter (intake_check.py: `f.stem != lib and f.parent.name != lib`): the library's records are what the bundle translates. A name the gate counts
+            # that this list left out would let a module through that the gate then refuses; the part files are `.json` (parts/NNN.json), which the glob does not read
+            if f.stem == lib or f.parent.name == lib:
                 continue
             names.update(NAME.findall(f.read_text(errors="replace")))
     return names
