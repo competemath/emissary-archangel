@@ -366,6 +366,21 @@ class AutoDrops(unittest.TestCase):
         self.assertEqual(rep["dropped"]["Toy.Owned"], "declares a record the tree already has: Toy.owned")
         self.assertEqual(rep["dropped"]["Toy.AboveOwned"], "imports a module that cannot go to the tree")
 
+    def test_a_module_that_declares_a_lean_name_another_library_declares_goes_with_its_importers(self):
+        """2026-10-11: lean-pool part 1 had 9 modules (43 in the bundle) declaring names anderson-conjecture and others already declared: `import X failed, environment already contains`."""
+        (d_names := Path(tempfile.mkdtemp()) / "decls.txt").write_text("Toy.owned\nsomething.else\n")
+        d, p = self.compose([], "--tree-decls", str(d_names), files=["Owned", "AboveOwned", "Clean"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.shipped(d), ["Toy.clean_one"])
+        rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
+        self.assertEqual(rep["dropped"]["Toy.Owned"], "declares a name another library of the tree declares: Toy.owned")
+        self.assertEqual(rep["dropped"]["Toy.AboveOwned"], "imports a module that cannot go to the tree")
+
+    def test_without_tree_decls_a_lean_name_is_not_a_clash(self):
+        d, p = self.compose([], files=["Owned", "Clean"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(sorted(self.shipped(d)), ["Toy.clean_one", "Toy.owned"])
+
     def test_without_the_list_nothing_is_dropped_for_a_clash_and_a_name_without_a_dot_is_never_one(self):
         d, p = self.compose(["Toy.owned"], files=["Owned", "Clean"])  # no --tree-names: the list is not read
         self.assertEqual(p.returncode, 0, p.stderr)

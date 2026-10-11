@@ -39,5 +39,32 @@ class TreeNames(unittest.TestCase):
         self.assertIn("empty list would let every clash through", r.stderr)
 
 
+class TreeDecls(unittest.TestCase):
+    def test_the_other_namespaces_names_without_the_seed_and_the_librarys_own(self):
+        root = Path(tempfile.mkdtemp())
+        for rel, text in {
+            "Tengoku/Other/A.lean": "namespace Other\ntheorem one : True := trivial\nend Other\n",
+            "Tengoku/Other/Deep/B.lean": "def two : Nat := 2\n",
+            "Tengoku/LeanPool/C.lean": "theorem own : True := trivial\n",  # the library's namespace (key lean-pool): its own earlier parts
+            "Tengoku/Seed/D.lean": "theorem seeded : True := trivial\n",
+            "Tengoku/Top.lean": "theorem root_file : True := trivial\n",  # a root file is no namespace's module
+        }.items():
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text(text)
+        self.assertEqual(tree_names.tree_decls(root, "lean-pool"), {"Other.one", "two"})
+
+    def test_the_cli_writes_the_declarations_and_refuses_an_empty_tree(self):
+        root = Path(tempfile.mkdtemp())
+        write(root, "data/trusted/m.jsonl", ["A.a"])
+        out = Path(tempfile.mkdtemp())
+        r = subprocess.run([sys.executable, str(HERE / "tree_names.py"), "--root", str(root), "--lib", "x", "--out", str(out / "n.txt"), "--decls-out", str(out / "d.txt")], capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("no declaration under", r.stderr)
+        (root / "Tengoku/Other").mkdir(parents=True)
+        (root / "Tengoku/Other/A.lean").write_text("def z : Nat := 0\n")
+        r = subprocess.run([sys.executable, str(HERE / "tree_names.py"), "--root", str(root), "--lib", "x", "--out", str(out / "n.txt"), "--decls-out", str(out / "d.txt")], capture_output=True, text=True)
+        self.assertEqual((r.returncode, (out / "d.txt").read_text()), (0, "z\n"), r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

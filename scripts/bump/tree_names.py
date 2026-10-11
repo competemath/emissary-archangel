@@ -14,6 +14,8 @@ import argparse
 import re
 from pathlib import Path
 
+import lean_names
+
 NAME = re.compile(r'"name":\s*"([^"]+)"')
 
 
@@ -29,17 +31,41 @@ def tree_names(root: Path, lib: str) -> set[str]:
     return names
 
 
+def pascal(library: str) -> str:
+    return "".join(p[:1].upper() + p[1:] for p in re.split(r"[-_ ]+", library) if p)
+
+
+def tree_decls(root: Path, lib: str) -> set[str]:
+    """The Lean names the other namespaces of the tree declare (`Tengoku/<Ns>/**/*.lean`, the seed and the library's own namespace left out): a module of the bundle that declares one
+    of them cannot be imported with it ('environment already contains')."""
+    out: set[str] = set()
+    own = pascal(lib)
+    for f in sorted((root / "Tengoku").glob("*/**/*.lean")):
+        ns = f.relative_to(root / "Tengoku").parts[0]
+        if ns == own or ns == "Seed":
+            continue
+        out |= lean_names.names(f.read_text(errors="replace"))
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", required=True, help="a checkout of tengoku with data/trusted and data/intake")
     ap.add_argument("--lib", required=True, help="the library key: its own files are left out")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--decls-out", default="", help="also write the Lean names the other namespaces of the tree declare (one per line) for bundle.py compose --tree-decls")
     a = ap.parse_args(argv)
     names = tree_names(Path(a.root), a.lib)
     if not names:
         raise SystemExit(f"no record name under {a.root}/data/{{trusted,intake}}: the checkout is wrong, and an empty list would let every clash through")
     Path(a.out).write_text("".join(n + "\n" for n in sorted(names)))
     print(f"{len(names)} record names the tree already has (library {a.lib} excluded)")
+    if a.decls_out:
+        decls = tree_decls(Path(a.root), a.lib)
+        if not decls:
+            raise SystemExit(f"no declaration under {a.root}/Tengoku: the checkout is wrong, and an empty list would let every clash through")
+        Path(a.decls_out).write_text("".join(n + "\n" for n in sorted(decls)))
+        print(f"{len(decls)} Lean names the other namespaces of the tree declare")
     return 0
 
 

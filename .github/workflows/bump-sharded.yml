@@ -111,9 +111,9 @@ jobs:
       - name: The record names the tree already has (tengoku data files, read as text and never run)
         run: |
           git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
-          git -C tengoku sparse-checkout set --no-cone "/data/trusted/" "/data/intake/"
+          git -C tengoku sparse-checkout set --no-cone "/data/trusted/" "/data/intake/" "/Tengoku/" "!/Tengoku/Seed/"
           git -C tengoku checkout -q main
-          python3 emissary/scripts/bump/tree_names.py --root tengoku --lib "$KEY" --out tree-names.txt
+          python3 emissary/scripts/bump/tree_names.py --root tengoku --lib "$KEY" --out tree-names.txt --decls-out tree-decls.txt
       - name: Merge the shards and cut the bundle
         working-directory: emissary
         run: |
@@ -122,7 +122,7 @@ jobs:
           cat ../logs/gate2-results.json
           python3 scripts/bump/bundle.py compose --lib ../merged --log ../logs/bundle-deps.log --passed ../logs/passed.json --meta "data/exports/$KEY/setup.ci.json" \
             --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --out ../bundle --src ../pruned-src --drop-modules "$DROP" \
-            --tree-names ../tree-names.txt --drop-leaks
+            --tree-names ../tree-names.txt --tree-decls ../tree-decls.txt --drop-leaks
       - name: Make the registrations that leak into other libraries local (RECUT only)
         if: ${{ inputs.scope != '' }}
         run: python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --leaks "$SCOPE"

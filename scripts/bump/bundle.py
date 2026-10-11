@@ -35,6 +35,7 @@ sys.path.insert(0, str(HERE))
 import portfolio  # noqa: E402
 import records  # noqa: E402
 import autonames  # noqa: E402
+import lean_names  # noqa: E402
 import strip_attrs  # noqa: E402
 import tolerant_build as tb  # noqa: E402
 
@@ -293,6 +294,10 @@ def compose(a: argparse.Namespace) -> None:
         lint[mod] = allowlist.violations(body, allowed, keywords)
     # a kept declaration that uses one the pruning removed does not build on the tree: the module is cut like one that did not compile
     dangling = {mod: ds for mod in pruned if (ds := modules[mod].dangling(pruned[mod], keep_blocks.get(mod, set())))}
+    # two namespaces of the tree that declare one Lean name cannot both be imported ('import X failed, environment already contains ...'): the module that would ship it goes, like one
+    # that proves a record the tree already has, and the names are those of the text that ships (the pruned module), not of the source
+    tree_decls = {ln for ln in Path(a.tree_decls).read_text().split("\n") if ln} if a.tree_decls else set()
+    lean_clash = {mod: sorted(lean_names.names(pruned[mod]) & tree_decls) for mod in pruned} if tree_decls else {}
     repo = meta["repo"].rstrip("/").removesuffix(".git")
     via = passed_via(a.gate2)
     summary = {}
@@ -305,6 +310,7 @@ def compose(a: argparse.Namespace) -> None:
         dropped = dict(base_dropped)
         dropped.update({m: "lint: " + "; ".join(vs[:3]) for m, vs in viol.items() if vs and m not in dropped})
         dropped.update({m: "uses a declaration the pruning left out: " + ", ".join(ds[:3]) for m, ds in dangling.items() if m not in dropped})
+        dropped.update({m: "declares a name another library of the tree declares: " + ", ".join(ns[:3]) for m, ns in lean_clash.items() if ns and m not in dropped})
         needed: set[str] = set()
 
         def need(mod: str) -> None:
@@ -492,6 +498,7 @@ if __name__ == "__main__":
     c.add_argument("--keep-input", default="", help="the json keep-input wrote: only the passed theorems named in it are checked for a gap in the keep log")
     c.add_argument("--drop-modules", default="", help="comma list of modules to leave out (with their importers): those that did not build on the tree")
     c.add_argument("--tree-names", default="", help="file of the record names the tree already has, one per line (tree_names.py): the modules that prove one are left out with their importers")
+    c.add_argument("--tree-decls", default="", help="file of the Lean names the other namespaces of the tree declare, one per line (tree_names.py --decls-out): the modules that declare one are left out with their importers")
     c.add_argument("--drop-leaks", action="store_true", help="leave out a module whose pruning left unverified text (and what imports it) instead of refusing to compose")
     r = sub.add_parser("refine")
     for f in ("report", "log", "key", "out", "src"):
