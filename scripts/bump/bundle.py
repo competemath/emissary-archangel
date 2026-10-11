@@ -360,9 +360,12 @@ def compose(a: argparse.Namespace) -> None:
             shown = "\n".join(f"  {mod}: {ls[0]}" + (f" (+{len(ls) - 1} more)" if len(ls) > 1 else "") for mod, ls in list(leaks.items())[:20])
             sys.exit(f"pruning left unverified text in {len(leaks)} module(s) of the {mode} bundle; refusing to compose it:\n{shown}")
         manifest, left_out = [], defaultdict(int)
+        ledger: dict[str, dict] = {}  # every module whose verified theorems are not shipped: why, and how many theorems (ledger.json: nothing is missing without a reason)
         for mod, names in passed.items():
             if mod not in needed:
-                left_out[dropped.get(mod, "module not in the bundle")] += len(names)
+                why = dropped.get(mod, "module not in the bundle")
+                left_out[why] += len(names)
+                ledger[mod] = {"reason": why, "names": len(names)}
                 continue
             m = modules[mod]
             for n in names:
@@ -417,6 +420,14 @@ def compose(a: argparse.Namespace) -> None:
                 affected = sum(len(passed.get(x, [])) for x in with_importers(m_))
                 for v in {x[:70] for x in vs}:
                     classes[v] += affected
+        # the accounting identity: every verified theorem is shipped or left out with a reason. A hole here is a bug in compose, and compose refuses to go on.
+        accounted = len(manifest) + sum(left_out.values())
+        total = sum(len(v) for v in passed.values())
+        if accounted != total:
+            sys.exit(f"accounting broke in the {mode} bundle: {total} verified theorems, {len(manifest)} shipped + {sum(left_out.values())} left out = {accounted}")
+        (out_dir / "ledger.json").write_text(
+            json.dumps({"library": a.key, "lint_mode": mode, "verified": total, "shipped": len(manifest), "left_out": dict(left_out), "modules": dict(sorted(ledger.items()))}, indent=1)
+        )
         report = {"library": a.key, "lint_mode": mode, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]), "dropped_truncated": len(dropped) > 50,
                   "theorems": len(manifest), "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "textually_kept": textually_kept, "stripped_attributes": dict(stripped_attrs.most_common(15)),
                   "lint_cost": dict(sorted(classes.items(), key=lambda x: -x[1])[:15])}

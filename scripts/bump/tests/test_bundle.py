@@ -112,6 +112,18 @@ class Bundle(unittest.TestCase):
             self.assertEqual(rep["dropped"]["Toy.A"], "did not build on the tree")
             self.assertIn("imports a module that cannot go to the tree", rep["dropped"]["Toy.B"])
 
+    def test_the_ledger_lists_every_module_left_out_and_the_identity_holds(self):
+        d, p = self.compose_toy("Toy.A")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        for out in (d / "bundle", d / "bundle-proposed"):
+            led = json.loads((out / "ledger.json").read_text())
+            rep = json.loads((out / "report.json").read_text())
+            self.assertEqual(led["verified"], led["shipped"] + sum(led["left_out"].values()))  # nothing is missing without a reason
+            self.assertEqual(led["verified"], rep["passed_total"])
+            self.assertEqual(set(led["modules"]), {"Toy.B"})  # Toy.A has no verified theorem: nothing of it is missing, so it is not a ledger line
+            self.assertEqual(led["modules"]["Toy.B"], {"reason": "imports a module that cannot go to the tree", "names": 1})
+            self.assertEqual((led["verified"], led["shipped"]), (1, 0))
+
     def test_a_drop_list_that_names_no_module_fails_instead_of_cutting_nothing(self):
         """2026-10-08: `Encoding.BitPolynomial.Defs` for the library module `Complexitylib.Encoding.BitPolynomial.Defs` was ignored and the uncut bundle published."""
         d, p = self.compose_toy("Nope.Missing")
