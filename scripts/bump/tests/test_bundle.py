@@ -1,10 +1,14 @@
+import contextlib
+import io
 import json
 import re
+import runpy
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE / "tests"))
@@ -12,6 +16,7 @@ import test_records as T  # the toy library
 
 sys.path.insert(0, str(HERE))
 import bundle  # noqa: E402
+import records  # noqa: E402
 
 
 class Bundle(unittest.TestCase):
@@ -284,6 +289,104 @@ class Refine(unittest.TestCase):
                             "--out", str(d / "bundle"), "--src", str(d / "src")], capture_output=True, text=True)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("nothing is left", r.stdout + r.stderr)
+
+
+class AutoDrops(unittest.TestCase):
+    """2026-10-11: lean-pool needed one recut per leaking module (10 of them, ~30 minutes each) and, once composed, 63 modules that prove records other libraries already own (the
+    PR's intake gate refused part 1). Both are now cut at compose: `--drop-leaks` and `--tree-names`."""
+
+    FILES = {
+        "Leaky": "namespace Toy\n\ntheorem kept_leaky : 1 = 1 := rfl\n\nend Toy\n",  # the leak is simulated (leaks_in_leaky): a toy cannot make one, Module.text cuts a block with its own lead-in lines
+        "Above": "import Toy.Leaky\n\nnamespace Toy\n\ntheorem above : 1 = 1 := rfl\n\nend Toy\n",
+        "Clean": "namespace Toy\n\ntheorem clean_one : 1 = 1 := rfl\n\nend Toy\n",
+        "Owned": "namespace Toy\n\ntheorem owned : 1 = 1 := rfl\n\nend Toy\n",
+        "AboveOwned": "import Toy.Owned\n\nnamespace Toy\n\ntheorem above_owned : 1 = 1 := rfl\n\nend Toy\n",
+    }
+    PASSED = {"Toy.Leaky": ["Toy.kept_leaky"], "Toy.Above": ["Toy.above"], "Toy.Clean": ["Toy.clean_one"], "Toy.Owned": ["Toy.owned"], "Toy.AboveOwned": ["Toy.above_owned"]}
+
+    @staticmethod
+    def leaks_in_leaky(self, text, keep):  # records.Module.leaks, as if the pruning of Leaky.lean had left a dangling prefix (lean-pool: `include ψ S D D' h𝒱Adapted in`)
+        return ["line 3: dangling prefix: include h in"] if self.path.name == "Leaky.lean" else []
+
+    def compose(self, names: list[str], *extra: str, files: list[str] | None = None):
+        d = Path(tempfile.mkdtemp())
+        lib = d / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        keep = []
+        for mod in files or list(self.FILES):
+            text = self.FILES[mod]
+            (lib / "Toy" / f"{mod}.lean").write_text(text)
+            rows = [[f"Toy.{m.group(1)}", i, i] for i, line in enumerate(text.split("\n"), 1) if (m := re.match(r"theorem (\w+)", line))]
+            f = lib / ".lake" / "build" / "lib" / "lean" / "Toy" / f"{mod}.olean.ranges.json"
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(json.dumps(rows))
+            keep += [[f"Toy.{mod}", r[0]] for r in rows if not r[0].startswith("Toy.drop_")]
+        (d / "deps.log").write_text(f"x:1:0: info: BUNDLE_KEEP {json.dumps(keep)} BUNDLE_END\n")
+        passed = {m: ns for m, ns in self.PASSED.items() if m.split(".")[1] in (files or self.FILES)}
+        (d / "passed.json").write_text(json.dumps(passed))
+        (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy.git", "commit": "abc123"}))
+        (d / "build.log").write_text("")
+        (d / "gate2.log").write_text("")
+        (d / "names.txt").write_text("".join(n + "\n" for n in names))
+        argv = [str(HERE / "bundle.py"), "compose", "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
+                "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"), "--src", str(d / "src"),
+                *[str(d / "names.txt") if x == "@names" else x for x in extra]]
+        exit_code, err = 0, io.StringIO()
+        with mock.patch.object(sys, "argv", argv), mock.patch.object(records.Module, "leaks", self.leaks_in_leaky), contextlib.redirect_stderr(err):
+            try:
+                runpy.run_path(argv[0], run_name="__main__")
+            except SystemExit as e:  # sys.exit("message") is a refusal: the message is the code
+                exit_code = e.code if isinstance(e.code, int) else 1
+                err.write("" if isinstance(e.code, int) else str(e.code))
+        return d, subprocess.CompletedProcess(argv, exit_code, "", err.getvalue())
+
+    def shipped(self, d: Path, mode: str = "proposed") -> list[str]:
+        return [json.loads(x)["name"] for x in (d / ("bundle" if mode == "strict" else f"bundle-{mode}") / "manifest.jsonl").read_text().splitlines()]
+
+    def test_a_leak_still_refuses_the_whole_compose_by_default(self):
+        d, p = self.compose([], files=["Leaky", "Clean"])
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("pruning left unverified text in 1 module(s)", p.stderr)
+        self.assertIn("Leaky", p.stderr)
+
+    def test_drop_leaks_leaves_out_the_leaking_module_and_its_importers_and_ships_the_rest(self):
+        d, p = self.compose([], "--drop-leaks", files=["Leaky", "Above", "Clean"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        for mode in ("strict", "proposed", "wide"):
+            self.assertEqual(self.shipped(d, mode), ["Toy.clean_one"], mode)
+            rep = json.loads((d / ("bundle" if mode == "strict" else f"bundle-{mode}") / "report.json").read_text())
+            self.assertIn("pruning left unverified text", rep["dropped"]["Toy.Leaky"])
+            self.assertEqual(rep["dropped"]["Toy.Above"], "imports a module that cannot go to the tree")
+
+    def test_a_module_that_proves_a_record_the_tree_has_goes_with_its_importers(self):
+        d, p = self.compose(["Toy.owned", "other.dotless"], "--tree-names", "@names", files=["Owned", "AboveOwned", "Clean"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.shipped(d), ["Toy.clean_one"])
+        rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
+        self.assertEqual(rep["dropped"]["Toy.Owned"], "declares a record the tree already has: Toy.owned")
+        self.assertEqual(rep["dropped"]["Toy.AboveOwned"], "imports a module that cannot go to the tree")
+
+    def test_a_module_that_declares_a_lean_name_another_library_declares_goes_with_its_importers(self):
+        """2026-10-11: lean-pool part 1 had 9 modules (43 in the bundle) declaring names anderson-conjecture and others already declared: `import X failed, environment already contains`."""
+        (d_names := Path(tempfile.mkdtemp()) / "decls.txt").write_text("Toy.owned\nsomething.else\n")
+        d, p = self.compose([], "--tree-decls", str(d_names), files=["Owned", "AboveOwned", "Clean"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.shipped(d), ["Toy.clean_one"])
+        rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
+        self.assertEqual(rep["dropped"]["Toy.Owned"], "declares a name another library of the tree declares: Toy.owned")
+        self.assertEqual(rep["dropped"]["Toy.AboveOwned"], "imports a module that cannot go to the tree")
+
+    def test_without_tree_decls_a_lean_name_is_not_a_clash(self):
+        d, p = self.compose([], files=["Owned", "Clean"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(sorted(self.shipped(d)), ["Toy.clean_one", "Toy.owned"])
+
+    def test_without_the_list_nothing_is_dropped_for_a_clash_and_a_name_without_a_dot_is_never_one(self):
+        d, p = self.compose(["Toy.owned"], files=["Owned", "Clean"])  # no --tree-names: the list is not read
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(sorted(self.shipped(d)), ["Toy.clean_one", "Toy.owned"])
+        d, p = self.compose(["clean_one"], "--tree-names", "@names", files=["Clean", "Owned"])  # the gate's own rule: only a qualified name clashes
+        self.assertEqual(sorted(self.shipped(d)), ["Toy.clean_one", "Toy.owned"])
 
 
 class ImportLines(unittest.TestCase):
