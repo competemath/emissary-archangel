@@ -22,6 +22,7 @@ opened; the caller passes it only for an extend part, and only when the lane is 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import base64
 import json
 import re
@@ -73,16 +74,27 @@ def pascal(s: str) -> str:
     return "".join(p[:1].upper() + p[1:] for p in re.split(r"[-_ ]+", s) if p)
 
 
+def gap_of(line: str, imports: int) -> int:
+    """Which of the `imports + 1` gaps between the import lines of Tengoku/All.lean a library's line goes to: a number the library's own name decides (SHA-1), so the same library always lands in
+    the same place and two libraries land in the same place only one time in `imports + 1`."""
+    return int(hashlib.sha1(line.encode()).hexdigest(), 16) % (imports + 1)
+
+
 def with_import(text: str, line: str) -> str:
-    """`text` (Tengoku/All.lean) with the import `line` added: before the first import that sorts after it, at the end when none does. Appending every library at the end
-    made two intake PRs in the merge queue conflict on the last line (2026-10-08, #348); at its own place a library only conflicts with one that sorts into the same gap."""
+    """`text` (Tengoku/All.lean) with the import `line` added, in the gap its own name picks (gap_of). Appending every library at the end made two intake PRs in the merge queue conflict
+    on the last line (2026-10-08, #348); 'before the first import that sorts after it' did the same at the top, because the head of the real file is not sorted (22 descents in 59
+    imports): every name from A to M landed before `MerelyTrue`, and chebotarev-density, groebner-proj and lean-pool conflicted with each other in the queue (2026-10-11). Two PRs
+    conflict only when they pick the same gap."""
     lines = text.split("\n")
     if line in lines:
         return text
     imports = [i for i, ln in enumerate(lines) if ln.startswith("import ")]
-    at = next((i for i in imports if lines[i].lower() > line.lower()), None)
-    if at is None:
+    if not imports:
+        return text + ("" if text.endswith("\n") or not text else "\n") + line + "\n"
+    gap = gap_of(line, len(imports))
+    if gap == len(imports):  # after the last import line
         return text + ("" if text.endswith("\n") else "\n") + line + "\n"
+    at = imports[gap]
     return "\n".join([*lines[:at], line, *lines[at:]])
 
 
