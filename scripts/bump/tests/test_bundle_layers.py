@@ -136,11 +136,19 @@ class Plan(unittest.TestCase):
         self.assertTrue(all(mod_path(f"Tengoku.{NS}.Deps") not in p.files for p in parts[1:]))
         self.assertNotIn("Deps", parts[0].files[f"Tengoku/{NS}.lean"].decode())
 
-    def test_a_file_that_is_no_module_goes_with_the_first_part_only(self):
+    def test_a_file_of_the_tree_that_is_no_module_goes_with_the_first_part_only(self):
         files = make_bundle({"A": [], "B": ["A"]})
-        files["notes/MARKER.txt"] = b"a marker"
+        files["Tengoku/Lib/MARKER.txt"] = b"a marker"
         parts = bl.plan(files, NS, 1)
-        self.assertEqual([("notes/MARKER.txt" in p.files) for p in parts], [True, False])
+        self.assertEqual([("Tengoku/Lib/MARKER.txt" in p.files) for p in parts], [True, False])
+
+    def test_a_file_of_the_bundle_directory_that_is_no_part_of_the_tree_is_never_carried(self):
+        """2026-10-11: the ledger (written into the bundle directory) went into the first part of tauceti and the intake PR carried a root `ledger.json`: classified as tooling, so the PR failed its own gate."""
+        files = make_bundle({"A": [], "B": ["A"]})
+        files["ledger.json"] = b"{}"
+        files["notes/MARKER.txt"] = b"x"
+        parts = bl.plan(files, NS, 1)
+        self.assertTrue(all("ledger.json" not in p.files and "notes/MARKER.txt" not in p.files for p in parts))
 
     def test_other_umbrella_lines_stay_where_they_are(self):
         files = make_bundle({"A": [], "B": ["A"]}, extra_umbrella="-- a note\n")

@@ -434,7 +434,8 @@ def compose(a: argparse.Namespace) -> None:
         total = sum(len(v) for v in passed.values())
         if accounted != total:
             sys.exit(f"accounting broke in the {mode} bundle: {total} verified theorems, {len(manifest)} shipped + {sum(left_out.values())} left out = {accounted}")
-        (out_dir / "ledger.json").write_text(
+        # beside the bundle directory, not in it: everything inside is archived and sent to the tree (a ledger.json inside reached tengoku's first tauceti PR as a root file, 2026-10-11)
+        out_dir.with_name(out_dir.name + ".ledger.json").write_text(
             json.dumps({"library": a.key, "lint_mode": mode, "verified": total, "shipped": len(manifest), "left_out": dict(left_out), "modules": dict(sorted(ledger.items()))}, indent=1)
         )
         report = {"library": a.key, "lint_mode": mode, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]), "dropped_truncated": len(dropped) > 50,

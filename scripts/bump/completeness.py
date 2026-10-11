@@ -3,7 +3,7 @@
 
   completeness.py --artifact BUMP_ARTIFACT_DIR --tree TENGOKU_CHECKOUT --lib KEY [--mode proposed] [--json out.json]
 
-BUMP_ARTIFACT_DIR is a downloaded `bump-<key>` artifact of a bump run (bundle-<mode>/{manifest.jsonl,report.json,ledger.json}, logs/gate2-results.json); the tree is a checkout of
+BUMP_ARTIFACT_DIR is a downloaded `bump-<key>` artifact of a bump run (bundle-<mode>/{manifest.jsonl,report.json}, bundle-<mode>.ledger.json, logs/gate2-results.json); the tree is a checkout of
 tengoku with data/intake/<key>/manifest.jsonl. The chain, each hop with its count:
 
   checked            what Gate 2 looked at (gate2-results.json)
@@ -45,7 +45,9 @@ def account(artifact: Path, tree: Path, lib: str, mode: str) -> dict:
     bdir = artifact / ("bundle" if mode == "strict" else f"bundle-{mode}")
     shipped = names_of(bdir / "manifest.jsonl")
     report = json.loads((bdir / "report.json").read_text())
-    ledger_path = bdir / "ledger.json"
+    ledger_path = artifact / (bdir.name + ".ledger.json")
+    if not ledger_path.exists():
+        ledger_path = bdir / "ledger.json"  # artifacts of before 2026-10-11 18:00 UTC
     ledger = json.loads(ledger_path.read_text()) if ledger_path.exists() else None
     # a ledger that says nothing was left out has `"left_out": {}`: present, and not the same as a missing key (an empty dict is falsy: `or` used to read the report instead)
     left_out = ledger["left_out"] if ledger is not None and "left_out" in ledger else report.get("left_out", {})
