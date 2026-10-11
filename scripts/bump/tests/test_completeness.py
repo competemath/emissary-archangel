@@ -24,7 +24,7 @@ class Account(unittest.TestCase):
         total = verified if verified is not None else len(shipped) + sum(left_out.values())
         (b / "report.json").write_text(json.dumps({"passed_total": total, "left_out": left_out}))
         if ledger:
-            (b / "ledger.json").write_text(json.dumps({"verified": total, "shipped": len(shipped), "left_out": left_out, "modules": modules}))
+            (art / "bundle-proposed.ledger.json").write_text(json.dumps({"verified": total, "shipped": len(shipped), "left_out": left_out, "modules": modules}))
         (art / "logs").mkdir()
         (art / "logs" / "gate2-results.json").write_text(json.dumps({"checked": 100, "pass": total}))
         d = tr / "data" / "intake" / "lib"

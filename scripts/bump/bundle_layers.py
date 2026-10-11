@@ -168,7 +168,7 @@ def plan(files: dict[str, bytes], ns: str, max_modules: int = DEFAULT_MAX, tree_
             part.manifest_lines += by_module.get(m, [])
         if i == 1 and tree_umbrella is None:  # the marker and any other file outside the modules of the library
             for p, data in files.items():
-                if p not in (umbrella_path, "manifest.jsonl", "report.json") and p not in mods.values():
+                if p.startswith("Tengoku/") and p != umbrella_path and p not in mods.values():  # the marker; a file of the bundle directory that is no part of the tree is not carried
                     part.files[p] = data
         if tree_umbrella is None:
             part.files[umbrella_path] = umbrella_after(umbrella, listed & seen).encode("utf-8")
