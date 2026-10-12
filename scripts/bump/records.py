@@ -104,6 +104,7 @@ def strip_comments(text: str) -> str:
     return re.sub(r"--[^\n]*", "", re.sub(r"/-.*?-/", "", text, flags=re.S))
 
 
+EMPTY_MUTUAL = re.compile(r"^mutual[ \t]*\n(?:[ \t]*(?:--[^\n]*)?\n)*end[ \t]*$\n?", re.M)
 MODIFIER_ONLY = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s*)+$")  # a line of modifiers and nothing else: the declaration keyword is on the next line
 DECL_LINE = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s+)*(?:theorem|lemma|def|abbrev|instance|structure|class|inductive|opaque|axiom|example)\b")
 # `example` is a block like any declaration (it has no name and no range, so it is always cut): it used to be glue, stayed in every module, and broke the tree's build when it needed what the pruning left out
@@ -260,7 +261,10 @@ class Module:
             if not strip_imports or (not IMPORT_LINE.match(ln) and not KEYWORD_LINE.match(ln)):
                 out.append(ln)
             i += 1
-        text = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip("\n")
+        text = "\n".join(out)
+        # a `mutual` group is glue; when every declaration inside is cut the pair is a parse error ('unexpected end', lean-pool `Split/Completeness`, 2026-10-12): it goes too
+        text = EMPTY_MUTUAL.sub("", text)
+        text = re.sub(r"\n{3,}", "\n\n", text).strip("\n")
         return text
 
     def leaks(self, text: str, keep: set[tuple[int, int]]) -> list[str]:

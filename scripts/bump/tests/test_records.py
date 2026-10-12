@@ -409,6 +409,52 @@ end Toy
             self.assertEqual(records.add_noncomputable(block), want, block)
 
 
+MUTUAL = """namespace Toy
+
+mutual
+theorem even_zero : True := trivial
+-- note
+theorem odd_zero : True := trivial
+end
+
+theorem plain_one : True := trivial
+
+end Toy
+"""
+
+
+class EmptyMutualBlock(unittest.TestCase):
+    """lean-pool part 8 (tengoku#513, 2026-10-12): `Lean4GlCoalgebras/Split/Completeness` kept `mutual` / `end` while every declaration inside was cut: 'unexpected end'. The
+    group is glue; once nothing is left in it the pair goes too."""
+
+    def module(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        d = tempfile.mkdtemp()
+        lib = Path(d) / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        (lib / "Toy" / "U.lean").write_text(MUTUAL)
+        lines = MUTUAL.split("\n")
+        ln = lambda needle: next(i + 1 for i, x in enumerate(lines) if x.startswith(needle))
+        return records.Module(lib, "Toy.U", [(ln("theorem even_zero"),) * 2, (ln("theorem odd_zero"),) * 2, (ln("theorem plain_one"),) * 2])
+
+    def test_a_mutual_group_with_everything_cut_goes_with_its_end(self):
+        m = self.module()
+        keep = {m.blocks[2]}
+        text = m.text(keep)
+        self.assertNotIn("mutual", text)
+        self.assertNotRegex(text, r"(?m)^end\s*$")
+        self.assertIn("theorem plain_one", text)
+        self.assertIn("end Toy", text)
+
+    def test_a_mutual_group_that_keeps_a_declaration_stays_whole(self):
+        m = self.module()
+        text = m.text(set(m.blocks))
+        self.assertIn("mutual\ntheorem even_zero", text)
+        self.assertRegex(text, r"(?m)^end\s*$")
+
+
 class NothingEscapesPruning(unittest.TestCase):
     """`Module.leaks` is the guard compose runs on every pruned module: the text must be glue plus whole kept blocks, and no `… in` may dangle.
     It would have refused the complexitylib bundle whatever the cause, and refuses any future way for an unverified declaration to stay."""
