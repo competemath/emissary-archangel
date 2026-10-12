@@ -99,6 +99,7 @@ CODE_ATTR = re.compile(r"@\[[^\]]*\b(?:tactic|command_elab|term_elab|macro|elab|
 IMPORT_LINE = re.compile(r"^\s*(?:(?:public|private|meta)\s+)*import\s")
 KEYWORD_LINE = re.compile(r"^\s*(?:module|prelude)\s*$")
 IN_PREFIX = re.compile(r"^\s*(?:open|set_option|attribute|local|universe|variable|namespace|section|include|omit)\b.*\bin\s*$")
+MODIFIER_ONLY = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s*)+$")  # a line of modifiers and nothing else: the declaration keyword is on the next line
 DECL_LINE = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s+)*(?:theorem|lemma|def|abbrev|instance|structure|class|inductive|opaque|axiom|example)\b")
 # `example` is a block like any declaration (it has no name and no range, so it is always cut): it used to be glue, stayed in every module, and broke the tree's build when it needed what the pruning left out
 
@@ -118,7 +119,7 @@ def strip_block_comments_in_doc(text: str) -> str:
     return text
 
 
-LEAD_IN = re.compile(r"^(?:/--|@\[)")  # a docstring or attribute line: it belongs to the declaration below it
+LEAD_IN = re.compile(r"^(?:/--|@\[|(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s*)+$)")  # a docstring or attribute line: it belongs to the declaration below it
 ATTR_INLINE = re.compile(r"^(?:@\[[^\]]*\]\s*)+")  # the attributes at the start of a line (`@[simp] theorem …`)
 DECL_NAME = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s+)*(?:theorem|lemma|def|abbrev|structure|class|inductive|opaque|axiom|instance)\s+([^\s:({\[⦃]+)")
 # commands that cannot take a docstring or an attribute: one of these right after one means its declaration is gone
@@ -195,11 +196,19 @@ class Module:
                 if any(CODE_ATTR.search(self.lines[i - 1]) for i in range(b[0], s + 1)):
                     self.code_attr.add(b)
                 lead = None
-            elif IN_PREFIX.match(first) or first.startswith("/--") or (first.startswith("@[") and attrs_only("\n".join(self.lines[s - 1 : e]))):
-                lead = s if lead is None else lead  # a docstring, attributes of their own (on one line or several) or an `… in` line: they belong to the declaration below
+            elif (
+                IN_PREFIX.match(first)
+                or first.startswith("/--")
+                or (first.startswith("@[") and attrs_only("\n".join(self.lines[s - 1 : e])))
+                or MODIFIER_ONLY.match("\n".join(self.lines[s - 1 : e]).strip())
+            ):
+                # a docstring, attributes of their own (on one line or several), modifiers on a line of their own (`public` / `theorem …`: lean-pool, 2026-10-12) or an `… in` line: they
+                # belong to the declaration below
+                lead = s if lead is None else lead
             else:
                 lead = None  # glue, `@[expose] public section` included: an attribute on a command that is no declaration
         self.blocks.sort()
+        self.codegen_lines: set[int] = set()  # lines Lean said 'failed to compile definition, consider marking it as noncomputable' on: bundle.py fills it from the build's error log
         self.ranged: set[tuple[int, int]] = set()
         for rs, re_ in merge_ranges(ranges):
             if 1 <= rs <= n and (b := self.block_of(rs)):
@@ -236,7 +245,10 @@ class Module:
             if i in starts:
                 s, e = i, starts[i]
                 if self.stays((s, e), kept):
-                    out.extend(self.lines[s - 1 : min(e, n)])
+                    block = self.lines[s - 1 : min(e, n)]
+                    if any(s <= L <= e for L in self.codegen_lines):
+                        block = add_noncomputable(block)
+                    out.extend(block)
                 i = e + 1
                 continue
             ln = self.lines[i - 1]
@@ -253,7 +265,7 @@ class Module:
         module does not build. Only column-0 command lines outside comments count, so prose in a module docstring that starts with "theorem"
         is not a declaration, and a `--` line inside a proof does not end it."""
         kept = self.kept_blocks(keep)
-        allowed = {decl_core(self.lines, s, e).split("\n")[0].strip() for s, e in self.blocks if self.stays((s, e), kept)}
+        allowed = {drop_noncomputable(decl_core(self.lines, s, e).split("\n")[0].strip()) for s, e in self.blocks if self.stays((s, e), kept)}
         tlines = text.split("\n")
         cmds = command_lines(tlines)
         out: list[str] = []
@@ -271,7 +283,7 @@ class Module:
                     seg = "\n".join(tlines[no - 1 : cmds[k + 1][0] - 1 if k + 1 < len(cmds) else len(tlines)])
                     if (closed := attrs_end(seg)) > 0:
                         core = seg[closed:].strip().split("\n")[0].strip()  # an attribute over several lines: the keyword line follows its closing bracket
-                if DECL_LINE.match(core) and core not in allowed:
+                if DECL_LINE.match(core) and drop_noncomputable(core) not in allowed:
                     out.append(f"line {no}: a declaration that is not a kept block: {core[:80]}")
                 elif LEAD_IN.match(ln) and (ln.startswith("/--") or not core or core == ln.strip()):  # a docstring, or attributes on their own (not `@[expose] public section`)
                     nxt = cmds[k + 1][1] if k + 1 < len(cmds) else ""
@@ -303,6 +315,26 @@ class Module:
         return sorted(
             n for n in gone if n not in here and re.search(r"(?<![\w.'])" + re.escape(n) + r"(?![\w'])", code)
         )
+
+
+CODEGEN_KEYWORD = re.compile(r"^(\s*(?:@\[[^\]]*\]\s*)*(?:(?:private|protected|public|meta|unsafe|partial|nonrec)\s+)*)(def|instance|abbrev|opaque)\b")
+
+
+def add_noncomputable(block: list[str]) -> list[str]:
+    """The block with `noncomputable` before the keyword of its definition: Lean's own advice for 'failed to compile definition, consider marking it as noncomputable' (it depends on something
+    noncomputable; the term is fine, only the code generator refuses). The tree compiles the text again and would stop at the same line (lean-pool `GrothendieckVanishing/CohomologyAPI`,
+    2026-10-12). Unchanged when the block already says it, or has no definition keyword."""
+    for i, ln in enumerate(block):
+        if re.match(r"^\s*(?:@\[[^\]]*\]\s*)*(?:\w+\s+)*noncomputable\b", ln):
+            return block
+        m = CODEGEN_KEYWORD.match(ln)
+        if m:
+            return block[:i] + [m.group(1) + "noncomputable " + ln[m.end(1) :]] + block[i + 1 :]
+    return block
+
+
+def drop_noncomputable(line: str) -> str:
+    return re.sub(r"\bnoncomputable\s+", "", line)
 
 
 def decl_core(lines: list[str], s: int, e: int) -> str:

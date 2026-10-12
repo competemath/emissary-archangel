@@ -211,6 +211,141 @@ class PrefixedDeclarations(unittest.TestCase):
         self.assertTrue(m.leaks(pruned.replace("theorem a", "theorem a_leaked"), {m.blocks[1]}))
 
 
+MODIFIERS = """namespace Toy
+
+public
+theorem lone_public : True := trivial
+
+private
+lemma lone_private : True := trivial
+
+public
+noncomputable
+def kept_def : Nat := 1
+
+theorem plain_one : True := trivial
+
+end Toy
+"""
+
+
+class LoneModifierLines(unittest.TestCase):
+    """lean-pool writes `public` / `private` on a line of its own above the declaration keyword. The splitter made two commands of it, the modifier line was glue, and when the
+    declaration was cut the modifier stayed: `public` / `end Mathoverflow1973` is 'unexpected token end; expected lemma' in the tree (lean-pool part 6, 2026-10-12:
+    HolomorphicCousin and SmallChainBiprod)."""
+
+    def module(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        d = tempfile.mkdtemp()
+        lib = Path(d) / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        (lib / "Toy" / "M.lean").write_text(MODIFIERS)
+        lines = MODIFIERS.split("\n")
+        ln = lambda needle: next(i + 1 for i, x in enumerate(lines) if x.startswith(needle))
+        ranges = [(ln("theorem lone_public"),) * 2, (ln("lemma lone_private"),) * 2, (ln("def kept_def"),) * 2, (ln("theorem plain_one"),) * 2]
+        return records.Module(lib, "Toy.M", ranges), ln
+
+    def test_the_modifier_lines_belong_to_the_block_below(self):
+        m, ln = self.module()
+        self.assertEqual(m.blocks[0], (ln("public"), ln("theorem lone_public")))
+        self.assertEqual(m.blocks[1], (ln("private"), ln("lemma lone_private")))
+        lines = MODIFIERS.split("\n")
+        start = next(i + 1 for i, x in enumerate(lines) if x == "public" and lines[i + 1] == "noncomputable")
+        self.assertEqual(m.blocks[2], (start, start + 2))  # `public` + `noncomputable` + `def`: three lines, each a command of its own
+
+    def test_cutting_the_declaration_cuts_its_modifiers(self):
+        m, _ = self.module()
+        keep = {m.blocks[3]}
+        text = m.text(keep)
+        self.assertEqual(text.count("public"), 0, text)
+        self.assertEqual(text.count("private"), 0, text)
+        self.assertIn("theorem plain_one", text)
+        self.assertEqual(m.leaks(text, keep), [])
+
+    def test_a_kept_declaration_keeps_its_modifiers(self):
+        m, _ = self.module()
+        text = m.text(set(m.blocks))
+        self.assertIn("public\ntheorem lone_public", text)
+        self.assertIn("public\nnoncomputable\ndef kept_def", text)
+
+    def test_a_modifier_left_behind_is_a_leak(self):
+        m, _ = self.module()
+        keep = {m.blocks[3]}
+        stray = m.text(keep).replace("theorem plain_one", "public\ntheorem plain_one")  # `public` over the kept theorem, plus a lone one: add a lone one at the end
+        stray = stray.replace("end Toy", "public\n\nend Toy")
+        self.assertTrue(any("public" in x for x in m.leaks(stray, keep)), m.leaks(stray, keep))
+
+
+CODEGEN = """namespace Toy
+
+/-- uses a noncomputable thing -/
+@[simp] instance sheafPre (X : Nat) :
+    Inhabited Nat := ⟨X⟩
+
+private def hidden : Nat := 1
+
+noncomputable def already : Nat := 2
+
+theorem plain_one : True := trivial
+
+end Toy
+"""
+
+
+class CodegenAdvice(unittest.TestCase):
+    """'failed to compile definition, consider marking it as noncomputable' is Lean's own repair advice: the declaration is sound and a passed term needs it, only the code generator refuses
+    (lean-pool `GrothendieckVanishing/CohomologyAPI`, 2026-10-12: the failed block was shipped and the tree stopped at the same line). The text gets the modifier."""
+
+    def module(self, errors):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        d = tempfile.mkdtemp()
+        lib = Path(d) / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        (lib / "Toy" / "C.lean").write_text(CODEGEN)
+        lines = CODEGEN.split("\n")
+        ln = lambda needle: next(i + 1 for i, x in enumerate(lines) if x.startswith(needle))
+        ranges = [(ln("@[simp] instance"),) * 2, (ln("private def"),) * 2, (ln("noncomputable def"),) * 2, (ln("theorem plain_one"),) * 2]
+        m = records.Module(lib, "Toy.C", ranges)
+        m.codegen_lines = {ln(x) for x in errors}
+        return m
+
+    def test_the_modifier_goes_before_the_keyword_whatever_comes_before_it(self):
+        m = self.module(["@[simp] instance", "private def"])
+        text = m.text(set(m.blocks))
+        self.assertIn("@[simp] noncomputable instance sheafPre", text)
+        self.assertIn("private noncomputable def hidden", text)
+        self.assertIn("/-- uses a noncomputable thing -/\n@[simp] noncomputable instance", text)
+
+    def test_a_definition_that_says_it_already_is_left_alone(self):
+        m = self.module(["noncomputable def"])
+        self.assertIn("noncomputable def already", m.text(set(m.blocks)))
+        self.assertNotIn("noncomputable noncomputable", m.text(set(m.blocks)))
+
+    def test_nothing_changes_without_an_error(self):
+        m = self.module([])
+        self.assertNotIn("noncomputable instance", m.text(set(m.blocks)))
+
+    def test_the_repaired_text_is_no_leak(self):
+        m = self.module(["@[simp] instance", "private def"])
+        keep = set(m.blocks)
+        self.assertEqual(m.leaks(m.text(keep), keep), [])
+
+    def test_a_theorem_is_not_given_the_modifier(self):
+        m = self.module(["theorem plain_one"])
+        self.assertNotIn("noncomputable theorem", m.text(set(m.blocks)))
+
+    def test_compose_reads_the_advice_from_the_error_log(self):
+        sys.path.insert(0, str(HERE))
+        import bundle
+
+        src = Path(bundle.__file__).read_text()
+        self.assertIn("consider marking it as 'noncomputable'", src)
+
+
 class NothingEscapesPruning(unittest.TestCase):
     """`Module.leaks` is the guard compose runs on every pruned module: the text must be glue plus whole kept blocks, and no `… in` may dangle.
     It would have refused the complexitylib bundle whatever the cause, and refuses any future way for an unverified declaration to stay."""

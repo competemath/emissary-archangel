@@ -214,12 +214,15 @@ def compose(a: argparse.Namespace) -> None:
     # lines Lean reported an error on: the text of a declaration that never made it into the environment has no range, so it looks like glue
     err_lines: dict[str, set[int]] = defaultdict(set)
     parse_lines: dict[str, set[int]] = defaultdict(set)  # the lines where the PARSER stopped: the same text stops it again in the tree, whatever Gate 2 said of the theorem
+    codegen_lines: dict[str, set[int]] = defaultdict(set)  # 'consider marking it as noncomputable': the declaration is sound, the text only lacks the modifier
     for ln in Path(a.errors).read_text(errors="replace").splitlines():
         m = portfolio.ERROR.match(ln)
         if m:
             err_lines[m.group(1)].add(int(m.group(2)))
             if PARSE_ERROR.match(m.group(4)):
                 parse_lines[m.group(1)].add(int(m.group(2)))
+            if "consider marking it as 'noncomputable'" in m.group(4):
+                codegen_lines[m.group(1)].add(int(m.group(2)))
     modules: dict[str, records.Module] = {}
     failed_blocks: dict[str, set[tuple[int, int]]] = {}
     fatal_blocks: dict[str, set[tuple[int, int]]] = {}
@@ -232,6 +235,7 @@ def compose(a: argparse.Namespace) -> None:
         m = records.Module(lib, mod, list(sidecars[mod].values()))  # a declaration Lean never elaborated has no range: the Module cuts it
         rel = str(path.relative_to(lib))
         modules[mod] = m
+        m.codegen_lines = set(codegen_lines.get(str(path.relative_to(lib)), ()))
         # the blocks Lean reported an error in: such a declaration is closed with a `sorry` that is not in its text, and must never be kept for the text of another
         failed_blocks[mod] = {b for b in m.blocks if any(b[0] <= L <= b[1] for L in err_lines.get(rel, ()))}
         fatal_blocks[mod] = {b for b in m.blocks if any(b[0] <= L <= b[1] for L in parse_lines.get(rel, ()))}

@@ -30,6 +30,12 @@ INSTANCE_BLOCK = re.compile(r"^(?:@\[[^\]]*\]\s*)*(?:(?:private|protected|noncom
 PRIVATE_NAME = re.compile(r"^_private\.(?:.+?)\.\d+\.(.+)$")
 
 
+def field_notation(tok: str) -> bool:
+    """`alg.predictorStep_wide`, `φ₁.tensorMul`: a distinctive name behind a local variable (lower case, Greek or a single capital such as `L`; never `_root_` or a namespace such as `Finset`)."""
+    first, _, rest = tok.partition(".")
+    return bool(rest) and first != "_root_" and (not first[:1].isupper() or len(first) == 1) and distinctive(tok.rsplit(".", 1)[-1])
+
+
 def distinctive(last: str) -> bool:
     return len(last) >= 8 and ("_" in last or any(c.isupper() for c in last[1:]))
 
@@ -101,6 +107,19 @@ def block_contexts(module) -> dict[tuple[int, int], tuple[str, tuple[str, ...]]]
                     opens |= set(open_names(m.group("rest")))
             out[b] = (ns, tuple(sorted(opens)))
     return out
+
+
+def glue_tail(line: str) -> str:
+    """The part of a glue line that REFERS to declarations rather than binding names: after the closing bracket of `attribute [fun_prop] …`, after the `=>` of a notation (`infixl:90 "⨀₂" => mdp₂!`),
+    after the `:=` of an `alias`. A `variable (k : ℕ)` binds `k`: it names no declaration, whatever `Ns.k` exists. Empty when there is no such part."""
+    code = line.strip()
+    if code.startswith(("attribute", "local attribute", "scoped attribute")) and "]" in code:
+        return code[code.index("]") + 1 :]
+    if "=>" in code:
+        return code.split("=>", 1)[1]
+    if code.startswith("alias") and ":=" in code:
+        return code.split(":=", 1)[1]
+    return ""
 
 
 GLUE_SKIP = re.compile(r"^\s*(?:import|namespace|section|end|open|export|universe)\b|^\s*(?:@\[[^\]]*\]\s*)*(?:public\s+|noncomputable\s+|private\s+)*section\b")
@@ -194,12 +213,13 @@ def close(
     work = list(kept)
     added = 0
 
-    def resolve(tok: str, context):
-        """(the declarations `tok` can name, whether by its full name as written or as its namespace and `open`s read it)."""
+    def resolve(tok: str, context, glue: bool = False):
+        """(the declarations `tok` can name, whether by its full name as written or as its namespace and `open`s read it). In glue (`infixl:90 "⨀₂" => mdp₂!`, `alias foo := bar'!`) a name
+        of any length is read by the namespace it is written in: nothing there is a local variable, and the last-component guess below still needs a distinctive one."""
         cands = list(by_full.get(tok, ()))
         exact = bool(cands)
         last = tok.rsplit(".", 1)[-1]
-        if not cands and distinctive(last):
+        if not cands and (glue or distinctive(last)):
             # the name as the file's own namespace and `open`s read it: `pointsFunctor_map` inside `namespace HopfAlgebra` is `HopfAlgebra.pointsFunctor_map`, however many
             # declarations in the library end in that name (tauceti, 2026-10-11: a name that ends 4 times is out of reach of the last-component guess, and the module that wrote it
             # short lost the lemma)
@@ -272,19 +292,20 @@ def close(
             work.append((m2, ib))
             added += 1
 
-    def visit(mod: str, text: str, context) -> None:
+    def visit(mod: str, text: str, context, glue: bool = False) -> None:
         """Keep what `text` (a block of `mod`, or one line of its glue) names; `context()` is the (namespace, opens) the text is written in."""
         nonlocal added
         for tok in set(TOKEN.findall(text)):
             tok = tok.rstrip(".")
-            cands, exact = resolve(tok, context)
+            cands, exact = resolve(tok, context, glue)
             for m2, b2, r2 in cands:
                 if (m2, b2) in kept:
                     continue
                 if b2 in failed.get(m2, ()):
                     # a declaration that failed in the build is never kept. The module that names it by its full name cannot go to the tree; a match by last component alone is a guess
-                    # (a local name, a field, another declaration with the same ending): it keeps nothing and does not drop the naming module
-                    if exact:
+                    # (a local name, a field, another declaration with the same ending): it keeps nothing and does not drop the naming module, unless the declaration is in the naming
+                    # module itself and its name is distinctive: field notation on a type declared in the same file (`x.predictorStep_wide`), lean-pool `GeneratedConvergence`, 2026-10-12
+                    if exact or (m2 == mod and field_notation(tok)):
                         unresolved[mod].add(tok)
                     continue
                 if SORRY.search("\n".join(modules[m2].lines[b2[0] - 1 : b2[1]])):
@@ -306,7 +327,10 @@ def close(
             # `ProjectionMoments/BallMoments`, 2026-10-12: the lemma was cut from the module that declares it, and the tree stopped at 'Unknown constant')
             glue_read.add(mod)
             for line, ns, opens in glue_units(modules[mod]):
-                visit(mod, line, lambda ns=ns, opens=opens: (ns, opens))
+                ctx = lambda ns=ns, opens=opens: (ns, opens)  # noqa: E731
+                visit(mod, line, ctx)
+                if tail := glue_tail(line):
+                    visit(mod, tail, ctx, glue=True)
 
         visit(mod, "\n".join(modules[mod].lines[blk[0] - 1 : blk[1]]), block_context_of(mod, blk))
     return added, unresolved
