@@ -99,6 +99,12 @@ CODE_ATTR = re.compile(r"@\[[^\]]*\b(?:tactic|command_elab|term_elab|macro|elab|
 IMPORT_LINE = re.compile(r"^\s*(?:(?:public|private|meta)\s+)*import\s")
 KEYWORD_LINE = re.compile(r"^\s*(?:module|prelude)\s*$")
 IN_PREFIX = re.compile(r"^\s*(?:open|set_option|attribute|local|universe|variable|namespace|section|include|omit)\b.*\bin\s*$")
+def strip_comments(text: str) -> str:
+    """`text` without `--` line comments and `/- … -/` block comments (docstrings included): enough to tell a line of modifiers from one that is followed by a note."""
+    return re.sub(r"--[^\n]*", "", re.sub(r"/-.*?-/", "", text, flags=re.S))
+
+
+MODIFIER_ONLY = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s*)+$")  # a line of modifiers and nothing else: the declaration keyword is on the next line
 DECL_LINE = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s+)*(?:theorem|lemma|def|abbrev|instance|structure|class|inductive|opaque|axiom|example)\b")
 # `example` is a block like any declaration (it has no name and no range, so it is always cut): it used to be glue, stayed in every module, and broke the tree's build when it needed what the pruning left out
 
@@ -118,7 +124,7 @@ def strip_block_comments_in_doc(text: str) -> str:
     return text
 
 
-LEAD_IN = re.compile(r"^(?:/--|@\[)")  # a docstring or attribute line: it belongs to the declaration below it
+LEAD_IN = re.compile(r"^(?:/--|@\[|(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s*)+$)")  # a docstring or attribute line: it belongs to the declaration below it
 ATTR_INLINE = re.compile(r"^(?:@\[[^\]]*\]\s*)+")  # the attributes at the start of a line (`@[simp] theorem …`)
 DECL_NAME = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s+)*(?:theorem|lemma|def|abbrev|structure|class|inductive|opaque|axiom|instance)\s+([^\s:({\[⦃]+)")
 # commands that cannot take a docstring or an attribute: one of these right after one means its declaration is gone
@@ -195,11 +201,19 @@ class Module:
                 if any(CODE_ATTR.search(self.lines[i - 1]) for i in range(b[0], s + 1)):
                     self.code_attr.add(b)
                 lead = None
-            elif IN_PREFIX.match(first) or first.startswith("/--") or (first.startswith("@[") and attrs_only("\n".join(self.lines[s - 1 : e]))):
-                lead = s if lead is None else lead  # a docstring, attributes of their own (on one line or several) or an `… in` line: they belong to the declaration below
+            elif (
+                IN_PREFIX.match(first)
+                or first.startswith("/--")
+                or (first.startswith("@[") and attrs_only("\n".join(self.lines[s - 1 : e])))
+                or MODIFIER_ONLY.match(strip_comments("\n".join(self.lines[s - 1 : e])).strip())
+            ):
+                # a docstring, attributes of their own (on one line or several), modifiers on a line of their own (`public` / `theorem …`: lean-pool, 2026-10-12) or an `… in` line: they
+                # belong to the declaration below
+                lead = s if lead is None else lead
             else:
                 lead = None  # glue, `@[expose] public section` included: an attribute on a command that is no declaration
         self.blocks.sort()
+        self.codegen_lines: set[int] = set()  # lines Lean said 'failed to compile definition, consider marking it as noncomputable' on: bundle.py fills it from the build's error log
         self.ranged: set[tuple[int, int]] = set()
         for rs, re_ in merge_ranges(ranges):
             if 1 <= rs <= n and (b := self.block_of(rs)):
@@ -236,7 +250,10 @@ class Module:
             if i in starts:
                 s, e = i, starts[i]
                 if self.stays((s, e), kept):
-                    out.extend(self.lines[s - 1 : min(e, n)])
+                    block = self.lines[s - 1 : min(e, n)]
+                    if any(s <= L <= e for L in self.codegen_lines):
+                        block = add_noncomputable(block)
+                    out.extend(block)
                 i = e + 1
                 continue
             ln = self.lines[i - 1]
@@ -253,7 +270,7 @@ class Module:
         module does not build. Only column-0 command lines outside comments count, so prose in a module docstring that starts with "theorem"
         is not a declaration, and a `--` line inside a proof does not end it."""
         kept = self.kept_blocks(keep)
-        allowed = {decl_core(self.lines, s, e).split("\n")[0].strip() for s, e in self.blocks if self.stays((s, e), kept)}
+        allowed = {drop_noncomputable(decl_core(self.lines, s, e).split("\n")[0].strip()) for s, e in self.blocks if self.stays((s, e), kept)}
         tlines = text.split("\n")
         cmds = command_lines(tlines)
         out: list[str] = []
@@ -271,7 +288,7 @@ class Module:
                     seg = "\n".join(tlines[no - 1 : cmds[k + 1][0] - 1 if k + 1 < len(cmds) else len(tlines)])
                     if (closed := attrs_end(seg)) > 0:
                         core = seg[closed:].strip().split("\n")[0].strip()  # an attribute over several lines: the keyword line follows its closing bracket
-                if DECL_LINE.match(core) and core not in allowed:
+                if DECL_LINE.match(core) and drop_noncomputable(core) not in allowed:
                     out.append(f"line {no}: a declaration that is not a kept block: {core[:80]}")
                 elif LEAD_IN.match(ln) and (ln.startswith("/--") or not core or core == ln.strip()):  # a docstring, or attributes on their own (not `@[expose] public section`)
                     nxt = cmds[k + 1][1] if k + 1 < len(cmds) else ""
@@ -305,6 +322,46 @@ class Module:
         )
 
 
+PREFIX_IN = re.compile(r"(?:open|set_option|attribute|local|universe|variable|namespace|section|include|omit)\b[^\n]*\bin[ \t]*(?:\n|$)")
+CODEGEN_MODS = re.compile(r"(?:private|protected|public|meta|unsafe|partial|nonrec)\s+")
+CODEGEN_DEF = re.compile(r"(?:def|instance|abbrev|opaque)\b")
+
+
+def add_noncomputable(block: list[str]) -> list[str]:
+    """The block with `noncomputable` before the keyword of its definition: Lean's own advice for 'failed to compile definition, consider marking it as noncomputable' (it depends on something
+    noncomputable; the term is fine, only the code generator refuses). The tree compiles the text again and would stop at the same line (lean-pool `GrothendieckVanishing/CohomologyAPI`,
+    2026-10-12). The keyword is found outside comments and strings, past docstrings, `… in` prefixes, modifiers and attributes over several lines (`@[a,\n b] def f`, `(since := …)] def f`).
+    Unchanged when the block already says it, or has no definition keyword."""
+    from adapters import code_mask
+
+    text = "\n".join(block)
+    code = "".join(c if k or c == "\n" else " " for c, k in zip(text, code_mask(text)))
+    i, n = 0, len(code)
+    while i < n:
+        if code[i].isspace():
+            i += 1
+        elif code.startswith("@[", i):
+            end = attrs_end(code[i:])
+            if end <= 0:
+                return block
+            i += end
+        elif m := PREFIX_IN.match(code, i):
+            i = m.end()
+        elif m := CODEGEN_MODS.match(code, i):
+            i = m.end()
+        elif code.startswith("noncomputable", i):
+            return block
+        elif CODEGEN_DEF.match(code, i):
+            return (text[:i] + "noncomputable " + text[i:]).split("\n")
+        else:
+            return block
+    return block
+
+
+def drop_noncomputable(line: str) -> str:
+    return re.sub(r"\bnoncomputable\s+", "", line)
+
+
 def decl_core(lines: list[str], s: int, e: int) -> str:
     """The text of the declaration in lines s..e (1-based, inclusive) from its keyword line on: the `… in` prefix lines, docstrings, attribute
     and `--` comment lines before it are skipped. Empty when no keyword line is found."""
@@ -325,8 +382,8 @@ def decl_core(lines: list[str], s: int, e: int) -> str:
                     break
                 j += 1
             i = j + 1
-        elif not ln or IN_PREFIX.match(ln) or ln.startswith("--"):
-            i += 1
+        elif not ln or IN_PREFIX.match(ln) or ln.startswith("--") or MODIFIER_ONLY.match(ln.strip()):
+            i += 1  # (a modifier on a line of its own, `public` / `theorem …`, is part of the lead-in: the keyword line is the next one)
         elif ln.startswith("/--") or ln.startswith("/-!"):
             while i < e and "-/" not in lines[i]:
                 i += 1

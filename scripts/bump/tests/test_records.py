@@ -211,6 +211,204 @@ class PrefixedDeclarations(unittest.TestCase):
         self.assertTrue(m.leaks(pruned.replace("theorem a", "theorem a_leaked"), {m.blocks[1]}))
 
 
+MODIFIERS = """namespace Toy
+
+public
+theorem lone_public : True := trivial
+
+private
+lemma lone_private : True := trivial
+
+public
+noncomputable
+def kept_def : Nat := 1
+
+theorem plain_one : True := trivial
+
+end Toy
+"""
+
+
+class LoneModifierLines(unittest.TestCase):
+    """lean-pool writes `public` / `private` on a line of its own above the declaration keyword. The splitter made two commands of it, the modifier line was glue, and when the
+    declaration was cut the modifier stayed: `public` / `end Mathoverflow1973` is 'unexpected token end; expected lemma' in the tree (lean-pool part 6, 2026-10-12:
+    HolomorphicCousin and SmallChainBiprod)."""
+
+    def module(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        d = tempfile.mkdtemp()
+        lib = Path(d) / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        (lib / "Toy" / "M.lean").write_text(MODIFIERS)
+        lines = MODIFIERS.split("\n")
+        ln = lambda needle: next(i + 1 for i, x in enumerate(lines) if x.startswith(needle))
+        ranges = [(ln("theorem lone_public"),) * 2, (ln("lemma lone_private"),) * 2, (ln("def kept_def"),) * 2, (ln("theorem plain_one"),) * 2]
+        return records.Module(lib, "Toy.M", ranges), ln
+
+    def test_the_modifier_lines_belong_to_the_block_below(self):
+        m, ln = self.module()
+        self.assertEqual(m.blocks[0], (ln("public"), ln("theorem lone_public")))
+        self.assertEqual(m.blocks[1], (ln("private"), ln("lemma lone_private")))
+        lines = MODIFIERS.split("\n")
+        start = next(i + 1 for i, x in enumerate(lines) if x == "public" and lines[i + 1] == "noncomputable")
+        self.assertEqual(m.blocks[2], (start, start + 2))  # `public` + `noncomputable` + `def`: three lines, each a command of its own
+
+    def test_cutting_the_declaration_cuts_its_modifiers(self):
+        m, _ = self.module()
+        keep = {m.blocks[3]}
+        text = m.text(keep)
+        self.assertEqual(text.count("public"), 0, text)
+        self.assertEqual(text.count("private"), 0, text)
+        self.assertIn("theorem plain_one", text)
+        self.assertEqual(m.leaks(text, keep), [])
+
+    def test_a_kept_declaration_keeps_its_modifiers(self):
+        m, _ = self.module()
+        text = m.text(set(m.blocks))
+        self.assertIn("public\ntheorem lone_public", text)
+        self.assertIn("public\nnoncomputable\ndef kept_def", text)
+
+    def test_a_modifier_left_behind_is_a_leak(self):
+        m, _ = self.module()
+        keep = {m.blocks[3]}
+        stray = m.text(keep).replace("theorem plain_one", "public\ntheorem plain_one")  # `public` over the kept theorem, plus a lone one: add a lone one at the end
+        stray = stray.replace("end Toy", "public\n\nend Toy")
+        self.assertTrue(any("public" in x for x in m.leaks(stray, keep)), m.leaks(stray, keep))
+
+
+CODEGEN = """namespace Toy
+
+/-- uses a noncomputable thing -/
+@[simp] instance sheafPre (X : Nat) :
+    Inhabited Nat := ⟨X⟩
+
+private def hidden : Nat := 1
+
+noncomputable def already : Nat := 2
+
+theorem plain_one : True := trivial
+
+end Toy
+"""
+
+
+class CodegenAdvice(unittest.TestCase):
+    """'failed to compile definition, consider marking it as noncomputable' is Lean's own repair advice: the declaration is sound and a passed term needs it, only the code generator refuses
+    (lean-pool `GrothendieckVanishing/CohomologyAPI`, 2026-10-12: the failed block was shipped and the tree stopped at the same line). The text gets the modifier."""
+
+    def module(self, errors):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        d = tempfile.mkdtemp()
+        lib = Path(d) / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        (lib / "Toy" / "C.lean").write_text(CODEGEN)
+        lines = CODEGEN.split("\n")
+        ln = lambda needle: next(i + 1 for i, x in enumerate(lines) if x.startswith(needle))
+        ranges = [(ln("@[simp] instance"),) * 2, (ln("private def"),) * 2, (ln("noncomputable def"),) * 2, (ln("theorem plain_one"),) * 2]
+        m = records.Module(lib, "Toy.C", ranges)
+        m.codegen_lines = {ln(x) for x in errors}
+        return m
+
+    def test_the_modifier_goes_before_the_keyword_whatever_comes_before_it(self):
+        m = self.module(["@[simp] instance", "private def"])
+        text = m.text(set(m.blocks))
+        self.assertIn("@[simp] noncomputable instance sheafPre", text)
+        self.assertIn("private noncomputable def hidden", text)
+        self.assertIn("/-- uses a noncomputable thing -/\n@[simp] noncomputable instance", text)
+
+    def test_a_definition_that_says_it_already_is_left_alone(self):
+        m = self.module(["noncomputable def"])
+        self.assertIn("noncomputable def already", m.text(set(m.blocks)))
+        self.assertNotIn("noncomputable noncomputable", m.text(set(m.blocks)))
+
+    def test_nothing_changes_without_an_error(self):
+        m = self.module([])
+        self.assertNotIn("noncomputable instance", m.text(set(m.blocks)))
+
+    def test_the_repaired_text_is_no_leak(self):
+        m = self.module(["@[simp] instance", "private def"])
+        keep = set(m.blocks)
+        self.assertEqual(m.leaks(m.text(keep), keep), [])
+
+    def test_a_theorem_is_not_given_the_modifier(self):
+        m = self.module(["theorem plain_one"])
+        self.assertNotIn("noncomputable theorem", m.text(set(m.blocks)))
+
+    def test_compose_reads_the_advice_from_the_error_log(self):
+        sys.path.insert(0, str(HERE))
+        import bundle
+
+        src = Path(bundle.__file__).read_text()
+        self.assertIn("consider marking it as 'noncomputable'", src)
+
+
+class ModifierReviewCases(unittest.TestCase):
+    """CodeRabbit on emissary#35: a modifier followed by a comment is still a lone modifier; a KEPT lone-modifier block must not be a leak (its keyword line is the second line);
+    `add_noncomputable` finds the keyword outside docstrings and across attributes."""
+
+    TEXT = """namespace Toy
+
+public
+-- a note between the modifier and the declaration
+theorem noted : True := trivial
+
+public
+theorem kept_two : True := trivial
+
+theorem plain_one : True := trivial
+
+end Toy
+"""
+
+    def module(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        d = tempfile.mkdtemp()
+        lib = Path(d) / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        (lib / "Toy" / "N.lean").write_text(self.TEXT)
+        lines = self.TEXT.split("\n")
+        ln = lambda needle: next(i + 1 for i, x in enumerate(lines) if x.startswith(needle))
+        return records.Module(lib, "Toy.N", [(ln("theorem noted"),) * 2, (ln("theorem kept_two"),) * 2, (ln("theorem plain_one"),) * 2]), ln
+
+    def test_a_modifier_with_a_comment_below_it_goes_with_its_declaration(self):
+        m, ln = self.module()
+        self.assertEqual(m.blocks[0], (ln("public"), ln("theorem noted")))
+        keep = {m.blocks[2]}
+        self.assertNotIn("public", m.text(keep))
+
+    def test_a_kept_lone_modifier_block_is_no_leak(self):
+        m, _ = self.module()
+        keep = set(m.blocks)
+        self.assertEqual(m.leaks(m.text(keep), keep), [])
+        self.assertEqual(m.leaks(m.text({m.blocks[1]}), {m.blocks[1]}), [])
+
+    def test_the_keyword_is_not_found_inside_a_docstring(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        block = ["/-- the def of this instance", "def is not here: this is prose -/", "def real_one : Nat := 1"]
+        self.assertEqual(records.add_noncomputable(block), ["/-- the def of this instance", "def is not here: this is prose -/", "noncomputable def real_one : Nat := 1"])
+
+    def test_the_keyword_after_a_multiline_attribute_is_found(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        for block, want in (
+            (["@[simp,", "  inline] def f : Nat := 1"], ["@[simp,", "  inline] noncomputable def f : Nat := 1"]),
+            (["@[deprecated foo", '  (since := "2026")]', "private def g : Nat := 1"], ["@[deprecated foo", '  (since := "2026")]', "private noncomputable def g : Nat := 1"]),
+            (["open Nat in", "instance : Inhabited Nat := ⟨1⟩"], ["open Nat in", "noncomputable instance : Inhabited Nat := ⟨1⟩"]),
+            (["@[simp] noncomputable def h : Nat := 1"], ["@[simp] noncomputable def h : Nat := 1"]),
+            (["theorem t : True := trivial"], ["theorem t : True := trivial"]),
+        ):
+            self.assertEqual(records.add_noncomputable(block), want, block)
+
+
 class NothingEscapesPruning(unittest.TestCase):
     """`Module.leaks` is the guard compose runs on every pruned module: the text must be glue plus whole kept blocks, and no `… in` may dangle.
     It would have refused the complexitylib bundle whatever the cause, and refuses any future way for an unverified declaration to stay."""

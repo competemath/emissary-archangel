@@ -223,5 +223,271 @@ class NamespaceResolution(unittest.TestCase):
         self.assertEqual(ctx[(7, 7)], ("TauCeti", ()))
 
 
+class GlueMentions(unittest.TestCase):
+    """A command outside every declaration (`attribute [fun_prop] foo`, a `variable` over a library structure, a local notation) stays in the pruned file whatever is kept, so what it names must
+    be kept too (openai-math `ProjectionMoments/BallMoments.lean`, 2026-10-12: `attribute [fun_prop] measurable_polarRows` stayed, the lemma was cut from `Polar.lean`, and the tree
+    stopped at 'Unknown constant'. The closure started from declarations only and never read the glue)."""
+
+    def setup(self, glue):
+        # module A: the glue line (line 2, inside `namespace Toy`) and a kept theorem (line 3); module B: the lemma the glue names
+        a = FakeModule(["namespace Toy", glue, "theorem kept_one : True := trivial", "end Toy"], [(3, 3)])
+        b = FakeModule(["namespace Toy", "lemma measurable_polarRows : True := trivial", "end Toy"], [(2, 2)])
+        sidecars = {"A": {"Toy.kept_one": (3, 3)}, "B": {"Toy.measurable_polarRows": (2, 2)}}
+        return {"A": a, "B": b}, sidecars, {"A": {(3, 3)}, "B": set()}
+
+    def test_an_attribute_command_keeps_the_declaration_it_names(self):
+        modules, sidecars, keep = self.setup("attribute [fun_prop] measurable_polarRows")
+        added, unresolved = keep_closure.close(modules, sidecars, keep)
+        self.assertEqual((added, unresolved), (1, {}))
+        self.assertEqual(modules["B"].kept_blocks(keep["B"]), {(2, 2)})
+
+    def test_the_name_is_read_in_the_namespace_the_glue_is_in(self):
+        modules, sidecars, keep = self.setup("attribute [fun_prop] measurable_polarRows")
+        # three more declarations end in the name (out of reach of the last-component guess): only the namespace of the glue says which one it means
+        modules["B"] = FakeModule(
+            ["namespace Toy", "lemma measurable_polarRows : True := trivial", "end Toy"] + [f"lemma Other{i}.measurable_polarRows : True := trivial" for i in range(3)],
+            [(2, 2), (4, 4), (5, 5), (6, 6)],
+        )
+        sidecars["B"].update({f"Other{i}.measurable_polarRows": (4 + i, 4 + i) for i in range(3)})
+        added, _ = keep_closure.close(modules, sidecars, keep)
+        self.assertEqual((added, modules["B"].kept_blocks(keep["B"])), (1, {(2, 2)}))
+
+    def test_a_comment_or_a_string_in_the_glue_names_nothing(self):
+        for glue in ("-- attribute [fun_prop] measurable_polarRows", '/- attribute [fun_prop] measurable_polarRows -/', 'set_option trace.x "measurable_polarRows"'):
+            modules, sidecars, keep = self.setup(glue)
+            self.assertEqual(keep_closure.close(modules, sidecars, keep), (0, {}), glue)
+
+    def test_a_namespace_or_import_line_is_not_a_mention(self):
+        for glue in ("import Toy.measurable_polarRows", "namespace measurable_polarRows", "open measurable_polarRows"):
+            modules, sidecars, keep = self.setup(glue)
+            self.assertEqual(keep_closure.close(modules, sidecars, keep)[0], 0, glue)
+
+    def test_glue_naming_a_declaration_that_failed_makes_the_module_unshippable(self):
+        modules, sidecars, keep = self.setup("attribute [fun_prop] Toy.measurable_polarRows")
+        added, unresolved = keep_closure.close(modules, sidecars, keep, failed={"B": {(2, 2)}})
+        self.assertEqual((added, unresolved), (0, {"A": {"Toy.measurable_polarRows"}}))
+
+    def test_the_glue_of_a_module_with_nothing_kept_is_not_read(self):
+        modules, sidecars, keep = self.setup("attribute [fun_prop] measurable_polarRows")
+        keep["A"] = set()  # the module ships nothing: its glue goes with it
+        self.assertEqual(keep_closure.close(modules, sidecars, keep), (0, {}))
+
+
+class GlueNamesAndSameFileFailures(unittest.TestCase):
+    """lean-pool 2026-10-12 (part 6): `infixl:90 "⨀₂" => mdp₂!` names a lemma `mdp₂!` (five characters: not distinctive) by the namespace it is written in; and
+    `x.predictorStep_wide` names a declaration of the same file that failed in the build, by its last component only."""
+
+    def test_a_short_name_in_glue_is_read_by_the_namespace_of_the_glue(self):
+        a = FakeModule(["namespace Toy", 'infixl:90 "⨀₂" => mdp₂!', "theorem kept_one : True := trivial", "end Toy"], [(3, 3)])
+        b = FakeModule(["namespace Toy", "lemma mdp₂! : True := trivial", "end Toy"], [(2, 2)])
+        sidecars = {"A": {"Toy.kept_one": (3, 3)}, "B": {"Toy.mdp₂!": (2, 2)}}
+        keep = {"A": {(3, 3)}, "B": set()}
+        added, unresolved = keep_closure.close({"A": a, "B": b}, sidecars, keep)
+        self.assertEqual((added, unresolved), (1, {}))
+        self.assertEqual(b.kept_blocks(keep["B"]), {(2, 2)})
+
+    def test_the_same_short_name_in_a_block_is_still_not_guessed(self):
+        a = FakeModule(["namespace Toy", "theorem kept_one : True := by", "  exact mdp₂!", "end Toy"], [(2, 3)])
+        b = FakeModule(["namespace Toy", "lemma mdp₂! : True := trivial", "end Toy"], [(2, 2)])
+        sidecars = {"A": {"Toy.kept_one": (2, 3)}, "B": {"Toy.mdp₂!": (2, 2)}}
+        keep = {"A": {(2, 3)}, "B": set()}
+        self.assertEqual(keep_closure.close({"A": a, "B": b}, sidecars, keep)[0], 0)
+
+    def test_a_failed_declaration_of_the_same_file_named_by_its_last_component_drops_the_module(self):
+        a = FakeModule(
+            ["theorem Toy.Alg.predictorStep_wide : True := trivial", "theorem kept_one : True := by", "  exact x.predictorStep_wide"],
+            [(1, 1), (2, 3)],
+        )
+        sidecars = {"A": {"Toy.Alg.predictorStep_wide": (1, 1), "kept_one": (2, 3)}}
+        added, unresolved = keep_closure.close({"A": a}, sidecars, {"A": {(2, 3)}}, failed={"A": {(1, 1)}})
+        self.assertEqual(unresolved, {"A": {"x.predictorStep_wide"}})
+
+    def test_a_qualified_name_is_read_by_the_namespace_whatever_its_length(self):
+        """lean-pool `HilbertStyle/Context`, 2026-10-12: `FiniteContext.weakening` inside `namespace LO.Entailment`; `weakening` is one plain word, never distinctive."""
+        a = FakeModule(["namespace LO.Entailment", "theorem kept_one : True := by", "  exact FiniteContext.weakening", "end LO.Entailment"], [(2, 3)])
+        b = FakeModule(["namespace LO.Entailment.FiniteContext", "def weakening : Nat := 1", "end LO.Entailment.FiniteContext"], [(2, 2)])
+        sidecars = {"A": {"LO.Entailment.kept_one": (2, 3)}, "B": {"LO.Entailment.FiniteContext.weakening": (2, 2)}}
+        keep = {"A": {(2, 3)}, "B": set()}
+        self.assertEqual(keep_closure.close({"A": a, "B": b}, sidecars, keep)[0], 1)
+        self.assertEqual(b.kept_blocks(keep["B"]), {(2, 2)})
+
+    def test_an_unqualified_plain_word_is_still_not_guessed(self):
+        a = FakeModule(["namespace LO.Entailment", "theorem kept_one : True := by", "  exact weakening", "end LO.Entailment"], [(2, 3)])
+        b = FakeModule(["namespace LO.Entailment", "def weakening : Nat := 1", "end LO.Entailment"], [(2, 2)])
+        sidecars = {"A": {"LO.Entailment.kept_one": (2, 3)}, "B": {"LO.Entailment.weakening": (2, 2)}}
+        self.assertEqual(keep_closure.close({"A": a, "B": b}, sidecars, {"A": {(2, 3)}, "B": set()})[0], 0)
+
+    def test_an_export_command_refers_to_its_targets(self):
+        """CodeRabbit on emissary#35: `export Foo (bar)` in a shipped module stays; the declaration it exports must stay too."""
+        self.assertEqual(keep_closure.glue_tail("export Toy.Sub (bar baz)"), "Toy.Sub.bar Toy.Sub.baz")
+        a = FakeModule(["export Toy.Sub (bar_lemma)", "theorem kept_one : True := trivial"], [(2, 2)])
+        b = FakeModule(["theorem Toy.Sub.bar_lemma : True := trivial"], [(1, 1)])
+        sidecars = {"A": {"kept_one": (2, 2)}, "B": {"Toy.Sub.bar_lemma": (1, 1)}}
+        keep = {"A": {(2, 2)}, "B": set()}
+        self.assertEqual(keep_closure.close({"A": a, "B": b}, sidecars, keep)[0], 1)
+        self.assertEqual(b.kept_blocks(keep["B"]), {(1, 1)})
+
+    def test_glue_in_a_namespace_means_the_namespaced_declaration_even_when_a_root_one_exists(self):
+        a = FakeModule(["namespace Toy", "attribute [simp] foo_lemma", "theorem kept_one : True := trivial", "end Toy"], [(3, 3)])
+        b = FakeModule(["theorem foo_lemma : True := trivial", "theorem Toy.foo_lemma : True := trivial"], [(1, 1), (2, 2)])
+        sidecars = {"A": {"Toy.kept_one": (3, 3)}, "B": {"foo_lemma": (1, 1), "Toy.foo_lemma": (2, 2)}}
+        keep = {"A": {(3, 3)}, "B": set()}
+        keep_closure.close({"A": a, "B": b}, sidecars, keep)
+        self.assertEqual(b.kept_blocks(keep["B"]), {(2, 2)})  # Toy.foo_lemma, not the root one
+
+    def test_a_same_file_failed_field_is_found_even_when_many_declarations_end_in_its_name(self):
+        """CodeRabbit on emissary#35: the capped last-component guess finds nothing above three, and the failed declaration of the file itself went unnoticed."""
+        a = FakeModule(
+            ["theorem Toy.Alg.predictorStep_wide : True := trivial", "theorem kept_one : True := by", "  exact x.predictorStep_wide"],
+            [(1, 1), (2, 3)],
+        )
+        others = [FakeModule(["theorem Other%d.predictorStep_wide : True := trivial" % i], [(1, 1)]) for i in range(4)]
+        modules = {"A": a, **{f"O{i}": m for i, m in enumerate(others)}}
+        sidecars = {"A": {"Toy.Alg.predictorStep_wide": (1, 1), "kept_one": (2, 3)}, **{f"O{i}": {f"Other{i}.predictorStep_wide": (1, 1)} for i in range(4)}}
+        keep = {"A": {(2, 3)}, **{f"O{i}": set() for i in range(4)}}
+        added, unresolved = keep_closure.close(modules, sidecars, keep, failed={"A": {(1, 1)}})
+        self.assertEqual(unresolved, {"A": {"x.predictorStep_wide"}})
+
+    def test_a_binder_and_its_uses_in_a_variable_line_are_no_references(self):
+        """CodeRabbit on emissary#35: `variable {k : ℕ} (h : k = 1)` binds `k` and `h`; the full-line scan sent `k` to the resolver."""
+        self.assertEqual(keep_closure.without_binders("variable {k : ℕ} (h : k = 1) [Foo k]").split(), ["variable", "{", ":", "ℕ}", "(", ":", "=", "1)", "[Foo", "]"])
+        a = FakeModule(["namespace Toy", "variable {k : ℕ} (h : k = 1)", "theorem kept_one : True := trivial", "end Toy"], [(3, 3)])
+        b = FakeModule(["namespace Toy", "def k : Nat := 1", "end Toy"], [(2, 2)])
+        sidecars = {"A": {"Toy.kept_one": (3, 3)}, "B": {"Toy.k": (2, 2)}}
+        added, unresolved = keep_closure.close({"A": a, "B": b}, sidecars, {"A": {(3, 3)}, "B": set()}, failed={"B": {(2, 2)}})
+        self.assertEqual((added, unresolved), (0, {}))
+
+    def test_a_library_declaration_in_the_type_of_a_binder_is_still_a_reference(self):
+        a = FakeModule(["namespace Toy", "variable {x : MyStructure}", "theorem kept_one : True := trivial", "end Toy"], [(3, 3)])
+        b = FakeModule(["namespace Toy", "structure MyStructure where", "  a : Nat", "end Toy"], [(2, 3)])
+        sidecars = {"A": {"Toy.kept_one": (3, 3)}, "B": {"Toy.MyStructure": (2, 3)}}
+        keep = {"A": {(3, 3)}, "B": set()}
+        self.assertEqual(keep_closure.close({"A": a, "B": b}, sidecars, keep)[0], 1)
+
+    def test_a_variable_binder_is_no_mention(self):
+        """BollobasNikiforov (43 modules, 2026-10-12): `variable {k : ℕ}` binds `k`; a declaration `Ns.k` that failed made it a mention."""
+        a = FakeModule(["namespace Toy", "variable {k : ℕ}", "theorem kept_one : True := trivial", "end Toy"], [(3, 3)])
+        b = FakeModule(["namespace Toy", "def k : Nat := 1", "end Toy"], [(2, 2)])
+        sidecars = {"A": {"Toy.kept_one": (3, 3)}, "B": {"Toy.k": (2, 2)}}
+        added, unresolved = keep_closure.close({"A": a, "B": b}, sidecars, {"A": {(3, 3)}, "B": set()}, failed={"B": {(2, 2)}})
+        self.assertEqual((added, unresolved), (0, {}))
+
+    def test_glue_tail_is_what_refers_to_declarations(self):
+        self.assertEqual(keep_closure.glue_tail("attribute [fun_prop] foo bar").strip(), "foo bar")
+        self.assertEqual(keep_closure.glue_tail('infixl:90 "⨀₂" => mdp₂!').strip(), "mdp₂!")
+        self.assertEqual(keep_closure.glue_tail("alias or_cases! := or₃'!").strip(), "or₃'!")
+        self.assertEqual(keep_closure.glue_tail("variable {k : ℕ} (h : k = 1)"), "")
+
+    def test_only_field_notation_on_a_local_counts_as_a_same_file_reference(self):
+        for tok in ("alg.predictorStep_wide", "φ₁.tensorMul_apply", "L.first_match"):
+            self.assertTrue(keep_closure.field_notation(tok), tok)
+        for tok in ("_root_.InnerProductSpace", "Finset.sum_comm_extra", "previous_transition", "x.mul"):
+            self.assertFalse(keep_closure.field_notation(tok), tok)
+
+    def test_a_failed_declaration_of_another_file_named_by_its_last_component_is_still_a_guess(self):
+        a = FakeModule(["theorem kept_one : True := by", "  exact x.predictorStep_wide"], [(1, 2)])
+        b = FakeModule(["theorem Toy.Alg.predictorStep_wide : True := trivial"], [(1, 1)])
+        sidecars = {"A": {"kept_one": (1, 2)}, "B": {"Toy.Alg.predictorStep_wide": (1, 1)}}
+        added, unresolved = keep_closure.close({"A": a, "B": b}, sidecars, {"A": {(1, 2)}, "B": set()}, failed={"B": {(1, 1)}})
+        self.assertEqual((added, unresolved), (0, {}))
+
+
+class TextKeptInstances(unittest.TestCase):
+    """A declaration kept because a kept text NAMES it has no elaborated term in the keep step (that walks the passed theorems only), so the instances its proof resolves silently are not
+    in the keep set (tauceti `AlbertAlgebra.finrank_traceZero`, 2026-10-12: it names `Octonion.finrank_eq_eight`, whose proof needs `Module.Free R (Octonion R)`, an anonymous instance
+    of the module that was cut: 'failed to synthesize' in the tree). The instances of its module that come before it are kept with it."""
+
+    def mods(self, instance_text="instance [CommRing R] : Module.Free R (Octonion R) := foo", later=False, fail_dep=False):
+        # B: an instance (line 1), the lemma a text names (line 2), another instance (line 3); A: a kept theorem whose text names the lemma
+        b = FakeModule([instance_text, "theorem finrank_eq_eight : True := trivial", "instance [CommRing R] : Module.Finite R (Octonion R) := bar", "theorem dep_one_here : True := trivial"], [(1, 1), (2, 2), (3, 3), (4, 4)])
+        a = FakeModule(["theorem kept_one : True := by", "  simp [finrank_eq_eight]"], [(1, 2)])
+        sidecars = {"A": {"kept_one": (1, 2)}, "B": {"Toy.instFree": (1, 1), "finrank_eq_eight": (2, 2), "Toy.instFinite": (3, 3), "dep_one_here": (4, 4)}}
+        return {"A": a, "B": b}, sidecars, {"A": {(1, 2)}, "B": set()}
+
+    def test_the_instances_before_a_text_kept_declaration_come_with_it(self):
+        modules, sidecars, keep = self.mods()
+        added, unresolved = keep_closure.close(modules, sidecars, keep)
+        kept = modules["B"].kept_blocks(keep["B"])
+        self.assertIn((2, 2), kept)  # the declaration the text names
+        self.assertIn((1, 1), kept)  # the instance before it
+        self.assertNotIn((3, 3), kept)  # an instance after it is not what its proof saw
+        self.assertEqual(unresolved, {})
+
+    def test_a_declaration_that_a_passed_term_needs_brings_no_extra_instances(self):
+        modules, sidecars, keep = self.mods()
+        keep["B"] = {(2, 2)}  # a seed: the keep step walked its term, which names every instance it needs
+        keep["A"] = set()
+        keep_closure.close(modules, sidecars, keep)
+        self.assertNotIn((1, 1), modules["B"].kept_blocks(keep["B"]))
+
+    def test_an_instance_that_names_a_failed_declaration_is_left_out_and_blames_nobody(self):
+        modules, sidecars, keep = self.mods(instance_text="instance [CommRing R] : Module.Free R (Octonion R) := Toy.dep_one_here")
+        sidecars["B"]["Toy.dep_one_here"] = (4, 4)
+        added, unresolved = keep_closure.close(modules, sidecars, keep, failed={"B": {(4, 4)}})
+        self.assertNotIn((1, 1), modules["B"].kept_blocks(keep["B"]))  # the optional instance is not worth a module
+        self.assertIn((2, 2), modules["B"].kept_blocks(keep["B"]))
+        self.assertEqual(unresolved, {})
+
+    def test_an_instance_with_sorry_is_left_out(self):
+        modules, sidecars, keep = self.mods(instance_text="instance [CommRing R] : Module.Free R (Octonion R) := sorry")
+        added, unresolved = keep_closure.close(modules, sidecars, keep)
+        self.assertNotIn((1, 1), modules["B"].kept_blocks(keep["B"]))
+        self.assertEqual(unresolved, {})
+
+    def test_an_instance_using_field_notation_of_a_failed_declaration_of_its_module_is_left_out(self):
+        """tauceti `Quasicoherent/Monoidal`, 2026-10-12: `isQuasicoherent_tensorObj` writes `qM.tensor`, the declaration `Toy.Sub.tensor` of the same module had failed in the build, and
+        the text closure cannot resolve a field name."""
+        modules, sidecars, keep = self.mods(instance_text="instance [CommRing R] : Module.Free R (Octonion R) := qM.tensor qN")
+        sidecars["B"]["Toy.Sub.tensor"] = (4, 4)
+        added, unresolved = keep_closure.close(modules, sidecars, keep, failed={"B": {(4, 4)}})
+        self.assertNotIn((1, 1), modules["B"].kept_blocks(keep["B"]))
+        self.assertEqual(unresolved, {})
+
+    def test_an_instance_that_names_another_instance_which_uses_a_failed_field_is_left_out_too(self):
+        """The real chain (Monoidal): instance 2 names instance 1 by its name, instance 1 writes `qM.tensor`; keeping 2 would keep 1 through the closure."""
+        b = FakeModule(
+            ["instance isOne [CommRing R] : Foo := qM.tensor qN", "instance isTwo [CommRing R] : Bar := isOne", "theorem later_one : True := trivial", "theorem tensor : True := trivial"],
+            [(1, 1), (2, 2), (3, 3), (4, 4)],
+        )
+        a = FakeModule(["theorem kept_one : True := by", "  simp [later_one]"], [(1, 2)])
+        sidecars = {"A": {"kept_one": (1, 2)}, "B": {"isOne": (1, 1), "isTwo": (2, 2), "later_one": (3, 3), "Toy.Sub.tensor": (4, 4)}}
+        keep = {"A": {(1, 2)}, "B": set()}
+        keep_closure.close({"A": a, "B": b}, sidecars, keep, failed={"B": {(4, 4)}})
+        self.assertEqual(b_kept := {x for x in b.kept_blocks(keep["B"])}, {(3, 3)}, b_kept)
+
+    def test_a_module_with_a_failed_declaration_drags_no_instance(self):
+        """Monoidal again: `isMonoidal_isQuasicoherent` names nothing that failed, but `inferInstanceAs` finds the instance that uses it."""
+        modules, sidecars, keep = self.mods()
+        sidecars["B"]["unrelated_failed"] = (4, 4)
+        keep_closure.close(modules, sidecars, keep, failed={"B": {(4, 4)}})
+        self.assertNotIn((1, 1), modules["B"].kept_blocks(keep["B"]))
+        self.assertIn((2, 2), modules["B"].kept_blocks(keep["B"]))  # the declaration the text names still stays
+
+    def test_an_instance_whose_closure_reaches_a_module_with_a_failed_declaration_is_left_out(self):
+        """The real chain: an instance of a clean module names an instance of a module that has a failed declaration (tauceti `Modules.Quasicoherent` -> `Monoidal`)."""
+        b = FakeModule(["instance isOne : Foo := trivial", "theorem unrelated_failed : True := trivial", "theorem later_one : True := trivial"], [(1, 1), (2, 2), (3, 3)])
+        c = FakeModule(["instance isTwo : Bar := isOne", "theorem later_two : True := trivial"], [(1, 1), (2, 2)])
+        a = FakeModule(["theorem kept_one : True := by", "  simp [later_two]"], [(1, 2)])
+        sidecars = {"A": {"kept_one": (1, 2)}, "B": {"isOne": (1, 1), "unrelated_failed": (2, 2), "later_one": (3, 3)}, "C": {"isTwo": (1, 1), "later_two": (2, 2)}}
+        keep = {"A": {(1, 2)}, "B": set(), "C": set()}
+        keep_closure.close({"A": a, "B": b, "C": c}, sidecars, keep, failed={"B": {(2, 2)}})
+        self.assertNotIn((1, 1), c.kept_blocks(keep["C"]))  # isTwo would need isOne, whose module has a failed declaration
+        self.assertEqual(b.kept_blocks(keep["B"]), set())
+
+    def test_a_failed_declaration_of_another_module_does_not_stop_the_instance(self):
+        modules, sidecars, keep = self.mods(instance_text="instance [CommRing R] : Module.Free R (Octonion R) := qM.tensor qN")
+        modules["C"] = FakeModule(["theorem tensor : True := trivial"], [(1, 1)])
+        sidecars["C"] = {"Other.tensor": (1, 1)}
+        keep["C"] = set()
+        keep_closure.close(modules, sidecars, keep, failed={"C": {(1, 1)}})
+        self.assertIn((1, 1), modules["B"].kept_blocks(keep["B"]))
+
+    def test_an_instance_that_names_a_declaration_keeps_that_too(self):
+        modules, sidecars, keep = self.mods(instance_text="instance [CommRing R] : Module.Free R (Octonion R) := Toy.dep_one_here")
+        sidecars["B"]["Toy.dep_one_here"] = (4, 4)
+        keep_closure.close(modules, sidecars, keep)
+        self.assertEqual({(1, 1), (2, 2), (4, 4)} - modules["B"].kept_blocks(keep["B"]), set())
+
+
 if __name__ == "__main__":
     unittest.main()
