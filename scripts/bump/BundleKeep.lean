@@ -4,6 +4,10 @@ BundleKeep — which library constants a bundle must keep (scripts/bump/bundle.p
   lake env lean --run scripts/bump/BundleKeep.lean bundle-keep.json     (in the library, after its build; bundle.py keep-input writes the json)
   { "imports": [modules to load], "names": [passed theorems], "libs": [the library's own modules] }
   prints:  BUNDLE_KEEP [["Module", "const"], ...] BUNDLE_END
+           BUNDLE_GRAPH {"nodes": [["Module", "const"], ...], "edges": [[i, [j, ...]], ...], "tainted": [i, ...]} BUNDLE_END
+  The graph is of every library constant that is NOT kept: nodes are numbered by their place in `nodes`; an edge `[i, [j, ...]]` says that constant i uses constants j (own, not kept, anything
+  kept is already in the bundle); `tainted` are the nodes that stand on `sorryAx`, directly or through another library constant. bundle.py compose follows it from every declaration that
+  is kept only because TEXT names it (glue, a `simp` attribute line, a name in a proof): such a declaration has no term in the keep step, so what its term uses was never kept.
 
 The keep set is the closure of the types, values and proofs of the passed theorems AND of every library constant that is not a theorem and stands on nothing
 failed (definitions, structures, classes, instances: glue such as `variable [MyClass F]` or a notation names them without any theorem using them, so cutting
@@ -39,8 +43,8 @@ partial def tainted (env : Environment) (isOwn : Name → Bool) (memo : IO.Ref (
   memo.modify (·.insert c t)
   return t
 
-/-- Every library constant (module, name) that must stay. -/
-def keep (env : Environment) (names libs : Array String) : CoreM Json := do
+/-- Every library constant (module, name) that must stay, and the graph of the ones that do not (see the header). -/
+def keep (env : Environment) (names libs : Array String) : CoreM (Json × Json) := do
   let hdr := env.header
   let moduleNames := hdr.moduleNames
   let libMods : NameSet := libs.foldl (fun s x => if x == "" then s else s.insert x.toName) {}
@@ -83,7 +87,26 @@ def keep (env : Environment) (names libs : Array String) : CoreM Json := do
           if isOwn u && !seen.contains u then stack := u :: stack
         if let some m := modOf env moduleNames c then
           consts := consts.push (Json.arr #[toJson m.toString, toJson c.toString])
-  return Json.arr consts
+  -- the constants that are not kept, and what each uses among them (the keep set is closed: a kept constant uses only kept ones)
+  let mut nodes : Array Json := #[]
+  let mut order : Array Name := #[]
+  let mut index : Std.HashMap Name Nat := {}
+  for m in libMods.toList do
+    let some idx := env.getModuleIdx? m | continue
+    for c in hdr.moduleData[idx.toNat]!.constNames do
+      if seen.contains c then continue
+      index := index.insert c order.size
+      order := order.push c
+      nodes := nodes.push (Json.arr #[toJson m.toString, toJson c.toString])
+  let mut edges : Array Json := #[]
+  let mut taints : Array Json := #[]
+  for i in [0:order.size] do
+    let c := order[i]!
+    let some ci := env.find? c | continue
+    let deps : List Nat := ci.getUsedConstantsAsSet.toList.filterMap fun u => index[u]?
+    if !deps.isEmpty then edges := edges.push (Json.arr #[toJson i, toJson deps])
+    if (← tainted env isOwn taint c) then taints := taints.push (toJson i)
+  return (Json.arr consts, Json.mkObj [("nodes", Json.arr nodes), ("edges", Json.arr edges), ("tainted", Json.arr taints)])
 
 end BundleKeep
 
@@ -100,6 +123,7 @@ unsafe def main (argv : List String) : IO UInt32 := do
   initSearchPath (← findSysroot)
   let env ← importModules (imports.map fun m => { module := m.toName }) {} (trustLevel := 0) (loadExts := true)
   let ctx : Core.Context := { fileName := "<bundle-keep>", fileMap := default, maxHeartbeats := 0 }
-  let (res, _) ← (BundleKeep.keep env names libs).toIO ctx { env }
-  IO.println s!"BUNDLE_KEEP {res.compress} BUNDLE_END"
+  let ((kept, graph), _) ← (BundleKeep.keep env names libs).toIO ctx { env }
+  IO.println s!"BUNDLE_KEEP {kept.compress} BUNDLE_END"
+  IO.println s!"BUNDLE_GRAPH {graph.compress} BUNDLE_END"
   return 0

@@ -1,5 +1,6 @@
 """keep_closure: what the text of a kept declaration names is kept too (the compose-level cases are in test_bundle.AutoDrops)."""
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -487,6 +488,158 @@ class TextKeptInstances(unittest.TestCase):
         sidecars["B"]["Toy.dep_one_here"] = (4, 4)
         keep_closure.close(modules, sidecars, keep)
         self.assertEqual({(1, 1), (2, 2), (4, 4)} - modules["B"].kept_blocks(keep["B"]), set())
+
+
+class DependencyGraph(unittest.TestCase):
+    """What the TERM of a kept block uses is followed through the graph the keep step prints (BundleKeep.lean's BUNDLE_GRAPH): the text of a declaration that is kept only because a kept text
+    names it has no term in the keep step, so the lemma or the instance its proof uses without any text naming it was never kept (tauceti `AlbertAlgebra`, 2026-10-12)."""
+
+    LINES = [
+        "theorem seed_one : True := by",  # 1-2: kept by the keep step; its TEXT names text_named
+        "  simp only [Toy.text_named]",
+        "",
+        "theorem Toy.text_named : True := by",  # 4-5: kept because the text names it; its term uses silent_a
+        "  simp",
+        "",
+        "theorem Toy.silent_a : True := by",  # 7-8: nothing names it; its term uses silent_b
+        "  simp",
+        "",
+        "theorem Toy.silent_b : True := by",  # 10-11: the end of the chain, and its text names late_named
+        "  simpa only [Toy.late_named] using trivial",
+        "",
+        "theorem Toy.late_named : True := by",  # 13-14: named by the text of a block the graph added
+        "  trivial",
+        "",
+        "theorem Toy.unrelated : True := by",  # 16-17: nothing uses it
+        "  trivial",
+    ]
+    BLOCKS = [(1, 2), (4, 5), (7, 8), (10, 11), (13, 14), (16, 17)]
+    NAMES = {"Toy.seed_one": (1, 2), "Toy.text_named": (4, 5), "Toy.silent_a": (7, 8), "Toy.silent_b": (10, 11), "Toy.late_named": (13, 14), "Toy.unrelated": (16, 17)}
+
+    def setup(self):
+        modules = {"Toy.A": FakeModule(self.LINES, self.BLOCKS)}
+        sidecars = {"Toy.A": dict(self.NAMES)}
+        return modules, sidecars, {"Toy.A": {(1, 2)}}
+
+    @staticmethod
+    def edge(a, b):
+        return (("Toy.A", a), ("Toy.A", b))
+
+    def graph(self, *pairs):
+        g: dict = {}
+        for a, b in pairs:
+            g.setdefault(("Toy.A", a), set()).add(("Toy.A", b))
+        return g
+
+    def kept_blocks(self, modules, keep):
+        return modules["Toy.A"].kept_blocks(keep["Toy.A"])
+
+    def test_without_a_graph_only_what_the_text_names_is_kept(self):
+        modules, sidecars, keep = self.setup()
+        added, unresolved = keep_closure.close(modules, sidecars, keep)
+        self.assertEqual(self.kept_blocks(modules, keep), {(1, 2), (4, 5)})
+        self.assertEqual((added, unresolved), (1, {}))
+
+    def test_the_terms_of_a_text_kept_block_are_followed_to_the_end_and_the_text_of_what_they_add_is_read_too(self):
+        modules, sidecars, keep = self.setup()
+        stats: dict = {}
+        g = self.graph(("Toy.text_named", "Toy.silent_a"), ("Toy.silent_a", "Toy.silent_b"))
+        added, unresolved = keep_closure.close(modules, sidecars, keep, graph=g, tainted=set(), stats=stats)
+        self.assertEqual(self.kept_blocks(modules, keep), {(1, 2), (4, 5), (7, 8), (10, 11), (13, 14)})  # (13,14): silent_b's TEXT names late_named
+        self.assertEqual((added, unresolved), (4, {}))
+        self.assertEqual(stats["followed"], 2)
+        self.assertNotIn((16, 17), self.kept_blocks(modules, keep))
+
+    def test_the_seeds_own_block_is_followed_too_because_it_ships_whole(self):
+        modules, sidecars, keep = self.setup()
+        # a constant of the seed block that the keep step did not keep (a sibling theorem, a derived instance) uses silent_a: the block is shipped with it, so silent_a is needed
+        sidecars["Toy.A"]["Toy.seed_one.sibling"] = (1, 2)
+        g = self.graph(("Toy.seed_one.sibling", "Toy.silent_a"))
+        keep_closure.close(modules, sidecars, keep, graph=g, tainted=set())
+        self.assertIn((7, 8), self.kept_blocks(modules, keep))
+
+    def test_a_constant_the_compiler_made_counts_for_the_declaration_it_was_made_for(self):
+        modules, sidecars, keep = self.setup()
+        g = self.graph(("Toy.text_named.proof_1", "Toy.silent_a"))  # no range of its own: `Toy.text_named` has one
+        keep_closure.close(modules, sidecars, keep, graph=g, tainted=set())
+        self.assertIn((7, 8), self.kept_blocks(modules, keep))
+
+    def test_an_edge_inside_one_block_or_to_an_unknown_module_adds_nothing(self):
+        modules, sidecars, keep = self.setup()
+        g = self.graph(("Toy.text_named", "Toy.text_named.aux"))
+        g.setdefault(("Toy.A", "Toy.text_named"), set()).add(("Toy.Gone", "Toy.x"))
+        added, unresolved = keep_closure.close(modules, sidecars, keep, graph=g, tainted=set())
+        self.assertEqual((added, unresolved), (1, {}))
+
+    def test_taint_alone_changes_nothing_but_is_reported(self):
+        """btc-verified, 2026-10-12: dropping what stands on a sorry in the LIBRARY's build took one module and, through its importers, 67 of 101 theorems; the tree's Mathlib is not the library's."""
+        modules, sidecars, keep = self.setup()
+        stats: dict = {}
+        added, unresolved = keep_closure.close(modules, sidecars, keep, graph={}, tainted={("Toy.A", "Toy.text_named")}, stats=stats)
+        self.assertEqual((added, unresolved), (1, {}))
+        self.assertIn((4, 5), self.kept_blocks(modules, keep))
+        self.assertEqual(stats["text_kept_tainted"], ["Toy.A:4"])
+
+    def test_the_graph_follows_into_a_tainted_block_when_taint_does_not_drop(self):
+        modules, sidecars, keep = self.setup()
+        g = self.graph(("Toy.text_named", "Toy.silent_a"))
+        stats: dict = {}
+        _, unresolved = keep_closure.close(modules, sidecars, keep, graph=g, tainted={("Toy.A", "Toy.silent_a")}, stats=stats)
+        self.assertEqual(unresolved, {})
+        self.assertIn((7, 8), self.kept_blocks(modules, keep))
+        self.assertEqual(stats["text_kept_tainted"], ["Toy.A:7"])
+
+    def test_a_block_the_keep_step_kept_is_not_reported_as_text_kept_tainted(self):
+        modules, sidecars, keep = self.setup()
+        stats: dict = {}
+        keep_closure.close(modules, sidecars, keep, graph={}, tainted={("Toy.A", "Toy.seed_one")}, stats=stats)
+        self.assertEqual(stats["text_kept_tainted"], [])
+
+    def test_a_block_that_stands_on_a_failed_declaration_is_not_kept_for_a_text_that_names_it_when_asked(self):
+        modules, sidecars, keep = self.setup()
+        added, unresolved = keep_closure.close(modules, sidecars, keep, graph={}, tainted={("Toy.A", "Toy.text_named")}, drop_tainted=True)
+        self.assertEqual(unresolved, {"Toy.A": {"Toy.text_named"}})  # the module that names it cannot ship
+        self.assertNotIn((4, 5), self.kept_blocks(modules, keep))
+        self.assertEqual(added, 0)
+
+    def test_taint_reaches_the_block_through_a_compiler_made_constant_too(self):
+        modules, sidecars, keep = self.setup()
+        _, unresolved = keep_closure.close(modules, sidecars, keep, graph={}, tainted={("Toy.A", "Toy.text_named.proof_1")}, drop_tainted=True)
+        self.assertEqual(unresolved, {"Toy.A": {"Toy.text_named"}})
+
+    def test_something_the_graph_needs_that_cannot_be_kept_makes_the_module_unshippable(self):
+        modules, sidecars, keep = self.setup()
+        g = self.graph(("Toy.text_named", "Toy.silent_a"))
+        added, unresolved = keep_closure.close(modules, sidecars, keep, graph=g, tainted=set(), failed={"Toy.A": {(7, 8)}})
+        self.assertEqual(list(unresolved), ["Toy.A"])
+        self.assertIn("Toy.A at line 7", next(iter(unresolved["Toy.A"])))
+        self.assertNotIn((7, 8), self.kept_blocks(modules, keep))
+
+    def test_a_tainted_target_of_an_edge_is_never_added(self):
+        modules, sidecars, keep = self.setup()
+        g = self.graph(("Toy.text_named", "Toy.silent_a"))
+        _, unresolved = keep_closure.close(modules, sidecars, keep, graph=g, tainted={("Toy.A", "Toy.silent_a")}, drop_tainted=True)
+        self.assertNotIn((7, 8), self.kept_blocks(modules, keep))
+        self.assertIn("Toy.A", unresolved)
+
+    def test_the_nodes_of_a_log_are_read_per_shard_and_joined(self):
+        shard = lambda nodes, edges, tainted: "x:1:0: info: BUNDLE_GRAPH " + json.dumps({"nodes": nodes, "edges": edges, "tainted": tainted}) + " BUNDLE_END\n"  # noqa: E731
+        log = (
+            'x:1:0: info: BUNDLE_KEEP [["M","c"]] BUNDLE_END\n'
+            + shard([["M", "a"], ["M", "b"], ["M", "c"]], [[0, [1, 2]]], [2])
+            + shard([["N", "x"], ["N", "y"]], [[1, [0]], [0, []]], [])
+        )
+        graph, tainted = keep_closure.parse_graph(log)
+        self.assertEqual(graph, {("M", "a"): {("M", "b"), ("M", "c")}, ("N", "y"): {("N", "x")}, ("N", "x"): set()})
+        self.assertEqual(tainted, {("M", "c")})
+
+    def test_a_log_from_before_the_graph_existed_gives_none(self):
+        self.assertEqual(keep_closure.parse_graph('x:1:0: info: BUNDLE_KEEP [["M","c"]] BUNDLE_END\n'), (None, None))
+
+    def test_a_line_that_the_log_wrapped_is_still_read(self):
+        log = 'x:1:0: info: BUNDLE_GRAPH {"nodes":[["M","a"],\n  ["M","very.long.\n  name"]],"edges":[[0,[1]]],\n"tainted":[]} BUNDLE_END\n'  # the log broke a name in two
+        graph, _ = keep_closure.parse_graph(log)
+        self.assertEqual(graph, {("M", "a"): {("M", "very.long.name")}})
 
 
 if __name__ == "__main__":
