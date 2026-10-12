@@ -514,6 +514,69 @@ class CommentBetweenDocstringAndDeclaration(unittest.TestCase):
         self.assertTrue(any("docstring" in x for x in m.leaks(stray, keep)), m.leaks(stray, keep))
 
 
+MULTILINE_PREFIX = """namespace Toy
+
+omit [Foo] [Bar]
+  [Baz] in
+theorem multi_prefixed : True := trivial
+
+theorem plain_one : True := trivial
+
+end Toy
+"""
+
+
+class PrefixOverSeveralLines(unittest.TestCase):
+    """lean-pool part 9 (tengoku#522, 2026-10-12): `Monlib4/LinearAlgebra/Ips/TensorHilbert` has `omit [A] [B]` / `  [C] in` before a theorem. Only the line that ends in `in` was a
+    prefix; the first line was glue, so cutting the theorem left two `omit … in` in front of `end TensorProduct`, and Lean ran the `end` inside the `omit`."""
+
+    def module(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        d = tempfile.mkdtemp()
+        lib = Path(d) / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        (lib / "Toy" / "P.lean").write_text(MULTILINE_PREFIX)
+        lines = MULTILINE_PREFIX.split("\n")
+        ln = lambda needle: next(i + 1 for i, x in enumerate(lines) if x.startswith(needle))
+        return records.Module(lib, "Toy.P", [(ln("theorem multi_prefixed"),) * 2, (ln("theorem plain_one"),) * 2]), ln
+
+    def test_the_span_of_a_prefix(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        self.assertEqual(records.prefix_span(["omit [A]", "  [B] in", "theorem t"], 0, 3), 2)
+        self.assertEqual(records.prefix_span(["open Foo in", "theorem t"], 0, 2), 1)
+        self.assertEqual(records.prefix_span(["omit [A]", "theorem t : True := trivial"], 0, 2), 0)  # no `in`, and the next line is not indented
+        self.assertEqual(records.prefix_span(["theorem t"], 0, 1), 0)
+
+    def test_both_lines_belong_to_the_block(self):
+        m, ln = self.module()
+        self.assertEqual(m.blocks[0], (ln("omit"), ln("theorem multi_prefixed")))
+
+    def test_cutting_the_theorem_cuts_the_whole_prefix(self):
+        m, _ = self.module()
+        keep = {m.blocks[1]}
+        text = m.text(keep)
+        self.assertNotIn("omit", text)
+        self.assertNotIn("[Baz]", text)
+        self.assertEqual(m.leaks(text, keep), [])
+
+    def test_a_kept_theorem_keeps_it_and_is_no_leak(self):
+        m, _ = self.module()
+        keep = set(m.blocks)
+        text = m.text(keep)
+        self.assertIn("omit [Foo] [Bar]\n  [Baz] in\ntheorem multi_prefixed", text)
+        self.assertEqual(m.leaks(text, keep), [])
+
+    def test_a_prefix_left_in_front_of_end_is_a_leak(self):
+        m, _ = self.module()
+        keep = {m.blocks[1]}
+        stray = m.text(keep).replace("end Toy", "omit [Foo] [Bar]\n  [Baz] in\n\nend Toy")
+        self.assertTrue(any("dangling prefix" in x for x in m.leaks(stray, keep)), m.leaks(stray, keep))
+
+
 class NothingEscapesPruning(unittest.TestCase):
     """`Module.leaks` is the guard compose runs on every pruned module: the text must be glue plus whole kept blocks, and no `… in` may dangle.
     It would have refused the complexitylib bundle whatever the cause, and refuses any future way for an unverified declaration to stay."""

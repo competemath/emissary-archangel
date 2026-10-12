@@ -389,8 +389,8 @@ def compose(a: argparse.Namespace) -> None:
                 text = "\n".join(m.lines[r[0] - 1 : r[1]])
                 text = re.sub(r"^\s*/--.*?-/\s*", "", text, count=1, flags=re.S)
                 lines_ = text.split("\n")
-                while lines_ and records.IN_PREFIX.match(lines_[0]):  # `open Foo in` above the declaration belongs to the module, not the statement
-                    lines_.pop(0)
+                while lines_ and (span := records.prefix_span(lines_, 0, len(lines_))):  # `open Foo in` (over several lines too) above the declaration belongs to the module, not the statement
+                    del lines_[:span]
                 text = "\n".join(lines_)
                 he = portfolio.statement_end(text, 0)
                 stmt = (text[:he] if he > 0 else text.split(":=")[0]).strip()

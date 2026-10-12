@@ -98,6 +98,24 @@ DECL = re.compile(
 CODE_ATTR = re.compile(r"@\[[^\]]*\b(?:tactic|command_elab|term_elab|macro|elab|delab|app_unexpander|parser|builtin\w*|init|initialize|simproc|dsimproc|norm_num|positivity|push_cast|ext|aesop)\b")
 IMPORT_LINE = re.compile(r"^\s*(?:(?:public|private|meta)\s+)*import\s")
 KEYWORD_LINE = re.compile(r"^\s*(?:module|prelude)\s*$")
+PREFIX_KW = re.compile(r"^\s*(?:open|set_option|attribute|local|universe|variable|namespace|section|include|omit)\b")
+
+
+def prefix_span(lines: list[str], i: int, e: int) -> int:
+    """How many lines the `… in` prefix that starts at 0-based line `i` takes (0 when the line starts none): `omit [A] [B]` / `  [C] in` is one prefix over two lines (lean-pool
+    `Monlib4/.../TensorHilbert`, 2026-10-12: the first line was glue, so cutting the theorem left it dangling in front of `end`). Continuation lines are indented."""
+    if not PREFIX_KW.match(lines[i]):
+        return 0
+    text = ""
+    for j in range(i, min(e, i + 8)):
+        if j > i and lines[j][:1] not in (" ", "\t"):
+            return 0
+        text += " " + lines[j].strip()
+        if IN_PREFIX.match(text.strip()):
+            return j - i + 1
+    return 0
+
+
 IN_PREFIX = re.compile(r"^\s*(?:open|set_option|attribute|local|universe|variable|namespace|section|include|omit)\b.*\bin\s*$")
 def strip_comments(text: str) -> str:
     """`text` without `--` line comments and `/- … -/` block comments (docstrings included): enough to tell a line of modifiers from one that is followed by a note."""
@@ -204,7 +222,7 @@ class Module:
                     self.code_attr.add(b)
                 lead = None
             elif (
-                IN_PREFIX.match(first)
+                prefix_span(self.lines, s - 1, e) > 0
                 or first.startswith("/--")
                 or (first.startswith("@[") and attrs_only("\n".join(self.lines[s - 1 : e])))
                 or MODIFIER_ONLY.match(strip_comments("\n".join(self.lines[s - 1 : e])).strip())
@@ -293,9 +311,9 @@ class Module:
             end = cmds[k + 1][0] - 1 if k + 1 < len(cmds) else len(tlines)
             # a declaration indented under its prefix or docstring (openai/math writes ` theorem …` with one space) is no command line, yet it is the declaration
             indented_decl = bool(DECL_LINE.match(decl_core(tlines, no, end)))
-            if IN_PREFIX.match(ln):
+            if prefix_span(tlines, no - 1, end):
                 nxt = next_real(k)
-                if not (IN_PREFIX.match(nxt) or LEAD_IN.match(nxt) or DECL_LINE.match(nxt) or indented_decl):
+                if not (PREFIX_KW.match(nxt) or LEAD_IN.match(nxt) or DECL_LINE.match(nxt) or indented_decl):
                     out.append(f"line {no}: dangling prefix: {ln.strip()[:80]}")
             else:
                 core = ATTR_INLINE.sub("", ln).strip()  # `@[simp] theorem …`: the keyword line is what comes after the attribute
@@ -397,7 +415,9 @@ def decl_core(lines: list[str], s: int, e: int) -> str:
                     break
                 j += 1
             i = j + 1
-        elif not ln or IN_PREFIX.match(ln) or ln.startswith("--") or MODIFIER_ONLY.match(ln.strip()):
+        elif n := prefix_span(lines, i, e):
+            i += n
+        elif not ln or ln.startswith("--") or MODIFIER_ONLY.match(ln.strip()):
             i += 1  # (a modifier on a line of its own, `public` / `theorem …`, is part of the lead-in: the keyword line is the next one)
         elif ln.startswith("/--") or ln.startswith("/-!"):
             while i < e and "-/" not in lines[i]:
