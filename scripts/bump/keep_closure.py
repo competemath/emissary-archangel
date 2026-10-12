@@ -24,6 +24,7 @@ from adapters import code_mask
 TOKEN = re.compile(r"[^\W\d][\w.'!?]*")
 AUTO = re.compile(r"^(?:_|match_\d|proof_\d|eq_\d|eq_def$|induct$|inj$|injEq$|sizeOf_spec$|casesOn$|recOn$|rec$|noConfusion)")
 SORRY = re.compile(r"\bsorry\b")
+INSTANCE_BLOCK = re.compile(r"^(?:@\[[^\]]*\]\s*)*(?:(?:private|protected|noncomputable|scoped|local|public)\s+)*instance\b", re.M)
 
 
 PRIVATE_NAME = re.compile(r"^_private\.(?:.+?)\.\d+\.(.+)$")
@@ -58,25 +59,18 @@ def open_names(rest: str) -> list[str]:
     return out
 
 
-def block_contexts(module) -> dict[tuple[int, int], tuple[str, tuple[str, ...]]]:
-    """For each block of the module: the namespace in force at its first line ('A.B', or '') and the namespaces opened there (and by an `open … in` inside the block). Only commands in column 0
-    are read: `namespace`, `section`, `end`, `open`."""
-    starts = {b[0]: b for b in module.blocks}
-    stack: list[tuple[list[str], set[str]]] = [([], set())]  # the file's own level: an `open` there lasts to the end of the file
-    out: dict[tuple[int, int], tuple[str, tuple[str, ...]]] = {}
-    # the code of the file, comments and strings blanked: an `end` or `namespace` inside a block comment is no command (CodeRabbit on #34: a commented `end` popped a real section)
+def code_lines(module) -> list[str]:
+    """The lines of the module with comments and strings blanked: an `end` or `namespace` inside a block comment is no command (CodeRabbit on #34: a commented `end` popped a real section)."""
     text = "\n".join(module.lines)
-    code = "".join(c if k or c == "\n" else " " for c, k in zip(text, code_mask(text))).split("\n")
+    return "".join(c if k or c == "\n" else " " for c, k in zip(text, code_mask(text))).split("\n")
+
+
+def walk_code(code: list[str]):
+    """Yields (line number, the code of that line, the namespace in force before it, the namespaces opened before it) for every line. Only commands in column 0 change the context:
+    `namespace`, `section`, `end`, `open`."""
+    stack: list[tuple[list[str], set[str]]] = [([], set())]  # the file's own level: an `open` there lasts to the end of the file
     for i, line in enumerate(code, 1):
-        if i in starts:
-            ns = ".".join(p for parts, _ in stack for p in parts)
-            opens = {o for _, os_ in stack for o in os_}
-            b = starts[i]
-            for ln in code[b[0] - 1 : b[1]]:  # an `open X in` that leads the declaration
-                m = OPEN_CMD.match(ln)
-                if m and ln.rstrip().endswith(" in"):
-                    opens |= set(open_names(m.group("rest")))
-            out[b] = (ns, tuple(sorted(opens)))
+        yield i, line, ".".join(p for parts, _ in stack for p in parts), {o for _, os_ in stack for o in os_}
         if not line or line[0].isspace():
             continue
         m = NAMESPACE_CMD.match(line)
@@ -91,7 +85,32 @@ def block_contexts(module) -> dict[tuple[int, int], tuple[str, tuple[str, ...]]]
             m = OPEN_CMD.match(line)
             if m and not line.rstrip().endswith(" in"):
                 stack[-1][1].update(open_names(m.group("rest")))
+
+
+def block_contexts(module) -> dict[tuple[int, int], tuple[str, tuple[str, ...]]]:
+    """For each block of the module: the namespace in force at its first line ('A.B', or '') and the namespaces opened there (and by an `open … in` inside the block)."""
+    starts = {b[0]: b for b in module.blocks}
+    code = code_lines(module)
+    out: dict[tuple[int, int], tuple[str, tuple[str, ...]]] = {}
+    for i, _, ns, opens in walk_code(code):
+        if i in starts:
+            b = starts[i]
+            for ln in code[b[0] - 1 : b[1]]:  # an `open X in` that leads the declaration
+                m = OPEN_CMD.match(ln)
+                if m and ln.rstrip().endswith(" in"):
+                    opens |= set(open_names(m.group("rest")))
+            out[b] = (ns, tuple(sorted(opens)))
     return out
+
+
+GLUE_SKIP = re.compile(r"^\s*(?:import|namespace|section|end|open|export|universe)\b|^\s*(?:@\[[^\]]*\]\s*)*(?:public\s+|noncomputable\s+|private\s+)*section\b")
+
+
+def glue_units(module) -> list[tuple[str, str, tuple[str, ...]]]:
+    """(code, namespace, opens) for every line outside all blocks that is not a structure command: the glue that stays in the pruned file whatever is kept (an `attribute [fun_prop] foo`, a
+    `variable (x : Foo)`, a local notation). Comments and strings are blanked, so prose naming a declaration names nothing."""
+    inside = {n for s, e in module.blocks for n in range(s, e + 1)}
+    return [(line, ns, tuple(sorted(opens))) for i, line, ns, opens in walk_code(code_lines(module)) if i not in inside and line.strip() and not GLUE_SKIP.match(line)]
 
 
 def namespace_candidates(tok: str, ns: str, opens: tuple[str, ...]) -> list[list[str]]:
@@ -137,6 +156,7 @@ def close(
     fatal = fatal or {}
     by_full: dict[str, list[tuple[str, tuple[int, int], tuple[int, int]]]] = defaultdict(list)
     by_last: dict[str, list[tuple[str, tuple[int, int], tuple[int, int]]]] = defaultdict(list)
+    block_range: dict[tuple[str, tuple[int, int]], tuple[int, int]] = {}  # the range Lean reported for a block: a block without one cannot ship
     for mod, names in sidecars.items():
         if mod not in modules:
             continue
@@ -146,6 +166,7 @@ def close(
             if vis is None or blk is None:
                 continue
             by_full[vis].append((mod, blk, (s, e)))
+            block_range.setdefault((mod, blk), (s, e))
             last = vis.rsplit(".", 1)[-1]
             if distinctive(last):
                 by_last[last].append((mod, blk, (s, e)))
@@ -172,30 +193,62 @@ def close(
             kept.add((mod, blk))
     work = list(kept)
     added = 0
-    while work:
-        mod, blk = work.pop()
-        if mod in skip:
-            continue
-        text = "\n".join(modules[mod].lines[blk[0] - 1 : blk[1]])
+
+    def resolve(tok: str, context):
+        """(the declarations `tok` can name, whether by its full name as written or as its namespace and `open`s read it)."""
+        cands = list(by_full.get(tok, ()))
+        exact = bool(cands)
+        last = tok.rsplit(".", 1)[-1]
+        if not cands and distinctive(last):
+            # the name as the file's own namespace and `open`s read it: `pointsFunctor_map` inside `namespace HopfAlgebra` is `HopfAlgebra.pointsFunctor_map`, however many
+            # declarations in the library end in that name (tauceti, 2026-10-11: a name that ends 4 times is out of reach of the last-component guess, and the module that wrote it
+            # short lost the lemma)
+            ns, opens = context()
+            for level in namespace_candidates(tok, ns, opens):
+                hit = [c for name in level for c in by_full.get(name, ())]
+                if hit:
+                    return hit, True
+        if not cands and distinctive(last) and 0 < len(by_last.get(last, ())) <= 3:
+            cands = list(by_last[last])
+        return cands, exact
+
+    def block_context_of(mod: str, blk: tuple[int, int]):
+        def context():
+            if mod not in contexts:
+                contexts[mod] = block_contexts(modules[mod]) if mod in modules else {}
+            return contexts[mod].get(blk, ("", ()))
+
+        return context
+
+    def usable(m2: str, b2: tuple[int, int]) -> bool:
+        return b2 not in failed.get(m2, ()) and not SORRY.search("\n".join(modules[m2].lines[b2[0] - 1 : b2[1]]))
+
+    def drag_instances(m2: str, b2: tuple[int, int]) -> None:
+        """A declaration kept because a kept TEXT names it has no elaborated term in the keep step, so the instances its proof resolves silently are not in the keep set (tauceti
+        `AlbertAlgebra.finrank_traceZero` names `Octonion.finrank_eq_eight`, whose proof needs the module's anonymous `Module.Free` instance: 'failed to synthesize' in the tree,
+        2026-10-12). The instances of its module that come before it are kept with it, unless one names a declaration that cannot be kept: an instance nobody asked for is not worth
+        a module."""
+        nonlocal added
+        for ib in modules[m2].blocks:
+            if ib[0] >= b2[0] or (m2, ib) in kept or (m2, ib) not in block_range or not usable(m2, ib):
+                continue
+            text = "\n".join(modules[m2].lines[ib[0] - 1 : ib[1]])
+            if not INSTANCE_BLOCK.search(text):
+                continue
+            context = block_context_of(m2, ib)
+            if any(not usable(c2, cb) for tok in set(TOKEN.findall(text)) for c2, cb, _ in resolve(tok.rstrip("."), context)[0] if (c2, cb) not in kept):
+                continue
+            kept.add((m2, ib))
+            keep_blocks[m2].add(block_range[(m2, ib)])
+            work.append((m2, ib))
+            added += 1
+
+    def visit(mod: str, text: str, context) -> None:
+        """Keep what `text` (a block of `mod`, or one line of its glue) names; `context()` is the (namespace, opens) the text is written in."""
+        nonlocal added
         for tok in set(TOKEN.findall(text)):
             tok = tok.rstrip(".")
-            cands = list(by_full.get(tok, ()))
-            exact = bool(cands)
-            last = tok.rsplit(".", 1)[-1]
-            if not cands and distinctive(last):
-                # the name as the file's own namespace and `open`s read it: `pointsFunctor_map` inside `namespace HopfAlgebra` is `HopfAlgebra.pointsFunctor_map`, however many
-                # declarations in the library end in that name (tauceti, 2026-10-11: a name that ends 4 times is out of reach of the last-component guess, and the module that wrote it
-                # short lost the lemma)
-                if mod not in contexts:
-                    contexts[mod] = block_contexts(modules[mod]) if mod in modules else {}
-                ns, opens = contexts[mod].get(blk, ("", ()))
-                for level in namespace_candidates(tok, ns, opens):
-                    hit = [c for name in level for c in by_full.get(name, ())]
-                    if hit:
-                        cands, exact = hit, True
-                        break
-            if not cands and distinctive(last) and 0 < len(by_last.get(last, ())) <= 3:
-                cands = list(by_last[last])
+            cands, exact = resolve(tok, context)
             for m2, b2, r2 in cands:
                 if (m2, b2) in kept:
                     continue
@@ -212,4 +265,19 @@ def close(
                 keep_blocks[m2].add(r2)
                 work.append((m2, b2))
                 added += 1
+                drag_instances(m2, b2)
+
+    glue_read: set[str] = set()
+    while work:
+        mod, blk = work.pop()
+        if mod in skip:
+            continue
+        if mod in modules and mod not in glue_read:
+            # the glue of a module that ships stays in its pruned file whatever is kept (`attribute [fun_prop] measurable_polarRows`), so what it names is kept too (openai-math
+            # `ProjectionMoments/BallMoments`, 2026-10-12: the lemma was cut from the module that declares it, and the tree stopped at 'Unknown constant')
+            glue_read.add(mod)
+            for line, ns, opens in glue_units(modules[mod]):
+                visit(mod, line, lambda ns=ns, opens=opens: (ns, opens))
+
+        visit(mod, "\n".join(modules[mod].lines[blk[0] - 1 : blk[1]]), block_context_of(mod, blk))
     return added, unresolved
