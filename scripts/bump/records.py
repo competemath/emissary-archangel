@@ -104,6 +104,7 @@ def strip_comments(text: str) -> str:
     return re.sub(r"--[^\n]*", "", re.sub(r"/-.*?-/", "", text, flags=re.S))
 
 
+COMMENT_CMD = re.compile(r"^\s*(?:/-(?![-!])|--)")  # a plain comment that command_lines reports as a command of its own
 EMPTY_MUTUAL = re.compile(r"^mutual[ \t]*\n(?:[ \t]*(?:--[^\n]*)?\n)*end[ \t]*$\n?", re.M)
 MODIFIER_ONLY = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s*)+$")  # a line of modifiers and nothing else: the declaration keyword is on the next line
 DECL_LINE = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s+)*(?:theorem|lemma|def|abbrev|instance|structure|class|inductive|opaque|axiom|example)\b")
@@ -211,6 +212,8 @@ class Module:
                 # a docstring, attributes of their own (on one line or several), modifiers on a line of their own (`public` / `theorem …`: lean-pool, 2026-10-12) or an `… in` line: they
                 # belong to the declaration below
                 lead = s if lead is None else lead
+            elif lead is not None and not strip_comments("\n".join(self.lines[s - 1 : e])).strip():
+                pass  # a plain `/- … -/` note between the lead-in and the declaration (tauceti `Dynamics/Flow/Stable`, 2026-10-12): it goes with them, it does not end the lead-in
             else:
                 lead = None  # glue, `@[expose] public section` included: an attribute on a command that is no declaration
         self.blocks.sort()
@@ -278,12 +281,20 @@ class Module:
         tlines = text.split("\n")
         cmds = command_lines(tlines)
         out: list[str] = []
+
+        def next_real(k: int) -> str:
+            """The next command that is not a comment of its own: a plain `/- … -/` note between a docstring and what follows it does not hide a missing declaration."""
+            j = k + 1
+            while j < len(cmds) and COMMENT_CMD.match(cmds[j][1]):
+                j += 1
+            return cmds[j][1] if j < len(cmds) else ""
+
         for k, (no, ln) in enumerate(cmds):
             end = cmds[k + 1][0] - 1 if k + 1 < len(cmds) else len(tlines)
             # a declaration indented under its prefix or docstring (openai/math writes ` theorem …` with one space) is no command line, yet it is the declaration
             indented_decl = bool(DECL_LINE.match(decl_core(tlines, no, end)))
             if IN_PREFIX.match(ln):
-                nxt = cmds[k + 1][1] if k + 1 < len(cmds) else ""
+                nxt = next_real(k)
                 if not (IN_PREFIX.match(nxt) or LEAD_IN.match(nxt) or DECL_LINE.match(nxt) or indented_decl):
                     out.append(f"line {no}: dangling prefix: {ln.strip()[:80]}")
             else:
@@ -295,7 +306,7 @@ class Module:
                 if DECL_LINE.match(core) and drop_noncomputable(core) not in allowed:
                     out.append(f"line {no}: a declaration that is not a kept block: {core[:80]}")
                 elif LEAD_IN.match(ln) and (ln.startswith("/--") or not core or core == ln.strip()):  # a docstring, or attributes on their own (not `@[expose] public section`)
-                    nxt = cmds[k + 1][1] if k + 1 < len(cmds) else ""
+                    nxt = next_real(k)
                     if (not nxt or NO_LEAD_IN.match(nxt)) and not indented_decl:
                         out.append(f"line {no}: a docstring or attribute with no declaration after it: {ln.strip()[:80]}")
         return out
