@@ -98,12 +98,31 @@ DECL = re.compile(
 CODE_ATTR = re.compile(r"@\[[^\]]*\b(?:tactic|command_elab|term_elab|macro|elab|delab|app_unexpander|parser|builtin\w*|init|initialize|simproc|dsimproc|norm_num|positivity|push_cast|ext|aesop)\b")
 IMPORT_LINE = re.compile(r"^\s*(?:(?:public|private|meta)\s+)*import\s")
 KEYWORD_LINE = re.compile(r"^\s*(?:module|prelude)\s*$")
+PREFIX_KW = re.compile(r"^\s*(?:open|set_option|attribute|local|universe|variable|namespace|section|include|omit)\b")
+
+
+def prefix_span(lines: list[str], i: int, e: int) -> int:
+    """How many lines the `… in` prefix that starts at 0-based line `i` takes (0 when the line starts none): `omit [A] [B]` / `  [C] in` is one prefix over two lines (lean-pool
+    `Monlib4/.../TensorHilbert`, 2026-10-12: the first line was glue, so cutting the theorem left it dangling in front of `end`). Continuation lines are indented."""
+    if not PREFIX_KW.match(lines[i]):
+        return 0
+    text = ""
+    for j in range(i, min(e, i + 8)):
+        if j > i and lines[j][:1] not in (" ", "\t"):
+            return 0
+        text += " " + lines[j].strip()
+        if IN_PREFIX.match(text.strip()):
+            return j - i + 1
+    return 0
+
+
 IN_PREFIX = re.compile(r"^\s*(?:open|set_option|attribute|local|universe|variable|namespace|section|include|omit)\b.*\bin\s*$")
 def strip_comments(text: str) -> str:
     """`text` without `--` line comments and `/- … -/` block comments (docstrings included): enough to tell a line of modifiers from one that is followed by a note."""
     return re.sub(r"--[^\n]*", "", re.sub(r"/-.*?-/", "", text, flags=re.S))
 
 
+COMMENT_CMD = re.compile(r"^\s*(?:/-(?![-!])|--)")  # a plain comment that command_lines reports as a command of its own
 EMPTY_MUTUAL = re.compile(r"^mutual[ \t]*\n(?:[ \t]*(?:--[^\n]*)?\n)*end[ \t]*$\n?", re.M)
 MODIFIER_ONLY = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s*)+$")  # a line of modifiers and nothing else: the declaration keyword is on the next line
 DECL_LINE = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s+)*(?:theorem|lemma|def|abbrev|instance|structure|class|inductive|opaque|axiom|example)\b")
@@ -203,7 +222,7 @@ class Module:
                     self.code_attr.add(b)
                 lead = None
             elif (
-                IN_PREFIX.match(first)
+                prefix_span(self.lines, s - 1, e) > 0
                 or first.startswith("/--")
                 or (first.startswith("@[") and attrs_only("\n".join(self.lines[s - 1 : e])))
                 or MODIFIER_ONLY.match(strip_comments("\n".join(self.lines[s - 1 : e])).strip())
@@ -211,6 +230,8 @@ class Module:
                 # a docstring, attributes of their own (on one line or several), modifiers on a line of their own (`public` / `theorem …`: lean-pool, 2026-10-12) or an `… in` line: they
                 # belong to the declaration below
                 lead = s if lead is None else lead
+            elif lead is not None and not strip_comments("\n".join(self.lines[s - 1 : e])).strip():
+                pass  # a plain `/- … -/` note between the lead-in and the declaration (tauceti `Dynamics/Flow/Stable`, 2026-10-12): it goes with them, it does not end the lead-in
             else:
                 lead = None  # glue, `@[expose] public section` included: an attribute on a command that is no declaration
         self.blocks.sort()
@@ -278,13 +299,21 @@ class Module:
         tlines = text.split("\n")
         cmds = command_lines(tlines)
         out: list[str] = []
+
+        def next_real(k: int) -> str:
+            """The next command that is not a comment of its own: a plain `/- … -/` note between a docstring and what follows it does not hide a missing declaration."""
+            j = k + 1
+            while j < len(cmds) and COMMENT_CMD.match(cmds[j][1]):
+                j += 1
+            return cmds[j][1] if j < len(cmds) else ""
+
         for k, (no, ln) in enumerate(cmds):
             end = cmds[k + 1][0] - 1 if k + 1 < len(cmds) else len(tlines)
             # a declaration indented under its prefix or docstring (openai/math writes ` theorem …` with one space) is no command line, yet it is the declaration
             indented_decl = bool(DECL_LINE.match(decl_core(tlines, no, end)))
-            if IN_PREFIX.match(ln):
-                nxt = cmds[k + 1][1] if k + 1 < len(cmds) else ""
-                if not (IN_PREFIX.match(nxt) or LEAD_IN.match(nxt) or DECL_LINE.match(nxt) or indented_decl):
+            if prefix_span(tlines, no - 1, end):
+                nxt = next_real(k)
+                if not (PREFIX_KW.match(nxt) or LEAD_IN.match(nxt) or DECL_LINE.match(nxt) or indented_decl):
                     out.append(f"line {no}: dangling prefix: {ln.strip()[:80]}")
             else:
                 core = ATTR_INLINE.sub("", ln).strip()  # `@[simp] theorem …`: the keyword line is what comes after the attribute
@@ -295,7 +324,7 @@ class Module:
                 if DECL_LINE.match(core) and drop_noncomputable(core) not in allowed:
                     out.append(f"line {no}: a declaration that is not a kept block: {core[:80]}")
                 elif LEAD_IN.match(ln) and (ln.startswith("/--") or not core or core == ln.strip()):  # a docstring, or attributes on their own (not `@[expose] public section`)
-                    nxt = cmds[k + 1][1] if k + 1 < len(cmds) else ""
+                    nxt = next_real(k)
                     if (not nxt or NO_LEAD_IN.match(nxt)) and not indented_decl:
                         out.append(f"line {no}: a docstring or attribute with no declaration after it: {ln.strip()[:80]}")
         return out
@@ -386,7 +415,9 @@ def decl_core(lines: list[str], s: int, e: int) -> str:
                     break
                 j += 1
             i = j + 1
-        elif not ln or IN_PREFIX.match(ln) or ln.startswith("--") or MODIFIER_ONLY.match(ln.strip()):
+        elif n := prefix_span(lines, i, e):
+            i += n
+        elif not ln or ln.startswith("--") or MODIFIER_ONLY.match(ln.strip()):
             i += 1  # (a modifier on a line of its own, `public` / `theorem …`, is part of the lead-in: the keyword line is the next one)
         elif ln.startswith("/--") or ln.startswith("/-!"):
             while i < e and "-/" not in lines[i]:
