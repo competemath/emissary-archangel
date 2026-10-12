@@ -18,6 +18,7 @@ on:
       tengoku_ref: { description: "a branch of competemath/tengoku to read the library's tentative records from (default main), for records whose PR is not merged yet", default: "" }
       parts: { description: "PARTS: cut each bundle into parts of at most this many modules (scripts/bump/bundle_layers.py), each attested as bundle-<key>-<mode>-part-NNN.tar, for a library too big for one intake PR (the queue builds ~3 s a module in 40 minutes: 300). 0 = no parts", default: "0" }
       verify: { description: "build the bundle in the TREE's own environment (the merge queue's own build, on a checkout seeded from the tree's cache) before it is cut into parts: the modules the tree refuses are dropped with their importers, and what ships is proven byte for byte what was built there. `false` skips it", default: "true" }
+      verify_partial: { description: "verify: a build that runs out of its time (260 min) still ships the modules it built; the rest are left for the next from-tree round. For a library with more new modules than one runner builds in that time (a first cut of a giant). Default `false`: a build that does not finish fails the run", default: "false" }
       verify_modes: { description: "the bundle modes that are built in the tree (comma list of strict, proposed, wide): the intake opener ships `proposed`; a mode that is not built ships as the factory cut it", default: "proposed" }
       from_tree: { description: "PARTS, on a recut after some parts merged: cut only the modules the tree does not have yet (the library's Tengoku/<Ns>.lean on tengoku main), numbered from the next part, so the new parts extend what merged (scripts/bump/bundle_layers.py --tree-umbrella)", default: "" }
 permissions: {}
@@ -161,7 +162,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 355
     permissions: { contents: read }
-    env: { KEY: "${{ inputs.key }}", MODE: "${{ matrix.mode }}" }
+    env: { KEY: "${{ inputs.key }}", MODE: "${{ matrix.mode }}", VERIFY_PARTIAL: "${{ inputs.verify_partial }}" }
     steps:
       - name: This repository (scripts)
         run: |
@@ -200,23 +201,26 @@ jobs:
           cd tree
           set +e
           # shellcheck disable=SC2086  # targets is a space-separated module list
-          timeout -k 60 330m lake build $targets 2>&1 | tee ../out/build.log
+          timeout -k 60 260m lake build $targets 2>&1 | tee ../out/build.log
           echo "lake exit status: ${PIPESTATUS[0]}"
       - name: What the build accepted
-        run: python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle
+        run: |
+          flag=(); if [ "$VERIFY_PARTIAL" = true ]; then flag=(--allow-unfinished); fi
+          python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle "${flag[@]}"
       # The queue's second step: the axioms of every declaration of what it built (Gate 2 checks theorems only: an instance made by `deriving Repr` on a Finset product
       # rests on `lcProof`, and lean-pool part 10, which compiled, was rejected on it). ModuleAxioms.lean is that check with the module of each offender in its output.
       - name: The axiom check of the queue, on every module that built
         run: |
           if [ -s out/built.txt ]; then
             cd tree
-            timeout -k 60 90m lake env lean --run ../emissary/scripts/bump/ModuleAxioms.lean ../out/built.txt 2>&1 | tee ../out/axioms.txt
+            timeout -k 60 60m lake env lean --run ../emissary/scripts/bump/ModuleAxioms.lean ../out/built.txt 2>&1 | tee ../out/axioms.txt
           else
             echo "axioms: 0 declarations checked, 0 with non-standard axioms" > out/axioms.txt
           fi
       - name: What the tree accepted
         run: |
-          python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle --axioms out/axioms.txt
+          flag=(); if [ "$VERIFY_PARTIAL" = true ]; then flag=(--allow-unfinished); fi
+          python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle --axioms out/axioms.txt "${flag[@]}"
           { echo "### Tree build ($KEY, $MODE)"; cat out/summary.txt; } >> "$GITHUB_STEP_SUMMARY"
       - name: Keep the log
         if: ${{ always() }}

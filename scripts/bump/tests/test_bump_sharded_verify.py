@@ -56,6 +56,7 @@ class Order(unittest.TestCase):
 
     def test_the_inputs(self):
         self.assertEqual(INPUTS["verify"]["default"], "true")
+        self.assertEqual(INPUTS["verify_partial"]["default"], "false")  # a build that does not finish fails the run unless someone asks otherwise
         self.assertEqual(INPUTS["verify_modes"]["default"], "proposed")  # what intake_open ships (--mode proposed)
 
     def test_the_artifact_the_opener_reads_keeps_its_name(self):
@@ -94,6 +95,20 @@ class Privileges(unittest.TestCase):
         self.assertLessEqual(JOBS["verify"]["timeout-minutes"], 360)  # what a hosted runner allows
 
 
+class PartialBuilds(unittest.TestCase):
+    def test_the_flag_reaches_both_collect_steps_only_when_asked_for(self):
+        self.assertEqual(JOBS["verify"]["env"]["VERIFY_PARTIAL"], "${{ inputs.verify_partial }}")
+        for name in ("What the build accepted", "What the tree accepted"):
+            run = step("verify", name)["run"]
+            self.assertIn('if [ "$VERIFY_PARTIAL" = true ]; then flag=(--allow-unfinished); fi', run, name)
+            self.assertIn('"${flag[@]}"', run, name)
+
+    def test_the_budgets_fit_inside_the_job(self):
+        build = int(re.search(r"timeout -k \d+ (\d+)m lake build", step("verify", "Build them")["run"]).group(1))
+        axioms = int(re.search(r"timeout -k \d+ (\d+)m lake env lean", step("verify", "The axiom check")["run"]).group(1))
+        self.assertLessEqual(build + axioms + 25, JOBS["verify"]["timeout-minutes"])  # 25 minutes for the seed, the copy, the verdict and the upload
+
+
 class TheQueuesAxiomCheckToo(unittest.TestCase):
     def names(self) -> list[str]:
         return [s.get("name", "") for s in JOBS["verify"]["steps"]]
@@ -110,7 +125,7 @@ class TheQueuesAxiomCheckToo(unittest.TestCase):
         run = step("verify", "The axiom check")["run"]
         self.assertIn("lake env lean --run ../emissary/scripts/bump/ModuleAxioms.lean ../out/built.txt", run)
         self.assertIn("tee ../out/axioms.txt", run)
-        self.assertIn("timeout -k 60 90m", run)
+        self.assertIn("timeout -k 60 60m", run)
         self.assertIn("--axioms out/axioms.txt", step("verify", "What the tree accepted")["run"])
         self.assertNotIn("--axioms", step("verify", "What the build accepted")["run"])
 

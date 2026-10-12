@@ -106,6 +106,26 @@ class Collect(Fixture):
         self.assertEqual((self.out / "failing.txt").read_text().split(), ["Toy.D"])
         self.assertEqual(sorted(json.loads((self.out / "ok.json").read_text())), ["Tengoku.ToyLib.Toy.B", "Tengoku.ToyLib.Toy.C"])
 
+    def test_a_build_that_ran_out_of_time_can_still_ship_what_it_built(self):
+        self.apply()
+        (self.d / "build.log").write_text("✔ [1/9] Built Tengoku.ToyLib.Toy.C (1s)\n✔ [2/9] Built Tengoku.ToyLib.Toy.D (1s)\n")  # killed: B was never reached
+        tv.main(["collect", "--new", str(self.out / "new.json"), "--log", str(self.d / "build.log"), "--out", str(self.out), "--bundle", str(self.bundle), "--allow-unfinished"])
+        self.assertEqual((self.out / "failing.txt").read_text().split(), ["Toy.B"])
+        self.assertEqual(sorted(json.loads((self.out / "ok.json").read_text())), ["Tengoku.ToyLib.Toy.C", "Tengoku.ToyLib.Toy.D"])
+        self.assertIn("did not finish", (self.out / "summary.txt").read_text())
+
+    def test_a_partial_build_still_refuses_what_it_saw_fail(self):
+        self.apply()
+        (self.d / "build.log").write_text("✔ [1/9] Built Tengoku.ToyLib.Toy.C (1s)\nerror: Tengoku/ToyLib/Toy/B.lean:1:0: x\n")
+        tv.main(["collect", "--new", str(self.out / "new.json"), "--log", str(self.d / "build.log"), "--out", str(self.out), "--bundle", str(self.bundle), "--allow-unfinished"])
+        self.assertEqual((self.out / "failing.txt").read_text().split(), ["Toy.B", "Toy.D"])  # D was not reached either
+        self.assertEqual(sorted(json.loads((self.out / "ok.json").read_text())), ["Tengoku.ToyLib.Toy.C"])
+
+    def test_a_finished_build_says_nothing_about_a_budget(self):
+        self.apply()
+        self.collect(LOG_C_FAILS)
+        self.assertNotIn("did not finish", (self.out / "summary.txt").read_text())
+
     def test_a_log_without_an_ending_is_refused(self):
         self.apply()
         with self.assertRaises(SystemExit) as r:

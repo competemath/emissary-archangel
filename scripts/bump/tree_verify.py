@@ -8,7 +8,7 @@ own command (`lake build Tengoku.<Ns>.<module> …`) on a checkout seeded from t
 --tree-failures`, and `check` then proves that every module that ships is byte for byte a module that was built there.
 
   tree_verify.py apply   --bundle DIR --tree CHECKOUT --out OUT   copy the bundle's new modules into the checkout, write OUT/targets.txt (what to build) and OUT/new.json
-  tree_verify.py collect --new OUT/new.json --log build.log --out OUT [--axioms axioms.txt]   read the build (and the axiom check of what built): OUT/failing.txt (library modules),
+  tree_verify.py collect --new OUT/new.json --log build.log --out OUT [--axioms axioms.txt] [--allow-unfinished]   read the build (and the axiom check of what built): OUT/failing.txt (library modules),
                                                                           OUT/ok.json (module -> sha256), OUT/built.txt (the modules to run ModuleAxioms.lean on), OUT/summary.txt
   tree_verify.py check   --bundle DIR --new OUT/new.json --ok OUT/ok.json   exit 1 unless every new module of the final bundle was built there with the same bytes
 
@@ -126,8 +126,9 @@ def cmd_collect(a: argparse.Namespace) -> None:
     log = Path(a.log).read_text(errors="replace")
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    if mods and not FINISHED.search(log):
-        sys.exit("the build log has no ending (the build was killed or timed out): nothing is known about the modules; refusing to guess")
+    unfinished = bool(mods) and not FINISHED.search(log)
+    if unfinished and not a.allow_unfinished:
+        sys.exit("the build log has no ending (the build was killed or timed out): refusing to guess which modules the tree accepted (--allow-unfinished: those with a `Built` line are accepted, the rest wait for a later round)")
     failing = failures_from_log(log, ns) & set(mods)
     built = {m.group("mod") for m in BUILT.finditer(log)} & set(mods)
     offenders = axiom_offenders(Path(a.axioms).read_text(errors="replace"), set(mods)) if a.axioms else {}
@@ -148,6 +149,8 @@ def cmd_collect(a: argparse.Namespace) -> None:
         f"{len(mods)} new module(s): {len(ok)} built in the tree, {len(failing)} refused ({len(unaccounted)} of them not reached, {len(offenders)} on an axiom), "
         f"{len(cascade - failing)} more import a refused one and go with it"
     )
+    if unfinished:
+        summary += "\n  the build did not finish (its budget ran out): the modules it did not reach are not in this cut; a later from-tree round continues with them"
     for m in sorted(offenders)[:10]:
         summary += f"\n  axiom: {library_module(m, ns)}: {offenders[m][0]}" + (f" (+{len(offenders[m]) - 1} more)" if len(offenders[m]) > 1 else "")
     (out / "summary.txt").write_text(summary + "\n")
@@ -186,6 +189,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--log", required=True)
     p.add_argument("--out", required=True)
     p.add_argument("--bundle", default="", help="the bundle the modules came from: its import graph says which modules go with a refused one")
+    p.add_argument("--allow-unfinished", action="store_true", help="a build that ran out of time still says which modules it built (a `Built` line is positive evidence): accept those, leave the rest for a later round")
     p.add_argument("--axioms", default="", help="the output of ModuleAxioms.lean on out/built.txt: a module with a declaration on a non-standard axiom is refused")
     p.set_defaults(fn=cmd_collect)
     p = sub.add_parser("check")
