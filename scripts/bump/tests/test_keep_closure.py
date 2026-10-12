@@ -571,16 +571,40 @@ class DependencyGraph(unittest.TestCase):
         added, unresolved = keep_closure.close(modules, sidecars, keep, graph=g, tainted=set())
         self.assertEqual((added, unresolved), (1, {}))
 
-    def test_a_block_that_stands_on_a_failed_declaration_is_not_kept_for_a_text_that_names_it(self):
+    def test_taint_alone_changes_nothing_but_is_reported(self):
+        """btc-verified, 2026-10-12: dropping what stands on a sorry in the LIBRARY's build took one module and, through its importers, 67 of 101 theorems; the tree's Mathlib is not the library's."""
         modules, sidecars, keep = self.setup()
-        added, unresolved = keep_closure.close(modules, sidecars, keep, graph={}, tainted={("Toy.A", "Toy.text_named")})
+        stats: dict = {}
+        added, unresolved = keep_closure.close(modules, sidecars, keep, graph={}, tainted={("Toy.A", "Toy.text_named")}, stats=stats)
+        self.assertEqual((added, unresolved), (1, {}))
+        self.assertIn((4, 5), self.kept_blocks(modules, keep))
+        self.assertEqual(stats["text_kept_tainted"], ["Toy.A:4"])
+
+    def test_the_graph_follows_into_a_tainted_block_when_taint_does_not_drop(self):
+        modules, sidecars, keep = self.setup()
+        g = self.graph(("Toy.text_named", "Toy.silent_a"))
+        stats: dict = {}
+        _, unresolved = keep_closure.close(modules, sidecars, keep, graph=g, tainted={("Toy.A", "Toy.silent_a")}, stats=stats)
+        self.assertEqual(unresolved, {})
+        self.assertIn((7, 8), self.kept_blocks(modules, keep))
+        self.assertEqual(stats["text_kept_tainted"], ["Toy.A:7"])
+
+    def test_a_block_the_keep_step_kept_is_not_reported_as_text_kept_tainted(self):
+        modules, sidecars, keep = self.setup()
+        stats: dict = {}
+        keep_closure.close(modules, sidecars, keep, graph={}, tainted={("Toy.A", "Toy.seed_one")}, stats=stats)
+        self.assertEqual(stats["text_kept_tainted"], [])
+
+    def test_a_block_that_stands_on_a_failed_declaration_is_not_kept_for_a_text_that_names_it_when_asked(self):
+        modules, sidecars, keep = self.setup()
+        added, unresolved = keep_closure.close(modules, sidecars, keep, graph={}, tainted={("Toy.A", "Toy.text_named")}, drop_tainted=True)
         self.assertEqual(unresolved, {"Toy.A": {"Toy.text_named"}})  # the module that names it cannot ship
         self.assertNotIn((4, 5), self.kept_blocks(modules, keep))
         self.assertEqual(added, 0)
 
     def test_taint_reaches_the_block_through_a_compiler_made_constant_too(self):
         modules, sidecars, keep = self.setup()
-        _, unresolved = keep_closure.close(modules, sidecars, keep, graph={}, tainted={("Toy.A", "Toy.text_named.proof_1")})
+        _, unresolved = keep_closure.close(modules, sidecars, keep, graph={}, tainted={("Toy.A", "Toy.text_named.proof_1")}, drop_tainted=True)
         self.assertEqual(unresolved, {"Toy.A": {"Toy.text_named"}})
 
     def test_something_the_graph_needs_that_cannot_be_kept_makes_the_module_unshippable(self):
@@ -594,7 +618,7 @@ class DependencyGraph(unittest.TestCase):
     def test_a_tainted_target_of_an_edge_is_never_added(self):
         modules, sidecars, keep = self.setup()
         g = self.graph(("Toy.text_named", "Toy.silent_a"))
-        _, unresolved = keep_closure.close(modules, sidecars, keep, graph=g, tainted={("Toy.A", "Toy.silent_a")})
+        _, unresolved = keep_closure.close(modules, sidecars, keep, graph=g, tainted={("Toy.A", "Toy.silent_a")}, drop_tainted=True)
         self.assertNotIn((7, 8), self.kept_blocks(modules, keep))
         self.assertIn("Toy.A", unresolved)
 

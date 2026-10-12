@@ -463,9 +463,18 @@ class AutoDrops(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertIn("drop_silent_aux", self.shipped_text(d, "SH"))
 
-    def test_a_text_named_declaration_that_stands_on_a_failed_one_is_not_kept_and_its_namer_goes(self):
+    def test_taint_is_only_reported_unless_asked_to_drop(self):
+        """btc-verified, 2026-10-12: dropping what stands on a sorry in the library's own build cost 67 of 101 theorems (the tree's Mathlib is not the library's)."""
+        graph = {"nodes": self.SILENT, "edges": [], "tainted": [0]}
+        d, p = self.compose([], files=["SH", "SU"], graph=graph)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.shipped(d), ["Toy.su_theorem"])
+        dg = json.loads((d / "bundle-proposed" / "report.json").read_text())["dependency_graph"]
+        self.assertEqual((dg["text_kept_tainted"], dg["text_kept_tainted_first"], dg["taint_drops"]), (1, ["Toy.SH:3"], False))
+
+    def test_a_text_named_declaration_that_stands_on_a_failed_one_is_not_kept_and_its_namer_goes_with_taint_drops(self):
         graph = {"nodes": self.SILENT, "edges": [[0, [1]]], "tainted": [0]}  # drop_silent_user stands on a failed declaration (the keep step knows: it is on sorryAx)
-        d, p = self.compose([], files=["SH", "SU", "Clean"], graph=graph)
+        d, p = self.compose([], "--taint-drops", files=["SH", "SU", "Clean"], graph=graph)
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(self.shipped(d), ["Toy.clean_one"])
         rep = json.loads((d / "bundle-proposed" / "report.json").read_text())

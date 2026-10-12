@@ -279,7 +279,7 @@ def compose(a: argparse.Namespace) -> None:
                 failed_blocks.setdefault(mod, set()).add(blk)
     graph, tainted = keep_closure.parse_graph(log)  # what the terms of the declarations that are not kept use (BundleKeep.lean's BUNDLE_GRAPH): None for a shard run from before it existed
     graph_stats: dict = {}
-    textually_kept, unresolved = keep_closure.close(modules, sidecars, keep_blocks, skip=set(base_dropped), failed=failed_blocks, aux_only=aux_only, failed_seeds=failed_seeds, fatal=fatal_blocks, graph=graph, tainted=tainted, stats=graph_stats)
+    textually_kept, unresolved = keep_closure.close(modules, sidecars, keep_blocks, skip=set(base_dropped), failed=failed_blocks, aux_only=aux_only, failed_seeds=failed_seeds, fatal=fatal_blocks, graph=graph, tainted=tainted, stats=graph_stats, drop_tainted=a.taint_drops)
     for mod, names_ in unresolved.items():
         base_dropped.setdefault(mod, "names a declaration with sorry that the pruning leaves out: " + ", ".join(sorted(names_)[:3]))
     sys.setrecursionlimit(100000)
@@ -445,7 +445,7 @@ def compose(a: argparse.Namespace) -> None:
             json.dumps({"library": a.key, "lint_mode": mode, "verified": total, "shipped": len(manifest), "left_out": dict(left_out), "modules": dict(sorted(ledger.items()))}, indent=1)
         )
         report = {"library": a.key, "lint_mode": mode, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]), "dropped_truncated": len(dropped) > 50,
-                  "theorems": len(manifest), "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "textually_kept": textually_kept, "dependency_graph": graph_stats if graph is not None else None, "failed_seeds_shipped": [f"{m}:{b[0]}" for m, b in failed_seeds[:50]], "failed_seeds_shipped_total": len(failed_seeds), "stripped_attributes": dict(stripped_attrs.most_common(15)),
+                  "theorems": len(manifest), "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "textually_kept": textually_kept, "dependency_graph": ({**graph_stats, "text_kept_tainted": len(graph_stats["text_kept_tainted"]), "text_kept_tainted_first": graph_stats["text_kept_tainted"][:20], "taint_drops": a.taint_drops} if graph is not None else None), "failed_seeds_shipped": [f"{m}:{b[0]}" for m, b in failed_seeds[:50]], "failed_seeds_shipped_total": len(failed_seeds), "stripped_attributes": dict(stripped_attrs.most_common(15)),
                   "lint_cost": dict(sorted(classes.items(), key=lambda x: -x[1])[:15])}
         (out_dir / "report.json").write_text(json.dumps(report, indent=1))
         summary[mode] = {k: v for k, v in report.items() if k not in ("dropped", "lint_cost", "left_out")}
@@ -549,6 +549,7 @@ if __name__ == "__main__":
     c.add_argument("--drop-modules", default="", help="comma list of modules to leave out (with their importers): those that did not build on the tree")
     c.add_argument("--tree-names", default="", help="file of the record names the tree already has, one per line (tree_names.py): the modules that prove one are left out with their importers")
     c.add_argument("--tree-decls", default="", help="file of the Lean names the other namespaces of the tree declare, one per line (tree_names.py --decls-out): the modules that declare one are left out with their importers")
+    c.add_argument("--taint-drops", action="store_true", help="a declaration that stands on a sorry in the library's own build (BundleKeep's `tainted`) is not kept for a text that names it, and the module that names it goes (off: it is only reported; the tree's own build judges it)")
     c.add_argument("--drop-leaks", action="store_true", help="leave out a module whose pruning left unverified text (and what imports it) instead of refusing to compose")
     r = sub.add_parser("refine")
     for f in ("report", "log", "key", "out", "src"):
