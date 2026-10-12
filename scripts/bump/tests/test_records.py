@@ -346,6 +346,69 @@ class CodegenAdvice(unittest.TestCase):
         self.assertIn("consider marking it as 'noncomputable'", src)
 
 
+class ModifierReviewCases(unittest.TestCase):
+    """CodeRabbit on emissary#35: a modifier followed by a comment is still a lone modifier; a KEPT lone-modifier block must not be a leak (its keyword line is the second line);
+    `add_noncomputable` finds the keyword outside docstrings and across attributes."""
+
+    TEXT = """namespace Toy
+
+public
+-- a note between the modifier and the declaration
+theorem noted : True := trivial
+
+public
+theorem kept_two : True := trivial
+
+theorem plain_one : True := trivial
+
+end Toy
+"""
+
+    def module(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        d = tempfile.mkdtemp()
+        lib = Path(d) / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        (lib / "Toy" / "N.lean").write_text(self.TEXT)
+        lines = self.TEXT.split("\n")
+        ln = lambda needle: next(i + 1 for i, x in enumerate(lines) if x.startswith(needle))
+        return records.Module(lib, "Toy.N", [(ln("theorem noted"),) * 2, (ln("theorem kept_two"),) * 2, (ln("theorem plain_one"),) * 2]), ln
+
+    def test_a_modifier_with_a_comment_below_it_goes_with_its_declaration(self):
+        m, ln = self.module()
+        self.assertEqual(m.blocks[0], (ln("public"), ln("theorem noted")))
+        keep = {m.blocks[2]}
+        self.assertNotIn("public", m.text(keep))
+
+    def test_a_kept_lone_modifier_block_is_no_leak(self):
+        m, _ = self.module()
+        keep = set(m.blocks)
+        self.assertEqual(m.leaks(m.text(keep), keep), [])
+        self.assertEqual(m.leaks(m.text({m.blocks[1]}), {m.blocks[1]}), [])
+
+    def test_the_keyword_is_not_found_inside_a_docstring(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        block = ["/-- the def of this instance", "def is not here: this is prose -/", "def real_one : Nat := 1"]
+        self.assertEqual(records.add_noncomputable(block), ["/-- the def of this instance", "def is not here: this is prose -/", "noncomputable def real_one : Nat := 1"])
+
+    def test_the_keyword_after_a_multiline_attribute_is_found(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        for block, want in (
+            (["@[simp,", "  inline] def f : Nat := 1"], ["@[simp,", "  inline] noncomputable def f : Nat := 1"]),
+            (["@[deprecated foo", '  (since := "2026")]', "private def g : Nat := 1"], ["@[deprecated foo", '  (since := "2026")]', "private noncomputable def g : Nat := 1"]),
+            (["open Nat in", "instance : Inhabited Nat := ⟨1⟩"], ["open Nat in", "noncomputable instance : Inhabited Nat := ⟨1⟩"]),
+            (["@[simp] noncomputable def h : Nat := 1"], ["@[simp] noncomputable def h : Nat := 1"]),
+            (["theorem t : True := trivial"], ["theorem t : True := trivial"]),
+        ):
+            self.assertEqual(records.add_noncomputable(block), want, block)
+
+
 class NothingEscapesPruning(unittest.TestCase):
     """`Module.leaks` is the guard compose runs on every pruned module: the text must be glue plus whole kept blocks, and no `… in` may dangle.
     It would have refused the complexitylib bundle whatever the cause, and refuses any future way for an unverified declaration to stay."""

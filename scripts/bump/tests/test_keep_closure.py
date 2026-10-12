@@ -317,6 +317,53 @@ class GlueNamesAndSameFileFailures(unittest.TestCase):
         sidecars = {"A": {"LO.Entailment.kept_one": (2, 3)}, "B": {"LO.Entailment.weakening": (2, 2)}}
         self.assertEqual(keep_closure.close({"A": a, "B": b}, sidecars, {"A": {(2, 3)}, "B": set()})[0], 0)
 
+    def test_an_export_command_refers_to_its_targets(self):
+        """CodeRabbit on emissary#35: `export Foo (bar)` in a shipped module stays; the declaration it exports must stay too."""
+        self.assertEqual(keep_closure.glue_tail("export Toy.Sub (bar baz)"), "Toy.Sub.bar Toy.Sub.baz")
+        a = FakeModule(["export Toy.Sub (bar_lemma)", "theorem kept_one : True := trivial"], [(2, 2)])
+        b = FakeModule(["theorem Toy.Sub.bar_lemma : True := trivial"], [(1, 1)])
+        sidecars = {"A": {"kept_one": (2, 2)}, "B": {"Toy.Sub.bar_lemma": (1, 1)}}
+        keep = {"A": {(2, 2)}, "B": set()}
+        self.assertEqual(keep_closure.close({"A": a, "B": b}, sidecars, keep)[0], 1)
+        self.assertEqual(b.kept_blocks(keep["B"]), {(1, 1)})
+
+    def test_glue_in_a_namespace_means_the_namespaced_declaration_even_when_a_root_one_exists(self):
+        a = FakeModule(["namespace Toy", "attribute [simp] foo_lemma", "theorem kept_one : True := trivial", "end Toy"], [(3, 3)])
+        b = FakeModule(["theorem foo_lemma : True := trivial", "theorem Toy.foo_lemma : True := trivial"], [(1, 1), (2, 2)])
+        sidecars = {"A": {"Toy.kept_one": (3, 3)}, "B": {"foo_lemma": (1, 1), "Toy.foo_lemma": (2, 2)}}
+        keep = {"A": {(3, 3)}, "B": set()}
+        keep_closure.close({"A": a, "B": b}, sidecars, keep)
+        self.assertEqual(b.kept_blocks(keep["B"]), {(2, 2)})  # Toy.foo_lemma, not the root one
+
+    def test_a_same_file_failed_field_is_found_even_when_many_declarations_end_in_its_name(self):
+        """CodeRabbit on emissary#35: the capped last-component guess finds nothing above three, and the failed declaration of the file itself went unnoticed."""
+        a = FakeModule(
+            ["theorem Toy.Alg.predictorStep_wide : True := trivial", "theorem kept_one : True := by", "  exact x.predictorStep_wide"],
+            [(1, 1), (2, 3)],
+        )
+        others = [FakeModule(["theorem Other%d.predictorStep_wide : True := trivial" % i], [(1, 1)]) for i in range(4)]
+        modules = {"A": a, **{f"O{i}": m for i, m in enumerate(others)}}
+        sidecars = {"A": {"Toy.Alg.predictorStep_wide": (1, 1), "kept_one": (2, 3)}, **{f"O{i}": {f"Other{i}.predictorStep_wide": (1, 1)} for i in range(4)}}
+        keep = {"A": {(2, 3)}, **{f"O{i}": set() for i in range(4)}}
+        added, unresolved = keep_closure.close(modules, sidecars, keep, failed={"A": {(1, 1)}})
+        self.assertEqual(unresolved, {"A": {"x.predictorStep_wide"}})
+
+    def test_a_binder_and_its_uses_in_a_variable_line_are_no_references(self):
+        """CodeRabbit on emissary#35: `variable {k : ℕ} (h : k = 1)` binds `k` and `h`; the full-line scan sent `k` to the resolver."""
+        self.assertEqual(keep_closure.without_binders("variable {k : ℕ} (h : k = 1) [Foo k]").split(), ["variable", "{", ":", "ℕ}", "(", ":", "=", "1)", "[Foo", "]"])
+        a = FakeModule(["namespace Toy", "variable {k : ℕ} (h : k = 1)", "theorem kept_one : True := trivial", "end Toy"], [(3, 3)])
+        b = FakeModule(["namespace Toy", "def k : Nat := 1", "end Toy"], [(2, 2)])
+        sidecars = {"A": {"Toy.kept_one": (3, 3)}, "B": {"Toy.k": (2, 2)}}
+        added, unresolved = keep_closure.close({"A": a, "B": b}, sidecars, {"A": {(3, 3)}, "B": set()}, failed={"B": {(2, 2)}})
+        self.assertEqual((added, unresolved), (0, {}))
+
+    def test_a_library_declaration_in_the_type_of_a_binder_is_still_a_reference(self):
+        a = FakeModule(["namespace Toy", "variable {x : MyStructure}", "theorem kept_one : True := trivial", "end Toy"], [(3, 3)])
+        b = FakeModule(["namespace Toy", "structure MyStructure where", "  a : Nat", "end Toy"], [(2, 3)])
+        sidecars = {"A": {"Toy.kept_one": (3, 3)}, "B": {"Toy.MyStructure": (2, 3)}}
+        keep = {"A": {(3, 3)}, "B": set()}
+        self.assertEqual(keep_closure.close({"A": a, "B": b}, sidecars, keep)[0], 1)
+
     def test_a_variable_binder_is_no_mention(self):
         """BollobasNikiforov (43 modules, 2026-10-12): `variable {k : ℕ}` binds `k`; a declaration `Ns.k` that failed made it a mention."""
         a = FakeModule(["namespace Toy", "variable {k : ℕ}", "theorem kept_one : True := trivial", "end Toy"], [(3, 3)])

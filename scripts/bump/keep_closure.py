@@ -109,6 +109,9 @@ def block_contexts(module) -> dict[tuple[int, int], tuple[str, tuple[str, ...]]]
     return out
 
 
+EXPORT_CMD = re.compile(r"^export\s+(?P<ns>[\w.']+)\s*\((?P<names>[^)]*)\)")
+
+
 def glue_tail(line: str) -> str:
     """The part of a glue line that REFERS to declarations rather than binding names: after the closing bracket of `attribute [fun_prop] …`, after the `=>` of a notation (`infixl:90 "⨀₂" => mdp₂!`),
     after the `:=` of an `alias`. A `variable (k : ℕ)` binds `k`: it names no declaration, whatever `Ns.k` exists. Empty when there is no such part."""
@@ -119,10 +122,24 @@ def glue_tail(line: str) -> str:
         return code.split("=>", 1)[1]
     if code.startswith("alias") and ":=" in code:
         return code.split(":=", 1)[1]
+    if m := EXPORT_CMD.match(code):  # `export Foo (bar baz)` makes `Foo.bar`, `Foo.baz` visible: they are what the command refers to
+        return " ".join(f"{m.group('ns')}.{x}" for x in m.group("names").split())
     return ""
 
 
-GLUE_SKIP = re.compile(r"^\s*(?:import|namespace|section|end|open|export|universe)\b|^\s*(?:@\[[^\]]*\]\s*)*(?:public\s+|noncomputable\s+|private\s+)*section\b")
+GLUE_SKIP = re.compile(r"^\s*(?:import|namespace|section|end|open|universe)\b|^\s*(?:@\[[^\]]*\]\s*)*(?:public\s+|noncomputable\s+|private\s+)*section\b")
+
+
+BINDER_GROUP = re.compile(r"[\(\{\[⦃]\s*((?:[^\s:()\[\]{}⦃⦄]+\s+)*[^\s:()\[\]{}⦃⦄]+)\s*:")
+
+
+def without_binders(line: str) -> str:
+    """A `variable` line with the names it BINDS blanked: `variable {k : ℕ} (h : k = 1)` binds `k` and `h`; their uses are not references to a declaration `Ns.k` either."""
+    code = line.strip()
+    if not code.startswith(("variable", "local variable")):
+        return line
+    names = {n for m in BINDER_GROUP.finditer(code) for n in m.group(1).split()}
+    return re.sub(r"(?<![\w.'])(?:" + "|".join(map(re.escape, sorted(names, key=len, reverse=True))) + r")(?![\w'])", " ", line) if names else line
 
 
 def glue_units(module) -> list[tuple[str, str, tuple[str, ...]]]:
@@ -217,9 +234,16 @@ def close(
         """(the declarations `tok` can name, whether by its full name as written or as its namespace and `open`s read it). In glue (`infixl:90 "⨀₂" => mdp₂!`, `alias foo := bar'!`) a name
         of any length is read by the namespace it is written in: nothing there is a local variable, and the last-component guess below still needs a distinctive one. A QUALIFIED name
         (`FiniteContext.weakening` inside `namespace LO.Entailment`) is read that way at any length too: lean-pool `HilbertStyle/Context`, 2026-10-12, where `weakening` is one plain word."""
+        last = tok.rsplit(".", 1)[-1]
+        if glue:
+            # glue is read the way Lean reads it: the innermost namespace first, the root last (`foo` inside `namespace Toy` is `Toy.foo` even when a root `foo` exists)
+            ns, opens = context()
+            for level in namespace_candidates(tok, ns, opens):
+                hit = [c for name in level for c in by_full.get(name, ())]
+                if hit:
+                    return hit, True
         cands = list(by_full.get(tok, ()))
         exact = bool(cands)
-        last = tok.rsplit(".", 1)[-1]
         if not cands and (glue or distinctive(last) or "." in tok):
             # the name as the file's own namespace and `open`s read it: `pointsFunctor_map` inside `namespace HopfAlgebra` is `HopfAlgebra.pointsFunctor_map`, however many
             # declarations in the library end in that name (tauceti, 2026-10-11: a name that ends 4 times is out of reach of the last-component guess, and the module that wrote it
@@ -298,6 +322,10 @@ def close(
         nonlocal added
         for tok in set(TOKEN.findall(text)):
             tok = tok.rstrip(".")
+            if field_notation(tok) and tok.rsplit(".", 1)[-1] in bad_last(mod):
+                # field notation on a local naming a declaration of THIS file that failed or has sorry: the tree stops at the same name (lean-pool `GeneratedConvergence`), however many
+                # declarations elsewhere end in it (the capped last-component guess below would find none)
+                unresolved[mod].add(tok)
             cands, exact = resolve(tok, context, glue)
             for m2, b2, r2 in cands:
                 if (m2, b2) in kept:
@@ -306,7 +334,7 @@ def close(
                     # a declaration that failed in the build is never kept. The module that names it by its full name cannot go to the tree; a match by last component alone is a guess
                     # (a local name, a field, another declaration with the same ending): it keeps nothing and does not drop the naming module, unless the declaration is in the naming
                     # module itself and its name is distinctive: field notation on a type declared in the same file (`x.predictorStep_wide`), lean-pool `GeneratedConvergence`, 2026-10-12
-                    if exact or (m2 == mod and field_notation(tok)):
+                    if exact:
                         unresolved[mod].add(tok)
                     continue
                 if SORRY.search("\n".join(modules[m2].lines[b2[0] - 1 : b2[1]])):
@@ -329,9 +357,10 @@ def close(
             glue_read.add(mod)
             for line, ns, opens in glue_units(modules[mod]):
                 ctx = lambda ns=ns, opens=opens: (ns, opens)  # noqa: E731
-                visit(mod, line, ctx)
                 if tail := glue_tail(line):
-                    visit(mod, tail, ctx, glue=True)
+                    visit(mod, tail, ctx, glue=True)  # only what the command refers to; the rest of the line is attribute names, notation binders, keywords
+                else:
+                    visit(mod, without_binders(line), ctx)
 
         visit(mod, "\n".join(modules[mod].lines[blk[0] - 1 : blk[1]]), block_context_of(mod, blk))
     return added, unresolved

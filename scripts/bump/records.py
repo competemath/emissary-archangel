@@ -99,6 +99,11 @@ CODE_ATTR = re.compile(r"@\[[^\]]*\b(?:tactic|command_elab|term_elab|macro|elab|
 IMPORT_LINE = re.compile(r"^\s*(?:(?:public|private|meta)\s+)*import\s")
 KEYWORD_LINE = re.compile(r"^\s*(?:module|prelude)\s*$")
 IN_PREFIX = re.compile(r"^\s*(?:open|set_option|attribute|local|universe|variable|namespace|section|include|omit)\b.*\bin\s*$")
+def strip_comments(text: str) -> str:
+    """`text` without `--` line comments and `/- … -/` block comments (docstrings included): enough to tell a line of modifiers from one that is followed by a note."""
+    return re.sub(r"--[^\n]*", "", re.sub(r"/-.*?-/", "", text, flags=re.S))
+
+
 MODIFIER_ONLY = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s*)+$")  # a line of modifiers and nothing else: the declaration keyword is on the next line
 DECL_LINE = re.compile(r"^(?:(?:private|protected|noncomputable|unsafe|partial|nonrec|public|meta)\s+)*(?:theorem|lemma|def|abbrev|instance|structure|class|inductive|opaque|axiom|example)\b")
 # `example` is a block like any declaration (it has no name and no range, so it is always cut): it used to be glue, stayed in every module, and broke the tree's build when it needed what the pruning left out
@@ -200,7 +205,7 @@ class Module:
                 IN_PREFIX.match(first)
                 or first.startswith("/--")
                 or (first.startswith("@[") and attrs_only("\n".join(self.lines[s - 1 : e])))
-                or MODIFIER_ONLY.match("\n".join(self.lines[s - 1 : e]).strip())
+                or MODIFIER_ONLY.match(strip_comments("\n".join(self.lines[s - 1 : e])).strip())
             ):
                 # a docstring, attributes of their own (on one line or several), modifiers on a line of their own (`public` / `theorem …`: lean-pool, 2026-10-12) or an `… in` line: they
                 # belong to the declaration below
@@ -317,19 +322,39 @@ class Module:
         )
 
 
-CODEGEN_KEYWORD = re.compile(r"^(\s*(?:@\[[^\]]*\]\s*)*(?:(?:private|protected|public|meta|unsafe|partial|nonrec)\s+)*)(def|instance|abbrev|opaque)\b")
+PREFIX_IN = re.compile(r"(?:open|set_option|attribute|local|universe|variable|namespace|section|include|omit)\b[^\n]*\bin[ \t]*(?:\n|$)")
+CODEGEN_MODS = re.compile(r"(?:private|protected|public|meta|unsafe|partial|nonrec)\s+")
+CODEGEN_DEF = re.compile(r"(?:def|instance|abbrev|opaque)\b")
 
 
 def add_noncomputable(block: list[str]) -> list[str]:
     """The block with `noncomputable` before the keyword of its definition: Lean's own advice for 'failed to compile definition, consider marking it as noncomputable' (it depends on something
     noncomputable; the term is fine, only the code generator refuses). The tree compiles the text again and would stop at the same line (lean-pool `GrothendieckVanishing/CohomologyAPI`,
-    2026-10-12). Unchanged when the block already says it, or has no definition keyword."""
-    for i, ln in enumerate(block):
-        if re.match(r"^\s*(?:@\[[^\]]*\]\s*)*(?:\w+\s+)*noncomputable\b", ln):
+    2026-10-12). The keyword is found outside comments and strings, past docstrings, `… in` prefixes, modifiers and attributes over several lines (`@[a,\n b] def f`, `(since := …)] def f`).
+    Unchanged when the block already says it, or has no definition keyword."""
+    from adapters import code_mask
+
+    text = "\n".join(block)
+    code = "".join(c if k or c == "\n" else " " for c, k in zip(text, code_mask(text)))
+    i, n = 0, len(code)
+    while i < n:
+        if code[i].isspace():
+            i += 1
+        elif code.startswith("@[", i):
+            end = attrs_end(code[i:])
+            if end <= 0:
+                return block
+            i += end
+        elif m := PREFIX_IN.match(code, i):
+            i = m.end()
+        elif m := CODEGEN_MODS.match(code, i):
+            i = m.end()
+        elif code.startswith("noncomputable", i):
             return block
-        m = CODEGEN_KEYWORD.match(ln)
-        if m:
-            return block[:i] + [m.group(1) + "noncomputable " + ln[m.end(1) :]] + block[i + 1 :]
+        elif CODEGEN_DEF.match(code, i):
+            return (text[:i] + "noncomputable " + text[i:]).split("\n")
+        else:
+            return block
     return block
 
 
@@ -357,8 +382,8 @@ def decl_core(lines: list[str], s: int, e: int) -> str:
                     break
                 j += 1
             i = j + 1
-        elif not ln or IN_PREFIX.match(ln) or ln.startswith("--"):
-            i += 1
+        elif not ln or IN_PREFIX.match(ln) or ln.startswith("--") or MODIFIER_ONLY.match(ln.strip()):
+            i += 1  # (a modifier on a line of its own, `public` / `theorem …`, is part of the lead-in: the keyword line is the next one)
         elif ln.startswith("/--") or ln.startswith("/-!"):
             while i < e and "-/" not in lines[i]:
                 i += 1
