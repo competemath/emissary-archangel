@@ -109,6 +109,67 @@ class PartialBuilds(unittest.TestCase):
         self.assertLessEqual(build + axioms + 25, JOBS["verify"]["timeout-minutes"])  # 25 minutes for the seed, the copy, the verdict and the upload
 
 
+class ArtifactLayout(unittest.TestCase):
+    """The first live run (2026-10-12): the artifact held `out/summary.txt` next to `tree-sha.txt`, so its root was the workspace and every path had `out/` in front; the glob in `finish`
+    matched nothing and the list of refused modules was empty. Only the byte-for-byte check kept the bundle from shipping."""
+
+    def test_every_file_of_the_verdict_artifact_is_under_out_so_that_out_is_its_root(self):
+        up = next(s for s in JOBS["verify"]["steps"] if "upload-artifact" in str(s.get("uses", "")))["with"]["path"]
+        paths = [p.strip() for p in up.splitlines() if p.strip()]
+        self.assertTrue(paths)
+        self.assertTrue(all(p.startswith("out/") for p in paths), paths)
+        self.assertTrue(all(p.rsplit("/", 1)[0] == "out" for p in paths), "one directory deep: the artifact's root is out/")
+
+    def run_step(self, modes: str, layout: dict[str, str]):
+        import subprocess
+        import tempfile
+
+        d = Path(tempfile.mkdtemp())
+        (d / "draft").mkdir()
+        (d / "draft" / "tree-names.txt").write_text("")
+        (d / "draft" / "tree-decls.txt").write_text("")
+        for rel, text in layout.items():
+            (d / rel).parent.mkdir(parents=True, exist_ok=True)
+            (d / rel).write_text(text)
+        r = subprocess.run(["bash", "-e", "-o", "pipefail", "-c", step("finish", "What the tree refused")["run"]], cwd=d, env={"PATH": __import__("os").environ["PATH"], "KEY": "lib", "MODES": modes}, capture_output=True, text=True)
+        return r, d
+
+    GOOD = {f"treeverify/treeverify-lib-proposed/{f}": "" for f in ("ok.json", "new.json", "summary.txt")}
+
+    def test_a_complete_verdict_is_read(self):
+        r, d = self.run_step('["proposed"]', {**self.GOOD, "treeverify/treeverify-lib-proposed/failing.txt": "B.C\nA.X\n"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((d / "tree-failures.txt").read_text(), "A.X\nB.C\n")
+
+    def test_the_refusals_of_two_modes_are_joined_without_repeats(self):
+        layout = {f"treeverify/treeverify-lib-{m}/{f}": "" for m in ("proposed", "wide") for f in ("ok.json", "new.json", "summary.txt")}
+        layout["treeverify/treeverify-lib-proposed/failing.txt"] = "A.X\n"
+        layout["treeverify/treeverify-lib-wide/failing.txt"] = "A.X\nW.Y\n"
+        r, d = self.run_step('["proposed", "wide"]', layout)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((d / "tree-failures.txt").read_text(), "A.X\nW.Y\n")
+
+    def test_a_verdict_with_the_old_out_prefix_is_not_an_empty_list(self):
+        r, _ = self.run_step('["proposed"]', {f"treeverify/treeverify-lib-proposed/out/{f}": "" for f in ("failing.txt", "ok.json", "new.json", "summary.txt")})
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("incomplete", r.stdout + r.stderr)
+
+    def test_a_mode_whose_artifact_is_missing_stops_the_run(self):
+        r, _ = self.run_step('["proposed"]', {})
+        self.assertNotEqual(r.returncode, 0)
+
+    def test_a_verdict_missing_one_file_stops_the_run(self):
+        layout = {**self.GOOD, "treeverify/treeverify-lib-proposed/failing.txt": ""}
+        del layout["treeverify/treeverify-lib-proposed/ok.json"]
+        r, _ = self.run_step('["proposed"]', layout)
+        self.assertNotEqual(r.returncode, 0)
+
+    def test_no_mode_to_verify_is_an_empty_list_and_no_error(self):
+        r, d = self.run_step("[]", {})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((d / "tree-failures.txt").read_text(), "")
+
+
 class TheQueuesAxiomCheckToo(unittest.TestCase):
     def names(self) -> list[str]:
         return [s.get("name", "") for s in JOBS["verify"]["steps"]]
@@ -181,7 +242,8 @@ class NothingIsPackedBeforeTheCheck(unittest.TestCase):
         self.assertIn("--tree-failures ../tree-failures.txt", compose_command("finish"))
         text = step("finish", "byte for byte")["run"]
         self.assertIn("tree_verify.py check", text)
-        self.assertIn("treeverify/*/", text)  # every mode that was built, not a fixed one
+        self.assertIn('for mode in $(python3 -c', text)  # every mode that was to be verified (compose's list), not whatever directories happen to be there
+        self.assertEqual(step("finish", "byte for byte")["env"]["MODES"], "${{ needs.compose.outputs.modes }}")
         self.assertIn("sort -u -o tree-failures.txt", step("finish", "What the tree refused")["run"])
 
     def test_the_draft_of_a_mode_is_the_bundle_of_that_mode(self):

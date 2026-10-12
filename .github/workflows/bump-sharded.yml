@@ -187,7 +187,8 @@ jobs:
         env: { GH_TOKEN: "${{ github.token }}", TENGOKU_VERIFY: require, TENGOKU_TOPUPS: "1" }
         run: |
           git clone -q --filter=blob:none https://github.com/competemath/tengoku tree
-          echo "tree: $(git -C tree rev-parse HEAD)" | tee tree-sha.txt
+          mkdir -p out
+          echo "tree: $(git -C tree rev-parse HEAD)" | tee out/tree-sha.txt
           cd tree && scripts/cache.sh get 2>&1 | tail -3
       - name: Copy the new modules into the tree
         run: python3 emissary/scripts/bump/tree_verify.py apply --bundle bundle --tree tree --out out
@@ -236,7 +237,7 @@ jobs:
             out/summary.txt
             out/axioms.txt
             out/build.log.gz
-            tree-sha.txt
+            out/tree-sha.txt
           retention-days: 14
           if-no-files-found: ignore
   # finish: cuts the bundle again from the same shards and the same tree names, drops what the tree refused (and what imports it), proves that every module that ships is
@@ -261,11 +262,20 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         if: ${{ needs.verify.result == 'success' }}
         with: { pattern: "treeverify-${{ inputs.key }}-*", path: treeverify }
+      # the verdict of every mode that was to be verified, or the run stops: an artifact that lacks its files must never read as "the tree refused nothing" (the first live run of this
+      # job, 2026-10-12, found `out/` in front of every path: the list came out empty and only the check below kept the bundle from shipping)
       - name: What the tree refused (the library modules, from every verified mode)
+        env: { MODES: "${{ needs.compose.outputs.modes }}" }
         run: |
           cp draft/tree-names.txt draft/tree-decls.txt .
           : > tree-failures.txt
-          for f in treeverify/*/failing.txt; do [ -f "$f" ] && cat "$f" >> tree-failures.txt; done
+          for mode in $(python3 -c 'import json, os; print(" ".join(json.loads(os.environ["MODES"])))'); do
+            dir="treeverify/treeverify-$KEY-$mode"
+            for f in failing.txt ok.json new.json summary.txt; do
+              [ -f "$dir/$f" ] || { echo "::error::the tree's verdict for mode $mode is incomplete: $dir/$f is missing"; exit 1; }
+            done
+            cat "$dir/failing.txt" >> tree-failures.txt
+          done
           sort -u -o tree-failures.txt tree-failures.txt
           echo "the tree refused $(wc -l < tree-failures.txt) module(s)"
       - name: Merge the shards and cut the bundle
@@ -282,10 +292,10 @@ jobs:
         run: python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --leaks "$SCOPE"
       # What ships is what the tree built: every new module of the final bundle, in every verified mode, has the bytes the tree's build accepted.
       - name: Every module that ships was built in the tree, byte for byte
+        env: { MODES: "${{ needs.compose.outputs.modes }}" }
         run: |
-          for dir in treeverify/*/; do
-            [ -d "$dir" ] || continue
-            mode=$(basename "$dir"); mode=${mode#"treeverify-$KEY-"}
+          for mode in $(python3 -c 'import json, os; print(" ".join(json.loads(os.environ["MODES"])))'); do
+            dir="treeverify/treeverify-$KEY-$mode"
             d=bundle; [ "$mode" != strict ] && d="bundle-$mode"
             echo "== $mode"; cat "$dir/summary.txt"
             python3 emissary/scripts/bump/tree_verify.py check --bundle "$d" --new "$dir/new.json" --ok "$dir/ok.json"
