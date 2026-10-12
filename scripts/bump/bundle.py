@@ -277,7 +277,9 @@ def compose(a: argparse.Namespace) -> None:
             blk = modules[mod].block_of(names_[name][0]) if mod in modules else None
             if blk:
                 failed_blocks.setdefault(mod, set()).add(blk)
-    textually_kept, unresolved = keep_closure.close(modules, sidecars, keep_blocks, skip=set(base_dropped), failed=failed_blocks, aux_only=aux_only, failed_seeds=failed_seeds, fatal=fatal_blocks)
+    graph, tainted = keep_closure.parse_graph(log)  # what the terms of the declarations that are not kept use (BundleKeep.lean's BUNDLE_GRAPH): None for a shard run from before it existed
+    graph_stats: dict = {}
+    textually_kept, unresolved = keep_closure.close(modules, sidecars, keep_blocks, skip=set(base_dropped), failed=failed_blocks, aux_only=aux_only, failed_seeds=failed_seeds, fatal=fatal_blocks, graph=graph, tainted=tainted, stats=graph_stats)
     for mod, names_ in unresolved.items():
         base_dropped.setdefault(mod, "names a declaration with sorry that the pruning leaves out: " + ", ".join(sorted(names_)[:3]))
     sys.setrecursionlimit(100000)
@@ -443,7 +445,7 @@ def compose(a: argparse.Namespace) -> None:
             json.dumps({"library": a.key, "lint_mode": mode, "verified": total, "shipped": len(manifest), "left_out": dict(left_out), "modules": dict(sorted(ledger.items()))}, indent=1)
         )
         report = {"library": a.key, "lint_mode": mode, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]), "dropped_truncated": len(dropped) > 50,
-                  "theorems": len(manifest), "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "textually_kept": textually_kept, "failed_seeds_shipped": [f"{m}:{b[0]}" for m, b in failed_seeds[:50]], "failed_seeds_shipped_total": len(failed_seeds), "stripped_attributes": dict(stripped_attrs.most_common(15)),
+                  "theorems": len(manifest), "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "textually_kept": textually_kept, "dependency_graph": graph_stats if graph is not None else None, "failed_seeds_shipped": [f"{m}:{b[0]}" for m, b in failed_seeds[:50]], "failed_seeds_shipped_total": len(failed_seeds), "stripped_attributes": dict(stripped_attrs.most_common(15)),
                   "lint_cost": dict(sorted(classes.items(), key=lambda x: -x[1])[:15])}
         (out_dir / "report.json").write_text(json.dumps(report, indent=1))
         summary[mode] = {k: v for k, v in report.items() if k not in ("dropped", "lint_cost", "left_out")}
