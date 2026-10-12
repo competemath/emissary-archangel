@@ -94,6 +94,40 @@ class Privileges(unittest.TestCase):
         self.assertLessEqual(JOBS["verify"]["timeout-minutes"], 360)  # what a hosted runner allows
 
 
+class TheQueuesAxiomCheckToo(unittest.TestCase):
+    def names(self) -> list[str]:
+        return [s.get("name", "") for s in JOBS["verify"]["steps"]]
+
+    def test_the_axiom_check_runs_between_the_build_and_the_final_verdict(self):
+        n = self.names()
+        build = next(i for i, x in enumerate(n) if x.startswith("Build them"))
+        first = next(i for i, x in enumerate(n) if x.startswith("What the build accepted"))
+        axioms = next(i for i, x in enumerate(n) if x.startswith("The axiom check"))
+        last = next(i for i, x in enumerate(n) if x.startswith("What the tree accepted"))
+        self.assertTrue(build < first < axioms < last)
+
+    def test_it_checks_exactly_what_built_and_the_verdict_reads_its_output(self):
+        run = step("verify", "The axiom check")["run"]
+        self.assertIn("lake env lean --run ../emissary/scripts/bump/ModuleAxioms.lean ../out/built.txt", run)
+        self.assertIn("tee ../out/axioms.txt", run)
+        self.assertIn("timeout -k 60 90m", run)
+        self.assertIn("--axioms out/axioms.txt", step("verify", "What the tree accepted")["run"])
+        self.assertNotIn("--axioms", step("verify", "What the build accepted")["run"])
+
+    def test_the_axiom_check_has_no_token_either(self):
+        self.assertNotIn("env", step("verify", "The axiom check"))
+
+    def test_its_output_travels_to_the_artifact(self):
+        up = next(s for s in JOBS["verify"]["steps"] if "upload-artifact" in str(s.get("uses", "")))["with"]["path"]
+        self.assertIn("out/axioms.txt", up)
+
+    def test_the_program_prints_what_the_python_side_reads(self):
+        lean = (PATH.parents[2] / "scripts" / "bump" / "ModuleAxioms.lean").read_text()
+        self.assertIn('IO.println s!"AXIOM\\t{m}\\t{n}\\t', lean)
+        self.assertIn('axioms: {checked} declarations checked, {bad} with non-standard axioms', lean)
+        self.assertIn("[``propext, ``Classical.choice, ``Quot.sound]", lean)  # the same allowed list as the tree's TengokuAxioms.lean
+
+
 class SameBundle(unittest.TestCase):
     def test_the_draft_and_the_final_bundle_are_cut_by_the_same_command(self):
         draft, final = compose_command("compose"), compose_command("finish")

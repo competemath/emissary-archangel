@@ -8,8 +8,12 @@ own command (`lake build Tengoku.<Ns>.<module> …`) on a checkout seeded from t
 --tree-failures`, and `check` then proves that every module that ships is byte for byte a module that was built there.
 
   tree_verify.py apply   --bundle DIR --tree CHECKOUT --out OUT   copy the bundle's new modules into the checkout, write OUT/targets.txt (what to build) and OUT/new.json
-  tree_verify.py collect --new OUT/new.json --log build.log --out OUT   read the build: OUT/failing.txt (library modules), OUT/ok.json (module -> sha256), OUT/summary.txt
+  tree_verify.py collect --new OUT/new.json --log build.log --out OUT [--axioms axioms.txt]   read the build (and the axiom check of what built): OUT/failing.txt (library modules),
+                                                                          OUT/ok.json (module -> sha256), OUT/built.txt (the modules to run ModuleAxioms.lean on), OUT/summary.txt
   tree_verify.py check   --bundle DIR --new OUT/new.json --ok OUT/ok.json   exit 1 unless every new module of the final bundle was built there with the same bytes
+
+The queue also checks the axioms of every declaration of the modules it built (scripts/bump/ModuleAxioms.lean is that check with the module of each offender in its
+output): a module with a declaration on an axiom other than propext, Classical.choice, Quot.sound is refused like one that does not compile. Gate 2 only checks theorems.
 
 `apply` and `check` take the bundle as `compose` wrote it (DIR/Tengoku/<Ns>.lean, DIR/Tengoku/<Ns>/**.lean). "New" is what the tree's umbrella `Tengoku/<Ns>.lean` does not import
 (bundle_layers.tree_modules): the modules the parts will carry. The build runs no token and the job that runs it signs nothing: the library's own code is compiled there.
@@ -32,6 +36,8 @@ ERROR = re.compile(r"^(?:\S+\s+)?error: (?P<path>Tengoku/[^/\s]+/\S+?\.lean):\d+
 SORRY = re.compile(r"^(?:\S+\s+)?warning: (?P<path>Tengoku/[^/\s]+/\S+?\.lean):\d+:\d+: declaration uses .sorry.", re.M)
 BUILT = re.compile(r"Built (?P<mod>Tengoku\.\S+)(?: \(|\s*$)", re.M)
 FAILED_TARGET = re.compile(r"^(?:\S+\s+)?- (?P<mod>Tengoku\.\S+)\s*$", re.M)
+AXIOM_LINE = re.compile(r"^AXIOM\t(?P<mod>[^\t\n]+)\t(?P<decl>[^\t\n]+)\t(?P<axioms>[^\n]*)$", re.M)
+AXIOM_DONE = re.compile(r"^axioms: (?P<checked>\d+) declarations checked, (?P<bad>\d+) with non-standard axioms$", re.M)
 FINISHED = re.compile(r"Build completed successfully|Some required targets logged failures|error: build failed")
 
 
@@ -68,6 +74,29 @@ def failures_from_log(log: str, ns: str) -> set[str]:
     return out
 
 
+def plain(module: str) -> str:
+    """`Tengoku.Lib.«A-B»` -> `Tengoku.Lib.A-B`: how ModuleAxioms.lean reads its list, and the spelling the two sides are compared in (Lean may quote more than we do)."""
+    return module.replace("«", "").replace("»", "")
+
+
+def axiom_offenders(text: str, mods: set[str]) -> dict[str, list[str]]:
+    """module -> ["declaration [axioms]", …] of the modules in `mods` that the axiom check reported. A run with no `axioms:` line did not finish; one whose count does not match
+    its lines was cut short: both are refused, because a module that was never checked must not pass as clean."""
+    done = AXIOM_DONE.search(text)
+    if done is None:
+        sys.exit("the axiom check has no ending (it crashed or was killed): nothing is known about the axioms; refusing to guess")
+    lines = list(AXIOM_LINE.finditer(text))
+    if int(done.group("bad")) != len(lines):
+        sys.exit(f"the axiom check says {done.group('bad')} offender(s) and lists {len(lines)}: its output is incomplete; refusing to guess")
+    by_plain = {plain(m): m for m in mods}
+    out: dict[str, list[str]] = {}
+    for ln in lines:
+        mod = by_plain.get(plain(ln.group("mod")))
+        if mod is not None:
+            out.setdefault(mod, []).append(f"{ln.group('decl')} [{ln.group('axioms')}]")
+    return out
+
+
 def library_module(module: str, ns: str) -> str:
     """`Tengoku.LeanPool.LeanPool.Foo` -> `LeanPool.Foo`: the library's own name, which `compose --tree-failures` takes."""
     return module.removeprefix(f"Tengoku.{ns}.")
@@ -101,6 +130,8 @@ def cmd_collect(a: argparse.Namespace) -> None:
         sys.exit("the build log has no ending (the build was killed or timed out): nothing is known about the modules; refusing to guess")
     failing = failures_from_log(log, ns) & set(mods)
     built = {m.group("mod") for m in BUILT.finditer(log)} & set(mods)
+    offenders = axiom_offenders(Path(a.axioms).read_text(errors="replace"), set(mods)) if a.axioms else {}
+    failing |= set(offenders)
     graph: dict[str, list[str]] = {}
     if a.bundle:
         bfiles = bl.read_bundle(Path(a.bundle))
@@ -112,10 +143,13 @@ def cmd_collect(a: argparse.Namespace) -> None:
     ok = {m: mods[m]["sha256"] for m in mods if m not in failing and m not in cascade}
     (out / "failing.txt").write_text("".join(library_module(m, ns) + "\n" for m in sorted(failing)))
     (out / "ok.json").write_text(json.dumps(ok, indent=1) + "\n")
+    (out / "built.txt").write_text("".join(plain(m) + "\n" for m in sorted(ok)))
     summary = (
-        f"{len(mods)} new module(s): {len(ok)} built in the tree, {len(failing)} refused ({len(unaccounted)} of them not reached), "
+        f"{len(mods)} new module(s): {len(ok)} built in the tree, {len(failing)} refused ({len(unaccounted)} of them not reached, {len(offenders)} on an axiom), "
         f"{len(cascade - failing)} more import a refused one and go with it"
     )
+    for m in sorted(offenders)[:10]:
+        summary += f"\n  axiom: {library_module(m, ns)}: {offenders[m][0]}" + (f" (+{len(offenders[m]) - 1} more)" if len(offenders[m]) > 1 else "")
     (out / "summary.txt").write_text(summary + "\n")
     print(summary)
 
@@ -152,6 +186,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--log", required=True)
     p.add_argument("--out", required=True)
     p.add_argument("--bundle", default="", help="the bundle the modules came from: its import graph says which modules go with a refused one")
+    p.add_argument("--axioms", default="", help="the output of ModuleAxioms.lean on out/built.txt: a module with a declaration on a non-standard axiom is refused")
     p.set_defaults(fn=cmd_collect)
     p = sub.add_parser("check")
     p.add_argument("--bundle", required=True)

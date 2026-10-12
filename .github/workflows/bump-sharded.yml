@@ -202,9 +202,21 @@ jobs:
           # shellcheck disable=SC2086  # targets is a space-separated module list
           timeout -k 60 330m lake build $targets 2>&1 | tee ../out/build.log
           echo "lake exit status: ${PIPESTATUS[0]}"
+      - name: What the build accepted
+        run: python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle
+      # The queue's second step: the axioms of every declaration of what it built (Gate 2 checks theorems only: an instance made by `deriving Repr` on a Finset product
+      # rests on `lcProof`, and lean-pool part 10, which compiled, was rejected on it). ModuleAxioms.lean is that check with the module of each offender in its output.
+      - name: The axiom check of the queue, on every module that built
+        run: |
+          if [ -s out/built.txt ]; then
+            cd tree
+            timeout -k 60 90m lake env lean --run ../emissary/scripts/bump/ModuleAxioms.lean ../out/built.txt 2>&1 | tee ../out/axioms.txt
+          else
+            echo "axioms: 0 declarations checked, 0 with non-standard axioms" > out/axioms.txt
+          fi
       - name: What the tree accepted
         run: |
-          python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle
+          python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle --axioms out/axioms.txt
           { echo "### Tree build ($KEY, $MODE)"; cat out/summary.txt; } >> "$GITHUB_STEP_SUMMARY"
       - name: Keep the log
         if: ${{ always() }}
@@ -218,6 +230,7 @@ jobs:
             out/ok.json
             out/failing.txt
             out/summary.txt
+            out/axioms.txt
             out/build.log.gz
             tree-sha.txt
           retention-days: 14

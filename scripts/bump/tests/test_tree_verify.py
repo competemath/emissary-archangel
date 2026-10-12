@@ -120,6 +120,79 @@ class Collect(Fixture):
         self.assertEqual(tv.library_module("Tengoku.LeanPool.LeanPool.Foo.Bar", "LeanPool"), "LeanPool.Foo.Bar")
 
 
+AXIOMS_CLEAN = "axioms: 41 declarations checked, 0 with non-standard axioms\n"
+AXIOMS_ONE_BAD = "AXIOM\tTengoku.ToyLib.Toy.B\tToy.instReprSequent\tlcProof\naxioms: 41 declarations checked, 1 with non-standard axioms\n"
+
+
+class Axioms(Fixture):
+    """The queue's axiom check, on the modules that built (2026-10-12: lean-pool part 10 compiled and was rejected on `PDL.instReprSequent depends on [lcProof]`)."""
+
+    def collect_with(self, log: str, axioms: str):
+        (self.d / "axioms.txt").write_text(axioms)
+        (self.d / "build.log").write_text(log)
+        tv.main(["collect", "--new", str(self.out / "new.json"), "--log", str(self.d / "build.log"), "--out", str(self.out), "--bundle", str(self.bundle), "--axioms", str(self.d / "axioms.txt")])
+
+    BUILT_ALL = "".join(f"✔ [{i}/9] Built Tengoku.ToyLib.Toy.{m} (1s)\n" for i, m in enumerate("BCD")) + "Build completed successfully.\n"
+
+    def test_the_modules_to_check_are_the_ones_that_built_without_guillemets(self):
+        self.apply()
+        self.collect(LOG_C_FAILS)
+        self.assertEqual((self.out / "built.txt").read_text().split(), ["Tengoku.ToyLib.Toy.B"])
+
+    def test_a_module_with_a_dash_in_its_name_is_listed_without_guillemets_and_matched_with_or_without(self):
+        write(self.bundle, {"Tengoku/ToyLib/Toy/A-B.lean": "theorem ab : 5 = 5 := rfl\n", "Tengoku/ToyLib.lean": UMBRELLA + "import Tengoku.ToyLib.Toy.«A-B»\n"})
+        self.apply()
+        self.collect("✔ [1/9] Built Tengoku.ToyLib.Toy.«A-B» (1s)\nBuild completed successfully.\n")
+        self.assertIn("Tengoku.ToyLib.Toy.A-B", (self.out / "built.txt").read_text().split())  # what `String.toName` splits on dots: no « » in the file
+        self.assertNotIn("«", (self.out / "built.txt").read_text())
+        (self.d / "axioms.txt").write_text("AXIOM\tTengoku.ToyLib.Toy.A-B\td\tlcProof\naxioms: 3 declarations checked, 1 with non-standard axioms\n")
+        tv.main(["collect", "--new", str(self.out / "new.json"), "--log", str(self.d / "build.log"), "--out", str(self.out), "--axioms", str(self.d / "axioms.txt")])
+        self.assertIn("Toy.«A-B»", (self.out / "failing.txt").read_text().split())
+
+    def test_a_module_with_a_declaration_on_an_axiom_is_refused_with_its_importers(self):
+        self.apply()
+        self.collect_with(self.BUILT_ALL, AXIOMS_ONE_BAD)  # B built, and has an offender: D does not import B, C neither: only B goes
+        self.assertEqual((self.out / "failing.txt").read_text().split(), ["Toy.B"])
+        self.assertEqual(sorted(json.loads((self.out / "ok.json").read_text())), ["Tengoku.ToyLib.Toy.C", "Tengoku.ToyLib.Toy.D"])
+        self.assertIn("1 on an axiom", (self.out / "summary.txt").read_text())
+        self.assertIn("Toy.B: Toy.instReprSequent [lcProof]", (self.out / "summary.txt").read_text())
+
+    def test_what_imports_an_offender_goes_with_it(self):
+        self.apply()
+        bad_c = AXIOMS_ONE_BAD.replace("Toy.B", "Toy.C")
+        self.collect_with(self.BUILT_ALL, bad_c)  # D imports C
+        self.assertEqual((self.out / "failing.txt").read_text().split(), ["Toy.C"])
+        self.assertEqual(sorted(json.loads((self.out / "ok.json").read_text())), ["Tengoku.ToyLib.Toy.B"])
+
+    def test_a_clean_check_changes_nothing(self):
+        self.apply()
+        self.collect_with(self.BUILT_ALL, AXIOMS_CLEAN)
+        self.assertEqual((self.out / "failing.txt").read_text(), "")
+
+    def test_guillemets_are_compared_without_them(self):
+        self.assertEqual(tv.plain("Tengoku.L.«A-B».C"), "Tengoku.L.A-B.C")
+        got = tv.axiom_offenders("AXIOM\tTengoku.L.A-B\td\tlcProof\naxioms: 1 declarations checked, 1 with non-standard axioms\n", {"Tengoku.L.«A-B»"})
+        self.assertEqual(got, {"Tengoku.L.«A-B»": ["d [lcProof]"]})
+
+    def test_an_offender_outside_the_new_modules_is_not_ours(self):
+        got = tv.axiom_offenders("AXIOM\tTengoku.Other.X\td\tlcProof\naxioms: 5 declarations checked, 1 with non-standard axioms\n", {"Tengoku.ToyLib.Toy.B"})
+        self.assertEqual(got, {})
+
+    def test_a_check_that_never_finished_is_refused(self):
+        with self.assertRaises(SystemExit) as r:
+            tv.axiom_offenders("AXIOM\tTengoku.ToyLib.Toy.B\td\tlcProof\n", {"Tengoku.ToyLib.Toy.B"})
+        self.assertIn("no ending", str(r.exception.code))
+
+    def test_a_check_whose_output_is_cut_short_is_refused(self):
+        with self.assertRaises(SystemExit) as r:
+            tv.axiom_offenders("axioms: 9 declarations checked, 2 with non-standard axioms\n", {"Tengoku.ToyLib.Toy.B"})
+        self.assertIn("incomplete", str(r.exception.code))
+
+    def test_several_offenders_in_one_module_are_one_refusal(self):
+        text = "AXIOM\tM.A\tx\tlcProof\nAXIOM\tM.A\ty\tLean.ofReduceBool\naxioms: 3 declarations checked, 2 with non-standard axioms\n"
+        self.assertEqual(tv.axiom_offenders(text, {"M.A"}), {"M.A": ["x [lcProof]", "y [Lean.ofReduceBool]"]})
+
+
 class Check(Fixture):
     def verified(self):
         self.apply()
