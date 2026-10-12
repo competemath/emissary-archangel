@@ -17,6 +17,8 @@ on:
       scope: { description: "RECUT: the `leak:` lines of the merge queue's leak report (separated by `;`): those registrations are made local (scripts/bump/scope_rewrite.py)", default: "" }
       tengoku_ref: { description: "a branch of competemath/tengoku to read the library's tentative records from (default main), for records whose PR is not merged yet", default: "" }
       parts: { description: "PARTS: cut each bundle into parts of at most this many modules (scripts/bump/bundle_layers.py), each attested as bundle-<key>-<mode>-part-NNN.tar, for a library too big for one intake PR (the queue builds ~3 s a module in 40 minutes: 300). 0 = no parts", default: "0" }
+      verify: { description: "build the bundle in the TREE's own environment (the merge queue's own build, on a checkout seeded from the tree's cache) before it is cut into parts: the modules the tree refuses are dropped with their importers, and what ships is proven byte for byte what was built there. `false` skips it", default: "true" }
+      verify_modes: { description: "the bundle modes that are built in the tree (comma list of strict, proposed, wide): the intake opener ships `proposed`; a mode that is not built ships as the factory cut it", default: "proposed" }
       from_tree: { description: "PARTS, on a recut after some parts merged: cut only the modules the tree does not have yet (the library's Tengoku/<Ns>.lean on tengoku main), numbered from the next part, so the new parts extend what merged (scripts/bump/bundle_layers.py --tree-umbrella)", default: "" }
 permissions: {}
 defaults:
@@ -92,14 +94,17 @@ jobs:
       shard: ${{ matrix.shard }}
       tengoku_ref: ${{ inputs.tengoku_ref }}
     permissions: { contents: read }
-  finish:
+  # compose: the DRAFT. Merges the shards and cuts the bundle exactly as `finish` will, and hands the draft to `verify` (the tree's own build of it). Nothing is signed here
+  # and no code of the library runs: the shards' artifacts are read as data (shard_pack.merge refuses symlinks and `..`).
+  compose:
     needs: [plan, shard]
     if: ${{ !cancelled() && (inputs.recut_from != '' || needs.plan.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    # holds the signing identity, runs no code of the library: the shards' artifacts are read as data (shard_pack.merge refuses symlinks and `..`)
-    permissions: { contents: read, id-token: write, attestations: write, actions: read }  # actions: read = the shard artifacts of an earlier run (recut)
-    env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}", SCOPE: "${{ inputs.scope }}", PARTS: "${{ inputs.parts }}", FROM_TREE: "${{ inputs.from_tree }}" }
+    permissions: { contents: read, actions: read }  # actions: read = the shard artifacts of an earlier run (recut)
+    env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}", SCOPE: "${{ inputs.scope }}", VERIFY: "${{ inputs.verify }}", VERIFY_MODES: "${{ inputs.verify_modes }}" }
+    outputs:
+      modes: ${{ steps.draft.outputs.modes }}
     steps:
       - name: This repository (scripts, the library's setup)
         run: |
@@ -126,6 +131,148 @@ jobs:
       - name: Make the registrations that leak into other libraries local (RECUT only)
         if: ${{ inputs.scope != '' }}
         run: python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --leaks "$SCOPE"
+      # The draft of every mode that is to be verified, as a tar. `verify` builds each in the tree; `finish` cuts the same bundle again from the same shards and the same
+      # tree names (they travel with the draft), drops what the tree refused, and proves that what is left is byte for byte what was built.
+      - name: The draft, for the tree's build
+        id: draft
+        run: |
+          modes='[]'
+          if [ "$VERIFY" != false ]; then
+            modes=$(python3 -c 'import json, os, sys; m = [x for x in os.environ["VERIFY_MODES"].replace(",", " ").split()]; bad = [x for x in m if x not in ("strict", "proposed", "wide")]; sys.exit(f"unknown mode(s) {bad}") if bad else print(json.dumps(sorted(set(m))))')
+            for mode in $(python3 -c 'import json, sys; print(" ".join(json.loads(sys.argv[1])))' "$modes"); do
+              dir=bundle; [ "$mode" != strict ] && dir="bundle-$mode"
+              tar -C "$dir" -cf "draft-$mode.tar" .
+            done
+          fi
+          echo "modes=$modes" >> "$GITHUB_OUTPUT"
+          echo "verifying in the tree: $modes"
+          mkdir -p draft && { mv draft-*.tar draft/ 2>/dev/null || true; } && cp tree-names.txt tree-decls.txt draft/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: "draft-${{ inputs.key }}", path: draft, retention-days: 14, if-no-files-found: error }
+  # verify: the merge queue's own build, ahead of time, on the whole draft. A checkout of the tree seeded from its attested cache (as the queue seeds it), the draft's new
+  # modules copied in, `lake build` of every one of them. The modules that fail (and what imports them) are dropped by `finish`. This job compiles the library's code, so it
+  # holds nothing: read-only token, no signing identity, and the one token it ever sees (the cache download) is only in that step's environment.
+  verify:
+    needs: compose
+    if: ${{ !cancelled() && needs.compose.result == 'success' && needs.compose.outputs.modes != '[]' }}
+    strategy:
+      fail-fast: false
+      matrix: { mode: "${{ fromJSON(needs.compose.outputs.modes) }}" }
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    permissions: { contents: read }
+    env: { KEY: "${{ inputs.key }}", MODE: "${{ matrix.mode }}" }
+    steps:
+      - name: This repository (scripts)
+        run: |
+          git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
+          git -C emissary sparse-checkout set --no-cone "/scripts/"
+          git -C emissary checkout -q "$GITHUB_SHA"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { name: "draft-${{ inputs.key }}", path: draft }
+      - name: The draft
+        run: mkdir bundle && tar --no-same-owner -xf "draft/draft-$MODE.tar" -C bundle
+      # the tree's cache is several GB packed and about ten times that unpacked (queue-gate.yml, "Free disk")
+      - name: Free disk (the tree's cache and build are several GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift || true
+          df -h / | tail -1
+      - name: Lean toolchain (pinned by the tree's lean-toolchain)
+        run: |
+          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          ./elan-init -y --default-toolchain none && echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          sudo apt-get install -y -q zstd >/dev/null
+      - name: The tree, seeded from the newest published cache (verified), as the merge queue seeds it
+        env: { GH_TOKEN: "${{ github.token }}", TENGOKU_VERIFY: require, TENGOKU_TOPUPS: "1" }
+        run: |
+          git clone -q --filter=blob:none https://github.com/competemath/tengoku tree
+          echo "tree: $(git -C tree rev-parse HEAD)" | tee tree-sha.txt
+          cd tree && scripts/cache.sh get 2>&1 | tail -3
+      - name: Copy the new modules into the tree
+        run: python3 emissary/scripts/bump/tree_verify.py apply --bundle bundle --tree tree --out out
+      # the queue's own command, for every new module at once. Lake goes on after a module fails and lists them all; a build that is killed leaves a log with no ending,
+      # which `collect` refuses (nothing is verified by a log that stops).
+      - name: Build them (the queue's own command)
+        run: |
+          targets="$(tr '\n' ' ' < out/targets.txt)"
+          if [ -z "${targets// }" ]; then echo "nothing new to build"; echo "Build completed successfully" > out/build.log; exit 0; fi
+          if [ ${#targets} -gt 1500000 ]; then echo "::error::the new modules do not fit one command line; recut from the tree in rounds (from_tree) so that fewer are new"; exit 1; fi
+          cd tree
+          set +e
+          # shellcheck disable=SC2086  # targets is a space-separated module list
+          timeout -k 60 330m lake build $targets 2>&1 | tee ../out/build.log
+          echo "lake exit status: ${PIPESTATUS[0]}"
+      - name: What the tree accepted
+        run: |
+          python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle
+          { echo "### Tree build ($KEY, $MODE)"; cat out/summary.txt; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the log
+        if: ${{ always() }}
+        run: gzip -n out/build.log || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: ${{ always() }}
+        with:
+          name: treeverify-${{ inputs.key }}-${{ matrix.mode }}
+          path: |
+            out/new.json
+            out/ok.json
+            out/failing.txt
+            out/summary.txt
+            out/build.log.gz
+            tree-sha.txt
+          retention-days: 14
+          if-no-files-found: ignore
+  # finish: cuts the bundle again from the same shards and the same tree names, drops what the tree refused (and what imports it), proves that every module that ships is
+  # byte for byte a module the tree's build accepted, and only then packs and signs. It holds the signing identity and runs no code of the library.
+  finish:
+    needs: [compose, verify]
+    if: ${{ !cancelled() && needs.compose.result == 'success' && (needs.verify.result == 'success' || needs.verify.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions: { contents: read, id-token: write, attestations: write, actions: read }  # actions: read = the shard artifacts of an earlier run (recut)
+    env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}", SCOPE: "${{ inputs.scope }}", PARTS: "${{ inputs.parts }}", FROM_TREE: "${{ inputs.from_tree }}" }
+    steps:
+      - name: This repository (scripts, the library's setup)
+        run: |
+          git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
+          git -C emissary sparse-checkout set --no-cone "/scripts/" "/sources.json" "/data/exports/$KEY/setup.ci.json"
+          git -C emissary checkout -q "$GITHUB_SHA"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { pattern: "shard-${{ inputs.key }}-*", path: shards, run-id: "${{ inputs.recut_from || github.run_id }}", github-token: "${{ github.token }}" }
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { name: "draft-${{ inputs.key }}", path: draft }
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: ${{ needs.verify.result == 'success' }}
+        with: { pattern: "treeverify-${{ inputs.key }}-*", path: treeverify }
+      - name: What the tree refused (the library modules, from every verified mode)
+        run: |
+          cp draft/tree-names.txt draft/tree-decls.txt .
+          : > tree-failures.txt
+          for f in treeverify/*/failing.txt; do [ -f "$f" ] && cat "$f" >> tree-failures.txt; done
+          sort -u -o tree-failures.txt tree-failures.txt
+          echo "the tree refused $(wc -l < tree-failures.txt) module(s)"
+      - name: Merge the shards and cut the bundle
+        working-directory: emissary
+        run: |
+          mkdir -p ../merged ../logs
+          python3 scripts/bump/shard_pack.py merge --shards ../shards --out ../merged --logs ../logs
+          cat ../logs/gate2-results.json
+          python3 scripts/bump/bundle.py compose --lib ../merged --log ../logs/bundle-deps.log --passed ../logs/passed.json --meta "data/exports/$KEY/setup.ci.json" \
+            --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --out ../bundle --src ../pruned-src --drop-modules "$DROP" \
+            --tree-names ../tree-names.txt --tree-decls ../tree-decls.txt --drop-leaks --tree-failures ../tree-failures.txt
+      - name: Make the registrations that leak into other libraries local (RECUT only)
+        if: ${{ inputs.scope != '' }}
+        run: python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --leaks "$SCOPE"
+      # What ships is what the tree built: every new module of the final bundle, in every verified mode, has the bytes the tree's build accepted.
+      - name: Every module that ships was built in the tree, byte for byte
+        run: |
+          for dir in treeverify/*/; do
+            [ -d "$dir" ] || continue
+            mode=$(basename "$dir"); mode=${mode#"treeverify-$KEY-"}
+            d=bundle; [ "$mode" != strict ] && d="bundle-$mode"
+            echo "== $mode"; cat "$dir/summary.txt"
+            python3 emissary/scripts/bump/tree_verify.py check --bundle "$d" --new "$dir/new.json" --ok "$dir/ok.json"
+          done
       - name: Pack and attest
         run: |
           for mode in strict proposed wide; do
