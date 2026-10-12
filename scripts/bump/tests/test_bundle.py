@@ -324,14 +324,17 @@ class AutoDrops(unittest.TestCase):
         "Ex": "namespace Toy\n\ntheorem kept_ex : 1 = 1 := rfl\n\nexample : 2 = 2 := rfl\n\nexample : 3 = 3 := by\n  simpa only [drop_missing_lemma_xx] using rfl\n\nend Toy\n",
         "Hlp4": "namespace Toy\n\ntheorem drop_chain_a : 1 = 1 := by\n  exact drop_chain_b_lemma\n\ntheorem drop_chain_b_lemma : 1 = 1 := rfl\n\nend Toy\n",
         "Usr4": "import Toy.Hlp4\n\nnamespace Toy\n\ntheorem user_of_chain : 2 = 2 := by\n  simpa only [drop_chain_a] using rfl\n\nend Toy\n",
+        # `drop_silent_user` is named by the text of `su_theorem`; its TERM (not its text) uses `drop_silent_aux`, and that one `drop_silent_aux2`: only the dependency graph says so
+        "SH": "namespace Toy\n\ntheorem drop_silent_user : 1 = 1 := by\n  simp\n\ntheorem drop_silent_aux : 1 = 1 := by\n  simp\n\ntheorem drop_silent_aux2 : 1 = 1 := rfl\n\nend Toy\n",
+        "SU": "import Toy.SH\n\nnamespace Toy\n\ntheorem su_theorem : 2 = 2 := by\n  simpa only [drop_silent_user] using rfl\n\nend Toy\n",
     }
-    PASSED = {"Toy.Leaky": ["Toy.kept_leaky"], "Toy.Above": ["Toy.above"], "Toy.Clean": ["Toy.clean_one"], "Toy.Owned": ["Toy.owned"], "Toy.AboveOwned": ["Toy.above_owned"]}
+    PASSED = {"Toy.Leaky": ["Toy.kept_leaky"], "Toy.Above": ["Toy.above"], "Toy.Clean": ["Toy.clean_one"], "Toy.Owned": ["Toy.owned"], "Toy.AboveOwned": ["Toy.above_owned"], "Toy.SU": ["Toy.su_theorem"]}
 
     @staticmethod
     def leaks_in_leaky(self, text, keep):  # records.Module.leaks, as if the pruning of Leaky.lean had left a dangling prefix (lean-pool: `include ψ S D D' h𝒱Adapted in`)
         return ["line 3: dangling prefix: include h in"] if self.path.name == "Leaky.lean" else []
 
-    def compose(self, names: list[str], *extra: str, files: list[str] | None = None):
+    def compose(self, names: list[str], *extra: str, files: list[str] | None = None, graph: dict | None = None):
         d = Path(tempfile.mkdtemp())
         lib = d / "lib"
         (lib / "Toy").mkdir(parents=True)
@@ -344,7 +347,7 @@ class AutoDrops(unittest.TestCase):
             f.parent.mkdir(parents=True, exist_ok=True)
             f.write_text(json.dumps(rows))
             keep += [[f"Toy.{mod}", r[0]] for r in rows if not r[0].startswith("Toy.drop_")]
-        (d / "deps.log").write_text(f"x:1:0: info: BUNDLE_KEEP {json.dumps(keep)} BUNDLE_END\n")
+        (d / "deps.log").write_text(f"x:1:0: info: BUNDLE_KEEP {json.dumps(keep)} BUNDLE_END\n" + (f"x:1:0: info: BUNDLE_GRAPH {json.dumps(graph)} BUNDLE_END\n" if graph is not None else ""))
         passed = {m: ns for m, ns in self.PASSED.items() if m.split(".")[1] in (files or self.FILES)}
         (d / "passed.json").write_text(json.dumps(passed))
         (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy.git", "commit": "abc123"}))
@@ -455,6 +458,55 @@ class AutoDrops(unittest.TestCase):
         rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
         self.assertIn("names a declaration with sorry", rep["dropped"]["Toy.Usr2"])
 
+    # the nodes of the toy graph: 0 = drop_silent_user, 1 = drop_silent_aux, 2 = drop_silent_aux2 (all in Toy.SH); the keep step did not keep them (they start with `drop_`)
+    SILENT = [["Toy.SH", "Toy.drop_silent_user"], ["Toy.SH", "Toy.drop_silent_aux"], ["Toy.SH", "Toy.drop_silent_aux2"]]
+
+    def test_what_the_term_of_a_text_kept_declaration_uses_is_kept_through_the_dependency_graph(self):
+        """2026-10-12: a declaration kept because a kept TEXT names it has no term in the keep step: what its proof uses (an instance, a lemma `simp` found) was cut, and the tree
+        stopped at 'failed to synthesize' (tauceti `AlbertAlgebra`) / 'unknown identifier'. BundleKeep.lean now prints the graph of what it did not keep."""
+        d, p = self.compose([], files=["SH", "SU"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertNotIn("drop_silent_aux", self.shipped_text(d, "SH"))  # without the graph: the text names drop_silent_user only
+        self.assertIsNone(json.loads((d / "bundle-proposed" / "report.json").read_text())["dependency_graph"])
+        d, p = self.compose([], files=["SH", "SU"], graph={"nodes": self.SILENT, "edges": [[0, [1]], [1, [2]]], "tainted": []})
+        self.assertEqual(p.returncode, 0, p.stderr)
+        text = self.shipped_text(d, "SH")
+        self.assertIn("drop_silent_user", text)
+        self.assertIn("drop_silent_aux ", text)  # one step
+        self.assertIn("drop_silent_aux2", text)  # and the next: followed to the end
+        rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
+        self.assertEqual(rep["dependency_graph"]["followed"], 2)
+        self.assertEqual(self.shipped(d), ["Toy.su_theorem"])
+
+    def test_a_proof_constant_the_compiler_made_counts_for_the_declaration_it_was_made_for(self):
+        graph = {"nodes": [["Toy.SH", "Toy.drop_silent_user.proof_1"], ["Toy.SH", "Toy.drop_silent_aux"]], "edges": [[0, [1]]], "tainted": []}
+        d, p = self.compose([], files=["SH", "SU"], graph=graph)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("drop_silent_aux", self.shipped_text(d, "SH"))
+
+    def test_taint_is_only_reported_unless_asked_to_drop(self):
+        """btc-verified, 2026-10-12: dropping what stands on a sorry in the library's own build cost 67 of 101 theorems (the tree's Mathlib is not the library's)."""
+        graph = {"nodes": self.SILENT, "edges": [], "tainted": [0]}
+        d, p = self.compose([], files=["SH", "SU"], graph=graph)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.shipped(d), ["Toy.su_theorem"])
+        dg = json.loads((d / "bundle-proposed" / "report.json").read_text())["dependency_graph"]
+        self.assertEqual((dg["text_kept_tainted"], dg["text_kept_tainted_first"], dg["taint_drops"]), (1, ["Toy.SH:3"], False))
+
+    def test_a_text_named_declaration_that_stands_on_a_failed_one_is_not_kept_and_its_namer_goes_with_taint_drops(self):
+        graph = {"nodes": self.SILENT, "edges": [[0, [1]]], "tainted": [0]}  # drop_silent_user stands on a failed declaration (the keep step knows: it is on sorryAx)
+        d, p = self.compose([], "--taint-drops", files=["SH", "SU", "Clean"], graph=graph)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.shipped(d), ["Toy.clean_one"])
+        rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
+        self.assertIn("Toy.SU", rep["dropped"])
+
+    def test_a_graph_that_says_nothing_changes_nothing(self):
+        d, p = self.compose([], files=["SH", "SU"], graph={"nodes": [], "edges": [], "tainted": []})
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertNotIn("drop_silent_aux", self.shipped_text(d, "SH"))
+        self.assertEqual(json.loads((d / "bundle-proposed" / "report.json").read_text())["dependency_graph"]["followed"], 0)
+
     def test_a_short_name_is_not_matched_by_its_last_component(self):
         d, p = self.compose([], files=["Hlp3", "Usr3"])
         self.assertEqual(p.returncode, 0, p.stderr)
@@ -537,7 +589,11 @@ class KeepScript(unittest.TestCase):
         self.assertEqual(imports, ["Lean"], "a library's syntax must never be in scope while this file is parsed")
 
     def test_the_program_prints_the_line_compose_reads(self):
-        self.assertIn('IO.println s!"BUNDLE_KEEP {res.compress} BUNDLE_END"', self.PROGRAM)
+        self.assertIn('IO.println s!"BUNDLE_KEEP {kept.compress} BUNDLE_END"', self.PROGRAM)
+        self.assertIn('IO.println s!"BUNDLE_GRAPH {graph.compress} BUNDLE_END"', self.PROGRAM)  # the graph of what is not kept (keep_closure.parse_graph reads it)
+        graph_line = 'x:1:0: info: BUNDLE_GRAPH {"nodes":[["M","c"]],"edges":[],"tainted":[]} BUNDLE_END'
+        self.assertTrue(re.search(r"BUNDLE_GRAPH (\{.*?\}) BUNDLE_END", graph_line, re.S))
+        self.assertIsNone(re.search(r"BUNDLE_KEEP (\[.*?\]) BUNDLE_END", graph_line, re.S))  # the two lines never read each other
         self.assertIn("enableInitializersExecution", self.PROGRAM)  # `lean --run` interprets it: the initializers of the loaded library must be allowed to run
         line = 'x:1:0: info: BUNDLE_KEEP [["M", "c"]] BUNDLE_END'
         self.assertTrue(re.search(r"BUNDLE_KEEP (\[.*?\]) BUNDLE_END", line, re.S))  # the pattern compose uses

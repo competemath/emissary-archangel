@@ -3,9 +3,9 @@
 name: bundle-keep-tests
 on:
   push:
-    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/tree_verify.py", ".github/workflows/bundle-keep-tests.yml"]
+    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/tree_verify.py", ".github/workflows/bundle-keep-tests.yml"]
   pull_request:
-    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/tree_verify.py", ".github/workflows/bundle-keep-tests.yml"]
+    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/tree_verify.py", ".github/workflows/bundle-keep-tests.yml"]
 permissions: {}
 defaults:
   run:
@@ -42,6 +42,25 @@ jobs:
           assert ("Init.Data.Nat.Basic", "Nat.add_comm") in kept, sorted(kept)[:20]
           assert all(mod == "Init.Data.Nat.Basic" for mod, _ in kept), "only the library's own modules are kept"
           print(len(kept), "constants kept, the passed theorem among them")
+          PY
+      # the graph of what is NOT kept (compose follows it from every declaration that is kept only because a text names it): the nodes are outside the keep set, every edge
+      # joins two nodes, the tainted ones are nodes. keep_closure.parse_graph is the code that reads it in the factory.
+      - name: The program prints the dependency graph of the constants it does not keep, and keep_closure reads it
+        run: |
+          python3 - <<'PY'
+          import json, os, re, sys
+          sys.path.insert(0, "scripts/bump")
+          import keep_closure
+          out = open(os.path.join(os.environ["RUNNER_TEMP"], "keep.out")).read()
+          kept = {tuple(x) for x in json.loads(re.search(r"BUNDLE_KEEP (\[.*?\]) BUNDLE_END", out, re.S).group(1))}
+          assert "BUNDLE_GRAPH" in out, out[-500:]
+          graph, tainted = keep_closure.parse_graph(out)
+          nodes = set(graph) | {d for deps in graph.values() for d in deps} | set(tainted)
+          assert nodes, "nothing is outside the keep set of a module of Lean's own library?"
+          assert not (nodes & kept), sorted(nodes & kept)[:5]  # a kept constant is already in the bundle: it is never a node
+          assert all(mod == "Init.Data.Nat.Basic" for mod, _ in nodes), "only the library's own modules"
+          assert sum(len(v) for v in graph.values()) > 0, "no theorem of Init.Data.Nat.Basic uses another one?"
+          print(len(graph), "constants with edges,", sum(len(v) for v in graph.values()), "edges,", len(tainted), "tainted,", len(kept), "kept")
           PY
       - name: A name that does not exist keeps nothing and does not fail the program
         working-directory: gate2

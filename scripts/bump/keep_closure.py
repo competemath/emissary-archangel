@@ -16,6 +16,7 @@ that the merge queue rejected were this, each already in the factory's own error
 
 from __future__ import annotations
 
+import json
 import re
 from collections import defaultdict
 
@@ -176,6 +177,23 @@ def aux_only_ranges(kept, source_of) -> dict[str, set[tuple[int, int]]]:
     return out
 
 
+def parse_graph(log: str) -> tuple[dict[tuple[str, str], set[tuple[str, str]]] | None, set[tuple[str, str]] | None]:
+    """(graph, tainted) from the `BUNDLE_GRAPH` lines of the keep logs (BundleKeep.lean prints one per shard): graph[(module, constant)] = the constants that one uses, among the library
+    constants the keep step did NOT keep; tainted = those that stand on `sorryAx`. (None, None) when the log has no such line (a shard run from before the graph existed): the
+    closure then works as it always did."""
+    graph: dict[tuple[str, str], set[tuple[str, str]]] = defaultdict(set)
+    tainted: set[tuple[str, str]] = set()
+    found = False
+    for m in re.finditer(r"BUNDLE_GRAPH (\{.*?\}) BUNDLE_END", log, re.S):
+        found = True
+        j = json.loads(re.sub(r"\s*\n\s*", "", m.group(1)))
+        nodes = [(mod, c) for mod, c in j["nodes"]]
+        for i, deps in j["edges"]:
+            graph[nodes[i]].update(nodes[d] for d in deps)
+        tainted.update(nodes[i] for i in j["tainted"])
+    return (dict(graph), tainted) if found else (None, None)
+
+
 def close(
     modules,
     sidecars: dict,
@@ -185,8 +203,21 @@ def close(
     aux_only: dict[str, set[tuple[int, int]]] | None = None,
     failed_seeds: list[tuple[str, tuple[int, int]]] | None = None,
     fatal: dict[str, set[tuple[int, int]]] | None = None,
+    graph: dict[tuple[str, str], set[tuple[str, str]]] | None = None,
+    tainted: set[tuple[str, str]] | None = None,
+    stats: dict | None = None,
+    drop_tainted: bool = False,
 ) -> tuple[int, dict[str, set[str]]]:
-    """Returns (how many declarations were added, {module: names it uses that cannot be kept}). `failed`: module -> the blocks that had an error in the build."""
+    """Returns (how many declarations were added, {module: names it uses that cannot be kept}). `failed`: module -> the blocks that had an error in the build.
+
+    `graph`/`tainted` (parse_graph): what the TERM of a kept declaration uses. A declaration kept because a kept text names it has no term in the keep step, so a lemma or an instance
+    its proof uses without any text naming it was never kept (the closure above is of text, and a name is invisible to it when no one writes it: lean-pool `PDL`, tauceti `Quasicoherent`).
+    With the graph, every block that is kept, by the keep step or by text, brings what its constants use, and that is followed to the end. `stats["followed"]` counts the blocks the graph added.
+
+    `tainted` (constants that stand on `sorryAx` IN THE LIBRARY'S OWN BUILD) is reported by default (`stats["text_kept_tainted"]`: the blocks added by text or by the graph that are tainted) and acts
+    only with `drop_tainted`: then such a block is not kept for a text that names it, like one that failed in the build. It is off by default because the library's build is not the tree's:
+    on btc-verified the rule dropped one module and, through its importers, 67 of 101 theorems, some of which the tree's newer Mathlib may well build; the tree's own build (tree_verify.py)
+    is the judge of that."""
     failed = failed or {}
     aux_only = aux_only or {}
     fatal = fatal or {}
@@ -206,6 +237,34 @@ def close(
             last = vis.rsplit(".", 1)[-1]
             if distinctive(last):
                 by_last[last].append((mod, blk, (s, e)))
+
+    def locate(mod: str, const: str):
+        """(module, block, range) of the declaration of `const`, or of the declaration it was made for (`foo.proof_1`, `foo.match_1`: the longest prefix Lean has a range for)."""
+        names = sidecars.get(mod)
+        if not names or mod not in modules:
+            return None
+        parts = const.split(".")
+        while parts:
+            r = names.get(".".join(parts))
+            if r:
+                blk = modules[mod].block_of(r[0])
+                return (mod, blk, (r[0], r[1])) if blk else None
+            parts.pop()
+        return None
+
+    graph_edges: dict[tuple[str, tuple[int, int]], dict[tuple[str, tuple[int, int]], tuple[int, int]]] = defaultdict(dict)
+    tainted_blocks: set[tuple[str, tuple[int, int]]] = set()
+    for node, deps in (graph or {}).items():
+        src = locate(*node)
+        if src is None:
+            continue
+        for d in deps:
+            dst = locate(*d)
+            if dst is not None and dst[:2] != src[:2]:
+                graph_edges[src[:2]][dst[:2]] = dst[2]
+    for node in tainted or ():
+        if (src := locate(*node)) is not None:
+            tainted_blocks.add(src[:2])
     contexts: dict[str, dict[tuple[int, int], tuple[str, tuple[str, ...]]]] = {}
     kept: set[tuple[str, tuple[int, int]]] = set()
     unresolved: dict[str, set[str]] = defaultdict(set)
@@ -270,7 +329,7 @@ def close(
     def usable(m2: str, b2: tuple[int, int]) -> bool:
         key = (m2, b2)
         if key not in usable_memo:
-            usable_memo[key] = b2 not in failed.get(m2, ()) and not SORRY.search("\n".join(modules[m2].lines[b2[0] - 1 : b2[1]]))
+            usable_memo[key] = b2 not in failed.get(m2, ()) and not (drop_tainted and key in tainted_blocks) and not SORRY.search("\n".join(modules[m2].lines[b2[0] - 1 : b2[1]]))
         return usable_memo[key]
 
     bad_last_memo: dict[str, set[str]] = {}
@@ -337,14 +396,35 @@ def close(
                     if exact:
                         unresolved[mod].add(tok)
                     continue
-                if SORRY.search("\n".join(modules[m2].lines[b2[0] - 1 : b2[1]])):
-                    unresolved[mod].add(tok)
+                if (drop_tainted and (m2, b2) in tainted_blocks) or SORRY.search("\n".join(modules[m2].lines[b2[0] - 1 : b2[1]])):
+                    unresolved[mod].add(tok)  # sorry in the text, or (drop_tainted) a declaration that stands on one
                     continue
                 kept.add((m2, b2))
+                text_added.add((m2, b2))
                 keep_blocks[m2].add(r2)
                 work.append((m2, b2))
                 added += 1
                 drag_instances(m2, b2)
+
+    followed = 0
+    text_added: set[tuple[str, tuple[int, int]]] = set()  # blocks added by text or by the graph (not the keep step's own)
+
+    def follow(mod: str, blk: tuple[int, int]) -> None:
+        """What the terms of the constants declared in this kept block use, and nothing in the TEXT names (an instance found by unification, a lemma `simp` used). The block ships whole,
+        so every constant it declares is elaborated in the tree, whether or not the keep step kept that constant."""
+        nonlocal added, followed
+        for (m2, b2), r2 in graph_edges.get((mod, blk), {}).items():
+            if (m2, b2) in kept:
+                continue
+            if not usable(m2, b2):
+                unresolved[mod].add(f"<a declaration in {m2} at line {b2[0]}, which the term of a kept declaration uses, cannot be kept>")
+                continue
+            kept.add((m2, b2))
+            text_added.add((m2, b2))
+            keep_blocks[m2].add(r2)
+            work.append((m2, b2))
+            added += 1
+            followed += 1
 
     glue_read: set[str] = set()
     while work:
@@ -363,4 +443,13 @@ def close(
                     visit(mod, without_binders(line), ctx)
 
         visit(mod, "\n".join(modules[mod].lines[blk[0] - 1 : blk[1]]), block_context_of(mod, blk))
+        follow(mod, blk)
+    if stats is not None:
+        stats.update(
+            followed=followed,
+            graph_nodes=len(graph or ()),
+            graph_edges=sum(len(v) for v in (graph or {}).values()),
+            tainted=len(tainted or ()),
+            text_kept_tainted=sorted(f"{m}:{b[0]}" for m, b in text_added if (m, b) in tainted_blocks),
+        )
     return added, unresolved
