@@ -315,6 +315,54 @@ class TextKeptInstances(unittest.TestCase):
         self.assertNotIn((1, 1), modules["B"].kept_blocks(keep["B"]))
         self.assertEqual(unresolved, {})
 
+    def test_an_instance_using_field_notation_of_a_failed_declaration_of_its_module_is_left_out(self):
+        """tauceti `Quasicoherent/Monoidal`, 2026-10-12: `isQuasicoherent_tensorObj` writes `qM.tensor`, the declaration `Toy.Sub.tensor` of the same module had failed in the build, and
+        the text closure cannot resolve a field name."""
+        modules, sidecars, keep = self.mods(instance_text="instance [CommRing R] : Module.Free R (Octonion R) := qM.tensor qN")
+        sidecars["B"]["Toy.Sub.tensor"] = (4, 4)
+        added, unresolved = keep_closure.close(modules, sidecars, keep, failed={"B": {(4, 4)}})
+        self.assertNotIn((1, 1), modules["B"].kept_blocks(keep["B"]))
+        self.assertEqual(unresolved, {})
+
+    def test_an_instance_that_names_another_instance_which_uses_a_failed_field_is_left_out_too(self):
+        """The real chain (Monoidal): instance 2 names instance 1 by its name, instance 1 writes `qM.tensor`; keeping 2 would keep 1 through the closure."""
+        b = FakeModule(
+            ["instance isOne [CommRing R] : Foo := qM.tensor qN", "instance isTwo [CommRing R] : Bar := isOne", "theorem later_one : True := trivial", "theorem tensor : True := trivial"],
+            [(1, 1), (2, 2), (3, 3), (4, 4)],
+        )
+        a = FakeModule(["theorem kept_one : True := by", "  simp [later_one]"], [(1, 2)])
+        sidecars = {"A": {"kept_one": (1, 2)}, "B": {"isOne": (1, 1), "isTwo": (2, 2), "later_one": (3, 3), "Toy.Sub.tensor": (4, 4)}}
+        keep = {"A": {(1, 2)}, "B": set()}
+        keep_closure.close({"A": a, "B": b}, sidecars, keep, failed={"B": {(4, 4)}})
+        self.assertEqual(b_kept := {x for x in b.kept_blocks(keep["B"])}, {(3, 3)}, b_kept)
+
+    def test_a_module_with_a_failed_declaration_drags_no_instance(self):
+        """Monoidal again: `isMonoidal_isQuasicoherent` names nothing that failed, but `inferInstanceAs` finds the instance that uses it."""
+        modules, sidecars, keep = self.mods()
+        sidecars["B"]["unrelated_failed"] = (4, 4)
+        keep_closure.close(modules, sidecars, keep, failed={"B": {(4, 4)}})
+        self.assertNotIn((1, 1), modules["B"].kept_blocks(keep["B"]))
+        self.assertIn((2, 2), modules["B"].kept_blocks(keep["B"]))  # the declaration the text names still stays
+
+    def test_an_instance_whose_closure_reaches_a_module_with_a_failed_declaration_is_left_out(self):
+        """The real chain: an instance of a clean module names an instance of a module that has a failed declaration (tauceti `Modules.Quasicoherent` -> `Monoidal`)."""
+        b = FakeModule(["instance isOne : Foo := trivial", "theorem unrelated_failed : True := trivial", "theorem later_one : True := trivial"], [(1, 1), (2, 2), (3, 3)])
+        c = FakeModule(["instance isTwo : Bar := isOne", "theorem later_two : True := trivial"], [(1, 1), (2, 2)])
+        a = FakeModule(["theorem kept_one : True := by", "  simp [later_two]"], [(1, 2)])
+        sidecars = {"A": {"kept_one": (1, 2)}, "B": {"isOne": (1, 1), "unrelated_failed": (2, 2), "later_one": (3, 3)}, "C": {"isTwo": (1, 1), "later_two": (2, 2)}}
+        keep = {"A": {(1, 2)}, "B": set(), "C": set()}
+        keep_closure.close({"A": a, "B": b, "C": c}, sidecars, keep, failed={"B": {(2, 2)}})
+        self.assertNotIn((1, 1), c.kept_blocks(keep["C"]))  # isTwo would need isOne, whose module has a failed declaration
+        self.assertEqual(b.kept_blocks(keep["B"]), set())
+
+    def test_a_failed_declaration_of_another_module_does_not_stop_the_instance(self):
+        modules, sidecars, keep = self.mods(instance_text="instance [CommRing R] : Module.Free R (Octonion R) := qM.tensor qN")
+        modules["C"] = FakeModule(["theorem tensor : True := trivial"], [(1, 1)])
+        sidecars["C"] = {"Other.tensor": (1, 1)}
+        keep["C"] = set()
+        keep_closure.close(modules, sidecars, keep, failed={"C": {(1, 1)}})
+        self.assertIn((1, 1), modules["B"].kept_blocks(keep["B"]))
+
     def test_an_instance_that_names_a_declaration_keeps_that_too(self):
         modules, sidecars, keep = self.mods(instance_text="instance [CommRing R] : Module.Free R (Octonion R) := Toy.dep_one_here")
         sidecars["B"]["Toy.dep_one_here"] = (4, 4)

@@ -220,23 +220,52 @@ def close(
 
         return context
 
+    usable_memo: dict[tuple[str, tuple[int, int]], bool] = {}
+
     def usable(m2: str, b2: tuple[int, int]) -> bool:
-        return b2 not in failed.get(m2, ()) and not SORRY.search("\n".join(modules[m2].lines[b2[0] - 1 : b2[1]]))
+        key = (m2, b2)
+        if key not in usable_memo:
+            usable_memo[key] = b2 not in failed.get(m2, ()) and not SORRY.search("\n".join(modules[m2].lines[b2[0] - 1 : b2[1]]))
+        return usable_memo[key]
+
+    bad_last_memo: dict[str, set[str]] = {}
+
+    def bad_last(m2: str) -> set[str]:
+        """The last components of the declarations of `m2` that cannot be kept (failed in the build, or sorry)."""
+        if m2 not in bad_last_memo:
+            bad_last_memo[m2] = {name.rsplit(".", 1)[-1] for name, (s, _) in sidecars.get(m2, {}).items() if (blk := modules[m2].block_of(s)) and not usable(m2, blk)}
+        return bad_last_memo[m2]
+
+    def block_tokens(mm: str, bb: tuple[int, int]) -> set[str]:
+        return {t.rstrip(".") for t in TOKEN.findall("\n".join(modules[mm].lines[bb[0] - 1 : bb[1]]))}
+
+    def clean_to_drag(m2: str, ib: tuple[int, int]) -> bool:
+        """Whether keeping the optional block `ib` can only pull in declarations that are safe to keep: everything its text names, by the closure's own resolution, transitively, is usable,
+        and lives in a module with no declaration that failed or has sorry. Such a module is not safe: an instance can lean on a failed declaration without naming it (`inferInstanceAs`
+        finds another instance, which writes `qM.tensor`, a name by its last component only that the closure cannot resolve: tauceti `Quasicoherent/Monoidal`, 2026-10-12)."""
+        seen: set[tuple[str, tuple[int, int]]] = set()
+        stack = [(m2, ib)]
+        while stack:
+            mm, bb = stack.pop()
+            if (mm, bb) in seen or (mm, bb) in kept:
+                continue
+            seen.add((mm, bb))
+            if len(seen) > 300 or not usable(mm, bb) or bad_last(mm):
+                return False
+            context = block_context_of(mm, bb)
+            stack.extend((c2, cb) for tok in block_tokens(mm, bb) for c2, cb, _ in resolve(tok, context)[0])
+        return True
 
     def drag_instances(m2: str, b2: tuple[int, int]) -> None:
         """A declaration kept because a kept TEXT names it has no elaborated term in the keep step, so the instances its proof resolves silently are not in the keep set (tauceti
         `AlbertAlgebra.finrank_traceZero` names `Octonion.finrank_eq_eight`, whose proof needs the module's anonymous `Module.Free` instance: 'failed to synthesize' in the tree,
-        2026-10-12). The instances of its module that come before it are kept with it, unless one names a declaration that cannot be kept: an instance nobody asked for is not worth
-        a module."""
+        2026-10-12). The instances of its module that come before it are kept with it, unless keeping one would pull in something that cannot be kept (`clean_to_drag`): an instance nobody
+        asked for is not worth a module."""
         nonlocal added
         for ib in modules[m2].blocks:
             if ib[0] >= b2[0] or (m2, ib) in kept or (m2, ib) not in block_range or not usable(m2, ib):
                 continue
-            text = "\n".join(modules[m2].lines[ib[0] - 1 : ib[1]])
-            if not INSTANCE_BLOCK.search(text):
-                continue
-            context = block_context_of(m2, ib)
-            if any(not usable(c2, cb) for tok in set(TOKEN.findall(text)) for c2, cb, _ in resolve(tok.rstrip("."), context)[0] if (c2, cb) not in kept):
+            if not INSTANCE_BLOCK.search("\n".join(modules[m2].lines[ib[0] - 1 : ib[1]])) or not clean_to_drag(m2, ib):
                 continue
             kept.add((m2, ib))
             keep_blocks[m2].add(block_range[(m2, ib)])
