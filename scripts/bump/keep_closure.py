@@ -215,11 +215,12 @@ def close(
 
     def resolve(tok: str, context, glue: bool = False):
         """(the declarations `tok` can name, whether by its full name as written or as its namespace and `open`s read it). In glue (`infixl:90 "⨀₂" => mdp₂!`, `alias foo := bar'!`) a name
-        of any length is read by the namespace it is written in: nothing there is a local variable, and the last-component guess below still needs a distinctive one."""
+        of any length is read by the namespace it is written in: nothing there is a local variable, and the last-component guess below still needs a distinctive one. A QUALIFIED name
+        (`FiniteContext.weakening` inside `namespace LO.Entailment`) is read that way at any length too: lean-pool `HilbertStyle/Context`, 2026-10-12, where `weakening` is one plain word."""
         cands = list(by_full.get(tok, ()))
         exact = bool(cands)
         last = tok.rsplit(".", 1)[-1]
-        if not cands and (glue or distinctive(last)):
+        if not cands and (glue or distinctive(last) or "." in tok):
             # the name as the file's own namespace and `open`s read it: `pointsFunctor_map` inside `namespace HopfAlgebra` is `HopfAlgebra.pointsFunctor_map`, however many
             # declarations in the library end in that name (tauceti, 2026-10-11: a name that ends 4 times is out of reach of the last-component guess, and the module that wrote it
             # short lost the lemma)

@@ -302,6 +302,21 @@ class GlueNamesAndSameFileFailures(unittest.TestCase):
         added, unresolved = keep_closure.close({"A": a}, sidecars, {"A": {(2, 3)}}, failed={"A": {(1, 1)}})
         self.assertEqual(unresolved, {"A": {"x.predictorStep_wide"}})
 
+    def test_a_qualified_name_is_read_by_the_namespace_whatever_its_length(self):
+        """lean-pool `HilbertStyle/Context`, 2026-10-12: `FiniteContext.weakening` inside `namespace LO.Entailment`; `weakening` is one plain word, never distinctive."""
+        a = FakeModule(["namespace LO.Entailment", "theorem kept_one : True := by", "  exact FiniteContext.weakening", "end LO.Entailment"], [(2, 3)])
+        b = FakeModule(["namespace LO.Entailment.FiniteContext", "def weakening : Nat := 1", "end LO.Entailment.FiniteContext"], [(2, 2)])
+        sidecars = {"A": {"LO.Entailment.kept_one": (2, 3)}, "B": {"LO.Entailment.FiniteContext.weakening": (2, 2)}}
+        keep = {"A": {(2, 3)}, "B": set()}
+        self.assertEqual(keep_closure.close({"A": a, "B": b}, sidecars, keep)[0], 1)
+        self.assertEqual(b.kept_blocks(keep["B"]), {(2, 2)})
+
+    def test_an_unqualified_plain_word_is_still_not_guessed(self):
+        a = FakeModule(["namespace LO.Entailment", "theorem kept_one : True := by", "  exact weakening", "end LO.Entailment"], [(2, 3)])
+        b = FakeModule(["namespace LO.Entailment", "def weakening : Nat := 1", "end LO.Entailment"], [(2, 2)])
+        sidecars = {"A": {"LO.Entailment.kept_one": (2, 3)}, "B": {"LO.Entailment.weakening": (2, 2)}}
+        self.assertEqual(keep_closure.close({"A": a, "B": b}, sidecars, {"A": {(2, 3)}, "B": set()})[0], 0)
+
     def test_a_variable_binder_is_no_mention(self):
         """BollobasNikiforov (43 modules, 2026-10-12): `variable {k : ℕ}` binds `k`; a declaration `Ns.k` that failed made it a mention."""
         a = FakeModule(["namespace Toy", "variable {k : ℕ}", "theorem kept_one : True := trivial", "end Toy"], [(3, 3)])
