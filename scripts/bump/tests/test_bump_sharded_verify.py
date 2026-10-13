@@ -180,10 +180,18 @@ class TheUnionImport(unittest.TestCase):
         self.assertRegex(run, r"deadline=\$\(\(SECONDS \+ 3000\)\)")  # the loop is capped too
         self.assertIn('[ "$settled" = 1 ] ||', run)  # a loop that did not settle fails the job: nothing ships on a guess
 
-    def test_the_tree_modules_are_the_oleans_of_the_tree_and_only_those_the_build_made_ok_are_new(self):
+    def test_only_those_the_build_made_ok_are_new(self):
+        self.assertIn("--keep out/built.txt", step("verify", "The import of the whole tree")["run"])
+
+    def test_the_tree_is_the_root_the_queue_builds_and_is_not_enumerated(self):
+        """Two attempts that listed the tree's modules were refused by pairs no `import Tengoku.All` contains: stale oleans of modules that no longer exist (the seed's move), and the sources of
+        alternatives that are never imported together (Aesop's DiscrKeyConfig and DiscrTreeConfig both declare `Aesop.indexConfig`). The queue's last step builds `Tengoku.All`, so that is the root."""
         run = step("verify", "The import of the whole tree")["run"]
-        self.assertIn("find .lake/build/lib/lean/Tengoku -name '*.olean'", run)  # `.olean`, not `.olean.private` or `.olean.server` (module-system files have several)
-        self.assertIn("--keep out/built.txt", run)
+        self.assertIn("tree_verify.py union-input --root Tengoku.All", run)
+        self.assertNotIn("find Tengoku", run)
+        self.assertNotIn("tree-modules", run)
+        self.assertNotIn("--tree-modules", run)
+
 
     def test_the_refreshed_collect_runs_before_it_and_the_final_one_reads_its_verdict(self):
         run = step("verify", "The import of the whole tree")["run"]

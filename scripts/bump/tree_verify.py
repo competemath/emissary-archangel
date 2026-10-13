@@ -10,7 +10,7 @@ own command (`lake build Tengoku.<Ns>.<module> …`) on a checkout seeded from t
   tree_verify.py apply   --bundle DIR --tree CHECKOUT --out OUT   copy the bundle's new modules into the checkout, write OUT/targets.txt (what to build) and OUT/new.json
   tree_verify.py collect --new OUT/new.json --log build.log --out OUT [--axioms axioms.txt] [--clashes clashes.txt] [--allow-unfinished]   read the build (and the axiom check of what built): OUT/failing.txt (library modules),
                                                                           OUT/ok.json (module -> sha256), OUT/built.txt (the modules to run ModuleAxioms.lean on), OUT/summary.txt
-  tree_verify.py union-input --tree-modules T --new OUT/new.json --keep OUT/built.txt --excluded X --out U.lean   the file that imports the whole tree plus the new modules that are still in play
+  tree_verify.py union-input [--root Tengoku.All] --new OUT/new.json --keep OUT/built.txt --excluded X --out U.lean   the file that imports the whole tree plus the new modules that are still in play
   tree_verify.py union-next  --message M --new OUT/new.json --keep OUT/built.txt --excluded X --bundle DIR      read Lean's refusal of that file, exclude the new module (and its importers)
   tree_verify.py check   --bundle DIR --new OUT/new.json --ok OUT/ok.json   exit 1 unless every new module of the final bundle was built there with the same bytes
 
@@ -143,15 +143,17 @@ def read_lines(path: str) -> list[str]:
 
 
 def cmd_union_input(a: argparse.Namespace) -> None:
-    """The union file: `import` of every module of the tree and of the new modules that built and have not been excluded. It is what the queue's last step does (`import
-    Tengoku.All`), done by Lean itself, so that no rule of Lean's import (module-system files, subsumed duplicates) has to be re-implemented here."""
+    """The union file: `import Tengoku.All` (what the queue's last step builds: the tree as main has it) and every new module that built and has not been excluded (what the library's
+    umbrella would import), elaborated by Lean itself, so that no rule of Lean's import (module-system files, subsumed duplicates) is re-implemented here. The tree is NOT enumerated: its source
+    holds modules that are alternatives to each other and never imported together (Aesop's `DiscrKeyConfig` and `DiscrTreeConfig` both declare `Aesop.indexConfig`; the first attempt that imported every
+    module was refused by that pair), and its cache holds the oleans of modules that no longer exist."""
     new = json.loads(Path(a.new).read_text())["modules"]
     keep = set(read_lines(a.keep))
     excluded = set(read_lines(a.excluded))
-    out_of_play = {plain(m) for m in new if plain(m) not in keep} | excluded  # new modules that did not build, were refused, or were excluded: they have oleans or not, they are not imported
-    mods = [m for m in read_lines(a.tree_modules) if m not in out_of_play]
-    Path(a.out).write_text("".join(f"import {lean_module(m)}\n" for m in sorted(set(mods))))
-    print(f"{len(set(mods))} module(s) to import ({len(out_of_play)} new module(s) out of play)")
+    out_of_play = {plain(m) for m in new if plain(m) not in keep} | excluded  # new modules that did not build, were refused, or were excluded are not imported
+    mods = sorted({plain(m) for m in new} - out_of_play)
+    Path(a.out).write_text(f"import {lean_module(a.root)}\n" + "".join(f"import {lean_module(m)}\n" for m in mods))
+    print(f"{a.root} and {len(mods)} new module(s) to import ({len(out_of_play)} new module(s) out of play)")
 
 
 def cmd_union_next(a: argparse.Namespace) -> None:
@@ -288,7 +290,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--axioms", default="", help="the output of ModuleAxioms.lean on out/built.txt: a module with a declaration on a non-standard axiom is refused")
     p.set_defaults(fn=cmd_collect)
     p = sub.add_parser("union-input")
-    p.add_argument("--tree-modules", required=True)
+    p.add_argument("--root", default="Tengoku.All", help="the module that stands for the tree (what the queue's last step builds)")
     p.add_argument("--new", required=True)
     p.add_argument("--keep", required=True)
     p.add_argument("--excluded", required=True)

@@ -292,12 +292,11 @@ class UnionImport(Fixture):
 
     def prepare(self, built=("Tengoku.ToyLib.Toy.B", "Tengoku.ToyLib.Toy.C", "Tengoku.ToyLib.Toy.D")):
         self.apply()
-        (self.d / "tree-modules.txt").write_text("".join(m + "\n" for m in ("Tengoku.Tree.Lib.A", "Tengoku.Tree.Lib.Indicator", *built, "Tengoku.ToyLib.Toy.A-B")))
         (self.d / "built.txt").write_text("".join(m + "\n" for m in built))
         (self.d / "excluded.txt").write_text("")
 
-    def union_input(self):
-        tv.main(["union-input", "--tree-modules", str(self.d / "tree-modules.txt"), "--new", str(self.out / "new.json"), "--keep", str(self.d / "built.txt"), "--excluded", str(self.d / "excluded.txt"), "--out", str(self.d / "U.lean")])
+    def union_input(self, *extra):
+        tv.main(["union-input", *extra, "--new", str(self.out / "new.json"), "--keep", str(self.d / "built.txt"), "--excluded", str(self.d / "excluded.txt"), "--out", str(self.d / "U.lean")])
         return (self.d / "U.lean").read_text().split("\n")
 
     def union_next(self, message: str, bundle=True):
@@ -320,12 +319,17 @@ class UnionImport(Fixture):
         self.assertEqual(tv.union_failure(REFUSAL), ("Tengoku.ToyLib.Toy.C", "Indicator.«term𝟭_[_]»", "Tengoku.Tree.Lib.Indicator"))
         self.assertIsNone(tv.union_failure("U.lean:1:0: error: unknown module prefix 'Foo'\n"))
 
-    def test_the_union_file_imports_the_tree_and_the_new_modules_that_built_with_lean_quoting(self):
+    def test_the_union_file_imports_the_root_and_the_new_modules_that_built(self):
         self.prepare()
         lines = self.union_input()
-        self.assertIn("import Tengoku.Tree.Lib.A", lines)
-        self.assertIn("import Tengoku.ToyLib.Toy.B", lines)
-        self.assertIn("import Tengoku.ToyLib.Toy.«A-B»", lines)  # a dash in a component is quoted as an import writes it
+        self.assertEqual(lines[0], "import Tengoku.All")  # the tree as the queue builds it
+        self.assertEqual(sorted(lines[1:-1]), ["import Tengoku.ToyLib.Toy.B", "import Tengoku.ToyLib.Toy.C", "import Tengoku.ToyLib.Toy.D"])
+
+    def test_the_root_can_be_named_and_a_module_with_a_dash_is_quoted_as_an_import_writes_it(self):
+        write(self.bundle, {"Tengoku/ToyLib/Toy/A-B.lean": "theorem ab : 5 = 5 := rfl\n"})
+        self.prepare(built=("Tengoku.ToyLib.Toy.A-B",))
+        lines = self.union_input("--root", "Tengoku.Other")
+        self.assertEqual(lines[:2], ["import Tengoku.Other", "import Tengoku.ToyLib.Toy.«A-B»"])
 
     def test_a_new_module_that_did_not_build_is_not_imported_even_if_it_has_an_olean(self):
         self.prepare(built=("Tengoku.ToyLib.Toy.B",))
