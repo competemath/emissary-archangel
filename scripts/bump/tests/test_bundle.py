@@ -366,6 +366,27 @@ class AutoDrops(unittest.TestCase):
                 err.write("" if isinstance(e.code, int) else str(e.code))
         return d, subprocess.CompletedProcess(argv, exit_code, "", err.getvalue())
 
+    def test_a_module_the_tree_refused_goes_with_its_importers_and_no_other_module_changes(self):
+        """The factory builds the bundle in the tree's environment before cutting it: the modules the tree refused are dropped AFTER the pruning, with their importers, and every other
+        module is byte for byte what the build saw."""
+        base, _ = self.compose(["Toy.Clean"], files=["Clean", "Owned", "AboveOwned"])
+        failures = base / "failures.txt"
+        failures.write_text("Toy.Owned\n")
+        d, r = self.compose([], "--tree-failures", str(failures), files=["Clean", "Owned", "AboveOwned"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(sorted(self.shipped(d)), ["Toy.clean_one"])
+        self.assertFalse(list((d / "bundle-proposed").rglob("Owned.lean")) or list((d / "bundle-proposed").rglob("AboveOwned.lean")))
+        before = (base / "bundle-proposed" / "Tengoku" / "ToyLib" / "Toy" / "Clean.lean").read_text()
+        after = (d / "bundle-proposed" / "Tengoku" / "ToyLib" / "Toy" / "Clean.lean").read_text()
+        self.assertEqual(before, after)
+
+    def test_a_name_that_is_no_module_of_the_library_in_the_tree_failures_is_ignored(self):
+        failures = Path(tempfile.mkdtemp()) / "failures.txt"
+        failures.write_text("Toy.NoSuchModule\n")
+        d, r = self.compose([], "--tree-failures", str(failures), files=["Clean"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.shipped(d), ["Toy.clean_one"])
+
     def shipped(self, d: Path, mode: str = "proposed") -> list[str]:
         return [json.loads(x)["name"] for x in (d / ("bundle" if mode == "strict" else f"bundle-{mode}") / "manifest.jsonl").read_text().splitlines()]
 

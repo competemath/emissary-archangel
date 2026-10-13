@@ -1,11 +1,11 @@
-# scripts/bump/BundleKeep.lean, run by a real Lean on a small case: the program that decides which library constants a bundle keeps imports only Lean and loads the
+# scripts/bump/BundleKeep.lean, ModuleAxioms.lean and ModuleClashes.lean, run by a real Lean on a small case: the program that decides which library constants a bundle keeps imports only Lean and loads the
 # library at run time (the script it replaced was parsed with the library's tokens, and lost whole shards' theorems silently: bundle.py's header says how).
 name: bundle-keep-tests
 on:
   push:
-    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", ".github/workflows/bundle-keep-tests.yml"]
+    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/tree_verify.py", ".github/workflows/bundle-keep-tests.yml"]
   pull_request:
-    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", ".github/workflows/bundle-keep-tests.yml"]
+    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/tree_verify.py", ".github/workflows/bundle-keep-tests.yml"]
 permissions: {}
 defaults:
   run:
@@ -67,3 +67,58 @@ jobs:
         run: |
           printf '%s' '{"imports": ["Init.Data.Nat.Basic"], "names": ["No.Such.theorem"], "libs": ["Init.Data.Nat.Basic"]}' > "$RUNNER_TEMP/keep2.json"
           lake env lean --run ../scripts/bump/BundleKeep.lean "$RUNNER_TEMP/keep2.json" | grep -q "BUNDLE_KEEP"
+      # The axiom check of the tree-environment build: Init.Prelude declares `lcProof`, an axiom that is not one of the three allowed; its own declarations are the offenders.
+      # What the program prints is read by tree_verify.axiom_offenders, the code that decides which modules the factory drops.
+      - name: ModuleAxioms.lean names the module and the declaration that rest on an axiom, and tree_verify reads its output
+        working-directory: gate2
+        run: |
+          printf 'Init.Prelude\nInit.Data.Nat.Basic\n' > "$RUNNER_TEMP/modules.txt"
+          lake env lean --run ../scripts/bump/ModuleAxioms.lean "$RUNNER_TEMP/modules.txt" | tee "$RUNNER_TEMP/axioms.out"
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, "../scripts/bump")
+          import tree_verify as tv
+          out = open(os.path.join(os.environ["RUNNER_TEMP"], "axioms.out")).read()
+          got = tv.axiom_offenders(out, {"Init.Prelude", "Init.Data.Nat.Basic"})
+          assert "Init.Prelude" in got, (got, out[-500:])
+          assert any(d.startswith("lcProof [") and "lcProof" in d for d in got["Init.Prelude"]), got["Init.Prelude"]
+          assert "Init.Data.Nat.Basic" not in got, "Nat.Basic rests on the three allowed axioms only: " + str(got.get("Init.Data.Nat.Basic"))
+          assert tv.AXIOM_DONE.search(out).group("checked") != "0", "nothing was checked"
+          print("offenders:", {m: len(v) for m, v in got.items()})
+          PY
+      - name: A module that does not exist is no clean run
+        working-directory: gate2
+        run: |
+          printf 'No.Such.Module\n' > "$RUNNER_TEMP/none.txt"
+          # (`! pipeline` never trips `set -e`: an explicit exit)
+          if lake env lean --run ../scripts/bump/ModuleAxioms.lean "$RUNNER_TEMP/none.txt" 2>&1 | grep -q "^axioms: "; then echo "a module that does not exist produced a verdict"; exit 1; fi
+      # The union check of the tree-environment build: two modules of the tree that declare the same name (a vendored copy of another library) stop `import Tengoku.All`. Three tiny modules are compiled
+      # to oleans (core Lean only): A and B both declare Toy.clashing, C is clean. The program names the pair when one of them is new, names nothing when neither is, and tree_verify reads its output.
+      - name: ModuleClashes.lean names the pair of modules that declare one name when one is new, and tree_verify reads its output
+        working-directory: gate2
+        run: |
+          root="$RUNNER_TEMP/oleans"; src="$RUNNER_TEMP/clashsrc"
+          mkdir -p "$root/Tengoku/LibA" "$root/Tengoku/LibB" "$root/Tengoku/LibC" "$src"
+          printf 'def Toy.clashing := 1\ndef Toy.onlyA := 2\n' > "$src/A.lean"
+          printf 'def Toy.clashing := 3\ndef Toy.onlyB := 4\n' > "$src/B.lean"
+          printf 'def Toy.fine := 5\n' > "$src/C.lean"
+          # `lean` wants the source inside its root directory: the root is the scratch directory (the module name is not used here: the program names a module by its path under the olean root)
+          for m in A B C; do lake env lean --root="$src" -o "$root/Tengoku/Lib$m/$m.olean" "$src/$m.lean"; done
+          printf 'Tengoku.LibB.B\nTengoku.LibC.C\n' > "$RUNNER_TEMP/new.txt"
+          lake env lean --run ../scripts/bump/ModuleClashes.lean "$root" "$RUNNER_TEMP/new.txt" Tengoku | tee "$RUNNER_TEMP/clashes.out"
+          : > "$RUNNER_TEMP/none.txt"
+          lake env lean --run ../scripts/bump/ModuleClashes.lean "$root" "$RUNNER_TEMP/none.txt" Tengoku | tee "$RUNNER_TEMP/clashes-none.out"
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, "../scripts/bump")
+          import tree_verify as tv
+          t = os.environ["RUNNER_TEMP"]
+          out = open(os.path.join(t, "clashes.out")).read()
+          got = tv.clash_offenders(out, {"Tengoku.LibB.B", "Tengoku.LibC.C"})
+          assert list(got) == ["Tengoku.LibB.B"], (got, out)
+          assert got["Tengoku.LibB.B"] == ["Toy.clashing also declared by Tengoku.LibA.A"], got
+          assert tv.clash_offenders(out, {"Tengoku.LibC.C"}) == {}, "C declares nothing another module declares"
+          none = open(os.path.join(t, "clashes-none.out")).read()
+          assert tv.CLASH_DONE.search(none).group("pairs") == "0", none  # A and B clash, but neither is new: not this bundle's business
+          print("clash pair named:", got)
+          PY

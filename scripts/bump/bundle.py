@@ -328,6 +328,7 @@ def compose(a: argparse.Namespace) -> None:
     # that proves a record the tree already has, and the names are those of the text that ships (the pruned module), not of the source
     tree_decls = {ln for ln in Path(a.tree_decls).read_text().split("\n") if ln} if a.tree_decls else set()
     lean_clash = {mod: sorted(lean_names.names(pruned[mod]) & tree_decls) for mod in pruned} if tree_decls else {}
+    tree_failed = {ln.strip() for ln in Path(a.tree_failures).read_text().split("\n") if ln.strip()} if a.tree_failures else set()
     repo = meta["repo"].rstrip("/").removesuffix(".git")
     via = passed_via(a.gate2)
     summary = {}
@@ -341,6 +342,9 @@ def compose(a: argparse.Namespace) -> None:
         dropped.update({m: "lint: " + "; ".join(vs[:3]) for m, vs in viol.items() if vs and m not in dropped})
         dropped.update({m: "uses a declaration the pruning left out: " + ", ".join(ds[:3]) for m, ds in dangling.items() if m not in dropped})
         dropped.update({m: "declares a name another library of the tree declares: " + ", ".join(ns[:3]) for m, ns in lean_clash.items() if ns and m not in dropped})
+        # modules the tree's own build refused (the factory built the bundle in the tree's environment before cutting it): dropped HERE, after the closure and the pruning, so that no
+        # other module changes by a byte: what ships is what was built there (tree_verify.py check)
+        dropped.update({m: "did not build in the tree (the tree's own build, before the part was cut)" for m in sorted(tree_failed) if m in pruned and m not in dropped})
         needed: set[str] = set()
 
         def need(mod: str) -> None:
@@ -549,6 +553,7 @@ if __name__ == "__main__":
     c.add_argument("--drop-modules", default="", help="comma list of modules to leave out (with their importers): those that did not build on the tree")
     c.add_argument("--tree-names", default="", help="file of the record names the tree already has, one per line (tree_names.py): the modules that prove one are left out with their importers")
     c.add_argument("--tree-decls", default="", help="file of the Lean names the other namespaces of the tree declare, one per line (tree_names.py --decls-out): the modules that declare one are left out with their importers")
+    c.add_argument("--tree-failures", default="", help="file of the library modules (one per line) that did NOT build in the tree's own environment (tree_verify.py collect): they are left out with their importers AFTER the pruning, so every other module is exactly the text that was built there")
     c.add_argument("--taint-drops", action="store_true", help="a declaration that stands on a sorry in the library's own build (BundleKeep's `tainted`) is not kept for a text that names it, and the module that names it goes (off: it is only reported; the tree's own build judges it)")
     c.add_argument("--drop-leaks", action="store_true", help="leave out a module whose pruning left unverified text (and what imports it) instead of refusing to compose")
     r = sub.add_parser("refine")
