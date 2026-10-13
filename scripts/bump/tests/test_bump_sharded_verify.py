@@ -140,6 +140,15 @@ class TheUnionCheck(unittest.TestCase):
         self.assertIn('IO.println s!"CLASH\\t{files[i]!.1}\\t{files[j]!.1}\\t{c}\\t{f}"', lean)
         self.assertIn('clashes: {pairs.size} module pair(s), {names} name(s)', lean)
 
+    def test_the_program_applies_leans_own_duplicate_rule(self):
+        """The first run (lean-pool, 2026-10-13) flagged 155 modules, most of them over `foo.eq_1` / `foo.congr_simp`, which Lean's import allows (Lean.Environment `subsumesInfo`)."""
+        lean = (PATH.parents[2] / "scripts" / "bump" / "ModuleClashes.lean").read_text()
+        self.assertIn("def subsumes (a b : ConstantInfo) : Bool", lean)
+        self.assertIn("a.name == b.name && a.type == b.type && a.levelParams == b.levelParams", lean)
+        self.assertIn(".thmInfo x, .thmInfo y => x.all == y.all", lean)
+        self.assertIn("!(subsumes ci prev || subsumes prev ci)", lean)  # either direction, as `importModules` tries both
+        self.assertIn("for n in data.constNames, ci in data.constants do", lean)
+
     def test_the_budgets_still_fit_the_job(self):
         build = int(re.search(r"timeout -k \d+ (\d+)m lake build", step("verify", "Build them")["run"]).group(1))
         axioms = int(re.search(r"timeout -k \d+ (\d+)m lake env lean", step("verify", "The axiom check")["run"]).group(1))

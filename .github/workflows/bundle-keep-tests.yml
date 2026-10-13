@@ -99,9 +99,11 @@ jobs:
         run: |
           root="$RUNNER_TEMP/oleans"; src="$RUNNER_TEMP/clashsrc"
           mkdir -p "$root/Tengoku/LibA" "$root/Tengoku/LibB" "$root/Tengoku/LibC" "$src"
-          printf 'def Toy.clashing := 1\ndef Toy.onlyA := 2\n' > "$src/A.lean"
-          printf 'def Toy.clashing := 3\ndef Toy.onlyB := 4\n' > "$src/B.lean"
-          printf 'def Toy.fine := 5\n' > "$src/C.lean"
+          # `Toy.clashing`: two definitions (a clash). `Toy.thmDup`: two theorems of the same type (Lean's import allows it: equation lemmas are generated where they are first used). `Toy.thmDiff`:
+          # two theorems of different types (a clash)
+          printf 'def Toy.clashing := 1\ndef Toy.onlyA := 2\ntheorem Toy.thmDup : 1 = 1 := rfl\ntheorem Toy.thmDiff : 1 = 1 := rfl\n' > "$src/A.lean"
+          printf 'def Toy.clashing := 3\ndef Toy.onlyB := 4\ntheorem Toy.thmDup : 1 = 1 := by decide\ntheorem Toy.thmDiff : 2 = 2 := rfl\n' > "$src/B.lean"
+          printf 'def Toy.fine := 5\ntheorem Toy.thmDup : 1 = 1 := rfl\n' > "$src/C.lean"
           # `lean` wants the source inside its root directory: the root is the scratch directory (the module name is not used here: the program names a module by its path under the olean root)
           for m in A B C; do lake env lean --root="$src" -o "$root/Tengoku/Lib$m/$m.olean" "$src/$m.lean"; done
           printf 'Tengoku.LibB.B\nTengoku.LibC.C\n' > "$RUNNER_TEMP/new.txt"
@@ -116,7 +118,11 @@ jobs:
           out = open(os.path.join(t, "clashes.out")).read()
           got = tv.clash_offenders(out, {"Tengoku.LibB.B", "Tengoku.LibC.C"})
           assert list(got) == ["Tengoku.LibB.B"], (got, out)
-          assert got["Tengoku.LibB.B"] == ["Toy.clashing also declared by Tengoku.LibA.A"], got
+          [one] = got["Tengoku.LibB.B"]
+          # exactly the two names that Lean's import would refuse (the definition, the theorem with another type), not `Toy.thmDup` (two theorems of one type)
+          assert one.split(" ")[0] in ("Toy.clashing", "Toy.thmDiff") and "(+1 more)" in one and one.endswith("also declared by Tengoku.LibA.A"), got
+          pair = [ln for ln in out.splitlines() if ln.startswith("CLASH") and "LibB.B" in ln and "LibA.A" in ln]
+          assert len(pair) == 1 and pair[0].split("\t")[3] == "2", pair  # two names, not three
           assert tv.clash_offenders(out, {"Tengoku.LibC.C"}) == {}, "C declares nothing another module declares"
           none = open(os.path.join(t, "clashes-none.out")).read()
           assert tv.CLASH_DONE.search(none).group("pairs") == "0", none  # A and B clash, but neither is new: not this bundle's business
