@@ -173,11 +173,15 @@ jobs:
         with: { name: "draft-${{ inputs.key }}", path: draft }
       - name: The draft
         run: mkdir bundle && tar --no-same-owner -xf "draft/draft-$MODE.tar" -C bundle
-      # the tree's cache is several GB packed and about ten times that unpacked (queue-gate.yml, "Free disk")
+      # the tree's cache is several GB packed and about ten times that unpacked (queue-gate.yml, "Free disk"). The runner has 145 GB, 34 GB of it used before anything runs: the tree's build
+      # directory now takes most of the rest, and a runner whose disk fills is LOST, with no log and no error (2026-10-13: the tauceti verify job, the queue's last step for lean-pool part 10 and
+      # both nightly cache builds died that way within 12 hours). So: free what the build does not use, and measure (out/disk.log is uploaded with the verdict).
       - name: Free disk (the tree's cache and build are several GB)
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift || true
-          df -h / | tail -1
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache /usr/local/share/boost /usr/share/swift /usr/lib/jvm /usr/share/miniconda /usr/local/share/powershell /usr/local/lib/node_modules /opt/az /usr/local/graalvm /usr/local/share/chromium || true
+          sudo docker image prune --all --force >/dev/null 2>&1 || true
+          sudo swapoff -a >/dev/null 2>&1 || true; sudo rm -f /mnt/swapfile /swapfile || true
+          mkdir -p out && { echo "== after freeing"; df -h / | tail -1; } | tee out/disk.log
       # the installer at a fixed commit, checked against its digest before it runs (as bundle-keep-tests.yml does): this job's verdict is what `finish` signs, so what it runs must not be mutable
       - name: Lean toolchain (pinned by the tree's lean-toolchain)
         run: |
@@ -192,6 +196,7 @@ jobs:
           mkdir -p out
           echo "tree: $(git -C tree rev-parse HEAD)" | tee out/tree-sha.txt
           cd tree && scripts/cache.sh get 2>&1 | tail -3
+          { echo "== after seeding"; df -h / | tail -1; du -sh .lake/build 2>/dev/null; } | tee -a ../out/disk.log
       - name: Copy the new modules into the tree
         run: python3 emissary/scripts/bump/tree_verify.py apply --bundle bundle --tree tree --out out
       # the queue's own command, for every new module at once. Lake goes on after a module fails and lists them all; a build that is killed leaves a log with no ending,
@@ -203,9 +208,14 @@ jobs:
           if [ ${#targets} -gt 1500000 ]; then echo "::error::the new modules do not fit one command line; recut from the tree in rounds (from_tree) so that fewer are new"; exit 1; fi
           cd tree
           set +e
+          # the disk, every minute: a runner whose disk fills dies without a word, and this is what says so afterwards
+          ( while sleep 60; do echo "$(date -u +%H:%M:%S) $(df -h / | tail -1 | awk '{print "used=" $3 " avail=" $4}') mem_avail_kb=$(awk '/MemAvailable/ {print $2}' /proc/meminfo)" >> ../out/disk.log; done ) &
+          sampler=$!
           # shellcheck disable=SC2086  # targets is a space-separated module list
           timeout -k 60 250m lake build $targets 2>&1 | tee ../out/build.log
           echo "lake exit status: ${PIPESTATUS[0]}"
+          kill "$sampler" 2>/dev/null || true
+          { echo "== after the build"; df -h / | tail -1; du -sh .lake/build 2>/dev/null; } >> ../out/disk.log
       - name: What the build accepted
         run: |
           flag=(); if [ "$VERIFY_PARTIAL" = true ]; then flag=(--allow-unfinished); fi
@@ -250,6 +260,7 @@ jobs:
             out/summary.txt
             out/axioms.txt
             out/clashes.txt
+            out/disk.log
             out/build.log.gz
             out/tree-sha.txt
           retention-days: 14

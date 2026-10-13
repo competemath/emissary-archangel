@@ -275,6 +275,40 @@ class NothingMutableRunsBeforeTheVerdict(unittest.TestCase):
             self.assertNotIn("releases/latest", runs(job), job)
 
 
+class TheDiskIsMeasuredAndFreed(unittest.TestCase):
+    """2026-10-13: the tauceti verify job, the queue's last step for lean-pool part 10 and both nightly cache builds were LOST (no log, no error) within 12 hours: the runner has 145 GB, 34 GB
+    used before anything runs, and the tree's build directory takes most of the rest."""
+
+    def test_the_runner_is_cleaned_of_what_the_build_does_not_use(self):
+        run = step("verify", "Free disk")["run"]
+        for path in ("/opt/hostedtoolcache", "/usr/lib/jvm", "/usr/share/miniconda", "/usr/local/lib/android", "/usr/share/dotnet", "/opt/ghc"):
+            self.assertIn(path, run)
+        self.assertIn("docker image prune --all --force", run)
+        self.assertIn("swapoff -a", run)
+
+    def test_what_the_build_needs_is_not_removed(self):
+        run = step("verify", "Free disk")["run"]
+        for needed in ("/usr/bin", "/usr/lib/x86_64", "/home/runner", "$HOME", "/usr/local/bin", "/usr/local/sbin"):
+            self.assertNotIn(f"rm -rf {needed}", run)
+            self.assertNotRegex(run, rf"rm -rf [^|]*\s{re.escape(needed)}(\s|$)")
+
+    def test_the_disk_is_logged_after_freeing_after_seeding_every_minute_and_after_the_build(self):
+        self.assertIn("out/disk.log", step("verify", "Free disk")["run"])
+        self.assertIn("du -sh .lake/build", step("verify", "The tree, seeded")["run"])
+        build = step("verify", "Build them")["run"]
+        self.assertIn("sleep 60", build)
+        self.assertIn("MemAvailable", build)
+        self.assertIn('kill "$sampler"', build)  # the sampler never outlives the build
+
+    def test_the_log_travels_to_the_artifact(self):
+        up = next(s for s in JOBS["verify"]["steps"] if "upload-artifact" in str(s.get("uses", "")))["with"]["path"]
+        self.assertIn("out/disk.log", up)
+
+    def test_the_apply_step_does_not_wipe_the_log(self):
+        # out/ is created by the Free disk step now; apply must go on writing into it
+        self.assertIn("mkdir -p out", step("verify", "Free disk")["run"])
+
+
 class SameBundle(unittest.TestCase):
     def test_the_draft_and_the_final_bundle_are_cut_by_the_same_command(self):
         draft, final = compose_command("compose"), compose_command("finish")
