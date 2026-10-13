@@ -18,22 +18,25 @@ import Lean
 
 open Lean
 
-partial def oleans (root dir : System.FilePath) (acc : Array (Name × System.FilePath)) : IO (Array (Name × System.FilePath)) := do
+partial def oleans (rootLen : Nat) (dir : System.FilePath) (acc : Array (Name × System.FilePath)) : IO (Array (Name × System.FilePath)) := do
   let mut acc := acc
   for e in (← dir.readDir) do
     let p := e.path
     if (← p.isDir) then
-      acc ← oleans root p acc
+      acc ← oleans rootLen p acc
     else if p.extension == some "olean" then
-      let rel := (p.toString.drop (root.toString.length + 1)).dropRight ".olean".length
-      acc := acc.push (rel.splitOn "/" |>.foldl (fun n c => Name.mkStr n c) Name.anonymous, p)
+      let some stem := p.fileStem | continue
+      -- the module is the path below the root: its directories, then the file's stem (no string slicing: those functions changed between Lean versions)
+      let dirs := ((p.parent.getD (System.FilePath.mk ".")).components).drop rootLen
+      acc := acc.push ((dirs ++ [stem]).foldl (fun n c => Name.mkStr n c) Name.anonymous, p)
   return acc
 
 def main (argv : List String) : IO UInt32 := do
   let [root, file, pre] := argv | IO.eprintln "usage: ModuleClashes.lean OLEAN_ROOT modules.txt PREFIX"; return 2
   let newMods : NameSet := ((← IO.FS.lines file).toList.map String.trim).filter (· != "") |>.foldl (fun s m => s.insert m.toName) {}
   let prefixName := pre.toName
-  let all ← oleans root root #[]
+  let rootPath := System.FilePath.mk root
+  let all ← oleans rootPath.components.length rootPath #[]
   let files := all.filter fun (m, _) => prefixName.isPrefixOf m
   let mut owner : Std.HashMap Name Nat := {}
   -- (earlier module, later module) -> (how many names, the first)
