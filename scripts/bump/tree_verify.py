@@ -10,6 +10,8 @@ own command (`lake build Tengoku.<Ns>.<module> …`) on a checkout seeded from t
   tree_verify.py apply   --bundle DIR --tree CHECKOUT --out OUT   copy the bundle's new modules into the checkout, write OUT/targets.txt (what to build) and OUT/new.json
   tree_verify.py collect --new OUT/new.json --log build.log --out OUT [--axioms axioms.txt] [--clashes clashes.txt] [--allow-unfinished]   read the build (and the axiom check of what built): OUT/failing.txt (library modules),
                                                                           OUT/ok.json (module -> sha256), OUT/built.txt (the modules to run ModuleAxioms.lean on), OUT/summary.txt
+  tree_verify.py union-input --tree-modules T --new OUT/new.json --keep OUT/built.txt --excluded X --out U.lean   the file that imports the whole tree plus the new modules that are still in play
+  tree_verify.py union-next  --message M --new OUT/new.json --keep OUT/built.txt --excluded X --bundle DIR      read Lean's refusal of that file, exclude the new module (and its importers)
   tree_verify.py check   --bundle DIR --new OUT/new.json --ok OUT/ok.json   exit 1 unless every new module of the final bundle was built there with the same bytes
 
 The queue also checks the axioms of every declaration of the modules it built (scripts/bump/ModuleAxioms.lean is that check with the module of each offender in its
@@ -44,6 +46,8 @@ AXIOM_LINE = re.compile(r"^AXIOM\t(?P<mod>[^\t\n]+)\t(?P<decl>[^\t\n]+)\t(?P<axi
 AXIOM_DONE = re.compile(r"^axioms: (?P<checked>\d+) declarations checked, (?P<bad>\d+) with non-standard axioms$", re.M)
 CLASH_LINE = re.compile(r"^CLASH\t(?P<mod>[^\t\n]+)\t(?P<other>[^\t\n]+)\t(?P<count>\d+)\t(?P<first>[^\n]*)$", re.M)
 CLASH_DONE = re.compile(r"^clashes: (?P<pairs>\d+) module pair\(s\), (?P<names>\d+) name\(s\)$", re.M)
+# the name is quoted by single quotes and may contain some (`mul_comm'`): it runs up to the LAST `' from ` of the line (CodeRabbit)
+IMPORT_FAIL = re.compile(r"import (?P<x>\S+) failed, environment already contains '(?P<name>.+)' from (?P<y>\S+)\s*$", re.M)
 FINISHED = re.compile(r"Build completed successfully|Some required targets logged failures|error: build failed")
 
 
@@ -123,6 +127,60 @@ def clash_offenders(text: str, mods: set[str]) -> dict[str, list[str]]:
     return out
 
 
+def lean_module(name: str) -> str:
+    """`Tengoku.Lib.A-B.C` -> `Tengoku.Lib.«A-B».C`: a module name as an `import` writes it (the same quoting as bundle_layers.module_name)."""
+    return ".".join(c if re.fullmatch(r"[^\W\d][\w']*", c) else f"«{c}»" for c in name.split("."))
+
+
+def union_failure(text: str) -> tuple[str, str, str] | None:
+    """(the module whose import failed, the name, the module that already had it) from Lean's refusal of the union file, or None if the text is not that refusal."""
+    m = IMPORT_FAIL.search(text)
+    return (m.group("x"), m.group("name"), m.group("y")) if m else None
+
+
+def read_lines(path: str) -> list[str]:
+    return [ln.strip() for ln in Path(path).read_text().split("\n") if ln.strip()] if path and Path(path).is_file() else []
+
+
+def cmd_union_input(a: argparse.Namespace) -> None:
+    """The union file: `import` of every module of the tree and of the new modules that built and have not been excluded. It is what the queue's last step does (`import
+    Tengoku.All`), done by Lean itself, so that no rule of Lean's import (module-system files, subsumed duplicates) has to be re-implemented here."""
+    new = json.loads(Path(a.new).read_text())["modules"]
+    keep = set(read_lines(a.keep))
+    excluded = set(read_lines(a.excluded))
+    out_of_play = {plain(m) for m in new if plain(m) not in keep} | excluded  # new modules that did not build, were refused, or were excluded: they have oleans or not, they are not imported
+    mods = [m for m in read_lines(a.tree_modules) if m not in out_of_play]
+    Path(a.out).write_text("".join(f"import {lean_module(m)}\n" for m in sorted(set(mods))))
+    print(f"{len(set(mods))} module(s) to import ({len(out_of_play)} new module(s) out of play)")
+
+
+def cmd_union_next(a: argparse.Namespace) -> None:
+    text = Path(a.message).read_text(errors="replace")
+    hit = union_failure(text)
+    if hit is None:
+        errs = [ln for ln in text.splitlines() if "error" in ln.lower()][:5] or text.splitlines()[-5:]
+        sys.exit("the union import failed in a way that is not a name clash (or was killed): refusing to guess:\n  " + "\n  ".join(errs))
+    x, name, y = hit
+    new = json.loads(Path(a.new).read_text())
+    mods = new["modules"]
+    key_of = {plain(m): m for m in mods}
+    in_play = (set(key_of) & set(read_lines(a.keep))) - set(read_lines(a.excluded))
+    offender = plain(x) if plain(x) in in_play else plain(y) if plain(y) in in_play else None
+    if offender is None:
+        sys.exit(f"the tree does not import: {plain(x)} and {plain(y)} both declare `{name}` and neither is a new module still in play (the tree itself, or a module already excluded)")
+    graph: dict[str, list[str]] = {}
+    if a.bundle:
+        bfiles = bl.read_bundle(Path(a.bundle))
+        graph = {m: [d for d in deps if d in mods] for m, deps in bl.import_graph(bfiles, {m: p["path"] for m, p in mods.items()}).items()}
+    gone = {offender} | {plain(m) for m in dependents({key_of[offender]}, graph)} & in_play
+    with Path(a.excluded).open("a") as f:
+        f.writelines(f"{m}\n" for m in sorted(gone))
+    with Path(a.excluded).with_suffix(".reasons").open("a") as f:
+        f.write(f"{offender}\t`{name}` is also declared by {plain(y) if offender == plain(x) else plain(x)}\n")
+        f.writelines(f"{m}\timports {offender}\n" for m in sorted(gone - {offender}))
+    print(f"excluded {offender} ({len(gone) - 1} importer(s) with it): `{name}` is declared by both {plain(x)} and {plain(y)}")
+
+
 def library_module(module: str, ns: str) -> str:
     """`Tengoku.LeanPool.LeanPool.Foo` -> `LeanPool.Foo`: the library's own name, which `compose --tree-failures` takes."""
     return module.removeprefix(f"Tengoku.{ns}.")
@@ -161,6 +219,9 @@ def cmd_collect(a: argparse.Namespace) -> None:
     failing |= set(offenders)
     clashing = clash_offenders(Path(a.clashes).read_text(errors="replace"), set(mods)) if a.clashes else {}
     failing |= set(clashing)
+    union_gone = set(read_lines(a.union_excluded)) if a.union_excluded else set()
+    union_hit = {m for m in mods if plain(m) in union_gone}
+    failing |= union_hit
     graph: dict[str, list[str]] = {}
     if a.bundle:
         bfiles = bl.read_bundle(Path(a.bundle))
@@ -174,11 +235,13 @@ def cmd_collect(a: argparse.Namespace) -> None:
     (out / "ok.json").write_text(json.dumps(ok, indent=1) + "\n")
     (out / "built.txt").write_text("".join(plain(m) + "\n" for m in sorted(ok)))
     summary = (
-        f"{len(mods)} new module(s): {len(ok)} built in the tree, {len(failing)} refused ({len(unaccounted)} of them not reached, {len(offenders)} on an axiom, {len(clashing)} on a name another module declares), "
+        f"{len(mods)} new module(s): {len(ok)} built in the tree, {len(failing)} refused ({len(unaccounted)} of them not reached, {len(offenders)} on an axiom, {len(clashing)} on a name another module declares, {len(union_hit)} on the import of the whole tree), "
         f"{len(cascade - failing)} more import a refused one and go with it"
     )
     for m in sorted(clashing)[:10]:
         summary += f"\n  clash: {library_module(m, ns)}: {clashing[m][0]}" + (f" (+{len(clashing[m]) - 1} more pair(s))" if len(clashing[m]) > 1 else "")
+    for ln in read_lines(str(Path(a.union_excluded).with_suffix(".reasons")) if a.union_excluded else "")[:10]:
+        summary += f"\n  import: {ln.replace(chr(9), ': ')}"
     if unfinished:
         summary += "\n  the build did not finish (its budget ran out): the modules it did not reach are not in this cut; a later from-tree round continues with them"
     for m in sorted(offenders)[:10]:
@@ -220,9 +283,24 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--out", required=True)
     p.add_argument("--bundle", default="", help="the bundle the modules came from: its import graph says which modules go with a refused one")
     p.add_argument("--allow-unfinished", action="store_true", help="a build that ran out of time still says which modules it built (a `Built` line is positive evidence): accept those, leave the rest for a later round")
+    p.add_argument("--union-excluded", default="", help="the modules that `union-next` excluded (one per line): the import of the whole tree stopped at a name each of them declares, or at a module they import")
     p.add_argument("--clashes", default="", help="the output of ModuleClashes.lean on out/built.txt: a new module that declares a name another module of the tree declares is refused")
     p.add_argument("--axioms", default="", help="the output of ModuleAxioms.lean on out/built.txt: a module with a declaration on a non-standard axiom is refused")
     p.set_defaults(fn=cmd_collect)
+    p = sub.add_parser("union-input")
+    p.add_argument("--tree-modules", required=True)
+    p.add_argument("--new", required=True)
+    p.add_argument("--keep", required=True)
+    p.add_argument("--excluded", required=True)
+    p.add_argument("--out", required=True)
+    p.set_defaults(fn=cmd_union_input)
+    p = sub.add_parser("union-next")
+    p.add_argument("--message", required=True)
+    p.add_argument("--new", required=True)
+    p.add_argument("--keep", required=True)
+    p.add_argument("--excluded", required=True)
+    p.add_argument("--bundle", default="")
+    p.set_defaults(fn=cmd_union_next)
     p = sub.add_parser("check")
     p.add_argument("--bundle", required=True)
     p.add_argument("--new", required=True)

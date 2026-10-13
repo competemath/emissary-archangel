@@ -282,6 +282,109 @@ class Clashes(Fixture):
         self.assertEqual(json.loads((self.out / "ok.json").read_text()), {})  # D imports C
 
 
+REFUSAL = "U.lean:3:0: error: import Tengoku.ToyLib.Toy.C failed, environment already contains 'Indicator.«term𝟭_[_]»' from Tengoku.Tree.Lib.Indicator\n"
+
+
+class UnionImport(Fixture):
+    """The queue's last step imports the whole tree (`import Tengoku.All`); lean-pool part 10 was rejected there on a name two libraries declare, twice, after a static scan of the
+    oleans had missed it (the tree's module is a module-system file: its olean has a public part and a private part). Lean itself is asked instead: a file that imports every module
+    of the tree and the new ones is elaborated, its refusal names the pair, the new module of the pair goes (with its importers), and the file is elaborated again."""
+
+    def prepare(self, built=("Tengoku.ToyLib.Toy.B", "Tengoku.ToyLib.Toy.C", "Tengoku.ToyLib.Toy.D")):
+        self.apply()
+        (self.d / "tree-modules.txt").write_text("".join(m + "\n" for m in ("Tengoku.Tree.Lib.A", "Tengoku.Tree.Lib.Indicator", *built, "Tengoku.ToyLib.Toy.A-B")))
+        (self.d / "built.txt").write_text("".join(m + "\n" for m in built))
+        (self.d / "excluded.txt").write_text("")
+
+    def union_input(self):
+        tv.main(["union-input", "--tree-modules", str(self.d / "tree-modules.txt"), "--new", str(self.out / "new.json"), "--keep", str(self.d / "built.txt"), "--excluded", str(self.d / "excluded.txt"), "--out", str(self.d / "U.lean")])
+        return (self.d / "U.lean").read_text().split("\n")
+
+    def union_next(self, message: str, bundle=True):
+        (self.d / "msg.txt").write_text(message)
+        args = ["union-next", "--message", str(self.d / "msg.txt"), "--new", str(self.out / "new.json"), "--keep", str(self.d / "built.txt"), "--excluded", str(self.d / "excluded.txt")]
+        tv.main(args + (["--bundle", str(self.bundle)] if bundle else []))
+        return (self.d / "excluded.txt").read_text().split()
+
+    def test_a_name_with_primes_is_read_whole(self):
+        """CodeRabbit (emissary#41): Mathlib-style names end in primes; the first version of the pattern stopped at the first quote and the job failed on a clash it should handle."""
+        for name in ("mul_comm'", "foo'_eq", "Foo.bar''", "Foo.«a'b».c'", "x'"):
+            text = f"U.lean:1:0: error: import Tengoku.ToyLib.Toy.C failed, environment already contains '{name}' from Tengoku.Tree.Lib.Indicator\n"
+            self.assertEqual(tv.union_failure(text), ("Tengoku.ToyLib.Toy.C", name, "Tengoku.Tree.Lib.Indicator"), name)
+
+    def test_the_first_refusal_in_a_longer_output_is_the_one_read(self):
+        text = "warning: x\nU.lean:1:0: error: import A.B failed, environment already contains 'n'' from C.D\nU.lean:2:0: error: import E failed, environment already contains 'm' from F\n"
+        self.assertEqual(tv.union_failure(text), ("A.B", "n'", "C.D"))
+
+    def test_the_refusal_is_read_with_its_guillemets(self):
+        self.assertEqual(tv.union_failure(REFUSAL), ("Tengoku.ToyLib.Toy.C", "Indicator.«term𝟭_[_]»", "Tengoku.Tree.Lib.Indicator"))
+        self.assertIsNone(tv.union_failure("U.lean:1:0: error: unknown module prefix 'Foo'\n"))
+
+    def test_the_union_file_imports_the_tree_and_the_new_modules_that_built_with_lean_quoting(self):
+        self.prepare()
+        lines = self.union_input()
+        self.assertIn("import Tengoku.Tree.Lib.A", lines)
+        self.assertIn("import Tengoku.ToyLib.Toy.B", lines)
+        self.assertIn("import Tengoku.ToyLib.Toy.«A-B»", lines)  # a dash in a component is quoted as an import writes it
+
+    def test_a_new_module_that_did_not_build_is_not_imported_even_if_it_has_an_olean(self):
+        self.prepare(built=("Tengoku.ToyLib.Toy.B",))
+        lines = self.union_input()
+        self.assertNotIn("import Tengoku.ToyLib.Toy.C", lines)
+        self.assertNotIn("import Tengoku.ToyLib.Toy.D", lines)
+        self.assertIn("import Tengoku.ToyLib.Toy.B", lines)
+
+    def test_the_new_module_of_the_refused_import_is_excluded_with_its_importers_and_the_next_file_lacks_them(self):
+        self.prepare()
+        self.assertEqual(self.union_next(REFUSAL), ["Tengoku.ToyLib.Toy.C", "Tengoku.ToyLib.Toy.D"])  # D imports C
+        lines = self.union_input()
+        self.assertNotIn("import Tengoku.ToyLib.Toy.C", lines)
+        self.assertNotIn("import Tengoku.ToyLib.Toy.D", lines)
+        self.assertIn("import Tengoku.ToyLib.Toy.B", lines)
+        self.assertIn("`Indicator.«term𝟭_[_]»` is also declared by Tengoku.Tree.Lib.Indicator", (self.d / "excluded.reasons").read_text())
+
+    def test_when_the_new_module_is_the_earlier_import_it_is_the_one_that_goes(self):
+        self.prepare()
+        got = self.union_next("U.lean:3:0: error: import Tengoku.Tree.Lib.Indicator failed, environment already contains 'N' from Tengoku.ToyLib.Toy.B\n")
+        self.assertEqual(got, ["Tengoku.ToyLib.Toy.B"])
+
+    def test_a_refusal_between_two_modules_of_the_tree_is_not_ours_and_stops_the_run(self):
+        self.prepare()
+        with self.assertRaises(SystemExit) as r:
+            self.union_next("U.lean:3:0: error: import Tengoku.Tree.Lib.A failed, environment already contains 'N' from Tengoku.Tree.Lib.Indicator\n")
+        self.assertIn("the tree does not import", str(r.exception.code))
+
+    def test_a_module_already_excluded_is_not_blamed_again(self):
+        self.prepare()
+        (self.d / "excluded.txt").write_text("Tengoku.ToyLib.Toy.C\n")
+        with self.assertRaises(SystemExit):
+            self.union_next(REFUSAL)
+
+    def test_a_failure_that_is_not_a_name_clash_stops_the_run(self):
+        self.prepare()
+        for text in ("U.lean:1:0: error: object file '/x/Foo.olean' of module Foo does not exist\n", "", "Killed\n"):
+            with self.assertRaises(SystemExit) as r:
+                self.union_next(text)
+            self.assertIn("refusing to guess", str(r.exception.code))
+
+    def test_the_excluded_modules_are_refused_by_collect_with_their_importers_and_the_reason(self):
+        self.prepare()
+        self.union_next(REFUSAL)
+        (self.d / "build.log").write_text(Axioms.BUILT_ALL)
+        tv.main(["collect", "--new", str(self.out / "new.json"), "--log", str(self.d / "build.log"), "--out", str(self.out), "--bundle", str(self.bundle), "--union-excluded", str(self.d / "excluded.txt")])
+        self.assertEqual((self.out / "failing.txt").read_text().split(), ["Toy.C", "Toy.D"])  # the union loop already excluded the importer, so both are named
+        self.assertEqual(sorted(json.loads((self.out / "ok.json").read_text())), ["Tengoku.ToyLib.Toy.B"])
+        summary = (self.out / "summary.txt").read_text()
+        self.assertIn("2 on the import of the whole tree", summary)
+        self.assertIn("import: Tengoku.ToyLib.Toy.C: `Indicator.«term𝟭_[_]»` is also declared by Tengoku.Tree.Lib.Indicator", summary)
+
+    def test_without_the_union_nothing_changes(self):
+        self.apply()
+        (self.d / "build.log").write_text(Axioms.BUILT_ALL)
+        tv.main(["collect", "--new", str(self.out / "new.json"), "--log", str(self.d / "build.log"), "--out", str(self.out), "--bundle", str(self.bundle)])
+        self.assertEqual((self.out / "failing.txt").read_text(), "")
+
+
 class Check(Fixture):
     def verified(self):
         self.apply()

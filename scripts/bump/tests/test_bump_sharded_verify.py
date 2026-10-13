@@ -106,7 +106,7 @@ class PartialBuilds(unittest.TestCase):
     def test_the_budgets_fit_inside_the_job(self):
         build = int(re.search(r"timeout -k \d+ (\d+)m lake build", step("verify", "Build them")["run"]).group(1))
         axioms = int(re.search(r"timeout -k \d+ (\d+)m lake env lean", step("verify", "The axiom check")["run"]).group(1))
-        self.assertLessEqual(build + axioms + 30 + 25, JOBS["verify"]["timeout-minutes"])  # + the clash check's 30, and 25 minutes for the seed, the copy, the verdict and the upload
+        self.assertLessEqual(build + axioms + 20 + 50 + 25, JOBS["verify"]["timeout-minutes"])  # + the clash scan's 20, the union import's 50, and 25 minutes for the seed, the copy, the verdict and the upload
 
 
 class TheUnionCheck(unittest.TestCase):
@@ -126,7 +126,7 @@ class TheUnionCheck(unittest.TestCase):
         run = step("verify", "The names that two modules")["run"]
         self.assertIn("lake env lean --run ../emissary/scripts/bump/ModuleClashes.lean .lake/build/lib/lean ../out/built.txt Tengoku", run)
         self.assertIn("tee ../out/clashes.txt", run)
-        self.assertIn("timeout -k 60 30m", run)
+        self.assertIn("timeout -k 60 20m", run)
         self.assertNotIn("env", step("verify", "The names that two modules"))  # no token
         self.assertIn("--clashes out/clashes.txt", step("verify", "What the tree accepted")["run"])
         self.assertNotIn("--clashes", step("verify", "What the build accepted")["run"])
@@ -140,11 +140,64 @@ class TheUnionCheck(unittest.TestCase):
         self.assertIn('IO.println s!"CLASH\\t{files[i]!.1}\\t{files[j]!.1}\\t{c}\\t{f}"', lean)
         self.assertIn('clashes: {pairs.size} module pair(s), {names} name(s)', lean)
 
+    def test_the_program_applies_leans_own_duplicate_rule(self):
+        """The first run (lean-pool, 2026-10-13) flagged 155 modules, most of them over `foo.eq_1` / `foo.congr_simp`, which Lean's import allows (Lean.Environment `subsumesInfo`)."""
+        lean = (PATH.parents[2] / "scripts" / "bump" / "ModuleClashes.lean").read_text()
+        self.assertIn("def subsumes (a b : ConstantInfo) : Bool", lean)
+        self.assertIn("a.name == b.name && a.type == b.type && a.levelParams == b.levelParams", lean)
+        self.assertIn(".thmInfo x, .thmInfo y => x.all == y.all", lean)
+        self.assertNotIn(".axiomInfo x, .axiomInfo y", lean)  # two axioms are a clash (the real rule needs a propositional type that this program cannot look up)
+        self.assertIn("!(subsumes ci prev || subsumes prev ci)", lean)  # either direction, as `importModules` tries both
+        self.assertIn("for n in data.constNames, ci in data.constants do", lean)
+
     def test_the_budgets_still_fit_the_job(self):
         build = int(re.search(r"timeout -k \d+ (\d+)m lake build", step("verify", "Build them")["run"]).group(1))
         axioms = int(re.search(r"timeout -k \d+ (\d+)m lake env lean", step("verify", "The axiom check")["run"]).group(1))
         clash = int(re.search(r"timeout -k \d+ (\d+)m lake env lean", step("verify", "The names that two modules")["run"]).group(1))
-        self.assertLessEqual(build + axioms + clash + 25, JOBS["verify"]["timeout-minutes"])
+        union = int(re.search(r"deadline=\$\(\(SECONDS \+ (\d+)\)\)", step("verify", "The import of the whole tree")["run"]).group(1)) // 60
+        self.assertLessEqual(build + axioms + clash + union + 25, JOBS["verify"]["timeout-minutes"])
+
+
+class TheUnionImport(unittest.TestCase):
+    """Lean itself is the authority on what `import Tengoku.All` accepts: a static scan of the oleans missed a real clash twice (lean-pool part 10, 2026-10-13)."""
+
+    def names(self) -> list[str]:
+        return [s.get("name", "") for s in JOBS["verify"]["steps"]]
+
+    def test_it_runs_after_the_static_scan_and_before_the_final_verdict(self):
+        n = self.names()
+        clash = next(i for i, x in enumerate(n) if x.startswith("The names that two modules"))
+        union = next(i for i, x in enumerate(n) if x.startswith("The import of the whole tree"))
+        last = next(i for i, x in enumerate(n) if x.startswith("What the tree accepted"))
+        self.assertTrue(clash < union < last)
+
+    def test_it_elaborates_the_generated_file_with_lake_env_lean_and_loops_on_the_refusal(self):
+        run = step("verify", "The import of the whole tree")["run"]
+        self.assertIn("tree_verify.py union-input", run)
+        self.assertIn("lake env lean ../out/UnionImport.lean", run)
+        self.assertIn("tree_verify.py union-next", run)
+        self.assertIn("timeout -k 30 20m", run)  # one elaboration is capped
+        self.assertRegex(run, r"deadline=\$\(\(SECONDS \+ 3000\)\)")  # the loop is capped too
+        self.assertIn('[ "$settled" = 1 ] ||', run)  # a loop that did not settle fails the job: nothing ships on a guess
+
+    def test_the_tree_modules_are_the_oleans_of_the_tree_and_only_those_the_build_made_ok_are_new(self):
+        run = step("verify", "The import of the whole tree")["run"]
+        self.assertIn("find .lake/build/lib/lean/Tengoku -name '*.olean'", run)  # `.olean`, not `.olean.private` or `.olean.server` (module-system files have several)
+        self.assertIn("--keep out/built.txt", run)
+
+    def test_the_refreshed_collect_runs_before_it_and_the_final_one_reads_its_verdict(self):
+        run = step("verify", "The import of the whole tree")["run"]
+        self.assertLess(run.index("tree_verify.py collect"), run.index("tree_verify.py union-input"))
+        self.assertIn("--union-excluded out/union-excluded.txt", step("verify", "What the tree accepted")["run"])
+        self.assertNotIn("--union-excluded", run)
+
+    def test_it_holds_no_token(self):
+        self.assertNotIn("env", step("verify", "The import of the whole tree"))
+
+    def test_what_it_leaves_travels_to_the_artifact(self):
+        up = next(s for s in JOBS["verify"]["steps"] if "upload-artifact" in str(s.get("uses", "")))["with"]["path"]
+        for f in ("out/union-excluded.txt", "out/union-excluded.reasons", "out/union-*.txt"):
+            self.assertIn(f, up)
 
 
 class ArtifactLayout(unittest.TestCase):
@@ -224,7 +277,7 @@ class TheQueuesAxiomCheckToo(unittest.TestCase):
         run = step("verify", "The axiom check")["run"]
         self.assertIn("lake env lean --run ../emissary/scripts/bump/ModuleAxioms.lean ../out/built.txt", run)
         self.assertIn("tee ../out/axioms.txt", run)
-        self.assertIn("timeout -k 60 20m", run)
+        self.assertIn("timeout -k 60 15m", run)
         self.assertIn("--axioms out/axioms.txt", step("verify", "What the tree accepted")["run"])
         self.assertNotIn("--axioms", step("verify", "What the build accepted")["run"])
 
@@ -263,6 +316,40 @@ class NothingMutableRunsBeforeTheVerdict(unittest.TestCase):
     def test_no_job_that_compiles_library_code_downloads_a_mutable_binary(self):
         for job in ("compose", "verify", "finish"):
             self.assertNotIn("releases/latest", runs(job), job)
+
+
+class TheDiskIsMeasuredAndFreed(unittest.TestCase):
+    """2026-10-13: the tauceti verify job, the queue's last step for lean-pool part 10 and both nightly cache builds were LOST (no log, no error) within 12 hours: the runner has 145 GB, 34 GB
+    used before anything runs, and the tree's build directory takes most of the rest."""
+
+    def test_the_runner_is_cleaned_of_what_the_build_does_not_use(self):
+        run = step("verify", "Free disk")["run"]
+        for path in ("/opt/hostedtoolcache", "/usr/lib/jvm", "/usr/share/miniconda", "/usr/local/lib/android", "/usr/share/dotnet", "/opt/ghc"):
+            self.assertIn(path, run)
+        self.assertIn("docker image prune --all --force", run)
+        self.assertIn("swapoff -a", run)
+
+    def test_what_the_build_needs_is_not_removed(self):
+        run = step("verify", "Free disk")["run"]
+        for needed in ("/usr/bin", "/usr/lib/x86_64", "/home/runner", "$HOME", "/usr/local/bin", "/usr/local/sbin"):
+            self.assertNotIn(f"rm -rf {needed}", run)
+            self.assertNotRegex(run, rf"rm -rf [^|]*\s{re.escape(needed)}(\s|$)")
+
+    def test_the_disk_is_logged_after_freeing_after_seeding_every_minute_and_after_the_build(self):
+        self.assertIn("out/disk.log", step("verify", "Free disk")["run"])
+        self.assertIn("du -sh .lake/build", step("verify", "The tree, seeded")["run"])
+        build = step("verify", "Build them")["run"]
+        self.assertIn("sleep 60", build)
+        self.assertIn("MemAvailable", build)
+        self.assertIn('kill "$sampler"', build)  # the sampler never outlives the build
+
+    def test_the_log_travels_to_the_artifact(self):
+        up = next(s for s in JOBS["verify"]["steps"] if "upload-artifact" in str(s.get("uses", "")))["with"]["path"]
+        self.assertIn("out/disk.log", up)
+
+    def test_the_apply_step_does_not_wipe_the_log(self):
+        # out/ is created by the Free disk step now; apply must go on writing into it
+        self.assertIn("mkdir -p out", step("verify", "Free disk")["run"])
 
 
 class SameBundle(unittest.TestCase):
