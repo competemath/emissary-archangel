@@ -250,7 +250,9 @@ jobs:
           python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle --axioms out/axioms.txt --clashes out/clashes.txt "${flag[@]}" > /dev/null
           : > out/union-excluded.txt
           if [ ! -s out/built.txt ]; then echo "nothing built: nothing to import"; exit 0; fi
-          ( cd tree && find .lake/build/lib/lean/Tengoku -name '*.olean' | sed -e 's#^\.lake/build/lib/lean/##' -e 's#\.olean$##' -e 's#/#.#g' | sort > ../out/tree-modules.txt )
+          # the modules of the tree are its SOURCE files (with an olean to import), not every olean of the cache: the cache keeps the oleans of modules that no longer exist (the seed's move left
+          # `Tengoku.Std.CodeAction.Deprecated` next to `Tengoku.Seed.Std.CodeAction.Deprecated`, which declare the same name), and the queue's `Tengoku.All` imports none of them
+          ( cd tree && find Tengoku -name '*.lean' | while read -r f; do if [ -f ".lake/build/lib/lean/${f%.lean}.olean" ]; then echo "${f%.lean}" | tr / .; fi; done | sort > ../out/tree-modules.txt )
           deadline=$((SECONDS + 3000)); settled=0
           for i in $(seq 1 60); do
             python3 emissary/scripts/bump/tree_verify.py union-input --tree-modules out/tree-modules.txt --new out/new.json --keep out/built.txt --excluded out/union-excluded.txt --out out/UnionImport.lean
