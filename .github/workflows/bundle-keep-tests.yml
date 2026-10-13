@@ -102,7 +102,8 @@ jobs:
           printf 'def Toy.clashing := 1\ndef Toy.onlyA := 2\n' > "$src/A.lean"
           printf 'def Toy.clashing := 3\ndef Toy.onlyB := 4\n' > "$src/B.lean"
           printf 'def Toy.fine := 5\n' > "$src/C.lean"
-          for m in A B C; do lake env lean -o "$root/Tengoku/Lib$m/$m.olean" "$src/$m.lean"; done
+          # `lean` wants the source inside its root directory: the root is the scratch directory (the module name is not used here: the program names a module by its path under the olean root)
+          for m in A B C; do lake env lean --root="$src" -o "$root/Tengoku/Lib$m/$m.olean" "$src/$m.lean"; done
           printf 'Tengoku.LibB.B\nTengoku.LibC.C\n' > "$RUNNER_TEMP/new.txt"
           lake env lean --run ../scripts/bump/ModuleClashes.lean "$root" "$RUNNER_TEMP/new.txt" Tengoku | tee "$RUNNER_TEMP/clashes.out"
           : > "$RUNNER_TEMP/none.txt"
