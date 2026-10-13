@@ -46,7 +46,8 @@ AXIOM_LINE = re.compile(r"^AXIOM\t(?P<mod>[^\t\n]+)\t(?P<decl>[^\t\n]+)\t(?P<axi
 AXIOM_DONE = re.compile(r"^axioms: (?P<checked>\d+) declarations checked, (?P<bad>\d+) with non-standard axioms$", re.M)
 CLASH_LINE = re.compile(r"^CLASH\t(?P<mod>[^\t\n]+)\t(?P<other>[^\t\n]+)\t(?P<count>\d+)\t(?P<first>[^\n]*)$", re.M)
 CLASH_DONE = re.compile(r"^clashes: (?P<pairs>\d+) module pair\(s\), (?P<names>\d+) name\(s\)$", re.M)
-IMPORT_FAIL = re.compile(r"import (?P<x>\S+) failed, environment already contains '(?P<name>[^']+)' from (?P<y>\S+)")
+# the name is quoted by single quotes and may contain some (`mul_comm'`): it runs up to the LAST `' from ` of the line (CodeRabbit)
+IMPORT_FAIL = re.compile(r"import (?P<x>\S+) failed, environment already contains '(?P<name>.+)' from (?P<y>\S+)\s*$", re.M)
 FINISHED = re.compile(r"Build completed successfully|Some required targets logged failures|error: build failed")
 
 

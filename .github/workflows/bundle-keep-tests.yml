@@ -104,8 +104,11 @@ jobs:
           printf 'def Toy.clashing := 1\ndef Toy.onlyA := 2\ntheorem Toy.thmDup : 1 = 1 := rfl\ntheorem Toy.thmDiff : 1 = 1 := rfl\naxiom Toy.ax : Nat\n' > "$src/A.lean"
           printf 'def Toy.clashing := 3\ndef Toy.onlyB := 4\ntheorem Toy.thmDup : 1 = 1 := by decide\ntheorem Toy.thmDiff : 2 = 2 := rfl\naxiom Toy.ax : Nat\n' > "$src/B.lean"
           printf 'def Toy.fine := 5\ntheorem Toy.thmDup : 1 = 1 := rfl\n' > "$src/C.lean"
+          # D and E share only a definition whose name ends in a prime (the refusal prints it inside single quotes)
+          printf "def Toy.prime' := 1\n" > "$src/D.lean"; printf "def Toy.prime' := 2\n" > "$src/E.lean"
           # `lean` wants the source inside its root directory: the root is the scratch directory (the module name is not used here: the program names a module by its path under the olean root)
-          for m in A B C; do lake env lean --root="$src" -o "$root/Tengoku/Lib$m/$m.olean" "$src/$m.lean"; done
+          mkdir -p "$root/Tengoku/LibD" "$root/Tengoku/LibE"
+          for m in A B C D E; do lake env lean --root="$src" -o "$root/Tengoku/Lib$m/$m.olean" "$src/$m.lean"; done
           printf 'Tengoku.LibB.B\nTengoku.LibC.C\n' > "$RUNNER_TEMP/new.txt"
           lake env lean --run ../scripts/bump/ModuleClashes.lean "$root" "$RUNNER_TEMP/new.txt" Tengoku | tee "$RUNNER_TEMP/clashes.out"
           : > "$RUNNER_TEMP/none.txt"
@@ -137,9 +140,12 @@ jobs:
           lp="$root:$(lake env printenv LEAN_PATH)"
           printf 'import Tengoku.LibA.A\nimport Tengoku.LibB.B\n' > "$RUNNER_TEMP/U1.lean"
           printf 'import Tengoku.LibA.A\nimport Tengoku.LibC.C\n' > "$RUNNER_TEMP/U2.lean"
+          printf 'import Tengoku.LibD.D\nimport Tengoku.LibE.E\n' > "$RUNNER_TEMP/U3.lean"
           if lake env env LEAN_PATH="$lp" lean "$RUNNER_TEMP/U1.lean" > "$RUNNER_TEMP/u1.out" 2>&1; then echo "A and B were imported together"; cat "$RUNNER_TEMP/u1.out"; exit 1; fi
           cat "$RUNNER_TEMP/u1.out"
           lake env env LEAN_PATH="$lp" lean "$RUNNER_TEMP/U2.lean"
+          if lake env env LEAN_PATH="$lp" lean "$RUNNER_TEMP/U3.lean" > "$RUNNER_TEMP/u3.out" 2>&1; then echo "D and E were imported together"; exit 1; fi
+          cat "$RUNNER_TEMP/u3.out"
           python3 - <<'PY'
           import os, sys
           sys.path.insert(0, "../scripts/bump")
@@ -149,4 +155,7 @@ jobs:
           assert {x, y} == {"Tengoku.LibA.A", "Tengoku.LibB.B"}, (x, y, out)
           assert name in ("Toy.clashing", "Toy.thmDiff", "Toy.ax"), name  # a definition, a theorem of another type or an axiom: never Toy.thmDup
           print("refused:", x, "failed, both declare", name, "(with", y + ")")
+          x3, name3, y3 = tv.union_failure(open(os.path.join(os.environ["RUNNER_TEMP"], "u3.out")).read())
+          assert name3 == "Toy.prime'" and {x3, y3} == {"Tengoku.LibD.D", "Tengoku.LibE.E"}, (x3, name3, y3)  # a name with a prime is read whole
+          print("primed name read whole:", name3)
           PY

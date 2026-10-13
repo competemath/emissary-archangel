@@ -306,6 +306,16 @@ class UnionImport(Fixture):
         tv.main(args + (["--bundle", str(self.bundle)] if bundle else []))
         return (self.d / "excluded.txt").read_text().split()
 
+    def test_a_name_with_primes_is_read_whole(self):
+        """CodeRabbit (emissary#41): Mathlib-style names end in primes; the first version of the pattern stopped at the first quote and the job failed on a clash it should handle."""
+        for name in ("mul_comm'", "foo'_eq", "Foo.bar''", "Foo.«a'b».c'", "x'"):
+            text = f"U.lean:1:0: error: import Tengoku.ToyLib.Toy.C failed, environment already contains '{name}' from Tengoku.Tree.Lib.Indicator\n"
+            self.assertEqual(tv.union_failure(text), ("Tengoku.ToyLib.Toy.C", name, "Tengoku.Tree.Lib.Indicator"), name)
+
+    def test_the_first_refusal_in_a_longer_output_is_the_one_read(self):
+        text = "warning: x\nU.lean:1:0: error: import A.B failed, environment already contains 'n'' from C.D\nU.lean:2:0: error: import E failed, environment already contains 'm' from F\n"
+        self.assertEqual(tv.union_failure(text), ("A.B", "n'", "C.D"))
+
     def test_the_refusal_is_read_with_its_guillemets(self):
         self.assertEqual(tv.union_failure(REFUSAL), ("Tengoku.ToyLib.Toy.C", "Indicator.«term𝟭_[_]»", "Tengoku.Tree.Lib.Indicator"))
         self.assertIsNone(tv.union_failure("U.lean:1:0: error: unknown module prefix 'Foo'\n"))
