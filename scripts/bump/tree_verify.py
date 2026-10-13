@@ -8,12 +8,16 @@ own command (`lake build Tengoku.<Ns>.<module> …`) on a checkout seeded from t
 --tree-failures`, and `check` then proves that every module that ships is byte for byte a module that was built there.
 
   tree_verify.py apply   --bundle DIR --tree CHECKOUT --out OUT   copy the bundle's new modules into the checkout, write OUT/targets.txt (what to build) and OUT/new.json
-  tree_verify.py collect --new OUT/new.json --log build.log --out OUT [--axioms axioms.txt] [--allow-unfinished]   read the build (and the axiom check of what built): OUT/failing.txt (library modules),
+  tree_verify.py collect --new OUT/new.json --log build.log --out OUT [--axioms axioms.txt] [--clashes clashes.txt] [--allow-unfinished]   read the build (and the axiom check of what built): OUT/failing.txt (library modules),
                                                                           OUT/ok.json (module -> sha256), OUT/built.txt (the modules to run ModuleAxioms.lean on), OUT/summary.txt
   tree_verify.py check   --bundle DIR --new OUT/new.json --ok OUT/ok.json   exit 1 unless every new module of the final bundle was built there with the same bytes
 
 The queue also checks the axioms of every declaration of the modules it built (scripts/bump/ModuleAxioms.lean is that check with the module of each offender in its
 output): a module with a declaration on an axiom other than propext, Classical.choice, Quot.sound is refused like one that does not compile. Gate 2 only checks theorems.
+
+The queue also imports the whole tree at once (`Tengoku.All`): two modules of different libraries that declare the same name stop it ("environment already contains"), and no module of one
+library imports another. scripts/bump/ModuleClashes.lean reads the names every module declares and lists the pairs that share one when one of the two is new (lean-pool part 10,
+2026-10-12: its vendored copy of AddCombi against the tree's AddCombi). The new module of such a pair is refused like one that does not compile; the one already in the tree stays.
 
 `apply` and `check` take the bundle as `compose` wrote it (DIR/Tengoku/<Ns>.lean, DIR/Tengoku/<Ns>/**.lean). "New" is what the tree's umbrella `Tengoku/<Ns>.lean` does not import
 (bundle_layers.tree_modules): the modules the parts will carry. The build runs no token and the job that runs it signs nothing: the library's own code is compiled there.
@@ -38,6 +42,8 @@ BUILT = re.compile(r"Built (?P<mod>Tengoku\.\S+)(?: \(|\s*$)", re.M)
 FAILED_TARGET = re.compile(r"^(?:\S+\s+)?- (?P<mod>Tengoku\.\S+)\s*$", re.M)
 AXIOM_LINE = re.compile(r"^AXIOM\t(?P<mod>[^\t\n]+)\t(?P<decl>[^\t\n]+)\t(?P<axioms>[^\n]*)$", re.M)
 AXIOM_DONE = re.compile(r"^axioms: (?P<checked>\d+) declarations checked, (?P<bad>\d+) with non-standard axioms$", re.M)
+CLASH_LINE = re.compile(r"^CLASH\t(?P<mod>[^\t\n]+)\t(?P<other>[^\t\n]+)\t(?P<count>\d+)\t(?P<first>[^\n]*)$", re.M)
+CLASH_DONE = re.compile(r"^clashes: (?P<pairs>\d+) module pair\(s\), (?P<names>\d+) name\(s\)$", re.M)
 FINISHED = re.compile(r"Build completed successfully|Some required targets logged failures|error: build failed")
 
 
@@ -97,6 +103,26 @@ def axiom_offenders(text: str, mods: set[str]) -> dict[str, list[str]]:
     return out
 
 
+def clash_offenders(text: str, mods: set[str]) -> dict[str, list[str]]:
+    """module -> ["name (+n more) also declared by <other module>", …] for the modules in `mods` that share a declared name with another module. Like the axiom check, a run with no
+    `clashes:` line did not finish and one whose count does not match its lines was cut short: both are refused."""
+    done = CLASH_DONE.search(text)
+    if done is None:
+        sys.exit("the clash check has no ending (it crashed or was killed): nothing is known about name clashes; refusing to guess")
+    lines = list(CLASH_LINE.finditer(text))
+    if int(done.group("pairs")) != len(lines):
+        sys.exit(f"the clash check says {done.group('pairs')} pair(s) and lists {len(lines)}: its output is incomplete; refusing to guess")
+    by_plain = {plain(m): m for m in mods}
+    out: dict[str, list[str]] = {}
+    for ln in lines:
+        extra = f" (+{int(ln.group('count')) - 1} more)" if int(ln.group("count")) > 1 else ""
+        for mine, other in ((ln.group("mod"), ln.group("other")), (ln.group("other"), ln.group("mod"))):
+            mod = by_plain.get(plain(mine))
+            if mod is not None:
+                out.setdefault(mod, []).append(f"{ln.group('first')}{extra} also declared by {plain(other)}")
+    return out
+
+
 def library_module(module: str, ns: str) -> str:
     """`Tengoku.LeanPool.LeanPool.Foo` -> `LeanPool.Foo`: the library's own name, which `compose --tree-failures` takes."""
     return module.removeprefix(f"Tengoku.{ns}.")
@@ -133,6 +159,8 @@ def cmd_collect(a: argparse.Namespace) -> None:
     built = {m.group("mod") for m in BUILT.finditer(log)} & set(mods)
     offenders = axiom_offenders(Path(a.axioms).read_text(errors="replace"), set(mods)) if a.axioms else {}
     failing |= set(offenders)
+    clashing = clash_offenders(Path(a.clashes).read_text(errors="replace"), set(mods)) if a.clashes else {}
+    failing |= set(clashing)
     graph: dict[str, list[str]] = {}
     if a.bundle:
         bfiles = bl.read_bundle(Path(a.bundle))
@@ -146,9 +174,11 @@ def cmd_collect(a: argparse.Namespace) -> None:
     (out / "ok.json").write_text(json.dumps(ok, indent=1) + "\n")
     (out / "built.txt").write_text("".join(plain(m) + "\n" for m in sorted(ok)))
     summary = (
-        f"{len(mods)} new module(s): {len(ok)} built in the tree, {len(failing)} refused ({len(unaccounted)} of them not reached, {len(offenders)} on an axiom), "
+        f"{len(mods)} new module(s): {len(ok)} built in the tree, {len(failing)} refused ({len(unaccounted)} of them not reached, {len(offenders)} on an axiom, {len(clashing)} on a name another module declares), "
         f"{len(cascade - failing)} more import a refused one and go with it"
     )
+    for m in sorted(clashing)[:10]:
+        summary += f"\n  clash: {library_module(m, ns)}: {clashing[m][0]}" + (f" (+{len(clashing[m]) - 1} more pair(s))" if len(clashing[m]) > 1 else "")
     if unfinished:
         summary += "\n  the build did not finish (its budget ran out): the modules it did not reach are not in this cut; a later from-tree round continues with them"
     for m in sorted(offenders)[:10]:
@@ -190,6 +220,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--out", required=True)
     p.add_argument("--bundle", default="", help="the bundle the modules came from: its import graph says which modules go with a refused one")
     p.add_argument("--allow-unfinished", action="store_true", help="a build that ran out of time still says which modules it built (a `Built` line is positive evidence): accept those, leave the rest for a later round")
+    p.add_argument("--clashes", default="", help="the output of ModuleClashes.lean on out/built.txt: a new module that declares a name another module of the tree declares is refused")
     p.add_argument("--axioms", default="", help="the output of ModuleAxioms.lean on out/built.txt: a module with a declaration on a non-standard axiom is refused")
     p.set_defaults(fn=cmd_collect)
     p = sub.add_parser("check")

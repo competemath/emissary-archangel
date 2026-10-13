@@ -213,6 +213,75 @@ class Axioms(Fixture):
         self.assertEqual(tv.axiom_offenders(text, {"M.A"}), {"M.A": ["x [lcProof]", "y [Lean.ofReduceBool]"]})
 
 
+CLASH_B = "CLASH\tTengoku.ToyLib.Toy.B\tTengoku.Other.Lib.X\t3\tIndicator.«term𝟭_[_]»\nclashes: 1 module pair(s), 3 name(s)\n"
+
+
+class Clashes(Fixture):
+    """Two modules that declare the same name stop `import Tengoku.All` (lean-pool part 10, 2026-10-12: its vendored copy of AddCombi against the tree's AddCombi; the
+    merge queue found it, one part at a time). The new module of the pair is refused; the module already in the tree stays."""
+
+    BUILT_ALL = Axioms.BUILT_ALL
+
+    def collect_with(self, clashes: str):
+        (self.d / "clashes.txt").write_text(clashes)
+        (self.d / "build.log").write_text(self.BUILT_ALL)
+        tv.main(["collect", "--new", str(self.out / "new.json"), "--log", str(self.d / "build.log"), "--out", str(self.out), "--bundle", str(self.bundle), "--clashes", str(self.d / "clashes.txt")])
+
+    def test_the_new_module_of_a_clashing_pair_is_refused_and_the_incumbent_is_not_ours(self):
+        self.apply()
+        self.collect_with(CLASH_B)
+        self.assertEqual((self.out / "failing.txt").read_text().split(), ["Toy.B"])
+        self.assertEqual(sorted(json.loads((self.out / "ok.json").read_text())), ["Tengoku.ToyLib.Toy.C", "Tengoku.ToyLib.Toy.D"])
+        summary = (self.out / "summary.txt").read_text()
+        self.assertIn("1 on a name another module declares", summary)
+        self.assertIn("Toy.B: Indicator.«term𝟭_[_]» (+2 more) also declared by Tengoku.Other.Lib.X", summary)
+
+    def test_the_pair_may_name_the_new_module_on_either_side(self):
+        got = tv.clash_offenders("CLASH\tTengoku.Other.Lib.X\tTengoku.ToyLib.Toy.B\t1\tfoo\nclashes: 1 module pair(s), 1 name(s)\n", {"Tengoku.ToyLib.Toy.B"})
+        self.assertEqual(got, {"Tengoku.ToyLib.Toy.B": ["foo also declared by Tengoku.Other.Lib.X"]})
+
+    def test_what_imports_a_clashing_module_goes_with_it(self):
+        self.apply()
+        self.collect_with(CLASH_B.replace("Toy.B", "Toy.C"))  # D imports C
+        self.assertEqual((self.out / "failing.txt").read_text().split(), ["Toy.C"])
+        self.assertEqual(sorted(json.loads((self.out / "ok.json").read_text())), ["Tengoku.ToyLib.Toy.B"])
+
+    def test_a_pair_of_two_modules_that_are_both_new_refuses_both(self):
+        got = tv.clash_offenders("CLASH\tM.A\tM.B\t1\tfoo\nclashes: 1 module pair(s), 1 name(s)\n", {"M.A", "M.B"})
+        self.assertEqual(sorted(got), ["M.A", "M.B"])
+
+    def test_a_clash_between_two_modules_that_are_not_new_is_not_ours(self):
+        self.assertEqual(tv.clash_offenders("CLASH\tA.X\tA.Y\t1\tfoo\nclashes: 1 module pair(s), 1 name(s)\n", {"M.A"}), {})
+
+    def test_guillemets_are_compared_without_them(self):
+        got = tv.clash_offenders("CLASH\tTengoku.L.A-B\tTengoku.O.X\t1\tfoo\nclashes: 1 module pair(s), 1 name(s)\n", {"Tengoku.L.«A-B»"})
+        self.assertEqual(list(got), ["Tengoku.L.«A-B»"])
+
+    def test_a_clean_check_changes_nothing(self):
+        self.apply()
+        self.collect_with("clashes: 0 module pair(s), 0 name(s)\n")
+        self.assertEqual((self.out / "failing.txt").read_text(), "")
+
+    def test_a_check_that_never_finished_is_refused(self):
+        with self.assertRaises(SystemExit) as r:
+            tv.clash_offenders("CLASH\tM.A\tM.B\t1\tfoo\n", {"M.A"})
+        self.assertIn("no ending", str(r.exception.code))
+
+    def test_a_check_whose_output_is_cut_short_is_refused(self):
+        with self.assertRaises(SystemExit) as r:
+            tv.clash_offenders("clashes: 2 module pair(s), 5 name(s)\n", {"M.A"})
+        self.assertIn("incomplete", str(r.exception.code))
+
+    def test_clashes_and_axioms_are_both_applied(self):
+        self.apply()
+        (self.d / "axioms.txt").write_text(AXIOMS_ONE_BAD.replace("Toy.B", "Toy.C"))
+        (self.d / "clashes.txt").write_text(CLASH_B)
+        (self.d / "build.log").write_text(self.BUILT_ALL)
+        tv.main(["collect", "--new", str(self.out / "new.json"), "--log", str(self.d / "build.log"), "--out", str(self.out), "--bundle", str(self.bundle), "--axioms", str(self.d / "axioms.txt"), "--clashes", str(self.d / "clashes.txt")])
+        self.assertEqual((self.out / "failing.txt").read_text().split(), ["Toy.B", "Toy.C"])
+        self.assertEqual(json.loads((self.out / "ok.json").read_text()), {})  # D imports C
+
+
 class Check(Fixture):
     def verified(self):
         self.apply()

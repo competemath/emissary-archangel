@@ -106,7 +106,45 @@ class PartialBuilds(unittest.TestCase):
     def test_the_budgets_fit_inside_the_job(self):
         build = int(re.search(r"timeout -k \d+ (\d+)m lake build", step("verify", "Build them")["run"]).group(1))
         axioms = int(re.search(r"timeout -k \d+ (\d+)m lake env lean", step("verify", "The axiom check")["run"]).group(1))
-        self.assertLessEqual(build + axioms + 25, JOBS["verify"]["timeout-minutes"])  # 25 minutes for the seed, the copy, the verdict and the upload
+        self.assertLessEqual(build + axioms + 30 + 25, JOBS["verify"]["timeout-minutes"])  # + the clash check's 30, and 25 minutes for the seed, the copy, the verdict and the upload
+
+
+class TheUnionCheck(unittest.TestCase):
+    """`import Tengoku.All` loads every library at once; no module imports two of them, so only this finds a name two libraries both declare (lean-pool part 10, 2026-10-12)."""
+
+    def names(self) -> list[str]:
+        return [s.get("name", "") for s in JOBS["verify"]["steps"]]
+
+    def test_it_runs_after_the_axiom_check_and_before_the_final_verdict(self):
+        n = self.names()
+        axioms = next(i for i, x in enumerate(n) if x.startswith("The axiom check"))
+        clash = next(i for i, x in enumerate(n) if x.startswith("The names that two modules"))
+        last = next(i for i, x in enumerate(n) if x.startswith("What the tree accepted"))
+        self.assertTrue(axioms < clash < last)
+
+    def test_it_reads_the_modules_that_built_and_the_verdict_reads_its_output(self):
+        run = step("verify", "The names that two modules")["run"]
+        self.assertIn("lake env lean --run ../emissary/scripts/bump/ModuleClashes.lean .lake/build/lib/lean ../out/built.txt Tengoku", run)
+        self.assertIn("tee ../out/clashes.txt", run)
+        self.assertIn("timeout -k 60 30m", run)
+        self.assertNotIn("env", step("verify", "The names that two modules"))  # no token
+        self.assertIn("--clashes out/clashes.txt", step("verify", "What the tree accepted")["run"])
+        self.assertNotIn("--clashes", step("verify", "What the build accepted")["run"])
+
+    def test_its_output_travels_to_the_artifact(self):
+        up = next(s for s in JOBS["verify"]["steps"] if "upload-artifact" in str(s.get("uses", "")))["with"]["path"]
+        self.assertIn("out/clashes.txt", up)
+
+    def test_the_program_prints_what_the_python_side_reads(self):
+        lean = (PATH.parents[2] / "scripts" / "bump" / "ModuleClashes.lean").read_text()
+        self.assertIn('IO.println s!"CLASH\\t{files[i]!.1}\\t{files[j]!.1}\\t{c}\\t{f}"', lean)
+        self.assertIn('clashes: {pairs.size} module pair(s), {names} name(s)', lean)
+
+    def test_the_budgets_still_fit_the_job(self):
+        build = int(re.search(r"timeout -k \d+ (\d+)m lake build", step("verify", "Build them")["run"]).group(1))
+        axioms = int(re.search(r"timeout -k \d+ (\d+)m lake env lean", step("verify", "The axiom check")["run"]).group(1))
+        clash = int(re.search(r"timeout -k \d+ (\d+)m lake env lean", step("verify", "The names that two modules")["run"]).group(1))
+        self.assertLessEqual(build + axioms + clash + 25, JOBS["verify"]["timeout-minutes"])
 
 
 class ArtifactLayout(unittest.TestCase):
@@ -186,7 +224,7 @@ class TheQueuesAxiomCheckToo(unittest.TestCase):
         run = step("verify", "The axiom check")["run"]
         self.assertIn("lake env lean --run ../emissary/scripts/bump/ModuleAxioms.lean ../out/built.txt", run)
         self.assertIn("tee ../out/axioms.txt", run)
-        self.assertIn("timeout -k 60 60m", run)
+        self.assertIn("timeout -k 60 20m", run)
         self.assertIn("--axioms out/axioms.txt", step("verify", "What the tree accepted")["run"])
         self.assertNotIn("--axioms", step("verify", "What the build accepted")["run"])
 
