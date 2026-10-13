@@ -106,7 +106,7 @@ class PartialBuilds(unittest.TestCase):
     def test_the_budgets_fit_inside_the_job(self):
         build = int(re.search(r"timeout -k \d+ (\d+)m lake build", step("verify", "Build them")["run"]).group(1))
         axioms = int(re.search(r"timeout -k \d+ (\d+)m lake env lean", step("verify", "The axiom check")["run"]).group(1))
-        self.assertLessEqual(build + axioms + 30 + 25, JOBS["verify"]["timeout-minutes"])  # + the clash check's 30, and 25 minutes for the seed, the copy, the verdict and the upload
+        self.assertLessEqual(build + axioms + 20 + 50 + 25, JOBS["verify"]["timeout-minutes"])  # + the clash scan's 20, the union import's 50, and 25 minutes for the seed, the copy, the verdict and the upload
 
 
 class TheUnionCheck(unittest.TestCase):
@@ -126,7 +126,7 @@ class TheUnionCheck(unittest.TestCase):
         run = step("verify", "The names that two modules")["run"]
         self.assertIn("lake env lean --run ../emissary/scripts/bump/ModuleClashes.lean .lake/build/lib/lean ../out/built.txt Tengoku", run)
         self.assertIn("tee ../out/clashes.txt", run)
-        self.assertIn("timeout -k 60 30m", run)
+        self.assertIn("timeout -k 60 20m", run)
         self.assertNotIn("env", step("verify", "The names that two modules"))  # no token
         self.assertIn("--clashes out/clashes.txt", step("verify", "What the tree accepted")["run"])
         self.assertNotIn("--clashes", step("verify", "What the build accepted")["run"])
@@ -154,7 +154,50 @@ class TheUnionCheck(unittest.TestCase):
         build = int(re.search(r"timeout -k \d+ (\d+)m lake build", step("verify", "Build them")["run"]).group(1))
         axioms = int(re.search(r"timeout -k \d+ (\d+)m lake env lean", step("verify", "The axiom check")["run"]).group(1))
         clash = int(re.search(r"timeout -k \d+ (\d+)m lake env lean", step("verify", "The names that two modules")["run"]).group(1))
-        self.assertLessEqual(build + axioms + clash + 25, JOBS["verify"]["timeout-minutes"])
+        union = int(re.search(r"deadline=\$\(\(SECONDS \+ (\d+)\)\)", step("verify", "The import of the whole tree")["run"]).group(1)) // 60
+        self.assertLessEqual(build + axioms + clash + union + 25, JOBS["verify"]["timeout-minutes"])
+
+
+class TheUnionImport(unittest.TestCase):
+    """Lean itself is the authority on what `import Tengoku.All` accepts: a static scan of the oleans missed a real clash twice (lean-pool part 10, 2026-10-13)."""
+
+    def names(self) -> list[str]:
+        return [s.get("name", "") for s in JOBS["verify"]["steps"]]
+
+    def test_it_runs_after_the_static_scan_and_before_the_final_verdict(self):
+        n = self.names()
+        clash = next(i for i, x in enumerate(n) if x.startswith("The names that two modules"))
+        union = next(i for i, x in enumerate(n) if x.startswith("The import of the whole tree"))
+        last = next(i for i, x in enumerate(n) if x.startswith("What the tree accepted"))
+        self.assertTrue(clash < union < last)
+
+    def test_it_elaborates_the_generated_file_with_lake_env_lean_and_loops_on_the_refusal(self):
+        run = step("verify", "The import of the whole tree")["run"]
+        self.assertIn("tree_verify.py union-input", run)
+        self.assertIn("lake env lean ../out/UnionImport.lean", run)
+        self.assertIn("tree_verify.py union-next", run)
+        self.assertIn("timeout -k 30 20m", run)  # one elaboration is capped
+        self.assertRegex(run, r"deadline=\$\(\(SECONDS \+ 3000\)\)")  # the loop is capped too
+        self.assertIn('[ "$settled" = 1 ] ||', run)  # a loop that did not settle fails the job: nothing ships on a guess
+
+    def test_the_tree_modules_are_the_oleans_of_the_tree_and_only_those_the_build_made_ok_are_new(self):
+        run = step("verify", "The import of the whole tree")["run"]
+        self.assertIn("find .lake/build/lib/lean/Tengoku -name '*.olean'", run)  # `.olean`, not `.olean.private` or `.olean.server` (module-system files have several)
+        self.assertIn("--keep out/built.txt", run)
+
+    def test_the_refreshed_collect_runs_before_it_and_the_final_one_reads_its_verdict(self):
+        run = step("verify", "The import of the whole tree")["run"]
+        self.assertLess(run.index("tree_verify.py collect"), run.index("tree_verify.py union-input"))
+        self.assertIn("--union-excluded out/union-excluded.txt", step("verify", "What the tree accepted")["run"])
+        self.assertNotIn("--union-excluded", run)
+
+    def test_it_holds_no_token(self):
+        self.assertNotIn("env", step("verify", "The import of the whole tree"))
+
+    def test_what_it_leaves_travels_to_the_artifact(self):
+        up = next(s for s in JOBS["verify"]["steps"] if "upload-artifact" in str(s.get("uses", "")))["with"]["path"]
+        for f in ("out/union-excluded.txt", "out/union-excluded.reasons", "out/union-*.txt"):
+            self.assertIn(f, up)
 
 
 class ArtifactLayout(unittest.TestCase):
@@ -234,7 +277,7 @@ class TheQueuesAxiomCheckToo(unittest.TestCase):
         run = step("verify", "The axiom check")["run"]
         self.assertIn("lake env lean --run ../emissary/scripts/bump/ModuleAxioms.lean ../out/built.txt", run)
         self.assertIn("tee ../out/axioms.txt", run)
-        self.assertIn("timeout -k 60 20m", run)
+        self.assertIn("timeout -k 60 15m", run)
         self.assertIn("--axioms out/axioms.txt", step("verify", "What the tree accepted")["run"])
         self.assertNotIn("--axioms", step("verify", "What the build accepted")["run"])
 

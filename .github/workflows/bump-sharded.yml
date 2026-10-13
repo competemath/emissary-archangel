@@ -18,7 +18,7 @@ on:
       tengoku_ref: { description: "a branch of competemath/tengoku to read the library's tentative records from (default main), for records whose PR is not merged yet", default: "" }
       parts: { description: "PARTS: cut each bundle into parts of at most this many modules (scripts/bump/bundle_layers.py), each attested as bundle-<key>-<mode>-part-NNN.tar, for a library too big for one intake PR (the queue builds ~3 s a module in 40 minutes: 300). 0 = no parts", default: "0" }
       verify: { description: "build the bundle in the TREE's own environment (the merge queue's own build, on a checkout seeded from the tree's cache) before it is cut into parts: the modules the tree refuses are dropped with their importers, and what ships is proven byte for byte what was built there. `false` skips it", default: "true" }
-      verify_partial: { description: "verify: a build that runs out of its time (250 min) still ships the modules it built; the rest are left for the next from-tree round. For a library with more new modules than one runner builds in that time (a first cut of a giant). Default `false`: a build that does not finish fails the run", default: "false" }
+      verify_partial: { description: "verify: a build that runs out of its time (210 min) still ships the modules it built; the rest are left for the next from-tree round. For a library with more new modules than one runner builds in that time (a first cut of a giant). Default `false`: a build that does not finish fails the run", default: "false" }
       verify_modes: { description: "the bundle modes that are built in the tree (comma list of strict, proposed, wide): the intake opener ships `proposed`; a mode that is not built ships as the factory cut it", default: "proposed" }
       from_tree: { description: "PARTS, on a recut after some parts merged: cut only the modules the tree does not have yet (the library's Tengoku/<Ns>.lean on tengoku main), numbered from the next part, so the new parts extend what merged (scripts/bump/bundle_layers.py --tree-umbrella)", default: "" }
 permissions: {}
@@ -212,7 +212,7 @@ jobs:
           ( while sleep 60; do echo "$(date -u +%H:%M:%S) $(df -h / | tail -1 | awk '{print "used=" $3 " avail=" $4}') mem_avail_kb=$(awk '/MemAvailable/ {print $2}' /proc/meminfo)" >> ../out/disk.log; done ) &
           sampler=$!
           # shellcheck disable=SC2086  # targets is a space-separated module list
-          timeout -k 60 250m lake build $targets 2>&1 | tee ../out/build.log
+          timeout -k 60 210m lake build $targets 2>&1 | tee ../out/build.log
           echo "lake exit status: ${PIPESTATUS[0]}"
           kill "$sampler" 2>/dev/null || true
           { echo "== after the build"; df -h / | tail -1; du -sh .lake/build 2>/dev/null; } >> ../out/disk.log
@@ -226,7 +226,7 @@ jobs:
         run: |
           if [ -s out/built.txt ]; then
             cd tree
-            timeout -k 60 20m lake env lean --run ../emissary/scripts/bump/ModuleAxioms.lean ../out/built.txt 2>&1 | tee ../out/axioms.txt
+            timeout -k 60 15m lake env lean --run ../emissary/scripts/bump/ModuleAxioms.lean ../out/built.txt 2>&1 | tee ../out/axioms.txt
           else
             echo "axioms: 0 declarations checked, 0 with non-standard axioms" > out/axioms.txt
           fi
@@ -237,14 +237,33 @@ jobs:
         run: |
           if [ -s out/built.txt ]; then
             cd tree
-            timeout -k 60 30m lake env lean --run ../emissary/scripts/bump/ModuleClashes.lean .lake/build/lib/lean ../out/built.txt Tengoku 2>&1 | tee ../out/clashes.txt
+            timeout -k 60 20m lake env lean --run ../emissary/scripts/bump/ModuleClashes.lean .lake/build/lib/lean ../out/built.txt Tengoku 2>&1 | tee ../out/clashes.txt
           else
             echo "clashes: 0 module pair(s), 0 name(s)" > out/clashes.txt
           fi
+      # The authority on the import of the whole tree is Lean itself, not a re-implementation of its rules: the static scan above missed a real clash (lean-pool part 10, twice: the tree's module
+      # is a module-system file, whose olean has a public and a private part). A file that imports every module of the tree and the new ones that are still in play is elaborated, as the queue's
+      # last step does; when Lean refuses it (`import X failed, environment already contains 'N' from Y`) the new module of the pair goes with its importers and the file is elaborated again.
+      - name: The import of the whole tree, as the queue does it (what `import Tengoku.All` stops at)
+        run: |
+          flag=(); if [ "$VERIFY_PARTIAL" = true ]; then flag=(--allow-unfinished); fi
+          python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle --axioms out/axioms.txt --clashes out/clashes.txt "${flag[@]}" > /dev/null
+          : > out/union-excluded.txt
+          if [ ! -s out/built.txt ]; then echo "nothing built: nothing to import"; exit 0; fi
+          ( cd tree && find .lake/build/lib/lean/Tengoku -name '*.olean' | sed -e 's#^\.lake/build/lib/lean/##' -e 's#\.olean$##' -e 's#/#.#g' | sort > ../out/tree-modules.txt )
+          deadline=$((SECONDS + 3000)); settled=0
+          for i in $(seq 1 60); do
+            python3 emissary/scripts/bump/tree_verify.py union-input --tree-modules out/tree-modules.txt --new out/new.json --keep out/built.txt --excluded out/union-excluded.txt --out out/UnionImport.lean
+            if (cd tree && timeout -k 30 20m lake env lean ../out/UnionImport.lean) > "out/union-$i.txt" 2>&1; then settled=1; echo "the whole tree imports, after $((i - 1)) exclusion(s)"; break; fi
+            head -3 "out/union-$i.txt"
+            [ "$SECONDS" -lt "$deadline" ] || { echo "::error::the import of the whole tree did not settle in 50 minutes"; exit 1; }
+            python3 emissary/scripts/bump/tree_verify.py union-next --message "out/union-$i.txt" --new out/new.json --keep out/built.txt --excluded out/union-excluded.txt --bundle bundle
+          done
+          [ "$settled" = 1 ] || { echo "::error::the import of the whole tree did not settle"; exit 1; }
       - name: What the tree accepted
         run: |
           flag=(); if [ "$VERIFY_PARTIAL" = true ]; then flag=(--allow-unfinished); fi
-          python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle --axioms out/axioms.txt --clashes out/clashes.txt "${flag[@]}"
+          python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle --axioms out/axioms.txt --clashes out/clashes.txt --union-excluded out/union-excluded.txt "${flag[@]}"
           { echo "### Tree build ($KEY, $MODE)"; cat out/summary.txt; } >> "$GITHUB_STEP_SUMMARY"
       - name: Keep the log
         if: ${{ always() }}
@@ -260,6 +279,9 @@ jobs:
             out/summary.txt
             out/axioms.txt
             out/clashes.txt
+            out/union-excluded.txt
+            out/union-excluded.reasons
+            out/union-*.txt
             out/disk.log
             out/build.log.gz
             out/tree-sha.txt
