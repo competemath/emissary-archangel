@@ -178,10 +178,12 @@ jobs:
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift || true
           df -h / | tail -1
+      # the installer at a fixed commit, checked against its digest before it runs (as bundle-keep-tests.yml does): this job's verdict is what `finish` signs, so what it runs must not be mutable
       - name: Lean toolchain (pinned by the tree's lean-toolchain)
         run: |
-          curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz | tar xz
-          ./elan-init -y --default-toolchain none && echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          curl --proto '=https' --tlsv1.2 -sSfL -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh
+          echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c -
+          sh elan-init.sh -y --default-toolchain none && echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
           sudo apt-get install -y -q zstd >/dev/null
       - name: The tree, seeded from the newest published cache (verified), as the merge queue seeds it
         env: { GH_TOKEN: "${{ github.token }}", TENGOKU_VERIFY: require, TENGOKU_TOPUPS: "1" }

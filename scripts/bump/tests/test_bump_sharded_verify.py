@@ -242,6 +242,29 @@ class TheQueuesAxiomCheckToo(unittest.TestCase):
         self.assertIn("[``propext, ``Classical.choice, ``Quot.sound]", lean)  # the same allowed list as the tree's TengokuAxioms.lean
 
 
+class NothingMutableRunsBeforeTheVerdict(unittest.TestCase):
+    """CodeRabbit (emissary#39): the verify job's verdict is what `finish` signs, so the installer it runs must be pinned and checked, not `releases/latest`."""
+
+    def test_the_elan_installer_is_pinned_to_a_commit_and_checked_against_its_digest(self):
+        run = step("verify", "Lean toolchain")["run"]
+        self.assertRegex(run, r"raw\.githubusercontent\.com/leanprover/elan/[0-9a-f]{40}/elan-init\.sh")
+        self.assertRegex(run, r'echo "[0-9a-f]{64}  elan-init\.sh" \| sha256sum -c -')
+        self.assertLess(run.index("sha256sum -c -"), run.index("sh elan-init.sh"))  # checked BEFORE it runs
+        self.assertNotIn("releases/latest", run)
+
+    def test_it_is_the_installer_the_other_lean_workflow_already_uses(self):
+        other = (PATH.parent / "bundle-keep-tests.yml").read_text()
+        run = step("verify", "Lean toolchain")["run"]
+        commit = re.search(r"/elan/([0-9a-f]{40})/", run).group(1)
+        digest = re.search(r'echo "([0-9a-f]{64})  elan-init', run).group(1)
+        self.assertIn(commit, other)
+        self.assertIn(digest, other)
+
+    def test_no_job_that_compiles_library_code_downloads_a_mutable_binary(self):
+        for job in ("compose", "verify", "finish"):
+            self.assertNotIn("releases/latest", runs(job), job)
+
+
 class SameBundle(unittest.TestCase):
     def test_the_draft_and_the_final_bundle_are_cut_by_the_same_command(self):
         draft, final = compose_command("compose"), compose_command("finish")
