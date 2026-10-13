@@ -146,6 +146,7 @@ class TheUnionCheck(unittest.TestCase):
         self.assertIn("def subsumes (a b : ConstantInfo) : Bool", lean)
         self.assertIn("a.name == b.name && a.type == b.type && a.levelParams == b.levelParams", lean)
         self.assertIn(".thmInfo x, .thmInfo y => x.all == y.all", lean)
+        self.assertNotIn(".axiomInfo x, .axiomInfo y", lean)  # two axioms are a clash (the real rule needs a propositional type that this program cannot look up)
         self.assertIn("!(subsumes ci prev || subsumes prev ci)", lean)  # either direction, as `importModules` tries both
         self.assertIn("for n in data.constNames, ci in data.constants do", lean)
 

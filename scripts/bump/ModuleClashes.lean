@@ -22,14 +22,13 @@ import Lean
 open Lean
 
 /-- Lean's own rule for a constant that two modules declare (`subsumesInfo` in Lean/Environment.lean, v4.34): the same name, type and universe parameters, and theorem/theorem, or
-theorem/axiom, or two axioms of the same safety (the real rule also checks that the axioms' type is a proposition, which only a theorem realized in a module without the module system
-produces; here that case is treated as tolerated, the same way). -/
+theorem/axiom. Two axioms are NOT tolerated here: the real rule accepts them only when their type is a proposition (`isPropCheap`, which needs the type of the head constant: the theorems that
+the module system realizes as axioms), and the tree's modules are not module-system builds, so a pair of axioms is a pair of `axiom` declarations, which Lean refuses (CodeRabbit, emissary#41). -/
 def subsumes (a b : ConstantInfo) : Bool :=
   a.name == b.name && a.type == b.type && a.levelParams == b.levelParams &&
     match a, b with
     | .thmInfo x, .thmInfo y => x.all == y.all
     | .thmInfo x, .axiomInfo y => x.all == [y.name] && !y.isUnsafe
-    | .axiomInfo x, .axiomInfo y => x.isUnsafe == y.isUnsafe
     | _, _ => false
 
 partial def oleans (rootLen : Nat) (dir : System.FilePath) (acc : Array (Name × System.FilePath)) : IO (Array (Name × System.FilePath)) := do
