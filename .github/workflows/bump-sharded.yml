@@ -250,12 +250,12 @@ jobs:
           python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle --axioms out/axioms.txt --clashes out/clashes.txt "${flag[@]}" > /dev/null
           : > out/union-excluded.txt
           if [ ! -s out/built.txt ]; then echo "nothing built: nothing to import"; exit 0; fi
-          # the modules of the tree are its SOURCE files (with an olean to import), not every olean of the cache: the cache keeps the oleans of modules that no longer exist (the seed's move left
-          # `Tengoku.Std.CodeAction.Deprecated` next to `Tengoku.Seed.Std.CodeAction.Deprecated`, which declare the same name), and the queue's `Tengoku.All` imports none of them
-          ( cd tree && find Tengoku -name '*.lean' | while read -r f; do if [ -f ".lake/build/lib/lean/${f%.lean}.olean" ]; then echo "${f%.lean}" | tr / .; fi; done | sort > ../out/tree-modules.txt )
+          # the tree is `Tengoku.All`, what the queue's last step builds: NOT every olean of the cache (it keeps the oleans of modules that no longer exist: the seed's move left
+          # `Tengoku.Std.CodeAction.Deprecated` next to `Tengoku.Seed.Std.CodeAction.Deprecated`) and NOT every source file (Aesop's `DiscrKeyConfig` and `DiscrTreeConfig` both declare
+          # `Aesop.indexConfig` and are never imported together): two attempts at that, refused by pairs that no `import Tengoku.All` contains
           deadline=$((SECONDS + 3000)); settled=0
           for i in $(seq 1 60); do
-            python3 emissary/scripts/bump/tree_verify.py union-input --tree-modules out/tree-modules.txt --new out/new.json --keep out/built.txt --excluded out/union-excluded.txt --out out/UnionImport.lean
+            python3 emissary/scripts/bump/tree_verify.py union-input --root Tengoku.All --new out/new.json --keep out/built.txt --excluded out/union-excluded.txt --out out/UnionImport.lean
             if (cd tree && timeout -k 30 20m lake env lean ../out/UnionImport.lean) > "out/union-$i.txt" 2>&1; then settled=1; echo "the whole tree imports, after $((i - 1)) exclusion(s)"; break; fi
             head -3 "out/union-$i.txt"
             [ "$SECONDS" -lt "$deadline" ] || { echo "::error::the import of the whole tree did not settle in 50 minutes"; exit 1; }
