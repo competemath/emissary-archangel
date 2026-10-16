@@ -144,6 +144,10 @@ class Gh:
     def unmanaged_in_tree(self, key: str) -> bool:
         return self.exists(f"Tengoku/{pascal(key)}") and not self.exists(f"data/intake/{key}/manifest.jsonl")
 
+    def razed(self, key: str) -> bool:
+        """the library is not in the tree at all: its merged parts went out with a whole-library raze (docs/pr-classes.md, section 8)"""
+        return not self.exists(f"Tengoku/{pascal(key)}") and not self.exists(f"data/intake/{key}/manifest.jsonl")
+
 
 def open_pr(target: str, key: str, act: dict, auto_merge: bool, auto_first: bool = False) -> subprocess.CompletedProcess:
     cmd = [sys.executable, str(Path(__file__).with_name("open_intake_pr.py")), "--key", key, "--run", str(act["run"]), "--repo", target, "--mode", "proposed", "--part", str(act["part"])]
@@ -172,6 +176,10 @@ def tick(a: argparse.Namespace, gh: Gh, opener=open_pr, sleep=time.sleep, now: d
         if len(opened) >= room:
             break
         mine = by_key.get(key, [])
+        # a whole-library raze takes the merged parts out of the tree, and the recut that follows starts again at part 1: the merged pull requests of the key are history,
+        # not parts that are in the tree (2026-10-16: navier-stokes-euler 'every part is in the tree' for a library whose folder was gone)
+        if any(p.state == "MERGED" for p in mine) and gh.razed(key):
+            mine = [p for p in mine if p.state != "MERGED"]
         unmanaged = not mine and gh.unmanaged_in_tree(key)
         verdict, what = decide(mine, run, unmanaged, from_tree)
         if verdict == "skip":

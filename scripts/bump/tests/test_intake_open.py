@@ -93,8 +93,8 @@ class Budget(unittest.TestCase):
 
 
 class FakeGh:
-    def __init__(self, prs=(), runs=(), opened=0, in_tree=()):
-        self._prs, self._runs, self._opened, self._in_tree = list(prs), list(runs), opened, set(in_tree)
+    def __init__(self, prs=(), runs=(), opened=0, in_tree=(), razed=()):
+        self._prs, self._runs, self._opened, self._in_tree, self._razed = list(prs), list(runs), opened, set(in_tree), set(razed)
 
     def prs(self):
         return self._prs
@@ -107,6 +107,9 @@ class FakeGh:
 
     def unmanaged_in_tree(self, key):
         return key in self._in_tree
+
+    def razed(self, key):
+        return key in self._razed
 
 
 def run_row(run, key, hours_ago):
@@ -159,6 +162,24 @@ class Tick(unittest.TestCase):
         gh = FakeGh(prs=rows((7, "MERGED", "intake/lib-100000000", "intake: lib part 1 of 3 (1 verified theorems in 1 modules)")), runs=[run_row(100000000, "lib", 1)])
         self.assertEqual(self.go(gh)[1], [("lib", 2, False)])
         self.assertEqual(self.go(gh, args(auto_merge=True))[1], [("lib", 2, True)])
+
+    def test_a_razed_library_starts_again_at_part_one_of_the_new_run(self):
+        # 2026-10-16: navier-stokes-euler was razed whole (tengoku#579) and re-cut; its old part 5 of 5 was MERGED, so the opener said 'every part is in the tree' for a library whose folder was gone
+        old = rows((7, "MERGED", "intake/lib-100000000-part-005", "intake: lib part 5 of 5 (3 verified theorems in 1 modules)"))
+        gh = FakeGh(prs=old, runs=[run_row(200000000, "lib", 1)], razed=["lib"])
+        out, calls, _ = self.go(gh)
+        self.assertEqual((out["opened"], out["skipped"], calls), (["lib"], {}, [("lib", 1, False)]))
+        out, calls, _ = self.go(FakeGh(prs=old, runs=[run_row(200000000, "lib", 1)]))  # the library is still in the tree: nothing follows its last part
+        self.assertEqual((out["opened"], out["skipped"], calls), ([], {"lib": "every part is in the tree"}, []))
+
+    def test_a_razed_library_keeps_its_open_and_closed_pull_requests(self):
+        # only the MERGED ones are history: an open part still blocks the library, and one closed for this run is still not reopened
+        merged = (7, "MERGED", "intake/lib-100000000-part-005", "intake: lib part 5 of 5 (3 verified theorems in 1 modules)")
+        out, calls, _ = self.go(FakeGh(prs=rows(merged, (8, "OPEN", "intake/lib-200000000-part-001", "")), runs=[run_row(200000000, "lib", 1)], razed=["lib"]))
+        self.assertEqual((out["opened"], out["skipped"]), ([], {"lib": "a pull request of this library is open"}))
+        out, calls, _ = self.go(FakeGh(prs=rows(merged, (9, "CLOSED", "intake/lib-200000000-part-001", "")), runs=[run_row(200000000, "lib", 1)], razed=["lib"]))
+        self.assertEqual(out["opened"], [])
+        self.assertIn("closed without merging", out["skipped"]["lib"])
 
     def test_a_library_in_the_tree_without_an_intake_is_skipped(self):
         out, calls, _ = self.go(FakeGh(runs=[run_row(1, "seeded", 1)], in_tree=["seeded"]))
