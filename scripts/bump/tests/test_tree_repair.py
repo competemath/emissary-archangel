@@ -605,6 +605,19 @@ class Collect(unittest.TestCase):
         d, _ = self.run_collect(log, "")
         self.assertEqual(self.failing(d), {"Toy.B", "Toy.C", "Toy.D"})
 
+    def test_a_module_the_first_build_never_reached_is_judged_on_the_second_round_too(self):
+        # D imports the repaired A: lake did not reach it in the first build, builds it in the second, and it fails there for its own reason. Reading the second part for
+        # repaired modules only (a review suggestion) would lose that error; reading it for every module is right because a module that passed the first build is cached.
+        log = built("E") + timeout("A") + tail("A") + tr.MARKER + "\n" + built("A") + "error: Tengoku/ToyLib/Toy/D.lean:3:0: type mismatch\n" + tail("D") + built("B") + built("C")
+        d, _ = self.run_collect(log, "A")
+        self.assertEqual(self.failing(d), {"Toy.D"})
+        self.assertEqual(self.ok(d), {f"Tengoku.ToyLib.Toy.{m}" for m in "ABCE"})
+
+    def test_a_module_that_built_in_the_first_part_is_not_refused_for_what_the_second_part_says_of_others(self):
+        log = built("E") + built("B") + built("C") + built("D") + timeout("A") + tail("A") + tr.MARKER + "\n" + built("A") + "Build completed successfully\n"
+        d, _ = self.run_collect(log, "A")
+        self.assertEqual(self.failing(d), set())
+
     def test_a_module_built_in_the_second_round_only_counts_as_built(self):
         d, _ = self.run_collect(self.log(), "AB")
         self.assertIn("Tengoku.ToyLib.Toy.D", self.ok(d))

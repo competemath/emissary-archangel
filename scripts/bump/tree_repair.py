@@ -16,6 +16,9 @@ that still fails is refused like one that never had a repair. Nothing here decid
                                                                                            OUT/new.json (the new bytes; `repaired: true`); prints what it did
   tree_repair.py merge --out F A.json B.json …                                             the repairs of several verified modes in one file (the same module with other bytes is an error)
 
+A module has the same text in every mode, and a heartbeat timeout is deterministic, so the verified modes repair a module identically; one that did not would make `check` refuse the
+bundle (never ship other bytes than the tree accepted), which is the loud outcome, and `merge` already refuses two different repairs of one module.
+
 `plan` appends nothing to the log; the workflow adds MARKER and the second build. `tree_verify.py collect` reads the log in two parts at MARKER (a module that was repaired is judged on
 the second). `bundle.py compose --tree-repairs F` makes the same edit, to the same bytes, in the bundle that ships (`apply_to_text`), and `tree_verify.py check` then proves it.
 """
