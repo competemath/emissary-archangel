@@ -418,7 +418,7 @@
       },
       "repo": "https://github.com/anthropics/fermats-last-theorem",
       "commit": "aa2d8b34692b16c70f699536de0d8e75b9a3e9ef",
-      "toolchain": "leanprover/lean4:v4.33.1",
+      "toolchain": "leanprover/lean4:v4.33.0",
       "roots": [
         "Theorems",
         "Definitions"
