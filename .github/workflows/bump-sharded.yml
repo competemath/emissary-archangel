@@ -218,6 +218,23 @@ jobs:
           echo "lake exit status: ${PIPESTATUS[0]}"
           kill "$sampler" 2>/dev/null || true
           { echo "== after the build"; df -h / | tail -1; du -sh .lake/build 2>/dev/null; } >> ../out/disk.log
+      # R2 (tree_repair.py): a declaration that ran out of heartbeats in the tree is given room (`set_option … in` above it and one line of module docstring saying so) and the same command
+      # builds the modules again. A module that still fails is refused like one that never had a repair; `collect` reads the log in two parts at the marker. The repaired bytes are what
+      # `check` holds the shipped modules to, and `compose --tree-repairs` makes the same edit in `finish`.
+      - name: Give the declarations that ran out of heartbeats room, and build again (tree_repair.py)
+        run: |
+          python3 emissary/scripts/bump/tree_repair.py plan --log out/build.log --new out/new.json --tree tree --out out | tee out/repairs.txt
+          if python3 -c 'import json, sys; sys.exit(0 if json.load(open("out/repairs.json"))["modules"] else 1)'; then
+            targets="$(tr '\n' ' ' < out/targets.txt)"
+            python3 -c 'import sys; sys.path.insert(0, "emissary/scripts/bump"); import tree_repair; print(tree_repair.MARKER)' >> out/build.log
+            cd tree
+            set +e
+            # shellcheck disable=SC2086  # targets is a space-separated module list
+            timeout -k 60 90m lake build $targets 2>&1 | tee -a ../out/build.log
+            echo "lake exit status: ${PIPESTATUS[0]}"
+          else
+            echo "nothing to repair"
+          fi
       - name: What the build accepted
         run: |
           flag=(); if [ "$VERIFY_PARTIAL" = true ]; then flag=(--allow-unfinished); fi
@@ -279,6 +296,8 @@ jobs:
           path: |
             out/new.json
             out/ok.json
+            out/repairs.json
+            out/repairs.txt
             out/failing.txt
             out/summary.txt
             out/axioms.txt
@@ -320,15 +339,19 @@ jobs:
         run: |
           cp draft/tree-names.txt draft/tree-decls.txt .
           : > tree-failures.txt
+          repair_files=()
           for mode in $(python3 -c 'import json, os; print(" ".join(json.loads(os.environ["MODES"])))'); do
             dir="treeverify/treeverify-$KEY-$mode"
-            for f in failing.txt ok.json new.json summary.txt; do
+            for f in failing.txt ok.json new.json summary.txt repairs.json; do
               [ -f "$dir/$f" ] || { echo "::error::the tree's verdict for mode $mode is incomplete: $dir/$f is missing"; exit 1; }
             done
             cat "$dir/failing.txt" >> tree-failures.txt
+            repair_files+=("$dir/repairs.json")
           done
           sort -u -o tree-failures.txt tree-failures.txt
           echo "the tree refused $(wc -l < tree-failures.txt) module(s)"
+          # the declarations the tree timed out on that were given room (tree_repair.py): `compose` makes the same edit in the bundle that ships
+          if [ "${#repair_files[@]}" -gt 0 ]; then python3 emissary/scripts/bump/tree_repair.py merge --out tree-repairs.json "${repair_files[@]}"; else echo '{"rule": "R2", "modules": {}}' > tree-repairs.json; fi
       - name: Merge the shards and cut the bundle
         working-directory: emissary
         run: |
@@ -337,7 +360,7 @@ jobs:
           cat ../logs/gate2-results.json
           python3 scripts/bump/bundle.py compose --lib ../merged --log ../logs/bundle-deps.log --passed ../logs/passed.json --meta "data/exports/$KEY/setup.ci.json" \
             --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --out ../bundle --src ../pruned-src --drop-modules "$DROP" \
-            --tree-names ../tree-names.txt --tree-decls ../tree-decls.txt --drop-leaks --tree-failures ../tree-failures.txt --imports "$IMPORTS"
+            --tree-names ../tree-names.txt --tree-decls ../tree-decls.txt --drop-leaks --tree-failures ../tree-failures.txt --tree-repairs ../tree-repairs.json --imports "$IMPORTS"
       - name: Make the registrations that leak into other libraries local (RECUT only)
         if: ${{ inputs.scope != '' }}
         run: python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --leaks "$SCOPE"
