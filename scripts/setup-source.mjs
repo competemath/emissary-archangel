@@ -207,8 +207,15 @@ async function ensureClone() {
     if (r.code !== 0) fail(`git checkout ${src.commit}: ${r.tail.slice(-500)}`)
   }
   const pinned = existsSync(join(REPO, "lean-toolchain")) ? readFileSync(join(REPO, "lean-toolchain"), "utf8").trim() : ""
-  if (pinned && pinned !== src.toolchain) log(`WARNING: checkout pins ${pinned}, registry says ${src.toolchain} — using the checkout's`)
-  if (pinned) src.toolchain = pinned
+  if (pinned && pinned !== src.toolchain && src.pinToolchain) {
+    // the registry wins: the library's own Mathlib needs another toolchain than its lean-toolchain says (flt-anthropic: v4.33.1 against Mathlib's v4.33.0), and then
+    // `lake exe cache get` refuses and every build compiles Mathlib from source
+    log(`checkout pins ${pinned}; the registry's ${src.toolchain} is used instead (pinToolchain), written into the checkout's lean-toolchain`)
+    writeFileSync(join(REPO, "lean-toolchain"), `${src.toolchain}\n`)
+  } else {
+    if (pinned && pinned !== src.toolchain) log(`WARNING: checkout pins ${pinned}, registry says ${src.toolchain} — using the checkout's`)
+    if (pinned) src.toolchain = pinned
+  }
   log(`checkout ${REPO} @ ${src.commit.slice(0, 12)} (${src.toolchain})`)
 }
 
