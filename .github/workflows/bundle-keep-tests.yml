@@ -191,8 +191,10 @@ jobs:
           /-- mentions nothing of the library (the rule before 2026-10-16) -/
           instance foreignOnly : HAdd Nat String String := ⟨fun n s => toString n ++ s⟩
 
+          namespace Sc
           /-- not global: never a leak -/
           scoped instance scopedHMul {R G : Type} : HMul R G (Own × R × G) := ⟨fun r g => (⟨0⟩, r, g)⟩
+          end Sc
 
           -- A class of the library with a projection into a foreign outParam class (`Tor.toHDiv : [Tor P I] → HDiv P P I`, the shape of prismriver's Torsor) is harmless until the library
           -- declares an instance of it at foreign types, also behind abbreviations: `Tor Alias Alias` is `Tor Nat Nat`, and `HDiv Nat Nat ?γ` finds `Tor.toHDiv` before `Nat.instHDiv`
