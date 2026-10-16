@@ -3,9 +3,9 @@
 name: bundle-keep-tests
 on:
   push:
-    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/tree_verify.py", "scripts/bump/tree_repair.py", ".github/workflows/bundle-keep-tests.yml"]
+    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/tree_verify.py", "scripts/bump/tree_repair.py", "scripts/bump/TengokuLeak.lean", ".github/workflows/bundle-keep-tests.yml"]
   pull_request:
-    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/tree_verify.py", "scripts/bump/tree_repair.py", ".github/workflows/bundle-keep-tests.yml"]
+    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/tree_verify.py", "scripts/bump/tree_repair.py", "scripts/bump/TengokuLeak.lean", ".github/workflows/bundle-keep-tests.yml"]
 permissions: {}
 defaults:
   run:
@@ -158,4 +158,50 @@ jobs:
           x3, name3, y3 = tv.union_failure(open(os.path.join(os.environ["RUNNER_TEMP"], "u3.out")).read())
           assert name3 == "Toy.prime'" and {x3, y3} == {"Tengoku.LibD.D", "Tengoku.LibE.E"}, (x3, name3, y3)  # a name with a prime is read whole
           print("primed name read whole:", name3)
+          PY
+
+      # The leak scan (scripts/bump/TengokuLeak.lean) on a small library compiled by a real Lean. An instance of ANOTHER library's class with outParams whose inputs and hypotheses mention
+      # nothing of the library is a leak although its type does mention the library (lean-pool's GroupRing, 2026-10-16: `HMul R G (FreeModule R G)` for all R and G made every product of reals
+      # in the tree a group-ring element). The shapes that are harmless must not be reported: an instance whose input is the library's type, one of the library's own class, one with a
+      # hypothesis about the library. The old rule (the statement mentions nothing of the library) must still report its case.
+      - name: The leak scan reports an unpinned instance of a foreign outParam class and the old shape, and nothing harmless
+        working-directory: gate2
+        run: |
+          d="$RUNNER_TEMP/leaktoy"
+          mkdir -p "$d"
+          cat > "$d/LeakToy.lean" <<'LEAN'
+          structure Own where
+            x : Nat
+
+          class OwnCls (α : Type) (β : outParam Type) where
+            f : α → β
+
+          /-- pinned: the input is the library's own type -/
+          instance pinnedHMul : HMul Own Own Own := ⟨fun a b => ⟨a.x * b.x⟩⟩
+
+          /-- UNPINNED: an instance of a foreign outParam class, generic in its inputs (the shape of lean-pool's GroupRing) -/
+          instance unpinnedHMul {R G : Type} : HMul R G (Own × R × G) := ⟨fun r g => (⟨0⟩, r, g)⟩
+
+          /-- an instance of the library's own class: nothing else asks for it -/
+          instance ownClassGeneric {α : Type} : OwnCls α α := ⟨id⟩
+
+          /-- a hypothesis about the library: it cannot be met elsewhere -/
+          instance guardedHMul {R G : Type} [OwnCls R Nat] : HMul R G (Own × R × G) := ⟨fun r g => (⟨0⟩, r, g)⟩
+
+          /-- mentions nothing of the library (the rule before 2026-10-16) -/
+          instance foreignOnly : HAdd Nat String String := ⟨fun n s => toString n ++ s⟩
+
+          /-- not global: never a leak -/
+          scoped instance scopedHMul {R G : Type} : HMul R G (Own × R × G) := ⟨fun r g => (⟨0⟩, r, g)⟩
+          LEAN
+          lake env lean -o "$d/LeakToy.olean" "$d/LeakToy.lean"
+          lp="$d:$(lake env printenv LEAN_PATH)"
+          lake env env LEAN_PATH="$lp" lean --run ../scripts/bump/TengokuLeak.lean --module LeakToy | tee "$RUNNER_TEMP/leaktoy.out"
+          python3 - <<'PY'
+          import os, re
+          out = open(os.path.join(os.environ["RUNNER_TEMP"], "leaktoy.out")).read()
+          leaks = {m.group(2) for m in re.finditer(r"^leak: (instance|simp) (\S+) registered in LeakToy", out, re.M)}
+          assert leaks == {"unpinnedHMul", "foreignOnly"}, (leaks, out)
+          assert "5 global instances (2 can fire outside the library), 1 scoped" in out, out.splitlines()[0]
+          print("reported:", sorted(leaks))
           PY

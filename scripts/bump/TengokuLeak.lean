@@ -7,6 +7,12 @@ made `‖A‖` the L∞ operator norm on every matrix in the tree (Mathlib keeps
 library's own types can never fire elsewhere and is harmless. This reads the compiled environment (not the text): every global entry that
 the library's modules registered in the instance and simp extensions, and whether its statement mentions a constant of the library.
 
+One more shape is a leak although the statement does mention the library: an instance of ANOTHER library's class that has outParams, whose input
+arguments and hypotheses mention nothing of the library (`instance : HMul R G (FreeModule R G)` for all `R G`, lean-pool GroupRing, 2026-10-16). The result
+of `HMul` is an outParam, so instance search for `HMul ℝ ℝ ?γ` finds it and every product of reals in the tree becomes a group-ring element: `positivity`
+and `linarith` fail with `failed to synthesize HAdd (ℝ[ℝ]) ℝ ℝ`. An instance of the library's own class, or one with a hypothesis about the library, is
+not a leak (nothing else asks for that class, or the hypothesis cannot be met elsewhere).
+
   lake build tengoku-leakscan
   lake env .lake/build/bin/tengoku-leakscan --module Tengoku.Lib [--prefix Tengoku.Lib …] [--tree-prefix Tengoku.Lib] [--strict]
 
@@ -49,6 +55,30 @@ def trigger (ty : Expr) : Expr :=
     | some (l, _) => l
     | none => b
 
+/-- the conclusion of an instance type, and the types of its binders -/
+def conclusion : Expr → Expr
+  | .forallE _ _ b _ => conclusion b
+  | e => e
+
+def binderTypes : Expr → List Expr
+  | .forallE _ d b _ => d :: binderTypes b
+  | _ => []
+
+/-- an instance of a class of ANOTHER library, with outParams, whose input arguments and hypotheses mention nothing of this library: it fires for every input of
+that shape, whatever its result type says (the result of `HMul`, `HAdd`, `HSMul`, `GetElem`, `Membership` is an outParam, so the result type does not pin it) -/
+def unpinned (env : Environment) (ty : Expr) (own : Name → Bool) : Bool :=
+  let concl := conclusion ty
+  match concl.getAppFn.constName? with
+  | none => false
+  | some cls =>
+    match getOutParamPositions? env cls with
+    | none => false
+    | some outs =>
+      if outs.isEmpty || own cls then false else
+      let args := concl.getAppArgs
+      let ins := ((List.range args.size).filter fun i => !outs.contains i).map fun i => args[i]!
+      !(ins.any (·.getUsedConstants.any own) || (binderTypes ty).any (·.getUsedConstants.any own))
+
 def scan (pfxs : List Name) : CoreM (Array Leak × Counts) := do
   let env ← getEnv
   let idxs := (List.range env.header.moduleNames.size).filter fun i => pfxs.any (·.isPrefixOf env.header.moduleNames[i]!)
@@ -69,7 +99,7 @@ def scan (pfxs : List Name) : CoreM (Array Leak × Counts) := do
         counts := { counts with inst := counts.inst + 1 }
         let n := ie.globalName?.getD (ie.val.constName?.getD `_)
         let ty := ((env.find? n).map (·.type)).getD (.sort .zero)
-        unless ty.getUsedConstants.any own do
+        unless ty.getUsedConstants.any own && !unpinned env ty own do
           let r ← findDeclarationRanges? n
           let dm := (env.getModuleIdxFor? n).bind fun m => env.header.moduleNames[m]?
           leaks := leaks.push { kind := "instance", name := n, registeredIn := modName, declaredIn := dm,
@@ -104,7 +134,7 @@ def report (treePrefix : Name) (leaks : Array Leak) (c : Counts) : List String :
        | none, some m => s!" (declared in {m}: an `attribute` command of the library turns it on)"
        | none, none => "")
   -- the totals come first (a report cut to its first lines keeps them), then every leak, then every root-level name
-  [s!"leakscan: {c.inst} global instances ({(leaks.filter (·.kind == "instance")).size} touch no type of the library), {c.instScoped} scoped; " ++
+  [s!"leakscan: {c.inst} global instances ({(leaks.filter (·.kind == "instance")).size} can fire outside the library), {c.instScoped} scoped; " ++
     s!"{c.simp} global simp lemmas ({(leaks.filter (·.kind == "simp")).size} trigger on nothing of the library), {c.simpScoped} scoped",
    s!"roots: {c.roots.size} declarations of the library are in the root namespace (nothing in their names tells libraries apart; a second library declaring one fails to import)"]
     ++ rows ++ c.roots.toList.map fun n => s!"root: {n}"
