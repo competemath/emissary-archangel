@@ -227,13 +227,15 @@ class ArtifactLayout(unittest.TestCase):
         (d / "draft").mkdir()
         (d / "draft" / "tree-names.txt").write_text("")
         (d / "draft" / "tree-decls.txt").write_text("")
+        (d / "emissary").symlink_to(PATH.parents[2])  # the step merges the repairs with the repository's own script
         for rel, text in layout.items():
             (d / rel).parent.mkdir(parents=True, exist_ok=True)
             (d / rel).write_text(text)
         r = subprocess.run(["bash", "-e", "-o", "pipefail", "-c", step("finish", "What the tree refused")["run"]], cwd=d, env={"PATH": __import__("os").environ["PATH"], "KEY": "lib", "MODES": modes}, capture_output=True, text=True)
         return r, d
 
-    GOOD = {f"treeverify/treeverify-lib-proposed/{f}": "" for f in ("ok.json", "new.json", "summary.txt")}
+    NO_REPAIRS = '{"rule": "R2", "modules": {}}'
+    GOOD = {f"treeverify/treeverify-lib-proposed/{f}": "" for f in ("ok.json", "new.json", "summary.txt")} | {"treeverify/treeverify-lib-proposed/repairs.json": NO_REPAIRS}
 
     def test_a_complete_verdict_is_read(self):
         r, d = self.run_step('["proposed"]', {**self.GOOD, "treeverify/treeverify-lib-proposed/failing.txt": "B.C\nA.X\n"})
@@ -242,11 +244,31 @@ class ArtifactLayout(unittest.TestCase):
 
     def test_the_refusals_of_two_modes_are_joined_without_repeats(self):
         layout = {f"treeverify/treeverify-lib-{m}/{f}": "" for m in ("proposed", "wide") for f in ("ok.json", "new.json", "summary.txt")}
+        layout |= {f"treeverify/treeverify-lib-{m}/repairs.json": self.NO_REPAIRS for m in ("proposed", "wide")}
         layout["treeverify/treeverify-lib-proposed/failing.txt"] = "A.X\n"
         layout["treeverify/treeverify-lib-wide/failing.txt"] = "A.X\nW.Y\n"
         r, d = self.run_step('["proposed", "wide"]', layout)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual((d / "tree-failures.txt").read_text(), "A.X\nW.Y\n")
+
+    def test_the_repairs_of_every_verified_mode_are_merged_for_compose(self):
+        import json
+
+        entry = {"module": "Tengoku.Lib.X", "path": "Tengoku/Lib/X.lean", "before": "1", "after": "2", "repairs": []}
+        layout = {f"treeverify/treeverify-lib-{m}/{f}": "" for m in ("proposed", "wide") for f in ("ok.json", "new.json", "summary.txt", "failing.txt")}
+        layout["treeverify/treeverify-lib-proposed/repairs.json"] = json.dumps({"rule": "R2", "modules": {"X": entry}})
+        layout["treeverify/treeverify-lib-wide/repairs.json"] = json.dumps({"rule": "R2", "modules": {"X": entry, "Y": entry}})
+        r, d = self.run_step('["proposed", "wide"]', layout)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(sorted(json.loads((d / "tree-repairs.json").read_text())["modules"]), ["X", "Y"])
+
+    def test_a_verdict_without_its_repairs_stops_the_run(self):
+        layout = dict(self.GOOD)
+        del layout["treeverify/treeverify-lib-proposed/repairs.json"]
+        layout["treeverify/treeverify-lib-proposed/failing.txt"] = ""
+        r, _ = self.run_step('["proposed"]', layout)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("repairs.json is missing", r.stdout + r.stderr)
 
     def test_a_verdict_with_the_old_out_prefix_is_not_an_empty_list(self):
         r, _ = self.run_step('["proposed"]', {f"treeverify/treeverify-lib-proposed/out/{f}": "" for f in ("failing.txt", "ok.json", "new.json", "summary.txt")})
@@ -267,6 +289,7 @@ class ArtifactLayout(unittest.TestCase):
         r, d = self.run_step("[]", {})
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual((d / "tree-failures.txt").read_text(), "")
+        self.assertEqual(__import__("json").loads((d / "tree-repairs.json").read_text()), {"rule": "R2", "modules": {}})  # an empty file, not a missing one: compose is given the path either way
 
 
 class TheQueuesAxiomCheckToo(unittest.TestCase):
@@ -364,7 +387,8 @@ class SameBundle(unittest.TestCase):
     def test_the_draft_and_the_final_bundle_are_cut_by_the_same_command(self):
         draft, final = compose_command("compose"), compose_command("finish")
         self.assertNotIn("--tree-failures", draft)
-        self.assertEqual(final.replace(" --tree-failures ../tree-failures.txt", ""), draft)
+        self.assertNotIn("--tree-repairs", draft)  # the repairs come out of the tree's build of the draft
+        self.assertEqual(final.replace(" --tree-failures ../tree-failures.txt", "").replace(" --tree-repairs ../tree-repairs.json", ""), draft)
 
     def test_both_use_the_names_the_draft_froze(self):
         self.assertIn("cp draft/tree-names.txt draft/tree-decls.txt .", runs("finish"))

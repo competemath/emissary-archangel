@@ -40,6 +40,7 @@ import keep_closure  # noqa: E402
 import lean_names  # noqa: E402
 import strip_attrs  # noqa: E402
 import tolerant_build as tb  # noqa: E402
+import tree_repair  # noqa: E402
 
 # the packages the tree was seeded from (tengoku scripts/seed.py PACKAGES). A bundle reaches all of them through the root `Tengoku`, which
 # re-exports every seeded module: where the seed's own modules sit in the tree (Tengoku/Seed/ since tengoku's restructure) is not the
@@ -372,6 +373,8 @@ def compose(a: argparse.Namespace) -> None:
     tree_decls = {ln for ln in Path(a.tree_decls).read_text().split("\n") if ln} if a.tree_decls else set()
     lean_clash = {mod: sorted(lean_names.names(pruned[mod]) & tree_decls) for mod in pruned} if tree_decls else {}
     tree_failed = {ln.strip() for ln in Path(a.tree_failures).read_text().split("\n") if ln.strip()} if a.tree_failures else set()
+    # the declarations the tree timed out on get more room (tree_repair.py, rule R2): the same edit, to the same bytes, as the one the tree's build accepted
+    tree_repairs = json.loads(Path(a.tree_repairs).read_text())["modules"] if a.tree_repairs else {}
     repo = meta["repo"].rstrip("/").removesuffix(".git")
     via = passed_via(a.gate2)
     summary = {}
@@ -456,7 +459,10 @@ def compose(a: argparse.Namespace) -> None:
             (src_dir / rel).parent.mkdir(parents=True, exist_ok=True)
             (src_dir / rel).write_text(pruned[mod] + "\n")
             (tree_root / rel).parent.mkdir(parents=True, exist_ok=True)
-            (tree_root / rel).write_text(to_tree(pruned[mod], a.key, own, rel, faithful=a.imports == "faithful"))
+            shipped = to_tree(pruned[mod], a.key, own, rel, faithful=a.imports == "faithful")
+            if mod in tree_repairs:  # a mode whose bytes differ from the ones that were repaired ships as the factory cut it (only the verified modes are checked byte for byte)
+                shipped = tree_repair.apply_to_text(shipped, tree_repairs[mod]) or shipped
+            (tree_root / rel).write_text(shipped)
         (out_dir / "Tengoku" / f"{pascal(a.key)}.lean").write_text("".join(f"import Tengoku.{pascal(a.key)}.{m}\n" for m in sorted(needed)))
         # tengoku's generator rewrites Tengoku/All.lean from the libraries that have a Deps.lean: an empty one (a comment) keeps this library in it
         (tree_root / "Deps.lean").write_text(f"-- {pascal(a.key)}: a factory bundle (data/intake/{a.key}). This file only marks the library for Tengoku/All.lean.\n")
@@ -597,6 +603,7 @@ if __name__ == "__main__":
     c.add_argument("--drop-modules", default="", help="comma list of modules to leave out (with their importers): those that did not build on the tree")
     c.add_argument("--tree-names", default="", help="file of the record names the tree already has, one per line (tree_names.py): the modules that prove one are left out with their importers")
     c.add_argument("--tree-decls", default="", help="file of the Lean names the other namespaces of the tree declare, one per line (tree_names.py --decls-out): the modules that declare one are left out with their importers")
+    c.add_argument("--tree-repairs", default="", help="repairs.json of tree_repair.py (merged over the verified modes): each module in it gets the heartbeat repairs the tree's build accepted, with the one-line docstring per repair")
     c.add_argument("--tree-failures", default="", help="file of the library modules (one per line) that did NOT build in the tree's own environment (tree_verify.py collect): they are left out with their importers AFTER the pruning, so every other module is exactly the text that was built there")
     c.add_argument("--taint-drops", action="store_true", help="a declaration that stands on a sorry in the library's own build (BundleKeep's `tainted`) is not kept for a text that names it, and the module that names it goes (off: it is only reported; the tree's own build judges it)")
     c.add_argument("--drop-leaks", action="store_true", help="leave out a module whose pruning left unverified text (and what imports it) instead of refusing to compose")

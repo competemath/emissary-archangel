@@ -3,9 +3,9 @@
 name: bundle-keep-tests
 on:
   push:
-    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/tree_verify.py", ".github/workflows/bundle-keep-tests.yml"]
+    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/tree_verify.py", "scripts/bump/tree_repair.py", ".github/workflows/bundle-keep-tests.yml"]
   pull_request:
-    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/tree_verify.py", ".github/workflows/bundle-keep-tests.yml"]
+    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/tree_verify.py", "scripts/bump/tree_repair.py", ".github/workflows/bundle-keep-tests.yml"]
 permissions: {}
 defaults:
   run:

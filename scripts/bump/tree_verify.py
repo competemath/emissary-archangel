@@ -37,6 +37,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import bundle_layers as bl  # noqa: E402
+import tree_repair as tr  # noqa: E402
 
 ERROR = re.compile(r"^(?:\S+\s+)?error: (?P<path>Tengoku/[^/\s]+/\S+?\.lean):\d+:\d+: ", re.M)
 SORRY = re.compile(r"^(?:\S+\s+)?warning: (?P<path>Tengoku/[^/\s]+/\S+?\.lean):\d+:\d+: declaration uses .sorry.", re.M)
@@ -48,7 +49,7 @@ CLASH_LINE = re.compile(r"^CLASH\t(?P<mod>[^\t\n]+)\t(?P<other>[^\t\n]+)\t(?P<co
 CLASH_DONE = re.compile(r"^clashes: (?P<pairs>\d+) module pair\(s\), (?P<names>\d+) name\(s\)$", re.M)
 # the name is quoted by single quotes and may contain some (`mul_comm'`): it runs up to the LAST `' from ` of the line (CodeRabbit)
 IMPORT_FAIL = re.compile(r"import (?P<x>\S+) failed, environment already contains '(?P<name>.+)' from (?P<y>\S+)\s*$", re.M)
-FINISHED = re.compile(r"Build completed successfully|Some required targets logged failures|error: build failed")
+FINISHED = tr.FINISHED
 
 
 def sha256(data: bytes) -> str:
@@ -212,10 +213,13 @@ def cmd_collect(a: argparse.Namespace) -> None:
     log = Path(a.log).read_text(errors="replace")
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    unfinished = bool(mods) and not FINISHED.search(log)
+    # a repair round (tree_repair.py) appends a second build to the log after MARKER: a module that was repaired is judged on the second, the rest on the first as before
+    last = log.rsplit(tr.MARKER, 1)[-1]
+    repaired = {m for m, spec in mods.items() if spec.get("repaired")}
+    unfinished = bool(mods) and not FINISHED.search(last)
     if unfinished and not a.allow_unfinished:
         sys.exit("the build log has no ending (the build was killed or timed out): refusing to guess which modules the tree accepted (--allow-unfinished: those with a `Built` line are accepted, the rest wait for a later round)")
-    failing = failures_from_log(log, ns) & set(mods)
+    failing = ((failures_from_log(log, ns) - repaired) | failures_from_log(last, ns)) & set(mods)
     built = {m.group("mod") for m in BUILT.finditer(log)} & set(mods)
     offenders = axiom_offenders(Path(a.axioms).read_text(errors="replace"), set(mods)) if a.axioms else {}
     failing |= set(offenders)
@@ -240,6 +244,11 @@ def cmd_collect(a: argparse.Namespace) -> None:
         f"{len(mods)} new module(s): {len(ok)} built in the tree, {len(failing)} refused ({len(unaccounted)} of them not reached, {len(offenders)} on an axiom, {len(clashing)} on a name another module declares, {len(union_hit)} on the import of the whole tree), "
         f"{len(cascade - failing)} more import a refused one and go with it"
     )
+    mended = sorted(m for m in repaired if m in ok)
+    if repaired:
+        summary += f"\n  {len(mended)} of {len(repaired)} module(s) the tree timed out on were mended by a raised limit (tree_repair.py)"
+        for m in mended[:10]:
+            summary += f"\n  repaired: {library_module(m, ns)}"
     for m in sorted(clashing)[:10]:
         summary += f"\n  clash: {library_module(m, ns)}: {clashing[m][0]}" + (f" (+{len(clashing[m]) - 1} more pair(s))" if len(clashing[m]) > 1 else "")
     for ln in read_lines(str(Path(a.union_excluded).with_suffix(".reasons")) if a.union_excluded else "")[:10]:
