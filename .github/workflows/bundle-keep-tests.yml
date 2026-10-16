@@ -224,7 +224,7 @@ jobs:
           /-- not a leak: the projection of `Plain` is into `Add`, which has no outParams, so nothing about `Nat` changes -/
           instance plainNat : Plain Alias where add a b := a + b
 
-          -- `hopToTor` is no projection (its argument is `Own × α`, not the variable `α`): `Tor` is reachable from `HDiv`, but `Hop` is not reachable from `Tor`,
+          -- `hopToTor` mentions `Own` in its arguments (`Own × α`): `Tor` is reachable from `HDiv`, but `Hop` is not reachable from `Tor`,
           -- because what `hopToTor` gives `HDiv` is about `Own × Nat`, a type of the library, not about `Nat`
           class Hop (P I : Type) where
             h : P → I
@@ -232,6 +232,14 @@ jobs:
 
           /-- not a leak: see `hopToTor` -/
           instance hopNat : Hop Alias Alias := ⟨id⟩
+
+          -- but a projection-like instance whose arguments are foreign all through still reaches the foreign type: `hop2ToTor` gives `Tor (List Nat) (List Nat)` from `Hop2 Nat Nat`
+          class Hop2 (P I : Type) where
+            h : P → I
+          instance hop2ToTor {α : Type} [Hop2 α α] : Tor (List α) (List α) where hDiv a _ := a
+
+          /-- LEAK: `HDiv (List Nat) (List Nat) ?γ` finds `Tor.toHDiv` through `hop2ToTor` -/
+          instance hop2Nat : Hop2 Alias Alias := ⟨id⟩
           LEAN
           lake env lean --root="$d" -o "$d/LeakToy.olean" "$d/LeakToy.lean"
           lp="$d:$(lake env printenv LEAN_PATH)"
@@ -240,7 +248,7 @@ jobs:
           import os, re
           out = open(os.path.join(os.environ["RUNNER_TEMP"], "leaktoy.out")).read()
           leaks = {m.group(2) for m in re.finditer(r"^leak: (instance|simp) (\S+) registered in LeakToy", out, re.M)}
-          assert leaks == {"unpinnedHMul", "foreignOnly", "torNat", "tor2Nat"}, (leaks, out)
-          assert re.search(r"^leakscan: \d+ global instances \(4 can fire outside the library\), 1 scoped", out), out.splitlines()[0]
+          assert leaks == {"unpinnedHMul", "foreignOnly", "torNat", "tor2Nat", "hop2Nat"}, (leaks, out)
+          assert re.search(r"^leakscan: \d+ global instances \(5 can fire outside the library\), 1 scoped", out), out.splitlines()[0]
           print("reported:", sorted(leaks))
           PY

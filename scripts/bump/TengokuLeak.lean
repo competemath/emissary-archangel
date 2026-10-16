@@ -123,9 +123,10 @@ def scan (pfxs : List Name) : CoreM (Array Leak × Counts) := do
         if hyps.isEmpty then continue
         let concl := conclusion ty
         if let some cls := concl.getAppFn.constName? then
-          -- a projection has the shape `[C a b] → D a b`: its arguments are the variables of the instance (`[C α] → D (Lib.Wrap α)` is about `Lib.Wrap α`, not about `α`)
+          -- an edge that mentions a constant of the library is about the library's type (`[C α] → D (Lib.Wrap α)` is about `Lib.Wrap α`, not about `α`); one that is
+          -- foreign all through still reaches the foreign type (`[C α] → D (List α)` makes `D (List Int)` of `C Int`)
           if own cls then
-            if concl.getAppArgs.all (·.isBVar) then edges := edges.push (cls, hyps) else pure ()
+            if concl.getAppArgs.any (·.getUsedConstants.any own) then pure () else edges := edges.push (cls, hyps)
           else if let some outs := getOutParamPositions? env cls then
             let args := concl.getAppArgs
             let ins := ((List.range args.size).filter fun j => !outs.contains j).map fun j => args[j]!
