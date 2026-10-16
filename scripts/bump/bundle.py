@@ -35,6 +35,7 @@ sys.path.insert(0, str(HERE))
 import portfolio  # noqa: E402
 import records  # noqa: E402
 import autonames  # noqa: E402
+import bundle_rehead as rehead  # noqa: E402
 import keep_closure  # noqa: E402
 import lean_names  # noqa: E402
 import strip_attrs  # noqa: E402
@@ -45,6 +46,22 @@ import tolerant_build as tb  # noqa: E402
 # bundle's business, and a header of `public import Tengoku` is right before and after that move.
 SEED_PACKAGES = ("Mathlib", "Batteries", "Aesop", "Qq", "ProofWidgets", "Plausible", "LeanSearchClient", "ImportGraph", "Cli")
 CORE = ("Init", "Std", "Lean", "Lake")
+# FAITHFUL imports (`--imports faithful`): a library module keeps the imports its authors wrote, named as the tree names them (tengoku/Tengoku/Seed/): `Mathlib.X` is
+# `Tengoku.Seed.X`, `Batteries.X` is `Tengoku.Seed.Std.X`, and so on (the same map the seed move used; the bare `Mathlib` stays the root `Tengoku`, which re-exports the seed).
+# Why: the umbrella gives a module every name of Mathlib, and `open Finset Finset.HasAntidiagonal` then makes `antidiagonal` ambiguous (navier-stokes-euler: 330 modules failed on
+# it, 2026-10-16). A module sees everything its imports see, so the whole library has to be written this way.
+SEED_TOP = {
+    "Mathlib": "",
+    "Batteries": "Std",
+    "Aesop": "Tactic.Aesop",
+    "Qq": "Meta.Qq",
+    "ProofWidgets": "Widgets",
+    "Plausible": "Testing.Random",
+    "LeanSearchClient": "Search.LeanSearchClient",
+    "ImportGraph": "Meta.ImportGraph",
+    "Cli": "Meta.Cli",
+}
+FAITHFUL_NOTE = "/-! Tengoku: the imports are the original's, in the tree's names (the umbrella `Tengoku` made names ambiguous). -/"
 # a message of the parser (not of the elaborator): unexpected token 'end'; expected '⟩' / unterminated comment
 PARSE_ERROR = re.compile(r"(?:unexpected |unterminated |expected )")
 IMPORT_RE = re.compile(r"^(\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)?)(" + tb.MODNAME + r")(.*)$")
@@ -138,8 +155,19 @@ def keep_input(a: argparse.Namespace) -> None:
     print(f"{len(names)} passed names in {len(passed)} modules; {len(mods)} library modules")
 
 
-def map_import_line(line: str, key: str, own: set[str]) -> tuple[str, str | None]:
+def seed_module(mod: str) -> str:
+    """The tree's name for a module of a seeded package: `Mathlib.Algebra.Group.Basic` -> `Tengoku.Seed.Algebra.Group.Basic`, `Batteries.Data.List.Basic` ->
+    `Tengoku.Seed.Std.Data.List.Basic`, `Aesop` -> `Tengoku.Seed.Tactic.Aesop`; the bare `Mathlib` is the root `Tengoku`."""
+    head, _, rest = mod.partition(".")
+    top = SEED_TOP[head]
+    if head == "Mathlib" and not rest:
+        return "Tengoku"
+    return ".".join(x for x in ("Tengoku", "Seed", top, rest) if x)
+
+
+def map_import_line(line: str, key: str, own: set[str], faithful: bool = False) -> tuple[str, str | None]:
     """The line with its module renamed for the tree, and the module's kind: 'own' / 'tree' / 'core' / 'external'.
+    A seeded package's module becomes the root `Tengoku` (the default) or, with `faithful`, the tree's name for that very module (`seed_module`).
     A comment after the module name is dropped: tengoku's header check reads a line that is nothing but the import, and a line with a trailing
     comment is not taken for a header line (the `import` word then reaches the content lint, which refuses it)."""
     m = IMPORT_RE.match(line)
@@ -151,7 +179,7 @@ def map_import_line(line: str, key: str, own: set[str]) -> tuple[str, str | None
         return f"{m.group(1)}Tengoku.{pascal(key)}.{mod}{rest}", "own"
     head = mod.split(".")[0]
     if head in SEED_PACKAGES:
-        return f"{m.group(1).replace('import all', 'import')}Tengoku{rest}", "tree"
+        return f"{m.group(1).replace('import all', 'import')}{seed_module(mod) if faithful else 'Tengoku'}{rest}", "tree"
     if head in CORE:
         return f"{m.group(1)}{mod}{rest}", "core"
     return line, "external"
@@ -169,10 +197,25 @@ def once(lines: list[str]) -> list[str]:
     return out
 
 
-def to_tree(text: str, key: str, own: set[str], rel: Path) -> str:
+def add_faithful_note(lines: list[str]) -> list[str]:
+    """The lines with FAITHFUL_NOTE (a module docstring) right after the last import of the header, once. A module without an import gets none: a module docstring
+    is a command and cannot stand before the imports."""
+    if FAITHFUL_NOTE in lines:
+        return lines
+    end, _ = rehead.header_end(lines)
+    last = max((i for i in range(end) if IMPORT_RE.match(lines[i])), default=None)
+    if last is None:
+        return lines
+    return lines[: last + 1] + ["", FAITHFUL_NOTE] + lines[last + 1 :]
+
+
+def to_tree(text: str, key: str, own: set[str], rel: Path, faithful: bool = False) -> str:
     """A pruned library module as the tree writes it: imports mapped to the tree's (`once`), and the library's auto-generated instance names given the
-    tree's suffix (autonames.py: the name Lean generates depends on the module's root, which changes when the file moves into Tengoku)."""
-    mapped = once([map_import_line(ln, key, own)[0] for ln in text.split("\n")])
+    tree's suffix (autonames.py: the name Lean generates depends on the module's root, which changes when the file moves into Tengoku). `faithful`: the imports keep
+    their modules (`seed_module`) and the module says so in a one-line docstring."""
+    mapped = once([map_import_line(ln, key, own, faithful)[0] for ln in text.split("\n")])
+    if faithful:
+        mapped = add_faithful_note(mapped)
     return autonames.rewrite("\n".join(mapped) + "\n", autonames.root_of(rel))[0]
 
 
@@ -413,7 +456,7 @@ def compose(a: argparse.Namespace) -> None:
             (src_dir / rel).parent.mkdir(parents=True, exist_ok=True)
             (src_dir / rel).write_text(pruned[mod] + "\n")
             (tree_root / rel).parent.mkdir(parents=True, exist_ok=True)
-            (tree_root / rel).write_text(to_tree(pruned[mod], a.key, own, rel))
+            (tree_root / rel).write_text(to_tree(pruned[mod], a.key, own, rel, faithful=a.imports == "faithful"))
         (out_dir / "Tengoku" / f"{pascal(a.key)}.lean").write_text("".join(f"import Tengoku.{pascal(a.key)}.{m}\n" for m in sorted(needed)))
         # tengoku's generator rewrites Tengoku/All.lean from the libraries that have a Deps.lean: an empty one (a comment) keeps this library in it
         (tree_root / "Deps.lean").write_text(f"-- {pascal(a.key)}: a factory bundle (data/intake/{a.key}). This file only marks the library for Tengoku/All.lean.\n")
@@ -549,6 +592,7 @@ if __name__ == "__main__":
     for f in ("lib", "log", "passed", "meta", "key", "toolchain", "errors", "out", "src"):
         c.add_argument(f"--{f}", required=True)
     c.add_argument("--gate2", default="")
+    c.add_argument("--imports", choices=("full", "faithful"), default="full", help="full: every seeded import becomes the root `Tengoku`; faithful: each keeps its module in the tree's name (seed_module) and the module gets a one-line docstring saying so (the shards must have been built without normalize-imports)")
     c.add_argument("--keep-input", default="", help="the json keep-input wrote: only the passed theorems named in it are checked for a gap in the keep log")
     c.add_argument("--drop-modules", default="", help="comma list of modules to leave out (with their importers): those that did not build on the tree")
     c.add_argument("--tree-names", default="", help="file of the record names the tree already has, one per line (tree_names.py): the modules that prove one are left out with their importers")
