@@ -331,10 +331,16 @@ class Wiring(unittest.TestCase):
     SHARD = (ROOT / ".github" / "workflows" / "bump-shard.yml").read_text()
 
     def test_bump_sharded_has_the_input_and_it_defaults_to_full(self):
-        m = re.search(r"^      imports: \{ description: \"(.*?)\", default: \"(\w+)\" \}", self.SHARDED, re.M)
-        self.assertIsNotNone(m, "no `imports` input in bump-sharded.yml")
-        self.assertEqual(m.group(2), "full")
+        m = re.search(r"^      imports: \{ description: \"(.*?)\", type: choice, options: \[(.*?)\], default: \"(\w+)\" \}", self.SHARDED, re.M)
+        self.assertIsNotNone(m, "no `imports` choice input in bump-sharded.yml")
+        self.assertEqual(m.group(3), "full")
         self.assertIn("faithful", m.group(1))
+
+    def test_bump_sharded_input_rejects_a_typo_before_any_shard_starts(self):
+        # a free-text value such as `faithfull` would skip normalize-imports, build for hours and only then fail in compose (argparse): the dispatch form must refuse it
+        m = re.search(r"^      imports: \{ .*?options: \[(.*?)\]", self.SHARDED, re.M)
+        self.assertIsNotNone(m)
+        self.assertEqual([o.strip() for o in m.group(1).split(",")], ["full", "faithful"])
 
     def test_bump_sharded_hands_it_to_the_shards(self):
         call = self.SHARDED.split("uses: ./.github/workflows/bump-shard.yml", 1)[1].split("permissions:", 1)[0]
