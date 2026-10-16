@@ -123,13 +123,14 @@ def scan (pfxs : List Name) : CoreM (Array Leak × Counts) := do
         if hyps.isEmpty then continue
         let concl := conclusion ty
         if let some cls := concl.getAppFn.constName? then
-          if own cls then edges := edges.push (cls, hyps)
+          -- a projection has the shape `[C a b] → D a b`: its arguments are the variables of the instance (`[C α] → D (Lib.Wrap α)` is about `Lib.Wrap α`, not about `α`)
+          if own cls then (if concl.getAppArgs.all (·.isBVar) then edges := edges.push (cls, hyps))
           else if let some outs := getOutParamPositions? env cls then
             let args := concl.getAppArgs
             let ins := ((List.range args.size).filter fun j => !outs.contains j).map fun j => args[j]!
             unless outs.isEmpty || ins.any (·.getUsedConstants.any own) do
               for c in hyps do reach := reach.insert c
-  for _ in [0:8] do  -- a chain of projections between the library's classes is a few links long; stop when a round adds nothing
+  for _ in [0:edges.size + 1] do  -- until a round adds nothing (a chain has at most as many links as there are edges)
     let mut grew := false
     for (d, cs) in edges do
       if reach.contains d then

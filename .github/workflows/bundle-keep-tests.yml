@@ -223,6 +223,15 @@ jobs:
 
           /-- not a leak: the projection of `Plain` is into `Add`, which has no outParams, so nothing about `Nat` changes -/
           instance plainNat : Plain Alias where add a b := a + b
+
+          -- `hopToTor` is no projection (its argument is `Own × α`, not the variable `α`): `Tor` is reachable from `HDiv`, but `Hop` is not reachable from `Tor`,
+          -- because what `hopToTor` gives `HDiv` is about `Own × Nat`, a type of the library, not about `Nat`
+          class Hop (P I : Type) where
+            h : P → I
+          instance hopToTor {α : Type} [Hop α α] : Tor (Own × α) (Own × α) where hDiv a _ := a
+
+          /-- not a leak: see `hopToTor` -/
+          instance hopNat : Hop Alias Alias := ⟨id⟩
           LEAN
           lake env lean --root="$d" -o "$d/LeakToy.olean" "$d/LeakToy.lean"
           lp="$d:$(lake env printenv LEAN_PATH)"
