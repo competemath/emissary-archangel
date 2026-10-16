@@ -210,6 +210,22 @@ def add_faithful_note(lines: list[str]) -> list[str]:
     return lines[: last + 1] + ["", FAITHFUL_NOTE] + lines[last + 1 :]
 
 
+def print_note(command: str) -> str:
+    """The module docstring line that says a printing command was removed."""
+    return f"/-! Tengoku repair: removed `{command}` (it only prints; the queue checks the axioms of every declaration). -/"
+
+
+def add_repair_notes(text: str, notes: list[str]) -> str:
+    """The text with the notes (module docstrings) right after the last import of the header. A module without an import gets none: a module docstring is a command and cannot
+    stand before the imports."""
+    lines = text.split("\n")
+    end, _ = rehead.header_end(lines)
+    last = max((i for i in range(end) if IMPORT_RE.match(lines[i])), default=None)
+    if last is None:
+        return text
+    return "\n".join(lines[: last + 1] + ["", *notes] + lines[last + 1 :])
+
+
 def to_tree(text: str, key: str, own: set[str], rel: Path, faithful: bool = False) -> str:
     """A pruned library module as the tree writes it: imports mapped to the tree's (`once`), and the library's auto-generated instance names given the
     tree's suffix (autonames.py: the name Lean generates depends on the module's root, which changes when the file moves into Tengoku). `faithful`: the imports keep
@@ -349,6 +365,11 @@ def compose(a: argparse.Namespace) -> None:
         pruned[mod], n_traces = strip_attrs.strip_portfolio_traces(pruned[mod])
         if n_traces:
             stripped_attrs["portfolio trace"] += n_traces
+        # `#print axioms Foo` and the like only print and the lint refuses every `#` command: removed, and the module says so (one docstring line per command)
+        pruned[mod], printed = strip_attrs.strip_print_commands(pruned[mod])
+        if printed:
+            stripped_attrs["#print/#check command"] += len(printed)
+            pruned[mod] = add_repair_notes(pruned[mod], [print_note(c) for c in printed])
     # The tree compiles what it takes under its content lint (an allow-list of known-inert commands, attributes and options). The
     # copy here is tengoku's (scripts/bump/lint); the header is the bundle's own business (imports are mapped, `module` is the
     # module system), so it is not linted. `wide` is `proposed` with the macro family allowed too (macro, macro_rules, syntax, declare_syntax_cat). `proposed` is the same lint with notation commands allowed (notation, infix, prefix,

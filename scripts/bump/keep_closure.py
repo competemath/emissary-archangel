@@ -20,6 +20,7 @@ import json
 import re
 from collections import defaultdict
 
+import tolerant_build as tb
 from adapters import code_mask
 
 TOKEN = re.compile(r"[^\W\d][\w.'!?]*")
@@ -357,7 +358,7 @@ def close(
             if len(seen) > 300 or not usable(mm, bb) or bad_last(mm):
                 return False
             context = block_context_of(mm, bb)
-            stack.extend((c2, cb) for tok in block_tokens(mm, bb) for c2, cb, _ in resolve(tok, context)[0])
+            stack.extend((c2, cb) for tok in block_tokens(mm, bb) for c2, cb, _ in resolve_visible(mm, tok, context)[0])
         return True
 
     def drag_instances(m2: str, b2: tuple[int, int]) -> None:
@@ -376,6 +377,33 @@ def close(
             work.append((m2, ib))
             added += 1
 
+    visible_memo: dict[str, set[str]] = {}
+
+    def visible(mod: str) -> set[str]:
+        """The module and every module of the library it imports, directly or not."""
+        if mod not in visible_memo:
+            seen, todo = {mod}, [mod]
+            while todo:
+                m = todo.pop()
+                for d in tb.header_imports("\n".join(modules[m].lines)) if m in modules else ():
+                    if d in modules and d not in seen:
+                        seen.add(d)
+                        todo.append(d)
+            visible_memo[mod] = seen
+        return visible_memo[mod]
+
+    def resolve_visible(mod: str, tok: str, context, glue: bool = False):
+        """`resolve`, for a text written in `mod`. A full name that several modules declare (a comparator's challenge closed with `sorry` and its solution, navier-stokes-euler
+        2026-10-16) is the copy the text can see, in its own module or one it imports; no module imports two copies, so a copy in a module outside its imports is not what it names.
+        When none of the copies is visible, the candidates are as `resolve` found them."""
+        cands, exact = resolve(tok, context, glue)
+        if exact and len({c[0] for c in cands}) > 1:
+            vis = visible(mod)
+            in_reach = [c for c in cands if c[0] in vis]
+            if in_reach:
+                cands = in_reach
+        return cands, exact
+
     def visit(mod: str, text: str, context, glue: bool = False) -> None:
         """Keep what `text` (a block of `mod`, or one line of its glue) names; `context()` is the (namespace, opens) the text is written in."""
         nonlocal added
@@ -385,7 +413,7 @@ def close(
                 # field notation on a local naming a declaration of THIS file that failed or has sorry: the tree stops at the same name (lean-pool `GeneratedConvergence`), however many
                 # declarations elsewhere end in it (the capped last-component guess below would find none)
                 unresolved[mod].add(tok)
-            cands, exact = resolve(tok, context, glue)
+            cands, exact = resolve_visible(mod, tok, context, glue)
             for m2, b2, r2 in cands:
                 if (m2, b2) in kept:
                     continue

@@ -123,3 +123,34 @@ def strip_portfolio_traces(text: str) -> tuple[str, int]:
     out.append(text[last:])
     return "".join(out), n
 
+
+
+PRINT_COMMAND = re.compile(r"#(?:print|check)\b[^\n]*")
+
+
+def strip_print_commands(text: str) -> tuple[str, list[str]]:
+    """The text without its `#print` and `#check` commands, and the commands removed. They only print (`#print axioms Foo` at the end of a file is how a library
+    shows that its headline theorem rests on the three axioms), and the tree's content lint refuses every `#` command; the queue checks the axioms of every declaration itself.
+    Only a command in code (not in a comment or a string), in column 0, on one line: one that goes on over the next lines is left, and the lint says so. `#eval`, `#reduce`
+    and the others run code and stay refused."""
+    mask = code_mask(text)
+    lines = text.split("\n")
+    starts, off = [], 0
+    for ln in lines:
+        starts.append(off)
+        off += len(ln) + 1
+    out: list[str] = []
+    removed: list[str] = []
+    skip_blank = False
+    for i, ln in enumerate(lines):
+        last = i + 1 == len(lines)
+        if PRINT_COMMAND.fullmatch(ln) and mask[starts[i]] and (last or lines[i + 1] == "" or not lines[i + 1][:1].isspace()):
+            removed.append(ln.strip())
+            skip_blank = bool(out) and out[-1] == ""  # a blank line either side of the command: one of them goes with it
+            continue
+        if skip_blank and ln == "":
+            skip_blank = False
+            continue
+        skip_blank = False
+        out.append(ln)
+    return "\n".join(out), removed
