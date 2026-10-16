@@ -182,8 +182,13 @@ jobs:
           /-- UNPINNED: an instance of a foreign outParam class, generic in its inputs (the shape of lean-pool's GroupRing) -/
           instance unpinnedHMul {R G : Type} : HMul R G (Own × R × G) := ⟨fun r g => (⟨0⟩, r, g)⟩
 
-          /-- an instance of the library's own class: nothing else asks for it -/
-          instance ownClassGeneric {α : Type} : OwnCls α α := ⟨id⟩
+          /-- an instance of the library's own class, generic in its input: nothing outside the library asks for the class, so it never fires there -/
+          class Coll (α : Type) (β : outParam Type) where
+            g : α → β
+          instance collGeneric {α : Type} : Coll α α := ⟨id⟩
+
+          /-- the library's own class at the library's own type: `guardedHMul` below asks for `OwnCls R Nat`, which this cannot answer -/
+          instance ownClassOwn : OwnCls Own Own := ⟨id⟩
 
           /-- a hypothesis about the library: it cannot be met elsewhere -/
           instance guardedHMul {R G : Type} [OwnCls R Nat] : HMul R G (Own × R × G) := ⟨fun r g => (⟨0⟩, r, g)⟩
