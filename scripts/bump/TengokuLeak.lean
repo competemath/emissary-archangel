@@ -124,7 +124,8 @@ def scan (pfxs : List Name) : CoreM (Array Leak × Counts) := do
         let concl := conclusion ty
         if let some cls := concl.getAppFn.constName? then
           -- a projection has the shape `[C a b] → D a b`: its arguments are the variables of the instance (`[C α] → D (Lib.Wrap α)` is about `Lib.Wrap α`, not about `α`)
-          if own cls then (if concl.getAppArgs.all (·.isBVar) then edges := edges.push (cls, hyps))
+          if own cls then
+            if concl.getAppArgs.all (·.isBVar) then edges := edges.push (cls, hyps) else pure ()
           else if let some outs := getOutParamPositions? env cls then
             let args := concl.getAppArgs
             let ins := ((List.range args.size).filter fun j => !outs.contains j).map fun j => args[j]!
