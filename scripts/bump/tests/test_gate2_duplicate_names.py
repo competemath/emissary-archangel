@@ -97,6 +97,22 @@ class Resolution(unittest.TestCase):
         _, unresolved = __import__("keep_closure").close(modules, sidecars, collections.defaultdict(set, {"Toy.Im": {(3, 4)}}))
         self.assertEqual(unresolved, {"Toy.Im": {"Toy.dup"}})
 
+    def test_an_instance_dragged_along_is_judged_by_the_copy_it_can_see(self):
+        # a text-kept theorem brings the instances of its module that come before it, unless one names something that cannot be kept: the instance names `Toy.dup`, and the
+        # challenge's copy (sorry, in a module this one does not import) must not make it unclean
+        challenge = tkc.FakeModule(["theorem Toy.dup : True := by", "  sorry"], [(1, 2)])
+        solution = tkc.FakeModule(
+            ["instance toyInst : Nonempty Unit := by", "  have := Toy.dup", "  exact ⟨()⟩", "theorem Toy.dup : True := by", "  trivial", "theorem Toy.later : True := by", "  exact Toy.dup"],
+            [(1, 3), (4, 5), (6, 7)],
+        )
+        modules = {"Toy.Ch": challenge, "Toy.So": solution}
+        sidecars = {"Toy.Ch": {"Toy.dup": (1, 2)}, "Toy.So": {"Toy.toyInst": (1, 3), "Toy.dup": (4, 5), "Toy.later": (6, 7)}}
+        keep = collections.defaultdict(set, {"Toy.So": {(6, 7)}})
+        added, unresolved = __import__("keep_closure").close(modules, sidecars, keep)
+        self.assertEqual(unresolved, {})
+        self.assertIn((1, 3), keep["Toy.So"])  # the instance came along
+        self.assertEqual(added, 2)  # `Toy.dup` and the instance
+
     def test_when_no_copy_is_visible_the_names_are_resolved_as_before(self):
         modules, sidecars = self.setup(["", "", "theorem Toy.use_dup : True := by", "  exact Toy.dup"])  # imports nothing
         _, unresolved = __import__("keep_closure").close(modules, sidecars, collections.defaultdict(set, {"Toy.Im": {(3, 4)}}))
