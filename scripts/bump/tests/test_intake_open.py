@@ -217,8 +217,9 @@ class Tick(unittest.TestCase):
 class WholeRazeTime(unittest.TestCase):
     """Gh.whole_raze_time against canned answers of the GitHub API"""
 
-    def gh(self, listing, files, commits, listing_rc=0, listing_err=""):
+    def gh(self, listing, files, commits, listing_rc=0, listing_err="", merged=None):
         g = io.Gh("o/t", "o/f", "app/x")
+        merged = merged or {}  # commit sha -> when its pull request merged
 
         def run(*a):
             path = a[1]
@@ -229,7 +230,10 @@ class WholeRazeTime(unittest.TestCase):
                     return subprocess.CompletedProcess([], 0, stdout=json.dumps(marker), stderr="")
             for name, when in commits.items():
                 if f"path=data/raze/{name}" in path:
-                    return subprocess.CompletedProcess([], 0, stdout=json.dumps([{"commit": {"committer": {"date": when}}}]), stderr="")
+                    return subprocess.CompletedProcess([], 0, stdout=json.dumps([{"sha": f"sha-{name}", "commit": {"committer": {"date": when}}}]), stderr="")
+            if path.endswith("/pulls"):
+                sha = path.split("/commits/")[1].split("/pulls")[0]
+                return subprocess.CompletedProcess([], 0, stdout=json.dumps([{"merged_at": merged[sha]}] if sha in merged else []), stderr="")
             raise AssertionError(path)
 
         g.run = run
@@ -245,6 +249,15 @@ class WholeRazeTime(unittest.TestCase):
         }
         commits = {"lib-2026-10-01.json": "2026-10-01T10:00:00Z", "lib-2026-10-16.json": "2026-10-16T18:07:00Z"}
         self.assertEqual(self.gh(listing, files, commits).whole_raze_time("lib"), datetime(2026, 10, 16, 18, 7, tzinfo=timezone.utc))
+
+    def test_a_queued_merge_counts_from_the_merge_not_from_the_commit(self):
+        # the commit keeps its own date (17:55) and the pull request merged at 18:07: a bundle built at 18:00 predates the raze
+        listing = [{"name": "lib-2026-10-16.json"}]
+        files = {"lib-2026-10-16.json": {"library": "lib", "all": True}}
+        commits = {"lib-2026-10-16.json": "2026-10-16T17:55:24Z"}
+        g = self.gh(listing, files, commits, merged={"sha-lib-2026-10-16.json": "2026-10-16T18:07:11Z"})
+        self.assertEqual(g.whole_raze_time("lib"), datetime(2026, 10, 16, 18, 7, 11, tzinfo=timezone.utc))
+        self.assertEqual(self.gh(listing, files, commits).whole_raze_time("lib"), datetime(2026, 10, 16, 17, 55, 24, tzinfo=timezone.utc))  # no pull request found: the commit date
 
     def test_no_marker_and_no_folder_are_none_but_any_other_error_is_raised(self):
         self.assertIsNone(self.gh([], {}, {}).whole_raze_time("lib"))

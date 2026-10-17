@@ -166,6 +166,10 @@ class Gh:
                 continue
             commits = self.json("api", f"repos/{self.target}/commits?sha=main&path=data/raze/{name}&per_page=1")
             when = datetime.fromisoformat(commits[0]["commit"]["committer"]["date"].replace("Z", "+00:00"))
+            # a queued merge keeps the commit's own date, which is earlier than the merge: the later of the two is when the raze reached main
+            for pr in self.json("api", f"repos/{self.target}/commits/{commits[0]['sha']}/pulls"):
+                if pr.get("merged_at"):
+                    when = max(when, datetime.fromisoformat(pr["merged_at"].replace("Z", "+00:00")))
             newest = when if newest is None or when > newest else newest
         return newest
 
