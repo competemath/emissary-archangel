@@ -93,6 +93,11 @@ class ByName(unittest.TestCase):
         f = sr.Lines(text)
         return sr.edit_named_declaration(f, name, kind), f.text
 
+    def test_leak_lines_without_a_position_may_be_separated_by_a_semicolon_with_no_space(self):
+        # 2026-10-17: the lean-pool recut was dispatched with 'leak: … GroupRing;leak: … Specialization'; the module name swallowed ';leak:' and neither leak was rewritten
+        got = sr.parse("leak: instance A.x registered in Tengoku.L.L.M1;leak: instance A.y registered in Tengoku.L.L.M2 ; leak: simp A.z registered in Tengoku.L.L.M3 (declared at line 4)")
+        self.assertEqual([(g["name"], g["mod"], g["line"]) for g in got], [("A.x", "Tengoku.L.L.M1", None), ("A.y", "Tengoku.L.L.M2", None), ("A.z", "Tengoku.L.L.M3", 4)])
+
     def test_a_named_instance_is_found_without_a_line(self):
         text = "import Tengoku\n\nnamespace A\n\n/-- doc -/\ninstance groupRingMul {R G : Type} : HMul R G (F R G) := x\n\nend A\n"
         r, lines = self.edit(text, "instance", "A.groupRingMul")

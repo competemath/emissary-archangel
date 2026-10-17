@@ -31,7 +31,7 @@ import autonames  # noqa: E402
 import tolerant_build as tb  # noqa: E402
 
 LEAK = re.compile(
-    r"leak:\s+(?P<kind>instance|simp)\s+(?P<name>\S+)\s+registered in\s+(?P<mod>\S+)"
+    r"leak:\s+(?P<kind>instance|simp)\s+(?P<name>[^\s;]+)\s+registered in\s+(?P<mod>[^\s;]+)"
     r"(?:\s+\(priority (?P<prio>\d+)\))?"
     r"(?:\s+\(declared at line (?P<line>\d+)\)|\s+\(declared in (?P<other>\S+?):)?"
 )
