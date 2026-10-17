@@ -6,6 +6,10 @@
 //   data/translate/<key>.status.json        per mode, the last run: what it selected and how much is left for that mode
 //                                           (translate-all.yml stops dispatching a mode once nothing is left)
 //
+// A shard whose directory holds QUARANTINED (scripts/agent-trace-gate.py wrote it: the agent's trace broke the tool policy) or a
+// trace-report.json that says ok: false contributes nothing: not its results, its bank or its prefix cache. Its entries stay
+// unsettled, so the next run takes them again, and its plan still counts as work that was selected, so `left` does not hide them.
+//
 //   node scripts/translate-finish.mjs <key> <run id> <dir holding one sub-directory per shard> [mode] [agent attempts]
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -15,10 +19,21 @@ if (!key || !run || !dir) {
   console.error("usage: translate-finish.mjs <key> <run id> <dir>")
   process.exit(2)
 }
-const ROOT = new URL("..", import.meta.url).pathname
+const ROOT = process.env.TRANSLATE_FINISH_ROOT || new URL("..", import.meta.url).pathname // the override is for tests
 const lines = (f) => (existsSync(f) ? readFileSync(f, "utf8").split("\n").filter((l) => l.trim()) : [])
 
-const shards = readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => join(dir, d.name))
+const allShards = readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => join(dir, d.name))
+const traceFailed = (s) => {
+  if (existsSync(join(s, "QUARANTINED"))) return true
+  try {
+    return existsSync(join(s, "trace-report.json")) && JSON.parse(readFileSync(join(s, "trace-report.json"), "utf8")).ok !== true
+  } catch {
+    return true // a report that cannot be read is not evidence of a clean trace
+  }
+}
+const quarantined = allShards.filter(traceFailed)
+const shards = allShards.filter((s) => !quarantined.includes(s))
+for (const s of quarantined) console.log(`::warning::${key}: shard ${s.split("/").pop()} is quarantined (agent trace gate): none of its results or bank records are used`)
 const results = shards.flatMap((s) => lines(join(s, "results.jsonl")))
 const bank = new Map()
 for (const s of shards) for (const l of lines(join(s, "bank.jsonl"))) {
@@ -60,7 +75,7 @@ for (const l of results) {
 
 // What is left for this mode: the entries the run selected that a run in the same mode would select again (the same
 // rules as queue-server.mjs `settled`), plus any it never reached (a shard that timed out, a crash).
-const plans = shards.map((s) => join(s, "plan.json")).filter(existsSync).map((f) => JSON.parse(readFileSync(f, "utf8")))
+const plans = allShards.map((s) => join(s, "plan.json")).filter(existsSync).map((f) => JSON.parse(readFileSync(f, "utf8")))
 const todo = plans.reduce((n, p) => n + p.todo, 0)
 const limited = plans.some((p) => p.limited)
 const done = new Set(["mechanical", "cached-mechanical", "agentic", "bump", "untranslatable", "unbankable", "export-unavailable"])
@@ -82,4 +97,4 @@ const status = existsSync(statusPath) ? JSON.parse(readFileSync(statusPath, "utf
 const stalls = left > 0 && settledNow === 0 ? (status[mode]?.stalls || 0) + 1 : 0
 status[mode] = { run, at: new Date().toISOString(), shards: shards.length, todo, processed: results.length, left, limited, stalls, outcomes }
 writeFileSync(statusPath, JSON.stringify(status, null, 2) + "\n")
-console.log(`${key} run ${run} (${mode}): ${shards.length} shards, ${todo} selected, ${results.length} processed ${JSON.stringify(outcomes)}, ${left} left${limited ? " (limited run)" : ""}, ${bank.size} records banked, ${cacheChanged} prefix-cache entries updated`)
+console.log(`${key} run ${run} (${mode}): ${shards.length} shards${quarantined.length ? ` (+${quarantined.length} quarantined)` : ""}, ${todo} selected, ${results.length} processed ${JSON.stringify(outcomes)}, ${left} left${limited ? " (limited run)" : ""}, ${bank.size} records banked, ${cacheChanged} prefix-cache entries updated`)

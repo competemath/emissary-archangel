@@ -20,7 +20,7 @@
 import { createServer } from "node:http"
 import { spawn, execFile } from "node:child_process"
 import { randomBytes, timingSafeEqual, randomUUID, createHash } from "node:crypto"
-import { mkdtempSync, writeFileSync, readFileSync, renameSync, mkdirSync, appendFileSync, existsSync, rmSync, createReadStream } from "node:fs"
+import { mkdtempSync, writeFileSync, readFileSync, renameSync, mkdirSync, appendFileSync, existsSync, rmSync, createReadStream, copyFileSync } from "node:fs"
 import { tmpdir, homedir } from "node:os"
 import { join, basename } from "node:path"
 import { promisify } from "node:util"
@@ -81,6 +81,159 @@ const PROOF_STOP_GRACE_MS = Number(process.env.PROOF_STOP_GRACE_MS) || 8000
 const TOKEN = process.env.BRIDGE_TOKEN || randomBytes(24).toString("base64url")
 const MAX_OUTPUT_BYTES = 5 * 1024 * 1024
 
+// ---------------------------------------------------------------------------
+// AGENT JAIL (docs/agent-security.md). The Claude CLI reads third-party Lean source we did not write, so it is run as an
+// untrusted party: a tool SET (never a deny-list), an environment that holds only what the CLI needs, hard caps, and a trace
+// of everything it did that scripts/agent-trace-gate.py audits after the run. Every spawn of the CLI goes through
+// spawnClaude below, and every argv that carries tool flags gets them from claudeToolArgs.
+//
+// scripts/agent-tests/ loads the text between the two markers and checks it without starting the bridge, so the region must
+// stay free of side effects at load time. Tune the defaults with the environment variables named in the docs, not here.
+// agent-jail:begin
+const AGENT_MAX_USD_DEFAULT = 20
+const AGENT_MAX_TURNS_DEFAULT = 400
+const AGENT_ENV_BASE = ["PATH", "LANG", "LC_ALL", "TZ", "TMPDIR", "TERM"]
+const AGENT_ENV_SECRETS = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"]
+const AGENT_ENV_NEVER = /^(BRIDGE_TOKEN|GH_TOKEN|GITHUB_TOKEN|TENGOKU_BOT_TOKEN|RELAY_TOKEN|WORKER_SECRET|XAI_API_KEY|(GITHUB|ACTIONS|RUNNER)_.*)$/
+let agentHomesDir = null
+const warnedOnce = new Set()
+function warnOnce(key, message) {
+  if (warnedOnce.has(key)) return
+  warnedOnce.add(key)
+  console.error(message)
+}
+
+// Per-invocation ceilings. The caller's own turn limit is honoured when it is lower.
+function agentCaps() {
+  const num = (name, dflt) => {
+    const n = Number(process.env[name])
+    return Number.isFinite(n) && n > 0 ? n : dflt
+  }
+  return { maxUsd: num("EMISSARY_MAX_USD", AGENT_MAX_USD_DEFAULT), maxTurns: Math.floor(num("EMISSARY_MAX_TURNS", AGENT_MAX_TURNS_DEFAULT)) }
+}
+function claudeCapArgs(requestedTurns) {
+  const caps = agentCaps()
+  const asked = Number.isFinite(requestedTurns) && requestedTurns > 0 ? Math.floor(requestedTurns) : caps.maxTurns
+  return ["--max-turns", String(Math.min(asked, caps.maxTurns)), "--max-budget-usd", String(caps.maxUsd)]
+}
+
+// May the agent have a shell? Only inside the jail (EMISSARY_JAIL=1, which the workflow sets after the escape battery
+// passed, and only while CLAUDE_BIN is the jail wrapper that actually runs the CLI as the unprivileged user), or when the
+// operator says EMISSARY_ALLOW_BASH=1 and accepts that the CLI then runs a shell as the bridge's own user.
+function bashGranted() {
+  if (process.env.EMISSARY_JAIL === "1") {
+    if (basename(CLAUDE_BIN) === "agent-run.py") return true
+    warnOnce("jail-without-wrapper", `[bridge] EMISSARY_JAIL=1 ignored: CLAUDE_BIN (${CLAUDE_BIN}) is not the jail wrapper scripts/agent-run.py, so the agent gets no shell.`)
+  }
+  if (process.env.EMISSARY_ALLOW_BASH === "1") {
+    console.error("[bridge] !!! EMISSARY_ALLOW_BASH=1: this agent run has a SHELL and is not confined by the jail. It runs commands as the bridge's own user, with whatever that user can read and reach. Use the jail (docs/agent-security.md) for anything that reads code you did not write.")
+    return true
+  }
+  return false
+}
+
+// The tool flags of one kind of spawn. A SET of built-in tools (`--tools=`), MCP servers only from our own config, and the
+// permission bypass only together with that set (the MCP tools need it; the set is what limits the agent).
+//   prover     the Leak strategies and tree nodes: MCP tools; a shell only if bashGranted()
+//   blind      Control III (no MCP servers, no verifier): same tool set as prover
+//   architect  the Leak Ultra stages: MCP tools only, never a shell
+//   none       single completions (problem generation, seeds, diagnostics, relay): no tools at all
+function claudeToolArgs(kind) {
+  switch (kind) {
+    case "prover":
+    case "blind":
+      return [`--tools=${bashGranted() ? "Bash" : ""}`, "--strict-mcp-config", "--dangerously-skip-permissions"]
+    case "architect":
+      return ["--tools=", "--strict-mcp-config", "--dangerously-skip-permissions"]
+    case "none":
+      return ["--tools=", "--strict-mcp-config"]
+    default:
+      throw new Error(`claudeToolArgs: unknown agent kind ${JSON.stringify(kind)}`)
+  }
+}
+
+// The environment of a spawned CLI: an allowlist, never a copy of ours. The bridge's own secrets (BRIDGE_TOKEN, GH_TOKEN,
+// TENGOKU_BOT_TOKEN, ...) are not on it. `extra` may add only CLAUDE_CODE_* / ANTHROPIC_* names (the CLI's documented knobs,
+// for example CLAUDE_CODE_MAX_OUTPUT_TOKENS); an operator can name more in EMISSARY_AGENT_ENV_PASS, which the log shows.
+function agentEnv(extra = {}) {
+  const env = {}
+  for (const k of AGENT_ENV_BASE) if (process.env[k] !== undefined) env[k] = process.env[k]
+  for (const k of AGENT_ENV_SECRETS) if (process.env[k]) env[k] = process.env[k]
+  for (const k of String(process.env.EMISSARY_AGENT_ENV_PASS || "").split(",").map((s) => s.trim()).filter(Boolean)) {
+    if (AGENT_ENV_NEVER.test(k) || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) {
+      warnOnce(`pass-${k}`, `[bridge] EMISSARY_AGENT_ENV_PASS: ${k} refused`)
+      continue
+    }
+    warnOnce(`pass-${k}-ok`, `[bridge] EMISSARY_AGENT_ENV_PASS: the agent also receives ${k}`)
+    if (process.env[k] !== undefined) env[k] = process.env[k]
+  }
+  for (const [k, v] of Object.entries(extra || {})) {
+    if (!/^(CLAUDE_CODE|ANTHROPIC)_[A-Z0-9_]+$/.test(k)) throw new Error(`agentEnv: ${k} may not be passed to the agent`)
+    env[k] = String(v)
+  }
+  // A throwaway HOME, so nothing a run writes (memory, history, settings) reaches the next run. A developer who relies on
+  // `claude login` instead of a token keeps their own HOME, because the login lives there.
+  const jailed = process.env.EMISSARY_JAIL === "1"
+  if (jailed || env.CLAUDE_CODE_OAUTH_TOKEN || env.ANTHROPIC_API_KEY) {
+    if (!agentHomesDir) {
+      agentHomesDir = mkdtempSync(join(tmpdir(), "emissary-agent-homes-"))
+      process.on("exit", () => {
+        try {
+          rmSync(agentHomesDir, { recursive: true, force: true })
+        } catch {
+          /* gone */
+        }
+      })
+    }
+    env.HOME = mkdtempSync(join(agentHomesDir, "h-"))
+  } else {
+    env.HOME = process.env.HOME || homedir()
+    warnOnce("real-home", "[bridge] no CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY in the environment: the agent keeps your real HOME for its login. Set a token for a contained home.")
+  }
+  return env
+}
+
+// Tee the CLI's stdout to a per-run trace file when EMISSARY_TRACE_DIR is set, for scripts/agent-trace-gate.py.
+function traceTee(child, kind) {
+  const dir = process.env.EMISSARY_TRACE_DIR
+  if (!dir || kind === "version") return
+  try {
+    mkdirSync(dir, { recursive: true })
+    const file = join(dir, `${Date.now()}-${process.pid}-${kind}-${randomBytes(4).toString("hex")}.jsonl`)
+    writeFileSync(file, "")
+    child.stdout?.on("data", (chunk) => {
+      try {
+        appendFileSync(file, chunk)
+      } catch {
+        /* the gate sees a short trace and says so */
+      }
+    })
+  } catch (e) {
+    console.error(`[bridge] no trace for this ${kind} run: ${e?.message || e}`)
+  }
+}
+
+// THE way to start the CLI. Array argv, no shell, the allowlisted environment, a trace. `opts.extraEnv` is for agentEnv.
+function spawnClaude(args, opts = {}) {
+  const { extraEnv, kind = "other", ...spawnOpts } = opts
+  const env = agentEnv(extraEnv)
+  const child = spawn(CLAUDE_BIN, args, { ...spawnOpts, shell: false, env })
+  if (agentHomesDir && env.HOME.startsWith(agentHomesDir)) {
+    const dropHome = () => {
+      try {
+        rmSync(env.HOME, { recursive: true, force: true })
+      } catch {
+        /* gone */
+      }
+    }
+    child.on("close", dropHome)
+    child.on("error", dropHome)
+  }
+  traceTee(child, kind)
+  return child
+}
+// agent-jail:end
+
 // Origins allowed to call this bridge. Override with ALLOWED_ORIGINS (comma-sep).
 // Wildcards match a single label (e.g. https://*.competemath.com matches any
 // preview subdomain). localhost/127.0.0.1 on any port are always allowed for dev.
@@ -91,8 +244,6 @@ const ALLOWED_ORIGINS = (
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean)
-
-const PERMISSION_MODES = new Set(["default", "acceptEdits", "plan", "bypassPermissions"])
 
 function originAllowed(origin) {
   if (!origin) return false
@@ -152,25 +303,21 @@ function readBody(req) {
 }
 
 // Build a safe, fixed set of CLI flags. Anything not modelled here is ignored —
-// the page cannot inject arbitrary flags or a different binary.
-// Tools the prover subagents (planner / minions / finisher / tree nodes) are NOT
-// allowed. WebSearch/WebFetch are literature-browsing escape hatches that let the
-// agent "discover" a goal is an open conjecture and stop proving — cut them so it
-// stays in the compiler. Tune here (e.g. add "Bash" to also cut numeric probing).
-const PROVER_DISALLOWED_TOOLS = ["WebSearch", "WebFetch"]
-// The architect pipeline (Leak Ultra) is stricter: EVERY real action must go
-// through the bridge-served lean_compile/loogle_search/moogle_search (that's
-// what keeps the compile gate bridge-side instead of trusting the model's
-// self-report). Bash/Read/Write/Edit/Glob/Grep/Task buy nothing there — a
-// Bash-computed value still has to round-trip through lean_compile to count
-// for anything — and cost real damage in practice: a session shelled out to
-// Python to precompute a huge memoized lemma table instead of writing a
-// direct proof (inflating both the blueprint size and the bill), and a
-// separate session mistook "import Architect" (the local blueprint-attribute
-// macro) for a real package and started `find /`-ing the operator's own
-// filesystem for it, burning turns on a pure derailment with zero proof
-// value. Stronghold's PROVER_DISALLOWED_TOOLS above is unaffected.
-const ARCHITECT_DISALLOWED_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "Task", "WebSearch", "WebFetch"]
+// the page cannot inject arbitrary flags or a different binary, and it cannot
+// choose the agent's tools: a single completion (this function's callers) gets
+// no tools at all, see claudeToolArgs("none").
+//
+// Which tools each kind of spawn has is a SET, in claudeToolArgs above, not a
+// deny-list. History worth keeping: the prover subagents were once allowed
+// everything except WebSearch/WebFetch (literature-browsing escape hatches that
+// let the agent "discover" a goal is an open conjecture and stop proving); the
+// architect pipeline (Leak Ultra) was stricter: EVERY real action goes through
+// the bridge-served lean_compile/loogle_search/moogle_search (that's what keeps
+// the compile gate bridge-side instead of trusting the model's self-report), and
+// Bash/Read/Write/Edit/Glob/Grep/Task bought nothing there and cost real damage
+// (a session shelled out to Python to precompute a huge memoized lemma table, and
+// another `find /`-ed the operator's filesystem for a package that does not
+// exist). The set now says it directly: MCP tools, and a shell only in the jail.
 
 // ---------------------------------------------------------------------------
 // NO LOCAL LEAN. Observed live on fatex_006: Control I hit an unknown constant,
@@ -313,30 +460,39 @@ const NO_LOCAL_LEAN_NOTE = `LOCAL LEAN IS NOT AVAILABLE TO YOU. This machine hap
 
 The reason is soundness, not bureaucracy: any local checkout is a DIFFERENT Mathlib from the one your verifier compiles against, so what it says about which lemmas exist, what they are called, and what shape they have can simply be wrong here. A name you read off local source and then cannot compile is not a mystery — it is a version mismatch, and chasing it wastes the run. Your ONE source of truth about Lean is verify_full_script.
 
-Everything else on the machine is yours and unrestricted — shell commands, scratch files, notes, numeric experiments. A local scratchpad is fine and often useful.`
+If you have a shell, scratch files and numeric experiments are fine and often useful; what you have is exactly the tool list you were given.`
 
-const NO_LOCAL_LEAN_SETTINGS = JSON.stringify({
-  hooks: {
-    PreToolUse: [
-      { matcher: "Bash", hooks: [{ type: "command", command: `node ${NO_LOCAL_LEAN_HOOK}` }] },
-      {
-        matcher: "Read|Write|Edit|MultiEdit|NotebookEdit|NotebookRead|Glob|Grep|LS",
-        hooks: [{ type: "command", command: `node ${NO_MEMORY_HOOK}` }],
+// The hooks and their settings are copied INTO the run's own directory, next to mcp.json: the jail wrapper stages that one
+// directory for the CLI (which runs as another user and cannot read the bridge's temp files), and --settings must name a
+// file, not inline JSON, so that what the agent was given can be read afterwards.
+function writeRunSettings(runDir) {
+  const leanHook = join(runDir, "no-local-lean.mjs")
+  const memoryHook = join(runDir, "no-memory.mjs")
+  copyFileSync(NO_LOCAL_LEAN_HOOK, leanHook)
+  copyFileSync(NO_MEMORY_HOOK, memoryHook)
+  const settingsPath = join(runDir, "settings.json")
+  writeFileSync(
+    settingsPath,
+    JSON.stringify({
+      hooks: {
+        PreToolUse: [
+          { matcher: "Bash", hooks: [{ type: "command", command: `node ${leanHook}` }] },
+          {
+            matcher: "Read|Write|Edit|MultiEdit|NotebookEdit|NotebookRead|Glob|Grep|LS",
+            hooks: [{ type: "command", command: `node ${memoryHook}` }],
+          },
+        ],
       },
-    ],
-  },
-})
+    }),
+  )
+  return settingsPath
+}
 
 function buildArgs(prompt, options = {}) {
   const args = ["-p", String(prompt), "--output-format", "json"]
   if (typeof options.model === "string" && options.model.trim())
     args.push("--model", options.model.trim())
-  if (PERMISSION_MODES.has(options.permissionMode))
-    args.push("--permission-mode", options.permissionMode)
-  if (typeof options.allowedTools === "string" && options.allowedTools.trim())
-    args.push("--allowedTools", options.allowedTools.trim())
-  if (Number.isFinite(options.maxTurns) && options.maxTurns > 0)
-    args.push("--max-turns", String(Math.floor(options.maxTurns)))
+  args.push(...claudeCapArgs(options.maxTurns))
   if (typeof options.systemPromptAppend === "string" && options.systemPromptAppend.trim())
     args.push("--append-system-prompt", options.systemPromptAppend.trim())
   // Leanness flags — for stateless tasks (e.g. problem generation) that need no
@@ -345,11 +501,10 @@ function buildArgs(prompt, options = {}) {
   // subscription's rate limits when running in a loop.
   if (typeof options.systemPrompt === "string" && options.systemPrompt.trim())
     args.push("--system-prompt", options.systemPrompt.trim())
-  if (typeof options.disallowedTools === "string" && options.disallowedTools.trim())
-    args.push("--disallowedTools", ...options.disallowedTools.trim().split(/\s+/))
-  if (options.strictMcpConfig) args.push("--strict-mcp-config")
   if (options.excludeDynamicSections)
     args.push("--exclude-dynamic-system-prompt-sections")
+  // Whatever the caller (or the page) asked for, a single completion has no tools and no MCP servers.
+  args.push(...claudeToolArgs("none"))
   return args
 }
 
@@ -401,13 +556,11 @@ function runClaude(args, { cwd, timeoutMs, killSignal, maxOutputTokens }) {
       // via -p, so closing stdin avoids the CLI's "no stdin data" 3s warning.
       // maxOutputTokens raises CLAUDE_CODE_MAX_OUTPUT_TOKENS (default 32k) so a
       // heavily-reasoning task (hard/nested generation) doesn't error out.
-      child = spawn(CLAUDE_BIN, args, {
+      child = spawnClaude(args, {
+        kind: "none",
         cwd: cwd || process.cwd(),
-        shell: false,
         stdio: ["ignore", "pipe", "pipe"],
-        env: maxOutputTokens
-          ? { ...process.env, CLAUDE_CODE_MAX_OUTPUT_TOKENS: String(maxOutputTokens) }
-          : process.env,
+        extraEnv: maxOutputTokens ? { CLAUDE_CODE_MAX_OUTPUT_TOKENS: String(maxOutputTokens) } : undefined,
       })
     } catch (err) {
       resolve({ ok: false, text: "", exitCode: null, durationMs: 0, timedOut: false, stderr: String(err) })
@@ -519,14 +672,11 @@ function runStream(res, body) {
 
   let child
   try {
-    child = spawn(CLAUDE_BIN, args, {
+    child = spawnClaude(args, {
+      kind: "none",
       cwd: cwd || process.cwd(),
-      shell: false,
       stdio: ["ignore", "pipe", "pipe"],
-      env:
-        Number(options.maxOutputTokens) > 0
-          ? { ...process.env, CLAUDE_CODE_MAX_OUTPUT_TOKENS: String(Number(options.maxOutputTokens)) }
-          : process.env,
+      extraEnv: Number(options.maxOutputTokens) > 0 ? { CLAUDE_CODE_MAX_OUTPUT_TOKENS: String(Number(options.maxOutputTokens)) } : undefined,
     })
   } catch (err) {
     send({ type: "result", ok: false, text: "", exitCode: null, durationMs: 0, timedOut: false, aborted: false, stderr: `Failed to launch "${CLAUDE_BIN}": ${String(err)}` })
@@ -699,7 +849,7 @@ function getVersion() {
     let err = ""
     let child
     try {
-      child = spawn(CLAUDE_BIN, ["--version"], { shell: false })
+      child = spawnClaude(["--version"], { kind: "version" })
     } catch (e) {
       resolve({ ok: false, version: "", error: String(e) })
       return
@@ -3136,24 +3286,24 @@ function runProve(theorem, mcpServers, opts = {}) {
       return
     }
 
-    // Flags verified against Claude Code 2.1.x: strict-mcp-config uses only these
-    // servers, dangerously-skip-permissions lets the agent call the MCP tools
-    // without prompting (it's the user's own machine + own tools). stream-json
-    // (not json) so we can watch each verify_full_script result as it lands.
+    // Flags verified against Claude Code 2.1.x: claudeToolArgs gives the tool set,
+    // strict-mcp-config (uses only these servers) and the permission bypass the MCP
+    // tools need to run without prompting. stream-json (not json) so we can watch
+    // each verify_full_script result as it lands.
     const args = [
       "-p", provePrompt(theorem, mcpServers),
       "--output-format", "stream-json", "--verbose",
       "--mcp-config", cfgPath,
-      "--strict-mcp-config",
-      "--dangerously-skip-permissions",
+      ...claudeToolArgs("prover"),
+      ...claudeCapArgs(0),
     ]
     if (opts.model) args.push("--model", opts.model)
 
     let child
     try {
-      child = spawn(CLAUDE_BIN, args, {
+      child = spawnClaude(args, {
+        kind: "prover",
         cwd: opts.workingDirectory || process.cwd(),
-        shell: false,
         stdio: ["ignore", "pipe", "pipe"],
       })
     } catch (e) {
@@ -3312,7 +3462,7 @@ function proveStreamRun(res, theorem, mcpServers, opts = {}) {
   const args = [
     "-p", systemPrompt,
     "--output-format", "stream-json", "--verbose",
-    "--mcp-config", cfgPath, "--strict-mcp-config", "--dangerously-skip-permissions",
+    "--mcp-config", cfgPath, ...claudeToolArgs("prover"), ...claudeCapArgs(0),
   ]
   if (opts.model) args.push("--model", opts.model)
 
@@ -3364,9 +3514,9 @@ function proveStreamRun(res, theorem, mcpServers, opts = {}) {
 
   let child
   try {
-    child = spawn(CLAUDE_BIN, args, {
+    child = spawnClaude(args, {
+      kind: "prover",
       cwd: opts.workingDirectory || process.cwd(),
-      shell: false,
       stdio: ["ignore", "pipe", "pipe"],
     })
   } catch (e) {
@@ -3774,7 +3924,7 @@ function mapObjectToEvents(o, emit, stage, metrics) {
 // `onObject` (which returns true to stop the run early — e.g. goal closed), and
 // mirror activity into the console via `emit`. Shared by the node-prover and the
 // decomposer. Resolves when the process exits.
-function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, getDeadline, stage, metrics, signal, searchBudget, bridgeHandlers, systemAppend, disallowedTools, effort, lemmaPool, omitLeanNote, resumeSessionId, verifyProxy }, { onObject, emit }) {
+function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, getDeadline, stage, metrics, signal, searchBudget, bridgeHandlers, systemAppend, toolKind = "prover", effort, lemmaPool, omitLeanNote, resumeSessionId, verifyProxy }, { onObject, emit }) {
   return new Promise((resolve) => {
     // Each subagent run gets its OWN search governor (budget resets per node /
     // per decomposition — a fresh sub-goal earns a fresh allowance). The initial
@@ -3793,11 +3943,13 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
     // empty memory for this run, and scrubRun() below deletes both when the
     // process ends. Nothing an agent writes here survives into another run.
     let cfgPath
+    let settingsPath
     let runDir = null
     try {
       runDir = mkdtempSync(join(tmpdir(), "claude-tree-"))
       cfgPath = join(runDir, "mcp.json")
       writeFileSync(cfgPath, JSON.stringify(buildGovernedMcpConfig(mcpServers, governor)))
+      settingsPath = writeRunSettings(runDir)
     } catch (e) {
       destroyGovernor(governor)
       resolve({ ok: false, finalText: "", exitCode: null, timedOut: false, stderr: `mcp config: ${e.message}` })
@@ -3810,17 +3962,19 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
     const args = [
       "-p", prompt,
       "--output-format", "stream-json", "--verbose",
-      "--mcp-config", cfgPath, "--strict-mcp-config", "--dangerously-skip-permissions",
+      "--mcp-config", cfgPath,
       // The prover PROVES — it does not browse the literature. WebSearch/WebFetch
       // were a surrender hatch: the agent would look up "is this open/hard", find
       // it's an unsolved conjecture, and stop — burning the run on research instead
-      // of the compiler. Cut them. (Leak I loogle/moogle stay for LEAN lemma search,
-      // and Bash stays — numeric witness-finding is real proof work.)
-      "--disallowedTools", ...(Array.isArray(disallowedTools) ? disallowedTools : PROVER_DISALLOWED_TOOLS),
+      // of the compiler. It has no web tool at all: the tool SET is MCP tools (Leak I
+      // loogle/moogle stay for LEAN lemma search) and, only inside the jail, Bash
+      // (numeric witness-finding is real proof work). See claudeToolArgs.
+      ...claudeToolArgs(toolKind),
+      ...claudeCapArgs(maxTurns),
       // Applies to EVERY strategy, not just the controls: a local Lean is a
       // different Mathlib from the gate, so its answers are misleading for all
       // of them. Unlike removing Bash, this takes away nothing legitimate.
-      "--settings", NO_LOCAL_LEAN_SETTINGS,
+      "--settings", settingsPath,
     ]
     if (model) args.push("--model", model)
     // Continue an existing CLI conversation instead of opening a fresh one
@@ -3829,7 +3983,6 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
     // sessionId returned by THIS call, never cache the first one.
     if (typeof resumeSessionId === "string" && resumeSessionId.trim()) args.push("--resume", resumeSessionId.trim())
     if (typeof effort === "string" && effort.trim()) args.push("--effort", effort.trim())
-    if (Number.isFinite(maxTurns) && maxTurns > 0) args.push("--max-turns", String(Math.floor(maxTurns)))
     // The architect stage contract (blueprint rules / prover rules / refinement
     // rules) rides as a system prompt so it outranks the conversation, matching
     // how the Grok driver sends it as role:"system".
@@ -3860,7 +4013,7 @@ function spawnProverStream({ prompt, mcpServers, model, maxTurns, timeoutMs, get
 
     let child
     try {
-      child = spawn(CLAUDE_BIN, args, { cwd: runDir, shell: false, stdio: ["ignore", "pipe", "pipe"] })
+      child = spawnClaude(args, { kind: toolKind, cwd: runDir, stdio: ["ignore", "pipe", "pipe"] })
     } catch (e) {
       resolve({ ok: false, finalText: "", exitCode: null, timedOut: false, stderr: `Failed to launch "${CLAUDE_BIN}": ${e.message}` })
       return
@@ -7341,10 +7494,10 @@ async function proveControlBlind(theorem, ctx) {
     thought:
       "🎯 Leak Control III: ONE BLIND agent in ONE continuous conversation is asked for a complete Lean 4 proof — no tools, no compiler, no error feedback. A separate Leak IV gate checks each attempt; on failure the same conversation resumes, told only that it was wrong, never why — it remembers all its past attempts and repeats until it verifies or the clock runs out.",
   })
-  // Only the internet is off (WebSearch/WebFetch) — same policy as Control II.
-  // Bash/Read/Write/etc. stay ENABLED for scratch + numeric work; local Lean is
-  // still blocked at the settings level, and no MCP servers means no verifier.
-  const BLIND_DISALLOWED = ["WebSearch", "WebFetch"]
+  // Only the internet is off — same policy as Control II. The tool set is the
+  // prover's (claudeToolArgs("blind"): a shell for scratch + numeric work, inside
+  // the jail); local Lean is still blocked at the settings level, and no MCP
+  // servers means no verifier.
   let attempt = 0
   let sessionId = "" // the single continuous conversation; "" until attempt 1 opens it (or after a lost session)
   let lastHadScript = true // shapes the follow-up: "incorrect" vs "no parseable script"
@@ -7373,7 +7526,7 @@ async function proveControlBlind(theorem, ctx) {
         metrics: ctx.metrics,
         signal: ctx.signal,
         searchBudget: 0,
-        disallowedTools: BLIND_DISALLOWED,
+        toolKind: "blind",
         systemAppend: BLIND_CONTROL_ENV_NOTE,
         omitLeanNote: true,
       },
@@ -9742,8 +9895,8 @@ async function claudeArchitectLoop(ctx, state, { system, user, tools, exec, hard
       // nothing for this pipeline and has caused real derailments (shelling
       // out to Python instead of writing a direct proof; mistaking `import
       // Architect` for a real package and searching the local filesystem
-      // for it). See ARCHITECT_DISALLOWED_TOOLS.
-      disallowedTools: ARCHITECT_DISALLOWED_TOOLS,
+      // for it). The architect's tool set is MCP tools only, see claudeToolArgs.
+      toolKind: "architect",
       effort,
     },
     {
@@ -9778,8 +9931,6 @@ async function claudeArchitectLoop(ctx, state, { system, user, tools, exec, hard
       buildArgs(`${user}\n\n---\n\n${forfeitPrompt}`, {
         model: state.model,
         systemPrompt: system,
-        disallowedTools: "Bash Read Write Edit Glob Grep WebFetch WebSearch Task",
-        strictMcpConfig: true,
         excludeDynamicSections: true,
       }),
       { cwd: process.cwd(), timeoutMs: 180000 },
@@ -11485,8 +11636,6 @@ ${evidence.lastError || "(none)"}`
         buildArgs(user, {
           model: state.model,
           systemPrompt: architectDiagnosticSystem(),
-          disallowedTools: "Bash Read Write Edit Glob Grep WebFetch WebSearch Task",
-          strictMcpConfig: true,
           excludeDynamicSections: true,
         }),
         { cwd: process.cwd(), timeoutMs: 180000 },
@@ -12124,8 +12273,6 @@ async function architectNlSeed(theorem, ctx, state) {
         systemPrompt: system,
         // Pure reasoning task: no tools, no MCP, no dynamic sections — keeps the
         // call cheap and makes its cost attributable to the seed alone.
-        disallowedTools: "Bash Read Write Edit Glob Grep WebFetch WebSearch Task",
-        strictMcpConfig: true,
         excludeDynamicSections: true,
       }),
       { cwd: undefined, timeoutMs: Number(BLUEPRINT_TIMEOUT_MS) },

@@ -14,6 +14,12 @@ run-name: translate ${{ inputs.key }} (${{ inputs.mode }}, ${{ inputs.shards }} 
 # The finish job folds the shards' outcomes into data/translate/<key>.jsonl (+ the prefix cache) and the verified
 # records into data/bank/<key>/<run>.jsonl, and commits them; scripts/bank-flush.mjs turns the bank into tengoku PRs
 # when the TENGOKU_BOT_TOKEN secret exists.
+#
+# The agent reads Lean source nobody here wrote, so in agent mode it runs as an untrusted party (docs/agent-security.md):
+# an unprivileged user with no way into the runner's home, a kernel firewall that lets it reach only the Lean services and
+# an allowlist proxy to the model API, a tool SET of MCP tools and a shell (never a deny-list), a scrubbed environment, spend
+# caps, and its stream-json trace audited afterwards. Before the agent starts, the escape battery (`warden selftest`) runs as
+# that user; if it does not pass, the shard runs mechanically and says so. A shard whose trace broke the policy banks nothing.
 on:
   workflow_dispatch:
     inputs:
@@ -73,7 +79,19 @@ jobs:
       LIMIT: ${{ inputs.limit }}
       ATTEMPTS: ${{ inputs.agent_attempts }}
       LEAN_NUM_THREADS: "4"
+      PYTHONDONTWRITEBYTECODE: "1"   # the jail scripts also run as root; no root-owned .pyc in the workspace
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2
+        with:
+          # AUDIT, not block, on purpose: the list of hosts this job needs (GitHub, the Lean release hosts, the model API, the
+          # package indexes, the attestation service, ...) has not been observed yet, and a guessed list would break shards.
+          # To enforce: read one run's "Network events" table in the Step Summary of this step (or its Insights page), turn it
+          # into the allowlist with
+          #     python3 -m warden egress-proxy --from-audit <the pasted table> --render
+          # (PYTHONPATH=scripts; it refuses metadata, link-local and private addresses), review the result, then replace
+          # `audit` here by `block` and put those endpoints in `allowed-endpoints`. The maintainer flips it; see
+          # docs/agent-security.md. The agent's own egress does not depend on this: the kernel rules and the proxy hold it.
+          egress-policy: audit
       - name: Free disk, in the background (the tree's cache, the library's exports)
         # deleting the runner's preinstalled SDKs takes minutes; the steps that need the space wait for it only if short
         run: |
@@ -92,9 +110,11 @@ jobs:
             data/exports/${{ inputs.key }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: "22" }
-      - name: elan
+      - name: elan (the installer at a fixed commit, checked against its digest before it runs)
         run: |
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          curl --proto '=https' --tlsv1.2 -sSfL -o "$RUNNER_TEMP/elan-init.sh" https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh
+          echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  $RUNNER_TEMP/elan-init.sh" | sha256sum -c -
+          sh "$RUNNER_TEMP/elan-init.sh" -y --default-toolchain none
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: The Tengoku tree, compiled (its attested cache)
         env: { GH_TOKEN: "${{ github.token }}" }   # gh attestation verify
@@ -148,12 +168,37 @@ jobs:
           # the first verification cold-loads Tengoku.All; wait for Leak IV's warm-up so the first entry does not time out
           for _ in $(seq 1 120); do grep -q "Warmup complete" leak-iv.log && break; sleep 5; done
           tail -3 leak-iv.log; tail -3 gate2.log
-      - name: The agent (agent mode only)
+      - name: The agent (agent mode only), at a pinned version, in a root-owned place the agent user can run but not change
         if: inputs.mode == 'agent'
-        run: npm install -g -q @anthropic-ai/claude-code && claude --version
+        env:
+          CLAUDE_CODE_VERSION: "2.1.296"   # exact; bump on purpose (docs/agent-security.md), never with a range or a tag
+        run: |
+          npm install -g -q --prefix "$RUNNER_TEMP/agent-tools" "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION"
+          sudo install -d -m 0755 /opt/agent-tools
+          sudo cp -a "$RUNNER_TEMP/agent-tools/." /opt/agent-tools/
+          sudo install -m 0755 "$(command -v node)" /opt/agent-tools/bin/node   # the hooks of a run are node scripts
+          sudo chown -R root:root /opt/agent-tools && sudo chmod -R go-w /opt/agent-tools
+          rm -rf "$RUNNER_TEMP/agent-tools"
+          version=$(/opt/agent-tools/bin/claude --version)
+          echo "$version"
+          [ "${version%% *}" = "$CLAUDE_CODE_VERSION" ] || { echo "::error::installed $version, wanted $CLAUDE_CODE_VERSION"; exit 1; }
+      - name: The agent's jail and the escape battery (agent mode only; no pass, no agent)
+        id: jail
+        if: inputs.mode == 'agent'
+        run: |
+          mkdir -p out
+          if sudo python3 scripts/agent-jail.py setup --runner-user "$(id -un)" --runner-home "$HOME" --ports 4125,7871,7872 --traverse lean --harden-path "$PATH" \
+             && python3 scripts/agent-jail.py ready --runner-home "$HOME" --ports 4125,7871,7872 --report out/jail-selftest.json; then
+            echo "jail=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "jail=0" >> "$GITHUB_OUTPUT"
+            echo "::warning::the agent's jail did not pass its escape battery on this runner: the agent does not run and this shard is mechanical only (EMISSARY_NO_AGENT=1). The battery's output is above."
+            sudo python3 scripts/agent-jail.py teardown || true
+          fi
       - name: Translate this shard
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.mode == 'agent' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          JAIL: ${{ steps.jail.outputs.jail }}
         run: |
           mkdir -p out
           touch out/bank.jsonl out/results.jsonl
@@ -169,10 +214,18 @@ jobs:
           fi
           noagent=1
           if [ "$MODE" = agent ]; then
-            if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then noagent=0; else echo "::warning::agent mode without the CLAUDE_CODE_OAUTH_TOKEN secret: running mechanically"; fi
+            if [ "$JAIL" != 1 ]; then echo "::warning::agent mode without a proven jail: running mechanically"
+            elif [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then noagent=0
+            else echo "::warning::agent mode without the CLAUDE_CODE_OAUTH_TOKEN secret: running mechanically"; fi
           fi
-          # the token reaches the bridge (and the claude it starts) only; the Lean services run as another user
-          PORT=4125 BRIDGE_TOKEN="$token" EMISSARY_APP_ROOT="$PWD" QUEUE_APP_URL=http://127.0.0.1:3000 \
+          # The agent, when there is one, is started by scripts/agent-run.py: as the jailed user, with an environment rebuilt
+          # from an allowlist. EMISSARY_JAIL=1 is what lets the bridge give it a shell; it is set only here, after the battery.
+          agent_env=()
+          if [ "$noagent" = 0 ]; then
+            agent_env=(EMISSARY_JAIL=1 CLAUDE_BIN="$PWD/scripts/agent-run.py" EMISSARY_TRACE_DIR="$PWD/out/trace")
+          fi
+          # the token reaches the bridge, and through the wrapper the jailed agent, only; the Lean services run as another user
+          env "${agent_env[@]}" PORT=4125 BRIDGE_TOKEN="$token" EMISSARY_APP_ROOT="$PWD" QUEUE_APP_URL=http://127.0.0.1:3000 \
             RECURSE_PREFIX_CACHE_PATH="$PWD/out/prefix-cache.json" node public/local-claude-bridge.mjs > out/bridge.log 2>&1 &
           for _ in $(seq 1 60); do curl -s -m 2 -o /dev/null http://127.0.0.1:4125/ && break; sleep 1; done
           head -1 out/queue-server.log
@@ -183,12 +236,30 @@ jobs:
             timeout 320m node scripts/run-recurse.mjs 4125 "$token" '{"type":"all"}' "$KEY" | grep -E '^\[..:..:..\] (source|DONE|RESULT|ERROR|HTTP)' || true
           echo "outcomes: $(python3 -c "import collections, json; print(dict(collections.Counter(json.loads(l)['outcome'] for l in open('out/results.jsonl') if l.strip())))")"
           echo "banked: $(wc -l < out/bank.jsonl)"
+      - name: Audit the agent's trace; a shard that broke the tool policy banks nothing (agent mode only)
+        if: always() && inputs.mode == 'agent'
+        env:
+          EMISSARY_JAIL: ${{ steps.jail.outputs.jail }}   # a shell is in the policy only if the jail was proven
+        run: |
+          mkdir -p out
+          python3 scripts/agent-trace-gate.py out/trace --out out/trace-report.json --results out/results.jsonl --quarantine out
+      - name: Take the jail down (agent mode only)
+        if: always() && inputs.mode == 'agent'
+        run: |
+          cp /var/log/emissary/egress.jsonl out/egress-decisions.jsonl 2>/dev/null || true   # which hosts the agent tried to reach
+          sudo python3 scripts/agent-jail.py teardown || true
       - name: Service logs (on failure)
         if: failure()
         run: tail -40 leak-iv.log gate2.log out/bridge.log out/queue-server.log 2>/dev/null || true
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - name: Redact secrets from the artifact; no upload if one would remain
+        id: redact
         if: always()
-        with: { name: "shard-${{ matrix.shard }}", path: out/, retention-days: 7, if-no-files-found: ignore }
+        run: |
+          mkdir -p out
+          python3 scripts/agent-artifacts.py out --report out/secretscan-report.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && steps.redact.outcome == 'success'
+        with: { name: "shard-${{ matrix.shard }}", path: out/, retention-days: 3, if-no-files-found: ignore }
 
   finish:
     needs: translate
@@ -197,6 +268,8 @@ jobs:
     timeout-minutes: 30
     permissions: { contents: write, actions: write }   # the ledger and the bank, committed here; the next dispatch
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2
+        with: { egress-policy: audit }   # this job holds a write token; same audit-then-block path as in the translate job
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           filter: "blob:none"
@@ -220,11 +293,9 @@ jobs:
           git add --sparse -- data/translate data/bank
           git diff --cached --quiet && { echo "nothing new"; exit 0; }
           git commit -q -m "translate: $KEY ($MODE, run $GITHUB_RUN_ID)" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-          for _ in $(seq 1 30); do
-            if git pull -q --rebase origin main && git push -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main; then echo "committed"; exit 0; fi
-            sleep $((RANDOM % 20 + 5))
-          done
-          echo "could not push after 30 attempts"; exit 1
+          # fetch, rebase, and push with an expected-old-sha lease (warden safegit.push_cas): a push that lost a race to another
+          # run's commit is refused by the server and retried from a fresh fetch; nothing is ever overwritten
+          python3 scripts/safe-push.py --remote-repo "$GITHUB_REPOSITORY" --branch main --attempts 30
       - name: Keep the loop moving (the next libraries, now rather than at the next quarter hour)
         if: always()
         env: { GH_TOKEN: "${{ github.token }}" }
