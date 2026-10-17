@@ -31,7 +31,33 @@ CMD = re.compile(
 )
 STRING = re.compile(r'"((?:[^"\\]|\\.)*)"')
 OPTION = re.compile(r"\s*(?::\s*\w+|\((?:name|priority|prec|kind)\s*:=[^)]*\))")
-IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_']*")
+
+
+def is_letter_like(c: str) -> bool:
+    """Lean's `isLetterLike`: the Greek letters except λ Π Σ, the Coptic and polytonic Greek blocks, the letter-like symbols and the script and double-struck letters"""
+    o = ord(c)
+    return (
+        (0x3B1 <= o <= 0x3C9 and o != 0x3BB)
+        or (0x391 <= o <= 0x3A9 and o not in (0x3A0, 0x3A3))
+        or 0x3CA <= o <= 0x3FB
+        or 0x1F00 <= o <= 0x1FFE
+        or 0x2100 <= o <= 0x214F
+        or 0x1D49C <= o <= 0x1D59F
+    )
+
+
+def is_sub_script_alnum(c: str) -> bool:
+    o = ord(c)
+    return 0x2080 <= o <= 0x2089 or 0x2090 <= o <= 0x209C or 0x1D62 <= o <= 0x1D6A
+
+
+def ident_like(w: str) -> bool:
+    """a word Lean reads as an identifier (Lean's `isIdFirst` then `isIdRest`)"""
+    return bool(w) and (w[0].isascii() and (w[0].isalpha() or w[0] == "_") or is_letter_like(w[0])) and all(
+        c.isascii() and (c.isalnum() or c in "_'!?") or is_letter_like(c) or is_sub_script_alnum(c) for c in w[1:]
+    )
+
+
 READS_IDENTS = {"tactic", "conv"}  # the first atom of a parser of these categories is read as an identifier, not a token
 
 
@@ -126,7 +152,7 @@ def census(text: str, seed: dict) -> list[dict]:
             why.append(f"token: {key}")
         words = atoms[1:] if (cat in READS_IDENTS and not trailing) else atoms
         for w in words:
-            if IDENT.fullmatch(w) and w not in idents:
+            if ident_like(w) and w not in idents:
                 why.append(f"word: {w}")
         if why:
             out.append({"line": i + 1, "kw": m.group("kw"), "category": cat, "atoms": atoms, "why": why})

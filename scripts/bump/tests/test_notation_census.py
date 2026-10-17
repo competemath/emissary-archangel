@@ -41,6 +41,13 @@ class Census(unittest.TestCase):
         self.assertEqual(found('elab "superpose " a:term:arg b:term:arg : term => do pure a\n'), [(1, ["word: superpose"])])
         self.assertEqual(found('macro "Facts " G:term:max "[" sat:num,* "]" : term => `(G)\n'), [(1, ["word: Facts"])])
 
+    def test_a_greek_or_letter_like_word_is_an_identifier_too(self):
+        self.assertEqual(found('notation "ω" => x\n'), [(1, ["word: ω"])])
+        self.assertEqual(found('notation "ℒₒᵣ" => x\n'), [(1, ["word: ℒₒᵣ"])])
+        self.assertEqual(found('notation "Δ" => x\n'), [(1, ["word: Δ"])])
+        self.assertEqual(found('notation "λ" => x\n'), [])  # Lean does not read λ as a letter
+        self.assertEqual(found('notation "∑" => x\n'), [])
+
     def test_the_first_atom_of_a_tactic_is_no_token_the_others_are(self):
         self.assertEqual(found('syntax "toytac" : tactic\n'), [])
         self.assertEqual(found('syntax "quux " "zork" : tactic\n'), [(1, ["word: zork"])])

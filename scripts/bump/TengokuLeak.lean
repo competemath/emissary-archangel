@@ -168,11 +168,11 @@ partial def atoms (e : Expr) : List String :=
   | some ``ParserDescr.binary | some ``ParserDescr.unary => (args.drop 1).flatMap atoms
   | _ => []
 
-/-- a word the parser would read as an identifier -/
+/-- a word the parser would read as an identifier (Lean's own test: ASCII letters, `_`, the Greek and letter-like characters, subscripts, `'`, `!`, `?`) -/
 def identLike (s : String) : Bool :=
   match s.toList with
   | [] => false
-  | c :: rest => (c.isAlpha || c == '_') && rest.all fun d => d.isAlphanum || d == '_' || d == '\''
+  | c :: rest => isIdFirst c && rest.all isIdRest
 
 /-- `leading -` / `trailing ∈`: where the notation starts to parse, and its token; none for a parser that is not made of `ParserDescr` applications -/
 def tokenKey (env : Environment) (decl : Name) : Option String := do
