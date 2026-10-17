@@ -241,7 +241,7 @@ def scan (pfxs : List Name) : CoreM (Array Leak × Counts) := do
     let modName := env.header.moduleNames[i]!
     for e in Parser.parserExtension.ext.getModuleEntries env i do
       match e with
-      | .scoped _ _ => counts := { counts with notatScoped := counts.notatScoped + 1 }
+      | .scoped _ (.parser _ _ _) => counts := { counts with notatScoped := counts.notatScoped + 1 }  -- one per command (a command also adds token and kind entries)
       | .global (.parser cat decl _) =>
         counts := { counts with notat := counts.notat + 1 }
         let collides := cat == `term && (tokenKey env decl).any foreign.contains
