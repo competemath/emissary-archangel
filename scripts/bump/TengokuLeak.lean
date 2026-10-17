@@ -111,26 +111,55 @@ def pinnedToForeign (reach : NameSet) (ty : Expr) (own : Name → Bool) : MetaM 
     let red ← all.mapM fun a => withReducible (reduce a (explicitOnly := false) (skipTypes := false) (skipProofs := false))
     return !red.any (·.getUsedConstants.any own)
 
-/-- the first token of a `ParserDescr`, read from its definition (the `node`/`binary`/`symbol` applications it is made of), and whether it is a trailing parser -/
-partial def firstSymbol (e : Expr) : Option String :=
+/-- every string literal in an expression (a `Name` is built from them: `.str (.str .anonymous "Lean") "noWs"`) -/
+partial def strLits (e : Expr) : List String :=
+  match e with
+  | Expr.lit (Literal.strVal s) => [s]
+  | Expr.app f a => strLits f ++ strLits a
+  | _ => []
+
+/-- the parsers that consume nothing (a check on the whitespace or the column): the token that follows them is the first one -/
+def zeroWidth : List String := ["noWs", "ws", "ppSpace", "ppHardSpace", "ppLine", "colGt", "colGe", "colEq", "lineEq", "hygieneInfo"]
+
+/-- what a `ParserDescr` starts with: a token, nothing yet (a check that consumes nothing), or something else (a category, an identifier, `&"word"`) -/
+inductive Lead where
+  | found (s : String)
+  | skip
+  | blocked
+  deriving Inhabited
+
+partial def lead (e : Expr) : Lead :=
   let args := e.getAppArgs.toList
   let arg (i : Nat) : Option Expr := (args.drop i).head?
   match e.getAppFn.constName? with
-  | some ``ParserDescr.node => (arg 2).bind firstSymbol
-  | some ``ParserDescr.trailingNode => (arg 3).bind firstSymbol
-  | some ``ParserDescr.binary => ((arg 1).bind firstSymbol).orElse fun _ => (arg 2).bind firstSymbol
-  | some ``ParserDescr.unary => (arg 1).bind firstSymbol
-  | some ``ParserDescr.symbol | some ``ParserDescr.nonReservedSymbol =>
+  | some ``ParserDescr.symbol =>
     match arg 0 with
-    | some (Expr.lit (Literal.strVal s)) => some s.trimAscii.toString
-    | _ => none
+    | some (Expr.lit (Literal.strVal s)) => Lead.found s.trimAscii.toString
+    | _ => Lead.blocked
+  | some ``ParserDescr.node => (arg 2).elim Lead.blocked lead
+  | some ``ParserDescr.trailingNode => (arg 3).elim Lead.blocked lead
+  | some ``ParserDescr.unary => (arg 1).elim Lead.blocked lead  -- `group`, `atomic`, `withoutPosition`, …: what is inside comes first
+  | some ``ParserDescr.binary =>
+    match (arg 1).elim Lead.blocked lead with
+    | Lead.skip => (arg 2).elim Lead.blocked lead  -- `andthen (noWs) (symbol "[")`
+    | r => r
+  | some ``ParserDescr.const =>
+    match (arg 0).bind (fun n => (strLits n).getLast?) with
+    | some w => if zeroWidth.contains w then Lead.skip else Lead.blocked
+    | none => Lead.blocked
+  | _ => Lead.blocked
+
+/-- the token a `ParserDescr` starts with (after checks that consume nothing), when it starts with one -/
+def leftSymbol (e : Expr) : Option String :=
+  match lead e with
+  | Lead.found s => some s
   | _ => none
 
-/-- every atom (`symbol`/`nonReservedSymbol` literal) of a `ParserDescr`, in order -/
+/-- every `symbol` atom of a `ParserDescr`, in order: the words the parser puts in the token table (a `nonReservedSymbol`, `&"word"`, is not one) -/
 partial def atoms (e : Expr) : List String :=
   let args := e.getAppArgs.toList
   match e.getAppFn.constName? with
-  | some ``ParserDescr.symbol | some ``ParserDescr.nonReservedSymbol =>
+  | some ``ParserDescr.symbol =>
     match args.head? with
     | some (Expr.lit (Literal.strVal s)) => [s.trimAscii.toString]
     | _ => []
@@ -148,7 +177,7 @@ def identLike (s : String) : Bool :=
 /-- `leading -` / `trailing ∈`: where the notation starts to parse, and its token; none for a parser that is not made of `ParserDescr` applications -/
 def tokenKey (env : Environment) (decl : Name) : Option String := do
   let body ← (env.find? decl).bind (·.value?)
-  let tok ← firstSymbol body
+  let tok ← leftSymbol body
   let trailing := body.getAppFn.constName? == some ``ParserDescr.trailingNode
   return (if trailing then "trailing " else "leading ") ++ tok
 
@@ -250,7 +279,8 @@ def scan (pfxs : List Name) : CoreM (Array Leak × Counts) := do
         let body := (env.find? decl).bind (·.value?)
         let trailing := (body.bind (·.getAppFn.constName?)) == some ``ParserDescr.trailingNode
         let words := (body.map atoms).getD []
-        let words := if readsIdents && !trailing then words.drop 1 else words
+        -- the first atom of a leading parser that STARTS with it, in a category that reads identifiers there (`tactic`), is no token
+        let words := if readsIdents && !trailing && (body.bind leftSymbol).isSome then words.drop 1 else words
         let reserves := words.any fun w => identLike w && !foreignTokens.contains w
         if collides || reserves then
           let r ← findDeclarationRanges? decl

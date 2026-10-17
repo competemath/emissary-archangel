@@ -43,9 +43,18 @@ jobs:
           grep -o 'registered in Tengoku\.[^.]*' leaks.txt | sed 's/.*Tengoku\.//' | sort -u > libs.txt || : > libs.txt
           while read -r lib; do
             echo "== $lib"
+            # `open scoped N` turns on every scoped entry of N: not a namespace in which core or Mathlib have some, nor one where the library has some already
+            ( cd tree && TENGOKU_CI_ROOT="$PWD" python3 -c '
+          import sys
+          sys.path.insert(0, "scripts/ci")
+          import scope_fix_check as sf
+          lib = sys.argv[1]
+          print("\n".join(sorted(sf.scoped_namespaces("HEAD", "Tengoku/Seed") | sf.scoped_namespaces("HEAD", f"Tengoku/{lib}"))))
+          ' "$lib" ) > "forbid-$lib.txt"
+            wc -l < "forbid-$lib.txt"
             mkdir -p "work/$lib/Tengoku"
             cp -r "tree/Tengoku/$lib" "work/$lib/Tengoku/"
-            python3 scripts/bump/scope_rewrite.py --bundle "work/$lib" --reexport --leaks "$(grep "registered in Tengoku\\.$lib\\." leaks.txt)" | tee -a rewrite.txt
+            python3 scripts/bump/scope_rewrite.py --bundle "work/$lib" --reexport --forbid-namespaces "forbid-$lib.txt" --leaks "$(grep "registered in Tengoku\\.$lib\\." leaks.txt)" | tee -a rewrite.txt
             cp -r "work/$lib/Tengoku/$lib/." "tree/Tengoku/$lib/"
           done < libs.txt
           cd tree
@@ -76,6 +85,7 @@ jobs:
             edited.tar
             changed.txt
             leaks.txt
+            forbid-*.txt
             census.json
             census.txt
             rewrite.txt

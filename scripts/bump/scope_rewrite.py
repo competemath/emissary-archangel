@@ -280,11 +280,31 @@ def code_end(text: str) -> int:
     return len(text.rstrip())
 
 
+OPEN_CMD = re.compile(r"^\s*open\b(?!.*\bin\s*$)")  # `open X in` applies to the next command only
+FORBIDDEN_NS: set[str] = set()  # namespaces a notation may not be scoped to (--forbid-namespaces): core's and Mathlib's own scoped entries live there
+
+
+def open_before(code: list[str], i: int) -> bool:
+    """an `open …` command above line `i` that is still in effect there: in the block of the line or in one around it (or at the top of the file)"""
+    blocks = [False]
+    for ln in code[:i]:
+        if NAMESPACE.match(ln) or OPENER.match(ln):
+            blocks.append(False)
+        elif CLOSER.match(ln) and len(blocks) > 1:
+            blocks.pop()
+        elif OPEN_CMD.match(ln):
+            blocks[-1] = True
+    return any(blocks)
+
+
 def edit_notation(f: Lines, line: int) -> tuple[str, dict | None]:
     """The notation / syntax / macro / elab command of the declaration that starts at `line` (1-based; the range includes its doc comment and attributes), made `scoped`
-    when it sits in a namespace and `local` in the root namespace. ("edited", info), ("already", None) when it is local or scoped already, ("missing", None). `info`: mode,
-    ns (the namespace it is scoped to), cmd (the command from its keyword, without a trailing comment: what an importer declares again when it is local), line (0-based),
-    multiline (the command goes on in the next line: it cannot be declared again by copying one line)."""
+    when it sits in a namespace and `local` in the root namespace. ("edited", info), ("already", None) when it is local or scoped already, ("missing", None), or
+    ("unsupported", {"why"}) when it cannot be made scoped or local without changing what the library means:
+      - `scoped` to a namespace in which core or Mathlib have scoped entries too (`open scoped N` would turn those on as well);
+      - `local` in the root namespace, which the importers get as the same command again: not when the command goes on over several lines, and not when an `open` is in effect
+        where it stands (the names of its right-hand side are read where the command is elaborated, and the importer has no such `open`).
+    `info`: mode, ns (the namespace it is scoped to), cmd (the command from its keyword, without a trailing comment: what an importer declares again when it is local), line (0-based)."""
     for i in range(max(0, line - 1), min(len(f.text), line + 14)):
         m = NOTATION_KW.match(f.code[i])
         if not m:
@@ -292,11 +312,18 @@ def edit_notation(f: Lines, line: int) -> tuple[str, dict | None]:
         if m.group("mod"):
             return "already", None
         ns = namespace_at(f.code, i)
+        if ns in FORBIDDEN_NS:
+            return "unsupported", {"why": f"`scoped` would put it in `{ns}`, a namespace in which core or Mathlib have scoped entries"}
+        if not ns:
+            nxt = f.code[i + 1] if i + 1 < len(f.code) else ""
+            if nxt.strip() and nxt[:1] in " \t":
+                return "unsupported", {"why": "a root-namespace command of several lines cannot be declared again, local, in the importers"}
+            if open_before(f.code, i):
+                return "unsupported", {"why": "a root-namespace command after an `open` cannot be declared again in the importers (they do not have the `open`)"}
         col = m.start("kw")
         cmd = f.text[i][col : code_end(f.text[i])]
-        nxt = f.code[i + 1] if i + 1 < len(f.code) else ""
         f.insert(i, col, "scoped " if ns else "local ")
-        return "edited", {"mode": "scoped" if ns else "local", "ns": ns, "cmd": cmd, "line": i, "multiline": bool(nxt.strip()) and nxt[:1] in " \t"}
+        return "edited", {"mode": "scoped" if ns else "local", "ns": ns, "cmd": cmd, "line": i}
     return "missing", None
 
 
@@ -305,7 +332,7 @@ def activation_lines(infos: list[dict]) -> list[str]:
     ns = sorted({x["ns"] for x in infos if x["mode"] == "scoped"})
     cmds: list[str] = []
     for x in sorted(infos, key=lambda x: x["line"]):
-        if x["mode"] == "local" and not x["multiline"] and x["cmd"] not in cmds:
+        if x["mode"] == "local" and x["cmd"] not in cmds:
             cmds.append(x["cmd"])
     return (["open scoped " + " ".join(ns)] if ns else []) + ["local " + c for c in cmds]
 
@@ -380,10 +407,10 @@ def rewrite_file(path: Path, leaks: list[dict], mod: str | None = None) -> tuple
             r, info = edit_notation(f, lk["line"]) if lk["line"] else ("missing", None)
             if r == "edited":
                 notes.append((info["line"], info))
-                if info["multiline"] and info["mode"] == "local":
-                    skipped.append(f"notation {lk['name']}: a local command of several lines cannot be declared again in the importers")
             elif r == "missing":
                 skipped.append(f"notation {lk['name']}")
+            elif r == "unsupported":
+                skipped.append(f"notation {lk['name']}: {info['why']}")
             continue
         if lk["line"]:
             r = edit_declaration(f, lk["line"], lk["kind"])
@@ -587,8 +614,11 @@ def main() -> None:
     ap.add_argument("--pruned", action="append", default=[], help="a directory of the library's own layout (the factory's pruned sources)")
     ap.add_argument("--leaks", required=True)
     ap.add_argument("--reexport", action="store_true", help="also give every module that imports a flagged module the same registrations, local to it")
+    ap.add_argument("--forbid-namespaces", help="a file, one namespace per line: a notation there is not made scoped (core and Mathlib have scoped entries in it); it stays as it is and is reported")
     a = ap.parse_args()
     leaks = parse(a.leaks)
+    if a.forbid_namespaces:
+        FORBIDDEN_NS.update(x.strip() for x in Path(a.forbid_namespaces).read_text().splitlines() if x.strip())
     if not leaks:
         print(json.dumps({"rewritten": 0, "note": "no leak lines"}))
         return

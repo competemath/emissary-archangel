@@ -67,7 +67,7 @@ class Edit(unittest.TestCase):
     def test_in_the_root_namespace_it_becomes_local_and_keeps_its_command(self):
         r, info, lines = self.edit('import X\n\nnotation "Gal("K ", "F")" => K ≃ₐ[F] K -- Galois group\n', 3)
         self.assertEqual(r, "edited")
-        self.assertEqual((info["mode"], info["cmd"], info["multiline"]), ("local", 'notation "Gal("K ", "F")" => K ≃ₐ[F] K', False))
+        self.assertEqual((info["mode"], info["cmd"]), ("local", 'notation "Gal("K ", "F")" => K ≃ₐ[F] K'))
         self.assertEqual(lines[2], 'local notation "Gal("K ", "F")" => K ≃ₐ[F] K -- Galois group')
 
     def test_attributes_and_modifiers_stay_in_front(self):
@@ -92,9 +92,42 @@ class Edit(unittest.TestCase):
         self.assertEqual(r, "missing")
         self.assertEqual(lines, text.split("\n"))
 
-    def test_the_command_of_several_lines_is_marked(self):
-        _, info, _ = self.edit('notation "Foo(" a ", "\n    b ")" => bar a b\n', 1)
-        self.assertTrue(info["multiline"])
+    def test_a_root_command_of_several_lines_is_left_alone_and_reported(self):
+        r, info, lines = self.edit('notation "Foo(" a ", "\n    b ")" => bar a b\n', 1)
+        self.assertEqual(r, "unsupported")
+        self.assertIn("several lines", info["why"])
+        self.assertEqual(lines[0], 'notation "Foo(" a ", "')
+
+    def test_a_scoped_command_of_several_lines_is_fine(self):
+        r, info, _ = self.edit('namespace A\nnotation "Foo(" a ", "\n    b ")" => bar a b\nend A\n', 2)
+        self.assertEqual((r, info["mode"]), ("edited", "scoped"))
+
+    def test_a_root_command_after_an_open_is_left_alone_and_reported(self):
+        for src in ('open Real\nnotation "π" => pi\n', 'section S\nopen Real\nnotation "π" => pi\nend S\n', 'open Real in\nnotation "π" => pi\n'):
+            r, info, _ = self.edit(src, src.count("\n") - 1 if "section" in src else 2)
+            if "in\n" in src:
+                self.assertEqual(r, "edited", src)  # `open … in` applies to the next command only, and that is not this one
+            else:
+                self.assertEqual(r, "unsupported", src)
+                self.assertIn("`open`", info["why"])
+
+    def test_an_open_that_has_ended_does_not_count(self):
+        r, _, _ = self.edit('section S\nopen Real\nend S\nnotation "π" => pi\n', 4)
+        self.assertEqual(r, "edited")
+
+    def test_a_scoped_command_ignores_the_opens_it_stands_after(self):
+        r, info, _ = self.edit('open Real\nnamespace A\nnotation "π" => pi\nend A\n', 3)
+        self.assertEqual((r, info["mode"]), ("edited", "scoped"))
+
+    def test_a_namespace_that_core_or_mathlib_have_scoped_entries_in_is_refused(self):
+        sr.FORBIDDEN_NS.update({"Real"})
+        try:
+            r, info, lines = self.edit('namespace Real\nnotation "√√" => f\nend Real\n', 2)
+        finally:
+            sr.FORBIDDEN_NS.clear()
+        self.assertEqual(r, "unsupported")
+        self.assertIn("`Real`", info["why"])
+        self.assertEqual(lines[1], 'notation "√√" => f')
 
 
 class File(unittest.TestCase):
@@ -124,6 +157,14 @@ class File(unittest.TestCase):
         done, _, new = self.rewrite(text, sr.parse('leak: notation «termGal(_,_)» registered in Tengoku.L.L.M (declared at line 2)'))
         self.assertEqual(done, 1)
         self.assertIn('end Foo\nlocal notation "Gal("K ", "F")" => K ≃ₐ[F] K\n', new)
+
+    def test_an_unsupported_notation_is_reported_with_its_reason_and_the_file_is_not_touched(self):
+        text = 'open Real\nnotation "π" => pi\n'
+        done, skipped, new = self.rewrite(text, sr.parse("leak: notation «termπ» registered in Tengoku.L.L.M (declared at line 2)"))
+        self.assertEqual(done, 0)
+        self.assertEqual(len(skipped), 1)
+        self.assertIn("after an `open`", skipped[0])
+        self.assertEqual(new, text)
 
     def test_a_leak_without_a_position_is_reported_not_guessed(self):
         done, skipped, new = self.rewrite(MODAL, sr.parse("leak: notation LO.Modal.Formula.«term-_» registered in Tengoku.Lib.Lib.Modal.Complement"))
