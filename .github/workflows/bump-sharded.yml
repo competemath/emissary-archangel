@@ -133,7 +133,7 @@ jobs:
             --tree-names ../tree-names.txt --tree-decls ../tree-decls.txt --drop-leaks --imports "$IMPORTS"
       - name: Make the registrations that leak into other libraries local (RECUT only)
         if: ${{ inputs.scope != '' }}
-        run: python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --leaks "$SCOPE"
+        run: python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --reexport --leaks "$SCOPE"
       # The draft of every mode that is to be verified, as a tar. `verify` builds each in the tree; `finish` cuts the same bundle again from the same shards and the same
       # tree names (they travel with the draft), drops what the tree refused, and proves that what is left is byte for byte what was built.
       - name: The draft, for the tree's build
@@ -363,7 +363,7 @@ jobs:
             --tree-names ../tree-names.txt --tree-decls ../tree-decls.txt --drop-leaks --tree-failures ../tree-failures.txt --tree-repairs ../tree-repairs.json --imports "$IMPORTS"
       - name: Make the registrations that leak into other libraries local (RECUT only)
         if: ${{ inputs.scope != '' }}
-        run: python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --leaks "$SCOPE"
+        run: python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --reexport --leaks "$SCOPE"
       # What ships is what the tree built: every new module of the final bundle, in every verified mode, has the bytes the tree's build accepted.
       - name: Every module that ships was built in the tree, byte for byte
         env: { MODES: "${{ needs.compose.outputs.modes }}" }

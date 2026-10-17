@@ -178,6 +178,33 @@ def edit_attribute_command(f: Lines, name: str, kind: str) -> str:
     return "missing"
 
 
+def edit_named_declaration(f: Lines, name: str, kind: str) -> str:
+    """A leak line without a position (`leak: instance X registered in M`, written by hand for a module whose text is not known yet, as in a recut): the first
+    DECLARATION of that name in the module, `instance NAME` (after attributes and modifiers) or `@[…simp…] theorem|lemma|def|abbrev NAME`, made local. Auto-generated
+    names (`inst…`) have no declaration to find. Same answers as edit_declaration."""
+    n = re.escape(short(name))
+    if kind == "instance":
+        decl = re.compile(
+            rf"^[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|noncomputable|nonrec|partial|unsafe|public)[ \t]+)*(?:local[ \t]+|scoped[ \t]+)?instance\s+(?:\(priority\s*:=[^)]*\)\s*)?{n}(?![\w'.])"
+        )
+    else:
+        decl = re.compile(rf"^[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|noncomputable|nonrec|partial|unsafe)[ \t]+)*(?:theorem|lemma|def|abbrev)\s+{n}(?![\w'.])")
+    seen = "missing"
+    for i, code in enumerate(f.code):
+        if not decl.match(code):
+            continue
+        start = i
+        if kind == "simp":  # the attribute may sit on lines above the declaration
+            while start > 0 and f.code[start - 1].strip().startswith("@["):
+                start -= 1
+        r = edit_declaration(f, start + 1, kind)
+        if r == "edited":
+            return r
+        if r == "already":
+            seen = r
+    return seen
+
+
 OPENER = re.compile(r"^\s*(?:namespace\s+\S+|(?:@\[expose\]\s+)?(?:(?:public|noncomputable)\s+)*section\b.*|mutual\s*)$")
 CLOSER = re.compile(r"^\s*end\b")
 
@@ -227,7 +254,12 @@ def rewrite_file(path: Path, leaks: list[dict]) -> tuple[int, list[str]]:
     edits: list[tuple[int, dict]] = []
     for lk in sorted(leaks, key=lambda x: -(x["line"] or 0)):
         before = len(f.edited)
-        r = edit_declaration(f, lk["line"], lk["kind"]) if lk["line"] else edit_attribute_command(f, lk["name"], lk["kind"])
+        if lk["line"]:
+            r = edit_declaration(f, lk["line"], lk["kind"])
+        else:
+            r = edit_attribute_command(f, lk["name"], lk["kind"])
+            if r == "missing":
+                r = edit_named_declaration(f, lk["name"], lk["kind"])
         if r == "edited":
             done += 1
             edits.append((f.edited[before], lk))
