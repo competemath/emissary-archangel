@@ -5,7 +5,8 @@ Mathlib moves to a new Lean by building the whole library in dependency order an
 The translation pipeline instead compiles every declaration as its own synthetic file. This script supports the
 whole-library way, measured on one library, with no Leak service and no Claude:
 
-  meta KEY                       print "<repo> <commit> <toolchain> <root> <root> ..." from data/exports/KEY/setup.ci.json
+  meta KEY                       print "<repo> <commit> <toolchain> <root> <root> ..." from data/exports/KEY/setup.ci.json (or the spec file named in $TRIAL_SPEC,
+                                 for a repository that is not registered yet)
   retarget DIR MATHLIB TOOLCHAIN point the library at a Mathlib tag and a Lean toolchain (its lakefile and lean-toolchain;
                                  the manifest is dropped so `lake update` resolves everything again)
   analyze  DIR KEY LABEL LOG     which modules built (an .olean exists), which failed with their own error, which were
@@ -29,8 +30,17 @@ WARNING = re.compile(r"^warning: (?:\./)*(\S+?\.lean):(\d+):(\d+): (.*)$")
 DEPRECATED = re.compile(r"`([^`]+)` has been deprecated.*?[Uu]se `([^`]+)` instead")
 
 
+def load_setup(key: str) -> dict:
+    """The library's setup record. A library that is not registered yet (a candidate: is it worth registering?) has no data/exports/KEY/setup.ci.json; the workflow then
+    writes the same fields into a spec file and names it in TRIAL_SPEC: repo (a URL), commit, toolchain, roots, and optionally headlines [{"name", "module"}]."""
+    spec = os.environ.get("TRIAL_SPEC")
+    if spec:
+        return json.loads(Path(spec).read_text())
+    return json.loads(Path(f"data/exports/{key}/setup.ci.json").read_text())
+
+
 def meta(key: str) -> None:
-    d = json.loads(Path(f"data/exports/{key}/setup.ci.json").read_text())
+    d = load_setup(key)
     print(d["repo"], d["commit"], d["toolchain"], *d["roots"])
 
 
@@ -209,8 +219,22 @@ def ledger_entries(key: str):
     return per, outcomes
 
 
+def headline_survival(headlines: list[dict], built: list[str], failed: list[str], blocked: list[str]) -> dict:
+    """Of the declarations that stand for the library (headlines: [{"name", "module"}]), how many sit in a module that built unchanged."""
+    ok, fail, block = set(built), set(failed), set(blocked)
+    count = {"built": 0, "failed": 0, "blocked": 0, "no module": 0}
+    lost = []
+    for h in headlines:
+        m = h["module"]
+        status = "built" if m in ok else "failed" if m in fail else "blocked" if m in block else "no module"
+        count[status] += 1
+        if status != "built":
+            lost.append(h["name"])
+    return {"total": len(headlines), "built": count["built"], "failed": count["failed"], "blocked": count["blocked"], "no_module": count["no module"], "lost": lost}
+
+
 def analyze(lib: str, key: str, label: str, log_path: str) -> None:
-    setup = json.loads(Path(f"data/exports/{key}/setup.ci.json").read_text())
+    setup = load_setup(key)
     mods = modules(lib, setup["roots"])
     errors, warnings = parse_log(Path(log_path).read_text(errors="replace"))
     built, failed, blocked = [], [], []
@@ -250,6 +274,7 @@ def analyze(lib: str, key: str, label: str, log_path: str) -> None:
         entries[status] += n
     n_err = sum(len(es) for es in errors.values())
     total = sum(entries.values()) or 1
+    headlines = headline_survival(setup.get("headlines") or [], built, failed, blocked)
     res = {
         "label": label,
         "modules": {"total": len(mods), "built": len(built), "failed_own_error": len(failed), "blocked_behind_failure": len(blocked)},
@@ -257,6 +282,7 @@ def analyze(lib: str, key: str, label: str, log_path: str) -> None:
         "missing_external_modules": dict(missing_external),
         "deprecation_warnings": {"total": sum(deps.values()), "distinct_names": len(deps), "top": [[o, n, c] for (o, n), c in deps.most_common(10)]},
         "ledger": {"entries_by_module_status": dict(entries), "pipeline_outcomes": dict(outcomes)},
+        "headlines": headlines,
         "failed_modules": {m: first[next(k for k in first if k.endswith(str(mods[m].relative_to(lib))))][2][:200] for m in failed if any(k.endswith(str(mods[m].relative_to(lib))) for k in first)},
     }
     Path(f"{label}.json").write_text(json.dumps(res, indent=2))
@@ -271,6 +297,8 @@ def analyze(lib: str, key: str, label: str, log_path: str) -> None:
         f"- Deprecation warnings (rewritten mechanically by Mathlib's fix_deprecations.py): {sum(deps.values())} over {len(deps)} names.",
         f"- The per-theorem pipeline's own outcomes for this library: {dict(outcomes)}.",
     ]
+    if headlines["total"]:
+        md.append(f"- Headline declarations in modules that built: **{headlines['built']} of {headlines['total']} ({pct(headlines['built'], headlines['total'])})**; lost: {', '.join(headlines['lost'][:8]) or 'none'}.")
     text = "\n".join(md) + "\n"
     print(text)
     if os.environ.get("GITHUB_STEP_SUMMARY"):
