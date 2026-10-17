@@ -93,6 +93,11 @@ class ByName(unittest.TestCase):
         f = sr.Lines(text)
         return sr.edit_named_declaration(f, name, kind), f.text
 
+    def test_leak_lines_without_a_position_may_be_separated_by_a_semicolon_with_no_space(self):
+        # 2026-10-17: the lean-pool recut was dispatched with 'leak: … GroupRing;leak: … Specialization'; the module name swallowed ';leak:' and neither leak was rewritten
+        got = sr.parse("leak: instance A.x registered in Tengoku.L.L.M1;leak: instance A.y registered in Tengoku.L.L.M2 ; leak: simp A.z registered in Tengoku.L.L.M3 (declared at line 4)")
+        self.assertEqual([(g["name"], g["mod"], g["line"]) for g in got], [("A.x", "Tengoku.L.L.M1", None), ("A.y", "Tengoku.L.L.M2", None), ("A.z", "Tengoku.L.L.M3", 4)])
+
     def test_a_named_instance_is_found_without_a_line(self):
         text = "import Tengoku\n\nnamespace A\n\n/-- doc -/\ninstance groupRingMul {R G : Type} : HMul R G (F R G) := x\n\nend A\n"
         r, lines = self.edit(text, "instance", "A.groupRingMul")
@@ -116,11 +121,43 @@ class ByName(unittest.TestCase):
         self.assertEqual(self.edit("instance other : Foo := a\n", "instance", "target")[0], "missing")
 
     def test_a_simp_lemma_by_name_with_its_attribute_above_or_on_the_line(self):
-        r, lines = self.edit("@[simp]\ntheorem foo_bar : a = b := rfl\n", "simp", "X.foo_bar")
-        self.assertEqual((r, lines[0]), ("edited", "@[local simp]"))
+        r, lines = self.edit("namespace X\n@[simp]\ntheorem foo_bar : a = b := rfl\nend X\n", "simp", "X.foo_bar")
+        self.assertEqual((r, lines[1]), ("edited", "@[local simp]"))
         r, lines = self.edit("@[simp] lemma foo_bar : a = b := rfl\n", "simp", "foo_bar")
         self.assertEqual((r, lines[0]), ("edited", "@[local simp] lemma foo_bar : a = b := rfl"))
         self.assertEqual(self.edit("theorem foo_bar : a = b := rfl\n", "simp", "foo_bar")[0], "missing")
+
+    def test_the_full_name_decides_not_the_last_component(self):
+        # CodeRabbit on emissary#49: `A.foo` before `B.foo` must not stand in for `B.foo`
+        text = "namespace A\ninstance foo : Foo := a\nend A\n\nnamespace B\ninstance foo : Foo := b\nend B\n"
+        r, lines = self.edit(text, "instance", "B.foo")
+        self.assertEqual(r, "edited")
+        self.assertEqual(lines[1], "instance foo : Foo := a")
+        self.assertEqual(lines[5], "local instance foo : Foo := b")
+        self.assertEqual(self.edit(text, "instance", "C.foo")[0], "missing")
+        self.assertEqual(self.edit(text, "instance", "foo")[0], "missing")  # nothing is declared at the root
+
+    def test_namespaces_nest_sections_and_end_are_followed(self):
+        text = "namespace A.B\nsection S\ninstance x : Foo := a\nend S\ninstance y : Foo := b\nend A.B\ninstance z : Foo := c\ninstance A.w : Foo := d\nnamespace Q\ninstance _root_.v : Foo := e\ninstance A.t : Foo := f\nend Q\n"
+        for name, line in (("A.B.x", 2), ("A.B.y", 4), ("z", 6), ("A.w", 7), ("v", 9), ("Q.A.t", 10)):
+            r, lines = self.edit(text, "instance", name)
+            self.assertEqual(r, "edited", name)
+            self.assertIn("local instance", lines[line], name)
+            self.assertEqual(sum("local instance" in x for x in lines), 1, name)  # one declaration, no neighbour
+
+    def test_a_simp_attribute_of_the_next_declaration_is_not_this_ones(self):
+        # CodeRabbit on emissary#49: `theorem foo` without simp, `@[simp] theorem bar` a few lines below: foo stays missing, bar is untouched
+        text = "theorem foo : a = b := rfl\n\n@[simp] theorem bar : c = d := rfl\n"
+        r, lines = self.edit(text, "simp", "foo")
+        self.assertEqual(r, "missing")
+        self.assertNotIn("local", "\n".join(lines))
+        self.assertEqual(self.edit(text, "simp", "bar")[0], "edited")
+
+    def test_a_public_declaration_is_found(self):
+        r, lines = self.edit("@[simp] public theorem foo : a = b := rfl\n", "simp", "foo")
+        self.assertEqual((r, lines[0]), ("edited", "@[local simp] public theorem foo : a = b := rfl"))
+        r, lines = self.edit("public instance foo : Foo := a\n", "instance", "foo")
+        self.assertEqual((r, lines[0]), ("edited", "public local instance foo : Foo := a"))
 
     def test_a_bundle_leak_line_without_a_position_localizes_the_instance_and_the_importers_keep_it(self):
         with tempfile.TemporaryDirectory() as d:

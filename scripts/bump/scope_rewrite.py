@@ -31,7 +31,7 @@ import autonames  # noqa: E402
 import tolerant_build as tb  # noqa: E402
 
 LEAK = re.compile(
-    r"leak:\s+(?P<kind>instance|simp)\s+(?P<name>\S+)\s+registered in\s+(?P<mod>\S+)"
+    r"leak:\s+(?P<kind>instance|simp)\s+(?P<name>[^\s;]+)\s+registered in\s+(?P<mod>[^\s;]+)"
     r"(?:\s+\(priority (?P<prio>\d+)\))?"
     r"(?:\s+\(declared at line (?P<line>\d+)\)|\s+\(declared in (?P<other>\S+?):)?"
 )
@@ -178,30 +178,63 @@ def edit_attribute_command(f: Lines, name: str, kind: str) -> str:
     return "missing"
 
 
+NAMESPACE = re.compile(r"^\s*(?:(?:public|noncomputable)\s+)*namespace\s+(\S+)\s*$")
+NAMED_INSTANCE = re.compile(
+    r"^[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|noncomputable|nonrec|partial|unsafe|public)[ \t]+)*(?:local[ \t]+|scoped[ \t]+)?instance\s+(?:\(priority\s*:=[^)]*\)\s*)?([^\s:({\[]+)"
+)
+NAMED_THEOREM = re.compile(
+    r"^[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|noncomputable|nonrec|partial|unsafe|public)[ \t]+)*(?:theorem|lemma|def|abbrev)\s+([^\s:({\[]+)"
+)
+
+
 def edit_named_declaration(f: Lines, name: str, kind: str) -> str:
-    """A leak line without a position (`leak: instance X registered in M`, written by hand for a module whose text is not known yet, as in a recut): the first
-    DECLARATION of that name in the module, `instance NAME` (after attributes and modifiers) or `@[…simp…] theorem|lemma|def|abbrev NAME`, made local. Auto-generated
-    names (`inst…`) have no declaration to find. Same answers as edit_declaration."""
-    n = re.escape(short(name))
-    if kind == "instance":
-        decl = re.compile(
-            rf"^[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|noncomputable|nonrec|partial|unsafe|public)[ \t]+)*(?:local[ \t]+|scoped[ \t]+)?instance\s+(?:\(priority\s*:=[^)]*\)\s*)?{n}(?![\w'.])"
-        )
-    else:
-        decl = re.compile(rf"^[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|noncomputable|nonrec|partial|unsafe)[ \t]+)*(?:theorem|lemma|def|abbrev)\s+{n}(?![\w'.])")
+    """A leak line without a position (`leak: instance X registered in M`, written by hand for a module whose text is not known yet, as in a recut): the DECLARATION whose
+    full name is `name` in this module, `instance NAME` (after attributes and modifiers) or `@[…simp…] theorem|lemma|def|abbrev NAME`, made local. The full name is the
+    declared name under the `namespace`/`section`/`end` blocks that enclose it (`_root_.` aside), so `A.foo` and `B.foo` are different declarations. Only that declaration's
+    own line (instance) or attribute lines (simp: the `@[…]` on its line and on the lines right above it) are edited, never a neighbour's. Auto-generated names have no
+    declaration to find. Same answers as edit_declaration: "edited", "already", "missing"."""
+    decl = NAMED_INSTANCE if kind == "instance" else NAMED_THEOREM
+    blocks: list[list[str]] = []  # one entry per open namespace / section / mutual; a namespace holds its name's components
     seen = "missing"
     for i, code in enumerate(f.code):
-        if not decl.match(code):
+        if m := NAMESPACE.match(code):
+            blocks.append(m.group(1).split("."))
+            continue
+        if OPENER.match(code):
+            blocks.append([])
+            continue
+        if CLOSER.match(code):
+            if blocks:
+                blocks.pop()
+            continue
+        dm = decl.match(code)
+        if not dm:
+            continue
+        declared = dm.group(1)
+        full = declared[len("_root_.") :] if declared.startswith("_root_.") else ".".join([c for blk in blocks for c in blk] + [declared])
+        if full != name:
+            continue
+        if kind == "instance":
+            if re.search(r"\b(?:local|scoped)\s+instance\b", code):
+                seen = "already"
+                continue
+            m = re.search(rf"(?<![\w.]){NOT_LOCAL}\binstance\b", code)
+            if m:
+                f.insert(i, m.start(), "local ")
+                return "edited"
             continue
         start = i
-        if kind == "simp":  # the attribute may sit on lines above the declaration
-            while start > 0 and f.code[start - 1].strip().startswith("@["):
-                start -= 1
-        r = edit_declaration(f, start + 1, kind)
-        if r == "edited":
-            return r
-        if r == "already":
-            seen = r
+        while start > 0 and f.code[start - 1].strip().startswith("@["):
+            start -= 1
+        for k in range(start, i + 1):  # the attributes of this declaration only
+            for attrs in re.finditer(r"@\[([^\]]*)\]", f.code[k]):
+                if re.search(r"\b(?:local|scoped)\s+simp\b", attrs.group(1)):
+                    seen = "already"
+                    continue
+                hit = re.search(rf"(?<![\w.]){NOT_LOCAL}\bsimp\b", attrs.group(1))
+                if hit:
+                    f.insert(k, attrs.start(1) + hit.start(), "local ")
+                    return "edited"
     return seen
 
 
