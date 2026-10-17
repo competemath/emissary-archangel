@@ -306,21 +306,28 @@ def leaves_scope(f: Lines, opener: int, mode: str, ns: str) -> bool:
     return not (after == ns or after.startswith(ns + "."))
 
 
-def reopens_after(f: Lines, i: int, mode: str, ns: str) -> list[int]:
+STRING_ATOM = re.compile(r'"((?:[^"\\]|\\.)*)"')
+
+
+def atoms_of(cmd: str) -> list[str]:
+    """the string atoms of a notation command (before its `=>`): the words that show the notation is used"""
+    return [a.strip() for a in STRING_ATOM.findall(cmd.split("=>")[0]) if a.strip()]
+
+
+def reopens_after(f: Lines, i: int, mode: str, ns: str, atoms: list[str] | None = None) -> list[int]:
     """the lines of the `end`s, around line `i`, after which the notation has to be activated again: the block leaves its scope and there is code after the `end` (more than
-    the `end`s of the blocks around it)"""
+    the `end`s of the blocks around it) that mentions one of the notation's atoms (all code, when they are not known)"""
     open_at, end_of = scope_info(f.code)
-    return [
-        end
-        for op in open_at[i]
-        if (end := end_of.get(op)) is not None
-        and leaves_scope(f, op, mode, ns)
-        and any(ln.strip() and not CLOSER.match(ln) for ln in f.code[end + 1 :])
-    ]
+
+    def mentions(end: int) -> bool:
+        rest = [ln for ln, code in zip(f.text[end + 1 :], f.code[end + 1 :]) if code.strip() and not CLOSER.match(code)]
+        return bool(rest) if not atoms else any(a in ln for ln in rest for a in atoms)
+
+    return [end for op in open_at[i] if (end := end_of.get(op)) is not None and leaves_scope(f, op, mode, ns) and mentions(end)]
 
 
-def reopen_needed(f: Lines, i: int, mode: str = "scoped", ns: str = "") -> bool:
-    return bool(reopens_after(f, i, mode, ns))
+def reopen_needed(f: Lines, i: int, mode: str = "scoped", ns: str = "", atoms: list[str] | None = None) -> bool:
+    return bool(reopens_after(f, i, mode, ns, atoms))
 
 
 def edit_notation(f: Lines, line: int, has_importers: bool = True) -> tuple[str, dict | None]:
@@ -339,7 +346,7 @@ def edit_notation(f: Lines, line: int, has_importers: bool = True) -> tuple[str,
         if m.group("mod"):
             return "already", None
         ns = namespace_at(f.code, i)
-        if ns in FORBIDDEN_NS and (has_importers or reopen_needed(f, i, "scoped", ns)):
+        if ns in FORBIDDEN_NS and (has_importers or reopen_needed(f, i, "scoped", ns, atoms_of(f.text[i][m.start("kw") :]))):
             return "unsupported", {"why": f"`scoped` would put it in `{ns}`, a namespace in which core or Mathlib have scoped entries, and `open scoped {ns}` would be needed"}
         if not ns:
             nxt = f.code[i + 1] if i + 1 < len(f.code) else ""
@@ -350,7 +357,7 @@ def edit_notation(f: Lines, line: int, has_importers: bool = True) -> tuple[str,
         col = m.start("kw")
         cmd = f.text[i][col : code_end(f.text[i])]
         f.insert(i, col, "scoped " if ns else "local ")
-        return "edited", {"mode": "scoped" if ns else "local", "ns": ns, "cmd": cmd, "line": i}
+        return "edited", {"mode": "scoped" if ns else "local", "ns": ns, "cmd": cmd, "line": i, "atoms": atoms_of(cmd)}
     return "missing", None
 
 
@@ -369,7 +376,7 @@ def notation_reopens(f: Lines, notes: list[tuple[int, dict]]) -> dict[int, list[
     For every enclosing block that has code after its `end` (more than the `end`s of the blocks around it), the notation is activated again right after that `end`."""
     by_end: dict[int, list[dict]] = {}
     for i, info in notes:
-        for end in reopens_after(f, i, info["mode"], info["ns"]):
+        for end in reopens_after(f, i, info["mode"], info["ns"], info.get("atoms")):
             by_end.setdefault(end, []).append(info)
     return {end: activation_lines(infos) for end, infos in by_end.items()}
 

@@ -139,7 +139,7 @@ class ForbiddenNamespace(unittest.TestCase):
             f = sr.Lines('namespace ZFSet\n\nnotation "ω" => omega\n\nend ZFSet\n\nend\n')
             r, info = sr.edit_notation(f, 3, has_importers=False)
             self.assertEqual((r, info["mode"]), ("edited", "scoped"))
-            f = sr.Lines('namespace ZFSet\n\nnotation "ω" => omega\n\nend ZFSet\n\nlemma later : True := trivial\n')
+            f = sr.Lines('namespace ZFSet\n\nnotation "ω" => omega\n\nend ZFSet\n\nlemma later : ω = ω := rfl\n')
             self.assertEqual(sr.edit_notation(f, 3, has_importers=False)[0], "unsupported")  # code after the namespace would have to open it again
             f = sr.Lines('namespace ZFSet\n\nnotation "ω" => omega\n\nend ZFSet\n')
             self.assertEqual(sr.edit_notation(f, 3, has_importers=True)[0], "unsupported")  # an importer would have to open it
@@ -189,14 +189,22 @@ class File(unittest.TestCase):
         self.assertEqual(done, 1)
         self.assertNotIn("open scoped", new)  # still inside `namespace A`: the scoped notation is active
 
+    def test_code_after_the_namespace_that_never_uses_the_notation_needs_no_reopening(self):
+        text = 'namespace A\nnotation "ω" => omega\nend A\nattribute [local simp] A.foo\nlemma later : True := trivial\n'
+        done, _, new = self.rewrite(text, sr.parse("leak: notation A.«termω» registered in Tengoku.L.L.M (declared at line 2)"))
+        self.assertEqual(done, 1)
+        self.assertNotIn("open scoped", new)
+        done, _, new = self.rewrite(text + "lemma uses : ω = ω := rfl\n", sr.parse("leak: notation A.«termω» registered in Tengoku.L.L.M (declared at line 2)"))
+        self.assertIn("end A\nopen scoped A\n", new)  # the code after it does say ω
+
     def test_a_local_notation_does_end_with_the_section(self):
-        text = 'section S\nnotation "ω" => omega\nend S\n\nlemma later : True := trivial\n'
+        text = 'section S\nnotation "ω" => omega\nend S\n\nlemma later : ω = ω := rfl\n'
         done, _, new = self.rewrite(text, sr.parse("leak: notation «termω» registered in Tengoku.L.L.M (declared at line 2)"))
         self.assertEqual(done, 1)
         self.assertIn('end S\nlocal notation "ω" => omega\n', new)
 
     def test_a_nested_namespace_keeps_it_and_leaving_the_namespace_does_not(self):
-        text = 'namespace A\nnamespace B\nnotation "ω" => omega\nend B\nlemma still : True := trivial\nend A\nlemma out : True := trivial\n'
+        text = 'namespace A\nnamespace B\nnotation "ω" => omega\nend B\nlemma still : ω = ω := rfl\nend A\nlemma out : ω = ω := rfl\n'
         _, _, new = self.rewrite(text, sr.parse("leak: notation A.B.«termω» registered in Tengoku.L.L.M (declared at line 3)"))
         # the notation is scoped to A.B: after `end B` the file is in A, outside A.B
         self.assertIn("end B\nopen scoped A.B\n", new)
