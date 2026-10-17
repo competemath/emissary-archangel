@@ -130,6 +130,42 @@ class Edit(unittest.TestCase):
         self.assertEqual(lines[1], 'notation "√√" => f')
 
 
+class ForbiddenNamespace(unittest.TestCase):
+    """core or Mathlib have scoped entries in `ZFSet`: `open scoped ZFSet` would turn those on, so a notation there is scoped only when nothing has to open it"""
+
+    def test_nothing_after_the_namespace_and_no_importer_means_nothing_to_open(self):
+        sr.FORBIDDEN_NS.add("ZFSet")
+        try:
+            f = sr.Lines('namespace ZFSet\n\nnotation "ω" => omega\n\nend ZFSet\n\nend\n')
+            r, info = sr.edit_notation(f, 3, has_importers=False)
+            self.assertEqual((r, info["mode"]), ("edited", "scoped"))
+            f = sr.Lines('namespace ZFSet\n\nnotation "ω" => omega\n\nend ZFSet\n\nlemma later : True := trivial\n')
+            self.assertEqual(sr.edit_notation(f, 3, has_importers=False)[0], "unsupported")  # code after the namespace would have to open it again
+            f = sr.Lines('namespace ZFSet\n\nnotation "ω" => omega\n\nend ZFSet\n')
+            self.assertEqual(sr.edit_notation(f, 3, has_importers=True)[0], "unsupported")  # an importer would have to open it
+        finally:
+            sr.FORBIDDEN_NS.clear()
+
+    def test_through_a_bundle_the_importers_decide(self):
+        sr.FORBIDDEN_NS.add("ZFSet")
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                base = Path(d) / "Tengoku" / "Lib"
+                base.mkdir(parents=True)
+                (base / "Def.lean").write_text('namespace ZFSet\nnotation "ω" => omega\nend ZFSet\n')
+                (base / "Alone.lean").write_text("import Tengoku\n\ntheorem a : True := trivial\n")
+                leaks = sr.parse("leak: notation ZFSet.«termω» registered in Tengoku.Lib.Def (declared at line 2)")
+                rep = sr.apply_bundle(Path(d), leaks)
+                self.assertEqual(rep["rewritten"], 1, rep)  # nothing imports Def: scoped, nothing to open
+                (base / "Def.lean").write_text('namespace ZFSet\nnotation "ω" => omega\nend ZFSet\n')
+                (base / "Use.lean").write_text("import Tengoku.Lib.Def\n\ntheorem u : True := trivial\n")
+                rep = sr.apply_bundle(Path(d), leaks)
+                self.assertEqual(rep["rewritten"], 0, rep)  # Use imports it: it would need `open scoped ZFSet`
+                self.assertIn("open scoped ZFSet", rep["skipped"][0])
+        finally:
+            sr.FORBIDDEN_NS.clear()
+
+
 class File(unittest.TestCase):
     def rewrite(self, text, leaks):
         with tempfile.TemporaryDirectory() as d:

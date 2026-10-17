@@ -297,11 +297,20 @@ def open_before(code: list[str], i: int) -> bool:
     return any(blocks)
 
 
-def edit_notation(f: Lines, line: int) -> tuple[str, dict | None]:
+def reopen_needed(f: Lines, i: int) -> bool:
+    """some block around line `i` has code after its `end` (more than the `end`s of the blocks around it): a scoped notation would have to be activated again there"""
+    open_at, end_of = scope_info(f.code)
+    return any(
+        (end := end_of.get(op)) is not None and any(ln.strip() and not CLOSER.match(ln) for ln in f.code[end + 1 :]) for op in open_at[i]
+    )
+
+
+def edit_notation(f: Lines, line: int, has_importers: bool = True) -> tuple[str, dict | None]:
     """The notation / syntax / macro / elab command of the declaration that starts at `line` (1-based; the range includes its doc comment and attributes), made `scoped`
     when it sits in a namespace and `local` in the root namespace. ("edited", info), ("already", None) when it is local or scoped already, ("missing", None), or
     ("unsupported", {"why"}) when it cannot be made scoped or local without changing what the library means:
-      - `scoped` to a namespace in which core or Mathlib have scoped entries too (`open scoped N` would turn those on as well);
+      - `scoped` to a namespace in which core or Mathlib have scoped entries too, when an `open scoped N` would be needed (code after the namespace in the same file, or an importer
+        in the library): `open scoped N` would turn those on as well;
       - `local` in the root namespace, which the importers get as the same command again: not when the command goes on over several lines, and not when an `open` is in effect
         where it stands (the names of its right-hand side are read where the command is elaborated, and the importer has no such `open`).
     `info`: mode, ns (the namespace it is scoped to), cmd (the command from its keyword, without a trailing comment: what an importer declares again when it is local), line (0-based)."""
@@ -312,8 +321,8 @@ def edit_notation(f: Lines, line: int) -> tuple[str, dict | None]:
         if m.group("mod"):
             return "already", None
         ns = namespace_at(f.code, i)
-        if ns in FORBIDDEN_NS:
-            return "unsupported", {"why": f"`scoped` would put it in `{ns}`, a namespace in which core or Mathlib have scoped entries"}
+        if ns in FORBIDDEN_NS and (has_importers or reopen_needed(f, i)):
+            return "unsupported", {"why": f"`scoped` would put it in `{ns}`, a namespace in which core or Mathlib have scoped entries, and `open scoped {ns}` would be needed"}
         if not ns:
             nxt = f.code[i + 1] if i + 1 < len(f.code) else ""
             if nxt.strip() and nxt[:1] in " \t":
@@ -395,7 +404,7 @@ def attribute_lines(groups: dict[tuple[str, int | None], set[str]]) -> list[str]
 NOTATION_EDITS: dict[str, list[dict]] = {}  # leak module name -> what was done to its notations (reexport gives the importers the same activation)
 
 
-def rewrite_file(path: Path, leaks: list[dict], mod: str | None = None) -> tuple[int, list[str]]:
+def rewrite_file(path: Path, leaks: list[dict], mod: str | None = None, has_importers: bool = True) -> tuple[int, list[str]]:
     text = path.read_text()
     f = Lines(text)
     done, skipped = 0, []
@@ -404,7 +413,7 @@ def rewrite_file(path: Path, leaks: list[dict], mod: str | None = None) -> tuple
     for lk in sorted(leaks, key=lambda x: -(x["line"] or 0)):
         before = len(f.edited)
         if lk["kind"] == "notation":
-            r, info = edit_notation(f, lk["line"]) if lk["line"] else ("missing", None)
+            r, info = edit_notation(f, lk["line"], has_importers) if lk["line"] else ("missing", None)
             if r == "edited":
                 notes.append((info["line"], info))
             elif r == "missing":
@@ -451,12 +460,16 @@ def apply_bundle(root: Path, leaks: list[dict], skip: int = 0) -> dict:
     for lk in leaks:
         by_mod.setdefault(lk["mod"], []).append(lk)
     report = {"rewritten": 0, "skipped": [], "missing_modules": []}
+    files = native_names(root, skip)
+    imported = {m for deps in import_graph(files, skip).values() for m in deps} if files else set()
     for mod, ls in sorted(by_mod.items()):
         f = module_file(root, mod, skip)
         if not f:
             report["missing_modules"].append(mod)  # a leak of a module this bundle does not carry (the other bundle: strict vs proposed)
             continue
-        done, skipped = rewrite_file(f, ls, mod)
+        parts = parts_of(mod)
+        native = ".".join(parts[2:]) if parts and len(parts) > 2 else mod
+        done, skipped = rewrite_file(f, ls, mod, native in imported or not files)
         report["rewritten"] += done
         report["skipped"] += [f"{mod}: {s}" for s in skipped]
     return report
@@ -508,6 +521,21 @@ def native_names(root: Path, skip: int) -> dict[str, Path]:
     return out
 
 
+def import_graph(files: dict[str, Path], skip: int) -> dict[str, list[str]]:
+    """module (the library's own name) -> the library's modules it imports directly"""
+    imports: dict[str, list[str]] = {}
+    for mod, f in files.items():
+        imports[mod] = []
+        for imp in tb.header_imports(f.read_text()):
+            parts = parts_of(imp)
+            if not parts:
+                continue
+            cand = ".".join(parts[2:]) if (skip == 0 and parts[:1] == ["Tengoku"] and len(parts) > 2) else ".".join(parts)
+            if cand in files:
+                imports[mod].append(cand)
+    return imports
+
+
 def reexport(root: Path, leaks: list[dict], skip: int = 0) -> dict:
     """What a module of the library registered globally, the library's OTHER modules saw as given: every module that imports (even
     indirectly) a module with a flagged registration gets `attribute [local instance] X` / `[local simp] X` for it, so inside the library nothing
@@ -525,16 +553,7 @@ def reexport(root: Path, leaks: list[dict], skip: int = 0) -> dict:
         parts = parts_of(modname)
         if parts and len(parts) > 2:
             own_notes[".".join(parts[2:])] = infos
-    imports: dict[str, list[str]] = {}
-    for mod, f in files.items():
-        imports[mod] = []
-        for imp in tb.header_imports(f.read_text()):
-            parts = parts_of(imp)
-            if not parts:
-                continue
-            cand = ".".join(parts[2:]) if (skip == 0 and parts[:1] == ["Tengoku"] and len(parts) > 2) else ".".join(parts)
-            if cand in files:
-                imports[mod].append(cand)
+    imports = import_graph(files, skip)
 
     def closure(mod: str) -> set[str]:
         seen, stack = set(), list(imports[mod])
