@@ -144,9 +144,30 @@ class Gh:
     def unmanaged_in_tree(self, key: str) -> bool:
         return self.exists(f"Tengoku/{pascal(key)}") and not self.exists(f"data/intake/{key}/manifest.jsonl")
 
-    def razed(self, key: str) -> bool:
-        """the library is not in the tree at all: its merged parts went out with a whole-library raze (docs/pr-classes.md, section 8)"""
+    def absent_from_tree(self, key: str) -> bool:
+        """neither the library's folder nor its intake records are on main"""
         return not self.exists(f"Tengoku/{pascal(key)}") and not self.exists(f"data/intake/{key}/manifest.jsonl")
+
+    def whole_raze_time(self, key: str) -> datetime | None:
+        """When the library was razed whole: the commit date of the newest marker data/raze/<id>.json on main that says {"library": key, "all": true} (a code owner read it before
+        it merged, scripts/ci/raze_check.py); None when there is none. Any error but a plain 404 on the folder is raised: this decides whether finished work is shipped again."""
+        r = self.run("api", f"repos/{self.target}/contents/data/raze?ref=main")
+        if r.returncode:
+            if "404" in r.stderr:
+                return None
+            raise RuntimeError(f"gh api contents/data/raze: {r.stderr.strip()[:300]}")
+        newest: datetime | None = None
+        for f in json.loads(r.stdout):
+            name = f["name"]
+            if not name.startswith(f"{key}-") or not name.endswith(".json"):
+                continue
+            marker = self.json("api", f"repos/{self.target}/contents/data/raze/{name}?ref=main", "-H", "Accept: application/vnd.github.raw")  # the file itself: JSON
+            if marker.get("library") != key or marker.get("all") is not True:
+                continue
+            commits = self.json("api", f"repos/{self.target}/commits?sha=main&path=data/raze/{name}&per_page=1")
+            when = datetime.fromisoformat(commits[0]["commit"]["committer"]["date"].replace("Z", "+00:00"))
+            newest = when if newest is None or when > newest else newest
+        return newest
 
 
 def open_pr(target: str, key: str, act: dict, auto_merge: bool, auto_first: bool = False) -> subprocess.CompletedProcess:
@@ -170,16 +191,23 @@ def tick(a: argparse.Namespace, gh: Gh, opener=open_pr, sleep=time.sleep, now: d
     bundles = newest_bundles(gh.runs(), now)
     wanted = set(a.keys.split()) if a.keys else None
     opened, skipped, failed = [], {}, []
-    for key, (run, _, from_tree) in sorted(bundles.items(), key=lambda kv: kv[1][1]):  # oldest bundle first: they expire first
+    for key, (run, created, from_tree) in sorted(bundles.items(), key=lambda kv: kv[1][1]):  # oldest bundle first: they expire first
         if wanted is not None and key not in wanted:
             continue
         if len(opened) >= room:
             break
         mine = by_key.get(key, [])
-        # a whole-library raze takes the merged parts out of the tree, and the recut that follows starts again at part 1: the merged pull requests of the key are history,
-        # not parts that are in the tree (2026-10-16: navier-stokes-euler 'every part is in the tree' for a library whose folder was gone)
-        if any(p.state == "MERGED" for p in mine) and gh.razed(key):
-            mine = [p for p in mine if p.state != "MERGED"]
+        # A library razed whole (a code-owner-reviewed marker data/raze/<id>.json {"library", "all": true}) is gone from the tree with its merged parts, and the recut that follows
+        # starts again at part 1: its merged pull requests are history, not parts that are in the tree (2026-10-16: navier-stokes-euler, "every part is in the tree" for a library
+        # whose folder was gone). Only with that evidence: a library missing from the tree for any other reason, or without a marker, keeps its history; and only for a bundle
+        # built after the raze (an older one is the very bundle that was razed).
+        if any(p.state == "MERGED" for p in mine) and gh.absent_from_tree(key):
+            razed_at = gh.whole_raze_time(key)
+            if razed_at is not None:
+                if datetime.fromisoformat(created.replace("Z", "+00:00")) <= razed_at:
+                    skipped[key] = "the library was razed whole after this bundle was built: it needs a recut"
+                    continue
+                mine = [p for p in mine if p.state != "MERGED"]
         unmanaged = not mine and gh.unmanaged_in_tree(key)
         verdict, what = decide(mine, run, unmanaged, from_tree)
         if verdict == "skip":

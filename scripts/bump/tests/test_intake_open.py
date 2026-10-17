@@ -1,4 +1,5 @@
 import argparse
+import json
 import subprocess
 import sys
 import unittest
@@ -93,8 +94,9 @@ class Budget(unittest.TestCase):
 
 
 class FakeGh:
-    def __init__(self, prs=(), runs=(), opened=0, in_tree=(), razed=()):
-        self._prs, self._runs, self._opened, self._in_tree, self._razed = list(prs), list(runs), opened, set(in_tree), set(razed)
+    def __init__(self, prs=(), runs=(), opened=0, in_tree=(), absent=(), razes=None):
+        self._prs, self._runs, self._opened, self._in_tree, self._absent = list(prs), list(runs), opened, set(in_tree), set(absent)
+        self._razes = razes or {}  # key -> when the whole-library raze marker merged
 
     def prs(self):
         return self._prs
@@ -108,8 +110,11 @@ class FakeGh:
     def unmanaged_in_tree(self, key):
         return key in self._in_tree
 
-    def razed(self, key):
-        return key in self._razed
+    def absent_from_tree(self, key):
+        return key in self._absent
+
+    def whole_raze_time(self, key):
+        return self._razes.get(key)
 
 
 def run_row(run, key, hours_ago):
@@ -163,27 +168,89 @@ class Tick(unittest.TestCase):
         self.assertEqual(self.go(gh)[1], [("lib", 2, False)])
         self.assertEqual(self.go(gh, args(auto_merge=True))[1], [("lib", 2, True)])
 
-    def test_a_razed_library_starts_again_at_part_one_of_the_new_run(self):
+    OLD_PART = rows((7, "MERGED", "intake/lib-100000000-part-005", "intake: lib part 5 of 5 (3 verified theorems in 1 modules)"))
+
+    def test_a_library_razed_whole_starts_again_at_part_one_of_a_bundle_built_after_the_raze(self):
         # 2026-10-16: navier-stokes-euler was razed whole (tengoku#579) and re-cut; its old part 5 of 5 was MERGED, so the opener said 'every part is in the tree' for a library whose folder was gone
-        old = rows((7, "MERGED", "intake/lib-100000000-part-005", "intake: lib part 5 of 5 (3 verified theorems in 1 modules)"))
-        gh = FakeGh(prs=old, runs=[run_row(200000000, "lib", 1)], razed=["lib"])
-        out, calls, _ = self.go(gh)
+        razed = {"lib": NOW - timedelta(hours=3)}  # the bundle is 1 hour old
+        out, calls, _ = self.go(FakeGh(prs=self.OLD_PART, runs=[run_row(200000000, "lib", 1)], absent=["lib"], razes=razed))
         self.assertEqual((out["opened"], out["skipped"], calls), (["lib"], {}, [("lib", 1, False)]))
-        out, calls, _ = self.go(FakeGh(prs=old, runs=[run_row(200000000, "lib", 1)]))  # the library is still in the tree: nothing follows its last part
-        self.assertEqual((out["opened"], out["skipped"], calls), ([], {"lib": "every part is in the tree"}, []))
+
+    def test_the_history_is_forgotten_only_with_the_marker_the_library_missing_from_the_tree_and_a_newer_bundle(self):
+        runs = [run_row(200000000, "lib", 1)]
+
+        def refused(gh, why):
+            out, calls, _ = self.go(gh)
+            self.assertEqual((out["opened"], calls), ([], []))
+            self.assertIn(why, out["skipped"]["lib"])
+
+        # still in the tree (a marker from an earlier raze is history): nothing follows its last part
+        refused(FakeGh(prs=self.OLD_PART, runs=runs, razes={"lib": NOW - timedelta(hours=3)}), "every part is in the tree")
+        # missing from the tree but no marker (deregistered, moved, an API that answered 404 for another reason): nothing is shipped again
+        refused(FakeGh(prs=self.OLD_PART, runs=runs, absent=["lib"]), "every part is in the tree")
+        # missing, razed, but the newest bundle is older than the raze: it is the very bundle that was razed
+        refused(FakeGh(prs=self.OLD_PART, runs=runs, absent=["lib"], razes={"lib": NOW - timedelta(minutes=30)}), "needs a recut")
 
     def test_a_razed_library_keeps_its_open_and_closed_pull_requests(self):
         # only the MERGED ones are history: an open part still blocks the library, and one closed for this run is still not reopened
         merged = (7, "MERGED", "intake/lib-100000000-part-005", "intake: lib part 5 of 5 (3 verified theorems in 1 modules)")
-        out, calls, _ = self.go(FakeGh(prs=rows(merged, (8, "OPEN", "intake/lib-200000000-part-001", "")), runs=[run_row(200000000, "lib", 1)], razed=["lib"]))
+        razed = {"lib": NOW - timedelta(hours=3)}
+        out, calls, _ = self.go(FakeGh(prs=rows(merged, (8, "OPEN", "intake/lib-200000000-part-001", "")), runs=[run_row(200000000, "lib", 1)], absent=["lib"], razes=razed))
         self.assertEqual((out["opened"], out["skipped"]), ([], {"lib": "a pull request of this library is open"}))
-        out, calls, _ = self.go(FakeGh(prs=rows(merged, (9, "CLOSED", "intake/lib-200000000-part-001", "")), runs=[run_row(200000000, "lib", 1)], razed=["lib"]))
+        out, calls, _ = self.go(FakeGh(prs=rows(merged, (9, "CLOSED", "intake/lib-200000000-part-001", "")), runs=[run_row(200000000, "lib", 1)], absent=["lib"], razes=razed))
         self.assertEqual(out["opened"], [])
         self.assertIn("closed without merging", out["skipped"]["lib"])
+
+    def test_a_library_with_no_merged_part_costs_no_lookup(self):
+        class Strict(FakeGh):
+            def absent_from_tree(self, key):
+                raise AssertionError("looked at the tree of a library with no merged part")
+
+        out, calls, _ = self.go(Strict(runs=[run_row(1, "fresh", 1)]))
+        self.assertEqual(out["opened"], ["fresh"])
 
     def test_a_library_in_the_tree_without_an_intake_is_skipped(self):
         out, calls, _ = self.go(FakeGh(runs=[run_row(1, "seeded", 1)], in_tree=["seeded"]))
         self.assertEqual((calls, out["skipped"]), ([], {"seeded": "in the tree without an intake"}))
+
+
+class WholeRazeTime(unittest.TestCase):
+    """Gh.whole_raze_time against canned answers of the GitHub API"""
+
+    def gh(self, listing, files, commits, listing_rc=0, listing_err=""):
+        g = io.Gh("o/t", "o/f", "app/x")
+
+        def run(*a):
+            path = a[1]
+            if path.endswith("contents/data/raze?ref=main"):
+                return subprocess.CompletedProcess([], listing_rc, stdout=json.dumps(listing), stderr=listing_err)
+            for name, marker in files.items():
+                if f"contents/data/raze/{name}" in path:
+                    return subprocess.CompletedProcess([], 0, stdout=json.dumps(marker), stderr="")
+            for name, when in commits.items():
+                if f"path=data/raze/{name}" in path:
+                    return subprocess.CompletedProcess([], 0, stdout=json.dumps([{"commit": {"committer": {"date": when}}}]), stderr="")
+            raise AssertionError(path)
+
+        g.run = run
+        return g
+
+    def test_the_newest_whole_library_marker_of_the_key_counts_and_nothing_else(self):
+        listing = [{"name": n} for n in ("lib-2026-10-01.json", "lib-2026-10-16.json", "lib-leaks-2026-10-16.json", "library-2026-10-16.json", "other-2026-10-16.json", "README.md")]
+        files = {
+            "lib-2026-10-01.json": {"library": "lib", "all": True},
+            "lib-2026-10-16.json": {"library": "lib", "all": True},
+            "lib-leaks-2026-10-16.json": {"library": "lib", "modules": ["Tengoku.Lib.A"]},  # a partial raze: the library stays in the tree
+            "library-2026-10-16.json": {"library": "library", "all": True},  # another key that starts with the same letters
+        }
+        commits = {"lib-2026-10-01.json": "2026-10-01T10:00:00Z", "lib-2026-10-16.json": "2026-10-16T18:07:00Z"}
+        self.assertEqual(self.gh(listing, files, commits).whole_raze_time("lib"), datetime(2026, 10, 16, 18, 7, tzinfo=timezone.utc))
+
+    def test_no_marker_and_no_folder_are_none_but_any_other_error_is_raised(self):
+        self.assertIsNone(self.gh([], {}, {}).whole_raze_time("lib"))
+        self.assertIsNone(self.gh([], {}, {}, listing_rc=1, listing_err="gh: Not Found (HTTP 404)").whole_raze_time("lib"))
+        with self.assertRaises(RuntimeError):
+            self.gh([], {}, {}, listing_rc=1, listing_err="gh: API rate limit exceeded (HTTP 403)").whole_raze_time("lib")
 
 
 class FromTreeRecuts(unittest.TestCase):
