@@ -166,6 +166,116 @@ class ForbiddenNamespace(unittest.TestCase):
             sr.FORBIDDEN_NS.clear()
 
 
+class Dependents(unittest.TestCase):
+    """tengoku#601 (Gitar): `infixr:6 "v" => or` made scoped, but `notation φ " ↣ " ψ => (~ φ) v ψ` stayed global: outside the scope it expands to a `v` that has no
+    meaning there (\"elaboration function … has not been implemented\", reproduced on Leak IV). A global notation whose right-hand side uses a notation that was just
+    made scoped or local is made scoped or local too, to a fixed point."""
+
+    GL = (
+        "import Tengoku.Lib.Base\n\nnamespace GL\n\ninductive Formula | bottom | or (a b : Formula) | neg (a : Formula)\n\n"
+        'infixr:6 "v" => Formula.or\nprefix:50 "~" => Formula.neg\n'
+        'notation:55 φ:56 " ↣ " ψ:55 => (~ φ) v ψ\nnotation:55 φ:56 " ⟷ " ψ:55 => (φ ↣ ψ) v (ψ ↣ φ)\nnotation "unrelated" => Formula.bottom\n\nend GL\n\n'
+        "open GL\n\ntheorem t (φ ψ : Formula) : φ ⟷ ψ = φ ⟷ ψ := rfl\n"
+    )
+    LEAK = "leak: notation GL.«termV» registered in Tengoku.Lib.GL (declared at line 7)"
+
+    def library(self, d, files):
+        for rel, text in files.items():
+            p = Path(d) / "Tengoku" / "Lib" / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(text)
+        return Path(d) / "Tengoku" / "Lib"
+
+    def test_a_notation_that_uses_a_scoped_one_is_scoped_too_and_a_chain_follows(self):
+        with tempfile.TemporaryDirectory() as d:
+            base = self.library(d, {"GL.lean": self.GL, "Base.lean": "theorem b : True := trivial\n"})
+            rep = sr.apply_bundle(Path(d), sr.parse(self.LEAK))
+            text = (base / "GL.lean").read_text()
+            self.assertIn('scoped infixr:6 "v" => Formula.or', text)
+            self.assertIn('scoped notation:55 φ:56 " ↣ " ψ:55 => (~ φ) v ψ', text)
+            self.assertIn('scoped notation:55 φ:56 " ⟷ " ψ:55 => (φ ↣ ψ) v (ψ ↣ φ)', text)  # uses `v` and `↣`
+            self.assertIn('\nprefix:50 "~" => Formula.neg\n', text)  # not an atom of anything that was scoped
+            self.assertIn('\nnotation "unrelated" => Formula.bottom\n', text)
+            self.assertEqual(len(rep["dependents"]), 2, rep)
+            self.assertEqual(rep["rewritten"], 3)
+            self.assertEqual(text.count("open scoped GL"), 1, text)  # the dependents' activation is the one the first pass put there
+            self.assertEqual(text.count("-- Tengoku: "), 1, text)
+            self.assertIn("-- Tengoku: 3 notation(s) of this module made scoped so they", text)
+
+    def test_the_chain_is_followed_across_modules_whatever_the_order_of_the_files(self):
+        with tempfile.TemporaryDirectory() as d:
+            base = self.library(
+                d,
+                {
+                    "B.lean": 'import Tengoku.Lib.Base\n\nnamespace GL\ninfixr:6 "v" => Formula.or\nnotation:55 φ:56 " ↣ " ψ:55 => φ v ψ\nend GL\n',
+                    # `A` sorts before `B` and imports it: its notation is seen before the one it depends on was edited, so a single sweep would miss it
+                    "A.lean": 'import Tengoku.Lib.B\n\nnamespace GL\nnotation:55 φ:56 " ⟷ " ψ:55 => (φ ↣ ψ) = (ψ ↣ φ)\nend GL\n',
+                    "Base.lean": "theorem b : True := trivial\n",
+                },
+            )
+            leaks = sr.parse("leak: notation GL.«termV» registered in Tengoku.Lib.B (declared at line 4)")
+            rep = sr.apply_bundle(Path(d), leaks)
+            sr.reexport(Path(d), leaks)
+            a = (base / "A.lean").read_text()
+            self.assertIn('scoped notation:55 φ:56 " ⟷ " ψ:55', a)
+            self.assertIn("open scoped GL", a)  # an importer of a module with a scoped notation opens it
+            self.assertEqual(sorted(x.split(":")[0] for x in rep["dependents"]), ["A", "B"])
+
+    def test_words_are_whole_words_and_a_single_ascii_character_is_not_searched_for(self):
+        with tempfile.TemporaryDirectory() as d:
+            base = self.library(
+                d,
+                {
+                    "M.lean": 'import Tengoku.Lib.Base\n\nnamespace M\nprefix:80 "-" => complement\ninfixr:6 "v" => or\nend M\n',
+                    "U.lean": (
+                        "import Tengoku.Lib.M\n\n"
+                        'notation "sub" a b => a - b\n'
+                        'notation "w1" => vec\nnotation "w2" => v\'\nnotation "w3" x => f v x\n'
+                    ),
+                    # imports nothing of M: its `v` is a variable, not the notation
+                    "Unrelated.lean": 'import Tengoku.Lib.Base\n\nnotation "w4" x => f v x\n',
+                    "Base.lean": "theorem b : True := trivial\n",
+                },
+            )
+            leaks = sr.parse("leak: notation M.«term-_» registered in Tengoku.Lib.M (declared at line 4);leak: notation M.termV registered in Tengoku.Lib.M (declared at line 5)")
+            rep = sr.apply_bundle(Path(d), leaks)
+            u = (base / "U.lean").read_text()
+            self.assertIn('\nnotation "sub" a b => a - b\n', u)  # `-` is in every right-hand side
+            self.assertIn('\nnotation "w1" => vec\n', u)
+            self.assertIn("\nnotation \"w2\" => v'\n", u)
+            self.assertIn('local notation "w3" x => f v x', u)  # the root namespace: local
+            self.assertIn('\nnotation "w4" x => f v x\n', (base / "Unrelated.lean").read_text())
+            self.assertEqual(rep["atoms_not_searched"], ["-"])
+            self.assertEqual(len(rep["dependents"]), 1, rep)
+
+    def test_a_dependent_that_cannot_be_scoped_is_reported_and_left(self):
+        sr.FORBIDDEN_NS.add("Other")
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                base = self.library(
+                    d,
+                    {
+                        "M.lean": 'import Tengoku.Lib.Base\n\nnamespace M\ninfixr:6 "v" => or\nend M\n',
+                        "U.lean": 'import Tengoku.Lib.M\n\nnamespace Other\nnotation "w3" x => f v x\nend Other\n',
+                        "V.lean": "import Tengoku.Lib.U\n\ntheorem v : True := trivial\n",  # an importer would have to open `Other`
+                        "Base.lean": "theorem b : True := trivial\n",
+                    },
+                )
+                rep = sr.apply_bundle(Path(d), sr.parse("leak: notation M.termV registered in Tengoku.Lib.M (declared at line 4)"))
+                self.assertEqual(rep["dependents"], [])
+                self.assertTrue(any("Other" in s and "w3" in s for s in rep["skipped"]), rep)
+                self.assertNotIn("scoped", (base / "U.lean").read_text())
+        finally:
+            sr.FORBIDDEN_NS.clear()
+
+    def test_a_bundle_without_notation_leaks_is_not_looked_at(self):
+        with tempfile.TemporaryDirectory() as d:
+            base = self.library(d, {"GL.lean": self.GL, "Base.lean": "theorem b : True := trivial\n"})
+            rep = sr.apply_bundle(Path(d), [])
+            self.assertNotIn("dependents", rep)
+            self.assertEqual((base / "GL.lean").read_text(), self.GL)
+
+
 class File(unittest.TestCase):
     def rewrite(self, text, leaks):
         with tempfile.TemporaryDirectory() as d:
