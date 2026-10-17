@@ -261,6 +261,9 @@ jobs:
           /-- LEAK: the second atom of a tactic is a token -/
           syntax "quux " "zork" : tactic
 
+          /-- LEAK: the separator of a `sepBy` is a token as well -/
+          syntax "sepdemo(" sepBy(num, "sepword") ")" : term
+
           /-- not a leak: `&"nrword"` is a non-reserved symbol, it never enters the token table (it reads an identifier) -/
           syntax "nrtac" &"nrword" : tactic
 
@@ -283,8 +286,8 @@ jobs:
           print("reported:", sorted(leaks))
           # notation: the prefix `-`, the word `vee`, the atom `zork`; not the new symbol, not `toytac`, not the scoped ones
           notes = [m.group(1) for m in re.finditer(r"^leak: notation (\S+) registered in LeakToy", out, re.M)]
-          assert len(notes) == 3 and any("term-_" in n for n in notes) and any("Vee" in n and "Vee2" not in n for n in notes) and any("Zork" in n for n in notes), (notes, out)
+          assert len(notes) == 4 and any("term-_" in n for n in notes) and any("Vee" in n and "Vee2" not in n for n in notes) and any("Zork" in n for n in notes) and any("Sepdemo" in n for n in notes), (notes, out)
           assert not any(x in n for n in notes for x in ("⊞⊞", "Toytac", "~~", "Vee2", "Nrtac")), (notes, out)
-          assert re.search(r"global parsers \(3 reuse a token of another module or reserve a word as one\), 2 scoped", out.splitlines()[0]), out.splitlines()[0]
+          assert re.search(r"global parsers \(4 reuse a token of another module or reserve a word as one\), 2 scoped", out.splitlines()[0]), out.splitlines()[0]
           print("notation reported:", sorted(notes))
           PY
