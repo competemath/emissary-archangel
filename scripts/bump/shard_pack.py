@@ -6,6 +6,12 @@ pack   --lib DIR --out DIR      the repaired sources and range sidecars of the s
 merge  --shards DIR --out DIR   the shards' packs side by side as ONE library directory (sources + sidecars, first copy wins: a module
                                 several shards built was repaired the same way), the logs concatenated, passed.json merged — exactly what
                                 `bundle.py compose` reads from a single-job run
+select --planned JSON --only L  the shards a run builds: all of the plan, or only the listed ones (RESUME: the one that died)
+fill   --shards DIR --fill DIR  RESUME: the shard artifacts of an earlier run (--fill) that this run did not produce are moved into --shards
+complete --shards DIR --key K --planned JSON
+                                every shard of the plan has its result: a shard whose job died leaves no artifact, and the merge, which reads what is there, would
+                                take the library for one without that shard's modules (tengoku navier-stokes-euler, 2026-10-17: shard 1, two thirds of the lines,
+                                died on a runner shutdown and the bundle was composed without it)
 """
 
 import argparse
@@ -114,6 +120,44 @@ def merge(a: argparse.Namespace) -> None:
     print(f"merged: {sum(len(v) for v in passed.values())} passed names in {len(passed)} modules; {len(killed)} modules without a Gate 2 verdict")
 
 
+def has_pack(artifact: Path) -> bool:
+    d = next(iter(artifact.glob("shard-pack")), artifact) if artifact.is_dir() else artifact
+    return (d / "src").exists()
+
+
+def select(a: argparse.Namespace) -> None:
+    planned = json.loads(a.planned)
+    only = [x for x in re.split(r"[,\s]+", a.only.strip()) if x]
+    if not only:
+        print(json.dumps(planned))
+        return
+    unknown = [x for x in only if x not in {str(s) for s in planned}]
+    if unknown:
+        sys.exit(f"select: shard(s) {unknown} are not in the plan {planned}")
+    print(json.dumps([s for s in planned if str(s) in only]))
+
+
+def fill(a: argparse.Namespace) -> None:
+    shards, source = Path(a.shards), Path(a.fill)
+    moved = 0
+    for d in sorted(source.glob("*")) if source.is_dir() else []:
+        if d.is_dir() and not d.is_symlink() and not (shards / d.name).exists():
+            shutil.move(str(d), str(shards / d.name))
+            moved += 1
+    print(f"filled in {moved} shard(s) from the earlier run")
+
+
+def complete(a: argparse.Namespace) -> None:
+    planned = json.loads(a.planned)
+    missing = [s for s in planned if not has_pack(Path(a.shards) / f"shard-{a.key}-{s}")]
+    if missing:
+        sys.exit(
+            f"complete: no result for shard(s) {missing} of the {len(planned)} planned: the job died or the artifact is gone. "
+            "Run them again (workflow input only_shards, with fill_from = this run for the others) and compose from that"
+        )
+    print(f"all {len(planned)} planned shards have a result")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -125,5 +169,14 @@ if __name__ == "__main__":
     m = sub.add_parser("merge")
     for f in ("shards", "out", "logs"):
         m.add_argument(f"--{f}", required=True)
+    s = sub.add_parser("select")
+    s.add_argument("--planned", required=True)
+    s.add_argument("--only", default="")
+    fl = sub.add_parser("fill")
+    for f in ("shards", "fill"):
+        fl.add_argument(f"--{f}", required=True)
+    c = sub.add_parser("complete")
+    for f in ("shards", "key", "planned"):
+        c.add_argument(f"--{f}", required=True)
     a = ap.parse_args()
-    pack(a) if a.cmd == "pack" else merge(a)
+    {"pack": pack, "merge": merge, "select": select, "fill": fill, "complete": complete}[a.cmd](a)
