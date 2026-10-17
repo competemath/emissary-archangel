@@ -10,6 +10,11 @@ them, with positions, from the compiled environment:
     leak: instance Matrix.linftyOpNormedAddCommGroup registered in Tengoku.X.Y (declared in Tengoku.Analysis.Matrix.Normed: an `attribute` command ...)
     leak: simp Imo1979P6.Walk.take_append registered in Tengoku.Compfiles.Compfiles.Imo1979P6 (declared at line 62)
 
+A third kind is NOTATION (`leak: notation LO.Modal.Formula.«term-_» registered in Tengoku.… (declared at line 24)`): a global `prefix:80 "-" => complement` is a second
+reading of every `-(…)` in the tree ("Ambiguous term" on a real number), and a global `notation "v" => …` or `elab "superpose" …` makes `v`, `superpose` reserved words in every
+file. The command is made `scoped` (inside a namespace; `open scoped N` after the block that closes N and in the library's own importers) or, in the root namespace, `local`
+(the command is declared again, `local`, in the importers).
+
 This turns each of those into `local` (`instance` -> `local instance`, `@[simp]` -> `@[local simp]`, `attribute [instance] X` ->
 `attribute [local instance] X`) in the bundle's module. It edits inside lines and never adds one, so the positions of the report stay valid;
 a note is appended at the end of each changed file. Nothing is trusted: the tree's build of the rewritten bundle decides whether a
@@ -31,7 +36,7 @@ import autonames  # noqa: E402
 import tolerant_build as tb  # noqa: E402
 
 LEAK = re.compile(
-    r"leak:\s+(?P<kind>instance|simp)\s+(?P<name>[^\s;]+)\s+registered in\s+(?P<mod>[^\s;]+)"
+    r"leak:\s+(?P<kind>instance|simp|notation)\s+(?P<name>(?:«[^»]*»|[^\s;«»])+)\s+registered in\s+(?P<mod>[^\s;]+)"
     r"(?:\s+\(priority (?P<prio>\d+)\))?"
     r"(?:\s+\(declared at line (?P<line>\d+)\)|\s+\(declared in (?P<other>\S+?):)?"
 )
@@ -238,6 +243,86 @@ def edit_named_declaration(f: Lines, name: str, kind: str) -> str:
     return seen
 
 
+NOTATION_KW = re.compile(
+    r"^(?P<pre>[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|public|noncomputable)[ \t]+)*)(?P<mod>(?:local|scoped)[ \t]+)?"
+    r"(?P<kw>prefix|infixl|infixr|infix|postfix|notation3|notation|syntax|macro|elab)(?![\w'.])"
+)
+
+
+def namespace_at(code: list[str], i: int) -> str:
+    """the namespace the line `i` (0-based) is in: the `namespace` blocks that enclose it, joined (sections add nothing)"""
+    blocks: list[list[str]] = []
+    for ln in code[:i]:
+        if m := NAMESPACE.match(ln):
+            blocks.append(m.group(1).split("."))
+        elif OPENER.match(ln):
+            blocks.append([])
+        elif CLOSER.match(ln) and blocks:
+            blocks.pop()
+    return ".".join(c for blk in blocks for c in blk)
+
+
+def code_end(text: str) -> int:
+    """the column where the code of this line ends: before a `--` comment that is not inside a string literal"""
+    inside, i = False, 0
+    while i < len(text):
+        c = text[i]
+        if inside:
+            if c == "\\":
+                i += 2
+                continue
+            inside = c != '"'
+        elif c == '"':
+            inside = True
+        elif text.startswith("--", i):
+            return len(text[:i].rstrip())
+        i += 1
+    return len(text.rstrip())
+
+
+def edit_notation(f: Lines, line: int) -> tuple[str, dict | None]:
+    """The notation / syntax / macro / elab command of the declaration that starts at `line` (1-based; the range includes its doc comment and attributes), made `scoped`
+    when it sits in a namespace and `local` in the root namespace. ("edited", info), ("already", None) when it is local or scoped already, ("missing", None). `info`: mode,
+    ns (the namespace it is scoped to), cmd (the command from its keyword, without a trailing comment: what an importer declares again when it is local), line (0-based),
+    multiline (the command goes on in the next line: it cannot be declared again by copying one line)."""
+    for i in range(max(0, line - 1), min(len(f.text), line + 14)):
+        m = NOTATION_KW.match(f.code[i])
+        if not m:
+            continue
+        if m.group("mod"):
+            return "already", None
+        ns = namespace_at(f.code, i)
+        col = m.start("kw")
+        cmd = f.text[i][col : code_end(f.text[i])]
+        nxt = f.code[i + 1] if i + 1 < len(f.code) else ""
+        f.insert(i, col, "scoped " if ns else "local ")
+        return "edited", {"mode": "scoped" if ns else "local", "ns": ns, "cmd": cmd, "line": i, "multiline": bool(nxt.strip()) and nxt[:1] in " \t"}
+    return "missing", None
+
+
+def activation_lines(infos: list[dict]) -> list[str]:
+    """what makes the notations of `infos` active again: one `open scoped N …` for the scoped ones, the command again (`local …`) for the local ones"""
+    ns = sorted({x["ns"] for x in infos if x["mode"] == "scoped"})
+    cmds: list[str] = []
+    for x in sorted(infos, key=lambda x: x["line"]):
+        if x["mode"] == "local" and not x["multiline"] and x["cmd"] not in cmds:
+            cmds.append(x["cmd"])
+    return (["open scoped " + " ".join(ns)] if ns else []) + ["local " + c for c in cmds]
+
+
+def notation_reopens(f: Lines, notes: list[tuple[int, dict]]) -> dict[int, list[str]]:
+    """A `scoped` notation is active inside its namespace, a `local` one until the end of the block it sits in; what follows that block in the same file used to see it.
+    For every enclosing block that has code after its `end` (more than the `end`s of the blocks around it), the notation is activated again right after that `end`."""
+    open_at, end_of = scope_info(f.code)
+    by_end: dict[int, list[dict]] = {}
+    for i, info in notes:
+        for opener in open_at[i]:
+            end = end_of.get(opener)
+            if end is not None and any(ln.strip() and not CLOSER.match(ln) for ln in f.code[end + 1 :]):
+                by_end.setdefault(end, []).append(info)
+    return {end: activation_lines(infos) for end, infos in by_end.items()}
+
+
 OPENER = re.compile(r"^\s*(?:namespace\s+\S+|(?:@\[expose\]\s+)?(?:(?:public|noncomputable)\s+)*section\b.*|mutual\s*)$")
 CLOSER = re.compile(r"^\s*end\b")
 
@@ -280,13 +365,26 @@ def attribute_lines(groups: dict[tuple[str, int | None], set[str]]) -> list[str]
     return lines
 
 
-def rewrite_file(path: Path, leaks: list[dict]) -> tuple[int, list[str]]:
+NOTATION_EDITS: dict[str, list[dict]] = {}  # leak module name -> what was done to its notations (reexport gives the importers the same activation)
+
+
+def rewrite_file(path: Path, leaks: list[dict], mod: str | None = None) -> tuple[int, list[str]]:
     text = path.read_text()
     f = Lines(text)
     done, skipped = 0, []
     edits: list[tuple[int, dict]] = []
+    notes: list[tuple[int, dict]] = []
     for lk in sorted(leaks, key=lambda x: -(x["line"] or 0)):
         before = len(f.edited)
+        if lk["kind"] == "notation":
+            r, info = edit_notation(f, lk["line"]) if lk["line"] else ("missing", None)
+            if r == "edited":
+                notes.append((info["line"], info))
+                if info["multiline"] and info["mode"] == "local":
+                    skipped.append(f"notation {lk['name']}: a local command of several lines cannot be declared again in the importers")
+            elif r == "missing":
+                skipped.append(f"notation {lk['name']}")
+            continue
         if lk["line"]:
             r = edit_declaration(f, lk["line"], lk["kind"])
         else:
@@ -298,15 +396,30 @@ def rewrite_file(path: Path, leaks: list[dict]) -> tuple[int, list[str]]:
             edits.append((f.edited[before], lk))
         elif r == "missing":
             skipped.append(f"{lk['kind']} {lk['name']}")
-    if done:
-        for end, groups in sorted(reregistrations(f, edits).items(), reverse=True):  # bottom first: a line inserted below never moves one above
-            f.text[end + 1 : end + 1] = attribute_lines(groups)
+    if done or notes:
+        adds: dict[int, list[str]] = {}
+        for end, groups in reregistrations(f, edits).items():
+            adds.setdefault(end, []).extend(attribute_lines(groups))
+        for end, lines in notation_reopens(f, notes).items():
+            adds.setdefault(end, []).extend(lines)
+        for end, lines in sorted(adds.items(), reverse=True):  # bottom first: a line inserted below never moves one above
+            f.text[end + 1 : end + 1] = lines
         new = "\n".join(f.text)
-        path.write_text(new + ("" if new.endswith("\n") else "\n") + f"-- Tengoku: {done} registration(s) of this module made local so they do not change other libraries (generated)\n")
-    return done, skipped
+        if not new.endswith("\n"):
+            new += "\n"
+        if done:
+            new += f"-- Tengoku: {done} registration(s) of this module made local so they do not change other libraries (generated)\n"
+        if notes:
+            kinds = "scoped" if all(i["mode"] == "scoped" for _, i in notes) else "local" if all(i["mode"] == "local" for _, i in notes) else "scoped or local"
+            new += f"-- Tengoku: {len(notes)} notation(s) of this module made {kinds} so they do not change other libraries (generated)\n"
+        path.write_text(new)
+        if notes and mod:
+            NOTATION_EDITS[mod] = [i for _, i in notes]
+    return done + len(notes), skipped
 
 
 def apply_bundle(root: Path, leaks: list[dict], skip: int = 0) -> dict:
+    NOTATION_EDITS.clear()
     by_mod: dict[str, list[dict]] = {}
     for lk in leaks:
         by_mod.setdefault(lk["mod"], []).append(lk)
@@ -316,7 +429,7 @@ def apply_bundle(root: Path, leaks: list[dict], skip: int = 0) -> dict:
         if not f:
             report["missing_modules"].append(mod)  # a leak of a module this bundle does not carry (the other bundle: strict vs proposed)
             continue
-        done, skipped = rewrite_file(f, ls)
+        done, skipped = rewrite_file(f, ls, mod)
         report["rewritten"] += done
         report["skipped"] += [f"{mod}: {s}" for s in skipped]
     return report
@@ -376,10 +489,15 @@ def reexport(root: Path, leaks: list[dict], skip: int = 0) -> dict:
     if not files:
         return {"reexported": 0, "modules": 0}
     own_leaks: dict[str, list[dict]] = {}
+    own_notes: dict[str, list[dict]] = {}
     for lk in leaks:
         parts = parts_of(lk["mod"])
-        if parts and len(parts) > 2 and nameable(lk["name"]):
+        if parts and len(parts) > 2 and lk["kind"] != "notation" and nameable(lk["name"]):
             own_leaks.setdefault(".".join(parts[2:]), []).append(lk)
+    for modname, infos in NOTATION_EDITS.items():
+        parts = parts_of(modname)
+        if parts and len(parts) > 2:
+            own_notes[".".join(parts[2:])] = infos
     imports: dict[str, list[str]] = {}
     for mod, f in files.items():
         imports[mod] = []
@@ -403,9 +521,11 @@ def reexport(root: Path, leaks: list[dict], skip: int = 0) -> dict:
     patched = names_total = 0
     for mod, f in sorted(files.items()):
         inherited: list[dict] = []
+        inherited_notes: list[dict] = []
         for dep in sorted(closure(mod) - {mod}):
             inherited += own_leaks.get(dep, [])
-        if not inherited:
+            inherited_notes += own_notes.get(dep, [])
+        if not inherited and not inherited_notes:
             continue
         lines = f.read_text().split("\n")
         groups: dict[tuple[str, int | None], list[str]] = {}
@@ -419,6 +539,7 @@ def reexport(root: Path, leaks: list[dict], skip: int = 0) -> dict:
             for k in range(0, len(uniq), 6):
                 ins.append(f"attribute [{attr}] " + " ".join(uniq[k : k + 6]))
             names_total += len(uniq)
+        ins = activation_lines(inherited_notes) + ins
         at = body_start(lines)
         lines[at:at] = ins + [""]
         f.write_text("\n".join(lines))
@@ -456,7 +577,7 @@ def for_tree(leaks: list[dict]) -> list[dict]:
     out = []
     for lk in leaks:
         parts = parts_of(lk["mod"])
-        out.append({**lk, "name": autonames.rewrite(lk["name"], parts[2])[0]} if parts and len(parts) > 2 else lk)
+        out.append({**lk, "name": autonames.rewrite(lk["name"], parts[2])[0]} if parts and len(parts) > 2 and lk["kind"] != "notation" else lk)
     return out
 
 
