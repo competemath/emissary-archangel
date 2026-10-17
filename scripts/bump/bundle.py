@@ -542,7 +542,7 @@ def compose(a: argparse.Namespace) -> None:
         out_dir.with_name(out_dir.name + ".ledger.json").write_text(
             json.dumps({"library": a.key, "lint_mode": mode, "verified": total, "shipped": len(manifest), "left_out": dict(left_out), "modules": dict(sorted(ledger.items()))}, indent=1)
         )
-        report = {"library": a.key, "lint_mode": mode, "gate2_unjudged": unjudged, "gate2_left_out": no_verdict, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]), "dropped_truncated": len(dropped) > 50,
+        report = {"library": a.key, "lint_mode": mode, "gate2_unjudged": unjudged, "campaign_note": "built from a branch", "gate2_left_out": no_verdict, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]), "dropped_truncated": len(dropped) > 50,
                   "theorems": len(manifest), "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "textually_kept": textually_kept, "dependency_graph": ({**graph_stats, "text_kept_tainted": len(graph_stats["text_kept_tainted"]), "text_kept_tainted_first": graph_stats["text_kept_tainted"][:20], "taint_drops": a.taint_drops} if graph is not None else None), "failed_seeds_shipped": [f"{m}:{b[0]}" for m, b in failed_seeds[:50]], "failed_seeds_shipped_total": len(failed_seeds), "stripped_attributes": dict(stripped_attrs.most_common(15)),
                   "lint_cost": dict(sorted(classes.items(), key=lambda x: -x[1])[:15])}
         (out_dir / "report.json").write_text(json.dumps(report, indent=1))
