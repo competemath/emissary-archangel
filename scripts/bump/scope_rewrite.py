@@ -41,7 +41,13 @@ ATTR_CMD = re.compile(r"^\s*attribute\s*\[")
 def parse(text: str) -> list[dict]:
     # every `leak:` entry of the text, whatever separates them (newlines, `;`, or the single line a log flattens them to)
     return [
-        {"kind": m["kind"], "name": m["name"], "mod": m["mod"], "line": int(m["line"]) if m["line"] else None, "prio": int(m["prio"]) if m["prio"] else None}
+        {
+            "kind": m["kind"],
+            "name": m["name"],
+            "mod": m["mod"],
+            "line": int(m["line"]) if m["line"] else None,
+            "prio": int(m["prio"]) if m["prio"] else None,
+        }
         for m in LEAK.finditer(text)
     ]
 
@@ -65,7 +71,11 @@ def module_file(root: Path, mod: str, skip: int = 0) -> Path | None:
     if parts is None or len(parts) <= skip:
         return None
     p = root.joinpath(*parts[skip:]).with_suffix(".lean")
-    if p.is_symlink() or not p.is_file() or not p.resolve().is_relative_to(root.resolve()):
+    if (
+        p.is_symlink()
+        or not p.is_file()
+        or not p.resolve().is_relative_to(root.resolve())
+    ):
         return None
     return p
 
@@ -161,7 +171,13 @@ def edit_attribute_command(f: Lines, name: str, kind: str) -> str:
         if not ATTR_CMD.match(s):
             continue
         j = i
-        while j + 1 < len(f.code) and f.code[j + 1].strip() and not f.code[j + 1].lstrip().startswith(("theorem", "lemma", "def", "instance", "@[")):
+        while (
+            j + 1 < len(f.code)
+            and f.code[j + 1].strip()
+            and not f.code[j + 1]
+            .lstrip()
+            .startswith(("theorem", "lemma", "def", "instance", "@["))
+        ):
             j += 1
         block = "\n".join(f.code[i : j + 1])
         if not re.search(rf"(?<![\w]){re.escape(n)}(?![\w'])", block):
@@ -178,34 +194,75 @@ def edit_attribute_command(f: Lines, name: str, kind: str) -> str:
     return "missing"
 
 
+NAMESPACE = re.compile(r"^\s*(?:(?:public|noncomputable)\s+)*namespace\s+(\S+)\s*$")
+NAMED_INSTANCE = re.compile(
+    r"^[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|noncomputable|nonrec|partial|unsafe|public)[ \t]+)*(?:local[ \t]+|scoped[ \t]+)?instance\s+(?:\(priority\s*:=[^)]*\)\s*)?([^\s:({\[]+)"
+)
+NAMED_THEOREM = re.compile(
+    r"^[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|noncomputable|nonrec|partial|unsafe|public)[ \t]+)*(?:theorem|lemma|def|abbrev)\s+([^\s:({\[]+)"
+)
+
+
 def edit_named_declaration(f: Lines, name: str, kind: str) -> str:
-    """A leak line without a position (`leak: instance X registered in M`, written by hand for a module whose text is not known yet, as in a recut): the first
-    DECLARATION of that name in the module, `instance NAME` (after attributes and modifiers) or `@[…simp…] theorem|lemma|def|abbrev NAME`, made local. Auto-generated
-    names (`inst…`) have no declaration to find. Same answers as edit_declaration."""
-    n = re.escape(short(name))
-    if kind == "instance":
-        decl = re.compile(
-            rf"^[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|noncomputable|nonrec|partial|unsafe|public)[ \t]+)*(?:local[ \t]+|scoped[ \t]+)?instance\s+(?:\(priority\s*:=[^)]*\)\s*)?{n}(?![\w'.])"
-        )
-    else:
-        decl = re.compile(rf"^[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|noncomputable|nonrec|partial|unsafe)[ \t]+)*(?:theorem|lemma|def|abbrev)\s+{n}(?![\w'.])")
+    """A leak line without a position (`leak: instance X registered in M`, written by hand for a module whose text is not known yet, as in a recut): the DECLARATION whose
+    full name is `name` in this module, `instance NAME` (after attributes and modifiers) or `@[…simp…] theorem|lemma|def|abbrev NAME`, made local. The full name is the
+    declared name under the `namespace`/`section`/`end` blocks that enclose it (`_root_.` aside), so `A.foo` and `B.foo` are different declarations. Only that declaration's
+    own line (instance) or attribute lines (simp: the `@[…]` on its line and on the lines right above it) are edited, never a neighbour's. Auto-generated names have no
+    declaration to find. Same answers as edit_declaration: "edited", "already", "missing"."""
+    decl = NAMED_INSTANCE if kind == "instance" else NAMED_THEOREM
+    blocks: list[
+        list[str]
+    ] = []  # one entry per open namespace / section / mutual; a namespace holds its name's components
     seen = "missing"
     for i, code in enumerate(f.code):
-        if not decl.match(code):
+        if m := NAMESPACE.match(code):
+            blocks.append(m.group(1).split("."))
+            continue
+        if OPENER.match(code):
+            blocks.append([])
+            continue
+        if CLOSER.match(code):
+            if blocks:
+                blocks.pop()
+            continue
+        dm = decl.match(code)
+        if not dm:
+            continue
+        declared = dm.group(1)
+        full = (
+            declared[len("_root_.") :]
+            if declared.startswith("_root_.")
+            else ".".join([c for blk in blocks for c in blk] + [declared])
+        )
+        if full != name:
+            continue
+        if kind == "instance":
+            if re.search(r"\b(?:local|scoped)\s+instance\b", code):
+                seen = "already"
+                continue
+            m = re.search(rf"(?<![\w.]){NOT_LOCAL}\binstance\b", code)
+            if m:
+                f.insert(i, m.start(), "local ")
+                return "edited"
             continue
         start = i
-        if kind == "simp":  # the attribute may sit on lines above the declaration
-            while start > 0 and f.code[start - 1].strip().startswith("@["):
-                start -= 1
-        r = edit_declaration(f, start + 1, kind)
-        if r == "edited":
-            return r
-        if r == "already":
-            seen = r
+        while start > 0 and f.code[start - 1].strip().startswith("@["):
+            start -= 1
+        for k in range(start, i + 1):  # the attributes of this declaration only
+            for attrs in re.finditer(r"@\[([^\]]*)\]", f.code[k]):
+                if re.search(r"\b(?:local|scoped)\s+simp\b", attrs.group(1)):
+                    seen = "already"
+                    continue
+                hit = re.search(rf"(?<![\w.]){NOT_LOCAL}\bsimp\b", attrs.group(1))
+                if hit:
+                    f.insert(k, attrs.start(1) + hit.start(), "local ")
+                    return "edited"
     return seen
 
 
-OPENER = re.compile(r"^\s*(?:namespace\s+\S+|(?:@\[expose\]\s+)?(?:(?:public|noncomputable)\s+)*section\b.*|mutual\s*)$")
+OPENER = re.compile(
+    r"^\s*(?:namespace\s+\S+|(?:@\[expose\]\s+)?(?:(?:public|noncomputable)\s+)*section\b.*|mutual\s*)$"
+)
 CLOSER = re.compile(r"^\s*end\b")
 
 
@@ -222,7 +279,9 @@ def scope_info(code: list[str]) -> tuple[list[tuple[int, ...]], dict[int, int]]:
     return open_at, end_of
 
 
-def reregistrations(f: Lines, edits: list[tuple[int, dict]]) -> dict[int, dict[tuple[str, int | None], set[str]]]:
+def reregistrations(
+    f: Lines, edits: list[tuple[int, dict]]
+) -> dict[int, dict[tuple[str, int | None], set[str]]]:
     """A `local` registration ends where the namespace or section it sits in ends; what follows in the same file used to see it. For every enclosing
     block that has code after its `end`, the registration is made again right after that `end` (outermost last): line -> (kind, priority) -> names."""
     open_at, end_of = scope_info(f.code)
@@ -234,16 +293,25 @@ def reregistrations(f: Lines, edits: list[tuple[int, dict]]) -> dict[int, dict[t
             end = end_of.get(opener)
             if end is not None and any(ln.strip() for ln in f.code[end + 1 :]):
                 prio = lk.get("prio") if lk["kind"] == "instance" else None
-                out.setdefault(end, {}).setdefault((lk["kind"], prio), set()).add(lk["name"])
+                out.setdefault(end, {}).setdefault((lk["kind"], prio), set()).add(
+                    lk["name"]
+                )
     return out
 
 
 def attribute_lines(groups: dict[tuple[str, int | None], set[str]]) -> list[str]:
     lines = []
-    for (kind, prio), names in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1] or 0)):
-        attr = f"local {'instance' if kind == 'instance' else 'simp'}" + (f" {prio}" if prio not in (None, 1000) else "")
+    for (kind, prio), names in sorted(
+        groups.items(), key=lambda kv: (kv[0][0], kv[0][1] or 0)
+    ):
+        attr = f"local {'instance' if kind == 'instance' else 'simp'}" + (
+            f" {prio}" if prio not in (None, 1000) else ""
+        )
         uniq = sorted(names)
-        lines += [f"attribute [{attr}] " + " ".join(uniq[k : k + 6]) for k in range(0, len(uniq), 6)]
+        lines += [
+            f"attribute [{attr}] " + " ".join(uniq[k : k + 6])
+            for k in range(0, len(uniq), 6)
+        ]
     return lines
 
 
@@ -266,10 +334,16 @@ def rewrite_file(path: Path, leaks: list[dict]) -> tuple[int, list[str]]:
         elif r == "missing":
             skipped.append(f"{lk['kind']} {lk['name']}")
     if done:
-        for end, groups in sorted(reregistrations(f, edits).items(), reverse=True):  # bottom first: a line inserted below never moves one above
+        for end, groups in sorted(
+            reregistrations(f, edits).items(), reverse=True
+        ):  # bottom first: a line inserted below never moves one above
             f.text[end + 1 : end + 1] = attribute_lines(groups)
         new = "\n".join(f.text)
-        path.write_text(new + ("" if new.endswith("\n") else "\n") + f"-- Tengoku: {done} registration(s) of this module made local so they do not change other libraries (generated)\n")
+        path.write_text(
+            new
+            + ("" if new.endswith("\n") else "\n")
+            + f"-- Tengoku: {done} registration(s) of this module made local so they do not change other libraries (generated)\n"
+        )
     return done, skipped
 
 
@@ -281,7 +355,9 @@ def apply_bundle(root: Path, leaks: list[dict], skip: int = 0) -> dict:
     for mod, ls in sorted(by_mod.items()):
         f = module_file(root, mod, skip)
         if not f:
-            report["missing_modules"].append(mod)  # a leak of a module this bundle does not carry (the other bundle: strict vs proposed)
+            report["missing_modules"].append(
+                mod
+            )  # a leak of a module this bundle does not carry (the other bundle: strict vs proposed)
             continue
         done, skipped = rewrite_file(f, ls)
         report["rewritten"] += done
@@ -289,9 +365,12 @@ def apply_bundle(root: Path, leaks: list[dict], skip: int = 0) -> dict:
     return report
 
 
-
-HEADER_LINE = re.compile(r"^\s*(?:(?:public|private|meta)\s+)*(?:import\s|module\s*$|prelude\s*$)")
-SECTION = re.compile(r"^\s*(?:@\[expose\]\s*)?(?:(?:public|noncomputable)\s+)*section\b")
+HEADER_LINE = re.compile(
+    r"^\s*(?:(?:public|private|meta)\s+)*(?:import\s|module\s*$|prelude\s*$)"
+)
+SECTION = re.compile(
+    r"^\s*(?:@\[expose\]\s*)?(?:(?:public|noncomputable)\s+)*section\b"
+)
 
 
 def body_start(lines: list[str]) -> int:
@@ -316,14 +395,20 @@ def body_start(lines: list[str]) -> int:
 
 def nameable(n: str) -> bool:
     """a declaration name an `attribute` command can say: not private, not a hygienic or auxiliary name"""
-    return not (n.startswith("_private") or "_@" in n or "._hyg" in n or n.startswith("_"))
+    return not (
+        n.startswith("_private") or "_@" in n or "._hyg" in n or n.startswith("_")
+    )
 
 
 def native_names(root: Path, skip: int) -> dict[str, Path]:
     """module (the library's own name) -> file, for a bundle directory (`Tengoku/<Library>/…`, skip=0) or the library's layout (skip=2)"""
     base = root
     if skip == 0:
-        libs = [d for d in (root / "Tengoku").iterdir() if d.is_dir()] if (root / "Tengoku").is_dir() else []
+        libs = (
+            [d for d in (root / "Tengoku").iterdir() if d.is_dir()]
+            if (root / "Tengoku").is_dir()
+            else []
+        )
         if len(libs) != 1:
             return {}
         base = libs[0]
@@ -354,7 +439,11 @@ def reexport(root: Path, leaks: list[dict], skip: int = 0) -> dict:
             parts = parts_of(imp)
             if not parts:
                 continue
-            cand = ".".join(parts[2:]) if (skip == 0 and parts[:1] == ["Tengoku"] and len(parts) > 2) else ".".join(parts)
+            cand = (
+                ".".join(parts[2:])
+                if (skip == 0 and parts[:1] == ["Tengoku"] and len(parts) > 2)
+                else ".".join(parts)
+            )
             if cand in files:
                 imports[mod].append(cand)
 
@@ -377,9 +466,13 @@ def reexport(root: Path, leaks: list[dict], skip: int = 0) -> dict:
         lines = f.read_text().split("\n")
         groups: dict[tuple[str, int | None], list[str]] = {}
         for lk in inherited:
-            groups.setdefault((lk["kind"], lk.get("prio") if lk["kind"] == "instance" else None), []).append(lk["name"])
+            groups.setdefault(
+                (lk["kind"], lk.get("prio") if lk["kind"] == "instance" else None), []
+            ).append(lk["name"])
         ins = []
-        for (kind, prio), ns in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1] or 0)):
+        for (kind, prio), ns in sorted(
+            groups.items(), key=lambda kv: (kv[0][0], kv[0][1] or 0)
+        ):
             word = "instance" if kind == "instance" else "simp"
             attr = f"local {word}" + (f" {prio}" if prio not in (None, 1000) else "")
             uniq = sorted(set(ns))
@@ -423,16 +516,34 @@ def for_tree(leaks: list[dict]) -> list[dict]:
     out = []
     for lk in leaks:
         parts = parts_of(lk["mod"])
-        out.append({**lk, "name": autonames.rewrite(lk["name"], parts[2])[0]} if parts and len(parts) > 2 else lk)
+        out.append(
+            {**lk, "name": autonames.rewrite(lk["name"], parts[2])[0]}
+            if parts and len(parts) > 2
+            else lk
+        )
     return out
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--bundle", action="append", default=[], help="a bundle directory (Tengoku/<Library>/… inside)")
-    ap.add_argument("--pruned", action="append", default=[], help="a directory of the library's own layout (the factory's pruned sources)")
+    ap.add_argument(
+        "--bundle",
+        action="append",
+        default=[],
+        help="a bundle directory (Tengoku/<Library>/… inside)",
+    )
+    ap.add_argument(
+        "--pruned",
+        action="append",
+        default=[],
+        help="a directory of the library's own layout (the factory's pruned sources)",
+    )
     ap.add_argument("--leaks", required=True)
-    ap.add_argument("--reexport", action="store_true", help="also give every module that imports a flagged module the same registrations, local to it")
+    ap.add_argument(
+        "--reexport",
+        action="store_true",
+        help="also give every module that imports a flagged module the same registrations, local to it",
+    )
     a = ap.parse_args()
     leaks = parse(a.leaks)
     if not leaks:
