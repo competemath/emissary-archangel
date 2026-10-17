@@ -25,6 +25,7 @@ on:
       gate2_rss_share: { description: "the share of the runner's memory one Lean process of Gate 2 may use (default 0.80 = 12.8 GB of 16). A module that outgrows it alone gets no verdict and is cut with its importers", default: "0.80" }
       only_shards: { description: "RESUME: run only these shards of the plan (comma list of shard numbers), the one that died; with fill_from for the others", default: "" }
       fill_from: { description: "RESUME: the id of an earlier run of this workflow for this key whose shard artifacts fill in the shards this run does not build. Its plan must be this run's plan (checked)", default: "" }
+      fill_unrecorded: { description: "RESUME: fill_from is a run from before plans recorded what the shards are built with (plan/inputs.json): you vouch that it ran with the same mathlib, toolchain, imports and tengoku_ref as this one", default: "false" }
       imports: { description: "full = every Mathlib/Batteries/Aesop/Qq/ProofWidgets import of a library module becomes the umbrella (the shards run normalize-imports; the bundle imports the root `Tengoku`). faithful = the library keeps the imports its authors wrote and the bundle names the same modules in the tree (`Tengoku.Seed.X`), with a one-line docstring per module: for a library whose names turn ambiguous under the umbrella (navier-stokes-euler). A recut must use what its shards were built with", type: choice, options: [full, faithful], default: "full" }
 permissions: {}
 defaults:
@@ -89,6 +90,16 @@ jobs:
         working-directory: emissary
         env: { PLANNED: "${{ steps.p.outputs.shards }}", ONLY: "${{ inputs.only_shards }}" }
         run: echo "run_shards=$(python3 scripts/bump/shard_pack.py select --planned "$PLANNED" --only "$ONLY")" >> "$GITHUB_OUTPUT"
+      # what the shards are built with: shards built under other settings must not be mixed in by a resume (fill_from), and the plan alone does not say
+      - name: What the shards are built with
+        working-directory: emissary
+        env: { MATHLIB: "${{ inputs.mathlib }}", TOOLCHAIN: "${{ inputs.toolchain }}", IMPORTS: "${{ inputs.imports }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}" }
+        run: |
+          python3 - <<'PY'
+          import json, os
+          names = ("MATHLIB", "TOOLCHAIN", "IMPORTS", "TENGOKU_REF")
+          json.dump({k.lower(): os.environ[k] for k in names}, open("../plan/inputs.json", "w"), indent=1, sort_keys=True)
+          PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: { name: "plan-${{ inputs.key }}", path: plan, retention-days: 14 }
   shard:
@@ -141,10 +152,16 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         if: ${{ inputs.fill_from != '' }}
         with: { name: "plan-${{ inputs.key }}", path: plan-old, run-id: "${{ inputs.fill_from }}", github-token: "${{ github.token }}" }
-      - name: The earlier run planned the same shards
+      - name: The earlier run planned the same shards, built with the same settings
         if: ${{ inputs.fill_from != '' }}
+        env: { UNRECORDED: "${{ inputs.fill_unrecorded }}" }
         run: |
-          cmp plan-old/plan.json plan-new/plan.json || { echo "::error::the plan of fill_from differs from this run's, so its shards are not these shards (same shards, mathlib, toolchain, imports, library commit?)"; exit 1; }
+          cmp plan-old/plan.json plan-new/plan.json || { echo "::error::the plan of fill_from differs from this run's, so its shards are not these shards (same shards, library commit?)"; exit 1; }
+          if [ -f plan-old/inputs.json ]; then
+            cmp plan-old/inputs.json plan-new/inputs.json || { echo "::error::fill_from was built with other settings (mathlib, toolchain, imports, tengoku_ref) than this run"; exit 1; }
+          elif [ "$UNRECORDED" != true ]; then
+            echo "::error::fill_from recorded no settings (it predates plan/inputs.json): pass fill_unrecorded=true to vouch that they are the same"; exit 1
+          fi
       - name: Every shard of the plan has its result (a shard whose job died must not read as a library without it)
         if: ${{ inputs.recut_from == '' }}
         env: { PLANNED: "${{ needs.plan.outputs.shards }}" }

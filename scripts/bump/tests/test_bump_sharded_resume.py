@@ -113,6 +113,7 @@ class Workflow(unittest.TestCase):
     def test_the_inputs_exist(self):
         self.assertIn("only_shards", INPUTS)
         self.assertIn("fill_from", INPUTS)
+        self.assertIn("fill_unrecorded", INPUTS)
 
     def test_the_shard_matrix_is_the_shards_this_run_builds(self):
         self.assertIn("run_shards", JOBS["shard"]["strategy"]["matrix"]["shard"])
@@ -139,6 +140,13 @@ class Workflow(unittest.TestCase):
     def test_the_earlier_runs_plan_must_be_this_runs_plan(self):
         cmp_step = steps("compose")[index("compose", "The earlier run planned the same shards")]
         self.assertIn("cmp plan-old/plan.json plan-new/plan.json", cmp_step["run"])
+        # CodeRabbit: the plan alone does not say what the shards were built with
+        self.assertIn("cmp plan-old/inputs.json plan-new/inputs.json", cmp_step["run"])
+        self.assertIn("fill_unrecorded", cmp_step["env"]["UNRECORDED"])  # an old run without inputs.json needs an explicit vouch, never a silent pass
+        record = next(s for s in steps("plan") if "What the shards are built with" in s.get("name", ""))
+        for name in ("MATHLIB", "TOOLCHAIN", "IMPORTS", "TENGOKU_REF"):
+            self.assertIn(name, record["env"], name)
+        self.assertLess(steps("plan").index(record), next(i for i, s in enumerate(steps("plan")) if "upload-artifact" in s.get("uses", "")))
         self.assertLess(index("compose", "The earlier run planned the same shards"), index("compose", "Every shard of the plan has its result"))
 
     def test_a_resume_needs_no_new_permission(self):
