@@ -86,6 +86,58 @@ class Rewrite(unittest.TestCase):
         self.assertEqual(lines[1], "local instance : Foo := x")
 
 
+class ByName(unittest.TestCase):
+    """2026-10-16: a recut of lean-pool had to make `groupRingMul` and `specializationPreorder` local, in a bundle whose line numbers were not known before it was cut"""
+
+    def edit(self, text, kind, name):
+        f = sr.Lines(text)
+        return sr.edit_named_declaration(f, name, kind), f.text
+
+    def test_a_named_instance_is_found_without_a_line(self):
+        text = "import Tengoku\n\nnamespace A\n\n/-- doc -/\ninstance groupRingMul {R G : Type} : HMul R G (F R G) := x\n\nend A\n"
+        r, lines = self.edit(text, "instance", "A.groupRingMul")
+        self.assertEqual(r, "edited")
+        self.assertEqual(lines[5], "local instance groupRingMul {R G : Type} : HMul R G (F R G) := x")
+
+    def test_only_the_named_instance_is_edited_and_its_attributes_and_modifiers_are_kept(self):
+        text = "instance other : Foo := a\n@[reducible] noncomputable instance (priority := 100) target : Foo := b\ninstance targetTwo : Foo := c\n"
+        r, lines = self.edit(text, "instance", "target")
+        self.assertEqual(r, "edited")
+        self.assertEqual(lines, ["instance other : Foo := a", "@[reducible] noncomputable local instance (priority := 100) target : Foo := b", "instance targetTwo : Foo := c", ""])
+
+    def test_a_name_that_is_only_mentioned_is_not_edited(self):
+        text = "/-- uses instance target -/\ndef x := target\ninstance other : Foo := target\n-- instance target : Foo := a\n"
+        r, lines = self.edit(text, "instance", "target")
+        self.assertEqual(r, "missing")
+        self.assertNotIn("local", "\n".join(lines))
+
+    def test_already_local_and_missing_are_reported(self):
+        self.assertEqual(self.edit("local instance target : Foo := a\n", "instance", "target")[0], "already")
+        self.assertEqual(self.edit("instance other : Foo := a\n", "instance", "target")[0], "missing")
+
+    def test_a_simp_lemma_by_name_with_its_attribute_above_or_on_the_line(self):
+        r, lines = self.edit("@[simp]\ntheorem foo_bar : a = b := rfl\n", "simp", "X.foo_bar")
+        self.assertEqual((r, lines[0]), ("edited", "@[local simp]"))
+        r, lines = self.edit("@[simp] lemma foo_bar : a = b := rfl\n", "simp", "foo_bar")
+        self.assertEqual((r, lines[0]), ("edited", "@[local simp] lemma foo_bar : a = b := rfl"))
+        self.assertEqual(self.edit("theorem foo_bar : a = b := rfl\n", "simp", "foo_bar")[0], "missing")
+
+    def test_a_bundle_leak_line_without_a_position_localizes_the_instance_and_the_importers_keep_it(self):
+        with tempfile.TemporaryDirectory() as d:
+            lib = Path(d, "Tengoku", "LeanPool", "LeanPool", "Dom")
+            lib.mkdir(parents=True)
+            (lib / "Spec.lean").write_text("import Tengoku\n\nnamespace Dom\n\ninstance specializationPreorder {X : Type} [TopologicalSpace X] : Preorder X := x\n\nend Dom\n")
+            (lib / "Use.lean").write_text("import Tengoku.LeanPool.LeanPool.Dom.Spec\n\ntheorem t : True := trivial\n")
+            leaks = sr.parse("leak: instance Dom.specializationPreorder registered in Tengoku.LeanPool.LeanPool.Dom.Spec")
+            rep = sr.apply_bundle(Path(d), leaks)
+            self.assertEqual((rep["rewritten"], rep["skipped"]), (1, []))
+            self.assertIn("local instance specializationPreorder", (lib / "Spec.lean").read_text())
+            sr.reexport(Path(d), leaks, skip=0)
+            use = (lib / "Use.lean").read_text()
+            self.assertIn("attribute [local instance] Dom.specializationPreorder", use)
+            self.assertNotIn("attribute [local instance]", (lib / "Spec.lean").read_text().split("\n", 3)[0])
+
+
 class Bundle(unittest.TestCase):
     def test_a_bundle_tree_is_rewritten_in_place_with_a_note(self):
         with tempfile.TemporaryDirectory() as d:
