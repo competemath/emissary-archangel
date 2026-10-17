@@ -13,6 +13,8 @@ on:
       controls: { type: string, default: "20" }
       tengoku_ref: { type: string, default: "" }
       imports: { type: string, default: "full" }
+      gate2_budget_min: { type: string, default: "150", description: "minutes Gate 2 may spend on this shard before the chunks it has no time for are recorded as killed (gate2_driver.py --budget-min)" }
+      gate2_rss_share: { type: string, default: "0.80", description: "the share of the runner's memory one Lean process of Gate 2 may use before it is killed (gate2_driver.py --rss-share)" }
 permissions: {}
 defaults:
   run:
@@ -30,6 +32,8 @@ jobs:
       CONTROLS: ${{ inputs.controls }}
       TENGOKU_REF: ${{ inputs.tengoku_ref }}
       IMPORTS: ${{ inputs.imports }}
+      GATE2_BUDGET_MIN: ${{ inputs.gate2_budget_min }}
+      GATE2_RSS_SHARE: ${{ inputs.gate2_rss_share }}
     steps:
       - name: Free disk
         run: |
@@ -121,7 +125,7 @@ jobs:
           # Gate 2 in chunks, each Lean process under a memory limit (scripts/bump/gate2_driver.py): one process over every declaration of a shard was killed by the
           # kernel, or took the runner down, on navier-stokes-euler. A module that kills Lean alone gets no verdict and is listed in gate2-killed.json.
           python3 scripts/bump/gate2_driver.py --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
-            --roots "$ROOTS" --controls "$CONTROLS" --tentative "$TENT" --only "$mine" --lean-path "$LP" --budget-min 150
+            --roots "$ROOTS" --controls "$CONTROLS" --tentative "$TENT" --only "$mine" --lean-path "$LP" --budget-min "$GATE2_BUDGET_MIN" --rss-share "$GATE2_RSS_SHARE"
           python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json --tentative "$TENT"
       - name: What the passed theorems are made of
         working-directory: emissary

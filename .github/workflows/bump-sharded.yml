@@ -21,6 +21,8 @@ on:
       verify_partial: { description: "verify: a build that runs out of its time (210 min) still ships the modules it built; the rest are left for the next from-tree round. For a library with more new modules than one runner builds in that time (a first cut of a giant). Default `false`: a build that does not finish fails the run", default: "false" }
       verify_modes: { description: "the bundle modes that are built in the tree (comma list of strict, proposed, wide): the intake opener ships `proposed`; a mode that is not built ships as the factory cut it", default: "proposed" }
       from_tree: { description: "PARTS, on a recut after some parts merged: cut only the modules the tree does not have yet (the library's Tengoku/<Ns>.lean on tengoku main), numbered from the next part, so the new parts extend what merged (scripts/bump/bundle_layers.py --tree-umbrella)", default: "" }
+      gate2_budget_min: { description: "minutes Gate 2 may spend on each shard (default 150; the shard job has 345 in all, the build and export come first). A shard whose chunks do not fit leaves the rest unjudged, and an unjudged module is cut with its importers", default: "150" }
+      gate2_rss_share: { description: "the share of the runner's memory one Lean process of Gate 2 may use (default 0.80 = 12.8 GB of 16). A module that outgrows it alone gets no verdict and is cut with its importers", default: "0.80" }
       imports: { description: "full = every Mathlib/Batteries/Aesop/Qq/ProofWidgets import of a library module becomes the umbrella (the shards run normalize-imports; the bundle imports the root `Tengoku`). faithful = the library keeps the imports its authors wrote and the bundle names the same modules in the tree (`Tengoku.Seed.X`), with a one-line docstring per module: for a library whose names turn ambiguous under the umbrella (navier-stokes-euler). A recut must use what its shards were built with", type: choice, options: [full, faithful], default: "full" }
 permissions: {}
 defaults:
@@ -96,6 +98,8 @@ jobs:
       shard: ${{ matrix.shard }}
       tengoku_ref: ${{ inputs.tengoku_ref }}
       imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
     permissions: { contents: read }
   # compose: the DRAFT. Merges the shards and cuts the bundle exactly as `finish` will, and hands the draft to `verify` (the tree's own build of it). Nothing is signed here
   # and no code of the library runs: the shards' artifacts are read as data (shard_pack.merge refuses symlinks and `..`).

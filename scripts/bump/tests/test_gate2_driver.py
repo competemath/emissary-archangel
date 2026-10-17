@@ -212,6 +212,20 @@ class Workflows(unittest.TestCase):
             self.assertIn("scripts/bump/gate2_driver.py", text, name)
             self.assertNotRegex(text, r"timeout \d+m lean gate2-check\.lean", name)
 
+    def test_the_shards_budget_and_memory_share_are_inputs_that_reach_the_driver(self):
+        """2026-10-17: navier-stokes-euler's shards 4 and 22 left 451 modules unjudged: chunks killed for memory used the fixed 150 minutes, and about ten modules alone outgrow 80% of the runner."""
+        shard = (WORKFLOWS / "bump-shard.yml").read_text()
+        sharded = (WORKFLOWS / "bump-sharded.yml").read_text()
+        self.assertIn('--budget-min "$GATE2_BUDGET_MIN" --rss-share "$GATE2_RSS_SHARE"', shard)
+        self.assertNotIn("--budget-min 150", shard)  # no fixed number left in the step
+        for text, name in ((shard, "bump-shard.yml"), (sharded, "bump-sharded.yml")):
+            self.assertIn("gate2_budget_min", text, name)
+            self.assertIn("gate2_rss_share", text, name)
+        self.assertIn("gate2_budget_min: ${{ inputs.gate2_budget_min }}", sharded)  # passed down to every shard
+        self.assertIn("gate2_rss_share: ${{ inputs.gate2_rss_share }}", sharded)
+        self.assertIn('default: "150"', shard)  # the defaults are what ran before
+        self.assertIn('default: "0.80"', shard)
+
 
 if __name__ == "__main__":
     unittest.main()
