@@ -297,12 +297,30 @@ def open_before(code: list[str], i: int) -> bool:
     return any(blocks)
 
 
-def reopen_needed(f: Lines, i: int) -> bool:
-    """some block around line `i` has code after its `end` (more than the `end`s of the blocks around it): a scoped notation would have to be activated again there"""
+def leaves_scope(f: Lines, opener: int, mode: str, ns: str) -> bool:
+    """closing the block that starts at `opener` ends the notation's activity: a `local` one ends with any block; a `scoped` one is active in its namespace N and in the
+    namespaces inside it, so only the block that takes the file out of N ends it (a `section` inside N does not)"""
+    if mode != "scoped":
+        return True
+    after = namespace_at(f.code, opener)
+    return not (after == ns or after.startswith(ns + "."))
+
+
+def reopens_after(f: Lines, i: int, mode: str, ns: str) -> list[int]:
+    """the lines of the `end`s, around line `i`, after which the notation has to be activated again: the block leaves its scope and there is code after the `end` (more than
+    the `end`s of the blocks around it)"""
     open_at, end_of = scope_info(f.code)
-    return any(
-        (end := end_of.get(op)) is not None and any(ln.strip() and not CLOSER.match(ln) for ln in f.code[end + 1 :]) for op in open_at[i]
-    )
+    return [
+        end
+        for op in open_at[i]
+        if (end := end_of.get(op)) is not None
+        and leaves_scope(f, op, mode, ns)
+        and any(ln.strip() and not CLOSER.match(ln) for ln in f.code[end + 1 :])
+    ]
+
+
+def reopen_needed(f: Lines, i: int, mode: str = "scoped", ns: str = "") -> bool:
+    return bool(reopens_after(f, i, mode, ns))
 
 
 def edit_notation(f: Lines, line: int, has_importers: bool = True) -> tuple[str, dict | None]:
@@ -321,7 +339,7 @@ def edit_notation(f: Lines, line: int, has_importers: bool = True) -> tuple[str,
         if m.group("mod"):
             return "already", None
         ns = namespace_at(f.code, i)
-        if ns in FORBIDDEN_NS and (has_importers or reopen_needed(f, i)):
+        if ns in FORBIDDEN_NS and (has_importers or reopen_needed(f, i, "scoped", ns)):
             return "unsupported", {"why": f"`scoped` would put it in `{ns}`, a namespace in which core or Mathlib have scoped entries, and `open scoped {ns}` would be needed"}
         if not ns:
             nxt = f.code[i + 1] if i + 1 < len(f.code) else ""
@@ -349,13 +367,10 @@ def activation_lines(infos: list[dict]) -> list[str]:
 def notation_reopens(f: Lines, notes: list[tuple[int, dict]]) -> dict[int, list[str]]:
     """A `scoped` notation is active inside its namespace, a `local` one until the end of the block it sits in; what follows that block in the same file used to see it.
     For every enclosing block that has code after its `end` (more than the `end`s of the blocks around it), the notation is activated again right after that `end`."""
-    open_at, end_of = scope_info(f.code)
     by_end: dict[int, list[dict]] = {}
     for i, info in notes:
-        for opener in open_at[i]:
-            end = end_of.get(opener)
-            if end is not None and any(ln.strip() and not CLOSER.match(ln) for ln in f.code[end + 1 :]):
-                by_end.setdefault(end, []).append(info)
+        for end in reopens_after(f, i, info["mode"], info["ns"]):
+            by_end.setdefault(end, []).append(info)
     return {end: activation_lines(infos) for end, infos in by_end.items()}
 
 

@@ -183,6 +183,25 @@ class File(unittest.TestCase):
         self.assertEqual(new.count("open scoped LO.Modal.Formula"), 1)
         self.assertTrue(new.endswith("-- Tengoku: 1 notation(s) of this module made scoped so they do not change other libraries (generated)\n"))
 
+    def test_a_section_inside_the_namespace_does_not_end_the_notation(self):
+        text = 'namespace A\n\nsection S\nnotation "ω" => omega\nend S\n\nlemma later : True := trivial\n\nend A\n'
+        done, _, new = self.rewrite(text, sr.parse("leak: notation A.«termω» registered in Tengoku.L.L.M (declared at line 4)"))
+        self.assertEqual(done, 1)
+        self.assertNotIn("open scoped", new)  # still inside `namespace A`: the scoped notation is active
+
+    def test_a_local_notation_does_end_with_the_section(self):
+        text = 'section S\nnotation "ω" => omega\nend S\n\nlemma later : True := trivial\n'
+        done, _, new = self.rewrite(text, sr.parse("leak: notation «termω» registered in Tengoku.L.L.M (declared at line 2)"))
+        self.assertEqual(done, 1)
+        self.assertIn('end S\nlocal notation "ω" => omega\n', new)
+
+    def test_a_nested_namespace_keeps_it_and_leaving_the_namespace_does_not(self):
+        text = 'namespace A\nnamespace B\nnotation "ω" => omega\nend B\nlemma still : True := trivial\nend A\nlemma out : True := trivial\n'
+        _, _, new = self.rewrite(text, sr.parse("leak: notation A.B.«termω» registered in Tengoku.L.L.M (declared at line 3)"))
+        # the notation is scoped to A.B: after `end B` the file is in A, outside A.B
+        self.assertIn("end B\nopen scoped A.B\n", new)
+        self.assertIn("end A\nopen scoped A.B\n", new)
+
     def test_nothing_is_added_after_a_block_that_has_only_ends_after_it(self):
         _, _, new = self.rewrite(MODAL, sr.parse(REPORT))
         self.assertNotIn("end Modal\nopen scoped", new)
