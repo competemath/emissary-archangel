@@ -21,7 +21,7 @@ jobs:
     permissions: { contents: read }
     env:
       REF: ${{ inputs.ref || 'tooling/scope-fix-notation' }}
-      LIBS: ${{ inputs.libs }}
+      LIBS: ${{ inputs.libs || 'LeanPool' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with: { sparse-checkout: scripts/bump, persist-credentials: false }
