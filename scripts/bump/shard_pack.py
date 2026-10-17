@@ -58,11 +58,22 @@ def merge(a: argparse.Namespace) -> None:
     total: dict = {"shards": 0, "checked": 0, "pass": 0, "pass_equal": 0, "pass_entails": 0, "fail_reasons": {}, "definitions": {}, "controls_wrongly_passed": 0}
     logs = {"gate2.log": [], "errors.log": [], "bundle-deps.log": []}
     packs = 0
+    killed: set[str] = set()
     for d in sorted(Path(a.shards).glob("*")):
+        artifact = d
         d = next(iter(d.glob("shard-pack")), d) if d.is_dir() else d
         if not (d / "src").exists():
             continue
         packs += 1
+        # the modules this shard's Gate 2 gave no verdict (gate2_driver.py writes the file, empty when every module was judged). A shard without it is no proof that every module was judged:
+        # the merge refuses it rather than read it as "none"
+        kf = next((c for c in (artifact / "emissary" / "gate2-killed.json", d / "gate2-killed.json") if c.is_file()), None)
+        if kf is None:
+            sys.exit(f"merge: {artifact.name} has no gate2-killed.json: nothing says Gate 2 judged every module of this shard (re-run the shard)")
+        data = json.loads(kf.read_text())
+        if not isinstance(data, list) or not all(isinstance(x, str) for x in data):
+            sys.exit(f"merge: {kf} is not a list of module names")
+        killed.update(data)
         for f in (d / "src").rglob("*"):
             if f.is_file() and not f.is_symlink() and ".." not in f.relative_to(d / "src").parts:  # an artifact is data from a job that compiled someone's code
                 dst = out / f.relative_to(d / "src")
@@ -98,8 +109,9 @@ def merge(a: argparse.Namespace) -> None:
     for name, acc in logs.items():
         (Path(a.logs) / name).write_text("\n".join(acc))
     (Path(a.logs) / "gate2-results.json").write_text(json.dumps(total, indent=1))
+    (Path(a.logs) / "gate2-killed.json").write_text(json.dumps(sorted(killed)))
     (Path(a.logs) / "passed.json").write_text(json.dumps({m: sorted(v) for m, v in passed.items()}))
-    print(f"merged: {sum(len(v) for v in passed.values())} passed names in {len(passed)} modules")
+    print(f"merged: {sum(len(v) for v in passed.values())} passed names in {len(passed)} modules; {len(killed)} modules without a Gate 2 verdict")
 
 
 if __name__ == "__main__":

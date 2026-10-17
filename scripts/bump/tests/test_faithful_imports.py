@@ -257,8 +257,9 @@ class Compose(unittest.TestCase):
         (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy.git", "commit": "abc123"}))
         (d / "build.log").write_text("")
         (d / "gate2.log").write_text(gate2)
+        (d / "killed.json").write_text("[]")
         r = subprocess.run(
-            [sys.executable, str(HERE / "bundle.py"), "compose", "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
+            [sys.executable, str(HERE / "bundle.py"), "compose", "--gate2-killed", str(d / "killed.json"), "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
              "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"), "--src", str(d / "src"), *extra],
             capture_output=True, text=True, check=False,
         )
