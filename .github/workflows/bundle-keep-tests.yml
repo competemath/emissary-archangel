@@ -3,9 +3,9 @@
 name: bundle-keep-tests
 on:
   push:
-    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/tree_verify.py", "scripts/bump/tree_repair.py", ".github/workflows/bundle-keep-tests.yml"]
+    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/tree_verify.py", "scripts/bump/tree_repair.py", "scripts/bump/TengokuLeak.lean", ".github/workflows/bundle-keep-tests.yml"]
   pull_request:
-    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/tree_verify.py", "scripts/bump/tree_repair.py", ".github/workflows/bundle-keep-tests.yml"]
+    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/tree_verify.py", "scripts/bump/tree_repair.py", "scripts/bump/TengokuLeak.lean", ".github/workflows/bundle-keep-tests.yml"]
 permissions: {}
 defaults:
   run:
@@ -158,4 +158,97 @@ jobs:
           x3, name3, y3 = tv.union_failure(open(os.path.join(os.environ["RUNNER_TEMP"], "u3.out")).read())
           assert name3 == "Toy.prime'" and {x3, y3} == {"Tengoku.LibD.D", "Tengoku.LibE.E"}, (x3, name3, y3)  # a name with a prime is read whole
           print("primed name read whole:", name3)
+          PY
+
+      # The leak scan (scripts/bump/TengokuLeak.lean) on a small library compiled by a real Lean. An instance of ANOTHER library's class with outParams whose inputs and hypotheses mention
+      # nothing of the library is a leak although its type does mention the library (lean-pool's GroupRing, 2026-10-16: `HMul R G (FreeModule R G)` for all R and G made every product of reals
+      # in the tree a group-ring element). The shapes that are harmless must not be reported: an instance whose input is the library's type, one of the library's own class, one with a
+      # hypothesis about the library. The old rule (the statement mentions nothing of the library) must still report its case. And the shape through the library's own class (the next comment).
+      - name: The leak scan reports an unpinned instance of a foreign outParam class, an instance of an own class at foreign types, the old shape, and nothing harmless
+        working-directory: gate2
+        run: |
+          d="$RUNNER_TEMP/leaktoy"
+          mkdir -p "$d"
+          cat > "$d/LeakToy.lean" <<'LEAN'
+          structure Own where
+            x : Nat
+
+          class OwnCls (α : Type) (β : outParam Type) where
+            f : α → β
+
+          /-- pinned: the input is the library's own type -/
+          instance pinnedHMul : HMul Own Own Own := ⟨fun a b => ⟨a.x * b.x⟩⟩
+
+          /-- UNPINNED: an instance of a foreign outParam class, generic in its inputs (the shape of lean-pool's GroupRing) -/
+          instance unpinnedHMul {R G : Type} : HMul R G (Own × R × G) := ⟨fun r g => (⟨0⟩, r, g)⟩
+
+          /-- an instance of the library's own class, generic in its input: nothing outside the library asks for the class, so it never fires there -/
+          class Coll (α : Type) (β : outParam Type) where
+            g : α → β
+          instance collGeneric {α : Type} : Coll α α := ⟨id⟩
+
+          /-- the library's own class at the library's own type: `guardedHMul` below asks for `OwnCls R Nat`, which this cannot answer -/
+          instance ownClassOwn : OwnCls Own Own := ⟨id⟩
+
+          /-- a hypothesis about the library: it cannot be met elsewhere -/
+          instance guardedHMul {R G : Type} [OwnCls R Nat] : HMul R G (Own × R × G) := ⟨fun r g => (⟨0⟩, r, g)⟩
+
+          /-- mentions nothing of the library (the rule before 2026-10-16) -/
+          instance foreignOnly : HAdd Nat String String := ⟨fun n s => toString n ++ s⟩
+
+          namespace Sc
+          /-- not global: never a leak -/
+          scoped instance scopedHMul {R G : Type} : HMul R G (Own × R × G) := ⟨fun r g => (⟨0⟩, r, g)⟩
+          end Sc
+
+          -- A class of the library with a projection into a foreign outParam class (`Tor.toHDiv : [Tor P I] → HDiv P P I`, the shape of prismriver's Torsor) is harmless until the library
+          -- declares an instance of it at foreign types, also behind abbreviations: `Tor Alias Alias` is `Tor Nat Nat`, and `HDiv Nat Nat ?γ` finds `Tor.toHDiv` before `Nat.instHDiv`
+          abbrev Alias := Nat
+          abbrev OwnAlias := Own
+          class Tor (P I : Type) extends HDiv P P I
+          class Tor2 (P I : Type) extends Tor P I
+          class Plain (α : Type) extends Add α
+
+          /-- LEAK: the arguments are `Nat` and `Nat` once the abbreviation is unfolded -/
+          instance torNat : Tor Alias Alias where hDiv a b := a / b
+
+          /-- LEAK: through a projection of the library's class into a class that has one (`Tor2.toTor`) -/
+          instance tor2Nat : Tor2 Alias Alias where hDiv a b := a / b
+
+          /-- not a leak: the arguments are the library's own type -/
+          instance torOwn : Tor Own Own where hDiv a _ := a
+
+          /-- not a leak: an abbreviation of the library's own type is still the library's type -/
+          instance torOwnAlias : Tor OwnAlias OwnAlias where hDiv a _ := a
+
+          /-- not a leak: the projection of `Plain` is into `Add`, which has no outParams, so nothing about `Nat` changes -/
+          instance plainNat : Plain Alias where add a b := a + b
+
+          -- `hopToTor` mentions `Own` in its arguments (`Own × α`): `Tor` is reachable from `HDiv`, but `Hop` is not reachable from `Tor`,
+          -- because what `hopToTor` gives `HDiv` is about `Own × Nat`, a type of the library, not about `Nat`
+          class Hop (P I : Type) where
+            h : P → I
+          instance hopToTor {α : Type} [Hop α α] : Tor (Own × α) (Own × α) where hDiv a _ := a
+
+          /-- not a leak: see `hopToTor` -/
+          instance hopNat : Hop Alias Alias := ⟨id⟩
+
+          -- but a projection-like instance whose arguments are foreign all through still reaches the foreign type: `hop2ToTor` gives `Tor (List Nat) (List Nat)` from `Hop2 Nat Nat`
+          class Hop2 (P I : Type) where
+            h : P → I
+          instance hop2ToTor {α : Type} [Hop2 α α] : Tor (List α) (List α) where hDiv a _ := a
+
+          /-- LEAK: `HDiv (List Nat) (List Nat) ?γ` finds `Tor.toHDiv` through `hop2ToTor` -/
+          instance hop2Nat : Hop2 Alias Alias := ⟨id⟩
+          LEAN
+          lake env lean --root="$d" -o "$d/LeakToy.olean" "$d/LeakToy.lean"
+          lp="$d:$(lake env printenv LEAN_PATH)"
+          lake env env LEAN_PATH="$lp" lean --run ../scripts/bump/TengokuLeak.lean --module LeakToy | tee "$RUNNER_TEMP/leaktoy.out"
+          python3 - <<'PY'
+          import os, re
+          out = open(os.path.join(os.environ["RUNNER_TEMP"], "leaktoy.out")).read()
+          leaks = {m.group(2) for m in re.finditer(r"^leak: (instance|simp) (\S+) registered in LeakToy", out, re.M)}
+          assert leaks == {"unpinnedHMul", "foreignOnly", "torNat", "tor2Nat", "hop2Nat"}, (leaks, out)
+          assert re.search(r"^leakscan: \d+ global instances \(5 can fire outside the library\), 1 scoped", out), out.splitlines()[0]
+          print("reported:", sorted(leaks))
           PY
