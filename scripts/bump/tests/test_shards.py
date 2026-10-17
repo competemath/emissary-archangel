@@ -103,6 +103,7 @@ class Planner(unittest.TestCase):
         pk = d / "shards" / "shard-0"
         subprocess.run([sys.executable, str(HERE / "shard_pack.py"), "pack", "--lib", str(lib), "--roots", "Toy", "--out", str(pk), "--gate2", str(d / "gate2.log"),
                         "--errors", str(d / "errors.log"), "--passed", str(d / "passed.json"), "--keep", str(d / "keep.log"), "--modules", str(d / "mods.txt")], check=True)
+        (pk / "gate2-killed.json").write_text("[]")  # the driver's list of modules without a verdict (none)
         merged, logs = d / "merged", d / "logs"
         merged.mkdir(); logs.mkdir()
         subprocess.run([sys.executable, str(HERE / "shard_pack.py"), "merge", "--shards", str(d / "shards"), "--out", str(merged), "--logs", str(logs)], check=True)
@@ -110,7 +111,7 @@ class Planner(unittest.TestCase):
         self.assertNotIn("noise", (logs / "gate2.log").read_text())
         (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy", "commit": "c"}))
         subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", "--lib", str(merged), "--log", str(logs / "bundle-deps.log"), "--passed", str(logs / "passed.json"), "--meta", str(d / "setup.json"),
-                        "--key", "toy", "--toolchain", "tc", "--errors", str(logs / "errors.log"), "--gate2", str(logs / "gate2.log"), "--out", str(d / "bundle"), "--src", str(d / "src")], check=True)
+                        "--key", "toy", "--toolchain", "tc", "--errors", str(logs / "errors.log"), "--gate2", str(logs / "gate2.log"), "--gate2-killed", str(logs / "gate2-killed.json"), "--out", str(d / "bundle"), "--src", str(d / "src")], check=True)
         self.assertIn("theorem uses_one_pos", (d / "bundle-proposed" / "Tengoku" / "Toy" / "Toy" / "B.lean").read_text())
         self.assertEqual(json.loads((d / "bundle-proposed" / "report.json").read_text())["theorems"], 1)
 
@@ -141,6 +142,8 @@ class MergeNeedsShards(unittest.TestCase):
         s = d / "shard-x-0" / "shard-pack"
         (s / "src").mkdir(parents=True)
         (s / "src" / "A.lean").write_text("x")
+        (d / "shard-x-0" / "emissary").mkdir()
+        (d / "shard-x-0" / "emissary" / "gate2-killed.json").write_text("[]")
         r = self.merge(d)
         self.assertEqual(r.returncode, 0, r.stderr)
 

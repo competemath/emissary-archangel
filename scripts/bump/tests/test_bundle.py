@@ -18,6 +18,12 @@ sys.path.insert(0, str(HERE))
 import bundle  # noqa: E402
 import records  # noqa: E402
 
+def killed_arg(d, names=(), text: str | None = None):
+    """`--gate2-killed FILE` for a compose in work dir d: the modules Gate 2 gave no verdict (none by default; `text` writes the file as given)."""
+    p = Path(d) / "killed.json"
+    p.write_text(json.dumps(list(names)) if text is None else text)
+    return ["--gate2-killed", str(p)]
+
 
 class Bundle(unittest.TestCase):
     def test_bundle_keeps_only_what_passed_and_maps_imports(self):
@@ -46,7 +52,7 @@ class Bundle(unittest.TestCase):
         (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy.git", "commit": "abc123"}))
         (d / "build.log").write_text(f"error: Toy/A.lean:{bad}:30: Unknown identifier `foo`\n")
         (d / "gate2.log").write_text("GATE2B_PASS old=Toy.uses_one_pos new=Toy.uses_one_pos via=equal\n")
-        subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
+        subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", *killed_arg(d), "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
                         "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"), "--src", str(d / "src")], check=True)
         a = (d / "bundle-proposed" / "Tengoku" / "ToyLib" / "Toy" / "A.lean").read_text()
         b = (d / "bundle-proposed" / "Tengoku" / "ToyLib" / "Toy" / "B.lean").read_text()
@@ -72,7 +78,7 @@ class Bundle(unittest.TestCase):
         self.assertTrue(any("notation" in k for k in strict["lint_cost"]), strict["lint_cost"])
         self.assertEqual(json.loads((d / "bundle-proposed" / "report.json").read_text())["theorems"], 1)
 
-    def compose_toy(self, drop: str):
+    def compose_toy(self, drop: str, killed=(), killed_text: str | None = None):
         """A two-module toy library, composed with `--drop-modules drop`; returns (work dir, the process)."""
         d = Path(tempfile.mkdtemp())
         lib = d / "lib"
@@ -99,7 +105,7 @@ class Bundle(unittest.TestCase):
         (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy.git", "commit": "abc123"}))
         (d / "build.log").write_text(f"error: Toy/A.lean:{bad}:30: Unknown identifier `foo`\n")
         (d / "gate2.log").write_text("GATE2B_PASS old=Toy.uses_one_pos new=Toy.uses_one_pos via=equal\n")
-        p = subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
+        p = subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", *killed_arg(d, killed, killed_text), "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
                         "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"), "--src", str(d / "src"), "--drop-modules", drop], capture_output=True, text=True)
         return d, p
 
@@ -124,6 +130,55 @@ class Bundle(unittest.TestCase):
             self.assertEqual(set(led["modules"]), {"Toy.B"})  # Toy.A has no verified theorem: nothing of it is missing, so it is not a ledger line
             self.assertEqual(led["modules"]["Toy.B"], {"reason": "imports a module that cannot go to the tree", "names": 1})
             self.assertEqual((led["verified"], led["shipped"]), (1, 0))
+
+    def test_a_module_gate2_gave_no_verdict_is_left_out_with_its_importers(self):
+        """2026-10-17: navier-stokes-euler part 1 shipped 89 modules that two Gate 2 shards ran out of memory and time on. The driver listed them in gate2-killed.json and nothing read the file."""
+        d, p = self.compose_toy("", killed=["Toy.A"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        for out in (d / "bundle", d / "bundle-proposed", d / "bundle-wide"):
+            rep = json.loads((out / "report.json").read_text())
+            self.assertEqual(rep["gate2_unjudged"], [])  # what ships has a verdict, by construction
+            self.assertEqual(rep["gate2_left_out"], ["Toy.A"])
+            self.assertTrue(rep["dropped"]["Toy.A"].startswith("no Gate 2 verdict"))
+            self.assertIn("imports a module that cannot go to the tree", rep["dropped"]["Toy.B"])  # Toy.B imports Toy.A
+            self.assertEqual((rep["modules_in_bundle"], rep["theorems"]), (0, 0))
+            self.assertFalse(list(out.rglob("A.lean")))
+
+    def test_a_clean_run_says_so_in_the_report(self):
+        d, p = self.compose_toy("")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        rep = json.loads((d / "bundle" / "report.json").read_text())
+        self.assertEqual((rep["gate2_unjudged"], rep["gate2_left_out"]), ([], []))
+
+    def test_a_killed_module_the_library_does_not_have_changes_nothing(self):
+        base_dir, base = self.compose_toy("")
+        d, p = self.compose_toy("", killed=["Other.Library.Module"])
+        self.assertEqual((base.returncode, p.returncode), (0, 0), p.stderr)
+        rep, base_rep = (json.loads((x / "bundle" / "report.json").read_text()) for x in (d, base_dir))
+        self.assertEqual((rep["gate2_left_out"], rep["modules_in_bundle"], rep["theorems"]), ([], base_rep["modules_in_bundle"], base_rep["theorems"]))
+
+    def test_a_killed_file_that_is_not_a_list_of_names_is_refused_not_read_as_none(self):
+        for text in ('{"Toy.A": 1}', '"Toy.A"', '[1, 2]', 'not json'):
+            d, p = self.compose_toy("", killed_text=text)
+            self.assertNotEqual(p.returncode, 0, text)
+            self.assertFalse((d / "bundle").exists(), text)
+
+    def test_the_killed_list_is_required(self):
+        d = Path(tempfile.mkdtemp())
+        p = subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", "--lib", str(d), "--log", "x", "--passed", "x", "--meta", "x", "--key", "k", "--toolchain", "t", "--errors", "x", "--out", "o", "--src", "s"], capture_output=True, text=True)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("--gate2-killed", p.stderr)
+
+    def test_the_modules_that_ship_are_never_in_the_killed_list(self):
+        """The check compose makes before it writes a bundle: a shipped module that Gate 2 killed is a bug in compose, and it refuses to go on."""
+        import bundle as b
+
+        self.assertEqual(b.refuse_unjudged({"A", "B"}, {"C"}, "strict"), [])
+        self.assertEqual(b.refuse_unjudged(set(), {"A"}, "strict"), [])
+        with self.assertRaises(SystemExit) as e:
+            b.refuse_unjudged({"A", "B"}, {"B", "C"}, "proposed")
+        self.assertIn("without a Gate 2 verdict", str(e.exception))
+        self.assertIn("proposed", str(e.exception))
 
     def test_a_drop_list_that_names_no_module_fails_instead_of_cutting_nothing(self):
         """2026-10-08: `Encoding.BitPolynomial.Defs` for the library module `Complexitylib.Encoding.BitPolynomial.Defs` was ignored and the uncut bundle published."""
@@ -169,6 +224,7 @@ class Bundle(unittest.TestCase):
                 sys.executable,
                 str(HERE / "bundle.py"),
                 "compose",
+                *killed_arg(d),
                 "--lib",
                 str(lib),
                 "--log",
@@ -218,7 +274,7 @@ class Bundle(unittest.TestCase):
         (d / "passed.json").write_text(json.dumps({"Toy.A": ["Toy.a"], "Toy.B": ["Toy.b"]}))
         (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy", "commit": "c"}))
         (d / "build.log").write_text("")
-        subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
+        subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", *killed_arg(d), "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
                         "--key", "toy", "--toolchain", "tc", "--errors", str(d / "build.log"), "--out", str(d / "bundle"), "--src", str(d / "src")], check=True)
         rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
         self.assertEqual(rep["theorems"], 0)
@@ -354,7 +410,7 @@ class AutoDrops(unittest.TestCase):
         (d / "build.log").write_text("")
         (d / "gate2.log").write_text("")
         (d / "names.txt").write_text("".join(n + "\n" for n in names))
-        argv = [str(HERE / "bundle.py"), "compose", "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
+        argv = [str(HERE / "bundle.py"), "compose", *killed_arg(d), "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
                 "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"), "--src", str(d / "src"),
                 *[str(d / "names.txt") if x == "@names" else x for x in extra]]
         exit_code, err = 0, io.StringIO()
@@ -555,7 +611,7 @@ class ExternalImports(unittest.TestCase):
         (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy.git", "commit": "abc123"}))
         (d / "build.log").write_text("")
         (d / "gate2.log").write_text("GATE2B_PASS old=Toy.one new=Toy.one via=equal\n")
-        subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
+        subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", *killed_arg(d), "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
                         "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"), "--src", str(d / "src")], check=True, capture_output=True)
         rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
         self.assertEqual((rep["modules_in_bundle"], rep["theorems"]), (1, 1))  # it used to be dropped for "imports that"
@@ -684,7 +740,7 @@ class KeepScript(unittest.TestCase):
         (d / "build.log").write_text("")
         (d / "gate2.log").write_text("")
         r = subprocess.run(
-            [sys.executable, str(HERE / "bundle.py"), "compose", "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
+            [sys.executable, str(HERE / "bundle.py"), "compose", *killed_arg(d), "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
              "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"), "--src", str(d / "src")],
             capture_output=True, text=True, check=False,
         )

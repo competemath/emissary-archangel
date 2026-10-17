@@ -129,7 +129,7 @@ jobs:
           python3 scripts/bump/shard_pack.py merge --shards ../shards --out ../merged --logs ../logs
           cat ../logs/gate2-results.json
           python3 scripts/bump/bundle.py compose --lib ../merged --log ../logs/bundle-deps.log --passed ../logs/passed.json --meta "data/exports/$KEY/setup.ci.json" \
-            --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --out ../bundle --src ../pruned-src --drop-modules "$DROP" \
+            --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --gate2-killed ../logs/gate2-killed.json --out ../bundle --src ../pruned-src --drop-modules "$DROP" \
             --tree-names ../tree-names.txt --tree-decls ../tree-decls.txt --drop-leaks --imports "$IMPORTS"
       - name: Make the registrations that leak into other libraries local (RECUT only)
         if: ${{ inputs.scope != '' }}
@@ -359,7 +359,7 @@ jobs:
           python3 scripts/bump/shard_pack.py merge --shards ../shards --out ../merged --logs ../logs
           cat ../logs/gate2-results.json
           python3 scripts/bump/bundle.py compose --lib ../merged --log ../logs/bundle-deps.log --passed ../logs/passed.json --meta "data/exports/$KEY/setup.ci.json" \
-            --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --out ../bundle --src ../pruned-src --drop-modules "$DROP" \
+            --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --gate2-killed ../logs/gate2-killed.json --out ../bundle --src ../pruned-src --drop-modules "$DROP" \
             --tree-names ../tree-names.txt --tree-decls ../tree-decls.txt --drop-leaks --tree-failures ../tree-failures.txt --tree-repairs ../tree-repairs.json --imports "$IMPORTS"
       - name: Make the registrations that leak into other libraries local (RECUT only)
         if: ${{ inputs.scope != '' }}

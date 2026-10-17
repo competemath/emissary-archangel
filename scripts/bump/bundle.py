@@ -95,6 +95,22 @@ def check_keep_gaps(passed: dict[str, list[str]], kept: set[tuple[str, str]], lo
         )
 
 
+def read_killed(path: str) -> set[str]:
+    """The modules Gate 2 gave no verdict (gate2_driver.py: a module that killed Lean alone, or a chunk it had no time for). A file that is not a list of names is refused, not read as 'none'."""
+    data = json.loads(Path(path).read_text())
+    if not isinstance(data, list) or not all(isinstance(x, str) for x in data):
+        sys.exit(f"{path}: gate2-killed.json must be a list of module names, not {str(data)[:80]}")
+    return set(data)
+
+
+def refuse_unjudged(shipped: set[str], killed: set[str], mode: str = "") -> list[str]:
+    """The modules of a bundle that Gate 2 gave no verdict: none, or compose refuses to go on (it would be a bug in compose: the killed modules were cut with their importers)."""
+    unjudged = sorted(shipped & killed)
+    if unjudged:
+        sys.exit(f"the {mode} bundle would ship {len(unjudged)} module(s) without a Gate 2 verdict: {unjudged[:5]}")
+    return unjudged
+
+
 def pascal(library: str) -> str:
     return "".join(p[:1].upper() + p[1:] for p in re.split(r"[-_ ]+", library) if p)
 
@@ -317,6 +333,12 @@ def compose(a: argparse.Namespace) -> None:
     base_dropped.update({m: "an error outside any declaration (glue)" for m in glue_error})
     # modules the merge queue's build of the tree could not compile (a name Mathlib has and the tree does not: a deprecated alias...): left out with what imports them
     asked = [m.strip() for m in (a.drop_modules or "").split(",") if m.strip()]
+    # Nothing that Gate 2 did not judge is shipped (2026-10-17: navier-stokes-euler part 1 carried 89 modules, 504 theorem commands, that two shards ran out of memory and time on; the driver
+    # recorded them in gate2-killed.json and nothing read the file). A module with no verdict is left out like one that did not build, with what imports it.
+    killed = read_killed(a.gate2_killed)
+    no_verdict = sorted(killed & set(modules))
+    for m in no_verdict:
+        base_dropped.setdefault(m, "no Gate 2 verdict (it killed Lean alone, or its shard ran out of time)")
     for m in asked:
         if m in modules:
             base_dropped[m] = "did not build on the tree"
@@ -470,6 +492,8 @@ def compose(a: argparse.Namespace) -> None:
                 rel = str(m.path.relative_to(lib))
                 manifest.append({"name": n, "statement": stmt, "module": f"Tengoku.{pascal(a.key)}.{mod}", "source_path": rel, "library": a.key,
                                  "source_url": f"{repo}/blob/{meta['commit']}/{rel}", "toolchain": a.toolchain, "via": via.get(n, "")})
+        # the identity this rests on: no module of the bundle is one Gate 2 gave no verdict. A hole here is a bug in compose, and compose refuses to go on.
+        unjudged = refuse_unjudged(needed, killed, mode)
         out_dir = out if mode == "strict" else Path(str(out) + "-" + mode)
         src_dir = src if mode == "strict" else Path(str(src) + "-" + mode)
         tree_root = out_dir / "Tengoku" / pascal(a.key)
@@ -518,7 +542,7 @@ def compose(a: argparse.Namespace) -> None:
         out_dir.with_name(out_dir.name + ".ledger.json").write_text(
             json.dumps({"library": a.key, "lint_mode": mode, "verified": total, "shipped": len(manifest), "left_out": dict(left_out), "modules": dict(sorted(ledger.items()))}, indent=1)
         )
-        report = {"library": a.key, "lint_mode": mode, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]), "dropped_truncated": len(dropped) > 50,
+        report = {"library": a.key, "lint_mode": mode, "gate2_unjudged": unjudged, "gate2_left_out": no_verdict, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]), "dropped_truncated": len(dropped) > 50,
                   "theorems": len(manifest), "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "textually_kept": textually_kept, "dependency_graph": ({**graph_stats, "text_kept_tainted": len(graph_stats["text_kept_tainted"]), "text_kept_tainted_first": graph_stats["text_kept_tainted"][:20], "taint_drops": a.taint_drops} if graph is not None else None), "failed_seeds_shipped": [f"{m}:{b[0]}" for m, b in failed_seeds[:50]], "failed_seeds_shipped_total": len(failed_seeds), "stripped_attributes": dict(stripped_attrs.most_common(15)),
                   "lint_cost": dict(sorted(classes.items(), key=lambda x: -x[1])[:15])}
         (out_dir / "report.json").write_text(json.dumps(report, indent=1))
@@ -619,6 +643,7 @@ if __name__ == "__main__":
     for f in ("lib", "log", "passed", "meta", "key", "toolchain", "errors", "out", "src"):
         c.add_argument(f"--{f}", required=True)
     c.add_argument("--gate2", default="")
+    c.add_argument("--gate2-killed", required=True, help="gate2-killed.json (a list of module names, merged over the shards by shard_pack.py merge): the modules Gate 2 gave NO verdict (a Lean process that outgrew the machine alone, or no time left). They are left out with their importers: nothing that was not judged is shipped. Required, so that no caller can forget it")
     c.add_argument("--imports", choices=("full", "faithful"), default="full", help="full: every seeded import becomes the root `Tengoku`; faithful: each keeps its module in the tree's name (seed_module) and the module gets a one-line docstring saying so (the shards must have been built without normalize-imports)")
     c.add_argument("--keep-input", default="", help="the json keep-input wrote: only the passed theorems named in it are checked for a gap in the keep log")
     c.add_argument("--drop-modules", default="", help="comma list of modules to leave out (with their importers): those that did not build on the tree")

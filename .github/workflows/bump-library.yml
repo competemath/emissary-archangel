@@ -216,7 +216,7 @@ jobs:
             echo "import clash in the keep step: $bad (and what imports it) is left out of the bundle"; drop="$drop,$bad"
           done
           python3 scripts/bump/bundle.py compose --lib lib --log bundle-deps.log --passed passed.json --meta "data/exports/$KEY/setup.ci.json" \
-            --key "$KEY" --toolchain "$TOOLCHAIN" --errors build1.log --gate2 gate2.log --out bundle --src pruned-src --drop-modules "${drop#,}" --keep-input lib/bundle-keep.json
+            --key "$KEY" --toolchain "$TOOLCHAIN" --errors build1.log --gate2 gate2.log --gate2-killed gate2-killed.json --out bundle --src pruned-src --drop-modules "${drop#,}" --keep-input lib/bundle-keep.json
       - name: Build the pruned sources until they are clean (what is shipped is exactly what was built; a module that does not build, and what imports it, is left out)
         working-directory: emissary
         run: |

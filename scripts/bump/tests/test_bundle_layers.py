@@ -176,6 +176,18 @@ class Plan(unittest.TestCase):
         with self.assertRaises(bl.BundleError):
             bl.plan({f"Tengoku/{NS}.lean": b""}, NS, 5)
 
+    def test_every_part_report_carries_what_gate2_left_out_of_the_bundle(self):
+        """The gate in tengoku reads `gate2_unjudged` from the part's report (the archive the factory attests): the part must say what the bundle said, and say nothing it was not told."""
+        files = make_bundle({"A": [], "B": ["A"]})
+        files["report.json"] = json.dumps({"library": "lib", "lint_mode": "strict", "theorems": 2, "gate2_unjudged": []}).encode()
+        parts = bl.plan(files, NS, 1)
+        self.assertGreater(len(parts), 0)
+        for p in parts:
+            self.assertEqual(json.loads(p.files["report.json"])["gate2_unjudged"], [])
+        old_bundle = make_bundle({"A": [], "B": ["A"]})  # a bundle from before the field existed: the part says None, and tengoku refuses None
+        for p in bl.plan(old_bundle, NS, 1):
+            self.assertIsNone(json.loads(p.files["report.json"])["gate2_unjudged"])
+
     def test_the_report_carries_the_digest_of_the_whole_bundle(self):
         files = make_bundle({"A": [], "B": ["A"]})
         digests = {json.loads(p.files["report.json"])["bundle_sha256"] for p in bl.plan(files, NS, 1)}
