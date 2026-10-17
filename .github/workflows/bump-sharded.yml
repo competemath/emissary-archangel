@@ -23,6 +23,8 @@ on:
       from_tree: { description: "PARTS, on a recut after some parts merged: cut only the modules the tree does not have yet (the library's Tengoku/<Ns>.lean on tengoku main), numbered from the next part, so the new parts extend what merged (scripts/bump/bundle_layers.py --tree-umbrella)", default: "" }
       gate2_budget_min: { description: "minutes Gate 2 may spend on each shard (default 150; the shard job has 345 in all, the build and export come first). A shard whose chunks do not fit leaves the rest unjudged, and an unjudged module is cut with its importers", default: "150" }
       gate2_rss_share: { description: "the share of the runner's memory one Lean process of Gate 2 may use (default 0.80 = 12.8 GB of 16). A module that outgrows it alone gets no verdict and is cut with its importers", default: "0.80" }
+      only_shards: { description: "RESUME: run only these shards of the plan (comma list of shard numbers), the one that died; with fill_from for the others", default: "" }
+      fill_from: { description: "RESUME: the id of an earlier run of this workflow for this key whose shard artifacts fill in the shards this run does not build. Its plan must be this run's plan (checked)", default: "" }
       imports: { description: "full = every Mathlib/Batteries/Aesop/Qq/ProofWidgets import of a library module becomes the umbrella (the shards run normalize-imports; the bundle imports the root `Tengoku`). faithful = the library keeps the imports its authors wrote and the bundle names the same modules in the tree (`Tengoku.Seed.X`), with a one-line docstring per module: for a library whose names turn ambiguous under the umbrella (navier-stokes-euler). A recut must use what its shards were built with", type: choice, options: [full, faithful], default: "full" }
 permissions: {}
 defaults:
@@ -37,6 +39,7 @@ jobs:
     env: { KEY: "${{ inputs.key }}", SHARDS: "${{ inputs.shards }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}" }
     outputs:
       shards: ${{ steps.p.outputs.shards }}
+      run_shards: ${{ steps.run.outputs.run_shards }}
     steps:
       - name: This repository (scripts, the library's setup) and tengoku's entries for it
         run: |
@@ -81,6 +84,11 @@ jobs:
           out = os.environ["GITHUB_OUTPUT"]
           open(out, "a").write("shards=" + json.dumps(shards) + "\n")
           PY
+      - name: The shards this run builds (all of the plan, or only_shards)
+        id: run
+        working-directory: emissary
+        env: { PLANNED: "${{ steps.p.outputs.shards }}", ONLY: "${{ inputs.only_shards }}" }
+        run: echo "run_shards=$(python3 scripts/bump/shard_pack.py select --planned "$PLANNED" --only "$ONLY")" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: { name: "plan-${{ inputs.key }}", path: plan, retention-days: 14 }
   shard:
@@ -89,7 +97,7 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: ${{ fromJSON(inputs.parallel) }}
-      matrix: { shard: "${{ fromJSON(needs.plan.outputs.shards) }}" }
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.run_shards) }}" }
     uses: ./.github/workflows/bump-shard.yml
     with:
       key: ${{ inputs.key }}
@@ -120,6 +128,27 @@ jobs:
           git -C emissary checkout -q "$GITHUB_SHA"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { pattern: "shard-${{ inputs.key }}-*", path: shards, run-id: "${{ inputs.recut_from || github.run_id }}", github-token: "${{ github.token }}" }
+      # RESUME (fill_from): the shards this run did not build come from the earlier run; a shard built here is never replaced by its old copy
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: ${{ inputs.fill_from != '' }}
+        with: { pattern: "shard-${{ inputs.key }}-*", path: shards-fill, run-id: "${{ inputs.fill_from }}", github-token: "${{ github.token }}" }
+      - name: Fill in the shards of the earlier run
+        if: ${{ inputs.fill_from != '' }}
+        run: python3 emissary/scripts/bump/shard_pack.py fill --shards shards --fill shards-fill
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: ${{ inputs.fill_from != '' }}
+        with: { name: "plan-${{ inputs.key }}", path: plan-new }
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: ${{ inputs.fill_from != '' }}
+        with: { name: "plan-${{ inputs.key }}", path: plan-old, run-id: "${{ inputs.fill_from }}", github-token: "${{ github.token }}" }
+      - name: The earlier run planned the same shards
+        if: ${{ inputs.fill_from != '' }}
+        run: |
+          cmp plan-old/plan.json plan-new/plan.json || { echo "::error::the plan of fill_from differs from this run's, so its shards are not these shards (same shards, mathlib, toolchain, imports, library commit?)"; exit 1; }
+      - name: Every shard of the plan has its result (a shard whose job died must not read as a library without it)
+        if: ${{ inputs.recut_from == '' }}
+        env: { PLANNED: "${{ needs.plan.outputs.shards }}" }
+        run: python3 emissary/scripts/bump/shard_pack.py complete --shards shards --key "$KEY" --planned "$PLANNED"
       - name: The record names the tree already has (tengoku data files, read as text and never run)
         run: |
           git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
@@ -331,6 +360,13 @@ jobs:
           git -C emissary checkout -q "$GITHUB_SHA"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { pattern: "shard-${{ inputs.key }}-*", path: shards, run-id: "${{ inputs.recut_from || github.run_id }}", github-token: "${{ github.token }}" }
+      # RESUME (fill_from): the shards this run did not build come from the earlier run; a shard built here is never replaced by its old copy
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: ${{ inputs.fill_from != '' }}
+        with: { pattern: "shard-${{ inputs.key }}-*", path: shards-fill, run-id: "${{ inputs.fill_from }}", github-token: "${{ github.token }}" }
+      - name: Fill in the shards of the earlier run
+        if: ${{ inputs.fill_from != '' }}
+        run: python3 emissary/scripts/bump/shard_pack.py fill --shards shards --fill shards-fill
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { name: "draft-${{ inputs.key }}", path: draft }
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
