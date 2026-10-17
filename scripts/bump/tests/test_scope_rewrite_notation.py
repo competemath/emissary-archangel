@@ -232,6 +232,8 @@ class Dependents(unittest.TestCase):
                         'notation "sub" a b => a - b\n'
                         'notation "w1" => vec\nnotation "w2" => v\'\nnotation "w3" x => f v x\n'
                     ),
+                    # imports nothing of M: its `v` is a variable, not the notation
+                    "Unrelated.lean": 'import Tengoku.Lib.Base\n\nnotation "w4" x => f v x\n',
                     "Base.lean": "theorem b : True := trivial\n",
                 },
             )
@@ -242,6 +244,7 @@ class Dependents(unittest.TestCase):
             self.assertIn('\nnotation "w1" => vec\n', u)
             self.assertIn("\nnotation \"w2\" => v'\n", u)
             self.assertIn('local notation "w3" x => f v x', u)  # the root namespace: local
+            self.assertIn('\nnotation "w4" x => f v x\n', (base / "Unrelated.lean").read_text())
             self.assertEqual(rep["atoms_not_searched"], ["-"])
             self.assertEqual(len(rep["dependents"]), 1, rep)
 

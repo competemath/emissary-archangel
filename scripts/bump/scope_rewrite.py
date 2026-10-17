@@ -517,12 +517,33 @@ def update_marker(lines: list[str], added: list[dict]) -> None:
         lines[at] = note
 
 
-def dependents(files: dict[str, Path], imported: set[str], lib: str, report: dict) -> None:
+def dependents(files: dict[str, Path], imports: dict[str, list[str]], lib: str, report: dict) -> None:
     """Notations that were made scoped or local have a word or a symbol (their atoms). A GLOBAL notation of the library whose right-hand side uses one of them
     (`notation φ " ↣ " ψ => (~ φ) v ψ` with `v` made scoped) expands, outside the scope, to syntax that has no meaning there: the tokens stay reserved and using them fails
     with "elaboration function … has not been implemented". It is made scoped or local as well (and the importers activate it as they do the first), to a fixed point:
-    `⟷` is built on `↣`. The queue's build cannot see the failure (every user in the library opens the scope)."""
-    atoms = {a: mod for mod, infos in NOTATION_EDITS.items() for x in infos for a in x["atoms"]}
+    `⟷` is built on `↣`. The queue's build cannot see the failure (every user in the library opens the scope). A notation can only be used by the module that
+    declares it and the modules that import that one: an atom counts for those (a variable `v` in an unrelated module is not the notation `v`)."""
+    imported = {m for deps in imports.values() for m in deps}
+    seen: dict[str, set[str]] = {}
+
+    def closure(mod: str) -> set[str]:
+        if mod not in seen:
+            out, stack = {mod}, list(imports.get(mod, []))
+            while stack:
+                m = stack.pop()
+                if m not in out:
+                    out.add(m)
+                    stack.extend(imports.get(m, []))
+            seen[mod] = out
+        return seen[mod]
+
+    atoms: dict[str, set[str]] = {}  # atom -> the modules (the library's own names) that declare a notation with it
+    for modname, infos in NOTATION_EDITS.items():
+        parts = parts_of(modname)
+        if parts and len(parts) > 2:
+            for x in infos:
+                for a in x["atoms"]:
+                    atoms.setdefault(a, set()).add(".".join(parts[2:]))
     report["atoms_not_searched"] = sorted(a for a in atoms if not WORD_ATOM.fullmatch(a) and len(a) == 1 and a.isascii())
     found: list[str] = []
     while True:
@@ -534,14 +555,16 @@ def dependents(files: dict[str, Path], imported: set[str], lib: str, report: dic
                 m = NOTATION_KW.match(f.code[i])
                 if not m or m.group("mod"):
                     continue
-                hit = sorted(a for a in atoms if mentions_atom(command_rhs(f, i), a))
+                visible = closure(mod)
+                hit = sorted(a for a, origins in atoms.items() if origins & visible and mentions_atom(command_rhs(f, i), a))
                 if not hit:
                     continue
-                r, info = edit_notation(f, i + 1, mod in imported or not files)
+                r, info = edit_notation(f, i + 1, mod in imported)
                 label = f"{mod}: {f.text[i][m.start('kw') : code_end(f.text[i])][:80]} (uses {', '.join(hit)})"
                 if r == "edited":
                     notes.append((info["line"], info))
-                    atoms.update({a: mod for a in info["atoms"]})
+                    for a in info["atoms"]:
+                        atoms.setdefault(a, set()).add(mod)
                     found.append(label)
                 elif r == "unsupported":
                     report["skipped"].append(f"{label}: {info['why']}")
@@ -572,7 +595,8 @@ def apply_bundle(root: Path, leaks: list[dict], skip: int = 0) -> dict:
         by_mod.setdefault(lk["mod"], []).append(lk)
     report = {"rewritten": 0, "skipped": [], "missing_modules": []}
     files = native_names(root, skip)
-    imported = {m for deps in import_graph(files, skip).values() for m in deps} if files else set()
+    graph = import_graph(files, skip) if files else {}
+    imported = {m for deps in graph.values() for m in deps}
     for mod, ls in sorted(by_mod.items()):
         f = module_file(root, mod, skip)
         if not f:
@@ -584,7 +608,7 @@ def apply_bundle(root: Path, leaks: list[dict], skip: int = 0) -> dict:
         report["rewritten"] += done
         report["skipped"] += [f"{mod}: {s}" for s in skipped]
     if files and NOTATION_EDITS:
-        dependents(files, imported, next(iter(files.values())).relative_to(root).parts[1] if skip == 0 else "X", report)
+        dependents(files, graph, next(iter(files.values())).relative_to(root).parts[1] if skip == 0 else "X", report)
     return report
 
 
