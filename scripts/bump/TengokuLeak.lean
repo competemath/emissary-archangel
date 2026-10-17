@@ -166,11 +166,9 @@ partial def atoms (e : Expr) : List String :=
   | some ``ParserDescr.node => (args.drop 2).flatMap atoms
   | some ``ParserDescr.trailingNode => (args.drop 3).flatMap atoms
   | some ``ParserDescr.binary | some ``ParserDescr.unary => (args.drop 1).flatMap atoms
-  -- `sepBy(p, "sep")` makes its separator a token as well: sepBy p sep psep allowTrailingSep
-  | some ``ParserDescr.sepBy | some ``ParserDescr.sepBy1 =>
-    let sep := match (args.drop 1).head? with
-      | some (Expr.lit (Literal.strVal s)) => [s.trimAscii.toString]
-      | _ => []
+  -- `sepBy(p, "sep")`: the tokens of the separator are those of its parser `psep` (by default `symbol "sep"`); the string `sep` alone is only for formatting
+  | some ``ParserDescr.sepBy | some ``ParserDescr.sepBy1 => ((args.take 1) ++ (args.drop 2).take 1).flatMap atoms
+  | _ => []
     (args.take 1).flatMap atoms ++ sep ++ ((args.drop 2).take 1).flatMap atoms
   | _ => []
 
