@@ -18,6 +18,15 @@ is harmless until the library declares `instance : Torsor Pitch Interval` with `
 `Torsor Int Int`, so `HDiv ℤ ℤ ?γ` finds `Torsor.toHDiv` before `Int.instHDiv` and `omega` fails with `Application type mismatch … Prismriver.EqualTemp.Interval`.
 An instance of a class that has such a projection, whose arguments (after unfolding reducible definitions) mention nothing of the library, is a leak.
 
+And one through NOTATION: a global `prefix:80 "-" => complement` (lean-pool, `LO.Modal.Formula`) is a second reading of every `-(…)` in the tree. For real numbers both
+readings elaborate and Lean says `Ambiguous term -(3 * x)` (2026-10-17). A global notation of a library whose first token, at the same position (leading or trailing), is
+the token of a global notation of a module OUTSIDE the library (core, Mathlib, a dependency) is a leak: it must be `scoped`, or `local`.
+
+And through the TOKEN TABLE: a global notation, `syntax`, `macro` or `elab` whose atom looks like an identifier (`notation "v" => …`, `prefix:70 "na" => …`, `elab "superpose " …`)
+makes that word a reserved token in every file of the tree, so `fun v => …`, `(na : ℕ)` and `resolve` as a name fail with `unexpected token 'v'; expected identifier`
+(lean-pool, equational-theories: 35 such words on 2026-10-17). A parser of the library with an identifier-like atom that no module outside the library has as a token is a leak.
+(The first atom of a parser in a category that reads identifiers there, `tactic`, is not a token.)
+
   lake build tengoku-leakscan
   lake env .lake/build/bin/tengoku-leakscan --module Tengoku.Lib [--prefix Tengoku.Lib …] [--tree-prefix Tengoku.Lib] [--strict]
 
@@ -44,6 +53,8 @@ structure Counts where
   instScoped : Nat := 0
   simp : Nat := 0
   simpScoped : Nat := 0
+  notat : Nat := 0
+  notatScoped : Nat := 0
   /-- declarations of the library whose name has one component: nothing in the name says which library they belong to -/
   roots : Array Name := #[]
 
@@ -99,6 +110,78 @@ def pinnedToForeign (reach : NameSet) (ty : Expr) (own : Name → Bool) : MetaM 
     let all := tys ++ concl.getAppArgs
     let red ← all.mapM fun a => withReducible (reduce a (explicitOnly := false) (skipTypes := false) (skipProofs := false))
     return !red.any (·.getUsedConstants.any own)
+
+/-- every string literal in an expression (a `Name` is built from them: `.str (.str .anonymous "Lean") "noWs"`) -/
+partial def strLits (e : Expr) : List String :=
+  match e with
+  | Expr.lit (Literal.strVal s) => [s]
+  | Expr.app f a => strLits f ++ strLits a
+  | _ => []
+
+/-- the parsers that consume nothing (a check on the whitespace or the column): the token that follows them is the first one -/
+def zeroWidth : List String := ["noWs", "ws", "ppSpace", "ppHardSpace", "ppLine", "colGt", "colGe", "colEq", "lineEq", "hygieneInfo"]
+
+/-- what a `ParserDescr` starts with: a token, nothing yet (a check that consumes nothing), or something else (a category, an identifier, `&"word"`) -/
+inductive Lead where
+  | found (s : String)
+  | skip
+  | blocked
+  deriving Inhabited
+
+partial def lead (e : Expr) : Lead :=
+  let args := e.getAppArgs.toList
+  let arg (i : Nat) : Option Expr := (args.drop i).head?
+  match e.getAppFn.constName? with
+  | some ``ParserDescr.symbol =>
+    match arg 0 with
+    | some (Expr.lit (Literal.strVal s)) => Lead.found s.trimAscii.toString
+    | _ => Lead.blocked
+  | some ``ParserDescr.node => (arg 2).elim Lead.blocked lead
+  | some ``ParserDescr.trailingNode => (arg 3).elim Lead.blocked lead
+  | some ``ParserDescr.unary => (arg 1).elim Lead.blocked lead  -- `group`, `atomic`, `withoutPosition`, …: what is inside comes first
+  | some ``ParserDescr.binary =>
+    match (arg 1).elim Lead.blocked lead with
+    | Lead.skip => (arg 2).elim Lead.blocked lead  -- `andthen (noWs) (symbol "[")`
+    | r => r
+  | some ``ParserDescr.const =>
+    match (arg 0).bind (fun n => (strLits n).getLast?) with
+    | some w => if zeroWidth.contains w then Lead.skip else Lead.blocked
+    | none => Lead.blocked
+  | _ => Lead.blocked
+
+/-- the token a `ParserDescr` starts with (after checks that consume nothing), when it starts with one -/
+def leftSymbol (e : Expr) : Option String :=
+  match lead e with
+  | Lead.found s => some s
+  | _ => none
+
+/-- every `symbol` atom of a `ParserDescr`, in order: the words the parser puts in the token table (a `nonReservedSymbol`, `&"word"`, is not one) -/
+partial def atoms (e : Expr) : List String :=
+  let args := e.getAppArgs.toList
+  match e.getAppFn.constName? with
+  | some ``ParserDescr.symbol =>
+    match args.head? with
+    | some (Expr.lit (Literal.strVal s)) => [s.trimAscii.toString]
+    | _ => []
+  | some ``ParserDescr.node => (args.drop 2).flatMap atoms
+  | some ``ParserDescr.trailingNode => (args.drop 3).flatMap atoms
+  | some ``ParserDescr.binary | some ``ParserDescr.unary => (args.drop 1).flatMap atoms
+  -- `sepBy(p, "sep")`: the tokens of the separator are those of its parser `psep` (by default `symbol "sep"`); the string `sep` alone is only for formatting
+  | some ``ParserDescr.sepBy | some ``ParserDescr.sepBy1 => ((args.take 1) ++ (args.drop 2).take 1).flatMap atoms
+  | _ => []
+
+/-- a word the parser would read as an identifier (Lean's own test: ASCII letters, `_`, the Greek and letter-like characters, subscripts, `'`, `!`, `?`) -/
+def identLike (s : String) : Bool :=
+  match s.toList with
+  | [] => false
+  | c :: rest => isIdFirst c && rest.all isIdRest
+
+/-- `leading -` / `trailing ∈`: where the notation starts to parse, and its token; none for a parser that is not made of `ParserDescr` applications -/
+def tokenKey (env : Environment) (decl : Name) : Option String := do
+  let body ← (env.find? decl).bind (·.value?)
+  let tok ← leftSymbol body
+  let trailing := body.getAppFn.constName? == some ``ParserDescr.trailingNode
+  return (if trailing then "trailing " else "leading ") ++ tok
 
 def scan (pfxs : List Name) : CoreM (Array Leak × Counts) := do
   let env ← getEnv
@@ -175,6 +258,38 @@ def scan (pfxs : List Name) : CoreM (Array Leak × Counts) := do
           leaks := leaks.push { kind := "simp", name := n, registeredIn := modName, declaredIn := dm,
                                 line := if dm == some modName then r.map (·.range.pos.line) else none }
       | .global _ => pure ()
+  -- what the modules OUTSIDE the library already have: a first token for a global term notation (by position), and every token
+  let mut foreign : Std.HashSet String := {}
+  let mut foreignTokens : Std.HashSet String := {}
+  for j in [0:env.header.moduleNames.size] do
+    unless idxs.contains j do
+      for e in Parser.parserExtension.ext.getModuleEntries env j do
+        match e with
+        | .global (.parser `term decl _) => if let some k := tokenKey env decl then foreign := foreign.insert k
+        | .global (.token t) => foreignTokens := foreignTokens.insert t
+        | _ => pure ()
+  for i in idxs do
+    let modName := env.header.moduleNames[i]!
+    for e in Parser.parserExtension.ext.getModuleEntries env i do
+      match e with
+      | .scoped _ (.parser _ _ _) => counts := { counts with notatScoped := counts.notatScoped + 1 }  -- one per command (a command also adds token and kind entries)
+      | .global (.parser cat decl _) =>
+        counts := { counts with notat := counts.notat + 1 }
+        let collides := cat == `term && (tokenKey env decl).any foreign.contains
+        -- the first atom of a leading parser in a category that reads identifiers there (`tactic`) is no token
+        let readsIdents := ((Parser.getCategory (Parser.parserExtension.getState env).categories cat).map (·.behavior != .default)).getD false
+        let body := (env.find? decl).bind (·.value?)
+        let trailing := (body.bind (·.getAppFn.constName?)) == some ``ParserDescr.trailingNode
+        let words := (body.map atoms).getD []
+        -- the first atom of a leading parser that STARTS with it, in a category that reads identifiers there (`tactic`), is no token
+        let words := if readsIdents && !trailing && (body.bind leftSymbol).isSome then words.drop 1 else words
+        let reserves := words.any fun w => identLike w && !foreignTokens.contains w
+        if collides || reserves then
+          let r ← findDeclarationRanges? decl
+          let dm := (env.getModuleIdxFor? decl).bind fun m => env.header.moduleNames[m]?
+          leaks := leaks.push { kind := "notation", name := decl, registeredIn := modName, declaredIn := dm,
+                                line := if dm == some modName then r.map (·.range.pos.line) else none }
+      | _ => pure ()
   for (n, _) in env.constants.map₁.toList do
     if let some m := env.getModuleIdxFor? n then
       if idxs.contains m && n.isAtomic && !n.isInternal && !n.hasMacroScopes then
@@ -191,7 +306,8 @@ def report (treePrefix : Name) (leaks : Array Leak) (c : Counts) : List String :
        | none, none => "")
   -- the totals come first (a report cut to its first lines keeps them), then every leak, then every root-level name
   [s!"leakscan: {c.inst} global instances ({(leaks.filter (·.kind == "instance")).size} can fire outside the library), {c.instScoped} scoped; " ++
-    s!"{c.simp} global simp lemmas ({(leaks.filter (·.kind == "simp")).size} trigger on nothing of the library), {c.simpScoped} scoped",
+    s!"{c.simp} global simp lemmas ({(leaks.filter (·.kind == "simp")).size} trigger on nothing of the library), {c.simpScoped} scoped; " ++
+    s!"{c.notat} global parsers ({(leaks.filter (·.kind == "notation")).size} reuse a token of another module or reserve a word as one), {c.notatScoped} scoped",
    s!"roots: {c.roots.size} declarations of the library are in the root namespace (nothing in their names tells libraries apart; a second library declaring one fails to import)"]
     ++ rows ++ c.roots.toList.map fun n => s!"root: {n}"
 

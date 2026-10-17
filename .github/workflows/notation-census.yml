@@ -1,0 +1,96 @@
+# Which global notation of the tree's libraries leaks into every other library, read from the SOURCES of tengoku (scripts/bump/notation_census.py: a `prefix:80 "-" => complement`
+# is a second reading of every `-(3 * x)`, a `notation "v" => …` reserves `v` in every file; lean-pool, 2026-10-17), and the scope-fix that makes them `scoped`/`local`
+# (scripts/bump/scope_rewrite.py, `--reexport` for the library's own importers) judged by the scope-fix check of the same tengoku ref. Reads one repository, writes nothing to it:
+# the result is an artifact (the edited modules, the report lines, the check's verdict). No Lean, one small job.
+name: notation-census
+on:
+  workflow_dispatch:
+    inputs:
+      ref: { description: "the tengoku ref whose sources are read and whose scripts/ci/scope_fix_check.py judges the edit", default: "main" }
+      libs: { description: "only these library namespaces (space separated, e.g. `LeanPool EquationalTheories`); empty: every library", default: "" }
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  census:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions: { contents: read }
+    env:
+      REF: ${{ inputs.ref }}
+      LIBS: ${{ inputs.libs }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { sparse-checkout: scripts/bump, persist-credentials: false }
+      - name: The sources of tengoku (the libraries, not the seed) and its scope-fix check
+        run: |
+          git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tree
+          cd tree
+          git sparse-checkout set --no-cone '/scripts/ci/' '/scripts/isnad.py' '/scripts/isnad_tag.py' '/schemas/' '/data/intake/' '/lean-toolchain' '/Tengoku/' '!/Tengoku/Seed/'
+          git checkout -q --detach "origin/$REF" 2>/dev/null || git checkout -q --detach "$REF"
+          git log -1 --format='tengoku at %H %s' | tee ../at.txt
+          du -sh Tengoku | tail -1
+      - name: The census
+        run: |
+          only=(); for l in $LIBS; do only+=(--lib "$l"); done
+          python3 scripts/bump/notation_census.py --tree tree --seed scripts/bump/seed-tokens.json "${only[@]}" --out leaks.txt --json census.json | tee census.txt
+          { echo '### Notation census'; echo '```'; head -80 census.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: The edit (scoped / local, and the same for the importers inside each library)
+        run: |
+          set -e
+          base=$(git -C tree rev-parse HEAD)
+          grep -o 'registered in Tengoku\.[^.]*' leaks.txt | sed 's/.*Tengoku\.//' | sort -u > libs.txt || : > libs.txt
+          while read -r lib; do
+            echo "== $lib"
+            # `open scoped N` turns on every scoped entry of N: not a namespace in which core or Mathlib have some, nor one where the library has some already
+            ( cd tree && TENGOKU_CI_ROOT="$PWD" python3 -c '
+          import sys
+          sys.path.insert(0, "scripts/ci")
+          import scope_fix_check as sf
+          lib = sys.argv[1]
+          print("\n".join(sorted(sf.scoped_namespaces("HEAD", "Tengoku/Seed") | sf.scoped_namespaces("HEAD", f"Tengoku/{lib}"))))
+          ' "$lib" ) > "forbid-$lib.txt"
+            wc -l < "forbid-$lib.txt"
+            mkdir -p "work/$lib/Tengoku"
+            cp -r "tree/Tengoku/$lib" "work/$lib/Tengoku/"
+            python3 scripts/bump/scope_rewrite.py --bundle "work/$lib" --reexport --forbid-namespaces "forbid-$lib.txt" --leaks "$(grep "registered in Tengoku\\.$lib\\." leaks.txt)" | tee -a rewrite.txt
+            cp -r "work/$lib/Tengoku/$lib/." "tree/Tengoku/$lib/"
+          done < libs.txt
+          cd tree
+          git add -A Tengoku
+          git diff --cached --stat | tail -3 | tee ../diffstat.txt
+          git -c user.name=census -c user.email=census@invalid commit -q -m "scope fix: notation"
+          head=$(git rev-parse HEAD)
+          echo "$base" > ../base.txt
+          git diff --name-only "$base" "$head" > ../changed.txt
+          wc -l < ../changed.txt
+      - name: The scope-fix check of tengoku judges it
+        run: |
+          cd tree
+          base=$(cat ../base.txt); head=$(git rev-parse HEAD)
+          export TENGOKU_CI_ROOT="$PWD" PR_ACTOR=bot TENGOKU_BOT=bot
+          python3 scripts/ci/classify.py "$base" "$head" | tee ../classify.txt
+          python3 scripts/ci/scope_fix_check.py "$base" "$head" | tee ../check.txt
+      - name: The edited modules
+        if: always()
+        run: |
+          [ -s changed.txt ] && tar -c -f edited.tar -C tree -T changed.txt || : > edited.tar
+          ls -la edited.tar
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: notation-census
+          path: |
+            edited.tar
+            changed.txt
+            leaks.txt
+            forbid-*.txt
+            census.json
+            census.txt
+            rewrite.txt
+            at.txt
+            base.txt
+            check.txt
+            classify.txt
+          retention-days: 7

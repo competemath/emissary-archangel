@@ -164,7 +164,7 @@ jobs:
       # nothing of the library is a leak although its type does mention the library (lean-pool's GroupRing, 2026-10-16: `HMul R G (FreeModule R G)` for all R and G made every product of reals
       # in the tree a group-ring element). The shapes that are harmless must not be reported: an instance whose input is the library's type, one of the library's own class, one with a
       # hypothesis about the library. The old rule (the statement mentions nothing of the library) must still report its case. And the shape through the library's own class (the next comment).
-      - name: The leak scan reports an unpinned instance of a foreign outParam class, an instance of an own class at foreign types, the old shape, and nothing harmless
+      - name: The leak scan reports an unpinned instance of a foreign outParam class, an instance of an own class at foreign types, the old shape, notation and tokens, and nothing harmless
         working-directory: gate2
         run: |
           d="$RUNNER_TEMP/leaktoy"
@@ -240,6 +240,39 @@ jobs:
 
           /-- LEAK: `HDiv (List Nat) (List Nat) ?γ` finds `Tor.toHDiv` through `hop2ToTor` -/
           instance hop2Nat : Hop2 Alias Alias := ⟨id⟩
+
+          -- NOTATION (lean-pool, 2026-10-17): a global command whose first token, at the same position, is a token core already has (`prefix:80 "-"`: every `-(3 * x)` on a real is
+          -- "Ambiguous term"), or whose atom is a word the parser would read as an identifier (`notation "v"`: `fun v => …` fails everywhere). Scoped ones, a token nobody has, and the
+          -- first atom of a tactic (`tactic` reads identifiers there) are not leaks.
+          def Own.neg (a : Own) : Own := ⟨a.x⟩
+
+          /-- LEAK: the same position and token as core's prefix `-` -/
+          prefix:80 "-" => Own.neg
+
+          /-- LEAK: `vee` is a reserved word in every file once this is imported -/
+          notation "vee" => Own.mk 0
+
+          /-- not a leak: a token nobody else has -/
+          notation:65 a " ⊞⊞ " b => Own.mk (Own.x a + Own.x b)
+
+          /-- not a leak: the first atom of a tactic is read as an identifier -/
+          syntax "toytac" : tactic
+
+          /-- LEAK: the second atom of a tactic is a token -/
+          syntax "quux " "zork" : tactic
+
+          /-- LEAK: the separator of a `sepBy` is a token as well -/
+          syntax "sepdemo(" sepBy(num, "sepword") ")" : term
+
+          /-- not a leak: `&"nrword"` is a non-reserved symbol, it never enters the token table (it reads an identifier) -/
+          syntax "nrtac" &"nrword" : tactic
+
+          namespace Sc2
+          /-- not global -/
+          scoped prefix:80 "~~" => Own.neg
+          /-- not global -/
+          scoped notation "vee2" => Own.mk 1
+          end Sc2
           LEAN
           lake env lean --root="$d" -o "$d/LeakToy.olean" "$d/LeakToy.lean"
           lp="$d:$(lake env printenv LEAN_PATH)"
@@ -251,4 +284,10 @@ jobs:
           assert leaks == {"unpinnedHMul", "foreignOnly", "torNat", "tor2Nat", "hop2Nat"}, (leaks, out)
           assert re.search(r"^leakscan: \d+ global instances \(5 can fire outside the library\), 1 scoped", out), out.splitlines()[0]
           print("reported:", sorted(leaks))
+          # notation: the prefix `-`, the word `vee`, the atom `zork`; not the new symbol, not `toytac`, not the scoped ones
+          notes = [m.group(1) for m in re.finditer(r"^leak: notation (\S+) registered in LeakToy", out, re.M)]
+          assert len(notes) == 4 and any("term-_" in n for n in notes) and any("Vee" in n and "Vee2" not in n for n in notes) and any("Zork" in n for n in notes) and any("Sepdemo" in n for n in notes), (notes, out)
+          assert not any(x in n for n in notes for x in ("⊞⊞", "Toytac", "~~", "Vee2", "Nrtac")), (notes, out)
+          assert re.search(r"global parsers \(4 reuse a token of another module or reserve a word as one\), 2 scoped", out.splitlines()[0]), out.splitlines()[0]
+          print("notation reported:", sorted(notes))
           PY

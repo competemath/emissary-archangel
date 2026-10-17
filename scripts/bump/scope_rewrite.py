@@ -10,6 +10,11 @@ them, with positions, from the compiled environment:
     leak: instance Matrix.linftyOpNormedAddCommGroup registered in Tengoku.X.Y (declared in Tengoku.Analysis.Matrix.Normed: an `attribute` command ...)
     leak: simp Imo1979P6.Walk.take_append registered in Tengoku.Compfiles.Compfiles.Imo1979P6 (declared at line 62)
 
+A third kind is NOTATION (`leak: notation LO.Modal.Formula.«term-_» registered in Tengoku.… (declared at line 24)`): a global `prefix:80 "-" => complement` is a second
+reading of every `-(…)` in the tree ("Ambiguous term" on a real number), and a global `notation "v" => …` or `elab "superpose" …` makes `v`, `superpose` reserved words in every
+file. The command is made `scoped` (inside a namespace; `open scoped N` after the block that closes N and in the library's own importers) or, in the root namespace, `local`
+(the command is declared again, `local`, in the importers).
+
 This turns each of those into `local` (`instance` -> `local instance`, `@[simp]` -> `@[local simp]`, `attribute [instance] X` ->
 `attribute [local instance] X`) in the bundle's module. It edits inside lines and never adds one, so the positions of the report stay valid;
 a note is appended at the end of each changed file. Nothing is trusted: the tree's build of the rewritten bundle decides whether a
@@ -31,7 +36,7 @@ import autonames  # noqa: E402
 import tolerant_build as tb  # noqa: E402
 
 LEAK = re.compile(
-    r"leak:\s+(?P<kind>instance|simp)\s+(?P<name>[^\s;]+)\s+registered in\s+(?P<mod>[^\s;]+)"
+    r"leak:\s+(?P<kind>instance|simp|notation)\s+(?P<name>(?:«[^»]*»|[^\s;«»])+)\s+registered in\s+(?P<mod>[^\s;]+)"
     r"(?:\s+\(priority (?P<prio>\d+)\))?"
     r"(?:\s+\(declared at line (?P<line>\d+)\)|\s+\(declared in (?P<other>\S+?):)?"
 )
@@ -238,6 +243,144 @@ def edit_named_declaration(f: Lines, name: str, kind: str) -> str:
     return seen
 
 
+NOTATION_KW = re.compile(
+    r"^(?P<pre>[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|public|noncomputable)[ \t]+)*)(?P<mod>(?:local|scoped)[ \t]+)?"
+    r"(?P<kw>prefix|infixl|infixr|infix|postfix|notation3|notation|syntax|macro|elab)(?![\w'.])"
+)
+
+
+def namespace_at(code: list[str], i: int) -> str:
+    """the namespace the line `i` (0-based) is in: the `namespace` blocks that enclose it, joined (sections add nothing)"""
+    blocks: list[list[str]] = []
+    for ln in code[:i]:
+        if m := NAMESPACE.match(ln):
+            blocks.append(m.group(1).split("."))
+        elif OPENER.match(ln):
+            blocks.append([])
+        elif CLOSER.match(ln) and blocks:
+            blocks.pop()
+    return ".".join(c for blk in blocks for c in blk)
+
+
+def code_end(text: str) -> int:
+    """the column where the code of this line ends: before a `--` comment that is not inside a string literal"""
+    inside, i = False, 0
+    while i < len(text):
+        c = text[i]
+        if inside:
+            if c == "\\":
+                i += 2
+                continue
+            inside = c != '"'
+        elif c == '"':
+            inside = True
+        elif text.startswith("--", i):
+            return len(text[:i].rstrip())
+        i += 1
+    return len(text.rstrip())
+
+
+OPEN_CMD = re.compile(r"^\s*open\b(?!.*\bin\s*$)")  # `open X in` applies to the next command only
+FORBIDDEN_NS: set[str] = set()  # namespaces a notation may not be scoped to (--forbid-namespaces): core's and Mathlib's own scoped entries live there
+
+
+def open_before(code: list[str], i: int) -> bool:
+    """an `open …` command above line `i` that is still in effect there: in the block of the line or in one around it (or at the top of the file)"""
+    blocks = [False]
+    for ln in code[:i]:
+        if NAMESPACE.match(ln) or OPENER.match(ln):
+            blocks.append(False)
+        elif CLOSER.match(ln) and len(blocks) > 1:
+            blocks.pop()
+        elif OPEN_CMD.match(ln):
+            blocks[-1] = True
+    return any(blocks)
+
+
+def leaves_scope(f: Lines, opener: int, mode: str, ns: str) -> bool:
+    """closing the block that starts at `opener` ends the notation's activity: a `local` one ends with any block; a `scoped` one is active in its namespace N and in the
+    namespaces inside it, so only the block that takes the file out of N ends it (a `section` inside N does not)"""
+    if mode != "scoped":
+        return True
+    after = namespace_at(f.code, opener)
+    return not (after == ns or after.startswith(ns + "."))
+
+
+STRING_ATOM = re.compile(r'"((?:[^"\\]|\\.)*)"')
+
+
+def atoms_of(cmd: str) -> list[str]:
+    """the string atoms of a notation command (before its `=>`): the words that show the notation is used"""
+    return [a.strip() for a in STRING_ATOM.findall(cmd.split("=>")[0]) if a.strip()]
+
+
+def reopens_after(f: Lines, i: int, mode: str, ns: str, atoms: list[str] | None = None) -> list[int]:
+    """the lines of the `end`s, around line `i`, after which the notation has to be activated again: the block leaves its scope and there is code after the `end` (more than
+    the `end`s of the blocks around it) that mentions one of the notation's atoms (all code, when they are not known)"""
+    open_at, end_of = scope_info(f.code)
+
+    def mentions(end: int) -> bool:
+        rest = [ln for ln, code in zip(f.text[end + 1 :], f.code[end + 1 :]) if code.strip() and not CLOSER.match(code)]
+        return bool(rest) if not atoms else any(a in ln for ln in rest for a in atoms)
+
+    return [end for op in open_at[i] if (end := end_of.get(op)) is not None and leaves_scope(f, op, mode, ns) and mentions(end)]
+
+
+def reopen_needed(f: Lines, i: int, mode: str = "scoped", ns: str = "", atoms: list[str] | None = None) -> bool:
+    return bool(reopens_after(f, i, mode, ns, atoms))
+
+
+def edit_notation(f: Lines, line: int, has_importers: bool = True) -> tuple[str, dict | None]:
+    """The notation / syntax / macro / elab command of the declaration that starts at `line` (1-based; the range includes its doc comment and attributes), made `scoped`
+    when it sits in a namespace and `local` in the root namespace. ("edited", info), ("already", None) when it is local or scoped already, ("missing", None), or
+    ("unsupported", {"why"}) when it cannot be made scoped or local without changing what the library means:
+      - `scoped` to a namespace in which core or Mathlib have scoped entries too, when an `open scoped N` would be needed (code after the namespace in the same file, or an importer
+        in the library): `open scoped N` would turn those on as well;
+      - `local` in the root namespace, which the importers get as the same command again: not when the command goes on over several lines, and not when an `open` is in effect
+        where it stands (the names of its right-hand side are read where the command is elaborated, and the importer has no such `open`).
+    `info`: mode, ns (the namespace it is scoped to), cmd (the command from its keyword, without a trailing comment: what an importer declares again when it is local), line (0-based)."""
+    for i in range(max(0, line - 1), min(len(f.text), line + 14)):
+        m = NOTATION_KW.match(f.code[i])
+        if not m:
+            continue
+        if m.group("mod"):
+            return "already", None
+        ns = namespace_at(f.code, i)
+        if ns in FORBIDDEN_NS and (has_importers or reopen_needed(f, i, "scoped", ns, atoms_of(f.text[i][m.start("kw") :]))):
+            return "unsupported", {"why": f"`scoped` would put it in `{ns}`, a namespace in which core or Mathlib have scoped entries, and `open scoped {ns}` would be needed"}
+        if not ns:
+            nxt = f.code[i + 1] if i + 1 < len(f.code) else ""
+            if nxt.strip() and nxt[:1] in " \t":
+                return "unsupported", {"why": "a root-namespace command of several lines cannot be declared again, local, in the importers"}
+            if open_before(f.code, i):
+                return "unsupported", {"why": "a root-namespace command after an `open` cannot be declared again in the importers (they do not have the `open`)"}
+        col = m.start("kw")
+        cmd = f.text[i][col : code_end(f.text[i])]
+        f.insert(i, col, "scoped " if ns else "local ")
+        return "edited", {"mode": "scoped" if ns else "local", "ns": ns, "cmd": cmd, "line": i, "atoms": atoms_of(cmd)}
+    return "missing", None
+
+
+def activation_lines(infos: list[dict]) -> list[str]:
+    """what makes the notations of `infos` active again: one `open scoped N …` for the scoped ones, the command again (`local …`) for the local ones"""
+    ns = sorted({x["ns"] for x in infos if x["mode"] == "scoped"})
+    cmds: list[str] = []
+    for x in sorted(infos, key=lambda x: x["line"]):
+        if x["mode"] == "local" and x["cmd"] not in cmds:
+            cmds.append(x["cmd"])
+    return (["open scoped " + " ".join(ns)] if ns else []) + ["local " + c for c in cmds]
+
+
+def notation_reopens(f: Lines, notes: list[tuple[int, dict]]) -> dict[int, list[str]]:
+    """A `scoped` notation is active inside its namespace, a `local` one until the end of the block it sits in; what follows that block in the same file used to see it.
+    For every enclosing block that has code after its `end` (more than the `end`s of the blocks around it), the notation is activated again right after that `end`."""
+    by_end: dict[int, list[dict]] = {}
+    for i, info in notes:
+        for end in reopens_after(f, i, info["mode"], info["ns"], info.get("atoms")):
+            by_end.setdefault(end, []).append(info)
+    return {end: activation_lines(infos) for end, infos in by_end.items()}
+
+
 OPENER = re.compile(r"^\s*(?:namespace\s+\S+|(?:@\[expose\]\s+)?(?:(?:public|noncomputable)\s+)*section\b.*|mutual\s*)$")
 CLOSER = re.compile(r"^\s*end\b")
 
@@ -280,13 +423,26 @@ def attribute_lines(groups: dict[tuple[str, int | None], set[str]]) -> list[str]
     return lines
 
 
-def rewrite_file(path: Path, leaks: list[dict]) -> tuple[int, list[str]]:
+NOTATION_EDITS: dict[str, list[dict]] = {}  # leak module name -> what was done to its notations (reexport gives the importers the same activation)
+
+
+def rewrite_file(path: Path, leaks: list[dict], mod: str | None = None, has_importers: bool = True) -> tuple[int, list[str]]:
     text = path.read_text()
     f = Lines(text)
     done, skipped = 0, []
     edits: list[tuple[int, dict]] = []
+    notes: list[tuple[int, dict]] = []
     for lk in sorted(leaks, key=lambda x: -(x["line"] or 0)):
         before = len(f.edited)
+        if lk["kind"] == "notation":
+            r, info = edit_notation(f, lk["line"], has_importers) if lk["line"] else ("missing", None)
+            if r == "edited":
+                notes.append((info["line"], info))
+            elif r == "missing":
+                skipped.append(f"notation {lk['name']}")
+            elif r == "unsupported":
+                skipped.append(f"notation {lk['name']}: {info['why']}")
+            continue
         if lk["line"]:
             r = edit_declaration(f, lk["line"], lk["kind"])
         else:
@@ -298,25 +454,44 @@ def rewrite_file(path: Path, leaks: list[dict]) -> tuple[int, list[str]]:
             edits.append((f.edited[before], lk))
         elif r == "missing":
             skipped.append(f"{lk['kind']} {lk['name']}")
-    if done:
-        for end, groups in sorted(reregistrations(f, edits).items(), reverse=True):  # bottom first: a line inserted below never moves one above
-            f.text[end + 1 : end + 1] = attribute_lines(groups)
+    if done or notes:
+        adds: dict[int, list[str]] = {}
+        for end, groups in reregistrations(f, edits).items():
+            adds.setdefault(end, []).extend(attribute_lines(groups))
+        for end, lines in notation_reopens(f, notes).items():
+            adds.setdefault(end, []).extend(lines)
+        for end, lines in sorted(adds.items(), reverse=True):  # bottom first: a line inserted below never moves one above
+            f.text[end + 1 : end + 1] = lines
         new = "\n".join(f.text)
-        path.write_text(new + ("" if new.endswith("\n") else "\n") + f"-- Tengoku: {done} registration(s) of this module made local so they do not change other libraries (generated)\n")
-    return done, skipped
+        if not new.endswith("\n"):
+            new += "\n"
+        if done:
+            new += f"-- Tengoku: {done} registration(s) of this module made local so they do not change other libraries (generated)\n"
+        if notes:
+            kinds = "scoped" if all(i["mode"] == "scoped" for _, i in notes) else "local" if all(i["mode"] == "local" for _, i in notes) else "scoped or local"
+            new += f"-- Tengoku: {len(notes)} notation(s) of this module made {kinds} so they do not change other libraries (generated)\n"
+        path.write_text(new)
+        if notes and mod:
+            NOTATION_EDITS[mod] = [i for _, i in notes]
+    return done + len(notes), skipped
 
 
 def apply_bundle(root: Path, leaks: list[dict], skip: int = 0) -> dict:
+    NOTATION_EDITS.clear()
     by_mod: dict[str, list[dict]] = {}
     for lk in leaks:
         by_mod.setdefault(lk["mod"], []).append(lk)
     report = {"rewritten": 0, "skipped": [], "missing_modules": []}
+    files = native_names(root, skip)
+    imported = {m for deps in import_graph(files, skip).values() for m in deps} if files else set()
     for mod, ls in sorted(by_mod.items()):
         f = module_file(root, mod, skip)
         if not f:
             report["missing_modules"].append(mod)  # a leak of a module this bundle does not carry (the other bundle: strict vs proposed)
             continue
-        done, skipped = rewrite_file(f, ls)
+        parts = parts_of(mod)
+        native = ".".join(parts[2:]) if parts and len(parts) > 2 else mod
+        done, skipped = rewrite_file(f, ls, mod, native in imported or not files)
         report["rewritten"] += done
         report["skipped"] += [f"{mod}: {s}" for s in skipped]
     return report
@@ -368,18 +543,8 @@ def native_names(root: Path, skip: int) -> dict[str, Path]:
     return out
 
 
-def reexport(root: Path, leaks: list[dict], skip: int = 0) -> dict:
-    """What a module of the library registered globally, the library's OTHER modules saw as given: every module that imports (even
-    indirectly) a module with a flagged registration gets `attribute [local instance] X` / `[local simp] X` for it, so inside the library nothing
-    changes while the tree outside sees none of it. A module's own registrations are local already (rewrite_file)."""
-    files = native_names(root, skip)
-    if not files:
-        return {"reexported": 0, "modules": 0}
-    own_leaks: dict[str, list[dict]] = {}
-    for lk in leaks:
-        parts = parts_of(lk["mod"])
-        if parts and len(parts) > 2 and nameable(lk["name"]):
-            own_leaks.setdefault(".".join(parts[2:]), []).append(lk)
+def import_graph(files: dict[str, Path], skip: int) -> dict[str, list[str]]:
+    """module (the library's own name) -> the library's modules it imports directly"""
     imports: dict[str, list[str]] = {}
     for mod, f in files.items():
         imports[mod] = []
@@ -390,6 +555,27 @@ def reexport(root: Path, leaks: list[dict], skip: int = 0) -> dict:
             cand = ".".join(parts[2:]) if (skip == 0 and parts[:1] == ["Tengoku"] and len(parts) > 2) else ".".join(parts)
             if cand in files:
                 imports[mod].append(cand)
+    return imports
+
+
+def reexport(root: Path, leaks: list[dict], skip: int = 0) -> dict:
+    """What a module of the library registered globally, the library's OTHER modules saw as given: every module that imports (even
+    indirectly) a module with a flagged registration gets `attribute [local instance] X` / `[local simp] X` for it, so inside the library nothing
+    changes while the tree outside sees none of it. A module's own registrations are local already (rewrite_file)."""
+    files = native_names(root, skip)
+    if not files:
+        return {"reexported": 0, "modules": 0}
+    own_leaks: dict[str, list[dict]] = {}
+    own_notes: dict[str, list[dict]] = {}
+    for lk in leaks:
+        parts = parts_of(lk["mod"])
+        if parts and len(parts) > 2 and lk["kind"] != "notation" and nameable(lk["name"]):
+            own_leaks.setdefault(".".join(parts[2:]), []).append(lk)
+    for modname, infos in NOTATION_EDITS.items():
+        parts = parts_of(modname)
+        if parts and len(parts) > 2:
+            own_notes[".".join(parts[2:])] = infos
+    imports = import_graph(files, skip)
 
     def closure(mod: str) -> set[str]:
         seen, stack = set(), list(imports[mod])
@@ -403,9 +589,11 @@ def reexport(root: Path, leaks: list[dict], skip: int = 0) -> dict:
     patched = names_total = 0
     for mod, f in sorted(files.items()):
         inherited: list[dict] = []
+        inherited_notes: list[dict] = []
         for dep in sorted(closure(mod) - {mod}):
             inherited += own_leaks.get(dep, [])
-        if not inherited:
+            inherited_notes += own_notes.get(dep, [])
+        if not inherited and not inherited_notes:
             continue
         lines = f.read_text().split("\n")
         groups: dict[tuple[str, int | None], list[str]] = {}
@@ -419,6 +607,7 @@ def reexport(root: Path, leaks: list[dict], skip: int = 0) -> dict:
             for k in range(0, len(uniq), 6):
                 ins.append(f"attribute [{attr}] " + " ".join(uniq[k : k + 6]))
             names_total += len(uniq)
+        ins = activation_lines(inherited_notes) + ins
         at = body_start(lines)
         lines[at:at] = ins + [""]
         f.write_text("\n".join(lines))
@@ -456,7 +645,7 @@ def for_tree(leaks: list[dict]) -> list[dict]:
     out = []
     for lk in leaks:
         parts = parts_of(lk["mod"])
-        out.append({**lk, "name": autonames.rewrite(lk["name"], parts[2])[0]} if parts and len(parts) > 2 else lk)
+        out.append({**lk, "name": autonames.rewrite(lk["name"], parts[2])[0]} if parts and len(parts) > 2 and lk["kind"] != "notation" else lk)
     return out
 
 
@@ -466,8 +655,11 @@ def main() -> None:
     ap.add_argument("--pruned", action="append", default=[], help="a directory of the library's own layout (the factory's pruned sources)")
     ap.add_argument("--leaks", required=True)
     ap.add_argument("--reexport", action="store_true", help="also give every module that imports a flagged module the same registrations, local to it")
+    ap.add_argument("--forbid-namespaces", help="a file, one namespace per line: a notation there is not made scoped (core and Mathlib have scoped entries in it); it stays as it is and is reported")
     a = ap.parse_args()
     leaks = parse(a.leaks)
+    if a.forbid_namespaces:
+        FORBIDDEN_NS.update(x.strip() for x in Path(a.forbid_namespaces).read_text().splitlines() if x.strip())
     if not leaks:
         print(json.dumps({"rewritten": 0, "note": "no leak lines"}))
         return
