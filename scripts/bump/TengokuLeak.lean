@@ -169,8 +169,6 @@ partial def atoms (e : Expr) : List String :=
   -- `sepBy(p, "sep")`: the tokens of the separator are those of its parser `psep` (by default `symbol "sep"`); the string `sep` alone is only for formatting
   | some ``ParserDescr.sepBy | some ``ParserDescr.sepBy1 => ((args.take 1) ++ (args.drop 2).take 1).flatMap atoms
   | _ => []
-    (args.take 1).flatMap atoms ++ sep ++ ((args.drop 2).take 1).flatMap atoms
-  | _ => []
 
 /-- a word the parser would read as an identifier (Lean's own test: ASCII letters, `_`, the Greek and letter-like characters, subscripts, `'`, `!`, `?`) -/
 def identLike (s : String) : Bool :=
