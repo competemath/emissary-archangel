@@ -4,6 +4,8 @@
 # the result is an artifact (the edited modules, the report lines, the check's verdict). No Lean, one small job.
 name: notation-census
 on:
+  push:
+    branches: [scratch/notation-census-run]
   workflow_dispatch:
     inputs:
       ref: { description: "the tengoku ref whose sources are read and whose scripts/ci/scope_fix_check.py judges the edit", default: "main" }
@@ -18,8 +20,8 @@ jobs:
     timeout-minutes: 60
     permissions: { contents: read }
     env:
-      REF: ${{ inputs.ref }}
-      LIBS: ${{ inputs.libs }}
+      REF: ${{ inputs.ref || 'tooling/scope-fix-notation' }}
+      LIBS: ${{ inputs.libs || 'LeanPool Zflean' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with: { sparse-checkout: scripts/bump, persist-credentials: false }
