@@ -13,7 +13,9 @@ them, with positions, from the compiled environment:
 A third kind is NOTATION (`leak: notation LO.Modal.Formula.«term-_» registered in Tengoku.… (declared at line 24)`): a global `prefix:80 "-" => complement` is a second
 reading of every `-(…)` in the tree ("Ambiguous term" on a real number), and a global `notation "v" => …` or `elab "superpose" …` makes `v`, `superpose` reserved words in every
 file. The command is made `scoped` (inside a namespace; `open scoped N` after the block that closes N and in the library's own importers) or, in the root namespace, `local`
-(the command is declared again, `local`, in the importers).
+(the command is declared again, `local`, in the importers). A global notation whose right-hand side uses one of those (`notation φ " ↣ " ψ => (~ φ) v ψ` after `v` was made
+scoped) expands, outside the scope, to syntax that has no meaning there ("elaboration function … has not been implemented"): it is made scoped or local too, to a fixed point
+(tengoku#601, Gitar).
 
 This turns each of those into `local` (`instance` -> `local instance`, `@[simp]` -> `@[local simp]`, `attribute [instance] X` ->
 `attribute [local instance] X`) in the bundle's module. It edits inside lines and never adds one, so the positions of the report stay valid;
@@ -476,6 +478,93 @@ def rewrite_file(path: Path, leaks: list[dict], mod: str | None = None, has_impo
     return done + len(notes), skipped
 
 
+MARKER = re.compile(r"^-- Tengoku: (\d+) notation\(s\) of this module made (scoped|local|scoped or local) so they do not change other libraries \(generated\)$")
+WORD_ATOM = re.compile(r"[^\W\d][\w']*")
+
+
+def mentions_atom(rhs: str, atom: str) -> bool:
+    """the (masked) right-hand side `rhs` uses the notation whose word or symbol is `atom`: a word as a whole word, a symbol as it stands. A single ASCII punctuation
+    character (`-`, `(`, `[`) says nothing about a right-hand side (every subtraction and every parenthesis has one) and is not searched for"""
+    if WORD_ATOM.fullmatch(atom):
+        return re.search(rf"(?<![\w'.!?]){re.escape(atom)}(?![\w'!?])", rhs) is not None
+    if len(atom) == 1 and atom.isascii():
+        return False
+    return atom in rhs
+
+
+def command_rhs(f: Lines, i: int) -> str:
+    """the masked right-hand side (after the first `=>`) of the command that starts at line `i`: its lines until a blank line or a line that starts in column 0"""
+    j = i + 1
+    while j < min(len(f.code), i + 15) and f.code[j].strip() and f.code[j][:1] in " \t":
+        j += 1
+    text = "\n".join(f.code[i:j])
+    return text.split("=>", 1)[1] if "=>" in text else ""
+
+
+def update_marker(lines: list[str], added: list[dict]) -> None:
+    """the note at the end of the file counts the notations of the module that were made scoped or local: the new ones are added to the count of the one that is there"""
+    at = next((k for k, ln in enumerate(lines) if MARKER.match(ln)), None)
+    n, modes = len(added), {x["mode"] for x in added}
+    if at is not None:
+        m = MARKER.match(lines[at])
+        n += int(m.group(1))
+        modes |= set(m.group(2).split(" or "))
+    kinds = "scoped or local" if len(modes) > 1 else next(iter(modes))
+    note = f"-- Tengoku: {n} notation(s) of this module made {kinds} so they do not change other libraries (generated)"
+    if at is None:
+        lines.append(note)
+    else:
+        lines[at] = note
+
+
+def dependents(files: dict[str, Path], imported: set[str], lib: str, report: dict) -> None:
+    """Notations that were made scoped or local have a word or a symbol (their atoms). A GLOBAL notation of the library whose right-hand side uses one of them
+    (`notation φ " ↣ " ψ => (~ φ) v ψ` with `v` made scoped) expands, outside the scope, to syntax that has no meaning there: the tokens stay reserved and using them fails
+    with "elaboration function … has not been implemented". It is made scoped or local as well (and the importers activate it as they do the first), to a fixed point:
+    `⟷` is built on `↣`. The queue's build cannot see the failure (every user in the library opens the scope)."""
+    atoms = {a: mod for mod, infos in NOTATION_EDITS.items() for x in infos for a in x["atoms"]}
+    report["atoms_not_searched"] = sorted(a for a in atoms if not WORD_ATOM.fullmatch(a) and len(a) == 1 and a.isascii())
+    found: list[str] = []
+    while True:
+        before = len(found)
+        for mod, path in sorted(files.items()):
+            f = Lines(path.read_text())
+            notes: list[tuple[int, dict]] = []
+            for i in range(len(f.code)):
+                m = NOTATION_KW.match(f.code[i])
+                if not m or m.group("mod"):
+                    continue
+                hit = sorted(a for a in atoms if mentions_atom(command_rhs(f, i), a))
+                if not hit:
+                    continue
+                r, info = edit_notation(f, i + 1, mod in imported or not files)
+                label = f"{mod}: {f.text[i][m.start('kw') : code_end(f.text[i])][:80]} (uses {', '.join(hit)})"
+                if r == "edited":
+                    notes.append((info["line"], info))
+                    atoms.update({a: mod for a in info["atoms"]})
+                    found.append(label)
+                elif r == "unsupported":
+                    report["skipped"].append(f"{label}: {info['why']}")
+            if not notes:
+                continue
+            adds: dict[int, list[str]] = {}
+            for end, lines in notation_reopens(f, notes).items():
+                have = {ln.strip() for ln in f.text[end + 1 : end + 1 + len(lines) + 3]}  # what the first pass put right there is not put twice
+                adds[end] = [ln for ln in lines if ln not in have]
+            for end, lines in sorted(adds.items(), reverse=True):
+                f.text[end + 1 : end + 1] = lines
+            out = list(f.text)
+            while out and out[-1] == "":
+                out.pop()
+            update_marker(out, [i for _, i in notes])
+            path.write_text("\n".join(out) + "\n")
+            NOTATION_EDITS.setdefault(f"Tengoku.{lib}.{mod}", []).extend(i for _, i in notes)
+        if len(found) == before:
+            break
+    report["dependents"] = found
+    report["rewritten"] += len(found)
+
+
 def apply_bundle(root: Path, leaks: list[dict], skip: int = 0) -> dict:
     NOTATION_EDITS.clear()
     by_mod: dict[str, list[dict]] = {}
@@ -494,6 +583,8 @@ def apply_bundle(root: Path, leaks: list[dict], skip: int = 0) -> dict:
         done, skipped = rewrite_file(f, ls, mod, native in imported or not files)
         report["rewritten"] += done
         report["skipped"] += [f"{mod}: {s}" for s in skipped]
+    if files and NOTATION_EDITS:
+        dependents(files, imported, next(iter(files.values())).relative_to(root).parts[1] if skip == 0 else "X", report)
     return report
 
 
