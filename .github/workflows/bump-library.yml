@@ -366,7 +366,7 @@ jobs:
                 from_tree="--tree-umbrella tree-umbrella-$mode.lean --start $((last + 1))"
               fi
               python3 emissary/scripts/bump/bundle_layers.py --bundle "$dir" --out "parts-$mode" --max-modules "$PARTS" --tar $from_tree
-              for t in "parts-$mode"/part-*.tar; do cp "$t" "out/bundle-$KEY-$mode-$(basename "$t")"; done
+              for t in "parts-$mode"/part-*.tar; do [ -e "$t" ] || continue; cp "$t" "out/bundle-$KEY-$mode-$(basename "$t")"; done  # a mode with no new module has no part (bump-sharded.yml, 2026-10-18)
               cp "parts-$mode/plan.json" "out/parts-$mode.json"
             fi
           done

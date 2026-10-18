@@ -447,7 +447,9 @@ jobs:
                 from_tree="--tree-umbrella tree-umbrella-$mode.lean --start $((last + 1))"
               fi
               python3 emissary/scripts/bump/bundle_layers.py --bundle "$dir" --out "parts-$mode" --max-modules "$PARTS" --tar $from_tree
-              for t in "parts-$mode"/part-*.tar; do cp "$t" "bundle-$KEY-$mode-$(basename "$t")"; done
+              # a mode can have no new module (navier-stokes-euler, 2026-10-18: every module of the strict bundle was in the tree already, 0 parts): the glob then stays as typed and the
+              # plan alone is copied, instead of `cp` failing the whole run after the shards, compose and verify had taken five hours
+              for t in "parts-$mode"/part-*.tar; do [ -e "$t" ] || continue; cp "$t" "bundle-$KEY-$mode-$(basename "$t")"; done
               cp "parts-$mode/plan.json" "parts-$mode.json"
             fi
           done
