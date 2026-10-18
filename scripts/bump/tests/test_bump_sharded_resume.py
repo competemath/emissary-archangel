@@ -124,9 +124,36 @@ class Workflow(unittest.TestCase):
         check = index("compose", "Every shard of the plan has its result")
         self.assertLess(check, index("compose", "shard_pack.py merge"))
         s = steps("compose")[check]
-        self.assertEqual(s["if"], "${{ inputs.recut_from == '' }}")  # a recut has no plan: it merges what an earlier run left
+        # a plain recut has no plan: it merges what an earlier run left; a recut that fills in from another run has the plan of the run it recuts
+        self.assertEqual(s["if"], "${{ inputs.recut_from == '' || inputs.fill_from != '' }}")
         self.assertIn("needs.plan.outputs.shards", s["env"]["PLANNED"])
         self.assertIn("shard_pack.py complete", s["run"])
+
+    def test_a_recut_that_fills_in_takes_its_plan_from_the_recut_run(self):
+        """2026-10-18, navier-stokes-euler: shard 1 (5 h 21 min) lived only in run A, the other 63 shards only in run B (fill_from). A fresh run with fill_from had to rebuild shard 1, because
+        `plan-new` was downloaded from the current run and a recut has no plan job: the combination (recut_from = A, fill_from = B) could not exist."""
+        down = steps("compose")[index("compose", "The earlier run planned the same shards") - 2]["with"]
+        self.assertEqual(down["name"], "plan-${{ inputs.key }}")
+        self.assertEqual(down["path"], "plan-new")
+        self.assertEqual(down["run-id"], "${{ inputs.recut_from || github.run_id }}")
+
+    def test_the_planned_shards_of_a_recut_with_a_fill_are_read_from_the_plan_and_checked(self):
+        s = steps("compose")[index("compose", "Every shard of the plan has its result")]
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "plan-new").mkdir()
+            (root / "plan-new" / "plan.json").write_text(json.dumps({"shards": [{"shard": 0, "targets": ["A"]}, {"shard": 1, "targets": ["B"]}, {"shard": 2, "targets": []}]}))
+            (root / "emissary" / "scripts" / "bump").mkdir(parents=True)
+            (root / "emissary" / "scripts" / "bump" / "shard_pack.py").symlink_to(HERE / "shard_pack.py")
+            env = {"PLANNED": "", "KEY": "k", "PATH": "/usr/bin:/bin:/usr/local/bin:" + str(Path(sys.executable).parent)}
+            for n in (0,):
+                pack(root / "shards", n)
+            r = subprocess.run(["bash", "-e", "-c", s["run"].replace("python3", sys.executable)], cwd=root, env=env, capture_output=True, text=True)
+            self.assertNotEqual(r.returncode, 0, "shard 1 has a target and no result: refused")
+            self.assertIn("[1]", r.stdout + r.stderr)
+            pack(root / "shards", 1)  # shard 2 has no targets: it is not planned, so it needs no result
+            r = subprocess.run(["bash", "-e", "-c", s["run"].replace("python3", sys.executable)], cwd=root, env=env, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_the_filled_in_shards_are_in_place_before_compose_and_finish_merge(self):
         for job, merge in (("compose", "shard_pack.py merge"), ("finish", "shard_pack.py merge")):
