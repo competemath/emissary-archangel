@@ -79,6 +79,13 @@ def last_part_merged(merged: list[Pr]) -> bool:
     return bool(t) and int(t.group(1)) >= int(t.group(2))
 
 
+def parts_still_owed(mine: list[Pr]) -> bool:
+    """the last merged part's title says 'part N of M' with N < M: parts are expected, a missing archive is then a failure"""
+    merged = sorted((p for p in mine if p.state == "MERGED"), key=lambda p: p.part)
+    t = OF_TOTAL.search(merged[-1].title) if merged else None
+    return bool(t) and int(t.group(1)) < int(t.group(2))
+
+
 def decide(mine: list[Pr], run: int | None, unmanaged_in_tree: bool, from_tree: bool = False) -> tuple[str, str | dict]:
     """("open", {part, run, depends_on}) or ("skip", why) for one library. `from_tree`: the newest run is a recut cut from the tree, so its parts start at the next number and replace the old run's."""
     if any(p.state == "OPEN" for p in mine):
@@ -192,6 +199,10 @@ def tick(a: argparse.Namespace, gh: Gh, opener=open_pr, sleep=time.sleep, now: d
                 sleep(a.pace)
         elif "EMPTY BUNDLE" in r.stderr:
             skipped[key] = "no verified theorem in the bundle"
+        elif what["depends_on"] and "has no archive" in r.stderr and not parts_still_owed(mine):
+            # a recut from the tree names no total ('part 13', not 'part 13 of 14'): after its last part there is no archive for the next number. That is the end of the library, not a failure
+            # (2026-10-18: lean-pool 'part 14' of a run that had only part 13 failed every run of this workflow for a day)
+            skipped[key] = f"the run has no part {what['part']}: every part of it is in the tree"
         else:
             print("FAILED", line, "::", (r.stderr.strip().splitlines() or ["?"])[-1][:300])
             failed.append(key)
