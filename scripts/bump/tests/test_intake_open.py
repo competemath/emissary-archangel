@@ -155,6 +155,21 @@ class Tick(unittest.TestCase):
         self.assertEqual((out["failed"], out["opened"]), (["bad"], ["good"]))
         self.assertEqual(out["skipped"]["empty"], "no verified theorem in the bundle")
 
+    def test_a_run_with_no_part_after_the_last_merged_one_is_done_not_failed(self):
+        # 2026-10-18: lean-pool's recut run had only 'part 13' (the title names no total); the opener tried part 14 of it every run and the workflow was red for a day
+        gh = FakeGh(prs=rows((7, "MERGED", "intake/lib-100000000-part-013", "extend: lib part 13 (324 verified theorems in 28 modules)")), runs=[run_row(100000000, "lib", 1)])
+        no_archive = "run 100000000 has no archive bundle-lib-proposed-part-014.tar (was it dispatched with `parts`?)"
+        out, calls, _ = self.go(gh, results={"lib": (1, no_archive, "")})
+        self.assertEqual(calls, [("lib", 14, False)])  # it was asked for
+        self.assertEqual(out["failed"], [])
+        self.assertIn("every part of it is in the tree", out["skipped"]["lib"])
+
+    def test_a_first_part_whose_run_has_no_archive_is_still_a_failure(self):
+        gh = FakeGh(runs=[run_row(100000000, "lib", 1)])
+        no_archive = "run 100000000 has no archive bundle-lib-proposed-part-001.tar (was it dispatched with `parts`?)"
+        out, _, _ = self.go(gh, results={"lib": (1, no_archive, "")})
+        self.assertEqual((out["failed"], out["skipped"]), (["lib"], {}))
+
     def test_auto_merge_is_only_asked_for_when_the_lane_is_on(self):
         gh = FakeGh(prs=rows((7, "MERGED", "intake/lib-100000000", "intake: lib part 1 of 3 (1 verified theorems in 1 modules)")), runs=[run_row(100000000, "lib", 1)])
         self.assertEqual(self.go(gh)[1], [("lib", 2, False)])

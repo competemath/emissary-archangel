@@ -192,6 +192,10 @@ def tick(a: argparse.Namespace, gh: Gh, opener=open_pr, sleep=time.sleep, now: d
                 sleep(a.pace)
         elif "EMPTY BUNDLE" in r.stderr:
             skipped[key] = "no verified theorem in the bundle"
+        elif what["depends_on"] and "has no archive" in r.stderr:
+            # a recut from the tree names no total ('part 13', not 'part 13 of 14'): after its last part there is no archive for the next number. That is the end of the library, not a failure
+            # (2026-10-18: lean-pool 'part 14' of a run that had only part 13 failed every run of this workflow for a day)
+            skipped[key] = f"the run has no part {what['part']}: every part of it is in the tree"
         else:
             print("FAILED", line, "::", (r.stderr.strip().splitlines() or ["?"])[-1][:300])
             failed.append(key)
