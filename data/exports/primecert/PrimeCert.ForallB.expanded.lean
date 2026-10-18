@@ -1,0 +1,84 @@
+/-
+Copyright (c) 2025 Kenny Lau, Bhavik Mehta. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Kenny Lau, Bhavik Mehta
+-/
+
+module
+
+import PrimeCert.PowMod
+import Mathlib.Algebra.Order.Monoid.Canonical.Defs
+import Mathlib.Tactic.Ring
+
+
+-- @@ L13-18 verbatim
+/-! # A kernel-reducible bounded `Bool` quantifier
+
+`forallB f start len step` folds `f` over the `len`-term arithmetic progression
+`start, start + step, …`. `List.rec_and` does the same for a `List.rec` fold of `&&` over an
+explicit list.
+-/
+
+
+-- @@ L20-24 verbatim
+public theorem List.rec_and {α : Type*} (f : α → Bool) (b : Bool) (l : List α) :
+    List.rec b (fun hd _ ih ↦ (f hd).and' ih) l = true ↔ b = true ∧ ∀ x ∈ l, f x := by
+  induction l with
+  | nil => simp
+  | cons _ _ ih => grind [Bool.and'_eq_and]
+
+
+-- @@ L26-26 verbatim
+namespace PrimeCert
+
+
+-- @@ L28-31 verbatim
+/-- `f` holds at each of the `len` elements `start, start + step, …`, as a `Bool`.
+`forallB_iff` states this as an ordinary `∀`. -/
+@[expose] public noncomputable def forallB (f : ℕ → Bool) (start len : ℕ) (step : ℕ) : Bool :=
+  len.rec true fun n b ↦ (f ((n.mul step).add start)).and' b
+
+
+-- @@ L33-35 verbatim
+@[simp, grind =] theorem forallB_zero (f : ℕ → Bool) (start step : ℕ) :
+    forallB f start 0 step = true :=
+  rfl
+
+
+-- @@ L37-40 verbatim
+@[simp, grind =] theorem forallB_succ (f : ℕ → Bool) (start len step : ℕ) :
+    forallB f start (len + 1) step =
+      (f ((len.mul step).add start)).and' (forallB f start len step) :=
+  rfl
+
+
+-- @@ L42-48 verbatim
+/-- Read the fold as a statement about the indices `0` to `len`, whose elements are
+`n * step + start`. -/
+public theorem forallB_iff (f : ℕ → Bool) (start len step : ℕ) :
+    forallB f start len step ↔ ∀ n < len, f (n * step + start) := by
+  induction len with
+  | zero => simp
+  | succ n ih => simp [ih, Nat.forall_lt_succ_right, and_comm]
+
+
+-- @@ L50-56 verbatim
+/-- Read a fold whose first element is `start * step + r` as a statement about the indices from
+`start` to `start + len`. -/
+public theorem forallB_iff' (f : ℕ → Bool) (start r len step : ℕ) :
+    forallB f (start * step + r) len step ↔
+    ∀ n, start ≤ n → n < start + len → f (n * step + r) := by
+  simp_rw [forallB_iff, ← add_assoc, ← add_mul, le_iff_exists_add, exists_imp,
+    forall_eq_apply_imp_iff, add_lt_add_iff_left, add_comm]
+
+
+-- @@ L58-62 verbatim
+/-- Read the fold over `start, start + step, …` as a statement about every `n` below `len * step`
+whose remainder mod `step` is `start`. -/
+public theorem forallB_of_mod (f : ℕ → Bool) {start len step : ℕ}
+    (h : forallB f start len step) : ∀ n < len * step, n % step = start → f n := by
+  grind [forallB_iff, Nat.div_lt_of_lt_mul, Nat.div_add_mod']
+
+
+-- @@ L64-64 verbatim
+end PrimeCert

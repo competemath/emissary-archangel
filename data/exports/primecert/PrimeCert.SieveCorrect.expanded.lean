@@ -1,0 +1,476 @@
+/-
+Copyright (c) 2026 Bhavik Mehta. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Bhavik Mehta
+-/
+module
+
+public import PrimeCert.Sieve
+public import Mathlib.Data.Nat.Prime.Basic
+
+import Mathlib.Data.Nat.Bitwise
+import Mathlib.Tactic.Ring
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.IntervalCases
+import Mathlib.Algebra.Order.Monoid.Canonical.Basic
+import PrimeCert.ForLean
+import PrimeCert.ForMathlib
+
+
+-- @@ L19-31 verbatim
+/-!
+# Correctness of the mod-6 wheel sieve
+
+Bit `t` of `PrimeCert.Sieve.sieveK n sN` is set exactly when the number at index `t` is prime
+(`sieveK_testBit_iff`). The argument runs in three steps:
+
+1. the loop's bit test agrees with `Nat.testBit`, `initK` has bits `1 … M` set, and `value`
+   sends an index to the number it stands for;
+2. `buildMaskK` marks the positions `A, A + 2*p, A + 4*p, …` and the same from `B`, which hold
+   the multiples `p*k` with `k ≥ 5` coprime to 6;
+3. `markMaskK` clears exactly the marked positions, so running it over every candidate index
+   leaves the primes and nothing else.
+-/
+
+
+-- @@ L33-33 verbatim
+namespace PrimeCert.Sieve
+
+
+-- @@ L35-35 verbatim
+open Nat
+
+
+-- @@ L37-37 verbatim
+/-! ## Bit reading -/
+
+
+-- @@ L39-42 verbatim
+/-- The loop's bit test agrees with `Nat.testBit`. -/
+@[grind =]
+public theorem testBitK_eq_testBit {b i : ℕ} : testBitK b i = b.testBit i := by
+  grind [testBitK, shiftLeft_eq', one_shiftLeft, land_eq, and_two_pow, Nat.ble_eq]
+
+
+-- @@ L44-46 verbatim
+lemma initK_eq {M : ℕ} : initK M = (2 ^ M - 1) <<< 1 := by
+  simp [initK, Nat.shiftLeft_eq]
+  grind
+
+
+-- @@ L48-50 verbatim
+/-- `initK M = 2^(M+1) - 2` has bits `1 … M` set and bit `0` clear. -/
+theorem testBit_initK {M t : ℕ} :
+    (initK M).testBit t ↔ 1 ≤ t ∧ t ≤ M := by grind [initK_eq]
+
+
+-- @@ L52-55 verbatim
+/-! ## The index-to-number map
+
+`value` sends an index to the number coprime to 6 it stands for (`0 ↦ 1, 1 ↦ 5, 2 ↦ 7, …`), and
+`index` inverts it on those numbers. -/
+
+
+-- @@ L57-57 verbatim
+@[simp, grind =] public theorem valueK_eq_value : valueK = value := rfl
+
+
+-- @@ L59-59 verbatim
+@[simp, grind =] public theorem indexK_eq_index : indexK = index := rfl
+
+
+-- @@ L61-65 verbatim
+/-- A number is coprime to 6 exactly when it is 1 or 5 modulo 6. -/
+@[grind =]
+theorem coprime6_mod {m : ℕ} : m.Coprime 6 ↔ m % 6 = 1 ∨ m % 6 = 5 := by
+  have : ∀ t < 6, t.gcd 6 = 1 ↔ t % 6 = 1 ∨ t % 6 = 5 := by decide
+  simpa using this (m % 6) (Nat.mod_lt _ (by simp))
+
+
+-- @@ L67-67 verbatim
+alias ⟨mod6_of_coprime6, _⟩ := coprime6_mod
+
+-- @@ L68-68 verbatim
+attribute [grind .] mod6_of_coprime6
+
+
+-- @@ L70-72 verbatim
+/-- Every number in the sieve is coprime to 6. -/
+@[grind .] public theorem value_coprime6 (k : ℕ) : (value k).Coprime 6 :=
+  coprime6_mod.2 (by grind [value])
+
+
+-- @@ L74-75 verbatim
+/-- Every number above index 0 is at least 5. -/
+@[grind! .] public theorem five_le_value {k : ℕ} (hk : k ≠ 0) : 5 ≤ value k := by grind [value]
+
+
+-- @@ L77-78 verbatim
+/-- Every number from 4 on has a positive index. -/
+@[grind! .] public theorem index_pos {k : ℕ} (hk : 4 ≤ k) : 0 < index k := by grind [index]
+
+
+-- @@ L80-82 verbatim
+/-- The index inverts `value` on the numbers coprime to 6. -/
+@[simp, grind .] public theorem value_index {q : ℕ} (hq : q.Coprime 6) : value (index q) = q := by
+  grind [value, index]
+
+
+-- @@ L84-85 verbatim
+/-- Every index is the index of its own number. -/
+@[simp, grind =] public theorem index_value (k : ℕ) : index (value k) = k := by grind [value, index]
+
+
+-- @@ L87-89 verbatim
+/-- Adding an even amount `2*m` to the index adds `6*m` to the number. -/
+@[grind =]
+theorem value_add_two_mul {k m : ℕ} : value (k + 2 * m) = value k + 6 * m := by grind [value]
+
+
+-- @@ L91-92 verbatim
+/-- The number at an index rises with the index. -/
+public theorem value_strictMono : StrictMono value := by grind [value, StrictMono]
+
+
+-- @@ L94-95 verbatim
+/-- Distinct indices carry distinct numbers. -/
+@[grind inj] public theorem value_inj : Function.Injective value := value_strictMono.injective
+
+
+-- @@ L97-98 verbatim
+/-- The index rises with the number. -/
+public theorem index_mono : Monotone index := fun _ _ _ ↦ by grind [index]
+
+
+-- @@ L100-103 verbatim
+/-- On the numbers coprime to 6, `index q ≤ t` exactly when `q ≤ value t`. -/
+public theorem index_le_iff_le_value {q t : ℕ} (hq : q.Coprime 6) :
+    index q ≤ t ↔ q ≤ value t := by
+  rw [← value_strictMono.le_iff_le, value_index hq]
+
+
+-- @@ L105-108 verbatim
+/-- On the numbers coprime to 6, `t ≤ index q` exactly when `value t ≤ q`. -/
+public theorem le_index_iff_value_le {q t : ℕ} (hq : q.Coprime 6) :
+    t ≤ index q ↔ value t ≤ q := by
+  rw [← value_strictMono.le_iff_le, value_index hq]
+
+
+-- @@ L110-111 verbatim
+/-- The number at an index bounds the index: `value t ≤ n` forces `t ≤ index n`. -/
+theorem le_index_of_value_le {n t : ℕ} (h : value t ≤ n) : t ≤ index n := by grind [value, index]
+
+
+-- @@ L113-116 verbatim
+/-! ## What the mask marks
+
+`buildMaskK` sets the two progressions stepping by `2*p`, and `value` carries those positions to the
+coprime-to-6 multiples `p*k` with `k ≥ 5`, which is `mask_iff` at the end of the section. -/
+
+
+-- @@ L118-120 verbatim
+@[grind =]
+theorem value_startA {p : ℕ} (hp : p.Coprime 6) : value (index (p * 5)) = 5 * p := by
+  grind [Nat.coprime_mul_iff_left]
+
+
+-- @@ L122-124 verbatim
+@[grind =]
+theorem value_startB {p : ℕ} (hp : p.Coprime 6) : value (index (p * 7)) = 7 * p := by
+  grind [Nat.coprime_mul_iff_left]
+
+
+-- @@ L126-127 verbatim
+@[simp, grind =] theorem buildMaskK_zero {p M A B : ℕ} :
+    buildMaskK p M A B 0 = 1 <<< A ||| 1 <<< B := rfl
+
+
+-- @@ L129-134 verbatim
+theorem buildMaskK_succ_raw {p M A B n : ℕ} :
+    buildMaskK p M A B (n + 1)
+      = Bool.rec (buildMaskK p M A B n)
+          ((buildMaskK p M A B n).lor
+            ((buildMaskK p M A B n).shiftLeft (p.shiftLeft n.succ)))
+          ((p.shiftLeft n.succ).ble M) := rfl
+
+
+-- @@ L136-142 verbatim
+theorem buildMaskK_succ {p M A B n : ℕ} :
+    buildMaskK p M A B (n + 1)
+      = if p * 2 ^ (n + 1) ≤ M
+        then buildMaskK p M A B n ||| buildMaskK p M A B n <<< (p * 2 ^ (n + 1))
+        else buildMaskK p M A B n := by
+  have hs : p <<< (n + 1) = p * 2 ^ (n + 1) := by grind [Nat.shiftLeft_eq]
+  simp [buildMaskK_succ_raw, hs, Bool.rec_eq]
+
+
+-- @@ L144-160 verbatim
+/-- After `n` doublings, `buildMaskK` sets exactly the bits at `A + 2*p*j` and `B + 2*p*j` with
+`j < 2^n`. -/
+theorem testBit_buildMaskK_pow {p M A B n t : ℕ} (ht : t ≤ M) :
+    (buildMaskK p M A B n).testBit t ↔ (∃ j < 2 ^ n, t = A + 2 * p * j ∨ t = B + 2 * p * j) := by
+  induction n generalizing t with
+  | zero => grind [one_shiftLeft]
+  | succ n ih =>
+    rw [buildMaskK_succ]
+    have h : 2 ^ (n + 1) = 2 ^ n + 2 ^ n := by grind
+    obtain hg | hg := le_or_gt (p * 2 ^ (n + 1)) M
+    · rw [if_pos hg, Nat.testBit_or, Nat.testBit_shiftLeft]
+      simp only [ge_iff_le, Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq]
+      rw [ih (by lia), ih (by lia), h, exists_lt_add_iff_lt_left, ← exists_and_left]
+      congr! 1
+      apply exists_congr (by grind)
+    · rw [if_neg hg.not_ge, ih ht, h, exists_lt_add_iff_lt_left, iff_self_or]
+      grind [mul_add]
+
+
+-- @@ L162-170 verbatim
+theorem prog_iff_dvd {c t p B : ℕ} (hB : t < 2 * p * B) :
+    (∃ j < B, t = c + 2 * p * j) ↔ (c ≤ t ∧ 2 * p ∣ t - c) := by
+  constructor
+  · rintro ⟨j, hj, rfl⟩
+    exact ⟨Nat.le_add_right _ _, ⟨j, by lia⟩⟩
+  · rintro ⟨hc, k, hk⟩
+    refine ⟨k, ?_, by lia⟩
+    have hlt : 2 * p * k < 2 * p * B := by lia
+    exact Nat.lt_of_mul_lt_mul_left hlt
+
+
+-- @@ L172-178 verbatim
+theorem testBit_buildMaskK {p M A B n t : ℕ} (hp : p ≠ 0) (ht : t ≤ M) (hM : M < 2 ^ n) :
+    (buildMaskK p M A B n).testBit t ↔
+      (A ≤ t ∧ 2 * p ∣ t - A) ∨ (B ≤ t ∧ 2 * p ∣ t - B) := by
+  have : t < 2 * p * 2 ^ n := by
+    grw [ht, hM]
+    exact Nat.le_mul_of_pos_left _ (by positivity)
+  simp_rw [← prog_iff_dvd this, ← exists_or, testBit_buildMaskK_pow ht, and_or_left]
+
+
+-- @@ L180-200 verbatim
+/-- `buildMaskK` started at the indices of `5*p` and `7*p`, the form `markMaskK` uses, marks
+index `t` iff `value t` is a coprime-to-6 multiple `p*k` with `k ≥ 5`. -/
+theorem mask_iff {p M t : ℕ} (hp6 : p.Coprime 6)
+    (hM : M < 2 ^ 32) (ht : t ≤ M) :
+    (buildMaskK p M (index (p * 5)) (index (p * 7)) 32).testBit t ↔
+      ∃ k, 5 ≤ k ∧ k.Coprime 6 ∧ value t = p * k := by
+  rw [testBit_buildMaskK (by grind) ht hM]
+  constructor
+  · rintro (⟨hle, c, hc⟩ | ⟨hle, c, hc⟩)
+    · exact ⟨5 + 6 * c, by lia, coprime6_mod.2 (by lia), by grind [value, index]⟩
+    · exact ⟨7 + 6 * c, by lia, coprime6_mod.2 (by lia), by grind [value, index]⟩
+  · rintro ⟨k, hk5, hk6, hval⟩
+    rcases coprime6_mod.1 hk6 with h1 | h5
+    · right
+      obtain ⟨j, rfl⟩ : ∃ j, k = 7 + 6 * j := ⟨(k - 7) / 6, by grind⟩
+      have ht2 : value t = value (index (p * 7) + 2 * (p * j)) := by grind
+      exact ⟨by grind, j, by grind⟩
+    · left
+      obtain ⟨j, rfl⟩ : ∃ j, k = 5 + 6 * j := ⟨(k - 5) / 6, by grind⟩
+      have ht2 : value t = value (index (p * 5) + 2 * (p * j)) := by grind
+      exact ⟨by grind, j, by grind⟩
+
+
+-- @@ L202-205 verbatim
+/-! ## Clearing: one pass, then the whole sieve
+
+`markMaskK` removes exactly the marked positions, and running it over every candidate index leaves
+the primes and nothing else. -/
+
+
+-- @@ L207-207 verbatim
+/-! ### One pass -/
+
+
+-- @@ L209-214 verbatim
+/-- `markMaskK bits p M` is bitwise `ldiff` of `bits` against `buildMaskK` (subtracting a
+submask). -/
+theorem markMaskK_eq_ldiff {bits p M : ℕ} :
+    markMaskK bits p M = bits.ldiff (buildMaskK p M (index (p * 5)) (index (p * 7)) 32) := by
+  rw [markMaskK]
+  simp [sub_and_eq_ldiff]
+
+
+-- @@ L216-220 verbatim
+/-- `markMaskK` clears exactly the bits set in `buildMaskK`, keeping the rest of `bits`. -/
+theorem testBit_markMaskK {bits p M t : ℕ} :
+    (markMaskK bits p M).testBit t
+      = (bits.testBit t && !(buildMaskK p M (index (p * 5)) (index (p * 7)) 32).testBit t) := by
+  rw [markMaskK_eq_ldiff, Nat.testBit_ldiff]
+
+
+-- @@ L222-226 verbatim
+/-! ### From one pass to the whole sieve
+
+`markMaskK` clears composite bits alone, so prime bits survive (completeness). For soundness, a
+composite `value t` has a smallest prime factor `q ≤ √(value t) ≤ sN`; the loop reaches `q`
+while its own bit still stands, so its `markMaskK` fires and clears `t`. -/
+
+
+-- @@ L228-233 verbatim
+theorem sieveLoopK_succ_eq_ite {M bits start fuel : ℕ} :
+    sieveLoopK M bits start (fuel + 1)
+      = if (sieveLoopK M bits start fuel).testBit (start + fuel)
+        then markMaskK (sieveLoopK M bits start fuel) (value (start + fuel)) M
+        else sieveLoopK M bits start fuel := by
+  grind [sieveLoopK_succ, Bool.rec_eq]
+
+
+-- @@ L235-248 verbatim
+/-- `markMaskK` (sieving by a wheel candidate `p ≥ 5`) preserves every bit whose number is prime:
+the mask marks composite `value t = p * k` with `p, k ≥ 5`. -/
+theorem markMaskK_preserves_prime {b p M t : ℕ} (hp6 : p.Coprime 6) (hp5 : 5 ≤ p)
+    (hM : M < 2 ^ 32) (ht : t ≤ M) (hprime : (value t).Prime) :
+    (markMaskK b p M).testBit t = b.testBit t := by
+  rw [testBit_markMaskK]
+  suffices h : (buildMaskK p M (index (p * 5)) (index (p * 7)) 32).testBit t = false by simp [h]
+  by_contra hc
+  rw [Bool.not_eq_false, mask_iff hp6 hM ht] at hc
+  obtain ⟨k, hk5, _, hval⟩ := hc
+  rcases hprime.eq_one_or_self_of_dvd p ⟨k, hval⟩ with rfl | hself
+  · lia
+  · have : 1 = k := Nat.eq_of_mul_eq_mul_left (n := p) (by lia) (by lia)
+    lia
+
+
+-- @@ L250-260 verbatim
+/-- The loop preserves any prime bit: it stays at its initial value. -/
+theorem sieveLoopK_preserves {M bits start fuel t : ℕ} (hstart : start ≠ 0)
+    (hM : M < 2 ^ 32) (ht : t ≤ M) (hprime : (value t).Prime) :
+    (sieveLoopK M bits start fuel).testBit t = bits.testBit t := by
+  induction fuel with
+  | zero => rfl
+  | succ f ih =>
+    rw [sieveLoopK_succ_eq_ite]
+    split
+    · rw [markMaskK_preserves_prime (value_coprime6 _) (five_le_value (by grind)) hM ht hprime, ih]
+    · exact ih
+
+
+-- @@ L262-266 verbatim
+/-- Completeness: every prime bit in range survives the sieve. -/
+theorem sieve_prime_set {n sN t : ℕ} (ht1 : t ≠ 0) (htM : t ≤ index n) (hM : index n < 2 ^ 32)
+    (hprime : (value t).Prime) :
+    (sieveK n sN).testBit t = true := by
+  grind [sieveK, index, div_eq_div, sieveLoopK_preserves, testBit_initK]
+
+
+-- @@ L268-288 verbatim
+/-- If a prime index `j` in the processed range witnesses `value t = value j * m` (`m ≥ 5` coprime
+to 6), the sieve clears bit `t`. The bit at `j` still stands when the loop reaches it, so its
+`markMaskK` fires, and every later step preserves the clear. -/
+theorem sieveLoopK_clears {M start t j m : ℕ} (hstart : start ≠ 0)
+    (hM : M < 2 ^ 32) (ht : t ≤ M) (hjprime : (value j).Prime) (hjt : j ≤ t)
+    (hm5 : 5 ≤ m) (hm6 : m.Coprime 6) (hval : value t = value j * m) (hj_lo : start ≤ j)
+    {fuel : ℕ} (hfuel : j < start + fuel) :
+    (sieveLoopK M (initK M) start fuel).testBit t = false := by
+  induction fuel with
+  | zero => lia
+  | succ f ih =>
+    rw [sieveLoopK_succ_eq_ite]
+    rcases Nat.lt_or_ge j (start + f) with hlt | hge
+    · split <;> simp [testBit_markMaskK, ih hlt]
+    · have hset : (sieveLoopK M (initK M) start f).testBit (start + f) = true := by
+        rw [sieveLoopK_preserves hstart hM (by lia) (by grind)]
+        grind [testBit_initK]
+      simp_rw [if_pos hset, testBit_markMaskK, Bool.and_eq_false_iff, Bool.not_eq_eq_eq_not,
+        Bool.not_false]
+      rw [mask_iff (value_coprime6 _) hM ht]
+      exact Or.inr ⟨m, by grind⟩
+
+
+-- @@ L290-290 verbatim
+attribute [grind →] Nat.Prime.two_le
+
+
+-- @@ L292-319 verbatim
+/-- For `1 ≤ t ≤ index n` with `value t ≤ n ≤ sN*sN`, bit `t` of the sieve is set iff
+`value t` is prime. -/
+public theorem sieveK_testBit_iff {n sN t : ℕ} (ht : t ≠ 0) (htM : t ≤ index n)
+    (hM : index n < 2 ^ 32) (hbound : value t ≤ n) (hsqrt : n ≤ sN * sN) :
+    (sieveK n sN).testBit t ↔ (value t).Prime := by
+  set k := index n
+  set v := value t
+  refine ⟨fun hset => ?_, sieve_prime_set ht htM hM⟩
+  by_contra hnp
+  obtain ⟨q, hqprime, ⟨m, hm⟩, hqsq⟩ : ∃ q, q.Prime ∧ q ∣ v ∧ q ^ 2 ≤ v :=
+    ⟨v.minFac, minFac_prime (by grind), minFac_dvd _, minFac_sq_le_self (by grind) hnp⟩
+  have hq6 : q.Coprime 6 := by
+    have hnt2 : v % 2 = 1 := by grind [value_coprime6 t]
+    have hnt3 : v % 3 ≠ 0 := by grind [value_coprime6 t]
+    exact hqprime.coprime_six (by rintro rfl; lia) (by rintro rfl; lia)
+  have hcleared : (sieveLoopK k (initK k) 1 (index sN)).testBit t = false := by
+    apply sieveLoopK_clears (j := index q) (m := m) (by simp) hM htM (by grind) ?_ ?_ ?_ ?_ ?_ ?_
+    · rw [index_le_iff_le_value hq6]
+      nlinarith
+    · have hqm : q ≤ m := Nat.le_of_mul_le_mul_left (by rw [← pow_two]; lia) (by grind)
+      grind
+    · exact (value_coprime6 t).coprime_dvd_left ⟨q, by grind⟩
+    · rwa [value_index hq6]
+    · grind
+    · rw [Nat.lt_one_add_iff]
+      apply index_mono
+      nlinarith
+  grind [sieveK]
+
+
+-- @@ L321-321 verbatim
+/-! ### Reading a prime off a cached sieve -/
+
+
+-- @@ L323-324 verbatim
+theorem markMaskK_le {bits p M : ℕ} : markMaskK bits p M ≤ bits := by
+  grind [markMaskK_eq_ldiff, Nat.and_add_ldiff]
+
+
+-- @@ L326-326 verbatim
+grind_pattern markMaskK_le => markMaskK bits p M
+
+
+-- @@ L328-331 verbatim
+theorem sieveLoopK_le {M bits start fuel : ℕ} : sieveLoopK M bits start fuel ≤ bits := by
+  induction fuel with
+  | zero => rfl
+  | succ f ih => grind [sieveLoopK_succ_eq_ite]
+
+
+-- @@ L333-333 verbatim
+grind_pattern sieveLoopK_le => sieveLoopK M bits start fuel
+
+
+-- @@ L335-342 verbatim
+/-- The sieve leaves every bit above its top index clear. -/
+public theorem sieveK_lt {n sN : ℕ} : sieveK n sN < 2 ^ (index n + 1) := by
+  have h : sieveK n sN ≤ initK (index n) := by grind [sieveK, index, Nat.div_eq_div]
+  have hp : 0 < 2 ^ index n := by positivity
+  have hi : initK (index n) < 2 ^ (index n + 1) := by
+    rw [initK_eq, Nat.shiftLeft_eq, pow_one, Nat.pow_succ]
+    lia
+  lia
+
+
+-- @@ L344-347 verbatim
+/-- `lit` decides primality for the numbers up to `n`: bit `t` is set exactly when `value t`, the
+number at that index, is prime. `IsSieve.prime` reads it in the kernel-checked form. -/
+@[expose] public def IsSieve (n lit : ℕ) : Prop :=
+  ∀ t ≠ 0, value t ≤ n → (lit.testBit t ↔ (value t).Prime)
+
+
+-- @@ L349-354 verbatim
+/-- A cached sieve satisfies `IsSieve`. `run_sieve` applies this once, so a consumer works from
+`IsSieve` alone and never mentions `sieveK` or its square root. -/
+public theorem isSieve_of_sieveK_eq {n sN lit : ℕ} (hEq : sieveK n sN = lit)
+    (h3 : n.ble 12884901888) (h5 : n.ble (sN.mul sN)) :
+    IsSieve n lit := by
+  grind [IsSieve, sieveK_testBit_iff, le_index_of_value_le, index, Nat.ble_eq, Nat.div_eq_div]
+
+
+-- @@ L356-360 verbatim
+/-- Read a prime off a sieve: a set bit at index `t` with `valueK t = p` makes `p` prime. -/
+public theorem IsSieve.prime {n lit t p : ℕ} (h : IsSieve n lit) (h1 : Nat.ble 1 t)
+    (h4 : p.ble n) (hbit : testBitK lit t) (hp : (valueK t).beq p) :
+    Nat.Prime p := by
+  grind [IsSieve, Nat.beq_eq, Nat.ble_eq]
+
+
+-- @@ L362-362 verbatim
+end PrimeCert.Sieve

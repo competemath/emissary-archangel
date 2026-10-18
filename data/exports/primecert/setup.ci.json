@@ -1,0 +1,37 @@
+{
+  "key": "primecert",
+  "repo": "https://github.com/b-mehta/PrimeCert",
+  "commit": "0803c2f6bd289c09704c7d352bb8fcf770cbb9b2",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "roots": [
+    "PrimeCert",
+    "MillerRabin"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/primecert/repo",
+  "entries": 45,
+  "modules": 7,
+  "exported": 7,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 158,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 45,
+    "kept": 45,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 4,
+    "lineUnverified": 0,
+    "nameFixed": 32,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 782336,
+  "minutes": 3,
+  "finishedAt": "2026-10-18T15:33:39.459Z"
+}
