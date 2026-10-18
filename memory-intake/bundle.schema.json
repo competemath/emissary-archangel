@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "leak-memory-bundle/1",
+  "title": "Nominated Leak memory",
+  "description": "What a Leak account exports when it puts 3 to 10 of the theorems its runs saved for one target forward for Tengoku. Every field here is re-derived or re-checked by the intake; none is trusted.",
+  "type": "object",
+  "required": ["schema", "target", "author", "exportedAt", "entries"],
+  "properties": {
+    "schema": { "const": "leak-memory-bundle/1" },
+    "target": {
+      "type": "object",
+      "required": ["id", "statement"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,62}$" },
+        "title": { "type": "string" },
+        "statement": { "type": "string", "description": "the target's Lean statement, for context only; the target itself is not an entry unless it was proved" }
+      }
+    },
+    "author": { "type": "string", "minLength": 1, "description": "the account that ran and nominated; the attribution on every record" },
+    "exportedAt": { "type": "string", "format": "date-time" },
+    "entries": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "statement", "closure"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[0-9a-f]{8,64}$", "description": "hash of the statement with its name removed" },
+          "name": { "type": "string" },
+          "statement": { "type": "string" },
+          "closure": { "type": "string", "description": "the theorem with every helper declaration it needs, compile-ready" },
+          "origin": { "type": "string" },
+          "savedAt": { "type": "string" },
+          "attempt": { "type": ["integer", "null"] },
+          "isTarget": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}
