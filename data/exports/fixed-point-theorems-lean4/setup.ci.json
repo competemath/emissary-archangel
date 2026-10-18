@@ -1,0 +1,36 @@
+{
+  "key": "fixed-point-theorems-lean4",
+  "repo": "https://github.com/harfe/fixed-point-theorems-lean4",
+  "commit": "770940ddf9878cf61952ed53d910b92bca841838",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "FixedPointTheorems"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/fixed-point-theorems-lean4/repo",
+  "entries": 82,
+  "modules": 6,
+  "exported": 6,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 82,
+    "kept": 82,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 2011136,
+  "minutes": 3,
+  "finishedAt": "2026-10-18T15:34:11.855Z"
+}
