@@ -1,0 +1,37 @@
+{
+  "key": "schoenflies-lean",
+  "repo": "https://github.com/alonamaloh/schoenflies-lean",
+  "commit": "05a43d29cde026618777db3d4e4316204ccca237",
+  "toolchain": "leanprover/lean4:v4.32.2",
+  "roots": [
+    "Schoenflies",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/schoenflies-lean/repo",
+  "entries": 4308,
+  "modules": 130,
+  "exported": 130,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 4308,
+    "kept": 4308,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 25,
+    "lineUnverified": 0,
+    "nameFixed": 4308,
+    "sorryOriginals": 0,
+    "emptyProofs": 8
+  },
+  "exportsBytes": 233123840,
+  "minutes": 17,
+  "finishedAt": "2026-10-18T15:48:50.393Z"
+}
