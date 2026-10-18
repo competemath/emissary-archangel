@@ -1,0 +1,42 @@
+# Which registered libraries have an upstream that moved since sources.json pinned it (scripts/bump/upstream_pins.py). REPORT ONLY: it changes no pin and opens no PR; it writes the table
+# to the job summary and keeps ONE tracking issue up to date. Why: OpenAI pushed 283 Lean files to openai/math two days after we registered it and nothing noticed for ten days (2026-10-18).
+name: upstream-pins
+on:
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: { contents: read, issues: write }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /scripts/bump/upstream_pins.py
+            /sources.json
+          persist-credentials: false
+      - name: Compare every pin with its upstream
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          python3 scripts/bump/upstream_pins.py --sources sources.json --md pins.md --json pins.json
+          cat pins.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the tracking issue up to date
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          title="Upstream pins behind (weekly report, nothing is changed automatically)"
+          n="$(gh issue list -R "$GITHUB_REPOSITORY" --label upstream-pins --state open --json number -q '.[0].number // empty')"
+          if [ -n "$n" ]; then
+            gh issue edit "$n" -R "$GITHUB_REPOSITORY" --body-file pins.md
+          else
+            gh label create upstream-pins -R "$GITHUB_REPOSITORY" --color BFD4F2 --description "which registered libraries moved upstream" 2>/dev/null || true
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --label upstream-pins --body-file pins.md
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: upstream-pins, path: pins.json, retention-days: 30 }
