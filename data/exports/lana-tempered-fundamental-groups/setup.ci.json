@@ -1,0 +1,36 @@
+{
+  "key": "lana-tempered-fundamental-groups",
+  "repo": "https://github.com/lana-agents/tempered-fundamental-groups",
+  "commit": "2006651f52b70ea2fe3388238c7d9db14d21748f",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "TemperedFundamentalGroups"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lana-tempered-fundamental-groups/repo",
+  "entries": 346,
+  "modules": 26,
+  "exported": 26,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 210,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 346,
+    "kept": 346,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 5,
+    "lineUnverified": 0,
+    "nameFixed": 342,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 21413888,
+  "minutes": 10,
+  "finishedAt": "2026-10-18T19:15:50.550Z"
+}
