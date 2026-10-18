@@ -1,0 +1,1 @@
+{"names":["Differentiable.divisor_nonneg"],"modules":["LeanCert.Analysis.HadamardSupport.Analysis.Meromorphic.DivisorHolomorphic"],"moduleOf":{"Differentiable.divisor_nonneg":"LeanCert.Analysis.HadamardSupport.Analysis.Meromorphic.DivisorHolomorphic"},"deps":{"Differentiable.divisor_nonneg":[]}}

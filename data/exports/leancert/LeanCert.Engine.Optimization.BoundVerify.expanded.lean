@@ -1,0 +1,598 @@
+/-
+Copyright (c) 2024 LeanCert Contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: LeanCert Contributors
+-/
+import LeanCert.Engine.Optimization.Global
+
+
+-- @@ L8-46 verbatim
+/-!
+# Adaptive Bound Verification via Branch-and-Bound
+
+This file provides adaptive bound verification functions that use the branch-and-bound
+global optimization algorithm to verify bounds on expressions. Unlike single-shot
+interval evaluation, these functions automatically subdivide the domain until the
+bound can be verified or the iteration limit is reached.
+
+## Main definitions
+
+* `verifyUpperBound` - Verify f(x) ≤ bound for all x in box using adaptive subdivision
+* `verifyLowerBound` - Verify f(x) ≥ bound for all x in box using adaptive subdivision
+* `verifyUpperBound1` - Single-variable version
+* `verifyLowerBound1` - Single-variable version
+
+## Main theorem boundary
+
+The correctness theorems in this file are stated over the noncomputable
+`globalMaximize` / `globalMinimize` specifications. The executable
+`verifyUpperBound` / `verifyLowerBound` checkers use `globalMaximizeCore` /
+`globalMinimizeCore`; they are useful adaptive checkers, but should not be read
+as having a Boolean soundness theorem until a matching core-algorithm theorem is
+added.
+
+* `verifyUpperBound_correct` - Noncomputable upper-bound theorem
+* `verifyLowerBound_correct` - Noncomputable lower-bound theorem
+
+## Usage
+
+These functions are intended to be used as fallbacks when single-shot interval
+evaluation fails due to over-approximation. They provide better precision at the
+cost of increased computation.
+
+```lean
+-- Single-shot fails on tight bounds, but adaptive succeeds
+example : verifyUpperBound1 (Expr.sin (Expr.var 0)) ⟨0, 11/10, by norm_num⟩ (85/100) = true := by
+  native_decide
+```
+-/
+
+
+-- @@ L48-48 verbatim
+namespace LeanCert.Engine.Optimization
+
+
+-- @@ L50-50 verbatim
+open LeanCert.Core
+
+-- @@ L51-51 verbatim
+open LeanCert.Engine
+
+
+-- @@ L53-53 verbatim
+/-! ### Configuration for bound verification -/
+
+
+-- @@ L55-65 verbatim
+/-- Configuration for adaptive bound verification -/
+structure BoundVerifyConfig where
+  /-- Maximum number of subdivisions -/
+  maxIterations : Nat := 200
+  /-- Stop when box width is below this threshold -/
+  tolerance : ℚ := 1/10000
+  /-- Taylor depth for interval evaluation -/
+  taylorDepth : Nat := 15
+  /-- Use monotonicity-based pruning (symbolic pre-pass for gradient signs) -/
+  useMonotonicity : Bool := true
+  deriving Repr, DecidableEq
+
+
+-- @@ L67-67 verbatim
+instance : Inhabited BoundVerifyConfig := ⟨{}⟩
+
+
+-- @@ L69-74 verbatim
+/-- Convert BoundVerifyConfig to GlobalOptConfig -/
+def BoundVerifyConfig.toGlobalOptConfig (cfg : BoundVerifyConfig) : GlobalOptConfig :=
+  { maxIterations := cfg.maxIterations
+    tolerance := cfg.tolerance
+    useMonotonicity := cfg.useMonotonicity
+    taylorDepth := cfg.taylorDepth }
+
+
+-- @@ L76-76 verbatim
+/-! ### Witness/Epsilon-argmax structures -/
+
+
+-- @@ L78-84 verbatim
+/-- A witness point for an optimization result -/
+structure WitnessPoint where
+  /-- The coordinates of the witness point -/
+  coords : List ℚ
+  /-- The function value at this point (interval containing true value) -/
+  value : IntervalRat
+  deriving Repr
+
+
+-- @@ L86-98 verbatim
+/-- Result of bound verification with witness information -/
+structure BoundVerifyResult where
+  /-- Whether the bound was verified -/
+  verified : Bool
+  /-- The computed bound (lo for min, hi for max) -/
+  computedBound : ℚ
+  /-- Approximate argmin/argmax (midpoint of best box) -/
+  witness : WitnessPoint
+  /-- Width of the best box (epsilon for ε-approximate argmin/argmax) -/
+  epsilon : ℚ
+  /-- Number of iterations used -/
+  iterations : Nat
+  deriving Repr
+
+
+-- @@ L100-102 verbatim
+/-- Extract witness point from a box (midpoint of each interval) -/
+def Box.midpoint (B : Box) : List ℚ :=
+  B.map fun I => I.midpoint
+
+
+-- @@ L104-106 verbatim
+/-- Compute maximum width of a box (the ε in ε-approximate) -/
+def Box.maxWidthQ (B : Box) : ℚ :=
+  B.foldl (fun acc I => max acc (I.hi - I.lo)) 0
+
+
+-- @@ L108-114 verbatim
+/-- Evaluate expression at a rational point (using singleton intervals) -/
+def evalAtPoint (e : Expr) (point : List ℚ) (cfg : EvalConfig := {}) : IntervalRat :=
+  let env : IntervalEnv := fun i =>
+    match point[i]? with
+    | some q => IntervalRat.singleton q
+    | none => IntervalRat.singleton 0
+  LeanCert.Internal.Rational.evalTotalCore e env cfg
+
+
+-- @@ L116-116 verbatim
+/-! ### Computable bound verification functions -/
+
+
+-- @@ L118-123 verbatim
+/-- Verify f(x) ≤ bound for all x in box using adaptive subdivision.
+    Returns true if the maximum of f over the box is ≤ bound. -/
+def verifyUpperBound (e : Expr) (B : Box) (bound : ℚ)
+    (cfg : BoundVerifyConfig := {}) : Bool :=
+  let result := globalMaximizeCore e B cfg.toGlobalOptConfig
+  result.bound.hi ≤ bound
+
+
+-- @@ L125-130 verbatim
+/-- Verify f(x) ≥ bound for all x in box using adaptive subdivision.
+    Returns true if the minimum of f over the box is ≥ bound. -/
+def verifyLowerBound (e : Expr) (B : Box) (bound : ℚ)
+    (cfg : BoundVerifyConfig := {}) : Bool :=
+  let result := globalMinimizeCore e B cfg.toGlobalOptConfig
+  result.bound.lo ≥ bound
+
+
+-- @@ L132-137 verbatim
+/-- Verify f(x) < bound for all x in box using adaptive subdivision.
+    Returns true if the maximum of f over the box is < bound. -/
+def verifyUpperBoundStrict (e : Expr) (B : Box) (bound : ℚ)
+    (cfg : BoundVerifyConfig := {}) : Bool :=
+  let result := globalMaximizeCore e B cfg.toGlobalOptConfig
+  result.bound.hi < bound
+
+
+-- @@ L139-144 verbatim
+/-- Verify f(x) > bound for all x in box using adaptive subdivision.
+    Returns true if the minimum of f over the box is > bound. -/
+def verifyLowerBoundStrict (e : Expr) (B : Box) (bound : ℚ)
+    (cfg : BoundVerifyConfig := {}) : Bool :=
+  let result := globalMinimizeCore e B cfg.toGlobalOptConfig
+  result.bound.lo > bound
+
+
+-- @@ L146-146 verbatim
+/-! ### Epsilon-argmax/argmin functions with witness information -/
+
+
+-- @@ L148-159 verbatim
+/-- Find the maximum of f over a box, returning result with witness information.
+    The witness is an ε-approximate argmax: a point where f(witness) is within
+    ε of the true maximum, where ε = bestBox.maxWidth. -/
+def findMaxWithWitness (e : Expr) (B : Box) (cfg : BoundVerifyConfig := {}) : BoundVerifyResult :=
+  let result := globalMaximizeCore e B cfg.toGlobalOptConfig
+  let midpt := Box.midpoint result.bound.bestBox
+  let value := evalAtPoint e midpt { taylorDepth := cfg.taylorDepth }
+  { verified := true  -- Always "verified" since we're finding, not checking
+    computedBound := result.bound.hi
+    witness := { coords := midpt, value := value }
+    epsilon := Box.maxWidthQ result.bound.bestBox
+    iterations := result.bound.iterations }
+
+
+-- @@ L161-172 verbatim
+/-- Find the minimum of f over a box, returning result with witness information.
+    The witness is an ε-approximate argmin: a point where f(witness) is within
+    ε of the true minimum, where ε = bestBox.maxWidth. -/
+def findMinWithWitness (e : Expr) (B : Box) (cfg : BoundVerifyConfig := {}) : BoundVerifyResult :=
+  let result := globalMinimizeCore e B cfg.toGlobalOptConfig
+  let midpt := Box.midpoint result.bound.bestBox
+  let value := evalAtPoint e midpt { taylorDepth := cfg.taylorDepth }
+  { verified := true
+    computedBound := result.bound.lo
+    witness := { coords := midpt, value := value }
+    epsilon := Box.maxWidthQ result.bound.bestBox
+    iterations := result.bound.iterations }
+
+
+-- @@ L174-185 verbatim
+/-- Verify f(x) ≤ bound with witness information.
+    Returns the verification result along with an ε-approximate argmax. -/
+def verifyUpperBoundWithWitness (e : Expr) (B : Box) (bound : ℚ)
+    (cfg : BoundVerifyConfig := {}) : BoundVerifyResult :=
+  let result := globalMaximizeCore e B cfg.toGlobalOptConfig
+  let midpt := Box.midpoint result.bound.bestBox
+  let value := evalAtPoint e midpt { taylorDepth := cfg.taylorDepth }
+  { verified := result.bound.hi ≤ bound
+    computedBound := result.bound.hi
+    witness := { coords := midpt, value := value }
+    epsilon := Box.maxWidthQ result.bound.bestBox
+    iterations := result.bound.iterations }
+
+
+-- @@ L187-198 verbatim
+/-- Verify f(x) ≥ bound with witness information.
+    Returns the verification result along with an ε-approximate argmin. -/
+def verifyLowerBoundWithWitness (e : Expr) (B : Box) (bound : ℚ)
+    (cfg : BoundVerifyConfig := {}) : BoundVerifyResult :=
+  let result := globalMinimizeCore e B cfg.toGlobalOptConfig
+  let midpt := Box.midpoint result.bound.bestBox
+  let value := evalAtPoint e midpt { taylorDepth := cfg.taylorDepth }
+  { verified := result.bound.lo ≥ bound
+    computedBound := result.bound.lo
+    witness := { coords := midpt, value := value }
+    epsilon := Box.maxWidthQ result.bound.bestBox
+    iterations := result.bound.iterations }
+
+
+-- @@ L200-200 verbatim
+/-! ### Single-variable convenience functions -/
+
+
+-- @@ L202-205 verbatim
+/-- Single-variable version of verifyUpperBound -/
+def verifyUpperBound1 (e : Expr) (I : IntervalRat) (bound : ℚ)
+    (cfg : BoundVerifyConfig := {}) : Bool :=
+  verifyUpperBound e (Box.ofInterval I) bound cfg
+
+
+-- @@ L207-210 verbatim
+/-- Single-variable version of verifyLowerBound -/
+def verifyLowerBound1 (e : Expr) (I : IntervalRat) (bound : ℚ)
+    (cfg : BoundVerifyConfig := {}) : Bool :=
+  verifyLowerBound e (Box.ofInterval I) bound cfg
+
+
+-- @@ L212-215 verbatim
+/-- Single-variable version of verifyUpperBoundStrict -/
+def verifyUpperBound1Strict (e : Expr) (I : IntervalRat) (bound : ℚ)
+    (cfg : BoundVerifyConfig := {}) : Bool :=
+  verifyUpperBoundStrict e (Box.ofInterval I) bound cfg
+
+
+-- @@ L217-220 verbatim
+/-- Single-variable version of verifyLowerBoundStrict -/
+def verifyLowerBound1Strict (e : Expr) (I : IntervalRat) (bound : ℚ)
+    (cfg : BoundVerifyConfig := {}) : Bool :=
+  verifyLowerBoundStrict e (Box.ofInterval I) bound cfg
+
+
+-- @@ L222-224 verbatim
+/-- Single-variable version of findMaxWithWitness -/
+def findMax1WithWitness (e : Expr) (I : IntervalRat) (cfg : BoundVerifyConfig := {}) : BoundVerifyResult :=
+  findMaxWithWitness e (Box.ofInterval I) cfg
+
+
+-- @@ L226-228 verbatim
+/-- Single-variable version of findMinWithWitness -/
+def findMin1WithWitness (e : Expr) (I : IntervalRat) (cfg : BoundVerifyConfig := {}) : BoundVerifyResult :=
+  findMinWithWitness e (Box.ofInterval I) cfg
+
+
+-- @@ L230-233 verbatim
+/-- Single-variable version of verifyUpperBoundWithWitness -/
+def verifyUpperBound1WithWitness (e : Expr) (I : IntervalRat) (bound : ℚ)
+    (cfg : BoundVerifyConfig := {}) : BoundVerifyResult :=
+  verifyUpperBoundWithWitness e (Box.ofInterval I) bound cfg
+
+
+-- @@ L235-238 verbatim
+/-- Single-variable version of verifyLowerBoundWithWitness -/
+def verifyLowerBound1WithWitness (e : Expr) (I : IntervalRat) (bound : ℚ)
+    (cfg : BoundVerifyConfig := {}) : BoundVerifyResult :=
+  verifyLowerBoundWithWitness e (Box.ofInterval I) bound cfg
+
+
+-- @@ L240-248 verbatim
+/-! ### Correctness theorems (noncomputable proofs)
+
+These theorems intentionally take premises involving `globalMaximize` and
+`globalMinimize`, not the executable Boolean checkers above. This keeps the
+current trust boundary explicit: the adaptive core is available for search and
+candidate checking, while proof-producing users should rely on the theorem
+premises below or on a future `globalMaximizeCore`/`globalMinimizeCore`
+soundness theorem.
+-/
+
+
+-- @@ L250-258 verbatim
+/-- Helper: convert single-variable environment to box membership -/
+theorem Box.ofInterval_envMem (I : IntervalRat) (x : ℝ) (hx : x ∈ I) :
+    Box.envMem (fun _ => x) (Box.ofInterval I) := by
+  intro ⟨i, hi⟩
+  simp only [Box.ofInterval, List.length_singleton] at hi
+  have hi' : i = 0 := Nat.lt_one_iff.mp hi
+  subst hi'
+  simp only [Box.ofInterval, List.getElem_cons_zero]
+  exact hx
+
+
+-- @@ L260-263 verbatim
+/-- Helper: if i ≥ 1, then (fun _ => x) i = 0 is vacuously satisfiable for our purposes -/
+theorem Box.ofInterval_zero (I : IntervalRat) (x : ℝ) :
+    ∀ i, i ≥ (Box.ofInterval I).length → (fun _ => x) i = x := by
+  intro i _; rfl
+
+
+-- @@ L265-295 verbatim
+/-- Noncomputable upper-bound theorem.
+
+Despite the historical name, this is not a Boolean soundness theorem for
+`verifyUpperBound`; its premise is the semantic bound produced by
+`globalMaximize`. -/
+theorem verifyUpperBound_correct (e : Expr) (hsupp : ADSupported e)
+    (B : Box) (bound : ℚ) (cfg : BoundVerifyConfig)
+    (hverify : (globalMaximize e hsupp B cfg.toGlobalOptConfig).bound.hi ≤ bound) :
+    ∀ (ρ : Nat → ℝ), Box.envMem ρ B → (∀ i, i ≥ B.length → ρ i = 0) →
+      Expr.eval ρ e ≤ bound := by
+  intro ρ hρ hzero
+  -- globalMaximize returns -globalMinimize(-e), so hi = -lo of minimization
+  -- We have: for all ρ, globalMinimize(-e).lo ≤ -eval ρ e
+  -- Therefore: eval ρ e ≤ -globalMinimize(-e).lo = globalMaximize(e).hi
+  have hmax := globalMinimize_lo_correct (Expr.neg e) (ADSupported.neg hsupp) B cfg.toGlobalOptConfig ρ hρ hzero
+  simp only [Expr.eval_neg] at hmax ⊢
+  -- hmax : (globalMinimize (Expr.neg e) B cfg.toGlobalOptConfig).bound.lo ≤ -Expr.eval ρ e
+  -- Goal : Expr.eval ρ e ≤ bound
+  -- We have: globalMaximize.hi = -(globalMinimize (neg e)).lo
+  have hhi_eq : (globalMaximize e hsupp B cfg.toGlobalOptConfig).bound.hi =
+      -(globalMinimize (Expr.neg e) (.neg hsupp) B cfg.toGlobalOptConfig).bound.lo := by
+    simp only [globalMaximize]
+  rw [hhi_eq] at hverify
+  -- hverify : -(globalMinimize (Expr.neg e) ...).bound.lo ≤ bound
+  -- hmax : (globalMinimize (Expr.neg e) ...).bound.lo ≤ -Expr.eval ρ e
+  have h1 : Expr.eval ρ e ≤
+      -(globalMinimize (Expr.neg e) (.neg hsupp) B cfg.toGlobalOptConfig).bound.lo := by
+    linarith [hmax]
+  calc Expr.eval ρ e
+    ≤ -(globalMinimize (Expr.neg e) (.neg hsupp) B cfg.toGlobalOptConfig).bound.lo := h1
+    _ ≤ bound := by exact_mod_cast hverify
+
+
+-- @@ L297-311 verbatim
+/-- Noncomputable lower-bound theorem.
+
+Despite the historical name, this is not a Boolean soundness theorem for
+`verifyLowerBound`; its premise is the semantic bound produced by
+`globalMinimize`. -/
+theorem verifyLowerBound_correct (e : Expr) (hsupp : ADSupported e)
+    (B : Box) (bound : ℚ) (cfg : BoundVerifyConfig)
+    (hverify : (globalMinimize e hsupp B cfg.toGlobalOptConfig).bound.lo ≥ bound) :
+    ∀ (ρ : Nat → ℝ), Box.envMem ρ B → (∀ i, i ≥ B.length → ρ i = 0) →
+      bound ≤ Expr.eval ρ e := by
+  intro ρ hρ hzero
+  have hmin := globalMinimize_lo_correct e hsupp B cfg.toGlobalOptConfig ρ hρ hzero
+  calc (bound : ℝ)
+    ≤ (globalMinimize e hsupp B cfg.toGlobalOptConfig).bound.lo := by exact_mod_cast hverify
+    _ ≤ Expr.eval ρ e := hmin
+
+
+-- @@ L313-313 verbatim
+/-! ### Tactic-facing lemmas for adaptive bound verification -/
+
+
+-- @@ L315-346 verbatim
+/-- Tactic-facing lemma: if adaptive verification succeeds, upper bound holds.
+    This is the key lemma that tactics use to close goals.
+    Requires that the expression uses only var 0. -/
+theorem adaptive_upper_bound (e : Expr) (hsupp : ADSupported e)
+    (he : e.usesOnlyVar0 = true)
+    (I : IntervalRat) (c : ℚ) (cfg : BoundVerifyConfig)
+    (hverify : (globalMaximize e hsupp [I] cfg.toGlobalOptConfig).bound.hi ≤ c) :
+    ∀ x ∈ I, Expr.eval (fun _ => x) e ≤ c := by
+  intro x hx
+  -- Construct ρ' : Nat → ℝ with ρ' 0 = x and ρ' i = 0 for i ≥ 1
+  let ρ' : Nat → ℝ := fun i => if i = 0 then x else 0
+  have hρ'mem : Box.envMem ρ' [I] := by
+    intro ⟨i, hi⟩
+    simp only [List.length_singleton] at hi
+    have : i = 0 := Nat.lt_one_iff.mp hi
+    subst this
+    simp only [List.getElem_cons_zero, ρ', ↓reduceIte]
+    exact hx
+  have hρ'zero : ∀ i, i ≥ ([I] : Box).length → ρ' i = 0 := by
+    intro i hi
+    simp only [List.length_singleton] at hi
+    simp only [ρ']
+    split_ifs with h
+    · omega
+    · rfl
+  have h := verifyUpperBound_correct e hsupp [I] c cfg hverify ρ' hρ'mem hρ'zero
+  -- Use the fact that e only uses var 0 to relate the two evaluations
+  have heq : Expr.eval (fun _ => x) e = Expr.eval ρ' e := by
+    apply Expr.eval_usesOnlyVar0_eq e he
+    simp only [ρ', ↓reduceIte]
+  rw [heq]
+  exact h
+
+
+-- @@ L348-376 verbatim
+/-- Tactic-facing lemma: if adaptive verification succeeds, lower bound holds.
+    Requires that the expression uses only var 0. -/
+theorem adaptive_lower_bound (e : Expr) (hsupp : ADSupported e)
+    (he : e.usesOnlyVar0 = true)
+    (I : IntervalRat) (c : ℚ) (cfg : BoundVerifyConfig)
+    (hverify : (globalMinimize e hsupp [I] cfg.toGlobalOptConfig).bound.lo ≥ c) :
+    ∀ x ∈ I, c ≤ Expr.eval (fun _ => x) e := by
+  intro x hx
+  let ρ' : Nat → ℝ := fun i => if i = 0 then x else 0
+  have hρ'mem : Box.envMem ρ' [I] := by
+    intro ⟨i, hi⟩
+    simp only [List.length_singleton] at hi
+    have : i = 0 := Nat.lt_one_iff.mp hi
+    subst this
+    simp only [List.getElem_cons_zero, ρ', ↓reduceIte]
+    exact hx
+  have hρ'zero : ∀ i, i ≥ ([I] : Box).length → ρ' i = 0 := by
+    intro i hi
+    simp only [List.length_singleton] at hi
+    simp only [ρ']
+    split_ifs with h
+    · omega
+    · rfl
+  have h := verifyLowerBound_correct e hsupp [I] c cfg hverify ρ' hρ'mem hρ'zero
+  have heq : Expr.eval (fun _ => x) e = Expr.eval ρ' e := by
+    apply Expr.eval_usesOnlyVar0_eq e he
+    simp only [ρ', ↓reduceIte]
+  rw [heq]
+  exact h
+
+
+-- @@ L378-419 verbatim
+/-- Strict upper bound version -/
+theorem adaptive_upper_bound_strict (e : Expr) (hsupp : ADSupported e)
+    (he : e.usesOnlyVar0 = true)
+    (I : IntervalRat) (c : ℚ) (cfg : BoundVerifyConfig)
+    (hverify : (globalMaximize e hsupp [I] cfg.toGlobalOptConfig).bound.hi < c) :
+    ∀ x ∈ I, Expr.eval (fun _ => x) e < c := by
+  intro x hx
+  let ρ' : Nat → ℝ := fun i => if i = 0 then x else 0
+  have hρ'mem : Box.envMem ρ' [I] := by
+    intro ⟨i, hi⟩
+    simp only [List.length_singleton] at hi
+    have : i = 0 := Nat.lt_one_iff.mp hi
+    subst this
+    simp only [List.getElem_cons_zero, ρ', ↓reduceIte]
+    exact hx
+  have hρ'zero : ∀ i, i ≥ ([I] : Box).length → ρ' i = 0 := by
+    intro i hi
+    simp only [List.length_singleton] at hi
+    simp only [ρ']
+    split_ifs with h; omega; rfl
+  -- Use strict bound from verification
+  have hmax := globalMinimize_lo_correct (Expr.neg e) (ADSupported.neg hsupp) [I] cfg.toGlobalOptConfig ρ' hρ'mem hρ'zero
+  simp only [Expr.eval_neg] at hmax
+  have hhi_eq : (globalMaximize e hsupp [I] cfg.toGlobalOptConfig).bound.hi =
+      -(globalMinimize (Expr.neg e) (.neg hsupp) [I] cfg.toGlobalOptConfig).bound.lo := by
+    simp only [globalMaximize]
+  have heq : Expr.eval (fun _ => x) e = Expr.eval ρ' e := by
+    apply Expr.eval_usesOnlyVar0_eq e he
+    simp only [ρ', ↓reduceIte]
+  rw [heq]
+  have hbound : Expr.eval ρ' e ≤
+      -(globalMinimize (Expr.neg e) (.neg hsupp) [I] cfg.toGlobalOptConfig).bound.lo := by
+    linarith [hmax]
+  have hhi_lt :
+      (-(globalMinimize (Expr.neg e) (.neg hsupp) [I] cfg.toGlobalOptConfig).bound.lo : ℝ) < c := by
+    have : ((globalMaximize e hsupp [I] cfg.toGlobalOptConfig).bound.hi : ℝ) < c := by
+      exact_mod_cast hverify
+    simp only [globalMaximize, Rat.cast_neg] at this
+    exact this
+  calc Expr.eval ρ' e
+    ≤ -(globalMinimize (Expr.neg e) (.neg hsupp) [I] cfg.toGlobalOptConfig).bound.lo := hbound
+    _ < c := hhi_lt
+
+
+-- @@ L421-448 verbatim
+/-- Strict lower bound version -/
+theorem adaptive_lower_bound_strict (e : Expr) (hsupp : ADSupported e)
+    (he : e.usesOnlyVar0 = true)
+    (I : IntervalRat) (c : ℚ) (cfg : BoundVerifyConfig)
+    (hverify : (globalMinimize e hsupp [I] cfg.toGlobalOptConfig).bound.lo > c) :
+    ∀ x ∈ I, c < Expr.eval (fun _ => x) e := by
+  intro x hx
+  let ρ' : Nat → ℝ := fun i => if i = 0 then x else 0
+  have hρ'mem : Box.envMem ρ' [I] := by
+    intro ⟨i, hi⟩
+    simp only [List.length_singleton] at hi
+    have : i = 0 := Nat.lt_one_iff.mp hi
+    subst this
+    simp only [List.getElem_cons_zero, ρ', ↓reduceIte]
+    exact hx
+  have hρ'zero : ∀ i, i ≥ ([I] : Box).length → ρ' i = 0 := by
+    intro i hi
+    simp only [List.length_singleton] at hi
+    simp only [ρ']
+    split_ifs with h; omega; rfl
+  have hmin := globalMinimize_lo_correct e hsupp [I] cfg.toGlobalOptConfig ρ' hρ'mem hρ'zero
+  have heq : Expr.eval (fun _ => x) e = Expr.eval ρ' e := by
+    apply Expr.eval_usesOnlyVar0_eq e he
+    simp only [ρ', ↓reduceIte]
+  rw [heq]
+  calc (c : ℝ)
+    < (globalMinimize e hsupp [I] cfg.toGlobalOptConfig).bound.lo := by exact_mod_cast hverify
+    _ ≤ Expr.eval ρ' e := hmin
+
+
+-- @@ L450-450 verbatim
+/-! ### Theorem versions for Set.Icc (for tactic compatibility) -/
+
+
+-- @@ L452-462 verbatim
+/-- Adaptive upper bound for Set.Icc membership -/
+theorem adaptive_upper_bound_Icc (e : Expr) (hsupp : ADSupported e)
+    (he : e.usesOnlyVar0 = true)
+    (lo hi : ℚ) (hle : lo ≤ hi) (c : ℚ) (cfg : BoundVerifyConfig)
+    (hverify : (globalMaximize e hsupp [⟨lo, hi, hle⟩] cfg.toGlobalOptConfig).bound.hi ≤ c) :
+    ∀ x ∈ Set.Icc (lo : ℝ) hi, Expr.eval (fun _ => x) e ≤ c := by
+  intro x hx
+  have hxI : x ∈ (⟨lo, hi, hle⟩ : IntervalRat) := by
+    simp only [IntervalRat.mem_def]
+    exact ⟨hx.1, hx.2⟩
+  exact adaptive_upper_bound e hsupp he ⟨lo, hi, hle⟩ c cfg hverify x hxI
+
+
+-- @@ L464-474 verbatim
+/-- Adaptive lower bound for Set.Icc membership -/
+theorem adaptive_lower_bound_Icc (e : Expr) (hsupp : ADSupported e)
+    (he : e.usesOnlyVar0 = true)
+    (lo hi : ℚ) (hle : lo ≤ hi) (c : ℚ) (cfg : BoundVerifyConfig)
+    (hverify : (globalMinimize e hsupp [⟨lo, hi, hle⟩] cfg.toGlobalOptConfig).bound.lo ≥ c) :
+    ∀ x ∈ Set.Icc (lo : ℝ) hi, c ≤ Expr.eval (fun _ => x) e := by
+  intro x hx
+  have hxI : x ∈ (⟨lo, hi, hle⟩ : IntervalRat) := by
+    simp only [IntervalRat.mem_def]
+    exact ⟨hx.1, hx.2⟩
+  exact adaptive_lower_bound e hsupp he ⟨lo, hi, hle⟩ c cfg hverify x hxI
+
+
+-- @@ L476-486 verbatim
+/-- Strict upper bound for Set.Icc -/
+theorem adaptive_upper_bound_Icc_strict (e : Expr) (hsupp : ADSupported e)
+    (he : e.usesOnlyVar0 = true)
+    (lo hi : ℚ) (hle : lo ≤ hi) (c : ℚ) (cfg : BoundVerifyConfig)
+    (hverify : (globalMaximize e hsupp [⟨lo, hi, hle⟩] cfg.toGlobalOptConfig).bound.hi < c) :
+    ∀ x ∈ Set.Icc (lo : ℝ) hi, Expr.eval (fun _ => x) e < c := by
+  intro x hx
+  have hxI : x ∈ (⟨lo, hi, hle⟩ : IntervalRat) := by
+    simp only [IntervalRat.mem_def]
+    exact ⟨hx.1, hx.2⟩
+  exact adaptive_upper_bound_strict e hsupp he ⟨lo, hi, hle⟩ c cfg hverify x hxI
+
+
+-- @@ L488-498 verbatim
+/-- Strict lower bound for Set.Icc -/
+theorem adaptive_lower_bound_Icc_strict (e : Expr) (hsupp : ADSupported e)
+    (he : e.usesOnlyVar0 = true)
+    (lo hi : ℚ) (hle : lo ≤ hi) (c : ℚ) (cfg : BoundVerifyConfig)
+    (hverify : (globalMinimize e hsupp [⟨lo, hi, hle⟩] cfg.toGlobalOptConfig).bound.lo > c) :
+    ∀ x ∈ Set.Icc (lo : ℝ) hi, c < Expr.eval (fun _ => x) e := by
+  intro x hx
+  have hxI : x ∈ (⟨lo, hi, hle⟩ : IntervalRat) := by
+    simp only [IntervalRat.mem_def]
+    exact ⟨hx.1, hx.2⟩
+  exact adaptive_lower_bound_strict e hsupp he ⟨lo, hi, hle⟩ c cfg hverify x hxI
+
+
+-- @@ L500-500 verbatim
+end LeanCert.Engine.Optimization

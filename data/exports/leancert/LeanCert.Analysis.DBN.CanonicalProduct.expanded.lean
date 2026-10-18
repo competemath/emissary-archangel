@@ -1,0 +1,179 @@
+import LeanCert.Analysis.DBN.Hadamard
+import Mathlib.Algebra.Polynomial.Degree.SmallDegree
+import Mathlib.Tactic
+
+
+-- @@ L5-5 verbatim
+/-! Removing the exponential prefactor from the actual H_t factorization at every real time. -/
+
+-- @@ L6-6 verbatim
+namespace LeanCert.Analysis.DBN
+
+-- @@ L7-7 verbatim
+open Complex Complex.Hadamard Polynomial
+
+
+-- @@ L9-15 verbatim
+/-- Every genus-one factor is normalized to have derivative zero at the origin. -/
+theorem H_canonicalProduct_deriv_zero (t : ℝ) :
+    deriv (divisorCanonicalProduct 1 (H t) Set.univ) 0 = 0 := by
+  have h := logDeriv_divisorCanonicalProduct_one_eq_tsum (H_inverse_square_summable t)
+    (z := 0) (fun p => (divisorZeroIndex₀_val_ne_zero p).symm)
+    (divisorCanonicalProduct_ne_zero_at_zero 1 (H t) Set.univ)
+  simpa [logDeriv] using h
+
+
+-- @@ L17-24 verbatim
+theorem H_deriv_zero (t : ℝ) : deriv (H t) 0 = 0 := by
+  have hd := ((H_entire t (-(0 : ℂ))).hasDerivAt).comp (h := fun z : ℂ => -z) 0 (hasDerivAt_neg (0 : ℂ))
+  have he : (fun z : ℂ => H t (-z)) = H t := funext (H_even t)
+  simp only [Function.comp_def] at hd
+  rw [he] at hd
+  have h := hd.unique ((H_entire t (0 : ℂ)).hasDerivAt)
+  simp only [neg_zero, mul_neg, mul_one] at h
+  linear_combination -h / 2
+
+
+-- @@ L26-45 verbatim
+/-- The entire linear exponential prefactor is constant, not merely nonvanishing. -/
+theorem H_eq_normalized_canonicalProduct (t : ℝ) (z : ℂ) :
+    H t z = H t 0 * divisorCanonicalProduct 1 (H t) Set.univ z := by
+  obtain ⟨P, hP, hfac⟩ := H_hadamard t
+  obtain ⟨a, b, rfl⟩ := P.exists_eq_X_add_C_of_natDegree_le_one (natDegree_le_of_degree_le hP)
+  simp only [eval_add, eval_mul, eval_C, eval_X] at hfac
+  have hQ := differentiable_divisorCanonicalProduct_univ 1 (H t) (H_inverse_square_summable t)
+  have hder := (((hasDerivAt_id (0 : ℂ)).const_mul a).add_const b).cexp.mul ((hQ 0).hasDerivAt)
+  have he : (fun z : ℂ => Complex.exp (a*z+b) * divisorCanonicalProduct 1 (H t) Set.univ z) = H t :=
+    funext (fun z => (hfac z).symm)
+  simp only [Pi.mul_def, id_eq] at hder
+  rw [he] at hder
+  have hd := hder.deriv
+  rw [(H_deriv_zero t)] at hd
+  simp only [(H_canonicalProduct_deriv_zero t), divisorCanonicalProduct_zero, mul_zero,
+    zero_add, mul_one, add_zero] at hd
+  have ha : a = 0 := (mul_eq_zero.mp hd.symm).resolve_left (Complex.exp_ne_zero b)
+  have h0 := hfac 0
+  simp only [mul_zero, zero_add, divisorCanonicalProduct_zero, mul_one] at h0
+  simpa only [ha, zero_mul, zero_add, ← h0] using hfac z
+
+
+-- @@ L47-52 verbatim
+/-- The canonical product inherits evenness once its prefactor is removed. -/
+theorem H_canonicalProduct_even (t : ℝ) (z : ℂ) :
+    divisorCanonicalProduct 1 (H t) Set.univ (-z) =
+      divisorCanonicalProduct 1 (H t) Set.univ z := by
+  apply mul_left_cancel₀ (H_zero_ne_zero t)
+  rw [← (H_eq_normalized_canonicalProduct t), ← (H_eq_normalized_canonicalProduct t), H_even]
+
+
+-- @@ L54-57 verbatim
+/-- Time-zero compatibility interfaces. -/
+theorem H_zero_canonicalProduct_deriv_zero :
+    deriv (divisorCanonicalProduct 1 (H 0) Set.univ) 0 = 0 :=
+  H_canonicalProduct_deriv_zero 0
+
+
+-- @@ L59-59 verbatim
+theorem H_zero_deriv_zero : deriv (H 0) 0 = 0 := H_deriv_zero 0
+
+
+-- @@ L61-63 verbatim
+theorem H_zero_eq_normalized_canonicalProduct (z : ℂ) :
+    H 0 z = H 0 0 * divisorCanonicalProduct 1 (H 0) Set.univ z :=
+  H_eq_normalized_canonicalProduct 0 z
+
+
+-- @@ L65-67 verbatim
+theorem H_zero_canonicalProduct_even (z : ℂ) :
+    divisorCanonicalProduct 1 (H 0) Set.univ (-z) =
+      divisorCanonicalProduct 1 (H 0) Set.univ z := H_canonicalProduct_even 0 z
+
+
+-- @@ L69-74 verbatim
+/-- A negation-invariant finite root multiset has zero reciprocal sum. -/
+theorem reciprocal_sum_eq_zero (roots : Multiset ℂ)
+    (hn : roots.map Neg.neg = roots) : (roots.map (fun r => r⁻¹)).sum = 0 := by
+  have h := congrArg (fun s : Multiset ℂ => (s.map (fun r => r⁻¹)).sum) hn
+  simp only [Multiset.map_map, Function.comp_def, inv_neg, Multiset.sum_map_neg] at h
+  linear_combination -h / 2
+
+
+-- @@ L76-93 verbatim
+/-- Finite canonical products over balanced roots are genuine polynomials. -/
+theorem balanced_canonicalProduct_eq_polynomial (roots : Multiset ℂ)
+    (hn : roots.map Neg.neg = roots) (z : ℂ) :
+    (roots.map (fun r => weierstrassFactor 1 (z/r))).prod =
+      (roots.map (fun r => (1 : ℂ[X]) - C r⁻¹ * X)).prod.eval z := by
+  have hw (w : ℂ) : weierstrassFactor 1 w = (1-w)*Complex.exp w := by
+    simp [weierstrassFactor, partialLogSum_succ]
+  simp only [hw, Multiset.prod_map_mul]
+  have he : (roots.map (fun r => Complex.exp (z/r))).prod = 1 := by
+    rw [show roots.map (fun r => Complex.exp (z/r)) =
+      (roots.map (fun r => z/r)).map Complex.exp by rw [Multiset.map_map]; rfl,
+      ← Complex.exp_multiset_sum]
+    have hs : (roots.map (fun r => z/r)).sum = z*(roots.map (fun r => r⁻¹)).sum := by
+      simp only [div_eq_mul_inv, Multiset.sum_map_mul_left]
+    rw [hs, reciprocal_sum_eq_zero roots hn, mul_zero, Complex.exp_zero]
+  rw [he, mul_one]
+  simp only [eval_multiset_prod, Multiset.map_map, Function.comp_def, eval_sub, eval_one,
+    eval_mul, eval_C, eval_X, div_eq_mul_inv, mul_comm]
+
+
+-- @@ L95-102 verbatim
+/-- The actual zero multiplicities agree at opposite points. -/
+theorem H_zero_analyticOrder_neg (z : ℂ) :
+    analyticOrderAt (H 0) (-z) = analyticOrderAt (H 0) z := by
+  have h := analyticOrderAt_comp_of_deriv_ne_zero (f := H 0) (g := fun w : ℂ => -w)
+    (z₀ := z) (by fun_prop) (by simp)
+  have he : (H 0 ∘ fun w : ℂ => -w) = H 0 := funext (H_even 0)
+  rw [he] at h
+  exact h.symm
+
+
+-- @@ L104-118 verbatim
+/-- Normalized finite root polynomials have no spurious zeros. -/
+theorem finite_rootPolynomial_zero_iff (roots : Multiset ℂ)
+    (hr : ∀ r ∈ roots, r ≠ 0) (z : ℂ) :
+    (roots.map (fun r => (1 : ℂ[X]) - C r⁻¹ * X)).prod.eval z = 0 ↔ z ∈ roots := by
+  simp only [eval_multiset_prod, Multiset.map_map, Function.comp_def, eval_sub, eval_one,
+    eval_mul, eval_C, eval_X, Multiset.prod_eq_zero_iff, Multiset.mem_map]
+  constructor
+  · rintro ⟨r, hmem, he⟩
+    have hmul : r⁻¹*z = 1 := by linear_combination -he
+    have hz : z = r := by
+      have h := congrArg (fun w : ℂ => r*w) hmul
+      simpa [← mul_assoc, hr r hmem] using h
+    simpa [hz] using hmem
+  · intro hz
+    exact ⟨z, hz, by simp [hr z hz]⟩
+
+
+-- @@ L120-127 verbatim
+/-- Conjugation-balanced finite roots yield real coefficients. -/
+theorem finite_rootPolynomial_conj (roots : Multiset ℂ)
+    (hc : roots.map (starRingEnd ℂ) = roots) :
+    ((roots.map (fun r => (1 : ℂ[X]) - C r⁻¹ * X)).prod).map (starRingEnd ℂ) =
+      (roots.map (fun r => (1 : ℂ[X]) - C r⁻¹ * X)).prod := by
+  have h := congrArg (fun s : Multiset ℂ => (s.map (fun r => (1 : ℂ[X]) - C r⁻¹ * X)).prod) hc
+  simpa only [Polynomial.map_multiset_prod, Multiset.map_map, Function.comp_def, Polynomial.map_sub,
+    Polynomial.map_one, Polynomial.map_mul, Polynomial.map_C, Polynomial.map_X, map_inv₀] using h
+
+
+-- @@ L129-132 verbatim
+/-- Finite root polynomials are normalized at zero, including the empty cutoff. -/
+theorem finite_rootPolynomial_at_zero (roots : Multiset ℂ) :
+    (roots.map (fun r => (1 : ℂ[X]) - C r⁻¹ * X)).prod.eval 0 = 1 := by
+  simp [eval_multiset_prod]
+
+
+-- @@ L134-139 verbatim
+/-- Zero-strip control transfers to the finite root polynomial without slack. -/
+theorem finite_rootPolynomial_strip (roots : Multiset ℂ)
+    (hr : ∀ r ∈ roots, r ≠ 0) {b : ℝ}
+    (hb : ∀ r ∈ roots, r.im^2 ≤ b^2) {z : ℂ}
+    (hz : (roots.map (fun r => (1 : ℂ[X]) - C r⁻¹ * X)).prod.eval z = 0) :
+    z.im^2 ≤ b^2 := hb z ((finite_rootPolynomial_zero_iff roots hr z).mp hz)
+
+
+-- @@ L141-141 verbatim
+end LeanCert.Analysis.DBN

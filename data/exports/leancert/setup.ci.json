@@ -1,0 +1,39 @@
+{
+  "key": "leancert",
+  "repo": "https://github.com/alerad/leancert",
+  "commit": "7f91b6eb3567437f6cfac03ed279706603ee22f4",
+  "toolchain": "leanprover/lean4:v4.34.1",
+  "roots": [
+    "LeanCert",
+    "Li2Verified",
+    "BKLNWVerified",
+    "PrimeLambdaDigits"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/leancert/repo",
+  "entries": 3323,
+  "modules": 292,
+  "exported": 292,
+  "failed": [],
+  "expansion": {
+    "expanded": 24,
+    "verbatim": 8644,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 3323,
+    "kept": 3323,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 91,
+    "lineUnverified": 0,
+    "nameFixed": 3202,
+    "sorryOriginals": 0,
+    "emptyProofs": 1
+  },
+  "exportsBytes": 140464128,
+  "minutes": 109,
+  "finishedAt": "2026-10-18T17:20:19.303Z"
+}
