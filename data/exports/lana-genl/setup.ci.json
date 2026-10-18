@@ -1,0 +1,37 @@
+{
+  "key": "lana-genl",
+  "repo": "https://github.com/lana-agents/genl",
+  "commit": "ea2846c877d1e16d8f0b911a5fed07f5ee69eaaf",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "Genl",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lana-genl/repo",
+  "entries": 88,
+  "modules": 7,
+  "exported": 7,
+  "failed": [],
+  "expansion": {
+    "expanded": 33,
+    "verbatim": 77,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 89,
+    "kept": 88,
+    "skippedRoot": 1,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 1,
+    "lineUnverified": 0,
+    "nameFixed": 88,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 1875968,
+  "minutes": 11,
+  "finishedAt": "2026-10-18T18:23:19.297Z"
+}
