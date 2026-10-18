@@ -1248,6 +1248,209 @@
       "subdir": "lean",
       "licence": "Apache-2.0",
       "tentative": ["openai-math/003.jsonl"]
+    },
+    "primecert": {
+      "label": "primecert (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/b-mehta/PrimeCert",
+      "commit": "0803c2f6bd289c09704c7d352bb8fcf770cbb9b2",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "PrimeCert",
+        "MillerRabin"
+      ],
+      "licence": "MIT"
+    },
+    "leancert": {
+      "label": "leancert (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/alerad/leancert",
+      "commit": "7f91b6eb3567437f6cfac03ed279706603ee22f4",
+      "toolchain": "leanprover/lean4:v4.34.1",
+      "roots": [
+        "LeanCert",
+        "Li2Verified",
+        "BKLNWVerified",
+        "PrimeLambdaDigits"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lana-belyi": {
+      "label": "lana-belyi (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/lana-agents/belyi",
+      "commit": "9ce4d3f793d3bc831f2fc7214b7dbad90ea012d8",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "Belyi"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lana-formal-schemes": {
+      "label": "lana-formal-schemes (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/lana-agents/formal-schemes",
+      "commit": "51aa935079537bf4dc580751a6e70727fb23ca93",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "FormalSchemes"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lana-elliptic-curves": {
+      "label": "lana-elliptic-curves (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/lana-agents/elliptic-curves",
+      "commit": "bebec3fc9f2602e81c83e5236789572a541c85fb",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "EllipticCurves"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lana-tempered-fundamental-groups": {
+      "label": "lana-tempered-fundamental-groups (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/lana-agents/tempered-fundamental-groups",
+      "commit": "2006651f52b70ea2fe3388238c7d9db14d21748f",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "TemperedFundamentalGroups"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lana-oka": {
+      "label": "lana-oka (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/lana-agents/oka",
+      "commit": "75dcdc3faadd10b986afb9283e89902bcdddecd4",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "Oka"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lana-orbicurve-cores": {
+      "label": "lana-orbicurve-cores (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/lana-agents/orbicurve-cores",
+      "commit": "61616dcd77fbe45c083a8ebfa7cc80728f86e841",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "OrbicurveCores"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lana-pi1": {
+      "label": "lana-pi1 (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/lana-agents/pi1",
+      "commit": "ca7def953193f861a462aa0831eec8f0a31ff69f",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "Pi1"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lana-heights": {
+      "label": "lana-heights (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/lana-agents/heights",
+      "commit": "721496ca4c158e511d25d8ccf6bfe8503eda73c1",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "Heights",
+        "Solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lana-genl": {
+      "label": "lana-genl (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/lana-agents/genl",
+      "commit": "ea2846c877d1e16d8f0b911a5fed07f5ee69eaaf",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "Genl",
+        "Solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lana-tate-curves-theta": {
+      "label": "lana-tate-curves-theta (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/lana-agents/tate-curves-theta",
+      "commit": "ca6c2279d3cea0690cdb01328e727118d5485d68",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "TateCurvesTheta"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lana-iut": {
+      "label": "lana-iut (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/lana-agents/iut",
+      "commit": "d9465c111ec4073709f67e9fccec7e3eb374a816",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "Iut",
+        "Iut4Sec1",
+        "Solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "schoenflies-lean": {
+      "label": "schoenflies-lean (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/alonamaloh/schoenflies-lean",
+      "commit": "05a43d29cde026618777db3d4e4316204ccca237",
+      "toolchain": "leanprover/lean4:v4.32.2",
+      "roots": [
+        "Schoenflies",
+        "Solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "classfieldtheory-yamaguchi": {
+      "label": "classfieldtheory-yamaguchi (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/n-yamaguchi-0729/ClassFieldTheory",
+      "commit": "2eb22d6485af45f29c5219de6c49f196a61c4f49",
+      "toolchain": "leanprover/lean4:v4.34.0",
+      "roots": [
+        "ClassFieldTheory",
+        "ValuedFieldTheory",
+        "GaloisCohomology",
+        "ProCGroups"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "absorptioncutoff": {
+      "label": "absorptioncutoff (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/BennyAvelin/AbsorptionCutoff",
+      "commit": "41c45c6d72e979419e46224bb7b4be5cee31f2b5",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "AbsorptionCutoff"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "rellich-kondrachov": {
+      "label": "rellich-kondrachov (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/abenenson/rellich-kondrachov",
+      "commit": "70f85d4c1bf99c6e7d61e8be4daa6f3664d08d23",
+      "toolchain": "leanprover/lean4:v4.29.1",
+      "roots": [
+        "MathlibExtensions",
+        "RellichKondrachov"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "zeta-3-irrational": {
+      "label": "zeta-3-irrational (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/ahhwuhu/zeta_3_irrational",
+      "commit": "e8785315a01c8fbcddaa0fc03b3c8b29a61bc1f1",
+      "toolchain": "leanprover/lean4:v4.18.0",
+      "roots": [
+        "Zeta3Irrational"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "fixed-point-theorems-lean4": {
+      "label": "fixed-point-theorems-lean4 (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
+      "repo": "https://github.com/harfe/fixed-point-theorems-lean4",
+      "commit": "770940ddf9878cf61952ed53d910b92bca841838",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "FixedPointTheorems"
+      ],
+      "licence": "MIT"
     }
   }
 }
