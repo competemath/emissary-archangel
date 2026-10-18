@@ -1,0 +1,36 @@
+{
+  "key": "absorptioncutoff",
+  "repo": "https://github.com/BennyAvelin/AbsorptionCutoff",
+  "commit": "41c45c6d72e979419e46224bb7b4be5cee31f2b5",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "AbsorptionCutoff"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/absorptioncutoff/repo",
+  "entries": 2254,
+  "modules": 83,
+  "exported": 83,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 2254,
+    "kept": 2254,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 29,
+    "lineUnverified": 88,
+    "nameFixed": 2254,
+    "sorryOriginals": 0,
+    "emptyProofs": 2
+  },
+  "exportsBytes": 33140736,
+  "minutes": 12,
+  "finishedAt": "2026-10-18T21:14:04.068Z"
+}
