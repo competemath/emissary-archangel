@@ -128,10 +128,11 @@ def parse_command(kw: str, rest: str):
     return cat, trailing, atoms
 
 
-def census(text: str, seed: dict) -> list[dict]:
-    """the leaking commands of one module's text: line (1-based, the keyword's), kw, category, atoms, reasons"""
+def census(text: str, seed: dict | None) -> list[dict]:
+    """the leaking commands of one module's text: line (1-based, the keyword's), kw, category, atoms, reasons.
+    With `seed=None` every GLOBAL command counts, whatever tokens the seed has (scope_bundle.py: tengoku's lint refuses a global one in any mode); a command this cannot read is listed too."""
     lines = mask_comments(text).split("\n")
-    keys, idents = set(seed["keys"]), set(seed["idents"])
+    keys, idents = (set(seed["keys"]), set(seed["idents"])) if seed else (set(), set())
     out = []
     for i, ln in enumerate(lines):
         m = CMD.match(ln)
@@ -144,9 +145,14 @@ def census(text: str, seed: dict) -> list[dict]:
             j += 1
         parsed = parse_command(m.group("kw"), rest)
         if not parsed:
+            if seed is None:
+                out.append({"line": i + 1, "kw": m.group("kw"), "category": "?", "atoms": [], "why": ["global (unreadable)"]})
             continue
         cat, trailing, atoms = parsed
-        why = []
+        why = ["global"] if seed is None else []
+        if seed is None:
+            out.append({"line": i + 1, "kw": m.group("kw"), "category": cat, "atoms": atoms, "why": why})
+            continue
         key = ("trailing " if trailing else "leading ") + atoms[0]
         if cat == "term" and key in keys:
             why.append(f"token: {key}")

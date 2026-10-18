@@ -35,6 +35,7 @@ sys.path.insert(0, str(HERE))
 import portfolio  # noqa: E402
 import records  # noqa: E402
 import autonames  # noqa: E402
+import scope_bundle  # noqa: E402
 import bundle_rehead as rehead  # noqa: E402
 import keep_closure  # noqa: E402
 import lean_names  # noqa: E402
@@ -409,6 +410,18 @@ def compose(a: argparse.Namespace) -> None:
     for mod, text in pruned.items():
         body = "\n".join(("" if header.match(ln) else ln) for ln in text.split("\n"))
         lint[mod] = allowlist.violations(body, allowed, keywords)
+    # A GLOBAL notation, macro, elab or syntax command of the library reads differently in every file of the tree (2026-10-17: lean-pool's `prefix:80 "-"` broke `-(3 * x)` on the reals tree-wide),
+    # and tengoku's lint refuses one in any mode. Every bundle is cut the way the tree takes it: the commands are made `scoped` or `local` (scope_bundle.py), here on the text each module would
+    # ship with, to find the modules that cannot be scoped (a namespace that core, Mathlib or the library has scoped entries in; an `open` the importers lack). They are left out like a module that
+    # does not lint, with what imports them; the real pass is made on the files of each mode below. The message has no backticks: `refused` below reads them as the names of allowed commands.
+    shipped_text = {mod: to_tree(pruned[mod], a.key, own, modules[mod].path.relative_to(lib), faithful=a.imports == "faithful") for mod in pruned}
+    scoped_text, cannot_scope = scope_bundle.dry_run({str(modules[mod].path.relative_to(lib)): t for mod, t in shipped_text.items()}, a.key)
+    for mod in pruned:
+        rel = str(modules[mod].path.relative_to(lib))
+        left = allowlist.unscoped_violations(scoped_text[rel], macro=True)  # what is still global after the pass: the check tengoku's lint makes
+        if rel in cannot_scope or left:
+            why = "; ".join(cannot_scope.get(rel, []) + left)[:300].replace("`", "'")
+            lint[mod].append(f"global notation, macro or syntax that cannot be made scoped or local: {why}")
     # a kept declaration that uses one the pruning removed does not build on the tree: the module is cut like one that did not compile
     dangling = {mod: ds for mod in pruned if (ds := modules[mod].dangling(pruned[mod], keep_blocks.get(mod, set())))}
     # two namespaces of the tree that declare one Lean name cannot both be imported ('import X failed, environment already contains ...'): the module that would ship it goes, like one
@@ -504,10 +517,16 @@ def compose(a: argparse.Namespace) -> None:
             (src_dir / rel).parent.mkdir(parents=True, exist_ok=True)
             (src_dir / rel).write_text(pruned[mod] + "\n")
             (tree_root / rel).parent.mkdir(parents=True, exist_ok=True)
-            shipped = to_tree(pruned[mod], a.key, own, rel, faithful=a.imports == "faithful")
-            if mod in tree_repairs:  # a mode whose bytes differ from the ones that were repaired ships as the factory cut it (only the verified modes are checked byte for byte)
-                shipped = tree_repair.apply_to_text(shipped, tree_repairs[mod]) or shipped
-            (tree_root / rel).write_text(shipped)
+            (tree_root / rel).write_text(to_tree(pruned[mod], a.key, own, rel, faithful=a.imports == "faithful"))
+        notation_scoped = scope_bundle.scope_dir(out_dir, a.key)  # every global notation-family command of the files just written becomes scoped or local
+        if notation_scoped["unscoped"]:  # the dry run above left those modules out: a module that is still here is a bug in compose, and compose refuses to go on
+            sys.exit(f"the {mode} bundle still declares a global notation that cannot be made scoped or local: {dict(list(notation_scoped['unscoped'].items())[:5])}")
+        for mod in sorted(needed):
+            if mod in tree_repairs:
+                # The repairs were planned on the bytes the tree built, and the tree builds the SCOPED text, so they go on after the scoping. A mode whose bytes differ from the ones that were
+                # repaired ships as the factory cut it (apply_to_text returns None on another `before`; only the verified modes are checked byte for byte).
+                f = tree_root / modules[mod].path.relative_to(lib)
+                f.write_text(tree_repair.apply_to_text(f.read_text(), tree_repairs[mod]) or f.read_text())
         (out_dir / "Tengoku" / f"{pascal(a.key)}.lean").write_text("".join(f"import Tengoku.{pascal(a.key)}.{m}\n" for m in sorted(needed)))
         # tengoku's generator rewrites Tengoku/All.lean from the libraries that have a Deps.lean: an empty one (a comment) keeps this library in it
         (tree_root / "Deps.lean").write_text(f"-- {pascal(a.key)}: a factory bundle (data/intake/{a.key}). This file only marks the library for Tengoku/All.lean.\n")
@@ -543,7 +562,7 @@ def compose(a: argparse.Namespace) -> None:
             json.dumps({"library": a.key, "lint_mode": mode, "verified": total, "shipped": len(manifest), "left_out": dict(left_out), "modules": dict(sorted(ledger.items()))}, indent=1)
         )
         report = {"library": a.key, "lint_mode": mode, "gate2_unjudged": unjudged, "gate2_left_out": no_verdict, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]), "dropped_truncated": len(dropped) > 50,
-                  "theorems": len(manifest), "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "textually_kept": textually_kept, "dependency_graph": ({**graph_stats, "text_kept_tainted": len(graph_stats["text_kept_tainted"]), "text_kept_tainted_first": graph_stats["text_kept_tainted"][:20], "taint_drops": a.taint_drops} if graph is not None else None), "failed_seeds_shipped": [f"{m}:{b[0]}" for m, b in failed_seeds[:50]], "failed_seeds_shipped_total": len(failed_seeds), "stripped_attributes": dict(stripped_attrs.most_common(15)),
+                  "theorems": len(manifest), "notation_scoped": notation_scoped["scoped"], "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "textually_kept": textually_kept, "dependency_graph": ({**graph_stats, "text_kept_tainted": len(graph_stats["text_kept_tainted"]), "text_kept_tainted_first": graph_stats["text_kept_tainted"][:20], "taint_drops": a.taint_drops} if graph is not None else None), "failed_seeds_shipped": [f"{m}:{b[0]}" for m, b in failed_seeds[:50]], "failed_seeds_shipped_total": len(failed_seeds), "stripped_attributes": dict(stripped_attrs.most_common(15)),
                   "lint_cost": dict(sorted(classes.items(), key=lambda x: -x[1])[:15])}
         (out_dir / "report.json").write_text(json.dumps(report, indent=1))
         summary[mode] = {k: v for k, v in report.items() if k not in ("dropped", "lint_cost", "left_out")}

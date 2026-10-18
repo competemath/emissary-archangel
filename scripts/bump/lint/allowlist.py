@@ -323,3 +323,25 @@ def violations(text: str, allowed_options: set[str], command_keywords: set[str] 
     out += [f"set_option {opt} is not on the allowlist" for opt in _SET_OPTION.findall(code) if opt not in allowed_options]
     out += _command_start_violations(stripped, command_keywords)
     return list(dict.fromkeys(out))
+
+
+# `--lint proposed|wide` let a bundle declare notation (and, in wide, `macro`/`syntax`) because none of it runs IO. A GLOBAL one still changes how every other module of the tree
+# parses: lean-pool's `prefix:80 "-" => complement` made `-(3 * x)` on ℝ fail everywhere ("Ambiguous term", 2026-10-17), and the atoms of a global notation/syntax/macro (`v`, `ω`, `na`)
+# became reserved tokens of the whole tree (`fun v => …` -> "unexpected token 'v'"). So where a mode allows these commands it allows them only with `scoped` or `local` in front. The check
+# reads the command position (after attributes and an `open … in`), so `scoped notation …` does not match and `notation …` does; a word elsewhere (a hypothesis called `prefix`) is not a command.
+_COMMAND_LEAD = r"^[ \t]*(?:(?:open|set_option)\b[^\n]*?[ \t]in[ \t]+)*(?:@\[[^\]]*\][ \t]*)*"
+_UNSCOPED_NOTATION = re.compile(_COMMAND_LEAD + r"(notation3?|infixl?|infixr|prefix|postfix)(?![\w'.])", re.M)
+_UNSCOPED_MACRO = re.compile(_COMMAND_LEAD + r"(macro|syntax)(?![\w'.])", re.M)
+
+
+def unscoped_violations(text: str, macro: bool) -> list[str]:
+    """The notation commands (and with `macro` the `macro`/`syntax` commands) of a module that are neither `scoped` nor `local`: global ones, which leak into the rest of the tree."""
+    code = code_only(text)
+    rules = (_UNSCOPED_NOTATION, _UNSCOPED_MACRO) if macro else (_UNSCOPED_NOTATION,)
+    return list(
+        dict.fromkeys(
+            f"`{m.group(1)}` without `scoped` or `local` is global: it changes how every other library parses"
+            for rule in rules
+            for m in rule.finditer(code)
+        )
+    )
