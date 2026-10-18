@@ -164,6 +164,13 @@ class Tick(unittest.TestCase):
         self.assertEqual(out["failed"], [])
         self.assertIn("every part of it is in the tree", out["skipped"]["lib"])
 
+    def test_a_missing_part_is_still_a_failure_when_the_merged_title_says_more_are_owed(self):
+        # CodeRabbit on emissary#57: 'part 13 of 15' merged, the archive of part 14 is missing: that is a real failure
+        gh = FakeGh(prs=rows((7, "MERGED", "intake/lib-100000000-part-013", "extend: lib part 13 of 15 (324 verified theorems in 28 modules)")), runs=[run_row(100000000, "lib", 1)])
+        no_archive = "run 100000000 has no archive bundle-lib-proposed-part-014.tar (was it dispatched with `parts`?)"
+        out, _, _ = self.go(gh, results={"lib": (1, no_archive, "")})
+        self.assertEqual((out["failed"], out["skipped"]), (["lib"], {}))
+
     def test_a_first_part_whose_run_has_no_archive_is_still_a_failure(self):
         gh = FakeGh(runs=[run_row(100000000, "lib", 1)])
         no_archive = "run 100000000 has no archive bundle-lib-proposed-part-001.tar (was it dispatched with `parts`?)"
