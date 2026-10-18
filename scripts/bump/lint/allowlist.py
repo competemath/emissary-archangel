@@ -323,3 +323,38 @@ def violations(text: str, allowed_options: set[str], command_keywords: set[str] 
     out += [f"set_option {opt} is not on the allowlist" for opt in _SET_OPTION.findall(code) if opt not in allowed_options]
     out += _command_start_violations(stripped, command_keywords)
     return list(dict.fromkeys(out))
+
+
+# `--lint proposed|wide` let a bundle declare notation (and, in wide, `macro`/`syntax`; `elab` stays refused in every mode) because none of it runs IO. A GLOBAL one still changes how every other module of the tree
+# parses: lean-pool's `prefix:80 "-" => complement` made `-(3 * x)` on ℝ fail everywhere ("Ambiguous term", 2026-10-17), and the atoms of a global notation/syntax/macro (`v`, `ω`, `na`)
+# became reserved tokens of the whole tree (`fun v => …` -> "unexpected token 'v'"). So where a mode allows these commands it allows them only with `scoped` or `local` in front, and the
+# check reads every occurrence of the keyword, not the start of a line: Lean needs no line break between commands (`theorem t : True := trivial notation "-" => f`, `private infix …`,
+# `open Nat in notation …`). A keyword is a token of Lean's, never an identifier (`fun prefix => …` does not parse), so a word in code (comments and strings are blanked first) is a command;
+# `Foo.prefix` and `«prefix»` are names and stay out. It is accepted when it directly follows `scoped`, `local` or Mathlib's `scoped[NS]`.
+_NOTATION_KW = re.compile(r"(?<![\w.'!?«])(notation3?|infixl?|infixr|prefix|postfix)(?![\w'!?])")
+_MACRO_KW = re.compile(r"(?<![\w.'!?«])(macro|syntax|elab)(?![\w'!?])")
+_SCOPED_BEFORE = re.compile(r"(?<![\w.'!?])(?:scoped|local)(?:\[[^\]\n]*\])?\s+$")
+
+
+def unscoped_matches(text: str, macro: bool, same_line: bool = False) -> list[tuple[int, str]]:
+    """(line, message) for every notation command (and with `macro` every `macro`/`syntax`/`elab` command) of a module that is neither `scoped` nor `local`: a global one, which leaks into the
+    rest of the tree. `line` is 1-based in `text` (the lexer keeps line breaks). The `scoped`/`local` in front is read in the module itself; with `same_line` it must be on the line of the keyword
+    (for text that is not a module: lines joined from a diff, whose neighbours are not the module's)."""
+    code = code_only(text)
+    out = []
+    for rule in (_NOTATION_KW, _MACRO_KW) if macro else (_NOTATION_KW,):
+        for m in rule.finditer(code):
+            start = code.rfind("\n", 0, m.start()) + 1 if same_line else max(0, m.start() - 160)
+            if not _SCOPED_BEFORE.search(code[start : m.start()]):
+                out.append(
+                    (
+                        code.count("\n", 0, m.start()) + 1,
+                        f"`{m.group(1)}` without `scoped` or `local` is global: it changes how every other library parses",
+                    )
+                )
+    return out
+
+
+def unscoped_violations(text: str, macro: bool, same_line: bool = False) -> list[str]:
+    """the messages of `unscoped_matches`, once each"""
+    return list(dict.fromkeys(msg for _, msg in unscoped_matches(text, macro, same_line)))
