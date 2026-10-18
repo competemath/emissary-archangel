@@ -35,22 +35,31 @@ def registered(sources: dict) -> list[tuple[str, str, str]]:
 
 def head_of(slug: str, run=subprocess.run) -> str | None:
     """the commit HEAD points to upstream, or None when the repository cannot be read (moved, private, deleted)"""
-    r = run(["git", "ls-remote", f"https://github.com/{slug}.git", "HEAD"], capture_output=True, text=True, timeout=120)
+    try:
+        r = run(["git", "ls-remote", f"https://github.com/{slug}.git", "HEAD"], capture_output=True, text=True, timeout=120)
+    except (subprocess.TimeoutExpired, OSError):  # one slow or missing repository must not cost the whole report
+        return None
     line = (r.stdout or "").split("\n")[0].split()
     return line[0] if r.returncode == 0 and line and SHA.match(line[0]) else None
 
 
 def compare(slug: str, pinned: str, head: str, run=subprocess.run) -> dict:
     """how far `pinned` is behind `head`: {ahead_by, files, last} or {diverged: True} when GitHub cannot compare them (a history rewrite)"""
-    r = run(
-        ["gh", "api", f"repos/{slug}/compare/{pinned}...{head}", "-q", "{ahead_by: .ahead_by, status: .status, files: (.files|length), last: .commits[-1].commit.committer.date}"],
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+    try:
+        r = run(
+            ["gh", "api", f"repos/{slug}/compare/{pinned}...{head}", "-q", "{ahead_by: .ahead_by, status: .status, files: (.files|length), last: .commits[-1].commit.committer.date}"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return {"unknown": True}
     if r.returncode != 0:
         return {"diverged": True}
-    d = json.loads(r.stdout)
+    try:
+        d = json.loads(r.stdout)
+    except ValueError:
+        return {"unknown": True}
     return {"ahead_by": d.get("ahead_by", 0), "files": d.get("files", 0), "last": (d.get("last") or "")[:10]}
 
 
@@ -74,6 +83,8 @@ def markdown(rows: list[dict], total: int) -> str:
         for r in rows:
             if r["state"] == "unreadable":
                 out.append(f"| {r['key']} | {r['slug']} | `{r['pinned'][:10]}` | unreadable | | | |")
+            elif r.get("unknown"):
+                out.append(f"| {r['key']} | {r['slug']} | `{r['pinned'][:10]}` | `{r['head'][:10]}` | unknown (the comparison failed) | | |")
             elif r.get("diverged"):
                 out.append(f"| {r['key']} | {r['slug']} | `{r['pinned'][:10]}` | `{r['head'][:10]}` | diverged (history rewritten?) | | |")
             else:

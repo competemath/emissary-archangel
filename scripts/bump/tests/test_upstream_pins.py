@@ -47,6 +47,35 @@ class Head(unittest.TestCase):
         self.assertEqual(up.compare("o/r", A, B, run=self.fake(1, "")), {"diverged": True})
 
 
+class Failures(unittest.TestCase):
+    """CodeRabbit on emissary#59: one slow or missing repository must not cost the whole weekly report"""
+
+    @staticmethod
+    def raising(exc):
+        def run(*a, **k):
+            raise exc
+
+        return run
+
+    def test_a_timeout_or_a_missing_git_is_an_unreadable_repository(self):
+        for exc in (subprocess.TimeoutExpired(["git"], 120), FileNotFoundError("git")):
+            self.assertIsNone(up.head_of("o/r", run=self.raising(exc)))
+
+    def test_a_timeout_in_the_comparison_or_garbage_from_gh_is_unknown_not_a_crash(self):
+        self.assertEqual(up.compare("o/r", A, B, run=self.raising(subprocess.TimeoutExpired(["gh"], 120))), {"unknown": True})
+        self.assertEqual(up.compare("o/r", A, B, run=lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="not json", stderr="")), {"unknown": True})
+
+    def test_the_table_still_lists_a_comparison_that_failed(self):
+        rows = [{"key": "k", "slug": "o/k", "pinned": A, "head": B, "state": "behind", "unknown": True}]
+        self.assertIn("unknown (the comparison failed)", up.markdown(rows, 3))
+
+    def test_one_failing_library_does_not_stop_the_others(self):
+        items = [("a", "o/a", A), ("b", "o/b", A)]
+        heads = {"o/a": None, "o/b": B}
+        rows = up.report(items, heads=lambda slug: heads[slug], comparer=lambda slug, p, h: {"ahead_by": 2, "files": 1, "last": "2026-10-01"})
+        self.assertEqual([r["key"] for r in rows], ["b", "a"])
+
+
 class Report(unittest.TestCase):
     def test_only_what_moved_is_listed_most_behind_first_and_the_unreadable_too(self):
         items = [("same", "o/same", A), ("small", "o/small", A), ("big", "o/big", A), ("gone", "o/gone", A)]
