@@ -336,12 +336,25 @@ _MACRO_KW = re.compile(r"(?<![\w.'!?«])(macro|syntax|elab)(?![\w'!?])")
 _SCOPED_BEFORE = re.compile(r"(?<![\w.'!?])(?:scoped|local)(?:\[[^\]\n]*\])?\s+$")
 
 
-def unscoped_violations(text: str, macro: bool) -> list[str]:
-    """The notation commands (and with `macro` the `macro`/`syntax`/`elab` commands) of a module that are neither `scoped` nor `local`: global ones, which leak into the rest of the tree."""
+def unscoped_matches(text: str, macro: bool, same_line: bool = False) -> list[tuple[int, str]]:
+    """(line, message) for every notation command (and with `macro` every `macro`/`syntax`/`elab` command) of a module that is neither `scoped` nor `local`: a global one, which leaks into the
+    rest of the tree. `line` is 1-based in `text` (the lexer keeps line breaks). The `scoped`/`local` in front is read in the module itself; with `same_line` it must be on the line of the keyword
+    (for text that is not a module: lines joined from a diff, whose neighbours are not the module's)."""
     code = code_only(text)
     out = []
     for rule in (_NOTATION_KW, _MACRO_KW) if macro else (_NOTATION_KW,):
         for m in rule.finditer(code):
-            if not _SCOPED_BEFORE.search(code[max(0, m.start() - 160) : m.start()]):
-                out.append(f"`{m.group(1)}` without `scoped` or `local` is global: it changes how every other library parses")
-    return list(dict.fromkeys(out))
+            start = code.rfind("\n", 0, m.start()) + 1 if same_line else max(0, m.start() - 160)
+            if not _SCOPED_BEFORE.search(code[start : m.start()]):
+                out.append(
+                    (
+                        code.count("\n", 0, m.start()) + 1,
+                        f"`{m.group(1)}` without `scoped` or `local` is global: it changes how every other library parses",
+                    )
+                )
+    return out
+
+
+def unscoped_violations(text: str, macro: bool, same_line: bool = False) -> list[str]:
+    """the messages of `unscoped_matches`, once each"""
+    return list(dict.fromkeys(msg for _, msg in unscoped_matches(text, macro, same_line)))
