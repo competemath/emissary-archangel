@@ -1,0 +1,37 @@
+{
+  "key": "rellich-kondrachov",
+  "repo": "https://github.com/abenenson/rellich-kondrachov",
+  "commit": "70f85d4c1bf99c6e7d61e8be4daa6f3664d08d23",
+  "toolchain": "leanprover/lean4:v4.29.1",
+  "roots": [
+    "MathlibExtensions",
+    "RellichKondrachov"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/rellich-kondrachov/repo",
+  "entries": 165,
+  "modules": 38,
+  "exported": 38,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 592,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 165,
+    "kept": 165,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 165,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 19656704,
+  "minutes": 11,
+  "finishedAt": "2026-10-18T21:12:26.064Z"
+}
