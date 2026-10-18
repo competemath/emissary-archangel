@@ -1,0 +1,37 @@
+{
+  "key": "lana-heights",
+  "repo": "https://github.com/lana-agents/heights",
+  "commit": "721496ca4c158e511d25d8ccf6bfe8503eda73c1",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "Heights",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lana-heights/repo",
+  "entries": 763,
+  "modules": 64,
+  "exported": 64,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 763,
+    "kept": 763,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 4,
+    "lineUnverified": 0,
+    "nameFixed": 763,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 14647296,
+  "minutes": 11,
+  "finishedAt": "2026-10-18T18:23:52.133Z"
+}
