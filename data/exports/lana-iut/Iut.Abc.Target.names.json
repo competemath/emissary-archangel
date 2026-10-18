@@ -1,0 +1,1 @@
+{"names":["Iut.abc_iff","Iut.ABC"],"modules":["Iut.Abc.Target"],"moduleOf":{"Iut.abc_iff":"Iut.Abc.Target","Iut.ABC":"Iut.Abc.Target"},"deps":{"Iut.abc_iff":["Iut.ABC"],"Iut.ABC":[]}}
