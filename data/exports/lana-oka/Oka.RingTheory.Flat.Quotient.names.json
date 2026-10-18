@@ -1,0 +1,1 @@
+{"names":["Module.Flat.quotIdealMap","Module.FaithfullyFlat.quotIdealMap"],"modules":["Oka.RingTheory.Flat.Quotient"],"moduleOf":{"Module.Flat.quotIdealMap":"Oka.RingTheory.Flat.Quotient","Module.FaithfullyFlat.quotIdealMap":"Oka.RingTheory.Flat.Quotient"},"deps":{"Module.Flat.quotIdealMap":[],"Module.FaithfullyFlat.quotIdealMap":[]}}

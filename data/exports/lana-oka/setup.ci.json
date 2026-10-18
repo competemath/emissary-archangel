@@ -1,0 +1,36 @@
+{
+  "key": "lana-oka",
+  "repo": "https://github.com/lana-agents/oka",
+  "commit": "75dcdc3faadd10b986afb9283e89902bcdddecd4",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "Oka"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lana-oka/repo",
+  "entries": 8889,
+  "modules": 736,
+  "exported": 736,
+  "failed": [],
+  "expansion": {
+    "expanded": 157,
+    "verbatim": 2887,
+    "unexpanded": 38,
+    "failed": []
+  },
+  "seed": {
+    "records": 8889,
+    "kept": 8889,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 747,
+    "lineUnverified": 37,
+    "nameFixed": 8493,
+    "sorryOriginals": 0,
+    "emptyProofs": 8
+  },
+  "exportsBytes": 3414855680,
+  "minutes": 109,
+  "finishedAt": "2026-10-18T20:54:18.656Z"
+}

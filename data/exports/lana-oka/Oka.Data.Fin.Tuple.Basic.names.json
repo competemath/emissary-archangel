@@ -1,0 +1,1 @@
+{"names":["Fin.init_zero","Fin.range_append"],"modules":["Oka.Data.Fin.Tuple.Basic"],"moduleOf":{"Fin.init_zero":"Oka.Data.Fin.Tuple.Basic","Fin.range_append":"Oka.Data.Fin.Tuple.Basic"},"deps":{"Fin.init_zero":[],"Fin.range_append":[]}}

@@ -1,0 +1,1231 @@
+/-
+Copyright (c) 2026 Yuichiro Hoshi, Junnosuke Koizumi, Christian Merten. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Yuichiro Hoshi, Junnosuke Koizumi, Christian Merten
+-/
+import Mathlib.AlgebraicGeometry.Modules.Sheaf
+
+
+-- @@ L8-41 verbatim
+/-!
+# Twisting a sheaf of modules by a Čech 1-cocycle of units
+
+Let `X` be a scheme, `U : ι → X.Opens` a family of opens and `g` a *cocycle* on it: sections
+`gᵢⱼ ∈ Γ(X, Uᵢ ∩ Uⱼ)` with `gᵢᵢ = 1` and `gᵢⱼ gⱼₖ = gᵢₖ` on `Uᵢ ∩ Uⱼ ∩ Uₖ` (so every `gᵢⱼ` is a
+unit, with inverse `gⱼᵢ`). For an `𝒪_X`-module `F`, the **twist** `F ⊗ L_g` is the sheaf whose
+sections over `V` are the families
+
+  `(sᵢ)ᵢ`, `sᵢ ∈ Γ(F, V ∩ Uᵢ)`, with `sᵢ = gᵢⱼ • sⱼ` on `V ∩ Uᵢ ∩ Uⱼ`.
+
+This is the tensor product of `F` with the line bundle glued from free rank-one modules along the
+transition functions `gᵢⱼ`, written without tensor products.
+
+## Main definitions and results
+
+- `Scheme.Modules.Cocycle U`: cocycles on `U`; they form a commutative group.
+- `Scheme.Modules.twist F c`: the twist of `F` by `c`, and `Scheme.Modules.twistFunctor c`.
+- `Scheme.Modules.homMk`: morphisms of `𝒪_X`-modules from compatible linear maps on sections.
+- `Scheme.Modules.twistSectionsEquiv`: for `V ≤ Uᵢ`, `Γ(F ⊗ L_c, V) ≃ Γ(F, V)` (`s ↦ sᵢ`).
+- `Scheme.Modules.twistRestrictIso`: `(F ⊗ L_c)|_{Uᵢ} ≅ F|_{Uᵢ}`, natural in `F`
+  (`Scheme.Modules.twistFunctorRestrictIso`).
+- `Scheme.Modules.twistOneIso`: `F ⊗ L_1 ≅ F` if the `Uᵢ` cover `X`.
+- `Scheme.Modules.twistTwistIso`: `(F ⊗ L_c) ⊗ L_d ≅ F ⊗ L_{cd}`.
+- `Scheme.Modules.twistEquivalence`: if the `Uᵢ` cover `X`, twisting by `c` is an autoequivalence
+  of `X.Modules`, with inverse the twist by `c⁻¹`; in particular it is exact.
+- `Scheme.Modules.twistMulSection`: a family `hᵢ ∈ Γ(X, Uᵢ)` with `hᵢ = dᵢⱼ hⱼ` (a global section
+  of `L_d`) gives `F ⊗ L_c ⟶ F ⊗ L_{cd}`, `(sᵢ) ↦ (hᵢ sᵢ)`.
+
+Along the way: the scoped notation `x |ₒ W` for restriction (the inclusion proved by `order`),
+`Scheme.Modules.isoMk`, `Scheme.Modules.mono_of_injective`, `Scheme.Modules.isIso_of_bijective`,
+`Scheme.Modules.restrictIsoOfLinearEquiv` (an isomorphism `M|_U ≅ N|_U` from compatible linear
+equivalences of sections over opens `V ≤ U`), and
+`IsAffineOpen.restrictOpen_mem_nonZeroDivisors`.
+-/
+
+
+-- @@ L43-43 verbatim
+open CategoryTheory Limits TopologicalSpace Opposite
+
+
+-- @@ L45-45 verbatim
+universe u
+
+
+-- @@ L47-47 verbatim
+namespace AlgebraicGeometry.Scheme.Modules
+
+
+-- @@ L49-51 verbatim
+/-- Restriction of a section to a smaller open, the inclusion being proved by `order`. -/
+scoped macro:80 x:term:80 " |ₒ " W:term:81 : term =>
+  `(TopCat.Presheaf.restrictOpen $x $W (by order))
+
+
+-- @@ L53-53 verbatim
+variable {X : Scheme.{u}}
+
+
+-- @@ L55-55 verbatim
+section Restriction
+
+
+-- @@ L57-57 verbatim
+variable (M : X.Modules) {V W W' : X.Opens}
+
+
+-- @@ L59-62 verbatim
+lemma mres_add (h : W ≤ V) (x y : Γ(M, V)) :
+    TopCat.Presheaf.restrictOpen (x + y) W h =
+      TopCat.Presheaf.restrictOpen x W h + TopCat.Presheaf.restrictOpen y W h := by
+  simp [TopCat.Presheaf.restrictOpen, TopCat.Presheaf.restrict]
+
+
+-- @@ L64-65 verbatim
+lemma mres_zero (h : W ≤ V) : TopCat.Presheaf.restrictOpen (0 : Γ(M, V)) W h = 0 := by
+  simp [TopCat.Presheaf.restrictOpen, TopCat.Presheaf.restrict]
+
+
+-- @@ L67-70 verbatim
+lemma mres_smul (h : W ≤ V) (r : Γ(X, V)) (x : Γ(M, V)) :
+    TopCat.Presheaf.restrictOpen (r • x) W h =
+      TopCat.Presheaf.restrictOpen r W h • TopCat.Presheaf.restrictOpen x W h := by
+  simp [TopCat.Presheaf.restrictOpen, TopCat.Presheaf.restrict]
+
+
+-- @@ L72-75 verbatim
+lemma mres_res (h : W ≤ V) (h' : W' ≤ W) (x : Γ(M, V)) :
+    TopCat.Presheaf.restrictOpen (TopCat.Presheaf.restrictOpen x W h) W' h' =
+      TopCat.Presheaf.restrictOpen x W' (h'.trans h) :=
+  TopCat.Presheaf.restrict_restrict _ _ _
+
+
+-- @@ L77-78 verbatim
+lemma mres_self (x : Γ(M, V)) : TopCat.Presheaf.restrictOpen x V le_rfl = x :=
+  TopCat.Presheaf.restrict_self _
+
+
+-- @@ L80-83 verbatim
+lemma Hom.app_mres {N : X.Modules} (φ : M ⟶ N) (h : W ≤ V) (x : Γ(M, V)) :
+    φ.app W (TopCat.Presheaf.restrictOpen x W h) =
+      TopCat.Presheaf.restrictOpen (φ.app V x) W h :=
+  TopCat.Presheaf.map_restrict φ.mapPresheaf h x
+
+
+-- @@ L85-89 verbatim
+lemma mres_injective_of_le (h : W ≤ V) (h' : V ≤ W) :
+    Function.Injective fun x : Γ(M, V) ↦ TopCat.Presheaf.restrictOpen x W h := by
+  intro a b e
+  have := congrArg (fun x ↦ TopCat.Presheaf.restrictOpen x V h') e
+  simpa only [mres_res, mres_self] using this
+
+
+-- @@ L91-91 verbatim
+end Restriction
+
+
+-- @@ L93-93 verbatim
+section RingRestriction
+
+
+-- @@ L95-95 verbatim
+variable {V W W' : X.Opens}
+
+
+-- @@ L97-100 verbatim
+lemma ores_mul (h : W ≤ V) (r s : Γ(X, V)) :
+    TopCat.Presheaf.restrictOpen (r * s) W h =
+      TopCat.Presheaf.restrictOpen r W h * TopCat.Presheaf.restrictOpen s W h := by
+  simp [TopCat.Presheaf.restrictOpen, TopCat.Presheaf.restrict]
+
+
+-- @@ L102-103 verbatim
+lemma ores_zero (h : W ≤ V) : TopCat.Presheaf.restrictOpen (0 : Γ(X, V)) W h = 0 := by
+  simp [TopCat.Presheaf.restrictOpen, TopCat.Presheaf.restrict]
+
+
+-- @@ L105-106 verbatim
+lemma ores_one (h : W ≤ V) : TopCat.Presheaf.restrictOpen (1 : Γ(X, V)) W h = 1 := by
+  simp [TopCat.Presheaf.restrictOpen, TopCat.Presheaf.restrict]
+
+
+-- @@ L108-111 verbatim
+lemma ores_res (h : W ≤ V) (h' : W' ≤ W) (x : Γ(X, V)) :
+    TopCat.Presheaf.restrictOpen (TopCat.Presheaf.restrictOpen x W h) W' h' =
+      TopCat.Presheaf.restrictOpen x W' (h'.trans h) :=
+  TopCat.Presheaf.restrict_restrict _ _ _
+
+
+-- @@ L113-114 verbatim
+lemma ores_self (x : Γ(X, V)) : TopCat.Presheaf.restrictOpen x V le_rfl = x :=
+  TopCat.Presheaf.restrict_self _
+
+
+-- @@ L116-120 verbatim
+lemma ores_injective_of_le (h : W ≤ V) (h' : V ≤ W) :
+    Function.Injective fun x : Γ(X, V) ↦ TopCat.Presheaf.restrictOpen x W h := by
+  intro a b e
+  have := congrArg (fun x ↦ TopCat.Presheaf.restrictOpen x V h') e
+  simpa only [ores_res, ores_self] using this
+
+
+-- @@ L122-122 verbatim
+end RingRestriction
+
+
+-- @@ L124-124 verbatim
+section NonZeroDivisors
+
+
+-- @@ L126-144 verbatim
+/-- A non-zero-divisor on an affine open `U` restricts to a non-zero-divisor on every open
+`W ≤ U`. -/
+lemma _root_.AlgebraicGeometry.IsAffineOpen.restrictOpen_mem_nonZeroDivisors {U : X.Opens}
+    (hU : IsAffineOpen U) {f : Γ(X, U)} (hf : f ∈ nonZeroDivisors Γ(X, U)) {W : X.Opens}
+    (hW : W ≤ U) :
+    TopCat.Presheaf.restrictOpen f W hW ∈ nonZeroDivisors Γ(X, W) := by
+  refine mem_nonZeroDivisors_iff_right.mpr fun x hx ↦ ?_
+  have hcov : W ≤ ⨆ g : {g : Γ(X, U) // X.basicOpen g ≤ W}, X.basicOpen g.1 := by
+    intro x hxW
+    obtain ⟨g, hgW, hxg⟩ := hU.exists_basicOpen_le ⟨x, hxW⟩ (hW hxW)
+    exact TopologicalSpace.Opens.mem_iSup.mpr ⟨⟨g, hgW⟩, hxg⟩
+  refine TopCat.Sheaf.eq_of_locally_eq' X.sheaf _ W (fun g ↦ homOfLE g.2) hcov x 0 fun g ↦ ?_
+  have := hU.isLocalization_basicOpen g.1
+  have hfg : TopCat.Presheaf.restrictOpen f (X.basicOpen g.1) (g.2.trans hW) ∈
+      nonZeroDivisors Γ(X, X.basicOpen g.1) :=
+    IsLocalization.nonZeroDivisors_le_comap (Submonoid.powers g.1) _ hf
+  have hx' := congrArg (fun y ↦ TopCat.Presheaf.restrictOpen y (X.basicOpen g.1) g.2) hx
+  simp only [ores_mul, ores_res, ores_zero] at hx'
+  exact (mem_nonZeroDivisors_iff_right.mp hfg _ hx').trans (ores_zero _).symm
+
+
+-- @@ L146-146 verbatim
+end NonZeroDivisors
+
+
+-- @@ L148-148 verbatim
+section homMk
+
+
+-- @@ L150-150 verbatim
+variable {M N : X.Modules}
+
+
+-- @@ L152-164 verbatim
+/-- A morphism of `𝒪_X`-modules from additive maps on sections which are linear and commute with
+restrictions. -/
+noncomputable def homMk (app : ∀ V : X.Opens, Γ(M, V) →+ Γ(N, V))
+    (map_smul : ∀ V (r : Γ(X, V)) (x : Γ(M, V)), app V (r • x) = r • app V x)
+    (naturality : ∀ V W (h : W ≤ V) (x : Γ(M, V)),
+      app W (TopCat.Presheaf.restrictOpen x W h) = TopCat.Presheaf.restrictOpen (app V x) W h) :
+    M ⟶ N :=
+  ⟨PresheafOfModules.homMk
+    { app V := AddCommGrpCat.ofHom (app V.unop)
+      naturality V W f := by
+        ext x
+        exact naturality V.unop W.unop f.unop.le x }
+    (fun V r x ↦ map_smul V.unop r x)⟩
+
+
+-- @@ L166-169 verbatim
+@[simp]
+lemma homMk_app (app : ∀ V : X.Opens, Γ(M, V) →+ Γ(N, V)) (map_smul) (naturality) (V : X.Opens)
+    (x : Γ(M, V)) : (homMk app map_smul naturality).app V x = app V x :=
+  rfl
+
+
+-- @@ L171-172 verbatim
+lemma Hom.ext_apply {φ ψ : M ⟶ N} (h : ∀ V (x : Γ(M, V)), φ.app V x = ψ.app V x) : φ = ψ :=
+  hom_ext _ _ fun V ↦ by ext x; exact h V x
+
+
+-- @@ L174-177 verbatim
+@[simp]
+lemma Hom.comp_app_apply {K : X.Modules} (φ : M ⟶ N) (ψ : N ⟶ K) (V : X.Opens) (x : Γ(M, V)) :
+    (φ ≫ ψ).app V x = ψ.app V (φ.app V x) :=
+  rfl
+
+
+-- @@ L179-181 verbatim
+@[simp]
+lemma Hom.id_app_apply (V : X.Opens) (x : Γ(M, V)) : (𝟙 M : M ⟶ M).app V x = x :=
+  rfl
+
+
+-- @@ L183-190 verbatim
+/-- An isomorphism of `𝒪_X`-modules from mutually inverse morphisms, checked on sections. -/
+@[simps]
+noncomputable def isoMk (φ : M ⟶ N) (ψ : N ⟶ M) (h₁ : ∀ V (x : Γ(M, V)), ψ.app V (φ.app V x) = x)
+    (h₂ : ∀ V (y : Γ(N, V)), φ.app V (ψ.app V y) = y) : M ≅ N where
+  hom := φ
+  inv := ψ
+  hom_inv_id := Hom.ext_apply fun V x ↦ h₁ V x
+  inv_hom_id := Hom.ext_apply fun V y ↦ h₂ V y
+
+
+-- @@ L192-201 verbatim
+variable (X) in
+/-- Sections of the unit `𝒪_X`-module are sections of the structure sheaf. -/
+noncomputable def unitSectionsEquiv (V : X.Opens) :
+    Γ(SheafOfModules.unit X.ringCatSheaf, V) ≃ₗ[Γ(X, V)] Γ(X, V) where
+  toFun x := x
+  invFun x := x
+  map_add' _ _ := rfl
+  map_smul' _ _ := rfl
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+
+-- @@ L203-207 verbatim
+lemma unitSectionsEquiv_res (V W : X.Opens) (h : W ≤ V)
+    (x : Γ(SheafOfModules.unit X.ringCatSheaf, V)) :
+    unitSectionsEquiv X W (TopCat.Presheaf.restrictOpen x W h) =
+      TopCat.Presheaf.restrictOpen (unitSectionsEquiv X V x) W h :=
+  rfl
+
+
+-- @@ L209-211 verbatim
+lemma mono_of_injective (φ : M ⟶ N) (h : ∀ V, Function.Injective (φ.app V)) : Mono φ where
+  right_cancellation g g' e := Hom.ext_apply fun V x ↦ h V (by
+    rw [← Hom.comp_app_apply, e, Hom.comp_app_apply])
+
+
+-- @@ L213-214 verbatim
+lemma isIso_of_bijective (φ : M ⟶ N) (h : ∀ V, Function.Bijective (φ.app V)) : IsIso φ :=
+  Hom.isIso_iff_isIso_app.mpr fun V ↦ (ConcreteCategory.isIso_iff_bijective _).mpr (h V)
+
+
+-- @@ L216-216 verbatim
+end homMk
+
+
+-- @@ L218-218 verbatim
+section Gluing
+
+
+-- @@ L220-220 verbatim
+variable (M : X.Modules) {κ : Type*} (W : κ → X.Opens) {V : X.Opens}
+
+
+-- @@ L222-225 verbatim
+lemma mres_eq_of_locally_eq (hV : V ≤ iSup W) (hW : ∀ a, W a ≤ V) (s t : Γ(M, V))
+    (h : ∀ a, TopCat.Presheaf.restrictOpen s (W a) (hW a) =
+      TopCat.Presheaf.restrictOpen t (W a) (hW a)) : s = t :=
+  TopCat.Sheaf.eq_of_locally_eq' ⟨M.presheaf, M.isSheaf⟩ W V (fun a ↦ homOfLE (hW a)) hV s t h
+
+
+-- @@ L227-231 unexpanded
+lemma mres_existsUnique_gluing (hV : V ≤ iSup W) (hW : ∀ a, W a ≤ V) (sf : ∀ a, Γ(M, W a))
+    (hsf : ∀ a b, (sf a |ₒ (W a ⊓ W b)) = (sf b |ₒ (W a ⊓ W b))) :
+    ∃! s : Γ(M, V), ∀ a, TopCat.Presheaf.restrictOpen s (W a) (hW a) = sf a :=
+  TopCat.Sheaf.existsUnique_gluing' ⟨M.presheaf, M.isSheaf⟩ W V (fun a ↦ homOfLE (hW a)) hV sf
+    hsf
+
+
+-- @@ L233-233 verbatim
+end Gluing
+
+
+-- @@ L235-235 verbatim
+section RestrictIso
+
+
+-- @@ L237-241 verbatim
+variable {M N : X.Modules} (U : X.Opens)
+  (e : ∀ V, V ≤ U → (Γ(M, V) ≃ₗ[Γ(X, V)] Γ(N, V)))
+  (he : ∀ V W (hV : V ≤ U) (hW : W ≤ V) (x : Γ(M, V)),
+    e W (hW.trans hV) (TopCat.Presheaf.restrictOpen x W hW) =
+      TopCat.Presheaf.restrictOpen (e V hV x) W hW)
+
+
+-- @@ L243-259 verbatim
+/-- An isomorphism `M|_U ≅ N|_U` from linear equivalences `Γ(M, V) ≃ Γ(N, V)`, `V ≤ U`,
+compatible with restrictions. -/
+noncomputable def restrictIsoOfLinearEquiv : M.restrict U.ι ≅ N.restrict U.ι :=
+  isoMk
+    (homMk (fun W ↦ (e _ (U.ι_image_le W)).toAddMonoidHom)
+      (fun W r x ↦ (e _ (U.ι_image_le W)).map_smul ((U.ι.appIso W).inv r) x)
+      (fun W W' h x ↦ he _ _ (U.ι_image_le W) (Scheme.Hom.image_mono _ h) x))
+    (homMk (fun W ↦ (e _ (U.ι_image_le W)).symm.toAddMonoidHom)
+      (fun W r x ↦ (e _ (U.ι_image_le W)).symm.map_smul ((U.ι.appIso W).inv r) x)
+      (fun W W' h x ↦ by
+        apply (e _ (U.ι_image_le W')).injective
+        refine (LinearEquiv.apply_symm_apply _ _).trans ?_
+        refine Eq.trans ?_ (he _ _ (U.ι_image_le W) (Scheme.Hom.image_mono _ h) _).symm
+        exact congrArg (fun y ↦ TopCat.Presheaf.restrictOpen y _ _)
+          (LinearEquiv.apply_symm_apply _ _).symm))
+    (fun W x ↦ (e _ (U.ι_image_le W)).symm_apply_apply x)
+    (fun W y ↦ (e _ (U.ι_image_le W)).apply_symm_apply y)
+
+
+-- @@ L261-263 verbatim
+lemma restrictIsoOfLinearEquiv_hom_app (W : U.toScheme.Opens) (x : Γ(M, U.ι ''ᵁ W)) :
+    (restrictIsoOfLinearEquiv U e he).hom.app W x = e _ (U.ι_image_le W) x :=
+  rfl
+
+
+-- @@ L265-267 verbatim
+lemma restrictIsoOfLinearEquiv_inv_app (W : U.toScheme.Opens) (y : Γ(N, U.ι ''ᵁ W)) :
+    (restrictIsoOfLinearEquiv U e he).inv.app W y = (e _ (U.ι_image_le W)).symm y :=
+  rfl
+
+
+-- @@ L269-269 verbatim
+end RestrictIso
+
+
+-- @@ L271-271 verbatim
+variable {ι : Type}
+
+
+-- @@ L273-280 expanded
+/-- A **cocycle** on the family of opens `U`: sections `gᵢⱼ` over `Uᵢ ∩ Uⱼ` with `gᵢᵢ = 1` and
+`gᵢⱼ gⱼₖ = gᵢₖ` on `Uᵢ ∩ Uⱼ ∩ Uₖ`. -/
+structure Cocycle (U : ι → X.Opens) where
+  /-- the transition function over `Uᵢ ∩ Uⱼ` -/
+  g (i j : ι) : Γ(X, U i ⊓ U j)
+  self (i : ι) : g i i = 1
+  mul (i j k : ι) :
+    (TopCat.Presheaf.restrictOpen (g i j) (U i ⊓ U j ⊓ U k) (by order)) *
+        (TopCat.Presheaf.restrictOpen (g j k) (U i ⊓ U j ⊓ U k) (by order)) =
+      TopCat.Presheaf.restrictOpen (g i k) (U i ⊓ U j ⊓ U k) (by order)
+
+
+-- @@ L282-282 verbatim
+namespace Cocycle
+
+
+-- @@ L284-284 verbatim
+variable {U : ι → X.Opens}
+
+
+-- @@ L286-288 verbatim
+@[ext]
+lemma ext {c d : Cocycle U} (h : ∀ i j, c.g i j = d.g i j) : c = d := by
+  cases c; cases d; congr; funext i j; exact h i j
+
+
+-- @@ L290-290 verbatim
+variable (c : Cocycle U)
+
+
+-- @@ L292-295 expanded
+lemma mul_res (i j k : ι) (W : X.Opens) (hW : W ≤ U i ⊓ U j ⊓ U k) :
+    (TopCat.Presheaf.restrictOpen (c.g i j) W (by order)) *
+        (TopCat.Presheaf.restrictOpen (c.g j k) W (by order)) =
+      TopCat.Presheaf.restrictOpen (c.g i k) W (by order) :=
+  by
+  have := congrArg (fun x ↦ TopCat.Presheaf.restrictOpen x W hW) (c.mul i j k)
+  simpa only [ores_mul, ores_res] using this
+
+
+-- @@ L297-298 expanded
+lemma self_res (i : ι) (W : X.Opens) (hW : W ≤ U i ⊓ U i) :
+    (TopCat.Presheaf.restrictOpen (c.g i i) W (by order)) = 1 := by rw [c.self, ores_one]
+
+
+-- @@ L300-302 expanded
+lemma mul_res_symm (i j : ι) (W : X.Opens) (hW : W ≤ U i ⊓ U j) :
+    (TopCat.Presheaf.restrictOpen (c.g i j) W (by order)) *
+        (TopCat.Presheaf.restrictOpen (c.g j i) W (by order)) =
+      1 :=
+  by rw [c.mul_res i j i W (by order), c.self_res i W (by order)]
+
+
+-- @@ L304-308 verbatim
+instance : One (Cocycle U) where
+  one :=
+    { g _ _ := 1
+      self _ := rfl
+      mul _ _ _ := by simp only [ores_one, mul_one] }
+
+
+-- @@ L310-317 verbatim
+instance : Mul (Cocycle U) where
+  mul c d :=
+    { g i j := c.g i j * d.g i j
+      self i := by rw [c.self, d.self, mul_one]
+      mul i j k := by
+        simp only [ores_mul]
+        rw [← c.mul, ← d.mul]
+        ring }
+
+
+-- @@ L319-325 expanded
+instance : Inv (Cocycle U) where
+  inv
+    c :=
+    { g i j := TopCat.Presheaf.restrictOpen (c.g j i) (U i ⊓ U j) (by order)
+      self i := by rw [c.self, ores_one]
+      mul i j
+        k := by
+        simp only [ores_res]
+        rw [mul_comm, c.mul_res k j i _ (by order)] }
+
+
+-- @@ L327-327 verbatim
+@[simp] lemma one_g (i j : ι) : (1 : Cocycle U).g i j = 1 := rfl
+
+-- @@ L328-328 verbatim
+@[simp] lemma mul_g (c d : Cocycle U) (i j : ι) : (c * d).g i j = c.g i j * d.g i j := rfl
+
+-- @@ L329-329 expanded
+@[simp]
+lemma inv_g (i j : ι) : c⁻¹.g i j = TopCat.Presheaf.restrictOpen (c.g j i) (U i ⊓ U j) (by order) :=
+  rfl
+
+
+-- @@ L331-338 verbatim
+instance : CommGroup (Cocycle U) where
+  mul_assoc _ _ _ := ext fun _ _ ↦ mul_assoc _ _ _
+  one_mul _ := ext fun _ _ ↦ one_mul _
+  mul_one _ := ext fun _ _ ↦ mul_one _
+  mul_comm _ _ := ext fun _ _ ↦ mul_comm _ _
+  inv_mul_cancel c := ext fun i j ↦ by
+    rw [mul_g, inv_g, one_g, ← ores_self (c.g i j)]
+    exact c.mul_res_symm j i _ (by order)
+
+
+-- @@ L340-344 verbatim
+@[simp]
+lemma pow_g (n : ℕ) (i j : ι) : (c ^ n).g i j = c.g i j ^ n := by
+  induction n with
+  | zero => rw [pow_zero, pow_zero]; rfl
+  | succ n ih => rw [pow_succ, mul_g, ih, pow_succ]
+
+
+-- @@ L346-346 verbatim
+end Cocycle
+
+
+-- @@ L348-348 verbatim
+section Twist
+
+
+-- @@ L350-350 verbatim
+variable (F : X.Modules) (U : ι → X.Opens)
+
+
+-- @@ L352-353 verbatim
+/-- The families `(sᵢ)ᵢ` with `sᵢ ∈ Γ(F, V ∩ Uᵢ)`, a `Γ(X, V)`-module. -/
+def TwistAmb (V : X.Opens) : Type u := ∀ i, Γ(F, V ⊓ U i)
+
+
+-- @@ L355-356 verbatim
+noncomputable instance (V : X.Opens) : AddCommGroup (TwistAmb F U V) :=
+  inferInstanceAs (AddCommGroup (∀ i, Γ(F, V ⊓ U i)))
+
+
+-- @@ L358-361 verbatim
+noncomputable instance (V : X.Opens) : Module Γ(X, V) (TwistAmb F U V) :=
+  letI (i : ι) : Module Γ(X, V) Γ(F, V ⊓ U i) :=
+    Module.compHom _ (X.presheaf.map (homOfLE (inf_le_left : V ⊓ U i ≤ V)).op).hom
+  inferInstanceAs (Module Γ(X, V) (∀ i, Γ(F, V ⊓ U i)))
+
+
+-- @@ L363-366 verbatim
+variable {F U} in
+@[simp]
+lemma TwistAmb.add_apply {V : X.Opens} (s t : TwistAmb F U V) (i : ι) : (s + t) i = s i + t i :=
+  rfl
+
+
+-- @@ L368-371 verbatim
+variable {F U} in
+@[simp]
+lemma TwistAmb.zero_apply {V : X.Opens} (i : ι) : (0 : TwistAmb F U V) i = 0 :=
+  rfl
+
+
+-- @@ L373-376 unexpanded
+variable {F U} in
+lemma TwistAmb.smul_apply {V : X.Opens} (r : Γ(X, V)) (s : TwistAmb F U V) (i : ι) :
+    (r • s) i = (r |ₒ (V ⊓ U i)) • s i :=
+  rfl
+
+
+-- @@ L378-378 verbatim
+variable {U}
+
+
+-- @@ L380-391 expanded
+/-- Sections of the twist of `F` by `c` over `V`: the families `(sᵢ)ᵢ`, `sᵢ ∈ Γ(F, V ∩ Uᵢ)`, with
+`sᵢ = cᵢⱼ • sⱼ` on `V ∩ Uᵢ ∩ Uⱼ`. -/
+noncomputable def twistSubmodule (c : Cocycle U) (V : X.Opens) : Submodule Γ(X, V) (TwistAmb F U V)
+    where
+  carrier :=
+    {s |
+      ∀ i j,
+        (TopCat.Presheaf.restrictOpen (s i) (V ⊓ (U i ⊓ U j)) (by order)) =
+          (TopCat.Presheaf.restrictOpen (c.g i j) (V ⊓ (U i ⊓ U j)) (by order)) •
+            (TopCat.Presheaf.restrictOpen (s j) (V ⊓ (U i ⊓ U j)) (by order))}
+  add_mem' {s t} hs ht i
+    j := by
+    simp only [Set.mem_setOf_eq, TwistAmb.add_apply, mres_add, hs i j, ht i j, smul_add] at *
+  zero_mem' i j := by simp only [TwistAmb.zero_apply, mres_zero, smul_zero]
+  smul_mem' r s hs i
+    j := by
+    simp only [Set.mem_setOf_eq, TwistAmb.smul_apply, mres_smul, ores_res] at *
+    rw [hs i j, smul_smul, smul_smul, mul_comm]
+
+
+-- @@ L393-393 verbatim
+variable {F}
+
+
+-- @@ L395-400 expanded
+/-- Restriction of families of sections. -/
+noncomputable def TwistAmb.res {V V' : X.Opens} (h : V' ≤ V) : TwistAmb F U V →+ TwistAmb F U V'
+    where
+  toFun s i := TopCat.Presheaf.restrictOpen (s i) (V' ⊓ U i) (by order)
+  map_zero' := funext fun i ↦ mres_zero _ _
+  map_add' s t := funext fun i ↦ mres_add _ _ _ _
+
+
+-- @@ L402-404 expanded
+lemma TwistAmb.res_apply {V V' : X.Opens} (h : V' ≤ V) (s : TwistAmb F U V) (i : ι) :
+    TwistAmb.res h s i = TopCat.Presheaf.restrictOpen (s i) (V' ⊓ U i) (by order) :=
+  rfl
+
+
+-- @@ L406-411 unexpanded
+lemma TwistAmb.res_smul {V V' : X.Opens} (h : V' ≤ V) (r : Γ(X, V)) (s : TwistAmb F U V) :
+    TwistAmb.res h (r • s) = (r |ₒ V') • TwistAmb.res h s := by
+  funext i
+  simp only [TwistAmb.res_apply, TwistAmb.smul_apply]
+  rw [mres_smul]
+  simp only [ores_res]
+
+
+-- @@ L413-418 verbatim
+lemma TwistAmb.res_mem (c : Cocycle U) {V V' : X.Opens} (h : V' ≤ V) (s : TwistAmb F U V)
+    (hs : s ∈ twistSubmodule F c V) : TwistAmb.res h s ∈ twistSubmodule F c V' := by
+  intro i j
+  have := congrArg (fun x ↦ TopCat.Presheaf.restrictOpen x (V' ⊓ (U i ⊓ U j)) (by order)) (hs i j)
+  simp only [mres_smul, mres_res, ores_res] at this
+  simpa only [TwistAmb.res_apply, mres_res] using this
+
+
+-- @@ L420-420 verbatim
+variable (F)
+
+
+-- @@ L422-436 verbatim
+/-- The underlying abelian presheaf of the twist. -/
+noncomputable def twistPresheaf (c : Cocycle U) : (X.Opens)ᵒᵖ ⥤ Ab.{u} where
+  obj V := AddCommGrpCat.of (twistSubmodule F c V.unop)
+  map {V V'} f := AddCommGrpCat.ofHom
+    { toFun s := ⟨TwistAmb.res f.unop.le s.1, TwistAmb.res_mem c f.unop.le s.1 s.2⟩
+      map_zero' := Subtype.ext (map_zero _)
+      map_add' s t := Subtype.ext (map_add _ _ _) }
+  map_id V := by
+    ext s
+    funext i
+    exact mres_self F (s.1 i)
+  map_comp f f' := by
+    ext s
+    funext i
+    exact (mres_res F _ _ (s.1 i)).symm
+
+
+-- @@ L438-440 verbatim
+noncomputable instance (c : Cocycle U) (V : (X.Opens)ᵒᵖ) :
+    Module (X.ringCatSheaf.obj.obj V) ((twistPresheaf F c).obj V) :=
+  inferInstanceAs (Module Γ(X, V.unop) (twistSubmodule F c V.unop))
+
+
+-- @@ L442-445 verbatim
+/-- The twist of `F` by `c`, as a presheaf of modules. -/
+noncomputable def twistPresheafOfModules (c : Cocycle U) : X.PresheafOfModules :=
+  PresheafOfModules.ofPresheaf (twistPresheaf F c) fun _ _ f r s ↦
+    Subtype.ext (TwistAmb.res_smul f.unop.le r s.1)
+
+
+-- @@ L447-474 expanded
+lemma isSheaf_twistPresheaf (c : Cocycle U) : TopCat.Presheaf.IsSheaf (twistPresheaf F c) := by
+
+
+-- @@ L476-480 verbatim
+/-- The **twist** `F ⊗ L_c` of an `𝒪_X`-module `F` by a cocycle `c`: its sections over `V` are the
+families `(sᵢ)ᵢ`, `sᵢ ∈ Γ(F, V ∩ Uᵢ)`, with `sᵢ = cᵢⱼ • sⱼ` on `V ∩ Uᵢ ∩ Uⱼ`. -/
+noncomputable def twist (c : Cocycle U) : X.Modules where
+  val := twistPresheafOfModules F c
+  isSheaf := isSheaf_twistPresheaf F c
+
+
+-- @@ L482-482 verbatim
+variable {F} {c : Cocycle U} {V : X.Opens}
+
+
+-- @@ L484-486 verbatim
+/-- The `i`-th component `sᵢ ∈ Γ(F, V ∩ Uᵢ)` of a section `s` of the twist `F ⊗ L_c`. -/
+def twistComp (s : Γ(twist F c, V)) (i : ι) : Γ(F, V ⊓ U i) :=
+  (show twistSubmodule F c V from s).1 i
+
+
+-- @@ L488-491 unexpanded
+lemma twistComp_compat (s : Γ(twist F c, V)) (i j : ι) :
+    (twistComp s i |ₒ (V ⊓ (U i ⊓ U j))) =
+      (c.g i j |ₒ (V ⊓ (U i ⊓ U j))) • (twistComp s j |ₒ (V ⊓ (U i ⊓ U j))) :=
+  (show twistSubmodule F c V from s).2 i j
+
+
+-- @@ L493-497 expanded
+/-- The section of `F ⊗ L_c` over `V` with components `sᵢ`. -/
+def twistMk (s : ∀ i, Γ(F, V ⊓ U i))
+    (hs :
+      ∀ i j,
+        (TopCat.Presheaf.restrictOpen (s i) (V ⊓ (U i ⊓ U j)) (by order)) =
+          (TopCat.Presheaf.restrictOpen (c.g i j) (V ⊓ (U i ⊓ U j)) (by order)) •
+            (TopCat.Presheaf.restrictOpen (s j) (V ⊓ (U i ⊓ U j)) (by order))) :
+    Γ(twist F c, V) :=
+  show twistSubmodule F c V from ⟨s, hs⟩
+
+
+-- @@ L499-502 verbatim
+@[simp]
+lemma twistComp_twistMk (s : ∀ i, Γ(F, V ⊓ U i)) (hs) (i : ι) :
+    twistComp (twistMk (c := c) s hs) i = s i :=
+  rfl
+
+
+-- @@ L504-506 verbatim
+@[ext]
+lemma twist_ext {s t : Γ(twist F c, V)} (h : ∀ i, twistComp s i = twistComp t i) : s = t :=
+  Subtype.ext (funext h)
+
+
+-- @@ L508-511 verbatim
+@[simp]
+lemma twistComp_add (s t : Γ(twist F c, V)) (i : ι) :
+    twistComp (s + t) i = twistComp s i + twistComp t i :=
+  rfl
+
+
+-- @@ L513-515 verbatim
+@[simp]
+lemma twistComp_zero (i : ι) : twistComp (0 : Γ(twist F c, V)) i = 0 :=
+  rfl
+
+
+-- @@ L517-519 verbatim
+@[simp]
+lemma twistComp_neg (s : Γ(twist F c, V)) (i : ι) : twistComp (-s) i = -twistComp s i :=
+  rfl
+
+
+-- @@ L521-524 verbatim
+@[simp]
+lemma twistComp_sub (s t : Γ(twist F c, V)) (i : ι) :
+    twistComp (s - t) i = twistComp s i - twistComp t i :=
+  rfl
+
+
+-- @@ L526-528 unexpanded
+lemma twistComp_smul (r : Γ(X, V)) (s : Γ(twist F c, V)) (i : ι) :
+    twistComp (r • s) i = (r |ₒ (V ⊓ U i)) • twistComp s i :=
+  rfl
+
+
+-- @@ L530-532 unexpanded
+lemma twistComp_res {W : X.Opens} (h : W ≤ V) (s : Γ(twist F c, V)) (i : ι) :
+    twistComp (TopCat.Presheaf.restrictOpen s W h) i = twistComp s i |ₒ (W ⊓ U i) :=
+  rfl
+
+
+-- @@ L534-540 unexpanded
+/-- The components of a section of `F ⊗ L_c` restricted to a smaller open. -/
+lemma twistComp_compat_res (s : Γ(twist F c, V)) (i j : ι) (W : X.Opens)
+    (hW : W ≤ V ⊓ (U i ⊓ U j)) :
+    TopCat.Presheaf.restrictOpen (twistComp s i) W (by order) =
+      (c.g i j |ₒ W) • TopCat.Presheaf.restrictOpen (twistComp s j) W (by order) := by
+  have := congrArg (fun x ↦ TopCat.Presheaf.restrictOpen x W hW) (twistComp_compat s i j)
+  simpa only [mres_res, mres_smul, ores_res] using this
+
+
+-- @@ L542-551 verbatim
+variable (c) in
+/-- The map on twists induced by a morphism of `𝒪_X`-modules. -/
+noncomputable def twistMap {G : X.Modules} (φ : F ⟶ G) : twist F c ⟶ twist G c :=
+  homMk (fun V ↦
+    { toFun s := twistMk (fun i ↦ φ.app _ (twistComp s i)) fun i j ↦ by
+        rw [← Hom.app_mres, ← Hom.app_mres, twistComp_compat, Hom.app_smul]
+      map_zero' := by ext i; simp
+      map_add' s t := by ext i; simp })
+    (fun V r s ↦ by ext i; simp [twistComp_smul])
+    (fun V W h s ↦ by ext i; simp [twistComp_res, Hom.app_mres])
+
+
+-- @@ L553-556 verbatim
+@[simp]
+lemma twistComp_twistMap_app {G : X.Modules} (φ : F ⟶ G) (s : Γ(twist F c, V)) (i : ι) :
+    twistComp ((twistMap c φ).app V s) i = φ.app _ (twistComp s i) :=
+  rfl
+
+
+-- @@ L558-564 verbatim
+variable (c) in
+/-- Twisting by `c` as a functor. -/
+noncomputable def twistFunctor : X.Modules ⥤ X.Modules where
+  obj F := twist F c
+  map φ := twistMap c φ
+  map_id F := Hom.ext_apply fun V s ↦ by ext i; simp
+  map_comp φ ψ := Hom.ext_apply fun V s ↦ by ext i; simp
+
+
+-- @@ L566-566 verbatim
+section Chart
+
+
+-- @@ L568-568 verbatim
+variable (c) (i : ι) (hV : V ≤ U i)
+
+
+-- @@ L570-586 expanded
+/-- **Trivialisation on the chart `Uᵢ`**: for `V ≤ Uᵢ`, a section of `F ⊗ L_c` over `V` is
+determined by its `i`-th component, `s ↦ sᵢ`, with inverse `t ↦ (cₖᵢ • t)ₖ`. -/
+noncomputable def twistSectionsEquiv : Γ(twist F c, V) ≃ₗ[Γ(X, V)] Γ(F, V)
+    where
+  toFun s := TopCat.Presheaf.restrictOpen (twistComp s i) V (by order)
+  invFun
+    t :=
+    twistMk
+      (fun k ↦
+        (TopCat.Presheaf.restrictOpen (c.g k i) (V ⊓ U k) (by order)) •
+          (TopCat.Presheaf.restrictOpen t (V ⊓ U k) (by order)))
+      fun k l ↦ by
+      simp only [mres_smul, ores_res, mres_res, smul_smul]
+      rw [c.mul_res k l i _ (by order)]
+  map_add' s t := by simp [mres_add]
+  map_smul' r s := by simp only [twistComp_smul, mres_smul, ores_res, ores_self, RingHom.id_apply]
+  left_inv
+    s := by
+    ext k
+    simp only [twistComp_twistMk, mres_res]
+    rw [← twistComp_compat_res s k i _ (by order), mres_self]
+  right_inv
+    t := by
+    simp only [twistComp_twistMk, mres_smul, ores_res, mres_res, mres_self]
+    rw [c.self_res i V (by order), one_smul]
+
+
+-- @@ L588-590 unexpanded
+lemma twistSectionsEquiv_apply (s : Γ(twist F c, V)) :
+    twistSectionsEquiv c i hV s = twistComp s i |ₒ V :=
+  rfl
+
+
+-- @@ L592-594 unexpanded
+lemma twistComp_twistSectionsEquiv_symm (t : Γ(F, V)) (k : ι) :
+    twistComp ((twistSectionsEquiv c i hV).symm t) k = (c.g k i |ₒ (V ⊓ U k)) • (t |ₒ (V ⊓ U k)) :=
+  rfl
+
+
+-- @@ L596-597 verbatim
+lemma twistSectionsEquiv_injective : Function.Injective (twistSectionsEquiv (F := F) c i hV) :=
+  (twistSectionsEquiv c i hV).injective
+
+
+-- @@ L599-602 verbatim
+lemma twistSectionsEquiv_res {W : X.Opens} (hW : W ≤ V) (s : Γ(twist F c, V)) :
+    twistSectionsEquiv c i (hW.trans hV) (TopCat.Presheaf.restrictOpen s W hW) =
+      TopCat.Presheaf.restrictOpen (twistSectionsEquiv c i hV s) W hW := by
+  simp only [twistSectionsEquiv_apply, twistComp_res, mres_res]
+
+
+-- @@ L604-609 verbatim
+lemma twistSectionsEquiv_symm_res {W : X.Opens} (hW : W ≤ V) (t : Γ(F, V)) :
+    (twistSectionsEquiv c i (hW.trans hV)).symm (TopCat.Presheaf.restrictOpen t W hW) =
+      TopCat.Presheaf.restrictOpen ((twistSectionsEquiv c i hV).symm t) W hW := by
+  apply (twistSectionsEquiv c i (hW.trans hV)).injective
+  rw [LinearEquiv.apply_symm_apply, twistSectionsEquiv_res c i hV hW,
+    LinearEquiv.apply_symm_apply]
+
+
+-- @@ L611-615 unexpanded
+/-- Changing the chart used to trivialise `F ⊗ L_c` multiplies by the transition function. -/
+lemma twistSectionsEquiv_change (j : ι) (hj : V ≤ U j) (s : Γ(twist F c, V)) :
+    twistSectionsEquiv c i hV s = (c.g i j |ₒ V) • twistSectionsEquiv c j hj s := by
+  simp only [twistSectionsEquiv_apply]
+  exact twistComp_compat_res s i j V (by order)
+
+
+-- @@ L617-617 verbatim
+end Chart
+
+
+-- @@ L619-623 verbatim
+variable (F c) in
+/-- **The twist `F ⊗ L_c` is trivial on the chart `Uᵢ`**: `(F ⊗ L_c)|_{Uᵢ} ≅ F|_{Uᵢ}`. -/
+noncomputable def twistRestrictIso (i : ι) : (twist F c).restrict (U i).ι ≅ F.restrict (U i).ι :=
+  restrictIsoOfLinearEquiv (U i) (fun _ hV ↦ twistSectionsEquiv c i hV)
+    fun _ _ hV hW s ↦ twistSectionsEquiv_res c i hV hW s
+
+
+-- @@ L625-628 verbatim
+lemma twistRestrictIso_hom_app (i : ι) (W : (U i).toScheme.Opens)
+    (s : Γ(twist F c, (U i).ι ''ᵁ W)) :
+    (twistRestrictIso F c i).hom.app W s = twistSectionsEquiv c i ((U i).ι_image_le W) s :=
+  rfl
+
+
+-- @@ L630-637 verbatim
+@[reassoc]
+lemma twistRestrictIso_naturality {G : X.Modules} (φ : F ⟶ G) (i : ι) :
+    (restrictFunctor (U i).ι).map (twistMap c φ) ≫ (twistRestrictIso G c i).hom =
+      (twistRestrictIso F c i).hom ≫ (restrictFunctor (U i).ι).map φ :=
+  Hom.ext_apply fun W s ↦ by
+    change twistSectionsEquiv c i ((U i).ι_image_le W) ((twistMap c φ).app _ s) =
+      φ.app _ (twistSectionsEquiv c i ((U i).ι_image_le W) s)
+    rw [twistSectionsEquiv_apply, twistSectionsEquiv_apply, twistComp_twistMap_app, Hom.app_mres]
+
+
+-- @@ L639-643 verbatim
+variable (c) in
+/-- The trivialisation `(F ⊗ L_c)|_{Uᵢ} ≅ F|_{Uᵢ}`, natural in `F`. -/
+noncomputable def twistFunctorRestrictIso (i : ι) :
+    twistFunctor c ⋙ restrictFunctor (U i).ι ≅ restrictFunctor (U i).ι :=
+  NatIso.ofComponents (fun F ↦ twistRestrictIso F c i) fun φ ↦ twistRestrictIso_naturality φ i
+
+
+-- @@ L645-645 verbatim
+section One
+
+
+-- @@ L647-647 verbatim
+variable (F)
+
+
+-- @@ L649-657 expanded
+/-- The map `F ⟶ F ⊗ L_1`, `t ↦ (t|_{Uᵢ})ᵢ`. -/
+noncomputable def toTwistOne : F ⟶ twist F (1 : Cocycle U) :=
+  homMk
+    (fun V ↦
+      { toFun
+          t :=
+          twistMk (fun i ↦ TopCat.Presheaf.restrictOpen t (V ⊓ U i) (by order)) fun i j ↦ by
+            simp only [mres_res, Cocycle.one_g, ores_one, one_smul]
+        map_zero' := by ext i; simp [mres_zero]
+        map_add' s t := by ext i; simp [mres_add] })
+    (fun V r t ↦ by ext i; simp [twistComp_smul, mres_smul])
+    (fun V W h t ↦ by ext i; simp [twistComp_res, mres_res])
+
+
+-- @@ L659-662 unexpanded
+@[simp]
+lemma twistComp_toTwistOne_app (t : Γ(F, V)) (i : ι) :
+    twistComp ((toTwistOne (U := U) F).app V t) i = t |ₒ (V ⊓ U i) :=
+  rfl
+
+
+-- @@ L664-664 verbatim
+variable {F}
+
+
+-- @@ L666-676 verbatim
+lemma toTwistOne_bijective (hU : ⨆ i, U i = ⊤) (V : X.Opens) :
+    Function.Bijective ((toTwistOne (U := U) F).app V) := by
+  have hcov : V ≤ ⨆ i, V ⊓ U i := by rw [← inf_iSup_eq, hU, inf_top_eq]
+  refine ⟨fun t t' h ↦ ?_, fun s ↦ ?_⟩
+  · exact mres_eq_of_locally_eq F _ hcov (fun _ ↦ inf_le_left) t t' fun i ↦
+      congrArg (fun x ↦ twistComp x i) h
+  · obtain ⟨t, ht, -⟩ := mres_existsUnique_gluing F (fun i ↦ V ⊓ U i) hcov (fun _ ↦ inf_le_left)
+      (twistComp s) fun i j ↦ by
+        rw [twistComp_compat_res s i j _ (by order)]
+        simp only [Cocycle.one_g, ores_one, one_smul]
+    exact ⟨t, twist_ext fun i ↦ ht i⟩
+
+
+-- @@ L678-682 verbatim
+variable (F) in
+/-- **The twist by the trivial cocycle** is `F` itself, if the `Uᵢ` cover `X`. -/
+noncomputable def twistOneIso (hU : ⨆ i, U i = ⊤) : twist F (1 : Cocycle U) ≅ F :=
+  have := isIso_of_bijective _ (toTwistOne_bijective (F := F) hU)
+  (asIso (toTwistOne F)).symm
+
+
+-- @@ L684-685 verbatim
+lemma twistOneIso_inv (hU : ⨆ i, U i = ⊤) : (twistOneIso F hU).inv = toTwistOne F :=
+  rfl
+
+
+-- @@ L687-690 verbatim
+@[reassoc]
+lemma toTwistOne_naturality {G : X.Modules} (φ : F ⟶ G) :
+    φ ≫ toTwistOne (U := U) G = toTwistOne F ≫ twistMap 1 φ :=
+  Hom.ext_apply fun V t ↦ by ext i; simp [Hom.app_mres]
+
+
+-- @@ L692-699 verbatim
+variable (U) in
+/-- Twisting by the trivial cocycle is isomorphic to the identity, if the `Uᵢ` cover `X`. -/
+noncomputable def twistFunctorOneIso (hU : ⨆ i, U i = ⊤) : twistFunctor (1 : Cocycle U) ≅ 𝟭 _ :=
+  NatIso.ofComponents (fun F ↦ twistOneIso F hU) fun {F G} φ ↦ by
+    change twistMap 1 φ ≫ (twistOneIso G hU).hom = (twistOneIso F hU).hom ≫ φ
+    rw [← cancel_epi (twistOneIso F hU).inv, Iso.inv_hom_id_assoc, twistOneIso_inv,
+      ← toTwistOne_naturality_assoc, ← twistOneIso_inv (F := G) hU, Iso.inv_hom_id,
+      Category.comp_id]
+
+
+-- @@ L701-701 verbatim
+end One
+
+
+-- @@ L703-703 verbatim
+section TwistTwist
+
+
+-- @@ L705-705 verbatim
+variable (c d : Cocycle U)
+
+
+-- @@ L707-725 verbatim
+/-- The map `(F ⊗ L_c) ⊗ L_d ⟶ F ⊗ L_{cd}`, `(tᵢ)ᵢ ↦ ((tᵢ)ᵢ)ᵢ`. -/
+noncomputable def twistTwistHom : twist (twist F c) d ⟶ twist F (c * d) :=
+  homMk (fun V ↦
+    { toFun s := twistMk (fun i ↦ twistSectionsEquiv c i inf_le_right (twistComp s i))
+        fun i j ↦ by
+          rw [← twistSectionsEquiv_res c i inf_le_right, twistComp_compat s i j,
+            LinearEquiv.map_smul, twistSectionsEquiv_change c i _ j (by order),
+            twistSectionsEquiv_res c j inf_le_right, smul_smul, Cocycle.mul_g, ores_mul,
+            mul_comm]
+      map_zero' := by ext i; simp
+      map_add' s t := by ext i; simp })
+    (fun V r t ↦ by
+      ext i
+      simp only [AddMonoidHom.coe_mk, ZeroHom.coe_mk, twistComp_twistMk, twistComp_smul,
+        LinearEquiv.map_smul])
+    (fun V W h t ↦ by
+      ext i
+      simp only [AddMonoidHom.coe_mk, ZeroHom.coe_mk, twistComp_twistMk, twistComp_res]
+      exact twistSectionsEquiv_res c i inf_le_right _ _)
+
+
+-- @@ L727-731 verbatim
+@[simp]
+lemma twistComp_twistTwistHom_app (s : Γ(twist (twist F c) d, V)) (i : ι) :
+    twistComp ((twistTwistHom c d).app V s) i =
+      twistSectionsEquiv c i inf_le_right (twistComp s i) :=
+  rfl
+
+
+-- @@ L733-747 verbatim
+lemma twistTwistHom_bijective (V : X.Opens) :
+    Function.Bijective ((twistTwistHom (F := F) c d).app V) := by
+  refine ⟨fun s s' h ↦ twist_ext fun i ↦ (twistSectionsEquiv c i inf_le_right).injective ?_,
+    fun t ↦ ?_⟩
+  · simpa using congrArg (fun x ↦ twistComp x i) h
+  refine ⟨twistMk (fun i ↦ (twistSectionsEquiv c i inf_le_right).symm (twistComp t i))
+    fun i j ↦ ?_, twist_ext fun i ↦ ?_⟩
+  · apply (twistSectionsEquiv c i (by order : V ⊓ (U i ⊓ U j) ≤ U i)).injective
+    rw [LinearEquiv.map_smul, twistSectionsEquiv_res c i inf_le_right,
+      LinearEquiv.apply_symm_apply]
+    conv_rhs => rw [twistSectionsEquiv_change c i _ j (by order),
+      twistSectionsEquiv_res c j inf_le_right, LinearEquiv.apply_symm_apply]
+    rw [smul_smul, ← ores_mul, mul_comm (d.g i j)]
+    exact twistComp_compat t i j
+  · simp
+
+
+-- @@ L749-753 verbatim
+variable (F) in
+/-- **Twisting twice**: `(F ⊗ L_c) ⊗ L_d ≅ F ⊗ L_{cd}`. -/
+noncomputable def twistTwistIso : twist (twist F c) d ≅ twist F (c * d) :=
+  have := isIso_of_bijective _ (twistTwistHom_bijective (F := F) c d)
+  asIso (twistTwistHom c d)
+
+
+-- @@ L755-756 verbatim
+lemma twistTwistIso_hom : (twistTwistIso F c d).hom = twistTwistHom c d :=
+  rfl
+
+
+-- @@ L758-763 verbatim
+@[reassoc]
+lemma twistTwistHom_naturality {G : X.Modules} (φ : F ⟶ G) :
+    twistMap d (twistMap c φ) ≫ twistTwistHom c d = twistTwistHom c d ≫ twistMap (c * d) φ :=
+  Hom.ext_apply fun V t ↦ by
+    ext i
+    simp [twistSectionsEquiv_apply, Hom.app_mres]
+
+
+-- @@ L765-768 verbatim
+/-- `(twistFunctor c ⋙ twistFunctor d) ≅ twistFunctor (c * d)`. -/
+noncomputable def twistFunctorCompIso :
+    twistFunctor c ⋙ twistFunctor d ≅ twistFunctor (X := X) (c * d) :=
+  NatIso.ofComponents (fun F ↦ twistTwistIso F c d) fun φ ↦ twistTwistHom_naturality c d φ
+
+
+-- @@ L770-770 verbatim
+end TwistTwist
+
+
+-- @@ L772-780 verbatim
+variable (F) in
+/-- The identification `F ⊗ L_c ⟶ F ⊗ L_d` for equal cocycles `c = d` (the identity on
+components). -/
+noncomputable def twistCongrHom {c d : Cocycle U} (h : c = d) : twist F c ⟶ twist F d :=
+  homMk (fun V ↦
+    { toFun s := twistMk (twistComp s) fun i j ↦ by rw [← h]; exact twistComp_compat s i j
+      map_zero' := rfl
+      map_add' _ _ := rfl })
+    (fun _ _ _ ↦ rfl) (fun _ _ _ _ ↦ rfl)
+
+
+-- @@ L782-785 verbatim
+@[simp]
+lemma twistComp_twistCongrHom_app {c d : Cocycle U} (h : c = d) (s : Γ(twist F c, V)) (i : ι) :
+    twistComp ((twistCongrHom F h).app V s) i = twistComp s i :=
+  rfl
+
+
+-- @@ L787-792 verbatim
+/-- Twisting by equal cocycles gives isomorphic functors (the identity on components). -/
+noncomputable def twistFunctorCongr {c d : Cocycle U} (h : c = d) :
+    twistFunctor c ≅ twistFunctor (X := X) d :=
+  NatIso.ofComponents
+    (fun F ↦ isoMk (twistCongrHom F h) (twistCongrHom F h.symm) (fun _ _ ↦ rfl) fun _ _ ↦ rfl)
+    fun _ ↦ Hom.ext_apply fun _ _ ↦ rfl
+
+
+-- @@ L794-797 verbatim
+@[simp]
+lemma twistFunctorCongr_hom_app {c d : Cocycle U} (h : c = d) :
+    (twistFunctorCongr h).hom.app F = twistCongrHom F h :=
+  rfl
+
+
+-- @@ L799-800 verbatim
+instance (c : Cocycle U) : (twistFunctor (X := X) c).Additive where
+  map_add := Hom.ext_apply fun _ _ ↦ twist_ext fun _ ↦ rfl
+
+
+-- @@ L802-802 verbatim
+section Equivalence
+
+
+-- @@ L804-804 verbatim
+variable (c) (hU : ⨆ i, U i = ⊤)
+
+
+-- @@ L806-813 verbatim
+/-- **Twisting is an autoequivalence**: if the `Uᵢ` cover `X`, twisting by `c` is an equivalence
+of categories `X.Modules ≌ X.Modules`, with inverse the twist by `c⁻¹`. -/
+noncomputable def twistEquivalence : X.Modules ≌ X.Modules :=
+  CategoryTheory.Equivalence.mk (twistFunctor c) (twistFunctor c⁻¹)
+    ((twistFunctorOneIso U hU).symm ≪≫ twistFunctorCongr (mul_inv_cancel c).symm ≪≫
+      (twistFunctorCompIso c c⁻¹).symm)
+    (twistFunctorCompIso c⁻¹ c ≪≫ twistFunctorCongr (inv_mul_cancel c) ≪≫
+      twistFunctorOneIso U hU)
+
+
+-- @@ L815-817 verbatim
+@[simp]
+lemma twistEquivalence_functor : (twistEquivalence c hU).functor = twistFunctor c :=
+  rfl
+
+
+-- @@ L819-821 verbatim
+include hU in
+lemma isEquivalence_twistFunctor : (twistFunctor (X := X) c).IsEquivalence :=
+  (twistEquivalence c hU).isEquivalence_functor
+
+
+-- @@ L823-827 verbatim
+include hU in
+/-- Twisting preserves all limits (in particular it is left exact). -/
+lemma preservesLimits_twistFunctor : PreservesLimits (twistFunctor (X := X) c) :=
+  have := isEquivalence_twistFunctor c hU
+  inferInstance
+
+
+-- @@ L829-833 verbatim
+include hU in
+/-- Twisting preserves all colimits (in particular it is right exact). -/
+lemma preservesColimits_twistFunctor : PreservesColimits (twistFunctor (X := X) c) :=
+  have := isEquivalence_twistFunctor c hU
+  inferInstance
+
+
+-- @@ L835-835 verbatim
+end Equivalence
+
+
+-- @@ L837-837 verbatim
+section MulSection
+
+
+-- @@ L839-840 expanded
+variable (d : Cocycle U) (h : ∀ i, Γ(X, U i))
+  (hh :
+    ∀ i j,
+      (TopCat.Presheaf.restrictOpen (h i) (U i ⊓ U j) (by order)) =
+        d.g i j * (TopCat.Presheaf.restrictOpen (h j) (U i ⊓ U j) (by order)))
+
+
+-- @@ L842-846 expanded
+include hh in
+lemma mulSection_compat (i j : ι) (W : X.Opens) (hW : W ≤ U i ⊓ U j) :
+    (TopCat.Presheaf.restrictOpen (h i) W (by order)) =
+      (TopCat.Presheaf.restrictOpen (d.g i j) W (by order)) *
+        (TopCat.Presheaf.restrictOpen (h j) W (by order)) :=
+  by
+  have := congrArg (fun x ↦ TopCat.Presheaf.restrictOpen x W hW) (hh i j)
+  simpa only [ores_mul, ores_res] using this
+
+
+-- @@ L848-868 expanded
+variable (F c) in
+/-- **Multiplication by a global section of `L_d`**: a family `hᵢ ∈ Γ(X, Uᵢ)` with
+`hᵢ = dᵢⱼ hⱼ` on `Uᵢ ∩ Uⱼ` gives `F ⊗ L_c ⟶ F ⊗ L_{cd}`, `(sᵢ) ↦ (hᵢ sᵢ)`. -/
+noncomputable def twistMulSection : twist F c ⟶ twist F (c * d) :=
+  homMk
+    (fun V ↦
+      { toFun
+          s :=
+          twistMk
+            (fun i ↦ (TopCat.Presheaf.restrictOpen (h i) (V ⊓ U i) (by order)) • twistComp s i)
+            fun i j ↦
+            by
+            rw [mres_smul, mres_smul, twistComp_compat, ores_res, ores_res,
+              mulSection_compat d h hh i j _ (by order), smul_smul, smul_smul, Cocycle.mul_g,
+              ores_mul]
+            congr 1
+            ring
+        map_zero' := by ext i; simp
+        map_add' s t := by ext i; simp [smul_add] })
+    (fun V r t ↦ by
+      ext i
+      simp only [AddMonoidHom.coe_mk, ZeroHom.coe_mk, twistComp_twistMk, twistComp_smul]
+      exact smul_comm _ _ _)
+    (fun V W hVW t ↦ by
+      ext i
+      simp only [AddMonoidHom.coe_mk, ZeroHom.coe_mk, twistComp_twistMk, twistComp_res, mres_smul,
+        ores_res])
+
+
+-- @@ L870-873 unexpanded
+@[simp]
+lemma twistComp_twistMulSection_app (s : Γ(twist F c, V)) (i : ι) :
+    twistComp ((twistMulSection F c d h hh).app V s) i = (h i |ₒ (V ⊓ U i)) • twistComp s i :=
+  rfl
+
+
+-- @@ L875-880 verbatim
+@[reassoc]
+lemma twistMulSection_naturality {G : X.Modules} (φ : F ⟶ G) :
+    twistMap c φ ≫ twistMulSection G c d h hh = twistMulSection F c d h hh ≫ twistMap (c * d) φ :=
+  Hom.ext_apply fun V t ↦ by
+    ext i
+    simp
+
+
+-- @@ L882-882 verbatim
+end MulSection
+
+
+-- @@ L884-884 verbatim
+end Twist
+
+
+-- @@ L886-886 verbatim
+end AlgebraicGeometry.Scheme.Modules
