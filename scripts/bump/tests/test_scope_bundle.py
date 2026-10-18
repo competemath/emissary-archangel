@@ -32,6 +32,8 @@ REAL_USER = "import Toy.RealN\n\ntheorem real_user : 1 = 1 := rfl\n"
 MACROS = 'namespace Toy\n\nelab "resolve" : tactic => pure ()\n\nmacro "dub" : term => `(2)\n\ntheorem macros_one : 1 = 1 := rfl\n\nend Toy\n'
 # a command written after an `open … in` on its own line is not one this pass reads: it stays global, tengoku's lint would refuse it, so compose leaves the module out
 OPEN_IN = 'open Nat in notation "nn" => 1\n\ntheorem open_in_one : 1 = 1 := rfl\n'
+# and so is one in the middle of a line (Lean needs no line break between commands): tengoku's check reads every occurrence of the keyword
+MID_LINE = 'theorem mid_one : 1 = 1 := rfl prefix:80 "~" => Nat.succ\n'
 
 
 class Census(unittest.TestCase):
@@ -109,7 +111,7 @@ class Compose(unittest.TestCase):
 
     compose = test_bundle.AutoDrops.compose
     leaks_in_leaky = staticmethod(lambda self, text, keep: [])
-    FILES = {"Modal": MODAL, "Above": ABOVE, "Root": ROOT, "User": USER, "RealN": REAL, "RealUser": REAL_USER, "Macros": MACROS, "OpenIn": OPEN_IN}
+    FILES = {"Modal": MODAL, "Above": ABOVE, "Root": ROOT, "User": USER, "RealN": REAL, "RealUser": REAL_USER, "Macros": MACROS, "OpenIn": OPEN_IN, "MidLine": MID_LINE}
     PASSED = {
         "Toy.Modal": ["Toy.modal_one"],
         "Toy.Above": ["Toy.above_one"],
@@ -119,6 +121,7 @@ class Compose(unittest.TestCase):
         "Toy.RealUser": ["Toy.real_user"],
         "Toy.Macros": ["Toy.macros_one"],
         "Toy.OpenIn": ["Toy.open_in_one"],
+        "Toy.MidLine": ["Toy.mid_one"],
     }
 
     def modules(self, d: Path, mode: str) -> dict[str, str]:
@@ -155,9 +158,10 @@ class Compose(unittest.TestCase):
     def test_a_command_the_pass_does_not_read_is_caught_by_the_check_tengoku_makes(self):
         d, p = self.compose([])
         for mode in ("proposed", "wide"):
-            self.assertNotIn("OpenIn", self.modules(d, mode), mode)
             report = json.loads((d / ("bundle-" + mode) / "report.json").read_text())
-            self.assertIn("without 'scoped' or 'local'", report["dropped"]["Toy.OpenIn"])
+            for name in ("OpenIn", "MidLine"):
+                self.assertNotIn(name, self.modules(d, mode), f"{mode}/{name}")
+                self.assertIn("without 'scoped' or 'local'", report["dropped"][f"Toy.{name}"], f"{mode}/{name}")
 
     def test_the_strict_bundle_carries_no_notation_at_all(self):
         d, p = self.compose([])

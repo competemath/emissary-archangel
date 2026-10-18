@@ -325,23 +325,23 @@ def violations(text: str, allowed_options: set[str], command_keywords: set[str] 
     return list(dict.fromkeys(out))
 
 
-# `--lint proposed|wide` let a bundle declare notation (and, in wide, `macro`/`syntax`) because none of it runs IO. A GLOBAL one still changes how every other module of the tree
+# `--lint proposed|wide` let a bundle declare notation (and, in wide, `macro`/`syntax`; `elab` stays refused in every mode) because none of it runs IO. A GLOBAL one still changes how every other module of the tree
 # parses: lean-pool's `prefix:80 "-" => complement` made `-(3 * x)` on ℝ fail everywhere ("Ambiguous term", 2026-10-17), and the atoms of a global notation/syntax/macro (`v`, `ω`, `na`)
-# became reserved tokens of the whole tree (`fun v => …` -> "unexpected token 'v'"). So where a mode allows these commands it allows them only with `scoped` or `local` in front. The check
-# reads the command position (after attributes and an `open … in`), so `scoped notation …` does not match and `notation …` does; a word elsewhere (a hypothesis called `prefix`) is not a command.
-_COMMAND_LEAD = r"^[ \t]*(?:(?:open|set_option)\b[^\n]*?[ \t]in[ \t]+)*(?:@\[[^\]]*\][ \t]*)*"
-_UNSCOPED_NOTATION = re.compile(_COMMAND_LEAD + r"(notation3?|infixl?|infixr|prefix|postfix)(?![\w'.])", re.M)
-_UNSCOPED_MACRO = re.compile(_COMMAND_LEAD + r"(macro|syntax)(?![\w'.])", re.M)
+# became reserved tokens of the whole tree (`fun v => …` -> "unexpected token 'v'"). So where a mode allows these commands it allows them only with `scoped` or `local` in front, and the
+# check reads every occurrence of the keyword, not the start of a line: Lean needs no line break between commands (`theorem t : True := trivial notation "-" => f`, `private infix …`,
+# `open Nat in notation …`). A keyword is a token of Lean's, never an identifier (`fun prefix => …` does not parse), so a word in code (comments and strings are blanked first) is a command;
+# `Foo.prefix` and `«prefix»` are names and stay out. It is accepted when it directly follows `scoped`, `local` or Mathlib's `scoped[NS]`.
+_NOTATION_KW = re.compile(r"(?<![\w.'!?«])(notation3?|infixl?|infixr|prefix|postfix)(?![\w'!?])")
+_MACRO_KW = re.compile(r"(?<![\w.'!?«])(macro|syntax|elab)(?![\w'!?])")
+_SCOPED_BEFORE = re.compile(r"(?<![\w.'!?])(?:scoped|local)(?:\[[^\]\n]*\])?\s+$")
 
 
 def unscoped_violations(text: str, macro: bool) -> list[str]:
-    """The notation commands (and with `macro` the `macro`/`syntax` commands) of a module that are neither `scoped` nor `local`: global ones, which leak into the rest of the tree."""
+    """The notation commands (and with `macro` the `macro`/`syntax`/`elab` commands) of a module that are neither `scoped` nor `local`: global ones, which leak into the rest of the tree."""
     code = code_only(text)
-    rules = (_UNSCOPED_NOTATION, _UNSCOPED_MACRO) if macro else (_UNSCOPED_NOTATION,)
-    return list(
-        dict.fromkeys(
-            f"`{m.group(1)}` without `scoped` or `local` is global: it changes how every other library parses"
-            for rule in rules
-            for m in rule.finditer(code)
-        )
-    )
+    out = []
+    for rule in (_NOTATION_KW, _MACRO_KW) if macro else (_NOTATION_KW,):
+        for m in rule.finditer(code):
+            if not _SCOPED_BEFORE.search(code[max(0, m.start() - 160) : m.start()]):
+                out.append(f"`{m.group(1)}` without `scoped` or `local` is global: it changes how every other library parses")
+    return list(dict.fromkeys(out))
