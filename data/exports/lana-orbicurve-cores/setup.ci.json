@@ -1,0 +1,36 @@
+{
+  "key": "lana-orbicurve-cores",
+  "repo": "https://github.com/lana-agents/orbicurve-cores",
+  "commit": "61616dcd77fbe45c083a8ebfa7cc80728f86e841",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "OrbicurveCores"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lana-orbicurve-cores/repo",
+  "entries": 969,
+  "modules": 79,
+  "exported": 79,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 154,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 969,
+    "kept": 969,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 11,
+    "lineUnverified": 0,
+    "nameFixed": 964,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 35516416,
+  "minutes": 23,
+  "finishedAt": "2026-10-18T18:34:57.702Z"
+}
