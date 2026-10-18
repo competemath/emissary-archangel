@@ -1,0 +1,36 @@
+{
+  "key": "lana-formal-schemes",
+  "repo": "https://github.com/lana-agents/formal-schemes",
+  "commit": "51aa935079537bf4dc580751a6e70727fb23ca93",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "FormalSchemes"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lana-formal-schemes/repo",
+  "entries": 145,
+  "modules": 20,
+  "exported": 20,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 145,
+    "kept": 145,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 21,
+    "lineUnverified": 0,
+    "nameFixed": 136,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 6672384,
+  "minutes": 7,
+  "finishedAt": "2026-10-18T17:29:34.152Z"
+}
