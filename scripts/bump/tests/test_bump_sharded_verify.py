@@ -459,6 +459,13 @@ class CopiesOfTreeModules(unittest.TestCase):
         self.assertIn("importModules #[{ module := m }]", lean)
         self.assertNotIn("importModules (", lean)
 
+    def test_the_files_an_environment_maps_are_never_freed(self):
+        """emissary#71, first CI run: `Environment.freeRegions` in a `finally` crashed the program (exit 139) on the first module: the environment's own objects point into the regions, and are released after
+        them. A process is given a few modules at a time instead (fingerprint_chunks.sh), which keeps it under the limit of files one process may map."""
+        lean = (PATH.parents[2] / "scripts" / "bump" / "ModuleFingerprint.lean").read_text()
+        self.assertNotIn("freeRegions", lean)
+        self.assertIn("flush", lean)  # a process killed later keeps the modules it finished
+
     def test_the_fingerprints_are_made_in_chunks_by_the_runner_that_loses_only_what_a_process_loses(self):
         """before and the partners and after, all three through fingerprint_chunks.sh; no Lean program of this step runs outside it."""
         for name in self.dups_steps():

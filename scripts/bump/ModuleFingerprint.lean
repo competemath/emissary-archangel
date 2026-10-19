@@ -11,6 +11,7 @@ ModuleFingerprint — a deep fingerprint of every declaration of some modules, t
       FPEND <TAB> module <TAB> N                                               after the N declarations of a module that was fingerprinted completely
   or, when the module could not be imported or the run failed on it,    FPERR <TAB> module <TAB> the message     and goes on with the next module. Last:   fingerprints: N declarations
   A reader accepts a module only when its FPEND line is there and its count is the number of FP lines it read: a run that was killed leaves the modules it finished and nothing about the rest.
+  The files an environment maps are never freed (freeing them under the environment crashes the process): a process holds the closure of every module it did, so the caller starts a new one every few.
   The exit status says only that the program ran (0).
 
 What the fingerprint is. For a declaration it covers: its kind, its universe parameters, its TYPE, and, for everything but a theorem, its VALUE (a definition, an instance, an abbrev, an
@@ -234,23 +235,22 @@ def hex16 (x : UInt64) : String :=
   let s := String.ofList (Nat.toDigits 16 x.toNat)
   "".pushn '0' (16 - s.length) ++ s
 
-/-- one module, in an environment of its own -/
+/-- one module, in an environment of its own. The files the environment maps are never freed here: the environment's own objects point into them, and freeing them first (or letting the environment
+go afterwards) crashes the process (emissary#71). A process therefore holds the closure of every module it has fingerprinted: scripts/bump/fingerprint_chunks.sh starts a new one every few modules. -/
 unsafe def fingerprintOne (nameMemo : IO.Ref (Std.HashMap Name H)) (constMemo : IO.Ref (Std.HashMap (Name × Name) H)) (whole : NameSet) (m : Name) : IO Nat := do
   let env ← importModules #[{ module := m }] {} (trustLevel := 0) (loadExts := false)
-  try
-    let c : Ctx := { env, whole, exprMemo := ← IO.mkRef {}, nameMemo, constMemo }
-    let some idx := env.getModuleIdx? m | throw (IO.userError s!"not imported: {m}")
-    let mut lines : Array String := #[]
-    for n in env.header.moduleData[idx.toNat]!.constNames do
-      if n.isInternal || n.hasMacroScopes then continue
-      let some ci := env.find? n | continue
-      let h ← deep c n
-      lines := lines.push s!"FP\t{m}\t{canon n}\t{kindName ci}\t{hex16 h.1}{hex16 h.2}"
-    for l in lines do IO.println l
-    IO.println s!"FPEND\t{m}\t{lines.size}"
-    return lines.size
-  finally
-    env.freeRegions
+  let c : Ctx := { env, whole, exprMemo := ← IO.mkRef {}, nameMemo, constMemo }
+  let some idx := env.getModuleIdx? m | throw (IO.userError s!"not imported: {m}")
+  let mut lines : Array String := #[]
+  for n in env.header.moduleData[idx.toNat]!.constNames do
+    if n.isInternal || n.hasMacroScopes then continue
+    let some ci := env.find? n | continue
+    let h ← deep c n
+    lines := lines.push s!"FP\t{m}\t{canon n}\t{kindName ci}\t{hex16 h.1}{hex16 h.2}"
+  for l in lines do IO.println l
+  IO.println s!"FPEND\t{m}\t{lines.size}"
+  (← IO.getStdout).flush  -- a process that is killed later keeps the modules it finished
+  return lines.size
 
 unsafe def run (names whole : List Name) : IO UInt32 := do
   enableInitializersExecution
