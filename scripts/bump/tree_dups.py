@@ -1,0 +1,398 @@
+#!/usr/bin/env python3
+"""tree_dups.py — a library's copy of a module the tree already has: the copy is not shipped, and what imports it imports the tree's module, when the two are provably the same.
+
+A library can carry its own copy of another library's file (lean-pool pools 216 projects, and many vendor PFR, AddCombi, Mathlib files...). The tree already has that file, and it cannot hold two
+declarations of one name, so the copy cannot go in. Until now the copy was dropped and so was everything that imports it (lean-pool: ~900 modules holding up ~20k theorems). This step keeps what
+imports the copy, when it can show that nothing they stand on changes.
+
+THE QUESTION THIS STEP ANSWERS, and nothing else: may a module that imports the library's copy M import the tree's module I instead, and still be the same module (the same statements, about the same
+definitions)? It does not decide whether anything is true (Lean's kernel does, in the tree's build), and it does not look at proofs.
+
+Where it runs: `tree_verify.py` has built the draft in the tree; the draft still holds M and its importers. This step, in order (the workflow runs the Lean programs between the commands):
+
+  tree_dups.py candidates  find the copies: the new modules that built and share a name with a module of the tree (`ModuleClashes.lean`), the tree modules they share it with, and every new module
+                           that imports a copy, directly or not. Writes the module lists the fingerprint program reads.
+  (ModuleFingerprint.lean)  the fingerprints of the copies and their importers (BEFORE), and of the tree modules (PARTNERS)
+  tree_dups.py plan        decide, per copy. SAME: every declaration of M is a declaration of the tree's module(s) with the same fingerprint (type, value and everything below them). Then M leaves the tree
+                           checkout, and each module that imports it has the import line replaced by the tree's module(s) (`apply_alias_text`); `new.json` and `targets.txt` follow.
+                           NOT SAME (or no verdict): nothing changes for M; it stays a clash, and the clash scan refuses it with what imports it, as before this step existed.
+  (lake build)             the modules that import a copy are built again, now on the tree's module.
+  tree_dups.py after-list  which of them built (a module that does not, or imports one that does not, is refused)
+  (ModuleFingerprint.lean)  their fingerprints AFTER
+  tree_dups.py after-verdict  a module whose declarations are not exactly what they were before (a name missing or added, a kind or a fingerprint changed) is refused with what imports it.
+
+What the outcome of each decision lets you say (the claim, its assumptions, and what it does not claim):
+
+  ALIASED (SAME, and every importer AFTER = BEFORE): in the tree's environment, each importer's declarations are the same, term for term below the seed, as when the copy was there; so the theorems
+  it ships say what the library's text says, about the definitions the library's text has. Assumes: the fingerprint is a 128-bit structural hash (a collision is ~2^-128 and nobody controls the
+  inputs), and the importer is the library's own text (the library build and Gate 2 judged it against the copy, in the library's environment: that step is unchanged and is not repeated here).
+  Does NOT claim: that the proofs are the same (not read; the tree's build checks them), that the copy's own theorems are shipped (they are the tree's already: the ledger says so), or anything
+  about registrations (instances, simp lemmas, notation) that no declaration of the importers shows.
+
+  REFUSED (an importer whose declarations changed or that no longer builds): nothing is claimed about it, and it is not shipped, with what imports it. This is a statement that it was not shown to be the same.
+
+  NOT SAME / NO VERDICT: nothing is claimed; the module goes the way it went before this step.
+
+The result is written as `dups.json` (per mode); `bundle.py compose --tree-dups` makes the same edits to the bundle that ships (`apply_alias_text`), and `tree_verify.py check` then proves, byte for byte,
+that every module that ships is a module the tree's build accepted.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import re
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import bundle_layers as bl  # noqa: E402
+import bundle_rehead as rehead  # noqa: E402
+import tolerant_build as tb  # noqa: E402
+import tree_verify as tv  # noqa: E402
+
+FP_LINE = re.compile(r"^FP\t(?P<mod>[^\t\n]+)\t(?P<name>[^\t\n]+)\t(?P<kind>[^\t\n]+)\t(?P<hash>[0-9a-f]{32})$", re.M)
+FP_DONE = re.compile(r"^fingerprints: (?P<n>\d+) declarations$", re.M)
+IMPORT_RE = re.compile(r"^(\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)?)(" + tb.MODNAME + r")(.*)$")
+COMPONENT = re.compile(r"[^\W\d][\w']*")
+
+Fp = dict[str, dict[str, tuple[str, str]]]  # module (plain) -> declaration -> (kind, 32 hex digits)
+
+
+def sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def quoted(module: str) -> str:
+    """A module name as Lean writes it in an import (`Tengoku.Lib.A-B` -> `Tengoku.Lib.«A-B»`). Names that are already quoted are left as they are."""
+    if "«" in module:
+        return module
+    return ".".join(c if COMPONENT.fullmatch(c) else f"«{c}»" for c in module.split("."))
+
+
+def read_lines(path: str | Path) -> list[str]:
+    p = Path(path)
+    return [ln.strip() for ln in p.read_text().split("\n") if ln.strip()] if p.is_file() else []
+
+
+def parse_fp(text: str) -> Fp:
+    """The fingerprints of a ModuleFingerprint.lean run. A run with no `fingerprints:` line did not finish, and one whose count does not match its lines was cut short: both are refused,
+    because a module that was never fingerprinted must not pass as the same."""
+    done = FP_DONE.search(text)
+    if done is None:
+        sys.exit("the fingerprint run has no ending (it crashed or was killed): nothing is known about the copies; refusing to guess")
+    rows = list(FP_LINE.finditer(text))
+    if int(done.group("n")) != len(rows):
+        sys.exit(f"the fingerprint run says {done.group('n')} declaration(s) and lists {len(rows)}: its output is incomplete; refusing to guess")
+    out: Fp = defaultdict(dict)
+    for m in rows:
+        out[tv.plain(m.group("mod"))][m.group("name")] = (m.group("kind"), m.group("hash"))
+    return out
+
+
+def parse_fp_file(path: str) -> Fp | None:
+    """The fingerprints in a file, or None when the file is missing or the run did not finish (the caller decides what no verdict means: before the swap, nothing is aliased; after it, nothing is kept)."""
+    p = Path(path)
+    if not p.is_file():
+        return None
+    try:
+        return parse_fp(p.read_text(errors="replace"))
+    except SystemExit as e:
+        print(f"::warning::{e}")
+        return None
+
+
+def clash_pairs(text: str, new_plain: set[str]) -> tuple[dict[str, set[str]], set[str]]:
+    """(new module -> the tree modules it shares a name with, the new modules that share one with another NEW module too). Like the clash check itself, a run with no `clashes:` line did not
+    finish and one whose count does not match its lines was cut short: both are refused. Names are the ones the program printed (guillemets where Lean writes them)."""
+    done = tv.CLASH_DONE.search(text)
+    if done is None:
+        sys.exit("the clash check has no ending (it crashed or was killed): nothing is known about name clashes; refusing to guess")
+    lines = list(tv.CLASH_LINE.finditer(text))
+    if int(done.group("pairs")) != len(lines):
+        sys.exit(f"the clash check says {done.group('pairs')} pair(s) and lists {len(lines)}: its output is incomplete; refusing to guess")
+    partners: dict[str, set[str]] = defaultdict(set)
+    both_new: set[str] = set()
+    for ln in lines:
+        a, b = ln.group("mod"), ln.group("other")
+        a_new, b_new = tv.plain(a) in new_plain, tv.plain(b) in new_plain
+        if a_new and b_new:
+            both_new |= {tv.plain(a), tv.plain(b)}
+        elif a_new:
+            partners[tv.plain(a)].add(b)
+        elif b_new:
+            partners[tv.plain(b)].add(a)
+    return partners, both_new
+
+
+def decide(module: str, partners: list[str], before: Fp, partner_fp: Fp) -> tuple[list[str] | None, str]:
+    """(the tree modules to import instead of `module`, "") when every declaration of `module` is a declaration of those modules with the same fingerprint; (None, why) when that cannot be shown.
+    `module` and the partners are plain names. A module with no fingerprinted declaration is no verdict: an empty comparison would call anything the same."""
+    decls = before.get(module)
+    if not decls:
+        return None, "no declaration of it was fingerprinted"
+    owners: dict[str, list[tuple[str, tuple[str, str]]]] = defaultdict(list)
+    for p in partners:
+        for name, v in partner_fp.get(tv.plain(p), {}).items():
+            owners[name].append((p, v))
+    used: set[str] = set()
+    for name, v in sorted(decls.items()):
+        cands = owners.get(name)
+        if not cands:
+            return None, f"`{name}` is not declared by the tree's module(s)"
+        same = sorted(p for p, pv in cands if pv == v)
+        if not same:
+            return None, f"`{name}` is not the same as the tree's (its type, or something it stands on, differs)"
+        used.add(same[0])
+    return sorted(used), ""
+
+
+def apply_alias_text(text: str, aliases: dict[str, list[str]]) -> str:
+    """The text with each header import of a module of `aliases` (plain name -> the tree's modules) replaced by imports of those modules, and a second copy of an import line dropped (the same
+    rule as `bundle.once`). Only the header is read: a docstring that starts a line with the word `import` is prose. This is the one edit, made here on the checkout and by `bundle.py compose` on the
+    bundle that ships, so that the bytes agree."""
+    if not aliases:
+        return text
+    lines = text.split("\n")
+    end, code = rehead.header_end(lines)  # code[i]: line i is code, not a line of a block comment
+    out: list[str] = []
+    seen: set[str] = set()
+    changed = False
+    for i, ln in enumerate(lines):
+        m = IMPORT_RE.match(ln) if i < end and code[i] else None
+        if m is None:
+            out.append(ln)
+            continue
+        targets = aliases.get(tv.plain(m.group(2)))
+        new = [ln] if targets is None else [f"{m.group(1)}{quoted(t)}{m.group(3)}" for t in targets]
+        changed |= targets is not None
+        for nl in new:
+            if nl.strip() in seen:
+                changed = True
+                continue
+            seen.add(nl.strip())
+            out.append(nl)
+    return "\n".join(out) if changed else text
+
+
+def purge_build(tree: Path, rel: str) -> None:
+    """The compiled files of a module that leaves the checkout (a stale olean must not be read by anything that imports the tree)."""
+    stem = Path(rel).with_suffix("")
+    for root in (".lake/build/lib/lean", ".lake/build/ir"):
+        d = (tree / root / stem).parent
+        if d.is_dir():
+            for f in d.glob(stem.name + ".*"):
+                f.unlink()
+
+
+def new_graph(files: dict[str, bytes], mods: dict[str, dict]) -> dict[str, list[str]]:
+    """module -> the new modules it imports, from the bundle's files (the draft)."""
+    return {m: [d for d in deps if d in mods] for m, deps in bl.import_graph(files, {m: s["path"] for m, s in mods.items()}).items()}
+
+
+def importers_of(root: str, graph: dict[str, list[str]]) -> set[str]:
+    return tv.dependents({root}, graph)
+
+
+def cmd_candidates(a: argparse.Namespace) -> None:
+    new = json.loads(Path(a.new).read_text())
+    ns, mods = new["ns"], new["modules"]
+    out = Path(a.out)
+    built = {tv.plain(m) for m in read_lines(a.built)}
+    keyed = {tv.plain(m): m for m in mods}
+    partners, both_new = clash_pairs(Path(a.clashes).read_text(errors="replace"), set(keyed))
+    graph = new_graph(bl.read_bundle(Path(a.bundle)), mods)
+    cands: dict[str, dict] = {}
+    skipped: dict[str, str] = {}
+    for plain_m, ps in sorted(partners.items()):
+        m = keyed[plain_m]
+        if plain_m in both_new:
+            skipped[m] = "it also shares a name with another new module of the bundle"
+        elif plain_m not in built:
+            skipped[m] = "it did not build in the tree"
+        else:
+            imps = sorted(x for x in importers_of(m, graph) if tv.plain(x) in built)
+            cands[m] = {"partners": sorted(ps), "importers": imps}
+    before = sorted({tv.plain(m) for m in cands} | {tv.plain(x) for c in cands.values() for x in c["importers"]})
+    whole = sorted({tv.plain(p) for c in cands.values() for p in c["partners"]})
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "dups-before.txt").write_text("".join(m + "\n" for m in before))
+    (out / "dups-partners.txt").write_text("".join(m + "\n" for m in whole))
+    (out / "dups-candidates.json").write_text(json.dumps({"ns": ns, "candidates": cands, "skipped": skipped}, indent=1) + "\n")
+    # the verdict until `plan` says otherwise: nothing is aliased (a step that does not run, or has no time, leaves exactly this)
+    (out / "dups.json").write_text(json.dumps({"ns": ns, "mode": a.mode, "aliases": {}, "not_same": {}, "refused": {}}, indent=1) + "\n")
+    (out / "dups-failures.txt").write_text("")
+    print(f"{len(cands)} copy(ies) of a tree module among the new modules, {len(before) - len(cands)} module(s) import one; {len(skipped)} skipped")
+    for m, why in list(skipped.items())[:10]:
+        print(f"  skipped: {tv.library_module(m, ns)}: {why}")
+
+
+def cmd_plan(a: argparse.Namespace) -> None:
+    cand = json.loads(Path(a.candidates).read_text())
+    if not cand["candidates"]:
+        print("no copy of a tree module: nothing to decide")
+        return
+    before, partner_fp = parse_fp_file(a.fp_before), parse_fp_file(a.fp_partners)
+    if before is None or partner_fp is None:
+        print("no verdict: a fingerprint run did not finish, so nothing is aliased and the copies go the way they went before this step")
+        return
+    new = json.loads(Path(a.new).read_text())
+    ns, mods = new["ns"], new["modules"]
+    tree, out = Path(a.tree), Path(a.out)
+    aliases: dict[str, list[str]] = {}
+    not_same: dict[str, str] = {}
+    for m, info in sorted(cand["candidates"].items()):
+        targets, why = decide(tv.plain(m), info["partners"], before, partner_fp)
+        if targets is None:
+            not_same[m] = why
+        else:
+            aliases[m] = targets
+    plain_aliases = {tv.plain(m): ts for m, ts in aliases.items()}
+    edited: list[str] = []
+    for x, spec in sorted(mods.items()):
+        f = tree / spec["path"]
+        if x in aliases or not f.is_file():
+            continue
+        text = f.read_text(encoding="utf-8")
+        if any(tv.plain(i) in plain_aliases for i in tb.header_imports(text)):
+            edited_text = apply_alias_text(text, plain_aliases)
+            f.write_text(edited_text, encoding="utf-8")
+            spec["sha256"] = sha256(edited_text.encode("utf-8"))
+            edited.append(x)
+    for m in aliases:
+        (tree / mods[m]["path"]).unlink(missing_ok=True)
+        purge_build(tree, mods[m]["path"])
+        del mods[m]
+    (out / "new.json").write_text(json.dumps(new, indent=1) + "\n")
+    (out / "targets.txt").write_text("".join(m + "\n" for m in sorted(mods)))
+    result = {"ns": ns, "mode": a.mode, "aliases": {tv.library_module(m, ns): ts for m, ts in aliases.items()},
+              "not_same": {tv.library_module(m, ns): why for m, why in not_same.items()}, "refused": {}}
+    (out / "dups.json").write_text(json.dumps(result, indent=1) + "\n")
+    importers = sorted({tv.plain(x) for m in aliases for x in cand["candidates"][m]["importers"]} - {tv.plain(m) for m in aliases})
+    (out / "dups-importers.txt").write_text("".join(m + "\n" for m in importers))
+    print(f"{len(aliases)} copy(ies) are the same as the tree's module(s) and leave the bundle; {len(not_same)} are not shown to be the same; {len(edited)} module(s) import the tree's module now")
+    for m, why in list(not_same.items())[:10]:
+        print(f"  not the same: {tv.library_module(m, ns)}: {why}")
+
+
+def alive_after(a: argparse.Namespace) -> tuple[dict, dict, set[str], set[str]]:
+    """(dups.json, new.json, the importers, the importers that did not build in the second build or import one that did not)"""
+    dups = json.loads(Path(a.dups).read_text())
+    new = json.loads(Path(a.new).read_text())
+    ns, mods = new["ns"], new["modules"]
+    cand = json.loads(Path(a.candidates).read_text())
+    keyed = {tv.library_module(m, ns): m for m in cand["candidates"]}
+    importers = {tv.plain(x) for lib in dups["aliases"] for x in cand["candidates"][keyed[lib]]["importers"]} - {tv.plain(m) for m in cand["candidates"]}
+    log = Path(a.log2).read_text(errors="replace")
+    failing = tv.failures_from_log(log, ns) & set(mods)
+    graph: dict[str, list[str]] = {}
+    for x, spec in mods.items():
+        f = Path(a.tree) / spec["path"]
+        graph[x] = [d for d in tb.header_imports(f.read_text(encoding="utf-8")) if d in mods] if f.is_file() else []
+    gone = {tv.plain(m) for m in failing | tv.dependents(failing, graph)}
+    if mods and not tv.FINISHED.search(log):
+        # the build was killed or ran out of time: what has no `Built` line was not reached, and a module that was not built on the tree's module is not shown to be anything
+        gone |= importers - {tv.plain(m.group("mod")) for m in tv.BUILT.finditer(log)}
+    return dups, new, importers, importers & gone
+
+
+def cmd_after_list(a: argparse.Namespace) -> None:
+    dups, new, importers, gone = alive_after(a)
+    alive = sorted(importers - gone)
+    Path(a.out).mkdir(parents=True, exist_ok=True)
+    (Path(a.out) / "dups-after.txt").write_text("".join(m + "\n" for m in alive))
+    print(f"{len(alive)} of {len(importers)} importing module(s) built on the tree's module")
+
+
+def cmd_after_verdict(a: argparse.Namespace) -> None:
+    dups, new, importers, gone = alive_after(a)
+    ns, mods = new["ns"], new["modules"]
+    before, after = parse_fp_file(a.fp_before), parse_fp_file(a.fp_after)
+    keyed = {tv.plain(m): m for m in mods}
+    refused: dict[str, str] = {}
+    for x in sorted(importers):
+        if x not in keyed:
+            continue
+        if x in gone:
+            refused[keyed[x]] = "it does not build on the tree's module, was not reached by the build, or imports a module that does not"
+            continue
+        if before is None or after is None:  # the checkout was already changed: what cannot be compared is not shown to be the same
+            refused[keyed[x]] = "its fingerprints could not be compared (a fingerprint run did not finish)"
+            continue
+        b, f = before.get(x, {}), after.get(x, {})  # a module the run covered and that declares nothing has no line
+        for name in sorted(set(b) | set(f)):
+            if b.get(name) != f.get(name):
+                refused[keyed[x]] = f"`{name}` is " + ("missing" if name not in f else "new" if name not in b else "not the same") + " on the tree's module"
+                break
+    dups["refused"] = {tv.library_module(m, ns): why for m, why in refused.items()}
+    Path(a.dups).write_text(json.dumps(dups, indent=1) + "\n")
+    Path(a.out).mkdir(parents=True, exist_ok=True)
+    (Path(a.out) / "dups-failures.txt").write_text("".join(f"{m}\t{why}\n" for m, why in refused.items()))
+    print(f"{len(importers) - len(refused)} of {len(importers)} importing module(s) are exactly what they were; {len(refused)} refused")
+    for m, why in list(refused.items())[:10]:
+        print(f"  refused: {tv.library_module(m, ns)}: {why}")
+
+
+def cmd_merge(a: argparse.Namespace) -> None:
+    modes: dict[str, dict] = {}
+    ns = None
+    for f in a.files:
+        d = json.loads(Path(f).read_text())
+        ns = d["ns"]
+        if d["mode"] in modes:
+            sys.exit(f"two files for the mode {d['mode']}")
+        modes[d["mode"]] = {k: d[k] for k in ("aliases", "not_same", "refused")}
+    Path(a.out).write_text(json.dumps({"ns": ns, "modes": modes}, indent=1) + "\n")
+    print(f"{sum(len(m['aliases']) for m in modes.values())} aliased in {sorted(modes)}")
+
+
+def load_for_compose(path: str) -> dict[str, dict[str, list[str]]]:
+    """mode -> {library module -> the tree modules}, from the merged file `--tree-dups` names. An unreadable or malformed file is an error: it would silently ship the importers as they were built."""
+    d = json.loads(Path(path).read_text())
+    if not isinstance(d, dict) or not isinstance(d.get("modes"), dict):
+        sys.exit(f"{path}: not a merged dups file")
+    out: dict[str, dict[str, list[str]]] = {}
+    for mode, spec in d["modes"].items():
+        al = spec.get("aliases")
+        if not isinstance(al, dict) or not all(isinstance(k, str) and isinstance(v, list) and all(isinstance(x, str) for x in v) for k, v in al.items()):
+            sys.exit(f"{path}: the aliases of {mode} are not a map from a module to a list of modules")
+        out[mode] = al
+    return out
+
+
+def main(argv: list[str] | None = None) -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    c = sub.add_parser("candidates")
+    c.add_argument("--clashes", required=True, help="the output of ModuleClashes.lean on the modules that built")
+    c.add_argument("--new", required=True)
+    c.add_argument("--built", required=True, help="out/built.txt: the new modules that built")
+    c.add_argument("--bundle", required=True)
+    c.add_argument("--out", required=True)
+    c.add_argument("--mode", required=True)
+    c.set_defaults(fn=cmd_candidates)
+    p = sub.add_parser("plan")
+    for k in ("--candidates", "--fp-before", "--fp-partners", "--new", "--tree", "--out", "--mode"):
+        p.add_argument(k, required=True)
+    p.set_defaults(fn=cmd_plan)
+    for name, fn in (("after-list", cmd_after_list), ("after-verdict", cmd_after_verdict)):
+        q = sub.add_parser(name)
+        for k in ("--candidates", "--dups", "--new", "--tree", "--log2", "--out"):
+            q.add_argument(k, required=True)
+        if name == "after-verdict":
+            q.add_argument("--fp-before", required=True)
+            q.add_argument("--fp-after", required=True)
+        q.set_defaults(fn=fn)
+    m = sub.add_parser("merge")
+    m.add_argument("--out", required=True)
+    m.add_argument("files", nargs="+")
+    m.set_defaults(fn=cmd_merge)
+    a = ap.parse_args(argv)
+    a.fn(a)
+
+
+if __name__ == "__main__":
+    main()

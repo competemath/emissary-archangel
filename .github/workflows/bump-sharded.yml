@@ -20,6 +20,7 @@ on:
       verify: { description: "build the bundle in the TREE's own environment (the merge queue's own build, on a checkout seeded from the tree's cache) before it is cut into parts: the modules the tree refuses are dropped with their importers, and what ships is proven byte for byte what was built there. `false` skips it", default: "true" }
       verify_partial: { description: "verify: a build that runs out of its time (210 min) still ships the modules it built; the rest are left for the next from-tree round. For a library with more new modules than one runner builds in that time (a first cut of a giant). Default `false`: a build that does not finish fails the run", default: "false" }
       verify_modes: { description: "the bundle modes that are built in the tree (comma list of strict, proposed, wide): the intake opener ships `proposed`; a mode that is not built ships as the factory cut it", default: "proposed" }
+      dups: { description: "COPIES OF TREE MODULES (tree_dups.py): a module of the library that declares a name the tree already has is not dropped with what imports it at once. It stays in the draft; the tree builds it; where every declaration of it has the same fingerprint (type, value, and everything below them) as the tree's module, the copy is not shipped and what imports it imports the tree's module instead, and each such importer is built again and must come out with exactly the declarations it had. Anything else goes the way it went before. Needs verify", default: "false" }
       from_tree: { description: "PARTS, on a recut after some parts merged: cut only the modules the tree does not have yet (the library's Tengoku/<Ns>.lean on tengoku main), numbered from the next part, so the new parts extend what merged (scripts/bump/bundle_layers.py --tree-umbrella)", default: "" }
       gate2_budget_min: { description: "minutes Gate 2 may spend on each shard (default 150; the shard job has 345 in all, the build and export come first). A shard whose chunks do not fit leaves the rest unjudged, and an unjudged module is cut with its importers", default: "150" }
       gate2_rss_share: { description: "the share of the runner's memory one Lean process of Gate 2 may use (default 0.80 = 12.8 GB of 16). A module that outgrows it alone gets no verdict and is cut with its importers", default: "0.80" }
@@ -128,7 +129,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions: { contents: read, actions: read }  # actions: read = the shard artifacts of an earlier run (recut)
-    env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}", SCOPE: "${{ inputs.scope }}", VERIFY: "${{ inputs.verify }}", VERIFY_MODES: "${{ inputs.verify_modes }}", IMPORTS: "${{ inputs.imports }}" }
+    env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}", SCOPE: "${{ inputs.scope }}", VERIFY: "${{ inputs.verify }}", VERIFY_MODES: "${{ inputs.verify_modes }}", DUPS: "${{ inputs.dups }}", IMPORTS: "${{ inputs.imports }}" }
     outputs:
       modes: ${{ steps.draft.outputs.modes }}
     steps:
@@ -184,9 +185,11 @@ jobs:
           mkdir -p ../merged ../logs
           python3 scripts/bump/shard_pack.py merge --shards ../shards --out ../merged --logs ../logs
           cat ../logs/gate2-results.json
+          # the copies of tree modules stay in the draft for the tree's build to decide (tree_dups.py), when asked for and when there is a tree build to decide them
+          keep=(); if [ "$DUPS" = true ] && [ "$VERIFY" != false ]; then keep=(--keep-dups); fi
           python3 scripts/bump/bundle.py compose --lib ../merged --log ../logs/bundle-deps.log --passed ../logs/passed.json --meta "data/exports/$KEY/setup.ci.json" \
             --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --gate2-killed ../logs/gate2-killed.json --out ../bundle --src ../pruned-src --drop-modules "$DROP" \
-            --tree-names ../tree-names.txt --tree-decls ../tree-decls.txt --drop-leaks --imports "$IMPORTS"
+            --tree-names ../tree-names.txt --tree-decls ../tree-decls.txt --drop-leaks --imports "$IMPORTS" "${keep[@]}"
       - name: Make the registrations that leak into other libraries local (RECUT only)
         if: ${{ inputs.scope != '' }}
         run: python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --reexport --leaks "$SCOPE"
@@ -220,8 +223,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 355
     permissions: { contents: read }
-    env: { KEY: "${{ inputs.key }}", MODE: "${{ matrix.mode }}", VERIFY_PARTIAL: "${{ inputs.verify_partial }}" }
+    env: { KEY: "${{ inputs.key }}", MODE: "${{ matrix.mode }}", VERIFY_PARTIAL: "${{ inputs.verify_partial }}", DUPS: "${{ inputs.dups }}" }
     steps:
+      # the copies-of-tree-modules steps spend what is left of the job after the steps that must still run (axiom check 15, clash scan 20, whole-tree import 50, verdict and upload 25: 110 minutes)
+      - name: The clock
+        run: echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
       - name: This repository (scripts)
         run: |
           git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
@@ -256,7 +262,9 @@ jobs:
           cd tree && scripts/cache.sh get 2>&1 | tail -3
           { echo "== after seeding"; df -h / | tail -1; du -sh .lake/build 2>/dev/null; } | tee -a ../out/disk.log
       - name: Copy the new modules into the tree
-        run: python3 emissary/scripts/bump/tree_verify.py apply --bundle bundle --tree tree --out out
+        run: |
+          python3 emissary/scripts/bump/tree_verify.py apply --bundle bundle --tree tree --out out
+          : > out/dups-failures.txt  # the importers of a copy of a tree module that the swap refused (tree_dups.py): none unless a step below says so
       # the queue's own command, for every new module at once. Lake goes on after a module fails and lists them all; a build that is killed leaves a log with no ending,
       # which `collect` refuses (nothing is verified by a log that stops).
       - name: Build them (the queue's own command)
@@ -295,6 +303,76 @@ jobs:
         run: |
           flag=(); if [ "$VERIFY_PARTIAL" = true ]; then flag=(--allow-unfinished); fi
           python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle "${flag[@]}"
+      # COPIES OF TREE MODULES (tree_dups.py, input `dups`). The draft still holds each copy M of a tree module and everything that imports it, and the tree has built them all. Here: which copies
+      # are provably the same as the tree's module (every declaration of M has the fingerprint, type + value + everything below, of a declaration of the tree's module(s)), what imports them
+      # imports the tree's module instead, those importers are built again, and each must come out with exactly the declarations it had. What this does and does not guarantee is in tree_dups.py.
+      # Every step below leaves a verdict (`out/dups.json`) in which nothing is aliased when it does not run, has no time, or its Lean program does not finish: the copy then goes the way it went
+      # before this existed (the clash scan refuses it with what imports it).
+      - name: Copies of tree modules in the draft (tree_dups.py candidates)
+        id: dups_find
+        run: |
+          found=false
+          if [ "$DUPS" = true ] && [ -s out/built.txt ]; then
+            cap=$(( (JOB_START + 355 * 60 - $(date +%s)) / 60 - 110 )); [ "$cap" -gt 10 ] && cap=10
+            if [ "$cap" -ge 3 ]; then
+              cd tree
+              timeout -k 30 "${cap}m" lake env lean --run ../emissary/scripts/bump/ModuleClashes.lean .lake/build/lib/lean ../out/built.txt Tengoku 2>&1 | tee ../out/clashes-dups.txt
+              cd ..
+              python3 emissary/scripts/bump/tree_dups.py candidates --clashes out/clashes-dups.txt --new out/new.json --built out/built.txt --bundle bundle --out out --mode "$MODE"
+              [ -s out/dups-before.txt ] && found=true
+            else
+              echo "::warning::no time left to look for copies of tree modules"
+            fi
+          fi
+          [ -f out/dups.json ] || python3 -c 'import json, sys; n = json.load(open("out/new.json")); json.dump({"ns": n["ns"], "mode": sys.argv[1], "aliases": {}, "not_same": {}, "refused": {}}, open("out/dups.json", "w"))' "$MODE"
+          echo "found=$found" >> "$GITHUB_OUTPUT"
+      - name: Copies of tree modules, fingerprinted (ModuleFingerprint.lean)
+        if: ${{ steps.dups_find.outputs.found == 'true' }}
+        run: |
+          cap=$(( (JOB_START + 355 * 60 - $(date +%s)) / 60 - 110 )); [ "$cap" -gt 60 ] && cap=60
+          if [ "$cap" -lt 6 ]; then echo "::warning::no time left to fingerprint the copies of tree modules"; exit 0; fi
+          cd tree
+          # the copies and what imports them, then the tree's modules; the tree's modules are named in both so that they are compared whole, like the library's own
+          timeout -k 30 "$((cap * 2 / 3))m" lake env lean --run ../emissary/scripts/bump/ModuleFingerprint.lean ../out/dups-before.txt ../out/dups-partners.txt > ../out/fp-before.txt 2> ../out/fp-before.err || true
+          timeout -k 30 "$((cap / 3))m" lake env lean --run ../emissary/scripts/bump/ModuleFingerprint.lean ../out/dups-partners.txt ../out/dups-partners.txt > ../out/fp-partners.txt 2> ../out/fp-partners.err || true
+          tail -n 1 ../out/fp-before.txt ../out/fp-partners.txt
+      - name: Copies of tree modules, decided; their importers move to the tree's module (tree_dups.py plan)
+        id: dups_plan
+        if: ${{ steps.dups_find.outputs.found == 'true' }}
+        run: |
+          swapped=false
+          python3 emissary/scripts/bump/tree_dups.py plan --candidates out/dups-candidates.json --fp-before out/fp-before.txt --fp-partners out/fp-partners.txt --new out/new.json --tree tree --out out --mode "$MODE" | tee out/dups.txt
+          if python3 -c 'import json, sys; sys.exit(0 if json.load(open("out/dups.json"))["aliases"] else 1)'; then swapped=true; fi
+          echo "swapped=$swapped" >> "$GITHUB_OUTPUT"
+      - name: Copies of tree modules, the importers built on the tree's module
+        if: ${{ steps.dups_plan.outputs.swapped == 'true' }}
+        run: |
+          : > out/build-dups.log
+          cap=$(( (JOB_START + 355 * 60 - $(date +%s)) / 60 - 110 )); [ "$cap" -gt 120 ] && cap=120
+          if [ "$cap" -lt 10 ]; then echo "::warning::no time left to build the importers of the copies: none of them is kept"; exit 0; fi
+          targets="$(tr '\n' ' ' < out/targets.txt)"
+          cd tree
+          set +e
+          # shellcheck disable=SC2086  # targets is a space-separated module list
+          timeout -k 60 "${cap}m" lake build $targets 2>&1 | tee ../out/build-dups.log
+          echo "lake exit status: ${PIPESTATUS[0]}"
+          cat ../out/build-dups.log >> ../out/build.log
+      - name: Copies of tree modules, the importers fingerprinted again, and the verdict (tree_dups.py after-verdict)
+        if: ${{ steps.dups_plan.outputs.swapped == 'true' }}
+        run: |
+          common=(--candidates out/dups-candidates.json --dups out/dups.json --new out/new.json --tree tree --log2 out/build-dups.log --out out)
+          python3 emissary/scripts/bump/tree_dups.py after-list "${common[@]}"
+          : > out/fp-after.txt
+          cap=$(( (JOB_START + 355 * 60 - $(date +%s)) / 60 - 110 )); [ "$cap" -gt 60 ] && cap=60
+          if [ -s out/dups-after.txt ] && [ "$cap" -ge 6 ]; then
+            (cd tree && timeout -k 30 "${cap}m" lake env lean --run ../emissary/scripts/bump/ModuleFingerprint.lean ../out/dups-after.txt ../out/dups-partners.txt) > out/fp-after.txt 2> out/fp-after.err || true
+          elif [ -s out/dups-after.txt ]; then
+            echo "::warning::no time left to fingerprint the importers again: none of them is kept"
+          else
+            echo "fingerprints: 0 declarations" > out/fp-after.txt
+          fi
+          python3 emissary/scripts/bump/tree_dups.py after-verdict "${common[@]}" --fp-before out/fp-before.txt --fp-after out/fp-after.txt | tee -a out/dups.txt
+          { echo "### Copies of tree modules ($KEY, $MODE)"; cat out/dups.txt; } >> "$GITHUB_STEP_SUMMARY"
       # The axiom check imports every module that built in ONE Lean environment, so two modules that declare the same name stop it before it checks anything (lana-oka, 2026-10-19: the library's own copy of
       # Mathlib's `Sheaf/Submodule` against the seed's, "import Tengoku.Seed.… failed, environment already contains 'SheafOfModules.Submodule.noConfusion'"; the clash scan sat after the axiom check and never
       # ran, and the whole verify failed). The scan below reads the names without importing anything, so it comes first, and the modules it refuses are out of the list the axiom check imports.
@@ -312,7 +390,7 @@ jobs:
       - name: The modules that share a name with the tree leave the list the axioms are checked on
         run: |
           flag=(); if [ "$VERIFY_PARTIAL" = true ]; then flag=(--allow-unfinished); fi
-          python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle --clashes out/clashes.txt "${flag[@]}" > /dev/null
+          python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle --clashes out/clashes.txt --extra-failing out/dups-failures.txt "${flag[@]}" > /dev/null
       # The queue's second step: the axioms of every declaration of what it built (Gate 2 checks theorems only: an instance made by `deriving Repr` on a Finset product
       # rests on `lcProof`, and lean-pool part 10, which compiled, was rejected on it). ModuleAxioms.lean is that check with the module of each offender in its output.
       - name: The axiom check of the queue, on every module that built
@@ -329,7 +407,7 @@ jobs:
       - name: The import of the whole tree, as the queue does it (what `import Tengoku.All` stops at)
         run: |
           flag=(); if [ "$VERIFY_PARTIAL" = true ]; then flag=(--allow-unfinished); fi
-          python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle --axioms out/axioms.txt --clashes out/clashes.txt "${flag[@]}" > /dev/null
+          python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle --axioms out/axioms.txt --clashes out/clashes.txt --extra-failing out/dups-failures.txt "${flag[@]}" > /dev/null
           : > out/union-excluded.txt
           if [ ! -s out/built.txt ]; then echo "nothing built: nothing to import"; exit 0; fi
           # the tree is `Tengoku.All`, what the queue's last step builds: NOT every olean of the cache (it keeps the oleans of modules that no longer exist: the seed's move left
@@ -347,7 +425,7 @@ jobs:
       - name: What the tree accepted
         run: |
           flag=(); if [ "$VERIFY_PARTIAL" = true ]; then flag=(--allow-unfinished); fi
-          python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle --axioms out/axioms.txt --clashes out/clashes.txt --union-excluded out/union-excluded.txt "${flag[@]}"
+          python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle --axioms out/axioms.txt --clashes out/clashes.txt --union-excluded out/union-excluded.txt --extra-failing out/dups-failures.txt "${flag[@]}"
           { echo "### Tree build ($KEY, $MODE)"; cat out/summary.txt; } >> "$GITHUB_STEP_SUMMARY"
       - name: Keep the log
         if: ${{ always() }}
@@ -368,6 +446,19 @@ jobs:
             out/union-excluded.txt
             out/union-excluded.reasons
             out/union-*.txt
+            out/dups.json
+            out/dups.txt
+            out/dups-candidates.json
+            out/dups-failures.txt
+            out/dups-before.txt
+            out/dups-partners.txt
+            out/dups-after.txt
+            out/clashes-dups.txt
+            out/fp-before.txt
+            out/fp-partners.txt
+            out/fp-after.txt
+            out/fp-*.err
+            out/build-dups.log
             out/disk.log
             out/build.log.gz
             out/tree-sha.txt
@@ -381,7 +472,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions: { contents: read, id-token: write, attestations: write, actions: read }  # actions: read = the shard artifacts of an earlier run (recut)
-    env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}", SCOPE: "${{ inputs.scope }}", PARTS: "${{ inputs.parts }}", FROM_TREE: "${{ inputs.from_tree }}", IMPORTS: "${{ inputs.imports }}" }
+    env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}", SCOPE: "${{ inputs.scope }}", PARTS: "${{ inputs.parts }}", FROM_TREE: "${{ inputs.from_tree }}", DUPS: "${{ inputs.dups }}", VERIFIED: "${{ needs.verify.result }}", IMPORTS: "${{ inputs.imports }}" }
     steps:
       - name: This repository (scripts, the library's setup)
         run: |
@@ -410,6 +501,7 @@ jobs:
           cp draft/tree-names.txt draft/tree-decls.txt .
           : > tree-failures.txt
           repair_files=()
+          dups_files=()
           for mode in $(python3 -c 'import json, os; print(" ".join(json.loads(os.environ["MODES"])))'); do
             dir="treeverify/treeverify-$KEY-$mode"
             for f in failing.txt ok.json new.json summary.txt repairs.json; do
@@ -417,20 +509,27 @@ jobs:
             done
             cat "$dir/failing.txt" >> tree-failures.txt
             repair_files+=("$dir/repairs.json")
+            if [ "$DUPS" = true ]; then
+              [ -f "$dir/dups.json" ] || { echo "::error::the tree's verdict for mode $mode has no dups.json"; exit 1; }
+              dups_files+=("$dir/dups.json")
+            fi
           done
           sort -u -o tree-failures.txt tree-failures.txt
           echo "the tree refused $(wc -l < tree-failures.txt) module(s)"
           # the declarations the tree timed out on that were given room (tree_repair.py): `compose` makes the same edit in the bundle that ships
           if [ "${#repair_files[@]}" -gt 0 ]; then python3 emissary/scripts/bump/tree_repair.py merge --out tree-repairs.json "${repair_files[@]}"; else echo '{"rule": "R2", "modules": {}}' > tree-repairs.json; fi
+          # the copies of tree modules the tree's build showed to be the same as the tree's module (tree_dups.py): `compose` leaves them out and points what imports them at the tree's module
+          if [ "${#dups_files[@]}" -gt 0 ]; then python3 emissary/scripts/bump/tree_dups.py merge --out tree-dups.json "${dups_files[@]}"; fi
       - name: Merge the shards and cut the bundle
         working-directory: emissary
         run: |
           mkdir -p ../merged ../logs
           python3 scripts/bump/shard_pack.py merge --shards ../shards --out ../merged --logs ../logs
           cat ../logs/gate2-results.json
+          keep=(); if [ "$DUPS" = true ] && [ "$VERIFIED" = success ]; then keep=(--keep-dups --tree-dups ../tree-dups.json); fi
           python3 scripts/bump/bundle.py compose --lib ../merged --log ../logs/bundle-deps.log --passed ../logs/passed.json --meta "data/exports/$KEY/setup.ci.json" \
             --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --gate2-killed ../logs/gate2-killed.json --out ../bundle --src ../pruned-src --drop-modules "$DROP" \
-            --tree-names ../tree-names.txt --tree-decls ../tree-decls.txt --drop-leaks --tree-failures ../tree-failures.txt --tree-repairs ../tree-repairs.json --imports "$IMPORTS"
+            --tree-names ../tree-names.txt --tree-decls ../tree-decls.txt --drop-leaks --tree-failures ../tree-failures.txt --tree-repairs ../tree-repairs.json --imports "$IMPORTS" "${keep[@]}"
       - name: Make the registrations that leak into other libraries local (RECUT only)
         if: ${{ inputs.scope != '' }}
         run: python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --reexport --leaks "$SCOPE"

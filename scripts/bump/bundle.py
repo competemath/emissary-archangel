@@ -41,6 +41,7 @@ import keep_closure  # noqa: E402
 import lean_names  # noqa: E402
 import strip_attrs  # noqa: E402
 import tolerant_build as tb  # noqa: E402
+import tree_dups  # noqa: E402
 import tree_repair  # noqa: E402
 
 # the packages the tree was seeded from (tengoku scripts/seed.py PACKAGES). A bundle reaches all of them through the root `Tengoku`, which
@@ -70,6 +71,11 @@ IMPORT_RE = re.compile(r"^(\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)
 
 MODES = ("strict", "proposed", "wide")  # strict: the allow-list; proposed: + notation commands; wide: + the macro family (what the tree takes is a policy decision)
 MAX_KEEP_GAP = 0.02  # a few passed names may resolve to no constant (an alias); more than this share means the Lean step lost a part of the library
+
+
+def tv_plain(module: str) -> str:
+    """`Tengoku.Lib.«A-B»` -> `Tengoku.Lib.A-B`: how the tree's build spells it (tree_verify.plain)."""
+    return module.replace("«", "").replace("»", "")
 
 
 def keep_gaps(passed: dict[str, list[str]], kept: set[tuple[str, str]]) -> list[tuple[str, str]]:
@@ -348,10 +354,17 @@ def compose(a: argparse.Namespace) -> None:
     # a module that proves a record the tree already has (another library's, or an intake bundle's) cannot go in: tengoku's intake gate refuses the name, and the tree cannot load two
     # declarations of it. The incumbent keeps it; the newcomer's module goes, with what imports it (the same cut a recut makes by hand from the merge queue's error)
     tree_names = {ln for ln in Path(a.tree_names).read_text().split("\n") if ln} if a.tree_names else set()
+    # `--keep-dups`: such a module is not dropped here. It stays in the draft, the tree builds it, and tree_dups.py shows whether it is the same as the tree's module (its importers then import the tree's
+    # module and the copy is not shipped) or not (it is dropped then, with what imports it, exactly as it is without the flag). The final cut (`--tree-dups`) is where that is applied.
+    dup_modules: dict[str, str] = {}
     for mod, names in passed.items():
         hit = sorted(n for n in names if "." in n and n in tree_names)  # a name without a dot is never a clash: the gate's own rule (intake_check.py)
         if mod in modules and hit and mod not in base_dropped:
-            base_dropped[mod] = "declares a record the tree already has: " + ", ".join(hit[:3])
+            why = "declares a record the tree already has: " + ", ".join(hit[:3])
+            if a.keep_dups:
+                dup_modules[mod] = why
+            else:
+                base_dropped[mod] = why
     # a name written in a kept declaration that its elaborated term does not contain (an unneeded `simp only [foo]` argument...) is invisible to the keep closure: keep what the text names
     # a theorem Gate 2 rejected for sorry has no error line of its own when it only USES a failed declaration; it is just as unshippable, and so is anything that needs it
     rejected = sorry_users(a.gate2)
@@ -428,6 +441,11 @@ def compose(a: argparse.Namespace) -> None:
     # that proves a record the tree already has, and the names are those of the text that ships (the pruned module), not of the source
     tree_decls = {ln for ln in Path(a.tree_decls).read_text().split("\n") if ln} if a.tree_decls else set()
     lean_clash = {mod: sorted(lean_names.names(pruned[mod]) & tree_decls) for mod in pruned} if tree_decls else {}
+    if a.keep_dups:
+        for m, ns_ in lean_clash.items():
+            if ns_ and m not in base_dropped:
+                dup_modules.setdefault(m, "declares a name another library of the tree declares: " + ", ".join(ns_[:3]))
+    tree_dups_by_mode = tree_dups.load_for_compose(a.tree_dups) if a.tree_dups else None  # mode -> {library module -> the tree modules}: what the tree's build decided about the copies
     tree_failed = {ln.strip() for ln in Path(a.tree_failures).read_text().split("\n") if ln.strip()} if a.tree_failures else set()
     # the declarations the tree timed out on get more room (tree_repair.py, rule R2): the same edit, to the same bytes, as the one the tree's build accepted
     tree_repairs = json.loads(Path(a.tree_repairs).read_text())["modules"] if a.tree_repairs else {}
@@ -443,14 +461,27 @@ def compose(a: argparse.Namespace) -> None:
         dropped = dict(base_dropped)
         dropped.update({m: "lint: " + "; ".join(vs[:3]) for m, vs in viol.items() if vs and m not in dropped})
         dropped.update({m: "uses a declaration the pruning left out: " + ", ".join(ds[:3]) for m, ds in dangling.items() if m not in dropped})
-        dropped.update({m: "declares a name another library of the tree declares: " + ", ".join(ns[:3]) for m, ns in lean_clash.items() if ns and m not in dropped})
+        if not a.keep_dups:
+            dropped.update({m: "declares a name another library of the tree declares: " + ", ".join(ns[:3]) for m, ns in lean_clash.items() if ns and m not in dropped})
         # modules the tree's own build refused (the factory built the bundle in the tree's environment before cutting it): dropped HERE, after the closure and the pruning, so that no
         # other module changes by a byte: what ships is what was built there (tree_verify.py check)
         dropped.update({m: "did not build in the tree (the tree's own build, before the part was cut)" for m in sorted(tree_failed) if m in pruned and m not in dropped})
+        # the copies of tree modules (`--keep-dups`): in the draft they stay; in the final cut the ones the tree's build showed to be the same as the tree's module are ALIASED (not shipped, no cascade,
+        # their importers import the tree's module), and the others go like a module that declares a name the tree has
+        aliased: dict[str, list[str]] = {}
+        if a.keep_dups and tree_dups_by_mode is not None:
+            decided = {tv_plain(k): v for k, v in tree_dups_by_mode.get(mode, {}).items()}
+            for m, why in sorted(dup_modules.items()):
+                if m in dropped:
+                    continue
+                if tv_plain(m) in decided:
+                    aliased[m] = decided[tv_plain(m)]
+                else:
+                    dropped[m] = why
         needed: set[str] = set()
 
         def need(mod: str) -> None:
-            if mod in needed or mod not in pruned or mod in dropped:
+            if mod in needed or mod not in pruned or mod in dropped or mod in aliased:
                 return
             needed.add(mod)
             for d in imports[mod]:
@@ -485,6 +516,8 @@ def compose(a: argparse.Namespace) -> None:
         for mod, names in passed.items():
             if mod not in needed:
                 why = dropped.get(mod, "module not in the bundle")
+                if mod in aliased:
+                    why = "identical to " + ", ".join(aliased[mod]) + " in the tree (tree_dups.py): not shipped; what imports it imports the tree's module"
                 left_out[why] += len(names)
                 ledger[mod] = {"reason": why, "names": len(names)}
                 continue
@@ -527,6 +560,15 @@ def compose(a: argparse.Namespace) -> None:
                 # repaired ships as the factory cut it (apply_to_text returns None on another `before`; only the verified modes are checked byte for byte).
                 f = tree_root / modules[mod].path.relative_to(lib)
                 f.write_text(tree_repair.apply_to_text(f.read_text(), tree_repairs[mod]) or f.read_text())
+        if aliased:
+            # the last edit, after the scoping and the repairs, as in the tree's checkout (tree_dups.py plan): what imports a copy imports the tree's module instead
+            amap = {tv_plain(f"Tengoku.{pascal(a.key)}.{m}"): ts for m, ts in aliased.items()}
+            for mod in sorted(needed):
+                f = tree_root / modules[mod].path.relative_to(lib)
+                text = f.read_text()
+                new_text = tree_dups.apply_alias_text(text, amap)
+                if new_text != text:
+                    f.write_text(new_text)
         (out_dir / "Tengoku" / f"{pascal(a.key)}.lean").write_text("".join(f"import Tengoku.{pascal(a.key)}.{m}\n" for m in sorted(needed)))
         # tengoku's generator rewrites Tengoku/All.lean from the libraries that have a Deps.lean: an empty one (a comment) keeps this library in it
         (tree_root / "Deps.lean").write_text(f"-- {pascal(a.key)}: a factory bundle (data/intake/{a.key}). This file only marks the library for Tengoku/All.lean.\n")
@@ -564,8 +606,10 @@ def compose(a: argparse.Namespace) -> None:
         report = {"library": a.key, "lint_mode": mode, "gate2_unjudged": unjudged, "gate2_left_out": no_verdict, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]), "dropped_truncated": len(dropped) > 50,
                   "theorems": len(manifest), "notation_scoped": notation_scoped["scoped"], "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "textually_kept": textually_kept, "dependency_graph": ({**graph_stats, "text_kept_tainted": len(graph_stats["text_kept_tainted"]), "text_kept_tainted_first": graph_stats["text_kept_tainted"][:20], "taint_drops": a.taint_drops} if graph is not None else None), "failed_seeds_shipped": [f"{m}:{b[0]}" for m, b in failed_seeds[:50]], "failed_seeds_shipped_total": len(failed_seeds), "stripped_attributes": dict(stripped_attrs.most_common(15)),
                   "lint_cost": dict(sorted(classes.items(), key=lambda x: -x[1])[:15])}
+        if a.keep_dups:
+            report["dups"] = {"aliased": len(aliased), "aliased_modules": dict(list(aliased.items())[:50]), "kept_for_the_tree_build": 0 if tree_dups_by_mode is not None else len(dup_modules)}
         (out_dir / "report.json").write_text(json.dumps(report, indent=1))
-        summary[mode] = {k: v for k, v in report.items() if k not in ("dropped", "lint_cost", "left_out")}
+        summary[mode] = {k: v for k, v in report.items() if k not in ("dropped", "lint_cost", "left_out", "dups")}
     print(json.dumps(summary))
 
 
@@ -668,6 +712,8 @@ if __name__ == "__main__":
     c.add_argument("--drop-modules", default="", help="comma list of modules to leave out (with their importers): those that did not build on the tree")
     c.add_argument("--tree-names", default="", help="file of the record names the tree already has, one per line (tree_names.py): the modules that prove one are left out with their importers")
     c.add_argument("--tree-decls", default="", help="file of the Lean names the other namespaces of the tree declare, one per line (tree_names.py --decls-out): the modules that declare one are left out with their importers")
+    c.add_argument("--keep-dups", action="store_true", help="a module that declares a record or a Lean name the tree already has is not dropped: it stays in the draft for the tree's build to decide (tree_dups.py). Without --tree-dups it stays; with it, the ones shown to be the same as the tree's module are aliased and the rest are dropped")
+    c.add_argument("--tree-dups", default="", help="dups.json merged over the verified modes (tree_dups.py merge): per mode, the copies that are the same as a tree module, and the tree modules their importers import instead")
     c.add_argument("--tree-repairs", default="", help="repairs.json of tree_repair.py (merged over the verified modes): each module in it gets the heartbeat repairs the tree's build accepted, with the one-line docstring per repair")
     c.add_argument("--tree-failures", default="", help="file of the library modules (one per line) that did NOT build in the tree's own environment (tree_verify.py collect): they are left out with their importers AFTER the pruning, so every other module is exactly the text that was built there")
     c.add_argument("--taint-drops", action="store_true", help="a declaration that stands on a sorry in the library's own build (BundleKeep's `tainted`) is not kept for a text that names it, and the module that names it goes (off: it is only reported; the tree's own build judges it)")
