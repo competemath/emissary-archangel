@@ -91,7 +91,9 @@ def decide(mine: list[Pr], run: int | None, unmanaged_in_tree: bool, from_tree: 
     if any(p.state == "OPEN" for p in mine):
         return "skip", "a pull request of this library is open"
     merged = sorted((p for p in mine if p.state == "MERGED"), key=lambda p: p.part)
-    if merged and last_part_merged(merged):
+    # the merged part says 'part N of N' for the run it came from. A recut cut from the tree after it (`from_tree`, a newer run) has parts after N (lean-pool, 2026-10-19: part 14 of 14 merged, and the
+    # dups recut cut part 15): they are not behind the library's end. The run that has no such part is still found out when the part is opened ('the run has no part N: every part of it is in the tree').
+    if merged and last_part_merged(merged) and not (from_tree and merged[-1].run != run):
         return "skip", "every part is in the tree"
     if merged and not merged[-1].parted and not OF_TOTAL.search(merged[-1].title):
         return "skip", "the library arrived as one bundle, not in parts: nothing follows it"  # leaninfotheory: 'part 2' of a run that has no part archives, every 10 minutes
