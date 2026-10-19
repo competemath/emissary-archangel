@@ -57,11 +57,12 @@ class Chunks(unittest.TestCase):
         self.log = self.d / "batches.log"
         self.env = {**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}", "FAKE_LOG": str(self.log)}
 
-    def run_script(self, modules: list[str], minutes: str = "1", jobs: str = "3", batch: str = "4"):
+    def run_script(self, modules: list[str], minutes: str = "1", jobs: str | None = None, batch: str | None = None):
         lst = self.d / "list.txt"
         lst.write_text("".join(m + "\n" for m in modules))
         out = self.d / "out.txt"
-        r = subprocess.run(["bash", str(SCRIPT), str(lst), str(self.d / "whole.txt"), str(out), minutes, jobs, batch], cwd=self.d, env=self.env, capture_output=True, text=True, timeout=120)
+        extra = [jobs or "4", batch] if batch is not None else ([jobs] if jobs is not None else [])
+        r = subprocess.run(["bash", str(SCRIPT), str(lst), str(self.d / "whole.txt"), str(out), minutes, *extra], cwd=self.d, env=self.env, capture_output=True, text=True, timeout=120)
         return r, out
 
     def batch_sizes(self) -> list[int]:
@@ -76,16 +77,27 @@ class Chunks(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.modules_in(out), sorted(mods))
 
-    def test_a_process_that_crashes_loses_only_its_own_share(self):
-        mods = ["M.A0", "Bad.B", "M.A2", "M.A3", "M.A4", "M.A5"]  # round robin over 3: chunk 1 = Bad.B and M.A4, the others are untouched
-        r, out = self.run_script(mods)
+    def test_a_process_that_crashes_loses_only_its_own_module(self):
+        mods = ["M.A0", "Bad.B", "M.A2", "M.A3", "M.A4", "M.A5"]
+        r, out = self.run_script(mods)  # the default: a process per module
         self.assertEqual(r.returncode, 0, r.stderr)  # the script itself does not fail: the reader decides what a missing module means
-        self.assertEqual(self.modules_in(out), ["M.A0", "M.A2", "M.A3", "M.A5"])
+        self.assertEqual(self.modules_in(out), ["M.A0", "M.A2", "M.A3", "M.A4", "M.A5"])
         self.assertIn("crash on Bad.B", Path(str(out) + ".err").read_text())
+
+    def test_by_default_a_process_is_given_one_module(self):
+        """lean-pool recut 39316012196: several imports in one process lost the runner."""
+        r, out = self.run_script([f"M.A{i}" for i in range(9)])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.batch_sizes(), [1] * 9)
+
+    def test_a_batch_of_several_loses_all_its_modules_when_one_crashes(self):
+        mods = ["M.A0", "Bad.B", "M.A2", "M.A3", "M.A4", "M.A5"]  # round robin over 3: chunk 1 = Bad.B and M.A4, in one batch
+        r, out = self.run_script(mods, jobs="3", batch="4")
+        self.assertEqual(self.modules_in(out), ["M.A0", "M.A2", "M.A3", "M.A5"])
 
     def test_a_batch_that_crashes_loses_only_its_batch_and_the_process_goes_on(self):
         mods = ["M.A0", "Bad.B", "M.A2", "M.A3", "M.A4", "M.A5", "M.A6", "M.A7", "M.A8", "M.A9", "M.A10", "M.A11"]  # chunk 1 = Bad.B, M.A4, M.A7, M.A10; batches of two: [Bad.B, M.A4] [M.A7, M.A10]
-        r, out = self.run_script(mods, batch="2")
+        r, out = self.run_script(mods, jobs="3", batch="2")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.modules_in(out), sorted(set(mods) - {"Bad.B", "M.A4"}))  # the batch after the crash still ran
 
@@ -117,6 +129,12 @@ class Chunks(unittest.TestCase):
         r = subprocess.run(["bash", str(SCRIPT), str(lst), str(self.d / "whole.txt"), str(out), "0.1", "3"], cwd=self.d, env=env_slow, capture_output=True, text=True, timeout=120)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.modules_in(out), ["M.A0", "M.A2"])
+
+    def test_the_script_ends_when_the_processes_end_and_does_not_wait_for_its_memory_line(self):
+        """The memory line is printed by a loop in the background; waiting for every background job would never end (the other tests would hit their 120 s limit)."""
+        r, out = self.run_script(["M.A0"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.modules_in(out), ["M.A0"])
 
     def test_an_empty_list_is_an_empty_result_and_no_error(self):
         r, out = self.run_script([])

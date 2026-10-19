@@ -11,7 +11,7 @@ ModuleFingerprint — a deep fingerprint of every declaration of some modules, t
       FPEND <TAB> module <TAB> N                                               after the N declarations of a module that was fingerprinted completely
   or, when the module could not be imported or the run failed on it,    FPERR <TAB> module <TAB> the message     and goes on with the next module. Last:   fingerprints: N declarations
   A reader accepts a module only when its FPEND line is there and its count is the number of FP lines it read: a run that was killed leaves the modules it finished and nothing about the rest.
-  The files an environment maps are never freed (freeing them under the environment crashes the process): a process holds the closure of every module it did, so the caller starts a new one every few.
+  The files an environment maps are never freed (freeing them under the environment crashes the process), and a second import in one process has to read again the files the first one mapped: the caller (fingerprint_chunks.sh) starts a process per module.
   The exit status says only that the program ran (0).
 
 What the fingerprint is. For a declaration it covers: its kind, its universe parameters, its TYPE, and, for everything but a theorem, its VALUE (a definition, an instance, an abbrev, an
@@ -236,7 +236,7 @@ def hex16 (x : UInt64) : String :=
   "".pushn '0' (16 - s.length) ++ s
 
 /-- one module, in an environment of its own. The files the environment maps are never freed here: the environment's own objects point into them, and freeing them first (or letting the environment
-go afterwards) crashes the process (emissary#71). A process therefore holds the closure of every module it has fingerprinted: scripts/bump/fingerprint_chunks.sh starts a new one every few modules. -/
+go afterwards) crashes the process (emissary#71). Nor can a second environment map the same files again: scripts/bump/fingerprint_chunks.sh gives each process a module of its own. -/
 unsafe def fingerprintOne (nameMemo : IO.Ref (Std.HashMap Name H)) (constMemo : IO.Ref (Std.HashMap (Name × Name) H)) (whole : NameSet) (m : Name) : IO Nat := do
   let env ← importModules #[{ module := m }] {} (trustLevel := 0) (loadExts := false)
   let c : Ctx := { env, whole, exprMemo := ← IO.mkRef {}, nameMemo, constMemo }

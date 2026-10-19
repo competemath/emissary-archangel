@@ -478,6 +478,13 @@ class CopiesOfTreeModules(unittest.TestCase):
         self.assertIn("fingerprint_chunks.sh", after)
         self.assertIn("$PWD/out/dups-after.txt", after)
 
+    def test_the_runner_shows_its_memory_while_the_fingerprints_are_made(self):
+        """A runner that is lost leaves no artifact: the step's log is what survives, and it says how much memory there was and how many Lean processes ran."""
+        chunks = (PATH.parents[2] / "scripts" / "bump" / "fingerprint_chunks.sh").read_text()
+        self.assertIn("MemAvailable", chunks)
+        self.assertIn("process(es) running", chunks)
+        self.assertIn("jobs=${5:-4} batch=${6:-1}", chunks)  # four processes at once, a module each
+
     def test_the_copies_are_given_the_checkout_so_that_a_stale_compiled_file_is_no_partner(self):
         run = step("verify", "Copies of tree modules in the draft")["run"]
         self.assertIn("tree_dups.py candidates", run)
