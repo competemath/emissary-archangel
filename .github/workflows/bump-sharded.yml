@@ -295,16 +295,9 @@ jobs:
         run: |
           flag=(); if [ "$VERIFY_PARTIAL" = true ]; then flag=(--allow-unfinished); fi
           python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle "${flag[@]}"
-      # The queue's second step: the axioms of every declaration of what it built (Gate 2 checks theorems only: an instance made by `deriving Repr` on a Finset product
-      # rests on `lcProof`, and lean-pool part 10, which compiled, was rejected on it). ModuleAxioms.lean is that check with the module of each offender in its output.
-      - name: The axiom check of the queue, on every module that built
-        run: |
-          if [ -s out/built.txt ]; then
-            cd tree
-            timeout -k 60 15m lake env lean --run ../emissary/scripts/bump/ModuleAxioms.lean ../out/built.txt 2>&1 | tee ../out/axioms.txt
-          else
-            echo "axioms: 0 declarations checked, 0 with non-standard axioms" > out/axioms.txt
-          fi
+      # The axiom check imports every module that built in ONE Lean environment, so two modules that declare the same name stop it before it checks anything (lana-oka, 2026-10-19: the library's own copy of
+      # Mathlib's `Sheaf/Submodule` against the seed's, "import Tengoku.Seed.… failed, environment already contains 'SheafOfModules.Submodule.noConfusion'"; the clash scan sat after the axiom check and never
+      # ran, and the whole verify failed). The scan below reads the names without importing anything, so it comes first, and the modules it refuses are out of the list the axiom check imports.
       # The queue's last step imports the whole tree at once (`Tengoku.All`): two modules of different libraries that declare the same name stop it, and no module of one library imports another,
       # so nothing above sees it (lean-pool part 10, 2026-10-12: its vendored copy of AddCombi against the tree's AddCombi, "environment already contains"). ModuleClashes.lean reads the names
       # every module declares (no import: an import stops at the first clash) and lists the pairs that share one when one of them is new.
@@ -315,6 +308,20 @@ jobs:
             timeout -k 60 20m lake env lean --run ../emissary/scripts/bump/ModuleClashes.lean .lake/build/lib/lean ../out/built.txt Tengoku 2>&1 | tee ../out/clashes.txt
           else
             echo "clashes: 0 module pair(s), 0 name(s)" > out/clashes.txt
+          fi
+      - name: The modules that share a name with the tree leave the list the axioms are checked on
+        run: |
+          flag=(); if [ "$VERIFY_PARTIAL" = true ]; then flag=(--allow-unfinished); fi
+          python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle --clashes out/clashes.txt "${flag[@]}" > /dev/null
+      # The queue's second step: the axioms of every declaration of what it built (Gate 2 checks theorems only: an instance made by `deriving Repr` on a Finset product
+      # rests on `lcProof`, and lean-pool part 10, which compiled, was rejected on it). ModuleAxioms.lean is that check with the module of each offender in its output.
+      - name: The axiom check of the queue, on every module that built
+        run: |
+          if [ -s out/built.txt ]; then
+            cd tree
+            timeout -k 60 15m lake env lean --run ../emissary/scripts/bump/ModuleAxioms.lean ../out/built.txt 2>&1 | tee ../out/axioms.txt
+          else
+            echo "axioms: 0 declarations checked, 0 with non-standard axioms" > out/axioms.txt
           fi
       # The authority on the import of the whole tree is Lean itself, not a re-implementation of its rules: the static scan above missed a real clash (lean-pool part 10, twice: the tree's module
       # is a module-system file, whose olean has a public and a private part). A file that imports every module of the tree and the new ones that are still in play is elaborated, as the queue's

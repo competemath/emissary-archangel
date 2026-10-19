@@ -236,6 +236,14 @@ class Clashes(Fixture):
         self.assertIn("1 on a name another module declares", summary)
         self.assertIn("Toy.B: Indicator.«term𝟭_[_]» (+2 more) also declared by Tengoku.Other.Lib.X", summary)
 
+    def test_the_list_the_axiom_check_imports_is_without_the_clashing_module_and_its_importers(self):
+        """The axiom check imports `built.txt` in one environment: a module that shares a name with the tree stops it (lana-oka, 2026-10-19), so it is out of the list before that runs."""
+        self.apply()
+        self.collect_with(CLASH_B)
+        self.assertEqual((self.out / "built.txt").read_text().split(), ["Tengoku.ToyLib.Toy.C", "Tengoku.ToyLib.Toy.D"])
+        self.collect_with(CLASH_B.replace("Toy.B", "Toy.C"))  # D imports C
+        self.assertEqual((self.out / "built.txt").read_text().split(), ["Tengoku.ToyLib.Toy.B"])
+
     def test_the_pair_may_name_the_new_module_on_either_side(self):
         got = tv.clash_offenders("CLASH\tTengoku.Other.Lib.X\tTengoku.ToyLib.Toy.B\t1\tfoo\nclashes: 1 module pair(s), 1 name(s)\n", {"Tengoku.ToyLib.Toy.B"})
         self.assertEqual(got, {"Tengoku.ToyLib.Toy.B": ["foo also declared by Tengoku.Other.Lib.X"]})

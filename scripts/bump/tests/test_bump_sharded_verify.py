@@ -96,9 +96,9 @@ class Privileges(unittest.TestCase):
 
 
 class PartialBuilds(unittest.TestCase):
-    def test_the_flag_reaches_both_collect_steps_only_when_asked_for(self):
+    def test_the_flag_reaches_every_collect_step_only_when_asked_for(self):
         self.assertEqual(JOBS["verify"]["env"]["VERIFY_PARTIAL"], "${{ inputs.verify_partial }}")
-        for name in ("What the build accepted", "What the tree accepted"):
+        for name in ("What the build accepted", "The modules that share a name with the tree", "What the tree accepted"):
             run = step("verify", name)["run"]
             self.assertIn('if [ "$VERIFY_PARTIAL" = true ]; then flag=(--allow-unfinished); fi', run, name)
             self.assertIn('"${flag[@]}"', run, name)
@@ -115,12 +115,29 @@ class TheUnionCheck(unittest.TestCase):
     def names(self) -> list[str]:
         return [s.get("name", "") for s in JOBS["verify"]["steps"]]
 
-    def test_it_runs_after_the_axiom_check_and_before_the_final_verdict(self):
+    def test_it_runs_after_the_build_is_read_and_before_the_axiom_check(self):
         n = self.names()
-        axioms = next(i for i, x in enumerate(n) if x.startswith("The axiom check"))
+        first = next(i for i, x in enumerate(n) if x.startswith("What the build accepted"))
         clash = next(i for i, x in enumerate(n) if x.startswith("The names that two modules"))
+        axioms = next(i for i, x in enumerate(n) if x.startswith("The axiom check"))
         last = next(i for i, x in enumerate(n) if x.startswith("What the tree accepted"))
-        self.assertTrue(axioms < clash < last)
+        self.assertTrue(first < clash < axioms < last)
+
+    def test_a_module_that_shares_a_name_never_reaches_the_axiom_check(self):
+        """lana-oka, 2026-10-19: the axiom check imports everything that built in ONE environment, and the library's own copy of Mathlib's Sheaf/Submodule (SheafOfModules.Submodule.noConfusion,
+        also in the seed) stopped it with `environment already contains`, before the scan that names such a pair had run: the whole verify failed and nothing shipped."""
+        n = self.names()
+        clash = next(i for i, x in enumerate(n) if x.startswith("The names that two modules"))
+        refresh = next(i for i, x in enumerate(n) if x.startswith("The modules that share a name with the tree"))
+        axioms = next(i for i, x in enumerate(n) if x.startswith("The axiom check"))
+        self.assertTrue(clash < refresh < axioms)
+        run = step("verify", "The modules that share a name with the tree")["run"]
+        self.assertIn("tree_verify.py collect", run)
+        self.assertIn("--out out", run)  # it rewrites out/built.txt, the list the axiom check imports
+        self.assertIn("--clashes out/clashes.txt", run)
+        self.assertNotIn("--axioms", run)  # there is no axiom check yet
+        self.assertNotIn("env", step("verify", "The modules that share a name with the tree"))  # no token
+        self.assertIn("../out/built.txt", step("verify", "The axiom check")["run"])
 
     def test_it_reads_the_modules_that_built_and_the_verdict_reads_its_output(self):
         run = step("verify", "The names that two modules")["run"]
