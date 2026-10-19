@@ -58,6 +58,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import bundle_layers as bl  # noqa: E402
+import lean_names  # noqa: E402
 import bundle_rehead as rehead  # noqa: E402
 import tolerant_build as tb  # noqa: E402
 import tree_verify as tv  # noqa: E402
@@ -223,6 +224,16 @@ def apply_fork_text(text: str, namespace: str) -> str | None:
     return "\n".join(body + ["", f"end {namespace}", ""])
 
 
+def wrap_escapes(text: str, namespace: str) -> list[str]:
+    """The names a module declares outside `namespace` once it is wrapped in it: a `theorem _root_.foo` stays `foo` (CodeRabbit on emissary#73). Such a module is not forked: its declaration would still
+    be the clashing one, and the theorem would be recorded under a name (`<namespace>.foo`) the shipped module does not declare. A `_root_.` in a type, a value, a comment or a string is not a declaration
+    (lean_names.names reads code only)."""
+    wrapped = apply_fork_text(text, namespace)
+    if wrapped is None:
+        return []
+    return sorted(n for n in lean_names.names(wrapped) if not n.startswith(namespace + "."))
+
+
 def purge_build(tree: Path, rel: str) -> None:
     """The compiled files of a module that leaves the checkout (a stale olean must not be read by anything that imports the tree)."""
     stem = Path(rel).with_suffix("")
@@ -295,14 +306,24 @@ def choose_forks(not_same: dict[str, str], cand: dict, before: Fp, aliased_plain
     (`apply_fork_text`). An identical copy that imports a forked one is not wrapped: it leaves the bundle."""
     forks = {m: why for m, why in not_same.items() if tv.plain(m) in before}
     kept_not_same = {m: why for m, why in not_same.items() if m not in forks}
+    namespace = fork_namespace(ns)
+
+    def problem(plain_module: str) -> str:
+        text = texts.get(plain_module, "")
+        if apply_fork_text(text, namespace) is None:
+            return f"{plain_module} cannot be wrapped in a namespace (Lean's module system or prelude)"
+        if escapes := wrap_escapes(text, namespace):
+            return f"{plain_module} declares {', '.join(f'`{n}`' for n in escapes[:3])} outside the namespace (`_root_`)"
+        return ""
+
     while True:
-        wrap = {tv.plain(m) for m in forks} | {tv.plain(x) for m in forks for x in cand[m]["importers"]}
-        wrap -= aliased_plain
-        bad = {m for m in forks if any(apply_fork_text(texts.get(w, ""), fork_namespace(ns)) is None for w in ({tv.plain(m)} | {tv.plain(x) for x in cand[m]["importers"]}) - aliased_plain)}
+        members = {m: ({tv.plain(m)} | {tv.plain(x) for x in cand[m]["importers"]}) - aliased_plain for m in forks}
+        wrap = set().union(*members.values()) if members else set()
+        bad = {m: why for m in forks if (why := next((pr for w in sorted(members[m]) if (pr := problem(w))), ""))}
         if not bad:
             return forks, wrap, kept_not_same
-        for m in bad:  # a module of the fork cannot be wrapped (Lean's `module` system, or no header): the copy goes the way it went before this step
-            kept_not_same[m] = forks.pop(m) + "; it, or a module that imports it, cannot be wrapped in a namespace"
+        for m, why in bad.items():  # a module of the fork cannot be wrapped faithfully: the copy goes the way it went before this step
+            kept_not_same[m] = forks.pop(m) + "; not forked: " + why
 
 
 def cmd_plan(a: argparse.Namespace) -> None:

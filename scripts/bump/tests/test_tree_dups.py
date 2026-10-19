@@ -552,6 +552,21 @@ class ChooseForks(unittest.TestCase):
         self.assertEqual((forks, wrap), ({}, set()))
         self.assertIn("cannot be wrapped", kept["Tengoku.L.M"])
 
+    def test_a_declaration_that_escapes_the_namespace_stops_the_fork_and_says_so(self):
+        """CodeRabbit on emissary#73: `theorem _root_.foo` stays `foo` inside the namespace, so the wrapped module would still declare the clashing name."""
+        forks, wrap, kept = self.choose(texts={**self.TEXTS, "Tengoku.L.B": "import Tengoku.L.M\n\ntheorem _root_.escapes : True := trivial\n"})
+        self.assertEqual((forks, wrap), ({}, set()))
+        self.assertIn("`escapes`", kept["Tengoku.L.M"])
+
+    def test_a_root_reference_in_a_type_a_comment_or_a_string_is_not_an_escape(self):
+        text = "import Tengoku.L.M\n\n/-- _root_.no -/\ntheorem g : _root_.Nat.zero = 0 := rfl\ndef s := \"theorem _root_.not_a_decl\"\n"
+        forks, wrap, _ = self.choose(texts={**self.TEXTS, "Tengoku.L.B": text})
+        self.assertEqual(list(forks), ["Tengoku.L.M"])
+
+    def test_a_private_declaration_is_not_an_escape(self):
+        forks, _, _ = self.choose(texts={**self.TEXTS, "Tengoku.L.B": "import Tengoku.L.M\n\nprivate theorem hidden : True := trivial\n"})
+        self.assertEqual(list(forks), ["Tengoku.L.M"])
+
     def test_an_identical_copy_that_imports_a_forked_one_is_not_wrapped(self):
         forks, wrap, _ = self.choose(aliased={"Tengoku.L.B"})
         self.assertEqual(wrap, {"Tengoku.L.M"})
