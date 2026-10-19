@@ -338,10 +338,10 @@ jobs:
           cap=$(( (JOB_START + 355 * 60 - $(date +%s)) / 60 - 110 )); [ "$cap" -gt 60 ] && cap=60
           if [ "$cap" -lt 6 ]; then echo "::warning::no time left to fingerprint the copies of tree modules"; exit 0; fi
           # the copies and what imports them, then the tree's modules; the tree's modules are named in both so that they are compared whole, like the library's own. Every module is fingerprinted in
-          # an environment of its own, in three processes at once (fingerprint_chunks.sh): a module that cannot be loaded, or a process that dies, loses only its own share
+          # an environment of its own, in a process of its own, four at once (fingerprint_chunks.sh): a module that cannot be loaded, or a process that dies, loses only its own share
           chunks=emissary/scripts/bump/fingerprint_chunks.sh
-          bash "$chunks" "$PWD/out/dups-before.txt" "$PWD/out/dups-partners.txt" out/fp-before.txt "$((cap * 2 / 3))" 3
-          bash "$chunks" "$PWD/out/dups-partners.txt" "$PWD/out/dups-partners.txt" out/fp-partners.txt "$((cap / 3))" 3
+          bash "$chunks" "$PWD/out/dups-before.txt" "$PWD/out/dups-partners.txt" out/fp-before.txt "$((cap * 2 / 3))"
+          bash "$chunks" "$PWD/out/dups-partners.txt" "$PWD/out/dups-partners.txt" out/fp-partners.txt "$((cap / 3))"
           n() { grep -c "^$1" "$2" || true; }  # grep -c prints 0 and exits 1 when nothing matches
           echo "fingerprinted: $(n FPEND out/fp-before.txt) of $(wc -l < out/dups-before.txt) copies and importers, $(n FPEND out/fp-partners.txt) of $(wc -l < out/dups-partners.txt) tree modules; $(( $(n FPERR out/fp-before.txt) + $(n FPERR out/fp-partners.txt) )) could not be loaded"
       - name: Copies of tree modules, decided; their importers move to the tree's module (tree_dups.py plan)
@@ -373,7 +373,7 @@ jobs:
           : > out/fp-after.txt
           cap=$(( (JOB_START + 355 * 60 - $(date +%s)) / 60 - 110 )); [ "$cap" -gt 60 ] && cap=60
           if [ -s out/dups-after.txt ] && [ "$cap" -ge 6 ]; then
-            bash emissary/scripts/bump/fingerprint_chunks.sh "$PWD/out/dups-after.txt" "$PWD/out/dups-partners.txt" out/fp-after.txt "$cap" 3
+            bash emissary/scripts/bump/fingerprint_chunks.sh "$PWD/out/dups-after.txt" "$PWD/out/dups-partners.txt" out/fp-after.txt "$cap"
           elif [ -s out/dups-after.txt ]; then
             echo "::warning::no time left to fingerprint the importers again: none of them is kept"
           fi
