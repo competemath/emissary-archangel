@@ -13,6 +13,9 @@ ModuleFingerprint — a deep fingerprint of every declaration of some modules, t
   A reader accepts a module only when its FPEND line is there and its count is the number of FP lines it read: a run that was killed leaves the modules it finished and nothing about the rest.
   The files an environment maps are never freed (freeing them under the environment crashes the process), and a second import in one process has to read again the files the first one mapped: the caller (fingerprint_chunks.sh) starts a process per module.
   The exit status says only that the program ran (0).
+  FP_STRIP (environment, optional): a namespace, `LeanPoolFork`. A name that starts with it is read without it (`LeanPoolFork.Foo.bar` is `Foo.bar`), in what is printed and in what is hashed: a library
+  module that tree_dups.py wrapped in that namespace is fingerprinted as the original text is, and the two are the same exactly when every declaration is the same term (the dependencies' own
+  fingerprints are part of it). Every run that is to be compared with another is given the same value.
 
 What the fingerprint is. For a declaration it covers: its kind, its universe parameters, its TYPE, and, for everything but a theorem, its VALUE (a definition, an instance, an abbrev, an
 opaque constant); for an inductive type, the types of its constructors (a mutual family is one unit); and, recursively, the same for every constant its type or value mentions, except the
@@ -61,11 +64,13 @@ partial def levelH : Level → H
   | .param n => comb (tag 24) (strH n.toString)
   | .mvar _ => tag 25
 
-/-- a private name without the module it is mangled with: the same private helper in two modules is the same name -/
-def canon (n : Name) : Name :=
-  match privateToUserName? n with
-  | some u => u
-  | none => n
+/-- a private name without the module it is mangled with (the same private helper in two modules is the same name), and without the namespace `strip` that a forked copy of a library module is wrapped
+in (tree_dups.py: the same declaration in the wrapped text and in the original is then the same name, and a wrapped module is fingerprinted as the original would be) -/
+def canon (strip : Name) (n : Name) : Name :=
+  let n := match privateToUserName? n with
+    | some u => u
+    | none => n
+  if strip.isAnonymous || n == strip || !strip.isPrefixOf n then n else n.replacePrefix strip Name.anonymous
 
 def binderCode : BinderInfo → Nat
   | .default => 0
@@ -76,13 +81,14 @@ def binderCode : BinderInfo → Nat
 structure Ctx where
   env : Environment
   whole : NameSet
+  strip : Name                                    -- the namespace a forked module is wrapped in ("" when none)
   exprMemo : IO.Ref (Std.HashMap USize H)        -- by address: only valid inside one environment
   nameMemo : IO.Ref (Std.HashMap Name H)         -- by content: valid everywhere
   constMemo : IO.Ref (Std.HashMap (Name × Name) H) -- by (declaring module, name): the same compiled module is the same constant in every environment
 
 def nameH (c : Ctx) (n : Name) : IO H := do
   if let some h := (← c.nameMemo.get)[n]? then return h
-  let h := strH (canon n).toString
+  let h := strH (canon c.strip n).toString
   c.nameMemo.modify (·.insert n h)
   return h
 
@@ -237,16 +243,16 @@ def hex16 (x : UInt64) : String :=
 
 /-- one module, in an environment of its own. The files the environment maps are never freed here: the environment's own objects point into them, and freeing them first (or letting the environment
 go afterwards) crashes the process (emissary#71). Nor can a second environment map the same files again: scripts/bump/fingerprint_chunks.sh gives each process a module of its own. -/
-unsafe def fingerprintOne (nameMemo : IO.Ref (Std.HashMap Name H)) (constMemo : IO.Ref (Std.HashMap (Name × Name) H)) (whole : NameSet) (m : Name) : IO Nat := do
+unsafe def fingerprintOne (nameMemo : IO.Ref (Std.HashMap Name H)) (constMemo : IO.Ref (Std.HashMap (Name × Name) H)) (whole : NameSet) (strip : Name) (m : Name) : IO Nat := do
   let env ← importModules #[{ module := m }] {} (trustLevel := 0) (loadExts := false)
-  let c : Ctx := { env, whole, exprMemo := ← IO.mkRef {}, nameMemo, constMemo }
+  let c : Ctx := { env, whole, strip, exprMemo := ← IO.mkRef {}, nameMemo, constMemo }
   let some idx := env.getModuleIdx? m | throw (IO.userError s!"not imported: {m}")
   let mut lines : Array String := #[]
   for n in env.header.moduleData[idx.toNat]!.constNames do
     if n.isInternal || n.hasMacroScopes then continue
     let some ci := env.find? n | continue
     let h ← deep c n
-    lines := lines.push s!"FP\t{m}\t{canon n}\t{kindName ci}\t{hex16 h.1}{hex16 h.2}"
+    lines := lines.push s!"FP\t{m}\t{canon strip n}\t{kindName ci}\t{hex16 h.1}{hex16 h.2}"
   for l in lines do IO.println l
   IO.println s!"FPEND\t{m}\t{lines.size}"
   (← IO.getStdout).flush  -- a process that is killed later keeps the modules it finished
@@ -258,10 +264,12 @@ unsafe def run (names whole : List Name) : IO UInt32 := do
   let wholeSet : NameSet := (names ++ whole).foldl (fun s m => s.insert m) {}
   let nameMemo ← IO.mkRef ({} : Std.HashMap Name H)
   let constMemo ← IO.mkRef ({} : Std.HashMap (Name × Name) H)
+  let stripName := ((← IO.getEnv "FP_STRIP").getD "").trimAscii.toString
+  let strip : Name := if stripName.isEmpty then Name.anonymous else stripName.toName
   let mut count := 0
   for m in names do
     try
-      count := count + (← fingerprintOne nameMemo constMemo wholeSet m)
+      count := count + (← fingerprintOne nameMemo constMemo wholeSet strip m)
     catch e =>
       IO.println s!"FPERR\t{m}\t{(toString e).replace "\n" " "}"
   IO.println s!"fingerprints: {count} declarations"

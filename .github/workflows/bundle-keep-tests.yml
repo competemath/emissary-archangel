@@ -197,6 +197,57 @@ jobs:
           echo "$out"
           if ! echo "$out" | grep -q "^FPERR"$'\t'"No.Such.Module"; then echo "a module that does not exist was not reported"; exit 1; fi
           if echo "$out" | grep -q "^FPEND"; then echo "a module that does not exist produced a verdict"; exit 1; fi
+      # A forked copy (tree_dups.py): the library module wrapped in a namespace (`ToyFork`) by `apply_fork_text`, built, and fingerprinted with the namespace left off (FP_STRIP). Toy modules, core Lean only:
+      #   D declares `Nat.dbl` (2 * n) and a constant that stands on it; V stands on D by an explicit name (`Nat.dbl 3`); W stands on D by dot notation (`(3 : Nat).dbl`); T declares another `Nat.dbl` (n + n).
+      #   Df, Vf are D and V wrapped (Vf imports Df); Wb is W wrapped, which also imports T. What the program must show, read by tree_dups.py:
+      #   the wrapped copy and its importer are, declaration for declaration, what they were (Nat.dbl, Toy2.k; Toy2.w, Toy2.u); the namespace is left off only when FP_STRIP says so;
+      #   and W is NOT Wb: wrapped, dot notation finds T's `Nat.dbl` (a name that resolves to another declaration compiles, and the fingerprint of what stands on it is not the original's).
+      - name: ModuleFingerprint.lean reads a wrapped copy as the original, and sees a name that now resolves to another declaration
+        working-directory: gate2
+        run: |
+          root="$RUNNER_TEMP/fp2oleans"; src="$RUNNER_TEMP/fp2src"
+          for m in LibT/T LibD/D LibV/V LibW/W LibDf/Df LibVf/Vf LibWb/Wb; do mkdir -p "$root/Tengoku/$(dirname $m)" "$src/Tengoku/$(dirname $m)"; done
+          printf 'def Nat.dbl (n : Nat) : Nat := n + n\n' > "$src/Tengoku/LibT/T.lean"
+          printf 'def Nat.dbl (n : Nat) : Nat := 2 * n\ndef Toy2.k : Nat := Nat.dbl 4\n' > "$src/Tengoku/LibD/D.lean"
+          printf 'import Tengoku.LibD.D\n\ntheorem Toy2.w : Nat.dbl 3 = 6 := rfl\ntheorem Toy2.u : Toy2.k = 8 := rfl\n' > "$src/Tengoku/LibV/V.lean"
+          printf 'import Tengoku.LibD.D\n\ntheorem Toy2.d : (3 : Nat).dbl = 6 := rfl\n' > "$src/Tengoku/LibW/W.lean"
+          RUNNER_SRC="$src" python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, "../scripts/bump")
+          import tree_dups as td
+          src = os.environ["RUNNER_SRC"] + "/Tengoku/"
+          read = lambda p: open(src + p).read()
+          def put(p, text):
+              assert text is not None, p
+              open(src + p, "w").write(text)
+          put("LibDf/Df.lean", td.apply_fork_text(read("LibD/D.lean"), "ToyFork"))
+          put("LibVf/Vf.lean", td.apply_fork_text(read("LibV/V.lean").replace("Tengoku.LibD.D", "Tengoku.LibDf.Df"), "ToyFork"))
+          put("LibWb/Wb.lean", td.apply_fork_text(read("LibW/W.lean").replace("Tengoku.LibD.D", "Tengoku.LibDf.Df").replace("import Tengoku.LibDf.Df", "import Tengoku.LibDf.Df\nimport Tengoku.LibT.T"), "ToyFork"))
+          PY
+          lp="$root:$(lake env printenv LEAN_PATH)"
+          for m in LibT/T LibD/D LibV/V LibW/W LibDf/Df LibVf/Vf LibWb/Wb; do
+            lake env env LEAN_PATH="$lp" lean --root="$src" -o "$root/Tengoku/$m.olean" "$src/Tengoku/$m.lean"
+          done
+          fp() { lake env env LEAN_PATH="$lp" FP_STRIP=ToyFork lean --run ../scripts/bump/ModuleFingerprint.lean "$@"; }
+          printf 'Tengoku.LibD.D\nTengoku.LibV.V\nTengoku.LibW.W\n' > "$RUNNER_TEMP/fp2-orig.txt"; fp "$RUNNER_TEMP/fp2-orig.txt" > "$RUNNER_TEMP/fp2-orig.out"
+          printf 'Tengoku.LibDf.Df\nTengoku.LibVf.Vf\nTengoku.LibWb.Wb\n' > "$RUNNER_TEMP/fp2-wrap.txt"; fp "$RUNNER_TEMP/fp2-wrap.txt" > "$RUNNER_TEMP/fp2-wrap.out"
+          lake env env LEAN_PATH="$lp" lean --run ../scripts/bump/ModuleFingerprint.lean "$RUNNER_TEMP/fp2-wrap.txt" > "$RUNNER_TEMP/fp2-nostrip.out"
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, "../scripts/bump")
+          import tree_dups as td
+          t = os.environ["RUNNER_TEMP"]
+          read = lambda n: td.parse_fp(open(os.path.join(t, n)).read())
+          o, w, ns = read("fp2-orig.out"), read("fp2-wrap.out"), read("fp2-nostrip.out")
+          assert not o.errors and not w.errors, (o.errors, w.errors)
+          D, V, W, Df, Vf, Wb = "Tengoku.LibD.D", "Tengoku.LibV.V", "Tengoku.LibW.W", "Tengoku.LibDf.Df", "Tengoku.LibVf.Vf", "Tengoku.LibWb.Wb"
+          assert set(o[D]) == {"Nat.dbl", "Toy2.k"} and set(o[V]) == {"Toy2.w", "Toy2.u"}, (sorted(o[D]), sorted(o[V]))
+          assert o[D] == w[Df], "the wrapped copy is the original, declaration for declaration"
+          assert o[V] == w[Vf], "what imports it, wrapped, is what it was"
+          assert o[W] != w[Wb], "wrapped, `(3 : Nat).dbl` finds T's Nat.dbl: it compiles and is another declaration"
+          assert set(ns[Df]) == {"ToyFork.Nat.dbl", "ToyFork.Toy2.k"}, "without FP_STRIP the namespace is part of the name"
+          print("a wrapped copy reads as the original; a name that resolves elsewhere does not")
+          PY
       # The authority on the import of the whole tree is Lean: the toy oleans of the step above (A and B declare Toy.clashing, Toy.thmDiff and Toy.ax; A, B and C declare Toy.thmDup, a theorem of one type)
       # are imported by a real `lean`. It must refuse A with B and say which module and which name (tree_verify.union_failure reads that), and accept A with C (the duplicate theorem is allowed).
       - name: Lean refuses the import of two modules that declare one name, accepts duplicate theorems of one type, and tree_verify reads the refusal
