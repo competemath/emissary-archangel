@@ -56,6 +56,7 @@ check("too few entries", !validateBundle({ ...good(), entries: good().entries.sl
 check("too many entries", !validateBundle({ ...good(), entries: Array.from({ length: 11 }, (_, i) => entry(i.toString(16), `t${i}`)).map((e, i) => ({ ...e, id: String(i).padStart(8, "a") })) }).ok)
 check("author required", !validateBundle({ ...good(), author: "" }).ok)
 check("repeated id", !validateBundle({ ...good(), entries: [good().entries[0], good().entries[0], good().entries[2]] }).ok)
+check("a seed lemma cannot be nominated", !validateBundle({ ...good(), entries: [{ ...good().entries[0], origin: "seed" }, ...good().entries.slice(1)] }).ok)
 check("bad name", !validateBundle({ ...good(), entries: [{ ...good().entries[0], name: "not a name" }, ...good().entries.slice(1)] }).ok)
 
 // banned constructs
