@@ -25,8 +25,12 @@ def h(n: int) -> str:
 
 
 def fp(rows: dict[str, dict[str, tuple[str, int]]]) -> str:
-    lines = [f"FP\t{m}\t{n}\t{kind}\t{h(v)}" for m, decls in rows.items() for n, (kind, v) in decls.items()]
-    return "\n".join(lines) + f"\nfingerprints: {len(lines)} declarations\n"
+    """what ModuleFingerprint.lean prints: a module's `FP` lines, then its `FPEND`; the total last"""
+    lines = []
+    for m, decls in rows.items():
+        lines += [f"FP\t{m}\t{n}\t{kind}\t{h(v)}" for n, (kind, v) in decls.items()]
+        lines.append(f"FPEND\t{m}\t{len(decls)}")
+    return "\n".join(lines) + f"\nfingerprints: {sum(len(d) for d in rows.values())} declarations\n"
 
 
 def write(root: Path, files: dict[str, str]) -> Path:
@@ -72,19 +76,36 @@ class AliasText(unittest.TestCase):
 
 
 class Parsing(unittest.TestCase):
-    def test_a_fingerprint_run_without_its_ending_is_refused(self):
-        with self.assertRaises(SystemExit) as e:
-            td.parse_fp(f"FP\tA\tf\tdef\t{h(1)}\n")
-        self.assertIn("no ending", str(e.exception))
+    def test_a_module_cut_short_is_absent_not_an_error_and_not_a_clean_empty_module(self):
+        """A run that was killed in the middle of a module: that module is not fingerprinted (it must not pass as the same), and the modules it finished are."""
+        got = td.parse_fp(f"FP\tA\tf\tdef\t{h(1)}\nFPEND\tA\t1\nFP\tB\tg\tdef\t{h(2)}\n")
+        self.assertEqual(list(got), ["A"])
+        self.assertNotIn("B", got)
 
-    def test_a_fingerprint_run_whose_count_does_not_match_is_refused(self):
-        with self.assertRaises(SystemExit) as e:
-            td.parse_fp(f"FP\tA\tf\tdef\t{h(1)}\nfingerprints: 2 declarations\n")
-        self.assertIn("incomplete", str(e.exception))
+    def test_a_module_whose_count_does_not_match_is_not_fingerprinted_and_says_why(self):
+        got = td.parse_fp(f"FP\tA\tf\tdef\t{h(1)}\nFPEND\tA\t2\nfingerprints: 2 declarations\n")
+        self.assertEqual(dict(got), {})
+        self.assertIn("incomplete", got.errors["A"])
+
+    def test_a_module_the_program_could_not_load_carries_the_programs_message(self):
+        """Lean-pool 2026-10-19: one import clash lost a whole batch. Now it loses the module it happened in."""
+        got = td.parse_fp(f"FPERR\tTengoku.L.M\timport failed, environment already contains 'Foo.bar'\nFP\tN\tf\tdef\t{h(1)}\nFPEND\tN\t1\n")
+        self.assertEqual(list(got), ["N"])
+        self.assertIn("already contains", got.errors["Tengoku.L.M"])
+
+    def test_a_module_with_no_declaration_is_there_and_empty(self):
+        self.assertEqual(dict(td.parse_fp("FPEND\tA\t0\n")), {"A": {}})
+
+    def test_the_outputs_of_several_processes_are_read_as_one(self):
+        got = td.parse_fp(fp({"A": {"f": ("def", 1)}}) + fp({"B": {"g": ("def", 2)}}))
+        self.assertEqual(sorted(got), ["A", "B"])
 
     def test_modules_are_read_without_guillemets(self):
-        got = td.parse_fp(f"FP\tTengoku.L.«A-B»\tf\tdef\t{h(1)}\nfingerprints: 1 declarations\n")
+        got = td.parse_fp(f"FP\tTengoku.L.«A-B»\tf\tdef\t{h(1)}\nFPEND\tTengoku.L.«A-B»\t1\nfingerprints: 1 declarations\n")
         self.assertEqual(list(got), ["Tengoku.L.A-B"])
+
+    def test_a_file_that_is_not_there_is_none(self):
+        self.assertIsNone(td.parse_fp_file("/nonexistent/fp.txt"))
 
     def test_clashes_name_the_tree_module_a_new_module_shares_a_name_with_on_either_side(self):
         text = "CLASH\tTengoku.L.M\tTengoku.O.X\t2\tf\nCLASH\tTengoku.O.Y\tTengoku.L.N\t1\tg\nclashes: 2 module pair(s), 3 name(s)\n"
@@ -147,7 +168,31 @@ class Decide(unittest.TestCase):
         self.assertIsNone(td.decide("Tengoku.L.M", ["Tengoku.O.X"], before, self.PARTNER)[0])
 
     def test_no_declaration_is_no_verdict_not_a_vacuous_yes(self):
-        self.assertIsNone(td.decide("Tengoku.L.M", ["Tengoku.O.X"], {}, self.PARTNER)[0])
+        self.assertIsNone(td.decide("Tengoku.L.M", ["Tengoku.O.X"], td.parse_fp("FPEND\tTengoku.L.M\t0\n"), self.PARTNER)[0])
+
+    def test_a_copy_that_was_not_fingerprinted_is_no_verdict_and_the_reason_is_the_programs(self):
+        before = td.parse_fp("FPERR\tTengoku.L.M\timport failed, environment already contains 'Foo.bar'\n")
+        got, why = td.decide("Tengoku.L.M", ["Tengoku.O.X"], before, self.PARTNER)
+        self.assertIsNone(got)
+        self.assertIn("already contains", why)
+
+    def test_a_copy_the_run_never_reached_is_no_verdict(self):
+        got, why = td.decide("Tengoku.L.M", ["Tengoku.O.X"], td.parse_fp(""), self.PARTNER)
+        self.assertIsNone(got)
+        self.assertIn("did not reach", why)
+
+    def test_a_tree_module_that_was_not_fingerprinted_is_no_verdict_and_is_named(self):
+        """Never 'same' on the strength of nothing: the declaration may be in the module that could not be read."""
+        before = td.parse_fp(fp({"Tengoku.L.M": {"f": ("def", 1)}}))
+        partner = td.parse_fp("FPERR\tTengoku.O.X\tcould not load\n")
+        got, why = td.decide("Tengoku.L.M", ["Tengoku.O.X"], before, partner)
+        self.assertIsNone(got)
+        self.assertIn("Tengoku.O.X: could not load", why)
+
+    def test_one_tree_module_that_was_not_fingerprinted_does_not_hide_a_match_in_another(self):
+        partner = td.parse_fp(fp({"Tengoku.O.Y": {"f": ("def", 1)}}) + "FPERR\tTengoku.O.X\tcould not load\n")
+        before = td.parse_fp(fp({"Tengoku.L.M": {"f": ("def", 1)}}))
+        self.assertEqual(td.decide("Tengoku.L.M", ["Tengoku.O.X", "Tengoku.O.Y"], before, partner)[0], ["Tengoku.O.Y"])
 
     def test_the_declarations_may_come_from_several_tree_modules(self):
         partner = td.parse_fp(fp({"Tengoku.O.X": {"f": ("def", 1)}, "Tengoku.O.Y": {"g": ("theorem", 2)}}))
@@ -180,7 +225,7 @@ class Flow(unittest.TestCase):
         (self.d / "clashes.txt").write_text(self.CLASH)
         # the stale compiled files of the copy
         write(self.tree, {".lake/build/lib/lean/Tengoku/ToyLib/Toy/M.olean": "x", ".lake/build/lib/lean/Tengoku/ToyLib/Toy/M.ilean": "x", ".lake/build/lib/lean/Tengoku/ToyLib/Toy/B.olean": "x"})
-        td.main(["candidates", "--clashes", str(self.d / "clashes.txt"), "--new", str(self.out / "new.json"), "--built", str(self.out / "built.txt"), "--bundle", str(self.bundle), "--out", str(self.out), "--mode", "proposed"])
+        td.main(["candidates", "--clashes", str(self.d / "clashes.txt"), "--new", str(self.out / "new.json"), "--built", str(self.out / "built.txt"), "--bundle", str(self.bundle), "--tree", str(self.tree), "--out", str(self.out), "--mode", "proposed"])
 
     def plan(self, before_hash: int = 1):
         before = fp({"Tengoku.ToyLib.Toy.M": {"Toy.f": ("def", before_hash)}, "Tengoku.ToyLib.Toy.B": {"Toy.t": ("theorem", 10)}, "Tengoku.ToyLib.Toy.C": {"Toy.u": ("theorem", 11)}})
@@ -209,7 +254,7 @@ class Flow(unittest.TestCase):
 
     def test_a_copy_that_did_not_build_is_no_candidate(self):
         (self.out / "built.txt").write_text("Tengoku.ToyLib.Toy.B\n")
-        td.main(["candidates", "--clashes", str(self.d / "clashes.txt"), "--new", str(self.out / "new.json"), "--built", str(self.out / "built.txt"), "--bundle", str(self.bundle), "--out", str(self.out), "--mode", "proposed"])
+        td.main(["candidates", "--clashes", str(self.d / "clashes.txt"), "--new", str(self.out / "new.json"), "--built", str(self.out / "built.txt"), "--bundle", str(self.bundle), "--tree", str(self.tree), "--out", str(self.out), "--mode", "proposed"])
         got = json.loads((self.out / "dups-candidates.json").read_text())
         self.assertEqual(json.loads((self.out / "dups.json").read_text())["aliases"], {})  # the default verdict is always there
         self.assertEqual(got["candidates"], {})
@@ -286,7 +331,7 @@ class Flow(unittest.TestCase):
 
     def test_a_fingerprint_run_that_did_not_finish_aliases_nothing_and_changes_nothing(self):
         """No verdict is never a yes: the copy stays where it was and goes the way it went before this step."""
-        (self.d / "fp-before.txt").write_text("FP\tTengoku.ToyLib.Toy.M\tToy.f\tdef\t" + h(1) + "\n")  # cut short: no ending
+        (self.d / "fp-before.txt").write_text("FP\tTengoku.ToyLib.Toy.M\tToy.f\tdef\t" + h(1) + "\n")  # cut short: no FPEND for the module
         (self.d / "fp-partners.txt").write_text(fp({"Tengoku.Other.Lib.X": {"Toy.f": ("def", 1)}}))
         before = {p: (self.tree / p).read_text() for p in self.FILES if (self.tree / p).exists()}
         td.main(["plan", "--candidates", str(self.out / "dups-candidates.json"), "--fp-before", str(self.d / "fp-before.txt"), "--fp-partners", str(self.d / "fp-partners.txt"),
@@ -294,10 +339,34 @@ class Flow(unittest.TestCase):
         self.assertEqual({p: (self.tree / p).read_text() for p in before}, before)
         self.assertEqual(json.loads((self.out / "dups.json").read_text())["aliases"], {})
 
+    def test_a_copy_the_program_could_not_load_is_not_aliased_and_the_reason_is_recorded(self):
+        (self.d / "fp-before.txt").write_text("FPERR\tTengoku.ToyLib.Toy.M\timport failed, environment already contains 'Toy.f'\n")
+        (self.d / "fp-partners.txt").write_text(fp({"Tengoku.Other.Lib.X": {"Toy.f": ("def", 1)}}))
+        td.main(["plan", "--candidates", str(self.out / "dups-candidates.json"), "--fp-before", str(self.d / "fp-before.txt"), "--fp-partners", str(self.d / "fp-partners.txt"),
+                 "--new", str(self.out / "new.json"), "--tree", str(self.tree), "--out", str(self.out), "--mode", "proposed"])
+        dups = json.loads((self.out / "dups.json").read_text())
+        self.assertEqual(dups["aliases"], {})
+        self.assertIn("already contains", dups["not_same"]["Toy.M"])
+        self.assertTrue((self.tree / "Tengoku/ToyLib/Toy/M.lean").exists())
+
+    def test_a_tree_module_that_is_only_a_stale_compiled_file_is_no_partner(self):
+        """2026-10-19: the cache keeps the compiled file of a module that moved; the clash scan reads it, and an import of it is an import of a file the tree does not have."""
+        (self.d / "stale.txt").write_text("CLASH\tTengoku.ToyLib.Toy.M\tTengoku.Gone.Lib.X\t1\tToy.f\nclashes: 1 module pair(s), 1 name(s)\n")
+        td.main(["candidates", "--clashes", str(self.d / "stale.txt"), "--new", str(self.out / "new.json"), "--built", str(self.out / "built.txt"), "--bundle", str(self.bundle), "--tree", str(self.tree), "--out", str(self.out), "--mode", "proposed"])
+        got = json.loads((self.out / "dups-candidates.json").read_text())
+        self.assertEqual(got["candidates"], {})
+        self.assertIn("no source in the tree", got["skipped"]["Tengoku.ToyLib.Toy.M"])
+        self.assertEqual((self.out / "dups-partners.txt").read_text(), "")
+
+    def test_a_stale_partner_does_not_hide_a_real_one(self):
+        (self.d / "both.txt").write_text("CLASH\tTengoku.ToyLib.Toy.M\tTengoku.Gone.Lib.X\t1\tToy.f\nCLASH\tTengoku.ToyLib.Toy.M\tTengoku.Other.Lib.X\t1\tToy.f\nclashes: 2 module pair(s), 2 name(s)\n")
+        td.main(["candidates", "--clashes", str(self.d / "both.txt"), "--new", str(self.out / "new.json"), "--built", str(self.out / "built.txt"), "--bundle", str(self.bundle), "--tree", str(self.tree), "--out", str(self.out), "--mode", "proposed"])
+        self.assertEqual(json.loads((self.out / "dups-candidates.json").read_text())["candidates"]["Tengoku.ToyLib.Toy.M"]["partners"], ["Tengoku.Other.Lib.X"])
+
     def test_after_the_swap_importers_that_cannot_be_compared_are_refused(self):
         self.plan()
         (self.d / "log2.txt").write_text(self.BUILT2)
-        (self.d / "fp-after.txt").write_text("FP\tTengoku.ToyLib.Toy.B\tToy.t\ttheorem\t" + h(10) + "\n")  # cut short
+        (self.d / "fp-after.txt").write_text("FP\tTengoku.ToyLib.Toy.B\tToy.t\ttheorem\t" + h(10) + "\n")  # cut short: no FPEND
         common = ["--candidates", str(self.out / "dups-candidates.json"), "--dups", str(self.out / "dups.json"), "--new", str(self.out / "new.json"), "--tree", str(self.tree), "--log2", str(self.d / "log2.txt"), "--out", str(self.out)]
         td.main(["after-verdict", *common, "--fp-before", str(self.d / "fp-before.txt"), "--fp-after", str(self.d / "fp-after.txt")])
         refused = dict(ln.split("\t") for ln in (self.out / "dups-failures.txt").read_text().splitlines())
@@ -306,7 +375,7 @@ class Flow(unittest.TestCase):
 
     def test_nothing_to_decide_when_there_is_no_copy(self):
         (self.d / "none.txt").write_text("clashes: 0 module pair(s), 0 name(s)\n")
-        td.main(["candidates", "--clashes", str(self.d / "none.txt"), "--new", str(self.out / "new.json"), "--built", str(self.out / "built.txt"), "--bundle", str(self.bundle), "--out", str(self.out), "--mode", "proposed"])
+        td.main(["candidates", "--clashes", str(self.d / "none.txt"), "--new", str(self.out / "new.json"), "--built", str(self.out / "built.txt"), "--bundle", str(self.bundle), "--tree", str(self.tree), "--out", str(self.out), "--mode", "proposed"])
         self.assertEqual((self.out / "dups-before.txt").read_text(), "")
         td.main(["plan", "--candidates", str(self.out / "dups-candidates.json"), "--fp-before", "/nonexistent", "--fp-partners", "/nonexistent", "--new", str(self.out / "new.json"), "--tree", str(self.tree),
                  "--out", str(self.out), "--mode", "proposed"])

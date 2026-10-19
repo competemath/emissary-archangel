@@ -55,7 +55,8 @@ import tolerant_build as tb  # noqa: E402
 import tree_verify as tv  # noqa: E402
 
 FP_LINE = re.compile(r"^FP\t(?P<mod>[^\t\n]+)\t(?P<name>[^\t\n]+)\t(?P<kind>[^\t\n]+)\t(?P<hash>[0-9a-f]{32})$", re.M)
-FP_DONE = re.compile(r"^fingerprints: (?P<n>\d+) declarations$", re.M)
+FP_END = re.compile(r"^FPEND\t(?P<mod>[^\t\n]+)\t(?P<n>\d+)$", re.M)
+FP_ERR = re.compile(r"^FPERR\t(?P<mod>[^\t\n]+)\t(?P<msg>[^\n]*)$", re.M)
 IMPORT_RE = re.compile(r"^(\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)?)(" + tb.MODNAME + r")(.*)$")
 COMPONENT = re.compile(r"[^\W\d][\w']*")
 # What Lean names itself while it elaborates a declaration: the matcher, the numbered proof and equation lemmas. Their numbers depend on the order the declarations were elaborated in, not on what is
@@ -63,7 +64,14 @@ COMPONENT = re.compile(r"[^\W\d][\w']*")
 # fingerprint, so that one still differs. They are left out of the comparison of the copy's own declarations, never out of a fingerprint.
 AUX = re.compile(r"^(?:match_\d+(?:_\d+)*|proof_\d+|eq_\d+|eq_def|eq_unfold|congr_simp)$")
 
-Fp = dict[str, dict[str, tuple[str, str]]]  # module (plain) -> declaration -> (kind, 32 hex digits)
+class Fp(dict):
+    """module (plain) -> declaration -> (kind, 32 hex digits), for the modules that were fingerprinted completely; `errors`: module -> why it was not (the program's message)."""
+
+    errors: dict[str, str]
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.errors = {}
 
 
 def sha256(data: bytes) -> str:
@@ -83,30 +91,28 @@ def read_lines(path: str | Path) -> list[str]:
 
 
 def parse_fp(text: str) -> Fp:
-    """The fingerprints of a ModuleFingerprint.lean run. A run with no `fingerprints:` line did not finish, and one whose count does not match its lines was cut short: both are refused,
-    because a module that was never fingerprinted must not pass as the same."""
-    done = FP_DONE.search(text)
-    if done is None:
-        sys.exit("the fingerprint run has no ending (it crashed or was killed): nothing is known about the copies; refusing to guess")
-    rows = list(FP_LINE.finditer(text))
-    if int(done.group("n")) != len(rows):
-        sys.exit(f"the fingerprint run says {done.group('n')} declaration(s) and lists {len(rows)}: its output is incomplete; refusing to guess")
-    out: Fp = defaultdict(dict)
-    for m in rows:
-        out[tv.plain(m.group("mod"))][m.group("name")] = (m.group("kind"), m.group("hash"))
+    """The fingerprints of one or several ModuleFingerprint.lean runs (their outputs may be joined). A module counts only when its `FPEND` line is there AND its count is the number of `FP` lines read for it:
+    a run that was killed, or a module the program could not import (`FPERR`), leaves that module out, and a module that was never fingerprinted must not pass as the same (the callers read its absence
+    as 'no verdict' before the swap and as a refusal after it)."""
+    rows: dict[str, dict[str, tuple[str, str]]] = defaultdict(dict)
+    for m in FP_LINE.finditer(text):
+        rows[tv.plain(m.group("mod"))][m.group("name")] = (m.group("kind"), m.group("hash"))
+    out = Fp()
+    for e in FP_END.finditer(text):
+        mod = tv.plain(e.group("mod"))
+        if int(e.group("n")) == len(rows.get(mod, {})):
+            out[mod] = rows.get(mod, {})
+        else:
+            out.errors[mod] = f"its fingerprint is incomplete ({e.group('n')} declarations announced, {len(rows.get(mod, {}))} read)"
+    for e in FP_ERR.finditer(text):
+        out.errors[tv.plain(e.group("mod"))] = e.group("msg")[:300]
     return out
 
 
 def parse_fp_file(path: str) -> Fp | None:
-    """The fingerprints in a file, or None when the file is missing or the run did not finish (the caller decides what no verdict means: before the swap, nothing is aliased; after it, nothing is kept)."""
+    """The fingerprints in a file, or None when the file is missing (the step did not run). Whatever is in the file is read module by module (`parse_fp`)."""
     p = Path(path)
-    if not p.is_file():
-        return None
-    try:
-        return parse_fp(p.read_text(errors="replace"))
-    except SystemExit as e:
-        print(f"::warning::{e}")
-        return None
+    return parse_fp(p.read_text(errors="replace")) if p.is_file() else None
 
 
 def clash_pairs(text: str, new_plain: set[str]) -> tuple[dict[str, set[str]], set[str]]:
@@ -136,18 +142,22 @@ def decide(module: str, partners: list[str], before: Fp, partner_fp: Fp) -> tupl
     """(the tree modules to import instead of `module`, "") when every declaration of `module` is a declaration of those modules with the same fingerprint; (None, why) when that cannot be shown.
     `module` and the partners are plain names. A module with no fingerprinted declaration is no verdict: an empty comparison would call anything the same. Lean's own auxiliary declarations (AUX) are not
     compared one by one: whatever states something in terms of one has its name in its fingerprint."""
-    decls = {n: v for n, v in (before.get(module) or {}).items() if not AUX.match(n.rsplit(".", 1)[-1])}
+    if module not in before:
+        return None, "it was not fingerprinted" + (f" ({getattr(before, 'errors', {}).get(module, 'the run did not reach it')})")
+    decls = {n: v for n, v in before[module].items() if not AUX.match(n.rsplit(".", 1)[-1])}
     if not decls:
         return None, "no declaration of it was fingerprinted"
     owners: dict[str, list[tuple[str, tuple[str, str]]]] = defaultdict(list)
     for p in partners:
         for name, v in partner_fp.get(tv.plain(p), {}).items():
             owners[name].append((p, v))
+    unread = [p for p in partners if tv.plain(p) not in partner_fp]
     used: set[str] = set()
     for name, v in sorted(decls.items()):
         cands = owners.get(name)
         if not cands:
-            return None, f"`{name}` is not declared by the tree's module(s)"
+            # a tree module that was not fingerprinted may be the one that declares it: say so, so that the reason is not read as "the tree does not have it"
+            return None, f"`{name}` is not declared by the tree's module(s)" + (f" that were fingerprinted ({unread[0]}: {getattr(partner_fp, 'errors', {}).get(tv.plain(unread[0]), 'the run did not reach it')})" if unread else "")
         same = sorted(p for p, pv in cands if pv == v)
         if not same:
             return None, f"`{name}` is not the same as the tree's (its type, or something it stands on, differs)"
@@ -202,6 +212,12 @@ def importers_of(root: str, graph: dict[str, list[str]]) -> set[str]:
     return tv.dependents({root}, graph)
 
 
+def has_source(tree: Path, module: str) -> bool:
+    """The module is a file of the tree's sources (`Tengoku.A.B` is `Tengoku/A/B.lean`). ModuleClashes reads every compiled file of the cache, and the cache keeps the compiled file of a module that moved
+    (2026-10-19: `Tengoku.Std.CodeAction.Deprecated` next to `Tengoku.Seed.Std.CodeAction.Deprecated`): importing such a module is an import of a file that is not in the tree."""
+    return (tree / Path(*tv.plain(module).split("."))).with_suffix(".lean").is_file()
+
+
 def cmd_candidates(a: argparse.Namespace) -> None:
     new = json.loads(Path(a.new).read_text())
     ns, mods = new["ns"], new["modules"]
@@ -214,7 +230,10 @@ def cmd_candidates(a: argparse.Namespace) -> None:
     skipped: dict[str, str] = {}
     for plain_m, ps in sorted(partners.items()):
         m = keyed[plain_m]
-        if plain_m in both_new:
+        ps = {p for p in ps if has_source(Path(a.tree), p)}
+        if not ps:
+            skipped[m] = "the module it shares a name with has no source in the tree (a stale compiled file)"
+        elif plain_m in both_new:
             skipped[m] = "it also shares a name with another new module of the bundle"
         elif plain_m not in built:
             skipped[m] = "it did not build in the tree"
@@ -324,10 +343,11 @@ def cmd_after_verdict(a: argparse.Namespace) -> None:
         if x in gone:
             refused[keyed[x]] = "it does not build on the tree's module, was not reached by the build, or imports a module that does not"
             continue
-        if before is None or after is None:  # the checkout was already changed: what cannot be compared is not shown to be the same
-            refused[keyed[x]] = "its fingerprints could not be compared (a fingerprint run did not finish)"
+        b, f = (before.get(x) if before is not None else None), (after.get(x) if after is not None else None)
+        if b is None or f is None:  # the checkout was already changed: what cannot be compared is not shown to be the same
+            why = (getattr(after, "errors", {}) if f is None and after is not None else getattr(before, "errors", {})).get(x, "a fingerprint run did not reach it")
+            refused[keyed[x]] = f"its fingerprints could not be compared ({why})"
             continue
-        b, f = before.get(x, {}), after.get(x, {})  # a module the run covered and that declares nothing has no line
         for name in sorted(set(b) | set(f)):
             if b.get(name) != f.get(name):
                 refused[keyed[x]] = f"`{name}` is " + ("missing" if name not in f else "new" if name not in b else "not the same") + " on the tree's module"
@@ -376,6 +396,7 @@ def main(argv: list[str] | None = None) -> None:
     c.add_argument("--new", required=True)
     c.add_argument("--built", required=True, help="out/built.txt: the new modules that built")
     c.add_argument("--bundle", required=True)
+    c.add_argument("--tree", required=True, help="the checkout: a tree module that has no source file in it is not a module to import")
     c.add_argument("--out", required=True)
     c.add_argument("--mode", required=True)
     c.set_defaults(fn=cmd_candidates)
