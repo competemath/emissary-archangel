@@ -136,7 +136,9 @@ jobs:
       #   M's declarations have I's fingerprints, and D's do not: `Toy.f` differs, and `Toy.g` and `Toy.t` differ although their TEXT is the same, because they stand on `Toy.f` (the fingerprint is deep);
       #   a proof is not read (`Toy.p1`: two proofs of one statement, one fingerprint); a binder annotation is (`Toy.imp`: `{n}` against `(n)`);
       #   X on the copy = Y on the tree's module, declaration for declaration, and X on D is not (what the swap check compares);
-      #   a seed module is a leaf unless it is named in the second file.
+      #   a seed module is a leaf unless it is named in the second file;
+      #   every module is fingerprinted in an environment of its own: I and M declare the same names, and a run that names both (lean-pool, 2026-10-19: one import clash lost a whole batch) gives each its
+      #   fingerprints; a module that is not there (`No.Such.Module`) is an `FPERR` of its own and costs the others nothing.
       - name: ModuleFingerprint.lean fingerprints a copy like the tree's module, and tree_dups reads its output
         working-directory: gate2
         run: |
@@ -162,13 +164,14 @@ jobs:
           printf 'Tengoku.LibY.Y\n' > "$RUNNER_TEMP/fp-y.txt"; fp "$RUNNER_TEMP/fp-y.txt" > "$RUNNER_TEMP/fp-y.out"
           printf 'Tengoku.LibW.W\n' > "$RUNNER_TEMP/fp-w.txt"; fp "$RUNNER_TEMP/fp-w.txt" > "$RUNNER_TEMP/fp-w1.out"
           printf 'Tengoku.Seed.S\n' > "$RUNNER_TEMP/fp-s.txt"; fp "$RUNNER_TEMP/fp-w.txt" "$RUNNER_TEMP/fp-s.txt" > "$RUNNER_TEMP/fp-w2.out"
+          printf 'Tengoku.LibI.I\nNo.Such.Module\nTengoku.LibM.M\n' > "$RUNNER_TEMP/fp-mix.txt"; fp "$RUNNER_TEMP/fp-mix.txt" > "$RUNNER_TEMP/fp-mix.out"
           python3 - <<'PY'
           import os, sys
           sys.path.insert(0, "../scripts/bump")
           import tree_dups as td
           t = os.environ["RUNNER_TEMP"]
           read = lambda n: td.parse_fp(open(os.path.join(t, n)).read())
-          xm, i, dz, y, w1, w2 = read("fp-xm.out"), read("fp-i.out"), read("fp-dz.out"), read("fp-y.out"), read("fp-w1.out"), read("fp-w2.out")
+          xm, i, dz, y, w1, w2, mix = read("fp-xm.out"), read("fp-i.out"), read("fp-dz.out"), read("fp-y.out"), read("fp-w1.out"), read("fp-w2.out"), read("fp-mix.out")
           M, I, D, X, Y, Z = "Tengoku.LibM.M", "Tengoku.LibI.I", "Tengoku.LibD.D", "Tengoku.LibX.X", "Tengoku.LibY.Y", "Tengoku.LibZ.Z"
           assert {"Toy.f", "Toy.g", "Toy.t", "Toy.p1", "Toy.imp"} <= set(xm[M]), sorted(xm[M])
           assert xm[M] == i[I], "the copy is the tree's module declaration for declaration"
@@ -182,13 +185,18 @@ jobs:
           assert xm[X] != dz[Z], "the importer on a different module is not"
           assert all(len(h) == 32 for _, h in xm[M].values())
           assert w1["Tengoku.LibW.W"]["Toy.w"] != w2["Tengoku.LibW.W"]["Toy.w"], "a seed module named in the second file is compared whole"
+          assert mix["Tengoku.LibI.I"] == i[I] and mix[M] == i[I], "two modules that declare the same names are each fingerprinted, in one run"
+          assert "No.Such.Module" in mix.errors and "No.Such.Module" not in mix, "a module that is not there is an error of its own and no verdict"
           print("fingerprints agree where they must and differ where they must")
           PY
       - name: ModuleFingerprint.lean is no clean run on a module that is not there
         working-directory: gate2
         run: |
           printf 'No.Such.Module\n' > "$RUNNER_TEMP/nofp.txt"
-          if lake env lean --run ../scripts/bump/ModuleFingerprint.lean "$RUNNER_TEMP/nofp.txt" 2>&1 | grep -q "^fingerprints: "; then echo "a module that does not exist produced a verdict"; exit 1; fi
+          out=$(lake env lean --run ../scripts/bump/ModuleFingerprint.lean "$RUNNER_TEMP/nofp.txt" 2>&1) || true
+          echo "$out"
+          if ! echo "$out" | grep -q "^FPERR"$'\t'"No.Such.Module"; then echo "a module that does not exist was not reported"; exit 1; fi
+          if echo "$out" | grep -q "^FPEND"; then echo "a module that does not exist produced a verdict"; exit 1; fi
       # The authority on the import of the whole tree is Lean: the toy oleans of the step above (A and B declare Toy.clashing, Toy.thmDiff and Toy.ax; A, B and C declare Toy.thmDup, a theorem of one type)
       # are imported by a real `lean`. It must refuse A with B and say which module and which name (tree_verify.union_failure reads that), and accept A with C (the duplicate theorem is allowed).
       - name: Lean refuses the import of two modules that declare one name, accepts duplicate theorems of one type, and tree_verify reads the refusal

@@ -5,10 +5,14 @@ ModuleFingerprint — a deep fingerprint of every declaration of some modules, t
   modules.txt: one module per line, exact names, without guillemets (`Tengoku.Lib.Foo.A-B`): the declarations of exactly these modules are fingerprinted
   whole.txt (optional, same format): modules of the tree's seed that are compared whole, like the library's own, wherever they are reached from. Every comparison that is to agree with another
              must be given the same list (a seed module is otherwise a leaf: counted by name and type, see below).
-  prints, for every declaration of these modules that is not internal (no `_private`, no `_aux…`, no macro scopes):
-      FP <TAB> module <TAB> declaration <TAB> kind <TAB> 32 hex digits
-  and last:   fingerprints: N declarations
-  The exit status says only that the program ran (0): a log that has no `fingerprints:` line is a run that did not finish.
+  Every module is fingerprinted in an environment of its own (its imports and nothing else): modules that declare one name (a copy and the tree's module) never meet, so one clash does not lose
+  the others (2026-10-19, lean-pool: 512 copies and 576 importers in ONE environment stopped at the first clash and nothing was fingerprinted). For each module it prints
+      FP <TAB> module <TAB> declaration <TAB> kind <TAB> 32 hex digits         one per declaration that is not internal (no `_private`, no `_aux…`, no macro scopes)
+      FPEND <TAB> module <TAB> N                                               after the N declarations of a module that was fingerprinted completely
+  or, when the module could not be imported or the run failed on it,    FPERR <TAB> module <TAB> the message     and goes on with the next module. Last:   fingerprints: N declarations
+  A reader accepts a module only when its FPEND line is there and its count is the number of FP lines it read: a run that was killed leaves the modules it finished and nothing about the rest.
+  The files an environment maps are never freed (freeing them under the environment crashes the process): a process holds the closure of every module it did, so the caller starts a new one every few.
+  The exit status says only that the program ran (0).
 
 What the fingerprint is. For a declaration it covers: its kind, its universe parameters, its TYPE, and, for everything but a theorem, its VALUE (a definition, an instance, an abbrev, an
 opaque constant); for an inductive type, the types of its constructors (a mutual family is one unit); and, recursively, the same for every constant its type or value mentions, except the
@@ -72,9 +76,9 @@ def binderCode : BinderInfo → Nat
 structure Ctx where
   env : Environment
   whole : NameSet
-  exprMemo : IO.Ref (Std.HashMap USize H)
-  nameMemo : IO.Ref (Std.HashMap Name H)
-  constMemo : IO.Ref (Std.HashMap Name H)
+  exprMemo : IO.Ref (Std.HashMap USize H)        -- by address: only valid inside one environment
+  nameMemo : IO.Ref (Std.HashMap Name H)         -- by content: valid everywhere
+  constMemo : IO.Ref (Std.HashMap (Name × Name) H) -- by (declaring module, name): the same compiled module is the same constant in every environment
 
 def nameH (c : Ctx) (n : Name) : IO H := do
   if let some h := (← c.nameMemo.get)[n]? then return h
@@ -87,6 +91,11 @@ def leafModule (m : Name) : Bool :=
   (match m.getRoot with
     | .str _ s => s == "Init" || s == "Std" || s == "Lean" || s == "Lake"
     | _ => false) || m == `Tengoku || (`Tengoku.Seed).isPrefixOf m
+
+def declaringModule (c : Ctx) (n : Name) : Name :=
+  match c.env.getModuleIdxFor? n with
+  | some idx => (c.env.header.moduleNames[idx.toNat]?).getD Name.anonymous
+  | none => Name.anonymous
 
 def isLeaf (c : Ctx) (n : Name) : Bool :=
   match c.env.getModuleIdxFor? n with
@@ -207,9 +216,10 @@ def depsOf (env : Environment) (ci : ConstantInfo) : Array Name :=
 
 /-- the deep fingerprint of a constant: its own (`shallow`) and those of every constant it stands on, below the leaves -/
 unsafe def deep (c : Ctx) (n : Name) : IO H := do
-  if let some h := (← c.constMemo.get)[n]? then return h
+  let key := (declaringModule c n, n)
+  if let some h := (← c.constMemo.get)[key]? then return h
   let some ci := c.env.find? n | return comb (tag 99) (← nameH c n)
-  c.constMemo.modify (·.insert n (tag 98)) -- an edge back into what is being computed (there is none in a Lean environment, but a hash must not loop)
+  c.constMemo.modify (·.insert key (tag 98)) -- an edge back into what is being computed (there is none in a Lean environment, but a hash must not loop)
   let leaf := isLeaf c n
   let mut h ← shallow c ci (!leaf)
   if !leaf then
@@ -218,28 +228,42 @@ unsafe def deep (c : Ctx) (n : Name) : IO H := do
       parts := parts.push (comb (← nameH c d) (← deep c d))
     parts := parts.qsort hlt
     for p in parts do h := comb h p
-  c.constMemo.modify (·.insert n h)
+  c.constMemo.modify (·.insert key h)
   return h
 
 def hex16 (x : UInt64) : String :=
   let s := String.ofList (Nat.toDigits 16 x.toNat)
   "".pushn '0' (16 - s.length) ++ s
 
+/-- one module, in an environment of its own. The files the environment maps are never freed here: the environment's own objects point into them, and freeing them first (or letting the environment
+go afterwards) crashes the process (emissary#71). A process therefore holds the closure of every module it has fingerprinted: scripts/bump/fingerprint_chunks.sh starts a new one every few modules. -/
+unsafe def fingerprintOne (nameMemo : IO.Ref (Std.HashMap Name H)) (constMemo : IO.Ref (Std.HashMap (Name × Name) H)) (whole : NameSet) (m : Name) : IO Nat := do
+  let env ← importModules #[{ module := m }] {} (trustLevel := 0) (loadExts := false)
+  let c : Ctx := { env, whole, exprMemo := ← IO.mkRef {}, nameMemo, constMemo }
+  let some idx := env.getModuleIdx? m | throw (IO.userError s!"not imported: {m}")
+  let mut lines : Array String := #[]
+  for n in env.header.moduleData[idx.toNat]!.constNames do
+    if n.isInternal || n.hasMacroScopes then continue
+    let some ci := env.find? n | continue
+    let h ← deep c n
+    lines := lines.push s!"FP\t{m}\t{canon n}\t{kindName ci}\t{hex16 h.1}{hex16 h.2}"
+  for l in lines do IO.println l
+  IO.println s!"FPEND\t{m}\t{lines.size}"
+  (← IO.getStdout).flush  -- a process that is killed later keeps the modules it finished
+  return lines.size
+
 unsafe def run (names whole : List Name) : IO UInt32 := do
   enableInitializersExecution
   initSearchPath (← findSysroot)
-  let env ← importModules (names.toArray.map fun m => { module := m }) {} (trustLevel := 0) (loadExts := true)
   let wholeSet : NameSet := (names ++ whole).foldl (fun s m => s.insert m) {}
-  let c : Ctx := { env, whole := wholeSet, exprMemo := ← IO.mkRef {}, nameMemo := ← IO.mkRef {}, constMemo := ← IO.mkRef {} }
+  let nameMemo ← IO.mkRef ({} : Std.HashMap Name H)
+  let constMemo ← IO.mkRef ({} : Std.HashMap (Name × Name) H)
   let mut count := 0
   for m in names do
-    let some idx := env.getModuleIdx? m | IO.eprintln s!"not imported: {m}"; return 3
-    for n in env.header.moduleData[idx.toNat]!.constNames do
-      if n.isInternal || n.hasMacroScopes then continue
-      let some ci := env.find? n | continue
-      let h ← deep c n
-      IO.println s!"FP\t{m}\t{canon n}\t{kindName ci}\t{hex16 h.1}{hex16 h.2}"
-      count := count + 1
+    try
+      count := count + (← fingerprintOne nameMemo constMemo wholeSet m)
+    catch e =>
+      IO.println s!"FPERR\t{m}\t{(toString e).replace "\n" " "}"
   IO.println s!"fingerprints: {count} declarations"
   return 0
 

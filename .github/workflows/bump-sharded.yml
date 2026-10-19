@@ -321,7 +321,7 @@ jobs:
               cd ..
               # a scan that did not finish (killed, out of time) has no `clashes:` line: nothing is known, nothing is aliased, and the job goes on (the clash scan after these steps decides, as before)
               if grep -q '^clashes: ' out/clashes-dups.txt; then
-                python3 emissary/scripts/bump/tree_dups.py candidates --clashes out/clashes-dups.txt --new out/new.json --built out/built.txt --bundle bundle --out out --mode "$MODE"
+                python3 emissary/scripts/bump/tree_dups.py candidates --clashes out/clashes-dups.txt --new out/new.json --built out/built.txt --bundle bundle --tree tree --out out --mode "$MODE"
                 if [ -s out/dups-before.txt ]; then found=true; fi
               else
                 echo "::warning::the clash scan for copies of tree modules did not finish: nothing is aliased"
@@ -337,11 +337,13 @@ jobs:
         run: |
           cap=$(( (JOB_START + 355 * 60 - $(date +%s)) / 60 - 110 )); [ "$cap" -gt 60 ] && cap=60
           if [ "$cap" -lt 6 ]; then echo "::warning::no time left to fingerprint the copies of tree modules"; exit 0; fi
-          cd tree
-          # the copies and what imports them, then the tree's modules; the tree's modules are named in both so that they are compared whole, like the library's own
-          timeout -k 30 "$((cap * 2 / 3))m" lake env lean --run ../emissary/scripts/bump/ModuleFingerprint.lean ../out/dups-before.txt ../out/dups-partners.txt > ../out/fp-before.txt 2> ../out/fp-before.err || true
-          timeout -k 30 "$((cap / 3))m" lake env lean --run ../emissary/scripts/bump/ModuleFingerprint.lean ../out/dups-partners.txt ../out/dups-partners.txt > ../out/fp-partners.txt 2> ../out/fp-partners.err || true
-          tail -n 1 ../out/fp-before.txt ../out/fp-partners.txt
+          # the copies and what imports them, then the tree's modules; the tree's modules are named in both so that they are compared whole, like the library's own. Every module is fingerprinted in
+          # an environment of its own, in three processes at once (fingerprint_chunks.sh): a module that cannot be loaded, or a process that dies, loses only its own share
+          chunks=emissary/scripts/bump/fingerprint_chunks.sh
+          bash "$chunks" "$PWD/out/dups-before.txt" "$PWD/out/dups-partners.txt" out/fp-before.txt "$((cap * 2 / 3))" 3
+          bash "$chunks" "$PWD/out/dups-partners.txt" "$PWD/out/dups-partners.txt" out/fp-partners.txt "$((cap / 3))" 3
+          n() { grep -c "^$1" "$2" || true; }  # grep -c prints 0 and exits 1 when nothing matches
+          echo "fingerprinted: $(n FPEND out/fp-before.txt) of $(wc -l < out/dups-before.txt) copies and importers, $(n FPEND out/fp-partners.txt) of $(wc -l < out/dups-partners.txt) tree modules; $(( $(n FPERR out/fp-before.txt) + $(n FPERR out/fp-partners.txt) )) could not be loaded"
       - name: Copies of tree modules, decided; their importers move to the tree's module (tree_dups.py plan)
         id: dups_plan
         if: ${{ steps.dups_find.outputs.found == 'true' }}
@@ -371,11 +373,9 @@ jobs:
           : > out/fp-after.txt
           cap=$(( (JOB_START + 355 * 60 - $(date +%s)) / 60 - 110 )); [ "$cap" -gt 60 ] && cap=60
           if [ -s out/dups-after.txt ] && [ "$cap" -ge 6 ]; then
-            (cd tree && timeout -k 30 "${cap}m" lake env lean --run ../emissary/scripts/bump/ModuleFingerprint.lean ../out/dups-after.txt ../out/dups-partners.txt) > out/fp-after.txt 2> out/fp-after.err || true
+            bash emissary/scripts/bump/fingerprint_chunks.sh "$PWD/out/dups-after.txt" "$PWD/out/dups-partners.txt" out/fp-after.txt "$cap" 3
           elif [ -s out/dups-after.txt ]; then
             echo "::warning::no time left to fingerprint the importers again: none of them is kept"
-          else
-            echo "fingerprints: 0 declarations" > out/fp-after.txt
           fi
           python3 emissary/scripts/bump/tree_dups.py after-verdict "${common[@]}" --fp-before out/fp-before.txt --fp-after out/fp-after.txt | tee -a out/dups.txt
           { echo "### Copies of tree modules ($KEY, $MODE)"; cat out/dups.txt; } >> "$GITHUB_STEP_SUMMARY"

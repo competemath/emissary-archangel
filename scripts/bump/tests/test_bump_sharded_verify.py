@@ -447,13 +447,50 @@ class CopiesOfTreeModules(unittest.TestCase):
 
     def test_the_program_prints_what_the_python_side_reads(self):
         lean = (PATH.parents[2] / "scripts" / "bump" / "ModuleFingerprint.lean").read_text()
-        self.assertIn('IO.println s!"FP\\t{m}\\t{canon n}\\t{kindName ci}\\t{hex16 h.1}{hex16 h.2}"', lean)
+        self.assertRegex(lean, r'FP\\t\{m\}\\t\{canon n\}\\t\{kindName ci\}\\t\{hex16 h\.1\}\{hex16 h\.2\}')
+        self.assertIn('IO.println s!"FPEND\\t{m}\\t{lines.size}"', lean)  # a module counts only with its ending
+        self.assertIn('IO.println s!"FPERR\\t{m}\\t', lean)  # a module that cannot be loaded says so and the run goes on
         self.assertIn('IO.println s!"fingerprints: {count} declarations"', lean)
         self.assertNotIn("sorry", lean)  # it is a program that decides nothing about truth, and says so
 
+    def test_every_module_is_fingerprinted_in_an_environment_of_its_own(self):
+        """lean-pool 2026-10-19: all the copies in one `importModules` stopped at the first name two of them declare, and the whole batch was lost."""
+        lean = (PATH.parents[2] / "scripts" / "bump" / "ModuleFingerprint.lean").read_text()
+        self.assertIn("importModules #[{ module := m }]", lean)
+        self.assertNotIn("importModules (", lean)
+
+    def test_the_files_an_environment_maps_are_never_freed(self):
+        """emissary#71, first CI run: `Environment.freeRegions` in a `finally` crashed the program (exit 139) on the first module: the environment's own objects point into the regions, and are released after
+        them. A process is given a few modules at a time instead (fingerprint_chunks.sh), which keeps it under the limit of files one process may map."""
+        lean = (PATH.parents[2] / "scripts" / "bump" / "ModuleFingerprint.lean").read_text()
+        self.assertNotIn("freeRegions", lean)
+        self.assertIn("flush", lean)  # a process killed later keeps the modules it finished
+
+    def test_the_fingerprints_are_made_in_chunks_by_the_runner_that_loses_only_what_a_process_loses(self):
+        """before and the partners and after, all three through fingerprint_chunks.sh; no Lean program of this step runs outside it."""
+        for name in self.dups_steps():
+            run = step("verify", name)["run"]
+            self.assertNotIn("ModuleFingerprint.lean", run.replace("fingerprint_chunks.sh", ""), name)
+        fp = step("verify", "Copies of tree modules, fingerprinted")["run"]
+        self.assertEqual(fp.count("bash \"$chunks\""), 2)
+        self.assertIn("chunks=emissary/scripts/bump/fingerprint_chunks.sh", fp)
+        after = step("verify", "Copies of tree modules, the importers fingerprinted again")["run"]
+        self.assertIn("fingerprint_chunks.sh", after)
+        self.assertIn("$PWD/out/dups-after.txt", after)
+
+    def test_the_copies_are_given_the_checkout_so_that_a_stale_compiled_file_is_no_partner(self):
+        run = step("verify", "Copies of tree modules in the draft")["run"]
+        self.assertIn("tree_dups.py candidates", run)
+        self.assertIn("--tree tree", run)
+
+    def test_the_count_that_is_logged_survives_a_run_with_nothing_to_count(self):
+        run = step("verify", "Copies of tree modules, fingerprinted")["run"]
+        self.assertIn("|| true", run)  # grep -c exits 1 on a count of 0, and a step runs with -e
+        self.assertNotIn("| bc", run)
+
     def test_the_artifact_carries_the_verdict_and_what_it_rests_on(self):
         up = next(s for s in JOBS["verify"]["steps"] if "upload-artifact" in str(s.get("uses", "")))["with"]["path"]
-        for f in ("out/dups.json", "out/dups-failures.txt", "out/dups-candidates.json", "out/fp-before.txt", "out/fp-partners.txt", "out/fp-after.txt", "out/build-dups.log"):
+        for f in ("out/dups.json", "out/dups-failures.txt", "out/dups-candidates.json", "out/fp-before.txt", "out/fp-partners.txt", "out/fp-after.txt", "out/fp-*.err", "out/build-dups.log"):
             self.assertIn(f, up)
 
 
