@@ -206,6 +206,19 @@ class FromTreeRecuts(unittest.TestCase):
         self.assertEqual(io.decide([merged], 6, False)[0], "skip")  # an ordinary newer run is not a recut from the tree: its part 2 would not match the tree
         self.assertEqual(io.decide([merged, io.Pr(433, "OPEN", "lib", 6, 2, "", True)], 6, False, from_tree=True)[0], "skip")  # one open PR per library still
 
+    def test_a_from_tree_recut_goes_on_after_a_last_part_that_said_n_of_n(self):
+        """lean-pool 2026-10-19: part 14 of 14 merged from one run; the dups recut (from the tree, a newer run) cut part 15, and the opener said 'every part is in the tree' and never opened it."""
+        merged = io.Pr(638, "MERGED", "lib", 5, 14, "extend: lib part 14 of 14 (801 verified theorems in 94 modules)", True)
+        self.assertEqual(io.decide([merged], 6, False, from_tree=True), ("open", {"part": 15, "run": 6, "depends_on": "#638"}))
+
+    def test_the_run_the_last_part_came_from_still_ends_the_library_even_when_it_is_a_recut(self):
+        merged = io.Pr(638, "MERGED", "lib", 5, 14, "extend: lib part 14 of 14 (801 verified theorems in 94 modules)", True)
+        self.assertEqual(io.decide([merged], 5, False, from_tree=True), ("skip", "every part is in the tree"))
+
+    def test_a_newer_plain_run_does_not_continue_a_finished_library(self):
+        merged = io.Pr(638, "MERGED", "lib", 5, 14, "extend: lib part 14 of 14 (801 verified theorems in 94 modules)", True)
+        self.assertEqual(io.decide([merged], 6, False, from_tree=False), ("skip", "every part is in the tree"))
+
     def test_a_from_tree_recut_that_was_closed_without_merging_is_not_reopened(self):
         merged = io.Pr(413, "MERGED", "lib", 5, 1, "intake: lib part 1 of 9 (1 verified theorems in 1 modules)", True)
         closed = io.Pr(433, "CLOSED", "lib", 6, 2, "", True)
