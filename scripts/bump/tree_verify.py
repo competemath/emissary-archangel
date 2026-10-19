@@ -228,6 +228,10 @@ def cmd_collect(a: argparse.Namespace) -> None:
     union_gone = set(read_lines(a.union_excluded)) if a.union_excluded else set()
     union_hit = {m for m in mods if plain(m) in union_gone}
     failing |= union_hit
+    # modules that imported a copy of a tree module and are not exactly what they were on the tree's module (tree_dups.py after-verdict): `module<TAB>why`
+    swapped = dict(ln.split("\t", 1) for ln in read_lines(a.extra_failing) if "\t" in ln) if a.extra_failing else {}
+    swapped_hit = {m: swapped[plain(m)] if plain(m) in swapped else swapped[m] for m in mods if m in swapped or plain(m) in swapped}
+    failing |= set(swapped_hit)
     graph: dict[str, list[str]] = {}
     if a.bundle:
         bfiles = bl.read_bundle(Path(a.bundle))
@@ -249,6 +253,8 @@ def cmd_collect(a: argparse.Namespace) -> None:
         summary += f"\n  {len(mended)} of {len(repaired)} module(s) the tree timed out on were mended by a raised limit (tree_repair.py)"
         for m in mended[:10]:
             summary += f"\n  repaired: {library_module(m, ns)}"
+    for m in sorted(swapped_hit)[:10]:
+        summary += f"\n  swap: {library_module(m, ns)}: {swapped_hit[m]}"
     for m in sorted(clashing)[:10]:
         summary += f"\n  clash: {library_module(m, ns)}: {clashing[m][0]}" + (f" (+{len(clashing[m]) - 1} more pair(s))" if len(clashing[m]) > 1 else "")
     for ln in read_lines(str(Path(a.union_excluded).with_suffix(".reasons")) if a.union_excluded else "")[:10]:
@@ -294,6 +300,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--out", required=True)
     p.add_argument("--bundle", default="", help="the bundle the modules came from: its import graph says which modules go with a refused one")
     p.add_argument("--allow-unfinished", action="store_true", help="a build that ran out of time still says which modules it built (a `Built` line is positive evidence): accept those, leave the rest for a later round")
+    p.add_argument("--extra-failing", default="", help="module<TAB>why per line (tree_dups.py after-verdict): the modules that imported a copy of a tree module and are not what they were on the tree's module are refused")
     p.add_argument("--union-excluded", default="", help="the modules that `union-next` excluded (one per line): the import of the whole tree stopped at a name each of them declares, or at a module they import")
     p.add_argument("--clashes", default="", help="the output of ModuleClashes.lean on out/built.txt: a new module that declares a name another module of the tree declares is refused")
     p.add_argument("--axioms", default="", help="the output of ModuleAxioms.lean on out/built.txt: a module with a declaration on a non-standard axiom is refused")

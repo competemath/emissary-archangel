@@ -1,11 +1,11 @@
-# scripts/bump/BundleKeep.lean, ModuleAxioms.lean and ModuleClashes.lean, run by a real Lean on a small case: the program that decides which library constants a bundle keeps imports only Lean and loads the
+# scripts/bump/BundleKeep.lean, ModuleAxioms.lean, ModuleClashes.lean and ModuleFingerprint.lean, run by a real Lean on a small case: the program that decides which library constants a bundle keeps imports only Lean and loads the
 # library at run time (the script it replaced was parsed with the library's tokens, and lost whole shards' theorems silently: bundle.py's header says how).
 name: bundle-keep-tests
 on:
   push:
-    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/tree_verify.py", "scripts/bump/tree_repair.py", "scripts/bump/TengokuLeak.lean", ".github/workflows/bundle-keep-tests.yml"]
+    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/ModuleFingerprint.lean", "scripts/bump/tree_dups.py", "scripts/bump/tree_verify.py", "scripts/bump/tree_repair.py", "scripts/bump/TengokuLeak.lean", ".github/workflows/bundle-keep-tests.yml"]
   pull_request:
-    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/tree_verify.py", "scripts/bump/tree_repair.py", "scripts/bump/TengokuLeak.lean", ".github/workflows/bundle-keep-tests.yml"]
+    paths: ["scripts/bump/BundleKeep.lean", "scripts/bump/bundle.py", "scripts/bump/keep_closure.py", "scripts/bump/ModuleAxioms.lean", "scripts/bump/ModuleClashes.lean", "scripts/bump/ModuleFingerprint.lean", "scripts/bump/tree_dups.py", "scripts/bump/tree_verify.py", "scripts/bump/tree_repair.py", "scripts/bump/TengokuLeak.lean", ".github/workflows/bundle-keep-tests.yml"]
 permissions: {}
 defaults:
   run:
@@ -131,6 +131,64 @@ jobs:
           assert tv.CLASH_DONE.search(none).group("pairs") == "0", none  # A and B clash, but neither is new: not this bundle's business
           print("clash pair named:", got)
           PY
+      # The fingerprint of the copies of tree modules (tree_dups.py). Toy modules compiled to oleans (core Lean only): I is the tree's module and M a copy of it (the same text); D declares the same names
+      # with another body (`Toy.f`) and other binders (`Toy.imp`); X imports M, Y is X's text on I, Z is X's text on D. What the program must show, read by tree_dups.py (the code that decides):
+      #   M's declarations have I's fingerprints, and D's do not: `Toy.f` differs, and `Toy.g` and `Toy.t` differ although their TEXT is the same, because they stand on `Toy.f` (the fingerprint is deep);
+      #   a proof is not read (`Toy.p1`: two proofs of one statement, one fingerprint); a binder annotation is (`Toy.imp`: `{n}` against `(n)`);
+      #   X on the copy = Y on the tree's module, declaration for declaration, and X on D is not (what the swap check compares);
+      #   a seed module is a leaf unless it is named in the second file.
+      - name: ModuleFingerprint.lean fingerprints a copy like the tree's module, and tree_dups reads its output
+        working-directory: gate2
+        run: |
+          root="$RUNNER_TEMP/fpoleans"; src="$RUNNER_TEMP/fpsrc"
+          for m in LibI/I LibM/M LibD/D LibX/X LibY/Y LibZ/Z LibW/W Seed/S; do mkdir -p "$root/Tengoku/$(dirname $m)" "$src/Tengoku/$(dirname $m)"; done
+          printf 'def Toy.f (n : Nat) : Nat := n + 1\ndef Toy.g (n : Nat) : Nat := Toy.f n * 2\ntheorem Toy.t (n : Nat) : Toy.g n = Toy.f n * 2 := rfl\ntheorem Toy.p1 : 1 = 1 := rfl\ntheorem Toy.imp {n : Nat} : n = n := rfl\n' > "$src/Tengoku/LibI/I.lean"
+          cp "$src/Tengoku/LibI/I.lean" "$src/Tengoku/LibM/M.lean"
+          printf 'def Toy.f (n : Nat) : Nat := n + 2\ndef Toy.g (n : Nat) : Nat := Toy.f n * 2\ntheorem Toy.t (n : Nat) : Toy.g n = Toy.f n * 2 := rfl\ntheorem Toy.p1 : 1 = 1 := by decide\ntheorem Toy.imp (n : Nat) : n = n := rfl\n' > "$src/Tengoku/LibD/D.lean"
+          for pair in "X:M" "Y:I" "Z:D"; do
+            u="${pair%%:*}"; lib="${pair##*:}"
+            printf 'import Tengoku.Lib%s.%s\n\ndef X.h (n : Nat) : Nat := Toy.g n + 1\ntheorem X.u : X.h 0 = Toy.f 0 * 2 + 1 := rfl\n' "$lib" "$lib" > "$src/Tengoku/Lib$u/$u.lean"
+          done
+          printf 'def S.v : Nat := 1\n' > "$src/Tengoku/Seed/S.lean"
+          printf 'import Tengoku.Seed.S\n\ndef Toy.w : Nat := S.v + 1\n' > "$src/Tengoku/LibW/W.lean"
+          lp="$root:$(lake env printenv LEAN_PATH)"
+          for m in Seed/S LibI/I LibM/M LibD/D LibW/W LibX/X LibY/Y LibZ/Z; do
+            lake env env LEAN_PATH="$lp" lean --root="$src" -o "$root/Tengoku/$m.olean" "$src/Tengoku/$m.lean"
+          done
+          fp() { lake env env LEAN_PATH="$lp" lean --run ../scripts/bump/ModuleFingerprint.lean "$@"; }
+          printf 'Tengoku.LibM.M\nTengoku.LibX.X\n' > "$RUNNER_TEMP/fp-xm.txt"; fp "$RUNNER_TEMP/fp-xm.txt" | tee "$RUNNER_TEMP/fp-xm.out"
+          printf 'Tengoku.LibI.I\n' > "$RUNNER_TEMP/fp-i.txt"; fp "$RUNNER_TEMP/fp-i.txt" > "$RUNNER_TEMP/fp-i.out"
+          printf 'Tengoku.LibD.D\nTengoku.LibZ.Z\n' > "$RUNNER_TEMP/fp-dz.txt"; fp "$RUNNER_TEMP/fp-dz.txt" > "$RUNNER_TEMP/fp-dz.out"
+          printf 'Tengoku.LibY.Y\n' > "$RUNNER_TEMP/fp-y.txt"; fp "$RUNNER_TEMP/fp-y.txt" > "$RUNNER_TEMP/fp-y.out"
+          printf 'Tengoku.LibW.W\n' > "$RUNNER_TEMP/fp-w.txt"; fp "$RUNNER_TEMP/fp-w.txt" > "$RUNNER_TEMP/fp-w1.out"
+          printf 'Tengoku.Seed.S\n' > "$RUNNER_TEMP/fp-s.txt"; fp "$RUNNER_TEMP/fp-w.txt" "$RUNNER_TEMP/fp-s.txt" > "$RUNNER_TEMP/fp-w2.out"
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, "../scripts/bump")
+          import tree_dups as td
+          t = os.environ["RUNNER_TEMP"]
+          read = lambda n: td.parse_fp(open(os.path.join(t, n)).read())
+          xm, i, dz, y, w1, w2 = read("fp-xm.out"), read("fp-i.out"), read("fp-dz.out"), read("fp-y.out"), read("fp-w1.out"), read("fp-w2.out")
+          M, I, D, X, Y, Z = "Tengoku.LibM.M", "Tengoku.LibI.I", "Tengoku.LibD.D", "Tengoku.LibX.X", "Tengoku.LibY.Y", "Tengoku.LibZ.Z"
+          assert {"Toy.f", "Toy.g", "Toy.t", "Toy.p1", "Toy.imp"} <= set(xm[M]), sorted(xm[M])
+          assert xm[M] == i[I], "the copy is the tree's module declaration for declaration"
+          assert td.decide(M, [I], xm, i)[0] == [I]
+          assert td.decide(D, [I], dz, i)[0] is None
+          for n in ("Toy.f", "Toy.g", "Toy.t"):
+              assert dz[D][n] != i[I][n], n + " must differ: it stands on another Toy.f"
+          assert dz[D]["Toy.p1"] == i[I]["Toy.p1"], "a proof is not read"
+          assert dz[D]["Toy.imp"] != i[I]["Toy.imp"], "a binder annotation is read"
+          assert xm[X] == y[Y], "the importer is exactly what it was on the tree's module"
+          assert xm[X] != dz[Z], "the importer on a different module is not"
+          assert all(len(h) == 32 for _, h in xm[M].values())
+          assert w1["Tengoku.LibW.W"]["Toy.w"] != w2["Tengoku.LibW.W"]["Toy.w"], "a seed module named in the second file is compared whole"
+          print("fingerprints agree where they must and differ where they must")
+          PY
+      - name: ModuleFingerprint.lean is no clean run on a module that is not there
+        working-directory: gate2
+        run: |
+          printf 'No.Such.Module\n' > "$RUNNER_TEMP/nofp.txt"
+          if lake env lean --run ../scripts/bump/ModuleFingerprint.lean "$RUNNER_TEMP/nofp.txt" 2>&1 | grep -q "^fingerprints: "; then echo "a module that does not exist produced a verdict"; exit 1; fi
       # The authority on the import of the whole tree is Lean: the toy oleans of the step above (A and B declare Toy.clashing, Toy.thmDiff and Toy.ax; A, B and C declare Toy.thmDup, a theorem of one type)
       # are imported by a real `lean`. It must refuse A with B and say which module and which name (tree_verify.union_failure reads that), and accept A with C (the duplicate theorem is allowed).
       - name: Lean refuses the import of two modules that declare one name, accepts duplicate theorems of one type, and tree_verify reads the refusal

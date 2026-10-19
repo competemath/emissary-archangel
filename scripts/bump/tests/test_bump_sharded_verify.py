@@ -343,6 +343,120 @@ class TheQueuesAxiomCheckToo(unittest.TestCase):
         self.assertIn("[``propext, ``Classical.choice, ``Quot.sound]", lean)  # the same allowed list as the tree's TengokuAxioms.lean
 
 
+class CopiesOfTreeModules(unittest.TestCase):
+    """`dups` (tree_dups.py): a library's copy of a module the tree has is kept for the tree's build to decide; if it is the same as the tree's, what imports it imports the tree's module.
+    The workflow's part of the guarantee: nothing changes unless the input is on; whatever does not run, has no time, or does not finish leaves 'nothing aliased'; the swap's refusals reach
+    every verdict that is read afterwards; and the cut that ships makes the same edit as the checkout."""
+
+    def names(self) -> list[str]:
+        return [s.get("name", "") for s in JOBS["verify"]["steps"]]
+
+    def dups_steps(self) -> list[str]:
+        return [n for n in self.names() if n.startswith("Copies of tree modules")]
+
+    def test_the_input_is_off_by_default(self):
+        self.assertEqual(INPUTS["dups"]["default"], "false")
+        self.assertEqual(JOBS["verify"]["env"]["DUPS"], "${{ inputs.dups }}")
+
+    def test_the_draft_keeps_the_copies_only_when_asked_for_and_only_with_a_tree_build_to_decide_them(self):
+        run = step("compose", "Merge the shards and cut the bundle")["run"]
+        self.assertIn('if [ "$DUPS" = true ] && [ "$VERIFY" != false ]; then keep=(--keep-dups); fi', run)
+        self.assertTrue(run.rstrip().endswith('"${keep[@]}"'))
+        self.assertNotIn("--tree-dups", run)  # nothing is decided yet
+
+    def test_the_final_cut_applies_the_verdict_only_when_the_tree_built_the_draft(self):
+        run = step("finish", "Merge the shards and cut the bundle")["run"]
+        self.assertIn('if [ "$DUPS" = true ] && [ "$VERIFIED" = success ]; then keep=(--keep-dups --tree-dups ../tree-dups.json); fi', run)
+        self.assertTrue(run.rstrip().endswith('"${keep[@]}"'))
+        self.assertEqual(JOBS["finish"]["env"]["VERIFIED"], "${{ needs.verify.result }}")
+
+    def test_the_verdict_of_every_verified_mode_is_required_and_merged(self):
+        run = step("finish", "What the tree refused")["run"]
+        self.assertIn('dups_files+=("$dir/dups.json")', run)
+        self.assertIn("has no dups.json", run)  # an artifact that lacks its verdict must never read as 'nothing aliased'
+        self.assertIn('tree_dups.py merge --out tree-dups.json "${dups_files[@]}"', run)
+
+    def test_the_steps_run_after_the_build_is_read_and_before_the_clash_scan(self):
+        n = self.names()
+        first = next(i for i, x in enumerate(n) if x.startswith("What the build accepted"))
+        clash = next(i for i, x in enumerate(n) if x.startswith("The names that two modules"))
+        idx = [i for i, x in enumerate(n) if x.startswith("Copies of tree modules")]
+        self.assertEqual(len(idx), 5)
+        self.assertTrue(first < idx[0] and idx[-1] < clash, (first, idx, clash))
+
+    def test_what_is_found_decides_which_later_step_runs(self):
+        for name in self.dups_steps()[1:3]:
+            self.assertEqual(step("verify", name)["if"], "${{ steps.dups_find.outputs.found == 'true' }}")
+        for name in self.dups_steps()[3:]:
+            self.assertEqual(step("verify", name)["if"], "${{ steps.dups_plan.outputs.swapped == 'true' }}")
+
+    def test_no_step_holds_a_token_and_every_lean_run_is_capped(self):
+        for name in self.dups_steps():
+            st = step("verify", name)
+            self.assertNotIn("env", st, name)
+            run = st["run"]
+            if "lake env lean" in run:
+                self.assertIn("timeout -k", run, name)
+            if "lake build" in run:
+                self.assertIn("timeout -k 60", run, name)
+
+    def test_a_clash_scan_that_does_not_finish_leaves_nothing_aliased_and_does_not_fail_the_job(self):
+        """CodeRabbit on emissary#69: the scan can stop at its cap (3 minutes at the least). Its output then has no `clashes:` line, `candidates` would refuse it, and the step (and so verify, and with it
+        the whole bundle) would fail for an optional step."""
+        run = step("verify", "Copies of tree modules in the draft")["run"]
+        scan = run.index("ModuleClashes.lean")
+        line = run[scan: run.index("\n", scan)]
+        self.assertIn("> ../out/clashes-dups.txt 2>&1 || true", line)  # no pipe (pipefail) and no failing exit
+        self.assertNotIn("| tee", line)
+        guard = run.index("grep -q '^clashes: ' out/clashes-dups.txt")
+        self.assertLess(guard, run.index("tree_dups.py candidates"))  # candidates runs only on a scan that has its ending
+        self.assertIn("did not finish: nothing is aliased", run)
+
+    def test_the_default_verdict_exists_whatever_runs(self):
+        """A step that does not run, has no time, or whose Lean program does not finish leaves a verdict in which nothing is aliased: `finish` finds the file and the copy goes the way it went before."""
+        self.assertIn("dups-failures.txt", step("verify", "Copy the new modules into the tree")["run"])
+        self.assertIn('json.dump({"ns": n["ns"], "mode": sys.argv[1], "aliases": {}', step("verify", "Copies of tree modules in the draft")["run"])
+
+    def test_the_time_they_may_spend_leaves_the_steps_that_must_still_run(self):
+        """The clock starts the job; each step spends what is left of the job less the caps of the steps after it (the axiom check, the clash scan, the whole-tree import, the verdict)."""
+        self.assertEqual(self.names()[0], "The clock")
+        self.assertIn("JOB_START=$(date +%s)", step("verify", "The clock")["run"])
+        axioms = int(re.search(r"timeout -k \d+ (\d+)m lake env lean", step("verify", "The axiom check")["run"]).group(1))
+        clash = int(re.search(r"timeout -k \d+ (\d+)m lake env lean", step("verify", "The names that two modules")["run"]).group(1))
+        union = int(re.search(r"deadline=\$\(\(SECONDS \+ (\d+)\)\)", step("verify", "The import of the whole tree")["run"]).group(1)) // 60
+        reserve = axioms + clash + union + 25
+        for name in self.dups_steps():
+            run = step("verify", name)["run"]
+            if "JOB_START" in run:
+                self.assertIn(f"JOB_START + {JOBS['verify']['timeout-minutes']} * 60", run, name)
+                self.assertIn(f"/ 60 - {reserve} ))", run, name)
+
+    def test_the_refusals_of_the_swap_reach_every_verdict_read_afterwards(self):
+        flag = "--extra-failing out/dups-failures.txt"
+        self.assertNotIn(flag, step("verify", "What the build accepted")["run"])  # before the swap
+        self.assertIn(flag, step("verify", "The modules that share a name with the tree")["run"])  # the list the axiom check imports
+        self.assertIn(flag, step("verify", "The import of the whole tree")["run"])  # the refreshed collect before the union loop
+        self.assertIn(flag, step("verify", "What the tree accepted")["run"])  # the final verdict
+
+    def test_the_swap_is_built_by_the_queues_command_and_its_log_joins_the_build_log(self):
+        run = step("verify", "Copies of tree modules, the importers built")["run"]
+        self.assertIn("lake build $targets", run)
+        self.assertIn("tee ../out/build-dups.log", run)
+        self.assertIn("cat ../out/build-dups.log >> ../out/build.log", run)  # the verdicts that read build.log see a failure of the second build too
+        self.assertLess(run.index(": > out/build-dups.log"), run.index("lake build"))  # no time: an empty log is 'nothing was built', never a clean one
+
+    def test_the_program_prints_what_the_python_side_reads(self):
+        lean = (PATH.parents[2] / "scripts" / "bump" / "ModuleFingerprint.lean").read_text()
+        self.assertIn('IO.println s!"FP\\t{m}\\t{canon n}\\t{kindName ci}\\t{hex16 h.1}{hex16 h.2}"', lean)
+        self.assertIn('IO.println s!"fingerprints: {count} declarations"', lean)
+        self.assertNotIn("sorry", lean)  # it is a program that decides nothing about truth, and says so
+
+    def test_the_artifact_carries_the_verdict_and_what_it_rests_on(self):
+        up = next(s for s in JOBS["verify"]["steps"] if "upload-artifact" in str(s.get("uses", "")))["with"]["path"]
+        for f in ("out/dups.json", "out/dups-failures.txt", "out/dups-candidates.json", "out/fp-before.txt", "out/fp-partners.txt", "out/fp-after.txt", "out/build-dups.log"):
+            self.assertIn(f, up)
+
+
 class NothingMutableRunsBeforeTheVerdict(unittest.TestCase):
     """CodeRabbit (emissary#39): the verify job's verdict is what `finish` signs, so the installer it runs must be pinned and checked, not `releases/latest`."""
 
