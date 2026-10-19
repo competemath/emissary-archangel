@@ -200,7 +200,7 @@ class Decide(unittest.TestCase):
         self.assertEqual(td.decide("Tengoku.L.M", ["Tengoku.O.X", "Tengoku.O.Y"], before, partner)[0], ["Tengoku.O.X", "Tengoku.O.Y"])
 
 
-class Flow(unittest.TestCase):
+class FlowBase(unittest.TestCase):
     """The whole step on a checkout: M is the library's copy of Tengoku.Other.Lib.X; B imports M, C imports B (an importer that is not a direct one), U is unrelated."""
 
     FILES = {
@@ -227,12 +227,12 @@ class Flow(unittest.TestCase):
         write(self.tree, {".lake/build/lib/lean/Tengoku/ToyLib/Toy/M.olean": "x", ".lake/build/lib/lean/Tengoku/ToyLib/Toy/M.ilean": "x", ".lake/build/lib/lean/Tengoku/ToyLib/Toy/B.olean": "x"})
         td.main(["candidates", "--clashes", str(self.d / "clashes.txt"), "--new", str(self.out / "new.json"), "--built", str(self.out / "built.txt"), "--bundle", str(self.bundle), "--tree", str(self.tree), "--out", str(self.out), "--mode", "proposed"])
 
-    def plan(self, before_hash: int = 1):
-        before = fp({"Tengoku.ToyLib.Toy.M": {"Toy.f": ("def", before_hash)}, "Tengoku.ToyLib.Toy.B": {"Toy.t": ("theorem", 10)}, "Tengoku.ToyLib.Toy.C": {"Toy.u": ("theorem", 11)}})
+    def plan(self, before_hash: int = 1, fork: bool = False, before: str | None = None):
+        before = before if before is not None else fp({"Tengoku.ToyLib.Toy.M": {"Toy.f": ("def", before_hash)}, "Tengoku.ToyLib.Toy.B": {"Toy.t": ("theorem", 10)}, "Tengoku.ToyLib.Toy.C": {"Toy.u": ("theorem", 11)}})
         (self.d / "fp-before.txt").write_text(before)
         (self.d / "fp-partners.txt").write_text(fp({"Tengoku.Other.Lib.X": {"Toy.f": ("def", 1)}}))
         td.main(["plan", "--candidates", str(self.out / "dups-candidates.json"), "--fp-before", str(self.d / "fp-before.txt"), "--fp-partners", str(self.d / "fp-partners.txt"),
-                 "--new", str(self.out / "new.json"), "--tree", str(self.tree), "--out", str(self.out), "--mode", "proposed"])
+                 "--new", str(self.out / "new.json"), "--tree", str(self.tree), "--out", str(self.out), "--mode", "proposed", *(["--fork"] if fork else [])])
 
     def after(self, log2: str, after_rows: dict):
         (self.d / "log2.txt").write_text(log2)
@@ -243,6 +243,11 @@ class Flow(unittest.TestCase):
 
     SAME_AFTER = {"Tengoku.ToyLib.Toy.B": {"Toy.t": ("theorem", 10)}, "Tengoku.ToyLib.Toy.C": {"Toy.u": ("theorem", 11)}}
     BUILT2 = "✔ [1/2] Built Tengoku.ToyLib.Toy.B (1s)\n✔ [2/2] Built Tengoku.ToyLib.Toy.C (1s)\nBuild completed successfully.\n"
+
+
+
+class Flow(FlowBase):
+    """The whole step on a checkout, copies that are aliased or stay clashes."""
 
     def test_the_copy_and_the_modules_that_import_it_are_found(self):
         cand = json.loads((self.out / "dups-candidates.json").read_text())["candidates"]
@@ -403,6 +408,170 @@ class Flow(unittest.TestCase):
             td.load_for_compose(str(self.d / "bad.json"))
 
 
+class ForkFlow(FlowBase):
+    """A copy that differs from the tree's module: it is wrapped, with what imports it, in `ToyLibFork`; the tree builds it so; it ships only if every declaration is what the library has."""
+
+    ROWS_BEFORE = {"Tengoku.ToyLib.Toy.M": {"Toy.f": ("def", 999)}, "Tengoku.ToyLib.Toy.B": {"Toy.t": ("theorem", 10)}, "Tengoku.ToyLib.Toy.C": {"Toy.u": ("theorem", 11)}}
+    BUILT_WRAPPED = "".join(f"✔ [{i}/3] Built Tengoku.ToyLib.Toy.{m} (1s)\n" for i, m in enumerate("MBC", 1)) + "Build completed successfully.\n"
+
+    def wrapped(self, name: str) -> bool:
+        text = (self.tree / f"Tengoku/ToyLib/Toy/{name}.lean").read_text()
+        return "\nnamespace ToyLibFork\n" in text and text.endswith("\nend ToyLibFork\n")
+
+    def test_a_copy_that_differs_is_wrapped_with_what_imports_it_and_stays(self):
+        self.plan(before_hash=999, fork=True)
+        self.assertTrue(all(self.wrapped(m) for m in "MBC"))
+        self.assertEqual((self.tree / "Tengoku/ToyLib/Toy/U.lean").read_text(), self.FILES["Tengoku/ToyLib/Toy/U.lean"])  # unrelated: not touched
+        new = json.loads((self.out / "new.json").read_text())["modules"]
+        for m in "MBC":
+            self.assertEqual(new[f"Tengoku.ToyLib.Toy.{m}"]["sha256"], td.sha256((self.tree / f"Tengoku/ToyLib/Toy/{m}.lean").read_bytes()))  # `check` holds the shipped bytes to THESE bytes
+        self.assertIn("Tengoku.ToyLib.Toy.M", new)  # the copy is not removed: it is built, wrapped
+        dups = json.loads((self.out / "dups.json").read_text())
+        self.assertEqual((dups["aliases"], dups["not_same"]), ({}, {}))
+        self.assertEqual(list(dups["forks"]), ["Toy.M"])
+        self.assertEqual(dups["forked"], ["Toy.B", "Toy.C", "Toy.M"])
+        self.assertEqual(dups["fork_namespace"], "ToyLibFork")
+
+    def test_the_importer_of_an_identical_copy_is_edited_and_the_wrap_goes_on_after_it(self):
+        """one text can need both edits: its import of an identical copy is pointed at the tree's module, and it is wrapped because it imports a copy that differs"""
+        write(self.tree, {"Tengoku/ToyLib/Toy/B.lean": "import Tengoku\nimport Tengoku.ToyLib.Toy.M\nimport Tengoku.ToyLib.Toy.A\n\ntheorem Toy.t : Toy.f = 1 := rfl\n", "Tengoku/ToyLib/Toy/A.lean": "def Toy.a := 1\n"})
+        self.assertEqual(td.apply_fork_text(td.apply_alias_text((self.tree / "Tengoku/ToyLib/Toy/B.lean").read_text(), {"Tengoku.ToyLib.Toy.A": ["Tengoku.Other.Lib.X"]}), "ToyLibFork").count("import "), 3)
+
+    def test_without_the_switch_a_copy_that_differs_stays_a_clash_as_before(self):
+        self.plan(before_hash=999)
+        self.assertFalse(any(self.wrapped(m) for m in "MBC"))
+        self.assertEqual(json.loads((self.out / "dups.json").read_text())["forked"], [])
+
+    def test_a_copy_that_was_not_fingerprinted_is_not_forked(self):
+        self.plan(before=fp({"Tengoku.ToyLib.Toy.B": {"Toy.t": ("theorem", 10)}}) + "FPERR\tTengoku.ToyLib.Toy.M\tcould not load\n", fork=True)
+        self.assertFalse(any(self.wrapped(m) for m in "MBC"))
+        dups = json.loads((self.out / "dups.json").read_text())
+        self.assertEqual((dups["forks"], dups["forked"]), ({}, []))
+        self.assertIn("could not load", dups["not_same"]["Toy.M"])
+
+    def test_a_module_of_the_module_system_stops_the_fork(self):
+        write(self.tree, {"Tengoku/ToyLib/Toy/B.lean": "module\n\npublic import Tengoku.ToyLib.Toy.M\n\ntheorem Toy.t : Toy.f = 1 := rfl\n"})
+        self.plan(before_hash=999, fork=True)
+        self.assertFalse(any(self.wrapped(m) for m in "MC"))
+        self.assertIn("cannot be wrapped", json.loads((self.out / "dups.json").read_text())["not_same"]["Toy.M"])
+
+    def test_after_the_build_every_wrapped_module_that_is_what_it_was_is_kept(self):
+        self.plan(before=fp(self.ROWS_BEFORE), fork=True)
+        self.after(self.BUILT_WRAPPED, self.ROWS_BEFORE)  # the program leaves the namespace off: the rows are the same
+        self.assertEqual((self.out / "dups-after.txt").read_text().split(), ["Tengoku.ToyLib.Toy.B", "Tengoku.ToyLib.Toy.C", "Tengoku.ToyLib.Toy.M"])
+        self.assertEqual((self.out / "dups-failures.txt").read_text(), "")
+
+    def test_a_wrapped_module_whose_declaration_is_not_what_it_was_is_refused_and_names_it(self):
+        """A name that resolves to another declaration once the module is wrapped (dot notation, an `open`) changes the fingerprint of what stands on it."""
+        self.plan(before=fp(self.ROWS_BEFORE), fork=True)
+        rows = {**self.ROWS_BEFORE, "Tengoku.ToyLib.Toy.B": {"Toy.t": ("theorem", 77)}}
+        self.after(self.BUILT_WRAPPED, rows)
+        self.assertIn("Tengoku.ToyLib.Toy.B\t`Toy.t` is not the same", (self.out / "dups-failures.txt").read_text())
+
+    def test_a_wrapped_copy_that_does_not_build_is_refused_and_so_is_what_imports_it(self):
+        self.plan(before=fp(self.ROWS_BEFORE), fork=True)
+        log2 = "error: Tengoku/ToyLib/Toy/M.lean:5:0: unknown identifier\nerror: Lean exited with code 1\nSome required targets logged failures:\n- Tengoku.ToyLib.Toy.M\nerror: build failed\n"
+        self.after(log2, {})
+        refused = dict(ln.split("\t") for ln in (self.out / "dups-failures.txt").read_text().splitlines())
+        self.assertEqual(sorted(refused), ["Tengoku.ToyLib.Toy.B", "Tengoku.ToyLib.Toy.C", "Tengoku.ToyLib.Toy.M"])
+
+    def test_the_forks_of_each_mode_are_merged_for_compose(self):
+        self.plan(before=fp(self.ROWS_BEFORE), fork=True)
+        td.main(["merge", "--out", str(self.d / "merged.json"), str(self.out / "dups.json")])
+        self.assertEqual(td.load_forks_for_compose(str(self.d / "merged.json")), {"proposed": ("ToyLibFork", {"Toy.B", "Toy.C", "Toy.M"})})
+        self.assertEqual(td.load_for_compose(str(self.d / "merged.json")), {"proposed": {}})
+
+    def test_a_merged_file_from_before_forks_existed_wraps_nothing(self):
+        (self.d / "old.json").write_text(json.dumps({"ns": "ToyLib", "modes": {"proposed": {"aliases": {}, "not_same": {}, "refused": {}}}}))
+        self.assertEqual(td.load_forks_for_compose(str(self.d / "old.json")), {"proposed": ("", set())})
+
+    def test_a_malformed_fork_list_is_an_error_not_an_empty_answer(self):
+        (self.d / "bad.json").write_text(json.dumps({"modes": {"proposed": {"aliases": {}, "forked": ["Toy.M"], "fork_namespace": ""}}}))
+        with self.assertRaises(SystemExit):
+            td.load_forks_for_compose(str(self.d / "bad.json"))
+
+
+class ForkText(unittest.TestCase):
+    """`apply_fork_text`: the one edit that makes a forked copy, made on the checkout and on the bundle that ships."""
+
+    NS = "ToyLibFork"
+
+    def test_the_namespace_opens_after_the_last_import_and_closes_at_the_end(self):
+        text = "import Tengoku\nimport Tengoku.A\n\n/-- doc -/\ntheorem t : 1 = 1 := rfl\n"
+        self.assertEqual(td.apply_fork_text(text, self.NS), "import Tengoku\nimport Tengoku.A\n\nnamespace ToyLibFork\n\n/-- doc -/\ntheorem t : 1 = 1 := rfl\n\nend ToyLibFork\n")
+
+    def test_a_docstring_of_the_first_declaration_is_not_separated_from_it(self):
+        out = td.apply_fork_text("import Tengoku\n/-- the first -/\ndef a := 1\n", self.NS)
+        self.assertLess(out.index("namespace ToyLibFork"), out.index("/-- the first -/"))
+
+    def test_an_import_in_a_comment_below_the_header_is_prose(self):
+        text = "import Tengoku\n\n/-- about\nimport Tengoku.B\n-/\ndef a := 1\n"
+        self.assertTrue(td.apply_fork_text(text, self.NS).startswith("import Tengoku\n\nnamespace ToyLibFork\n"))
+
+    def test_the_prefix_of_an_import_is_still_an_import(self):
+        self.assertIn("namespace ToyLibFork", td.apply_fork_text("public import Tengoku.A\n\ndef a := 1\n", self.NS))
+
+    def test_a_file_of_lean_s_module_system_cannot_be_wrapped(self):
+        self.assertIsNone(td.apply_fork_text("module\n\npublic import Tengoku\n\ndef a := 1\n", self.NS))
+
+    def test_a_file_that_imports_nothing_is_wrapped_from_its_top(self):
+        self.assertEqual(td.apply_fork_text("/-- a -/\ndef a := 1\n", self.NS), "namespace ToyLibFork\n/-- a -/\ndef a := 1\n\nend ToyLibFork\n")
+
+    def test_a_prelude_file_cannot_be_wrapped(self):
+        self.assertIsNone(td.apply_fork_text("prelude\nimport Init.Core\n\ndef a := 1\n", self.NS))
+
+    def test_a_file_without_a_final_line_break_ends_with_one(self):
+        self.assertTrue(td.apply_fork_text("import Tengoku\ndef a := 1", self.NS).endswith("end ToyLibFork\n"))
+
+    def test_the_namespace_of_a_library(self):
+        self.assertEqual(td.fork_namespace("LeanPool"), "LeanPoolFork")
+
+
+class ChooseForks(unittest.TestCase):
+    NOT_SAME = {"Tengoku.L.M": "`f` is not the same"}
+    CAND = {"Tengoku.L.M": {"partners": ["Tengoku.O.X"], "importers": ["Tengoku.L.B"]}}
+    TEXTS = {"Tengoku.L.M": "import Tengoku\n\ndef f := 1\n", "Tengoku.L.B": "import Tengoku.L.M\n\ndef g := f\n"}
+
+    def choose(self, not_same=None, before=None, aliased=frozenset(), texts=None):
+        before = before if before is not None else td.parse_fp(fp({"Tengoku.L.M": {"f": ("def", 1)}}))
+        return td.choose_forks(dict(not_same or self.NOT_SAME), self.CAND, before, set(aliased), dict(texts or self.TEXTS), "L")
+
+    def test_a_copy_with_a_complete_fingerprint_is_forked_with_what_imports_it(self):
+        forks, wrap, kept = self.choose()
+        self.assertEqual(list(forks), ["Tengoku.L.M"])
+        self.assertEqual(wrap, {"Tengoku.L.M", "Tengoku.L.B"})
+        self.assertEqual(kept, {})
+
+    def test_a_copy_that_was_not_fingerprinted_is_not_forked(self):
+        forks, wrap, kept = self.choose(before=td.parse_fp("FPERR\tTengoku.L.M\tcould not load\n"))
+        self.assertEqual((forks, wrap), ({}, set()))
+        self.assertIn("Tengoku.L.M", kept)
+
+    def test_a_module_that_cannot_be_wrapped_stops_the_fork_and_says_so(self):
+        forks, wrap, kept = self.choose(texts={**self.TEXTS, "Tengoku.L.B": "module\n\npublic import Tengoku.L.M\n\ndef g := f\n"})
+        self.assertEqual((forks, wrap), ({}, set()))
+        self.assertIn("cannot be wrapped", kept["Tengoku.L.M"])
+
+    def test_a_declaration_that_escapes_the_namespace_stops_the_fork_and_says_so(self):
+        """CodeRabbit on emissary#73: `theorem _root_.foo` stays `foo` inside the namespace, so the wrapped module would still declare the clashing name."""
+        forks, wrap, kept = self.choose(texts={**self.TEXTS, "Tengoku.L.B": "import Tengoku.L.M\n\ntheorem _root_.escapes : True := trivial\n"})
+        self.assertEqual((forks, wrap), ({}, set()))
+        self.assertIn("`escapes`", kept["Tengoku.L.M"])
+
+    def test_a_root_reference_in_a_type_a_comment_or_a_string_is_not_an_escape(self):
+        text = "import Tengoku.L.M\n\n/-- _root_.no -/\ntheorem g : _root_.Nat.zero = 0 := rfl\ndef s := \"theorem _root_.not_a_decl\"\n"
+        forks, wrap, _ = self.choose(texts={**self.TEXTS, "Tengoku.L.B": text})
+        self.assertEqual(list(forks), ["Tengoku.L.M"])
+
+    def test_a_private_declaration_is_not_an_escape(self):
+        forks, _, _ = self.choose(texts={**self.TEXTS, "Tengoku.L.B": "import Tengoku.L.M\n\nprivate theorem hidden : True := trivial\n"})
+        self.assertEqual(list(forks), ["Tengoku.L.M"])
+
+    def test_an_identical_copy_that_imports_a_forked_one_is_not_wrapped(self):
+        forks, wrap, _ = self.choose(aliased={"Tengoku.L.B"})
+        self.assertEqual(wrap, {"Tengoku.L.M"})
+
+
 class Compose(unittest.TestCase):
     """`bundle.py compose --keep-dups`: the copy is kept for the tree's build to decide (the draft), and in the final cut the ones it showed to be the same are not shipped while what imports
     them is; every other copy is dropped with its importers, exactly as without the flag."""
@@ -420,9 +589,10 @@ class Compose(unittest.TestCase):
     def shipped(self, d: Path, mode: str = "proposed") -> list[str]:
         return [json.loads(x)["name"] for x in (d / ("bundle" if mode == "strict" else f"bundle-{mode}") / "manifest.jsonl").read_text().splitlines()]
 
-    def dups_file(self, aliases: dict[str, list[str]], mode: str = "proposed") -> str:
+    def dups_file(self, aliases: dict[str, list[str]], mode: str = "proposed", forked: list[str] | None = None) -> str:
         p = Path(tempfile.mkdtemp()) / "dups.json"
-        p.write_text(json.dumps({"ns": "ToyLib", "modes": {mode: {"aliases": aliases, "not_same": {}, "refused": {}}}}))
+        spec = {"aliases": aliases, "not_same": {}, "refused": {}, "forks": {}, "forked": forked or [], "fork_namespace": "ToyLibFork" if forked else ""}
+        p.write_text(json.dumps({"ns": "ToyLib", "modes": {mode: spec}}))
         return str(p)
 
     def text(self, d: Path, mod: str, mode: str = "proposed") -> str:
@@ -468,6 +638,30 @@ class Compose(unittest.TestCase):
         rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
         self.assertEqual(rep["dropped"]["Toy.Owned"], "declares a record the tree already has: Toy.owned")
         self.assertEqual(rep["dropped"]["Toy.AboveOwned"], "imports a module that cannot go to the tree")
+
+    def test_a_copy_that_differs_ships_wrapped_with_what_imports_it_and_its_theorems_carry_the_namespace(self):
+        draft, _ = self.run_compose("--keep-dups")
+        d, p = self.run_compose("--keep-dups", "--tree-dups", self.dups_file({}, forked=["Toy.Owned", "Toy.AboveOwned"]))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(sorted(self.shipped(d)), ["Toy.clean_one", "ToyLibFork.Toy.above_owned", "ToyLibFork.Toy.owned"])
+        for mod in ("Owned", "AboveOwned"):
+            self.assertEqual(self.text(d, mod), td.apply_fork_text(self.text(draft, mod), "ToyLibFork"))  # the bytes the tree built: the draft's text with the one edit
+            self.assertIn("namespace ToyLibFork\n", self.text(d, mod))
+        self.assertEqual(self.text(d, "Clean"), self.text(draft, "Clean"))  # not wrapped
+        rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
+        self.assertEqual((rep["dups"]["forked_modules"], rep["dups"]["fork_namespace"]), (2, "ToyLibFork"))
+        self.assertEqual(rep["theorems"] + sum(rep["left_out"].values()), rep["passed_total"])  # the accounting identity still holds
+
+    def test_a_wrapped_copy_the_tree_refused_is_dropped_with_what_imports_it(self):
+        failures = Path(tempfile.mkdtemp()) / "failures.txt"
+        failures.write_text("Toy.Owned\n")
+        d, p = self.run_compose("--keep-dups", "--tree-dups", self.dups_file({}, forked=["Toy.Owned", "Toy.AboveOwned"]), "--tree-failures", str(failures))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.shipped(d), ["Toy.clean_one"])
+
+    def test_a_mode_the_tree_did_not_build_never_wraps(self):
+        d, p = self.run_compose("--keep-dups", "--tree-dups", self.dups_file({}, forked=["Toy.Owned", "Toy.AboveOwned"]))
+        self.assertEqual(self.shipped(d, "strict"), ["Toy.clean_one"])  # the strict bundle has no verdict: dropped like before
 
     def test_a_mode_the_tree_did_not_build_never_ships_an_alias(self):
         """Only the verified modes carry a verdict; the strict bundle (not built in the tree) drops the copy like before."""

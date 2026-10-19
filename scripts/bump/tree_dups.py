@@ -33,6 +33,14 @@ What the outcome of each decision lets you say (the claim, its assumptions, and 
 
   NOT SAME / NO VERDICT: nothing is claimed; the module goes the way it went before this step.
 
+  FORKED (NOT SAME, with a complete fingerprint; the copy is not a `module`-system file): the copy is not the tree's module, so it cannot be aliased, and it declares names the tree has, so it cannot be
+  shipped as it is. It and every module that imports it are wrapped in a namespace of their own (`<Library>Fork`: `namespace` after the header imports, `end` at the end of the file; `apply_fork_text`),
+  so that their declarations are `<Library>Fork.Foo`. The tree builds them so, and the program fingerprints each AFTER with the namespace left off (FP_STRIP): a module whose declarations are not
+  exactly what they were BEFORE, in the library's own build, is refused with what imports it, like an importer of an aliased copy. Claims: each declaration of a forked module is, term for term below the
+  seed, the declaration the library has (so the theorems say what the library says, about the definitions the library has), under the name `<Library>Fork.<name>`. Assumes what ALIASED assumes. Does NOT claim:
+  that the forked module is anything like the tree's module of that name (it is another version, and both are in the tree), that proofs are the same, or anything about registrations (instances, simp lemmas)
+  the wrap carries along: a forked copy's global instances and attributes are on its own types and names.
+
 The result is written as `dups.json` (per mode); `bundle.py compose --tree-dups` makes the same edits to the bundle that ships (`apply_alias_text`), and `tree_verify.py check` then proves, byte for byte,
 that every module that ships is a module the tree's build accepted.
 """
@@ -50,6 +58,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import bundle_layers as bl  # noqa: E402
+import lean_names  # noqa: E402
 import bundle_rehead as rehead  # noqa: E402
 import tolerant_build as tb  # noqa: E402
 import tree_verify as tv  # noqa: E402
@@ -57,6 +66,7 @@ import tree_verify as tv  # noqa: E402
 FP_LINE = re.compile(r"^FP\t(?P<mod>[^\t\n]+)\t(?P<name>[^\t\n]+)\t(?P<kind>[^\t\n]+)\t(?P<hash>[0-9a-f]{32})$", re.M)
 FP_END = re.compile(r"^FPEND\t(?P<mod>[^\t\n]+)\t(?P<n>\d+)$", re.M)
 FP_ERR = re.compile(r"^FPERR\t(?P<mod>[^\t\n]+)\t(?P<msg>[^\n]*)$", re.M)
+MODULE_KEYWORD = re.compile(r"^\s*(?:module|prelude)\s*(?:--.*)?$")
 IMPORT_RE = re.compile(r"^(\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)?)(" + tb.MODNAME + r")(.*)$")
 COMPONENT = re.compile(r"[^\W\d][\w']*")
 # What Lean names itself while it elaborates a declaration: the matcher, the numbered proof and equation lemmas. Their numbers depend on the order the declarations were elaborated in, not on what is
@@ -193,6 +203,37 @@ def apply_alias_text(text: str, aliases: dict[str, list[str]]) -> str:
     return "\n".join(out) if changed else text
 
 
+def apply_fork_text(text: str, namespace: str) -> str | None:
+    """The text wrapped in `namespace`: `namespace X` on its own line after the last import of the header (at the top of a file that imports nothing), `end X` after the last line. None for a file that
+    cannot be wrapped: one that uses Lean's `module` system or `prelude` (their headers have other rules). This is the one edit that makes a forked copy, made here on the checkout and by `bundle.py compose` on the bundle that ships (after
+    `apply_alias_text`, in both places), so that the bytes agree. A file that leaves a `section` or `namespace` open at its end does not build wrapped, and is refused by the build."""
+    lines = text.split("\n")
+    end, code = rehead.header_end(lines)
+    last = None
+    for i in range(min(end, len(code))):
+        if not code[i]:
+            continue
+        if MODULE_KEYWORD.match(lines[i]):
+            return None
+        if IMPORT_RE.match(lines[i]):
+            last = i
+    at = 0 if last is None else last + 1
+    body = lines[:at] + ([""] if at else []) + [f"namespace {namespace}"] + lines[at:]
+    while body and body[-1] == "":
+        body.pop()
+    return "\n".join(body + ["", f"end {namespace}", ""])
+
+
+def wrap_escapes(text: str, namespace: str) -> list[str]:
+    """The names a module declares outside `namespace` once it is wrapped in it: a `theorem _root_.foo` stays `foo` (CodeRabbit on emissary#73). Such a module is not forked: its declaration would still
+    be the clashing one, and the theorem would be recorded under a name (`<namespace>.foo`) the shipped module does not declare. A `_root_.` in a type, a value, a comment or a string is not a declaration
+    (lean_names.names reads code only)."""
+    wrapped = apply_fork_text(text, namespace)
+    if wrapped is None:
+        return []
+    return sorted(n for n in lean_names.names(wrapped) if not n.startswith(namespace + "."))
+
+
 def purge_build(tree: Path, rel: str) -> None:
     """The compiled files of a module that leaves the checkout (a stale olean must not be read by anything that imports the tree)."""
     stem = Path(rel).with_suffix("")
@@ -254,6 +295,37 @@ def cmd_candidates(a: argparse.Namespace) -> None:
         print(f"  skipped: {tv.library_module(m, ns)}: {why}")
 
 
+def fork_namespace(ns: str) -> str:
+    """The namespace a library's forked copies are wrapped in: `LeanPool` -> `LeanPoolFork`."""
+    return f"{ns}Fork"
+
+
+def choose_forks(not_same: dict[str, str], cand: dict, before: Fp, aliased_plain: set[str], texts: dict[str, str], ns: str) -> tuple[dict[str, str], set[str], dict[str, str]]:
+    """(the copies that are forked: copy -> why it is not the tree's, the modules to wrap: the forked copies and every module that imports one, and the copies that stay `not_same` -> why).
+    A copy is forked when its fingerprint is complete (`before`: a copy that was not fingerprinted gives no verdict, and no verdict is never a yes) and it and everything that imports it can be wrapped
+    (`apply_fork_text`). An identical copy that imports a forked one is not wrapped: it leaves the bundle."""
+    forks = {m: why for m, why in not_same.items() if tv.plain(m) in before}
+    kept_not_same = {m: why for m, why in not_same.items() if m not in forks}
+    namespace = fork_namespace(ns)
+
+    def problem(plain_module: str) -> str:
+        text = texts.get(plain_module, "")
+        if apply_fork_text(text, namespace) is None:
+            return f"{plain_module} cannot be wrapped in a namespace (Lean's module system or prelude)"
+        if escapes := wrap_escapes(text, namespace):
+            return f"{plain_module} declares {', '.join(f'`{n}`' for n in escapes[:3])} outside the namespace (`_root_`)"
+        return ""
+
+    while True:
+        members = {m: ({tv.plain(m)} | {tv.plain(x) for x in cand[m]["importers"]}) - aliased_plain for m in forks}
+        wrap = set().union(*members.values()) if members else set()
+        bad = {m: why for m in forks if (why := next((pr for w in sorted(members[m]) if (pr := problem(w))), ""))}
+        if not bad:
+            return forks, wrap, kept_not_same
+        for m, why in bad.items():  # a module of the fork cannot be wrapped faithfully: the copy goes the way it went before this step
+            kept_not_same[m] = forks.pop(m) + "; not forked: " + why
+
+
 def cmd_plan(a: argparse.Namespace) -> None:
     cand = json.loads(Path(a.candidates).read_text())
     if not cand["candidates"]:
@@ -275,14 +347,19 @@ def cmd_plan(a: argparse.Namespace) -> None:
         else:
             aliases[m] = targets
     plain_aliases = {tv.plain(m): ts for m, ts in aliases.items()}
+    texts = {tv.plain(x): (tree / spec["path"]).read_text(encoding="utf-8") for x, spec in mods.items() if (tree / spec["path"]).is_file()}
+    forks, wrap, not_same = choose_forks(not_same, cand["candidates"], before, set(plain_aliases), texts, ns) if a.fork else ({}, set(), not_same)
+    fork_ns = fork_namespace(ns)
     edited: list[str] = []
     for x, spec in sorted(mods.items()):
         f = tree / spec["path"]
         if x in aliases or not f.is_file():
             continue
         text = f.read_text(encoding="utf-8")
-        if any(tv.plain(i) in plain_aliases for i in tb.header_imports(text)):
-            edited_text = apply_alias_text(text, plain_aliases)
+        edited_text = apply_alias_text(text, plain_aliases) if any(tv.plain(i) in plain_aliases for i in tb.header_imports(text)) else text
+        if tv.plain(x) in wrap:
+            edited_text = apply_fork_text(edited_text, fork_ns) or edited_text  # choose_forks has seen that every module of `wrap` can be wrapped
+        if edited_text != text:
             f.write_text(edited_text, encoding="utf-8")
             spec["sha256"] = sha256(edited_text.encode("utf-8"))
             edited.append(x)
@@ -292,12 +369,16 @@ def cmd_plan(a: argparse.Namespace) -> None:
         del mods[m]
     (out / "new.json").write_text(json.dumps(new, indent=1) + "\n")
     (out / "targets.txt").write_text("".join(m + "\n" for m in sorted(mods)))
+    keyed = {tv.plain(m): m for m in mods}
     result = {"ns": ns, "mode": a.mode, "aliases": {tv.library_module(m, ns): ts for m, ts in aliases.items()},
-              "not_same": {tv.library_module(m, ns): why for m, why in not_same.items()}, "refused": {}}
+              "not_same": {tv.library_module(m, ns): why for m, why in not_same.items()}, "refused": {},
+              "forks": {tv.library_module(m, ns): why for m, why in forks.items()},
+              "forked": sorted(tv.library_module(keyed[w], ns) for w in wrap if w in keyed), "fork_namespace": fork_ns if forks else ""}
     (out / "dups.json").write_text(json.dumps(result, indent=1) + "\n")
     importers = sorted({tv.plain(x) for m in aliases for x in cand["candidates"][m]["importers"]} - {tv.plain(m) for m in aliases})
     (out / "dups-importers.txt").write_text("".join(m + "\n" for m in importers))
-    print(f"{len(aliases)} copy(ies) are the same as the tree's module(s) and leave the bundle; {len(not_same)} are not shown to be the same; {len(edited)} module(s) import the tree's module now")
+    print(f"{len(aliases)} copy(ies) are the same as the tree's module(s) and leave the bundle; {len(forks)} differ and are forked into {fork_ns} with {len(result['forked']) - len(forks)} module(s) that import them; "
+          f"{len(not_same)} are not shown to be the same; {len(edited)} module(s) edited")
     for m, why in list(not_same.items())[:10]:
         print(f"  not the same: {tv.library_module(m, ns)}: {why}")
 
@@ -309,7 +390,10 @@ def alive_after(a: argparse.Namespace) -> tuple[dict, dict, set[str], set[str]]:
     ns, mods = new["ns"], new["modules"]
     cand = json.loads(Path(a.candidates).read_text())
     keyed = {tv.library_module(m, ns): m for m in cand["candidates"]}
-    importers = {tv.plain(x) for lib in dups["aliases"] for x in cand["candidates"][keyed[lib]]["importers"]} - {tv.plain(m) for m in cand["candidates"]}
+    # what has to be shown to be exactly what it was: what imports an aliased copy (the copy itself is gone), and every module that was wrapped (the forked copies and what imports them)
+    importers = {tv.plain(x) for lib in dups["aliases"] for x in cand["candidates"][keyed[lib]]["importers"]} - {tv.plain(keyed[lib]) for lib in dups["aliases"]}
+    by_lib = {tv.library_module(m, ns): m for m in mods}
+    importers |= {tv.plain(by_lib[w]) for w in dups.get("forked", []) if w in by_lib}
     log = Path(a.log2).read_text(errors="replace")
     failing = tv.failures_from_log(log, ns) & set(mods)
     graph: dict[str, list[str]] = {}
@@ -370,6 +454,7 @@ def cmd_merge(a: argparse.Namespace) -> None:
         if d["mode"] in modes:
             sys.exit(f"two files for the mode {d['mode']}")
         modes[d["mode"]] = {k: d[k] for k in ("aliases", "not_same", "refused")}
+        modes[d["mode"]].update({k: d.get(k, v) for k, v in (("forks", {}), ("forked", []), ("fork_namespace", ""))})
     Path(a.out).write_text(json.dumps({"ns": ns, "modes": modes}, indent=1) + "\n")
     print(f"{sum(len(m['aliases']) for m in modes.values())} aliased in {sorted(modes)}")
 
@@ -388,6 +473,20 @@ def load_for_compose(path: str) -> dict[str, dict[str, list[str]]]:
     return out
 
 
+def load_forks_for_compose(path: str) -> dict[str, tuple[str, set[str]]]:
+    """mode -> (the namespace, the library modules that were wrapped in it), from the merged file `--tree-dups` names. A verdict from before forks existed has none: nothing is wrapped."""
+    d = json.loads(Path(path).read_text())
+    if not isinstance(d, dict) or not isinstance(d.get("modes"), dict):
+        sys.exit(f"{path}: not a merged dups file")
+    out: dict[str, tuple[str, set[str]]] = {}
+    for mode, spec in d["modes"].items():
+        forked, namespace = spec.get("forked", []), spec.get("fork_namespace", "")
+        if not isinstance(forked, list) or not all(isinstance(x, str) for x in forked) or not isinstance(namespace, str) or (forked and not namespace):
+            sys.exit(f"{path}: the forked modules of {mode} are not a list of modules with a namespace")
+        out[mode] = (namespace, {tv.plain(x) for x in forked})
+    return out
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -403,6 +502,7 @@ def main(argv: list[str] | None = None) -> None:
     p = sub.add_parser("plan")
     for k in ("--candidates", "--fp-before", "--fp-partners", "--new", "--tree", "--out", "--mode"):
         p.add_argument(k, required=True)
+    p.add_argument("--fork", action="store_true", help="a copy that is not the tree's module (complete fingerprint) is wrapped in <Library>Fork with what imports it, instead of staying a clash")
     p.set_defaults(fn=cmd_plan)
     for name, fn in (("after-list", cmd_after_list), ("after-verdict", cmd_after_verdict)):
         q = sub.add_parser(name)

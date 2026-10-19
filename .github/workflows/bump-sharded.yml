@@ -340,6 +340,8 @@ jobs:
           # the copies and what imports them, then the tree's modules; the tree's modules are named in both so that they are compared whole, like the library's own. Every module is fingerprinted in
           # an environment of its own, in a process of its own, four at once (fingerprint_chunks.sh): a module that cannot be loaded, or a process that dies, loses only its own share
           chunks=emissary/scripts/bump/fingerprint_chunks.sh
+          # the namespace a forked copy is wrapped in is left off every name the program reads (FP_STRIP): the same value in every run that is compared with another
+          export FP_STRIP="$(python3 -c 'import json, sys; sys.path.insert(0, "emissary/scripts/bump"); import tree_dups; print(tree_dups.fork_namespace(json.load(open("out/new.json"))["ns"]))')"
           bash "$chunks" "$PWD/out/dups-before.txt" "$PWD/out/dups-partners.txt" out/fp-before.txt "$((cap * 2 / 3))"
           bash "$chunks" "$PWD/out/dups-partners.txt" "$PWD/out/dups-partners.txt" out/fp-partners.txt "$((cap / 3))"
           n() { grep -c "^$1" "$2" || true; }  # grep -c prints 0 and exits 1 when nothing matches
@@ -349,14 +351,14 @@ jobs:
         if: ${{ steps.dups_find.outputs.found == 'true' }}
         run: |
           swapped=false
-          python3 emissary/scripts/bump/tree_dups.py plan --candidates out/dups-candidates.json --fp-before out/fp-before.txt --fp-partners out/fp-partners.txt --new out/new.json --tree tree --out out --mode "$MODE" | tee out/dups.txt
-          if python3 -c 'import json, sys; sys.exit(0 if json.load(open("out/dups.json"))["aliases"] else 1)'; then swapped=true; fi
+          python3 emissary/scripts/bump/tree_dups.py plan --candidates out/dups-candidates.json --fp-before out/fp-before.txt --fp-partners out/fp-partners.txt --new out/new.json --tree tree --out out --mode "$MODE" --fork | tee out/dups.txt
+          if python3 -c 'import json, sys; d = json.load(open("out/dups.json")); sys.exit(0 if d["aliases"] or d["forked"] else 1)'; then swapped=true; fi
           echo "swapped=$swapped" >> "$GITHUB_OUTPUT"
       - name: Copies of tree modules, the importers built on the tree's module
         if: ${{ steps.dups_plan.outputs.swapped == 'true' }}
         run: |
           : > out/build-dups.log
-          cap=$(( (JOB_START + 355 * 60 - $(date +%s)) / 60 - 110 )); [ "$cap" -gt 120 ] && cap=120
+          cap=$(( (JOB_START + 355 * 60 - $(date +%s)) / 60 - 110 )); [ "$cap" -gt 180 ] && cap=180
           if [ "$cap" -lt 10 ]; then echo "::warning::no time left to build the importers of the copies: none of them is kept"; exit 0; fi
           targets="$(tr '\n' ' ' < out/targets.txt)"
           cd tree
@@ -373,6 +375,8 @@ jobs:
           : > out/fp-after.txt
           cap=$(( (JOB_START + 355 * 60 - $(date +%s)) / 60 - 110 )); [ "$cap" -gt 60 ] && cap=60
           if [ -s out/dups-after.txt ] && [ "$cap" -ge 6 ]; then
+            # the namespace a forked copy is wrapped in is left off every name the program reads (FP_STRIP): the same value in every run that is compared with another
+            export FP_STRIP="$(python3 -c 'import json, sys; sys.path.insert(0, "emissary/scripts/bump"); import tree_dups; print(tree_dups.fork_namespace(json.load(open("out/new.json"))["ns"]))')"
             bash emissary/scripts/bump/fingerprint_chunks.sh "$PWD/out/dups-after.txt" "$PWD/out/dups-partners.txt" out/fp-after.txt "$cap"
           elif [ -s out/dups-after.txt ]; then
             echo "::warning::no time left to fingerprint the importers again: none of them is kept"

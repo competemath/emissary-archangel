@@ -447,7 +447,7 @@ class CopiesOfTreeModules(unittest.TestCase):
 
     def test_the_program_prints_what_the_python_side_reads(self):
         lean = (PATH.parents[2] / "scripts" / "bump" / "ModuleFingerprint.lean").read_text()
-        self.assertRegex(lean, r'FP\\t\{m\}\\t\{canon n\}\\t\{kindName ci\}\\t\{hex16 h\.1\}\{hex16 h\.2\}')
+        self.assertRegex(lean, r'FP\\t\{m\}\\t\{canon strip n\}\\t\{kindName ci\}\\t\{hex16 h\.1\}\{hex16 h\.2\}')
         self.assertIn('IO.println s!"FPEND\\t{m}\\t{lines.size}"', lean)  # a module counts only with its ending
         self.assertIn('IO.println s!"FPERR\\t{m}\\t', lean)  # a module that cannot be loaded says so and the run goes on
         self.assertIn('IO.println s!"fingerprints: {count} declarations"', lean)
@@ -477,6 +477,28 @@ class CopiesOfTreeModules(unittest.TestCase):
         after = step("verify", "Copies of tree modules, the importers fingerprinted again")["run"]
         self.assertIn("fingerprint_chunks.sh", after)
         self.assertIn("$PWD/out/dups-after.txt", after)
+
+    def test_a_copy_that_differs_is_forked_and_the_swap_is_built_when_there_is_anything_to_build(self):
+        plan = step("verify", "Copies of tree modules, decided")
+        self.assertIn('--mode "$MODE" --fork', plan["run"])
+        self.assertIn('d["aliases"] or d["forked"]', plan["run"])  # a verdict with forks and no alias still has modules to build wrapped
+        self.assertEqual(plan["id"], "dups_plan")
+
+    def test_every_fingerprint_run_leaves_the_fork_namespace_off_in_the_same_way(self):
+        """The wrapped module is compared with the library's own build: the name `LeanPoolFork.Foo` must read as `Foo` in the runs before (copies and importers), of the tree's modules, and after."""
+        runs = [step("verify", "Copies of tree modules, fingerprinted")["run"], step("verify", "Copies of tree modules, the importers fingerprinted again")["run"]]
+        exports = set()
+        for run in runs:
+            line = next(ln.strip() for ln in run.split("\n") if ln.strip().startswith("export FP_STRIP="))
+            exports.add(line)
+            call = run.index('bash "$chunks"') if '"$chunks"' in run else run.index("bash emissary/scripts/bump/fingerprint_chunks.sh")
+            self.assertLess(run.index("export FP_STRIP="), call)
+        self.assertEqual(len(exports), 1)  # one expression, the namespace the plan wraps in (tree_dups.fork_namespace)
+        self.assertIn("tree_dups.fork_namespace", next(iter(exports)))
+
+    def test_the_wrapped_modules_may_take_longer_to_build_than_the_importers_did(self):
+        run = step("verify", "Copies of tree modules, the importers built")["run"]
+        self.assertIn('[ "$cap" -gt 180 ] && cap=180', run)
 
     def test_the_runner_shows_its_memory_while_the_fingerprints_are_made(self):
         """A runner that is lost leaves no artifact: the step's log is what survives, and it says how much memory there was and how many Lean processes ran."""

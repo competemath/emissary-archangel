@@ -446,6 +446,7 @@ def compose(a: argparse.Namespace) -> None:
             if ns_ and m not in base_dropped:
                 dup_modules.setdefault(m, "declares a name another library of the tree declares: " + ", ".join(ns_[:3]))
     tree_dups_by_mode = tree_dups.load_for_compose(a.tree_dups) if a.tree_dups else None  # mode -> {library module -> the tree modules}: what the tree's build decided about the copies
+    forks_by_mode = tree_dups.load_forks_for_compose(a.tree_dups) if a.tree_dups else {}  # mode -> (namespace, the library modules the tree built wrapped in it): the copies that differ from the tree's and what imports them
     tree_failed = {ln.strip() for ln in Path(a.tree_failures).read_text().split("\n") if ln.strip()} if a.tree_failures else set()
     # the declarations the tree timed out on get more room (tree_repair.py, rule R2): the same edit, to the same bytes, as the one the tree's build accepted
     tree_repairs = json.loads(Path(a.tree_repairs).read_text())["modules"] if a.tree_repairs else {}
@@ -469,17 +470,20 @@ def compose(a: argparse.Namespace) -> None:
         # the copies of tree modules (`--keep-dups`): in the draft they stay; in the final cut the ones the tree's build showed to be the same as the tree's module are ALIASED (not shipped, no cascade,
         # their importers import the tree's module), and the others go like a module that declares a name the tree has
         aliased: dict[str, list[str]] = {}
+        fork_ns, forked = forks_by_mode.get(mode, ("", set())) if a.keep_dups else ("", set())
         if a.keep_dups and tree_dups_by_mode is not None:
             decided = {tv_plain(k): v for k, v in tree_dups_by_mode.get(mode, {}).items()}
             # the tree's verdict is the authority: a copy that ModuleClashes.lean found and the text rules above did not is aliased too (it left `new.json`, so nothing else would drop it, and it would
             # ship with the bytes of a module that clashes). A module the verdict does not name goes the way it went before: dropped when a text rule flags it, or by the tree's clash scan.
             copies = dict(dup_modules)
-            copies.update({m: "declares a name a tree module declares (the tree's clash scan)" for m in modules if tv_plain(m) in decided and m not in copies})
+            copies.update({m: "declares a name a tree module declares (the tree's clash scan)" for m in modules if (tv_plain(m) in decided or tv_plain(m) in forked) and m not in copies})
             for m, why in sorted(copies.items()):
                 if m in dropped:
                     continue
                 if tv_plain(m) in decided:
                     aliased[m] = decided[tv_plain(m)]
+                elif tv_plain(m) in forked:
+                    pass  # a copy that differs from the tree's module: the tree built it wrapped in its own namespace (below), with what imports it
                 else:
                     dropped[m] = why
         needed: set[str] = set()
@@ -540,7 +544,7 @@ def compose(a: argparse.Namespace) -> None:
                 he = portfolio.statement_end(text, 0)
                 stmt = (text[:he] if he > 0 else text.split(":=")[0]).strip()
                 rel = str(m.path.relative_to(lib))
-                manifest.append({"name": n, "statement": stmt, "module": f"Tengoku.{pascal(a.key)}.{mod}", "source_path": rel, "library": a.key,
+                manifest.append({"name": f"{fork_ns}.{n}" if tv_plain(mod) in forked else n, "statement": stmt, "module": f"Tengoku.{pascal(a.key)}.{mod}", "source_path": rel, "library": a.key,
                                  "source_url": f"{repo}/blob/{meta['commit']}/{rel}", "toolchain": a.toolchain, "via": via.get(n, "")})
         # the identity this rests on: no module of the bundle is one Gate 2 gave no verdict. A hole here is a bug in compose, and compose refuses to go on.
         unjudged = refuse_unjudged(needed, killed, mode)
@@ -573,6 +577,15 @@ def compose(a: argparse.Namespace) -> None:
                 new_text = tree_dups.apply_alias_text(text, amap)
                 if new_text != text:
                     f.write_text(new_text)
+        if forked:
+            # after the alias edit, as in the tree's checkout (tree_dups.py plan): the copies that differ from the tree's modules, and what imports them, are declared in a namespace of their own
+            for mod in sorted(needed):
+                if tv_plain(mod) in forked:
+                    f = tree_root / modules[mod].path.relative_to(lib)
+                    wrapped = tree_dups.apply_fork_text(f.read_text(), fork_ns)
+                    if wrapped is None:
+                        sys.exit(f"{mod} was built wrapped in {fork_ns} in the tree and cannot be wrapped here: the text that ships would not be the text that was built")
+                    f.write_text(wrapped)
         (out_dir / "Tengoku" / f"{pascal(a.key)}.lean").write_text("".join(f"import Tengoku.{pascal(a.key)}.{m}\n" for m in sorted(needed)))
         # tengoku's generator rewrites Tengoku/All.lean from the libraries that have a Deps.lean: an empty one (a comment) keeps this library in it
         (tree_root / "Deps.lean").write_text(f"-- {pascal(a.key)}: a factory bundle (data/intake/{a.key}). This file only marks the library for Tengoku/All.lean.\n")
@@ -611,7 +624,8 @@ def compose(a: argparse.Namespace) -> None:
                   "theorems": len(manifest), "notation_scoped": notation_scoped["scoped"], "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "textually_kept": textually_kept, "dependency_graph": ({**graph_stats, "text_kept_tainted": len(graph_stats["text_kept_tainted"]), "text_kept_tainted_first": graph_stats["text_kept_tainted"][:20], "taint_drops": a.taint_drops} if graph is not None else None), "failed_seeds_shipped": [f"{m}:{b[0]}" for m, b in failed_seeds[:50]], "failed_seeds_shipped_total": len(failed_seeds), "stripped_attributes": dict(stripped_attrs.most_common(15)),
                   "lint_cost": dict(sorted(classes.items(), key=lambda x: -x[1])[:15])}
         if a.keep_dups:
-            report["dups"] = {"aliased": len(aliased), "aliased_modules": dict(list(aliased.items())[:50]), "kept_for_the_tree_build": 0 if tree_dups_by_mode is not None else len(dup_modules)}
+            report["dups"] = {"aliased": len(aliased), "aliased_modules": dict(list(aliased.items())[:50]), "kept_for_the_tree_build": 0 if tree_dups_by_mode is not None else len(dup_modules),
+                              "forked_modules": len([m for m in needed if tv_plain(m) in forked]), "fork_namespace": fork_ns}
         (out_dir / "report.json").write_text(json.dumps(report, indent=1))
         summary[mode] = {k: v for k, v in report.items() if k not in ("dropped", "lint_cost", "left_out", "dups")}
     print(json.dumps(summary))
