@@ -132,6 +132,20 @@ class Decide(unittest.TestCase):
         before = td.parse_fp(fp({"Tengoku.L.M": {"f": ("theorem", 1)}}))
         self.assertIsNone(td.decide("Tengoku.L.M", ["Tengoku.O.X"], before, self.PARTNER)[0])
 
+    def test_lean_s_numbered_helpers_are_not_compared_one_by_one(self):
+        """Schoenflies rehearsal: 10 of 45 copies that were 'not the same' differed only in `match_1_5`-style names, which Lean numbers by the order it elaborates in."""
+        before = td.parse_fp(fp({"Tengoku.L.M": {"f": ("def", 1), "f.match_1_5": ("def", 50), "g.proof_3": ("theorem", 51), "g.eq_1": ("theorem", 52)}}))
+        self.assertEqual(td.decide("Tengoku.L.M", ["Tengoku.O.X"], before, self.PARTNER)[0], ["Tengoku.O.X"])
+
+    def test_but_a_helper_a_definition_stands_on_is_in_that_definitions_fingerprint(self):
+        """The fingerprint program takes a referenced constant's NAME into the referencing term, so a definition that matches on a different matcher differs: here as the fingerprint of `f` itself."""
+        before = td.parse_fp(fp({"Tengoku.L.M": {"f": ("def", 999), "f.match_1_5": ("def", 50)}}))
+        self.assertIsNone(td.decide("Tengoku.L.M", ["Tengoku.O.X"], before, self.PARTNER)[0])
+
+    def test_a_module_of_nothing_but_helpers_is_no_verdict(self):
+        before = td.parse_fp(fp({"Tengoku.L.M": {"f.match_1_5": ("def", 50)}}))
+        self.assertIsNone(td.decide("Tengoku.L.M", ["Tengoku.O.X"], before, self.PARTNER)[0])
+
     def test_no_declaration_is_no_verdict_not_a_vacuous_yes(self):
         self.assertIsNone(td.decide("Tengoku.L.M", ["Tengoku.O.X"], {}, self.PARTNER)[0])
 

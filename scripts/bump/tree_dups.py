@@ -58,6 +58,10 @@ FP_LINE = re.compile(r"^FP\t(?P<mod>[^\t\n]+)\t(?P<name>[^\t\n]+)\t(?P<kind>[^\t
 FP_DONE = re.compile(r"^fingerprints: (?P<n>\d+) declarations$", re.M)
 IMPORT_RE = re.compile(r"^(\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)?)(" + tb.MODNAME + r")(.*)$")
 COMPONENT = re.compile(r"[^\W\d][\w']*")
+# What Lean names itself while it elaborates a declaration: the matcher, the numbered proof and equation lemmas. Their numbers depend on the order the declarations were elaborated in, not on what is
+# stated. A copy that differs from the tree's module only in these has the same statements: anything that mentions one of them in a type or a value (a definition that matches) takes its NAME into its
+# fingerprint, so that one still differs. They are left out of the comparison of the copy's own declarations, never out of a fingerprint.
+AUX = re.compile(r"^(?:match_\d+(?:_\d+)*|proof_\d+|eq_\d+|eq_def|eq_unfold|congr_simp)$")
 
 Fp = dict[str, dict[str, tuple[str, str]]]  # module (plain) -> declaration -> (kind, 32 hex digits)
 
@@ -130,8 +134,9 @@ def clash_pairs(text: str, new_plain: set[str]) -> tuple[dict[str, set[str]], se
 
 def decide(module: str, partners: list[str], before: Fp, partner_fp: Fp) -> tuple[list[str] | None, str]:
     """(the tree modules to import instead of `module`, "") when every declaration of `module` is a declaration of those modules with the same fingerprint; (None, why) when that cannot be shown.
-    `module` and the partners are plain names. A module with no fingerprinted declaration is no verdict: an empty comparison would call anything the same."""
-    decls = before.get(module)
+    `module` and the partners are plain names. A module with no fingerprinted declaration is no verdict: an empty comparison would call anything the same. Lean's own auxiliary declarations (AUX) are not
+    compared one by one: whatever states something in terms of one has its name in its fingerprint."""
+    decls = {n: v for n, v in (before.get(module) or {}).items() if not AUX.match(n.rsplit(".", 1)[-1])}
     if not decls:
         return None, "no declaration of it was fingerprinted"
     owners: dict[str, list[tuple[str, tuple[str, str]]]] = defaultdict(list)
