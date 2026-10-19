@@ -400,6 +400,18 @@ class CopiesOfTreeModules(unittest.TestCase):
             if "lake build" in run:
                 self.assertIn("timeout -k 60", run, name)
 
+    def test_a_clash_scan_that_does_not_finish_leaves_nothing_aliased_and_does_not_fail_the_job(self):
+        """CodeRabbit on emissary#69: the scan can stop at its cap (3 minutes at the least). Its output then has no `clashes:` line, `candidates` would refuse it, and the step (and so verify, and with it
+        the whole bundle) would fail for an optional step."""
+        run = step("verify", "Copies of tree modules in the draft")["run"]
+        scan = run.index("ModuleClashes.lean")
+        line = run[scan: run.index("\n", scan)]
+        self.assertIn("> ../out/clashes-dups.txt 2>&1 || true", line)  # no pipe (pipefail) and no failing exit
+        self.assertNotIn("| tee", line)
+        guard = run.index("grep -q '^clashes: ' out/clashes-dups.txt")
+        self.assertLess(guard, run.index("tree_dups.py candidates"))  # candidates runs only on a scan that has its ending
+        self.assertIn("did not finish: nothing is aliased", run)
+
     def test_the_default_verdict_exists_whatever_runs(self):
         """A step that does not run, has no time, or whose Lean program does not finish leaves a verdict in which nothing is aliased: `finish` finds the file and the copy goes the way it went before."""
         self.assertIn("dups-failures.txt", step("verify", "Copy the new modules into the tree")["run"])

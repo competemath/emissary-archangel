@@ -408,6 +408,22 @@ class Compose(unittest.TestCase):
         rep = json.loads((d / "bundle" / "report.json").read_text())
         self.assertEqual(rep["dups"]["aliased"], 0)
 
+    def test_a_copy_that_only_the_trees_clash_scan_found_is_aliased_too(self):
+        """CodeRabbit on emissary#69: the verify job finds copies from the compiled modules, compose from text rules. A copy of the first kind leaves `new.json` when it is aliased; compose, not
+        flagging it, would ship it (a module that clashes, unchecked: `check` only reads `new.json`)."""
+        owner = self.harness()
+        d, p = test_bundle.AutoDrops.compose(owner, [], "--keep-dups", "--tree-dups", self.dups_file({"Toy.Owned": ["Tengoku.Other.Lib.Owned"]}), files=self.FILES)  # no --tree-names: the text rules flag nothing
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(sorted(self.shipped(d)), ["Toy.above_owned", "Toy.clean_one"])
+        self.assertFalse((d / "bundle-proposed" / "Tengoku" / "ToyLib" / "Toy" / "Owned.lean").exists())
+        self.assertIn("import Tengoku.Other.Lib.Owned", self.text(d, "AboveOwned"))
+
+    def test_a_module_the_verdict_does_not_name_and_the_text_rules_do_not_flag_is_shipped_as_before(self):
+        owner = self.harness()
+        d, p = test_bundle.AutoDrops.compose(owner, [], "--keep-dups", "--tree-dups", self.dups_file({}), files=self.FILES)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(sorted(self.shipped(d)), ["Toy.above_owned", "Toy.clean_one", "Toy.owned"])
+
     def test_the_lean_name_rule_keeps_the_copy_too(self):
         (decls := Path(tempfile.mkdtemp()) / "decls.txt").write_text("Toy.owned\n")
         owner = self.harness()

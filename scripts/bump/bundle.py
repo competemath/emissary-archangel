@@ -471,7 +471,11 @@ def compose(a: argparse.Namespace) -> None:
         aliased: dict[str, list[str]] = {}
         if a.keep_dups and tree_dups_by_mode is not None:
             decided = {tv_plain(k): v for k, v in tree_dups_by_mode.get(mode, {}).items()}
-            for m, why in sorted(dup_modules.items()):
+            # the tree's verdict is the authority: a copy that ModuleClashes.lean found and the text rules above did not is aliased too (it left `new.json`, so nothing else would drop it, and it would
+            # ship with the bytes of a module that clashes). A module the verdict does not name goes the way it went before: dropped when a text rule flags it, or by the tree's clash scan.
+            copies = dict(dup_modules)
+            copies.update({m: "declares a name a tree module declares (the tree's clash scan)" for m in modules if tv_plain(m) in decided and m not in copies})
+            for m, why in sorted(copies.items()):
                 if m in dropped:
                     continue
                 if tv_plain(m) in decided:

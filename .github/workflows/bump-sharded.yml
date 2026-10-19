@@ -316,10 +316,16 @@ jobs:
             cap=$(( (JOB_START + 355 * 60 - $(date +%s)) / 60 - 110 )); [ "$cap" -gt 10 ] && cap=10
             if [ "$cap" -ge 3 ]; then
               cd tree
-              timeout -k 30 "${cap}m" lake env lean --run ../emissary/scripts/bump/ModuleClashes.lean .lake/build/lib/lean ../out/built.txt Tengoku 2>&1 | tee ../out/clashes-dups.txt
+              timeout -k 30 "${cap}m" lake env lean --run ../emissary/scripts/bump/ModuleClashes.lean .lake/build/lib/lean ../out/built.txt Tengoku > ../out/clashes-dups.txt 2>&1 || true
+              tail -n 3 ../out/clashes-dups.txt
               cd ..
-              python3 emissary/scripts/bump/tree_dups.py candidates --clashes out/clashes-dups.txt --new out/new.json --built out/built.txt --bundle bundle --out out --mode "$MODE"
-              [ -s out/dups-before.txt ] && found=true
+              # a scan that did not finish (killed, out of time) has no `clashes:` line: nothing is known, nothing is aliased, and the job goes on (the clash scan after these steps decides, as before)
+              if grep -q '^clashes: ' out/clashes-dups.txt; then
+                python3 emissary/scripts/bump/tree_dups.py candidates --clashes out/clashes-dups.txt --new out/new.json --built out/built.txt --bundle bundle --out out --mode "$MODE"
+                if [ -s out/dups-before.txt ]; then found=true; fi
+              else
+                echo "::warning::the clash scan for copies of tree modules did not finish: nothing is aliased"
+              fi
             else
               echo "::warning::no time left to look for copies of tree modules"
             fi
