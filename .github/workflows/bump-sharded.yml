@@ -11,6 +11,7 @@ on:
       mathlib: { description: "Mathlib tag the Tengoku tree is seeded from", default: "v4.34.0-rc2" }
       toolchain: { description: "the tree's Lean toolchain", default: "leanprover/lean4:v4.34.0-rc2" }
       shards: { description: "number of shards (0 = automatic: as many as it takes for no shard to build more than 250k lines, at most 32)", default: "0" }
+      max_targets: { description: "a shard with more modules to judge than this is cut into shards of at most that many (0: never). Gate 2 judges a shard's modules one after the other inside the job's time: a shard with 1,758 of them (navier-stokes-euler's shard 1, one chain) judged 535 in 185 minutes and left 1,223 modules without a verdict, which do not ship. The plan changes, so a run with it cannot fill in from a run without it", default: "0" }
       parallel: { description: "shards running at once (the repository has 20 runners; tengoku's own CI waits for them too: leave it room)", default: "6" }
       recut_from: { description: "RECUT: the id of an earlier run of this workflow for this key. No plan, no shards: its shard artifacts are merged again, without the modules in `drop` (and what imports them), and the new bundle is attested by this run", default: "" }
       drop: { description: "RECUT: modules (comma list) that did not build on the tree, from the merge queue's build of the bundle", default: "" }
@@ -39,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions: { contents: read }
-    env: { KEY: "${{ inputs.key }}", SHARDS: "${{ inputs.shards }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}" }
+    env: { KEY: "${{ inputs.key }}", SHARDS: "${{ inputs.shards }}", MAX_TARGETS: "${{ inputs.max_targets }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}" }
     outputs:
       shards: ${{ steps.p.outputs.shards }}
       run_shards: ${{ steps.run.outputs.run_shards }}
@@ -80,6 +81,8 @@ jobs:
               k, plan = ps.choose_k(imp, weight, wanted, max(1, math.ceil(sum(weight.values()) / 200_000)))
           else:
               plan = ps.plan(imp, weight, k, wanted=wanted)
+          if int(os.environ.get("MAX_TARGETS") or 0) > 0:  # the shards that judge too many modules are cut (plan_shards.plan, max_targets)
+              plan = ps.plan(imp, weight, k, wanted=wanted, max_targets=int(os.environ["MAX_TARGETS"]))
           os.makedirs("../plan", exist_ok=True)
           json.dump(plan, open("../plan/plan.json", "w"))
           print({kk: v for kk, v in plan.items() if kk != "shards"}, "entries:", len(ents), "modules with entries:", len(wanted))

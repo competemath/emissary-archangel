@@ -116,6 +116,51 @@ class Planner(unittest.TestCase):
         self.assertEqual(json.loads((d / "bundle-proposed" / "report.json").read_text())["theorems"], 1)
 
 
+class SplitHeavyShards(unittest.TestCase):
+    """navier-stokes-euler, 2026-10-20: shard 1 had 1,758 targets in one chain of 1,838 modules. Gate 2 judged 535 in its 185 minutes; the other 1,223 modules have no verdict and do not ship."""
+
+    def chain(self, n=40):
+        imp = {f"M{i}": ([f"M{i-1}"] if i else []) for i in range(n)}
+        return imp, {m: 10 for m in imp}
+
+    def test_it_is_off_by_default_and_the_plan_is_the_same_bytes(self):
+        imp, w = self.chain()
+        self.assertEqual(json.dumps(ps.plan(imp, w, 2)), json.dumps(ps.plan(imp, w, 2, max_targets=0)))
+
+    def test_a_shard_with_too_many_targets_is_cut_into_shards_of_at_most_that_many_in_import_order(self):
+        imp, w = self.chain()
+        p = ps.plan(imp, w, 2, max_targets=7)
+        sizes = [len(s["targets"]) for s in p["shards"] if s["targets"]]
+        self.assertTrue(all(0 < n <= 7 for n in sizes), sizes)
+        self.assertEqual([m for s in p["shards"] for m in s["targets"]], [f"M{i}" for i in range(40)])  # every target once, dependencies first
+        self.assertEqual([s["shard"] for s in p["shards"]], list(range(len(p["shards"]))))
+        self.assertEqual(p["k"], len(p["shards"]))
+
+    def test_each_part_builds_exactly_the_closure_of_its_own_targets(self):
+        imp, w = self.chain()
+        p = ps.plan(imp, w, 2, max_targets=7)
+        for s in p["shards"]:
+            if not s["targets"]:
+                continue
+            last = max(int(m[1:]) for m in s["targets"])
+            self.assertEqual(sorted(s["build"], key=lambda m: int(m[1:])), [f"M{i}" for i in range(last + 1)])  # dependency-closed, and nothing more
+            self.assertEqual(s["lines"], 10 * (last + 1))
+
+    def test_a_shard_within_the_cap_is_left_alone(self):
+        imp, w = self.chain(10)
+        a, b = ps.plan(imp, w, 2), ps.plan(imp, w, 2, max_targets=50)
+        self.assertEqual(json.dumps(a["shards"]), json.dumps(b["shards"]))
+
+    def test_the_workflow_hands_the_input_to_the_planner(self):
+        import yaml
+
+        wf = yaml.safe_load((HERE.parent.parent / ".github" / "workflows" / "bump-sharded.yml").read_text())
+        self.assertEqual(wf[True]["workflow_dispatch"]["inputs"]["max_targets"]["default"], "0")
+        self.assertEqual(wf["jobs"]["plan"]["env"]["MAX_TARGETS"], "${{ inputs.max_targets }}")
+        run = next(st["run"] for st in wf["jobs"]["plan"]["steps"] if st.get("id") == "p")
+        self.assertIn("max_targets=int(os.environ[\"MAX_TARGETS\"])", run)
+
+
 class MergeNeedsShards(unittest.TestCase):
     """2026-10-08: `bump-sharded` with `recut_from` naming a run whose shard artifacts were gone (a recut itself) merged nothing and published an empty bundle as a success."""
 

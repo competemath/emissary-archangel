@@ -47,8 +47,11 @@ def topo(imp: dict[str, list[str]]) -> list[str]:
     return order
 
 
-def plan(imp: dict[str, list[str]], weight: dict[str, int], k: int, cap: float = 1.05, wanted: set[str] | None = None) -> dict:
-    """`wanted`: the modules that need checking (those with ledger entries); the rest is only built where something imports it."""
+def plan(imp: dict[str, list[str]], weight: dict[str, int], k: int, cap: float = 1.05, wanted: set[str] | None = None, max_targets: int = 0) -> dict:
+    """`wanted`: the modules that need checking (those with ledger entries); the rest is only built where something imports it.
+    `max_targets`: a shard with more targets than this is cut into shards of at most that many, in import order (0: never). Gate 2 judges a shard's targets one after the other inside the
+    shard job's time (navier-stokes-euler, 2026-10-20: shard 1 had 1,758 targets, one flat chain of 1,838 modules that cannot be spread by closure; its Gate 2 got through 535 of them in
+    185 minutes and the other 1,223 modules, 12.7k theorems, have no verdict and do not ship). Each part builds only the closure of its own targets, so the early parts are cheap."""
     order = topo(imp)
     idx = {m: i for i, m in enumerate(order)}
     clos: dict[str, int] = {}  # closure of m as a bitset over `idx`
@@ -88,6 +91,25 @@ def plan(imp: dict[str, list[str]], weight: dict[str, int], k: int, cap: float =
     for s in range(k):
         b = [order[i] for i in range(len(order)) if built[s] >> i & 1]
         shards.append({"shard": s, "targets": targets[s], "build": b, "lines": load[s]})
+    if max_targets > 0:
+        cut: list[dict] = []
+        for sh in shards:
+            t = sh["targets"]
+            parts = math.ceil(len(t) / max_targets) if t else 1
+            if parts <= 1:
+                cut.append(sh)
+                continue
+            size = math.ceil(len(t) / parts)
+            for i in range(0, len(t), size):
+                chunk = t[i : i + size]
+                bits = 0
+                for m in chunk:
+                    bits |= clos[m]
+                cut.append({"shard": 0, "targets": chunk, "build": [order[j] for j in range(len(order)) if bits >> j & 1], "lines": lines_of(bits)})
+        shards = cut
+        for n, sh in enumerate(shards):
+            sh["shard"] = n
+        k = len(shards)
     dup = sum(len(x["build"]) for x in shards) / max(1, len(order))
     return {"modules": len(order), "lines": total, "k": k, "duplication": round(dup, 2),
             "max_shard_lines": max(x["lines"] for x in shards), "mean_shard_lines": round(total * dup / k), "shards": shards}
@@ -117,6 +139,7 @@ if __name__ == "__main__":
     ap.add_argument("k", type=int)
     ap.add_argument("--out", default="")
     ap.add_argument("--ledger", default="", help="only the modules with entries in this ledger are targets")
+    ap.add_argument("--max-targets", type=int, default=0, help="cut a shard with more targets than this into shards of at most that many")
     a = ap.parse_args()
     imp, weight = graph(Path(a.lib), [r for r in a.roots.split(",") if r])
     wanted = None
@@ -130,7 +153,7 @@ if __name__ == "__main__":
             if sp.endswith(".lean"):
                 wanted.add(".".join(tb.esc(x) for x in sp[:-5].split("/")))
         wanted &= set(imp)
-    p = plan(imp, weight, a.k, wanted=wanted)
+    p = plan(imp, weight, a.k, wanted=wanted, max_targets=a.max_targets)
     p["targets_total"] = sum(len(s["targets"]) for s in p["shards"])
     if a.out:
         Path(a.out).write_text(json.dumps(p))
