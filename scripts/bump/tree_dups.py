@@ -33,8 +33,8 @@ What the outcome of each decision lets you say (the claim, its assumptions, and 
 
   NOT SAME / NO VERDICT: nothing is claimed; the module goes the way it went before this step.
 
-  FORKED (NOT SAME, with a complete fingerprint; the copy is not a `module`-system file): the copy is not the tree's module, so it cannot be aliased, and it declares names the tree has, so it cannot be
-  shipped as it is. It and every module that imports it are wrapped in a namespace of their own (`<Library>Fork`: `namespace` after the header imports, `end` at the end of the file; `apply_fork_text`),
+  FORKED (NOT SAME, with a complete fingerprint; the copy and what imports it are not `prelude` files and declare nothing outside the namespace): the copy is not the tree's module, so it cannot be aliased, and it declares names the tree has, so it cannot be
+  shipped as it is. It and every module that imports it are wrapped in a namespace of their own (`<Library>Fork`: a `namespace` line after the header imports, left open to the end of the file; `apply_fork_text`),
   so that their declarations are `<Library>Fork.Foo`. The tree builds them so, and the program fingerprints each AFTER with the namespace left off (FP_STRIP): a module whose declarations are not
   exactly what they were BEFORE, in the library's own build, is refused with what imports it, like an importer of an aliased copy. Claims: each declaration of a forked module is, term for term below the
   seed, the declaration the library has (so the theorems say what the library says, about the definitions the library has), under the name `<Library>Fork.<name>`. Assumes what ALIASED assumes. Does NOT claim:
@@ -66,7 +66,10 @@ import tree_verify as tv  # noqa: E402
 FP_LINE = re.compile(r"^FP\t(?P<mod>[^\t\n]+)\t(?P<name>[^\t\n]+)\t(?P<kind>[^\t\n]+)\t(?P<hash>[0-9a-f]{32})$", re.M)
 FP_END = re.compile(r"^FPEND\t(?P<mod>[^\t\n]+)\t(?P<n>\d+)$", re.M)
 FP_ERR = re.compile(r"^FPERR\t(?P<mod>[^\t\n]+)\t(?P<msg>[^\n]*)$", re.M)
-MODULE_KEYWORD = re.compile(r"^\s*(?:module|prelude)\s*(?:--.*)?$")
+MODULE_LINE = re.compile(r"^\s*module\s*(?:--.*)?$")
+PRELUDE = re.compile(r"^\s*prelude\s*(?:--.*)?$")
+# `public section`, `@[expose] public section`, `noncomputable section`: lean_names.names reads only a plain `section` as one (an `end` would pop the wrong scope)
+SECTION_OPENER = re.compile(r"^([ \t]*)(?:@\[[^\]\n]*\][ \t]*)*(?:(?:public|private|meta|noncomputable)[ \t]+)+section\b", re.M)
 IMPORT_RE = re.compile(r"^(\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)?)(" + tb.MODNAME + r")(.*)$")
 COMPONENT = re.compile(r"[^\W\d][\w']*")
 # What Lean names itself while it elaborates a declaration: the matcher, the numbered proof and equation lemmas. Their numbers depend on the order the declarations were elaborated in, not on what is
@@ -204,24 +207,25 @@ def apply_alias_text(text: str, aliases: dict[str, list[str]]) -> str:
 
 
 def apply_fork_text(text: str, namespace: str) -> str | None:
-    """The text wrapped in `namespace`: `namespace X` on its own line after the last import of the header (at the top of a file that imports nothing), `end X` after the last line. None for a file that
-    cannot be wrapped: one that uses Lean's `module` system or `prelude` (their headers have other rules). This is the one edit that makes a forked copy, made here on the checkout and by `bundle.py compose` on the bundle that ships (after
-    `apply_alias_text`, in both places), so that the bytes agree. A file that leaves a `section` or `namespace` open at its end does not build wrapped, and is refused by the build."""
+    """The text with `namespace X` on its own line after the last import of the header (at the top of a file that imports nothing). Nothing closes it: Lean closes the scopes a file leaves open at its end,
+    and nearly every file of the module system leaves `public section` open (4,049 of lean-pool's 4,131), where an `end X` would be an error. None for a file that cannot be wrapped: one with `prelude`.
+    Files of Lean's `module` system are wrapped like any other (their `module` line and imports stay above the namespace). This is the one edit that makes a forked copy, made here on the checkout and by
+    `bundle.py compose` on the bundle that ships (after `apply_alias_text`, in both places), so that the bytes agree."""
     lines = text.split("\n")
     end, code = rehead.header_end(lines)
-    last = None
+    last = module_line = None
     for i in range(min(end, len(code))):
         if not code[i]:
             continue
-        if MODULE_KEYWORD.match(lines[i]):
+        if PRELUDE.match(lines[i]):
             return None
+        if MODULE_LINE.match(lines[i]):
+            module_line = i
         if IMPORT_RE.match(lines[i]):
             last = i
-    at = 0 if last is None else last + 1
+    at = last + 1 if last is not None else module_line + 1 if module_line is not None else 0  # the `module` line comes first in a file of the module system, then its imports
     body = lines[:at] + ([""] if at else []) + [f"namespace {namespace}"] + lines[at:]
-    while body and body[-1] == "":
-        body.pop()
-    return "\n".join(body + ["", f"end {namespace}", ""])
+    return "\n".join(body) if text.endswith("\n") or not text else "\n".join(body) + "\n"
 
 
 def wrap_escapes(text: str, namespace: str) -> list[str]:
@@ -231,7 +235,7 @@ def wrap_escapes(text: str, namespace: str) -> list[str]:
     wrapped = apply_fork_text(text, namespace)
     if wrapped is None:
         return []
-    return sorted(n for n in lean_names.names(wrapped) if not n.startswith(namespace + "."))
+    return sorted(n for n in lean_names.names(SECTION_OPENER.sub(r"\1section", wrapped)) if not n.startswith(namespace + "."))
 
 
 def purge_build(tree: Path, rel: str) -> None:
@@ -311,7 +315,7 @@ def choose_forks(not_same: dict[str, str], cand: dict, before: Fp, aliased_plain
     def problem(plain_module: str) -> str:
         text = texts.get(plain_module, "")
         if apply_fork_text(text, namespace) is None:
-            return f"{plain_module} cannot be wrapped in a namespace (Lean's module system or prelude)"
+            return f"{plain_module} cannot be wrapped in a namespace (`prelude`)"
         if escapes := wrap_escapes(text, namespace):
             return f"{plain_module} declares {', '.join(f'`{n}`' for n in escapes[:3])} outside the namespace (`_root_`)"
         return ""

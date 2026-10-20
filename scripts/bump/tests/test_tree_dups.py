@@ -416,7 +416,7 @@ class ForkFlow(FlowBase):
 
     def wrapped(self, name: str) -> bool:
         text = (self.tree / f"Tengoku/ToyLib/Toy/{name}.lean").read_text()
-        return "\nnamespace ToyLibFork\n" in text and text.endswith("\nend ToyLibFork\n")
+        return "\nnamespace ToyLibFork\n" in text and "end ToyLibFork" not in text
 
     def test_a_copy_that_differs_is_wrapped_with_what_imports_it_and_stays(self):
         self.plan(before_hash=999, fork=True)
@@ -449,8 +449,8 @@ class ForkFlow(FlowBase):
         self.assertEqual((dups["forks"], dups["forked"]), ({}, []))
         self.assertIn("could not load", dups["not_same"]["Toy.M"])
 
-    def test_a_module_of_the_module_system_stops_the_fork(self):
-        write(self.tree, {"Tengoku/ToyLib/Toy/B.lean": "module\n\npublic import Tengoku.ToyLib.Toy.M\n\ntheorem Toy.t : Toy.f = 1 := rfl\n"})
+    def test_a_prelude_file_stops_the_fork(self):
+        write(self.tree, {"Tengoku/ToyLib/Toy/B.lean": "prelude\nimport Tengoku.ToyLib.Toy.M\n\ntheorem Toy.t : Toy.f = 1 := rfl\n"})
         self.plan(before_hash=999, fork=True)
         self.assertFalse(any(self.wrapped(m) for m in "MC"))
         self.assertIn("cannot be wrapped", json.loads((self.out / "dups.json").read_text())["not_same"]["Toy.M"])
@@ -496,9 +496,15 @@ class ForkText(unittest.TestCase):
 
     NS = "ToyLibFork"
 
-    def test_the_namespace_opens_after_the_last_import_and_closes_at_the_end(self):
+    def test_the_namespace_opens_after_the_last_import_and_is_left_open(self):
+        """Lean closes the scopes a file leaves open at its end; 4,049 of lean-pool's 4,131 files leave a `public section` open, where an `end X` at the end would be an error."""
         text = "import Tengoku\nimport Tengoku.A\n\n/-- doc -/\ntheorem t : 1 = 1 := rfl\n"
-        self.assertEqual(td.apply_fork_text(text, self.NS), "import Tengoku\nimport Tengoku.A\n\nnamespace ToyLibFork\n\n/-- doc -/\ntheorem t : 1 = 1 := rfl\n\nend ToyLibFork\n")
+        self.assertEqual(td.apply_fork_text(text, self.NS), "import Tengoku\nimport Tengoku.A\n\nnamespace ToyLibFork\n\n/-- doc -/\ntheorem t : 1 = 1 := rfl\n")
+
+    def test_nothing_closes_the_namespace_so_a_file_that_leaves_a_section_open_still_builds(self):
+        out = td.apply_fork_text("import Tengoku\n\n@[expose] public section\ndef a := 1\n", self.NS)
+        self.assertNotIn("end ToyLibFork", out)
+        self.assertEqual(out.count("namespace ToyLibFork"), 1)
 
     def test_a_docstring_of_the_first_declaration_is_not_separated_from_it(self):
         out = td.apply_fork_text("import Tengoku\n/-- the first -/\ndef a := 1\n", self.NS)
@@ -511,17 +517,22 @@ class ForkText(unittest.TestCase):
     def test_the_prefix_of_an_import_is_still_an_import(self):
         self.assertIn("namespace ToyLibFork", td.apply_fork_text("public import Tengoku.A\n\ndef a := 1\n", self.NS))
 
-    def test_a_file_of_lean_s_module_system_cannot_be_wrapped(self):
-        self.assertIsNone(td.apply_fork_text("module\n\npublic import Tengoku\n\ndef a := 1\n", self.NS))
+    def test_a_file_of_lean_s_module_system_is_wrapped_below_its_module_line_and_imports(self):
+        """every file of lean-pool but one is one: `module`, the imports, then `@[expose] public section`"""
+        text = "/- c -/\nmodule\n\npublic import Tengoku.A\nimport Tengoku.B\n\n@[expose] public section\ndef a := 1\n"
+        self.assertEqual(td.apply_fork_text(text, self.NS), "/- c -/\nmodule\n\npublic import Tengoku.A\nimport Tengoku.B\n\nnamespace ToyLibFork\n\n@[expose] public section\ndef a := 1\n")
+
+    def test_a_module_system_file_with_no_import_is_wrapped_after_its_module_line(self):
+        self.assertEqual(td.apply_fork_text("module\n\n@[expose] public section\ndef a := 1\n", self.NS), "module\n\nnamespace ToyLibFork\n\n@[expose] public section\ndef a := 1\n")
 
     def test_a_file_that_imports_nothing_is_wrapped_from_its_top(self):
-        self.assertEqual(td.apply_fork_text("/-- a -/\ndef a := 1\n", self.NS), "namespace ToyLibFork\n/-- a -/\ndef a := 1\n\nend ToyLibFork\n")
+        self.assertEqual(td.apply_fork_text("/-- a -/\ndef a := 1\n", self.NS), "namespace ToyLibFork\n/-- a -/\ndef a := 1\n")
 
     def test_a_prelude_file_cannot_be_wrapped(self):
         self.assertIsNone(td.apply_fork_text("prelude\nimport Init.Core\n\ndef a := 1\n", self.NS))
 
     def test_a_file_without_a_final_line_break_ends_with_one(self):
-        self.assertTrue(td.apply_fork_text("import Tengoku\ndef a := 1", self.NS).endswith("end ToyLibFork\n"))
+        self.assertTrue(td.apply_fork_text("import Tengoku\ndef a := 1", self.NS).endswith("def a := 1\n"))
 
     def test_the_namespace_of_a_library(self):
         self.assertEqual(td.fork_namespace("LeanPool"), "LeanPoolFork")
@@ -548,9 +559,19 @@ class ChooseForks(unittest.TestCase):
         self.assertIn("Tengoku.L.M", kept)
 
     def test_a_module_that_cannot_be_wrapped_stops_the_fork_and_says_so(self):
-        forks, wrap, kept = self.choose(texts={**self.TEXTS, "Tengoku.L.B": "module\n\npublic import Tengoku.L.M\n\ndef g := f\n"})
+        forks, wrap, kept = self.choose(texts={**self.TEXTS, "Tengoku.L.B": "prelude\nimport Tengoku.L.M\n\ndef g := f\n"})
         self.assertEqual((forks, wrap), ({}, set()))
         self.assertIn("cannot be wrapped", kept["Tengoku.L.M"])
+
+    def test_a_file_of_the_module_system_is_forked_like_any_other(self):
+        text = "module\n\npublic import Tengoku.L.M\n\n@[expose] public section\ntheorem g : True := trivial\nend\n"
+        forks, wrap, _ = self.choose(texts={**self.TEXTS, "Tengoku.L.B": text})
+        self.assertEqual(list(forks), ["Tengoku.L.M"])
+
+    def test_the_end_of_a_public_section_does_not_make_the_module_look_like_it_left_the_namespace(self):
+        """lean_names.names pops its scope stack at every `end`: a `public section` it does not know would pop the namespace, and every declaration after it would look like an escape"""
+        text = "import Tengoku.L.M\n\n@[expose] public section\nsection Inner\ntheorem a : True := trivial\nend Inner\nend\ntheorem b : True := trivial\n"
+        self.assertEqual(td.wrap_escapes(text, "LFork"), [])
 
     def test_a_declaration_that_escapes_the_namespace_stops_the_fork_and_says_so(self):
         """CodeRabbit on emissary#73: `theorem _root_.foo` stays `foo` inside the namespace, so the wrapped module would still declare the clashing name."""
