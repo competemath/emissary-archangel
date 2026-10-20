@@ -20,6 +20,9 @@ from pathlib import Path
 
 DEFAULT_LIMIT_KB = 6 * 1024 * 1024
 RUNNER_SHARE = 0.80  # of the machine's memory: what is left is the runner agent, the shell and the kernel's own needs
+# how often the memory of the command is read. Lean can grow by gigabytes in a second; what it grows between two reads is how far it can pass the limit, and the limit plus that has to stay below
+# the machine (2026-10-20, Navier shard 3 at share 0.92 = 14.7 GB of 16: the runner went down, "received a shutdown signal", before a read a second apart could stop the process; shard 63 at the same share finished)
+POLL_S = 0.2
 
 
 @dataclass
@@ -47,7 +50,7 @@ def rss_kb(group_leader: int) -> int:
     return sum(int(x) for x in out.split() if x.isdigit())
 
 
-def run_guarded(cmd: list[str], cwd: str | Path, env: dict[str, str], log: str | Path, timeout_s: float, rss_limit_kb: int, poll_s: float = 1.0) -> Result:
+def run_guarded(cmd: list[str], cwd: str | Path, env: dict[str, str], log: str | Path, timeout_s: float, rss_limit_kb: int, poll_s: float = POLL_S) -> Result:
     start, peak, kind = time.monotonic(), 0, "ok"
     with open(log, "wb") as f:
         p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=f, stderr=subprocess.STDOUT, start_new_session=True)  # its own group: the kill takes the whole tree
