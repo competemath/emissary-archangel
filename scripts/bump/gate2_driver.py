@@ -174,7 +174,11 @@ def main(argv: list[str]) -> int:
             sys.exit("--skip needs --only: it takes modules out of the list to check")
         first_only, skipped = apply_skip(first_only, [m for m in a.skip.split(",") if m])
         print(f"gate2: {len(skipped)} module(s) skipped, no verdict for them: {skipped[:8]}")
-    logs, killed, last = drive(first_only, gen, run, a.controls, a.max_decls, budget_s=a.budget_min * 60)
+    if skipped and not first_only:
+        # every module of the shard is skipped: nothing is checked (an empty list would mean 'every module' to the generator, and verdicts for modules of other shards)
+        logs, killed, last = [], [], {"plan_modules": [], "modules_checked": 0, "declarations": 0}
+    else:
+        logs, killed, last = drive(first_only, gen, run, a.controls, a.max_decls, budget_s=a.budget_min * 60)
     killed = killed + skipped
     Path(a.log).write_text("".join(logs))
     Path(a.killed).write_text(json.dumps(sorted(set(killed))))
