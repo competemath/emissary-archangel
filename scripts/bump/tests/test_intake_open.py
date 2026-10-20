@@ -93,8 +93,9 @@ class Budget(unittest.TestCase):
 
 
 class FakeGh:
-    def __init__(self, prs=(), runs=(), opened=0, in_tree=()):
+    def __init__(self, prs=(), runs=(), opened=0, in_tree=(), tree_parts=None):
         self._prs, self._runs, self._opened, self._in_tree = list(prs), list(runs), opened, set(in_tree)
+        self._tree_parts = dict(tree_parts or {})
 
     def prs(self):
         return self._prs
@@ -107,6 +108,9 @@ class FakeGh:
 
     def unmanaged_in_tree(self, key):
         return key in self._in_tree
+
+    def tree_last_part(self, key):
+        return self._tree_parts.get(key)
 
 
 def run_row(run, key, hours_ago):
@@ -218,6 +222,21 @@ class FromTreeRecuts(unittest.TestCase):
     def test_a_newer_plain_run_does_not_continue_a_finished_library(self):
         merged = io.Pr(638, "MERGED", "lib", 5, 14, "extend: lib part 14 of 14 (801 verified theorems in 94 modules)", True)
         self.assertEqual(io.decide([merged], 6, False, from_tree=False), ("skip", "every part is in the tree"))
+
+    def test_a_recut_is_numbered_from_the_tree_not_from_old_pull_requests(self):
+        """navier-stokes-euler 2026-10-20: part 5 of an old run merged; a raze reset the tree to parts 001-002; the recut cut part 003. The opener asked for part 6."""
+        old = io.Pr(578, "MERGED", "lib", 4, 5, "extend: lib part 5 of 5 (1357 verified theorems in 282 modules)", True)
+        newer = io.Pr(602, "MERGED", "lib", 5, 2, "extend: lib part 2 (5392 verified theorems in 276 modules)", True)
+        self.assertEqual(io.decide([old, newer], 6, False, from_tree=True), ("open", {"part": 6, "run": 6, "depends_on": "#578"}))  # without the tree: the old behaviour
+        self.assertEqual(io.decide([old, newer], 6, False, from_tree=True, tree_last=2), ("open", {"part": 3, "run": 6, "depends_on": "#602"}))
+
+    def test_the_tree_does_not_number_a_run_that_is_not_a_recut(self):
+        merged = io.Pr(7, "MERGED", "lib", 5, 3, "extend: lib part 3 of 9 (3 verified theorems in 1 modules)", True)
+        self.assertEqual(io.decide([merged], 5, False, from_tree=False, tree_last=7), ("open", {"part": 4, "run": 5, "depends_on": "#7"}))
+
+    def test_a_library_with_no_parts_in_the_tree_is_numbered_as_before(self):
+        merged = io.Pr(7, "MERGED", "lib", 5, 3, "extend: lib part 3 (3 verified theorems in 1 modules)", True)
+        self.assertEqual(io.decide([merged], 6, False, from_tree=True, tree_last=None), ("open", {"part": 4, "run": 6, "depends_on": "#7"}))
 
     def test_a_from_tree_recut_that_was_closed_without_merging_is_not_reopened(self):
         merged = io.Pr(413, "MERGED", "lib", 5, 1, "intake: lib part 1 of 9 (1 verified theorems in 1 modules)", True)
