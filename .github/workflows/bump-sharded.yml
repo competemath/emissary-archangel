@@ -20,6 +20,7 @@ on:
       verify: { description: "build the bundle in the TREE's own environment (the merge queue's own build, on a checkout seeded from the tree's cache) before it is cut into parts: the modules the tree refuses are dropped with their importers, and what ships is proven byte for byte what was built there. `false` skips it", default: "true" }
       verify_partial: { description: "verify: a build that runs out of its time (210 min) still ships the modules it built; the rest are left for the next from-tree round. For a library with more new modules than one runner builds in that time (a first cut of a giant). Default `false`: a build that does not finish fails the run", default: "false" }
       verify_modes: { description: "the bundle modes that are built in the tree (comma list of strict, proposed, wide): the intake opener ships `proposed`; a mode that is not built ships as the factory cut it", default: "proposed" }
+      fork_identical: { description: "with dups: a copy that IS the tree's module is forked too (shipped again under <Library>Fork) when a file of Lean's module system would have to import a tree module that is not one, which Lean refuses; its theorems are duplicates of the tree's and the report counts them apart (dups.duplicate_theorems). Off: such a copy and what imports it stay out", default: "false" }
       dups: { description: "COPIES OF TREE MODULES (tree_dups.py): a module of the library that declares a name the tree already has is not dropped with what imports it at once. It stays in the draft; the tree builds it; where every declaration of it has the same fingerprint (type, value, and everything below them) as the tree's module, the copy is not shipped and what imports it imports the tree's module instead, and each such importer is built again and must come out with exactly the declarations it had. Anything else goes the way it went before. Needs verify", default: "false" }
       from_tree: { description: "PARTS, on a recut after some parts merged: cut only the modules the tree does not have yet (the library's Tengoku/<Ns>.lean on tengoku main), numbered from the next part, so the new parts extend what merged (scripts/bump/bundle_layers.py --tree-umbrella)", default: "" }
       gate2_budget_min: { description: "minutes Gate 2 may spend on each shard (default 150; the shard job has 345 in all, the build and export come first). A shard whose chunks do not fit leaves the rest unjudged, and an unjudged module is cut with its importers", default: "150" }
@@ -223,7 +224,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 355
     permissions: { contents: read }
-    env: { KEY: "${{ inputs.key }}", MODE: "${{ matrix.mode }}", VERIFY_PARTIAL: "${{ inputs.verify_partial }}", DUPS: "${{ inputs.dups }}" }
+    env: { KEY: "${{ inputs.key }}", MODE: "${{ matrix.mode }}", VERIFY_PARTIAL: "${{ inputs.verify_partial }}", DUPS: "${{ inputs.dups }}", FORK_IDENTICAL: "${{ inputs.fork_identical }}" }
     steps:
       # the copies-of-tree-modules steps spend what is left of the job after the steps that must still run (axiom check 15, clash scan 20, whole-tree import 50, verdict and upload 25: 110 minutes)
       - name: The clock
@@ -351,7 +352,7 @@ jobs:
         if: ${{ steps.dups_find.outputs.found == 'true' }}
         run: |
           swapped=false
-          python3 emissary/scripts/bump/tree_dups.py plan --candidates out/dups-candidates.json --fp-before out/fp-before.txt --fp-partners out/fp-partners.txt --new out/new.json --tree tree --out out --mode "$MODE" --fork | tee out/dups.txt
+          python3 emissary/scripts/bump/tree_dups.py plan --candidates out/dups-candidates.json --fp-before out/fp-before.txt --fp-partners out/fp-partners.txt --new out/new.json --tree tree --out out --mode "$MODE" --fork $([ "$FORK_IDENTICAL" = true ] && echo --fork-identical) | tee out/dups.txt
           if python3 -c 'import json, sys; d = json.load(open("out/dups.json")); sys.exit(0 if d["aliases"] or d["forked"] else 1)'; then swapped=true; fi
           echo "swapped=$swapped" >> "$GITHUB_OUTPUT"
       - name: Copies of tree modules, the importers built on the tree's module

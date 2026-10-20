@@ -484,6 +484,12 @@ class CopiesOfTreeModules(unittest.TestCase):
         self.assertIn('d["aliases"] or d["forked"]', plan["run"])  # a verdict with forks and no alias still has modules to build wrapped
         self.assertEqual(plan["id"], "dups_plan")
 
+    def test_forking_the_trees_own_copies_is_an_input_that_is_off(self):
+        """Their theorems are duplicates of the tree's: the person who dispatches the run decides."""
+        self.assertEqual(INPUTS["fork_identical"]["default"], "false")
+        self.assertEqual(JOBS["verify"]["env"]["FORK_IDENTICAL"], "${{ inputs.fork_identical }}")
+        self.assertIn('$([ "$FORK_IDENTICAL" = true ] && echo --fork-identical)', step("verify", "Copies of tree modules, decided")["run"])
+
     def test_every_fingerprint_run_leaves_the_fork_namespace_off_in_the_same_way(self):
         """The wrapped module is compared with the library's own build: the name `LeanPoolFork.Foo` must read as `Foo` in the runs before (copies and importers), of the tree's modules, and after."""
         runs = [step("verify", "Copies of tree modules, fingerprinted")["run"], step("verify", "Copies of tree modules, the importers fingerprinted again")["run"]]
