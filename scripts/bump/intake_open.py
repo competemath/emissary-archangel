@@ -86,8 +86,11 @@ def parts_still_owed(mine: list[Pr]) -> bool:
     return bool(t) and int(t.group(1)) < int(t.group(2))
 
 
-def decide(mine: list[Pr], run: int | None, unmanaged_in_tree: bool, from_tree: bool = False) -> tuple[str, str | dict]:
-    """("open", {part, run, depends_on}) or ("skip", why) for one library. `from_tree`: the newest run is a recut cut from the tree, so its parts start at the next number and replace the old run's."""
+def decide(mine: list[Pr], run: int | None, unmanaged_in_tree: bool, from_tree: bool = False, tree_last: int | None = None) -> tuple[str, str | dict]:
+    """("open", {part, run, depends_on}) or ("skip", why) for one library. `from_tree`: the newest run is a recut cut from the tree, so its parts start at the next number and replace the old run's.
+    `tree_last`: the highest part number the tree itself has (data/intake/<key>/parts/NNN.json). A recut is numbered from the tree, not from the pull requests: after a raze the old
+    pull requests carry numbers the tree has forgotten (navier-stokes-euler, 2026-10-20: part 5 of an old run merged, the tree restarted at 001/002, the recut cut part 003 and the opener
+    asked for part 6: 'the run has no part 6')."""
     if any(p.state == "OPEN" for p in mine):
         return "skip", "a pull request of this library is open"
     merged = sorted((p for p in mine if p.state == "MERGED"), key=lambda p: p.part)
@@ -102,11 +105,15 @@ def decide(mine: list[Pr], run: int | None, unmanaged_in_tree: bool, from_tree: 
     if not merged and unmanaged_in_tree:
         return "skip", "in the tree without an intake"
     nxt = merged[-1].part + 1 if merged else 1
+    depends = f"#{merged[-1].number}" if merged else None
+    if from_tree and tree_last is not None and merged:
+        nxt = tree_last + 1
+        depends = f"#{max(merged, key=lambda p: p.number).number}"  # the newest merged part: the tree's last
     if merged and merged[-1].run != run and not from_tree:
         return "skip", f"part {nxt} would come from run {run}, but part {merged[-1].part} merged from run {merged[-1].run}: needs a recut from the tree"
     if any(p.state == "CLOSED" and p.run == run and p.part == nxt for p in mine):
         return "skip", "closed without merging for this run: a person decides, or a newer run comes"
-    return "open", {"part": nxt, "run": run, "depends_on": f"#{merged[-1].number}" if merged else None}
+    return "open", {"part": nxt, "run": run, "depends_on": depends}
 
 
 def budget(open_now: int, opened_24h: int, max_open: int, daily_cap: int, per_tick: int) -> int:
@@ -150,6 +157,16 @@ class Gh:
             return False
         raise RuntimeError(f"gh api contents/{path}: {r.stderr.strip()[:300]}")
 
+    def tree_last_part(self, key: str) -> int | None:
+        """The highest part number in the tree's data/intake/<key>/parts, or None when there is none (a library that came in one bundle, or is not there)."""
+        r = self.run("api", f"repos/{self.target}/contents/data/intake/{key}/parts?ref=main", "--jq", "[.[].name]")
+        if r.returncode:
+            if "404" in r.stderr:
+                return None
+            raise RuntimeError(f"gh api contents/data/intake/{key}/parts: {r.stderr.strip()[:300]}")
+        nums = [int(m.group(1)) for n in json.loads(r.stdout or "[]") if (m := re.fullmatch(r"(\d+)\.json", n))]
+        return max(nums) if nums else None
+
     def unmanaged_in_tree(self, key: str) -> bool:
         return self.exists(f"Tengoku/{pascal(key)}") and not self.exists(f"data/intake/{key}/manifest.jsonl")
 
@@ -182,7 +199,7 @@ def tick(a: argparse.Namespace, gh: Gh, opener=open_pr, sleep=time.sleep, now: d
             break
         mine = by_key.get(key, [])
         unmanaged = not mine and gh.unmanaged_in_tree(key)
-        verdict, what = decide(mine, run, unmanaged, from_tree)
+        verdict, what = decide(mine, run, unmanaged, from_tree, gh.tree_last_part(key) if from_tree else None)
         if verdict == "skip":
             skipped[key] = str(what)
             continue
