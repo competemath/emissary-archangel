@@ -227,12 +227,12 @@ class FlowBase(unittest.TestCase):
         write(self.tree, {".lake/build/lib/lean/Tengoku/ToyLib/Toy/M.olean": "x", ".lake/build/lib/lean/Tengoku/ToyLib/Toy/M.ilean": "x", ".lake/build/lib/lean/Tengoku/ToyLib/Toy/B.olean": "x"})
         td.main(["candidates", "--clashes", str(self.d / "clashes.txt"), "--new", str(self.out / "new.json"), "--built", str(self.out / "built.txt"), "--bundle", str(self.bundle), "--tree", str(self.tree), "--out", str(self.out), "--mode", "proposed"])
 
-    def plan(self, before_hash: int = 1, fork: bool = False, before: str | None = None):
+    def plan(self, before_hash: int = 1, fork: bool = False, before: str | None = None, fork_identical: bool = False):
         before = before if before is not None else fp({"Tengoku.ToyLib.Toy.M": {"Toy.f": ("def", before_hash)}, "Tengoku.ToyLib.Toy.B": {"Toy.t": ("theorem", 10)}, "Tengoku.ToyLib.Toy.C": {"Toy.u": ("theorem", 11)}})
         (self.d / "fp-before.txt").write_text(before)
         (self.d / "fp-partners.txt").write_text(fp({"Tengoku.Other.Lib.X": {"Toy.f": ("def", 1)}}))
         td.main(["plan", "--candidates", str(self.out / "dups-candidates.json"), "--fp-before", str(self.d / "fp-before.txt"), "--fp-partners", str(self.d / "fp-partners.txt"),
-                 "--new", str(self.out / "new.json"), "--tree", str(self.tree), "--out", str(self.out), "--mode", "proposed", *(["--fork"] if fork else [])])
+                 "--new", str(self.out / "new.json"), "--tree", str(self.tree), "--out", str(self.out), "--mode", "proposed", *(["--fork"] if fork else []), *(["--fork-identical"] if fork_identical else [])])
 
     def after(self, log2: str, after_rows: dict):
         (self.d / "log2.txt").write_text(log2)
@@ -432,6 +432,51 @@ class ForkFlow(FlowBase):
         self.assertEqual(dups["forked"], ["Toy.B", "Toy.C", "Toy.M"])
         self.assertEqual(dups["fork_namespace"], "ToyLibFork")
 
+    MODULE_B = "module\n\npublic import Tengoku.ToyLib.Toy.M\n\ntheorem Toy.t : Toy.f = 1 := rfl\n"
+
+    def test_with_the_switch_an_identical_copy_that_a_module_system_file_would_import_is_forked(self):
+        """lean-pool 2026-10-20: 'cannot import non-`module` Tengoku.NavierStokesEuler… from `module`': the tree's module is a plain file, the library's importers are files of the module system"""
+        write(self.tree, {"Tengoku/ToyLib/Toy/B.lean": self.MODULE_B})
+        self.plan(before_hash=1, fork=True, fork_identical=True)
+        dups = json.loads((self.out / "dups.json").read_text())
+        self.assertEqual(dups["aliases"], {})
+        self.assertEqual(dups["forks_identical"], ["Toy.M"])
+        self.assertEqual(dups["forked"], ["Toy.B", "Toy.C", "Toy.M"])
+        self.assertIn("which a file of the module system cannot import", dups["forks"]["Toy.M"])
+        self.assertTrue(all(self.wrapped(m) for m in "MBC"))
+        self.assertTrue((self.tree / "Tengoku/ToyLib/Toy/M.lean").exists())  # shipped again, wrapped: it is not removed
+        self.assertIn("import Tengoku.ToyLib.Toy.M\n", (self.tree / "Tengoku/ToyLib/Toy/B.lean").read_text())  # still imports the copy: no alias edit
+
+    def test_without_the_switch_the_same_copy_is_aliased_whatever_the_importers_are(self):
+        write(self.tree, {"Tengoku/ToyLib/Toy/B.lean": self.MODULE_B})
+        self.plan(before_hash=1, fork=True)
+        dups = json.loads((self.out / "dups.json").read_text())
+        self.assertEqual((dups["aliases"], dups["forks_identical"], dups["forked"]), ({"Toy.M": ["Tengoku.Other.Lib.X"]}, [], []))
+
+    def test_with_the_switch_an_importer_that_is_not_of_the_module_system_keeps_the_alias(self):
+        self.plan(before_hash=1, fork=True, fork_identical=True)
+        dups = json.loads((self.out / "dups.json").read_text())
+        self.assertEqual((list(dups["aliases"]), dups["forks_identical"]), (["Toy.M"], []))
+
+    def test_with_the_switch_a_tree_module_of_the_module_system_keeps_the_alias(self):
+        write(self.tree, {"Tengoku/ToyLib/Toy/B.lean": self.MODULE_B, "Tengoku/Other/Lib/X.lean": "module\n\n@[expose] public section\ndef Toy.f := 1\n"})
+        self.plan(before_hash=1, fork=True, fork_identical=True)
+        dups = json.loads((self.out / "dups.json").read_text())
+        self.assertEqual((list(dups["aliases"]), dups["forks_identical"]), (["Toy.M"], []))
+
+    def test_the_identical_forks_are_merged_for_compose(self):
+        write(self.tree, {"Tengoku/ToyLib/Toy/B.lean": self.MODULE_B})
+        self.plan(before_hash=1, fork=True, fork_identical=True)
+        td.main(["merge", "--out", str(self.d / "merged.json"), str(self.out / "dups.json")])
+        self.assertEqual(td.load_identical_forks_for_compose(str(self.d / "merged.json")), {"proposed": {"Toy.M"}})
+        (self.d / "old.json").write_text(json.dumps({"ns": "ToyLib", "modes": {"proposed": {"aliases": {}, "not_same": {}, "refused": {}}}}))
+        self.assertEqual(td.load_identical_forks_for_compose(str(self.d / "old.json")), {"proposed": set()})
+
+    def test_a_file_of_the_module_system_is_told_from_a_plain_one_by_its_header(self):
+        self.assertTrue(td.is_module_system("/- c -/\nmodule\n\npublic import A\n"))
+        self.assertFalse(td.is_module_system("import A\n\n/-- module -/\ndef a := 1\n"))
+        self.assertFalse(td.is_module_system("import A\n\ndef module_name := 1\n"))
+
     def test_the_importer_of_an_identical_copy_is_edited_and_the_wrap_goes_on_after_it(self):
         """one text can need both edits: its import of an identical copy is pointed at the tree's module, and it is wrapped because it imports a copy that differs"""
         write(self.tree, {"Tengoku/ToyLib/Toy/B.lean": "import Tengoku\nimport Tengoku.ToyLib.Toy.M\nimport Tengoku.ToyLib.Toy.A\n\ntheorem Toy.t : Toy.f = 1 := rfl\n", "Tengoku/ToyLib/Toy/A.lean": "def Toy.a := 1\n"})
@@ -610,9 +655,9 @@ class Compose(unittest.TestCase):
     def shipped(self, d: Path, mode: str = "proposed") -> list[str]:
         return [json.loads(x)["name"] for x in (d / ("bundle" if mode == "strict" else f"bundle-{mode}") / "manifest.jsonl").read_text().splitlines()]
 
-    def dups_file(self, aliases: dict[str, list[str]], mode: str = "proposed", forked: list[str] | None = None) -> str:
+    def dups_file(self, aliases: dict[str, list[str]], mode: str = "proposed", forked: list[str] | None = None, identical: list[str] | None = None) -> str:
         p = Path(tempfile.mkdtemp()) / "dups.json"
-        spec = {"aliases": aliases, "not_same": {}, "refused": {}, "forks": {}, "forked": forked or [], "fork_namespace": "ToyLibFork" if forked else ""}
+        spec = {"aliases": aliases, "not_same": {}, "refused": {}, "forks": {}, "forked": forked or [], "fork_namespace": "ToyLibFork" if forked else "", "forks_identical": identical or []}
         p.write_text(json.dumps({"ns": "ToyLib", "modes": {mode: spec}}))
         return str(p)
 
@@ -672,6 +717,16 @@ class Compose(unittest.TestCase):
         rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
         self.assertEqual((rep["dups"]["forked_modules"], rep["dups"]["fork_namespace"]), (2, "ToyLibFork"))
         self.assertEqual(rep["theorems"] + sum(rep["left_out"].values()), rep["passed_total"])  # the accounting identity still holds
+
+    def test_the_theorems_of_a_copy_that_is_the_trees_own_are_counted_as_duplicates(self):
+        d, p = self.run_compose("--keep-dups", "--tree-dups", self.dups_file({}, forked=["Toy.Owned", "Toy.AboveOwned"], identical=["Toy.Owned"]))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
+        self.assertEqual((rep["dups"]["forked_modules"], rep["dups"]["duplicate_theorems"]), (2, 1))  # Toy.owned is the duplicate; Toy.above_owned is new
+
+    def test_with_no_identical_fork_there_are_no_duplicates(self):
+        d, p = self.run_compose("--keep-dups", "--tree-dups", self.dups_file({}, forked=["Toy.Owned", "Toy.AboveOwned"]))
+        self.assertEqual(json.loads((d / "bundle-proposed" / "report.json").read_text())["dups"]["duplicate_theorems"], 0)
 
     def test_a_wrapped_copy_the_tree_refused_is_dropped_with_what_imports_it(self):
         failures = Path(tempfile.mkdtemp()) / "failures.txt"

@@ -33,6 +33,10 @@ What the outcome of each decision lets you say (the claim, its assumptions, and 
 
   NOT SAME / NO VERDICT: nothing is claimed; the module goes the way it went before this step.
 
+  FORKED IDENTICAL (`--fork-identical`, off unless asked): a copy that IS the tree's module cannot be aliased when a file that would import the tree's module is a file of Lean's `module` system and the
+  tree's module is not (Lean: "cannot import non-`module` X from `module`": lean-pool's Navier importers, 2026-10-20). Rather than leave that copy and everything above it out, the copy is forked like one that
+  differs. What ships is then a second copy of declarations the tree already has, under another name: the theorems of such a copy are DUPLICATES of the tree's, and the report counts them apart.
+
   FORKED (NOT SAME, with a complete fingerprint; the copy and what imports it are not `prelude` files and declare nothing outside the namespace): the copy is not the tree's module, so it cannot be aliased, and it declares names the tree has, so it cannot be
   shipped as it is. It and every module that imports it are wrapped in a namespace of their own (`<Library>Fork`: a `namespace` line after the header imports, left open to the end of the file; `apply_fork_text`),
   so that their declarations are `<Library>Fork.Foo`. The tree builds them so, and the program fingerprints each AFTER with the namespace left off (FP_STRIP): a module whose declarations are not
@@ -238,6 +242,25 @@ def wrap_escapes(text: str, namespace: str) -> list[str]:
     return sorted(n for n in lean_names.names(SECTION_OPENER.sub(r"\1section", wrapped)) if not n.startswith(namespace + "."))
 
 
+def is_module_system(text: str) -> bool:
+    """The file is one of Lean's module system: a `module` line in its header."""
+    lines = text.split("\n")
+    end, code = rehead.header_end(lines)
+    return any(code[i] and MODULE_LINE.match(lines[i]) for i in range(min(end, len(code))))
+
+
+def alias_blocked(targets: list[str], members: set[str], texts: dict[str, str], tree: Path) -> bool:
+    """True when the copy cannot be aliased: a file that would import the tree's module(s) (the copy and everything that imports it) is a file of the module system, and one of the tree's modules is
+    not. Lean refuses that import. A tree module that has no file is not a module of the module system (it cannot be imported at all: the caller has filtered those)."""
+    if not any(is_module_system(texts.get(w, "")) for w in members):
+        return False
+    for t in targets:
+        f = (tree / Path(*tv.plain(t).split("."))).with_suffix(".lean")
+        if not f.is_file() or not is_module_system(f.read_text(encoding="utf-8", errors="replace")):
+            return True
+    return False
+
+
 def purge_build(tree: Path, rel: str) -> None:
     """The compiled files of a module that leaves the checkout (a stale olean must not be read by anything that imports the tree)."""
     stem = Path(rel).with_suffix("")
@@ -350,8 +373,15 @@ def cmd_plan(a: argparse.Namespace) -> None:
             not_same[m] = why
         else:
             aliases[m] = targets
-    plain_aliases = {tv.plain(m): ts for m, ts in aliases.items()}
     texts = {tv.plain(x): (tree / spec["path"]).read_text(encoding="utf-8") for x, spec in mods.items() if (tree / spec["path"]).is_file()}
+    identical: dict[str, str] = {}
+    if a.fork and a.fork_identical:
+        for m in sorted(aliases):
+            members = {tv.plain(m)} | {tv.plain(x) for x in cand["candidates"][m]["importers"]}
+            if alias_blocked(aliases[m], members, texts, tree):
+                identical[m] = "identical to " + ", ".join(aliases.pop(m)) + ", which a file of the module system cannot import (the tree's module is not one)"
+        not_same.update(identical)
+    plain_aliases = {tv.plain(m): ts for m, ts in aliases.items()}
     forks, wrap, not_same = choose_forks(not_same, cand["candidates"], before, set(plain_aliases), texts, ns) if a.fork else ({}, set(), not_same)
     fork_ns = fork_namespace(ns)
     edited: list[str] = []
@@ -377,11 +407,12 @@ def cmd_plan(a: argparse.Namespace) -> None:
     result = {"ns": ns, "mode": a.mode, "aliases": {tv.library_module(m, ns): ts for m, ts in aliases.items()},
               "not_same": {tv.library_module(m, ns): why for m, why in not_same.items()}, "refused": {},
               "forks": {tv.library_module(m, ns): why for m, why in forks.items()},
+              "forks_identical": sorted(tv.library_module(m, ns) for m in forks if m in identical),
               "forked": sorted(tv.library_module(keyed[w], ns) for w in wrap if w in keyed), "fork_namespace": fork_ns if forks else ""}
     (out / "dups.json").write_text(json.dumps(result, indent=1) + "\n")
     importers = sorted({tv.plain(x) for m in aliases for x in cand["candidates"][m]["importers"]} - {tv.plain(m) for m in aliases})
     (out / "dups-importers.txt").write_text("".join(m + "\n" for m in importers))
-    print(f"{len(aliases)} copy(ies) are the same as the tree's module(s) and leave the bundle; {len(forks)} differ and are forked into {fork_ns} with {len(result['forked']) - len(forks)} module(s) that import them; "
+    print(f"{len(aliases)} copy(ies) are the same as the tree's module(s) and leave the bundle; {len(forks)} are forked into {fork_ns} ({len(result['forks_identical'])} of them identical to the tree's, shipped again) with {len(result['forked']) - len(forks)} module(s) that import them; "
           f"{len(not_same)} are not shown to be the same; {len(edited)} module(s) edited")
     for m, why in list(not_same.items())[:10]:
         print(f"  not the same: {tv.library_module(m, ns)}: {why}")
@@ -458,7 +489,7 @@ def cmd_merge(a: argparse.Namespace) -> None:
         if d["mode"] in modes:
             sys.exit(f"two files for the mode {d['mode']}")
         modes[d["mode"]] = {k: d[k] for k in ("aliases", "not_same", "refused")}
-        modes[d["mode"]].update({k: d.get(k, v) for k, v in (("forks", {}), ("forked", []), ("fork_namespace", ""))})
+        modes[d["mode"]].update({k: d.get(k, v) for k, v in (("forks", {}), ("forked", []), ("fork_namespace", ""), ("forks_identical", []))})
     Path(a.out).write_text(json.dumps({"ns": ns, "modes": modes}, indent=1) + "\n")
     print(f"{sum(len(m['aliases']) for m in modes.values())} aliased in {sorted(modes)}")
 
@@ -491,6 +522,20 @@ def load_forks_for_compose(path: str) -> dict[str, tuple[str, set[str]]]:
     return out
 
 
+def load_identical_forks_for_compose(path: str) -> dict[str, set[str]]:
+    """mode -> the library modules that were forked although they are the tree's own (their theorems are duplicates). A verdict from before this existed has none."""
+    d = json.loads(Path(path).read_text())
+    if not isinstance(d, dict) or not isinstance(d.get("modes"), dict):
+        sys.exit(f"{path}: not a merged dups file")
+    out: dict[str, set[str]] = {}
+    for mode, spec in d["modes"].items():
+        mods = spec.get("forks_identical", [])
+        if not isinstance(mods, list) or not all(isinstance(x, str) for x in mods):
+            sys.exit(f"{path}: the identical forks of {mode} are not a list of modules")
+        out[mode] = {tv.plain(x) for x in mods}
+    return out
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -507,6 +552,7 @@ def main(argv: list[str] | None = None) -> None:
     for k in ("--candidates", "--fp-before", "--fp-partners", "--new", "--tree", "--out", "--mode"):
         p.add_argument(k, required=True)
     p.add_argument("--fork", action="store_true", help="a copy that is not the tree's module (complete fingerprint) is wrapped in <Library>Fork with what imports it, instead of staying a clash")
+    p.add_argument("--fork-identical", action="store_true", help="with --fork: a copy that IS the tree's module is forked too when a file of the module system would have to import a module of the tree that is not one (its theorems are duplicates)")
     p.set_defaults(fn=cmd_plan)
     for name, fn in (("after-list", cmd_after_list), ("after-verdict", cmd_after_verdict)):
         q = sub.add_parser(name)

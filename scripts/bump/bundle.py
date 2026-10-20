@@ -446,6 +446,7 @@ def compose(a: argparse.Namespace) -> None:
             if ns_ and m not in base_dropped:
                 dup_modules.setdefault(m, "declares a name another library of the tree declares: " + ", ".join(ns_[:3]))
     tree_dups_by_mode = tree_dups.load_for_compose(a.tree_dups) if a.tree_dups else None  # mode -> {library module -> the tree modules}: what the tree's build decided about the copies
+    identical_by_mode = tree_dups.load_identical_forks_for_compose(a.tree_dups) if a.tree_dups else {}
     forks_by_mode = tree_dups.load_forks_for_compose(a.tree_dups) if a.tree_dups else {}  # mode -> (namespace, the library modules the tree built wrapped in it): the copies that differ from the tree's and what imports them
     tree_failed = {ln.strip() for ln in Path(a.tree_failures).read_text().split("\n") if ln.strip()} if a.tree_failures else set()
     # the declarations the tree timed out on get more room (tree_repair.py, rule R2): the same edit, to the same bytes, as the one the tree's build accepted
@@ -625,7 +626,8 @@ def compose(a: argparse.Namespace) -> None:
                   "lint_cost": dict(sorted(classes.items(), key=lambda x: -x[1])[:15])}
         if a.keep_dups:
             report["dups"] = {"aliased": len(aliased), "aliased_modules": dict(list(aliased.items())[:50]), "kept_for_the_tree_build": 0 if tree_dups_by_mode is not None else len(dup_modules),
-                              "forked_modules": len([m for m in needed if tv_plain(m) in forked]), "fork_namespace": fork_ns}
+                              "forked_modules": len([m for m in needed if tv_plain(m) in forked]), "fork_namespace": fork_ns,
+                              "duplicate_theorems": sum(1 for r in manifest if tv_plain(r["module"].split(f"Tengoku.{pascal(a.key)}.", 1)[-1]) in identical_by_mode.get(mode, set()))}
         (out_dir / "report.json").write_text(json.dumps(report, indent=1))
         summary[mode] = {k: v for k, v in report.items() if k not in ("dropped", "lint_cost", "left_out", "dups")}
     print(json.dumps(summary))
