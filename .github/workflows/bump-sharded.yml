@@ -370,6 +370,7 @@ jobs:
           # shellcheck disable=SC2086  # targets is a space-separated module list
           timeout -k 60 "${cap}m" lake build $targets 2>&1 | tee ../out/build-dups.log
           echo "lake exit status: ${PIPESTATUS[0]}"
+          python3 -c 'import sys; sys.path.insert(0, "../emissary/scripts/bump"); import tree_verify; print(tree_verify.DUPS_MARKER)' >> ../out/build.log
           cat ../out/build-dups.log >> ../out/build.log
       - name: Copies of tree modules, the importers fingerprinted again, and the verdict (tree_dups.py after-verdict)
         if: ${{ steps.dups_plan.outputs.swapped == 'true' }}

@@ -42,6 +42,9 @@ import tree_repair as tr  # noqa: E402
 ERROR = re.compile(r"^(?:\S+\s+)?error: (?P<path>Tengoku/[^/\s]+/\S+?\.lean):\d+:\d+: ", re.M)
 SORRY = re.compile(r"^(?:\S+\s+)?warning: (?P<path>Tengoku/[^/\s]+/\S+?\.lean):\d+:\d+: declaration uses .sorry.", re.M)
 BUILT = re.compile(r"Built (?P<mod>Tengoku\.\S+)(?: \(|\s*$)", re.M)
+SUCCESS = re.compile(r"Build completed successfully")
+# the workflow writes this line between the build of the bundle and the second build of tree_dups.py (the importers of the copies, built again on the tree's module), which it appends to the same log
+DUPS_MARKER = "=== tengoku dups round: the importers of the copies of tree modules, built again on the tree's module ==="
 FAILED_TARGET = re.compile(r"^(?:\S+\s+)?- (?P<mod>Tengoku\.\S+)\s*$", re.M)
 AXIOM_LINE = re.compile(r"^AXIOM\t(?P<mod>[^\t\n]+)\t(?P<decl>[^\t\n]+)\t(?P<axioms>[^\n]*)$", re.M)
 AXIOM_DONE = re.compile(r"^axioms: (?P<checked>\d+) declarations checked, (?P<bad>\d+) with non-standard axioms$", re.M)
@@ -73,6 +76,18 @@ def dependents(failing: set[str], graph: dict[str, list[str]]) -> set[str]:
             if x in deps and m not in out:
                 out.add(m)
                 todo.append(m)
+    return out
+
+
+def imports_of(roots: set[str], graph: dict[str, list[str]]) -> set[str]:
+    """Every module that one of `roots` imports, directly or not: Lean elaborated the root, so it had each of these built."""
+    out: set[str] = set()
+    todo = list(roots)
+    while todo:
+        for d in graph.get(todo.pop(), []):
+            if d not in out:
+                out.add(d)
+                todo.append(d)
     return out
 
 
@@ -216,7 +231,12 @@ def cmd_collect(a: argparse.Namespace) -> None:
     # a repair round (tree_repair.py) appends a second build to the log after MARKER: a module that was repaired is judged on the second, the rest on the first as before
     last = log.rsplit(tr.MARKER, 1)[-1]
     repaired = {m for m, spec in mods.items() if spec.get("repaired")}
-    unfinished = bool(mods) and not FINISHED.search(last)
+    # the build of the bundle, without the second build of tree_dups.py that the workflow appends after DUPS_MARKER: its ending is not the ending of this build
+    main = log.split(DUPS_MARKER, 1)[0]
+    unfinished = bool(mods) and not FINISHED.search(main.rsplit(tr.MARKER, 1)[-1])
+    # a build that finished without a failure built every target it was given, whether or not Lake printed a `Built` line for it: it prints one only for a job that ran, and a target
+    # whose artifacts were up to date gets none (2026-10-20, Navier: 67 of 917 new modules had no line in a build that completed, and the 676 modules that import them were built)
+    complete = bool(SUCCESS.search(main.split(tr.MARKER, 1)[0]))
     if unfinished and not a.allow_unfinished:
         sys.exit("the build log has no ending (the build was killed or timed out): refusing to guess which modules the tree accepted (--allow-unfinished: those with a `Built` line are accepted, the rest wait for a later round)")
     failing = ((failures_from_log(log, ns) - repaired) | failures_from_log(last, ns)) & set(mods)
@@ -237,7 +257,9 @@ def cmd_collect(a: argparse.Namespace) -> None:
         bfiles = bl.read_bundle(Path(a.bundle))
         graph = {m: [d for d in deps if d in mods] for m, deps in bl.import_graph(bfiles, {m: p["path"] for m, p in mods.items()}).items()}
     cascade = dependents(failing, graph)
-    unaccounted = set(mods) - failing - cascade - built  # no error, no `Built` line, not downstream of a failure: the build did not reach it, so it was not verified
+    # a build that did not finish (or failed, and stopped there) is known to have reached a module by its `Built` line, or because a module that imports it was built
+    reached = set(mods) if complete else built | imports_of(built, graph)
+    unaccounted = set(mods) - failing - cascade - reached  # no error, no evidence that it was built, not downstream of a failure: the build did not reach it, so it was not verified
     failing |= unaccounted
     cascade = dependents(failing, graph)
     ok = {m: mods[m]["sha256"] for m in mods if m not in failing and m not in cascade}
