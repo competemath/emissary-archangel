@@ -428,16 +428,47 @@ def decl_core(lines: list[str], s: int, e: int) -> str:
     return "\n".join(lines[i:e]).strip() if i < e else ""
 
 
+def indented_docstring_leads_a_command(lines: list[str], i: int) -> bool:
+    """The docstring that opens on line `i` (0-based; the line is indented) is followed, once it is closed, by a command at column 0: it is that command's lead-in, though it does not start at column 0
+    itself. A docstring inside a structure or a class is followed by a field (indented), and is not one."""
+    import portfolio
+
+    depth, j, n = 0, i, len(lines)
+    while j < n:
+        k = 0
+        ln = lines[j]
+        while k < len(ln) - 1:
+            two = ln[k : k + 2]
+            if two == "/-":
+                depth += 1
+                k += 2
+            elif two == "-/" and depth:
+                depth -= 1
+                k += 2
+            else:
+                k += 1
+        j += 1
+        if depth == 0:
+            break
+    while j < n and (not lines[j].strip() or lines[j].startswith("--")):
+        j += 1
+    return j < n and not lines[j][0].isspace() and bool(portfolio.COMMAND_START.match(lines[j]))
+
+
 def command_lines(lines: list[str]) -> list[tuple[int, str]]:
     """(1-based line, text) of every column-0 line outside block comments that starts a command (portfolio.COMMAND_START: a keyword, a
     docstring, an attribute, an `open`…; not a `|` alternative, not a `--` line). `/- … -/` nests; a docstring (`/--`, `/-!`) is a block
-    comment too, except that its opening line is reported (it leads into a declaration)."""
+    comment too, except that its opening line is reported (it leads into a declaration). An INDENTED docstring that leads into a command at column 0 is reported too, with its
+    indentation removed (openai/math writes ` /-- … -/` with one space: left in the segment above, it stayed behind when the declaration below it was cut, in front of an `end`:
+    navier-stokes-euler `BaseResidual`, 2026-10-20, 'unexpected token end; expected lemma', and 300 modules with it)."""
     import portfolio
 
     out, depth = [], 0
     for no, ln in enumerate(lines, 1):
         if depth == 0 and ln and not ln[0].isspace() and not ln.startswith("--") and portfolio.COMMAND_START.match(ln):
             out.append((no, ln))
+        elif depth == 0 and ln[:1] in (" ", "\t") and ln.lstrip().startswith("/--") and indented_docstring_leads_a_command(lines, no - 1):
+            out.append((no, ln.lstrip()))
         i = 0
         while i < len(ln) - 1:
             two = ln[i : i + 2]
