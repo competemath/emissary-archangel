@@ -114,6 +114,11 @@ class Guard(unittest.TestCase):
         res = gd.run_guarded([sys.executable, "-c", code], ".", dict(os.environ), log, kw.pop("timeout_s", 20), kw.pop("rss_limit_kb", 10**9), poll_s=0.1)
         return res, log.read_text()
 
+    def test_the_memory_is_read_often_enough_to_stop_a_process_that_grows_by_gigabytes_a_second(self):
+        import inspect
+
+        self.assertLessEqual(inspect.signature(gd.run_guarded).parameters["poll_s"].default, 0.25)  # a read a second apart let shard 3 pass 14.7 GB and take the runner down
+
     def test_a_command_that_ends_by_itself_is_ok_whatever_its_exit_code(self):
         res, out = self.run_py("print('hi'); raise SystemExit(3)")
         self.assertEqual((res.kind, res.returncode), ("ok", 3))
