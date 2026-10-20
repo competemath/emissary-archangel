@@ -105,6 +105,15 @@ class ImportClashes(unittest.TestCase):
         self.assertEqual(killed, [])
 
 
+class Skip(unittest.TestCase):
+    def test_a_skipped_module_is_taken_out_of_the_list_and_reported(self):
+        rest, skipped = d.apply_skip(["A", "B", "C", "D"], ["C", "X", "A"])
+        self.assertEqual((rest, skipped), (["B", "D"], ["A", "C"]))  # X is not in this shard: nothing to skip; the order of the shard is kept
+
+    def test_nothing_to_skip_changes_nothing(self):
+        self.assertEqual(d.apply_skip(["A", "B"], []), (["A", "B"], []))
+
+
 class Guard(unittest.TestCase):
     def run_py(self, code, **kw):
         import os

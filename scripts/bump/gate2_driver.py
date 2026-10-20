@@ -57,6 +57,13 @@ def cut(plan_modules: list[list], max_decls: int) -> list[list[str]]:
     return out
 
 
+def apply_skip(only: list[str], skip: list[str]) -> tuple[list[str], list[str]]:
+    """(the modules to check, the modules of `only` that are skipped): a module that killed Lean alone in an earlier round is not tried again at the price of ten minutes of the budget
+    (a chunk that is killed is split until one module is left, so one module that is too big for the machine costs several processes); it gets no verdict, like any killed module."""
+    gone = set(skip)
+    return [m for m in only if m not in gone], [m for m in only if m in gone]
+
+
 def drive(
     first_only: list[str],
     gen: Callable[[list[str], list[str], int], dict],
@@ -126,6 +133,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--controls", type=int, default=0)
     ap.add_argument("--tentative", default="")
     ap.add_argument("--only", default="", help="check only these modules (comma list); default all")
+    ap.add_argument("--skip", default="", help="modules (comma list, within --only) not to try: they killed Lean alone in an earlier round; they are recorded as killed, no verdict")
     ap.add_argument("--max-decls", type=int, default=250)
     ap.add_argument("--chunk-timeout-min", type=float, default=60)
     ap.add_argument("--budget-min", type=float, default=270)
@@ -160,7 +168,14 @@ def main(argv: list[str]) -> int:
         return res.kind, text
 
     first_only = [m for m in a.only.split(",") if m]
+    skipped: list[str] = []
+    if a.skip:
+        if not first_only:
+            sys.exit("--skip needs --only: it takes modules out of the list to check")
+        first_only, skipped = apply_skip(first_only, [m for m in a.skip.split(",") if m])
+        print(f"gate2: {len(skipped)} module(s) skipped, no verdict for them: {skipped[:8]}")
     logs, killed, last = drive(first_only, gen, run, a.controls, a.max_decls, budget_s=a.budget_min * 60)
+    killed = killed + skipped
     Path(a.log).write_text("".join(logs))
     Path(a.killed).write_text(json.dumps(sorted(set(killed))))
     Path(a.plan).write_text(json.dumps(last))
