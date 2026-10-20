@@ -291,6 +291,33 @@ jobs:
           assert o["Tengoku.LibV3.V3"] == w["Tengoku.LibV3f.V3f"], "what imports it, wrapped, is what it was"
           print("a wrapped file of the module system reads as the original")
           PY
+      # A forked file that re-opens a namespace of a module it imports (Navier 2026-10-20: `namespace EulerQuadraticSource`, a bare `source` the imported module declares). Wrapped in `namespace ToyFork` alone,
+      # Lean no longer finds `src` (the namespaces it looks in all start with ToyFork now); `apply_fork_text` also opens the root namespace, and the wrapped file builds. Both forms are built by a real `lean`.
+      - name: A wrapped file that re-opens a namespace of an imported module still finds its names
+        working-directory: gate2
+        run: |
+          root="$RUNNER_TEMP/fp4oleans"; src="$RUNNER_TEMP/fp4src"
+          for m in LibN4/N4 LibM4f/M4f LibM4g/M4g; do mkdir -p "$root/Tengoku/$(dirname $m)" "$src/Tengoku/$(dirname $m)"; done
+          printf 'namespace Toy4\n\ndef src : Nat := 1\n\ntheorem src_eq : src = 1 := rfl\n\nend Toy4\n' > "$src/Tengoku/LibN4/N4.lean"
+          RUNNER_SRC="$src" python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, "../scripts/bump")
+          import tree_dups as td
+          src = os.environ["RUNNER_SRC"] + "/Tengoku/"
+          m4 = "import Tengoku.LibN4.N4\n\nnamespace Toy4\n\ndef foo : Nat := src\n\ntheorem foo_eq : foo = 1 := src_eq\n\nend Toy4\n"
+          wrapped = td.apply_fork_text(m4, "ToyFork")
+          assert "open _root_.Toy4" in wrapped, wrapped
+          open(src + "LibM4f/M4f.lean", "w").write(wrapped)
+          # the wrap without the open line: what the fork was before
+          open(src + "LibM4g/M4g.lean", "w").write(wrapped.replace("open _root_.Toy4\n", ""))
+          PY
+          cat "$src/Tengoku/LibM4f/M4f.lean"
+          lp="$root:$(lake env printenv LEAN_PATH)"
+          lake env env LEAN_PATH="$lp" lean --root="$src" -o "$root/Tengoku/LibN4/N4.olean" "$src/Tengoku/LibN4/N4.lean"
+          lake env env LEAN_PATH="$lp" lean --root="$src" -o "$root/Tengoku/LibM4f/M4f.olean" "$src/Tengoku/LibM4f/M4f.lean"
+          if lake env env LEAN_PATH="$lp" lean --root="$src" -o "$root/Tengoku/LibM4g/M4g.olean" "$src/Tengoku/LibM4g/M4g.lean" > "$RUNNER_TEMP/fp4-old.out" 2>&1; then echo "the wrap without the open line built: the toy proves nothing"; exit 1; fi
+          grep -q "Unknown identifier" "$RUNNER_TEMP/fp4-old.out" || { cat "$RUNNER_TEMP/fp4-old.out"; exit 1; }
+          echo "the wrap with the open line builds; without it Lean says Unknown identifier"
       # The authority on the import of the whole tree is Lean: the toy oleans of the step above (A and B declare Toy.clashing, Toy.thmDiff and Toy.ax; A, B and C declare Toy.thmDup, a theorem of one type)
       # are imported by a real `lean`. It must refuse A with B and say which module and which name (tree_verify.union_failure reads that), and accept A with C (the duplicate theorem is allowed).
       - name: Lean refuses the import of two modules that declare one name, accepts duplicate theorems of one type, and tree_verify reads the refusal

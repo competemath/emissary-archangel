@@ -573,6 +573,26 @@ class ForkText(unittest.TestCase):
     def test_a_file_that_imports_nothing_is_wrapped_from_its_top(self):
         self.assertEqual(td.apply_fork_text("/-- a -/\ndef a := 1\n", self.NS), "namespace ToyLibFork\n/-- a -/\ndef a := 1\n")
 
+    def test_a_namespace_the_file_re_opens_keeps_the_names_of_the_modules_it_imports_in_reach(self):
+        """Navier 2026-10-20: `namespace EulerQuadraticSource` + a bare `source` that the imported module declares: wrapped, the namespace is `ToyLibFork.EulerQuadraticSource` and `source` is lost."""
+        out = td.apply_fork_text("import Tengoku.A\n\nnamespace EulerQuadraticSource\ndef c := source\nend EulerQuadraticSource\n", self.NS)
+        self.assertEqual(out, "import Tengoku.A\n\nnamespace ToyLibFork\n\nnamespace EulerQuadraticSource\nopen _root_.EulerQuadraticSource\ndef c := source\nend EulerQuadraticSource\n")
+
+    def test_a_dotted_namespace_opens_every_prefix_of_it_innermost_first_and_keeps_the_indentation(self):
+        out = td.apply_fork_text("import Tengoku.A\nsection S\n  namespace A.B.C -- about it\n  def c := 1\n  end A.B.C\nend S\n", self.NS)
+        self.assertIn("  namespace A.B.C -- about it\n  open _root_.A.B.C _root_.A.B _root_.A\n  def c := 1\n", out)
+
+    def test_a_guillemet_name_is_one_component(self):
+        out = td.apply_fork_text("import Tengoku.A\nnamespace «A-B».C\nend «A-B».C\n", self.NS)
+        self.assertIn("namespace «A-B».C\nopen _root_.«A-B».C _root_.«A-B»\n", out)
+
+    def test_namespace_in_is_not_a_namespace_that_stays_open(self):
+        text = "import Tengoku.A\nnamespace X in\ndef c := 1\n"
+        self.assertNotIn("open _root_", td.apply_fork_text(text, self.NS))
+
+    def test_a_file_without_a_namespace_gets_only_the_fork_s(self):
+        self.assertNotIn("open _root_", td.apply_fork_text("import Tengoku.A\ndef c := 1\n", self.NS))
+
     def test_a_prelude_file_cannot_be_wrapped(self):
         self.assertIsNone(td.apply_fork_text("prelude\nimport Init.Core\n\ndef a := 1\n", self.NS))
 

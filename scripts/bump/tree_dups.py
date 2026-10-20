@@ -72,6 +72,8 @@ FP_END = re.compile(r"^FPEND\t(?P<mod>[^\t\n]+)\t(?P<n>\d+)$", re.M)
 FP_ERR = re.compile(r"^FPERR\t(?P<mod>[^\t\n]+)\t(?P<msg>[^\n]*)$", re.M)
 MODULE_LINE = re.compile(r"^\s*module\s*(?:--.*)?$")
 PRELUDE = re.compile(r"^\s*prelude\s*(?:--.*)?$")
+NAMESPACE_LINE = re.compile(r"^(?P<ind>\s*)namespace\s+(?P<name>[^\s]+)(?:\s*--.*)?\s*$")  # `namespace X in` has more on the line: it is not this
+
 # `public section`, `@[expose] public section`, `noncomputable section`: lean_names.names reads only a plain `section` as one (an `end` would pop the wrong scope)
 SECTION_OPENER = re.compile(r"^([ \t]*)(?:@\[[^\]\n]*\][ \t]*)*(?:(?:public|private|meta|noncomputable)[ \t]+)+section\b", re.M)
 IMPORT_RE = re.compile(r"^(\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)?)(" + tb.MODNAME + r")(.*)$")
@@ -228,7 +230,17 @@ def apply_fork_text(text: str, namespace: str) -> str | None:
         if IMPORT_RE.match(lines[i]):
             last = i
     at = last + 1 if last is not None else module_line + 1 if module_line is not None else 0  # the `module` line comes first in a file of the module system, then its imports
-    body = lines[:at] + ([""] if at else []) + [f"namespace {namespace}"] + lines[at:]
+    rest: list[str] = []
+    for ln in lines[at:]:
+        rest.append(ln)
+        m = NAMESPACE_LINE.match(ln)
+        if m:
+            parts = re.findall(r"«[^»]*»|[^.]+", m["name"])
+            # a name the file writes bare, which its namespace found in a module it imports (`source` in `namespace EulerQuadraticSource`), is looked up through the namespaces the file is in: now they all
+            # start with the fork's, so the imported module's are no longer on the way. Lean looks in the namespaces first and in what is open after, so this finds nothing the fork declares itself
+            # (Navier 2026-10-20: `Unknown identifier source` in the forked Euler.QuadraticCoefficients, and its 81 importers with it)
+            rest.append(m["ind"] + "open " + " ".join("_root_." + ".".join(parts[:k]) for k in range(len(parts), 0, -1)))
+    body = lines[:at] + ([""] if at else []) + [f"namespace {namespace}"] + rest
     return "\n".join(body) if text.endswith("\n") or not text else "\n".join(body) + "\n"
 
 
