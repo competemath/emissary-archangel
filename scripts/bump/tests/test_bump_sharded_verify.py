@@ -443,6 +443,7 @@ class CopiesOfTreeModules(unittest.TestCase):
         self.assertIn("lake build $targets", run)
         self.assertIn("tee ../out/build-dups.log", run)
         self.assertIn("cat ../out/build-dups.log >> ../out/build.log", run)  # the verdicts that read build.log see a failure of the second build too
+        self.assertLess(run.index("tree_verify.DUPS_MARKER"), run.index("cat ../out/build-dups.log"))  # and know where the second build starts: its ending is not the ending of the first
         self.assertLess(run.index(": > out/build-dups.log"), run.index("lake build"))  # no time: an empty log is 'nothing was built', never a clean one
 
     def test_the_program_prints_what_the_python_side_reads(self):

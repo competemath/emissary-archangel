@@ -100,11 +100,19 @@ class Collect(Fixture):
         self.assertEqual((self.out / "failing.txt").read_text(), "")
         self.assertEqual(len(json.loads((self.out / "ok.json").read_text())), 3)
 
-    def test_a_module_the_build_never_reached_is_not_verified(self):
+    def test_a_build_that_finished_built_every_target_even_one_without_a_built_line(self):
         self.apply()
-        self.collect("✔ [1/9] Built Tengoku.ToyLib.Toy.B (1s)\n✔ [2/9] Built Tengoku.ToyLib.Toy.C (1s)\nBuild completed successfully.\n")  # D: no line, no error
-        self.assertEqual((self.out / "failing.txt").read_text().split(), ["Toy.D"])
-        self.assertEqual(sorted(json.loads((self.out / "ok.json").read_text())), ["Tengoku.ToyLib.Toy.B", "Tengoku.ToyLib.Toy.C"])
+        self.collect("✔ [1/9] Built Tengoku.ToyLib.Toy.B (1s)\n✔ [2/9] Built Tengoku.ToyLib.Toy.C (1s)\nBuild completed successfully.\n")  # D: no line, no error (Navier 2026-10-20: 67 of 917)
+        self.assertEqual((self.out / "failing.txt").read_text(), "")
+        self.assertEqual(sorted(json.loads((self.out / "ok.json").read_text())), ["Tengoku.ToyLib.Toy.B", "Tengoku.ToyLib.Toy.C", "Tengoku.ToyLib.Toy.D"])
+
+    def test_a_build_that_failed_and_stopped_did_not_reach_a_module_with_no_line(self):
+        self.apply()
+        self.collect(LOG_C_FAILS)  # B built; C failed and D imports it; there is no evidence about a module that is not downstream of the failure
+        (self.d / "build.log").write_text("error: Tengoku/ToyLib/Toy/B.lean:1:0: x\nSome required targets logged failures:\n- Tengoku.ToyLib.Toy.B\nerror: build failed\n")
+        tv.main(["collect", "--new", str(self.out / "new.json"), "--log", str(self.d / "build.log"), "--out", str(self.out), "--bundle", str(self.bundle)])
+        self.assertEqual((self.out / "failing.txt").read_text().split(), ["Toy.B", "Toy.C", "Toy.D"])  # C and D: the build stopped at B's failure and never got to them
+        self.assertEqual(json.loads((self.out / "ok.json").read_text()), {})
 
     def test_a_build_that_ran_out_of_time_can_still_ship_what_it_built(self):
         self.apply()
@@ -113,6 +121,30 @@ class Collect(Fixture):
         self.assertEqual((self.out / "failing.txt").read_text().split(), ["Toy.B"])
         self.assertEqual(sorted(json.loads((self.out / "ok.json").read_text())), ["Tengoku.ToyLib.Toy.C", "Tengoku.ToyLib.Toy.D"])
         self.assertIn("did not finish", (self.out / "summary.txt").read_text())
+
+    def test_a_partial_build_accepts_a_module_with_no_line_when_a_built_module_imports_it(self):
+        self.apply()
+        (self.d / "build.log").write_text("✔ [1/9] Built Tengoku.ToyLib.Toy.D (1s)\n")  # killed: C has no line, but D imports C and was built; B was never reached
+        tv.main(["collect", "--new", str(self.out / "new.json"), "--log", str(self.d / "build.log"), "--out", str(self.out), "--bundle", str(self.bundle), "--allow-unfinished"])
+        self.assertEqual((self.out / "failing.txt").read_text().split(), ["Toy.B"])
+        self.assertEqual(sorted(json.loads((self.out / "ok.json").read_text())), ["Tengoku.ToyLib.Toy.C", "Tengoku.ToyLib.Toy.D"])
+
+    def test_the_second_build_s_ending_is_not_the_ending_of_the_first(self):
+        self.apply()
+        log = "✔ [1/9] Built Tengoku.ToyLib.Toy.C (1s)\n" + tv.DUPS_MARKER + "\n✔ [1/9] Built Tengoku.ToyLib.Toy.D (1s)\nBuild completed successfully.\n"  # the first build was killed
+        (self.d / "build.log").write_text(log)
+        with self.assertRaises(SystemExit) as r:
+            tv.main(["collect", "--new", str(self.out / "new.json"), "--log", str(self.d / "build.log"), "--out", str(self.out), "--bundle", str(self.bundle)])
+        self.assertIn("no ending", str(r.exception.code))
+        tv.main(["collect", "--new", str(self.out / "new.json"), "--log", str(self.d / "build.log"), "--out", str(self.out), "--bundle", str(self.bundle), "--allow-unfinished"])
+        self.assertEqual((self.out / "failing.txt").read_text().split(), ["Toy.B"])  # B: no line, and the success below the marker is not about it
+        self.assertIn("did not finish", (self.out / "summary.txt").read_text())
+
+    def test_a_second_build_that_finished_does_not_make_an_unfinished_first_one_complete(self):
+        self.apply()
+        (self.d / "build.log").write_text("✔ [1/9] Built Tengoku.ToyLib.Toy.C (1s)\n" + tv.DUPS_MARKER + "\nBuild completed successfully.\n")
+        tv.main(["collect", "--new", str(self.out / "new.json"), "--log", str(self.d / "build.log"), "--out", str(self.out), "--bundle", str(self.bundle), "--allow-unfinished"])
+        self.assertEqual((self.out / "failing.txt").read_text().split(), ["Toy.B", "Toy.D"])  # C has a line; B and D have none, nothing built imports them, and the success below the marker is not about this build
 
     def test_a_partial_build_still_refuses_what_it_saw_fail(self):
         self.apply()
