@@ -514,6 +514,76 @@ class CommentBetweenDocstringAndDeclaration(unittest.TestCase):
         self.assertTrue(any("docstring" in x for x in m.leaks(stray, keep)), m.leaks(stray, keep))
 
 
+INDENTED_DOC = """namespace Toy
+
+theorem first_one : True := by
+  trivial
+
+ /-- A docstring written with one space,
+over two lines. -/
+theorem second_one : True := trivial
+
+structure S where
+  /-- a field -/
+  x : Nat
+
+theorem third_one : True := trivial
+
+end Toy
+"""
+
+
+class IndentedDocstring(unittest.TestCase):
+    """navier-stokes-euler `BaseResidual` (2026-10-20): openai/math writes some docstrings with one leading space (` /-- … -/`) in front of a theorem at column 0. The docstring was no command line, so it
+    stayed in the segment above; cutting the theorem left it in front of `end`: 'unexpected token end; expected lemma'. That one module held ~300 modules and ~11k theorems out of the tree."""
+
+    def module(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        d = tempfile.mkdtemp()
+        lib = Path(d) / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        (lib / "Toy" / "I.lean").write_text(INDENTED_DOC)
+        lines = INDENTED_DOC.split("\n")
+        ln = lambda needle: next(i + 1 for i, x in enumerate(lines) if x.startswith(needle) or x.lstrip().startswith(needle))
+        return records.Module(lib, "Toy.I", [(ln("theorem first_one"),) * 2, (ln("theorem second_one"),) * 2, (ln("theorem third_one"),) * 2]), ln
+
+    def test_the_indented_docstring_belongs_to_the_block_below_it(self):
+        m, ln = self.module()
+        self.assertEqual(m.blocks[1], (ln("/-- A docstring written"), ln("theorem second_one")))
+
+    def test_the_block_above_it_does_not_hold_it(self):
+        m, ln = self.module()
+        self.assertEqual(m.blocks[0], (ln("theorem first_one"), ln("theorem first_one") + 1))
+
+    def test_cutting_the_declaration_cuts_the_docstring_with_it(self):
+        m, _ = self.module()
+        keep = {m.blocks[0], m.blocks[2]}
+        text = m.text(keep)
+        self.assertNotIn("one space", text)
+        self.assertNotIn("second_one", text)
+        self.assertEqual(m.leaks(text, keep), [])
+
+    def test_a_kept_declaration_keeps_its_docstring(self):
+        m, _ = self.module()
+        text = m.text(set(m.blocks))
+        self.assertIn(" /-- A docstring written with one space,\nover two lines. -/\ntheorem second_one", text)
+
+    def test_an_indented_docstring_left_in_front_of_end_is_a_leak(self):
+        m, _ = self.module()
+        keep = {m.blocks[0], m.blocks[2]}
+        stray = m.text(keep).replace("end Toy", " /-- stray -/\n\nend Toy")
+        self.assertTrue(any("docstring" in x for x in m.leaks(stray, keep)), m.leaks(stray, keep))
+
+    def test_the_docstring_of_a_field_is_not_a_command(self):
+        sys.path.insert(0, str(HERE))
+        import records
+
+        cmds = records.command_lines(INDENTED_DOC.split("\n"))
+        self.assertEqual([n for n, _ in cmds if INDENTED_DOC.split("\n")[n - 1].startswith(" ")], [6])  # only the docstring in front of second_one
+
+
 MULTILINE_PREFIX = """namespace Toy
 
 omit [Foo] [Bar]
