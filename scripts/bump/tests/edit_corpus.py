@@ -274,6 +274,9 @@ def check_pattern(lean: Lean, p: Pattern) -> list[str]:
         if r.returncode:
             return [f"{p.name}: the ORIGINAL does not build ({m}): the pattern is wrong, not the edit:\n{(r.stdout + r.stderr)[-700:]}"]
     f0 = lean.fingerprints([f"Tengoku.E.{m}" for m in ("X", "User")])
+    for m in ("X", "User"):
+        if not dict(f0[f"Tengoku.E.{m}"]):  # a comparison of two empty fingerprints proves nothing
+            return [f"{p.name}: the fingerprint of the original {m} is empty: the pattern declares nothing, the comparison would be vacuous"]
 
     # fork
     for m, text in fork_variant(p).items():
