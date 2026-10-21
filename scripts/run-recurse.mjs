@@ -1,6 +1,7 @@
 // Drive the recursion engine on a private bridge instance and log its stream.
 //   node run-recurse.mjs <bridgePort> <token> [scopeJson] [source]
 // The source (a key of sources.json) comes from argv or EMISSARY_RUN_SOURCE.
+import { ledgerRow } from "../lib/ledger-row.mjs"
 import { appendFileSync, writeFileSync } from "node:fs"
 import { request } from "node:http"
 const [port, token, scopeArg, sourceArg] = process.argv.slice(2)
@@ -79,8 +80,8 @@ for await (const chunk of res) {
     try { o = JSON.parse(line.slice(6)) } catch { continue }
     if (o.type === "progress" || o.type === "done") log(`${o.type.toUpperCase()} ${o.processed}/${o.total} ${JSON.stringify(o.summary)}`)
     else if (o.type === "entry-result") {
-      log(`RESULT #${o.id} ${o.name}: ${o.outcome}`)
-      if (RESULTS) appendFileSync(RESULTS, JSON.stringify({ id: o.id, name: o.name, sourcePath: o.sourcePath, outcome: o.outcome, at: new Date().toISOString(), ...(o.error ? { error: o.error } : {}) }) + "\n")
+      log(`RESULT #${o.id} ${o.name}: ${o.outcome}${o.reason ? ` (${o.reason})` : ""}`)
+      if (RESULTS) appendFileSync(RESULTS, JSON.stringify(ledgerRow(o)) + "\n")
     }
     else if (o.type === "message-annotation") {
       const t = String(o.thought || "").replace(/\s+/g, " ")
