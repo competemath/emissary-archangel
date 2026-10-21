@@ -254,11 +254,14 @@ jobs:
           mkdir -p out && { echo "== after freeing"; df -h / | tail -1; } | tee out/disk.log
       # the installer at a fixed commit, checked against its digest before it runs (as bundle-keep-tests.yml does): this job's verdict is what `finish` signs, so what it runs must not be mutable
       - name: Lean toolchain (pinned by the tree's lean-toolchain)
+        env: { TOOLCHAIN: "${{ inputs.toolchain }}" }
         run: |
           curl --proto '=https' --tlsv1.2 -sSfL -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh
           echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c -
           sh elan-init.sh -y --default-toolchain none && echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
           sudo apt-get install -y -q zstd >/dev/null
+          # the toolchain now, with retries: `lake build` would fetch it itself, and one SSL error there ended the build after seven seconds (Navier recut 2026-10-21, 0 of 1,066 modules built)
+          for i in 1 2 3 4 5; do "$HOME/.elan/bin/elan" toolchain install "$TOOLCHAIN" && break; echo "::warning::the toolchain did not download (try $i)"; sleep 20; done
       - name: The tree, seeded from the newest published cache (verified), as the merge queue seeds it
         env: { GH_TOKEN: "${{ github.token }}", TENGOKU_VERIFY: require, TENGOKU_TOPUPS: "1" }
         run: |
