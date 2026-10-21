@@ -19,7 +19,10 @@ DECL = re.compile(
 PRIVATE = re.compile(r"^[ \t]*(?:@\[[^\]\n]*\][ \t]*)*(?:(?:protected|noncomputable|unsafe|partial|nonrec|public|meta)[ \t]+)*private\b")
 NS = re.compile(r"^[ \t]*namespace[ \t]+(\S+)", re.M)
 END = re.compile(r"^[ \t]*end(?:[ \t]+(\S+))?[ \t]*$", re.M)
-SECTION = re.compile(r"^[ \t]*(?:noncomputable[ \t]+)?section(?:[ \t]+(\S+))?[ \t]*$", re.M)
+# every way Lean's module system and the core library open a section: `section`, `noncomputable section`, `public section`, `@[expose] public section`, `meta section`, `private section`. An opener this
+# misses is a scope the `end` below pops all the same, and the names that follow lose a namespace (Navier recut 10, 2026-10-21: lean-pool's `namespace LeanPoolFork` + `@[expose] public section`
+# files were read without the fork's name, 91 of the 120 names of one file, and the library's own modules were left out as clashes with them, 12,707 theorems with them)
+SECTION = re.compile(r"^[ \t]*(?:@\[[^\]\n]*\][ \t]*)*(?:(?:public|private|meta|noncomputable)[ \t]+)*section(?:[ \t]+(\S+))?[ \t]*$", re.M)
 
 
 def names(text: str) -> set[str]:
