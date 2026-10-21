@@ -319,6 +319,12 @@ jobs:
           if lake env env LEAN_PATH="$lp" lean --root="$src" -o "$root/Tengoku/LibM4g/M4g.olean" "$src/Tengoku/LibM4g/M4g.lean" > "$RUNNER_TEMP/fp4-old.out" 2>&1; then echo "the wrap without the open line built: the toy proves nothing"; exit 1; fi
           grep -q "Unknown identifier" "$RUNNER_TEMP/fp4-old.out" || { cat "$RUNNER_TEMP/fp4-old.out"; exit 1; }
           echo "the wrap with the open line builds; without it Lean says Unknown identifier"
+      # THE CLASS "an edit of the text changes what a name means": every construct of the corpus (scripts/bump/tests/edit_corpus.py: re-opened namespaces, `open`, `export`, `variable`, instances, scoped
+      # notation, dot notation, the module system, …) is built as a library, then again after the fork's wrap and after the alias edit, by a real `lean`; the declarations must be the same. A construct
+      # the edits break is found here, in a minute, instead of by a production run of an hour and a half. Add a pattern to the corpus for every construct an edit has to survive.
+      - name: The edits keep the meaning of every Lean scoping construct of the corpus
+        working-directory: gate2
+        run: python3 ../scripts/bump/tests/edit_corpus.py
       # The authority on the import of the whole tree is Lean: the toy oleans of the step above (A and B declare Toy.clashing, Toy.thmDiff and Toy.ax; A, B and C declare Toy.thmDup, a theorem of one type)
       # are imported by a real `lean`. It must refuse A with B and say which module and which name (tree_verify.union_failure reads that), and accept A with C (the duplicate theorem is allowed).
       - name: Lean refuses the import of two modules that declare one name, accepts duplicate theorems of one type, and tree_verify reads the refusal

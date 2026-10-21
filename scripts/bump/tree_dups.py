@@ -63,6 +63,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import bundle_layers as bl  # noqa: E402
 import lean_names  # noqa: E402
+from adapters import code_mask  # noqa: E402
 import bundle_rehead as rehead  # noqa: E402
 import tolerant_build as tb  # noqa: E402
 import tree_verify as tv  # noqa: E402
@@ -73,6 +74,8 @@ FP_ERR = re.compile(r"^FPERR\t(?P<mod>[^\t\n]+)\t(?P<msg>[^\n]*)$", re.M)
 MODULE_LINE = re.compile(r"^\s*module\s*(?:--.*)?$")
 PRELUDE = re.compile(r"^\s*prelude\s*(?:--.*)?$")
 NAMESPACE_LINE = re.compile(r"^(?P<ind>\s*)namespace\s+(?P<name>[^\s]+)(?:\s*--.*)?\s*$")  # `namespace X in` has more on the line: it is not this
+OPEN_LINE = re.compile(r"^(?P<ind>[ \t]*)open(?P<scoped>[ \t]+scoped)?[ \t]+(?P<names>.+?)(?P<tail>[ \t]+in\b.*|[ \t]*(?:--.*)?)$")  # `open A B`, `open scoped A`, `open A B in …`
+NAME_TOKEN = re.compile(r"^(?:«[^»]*»|[A-Za-z_][\w'!?]*)(?:\.(?:«[^»]*»|[A-Za-z_][\w'!?]*))*$")
 
 # `public section`, `@[expose] public section`, `noncomputable section`: lean_names.names reads only a plain `section` as one (an `end` would pop the wrong scope)
 SECTION_OPENER = re.compile(r"^([ \t]*)(?:@\[[^\]\n]*\][ \t]*)*(?:(?:public|private|meta|noncomputable)[ \t]+)+section\b", re.M)
@@ -266,9 +269,33 @@ def apply_fork_text(text: str, namespace: str) -> str | None:
     at = last + 1 if last is not None else module_line + 1 if module_line is not None else 0  # the `module` line comes first in a file of the module system, then its imports
     rest: list[str] = []
     declared: list[str] = []  # the namespaces the file opens, in the order it first does
-    for ln in lines[at:]:
+    mask = code_mask(text)  # only code counts: a line of a docstring that starts with `open the` is prose
+    starts = [0]
+    for ln in lines[:-1]:
+        starts.append(starts[-1] + len(ln) + 1)
+
+    def is_code(i: int) -> bool:
+        pos = starts[i] + len(lines[i]) - len(lines[i].lstrip())
+        return pos < len(mask) and bool(mask[pos])
+
+    for i in range(at, len(lines)):
+        ln = lines[i]
+        m = NAMESPACE_LINE.match(ln) if is_code(i) else None
+        o = OPEN_LINE.match(ln) if m is None and is_code(i) else None
+        if o is not None:
+            toks = o["names"].split()
+            if toks and "(" not in o["names"] and all(NAME_TOKEN.match(x) and x not in ("hiding", "renaming", "in") for x in toks):
+                # `open N`: in the original N was ONE namespace with the names of every module that declared them; wrapped, those of the wrapped modules are in <fork>.N and the others still in N, and Lean
+                # opens the first only (and warns, `linter.ambiguousOpen`): the names of the modules that are not wrapped (`srcD` in `open ZzDual`) are lost. Both are opened.
+                new: list[str] = []
+                for x in toks:
+                    new.append(x)
+                    if not x.startswith("_root_."):
+                        new.append("_root_." + x)
+                        if x not in declared:
+                            declared.append(x)
+                ln = f"{o['ind']}open{o['scoped'] or ''} {' '.join(new)}{o['tail']}"
         rest.append(ln)
-        m = NAMESPACE_LINE.match(ln)
         if m:
             if m["name"] not in declared:
                 declared.append(m["name"])

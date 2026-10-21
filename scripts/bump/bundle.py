@@ -514,7 +514,8 @@ def compose(a: argparse.Namespace) -> None:
                         changed = True
             needed.clear()
             for mod in keep_blocks:
-                need(mod)
+                if mod not in aliased:  # an aliased copy is no root: what it imported ships when something that ships imports the copy (its importers import those in its place)
+                    need(mod)
             leaks = {mod: ls for mod in sorted(needed) if (ls := modules[mod].leaks(pruned[mod], keep_blocks.get(mod, set())))}
             if not leaks or not a.drop_leaks:
                 break
