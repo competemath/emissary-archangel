@@ -75,6 +75,38 @@ class AliasText(unittest.TestCase):
         self.assertEqual(td.apply_alias_text(once, self.ALIAS), once)
 
 
+class AliasKeep(unittest.TestCase):
+    """An importer that stops importing the copy would lose what the copy imported (Navier 2026-10-20: `unknown namespace EulerCylinderSobolevSpace`, 72 importers refused)."""
+
+    def test_the_importers_import_what_the_copy_imported_after_the_trees_modules(self):
+        aliases = {"Tengoku.Lib.Copy": ["Tengoku.Other.Real"]}
+        keep = td.alias_keep(aliases, {"Tengoku.Lib.Copy": "import Tengoku\nimport Tengoku.Lib.D1\nimport Tengoku.Lib.D2\n\ndef c := 1\n"})
+        self.assertEqual(keep, {"Tengoku.Lib.Copy": ["Tengoku", "Tengoku.Lib.D1", "Tengoku.Lib.D2"]})
+        text = "import Tengoku\nimport Tengoku.Lib.Copy\n\ntheorem t : 1 = 1 := rfl\n"
+        self.assertEqual(td.apply_alias_text(text, td.with_kept(aliases, keep)), "import Tengoku\nimport Tengoku.Other.Real\nimport Tengoku.Lib.D1\nimport Tengoku.Lib.D2\n\ntheorem t : 1 = 1 := rfl\n")
+
+    def test_the_tree_s_own_module_is_not_repeated_and_the_prefix_of_the_import_is_kept(self):
+        aliases = {"Tengoku.Lib.Copy": ["Tengoku.Other.Real"]}
+        keep = td.alias_keep(aliases, {"Tengoku.Lib.Copy": "import Tengoku.Other.Real\nimport Tengoku.Lib.D1\n"})
+        self.assertEqual(keep, {"Tengoku.Lib.Copy": ["Tengoku.Lib.D1"]})
+        self.assertEqual(td.apply_alias_text("public import Tengoku.Lib.Copy\n", td.with_kept(aliases, keep)), "public import Tengoku.Other.Real\npublic import Tengoku.Lib.D1\n")
+
+    def test_a_copy_that_imported_another_aliased_copy_keeps_that_one_s_tree_modules_and_imports(self):
+        aliases = {"Tengoku.Lib.A": ["Tengoku.Other.A"], "Tengoku.Lib.B": ["Tengoku.Other.B"]}
+        texts = {"Tengoku.Lib.A": "import Tengoku.Lib.B\nimport Tengoku.Lib.X\n", "Tengoku.Lib.B": "import Tengoku.Lib.Y\n"}
+        keep = td.alias_keep(aliases, texts)
+        self.assertEqual(keep["Tengoku.Lib.A"], ["Tengoku.Other.B", "Tengoku.Lib.Y", "Tengoku.Lib.X"])  # B is replaced by its tree module and by what B kept
+        self.assertEqual(keep["Tengoku.Lib.B"], ["Tengoku.Lib.Y"])
+
+    def test_two_copies_that_import_each_other_do_not_loop(self):
+        aliases = {"Tengoku.Lib.A": ["Tengoku.Other.A"], "Tengoku.Lib.B": ["Tengoku.Other.B"]}
+        texts = {"Tengoku.Lib.A": "import Tengoku.Lib.B\n", "Tengoku.Lib.B": "import Tengoku.Lib.A\n"}
+        self.assertEqual(sorted(td.alias_keep(aliases, texts)), ["Tengoku.Lib.A", "Tengoku.Lib.B"])
+
+    def test_nothing_is_kept_for_a_copy_without_a_text(self):
+        self.assertEqual(td.alias_keep({"Tengoku.Lib.Copy": ["Tengoku.Other.Real"]}, {}), {})
+
+
 class Parsing(unittest.TestCase):
     def test_a_module_cut_short_is_absent_not_an_error_and_not_a_clean_empty_module(self):
         """A run that was killed in the middle of a module: that module is not fingerprinted (it must not pass as the same), and the modules it finished are."""
@@ -406,6 +438,29 @@ class Flow(FlowBase):
         (self.d / "bad.json").write_text(json.dumps({"modes": {"proposed": {"aliases": ["Toy.M"]}}}))
         with self.assertRaises(SystemExit):
             td.load_for_compose(str(self.d / "bad.json"))
+
+
+class KeepFlow(FlowBase):
+    """The copy M imports a module Q of the library; what imports M must import Q too once it imports the tree's module in M's place."""
+
+    FILES = {**FlowBase.FILES, "Tengoku/ToyLib/Toy/Q.lean": "import Tengoku\n\ndef Toy.q := 3\n", "Tengoku/ToyLib/Toy/M.lean": "import Tengoku.ToyLib.Toy.Q\n\ndef Toy.f := 1\n",
+             "Tengoku/ToyLib.lean": "".join(f"import Tengoku.ToyLib.Toy.{m}\n" for m in "MBCUQ")}
+    BUILT = "".join(f"✔ [{i}/5] Built Tengoku.ToyLib.Toy.{m} (1s)\n" for i, m in enumerate("MBCUQ", 1)) + "Build completed successfully.\n"
+
+    def test_the_importer_imports_the_tree_s_module_and_what_the_copy_imported(self):
+        self.plan()
+        b = (self.tree / "Tengoku/ToyLib/Toy/B.lean").read_text()
+        self.assertIn("import Tengoku.Other.Lib.X\nimport Tengoku.ToyLib.Toy.Q\n", b)
+        self.assertNotIn("Toy.M", b)
+        dups = json.loads((self.out / "dups.json").read_text())
+        self.assertEqual(dups["aliases"], {"Toy.M": ["Tengoku.Other.Lib.X"]})
+        self.assertIn("Tengoku.ToyLib.Toy.Q", dups["alias_keep"]["Toy.M"])  # what compose needs to ship the same bytes
+
+    def test_the_merged_file_carries_it_to_compose(self):
+        self.plan()
+        merged = self.d / "merged.json"
+        td.main(["merge", str(self.out / "dups.json"), "--out", str(merged)])
+        self.assertIn("Tengoku.ToyLib.Toy.Q", td.load_alias_keep_for_compose(str(merged))["proposed"]["Toy.M"])
 
 
 class ForkFlow(FlowBase):
@@ -758,6 +813,38 @@ class Compose(unittest.TestCase):
     def test_a_mode_the_tree_did_not_build_never_wraps(self):
         d, p = self.run_compose("--keep-dups", "--tree-dups", self.dups_file({}, forked=["Toy.Owned", "Toy.AboveOwned"]))
         self.assertEqual(self.shipped(d, "strict"), ["Toy.clean_one"])  # the strict bundle has no verdict: dropped like before
+
+    def test_a_module_only_the_aliased_copy_imported_ships_and_the_importer_imports_it(self):
+        """Copy imports Base (a definition-only module nobody else needs); Imp imports Copy. The tree has Copy; Imp must import the tree's module AND Base, and Base must ship."""
+        ad = test_bundle.AutoDrops
+        files = {**ad.FILES, "Base": "namespace Toy\n\ndef base_d : Nat := 1\n\nend Toy\n", "Copy": "import Toy.Base\n\nnamespace Toy\n\ntheorem copy_t : 1 = 1 := rfl\n\nend Toy\n",
+                 "Imp": "import Toy.Copy\n\nnamespace Toy\n\ntheorem imp_t : 1 = 1 := rfl\n\nend Toy\n"}
+        harness = type("Harness", (), {"FILES": files, "PASSED": {**ad.PASSED, "Toy.Copy": ["Toy.copy_t"], "Toy.Imp": ["Toy.imp_t"]}, "leaks_in_leaky": staticmethod(ad.leaks_in_leaky)})()
+        p = Path(tempfile.mkdtemp()) / "dups.json"
+        p.write_text(json.dumps({"ns": "ToyLib", "modes": {"proposed": {"aliases": {"Toy.Copy": ["Tengoku.Other.Lib.Copy"]}, "alias_keep": {"Toy.Copy": ["Tengoku.ToyLib.Toy.Base"]},
+                                                                      "not_same": {}, "refused": {}, "forks": {}, "forked": [], "fork_namespace": "", "forks_identical": []}}}))
+        d, r = ad.compose(harness, [], "--keep-dups", "--tree-dups", str(p), files=["Base", "Copy", "Imp"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        root = d / "bundle-proposed" / "Tengoku" / "ToyLib" / "Toy"
+        self.assertTrue((root / "Base.lean").is_file(), "the module only the copy imported is shipped")
+        self.assertFalse((root / "Copy.lean").exists())
+        imp = (root / "Imp.lean").read_text()
+        self.assertIn("import Tengoku.Other.Lib.Copy", imp)
+        self.assertIn("import Tengoku.ToyLib.Toy.Base", imp)
+        self.assertNotIn("Toy.Copy", imp)
+
+    def test_without_what_the_copy_imported_the_module_only_it_imported_does_not_ship(self):
+        """(the old behaviour, the case that lost 72 modules)"""
+        ad = test_bundle.AutoDrops
+        files = {**ad.FILES, "Base": "namespace Toy\n\ndef base_d : Nat := 1\n\nend Toy\n", "Copy": "import Toy.Base\n\nnamespace Toy\n\ntheorem copy_t : 1 = 1 := rfl\n\nend Toy\n",
+                 "Imp": "import Toy.Copy\n\nnamespace Toy\n\ntheorem imp_t : 1 = 1 := rfl\n\nend Toy\n"}
+        harness = type("Harness", (), {"FILES": files, "PASSED": {**ad.PASSED, "Toy.Copy": ["Toy.copy_t"], "Toy.Imp": ["Toy.imp_t"]}, "leaks_in_leaky": staticmethod(ad.leaks_in_leaky)})()
+        p = Path(tempfile.mkdtemp()) / "dups.json"
+        p.write_text(json.dumps({"ns": "ToyLib", "modes": {"proposed": {"aliases": {"Toy.Copy": ["Tengoku.Other.Lib.Copy"]}, "not_same": {}, "refused": {}, "forks": {}, "forked": [],
+                                                                      "fork_namespace": "", "forks_identical": []}}}))
+        d, r = ad.compose(harness, [], "--keep-dups", "--tree-dups", str(p), files=["Base", "Copy", "Imp"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse((d / "bundle-proposed" / "Tengoku" / "ToyLib" / "Toy" / "Base.lean").exists())
 
     def test_a_mode_the_tree_did_not_build_never_ships_an_alias(self):
         """Only the verified modes carry a verdict; the strict bundle (not built in the tree) drops the copy like before."""
