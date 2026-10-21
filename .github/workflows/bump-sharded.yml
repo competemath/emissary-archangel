@@ -373,23 +373,25 @@ jobs:
           timeout -k 60 "${cap}m" lake build $targets 2>&1 | tee ../out/build-dups.log
           echo "lake exit status: ${PIPESTATUS[0]}"
           # R2 again, for THIS build (the importers on the tree's modules): a limit that is too small in that environment is given room the same way as in the first build (tree_repair.py), and the build
-          # is made again; what ships carries the same edit (`compose` applies it last, from dups.json). The first round's log stays in out/build-dups-1.log. Nothing is planned unless there is time
-          # to build again: a plan changes the checkout and new.json, and a log that was emptied for a build that never ran would refuse every importer, the ones that built too.
-          cap=$(( (JOB_START + 355 * 60 - $(date +%s)) / 60 - 110 )); [ "$cap" -gt 180 ] && cap=180
-          if [ "$cap" -ge 10 ]; then
-            python3 ../emissary/scripts/bump/tree_repair.py plan --log ../out/build-dups.log --new ../out/new.json --tree . --out ../dups-repair | tee ../out/dups-repairs.txt
-            cp ../dups-repair/repairs.json ../out/dups-repairs.json
-            if python3 -c 'import json, sys; sys.exit(0 if json.load(open("../out/dups-repairs.json"))["modules"] else 1)'; then
-              cp ../out/build-dups.log ../out/build-dups-1.log
-              python3 ../emissary/scripts/bump/tree_dups.py add-repairs --dups ../out/dups.json --repairs ../out/dups-repairs.json
-              : > ../out/build-dups.log
-              # shellcheck disable=SC2086  # targets is a space-separated module list
-              timeout -k 60 "${cap}m" lake build $targets 2>&1 | tee ../out/build-dups.log
-              echo "lake exit status: ${PIPESTATUS[0]}"
-            fi
-          else
-            echo "::warning::no time left to repair the importers' build: the verdict of the first round stands"
-          fi
+          # is made again; what ships carries the same edit (`compose` applies it last, from dups.json). A module that now builds lets the ones after it be reached, and they may need room too: up to six
+          # rounds, each module repaired once. The log of round N stays in out/build-dups-N.log. Nothing is planned unless there is time to build again: a plan changes the checkout and new.json, and
+          # a log that was emptied for a build that never ran would refuse every importer, the ones that built too.
+          round=0
+          while [ "$round" -lt 6 ]; do
+            cap=$(( (JOB_START + 355 * 60 - $(date +%s)) / 60 - 110 )); [ "$cap" -gt 180 ] && cap=180
+            if [ "$cap" -lt 10 ]; then echo "::warning::no time left to repair the importers' build: the verdict of the last round stands"; break; fi
+            skip=""; [ "$round" -gt 0 ] && skip="--skip-repaired"
+            round=$((round + 1))
+            python3 ../emissary/scripts/bump/tree_repair.py plan --log ../out/build-dups.log --new ../out/new.json --tree . --out "../dups-repair-$round" $skip | tee -a ../out/dups-repairs.txt
+            cp "../dups-repair-$round/repairs.json" ../out/dups-repairs.json
+            python3 -c 'import json, sys; sys.exit(0 if json.load(open("../out/dups-repairs.json"))["modules"] else 1)' || break
+            cp ../out/build-dups.log "../out/build-dups-$round.log"
+            python3 ../emissary/scripts/bump/tree_dups.py add-repairs --dups ../out/dups.json --repairs ../out/dups-repairs.json
+            : > ../out/build-dups.log
+            # shellcheck disable=SC2086  # targets is a space-separated module list
+            timeout -k 60 "${cap}m" lake build $targets 2>&1 | tee ../out/build-dups.log
+            echo "lake exit status: ${PIPESTATUS[0]}"
+          done
           python3 -c 'import sys; sys.path.insert(0, "../emissary/scripts/bump"); import tree_verify; print(tree_verify.DUPS_MARKER)' >> ../out/build.log
           cat ../out/build-dups.log >> ../out/build.log
       - name: Copies of tree modules, the importers fingerprinted again, and the verdict (tree_dups.py after-verdict)
@@ -494,7 +496,7 @@ jobs:
             out/fp-after.txt
             out/fp-*.err
             out/build-dups.log
-            out/build-dups-1.log
+            out/build-dups-[1-6].log
             out/dups-repairs.txt
             out/dups-repairs.json
             out/disk.log

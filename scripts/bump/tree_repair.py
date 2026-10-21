@@ -208,6 +208,9 @@ def cmd_plan(a: argparse.Namespace) -> None:
             errs = by_path.get(spec["path"])
             if not errs:
                 continue
+            if getattr(a, "skip_repaired", False) and spec.get("repaired"):
+                notes.append(f"{mod}: already repaired once: not again (a second round on the same module would not be one edit of the bytes the build had)")
+                continue
             tree_file = Path(a.tree) / spec["path"]
             text = tree_file.read_text(encoding="utf-8")
             if sha256(text) != spec["sha256"]:
@@ -250,6 +253,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--new", required=True)
     p.add_argument("--tree", required=True)
     p.add_argument("--out", required=True)
+    p.add_argument("--skip-repaired", action="store_true", help="leave a module alone that an earlier round repaired (the rounds after the first of the build of the importers on the tree's modules)")
     p.set_defaults(fn=cmd_plan)
     p = sub.add_parser("merge")
     p.add_argument("--out", required=True)
