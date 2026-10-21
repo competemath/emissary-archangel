@@ -241,6 +241,30 @@ PATTERNS: list[Pattern] = [
         tree="namespace ZzCo\nstructure Coef where\n  n : Nat\n\ndef Coef.q (c : Coef) : Nat := c.n + 100\nend ZzCo\n",
     ),
     Pattern(
+        "fork_and_tree_same_name_multiline_open",
+        "an `open` of two lines (66 of Navier's 73 wrapped modules): the name in two worlds is on the first line, the second namespace has names only the base declares; nothing may be put between the lines "
+        "(Navier recut 9: `Unknown constant`, the second line became part of a `hiding` clause)",
+        "namespace ZzMla\ndef oldMa : Nat := 1\nend ZzMla\nnamespace ZzMlb\ndef oldMb : Nat := 2\nend ZzMlb\n",
+        "import Tengoku.{lib}.Base\n\nnamespace ZzMla\ndef dupMa : Nat := oldMa + 10\nend ZzMla\nnamespace ZzMlb\ndef onlyMb : Nat := oldMb + 1\nend ZzMlb\n",
+        "import Tengoku.{lib}.X\n\nopen ZzMla\n  ZzMlb\ndef zzUserMl : Nat := dupMa + oldMa + onlyMb + oldMb\n",
+        tree="namespace ZzMla\ndef dupMa : Nat := 99\nend ZzMla\n",
+    ),
+    Pattern(
+        "fork_and_tree_same_name_in_the_second_line_of_an_open",
+        "the name in two worlds is in a namespace of the SECOND line of the command, which ends in `in`",
+        "namespace ZzMlc\ndef oldMc : Nat := 1\nend ZzMlc\nnamespace ZzMld\ndef oldMd : Nat := 2\nend ZzMld\n",
+        "import Tengoku.{lib}.Base\n\nnamespace ZzMlc\ndef onlyMc : Nat := oldMc + 10\nend ZzMlc\nnamespace ZzMld\ndef dupMd : Nat := oldMd + 1\nend ZzMld\n",
+        "import Tengoku.{lib}.X\n\nopen ZzMlc\n  ZzMld in\ndef zzUserMc : Nat := onlyMc + oldMc + dupMd + oldMd\n",
+        tree="namespace ZzMld\ndef dupMd : Nat := 99\nend ZzMld\n",
+    ),
+    Pattern(
+        "multiline_open_with_nothing_shared",
+        "an `open` of two lines, the tree's module absent from the closure: the continuation's root names are still found (before, only the first line's namespaces were opened from the root too)",
+        "namespace ZzMle\ndef oldMe : Nat := 1\nend ZzMle\nnamespace ZzMlf\ndef oldMf : Nat := 2\nend ZzMlf\n",
+        "import Tengoku.{lib}.Base\n\nnamespace ZzMle\ndef onlyMe : Nat := oldMe + 10\nend ZzMle\nnamespace ZzMlf\ndef onlyMf : Nat := oldMf + 1\nend ZzMlf\n",
+        "import Tengoku.{lib}.X\n\nopen ZzMle\n  ZzMlf\ndef zzUserMe : Nat := onlyMe + oldMe + onlyMf + oldMf\n",
+    ),
+    Pattern(
         "tree_module_not_in_the_closure",
         "the tree has a module with the same names but the importer does not import it: nothing may be hidden, because Lean refuses to hide a name that does not exist",
         "namespace ZzNo\ndef oldN : Nat := 1\nend ZzNo\n",
