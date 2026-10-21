@@ -474,6 +474,7 @@ def compose(a: argparse.Namespace) -> None:
         # the copies of tree modules (`--keep-dups`): in the draft they stay; in the final cut the ones the tree's build showed to be the same as the tree's module are ALIASED (not shipped, no cascade,
         # their importers import the tree's module), and the others go like a module that declares a name the tree has
         aliased: dict[str, list[str]] = {}
+        tolerated: dict[str, str] = {}  # flagged by a text rule, built by the tree, refused by none of its checks: it ships (see below)
         fork_ns, forked = forks_by_mode.get(mode, ("", set())) if a.keep_dups else ("", set())
         if a.keep_dups and tree_dups_by_mode is not None:
             decided = {tv_plain(k): v for k, v in tree_dups_by_mode.get(mode, {}).items()}
@@ -488,6 +489,13 @@ def compose(a: argparse.Namespace) -> None:
                     aliased[m] = decided[tv_plain(m)]
                 elif tv_plain(m) in forked:
                     pass  # a copy that differs from the tree's module: the tree built it wrapped in its own namespace (below), with what imports it
+                elif a.tree_failures:
+                    # The text rules guess; the tree's own checks decide, and they ran: this module was built in the tree beside the other libraries', its names were compared with every module's by
+                    # the clash scan (ModuleClashes.lean: Lean's own rule for a name two modules declare, which accepts a theorem of the same type), and the whole tree was imported. A module any
+                    # of those refused is in `tree_failed` and is already dropped above. So the flag is a clash of names on paper only (Navier recut 10, 2026-10-21: lean-pool records theorems that
+                    # the standalone library proves again, 16 modules, 5,875 theorems with their importers). It ships; the gate still refuses a record name twice, so the records the tree already
+                    # has are left out of the manifest (below), counted, not lost.
+                    tolerated[m] = why
                 else:
                     dropped[m] = why
         needed: set[str] = set()
@@ -531,6 +539,7 @@ def compose(a: argparse.Namespace) -> None:
             shown = "\n".join(f"  {mod}: {ls[0]}" + (f" (+{len(ls) - 1} more)" if len(ls) > 1 else "") for mod, ls in list(leaks.items())[:20])
             sys.exit(f"pruning left unverified text in {len(leaks)} module(s) of the {mode} bundle; refusing to compose it:\n{shown}")
         manifest, left_out = [], defaultdict(int)
+        tolerated_records: dict[str, list[str]] = defaultdict(list)
         ledger: dict[str, dict] = {}  # every module whose verified theorems are not shipped: why, and how many theorems (ledger.json: nothing is missing without a reason)
         for mod, names in passed.items():
             if mod not in needed:
@@ -542,6 +551,10 @@ def compose(a: argparse.Namespace) -> None:
                 continue
             m = modules[mod]
             for n in names:
+                if mod in tolerated and "." in n and n in tree_names:  # the gate's own rule: a qualified name that is a record of the tree already is refused
+                    left_out["a record the tree already has: the declaration ships (the tree takes both), the record is not made again"] += 1
+                    tolerated_records[mod].append(n)
+                    continue
                 r = source_of(mod, n)
                 if not r:
                     left_out["no source range"] += 1
@@ -645,6 +658,7 @@ def compose(a: argparse.Namespace) -> None:
         if a.keep_dups:
             report["dups"] = {"aliased": len(aliased), "aliased_modules": dict(list(aliased.items())[:50]), "kept_for_the_tree_build": 0 if tree_dups_by_mode is not None else len(dup_modules),
                               "forked_modules": len([m for m in needed if tv_plain(m) in forked]), "fork_namespace": fork_ns,
+                              "tolerated_modules": len([m for m in needed if m in tolerated]), "tolerated_records_not_made_again": {m: ns[:20] for m, ns in sorted(tolerated_records.items())},
                               "duplicate_theorems": sum(1 for r in manifest if tv_plain(r["module"].split(f"Tengoku.{pascal(a.key)}.", 1)[-1]) in identical_by_mode.get(mode, set()))}
         (out_dir / "report.json").write_text(json.dumps(report, indent=1))
         summary[mode] = {k: v for k, v in report.items() if k not in ("dropped", "lint_cost", "left_out", "dups")}
