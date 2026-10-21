@@ -304,12 +304,13 @@ jobs:
           sys.path.insert(0, "../scripts/bump")
           import tree_dups as td
           src = os.environ["RUNNER_SRC"] + "/Tengoku/"
-          m4 = "import Tengoku.LibN4.N4\n\nnamespace Toy4\n\ndef foo : Nat := src\n\ntheorem foo_eq : foo = 1 := src_eq\n\nend Toy4\n"
+          # Toy4 is declared by the imported module; Toy4New by nothing it imports (`open _root_.Toy4New` alone is an error: unknown namespace)
+          m4 = "import Tengoku.LibN4.N4\n\nnamespace Toy4\n\ndef foo : Nat := src\n\ntheorem foo_eq : foo = 1 := src_eq\n\nend Toy4\n\nnamespace Toy4New\n\ndef bar : Nat := 2\n\nend Toy4New\n"
           wrapped = td.apply_fork_text(m4, "ToyFork")
-          assert "open _root_.Toy4" in wrapped, wrapped
+          assert "open _root_.Toy4" in wrapped and "namespace Toy4New\nend Toy4New\n" in wrapped, wrapped
           open(src + "LibM4f/M4f.lean", "w").write(wrapped)
           # the wrap without the open line: what the fork was before
-          open(src + "LibM4g/M4g.lean", "w").write(wrapped.replace("open _root_.Toy4\n", ""))
+          open(src + "LibM4g/M4g.lean", "w").write(wrapped.replace("open _root_.Toy4\n", "").replace("open _root_.Toy4New\n", ""))
           PY
           cat "$src/Tengoku/LibM4f/M4f.lean"
           lp="$root:$(lake env printenv LEAN_PATH)"

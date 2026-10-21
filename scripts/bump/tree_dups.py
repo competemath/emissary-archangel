@@ -265,16 +265,22 @@ def apply_fork_text(text: str, namespace: str) -> str | None:
             last = i
     at = last + 1 if last is not None else module_line + 1 if module_line is not None else 0  # the `module` line comes first in a file of the module system, then its imports
     rest: list[str] = []
+    declared: list[str] = []  # the namespaces the file opens, in the order it first does
     for ln in lines[at:]:
         rest.append(ln)
         m = NAMESPACE_LINE.match(ln)
         if m:
+            if m["name"] not in declared:
+                declared.append(m["name"])
             parts = re.findall(r"«[^»]*»|[^.]+", m["name"])
             # a name the file writes bare, which its namespace found in a module it imports (`source` in `namespace EulerQuadraticSource`), is looked up through the namespaces the file is in: now they all
             # start with the fork's, so the imported module's are no longer on the way. Lean looks in the namespaces first and in what is open after, so this finds nothing the fork declares itself
             # (Navier 2026-10-20: `Unknown identifier source` in the forked Euler.QuadraticCoefficients, and its 81 importers with it)
             rest.append(m["ind"] + "open " + " ".join("_root_." + ".".join(parts[:k]) for k in range(len(parts), 0, -1)))
-    body = lines[:at] + ([""] if at else []) + [f"namespace {namespace}"] + rest
+    # `open _root_.X` is an error when no module the file imports has a namespace X (`unknown namespace`: Navier 2026-10-20, Euler.QuadraticSourceLimit declares EulerQuadraticSourceLimit itself): an empty
+    # `namespace X` / `end X` above the fork's namespace makes it exist, and declares nothing
+    registered = [ln for n in declared for ln in (f"namespace {n}", f"end {n}")]
+    body = lines[:at] + ([""] if at else []) + registered + ([""] if registered else []) + [f"namespace {namespace}"] + rest
     return "\n".join(body) if text.endswith("\n") or not text else "\n".join(body) + "\n"
 
 
