@@ -455,6 +455,8 @@ class CopiesOfTreeModules(unittest.TestCase):
         self.assertLess(marker, cat)
         self.assertIn("cp ../out/build-dups.log ../out/build-dups-1.log", run)  # the first round stays for the reader
         self.assertEqual(run.count("lake build $targets"), 2)  # one build, one build again
+        self.assertLess(run.index('[ "$cap" -ge 10 ]', first), plan)  # the time is checked before anything is planned: a plan changes the checkout, and an emptied log refuses every importer
+        self.assertLess(run.index(": > ../out/build-dups.log"), run.rindex("lake build $targets"))
         self.assertIn("out/dups-repairs.json", PATH.read_text(encoding="utf-8"))  # one directory deep like the other files of the verdict artifact
 
     def test_the_program_prints_what_the_python_side_reads(self):
