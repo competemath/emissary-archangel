@@ -449,6 +449,7 @@ def compose(a: argparse.Namespace) -> None:
     identical_by_mode = tree_dups.load_identical_forks_for_compose(a.tree_dups) if a.tree_dups else {}
     dups_repairs_by_mode = tree_dups.load_repairs_for_compose(a.tree_dups) if a.tree_dups else {}  # mode -> {library module -> repair}: the limits given room in the build of the importers on the tree's modules
     keep_by_mode = tree_dups.load_alias_keep_for_compose(a.tree_dups) if a.tree_dups else {}  # mode -> {library module -> what that aliased copy imported}: its importers import those in its place
+    fork_hide_by_mode = tree_dups.load_fork_hide_for_compose(a.tree_dups) if a.tree_dups else {}  # mode -> {library module -> names it sees as the fork's and as the tree's}: `open N` hides the tree's
     forks_by_mode = tree_dups.load_forks_for_compose(a.tree_dups) if a.tree_dups else {}  # mode -> (namespace, the library modules the tree built wrapped in it): the copies that differ from the tree's and what imports them
     tree_failed = {ln.strip() for ln in Path(a.tree_failures).read_text().split("\n") if ln.strip()} if a.tree_failures else set()
     # the declarations the tree timed out on get more room (tree_repair.py, rule R2): the same edit, to the same bytes, as the one the tree's build accepted
@@ -593,7 +594,7 @@ def compose(a: argparse.Namespace) -> None:
             for mod in sorted(needed):
                 if tv_plain(mod) in forked:
                     f = tree_root / modules[mod].path.relative_to(lib)
-                    wrapped = tree_dups.apply_fork_text(f.read_text(), fork_ns)
+                    wrapped = tree_dups.apply_fork_text(f.read_text(), fork_ns, fork_hide_by_mode.get(mode, {}).get(tv_plain(mod), ()))
                     if wrapped is None:
                         sys.exit(f"{mod} was built wrapped in {fork_ns} in the tree and cannot be wrapped here: the text that ships would not be the text that was built")
                     f.write_text(wrapped)
