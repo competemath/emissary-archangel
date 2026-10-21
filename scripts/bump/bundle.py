@@ -447,6 +447,7 @@ def compose(a: argparse.Namespace) -> None:
                 dup_modules.setdefault(m, "declares a name another library of the tree declares: " + ", ".join(ns_[:3]))
     tree_dups_by_mode = tree_dups.load_for_compose(a.tree_dups) if a.tree_dups else None  # mode -> {library module -> the tree modules}: what the tree's build decided about the copies
     identical_by_mode = tree_dups.load_identical_forks_for_compose(a.tree_dups) if a.tree_dups else {}
+    keep_by_mode = tree_dups.load_alias_keep_for_compose(a.tree_dups) if a.tree_dups else {}  # mode -> {library module -> what that aliased copy imported}: its importers import those in its place
     forks_by_mode = tree_dups.load_forks_for_compose(a.tree_dups) if a.tree_dups else {}  # mode -> (namespace, the library modules the tree built wrapped in it): the copies that differ from the tree's and what imports them
     tree_failed = {ln.strip() for ln in Path(a.tree_failures).read_text().split("\n") if ln.strip()} if a.tree_failures else set()
     # the declarations the tree timed out on get more room (tree_repair.py, rule R2): the same edit, to the same bytes, as the one the tree's build accepted
@@ -488,9 +489,15 @@ def compose(a: argparse.Namespace) -> None:
                 else:
                     dropped[m] = why
         needed: set[str] = set()
+        tree_to_lib = {tv_plain(f"Tengoku.{pascal(a.key)}.{m}"): m for m in modules}
+        kept_lib = {x: [tree_to_lib[k] for k in keep_by_mode.get(mode, {}).get(x, []) if k in tree_to_lib] for x in aliased}  # the library modules an aliased copy imported
 
         def need(mod: str) -> None:
-            if mod in needed or mod not in pruned or mod in dropped or mod in aliased:
+            if mod in needed or mod not in pruned or mod in dropped:
+                return
+            if mod in aliased:
+                for k in kept_lib.get(mod, []):  # not shipped itself, but what imported it now imports what IT imported (tree_dups.alias_keep)
+                    need(k)
                 return
             needed.add(mod)
             for d in imports[mod]:
@@ -571,7 +578,8 @@ def compose(a: argparse.Namespace) -> None:
                 f.write_text(tree_repair.apply_to_text(f.read_text(), tree_repairs[mod]) or f.read_text())
         if aliased:
             # the last edit, after the scoping and the repairs, as in the tree's checkout (tree_dups.py plan): what imports a copy imports the tree's module instead
-            amap = {tv_plain(f"Tengoku.{pascal(a.key)}.{m}"): ts for m, ts in aliased.items()}
+            amap = tree_dups.with_kept({tv_plain(f"Tengoku.{pascal(a.key)}.{m}"): ts for m, ts in aliased.items()},
+                                       {tv_plain(f"Tengoku.{pascal(a.key)}.{m}"): ks for m, ks in keep_by_mode.get(mode, {}).items()})
             for mod in sorted(needed):
                 f = tree_root / modules[mod].path.relative_to(lib)
                 text = f.read_text()

@@ -184,6 +184,40 @@ def decide(module: str, partners: list[str], before: Fp, partner_fp: Fp) -> tupl
     return sorted(used), ""
 
 
+def alias_keep(aliases: dict[str, list[str]], texts: dict[str, str]) -> dict[str, list[str]]:
+    """For each aliased copy (plain name -> the tree's modules), the modules the copy itself imported, in the order it wrote them: an importer that stops importing the copy would lose them, and with
+    them every namespace and name it reached only through the copy (Navier 2026-10-20: `unknown namespace EulerCylinderSobolevSpace` in what imported the aliased Euler.QuadraticSource, 72
+    modules refused, 971 with their importers). A copy that is itself aliased is replaced by the tree's modules and by what it kept; the tree's modules of the copy are not repeated."""
+    out: dict[str, list[str]] = {}
+
+    def expand(x: str, seen: frozenset[str]) -> list[str]:
+        res: list[str] = []
+        for i in tb.header_imports(texts[x]):
+            p = tv.plain(i)
+            if p in aliases:
+                if p not in seen and p in texts:
+                    res += aliases[p] + expand(p, seen | {p})
+            else:
+                res.append(p)
+        return res
+
+    for x in sorted(aliases):
+        if x not in texts:
+            continue
+        mine = set(aliases[x])
+        kept: list[str] = []
+        for p in expand(x, frozenset({x})):
+            if p not in mine and p not in kept:
+                kept.append(p)
+        out[x] = kept
+    return out
+
+
+def with_kept(aliases: dict[str, list[str]], keep: dict[str, list[str]]) -> dict[str, list[str]]:
+    """The modules an import of each copy is replaced by: the tree's, then the ones the copy imported (alias_keep)."""
+    return {x: ts + [k for k in keep.get(x, []) if k not in ts] for x, ts in aliases.items()}
+
+
 def apply_alias_text(text: str, aliases: dict[str, list[str]]) -> str:
     """The text with each header import of a module of `aliases` (plain name -> the tree's modules) replaced by imports of those modules, and a second copy of an import line dropped (the same
     rule as `bundle.once`). Only the header is read: a docstring that starts a line with the word `import` is prose. This is the one edit, made here on the checkout and by `bundle.py compose` on the
@@ -394,6 +428,8 @@ def cmd_plan(a: argparse.Namespace) -> None:
                 identical[m] = "identical to " + ", ".join(aliases.pop(m)) + ", which a file of the module system cannot import (the tree's module is not one)"
         not_same.update(identical)
     plain_aliases = {tv.plain(m): ts for m, ts in aliases.items()}
+    keep = alias_keep(plain_aliases, texts)  # what each copy imported: the importers of the copy import it too, in its place
+    edit_aliases = with_kept(plain_aliases, keep)
     forks, wrap, not_same = choose_forks(not_same, cand["candidates"], before, set(plain_aliases), texts, ns) if a.fork else ({}, set(), not_same)
     fork_ns = fork_namespace(ns)
     edited: list[str] = []
@@ -402,7 +438,7 @@ def cmd_plan(a: argparse.Namespace) -> None:
         if x in aliases or not f.is_file():
             continue
         text = f.read_text(encoding="utf-8")
-        edited_text = apply_alias_text(text, plain_aliases) if any(tv.plain(i) in plain_aliases for i in tb.header_imports(text)) else text
+        edited_text = apply_alias_text(text, edit_aliases) if any(tv.plain(i) in plain_aliases for i in tb.header_imports(text)) else text
         if tv.plain(x) in wrap:
             edited_text = apply_fork_text(edited_text, fork_ns) or edited_text  # choose_forks has seen that every module of `wrap` can be wrapped
         if edited_text != text:
@@ -417,6 +453,7 @@ def cmd_plan(a: argparse.Namespace) -> None:
     (out / "targets.txt").write_text("".join(m + "\n" for m in sorted(mods)))
     keyed = {tv.plain(m): m for m in mods}
     result = {"ns": ns, "mode": a.mode, "aliases": {tv.library_module(m, ns): ts for m, ts in aliases.items()},
+              "alias_keep": {tv.library_module(m, ns): keep.get(tv.plain(m), []) for m in aliases},
               "not_same": {tv.library_module(m, ns): why for m, why in not_same.items()}, "refused": {},
               "forks": {tv.library_module(m, ns): why for m, why in forks.items()},
               "forks_identical": sorted(tv.library_module(m, ns) for m in forks if m in identical),
@@ -501,7 +538,7 @@ def cmd_merge(a: argparse.Namespace) -> None:
         if d["mode"] in modes:
             sys.exit(f"two files for the mode {d['mode']}")
         modes[d["mode"]] = {k: d[k] for k in ("aliases", "not_same", "refused")}
-        modes[d["mode"]].update({k: d.get(k, v) for k, v in (("forks", {}), ("forked", []), ("fork_namespace", ""), ("forks_identical", []))})
+        modes[d["mode"]].update({k: d.get(k, v) for k, v in (("forks", {}), ("forked", []), ("fork_namespace", ""), ("forks_identical", []), ("alias_keep", {}))})
     Path(a.out).write_text(json.dumps({"ns": ns, "modes": modes}, indent=1) + "\n")
     print(f"{sum(len(m['aliases']) for m in modes.values())} aliased in {sorted(modes)}")
 
@@ -517,6 +554,21 @@ def load_for_compose(path: str) -> dict[str, dict[str, list[str]]]:
         if not isinstance(al, dict) or not all(isinstance(k, str) and isinstance(v, list) and all(isinstance(x, str) for x in v) for k, v in al.items()):
             sys.exit(f"{path}: the aliases of {mode} are not a map from a module to a list of modules")
         out[mode] = al
+    return out
+
+
+def load_alias_keep_for_compose(path: str) -> dict[str, dict[str, list[str]]]:
+    """mode -> {library module -> the modules that copy imported (alias_keep)}, from the merged file `--tree-dups` names. A verdict from before this existed has none: the importers lose what the
+    copy imported, as they did."""
+    d = json.loads(Path(path).read_text())
+    if not isinstance(d, dict) or not isinstance(d.get("modes"), dict):
+        sys.exit(f"{path}: not a merged dups file")
+    out: dict[str, dict[str, list[str]]] = {}
+    for mode, spec in d["modes"].items():
+        kp = spec.get("alias_keep", {})
+        if not isinstance(kp, dict) or not all(isinstance(k, str) and isinstance(v, list) and all(isinstance(x, str) for x in v) for k, v in kp.items()):
+            sys.exit(f"{path}: the kept imports of {mode} are not a map from a module to a list of modules")
+        out[mode] = kp
     return out
 
 
