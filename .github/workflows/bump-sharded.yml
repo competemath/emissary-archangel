@@ -372,6 +372,19 @@ jobs:
           # shellcheck disable=SC2086  # targets is a space-separated module list
           timeout -k 60 "${cap}m" lake build $targets 2>&1 | tee ../out/build-dups.log
           echo "lake exit status: ${PIPESTATUS[0]}"
+          # R2 again, for THIS build (the importers on the tree's modules): a limit that is too small in that environment is given room the same way as in the first build (tree_repair.py), and the build
+          # is made again; what ships carries the same edit (`compose` applies it last, from dups.json). The first round's log stays in out/build-dups-1.log.
+          python3 ../emissary/scripts/bump/tree_repair.py plan --log ../out/build-dups.log --new ../out/new.json --tree . --out ../dups-repair | tee ../out/dups-repairs.txt
+          cp ../dups-repair/repairs.json ../out/dups-repairs.json
+          if python3 -c 'import json, sys; sys.exit(0 if json.load(open("../out/dups-repairs.json"))["modules"] else 1)'; then
+            cp ../out/build-dups.log ../out/build-dups-1.log
+            python3 ../emissary/scripts/bump/tree_dups.py add-repairs --dups ../out/dups.json --repairs ../out/dups-repairs.json
+            cap=$(( (JOB_START + 355 * 60 - $(date +%s)) / 60 - 110 )); [ "$cap" -gt 180 ] && cap=180
+            if [ "$cap" -lt 10 ]; then echo "::warning::no time left to build the repaired importers again"; fi
+            : > ../out/build-dups.log
+            # shellcheck disable=SC2086  # targets is a space-separated module list
+            if [ "$cap" -ge 10 ]; then timeout -k 60 "${cap}m" lake build $targets 2>&1 | tee ../out/build-dups.log; echo "lake exit status: ${PIPESTATUS[0]}"; fi
+          fi
           python3 -c 'import sys; sys.path.insert(0, "../emissary/scripts/bump"); import tree_verify; print(tree_verify.DUPS_MARKER)' >> ../out/build.log
           cat ../out/build-dups.log >> ../out/build.log
       - name: Copies of tree modules, the importers fingerprinted again, and the verdict (tree_dups.py after-verdict)
@@ -476,6 +489,9 @@ jobs:
             out/fp-after.txt
             out/fp-*.err
             out/build-dups.log
+            out/build-dups-1.log
+            out/dups-repairs.txt
+            out/dups-repairs.json
             out/disk.log
             out/build.log.gz
             out/tree-sha.txt

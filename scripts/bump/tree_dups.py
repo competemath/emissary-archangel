@@ -535,6 +535,20 @@ def cmd_after_verdict(a: argparse.Namespace) -> None:
         print(f"  refused: {tv.library_module(m, ns)}: {why}")
 
 
+def cmd_add_repairs(a: argparse.Namespace) -> None:
+    """Put the repairs of the second build (tree_repair.py plan on the log of the importers built on the tree's modules) into this mode's verdict, so that `merge` carries them to `compose`: the
+    importers are built there with the aliases and the fork edits made, and a limit that is too small in THAT environment (Navier 2026-10-20: `Euler.CorrectionOperators`, a typeclass search at 20000 heartbeats)
+    is given room the same way the first build's are (rule R2), on the bytes the tree built."""
+    d = json.loads(Path(a.dups).read_text())
+    r = json.loads(Path(a.repairs).read_text())
+    mods = r.get("modules", {})
+    if not isinstance(mods, dict):
+        sys.exit(f"{a.repairs}: not a repairs file")
+    d["repairs"] = {**d.get("repairs", {}), **mods}
+    Path(a.dups).write_text(json.dumps(d, indent=1, ensure_ascii=False) + "\n")
+    print(f"{len(mods)} module(s) repaired after the swap: {sorted(mods)[:10]}")
+
+
 def cmd_merge(a: argparse.Namespace) -> None:
     modes: dict[str, dict] = {}
     ns = None
@@ -544,7 +558,7 @@ def cmd_merge(a: argparse.Namespace) -> None:
         if d["mode"] in modes:
             sys.exit(f"two files for the mode {d['mode']}")
         modes[d["mode"]] = {k: d[k] for k in ("aliases", "not_same", "refused")}
-        modes[d["mode"]].update({k: d.get(k, v) for k, v in (("forks", {}), ("forked", []), ("fork_namespace", ""), ("forks_identical", []), ("alias_keep", {}))})
+        modes[d["mode"]].update({k: d.get(k, v) for k, v in (("forks", {}), ("forked", []), ("fork_namespace", ""), ("forks_identical", []), ("alias_keep", {}), ("repairs", {}))})
     Path(a.out).write_text(json.dumps({"ns": ns, "modes": modes}, indent=1) + "\n")
     print(f"{sum(len(m['aliases']) for m in modes.values())} aliased in {sorted(modes)}")
 
@@ -560,6 +574,21 @@ def load_for_compose(path: str) -> dict[str, dict[str, list[str]]]:
         if not isinstance(al, dict) or not all(isinstance(k, str) and isinstance(v, list) and all(isinstance(x, str) for x in v) for k, v in al.items()):
             sys.exit(f"{path}: the aliases of {mode} are not a map from a module to a list of modules")
         out[mode] = al
+    return out
+
+
+def load_repairs_for_compose(path: str) -> dict[str, dict[str, dict]]:
+    """mode -> {library module -> its repair entry (tree_repair.py)}, the repairs of the build of the importers on the tree's modules, from the merged file `--tree-dups` names. A verdict from before
+    this existed has none."""
+    d = json.loads(Path(path).read_text())
+    if not isinstance(d, dict) or not isinstance(d.get("modes"), dict):
+        sys.exit(f"{path}: not a merged dups file")
+    out: dict[str, dict[str, dict]] = {}
+    for mode, spec in d["modes"].items():
+        rp = spec.get("repairs", {})
+        if not isinstance(rp, dict) or not all(isinstance(k, str) and isinstance(v, dict) for k, v in rp.items()):
+            sys.exit(f"{path}: the repairs of {mode} are not a map from a module to a repair")
+        out[mode] = rp
     return out
 
 
@@ -632,6 +661,10 @@ def main(argv: list[str] | None = None) -> None:
             q.add_argument("--fp-before", required=True)
             q.add_argument("--fp-after", required=True)
         q.set_defaults(fn=fn)
+    r = sub.add_parser("add-repairs")
+    r.add_argument("--dups", required=True, help="out/dups.json of this mode")
+    r.add_argument("--repairs", required=True, help="the repairs.json of tree_repair.py plan on the log of the importers' build")
+    r.set_defaults(fn=cmd_add_repairs)
     m = sub.add_parser("merge")
     m.add_argument("--out", required=True)
     m.add_argument("files", nargs="+")

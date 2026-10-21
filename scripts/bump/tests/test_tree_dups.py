@@ -15,6 +15,7 @@ HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE / "tests"))
 import tree_dups as td  # noqa: E402
+import tree_repair as tr  # noqa: E402
 import tree_verify as tv  # noqa: E402
 import test_bundle  # noqa: E402  (the module, not its test classes: they would run again here)
 
@@ -463,6 +464,25 @@ class KeepFlow(FlowBase):
         self.assertIn("Tengoku.ToyLib.Toy.Q", td.load_alias_keep_for_compose(str(merged))["proposed"]["Toy.M"])
 
 
+class AddRepairs(FlowBase):
+    def test_the_repairs_of_the_second_build_go_into_the_verdict_and_through_merge_to_compose(self):
+        self.plan()
+        repairs = self.d / "repairs.json"
+        entry = {"module": "Tengoku.ToyLib.Toy.B", "path": "Tengoku/ToyLib/Toy/B.lean", "before": "a" * 64, "after": "b" * 64, "repairs": [{"at": 4, "name": "Toy.t", "option": "maxHeartbeats", "from": 200000, "to": 1600000, "line": 4}]}
+        repairs.write_text(json.dumps({"rule": "R2", "modules": {"Toy.B": entry}}))
+        td.main(["add-repairs", "--dups", str(self.out / "dups.json"), "--repairs", str(repairs)])
+        self.assertEqual(json.loads((self.out / "dups.json").read_text())["repairs"], {"Toy.B": entry})
+        merged = self.d / "merged.json"
+        td.main(["merge", str(self.out / "dups.json"), "--out", str(merged)])
+        self.assertEqual(td.load_repairs_for_compose(str(merged)), {"proposed": {"Toy.B": entry}})
+
+    def test_a_verdict_without_repairs_has_none(self):
+        self.plan()
+        merged = self.d / "merged.json"
+        td.main(["merge", str(self.out / "dups.json"), "--out", str(merged)])
+        self.assertEqual(td.load_repairs_for_compose(str(merged)), {"proposed": {}})
+
+
 class ForkFlow(FlowBase):
     """A copy that differs from the tree's module: it is wrapped, with what imports it, in `ToyLibFork`; the tree builds it so; it ships only if every declaration is what the library has."""
 
@@ -854,6 +874,36 @@ class Compose(unittest.TestCase):
         d, r = ad.compose(harness, [], "--keep-dups", "--tree-dups", str(p), files=["Base", "Copy", "Imp"])
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse((d / "bundle-proposed" / "Tengoku" / "ToyLib" / "Toy" / "Base.lean").exists())
+
+    def test_a_limit_given_room_in_the_build_of_the_importers_is_made_in_the_bytes_that_ship(self):
+        """Navier 2026-10-20: Euler.CorrectionOperators timed out at 20000 heartbeats only once it was built on the tree's module. The repair (rule R2) was planned on the bytes of THAT build (the alias edit
+        made), so compose makes it last."""
+        draft, _ = self.run_compose("--keep-dups")
+        aliases = {"Toy.Owned": ["Tengoku.Other.Lib.Owned"]}
+        built = td.apply_alias_text(self.text(draft, "AboveOwned"), {"Tengoku.ToyLib.Toy.Owned": ["Tengoku.Other.Lib.Owned"]})
+        repairs, _skipped = tr.plan_text(built, [{"line": 5, "option": "synthInstance.maxHeartbeats", "limit": 20000}])
+        self.assertEqual(len(repairs), 1)
+        fixed = tr.repair_text(built, repairs)
+        entry = {"module": "Tengoku.ToyLib.Toy.AboveOwned", "path": "Tengoku/ToyLib/Toy/AboveOwned.lean", "before": tr.sha256(built), "after": tr.sha256(fixed), "repairs": repairs}
+        p = Path(tempfile.mkdtemp()) / "dups.json"
+        p.write_text(json.dumps({"ns": "ToyLib", "modes": {"proposed": {"aliases": aliases, "not_same": {}, "refused": {}, "forks": {}, "forked": [], "fork_namespace": "", "forks_identical": [],
+                                                                      "repairs": {"Toy.AboveOwned": entry}}}}))
+        d, r = self.run_compose("--keep-dups", "--tree-dups", str(p))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.text(d, "AboveOwned"), fixed)  # byte for byte what the tree built
+        self.assertIn("set_option synthInstance.maxHeartbeats 160000 in", self.text(d, "AboveOwned"))
+        self.assertEqual(self.text(d, "Clean"), self.text(draft, "Clean"))
+
+    def test_a_repair_planned_on_other_bytes_is_not_made(self):
+        """(as the first build's: `check` then refuses the bundle, loudly)"""
+        draft, _ = self.run_compose("--keep-dups")
+        p = Path(tempfile.mkdtemp()) / "dups.json"
+        entry = {"module": "x", "path": "x", "before": "0" * 64, "after": "1" * 64, "repairs": []}
+        p.write_text(json.dumps({"ns": "ToyLib", "modes": {"proposed": {"aliases": {"Toy.Owned": ["Tengoku.Other.Lib.Owned"]}, "not_same": {}, "refused": {}, "forks": {}, "forked": [],
+                                                                      "fork_namespace": "", "forks_identical": [], "repairs": {"Toy.AboveOwned": entry}}}}))
+        d, r = self.run_compose("--keep-dups", "--tree-dups", str(p))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("set_option", self.text(d, "AboveOwned"))
 
     def test_a_mode_the_tree_did_not_build_never_ships_an_alias(self):
         """Only the verified modes carry a verdict; the strict bundle (not built in the tree) drops the copy like before."""

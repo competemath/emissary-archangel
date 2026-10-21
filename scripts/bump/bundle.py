@@ -447,6 +447,7 @@ def compose(a: argparse.Namespace) -> None:
                 dup_modules.setdefault(m, "declares a name another library of the tree declares: " + ", ".join(ns_[:3]))
     tree_dups_by_mode = tree_dups.load_for_compose(a.tree_dups) if a.tree_dups else None  # mode -> {library module -> the tree modules}: what the tree's build decided about the copies
     identical_by_mode = tree_dups.load_identical_forks_for_compose(a.tree_dups) if a.tree_dups else {}
+    dups_repairs_by_mode = tree_dups.load_repairs_for_compose(a.tree_dups) if a.tree_dups else {}  # mode -> {library module -> repair}: the limits given room in the build of the importers on the tree's modules
     keep_by_mode = tree_dups.load_alias_keep_for_compose(a.tree_dups) if a.tree_dups else {}  # mode -> {library module -> what that aliased copy imported}: its importers import those in its place
     forks_by_mode = tree_dups.load_forks_for_compose(a.tree_dups) if a.tree_dups else {}  # mode -> (namespace, the library modules the tree built wrapped in it): the copies that differ from the tree's and what imports them
     tree_failed = {ln.strip() for ln in Path(a.tree_failures).read_text().split("\n") if ln.strip()} if a.tree_failures else set()
@@ -595,6 +596,13 @@ def compose(a: argparse.Namespace) -> None:
                     if wrapped is None:
                         sys.exit(f"{mod} was built wrapped in {fork_ns} in the tree and cannot be wrapped here: the text that ships would not be the text that was built")
                     f.write_text(wrapped)
+        if aliased or forked:
+            # the last edit of all: the repairs of the build of the importers on the tree's modules were planned on the bytes THAT build had (the alias and the fork edits made), as `check` will hold them to
+            for mod in sorted(needed):
+                entry = dups_repairs_by_mode.get(mode, {}).get(mod)
+                if entry:
+                    f = tree_root / modules[mod].path.relative_to(lib)
+                    f.write_text(tree_repair.apply_to_text(f.read_text(), entry) or f.read_text())
         (out_dir / "Tengoku" / f"{pascal(a.key)}.lean").write_text("".join(f"import Tengoku.{pascal(a.key)}.{m}\n" for m in sorted(needed)))
         # tengoku's generator rewrites Tengoku/All.lean from the libraries that have a Deps.lean: an empty one (a comment) keeps this library in it
         (tree_root / "Deps.lean").write_text(f"-- {pascal(a.key)}: a factory bundle (data/intake/{a.key}). This file only marks the library for Tengoku/All.lean.\n")

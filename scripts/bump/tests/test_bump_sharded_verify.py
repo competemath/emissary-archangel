@@ -446,6 +446,17 @@ class CopiesOfTreeModules(unittest.TestCase):
         self.assertLess(run.index("tree_verify.DUPS_MARKER"), run.index("cat ../out/build-dups.log"))  # and know where the second build starts: its ending is not the ending of the first
         self.assertLess(run.index(": > out/build-dups.log"), run.index("lake build"))  # no time: an empty log is 'nothing was built', never a clean one
 
+    def test_the_importers_build_gets_the_same_repair_as_the_first_build_before_its_log_joins_the_build_log(self):
+        run = step("verify", "Copies of tree modules, the importers built")["run"]
+        first, plan, add, again, marker, cat = (run.index(x) for x in ("tee ../out/build-dups.log", "tree_repair.py plan --log ../out/build-dups.log", "tree_dups.py add-repairs", "tee ../out/build-dups.log\n", "tree_verify.DUPS_MARKER", "cat ../out/build-dups.log >> ../out/build.log"))
+        self.assertLess(first, plan)  # the repair reads the build
+        self.assertLess(plan, add)  # and only a repair that was made goes into the verdict
+        self.assertLess(add, marker)  # all before the log joins the build log: it holds the LAST round only
+        self.assertLess(marker, cat)
+        self.assertIn("cp ../out/build-dups.log ../out/build-dups-1.log", run)  # the first round stays for the reader
+        self.assertEqual(run.count("lake build $targets"), 2)  # one build, one build again
+        self.assertIn("out/dups-repairs.json", PATH.read_text(encoding="utf-8"))  # one directory deep like the other files of the verdict artifact
+
     def test_the_program_prints_what_the_python_side_reads(self):
         lean = (PATH.parents[2] / "scripts" / "bump" / "ModuleFingerprint.lean").read_text()
         self.assertRegex(lean, r'FP\\t\{m\}\\t\{canon strip n\}\\t\{kindName ci\}\\t\{hex16 h\.1\}\{hex16 h\.2\}')
