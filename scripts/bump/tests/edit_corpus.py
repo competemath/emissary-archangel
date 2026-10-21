@@ -10,7 +10,9 @@ THE TEST. For every PATTERN below (a library of three modules Base <- X <- User 
     original library      Base, X, User           -> builds                      -> fingerprints F0
     E applied             (see below)             -> builds                      -> fingerprints F1
     the declarations of F1 are those of F0 (kinds and hashes of types and values; the fork's namespace is stripped by FP_STRIP).
-  fork:   X and User are wrapped in `namespace ToyFork` (what choose_forks does with a copy and its importers); Base stays out.
+  fork:   X and User are wrapped in `namespace ToyFork` (what choose_forks does with a copy and its importers); Base stays out. A pattern with a `tree` module also has the tree's module T, which declares
+          names X declares (that is why X is forked), in User's import closure: the names both declare are then hidden where User opens their namespace (tree_dups.fork_hide, computed here from the real
+          fingerprints and the real files, as the plan does), and the declarations of User must still be those of the original, which had no T.
   alias:  X is replaced by the tree's module T (an identical copy under another name), User imports T and what X imported (alias_keep).
 A new construct is covered by appending a pattern; a new edit by writing its function of (pattern) -> files. Nothing else needs to change.
 
@@ -41,6 +43,8 @@ class Pattern:
     x: str
     user: str
     module_system: bool = False
+    tree: str = ""  # the tree's module that declares names X declares, with other content (the fork's reason to exist); the fork variant of User imports it too
+    tree_imported: bool = True  # False: the tree's module exists but User does not import it, so nothing may be hidden (Lean refuses to hide a name that does not exist)
 
 
 # `{lib}` is the library's module prefix. Proofs are `rfl`/`by decide`-free core Lean: the corpus must build in seconds and on any toolchain.
@@ -194,6 +198,57 @@ PATTERNS: list[Pattern] = [
         "module\n\npublic import Tengoku.{lib}.X\n\n@[expose] public section\n\nnamespace ZzMod\ndef n : Nat := m + base_m\nend ZzMod\n",
         module_system=True,
     ),
+    # the fork's name and the tree's name, both in the importer's environment (Navier recut 8, 2026-10-21: `Ambiguous term Coefficients`, 24 modules refused)
+    Pattern(
+        "fork_and_tree_declare_the_same_name",
+        "`open N` of a namespace in which the forked copy and the tree's module both declare `dup`, the importer having both in its closure: the fork's is the one the library means "
+        "(Navier: `open EulerQuadraticSource`, `Coefficients`)",
+        "namespace ZzTree\ndef old : Nat := 1\nend ZzTree\n",
+        "import Tengoku.{lib}.Base\n\nnamespace ZzTree\ndef dup : Nat := old + 10\nend ZzTree\n",
+        "import Tengoku.{lib}.X\n\nopen ZzTree\ndef zzUserT : Nat := dup + old\ntheorem zzUserT_eq : zzUserT = 12 := rfl\n",
+        tree="namespace ZzTree\ndef dup : Nat := 99\nend ZzTree\n",
+    ),
+    Pattern(
+        "fork_and_tree_same_name_open_in",
+        "the same, `open N in` over one declaration",
+        "namespace ZzTreeIn\ndef oldI : Nat := 1\nend ZzTreeIn\n",
+        "import Tengoku.{lib}.Base\n\nnamespace ZzTreeIn\ndef dupI : Nat := oldI + 10\nend ZzTreeIn\n",
+        "import Tengoku.{lib}.X\n\nopen ZzTreeIn in\ndef zzUserTi : Nat := dupI + oldI\n",
+        tree="namespace ZzTreeIn\ndef dupI : Nat := 99\nend ZzTreeIn\n",
+    ),
+    Pattern(
+        "fork_and_tree_same_name_two_namespaces_one_shared",
+        "`open A B` where only A has a name in two worlds: A is hidden, B is opened as before, in one command or two",
+        "namespace ZzSa\ndef oldA : Nat := 1\nend ZzSa\nnamespace ZzSb\ndef oldB : Nat := 2\nend ZzSb\n",
+        "import Tengoku.{lib}.Base\n\nnamespace ZzSa\ndef dupA : Nat := oldA + 10\nend ZzSa\nnamespace ZzSb\ndef onlyB : Nat := oldB + 1\nend ZzSb\n",
+        "import Tengoku.{lib}.X\n\nopen ZzSa ZzSb\ndef zzUserS : Nat := dupA + oldA + onlyB + oldB\n",
+        tree="namespace ZzSa\ndef dupA : Nat := 99\nend ZzSa\n",
+    ),
+    Pattern(
+        "fork_and_tree_same_name_dotted_namespace",
+        "`open A.B` with the name in two worlds under a dotted namespace",
+        "namespace ZzDa.ZzDb\ndef oldD : Nat := 1\nend ZzDa.ZzDb\n",
+        "import Tengoku.{lib}.Base\n\nnamespace ZzDa.ZzDb\ndef dupD : Nat := oldD + 10\nend ZzDa.ZzDb\n",
+        "import Tengoku.{lib}.X\n\nopen ZzDa.ZzDb\ndef zzUserD2 : Nat := dupD + oldD\n",
+        tree="namespace ZzDa.ZzDb\ndef dupD : Nat := 99\nend ZzDa.ZzDb\n",
+    ),
+    Pattern(
+        "fork_and_tree_same_structure",
+        "a structure, its constructor, projections and a method declared by both: every name Lean generates for it is in two worlds (Navier: `EulerQuadraticSource.Coefficients` and its fields)",
+        "namespace ZzCo\ndef oldC : Nat := 1\nend ZzCo\n",
+        "import Tengoku.{lib}.Base\n\nnamespace ZzCo\nstructure Coef where\n  n : Nat\n\ndef Coef.q (c : Coef) : Nat := c.n + oldC\nend ZzCo\n",
+        "import Tengoku.{lib}.X\n\nopen ZzCo\ndef zzMk : Coef := Coef.mk 3\ndef zzUse (c : Coef) : Nat := c.q + c.n + oldC\ntheorem zzUse_eq : zzUse zzMk = 3 + 1 + 3 + 1 := rfl\n",
+        tree="namespace ZzCo\nstructure Coef where\n  n : Nat\n\ndef Coef.q (c : Coef) : Nat := c.n + 100\nend ZzCo\n",
+    ),
+    Pattern(
+        "tree_module_not_in_the_closure",
+        "the tree has a module with the same names but the importer does not import it: nothing may be hidden, because Lean refuses to hide a name that does not exist",
+        "namespace ZzNo\ndef oldN : Nat := 1\nend ZzNo\n",
+        "import Tengoku.{lib}.Base\n\nnamespace ZzNo\ndef dupN : Nat := oldN + 10\nend ZzNo\n",
+        "import Tengoku.{lib}.X\n\nopen ZzNo\ndef zzUserN : Nat := dupN + oldN\n",
+        tree="namespace ZzNo\ndef dupN : Nat := 99\nend ZzNo\n",
+        tree_imported=False,
+    ),
 ]
 
 
@@ -206,13 +261,17 @@ def files_for(p: Pattern, lib: str, *, user_imports: str | None = None) -> dict[
     return {"Base": sub(p.base), "X": sub(p.x), "User": user}
 
 
-def fork_variant(p: Pattern) -> dict[str, str]:
-    """X and User wrapped in the fork's namespace (what tree_dups.choose_forks does with a copy and what imports it); Base stays out. Modules live under `<lib>F`, importing each other there."""
-    f = files_for(p, "E", user_imports="Tengoku.EF.X")
-    base_imports = {"X": f["X"], "User": f["User"]}
+def fork_sources(p: Pattern) -> dict[str, str]:
+    """X and User as the fork's library has them before the wrap: in `<lib>F`, importing each other there, and User also importing the tree's module when the pattern has one in its closure."""
+    f = files_for(p, "E", user_imports="Tengoku.EF.X" + ("\nimport Tengoku.ET.Dup" if p.tree and p.tree_imported else ""))
+    return {"X": f["X"], "User": f["User"]}
+
+
+def fork_variant(p: Pattern, hide: dict[str, list[str]] | None = None) -> dict[str, str]:
+    """X and User wrapped in the fork's namespace (what tree_dups.choose_forks does with a copy and what imports it); Base stays out. `hide`: plain module -> the names it sees twice (`fork_hide`)."""
     out = {}
-    for m, text in base_imports.items():
-        wrapped = td.apply_fork_text(text, FORK_NS)
+    for m, text in fork_sources(p).items():
+        wrapped = td.apply_fork_text(text, FORK_NS, (hide or {}).get(f"Tengoku.EF.{m}", ()))
         if wrapped is None:
             raise ValueError(f"{p.name}: {m} cannot be wrapped")
         out[m] = wrapped
@@ -279,7 +338,24 @@ def check_pattern(lean: Lean, p: Pattern) -> list[str]:
             return [f"{p.name}: the fingerprint of the original {m} is empty: the pattern declares nothing, the comparison would be vacuous"]
 
     # fork
-    for m, text in fork_variant(p).items():
+    hide: dict[str, list[str]] = {}
+    if p.tree:
+        lean.put("Tengoku.ET.Dup", p.tree)
+        r = lean.build("Tengoku.ET.Dup")
+        if r.returncode:
+            return [f"{p.name}: the tree's module does not build: the pattern is wrong, not the edit:\n{(r.stdout + r.stderr)[-700:]}"]
+        for m, text in fork_sources(p).items():  # the checkout the plan reads its import closure from: the files before the wrap (the wrap adds no import)
+            lean.put(f"Tengoku.EF.{m}", text)
+        shared = set(dict(f0["Tengoku.E.X"])) & set(dict(lean.fingerprints(["Tengoku.ET.Dup"])["Tengoku.ET.Dup"]))
+        if not shared:
+            return [f"{p.name}: the original X and the tree's module declare no name in common: the pattern does not exercise a name in two worlds"]
+        hide = td.fork_hide({"Tengoku.EF.X": set(dict(f0["Tengoku.E.X"]))}, {"Tengoku.EF.X": ["Tengoku.ET.Dup"]}, {"Tengoku.ET.Dup": set(dict(lean.fingerprints(["Tengoku.ET.Dup"])["Tengoku.ET.Dup"]))},
+                            {"Tengoku.EF.X", "Tengoku.EF.User"}, lean.src)
+        if p.tree_imported and "Tengoku.EF.User" not in hide:
+            return [f"{p.name}: User imports the tree's module and shares {sorted(shared)[:3]} with it, and fork_hide hides nothing there"]
+        if not p.tree_imported and hide:
+            return [f"{p.name}: User does not import the tree's module, and fork_hide hides {hide}: Lean would refuse a name that does not exist"]
+    for m, text in fork_variant(p, hide).items():
         lean.put(f"Tengoku.EF.{m}", text)
     for m in ("X", "User"):
         r = lean.build(f"Tengoku.EF.{m}")

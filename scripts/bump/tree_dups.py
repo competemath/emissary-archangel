@@ -44,6 +44,9 @@ What the outcome of each decision lets you say (the claim, its assumptions, and 
   seed, the declaration the library has (so the theorems say what the library says, about the definitions the library has), under the name `<Library>Fork.<name>`. Assumes what ALIASED assumes. Does NOT claim:
   that the forked module is anything like the tree's module of that name (it is another version, and both are in the tree), that proofs are the same, or anything about registrations (instances, simp lemmas)
   the wrap carries along: a forked copy's global instances and attributes are on its own types and names.
+  A name the forked copy declares and the tree's module declares too (the very reason for the fork) is ambiguous for a file that `open`s its namespace and has both in scope (Navier recut 8, 2026-10-21:
+  `Ambiguous term Coefficients`, 24 modules refused): `open N` becomes `open N` and `open _root_.N hiding <those names>` in the files that import the tree's module (`fork_hide`), so the fork's name is the
+  one the file means, as it was in the library, where the tree's module did not exist.
 
 The result is written as `dups.json` (per mode); `bundle.py compose --tree-dups` makes the same edits to the bundle that ships (`apply_alias_text`), and `tree_verify.py check` then proves, byte for byte,
 that every module that ships is a module the tree's build accepted.
@@ -75,6 +78,7 @@ MODULE_LINE = re.compile(r"^\s*module\s*(?:--.*)?$")
 PRELUDE = re.compile(r"^\s*prelude\s*(?:--.*)?$")
 NAMESPACE_LINE = re.compile(r"^(?P<ind>\s*)namespace\s+(?P<name>[^\s]+)(?:\s*--.*)?\s*$")  # `namespace X in` has more on the line: it is not this
 OPEN_LINE = re.compile(r"^(?P<ind>[ \t]*)open(?P<scoped>[ \t]+scoped)?[ \t]+(?P<names>.+?)(?P<tail>[ \t]+in\b.*|[ \t]*(?:--.*)?)$")  # `open A B`, `open scoped A`, `open A B in …`
+TOKEN = re.compile(r"(?:«[^»]*»|[^\s«])+")
 NAME_TOKEN = re.compile(r"^(?:«[^»]*»|[A-Za-z_][\w'!?]*)(?:\.(?:«[^»]*»|[A-Za-z_][\w'!?]*))*$")
 
 # `public section`, `@[expose] public section`, `noncomputable section`: lean_names.names reads only a plain `section` as one (an `end` would pop the wrong scope)
@@ -249,11 +253,17 @@ def apply_alias_text(text: str, aliases: dict[str, list[str]]) -> str:
     return "\n".join(out) if changed else text
 
 
-def apply_fork_text(text: str, namespace: str) -> str | None:
+def apply_fork_text(text: str, namespace: str, hide: "frozenset[str] | set[str] | tuple[str, ...]" = ()) -> str | None:
     """The text with `namespace X` on its own line after the last import of the header (at the top of a file that imports nothing). Nothing closes it: Lean closes the scopes a file leaves open at its end,
     and nearly every file of the module system leaves `public section` open (4,049 of lean-pool's 4,131), where an `end X` would be an error. None for a file that cannot be wrapped: one with `prelude`.
     Files of Lean's `module` system are wrapped like any other (their `module` line and imports stay above the namespace). This is the one edit that makes a forked copy, made here on the checkout and by
-    `bundle.py compose` on the bundle that ships (after `apply_alias_text`, in both places), so that the bytes agree."""
+    `bundle.py compose` on the bundle that ships (after `apply_alias_text`, in both places), so that the bytes agree.
+    `hide`: names the wrapped file sees twice, as the fork's and as the tree's (`fork_hide`): an `open N` of a namespace that has some of them also hides those in the tree's N."""
+    hidden = sorted({h for h in hide if NAME_TOKEN.match(h)})  # a name a `hiding` clause cannot write (`_private…`, a number) is not hidden
+
+    def hidden_in(ns_name: str) -> list[str]:
+        return [h[len(ns_name) + 1:] for h in hidden if h.startswith(ns_name + ".")]
+
     lines = text.split("\n")
     end, code = rehead.header_end(lines)
     last = module_line = None
@@ -283,18 +293,33 @@ def apply_fork_text(text: str, namespace: str) -> str | None:
         m = NAMESPACE_LINE.match(ln) if is_code(i) else None
         o = OPEN_LINE.match(ln) if m is None and is_code(i) else None
         if o is not None:
-            toks = o["names"].split()
+            toks = TOKEN.findall(o["names"])  # a name in guillemets may have a space in it
             if toks and "(" not in o["names"] and all(NAME_TOKEN.match(x) and x not in ("hiding", "renaming", "in") for x in toks):
                 # `open N`: in the original N was ONE namespace with the names of every module that declared them; wrapped, those of the wrapped modules are in <fork>.N and the others still in N, and Lean
                 # opens the first only (and warns, `linter.ambiguousOpen`): the names of the modules that are not wrapped (`srcD` in `open ZzDual`) are lost. Both are opened.
-                new: list[str] = []
-                for x in toks:
-                    new.append(x)
-                    if not x.startswith("_root_."):
-                        new.append("_root_." + x)
-                        if x not in declared:
-                            declared.append(x)
-                ln = f"{o['ind']}open{o['scoped'] or ''} {' '.join(new)}{o['tail']}"
+                roots = [x for x in toks if not x.startswith("_root_.")]
+                for x in roots:
+                    if x not in declared:
+                        declared.append(x)
+                if o["scoped"] or not any(hidden_in(x) for x in roots):
+                    new: list[str] = []
+                    for x in toks:
+                        new.append(x)
+                        if not x.startswith("_root_."):
+                            new.append("_root_." + x)
+                    ln = f"{o['ind']}open{o['scoped'] or ''} {' '.join(new)}{o['tail']}"
+                else:
+                    # a name of N that the fork and the tree both declare is ambiguous once both N are open: the tree's is hidden (Lean refuses `hiding` of a name that does not exist, which is why `hide` holds
+                    # only the names of files that import the tree's module). One command per namespace that has some; the others are opened together.
+                    plain = [f"_root_.{x}" for x in roots if not hidden_in(x)]
+                    more = ([f"open {' '.join(plain)}"] if plain else []) + [f"open _root_.{x} hiding {' '.join(hidden_in(x))}" for x in roots if hidden_in(x)]
+                    if re.match(r"[ \t]+in\b", o["tail"]):  # `open A in <command>`: the commands are chained with `in`
+                        ln = f"{o['ind']}open {' '.join(toks)}" + "".join(f" in {c}" for c in more) + o["tail"]
+                    else:
+                        ln = f"{o['ind']}open {' '.join(toks)}{o['tail']}"
+                        rest.append(ln)
+                        rest.extend(o["ind"] + c for c in more[:-1])
+                        ln = o["ind"] + more[-1]
         rest.append(ln)
         if m:
             if m["name"] not in declared:
@@ -406,6 +431,57 @@ def fork_namespace(ns: str) -> str:
     return f"{ns}Fork"
 
 
+def reaching(targets: set[str], roots: set[str], tree: Path) -> dict[str, frozenset[str]]:
+    """root -> the targets in its import closure (the root itself counts), read from the checkout's sources (`Tengoku.A.B` is `Tengoku/A/B.lean`). A module with no source file in the checkout is a leaf: it
+    is a module of Lean's own libraries, which do not import a module of the tree."""
+    memo: dict[str, frozenset[str]] = {}
+    cache: dict[str, list[str]] = {}
+
+    def imports(m: str) -> list[str]:
+        if m not in cache:
+            f = (tree / Path(*m.split("."))).with_suffix(".lean")
+            cache[m] = [tv.plain(d) for d in tb.header_imports(f.read_text(encoding="utf-8", errors="replace"))] if f.is_file() else []
+        return cache[m]
+
+    for root in sorted(roots):
+        stack, opened = [(root, False)], set()
+        while stack:
+            m, done = stack.pop()
+            if m in memo:
+                continue
+            if done:
+                memo[m] = frozenset(({m} & targets).union(*(memo.get(d, frozenset()) for d in imports(m))))
+                continue
+            if m in opened:  # an import cycle (Lean has none): never loop on one
+                continue
+            opened.add(m)
+            stack.append((m, True))
+            stack.extend((d, False) for d in imports(m) if d not in memo)
+    return {r: memo.get(r, frozenset()) for r in roots}
+
+
+def fork_hide(copy_names: dict[str, set[str]], partners: dict[str, list[str]], partner_names: dict[str, set[str]], wrap: set[str], tree: Path) -> dict[str, list[str]]:
+    """For each wrapped module (plain names), the names it sees twice: declared by a forked copy AND by a tree module that copy has as a partner, when that tree module is in the wrapped module's import
+    closure (`reaching`, on the checkout after the alias edits). Lean's `open N hiding x` is an error when `N.x` does not exist, so a module that does not import the partner is given none; and one that
+    does is given every name the copy shares with it, so that `open N` finds the fork's (`apply_fork_text`).
+    Navier recut 8, 2026-10-21: `open EulerQuadraticSource` in Euler.QuadraticSourceLimit found `Coefficients` in the fork's and in the tree's namespace, `Ambiguous term`, 24 modules refused."""
+    shared: dict[str, set[str]] = {}
+    for copy, ps in partners.items():
+        for p in ps:
+            both = copy_names.get(copy, set()) & partner_names.get(tv.plain(p), set())
+            if both:
+                shared.setdefault(tv.plain(p), set()).update(both)
+    if not shared:
+        return {}
+    reach = reaching(set(shared), set(wrap), tree)
+    out: dict[str, list[str]] = {}
+    for w in sorted(wrap):
+        names = {n for p in reach.get(w, frozenset()) for n in shared.get(p, ()) if NAME_TOKEN.match(n)}
+        if names:
+            out[w] = sorted(names)
+    return out
+
+
 def choose_forks(not_same: dict[str, str], cand: dict, before: Fp, aliased_plain: set[str], texts: dict[str, str], ns: str) -> tuple[dict[str, str], set[str], dict[str, str]]:
     """(the copies that are forked: copy -> why it is not the tree's, the modules to wrap: the forked copies and every module that imports one, and the copies that stay `not_same` -> why).
     A copy is forked when its fingerprint is complete (`before`: a copy that was not fingerprinted gives no verdict, and no verdict is never a yes) and it and everything that imports it can be wrapped
@@ -466,18 +542,32 @@ def cmd_plan(a: argparse.Namespace) -> None:
     forks, wrap, not_same = choose_forks(not_same, cand["candidates"], before, set(plain_aliases), texts, ns) if a.fork else ({}, set(), not_same)
     fork_ns = fork_namespace(ns)
     edited: list[str] = []
-    for x, spec in sorted(mods.items()):
+    for x, spec in sorted(mods.items()):  # the alias edit first, everywhere: the import closure the fork edit depends on is the one after it
         f = tree / spec["path"]
         if x in aliases or not f.is_file():
             continue
         text = f.read_text(encoding="utf-8")
         edited_text = apply_alias_text(text, edit_aliases) if any(tv.plain(i) in plain_aliases for i in tb.header_imports(text)) else text
-        if tv.plain(x) in wrap:
-            edited_text = apply_fork_text(edited_text, fork_ns) or edited_text  # choose_forks has seen that every module of `wrap` can be wrapped
         if edited_text != text:
             f.write_text(edited_text, encoding="utf-8")
             spec["sha256"] = sha256(edited_text.encode("utf-8"))
             edited.append(x)
+    hide: dict[str, list[str]] = {}
+    if forks:
+        partners = {tv.plain(m): [tv.plain(p) for p in cand["candidates"][m]["partners"]] for m in forks}
+        hide = fork_hide({tv.plain(m): set(before.get(tv.plain(m), {})) for m in forks}, partners,
+                         {p: set(partner_fp.get(p, {})) for ps in partners.values() for p in ps}, wrap, tree)
+    for x, spec in sorted(mods.items()):
+        f = tree / spec["path"]
+        if x in aliases or tv.plain(x) not in wrap or not f.is_file():
+            continue
+        text = f.read_text(encoding="utf-8")
+        edited_text = apply_fork_text(text, fork_ns, hide.get(tv.plain(x), ())) or text  # choose_forks has seen that every module of `wrap` can be wrapped
+        if edited_text != text:
+            f.write_text(edited_text, encoding="utf-8")
+            spec["sha256"] = sha256(edited_text.encode("utf-8"))
+            if x not in edited:
+                edited.append(x)
     for m in aliases:
         (tree / mods[m]["path"]).unlink(missing_ok=True)
         purge_build(tree, mods[m]["path"])
@@ -490,7 +580,8 @@ def cmd_plan(a: argparse.Namespace) -> None:
               "not_same": {tv.library_module(m, ns): why for m, why in not_same.items()}, "refused": {},
               "forks": {tv.library_module(m, ns): why for m, why in forks.items()},
               "forks_identical": sorted(tv.library_module(m, ns) for m in forks if m in identical),
-              "forked": sorted(tv.library_module(keyed[w], ns) for w in wrap if w in keyed), "fork_namespace": fork_ns if forks else ""}
+              "forked": sorted(tv.library_module(keyed[w], ns) for w in wrap if w in keyed), "fork_namespace": fork_ns if forks else "",
+              "fork_hide": {tv.library_module(keyed[w], ns): names for w, names in sorted(hide.items()) if w in keyed}}
     (out / "dups.json").write_text(json.dumps(result, indent=1) + "\n")
     importers = sorted({tv.plain(x) for m in aliases for x in cand["candidates"][m]["importers"]} - {tv.plain(m) for m in aliases})
     (out / "dups-importers.txt").write_text("".join(m + "\n" for m in importers))
@@ -585,7 +676,7 @@ def cmd_merge(a: argparse.Namespace) -> None:
         if d["mode"] in modes:
             sys.exit(f"two files for the mode {d['mode']}")
         modes[d["mode"]] = {k: d[k] for k in ("aliases", "not_same", "refused")}
-        modes[d["mode"]].update({k: d.get(k, v) for k, v in (("forks", {}), ("forked", []), ("fork_namespace", ""), ("forks_identical", []), ("alias_keep", {}), ("repairs", {}))})
+        modes[d["mode"]].update({k: d.get(k, v) for k, v in (("forks", {}), ("forked", []), ("fork_namespace", ""), ("forks_identical", []), ("alias_keep", {}), ("repairs", {}), ("fork_hide", {}))})
     Path(a.out).write_text(json.dumps({"ns": ns, "modes": modes}, indent=1) + "\n")
     print(f"{sum(len(m['aliases']) for m in modes.values())} aliased in {sorted(modes)}")
 
@@ -645,6 +736,21 @@ def load_forks_for_compose(path: str) -> dict[str, tuple[str, set[str]]]:
         if not isinstance(forked, list) or not all(isinstance(x, str) for x in forked) or not isinstance(namespace, str) or (forked and not namespace):
             sys.exit(f"{path}: the forked modules of {mode} are not a list of modules with a namespace")
         out[mode] = (namespace, {tv.plain(x) for x in forked})
+    return out
+
+
+def load_fork_hide_for_compose(path: str) -> dict[str, dict[str, list[str]]]:
+    """mode -> {library module (plain) -> the names it sees twice, as the fork's and as the tree's (`fork_hide`)}, from the merged file `--tree-dups` names. A verdict from before this existed has none:
+    `open N` is rewritten as it was."""
+    d = json.loads(Path(path).read_text())
+    if not isinstance(d, dict) or not isinstance(d.get("modes"), dict):
+        sys.exit(f"{path}: not a merged dups file")
+    out: dict[str, dict[str, list[str]]] = {}
+    for mode, spec in d["modes"].items():
+        h = spec.get("fork_hide", {})
+        if not isinstance(h, dict) or not all(isinstance(k, str) and isinstance(v, list) and all(isinstance(x, str) for x in v) for k, v in h.items()):
+            sys.exit(f"{path}: the hidden names of {mode} are not a map from a module to a list of names")
+        out[mode] = {tv.plain(k): v for k, v in h.items()}
     return out
 
 
