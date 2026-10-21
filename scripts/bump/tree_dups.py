@@ -78,6 +78,10 @@ MODULE_LINE = re.compile(r"^\s*module\s*(?:--.*)?$")
 PRELUDE = re.compile(r"^\s*prelude\s*(?:--.*)?$")
 NAMESPACE_LINE = re.compile(r"^(?P<ind>\s*)namespace\s+(?P<name>[^\s]+)(?:\s*--.*)?\s*$")  # `namespace X in` has more on the line: it is not this
 OPEN_LINE = re.compile(r"^(?P<ind>[ \t]*)open(?P<scoped>[ \t]+scoped)?[ \t]+(?P<names>.+?)(?P<tail>[ \t]+in\b.*|[ \t]*(?:--.*)?)$")  # `open A B`, `open scoped A`, `open A B in …`
+# words that start a command or a clause, which no name can be: an indented line that has one is not a continuation of the `open` above it
+COMMAND_WORDS = frozenset("""open namespace section end theorem lemma def abbrev instance example structure class inductive variable universe noncomputable private protected attribute set_option export macro syntax
+    notation local scoped omit include import public meta mutual deriving initialize elab hiding renaming in at by fun where with if then else do let have show from calc match using""".split())
+CONT_LINE = re.compile(r"^(?P<ind>[ \t]+)(?P<names>\S.*?)(?P<tail>[ \t]+in\b.*|[ \t]*(?:--.*)?)$")  # a line of names that continues an `open`
 TOKEN = re.compile(r"(?:«[^»]*»|[^\s«])+")
 NAME_TOKEN = re.compile(r"^(?:«[^»]*»|[A-Za-z_][\w'!?]*)(?:\.(?:«[^»]*»|[A-Za-z_][\w'!?]*))*$")
 
@@ -288,20 +292,39 @@ def apply_fork_text(text: str, namespace: str, hide: "frozenset[str] | set[str] 
         pos = starts[i] + len(lines[i]) - len(lines[i].lstrip())
         return pos < len(mask) and bool(mask[pos])
 
-    for i in range(at, len(lines)):
+    def continuation(j: int, open_ind: str) -> re.Match | None:
+        """line j continues an `open` command: more indented than the `open` (Lean's `colGt`), code, and nothing but names"""
+        if j >= len(lines) or not (is_code(j) or lines[j].lstrip().startswith("«")):  # the code mask does not see a name in guillemets as code
+            return None
+        c = CONT_LINE.match(lines[j])
+        if c is None or len(c["ind"].expandtabs(8)) <= len(open_ind.expandtabs(8)):
+            return None
+        toks = TOKEN.findall(c["names"])
+        return c if toks and "(" not in c["names"] and all(NAME_TOKEN.match(x) and x not in COMMAND_WORDS for x in toks) else None
+
+    i = at
+    while i < len(lines):
         ln = lines[i]
         m = NAMESPACE_LINE.match(ln) if is_code(i) else None
         o = OPEN_LINE.match(ln) if m is None and is_code(i) else None
+        span = 1  # the physical lines of the command: an `open` may continue on the lines below it (Navier: 66 of the 73 wrapped modules)
         if o is not None:
             toks = TOKEN.findall(o["names"])  # a name in guillemets may have a space in it
-            if toks and "(" not in o["names"] and all(NAME_TOKEN.match(x) and x not in ("hiding", "renaming", "in") for x in toks):
+            tail = o["tail"]
+            while not re.match(r"[ \t]+in\b", tail) and (c := continuation(i + span, o["ind"])) is not None:
+                toks += TOKEN.findall(c["names"])
+                tail = c["tail"]
+                span += 1
+            nxt = lines[i + span] if i + span < len(lines) else ""
+            odd = bool(re.match(r"[ \t]+(?:hiding\b|renaming\b|\()", nxt)) and len(nxt) - len(nxt.lstrip()) > len(o["ind"]) and not re.match(r"[ \t]+in\b", tail)  # a continuation this edit cannot read
+            if toks and "(" not in o["names"] and not odd and all(NAME_TOKEN.match(x) and x not in ("hiding", "renaming", "in") for x in toks):
                 # `open N`: in the original N was ONE namespace with the names of every module that declared them; wrapped, those of the wrapped modules are in <fork>.N and the others still in N, and Lean
                 # opens the first only (and warns, `linter.ambiguousOpen`): the names of the modules that are not wrapped (`srcD` in `open ZzDual`) are lost. Both are opened.
                 roots = [x for x in toks if not x.startswith("_root_.")]
                 for x in roots:
                     if x not in declared:
                         declared.append(x)
-                if o["scoped"] or not any(hidden_in(x) for x in roots):
+                if span == 1 and (o["scoped"] or not any(hidden_in(x) for x in roots)):
                     new: list[str] = []
                     for x in toks:
                         new.append(x)
@@ -310,16 +333,27 @@ def apply_fork_text(text: str, namespace: str, hide: "frozenset[str] | set[str] 
                     ln = f"{o['ind']}open{o['scoped'] or ''} {' '.join(new)}{o['tail']}"
                 else:
                     # a name of N that the fork and the tree both declare is ambiguous once both N are open: the tree's is hidden (Lean refuses `hiding` of a name that does not exist, which is why `hide` holds
-                    # only the names of files that import the tree's module). One command per namespace that has some; the others are opened together.
-                    plain = [f"_root_.{x}" for x in roots if not hidden_in(x)]
-                    more = ([f"open {' '.join(plain)}"] if plain else []) + [f"open _root_.{x} hiding {' '.join(hidden_in(x))}" for x in roots if hidden_in(x)]
-                    if re.match(r"[ \t]+in\b", o["tail"]):  # `open A in <command>`: the commands are chained with `in`
-                        ln = f"{o['ind']}open {' '.join(toks)}" + "".join(f" in {c}" for c in more) + o["tail"]
+                    # only the names of files that import the tree's module). One command per namespace that has some; the others are opened together. A command of several lines is kept as it was and
+                    # the opens of the tree's namespaces follow its last line, or are chained to it with `in` when that line ends in one: nothing is ever put in the middle of a command.
+                    plain = [f"_root_.{x}" for x in roots if o["scoped"] or not hidden_in(x)]
+                    more = ([f"open{o['scoped'] or ''} {' '.join(plain)}"] if plain else []) + ([] if o["scoped"] else [f"open _root_.{x} hiding {' '.join(hidden_in(x))}" for x in roots if hidden_in(x)])
+                    if span == 1 and re.match(r"[ \t]+in\b", tail):  # `open A in <command>`: the commands are chained with `in`
+                        ln = f"{o['ind']}open {' '.join(toks)}" + "".join(f" in {c}" for c in more) + tail
                     else:
-                        ln = f"{o['ind']}open {' '.join(toks)}{o['tail']}"
-                        rest.append(ln)
-                        rest.extend(o["ind"] + c for c in more[:-1])
-                        ln = o["ind"] + more[-1]
+                        first, last = [lines[i + k] for k in range(span)], span - 1
+                        if span == 1:
+                            first = [f"{o['ind']}open{o['scoped'] or ''} {' '.join(toks)}{tail}"]
+                        if re.match(r"[ \t]+in\b", tail):
+                            first[-1] = lines[i + last][: len(lines[i + last]) - len(tail)] + "".join(f" in {c}" for c in more) + tail
+                            rest.extend(first[:-1])
+                            ln = first[-1]
+                        else:
+                            rest.extend(first)
+                            rest.extend(o["ind"] + c for c in more[:-1])
+                            ln = o["ind"] + more[-1]
+            else:
+                span = 1  # not rewritten: the physical lines are visited one by one, as before
+        i += span
         rest.append(ln)
         if m:
             if m["name"] not in declared:

@@ -45,8 +45,15 @@ def gen_text(rnd: random.Random) -> tuple[str, list[str]]:
     for _ in range(rnd.randint(3, 16)):
         ind = rnd.choice(["", "", "  "])
         names = " ".join(rnd.sample(NAMESPACES, rnd.randint(1, 3)))
-        kind = rnd.choice(["open", "open", "open", "open_comment", "open_in", "open_in_eol", "scoped", "only", "hiding", "renaming", "comment", "doc", "namespace", "def"])
-        if kind == "open":
+        kind = rnd.choice(["open", "open", "open", "open_ml", "open_ml", "open_comment", "open_in", "open_in_eol", "scoped", "only", "hiding", "renaming", "comment", "doc", "namespace", "def"])
+        if kind == "open_ml":  # an `open` of several lines (66 of Navier's 73 wrapped modules), the last ending in `in`, a comment or nothing
+            n = rnd.randint(2, 3)
+            parts = [" ".join(rnd.sample(NAMESPACES, rnd.randint(1, 2))) for _ in range(n)]
+            ending = rnd.choice(["", "", " -- end", " in def m" + str(len(lines)) + " : Nat := 1"])
+            add(f"{ind}open {parts[0]}", "open_ml")
+            for k, part in enumerate(parts[1:], 1):
+                add(f"{ind}  {part}" + (ending if k == n - 1 else ""), "cont")
+        elif kind == "open":
             add(f"{ind}open {names}", "open")
         elif kind == "open_comment":
             add(f"{ind}open {names} -- {rnd.choice(['why', 'open A'])}", "open")
@@ -126,17 +133,22 @@ class OpenRewrite(unittest.TestCase):
         return rnd, text, kinds, hide, lines, body[at:]
 
     def aligned(self, seed: int):
-        """[(original line, kind, the output lines it became)]"""
+        """[(the original line(s) of a command, kind, the output lines it became)]"""
         rnd, text, kinds, hide, lines, body = self.edit(seed)
-        j, out = 0, []
-        for i in range(1, len(lines) - 1):  # the import line stays above the namespace; the blank line after it is the first line of the body  # the last element of split is the empty string after the final newline
+        j, out, i = 0, [], 1
+        while i < len(lines) - 1:  # the import line stays above the namespace; the blank line after it is the first line of the body; the last element of split is the empty string after the final newline
             ln, kind = lines[i], kinds[i]
-            chunk = [body[j]]
-            j += 1
-            while j < len(body) and re.match(r"^[ \t]*open _root_\.", body[j]) and not re.match(r"^[ \t]*open _root_\.\S+ hiding", ln):
+            n = 1
+            if kind == "open_ml":
+                while i + n < len(lines) - 1 and kinds[i + n] == "cont":
+                    n += 1
+            chunk = body[j:j + n]
+            j += n
+            while j < len(body) and re.match(r"^[ \t]*open(?: scoped)? _root_\.", body[j]):
                 chunk.append(body[j])
                 j += 1
-            out.append((ln, kind, chunk))
+            out.append(("\n".join(lines[i:i + n]), kind, chunk))
+            i += n
         self.assertEqual(j, len(body) - 1, f"seed {seed}: lines are left over in the output")  # the final empty element
         return hide, out
 
@@ -144,10 +156,16 @@ class OpenRewrite(unittest.TestCase):
         for seed in SEEDS:
             hide, chunks = self.aligned(seed)
             for ln, kind, chunk in chunks:
-                if kind in ("open", "scoped"):
+                if kind == "open_ml":
+                    orig = ln.split("\n")
+                    self.assertEqual(chunk[:len(orig) - 1], orig[:len(orig) - 1], f"seed {seed}: the lines of a command are kept as they were, and nothing is put between them: {chunk!r}")
+                    self.assertEqual(normalise(chunk[len(orig) - 1]), orig[-1], f"seed {seed}: {chunk!r}")
+                    for extra in chunk[len(orig):]:
+                        self.assertRegex(extra, r"^[ \t]*open(?: scoped)? _root_\.", f"seed {seed}")
+                elif kind in ("open", "scoped"):
                     self.assertEqual(normalise(chunk[0]), ln, f"seed {seed}: {ln!r} -> {chunk!r}")
                     for extra in chunk[1:]:
-                        self.assertRegex(extra, r"^[ \t]*open _root_\.", f"seed {seed}")
+                        self.assertRegex(extra, r"^[ \t]*open(?: scoped)? _root_\.", f"seed {seed}")
                 elif kind == "namespace":
                     self.assertEqual(chunk[0], ln)
                     self.assertLessEqual(len(chunk), 2, f"seed {seed}: a namespace line gets one `open _root_…` line, not {chunk!r}")
@@ -159,10 +177,17 @@ class OpenRewrite(unittest.TestCase):
             hide, chunks = self.aligned(seed)
             valid = {h for h in hide if td.NAME_TOKEN.match(h)}
             for ln, kind, chunk in chunks:
-                if kind != "open":
+                if kind not in ("open", "open_ml"):
                     continue
-                cmds = [c for part in chunk for c in commands(part)]
-                for ns in re.findall(TOK, re.split(r"[ \t]+in\b|--", normalise(chunk[0]).split("open", 1)[1])[0]):
+                if kind == "open_ml":
+                    n = len(ln.split("\n"))
+                    joined = " ".join(x.strip() for x in chunk[:n])  # the command as Lean reads it: `open A B C in open _root_.A … in`
+                    cmds = commands(joined) + [c for part in chunk[n:] for c in commands(part)]
+                    written = re.split(r"[ \t]+in\b|[ \t]+--", " ".join(x.strip() for x in ln.split("\n")))[0].split("open", 1)[1]
+                else:
+                    cmds = [c for part in chunk for c in commands(part)]
+                    written = re.split(r"[ \t]+in\b|--", normalise(chunk[0]).split("open", 1)[1])[0]
+                for ns in re.findall(TOK, written):
                     under = {h[len(ns) + 1:] for h in valid if h.startswith(ns + ".")}
                     fork_side = [c for c in cmds if c[0] == ns]
                     root_side = [c for c in cmds if c[0] == f"_root_.{ns}"]
@@ -183,12 +208,33 @@ class OpenRewrite(unittest.TestCase):
             self.assertNotIn(" hiding _", out.replace(" hiding a", ""))
             for ln in out.split("\n"):
                 self.assertNotRegex(ln, r"open _root_\.\S+ hiding", f"seed {seed}: nothing to hide, and a `hiding` clause was written")
+            skip = {l for l, k in zip(text.split("\n"), kinds) if k in ("open_ml", "cont")}  # a command of several lines is rewritten on its own terms (the frame and visibility tests)
             for ln in text.split("\n"):
                 m = re.match(r"^([ \t]*)open[ \t]+([^()]*?)([ \t]+in\b.*)?$", ln)
-                if m and "hiding" not in ln and "renaming" not in ln and not ln.lstrip().startswith(("open scoped", "--")) and "the door" not in ln and "-- " not in ln:
+                if ln not in skip and m and "hiding" not in ln and "renaming" not in ln and not ln.lstrip().startswith(("open scoped", "--")) and "the door" not in ln and "-- " not in ln:
                     toks = re.findall(TOK, m.group(2))
                     want = f"{m.group(1)}open {' '.join(t + ' _root_.' + t for t in toks)}{m.group(3) or ''}"
                     self.assertIn(want, out.split("\n"), f"seed {seed}: {ln!r}")
+
+    def test_a_continuation_this_edit_cannot_read_leaves_the_command_alone(self):
+        """`open A` followed by an indented `hiding x`, `renaming …` or `(a b)`: the command is one this edit does not rewrite; nothing may be put between its lines"""
+        for cont in ("  hiding x", "  renaming a → b", "  (a b)"):
+            out = td.apply_fork_text(f"import X\nopen A\n{cont}\ndef f := 1\n", FORK, {"A.x"})
+            self.assertIn(f"open A\n{cont}\ndef f := 1", out)
+            self.assertNotIn("open _root_.A", out.split(f"namespace {FORK}")[1])
+
+    def test_an_equally_indented_line_of_names_is_not_a_continuation(self):
+        """Lean's `colGt`: a continuation is more indented than the `open`; the line below at the same column is something else, and the opens of the tree's namespaces go before it"""
+        out = td.apply_fork_text("import X\n  open A\n  B C\n", FORK, {"A.x"})
+        self.assertIn("  open A\n  open _root_.A hiding x\n  B C", out)
+
+    def test_a_keyword_is_never_a_name(self):
+        out = td.apply_fork_text("import X\nopen A\n  open B\n", FORK, {"A.x"})
+        self.assertIn("open A\nopen _root_.A hiding x\n  open B _root_.B", out)
+
+    def test_a_name_in_guillemets_with_a_space_continues_a_command(self):
+        out = td.apply_fork_text("import X\nopen A\n  «x y» B\ndef f := 1\n", FORK, {"A.x"})
+        self.assertIn("open A\n  «x y» B\nopen _root_.«x y» _root_.B\nopen _root_.A hiding x\ndef f := 1", out)
 
     def test_a_name_no_hiding_clause_can_write_is_not_written(self):
         out = td.apply_fork_text("import X\nopen A\n", FORK, {"A._private.Foo.0.z", "A.0", "A.ok"})
