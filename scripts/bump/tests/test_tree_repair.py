@@ -423,6 +423,20 @@ error: build failed
         spec = new["modules"]["Tengoku.ToyLib.Toy.B"]
         self.assertEqual((spec["sha256"], spec["original_sha256"], spec["repaired"]), (tr.sha256(p.read_text()), tr.sha256(MODULE), True))
 
+    def test_a_module_an_earlier_round_repaired_is_left_alone_with_skip_repaired(self):
+        """the rounds after the first of the build of the importers on the tree's modules: a second repair of one module would not be one edit of the bytes the build had"""
+        p = self.put_module(MODULE)
+        said, rep, new = self.plan(self.LOG_B.format(line=line_of(MODULE, "theorem first") + 1))
+        self.assertIn("1 repair(s)", said)
+        again = p.read_text()
+        (self.d / "build.log").write_text(self.LOG_B.format(line=line_of(again, "theorem first") + 1))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            tr.main(["plan", "--log", str(self.d / "build.log"), "--new", str(self.out / "new.json"), "--tree", str(self.tree), "--out", str(self.out), "--skip-repaired"])
+        self.assertIn("0 repair(s)", buf.getvalue())
+        self.assertIn("already repaired once", buf.getvalue())
+        self.assertEqual(p.read_text(), again)  # the file is not touched
+
     def test_the_file_the_plan_writes_is_what_apply_to_text_makes_from_the_original(self):
         p = self.put_module(MODULE)
         _, rep, _ = self.plan(self.LOG_B.format(line=line_of(MODULE, "theorem first") + 1))

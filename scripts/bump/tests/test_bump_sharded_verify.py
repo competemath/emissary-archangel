@@ -448,15 +448,18 @@ class CopiesOfTreeModules(unittest.TestCase):
 
     def test_the_importers_build_gets_the_same_repair_as_the_first_build_before_its_log_joins_the_build_log(self):
         run = step("verify", "Copies of tree modules, the importers built")["run"]
-        first, plan, add, again, marker, cat = (run.index(x) for x in ("tee ../out/build-dups.log", "tree_repair.py plan --log ../out/build-dups.log", "tree_dups.py add-repairs", "tee ../out/build-dups.log\n", "tree_verify.DUPS_MARKER", "cat ../out/build-dups.log >> ../out/build.log"))
-        self.assertLess(first, plan)  # the repair reads the build
-        self.assertLess(plan, add)  # and only a repair that was made goes into the verdict
-        self.assertLess(add, marker)  # all before the log joins the build log: it holds the LAST round only
+        first, loop, plan, add, emptied, marker, cat = (run.index(x) for x in ("tee ../out/build-dups.log", "while [ \"$round\" -lt 6 ]", "tree_repair.py plan --log ../out/build-dups.log", "tree_dups.py add-repairs", ": > ../out/build-dups.log", "tree_verify.DUPS_MARKER", "cat ../out/build-dups.log >> ../out/build.log"))
+        self.assertLess(first, loop)  # the repair reads a build
+        self.assertLess(loop, plan)  # round after round
+        self.assertLess(plan, add)  # only a repair that was made goes into the verdict
+        self.assertLess(add, emptied)  # the log is emptied only for a build that follows
+        self.assertLess(emptied, run.rindex("lake build $targets"))
+        self.assertLess(run.index('[ "$cap" -lt 10 ]'), plan)  # the time is checked before anything is planned: a plan changes the checkout, and an emptied log refuses every importer
+        self.assertLess(run.rindex("lake build $targets"), marker)  # all before the log joins the build log: it holds the LAST round only
         self.assertLess(marker, cat)
-        self.assertIn("cp ../out/build-dups.log ../out/build-dups-1.log", run)  # the first round stays for the reader
+        self.assertIn('cp ../out/build-dups.log "../out/build-dups-$round.log"', run)  # every round stays for the reader
+        self.assertIn("--skip-repaired", run)  # a module is repaired once: a second round on it would not be one edit of the bytes the build had
         self.assertEqual(run.count("lake build $targets"), 2)  # one build, one build again
-        self.assertLess(run.index('[ "$cap" -ge 10 ]', first), plan)  # the time is checked before anything is planned: a plan changes the checkout, and an emptied log refuses every importer
-        self.assertLess(run.index(": > ../out/build-dups.log"), run.rindex("lake build $targets"))
         self.assertIn("out/dups-repairs.json", PATH.read_text(encoding="utf-8"))  # one directory deep like the other files of the verdict artifact
 
     def test_the_program_prints_what_the_python_side_reads(self):
