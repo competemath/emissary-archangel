@@ -12,6 +12,10 @@ GATE2B_FAIL old=Foo.b new=Foo.b reason=name_collision names=FreeMagma,FreeMagma.
    Type u → Type u GATE2B_END
 GATE2B_FAIL old=Foo.c new=Foo.c reason=universe_param_count_mismatch
 GATE2B_FAIL old=Foo.d new=Foo.d reason=kernel_error
+GATE2B_FAIL old=Foo.e new=Foo.e reason=rejected msg=Unknown constant `algebraMap`
+GATE2B_FAIL old=Foo.f new=Foo.f reason=rejected msg=Type mismatch
+  expected x
+  got y
 GATE2B_PASS old=Foo.a new=Foo.b via=entails
 GATE2B_FAIL old=Foo.a new=Foo.z reason=name_collision names=Q GATE2B_DIFF control GATE2B_END
 """
@@ -20,7 +24,7 @@ GATE2B_FAIL old=Foo.a new=Foo.z reason=name_collision names=Q GATE2B_DIFF contro
 class RejectionsCase(unittest.TestCase):
     def test_a_refusal_keeps_its_reason_its_names_and_its_first_differences(self):
         r = g.rejections(LOG)
-        self.assertEqual(r["total"], 3)
+        self.assertEqual(r["total"], 5)
         byold = {i["old"]: i for i in r["items"]}
         b = byold["Foo.b"]
         self.assertEqual(b["reason"], "name_collision")
@@ -29,6 +33,13 @@ class RejectionsCase(unittest.TestCase):
         self.assertNotIn("\n", b["diff"], "one line")
         self.assertEqual(byold["Foo.c"], {"old": "Foo.c", "reason": "universe_param_count_mismatch"})
         self.assertEqual(byold["Foo.d"]["reason"], "kernel_error")
+
+    def test_a_rejected_bridge_keeps_the_first_line_of_what_the_kernel_said(self):
+        byold = {i["old"]: i for i in g.rejections(LOG)["items"]}
+        self.assertEqual(byold["Foo.e"], {"old": "Foo.e", "reason": "rejected", "msg": "Unknown constant `algebraMap`"})
+        self.assertEqual(byold["Foo.f"]["msg"], "Type mismatch", "the continuation lines of a multi-line message are not part of it")
+        self.assertNotIn("msg", byold["Foo.c"], "a refusal with no message has none")
+        self.assertNotIn("diff", byold["Foo.e"])
 
     def test_controls_are_not_refusals(self):
         r = g.rejections(LOG)

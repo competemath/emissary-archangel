@@ -447,7 +447,7 @@ LINE = re.compile(r"GATE2B_(PASS|FAIL) old=(\S+) new=(\S+)(?: via=(\w+))?(?: rea
 # A refusal with its words: `GATE2B_FAIL old=A new=A reason=name_collision names=X,Y GATE2B_DIFF <first differences> GATE2B_END`. The counts in the
 # results file say how often Gate 2B refused; this says WHAT it said, so that a refusal can be read and judged (a changed meaning, or only a
 # different universe-parameter count?) long after the run log is gone.
-REJECTION = re.compile(r"GATE2B_FAIL old=(\S+) new=(\S+)(?: reason=(\w+))?(?: names=(\S+))?(?: GATE2B_DIFF (.*?) GATE2B_END)?", re.S)
+REJECTION = re.compile(r"GATE2B_FAIL old=(\S+) new=(\S+)(?: reason=(\w+))?(?: msg=([^\n]*))?(?: names=(\S+))?(?: GATE2B_DIFF (.*?) GATE2B_END)?", re.S)
 REJECTIONS_KEPT = 400  # per results file; the rest are only counted
 
 
@@ -455,12 +455,14 @@ def rejections(text: str, limit: int = REJECTIONS_KEPT) -> dict:
     """The refusals of declarations checked against themselves (the controls, old != new, are not refusals of anything), as short records."""
     out, total = [], 0
     for m in REJECTION.finditer(text):
-        old, new, reason, names, diff = m.groups()
+        old, new, reason, msg, names, diff = m.groups()
         if old != new:
             continue
         total += 1
         if len(out) < limit:
             rec = {"old": old, "reason": reason or "unspecified"}
+            if msg:  # a rejected bridge or a parse error says why in its first line ("Type mismatch", "Unknown constant `algebraMap`")
+                rec["msg"] = re.sub(r"\s+", " ", msg).strip()[:300]
             if names:
                 rec["names"] = names.split(",")[:8]
             if diff:
