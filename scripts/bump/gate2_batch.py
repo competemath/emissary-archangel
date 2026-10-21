@@ -444,6 +444,29 @@ def generate(a: argparse.Namespace) -> None:
 
 DEFLINE = re.compile(r"GATE2B_DEF (\S+) result=(\S+) GATE2B_DEFMSG (.*?) GATE2B_END", re.S)
 LINE = re.compile(r"GATE2B_(PASS|FAIL) old=(\S+) new=(\S+)(?: via=(\w+))?(?: reason=(\w+))?")
+# A refusal with its words: `GATE2B_FAIL old=A new=A reason=name_collision names=X,Y GATE2B_DIFF <first differences> GATE2B_END`. The counts in the
+# results file say how often Gate 2B refused; this says WHAT it said, so that a refusal can be read and judged (a changed meaning, or only a
+# different universe-parameter count?) long after the run log is gone.
+REJECTION = re.compile(r"GATE2B_FAIL old=(\S+) new=(\S+)(?: reason=(\w+))?(?: names=(\S+))?(?: GATE2B_DIFF (.*?) GATE2B_END)?", re.S)
+REJECTIONS_KEPT = 400  # per results file; the rest are only counted
+
+
+def rejections(text: str, limit: int = REJECTIONS_KEPT) -> dict:
+    """The refusals of declarations checked against themselves (the controls, old != new, are not refusals of anything), as short records."""
+    out, total = [], 0
+    for m in REJECTION.finditer(text):
+        old, new, reason, names, diff = m.groups()
+        if old != new:
+            continue
+        total += 1
+        if len(out) < limit:
+            rec = {"old": old, "reason": reason or "unspecified"}
+            if names:
+                rec["names"] = names.split(",")[:8]
+            if diff:
+                rec["diff"] = re.sub(r"\s+", " ", diff).strip()[:500]
+            out.append(rec)
+    return {"total": total, "kept": len(out), "items": out}
 
 
 def parse(a: argparse.Namespace) -> None:
@@ -470,6 +493,7 @@ def parse(a: argparse.Namespace) -> None:
         "pass_entails": sum(1 for v in own.values() if v == ("PASS", "entails")),
         "fail_reasons": dict(Counter(v[1] for v in own.values() if v[0] == "FAIL")),
         "controls": {"checked": len(cross), "wrongly_passed": [list(k) for k, v in cross.items() if v[0] == "PASS"]},
+        "rejections": rejections(text),
         "by_pipeline_outcome": {k: dict(v) for k, v in by_outcome.items()},
         # library definitions the statements are built on: identical, definitionally equal (kernel-checked), or changed meaning
         "definition_controls": {

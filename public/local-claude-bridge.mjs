@@ -1551,7 +1551,7 @@ export async function gate2ForScript(script, ref, { archangelUrl, timeoutMs = GA
   const ok = !!r?.ok && /GATE2_PASS/.test(raw) && !/GATE2_FAIL/.test(raw)
   const reason = ok ? "pass" : (raw.match(/GATE2_FAIL reason=([a-z_]+)/) || [])[1] || (r?.ok ? "no_verdict" : "call_failed")
   const text = `${GATE2_HEADER}\n${raw.trim().slice(0, 4000)}\n\n${gate2Guidance(reason, qualifiedName, newName)}`
-  const result = { ok, reason, text, args, newName, oldId }
+  const result = { ok, reason, text, args, newName, oldId, detail: ok ? "" : gate2Detail(raw) }
   if (r?.ok) {
     gate2Cache.set(key, result)
     if (gate2Cache.size > 500) gate2Cache.delete(gate2Cache.keys().next().value)
@@ -3727,6 +3727,42 @@ function remainingLabel(ctx) {
 }
 
 const oneLine = (s) => String(s || "").replace(/\s+/g, " ").trim().slice(0, 120)
+
+// ---- Verdict records ------------------------------------------------------------------------------------------------------------
+// WHY an entry ended as it did, kept in the ledger (data/translate/<key>.jsonl) with the text behind it, so that what each mechanism
+// catches can be measured later: how often Gate 2 refuses a script that compiles, for which reason, and what its first differences
+// said. Until this existed the ledger held only the outcome, and the messages lived in run logs that expire.
+const VERDICT_TEXT_MAX = 900 // a Gate 2 name_collision carries "First differences: <name>: export type = ... | native type = ..." and the types can be long
+const squeeze = (s, n) => String(s == null ? "" : s).replace(/\s+/g, " ").trim().slice(0, n)
+// The substance of a Gate 2 failure: from the GATE2_FAIL marker to the end of that block (the header and the guidance written for
+// the agent are left out).
+export function gate2Detail(text) {
+  const m = /GATE2_FAIL[^\n]*(?:\n(?!\n)[^\n]*)*/.exec(String(text || ""))
+  return m ? squeeze(m[0], VERDICT_TEXT_MAX) : ""
+}
+// The first diagnostic of a Leak IV compile failure (the first `Line N (Error): ...` block).
+export function firstCompileError(text) {
+  const m = /Line \d+ \((?:Error|error|Warning|warning)\):[^\n]*(?:\n(?!Line \d+ \()[^\n]*)*/.exec(String(text || ""))
+  return squeeze(m ? m[0] : text, 300)
+}
+// What a failed mechanical attempt says about the entry: a short code and the text behind it.
+export function mechanicalVerdict(r) {
+  if (!r || r.ok) return {}
+  if (r.reason) return { reason: r.reason, detail: squeeze(r.detail, VERDICT_TEXT_MAX) }
+  if (r.lint) return { reason: "lint_refused", detail: squeeze(Array.isArray(r.lint) ? r.lint.join("; ") : r.lint, 300) }
+  if (r.gate2Reason) return { reason: r.gate2Reason, detail: squeeze(r.gate2Detail || gate2Detail(r.gate2Text), VERDICT_TEXT_MAX) }
+  return { reason: "compile_error", detail: firstCompileError(r.leakText) }
+}
+// The fields a ledger row carries beyond the outcome. Empty ones are left out so the ledger stays small.
+export function verdictFields(v) {
+  const out = {}
+  if (!v) return out
+  if (v.reason) out.reason = squeeze(v.reason, 60)
+  if (v.detail) out.detail = squeeze(v.detail, VERDICT_TEXT_MAX)
+  if (Array.isArray(v.names) && v.names.length) out.names = v.names.slice(0, 8).map((n) => squeeze(n, 120))
+  if (Array.isArray(v.gate2Rejections) && v.gate2Rejections.length) out.gate2Rejections = v.gate2Rejections.slice(0, 3).map((g) => ({ reason: squeeze(g.reason, 60), detail: squeeze(g.detail, 400) }))
+  return out
+}
 const declName = (sig) => {
   const m = String(sig || "").match(/\b(?:theorem|lemma)\s+([^\s({\[:]+)/)
   return m ? m[1] : "lemma"
@@ -7110,6 +7146,7 @@ export async function proveControl(theorem, ctx, tier = 1) {
             const clash = mathlibClashName(resultText, prefixDefs)
             if (!clash) return ""
             harnessGate2.last = { ok: false, reason: "name_collision", names: [clash] }
+            if (Array.isArray(ctx.gate2Log) && ctx.gate2Log.length < 6) ctx.gate2Log.push({ reason: "leak_clash", detail: `${clash} already declared` })
             ctx.emit({ type: "message-annotation", subtype: "error", thought: `⛔ ${label}: Leak IV reports \`${clash}\` already declared — it is one of the original's own declarations, so this is a Mathlib name clash: terminal.` })
             return MATHLIB_CLASH_NOTE(clash)
           },
@@ -7123,6 +7160,7 @@ export async function proveControl(theorem, ctx, tier = 1) {
                 : `🕊️ Gate 2 (harness): ${r.reason} — verdict handed back to the agent inside the verify_full_script result.`,
             })
             harnessGate2.last = { ok: r.ok, reason: r.reason, names: gate2CollisionNames(r.text) }
+            if (!r.ok && Array.isArray(ctx.gate2Log) && ctx.gate2Log.length < 6) ctx.gate2Log.push({ reason: r.reason, detail: r.detail || gate2Detail(r.text) })
             if (r.ok) harnessGate2.pass = { raw: script, normalized: normalizeProofScript(resultText, script), args: r.args }
             return r.text
           },
@@ -14204,7 +14242,7 @@ async function tryMechanicalBank(candidateText, entry, { source, repoRoot, verif
     await new Promise((r) => setTimeout(r, 30000))
     g = await gate2ForScript(candidateText, ref, { archangelUrl, timeoutMs, emit })
   }
-  if (!g.ok) return { ok: false, gate2Text: g.text, gate2Reason: g.reason, infra: GATE2_INFRA_REASONS.has(g.reason) }
+  if (!g.ok) return { ok: false, gate2Text: g.text, gate2Reason: g.reason, gate2Detail: g.detail || gate2Detail(g.text), infra: GATE2_INFRA_REASONS.has(g.reason) }
   await patchQueueEntry(source, { id: entry.id, status: "verified", proof: candidateText })
   return { ok: true }
 }
@@ -14218,6 +14256,8 @@ async function recurseOneEntry(entry, opts) {
   const bareName = String(entry.oldExportNames || entry.name)
   const qualifiedName = deriveQualifiedName(fileContent, entry.sourceLine, bareName)
   const moduleName = moduleNameFromSourcePath(entry.sourcePath)
+  const done = (outcome, v) => ({ id: entry.id, outcome, ...verdictFields(v) })
+  let mech = null // the last mechanical attempt, so that an entry that goes on to the agent (or waits for it) says why
   const tryOpts = { source, repoRoot, verifyUrl, archangelUrl, moduleName, qualifiedName, bareName, timeoutMs, emit }
   const cached = prefixCache[entry.sourcePath]
   // Every corpus-side name this module's declarations reach (its own AND its
@@ -14246,7 +14286,7 @@ async function recurseOneEntry(entry, opts) {
   if (knownClash) {
     const direct = (cached?.collisions || []).includes(knownClash)
     emit({ type: "message-annotation", subtype: "error", thought: `⛔ #${entry.id} ${entry.name}: mentions \`${knownClash}\`${direct ? "" : ", which is built on a name"} this file already showed collides with Mathlib under the target toolchain — untranslatable, skipped without a compile.` })
-    return { id: entry.id, outcome: "untranslatable" }
+    return done("untranslatable", { reason: "known_collision", detail: `${knownClash}${direct ? "" : " (built on a name that collides)"}`, names: [knownClash] })
   }
 
   // The tree's content lint (lintBankable) decides what can be banked at all. An
@@ -14258,6 +14298,7 @@ async function recurseOneEntry(entry, opts) {
   const lintHits = lintBankable(oldTheoremText)
   if (lintHits.length && !(cached?.status === "broken" && cached.fixedPrefix)) {
     policyNote = lintHits
+    mech = { ok: false, lint: lintHits }
     emit({ type: "message-annotation", subtype: "status", thought: `⚖️ #${entry.id} ${entry.name}: the original's text carries what the tree's content lint refuses (${lintHits.join("; ")}) — skipping the mechanical attempt, escalating to the agent to write it out.` })
   } else if (cached?.status === "broken" && cached.fixedPrefix) {
     // A PRIOR entry from this same file already got its shared dependency
@@ -14266,34 +14307,37 @@ async function recurseOneEntry(entry, opts) {
     const candidate = `${withEquations(cached.fixedPrefix, equations)}${stripCorpusAttrs(entry.oldStatement || "")}${entry.oldProofText || ""}`
     emit({ type: "message-annotation", subtype: "status", thought: `♻️ #${entry.id} ${entry.name}: reusing this file's already-fixed shared prefix (from an earlier entry) — mechanical attempt, no agent.` })
     const r = await tryMechanicalBank(candidate, entry, tryOpts)
+    mech = r
     if (r.lint) policyNote = r.lint
     if (r.ok) {
       emit({ type: "message-annotation", subtype: "status", thought: `✅ #${entry.id} ${entry.name}: banked via the cached fix — zero agent calls for this one.` })
-      return { id: entry.id, outcome: "cached-mechanical" }
+      return done("cached-mechanical")
     }
     emit({ type: "message-annotation", subtype: "status", thought: `🕊️ #${entry.id} ${entry.name}: the cached fix wasn't enough on its own — escalating to the agent.` })
   } else if (cached?.status === "broken") {
     // Known-broken shared prefix, no fix cached yet — every entry sharing it
     // would fail on the SAME line for the SAME reason; skip the guaranteed-
     // to-fail compile and go straight to escalation instead of wasting it.
+    mech = { ok: false, reason: "prefix_known_broken", detail: `an earlier entry of ${entry.sourcePath} failed in its shared prefix` }
     emit({ type: "message-annotation", subtype: "status", thought: `🎯 #${entry.id} ${entry.name}: this file's shared prefix is already known-broken (no fix cached yet) — skipping the doomed mechanical attempt, escalating directly.` })
   } else {
     emit({ type: "message-annotation", subtype: "status", thought: `🔁 #${entry.id} ${entry.name}: mechanical attempt (no agent) — resubmitting the original text unchanged under the target toolchain.` })
     const r = await tryMechanicalBank(oldTheoremText, entry, tryOpts)
+    mech = r
     if (r.ok) {
       if (!cached) {
         prefixCache[entry.sourcePath] = { status: "clean", checkedAt: new Date().toISOString() }
         savePrefixCache(prefixCache)
       }
       emit({ type: "message-annotation", subtype: "status", thought: `✅ #${entry.id} ${entry.name}: unchanged under the target toolchain — banked with zero agent calls.` })
-      return { id: entry.id, outcome: "mechanical" }
+      return done("mechanical")
     }
     // Gate 2 itself could not answer (even after a retry): the candidate is
     // fine as far as anyone knows, so leave the entry pending for a later run
     // rather than spending an agent on it.
     if (r.infra) {
       emit({ type: "message-annotation", subtype: "error", thought: `🛑 #${entry.id} ${entry.name}: compiles unchanged, but Gate 2 could not answer (${r.gate2Reason}) — left pending, not escalating.` })
-      return { id: entry.id, outcome: "gate2-unavailable" }
+      return done("gate2-unavailable", { reason: r.gate2Reason, detail: r.gate2Detail || gate2Detail(r.gate2Text) })
     }
     // Compiled unchanged but Gate 2 gave a verdict no rewrite can change (the
     // original's own type collides with Mathlib's, or its export is missing):
@@ -14302,7 +14346,7 @@ async function recurseOneEntry(entry, opts) {
       const collided = gate2CollisionNames(r.gate2Text)
       recordCollisions(collided)
       emit({ type: "message-annotation", subtype: "error", thought: `⛔ #${entry.id} ${entry.name}: compiles unchanged, but Gate 2 reported \`${r.gate2Reason}\`${collided.length ? ` on ${collided.join(", ")}` : ""} — untranslatable under this toolchain, not escalating. ${oneLine(r.gate2Text.replace(/^[\s\S]*?(GATE2_FAIL)/, "$1")).slice(0, 400)}` })
-      return { id: entry.id, outcome: "untranslatable" }
+      return done("untranslatable", { reason: r.gate2Reason, detail: r.gate2Detail || gate2Detail(r.gate2Text), names: collided })
     }
     // Did not compile because one of the original's OWN declarations already
     // exists in Mathlib here: nothing an agent writes can keep that name AND
@@ -14312,7 +14356,7 @@ async function recurseOneEntry(entry, opts) {
     if (clash) {
       recordCollisions([clash])
       emit({ type: "message-annotation", subtype: "error", thought: `⛔ #${entry.id} ${entry.name}: Leak IV reports \`${clash}\` already declared — one of the original's own declarations clashes with Mathlib under the target toolchain. Untranslatable, not escalating.` })
-      return { id: entry.id, outcome: "untranslatable" }
+      return done("untranslatable", { reason: "leak_clash", detail: `${clash} is already declared (one of the original's own declarations clashes with the target)`, names: [clash] })
     }
     // Only a compile failure INSIDE THE PREFIX says anything about the file's
     // shared prefix. A failure located in the theorem's own lines is that
@@ -14332,13 +14376,13 @@ async function recurseOneEntry(entry, opts) {
 
   if (gate2InfraBlocked() || leakIvInfraBlocked()) {
     emit({ type: "message-annotation", subtype: "error", thought: `🛑 #${entry.id} ${entry.name}: skipped — infra is currently blocked (${(gate2InfraBlock || leakIvInfraBlock)?.message}).` })
-    return { id: entry.id, outcome: "infra-blocked" }
+    return done("infra-blocked", { reason: "infra_blocked", detail: (gate2InfraBlock || leakIvInfraBlock)?.message })
   }
   // The mechanical path is exhausted and this entry needs the agent, which
   // is unavailable (quota/auth). Leave it pending — a later run picks it up.
   if (opts.noAgent) {
     emit({ type: "message-annotation", subtype: "status", thought: `⏸️ #${entry.id} ${entry.name}: needs the agent, which is unavailable right now — deferred (still pending).` })
-    return { id: entry.id, outcome: "deferred-agent" }
+    return done("deferred-agent", mechanicalVerdict(mech))
   }
 
   // The original's export must exist BEFORE the agent starts. It used to be
@@ -14351,7 +14395,7 @@ async function recurseOneEntry(entry, opts) {
     oldId = await ensureModuleExport(repoRoot, moduleName)
   } catch (e) {
     emit({ type: "message-annotation", subtype: "error", thought: `🛑 #${entry.id} ${entry.name}: cannot build the original's export (${oneLine(e?.message || String(e))}) — not escalating; nothing the agent did could pass Gate 2.` })
-    return { id: entry.id, outcome: "export-unavailable" }
+    return done("export-unavailable", { reason: "export_unavailable", detail: oneLine(e?.message || String(e)) })
   }
   const deadline = Date.now() + timeoutMs
   const archCtx = {
@@ -14368,6 +14412,7 @@ async function recurseOneEntry(entry, opts) {
     archangelUrl,
     archangelOldRef: { old_id: oldId, old_export_names: qualifiedName, bare_name: bareName, repo_root: repoRoot, module_name: moduleName, corpus_names: corpusNames, policy_note: policyNote },
     maxAttempts: 2,
+    gate2Log: [], // the Gate 2 rejections the agent met, for the ledger
   }
   const result = await proveControl(oldTheoremText, archCtx, 2)
   if (result.verified && prefixCache[entry.sourcePath]?.status === "broken" && !prefixCache[entry.sourcePath].fixedPrefix) {
@@ -14386,19 +14431,19 @@ async function recurseOneEntry(entry, opts) {
     if (lint.length) {
       emit({ type: "message-annotation", subtype: "error", thought: `⚖️ #${entry.id} ${entry.name}: verified by both gates, but the tree's content lint would refuse it (${lint.join("; ")}) — not banked, left pending with that reason.` })
       await patchQueueEntry(source, { id: entry.id, unverified_reason: `content-lint: ${lint.join("; ")}` })
-      return { id: entry.id, outcome: "unbankable" }
+      return done("unbankable", { reason: "content_lint", detail: lint.join("; ") })
     }
     await patchQueueEntry(source, { id: entry.id, status: "verified", proof: result.proof })
-    return { id: entry.id, outcome: "agentic" }
+    return done("agentic", { reason: "agent_banked", gate2Rejections: archCtx.gate2Log })
   }
   if (result.reason && GATE2_TERMINAL_REASONS.has(result.reason)) {
     recordCollisions(result.names)
-    return { id: entry.id, outcome: "untranslatable" }
+    return done("untranslatable", { reason: result.reason, names: result.names, gate2Rejections: archCtx.gate2Log })
   }
   // the account failed (quota, auth), not the translation: the entry waits for the agent again
   noteAuthFailure(`${result.finalText || ""}\n${result.stderr || ""}`)
-  if (usageBlocked() || authFailureBlocked()) return { id: entry.id, outcome: "deferred-agent" }
-  return { id: entry.id, outcome: "unresolved" }
+  if (usageBlocked() || authFailureBlocked()) return done("deferred-agent", { reason: "agent_unavailable" })
+  return done("unresolved", { reason: result.reason || "agent_gave_up", detail: mech ? mechanicalVerdict(mech).detail : "", gate2Rejections: archCtx.gate2Log })
 }
 
 
@@ -14750,7 +14795,7 @@ if (req.method === "POST" && url.pathname === "/archangel-translate") {
             noAgent,
           })
           summary[r.outcome] = (summary[r.outcome] || 0) + 1
-          send({ type: "entry-result", id: entry.id, name: entry.name, sourcePath: entry.sourcePath, outcome: r.outcome })
+          send({ type: "entry-result", id: entry.id, name: entry.name, sourcePath: entry.sourcePath, outcome: r.outcome, ...verdictFields(r) })
         } catch (e) {
           // a module with no export falls back to building it in the source checkout; where that cannot succeed (a
           // runner has no toolchain for it, or the target does not exist) the entry cannot be translated from here:
@@ -14759,7 +14804,7 @@ if (req.method === "POST" && url.pathname === "/archangel-translate") {
           const outcome = /Command failed: lake build|unknown target/.test(msg) ? "export-unavailable" : "failed"
           summary[outcome] = (summary[outcome] || 0) + 1
           send({ type: "message-annotation", subtype: "error", thought: `⚠️ #${entry.id} ${entry.name}: ${outcome === "failed" ? "unexpected error" : "no export of its module"} — ${msg}` })
-          send({ type: "entry-result", id: entry.id, name: entry.name, sourcePath: entry.sourcePath, outcome, error: msg.slice(0, 300) })
+          send({ type: "entry-result", id: entry.id, name: entry.name, sourcePath: entry.sourcePath, outcome, reason: outcome === "failed" ? "unexpected_error" : "export_unavailable", error: msg.slice(0, 300) })
         }
         processed++
         send({ type: "progress", processed, total: matches.length, summary })

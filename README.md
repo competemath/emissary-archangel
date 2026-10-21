@@ -66,7 +66,7 @@ Next.js app:
 | --- | --- |
 | `.github/workflows/translate.yml` | One library in N shards (a hash of the source file picks each entry's shard). Each shard hosts its own Leak IV and Archangel on the tree's attested cache, as a separate user, and runs the recursion engine through `scripts/queue-server.mjs`, a headless `/api/queue`. Mode `mechanical` needs no Claude; mode `agent` runs the agent on what the mechanical pass could not bank. |
 | `.github/workflows/translate-all.yml` | The loop: every 15 minutes, and after each library run, a mechanical pass for every library with work left, then agent passes (one library at a time). Then it flushes the bank into tengoku PRs. |
-| `data/translate/<key>.jsonl` | Every entry outcome, run after run. Settled entries are never redone; an entry the mechanical pass could not bank waits for the agent. |
+| `data/translate/<key>.jsonl` | Every entry outcome, run after run, **with the reason and the text behind it** (see [Verdict records](#verdict-records)). Settled entries are never redone; an entry the mechanical pass could not bank waits for the agent. |
 | `data/translate/<key>.status.json` | Per mode: what the last run selected and what is left. |
 | `data/bank/<key>/<run>.jsonl` | Verified staging records waiting for their tengoku PR (`scripts/bank-flush.mjs`: per-PR staging files, signed off, auto-merge). Sent files move to `sent/` with their PR links. |
 
@@ -208,3 +208,30 @@ Emissary-Archangel is one of the services of [CompeteMath](https://competemath.c
 
 Apache-2.0 ([LICENSE](LICENSE)), the same as [Tengoku](https://github.com/competemath/tengoku). The libraries it
 translates keep their own licences, recorded per record in Tengoku.
+
+## Verdict records
+
+What each mechanism catches can only be measured if its verdicts are kept. A ledger row is the outcome plus *why*, with the words of the mechanism
+that decided (`lib/ledger-row.mjs` builds it from the bridge's `entry-result` frame):
+
+| Field | Meaning |
+| --- | --- |
+| `reason` | A short code: a Gate 2 reason (`name_collision`, `kernel_error`, `old_name_not_in_export`, `export_unavailable`, …), or `compile_error` (Gate 1 refused the unchanged text), `lint_refused`, `content_lint`, `known_collision`, `leak_clash`, `prefix_known_broken`, `infra_blocked`, `agent_banked`, `agent_unavailable`, `agent_gave_up`, `unexpected_error` |
+| `detail` | The text behind it, at most 900 characters: Gate 2's own `GATE2_FAIL` block (for a `name_collision` it ends in `First differences: <name>: export type = … \| native type = …`), the first compile error, the lint reasons |
+| `names` | The declarations involved (at most 8) |
+| `gate2Rejections` | For an entry the agent worked on: the Gate 2 refusals it met before it banked or gave up (at most 3, each with its text). This is where "the agent's first try meant something different and Gate 2 said so" shows up |
+
+An entry that waits for the agent says why the mechanical attempt failed (`compile_error` with the first error, or a Gate 2 reason with its text), not only
+that it is `deferred-agent`. Rows written before this carry only the outcome.
+
+```bash
+# how often Gate 2 refused a script that compiled, by reason
+jq -r 'select(.outcome=="untranslatable" or .reason=="kernel_error") | .reason' data/translate/*.jsonl | sort | uniq -c | sort -rn
+# every name collision with its first differences
+jq -r 'select(.reason=="name_collision") | "\(.name)\t\(.detail)"' data/translate/*.jsonl
+# what the agent was told before it succeeded
+jq -c 'select(.gate2Rejections) | {name, outcome, gate2Rejections}' data/translate/*.jsonl
+```
+
+The bump pipeline (`scripts/bump/gate2_batch.py`) keeps the same for a library rebuilt on a new toolchain: its `gate2-results.json` has `rejections` (the
+first 400 refusals with reason, names and first differences; the rest are counted in `total`), kept as long as the shard artifact (90 days).
