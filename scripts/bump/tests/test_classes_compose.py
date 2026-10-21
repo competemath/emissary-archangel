@@ -10,6 +10,9 @@ The invariants hold for every library, so a new way of editing or dropping modul
   * ACCOUNTING: shipped + left out == passed, for every mode (nothing is missing without a reason).
   * ALIAS: an aliased copy is not shipped, nothing imports it, and what imported it imports the tree's module AND what the copy imported.
   * REPAIR LAST: a repair planned on the bytes of the importers' build is made after the alias and fork edits, byte for byte.
+  * THE TREE DECIDES: a module a text rule flags (it declares a record the tree already has) is dropped with its importers when no tree check ran; when the tree built it and refused it by none of its
+    checks it ships, with the records the tree already has left out of the manifest and counted; when a tree check refused it, it goes with its importers as any refused module does (Navier recut 10:
+    16 such modules, 5,875 theorems with their importers).
 """
 
 from __future__ import annotations
@@ -44,8 +47,8 @@ class Case:
         self.imports = {m: sorted(self.rnd.sample(self.mods[:i], self.rnd.randint(0, min(i, 3)))) for i, m in enumerate(self.mods)}
         # a module with no theorem is no root of the cut: it ships only when something that ships imports it (through an aliased copy too), which is what keeps the 'closed' invariant honest
         self.has_theorem = {m: self.rnd.random() > 0.35 for m in self.mods}
-        self.files = {m: "".join(f"import Toy.{j}\n" for j in self.imports[m]) + "\nnamespace Toy\n\n" + (f"theorem t_{m} : 1 = 1 := rfl" if self.has_theorem[m] else f"def d_{m} : Nat := 1") + "\n\nend Toy\n" for m in self.mods}
-        self.passed = {f"Toy.{m}": [f"Toy.t_{m}"] for m in self.mods if self.has_theorem[m]}
+        self.files = {m: "".join(f"import Toy.{j}\n" for j in self.imports[m]) + "\nnamespace Toy\n\n" + (f"theorem t_{m} : 1 = 1 := rfl\n\ntheorem u_{m} : 1 = 1 := rfl" if self.has_theorem[m] else f"def d_{m} : Nat := 1") + "\n\nend Toy\n" for m in self.mods}
+        self.passed = {f"Toy.{m}": [f"Toy.t_{m}", f"Toy.u_{m}"] for m in self.mods if self.has_theorem[m]}  # two theorems: the flagged one (a record of the tree) and one that is not
         self.harness = type("Harness", (), {"FILES": self.files, "PASSED": self.passed, "leaks_in_leaky": staticmethod(test_bundle.AutoDrops.leaks_in_leaky)})()
 
     def importers(self, roots: set[str]) -> set[str]:
@@ -73,12 +76,21 @@ class Case:
             todo.extend(self.imports[m])
         return need
 
-    def compose(self, *, failures: set[str] = frozenset(), aliases: set[str] = frozenset(), repairs: dict | None = None):
+    def compose(self, *, failures: set[str] = frozenset(), aliases: set[str] = frozenset(), repairs: dict | None = None, records: set[str] = frozenset(), verified: bool = False, keep_dups: bool = False,
+                verdict_only: bool = False):
+        """`records`: modules whose theorem is a record the tree already has (`--tree-names`); `verified`: the tree's checks ran (a failures file, even an empty one, and a verdict); `keep_dups`: the flag"""
         extra: list[str] = []
         tmp = Path(tempfile.mkdtemp())
-        if failures:
+        if (failures or verified) and not verdict_only:
             (tmp / "failures.txt").write_text("".join(f"Toy.{m}\n" for m in sorted(failures)))
             extra += ["--tree-failures", str(tmp / "failures.txt")]
+        if records:
+            extra += ["--tree-names", "@names"]
+        if keep_dups and not (aliases or repairs):
+            extra += ["--keep-dups"]
+        if (verified or verdict_only) and not (aliases or repairs):
+            (tmp / "dups.json").write_text(json.dumps({"ns": "ToyLib", "modes": {"proposed": {"aliases": {}, "alias_keep": {}, "not_same": {}, "refused": {}, "forks": {}, "forked": [], "fork_namespace": "", "forks_identical": [], "repairs": {}}}}))
+            extra += ["--keep-dups", "--tree-dups", str(tmp / "dups.json")]
         if aliases or repairs:
             texts = {f"Tengoku.ToyLib.Toy.{m}": self.files[m].replace("import Toy.", "import Tengoku.ToyLib.Toy.") for m in self.mods}
             al = {f"Tengoku.ToyLib.Toy.{m}": [f"Tengoku.Other.Lib.{m}"] for m in aliases}
@@ -88,7 +100,7 @@ class Case:
             (tmp / "dups.json").write_text(json.dumps({"ns": "ToyLib", "modes": {"proposed": spec}}))
             extra += ["--keep-dups", "--tree-dups", str(tmp / "dups.json")]
         with contextlib.redirect_stdout(io.StringIO()):  # compose prints its summaries
-            return test_bundle.AutoDrops.compose(self.harness, [], *extra, files=list(self.mods))
+            return test_bundle.AutoDrops.compose(self.harness, [f"Toy.t_{m}" for m in sorted(records)], *extra, files=list(self.mods))
 
     def shipped_files(self, d: Path) -> dict[str, str]:
         root = d.joinpath(*ROOT)
@@ -145,6 +157,68 @@ class Closed(unittest.TestCase):
             aliased = {m for m in case.mods if m not in gone and case.rnd.random() < 0.25}
             d, p = case.compose(failures=failures, aliases=aliased)
             self.check_invariants(case, d, p, gone=gone, aliased=aliased)
+
+
+class TheTreeDecides(unittest.TestCase):
+    """A module flagged by a text rule (`--tree-names`: it proves a record the tree already has) and what happens to it."""
+
+    def flagged(self, case: Case) -> set[str]:
+        return {m for m in case.mods if case.has_theorem[m] and case.rnd.random() < 0.3}
+
+    def manifest(self, d: Path) -> set[str]:
+        return {json.loads(x)["name"] for x in (d / "bundle-proposed" / "manifest.jsonl").read_text().splitlines()}
+
+    def test_with_no_tree_check_a_flagged_module_goes_with_its_importers(self):
+        for seed in SEEDS:
+            case = Case(seed)
+            flagged = self.flagged(case)
+            d, p = case.compose(records=flagged)  # no --keep-dups: the cut as it was
+            Closed().check_invariants(case, d, p, gone=flagged | case.importers(flagged), aliased=set())
+
+    def test_with_a_verdict_but_no_record_of_the_tree_building_it_is_dropped_as_well(self):
+        """the final cut with the dups verdict but without the tree's failures file: nothing says the tree built the module, so the text rule stands"""
+        for seed in SEEDS[:60]:
+            case = Case(seed)
+            flagged = self.flagged(case)
+            d, p = case.compose(records=flagged, verdict_only=True)
+            Closed().check_invariants(case, d, p, gone=flagged | case.importers(flagged), aliased=set())
+
+    def test_when_the_tree_built_it_and_refused_nothing_it_ships_and_its_records_are_not_made_again(self):
+        done = 0
+        for seed in SEEDS:
+            case = Case(seed)
+            flagged = self.flagged(case)
+            failures = {m for m in case.mods if case.rnd.random() < 0.1}
+            gone = failures | case.importers(failures)
+            d, p = case.compose(records=flagged, verified=True, failures=failures)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            shipped = case.shipped_files(d)
+            # the flag drops nothing the tree did not refuse: what ships is what ships without the flag
+            self.assertEqual(set(shipped), case.expected_shipped(gone, set()), f"seed {seed}: THE TREE DECIDES: the flag changed what ships")
+            names = self.manifest(d)
+            for m in shipped:
+                if case.has_theorem[m]:
+                    self.assertEqual(f"Toy.t_{m}" in names, m not in flagged, f"seed {seed}: {m}: a record the tree has is not made again, any other is")
+                    self.assertIn(f"Toy.u_{m}", names, f"seed {seed}: {m}: only the record the tree has is left out, not the module's other theorems")
+            for m in flagged:
+                self.assertNotIn(f"Toy.t_{m}", names)
+            rep = json.loads((d / "bundle-proposed" / "report.json").read_text())
+            self.assertEqual(rep["theorems"] + sum(rep["left_out"].values()), rep["passed_total"], f"seed {seed}: ACCOUNTING")
+            omitted = {m for m in flagged if m in shipped}
+            self.assertEqual(set(rep["dups"]["tolerated_records_not_made_again"]), {f"Toy.{m}" for m in omitted}, f"seed {seed}")
+            self.assertEqual(sum(len(v) for v in rep["dups"]["tolerated_records_not_made_again"].values()), len(omitted), f"seed {seed}")
+            done += len(omitted)
+        self.assertGreater(done, 20, "the generator found too few shipped flagged modules")
+
+    def test_a_flagged_module_the_tree_refused_goes_with_its_importers(self):
+        for seed in SEEDS:
+            case = Case(seed)
+            flagged = self.flagged(case)
+            failures = flagged & {m for m in flagged if case.rnd.random() < 0.5}
+            gone = failures | case.importers(failures)
+            d, p = case.compose(records=flagged, verified=True, failures=failures)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertEqual(set(case.shipped_files(d)), case.expected_shipped(gone, set()), f"seed {seed}: a module a tree check refused must go, flagged or not")
 
 
 class RepairLast(unittest.TestCase):
