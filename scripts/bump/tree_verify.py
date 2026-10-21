@@ -241,6 +241,10 @@ def cmd_collect(a: argparse.Namespace) -> None:
         sys.exit("the build log has no ending (the build was killed or timed out): refusing to guess which modules the tree accepted (--allow-unfinished: those with a `Built` line are accepted, the rest wait for a later round)")
     failing = ((failures_from_log(log, ns) - repaired) | failures_from_log(last, ns)) & set(mods)
     built = {m.group("mod") for m in BUILT.finditer(log)} & set(mods)
+    if unfinished and not built:
+        # a build that never got going is not a build that ran out of its budget (2026-10-21, Navier: elan could not download the toolchain, `lake build` ended after seven seconds, and the partial
+        # mode accepted the run with 0 of 1,066 modules built): nothing was tried, so there is nothing to cut
+        sys.exit("the build log has no ending and no module was built: the build never got going (a toolchain that did not download, a runner that died); refusing to cut a bundle from it")
     offenders = axiom_offenders(Path(a.axioms).read_text(errors="replace"), set(mods)) if a.axioms else {}
     failing |= set(offenders)
     clashing = clash_offenders(Path(a.clashes).read_text(errors="replace"), set(mods)) if a.clashes else {}

@@ -146,6 +146,14 @@ class Collect(Fixture):
         tv.main(["collect", "--new", str(self.out / "new.json"), "--log", str(self.d / "build.log"), "--out", str(self.out), "--bundle", str(self.bundle), "--allow-unfinished"])
         self.assertEqual((self.out / "failing.txt").read_text().split(), ["Toy.B", "Toy.D"])  # C has a line; B and D have none, nothing built imports them, and the success below the marker is not about this build
 
+    def test_a_partial_build_that_built_nothing_never_got_going_and_is_refused(self):
+        """Navier 2026-10-21: the toolchain did not download, `lake build` ended after seven seconds; 0 of 1,066 built and the run was a success with an empty cut"""
+        self.apply()
+        (self.d / "build.log").write_text("error: could not download file from 'https://releases.lean-lang.org/x.tar.zst'\ninfo: caused by: [35] SSL connect error\n")
+        with self.assertRaises(SystemExit) as r:
+            tv.main(["collect", "--new", str(self.out / "new.json"), "--log", str(self.d / "build.log"), "--out", str(self.out), "--bundle", str(self.bundle), "--allow-unfinished"])
+        self.assertIn("never got going", str(r.exception.code))
+
     def test_a_partial_build_still_refuses_what_it_saw_fail(self):
         self.apply()
         (self.d / "build.log").write_text("✔ [1/9] Built Tengoku.ToyLib.Toy.C (1s)\nerror: Tengoku/ToyLib/Toy/B.lean:1:0: x\n")
