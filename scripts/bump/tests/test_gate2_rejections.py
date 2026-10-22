@@ -12,10 +12,9 @@ GATE2B_FAIL old=Foo.b new=Foo.b reason=name_collision names=FreeMagma,FreeMagma.
    Type u → Type u GATE2B_END
 GATE2B_FAIL old=Foo.c new=Foo.c reason=universe_param_count_mismatch
 GATE2B_FAIL old=Foo.d new=Foo.d reason=kernel_error
-GATE2B_FAIL old=Foo.e new=Foo.e reason=rejected msg=Unknown constant `algebraMap`
+GATE2B_FAIL old=Foo.e new=Foo.e reason=rejected msg=Unknown constant `algebraMap` GATE2B_DIFF old type = ∀ x, f x = 1 || new type = ∀ x,
+    f x ≤ 1 GATE2B_END
 GATE2B_FAIL old=Foo.f new=Foo.f reason=rejected msg=Type mismatch
-  expected x
-  got y
 GATE2B_PASS old=Foo.a new=Foo.b via=entails
 GATE2B_FAIL old=Foo.a new=Foo.z reason=name_collision names=Q GATE2B_DIFF control GATE2B_END
 """
@@ -36,10 +35,20 @@ class RejectionsCase(unittest.TestCase):
 
     def test_a_rejected_bridge_keeps_the_first_line_of_what_the_kernel_said(self):
         byold = {i["old"]: i for i in g.rejections(LOG)["items"]}
-        self.assertEqual(byold["Foo.e"], {"old": "Foo.e", "reason": "rejected", "msg": "Unknown constant `algebraMap`"})
-        self.assertEqual(byold["Foo.f"]["msg"], "Type mismatch", "the continuation lines of a multi-line message are not part of it")
+        self.assertEqual(byold["Foo.e"]["msg"], "Unknown constant `algebraMap`")
+        self.assertEqual(byold["Foo.f"], {"old": "Foo.f", "reason": "rejected", "msg": "Type mismatch"}, "no statements logged, none invented")
         self.assertNotIn("msg", byold["Foo.c"], "a refusal with no message has none")
+        # a rejected bridge keeps both statements, one line each, cut separately
+        self.assertEqual(byold["Foo.e"]["old_type"], "∀ x, f x = 1")
+        self.assertEqual(byold["Foo.e"]["new_type"], "∀ x, f x ≤ 1")
         self.assertNotIn("diff", byold["Foo.e"])
+
+    def test_a_long_old_statement_cannot_hide_the_new_one(self):
+        long = "x" * 5000
+        r = g.rejections(f"GATE2B_FAIL old=A new=A reason=rejected msg=Type mismatch GATE2B_DIFF old type = {long} || new type = NEWSTATEMENT GATE2B_END\n")
+        item = r["items"][0]
+        self.assertLessEqual(len(item["old_type"]), 700)
+        self.assertEqual(item["new_type"], "NEWSTATEMENT")
 
     def test_controls_are_not_refusals(self):
         r = g.rejections(LOG)

@@ -248,7 +248,10 @@ def gate2bCheck (oldN newN : Name) : CommandElabM Unit := do
             | .ok _ => logInfo m!"GATE2B_PASS old={oldN} new={newN} via=entails"
             | .error e =>
               let msg ← e.toMessageData.toString
-              logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=rejected msg={msg.take 160}"
+              -- the kernel's first line, then the two statements themselves, so that a rejection can be read as a changed statement or as a
+              -- refactor without a Lean build (the newline-free message keeps the log line parseable)
+              let first := ((msg.splitOn "\n").headD "").take 160
+              logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=rejected msg={first} GATE2B_DIFF old type = {oldCi.type} || new type = {newCi.type} GATE2B_END"
 
 /-- Every name in `names`, original and new under the same name. -/
 elab "#gate2_batch " names:str : command => do
@@ -447,7 +450,7 @@ LINE = re.compile(r"GATE2B_(PASS|FAIL) old=(\S+) new=(\S+)(?: via=(\w+))?(?: rea
 # A refusal with its words: `GATE2B_FAIL old=A new=A reason=name_collision names=X,Y GATE2B_DIFF <first differences> GATE2B_END`. The counts in the
 # results file say how often Gate 2B refused; this says WHAT it said, so that a refusal can be read and judged (a changed meaning, or only a
 # different universe-parameter count?) long after the run log is gone.
-REJECTION = re.compile(r"GATE2B_FAIL old=(\S+) new=(\S+)(?: reason=(\w+))?(?: msg=([^\n]*))?(?: names=(\S+))?(?: GATE2B_DIFF (.*?) GATE2B_END)?", re.S)
+REJECTION = re.compile(r"GATE2B_FAIL old=(\S+) new=(\S+)(?: reason=(\w+))?(?: msg=((?:(?! GATE2B_DIFF)[^\n])*))?(?: names=(\S+))?(?: GATE2B_DIFF (.*?) GATE2B_END)?", re.S)
 REJECTIONS_KEPT = 400  # per results file; the rest are only counted
 
 
@@ -465,7 +468,12 @@ def rejections(text: str, limit: int = REJECTIONS_KEPT) -> dict:
                 rec["msg"] = re.sub(r"\s+", " ", msg).strip()[:300]
             if names:
                 rec["names"] = names.split(",")[:8]
-            if diff:
+            if diff and reason == "rejected" and " || new type = " in diff:
+                # the two statements of a rejected bridge, each cut separately so that a long old one cannot hide the new one
+                o, n = diff.split(" || new type = ", 1)
+                rec["old_type"] = re.sub(r"\s+", " ", o.replace("old type = ", "", 1)).strip()[:700]
+                rec["new_type"] = re.sub(r"\s+", " ", n).strip()[:700]
+            elif diff:
                 rec["diff"] = re.sub(r"\s+", " ", diff).strip()[:500]
             out.append(rec)
     return {"total": total, "kept": len(out), "items": out}
