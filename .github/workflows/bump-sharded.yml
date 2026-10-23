@@ -587,14 +587,12 @@ jobs:
             python3 emissary/scripts/bump/tree_verify.py check --bundle "$d" --new "$dir/new.json" --ok "$dir/ok.json"
           done
       # Once the repository variable TENGOKU_ISNAD_REQUIRED is 1 (here and in tengoku: the intake lane is born tagged, tengoku docs/isnad.md "Born tagged"), the archive holds each
-      # module in the canonical form of tengoku's scripts/isnad_tag.py, which is what tengoku's gate rebuilds from the PR with its tags taken out. Without the variable: no step.
-      - name: The modules in the canonical form (tengoku's isnad_tag.py, from its main)
+      # module in the canonical form of tengoku's scripts/isnad_tag.py (a verbatim copy, scripts/bump/isnad_tag.py), which is what tengoku's gate rebuilds from the PR with its tags taken out. Without the variable: no step.
+      - name: The modules in the canonical form (the copy of tengoku's isnad_tag.py in scripts/bump; nothing is fetched in this job)
         if: ${{ vars.TENGOKU_ISNAD_REQUIRED == '1' }}
         run: |
-          mkdir -p tengoku-isnad
-          curl --proto '=https' --tlsv1.2 -sSfL https://raw.githubusercontent.com/competemath/tengoku/main/scripts/isnad_tag.py -o tengoku-isnad/isnad_tag.py
           # shellcheck disable=SC2086  # the list is meant to be split into arguments
-          python3 emissary/scripts/bump/canonicalise_bundle.py --isnad tengoku-isnad/isnad_tag.py $(for d in bundle bundle-proposed bundle-wide; do [ -d "$d" ] && printf -- "--bundle %s " "$d"; done)
+          python3 emissary/scripts/bump/canonicalise_bundle.py $(for d in bundle bundle-proposed bundle-wide; do [ -d "$d" ] && printf -- "--bundle %s " "$d"; done)
       - name: Pack and attest
         run: |
           for mode in strict proposed wide; do
