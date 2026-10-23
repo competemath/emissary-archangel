@@ -30,7 +30,7 @@ defaults:
 
 env:
   TARGET: ${{ inputs.target || 'competemath/tengoku' }}
-  PRAISER_REF: ef30ed0beb89a1d5135d0dbcd37c68582fad6b10  # competemath/tengoku-praiser, the commit with bar/0
+  PRAISER_REF: 2e1bcadff83367f52ceaa582af7b317f346ccb2d  # competemath/tengoku-praiser main, bar/0 (PR #1 merged)
 
 jobs:
   collect:
