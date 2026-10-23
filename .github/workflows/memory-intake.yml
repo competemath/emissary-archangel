@@ -3,7 +3,8 @@ name: memory-intake
 # more from the accounts that chose to share them (competemath.com, signed with this job's OIDC token), put each bundle through praiser's checks and its bar (bar/0), and open one PR per
 # bundle on tengoku as the studied App (tengoku-supervisor): the theorems that cleared the bar, with their harness evidence, attested here. The ones that did not are told to their
 # account as notices (returned with the codes to fix, or rejected). Every 30 minutes: the state of every studied PR (its checks, its reviews, merged or closed) is reported to the same place,
-# so the account and its driver see what happened to what they put forward. The tags (isnad) are written into each PR by tengoku's autotag workflows, not here.
+# so the account and its driver see what happened to what they put forward. The tags (isnad) are written into each PR by tengoku's autotag workflows, not here. A code owner can send single
+# theorems back with a comment line on the PR (`studied: return|reject <id> <code>`); the `open` job then closes that PR and the theorems nobody decided on go in the next bundle (memory-intake/README.md).
 #
 # Nothing runs unless the repository variable LEAK_INTAKE_ENABLED is "1" (the kill switch; the site has its own, LEAK_INTAKE_ENABLED and LEAK_INTAKE_ACCOUNTS). A person starts a rehearsal with
 # workflow_dispatch (target: competemath/tengoku-sandbox, dry_run: true prints what would open). The App's token is minted in the `open` job only, which runs code from this repository's main
@@ -92,6 +93,18 @@ jobs:
           args=(--out out --repo "$TARGET" --base "$base" --bot "${APP_SLUG}[bot]" --email "${bot_id}+${APP_SLUG}[bot]@users.noreply.github.com")
           [ "$DRY_RUN" = "true" ] && args+=(--dry-run)
           python3 -m scripts.memory_intake.run open "${args[@]}"
+      # A pull request a code owner has decided on (a comment line `studied: return|reject <id> <code>`, scripts/memory_intake/decisions.py) is closed here, with the App's token, and the theorems
+      # nobody decided on are freed on the site so the next run bundles them again. Only the App's own pull requests; a closed one is left alone. After a failed open step too.
+      - name: Close the pull requests a code owner decided on
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug || 'tengoku-supervisor' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: |
+          args=(--out out --repo "$TARGET" --bot "${APP_SLUG}[bot]")
+          [ "$DRY_RUN" = "true" ] && args+=(--dry-run)
+          python3 -m scripts.memory_intake.run settle "${args[@]}"
       # also after a failed open step: what was opened before the failure is still posted and marked (opened.json is written after every pull request)
       - name: Tell competemath.com (the notices) and mark what was submitted
         if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || inputs.dry_run != 'true') }}

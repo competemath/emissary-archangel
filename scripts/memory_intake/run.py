@@ -3,8 +3,9 @@
 
   collect  GET the candidates (OIDC), compose each bundle, write out/<n>/composition.json (+ bundle.tar for the accepted) and out/events.json
   open     one PR per composition that has accepted theorems, as the studied App (GH_TOKEN = the App's token), and write out/opened.json
-  post     POST the events and the opened PRs to competemath.com (OIDC), and mark the submitted theorems
-  report   the current state of every studied PR, as the notices' `prs` (OIDC): what the site tells the account about its pull requests
+  settle   close the studied PRs a code owner decided on (the App's token), and write out/settled.json: their notices and what happens to their theorems (decisions.py, settle.py)
+  post     POST the events, the opened PRs and the settled ones to competemath.com (OIDC), and mark the submitted theorems
+  report   the current state of every studied PR, as the notices' `prs` (OIDC): what the site tells the account about its pull requests, with a code owner's decisions
 
 The I/O is here and in githubapi.py; compose.py and events.py are pure. Nothing here runs a line of a pull request or of a candidate.
 """
@@ -20,8 +21,10 @@ import urllib.request
 from pathlib import Path
 
 from . import compose as C
+from . import decisions as D
 from . import events as E
 from . import githubapi as G
+from . import settle as S
 
 SITE = "https://competemath.com"
 MAX_BUNDLES = 5  # per run: the cap on PRs a run opens
@@ -129,15 +132,28 @@ def cmd_open(a: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
+def cmd_settle(a: argparse.Namespace) -> int:
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    prs, reviews, log = S.settle(G.gh_api, a.repo, a.bot, a.dry_run)
+    print("\n".join(log) or "nothing to settle")
+    if not a.dry_run:
+        (out / "settled.json").write_text(json.dumps({"prs": prs, "reviews": reviews}))
+    return 0
+
+
 def cmd_post(a: argparse.Namespace) -> int:
     out = Path(a.out)
     token = os.environ["LEAK_OIDC_TOKEN"]
     events = json.loads((out / "events.json").read_text()) if (out / "events.json").exists() else []
     opened = json.loads((out / "opened.json").read_text()) if (out / "opened.json").exists() else []
+    settled = json.loads((out / "settled.json").read_text()) if (out / "settled.json").exists() else {}
     prs = [{"username": o["username"], "target": o["target"], "number": o["number"], "url": o["url"],
             "events": [{"kind": "submitted", "code": "pr.opened", "ids": o["ids"], "names": o["names"]}]} for o in opened if o["number"]]
-    if events or prs:
-        print(json.dumps(http("POST", f"{a.site}/api/leak/memory/intake-events", token, {"events": events[:300], "prs": prs})))
+    prs += settled.get("prs", [])  # the pull requests closed on a code owner's decisions
+    reviews = settled.get("reviews", [])
+    if events or prs or reviews:
+        print(json.dumps(http("POST", f"{a.site}/api/leak/memory/intake-events", token, {"events": events[:300], "prs": prs[:100], "reviews": reviews[:100]})))
     marks = [{"username": o["username"], "target": o["target"], "ids": o["ids"], "bundle": o["bundle"]} for o in opened if o["number"]]
     if marks:
         print(json.dumps(http("POST", f"{a.site}/api/leak/memory/candidates", token, {"marks": marks})))
@@ -145,18 +161,29 @@ def cmd_post(a: argparse.Namespace) -> int:
 
 
 def cmd_report(a: argparse.Namespace) -> int:
-    prs = []
+    owners = G.code_owners(G.gh_api, a.repo)
+    prs, reviews = [], []
     for issue in G.open_studied_prs(G.gh_api, a.repo):
-        pr, checks, reviews = G.pr_state(G.gh_api, a.repo, issue["number"])
-        r = E.report_for(pr, checks, reviews)
+        pr, checks, revs = G.pr_state(G.gh_api, a.repo, issue["number"])
+        mark = E.parse_marker(pr.get("body"))
+        decisions: list[D.Decision] = []
+        # a code owner's decisions count on the App's own pull requests that are not merged
+        if mark and not (pr.get("merged_at") or pr.get("merged")) and (pr.get("user") or {}).get("login") == a.bot:
+            decisions, ignored = D.parse(G.pr_comments(G.gh_api, a.repo, issue["number"]), mark["ids"], owners)
+            for i in ignored:
+                print(f"PR #{issue['number']}: comment {i.comment_id} line {i.line}: not taken ({i.why})")
+            rv = D.review_payload(mark, decisions, closed=pr.get("state") == "closed")
+            if rv:
+                reviews.append(rv)
+        r = E.report_for(pr, checks, revs, decisions)
         if r:
             prs.append(r)
-    print(f"{len(prs)} studied pull request(s)")
+    print(f"{len(prs)} studied pull request(s), {len(reviews)} with decisions")
     if a.dry_run:
-        print(json.dumps(prs, indent=1))
+        print(json.dumps({"prs": prs, "reviews": reviews}, indent=1))
         return 0
-    if prs:
-        print(json.dumps(http("POST", f"{a.site}/api/leak/memory/intake-events", os.environ["LEAK_OIDC_TOKEN"], {"prs": prs[:100]})))
+    if prs or reviews:
+        print(json.dumps(http("POST", f"{a.site}/api/leak/memory/intake-events", os.environ["LEAK_OIDC_TOKEN"], {"prs": prs[:100], "reviews": reviews[:100]})))
     return 0
 
 
@@ -176,15 +203,21 @@ def main(argv: list[str]) -> int:
     o.add_argument("--bot", required=True)
     o.add_argument("--email", required=True)
     o.add_argument("--dry-run", action="store_true")
+    t = sub.add_parser("settle")
+    t.add_argument("--out", default="out")
+    t.add_argument("--repo", required=True)
+    t.add_argument("--bot", required=True, help="the login of the App that opened the pull requests, e.g. tengoku-supervisor[bot]")
+    t.add_argument("--dry-run", action="store_true")
     p = sub.add_parser("post")
     p.add_argument("--site", default=SITE)
     p.add_argument("--out", default="out")
     r = sub.add_parser("report")
     r.add_argument("--site", default=SITE)
     r.add_argument("--repo", required=True)
+    r.add_argument("--bot", default="tengoku-supervisor[bot]")
     r.add_argument("--dry-run", action="store_true")
     a = ap.parse_args(argv)
-    return {"collect": cmd_collect, "open": cmd_open, "post": cmd_post, "report": cmd_report}[a.cmd](a)
+    return {"collect": cmd_collect, "open": cmd_open, "settle": cmd_settle, "post": cmd_post, "report": cmd_report}[a.cmd](a)
 
 
 if __name__ == "__main__":
