@@ -10,6 +10,7 @@ import json
 import subprocess
 from typing import Callable
 
+from . import decisions as D
 from .compose import Composition, fill_toolchain, pascal
 from .events import pr_body
 
@@ -78,18 +79,33 @@ def pr_of_branch(api: Api, repo: str, branch: str) -> dict | None:
     return rows[0] if isinstance(rows, list) and rows else None  # type: ignore[index]
 
 
+SETTLED = "<!-- studied-settle:v1 -->"  # in the comment the intake leaves when it closes a pull request after a code owner's decisions
+
+
+def pr_settled(api: Api, repo: str, number: int, bot: str) -> bool:
+    """Whether the intake itself (its comment, by `bot`) closed the pull request because of a code owner's decisions."""
+    return any(SETTLED in str(c.get("body") or "") and (c.get("user") or {}).get("login") == bot for c in pr_comments(api, repo, number))
+
+
 def open_pr(api: Api, repo: str, base: str, comp: Composition, bot: str, email: str, dry_run: bool = False) -> dict:
     """One commit on a new branch off `base`, a PR from it, the label `studied`. Returns {"number", "url", "branch"} (dry run: what would be opened).
     Safe to run again after a run that stopped half way: the branch the bundle id names is the same, so an existing branch is reused (no second commit), an existing
-    pull request is returned (open, closed or merged: a decision already made is not asked again), and the label is put on it either way."""
+    pull request is returned (open, closed or merged: a decision already made is not asked again), and the label is put on it either way.
+    One exception, a round: the same theorems can be bundled again after a code owner's decisions closed their pull request (the others were freed, and a returned one was
+    revised, but the bundle id is the hash of the ids, so it is the same). A pull request that the intake closed that way (its comment) is over; the new one is on the branch
+    `-r2`, `-r3`, ... of the same name."""
     files = pr_files(api, repo, base, comp)
-    branch = f"studied/{comp.target}/{comp.bundle[:16]}"
+    first = f"studied/{comp.target}/{comp.bundle[:16]}"
     if dry_run:
-        return {"number": 0, "url": "", "branch": branch, "files": sorted(files)}
-    pr = None
-    if branch_exists(api, repo, branch):
-        pr = pr_of_branch(api, repo, branch)
-    else:
+        return {"number": 0, "url": "", "branch": first, "files": sorted(files)}
+    for rnd in range(1, 21):
+        branch = first if rnd == 1 else f"{first}-r{rnd}"
+        pr = None
+        if branch_exists(api, repo, branch):
+            pr = pr_of_branch(api, repo, branch)
+            if pr is not None and pr.get("state") == "closed" and not pr.get("merged_at") and pr_settled(api, repo, pr["number"], bot):
+                continue  # this round was closed on a code owner's decisions: the theorems are bundled again, in the next round
+            break
         head = api("GET", f"repos/{repo}/git/commits/{base}")
         entries = []
         for path, text in sorted(files.items()):
@@ -101,6 +117,9 @@ def open_pr(api: Api, repo: str, base: str, comp: Composition, bot: str, email: 
         msg = f"studied: {n} theorem{'s' if n != 1 else ''} for {comp.target} from {comp.author}\n\nSigned-off-by: {bot} <{email}>\n"
         commit = api("POST", f"repos/{repo}/git/commits", {"message": msg, "tree": tree["sha"], "parents": [base], "author": who, "committer": who})  # type: ignore[index]
         api("POST", f"repos/{repo}/git/refs", {"ref": f"refs/heads/{branch}", "sha": commit["sha"]})  # type: ignore[index]
+        break
+    else:
+        raise ApiError(f"{first}: twenty rounds of this bundle were closed on decisions")
     if pr is None:
         n = len(comp.accepted)
         rows = [{"id": v.entry["id"], "name": v.entry["name"], "stars": (v.entry.get("quality") or {}).get("s")} for v in comp.accepted]
@@ -122,3 +141,33 @@ def pr_state(api: Api, repo: str, number: int) -> tuple[dict, list, list]:
     checks = api("GET", f"repos/{repo}/commits/{pr['head']['sha']}/check-runs?per_page=100")  # type: ignore[index]
     reviews = api("GET", f"repos/{repo}/pulls/{number}/reviews?per_page=100")
     return pr, checks.get("check_runs", []), reviews  # type: ignore[return-value,union-attr]
+
+
+def pr_comments(api: Api, repo: str, number: int, pages: int = 3) -> list[dict]:
+    """The comments of a pull request (the issue's), oldest first, at most `pages` x 100."""
+    out: list[dict] = []
+    for page in range(1, pages + 1):
+        rows = api("GET", f"repos/{repo}/issues/{number}/comments?per_page=100&page={page}")
+        if not isinstance(rows, list):
+            break
+        out += [r for r in rows if isinstance(r, dict)]
+        if len(rows) < 100:
+            break
+    return out
+
+
+def code_owners(api: Api, repo: str) -> set[str]:
+    """The accounts of the `*` line of the repository's CODEOWNERS on main. Empty (no file, no such line) means no decision counts."""
+    return D.owners_from_codeowners(read(api, repo, ".github/CODEOWNERS", "main"))
+
+
+def comment_once(api: Api, repo: str, number: int, marker: str, body: str, bot: str) -> bool:
+    """Post `body` unless `bot` already left a comment that carries `marker`. True when posted."""
+    if any(marker in str(c.get("body") or "") and (c.get("user") or {}).get("login") == bot for c in pr_comments(api, repo, number)):
+        return False
+    api("POST", f"repos/{repo}/issues/{number}/comments", {"body": body})
+    return True
+
+
+def close_pr(api: Api, repo: str, number: int) -> None:
+    api("PATCH", f"repos/{repo}/pulls/{number}", {"state": "closed"})

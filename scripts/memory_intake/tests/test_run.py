@@ -1,4 +1,3 @@
-import io
 import json
 import os
 import tarfile
@@ -9,6 +8,7 @@ from unittest import mock
 
 from scripts.memory_intake import compose as C
 from scripts.memory_intake import run as R
+from scripts.memory_intake.tests import test_settle as TS
 from scripts.memory_intake.tests.helpers import candidate, fake_review
 
 
@@ -67,7 +67,8 @@ class Post(unittest.TestCase):
             R.main(["post", "--out", str(d)])
         self.assertEqual([s[1] for s in sent], [["memory", "intake-events"], ["memory", "candidates"]])
         events = sent[0][3]
-        self.assertEqual(len(events["events"]), 1)
+        self.assertEqual([(e["kind"], e["code"], e.get("prNumber")) for e in events["events"]], [("returned", "bar.merit", None), ("submitted", "pr.opened", 5)],
+                         "the bar's return, and the opened pull request as a loose `submitted` event (it answers the earlier verdicts on its theorems)")
         self.assertEqual([(p["number"], p["events"][0]["code"]) for p in events["prs"]], [(5, "pr.opened")])
         self.assertEqual(sent[1][3], {"marks": [{"username": "ada", "target": "t", "ids": ["a" * 8], "bundle": "b" * 64}]})
         self.assertTrue(all(s[2] == "tok" for s in sent))
@@ -116,6 +117,123 @@ class OpenKeepsGoing(unittest.TestCase):
         with mock.patch.object(R.G, "open_pr", open_pr), mock.patch("builtins.print"):
             self.assertEqual(R.cmd_open(self.args), 0)
         self.assertEqual([len(x) for x in seen], [0, 1, 2], "each call sees the ones opened before it already on disk")
+
+
+class GhWithChecks(TS.Gh):
+    """test_settle.Gh with the two calls the reporter makes for the state of a pull request."""
+
+    def __call__(self, method, path, body=None, raw=False):
+        if method == "GET" and "/check-runs" in path:
+            return {"check_runs": []}
+        if method == "GET" and path.endswith("/reviews?per_page=100"):
+            return []
+        return super().__call__(method, path, body, raw)
+
+
+class Decisions(unittest.TestCase):
+    """A code owner's decisions travel: settle (close, free) -> settled.json -> post; report (every 30 minutes) says the same thing for the pull requests that are closed."""
+
+    def sent_by(self, fn):
+        sent = []
+
+        def fake_http(method, url, token, body=None):
+            sent.append((method, url.rsplit("/", 2)[-2:], body))
+            return {"ok": True}
+
+        with mock.patch.object(R, "http", fake_http), mock.patch.dict(os.environ, {"LEAK_OIDC_TOKEN": "tok"}), mock.patch("builtins.print"):
+            fn()
+        return sent
+
+    def test_settle_writes_what_post_sends(self):
+        gh = GhWithChecks()
+        gh.add(7, comments=[TS.cm(1, "studied: return a1b2c3d4 merit")])
+        out = Path(tempfile.mkdtemp())
+        with mock.patch.object(R.G, "gh_api", gh), mock.patch("builtins.print"):
+            self.assertEqual(R.main(["settle", "--out", str(out), "--repo", TS.REPO, "--bot", TS.BOT]), 0)
+        settled = json.loads((out / "settled.json").read_text())
+        self.assertEqual([r["accepted"] for r in settled["reviews"]], [[TS.IDS[1], TS.IDS[2]]])
+        sent = self.sent_by(lambda: R.main(["post", "--out", str(out)]))
+        self.assertEqual([s[1] for s in sent], [["memory", "intake-events"]], "no PR was opened and nothing is marked: only the decisions go")
+        body = sent[0][2]
+        self.assertEqual(body["events"], [])
+        self.assertEqual([p["number"] for p in body["prs"]], [7])
+        self.assertEqual(body["reviews"][0]["returned"], [{"id": TS.IDS[0], "code": "merit"}])
+
+    def test_a_dry_run_of_settle_writes_no_file(self):
+        gh = GhWithChecks()
+        gh.add(7, comments=[TS.cm(1, "studied: return a1b2c3d4 merit")])
+        out = Path(tempfile.mkdtemp())
+        with mock.patch.object(R.G, "gh_api", gh), mock.patch("builtins.print"):
+            R.main(["settle", "--out", str(out), "--repo", TS.REPO, "--bot", TS.BOT, "--dry-run"])
+        self.assertFalse((out / "settled.json").exists())
+        self.assertEqual(gh.writes, [])
+
+    def test_report_posts_the_decisions_of_an_open_pr_without_freeing_anything(self):
+        gh = GhWithChecks()
+        gh.add(7, comments=[TS.cm(1, "studied: return a1b2c3d4 merit")])
+        with mock.patch.object(R.G, "gh_api", gh):
+            sent = self.sent_by(lambda: R.main(["report", "--repo", TS.REPO]))
+        body = sent[0][2]
+        self.assertEqual([e["code"] for e in body["prs"][0]["events"]], ["pr.opened", "review.return.merit"])
+        self.assertEqual(body["reviews"][0]["accepted"], [], "the other theorems are freed when the pull request is closed, not before")
+
+    def test_report_frees_the_others_of_a_closed_pr_and_ignores_decisions_on_a_merged_one(self):
+        gh = GhWithChecks()
+        gh.add(7, state="closed", comments=[TS.cm(1, "studied: return a1b2c3d4 merit")])
+        gh.add(8, state="closed", merged_at="2026-10-23T00:00:00Z", comments=[TS.cm(1, "studied: reject a1b2c3d4 hygiene")])
+        with mock.patch.object(R.G, "gh_api", gh):
+            sent = self.sent_by(lambda: R.main(["report", "--repo", TS.REPO]))
+        body = sent[0][2]
+        self.assertEqual([(r["accepted"]) for r in body["reviews"]], [[TS.IDS[1], TS.IDS[2]]])
+        by_number = {p["number"]: [e["code"] for e in p["events"]] for p in body["prs"]}
+        self.assertEqual(by_number, {7: ["review.superseded", "review.return.merit"], 8: ["pr.merged"]})
+
+    def test_report_counts_decisions_only_on_the_apps_own_pull_requests(self):
+        gh = GhWithChecks()
+        gh.add(7, author="stranger", comments=[TS.cm(1, "studied: return a1b2c3d4 merit")])
+        with mock.patch.object(R.G, "gh_api", gh):
+            sent = self.sent_by(lambda: R.main(["report", "--repo", TS.REPO]))
+        self.assertEqual(sent[0][2]["reviews"], [])
+
+    def test_report_skips_a_pull_request_whose_calls_fail_posts_the_others_and_fails_the_run(self):
+        gh = GhWithChecks()
+        gh.add(7, comments=[TS.cm(1, "studied: return a1b2c3d4 merit")])
+        gh.add(8)
+        real = gh.__call__
+
+        def flaky(method, path, body=None, raw=False):
+            if path.endswith("/pulls/8"):
+                raise R.G.ApiError("GET pulls/8: HTTP 502")
+            return real(method, path, body, raw)
+
+        code = []
+        with mock.patch.object(R.G, "gh_api", flaky):
+            sent = self.sent_by(lambda: code.append(R.main(["report", "--repo", TS.REPO])))
+        self.assertEqual(code, [1])
+        self.assertEqual([p["number"] for p in sent[0][2]["prs"]], [7])
+
+    def test_an_unreadable_code_owners_file_reports_nothing_instead_of_reporting_without_the_decisions(self):
+        gh = GhWithChecks()
+        gh.add(7, state="closed", comments=[TS.cm(1, "studied: return a1b2c3d4 merit")])
+        real = gh.__call__
+
+        def down(method, path, body=None, raw=False):
+            if "CODEOWNERS" in path:
+                raise R.G.ApiError("GET CODEOWNERS: HTTP 503")
+            return real(method, path, body, raw)
+
+        code, sent = [], []
+        with mock.patch.object(R.G, "gh_api", down):
+            sent = self.sent_by(lambda: code.append(R.main(["report", "--repo", TS.REPO])))
+        self.assertEqual((code, sent), ([1], []), "a snapshot without the decisions would make the site answer their notices for good")
+
+    def test_report_without_decisions_is_what_it_was(self):
+        gh = GhWithChecks()
+        gh.add(7)
+        with mock.patch.object(R.G, "gh_api", gh):
+            sent = self.sent_by(lambda: R.main(["report", "--repo", TS.REPO]))
+        self.assertEqual(sent[0][2]["reviews"], [])
+        self.assertEqual([e["code"] for e in sent[0][2]["prs"][0]["events"]], ["pr.opened"])
 
 
 if __name__ == "__main__":

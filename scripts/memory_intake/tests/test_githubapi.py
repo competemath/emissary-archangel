@@ -18,6 +18,7 @@ class Fake:
         self.blobs: dict[str, str] = {}
         self.refs: set[str] = set()  # branches that exist
         self.prs: dict[str, dict] = {}  # head branch -> pull request
+        self.comments: dict[int, list] = {}  # pull request number -> its comments
 
     def __call__(self, method, path, body=None, raw=False):
         if method == "GET" and "/contents/" in path:
@@ -29,6 +30,8 @@ class Fake:
             if path.split("/git/ref/heads/")[1] not in self.refs:
                 raise G.ApiError(f"gh api GET {path}: gh: Not Found (HTTP 404)")
             return {"object": {"sha": "c" * 40}}
+        if method == "GET" and "/issues/" in path and "/comments" in path:
+            return self.comments.get(int(path.split("/issues/")[1].split("/")[0]), []) if "page=1" in path else []
         if method == "GET" and "/pulls?head=" in path:
             pr = self.prs.get(path.split("?head=")[1].split("&")[0].split(":", 1)[1])
             return [pr] if pr else []
@@ -138,11 +141,108 @@ class Open(unittest.TestCase):
         with self.assertRaises(G.ApiError):
             G.open_pr(api, REPO, BASE, comp(), "bot", "e@x")
 
+    BOT = "tengoku-supervisor[bot]"
+
+    def settled_pr(self, number, state="closed", merged_at=None, by=BOT, comment=None):
+        pr = {"number": number, "html_url": f"https://github.com/{REPO}/pull/{number}", "state": state, "merged_at": merged_at}
+        return pr, [{"body": f"Closed by the intake.\n\n{comment or G.SETTLED}", "user": {"login": by}}]
+
+    def test_a_bundle_closed_on_a_code_owners_decisions_goes_on_in_the_next_round(self):
+        gh, c = Fake(), comp()
+        first = f"studied/erdos-396/{c.bundle[:16]}"
+        gh.refs.add(first)
+        gh.prs[first], gh.comments[41] = self.settled_pr(41)
+        r = self.run_open(gh, c)
+        self.assertEqual(r["branch"], first + "-r2")
+        self.assertNotEqual(r["number"], 41)
+        self.assertIn(first + "-r2", gh.refs)
+        pr = next(b for m, p, b in gh.writes if p.endswith("/pulls"))
+        self.assertEqual(pr["head"], first + "-r2")
+        self.assertEqual(sum(p.endswith("/git/commits") for m, p, b in gh.writes), 1)
+
+    def test_a_second_and_a_third_round(self):
+        gh, c = Fake(), comp()
+        first = f"studied/erdos-396/{c.bundle[:16]}"
+        gh.refs.update({first, first + "-r2"})
+        gh.prs[first], gh.comments[41] = self.settled_pr(41)
+        gh.prs[first + "-r2"], gh.comments[42] = self.settled_pr(42)
+        self.assertEqual(self.run_open(gh, c)["branch"], first + "-r3")
+        gh2 = Fake()
+        gh2.refs.update({first, first + "-r2"})
+        gh2.prs[first], gh2.comments[41] = self.settled_pr(41)
+        gh2.prs[first + "-r2"] = {"number": 42, "html_url": f"https://github.com/{REPO}/pull/42", "state": "open", "merged_at": None}
+        r = self.run_open(gh2, c)
+        self.assertEqual((r["number"], r["branch"]), (42, first + "-r2"), "an open round is reused, not opened again")
+        self.assertEqual([p.split("/", 3)[-1] for m, p, _ in gh2.writes], ["issues/42/labels"])
+
+    def test_a_pr_a_person_closed_or_one_that_merged_is_not_a_round(self):
+        for pr, comments in (
+            self.settled_pr(41, comment="no marker here"),  # closed by a person: a decision already made
+            self.settled_pr(41, by="stranger"),  # the marker in someone else's comment is not the intake's
+            self.settled_pr(41, state="closed", merged_at="2026-10-23T00:00:00Z"),  # merged
+        ):
+            gh, c = Fake(), comp()
+            first = f"studied/erdos-396/{c.bundle[:16]}"
+            gh.refs.add(first)
+            gh.prs[first], gh.comments[41] = pr, comments
+            r = self.run_open(gh, c)
+            self.assertEqual((r["number"], r["branch"]), (41, first), comments)
+            self.assertEqual([p.split("/", 3)[-1] for m, p, _ in gh.writes], ["issues/41/labels"])
+
+    def test_the_rounds_are_bounded(self):
+        gh, c = Fake(), comp()
+        first = f"studied/erdos-396/{c.bundle[:16]}"
+        for n in range(1, 21):
+            b = first if n == 1 else f"{first}-r{n}"
+            gh.refs.add(b)
+            gh.prs[b], gh.comments[100 + n] = self.settled_pr(100 + n)
+        with self.assertRaises(G.ApiError):
+            self.run_open(gh, c)
+
     def test_a_dry_run_writes_nothing(self):
         gh = Fake()
         r = G.open_pr(gh, REPO, BASE, comp(), "bot", "e@x", dry_run=True)
         self.assertEqual(gh.writes, [])
         self.assertIn("Tengoku/Studied.lean", r["files"])
+
+
+class Comments(unittest.TestCase):
+    def test_the_comments_of_a_pr_are_read_page_by_page_and_only_objects_count(self):
+        pages = {1: [{"id": i} for i in range(100)], 2: [{"id": 100}, "junk"], 3: [{"id": 999}]}
+        asked = []
+
+        def api(method, path, body=None, raw=False):
+            asked.append(path.split("&page=")[1])
+            return pages.get(int(path.split("&page=")[1]), [])
+
+        got = G.pr_comments(api, REPO, 5)
+        self.assertEqual([c["id"] for c in got][-2:], [99, 100])
+        self.assertEqual(len(got), 101)
+        self.assertEqual(asked, ["1", "2"], "a page of fewer than a hundred is the last")
+        self.assertEqual(len(G.pr_comments(api, REPO, 5, pages=1)), 100, "the page limit holds")
+
+    def test_a_comment_is_left_once_by_the_bot_only(self):
+        posted = []
+        existing = [{"body": "x <!-- m --> y", "user": {"login": "stranger"}}]
+
+        def api(method, path, body=None, raw=False):
+            if method == "GET":
+                return existing if "page=1" in path else []
+            posted.append(body)
+            return {}
+
+        self.assertTrue(G.comment_once(api, REPO, 5, "<!-- m -->", "hello <!-- m -->", "bot"), "a stranger's comment with the marker does not stop the bot")
+        existing.append({"body": "hello <!-- m -->", "user": {"login": "bot"}})
+        self.assertFalse(G.comment_once(api, REPO, 5, "<!-- m -->", "hello <!-- m -->", "bot"))
+        self.assertEqual(len(posted), 1)
+
+    def test_code_owners_are_the_star_line_of_the_file_on_main_and_nobody_when_there_is_no_file(self):
+        def api(method, path, body=None, raw=False):
+            assert path.endswith("/contents/.github/CODEOWNERS?ref=main"), path
+            return b"* @Ada @bob\n/x @eve\n"
+
+        self.assertEqual(G.code_owners(api, REPO), {"ada", "bob"})
+        self.assertEqual(G.code_owners(lambda *a, **k: b"", REPO), set())
 
 
 class State(unittest.TestCase):

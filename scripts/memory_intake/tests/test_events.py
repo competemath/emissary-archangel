@@ -1,5 +1,6 @@
 import unittest
 
+from scripts.memory_intake import decisions as D
 from scripts.memory_intake import events as E
 
 MARK = {"account": "ada", "target": "erdos-396", "bundle": "b" * 64, "ids": ["a1" * 8], "names": ["lemma_1"]}
@@ -22,6 +23,12 @@ class Body(unittest.TestCase):
     def test_a_body_without_a_marker_or_with_a_bad_one(self):
         for body in (None, "", "no marker", "<!-- studied:v1 {not json} -->", '<!-- studied:v1 {"account": 3} -->', '<!-- studied:v1 [1] -->'):
             self.assertIsNone(E.parse_marker(body), body)
+
+    def test_the_body_shows_the_first_eight_characters_of_each_id_for_the_decision_lines(self):
+        b = pr()["body"]
+        self.assertIn("`lemma_1` (4 stars) · id `a1a1a1a1`", b)
+        self.assertIn("`studied: return <id> <code>`", b)
+        self.assertIn("`studied: reject <id> <code>`", b)
 
     def test_the_body_names_the_theorems_and_the_bar(self):
         b = pr()["body"]
@@ -62,6 +69,32 @@ class Derive(unittest.TestCase):
         ev = E.derive(pr(), [], [{"user": {"login": "r"}, "state": "CHANGES_REQUESTED", "body": "x" * 900}], E.parse_marker(pr()["body"]))
         self.assertEqual(len(ev[-1]["detail"]), 500)
         self.assertEqual(ev[-1]["code"], "review.changes")
+
+    def decided(self, *lines, ids=("a1" * 20, "b2" * 20, "c3" * 20)):
+        mark = {"account": "ada", "target": "erdos-396", "bundle": "b" * 64, "ids": list(ids), "names": ["one", "two", "three"]}
+        owners = {"boss"}
+        comment = {"id": 1, "body": "\n".join(lines), "user": {"login": "boss", "type": "User"}, "author_association": "OWNER", "created_at": "2026-10-23T00:00:00Z"}
+        return mark, D.parse([comment], list(ids), owners)[0]
+
+    def test_an_open_pr_with_decisions_lists_them_beside_its_own_state(self):
+        mark, ds = self.decided("studied: return a1a1a1a1 merit", "studied: reject b2b2b2b2 hygiene")
+        got = [(e["kind"], e["code"]) for e in E.derive(pr(), [], [], mark, ds)]
+        self.assertEqual(got, [("submitted", "pr.opened"), ("rejected", "review.reject.hygiene"), ("returned", "review.return.merit")])
+
+    def test_a_closed_pr_with_decisions_and_others_left_is_superseded_and_the_decisions_stay(self):
+        mark, ds = self.decided("studied: return a1a1a1a1 merit")
+        ev = E.derive(pr(state="closed"), [], [], mark, ds)
+        self.assertEqual([(e["kind"], e["code"]) for e in ev], [("closed", "review.superseded"), ("returned", "review.return.merit")])
+        self.assertEqual((ev[0]["names"], ev[0]["ids"]), (["two", "three"], ["b2" * 20, "c3" * 20]), "the superseded notice names the theorems that go on")
+
+    def test_a_closed_pr_with_every_theorem_decided_is_plainly_closed(self):
+        mark, ds = self.decided("studied: return a1a1a1a1 merit", "studied: reject b2b2b2b2 scope", "studied: reject c3c3c3c3 report")
+        self.assertEqual([e["code"] for e in E.derive(pr(state="closed"), [], [], mark, ds)], ["pr.closed", "review.reject.report", "review.reject.scope", "review.return.merit"])
+
+    def test_a_closed_pr_without_decisions_and_a_merged_one_are_as_before(self):
+        mark, ds = self.decided("studied: return a1a1a1a1 merit")
+        self.assertEqual([e["code"] for e in E.derive(pr(state="closed"), [], [], mark, [])], ["pr.closed"])
+        self.assertEqual([e["code"] for e in E.derive(pr(merged=True, merged_at="2026-10-23T00:00:00Z", state="closed"), [], [], mark, ds)], ["pr.merged"], "a merged pull request is settled: decisions do not matter")
 
     def test_report_for(self):
         r = E.report_for(pr(), [], [])
