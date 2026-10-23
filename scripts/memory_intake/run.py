@@ -135,11 +135,11 @@ def cmd_open(a: argparse.Namespace) -> int:
 def cmd_settle(a: argparse.Namespace) -> int:
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    prs, reviews, log = S.settle(G.gh_api, a.repo, a.bot, a.dry_run)
+    prs, reviews, log, failed = S.settle(G.gh_api, a.repo, a.bot, a.dry_run)
     print("\n".join(log) or "nothing to settle")
     if not a.dry_run:
         (out / "settled.json").write_text(json.dumps({"prs": prs, "reviews": reviews}))
-    return 0
+    return 1 if failed else 0
 
 
 def cmd_post(a: argparse.Namespace) -> int:
@@ -150,6 +150,10 @@ def cmd_post(a: argparse.Namespace) -> int:
     settled = json.loads((out / "settled.json").read_text()) if (out / "settled.json").exists() else {}
     prs = [{"username": o["username"], "target": o["target"], "number": o["number"], "url": o["url"],
             "events": [{"kind": "submitted", "code": "pr.opened", "ids": o["ids"], "names": o["names"]}]} for o in opened if o["number"]]
+    # a theorem put forward again answers the verdicts it had before (a bar return, a code owner's return, the pull request that was closed and freed its bundle): the site does that for
+    # a loose `submitted` event, not for a snapshot alone, so each opened pull request is also reported as one
+    events = events + [{"username": o["username"], "target": o["target"], "kind": "submitted", "code": "pr.opened", "ids": o["ids"], "names": o["names"], "prNumber": o["number"], "prUrl": o["url"]}
+                       for o in opened if o["number"]]
     prs += settled.get("prs", [])  # the pull requests closed on a code owner's decisions
     reviews = settled.get("reviews", [])
     if events or prs or reviews:
@@ -160,31 +164,42 @@ def cmd_post(a: argparse.Namespace) -> int:
     return 0
 
 
+def report_one(a: argparse.Namespace, owners: set[str], number: int) -> tuple[dict | None, dict | None]:
+    """One studied pull request's entry for the site, and its review (a code owner's decisions) if it has any."""
+    pr, checks, revs = G.pr_state(G.gh_api, a.repo, number)
+    mark = E.parse_marker(pr.get("body"))
+    decisions: list[D.Decision] = []
+    review = None
+    # a code owner's decisions count on the App's own pull requests that are not merged
+    if mark and not (pr.get("merged_at") or pr.get("merged")) and (pr.get("user") or {}).get("login") == a.bot:
+        decisions, ignored = D.parse(G.pr_comments(G.gh_api, a.repo, number), mark["ids"], owners)
+        for i in ignored:
+            print(f"PR #{number}: comment {i.comment_id} line {i.line}: not taken ({i.why})")
+        review = D.review_payload(mark, decisions, closed=pr.get("state") == "closed")
+    return E.report_for(pr, checks, revs, decisions), review
+
+
 def cmd_report(a: argparse.Namespace) -> int:
     owners = G.code_owners(G.gh_api, a.repo)
-    prs, reviews = [], []
+    prs, reviews, failed = [], [], 0
     for issue in G.open_studied_prs(G.gh_api, a.repo):
-        pr, checks, revs = G.pr_state(G.gh_api, a.repo, issue["number"])
-        mark = E.parse_marker(pr.get("body"))
-        decisions: list[D.Decision] = []
-        # a code owner's decisions count on the App's own pull requests that are not merged
-        if mark and not (pr.get("merged_at") or pr.get("merged")) and (pr.get("user") or {}).get("login") == a.bot:
-            decisions, ignored = D.parse(G.pr_comments(G.gh_api, a.repo, issue["number"]), mark["ids"], owners)
-            for i in ignored:
-                print(f"PR #{issue['number']}: comment {i.comment_id} line {i.line}: not taken ({i.why})")
-            rv = D.review_payload(mark, decisions, closed=pr.get("state") == "closed")
-            if rv:
-                reviews.append(rv)
-        r = E.report_for(pr, checks, revs, decisions)
+        try:  # a pull request whose calls fail is skipped, the others are still reported
+            r, rv = report_one(a, owners, issue["number"])
+        except G.ApiError as e:
+            failed += 1
+            print(f"::error::PR #{issue['number']} was not reported: {e}")
+            continue
         if r:
             prs.append(r)
+        if rv:
+            reviews.append(rv)
     print(f"{len(prs)} studied pull request(s), {len(reviews)} with decisions")
     if a.dry_run:
         print(json.dumps({"prs": prs, "reviews": reviews}, indent=1))
-        return 0
+        return 1 if failed else 0
     if prs or reviews:
         print(json.dumps(http("POST", f"{a.site}/api/leak/memory/intake-events", os.environ["LEAK_OIDC_TOKEN"], {"prs": prs[:100], "reviews": reviews[:100]})))
-    return 0
+    return 1 if failed else 0
 
 
 def main(argv: list[str]) -> int:

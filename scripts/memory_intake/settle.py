@@ -43,41 +43,52 @@ def ignored_text(rows: list[D.Ignored]) -> str:
     return "\n".join(lines)
 
 
-def settle(api: G.Api, repo: str, bot: str, dry_run: bool = False) -> tuple[list[dict], list[dict], list[str]]:
-    """Returns (`prs`, `reviews`, a log) for the site: the closed pull requests' notices and what happens to their theorems."""
+def settle(api: G.Api, repo: str, bot: str, dry_run: bool = False) -> tuple[list[dict], list[dict], list[str], int]:
+    """Returns (`prs`, `reviews`, a log, how many pull requests failed) for the site: the closed pull requests' notices and what happens to their theorems. A pull request whose
+    calls fail is logged and skipped; the others go on (what was closed is reported by the next `report` anyway: it sees a closed pull request with decisions)."""
     owners = G.code_owners(api, repo)
     prs: list[dict] = []
     reviews: list[dict] = []
     log: list[str] = []
+    failed = 0
     if not owners:
-        return prs, reviews, ["no code owner found in .github/CODEOWNERS on main: no decision counts"]
+        return prs, reviews, ["no code owner found in .github/CODEOWNERS on main: no decision counts"], failed
     for issue in G.open_studied_prs(api, repo, MAX_PRS):
         n = issue["number"]
-        pr = api("GET", f"repos/{repo}/pulls/{n}")
-        mark = E.parse_marker(pr.get("body"))  # type: ignore[union-attr]
-        if mark is None or pr.get("state") != "open" or (pr.get("user") or {}).get("login") != bot:  # type: ignore[union-attr]
-            continue  # not this App's, or already closed or merged: nothing to settle
-        decisions, ignored = D.parse(G.pr_comments(api, repo, n), mark["ids"], owners)
-        mine = [i for i in ignored if i.owner]
-        for cid in sorted({i.comment_id for i in mine}):
-            rows = [i for i in mine if i.comment_id == cid]
-            log.append(f"PR #{n}: comment {cid}: {len(rows)} line(s) not taken")
-            if not dry_run:
-                G.comment_once(api, repo, n, f"<!-- studied-ignored:v1 {cid} -->", ignored_text(rows) + f"\n\n<!-- studied-ignored:v1 {cid} -->", bot)
-        if not decisions:
+        try:
+            one = settle_one(api, repo, bot, owners, n, dry_run, log)
+        except G.ApiError as e:
+            failed += 1
+            log.append(f"::error::PR #{n} was not settled: {e}")
             continue
-        log.append(f"PR #{n}: {len(decisions)} decision(s): " + ", ".join(f"{d.verdict} {d.id[:8]} {d.code}" for d in decisions))
-        if dry_run:
-            log.append(f"PR #{n}: would close")
-            continue
-        G.comment_once(api, repo, n, G.SETTLED, close_text(mark, decisions), bot)
-        G.close_pr(api, repo, n)
-        closed = {**pr, "state": "closed"}
-        rep = E.report_for(closed, [], [], decisions)
-        if rep:
-            prs.append(rep)
-        rv = D.review_payload(mark, decisions, closed=True)
-        if rv:
-            reviews.append(rv)
-        log.append(f"PR #{n}: closed")
-    return prs, reviews, log
+        if one:
+            prs.append(one[0])
+            if one[1]:
+                reviews.append(one[1])
+    return prs, reviews, log, failed
+
+
+def settle_one(api: G.Api, repo: str, bot: str, owners: set[str], n: int, dry_run: bool, log: list[str]) -> tuple[dict, dict | None] | None:
+    """One pull request: close it if a code owner decided on its theorems. Returns its report and review, or None when there is nothing to report."""
+    pr = api("GET", f"repos/{repo}/pulls/{n}")
+    mark = E.parse_marker(pr.get("body"))  # type: ignore[union-attr]
+    if mark is None or pr.get("state") != "open" or (pr.get("user") or {}).get("login") != bot:  # type: ignore[union-attr]
+        return None  # not this App's, or already closed or merged: nothing to settle
+    decisions, ignored = D.parse(G.pr_comments(api, repo, n), mark["ids"], owners)
+    mine = [i for i in ignored if i.owner]
+    for cid in sorted({i.comment_id for i in mine}):
+        rows = [i for i in mine if i.comment_id == cid]
+        log.append(f"PR #{n}: comment {cid}: {len(rows)} line(s) not taken")
+        if not dry_run:
+            G.comment_once(api, repo, n, f"<!-- studied-ignored:v1 {cid} -->", ignored_text(rows) + f"\n\n<!-- studied-ignored:v1 {cid} -->", bot)
+    if not decisions:
+        return None
+    log.append(f"PR #{n}: {len(decisions)} decision(s): " + ", ".join(f"{d.verdict} {d.id[:8]} {d.code}" for d in decisions))
+    if dry_run:
+        log.append(f"PR #{n}: would close")
+        return None
+    G.comment_once(api, repo, n, G.SETTLED, close_text(mark, decisions), bot)
+    G.close_pr(api, repo, n)
+    log.append(f"PR #{n}: closed")
+    rep = E.report_for({**pr, "state": "closed"}, [], [], decisions)  # type: ignore[dict-item]
+    return (rep, D.review_payload(mark, decisions, closed=True)) if rep else None

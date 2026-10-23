@@ -67,7 +67,8 @@ class Post(unittest.TestCase):
             R.main(["post", "--out", str(d)])
         self.assertEqual([s[1] for s in sent], [["memory", "intake-events"], ["memory", "candidates"]])
         events = sent[0][3]
-        self.assertEqual(len(events["events"]), 1)
+        self.assertEqual([(e["kind"], e["code"], e.get("prNumber")) for e in events["events"]], [("returned", "bar.merit", None), ("submitted", "pr.opened", 5)],
+                         "the bar's return, and the opened pull request as a loose `submitted` event (it answers the earlier verdicts on its theorems)")
         self.assertEqual([(p["number"], p["events"][0]["code"]) for p in events["prs"]], [(5, "pr.opened")])
         self.assertEqual(sent[1][3], {"marks": [{"username": "ada", "target": "t", "ids": ["a" * 8], "bundle": "b" * 64}]})
         self.assertTrue(all(s[2] == "tok" for s in sent))
@@ -193,6 +194,23 @@ class Decisions(unittest.TestCase):
         with mock.patch.object(R.G, "gh_api", gh):
             sent = self.sent_by(lambda: R.main(["report", "--repo", TS.REPO]))
         self.assertEqual(sent[0][2]["reviews"], [])
+
+    def test_report_skips_a_pull_request_whose_calls_fail_posts_the_others_and_fails_the_run(self):
+        gh = GhWithChecks()
+        gh.add(7, comments=[TS.cm(1, "studied: return a1b2c3d4 merit")])
+        gh.add(8)
+        real = gh.__call__
+
+        def flaky(method, path, body=None, raw=False):
+            if path.endswith("/pulls/8"):
+                raise R.G.ApiError("GET pulls/8: HTTP 502")
+            return real(method, path, body, raw)
+
+        code = []
+        with mock.patch.object(R.G, "gh_api", flaky):
+            sent = self.sent_by(lambda: code.append(R.main(["report", "--repo", TS.REPO])))
+        self.assertEqual(code, [1])
+        self.assertEqual([p["number"] for p in sent[0][2]["prs"]], [7])
 
     def test_report_without_decisions_is_what_it_was(self):
         gh = GhWithChecks()

@@ -58,7 +58,7 @@ class Settle(unittest.TestCase):
     def test_a_decision_closes_the_pull_request_with_a_comment_and_tells_the_site(self):
         gh = Gh()
         gh.add(7, comments=[cm(1, "Looks fine, but:\nstudied: return a1b2c3d4 merit nothing uses it\nstudied: reject e5f6a7b8 hygiene")])
-        prs, reviews, log = S.settle(gh, REPO, BOT)
+        prs, reviews, log, failed = S.settle(gh, REPO, BOT)
         self.assertEqual(gh.prs[7]["state"], "closed")
         comment = next(b for m, p, b in gh.writes if p.endswith("/comments"))["body"]
         self.assertIn("returned: the author may come back with a better one: `first` (merit)", comment)
@@ -76,7 +76,7 @@ class Settle(unittest.TestCase):
         gh.add(7, comments=[cm(1, "studied: return a1b2c3d4 merit")])
         S.settle(gh, REPO, BOT)
         n = len(gh.writes)
-        prs, reviews, log = S.settle(gh, REPO, BOT)
+        prs, reviews, log, failed = S.settle(gh, REPO, BOT)
         self.assertEqual((len(gh.writes), prs, reviews), (n, [], []), "a closed pull request is left alone")
 
     def test_a_close_that_failed_half_way_is_finished_without_a_second_comment(self):
@@ -90,12 +90,29 @@ class Settle(unittest.TestCase):
                 raise G.ApiError("PATCH: HTTP 502")
             return real(method, path, body, raw)
 
-        with self.assertRaises(G.ApiError):
-            S.settle(failing, REPO, BOT)
+        prs, reviews, log, failed = S.settle(failing, REPO, BOT)
+        self.assertEqual((failed, prs, reviews), (1, [], []))
+        self.assertTrue(any("PR #7 was not settled" in x for x in log))
         self.assertEqual(gh.prs[7]["state"], "open")
         S.settle(gh, REPO, BOT)
         self.assertEqual(gh.prs[7]["state"], "closed")
         self.assertEqual(sum(p.endswith("/comments") for m, p, b in gh.writes), 1, "one close comment in all")
+
+    def test_a_pull_request_whose_calls_fail_does_not_stop_the_others(self):
+        gh = Gh()
+        gh.add(7, comments=[cm(1, "studied: return a1b2c3d4 merit")])
+        gh.add(8, comments=[cm(1, "studied: reject e5f6a7b8 scope")])
+        real = gh.__call__
+
+        def flaky(method, path, body=None, raw=False):
+            if path.endswith("/pulls/8"):  # the newer one is read first
+                raise G.ApiError("GET pulls/8: HTTP 502")
+            return real(method, path, body, raw)
+
+        prs, reviews, log, failed = S.settle(flaky, REPO, BOT)
+        self.assertEqual(failed, 1)
+        self.assertEqual([p["number"] for p in prs], [7], "the other pull request was settled")
+        self.assertEqual((gh.prs[7]["state"], gh.prs[8]["state"]), ("closed", "open"))
 
     def test_only_a_code_owner_decides(self):
         gh = Gh()
@@ -106,7 +123,7 @@ class Settle(unittest.TestCase):
             cm(4, "> studied: reject a1b2c3d4 hygiene\nI would not.", login="mikael-bashir"),
             cm(5, "```\nstudied: reject a1b2c3d4 hygiene\n```", login="mikael-bashir"),
         ])
-        prs, reviews, log = S.settle(gh, REPO, BOT)
+        prs, reviews, log, failed = S.settle(gh, REPO, BOT)
         self.assertEqual((gh.prs[7]["state"], gh.writes, prs, reviews), ("open", [], [], []))
 
     def test_a_pull_request_the_app_did_not_open_is_never_closed(self):
@@ -120,14 +137,14 @@ class Settle(unittest.TestCase):
     def test_no_code_owners_file_means_no_decision_counts(self):
         gh = Gh(codeowners="")
         gh.add(7, comments=[cm(1, "studied: reject a1b2c3d4 hygiene")])
-        prs, reviews, log = S.settle(gh, REPO, BOT)
+        prs, reviews, log, failed = S.settle(gh, REPO, BOT)
         self.assertEqual((gh.writes, prs, reviews), ([], [], []))
         self.assertIn("no code owner", log[0])
 
     def test_a_decision_naming_every_theorem_frees_nobody(self):
         gh = Gh()
         gh.add(7, comments=[cm(1, "studied: return a1b2c3d4 docs\nstudied: return e5f6a7b8 docs\nstudied: reject c9d0e1f2 scope")])
-        prs, reviews, _ = S.settle(gh, REPO, BOT)
+        prs, reviews, _, _f = S.settle(gh, REPO, BOT)
         self.assertEqual(reviews[0]["accepted"], [])
         self.assertIn("none left", next(b for m, p, b in gh.writes if p.endswith("/comments"))["body"])
         self.assertEqual(prs[0]["events"][0]["code"], "pr.closed")
@@ -135,7 +152,7 @@ class Settle(unittest.TestCase):
     def test_a_dry_run_changes_nothing_and_reports_nothing_to_the_site(self):
         gh = Gh()
         gh.add(7, comments=[cm(1, "studied: return a1b2c3d4 merit\nstudied: oops")])
-        prs, reviews, log = S.settle(gh, REPO, BOT, dry_run=True)
+        prs, reviews, log, failed = S.settle(gh, REPO, BOT, dry_run=True)
         self.assertEqual((gh.writes, prs, reviews, gh.prs[7]["state"]), ([], [], [], "open"))
         self.assertTrue(any("would close" in x for x in log))
 
