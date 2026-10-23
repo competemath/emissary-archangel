@@ -316,7 +316,7 @@ jobs:
       - name: The factory's scripts
         run: |
           git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
-          git -C emissary sparse-checkout set --no-cone "/scripts/bump/bundle_layers.py" "/scripts/bump/bundle_tar.py" "/scripts/bump/scope_rewrite.py" "/scripts/bump/bundle_cut.py" "/scripts/bump/bundle_rehead.py" "/scripts/bump/autonames.py" "/scripts/bump/tolerant_build.py"
+          git -C emissary sparse-checkout set --no-cone "/scripts/bump/bundle_layers.py" "/scripts/bump/bundle_tar.py" "/scripts/bump/canonicalise_bundle.py" "/scripts/bump/scope_rewrite.py" "/scripts/bump/bundle_cut.py" "/scripts/bump/bundle_rehead.py" "/scripts/bump/autonames.py" "/scripts/bump/tolerant_build.py"
           git -C emissary checkout -q "$GITHUB_SHA"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { name: "results-${{ inputs.key }}", path: raw, run-id: "${{ inputs.recut_from || github.run_id }}", github-token: "${{ github.token }}" }
@@ -343,6 +343,15 @@ jobs:
         run: |
           # shellcheck disable=SC2086  # the list is meant to be split into arguments
           python3 emissary/scripts/bump/scope_rewrite.py $BUNDLES --leaks "$SCOPE"
+      # Once the repository variable TENGOKU_ISNAD_REQUIRED is 1 (here and in tengoku: the intake lane is born tagged, tengoku docs/isnad.md "Born tagged"), the archive holds each
+      # module in the canonical form of tengoku's scripts/isnad_tag.py, which is what tengoku's gate rebuilds from the PR with its tags taken out. Without the variable: no step.
+      - name: The modules in the canonical form (tengoku's isnad_tag.py, from its main)
+        if: ${{ vars.TENGOKU_ISNAD_REQUIRED == '1' }}
+        run: |
+          mkdir -p tengoku-isnad
+          curl --proto '=https' --tlsv1.2 -sSfL https://raw.githubusercontent.com/competemath/tengoku/main/scripts/isnad_tag.py -o tengoku-isnad/isnad_tag.py
+          # shellcheck disable=SC2086  # the list is meant to be split into arguments
+          python3 emissary/scripts/bump/canonicalise_bundle.py --isnad tengoku-isnad/isnad_tag.py $BUNDLES
       - name: Pack (the attested bytes are the canonical .tar, the same function as tengoku's gate; the .tar.gz is for transport)
         run: |
           mkdir -p out
