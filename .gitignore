@@ -64,3 +64,5 @@ next-env.d.ts
 /data/pipeline/
 /data/pipeline-config.json
 .proof-term-fix-marker
+/scripts/warden/__pycache__/
+/scripts/agent-tests/__pycache__/
