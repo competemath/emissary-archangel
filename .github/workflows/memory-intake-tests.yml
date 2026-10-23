@@ -17,7 +17,7 @@ jobs:
     permissions: { contents: read }
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with: { sparse-checkout: "scripts/memory_intake\nscripts/bump/bundle_tar.py", persist-credentials: false }
+        with: { sparse-checkout: "scripts/memory_intake\nscripts/bump/bundle_tar.py\n.github/workflows", persist-credentials: false }  # test_workflow.py reads memory-intake.yml
       - name: unit tests of scripts/memory_intake
         run: |
           set -o pipefail  # `| tail` would otherwise hide a failing test
