@@ -1,0 +1,32 @@
+name: app-check
+# SCRATCH (closed at once): is the tengoku-supervisor App installed on tengoku and tengoku-sandbox, and what can its token do there? Mints the token with the repository's
+# SUPERVISOR_APP_ID / SUPERVISOR_APP_KEY secrets (the workflow does; nobody reads the key) and prints only repository names and the token's rate-limit/permission facts.
+on:
+  pull_request:
+    paths: [".github/workflows/app-check.yml"]
+permissions: {}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: { contents: read }
+    strategy:
+      fail-fast: false
+      matrix: { repo: [tengoku, tengoku-sandbox] }
+    steps:
+      - id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.SUPERVISOR_APP_ID }}
+          private-key: ${{ secrets.SUPERVISOR_APP_KEY }}
+          owner: competemath
+          repositories: ${{ matrix.repo }}
+      - name: What the installation can reach
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          REPO: ${{ matrix.repo }}
+        run: |
+          echo "app: $APP_SLUG"
+          echo "installation reaches:"; gh api /installation/repositories --jq '.repositories[].full_name'
+          echo "token on competemath/$REPO:"; gh api "repos/competemath/$REPO" --jq '{full_name, push: .permissions.push, pull: .permissions.pull}'
