@@ -62,28 +62,52 @@ def pr_files(api: Api, repo: str, base: str, comp: Composition) -> dict[str, str
     return files
 
 
+def branch_exists(api: Api, repo: str, branch: str) -> bool:
+    try:
+        api("GET", f"repos/{repo}/git/ref/heads/{branch}")
+    except ApiError as e:
+        if "404" in str(e) or "Not Found" in str(e):
+            return False
+        raise
+    return True
+
+
+def pr_of_branch(api: Api, repo: str, branch: str) -> dict | None:
+    """The pull request (open, closed or merged) whose head is `branch`, or None."""
+    rows = api("GET", f"repos/{repo}/pulls?head={repo.split('/')[0]}:{branch}&state=all&per_page=1")
+    return rows[0] if isinstance(rows, list) and rows else None  # type: ignore[index]
+
+
 def open_pr(api: Api, repo: str, base: str, comp: Composition, bot: str, email: str, dry_run: bool = False) -> dict:
-    """One commit on a new branch off `base`, a PR from it, the label `studied`. Returns {"number", "url", "branch"} (dry run: what would be opened)."""
+    """One commit on a new branch off `base`, a PR from it, the label `studied`. Returns {"number", "url", "branch"} (dry run: what would be opened).
+    Safe to run again after a run that stopped half way: the branch the bundle id names is the same, so an existing branch is reused (no second commit), an existing
+    pull request is returned (open, closed or merged: a decision already made is not asked again), and the label is put on it either way."""
     files = pr_files(api, repo, base, comp)
     branch = f"studied/{comp.target}/{comp.bundle[:16]}"
     if dry_run:
         return {"number": 0, "url": "", "branch": branch, "files": sorted(files)}
-    head = api("GET", f"repos/{repo}/git/commits/{base}")
-    entries = []
-    for path, text in sorted(files.items()):
-        b = api("POST", f"repos/{repo}/git/blobs", {"content": base64.b64encode(text.encode("utf-8")).decode(), "encoding": "base64"})
-        entries.append({"path": path, "mode": "100644", "type": "blob", "sha": b["sha"]})  # type: ignore[index]
-    tree = api("POST", f"repos/{repo}/git/trees", {"base_tree": head["tree"]["sha"], "tree": entries})  # type: ignore[index]
-    who = {"name": bot, "email": email}
-    n = len(comp.accepted)
-    msg = f"studied: {n} theorem{'s' if n != 1 else ''} for {comp.target} from {comp.author}\n\nSigned-off-by: {bot} <{email}>\n"
-    commit = api("POST", f"repos/{repo}/git/commits", {"message": msg, "tree": tree["sha"], "parents": [base], "author": who, "committer": who})  # type: ignore[index]
-    api("POST", f"repos/{repo}/git/refs", {"ref": f"refs/heads/{branch}", "sha": commit["sha"]})  # type: ignore[index]
-    rows = [{"id": v.entry["id"], "name": v.entry["name"], "stars": (v.entry.get("quality") or {}).get("s")} for v in comp.accepted]
-    pr = api("POST", f"repos/{repo}/pulls", {
-        "title": f"studied: {n} theorem{'s' if n != 1 else ''} for {comp.target} ({comp.author})", "head": branch, "base": "main",
-        "body": pr_body(comp.author, comp.target, comp.bundle, rows, len(comp.report.get("harness", []))), "draft": False})
-    api("POST", f"repos/{repo}/issues/{pr['number']}/labels", {"labels": ["studied"]})  # type: ignore[index]
+    pr = None
+    if branch_exists(api, repo, branch):
+        pr = pr_of_branch(api, repo, branch)
+    else:
+        head = api("GET", f"repos/{repo}/git/commits/{base}")
+        entries = []
+        for path, text in sorted(files.items()):
+            b = api("POST", f"repos/{repo}/git/blobs", {"content": base64.b64encode(text.encode("utf-8")).decode(), "encoding": "base64"})
+            entries.append({"path": path, "mode": "100644", "type": "blob", "sha": b["sha"]})  # type: ignore[index]
+        tree = api("POST", f"repos/{repo}/git/trees", {"base_tree": head["tree"]["sha"], "tree": entries})  # type: ignore[index]
+        who = {"name": bot, "email": email}
+        n = len(comp.accepted)
+        msg = f"studied: {n} theorem{'s' if n != 1 else ''} for {comp.target} from {comp.author}\n\nSigned-off-by: {bot} <{email}>\n"
+        commit = api("POST", f"repos/{repo}/git/commits", {"message": msg, "tree": tree["sha"], "parents": [base], "author": who, "committer": who})  # type: ignore[index]
+        api("POST", f"repos/{repo}/git/refs", {"ref": f"refs/heads/{branch}", "sha": commit["sha"]})  # type: ignore[index]
+    if pr is None:
+        n = len(comp.accepted)
+        rows = [{"id": v.entry["id"], "name": v.entry["name"], "stars": (v.entry.get("quality") or {}).get("s")} for v in comp.accepted]
+        pr = api("POST", f"repos/{repo}/pulls", {
+            "title": f"studied: {n} theorem{'s' if n != 1 else ''} for {comp.target} ({comp.author})", "head": branch, "base": "main",
+            "body": pr_body(comp.author, comp.target, comp.bundle, rows, len(comp.report.get("harness", []))), "draft": False})
+    api("POST", f"repos/{repo}/issues/{pr['number']}/labels", {"labels": ["studied"]})  # type: ignore[index]  # adding a label twice is a no-op
     return {"number": pr["number"], "url": pr["html_url"], "branch": branch}  # type: ignore[index]
 
 

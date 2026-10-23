@@ -16,6 +16,8 @@ class Fake:
         self.files = {"lean-toolchain": TOOLCHAIN + "\n", "Tengoku/All.lean": "import Tengoku.Foo\n", **(files or {})}
         self.writes: list = []
         self.blobs: dict[str, str] = {}
+        self.refs: set[str] = set()  # branches that exist
+        self.prs: dict[str, dict] = {}  # head branch -> pull request
 
     def __call__(self, method, path, body=None, raw=False):
         if method == "GET" and "/contents/" in path:
@@ -23,7 +25,16 @@ class Fake:
             return self.files.get(p, "").encode()
         if method == "GET" and path.endswith(f"/git/commits/{BASE}"):
             return {"tree": {"sha": "t" * 40}}
+        if method == "GET" and "/git/ref/heads/" in path:
+            if path.split("/git/ref/heads/")[1] not in self.refs:
+                raise G.ApiError(f"gh api GET {path}: gh: Not Found (HTTP 404)")
+            return {"object": {"sha": "c" * 40}}
+        if method == "GET" and "/pulls?head=" in path:
+            pr = self.prs.get(path.split("?head=")[1].split("&")[0].split(":", 1)[1])
+            return [pr] if pr else []
         self.writes.append((method, path, body))
+        if path.endswith("/git/refs"):
+            self.refs.add(body["ref"].removeprefix("refs/heads/"))
         if path.endswith("/git/blobs"):
             sha = f"{len(self.blobs):040x}"
             self.blobs[sha] = base64.b64decode(body["content"]).decode()
@@ -90,6 +101,42 @@ class Open(unittest.TestCase):
         self.assertEqual((pr["base"], pr["head"]), ("main", r["branch"]))
         self.assertIn("<!-- studied:v1", pr["body"])
         self.assertEqual(next(b for m, p, b in gh.writes if p.endswith("/labels")), {"labels": ["studied"]})
+
+    def run_open(self, gh, c):
+        return G.open_pr(gh, REPO, BASE, c, "tengoku-supervisor[bot]", "1+tengoku-supervisor[bot]@users.noreply.github.com")
+
+    def test_a_rerun_after_the_branch_was_made_but_not_the_pr_makes_the_pr_only(self):
+        gh, c = Fake(), comp()
+        gh.refs.add(f"studied/erdos-396/{c.bundle[:16]}")  # the earlier run stopped after the ref POST
+        r = self.run_open(gh, c)
+        self.assertEqual(r["number"], 77)
+        self.assertEqual([p.split("/", 3)[-1] for m, p, _ in gh.writes], ["pulls", "issues/77/labels"])  # no second commit, no second ref
+
+    def test_a_rerun_after_the_pr_was_made_but_not_labelled_labels_it(self):
+        gh, c = Fake(), comp()
+        gh.refs.add(f"studied/erdos-396/{c.bundle[:16]}")
+        gh.prs[f"studied/erdos-396/{c.bundle[:16]}"] = {"number": 41, "html_url": f"https://github.com/{REPO}/pull/41"}
+        r = self.run_open(gh, c)
+        self.assertEqual((r["number"], r["url"]), (41, f"https://github.com/{REPO}/pull/41"))
+        self.assertEqual([(m, p.split("/", 3)[-1]) for m, p, _ in gh.writes], [("POST", "issues/41/labels")])
+
+    def test_two_runs_in_a_row_make_one_pr(self):
+        gh, c = Fake(), comp()
+        first = self.run_open(gh, c)
+        gh.prs[first["branch"]] = {"number": first["number"], "html_url": first["url"]}
+        before = len(gh.writes)
+        second = self.run_open(gh, c)
+        self.assertEqual(second, first)
+        self.assertEqual([p.split("/", 3)[-1] for m, p, _ in gh.writes[before:]], [f"issues/{first['number']}/labels"])
+
+    def test_an_error_that_is_not_a_missing_branch_is_not_hidden(self):
+        def api(method, path, body=None, raw=False):
+            if "/git/ref/heads/" in path:
+                raise G.ApiError("gh api GET: HTTP 502 Bad Gateway")
+            return Fake()(method, path, body, raw)
+
+        with self.assertRaises(G.ApiError):
+            G.open_pr(api, REPO, BASE, comp(), "bot", "e@x")
 
     def test_a_dry_run_writes_nothing(self):
         gh = Fake()

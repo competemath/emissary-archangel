@@ -107,18 +107,26 @@ def cmd_collect(a: argparse.Namespace) -> int:
 
 
 def cmd_open(a: argparse.Namespace) -> int:
+    """Open one pull request per accepted bundle. A bundle that fails does not stop the others, and opened.json is rewritten after every success, so what was opened is
+    posted (and marked, so it is not offered again) even when a later bundle failed; the exit code is 1 when any bundle failed."""
     out = Path(a.out)
-    opened = []
+    opened, failed = [], []
     for d in sorted(p for p in out.iterdir() if p.is_dir() and (p / "composition.json").exists()):
         comp = load(json.loads((d / "composition.json").read_text()))
         if not comp.accepted:
             continue
-        pr = G.open_pr(G.gh_api, a.repo, a.base, comp, a.bot, a.email, a.dry_run)
+        try:
+            pr = G.open_pr(G.gh_api, a.repo, a.base, comp, a.bot, a.email, a.dry_run)
+        except G.ApiError as e:
+            print(f"::error::bundle {d.name} ({comp.target}) was not opened: {e}")
+            failed.append(d.name)
+            continue
         print(f"{'would open' if a.dry_run else 'opened'} {pr.get('url') or pr['branch']}")
         opened.append({"username": comp.author, "target": comp.target, "number": pr["number"], "url": pr["url"], "bundle": comp.bundle,
                        "ids": [v.entry["id"] for v in comp.accepted], "names": [v.entry["name"] for v in comp.accepted]})
+        (out / "opened.json").write_text(json.dumps(opened))
     (out / "opened.json").write_text(json.dumps(opened))
-    return 0
+    return 1 if failed else 0
 
 
 def cmd_post(a: argparse.Namespace) -> int:

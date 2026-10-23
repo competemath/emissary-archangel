@@ -92,8 +92,9 @@ jobs:
           args=(--out out --repo "$TARGET" --base "$base" --bot "${APP_SLUG}[bot]" --email "${bot_id}+${APP_SLUG}[bot]@users.noreply.github.com")
           [ "$DRY_RUN" = "true" ] && args+=(--dry-run)
           python3 -m scripts.memory_intake.run open "${args[@]}"
+      # also after a failed open step: what was opened before the failure is still posted and marked (opened.json is written after every pull request)
       - name: Tell competemath.com (the notices) and mark what was submitted
-        if: github.event_name != 'workflow_dispatch' || inputs.dry_run != 'true'
+        if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || inputs.dry_run != 'true') }}
         run: |
           tok="$(curl -sSf -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://competemath.com/leak-memory-intake" | python3 -c 'import json, sys; print(json.load(sys.stdin)["value"])')"
           echo "::add-mask::$tok"

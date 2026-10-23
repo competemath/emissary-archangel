@@ -79,5 +79,44 @@ class Post(unittest.TestCase):
         h.assert_not_called()
 
 
+class OpenKeepsGoing(unittest.TestCase):
+    """A bundle that fails to open does not stop the others, and what was opened is written down at once (the post step marks it, so it is not offered again)."""
+
+    def setUp(self):
+        self.out = Path(tempfile.mkdtemp())
+        for n in range(3):
+            d = self.out / str(n)
+            d.mkdir()
+            (d / "composition.json").write_text(json.dumps(R.dump(C.compose(candidate([1, 2, n + 3]), fake_review()))))
+        self.args = mock.Mock(out=str(self.out), repo="competemath/tengoku", base="a" * 40, bot="b[bot]", email="e@x", dry_run=False)
+
+    def test_the_failing_bundle_is_skipped_the_others_are_recorded_and_the_exit_code_is_one(self):
+        calls = []
+
+        def open_pr(api, repo, base, comp, bot, email, dry_run=False):
+            calls.append(comp.bundle)
+            if len(calls) == 2:
+                raise R.G.ApiError("gh api POST git/refs: HTTP 500")
+            return {"number": 10 + len(calls), "url": f"https://github.com/{repo}/pull/{10 + len(calls)}", "branch": "b"}
+
+        with mock.patch.object(R.G, "open_pr", open_pr), mock.patch("builtins.print"):
+            code = R.cmd_open(self.args)
+        self.assertEqual(code, 1)
+        self.assertEqual(len(calls), 3, "the third bundle was still tried")
+        recorded = json.loads((self.out / "opened.json").read_text())
+        self.assertEqual([o["number"] for o in recorded], [11, 13])
+
+    def test_opened_json_is_written_after_each_pull_request(self):
+        seen = []
+
+        def open_pr(api, repo, base, comp, bot, email, dry_run=False):
+            seen.append(json.loads((self.out / "opened.json").read_text()) if (self.out / "opened.json").exists() else [])
+            return {"number": len(seen), "url": "u", "branch": "b"}
+
+        with mock.patch.object(R.G, "open_pr", open_pr), mock.patch("builtins.print"):
+            self.assertEqual(R.cmd_open(self.args), 0)
+        self.assertEqual([len(x) for x in seen], [0, 1, 2], "each call sees the ones opened before it already on disk")
+
+
 if __name__ == "__main__":
     unittest.main()
