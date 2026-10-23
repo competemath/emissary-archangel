@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""canonicalise_bundle.py --isnad PATH --bundle DIR [--bundle DIR ...] — every `.lean` module of the bundle directories, rewritten in place in the canonical form of
-tengoku's scripts/isnad_tag.py (`canonical_text`: the isnad tags out, the whitespace before every docstring's closing `-/` normalised).
+"""canonicalise_bundle.py --bundle DIR [--bundle DIR ...] — every `.lean` module of the bundle directories, rewritten in place in the canonical form of tengoku's
+scripts/isnad_tag.py (`canonical_text`: the isnad tags out, the whitespace before every docstring's closing `-/` normalised).
 
 Why: once tengoku's intake lane is born tagged (tengoku docs/isnad.md, "Born tagged"; the repository variable TENGOKU_ISNAD_REQUIRED is 1 in both repositories), a PR
 carries its modules with their isnad tags, and tengoku's gate rebuilds the attested archive from them by taking each module through `canonical_text`. That function is
@@ -8,31 +8,23 @@ not the identity on a module with a one-line docstring (`/-- Words. -/` is `/-- 
 match the gate's bytes. The step runs in the attest job, before the archive is packed, and only when the variable is 1; without it nothing here runs and the archive is the
 bytes the factory wrote, as before.
 
-`--isnad` is tengoku's isnad_tag.py as it is on tengoku's main, fetched by the workflow: the function is tengoku's, not a copy of it. A file that is not UTF-8 is left alone
-(tengoku's gate leaves it alone too and fails it on its own account), and so is anything but a regular `.lean` file inside a bundle directory."""
+`isnad_tag.py` beside this file is a VERBATIM copy of tengoku's scripts/isnad_tag.py, as `bundle_tar.py` is of tengoku's scripts/ci/bundle_tar.py: the attest job holds the
+OIDC token and the attestation permission, so it runs no code that was fetched while it ran, and it does not execute tengoku's main as it happens to be. Both copies are pinned by
+the same sha256 (test_canonicalise_bundle.py here, test_isnad_copy.py in tengoku) and by the same golden cases, so a change on one side fails a test until it is made on the other.
+A file that is not UTF-8 is left alone (tengoku's gate leaves it alone too and fails it on its own account), and so is anything but a regular `.lean` file inside a bundle
+directory."""
 
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import sys
 from pathlib import Path
 
-
-def load_canonical(path: str):
-    spec = importlib.util.spec_from_file_location("isnad_tag", path)
-    if spec is None or spec.loader is None:
-        raise SystemExit(f"{path}: not a Python module")
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules["isnad_tag"] = mod  # the module may refer to itself (dataclasses, typing)
-    spec.loader.exec_module(mod)
-    fn = getattr(mod, "canonical_text", None)
-    if not callable(fn):
-        raise SystemExit(f"{path}: no canonical_text")
-    return fn
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # the copy of tengoku's isnad_tag.py beside this file
+from isnad_tag import canonical_text  # noqa: E402
 
 
-def canonicalise_dir(d: str, canonical) -> tuple[int, int, int]:
+def canonicalise_dir(d: str, canonical=canonical_text) -> tuple[int, int, int]:
     """(modules seen, modules rewritten, modules left alone because they are not UTF-8)"""
     root = Path(d).resolve()
     seen = changed = skipped = 0
@@ -54,15 +46,13 @@ def canonicalise_dir(d: str, canonical) -> tuple[int, int, int]:
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--isnad", required=True)
     ap.add_argument("--bundle", action="append", default=[], required=True)
     a = ap.parse_args(argv)
-    canonical = load_canonical(a.isnad)
     for d in a.bundle:
         if not Path(d).is_dir():
             print(f"{d}: no such bundle in this run, skipped")
             continue
-        seen, changed, skipped = canonicalise_dir(d, canonical)
+        seen, changed, skipped = canonicalise_dir(d)
         print(f"{d}: {seen} modules, {changed} rewritten in the canonical form, {skipped} not UTF-8 (left as they are)")
     return 0
 
