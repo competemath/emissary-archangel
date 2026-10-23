@@ -33,7 +33,8 @@ studied: return a1b2c3d4 merit  not used by anything yet          return codes: 
 studied: reject e5f6a7b8 hygiene                                  reject codes: hygiene scope report
 ```
 
-`return`: the author may come back with a better one. `reject`: not shipped, and this text is not sent again. The words after the code are the owner's own (the account reads them; the driver is
+`return`: the author may come back with a better one. `reject`: not shipped, and this text is not sent again, whatever the proof (its id is the hash of the statement): use it for what must never ship, and
+`return` for everything a better version could fix. The words after the code are the owner's own (the account reads them; the driver is
 never given them: it is told what the code means by the site's catalogue, `src/app/lib/leak-memory/notices-catalogue.ts`). The specialised reviewer's file in tengoku, `.gitar/review/studied.md`,
 writes these lines for the owner to copy.
 
@@ -47,7 +48,8 @@ What happens (`scripts/memory_intake/decisions.py`, `settle.py`):
    (the site's kept row: returned or rejected).
 2. **Every 6 hours (`open`, the App's token; or a `workflow_dispatch` with `what: intake`)** the pull request is closed with a comment that names every theorem's fate, and the theorems nobody decided on
    are *freed* (their kept row is marked not-submitted again). The same run's `collect` has already run, so they are bundled in the next run, as a new pull request. A closed pull request is left alone; the comment
-   has a marker, so a run that stopped between the comment and the close finishes without a second comment.
+   has a marker, so a run that stopped between the comment and the close finishes without a second comment. A code owner who closes a pull request by hand *after* deciding on some of its theorems
+   frees the rest in the same way (the next report sees a closed pull request with decisions); to drop a whole bundle, close it without a decision line.
 3. **A rejected theorem** stays held for good (its id is the hash of its statement: the same statement is never offered again). **A returned one** is offered again only when its text changed (name, statement
    or proof) and the kept copy is replaced by the new save: the site says so to the driver ("revise it, save it again").
 4. **A bundle of the same theorems** can be formed again after such a close (their ids are the same, so the bundle id and the branch name are). The pull request the intake closed that way is over: the new
