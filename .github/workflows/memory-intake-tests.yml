@@ -1,0 +1,24 @@
+# The studied lane's opener (scripts/memory_intake): its unit tests, on every push and pull request that touches it. No Lean, no network, a read-only token.
+name: memory-intake-tests
+on:
+  push:
+    branches: [main]
+    paths: ["scripts/memory_intake/**", ".github/workflows/memory-intake*.yml"]
+  pull_request:
+    paths: ["scripts/memory_intake/**", ".github/workflows/memory-intake*.yml"]
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { sparse-checkout: "scripts/memory_intake\nscripts/bump/bundle_tar.py", persist-credentials: false }
+      - name: unit tests of scripts/memory_intake
+        run: |
+          set -o pipefail  # `| tail` would otherwise hide a failing test
+          python3 -m unittest discover -s scripts/memory_intake/tests -t . 2>&1 | tail -15

@@ -1,0 +1,118 @@
+name: memory-intake
+# THE STUDIED LANE'S OPENER (competemath/tengoku docs/pr-classes.md section 9; competemath.com docs/leak-notices.md). Every 6 hours: take the theorems that Leak runs proved and rated four stars or
+# more from the accounts that chose to share them (competemath.com, signed with this job's OIDC token), put each bundle through praiser's checks and its bar (bar/0), and open one PR per
+# bundle on tengoku as the studied App (tengoku-supervisor): the theorems that cleared the bar, with their harness evidence, attested here. The ones that did not are told to their
+# account as notices (returned with the codes to fix, or rejected). Every 30 minutes: the state of every studied PR (its checks, its reviews, merged or closed) is reported to the same place,
+# so the account and its driver see what happened to what they put forward. The tags (isnad) are written into each PR by tengoku's autotag workflows, not here.
+#
+# Nothing runs unless the repository variable LEAK_INTAKE_ENABLED is "1" (the kill switch; the site has its own, LEAK_INTAKE_ENABLED and LEAK_INTAKE_ACCOUNTS). A person starts a rehearsal with
+# workflow_dispatch (target: competemath/tengoku-sandbox, dry_run: true prints what would open). The App's token is minted in the `open` job only, which runs code from this repository's main
+# and never a line of a candidate or of a pull request; the `collect` job reads untrusted text and holds no write token.
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+    inputs:
+      target: { description: "Repository to open the pull requests in (tengoku, or tengoku-sandbox for a rehearsal)", required: true, default: "competemath/tengoku" }
+      dry_run: { description: "Print what would open, open nothing", required: true, default: "true" }
+      what: { description: "intake (take candidates, open PRs) or report (send the state of the studied PRs)", required: true, default: "intake" }
+
+permissions: {}
+
+concurrency:
+  group: memory-intake-${{ github.event.schedule || github.event.inputs.what || 'intake' }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  TARGET: ${{ inputs.target || 'competemath/tengoku' }}
+  PRAISER_REF: ef30ed0beb89a1d5135d0dbcd37c68582fad6b10  # competemath/tengoku-praiser, the commit with bar/0
+
+jobs:
+  collect:
+    if: (github.event_name == 'workflow_dispatch' && inputs.what == 'intake') || (github.event.schedule == '17 */6 * * *' && vars.LEAK_INTAKE_ENABLED == '1')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: { contents: read, id-token: write, attestations: write }
+    steps:
+      - name: The target is one of the two repositories the App is installed on
+        run: |
+          case "$TARGET" in competemath/tengoku|competemath/tengoku-sandbox) ;; *) echo "::error::target must be competemath/tengoku or competemath/tengoku-sandbox"; exit 1 ;; esac
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { sparse-checkout: "scripts/memory_intake\nscripts/bump/bundle_tar.py", persist-credentials: false }
+      # tengoku's own functions, so that the bytes attested here are the bytes its gate rebuilds: the canonical form of a module (isnad_tag.py) and the tree's toolchain
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { repository: "${{ env.TARGET }}", ref: main, path: tengoku, sparse-checkout: "scripts/isnad_tag.py\nlean-toolchain", persist-credentials: false }
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { repository: competemath/tengoku-praiser, ref: "${{ env.PRAISER_REF }}", path: praiser, persist-credentials: false }
+      - name: A token for competemath.com (this job's OIDC identity)
+        run: |
+          tok="$(curl -sSf -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://competemath.com/leak-memory-intake" | python3 -c 'import json, sys; print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::$tok"
+          echo "LEAK_OIDC_TOKEN=$tok" >> "$GITHUB_ENV"
+      - name: Candidates, the checks and the bar
+        env: { PRAISER_PATH: "${{ github.workspace }}/praiser" }
+        run: python3 -m scripts.memory_intake.run collect --out out --tengoku-root tengoku --tengoku-scripts tengoku/scripts
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        if: hashFiles('out/*/bundle.tar') != ''
+        with: { subject-path: "out/*/bundle.tar" }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: intake, path: out, retention-days: 3, if-no-files-found: ignore }
+
+  open:
+    needs: collect
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: { contents: read, id-token: write, actions: read }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { sparse-checkout: "scripts/memory_intake", persist-credentials: false }
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { name: intake, path: out }
+      - id: app
+        if: github.event_name != 'workflow_dispatch' || inputs.dry_run != 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.SUPERVISOR_APP_ID }}
+          private-key: ${{ secrets.SUPERVISOR_APP_KEY }}
+          owner: competemath
+          repositories: ${{ endsWith(env.TARGET, '-sandbox') && 'tengoku-sandbox' || 'tengoku' }}
+      - name: Open the pull requests
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug || 'tengoku-supervisor' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: |
+          base="$(gh api "repos/$TARGET/commits/main" --jq .sha)"
+          bot_id="$(gh api "/users/${APP_SLUG}%5Bbot%5D" --jq .id)"
+          args=(--out out --repo "$TARGET" --base "$base" --bot "${APP_SLUG}[bot]" --email "${bot_id}+${APP_SLUG}[bot]@users.noreply.github.com")
+          [ "$DRY_RUN" = "true" ] && args+=(--dry-run)
+          python3 -m scripts.memory_intake.run open "${args[@]}"
+      - name: Tell competemath.com (the notices) and mark what was submitted
+        if: github.event_name != 'workflow_dispatch' || inputs.dry_run != 'true'
+        run: |
+          tok="$(curl -sSf -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://competemath.com/leak-memory-intake" | python3 -c 'import json, sys; print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::$tok"
+          LEAK_OIDC_TOKEN="$tok" python3 -m scripts.memory_intake.run post --out out
+
+  report:
+    if: (github.event_name == 'workflow_dispatch' && inputs.what == 'report') || (github.event.schedule == '7,37 * * * *' && vars.LEAK_INTAKE_ENABLED == '1')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions: { contents: read, id-token: write }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { sparse-checkout: "scripts/memory_intake", persist-credentials: false }
+      - name: The state of every studied PR, to competemath.com
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: |
+          tok="$(curl -sSf -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://competemath.com/leak-memory-intake" | python3 -c 'import json, sys; print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::$tok"
+          args=(--repo "$TARGET"); [ "$DRY_RUN" = "true" ] && args+=(--dry-run)
+          LEAK_OIDC_TOKEN="$tok" python3 -m scripts.memory_intake.run report "${args[@]}"
