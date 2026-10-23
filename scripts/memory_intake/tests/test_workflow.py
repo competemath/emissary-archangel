@@ -36,6 +36,14 @@ class Schedule(unittest.TestCase):
             self.assertIn("vars.LEAK_INTAKE_ENABLED == '1'", DOC["jobs"][name]["if"], name)
 
 
+class Checkout(unittest.TestCase):
+    def test_the_test_job_checks_out_the_workflow_this_file_reads(self):
+        """CodeRabbit on emissary#102: memory-intake-tests.yml checked out scripts/memory_intake only, so this module failed on import in CI."""
+        tests = yaml.safe_load((WF.parent / "memory-intake-tests.yml").read_text(encoding="utf-8"))
+        checkout = next(s for s in tests["jobs"]["unit"]["steps"] if "actions/checkout" in s.get("uses", ""))
+        self.assertIn(".github/workflows", checkout["with"]["sparse-checkout"].split("\n"))
+
+
 class Token(unittest.TestCase):
     def test_the_apps_token_is_minted_in_open_and_settle_only(self):
         minters = {n for n, j in DOC["jobs"].items() if any("create-github-app-token" in s.get("uses", "") for s in j["steps"])}
