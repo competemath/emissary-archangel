@@ -46,11 +46,14 @@ def ignored_text(rows: list[D.Ignored]) -> str:
 def settle(api: G.Api, repo: str, bot: str, dry_run: bool = False) -> tuple[list[dict], list[dict], list[str], int]:
     """Returns (`prs`, `reviews`, a log, how many pull requests failed) for the site: the closed pull requests' notices and what happens to their theorems. A pull request whose
     calls fail is logged and skipped; the others go on (what was closed is reported by the next `report` anyway: it sees a closed pull request with decisions)."""
-    owners = G.code_owners(api, repo)
     prs: list[dict] = []
     reviews: list[dict] = []
     log: list[str] = []
     failed = 0
+    try:
+        owners = G.code_owners(api, repo)
+    except G.ApiError as e:
+        return prs, reviews, [f"::error::CODEOWNERS was not read, nothing is settled this time: {e}"], 1
     if not owners:
         return prs, reviews, ["no code owner found in .github/CODEOWNERS on main: no decision counts"], failed
     for issue in G.open_studied_prs(api, repo, MAX_PRS):

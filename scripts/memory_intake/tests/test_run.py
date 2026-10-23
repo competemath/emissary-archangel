@@ -212,6 +212,21 @@ class Decisions(unittest.TestCase):
         self.assertEqual(code, [1])
         self.assertEqual([p["number"] for p in sent[0][2]["prs"]], [7])
 
+    def test_an_unreadable_code_owners_file_reports_nothing_instead_of_reporting_without_the_decisions(self):
+        gh = GhWithChecks()
+        gh.add(7, state="closed", comments=[TS.cm(1, "studied: return a1b2c3d4 merit")])
+        real = gh.__call__
+
+        def down(method, path, body=None, raw=False):
+            if "CODEOWNERS" in path:
+                raise R.G.ApiError("GET CODEOWNERS: HTTP 503")
+            return real(method, path, body, raw)
+
+        code, sent = [], []
+        with mock.patch.object(R.G, "gh_api", down):
+            sent = self.sent_by(lambda: code.append(R.main(["report", "--repo", TS.REPO])))
+        self.assertEqual((code, sent), ([1], []), "a snapshot without the decisions would make the site answer their notices for good")
+
     def test_report_without_decisions_is_what_it_was(self):
         gh = GhWithChecks()
         gh.add(7)

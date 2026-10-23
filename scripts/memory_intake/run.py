@@ -180,7 +180,13 @@ def report_one(a: argparse.Namespace, owners: set[str], number: int) -> tuple[di
 
 
 def cmd_report(a: argparse.Namespace) -> int:
-    owners = G.code_owners(G.gh_api, a.repo)
+    try:
+        owners = G.code_owners(G.gh_api, a.repo)
+    except G.ApiError as e:
+        # Not degraded to "no owner": a report without the decisions would drop their notices from every snapshot, and the site answers (for good) what a snapshot no longer lists.
+        # Nothing is posted this time; the next run asks again.
+        print(f"::error::CODEOWNERS was not read, nothing is reported this time: {e}")
+        return 1
     prs, reviews, failed = [], [], 0
     for issue in G.open_studied_prs(G.gh_api, a.repo):
         try:  # a pull request whose calls fail is skipped, the others are still reported

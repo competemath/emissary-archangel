@@ -134,6 +134,19 @@ class Settle(unittest.TestCase):
         S.settle(gh, REPO, BOT)
         self.assertEqual(gh.writes, [])
 
+    def test_an_unreadable_code_owners_file_settles_nothing_and_fails_the_run(self):
+        gh = Gh()
+        gh.add(7, comments=[cm(1, "studied: reject a1b2c3d4 hygiene")])
+        real = gh.__call__
+
+        def down(method, path, body=None, raw=False):
+            if "CODEOWNERS" in path:
+                raise G.ApiError("GET CODEOWNERS: HTTP 503")
+            return real(method, path, body, raw)
+
+        prs, reviews, log, failed = S.settle(down, REPO, BOT)
+        self.assertEqual((gh.writes, prs, reviews, failed), ([], [], [], 1))
+
     def test_no_code_owners_file_means_no_decision_counts(self):
         gh = Gh(codeowners="")
         gh.add(7, comments=[cm(1, "studied: reject a1b2c3d4 hygiene")])
