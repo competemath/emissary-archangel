@@ -46,8 +46,8 @@ What happens (`scripts/memory_intake/decisions.py`, `settle.py`):
 
 1. **Every 30 minutes (`report`)** the decisions go to the site with the PR's state: one notice per verdict and code (`review.return.merit`, `review.reject.hygiene`, ...), and the decided theorems are *held*
    (the site's kept row: returned or rejected).
-2. **Every 6 hours (`open`, the App's token; or a `workflow_dispatch` with `what: intake`)** the pull request is closed with a comment that names every theorem's fate, and the theorems nobody decided on
-   are *freed* (their kept row is marked not-submitted again). The same run's `collect` has already run, so they are bundled in the next run, as a new pull request. A closed pull request is left alone; the comment
+2. **Within the half hour (`settle`, the App's token, right after the report; the `open` job of an intake runs the same step too)** the pull request is closed with a comment that names every theorem's fate, and the theorems nobody decided on
+   are *freed* (their kept row is marked not-submitted again). They are bundled in the next intake (hourly), as a new pull request. A closed pull request is left alone; the comment
    has a marker, so a run that stopped between the comment and the close finishes without a second comment. A code owner who closes a pull request by hand *after* deciding on some of its theorems
    frees the rest in the same way (the next report sees a closed pull request with decisions); to drop a whole bundle, close it without a decision line.
 3. **A rejected theorem** stays held for good (its id is the hash of its statement: the same statement is never offered again). **A returned one** is offered again only when its text changed (name, statement
