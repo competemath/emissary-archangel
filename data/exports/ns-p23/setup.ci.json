@@ -1,0 +1,169 @@
+{
+  "key": "ns-p23",
+  "repo": "https://github.com/stksk310/NS-P23-Lean",
+  "commit": "cb782617f12909107480ccfd51d4450d05c8e5c3",
+  "toolchain": "leanprover/lean4:v4.34.0-rc1",
+  "roots": [
+    "P23"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/ns-p23/repo",
+  "entries": 1733,
+  "modules": 142,
+  "exported": 109,
+  "failed": [
+    {
+      "module": "P23.Algebra.SevenBoxResidueObstruction",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Main",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Monomial.PlainCentrePatterns",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Monomial.PlainDominance",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Monomial.PlainFourGeneratorShape",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Monomial.PlainHV",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Monomial.PlainNoFive",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Monomial.PlainSevenBox",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Monomial.PlainTypeThreeFrontier",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.ASForcing",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.DominantAperyBase",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.DominantAperyPivot",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.HighRhoAllBaseDominance",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.HighRhoLocalAlternatives",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.MonomialSevenExclusion",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.OriginalBranches",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.PlainAperyResidues",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.PlainLocalFrontier",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.RepeatedCentre",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.RhoFiveExclusion",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.RhoFiveMonomialAlternative",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.RhoFourBorderSupport",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.RhoFourExclusion",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.RhoFourLocalReduction",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.RhoFourMonomialBase",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.RhoFourResidualDegree",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.RhoFourResidualSource",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.RhoFourResidualTop",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.RhoFourSaturation",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.RhoFourTaggedDegree",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.RhoFourTaggedNormalization",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.TaggedDominantBase",
+      "why": "no closure"
+    },
+    {
+      "module": "P23.Semigroup.TypeThreeLowerBound",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1807,
+    "kept": 1733,
+    "skippedRoot": 74,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 57,
+    "lineUnverified": 0,
+    "nameFixed": 1733,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 122040320,
+  "minutes": 24,
+  "finishedAt": "2026-10-25T16:32:57.520Z"
+}
