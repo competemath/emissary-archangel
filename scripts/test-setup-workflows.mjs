@@ -41,11 +41,14 @@ check("shard starts only on a complete build (or without a prime)", /prime_minut
 check("finish starts only on a complete build (or a bank_run, or without a prime)", /inputs\.bank_run != '' \|\| inputs\.prime_minutes == '0' \|\| needs\.prime\.outputs\.complete == 'true'/.test(sharded.finish.split("runs-on")[0]), "")
 check("the complete word is cut down to true or false before it is an output", /grep -E '\^complete=\(true\|false\)\$'/.test(sharded.prime), "")
 check("the prime job restores the previous build and goes on if it has expired", /continue-on-error: true/.test(sharded.prime.split("Build what fits")[0].split("The previous round's build")[1] || ""), "")
+check("build-gate forwards tengoku_ref, as the export round does (after checking it is a branch name)", /-f tengoku_ref="\$TENGOKU_REF"/.test(sharded["build-gate"]) && /TENGOKU_REF" =~ \^\[A-Za-z0-9\._\/-\]\*\$/.test(sharded["build-gate"]), "")
+check("the export round forwards tengoku_ref", /-f tengoku_ref="\$TENGOKU_REF"/.test(sharded.finish), "")
 check("the next export round carries max_build_rounds on", /-f max_build_rounds="\$MAX_BUILD_ROUNDS"/.test(sharded.finish), "")
 
 const auto = jobsOf("setup-auto.yml")
 const planBlock = auto.plan || ""
 check("setup-auto has one job, which dispatches and only reads contents", /actions:\s*write/.test(permissionsOf(planBlock) || "") && /contents:\s*read/.test(permissionsOf(planBlock) || "") && !/contents:\s*write/.test(permissionsOf(planBlock) || ""), permissionsOf(planBlock))
+check("setup-auto reads the records from tengoku_ref and hands it to both routes", /origin\/\$TENGOKU_REF/.test(planBlock) && (planBlock.match(/-f tengoku_ref="\$TENGOKU_REF"/g) || []).length === 2, (planBlock.match(/-f tengoku_ref/g) || []).length)
 check("setup-auto never builds or runs the library", !/\blake\b|elan|setup-source\.mjs/.test(planBlock.replace(/#.*$/gm, "")), "")
 check("setup-auto checks the key before using it", /\^\[a-z0-9\]\[a-z0-9-\]\*\$/.test(planBlock), "")
 const runBodies = [...planBlock.matchAll(/run: \|\n((?: {10}.*\n?|\n)+)/g)].map((m) => m[1]).join("\n")
