@@ -1,0 +1,97 @@
+{
+  "key": "kummer-criterion",
+  "repo": "https://github.com/riccardobrasca/KummerCriterion",
+  "commit": "a7fde210158e10171e083eeaffee4a093bcdf5a3",
+  "toolchain": "leanprover/lean4:v4.36.0-rc1",
+  "roots": [
+    "KummerCriterion"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/kummer-criterion/repo",
+  "entries": 1809,
+  "modules": 124,
+  "exported": 124,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "KummerCriterion.CyclotomicUnits.DworkParameter.Part17",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/kummer-criterion KummerCriterion KummerCriterion.CyclotomicUnits.DworkParameter.Part17 "
+      },
+      {
+        "module": "KummerCriterion.CyclotomicUnits.IndexDeterminant",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/kummer-criterion KummerCriterion KummerCriterion.CyclotomicUnits.IndexDeterminant "
+      },
+      {
+        "module": "KummerCriterion.CyclotomicUnits.KummerLogMatrix",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/kummer-criterion KummerCriterion KummerCriterion.CyclotomicUnits.KummerLogMatrix "
+      },
+      {
+        "module": "KummerCriterion.CyclotomicUnits.LogDomain",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/kummer-criterion KummerCriterion KummerCriterion.CyclotomicUnits.LogDomain "
+      },
+      {
+        "module": "KummerCriterion.CyclotomicUnits.NormalizedIndex",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/kummer-criterion KummerCriterion KummerCriterion.CyclotomicUnits.NormalizedIndex "
+      },
+      {
+        "module": "KummerCriterion.CyclotomicUnits.NormalizedSubgroup",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/kummer-criterion KummerCriterion KummerCriterion.CyclotomicUnits.NormalizedSubgroup "
+      },
+      {
+        "module": "KummerCriterion.CyclotomicUnits.NormalizedUnits",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/kummer-criterion KummerCriterion KummerCriterion.CyclotomicUnits.NormalizedUnits "
+      },
+      {
+        "module": "KummerCriterion.CyclotomicUnits.Saturation",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/kummer-criterion KummerCriterion KummerCriterion.CyclotomicUnits.Saturation "
+      },
+      {
+        "module": "KummerCriterion.CyclotomicUnits.SaturationIndex",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/kummer-criterion KummerCriterion KummerCriterion.CyclotomicUnits.SaturationIndex "
+      },
+      {
+        "module": "KummerCriterion.CyclotomicUnits.UnitsReflection",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/kummer-criterion KummerCriterion KummerCriterion.CyclotomicUnits.UnitsReflection "
+      },
+      {
+        "module": "KummerCriterion.HMinus.KplusEulerProduct",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/kummer-criterion KummerCriterion KummerCriterion.HMinus.KplusEulerProduct "
+      },
+      {
+        "module": "KummerCriterion.HMinus.KplusPrimeArithmetic",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/kummer-criterion KummerCriterion KummerCriterion.HMinus.KplusPrimeArithmetic "
+      },
+      {
+        "module": "KummerCriterion.LehmerVandiver.PrimaryUnits.Part1",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/kummer-criterion KummerCriterion KummerCriterion.LehmerVandiver.PrimaryUnits.Part1 "
+      },
+      {
+        "module": "KummerCriterion.TotallyRealSubfield.ClassGroup",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/kummer-criterion KummerCriterion KummerCriterion.TotallyRealSubfield.ClassGroup "
+      },
+      {
+        "module": "KummerCriterion.TotallyRealSubfield.ZetaPrime",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/kummer-criterion KummerCriterion KummerCriterion.TotallyRealSubfield.ZetaPrime "
+      }
+    ]
+  },
+  "seed": {
+    "records": 1809,
+    "kept": 1809,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 112,
+    "lineUnverified": 6,
+    "nameFixed": 1809,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 150306816,
+  "minutes": 9,
+  "finishedAt": "2026-10-25T16:18:12.125Z"
+}
