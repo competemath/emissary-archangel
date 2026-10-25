@@ -1,5 +1,5 @@
 name: setup-sharded
-run-name: setup-sharded ${{ inputs.key }} (round ${{ inputs.round || '1' }})
+run-name: setup-sharded ${{ inputs.key }} (round ${{ inputs.round || '1' }}${{ inputs.build_round != '' && inputs.build_round != '1' && format(', build {0}', inputs.build_round) || '' }})
 # One library too big for one 6-hour job (flt-anthropic, lean-pool, tauceti, navier-stokes-euler), split across
 # runners. Every shard starts at once: it builds its slice of the modules (a stable hash of the module name picks
 # it) with their imports, so a module many slices import is compiled on each of them; on free runners that
@@ -15,6 +15,11 @@ run-name: setup-sharded ${{ inputs.key }} (round ${{ inputs.round || '1' }})
 # Every stage skips outputs that already exist, so a shard that runs out of time loses nothing: the finish job
 # publishes once every module is exported or recorded as failed, and otherwise hands the outputs so far to the next
 # round as an artifact and dispatches it (at most `max_rounds`). `bank_run` publishes an earlier run's shard outputs.
+# The build comes first when it is long (prime_minutes > 0): the prime job builds for that many minutes, carrying on from
+# the build of the previous round (`build_run`, or `resume_run`), and then looks at what it has (--phase build-status). Only
+# a complete build starts the shards; an incomplete one hands over to the build-gate job, which dispatches one more build
+# round (at most `max_build_rounds`) and ends this run. A library that builds in one round goes straight on to its shards.
+# setup-auto.yml chooses between this and setup-libraries.yml (one job) from the size of the library.
 on:
   workflow_dispatch:
     inputs:
@@ -49,6 +54,18 @@ on:
         description: "internal: the run whose outputs (and prime build) this round resumes"
         required: false
         default: ""
+      build_run:
+        description: "internal: the run whose build the prime job carries on from (default: resume_run)"
+        required: false
+        default: ""
+      build_round:
+        description: "internal: which build-only round this is"
+        required: false
+        default: "1"
+      max_build_rounds:
+        description: "Build rounds before the workflow gives up on a build that is still not complete."
+        required: false
+        default: "6"
       bank_run:
         description: "Publish the shard outputs of this earlier run instead of running shards (their artifacts last 3 days)."
         required: false
@@ -81,6 +98,7 @@ jobs:
     permissions: { contents: read, actions: read }
     outputs:
       shards: ${{ steps.plan.outputs.shards }}
+      complete: ${{ steps.status.outputs.complete }}
     steps:
       - name: Free disk (a Mathlib cache plus a library build need ~20 GB)
         if: inputs.prime_minutes != '0'
@@ -90,11 +108,13 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with: { filter: "blob:none", sparse-checkout: "scripts", persist-credentials: false }
       - id: plan
+        env: { PRIME_MINUTES: "${{ inputs.prime_minutes }}" }
         run: |
           python3 - <<'PY'
           import json, os
           n = int(os.environ["SHARDS"])
           assert 1 <= n <= 64, f"shards must be 1-64, not {n}"
+          assert 0 <= int(os.environ["PRIME_MINUTES"]) <= 300, "prime_minutes is 0-300: the job has 350 minutes and the setup and the packing take the rest"
           s = json.load(open("sources.json"))["sources"][os.environ["KEY"]]
           assert not s.get("corpusRoot"), "a corpusRoot source is set up in place, not on runners"
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
@@ -116,9 +136,10 @@ jobs:
           curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: The previous round's build
-        if: inputs.resume_run != '' && inputs.prime_minutes != '0'
+        if: (inputs.build_run != '' || inputs.resume_run != '') && inputs.prime_minutes != '0'
+        continue-on-error: true   # an artifact older than its 3 days is gone: the build then starts again, which is slow but not wrong
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with: { name: build, run-id: "${{ inputs.resume_run }}", github-token: "${{ github.token }}" }
+        with: { name: build, run-id: "${{ inputs.build_run || inputs.resume_run }}", github-token: "${{ github.token }}" }
       - name: Build what fits in ${{ inputs.prime_minutes }} minutes
         if: inputs.prime_minutes != '0'
         env: { PRIME_MINUTES: "${{ inputs.prime_minutes }}" }
@@ -127,6 +148,14 @@ jobs:
           restore=""; [ -f build.tar.zst ] && restore="--restore build.tar.zst"
           timeout -k 2m "${PRIME_MINUTES}m" node scripts/setup-source.mjs "$KEY" --phase build $restore $args || echo "::notice::the prime build stopped at its budget; the shards build the rest"
           pkill -f 'bin/lake|bin/lean' || true
+      - name: Is the build complete?
+        id: status
+        if: inputs.prime_minutes != '0'
+        run: |
+          # runs no Lean; the library's own code has run in this job, so only the one word is taken from the answer
+          word=$(node scripts/setup-source.mjs "$KEY" --phase build-status | grep -E '^complete=(true|false)$' | tail -n 1 || true)
+          echo "complete=${word#complete=}" | grep -E '^complete=(true|false)$' >> "$GITHUB_OUTPUT" || echo "complete=false" >> "$GITHUB_OUTPUT"
+          cat "infra/$KEY/build-status.json" || true
       - name: Pack the build
         run: |
           repo="infra/$KEY/repo/$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")"
@@ -137,8 +166,44 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: { name: build, path: build.tar.zst, retention-days: 3, compression-level: 0 }
 
+  # One more build round when the build is not complete. Runs none of the library's code, so unlike the prime job it may hold a
+  # token that can dispatch; the only thing taken from the prime job is a word that is compared, never run.
+  build-gate:
+    needs: prime
+    if: always() && inputs.bank_run == '' && inputs.prime_minutes != '0' && needs.prime.result == 'success' && needs.prime.outputs.complete != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { actions: write }
+    steps:
+      - name: Dispatch the next build round
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHARDS: ${{ inputs.shards }}
+          PRIME_MINUTES: ${{ inputs.prime_minutes }}
+          EXPAND_CHUNK: ${{ inputs.expand_chunk }}
+          ROUND: ${{ inputs.round }}
+          MAX_ROUNDS: ${{ inputs.max_rounds }}
+          PARALLEL: ${{ inputs.parallel || '12' }}
+          RESUME_RUN: ${{ inputs.resume_run }}
+          BUILD_ROUND: ${{ inputs.build_round }}
+          MAX_BUILD_ROUNDS: ${{ inputs.max_build_rounds }}
+        run: |
+          for v in "$SHARDS" "$PRIME_MINUTES" "$EXPAND_CHUNK" "$ROUND" "$MAX_ROUNDS" "$PARALLEL" "$BUILD_ROUND" "$MAX_BUILD_ROUNDS"; do
+            [[ "$v" =~ ^[0-9]+$ ]] || { echo "::error::an input is not a number: $v"; exit 1; }
+          done
+          [[ "$RESUME_RUN" =~ ^[0-9]*$ ]] || { echo "::error::resume_run is not a run id"; exit 1; }
+          if [ "$BUILD_ROUND" -ge "$MAX_BUILD_ROUNDS" ]; then
+            echo "::error::$KEY is not built after $BUILD_ROUND build rounds (see the 'Is the build complete?' step of the prime job): raise max_build_rounds, or the library needs a bigger runner"
+            exit 1
+          fi
+          gh workflow run setup-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$KEY" -f shards="$SHARDS" -f prime_minutes="$PRIME_MINUTES" \
+            -f expand_chunk="$EXPAND_CHUNK" -f round="$ROUND" -f max_rounds="$MAX_ROUNDS" -f parallel="$PARALLEL" -f resume_run="$RESUME_RUN" \
+            -f build_run="$GITHUB_RUN_ID" -f build_round="$((BUILD_ROUND + 1))" -f max_build_rounds="$MAX_BUILD_ROUNDS"
+          echo "::notice::the build is not complete: dispatched build round $((BUILD_ROUND + 1)) of at most $MAX_BUILD_ROUNDS"
+
   shard:
     needs: prime
+    if: inputs.prime_minutes == '0' || needs.prime.outputs.complete == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 350
     permissions: { contents: read }
@@ -219,7 +284,7 @@ jobs:
 
   finish:
     needs: [prime, shard]
-    if: always() && (needs.prime.result == 'success' || inputs.bank_run != '')
+    if: always() && (needs.prime.result == 'success' || inputs.bank_run != '') && (inputs.bank_run != '' || inputs.prime_minutes == '0' || needs.prime.outputs.complete == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 150
     permissions: { contents: write, actions: write }
@@ -341,7 +406,9 @@ jobs:
           PRIME_MINUTES: ${{ inputs.prime_minutes }}
           EXPAND_CHUNK: ${{ inputs.expand_chunk }}
           PARALLEL: ${{ inputs.parallel || '12' }}
+          MAX_BUILD_ROUNDS: ${{ inputs.max_build_rounds }}
         run: |
           gh workflow run setup-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$KEY" -f shards="$SHARDS" -f prime_minutes="$PRIME_MINUTES" \
-            -f expand_chunk="$EXPAND_CHUNK" -f round="$((ROUND + 1))" -f max_rounds="$MAX_ROUNDS" -f resume_run="$GITHUB_RUN_ID" -f parallel="$PARALLEL" -f tengoku_ref="$TENGOKU_REF"
+            -f expand_chunk="$EXPAND_CHUNK" -f round="$((ROUND + 1))" -f max_rounds="$MAX_ROUNDS" -f resume_run="$GITHUB_RUN_ID" -f parallel="$PARALLEL" \
+            -f max_build_rounds="$MAX_BUILD_ROUNDS" -f tengoku_ref="$TENGOKU_REF"
           echo "::notice::dispatched round $((ROUND + 1))"

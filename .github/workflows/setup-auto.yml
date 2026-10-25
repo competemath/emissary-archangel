@@ -1,0 +1,125 @@
+name: setup-auto
+run-name: setup-auto ${{ inputs.key }} (${{ inputs.mode }})
+# The one way in for setting up a library: it looks at how big the library is and starts the right workflow.
+#   small   (at most 3,000 entries)  setup-libraries.yml: the whole setup in one job.
+#   large                            setup-sharded.yml: the build alone first, one 5-hour round after another until it is
+#                                    complete (each carries on from the last), then the exports split across runners.
+# Whether a large library needs one build round or several is not guessed: setup-sharded.yml looks at the build after each round.
+# The rule and its numbers are in scripts/setup-plan.mjs (node scripts/test-setup-plan.mjs). This workflow runs none of the
+# library's code: it counts records, picks a route and dispatches, so its token may dispatch workflows and write nothing else.
+on:
+  workflow_dispatch:
+    inputs:
+      key:
+        description: "One source key from sources.json."
+        required: true
+      mode:
+        description: "auto (decided by size), oneshot or staged (forces the route; use staged after a one-job setup ran out of time)."
+        required: false
+        default: auto
+        type: choice
+        options: [auto, oneshot, staged]
+      shards:
+        description: "Runners for the exports of a staged setup (0: chosen from the size; at most 64)."
+        required: false
+        default: "0"
+      force:
+        description: "Set the library up again although its exports are already committed."
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+      dry_run:
+        description: "Print the plan, dispatch nothing."
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+permissions: {}
+
+concurrency:
+  group: setup-auto-${{ inputs.key }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { contents: read, actions: write }
+    env:
+      KEY: ${{ inputs.key }}
+      MODE: ${{ inputs.mode }}
+      SHARDS: ${{ inputs.shards }}
+      FORCE: ${{ inputs.force }}
+      DRY: ${{ inputs.dry_run }}
+      GH_TOKEN: ${{ github.token }}
+      EMISSARY_TENTATIVE_DIR: ${{ github.workspace }}/tengoku/data/tentative
+    steps:
+      - name: A key of sources.json, and nothing else
+        run: |
+          [[ "$KEY" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "::error::bad key"; exit 1; }
+          [[ "$SHARDS" =~ ^[0-9]+$ ]] || { echo "::error::shards is a number"; exit 1; }
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          filter: "blob:none"
+          sparse-checkout: |
+            scripts
+            data/exports/${{ inputs.key }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: "22" }
+      - name: This library's tentative records (only its own files from the tree repository)
+        run: |
+          files=$(python3 -c "import json, os; s = json.load(open('sources.json'))['sources'][os.environ['KEY']]; print(' '.join('data/tentative/' + f for f in s.get('tentative', [os.environ['KEY'] + '.jsonl'])))")
+          git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
+          git -C tengoku sparse-checkout set --no-cone $files
+          git -C tengoku checkout -q
+      - name: Plan
+        id: plan
+        run: |
+          node scripts/setup-plan.mjs "$KEY" | tee plan.txt
+          cat plan.txt >> "$GITHUB_OUTPUT"
+          {
+            echo "### setup-auto $KEY"
+            echo
+            echo "$(grep '^why=' plan.txt | cut -d= -f2-)"
+            echo
+            echo "route: **$(grep '^route=' plan.txt | cut -d= -f2)**"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Already set up?
+        id: done
+        run: |
+          if [ -f "data/exports/$KEY/setup.ci.json" ] && [ "$FORCE" != true ]; then
+            echo "::notice::$KEY already has committed exports; run again with force=true to set it up again"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Start it
+        if: steps.done.outputs.skip != 'true' && env.DRY != 'true'
+        env:
+          ROUTE: ${{ steps.plan.outputs.route }}
+          PLAN_SHARDS: ${{ steps.plan.outputs.shards }}
+          EXPAND_CHUNK: ${{ steps.plan.outputs.expand_chunk }}
+          PRIME_MINUTES: ${{ steps.plan.outputs.prime_minutes }}
+          MAX_BUILD_ROUNDS: ${{ steps.plan.outputs.max_build_rounds }}
+          MAX_ROUNDS: ${{ steps.plan.outputs.max_rounds }}
+        run: |
+          for v in "$PLAN_SHARDS" "$EXPAND_CHUNK" "$PRIME_MINUTES" "$MAX_BUILD_ROUNDS" "$MAX_ROUNDS"; do
+            [[ "$v" =~ ^[0-9]+$ ]] || { echo "::error::the plan has a value that is not a number: $v"; exit 1; }
+          done
+          case "$ROUTE" in
+            oneshot)
+              gh workflow run setup-libraries.yml -R "$GITHUB_REPOSITORY" --ref main -f keys="$KEY"
+              echo "::notice::$KEY: one job (setup-libraries.yml)"
+              ;;
+            staged)
+              gh workflow run setup-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$KEY" -f shards="$PLAN_SHARDS" -f prime_minutes="$PRIME_MINUTES" \
+                -f expand_chunk="$EXPAND_CHUNK" -f max_rounds="$MAX_ROUNDS" -f max_build_rounds="$MAX_BUILD_ROUNDS" -f parallel=12
+              echo "::notice::$KEY: staged, $PLAN_SHARDS shards (setup-sharded.yml)"
+              ;;
+            *) echo "::error::unknown route $ROUTE"; exit 1 ;;
+          esac

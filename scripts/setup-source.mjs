@@ -18,8 +18,11 @@
 // Writes infra/<key>/setup.json with the counts. Re-runnable: finished steps are skipped.
 //
 // Split across runners (.github/workflows/setup-sharded.yml), for a library too big for one 6-hour job:
-//   --phase build                   toolchain, clone, build in module-name order (shared modules first); stops
-//                                   there and keeps the build, which the workflow hands to the shards
+//   --phase build [--restore <b>]   toolchain, clone, build in module-name order (shared modules first); stops
+//                                   there and keeps the build, which the workflow hands to the shards. With --restore
+//                                   an earlier round's build is unpacked first, so rounds add up instead of starting over
+//   --phase build-status            no Lean: how many of the modules have an .olean; writes infra/<key>/build-status.json
+//                                   and prints `complete=true|false` (the workflow starts the shards only when true)
 //   --phase shard --shard i/N       --restore <build.tar.zst>, then build the rest of this shard's modules (a stable
 //                                   hash of the module name picks them) and run closures, notation expansion and
 //                                   exports for them; writes data/exports/<key>/.shards/<i>-of-<N>.json when done
@@ -84,7 +87,7 @@ if (!src) fail(`unknown source ${key} (sources.json)`)
 if (!src.repo || !src.commit || !src.toolchain || !src.roots?.length) fail(`${key}: sources.json entry needs repo, commit, toolchain, roots`)
 
 const PHASE = flag("phase", null)
-if (PHASE && !["build", "shard", "finish"].includes(PHASE)) fail(`--phase is build, shard or finish, not ${PHASE}`)
+if (PHASE && !["build", "build-status", "shard", "finish"].includes(PHASE)) fail(`--phase is build, build-status, shard or finish, not ${PHASE}`)
 const SHARD = (() => {
   const s = flag("shard", null)
   if (!s) return null
@@ -769,15 +772,36 @@ function adopt(entries, modules, stats, t0) {
   return true
 }
 
+// Unpacks an earlier round's build over the checkout. A shard needs it (it is the prime's build); the prime
+// itself uses it to carry on where the last round stopped, and goes without when the artifact has expired.
+function restoreBuild({ required }) {
+  if (!RESTORE) return Promise.resolve()
+  if (!existsSync(resolve(RESTORE))) {
+    if (required) fail(`no build to restore at ${RESTORE}`)
+    log(`no earlier build at ${RESTORE}: building from what the checkout has`)
+    return Promise.resolve()
+  }
+  return run("tar", ["--zstd", "-xf", resolve(RESTORE), "-C", REPO], { timeoutMs: 60 * 60 * 1000 }).then((r) => {
+    if (r.code !== 0) fail(`could not restore the build from ${RESTORE}: ${r.tail.slice(-300)}`)
+  })
+}
+
+// How much of the library is compiled. Runs no Lean and no lake, so it is safe to run after the build step in
+// the job that ran the library's own code; the workflow reads only the word `complete=true|false` from it.
+function buildStatus(modules) {
+  const built = modules.filter((m) => existsSync(oleanOf(m))).length
+  const status = { key, commit: src.commit, modules: modules.length, built, complete: built === modules.length, at: new Date().toISOString() }
+  writeAtomic(join(INFRA, "build-status.json"), JSON.stringify(status, null, 2))
+  log(`build status: ${built}/${modules.length} modules have an .olean`)
+  console.log(`complete=${status.complete}`)
+}
+
 // ---- sharded setup (.github/workflows/setup-sharded.yml) ----------------------------
 const SHARD_DIR = join(EXPORTS, ".shards")
 
 async function shard(modules, t0) {
   await mathlibCache() // resolves the packages, and Mathlib's .oleans, before the build is laid over them
-  if (RESTORE) {
-    const r = await run("tar", ["--zstd", "-xf", resolve(RESTORE), "-C", REPO], { timeoutMs: 60 * 60 * 1000 })
-    if (r.code !== 0) fail(`could not restore the build from ${RESTORE}: ${r.tail.slice(-300)}`)
-  }
+  await restoreBuild({ required: Boolean(RESTORE) })
   const entryModules = new Set(modules)
   const mine = modules.filter(inShard)
   log(`shard ${SHARD.i}/${SHARD.n}: ${mine.length} of ${modules.length} modules`)
@@ -915,9 +939,11 @@ async function main() {
   log(`${entries.length} entries in ${modules.length} modules`)
   if (ONLY === "seed") return
   if (PHASE === "finish") return finish(entries, modules, stats, t0)
+  if (PHASE === "build-status") return buildStatus(modules)
   if (!ONLY && !PHASE && adopt(entries, modules, stats, t0)) return
   await ensureToolchain()
   if (PHASE === "build") {
+    await restoreBuild({ required: false })
     await build(modules)
     return log(`done ${key} (build phase): the build stays for the shards`)
   }
