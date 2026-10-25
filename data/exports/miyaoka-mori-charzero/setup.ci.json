@@ -1,0 +1,51 @@
+{
+  "key": "miyaoka-mori-charzero",
+  "repo": "https://github.com/frenzymath/MiyaokaMori-CharZero",
+  "commit": "19bb10861c147ef393d002cdb03489130b653880",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "MiyaokaMori"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/miyaoka-mori-charzero/repo",
+  "entries": 12314,
+  "modules": 2060,
+  "exported": 2060,
+  "failed": [],
+  "expansion": {
+    "expanded": 23,
+    "verbatim": 17876,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 12314,
+    "kept": 12314,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 256,
+    "lineUnverified": 0,
+    "nameFixed": 8530,
+    "sorryOriginals": 0,
+    "emptyProofs": 43
+  },
+  "sharded": {
+    "records": 17,
+    "shards": [
+      17
+    ]
+  },
+  "exportsBytes": 11839873024,
+  "minutes": 57,
+  "finishedAt": "2026-10-25T19:44:33.325Z",
+  "archive": {
+    "release": "exports-miyaoka-mori-charzero",
+    "asset": "miyaoka-mori-charzero@19bb10861c14-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-miyaoka-mori-charzero/miyaoka-mori-charzero@19bb10861c14-exports.tar.zst",
+    "bytes": 1415326662,
+    "sha256": "d5635738443b893043a7115757d4568def58de492136c184e40d4e76b71e21bd",
+    "files": 4120,
+    "unpack": "tar --zstd -xf miyaoka-mori-charzero@19bb10861c14-exports.tar.zst -C data/exports/miyaoka-mori-charzero"
+  }
+}
