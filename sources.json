@@ -1536,6 +1536,84 @@
         "HironakaExamples"
       ],
       "licence": "Apache-2.0"
+    },
+    "grothendieck-riemann-roch": {
+      "label": "grothendieck-riemann-roch (vaca22/grothendieck-riemann-roch; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/vaca22/grothendieck-riemann-roch",
+      "commit": "053ea2fbd24c2f675a28393a4e7b7af9fe4ae626",
+      "toolchain": "leanprover/lean4:v4.32.0-rc1",
+      "roots": [
+        "RiemannRoch"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "derived-alg-geo-lean": {
+      "label": "derived-alg-geo-lean (chris-dare-dev/derived-alg-geo-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/chris-dare-dev/derived-alg-geo-lean",
+      "commit": "af19c7943a8e9e346a5c26eea7ce41f17b3a7983",
+      "toolchain": "leanprover/lean4:v4.32.1",
+      "roots": [
+        "DerivedAlgGeo"
+      ],
+      "licence": "MIT"
+    },
+    "albert-frame-triple-invariants": {
+      "label": "albert-frame-triple-invariants (macgregor-sudo/albert-frame-triple-invariants; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/macgregor-sudo/albert-frame-triple-invariants",
+      "commit": "dd06ef5d423a0e4a5d814d2c221e999b98887ee1",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "AlbertLean",
+        "FrameInvariants",
+        "OneBit"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "azurite": {
+      "label": "azurite (mhogrefe/azurite; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/mhogrefe/azurite",
+      "commit": "14454e33ec582c001f23b6c65689d13d56a721dc",
+      "toolchain": "leanprover/lean4:v4.34.1",
+      "roots": [
+        "Azurite"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "stafford38-formal": {
+      "label": "stafford38-formal (itpplasma/stafford38-formal; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/itpplasma/stafford38-formal",
+      "commit": "5a5b0edcbb02a57d5a53fe8929ccde88cb3b6af1",
+      "toolchain": "leanprover/lean4:v4.35.0-rc3",
+      "roots": [
+        "Stafford38",
+        "proofs"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "epsilon-sml": {
+      "label": "epsilon-sml (fukubillueda-web/epsilon_SML; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/fukubillueda-web/epsilon_SML",
+      "commit": "5b55d3f6e7c053f733afb1be523e532d212d94d0",
+      "toolchain": "leanprover/lean4:v4.32.2",
+      "roots": [
+        "LanglandsSecondMainLemma"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "quadratic-number-fields": {
+      "label": "quadratic-number-fields (WangFrankie/QuadraticNumberFields; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/WangFrankie/QuadraticNumberFields",
+      "commit": "b02cc08db24a29c8a4e88af95848d8dae969a9fc",
+      "toolchain": "leanprover/lean4:v4.35.0",
+      "roots": [
+        "QuadraticNumberFields",
+        "QNFMathlib",
+        "FormClassGroup",
+        "BinaryQuadraticForms",
+        "ImaginaryClassNumberOne",
+        "Examples"
+      ],
+      "licence": "Apache-2.0"
     }
   }
 }
