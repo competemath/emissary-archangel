@@ -1451,6 +1451,91 @@
         "FixedPointTheorems"
       ],
       "licence": "MIT"
+    },
+    "acl-geom": {
+      "label": "acl-geom (adamtopaz/acl_geom; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/adamtopaz/acl_geom",
+      "commit": "293b8c387bf868940b0d16dd9b6b67f1710ba887",
+      "toolchain": "leanprover/lean4:v4.34.1",
+      "roots": [
+        "AclGeom",
+        "GroupConfig",
+        "AclGeomBook"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "splitting-density-rationality": {
+      "label": "splitting-density-rationality (asving/splitting-density-rationality; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/asving/splitting-density-rationality",
+      "commit": "df3f13cb808e32168dd3595c8b32c70823fcf824",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "SurfaceBlowup",
+        "Tests"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "ns-p23": {
+      "label": "ns-p23 (stksk310/NS-P23-Lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/stksk310/NS-P23-Lean",
+      "commit": "cb782617f12909107480ccfd51d4450d05c8e5c3",
+      "toolchain": "leanprover/lean4:v4.34.0-rc1",
+      "roots": [
+        "P23"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "chopped-plane-point-ideals": {
+      "label": "chopped-plane-point-ideals (Vlado-V/chopped-plane-point-ideals; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/Vlado-V/chopped-plane-point-ideals",
+      "commit": "4200d41342404e66f177d067763c0d1c1dd2d768",
+      "toolchain": "leanprover/lean4:v4.35.0-rc3",
+      "roots": [
+        "ChoppedPlane",
+        "Solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "kummer-criterion": {
+      "label": "kummer-criterion (riccardobrasca/KummerCriterion; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/riccardobrasca/KummerCriterion",
+      "commit": "a7fde210158e10171e083eeaffee4a093bcdf5a3",
+      "toolchain": "leanprover/lean4:v4.36.0-rc1",
+      "roots": [
+        "KummerCriterion"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "yamaguchi-papers": {
+      "label": "yamaguchi-papers (n-yamaguchi-0729/YamaguchiPapersFormalization; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/n-yamaguchi-0729/YamaguchiPapersFormalization",
+      "commit": "df1776498cd4725feb2cb2711bbb273945b3c8d4",
+      "toolchain": "leanprover/lean4:v4.35.0-rc2",
+      "roots": [
+        "Nyll"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "miyaoka-mori-charzero": {
+      "label": "miyaoka-mori-charzero (frenzymath/MiyaokaMori-CharZero; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/frenzymath/MiyaokaMori-CharZero",
+      "commit": "19bb10861c147ef393d002cdb03489130b653880",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "MiyaokaMori"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "hironaka": {
+      "label": "hironaka (resolutionorg/hironaka; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/resolutionorg/hironaka",
+      "commit": "044d89c9455859446fc5e986667319f910e15f4b",
+      "toolchain": "leanprover/lean4:v4.35.0",
+      "roots": [
+        "Hironaka",
+        "HironakaExamples"
+      ],
+      "licence": "Apache-2.0"
     }
   }
 }
