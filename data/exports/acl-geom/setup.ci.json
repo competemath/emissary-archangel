@@ -1,0 +1,53 @@
+{
+  "key": "acl-geom",
+  "repo": "https://github.com/adamtopaz/acl_geom",
+  "commit": "293b8c387bf868940b0d16dd9b6b67f1710ba887",
+  "toolchain": "leanprover/lean4:v4.34.1",
+  "roots": [
+    "AclGeom",
+    "GroupConfig",
+    "AclGeomBook"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/acl-geom/repo",
+  "entries": 5868,
+  "modules": 615,
+  "exported": 615,
+  "failed": [],
+  "expansion": {
+    "expanded": 17,
+    "verbatim": 452,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 5868,
+    "kept": 5868,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 70,
+    "lineUnverified": 3,
+    "nameFixed": 5867,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "sharded": {
+    "records": 8,
+    "shards": [
+      8
+    ]
+  },
+  "exportsBytes": 1212334080,
+  "minutes": 10,
+  "finishedAt": "2026-10-25T17:28:24.146Z",
+  "archive": {
+    "release": "exports-acl-geom",
+    "asset": "acl-geom@293b8c387bf8-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-acl-geom/acl-geom@293b8c387bf8-exports.tar.zst",
+    "bytes": 119905991,
+    "sha256": "a062e53fdc63d0261d4943dc1c0fddb70145b3683224823b995fe5f5b6ac3584",
+    "files": 1230,
+    "unpack": "tar --zstd -xf acl-geom@293b8c387bf8-exports.tar.zst -C data/exports/acl-geom"
+  }
+}
