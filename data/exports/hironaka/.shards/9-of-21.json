@@ -1,0 +1,42 @@
+{
+  "shard": 9,
+  "shards": 21,
+  "commit": "044d89c9455859446fc5e986667319f910e15f4b",
+  "toolchain": "leanprover/lean4:v4.35.0",
+  "modules": 77,
+  "exported": 77,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "Hironaka.Algebra.Local.CohenMap",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Algebra.Local.CohenMap "
+      },
+      {
+        "module": "Hironaka.Algebra.Local.TransformOrder",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Algebra.Local.TransformOrder "
+      },
+      {
+        "module": "Hironaka.Resolution.Analytic.Kol07Thm45.LocalResolutionPad",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Resolution.Analytic.Kol07Thm45.LocalResolutionPad "
+      },
+      {
+        "module": "HironakaExamples.Balanced.Example106",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples HironakaExamples.Balanced.Example106 "
+      },
+      {
+        "module": "HironakaExamples.OrderReduction.Example106",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples HironakaExamples.OrderReduction.Example106 "
+      },
+      {
+        "module": "HironakaExamples.TunedIdealExamples",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples HironakaExamples.TunedIdealExamples "
+      }
+    ]
+  },
+  "minutes": 18,
+  "finishedAt": "2026-10-25T17:01:01.336Z"
+}

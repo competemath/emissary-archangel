@@ -1,0 +1,38 @@
+{
+  "shard": 13,
+  "shards": 21,
+  "commit": "044d89c9455859446fc5e986667319f910e15f4b",
+  "toolchain": "leanprover/lean4:v4.35.0",
+  "modules": 89,
+  "exported": 89,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "Hironaka.Resolution.Algebraic.MaximalContact.CompletionIdealMap",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Resolution.Algebraic.MaximalContact.CompletionIdealMap "
+      },
+      {
+        "module": "Hironaka.Resolution.Analytic.Kol07Thm45.LocalResolutionRestrict",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Resolution.Analytic.Kol07Thm45.LocalResolutionRestrict "
+      },
+      {
+        "module": "Hironaka.Resolution.Analytic.Kol07Thm45.PieceLemma39Hom",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Resolution.Analytic.Kol07Thm45.PieceLemma39Hom "
+      },
+      {
+        "module": "Hironaka.Resolution.Analytic.Kol07Thm45.ShearOverX",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Resolution.Analytic.Kol07Thm45.ShearOverX "
+      },
+      {
+        "module": "HironakaExamples.Balanced.Example86",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples HironakaExamples.Balanced.Example86 "
+      }
+    ]
+  },
+  "minutes": 27,
+  "finishedAt": "2026-10-25T17:25:15.156Z"
+}

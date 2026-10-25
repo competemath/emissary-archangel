@@ -1,0 +1,38 @@
+{
+  "shard": 2,
+  "shards": 21,
+  "commit": "044d89c9455859446fc5e986667319f910e15f4b",
+  "toolchain": "leanprover/lean4:v4.35.0",
+  "modules": 88,
+  "exported": 88,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "Hironaka.Algebra.Local.CohenDerivation",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Algebra.Local.CohenDerivation "
+      },
+      {
+        "module": "Hironaka.Algebra.Local.CohenIso",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Algebra.Local.CohenIso "
+      },
+      {
+        "module": "Hironaka.Resolution.Analytic.Kol07Thm45.HomOfPullbackEqCalculus",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Resolution.Analytic.Kol07Thm45.HomOfPullbackEqCalculus "
+      },
+      {
+        "module": "Hironaka.Resolution.Analytic.Kol07Thm45.QuotientHomSquares",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Resolution.Analytic.Kol07Thm45.QuotientHomSquares "
+      },
+      {
+        "module": "Hironaka.Resolution.Analytic.OrderReduction.Stage.Family",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Resolution.Analytic.OrderReduction.Stage.Family "
+      }
+    ]
+  },
+  "minutes": 19,
+  "finishedAt": "2026-10-25T17:04:12.707Z"
+}

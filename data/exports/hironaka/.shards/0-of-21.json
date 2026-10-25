@@ -1,0 +1,26 @@
+{
+  "shard": 0,
+  "shards": 21,
+  "commit": "044d89c9455859446fc5e986667319f910e15f4b",
+  "toolchain": "leanprover/lean4:v4.35.0",
+  "modules": 76,
+  "exported": 76,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "Hironaka.Resolution.Algebraic.OrderReduction.ClosedEmbedding",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Resolution.Algebraic.OrderReduction.ClosedEmbedding "
+      },
+      {
+        "module": "HironakaExamples.Balanced.Example52",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples HironakaExamples.Balanced.Example52 "
+      }
+    ]
+  },
+  "minutes": 19,
+  "finishedAt": "2026-10-25T17:02:58.847Z"
+}

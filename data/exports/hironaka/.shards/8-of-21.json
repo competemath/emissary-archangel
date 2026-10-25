@@ -1,0 +1,46 @@
+{
+  "shard": 8,
+  "shards": 21,
+  "commit": "044d89c9455859446fc5e986667319f910e15f4b",
+  "toolchain": "leanprover/lean4:v4.35.0",
+  "modules": 91,
+  "exported": 91,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "Hironaka.Resolution.Algebraic.MaximalContact.EtaleToFormal",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Resolution.Algebraic.MaximalContact.EtaleToFormal "
+      },
+      {
+        "module": "Hironaka.Resolution.Algebraic.MaximalContact.FormalEquiv",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Resolution.Algebraic.MaximalContact.FormalEquiv "
+      },
+      {
+        "module": "Hironaka.Resolution.Analytic.Kol07Thm45.LocalResolutionShear",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Resolution.Analytic.Kol07Thm45.LocalResolutionShear "
+      },
+      {
+        "module": "Hironaka.Resolution.Analytic.Kol07Thm45.PieceRestrictResolution",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Resolution.Analytic.Kol07Thm45.PieceRestrictResolution "
+      },
+      {
+        "module": "Hironaka.Resolution.Analytic.Kol07Thm45.PieceTransition",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples Hironaka.Resolution.Analytic.Kol07Thm45.PieceTransition "
+      },
+      {
+        "module": "HironakaExamples.MaximalContact.Example11Charts",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples HironakaExamples.MaximalContact.Example11Charts "
+      },
+      {
+        "module": "HironakaExamples.MaximalContact.Example11Stages",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/hironaka Hironaka,HironakaExamples HironakaExamples.MaximalContact.Example11Stages "
+      }
+    ]
+  },
+  "minutes": 24,
+  "finishedAt": "2026-10-25T17:07:47.526Z"
+}
