@@ -1,0 +1,42 @@
+{
+  "key": "chopped-plane-point-ideals",
+  "repo": "https://github.com/Vlado-V/chopped-plane-point-ideals",
+  "commit": "4200d41342404e66f177d067763c0d1c1dd2d768",
+  "toolchain": "leanprover/lean4:v4.35.0-rc3",
+  "roots": [
+    "ChoppedPlane",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/chopped-plane-point-ideals/repo",
+  "entries": 1628,
+  "modules": 153,
+  "exported": 153,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "ChoppedPlane.QuarticKernelObstruction",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/chopped-plane-point-ideals ChoppedPlane,Solution ChoppedPlane.QuarticKernelObstruction "
+      }
+    ]
+  },
+  "seed": {
+    "records": 1630,
+    "kept": 1628,
+    "skippedRoot": 2,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 1626,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "exportsBytes": 111243264,
+  "minutes": 21,
+  "finishedAt": "2026-10-25T16:28:48.964Z"
+}
