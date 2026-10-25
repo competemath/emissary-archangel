@@ -120,6 +120,11 @@ in (the agent runs through it).
    read, so one library's build is on disk at a time. The runner uninstalls a
    toolchain once its last library is done. To add a library: a record in
    `sources.json` (and in the tree's `schemas/sources.json`), then set it up.
+   On runners, `setup-auto.yml` does the setting up: give it the key and it counts the library's records and starts
+   `setup-libraries.yml` (one job) for a small library, or `setup-sharded.yml` for a large one. The sharded route
+   compiles the library first, in as many 5-hour rounds as it takes (each carries on from the last round's build), and
+   splits the exports across runners only once the build is complete. `mode=staged` forces that route for a library
+   that ran out of time in one job; `dry_run=true` prints the plan and starts nothing.
 2. **Exporter** — built by the step above; by hand,
    `scripts/build-lean4export.sh <toolchain> [dest]` picks the lean4export
    commit that pins that toolchain.
