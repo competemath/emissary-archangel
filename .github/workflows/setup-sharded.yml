@@ -187,18 +187,21 @@ jobs:
           RESUME_RUN: ${{ inputs.resume_run }}
           BUILD_ROUND: ${{ inputs.build_round }}
           MAX_BUILD_ROUNDS: ${{ inputs.max_build_rounds }}
+          TENGOKU_REF: ${{ inputs.tengoku_ref }}
         run: |
           for v in "$SHARDS" "$PRIME_MINUTES" "$EXPAND_CHUNK" "$ROUND" "$MAX_ROUNDS" "$PARALLEL" "$BUILD_ROUND" "$MAX_BUILD_ROUNDS"; do
             [[ "$v" =~ ^[0-9]+$ ]] || { echo "::error::an input is not a number: $v"; exit 1; }
           done
           [[ "$RESUME_RUN" =~ ^[0-9]*$ ]] || { echo "::error::resume_run is not a run id"; exit 1; }
+          [[ "$TENGOKU_REF" =~ ^[A-Za-z0-9._/-]*$ ]] || { echo "::error::tengoku_ref is not a branch name"; exit 1; }
           if [ "$BUILD_ROUND" -ge "$MAX_BUILD_ROUNDS" ]; then
             echo "::error::$KEY is not built after $BUILD_ROUND build rounds (see the 'Is the build complete?' step of the prime job): raise max_build_rounds, or the library needs a bigger runner"
             exit 1
           fi
           gh workflow run setup-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$KEY" -f shards="$SHARDS" -f prime_minutes="$PRIME_MINUTES" \
             -f expand_chunk="$EXPAND_CHUNK" -f round="$ROUND" -f max_rounds="$MAX_ROUNDS" -f parallel="$PARALLEL" -f resume_run="$RESUME_RUN" \
-            -f build_run="$GITHUB_RUN_ID" -f build_round="$((BUILD_ROUND + 1))" -f max_build_rounds="$MAX_BUILD_ROUNDS"
+            -f build_run="$GITHUB_RUN_ID" -f build_round="$((BUILD_ROUND + 1))" -f max_build_rounds="$MAX_BUILD_ROUNDS" \
+            -f tengoku_ref="$TENGOKU_REF"
           echo "::notice::the build is not complete: dispatched build round $((BUILD_ROUND + 1)) of at most $MAX_BUILD_ROUNDS"
 
   shard:
