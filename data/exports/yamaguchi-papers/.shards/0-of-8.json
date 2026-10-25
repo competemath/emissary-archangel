@@ -1,0 +1,34 @@
+{
+  "shard": 0,
+  "shards": 8,
+  "commit": "df1776498cd4725feb2cb2711bbb273945b3c8d4",
+  "toolchain": "leanprover/lean4:v4.35.0-rc2",
+  "modules": 156,
+  "exported": 156,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "Nyll.EtaleFundamentalGroups.GeometricFiber.BasePoint",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/yamaguchi-papers Nyll Nyll.EtaleFundamentalGroups.GeometricFiber.BasePoint "
+      },
+      {
+        "module": "Nyll.EtaleFundamentalGroups.Pi1.FiniteEtale.GaloisCategory",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/yamaguchi-papers Nyll Nyll.EtaleFundamentalGroups.Pi1.FiniteEtale.GaloisCategory "
+      },
+      {
+        "module": "Nyll.SchemeTheory.Pi1.FiniteEtale.Algebra.Splitting",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/yamaguchi-papers Nyll Nyll.SchemeTheory.Pi1.FiniteEtale.Algebra.Splitting "
+      },
+      {
+        "module": "Nyll.Yamaguchi26AbfaithfulGalois.Kummer.Concrete.RootsDownstairs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/yamaguchi-papers Nyll Nyll.Yamaguchi26AbfaithfulGalois.Kummer.Concrete.RootsDownstairs "
+      }
+    ]
+  },
+  "minutes": 8,
+  "finishedAt": "2026-10-25T17:34:25.218Z"
+}

@@ -1,0 +1,66 @@
+{
+  "shard": 2,
+  "shards": 8,
+  "commit": "df1776498cd4725feb2cb2711bbb273945b3c8d4",
+  "toolchain": "leanprover/lean4:v4.35.0-rc2",
+  "modules": 164,
+  "exported": 164,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "Nyll.EtaleFundamentalGroups.GaloisCovers.FiberQuotient",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/yamaguchi-papers Nyll Nyll.EtaleFundamentalGroups.GaloisCovers.FiberQuotient "
+      },
+      {
+        "module": "Nyll.EtaleFundamentalGroups.Pi1.FiniteEtale.GaloisCategory",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/yamaguchi-papers Nyll Nyll.EtaleFundamentalGroups.Pi1.FiniteEtale.GaloisCategory "
+      },
+      {
+        "module": "Nyll.EtaleFundamentalGroups.Pi1.GeometricFiber.FieldPoints",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/yamaguchi-papers Nyll Nyll.EtaleFundamentalGroups.Pi1.GeometricFiber.FieldPoints "
+      },
+      {
+        "module": "Nyll.EtaleFundamentalGroups.StrictHenselian.FundamentalGroup",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/yamaguchi-papers Nyll Nyll.EtaleFundamentalGroups.StrictHenselian.FundamentalGroup "
+      },
+      {
+        "module": "Nyll.EtaleFundamentalGroups.StrictHenselian.StrictGenericTrivialCover",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/yamaguchi-papers Nyll Nyll.EtaleFundamentalGroups.StrictHenselian.StrictGenericTrivialCover "
+      },
+      {
+        "module": "Nyll.GaloisCohomology.Kummer.Concrete.AbsoluteKummerCharacterAction",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/yamaguchi-papers Nyll Nyll.GaloisCohomology.Kummer.Concrete.AbsoluteKummerCharacterAction "
+      },
+      {
+        "module": "Nyll.SchemeTheory.RingTheory.Descent.PrimeAwayTensorDetection",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/yamaguchi-papers Nyll Nyll.SchemeTheory.RingTheory.Descent.PrimeAwayTensorDetection "
+      },
+      {
+        "module": "Nyll.ValuedFieldTheory.Ramification.HilbertRamification.FiniteInertiaCentrality",
+        "why": "mmand failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/yamaguchi-papers Nyll Nyll.ValuedFieldTheory.Ramification.HilbertRamification.FiniteInertiaCentrality "
+      },
+      {
+        "module": "Nyll.Yamaguchi26AbfaithfulGalois.Kummer.Concrete.RootsDownstairsAction",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/yamaguchi-papers Nyll Nyll.Yamaguchi26AbfaithfulGalois.Kummer.Concrete.RootsDownstairsAction "
+      },
+      {
+        "module": "Nyll.Yamaguchi26SolvableCoverings.Geometry.BoundaryAbelianizationPullback",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/yamaguchi-papers Nyll Nyll.Yamaguchi26SolvableCoverings.Geometry.BoundaryAbelianizationPullback "
+      },
+      {
+        "module": "Nyll.Yamaguchi26SolvableCoverings.Geometry.BoundaryInertia",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/yamaguchi-papers Nyll Nyll.Yamaguchi26SolvableCoverings.Geometry.BoundaryInertia "
+      },
+      {
+        "module": "Nyll.Yamaguchi26SolvableCoverings.Geometry.BoundaryLocalEtale",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/yamaguchi-papers Nyll Nyll.Yamaguchi26SolvableCoverings.Geometry.BoundaryLocalEtale "
+      }
+    ]
+  },
+  "minutes": 14,
+  "finishedAt": "2026-10-25T17:40:28.089Z"
+}
