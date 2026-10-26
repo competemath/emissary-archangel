@@ -911,19 +911,42 @@ function footprintsMB(pids) {
   }
   return out
 }
+function killProcess(pid, mb, why) {
+  let cmd = "?"
+  try {
+    cmd = execFileSync("ps", ["-o", "command=", "-p", String(pid)]).toString().trim().slice(0, 160)
+  } catch {
+    /* exited */
+  }
+  process.kill(pid, "SIGKILL")
+  log(`memory watchdog: killed ${pid} at ${Math.round(mb)} MB (${why}): ${cmd}`)
+}
 function watchMemory() {
   try {
     for (const [pid, mb] of footprintsMB(descendants(process.pid))) {
-      if (mb <= FOOTPRINT_MB) continue
-      let cmd = "?"
-      try {
-        cmd = execFileSync("ps", ["-o", "command=", "-p", String(pid)]).toString().trim().slice(0, 160)
-      } catch {
-        /* exited */
-      }
-      process.kill(pid, "SIGKILL")
-      log(`memory watchdog: killed ${pid} at ${Math.round(mb)} MB (limit ${FOOTPRINT_MB} MB): ${cmd}`)
+      if (mb > FOOTPRINT_MB) killProcess(pid, mb, `limit ${FOOTPRINT_MB} MB`)
     }
+  } catch (e) {
+    log(`memory watchdog: ${e.message}`)
+  }
+}
+// Several processes under the per-process limit can still add up to more than the machine has: on a
+// 16 GB runner, three Lean processes at 9 GB each. The runner then dies ("received a shutdown signal")
+// and the whole round is lost, where killing the biggest process only fails one module. On Linux the
+// kernel's own MemAvailable (free memory plus what can be reclaimed, so shared mapped .olean files are
+// not counted twice) is read every 2 s; under EMISSARY_MIN_AVAILABLE_MB (default 1536) the largest
+// process is killed. Not on macOS, where compression makes the figure unreliable.
+const MIN_AVAILABLE_MB = Number(process.env.EMISSARY_MIN_AVAILABLE_MB || 1536)
+function availableMB() {
+  const m = readFileSync("/proc/meminfo", "utf8").match(/^MemAvailable:\s+(\d+) kB/m)
+  return m ? Number(m[1]) / 1024 : Infinity
+}
+function watchAvailable() {
+  try {
+    const avail = availableMB()
+    if (avail >= MIN_AVAILABLE_MB) return
+    const sizes = [...footprintsMB(descendants(process.pid))].sort((a, b) => b[1] - a[1])
+    if (sizes.length) killProcess(sizes[0][0], sizes[0][1], `only ${Math.round(avail)} MB left of the machine's memory, under ${MIN_AVAILABLE_MB} MB`)
   } catch (e) {
     log(`memory watchdog: ${e.message}`)
   }
@@ -932,6 +955,7 @@ function watchMemory() {
 async function main() {
   const t0 = Date.now()
   setInterval(watchMemory, 10000).unref()
+  if (process.platform === "linux") setInterval(watchAvailable, 2000).unref()
   removeLeftovers()
   log(`setup ${key}: ${src.repo} @ ${src.commit.slice(0, 12)} on ${src.toolchain}, roots ${src.roots.join(", ")}`)
   await ensureClone()
