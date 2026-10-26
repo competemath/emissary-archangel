@@ -1,0 +1,142 @@
+{
+  "key": "stafford38-formal",
+  "repo": "https://github.com/itpplasma/stafford38-formal",
+  "commit": "5a5b0edcbb02a57d5a53fe8929ccde88cb3b6af1",
+  "toolchain": "leanprover/lean4:v4.35.0-rc3",
+  "roots": [
+    "Stafford38",
+    "proofs"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/stafford38-formal/repo",
+  "entries": 2467,
+  "modules": 401,
+  "exported": 401,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "Stafford38.Characteristic.ArtinianAdaptedBasisExistence",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Characteristic.ArtinianAdaptedBasisExistence "
+      },
+      {
+        "module": "Stafford38.Characteristic.ArtinianAdaptedBasisTraceAdapter",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Characteristic.ArtinianAdaptedBasisTraceAdapter "
+      },
+      {
+        "module": "Stafford38.Characteristic.ArtinianCoefficientField",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Characteristic.ArtinianCoefficientField "
+      },
+      {
+        "module": "Stafford38.Characteristic.BGab001CoefficientFieldTrace",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Characteristic.BGab001CoefficientFieldTrace "
+      },
+      {
+        "module": "Stafford38.Characteristic.ConcreteEquation33SourceMatrices",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Characteristic.ConcreteEquation33SourceMatrices "
+      },
+      {
+        "module": "Stafford38.Characteristic.ConcreteInducedZAction",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Characteristic.ConcreteInducedZAction "
+      },
+      {
+        "module": "Stafford38.Characteristic.ConcreteLocalizedTwoBlockSpecialFibre",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Characteristic.ConcreteLocalizedTwoBlockSpecialFibre "
+      },
+      {
+        "module": "Stafford38.Characteristic.GabberGlobalAssembly",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Characteristic.GabberGlobalAssembly "
+      },
+      {
+        "module": "Stafford38.Characteristic.LocalizedTwoBlockModuleExactness",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Characteristic.LocalizedTwoBlockModuleExactness "
+      },
+      {
+        "module": "Stafford38.Characteristic.LocalizedTwoBlockPrincipalKernelDescent",
+        "why": "mmand failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Characteristic.LocalizedTwoBlockPrincipalKernelDescent "
+      },
+      {
+        "module": "Stafford38.Characteristic.LocalizedTwoBlockQuotient",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Characteristic.LocalizedTwoBlockQuotient "
+      },
+      {
+        "module": "Stafford38.Characteristic.SourceActionCommutatorExpansion",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Characteristic.SourceActionCommutatorExpansion "
+      },
+      {
+        "module": "Stafford38.Characteristic.SquareZeroHighPowerReduction",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Characteristic.SquareZeroHighPowerReduction "
+      },
+      {
+        "module": "Stafford38.EvolutionaryCorollary",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.EvolutionaryCorollary "
+      },
+      {
+        "module": "Stafford38.Geometry.ActualCommonOpenArcCompatibility",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Geometry.ActualCommonOpenArcCompatibility "
+      },
+      {
+        "module": "Stafford38.Geometry.ActualCommonOpenCompletionDerivation",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Geometry.ActualCommonOpenCompletionDerivation "
+      },
+      {
+        "module": "Stafford38.Geometry.ActualOptionArcDerivative",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Geometry.ActualOptionArcDerivative "
+      },
+      {
+        "module": "Stafford38.Geometry.ActualOptionCommonOpenColumns",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Geometry.ActualOptionCommonOpenColumns "
+      },
+      {
+        "module": "Stafford38.Geometry.EtaleLocalChartFinitePartialDerivation",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Geometry.EtaleLocalChartFinitePartialDerivation "
+      },
+      {
+        "module": "Stafford38.Geometry.PrescribedAffineResidueCompletion",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Geometry.PrescribedAffineResidueCompletion "
+      },
+      {
+        "module": "Stafford38.Geometry.PrescribedCompletionDerivationCommutation",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Geometry.PrescribedCompletionDerivationCommutation "
+      },
+      {
+        "module": "Stafford38.Geometry.PrescribedCompletionNonzero",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Geometry.PrescribedCompletionNonzero "
+      },
+      {
+        "module": "Stafford38.Geometry.PrescribedCompletionNonzeroConsumer",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Geometry.PrescribedCompletionNonzeroConsumer "
+      },
+      {
+        "module": "Stafford38.Geometry.PrescribedGroundPointPowerSeriesMap",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Geometry.PrescribedGroundPointPowerSeriesMap "
+      },
+      {
+        "module": "Stafford38.Geometry.PrescribedGroundPointUnitPowerChart",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Geometry.PrescribedGroundPointUnitPowerChart "
+      },
+      {
+        "module": "Stafford38.Geometry.SameWitness.CommonOpen",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/stafford38-formal Stafford38,proofs Stafford38.Geometry.SameWitness.CommonOpen "
+      }
+    ]
+  },
+  "seed": {
+    "records": 2467,
+    "kept": 2467,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 54,
+    "lineUnverified": 0,
+    "nameFixed": 2462,
+    "sorryOriginals": 0,
+    "emptyProofs": 7
+  },
+  "exportsBytes": 799633408,
+  "minutes": 52,
+  "finishedAt": "2026-10-26T00:47:05.047Z"
+}

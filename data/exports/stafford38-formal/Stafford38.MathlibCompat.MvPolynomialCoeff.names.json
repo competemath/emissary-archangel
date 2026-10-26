@@ -1,0 +1,1 @@
+{"names":["MvPolynomial.coeff_zero_compat","MvPolynomial.coeff"],"modules":["Stafford38.MathlibCompat.MvPolynomialCoeff"],"moduleOf":{"MvPolynomial.coeff_zero_compat":"Stafford38.MathlibCompat.MvPolynomialCoeff","MvPolynomial.coeff":"Stafford38.MathlibCompat.MvPolynomialCoeff"},"deps":{"MvPolynomial.coeff_zero_compat":["MvPolynomial.coeff"],"MvPolynomial.coeff":[]}}
