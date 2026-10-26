@@ -150,7 +150,9 @@ jobs:
           # this library (11,792 of them were 89.5 GB when unpacked; compressed they are 5 GB, so the artifact looked harmless and the next
           # round's unpack filled the runner's disk in 35 minutes). Lake regenerates them on demand and Tengoku's own cache leaves them
           # out, so they are not packed, not restored, and the ones older than 15 minutes are deleted while the build runs.
-          ( while sleep 300; do find "infra/$KEY/repo/.lake/build/ir" -name '*.setup.json' -mmin +15 -delete 2>/dev/null; done ) &
+          # the Lake project is infra/$KEY/repo/<subdir> for a source with a subdir (formal-math, immerman-vardi, fagin, openai-math), as in "Pack the build"
+          sub=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")
+          ( while sleep 300; do find "infra/$KEY/repo/$sub/.lake/build/ir" -name '*.setup.json' -mmin +15 -delete 2>/dev/null; done ) &
           timeout -k 2m "${PRIME_MINUTES}m" node scripts/setup-source.mjs "$KEY" --phase build $restore $args || echo "::notice::the prime build stopped at its budget; the shards build the rest"
           pkill -f 'bin/lake|bin/lean' || true
       - name: Is the build complete?
@@ -277,7 +279,9 @@ jobs:
           # this library (11,792 of them were 89.5 GB when unpacked; compressed they are 5 GB, so the artifact looked harmless and the next
           # round's unpack filled the runner's disk in 35 minutes). Lake regenerates them on demand and Tengoku's own cache leaves them
           # out, so they are not packed, not restored, and the ones older than 15 minutes are deleted while the build runs.
-          ( while sleep 300; do find "infra/$KEY/repo/.lake/build/ir" -name '*.setup.json' -mmin +15 -delete 2>/dev/null; done ) &
+          # the Lake project is infra/$KEY/repo/<subdir> for a source with a subdir (formal-math, immerman-vardi, fagin, openai-math), as in "Pack the build"
+          sub=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")
+          ( while sleep 300; do find "infra/$KEY/repo/$sub/.lake/build/ir" -name '*.setup.json' -mmin +15 -delete 2>/dev/null; done ) &
           timeout -k 2m 300m node scripts/setup-source.mjs "$KEY" --phase shard --shard "$I/$SHARDS" --restore build.tar.zst $args || echo "::notice::shard $I stopped before finishing; handing on what it produced"
           pkill -f 'bin/lake|bin/lean' || true
           rm -f build.tar.zst
