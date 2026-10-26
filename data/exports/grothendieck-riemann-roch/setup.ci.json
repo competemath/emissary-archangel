@@ -1,0 +1,61 @@
+{
+  "key": "grothendieck-riemann-roch",
+  "repo": "https://github.com/vaca22/grothendieck-riemann-roch",
+  "commit": "053ea2fbd24c2f675a28393a4e7b7af9fe4ae626",
+  "toolchain": "leanprover/lean4:v4.32.0-rc1",
+  "roots": [
+    "RiemannRoch"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/grothendieck-riemann-roch/repo",
+  "entries": 20793,
+  "modules": 1670,
+  "exported": 1670,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 942,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 20793,
+    "kept": 20793,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 1334,
+    "lineUnverified": 16,
+    "nameFixed": 20776,
+    "sorryOriginals": 0,
+    "emptyProofs": 17
+  },
+  "sharded": {
+    "records": 28,
+    "shards": [
+      28
+    ]
+  },
+  "exportsBytes": 25334136832,
+  "minutes": 256,
+  "finishedAt": "2026-10-26T11:25:34.127Z",
+  "archive": {
+    "release": "exports-grothendieck-riemann-roch",
+    "asset": "grothendieck-riemann-roch@053ea2fbd24c-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-grothendieck-riemann-roch/grothendieck-riemann-roch@053ea2fbd24c-exports.tar.zst",
+    "bytes": 3023287493,
+    "sha256": "187757829fa8c3cf7becded5b828cd3a2999a3d12465f336df95397206fd367f",
+    "files": 3340,
+    "unpack": "tar --zstd -xf grothendieck-riemann-roch@053ea2fbd24c-exports.tar.zst -C data/exports/grothendieck-riemann-roch",
+    "parts": [
+      {
+        "asset": "grothendieck-riemann-roch@053ea2fbd24c-exports.tar.zst.part-00",
+        "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-grothendieck-riemann-roch/grothendieck-riemann-roch@053ea2fbd24c-exports.tar.zst.part-00"
+      },
+      {
+        "asset": "grothendieck-riemann-roch@053ea2fbd24c-exports.tar.zst.part-01",
+        "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-grothendieck-riemann-roch/grothendieck-riemann-roch@053ea2fbd24c-exports.tar.zst.part-01"
+      }
+    ]
+  }
+}
