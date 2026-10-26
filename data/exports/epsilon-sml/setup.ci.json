@@ -1,0 +1,51 @@
+{
+  "key": "epsilon-sml",
+  "repo": "https://github.com/fukubillueda-web/epsilon_SML",
+  "commit": "5b55d3f6e7c053f733afb1be523e532d212d94d0",
+  "toolchain": "leanprover/lean4:v4.32.2",
+  "roots": [
+    "LanglandsSecondMainLemma"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/epsilon-sml/repo",
+  "entries": 2777,
+  "modules": 209,
+  "exported": 209,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 1410,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 2778,
+    "kept": 2777,
+    "skippedRoot": 0,
+    "skippedDup": 1,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 74,
+    "lineUnverified": 0,
+    "nameFixed": 2778,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "sharded": {
+    "records": 4,
+    "shards": [
+      4
+    ]
+  },
+  "exportsBytes": 916365312,
+  "minutes": 204,
+  "finishedAt": "2026-10-26T10:07:11.204Z",
+  "archive": {
+    "release": "exports-epsilon-sml",
+    "asset": "epsilon-sml@5b55d3f6e7c0-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-epsilon-sml/epsilon-sml@5b55d3f6e7c0-exports.tar.zst",
+    "bytes": 110755352,
+    "sha256": "14f4e84c216e8ea9d06511dfb7e203f80d7194309e9e118a1be4babd3050cfb1",
+    "files": 418,
+    "unpack": "tar --zstd -xf epsilon-sml@5b55d3f6e7c0-exports.tar.zst -C data/exports/epsilon-sml"
+  }
+}
