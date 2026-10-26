@@ -146,6 +146,11 @@ jobs:
         run: |
           args=$(python3 -c "import json, os; print(' '.join(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('setup', {}).get('args', [])))")
           restore=""; [ -f build.tar.zst ] && restore="--restore build.tar.zst"
+          # Lake writes a <module>.setup.json per module under .lake/build/ir listing its whole import closure: 7.6 MB each on average for
+          # this library (11,792 of them were 89.5 GB when unpacked; compressed they are 5 GB, so the artifact looked harmless and the next
+          # round's unpack filled the runner's disk in 35 minutes). Lake regenerates them on demand and Tengoku's own cache leaves them
+          # out, so they are not packed, not restored, and the ones older than 15 minutes are deleted while the build runs.
+          ( while sleep 300; do find "infra/$KEY/repo/.lake/build/ir" -name '*.setup.json' -mmin +15 -delete 2>/dev/null; done ) &
           timeout -k 2m "${PRIME_MINUTES}m" node scripts/setup-source.mjs "$KEY" --phase build $restore $args || echo "::notice::the prime build stopped at its budget; the shards build the rest"
           pkill -f 'bin/lake|bin/lean' || true
       - name: Is the build complete?
@@ -161,7 +166,7 @@ jobs:
           repo="infra/$KEY/repo/$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")"
           mkdir -p "$repo/.lake/build"
           rm -f build.tar.zst
-          tar --zstd -cf build.tar.zst -C "$repo" .lake/build
+          tar --zstd --exclude='*.setup.json' -cf build.tar.zst -C "$repo" .lake/build
           ls -la build.tar.zst
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: { name: build, path: build.tar.zst, retention-days: 3, compression-level: 0 }
@@ -268,6 +273,11 @@ jobs:
       - name: Shard ${{ matrix.shard }} of ${{ inputs.shards }}
         run: |
           args=$(python3 -c "import json, os; print(' '.join(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('setup', {}).get('args', [])))")
+          # Lake writes a <module>.setup.json per module under .lake/build/ir listing its whole import closure: 7.6 MB each on average for
+          # this library (11,792 of them were 89.5 GB when unpacked; compressed they are 5 GB, so the artifact looked harmless and the next
+          # round's unpack filled the runner's disk in 35 minutes). Lake regenerates them on demand and Tengoku's own cache leaves them
+          # out, so they are not packed, not restored, and the ones older than 15 minutes are deleted while the build runs.
+          ( while sleep 300; do find "infra/$KEY/repo/.lake/build/ir" -name '*.setup.json' -mmin +15 -delete 2>/dev/null; done ) &
           timeout -k 2m 300m node scripts/setup-source.mjs "$KEY" --phase shard --shard "$I/$SHARDS" --restore build.tar.zst $args || echo "::notice::shard $I stopped before finishing; handing on what it produced"
           pkill -f 'bin/lake|bin/lean' || true
           rm -f build.tar.zst
