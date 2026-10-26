@@ -1,0 +1,1 @@
+{"names":["jacobiSym.eq_prod_primeFactors_of_squarefree"],"modules":["QNFMathlib.NumberTheory.LegendreSymbol.JacobiSymbol"],"moduleOf":{"jacobiSym.eq_prod_primeFactors_of_squarefree":"QNFMathlib.NumberTheory.LegendreSymbol.JacobiSymbol"},"deps":{"jacobiSym.eq_prod_primeFactors_of_squarefree":[]}}

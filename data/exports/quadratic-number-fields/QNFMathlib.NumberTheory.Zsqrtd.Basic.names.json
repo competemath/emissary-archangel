@@ -1,0 +1,1 @@
+{"names":["Zsqrtd.mul_re_sub_im_eq","Zsqrtd.mul_re_add_im_eq"],"modules":["QNFMathlib.NumberTheory.Zsqrtd.Basic"],"moduleOf":{"Zsqrtd.mul_re_sub_im_eq":"QNFMathlib.NumberTheory.Zsqrtd.Basic","Zsqrtd.mul_re_add_im_eq":"QNFMathlib.NumberTheory.Zsqrtd.Basic"},"deps":{"Zsqrtd.mul_re_sub_im_eq":[],"Zsqrtd.mul_re_add_im_eq":[]}}

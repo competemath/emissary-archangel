@@ -1,0 +1,350 @@
+{
+  "key": "quadratic-number-fields",
+  "repo": "https://github.com/WangFrankie/QuadraticNumberFields",
+  "commit": "b02cc08db24a29c8a4e88af95848d8dae969a9fc",
+  "toolchain": "leanprover/lean4:v4.35.0",
+  "roots": [
+    "QuadraticNumberFields",
+    "QNFMathlib",
+    "FormClassGroup",
+    "BinaryQuadraticForms",
+    "ImaginaryClassNumberOne",
+    "Examples"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/quadratic-number-fields/repo",
+  "entries": 1703,
+  "modules": 164,
+  "exported": 164,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "BinaryQuadraticForms.Core.Enumeration",
+        "why": "missary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples BinaryQuadraticForms.Core.Enumeration "
+      },
+      {
+        "module": "Examples.ClassGroupStructure.Computations",
+        "why": "ary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples Examples.ClassGroupStructure.Computations "
+      },
+      {
+        "module": "Examples.Sqrt17.ClassNumber",
+        "why": "ner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples Examples.Sqrt17.ClassNumber "
+      },
+      {
+        "module": "Examples.Sqrt17.Invariants",
+        "why": "nner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples Examples.Sqrt17.Invariants "
+      },
+      {
+        "module": "Examples.Sqrt17.Splitting",
+        "why": "unner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples Examples.Sqrt17.Splitting "
+      },
+      {
+        "module": "Examples.SqrtNeg21.ClassGroup",
+        "why": "r/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples Examples.SqrtNeg21.ClassGroup "
+      },
+      {
+        "module": "Examples.SqrtNeg5.ClassNumber",
+        "why": "r/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples Examples.SqrtNeg5.ClassNumber "
+      },
+      {
+        "module": "Examples.SqrtNeg5.Forms",
+        "why": "/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples Examples.SqrtNeg5.Forms "
+      },
+      {
+        "module": "Examples.SqrtNeg5.Ideals",
+        "why": "runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples Examples.SqrtNeg5.Ideals "
+      },
+      {
+        "module": "Examples.SqrtNeg5.Invariants",
+        "why": "er/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples Examples.SqrtNeg5.Invariants "
+      },
+      {
+        "module": "Examples.SqrtNeg5.RamificationInertia",
+        "why": "missary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples Examples.SqrtNeg5.RamificationInertia "
+      },
+      {
+        "module": "Examples.SqrtNeg5.Splitting",
+        "why": "ner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples Examples.SqrtNeg5.Splitting "
+      },
+      {
+        "module": "FormClassGroup.ClassGroup.ClassNumber",
+        "why": "missary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples FormClassGroup.ClassGroup.ClassNumber "
+      },
+      {
+        "module": "FormClassGroup.Computable.ClassGroup",
+        "why": "emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples FormClassGroup.Computable.ClassGroup "
+      },
+      {
+        "module": "FormClassGroup.Cox.Equivalence",
+        "why": "/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples FormClassGroup.Cox.Equivalence "
+      },
+      {
+        "module": "FormClassGroup.Cox.Inverse",
+        "why": "nner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples FormClassGroup.Cox.Inverse "
+      },
+      {
+        "module": "FormClassGroup.Cox.LeftInverse",
+        "why": "/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples FormClassGroup.Cox.LeftInverse "
+      },
+      {
+        "module": "FormClassGroup.Cox.LeftInverseEqOne",
+        "why": "/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples FormClassGroup.Cox.LeftInverseEqOne "
+      },
+      {
+        "module": "FormClassGroup.Cox.NormFormBasisChange",
+        "why": "issary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples FormClassGroup.Cox.NormFormBasisChange "
+      },
+      {
+        "module": "FormClassGroup.Cox.RightInverse",
+        "why": "work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples FormClassGroup.Cox.RightInverse "
+      },
+      {
+        "module": "ImaginaryClassNumberOne.ClassNumberOne",
+        "why": "issary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples ImaginaryClassNumberOne.ClassNumberOne "
+      },
+      {
+        "module": "ImaginaryClassNumberOne.ClassNumberOneByForms",
+        "why": "archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples ImaginaryClassNumberOne.ClassNumberOneByForms "
+      },
+      {
+        "module": "QNFMathlib.RingTheory.ClassGroup.Narrow",
+        "why": "ssary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QNFMathlib.RingTheory.ClassGroup.Narrow "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.Ambiguous.Conjugation",
+        "why": "/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.Ambiguous.Conjugation "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.Ambiguous.Ramified",
+        "why": "gel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.Ambiguous.Ramified "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.Ambiguous.RamifiedParity",
+        "why": "issary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.Ambiguous.RamifiedParity "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.Ambiguous.Relation.Imaginary",
+        "why": "ry-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.Ambiguous.Relation.Imaginary "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.Ambiguous.Relation.Kernel",
+        "why": "ssary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.Ambiguous.Relation.Kernel "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.Ambiguous.Relation.PellUnit",
+        "why": "ary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.Ambiguous.Relation.PellUnit "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.Ambiguous.Relation.SquareNorm",
+        "why": "y-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.Ambiguous.Relation.SquareNorm "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.Ambiguous.Representatives.Coboundary",
+        "why": "ngel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.Ambiguous.Representatives.Coboundary "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.Ambiguous.Representatives.IntegralClearing",
+        "why": "cripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.Ambiguous.Representatives.IntegralClearing "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.Ambiguous.Representatives.InversionFixed",
+        "why": "/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.Ambiguous.Representatives.InversionFixed "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.Ambiguous.UpperBound",
+        "why": "l/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.Ambiguous.UpperBound "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.Basic",
+        "why": "issary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.Basic "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.GenusTheory.Characters.Descent",
+        "why": "-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.GenusTheory.Characters.Descent "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.GenusTheory.Characters.Map",
+        "why": "sary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.GenusTheory.Characters.Map "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.GenusTheory.Characters.Norm",
+        "why": "ary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.GenusTheory.Characters.Norm "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.GenusTheory.Characters.Raw",
+        "why": "sary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.GenusTheory.Characters.Raw "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.GenusTheory.Characters.Representatives",
+        "why": "el/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.GenusTheory.Characters.Representatives "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.GenusTheory.Characters.SquareClasses",
+        "why": "ngel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.GenusTheory.Characters.SquareClasses "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.GenusTheory.GenusTheorem",
+        "why": "issary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.GenusTheory.GenusTheorem "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.GenusTheory.Imaginary",
+        "why": "/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.GenusTheory.Imaginary "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.GenusTheory.LowerBound",
+        "why": "emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.GenusTheory.LowerBound "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.GenusTheory.Ordinary",
+        "why": "l/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.GenusTheory.Ordinary "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.GenusTheory.Surjectivity.Dirichlet",
+        "why": "hangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.GenusTheory.Surjectivity.Dirichlet "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.Minkowski",
+        "why": "ry-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.Minkowski "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.Narrow.Basic",
+        "why": "archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.Narrow.Basic "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.Narrow.Principal",
+        "why": "angel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.Narrow.Principal "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.RamifiedPrimes",
+        "why": "changel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.RamifiedPrimes "
+      },
+      {
+        "module": "QuadraticNumberFields.ClassGroup.Torsion",
+        "why": "sary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ClassGroup.Torsion "
+      },
+      {
+        "module": "QuadraticNumberFields.Euclidean.Basic",
+        "why": "missary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Euclidean.Basic "
+      },
+      {
+        "module": "QuadraticNumberFields.Qsqrtd.Basic",
+        "why": "k/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Qsqrtd.Basic "
+      },
+      {
+        "module": "QuadraticNumberFields.Qsqrtd.TotallyRealComplex",
+        "why": "changel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Qsqrtd.TotallyRealComplex "
+      },
+      {
+        "module": "QuadraticNumberFields.RingOfIntegers.Basis",
+        "why": "ry-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.RingOfIntegers.Basis "
+      },
+      {
+        "module": "QuadraticNumberFields.RingOfIntegers.Classification",
+        "why": "gel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.RingOfIntegers.Classification "
+      },
+      {
+        "module": "QuadraticNumberFields.RingOfIntegers.Conj",
+        "why": "ary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.RingOfIntegers.Conj "
+      },
+      {
+        "module": "QuadraticNumberFields.RingOfIntegers.Discriminant",
+        "why": "angel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.RingOfIntegers.Discriminant "
+      },
+      {
+        "module": "QuadraticNumberFields.RingOfIntegers.ModFour",
+        "why": "-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.RingOfIntegers.ModFour "
+      },
+      {
+        "module": "QuadraticNumberFields.RingOfIntegers.Norm",
+        "why": "ary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.RingOfIntegers.Norm "
+      },
+      {
+        "module": "QuadraticNumberFields.Splitting.Defs",
+        "why": "emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Splitting.Defs "
+      },
+      {
+        "module": "QuadraticNumberFields.Splitting.Factorization",
+        "why": "archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Splitting.Factorization "
+      },
+      {
+        "module": "QuadraticNumberFields.Splitting.Galois",
+        "why": "issary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Splitting.Galois "
+      },
+      {
+        "module": "QuadraticNumberFields.Splitting.Qsqrtd.Classification",
+        "why": "l/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Splitting.Qsqrtd.Classification "
+      },
+      {
+        "module": "QuadraticNumberFields.Splitting.Qsqrtd.Discriminant",
+        "why": "gel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Splitting.Qsqrtd.Discriminant "
+      },
+      {
+        "module": "QuadraticNumberFields.Splitting.Qsqrtd.Factorization",
+        "why": "el/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Splitting.Qsqrtd.Factorization "
+      },
+      {
+        "module": "QuadraticNumberFields.Splitting.Qsqrtd.Kronecker",
+        "why": "hangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Splitting.Qsqrtd.Kronecker "
+      },
+      {
+        "module": "QuadraticNumberFields.Splitting.Qsqrtd.KroneckerCharacter",
+        "why": "issary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Splitting.Qsqrtd.KroneckerCharacter "
+      },
+      {
+        "module": "QuadraticNumberFields.Splitting.Qsqrtd.KummerDedekind",
+        "why": "l/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Splitting.Qsqrtd.KummerDedekind "
+      },
+      {
+        "module": "QuadraticNumberFields.Splitting.Qsqrtd.Monogenic",
+        "why": "hangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Splitting.Qsqrtd.Monogenic "
+      },
+      {
+        "module": "QuadraticNumberFields.Splitting.Qsqrtd.OddPrime",
+        "why": "changel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Splitting.Qsqrtd.OddPrime "
+      },
+      {
+        "module": "QuadraticNumberFields.Splitting.Qsqrtd.SqrtD",
+        "why": "-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Splitting.Qsqrtd.SqrtD "
+      },
+      {
+        "module": "QuadraticNumberFields.Splitting.Qsqrtd.Two",
+        "why": "ry-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Splitting.Qsqrtd.Two "
+      },
+      {
+        "module": "QuadraticNumberFields.Splitting.QuadraticField.Basic",
+        "why": "el/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Splitting.QuadraticField.Basic "
+      },
+      {
+        "module": "QuadraticNumberFields.Units.Fundamental",
+        "why": "ssary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Units.Fundamental "
+      },
+      {
+        "module": "QuadraticNumberFields.ZOnePlusSqrtdOverTwo.Basic",
+        "why": "hangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.ZOnePlusSqrtdOverTwo.Basic "
+      },
+      {
+        "module": "QuadraticNumberFields.Zsqrtd.Dedekind",
+        "why": "missary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/quadratic-number-fields QuadraticNumberFields,QNFMathlib,FormClassGroup,BinaryQuadraticForms,ImaginaryClassNumberOne,Examples QuadraticNumberFields.Zsqrtd.Dedekind "
+      }
+    ]
+  },
+  "seed": {
+    "records": 1703,
+    "kept": 1703,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 95,
+    "lineUnverified": 1,
+    "nameFixed": 1575,
+    "sorryOriginals": 0,
+    "emptyProofs": 2
+  },
+  "exportsBytes": 58400768,
+  "minutes": 14,
+  "finishedAt": "2026-10-26T00:08:57.395Z"
+}

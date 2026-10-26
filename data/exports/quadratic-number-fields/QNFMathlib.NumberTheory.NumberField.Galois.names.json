@@ -1,0 +1,1 @@
+{"names":["NumberField.isGalois_fractionRing_ringOfIntegers"],"modules":["QNFMathlib.NumberTheory.NumberField.Galois"],"moduleOf":{"NumberField.isGalois_fractionRing_ringOfIntegers":"QNFMathlib.NumberTheory.NumberField.Galois"},"deps":{"NumberField.isGalois_fractionRing_ringOfIntegers":[]}}
