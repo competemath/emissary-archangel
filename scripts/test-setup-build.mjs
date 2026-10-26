@@ -140,6 +140,8 @@ if (process.platform === "linux") {
   r = setup(["--phase", "build"], { FAKE_LAKE_HANGS: "1", EMISSARY_MIN_AVAILABLE_MB: "999999999" })
   check("a shortage of the machine's memory kills the biggest process", /memory watchdog: killed \d+ at \d+ MB \(only \d+ MB left/.test(r.stdout + r.stderr) && Date.now() - t0 < 22000, r.stdout + r.stderr)
   r = setup(["--phase", "build"], { FAKE_LAKE_HANGS: "1", EMISSARY_MIN_AVAILABLE_MB: "1" })
+  r = setup(["--phase", "build"], { FAKE_LAKE_HANGS: "1", EMISSARY_MIN_AVAILABLE_MB: "1536MB" })
+  check("an unreadable threshold falls back to the default instead of killing everything", !/memory watchdog: killed/.test(r.stdout + r.stderr), r.stdout + r.stderr)
   check("with plenty of memory left nothing is killed", !/memory watchdog: killed/.test(r.stdout + r.stderr), r.stdout + r.stderr)
 }
 

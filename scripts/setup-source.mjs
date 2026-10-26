@@ -936,7 +936,8 @@ function watchMemory() {
 // kernel's own MemAvailable (free memory plus what can be reclaimed, so shared mapped .olean files are
 // not counted twice) is read every 2 s; under EMISSARY_MIN_AVAILABLE_MB (default 1536) the largest
 // process is killed. Not on macOS, where compression makes the figure unreliable.
-const MIN_AVAILABLE_MB = Number(process.env.EMISSARY_MIN_AVAILABLE_MB || 1536)
+// A value that is not a positive number ("1536MB") falls back to the default; NaN would make every check a shortage.
+const MIN_AVAILABLE_MB = Number(process.env.EMISSARY_MIN_AVAILABLE_MB) > 0 ? Number(process.env.EMISSARY_MIN_AVAILABLE_MB) : 1536
 function availableMB() {
   const m = readFileSync("/proc/meminfo", "utf8").match(/^MemAvailable:\s+(\d+) kB/m)
   return m ? Number(m[1]) / 1024 : Infinity
