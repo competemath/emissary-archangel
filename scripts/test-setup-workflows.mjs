@@ -43,6 +43,8 @@ check("the complete word is cut down to true or false before it is an output", /
 check("the prime job restores the previous build and goes on if it has expired", /continue-on-error: true/.test(sharded.prime.split("Build what fits")[0].split("The previous round's build")[1] || ""), "")
 check("build-gate forwards tengoku_ref, as the export round does (after checking it is a branch name)", /-f tengoku_ref="\$TENGOKU_REF"/.test(sharded["build-gate"]) && /TENGOKU_REF" =~ \^\[A-Za-z0-9\._\/-\]\*\$/.test(sharded["build-gate"]), "")
 check("the export round forwards tengoku_ref", /-f tengoku_ref="\$TENGOKU_REF"/.test(sharded.finish), "")
+check("the build is packed without the setup.json files, which unpack to 90 GB", /tar --zstd --exclude='\*\.setup\.json' -cf build\.tar\.zst/.test(sharded.prime), "")
+check("prime and shard delete old setup.json files while they build", (sharded.prime.match(/-name '\*\.setup\.json' -mmin \+15 -delete/g) || []).length === 1 && (sharded.shard.match(/-name '\*\.setup\.json' -mmin \+15 -delete/g) || []).length === 1, "")
 check("the next export round carries max_build_rounds on", /-f max_build_rounds="\$MAX_BUILD_ROUNDS"/.test(sharded.finish), "")
 
 const auto = jobsOf("setup-auto.yml")

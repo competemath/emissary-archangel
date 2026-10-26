@@ -77,6 +77,9 @@ const packed = (names, out) => {
   for (const n of names) {
     mkdirSync(join(stage, ".lake", "build", "lib", "lean", "Lib"), { recursive: true })
     writeFileSync(join(stage, ".lake", "build", "lib", "lean", "Lib", `${n}.olean`), "")
+    // as in a build packed before the setup files were left out: one per module, which unpacked to 7.6 MB each
+    mkdirSync(join(stage, ".lake", "build", "ir", "Lib"), { recursive: true })
+    writeFileSync(join(stage, ".lake", "build", "ir", "Lib", `${n}.setup.json`), "{}")
   }
   sh("tar", ["--zstd", "-cf", out, "-C", stage, ".lake/build"])
   return out
@@ -94,6 +97,12 @@ check("--phase build with --restore unpacks the earlier build", r.status === 0 &
 r = setup(["--phase", "build-status"])
 s = statusOf(r)
 check("status after the restore: complete", s.word === "true" && s.file.built === 2 && s.file.complete === true, JSON.stringify(s))
+
+check(
+  "the setup.json files of a packed build are not restored (they filled the runner's disk), the .oleans are",
+  existsSync(olean("A")) && existsSync(olean("B")) && !existsSync(join(repo, ".lake", "build", "ir", "Lib", "A.setup.json")) && !existsSync(join(repo, ".lake", "build", "ir", "Lib", "B.setup.json")),
+  "",
+)
 
 // 3. the earlier round got through half: the build phase finishes the rest
 rmSync(join(repo, ".lake"), { recursive: true, force: true })

@@ -774,6 +774,7 @@ function adopt(entries, modules, stats, t0) {
 
 // Unpacks an earlier round's build over the checkout. A shard needs it (it is the prime's build); the prime
 // itself uses it to carry on where the last round stopped, and goes without when the artifact has expired.
+// The *.setup.json files (Lake's per-module setup, 7.6 MB each here, 89 GB for 11,792 modules) are never restored, also from a build packed before they were left out.
 function restoreBuild({ required }) {
   if (!RESTORE) return Promise.resolve()
   if (!existsSync(resolve(RESTORE))) {
@@ -781,7 +782,7 @@ function restoreBuild({ required }) {
     log(`no earlier build at ${RESTORE}: building from what the checkout has`)
     return Promise.resolve()
   }
-  return run("tar", ["--zstd", "-xf", resolve(RESTORE), "-C", REPO], { timeoutMs: 60 * 60 * 1000 }).then((r) => {
+  return run("tar", ["--zstd", "--exclude=*.setup.json", "-xf", resolve(RESTORE), "-C", REPO], { timeoutMs: 60 * 60 * 1000 }).then((r) => {
     if (r.code !== 0) fail(`could not restore the build from ${RESTORE}: ${r.tail.slice(-300)}`)
   })
 }
