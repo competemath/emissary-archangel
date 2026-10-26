@@ -1,0 +1,51 @@
+{
+  "key": "derived-alg-geo-lean",
+  "repo": "https://github.com/chris-dare-dev/derived-alg-geo-lean",
+  "commit": "af19c7943a8e9e346a5c26eea7ce41f17b3a7983",
+  "toolchain": "leanprover/lean4:v4.32.1",
+  "roots": [
+    "DerivedAlgGeo"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/derived-alg-geo-lean/repo",
+  "entries": 8564,
+  "modules": 1094,
+  "exported": 1094,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 460,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 8564,
+    "kept": 8564,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 1551,
+    "lineUnverified": 32,
+    "nameFixed": 8541,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "sharded": {
+    "records": 12,
+    "shards": [
+      12
+    ]
+  },
+  "exportsBytes": 1916710912,
+  "minutes": 11,
+  "finishedAt": "2026-10-26T02:39:13.350Z",
+  "archive": {
+    "release": "exports-derived-alg-geo-lean",
+    "asset": "derived-alg-geo-lean@af19c7943a8e-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-derived-alg-geo-lean/derived-alg-geo-lean@af19c7943a8e-exports.tar.zst",
+    "bytes": 208051327,
+    "sha256": "7a3d6938e8d3ed96713e0afd094e9af64ceb42b864bbd4107846c3fed4ca1fb0",
+    "files": 2188,
+    "unpack": "tar --zstd -xf derived-alg-geo-lean@af19c7943a8e-exports.tar.zst -C data/exports/derived-alg-geo-lean"
+  }
+}

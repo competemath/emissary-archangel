@@ -1,0 +1,17 @@
+{
+  "shard": 2,
+  "shards": 12,
+  "commit": "af19c7943a8e9e346a5c26eea7ce41f17b3a7983",
+  "toolchain": "leanprover/lean4:v4.32.1",
+  "modules": 89,
+  "exported": 89,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 16,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "minutes": 9,
+  "finishedAt": "2026-10-26T02:36:36.325Z"
+}
