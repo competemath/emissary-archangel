@@ -1,0 +1,51 @@
+{
+  "key": "azurite",
+  "repo": "https://github.com/mhogrefe/azurite",
+  "commit": "14454e33ec582c001f23b6c65689d13d56a721dc",
+  "toolchain": "leanprover/lean4:v4.34.1",
+  "roots": [
+    "Azurite"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/azurite/repo",
+  "entries": 12872,
+  "modules": 1313,
+  "exported": 1313,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 910,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 12872,
+    "kept": 12872,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 65,
+    "lineUnverified": 0,
+    "nameFixed": 12735,
+    "sorryOriginals": 0,
+    "emptyProofs": 45
+  },
+  "sharded": {
+    "records": 18,
+    "shards": [
+      18
+    ]
+  },
+  "exportsBytes": 4373434368,
+  "minutes": 29,
+  "finishedAt": "2026-10-26T01:23:55.643Z",
+  "archive": {
+    "release": "exports-azurite",
+    "asset": "azurite@14454e33ec58-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-azurite/azurite@14454e33ec58-exports.tar.zst",
+    "bytes": 454800973,
+    "sha256": "c763b983b06c50f0e628c363553e27badebbb2e75bd832f46a0e394b4826a9f6",
+    "files": 2626,
+    "unpack": "tar --zstd -xf azurite@14454e33ec58-exports.tar.zst -C data/exports/azurite"
+  }
+}
