@@ -153,8 +153,10 @@ jobs:
           # the Lake project is infra/$KEY/repo/<subdir> for a source with a subdir (formal-math, immerman-vardi, fagin, openai-math), as in "Pack the build"
           sub=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")
           ( while sleep 300; do find "infra/$KEY/repo/$sub/.lake/build/ir" -name '*.setup.json' -mmin +15 -delete 2>/dev/null; done ) &
+          cleaner=$!   # stopped right after the build: it must not delete files while the next step packs the folder (tar: file changed as we read it)
           timeout -k 2m "${PRIME_MINUTES}m" node scripts/setup-source.mjs "$KEY" --phase build $restore $args || echo "::notice::the prime build stopped at its budget; the shards build the rest"
           pkill -f 'bin/lake|bin/lean' || true
+          kill "$cleaner" 2>/dev/null || true
       - name: Is the build complete?
         id: status
         if: inputs.prime_minutes != '0'
@@ -168,7 +170,8 @@ jobs:
           repo="infra/$KEY/repo/$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")"
           mkdir -p "$repo/.lake/build"
           rm -f build.tar.zst
-          tar --zstd --exclude='*.setup.json' -cf build.tar.zst -C "$repo" .lake/build
+          # tar exits 1 when a file changed while it was read: the archive is still written, and losing a 5-hour round to it is worse (round 3 of flt-anthropic was)
+          tar --zstd --exclude='*.setup.json' -cf build.tar.zst -C "$repo" .lake/build || { rc=$?; [ "$rc" -eq 1 ] || exit "$rc"; echo "::warning::tar: a file changed while it was packed (exit 1); the archive was written"; }
           ls -la build.tar.zst
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: { name: build, path: build.tar.zst, retention-days: 3, compression-level: 0 }
@@ -282,8 +285,10 @@ jobs:
           # the Lake project is infra/$KEY/repo/<subdir> for a source with a subdir (formal-math, immerman-vardi, fagin, openai-math), as in "Pack the build"
           sub=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")
           ( while sleep 300; do find "infra/$KEY/repo/$sub/.lake/build/ir" -name '*.setup.json' -mmin +15 -delete 2>/dev/null; done ) &
+          cleaner=$!   # stopped right after the build: it must not delete files while the next step packs the folder (tar: file changed as we read it)
           timeout -k 2m 300m node scripts/setup-source.mjs "$KEY" --phase shard --shard "$I/$SHARDS" --restore build.tar.zst $args || echo "::notice::shard $I stopped before finishing; handing on what it produced"
           pkill -f 'bin/lake|bin/lean' || true
+          kill "$cleaner" 2>/dev/null || true
           rm -f build.tar.zst
       - name: What this shard produced
         if: always()

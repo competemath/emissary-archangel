@@ -49,6 +49,12 @@ check(
   [sharded.prime, sharded.shard].every((job) => /sub=\$\(python3 -c "[^"]*\.get\('subdir', ''\)\)"\)/.test(job) && /find "infra\/\$KEY\/repo\/\$sub\/\.lake\/build\/ir"/.test(job) && !/find "infra\/\$KEY\/repo\/\.lake/.test(job)),
   "",
 )
+check(
+  "the cleaner is stopped right after the build in both jobs, before the build is packed (a running cleaner made tar fail after 5 hours)",
+  [sharded.prime, sharded.shard].every((job) => /cleaner=\$!/.test(job) && /kill "\$cleaner"/.test(job)) && sharded.prime.indexOf('kill "$cleaner"') < sharded.prime.indexOf("- name: Pack the build"),
+  "",
+)
+check("tar exit 1 (a file changed while it was read) does not lose the round: only other exit codes fail the pack step", /\|\| \{ rc=\$\?; \[ "\$rc" -eq 1 \] \|\| exit "\$rc"/.test(sharded.prime), "")
 check("prime and shard delete old setup.json files while they build", (sharded.prime.match(/-name '\*\.setup\.json' -mmin \+15 -delete/g) || []).length === 1 && (sharded.shard.match(/-name '\*\.setup\.json' -mmin \+15 -delete/g) || []).length === 1, "")
 check("the next export round carries max_build_rounds on", /-f max_build_rounds="\$MAX_BUILD_ROUNDS"/.test(sharded.finish), "")
 
