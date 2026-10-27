@@ -154,9 +154,19 @@ jobs:
           sub=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")
           ( while sleep 300; do find "infra/$KEY/repo/$sub/.lake/build/ir" -name '*.setup.json' -mmin +15 -delete 2>/dev/null; done ) &
           cleaner=$!   # stopped right after the build: it must not delete files while the next step packs the folder (tar: file changed as we read it)
+          # one line a minute: free memory, modules built, the biggest process (build-metrics.tsv, kept as an artifact); every fifth is also printed so the log is never silent
+          sh scripts/runner-watch.sh "infra/$KEY/repo/$sub/.lake/build/lib/lean" build-metrics.tsv 60 &
+          watcher=$!
           timeout -k 2m "${PRIME_MINUTES}m" node scripts/setup-source.mjs "$KEY" --phase build $restore $args || echo "::notice::the prime build stopped at its budget; the shards build the rest"
           pkill -f 'bin/lake|bin/lean' || true
-          kill "$cleaner" 2>/dev/null || true
+          kill "$cleaner" "$watcher" 2>/dev/null || true
+      - name: This round in numbers
+        if: always() && inputs.prime_minutes != '0'
+        run: |
+          [ -f build-metrics.tsv ] && python3 scripts/round-summary.py build-metrics.tsv "Build round ${{ inputs.build_round }} of $KEY" 60 >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && inputs.prime_minutes != '0'
+        with: { name: "build-metrics-${{ inputs.build_round }}", path: build-metrics.tsv, retention-days: 14, if-no-files-found: ignore }
       - name: Is the build complete?
         id: status
         if: inputs.prime_minutes != '0'
