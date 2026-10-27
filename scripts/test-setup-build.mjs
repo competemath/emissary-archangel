@@ -54,6 +54,7 @@ writeFileSync(join(bin, "elan"), `#!/bin/sh\necho "${TC} (default)"\n`)
 // lake: records its call; with FAKE_LAKE_MAKES set it "compiles" every module it is asked for
 writeFileSync(join(bin, "lake"), `#!/bin/sh
 echo "$@" >> "${tmp}/lake-calls"
+if [ -n "$FAKE_LAKE_HANGS" ] && [ "$1" = build ]; then exec sleep 25; fi
 if [ "$FAKE_LAKE_MAKES" = all ] && [ "$1" = build ]; then
   shift
   for m in "$@"; do
@@ -129,6 +130,20 @@ check("a shard without its build fails", r.status !== 0 && /no build to restore/
 // 7. an unknown phase is still refused
 r = setup(["--phase", "bulid"])
 check("an unknown phase is refused", r.status !== 0 && /build-status/.test(r.stderr), r.stderr)
+
+// 8. the machine's memory runs out (several processes each under the per-process limit): the biggest process is
+// killed at once instead of the runner dying. Linux only (it reads /proc/meminfo); asking for more free memory than any
+// machine has makes the shortage certain.
+if (process.platform === "linux") {
+  rmSync(join(repo, ".lake"), { recursive: true, force: true })
+  const t0 = Date.now()
+  r = setup(["--phase", "build"], { FAKE_LAKE_HANGS: "1", EMISSARY_MIN_AVAILABLE_MB: "999999999" })
+  check("a shortage of the machine's memory kills the biggest process", /memory watchdog: killed \d+ at \d+ MB \(only \d+ MB left/.test(r.stdout + r.stderr) && Date.now() - t0 < 22000, r.stdout + r.stderr)
+  r = setup(["--phase", "build"], { FAKE_LAKE_HANGS: "1", EMISSARY_MIN_AVAILABLE_MB: "1" })
+  r = setup(["--phase", "build"], { FAKE_LAKE_HANGS: "1", EMISSARY_MIN_AVAILABLE_MB: "1536MB" })
+  check("an unreadable threshold falls back to the default instead of killing everything", !/memory watchdog: killed/.test(r.stdout + r.stderr), r.stdout + r.stderr)
+  check("with plenty of memory left nothing is killed", !/memory watchdog: killed/.test(r.stdout + r.stderr), r.stdout + r.stderr)
+}
 
 rmSync(tmp, { recursive: true, force: true })
 process.exit(bad ? 1 : 0)
