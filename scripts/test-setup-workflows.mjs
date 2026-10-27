@@ -56,8 +56,9 @@ check(
 )
 check(
   "the prime job's watcher (one metrics line a minute) is stopped with the cleaner, before the build is packed, and its summary and file are kept even when the build step fails",
-  /watcher=\$!/.test(sharded.prime) && /kill "\$cleaner" "\$watcher"/.test(sharded.prime) && sharded.prime.indexOf('kill "$cleaner" "$watcher"') < sharded.prime.indexOf("- name: Pack the build") &&
-    /name: This round in numbers\n\s+if: always\(\)/.test(sharded.prime) && /name: "build-metrics-\$\{\{ inputs\.build_round \}\}"/.test(sharded.prime),
+  /watcher=\$!/.test(sharded.prime) && /kill "\$watcher"/.test(sharded.prime) && sharded.prime.indexOf('kill "$watcher"') < sharded.prime.indexOf("- name: Pack the build") &&
+    /name: This round in numbers\n\s+if: always\(\)/.test(sharded.prime) && /if: always\(\) && inputs\.prime_minutes != '0'\n\s+with: \{ name: "build-metrics-\$\{\{ inputs\.build_round \}\}", path: build-metrics\.tsv/.test(sharded.prime) &&
+    !/run: \|[^]*\$\{\{ inputs\.build_round \}\}[^]*- uses: actions\/upload-artifact/.test(sharded.prime.slice(sharded.prime.indexOf("- name: This round in numbers"), sharded.prime.indexOf("- name: Is the build complete?"))),
   "",
 )
 check("tar exit 1 (a file changed while it was read) does not lose the round: only other exit codes fail the pack step", /\|\| \{ rc=\$\?; \[ "\$rc" -eq 1 \] \|\| exit "\$rc"/.test(sharded.prime), "")
