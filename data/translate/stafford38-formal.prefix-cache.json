@@ -1,0 +1,735 @@
+{
+  "Stafford38/Characteristic/ArtinianTriangularTrace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:40:31.564Z"
+  },
+  "Stafford38/Characteristic/CanonicalTotalGradedBridge.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:40:32.746Z"
+  },
+  "Stafford38/Characteristic/GabberGlobalAssembly.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:40:33.282Z"
+  },
+  "Stafford38/EvolutionaryCorollary.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:40:39.946Z"
+  },
+  "Stafford38/Geometry/A0ChartFormalEtale.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:40:43.026Z"
+  },
+  "Stafford38/Geometry/ActualCenterParameterTransport.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:41:16.193Z"
+  },
+  "Stafford38/Geometry/ActualChartResidueMapCoherence.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:41:20.876Z"
+  },
+  "Stafford38/Geometry/ActualCommonOpenArcCompatibility.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:41:35.948Z"
+  },
+  "Stafford38/Geometry/AdicCompletionRingEquiv.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:41:39.472Z"
+  },
+  "Stafford38/Geometry/AffinePointCompletion.lean": {
+    "checkedAt": "2026-10-27T22:41:45.350Z",
+    "collisions": [
+      "MvPolynomial.coeff"
+    ]
+  },
+  "Stafford38/Geometry/AsymptoticDivisorExistence.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:41:46.240Z",
+    "collisions": [
+      "Stafford38.Geometry.AsymptoticDivisorExistence.CoordinateZeroLocalRing",
+      "Stafford38.Geometry.AsymptoticDivisorExistence.coordinateZeroLocalMap",
+      "Stafford38.Geometry.AsymptoticDivisorExistence.coordinateZeroPrime",
+      "Stafford38.Geometry.AsymptoticDivisorExistence.BoundaryValuationData"
+    ]
+  },
+  "Stafford38/Geometry/ClosedPointOnDivisor.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:41:59.227Z"
+  },
+  "Stafford38/Geometry/CommonOpenEvaluation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:42:02.279Z"
+  },
+  "Stafford38/Geometry/CompletedDVRCoefficientSection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:02.575Z"
+  },
+  "Stafford38/Geometry/ComponentFunctionFieldBoundary.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:02.893Z"
+  },
+  "Stafford38/Geometry/ComponentProjectiveClosure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:03.685Z"
+  },
+  "Stafford38/Geometry/ConormalPrincipalOpenDensity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:04.156Z"
+  },
+  "Stafford38/Geometry/ConormalScalarExtensionVanishing.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:06.456Z"
+  },
+  "Stafford38/Geometry/EtaleDerivationExtension.lean": {
+    "checkedAt": "2026-10-27T22:42:07.809Z",
+    "collisions": [
+      "Stafford38.Geometry.EtaleDerivationExtension.extendDerivation"
+    ]
+  },
+  "Stafford38/Geometry/EtaleGenericOpenTransport.lean": {
+    "checkedAt": "2026-10-27T22:42:08.866Z",
+    "collisions": [
+      "Stafford38.Geometry.EtaleGenericOpenTransport.genericOpenRing",
+      "Stafford38.Geometry.EtaleGenericOpenTransport.genericOpenDenominators",
+      "Stafford38.Geometry.EtaleGenericOpenTransport.localPointToField",
+      "Stafford38.Geometry.EtaleGenericOpenTransport.localPointToGenericOpen",
+      "Stafford38.Geometry.EtaleGenericOpenTransport.genericPointMap",
+      "Stafford38.Geometry.EtaleGenericOpenTransport.genericArcToGenericOpen"
+    ]
+  },
+  "Stafford38/Geometry/EtaleLocalChartFinitePartialDerivation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:31.002Z"
+  },
+  "Stafford38/Geometry/FormallyEtaleCompletion.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:42:31.844Z"
+  },
+  "Stafford38/Geometry/FormallyEtaleCompletionEquivalence.lean": {
+    "checkedAt": "2026-10-27T22:42:35.711Z",
+    "collisions": [
+      "Stafford38.Geometry.FormallyEtaleCompletionEquivalence.factor_evalₐ_comp"
+    ]
+  },
+  "Stafford38/Geometry/GeneralCoisotropicSets.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:02.080Z"
+  },
+  "Stafford38/Geometry/GeneralCoisotropicSetsTest.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:03.799Z"
+  },
+  "Stafford38/Geometry/GeneralDivisorialVisibleFrameColumn.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:04.130Z"
+  },
+  "Stafford38/Geometry/GeneralTangentLimitCriterion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:04.865Z"
+  },
+  "Stafford38/Geometry/LocalizationStageFractionCoefficients.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:05.321Z"
+  },
+  "Stafford38/Geometry/LocalizedProjectiveChartTransition.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:05.630Z"
+  },
+  "Stafford38/Geometry/PaperDivisorTangent.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:06.072Z"
+  },
+  "Stafford38/Geometry/PowerSeriesArcTangency.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:10.747Z"
+  },
+  "Stafford38/Geometry/PrescribedAffineResidueCompletion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:11.110Z"
+  },
+  "Stafford38/Geometry/PrescribedEtaleGroundPoint.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:43:11.919Z"
+  },
+  "Stafford38/Geometry/ProjectiveDivisorOrderGap.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:16.487Z"
+  },
+  "Stafford38/Geometry/RelativeDivisorialTower.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:43:17.271Z",
+    "collisions": [
+      "Stafford38.Geometry.RelativeDivisorialTower.coefficientField"
+    ]
+  },
+  "Stafford38/Geometry/RelativeFractionFieldTransport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:39.569Z"
+  },
+  "Stafford38/Geometry/RetainedDVRPlace.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:45.678Z"
+  },
+  "Stafford38/Geometry/RetainedPlaceConormalTransport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:46.200Z"
+  },
+  "Stafford38/Geometry/UnitPowerCenterTransport.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:43:47.983Z"
+  },
+  "Stafford38/LocalizationCorollaries.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:50.668Z"
+  },
+  "Stafford38/LocalizedWeylAction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:51.368Z"
+  },
+  "Stafford38/MathlibCompat/MvPolynomialCoeff.lean": {
+    "checkedAt": "2026-10-27T22:43:51.663Z",
+    "collisions": [
+      "MvPolynomial.coeff"
+    ]
+  },
+  "Stafford38/Quotient/EulerSurjectivity.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:43:52.573Z"
+  },
+  "proofs/weyl_symplectic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:56.948Z"
+  },
+  "Stafford38/ChallengeDefinitions.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:40:55.481Z"
+  },
+  "Stafford38/Characteristic/ConcreteInducedZAction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:40:59.309Z"
+  },
+  "Stafford38/Characteristic/HomogeneousChart.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:41:02.368Z"
+  },
+  "Stafford38/Characteristic/LinearAction.lean": {
+    "checkedAt": "2026-10-27T22:41:04.416Z",
+    "collisions": [
+      "Stafford38.Characteristic.SymbolRing",
+      "Stafford38.CharacteristicLinearAction.symbolLinearAlgEquivOfInverse"
+    ]
+  },
+  "Stafford38/Characteristic/LocalizedPartialDerivation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:07.864Z"
+  },
+  "Stafford38/Characteristic/LocalizedTwoBlockQuotient.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:08.844Z"
+  },
+  "Stafford38/Characteristic/PaperSymplecticBasis.lean": {
+    "checkedAt": "2026-10-27T22:42:12.976Z",
+    "collisions": [
+      "Stafford38.CharacteristicPaperSymplecticBasis.onePlusEquiv_symm_zero",
+      "Stafford38.CharacteristicPaperSymplecticBasis.onePlusEquiv_symm_succ",
+      "Stafford38.CharacteristicPaperSymplecticBasis.pairVectors_range",
+      "Stafford38.CharacteristicPaperSymplecticBasis.normalized_pair_linearIndependent",
+      "Stafford38.CharacteristicPaperSymplecticBasis.pairIndex_left0",
+      "Stafford38.CharacteristicPaperSymplecticBasis.pairIndex_right0",
+      "Stafford38.CharacteristicPaperSymplecticBasis.pairIndex_left_succ",
+      "Stafford38.CharacteristicPaperSymplecticBasis.pairIndex_right_succ"
+    ]
+  },
+  "Stafford38/Characteristic/SourceActionCommutatorExpansion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:50.186Z"
+  },
+  "Stafford38/Characteristic/SymplecticCompletion.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:51.427Z"
+  },
+  "Stafford38/EulerRootSeparation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:42:52.547Z"
+  },
+  "Stafford38/FixedSourceChallengeTransport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:44:20.426Z"
+  },
+  "Stafford38/Geometry/ActualCommonOpenCompletionDerivation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:44:21.147Z"
+  },
+  "Stafford38/Geometry/ActualOptionColumnBinding.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:44:21.620Z"
+  },
+  "Stafford38/Geometry/AffineComponentCoordinateSplit.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:44:28.639Z"
+  },
+  "Stafford38/Geometry/CanonicalVisibleDivisorFrameProduction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:44:35.903Z"
+  },
+  "Stafford38/Geometry/DivisorialVisibleFrameCore.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:44:38.258Z"
+  },
+  "Stafford38/Geometry/FormalDivisorTangent.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:44:38.789Z"
+  },
+  "Stafford38/Geometry/GeneralCoordinateAvoidance.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:44:41.188Z"
+  },
+  "Stafford38/Geometry/LaurentConormalResidueExtension.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:44:41.663Z"
+  },
+  "Stafford38/Geometry/PaperGenericTangentRank.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:44:42.263Z"
+  },
+  "Stafford38/Geometry/PaperUnitPowerFactorization.lean": {
+    "checkedAt": "2026-10-27T22:44:44.205Z",
+    "collisions": [
+      "Stafford38.Geometry.PaperUnitPowerFactorization.exists_unit_factorization_atPrime"
+    ]
+  },
+  "Stafford38/Geometry/ProjectiveDVRCenter.lean": {
+    "checkedAt": "2026-10-27T22:44:51.163Z",
+    "collisions": [
+      "Stafford38.Geometry.ProjectiveDVRCenter.subringAlgebra"
+    ]
+  },
+  "Stafford38/Geometry/ResidueBasisLocalization.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:44:52.556Z"
+  },
+  "Stafford38/Geometry/ResidueLiftIndependence.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:44:58.751Z"
+  },
+  "Stafford38/Geometry/RetractionSpecialization.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:44:59.688Z"
+  },
+  "Stafford38/Geometry/SameWitness/AwayFactorToAtPrime.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:45:19.156Z"
+  },
+  "Stafford38/Geometry/SameWitnessRelativeTranscendenceDegree.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:45:23.705Z"
+  },
+  "Stafford38/Geometry/ScalarExtensionPoints.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:50:59.361Z"
+  },
+  "Stafford38/Geometry/SeparableResidueDerivationExtension.lean": {
+    "checkedAt": "2026-10-27T22:51:01.535Z",
+    "collisions": [
+      "Stafford38.Geometry.SeparableResidueDerivationExtension.extendDerivation"
+    ]
+  },
+  "Stafford38/Geometry/SmoothAffineConormal.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:51:08.189Z"
+  },
+  "Stafford38/Geometry/SplitTangentMatrix.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:51:09.160Z"
+  },
+  "Stafford38/Geometry/TiltedArcAvoidance.lean": {
+    "checkedAt": "2026-10-27T22:51:13.270Z",
+    "collisions": [
+      "MvPolynomial.coeff"
+    ]
+  },
+  "Stafford38/LinearAlgebra/SymplecticComplement.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:51:21.941Z"
+  },
+  "Stafford38/Ore/LinearNormalForm.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:51:28.016Z"
+  },
+  "Stafford38/Statement.lean": {
+    "checkedAt": "2026-10-27T22:51:30.184Z",
+    "collisions": [
+      "Stafford38.challenge_universalStatement_iff.«»"
+    ]
+  },
+  "Stafford38/Weyl/EulerSubring.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:51:32.746Z"
+  },
+  "Stafford38/Weyl/MonicNormalization.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:51:41.656Z"
+  },
+  "Stafford38/Weyl/PBW.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:52:35.576Z"
+  },
+  "Stafford38/Weyl/PaperQuotientDescent.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:52:37.199Z"
+  },
+  "Stafford38/Weyl/PresentedScalarExtension.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:52:38.678Z"
+  },
+  "Stafford38/Weyl/TranspositionFiltration.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:52:39.962Z"
+  },
+  "Stafford38/Characteristic/BaseZeroSection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:56.291Z"
+  },
+  "Stafford38/Characteristic/ConcreteEquation33SourceMatrices.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:57.547Z"
+  },
+  "Stafford38/Characteristic/Polynomial.lean": {
+    "checkedAt": "2026-10-27T22:43:44.998Z",
+    "collisions": [
+      "Stafford38.Characteristic.SymbolRing"
+    ]
+  },
+  "Stafford38/Characteristic/PostScalarExtensionPoisson.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:45.928Z"
+  },
+  "Stafford38/Characteristic/RadicalMinimalPrimeInvolutivity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:43:46.711Z"
+  },
+  "Stafford38/Characteristic/SquareZeroTraceData.lean": {
+    "checkedAt": "2026-10-27T22:43:48.794Z",
+    "collisions": [
+      "Stafford38.Characteristic.SquareZeroTraceData.rightActionEnd"
+    ]
+  },
+  "Stafford38/EvolutionaryCertificate.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:43:57.629Z"
+  },
+  "Stafford38/Geometry/A0ChartGeneratorCoordinates.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:44:40.805Z"
+  },
+  "Stafford38/Geometry/ActualChartCenterContraction.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:44:41.634Z"
+  },
+  "Stafford38/Geometry/ActualDivisorUniformizerNumerator.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:44:44.558Z"
+  },
+  "Stafford38/Geometry/AdicCompletionMap.lean": {
+    "checkedAt": "2026-10-27T22:44:58.028Z",
+    "collisions": [
+      "Stafford38.Geometry.AdicCompletionMap.mapOfRingHom._proof_1"
+    ]
+  },
+  "Stafford38/Geometry/AffineConormalClosure.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:45:03.565Z"
+  },
+  "Stafford38/Geometry/CoisotropicTranslation.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:45:05.397Z",
+    "collisions": [
+      "Stafford38.Geometry.CoisotropicTranslation.differentialTranslatePoint",
+      "Stafford38.Geometry.CoisotropicTranslation.affineFibreLinePolynomial",
+      "Stafford38.Geometry.CoisotropicTranslation.fibreLinePolynomial",
+      "Stafford38.Characteristic.SymbolRing"
+    ]
+  },
+  "Stafford38/Geometry/CompletedDVRPowerSeriesEquiv.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:46:03.345Z"
+  },
+  "Stafford38/Geometry/ContinuousPowerSeriesTangentFrame.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:46:03.885Z"
+  },
+  "Stafford38/Geometry/DVRUniformizerNumerator.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:46:05.350Z"
+  },
+  "Stafford38/Geometry/DivisorialBoundaryExtension.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:46:09.663Z"
+  },
+  "Stafford38/Geometry/EtaleGenericOpenLocalAwayB.lean": {
+    "checkedAt": "2026-10-27T22:46:36.344Z",
+    "collisions": [
+      "Stafford38.Geometry.EtaleGenericOpenTransport.genericOpenRing",
+      "Stafford38.Geometry.EtaleGenericOpenTransport.genericOpenDenominators",
+      "Stafford38.Geometry.EtaleGenericOpenTransport.instGenericOpenBAlgebra"
+    ]
+  },
+  "Stafford38/Geometry/FieldEquivFiniteType.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:46:37.470Z"
+  },
+  "Stafford38/Geometry/FiniteGradientResidueExtension.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:46:44.584Z"
+  },
+  "Stafford38/Geometry/FiniteSeparableDVRChartFoundation.lean": {
+    "checkedAt": "2026-10-27T22:46:45.440Z",
+    "collisions": [
+      "Stafford38.Geometry.FiniteSeparableDVRChartFoundation.finiteSeparableSection"
+    ]
+  },
+  "Stafford38/Geometry/FormalDivisorAxisLift.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:46:49.211Z"
+  },
+  "Stafford38/Geometry/FormalDivisorLaurentConormal.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:46:49.654Z"
+  },
+  "Stafford38/Geometry/GenericSmoothOpen.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:46:51.916Z"
+  },
+  "Stafford38/Geometry/IntegralPolynomialExtensionDimension.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:46:54.777Z"
+  },
+  "Stafford38/Geometry/KaehlerTranscendenceBasis.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:47:08.691Z"
+  },
+  "Stafford38/Geometry/LaurentConormalDirection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:47:09.166Z"
+  },
+  "Stafford38/Geometry/LocalizationInStagesAtPrime.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:47:10.647Z"
+  },
+  "Stafford38/Geometry/PaperResidueGroundAlgebraTransport.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:47:11.164Z"
+  },
+  "Stafford38/Geometry/ProjectiveChartNormalizationBridge.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:47:12.115Z",
+    "collisions": [
+      "Stafford38.Geometry.ProjectiveChartNormalizationBridge.A",
+      "MvPolynomial.coeff"
+    ]
+  },
+  "Stafford38/Geometry/ProjectiveValuationNormalization.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:47:30.780Z"
+  },
+  "Stafford38/Geometry/SmoothLocalTiltedArcAxisLift.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:47:33.781Z"
+  },
+  "Stafford38/LinearAlgebra/PairReplacement.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:47:36.468Z"
+  },
+  "Stafford38/PolynomialDifferentialOperators.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:48:02.352Z"
+  },
+  "Stafford38/PolynomialOperatorCommutators.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:48:02.962Z"
+  },
+  "Stafford38/PolynomialOperatorTaylorProjection.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:48:04.961Z"
+  },
+  "Stafford38/Weyl/EulerProductIdentities.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:48:09.953Z"
+  },
+  "Stafford38/Weyl/EulerResidue.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:48:10.276Z"
+  },
+  "Stafford38/Weyl/FilteredCommutator.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:48:11.063Z"
+  },
+  "Stafford38/Weyl/FilteredScalarLifting.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:48:11.485Z"
+  },
+  "Stafford38/Weyl/Filtration.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:48:14.004Z"
+  },
+  "Stafford38/Weyl/IteratedEquivalence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:48:14.617Z"
+  },
+  "Stafford38/Characteristic/ArtinianAdaptedBasisExistence.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:40:32.005Z"
+  },
+  "Stafford38/Characteristic/ArtinianCoefficientField.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:41:07.349Z"
+  },
+  "Stafford38/Characteristic/ArtinianEquation33TraceProducer.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:41:08.379Z",
+    "collisions": [
+      "Stafford38.Characteristic.ArtinianEquation33TraceProducer.reducedEquation33Matrix"
+    ]
+  },
+  "Stafford38/Characteristic/LocalizedDerivationQuotient.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:41:14.646Z"
+  },
+  "Stafford38/Characteristic/NormalSymbolPolynomial.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:41:15.382Z"
+  },
+  "Stafford38/Characteristic/PaperLocalizedInvolutivity.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:41:17.442Z"
+  },
+  "Stafford38/Characteristic/SquareZeroLinearTrace.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:41:18.463Z",
+    "collisions": [
+      "Stafford38.Characteristic.SquareZeroLinearTrace.trace_commutator_sum_eq_zero",
+      "Stafford38.Characteristic.SquareZeroLinearTrace.quotientEnd"
+    ]
+  },
+  "Stafford38/Geometry/AffineConormalSpan.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:41:25.542Z"
+  },
+  "Stafford38/Geometry/AsymptoticChartArcAdapter.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:41:26.058Z"
+  },
+  "Stafford38/Geometry/ComponentProjectiveOrder.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:41:26.891Z"
+  },
+  "Stafford38/Geometry/CorrectedVelocitySpan.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:41:28.548Z"
+  },
+  "Stafford38/Geometry/DVRParameterSmoothness.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:41:31.014Z"
+  },
+  "Stafford38/Geometry/EtaleCotangentBasis.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:41:33.646Z",
+    "collisions": [
+      "Stafford38.Geometry.EtaleCotangentBasis.basisAfterPoint"
+    ]
+  },
+  "Stafford38/Geometry/EtaleGenericOpenExtraAwayB.lean": {
+    "checkedAt": "2026-10-27T22:42:06.117Z",
+    "collisions": [
+      "Stafford38.Geometry.EtaleGenericOpenTransport.genericOpenRing",
+      "Stafford38.Geometry.EtaleGenericOpenTransport.genericOpenDenominators",
+      "Stafford38.Geometry.EtaleGenericOpenTransport.genericOpenBMap",
+      "Stafford38.Geometry.EtaleGenericOpenTransport.instGenericOpenBAlgebra"
+    ]
+  },
+  "Stafford38/Geometry/FiniteBirationalAway.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:42:08.077Z"
+  },
+  "Stafford38/Geometry/KaehlerSpanSeparableAdjoin.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:09.764Z"
+  },
+  "Stafford38/Geometry/KaehlerVisibleDerivationFrame.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:10.285Z"
+  },
+  "Stafford38/Geometry/OneVariablePrimeConormal.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:10.626Z"
+  },
+  "Stafford38/Geometry/PaperLaurentChartDerivation.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:11.099Z"
+  },
+  "Stafford38/Geometry/PowerSeriesTangentLimit.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:11.437Z"
+  },
+  "Stafford38/Geometry/ProjectiveChartCoordinates.lean": {
+    "checkedAt": "2026-10-27T22:42:12.261Z",
+    "collisions": [
+      "Stafford38.Geometry.ProjectiveChartCoordinates.ChartAffineIndex",
+      "Stafford38.Geometry.ProjectiveChartCoordinates.zerothChartEquiv"
+    ]
+  },
+  "Stafford38/Geometry/ProjectiveEquationFormalChart.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:17.979Z"
+  },
+  "Stafford38/Geometry/SelectedResidueCoefficientLocalization.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:42:20.329Z",
+    "collisions": [
+      "Stafford38.Geometry.SelectedResidueCoefficientLocalization.selectedCoefficientResidueMap"
+    ]
+  },
+  "Stafford38/Geometry/SelectedResidueNormalizationLocalization.lean": {
+    "checkedAt": "2026-10-27T22:42:27.721Z",
+    "collisions": [
+      "Stafford38.Geometry.SelectedResidueCoefficientLocalization.chartSubalgebraToIntegralClosure"
+    ]
+  },
+  "Stafford38/Geometry/SmoothLocalParameterCompletion.lean": {
+    "checkedAt": "2026-10-27T22:42:32.200Z",
+    "collisions": [
+      "MvPolynomial.coeff"
+    ]
+  },
+  "Stafford38/Geometry/ValuationCenterDominatesLocalPrime.lean": {
+    "status": "clean",
+    "checkedAt": "2026-10-27T22:42:35.913Z"
+  },
+  "Stafford38/Ore/CoordinateStage.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:36.272Z"
+  },
+  "Stafford38/Ore/ScalarAlgebra.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:36.584Z"
+  },
+  "Stafford38/Weyl/CommutatorSymbol.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:38.062Z"
+  },
+  "Stafford38/Weyl/Symplectic.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:38.873Z"
+  },
+  "Stafford38/Weyl/Universal.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:39.388Z"
+  },
+  "proofs/stafford38_reduction.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:39.665Z"
+  },
+  "proofs/weyl_pure_power.lean": {
+    "status": "broken",
+    "checkedAt": "2026-10-27T22:42:39.972Z"
+  }
+}
