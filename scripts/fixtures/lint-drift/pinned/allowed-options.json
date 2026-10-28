@@ -1,0 +1,10 @@
+{
+ "$comment": "fixture",
+ "allowed": [
+  "linter.all",
+  "linter.unusedVariables",
+  "maxRecDepth",
+  "maxHeartbeats",
+  "synthInstance.maxHeartbeats"
+ ]
+}

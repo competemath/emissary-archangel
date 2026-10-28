@@ -1,0 +1,18 @@
+{
+ "$comment": "fixture",
+ "allowed": [
+  "linter.all",
+  "linter.unusedVariables",
+  "maxRecDepth",
+  "maxHeartbeats",
+  "synthInstance.maxHeartbeats",
+  "pp.all",
+  "autoImplicit",
+  "relaxedAutoImplicit",
+  "linter.style.longLine",
+  "linter.style.setOption",
+  "backward.privateInPublic",
+  "backward.privateInPublic.warn",
+  "exponentiation.threshold"
+ ]
+}
