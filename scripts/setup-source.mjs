@@ -34,6 +34,7 @@ import os from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
+import { collectTools, mergeTools } from "./setup-tools.mjs"
 
 const x = promisify(execFile)
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -149,6 +150,17 @@ function run(cmd, args, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000, quiet = f
     })
   })
 }
+// Which tools are producing this setup (Lean, Lake, elan, lean4export's commit and patch, node, the runner image): written into the record, so that two runs that differ have an explanation on file.
+// Asked of the machine that ran the Lean code. A tool that cannot be asked is null in the record, never a reason to fail the setup.
+const toolsNow = () =>
+  collectTools({
+    exec: (cmd, args) => x(cmd, args, { env: ENV, timeout: 60000 }).then((r) => r.stdout),
+    env: process.env,
+    nodeVersion: process.version,
+    toolchain: src.toolchain,
+    l4eDir: L4E_DIR,
+    patchScript: existsSync(join(APP_ROOT, "scripts", "patch-lean4export.py")) ? readFileSync(join(APP_ROOT, "scripts", "patch-lean4export.py"), "utf8") : null,
+  })
 // Like run(), with stdout written to `outPath` (stderr captured for the report).
 function runToFile(cmd, args, outPath, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000 } = {}) {
   return new Promise((res) => {
@@ -823,6 +835,7 @@ async function shard(modules, t0) {
     exported: mine.filter((m) => existsSync(join(EXPORTS, `${m}.ndjson`))).length,
     failed: failed.map(([m, why]) => ({ module: m, why })),
     expansion: { ...expansion.stats, failed: expansion.failed.map(([m, why]) => ({ module: m, why })) },
+    tools: await toolsNow(),
     minutes: Math.round((Date.now() - t0) / 60000),
     finishedAt: new Date().toISOString(),
   }
@@ -863,6 +876,8 @@ function finish(entries, modules, stats, t0) {
     expansion: { expanded: sum("expanded"), verbatim: sum("verbatim"), unexpanded: sum("unexpanded"), failed: records.flatMap((r) => r.expansion?.failed || []) },
     seed: stats,
     sharded: { records: records.length, shards: [...new Set(records.map((r) => r.shards))] },
+    // the finish job runs no Lean: the tools are the ones the shards (which did) wrote into their records; a field they disagree on holds every value
+    ...(mergeTools(records.map((r) => r.tools)) ? { tools: mergeTools(records.map((r) => r.tools)) } : {}),
     exportsBytes: dirSize(EXPORTS),
     minutes: Math.round((Date.now() - t0) / 60000) + records.reduce((a, r) => Math.max(a, r.minutes || 0), 0),
     finishedAt: new Date().toISOString(),
@@ -997,6 +1012,7 @@ async function main() {
     failed: failed.map(([m, why]) => ({ module: m, why })),
     expansion: { ...expansion.stats, failed: expansion.failed.map(([m, why]) => ({ module: m, why })) },
     seed: stats,
+    tools: await toolsNow(),
     exportsBytes: dirSize(EXPORTS),
     minutes: Math.round((Date.now() - t0) / 60000),
     finishedAt: new Date().toISOString(),
