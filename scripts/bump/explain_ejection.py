@@ -32,16 +32,24 @@ ERR = re.compile(r"error: Tengoku/(?P<ns>[^/\s]+)/(?P<rel>\S+?\.lean):(?P<line>\
 FAC = re.compile(r"error: (?:\./)*(?P<rel>\S+?\.lean):(?P<line>\d+):\d+: (?P<msg>.*)$")
 TARGET = re.compile(r"^\S*\s*- Tengoku\.(?P<mod>\S+)\s*$")
 # Lean has spelled these `Unknown identifier `x``, `unknown constant 'x'` and `unknown namespace ‘x’`; a name may end in primes (`'mul_comm''`), so a single-quoted name runs to the quote that ends a word
-UNKNOWN = re.compile(r"(?:[Uu]nknown (?:identifier|constant|namespace)|[Ii]nvalid field) (?:`(?P<bt>[^`]+)`|['‘’](?P<sq>\S+?)['’](?=[\s,.:;)]|$))")
+UNKNOWN = re.compile(r"(?P<kind>[Uu]nknown (?:identifier|constant|namespace)|[Ii]nvalid field) (?:`(?P<bt>[^`]+)`|['‘’](?P<sq>\S+?)['’](?=[\s,.:;)]|$))")
 
 
 def unknown_name(msg: str) -> str | None:
     """The name an 'unknown identifier / constant / namespace' or 'invalid field' error says, in any of the spellings Lean has used; None for any other message."""
     m = UNKNOWN.search(msg)
     return (m.group("bt") or m.group("sq")) if m else None
+
+
+def is_namespace_error(msg: str) -> bool:
+    """'unknown namespace X': X is looked up among the library's namespaces, not among the names it declares (a namespace need not have a declaration of its name)."""
+    m = UNKNOWN.search(msg)
+    return bool(m) and m.group("kind").lower().endswith("namespace")
 DECL = re.compile(r"^(?:@\[[^\]]*\]\s*)*(?:private |protected |noncomputable |nonrec |unsafe )*(?:theorem|lemma|def|abbrev|instance|structure|inductive|class)\s+(?P<name>[^\s:({\[⦃]+)")
 DECL_HEAD = re.compile(r"^(?:@\[[^\]]*\]\s*)*(?:private |protected |noncomputable |nonrec |unsafe )*(?:theorem|lemma|def|abbrev|instance|structure|inductive|class)\b")
 ATTR = re.compile(r"@\[([^\]]*)\]")
+NAMESPACE_DECL = re.compile(r"^\s*namespace\s+(?P<name>\S+)", re.M)
+TYPE_DECL = re.compile(r"^(?:@\[[^\]]*\]\s*)*(?:private |protected |noncomputable |nonrec |unsafe )*(?:structure|inductive|class)\s+(?P<name>[^\s:({\[⦃]+)", re.M)
 
 
 def enclosing(lines: list[str], line: int) -> str | None:
@@ -59,6 +67,15 @@ def attributes(text: str) -> collections.Counter:
             words = [w for w in a.split() if w not in ("local", "scoped")]
             if words:
                 out[words[0]] += 1
+    return out
+
+
+def namespaces_of(text: str) -> set[str]:
+    """The namespaces a file makes: its `namespace X` lines, every proper prefix of a declared name (`A.B.c` makes `A` and `A.B`), and the types it declares (`structure S` makes `S`)."""
+    out = {m.group("name") for m in NAMESPACE_DECL.finditer(text)} | {m.group("name") for m in TYPE_DECL.finditer(text)}
+    for n in declared(text):
+        parts = n.split(".")
+        out |= {".".join(parts[:i]) for i in range(1, len(parts))}
     return out
 
 
@@ -88,6 +105,7 @@ class Shipped:
                         self.files["/".join(parts[2:])] = f.read().decode("utf-8", "replace")
                         self.namespaces.add(parts[1])
         self.last = {n.rsplit(".", 1)[-1] for text in self.files.values() for n in declared(text)}
+        self.nsp = {n.rsplit(".", 1)[-1] for text in self.files.values() for n in namespaces_of(text)}  # last components of the namespaces the shipped files make
 
 
 class Factory:
@@ -106,9 +124,12 @@ class Factory:
                 self.src.setdefault(str(p.relative_to(log.parent / "src")), p.read_text(errors="replace"))
         self.present = bool(self.src)
         self.last = collections.defaultdict(set)  # last component of a declared name -> modules of the source that declare it
+        self.nsp = collections.defaultdict(set)  # last component of a namespace the source makes -> its modules
         for rel, text in self.src.items():
             for n in declared(text):
                 self.last[n.rsplit(".", 1)[-1]].add(rel)
+            for n in namespaces_of(text):
+                self.nsp[n.rsplit(".", 1)[-1]].add(rel)
 
     def failed_heads(self, rel: str) -> set[str]:
         lines = self.src.get(rel, "").split("\n")
@@ -123,10 +144,11 @@ def classify(rel: str, line: int, msg: str, shipped: Shipped, fac: Factory) -> t
     name = unknown_name(msg)
     if name:
         last = name.rsplit(".", 1)[-1]
-        if last in fac.last and last not in shipped.last:
-            return "B", f"`{name}` is declared in {sorted(fac.last[last])[0]} and no shipped module declares it"
-        if last not in fac.last and last not in shipped.last:
-            return "E", f"`{name}` is declared nowhere in the library: a name the tree's Mathlib does not have"
+        in_fac, in_shipped, what = (fac.nsp, shipped.nsp, "a namespace") if is_namespace_error(msg) else (fac.last, shipped.last, "a name")
+        if last in in_fac and last not in in_shipped:
+            return "B", f"`{name}` is {what} of {sorted(in_fac[last])[0]} and no shipped module makes it" if what == "a namespace" else f"`{name}` is declared in {sorted(in_fac[last])[0]} and no shipped module declares it"
+        if last not in in_fac and last not in in_shipped:
+            return "E", f"`{name}` is declared nowhere in the library: {what} the tree's Mathlib does not have"
     stripped = attributes(fac.src.get(rel, "")) - attributes(shipped.files.get(rel, ""))
     if stripped:
         return "C", "attributes of the source are missing in the shipped file: " + ", ".join(f"{a} x{n}" for a, n in sorted(stripped.items()))

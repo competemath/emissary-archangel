@@ -222,6 +222,18 @@ class Shapes(unittest.TestCase):
         q = propose(err("Lib/B.lean", 4, "unknown identifier 'helper_thing'") + err("Lib/E.lean", 5, "unknown identifier 'user_one'"), shipped, shards)
         self.assertEqual((q["drop"], q["cut"], q["residual"]), (["Lib.B"], ["Lib.B", "Lib.E"], []))
 
+    def test_an_unknown_namespace_the_library_makes_is_not_a_name_the_tree_lacks(self):
+        shards, shipped = shapes()
+        write(shards / "shard-lib-0" / "shard-pack" / "src", "Lib/D.lean", "import Mathlib\n\nnamespace Zeta\ntheorem inner_z : True := trivial\nend Zeta\n")
+        write(shipped, "Tengoku/Ns/Lib/D.lean", "import Tengoku\n\nnamespace Zeta\ntheorem inner_z : True := trivial\nend Zeta\n")
+        p = propose(err("Lib/D.lean", 3, "unknown namespace 'Zeta'"), shipped, shards)
+        self.assertEqual((p["drop"], [r["class"] for r in p["residual"]]), ([], ["D"]))  # not E: the library makes the namespace
+        write(shipped, "Tengoku/Ns/Lib/D.lean", "import Tengoku\n\ntheorem d_one : 1 = 1 := rfl\n")
+        q = propose(err("Lib/D.lean", 3, "unknown namespace 'Zeta'"), shipped, shards)
+        self.assertEqual((q["drop"], q["reasons"]["Lib.D"][0]), (["Lib.D"], "B"))  # pruned away
+        r = propose(err("Lib/D.lean", 3, "unknown namespace 'Nowhere'"), shipped, shards)
+        self.assertEqual((r["drop"], r["reasons"]["Lib.D"][0]), (["Lib.D"], "E"))
+
     def test_a_module_whose_name_has_a_comma_is_never_proposed_and_says_why(self):
         shards, shipped = shapes()
         write(shipped, "Tengoku/Ns/Lib/A,B.lean", "import Tengoku\n\ntheorem ab : True := trivial\n")

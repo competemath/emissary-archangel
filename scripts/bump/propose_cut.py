@@ -54,7 +54,6 @@ import tolerant_build as tb  # noqa: E402
 EXPLAINED = {"A", "B", "C", "E"}
 # Lean when an import has no .olean (the module before it failed, or was never built): the module is named in full
 MISSING_OLEAN = re.compile(r"object file '[^']*' of module (?P<mod>\S+) does not exist")
-NAMESPACE_DECL = re.compile(r"^\s*namespace\s+(?P<name>[^\s]+)", re.M)
 # a module name cannot be passed on as `drop` (a comma list, in a workflow input, on a command line) if it holds a space, a control character or a comma (`Lib.«A,B»` is one module)
 UNSAFE = re.compile(r"[\s\x00-\x1f\x7f,]")
 MAX_EVIDENCE = 240
@@ -156,7 +155,7 @@ class Declarations:
                 parts = n.split(".")
                 for i in range(1, len(parts)):
                     self.by_namespace[".".join(parts[:i])].add(m)
-            for n in NAMESPACE_DECL.findall(text):
+            for n in ex.NAMESPACE_DECL.findall(text):
                 self.by_namespace[n].add(m)
 
     def modules_named_by(self, msg: str, ns: str, graph: dict[str, list[str]]) -> set[str]:
