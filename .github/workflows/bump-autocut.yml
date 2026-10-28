@@ -1,0 +1,128 @@
+name: bump-autocut
+run-name: autocut ${{ inputs.key }} (bump ${{ inputs.bump_run }})
+# The step between the tree's merge queue and a recut of bump-library.yml, without a person: the queue rejected part of a library bundle (a module that does not compile in the tree);
+# this reads the queue's log and the bundle the queue built (scripts/bump/propose_cut.py: the classes of explain_ejection.py, the minimal cut, the importers by bundle_cut.py), uploads
+# the proposal, and, ONLY when the proposal is complete (no error left over that it cannot explain, something to drop, the guard satisfied), starts the recut with `drop=` set.
+# Otherwise it uploads the proposal and opens no recut: a person reads it (the residual says which lines and why). Nothing here commits, signs or opens a pull request; the recut
+# is the attested step, and the queue builds its result again.
+#
+# Two jobs. `propose` reads the library's files as DATA (python3 -I, no Lean, no lake, no code of the library) and holds contents: read, actions: read. `recut` only dispatches
+# the workflow (actions: write) and reads nothing of the library: a job that holds a write token never touches the bundle, a job that touches the bundle holds no write token.
+# The dispatch happens from the default branch only (a run of this workflow from a branch writes the proposal and stops).
+#
+# Repeat on the recut what the earlier recut was given: `prior_drop` (its drop), `scope` and `parts`. A recut starts from the ORIGINAL run (bump_run), so what the shipped bundle was
+# already cut of must be listed again, and a recut without `parts` makes no parts.
+on:
+  workflow_dispatch:
+    inputs:
+      key: { description: "registered library key (the key of bump_run)", required: true }
+      bump_run: { description: "the id of the bump-library run whose results the recut starts from (recut_from); its bump-<key> artifact is the bundle the queue built", required: true }
+      tengoku_run: { description: "the id of the run of competemath/tengoku whose queue-build job rejected the bundle (its log is read). Give this or queue_log_url", default: "" }
+      queue_log_url: { description: "or the log of that job: https://api.github.com/repos/competemath/tengoku/actions/jobs/<id>/logs", default: "" }
+      mode: { description: "the bundle the queue built (the intake opener ships proposed)", type: choice, options: [proposed, strict, wide], default: proposed }
+      prior_drop: { description: "the drop of the recut that made the shipped bundle (comma list); empty for the first recut of bump_run", default: "" }
+      scope: { description: "the scope of that recut (the `leak:` lines, separated by `;`), repeated", default: "" }
+      parts: { description: "the parts of that recut, repeated (0 = no parts)", default: "0" }
+      drop_unexplained: { description: "also propose modules whose errors nothing explains (class D). false: a module like that is left to a person and no recut starts", type: choice, options: ["false", "true"], default: "false" }
+      recut: { description: "true = start the recut when the proposal is complete; false = only write the proposal", type: choice, options: ["true", "false"], default: "true" }
+permissions: {}
+concurrency:
+  group: bump-autocut-${{ inputs.key }}
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: { contents: read, actions: read }  # actions: the bump run's artifacts, and the logs of the queue's run on the tree (public)
+    env:
+      KEY: ${{ inputs.key }}
+      BUMP_RUN: ${{ inputs.bump_run }}
+      TENGOKU_RUN: ${{ inputs.tengoku_run }}
+      QUEUE_LOG_URL: ${{ inputs.queue_log_url }}
+      MODE: ${{ inputs.mode }}
+      PRIOR_DROP: ${{ inputs.prior_drop }}
+      DROP_UNEXPLAINED: ${{ inputs.drop_unexplained }}
+    outputs:
+      go: ${{ steps.propose.outputs.go }}
+      drop: ${{ steps.propose.outputs.drop }}
+    steps:
+      - name: The inputs are what they say (nothing of them reaches a command line but through the environment)
+        run: |
+          [[ "$KEY" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { echo "::error::key is a registered library key"; exit 1; }
+          [[ "$BUMP_RUN" =~ ^[0-9]+$ ]] || { echo "::error::bump_run is a run id"; exit 1; }
+          if [ -n "$TENGOKU_RUN" ] && [ -n "$QUEUE_LOG_URL" ]; then echo "::error::give tengoku_run or queue_log_url, not both"; exit 1; fi
+          if [ -z "$TENGOKU_RUN" ] && [ -z "$QUEUE_LOG_URL" ]; then echo "::error::give tengoku_run or queue_log_url"; exit 1; fi
+          if [ -n "$TENGOKU_RUN" ] && ! [[ "$TENGOKU_RUN" =~ ^[0-9]+$ ]]; then echo "::error::tengoku_run is a run id"; exit 1; fi
+          if [ -n "$QUEUE_LOG_URL" ] && ! [[ "$QUEUE_LOG_URL" =~ ^https://api\.github\.com/repos/competemath/tengoku/actions/jobs/[0-9]+/logs$ ]]; then echo "::error::queue_log_url is a job log of competemath/tengoku"; exit 1; fi
+          case "$MODE" in strict|proposed|wide) ;; *) echo "::error::mode is strict, proposed or wide"; exit 1 ;; esac
+          case "$DROP_UNEXPLAINED" in true|false) ;; *) echo "::error::drop_unexplained is true or false"; exit 1 ;; esac
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { filter: "blob:none", sparse-checkout: "scripts/bump", persist-credentials: false }
+      - name: The queue's log (a job of the tree's merge queue; only that repository is read)
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          if [ -n "$TENGOKU_RUN" ]; then
+            ids=$(gh api --paginate "repos/competemath/tengoku/actions/runs/$TENGOKU_RUN/jobs" --jq '.jobs[] | select(.name | test("queue-build")) | .id')
+            [ -n "$ids" ] || { echo "::error::run $TENGOKU_RUN of competemath/tengoku has no queue-build job"; exit 1; }
+            for id in $ids; do gh api "repos/competemath/tengoku/actions/jobs/$id/logs"; done > queue.log
+          else
+            gh api "${QUEUE_LOG_URL#https://api.github.com/}" > queue.log
+          fi
+          [ -s queue.log ] || { echo "::error::the queue log is empty"; exit 1; }
+          wc -c queue.log
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        name: The bundle the queue built (bump-<key> of the bump run)
+        with: { name: "bump-${{ inputs.key }}", path: bump, run-id: "${{ inputs.bump_run }}", github-token: "${{ github.token }}" }
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        name: The shards of the bump run, when it was sharded (A, B and C need the factory's errors and sources; a run without them still proposes, with less certainty)
+        continue-on-error: true
+        with: { pattern: "shard-${{ inputs.key }}-*", path: shards, run-id: "${{ inputs.bump_run }}", github-token: "${{ github.token }}" }
+      - id: propose
+        name: Propose the cut (reads files as data; runs no code of the library)
+        run: |
+          args=(--queue-log queue.log --shipped "bump/bundle-$KEY-$MODE.tar" --prior-drop "$PRIOR_DROP" --json proposal.json --github-output "$GITHUB_OUTPUT")
+          compgen -G "shards/shard-*/shard-pack/errors.log" > /dev/null && args+=(--shards shards)
+          [ "$DROP_UNEXPLAINED" = "true" ] && args+=(--drop-unexplained)
+          status=0
+          python3 -I scripts/bump/propose_cut.py "${args[@]}" | tee proposal.txt || status=$?
+          { echo '### bump-autocut'; echo '```'; head -c 60000 proposal.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          # 3 = the guard refused (the proposal says why and holds the errors); anything else is a run that did not produce one
+          if [ "$status" != 0 ] && [ "$status" != 3 ]; then echo "::error::propose_cut.py failed ($status)"; exit "$status"; fi
+          [ -s proposal.json ] || { echo "::error::no proposal was written"; exit 1; }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: "autocut-${{ inputs.key }}-${{ inputs.bump_run }}"
+          path: |
+            proposal.json
+            proposal.txt
+          if-no-files-found: warn
+          retention-days: 90
+  # The proposal is complete and a recut was asked for: start it. This job runs nothing of the library and reads none of its files.
+  recut:
+    needs: propose
+    if: ${{ needs.propose.outputs.go == 'true' && inputs.recut == 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: { actions: write }  # dispatch bump-library.yml; nothing else
+    env:
+      GH_TOKEN: ${{ github.token }}
+      KEY: ${{ inputs.key }}
+      BUMP_RUN: ${{ inputs.bump_run }}
+      DROP: ${{ needs.propose.outputs.drop }}
+      SCOPE: ${{ inputs.scope }}
+      PARTS: ${{ inputs.parts }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: Recut bump-library.yml from the bump run, without the modules the proposal drops
+        run: |
+          [[ "$KEY" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { echo "::error::key"; exit 1; }
+          [[ "$BUMP_RUN" =~ ^[0-9]+$ ]] || { echo "::error::bump_run"; exit 1; }
+          [[ "$PARTS" =~ ^[0-9]+$ ]] || { echo "::error::parts"; exit 1; }
+          # the proposal made the list of module names that can be passed on; this is the second look at what crosses into another workflow
+          if [ -z "$DROP" ] || [[ "$DROP" =~ [[:space:][:cntrl:]] ]]; then echo "::error::the drop list is empty or holds a space"; exit 1; fi
+          gh workflow run bump-library.yml -R "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" -f "key=$KEY" -f "recut_from=$BUMP_RUN" -f "drop=$DROP" -f "scope=$SCOPE" -f "parts=$PARTS"
+          { echo "### bump-autocut"; echo "recut of bump-library.yml started from run $BUMP_RUN with drop=\`$DROP\`"; } >> "$GITHUB_STEP_SUMMARY"
