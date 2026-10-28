@@ -65,6 +65,12 @@ jobs:
           # still resolves next to it in the clone (as bump-library.yml does)
           sub=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")
           if [ -n "$sub" ]; then mv lib lib-repo && ln -s "lib-repo/$sub" lib; fi
+          # The code the library imports from the OTHER Lake packages it requires is copied into it (scripts/bump/vendor_deps.py, as bump-library.yml does after `lake update`), so that the plan
+          # cuts it into shards with the library's own modules. Nothing of the library runs here: the packages are downloaded as data (git, at the manifest's pinned commit) and read as text.
+          # The plan reads the library's committed lake-manifest.json; a shard reads the one `lake update` writes after the retarget, and checks that it vendors the same modules (--expect).
+          mkdir -p ../plan
+          lib_roots=$(python3 -c 'import json, os; print(",".join(json.load(open("data/exports/" + os.environ["KEY"] + "/setup.ci.json"))["roots"]))')
+          python3 scripts/bump/vendor_deps.py --lib lib --roots "$lib_roots" --fetch --out ../plan/vendored-plan.json
           python3 - <<'PY'
           import glob, json, math, os, sys
           sys.path.insert(0, "scripts/bump")
@@ -72,6 +78,7 @@ jobs:
           from pathlib import Path
           key = os.environ["KEY"]
           roots = [r for r in json.load(open(f"data/exports/{key}/setup.ci.json"))["roots"]]
+          roots += [r for r in json.load(open("../plan/vendored-plan.json"))["roots"] if r not in roots]  # the roots of the copies join the library's
           ents = g.tentative_entries(sorted(glob.glob(f"../tengoku/data/tentative/{key}.jsonl") + glob.glob(f"../tengoku/data/tentative/{key}/*.jsonl")))
           import tolerant_build as tb
           wanted = {".".join(tb.esc(x) for x in r["sourcePath"][:-5].split("/")) for r in ents.values()}

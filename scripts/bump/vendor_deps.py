@@ -324,12 +324,21 @@ def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISS
     return report
 
 
+def modules_differ(report: dict, expected: dict) -> tuple[list[str], list[str]]:
+    """(the modules `expected` vendored that this report did not, the modules this report vendored that `expected` did not). Names only: the revision a floating requirement resolves to
+    may differ between the plan job and a shard (a retargeted library has no lake-manifest.json until `lake update` writes a new one), the set of modules the plan cut into shards may not."""
+    have = {v["module"] for v in report.get("vendored", [])}
+    want = {v["module"] for v in expected.get("vendored", [])}
+    return sorted(want - have), sorted(have - want)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--lib", required=True)
     ap.add_argument("--roots", required=True, help="comma list")
     ap.add_argument("--out")
     ap.add_argument("--fetch", action="store_true", help="download the packages the manifest names and that are not on disk, at the pinned commit")
+    ap.add_argument("--expect", help="the report of the plan job (sharded route): exit 1 unless exactly the same modules were vendored here, since the plan cut the shards over them")
     ap.add_argument("--print-roots", action="store_true", help="print the roots of the library with the roots of the copies, as a comma list, and nothing else")
     a = ap.parse_args()
     roots = [r for r in a.roots.split(",") if r]
@@ -343,6 +352,20 @@ def main() -> int:
         f"refused {len(rep['refused'])}, unsafe {len(rep['unsafe'])}, conflicts {len(rep['conflicts'])}, ambiguous {len(rep['ambiguous'])}",
         file=sys.stderr,
     )
+    if a.expect:
+        try:
+            expected = json.loads(Path(a.expect).read_text())
+        except (OSError, ValueError) as e:
+            print(f"::error::the plan's vendoring report {a.expect} cannot be read ({e}): the shards were cut over modules this job cannot compare with", file=sys.stderr)
+            return 1
+        missing, extra = modules_differ(rep, expected)
+        if missing or extra:
+            print(
+                f"::error::the shard vendored other modules than the plan cut the shards over: {len(missing)} missing here ({', '.join(missing[:5])}), {len(extra)} not in the plan ({', '.join(extra[:5])}). "
+                "A module the plan does not know is in no shard's list and is never built; one it knows and this job lacks makes its importers fail. The plan reads the library's committed lake-manifest.json, the shard the one `lake update` wrote after the retarget: a requirement on a moving branch can differ between them; run the workflow again, and if it recurs the requirement needs a pinned revision.",
+                file=sys.stderr,
+            )
+            return 1
     return 0
 
 

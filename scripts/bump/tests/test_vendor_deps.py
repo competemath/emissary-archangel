@@ -15,6 +15,8 @@ The mutants at the end break the code the way the shortcut would; the invariants
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import random
 import sys
@@ -432,12 +434,149 @@ class Wiring(unittest.TestCase):
         self.assertIn("emissary/vendored-*.json", self.wf)
 
 
+WORKFLOWS = HERE.parent.parent.parent / ".github" / "workflows"
+
+
+def job_text(wf: str, job: str) -> str:
+    """The text of one top-level job of a workflow (up to the next job at the same indentation)."""
+    lines, out, on = wf.splitlines(), [], False
+    for ln in lines:
+        if ln.startswith("  ") and not ln.startswith("   ") and ln.strip().endswith(":") and not ln.strip().startswith("#"):
+            on = ln.strip() == job + ":"
+        if on:
+            out.append(ln)
+    return "\n".join(out)
+
+
+def code(text: str) -> str:
+    """The text without its comment lines (a comment may name `lake update` or $roots to explain why they are not there)."""
+    return "\n".join(l for l in text.splitlines() if not l.strip().startswith("#"))
+
+
+class WiringSharded(unittest.TestCase):
+    """The sharded route (bump-sharded.yml plans, bump-shard.yml builds) vendors the same way as bump-library.yml: the plan cuts the copies into shards with the library's own modules, each shard
+    copies them again after its own `lake update` and before the imports are normalised, the roots of the copies are the roots of everything after, and the reports are kept."""
+
+    def setUp(self):
+        self.sharded = (WORKFLOWS / "bump-sharded.yml").read_text()
+        self.shard = code((WORKFLOWS / "bump-shard.yml").read_text())
+        self.plan = code(job_text(self.sharded, "plan"))
+
+    def test_the_plan_vendors_before_it_reads_the_import_graph(self):
+        self.assertIn("vendor_deps.py", self.plan)
+        i, j, k = self.plan.index("git clone -q --filter=blob:none \"$repo\" lib"), self.plan.index("vendor_deps.py"), self.plan.index("ps.graph")
+        self.assertTrue(i < j < k)
+
+    def test_the_plan_fetches_and_keeps_its_report_in_the_plan_artifact(self):
+        line = next(l for l in self.plan.splitlines() if "vendor_deps.py" in l and "python3" in l)
+        self.assertIn("--fetch", line)
+        self.assertIn("--out ../plan/vendored-plan.json", line)
+        self.assertIn('path: plan', self.plan[self.plan.index("upload-artifact"):])  # the directory the report is written to
+
+    def test_the_roots_of_the_copies_are_in_the_graph_the_plan_cuts(self):
+        graph = self.plan[self.plan.index("python3 - <<'PY'"):]
+        self.assertIn('vendored-plan.json', graph)
+        self.assertTrue(graph.index("vendored-plan.json") < graph.index("ps.graph"))
+        self.assertIn('["roots"]', graph[graph.index("vendored-plan.json"):])
+
+    def test_the_plan_runs_none_of_the_librarys_code(self):
+        for word in ("lake update", "lake build", "lake env", "lake exe", "elan ", "lean --run", "lake lean"):
+            self.assertNotIn(word, self.plan)
+
+    def test_the_shard_vendors_after_lake_update_and_before_the_imports_are_normalised(self):
+        i, j, k = self.shard.index("lake update"), self.shard.index("vendor_deps.py"), self.shard.index("normalize-imports")
+        self.assertTrue(i < j < k)
+
+    def test_the_shard_exports_the_roots_the_same_way(self):
+        line = next(l for l in self.shard.splitlines() if "vendor_deps.py" in l and "python3" in l)
+        for need in ("--print-roots", "--fetch", 'echo "ROOTS=$ROOTS" >> "$GITHUB_ENV"', "--out vendored.json"):
+            self.assertIn(need, line)
+        self.assertTrue(line.strip().startswith("ROOTS=$("))
+
+    def test_the_shard_checks_that_it_vendored_what_the_plan_cut_over(self):
+        line = next(l for l in self.shard.splitlines() if "vendor_deps.py" in l and "python3" in l)
+        self.assertIn("--expect ../plan/vendored-plan.json", line)
+
+    def test_nothing_after_the_vendoring_names_the_roots_without_the_copies(self):
+        after = self.shard[self.shard.index("vendor_deps.py") :]
+        self.assertNotIn("$roots", after.split("\n", 1)[1])  # the local list of the library's own roots
+        self.assertIn('normalize-imports --lib lib --roots "$ROOTS"', after)
+
+    def test_the_shard_keeps_its_report(self):
+        self.assertIn("emissary/vendored.json", self.shard[self.shard.index("upload-artifact"):])
+
+
+class Expect(unittest.TestCase):
+    """The shards run over modules the plan job vendored; a shard that vendors other modules stops. Random sets: equal sets agree in any order and at any revision, any difference is reported on both sides."""
+
+    @staticmethod
+    def report(mods, rev="r1"):
+        return {"vendored": [{"module": m, "package": "p", "rev": rev} for m in mods]}
+
+    def test_modules_differ_is_the_symmetric_difference_on_random_sets(self):
+        rng = random.Random(4)
+        names = [f"P.M{i}" for i in range(12)]
+        for _ in range(300):
+            a, b = rng.sample(names, rng.randint(0, 12)), rng.sample(names, rng.randint(0, 12))
+            missing, extra = vd.modules_differ(self.report(b, "r2"), self.report(a, "r1"))
+            self.assertEqual(set(missing), set(a) - set(b))
+            self.assertEqual(set(extra), set(b) - set(a))
+            self.assertEqual(bool(missing or extra), set(a) != set(b))
+
+    def run_main(self, lib: Path, expect: Path | None):
+        argv = ["vendor_deps.py", "--lib", str(lib), "--roots", "Own", "--out", str(lib.parent / "out.json")] + (["--expect", str(expect)] if expect else [])
+        err, saved = io.StringIO(), sys.argv
+        try:
+            sys.argv = argv
+            with contextlib.redirect_stderr(err):
+                code = vd.main()
+        finally:
+            sys.argv = saved
+        return code, err.getvalue()
+
+    def test_main_agrees_with_the_plan_only_when_the_same_modules_are_vendored(self):
+        rng = random.Random(9)
+        for i in range(25):
+            mods = [f"Dep.M{k}" for k in range(rng.randint(1, 5))]
+            with tempfile.TemporaryDirectory() as t:
+                tmp = Path(t)
+                lib = make(tmp, {"Own.A": mods}, {"dep": {"licence": APACHE, "files": {m: [] for m in mods}}})
+                code, _ = self.run_main(lib, None)
+                self.assertEqual(code, 0)
+                own = json.loads((tmp / "out.json").read_text())
+                for label, expected, want in (
+                    ("same", own, 0),
+                    ("same at another revision", {"vendored": [dict(v, rev="zzz") for v in reversed(own["vendored"])]}, 0),
+                    ("one fewer in the plan", {"vendored": own["vendored"][1:]}, 1),
+                    ("one more in the plan", {"vendored": own["vendored"] + [{"module": "Dep.Gone", "package": "dep", "rev": "r"}]}, 1),
+                ):
+                    (tmp / "plan.json").write_text(json.dumps(expected))
+                    (tmp / "lib" / ".vendored.json").unlink(missing_ok=True)  # a fresh library, as a shard has
+                    for m in mods:
+                        module_path(lib, "Dep." + m.split(".")[1]).unlink(missing_ok=True)
+                    code, err = self.run_main(lib, tmp / "plan.json")
+                    self.assertEqual(code, want, (i, label, err))
+                    if want:
+                        self.assertIn("::error::", err)
+                        self.assertTrue((tmp / "out.json").is_file())  # the report is kept for the artifact whatever the verdict
+
+    def test_a_missing_or_unreadable_plan_report_stops_the_shard(self):
+        with tempfile.TemporaryDirectory() as t:
+            tmp = Path(t)
+            lib = make(tmp, {"Own.A": []}, {})
+            self.assertEqual(self.run_main(lib, tmp / "nope.json")[0], 1)
+            (tmp / "bad.json").write_text("{not json")
+            code, err = self.run_main(lib, tmp / "bad.json")
+            self.assertEqual(code, 1)
+            self.assertIn("::error::", err)
+
+
 class Mutants(unittest.TestCase):
     """Break the code the way the shortcut would; the invariants above must notice. (A surviving mutant means a test is missing.)"""
 
     def noticed(self, **patches):
         suite = unittest.TestSuite(
-            [unittest.defaultTestLoader.loadTestsFromTestCase(Basics), unittest.defaultTestLoader.loadTestsFromTestCase(Closure), unittest.defaultTestLoader.loadTestsFromTestCase(Lifecycle), unittest.defaultTestLoader.loadTestsFromTestCase(Safety), unittest.defaultTestLoader.loadTestsFromTestCase(Fetch)]
+            [unittest.defaultTestLoader.loadTestsFromTestCase(Basics), unittest.defaultTestLoader.loadTestsFromTestCase(Closure), unittest.defaultTestLoader.loadTestsFromTestCase(Lifecycle), unittest.defaultTestLoader.loadTestsFromTestCase(Safety), unittest.defaultTestLoader.loadTestsFromTestCase(Fetch), unittest.defaultTestLoader.loadTestsFromTestCase(Expect)]
         )
         result = unittest.TestResult()
         saved = {k: getattr(vd, k) for k in patches}
@@ -465,6 +604,12 @@ class Mutants(unittest.TestCase):
 
     def test_trusting_any_checkout_is_noticed(self):
         self.assertTrue(self.noticed(pinned_commit=lambda d: None))
+
+    def test_a_comparison_that_ignores_what_the_plan_does_not_know_is_noticed(self):
+        self.assertTrue(self.noticed(modules_differ=lambda report, expected: (sorted({v["module"] for v in expected["vendored"]} - {v["module"] for v in report["vendored"]}), [])))
+
+    def test_a_comparison_that_only_counts_is_noticed(self):
+        self.assertTrue(self.noticed(modules_differ=lambda report, expected: ([], []) if len(report["vendored"]) == len(expected["vendored"]) else (["x"], [])))
 
     def test_the_unmutated_code_is_not_noticed(self):
         self.assertFalse(self.noticed())
