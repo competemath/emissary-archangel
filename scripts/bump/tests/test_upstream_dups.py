@@ -140,13 +140,29 @@ class Basics(unittest.TestCase):
             self.assertIn("@[ext]\ntheorem keep", out)
             self.assertEqual(len(out.split("\n")), len(text.split("\n")))
 
+    def test_an_earlier_complete_attribute_or_list_is_not_mistaken_for_the_shims_attribute(self):
+        # the line above the shim ends with `]`, and an `@[` is a few lines up: it must be the attribute OF the shim to go with it
+        for earlier in ("@[simp] theorem early : [1, 2] = [1, 2] := by\n  rfl\n  -- done ]", "@[simp]\ndef early : List Nat :=\n  [1, 2,\n   3]"):
+            text = f"namespace N\n\n{earlier}\nabbrev coeff : Nat := 0\n\nend N\n"
+            with tempfile.TemporaryDirectory() as t:
+                lib = lib_with(Path(t), {"Own/A.lean": text})
+                done = ud.remove(lib, ["Own"], log_for("Own/A.lean", text, "N.coeff", "abbrev coeff"))
+                out = (lib / "Own/A.lean").read_text()
+                self.assertEqual(len(done), 1, earlier)
+                self.assertNotIn("abbrev coeff", out)
+                self.assertIn(earlier.split("\n")[0], out, earlier)  # the earlier declaration is still there
+                self.assertEqual(len(out.split("\n")), len(text.split("\n")))
+
     def test_the_command_after_a_shim_is_never_swallowed(self):
         for nxt in ("macro_rules | `(tactic| foo) => `(tactic| rfl)", "elab_rules : term | `(foo) => pure ()", "declare_syntax_cat mycat", "initialize myRef : IO.Ref Nat <- IO.mkRef 0", "register_simp_attr my_simp", "notation3 \"foo\" => 1", "#print axioms x"):
             text = f"namespace N\n\nabbrev coeff : Nat := 0\n\n{nxt}\n\nend N\n"
             with tempfile.TemporaryDirectory() as t:
                 lib = lib_with(Path(t), {"Own/A.lean": text})
-                ud.remove(lib, ["Own"], log_for("Own/A.lean", text, "N.coeff", "abbrev coeff"))
-                self.assertIn(nxt, (lib / "Own/A.lean").read_text(), nxt)
+                done = ud.remove(lib, ["Own"], log_for("Own/A.lean", text, "N.coeff", "abbrev coeff"))
+                out = (lib / "Own/A.lean").read_text()
+                self.assertEqual(len(done), 1, nxt)  # the shim really went ...
+                self.assertNotIn("abbrev coeff", out, nxt)
+                self.assertIn(nxt, out, nxt)  # ... and the command after it stayed
 
     def test_a_declaration_of_the_same_last_name_in_another_namespace_keeps_the_shim_a_conservative_choice(self):
         # the check is by last component, not namespace aware: it errs towards keeping a declaration, never towards deleting one (see CLASSES.md)

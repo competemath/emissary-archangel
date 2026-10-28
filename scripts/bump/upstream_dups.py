@@ -46,6 +46,26 @@ def last_component(name: str) -> str:
     return tb.split_mod(name)[-1]
 
 
+def attribute_opener(lines: list[str], end: int) -> int | None:
+    """The index of the line that opens the attribute whose closing `]` ends line end-1, or None. Only an attribute that ENCLOSES the lines in between counts: its bracket must stay open from the `@[`
+    to that last `]` (a complete earlier attribute, or a list literal, is not it), and the lines between must continue it (indented), never start a command of their own."""
+    for k in range(end - 1, max(-1, end - 9), -1):
+        if lines[k].startswith("@["):
+            if any(l[:1] not in (" ", "\t") and l.strip() for l in lines[k + 1 : end]):
+                return None
+            text = "\n".join(lines[k:end]).rstrip()
+            depth = 0
+            for i, ch in enumerate(text):
+                if ch == "[":
+                    depth += 1
+                elif ch == "]":
+                    depth -= 1
+                    if depth == 0 and i != len(text) - 1:
+                        return None  # closed before the end: a complete attribute, and what follows it is something else
+            return k if depth == 0 else None
+    return None
+
+
 def block_bounds(lines: list[str], code: list[str], decl: int) -> tuple[int, int]:
     """[start, end) of the block whose declaration keyword is on line index `decl`: its attribute lines and its docstring above, and everything up to the next command at column 0."""
     start = decl
@@ -55,10 +75,8 @@ def block_bounds(lines: list[str], code: list[str], decl: int) -> tuple[int, int
             start -= 1
             continue
         if prev.rstrip().endswith("]") and not prev.startswith("@[") and code[start - 1].strip():  # the end of an attribute that goes over several lines: back to its opener
-            k = start - 1
-            while k >= 0 and start - 1 - k < 8 and not lines[k].startswith("@["):
-                k -= 1
-            if k >= 0 and lines[k].startswith("@[") and "".join(lines[k:start]).count("[") == "".join(lines[k:start]).count("]"):
+            k = attribute_opener(lines, start)
+            if k is not None:
                 start = k
                 continue
         if prev.rstrip().endswith("-/") and not code[start - 1].strip():  # the end of a docstring: back to its opener
