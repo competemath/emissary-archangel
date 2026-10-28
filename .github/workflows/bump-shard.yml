@@ -102,7 +102,7 @@ jobs:
           echo '{"moves":{}}' > moves.json
           build s0; last=s0
           for r in 1 2 3 4; do
-            python3 scripts/bump/engine.py repair --lib lib --log "build-$last.log" --roots "$ROOTS" --moves moves.json --state state.json --round "$r" --out "repair-$r.json" --deprecations
+            python3 scripts/bump/engine.py repair --lib lib --log "build-$last.log" --roots "$ROOTS" --moves moves.json --state state.json --round "$r" --out "repair-$r.json" --deprecations --upstream-duplicates
             [ "$(python3 -c "import json; print(json.load(open('repair-$r.json'))['changed'])")" = True ] || break
             build "r$r"; last="r$r"
           done

@@ -126,7 +126,7 @@ jobs:
             start=$(date +%s); build "s$n-0"; echo "step $n baseline build: $(( ($(date +%s) - start) / 60 )) min"
             last="s$n-0"
             for r in 1 2 3 4; do
-              python3 scripts/bump/engine.py repair --lib lib --log "build-$last.log" --roots "$ROOTS" --moves "moves-$n.json" --state "state-$n.json" --round "$r" --out "repair-s$n-$r.json" --deprecations
+              python3 scripts/bump/engine.py repair --lib lib --log "build-$last.log" --roots "$ROOTS" --moves "moves-$n.json" --state "state-$n.json" --round "$r" --out "repair-s$n-$r.json" --deprecations --upstream-duplicates
               [ "$(python3 -c "import json; print(json.load(open('repair-s$n-$r.json'))['changed'])")" = True ] || { echo "step $n round $r: nothing left to repair mechanically"; break; }
               start=$(date +%s); build "s$n-$r"; echo "step $n round $r build: $(( ($(date +%s) - start) / 60 )) min"; last="s$n-$r"
             done
