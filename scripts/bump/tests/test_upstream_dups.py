@@ -118,6 +118,44 @@ class Basics(unittest.TestCase):
             done = ud.remove(lib, ["Own"], log_for("Own/A.lean", text, "N.coeff", "abbrev coeff"))
             self.assertEqual(len(done), 1)
 
+    def test_attributes_on_the_same_line_as_the_keyword_go_with_the_declaration(self):
+        for head in ("@[simp] abbrev coeff", "@[simp, reducible]   abbrev coeff", "@[simp] @[reducible] protected abbrev coeff"):
+            text = f"namespace N\n\n{head} : Nat := 0\n\ntheorem keep : True := trivial\nend N\n"
+            with tempfile.TemporaryDirectory() as t:
+                lib = lib_with(Path(t), {"Own/A.lean": text})
+                done = ud.remove(lib, ["Own"], log_for("Own/A.lean", text, "N.coeff", "coeff"))
+                self.assertEqual(len(done), 1, head)
+                out = (lib / "Own/A.lean").read_text()
+                self.assertIn("theorem keep", out)
+                self.assertNotIn("abbrev coeff", out, head)
+
+    def test_an_attribute_over_several_lines_is_removed_whole(self):
+        text = "namespace N\n\n@[simp,\n  reducible]\nabbrev coeff : Nat := 0\n\n@[ext]\ntheorem keep : True := trivial\nend N\n"
+        with tempfile.TemporaryDirectory() as t:
+            lib = lib_with(Path(t), {"Own/A.lean": text})
+            done = ud.remove(lib, ["Own"], log_for("Own/A.lean", text, "N.coeff", "abbrev coeff"))
+            self.assertEqual(len(done), 1)
+            out = (lib / "Own/A.lean").read_text()
+            self.assertNotIn("reducible", out)  # not left attached to the next declaration
+            self.assertIn("@[ext]\ntheorem keep", out)
+            self.assertEqual(len(out.split("\n")), len(text.split("\n")))
+
+    def test_the_command_after_a_shim_is_never_swallowed(self):
+        for nxt in ("macro_rules | `(tactic| foo) => `(tactic| rfl)", "elab_rules : term | `(foo) => pure ()", "declare_syntax_cat mycat", "initialize myRef : IO.Ref Nat <- IO.mkRef 0", "register_simp_attr my_simp", "notation3 \"foo\" => 1", "#print axioms x"):
+            text = f"namespace N\n\nabbrev coeff : Nat := 0\n\n{nxt}\n\nend N\n"
+            with tempfile.TemporaryDirectory() as t:
+                lib = lib_with(Path(t), {"Own/A.lean": text})
+                ud.remove(lib, ["Own"], log_for("Own/A.lean", text, "N.coeff", "abbrev coeff"))
+                self.assertIn(nxt, (lib / "Own/A.lean").read_text(), nxt)
+
+    def test_a_declaration_of_the_same_last_name_in_another_namespace_keeps_the_shim_a_conservative_choice(self):
+        # the check is by last component, not namespace aware: it errs towards keeping a declaration, never towards deleting one (see CLASSES.md)
+        text = "namespace A\n\nabbrev coeff : Nat := 0\n\nend A\n\nnamespace B\n\ndef coeff : Nat := 1\n\nend B\n"
+        with tempfile.TemporaryDirectory() as t:
+            lib = lib_with(Path(t), {"Own/A.lean": text})
+            self.assertEqual(ud.remove(lib, ["Own"], log_for("Own/A.lean", text, "A.coeff", "abbrev coeff")), [])
+            self.assertEqual((lib / "Own/A.lean").read_text(), text)
+
     def test_a_log_with_no_such_error_changes_nothing(self):
         with tempfile.TemporaryDirectory() as t:
             lib = lib_with(Path(t), {"Own/Shim.lean": SHIM})
@@ -158,6 +196,11 @@ class Structure(unittest.TestCase):
             # nothing outside the named blocks moved or changed
             kept_lines = {l for i, blk in enumerate(blocks) if i not in named for l in blk.split("\n") if l.strip()}
             self.assertTrue(all(l in kept_lines or l.startswith("-- [Emissary] removed") or l in ("namespace X", "end X") or not l.strip() for l in b), (text, out))
+            # nothing that is kept is lost or repeated: the sorted non-blank lines of the kept blocks are exactly the output's, notes and the file's own frame aside (a set would pass a repair that
+            # deleted one of two identical lines of a retained block)
+            kept_sorted = sorted(l for i, blk in enumerate(blocks) if i not in named for l in blk.split("\n") if l.strip())
+            out_sorted = sorted(l for l in b if l.strip() and not l.startswith("-- [Emissary] removed") and l not in ("namespace X", "end X"))
+            self.assertEqual(kept_sorted, out_sorted, (text, out))
             self.assertEqual(sum(1 for l in b if l.startswith("-- [Emissary] removed")), len(named))
 
 

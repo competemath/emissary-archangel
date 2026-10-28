@@ -36,9 +36,10 @@ from lean_lex import code_only  # noqa: E402
 
 ALREADY = re.compile(r"^(?:\S+\s+)?error: (?:\./)*(?P<path>\S+?\.lean):(?P<line>\d+):(?P<col>\d+): `(?P<name>[^`]+)` has already been declared", re.M)
 MODIFIERS = r"(?:(?:private|protected|noncomputable|nonrec|public|meta|scoped|local|unsafe|partial)\s+)*"
-DECL = re.compile(r"^" + MODIFIERS + r"(?P<kind>abbrev|def|theorem|lemma|instance|structure|inductive|class|opaque|axiom|example)\b[ \t]*(?P<name>[^\s:({\[⦃]*)")
+ATTRS = r"(?:@\[[^\]\n]*\][ \t]*)*"  # attributes on the same line as the keyword: `@[simp] abbrev coeff …`
+DECL = re.compile(r"^" + ATTRS + MODIFIERS + r"(?P<kind>abbrev|def|theorem|lemma|instance|structure|inductive|class|opaque|axiom|example)\b[ \t]*(?P<name>[^\s:({\[⦃]*)")
 REMOVABLE = {"abbrev", "def", "theorem", "lemma"}
-COMMAND_START = re.compile(r"^(?:@\[|" + MODIFIERS + r"(?:abbrev|def|theorem|lemma|instance|structure|inductive|class|opaque|axiom|example|namespace|end|section|open|variable|universe|set_option|attribute|noncomputable|mutual|deriving|export|alias|omit|include|macro|syntax|notation|infix|prefix|postfix|elab|initialize|#)\b)")
+COMMAND_START = re.compile(r"^(?:@\[|" + MODIFIERS + r"(?:abbrev|def|theorem|lemma|instance|structure|inductive|class|opaque|axiom|example|namespace|end|section|open|variable|universe|set_option|attribute|noncomputable|mutual|deriving|export|alias|omit|include|macro_rules|macro|syntax|declare_syntax_cat|notation3|notation|infixl|infixr|infix|prefix|postfix|elab_rules|elab|builtin_initialize|initialize|register_\w+)(?![\w'.])|#)")
 
 
 def last_component(name: str) -> str:
@@ -53,6 +54,13 @@ def block_bounds(lines: list[str], code: list[str], decl: int) -> tuple[int, int
         if prev.startswith("@["):
             start -= 1
             continue
+        if prev.rstrip().endswith("]") and not prev.startswith("@[") and code[start - 1].strip():  # the end of an attribute that goes over several lines: back to its opener
+            k = start - 1
+            while k >= 0 and start - 1 - k < 8 and not lines[k].startswith("@["):
+                k -= 1
+            if k >= 0 and lines[k].startswith("@[") and "".join(lines[k:start]).count("[") == "".join(lines[k:start]).count("]"):
+                start = k
+                continue
         if prev.rstrip().endswith("-/") and not code[start - 1].strip():  # the end of a docstring: back to its opener
             k = start - 1
             while k >= 0 and not lines[k].lstrip().startswith("/--"):
