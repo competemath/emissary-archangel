@@ -6,7 +6,7 @@ on:
     branches: [main]
     paths: ["lib/lean-repairs.mjs", ".github/workflows/translate-all.yml", "lib/ledger-settle.mjs", "lib/ledger-row.mjs", "scripts/queue-server.mjs", "scripts/test-lean-repairs.mjs", "scripts/bump/lint_cli.py", "scripts/bump/inert_commands.py", "scripts/bump/lint/**", "public/local-claude-bridge.mjs", ".github/workflows/lean-repairs-tests.yml"]
   pull_request:
-    paths: ["lib/lean-repairs.mjs", "lib/ledger-settle.mjs", "lib/ledger-row.mjs", "scripts/queue-server.mjs", "scripts/test-lean-repairs.mjs", "scripts/bump/lint_cli.py", "scripts/bump/inert_commands.py", "scripts/bump/lint/**", "public/local-claude-bridge.mjs", ".github/workflows/lean-repairs-tests.yml"]
+    paths: ["lib/lean-repairs.mjs", ".github/workflows/translate-all.yml", "lib/ledger-settle.mjs", "lib/ledger-row.mjs", "scripts/queue-server.mjs", "scripts/test-lean-repairs.mjs", "scripts/bump/lint_cli.py", "scripts/bump/inert_commands.py", "scripts/bump/lint/**", "public/local-claude-bridge.mjs", ".github/workflows/lean-repairs-tests.yml"]
 permissions: {}
 defaults:
   run:
