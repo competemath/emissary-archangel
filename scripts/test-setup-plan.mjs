@@ -23,7 +23,7 @@ check("a bad shard count is refused", throws(() => decide({ entries: 1, shards: 
 
 // ---- a build round that did nothing (roundProgress) ----
 // An independent statement of the rule, to compare with on random numbers: the first round and a round with no count before it are never stopped; any other stops exactly when it added fewer than min.
-const oracle = (round, prev, built, min) => (round === 1 || prev === null ? false : built - prev < min)
+const oracle = (round, prev, built, min) => (round === 1 || prev === null || min === 0 ? false : built - prev < min) // min 0: no such stop, a fall included
 let seed = 12345
 const rnd = (n) => { // mulberry32: deterministic, and good in its low bits
   seed = (seed + 0x6d2b79f5) | 0
@@ -49,9 +49,10 @@ for (const min of [0, 1, 2, 7]) for (const prev of [0, 1, 500, 30661]) {
   edge &&= roundProgress({ round: 2, prev, built: prev + min + 1, min }).stop === false
   if (min > 0) edge &&= roundProgress({ round: 2, prev, built: prev + min - 1, min }).stop === true
 }
-check("exactly min modules added goes on, one fewer stops (and min 0 never stops on a count that did not fall)", edge, null)
+check("exactly min modules added goes on, one fewer stops (min 0 never stops)", edge, null)
 check("the default asks for any progress: a round that added 0 stops, one that added 1 goes on", MIN_PROGRESS_DEFAULT === 1 && roundProgress({ round: 3, prev: 100, built: 100 }).stop && !roundProgress({ round: 3, prev: 100, built: 101 }).stop, null)
 check("a build that went down (the earlier build was not restored) is no progress, whatever min is above 0", roundProgress({ round: 2, prev: 900, built: 40, min: 1 }).stop === true && roundProgress({ round: 2, prev: 900, built: 40, min: 1 }).added === -860, roundProgress({ round: 2, prev: 900, built: 40 }))
+check("min 0 turns the stop off: a round that added nothing, or whose count fell, goes on", !roundProgress({ round: 3, prev: 100, built: 100, min: 0 }).stop && !roundProgress({ round: 3, prev: 900, built: 40, min: 0 }).stop && roundProgress({ round: 3, prev: 900, built: 40, min: 0 }).added === -860 && roundProgress({ round: 3, prev: 900, built: 40, min: 1 }).stop, roundProgress({ round: 3, prev: 900, built: 40, min: 0 }))
 check("the first round is never stopped, nor a round with nothing to compare with", !roundProgress({ round: 1, prev: 500, built: 500 }).stop && !roundProgress({ round: 4, prev: null, built: 0 }).stop && !roundProgress({ round: 4, prev: "", built: 0 }).stop && !roundProgress({ round: 4, built: 0 }).stop, null)
 check("flt-anthropic: three rounds at the same count, the second of them already stops", roundProgress({ round: 2, prev: 1234, built: 1234 }).stop && roundProgress({ round: 2, prev: 1234, built: 1234 }).why.includes("1234"), roundProgress({ round: 2, prev: 1234, built: 1234 }))
 check("bad numbers are refused", throws(() => roundProgress({ round: 0, built: 1 })) && throws(() => roundProgress({ round: 2, prev: -1, built: 1 })) && throws(() => roundProgress({ round: 2, prev: 1, built: "9" })) && throws(() => roundProgress({ round: 2, prev: 1, built: 2, min: -1 })), null)
@@ -70,4 +71,5 @@ check("mutant: judging the first round is noticed", disagrees(({ round, prev, bu
 check("mutant: reading no count as zero is noticed", disagrees(({ round, prev, built, min }) => (round === 1 ? false : built - (prev ?? 0) < min)), null)
 check("mutant: counting a fall as no change is noticed", disagrees(({ round, prev, built, min }) => (round === 1 || prev === null ? false : Math.max(0, built - prev) < min && built >= prev)), null)
 check("mutant: comparing with the library's size instead of the round before is noticed", disagrees(({ round, prev, built, min }) => (round === 1 || prev === null ? false : built < min)), null)
+check("mutant: stopping on a fall although min is 0 is noticed", disagrees(({ round, prev, built, min }) => (round === 1 || prev === null ? false : built - prev < min || (min === 0 && built < prev))), null)
 process.exit(bad ? 1 : 0)

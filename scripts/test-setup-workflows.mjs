@@ -131,15 +131,17 @@ const wrong = (script, cases, first = false) => {
 }
 const cases = []
 for (const min of [0, 1, 3]) for (const prev of [0, 30000]) for (const delta of [-2, -1, 0, 1]) for (const round of [1, 3]) cases.push({ round, prev: String(prev), built: String(Math.max(0, prev + min + delta)), min }) // added = min + delta: below, on and over the line
+for (const round of [2, 4]) for (const prev of ["500", "30000"]) cases.push({ round, prev, built: "3", min: 0 }) // a count that fell, with min_progress 0: the chain goes on
 for (const round of [1, 2, 4]) for (const prev of ["", "5"]) for (const built of ["", "5", "0"]) cases.push({ round, prev, built, min: 1 })
 let seed = 7
 const rnd = (n) => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) % n }
 for (let i = 0; i < 30; i++) { const prev = rnd(30000); cases.push({ round: 1 + rnd(6), prev: rnd(6) === 0 ? "" : String(prev), built: String(Math.max(0, prev + rnd(7) - 3)), min: rnd(4) }) }
 const verdicts = wrong(gateScript, cases)
 check(`build-gate's shell does what the rule says, on ${cases.length} rounds (boundaries, empty counts, random)`, verdicts.length === 0, verdicts.slice(0, 3))
-check("the cases hold both a stop and a dispatch, and rounds with and without a count", cases.some((c) => expected(c).stop) && cases.some((c) => !expected(c).stop) && cases.some((c) => c.round > 1 && c.prev === ""), "")
+check("the cases hold both a stop and a dispatch, rounds with and without a count, and a fall at min 0", cases.some((c) => c.min === 0 && c.round > 1 && Number(c.built) < Number(c.prev) && !expected(c).stop) && cases.some((c) => expected(c).stop) && cases.some((c) => !expected(c).stop) && cases.some((c) => c.round > 1 && c.prev === ""), "")
 for (const [name, from, to] of [
   ["stopping at exactly min instead of below it", '-lt "$MIN_PROGRESS"', '-le "$MIN_PROGRESS"'],
+  ["stopping on a fall although min_progress is 0", '[ "$MIN_PROGRESS" -gt 0 ] && [ "$added" -lt "$MIN_PROGRESS" ]', '[ "$added" -lt "$MIN_PROGRESS" ]'],
   ["stopping the first round too", '[ "$BUILD_ROUND" -gt 1 ] && [ -n "$PREV_BUILT" ]', '[ "$BUILD_ROUND" -ge 1 ] && [ -n "$PREV_BUILT" ]'],
   ["subtracting the wrong way round", "$((10#$BUILT - 10#$PREV_BUILT))", "$((10#$PREV_BUILT - 10#$BUILT))"],
   ["dispatching after the error", "    exit 1\n  fi\nelif", "    :\n  fi\nelif"],

@@ -252,7 +252,7 @@ jobs:
           # (flt-anthropic, 30,662 modules: three rounds in a row exported nothing and nothing noticed.) scripts/setup-plan.mjs roundProgress is the same rule; scripts/test-setup-workflows.mjs runs this text against it.
           if [ "$BUILD_ROUND" -gt 1 ] && [ -n "$PREV_BUILT" ] && [ -n "$BUILT" ]; then
             added=$((10#$BUILT - 10#$PREV_BUILT))
-            if [ "$added" -lt "$MIN_PROGRESS" ]; then
+            if [ "$MIN_PROGRESS" -gt 0 ] && [ "$added" -lt "$MIN_PROGRESS" ]; then   # min_progress 0: no such stop, not even for a count that fell
               {
                 echo "stalled=true"; echo "built=$BUILT"; echo "prev_built=$PREV_BUILT"; echo "modules=$MODULES"; echo "added=$added"; echo "min_progress=$MIN_PROGRESS"
               } >> "$GITHUB_OUTPUT"

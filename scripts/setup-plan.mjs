@@ -49,7 +49,7 @@ export function decide({ entries, mode = "auto", shards = 0 }) {
 //   round   1-based number of the round that just finished
 //   prev    modules with an .olean after the round before it (null / "" when unknown: the first round, or a chain started by hand)
 //   built   modules with an .olean after this round
-//   min     modules a round must add (default 1: any progress; 0 turns the stop off)
+//   min     modules a round must add (default 1: any progress; 0 turns the stop off: nothing stops, not even a count that fell)
 // The shell of the build-gate job does the same arithmetic (it checks nothing out and runs no node); scripts/test-setup-workflows.mjs runs that shell against this function on random numbers.
 export const MIN_PROGRESS_DEFAULT = 1
 const count = (v, what) => {
@@ -63,8 +63,8 @@ export function roundProgress({ round, prev = null, built, min = MIN_PROGRESS_DE
   if (round === 1) return { stop: false, added: null, why: "the first round has no round before it" }
   if (prev === null || prev === undefined || prev === "") return { stop: false, added: null, why: "the round before it left no count: nothing to compare with" }
   const added = built - count(prev, "prev")
-  if (added < min) return { stop: true, added, why: `round ${round} added ${added} modules (${prev} -> ${built}), fewer than ${min}` }
-  return { stop: false, added, why: `round ${round} added ${added} modules (${prev} -> ${built})` }
+  if (min > 0 && added < min) return { stop: true, added, why: `round ${round} added ${added} modules (${prev} -> ${built}), fewer than ${min}` }
+  return { stop: false, added, why: min === 0 ? `round ${round} added ${added} modules (${prev} -> ${built}); min 0: no stop` : `round ${round} added ${added} modules (${prev} -> ${built})` }
 }
 
 // Entries the setup will seed: the committed queue when there is one, else the tentative records of the tree.
