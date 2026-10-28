@@ -59,7 +59,7 @@ jobs:
               problems.append(f"the result is for {r.get('emissary_repo')}")
           if r.get("expected_sha256") != want:
               problems.append("the campaign was judged against an expectation that has changed since: ask for a new campaign (a push to the sandbox's main, or dispatch it)")
-          if not r.get("ok"):
+          if r.get("ok") is not True:  # only the JSON boolean true: the string "false" is truthy
               problems.append("the campaign failed: " + "; ".join((r.get("verdict") or {}).get("failures") or ["no reason recorded"]))
           if problems:
               print("::error::" + " | ".join(problems))

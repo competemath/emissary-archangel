@@ -89,6 +89,11 @@ class Verdict(unittest.TestCase):
             self.assertNotEqual(code, 0, name)
             self.assertIn(needle, out, name)
 
+    def test_only_the_json_boolean_true_is_ok(self):
+        for bad in ("false", "true", "False", 0, 1, None, [], ["ok"], {}):
+            code, out = run_verdict(dict(GOOD, ok=bad), "e" * 64, "a" * 40)
+            self.assertNotEqual(code, 0, repr(bad))
+
     def test_a_result_that_is_ok_only_in_its_verdict_is_not_ok(self):
         # the top-level `ok` is the campaign's (it includes the run job's result); a verdict that says ok alone is not enough
         code, _ = run_verdict(dict(GOOD, ok=False), "e" * 64, "a" * 40)
