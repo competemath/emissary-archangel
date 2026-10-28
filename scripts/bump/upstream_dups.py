@@ -160,7 +160,9 @@ def remove(lib: Path, roots: list[str], log: str) -> list[dict]:
             # the library's own: another declaration of that name in this file (outside this block), or in any other module of the library
             if declares("\n".join(code), last, range(start, end)):
                 continue
-            if any(declares(code_of(f), last) for f in own.values() if within(lib, f) and f.resolve() != path.resolve()):
+            others = [f for f in own.values() if f.resolve() != path.resolve()]
+            # a module that cannot be scanned safely (a link, or outside the library) might declare the name: then the shim stays (the check errs towards keeping, never towards deleting)
+            if any(not within(lib, f) for f in others) or any(declares(code_of(f), last) for f in others):
                 continue
             cuts.append((start, end, name, m.group("kind")))
         if not cuts:

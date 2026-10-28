@@ -206,6 +206,16 @@ class Hostile(unittest.TestCase):
                 self.assertEqual(ud.remove(lib, ["Own"], log), [], log)
             self.assertEqual(((outside / "Shim.lean").read_text(), victim.read_text()), (SHIM, SHIM))
 
+    def test_a_module_that_cannot_be_scanned_keeps_the_shim(self):
+        other = "namespace MvPolynomial\ndef coeff := 1\nend MvPolynomial\n"
+        with tempfile.TemporaryDirectory() as t:
+            elsewhere = Path(t) / "elsewhere.lean"
+            elsewhere.write_text(other)
+            lib = lib_with(Path(t) / "lib", {"Own/Shim.lean": SHIM})
+            (lib / "Own/Other.lean").symlink_to(elsewhere)  # declares the name, but is a link: it cannot be read safely
+            self.assertEqual(ud.remove(lib, ["Own"], log_for("Own/Shim.lean", SHIM, "MvPolynomial.coeff", "abbrev coeff")), [])
+            self.assertEqual((lib / "Own/Shim.lean").read_text(), SHIM)
+
     def test_an_ordinary_file_inside_the_library_is_still_edited(self):
         with tempfile.TemporaryDirectory() as t:
             lib = lib_with(Path(t) / "lib", {"Own/Shim.lean": SHIM})
