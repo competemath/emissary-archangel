@@ -58,6 +58,9 @@ SOFT_WORDS = {"import", "notation", "notation3", "infix", "infixl", "infixr", "p
 FETCH_PREFIXES = ("https://github.com/",)
 _FULL_COMMIT = re.compile(r"[0-9a-f]{40}")
 
+# `#` commands that only write a message: inert, and taken out later by inert_commands.py. Every other `#` command stays a risk: `#eval` and `#exec` run code at compile time, and an unknown one is not assumed harmless.
+INERT_HASH = {"print", "check", "check_failure", "reduce", "synth", "find", "help", "lint", "time", "guard", "guard_expr", "guard_msgs", "adaptation_note", "count_heartbeats", "explode", "leansearch", "loogle", "moogle", "min_imports", "long_names", "sample"}
+
 PERMISSIVE = ("Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "CC0-1.0", "Unlicense")
 _LICENCE_FILES = ("LICENSE", "LICENSE.md", "LICENSE.txt", "LICENCE", "COPYING", "COPYING.md", "UNLICENSE")
 # Phrases that identify a licence text. Order matters: the first match wins and the copyleft ones come first, so that a file that mentions two is read as the stricter.
@@ -106,7 +109,9 @@ def hard_risks(text: str) -> list[str]:
     risks = []
     for msg in allowlist._token_violations(code):
         m = re.match(r"`([^`]+)`", msg)
-        if m and (m.group(1) in SOFT_WORDS or m.group(1).startswith("#")):  # `#print axioms` and the like write a message and declare nothing: inert_commands.py takes them out
+        if m and m.group(1) in SOFT_WORDS:
+            continue
+        if m and m.group(1).startswith("#") and m.group(1)[1:] in INERT_HASH:  # `#print axioms` and the like write a message and declare nothing: inert_commands.py takes them out
             continue
         risks.append(msg)
     attr_msgs, _ = allowlist._attribute_violations(code)

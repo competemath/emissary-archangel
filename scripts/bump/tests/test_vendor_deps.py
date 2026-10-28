@@ -262,6 +262,9 @@ class Safety(unittest.TestCase):
         "extern": '@[extern "c_fn"] opaque cFn : Nat -> Nat\n',
         "implemented_by": "@[implemented_by fastImpl] def slow : Nat := 1\n",
         "native_decide": "theorem t : 2 + 2 = 4 := by native_decide\n",
+        "#eval": "def x := 1\n#eval x\n",
+        "#exec": "#exec foo\n",
+        "#eval!": "def x := 1\n#eval! x\n",
         "IO.Process": 'def x : IO Unit := do discard <| IO.Process.output { cmd := "ls" }\n',
     }
 
@@ -286,8 +289,8 @@ class Safety(unittest.TestCase):
             self.assertEqual(rep["unsafe"], [], body)
             self.assertTrue(module_path(lib, "Dep.X").exists(), body)
 
-    def test_a_hash_command_is_inert_and_does_not_keep_a_module_out(self):
-        lib, rep = self.run_one("def x := 1\n#print axioms x\n#check x\n")
+    def test_a_hash_command_that_only_writes_a_message_is_inert_and_does_not_keep_a_module_out(self):
+        lib, rep = self.run_one("def x := 1\n#print axioms x\n#check x\n#reduce x\n#synth Inhabited Nat\n")
         self.assertEqual(rep["unsafe"], [])
         self.assertTrue(module_path(lib, "Dep.X").exists())
 
@@ -309,6 +312,16 @@ class Safety(unittest.TestCase):
             lib, rep = self.run_one(header + "def x := 1\n")
             self.assertEqual(module_path(lib, "Dep.X").exists(), ok, header)
             self.assertEqual(bool(rep["unsafe"]), not ok, header)
+
+    def test_no_command_that_runs_code_is_called_inert_whatever_it_is_named(self):
+        import inspect
+
+        src = inspect.getsource(vd)
+        for name in ("eval", "exec", "run_cmd", "run_tac", "run_elab", "run_meta"):
+            self.assertNotIn(name, vd.INERT_HASH)
+        # an unknown # command is a risk, not assumed harmless
+        lib, rep = self.run_one("#mysterious_command foo\n")
+        self.assertEqual([u["module"] for u in rep["unsafe"]], ["Dep.X"])
 
     def test_the_hash_of_every_copy_is_recorded(self):
         import hashlib
