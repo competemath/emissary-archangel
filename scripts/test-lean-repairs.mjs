@@ -4,7 +4,9 @@
 // damage a text, and the compile and Gate 2 re-judge what comes out.
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
-import { dropDuplicatedTailAttributes, policyCheck, policyRepair } from "../lib/lean-repairs.mjs"
+import { MECHANICS_VERSION, dropDuplicatedTailAttributes, policyCheck, policyRepair } from "../lib/lean-repairs.mjs"
+import { ledgerRow } from "../lib/ledger-row.mjs"
+import { TERMINAL, VERIFIED, isSettled, parseLedger } from "../lib/ledger-settle.mjs"
 
 let failed = 0
 const check = async (name, fn) => {
@@ -115,6 +117,60 @@ await check("a text nobody could judge is an error, not an empty list (a missing
   const lr = await import("../lib/lean-repairs.mjs?broken")
   await assert.rejects(lr.policyCheck("theorem a : True := trivial\n"), /content lint could not run/)
   delete process.env.EMISSARY_PYTHON
+})
+
+
+// ---- the ledger: an entry the mechanical pass gave up on is tried again when the remedies have improved -----------------------------------------------------------------------------
+const row = (id, outcome, mechanics) => JSON.stringify({ id, outcome, ...(mechanics === undefined ? {} : { mechanics }) })
+const ask = (lines, id, mode, v = MECHANICS_VERSION) => isSettled(id, parseLedger(lines.join("\n")), { mode, agentAttempts: 1, mechanicsVersion: v })
+
+await check("a deferred-agent row of the current generation is settled for a mechanical run and open for an agent run", () => {
+  assert.equal(ask([row(1, "deferred-agent", MECHANICS_VERSION)], 1, "mechanical"), true)
+  assert.equal(ask([row(1, "deferred-agent", MECHANICS_VERSION)], 1, "agent"), false)
+})
+
+await check("a deferred-agent row from an older generation, or from before the stamp, is tried again by a mechanical run", () => {
+  assert.equal(ask([row(1, "deferred-agent", MECHANICS_VERSION - 1)], 1, "mechanical"), false)
+  assert.equal(ask([row(1, "deferred-agent")], 1, "mechanical"), false)
+  assert.equal(ask([row(1, "deferred-agent", MECHANICS_VERSION)], 1, "mechanical", MECHANICS_VERSION + 1), false)
+})
+
+await check("verified and terminal outcomes are settled in every mode and every generation; the last row of an entry wins", () => {
+  for (const o of [...VERIFIED, ...TERMINAL]) for (const mode of ["mechanical", "agent"]) assert.equal(ask([row(1, o)], 1, mode, 99), true, o)
+  assert.equal(ask([row(1, "deferred-agent", 0), row(1, "mechanical")], 1, "mechanical"), true)
+  assert.equal(ask([row(1, "mechanical"), row(1, "failed")], 1, "mechanical"), false)
+  assert.equal(ask([], 1, "mechanical"), false)
+})
+
+await check("raising the generation reopens exactly the deferred-agent entries, nothing else (random ledgers)", () => {
+  const r = rng(11)
+  const outcomes = [...VERIFIED, ...TERMINAL, "deferred-agent", "unresolved", "failed", "infra-blocked"]
+  for (let n = 0; n < 300; n++) {
+    const lines = Array.from({ length: 12 }, (_, i) => row(i, outcomes[Math.floor(r() * outcomes.length)], MECHANICS_VERSION))
+    const led = parseLedger(lines.join("\n"))
+    for (let id = 0; id < 12; id++) {
+      const a = isSettled(id, led, { mode: "mechanical", agentAttempts: 1, mechanicsVersion: MECHANICS_VERSION })
+      const b = isSettled(id, led, { mode: "mechanical", agentAttempts: 1, mechanicsVersion: MECHANICS_VERSION + 1 })
+      if (led.last.get(id) === "deferred-agent") assert.deepEqual([a, b], [true, false])
+      else assert.equal(a, b)
+    }
+  }
+})
+
+await check("a half-written last line does not stop a run", () => {
+  const led = parseLedger(row(1, "mechanical") + "\n" + '{"id":2,"outcome":"defer')
+  assert.equal(led.last.get(1), "mechanical")
+})
+
+await check("ledgerRow stamps a deferred-agent row with the generation and no other row", () => {
+  assert.equal(ledgerRow({ id: 1, name: "a", sourcePath: "p", outcome: "deferred-agent", reason: "lint_refused" }).mechanics, MECHANICS_VERSION)
+  assert.equal("mechanics" in ledgerRow({ id: 1, name: "a", sourcePath: "p", outcome: "mechanical" }), false)
+})
+
+await check("queue-server uses the shared rules and keeps no copy of them", () => {
+  const q = readFileSync(new URL("./queue-server.mjs", import.meta.url), "utf8")
+  assert.match(q, /isSettled\(id, led, \{[^}]*mechanicsVersion: MECHANICS_VERSION/)
+  assert.doesNotMatch(q, /const VERIFIED\b|const TERMINAL\b/)
 })
 
 // ---- the bridge uses it, and keeps no copy -----------------------------------------------------------------------------------------------------------------------------------
