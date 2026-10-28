@@ -42,6 +42,21 @@ REMOVABLE = {"abbrev", "def", "theorem", "lemma"}
 COMMAND_START = re.compile(r"^(?:@\[|" + MODIFIERS + r"(?:abbrev|def|theorem|lemma|instance|structure|inductive|class|opaque|axiom|example|namespace|end|section|open|variable|universe|set_option|attribute|noncomputable|mutual|deriving|export|alias|omit|include|macro_rules|macro|syntax|declare_syntax_cat|notation3|notation|infixl|infixr|infix|prefix|postfix|elab_rules|elab|builtin_initialize|initialize|register_\w+)(?![\w'.])|#)")
 
 
+def within(lib: Path, path: Path) -> bool:
+    """Whether `path` is a regular file reached without any symlink and lying inside `lib` (so a write cannot land anywhere else)."""
+    try:
+        base = lib.resolve()
+        rel = path.relative_to(lib)
+        cur = lib
+        for part in rel.parts:
+            cur = cur / part
+            if cur.is_symlink():
+                return False
+        return path.resolve().is_relative_to(base) and ".." not in rel.parts
+    except (ValueError, OSError):
+        return False
+
+
 def last_component(name: str) -> str:
     return tb.split_mod(name)[-1]
 
@@ -124,7 +139,8 @@ def remove(lib: Path, roots: list[str], log: str) -> list[dict]:
     done: list[dict] = []
     for rel, errs in sorted(wanted.items()):
         path = lib / rel
-        if not path.is_file():
+        # the log names the file and the library is third-party: a path that leaves the library (absolute, `..`), or that is or goes through a symlink, is never written
+        if not within(lib, path) or not path.is_file():
             continue
         text = path.read_text(errors="replace")
         lines = text.split("\n")
@@ -144,7 +160,7 @@ def remove(lib: Path, roots: list[str], log: str) -> list[dict]:
             # the library's own: another declaration of that name in this file (outside this block), or in any other module of the library
             if declares("\n".join(code), last, range(start, end)):
                 continue
-            if any(declares(code_of(f), last) for f in own.values() if f.resolve() != path.resolve()):
+            if any(declares(code_of(f), last) for f in own.values() if within(lib, f) and f.resolve() != path.resolve()):
                 continue
             cuts.append((start, end, name, m.group("kind")))
         if not cuts:

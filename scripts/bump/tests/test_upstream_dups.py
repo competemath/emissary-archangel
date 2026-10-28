@@ -179,6 +179,39 @@ class Basics(unittest.TestCase):
             self.assertEqual((lib / "Own/Shim.lean").read_text(), SHIM)
 
 
+class Hostile(unittest.TestCase):
+    """The library is third-party and the log names the file to edit: nothing outside the library may be written, whatever path or link the library or the log offers."""
+
+    def test_a_symlinked_file_is_never_written_through(self):
+        with tempfile.TemporaryDirectory() as t:
+            outside = Path(t) / "outside.lean"
+            outside.write_text(SHIM)
+            lib = lib_with(Path(t) / "lib", {"Own/Other.lean": "def other := 1\n"})
+            (lib / "Own/Shim.lean").symlink_to(outside)
+            done = ud.remove(lib, ["Own"], log_for("Own/Shim.lean", SHIM, "MvPolynomial.coeff", "abbrev coeff"))
+            self.assertEqual(done, [])
+            self.assertEqual(outside.read_text(), SHIM)
+
+    def test_a_directory_symlink_and_dotdot_and_absolute_paths_in_the_log_write_nothing(self):
+        with tempfile.TemporaryDirectory() as t:
+            outside = Path(t) / "outside"
+            outside.mkdir()
+            (outside / "Shim.lean").write_text(SHIM)
+            victim = Path(t) / "victim.lean"
+            victim.write_text(SHIM)
+            lib = lib_with(Path(t) / "lib", {"Own/Other.lean": "def other := 1\n"})
+            (lib / "Linked").symlink_to(outside)
+            logs = [log_for("Linked/Shim.lean", SHIM, "MvPolynomial.coeff", "abbrev coeff"), log_for("../victim.lean", SHIM, "MvPolynomial.coeff", "abbrev coeff"), log_for(str(victim), SHIM, "MvPolynomial.coeff", "abbrev coeff")]
+            for log in logs:
+                self.assertEqual(ud.remove(lib, ["Own"], log), [], log)
+            self.assertEqual(((outside / "Shim.lean").read_text(), victim.read_text()), (SHIM, SHIM))
+
+    def test_an_ordinary_file_inside_the_library_is_still_edited(self):
+        with tempfile.TemporaryDirectory() as t:
+            lib = lib_with(Path(t) / "lib", {"Own/Shim.lean": SHIM})
+            self.assertEqual(len(ud.remove(lib, ["Own"], log_for("Own/Shim.lean", SHIM, "MvPolynomial.coeff", "abbrev coeff"))), 1)
+
+
 class Structure(unittest.TestCase):
     """Random files of blocks, some of them named in the log: the output is the input with exactly those blocks blanked."""
 
@@ -224,7 +257,7 @@ class Mutants(unittest.TestCase):
     """Break the code the way the shortcut would; the invariants above must notice. (A surviving mutant means a test is missing.)"""
 
     def noticed(self, **patches):
-        suite = unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromTestCase(Basics), unittest.defaultTestLoader.loadTestsFromTestCase(Structure)])
+        suite = unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromTestCase(Basics), unittest.defaultTestLoader.loadTestsFromTestCase(Structure), unittest.defaultTestLoader.loadTestsFromTestCase(Hostile)])
         result = unittest.TestResult()
         saved = {k: getattr(ud, k) for k in patches}
         try:
