@@ -4,7 +4,7 @@
 //   - `pip install` names `==` for every requirement;
 //   - a script piped into a shell (`curl ... | sh`) is fetched from raw.githubusercontent.com at a full commit, never a branch;
 //   - nothing says `@latest`, `@next`, `@stable`;
-//   - the heavy workflows (setup-*, bump-*, translate*) run on a concrete image (ubuntu-26.04), not on a `-latest` label that moves on GitHub's schedule: a run that exports differently
+//   - the heavy workflows (setup-*, bump-*, translate*) run on a concrete image (ubuntu-26.04), written out (no `runs-on: ${{ matrix.os }}`), not on a `-latest` label that moves on GitHub's schedule: a run that exports differently
 //     than the one before it should not be explained by an operating system nobody changed.
 // Not covered, said here so nobody thinks they are: `apt-get install` (the distribution's version of the pinned image), the elan binary the pinned elan-init.sh downloads (it takes the latest
 // release), and the toolchains, which each library pins itself.
@@ -16,7 +16,21 @@ export const HEAVY = /^(setup-|bump-|translate)/
 const SHA = /^[0-9a-f]{40}$/
 const EXACT = /^(?:@[\w.-]+\/)?[\w.-]+@\d+\.\d+\.\d+(?:[-+][\w.+-]+)?$/
 
-const stripComments = (text) => text.split("\n").map((l) => (/^\s*#/.test(l) ? "" : l.replace(/\s#\s.*$/, "")))
+// the active lines of a workflow: comments left out, and a shell command continued with a trailing backslash joined onto the line it starts on (the lines it continues are left empty, so
+// that a finding keeps the line number of the source). `curl URL \` followed by `| sh` is one command.
+export function stripComments(text, join = true) {
+  const lines = text.split("\n").map((l) => (/^\s*#/.test(l) ? "" : l.replace(/\s#\s.*$/, "")))
+  for (let i = 0; join && i < lines.length; i++) {
+    let k = i
+    while (/\\\s*$/.test(lines[i]) && k + 1 < lines.length) {
+      k++
+      lines[i] = lines[i].replace(/\\\s*$/, " ") + lines[k].trim()
+      lines[k] = ""
+    }
+    i = k
+  }
+  return lines
+}
 
 // the command words after `npm install -g` / `pip install`, up to the end of that command
 const argsAfter = (line, re) => {
@@ -25,13 +39,13 @@ const argsAfter = (line, re) => {
   return line.slice(m.index + m[0].length).split(/&&|\|\||;|\||\)|`/)[0].trim().split(/\s+/).filter(Boolean)
 }
 
-export const RULES = ["actions", "npm", "pip", "curl", "moving", "runner"]
+export const RULES = ["actions", "npm", "pip", "curl", "moving", "runner", "continuation"]
 // `skip`: rules left out (the tests leave each out in turn to see that the checks notice)
 export function findUnpinned(text, file, skip = []) {
   const out = []
   const on = (rule) => !skip.includes(rule)
   const add = (n, why, line) => out.push({ file, line: n + 1, why, text: line.trim().slice(0, 140) })
-  stripComments(text).forEach((line, n) => {
+  stripComments(text, on("continuation")).forEach((line, n) => {
     const use = line.match(/^\s*(?:-\s+)?uses:\s*(\S+)/)
     if (on("actions") && use && !use[1].startsWith("./") && !SHA.test(use[1].split("@")[1] || "")) add(n, "an action not pinned to a full commit", line)
     const npm = argsAfter(line, /\bnpm\s+(?:install|i|add)\b/)
@@ -50,7 +64,10 @@ export function findUnpinned(text, file, skip = []) {
       if (!m || !SHA.test(m[1])) add(n, `a script piped into a shell is not fetched at a full commit (${url || "no URL"})`, line)
     }
     if (on("moving") && /@(?:latest|next|stable)\b/.test(line)) add(n, "a moving tag (@latest, @next, @stable)", line)
-    if (on("runner") && HEAVY.test(file) && /\bruns-on:\s*\S*-latest\b/.test(line)) add(n, "a heavy workflow on a -latest runner label", line)
+    if (on("runner") && HEAVY.test(file) && /\bruns-on:/.test(line)) {
+      if (/-latest\b/.test(line)) add(n, "a heavy workflow on a -latest runner label", line)
+      else if (/\$\{\{/.test(line)) add(n, "a heavy workflow whose runner is an expression (a matrix value or an input can be -latest): write the label", line)
+    }
   })
   return out
 }

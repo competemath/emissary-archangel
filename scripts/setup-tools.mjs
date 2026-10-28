@@ -3,7 +3,7 @@
 // (the toolchain is pinned by the library, but elan, lean4export's patch, and the image under it are not part of the registry).
 // Nothing here can fail a setup: a tool that cannot be asked, or whose answer is not plain text, is `null`.
 //
-//   collectTools({ exec, env, nodeVersion, toolchain, l4eDir, patchScript })  -> { lean, lake, elan, lean4export, node, runnerImage }
+//   collectTools({ exec, env, nodeVersion, toolchain, l4eDir, patchRecorded })  -> { lean, lake, elan, lean4export, node, runnerImage }
 //   mergeTools([tools, ...])                                                  -> the same shape; a field the inputs disagree on holds every value, " | " apart
 import { createHash } from "node:crypto"
 
@@ -44,7 +44,7 @@ export function runnerImage(env) {
   return os && version ? `${os}/${version}` : version || os || null
 }
 
-export async function collectTools({ exec, env = {}, nodeVersion = null, toolchain, l4eDir, patchScript = null }) {
+export async function collectTools({ exec, env = {}, nodeVersion = null, toolchain, l4eDir, patchRecorded = null }) {
   const ask = async (cmd, args) => {
     try {
       return await exec(cmd, args)
@@ -61,7 +61,8 @@ export async function collectTools({ exec, env = {}, nodeVersion = null, toolcha
   let l4e = null
   const head = l4eDir ? plain(await ask("git", ["-C", l4eDir, "rev-parse", "HEAD"])) : null
   if (head && /^[0-9a-f]{40}$/.test(head)) {
-    const patch = patchScript === null ? "no patch script" : `batch patch ${createHash("sha256").update(patchScript).digest("hex").slice(0, 12)}`
+    // the fingerprint of the patch the exporter was BUILT with (recorded next to it when it was built), not of the patch file as it is now: a cached exporter outlives a change of the script
+    const patch = typeof patchRecorded === "string" && /^[0-9a-f]{12}$/.test(patchRecorded.trim()) ? `batch patch ${patchRecorded.trim()}` : "patch not recorded"
     l4e = `${head.slice(0, 12)} + ${patch}`
   }
   return {
@@ -72,6 +73,21 @@ export async function collectTools({ exec, env = {}, nodeVersion = null, toolcha
     node: plain(nodeVersion),
     runnerImage: runnerImage(env),
   }
+}
+
+// The first 12 hex digits of the sha256 of the patch script (scripts/patch-lean4export.py); null for no script
+export const patchFingerprint = (text) => (typeof text === "string" ? createHash("sha256").update(text).digest("hex").slice(0, 12) : null)
+
+// What to do with the lean4export a cache directory holds. `recorded` is the fingerprint written when it was built (null: built before it was recorded, or by hand), `current` that of the patch script now.
+//   build          there is none
+//   rebuild        it predates --batch (its exports would fall back to one process per module)
+//   rebuild-clean  it was built with another patch than the script now has: from a fresh clone, since the patch is idempotent and would not replace the old one on a patched tree
+//   reuse          otherwise (an unrecorded fingerprint is not a reason to spend 40 minutes; the record then says "patch not recorded")
+export function exporterAction({ binExists, batchable, recorded, current }) {
+  if (!binExists) return "build"
+  if (!batchable) return "rebuild"
+  if (typeof recorded === "string" && recorded.trim() && current && recorded.trim() !== current) return "rebuild-clean"
+  return "reuse"
 }
 
 // The records of the shards of one library: where they agree the field is that value; where they do not (a shard on another image, say) every value is kept, so that the difference is on file.

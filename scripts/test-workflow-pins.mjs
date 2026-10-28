@@ -2,10 +2,11 @@
 //   - the real workflows have no unpinned install, no moving tag, no script piped into a shell from a branch, no unpinned action, and the heavy ones no -latest runner;
 //   - the scanner (scripts/check-workflow-pins.mjs) finds EVERY injected violation on random workflow texts and flags no clean line; and each mutant of it (one rule left out) is noticed;
 //   - what this change pinned stays pinned: the Claude CLI of translate.yml is an exact version, the elan installer a commit.
-import { readFileSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { HEAVY, RULES, checkDir, findUnpinned } from "./check-workflow-pins.mjs"
+import { HEAVY, RULES, checkDir, findUnpinned, stripComments } from "./check-workflow-pins.mjs"
 
 const wf = join(dirname(fileURLToPath(import.meta.url)), "..", ".github", "workflows")
 let bad = 0
@@ -16,7 +17,9 @@ const check = (name, ok, got) => {
 const real = checkDir(wf)
 check("the real workflows: nothing unpinned", real.length === 0, real.slice(0, 5))
 const translate = readFileSync(join(wf, "translate.yml"), "utf8")
-check("the Claude CLI that translates is installed at an exact version", /npm install -g -q @anthropic-ai\/claude-code@\d+\.\d+\.\d+ && claude --version/.test(translate), translate.match(/.*claude-code.*/)?.[0])
+const active = (text) => stripComments(text).filter(Boolean) // comments out: a line in a comment must not satisfy a check
+check("the Claude CLI that translates is installed at an exact version, on an active run: line", active(translate).some((l) => /^\s*run: npm install -g -q @anthropic-ai\/claude-code@\d+\.\d+\.\d+ && claude --version\s*$/.test(l)), active(translate).filter((l) => /claude-code/.test(l)))
+check("a Claude install that is only in a comment does not satisfy that check", !active("        # run: npm install -g -q @anthropic-ai/claude-code@2.1.312 && claude --version\n").some((l) => /^\s*run: npm install -g/.test(l)), null)
 const elans = [...new Set(elanFiles().flatMap((t) => [...t.matchAll(/raw\.githubusercontent\.com\/leanprover\/elan\/([^/]+)\/elan-init\.sh/g)].map((m) => m[1])))]
 check("every elan installer is fetched at one and the same full commit", elans.length === 1 && /^[0-9a-f]{40}$/.test(elans[0]), elans)
 function elanFiles() {
@@ -49,6 +52,9 @@ const good = [
   "          npm test",
   "          # npm install -g left-pad@latest   (a comment says what not to do)",
   "          echo done # runs-on: ubuntu-latest",
+  ["          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/" + SHA + "/elan-init.sh \\", "            | sh -s -- -y --default-toolchain none"],
+  ["          pip install -q \\", "            \"mcp==1.30.0\""],
+  "    runs-on: ubuntu-26.04",
 ]
 const violations = [
   "      - uses: actions/checkout@v4",
@@ -67,6 +73,11 @@ const violations = [
   "        run: npm install -g foo@latest",
   "        run: npx foo@next",
   "    runs-on: ubuntu-latest",
+  "    runs-on: ${{ matrix.os }}",
+  "    runs-on: [self-hosted, ubuntu-latest]",
+  ["          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \\", "            | sh -s -- -y"],
+  ["          npm install -g \\", "            left-pad@^1.0.0"],
+  ["          pip install -q \\", "            mcp"],
 ]
 const wrap = (lines) => "name: t\njobs:\n  j:\n    steps:\n" + lines.join("\n") + "\n"
 const run = (skip) => {
@@ -75,7 +86,7 @@ const run = (skip) => {
   for (let i = 0; i < 300; i++) {
     const lines = [], injected = new Set()
     for (let k = 0, n = 2 + rnd(10); k < n; k++) {
-      if (rnd(3) === 0) { const v = pick(violations); lines.push(v); injected.add(lines.length) } else lines.push(pick(good))
+      if (rnd(3) === 0) { const v = pick(violations); const l = [].concat(v); lines.push(...l); injected.add(lines.length - l.length + 1) } else lines.push(...[].concat(pick(good)))
     }
     // the runner rule is for the heavy workflows: the random texts are scanned as one
     const found = new Set(findUnpinned(wrap(lines), "setup-x.yml", skip).map((v) => v.line - 4))
@@ -88,6 +99,12 @@ check("on 300 random workflow texts the scanner flags exactly the injected viola
 check("a -latest runner is a violation in a heavy workflow and not in a light one", findUnpinned("    runs-on: ubuntu-latest\n", "setup-sharded.yml").length === 1 && findUnpinned("    runs-on: ubuntu-latest\n", "bump-tests.yml").length === 1 && findUnpinned("    runs-on: ubuntu-latest\n", "translate-all.yml").length === 1 && findUnpinned("    runs-on: ubuntu-latest\n", "lint-drift.yml").length === 0, null)
 check("the scanner says what is wrong and where", (() => { const v = findUnpinned("a\nb\n        run: npm install -g foo\n", "w.yml")[0]; return v.file === "w.yml" && v.line === 3 && /not an exact version/.test(v.why) })(), null)
 
+const setupTests = readFileSync(join(wf, "setup-tests.yml"), "utf8")
+check("the CI job that runs these checks is triggered by .yml and .yaml workflows alike", (setupTests.match(/"\.github\/workflows\/\*\.yaml"/g) || []).length === 2 && (setupTests.match(/"\.github\/workflows\/\*\.yml"/g) || []).length === 2, null)
+check("the scanner reads .yaml workflows too", (() => { const d = mkdtempSync(join(tmpdir(), "pins-")); writeFileSync(join(d, "x.yaml"), "    runs-on: ubuntu-latest\n"); writeFileSync(join(d, "setup-y.yaml"), "    runs-on: ubuntu-latest\n"); const r = checkDir(d); rmSync(d, { recursive: true, force: true }); return r.length === 1 && r[0].file === "setup-y.yaml" })(), null)
+check("a runner given by an expression is a violation in a heavy workflow only", findUnpinned("    runs-on: ${{ matrix.os }}\n", "bump-x.yml").length === 1 && findUnpinned("    runs-on: ${{ matrix.os }}\n", "lint-drift.yml").length === 0, null)
+check("a command continued on the next line keeps the line number of its first line", (() => { const v = findUnpinned("a\nb\n  curl -sSfL https://raw.githubusercontent.com/o/r/main/i.sh \\\n    | sh\nc\n", "w.yml"); return v.length === 1 && v[0].line === 3 })(), null)
+
 // ---- the old workflows (what this change replaced) would have been caught ----
 const before = [
   ["translate.yml", "        run: npm install -g -q @anthropic-ai/claude-code && claude --version"],
@@ -98,6 +115,6 @@ const before = [
 check("the lines this change replaced are each a violation", before.every(([f, l]) => findUnpinned(l + "\n", f).length === 1), null)
 
 // ---- mutants: leave one rule out of the scanner; the check on the random texts must fail, so each rule is needed ----
-check("the rules the mutants leave out are all of them", RULES.length === 6, RULES)
+check("the rules the mutants leave out are all of them", RULES.length === 7, RULES)
 for (const rule of RULES) check(`mutant: a scanner without the ${rule} rule is noticed`, run([rule]) === false, rule)
 process.exit(bad ? 1 : 0)

@@ -5,9 +5,9 @@
 name: setup-tests
 on:
   push:
-    paths: ["scripts/setup-plan.mjs", "scripts/setup-source.mjs", "scripts/setup-tools.mjs", "scripts/test-setup-*.mjs", "scripts/test-workflow-pins.mjs", "scripts/check-workflow-pins.mjs", "scripts/runner-watch.sh", "scripts/round-summary.py", ".github/workflows/*.yml"]
+    paths: ["scripts/setup-plan.mjs", "scripts/setup-source.mjs", "scripts/setup-tools.mjs", "scripts/test-setup-*.mjs", "scripts/test-workflow-pins.mjs", "scripts/check-workflow-pins.mjs", "scripts/runner-watch.sh", "scripts/round-summary.py", ".github/workflows/*.yml", ".github/workflows/*.yaml"]
   pull_request:
-    paths: ["scripts/setup-plan.mjs", "scripts/setup-source.mjs", "scripts/setup-tools.mjs", "scripts/test-setup-*.mjs", "scripts/test-workflow-pins.mjs", "scripts/check-workflow-pins.mjs", "scripts/runner-watch.sh", "scripts/round-summary.py", ".github/workflows/*.yml"]
+    paths: ["scripts/setup-plan.mjs", "scripts/setup-source.mjs", "scripts/setup-tools.mjs", "scripts/test-setup-*.mjs", "scripts/test-workflow-pins.mjs", "scripts/check-workflow-pins.mjs", "scripts/runner-watch.sh", "scripts/round-summary.py", ".github/workflows/*.yml", ".github/workflows/*.yaml"]
 permissions: {}
 defaults:
   run:

@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { TOOL_FIELDS, collectTools, mergeTools, parseElan, parseLake, parseLean, plain, runnerImage } from "./setup-tools.mjs"
+import { TOOL_FIELDS, collectTools, exporterAction, mergeTools, parseElan, patchFingerprint, parseLake, parseLean, plain, runnerImage } from "./setup-tools.mjs"
 
 let bad = 0
 const check = (name, ok, got) => {
@@ -43,11 +43,11 @@ const answers = (over = {}) => (cmd, args) => {
   if (table[key] instanceof Error) return Promise.reject(table[key])
   return Promise.resolve(table[key])
 }
-const all = await collectTools({ exec: answers(), env: { ImageOS: "ubuntu26", ImageVersion: "20261012.163.1" }, nodeVersion: "v22.15.0", toolchain: TC, l4eDir: "/l4e", patchScript: "patch text" })
+const all = await collectTools({ exec: answers(), env: { ImageOS: "ubuntu26", ImageVersion: "20261012.163.1" }, nodeVersion: "v22.15.0", toolchain: TC, l4eDir: "/l4e", patchRecorded: patchFingerprint("patch text") + "\n" })
 check("collectTools: every field, and only the fields there are", JSON.stringify(Object.keys(all)) === JSON.stringify(TOOL_FIELDS) && all.lean.startsWith("4.34.0-rc2") && all.lake === "5.0.0-1a2b3c" && all.elan.startsWith("4.1.2") && all.node === "v22.15.0" && all.runnerImage === "ubuntu26/20261012.163.1", all)
-check("lean4export: the first 12 characters of its commit and the hash of the patch put on it", /^0123456789ab \+ batch patch [0-9a-f]{12}$/.test(all.lean4export), all.lean4export)
-const other = await collectTools({ exec: answers(), env: {}, nodeVersion: "v22.15.0", toolchain: TC, l4eDir: "/l4e", patchScript: "patch text, edited" })
-check("a different patch script is a different record (so a change of the patch is on file)", other.lean4export !== all.lean4export && other.runnerImage === null, [other.lean4export, all.lean4export])
+check("lean4export: the first 12 characters of its commit and the fingerprint recorded when the exporter was built", /^0123456789ab \+ batch patch [0-9a-f]{12}$/.test(all.lean4export), all.lean4export)
+const other = await collectTools({ exec: answers(), env: {}, nodeVersion: "v22.15.0", toolchain: TC, l4eDir: "/l4e", patchRecorded: patchFingerprint("patch text, edited") })
+check("a different recorded patch is a different record (so a change of the patch is on file)", other.lean4export !== all.lean4export && other.runnerImage === null, [other.lean4export, all.lean4export])
 const nothing = await collectTools({ exec: () => Promise.reject(new Error("no such program")), env: {}, nodeVersion: undefined, toolchain: TC, l4eDir: "/l4e" })
 check("tools that cannot be asked are null, nothing throws", Object.values(nothing).every((v) => v === null), nothing)
 const partial = await collectTools({ exec: answers({ "elan --version": new Error("x") }), env: {}, nodeVersion: "v22", toolchain: TC, l4eDir: "/l4e" })
@@ -61,6 +61,32 @@ for (const t of ["", "a b", "x;rm -rf /", "$(id)", undefined, null]) {
   badToolchain.push(!called && r.lean === null && r.lake === null)
 }
 check("a toolchain name that is not a plain name is never passed to a program", badToolchain.every(Boolean), badToolchain)
+
+
+// the patch in the record is the one the cached exporter was BUILT with, never the script as it is now
+const unrecorded = await collectTools({ exec: answers(), env: {}, toolchain: TC, l4eDir: "/l4e" })
+const junk = await collectTools({ exec: answers(), env: {}, toolchain: TC, l4eDir: "/l4e", patchRecorded: "x; rm -rf /" })
+check("an exporter built before the fingerprint was recorded says so, and a recorded value that is not a fingerprint is not copied", /\+ patch not recorded$/.test(unrecorded.lean4export) && /\+ patch not recorded$/.test(junk.lean4export), [unrecorded.lean4export, junk.lean4export])
+const fp = patchFingerprint("script v1")
+check("patchFingerprint: 12 hex digits, null for no script, another script another fingerprint", /^[0-9a-f]{12}$/.test(fp) && patchFingerprint(null) === null && fp !== patchFingerprint("script v2") && fp === patchFingerprint("script v1"), fp)
+// the cached exporter: reused only when it can be trusted to be the one the script describes. Enumerated over every state, against a table written out.
+const table = (s) => (!s.binExists ? "build" : !s.batchable ? "rebuild" : s.recorded && s.current && s.recorded.trim() !== s.current ? "rebuild-clean" : "reuse")
+let actionOk = true
+for (const binExists of [false, true]) for (const batchable of [false, true]) for (const recorded of [null, "", fp, "ffffffffffff", fp + "\n"]) for (const current of [null, fp, "eeeeeeeeeeee"]) actionOk &&= exporterAction({ binExists, batchable, recorded, current }) === table({ binExists, batchable, recorded, current })
+check("exporterAction over all 60 states: build / rebuild (predates --batch) / rebuild-clean (another patch than the script now) / reuse", actionOk, null)
+check("a changed patch script forces a rebuild from a fresh clone, an unrecorded exporter is reused", exporterAction({ binExists: true, batchable: true, recorded: fp, current: patchFingerprint("script v2") }) === "rebuild-clean" && exporterAction({ binExists: true, batchable: true, recorded: null, current: fp }) === "reuse" && exporterAction({ binExists: true, batchable: true, recorded: fp, current: fp }) === "reuse", null)
+const mutantsOk = [
+  ["never rebuilding for another patch", (s) => (s.binExists ? (s.batchable ? "reuse" : "rebuild") : "build")],
+  ["rebuilding whenever nothing is recorded", (s) => (!s.binExists ? "build" : !s.batchable ? "rebuild" : !s.recorded || s.recorded.trim() !== s.current ? "rebuild-clean" : "reuse")],
+  ["rebuilding in place instead of from a fresh clone", (s) => { const a = table(s); return a === "rebuild-clean" ? "rebuild" : a }],
+].map(([name, f]) => {
+  let differs = false
+  for (const binExists of [false, true]) for (const batchable of [false, true]) for (const recorded of [null, "", fp, "ffffffffffff"]) for (const current of [null, fp, "eeeeeeeeeeee"]) differs ||= f({ binExists, batchable, recorded, current }) !== exporterAction({ binExists, batchable, recorded, current })
+  return [name, differs]
+})
+for (const [name, differs] of mutantsOk) check(`mutant: ${name} is noticed`, differs, null)
+const setupSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "setup-source.mjs"), "utf8")
+check("setup-source.mjs writes the fingerprint after a build of the exporter and reads it for the record", /writeAtomic\(PATCH_MARK, current/.test(setupSrc) && /patchRecorded: existsSync\(PATCH_MARK\)/.test(setupSrc) && /exporterAction\(/.test(setupSrc) && /rmSync\(L4E_DIR/.test(setupSrc), null)
 
 // merging the records of the shards
 const t1 = { lean: "A", lake: "L", elan: "E", lean4export: "X", node: "v22.1", runnerImage: "ubuntu26/1" }
