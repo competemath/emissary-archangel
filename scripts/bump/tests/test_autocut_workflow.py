@@ -78,6 +78,15 @@ class Structure(unittest.TestCase):
                 self.assertNotRegex(s.get("run", ""), r"\blake\b|\belan\b|\blean\b", "this workflow runs none of the library's Lean")
         self.assertTrue((REPO / "scripts" / "bump" / "propose_cut.py").exists())
 
+    def test_the_log_can_be_an_artifact_the_caller_supplies_and_that_route_needs_nothing_from_tengoku(self):
+        dl = [s for s in PROPOSE["steps"] if s.get("uses", "").startswith("actions/download-artifact") and s["with"].get("name") == "queue-log"]
+        self.assertEqual(len(dl), 1)
+        self.assertEqual(dl[0]["if"], "${{ inputs.queue_log_run != '' }}")
+        self.assertEqual(dl[0]["with"]["github-token"], "${{ github.token }}")  # this repository's runs: the token is the right one
+        self.assertIn("NOT VERIFIED", INPUTS["tengoku_run"]["description"])  # the other two routes say so where the person chooses
+        self.assertIn("not verified", INPUTS["queue_log_url"]["description"])
+        self.assertIn("queue_log_run", step(PROPOSE, "The queue's log (from")["run"])
+
     def test_the_log_can_only_come_from_the_trees_repository(self):
         block = step(PROPOSE, "The inputs")["run"]
         self.assertIn(r"^https://api\.github\.com/repos/competemath/tengoku/actions/jobs/[0-9]+/logs$", block)
@@ -87,8 +96,8 @@ class Structure(unittest.TestCase):
 
     def test_exactly_one_of_the_two_ways_to_name_the_log(self):
         block = step(PROPOSE, "The inputs")["run"]
-        self.assertIn("not both", block)
-        self.assertIn("give tengoku_run or queue_log_url", block)
+        self.assertIn("not several", block)
+        self.assertIn("give queue_log_run, tengoku_run or queue_log_url", block)
 
     def test_the_recut_starts_only_on_go_and_only_when_asked_and_only_from_the_default_branch(self):
         cond = RECUT["if"]
@@ -129,11 +138,12 @@ class Steps(unittest.TestCase):
     """The `run:` text of the steps, executed."""
 
     def validate(self, **env) -> subprocess.CompletedProcess:
-        base = {"KEY": "lib", "BUMP_RUN": "123", "TENGOKU_RUN": "456", "QUEUE_LOG_URL": "", "MODE": "proposed", "PRIOR_DROP": "", "DROP_UNEXPLAINED": "false"}
+        base = {"KEY": "lib", "BUMP_RUN": "123", "QUEUE_LOG_RUN": "", "TENGOKU_RUN": "456", "QUEUE_LOG_URL": "", "MODE": "proposed", "PRIOR_DROP": "", "DROP_UNEXPLAINED": "false"}
         return bash(step(PROPOSE, "The inputs")["run"], {**base, **env}, Path(tempfile.mkdtemp()))
 
     def test_good_inputs_pass(self):
         self.assertEqual(self.validate().returncode, 0)
+        self.assertEqual(self.validate(TENGOKU_RUN="", QUEUE_LOG_RUN="789").returncode, 0)
         self.assertEqual(self.validate(TENGOKU_RUN="", QUEUE_LOG_URL="https://api.github.com/repos/competemath/tengoku/actions/jobs/99/logs", KEY="stafford38-formal").returncode, 0)
 
     def test_bad_inputs_fail(self):
@@ -143,6 +153,8 @@ class Steps(unittest.TestCase):
             {"BUMP_RUN": "12a"},
             {"TENGOKU_RUN": "4 5"},
             {"TENGOKU_RUN": "", "QUEUE_LOG_URL": ""},
+            {"TENGOKU_RUN": "", "QUEUE_LOG_RUN": "1x"},
+            {"QUEUE_LOG_RUN": "7"},  # and tengoku_run: two routes
             {"TENGOKU_RUN": "1", "QUEUE_LOG_URL": "https://api.github.com/repos/competemath/tengoku/actions/jobs/99/logs"},
             {"TENGOKU_RUN": "", "QUEUE_LOG_URL": "https://api.github.com/repos/evil/tengoku/actions/jobs/99/logs"},
             {"TENGOKU_RUN": "", "QUEUE_LOG_URL": "https://evil.example/repos/competemath/tengoku/actions/jobs/99/logs"},
@@ -152,6 +164,37 @@ class Steps(unittest.TestCase):
         ]
         for env in bad:
             self.assertNotEqual(self.validate(**env).returncode, 0, env)
+
+    def fetch(self, gh_script: str, **env):
+        d = Path(tempfile.mkdtemp())
+        fake = d / "bin"
+        fake.mkdir()
+        (fake / "gh").write_text("#!/bin/bash\n" + gh_script)
+        (fake / "gh").chmod(0o755)
+        base = {"GH_TOKEN": "t", "QUEUE_LOG_RUN": "", "TENGOKU_RUN": "", "QUEUE_LOG_URL": ""}
+        if env.pop("artifact", False):
+            (d / "queue-log").mkdir()
+            (d / "queue-log" / "queue.log").write_text("the log\n")
+        return bash(step(PROPOSE, "The queue's log (from")["run"], {**base, **env}, d, fake), d
+
+    def test_the_log_artifact_is_used_without_calling_gh_and_must_hold_queue_log(self):
+        r, d = self.fetch("echo called >> gh-called; exit 1", QUEUE_LOG_RUN="5", artifact=True)
+        self.assertEqual((r.returncode, (d / "queue.log").read_text(), (d / "gh-called").exists()), (0, "the log\n", False))
+        r, d = self.fetch("exit 1", QUEUE_LOG_RUN="5")  # the run has no such artifact
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("no artifact queue-log", r.stdout)
+
+    def test_a_refused_token_stops_with_the_way_out_and_is_not_read_as_an_empty_log(self):
+        for env in ({"TENGOKU_RUN": "9"}, {"QUEUE_LOG_URL": "https://api.github.com/repos/competemath/tengoku/actions/jobs/9/logs"}):
+            # the jobs list works (it is public), the log is refused: gh exits 1 and prints the 403
+            r, d = self.fetch('case "$*" in *"/jobs/9/logs"*) echo "HTTP 403: Must have admin rights" >&2; exit 1;; *) echo 9;; esac', **env)
+            self.assertNotEqual(r.returncode, 0, env)
+            self.assertIn("give queue_log_run", r.stdout, env)
+        r, d = self.fetch("exit 1", TENGOKU_RUN="9")  # not even the listing
+        self.assertIn("give queue_log_run", r.stdout)
+        r, d = self.fetch("echo some log; echo more", TENGOKU_RUN="9")  # accepted: what gh prints is the log (ids and log alike here)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue((d / "queue.log").read_text().startswith("some log"))
 
     def recut(self, **env):
         d = Path(tempfile.mkdtemp())

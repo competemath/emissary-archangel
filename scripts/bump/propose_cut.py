@@ -52,11 +52,11 @@ import scope_rewrite as sr  # noqa: E402
 import tolerant_build as tb  # noqa: E402
 
 EXPLAINED = {"A", "B", "C", "E"}
-NAMESPACE_ERR = re.compile(r"[Uu]nknown namespace `(?P<name>[^`]+)`")
 # Lean when an import has no .olean (the module before it failed, or was never built): the module is named in full
 MISSING_OLEAN = re.compile(r"object file '[^']*' of module (?P<mod>\S+) does not exist")
 NAMESPACE_DECL = re.compile(r"^\s*namespace\s+(?P<name>[^\s]+)", re.M)
-UNSAFE = re.compile(r"[\s\x00-\x1f\x7f]")
+# a module name cannot be passed on as `drop` (a comma list, in a workflow input, on a command line) if it holds a space, a control character or a comma (`Lib.«A,B»` is one module)
+UNSAFE = re.compile(r"[\s\x00-\x1f\x7f,]")
 MAX_EVIDENCE = 240
 NOTHING_LEFT = "the cut would remove the whole library"
 
@@ -91,7 +91,8 @@ def parse_errors(log_text: str) -> list[Err]:
         m = ex.ERR.search(ln)
         if m:
             e = Err(m.group("ns"), m.group("rel"), int(m.group("line")), int(m.group("col")), m.group("msg"), ln)
-            seen.setdefault(e.key, e)
+            if e.key not in seen or e.raw < seen[e.key].raw:  # the same error printed twice (another timestamp): the smallest line is the evidence, whatever the order of the log
+                seen[e.key] = e
     return sorted(seen.values(), key=lambda e: e.key)
 
 
@@ -161,14 +162,9 @@ class Declarations:
     def modules_named_by(self, msg: str, ns: str, graph: dict[str, list[str]]) -> set[str]:
         """The modules whose declarations the message says are unknown (by the last component of the name, as explain_ejection reads them), or the module it says has no object file."""
         out: set[str] = set()
-        if (m := ex.UNKNOWN.search(msg)) is not None:
-            name = m.group("name")
+        if (name := ex.unknown_name(msg)) is not None:  # identifier, constant, field or namespace, whichever way Lean quotes it
             out |= self.by_last.get(name.rsplit(".", 1)[-1], set())
             out |= self.by_namespace.get(name, set())
-        if (m := NAMESPACE_ERR.search(msg)) is not None:
-            name = m.group("name")
-            out |= self.by_namespace.get(name, set())
-            out |= self.by_last.get(name.rsplit(".", 1)[-1], set())
         if (m := MISSING_OLEAN.search(msg)) is not None:
             mod = m.group("mod").removeprefix(f"Tengoku.{ns}.")
             if mod in graph:
@@ -181,11 +177,6 @@ def classify(e: Err, shipped: ex.Shipped, fac: ex.Factory) -> tuple[str, str]:
     if not fac.present and cls == "E":
         why = "(no shard artifacts: B and E cannot be told apart) " + why
     return cls, why
-
-
-def unknown_name(msg: str) -> str | None:
-    m = ex.UNKNOWN.search(msg)
-    return m.group("name") if m else None
 
 
 def propose(log_text: str, shipped: ex.Shipped, fac: ex.Factory, prior_drop: set[str] | None = None, drop_unexplained: bool = False, previous_cut: set[str] | None = None) -> dict:
@@ -233,7 +224,9 @@ def propose(log_text: str, shipped: ex.Shipped, fac: ex.Factory, prior_drop: set
 
     # The cut, importers after what they import. A module that imports a cut one is cut with it. An error that names a declaration of a module this one imports and that is cut is
     # the cascade of that cut, not a reason of its own. Whatever else is an explained error (or any error, with drop_unexplained) is the module's own, and the module is proposed.
-    S: set[str] = set()
+    # Modules the shipped bundle still has that the earlier recut's `drop` names are cut again by the next recut (it starts from the original run): they count as cut here, with their
+    # importers, so that the guard below sees what the recut will really leave.
+    S: set[str] = bc.importer_closure(prior, graph)
     own: dict[str, list[Err]] = {}
     unexplained: dict[str, list[Err]] = {}
     for m in build_order(graph):
@@ -243,8 +236,12 @@ def propose(log_text: str, shipped: ex.Shipped, fac: ex.Factory, prior_drop: set
         for e in by_module.get(m, ()):
             if (decls.modules_named_by(e.msg, ns, graph) - {m}) & S & reach.of(m):
                 continue
-            if (info[e.key][0] in EXPLAINED or drop_unexplained) and can_drop:
-                own.setdefault(m, []).append(e)
+            if info[e.key][0] in EXPLAINED or drop_unexplained:
+                if can_drop:
+                    own.setdefault(m, []).append(e)
+                else:  # a person has to cut it: the name cannot travel in a comma list
+                    info[e.key] = (info[e.key][0], info[e.key][1] + " [not proposed: the module's name cannot be passed as `drop` (a space, a control character or a comma)]")
+                    unexplained.setdefault(m, []).append(e)
             else:
                 unexplained.setdefault(m, []).append(e)
         if m in own:
@@ -265,7 +262,7 @@ def propose(log_text: str, shipped: ex.Shipped, fac: ex.Factory, prior_drop: set
     causes: dict[tuple[str, str], set[str]] = collections.defaultdict(set)
     for r in roots:
         for e in own[r]:
-            n = unknown_name(e.msg)
+            n = ex.unknown_name(e.msg)
             if n and info[e.key][0] in ("B", "E"):
                 causes[(info[e.key][0], n)].add(r)
     out["shared_causes"] = [{"class": c, "cause": f"`{scrub(n, 120)}` is unknown", "modules": sorted(ms)} for (c, n), ms in sorted(causes.items()) if len(ms) > 1]

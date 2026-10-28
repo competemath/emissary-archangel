@@ -31,7 +31,14 @@ from pathlib import Path
 ERR = re.compile(r"error: Tengoku/(?P<ns>[^/\s]+)/(?P<rel>\S+?\.lean):(?P<line>\d+):(?P<col>\d+): (?P<msg>.*)$")
 FAC = re.compile(r"error: (?:\./)*(?P<rel>\S+?\.lean):(?P<line>\d+):\d+: (?P<msg>.*)$")
 TARGET = re.compile(r"^\S*\s*- Tengoku\.(?P<mod>\S+)\s*$")
-UNKNOWN = re.compile(r"(?:[Uu]nknown (?:identifier|constant)|[Ii]nvalid field) `(?P<name>[^`]+)`")
+# Lean has spelled these `Unknown identifier `x``, `unknown constant 'x'` and `unknown namespace ‘x’`; a name may end in primes (`'mul_comm''`), so a single-quoted name runs to the quote that ends a word
+UNKNOWN = re.compile(r"(?:[Uu]nknown (?:identifier|constant|namespace)|[Ii]nvalid field) (?:`(?P<bt>[^`]+)`|['‘’](?P<sq>\S+?)['’](?=[\s,.:;)]|$))")
+
+
+def unknown_name(msg: str) -> str | None:
+    """The name an 'unknown identifier / constant / namespace' or 'invalid field' error says, in any of the spellings Lean has used; None for any other message."""
+    m = UNKNOWN.search(msg)
+    return (m.group("bt") or m.group("sq")) if m else None
 DECL = re.compile(r"^(?:@\[[^\]]*\]\s*)*(?:private |protected |noncomputable |nonrec |unsafe )*(?:theorem|lemma|def|abbrev|instance|structure|inductive|class)\s+(?P<name>[^\s:({\[⦃]+)")
 DECL_HEAD = re.compile(r"^(?:@\[[^\]]*\]\s*)*(?:private |protected |noncomputable |nonrec |unsafe )*(?:theorem|lemma|def|abbrev|instance|structure|inductive|class)\b")
 ATTR = re.compile(r"@\[([^\]]*)\]")
@@ -113,13 +120,13 @@ def classify(rel: str, line: int, msg: str, shipped: Shipped, fac: Factory) -> t
     head = enclosing(lines, line)
     if head and head in fac.failed_heads(rel):
         return "A", f"the declaration `{head[:70]}` also failed in the factory's own build"
-    m = UNKNOWN.search(msg)
-    if m:
-        last = m.group("name").rsplit(".", 1)[-1]
+    name = unknown_name(msg)
+    if name:
+        last = name.rsplit(".", 1)[-1]
         if last in fac.last and last not in shipped.last:
-            return "B", f"`{m.group('name')}` is declared in {sorted(fac.last[last])[0]} and no shipped module declares it"
+            return "B", f"`{name}` is declared in {sorted(fac.last[last])[0]} and no shipped module declares it"
         if last not in fac.last and last not in shipped.last:
-            return "E", f"`{m.group('name')}` is declared nowhere in the library: a name the tree's Mathlib does not have"
+            return "E", f"`{name}` is declared nowhere in the library: a name the tree's Mathlib does not have"
     stripped = attributes(fac.src.get(rel, "")) - attributes(shipped.files.get(rel, ""))
     if stripped:
         return "C", "attributes of the source are missing in the shipped file: " + ", ".join(f"{a} x{n}" for a, n in sorted(stripped.items()))

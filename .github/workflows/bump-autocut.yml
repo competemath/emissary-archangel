@@ -10,6 +10,10 @@ run-name: autocut ${{ inputs.key }} (bump ${{ inputs.bump_run }})
 # the workflow (actions: write) and reads nothing of the library: a job that holds a write token never touches the bundle, a job that touches the bundle holds no write token.
 # The dispatch happens from the default branch only (a run of this workflow from a branch writes the proposal and stops).
 #
+# The queue's log reaches this workflow in one of three ways. `queue_log_run` (an artifact of a run of this repository) is the one that needs nothing from tengoku. `tengoku_run` and
+# `queue_log_url` read tengoku's job logs with THIS repository's token, which is not verified to be allowed (GitHub refuses an unauthenticated request for them with a 403, and the
+# docs ask for more than read access); if the token is refused the step says so and stops, and nothing is guessed.
+#
 # Repeat on the recut what the earlier recut was given: `prior_drop` (its drop), `scope` and `parts`. A recut starts from the ORIGINAL run (bump_run), so what the shipped bundle was
 # already cut of must be listed again, and a recut without `parts` makes no parts.
 on:
@@ -17,8 +21,9 @@ on:
     inputs:
       key: { description: "registered library key (the key of bump_run)", required: true }
       bump_run: { description: "the id of the bump-library run whose results the recut starts from (recut_from); its bump-<key> artifact is the bundle the queue built", required: true }
-      tengoku_run: { description: "the id of the run of competemath/tengoku whose queue-build job rejected the bundle (its log is read). Give this or queue_log_url", default: "" }
-      queue_log_url: { description: "or the log of that job: https://api.github.com/repos/competemath/tengoku/actions/jobs/<id>/logs", default: "" }
+      queue_log_run: { description: "THE ONE KNOWN TO WORK: the id of a run of THIS repository that uploaded the queue-build job's log as the artifact `queue-log` holding the file queue.log (fetched by a person or a job that can read tengoku's job logs)", default: "" }
+      tengoku_run: { description: "or the id of the run of competemath/tengoku whose queue-build job rejected the bundle, read with this repository's token. NOT VERIFIED: GitHub may refuse that token tengoku's job logs (an unauthenticated request is refused: 403); then use queue_log_run", default: "" }
+      queue_log_url: { description: "or the log of that job, read the same way (not verified either): https://api.github.com/repos/competemath/tengoku/actions/jobs/<id>/logs", default: "" }
       mode: { description: "the bundle the queue built (the intake opener ships proposed)", type: choice, options: [proposed, strict, wide], default: proposed }
       prior_drop: { description: "the drop of the recut that made the shipped bundle (comma list); empty for the first recut of bump_run", default: "" }
       scope: { description: "the scope of that recut (the `leak:` lines, separated by `;`), repeated", default: "" }
@@ -40,6 +45,7 @@ jobs:
     env:
       KEY: ${{ inputs.key }}
       BUMP_RUN: ${{ inputs.bump_run }}
+      QUEUE_LOG_RUN: ${{ inputs.queue_log_run }}
       TENGOKU_RUN: ${{ inputs.tengoku_run }}
       QUEUE_LOG_URL: ${{ inputs.queue_log_url }}
       MODE: ${{ inputs.mode }}
@@ -53,23 +59,34 @@ jobs:
         run: |
           [[ "$KEY" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { echo "::error::key is a registered library key"; exit 1; }
           [[ "$BUMP_RUN" =~ ^[0-9]+$ ]] || { echo "::error::bump_run is a run id"; exit 1; }
-          if [ -n "$TENGOKU_RUN" ] && [ -n "$QUEUE_LOG_URL" ]; then echo "::error::give tengoku_run or queue_log_url, not both"; exit 1; fi
-          if [ -z "$TENGOKU_RUN" ] && [ -z "$QUEUE_LOG_URL" ]; then echo "::error::give tengoku_run or queue_log_url"; exit 1; fi
+          given=0
+          for v in "$QUEUE_LOG_RUN" "$TENGOKU_RUN" "$QUEUE_LOG_URL"; do [ -n "$v" ] && given=$((given + 1)); done
+          if [ "$given" -gt 1 ]; then echo "::error::give one of queue_log_run, tengoku_run, queue_log_url, not several"; exit 1; fi
+          if [ "$given" -lt 1 ]; then echo "::error::give queue_log_run, tengoku_run or queue_log_url"; exit 1; fi
+          if [ -n "$QUEUE_LOG_RUN" ] && ! [[ "$QUEUE_LOG_RUN" =~ ^[0-9]+$ ]]; then echo "::error::queue_log_run is a run id"; exit 1; fi
           if [ -n "$TENGOKU_RUN" ] && ! [[ "$TENGOKU_RUN" =~ ^[0-9]+$ ]]; then echo "::error::tengoku_run is a run id"; exit 1; fi
           if [ -n "$QUEUE_LOG_URL" ] && ! [[ "$QUEUE_LOG_URL" =~ ^https://api\.github\.com/repos/competemath/tengoku/actions/jobs/[0-9]+/logs$ ]]; then echo "::error::queue_log_url is a job log of competemath/tengoku"; exit 1; fi
           case "$MODE" in strict|proposed|wide) ;; *) echo "::error::mode is strict, proposed or wide"; exit 1 ;; esac
           case "$DROP_UNEXPLAINED" in true|false) ;; *) echo "::error::drop_unexplained is true or false"; exit 1 ;; esac
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with: { filter: "blob:none", sparse-checkout: "scripts/bump", persist-credentials: false }
-      - name: The queue's log (a job of the tree's merge queue; only that repository is read)
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        name: Artifact queue-log of a run of this repository (queue_log_run)
+        if: ${{ inputs.queue_log_run != '' }}
+        with: { name: queue-log, path: queue-log, run-id: "${{ inputs.queue_log_run }}", github-token: "${{ github.token }}" }
+      - name: The queue's log (from the artifact, or a job of the tree's merge queue; no other repository is read)
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
-          if [ -n "$TENGOKU_RUN" ]; then
-            ids=$(gh api --paginate "repos/competemath/tengoku/actions/runs/$TENGOKU_RUN/jobs" --jq '.jobs[] | select(.name | test("queue-build")) | .id')
+          if [ -n "$QUEUE_LOG_RUN" ]; then
+            [ -f queue-log/queue.log ] || { echo "::error::run $QUEUE_LOG_RUN has no artifact queue-log holding queue.log"; exit 1; }
+            cp queue-log/queue.log queue.log
+          elif [ -n "$TENGOKU_RUN" ]; then
+            ids=$(gh api --paginate "repos/competemath/tengoku/actions/runs/$TENGOKU_RUN/jobs" --jq '.jobs[] | select(.name | test("queue-build")) | .id') || { echo "::error::tengoku's jobs could not be listed with this repository's token; give queue_log_run"; exit 1; }
             [ -n "$ids" ] || { echo "::error::run $TENGOKU_RUN of competemath/tengoku has no queue-build job"; exit 1; }
-            for id in $ids; do gh api "repos/competemath/tengoku/actions/jobs/$id/logs"; done > queue.log
+            : > queue.log
+            for id in $ids; do gh api "repos/competemath/tengoku/actions/jobs/$id/logs" >> queue.log || { echo "::error::job $id's log was refused to this repository's token (tengoku's job logs need more than read access to a public repository); give queue_log_run"; exit 1; }; done
           else
-            gh api "${QUEUE_LOG_URL#https://api.github.com/}" > queue.log
+            gh api "${QUEUE_LOG_URL#https://api.github.com/}" > queue.log || { echo "::error::the log was refused to this repository's token; give queue_log_run"; exit 1; }
           fi
           [ -s queue.log ] || { echo "::error::the queue log is empty"; exit 1; }
           wc -c queue.log

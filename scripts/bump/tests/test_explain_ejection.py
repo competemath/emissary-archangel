@@ -58,6 +58,11 @@ class Explain(unittest.TestCase):
         e = self.run_one("Lib/D.lean", 3, "Unknown constant `Finset.zzz_missing_name`")
         self.assertEqual(e["class"], "E")
 
+    def test_every_spelling_of_an_unknown_name_is_classified_the_same(self):
+        for msg in ("Unknown constant `Finset.zzz_missing_name`", "unknown constant 'Finset.zzz_missing_name'", "unknown identifier 'zzz_missing_name'", "unknown namespace 'Zzz.Missing'", "invalid field 'zzz_missing_name', the environment does not contain 'Nat.zzz_missing_name'"):
+            self.assertEqual(self.run_one("Lib/D.lean", 3, msg)["class"], "E", msg)
+        self.assertEqual(self.run_one("Lib/B.lean", 4, "unknown identifier 'helper_thing'")["class"], "B")
+
     def test_C_attributes_the_packager_stripped(self):
         e = self.run_one("Lib/C.lean", 6, "Tactic `rewrite` failed: Did not find an occurrence of the pattern")
         self.assertEqual(e["class"], "C")

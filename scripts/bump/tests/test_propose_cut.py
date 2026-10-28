@@ -195,6 +195,73 @@ class Shapes(unittest.TestCase):
         write(two, "Tengoku/Two/A.lean", "import Tengoku\n")
         self.assertIn("2 libraries", propose("", two, shards)["refused"])
 
+    def test_every_spelling_lean_uses_for_an_unknown_name_is_read(self):
+        shards, shipped = shapes()
+        spellings = [
+            ("Unknown constant `Nat.zzz_gone`", "Nat.zzz_gone"),
+            ("unknown constant 'Nat.zzz_gone'", "Nat.zzz_gone"),
+            ("Unknown identifier `zzz_gone`", "zzz_gone"),
+            ("unknown identifier 'zzz_gone'", "zzz_gone"),
+            ("unknown identifier ‘zzz_gone’", "zzz_gone"),
+            ("unknown namespace 'Zzz.Gone'", "Zzz.Gone"),
+            ("Unknown namespace `Zzz.Gone`", "Zzz.Gone"),
+            ("unknown identifier 'zzz_gone''", "zzz_gone'"),  # a name that ends in a prime
+            ("invalid field 'zzz_gone', the environment does not contain 'Nat.zzz_gone'", "zzz_gone"),
+            ("Invalid field `zzz_gone`: the environment does not contain `Nat.zzz_gone`", "zzz_gone"),
+        ]
+        for msg, name in spellings:
+            self.assertEqual(ex.unknown_name(msg), name, msg)
+            p = propose(err("Lib/D.lean", 3, msg), shipped, shards)
+            self.assertEqual((p["drop"], p["reasons"]["Lib.D"][0], p["residual"], p["auto"]), (["Lib.D"], "E", [], True), msg)
+        for msg in ("failed to synthesize instance", "unknown universe level 'u'", "the unknown constant is fine", "Unknown identifier"):
+            self.assertIsNone(ex.unknown_name(msg), msg)
+        # the pruned declaration, spelled the quoted way, is class B
+        p = propose(err("Lib/B.lean", 4, "unknown identifier 'helper_thing'"), shipped, shards)
+        self.assertEqual(p["reasons"]["Lib.B"][0], "B")
+        # and a cascade is a cascade in either spelling
+        q = propose(err("Lib/B.lean", 4, "unknown identifier 'helper_thing'") + err("Lib/E.lean", 5, "unknown identifier 'user_one'"), shipped, shards)
+        self.assertEqual((q["drop"], q["cut"], q["residual"]), (["Lib.B"], ["Lib.B", "Lib.E"], []))
+
+    def test_a_module_whose_name_has_a_comma_is_never_proposed_and_says_why(self):
+        shards, shipped = shapes()
+        write(shipped, "Tengoku/Ns/Lib/A,B.lean", "import Tengoku\n\ntheorem ab : True := trivial\n")
+        write(shipped, "Tengoku/Ns/Lib/Uses.lean", "import Tengoku\nimport Tengoku.Ns.Lib.«A,B»\n\ntheorem uses_ab : True := trivial\n")
+        p = propose(err("Lib/A,B.lean", 3, "Unknown constant `Nat.zzz_gone`") + err("Lib/G.lean", 3, "Unknown constant `Nat.zzz_other`"), shipped, shards)
+        self.assertEqual(p["drop"], ["Lib.G"])  # `drop` is a comma list: `Lib.«A,B»` would be read as two names
+        self.assertNotIn("«A,B»", ",".join(p["recut_drop"]))
+        self.assertEqual([(r["module"], r["class"]) for r in p["residual"]], [("Lib.«A,B»", "E")])
+        self.assertIn("cannot be passed as `drop`", p["residual"][0]["why"])
+        self.assertFalse(p["auto"])
+        self.assertNotIn("Lib.Uses", p["cut"])  # nothing cuts the module, so nothing cuts what imports it either
+        with self.assertRaises(SystemExit):
+            pc.names("Lib.«A,B»")
+
+    def test_the_evidence_line_of_an_error_printed_twice_does_not_depend_on_the_order(self):
+        shards, shipped = shapes()
+        a = f"2026-10-28T10:00:00.0Z error: Tengoku/Ns/Lib/D.lean:3:2: Unknown constant `Nat.zzz_gone`\n"
+        b = f"2026-10-28T10:00:09.9Z error: Tengoku/Ns/Lib/D.lean:3:2: Unknown constant `Nat.zzz_gone`\n"
+        c = f"error: Tengoku/Ns/Lib/D.lean:3:2: Unknown constant `Nat.zzz_gone`\n"
+        outs = {json.dumps(propose("".join(order), shipped, shards), sort_keys=True) for order in ([a, b, c], [c, b, a], [b, a, c], [b, c, a])}
+        self.assertEqual(len(outs), 1)
+        self.assertEqual(len(pc.parse_errors(a + b + c)), 1)
+        self.assertEqual(pc.parse_errors(b + a + c)[0].raw, min(a, b, c).rstrip("\n"))
+
+    def test_a_prior_drop_that_leaves_nothing_is_refused_even_when_this_cut_does_not(self):
+        shards, shipped = shapes()
+        # the shipped files still hold the modules the earlier recut dropped (the caller gave a prior drop that the bundle was not cut of): the next recut cuts them and their importers
+        base = err("Lib/G.lean", 3, "Unknown constant `Nat.zzz_gone`")
+        ok = propose(base, shipped, shards, prior_drop={"Lib.B"})
+        self.assertEqual((ok["cut"], ok["refused"]), (["Lib.B", "Lib.E", "Lib.G"], None))  # B and its importer E are cut again too
+        self.assertEqual(ok["recut_drop"], ["Lib.B", "Lib.G"])
+        none_left = propose(base, shipped, shards, prior_drop={"Lib.A", "Lib.B", "Lib.C", "Lib.D"})
+        self.assertEqual((none_left["refused"], none_left["drop"], none_left["auto"]), (pc.NOTHING_LEFT, [], False))
+        d = Path(tempfile.mkdtemp())
+        (d / "q.log").write_text(base)
+        out = subprocess.run([sys.executable, "-I", str(HERE / "propose_cut.py"), "--queue-log", str(d / "q.log"), "--shipped", str(shipped), "--prior-drop", "Lib.A,Lib.B,Lib.C,Lib.D", "--github-output", str(d / "o")], capture_output=True, text=True)
+        self.assertEqual((out.returncode, (d / "o").read_text()), (3, "go=false\ndrop=\n"))
+        # a prior drop that names modules the bundle no longer has (the normal case: it is already cut) changes nothing
+        self.assertEqual(propose(base, shipped, shards, prior_drop={"Old.Thing"})["cut"], ["Lib.G"])
+
 
 class Guard(unittest.TestCase):
     GRAPH = {"A": [], "B": ["A"], "C": ["B"], "D": []}
@@ -348,7 +415,7 @@ class Lib:
         lines = ["✔ [1/99] Built Tengoku.Rnd.Lib.M0 (3.2s)\n", f"{TS} warning: Tengoku/Rnd/{self.rel[0]}:1:0: some linter\n"]
         for i, ks in sorted(errs.items()):
             lines += [self.line(i, k, 2 + c) for c, k in enumerate(ks)]
-            lines.append(self.line(i, ks[0], 2))  # the same line twice: one error
+            lines.append(self.line(i, ks[0], 2).replace(TS, "2026-10-28T10:00:01.5Z"))  # the same error printed twice, a second apart: one error
         lines += [err(rel, 9, "boom", ns=ns) for ns, rel in noise]
         lines.append("Some required targets logged failures:\n")
         lines += [f"- Tengoku.Rnd.{self.mod[i]}\n" for i in sorted(set(errs) | target_only)]
@@ -531,6 +598,36 @@ class Invariants(unittest.TestCase):
             self.assertEqual(pc.propose(log, ex.Shipped(tar), ex.Factory(None)), pc.propose(log, lib.shipped(), ex.Factory(None)), seed)
 
 
+    def test_a_part_tar_holds_a_subset_and_reads_like_a_directory_of_that_subset(self):
+        """A part of a library is a tar of some of its modules (bundle_layers.py): the imports of modules that are not in it are not edges, and the errors of modules that are not in it are not this part's."""
+        checked = 0
+        for seed in SEEDS:
+            lib = Lib(seed)
+            r = random.Random(seed + 7)
+            if lib.n < 3:
+                continue
+            keep = sorted(r.sample(range(lib.n), r.randint(1, lib.n - 1)))
+            tar = Path(tempfile.mkdtemp()) / "part.tar"
+            sub = Path(tempfile.mkdtemp())
+            with tarfile.open(tar, "w") as t:
+                for i in keep:
+                    f = lib.write_dir() / "Tengoku" / "Rnd" / lib.rel[i]
+                    t.add(f, arcname=f"Tengoku/Rnd/{lib.rel[i]}")
+                    write(sub, f"Tengoku/Rnd/{lib.rel[i]}", f.read_text())
+            log = "".join(lib.log_lines())
+            from_tar = pc.propose(log, ex.Shipped(tar), ex.Factory(None))
+            self.assertEqual(from_tar, pc.propose(log, ex.Shipped(sub), ex.Factory(None)), seed)
+            inside = {lib.mod[i] for i in keep}
+            self.assertLessEqual(set(from_tar["cut"]) | set(from_tar["keep"]), inside, seed)
+            self.assertEqual(set(from_tar["cut"]) | set(from_tar["keep"]), inside, seed)
+            for i in set(range(lib.n)) - set(keep):  # an error in a module of another part is residual, never a proposal
+                if i in lib.errs:
+                    self.assertNotIn(lib.mod[i], from_tar["drop"], seed)
+                    self.assertTrue(any(x["module"] is None and x["file"].endswith(lib.rel[i]) for x in from_tar["residual"]), seed)
+            checked += 1
+        self.assertGreater(checked, 100)
+
+
 class Mutants(unittest.TestCase):
     """The invariants above must catch the code broken the way a bug would break it."""
 
@@ -561,6 +658,36 @@ class Mutants(unittest.TestCase):
             return list(seen.values())
 
         self.assertTrue(self.caught(mock.patch.object(pc, "parse_errors", first_per_line)))
+
+    def test_the_first_raw_line_of_a_duplicate_error_is_kept(self):
+        def first_line(log_text: str):
+            seen: dict[tuple, pc.Err] = {}
+            for ln in log_text.splitlines():
+                m = ex.ERR.search(ln)
+                if m:
+                    e = pc.Err(m.group("ns"), m.group("rel"), int(m.group("line")), int(m.group("col")), m.group("msg"), ln)
+                    seen.setdefault(e.key, e)
+            return sorted(seen.values(), key=lambda e: e.key)
+
+        self.assertTrue(self.caught(mock.patch.object(pc, "parse_errors", first_line)))
+
+    def test_the_names_that_cannot_be_passed_on_are_proposed(self):
+        # the comma is allowed in a name: the comma-list drop is then wrong for such a module (test_a_module_whose_name_has_a_comma...)
+        with mock.patch.object(pc, "UNSAFE", __import__("re").compile(r"[\s\x00-\x1f\x7f]")):
+            shards, shipped = shapes()
+            write(shipped, "Tengoku/Ns/Lib/A,B.lean", "import Tengoku\n\ntheorem ab : True := trivial\n")
+            p = propose(err("Lib/A,B.lean", 3, "Unknown constant `Nat.zzz_gone`"), shipped, shards)
+            self.assertEqual(p["drop"], ["Lib.«A,B»"])  # what the test above must refuse
+
+    def test_the_prior_drop_is_forgotten_by_the_guard(self):
+        shards, shipped = shapes()
+        prior = {"Lib.A", "Lib.B", "Lib.C", "Lib.D"}
+        real = bc.importer_closure
+        # the closure of the prior drop is empty: the guard sees the bundle as the shipped files have it, and lets a recut that leaves nothing go
+        with mock.patch.object(bc, "importer_closure", lambda roots, imports: set() if roots == prior else real(roots, imports)):
+            q = propose(err("Lib/G.lean", 3, "Unknown constant `Nat.zzz_gone`"), shipped, shards, prior_drop=prior)
+        self.assertNotEqual(q["refused"], pc.NOTHING_LEFT)
+        self.assertEqual(propose(err("Lib/G.lean", 3, "Unknown constant `Nat.zzz_gone`"), shipped, shards, prior_drop=prior)["refused"], pc.NOTHING_LEFT)
 
     def test_an_unexplained_error_is_taken_for_an_explained_one(self):
         self.assertTrue(self.caught(mock.patch.object(pc, "EXPLAINED", {"A", "B", "C", "D", "E"})))
