@@ -24,6 +24,7 @@ import { mkdtempSync, writeFileSync, readFileSync, renameSync, mkdirSync, append
 import { tmpdir, homedir } from "node:os"
 import { join, basename } from "node:path"
 import { promisify } from "node:util"
+import { pathToFileURL } from "node:url"
 
 const execFileAsync = promisify(execFile)
 
@@ -13669,40 +13670,23 @@ function usesAtom(text, atom) {
   return text.includes(atom)
 }
 
-// ---- The tree's content policy, mirrored (tengoku scripts/ci/lint_banked.py) ----
+// ---- The tree's content policy ----
 // A record the tree would refuse must never be banked: one such record fails
 // the gate of the whole batch PR it lands in (200 records). A mechanical
 // candidate is checked before Leak IV is even called; an agent's script is
-// checked before banking. Keep this list in step with lint_banked.py.
-const BANK_FORBIDDEN = [
-  [/^\s*import\b/m, "import"],
-  [/#eval\b/, "#eval"],
-  [/#print\s+axioms/, "#print axioms"],
-  [/\brun_cmd\b/, "run_cmd"],
-  [/\brun_tac\b/, "run_tac"],
-  [/\brun_elab\b/, "run_elab"],
-  [/^\s*(builtin_)?initialize\b/m, "initialize"],
-  [/@\[\s*(init|builtin_init|extern|implemented_by|export|never_extract)\b/, "@[init]/@[extern]/@[implemented_by]/@[export]"],
-  [/^\s*(unsafe|partial)\s+(def|theorem|abbrev|instance|opaque)/m, "unsafe/partial definitions"],
-  [/^\s*(@\[[^\]]*\]\s*)*(scoped\s+|local\s+)?(macro|macro_rules|syntax|elab|elab_rules|declare_syntax_cat|notation3?|infixl?|infixr|prefix|postfix)\b/m, "syntax/macro/elab/notation declarations"],
-  [/\bnative_decide\b/, "native_decide"],
-  [/^\s*opaque\b/m, "opaque"],
-  [/^\s*axiom\b/m, "axiom"],
-  [/\bIO\.(Process|FS)\b|\bSystem\.(FilePath|Platform)\b/, "IO.Process / IO.FS"],
-]
-const BANK_ALLOWED_OPTIONS = new Set([
-  "linter.all", "linter.unusedVariables", "linter.style.longLine", "linter.style.setOption", "maxRecDepth", "maxHeartbeats",
-  "synthInstance.maxHeartbeats", "synthInstance.maxSize", "backward.isDefEq.respectTransparency", "backward.isDefEq.respectTransparency.types",
-  "backward.privateInPublic", "backward.privateInPublic.warn", "exponentiation.threshold", "pp.all", "autoImplicit", "relaxedAutoImplicit", "warn.classDefReducibility",
-])
-// What the tree's lint would say about a script, as a list of reasons (empty = bankable).
-// Leading import lines are the verifier's own and are stripped before staging (queue/route.ts).
-function lintBankable(text) {
-  const body = String(text || "").replace(/^(?:\s*import\s+\S+\s*\n)+/, "")
-  const out = []
-  for (const [re, why] of BANK_FORBIDDEN) if (re.test(body)) out.push(why)
-  for (const m of body.matchAll(/set_option\s+([A-Za-z_][\w.]*)/g)) if (!BANK_ALLOWED_OPTIONS.has(m[1])) out.push(`set_option ${m[1]}`)
-  return Array.from(new Set(out))
+// checked before banking. The check IS the tree's lint (scripts/bump/lint,
+// the one the bundle lane runs), not a copy of it kept here: the copy that was
+// here had drifted by eight set_option names the tree allows.
+// What the lint would say about a script, as a list of reasons (empty = bankable).
+// The helpers live in the checkout the recursion routes work against (APP_ROOT/lib, APP_ROOT/scripts/bump), not next to this file: a copy of the bridge downloaded
+// elsewhere has no ../lib, and it needs the checkout for everything else the routes do.
+let leanRepairsModule
+function leanRepairs() {
+  leanRepairsModule ??= import(pathToFileURL(join(APP_ROOT, "lib", "lean-repairs.mjs")).href)
+  return leanRepairsModule
+}
+async function lintBankable(text) {
+  return (await leanRepairs()).policyCheck(text)
 }
 
 // Syntax-level declarations (notation, macro, syntax, elab, …) that nothing in
@@ -13943,15 +13927,25 @@ export async function reconstructOldTheoremText(repoRoot, entry) {
   // warning — a `def` of a Prop, a deprecated alias — so they are off for
   // the whole candidate. The kernel check is untouched by this.
   const target = `${stripCorpusAttrs(statement)}${proof}`
-  const { text: prefix, dropped } = pruneUnusedSyntax(
+  const { text: prunedPrefix, dropped } = pruneUnusedSyntax(
     `set_option linter.all false -- [Emissary] lints are not drift; the kernel decides\n\n${preludeText}${missingNote}-- [Emissary] ${entry.sourcePath}, everything before line ${entry.sourceLine} (imports stripped; sibling theorems the target does not use omitted)\n${filePrefix}\n\n`,
     target,
   )
+  // Two deterministic repairs of the TEXT (lib/lean-repairs.mjs), neither of which can change what a theorem says, and both of which the compile and Gate 2 re-judge:
+  //  * an attribute line that ends the prefix and that the entry's own text repeats is dropped from the prefix (`@[simp] @[simp] theorem` is not Lean, and the error sat in
+  //    the prefix, so the whole file's prefix was marked broken);
+  //  * the author's own `#print axioms` / `#check` lines and the linter options the tree does not list are taken out (scripts/bump/inert_commands.py): the tree refuses a record
+  //    that carries them, and the entry used to go to the agent without being compiled.
+  const repairs = await leanRepairs()
+  const joined = repairs.dropDuplicatedTailAttributes(prunedPrefix, target)
+  const fixed = await repairs.policyRepair(joined)
+  const prefix = fixed.text
   return {
     fileContent,
     prefix,
     equations,
     droppedSyntax: dropped,
+    repaired: { junction: joined !== prunedPrefix, inert: fixed.removed },
     oldTheoremText: `${prefix}${target}`,
   }
 }
@@ -14225,7 +14219,7 @@ async function patchQueueEntry(source, update) {
 async function tryMechanicalBank(candidateText, entry, { source, repoRoot, verifyUrl, archangelUrl, moduleName, qualifiedName, bareName, timeoutMs, emit }) {
   // A candidate the tree's content lint would refuse is not worth a compile: it
   // could never be banked, and it would poison its batch PR if it were.
-  const lint = lintBankable(candidateText)
+  const lint = await lintBankable(candidateText)
   if (lint.length) return { ok: false, lint }
   const leakRes = await verifyViaDaemon(candidateText, verifyUrl, { timeoutMs })
   if (!leakRes.ok || !verifyResultSucceeded(leakRes.text)) return { ok: false, leakText: leakRes.text || leakRes.error || "" }
@@ -14252,7 +14246,11 @@ async function tryMechanicalBank(candidateText, entry, { source, repoRoot, verif
 // failure (that's the expected, common "needs escalation" outcome).
 async function recurseOneEntry(entry, opts) {
   const { source, repoRoot, verifyUrl, archangelUrl, mcpServers, model, timeoutMs, emit, signal, prefixCache } = opts
-  const { fileContent, prefix, oldTheoremText, equations } = await reconstructOldTheoremText(repoRoot, entry)
+  const { fileContent, prefix, oldTheoremText, equations, repaired } = await reconstructOldTheoremText(repoRoot, entry)
+  if (repaired && (repaired.junction || repaired.inert.length)) {
+    const kinds = Array.from(new Set(repaired.inert.map((r) => r.kind))).join(", ")
+    emit({ type: "message-annotation", subtype: "status", thought: `🧹 #${entry.id} ${entry.name}: text repaired before compiling (${[repaired.junction ? "a repeated attribute line at the junction" : "", repaired.inert.length ? `${repaired.inert.length} inert command(s): ${kinds}` : ""].filter(Boolean).join("; ")}).` })
+  }
   const bareName = String(entry.oldExportNames || entry.name)
   const qualifiedName = deriveQualifiedName(fileContent, entry.sourceLine, bareName)
   const moduleName = moduleNameFromSourcePath(entry.sourcePath)
@@ -14295,7 +14293,7 @@ async function recurseOneEntry(entry, opts) {
   // told exactly what to write out. A cached agent-made prefix is clean by
   // construction, so that path still gets its mechanical shot.
   let policyNote = null
-  const lintHits = lintBankable(oldTheoremText)
+  const lintHits = await lintBankable(oldTheoremText)
   if (lintHits.length && !(cached?.status === "broken" && cached.fixedPrefix)) {
     policyNote = lintHits
     mech = { ok: false, lint: lintHits }
@@ -14427,7 +14425,7 @@ async function recurseOneEntry(entry, opts) {
   if (result.verified) {
     // Both gates passed, but the tree's content lint has the last word on what
     // is banked: a script it would refuse stays pending, with the reasons.
-    const lint = lintBankable(result.proof)
+    const lint = await lintBankable(result.proof)
     if (lint.length) {
       emit({ type: "message-annotation", subtype: "error", thought: `⚖️ #${entry.id} ${entry.name}: verified by both gates, but the tree's content lint would refuse it (${lint.join("; ")}) — not banked, left pending with that reason.` })
       await patchQueueEntry(source, { id: entry.id, unverified_reason: `content-lint: ${lint.join("; ")}` })
