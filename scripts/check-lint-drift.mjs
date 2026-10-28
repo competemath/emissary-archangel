@@ -183,13 +183,17 @@ export async function fetchUpstream({ ref = "main", source = "auto", env = proce
   }
   const viaRaw = async () => {
     // the four files are read at ONE commit or not at all: a mutable ref could move between the requests, and the report could not say which snapshot it describes
-    const headers = { Accept: "application/vnd.github.sha", ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+    const lookup = async (auth) => {
+      const r = await fetchImpl(`https://api.github.com/repos/${REPO}/commits/${encodeURIComponent(ref)}`, { headers: { Accept: "application/vnd.github.sha", ...(auth ? { Authorization: `Bearer ${token}` } : {}) } })
+      const t = r.ok ? (await r.text()).trim() : ""
+      return { commit: COMMIT_OK.test(t) ? t : null, why: r.ok ? "an answer that is not a commit" : `HTTP ${r.status}`, status: r.status }
+    }
     let commit = null, why = ""
     try {
-      const r = await fetchImpl(`https://api.github.com/repos/${REPO}/commits/${encodeURIComponent(ref)}`, { headers })
-      const t = r.ok ? (await r.text()).trim() : ""
-      if (COMMIT_OK.test(t)) commit = t
-      else why = r.ok ? "an answer that is not a commit" : `HTTP ${r.status}`
+      let got = await lookup(Boolean(token))
+      // the token that made gh fail (expired, wrong scope) is refused here too (401): the repository is public, so ask again as anyone
+      if (!got.commit && token && got.status === 401) got = await lookup(false)
+      ;({ commit, why } = got)
     } catch (e) {
       why = String(e.message).split("\n")[0]
     }

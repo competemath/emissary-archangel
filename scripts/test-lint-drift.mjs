@@ -217,7 +217,7 @@ check("a ref that is not a name is refused before anything is read (exit 2)", r.
 // ---- reading tengoku, with stubs (no network) ----
 const SHA = "0123456789abcdef0123456789abcdef01234567"
 const body = (name) => `content of ${name}\n`
-function stubs({ ghFails = false, shaFails = false, status = 200, missing = [], ghStatus = 404 } = {}) {
+function stubs({ ghFails = false, shaFails = false, status = 200, missing = [], ghStatus = 404, badToken = false } = {}) {
   const calls = { gh: [], fetch: [] }
   const run = (cmd, args) => {
     calls.gh.push([cmd, ...args])
@@ -229,7 +229,10 @@ function stubs({ ghFails = false, shaFails = false, status = 200, missing = [], 
   }
   const fetchImpl = async (url, opts = {}) => {
     calls.fetch.push({ url, headers: opts.headers })
-    if (url.startsWith("https://api.github.com/")) return { ok: !shaFails, status: shaFails ? 403 : 200, text: async () => SHA }
+    if (url.startsWith("https://api.github.com/")) {
+      if (badToken && opts.headers?.Authorization) return { ok: false, status: 401, text: async () => "" }
+      return { ok: !shaFails, status: shaFails ? 403 : 200, text: async () => SHA }
+    }
     const path = url.replace(/^https:\/\/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\//, "")
     if (missing.includes(path)) return { ok: false, status: ghStatus, arrayBuffer: async () => Buffer.alloc(0) }
     return { ok: status === 200, status, arrayBuffer: async () => Buffer.from(body(path)) }
@@ -260,6 +263,17 @@ function stubs({ ghFails = false, shaFails = false, status = 200, missing = [], 
   const u = stubs()
   await fetchUpstream({ env: {}, source: "raw", run: u.run, fetchImpl: u.fetchImpl })
   check("raw mode sends the token to the API lookup of the commit when there is one (rate limits), never to raw.githubusercontent.com", withToken.Authorization === "Bearer tok" && !("Authorization" in u.calls.fetch[0].headers) && t.calls.fetch.filter((c) => c.url.startsWith("https://raw.")).every((c) => !c.headers), null)
+}
+{
+  // gh failed because the token is bad: the raw fallback must not die on the same token at the commit lookup (401); it asks again without it
+  const s = stubs({ ghFails: true, badToken: true })
+  const got = await fetchUpstream({ env: { GH_TOKEN: "expired" }, run: s.run, fetchImpl: s.fetchImpl, warn: () => {} })
+  const lookups = s.calls.fetch.filter((c) => c.url.startsWith("https://api.github.com/"))
+  check("auto mode: a token refused with 401 at the commit lookup is dropped and the lookup repeated as anyone, so the public raw fallback still works", got.via === "raw.githubusercontent.com" && got.commit === SHA && lookups.length === 2 && lookups[0].headers.Authorization === "Bearer expired" && !("Authorization" in lookups[1].headers), lookups.map((l) => l.headers))
+  const t = stubs({ shaFails: true })
+  let msg = ""
+  try { await fetchUpstream({ env: { GH_TOKEN: "tok" }, source: "raw", run: t.run, fetchImpl: t.fetchImpl }) } catch (e) { msg = e.message }
+  check("only a 401 repeats the lookup (a 403 with a token is not retried), and the error says why", /HTTP 403/.test(msg) && t.calls.fetch.filter((c) => c.url.startsWith("https://api.github.com/")).length === 1, msg)
 }
 {
   // a file tengoku deleted: at the resolved commit a 404 is drift (a missing upstream entry), through either reader; any other failure stays a read error
@@ -317,7 +331,10 @@ check("no ${{ }} expression sits inside a shell script (values reach it through 
 check("every action is pinned to a full commit", [...wfText.matchAll(/uses: ([^\s]+)/g)].every((m) => /@[0-9a-f]{40}$/.test(m[1])), [...wfText.matchAll(/uses: ([^\s]+)/g)].map((m) => m[1]))
 check("the check job gives the token to the script, which uses gh api with it", /GH_TOKEN: "\$\{\{ github\.token \}\}"/.test(job("check")) && /node scripts\/check-lint-drift\.mjs --summary-file drift\.md/.test(job("check")), "")
 const testsWf = readFileSync(join(root, ".github", "workflows", "lint-drift-tests.yml"), "utf8")
-check("these tests run in CI when the check, the pinned copy, the fixture or the workflow change (push and pull request alike)", /node scripts\/test-lint-drift\.mjs/.test(testsWf) && (testsWf.match(/scripts\/bump\/lint\/\*\*/g) || []).length === 2 && (testsWf.match(/scripts\/fixtures\/lint-drift\/\*\*/g) || []).length === 2, "")
+const section = (name) => { const m = testsWf.match(new RegExp(`\\n  ${name}:\\n(?:    .*\\n)*`)); return m ? m[0] : "" }
+const wantedPaths = ["scripts/check-lint-drift.mjs", "scripts/test-lint-drift.mjs", "scripts/bump/lint/**", "scripts/fixtures/lint-drift/**", ".github/workflows/lint-drift*.yml", ".github/workflows/lint-drift*.yaml"]
+const missingPaths = ["push", "pull_request"].flatMap((ev) => wantedPaths.filter((p) => !section(ev).includes(`"${p}"`)).map((p) => `${ev}: ${p}`))
+check("these tests run in CI for each of the check, its test, the pinned copy, the fixture and both workflow names, on push AND on pull request (each path asserted in each event)", /node scripts\/test-lint-drift\.mjs/.test(testsWf) && section("push") !== "" && section("pull_request") !== "" && missingPaths.length === 0, missingPaths)
 
 rmSync(tmp, { recursive: true, force: true })
 process.exit(bad ? 1 : 0)
