@@ -245,6 +245,135 @@ class Lifecycle(unittest.TestCase):
             self.assertEqual(rep["unresolved"], [])
 
 
+def git(*args, cwd=None):
+    import subprocess
+
+    return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout.strip()
+
+
+class Safety(unittest.TestCase):
+    """What must not enter the library: code that runs at compile time, a pin that is not what was reviewed, a licence that does not allow it."""
+
+    RISKY = {
+        "unsafe def": "unsafe def f : Nat := 1\n",
+        "initialize": "initialize myRef : IO.Ref Nat <- IO.mkRef 0\n",
+        "elab": 'elab "boom" : term => pure (Lean.mkNatLit 1)\n',
+        "run_cmd": "run_cmd Lean.logInfo \"hi\"\n",
+        "extern": '@[extern "c_fn"] opaque cFn : Nat -> Nat\n',
+        "implemented_by": "@[implemented_by fastImpl] def slow : Nat := 1\n",
+        "native_decide": "theorem t : 2 + 2 = 4 := by native_decide\n",
+        "IO.Process": 'def x : IO Unit := do discard <| IO.Process.output { cmd := "ls" }\n',
+    }
+
+    def run_one(self, body: str, licence=APACHE):
+        t = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(t, ignore_errors=True))
+        lib = make(Path(t), {"Own.A": ["Dep.X", "Dep.Z"]}, {"dep": {"licence": licence, "files": {"Dep.X": [], "Dep.Z": []}}})
+        write(lib / ".lake/packages/dep", "Dep/X.lean", body)
+        return lib, vd.vendor(lib, ["Own"])
+
+    def test_every_construct_that_runs_code_keeps_the_module_out(self):
+        for name, body in self.RISKY.items():
+            lib, rep = self.run_one(body)
+            self.assertEqual([u["module"] for u in rep["unsafe"]], ["Dep.X"], name)
+            self.assertFalse(module_path(lib, "Dep.X").exists(), name)
+            self.assertIn("Dep.X", rep["unresolved"], name)
+            self.assertTrue(module_path(lib, "Dep.Z").exists(), "an innocent module of the same package still comes in: " + name)
+
+    def test_notation_and_macros_are_the_trees_policy_for_the_bundle_not_a_reason_to_refuse(self):
+        for body in ('notation "⟪" x "⟫" => id x\n', 'macro "mytac" : tactic => `(tactic| rfl)\n', "infixl:65 \" +++ \" => Nat.add\n"):
+            lib, rep = self.run_one(body)
+            self.assertEqual(rep["unsafe"], [], body)
+            self.assertTrue(module_path(lib, "Dep.X").exists(), body)
+
+    def test_comments_and_strings_are_not_code(self):
+        body = '/- unsafe def x, initialize, native_decide, elab "x" -/\n-- run_cmd foo\ndef s : String := "unsafe def initialize IO.Process"\n'
+        lib, rep = self.run_one(body)
+        self.assertEqual(rep["unsafe"], [])
+        self.assertTrue(module_path(lib, "Dep.X").exists())
+
+    def test_a_module_that_claims_another_licence_is_kept_out(self):
+        for header, ok in (("/-\nReleased under Apache 2.0 license as described in the file LICENSE.\n-/\n", True), ("-- SPDX-License-Identifier: MIT\n", True), ("/-\nReleased under GPL-3.0 license\n-/\n", False), ("-- SPDX-License-Identifier: AGPL-3.0\n", False)):
+            lib, rep = self.run_one(header + "def x := 1\n")
+            self.assertEqual(module_path(lib, "Dep.X").exists(), ok, header)
+            self.assertEqual(bool(rep["unsafe"]), not ok, header)
+
+    def test_the_hash_of_every_copy_is_recorded(self):
+        import hashlib
+
+        lib, rep = self.run_one("def x := 1\n")
+        for v in rep["vendored"]:
+            self.assertEqual(v["sha256"], hashlib.sha256(module_path(lib, v["module"]).read_bytes()).hexdigest())
+
+    def test_a_checkout_that_is_not_at_the_pinned_commit_is_not_used(self):
+        with tempfile.TemporaryDirectory() as t:
+            lib = make(Path(t), {"Own.A": ["Dep.X"]}, {"dep": {"licence": APACHE, "files": {"Dep.X": []}}})
+            d = lib / ".lake/packages/dep"
+            git("init", "-q", cwd=d)
+            git("add", ".", cwd=d)
+            git("commit", "-qm", "x", cwd=d)
+            head = git("rev-parse", "HEAD", cwd=d)
+            manifest = json.loads((lib / "lake-manifest.json").read_text())
+            manifest["packages"][0]["rev"] = "0" * 40
+            (lib / "lake-manifest.json").write_text(json.dumps(manifest))
+            rep = vd.vendor(lib, ["Own"])
+            self.assertEqual((rep["vendored"], [r["package"] for r in rep["refused"]]), ([], ["dep"]))
+            manifest["packages"][0]["rev"] = head
+            (lib / "lake-manifest.json").write_text(json.dumps(manifest))
+            self.assertEqual([v["module"] for v in vd.vendor(lib, ["Own"])["vendored"]], ["Dep.X"])
+
+
+class Fetch(unittest.TestCase):
+    """A missing package is downloaded at the pinned commit and nothing else: no branch, no tag, no other host, no half-installed checkout."""
+
+    def remote(self, root: Path):
+        r = root / "remote"
+        r.mkdir()
+        git("init", "-q", cwd=r)
+        write(r, "Dep/X.lean", "def x := 1\n")
+        write(r, "LICENSE", APACHE)
+        git("add", ".", cwd=r)
+        git("commit", "-qm", "x", cwd=r)
+        return r, git("rev-parse", "HEAD", cwd=r)
+
+    def lib_with(self, root: Path, url: str, rev: str):
+        lib = root / "lib"
+        write(lib, "Own/A.lean", "public import Dep.X\n")
+        (lib / "lake-manifest.json").write_text(json.dumps({"packagesDir": ".lake/packages", "packages": [{"name": "dep", "url": url, "rev": rev}]}))
+        return lib
+
+    def test_a_missing_package_is_fetched_at_the_pin_and_then_vendored(self):
+        with tempfile.TemporaryDirectory() as t:
+            remote, head = self.remote(Path(t))
+            lib = self.lib_with(Path(t), f"file://{remote}", head)
+            rep = vd.vendor(lib, ["Own"], fetch=True, fetch_allow=("file://",))
+            self.assertEqual([(f["package"], f["fetched"]) for f in rep["fetched"]], [("dep", True)])
+            self.assertEqual([v["module"] for v in rep["vendored"]], ["Dep.X"])
+
+    def test_only_a_full_commit_on_an_allowed_host_is_fetched(self):
+        with tempfile.TemporaryDirectory() as t:
+            remote, head = self.remote(Path(t))
+            for url, rev in ((f"file://{remote}", "main"), (f"file://{remote}", head[:12]), ("https://example.org/x.git", head), (f"file://{remote}", head)):
+                lib = self.lib_with(Path(t) / f"l{abs(hash((url, rev)))}", url, rev)
+                (lib.parent).mkdir(exist_ok=True)
+                rep = vd.vendor(lib, ["Own"], fetch=True)  # the default host list: github.com only
+                self.assertEqual([f["fetched"] for f in rep["fetched"]], [False], (url, rev))
+                self.assertFalse((lib / ".lake/packages/dep").exists())
+
+    def test_a_failed_fetch_leaves_nothing_behind(self):
+        with tempfile.TemporaryDirectory() as t:
+            lib = self.lib_with(Path(t), "file:///nonexistent/remote", "a" * 40)
+            rep = vd.vendor(lib, ["Own"], fetch=True, fetch_allow=("file://",))
+            self.assertEqual([f["fetched"] for f in rep["fetched"]], [False])
+            self.assertFalse((lib / ".lake/packages/dep").exists())
+
+    def test_a_package_already_on_disk_is_never_fetched_again(self):
+        with tempfile.TemporaryDirectory() as t:
+            lib = make(Path(t), {"Own.A": ["Dep.X"]}, {"dep": {"licence": APACHE, "files": {"Dep.X": []}}})
+            rep = vd.vendor(lib, ["Own"], fetch=True, fetch_run=lambda *a, **k: self.fail("fetched"))
+            self.assertEqual(rep["fetched"], [])
+
+
 class Wiring(unittest.TestCase):
     """The step is in the workflow where it has to be: after `lake update` has downloaded the packages, before anything reads the library's imports, and the roots it adds reach the later steps."""
 
@@ -258,6 +387,7 @@ class Wiring(unittest.TestCase):
     def test_the_roots_it_adds_are_the_roots_of_the_build_and_of_the_later_steps(self):
         line = next(l for l in self.wf.splitlines() if "vendor_deps.py" in l)
         self.assertIn('--print-roots', line)
+        self.assertIn("--fetch", line)
         self.assertIn('echo "ROOTS=$ROOTS" >> "$GITHUB_ENV"', line)
 
     def test_its_reports_are_kept(self):
@@ -269,7 +399,7 @@ class Mutants(unittest.TestCase):
 
     def noticed(self, **patches):
         suite = unittest.TestSuite(
-            [unittest.defaultTestLoader.loadTestsFromTestCase(Basics), unittest.defaultTestLoader.loadTestsFromTestCase(Closure), unittest.defaultTestLoader.loadTestsFromTestCase(Lifecycle)]
+            [unittest.defaultTestLoader.loadTestsFromTestCase(Basics), unittest.defaultTestLoader.loadTestsFromTestCase(Closure), unittest.defaultTestLoader.loadTestsFromTestCase(Lifecycle), unittest.defaultTestLoader.loadTestsFromTestCase(Safety), unittest.defaultTestLoader.loadTestsFromTestCase(Fetch)]
         )
         result = unittest.TestResult()
         saved = {k: getattr(vd, k) for k in patches}
@@ -291,6 +421,12 @@ class Mutants(unittest.TestCase):
     def test_an_empty_permissive_list_is_noticed(self):
         original = vd.vendor
         self.assertTrue(self.noticed(vendor=lambda lib, roots, permissive=(): original(lib, roots, permissive=())))
+
+    def test_not_reading_the_code_of_a_module_is_noticed(self):
+        self.assertTrue(self.noticed(hard_risks=lambda text: []))
+
+    def test_trusting_any_checkout_is_noticed(self):
+        self.assertTrue(self.noticed(pinned_commit=lambda d: None))
 
     def test_the_unmutated_code_is_not_noticed(self):
         self.assertFalse(self.noticed())

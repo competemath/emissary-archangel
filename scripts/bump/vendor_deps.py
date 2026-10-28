@@ -13,6 +13,17 @@ What it does. From the library's own modules it follows the imports; an import t
 from) is copied into LIB at its module path, and so are the imports of that module, and so on. Only the modules reached are copied. The roots of the copies (`AlgebraicAnalysis`) are
 printed, to be added to the roots of the build.
 
+What it checks before anything enters the library (each failure is a recorded reason, never a guess):
+  * FETCH: a package the manifest names and that is not on disk is downloaded at the pinned commit (https://github.com/ only, a full 40-hex commit, never a branch or tag), and the checkout must
+    be exactly that commit;
+  * PIN: a package that is a git checkout must be at the commit the manifest pins, or it is refused;
+  * CODE: compiling Lean runs code, so a module is not copied if it declares or uses what runs code or trusts the compiler (`unsafe`, `initialize`, `elab`, `run_cmd`, `@[extern]`,
+    `@[implemented_by]`, `native_decide`, `IO.Process`, `System.*`, …: the hard part of the tree's own content lint, scripts/bump/lint/allowlist.py); notation and macros are the tree's policy for the
+    bundle step, not a reason to keep a dependency out. Comments and strings are not read as code;
+  * LICENCE: the package's licence file, and a licence a module's own header claims (`SPDX-License-Identifier`, `Released under X license`), must both be permissive.
+There is no vulnerability database for Lean packages (OSV and GitHub's advisory database have no Lean ecosystem), so "vulnerable" here means exactly the above: code that would run at compile time or
+be trusted without the kernel, a pin that is not what was reviewed, and a licence that does not allow redistribution.
+
 What it will not do (each is a recorded reason, never a guess):
   * copy a package whose licence it cannot read as one of the permissive ones (Apache-2.0, MIT, BSD-2/3, CC0, Unlicense): an unlicensed or copyleft package is `refused`, and what imports it stays unresolved;
   * overwrite a file the library already has with a different one (`conflict`), or choose between two packages that both have a module of the same name (`ambiguous`);
@@ -24,17 +35,28 @@ pull request can say what it carries and under which licence.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE / "lint"))
+import allowlist  # noqa: E402
 import tolerant_build as tb  # noqa: E402
+from lean_lex import code_only  # noqa: E402
 
 # Modules the tree is seeded with or that ship with Lean: never vendored (their top-level name).
 SEEDED = {"Init", "Std", "Lean", "Lake", "Mathlib", "Batteries", "Aesop", "Qq", "ProofWidgets", "Plausible", "LeanSearchClient", "ImportGraph", "Cli"}
+
+# Words of the tree's lint that only concern how the bundle reads (notation, macros, syntax): the tree's policy for the bundle step, not a reason to keep a dependency out. Every other
+# forbidden word runs code at compile time or trusts the compiler.
+SOFT_WORDS = {"import", "notation", "notation3", "infix", "infixl", "infixr", "prefix", "postfix", "macro", "macro_rules", "syntax", "declare_syntax_cat"}
+FETCH_PREFIXES = ("https://github.com/",)
+_FULL_COMMIT = re.compile(r"[0-9a-f]{40}")
 
 PERMISSIVE = ("Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "CC0-1.0", "Unlicense")
 _LICENCE_FILES = ("LICENSE", "LICENSE.md", "LICENSE.txt", "LICENCE", "COPYING", "COPYING.md", "UNLICENSE")
@@ -77,6 +99,80 @@ def package_src_dirs(pkg_dir: Path) -> list[Path]:
     return dirs or [pkg_dir]
 
 
+
+def hard_risks(text: str) -> list[str]:
+    """What in a module runs code at compile time or trusts the compiler (the hard part of the tree's lint), read from code only."""
+    code = code_only(text)
+    risks = []
+    for msg in allowlist._token_violations(code):
+        m = re.match(r"`([^`]+)`", msg)
+        if m and m.group(1) in SOFT_WORDS:
+            continue
+        risks.append(msg)
+    attr_msgs, _ = allowlist._attribute_violations(code)
+    risks += [m for m in attr_msgs if any(w in m for w in ("`extern`", "`implemented_by`", "`init`", "`builtin_init`", "`export`", "`never_extract`", "`csimp`", "`macro`", "`command_elab`", "`term_elab`", "`tactic`"))]
+    return list(dict.fromkeys(risks))
+
+
+_SPDX_TAG = re.compile(r"SPDX-License-Identifier:\s*([A-Za-z0-9.\-+ ]+?)\s*(?:\*/|-/|$)", re.M)
+_RELEASED = re.compile(r"Released under ([A-Za-z0-9.\- ]+?) licen[cs]e", re.I)
+_NAMES = {"apache 2.0": "Apache-2.0", "apache-2.0": "Apache-2.0", "apache2": "Apache-2.0", "mit": "MIT", "bsd": "BSD-3-Clause", "bsd-3-clause": "BSD-3-Clause", "bsd-2-clause": "BSD-2-Clause"}
+
+
+def declared_licence(text: str) -> str | None:
+    """The licence a module's own header claims (first 40 lines), or None when it claims none."""
+    head = "\n".join(text.splitlines()[:40])
+    m = _SPDX_TAG.search(head) or _RELEASED.search(head)
+    if not m:
+        return None
+    raw = m.group(1).strip()
+    return _NAMES.get(raw.lower(), raw)
+
+
+def pinned_commit(pkg_dir: Path) -> str | None:
+    """The commit a package checkout is at, or None when it is not a git checkout."""
+    if not (pkg_dir / ".git").exists():
+        return None
+    r = subprocess.run(["git", "-C", str(pkg_dir), "rev-parse", "HEAD"], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def fetch_missing(lib: Path, *, allow: tuple[str, ...] = FETCH_PREFIXES, run=subprocess.run) -> list[dict]:
+    """Download the packages the manifest names and that are not on disk, at the pinned commit. Returns what was done, one entry per package; nothing is fetched that is not a
+    https://github.com/ URL at a full commit (a branch or a tag moves; a pinned commit is what was reviewed)."""
+    manifest_path = lib / "lake-manifest.json"
+    done: list[dict] = []
+    if not manifest_path.is_file():
+        return done
+    manifest = json.loads(manifest_path.read_text())
+    packages_dir = lib / manifest.get("packagesDir", ".lake/packages")
+    for p in manifest.get("packages", []):
+        url, rev = str(p.get("url", "")), str(p.get("rev", ""))
+        name = p.get("name") or url.rsplit("/", 1)[-1].removesuffix(".git")
+        d = packages_dir / name
+        if d.is_dir():
+            continue
+        if not url.startswith(allow) or not _FULL_COMMIT.fullmatch(rev) or any(c in name for c in "/\\") or name in (".", ".."):
+            done.append({"package": name, "fetched": False, "reason": "not a pinned https://github.com/ commit"})
+            continue
+        d.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            for cmd in (["git", "clone", "--quiet", "--no-checkout", url, str(d)], ["git", "-C", str(d), "checkout", "--quiet", "--detach", rev]):
+                r = run(cmd, capture_output=True, text=True, timeout=600)
+                if r.returncode != 0:
+                    raise RuntimeError((r.stderr or "")[:200])
+            got = pinned_commit(d)
+            if got != rev:
+                raise RuntimeError(f"checked out {got}, not the pin")
+            done.append({"package": name, "fetched": True, "commit": rev})
+        except Exception as e:  # noqa: BLE001 — a failed fetch must leave nothing half-installed
+            import shutil
+
+            shutil.rmtree(d, ignore_errors=True)
+            done.append({"package": name, "fetched": False, "reason": str(e)[:200]})
+    return done
+
+
 def index_package(pkg_dir: Path) -> dict[str, Path]:
     """module name -> file, for the package's own sources (not its dependencies' packages, tests, or build output)."""
     out: dict[str, Path] = {}
@@ -96,11 +192,13 @@ def own_modules(lib: Path, roots: list[str]) -> dict[str, Path]:
     return tb.module_files(lib, roots)
 
 
-def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISSIVE) -> dict:
+def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISSIVE, fetch: bool = False, fetch_run=subprocess.run, fetch_allow: tuple[str, ...] = FETCH_PREFIXES) -> dict:
     manifest_path = lib / "lake-manifest.json"
-    report: dict = {"vendored": [], "packages": {}, "unresolved": [], "conflicts": [], "ambiguous": [], "refused": [], "roots": [], "copied": 0}
+    report: dict = {"vendored": [], "unsafe": [], "packages": {}, "unresolved": [], "conflicts": [], "ambiguous": [], "refused": [], "roots": [], "copied": 0}
     if not manifest_path.is_file():
         return report
+    if fetch:
+        report["fetched"] = fetch_missing(lib, allow=fetch_allow, run=fetch_run)
     manifest = json.loads(manifest_path.read_text())
     packages_dir = lib / manifest.get("packagesDir", ".lake/packages")
     pkgs: dict[str, dict] = {}
@@ -109,6 +207,10 @@ def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISS
         d = packages_dir / name
         if d.is_dir():
             pkgs[name] = {"dir": d, "url": p.get("url", ""), "rev": p.get("rev", ""), "index": index_package(d)}
+            at = pinned_commit(d)
+            if at is not None and p.get("rev") and at != p.get("rev"):
+                pkgs[name]["index"] = {}  # not what the manifest pins: nothing of it is used
+                report["refused"].append({"package": name, "reason": f"checkout is at {at}, the manifest pins {p.get('rev')}"})
 
     # What an earlier run copied is the factory's to manage, not the library's: the roots may have grown to include the copies, the repair rounds may have edited them, and the
     # dependency or the library's imports may have changed since. The marker (LIB/.vendored.json) says which files are ours.
@@ -147,6 +249,15 @@ def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISS
                 unresolved.add(dep)
                 continue
             src = pkgs[name]["index"][dep]
+            text = src.read_text(errors="replace")
+            claimed = declared_licence(text)
+            risks = hard_risks(text)
+            if claimed is not None and claimed not in permissive:
+                risks = [f"the module's own header claims the licence {claimed}"] + risks
+            if risks:
+                report["unsafe"].append({"module": dep, "package": name, "risks": risks[:6]})
+                unresolved.add(dep)
+                continue
             vendored[dep] = (name, src)
             queue.append(src)
 
@@ -160,14 +271,14 @@ def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISS
                 report["conflicts"].append({"module": mod, "package": name, "path": str(dst.relative_to(lib))})
                 continue
             if same_pin:  # ours, at the same revision, edited since (a repair round): left as it is
-                report["vendored"].append({"module": mod, "package": name, "rev": pkgs[name]["rev"], "path": str(dst.relative_to(lib))})
+                report["vendored"].append({"module": mod, "package": name, "rev": pkgs[name]["rev"], "path": str(dst.relative_to(lib)), "sha256": hashlib.sha256(data).hexdigest()})
                 continue
             # ours, and the package moved on: the new revision replaces it
         if not dst.exists() or dst.read_bytes() != data:
             dst.parent.mkdir(parents=True, exist_ok=True)
             dst.write_bytes(data)
             report["copied"] += 1
-        report["vendored"].append({"module": mod, "package": name, "rev": pkgs[name]["rev"], "path": str(dst.relative_to(lib))})
+        report["vendored"].append({"module": mod, "package": name, "rev": pkgs[name]["rev"], "path": str(dst.relative_to(lib)), "sha256": hashlib.sha256(data).hexdigest()})
     # a file we copied earlier that nothing reaches any more (the library or the dependency changed) is removed: it must not stay buildable
     reached = {m for m in vendored}
     for mod, v in earlier.items():
@@ -187,7 +298,7 @@ def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISS
             "modules": sum(1 for v in report["vendored"] if v["package"] == name),
             **({"refused": refused[name]} if name in refused else {}),
         }
-    report["refused"] = [{"package": n, "reason": r} for n, r in sorted(refused.items())]
+    report["refused"] += [{"package": n, "reason": r} for n, r in sorted(refused.items())]
     report["roots"] = sorted({top(v["module"]) for v in report["vendored"]} - set(roots) - {top(m) for m in own})
     if report["vendored"] or marker.is_file():
         marker.write_text(json.dumps({"vendored": sorted(report["vendored"], key=lambda v: v["module"])}, indent=1))
@@ -199,17 +310,18 @@ def main() -> int:
     ap.add_argument("--lib", required=True)
     ap.add_argument("--roots", required=True, help="comma list")
     ap.add_argument("--out")
+    ap.add_argument("--fetch", action="store_true", help="download the packages the manifest names and that are not on disk, at the pinned commit")
     ap.add_argument("--print-roots", action="store_true", help="print the roots of the library with the roots of the copies, as a comma list, and nothing else")
     a = ap.parse_args()
     roots = [r for r in a.roots.split(",") if r]
-    rep = vendor(Path(a.lib), roots)
+    rep = vendor(Path(a.lib), roots, fetch=a.fetch)
     if a.out:
         Path(a.out).write_text(json.dumps(rep, indent=1))
     if a.print_roots:
         print(",".join(roots + rep["roots"]))
     print(
         f"vendored {len(rep['vendored'])} modules of {len(rep['packages'])} packages ({rep['copied']} files written); unresolved {len(rep['unresolved'])}, "
-        f"refused {len(rep['refused'])}, conflicts {len(rep['conflicts'])}, ambiguous {len(rep['ambiguous'])}",
+        f"refused {len(rep['refused'])}, unsafe {len(rep['unsafe'])}, conflicts {len(rep['conflicts'])}, ambiguous {len(rep['ambiguous'])}",
         file=sys.stderr,
     )
     return 0
