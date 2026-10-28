@@ -348,6 +348,35 @@ class Safety(unittest.TestCase):
             self.assertEqual([v["module"] for v in vd.vendor(lib, ["Own"])["vendored"]], ["Dep.X"])
 
 
+class SubDirectory(unittest.TestCase):
+    """A package that lives in a subdirectory of its repository (the manifest's `subDir`): its modules and its licence are read there, and a `subDir` cannot point outside the checkout."""
+
+    def make_sub(self, tmp: Path, licence_at: str):
+        lib = make(tmp, {"Own.A": ["Dep.X"]}, {})
+        d = lib / ".lake/packages/mono"
+        write(d, "sub/pkg/Dep/X.lean", "def x := 1\n")
+        write(d, licence_at, APACHE)
+        (lib / "lake-manifest.json").write_text(json.dumps({"packagesDir": ".lake/packages", "packages": [{"name": "mono", "url": "https://example.org/mono.git", "rev": "abc", "subDir": "sub/pkg"}]}))
+        return lib
+
+    def test_modules_are_found_under_the_subdirectory_and_its_own_licence_is_used(self):
+        for licence_at in ("sub/pkg/LICENSE", "LICENSE"):  # its own, or the repository's
+            with tempfile.TemporaryDirectory() as t:
+                lib = self.make_sub(Path(t), licence_at)
+                rep = vd.vendor(lib, ["Own"])
+                self.assertEqual([v["module"] for v in rep["vendored"]], ["Dep.X"], licence_at)
+
+    def test_a_subdirectory_that_leaves_the_checkout_is_ignored(self):
+        with tempfile.TemporaryDirectory() as t:
+            lib = self.make_sub(Path(t), "LICENSE")
+            m = json.loads((lib / "lake-manifest.json").read_text())
+            m["packages"][0]["subDir"] = "../../../.."
+            (lib / "lake-manifest.json").write_text(json.dumps(m))
+            write(lib, "Dep/X.lean", "def outside := 1\n")  # a file outside the package that a '..' path could reach
+            rep = vd.vendor(lib, ["Own"])
+            self.assertEqual([v["module"] for v in rep["vendored"]], [])
+
+
 class Fetch(unittest.TestCase):
     """A missing package is downloaded at the pinned commit and nothing else: no branch, no tag, no other host, no half-installed checkout."""
 
@@ -437,7 +466,7 @@ class Mutants(unittest.TestCase):
 
     def noticed(self, **patches):
         suite = unittest.TestSuite(
-            [unittest.defaultTestLoader.loadTestsFromTestCase(Basics), unittest.defaultTestLoader.loadTestsFromTestCase(Closure), unittest.defaultTestLoader.loadTestsFromTestCase(Lifecycle), unittest.defaultTestLoader.loadTestsFromTestCase(Safety), unittest.defaultTestLoader.loadTestsFromTestCase(Fetch)]
+            [unittest.defaultTestLoader.loadTestsFromTestCase(Basics), unittest.defaultTestLoader.loadTestsFromTestCase(Closure), unittest.defaultTestLoader.loadTestsFromTestCase(Lifecycle), unittest.defaultTestLoader.loadTestsFromTestCase(Safety), unittest.defaultTestLoader.loadTestsFromTestCase(Fetch), unittest.defaultTestLoader.loadTestsFromTestCase(SubDirectory)]
         )
         result = unittest.TestResult()
         saved = {k: getattr(vd, k) for k in patches}
