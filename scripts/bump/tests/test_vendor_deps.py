@@ -483,6 +483,22 @@ class Hostile(unittest.TestCase):
             self.assertEqual(module_path(lib, "Own.A").read_bytes(), before)  # not deleted as 'stale', not hidden from the traversal
             self.assertEqual([v["module"] for v in rep["vendored"]], ["Dep.X"])
 
+    def test_a_licence_file_that_is_a_link_out_of_the_package_lends_it_nothing(self):
+        with tempfile.TemporaryDirectory() as t:
+            lib = make(Path(t), {"Own.A": ["Dep.X"]}, {})
+            outside = Path(t) / "somebody-elses-LICENSE"
+            outside.write_text(APACHE)
+            d = lib / ".lake/packages/dep"
+            write(d, "Dep/X.lean", "def x := 1\n")
+            (d / "LICENSE").symlink_to(outside)
+            (lib / "lake-manifest.json").write_text(json.dumps({"packagesDir": ".lake/packages", "packages": [{"name": "dep", "url": "https://example.org/dep.git", "rev": "abc"}]}))
+            rep = vd.vendor(lib, ["Own"])
+            self.assertEqual((rep["vendored"], [r["package"] for r in rep["refused"]]), ([], ["dep"]))
+            # an ordinary file in the package is of course fine
+            (d / "LICENSE").unlink()
+            (d / "LICENSE").write_text(APACHE)
+            self.assertEqual([v["module"] for v in vd.vendor(lib, ["Own"])["vendored"]], ["Dep.X"])
+
     def test_an_unrecognised_licence_in_the_subdirectory_is_not_replaced_by_the_repositorys(self):
         with tempfile.TemporaryDirectory() as t:
             lib = make(Path(t), {"Own.A": ["Dep.X"]}, {})
