@@ -88,7 +88,8 @@ function suite(cmp) {
   return failures
 }
 
-check("identical maps agree; any small change of any one file is drift and names exactly that file; missing files are drift; a re-indented JSON is drift", suite(compare).length === 0, suite(compare).slice(0, 3))
+const baseline = suite(compare) // once: the failures printed are those of the run that decided
+check("identical maps agree; any small change of any one file is drift and names exactly that file; missing files are drift; a re-indented JSON is drift", baseline.length === 0, baseline.slice(0, 3))
 
 // ---- mutants: break compare() the way a shortcut would; the suite must notice ----
 const mutants = {
@@ -111,7 +112,26 @@ const mutants = {
     return { ...r, files }
   },
 }
-for (const [name, cmp] of Object.entries(mutants)) check(`mutant: ${name} is noticed`, suite(cmp).length > 0, suite(cmp).length)
+for (const [name, cmp] of Object.entries(mutants)) { const failed = suite(cmp); check(`mutant: ${name} is noticed`, failed.length > 0, failed.length) }
+
+// ---- a file that is JSON but not the shape the comparison reads is drift with a detail, never an exception (the workflow must still write the summary and open the issue) ----
+{
+  const odd = ["null", "5", "true", "[]", '"x"', '{"allowed": null}', '{"allowed": 5}', '{"commands": "x"}', '{"commands": {"a": 1}}', "{}", "{not json"]
+  let neverThrows = true, drifts = true
+  for (const file of FILES.filter((f) => f.kind === "options" || f.kind === "keywords")) {
+    const good = file.kind === "options" ? optionsText(["a", "b"]) : keywordsText(["def"])
+    for (const bad of odd) for (const [p, u] of [[good, bad], [bad, good]]) {
+      try {
+        const r = compare({ [file.name]: p }, { [file.name]: u }, [file])
+        drifts &&= r.drift && r.files[0].details.length > 0
+        render(r)
+      } catch { neverThrows = false }
+    }
+  }
+  check("JSON that is null, a number, a list, a string, or has the list field of the wrong type never throws, in either file or direction: it is drift with a detail", neverThrows && drifts, { neverThrows, drifts })
+  const r = compare({ "allowed-options.json": optionsText(["a"]) }, { "allowed-options.json": "null" }, FILES.filter((f) => f.name === "allowed-options.json"))
+  check("the detail says what is wrong and where the file is", /tengoku is JSON but not an object \(null\)/.test(r.files[0].details[0]), r.files[0].details)
+}
 
 // ---- the summary says exactly what differs ----
 const listed = (details, label) => {
@@ -197,19 +217,21 @@ check("a ref that is not a name is refused before anything is read (exit 2)", r.
 // ---- reading tengoku, with stubs (no network) ----
 const SHA = "0123456789abcdef0123456789abcdef01234567"
 const body = (name) => `content of ${name}\n`
-function stubs({ ghFails = false, shaFails = false, status = 200 } = {}) {
+function stubs({ ghFails = false, shaFails = false, status = 200, missing = [], ghStatus = 404 } = {}) {
   const calls = { gh: [], fetch: [] }
   const run = (cmd, args) => {
     calls.gh.push([cmd, ...args])
     if (ghFails) throw new Error("gh: not logged in")
     if (args[1].includes("/commits/")) return Buffer.from(SHA + "\n")
     const path = args[1].replace(/^repos\/[^/]+\/[^/]+\/contents\//, "").replace(/\?ref=.*$/, "")
+    if (missing.includes(path)) throw Object.assign(new Error("Command failed: gh api"), { stderr: Buffer.from(`gh: ${ghStatus === 404 ? "Not Found" : "Server Error"} (HTTP ${ghStatus})\n`) })
     return Buffer.from(body(path))
   }
-  const fetchImpl = async (url) => {
-    calls.fetch.push(url)
-    if (url.startsWith("https://api.github.com/")) return { ok: !shaFails, text: async () => SHA }
+  const fetchImpl = async (url, opts = {}) => {
+    calls.fetch.push({ url, headers: opts.headers })
+    if (url.startsWith("https://api.github.com/")) return { ok: !shaFails, status: shaFails ? 403 : 200, text: async () => SHA }
     const path = url.replace(/^https:\/\/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\//, "")
+    if (missing.includes(path)) return { ok: false, status: ghStatus, arrayBuffer: async () => Buffer.alloc(0) }
     return { ok: status === 200, status, arrayBuffer: async () => Buffer.from(body(path)) }
   }
   return { calls, run, fetchImpl }
@@ -224,13 +246,35 @@ function stubs({ ghFails = false, shaFails = false, status = 200 } = {}) {
 {
   const s = stubs()
   const got = await fetchUpstream({ env: {}, run: s.run, fetchImpl: s.fetchImpl })
-  const raw = s.calls.fetch.filter((u) => u.startsWith("https://raw.githubusercontent.com/"))
+  const raw = s.calls.fetch.map((c) => c.url).filter((u) => u.startsWith("https://raw.githubusercontent.com/"))
   check("without a token they come from raw.githubusercontent.com, at the commit, never through gh", got.via === "raw.githubusercontent.com" && s.calls.gh.length === 0 && raw.length === 4 && raw.every((u) => u.includes(`/${REPO}/${SHA}/`)), s.calls.fetch)
 }
 {
   const s = stubs({ shaFails: true })
-  const got = await fetchUpstream({ env: {}, ref: "main", run: s.run, fetchImpl: s.fetchImpl })
-  check("when the commit cannot be resolved the files are read at the name of the ref", got.commit === null && s.calls.fetch.filter((u) => u.includes("raw.")).every((u) => u.includes(`/${REPO}/main/`)), s.calls.fetch)
+  let msg = ""
+  try { await fetchUpstream({ env: {}, ref: "main", run: s.run, fetchImpl: s.fetchImpl }) } catch (e) { msg = e.message }
+  check("when the commit cannot be resolved nothing is read at the name of the ref: an error, and no raw request is made", /no commit for main could be resolved \(HTTP 403\)/.test(msg) && s.calls.fetch.every((c) => c.url.startsWith("https://api.github.com/")), [msg, s.calls.fetch.length])
+  const t = stubs()
+  await fetchUpstream({ env: { GH_TOKEN: "tok" }, source: "raw", run: t.run, fetchImpl: t.fetchImpl })
+  const withToken = t.calls.fetch.find((c) => c.url.startsWith("https://api.github.com/")).headers
+  const u = stubs()
+  await fetchUpstream({ env: {}, source: "raw", run: u.run, fetchImpl: u.fetchImpl })
+  check("raw mode sends the token to the API lookup of the commit when there is one (rate limits), never to raw.githubusercontent.com", withToken.Authorization === "Bearer tok" && !("Authorization" in u.calls.fetch[0].headers) && t.calls.fetch.filter((c) => c.url.startsWith("https://raw.")).every((c) => !c.headers), null)
+}
+{
+  // a file tengoku deleted: at the resolved commit a 404 is drift (a missing upstream entry), through either reader; any other failure stays a read error
+  for (const [label, opts] of [["gh api", { env: { GH_TOKEN: "t" } }], ["raw", { env: {}, source: "raw" }]]) {
+    const gone = FILES[1].upstream
+    const s = stubs({ missing: [gone] })
+    const got = await fetchUpstream({ ...opts, run: s.run, fetchImpl: s.fetchImpl })
+    const pinned = Object.fromEntries(FILES.map((f) => [f.name, Buffer.from(body(f.upstream))]))
+    const r = compare(pinned, got.files)
+    check(`${label}: a file tengoku deleted (404 at the resolved commit) is drift naming it, not a read error`, got.files[FILES[1].name] === undefined && r.drift && r.files.filter((f) => f.status !== "same").map((f) => f.name).join() === FILES[1].name && r.files[1].status === "missing-upstream", r.files.map((f) => f.status))
+    const e = stubs({ missing: [gone], ghStatus: 500 })
+    let threw = false
+    try { await fetchUpstream({ ...opts, run: e.run, fetchImpl: e.fetchImpl, warn: () => {} }) } catch { threw = true }
+    check(`${label}: a server error on the file is a read error (exit 2), not drift`, threw, null)
+  }
 }
 {
   const s = stubs({ ghFails: true })
@@ -241,10 +285,10 @@ function stubs({ ghFails = false, shaFails = false, status = 200 } = {}) {
   check("source gh does not fall back", threw, null)
 }
 {
-  const s = stubs({ status: 404 })
+  const s = stubs({ status: 500 })
   let msg = ""
   try { await fetchUpstream({ env: {}, run: s.run, fetchImpl: s.fetchImpl }) } catch (e) { msg = e.message }
-  check("a file that tengoku does not have (HTTP 404) is an error naming it, not an empty file", /scripts\/ci\/allowlist\.py: HTTP 404/.test(msg), msg)
+  check("a file that cannot be read (HTTP 500) is an error naming it, not an empty file", /scripts\/ci\/allowlist\.py: HTTP 500/.test(msg), msg)
   const refused = []
   for (const ref of ["../x", "a b", "main;rm", "", "a..b", "x?y"]) { try { await fetchUpstream({ ref, env: {}, run: s.run, fetchImpl: s.fetchImpl }); refused.push(false) } catch { refused.push(true) } }
   check("a ref that is not a plain name is refused", refused.every(Boolean), refused)
@@ -273,7 +317,7 @@ check("no ${{ }} expression sits inside a shell script (values reach it through 
 check("every action is pinned to a full commit", [...wfText.matchAll(/uses: ([^\s]+)/g)].every((m) => /@[0-9a-f]{40}$/.test(m[1])), [...wfText.matchAll(/uses: ([^\s]+)/g)].map((m) => m[1]))
 check("the check job gives the token to the script, which uses gh api with it", /GH_TOKEN: "\$\{\{ github\.token \}\}"/.test(job("check")) && /node scripts\/check-lint-drift\.mjs --summary-file drift\.md/.test(job("check")), "")
 const testsWf = readFileSync(join(root, ".github", "workflows", "lint-drift-tests.yml"), "utf8")
-check("these tests run in CI when the check, the pinned copy or the workflow change", /node scripts\/test-lint-drift\.mjs/.test(testsWf) && /scripts\/bump\/lint\/\*\*/.test(testsWf), "")
+check("these tests run in CI when the check, the pinned copy, the fixture or the workflow change (push and pull request alike)", /node scripts\/test-lint-drift\.mjs/.test(testsWf) && (testsWf.match(/scripts\/bump\/lint\/\*\*/g) || []).length === 2 && (testsWf.match(/scripts\/fixtures\/lint-drift\/\*\*/g) || []).length === 2, "")
 
 rmSync(tmp, { recursive: true, force: true })
 process.exit(bad ? 1 : 0)

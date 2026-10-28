@@ -3,9 +3,9 @@ name: lint-drift-tests
 on:
   push:
     branches: [main]
-    paths: ["scripts/check-lint-drift.mjs", "scripts/test-lint-drift.mjs", "scripts/bump/lint/**", ".github/workflows/lint-drift*.yml"]
+    paths: ["scripts/check-lint-drift.mjs", "scripts/test-lint-drift.mjs", "scripts/bump/lint/**", "scripts/fixtures/lint-drift/**", ".github/workflows/lint-drift*.yml", ".github/workflows/lint-drift*.yaml"]
   pull_request:
-    paths: ["scripts/check-lint-drift.mjs", "scripts/test-lint-drift.mjs", "scripts/bump/lint/**", ".github/workflows/lint-drift*.yml"]
+    paths: ["scripts/check-lint-drift.mjs", "scripts/test-lint-drift.mjs", "scripts/bump/lint/**", "scripts/fixtures/lint-drift/**", ".github/workflows/lint-drift*.yml", ".github/workflows/lint-drift*.yaml"]
 permissions: {}
 defaults:
   run:

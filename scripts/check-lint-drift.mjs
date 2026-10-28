@@ -12,7 +12,7 @@
 // drift is found by a machine instead: it prints which file differs and how (the options added or removed, the definitions added or removed, the lines), and exits
 //   0  every file is identical            1  at least one differs (or is missing on one side)            2  tengoku could not be read (nothing is known)
 // No AI and no network beyond the four reads: with a token in the environment (GH_TOKEN / GITHUB_TOKEN) they go through `gh api`, otherwise through raw.githubusercontent.com; both are
-// pinned to the commit `ref` pointed at when the run began, so the four files cannot come from two different commits. --upstream-dir compares with a folder laid out like tengoku (offline).
+// pinned to the commit `ref` pointed at when the run began (no commit, no read), so the four files cannot come from two different commits. A file tengoku no longer has (404 at that commit) is drift. --upstream-dir compares with a folder laid out like tengoku (offline).
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs"
@@ -65,11 +65,25 @@ export function lineDiff(a, b) {
 
 const defsOf = (text) => new Set([...text.matchAll(/^(?:def|class) ([A-Za-z_][A-Za-z0-9_]*)|^([A-Z_][A-Z0-9_]*) *[:=]/gm)].map((m) => m[1] || m[2]))
 
+// a parsed file of the shape the comparison reads: an object whose `field` (allowed / commands), when there, is a list. `null`, a number or a list parse as JSON and are not that.
+function shapeProblem(parsed, field, who) {
+  if (parsed.error) return `not valid JSON in ${who}: ${parsed.error}`
+  const v = parsed.value
+  if (v === null || typeof v !== "object" || Array.isArray(v)) return `${who} is JSON but not an object (${v === null ? "null" : Array.isArray(v) ? "a list" : typeof v}): the "${field}" list cannot be read`
+  if (field in v && !Array.isArray(v[field])) return `"${field}" is not a list in ${who}`
+  return null
+}
+
 function describe(kind, p, u) {
   const out = []
+  if (kind === "options" || kind === "keywords") {
+    const field = kind === "options" ? "allowed" : "commands"
+    const a = jsonOf(p), b = jsonOf(u)
+    const problem = shapeProblem(a, field, "the pinned copy") || shapeProblem(b, field, "tengoku")
+    if (problem) return [problem, ...textDetails(p, u)]
+  }
   if (kind === "options") {
     const a = jsonOf(p), b = jsonOf(u)
-    if (a.error || b.error) return [`not valid JSON in ${a.error ? "the pinned copy" : "tengoku"}: ${a.error || b.error}`]
     const pa = new Set(a.value.allowed || []), ua = new Set(b.value.allowed || [])
     const added = setDiff(pa, ua), removed = setDiff(ua, pa)
     if (added.length) out.push(`options tengoku allows that the pinned copy lacks (${added.length}): ${list(added)}`)
@@ -79,7 +93,6 @@ function describe(kind, p, u) {
     if (other.length) out.push(`other fields differ: ${list(other)}`)
   } else if (kind === "keywords") {
     const a = jsonOf(p), b = jsonOf(u)
-    if (a.error || b.error) return [`not valid JSON in ${a.error ? "the pinned copy" : "tengoku"}: ${a.error || b.error}`]
     const pa = new Set(a.value.commands || []), ua = new Set(b.value.commands || [])
     const added = setDiff(pa, ua), removed = setDiff(ua, pa)
     if (added.length) out.push(`command keywords tengoku has that the pinned copy lacks (${added.length}): ${list(added)}`)
@@ -95,7 +108,13 @@ function describe(kind, p, u) {
     if (added.length) out.push(`definitions in tengoku that the pinned copy lacks: ${list(added)}`)
     if (removed.length) out.push(`definitions in the pinned copy that tengoku no longer has: ${list(removed)}`)
   }
-  // whatever the kind: the lines (and the cases where only the bytes between the lines differ)
+  out.push(...textDetails(p, u))
+  return out
+}
+
+// whatever the kind: the lines (and the case where only the bytes between the lines differ)
+function textDetails(p, u) {
+  const out = []
   const pt = p.toString("utf8"), ut = u.toString("utf8")
   if (pt.replace(/\r\n/g, "\n").replace(/[ \t]+$/gm, "").trimEnd() === ut.replace(/\r\n/g, "\n").replace(/[ \t]+$/gm, "").trimEnd()) {
     out.push("differs only in line endings, trailing whitespace or the final newline")
@@ -151,19 +170,34 @@ export async function fetchUpstream({ ref = "main", source = "auto", env = proce
     const commit = String(gh(["api", `repos/${REPO}/commits/${ref}`, "--jq", ".sha"])).trim()
     if (!COMMIT_OK.test(commit)) throw new Error(`gh api gave no commit for ${ref}`)
     const out = {}
-    for (const f of files) out[f.name] = Buffer.from(gh(["api", `repos/${REPO}/contents/${f.upstream}?ref=${commit}`, "-H", "Accept: application/vnd.github.raw+json"]))
+    for (const f of files) {
+      try {
+        out[f.name] = Buffer.from(gh(["api", `repos/${REPO}/contents/${f.upstream}?ref=${commit}`, "-H", "Accept: application/vnd.github.raw+json"]))
+      } catch (e) {
+        // the commit is resolved, so a 404 for the path is a file tengoku no longer has (drift); any other failure is a read error and says nothing about drift
+        if (!/HTTP 404|Not Found/i.test(`${e.stderr || ""}${e.message || ""}`)) throw e
+        out[f.name] = undefined
+      }
+    }
     return { commit, files: out, via: "gh api" }
   }
   const viaRaw = async () => {
-    let commit = null
+    // the four files are read at ONE commit or not at all: a mutable ref could move between the requests, and the report could not say which snapshot it describes
+    const headers = { Accept: "application/vnd.github.sha", ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+    let commit = null, why = ""
     try {
-      const r = await fetchImpl(`https://api.github.com/repos/${REPO}/commits/${encodeURIComponent(ref)}`, { headers: { Accept: "application/vnd.github.sha" } })
+      const r = await fetchImpl(`https://api.github.com/repos/${REPO}/commits/${encodeURIComponent(ref)}`, { headers })
       const t = r.ok ? (await r.text()).trim() : ""
       if (COMMIT_OK.test(t)) commit = t
-    } catch { /* the four files are then read at the name of the ref */ }
+      else why = r.ok ? "an answer that is not a commit" : `HTTP ${r.status}`
+    } catch (e) {
+      why = String(e.message).split("\n")[0]
+    }
+    if (!commit) throw new Error(`no commit for ${ref} could be resolved (${why}); the files are not read at a name that can move`)
     const out = {}
     for (const f of files) {
-      const r = await fetchImpl(`https://raw.githubusercontent.com/${REPO}/${commit || ref}/${f.upstream}`)
+      const r = await fetchImpl(`https://raw.githubusercontent.com/${REPO}/${commit}/${f.upstream}`)
+      if (r.status === 404) { out[f.name] = undefined; continue } // at a resolved commit a 404 is a file tengoku does not have: drift
       if (!r.ok) throw new Error(`${f.upstream}: HTTP ${r.status}`)
       out[f.name] = Buffer.from(await r.arrayBuffer())
     }
