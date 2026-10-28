@@ -175,9 +175,16 @@ class Wrappers(unittest.TestCase):
         out, _ = run('set_option linter.haveILetI false in def s : String := "abc"\n')
         self.assertEqual(out, 'def s : String := "abc"\n')
 
-    def test_a_look_alike_in_a_comment_is_not_the_phrase(self):
-        out, removed = run("/- set_option linter.haveILetI false in -/ set_option linter.haveILetI false in theorem t : True := trivial\n")
-        self.assertEqual(out, "/- set_option linter.haveILetI false in -/ theorem t : True := trivial\n")  # the comment is untouched, the real phrase is gone
+    def test_a_look_alike_in_a_comment_or_a_string_is_never_cut_for_the_real_phrase(self):
+        # the original has a phrase the code does not: ambiguous, so the line stays as it is (and the lint keeps refusing it)
+        for text in ("/- set_option linter.haveILetI false in -/ set_option linter.haveILetI false in theorem t : True := trivial\n",
+                     'def s := "set_option linter.haveILetI false in" ; set_option linter.haveILetI false in theorem t : True := trivial\n'):
+            out, removed = run(text)
+            self.assertEqual((out, removed), (text, []), text)
+
+    def test_a_phrase_that_stands_alone_is_cut_even_with_a_comment_elsewhere_in_the_line(self):
+        out, removed = run("set_option linter.haveILetI false in theorem t : True := trivial -- note\n")
+        self.assertEqual(out, "theorem t : True := trivial -- note\n")
         self.assertEqual(len(removed), 1)
 
     def test_a_phrase_with_a_comment_inside_it_is_left_alone_not_guessed_at(self):

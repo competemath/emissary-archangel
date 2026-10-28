@@ -69,10 +69,13 @@ def repair(text: str, allowed_options: set[str]) -> tuple[str, list[dict]]:
                 i += 1
                 continue
             if _IN.match(rest):
-                # the phrase is FOUND in the code line (so that a look-alike in a comment is never taken for it) and cut out of the ORIGINAL line (the code line has its strings blanked, so what
-                # follows the phrase must come from the original); the two must agree on what is at that place
-                phrase = _LINTER_IN.search(cl)
-                if phrase and phrase.group(1) == s.group(1) and line[phrase.start():phrase.end()] == phrase.group(0):
+                # The phrase is cut out of the ORIGINAL line (the code line has its strings blanked, and `code_only` shortens a comment to one space, so no position of it means anything in the
+                # original). It is cut only when it cannot be a look-alike: the original has exactly as many such phrases as the code line, so none of them sits in a comment or a string.
+                # Anything else is left alone, and the lint keeps refusing it.
+                in_code = list(_LINTER_IN.finditer(cl))
+                in_text = list(_LINTER_IN.finditer(line))
+                phrase = in_text[0] if in_text and len(in_text) == len(in_code) else None
+                if phrase and phrase.group(1) == s.group(1):
                     removed.append({"line": i + 1, "kind": "set_option " + s.group(1) + " in", "text": line.strip()[:200]})
                     keep = line[: phrase.start()] + line[phrase.end():].lstrip(" \t")
                     if keep.strip():
