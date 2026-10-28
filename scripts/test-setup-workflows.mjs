@@ -3,10 +3,14 @@
 //   - a job that runs the library's own code (prime: lake build; shard: lake build and lean) holds no write permission;
 //   - the one job that dispatches the next build round runs no code from the library: it checks nothing out;
 //   - the shards and the finish job start only on a complete build (or the legacy no-prime flow, or a bank_run);
+//   - a build round that did nothing is not followed by another (build-gate stops with the numbers; ONE issue is opened or updated by a job that holds issues: write and nothing else);
 //   - setup-auto.yml dispatches and writes nothing else, and its values reach the shell through env, never inline.
-import { readFileSync } from "node:fs"
+import { spawnSync } from "node:child_process"
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { roundProgress } from "./setup-plan.mjs"
 
 const wf = join(dirname(fileURLToPath(import.meta.url)), "..", ".github", "workflows")
 let bad = 0
@@ -64,6 +68,88 @@ check(
 check("tar exit 1 (a file changed while it was read) does not lose the round: only other exit codes fail the pack step", /\|\| \{ rc=\$\?; \[ "\$rc" -eq 1 \] \|\| exit "\$rc"/.test(sharded.prime), "")
 check("prime and shard delete old setup.json files while they build", (sharded.prime.match(/-name '\*\.setup\.json' -mmin \+15 -delete/g) || []).length === 1 && (sharded.shard.match(/-name '\*\.setup\.json' -mmin \+15 -delete/g) || []).length === 1, "")
 check("the next export round carries max_build_rounds on", /-f max_build_rounds="\$MAX_BUILD_ROUNDS"/.test(sharded.finish), "")
+
+// ---- a build round that did nothing ----
+const gate = sharded["build-gate"]
+const report = sharded["report-stall"] || ""
+const inputsOf = readFileSync(join(wf, "setup-sharded.yml"), "utf8").split("\n  prime:\n")[0]
+check("prev_built (default empty) and min_progress (default 1) are workflow inputs", /\n      prev_built:\n(?:        .*\n)*?        default: ""\n/.test(inputsOf) && /\n      min_progress:\n(?:        .*\n)*?        default: "1"\n/.test(inputsOf), "")
+check("the prime job hands the build-gate its counts, each cut down to a decimal number first", /built: \$\{\{ steps\.status\.outputs\.built \}\}/.test(sharded.prime) && /\^\$\{name\}=\(0\|\[1-9\]\[0-9\]\{0,8\}\)\$/.test(sharded.prime) && /for name in built modules/.test(sharded.prime), "")
+check("the counts reach the build-gate through env, are validated before use, and prev_built is passed on to the next round", /BUILT: \$\{\{ needs\.prime\.outputs\.built \}\}/.test(gate) && /\^\(0\|\[1-9\]\[0-9\]\{0,8\}\)\$/.test(gate) && /-f prev_built="\$BUILT"/.test(gate) && /-f min_progress="\$MIN_PROGRESS"/.test(gate), "")
+check("build-gate stops with an ::error:: holding the numbers, before it dispatches anything", /::error::[^\n]*\$BUILT[^\n]*\$PREV_BUILT[^\n]*\$added/.test(gate) && gate.indexOf("made no progress") > 0 && gate.indexOf("made no progress") < gate.indexOf("gh workflow run"), "")
+check("build-gate judges only a round after the first", /if \[ "\$BUILD_ROUND" -gt 1 \] && \[ -n "\$PREV_BUILT" \] && \[ -n "\$BUILT" \]/.test(gate), "")
+check("build-gate still holds actions: write and nothing else (the issue is written by another job)", /^\{ actions: write \}$/.test(permissionsOf(gate) || ""), permissionsOf(gate))
+check("report-stall holds issues: write and nothing else, and no other job holds it", /^\{ issues: write \}$/.test(permissionsOf(report) || "") && Object.keys(sharded).filter((j) => /issues/.test(permissionsOf(sharded[j]) || "")).join() === "report-stall", permissionsOf(report))
+check("report-stall runs only after a stop of the build-gate, and runs none of the library's code (no checkout, node, lake, lean, elan)", /needs: build-gate/.test(report) && /needs\.build-gate\.outputs\.stalled == 'true'/.test(report) && !/actions\/checkout|setup-node|setup-source|\bnode\b|\blake\b|\blean\b|elan|download-artifact/.test(report.replace(/#.*$/gm, "")), "")
+check("report-stall: one issue, titled \"setup <key>: build round made no progress\", opened when none is open and edited when one is", /title="setup \$KEY: build round made no progress"/.test(report) && /gh issue list[^\n]*--state open[^\n]*in:title/.test(report) && /\.title == \$t/.test(report) && /gh issue edit "\$number"/.test(report) && /gh issue create[^\n]*--title "\$title"/.test(report), "")
+check("report-stall: the key and the numbers are checked before use, and no ${{ }} expression sits in its shell", /KEY" =~ \^\[a-z0-9\]\[a-z0-9-\]\*\$/.test(report) && /BUILT" "\$PREV_BUILT"/.test(report) && !/run: \|[^]*\$\{\{/.test(report.slice(report.indexOf("run: |"))), "")
+
+// The shell of the build-gate against the rule (setup-plan.mjs roundProgress), run for real with a fake `gh`, on enumerated boundaries and random rounds.
+const stepRun = (block, name) => {
+  const at = block.indexOf(`- name: ${name}`)
+  const lines = block.slice(at).split("\n")
+  const i = lines.findIndex((l) => /^ {8}run: \|$/.test(l))
+  const out = []
+  for (const l of lines.slice(i + 1)) { if (l.trim() && !/^ {10}/.test(l)) break; out.push(l.replace(/^ {10}/, "")) }
+  return out.join("\n")
+}
+const gateScript = stepRun(gate, "Dispatch the next build round")
+const envNames = [...gate.slice(gate.indexOf("env:"), gate.indexOf("run: |")).matchAll(/^ {10}([A-Z_]+):/gm)].map((m) => m[1])
+check("the harness gives the build-gate step every variable its env defines, and nothing it does not", ["BUILT", "MODULES", "PREV_BUILT", "MIN_PROGRESS", "BUILD_ROUND", "MAX_BUILD_ROUNDS", "TENGOKU_REF"].every((n) => envNames.includes(n)) && envNames.length === 15, envNames)
+const sandbox = mkdtempSync(join(tmpdir(), "gate-"))
+writeFileSync(join(sandbox, "gh"), '#!/bin/sh\necho "gh $*" >> "$GH_CALLS"\nexit 0\n')
+chmodSync(join(sandbox, "gh"), 0o755)
+const runGate = (script, c) => {
+  const outFile = join(sandbox, "output"), calls = join(sandbox, "calls")
+  writeFileSync(outFile, "")
+  writeFileSync(calls, "")
+  writeFileSync(join(sandbox, "gate.sh"), script)
+  const r = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", join(sandbox, "gate.sh")], {
+    encoding: "utf8",
+    env: {
+      PATH: `${sandbox}:${process.env.PATH}`, GH_CALLS: calls, GITHUB_OUTPUT: outFile, GITHUB_REPOSITORY: "o/r", GH_TOKEN: "x", KEY: "k",
+      SHARDS: "16", PRIME_MINUTES: "300", EXPAND_CHUNK: "1", ROUND: "1", MAX_ROUNDS: "4", PARALLEL: "6", RESUME_RUN: "", GITHUB_RUN_ID: "77", TENGOKU_REF: "", MAX_BUILD_ROUNDS: "99",
+      BUILD_ROUND: String(c.round), PREV_BUILT: c.prev, BUILT: c.built, MODULES: "30662", MIN_PROGRESS: String(c.min),
+    },
+  })
+  return { code: r.status, text: r.stdout + r.stderr, output: readFileSync(outFile, "utf8"), calls: readFileSync(calls, "utf8") }
+}
+// what the rule says of this case; an empty count is "nothing to compare with"
+const expected = (c) => (c.built === "" ? { stop: false } : roundProgress({ round: c.round, prev: c.prev === "" ? null : Number(c.prev), built: Number(c.built), min: c.min }))
+const wrong = (script, cases, first = false) => {
+  const bad = []
+  for (const c of cases) {
+    const e = expected(c), g = runGate(script, c)
+    const dispatched = g.calls.includes("workflow run")
+    let ok
+    if (e.stop) ok = g.code !== 0 && !dispatched && g.text.includes("::error::") && [c.built, c.prev, String(e.added)].every((n) => g.text.includes(n)) && /stalled=true/.test(g.output) && g.output.includes(`added=${e.added}`)
+    else ok = g.code === 0 && dispatched && g.calls.includes(`prev_built=${c.built}`) && g.calls.includes(`min_progress=${c.min}`) && g.calls.includes(`build_round=${c.round + 1}`) && !/stalled/.test(g.output) && g.text.split("\n").filter(Boolean).every((l) => l.startsWith("::notice::")) // a shell error that is carried on past is no pass
+    if (!ok) bad.push({ c, e, code: g.code, calls: g.calls.slice(0, 200), text: g.text.slice(0, 300) })
+    if (!ok && first) break
+  }
+  return bad
+}
+const cases = []
+for (const min of [0, 1, 3]) for (const prev of [0, 30000]) for (const delta of [-2, -1, 0, 1]) for (const round of [1, 3]) cases.push({ round, prev: String(prev), built: String(Math.max(0, prev + min + delta)), min }) // added = min + delta: below, on and over the line
+for (const round of [1, 2, 4]) for (const prev of ["", "5"]) for (const built of ["", "5", "0"]) cases.push({ round, prev, built, min: 1 })
+let seed = 7
+const rnd = (n) => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) % n }
+for (let i = 0; i < 30; i++) { const prev = rnd(30000); cases.push({ round: 1 + rnd(6), prev: rnd(6) === 0 ? "" : String(prev), built: String(Math.max(0, prev + rnd(7) - 3)), min: rnd(4) }) }
+const verdicts = wrong(gateScript, cases)
+check(`build-gate's shell does what the rule says, on ${cases.length} rounds (boundaries, empty counts, random)`, verdicts.length === 0, verdicts.slice(0, 3))
+check("the cases hold both a stop and a dispatch, and rounds with and without a count", cases.some((c) => expected(c).stop) && cases.some((c) => !expected(c).stop) && cases.some((c) => c.round > 1 && c.prev === ""), "")
+for (const [name, from, to] of [
+  ["stopping at exactly min instead of below it", '-lt "$MIN_PROGRESS"', '-le "$MIN_PROGRESS"'],
+  ["stopping the first round too", '[ "$BUILD_ROUND" -gt 1 ] && [ -n "$PREV_BUILT" ]', '[ "$BUILD_ROUND" -ge 1 ] && [ -n "$PREV_BUILT" ]'],
+  ["subtracting the wrong way round", "$((10#$BUILT - 10#$PREV_BUILT))", "$((10#$PREV_BUILT - 10#$BUILT))"],
+  ["dispatching after the error", "    exit 1\n  fi\nelif", "    :\n  fi\nelif"],
+  ["passing the old count on to the next round", '-f prev_built="$BUILT"', '-f prev_built="$PREV_BUILT"'],
+  ["not forwarding min_progress", ' -f min_progress="$MIN_PROGRESS"', ""],
+  ["stopping when the count of the round before is missing", '&& [ -n "$PREV_BUILT" ] && [ -n "$BUILT" ]', "&& [ -n \"$BUILT\" ]"],
+]) {
+  const mutated = gateScript.replace(from.replaceAll("\n", "\n"), to)
+  check(`mutant: ${name} is noticed`, mutated !== gateScript && wrong(mutated, cases, true).length > 0, mutated === gateScript ? "pattern not found" : "")
+}
 
 const auto = jobsOf("setup-auto.yml")
 const planBlock = auto.plan || ""

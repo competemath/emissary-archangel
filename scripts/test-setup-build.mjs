@@ -90,6 +90,7 @@ const packed = (names, out) => {
 let r = setup(["--phase", "build-status"])
 let s = r.status === 0 ? statusOf(r) : null
 check("status of an unbuilt library: incomplete, 0 of 2", s && s.word === "false" && s.file.built === 0 && s.file.modules === 2 && s.file.complete === false, r.stdout + r.stderr)
+check("status also prints the two counts the next round's gate compares: built=0 and modules=2, each on its own line", /^built=0$/m.test(r.stdout) && /^modules=2$/m.test(r.stdout), r.stdout)
 check("status runs no lake", !existsSync(join(tmp, "lake-calls")), existsSync(join(tmp, "lake-calls")) && readFileSync(join(tmp, "lake-calls"), "utf8"))
 
 // 2. the earlier round got through everything: the build phase restores it and has nothing left to compile
@@ -98,6 +99,7 @@ check("--phase build with --restore unpacks the earlier build", r.status === 0 &
 r = setup(["--phase", "build-status"])
 s = statusOf(r)
 check("status after the restore: complete", s.word === "true" && s.file.built === 2 && s.file.complete === true, JSON.stringify(s))
+check("status after the restore prints built=2", /^built=2$/m.test(r.stdout), r.stdout)
 
 check(
   "the setup.json files of a packed build are not restored (they filled the runner's disk), the .oleans are",
