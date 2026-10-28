@@ -69,9 +69,10 @@ def repair(text: str, allowed_options: set[str]) -> tuple[str, list[dict]]:
                 i += 1
                 continue
             if _IN.match(rest):
-                # the phrase is cut out of the ORIGINAL line (the code line has its strings blanked, so what follows the phrase must not be taken from it)
-                phrase = _LINTER_IN.search(line)
-                if phrase and phrase.group(1) == s.group(1):
+                # the phrase is FOUND in the code line (so that a look-alike in a comment is never taken for it) and cut out of the ORIGINAL line (the code line has its strings blanked, so what
+                # follows the phrase must come from the original); the two must agree on what is at that place
+                phrase = _LINTER_IN.search(cl)
+                if phrase and phrase.group(1) == s.group(1) and line[phrase.start():phrase.end()] == phrase.group(0):
                     removed.append({"line": i + 1, "kind": "set_option " + s.group(1) + " in", "text": line.strip()[:200]})
                     keep = line[: phrase.start()] + line[phrase.end():].lstrip(" \t")
                     if keep.strip():
