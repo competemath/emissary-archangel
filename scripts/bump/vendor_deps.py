@@ -76,6 +76,10 @@ _SIGNATURES = (
 )
 
 
+def has_licence_file(pkg_dir: Path) -> bool:
+    return any((pkg_dir / n).is_file() for n in _LICENCE_FILES)
+
+
 def read_licence(pkg_dir: Path) -> str | None:
     """The SPDX name of the package's licence, or None when there is no licence file or it is not one of the known texts."""
     for name in _LICENCE_FILES:
@@ -185,6 +189,14 @@ def fetch_missing(lib: Path, *, wanted: set[str] | None = None, allow: tuple[str
     return done
 
 
+def inside(base: Path, p: Path) -> bool:
+    """Whether p, with every symlink resolved, is base or lies beneath it (base resolved too)."""
+    try:
+        return p.resolve().is_relative_to(base.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return False
+
+
 def index_package(pkg_dir: Path) -> dict[str, Path]:
     """module name -> file, for the package's own sources (not its dependencies' packages, tests, or build output)."""
     out: dict[str, Path] = {}
@@ -196,6 +208,8 @@ def index_package(pkg_dir: Path) -> dict[str, Path]:
             parts = rel.with_suffix("").parts
             if any(x in (".lake", "lake-packages", ".git") for x in parts) or (len(parts) == 1 and parts[0].lower().startswith("lakefile")):
                 continue
+            if p.is_symlink() or not inside(pkg_dir, p):  # a link to a file outside the package would be vendored under the package's name and licence
+                continue
             out.setdefault(".".join(tb.esc(x) for x in parts), p)
     return out
 
@@ -204,38 +218,70 @@ def own_modules(lib: Path, roots: list[str]) -> dict[str, Path]:
     return tb.module_files(lib, roots)
 
 
+def load_packages(lib: Path, report: dict | None = None) -> dict[str, dict]:
+    """The packages of the manifest that are on disk: name -> {dir, root, url, rev, index}. A checkout that is not at the pinned commit is listed with an empty index (and refused in `report`)."""
+    manifest = json.loads((lib / "lake-manifest.json").read_text())
+    packages_dir = lib / manifest.get("packagesDir", ".lake/packages")
+    pkgs: dict[str, dict] = {}
+    for p in manifest.get("packages", []):
+        name = p.get("name") or str(p.get("url", "")).rsplit("/", 1)[-1].removesuffix(".git")
+        d = packages_dir / name
+        if not d.is_dir():
+            continue
+        # a package can live in a subdirectory of its repository (`subDir` in the manifest): its modules, and its own LICENSE if it has one, are there
+        sub = p.get("subDir") or ""
+        root = d / sub if sub and ".." not in Path(sub).parts and not Path(sub).is_absolute() else d
+        if not inside(d, root):  # a symlinked subDir can leave the checkout whatever its spelling
+            root = d / "\0nonexistent" if sub else d
+        pkgs[name] = {"dir": d, "root": root, "url": p.get("url", ""), "rev": p.get("rev", ""), "index": index_package(root)}
+        at = pinned_commit(d)
+        if at is not None and p.get("rev") and at != p.get("rev"):
+            pkgs[name]["index"] = {}  # not what the manifest pins: nothing of it is used
+            if report is not None:
+                report["refused"].append({"package": name, "reason": f"checkout is at {at}, the manifest pins {p.get('rev')}"})
+    return pkgs
+
+
+def unresolved_tops(lib: Path, roots: list[str]) -> set[str]:
+    """The top-level module names that the library, and every package module it reaches, imports and that no package on disk (and nothing seeded or of the library) provides."""
+    pkgs = load_packages(lib)
+    own = own_modules(lib, roots)
+    seen = set(own)
+    queue = list(own.values())
+    out: set[str] = set()
+    while queue:
+        f = queue.pop()
+        for dep in tb.header_imports(f.read_text(errors="replace")):
+            t = tb.split_mod(dep)[0]
+            if t in SEEDED or dep in seen or t in set(roots):
+                continue
+            owners = [n for n, p in pkgs.items() if dep in p["index"]]
+            if len(owners) == 1:
+                seen.add(dep)
+                queue.append(pkgs[owners[0]]["index"][dep])
+            elif not owners:
+                out.add(t)
+    return out
+
+
 def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISSIVE, fetch: bool = False, fetch_run=subprocess.run, fetch_allow: tuple[str, ...] = FETCH_PREFIXES) -> dict:
     manifest_path = lib / "lake-manifest.json"
     report: dict = {"vendored": [], "unsafe": [], "packages": {}, "unresolved": [], "conflicts": [], "ambiguous": [], "refused": [], "roots": [], "copied": 0}
     if not manifest_path.is_file():
         return report
     if fetch:
-        wanted: set[str] = set()
-        for f in own_modules(lib, roots).values():
-            for dep in tb.header_imports(f.read_text(errors="replace")):
-                t = tb.split_mod(dep)[0]
-                if t not in SEEDED and t not in {r for r in roots}:
-                    wanted.add(t)
-        report["fetched"] = fetch_missing(lib, wanted=wanted, allow=fetch_allow, run=fetch_run)
-    manifest = json.loads(manifest_path.read_text())
-    packages_dir = lib / manifest.get("packagesDir", ".lake/packages")
-    pkgs: dict[str, dict] = {}
-    for p in manifest.get("packages", []):
-        name = p.get("name") or str(p.get("url", "")).rsplit("/", 1)[-1].removesuffix(".git")
-        d = packages_dir / name
-        if d.is_dir():
-            # a package can live in a subdirectory of its repository (`subDir` in the manifest): its modules, and its own LICENSE if it has one, are there
-            sub = p.get("subDir") or ""
-            root = d / sub if sub and ".." not in Path(sub).parts and not Path(sub).is_absolute() else d
-            pkgs[name] = {"dir": d, "root": root, "url": p.get("url", ""), "rev": p.get("rev", ""), "index": index_package(root)}
-            at = pinned_commit(d)
-            if at is not None and p.get("rev") and at != p.get("rev"):
-                pkgs[name]["index"] = {}  # not what the manifest pins: nothing of it is used
-                report["refused"].append({"package": name, "reason": f"checkout is at {at}, the manifest pins {p.get('rev')}"})
+        # fetch as the traversal discovers what is missing: a package that only a package imports is found on the next pass
+        report["fetched"] = []
+        for _ in range(8):
+            got = fetch_missing(lib, wanted=unresolved_tops(lib, roots), allow=fetch_allow, run=fetch_run)
+            report["fetched"] += got
+            if not any(g["fetched"] for g in got):
+                break
+    pkgs = load_packages(lib, report)
 
     # What an earlier run copied is the factory's to manage, not the library's: the roots may have grown to include the copies, the repair rounds may have edited them, and the
-    # dependency or the library's imports may have changed since. The marker (LIB/.vendored.json) says which files are ours.
-    marker = lib / ".vendored.json"
+    # dependency or the library's imports may have changed since. The marker (beside LIB, as LIB.vendored.json: never inside the third-party checkout) says which files are ours.
+    marker = lib.with_name(lib.name + ".vendored.json")  # beside the checkout, never in it: the library is third-party and could ship a marker of its own
     earlier: dict[str, dict] = {}
     if marker.is_file():
         earlier = {v["module"]: v for v in json.loads(marker.read_text()).get("vendored", [])}
@@ -264,7 +310,9 @@ def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISS
                 continue
             name = owners[0]
             if name not in licence_of:
-                licence_of[name] = read_licence(pkgs[name]["root"]) or read_licence(pkgs[name]["dir"])
+                # a package in a subdirectory is licensed by its own file when it has one, and by the repository's only when it has none: an unrecognised local licence is refused,
+                # never replaced by a permissive one of the repository around it
+                licence_of[name] = read_licence(pkgs[name]["root"]) if has_licence_file(pkgs[name]["root"]) else read_licence(pkgs[name]["dir"])
             if licence_of[name] not in permissive:
                 refused[name] = f"licence {licence_of[name] or 'not found or not recognised'}"
                 unresolved.add(dep)
@@ -305,8 +353,9 @@ def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISS
     reached = {m for m in vendored}
     for mod, v in earlier.items():
         if mod not in reached:
-            stale = lib / v["path"]
-            if stale.is_file():
+            stale = lib / str(v.get("path", ""))
+            # the marker is a file of the library checkout and is not trusted: a path that leaves the library (absolute, `..`, a symlink) is never touched
+            if inside(lib, stale) and not stale.is_symlink() and stale.is_file():
                 stale.unlink()
                 report.setdefault("removed", []).append(mod)
     done = {v["module"] for v in report["vendored"]}

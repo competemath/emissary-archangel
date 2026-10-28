@@ -136,7 +136,7 @@ class Basics(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             lib = make(Path(t), {"Own.A": ["Dep.X"]}, {"dep": {"licence": APACHE, "files": {"Dep.X": ["Dep.Y"], "Dep.Y": []}}})
             first = vd.vendor(lib, ["Own"])
-            everything = lambda: {p: p.read_bytes() for p in lib.rglob("*") if p.is_file()}  # the marker too, and every other file
+            everything = lambda: {p: p.read_bytes() for p in list(lib.rglob("*")) + list(lib.parent.glob("*.vendored.json")) if p.is_file()}  # the marker (beside the library) too, and every other file
             snapshot = everything()
             second = vd.vendor(lib, ["Own", "Dep"])  # the roots now include the copies
             self.assertEqual(second["copied"], 0)
@@ -441,6 +441,85 @@ class Fetch(unittest.TestCase):
             self.assertEqual(rep["fetched"], [])
 
 
+class Hostile(unittest.TestCase):
+    """The library checkout and the package checkouts are third-party: nothing in them may make the tool read or delete outside them, or take a licence that is not there."""
+
+    def test_a_symlinked_subdirectory_or_file_cannot_bring_in_what_lies_outside_the_package(self):
+        with tempfile.TemporaryDirectory() as t:
+            lib = make(Path(t), {"Own.A": ["Dep.X", "Dep.Y"]}, {})
+            outside = Path(t) / "outside"
+            write(outside, "Dep/X.lean", "def stolen := 1\n")
+            d = lib / ".lake/packages/mono"
+            write(d, "LICENSE", APACHE)
+            (d / "sub").symlink_to(outside)  # subDir = sub is a link out of the checkout
+            write(d, "real/Dep/Y.lean", "def y := 1\n")
+            (d / "real/Dep/X.lean").symlink_to(outside / "Dep/X.lean")  # and a file that is a link
+            (lib / "lake-manifest.json").write_text(json.dumps({"packagesDir": ".lake/packages", "packages": [{"name": "mono", "url": "https://example.org/mono.git", "rev": "abc", "subDir": "sub"}]}))
+            self.assertEqual(vd.vendor(lib, ["Own"])["vendored"], [])
+            (lib / "lake-manifest.json").write_text(json.dumps({"packagesDir": ".lake/packages", "packages": [{"name": "mono", "url": "https://example.org/mono.git", "rev": "abc", "subDir": "real"}]}))
+            rep = vd.vendor(lib, ["Own"])
+            self.assertEqual([v["module"] for v in rep["vendored"]], ["Dep.Y"])  # the real file only; the link is not a module
+            self.assertFalse(module_path(lib, "Dep.X").exists())
+
+    def test_a_marker_cannot_make_the_tool_delete_a_file_outside_the_library(self):
+        with tempfile.TemporaryDirectory() as t:
+            lib = make(Path(t), {"Own.A": ["Dep.X"]}, {"dep": {"licence": APACHE, "files": {"Dep.X": []}}})
+            vd.vendor(lib, ["Own"])
+            victim = Path(t) / "victim.txt"
+            victim.write_text("keep me")
+            marker = lib.with_name(lib.name + ".vendored.json")
+            doc = json.loads(marker.read_text())
+            doc["vendored"] += [{"module": "Evil.A", "package": "dep", "path": "../victim.txt"}, {"module": "Evil.B", "package": "dep", "path": str(victim)}]
+            marker.write_text(json.dumps(doc))
+            vd.vendor(lib, ["Own", "Dep"])
+            self.assertEqual(victim.read_text(), "keep me")
+
+    def test_a_marker_shipped_inside_the_library_is_not_read(self):
+        with tempfile.TemporaryDirectory() as t:
+            lib = make(Path(t), {"Own.A": ["Dep.X"]}, {"dep": {"licence": APACHE, "files": {"Dep.X": []}}})
+            (lib / ".vendored.json").write_text(json.dumps({"vendored": [{"module": "Own.A", "package": "dep", "path": "Own/A.lean"}]}))
+            before = module_path(lib, "Own.A").read_bytes()
+            rep = vd.vendor(lib, ["Own"])
+            self.assertEqual(module_path(lib, "Own.A").read_bytes(), before)  # not deleted as 'stale', not hidden from the traversal
+            self.assertEqual([v["module"] for v in rep["vendored"]], ["Dep.X"])
+
+    def test_an_unrecognised_licence_in_the_subdirectory_is_not_replaced_by_the_repositorys(self):
+        with tempfile.TemporaryDirectory() as t:
+            lib = make(Path(t), {"Own.A": ["Dep.X"]}, {})
+            d = lib / ".lake/packages/mono"
+            write(d, "LICENSE", APACHE)
+            write(d, "sub/LICENSE", "All rights reserved. No copying.\n")
+            write(d, "sub/Dep/X.lean", "def x := 1\n")
+            (lib / "lake-manifest.json").write_text(json.dumps({"packagesDir": ".lake/packages", "packages": [{"name": "mono", "url": "https://example.org/mono.git", "rev": "abc", "subDir": "sub"}]}))
+            rep = vd.vendor(lib, ["Own"])
+            self.assertEqual((rep["vendored"], [r["package"] for r in rep["refused"]]), ([], ["mono"]))
+
+
+class IterativeFetch(unittest.TestCase):
+    """A package that only another package imports is found on a later pass."""
+
+    def test_a_package_imported_only_by_a_vendored_module_is_fetched_too(self):
+        with tempfile.TemporaryDirectory() as t:
+            t = Path(t)
+            remotes = {}
+            for name, body in (("alpha", "import Beta.Y\ndef a := 1\n"), ("beta", "def b := 1\n")):
+                r = t / f"remote-{name}"
+                r.mkdir()
+                git("init", "-q", cwd=r)
+                write(r, f"{name.capitalize()}/{'X' if name == 'alpha' else 'Y'}.lean", body)
+                write(r, "LICENSE", APACHE)
+                git("add", ".", cwd=r)
+                git("commit", "-qm", "x", cwd=r)
+                remotes[name] = (r, git("rev-parse", "HEAD", cwd=r))
+            lib = t / "lib"
+            write(lib, "Own/A.lean", "public import Alpha.X\n")
+            (lib / "lake-manifest.json").write_text(json.dumps({"packagesDir": ".lake/packages", "packages": [{"name": n, "url": f"file://{r}", "rev": rev} for n, (r, rev) in remotes.items()]}))
+            rep = vd.vendor(lib, ["Own"], fetch=True, fetch_allow=("file://",))
+            self.assertEqual(sorted(f["package"] for f in rep["fetched"] if f["fetched"]), ["alpha", "beta"])
+            self.assertEqual(sorted(v["module"] for v in rep["vendored"]), ["Alpha.X", "Beta.Y"])
+            self.assertEqual(rep["unresolved"], [])
+
+
 class Wiring(unittest.TestCase):
     """The step is in the workflow where it has to be: after `lake update` has downloaded the packages, before anything reads the library's imports, and the roots it adds reach the later steps."""
 
@@ -466,7 +545,7 @@ class Mutants(unittest.TestCase):
 
     def noticed(self, **patches):
         suite = unittest.TestSuite(
-            [unittest.defaultTestLoader.loadTestsFromTestCase(Basics), unittest.defaultTestLoader.loadTestsFromTestCase(Closure), unittest.defaultTestLoader.loadTestsFromTestCase(Lifecycle), unittest.defaultTestLoader.loadTestsFromTestCase(Safety), unittest.defaultTestLoader.loadTestsFromTestCase(Fetch), unittest.defaultTestLoader.loadTestsFromTestCase(SubDirectory)]
+            [unittest.defaultTestLoader.loadTestsFromTestCase(Basics), unittest.defaultTestLoader.loadTestsFromTestCase(Closure), unittest.defaultTestLoader.loadTestsFromTestCase(Lifecycle), unittest.defaultTestLoader.loadTestsFromTestCase(Safety), unittest.defaultTestLoader.loadTestsFromTestCase(Fetch), unittest.defaultTestLoader.loadTestsFromTestCase(SubDirectory), unittest.defaultTestLoader.loadTestsFromTestCase(Hostile), unittest.defaultTestLoader.loadTestsFromTestCase(IterativeFetch)]
         )
         result = unittest.TestResult()
         saved = {k: getattr(vd, k) for k in patches}
