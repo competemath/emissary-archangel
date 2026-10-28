@@ -55,9 +55,14 @@ jobs:
           git -C tengoku sparse-checkout set --no-cone "/data/tentative/$KEY.jsonl" "/data/tentative/$KEY/"
           # TENGOKU_REF: a branch of the tree repository that holds the records of a library whose PR is not merged yet (empty: main)
           ref=${TENGOKU_REF:+origin/$TENGOKU_REF}; git -C tengoku checkout -q "${ref:-main}"
+      - name: elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: The library, its import graph, the plan
         id: p
         working-directory: emissary
+        env: { MATHLIB: "${{ inputs.mathlib }}", TOOLCHAIN: "${{ inputs.toolchain }}" }
         run: |
           read -r repo commit _ roots < <(python3 scripts/trial-library-build.py meta "$KEY")
           git clone -q --filter=blob:none "$repo" lib && git -C lib checkout -q "$commit"
@@ -66,8 +71,18 @@ jobs:
           sub=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")
           if [ -n "$sub" ]; then mv lib lib-repo && ln -s "lib-repo/$sub" lib; fi
           # The code the library imports from the OTHER Lake packages it requires is copied into it (scripts/bump/vendor_deps.py, as bump-library.yml does after `lake update`), so that the plan
-          # cuts it into shards with the library's own modules. Nothing of the library runs here: the packages are downloaded as data (git, at the manifest's pinned commit) and read as text.
-          # The plan reads the library's committed lake-manifest.json; a shard reads the one `lake update` writes after the retarget, and checks that it vendors the same modules (--expect).
+          # cuts it into shards with the library's own modules. The plan must see what a shard will see, so it does what a shard does before vendoring: the library is retargeted to the tree's
+          # Mathlib (which deletes its lake-manifest.json) and `lake update` resolves the requirements again. That also covers a library that never committed a manifest (its lakefile requires
+          # packages all the same). The cost: `lake update` reads the library's lakefile, which is Lean code of the library, in this job. This job holds a read-only token and no secret, writes only the plan,
+          # and every shard runs the same lakefile with the same trust; reading the lakefile as text instead cannot resolve a branch or a tag to the commit a shard will get.
+          # The two resolutions are hours apart, so a requirement on a moving branch may still differ: a shard compares its closure with this one (--expect: the modules and their imports).
+          python3 scripts/trial-library-build.py retarget lib "$MATHLIB" "$TOOLCHAIN"
+          for attempt in 1 2 3 4 5; do
+            if elan toolchain install "$TOOLCHAIN" > /dev/null 2>&1; then break; fi
+            if [ "$attempt" = 5 ]; then echo "::error::the toolchain $TOOLCHAIN did not download in 5 attempts"; exit 1; fi
+            sleep $((attempt * 20))
+          done
+          (cd lib && lake update 2>&1 | tail -2)
           mkdir -p ../plan
           lib_roots=$(python3 -c 'import json, os; print(",".join(json.load(open("data/exports/" + os.environ["KEY"] + "/setup.ci.json"))["roots"]))')
           python3 scripts/bump/vendor_deps.py --lib lib --roots "$lib_roots" --fetch --out ../plan/vendored-plan.json

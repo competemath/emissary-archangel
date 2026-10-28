@@ -341,14 +341,14 @@ def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISS
                 report["conflicts"].append({"module": mod, "package": name, "path": str(dst.relative_to(lib))})
                 continue
             if same_pin:  # ours, at the same revision, edited since (a repair round): left as it is
-                report["vendored"].append({"module": mod, "package": name, "rev": pkgs[name]["rev"], "path": str(dst.relative_to(lib)), "sha256": hashlib.sha256(data).hexdigest()})
+                report["vendored"].append({"module": mod, "package": name, "rev": pkgs[name]["rev"], "path": str(dst.relative_to(lib)), "sha256": hashlib.sha256(data).hexdigest(), "imports": sorted(set(tb.header_imports(data.decode("utf-8", errors="replace"))))})
                 continue
             # ours, and the package moved on: the new revision replaces it
         if not dst.exists() or dst.read_bytes() != data:
             dst.parent.mkdir(parents=True, exist_ok=True)
             dst.write_bytes(data)
             report["copied"] += 1
-        report["vendored"].append({"module": mod, "package": name, "rev": pkgs[name]["rev"], "path": str(dst.relative_to(lib)), "sha256": hashlib.sha256(data).hexdigest()})
+        report["vendored"].append({"module": mod, "package": name, "rev": pkgs[name]["rev"], "path": str(dst.relative_to(lib)), "sha256": hashlib.sha256(data).hexdigest(), "imports": sorted(set(tb.header_imports(data.decode("utf-8", errors="replace"))))})
     # a file we copied earlier that nothing reaches any more (the library or the dependency changed) is removed: it must not stay buildable
     reached = {m for m in vendored}
     for mod, v in earlier.items():
@@ -376,12 +376,15 @@ def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISS
     return report
 
 
-def modules_differ(report: dict, expected: dict) -> tuple[list[str], list[str]]:
-    """(the modules `expected` vendored that this report did not, the modules this report vendored that `expected` did not). Names only: the revision a floating requirement resolves to
-    may differ between the plan job and a shard (a retargeted library has no lake-manifest.json until `lake update` writes a new one), the set of modules the plan cut into shards may not."""
-    have = {v["module"] for v in report.get("vendored", [])}
-    want = {v["module"] for v in expected.get("vendored", [])}
-    return sorted(want - have), sorted(have - want)
+def modules_differ(report: dict, expected: dict) -> tuple[list[str], list[str], list[str]]:
+    """(the modules `expected` vendored that this report did not, the modules this report vendored that `expected` did not, the modules both vendored whose imports differ).
+    The plan cut the shards over a closure: its modules AND the edges between them. The revision a floating requirement resolves to may differ between the plan job and a shard (hours apart,
+    and a retargeted library has no lake-manifest.json until `lake update` writes one) without changing either; but a module that now imports another one is a new edge, possibly to a module the
+    plan put in no shard of its own closure, which becomes a bad import. So the revision itself is allowed to differ and what it did to the imports is not."""
+    have = {v["module"]: v for v in report.get("vendored", [])}
+    want = {v["module"]: v for v in expected.get("vendored", [])}
+    changed = [m for m in sorted(set(have) & set(want)) if sorted(have[m].get("imports") or []) != sorted(want[m].get("imports") or [])]
+    return sorted(set(want) - set(have)), sorted(set(have) - set(want)), changed
 
 
 def main() -> int:
@@ -390,7 +393,7 @@ def main() -> int:
     ap.add_argument("--roots", required=True, help="comma list")
     ap.add_argument("--out")
     ap.add_argument("--fetch", action="store_true", help="download the packages the manifest names and that are not on disk, at the pinned commit")
-    ap.add_argument("--expect", help="the report of the plan job (sharded route): exit 1 unless exactly the same modules were vendored here, since the plan cut the shards over them")
+    ap.add_argument("--expect", help="the report of the plan job (sharded route): exit 1 unless exactly the same modules, with the same imports, were vendored here: the plan cut the shards over that closure")
     ap.add_argument("--print-roots", action="store_true", help="print the roots of the library with the roots of the copies, as a comma list, and nothing else")
     a = ap.parse_args()
     roots = [r for r in a.roots.split(",") if r]
@@ -410,11 +413,13 @@ def main() -> int:
         except (OSError, ValueError) as e:
             print(f"::error::the plan's vendoring report {a.expect} cannot be read ({e}): the shards were cut over modules this job cannot compare with", file=sys.stderr)
             return 1
-        missing, extra = modules_differ(rep, expected)
-        if missing or extra:
+        missing, extra, changed = modules_differ(rep, expected)
+        if missing or extra or changed:
             print(
-                f"::error::the shard vendored other modules than the plan cut the shards over: {len(missing)} missing here ({', '.join(missing[:5])}), {len(extra)} not in the plan ({', '.join(extra[:5])}). "
-                "A module the plan does not know is in no shard's list and is never built; one it knows and this job lacks makes its importers fail. The plan reads the library's committed lake-manifest.json, the shard the one `lake update` wrote after the retarget: a requirement on a moving branch can differ between them; run the workflow again, and if it recurs the requirement needs a pinned revision.",
+                f"::error::the shard vendored another closure than the plan cut the shards over: {len(missing)} missing here ({', '.join(missing[:5])}), {len(extra)} not in the plan ({', '.join(extra[:5])}), "
+                f"{len(changed)} with other imports ({', '.join(changed[:5])}). A module the plan does not know is in no shard's list and is never built; one it knows and this job lacks, or an import the plan did not see, "
+                "makes its importers fail. Both jobs retarget the library and run `lake update`, so the two closures differ only when a requirement on a moving branch moved in between: run the workflow again, and if it "
+                "recurs the requirement needs a pinned revision.",
                 file=sys.stderr,
             )
             return 1

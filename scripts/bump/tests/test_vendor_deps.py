@@ -587,9 +587,27 @@ class WiringSharded(unittest.TestCase):
         self.assertTrue(graph.index("vendored-plan.json") < graph.index("ps.graph"))
         self.assertIn('["roots"]', graph[graph.index("vendored-plan.json"):])
 
-    def test_the_plan_runs_none_of_the_librarys_code(self):
-        for word in ("lake update", "lake build", "lake env", "lake exe", "elan ", "lean --run", "lake lean"):
-            self.assertNotIn(word, self.plan)
+    def test_the_plan_resolves_the_requirements_as_a_shard_does_before_it_vendors(self):
+        """A library with no committed lake-manifest.json requires packages all the same, and every library's manifest is deleted by the retarget: the plan must run retarget and `lake update`, in the
+        shard's order, or its vendoring plan is empty / the committed one and the shards (which vendor after `lake update`) disagree with it."""
+        order = [self.plan.index(x) for x in ('"$repo" lib', "trial-library-build.py retarget lib \"$MATHLIB\" \"$TOOLCHAIN\"", "elan toolchain install", "lake update", "vendor_deps.py", "ps.graph")]
+        self.assertEqual(order, sorted(order))
+        shard_order = [self.shard.index(x) for x in ("trial-library-build.py retarget lib \"$MATHLIB\" \"$TOOLCHAIN\"", "elan toolchain install", "lake update", "vendor_deps.py")]
+        self.assertEqual(shard_order, sorted(shard_order))
+        self.assertIn('env: { MATHLIB: "${{ inputs.mathlib }}", TOOLCHAIN: "${{ inputs.toolchain }}" }', self.plan)
+        self.assertIn("elan-init.sh", self.plan)
+
+    def test_a_library_without_a_manifest_vendors_nothing_so_the_plan_must_have_one_by_then(self):
+        with tempfile.TemporaryDirectory() as t:
+            lib = make(Path(t), {"Own.A": ["Dep.X"]}, {"dep": {"licence": APACHE, "files": {"Dep.X": []}}})
+            (lib / "lake-manifest.json").unlink()
+            self.assertEqual(vd.vendor(lib, ["Own"])["vendored"], [])
+
+    def test_the_plan_job_keeps_the_narrowest_token_and_holds_no_secret_while_it_runs_a_lakefile(self):
+        self.assertIn("permissions: { contents: read }", self.plan)
+        self.assertNotIn("secrets.", self.plan)
+        for word in ("lake build", "lake exe", "lean --run"):
+            self.assertNotIn(word, self.plan)  # `lake update` reads the lakefile; nothing of the library is built or run here
 
     def test_the_shard_vendors_after_lake_update_and_before_the_imports_are_normalised(self):
         i, j, k = self.shard.index("lake update"), self.shard.index("vendor_deps.py"), self.shard.index("normalize-imports")
@@ -626,7 +644,8 @@ class Expect(unittest.TestCase):
         names = [f"P.M{i}" for i in range(12)]
         for _ in range(300):
             a, b = rng.sample(names, rng.randint(0, 12)), rng.sample(names, rng.randint(0, 12))
-            missing, extra = vd.modules_differ(self.report(b, "r2"), self.report(a, "r1"))
+            missing, extra, changed = vd.modules_differ(self.report(b, "r2"), self.report(a, "r1"))
+            self.assertEqual(changed, [])
             self.assertEqual(set(missing), set(a) - set(b))
             self.assertEqual(set(extra), set(b) - set(a))
             self.assertEqual(bool(missing or extra), set(a) != set(b))
@@ -667,6 +686,83 @@ class Expect(unittest.TestCase):
                     if want:
                         self.assertIn("::error::", err)
                         self.assertTrue((tmp / "out.json").is_file())  # the report is kept for the artifact whatever the verdict
+
+    def closure_report(self, tmp: Path, graph: dict[str, list[str]], roots_imports: list[str]):
+        """The report of vendoring a library whose own module imports roots_imports, from one package `dep` whose modules import each other as `graph` says."""
+        lib = make(tmp, {"Own.A": roots_imports}, {"dep": {"licence": APACHE, "files": graph}})
+        return vd.vendor(lib, ["Own"])
+
+    def test_the_plan_and_a_shard_agree_exactly_when_the_closure_and_its_edges_are_the_same(self):
+        """Random package graphs: the plan resolved one revision of `dep`, the shard another. Flagged iff the reached modules or the imports among them differ, by an oracle written independently."""
+        rng = random.Random(21)
+        for i in range(120):
+            n = rng.randint(2, 7)
+            names = [f"Dep.M{k}" for k in range(n)]
+            g1 = {m: sorted(rng.sample(names[k + 1:], rng.randint(0, min(2, n - k - 1)))) for k, m in enumerate(names)}
+            g2 = {m: list(v) for m, v in g1.items()}
+            for _ in range(rng.randint(0, 2)):  # the package moved on: an edge added, taken out, or a module's imports rewritten
+                k = rng.randrange(n - 1)
+                cand = names[k + 1:]
+                g2[names[k]] = sorted(rng.sample(cand, rng.randint(0, min(2, len(cand)))))
+            entry = rng.sample(names, rng.randint(1, 2))
+
+            def reach(g):
+                seen, todo = set(), list(entry)
+                while todo:
+                    m = todo.pop()
+                    if m not in seen:
+                        seen.add(m)
+                        todo += g[m]
+                return seen
+
+            r1, r2 = reach(g1), reach(g2)
+            differs = r1 != r2 or any(sorted(g1[m]) != sorted(g2[m]) for m in r1 & r2)
+            with tempfile.TemporaryDirectory() as t1, tempfile.TemporaryDirectory() as t2:
+                plan, shard = self.closure_report(Path(t1), g1, entry), self.closure_report(Path(t2), g2, entry)
+            self.assertEqual({v["module"] for v in plan["vendored"]}, r1)
+            missing, extra, changed = vd.modules_differ(shard, plan)
+            self.assertEqual(bool(missing or extra or changed), differs, (i, g1, g2, entry))
+            if r1 == r2:  # the same names: only the edges can tell
+                self.assertEqual(set(changed), {m for m in r1 if sorted(g1[m]) != sorted(g2[m])})
+
+    def test_a_new_edge_to_a_module_vendored_elsewhere_is_caught_though_the_names_agree(self):
+        """The case of the review: B and C are both in the closure, B did not import C in the plan and does now. The names are equal; C may be outside B's shard."""
+        with tempfile.TemporaryDirectory() as t1, tempfile.TemporaryDirectory() as t2:
+            plan = self.closure_report(Path(t1), {"Dep.B": [], "Dep.C": []}, ["Dep.B", "Dep.C"])
+            shard = self.closure_report(Path(t2), {"Dep.B": ["Dep.C"], "Dep.C": []}, ["Dep.B", "Dep.C"])
+        self.assertEqual(vd.modules_differ(shard, plan), ([], [], ["Dep.B"]))
+
+    def test_the_cli_stops_the_shard_on_a_new_edge_and_names_the_module(self):
+        with tempfile.TemporaryDirectory() as t1, tempfile.TemporaryDirectory() as t2:
+            plan = self.closure_report(Path(t1), {"Dep.B": [], "Dep.C": []}, ["Dep.B", "Dep.C"])
+            (Path(t2) / "plan.json").write_text(json.dumps(plan))
+            lib = make(Path(t2), {"Own.A": ["Dep.B", "Dep.C"]}, {"dep": {"licence": APACHE, "files": {"Dep.B": ["Dep.C"], "Dep.C": []}}})
+            code, err = self.run_main(lib, Path(t2) / "plan.json")
+        self.assertEqual(code, 1)
+        self.assertIn("1 with other imports (Dep.B)", err)
+
+    def test_a_plan_and_a_shard_that_fetch_the_same_packages_agree_on_the_closure_through_a_package_that_only_a_package_imports(self):
+        """The plan fetches with --fetch like the shard (the traversal's own passes): alpha -> beta, beta imported by nothing of the library."""
+        with tempfile.TemporaryDirectory() as t:
+            t = Path(t)
+            remotes = {}
+            for name, body, mod in (("alpha", "import Beta.Y\ndef a := 1\n", "Alpha/X"), ("beta", "def b := 1\n", "Beta/Y")):
+                r = t / f"remote-{name}"
+                r.mkdir()
+                git("init", "-q", cwd=r)
+                write(r, f"{mod}.lean", body)
+                write(r, "LICENSE", APACHE)
+                git("add", ".", cwd=r)
+                git("commit", "-qm", "x", cwd=r)
+                remotes[name] = (r, git("rev-parse", "HEAD", cwd=r))
+            reports = []
+            for side in ("plan", "shard"):
+                lib = t / side / "lib"
+                write(lib, "Own/A.lean", "public import Alpha.X\n")
+                (lib / "lake-manifest.json").write_text(json.dumps({"packagesDir": ".lake/packages", "packages": [{"name": n, "url": f"file://{r}", "rev": rev} for n, (r, rev) in remotes.items()]}))
+                reports.append(vd.vendor(lib, ["Own"], fetch=True, fetch_allow=("file://",)))
+            self.assertEqual(sorted(v["module"] for v in reports[0]["vendored"]), ["Alpha.X", "Beta.Y"])
+            self.assertEqual(vd.modules_differ(reports[1], reports[0]), ([], [], []))
 
     def test_a_missing_or_unreadable_plan_report_stops_the_shard(self):
         with tempfile.TemporaryDirectory() as t:
@@ -714,10 +810,23 @@ class Mutants(unittest.TestCase):
         self.assertTrue(self.noticed(pinned_commit=lambda d: None))
 
     def test_a_comparison_that_ignores_what_the_plan_does_not_know_is_noticed(self):
-        self.assertTrue(self.noticed(modules_differ=lambda report, expected: (sorted({v["module"] for v in expected["vendored"]} - {v["module"] for v in report["vendored"]}), [])))
+        self.assertTrue(self.noticed(modules_differ=lambda report, expected: (sorted({v["module"] for v in expected["vendored"]} - {v["module"] for v in report["vendored"]}), [], [])))
+
+    def test_a_comparison_of_names_only_is_noticed(self):
+        original = vd.modules_differ
+        self.assertTrue(self.noticed(modules_differ=lambda report, expected: original(report, expected)[:2] + ([],)))
+
+    def test_a_comparison_of_the_revision_instead_of_the_imports_is_noticed(self):
+        original = vd.modules_differ
+        self.assertTrue(self.noticed(modules_differ=lambda report, expected: original(report, expected)[:2] + ([v["module"] for v in report["vendored"] if v.get("rev") != next((w.get("rev") for w in expected["vendored"] if w["module"] == v["module"]), None)],)))
+
+    def test_a_comparison_of_a_closure_that_ignores_the_edges_of_vendored_modules_is_noticed(self):
+        original = vd.modules_differ
+        strip = lambda rep: {"vendored": [dict(v, imports=[]) for v in rep["vendored"]]}
+        self.assertTrue(self.noticed(modules_differ=lambda report, expected: original(strip(report), strip(expected))))
 
     def test_a_comparison_that_only_counts_is_noticed(self):
-        self.assertTrue(self.noticed(modules_differ=lambda report, expected: ([], []) if len(report["vendored"]) == len(expected["vendored"]) else (["x"], [])))
+        self.assertTrue(self.noticed(modules_differ=lambda report, expected: ([], [], []) if len(report["vendored"]) == len(expected["vendored"]) else (["x"], [], [])))
 
     def test_the_unmutated_code_is_not_noticed(self):
         self.assertFalse(self.noticed())
