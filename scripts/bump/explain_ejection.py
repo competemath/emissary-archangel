@@ -64,11 +64,13 @@ class Shipped:
 
     def __init__(self, where: Path):
         self.files: dict[str, str] = {}
+        self.namespaces: set[str] = set()  # the <Ns> of every Tengoku/<Ns>/… file (one library's bundle has one)
         if where.is_dir():
             for p in where.rglob("*.lean"):
                 parts = p.relative_to(where).parts
-                if len(parts) > 2 and parts[0] == "Tengoku":
+                if len(parts) > 2 and parts[0] == "Tengoku" and not p.is_symlink():  # a link in a bundle is not a module (bundle_cut.py skips them too)
                     self.files["/".join(parts[2:])] = p.read_text(errors="replace")
+                    self.namespaces.add(parts[1])
         else:
             with tarfile.open(where) as t:
                 for m in t:
@@ -77,22 +79,25 @@ class Shipped:
                         f = t.extractfile(m)
                         assert f is not None
                         self.files["/".join(parts[2:])] = f.read().decode("utf-8", "replace")
+                        self.namespaces.add(parts[1])
         self.last = {n.rsplit(".", 1)[-1] for text in self.files.values() for n in declared(text)}
 
 
 class Factory:
     """What the original run's shards recorded: the errors per file, and the source of every module."""
 
-    def __init__(self, shards: Path):
+    def __init__(self, shards: Path | None):
+        """`shards` None (or a directory with no shard in it): nothing is known of the factory's build, and A, B and C cannot be told (see `present`)."""
         self.errors: dict[str, list[tuple[int, str]]] = collections.defaultdict(list)
         self.src: dict[str, str] = {}
-        for log in sorted(shards.glob("shard-*/shard-pack/errors.log")):
+        for log in sorted(shards.glob("shard-*/shard-pack/errors.log")) if shards else ():
             for ln in log.read_text(errors="replace").splitlines():
                 m = FAC.match(ln)
                 if m:
                     self.errors[m.group("rel")].append((int(m.group("line")), m.group("msg")))
             for p in (log.parent / "src").rglob("*.lean"):
                 self.src.setdefault(str(p.relative_to(log.parent / "src")), p.read_text(errors="replace"))
+        self.present = bool(self.src)
         self.last = collections.defaultdict(set)  # last component of a declared name -> modules of the source that declare it
         for rel, text in self.src.items():
             for n in declared(text):
