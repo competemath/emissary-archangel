@@ -136,10 +136,11 @@ class Basics(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             lib = make(Path(t), {"Own.A": ["Dep.X"]}, {"dep": {"licence": APACHE, "files": {"Dep.X": ["Dep.Y"], "Dep.Y": []}}})
             first = vd.vendor(lib, ["Own"])
-            snapshot = {p: p.read_bytes() for p in lib.rglob("*.lean")}
+            everything = lambda: {p: p.read_bytes() for p in lib.rglob("*") if p.is_file()}  # the marker too, and every other file
+            snapshot = everything()
             second = vd.vendor(lib, ["Own", "Dep"])  # the roots now include the copies
             self.assertEqual(second["copied"], 0)
-            self.assertEqual({p: p.read_bytes() for p in lib.rglob("*.lean")}, snapshot)
+            self.assertEqual(everything(), snapshot)
             self.assertEqual(sorted(v["module"] for v in second["vendored"]), sorted(v["module"] for v in first["vendored"]))
 
     def test_no_manifest_means_nothing_to_do(self):
@@ -182,6 +183,68 @@ class Closure(unittest.TestCase):
                         self.assertIn(d, want)
 
 
+
+class Lifecycle(unittest.TestCase):
+    """The copies are the factory's to manage across rounds and steps: edited by repairs, outdated by a new pin, orphaned by a changed import."""
+
+    def test_a_copy_edited_by_a_repair_round_is_kept_and_still_reported(self):
+        with tempfile.TemporaryDirectory() as t:
+            lib = make(Path(t), {"Own.A": ["Dep.X"]}, {"dep": {"licence": APACHE, "files": {"Dep.X": []}}})
+            vd.vendor(lib, ["Own"])
+            module_path(lib, "Dep.X").write_text("-- edited by a repair round\n")
+            rep = vd.vendor(lib, ["Own", "Dep"])
+            self.assertEqual(module_path(lib, "Dep.X").read_text(), "-- edited by a repair round\n")
+            self.assertEqual(([v["module"] for v in rep["vendored"]], rep["conflicts"]), (["Dep.X"], []))
+
+    def test_a_copy_nothing_reaches_any_more_is_removed(self):
+        with tempfile.TemporaryDirectory() as t:
+            lib = make(Path(t), {"Own.A": ["Dep.X"]}, {"dep": {"licence": APACHE, "files": {"Dep.X": ["Dep.Y"], "Dep.Y": []}}})
+            vd.vendor(lib, ["Own"])
+            self.assertTrue(module_path(lib, "Dep.Y").exists())
+            write(lib, "Own/A.lean", "public import Dep.X\n")
+            write(lib / ".lake/packages/dep", "Dep/X.lean", "def x := 1\n")  # X no longer imports Y
+            rep = vd.vendor(lib, ["Own", "Dep"])
+            self.assertFalse(module_path(lib, "Dep.Y").exists())
+            self.assertEqual(rep["removed"], ["Dep.Y"])
+            self.assertEqual([v["module"] for v in rep["vendored"]], ["Dep.X"])
+            write(lib, "Own/A.lean", "def a := 1\n")  # and then nothing
+            rep = vd.vendor(lib, ["Own", "Dep"])
+            self.assertEqual((rep["vendored"], sorted(rep["removed"])), ([], ["Dep.X"]))
+            self.assertFalse(module_path(lib, "Dep.X").exists())
+
+    def test_a_file_the_library_has_of_its_own_is_never_removed_or_taken_for_ours(self):
+        with tempfile.TemporaryDirectory() as t:
+            lib = make(Path(t), {"Own.A": ["Dep.X"]}, {"dep": {"licence": APACHE, "files": {"Dep.X": []}}})
+            write(lib, "Dep/Mine.lean", "def mine := 1\n")
+            vd.vendor(lib, ["Own"])
+            write(lib, "Own/A.lean", "def a := 1\n")
+            vd.vendor(lib, ["Own", "Dep"])
+            self.assertTrue(module_path(lib, "Dep.Mine").exists())
+
+    def test_a_new_pin_of_the_package_replaces_our_copy(self):
+        with tempfile.TemporaryDirectory() as t:
+            lib = make(Path(t), {"Own.A": ["Dep.X"]}, {"dep": {"licence": APACHE, "files": {"Dep.X": []}}})
+            vd.vendor(lib, ["Own"])
+            write(lib / ".lake/packages/dep", "Dep/X.lean", "def x := 'new revision'\n")
+            m = json.loads((lib / "lake-manifest.json").read_text())
+            m["packages"][0]["rev"] = "def456"
+            (lib / "lake-manifest.json").write_text(json.dumps(m))
+            rep = vd.vendor(lib, ["Own", "Dep"])
+            self.assertEqual(module_path(lib, "Dep.X").read_text(), "def x := 'new revision'\n")
+            self.assertEqual(rep["packages"]["dep"]["rev"], "def456")
+
+    def test_a_package_with_several_source_directories_is_read_in_all_of_them(self):
+        with tempfile.TemporaryDirectory() as t:
+            lib = make(Path(t), {"Own.A": ["One.X", "Two.Y"]}, {"dep": {"licence": APACHE, "files": {}}})
+            d = lib / ".lake/packages/dep"
+            write(d, "lakefile.toml", 'name = "dep"\n[[lean_lib]]\nname = "One"\nsrcDir = "a"\n[[lean_lib]]\nname = "Two"\nsrcDir = "b"\n')
+            write(d, "a/One/X.lean", "def x := 1\n")
+            write(d, "b/Two/Y.lean", "def y := 1\n")
+            rep = vd.vendor(lib, ["Own"])
+            self.assertEqual(sorted(v["module"] for v in rep["vendored"]), ["One.X", "Two.Y"])
+            self.assertEqual(rep["unresolved"], [])
+
+
 class Wiring(unittest.TestCase):
     """The step is in the workflow where it has to be: after `lake update` has downloaded the packages, before anything reads the library's imports, and the roots it adds reach the later steps."""
 
@@ -206,7 +269,7 @@ class Mutants(unittest.TestCase):
 
     def noticed(self, **patches):
         suite = unittest.TestSuite(
-            [unittest.defaultTestLoader.loadTestsFromTestCase(Basics), unittest.defaultTestLoader.loadTestsFromTestCase(Closure)]
+            [unittest.defaultTestLoader.loadTestsFromTestCase(Basics), unittest.defaultTestLoader.loadTestsFromTestCase(Closure), unittest.defaultTestLoader.loadTestsFromTestCase(Lifecycle)]
         )
         result = unittest.TestResult()
         saved = {k: getattr(vd, k) for k in patches}

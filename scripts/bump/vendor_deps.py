@@ -64,29 +64,31 @@ def read_licence(pkg_dir: Path) -> str | None:
     return None
 
 
-def package_src_dir(pkg_dir: Path) -> Path:
-    """Where a package keeps its modules: its `srcDir` when the lakefile names one, else its root."""
+def package_src_dirs(pkg_dir: Path) -> list[Path]:
+    """Where a package keeps its modules: every `srcDir` its lakefile names (a package with several `lean_lib` targets can have several), else its root."""
+    dirs: list[Path] = []
     for name in ("lakefile.toml", "lakefile.lean"):
         f = pkg_dir / name
         if f.is_file():
-            m = re.search(r'srcDir\s*(?:=|:=)\s*"([^"]+)"', f.read_text(errors="replace"))
-            if m:
-                return pkg_dir / m.group(1)
-    return pkg_dir
+            for m in re.finditer(r'srcDir\s*(?:=|:=)\s*"([^"]+)"', f.read_text(errors="replace")):
+                d = pkg_dir / m.group(1)
+                if d not in dirs:
+                    dirs.append(d)
+    return dirs or [pkg_dir]
 
 
 def index_package(pkg_dir: Path) -> dict[str, Path]:
     """module name -> file, for the package's own sources (not its dependencies' packages, tests, or build output)."""
-    src = package_src_dir(pkg_dir)
     out: dict[str, Path] = {}
-    if not src.is_dir():
-        return out
-    for p in sorted(src.rglob("*.lean")):
-        rel = p.relative_to(src)
-        parts = rel.with_suffix("").parts
-        if any(x in (".lake", "lake-packages", ".git") for x in parts) or rel.parts[0] in ("lakefile",) or len(parts) == 1 and parts[0].lower().startswith("lakefile"):
+    for src in package_src_dirs(pkg_dir):
+        if not src.is_dir():
             continue
-        out[".".join(tb.esc(x) for x in parts)] = p
+        for p in sorted(src.rglob("*.lean")):
+            rel = p.relative_to(src)
+            parts = rel.with_suffix("").parts
+            if any(x in (".lake", "lake-packages", ".git") for x in parts) or (len(parts) == 1 and parts[0].lower().startswith("lakefile")):
+                continue
+            out.setdefault(".".join(tb.esc(x) for x in parts), p)
     return out
 
 
@@ -108,9 +110,12 @@ def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISS
         if d.is_dir():
             pkgs[name] = {"dir": d, "url": p.get("url", ""), "rev": p.get("rev", ""), "index": index_package(d)}
 
-    # what an earlier run copied is still the package's, not the library's: the roots may have grown to include the copies, and the report must still say where they came from
+    # What an earlier run copied is the factory's to manage, not the library's: the roots may have grown to include the copies, the repair rounds may have edited them, and the
+    # dependency or the library's imports may have changed since. The marker (LIB/.vendored.json) says which files are ours.
     marker = lib / ".vendored.json"
-    earlier = {v["module"] for v in json.loads(marker.read_text()).get("vendored", [])} if marker.is_file() else set()
+    earlier: dict[str, dict] = {}
+    if marker.is_file():
+        earlier = {v["module"]: v for v in json.loads(marker.read_text()).get("vendored", [])}
     own = {m: f for m, f in own_modules(lib, roots).items() if m not in earlier}
     seen_own = set(own)
     queue = [m for m in own.values()]
@@ -148,14 +153,29 @@ def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISS
     for mod, (name, src) in sorted(vendored.items()):
         dst = lib / Path(*tb.split_mod(mod)).with_suffix(".lean")
         data = src.read_bytes()
+        ours = mod in earlier and earlier[mod].get("package") == name
+        same_pin = ours and earlier[mod].get("rev") == pkgs[name]["rev"]
         if dst.exists() and dst.read_bytes() != data:
-            report["conflicts"].append({"module": mod, "package": name, "path": str(dst.relative_to(lib))})
-            continue
-        if not dst.exists():
+            if not ours:
+                report["conflicts"].append({"module": mod, "package": name, "path": str(dst.relative_to(lib))})
+                continue
+            if same_pin:  # ours, at the same revision, edited since (a repair round): left as it is
+                report["vendored"].append({"module": mod, "package": name, "rev": pkgs[name]["rev"], "path": str(dst.relative_to(lib))})
+                continue
+            # ours, and the package moved on: the new revision replaces it
+        if not dst.exists() or dst.read_bytes() != data:
             dst.parent.mkdir(parents=True, exist_ok=True)
             dst.write_bytes(data)
             report["copied"] += 1
-        report["vendored"].append({"module": mod, "package": name, "path": str(dst.relative_to(lib))})
+        report["vendored"].append({"module": mod, "package": name, "rev": pkgs[name]["rev"], "path": str(dst.relative_to(lib))})
+    # a file we copied earlier that nothing reaches any more (the library or the dependency changed) is removed: it must not stay buildable
+    reached = {m for m in vendored}
+    for mod, v in earlier.items():
+        if mod not in reached:
+            stale = lib / v["path"]
+            if stale.is_file():
+                stale.unlink()
+                report.setdefault("removed", []).append(mod)
     done = {v["module"] for v in report["vendored"]}
     # a module that was not copied (a conflict) leaves what imports it unresolved; say so
     report["unresolved"] = sorted(unresolved | {m for m in vendored if m not in done})
@@ -169,8 +189,8 @@ def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISS
         }
     report["refused"] = [{"package": n, "reason": r} for n, r in sorted(refused.items())]
     report["roots"] = sorted({top(v["module"]) for v in report["vendored"]} - set(roots) - {top(m) for m in own})
-    if report["vendored"]:
-        marker.write_text(json.dumps({"vendored": report["vendored"]}, indent=1))
+    if report["vendored"] or marker.is_file():
+        marker.write_text(json.dumps({"vendored": sorted(report["vendored"], key=lambda v: v["module"])}, indent=1))
     return report
 
 
