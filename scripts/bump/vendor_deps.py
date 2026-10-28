@@ -224,7 +224,10 @@ def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISS
         name = p.get("name") or str(p.get("url", "")).rsplit("/", 1)[-1].removesuffix(".git")
         d = packages_dir / name
         if d.is_dir():
-            pkgs[name] = {"dir": d, "url": p.get("url", ""), "rev": p.get("rev", ""), "index": index_package(d)}
+            # a package can live in a subdirectory of its repository (`subDir` in the manifest): its modules, and its own LICENSE if it has one, are there
+            sub = p.get("subDir") or ""
+            root = d / sub if sub and ".." not in Path(sub).parts and not Path(sub).is_absolute() else d
+            pkgs[name] = {"dir": d, "root": root, "url": p.get("url", ""), "rev": p.get("rev", ""), "index": index_package(root)}
             at = pinned_commit(d)
             if at is not None and p.get("rev") and at != p.get("rev"):
                 pkgs[name]["index"] = {}  # not what the manifest pins: nothing of it is used
@@ -261,7 +264,7 @@ def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISS
                 continue
             name = owners[0]
             if name not in licence_of:
-                licence_of[name] = read_licence(pkgs[name]["dir"])
+                licence_of[name] = read_licence(pkgs[name]["root"]) or read_licence(pkgs[name]["dir"])
             if licence_of[name] not in permissive:
                 refused[name] = f"licence {licence_of[name] or 'not found or not recognised'}"
                 unresolved.add(dep)
