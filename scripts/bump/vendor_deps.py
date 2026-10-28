@@ -106,7 +106,7 @@ def hard_risks(text: str) -> list[str]:
     risks = []
     for msg in allowlist._token_violations(code):
         m = re.match(r"`([^`]+)`", msg)
-        if m and m.group(1) in SOFT_WORDS:
+        if m and (m.group(1) in SOFT_WORDS or m.group(1).startswith("#")):  # `#print axioms` and the like write a message and declare nothing: inert_commands.py takes them out
             continue
         risks.append(msg)
     attr_msgs, _ = allowlist._attribute_violations(code)
@@ -137,9 +137,14 @@ def pinned_commit(pkg_dir: Path) -> str | None:
     return r.stdout.strip() if r.returncode == 0 else None
 
 
-def fetch_missing(lib: Path, *, allow: tuple[str, ...] = FETCH_PREFIXES, run=subprocess.run) -> list[dict]:
+def _norm(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+def fetch_missing(lib: Path, *, wanted: set[str] | None = None, allow: tuple[str, ...] = FETCH_PREFIXES, run=subprocess.run) -> list[dict]:
     """Download the packages the manifest names and that are not on disk, at the pinned commit. Returns what was done, one entry per package; nothing is fetched that is not a
-    https://github.com/ URL at a full commit (a branch or a tag moves; a pinned commit is what was reviewed)."""
+    https://github.com/ URL at a full commit (a branch or a tag moves; a pinned commit is what was reviewed). With `wanted` (the top-level module names the library imports and does not have), only a
+    package whose name is one of them (case and punctuation aside: `algebraicAnalysis` provides `AlgebraicAnalysis`) is fetched: Mathlib, and the documentation tools a library requires, are not."""
     manifest_path = lib / "lake-manifest.json"
     done: list[dict] = []
     if not manifest_path.is_file():
@@ -151,6 +156,8 @@ def fetch_missing(lib: Path, *, allow: tuple[str, ...] = FETCH_PREFIXES, run=sub
         name = p.get("name") or url.rsplit("/", 1)[-1].removesuffix(".git")
         d = packages_dir / name
         if d.is_dir():
+            continue
+        if wanted is not None and _norm(name) not in {_norm(w) for w in wanted}:
             continue
         if not url.startswith(allow) or not _FULL_COMMIT.fullmatch(rev) or any(c in name for c in "/\\") or name in (".", ".."):
             done.append({"package": name, "fetched": False, "reason": "not a pinned https://github.com/ commit"})
@@ -198,7 +205,13 @@ def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISS
     if not manifest_path.is_file():
         return report
     if fetch:
-        report["fetched"] = fetch_missing(lib, allow=fetch_allow, run=fetch_run)
+        wanted: set[str] = set()
+        for f in own_modules(lib, roots).values():
+            for dep in tb.header_imports(f.read_text(errors="replace")):
+                t = tb.split_mod(dep)[0]
+                if t not in SEEDED and t not in {r for r in roots}:
+                    wanted.add(t)
+        report["fetched"] = fetch_missing(lib, wanted=wanted, allow=fetch_allow, run=fetch_run)
     manifest = json.loads(manifest_path.read_text())
     packages_dir = lib / manifest.get("packagesDir", ".lake/packages")
     pkgs: dict[str, dict] = {}
@@ -255,7 +268,8 @@ def vendor(lib: Path, roots: list[str], *, permissive: tuple[str, ...] = PERMISS
             if claimed is not None and claimed not in permissive:
                 risks = [f"the module's own header claims the licence {claimed}"] + risks
             if risks:
-                report["unsafe"].append({"module": dep, "package": name, "risks": risks[:6]})
+                if not any(u["module"] == dep for u in report["unsafe"]):
+                    report["unsafe"].append({"module": dep, "package": name, "risks": risks[:6]})
                 unresolved.add(dep)
                 continue
             vendored[dep] = (name, src)

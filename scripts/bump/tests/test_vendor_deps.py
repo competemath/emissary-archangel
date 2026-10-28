@@ -286,6 +286,18 @@ class Safety(unittest.TestCase):
             self.assertEqual(rep["unsafe"], [], body)
             self.assertTrue(module_path(lib, "Dep.X").exists(), body)
 
+    def test_a_hash_command_is_inert_and_does_not_keep_a_module_out(self):
+        lib, rep = self.run_one("def x := 1\n#print axioms x\n#check x\n")
+        self.assertEqual(rep["unsafe"], [])
+        self.assertTrue(module_path(lib, "Dep.X").exists())
+
+    def test_a_module_is_reported_once_however_many_modules_import_it(self):
+        t = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(t, ignore_errors=True))
+        lib = make(Path(t), {"Own.A": ["Dep.X"], "Own.B": ["Dep.X"], "Own.C": ["Dep.X"]}, {"dep": {"licence": APACHE, "files": {"Dep.X": []}}})
+        write(lib / ".lake/packages/dep", "Dep/X.lean", "unsafe def f : Nat := 1\n")
+        self.assertEqual([u["module"] for u in vd.vendor(lib, ["Own"])["unsafe"]], ["Dep.X"])
+
     def test_comments_and_strings_are_not_code(self):
         body = '/- unsafe def x, initialize, native_decide, elab "x" -/\n-- run_cmd foo\ndef s : String := "unsafe def initialize IO.Process"\n'
         lib, rep = self.run_one(body)
@@ -359,6 +371,19 @@ class Fetch(unittest.TestCase):
                 rep = vd.vendor(lib, ["Own"], fetch=True)  # the default host list: github.com only
                 self.assertEqual([f["fetched"] for f in rep["fetched"]], [False], (url, rev))
                 self.assertFalse((lib / ".lake/packages/dep").exists())
+
+    def test_only_the_packages_the_library_imports_from_are_fetched(self):
+        with tempfile.TemporaryDirectory() as t:
+            remote, head = self.remote(Path(t))
+            lib = Path(t) / "lib"
+            write(lib, "Own/A.lean", "public import DepThing.X\nimport Mathlib.Algebra\n")
+            (lib / "lake-manifest.json").write_text(json.dumps({"packagesDir": ".lake/packages", "packages": [
+                {"name": "mathlib", "url": f"file://{remote}", "rev": head},
+                {"name": "doc-gen4", "url": f"file://{remote}", "rev": head},
+                {"name": "dep_thing", "url": f"file://{remote}", "rev": head}]}))
+            rep = vd.vendor(lib, ["Own"], fetch=True, fetch_allow=("file://",))
+            self.assertEqual([f["package"] for f in rep["fetched"]], ["dep_thing"])
+            self.assertFalse((lib / ".lake/packages/mathlib").exists() or (lib / ".lake/packages/doc-gen4").exists())
 
     def test_a_failed_fetch_leaves_nothing_behind(self):
         with tempfile.TemporaryDirectory() as t:
