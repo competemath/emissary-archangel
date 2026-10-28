@@ -10,6 +10,7 @@ What is removed, and why it cannot change what a theorem says:
   * a `#`-command that PRINTS, CHECKS or MEASURES (`#print`, `#check`, `#eval`, `#reduce`, `#synth`, `#find`, `#exit`, `#help`, `#lint`, `#time`, `#guard…`, `#adaptation_note`, …): it
     writes a message and declares nothing a theorem could name. Only a command that starts a line at column 0 is removed, with the indented lines that continue it; one in the middle of a
     line, or inside a proof, is left and the lint keeps refusing it (an honest refusal, never a guess).
+  * `#guard_msgs … in` wraps the next command: only that line goes, not the command it wraps.
   * `set_option linter.X v` (a line of its own, or `set_option linter.X v in`) for an option that is NOT on the allow-list: a linter option decides which WARNINGS are printed. It does not
     change how anything elaborates. (An option that is on the allow-list stays, and so does every other `set_option`: `maxHeartbeats` and `autoImplicit` DO change what compiles.)
 
@@ -37,6 +38,7 @@ INERT_HASH = (
 _HASH_LINE = re.compile(r"#(" + "|".join(INERT_HASH) + r")(?![\w'!?])")
 _LINTER_SET = re.compile(r"set_option[ \t]+(linter\.[\w.]+)[ \t]+(?:true|false)\b")
 _IN = re.compile(r"[ \t]+in\b")
+_LINTER_IN = re.compile(r"set_option[ \t]+(linter\.[\w.]+)[ \t]+(?:true|false)[ \t]+in\b")
 
 
 def repair(text: str, allowed_options: set[str]) -> tuple[str, list[dict]]:
@@ -52,7 +54,9 @@ def repair(text: str, allowed_options: set[str]) -> tuple[str, list[dict]]:
         m = _HASH_LINE.match(cl)
         if m:  # the pattern is anchored at column 0
             j = i + 1
-            while j < len(lines) and lines[j][:1] in (" ", "\t") and code[j].strip():
+            # `#guard_msgs … in` WRAPS the command after it: only the wrapper line goes, never what it wraps (an indented declaration below it is not its continuation)
+            wrapper = m.group(1) == "guard_msgs" and cl.rstrip().endswith(" in")
+            while not wrapper and j < len(lines) and lines[j][:1] in (" ", "\t") and code[j].strip():
                 j += 1
             removed.append({"line": i + 1, "kind": "#" + m.group(1), "text": " ".join(s.strip() for s in lines[i:j])[:200]})
             i = j
@@ -64,16 +68,16 @@ def repair(text: str, allowed_options: set[str]) -> tuple[str, list[dict]]:
                 removed.append({"line": i + 1, "kind": "set_option " + s.group(1), "text": line.strip()[:200]})
                 i += 1
                 continue
-            if _IN.fullmatch(rest.rstrip()) or _IN.match(rest):
-                lead = len(cl) - len(cl.lstrip())
-                tail = rest[_IN.match(rest).end():]
-                removed.append({"line": i + 1, "kind": "set_option " + s.group(1) + " in", "text": line.strip()[:200]})
-                # the phrase goes, what followed it on the line stays (a declaration may start there); a line that held only the phrase goes with it
-                keep = line[:lead] + tail.lstrip() if tail.strip() else ""
-                if keep.strip():
-                    out.append(keep)
-                i += 1
-                continue
+            if _IN.match(rest):
+                # the phrase is cut out of the ORIGINAL line (the code line has its strings blanked, so what follows the phrase must not be taken from it)
+                phrase = _LINTER_IN.search(line)
+                if phrase and phrase.group(1) == s.group(1):
+                    removed.append({"line": i + 1, "kind": "set_option " + s.group(1) + " in", "text": line.strip()[:200]})
+                    keep = line[: phrase.start()] + line[phrase.end():].lstrip(" \t")
+                    if keep.strip():
+                        out.append(keep)
+                    i += 1
+                    continue
         out.append(line)
         i += 1
     return "\n".join(out), removed

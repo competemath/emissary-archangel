@@ -14257,7 +14257,12 @@ async function recurseOneEntry(entry, opts) {
   const done = (outcome, v) => ({ id: entry.id, outcome, ...verdictFields(v) })
   let mech = null // the last mechanical attempt, so that an entry that goes on to the agent (or waits for it) says why
   const tryOpts = { source, repoRoot, verifyUrl, archangelUrl, moduleName, qualifiedName, bareName, timeoutMs, emit }
-  const cached = prefixCache[entry.sourcePath]
+  // A prefix marked broken by an older generation of the mechanical remedies is not believed any more: the remedies have changed since (a repeated attribute at the junction made whole
+  // files look broken), and a mark that was never re-checked would keep every later entry of the file from being tried. Collisions and a cached fix are kept.
+  const { MECHANICS_VERSION } = await leanRepairs()
+  const raw = prefixCache[entry.sourcePath]
+  const staleBroken = raw?.status === "broken" && !raw.fixedPrefix && (raw.mechanics ?? 0) < MECHANICS_VERSION
+  const cached = staleBroken ? (raw.collisions ? { checkedAt: raw.checkedAt, collisions: raw.collisions } : undefined) : raw
   // Every corpus-side name this module's declarations reach (its own AND its
   // corpus imports') — the set a Leak IV "already been declared" is checked
   // against to recognise a Mathlib clash as terminal.
@@ -14365,7 +14370,7 @@ async function recurseOneEntry(entry, opts) {
       const prefixLines = prefix.split("\n").length
       const errLines = Array.from(String(r.leakText || "").matchAll(/Line (\d+) \((?:Error|error)\)/g)).map((m) => Number(m[1]))
       if (errLines.length && errLines.some((l) => l <= prefixLines)) {
-        prefixCache[entry.sourcePath] = { status: "broken", checkedAt: new Date().toISOString() }
+        prefixCache[entry.sourcePath] = { status: "broken", mechanics: MECHANICS_VERSION, checkedAt: new Date().toISOString() }
         savePrefixCache(prefixCache)
       }
     }

@@ -50,6 +50,11 @@ await check("an attribute that goes over several lines is not guessed at", () =>
   assert.equal(J(p, "@[simp,\n  reducible]\ntheorem t : True := trivial"), p)
 })
 
+await check("a CRLF source: the repeated attribute is found with its \\r", () => {
+  assert.equal(J("x\r\n@[simp]\r\n", "@[simp]\r\ntheorem t : True := trivial"), "x\r\n")
+  assert.equal(J("x\r\n@[simp]\r\n\r\n", "@[simp]\r\ntheorem t : True := trivial\r\n"), "x\r\n\r\n")
+})
+
 function rng(seed) {
   let s = seed >>> 0
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32)
@@ -75,7 +80,11 @@ await check("random prefixes and entries: idempotent, only attribute lines go, t
       assert.ok(i < inLines.length, "order " + msg)
       i++
     }
-    for (const l of inLines) if (!outLines.includes(l)) assert.match(l, /^\s*@\[.*\]\s*$/, "only attribute lines go " + msg)
+    // multiplicities: every line that is not an attribute line is still there as many times as it was written (`includes` alone would pass a repair that dropped one copy of a repeated line)
+    const count = (a) => a.reduce((m, l) => m.set(l, (m.get(l) || 0) + 1), new Map())
+    const ci = count(inLines), co = count(outLines)
+    for (const [l, n] of ci) if (!/^\s*@\[.*\]\s*$/.test(l)) assert.ok((co.get(l) || 0) >= n, "a line was lost: " + JSON.stringify(l) + " " + msg)
+    for (const [l, n] of co) assert.ok((ci.get(l) || 0) >= n, "a line was added " + msg)
     // nothing the entry carries is also at the end of the prefix
     const trailing = []
     const ol = out.split("\n")
@@ -84,6 +93,24 @@ await check("random prefixes and entries: idempotent, only attribute lines go, t
     while (e > 0 && /^\s*@\[.*\]\s*$/.test(ol[e - 1])) trailing.push(ol[--e].trim())
     for (const t of trailing) assert.ok(!lead.includes(t), "a repeated attribute is left " + msg)
   }
+})
+
+// ---- the worker: one Python process for the whole run ---------------------------------------------------------------------------------------------------------------------------------
+await check("many requests at once are answered, each its own (one worker, answers matched by id)", async () => {
+  const texts = Array.from({ length: 60 }, (_, i) => (i % 2 ? `theorem t${i} : True := trivial\n` : `theorem t${i} : True := trivial\n#print axioms t${i}\n`))
+  const res = await Promise.all(texts.map((t) => policyCheck(t)))
+  res.forEach((v, i) => assert.equal(v.length > 0, i % 2 === 0, `request ${i}`))
+})
+
+await check("a worker that dies is replaced by the next request, and the requests it held fail loudly", async () => {
+  const lr = await import("../lib/lean-repairs.mjs?restart")
+  assert.deepEqual(await lr.policyCheck("theorem a : True := trivial\n"), [])
+  const pid = lr.workerPid()
+  assert.ok(pid, "there is a worker")
+  process.kill(pid, "SIGKILL")
+  await new Promise((r) => setTimeout(r, 300))
+  assert.notEqual(lr.workerPid(), pid)
+  assert.deepEqual(await lr.policyCheck("theorem a : True := trivial\n#print axioms a\n").then((v) => v.length > 0), true)
 })
 
 // ---- the one lint -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -165,6 +192,22 @@ await check("a half-written last line does not stop a run", () => {
 await check("ledgerRow stamps a deferred-agent row with the generation and no other row", () => {
   assert.equal(ledgerRow({ id: 1, name: "a", sourcePath: "p", outcome: "deferred-agent", reason: "lint_refused" }).mechanics, MECHANICS_VERSION)
   assert.equal("mechanics" in ledgerRow({ id: 1, name: "a", sourcePath: "p", outcome: "mechanical" }), false)
+})
+
+await check("the prefix cache is stamped with the generation, and a mark from an older one is not believed (the bridge)", () => {
+  const b = readFileSync(new URL("../public/local-claude-bridge.mjs", import.meta.url), "utf8")
+  assert.match(b, /status: "broken", mechanics: MECHANICS_VERSION/)
+  assert.match(b, /\(raw\.mechanics \?\? 0\) < MECHANICS_VERSION/)
+  assert.ok(b.indexOf("const staleBroken") < b.indexOf("const cached = staleBroken"))
+})
+
+await check("translate-finish stamps the mechanical status with the generation and translate-all dispatches again when it is older", () => {
+  const f = readFileSync(new URL("./translate-finish.mjs", import.meta.url), "utf8")
+  assert.match(f, /mode === "mechanical" \? \{ mechanics: MECHANICS_VERSION \}/)
+  const w = readFileSync(new URL("../.github/workflows/translate-all.yml", import.meta.url), "utf8")
+  assert.match(w, /m == "mechanical" and st\[m\]\.get\("mechanics", 0\) < MECHANICS/)
+  assert.match(w, /MECHANICS = int\(re\.search\(r"export const MECHANICS_VERSION = \(\\d\+\)"/)
+  assert.match(w, /sparse-checkout: "data\/translate\\nlib"/)  // the step reads lib/lean-repairs.mjs
 })
 
 await check("queue-server uses the shared rules and keeps no copy of them", () => {

@@ -78,12 +78,20 @@ class Invariants(unittest.TestCase):
     def test_only_inert_lines_go_and_the_rest_is_in_order(self):
         rng = random.Random(1)
         for _ in range(400):
-            text, _ = build(rng, rng.randint(1, 9))
+            text, used = build(rng, rng.randint(1, 9))
             out, removed = run(text)
             it = iter(text.split("\n"))
             for line in out.split("\n"):
                 self.assertTrue(any(line == src for src in it), f"line not found in order: {line!r}\n--- in\n{text}\n--- out\n{out}")
-            self.assertEqual(len(text.split("\n")) - len(out.split("\n")) >= 0, True)
+            # nothing that is not inert is lost: the lines of every kept fragment are all still there, as many times as they were written (a subsequence alone would pass a repair that
+            # also deleted declarations)
+            from collections import Counter
+
+            want = Counter(l for frag in used if frag not in INERT for l in frag.split("\n") if l.strip())
+            have = Counter(l for l in out.split("\n") if l.strip())
+            self.assertFalse(want - have, f"lines lost: {want - have}\n--- in\n{text}\n--- out\n{out}")
+            # and nothing is added
+            self.assertFalse(have - want, f"lines added: {have - want}")
 
     def test_nothing_inert_means_byte_for_byte(self):
         rng = random.Random(2)
@@ -153,12 +161,55 @@ class Invariants(unittest.TestCase):
             self.assertEqual(run(text)[0], text)
 
 
+class Wrappers(unittest.TestCase):
+    def test_guard_msgs_in_loses_only_its_own_line_never_what_it_wraps(self):
+        out, removed = run("#guard_msgs in\n  example : True := trivial\ntheorem t : True := trivial\n")
+        self.assertEqual(out, "  example : True := trivial\ntheorem t : True := trivial\n")
+        self.assertEqual([r["kind"] for r in removed], ["#guard_msgs"])
+        out, _ = run("#guard_msgs (drop info) in\ntheorem t : True := trivial\n")
+        self.assertEqual(out, "theorem t : True := trivial\n")
+
+    def test_a_string_after_the_removed_phrase_is_kept_as_written(self):
+        out, _ = run('set_option linter.haveILetI false in def s : String := "set_option  in  #print"\n')
+        self.assertEqual(out, 'def s : String := "set_option  in  #print"\n')
+        out, _ = run('set_option linter.haveILetI false in def s : String := "abc"\n')
+        self.assertEqual(out, 'def s : String := "abc"\n')
+
+    def test_a_crlf_text_is_handled_line_by_line(self):
+        out, removed = run("#print axioms a\r\ntheorem a : True := trivial\r\n")
+        self.assertEqual(out, "theorem a : True := trivial\r\n")
+        self.assertEqual(len(removed), 1)
+
+
 class Cli(unittest.TestCase):
     def test_repair_answers_with_the_text_the_removals_and_what_is_left(self):
         a = lint_cli.answer("repair", "import Mathlib\n#print axioms a\ntheorem a : True := trivial\n")
         self.assertEqual(a["text"], "import Mathlib\ntheorem a : True := trivial\n")
         self.assertEqual([r["kind"] for r in a["removed"]], ["#print"])
         self.assertEqual(a["violations"], [])
+
+    def test_removals_are_numbered_by_the_lines_of_the_whole_text(self):
+        a = lint_cli.answer("repair", "import Mathlib\nimport Foo\n\n#print axioms a\ntheorem a : True := trivial\n")
+        self.assertEqual([r["line"] for r in a["removed"]], [4])
+
+    def test_serve_answers_one_line_per_request_and_survives_a_bad_one(self):
+        import io
+        import json as j
+
+        reqs = [j.dumps({"id": 1, "mode": "check", "text": "#print axioms a\n"}), "not json", j.dumps({"id": 3, "mode": "nope", "text": ""}), j.dumps({"id": 4, "mode": "repair", "text": "#check a\ntheorem a : True := trivial\n"})]
+        out = io.StringIO()
+        old_in, old_out = sys.stdin, sys.stdout
+        sys.stdin, sys.stdout = io.StringIO("\n".join(reqs) + "\n"), out
+        try:
+            lint_cli.serve()
+        finally:
+            sys.stdin, sys.stdout = old_in, old_out
+        answers = [j.loads(l) for l in out.getvalue().splitlines()]
+        self.assertEqual([a.get("id") for a in answers], [1, None, 3, 4])
+        self.assertTrue(answers[0]["result"]["violations"])
+        self.assertIn("error", answers[1])
+        self.assertIn("error", answers[2])
+        self.assertEqual(answers[3]["result"]["text"], "theorem a : True := trivial\n")
 
     def test_check_does_not_edit(self):
         a = lint_cli.answer("check", "#print axioms a\ntheorem a : True := trivial\n")
