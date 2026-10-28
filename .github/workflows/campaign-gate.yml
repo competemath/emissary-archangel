@@ -1,0 +1,69 @@
+# A change to the pipeline is trusted only when its tooling has RUN for real: this check waits for the campaign that competemath/emissary-sandbox runs for the pull request's head commit
+# (the tooling at that commit, on a canary library with the failures that cost real runs) and verifies the ATTESTATION of its result (Sigstore build provenance of the sandbox's own workflow).
+#
+# pull_request_target on purpose: the workflow that runs is the one on the BASE branch, so a pull request cannot weaken its own gate; and nothing of the pull request is checked out or run
+# here (the gate only talks to the public sandbox). The campaign itself runs the change's code in the sandbox, which has no secrets.
+#
+# Making this check REQUIRED is a branch-protection setting of the repository, not something a workflow can do.
+name: campaign-gate
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths: ["scripts/**", "lib/**", "gate2/**", "public/local-claude-bridge.mjs", ".github/workflows/**", "sources.json"]
+permissions: {}
+defaults:
+  run:
+    shell: bash
+concurrency: { group: "campaign-gate-${{ github.event.pull_request.number }}", cancel-in-progress: true }
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    permissions: { contents: read }
+    env:
+      SHA: ${{ github.event.pull_request.head.sha }}
+      SANDBOX: competemath/emissary-sandbox
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Wait for the campaign of this commit
+        run: |
+          set -euo pipefail
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::not a commit sha"; exit 1; }
+          started=$(date +%s)
+          while :; do
+            row=$(gh run list -R "$SANDBOX" --workflow campaign.yml --limit 300 --json databaseId,displayTitle,status --jq ".[] | select(.displayTitle == \"campaign $SHA\") | \"\(.databaseId) \(.status)\"" | head -n 1 || true)
+            if [ -n "$row" ] && [ "${row#* }" = completed ]; then echo "RUN=${row%% *}" >> "$GITHUB_ENV"; break; fi
+            waited=$(( $(date +%s) - started ))
+            # the sandbox looks for pull requests every 15 minutes: a campaign that has not even started after 30 is not coming
+            if [ -z "$row" ] && [ "$waited" -gt 1800 ]; then echo "::error::no campaign was started for $SHA after 30 minutes (see $SANDBOX)"; exit 1; fi
+            [ "$waited" -lt 5700 ] || { echo "::error::the campaign for $SHA did not finish in 95 minutes"; exit 1; }
+            echo "waiting ($waited s): ${row:-no run yet}"; sleep 60
+          done
+      - name: The result and its attestation
+        run: |
+          set -euo pipefail
+          gh run download "$RUN" -R "$SANDBOX" -n "result-$SHA" -D result || { echo "::error::the campaign left no result for $SHA (its run: https://github.com/$SANDBOX/actions/runs/$RUN)"; exit 1; }
+          # the attestation is the sandbox's own workflow, from its main branch: nothing else counts
+          gh attestation verify result/result.json -R "$SANDBOX" --signer-workflow "$SANDBOX/.github/workflows/campaign.yml" --source-ref refs/heads/main
+          gh api "repos/$SANDBOX/contents/canary/expected.json?ref=main" -H "Accept: application/vnd.github.raw" | sha256sum | cut -d' ' -f1 > expected.sha256
+      - name: The verdict
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          r = json.load(open("result/result.json"))
+          want = open("expected.sha256").read().strip()
+          problems = []
+          if r.get("emissary_sha") != os.environ["SHA"]:
+              problems.append(f"the result is for {r.get('emissary_sha')}, not {os.environ['SHA']}")
+          if r.get("emissary_repo") != "competemath/emissary-archangel":
+              problems.append(f"the result is for {r.get('emissary_repo')}")
+          if r.get("expected_sha256") != want:
+              problems.append("the campaign was judged against an expectation that has changed since: ask for a new campaign (a push to the sandbox's main, or dispatch it)")
+          if not r.get("ok"):
+              problems.append("the campaign failed: " + "; ".join((r.get("verdict") or {}).get("failures") or ["no reason recorded"]))
+          if problems:
+              print("::error::" + " | ".join(problems))
+              sys.exit(1)
+          v = r["verdict"]
+          print(f"campaign ok for {os.environ['SHA']}: enforced {v.get('enforced')}, skipped {v.get('skipped')}")
+          PY
