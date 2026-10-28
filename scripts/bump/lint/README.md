@@ -7,3 +7,5 @@ tree's Lean, schemas/command-keywords.json in tengoku, which the exact column-0 
 2026-10-18: the copy has `unscoped_violations` as well (tengoku scripts/ci/allowlist.py): a notation, `macro` or `syntax` command without `scoped` or `local` is refused by tengoku's lint in
 every mode, and `bundle.py compose` runs the same check on the text it ships, after `scope_bundle.py` has scoped what it can. Refresh it with the rest of the file (the functions
 `unscoped_violations` and its two patterns are appended at the end of tengoku's allowlist.py).
+
+2026-10-28: refreshed from tengoku main: the same rules; `allowlist.py` now has the column-0 reading in a helper (`_command_lead`) and longer comments, `command-keywords.json` a longer `about`. The daily lint-drift check (`scripts/check-lint-drift.mjs`) says when this copy and tengoku differ.
