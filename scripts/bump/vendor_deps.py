@@ -85,6 +85,8 @@ def read_licence(pkg_dir: Path) -> str | None:
     for name in _LICENCE_FILES:
         f = pkg_dir / name
         if f.is_file():
+            if f.is_symlink() or not inside(pkg_dir, f):  # a LICENSE that is a link out of the package would lend it somebody else's licence
+                return None
             text = f.read_text(errors="replace")
             for spdx, rx in _SIGNATURES:
                 if rx.search(text):
