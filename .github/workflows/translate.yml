@@ -42,7 +42,7 @@ env:
 
 jobs:
   plan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}
     outputs:
@@ -59,7 +59,7 @@ jobs:
 
   translate:
     needs: plan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 350
     permissions: { contents: read }
     strategy:
@@ -94,7 +94,7 @@ jobs:
         with: { node-version: "22" }
       - name: elan
         run: |
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: The Tengoku tree, compiled (its attested cache)
         env: { GH_TOKEN: "${{ github.token }}" }   # gh attestation verify
@@ -150,7 +150,7 @@ jobs:
           tail -3 leak-iv.log; tail -3 gate2.log
       - name: The agent (agent mode only)
         if: inputs.mode == 'agent'
-        run: npm install -g -q @anthropic-ai/claude-code && claude --version
+        run: npm install -g -q @anthropic-ai/claude-code@2.1.312 && claude --version
       - name: Translate this shard
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.mode == 'agent' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
@@ -193,7 +193,7 @@ jobs:
   finish:
     needs: translate
     if: always() && needs.translate.result != 'cancelled'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions: { contents: write, actions: write }   # the ledger and the bank, committed here; the next dispatch
     steps:
