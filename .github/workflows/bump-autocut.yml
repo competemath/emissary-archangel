@@ -39,7 +39,7 @@ defaults:
     shell: bash
 jobs:
   propose:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions: { contents: read, actions: read }  # actions: the bump run's artifacts, and the logs of the queue's run on the tree (public)
     env:
@@ -122,7 +122,7 @@ jobs:
   recut:
     needs: propose
     if: ${{ needs.propose.outputs.go == 'true' && inputs.recut == 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: { actions: write }  # dispatch bump-library.yml; nothing else
     env:
