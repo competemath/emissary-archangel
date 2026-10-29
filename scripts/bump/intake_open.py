@@ -35,6 +35,7 @@ TARGET = "competemath/tengoku"
 BRANCH = re.compile(r"^intake/(?P<key>.+)-(?P<run>\d{9,})(?:-part-(?P<part>\d+))?$")
 RUN_TITLE = re.compile(r"^bump(?:-sharded)? (?P<key>\S+?)(?P<tree> \(from tree\))?$")  # a recut that continues after what the tree has says so in its title (bump-sharded.yml, bump-library.yml)
 OF_TOTAL = re.compile(r"part (\d+) of (\d+)")
+MAIN = "main"
 KEEP = timedelta(hours=72)  # the factory's artifacts are kept 3 days
 
 
@@ -66,6 +67,8 @@ def newest_bundles(rows: list[dict], now: datetime) -> dict[str, tuple[int, str,
     for r in rows:
         m = RUN_TITLE.match(r["displayTitle"])
         if not m or r["conclusion"] != "success":
+            continue
+        if r.get("headBranch") != MAIN:  # only code that was reviewed and merged opens pull requests: a trial run from a feature branch (stafford38-formal 2026-10-28) has no parts and failed every tick for a day
             continue
         if now - datetime.fromisoformat(r["createdAt"].replace("Z", "+00:00")) > KEEP:
             continue
@@ -142,7 +145,7 @@ class Gh:
     def runs(self) -> list[dict]:
         rows: list[dict] = []
         for wf in ("bump-library.yml", "bump-sharded.yml"):
-            rows += self.json("run", "list", "-R", self.factory, "--workflow", wf, "--status", "success", "--limit", "200", "--json", "databaseId,displayTitle,conclusion,createdAt")
+            rows += self.json("run", "list", "-R", self.factory, "--workflow", wf, "--status", "success", "--limit", "200", "--json", "databaseId,displayTitle,conclusion,createdAt,headBranch")
         return rows
 
     def opened_since(self, since: datetime) -> int:

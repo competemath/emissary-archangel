@@ -34,7 +34,7 @@ class ParsePrs(unittest.TestCase):
 
 class NewestBundles(unittest.TestCase):
     def run_row(self, run, title, concl="success", hours_ago=1):
-        return {"databaseId": run, "displayTitle": title, "conclusion": concl, "createdAt": (NOW - timedelta(hours=hours_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")}
+        return {"databaseId": run, "displayTitle": title, "conclusion": concl, "headBranch": "main", "createdAt": (NOW - timedelta(hours=hours_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")}
 
     def test_the_newest_successful_run_of_each_library_from_either_workflow(self):
         got = io.newest_bundles([self.run_row(1, "bump a", hours_ago=5), self.run_row(2, "bump-sharded a", hours_ago=2), self.run_row(3, "bump b")], NOW)
@@ -43,6 +43,22 @@ class NewestBundles(unittest.TestCase):
     def test_a_failed_run_an_expired_one_and_another_title_do_not_count(self):
         got = io.newest_bundles([self.run_row(1, "bump a", concl="failure"), self.run_row(2, "bump b", hours_ago=73), self.run_row(3, "translate-all"), self.run_row(4, "bump c", hours_ago=71)], NOW)
         self.assertEqual(list(got), ["c"])
+
+    def test_a_run_from_a_feature_branch_never_counts_even_when_it_is_newer(self):
+        """stafford38-formal 2026-10-28: a trial bump dispatched from a feature branch was the newest run, had no parts, and made this workflow fail every ten minutes."""
+        trial = dict(self.run_row(9, "bump a", hours_ago=1), headBranch="feat/upstream-duplicate-removal")
+        got = io.newest_bundles([self.run_row(1, "bump a", hours_ago=5), trial, dict(self.run_row(2, "bump b"), headBranch="feat/x")], NOW)
+        self.assertEqual({k: v[0] for k, v in got.items()}, {"a": 1})
+
+    def test_a_row_that_does_not_say_its_branch_does_not_count(self):
+        row = self.run_row(1, "bump a")
+        del row["headBranch"]
+        self.assertEqual(io.newest_bundles([row], NOW), {})
+
+    def test_the_listing_asks_for_the_branch(self):
+        """without headBranch in --json every row would be dropped (or, before this check existed, trusted)"""
+        src = open(io.__file__).read()
+        self.assertIn("databaseId,displayTitle,conclusion,createdAt,headBranch", src)
 
 
 class Decide(unittest.TestCase):
@@ -114,7 +130,7 @@ class FakeGh:
 
 
 def run_row(run, key, hours_ago):
-    return {"databaseId": run, "displayTitle": f"bump {key}", "conclusion": "success", "createdAt": (NOW - timedelta(hours=hours_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")}
+    return {"databaseId": run, "displayTitle": f"bump {key}", "conclusion": "success", "headBranch": "main", "createdAt": (NOW - timedelta(hours=hours_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")}
 
 
 def args(**kw):
@@ -197,9 +213,9 @@ class FromTreeRecuts(unittest.TestCase):
 
     def test_the_title_of_a_from_tree_recut_is_read(self):
         rows = [
-            {"databaseId": 1, "displayTitle": "bump-sharded openai-math (from tree)", "conclusion": "success", "createdAt": "2026-10-10T12:00:00Z"},
-            {"databaseId": 2, "displayTitle": "bump-sharded lean-pool", "conclusion": "success", "createdAt": "2026-10-10T11:00:00Z"},
-            {"databaseId": 3, "displayTitle": "bump complexitylib (from tree)", "conclusion": "success", "createdAt": "2026-10-10T10:00:00Z"},
+            {"databaseId": 1, "displayTitle": "bump-sharded openai-math (from tree)", "conclusion": "success", "headBranch": "main", "createdAt": "2026-10-10T12:00:00Z"},
+            {"databaseId": 2, "displayTitle": "bump-sharded lean-pool", "conclusion": "success", "headBranch": "main", "createdAt": "2026-10-10T11:00:00Z"},
+            {"databaseId": 3, "displayTitle": "bump complexitylib (from tree)", "conclusion": "success", "headBranch": "main", "createdAt": "2026-10-10T10:00:00Z"},
         ]
         got = io.newest_bundles(rows, NOW)
         self.assertEqual({k: (v[0], v[2]) for k, v in got.items()}, {"openai-math": (1, True), "lean-pool": (2, False), "complexitylib": (3, True)})
