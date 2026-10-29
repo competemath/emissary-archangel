@@ -277,7 +277,7 @@ jobs:
   report-stall:
     needs: build-gate
     if: always() && inputs.bank_run == '' && needs.build-gate.outputs.stalled == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions: { issues: write }
     steps:
