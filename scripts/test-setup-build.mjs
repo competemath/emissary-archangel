@@ -40,6 +40,7 @@ const root = join(tmp, "root")
 mkdirSync(join(root, "scripts"), { recursive: true })
 mkdirSync(join(root, "data"), { recursive: true })
 cpSync(join(here, "setup-source.mjs"), join(root, "scripts", "setup-source.mjs"))
+cpSync(join(here, "setup-tools.mjs"), join(root, "scripts", "setup-tools.mjs"))
 writeFileSync(join(root, "sources.json"), JSON.stringify({ sources: { t: { repo: lib, commit, toolchain: TC, roots: ["Lib"] } } }))
 writeFileSync(join(root, "data", "queue-t.json"), JSON.stringify([
   { id: 1, name: "a", sourcePath: "Lib/A.lean", sourceLine: 1, status: "pending" },
@@ -132,6 +133,34 @@ check("a shard without its build fails", r.status !== 0 && /no build to restore/
 // 7. an unknown phase is still refused
 r = setup(["--phase", "bulid"])
 check("an unknown phase is refused", r.status !== 0 && /build-status/.test(r.stderr), r.stderr)
+
+// 7b. the finish phase writes the record, with the tools the shards say produced it (the finish job runs no Lean, so it can only pass on what they recorded)
+{
+  const exportsDir = join(root, "data", "exports", "t")
+  const shardsDir = join(exportsDir, ".shards")
+  mkdirSync(shardsDir, { recursive: true })
+  for (const m of ["Lib.A", "Lib.B"]) writeFileSync(join(exportsDir, `${m}.ndjson`), "")
+  const rec = (i, extra) => writeFileSync(join(shardsDir, `${i}-of-2.json`), JSON.stringify({ shard: i, shards: 2, commit, toolchain: TC, modules: 1, exported: 1, failed: [], expansion: {}, minutes: 1, ...extra }))
+  const tools = (over = {}) => ({ lean: "4.0.0 (commit abc, x)", lake: "5.0.0", elan: "4.1.2", lean4export: "0123456789ab + batch patch aaaaaaaaaaaa", node: "v22.1.0", runnerImage: "ubuntu26/20261012.163.1", ...over })
+  const record = () => JSON.parse(readFileSync(join(root, "infra", "t", "setup.json"), "utf8"))
+  rec(0, { tools: tools() })
+  rec(1, { tools: tools() })
+  r = setup(["--phase", "finish"])
+  let rec1 = r.status === 0 ? record() : null
+  check("finish: the tools the shards agree on are in the record, field for field", rec1 && JSON.stringify(rec1.tools) === JSON.stringify(tools()), r.stdout + r.stderr)
+  check("finish: the record keeps every field the readers use (key, repo, commit, toolchain, roots, modules, exported, failed)", rec1 && ["key", "repo", "commit", "toolchain", "roots", "modules", "exported", "failed"].every((k) => k in rec1) && rec1.exported === 2 && rec1.failed.length === 0, rec1 && Object.keys(rec1))
+  rec(1, { tools: tools({ runnerImage: "ubuntu24/20261001.1.1", node: "v22.2.0" }) })
+  r = setup(["--phase", "finish"])
+  rec1 = record()
+  check("finish: shards on different images or nodes leave both values on file", rec1.tools.runnerImage === "ubuntu24/20261001.1.1 | ubuntu26/20261012.163.1" && rec1.tools.node === "v22.1.0 | v22.2.0" && rec1.tools.lean === tools().lean, rec1.tools)
+  rec(0, {})
+  rec(1, {})
+  r = setup(["--phase", "finish"])
+  rec1 = record()
+  check("finish: records from before the tools were written give a record without a tools field, not an invented one", r.status === 0 && !("tools" in rec1), rec1.tools)
+  rmSync(shardsDir, { recursive: true, force: true })
+  for (const m of ["Lib.A", "Lib.B"]) rmSync(join(exportsDir, `${m}.ndjson`), { force: true })
+}
 
 // 8. the machine's memory runs out (several processes each under the per-process limit): the biggest process is
 // killed at once instead of the runner dying. Linux only (it reads /proc/meminfo); asking for more free memory than any
