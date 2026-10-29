@@ -1,0 +1,27 @@
+# The unit tests of the drift check (scripts/test-lint-drift.mjs): the comparison on in-memory file maps, with mutants, an offline fixture, the workflow's permissions. No network.
+name: lint-drift-tests
+on:
+  push:
+    branches: [main]
+    paths: ["scripts/check-lint-drift.mjs", "scripts/test-lint-drift.mjs", "scripts/bump/lint/**", "scripts/fixtures/lint-drift/**", ".github/workflows/lint-drift*.yml", ".github/workflows/lint-drift*.yaml"]
+  pull_request:
+    paths: ["scripts/check-lint-drift.mjs", "scripts/test-lint-drift.mjs", "scripts/bump/lint/**", "scripts/fixtures/lint-drift/**", ".github/workflows/lint-drift*.yml", ".github/workflows/lint-drift*.yaml"]
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout: |
+            scripts
+            .github/workflows
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: "22" }
+      - run: node scripts/test-lint-drift.mjs
