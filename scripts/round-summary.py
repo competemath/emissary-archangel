@@ -14,9 +14,15 @@ def main(path, title="Build round", every=60):
     top = [(t, r["time"], r["top_name"]) for r in rows if (t := num(r, "top_mb")) is not None]
     out = [f"### {title}", "", f"- samples: {len(rows)} (from {rows[0]['time']} to {rows[-1]['time']} UTC)"]
     if built:
-        out.append(f"- modules built (.olean files): {built[0]} at the start, {built[-1]} at the end, +{built[-1] - built[0]}")
-        hours = max(len(rows) - 1, 1) * int(every) / 3600
-        out.append(f"- pace: about {round((built[-1] - built[0]) / hours)} modules an hour")
+        # the previous round's build is unpacked after the first samples, so the count jumps from 0 to tens of thousands within a few minutes
+        # (compiling adds a few modules a minute): when there is such a jump (500 or more between two samples) the round's own work starts
+        # after the last one; with no jump it starts at the first sample
+        jumps = [k + 1 for k in range(len(built) - 1) if built[k + 1] - built[k] >= 500]
+        i = jumps[-1] if jumps else 0
+        where = "once the earlier build was unpacked" if jumps else "at the start"
+        out.append(f"- modules built (.olean files): {built[i]} {where}, {built[-1]} at the end, +{built[-1] - built[i]}")
+        hours = max(len(built) - 1 - i, 1) * int(every) / 3600
+        out.append(f"- pace: about {round((built[-1] - built[i]) / hours)} modules an hour")
     if free:
         f, t = min(free)
         out.append(f"- lowest free memory: {f} MB at {t} UTC")
