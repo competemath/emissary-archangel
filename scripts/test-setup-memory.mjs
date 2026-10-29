@@ -21,7 +21,7 @@ const sh = (cmd, args, opts = {}) => execFileSync(cmd, args, { stdio: ["ignore",
 // the library: A; C and E and F import A; D imports C
 const lib = join(tmp, "lib-src")
 mkdirSync(join(lib, "Lib"), { recursive: true })
-const files = { A: "", C: "import Lib.A\n", D: "-- header comment\nimport Lib.C\n", E: "import Lib.A\n", F: "/- block\ncomment -/\nimport Lib.A -- trailing\n" }
+const files = { A: "", C: "import Lib.A\n", D: "-- header comment\n/- outer\n/- nested -/\nstill the outer comment -/\nimport Lib.C\n", E: "import Lib.A\n", F: "/- block\ncomment -/\nimport Lib.A -- trailing\n" }
 for (const [m, imp] of Object.entries(files)) writeFileSync(join(lib, "Lib", `${m}.lean`), `${imp}\ntheorem t_${m.toLowerCase()} : True := trivial\n`)
 const TC = "leanprover/lean4:v4.0.0"
 writeFileSync(join(lib, "lean-toolchain"), TC + "\n")
@@ -55,12 +55,14 @@ fs.appendFileSync(${JSON.stringify(join(tmp, "lake-calls"))}, process.argv.slice
 if (cmd !== "build") process.exit(0)
 const hungry = JSON.parse(process.env.FAKE_HUNGRY || "{}")
 const imports = JSON.parse(process.env.FAKE_IMPORTS || "{}")
+const failAlone = JSON.parse(process.env.FAKE_FAIL_ALONE || "[]")
 const olean = (m) => path.join(".lake", "build", "lib", "lean", m.split(".").join("/") + ".olean")
 const result = new Map()
 const build = (m) => {
   if (fs.existsSync(olean(m))) return true
   if (result.has(m)) return result.get(m)
   for (const i of imports[m] || []) if (!build(i)) { result.set(m, false); return false }
+  if (mods.length === 1 && failAlone.includes(m)) { result.set(m, false); return false } // a compile error that only shows alone, not a kill
   if (hungry[m]) {
     const file = path.join(process.cwd(), m.split(".").join("/") + ".lean")
     const r = spawnSync(process.execPath, ["-e", "const b = Buffer.alloc(" + hungry[m] + " * 1024 * 1024, 1); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, " + (process.env.FAKE_HOLD_MS || 4000) + "); process.exit(b.length ? 0 : 1)", "--", file, "-R", "."])
@@ -128,7 +130,7 @@ check("the next round says what it is leaving out", /1 modules did not fit in 50
 
 // 4. a higher limit tries the module again (it was remembered under 500; with 900 it is worth another go)
 r = setup(["--phase", "build"], { FAKE_HUNGRY: JSON.stringify({ "Lib.C": 700 }), EMISSARY_RETRY_FOOTPRINT_MB: "900" })
-check("raising the limit forgets the entry, and the module is built", r.status === 0 && names.every((m) => existsSync(olean(m))) && !/Lib\.C did not build alone/.test(r.stdout), out(r))
+check("raising the limit forgets the entry (in the file too), and the module is built", r.status === 0 && names.every((m) => existsSync(olean(m))) && !/Lib\.C did not build alone/.test(r.stdout) && (!existsSync(memo) || !Object.hasOwn(JSON.parse(readFileSync(memo, "utf8")).toobig ?? {}, "Lib.C")), out(r))
 
 // 5. the memo is an artifact: anything in it that is not a module name with two numbers is ignored
 fresh()
@@ -144,8 +146,18 @@ check("a memo that is not JSON is not an error", r.status === 0 && /^toobig=0$/m
 fresh()
 r = setup(["--phase", "build"], { FAKE_HUNGRY: JSON.stringify({ "Lib.C": 300, "Lib.F": 300 }), EMISSARY_SOLO_MAX: "1" })
 const rescued = ["C", "F"].filter((m) => existsSync(olean(m)))
+const waited = ["C", "F"].find((m) => !existsSync(olean(m)))
 check("with a limit of one module built alone, one is rescued and the other waits for the next round", r.status === 0 && rescued.length === 1 && /modules were built alone in this run already, so it waits for the next round/.test(r.stdout), out(r))
+check("the one that waits is not asked of lake again in this run (it is in the first chunk only)", waited !== undefined && calls().filter((c) => c.split(" ").includes(`Lib.${waited}`)).length === 1, calls().join("\n"))
 check("the one that waited is not remembered as too big", !existsSync(memo) || Object.keys(JSON.parse(readFileSync(memo, "utf8")).toobig).length === 0, "")
+
+// 7. killed in the chunk, but alone it fails for another reason (a compile error, a timeout): not memory, so NOT remembered as too big (that would block its importers for good)
+fresh()
+r = setup(["--phase", "build"], { FAKE_HUNGRY: JSON.stringify({ "Lib.C": 300 }), FAKE_FAIL_ALONE: JSON.stringify(["Lib.C"]) })
+check("a module that fails alone without a watchdog kill is said so, not called too big", r.status === 0 && /Lib\.C failed alone without a watchdog kill/.test(r.stdout) && !/did not build alone either/.test(r.stdout), out(r))
+check("and it is not written to the memo", !existsSync(memo) || Object.keys(JSON.parse(readFileSync(memo, "utf8")).toobig).length === 0, "")
+r = setup(["--phase", "build-status"])
+check("status counts it as missing for another reason, with the module behind it", /^toobig=0$/m.test(r.stdout) && statusOf().other === 2 && statusOf().blocked === 0, JSON.stringify(statusOf()))
 
 rmSync(tmp, { recursive: true, force: true })
 process.exit(bad ? 1 : 0)

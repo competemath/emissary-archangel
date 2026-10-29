@@ -6,7 +6,7 @@
 //   - a build round that did nothing is not followed by another (build-gate stops with the numbers; ONE issue is opened or updated by a job that holds issues: write and nothing else);
 //   - setup-auto.yml dispatches and writes nothing else, and its values reach the shell through env, never inline.
 import { spawnSync } from "node:child_process"
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -109,7 +109,7 @@ const runGate = (script, c) => {
     env: {
       PATH: `${sandbox}:${process.env.PATH}`, GH_CALLS: calls, GITHUB_OUTPUT: outFile, GITHUB_REPOSITORY: "o/r", GH_TOKEN: "x", KEY: "k",
       SHARDS: "16", PRIME_MINUTES: "300", EXPAND_CHUNK: "1", ROUND: "1", MAX_ROUNDS: "4", PARALLEL: "6", RESUME_RUN: "", GITHUB_RUN_ID: "77", TENGOKU_REF: "", MAX_BUILD_ROUNDS: "99",
-      BUILD_ROUND: String(c.round), PREV_BUILT: c.prev, BUILT: c.built, MODULES: "30662", MIN_PROGRESS: String(c.min),
+      BUILD_ROUND: String(c.round), PREV_BUILT: c.prev, BUILT: c.built, MODULES: "30662", MIN_PROGRESS: String(c.min), TOOBIG: c.toobig ?? "", BLOCKED: c.blocked ?? "",
     },
   })
   return { code: r.status, text: r.stdout + r.stderr, output: readFileSync(outFile, "utf8"), calls: readFileSync(calls, "utf8") }
@@ -139,6 +139,39 @@ for (let i = 0; i < 30; i++) { const prev = rnd(30000); cases.push({ round: 1 + 
 const verdicts = wrong(gateScript, cases)
 check(`build-gate's shell does what the rule says, on ${cases.length} rounds (boundaries, empty counts, random)`, verdicts.length === 0, verdicts.slice(0, 3))
 check("the cases hold both a stop and a dispatch, rounds with and without a count, and a fall at min 0", cases.some((c) => c.min === 0 && c.round > 1 && Number(c.built) < Number(c.prev) && !expected(c).stop) && cases.some((c) => expected(c).stop) && cases.some((c) => !expected(c).stop) && cases.some((c) => c.round > 1 && c.prev === ""), "")
+
+// the memory counts: passed on when the gate stops, checked before use, and said in the issue
+{
+  const stalled = runGate(gateScript, { round: 3, prev: "100", built: "100", min: 1, toobig: "2", blocked: "40" })
+  check("a stop passes the memory counts on to the issue job", stalled.code !== 0 && /^toobig=2$/m.test(stalled.output) && /^blocked=40$/m.test(stalled.output), stalled.output + stalled.text)
+  const quiet = runGate(gateScript, { round: 3, prev: "100", built: "100", min: 1 })
+  check("a stop with no memory counts (an older prime job) passes them on empty, and still stops", quiet.code !== 0 && /^toobig=$/m.test(quiet.output) && /stalled=true/.test(quiet.output), quiet.output + quiet.text)
+  for (const key of ["toobig", "blocked"]) {
+    const g = runGate(gateScript, { round: 3, prev: "100", built: "101", min: 1, [key]: "x; rm -rf /" })
+    check(`a ${key} count that is not a number stops the gate before it dispatches anything`, g.code !== 0 && !g.calls.includes("workflow run") && /not a number/.test(g.text), g.text)
+  }
+  const reportScript = stepRun(report, "Open or update the issue")
+  const rdir = mkdtempSync(join(tmpdir(), "report-"))
+  writeFileSync(join(rdir, "gh"), `#!/bin/sh\necho "gh $*" >> "${join(rdir, "calls")}"\nif [ "$1 $2" = "issue list" ]; then echo '[]'; fi\nexit 0\n`)
+  writeFileSync(join(rdir, "jq"), "#!/bin/sh\ncat > /dev/null\n")
+  chmodSync(join(rdir, "gh"), 0o755); chmodSync(join(rdir, "jq"), 0o755)
+  writeFileSync(join(rdir, "report.sh"), reportScript)
+  const runReport = (over) => {
+    const r = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", join(rdir, "report.sh")], {
+      cwd: rdir, encoding: "utf8",
+      env: { PATH: `${rdir}:${process.env.PATH}`, GH_TOKEN: "x", KEY: "k", BUILD_ROUND: "3", BUILT: "100", PREV_BUILT: "100", MODULES: "200", ADDED: "0", MIN_PROGRESS: "1", RUN_ID: "5", GITHUB_SERVER_URL: "https://github.com", GITHUB_REPOSITORY: "o/r", TOOBIG: "", BLOCKED: "", ...over },
+    })
+    return { code: r.status, text: r.stdout + r.stderr, body: existsSync(join(rdir, "body.md")) ? readFileSync(join(rdir, "body.md"), "utf8") : "" }
+  }
+  let rep = runReport({ TOOBIG: "2", BLOCKED: "40" })
+  check("the issue says how many modules were killed for memory and how many wait behind them", rep.code === 0 && /\*\*2 module\(s\) were killed for memory even when built alone, and 40 more are left out/.test(rep.body), rep.text + rep.body)
+  rep = runReport({ TOOBIG: "0", BLOCKED: "0" })
+  check("with no module killed for memory the issue says the build is not stuck on memory", rep.code === 0 && /No module was killed for memory/.test(rep.body) && !/were killed for memory even/.test(rep.body), rep.text + rep.body)
+  rep = runReport({})
+  check("with no count at all (an older prime job) the issue says nothing about memory", rep.code === 0 && !/memory/.test(rep.body), rep.text + rep.body)
+  rep = runReport({ TOOBIG: "1; echo hi" })
+  check("a count that is not a number stops the issue job", rep.code !== 0 && /not a number/.test(rep.text), rep.text)
+}
 for (const [name, from, to] of [
   ["stopping at exactly min instead of below it", '-lt "$MIN_PROGRESS"', '-le "$MIN_PROGRESS"'],
   ["stopping on a fall although min_progress is 0", '[ "$MIN_PROGRESS" -gt 0 ] && [ "$added" -lt "$MIN_PROGRESS" ]', '[ "$added" -lt "$MIN_PROGRESS" ]'],

@@ -215,16 +215,19 @@ const moduleOfCommand = (cmd) => {
 }
 // What an earlier round recorded. It comes out of an artifact, so it is data: anything that is not a module name with two numbers is dropped.
 // An entry recorded under a lower limit than this run's is dropped too, so that raising the limit tries the module again.
-function loadOom() {
+function loadOom({ prune = false } = {}) {
   const out = new Map()
+  let dropped = 0
   try {
     const raw = JSON.parse(readFileSync(OOM_FILE, "utf8"))
     for (const [m, v] of Object.entries(raw?.toobig ?? {})) {
       if (m.length <= 300 && MODULE_NAME.test(m) && Number.isFinite(v?.peakMB) && Number.isFinite(v?.capMB) && v.capMB >= RETRY_FOOTPRINT_MB) out.set(m, { peakMB: Math.round(v.peakMB), capMB: Math.round(v.capMB) })
+      else dropped++
     }
   } catch {
     /* none yet, or unreadable: nothing is known */
   }
+  if (prune && dropped) saveOom(out) // the build phase writes the forgetting down; the status phase only reads
   return out
 }
 function saveOom(map) {
@@ -234,18 +237,14 @@ function saveOom(map) {
 // The imports of a Lean file: only its header counts (comments, `module`, `prelude` and imports come first).
 function parseImports(text) {
   const out = []
-  let inBlock = false
+  let depth = 0 // block comments nest in Lean: `/- a /- b -/ c -/` is one comment
   for (const line of text.split("\n")) {
     const t = line.trim()
-    if (inBlock) {
-      if (t.includes("-/")) inBlock = false
+    if (depth > 0 || t.startsWith("/-")) {
+      for (const m of t.matchAll(/\/-|-\//g)) depth = Math.max(0, depth + (m[0] === "/-" ? 1 : -1))
       continue
     }
     if (!t || t.startsWith("--")) continue
-    if (t.startsWith("/-")) {
-      if (!t.slice(2).includes("-/")) inBlock = true
-      continue
-    }
     const m = t.match(/^(?:(?:public|meta|private)\s+)*import\s+(?:all\s+)?(.*)$/)
     if (m) {
       out.push(...m[1].split("--")[0].trim().split(/\s+/).filter(Boolean))
@@ -516,18 +515,23 @@ async function buildAlone(m) {
 async function build(modules) {
   const hasMathlib = await mathlibCache()
   // Only the modules that carry entries (and, through lake, what they import).
-  const toobig = loadOom()
-  let blocker = blockedBy(toobig, modules)
-  if (toobig.size) log(`memory: ${toobig.size} modules did not fit in ${RETRY_FOOTPRINT_MB} MB in an earlier round; they and the ${[...blocker.keys()].filter((m) => !toobig.has(m)).length} modules that import them are not built again`)
+  const toobig = loadOom({ prune: true })
+  // Modules not built again in THIS run: the too-big ones of earlier rounds, and any that was killed but not built alone (the cap) or failed alone for another reason.
+  // Only toobig is written down for the next round; the others get another go then.
+  const avoid = new Set(toobig.keys())
+  let blocker = blockedBy(avoid, modules)
+  if (toobig.size) log(`memory: ${toobig.size} modules did not fit in ${RETRY_FOOTPRINT_MB} MB in an earlier round; they and the ${[...blocker.keys()].filter((m) => !avoid.has(m)).length} modules that import them are not built again`)
   let solos = 0
   // After a failed chunk: every module the watchdog killed is built again alone. True when one of them now exists, so that the chunk is worth a second go.
   const settle = async () => {
     let rescued = false
     for (const [m, k] of [...oomKilled]) {
       oomKilled.delete(m)
-      if (existsSync(oleanOf(m)) || toobig.has(m)) continue
+      if (existsSync(oleanOf(m)) || avoid.has(m)) continue
       if (solos >= SOLO_MAX) {
         log(`memory: ${m} was killed at ${k.mb} MB; ${SOLO_MAX} modules were built alone in this run already, so it waits for the next round`)
+        avoid.add(m)
+        blocker = blockedBy(avoid, modules)
         continue
       }
       solos++
@@ -537,11 +541,19 @@ async function build(modules) {
         rescued = true
         continue
       }
-      const peak = Math.max(k.mb, oomKilled.get(m)?.mb ?? 0)
+      avoid.add(m)
+      const retryKill = oomKilled.get(m)
       oomKilled.delete(m)
+      if (!retryKill) {
+        // failed alone, but not killed: a compile error or a timeout, not memory. Not written down as too big (that would block its importers for good).
+        log(`memory: ${m} failed alone without a watchdog kill (a compile error or a timeout?): not recorded as too big, tried again next round`)
+        blocker = blockedBy(avoid, modules)
+        continue
+      }
+      const peak = Math.max(k.mb, retryKill.mb)
       toobig.set(m, { peakMB: peak, capMB: RETRY_FOOTPRINT_MB })
       saveOom(toobig)
-      blocker = blockedBy(toobig, modules)
+      blocker = blockedBy(avoid, modules)
       log(`memory: ${m} did not build alone either (killed at ${peak} MB, limit ${RETRY_FOOTPRINT_MB} MB): it and the ${[...blocker.entries()].filter(([x, b]) => b === m && x !== m).length} modules that import it are left out`)
     }
     return rescued
