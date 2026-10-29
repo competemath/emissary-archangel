@@ -8,5 +8,7 @@ tree's Lean, schemas/command-keywords.json in tengoku, which the exact column-0 
 every mode, and `bundle.py compose` runs the same check on the text it ships, after `scope_bundle.py` has scoped what it can. Refresh it with the rest of the file (the functions
 `unscoped_violations` and its two patterns are appended at the end of tengoku's allowlist.py).
 
+2026-10-28: refreshed from tengoku main: the same rules; `allowlist.py` now has the column-0 reading in a helper (`_command_lead`) and longer comments, `command-keywords.json` a longer `about`. A daily lint-drift check that says when this copy and tengoku differ is `scripts/check-lint-drift.mjs` (below).
+
 Drift is checked every day by .github/workflows/lint-drift.yml (scripts/check-lint-drift.mjs: the four files of tengoku's main against these, byte for byte; it opens or updates ONE issue, "pinned content lint
 differs from tengoku main", with the options, keywords and definitions that were added or removed). `node scripts/check-lint-drift.mjs` runs it by hand. After a refresh the check must print "identical".
