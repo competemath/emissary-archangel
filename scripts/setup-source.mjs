@@ -34,6 +34,7 @@ import os from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
+import { collectTools, exporterAction, mergeTools, patchFingerprint } from "./setup-tools.mjs"
 
 const x = promisify(execFile)
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -149,6 +150,19 @@ function run(cmd, args, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000, quiet = f
     })
   })
 }
+// Which tools are producing this setup (Lean, Lake, elan, lean4export's commit and patch, node, the runner image): written into the record, so that two runs that differ have an explanation on file.
+// Asked of the machine that ran the Lean code. A tool that cannot be asked is null in the record, never a reason to fail the setup.
+const PATCH_SCRIPT = join(APP_ROOT, "scripts", "patch-lean4export.py")
+const PATCH_MARK = join(L4E_DIR, ".patch-sha") // the fingerprint of the patch script the exporter in this folder was built with
+const toolsNow = () =>
+  collectTools({
+    exec: (cmd, args) => x(cmd, args, { env: ENV, timeout: 60000 }).then((r) => r.stdout),
+    env: process.env,
+    nodeVersion: process.version,
+    toolchain: src.toolchain,
+    l4eDir: L4E_DIR,
+    patchRecorded: existsSync(PATCH_MARK) ? readFileSync(PATCH_MARK, "utf8") : null,
+  })
 // Like run(), with stdout written to `outPath` (stderr captured for the report).
 function runToFile(cmd, args, outPath, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000 } = {}) {
   return new Promise((res) => {
@@ -413,12 +427,19 @@ async function build(modules) {
 // ---- 5. lean4export on this toolchain --------------------------------------------
 async function ensureLean4export() {
   // A build from before the --batch patch (scripts/patch-lean4export.py) is rebuilt: its exports would
-  // fall back to one process per module.
+  // fall back to one process per module. So is one built with another patch than the script has now (from a fresh clone: the patch is idempotent).
   const batchable = existsSync(join(L4E_DIR, "Main.lean")) && readFileSync(join(L4E_DIR, "Main.lean"), "utf8").includes("runBatch")
-  if (existsSync(L4E_BIN) && batchable) return log(`lean4export present: ${L4E_BIN}`)
-  if (existsSync(L4E_BIN)) log(`lean4export at ${L4E_DIR} predates --batch: rebuilding`)
+  const current = patchFingerprint(existsSync(PATCH_SCRIPT) ? readFileSync(PATCH_SCRIPT, "utf8") : null)
+  const action = exporterAction({ binExists: existsSync(L4E_BIN), batchable, recorded: existsSync(PATCH_MARK) ? readFileSync(PATCH_MARK, "utf8") : null, current })
+  if (action === "reuse") return log(`lean4export present: ${L4E_BIN}`)
+  if (action === "rebuild") log(`lean4export at ${L4E_DIR} predates --batch: rebuilding`)
+  if (action === "rebuild-clean") {
+    log(`lean4export at ${L4E_DIR} was built with another version of scripts/patch-lean4export.py: rebuilding from a fresh clone`)
+    rmSync(L4E_DIR, { recursive: true, force: true })
+  }
   const r = await run("bash", [join(APP_ROOT, "scripts", "build-lean4export.sh"), src.toolchain, L4E_DIR], { timeoutMs: 40 * 60 * 1000 })
   if (r.code !== 0 || !existsSync(L4E_BIN)) fail(`lean4export build for ${src.toolchain}: ${r.tail.slice(-600)}`)
+  if (current) writeAtomic(PATCH_MARK, current + "\n")
 }
 
 // ---- 6. exports -----------------------------------------------------------------
@@ -823,6 +844,7 @@ async function shard(modules, t0) {
     exported: mine.filter((m) => existsSync(join(EXPORTS, `${m}.ndjson`))).length,
     failed: failed.map(([m, why]) => ({ module: m, why })),
     expansion: { ...expansion.stats, failed: expansion.failed.map(([m, why]) => ({ module: m, why })) },
+    tools: await toolsNow(),
     minutes: Math.round((Date.now() - t0) / 60000),
     finishedAt: new Date().toISOString(),
   }
@@ -863,6 +885,8 @@ function finish(entries, modules, stats, t0) {
     expansion: { expanded: sum("expanded"), verbatim: sum("verbatim"), unexpanded: sum("unexpanded"), failed: records.flatMap((r) => r.expansion?.failed || []) },
     seed: stats,
     sharded: { records: records.length, shards: [...new Set(records.map((r) => r.shards))] },
+    // the finish job runs no Lean: the tools are the ones the shards (which did) wrote into their records; a field they disagree on holds every value
+    ...(mergeTools(records.map((r) => r.tools)) ? { tools: mergeTools(records.map((r) => r.tools)) } : {}),
     exportsBytes: dirSize(EXPORTS),
     minutes: Math.round((Date.now() - t0) / 60000) + records.reduce((a, r) => Math.max(a, r.minutes || 0), 0),
     finishedAt: new Date().toISOString(),
@@ -997,6 +1021,7 @@ async function main() {
     failed: failed.map(([m, why]) => ({ module: m, why })),
     expansion: { ...expansion.stats, failed: expansion.failed.map(([m, why]) => ({ module: m, why })) },
     seed: stats,
+    tools: await toolsNow(),
     exportsBytes: dirSize(EXPORTS),
     minutes: Math.round((Date.now() - t0) / 60000),
     finishedAt: new Date().toISOString(),
