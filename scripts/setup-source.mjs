@@ -809,12 +809,14 @@ function restoreBuild({ required }) {
 }
 
 // How much of the library is compiled. Runs no Lean and no lake, so it is safe to run after the build step in
-// the job that ran the library's own code; the workflow reads only the word `complete=true|false` from it.
+// the job that ran the library's own code; the workflow reads only the lines `complete=true|false`, `built=<n>` and `modules=<n>` from it (each cut down to its shape).
 function buildStatus(modules) {
   const built = modules.filter((m) => existsSync(oleanOf(m))).length
   const status = { key, commit: src.commit, modules: modules.length, built, complete: built === modules.length, at: new Date().toISOString() }
   writeAtomic(join(INFRA, "build-status.json"), JSON.stringify(status, null, 2))
   log(`build status: ${built}/${modules.length} modules have an .olean`)
+  console.log(`built=${built}`)
+  console.log(`modules=${modules.length}`)
   console.log(`complete=${status.complete}`)
 }
 
