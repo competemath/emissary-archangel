@@ -1,19 +1,20 @@
 # The setup of a library on runners: the route chosen by size (scripts/setup-plan.mjs), the build that carries on from the
 # last round and says whether it is complete (scripts/setup-source.mjs --phase build, build-status), and what the workflows may
-# do (scripts/test-setup-workflows.mjs), the per-minute metrics of a build round (scripts/runner-watch.sh, round-summary.py). No Lean, no network beyond the checkout.
+# do (scripts/test-setup-workflows.mjs), the per-minute metrics of a build round (scripts/runner-watch.sh, round-summary.py), the tools a setup record names
+# (scripts/test-setup-tools.mjs), and that nothing any workflow installs or runs on moves (scripts/test-workflow-pins.mjs: any workflow change runs it). No Lean, no network beyond the checkout.
 name: setup-tests
 on:
   push:
-    paths: ["scripts/setup-plan.mjs", "scripts/setup-source.mjs", "scripts/test-setup-*.mjs", "scripts/runner-watch.sh", "scripts/round-summary.py", ".github/workflows/setup-*.yml"]
+    paths: ["scripts/setup-plan.mjs", "scripts/setup-source.mjs", "scripts/setup-tools.mjs", "scripts/test-setup-*.mjs", "scripts/test-workflow-pins.mjs", "scripts/check-workflow-pins.mjs", "scripts/runner-watch.sh", "scripts/round-summary.py", ".github/workflows/*.yml", ".github/workflows/*.yaml"]
   pull_request:
-    paths: ["scripts/setup-plan.mjs", "scripts/setup-source.mjs", "scripts/test-setup-*.mjs", "scripts/runner-watch.sh", "scripts/round-summary.py", ".github/workflows/setup-*.yml"]
+    paths: ["scripts/setup-plan.mjs", "scripts/setup-source.mjs", "scripts/setup-tools.mjs", "scripts/test-setup-*.mjs", "scripts/test-workflow-pins.mjs", "scripts/check-workflow-pins.mjs", "scripts/runner-watch.sh", "scripts/round-summary.py", ".github/workflows/*.yml", ".github/workflows/*.yaml"]
 permissions: {}
 defaults:
   run:
     shell: bash
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions: { contents: read }
     steps:
@@ -28,4 +29,6 @@ jobs:
       - run: node scripts/test-setup-plan.mjs
       - run: node scripts/test-setup-build.mjs
       - run: node scripts/test-setup-workflows.mjs
+      - run: node scripts/test-setup-tools.mjs
+      - run: node scripts/test-workflow-pins.mjs
       - run: node scripts/test-setup-watch.mjs

@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   plan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: { contents: read }
     outputs:
@@ -59,7 +59,7 @@ jobs:
   setup:
     needs: plan
     if: needs.plan.outputs.keys != '[]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 350
     # the push at the end; the token is never stored in the checkout, where the library's own Lean code runs
     permissions: { contents: write }
@@ -93,7 +93,7 @@ jobs:
           ls -la tengoku/data/tentative
       - name: elan
         run: |
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: Set up ${{ matrix.key }}
         run: |

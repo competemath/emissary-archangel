@@ -13,7 +13,7 @@ defaults:
     shell: bash
 jobs:
   orchestrate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 355
     permissions: { contents: read, actions: write }
     env:
