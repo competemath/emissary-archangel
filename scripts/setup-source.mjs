@@ -31,7 +31,7 @@
 import { execFile, execFileSync, spawn } from "node:child_process"
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync, readdirSync, statSync } from "node:fs"
 import os from "node:os"
-import { basename, dirname, join, resolve } from "node:path"
+import { basename, dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import { collectTools, exporterAction, mergeTools, patchFingerprint } from "./setup-tools.mjs"
@@ -192,6 +192,104 @@ const oleanOf = (m) => {
   const cur = join(REPO, ".lake", "build", "lib", "lean", rel)
   const old = join(REPO, "build", "lib", rel)
   return !existsSync(cur) && existsSync(old) ? old : cur
+}
+// ---- modules that need more memory than the machine lets one process have ----------------------------------------
+// A module whose Lean process passes EMISSARY_FOOTPRINT_MB is killed by the watchdog below, its `lake build` chunk fails, and every module
+// that imports it can never compile. Until 2026-10-29 that was invisible: flt-anthropic's Def_WeierstrassCurve_DivPolyMulFormula was killed
+// at 11 GB in 5 of the first 17 chunks of every round, for rounds, with the module's name cut off the log line, and 2,896 modules never built.
+// Now: the kill names the module (`oomKilled`); the module is built again ALONE, with the machine to itself and a higher limit; one that
+// still does not fit is written to .lake/build/emissary-oom.json (packed with the build, so the next round knows) and it, and everything that
+// imports it, is left out of the chunks instead of being killed again. buildStatus reports them.
+const oomKilled = new Map() // module -> { mb, why }: killed by the watchdog since the last time it was looked at
+const RETRY_FOOTPRINT_MB = Number(process.env.EMISSARY_RETRY_FOOTPRINT_MB) > 0 ? Number(process.env.EMISSARY_RETRY_FOOTPRINT_MB) : 14336
+const OOM_FILE = join(REPO, ".lake", "build", "emissary-oom.json")
+const SOLO_MAX = Number(process.env.EMISSARY_SOLO_MAX) > 0 ? Number(process.env.EMISSARY_SOLO_MAX) : 25 // modules built alone in one run: each can take minutes
+const MODULE_NAME = /^(?:[\p{L}_][\p{L}\p{N}_'!?]*|«[^»]+»)(?:\.(?:[\p{L}_][\p{L}\p{N}_'!?]*|«[^»]+»))*$/u
+const moduleOfCommand = (cmd) => {
+  for (const tok of cmd.split(/\s+/)) {
+    if (!tok.endsWith(".lean")) continue
+    const rel = relative(REPO, resolve(REPO, tok)).replace(/\\/g, "/")
+    if (rel && !rel.startsWith("..")) return moduleOfPath(rel)
+  }
+  return null
+}
+// What an earlier round recorded. It comes out of an artifact, so it is data: anything that is not a module name with two numbers is dropped.
+// An entry recorded under a lower limit than this run's is dropped too, so that raising the limit tries the module again.
+function loadOom({ prune = false } = {}) {
+  const out = new Map()
+  let dropped = 0
+  try {
+    const raw = JSON.parse(readFileSync(OOM_FILE, "utf8"))
+    for (const [m, v] of Object.entries(raw?.toobig ?? {})) {
+      if (m.length <= 300 && MODULE_NAME.test(m) && Number.isFinite(v?.peakMB) && Number.isFinite(v?.capMB) && v.capMB >= RETRY_FOOTPRINT_MB) out.set(m, { peakMB: Math.round(v.peakMB), capMB: Math.round(v.capMB) })
+      else dropped++
+    }
+  } catch {
+    /* none yet, or unreadable: nothing is known */
+  }
+  if (prune && dropped) saveOom(out) // the build phase writes the forgetting down; the status phase only reads
+  return out
+}
+function saveOom(map) {
+  mkdirSync(dirname(OOM_FILE), { recursive: true })
+  writeAtomic(OOM_FILE, JSON.stringify({ version: 1, toobig: Object.fromEntries(map) }, null, 2))
+}
+// The imports of a Lean file: only its header counts (comments, `module`, `prelude` and imports come first).
+function parseImports(text) {
+  const out = []
+  let depth = 0 // block comments nest in Lean: `/- a /- b -/ c -/` is one comment
+  for (const line of text.split("\n")) {
+    const t = line.trim()
+    if (depth > 0 || t.startsWith("/-")) {
+      for (const m of t.matchAll(/\/-|-\//g)) depth = Math.max(0, depth + (m[0] === "/-" ? 1 : -1))
+      continue
+    }
+    if (!t || t.startsWith("--")) continue
+    const m = t.match(/^(?:(?:public|meta|private)\s+)*import\s+(?:all\s+)?(.*)$/)
+    if (m) {
+      out.push(...m[1].split("--")[0].trim().split(/\s+/).filter(Boolean))
+      continue
+    }
+    if (/^(?:module|prelude)\b/.test(t)) continue
+    break
+  }
+  return out
+}
+const importCache = new Map()
+const importsOf = (m) => {
+  if (!importCache.has(m)) {
+    let imports = null // null: not a file of this library (Mathlib, Lean, Std)
+    try {
+      imports = parseImports(readFileSync(join(REPO, pathOfModule(m)), "utf8"))
+    } catch {
+      /* not here */
+    }
+    importCache.set(m, imports)
+  }
+  return importCache.get(m)
+}
+// module -> the too-big module it cannot be built without, for every module of `modules` that imports one (a too-big module blocks itself).
+function blockedBy(toobig, modules) {
+  const blocker = new Map()
+  if (!toobig.size) return blocker
+  const memo = new Map()
+  const visiting = new Set()
+  const find = (m) => {
+    if (toobig.has(m)) return m
+    if (memo.has(m)) return memo.get(m)
+    if (visiting.has(m)) return null
+    visiting.add(m)
+    let hit = null
+    for (const i of importsOf(m) ?? []) if ((hit = find(i))) break
+    visiting.delete(m)
+    memo.set(m, hit)
+    return hit
+  }
+  for (const m of modules) {
+    const b = find(m)
+    if (b) blocker.set(m, b)
+  }
+  return blocker
 }
 // Every file a later run treats as "done" is written whole or not at all: the setup can be killed at
 // any moment (sleep, a closed network, a restart) and the next run skips whatever exists.
@@ -402,13 +500,73 @@ async function mathlibCache() {
   return hasMathlib
 }
 
+// Builds one module that the watchdog killed, with the machine to itself (the other chunks have finished) and a higher limit; true when it now has an .olean.
+async function buildAlone(m) {
+  footprintLimit = RETRY_FOOTPRINT_MB
+  try {
+    const r = await run("lake", ["build", m], { cwd: REPO, timeoutMs: 90 * 60 * 1000 })
+    if (r.code !== 0) log(`WARNING: lake build ${m} (alone) exited ${r.code}`)
+  } finally {
+    footprintLimit = FOOTPRINT_MB
+  }
+  return existsSync(oleanOf(m))
+}
+
 async function build(modules) {
   const hasMathlib = await mathlibCache()
   // Only the modules that carry entries (and, through lake, what they import).
+  const toobig = loadOom({ prune: true })
+  // Modules not built again in THIS run: the too-big ones of earlier rounds, and any that was killed but not built alone (the cap) or failed alone for another reason.
+  // Only toobig is written down for the next round; the others get another go then.
+  const avoid = new Set(toobig.keys())
+  let blocker = blockedBy(avoid, modules)
+  if (toobig.size) log(`memory: ${toobig.size} modules did not fit in ${RETRY_FOOTPRINT_MB} MB in an earlier round; they and the ${[...blocker.keys()].filter((m) => !avoid.has(m)).length} modules that import them are not built again`)
+  let solos = 0
+  // After a failed chunk: every module the watchdog killed is built again alone. True when one of them now exists, so that the chunk is worth a second go.
+  const settle = async () => {
+    let rescued = false
+    for (const [m, k] of [...oomKilled]) {
+      oomKilled.delete(m)
+      if (existsSync(oleanOf(m)) || avoid.has(m)) continue
+      if (solos >= SOLO_MAX) {
+        log(`memory: ${m} was killed at ${k.mb} MB; ${SOLO_MAX} modules were built alone in this run already, so it waits for the next round`)
+        avoid.add(m)
+        blocker = blockedBy(avoid, modules)
+        continue
+      }
+      solos++
+      log(`memory: ${m} was killed at ${k.mb} MB (${k.why}); building it alone, limit ${RETRY_FOOTPRINT_MB} MB`)
+      if (await buildAlone(m)) {
+        log(`memory: ${m} built alone`)
+        rescued = true
+        continue
+      }
+      avoid.add(m)
+      const retryKill = oomKilled.get(m)
+      oomKilled.delete(m)
+      if (!retryKill) {
+        // failed alone, but not killed: a compile error or a timeout, not memory. Not written down as too big (that would block its importers for good).
+        log(`memory: ${m} failed alone without a watchdog kill (a compile error or a timeout?): not recorded as too big, tried again next round`)
+        blocker = blockedBy(avoid, modules)
+        continue
+      }
+      const peak = Math.max(k.mb, retryKill.mb)
+      toobig.set(m, { peakMB: peak, capMB: RETRY_FOOTPRINT_MB })
+      saveOom(toobig)
+      blocker = blockedBy(avoid, modules)
+      log(`memory: ${m} did not build alone either (killed at ${peak} MB, limit ${RETRY_FOOTPRINT_MB} MB): it and the ${[...blocker.entries()].filter(([x, b]) => b === m && x !== m).length} modules that import it are left out`)
+    }
+    return rescued
+  }
   for (let i = 0; i < modules.length; i += BUILD_CHUNK) {
-    const chunk = modules.slice(i, i + BUILD_CHUNK)
-    const r = await run("lake", ["build", ...chunk], { cwd: REPO, timeoutMs: 6 * 3600 * 1000 })
-    if (r.code !== 0) log(`WARNING: lake build chunk ${i / BUILD_CHUNK + 1} exited ${r.code}: ${r.tail.slice(-400)} — modules that did not build are reported at export`)
+    let chunk = modules.slice(i, i + BUILD_CHUNK).filter((m) => !blocker.has(m))
+    for (let attempt = 0; chunk.length && attempt < 4; attempt++) {
+      const r = await run("lake", ["build", ...chunk], { cwd: REPO, timeoutMs: 6 * 3600 * 1000 })
+      if (r.code === 0) break
+      log(`WARNING: lake build chunk ${i / BUILD_CHUNK + 1} exited ${r.code}: ${r.tail.slice(-400)} — modules that did not build are reported at export`)
+      if (!(await settle())) break
+      chunk = chunk.filter((m) => !blocker.has(m) && !existsSync(oleanOf(m)))
+    }
   }
   // None of the modules built (an invalid lake flag, a dependency that failed to fetch): writing setup.json
   // now would record a library with 0 exports as done — zkevm-clean, aisafety-atlas and algolean were.
@@ -811,12 +969,39 @@ function restoreBuild({ required }) {
 // How much of the library is compiled. Runs no Lean and no lake, so it is safe to run after the build step in
 // the job that ran the library's own code; the workflow reads only the lines `complete=true|false`, `built=<n>` and `modules=<n>` from it (each cut down to its shape).
 function buildStatus(modules) {
-  const built = modules.filter((m) => existsSync(oleanOf(m))).length
-  const status = { key, commit: src.commit, modules: modules.length, built, complete: built === modules.length, at: new Date().toISOString() }
+  const missing = modules.filter((m) => !existsSync(oleanOf(m)))
+  const built = modules.length - missing.length
+  const toobig = loadOom()
+  const blocker = blockedBy(toobig, modules)
+  const blockedMissing = missing.filter((m) => blocker.has(m) && !toobig.has(m))
+  const other = missing.filter((m) => !blocker.has(m))
+  const status = {
+    key,
+    commit: src.commit,
+    modules: modules.length,
+    built,
+    complete: built === modules.length,
+    // Why modules are missing, as far as it is known: killed for memory (and not built alone either), blocked behind one of those, and the rest (an error, or not tried yet).
+    toobig: [...toobig].map(([module, v]) => ({ module, peakMB: v.peakMB, capMB: v.capMB, blocks: [...blocker].filter(([x, b]) => b === module && x !== module).length })),
+    blocked: blockedMissing.length,
+    other: other.length,
+    otherSample: other.slice(0, 20),
+    at: new Date().toISOString(),
+  }
   writeAtomic(join(INFRA, "build-status.json"), JSON.stringify(status, null, 2))
-  log(`build status: ${built}/${modules.length} modules have an .olean`)
+  const md = [`### Modules without an .olean: ${missing.length} of ${modules.length}`, ""]
+  if (status.toobig.length) {
+    md.push(`Killed for memory, and not built alone either (${status.toobig.length}):`, "")
+    for (const t of status.toobig.slice(0, 20)) md.push(`- \`${t.module}\`: killed at ${t.peakMB} MB with a limit of ${t.capMB} MB; ${t.blocks} modules import it`)
+    md.push("")
+  }
+  md.push(`${blockedMissing.length} modules wait behind those; ${other.length} are missing for another reason${other.length ? ", first: " + other.slice(0, 5).map((m) => `\`${m}\``).join(", ") : ""}.`)
+  writeAtomic(join(INFRA, "unbuilt-summary.md"), md.join("\n") + "\n")
+  log(`build status: ${built}/${modules.length} modules have an .olean; ${toobig.size} too big, ${blockedMissing.length} behind them, ${other.length} other`)
   console.log(`built=${built}`)
   console.log(`modules=${modules.length}`)
+  console.log(`toobig=${toobig.size}`)
+  console.log(`blocked=${blockedMissing.length}`)
   console.log(`complete=${status.complete}`)
 }
 
@@ -904,6 +1089,8 @@ function finish(entries, modules, stats, t0) {
 // counts compressed pages; Linux: VmRSS + VmSwap) and kills any process over EMISSARY_FOOTPRINT_MB
 // (default 10240). The killed command fails like any other and its module is recorded as failed.
 const FOOTPRINT_MB = Number(process.env.EMISSARY_FOOTPRINT_MB || 10240)
+let footprintLimit = FOOTPRINT_MB // raised while a module killed for its memory is built alone (buildAlone)
+const WATCH_MS = Number(process.env.EMISSARY_WATCH_MS) > 0 ? Number(process.env.EMISSARY_WATCH_MS) : 10000
 const UNIT_MB = { B: 1 / 1048576, K: 1 / 1024, M: 1, G: 1024, T: 1048576 }
 function descendants(root) {
   const kids = new Map()
@@ -940,17 +1127,20 @@ function footprintsMB(pids) {
 function killProcess(pid, mb, why) {
   let cmd = "?"
   try {
-    cmd = execFileSync("ps", ["-o", "command=", "-p", String(pid)]).toString().trim().slice(0, 160)
+    cmd = execFileSync("ps", ["-o", "command=", "-p", String(pid)]).toString().trim()
   } catch {
     /* exited */
   }
   process.kill(pid, "SIGKILL")
-  log(`memory watchdog: killed ${pid} at ${Math.round(mb)} MB (${why}): ${cmd}`)
+  // The module first: the command line is cut at 160 characters, and the module's name sits after the toolchain's and the project's paths (2026-10-29: 9 kills, none named).
+  const mod = moduleOfCommand(cmd)
+  if (mod) oomKilled.set(mod, { mb: Math.max(oomKilled.get(mod)?.mb ?? 0, Math.round(mb)), why })
+  log(`memory watchdog: killed ${pid} at ${Math.round(mb)} MB (${why})${mod ? `, module ${mod}` : ""}: ${cmd.slice(0, 160)}`)
 }
 function watchMemory() {
   try {
     for (const [pid, mb] of footprintsMB(descendants(process.pid))) {
-      if (mb > FOOTPRINT_MB) killProcess(pid, mb, `limit ${FOOTPRINT_MB} MB`)
+      if (mb > footprintLimit) killProcess(pid, mb, `limit ${footprintLimit} MB`)
     }
   } catch (e) {
     log(`memory watchdog: ${e.message}`)
@@ -981,7 +1171,7 @@ function watchAvailable() {
 
 async function main() {
   const t0 = Date.now()
-  setInterval(watchMemory, 10000).unref()
+  setInterval(watchMemory, WATCH_MS).unref()
   if (process.platform === "linux") setInterval(watchAvailable, 2000).unref()
   removeLeftovers()
   log(`setup ${key}: ${src.repo} @ ${src.commit.slice(0, 12)} on ${src.toolchain}, roots ${src.roots.join(", ")}`)
