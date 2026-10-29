@@ -10,6 +10,8 @@ This does the same for a library that was left behind. A round reads the build l
                   is known about, or a replacement that a later round finds insufficient, becomes `import Mathlib`:
                   correct by construction (the content is somewhere in Mathlib), only heavier.
   deprecations    Mathlib's fix_deprecations.py algorithm over the warnings of the last build log (position-exact rewrites).
+  upstream-dups   "`X` has already been declared" on an abbrev/def/theorem/lemma that nothing else of the library declares: a compatibility shim for a name Mathlib has since added. The
+                  declaration is blanked (upstream_dups.py), so that the module, and everything that imports it, builds against Mathlib's.
 
   normalize       `normalize-imports`: every external import of a library file (Mathlib, Batteries, Aesop, Qq, ProofWidgets, …)
                   becomes the umbrella imports. That is the environment a record is verified in anyway: the Tengoku tree
@@ -29,7 +31,11 @@ import argparse
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import upstream_dups  # noqa: E402
 
 # The deprecation fixer below is Mathlib's scripts/fix_deprecations.py (Apache-2.0, Mathlib contributors) reading our own build
 # log instead of running `lake build --no-build` (which replays only warnings Lake itself built; the tolerant build is not Lake's)
@@ -164,7 +170,7 @@ def repair(a: argparse.Namespace) -> None:
     moves = json.loads(Path(a.moves).read_text())["moves"] if a.moves and Path(a.moves).exists() else {}
     state_path = Path(a.state)
     state = json.loads(state_path.read_text()) if state_path.exists() else {"replaced": {}}
-    summary = {"round": a.round, "moved_imports": 0, "fell_back_to_all": 0, "deprecations_fixed": 0, "files_changed": []}
+    summary = {"round": a.round, "moved_imports": 0, "fell_back_to_all": 0, "deprecations_fixed": 0, "upstream_duplicates_removed": 0, "files_changed": []}
 
     # 0. deprecations: Mathlib's fixer, over the warnings of the last build log. Done before the import edits: a warning's line
     #    and column are positions in the file that was built, and a rewritten import line shifts every line below it
@@ -173,6 +179,12 @@ def repair(a: argparse.Namespace) -> None:
         summary["deprecations_fixed"] = n
         if nfiles:
             summary["files_changed"].append(f"({nfiles} files by fix_deprecations)")
+    # 0b. shims for names Mathlib has since added: a blanked declaration keeps every line where it was, so the positions above stay valid
+    if a.upstream_duplicates:
+        removed = upstream_dups.remove(lib, roots, log)
+        summary["upstream_duplicates_removed"] = len(removed)
+        summary["removed_declarations"] = removed
+        summary["files_changed"] += sorted({r["file"] for r in removed})
     # 1. a replacement that a later build found insufficient (the file now has unknown names) becomes `import Mathlib`
     files_with_unknown = {m.group(1) for m in UNKNOWN.finditer(log)}
     for f, repl in list(state["replaced"].items()):
@@ -209,7 +221,7 @@ def repair(a: argparse.Namespace) -> None:
             summary["files_changed"].append(f)
 
     state_path.write_text(json.dumps(state, indent=1))
-    summary["changed"] = bool(summary["moved_imports"] or summary["fell_back_to_all"] or summary["deprecations_fixed"])
+    summary["changed"] = bool(summary["moved_imports"] or summary["fell_back_to_all"] or summary["deprecations_fixed"] or summary["upstream_duplicates_removed"])
     Path(a.out).write_text(json.dumps(summary, indent=1))
     print(json.dumps({k: v for k, v in summary.items() if k != "files_changed"}))
 
@@ -223,6 +235,7 @@ if __name__ == "__main__":
     r.add_argument("--moves", default="")
     r.add_argument("--round", type=int, default=1)
     r.add_argument("--deprecations", action="store_true")
+    r.add_argument("--upstream-duplicates", action="store_true")
     n = sub.add_parser("normalize-imports")
     n.add_argument("--lib", required=True)
     n.add_argument("--roots", required=True)
