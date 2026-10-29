@@ -1,0 +1,30 @@
+# The deterministic repairs of the mechanical pass (lib/lean-repairs.mjs) and the one content lint behind them (scripts/bump/lint_cli.py): no Lean, no network, no token.
+# The Python side (scripts/bump/tests/test_inert_commands.py) also runs in bump-tests; this one runs the JavaScript side, which needs the bridge and the lint together.
+name: lean-repairs-tests
+on:
+  push:
+    branches: [main]
+    paths: ["lib/lean-repairs.mjs", ".github/workflows/translate-all.yml", "lib/ledger-settle.mjs", "lib/ledger-row.mjs", "scripts/queue-server.mjs", "scripts/test-lean-repairs.mjs", "scripts/bump/lint_cli.py", "scripts/bump/inert_commands.py", "scripts/bump/lint/**", "public/local-claude-bridge.mjs", ".github/workflows/lean-repairs-tests.yml"]
+  pull_request:
+    paths: ["lib/lean-repairs.mjs", ".github/workflows/translate-all.yml", "lib/ledger-settle.mjs", "lib/ledger-row.mjs", "scripts/queue-server.mjs", "scripts/test-lean-repairs.mjs", "scripts/bump/lint_cli.py", "scripts/bump/inert_commands.py", "scripts/bump/lint/**", "public/local-claude-bridge.mjs", ".github/workflows/lean-repairs-tests.yml"]
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout: |
+            lib
+            scripts
+            public
+            .github/workflows
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: "22" }
+      - run: node scripts/test-lean-repairs.mjs

@@ -16,6 +16,8 @@ import { createServer } from "node:http"
 import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { stagingRecord } from "../lib/stage-record.mjs"
+import { isSettled, parseLedger } from "../lib/ledger-settle.mjs"
+import { MECHANICS_VERSION } from "../lib/lean-repairs.mjs"
 
 const argv = process.argv.slice(2)
 const opt = (name, dflt = null) => {
@@ -74,31 +76,9 @@ function treeNames() {
   return names
 }
 
-// The ledger: every outcome of every earlier run, one line each. An entry is settled when its latest outcome says there
-// is nothing more to do in this mode.
-const VERIFIED = new Set(["mechanical", "cached-mechanical", "agentic", "bump"]) // bump: scripts/bump/ (whole-library build + batched Gate 2)
-const TERMINAL = new Set(["untranslatable", "unbankable", "export-unavailable"])
-function ledger() {
-  const last = new Map()
-  const agentTries = new Map()
-  if (LEDGER && existsSync(LEDGER)) {
-    for (const line of readFileSync(LEDGER, "utf8").split("\n")) {
-      if (!line.trim()) continue
-      const r = JSON.parse(line)
-      last.set(r.id, r.outcome)
-      if (r.outcome === "unresolved") agentTries.set(r.id, (agentTries.get(r.id) || 0) + 1)
-    }
-  }
-  return { last, agentTries }
-}
-function settled(id, { last, agentTries }) {
-  const o = last.get(id)
-  if (!o) return false
-  if (VERIFIED.has(o) || TERMINAL.has(o)) return true
-  if (o === "deferred-agent") return MODE === "mechanical" // known to need the agent: only an agent run takes it
-  if (o === "unresolved") return MODE === "mechanical" || (agentTries.get(id) || 0) >= AGENT_ATTEMPTS
-  return false // infra-blocked, failed: try again
-}
+// The ledger: every outcome of every earlier run, one line each (the rules of what is settled: lib/ledger-settle.mjs).
+const ledger = () => parseLedger(LEDGER && existsSync(LEDGER) ? readFileSync(LEDGER, "utf8") : "")
+const settled = (id, led) => isSettled(id, led, { mode: MODE, agentAttempts: AGENT_ATTEMPTS, mechanicsVersion: MECHANICS_VERSION })
 
 const queue = JSON.parse(readFileSync(queuePath, "utf8"))
 const onTree = treeNames()
