@@ -43,6 +43,30 @@ export function decide({ entries, mode = "auto", shards = 0 }) {
   }
 }
 
+// Whether a build round did anything. The staged setup builds in rounds of at most 5 hours, each carrying on from the one before (.github/workflows/setup-sharded.yml); after a round the
+// build-gate job dispatches the next while the build is incomplete. For flt-anthropic (30,662 modules) three rounds in a row exported nothing and nothing noticed: a person found it by
+// reading the logs. So a round (not the first) that built fewer than `min` modules more than the round before it ends the chain instead of dispatching another.
+//   round   1-based number of the round that just finished
+//   prev    modules with an .olean after the round before it (null / "" when unknown: the first round, or a chain started by hand)
+//   built   modules with an .olean after this round
+//   min     modules a round must add (default 1: any progress; 0 turns the stop off: nothing stops, not even a count that fell)
+// The shell of the build-gate job does the same arithmetic (it checks nothing out and runs no node); scripts/test-setup-workflows.mjs runs that shell against this function on random numbers.
+export const MIN_PROGRESS_DEFAULT = 1
+const count = (v, what) => {
+  if (!Number.isInteger(v) || v < 0) throw new Error(`${what} must be a count, not ${v}`)
+  return v
+}
+export function roundProgress({ round, prev = null, built, min = MIN_PROGRESS_DEFAULT }) {
+  if (!Number.isInteger(round) || round < 1) throw new Error(`round is 1 or more, not ${round}`)
+  count(built, "built")
+  count(min, "min")
+  if (round === 1) return { stop: false, added: null, why: "the first round has no round before it" }
+  if (prev === null || prev === undefined || prev === "") return { stop: false, added: null, why: "the round before it left no count: nothing to compare with" }
+  const added = built - count(prev, "prev")
+  if (min > 0 && added < min) return { stop: true, added, why: `round ${round} added ${added} modules (${prev} -> ${built}), fewer than ${min}` }
+  return { stop: false, added, why: min === 0 ? `round ${round} added ${added} modules (${prev} -> ${built}); min 0: no stop` : `round ${round} added ${added} modules (${prev} -> ${built})` }
+}
+
 // Entries the setup will seed: the committed queue when there is one, else the tentative records of the tree.
 export function countEntries(root, key, tentativeDir) {
   const queue = join(root, "data", `queue-${key}.json`)
