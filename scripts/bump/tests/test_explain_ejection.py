@@ -58,6 +58,30 @@ class Explain(unittest.TestCase):
         e = self.run_one("Lib/D.lean", 3, "Unknown constant `Finset.zzz_missing_name`")
         self.assertEqual(e["class"], "E")
 
+    def test_every_spelling_of_an_unknown_name_is_classified_the_same(self):
+        for msg in ("Unknown constant `Finset.zzz_missing_name`", "unknown constant 'Finset.zzz_missing_name'", "unknown identifier 'zzz_missing_name'", "unknown namespace 'Zzz.Missing'", "invalid field 'zzz_missing_name', the environment does not contain 'Nat.zzz_missing_name'"):
+            self.assertEqual(self.run_one("Lib/D.lean", 3, msg)["class"], "E", msg)
+        self.assertEqual(self.run_one("Lib/B.lean", 4, "unknown identifier 'helper_thing'")["class"], "B")
+
+    def test_a_namespace_is_looked_up_among_namespaces_not_among_declared_names(self):
+        # the library makes the namespace `Zeta` (a `namespace` line) and `Eta` (a name `Eta.inner`) and a type `Theta`: none has a declaration named `Zeta` or `Eta`
+        src = "import Mathlib\n\nnamespace Zeta\ntheorem inner_z : True := trivial\nend Zeta\n\ntheorem Eta.inner : True := trivial\n\nstructure Theta where\n  x : Nat\n\ntheorem d_one : 1 = 1 := rfl\n"
+        kept = "import Tengoku\n\nnamespace Zeta\ntheorem inner_z : True := trivial\nend Zeta\n\ntheorem Eta.inner : True := trivial\n\nstructure Theta where\n  x : Nat\n\ntheorem d_one : 1 = 1 := rfl\n"
+        pruned = "import Tengoku\n\ntheorem d_one : 1 = 1 := rfl\n"
+        for shipped_text, expect in ((kept, {"Zeta": "D", "Eta": "D", "Theta": "D", "Nowhere": "E"}), (pruned, {"Zeta": "B", "Eta": "B", "Theta": "B", "Nowhere": "E"})):
+            shards, shipped = self.setup()
+            write(shards / "shard-lib-0" / "shard-pack" / "src", "Lib/D.lean", src)
+            write(shipped, "Tengoku/Ns/Lib/D.lean", shipped_text)
+            for name, cls in expect.items():
+                r = ex.explain(self.log(("Lib/D.lean", 3, f"unknown namespace '{name}'")), ex.Shipped(shipped), ex.Factory(shards))
+                self.assertEqual(r["modules"]["Lib/D.lean"][0]["class"], cls, (name, shipped_text is kept))
+        # the same names as identifiers are still looked up among declared names: `Zeta` is not declared as one, so it is E
+        shards, shipped = self.setup()
+        write(shards / "shard-lib-0" / "shard-pack" / "src", "Lib/D.lean", src)
+        write(shipped, "Tengoku/Ns/Lib/D.lean", kept)
+        r = ex.explain(self.log(("Lib/D.lean", 3, "unknown identifier 'Zeta'")), ex.Shipped(shipped), ex.Factory(shards))
+        self.assertEqual(r["modules"]["Lib/D.lean"][0]["class"], "E")
+
     def test_C_attributes_the_packager_stripped(self):
         e = self.run_one("Lib/C.lean", 6, "Tactic `rewrite` failed: Did not find an occurrence of the pattern")
         self.assertEqual(e["class"], "C")
