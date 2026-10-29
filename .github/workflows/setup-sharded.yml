@@ -66,6 +66,14 @@ on:
         description: "Build rounds before the workflow gives up on a build that is still not complete."
         required: false
         default: "6"
+      prev_built:
+        description: "internal: modules with an .olean after the build round before this one (the build-gate job of that round passes it on); empty for the first round"
+        required: false
+        default: ""
+      min_progress:
+        description: "Modules a build round (not the first) must add to the round before it; a round that adds fewer is not followed by another (0: no such stop)."
+        required: false
+        default: "1"
       bank_run:
         description: "Publish the shard outputs of this earlier run instead of running shards (their artifacts last 3 days)."
         required: false
@@ -99,6 +107,8 @@ jobs:
     outputs:
       shards: ${{ steps.plan.outputs.shards }}
       complete: ${{ steps.status.outputs.complete }}
+      built: ${{ steps.status.outputs.built }}
+      modules: ${{ steps.status.outputs.modules }}
     steps:
       - name: Free disk (a Mathlib cache plus a library build need ~20 GB)
         if: inputs.prime_minutes != '0'
@@ -173,9 +183,14 @@ jobs:
         id: status
         if: inputs.prime_minutes != '0'
         run: |
-          # runs no Lean; the library's own code has run in this job, so only the one word is taken from the answer
-          word=$(node scripts/setup-source.mjs "$KEY" --phase build-status | grep -E '^complete=(true|false)$' | tail -n 1 || true)
+          # runs no Lean; the library's own code has run in this job, so only a word and two counts are taken from the answer, each cut down to its shape
+          answer=$(node scripts/setup-source.mjs "$KEY" --phase build-status || true)
+          word=$(printf '%s\n' "$answer" | grep -E '^complete=(true|false)$' | tail -n 1 || true)
           echo "complete=${word#complete=}" | grep -E '^complete=(true|false)$' >> "$GITHUB_OUTPUT" || echo "complete=false" >> "$GITHUB_OUTPUT"
+          # built = modules with an .olean after this round: the next round's build-gate compares its own count with it. Nothing is written when the line is not a count (the gate then has nothing to compare)
+          for name in built modules; do
+            printf '%s\n' "$answer" | grep -E "^${name}=(0|[1-9][0-9]{0,8})$" | tail -n 1 >> "$GITHUB_OUTPUT" || true
+          done
           cat "infra/$KEY/build-status.json" || true
       - name: Pack the build
         run: |
@@ -196,8 +211,16 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions: { actions: write }
+    outputs:
+      stalled: ${{ steps.gate.outputs.stalled }}
+      built: ${{ steps.gate.outputs.built }}
+      prev_built: ${{ steps.gate.outputs.prev_built }}
+      modules: ${{ steps.gate.outputs.modules }}
+      added: ${{ steps.gate.outputs.added }}
+      min_progress: ${{ steps.gate.outputs.min_progress }}
     steps:
       - name: Dispatch the next build round
+        id: gate
         env:
           GH_TOKEN: ${{ github.token }}
           SHARDS: ${{ inputs.shards }}
@@ -210,12 +233,35 @@ jobs:
           BUILD_ROUND: ${{ inputs.build_round }}
           MAX_BUILD_ROUNDS: ${{ inputs.max_build_rounds }}
           TENGOKU_REF: ${{ inputs.tengoku_ref }}
+          MIN_PROGRESS: ${{ inputs.min_progress }}
+          PREV_BUILT: ${{ inputs.prev_built }}
+          BUILT: ${{ needs.prime.outputs.built }}
+          MODULES: ${{ needs.prime.outputs.modules }}
         run: |
           for v in "$SHARDS" "$PRIME_MINUTES" "$EXPAND_CHUNK" "$ROUND" "$MAX_ROUNDS" "$PARALLEL" "$BUILD_ROUND" "$MAX_BUILD_ROUNDS"; do
             [[ "$v" =~ ^[0-9]+$ ]] || { echo "::error::an input is not a number: $v"; exit 1; }
           done
+          # the counts are plain decimal numbers (no sign, no leading zero: bash would read 08 as octal), at most nine digits; prev_built, built and modules may be empty (nothing known)
+          [[ "$MIN_PROGRESS" =~ ^(0|[1-9][0-9]{0,8})$ ]] || { echo "::error::min_progress is not a count: $MIN_PROGRESS"; exit 1; }
+          for v in "$PREV_BUILT" "$BUILT" "$MODULES"; do
+            [[ "$v" =~ ^((0|[1-9][0-9]{0,8}))?$ ]] || { echo "::error::a module count is not a number: $v"; exit 1; }
+          done
           [[ "$RESUME_RUN" =~ ^[0-9]*$ ]] || { echo "::error::resume_run is not a run id"; exit 1; }
           [[ "$TENGOKU_REF" =~ ^[A-Za-z0-9._/-]*$ ]] || { echo "::error::tengoku_ref is not a branch name"; exit 1; }
+          # A round that did nothing is not followed by another. Round 1 has no round before it, and a chain started by hand may not know the count of the round before: neither is judged.
+          # (flt-anthropic, 30,662 modules: three rounds in a row exported nothing and nothing noticed.) scripts/setup-plan.mjs roundProgress is the same rule; scripts/test-setup-workflows.mjs runs this text against it.
+          if [ "$BUILD_ROUND" -gt 1 ] && [ -n "$PREV_BUILT" ] && [ -n "$BUILT" ]; then
+            added=$((10#$BUILT - 10#$PREV_BUILT))
+            if [ "$MIN_PROGRESS" -gt 0 ] && [ "$added" -lt "$MIN_PROGRESS" ]; then   # min_progress 0: no such stop, not even for a count that fell
+              {
+                echo "stalled=true"; echo "built=$BUILT"; echo "prev_built=$PREV_BUILT"; echo "modules=$MODULES"; echo "added=$added"; echo "min_progress=$MIN_PROGRESS"
+              } >> "$GITHUB_OUTPUT"
+              echo "::error::$KEY: build round $BUILD_ROUND made no progress: $BUILT of ${MODULES:-?} modules built, $PREV_BUILT after round $((BUILD_ROUND - 1)), so $added added, fewer than min_progress=$MIN_PROGRESS. Not dispatching another round. (A negative number means the build of the round before was not restored, e.g. its artifact had expired.)"
+              exit 1
+            fi
+          elif [ "$BUILD_ROUND" -gt 1 ]; then
+            echo "::notice::build round $BUILD_ROUND: no count of the round before it (prev_built=${PREV_BUILT:-empty}, built=${BUILT:-empty}), so its progress is not judged"
+          fi
           if [ "$BUILD_ROUND" -ge "$MAX_BUILD_ROUNDS" ]; then
             echo "::error::$KEY is not built after $BUILD_ROUND build rounds (see the 'Is the build complete?' step of the prime job): raise max_build_rounds, or the library needs a bigger runner"
             exit 1
@@ -223,8 +269,57 @@ jobs:
           gh workflow run setup-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$KEY" -f shards="$SHARDS" -f prime_minutes="$PRIME_MINUTES" \
             -f expand_chunk="$EXPAND_CHUNK" -f round="$ROUND" -f max_rounds="$MAX_ROUNDS" -f parallel="$PARALLEL" -f resume_run="$RESUME_RUN" \
             -f build_run="$GITHUB_RUN_ID" -f build_round="$((BUILD_ROUND + 1))" -f max_build_rounds="$MAX_BUILD_ROUNDS" \
-            -f tengoku_ref="$TENGOKU_REF"
+            -f tengoku_ref="$TENGOKU_REF" -f min_progress="$MIN_PROGRESS" -f prev_built="$BUILT"
           echo "::notice::the build is not complete: dispatched build round $((BUILD_ROUND + 1)) of at most $MAX_BUILD_ROUNDS"
+
+  # The build-gate job stopped the chain because a round built (almost) nothing: say so where it will be seen, in ONE issue (opened, or updated when it is already open). Runs none of the
+  # library's code and checks nothing out; the only things it takes from the other jobs are numbers, checked again here. `issues: write` is held by this job alone.
+  report-stall:
+    needs: build-gate
+    if: always() && inputs.bank_run == '' && needs.build-gate.outputs.stalled == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions: { issues: write }
+    steps:
+      - name: Open or update the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_ROUND: ${{ inputs.build_round }}
+          BUILT: ${{ needs.build-gate.outputs.built }}
+          PREV_BUILT: ${{ needs.build-gate.outputs.prev_built }}
+          MODULES: ${{ needs.build-gate.outputs.modules }}
+          ADDED: ${{ needs.build-gate.outputs.added }}
+          MIN_PROGRESS: ${{ needs.build-gate.outputs.min_progress }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          [[ "$KEY" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "::error::the key is not a source key"; exit 1; }
+          for v in "$BUILD_ROUND" "$BUILT" "$PREV_BUILT" "$MIN_PROGRESS" "$RUN_ID"; do
+            [[ "$v" =~ ^[0-9]{1,12}$ ]] || { echo "::error::not a number: $v"; exit 1; }
+          done
+          [[ "$MODULES" =~ ^[0-9]{0,9}$ ]] || { echo "::error::not a number: $MODULES"; exit 1; }
+          [[ "$ADDED" =~ ^-?[0-9]{1,9}$ ]] || { echo "::error::not a number: $ADDED"; exit 1; }
+          title="setup $KEY: build round made no progress"
+          {
+            echo "Build round $BUILD_ROUND of \`$KEY\` (workflow \`setup-sharded\`) added **$ADDED** modules; the chain was stopped instead of dispatching another round."
+            echo
+            echo "| | modules with an .olean |"
+            echo "|---|---|"
+            echo "| after round $((10#$BUILD_ROUND - 1)) | $PREV_BUILT |"
+            echo "| after round $BUILD_ROUND | $BUILT |"
+            echo "| the library | ${MODULES:-unknown} |"
+            echo "| required per round (\`min_progress\`) | $MIN_PROGRESS |"
+            echo
+            echo "A negative number of added modules means the build of the round before was not restored (its artifact lasts 3 days). Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID"
+            echo
+            echo "Look at the 'This round in numbers' summary and the build-metrics artifact of that round; raise \`min_progress\` or set it to 0 to continue regardless."
+          } > body.md
+          number=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --limit 100 --search "\"$title\" in:title" --json number,title | jq -r --arg t "$title" '[.[] | select(.title == $t)] | sort_by(.number) | .[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue edit "$number" -R "$GITHUB_REPOSITORY" --body-file body.md
+            echo "::notice::updated issue #$number"
+          else
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body-file body.md
+          fi
 
   shard:
     needs: prime
