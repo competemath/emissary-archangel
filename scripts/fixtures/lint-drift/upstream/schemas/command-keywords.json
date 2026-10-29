@@ -1,0 +1,10 @@
+{
+ "about": "fixture",
+ "lean": "leanprover/lean4:v4.35.0",
+ "commands": [
+  "def",
+  "theorem",
+  "#check",
+  "meta"
+ ]
+}

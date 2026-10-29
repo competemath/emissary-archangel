@@ -1,0 +1,70 @@
+# Is the content lint pinned in scripts/bump/lint/ still tengoku's? The factory decides what the tree would accept with a COPY of four files of competemath/tengoku (allowlist.py,
+# allowed-options.json, lean_lex.py, command-keywords.json); a hand-kept copy was missing 8 options the tree allows and 2,089 of 2,467 entries of stafford38-formal were refused for it
+# (2026-10-27). Every day, and on demand, scripts/check-lint-drift.mjs reads the four files of tengoku's main (through `gh api` with the workflow's token, else raw.githubusercontent.com),
+# compares them byte for byte with the pinned copy and says which file differs and how (options added or removed, definitions, lines). On a difference ONE issue is opened or updated.
+# No AI, and nothing that tengoku holds is run: its files are read as text and compared.
+name: lint-drift
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: lint-drift
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { contents: read }
+    outputs:
+      drift: ${{ steps.compare.outputs.drift }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout: |
+            scripts/check-lint-drift.mjs
+            scripts/bump/lint
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: "22" }
+      - name: Compare the pinned lint with tengoku's main
+        id: compare
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          rc=0
+          node scripts/check-lint-drift.mjs --summary-file drift.md || rc=$?
+          case "$rc" in
+            0) echo "drift=false" >> "$GITHUB_OUTPUT" ;;
+            1) echo "drift=true" >> "$GITHUB_OUTPUT"; { echo '## Pinned content lint differs from tengoku main'; echo; cat drift.md; } >> "$GITHUB_STEP_SUMMARY" ;;
+            *) echo "::error::tengoku's lint could not be read (exit $rc): nothing is known about drift"; exit "$rc" ;;
+          esac
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: steps.compare.outputs.drift == 'true'
+        with: { name: lint-drift, path: drift.md, retention-days: 14, if-no-files-found: error }
+
+  # The issue is written by a job of its own: it checks nothing out and runs nothing from tengoku. It takes drift.md, which is text (tengoku's own lines among it), only into the body of the issue.
+  report:
+    needs: check
+    if: needs.check.outputs.drift == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { issues: write }
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { name: lint-drift }
+      - name: Open or update the issue
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          title="pinned content lint differs from tengoku main"
+          { cat drift.md; echo; echo "Found by the workflow run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID. This issue is updated by the next daily run while the difference lasts; close it once the copy is refreshed."; } > body.md
+          number=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --limit 100 --search "\"$title\" in:title" --json number,title | jq -r --arg t "$title" '[.[] | select(.title == $t)] | sort_by(.number) | .[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue edit "$number" -R "$GITHUB_REPOSITORY" --body-file body.md
+            echo "::notice::updated issue #$number"
+          else
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body-file body.md
+          fi
