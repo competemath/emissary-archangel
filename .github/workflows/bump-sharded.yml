@@ -38,7 +38,7 @@ defaults:
 jobs:
   plan:
     if: ${{ inputs.recut_from == '' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 90
     permissions: { contents: read }
     env: { KEY: "${{ inputs.key }}", SHARDS: "${{ inputs.shards }}", MAX_TARGETS: "${{ inputs.max_targets }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}" }
@@ -132,7 +132,7 @@ jobs:
   compose:
     needs: [plan, shard]
     if: ${{ !cancelled() && (inputs.recut_from != '' || needs.plan.result == 'success') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions: { contents: read, actions: read }  # actions: read = the shard artifacts of an earlier run (recut)
     env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}", SCOPE: "${{ inputs.scope }}", VERIFY: "${{ inputs.verify }}", VERIFY_MODES: "${{ inputs.verify_modes }}", DUPS: "${{ inputs.dups }}", IMPORTS: "${{ inputs.imports }}" }
@@ -226,7 +226,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: { mode: "${{ fromJSON(needs.compose.outputs.modes) }}" }
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 355
     permissions: { contents: read }
     env: { KEY: "${{ inputs.key }}", MODE: "${{ matrix.mode }}", VERIFY_PARTIAL: "${{ inputs.verify_partial }}", DUPS: "${{ inputs.dups }}", FORK_IDENTICAL: "${{ inputs.fork_identical }}" }
@@ -512,7 +512,7 @@ jobs:
   finish:
     needs: [compose, verify]
     if: ${{ !cancelled() && needs.compose.result == 'success' && (needs.verify.result == 'success' || needs.verify.result == 'skipped') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     permissions: { contents: read, id-token: write, attestations: write, actions: read }  # actions: read = the shard artifacts of an earlier run (recut)
     env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}", SCOPE: "${{ inputs.scope }}", PARTS: "${{ inputs.parts }}", FROM_TREE: "${{ inputs.from_tree }}", DUPS: "${{ inputs.dups }}", VERIFIED: "${{ needs.verify.result }}", IMPORTS: "${{ inputs.imports }}" }
