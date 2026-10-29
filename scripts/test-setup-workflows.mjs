@@ -95,7 +95,7 @@ const stepRun = (block, name) => {
 }
 const gateScript = stepRun(gate, "Dispatch the next build round")
 const envNames = [...gate.slice(gate.indexOf("env:"), gate.indexOf("run: |")).matchAll(/^ {10}([A-Z_]+):/gm)].map((m) => m[1])
-check("the harness gives the build-gate step every variable its env defines, and nothing it does not", ["BUILT", "MODULES", "PREV_BUILT", "MIN_PROGRESS", "BUILD_ROUND", "MAX_BUILD_ROUNDS", "TENGOKU_REF"].every((n) => envNames.includes(n)) && envNames.length === 15, envNames)
+check("the harness gives the build-gate step every variable its env defines, and nothing it does not", ["BUILT", "MODULES", "TOOBIG", "BLOCKED", "PREV_BUILT", "MIN_PROGRESS", "BUILD_ROUND", "MAX_BUILD_ROUNDS", "TENGOKU_REF"].every((n) => envNames.includes(n)) && envNames.length === 17, envNames)
 const sandbox = mkdtempSync(join(tmpdir(), "gate-"))
 writeFileSync(join(sandbox, "gh"), '#!/bin/sh\necho "gh $*" >> "$GH_CALLS"\nexit 0\n')
 chmodSync(join(sandbox, "gh"), 0o755)
