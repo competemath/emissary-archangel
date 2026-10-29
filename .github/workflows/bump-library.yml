@@ -118,6 +118,9 @@ jobs:
             n=$((n+1)); echo "=== step $n: Mathlib $tag ($toolchain)"
             python3 scripts/trial-library-build.py retarget lib "$tag" "$toolchain"
             (cd lib && lake update 2>&1 | tail -2 && lake exe cache get 2>&1 | tail -1)
+            # `lake update` only downloads the other packages the library requires; nothing builds them, so every import of one was a "bad import" (stafford38-formal: 365 of 436 modules lost).
+            # What the library reaches of them is copied into the library, built and shipped with it (a package missing on disk is fetched at its pinned commit; a module that runs code at compile time, a checkout that is not at the pin, or a licence that is not permissive keeps it out); the roots of the copies join the library's.
+            ROOTS=$(python3 scripts/bump/vendor_deps.py --lib lib --roots "$ROOTS" --fetch --out "vendored-$n.json" --print-roots); echo "ROOTS=$ROOTS" >> "$GITHUB_ENV"; echo "roots: $ROOTS"
             if [ "$IMPORTS" = full ]; then python3 scripts/bump/engine.py normalize-imports --lib lib --roots "$ROOTS" --lean-path "$(cd lib && lake env printenv LEAN_PATH)"; fi
             if [ "$IMPORTS" = full ]; then echo '{"moves":{}}' > "moves-$n.json"; else python3 scripts/bump/mine_moves.py "$prev" "$tag" --out "moves-$n.json"; fi
             start=$(date +%s); build "s$n-0"; echo "step $n baseline build: $(( ($(date +%s) - start) / 60 )) min"
@@ -180,6 +183,7 @@ jobs:
             emissary/tb-*.json
             emissary/repair-*.json
             emissary/portfolio-*.json
+            emissary/vendored-*.json
             emissary/repairs.patch
             emissary/gate2.log
             emissary/gate2-results.json
