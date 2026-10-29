@@ -55,10 +55,11 @@ class NewestBundles(unittest.TestCase):
         del row["headBranch"]
         self.assertEqual(io.newest_bundles([row], NOW), {})
 
-    def test_the_listing_asks_for_the_branch(self):
-        """without headBranch in --json every row would be dropped (or, before this check existed, trusted)"""
-        src = open(io.__file__).read()
+    def test_the_listing_asks_for_the_branch_and_for_main_only(self):
+        """without headBranch in --json every row would be dropped; without --branch main the cap of 200 rows is spent on feature-branch runs before the filter sees a main one"""
+        src = Path(io.__file__).read_text()
         self.assertIn("databaseId,displayTitle,conclusion,createdAt,headBranch", src)
+        self.assertIn('"--workflow", wf, "--branch", MAIN, "--status", "success"', src)
 
 
 class Decide(unittest.TestCase):

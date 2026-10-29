@@ -145,7 +145,7 @@ class Gh:
     def runs(self) -> list[dict]:
         rows: list[dict] = []
         for wf in ("bump-library.yml", "bump-sharded.yml"):
-            rows += self.json("run", "list", "-R", self.factory, "--workflow", wf, "--status", "success", "--limit", "200", "--json", "databaseId,displayTitle,conclusion,createdAt,headBranch")
+            rows += self.json("run", "list", "-R", self.factory, "--workflow", wf, "--branch", MAIN, "--status", "success", "--limit", "200", "--json", "databaseId,displayTitle,conclusion,createdAt,headBranch")
         return rows
 
     def opened_since(self, since: datetime) -> int:
