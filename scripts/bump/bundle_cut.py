@@ -28,6 +28,29 @@ def pascal(library: str) -> str:
     return "".join(p[:1].upper() + p[1:] for p in re.split(r"[-_ ]+", library) if p)
 
 
+def module_graph(texts: dict[str, str], ns: str) -> dict[str, list[str]]:
+    """The bundle's import graph: library module name (`A.B`, no `Tengoku.<Library>.` prefix) -> the modules of the bundle it imports.
+
+    `texts` maps a path below `Tengoku/<Library>/` (`A/B.lean`) to the file's text. `Deps.lean` is the library's marker, not a module. This is the ONE notion of "imports"
+    that a cut uses: `cut_dir` cuts with it and `propose_cut.py` proposes with it, so that a proposal and the cut it leads to can never disagree about who imports whom."""
+    pre = f"Tengoku.{ns}."
+    names = {".".join(tb.esc(x) for x in rel.removesuffix(".lean").split("/")): text for rel, text in texts.items() if rel.endswith(".lean") and rel.rsplit("/", 1)[-1] != "Deps.lean"}
+    return {m: [d.removeprefix(pre) for d in tb.header_imports(text) if d.startswith(pre) and d.removeprefix(pre) in names] for m, text in names.items()}
+
+
+def importer_closure(roots: set[str], imports: dict[str, list[str]]) -> set[str]:
+    """`roots` that are modules of the graph, and every module that imports one of them, directly or not."""
+    gone = {m for m in roots if m in imports}
+    changed = True
+    while changed:
+        changed = False
+        for m, ds in imports.items():
+            if m not in gone and any(d in gone for d in ds):
+                gone.add(m)
+                changed = True
+    return gone
+
+
 def cut_dir(out_dir: Path, key: str, drop: set[str]) -> dict | None:
     ns = pascal(key)
     tree_root = out_dir / "Tengoku" / ns
@@ -36,15 +59,8 @@ def cut_dir(out_dir: Path, key: str, drop: set[str]) -> dict | None:
     pre = f"Tengoku.{ns}."
     files = {f.relative_to(tree_root).with_suffix("").parts: f for f in tree_root.rglob("*.lean") if f.name != "Deps.lean" and not f.is_symlink()}
     names = {".".join(tb.esc(x) for x in parts): f for parts, f in files.items()}
-    imports = {m: [d.removeprefix(pre) for d in tb.header_imports(f.read_text()) if d.startswith(pre) and d.removeprefix(pre) in names] for m, f in names.items()}
-    gone = {m for m in drop if m in names}
-    changed = True
-    while changed:
-        changed = False
-        for m, ds in imports.items():
-            if m not in gone and any(d in gone for d in ds):
-                gone.add(m)
-                changed = True
+    imports = module_graph({"/".join(parts) + ".lean": f.read_text() for parts, f in files.items()}, ns)
+    gone = importer_closure(drop, imports)
     for m in gone:
         names[m].unlink()
     keep = sorted(set(names) - gone)
