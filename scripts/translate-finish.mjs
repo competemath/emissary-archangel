@@ -9,6 +9,7 @@
 //   node scripts/translate-finish.mjs <key> <run id> <dir holding one sub-directory per shard> [mode] [agent attempts]
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
+import { MECHANICS_VERSION } from "../lib/lean-repairs.mjs"
 
 const [key, run, dir, mode = "mechanical", attemptsArg = "1"] = process.argv.slice(2)
 if (!key || !run || !dir) {
@@ -80,6 +81,6 @@ const status = existsSync(statusPath) ? JSON.parse(readFileSync(statusPath, "utf
 // consecutive runs that settled nothing though work was left (services that never came up, a library that always
 // times out): translate-all.yml stops dispatching the mode after three
 const stalls = left > 0 && settledNow === 0 ? (status[mode]?.stalls || 0) + 1 : 0
-status[mode] = { run, at: new Date().toISOString(), shards: shards.length, todo, processed: results.length, left, limited, stalls, outcomes }
+status[mode] = { run, at: new Date().toISOString(), shards: shards.length, todo, processed: results.length, left, limited, stalls, outcomes, ...(mode === "mechanical" ? { mechanics: MECHANICS_VERSION } : {}) }
 writeFileSync(statusPath, JSON.stringify(status, null, 2) + "\n")
 console.log(`${key} run ${run} (${mode}): ${shards.length} shards, ${todo} selected, ${results.length} processed ${JSON.stringify(outcomes)}, ${left} left${limited ? " (limited run)" : ""}, ${bank.size} records banked, ${cacheChanged} prefix-cache entries updated`)
