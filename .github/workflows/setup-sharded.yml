@@ -109,6 +109,8 @@ jobs:
       complete: ${{ steps.status.outputs.complete }}
       built: ${{ steps.status.outputs.built }}
       modules: ${{ steps.status.outputs.modules }}
+      toobig: ${{ steps.status.outputs.toobig }}
+      blocked: ${{ steps.status.outputs.blocked }}
     steps:
       - name: Free disk (a Mathlib cache plus a library build need ~20 GB)
         if: inputs.prime_minutes != '0'
@@ -188,10 +190,13 @@ jobs:
           word=$(printf '%s\n' "$answer" | grep -E '^complete=(true|false)$' | tail -n 1 || true)
           echo "complete=${word#complete=}" | grep -E '^complete=(true|false)$' >> "$GITHUB_OUTPUT" || echo "complete=false" >> "$GITHUB_OUTPUT"
           # built = modules with an .olean after this round: the next round's build-gate compares its own count with it. Nothing is written when the line is not a count (the gate then has nothing to compare)
-          for name in built modules; do
+          # toobig and blocked: modules the memory watchdog killed even when built alone, and the modules that import them (scripts/setup-source.mjs buildStatus)
+          for name in built modules toobig blocked; do
             printf '%s\n' "$answer" | grep -E "^${name}=(0|[1-9][0-9]{0,8})$" | tail -n 1 >> "$GITHUB_OUTPUT" || true
           done
           cat "infra/$KEY/build-status.json" || true
+          # which modules have no .olean and why (module names only, each checked against the shape of a Lean module name when written)
+          [ -f "infra/$KEY/unbuilt-summary.md" ] && cat "infra/$KEY/unbuilt-summary.md" >> "$GITHUB_STEP_SUMMARY" || true
       - name: Pack the build
         run: |
           repo="infra/$KEY/repo/$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")"
@@ -216,6 +221,8 @@ jobs:
       built: ${{ steps.gate.outputs.built }}
       prev_built: ${{ steps.gate.outputs.prev_built }}
       modules: ${{ steps.gate.outputs.modules }}
+      toobig: ${{ steps.gate.outputs.toobig }}
+      blocked: ${{ steps.gate.outputs.blocked }}
       added: ${{ steps.gate.outputs.added }}
       min_progress: ${{ steps.gate.outputs.min_progress }}
     steps:
@@ -237,13 +244,15 @@ jobs:
           PREV_BUILT: ${{ inputs.prev_built }}
           BUILT: ${{ needs.prime.outputs.built }}
           MODULES: ${{ needs.prime.outputs.modules }}
+          TOOBIG: ${{ needs.prime.outputs.toobig }}
+          BLOCKED: ${{ needs.prime.outputs.blocked }}
         run: |
           for v in "$SHARDS" "$PRIME_MINUTES" "$EXPAND_CHUNK" "$ROUND" "$MAX_ROUNDS" "$PARALLEL" "$BUILD_ROUND" "$MAX_BUILD_ROUNDS"; do
             [[ "$v" =~ ^[0-9]+$ ]] || { echo "::error::an input is not a number: $v"; exit 1; }
           done
           # the counts are plain decimal numbers (no sign, no leading zero: bash would read 08 as octal), at most nine digits; prev_built, built and modules may be empty (nothing known)
           [[ "$MIN_PROGRESS" =~ ^(0|[1-9][0-9]{0,8})$ ]] || { echo "::error::min_progress is not a count: $MIN_PROGRESS"; exit 1; }
-          for v in "$PREV_BUILT" "$BUILT" "$MODULES"; do
+          for v in "$PREV_BUILT" "$BUILT" "$MODULES" "$TOOBIG" "$BLOCKED"; do
             [[ "$v" =~ ^((0|[1-9][0-9]{0,8}))?$ ]] || { echo "::error::a module count is not a number: $v"; exit 1; }
           done
           [[ "$RESUME_RUN" =~ ^[0-9]*$ ]] || { echo "::error::resume_run is not a run id"; exit 1; }
@@ -254,7 +263,7 @@ jobs:
             added=$((10#$BUILT - 10#$PREV_BUILT))
             if [ "$MIN_PROGRESS" -gt 0 ] && [ "$added" -lt "$MIN_PROGRESS" ]; then   # min_progress 0: no such stop, not even for a count that fell
               {
-                echo "stalled=true"; echo "built=$BUILT"; echo "prev_built=$PREV_BUILT"; echo "modules=$MODULES"; echo "added=$added"; echo "min_progress=$MIN_PROGRESS"
+                echo "stalled=true"; echo "built=$BUILT"; echo "prev_built=$PREV_BUILT"; echo "modules=$MODULES"; echo "toobig=$TOOBIG"; echo "blocked=$BLOCKED"; echo "added=$added"; echo "min_progress=$MIN_PROGRESS"
               } >> "$GITHUB_OUTPUT"
               echo "::error::$KEY: build round $BUILD_ROUND made no progress: $BUILT of ${MODULES:-?} modules built, $PREV_BUILT after round $((BUILD_ROUND - 1)), so $added added, fewer than min_progress=$MIN_PROGRESS. Not dispatching another round. (A negative number means the build of the round before was not restored, e.g. its artifact had expired.)"
               exit 1
@@ -288,6 +297,8 @@ jobs:
           BUILT: ${{ needs.build-gate.outputs.built }}
           PREV_BUILT: ${{ needs.build-gate.outputs.prev_built }}
           MODULES: ${{ needs.build-gate.outputs.modules }}
+          TOOBIG: ${{ needs.build-gate.outputs.toobig }}
+          BLOCKED: ${{ needs.build-gate.outputs.blocked }}
           ADDED: ${{ needs.build-gate.outputs.added }}
           MIN_PROGRESS: ${{ needs.build-gate.outputs.min_progress }}
           RUN_ID: ${{ github.run_id }}
@@ -296,7 +307,9 @@ jobs:
           for v in "$BUILD_ROUND" "$BUILT" "$PREV_BUILT" "$MIN_PROGRESS" "$RUN_ID"; do
             [[ "$v" =~ ^[0-9]{1,12}$ ]] || { echo "::error::not a number: $v"; exit 1; }
           done
-          [[ "$MODULES" =~ ^[0-9]{0,9}$ ]] || { echo "::error::not a number: $MODULES"; exit 1; }
+          for v in "$MODULES" "$TOOBIG" "$BLOCKED"; do
+            [[ "$v" =~ ^[0-9]{0,9}$ ]] || { echo "::error::not a number: $v"; exit 1; }
+          done
           [[ "$ADDED" =~ ^-?[0-9]{1,9}$ ]] || { echo "::error::not a number: $ADDED"; exit 1; }
           title="setup $KEY: build round made no progress"
           {
@@ -309,6 +322,13 @@ jobs:
             echo "| the library | ${MODULES:-unknown} |"
             echo "| required per round (\`min_progress\`) | $MIN_PROGRESS |"
             echo
+            if [ -n "$TOOBIG" ] && [ "$TOOBIG" -gt 0 ]; then
+              echo "**$TOOBIG module(s) were killed for memory even when built alone, and ${BLOCKED:-0} more are left out because they import one of them.** Those are what no further round can build: the 'Modules without an .olean' part of the run summary names them and the size they were killed at. A bigger runner, or a change to the library, is the way on."
+              echo
+            elif [ -n "$TOOBIG" ]; then
+              echo "No module was killed for memory (the build is not stuck on memory); the 'Modules without an .olean' part of the run summary says what else is missing."
+              echo
+            fi
             echo "A negative number of added modules means the build of the round before was not restored (its artifact lasts 3 days). Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID"
             echo
             echo "Look at the 'This round in numbers' summary and the build-metrics artifact of that round; raise \`min_progress\` or set it to 0 to continue regardless."
