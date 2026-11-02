@@ -107,5 +107,27 @@ class InheritedMathlib(unittest.TestCase):
         self.assertIn('require mathlib from git "https://github.com/leanprover-community/mathlib4.git" @ "v9"', out)
 
 
+class ForkedMathlib(unittest.TestCase):
+    """grothendieck-riemann-roch requires Mathlib from vaca22/mathlib4 @ a commit: on the tree's Mathlib it is the official repository at the tree's tag."""
+
+    def test_lean_fork_url_becomes_the_official_one(self):
+        out = tlb.retarget_lean('require mathlib from git\n  "https://github.com/vaca22/mathlib4" @ "38ddc37712cd"\n', "v4.34.0-rc2")
+        self.assertIn('"https://github.com/leanprover-community/mathlib4.git" @ "v4.34.0-rc2"', out)
+        self.assertNotIn("vaca22", out)
+
+    def test_toml_fork_url_becomes_the_official_one(self):
+        import tempfile
+
+        d = Path(tempfile.mkdtemp())
+        (d / "lakefile.toml").write_text('name = "X"\n\n[[require]]\nname = "mathlib"\ngit = "https://github.com/someone/mathlib4"\nrev = "abc"\n')
+        tlb.retarget(str(d), "v4.34.0-rc2", "leanprover/lean4:v4.34.0-rc2")
+        out = (d / "lakefile.toml").read_text()
+        self.assertIn(tlb.MATHLIB_URL, out)
+        self.assertNotIn("someone", out)
+
+    def test_other_packages_with_mathlib_in_the_name_are_left(self):
+        self.assertEqual(tlb.official_url("https://github.com/x/mathlib4-extras"), "https://github.com/x/mathlib4-extras")
+
+
 if __name__ == "__main__":
     unittest.main()

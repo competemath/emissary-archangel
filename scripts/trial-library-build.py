@@ -70,6 +70,15 @@ def mathlib_last(toml_text: str) -> str:
     return "\n".join("\n".join(b) + ("\n" if b and b[-1].strip() else "") for b in [*keep, *[[""] + m for m in moved]]).strip("\n") + "\n"
 
 
+MATHLIB_URL = "https://github.com/leanprover-community/mathlib4.git"
+
+
+def official_url(text: str) -> str:
+    """A library that requires a FORK of Mathlib (grothendieck-riemann-roch: vaca22/mathlib4) is built on the tree's Mathlib: the
+    revision is the tree's and so is the repository, since a fork has no such tag ("revision not found 'v4.34.0-rc2'")."""
+    return re.sub(r'https://github\.com/(?!leanprover-community/mathlib4)[^/"\s]+/mathlib4(?:\.git)?(?![\w.-])', MATHLIB_URL, text)
+
+
 def retarget(lib: str, mathlib: str, toolchain: str) -> None:
     root = Path(lib)
     (root / "lean-toolchain").write_text(toolchain + "\n")
@@ -79,7 +88,7 @@ def retarget(lib: str, mathlib: str, toolchain: str) -> None:
 
         def flush() -> None:
             if block and any(re.match(r'\s*name\s*=\s*"mathlib"', b) for b in block):
-                block[:] = [b for b in block if not re.match(r"\s*(rev|version)\s*=", b)]
+                block[:] = [official_url(b) for b in block if not re.match(r"\s*(rev|version)\s*=", b)]
                 block.append(f'rev = "{mathlib}"')
             if block and block[0].strip() == "[[require]]" and any(
                 re.match(r'\s*name\s*=\s*"[«]?(' + "|".join(map(re.escape, DEV_ONLY)) + r')[»]?"', b) for b in block
@@ -135,6 +144,7 @@ def retarget_lean(text: str, mathlib: str) -> str:
                 out.pop()
         elif mathlib_re.search(lines[i]):
             seen = True
+            stmt = official_url(stmt)
             if re.search(r'@\s*git\s*"[^"]*"', stmt):
                 stmt = re.sub(r'(@\s*git\s*)"[^"]*"', lambda m: f'{m.group(1)}"{mathlib}"', stmt, count=1)
             elif re.search(r'@\s*"[^"]*"', stmt):
