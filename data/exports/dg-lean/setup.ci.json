@@ -1,0 +1,59 @@
+{
+  "key": "dg-lean",
+  "repo": "https://github.com/apellis/dg-lean",
+  "commit": "161db4ede65f2dd359263a301c33ec39036988eb",
+  "toolchain": "leanprover/lean4:v4.34.1",
+  "roots": [
+    "DG"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/dg-lean/repo",
+  "entries": 6288,
+  "modules": 330,
+  "exported": 330,
+  "failed": [],
+  "expansion": {
+    "expanded": 683,
+    "verbatim": 5836,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 6293,
+    "kept": 6288,
+    "skippedRoot": 5,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 1186,
+    "lineUnverified": 4,
+    "nameFixed": 6288,
+    "sorryOriginals": 0,
+    "emptyProofs": 1
+  },
+  "sharded": {
+    "records": 9,
+    "shards": [
+      9
+    ]
+  },
+  "tools": {
+    "lean": "4.34.1 (commit 5045d0056413266e57c625dcd7c365b10e377c52, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+5045d00",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "076e8e57707e + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1"
+  },
+  "exportsBytes": 2260832256,
+  "minutes": 9,
+  "finishedAt": "2026-11-02T15:10:53.318Z",
+  "archive": {
+    "release": "exports-dg-lean",
+    "asset": "dg-lean@161db4ede65f-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-dg-lean/dg-lean@161db4ede65f-exports.tar.zst",
+    "bytes": 257801236,
+    "sha256": "3f49f4a9cb062eff8bcd81b09f9e782b752c1b04dece4e2ecac28df7601cb81d",
+    "files": 660,
+    "unpack": "tar --zstd -xf dg-lean@161db4ede65f-exports.tar.zst -C data/exports/dg-lean"
+  }
+}
