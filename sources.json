@@ -1247,7 +1247,9 @@
       ],
       "subdir": "lean",
       "licence": "Apache-2.0",
-      "tentative": ["openai-math/003.jsonl"]
+      "tentative": [
+        "openai-math/003.jsonl"
+      ]
     },
     "primecert": {
       "label": "primecert (a dependency of the OpenAI formal mathematics release, at the revision it pins)",
@@ -1612,6 +1614,95 @@
         "BinaryQuadraticForms",
         "ImaginaryClassNumberOne",
         "Examples"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "dg-lean": {
+      "label": "dg-lean (apellis/dg-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/apellis/dg-lean",
+      "commit": "161db4ede65f2dd359263a301c33ec39036988eb",
+      "toolchain": "leanprover/lean4:v4.34.1",
+      "roots": [
+        "DG"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "magnitude-conjecture": {
+      "label": "magnitude-conjecture (haruhisa-enomoto/magnitude-conjecture; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/haruhisa-enomoto/magnitude-conjecture",
+      "commit": "127bbee7284d729d593b67c88fa36e7d9eedc450",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "Challenge",
+        "MagnitudeConjecture",
+        "QuotientSubmoduleEquidistribution",
+        "Solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "quotient-submodule-equidistribution": {
+      "label": "quotient-submodule-equidistribution (haruhisa-enomoto/quotient-submodule-equidistribution; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/haruhisa-enomoto/quotient-submodule-equidistribution",
+      "commit": "20ee4b964a9174b15304ac96485beeb73be113d8",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "MainResults",
+        "QuotientSubmoduleEquidistribution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "hodge-structures-lean4": {
+      "label": "hodge-structures-lean4 (thebookersmith/hodge-structures-lean4; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/thebookersmith/hodge-structures-lean4",
+      "commit": "34b95abdcf49fbe107884e1f65202107c7a2e52c",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "Challenge",
+        "ChallengeExt",
+        "HodgePilot",
+        "Solution",
+        "SolutionExt"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "theorem-a-fp-groups": {
+      "label": "theorem-a-fp-groups (laurentbartholdi/theorem-a-fp-groups; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/laurentbartholdi/theorem-a-fp-groups",
+      "commit": "8970db6b7cc8ec2567dae486e48f34cf9226fe58",
+      "toolchain": "leanprover/lean4:v4.35.0-rc2",
+      "roots": [
+        "RequestProject"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "kurosh-problem-at-gk-dimension-two": {
+      "label": "kurosh-problem-at-gk-dimension-two (DongzheZheng/Kurosh-Problem-at-GK-Dimension-Two; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/DongzheZheng/Kurosh-Problem-at-GK-Dimension-Two",
+      "commit": "755cfd4aa1a018f0e8a9d31b62fe7904a3e350e7",
+      "toolchain": "leanprover/lean4:v4.29.0",
+      "roots": [
+        "CriticalGK2",
+        "Verification"
+      ],
+      "licence": "MIT"
+    },
+    "riemann-roch-function-fields": {
+      "label": "riemann-roch-function-fields (vaca22/riemann-roch-function-fields; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/vaca22/riemann-roch-function-fields",
+      "commit": "dbca5beed1da77e2ecd1eec207d0451fa57e8aa6",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "RiemannRoch"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "hasse-minkowski": {
+      "label": "hasse-minkowski (jayyswan/hasse-minkowski; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/jayyswan/hasse-minkowski",
+      "commit": "47f0e9b5cba6e6354b882bc5856a11962ba61f4a",
+      "toolchain": "leanprover/lean4:v4.34.0",
+      "roots": [
+        "HasseMinkowski"
       ],
       "licence": "Apache-2.0"
     }
