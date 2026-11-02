@@ -1,0 +1,63 @@
+{
+  "key": "hodge-structures-lean4",
+  "repo": "https://github.com/thebookersmith/hodge-structures-lean4",
+  "commit": "34b95abdcf49fbe107884e1f65202107c7a2e52c",
+  "toolchain": "leanprover/lean4:v4.31.0",
+  "roots": [
+    "Challenge",
+    "ChallengeExt",
+    "HodgePilot",
+    "Solution",
+    "SolutionExt"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/hodge-structures-lean4/repo",
+  "entries": 3481,
+  "modules": 146,
+  "exported": 146,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 1107,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 3537,
+    "kept": 3481,
+    "skippedRoot": 56,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 122,
+    "lineUnverified": 0,
+    "nameFixed": 3481,
+    "sorryOriginals": 0,
+    "emptyProofs": 1
+  },
+  "sharded": {
+    "records": 5,
+    "shards": [
+      5
+    ]
+  },
+  "tools": {
+    "lean": "4.31.0 (commit 68218e876d2a38b1985b8590fff244a83c321783, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+68218e8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "8554815c2dc6 + batch patch 6b97bc97d34f",
+    "node": "v22.23.3 | v22.23.4",
+    "runnerImage": "ubuntu26/20261018.50.1 | ubuntu26/20261026.180.1"
+  },
+  "exportsBytes": 294744064,
+  "minutes": 15,
+  "finishedAt": "2026-11-02T15:54:07.338Z",
+  "archive": {
+    "release": "exports-hodge-structures-lean4",
+    "asset": "hodge-structures-lean4@34b95abdcf49-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-hodge-structures-lean4/hodge-structures-lean4@34b95abdcf49-exports.tar.zst",
+    "bytes": 35459266,
+    "sha256": "064da5857dd35d514e44aa3e427d1e9d8b326580267c4d3eedfd160ac06dc109",
+    "files": 292,
+    "unpack": "tar --zstd -xf hodge-structures-lean4@34b95abdcf49-exports.tar.zst -C data/exports/hodge-structures-lean4"
+  }
+}
