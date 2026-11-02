@@ -1,0 +1,61 @@
+{
+  "key": "magnitude-conjecture",
+  "repo": "https://github.com/haruhisa-enomoto/magnitude-conjecture",
+  "commit": "127bbee7284d729d593b67c88fa36e7d9eedc450",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "Challenge",
+    "MagnitudeConjecture",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/magnitude-conjecture/repo",
+  "entries": 7258,
+  "modules": 1007,
+  "exported": 1007,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 7263,
+    "kept": 7258,
+    "skippedRoot": 5,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 1046,
+    "lineUnverified": 2,
+    "nameFixed": 7249,
+    "sorryOriginals": 0,
+    "emptyProofs": 1
+  },
+  "sharded": {
+    "records": 10,
+    "shards": [
+      10
+    ]
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1"
+  },
+  "exportsBytes": 4415631360,
+  "minutes": 78,
+  "finishedAt": "2026-11-02T17:47:00.261Z",
+  "archive": {
+    "release": "exports-magnitude-conjecture",
+    "asset": "magnitude-conjecture@127bbee7284d-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-magnitude-conjecture/magnitude-conjecture@127bbee7284d-exports.tar.zst",
+    "bytes": 447724137,
+    "sha256": "bbcb4dd2e85c71150aa638396213e24c4650765906e7952f37f42fb0375af1ad",
+    "files": 2014,
+    "unpack": "tar --zstd -xf magnitude-conjecture@127bbee7284d-exports.tar.zst -C data/exports/magnitude-conjecture"
+  }
+}
