@@ -226,9 +226,16 @@ def tick(a: argparse.Namespace, gh: Gh, opener=open_pr, sleep=time.sleep, now: d
             # (2026-10-18: lean-pool 'part 14' of a run that had only part 13 failed every run of this workflow for a day)
             skipped[key] = f"the run has no part {what['part']}: every part of it is in the tree"
         else:
-            print("FAILED", line, "::", (r.stderr.strip().splitlines() or ["?"])[-1][:300])
+            print("FAILED", line, "::", failure_tail(r.stderr))
             failed.append(key)
     return {"opened": opened, "skipped": skipped, "failed": failed}
+
+
+def failure_tail(stderr: str, lines: int = 8) -> str:
+    """The end of a failed opener's stderr, on one line: a refused push says why in the `remote:` lines BEFORE its last line ('error: failed to push
+    some refs'), and the last line alone hid the reason (quotient-submodule-equidistribution part 1, 2 Nov 2026)."""
+    rows = [x.strip() for x in stderr.strip().splitlines() if x.strip()] or ["?"]
+    return " | ".join(rows[-lines:])[:1500]
 
 
 def main(argv: list[str] | None = None) -> int:

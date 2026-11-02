@@ -20,6 +20,17 @@ def rows(*specs):
     return [{"number": n, "state": s, "headRefName": b, "title": t} for n, s, b, t in specs]
 
 
+class FailureTail(unittest.TestCase):
+    def test_the_remote_lines_before_the_last_line_are_kept(self):
+        err = "remote: error: GH013: Repository rule violations found\nremote: - Push cannot contain secrets\nerror: failed to push some refs to 'x'\n"
+        got = io.failure_tail(err)
+        self.assertIn("Push cannot contain secrets", got)
+        self.assertIn("failed to push some refs", got)
+
+    def test_nothing_is_still_a_message(self):
+        self.assertEqual(io.failure_tail(""), "?")
+
+
 class ParsePrs(unittest.TestCase):
     def test_the_key_the_run_and_the_part_come_from_the_branch(self):
         got = io.parse_prs(rows((1, "OPEN", "intake/erdos-unit-distance-1-38055889087-part-001", "x"), (2, "MERGED", "intake/prismriver-37978594492", "y"), (3, "OPEN", "feature/other", "z")))

@@ -104,6 +104,21 @@ def apply(argv):
     json.dump(e, open(p, "w"), indent=2, ensure_ascii=False); open(p, "a").write("\n")
 
 
+def mostly_overlapping(names, new, threshold=0.5):
+    """names: {library: set of record names}; new: the libraries being added. Returns (library, other, share) for every new library
+    whose records are at least `threshold` another library's (a vendored copy, or a fork's twin: riemann-roch-function-fields was a full
+    copy of grothendieck-riemann-roch, magnitude-conjecture vendors quotient-submodule-equidistribution); the later name of two new
+    libraries is the one reported."""
+    out = []
+    for k in new:
+        if not names[k]: continue
+        for o, other in names.items():
+            if o == k or (o in new and o > k): continue
+            share = len(names[k] & other) / len(names[k])
+            if share >= threshold: out.append((k, o, round(share, 2)))
+    return out
+
+
 def refine(argv):
     """refine --tengoku T: run the record rules (validate_records.py, lint_banked.py in strict mode) until both are quiet, dropping
     each record line they refuse (the later of two equal names, a name that is already trusted, a banned command, ...); every drop is
@@ -127,11 +142,36 @@ def refine(argv):
             if r.returncode != 0 and not found:
                 sys.exit(f"{script} failed without naming a record line:\n" + text[-1500:])
         if not bad:
-            print("record rules quiet:", dict(reasons)); return
+            print("record rules quiet:", dict(reasons))
+            twins = overlap_check(T)
+            if twins: sys.exit("refused, most records of a library are another's: " + "; ".join(f"{k} is {s:.0%} {o}" for k, o, s in twins))
+            return
         for f, lines in bad.items():
             rows = open(f"{T}/{f}").read().splitlines(True)
             open(f"{T}/{f}", "w").writelines(l for i, l in enumerate(rows, 1) if i not in lines)
     sys.exit("the record rules did not settle in 40 rounds")
+
+
+def overlap_check(T):
+    """the record names of every library on origin/main and in the checkout; the libraries the checkout adds are compared with all"""
+    import glob, os
+    def names_of(text):
+        got = set()
+        for l in text.splitlines():
+            try: got.add(json.loads(l)["name"])
+            except Exception: pass
+        return got
+    names = {}
+    for f in subprocess.run(["git", "-C", T, "ls-tree", "--name-only", "origin/main", "data/tentative/"], capture_output=True, text=True).stdout.split():
+        if f.endswith(".jsonl"):
+            names[os.path.basename(f)[:-6]] = names_of(subprocess.run(["git", "-C", T, "show", f"origin/main:{f}"], capture_output=True, text=True).stdout)
+    new = []
+    for f in glob.glob(f"{T}/data/tentative/*.jsonl"):
+        k = os.path.basename(f)[:-6]
+        cur = names_of(open(f).read())
+        if cur != names.get(k): new.append(k)
+        names[k] = cur
+    return mostly_overlapping(names, new)
 
 
 if __name__ == "__main__":

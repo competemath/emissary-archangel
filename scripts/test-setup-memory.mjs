@@ -116,7 +116,7 @@ const saved = existsSync(memo) ? JSON.parse(readFileSync(memo, "utf8")) : null
 check("the module is written to the build folder, which is what gets packed", saved?.toobig?.["Lib.C"]?.capMB === 500 && saved.toobig["Lib.C"].peakMB >= 500, JSON.stringify(saved))
 r = setup(["--phase", "build-status"])
 const st = statusOf()
-check("status says why: 1 too big, 1 blocked behind it, nothing unexplained", /^toobig=1$/m.test(r.stdout) && /^blocked=1$/m.test(r.stdout) && st.complete === false && st.built === 3 && st.other === 0 && st.toobig[0].module === "Lib.C" && st.toobig[0].blocks === 1, JSON.stringify(st))
+check("status says why: 1 too big, 1 blocked behind it, nothing unexplained, so no further round can add anything: complete", /^toobig=1$/m.test(r.stdout) && /^blocked=1$/m.test(r.stdout) && /^complete=true$/m.test(r.stdout) && st.complete === true && st.built === 3 && st.other === 0 && st.toobig[0].module === "Lib.C" && st.toobig[0].blocks === 1, JSON.stringify(st))
 const summary = readFileSync(join(root, "infra", "t", "unbuilt-summary.md"), "utf8")
 check("the run summary names the module and the size", /Modules without an \.olean: 2 of 5/.test(summary) && /`Lib\.C`: killed at \d+ MB with a limit of 500 MB; 1 modules import it/.test(summary), summary)
 

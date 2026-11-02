@@ -980,7 +980,9 @@ function buildStatus(modules) {
     commit: src.commit,
     modules: modules.length,
     built,
-    complete: built === modules.length,
+    // complete: nothing more can be built. Every module is built, or is missing only because it was killed for memory even alone (toobig) or imports one that was (blocked):
+    // another round adds nothing then (flt-anthropic, 2 Nov 2026: round 37 added 0 of 84 and the chain stopped with an error instead of going on to the shards)
+    complete: other.length === 0,
     // Why modules are missing, as far as it is known: killed for memory (and not built alone either), blocked behind one of those, and the rest (an error, or not tried yet).
     toobig: [...toobig].map(([module, v]) => ({ module, peakMB: v.peakMB, capMB: v.capMB, blocks: [...blocker].filter(([x, b]) => b === module && x !== module).length })),
     blocked: blockedMissing.length,

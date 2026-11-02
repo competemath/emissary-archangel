@@ -78,5 +78,19 @@ class Requires(unittest.TestCase):
         self.assertEqual(rl.requires_of("package x\n"), [])
 
 
+class Twins(unittest.TestCase):
+    def test_a_copy_is_found_and_a_small_overlap_is_not(self):
+        names = {"grr": {f"a{i}" for i in range(100)}, "copy": {f"a{i}" for i in range(100)}, "vendors": {f"a{i}" for i in range(60)} | {f"b{i}" for i in range(40)},
+                 "own": {f"c{i}" for i in range(100)} | {f"a{i}" for i in range(40)}}  # 40% shared with grr: below the 0.5 cutoff
+        got = rl.mostly_overlapping(names, ["copy", "vendors", "own"])
+        self.assertIn(("copy", "grr", 1.0), got)
+        self.assertIn(("vendors", "grr", 0.6), got)
+        self.assertFalse([g for g in got if g[0] == "own"])
+
+    def test_two_new_libraries_that_are_twins_are_reported_once(self):
+        names = {"a": {"x", "y"}, "b": {"x", "y"}}
+        self.assertEqual(rl.mostly_overlapping(names, ["a", "b"]), [("b", "a", 1.0)])
+
+
 if __name__ == "__main__":
     unittest.main()
