@@ -1635,7 +1635,6 @@
       "roots": [
         "Challenge",
         "MagnitudeConjecture",
-        "QuotientSubmoduleEquidistribution",
         "Solution"
       ],
       "licence": "Apache-2.0"
