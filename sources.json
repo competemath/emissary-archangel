@@ -1686,16 +1686,6 @@
       ],
       "licence": "MIT"
     },
-    "riemann-roch-function-fields": {
-      "label": "riemann-roch-function-fields (vaca22/riemann-roch-function-fields; registered from the tengoku-osint scan, FATE-X-relevant)",
-      "repo": "https://github.com/vaca22/riemann-roch-function-fields",
-      "commit": "dbca5beed1da77e2ecd1eec207d0451fa57e8aa6",
-      "toolchain": "leanprover/lean4:v4.31.0",
-      "roots": [
-        "RiemannRoch"
-      ],
-      "licence": "Apache-2.0"
-    },
     "hasse-minkowski": {
       "label": "hasse-minkowski (jayyswan/hasse-minkowski; registered from the tengoku-osint scan, FATE-X-relevant)",
       "repo": "https://github.com/jayyswan/hasse-minkowski",
