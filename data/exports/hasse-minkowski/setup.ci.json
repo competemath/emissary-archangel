@@ -1,0 +1,44 @@
+{
+  "key": "hasse-minkowski",
+  "repo": "https://github.com/jayyswan/hasse-minkowski",
+  "commit": "47f0e9b5cba6e6354b882bc5856a11962ba61f4a",
+  "toolchain": "leanprover/lean4:v4.34.0",
+  "roots": [
+    "HasseMinkowski"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/hasse-minkowski/repo",
+  "entries": 412,
+  "modules": 22,
+  "exported": 22,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 412,
+    "kept": 412,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 412,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.34.0 (commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+293d5d0",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "076e8e57707e + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1"
+  },
+  "exportsBytes": 6295552,
+  "minutes": 5,
+  "finishedAt": "2026-11-02T17:15:15.810Z"
+}
