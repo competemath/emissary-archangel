@@ -38,10 +38,44 @@ class Apply(unittest.TestCase):
         e = json.loads((d / "e/sources.json").read_text())
         self.assertEqual(t["allowed"], ["https://github.com/o/good"])
         self.assertEqual(t["licences"], {"https://github.com/o/good": "MIT"})
-        self.assertEqual(t["corpora"]["good"]["roots"], ["Good"])
+        self.assertEqual(t["corpora"], {"good": {"repo": "https://github.com/o/good", "commit": "c" * 40, "roots": ["Good"]}})
         self.assertEqual(list(e["sources"]), ["good"])
         self.assertTrue((d / "t/data/tentative/good.jsonl").exists())
         self.assertFalse((d / "t/data/tentative/bad.jsonl").exists())
+
+    def _setup(self, registered=None):
+        d = Path(tempfile.mkdtemp())
+        (d / "t/schemas").mkdir(parents=True); (d / "t/data/tentative").mkdir(parents=True); (d / "e").mkdir(); (d / "rec").mkdir()
+        corpora = {"foo": {"repo": "https://github.com/" + registered, "commit": "x", "roots": ["F"]}} if registered else {}
+        (d / "t/schemas/sources.json").write_text(json.dumps({"allowed": [], "licences": {}, "corpora": corpora}))
+        (d / "e/sources.json").write_text(json.dumps({"sources": {}}))
+        (d / "rec/foo.jsonl").write_text("{}\n")
+        return d
+
+    def _run(self, d, metas):
+        (d / "meta.json").write_text(json.dumps(metas))
+        rl.apply(["apply", "--tengoku", str(d / "t"), "--emissary", str(d / "e"), "--meta", str(d / "meta.json"), "--records", str(d / "rec")])
+
+    def test_a_key_registered_for_another_repository_is_refused(self):
+        d = self._setup(registered="a/foo")
+        m = {"repo": "b/foo", "key": "foo", "commit": "c" * 40, "licence": "MIT", "toolchain": "t", "roots": ["F"], "verdict": "ok"}
+        with self.assertRaises(SystemExit):
+            self._run(d, [m])
+
+    def test_two_repositories_with_one_key_are_refused(self):
+        d = self._setup()
+        m = {"repo": "a/foo", "key": "foo", "commit": "c" * 40, "licence": "MIT", "toolchain": "t", "roots": ["F"], "verdict": "ok"}
+        with self.assertRaises(SystemExit):
+            self._run(d, [m, {**m, "repo": "b/foo"}])
+
+
+class Requires(unittest.TestCase):
+    def test_lean_and_toml_spellings(self):
+        self.assertEqual(rl.requires_of('require mathlib from git "u"\nrequire «foo-bar» from git "v"\n'), ["foo-bar", "mathlib"])
+        self.assertEqual(rl.requires_of('[[require]]\nname = "mathlib"\nscope = "x"\n\n[[require]]\nname = "other"\n'), ["mathlib", "other"])
+
+    def test_none(self):
+        self.assertEqual(rl.requires_of("package x\n"), [])
 
 
 if __name__ == "__main__":

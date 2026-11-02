@@ -34,6 +34,12 @@ def roots_of(lakefile):
     return sorted(dict.fromkeys(n for n in names if n))
 
 
+def requires_of(lakefile):
+    """the packages a lakefile requires (lean and toml spellings); a library with no manifest is still judged on these"""
+    names = [a or b for a, b in re.findall(r'^\s*require\s+«?([\w.-]+)»?|\[\[require\]\]\s*\n(?:[^\n]*\n)*?\s*name\s*=\s*"([^"]+)"', lakefile, re.M)]
+    return sorted(dict.fromkeys(names))
+
+
 def meta(repo):
     out = {"repo": repo, "key": repo.split("/")[1].lower().replace("_", "-")}
     info = gh(f"repos/{repo}")
@@ -55,11 +61,11 @@ def meta(repo):
     out["roots"] = roots_of(lake)
     if not out["roots"]: why.append("no lean_lib roots")
     mf = contents(repo, "lake-manifest.json", sha)
-    deps = []
+    deps = requires_of(lake)
     if mf:
-        try: deps = [p["name"].strip("«»") for p in json.loads(mf)["packages"]]
+        try: deps += [p["name"].strip("«»") for p in json.loads(mf)["packages"]]
         except Exception: why.append("unreadable lake-manifest")
-    extra = [d for d in deps if d not in MATHLIB_DEPS]
+    extra = sorted(dict.fromkeys(d for d in deps if d not in MATHLIB_DEPS))
     out["extra_deps"] = extra
     if extra: why.append("Lake dependencies beyond Mathlib: " + ", ".join(extra))
     out["verdict"] = "ok" if not why else "; ".join(why)
@@ -73,8 +79,16 @@ def apply(argv):
     ap.add_argument("--meta", required=True); ap.add_argument("--records", required=True, help="dir with <key>.jsonl (harvested, limited to roots)")
     a = ap.parse_args(argv)
     M = [m for m in json.load(open(a.meta)) if m["verdict"] == "ok"]
+    keys = [m["key"] for m in M]
+    if len(keys) != len(set(keys)):
+        sys.exit("two repositories give the same key: " + ", ".join(sorted(k for k in set(keys) if keys.count(k) > 1)))
     # tengoku: allowed + licences + corpora
     p = f"{a.tengoku}/schemas/sources.json"; d = json.load(open(p))
+    e = json.load(open(f"{a.emissary}/sources.json"))
+    for m in M:
+        url = "https://github.com/" + m["repo"]
+        old = (d["corpora"].get(m["key"]) or {}).get("repo") or (e["sources"].get(m["key"]) or {}).get("repo")
+        if old and old != url: sys.exit(f"key {m['key']} is already registered for {old}, not {url}")
     for m in M:
         url = "https://github.com/" + m["repo"]
         if url not in d["allowed"]: d["allowed"].append(url)
@@ -83,7 +97,7 @@ def apply(argv):
         shutil.copy(f"{a.records}/{m['key']}.jsonl", f"{a.tengoku}/data/tentative/{m['key']}.jsonl")
     json.dump(d, open(p, "w"), indent=2, ensure_ascii=False); open(p, "a").write("\n")
     # emissary: sources.json
-    p = f"{a.emissary}/sources.json"; e = json.load(open(p))
+    p = f"{a.emissary}/sources.json"
     for m in M:
         e["sources"][m["key"]] = {"label": f"{m['key']} ({m['repo']}; registered from the tengoku-osint scan, FATE-X-relevant)",
             "repo": "https://github.com/" + m["repo"], "commit": m["commit"], "toolchain": m["toolchain"], "roots": m["roots"], "licence": m["licence"]}
@@ -91,9 +105,10 @@ def apply(argv):
 
 
 def refine(argv):
-    """refine --tengoku T: run validate_records.py until it is quiet, dropping each record line it refuses (the later of two
-    equal names, a name that is already trusted, ...); every drop is counted by reason. The tengoku checkout is committed (HEAD)
-    and compared with origin/main."""
+    """refine --tengoku T: run the record rules (validate_records.py, lint_banked.py in strict mode) until both are quiet, dropping
+    each record line they refuse (the later of two equal names, a name that is already trusted, a banned command, ...); every drop is
+    counted by reason. The tengoku checkout is committed (HEAD) and compared with origin/main. A rule that fails without naming a
+    record line is an error, never a pass."""
     import collections, os
     T = argv[argv.index("--tengoku") + 1]
     reasons = collections.Counter()
@@ -101,17 +116,22 @@ def refine(argv):
         subprocess.run(["git", "-C", T, "add", "-A"], check=True)
         subprocess.run(["git", "-C", T, "-c", "user.name=mikaelbashir", "-c", "user.email=138998999+mikael-bashir@users.noreply.github.com",
                         "commit", "-q", "--amend", "--no-edit", "--signoff"], check=True)
-        r = subprocess.run([sys.executable, "scripts/ci/validate_records.py", "origin/main", "HEAD"], cwd=T, capture_output=True, text=True)
-        text = r.stdout + r.stderr
         bad = collections.defaultdict(set)
-        for m in re.finditer(r"^\s*(data/\S+\.jsonl):(\d+): (.*)$", text, re.M):
-            bad[m.group(1)].add(int(m.group(2))); reasons[re.sub(r":.*", "", m.group(3))] += 1
+        for script in ("validate_records.py", "lint_banked.py"):
+            r = subprocess.run([sys.executable, f"scripts/ci/{script}", "origin/main", "HEAD"], cwd=T, capture_output=True, text=True,
+                               env={**os.environ, "TENGOKU_INTAKE_LINT": "strict"})
+            text = r.stdout + r.stderr
+            found = False
+            for m in re.finditer(r"^\s*(data/\S+\.jsonl):(\d+): (.*)$", text, re.M):
+                bad[m.group(1)].add(int(m.group(2))); reasons[re.sub(r":.*", "", m.group(3))] += 1; found = True
+            if r.returncode != 0 and not found:
+                sys.exit(f"{script} failed without naming a record line:\n" + text[-1500:])
         if not bad:
-            print("validate_records:", (text.strip().splitlines() or ["quiet"])[-1], dict(reasons)); return
+            print("record rules quiet:", dict(reasons)); return
         for f, lines in bad.items():
             rows = open(f"{T}/{f}").read().splitlines(True)
             open(f"{T}/{f}", "w").writelines(l for i, l in enumerate(rows, 1) if i not in lines)
-    sys.exit("validate_records did not settle in 40 rounds:\n" + text[-1500:])
+    sys.exit("the record rules did not settle in 40 rounds")
 
 
 if __name__ == "__main__":
