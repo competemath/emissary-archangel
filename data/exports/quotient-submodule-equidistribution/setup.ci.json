@@ -1,0 +1,60 @@
+{
+  "key": "quotient-submodule-equidistribution",
+  "repo": "https://github.com/haruhisa-enomoto/quotient-submodule-equidistribution",
+  "commit": "20ee4b964a9174b15304ac96485beeb73be113d8",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "MainResults",
+    "QuotientSubmoduleEquidistribution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/quotient-submodule-equidistribution/repo",
+  "entries": 7286,
+  "modules": 659,
+  "exported": 659,
+  "failed": [],
+  "expansion": {
+    "expanded": 16,
+    "verbatim": 451,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 7292,
+    "kept": 7286,
+    "skippedRoot": 6,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 632,
+    "lineUnverified": 20,
+    "nameFixed": 7286,
+    "sorryOriginals": 0,
+    "emptyProofs": 1
+  },
+  "sharded": {
+    "records": 10,
+    "shards": [
+      10
+    ]
+  },
+  "tools": {
+    "lean": "4.32.0 (commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+8c9756b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "4e7915201d3f + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1"
+  },
+  "exportsBytes": 2113998848,
+  "minutes": 15,
+  "finishedAt": "2026-11-02T14:15:39.627Z",
+  "archive": {
+    "release": "exports-quotient-submodule-equidistribution",
+    "asset": "quotient-submodule-equidistribution@20ee4b964a91-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-quotient-submodule-equidistribution/quotient-submodule-equidistribution@20ee4b964a91-exports.tar.zst",
+    "bytes": 219880087,
+    "sha256": "d6a74dae9e176259ca81a85c9f572fe2872ddcd8ea8342bf506e0858e7cc0055",
+    "files": 1318,
+    "unpack": "tar --zstd -xf quotient-submodule-equidistribution@20ee4b964a91-exports.tar.zst -C data/exports/quotient-submodule-equidistribution"
+  }
+}
