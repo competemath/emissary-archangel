@@ -1,0 +1,1 @@
+{"names":["stoch_to_det.qrt_tangent","stoch_to_det.sqrt_tangent"],"modules":["stoch_to_det.AssemblyBounds"],"moduleOf":{"stoch_to_det.qrt_tangent":"stoch_to_det.AssemblyBounds","stoch_to_det.sqrt_tangent":"stoch_to_det.AssemblyBounds"},"deps":{"stoch_to_det.qrt_tangent":[],"stoch_to_det.sqrt_tangent":[]}}
