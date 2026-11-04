@@ -1,0 +1,61 @@
+{
+  "key": "t3-model-companion",
+  "repo": "https://github.com/yawara/t3-model-companion",
+  "commit": "b264b4a23d3f208a62ade1611a3473c8a72d7b34",
+  "toolchain": "leanprover/lean4:v4.35.0-rc2",
+  "roots": [
+    "Challenge",
+    "Solution",
+    "T3"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/t3-model-companion/repo",
+  "entries": 1302,
+  "modules": 114,
+  "exported": 114,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1302,
+    "kept": 1302,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 232,
+    "lineUnverified": 0,
+    "nameFixed": 1302,
+    "sorryOriginals": 0,
+    "emptyProofs": 3
+  },
+  "sharded": {
+    "records": 2,
+    "shards": [
+      2
+    ]
+  },
+  "tools": {
+    "lean": "4.35.0-rc2 (commit 11acb17ec6b07a8f9e9173e6845197929540936b, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+11acb17",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "6cea97789dc0 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1"
+  },
+  "exportsBytes": 114585600,
+  "minutes": 3,
+  "finishedAt": "2026-11-04T05:35:20.650Z",
+  "archive": {
+    "release": "exports-t3-model-companion",
+    "asset": "t3-model-companion@b264b4a23d3f-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-t3-model-companion/t3-model-companion@b264b4a23d3f-exports.tar.zst",
+    "bytes": 13785924,
+    "sha256": "d547ca2aad1199abef2db076a0404179e24036504fe9f57e0fd4ef0b30a9f730",
+    "files": 228,
+    "unpack": "tar --zstd -xf t3-model-companion@b264b4a23d3f-exports.tar.zst -C data/exports/t3-model-companion"
+  }
+}
