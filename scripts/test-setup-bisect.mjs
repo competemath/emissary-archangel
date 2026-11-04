@@ -4,11 +4,12 @@
 // -M, the watchdog alone bounds it). Runs setup-source.mjs for real, in a throwaway root, against a local git
 // repository, a stand-in `elan`, a stand-in lean4export folder and a stand-in `lake` whose `lean --run` refuses a closure batch larger
 // than FAKE_CLOSURE_MAX modules and whose `lean4export --batch` refuses one larger than FAKE_EXPORT_MAX (as a memory kill does), and
-// whose exporter refuses the module FAKE_EXPORT_REFUSE in any company. No Lean, no network.
+// whose exporter refuses the module FAKE_EXPORT_REFUSE in any company, and hangs (a child process that never ends, as lean4export under `lake env` does)
+// on the module FAKE_EXPORT_HANG: the export timeouts are scaled down to a second or two for it. No Lean, no network.
 // Why: flt-anthropic, 3-4 Nov 2026. Every closure process was killed at 10.3-11.8 GB under the 10 GB per-process limit, a batch of
 // 350-600 or a single module alike; the fallback then ran one ~11 GB import per module, serially, and 62 of 64 export shards ran to their
 // 300-minute cap with nothing exported (shard 5 handed on 129 files). Round 2 was repeating it on 12 runners.
-import { execFileSync, spawnSync } from "node:child_process"
+import { execFileSync, spawn, spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
@@ -87,6 +88,12 @@ if (cmd === "env" && args[1] === "lean") {
     process.exit(0)
   }
 }
+// the exporter under lake env: a child of this process that never ends; its pid goes to a file, and this process waits for it
+function hangForever() {
+  const child = require("node:child_process").spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" })
+  fs.appendFileSync(${JSON.stringify(join(tmp, "hung-pids"))}, child.pid + "\\n")
+  for (;;) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000) // lake waits for its child; only a kill of the group ends either
+}
 if (cmd === "env" && args[1].endsWith("lean4export")) {
   const refuse = process.env.FAKE_EXPORT_REFUSE || ""
   const batch = args.find((a) => a.startsWith("--batch="))
@@ -94,12 +101,14 @@ if (cmd === "env" && args[1].endsWith("lean4export")) {
     const rows = fs.readFileSync(batch.slice(8), "utf8").trim().split("\\n").map((l) => l.split("\\t"))
     fs.appendFileSync(${JSON.stringify(join(tmp, "lake-calls"))}, "export-batch " + rows.map((r) => r[0]).join(" ") + "\\n")
     const max = Number(process.env.FAKE_EXPORT_MAX || 1000)
+    if (process.env.FAKE_EXPORT_HANG && rows.some((r) => r[0] === process.env.FAKE_EXPORT_HANG)) hangForever()
     if (rows.length > max || rows.some((r) => r[0] === refuse)) { process.stderr.write("memory\\n"); process.exit(1) }
     for (const [m, out] of rows) fs.writeFileSync(out, JSON.stringify({ thm: m }) + "\\n")
     process.exit(0)
   }
   const m = args[2]
   fs.appendFileSync(${JSON.stringify(join(tmp, "lake-calls"))}, "export-one " + m + "\\n")
+  if (process.env.FAKE_EXPORT_HANG && m === process.env.FAKE_EXPORT_HANG) hangForever()
   if (m === refuse) { process.stderr.write("memory\\n"); process.exit(1) }
   process.stdout.write(JSON.stringify({ thm: m }) + "\\n")
   process.exit(0)
@@ -122,7 +131,7 @@ const exportsDir = join(root, "data", "exports", "t")
 const setup = (args, env = {}, only = ["--only", "expand"]) =>
   spawnSync("node", [join(root, "scripts", "setup-source.mjs"), "t", ...only, "--keep-build", ...args], {
     // every FAKE_* knob is set here, so that nothing in the caller's environment changes a split
-    env: { ...process.env, HOME: home, EMISSARY_WATCH_MS: "300", EMISSARY_FOOTPRINT_MB: "150", EMISSARY_RETRY_FOOTPRINT_MB: "2048", EMISSARY_LEAN_MB: "100", FAKE_CLOSURE_MAX: "1000", FAKE_EXPORT_MAX: "1000", FAKE_EXPORT_REFUSE: "", ...env },
+    env: { ...process.env, HOME: home, EMISSARY_WATCH_MS: "300", EMISSARY_FOOTPRINT_MB: "150", EMISSARY_RETRY_FOOTPRINT_MB: "2048", EMISSARY_LEAN_MB: "100", FAKE_CLOSURE_MAX: "1000", FAKE_EXPORT_MAX: "1000", FAKE_EXPORT_REFUSE: "", FAKE_EXPORT_HANG: "", ...env },
     encoding: "utf8",
   })
 const calls = () => (existsSync(join(tmp, "lake-calls")) ? readFileSync(join(tmp, "lake-calls"), "utf8").trim().split("\n") : [])
@@ -189,6 +198,72 @@ check("the five modules the exporter accepts are exported, the refused one is no
 check("the halving isolates the refused module: 6, 3+3, 2+1", sizes(ec) === "6,3,3,2,1", ec.map((c) => c.join(" ")).join("\n"))
 check("the refused module is tried alone exactly once, through the single-module exporter", ec.filter((c) => c[0] === "export-one").map((c) => c[1]).join(",") === "Lib.F", ec.map((c) => c.join(" ")).join("\n"))
 check("the record names the module and the exporter's exit", report && report.exported === 5 && report.failed.length === 1 && report.failed[0].module === "Lib.F" && /lean4export exited 1/.test(report.failed[0].why), JSON.stringify(report && report.failed))
+
+// 8. an export that hangs: the batch is cut off by its scaled timeout (base + per module), the halving goes on with ever smaller limits, the module that hangs alone is cut off
+// by the single-module limit and recorded, and every process the timeouts killed is gone (`lake` runs the exporter as its child: killing `lake` alone left it running, and the
+// next attempt shared the machine with it; flt-anthropic round 4, 4 Nov 2026: four shards re-ran halves of 200, 100 and 50 modules, each timing out too, for five hours)
+fresh()
+fakeExporter()
+rmSync(join(tmp, "hung-pids"), { force: true })
+const started = Date.now()
+r = setup(["--export-batch", "6"], { FAKE_EXPORT_HANG: "Lib.F", EMISSARY_EXPORT_BASE_MS: "1000", EMISSARY_EXPORT_PER_MODULE_MS: "100", EMISSARY_EXPORT_SINGLE_MS: "900" }, [])
+ec = exportCalls()
+const hangReport = existsSync(join(root, "infra", "t", "setup.json")) ? JSON.parse(readFileSync(join(root, "infra", "t", "setup.json"), "utf8")) : null
+check("the five modules that do not hang are exported", r.status === 0 && exported().join("") === "ABCDE", out(r))
+check("the halving isolates the module that hangs: 6, 3+3, 2+1", sizes(ec) === "6,3,3,2,1", ec.map((c) => c.join(" ")).join("\n"))
+check("a batch's limit is the base plus so much per module: 1.6 s for six, 1.3 s for three", /export batch of 6 exited 124:[^\n]*timed out after 1\.6s/.test(r.stdout) && /export batch of 3 exited 124:[^\n]*timed out after 1\.3s/.test(r.stdout), r.stdout)
+check("the module alone has its own limit and is recorded as timed out", hangReport && hangReport.failed.length === 1 && hangReport.failed[0].module === "Lib.F" && /timed out after 0\.9s/.test(hangReport.failed[0].why), JSON.stringify(hangReport && hangReport.failed))
+const pids = existsSync(join(tmp, "hung-pids")) ? readFileSync(join(tmp, "hung-pids"), "utf8").trim().split("\n").map(Number) : []
+const alive = (pid) => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+for (let i = 0; i < 20 && pids.some(alive); i++) spawnSync("sleep", ["0.2"])
+check("three exporters hung, and none of them is still running", pids.length === 3 && !pids.some(alive), `pids ${pids.join(",")}, alive ${pids.filter(alive).join(",")}`)
+for (const pid of pids.filter(alive)) process.kill(pid, "SIGKILL") // a failing run must not leave them behind
+check("it took seconds, not the hours of the old limits", Date.now() - started < 60000, `${Date.now() - started} ms`)
+
+check("the limits in force are in the log: the knobs as set", /limits: a batch 1 s \+ 0\.1 s per module \(at most 60 min\), one module alone 0\.9 s/.test(r.stdout), r.stdout)
+
+// 9. the knobs take only a positive number a timer can hold: 0, text and 99999999999 ms (setTimeout turns a delay over 2^31-1 ms into 1 ms) fall back to the defaults
+fresh()
+fakeExporter()
+r = setup(["--export-batch", "6"], { EMISSARY_EXPORT_BASE_MS: "0", EMISSARY_EXPORT_PER_MODULE_MS: "abc", EMISSARY_EXPORT_SINGLE_MS: "99999999999" }, [])
+check("a knob that is 0, text or too large for a timer is the default", r.status === 0 && /limits: a batch 180 s \+ 3 s per module \(at most 60 min\), one module alone 1200 s/.test(r.stdout), r.stdout)
+
+// 10. a SIGTERM to the script ends the commands it started: each leads its own process group, so the terminal's Ctrl-C and a plain kill of the script no longer reach them
+fresh()
+fakeExporter()
+rmSync(join(tmp, "hung-pids"), { force: true })
+const child = spawn("node", [join(root, "scripts", "setup-source.mjs"), "t", "--keep-build", "--export-batch", "6"], {
+  // the three export knobs are the defaults, whatever the caller has set: a short limit would end the hang before the SIGTERM; its own process group, so that a failing test can end the script and the fake lake with it
+  env: { ...process.env, HOME: home, EMISSARY_WATCH_MS: "300", EMISSARY_FOOTPRINT_MB: "150", EMISSARY_RETRY_FOOTPRINT_MB: "2048", EMISSARY_LEAN_MB: "100", FAKE_EXPORT_HANG: "Lib.F", EMISSARY_EXPORT_BASE_MS: "180000", EMISSARY_EXPORT_PER_MODULE_MS: "3000", EMISSARY_EXPORT_SINGLE_MS: "1200000" },
+  stdio: "ignore",
+  detached: true,
+})
+const exitCode = new Promise((res) => child.on("close", (code, sig) => res(sig ?? code)))
+for (let i = 0; i < 100 && !existsSync(join(tmp, "hung-pids")); i++) await new Promise((r2) => setTimeout(r2, 200))
+const hung = existsSync(join(tmp, "hung-pids")) ? readFileSync(join(tmp, "hung-pids"), "utf8").trim().split("\n").map(Number) : []
+check("the exporter hangs under the default limits (the script is waiting for it)", hung.length === 1 && alive(hung[0]), `pids ${hung.join(",")}`)
+child.kill("SIGTERM")
+let guard
+const how = await Promise.race([exitCode, new Promise((r2) => { guard = setTimeout(() => r2("still running"), 15000) })])
+clearTimeout(guard)
+for (let i = 0; i < 20 && hung.some(alive); i++) await new Promise((r2) => setTimeout(r2, 200))
+check("after a SIGTERM the script has exited, with 143", how === 143, String(how))
+check("and the exporter it was waiting for is gone", hung.length === 1 && !alive(hung[0]), `alive ${hung.filter(alive).join(",")}`)
+for (const pid of hung.filter(alive)) process.kill(pid, "SIGKILL")
+if (how === "still running") {
+  try {
+    process.kill(-child.pid, "SIGKILL") // the script, the fake lake and whatever else is in its group
+  } catch {
+    /* already gone */
+  }
+}
 
 rmSync(tmp, { recursive: true, force: true })
 if (bad) {
