@@ -1,0 +1,49 @@
+{
+  "key": "jsp000937-lean",
+  "repo": "https://github.com/randyxian08/jsp000937-lean",
+  "commit": "4d7493e7e730597877c38bd750bf02839863b68a",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "roots": [
+    "Erdos1153"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/jsp000937-lean/repo",
+  "entries": 1310,
+  "modules": 77,
+  "exported": 76,
+  "failed": [
+    {
+      "module": "Erdos1153.ClassicalBound.Synchronization",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1310,
+    "kept": 1310,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 119,
+    "lineUnverified": 0,
+    "nameFixed": 1310,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.0 (commit d8b18978322de05a8f3dba51ef03cf5461676c17, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+d8b1897",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1"
+  },
+  "exportsBytes": 44167168,
+  "minutes": 5,
+  "finishedAt": "2026-11-04T06:40:49.504Z"
+}
