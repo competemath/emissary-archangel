@@ -1,0 +1,61 @@
+{
+  "key": "asymptotic-triangle-packing",
+  "repo": "https://github.com/jtraverso/asymptotic-triangle-packing",
+  "commit": "760e503972aad8ca9da7904ce72e5cce405f5991",
+  "toolchain": "leanprover/lean4:v4.35.0-rc3",
+  "roots": [
+    "Challenge",
+    "LeanPool",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/asymptotic-triangle-packing/repo",
+  "entries": 987,
+  "modules": 51,
+  "exported": 51,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 997,
+    "kept": 987,
+    "skippedRoot": 10,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 987,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "sharded": {
+    "records": 2,
+    "shards": [
+      2
+    ]
+  },
+  "tools": {
+    "lean": "4.35.0-rc3 (commit 470d5ce1400764999581fd26d5d72b00d990b0f4, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+470d5ce",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "66f1fb4bc256 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1"
+  },
+  "exportsBytes": 24104960,
+  "minutes": 3,
+  "finishedAt": "2026-11-04T05:34:36.890Z",
+  "archive": {
+    "release": "exports-asymptotic-triangle-packing",
+    "asset": "asymptotic-triangle-packing@760e503972aa-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-asymptotic-triangle-packing/asymptotic-triangle-packing@760e503972aa-exports.tar.zst",
+    "bytes": 2650175,
+    "sha256": "958705cb62ec561f0220e5cdd95c346194328e4b0af852e89f160cc541d237c6",
+    "files": 102,
+    "unpack": "tar --zstd -xf asymptotic-triangle-packing@760e503972aa-exports.tar.zst -C data/exports/asymptotic-triangle-packing"
+  }
+}
