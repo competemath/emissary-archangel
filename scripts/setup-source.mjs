@@ -64,6 +64,13 @@ const CONCURRENCY = Number(flag("concurrency", 1))
 // Mathlib-wide import; 11 GB still stops a runaway like the 18 GB one.
 const LEAN_MB = Math.max(1024, Number(process.env.EMISSARY_LEAN_MB || 11264))
 const EXPORT_BATCH = Math.max(1, Number(flag("export-batch", 8)))
+// How long an export may take. A healthy batch of 400 modules took 5.5 min (flt-anthropic, 4 Nov 2026), so a batch gets a base plus a few seconds per module, up to an hour,
+// instead of an hour whatever its size: a batch that hangs is found in minutes, and each halving of it is cheaper than the one before. One module alone gets EXPORT_SINGLE_MS.
+const envMs = (name, dflt) => (Number(process.env[name]) >= 0 && process.env[name] !== undefined && process.env[name] !== "" ? Number(process.env[name]) : dflt)
+const EXPORT_BASE_MS = envMs("EMISSARY_EXPORT_BASE_MS", 3 * 60 * 1000)
+const EXPORT_PER_MODULE_MS = envMs("EMISSARY_EXPORT_PER_MODULE_MS", 3000)
+const EXPORT_SINGLE_MS = envMs("EMISSARY_EXPORT_SINGLE_MS", 20 * 60 * 1000)
+const exportBatchMs = (n) => Math.min(60 * 60 * 1000, EXPORT_BASE_MS + EXPORT_PER_MODULE_MS * n)
 // Per-process sizes; a library of tens of thousands of tiny modules (flt-anthropic) wants them
 // large: every process pays the environment import, the modules themselves cost seconds.
 const BUILD_CHUNK = Math.max(1, Number(flag("build-chunk", 150)))
@@ -127,11 +134,23 @@ const SETUP_JSON = join(INFRA, "setup.json")
 mkdirSync(INFRA, { recursive: true })
 mkdirSync(EXPORTS, { recursive: true })
 
+// Kills a command started with `detached: true` and everything it started (its process group); the command alone if the group is already gone.
+function killGroup(p) {
+  try {
+    process.kill(-p.pid, "SIGKILL")
+  } catch {
+    try { p.kill("SIGKILL") } catch { /* already exited */ }
+  }
+}
+
 // Streams a long command's output to our stdout (lake build progress) and resolves with its exit code.
 function run(cmd, args, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000, quiet = false } = {}) {
   return new Promise((res) => {
     if (!quiet) log(`$ ${cmd} ${args.join(" ")}  (cwd ${cwd})`)
-    const p = spawn(cmd, args, { cwd, env: ENV, stdio: ["ignore", "pipe", "pipe"] })
+    // detached: the command leads its own process group, so that a timeout can kill the whole tree. `lake env <tool>` runs the tool as a child of `lake`:
+    // killing `lake` alone left the tool running, reparented to init, out of the watchdog's sight, and holding the CPU and memory the next attempt needed
+    // (flt-anthropic round 4, 4 Nov 2026: four shards re-ran a timed-out export on halves of 200, 100 and 50 modules, each timing out too, for five hours).
+    const p = spawn(cmd, args, { cwd, env: ENV, stdio: ["ignore", "pipe", "pipe"], detached: true })
     let tail = ""
     const onData = (d) => {
       const s = d.toString()
@@ -141,7 +160,7 @@ function run(cmd, args, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000, quiet = f
     p.stdout.on("data", onData)
     p.stderr.on("data", onData)
     const t = setTimeout(() => {
-      p.kill("SIGKILL")
+      killGroup(p)
       res({ code: 124, tail: tail + `\n[timed out after ${timeoutMs / 1000}s]` })
     }, timeoutMs)
     p.on("close", (code) => {
@@ -167,11 +186,14 @@ const toolsNow = () =>
 function runToFile(cmd, args, outPath, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000 } = {}) {
   return new Promise((res) => {
     const fd = openSync(outPath, "w")
-    const p = spawn(cmd, args, { cwd, env: ENV, stdio: ["ignore", fd, "pipe"] })
+    const p = spawn(cmd, args, { cwd, env: ENV, stdio: ["ignore", fd, "pipe"], detached: true })
     let tail = ""
     p.stderr.on("data", (d) => { tail = (tail + d.toString()).slice(-4000) })
-    const t = setTimeout(() => { p.kill("SIGKILL"); closeSync(fd); res({ code: 124, tail: tail + `\n[timed out after ${timeoutMs / 1000}s]` }) }, timeoutMs)
-    p.on("close", (code) => { clearTimeout(t); closeSync(fd); res({ code: code ?? 1, tail }) })
+    // the file is closed once: after a timeout the killed command's own `close` event comes as well, and a second closeSync of the same descriptor throws (EBADF)
+    let open = true
+    const closeOnce = () => { if (open) { open = false; closeSync(fd) } }
+    const t = setTimeout(() => { killGroup(p); closeOnce(); res({ code: 124, tail: tail + `\n[timed out after ${timeoutMs / 1000}s]` }) }, timeoutMs)
+    p.on("close", (code) => { clearTimeout(t); closeOnce(); res({ code: code ?? 1, tail }) })
   })
 }
 // A path component that is not a plain identifier (formal-conjectures' arXiv directories,
@@ -700,7 +722,7 @@ async function exports(modules) {
       // reach in Mathlib. Streamed straight to the file: a Node string tops out around 512 MB, and
       // one Sendov module's export was bigger than that.
       const tmp = join(EXPORTS, `${m}.ndjson.tmp`)
-      const r = await runToFile("lake", ["env", L4E_BIN, m, "--only-listed", "--", ...names], tmp, { cwd: REPO, timeoutMs: 30 * 60 * 1000 })
+      const r = await runToFile("lake", ["env", L4E_BIN, m, "--only-listed", "--", ...names], tmp, { cwd: REPO, timeoutMs: EXPORT_SINGLE_MS })
       if (r.code !== 0) throw new Error(`lean4export exited ${r.code}: ${r.tail.slice(-300)}`)
       if (!(await finish(m))) throw new Error("lean4export produced no declarations")
     } catch (e) {
@@ -726,7 +748,7 @@ async function exports(modules) {
         writeFileSync(listPath, batch.map(([m, names]) => [m, join(EXPORTS, `${m}.ndjson.tmp`), ...names].join("\t")).join("\n") + "\n")
         let r
         try {
-          r = await run("lake", ["env", L4E_BIN, "--only-listed", `--batch=${listPath}`], { cwd: REPO, timeoutMs: 60 * 60 * 1000 })
+          r = await run("lake", ["env", L4E_BIN, "--only-listed", `--batch=${listPath}`], { cwd: REPO, timeoutMs: exportBatchMs(batch.length) })
         } catch (e) {
           r = { code: -1, tail: String(e) }
         }
