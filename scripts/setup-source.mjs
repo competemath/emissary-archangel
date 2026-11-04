@@ -616,22 +616,25 @@ async function closures(modules) {
     for (let i = 0; i < mods.length; i += CLOSURE_BATCH) {
       const chunk = mods.slice(i, i + CLOSURE_BATCH)
       log(`closure: ${chunk.length} modules under ${pfx} (${i + 1}-${i + chunk.length} of ${mods.length})`)
-      let stdout = ""
-      try {
-        ;({ stdout } = await x("lake", ["env", "lean", "-M", String(LEAN_MB), "--run", CLOSURE_LEAN, pfx, ...chunk], { cwd: REPO, env: ENV, maxBuffer: 512 * 1024 * 1024, timeout: 60 * 60 * 1000 }))
-      } catch (e) {
-        log(`WARNING: closure batch failed (${(e.stderr || e.message || "").toString().slice(-600)}) — falling back to one module per process`)
-        for (const m of chunk) {
-          try {
-            ;({ stdout } = await x("lake", ["env", "lean", "-M", String(LEAN_MB), "--run", CLOSURE_LEAN, pfx, m], { cwd: REPO, env: ENV, maxBuffer: 256 * 1024 * 1024, timeout: 20 * 60 * 1000 }))
-            writeClosureSections(stdout)
-          } catch (e2) {
-            log(`closure failed for ${m}: ${(e2.stderr || e2.message || "").toString().slice(-300)}`)
-          }
+      const runBatch = async (batch) => {
+        try {
+          const { stdout } = await x("lake", ["env", "lean", "-M", String(leanMB()), "--run", CLOSURE_LEAN, pfx, ...batch], { cwd: REPO, env: ENV, maxBuffer: 512 * 1024 * 1024, timeout: 60 * 60 * 1000 })
+          writeClosureSections(stdout)
+          return true
+        } catch (e) {
+          log(`WARNING: closure batch of ${batch.length} failed (${(e.stderr || e.message || "").toString().slice(-600)})`)
+          return false
         }
-        continue
       }
-      writeClosureSections(stdout)
+      const runOne = async (m) => {
+        try {
+          const { stdout } = await x("lake", ["env", "lean", "-M", String(leanMB()), "--run", CLOSURE_LEAN, pfx, m], { cwd: REPO, env: ENV, maxBuffer: 256 * 1024 * 1024, timeout: 20 * 60 * 1000 })
+          writeClosureSections(stdout)
+        } catch (e2) {
+          log(`closure failed for ${m}: ${(e2.stderr || e2.message || "").toString().slice(-300)}`)
+        }
+      }
+      await bisect(chunk, runBatch, runOne, "closure")
     }
   }
 }
@@ -718,9 +721,9 @@ async function exports(modules) {
         if (!names) failed.push([m, "no closure"])
         else members.push([m, names])
       }
-      if (members.length) {
+      const runBatch = async (batch) => {
         const listPath = join(EXPORTS, `.batch-${process.pid}-${Math.random().toString(36).slice(2)}.tsv`)
-        writeFileSync(listPath, members.map(([m, names]) => [m, join(EXPORTS, `${m}.ndjson.tmp`), ...names].join("\t")).join("\n") + "\n")
+        writeFileSync(listPath, batch.map(([m, names]) => [m, join(EXPORTS, `${m}.ndjson.tmp`), ...names].join("\t")).join("\n") + "\n")
         let r
         try {
           r = await run("lake", ["env", L4E_BIN, "--only-listed", `--batch=${listPath}`], { cwd: REPO, timeoutMs: 60 * 60 * 1000 })
@@ -728,12 +731,15 @@ async function exports(modules) {
           r = { code: -1, tail: String(e) }
         }
         try { rmSync(listPath, { force: true }) } catch { /* nothing to remove */ }
-        if (r.code !== 0) log(`WARNING: export batch of ${members.length} exited ${r.code}: ${(r.tail || "").slice(-300).replace(/\s+/g, " ")} — one module per process`)
-        for (const [m, names] of members) {
-          if (r.code === 0 && (await finish(m))) continue
-          await exportOne(m, names)
+        if (r.code !== 0) {
+          log(`WARNING: export batch of ${batch.length} exited ${r.code}: ${(r.tail || "").slice(-300).replace(/\s+/g, " ")}`)
+          return false
         }
+        // the batch went through: a member it left without a declaration is exported alone (as before)
+        for (const [m, names] of batch) if (!(await finish(m))) await exportOne(m, names)
+        return true
       }
+      if (members.length) await bisect(members, runBatch, ([m, names]) => exportOne(m, names), "export")
       done += group.length
       log(`exports: ${done} done, ${todo.length} left, ${failed.length} failed`)
     }
@@ -846,7 +852,7 @@ async function expand(modules) {
     while (chunks.length) {
       const chunk = chunks.shift()
       try {
-        const { stdout } = await x("lake", ["env", "lean", "-M", String(LEAN_MB), "--run", EXPAND_LEAN, EXPORTS, src.roots.join(","), ...chunk], { cwd: REPO, env: ENV, maxBuffer: 64 * 1024 * 1024, timeout: 60 * 60 * 1000 })
+        const { stdout } = await x("lake", ["env", "lean", "-M", String(leanMB()), "--run", EXPAND_LEAN, EXPORTS, src.roots.join(","), ...chunk], { cwd: REPO, env: ENV, maxBuffer: 64 * 1024 * 1024, timeout: 60 * 60 * 1000 })
         for (const line of stdout.split("\n")) {
           const [m, e, v, u] = line.split("\t")
           if (m && u != null) {
@@ -860,7 +866,7 @@ async function expand(modules) {
         // One bad module must not take its chunk down: retry each alone.
         for (const m of chunk) {
           try {
-            await x("lake", ["env", "lean", "-M", String(LEAN_MB), "--run", EXPAND_LEAN, EXPORTS, src.roots.join(","), m], { cwd: REPO, env: ENV, maxBuffer: 64 * 1024 * 1024, timeout: 20 * 60 * 1000 })
+            await x("lake", ["env", "lean", "-M", String(leanMB()), "--run", EXPAND_LEAN, EXPORTS, src.roots.join(","), m], { cwd: REPO, env: ENV, maxBuffer: 64 * 1024 * 1024, timeout: 20 * 60 * 1000 })
           } catch (e2) {
             failed.push([m, (e2.stderr || e2.message || String(e2)).toString().slice(-300).replace(/\s+/g, " ")])
           }
@@ -1018,12 +1024,12 @@ async function shard(modules, t0) {
   log(`shard ${SHARD.i}/${SHARD.n}: ${mine.length} of ${modules.length} modules`)
   // what neither the build phase nor an earlier round reached: a module exported in an earlier round is done
   await build(mine.filter((m) => !existsSync(join(EXPORTS, `${m}.ndjson`))))
-  await closures(mine)
+  await withSoloLimit("closures", () => closures(mine))
   // A module that carries entries is expanded by its own shard; one that only appears in closures is expanded
   // by every shard that needs it (the same text, so the commits merge).
-  const expansion = await expand(closureModules(mine).filter((m) => !entryModules.has(m) || inShard(m)))
+  const expansion = await withSoloLimit("expand", () => expand(closureModules(mine).filter((m) => !entryModules.has(m) || inShard(m))))
   await ensureLean4export()
-  const failed = await exports(mine)
+  const failed = await withSoloLimit("exports", () => exports(mine))
   const record = {
     shard: SHARD.i,
     shards: SHARD.n,
@@ -1092,6 +1098,41 @@ function finish(entries, modules, stats, t0) {
 // (default 10240). The killed command fails like any other and its module is recorded as failed.
 const FOOTPRINT_MB = Number(process.env.EMISSARY_FOOTPRINT_MB || 10240)
 let footprintLimit = FOOTPRINT_MB // raised while a module killed for its memory is built alone (buildAlone)
+// The phases after the build (closures, notation expansion, exports) run one Lean process at a time by default (--concurrency 1), and
+// each imports the whole environment of a batch of modules, which for a deep library is most of the library: flt-anthropic, 3-4 Nov 2026,
+// every closure process, a batch of 350-600 modules or a single module, was killed at 10.3-11.8 GB under the 10 GB limit, 62 of 64 shards
+// ran to their 300-minute cap and exported nothing, and round 2 was going the same way. A process that has the machine to itself gets the
+// limit a module built alone gets (EMISSARY_RETRY_FOOTPRINT_MB, 14 GB of a 16 GB runner; the available-memory guard below still protects
+// the runner), and Lean's own heap cap (-M) follows it, so that the watchdog is what decides. With more than one process at a time the
+// per-process limit stays what it was.
+function soloLimitMB() {
+  return CONCURRENCY <= 1 ? RETRY_FOOTPRINT_MB : FOOTPRINT_MB
+}
+async function withSoloLimit(what, fn) {
+  const before = footprintLimit
+  footprintLimit = soloLimitMB()
+  log(`${what}: memory limit ${footprintLimit} MB per process (${CONCURRENCY <= 1 ? "one process at a time" : `${CONCURRENCY} at a time`})`)
+  try {
+    return await fn()
+  } finally {
+    footprintLimit = before
+  }
+}
+function leanMB() {
+  return Math.max(LEAN_MB, footprintLimit)
+}
+// A batch that fails (a memory kill, two modules that cannot share an environment) is split in two and each half tried, down to single
+// modules: every batch that fits costs one environment import, instead of one import per module from the first failure on (flt-anthropic:
+// one batch of 471 killed at once sent the shard down 471 single imports of ~11 GB each, past its 5 hours, for 129 files). `runBatch` says
+// whether the batch went through; `runOne` handles a single module and its own failure.
+async function bisect(items, runBatch, runOne, label) {
+  if (items.length === 1) return runOne(items[0])
+  if (await runBatch(items)) return
+  const half = Math.ceil(items.length / 2)
+  log(`${label}: a batch of ${items.length} failed: trying its two halves (${half} and ${items.length - half})`)
+  await bisect(items.slice(0, half), runBatch, runOne, label)
+  await bisect(items.slice(half), runBatch, runOne, label)
+}
 const WATCH_MS = Number(process.env.EMISSARY_WATCH_MS) > 0 ? Number(process.env.EMISSARY_WATCH_MS) : 10000
 const UNIT_MB = { B: 1 / 1048576, K: 1 / 1024, M: 1, G: 1024, T: 1048576 }
 function descendants(root) {
@@ -1193,14 +1234,14 @@ async function main() {
   }
   if (PHASE === "shard") return shard(modules, t0)
   if (ONLY !== "export") await build(modules)
-  await closures(modules)
-  const expansion = await expand(closureModules(modules))
+  await withSoloLimit("closures", () => closures(modules))
+  const expansion = await withSoloLimit("expand", () => expand(closureModules(modules)))
   if (ONLY === "expand") {
     await cleanup()
     return log(`done ${key} (expand only): ${JSON.stringify(expansion.stats)}, ${expansion.failed.length} failed`)
   }
   await ensureLean4export()
-  const failed = await exports(modules)
+  const failed = await withSoloLimit("exports", () => exports(modules))
   const exported = modules.filter((m) => existsSync(join(EXPORTS, `${m}.ndjson`)))
   const report = {
     key,
