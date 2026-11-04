@@ -1,0 +1,54 @@
+{
+  "key": "at-palomar",
+  "repo": "https://github.com/pmaronow/at-palomar",
+  "commit": "915bca99f46bad65629ef35c8be4bf8fc962af9a",
+  "toolchain": "leanprover/lean4:v4.35.0-rc2",
+  "roots": [
+    "BrownianMotion",
+    "Challenge",
+    "Common",
+    "KolmogorovExtension4",
+    "Lemmas",
+    "Paper",
+    "ParisiFormula",
+    "Solution",
+    "SpinGlassFoundations",
+    "StochasticCalculus",
+    "Targets"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/at-palomar/repo",
+  "entries": 1990,
+  "modules": 189,
+  "exported": 189,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1992,
+    "kept": 1990,
+    "skippedRoot": 2,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 3,
+    "nameFixed": 1990,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.35.0-rc2 (commit 11acb17ec6b07a8f9e9173e6845197929540936b, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+11acb17",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "6cea97789dc0 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 72884224,
+  "minutes": 48,
+  "finishedAt": "2026-11-04T04:03:44.747Z"
+}
