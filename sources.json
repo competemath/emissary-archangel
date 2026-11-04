@@ -1694,6 +1694,136 @@
         "HasseMinkowski"
       ],
       "licence": "Apache-2.0"
+    },
+    "npcompleteness-lean4": {
+      "label": "npcompleteness-lean4 (RBarish-UTokyo/NPCompleteness-Lean4; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/RBarish-UTokyo/NPCompleteness-Lean4",
+      "commit": "3e603e795b44fedcf7d6dd65b7d1e30547ead925",
+      "toolchain": "leanprover/lean4:v4.35.0-rc2",
+      "roots": [
+        "Audit",
+        "Challenge",
+        "Complexity",
+        "Examples",
+        "Solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "at-palomar": {
+      "label": "at-palomar (pmaronow/at-palomar; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/pmaronow/at-palomar",
+      "commit": "915bca99f46bad65629ef35c8be4bf8fc962af9a",
+      "toolchain": "leanprover/lean4:v4.35.0-rc2",
+      "roots": [
+        "BrownianMotion",
+        "Challenge",
+        "Common",
+        "KolmogorovExtension4",
+        "Lemmas",
+        "Paper",
+        "ParisiFormula",
+        "Solution",
+        "SpinGlassFoundations",
+        "StochasticCalculus",
+        "Targets"
+      ],
+      "licence": "MIT"
+    },
+    "general-stoch-to-det": {
+      "label": "general-stoch-to-det (satchlj/general_stoch_to_det; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/satchlj/general_stoch_to_det",
+      "commit": "a82d50c1554e6ed8681fbdf8ec2563ff7d6dee4c",
+      "toolchain": "leanprover/lean4:v4.33.0-rc2",
+      "roots": [
+        "stoch_to_det"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "jsp000937-lean": {
+      "label": "jsp000937-lean (randyxian08/jsp000937-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/randyxian08/jsp000937-lean",
+      "commit": "4d7493e7e730597877c38bd750bf02839863b68a",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "Erdos1153"
+      ],
+      "licence": "MIT"
+    },
+    "t3-model-companion": {
+      "label": "t3-model-companion (yawara/t3-model-companion; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/yawara/t3-model-companion",
+      "commit": "b264b4a23d3f208a62ade1611a3473c8a72d7b34",
+      "toolchain": "leanprover/lean4:v4.35.0-rc2",
+      "roots": [
+        "Challenge",
+        "Solution",
+        "T3"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "erdos-lean": {
+      "label": "erdos-lean (hongjin-he/erdos-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/hongjin-he/erdos-lean",
+      "commit": "efede9693a3192e324bc092e5510f16a2aff1804",
+      "toolchain": "leanprover/lean4:v4.35.0-rc2",
+      "roots": [
+        "ErdosLean"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "entropy-constrained-missing-mass": {
+      "label": "entropy-constrained-missing-mass (long-mathematics/entropy-constrained-missing-mass; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/long-mathematics/entropy-constrained-missing-mass",
+      "commit": "cfc6f0e70596b36c2309cccbb931a1c84f63ad7f",
+      "toolchain": "leanprover/lean4:v4.34.0",
+      "roots": [
+        "EntropyConstrainedMissingMass"
+      ],
+      "licence": "MIT"
+    },
+    "asymptotic-triangle-packing": {
+      "label": "asymptotic-triangle-packing (jtraverso/asymptotic-triangle-packing; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/jtraverso/asymptotic-triangle-packing",
+      "commit": "760e503972aad8ca9da7904ce72e5cce405f5991",
+      "toolchain": "leanprover/lean4:v4.35.0-rc3",
+      "roots": [
+        "Challenge",
+        "LeanPool",
+        "Solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "deletion-codes-lean": {
+      "label": "deletion-codes-lean (eengad/deletion-codes-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/eengad/deletion-codes-lean",
+      "commit": "24d093a4db95895a7206d8a23dbe2d7922258701",
+      "toolchain": "leanprover/lean4:v4.34.0",
+      "roots": [
+        "DeletionCode"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "pi2-lean": {
+      "label": "pi2-lean (NERV-WMY/pi2-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/NERV-WMY/pi2-lean",
+      "commit": "89a161a4f6526bea4605fdf6b2b1156e34ca7d11",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "Row12",
+        "Row12EulerSupport",
+        "Row12GaussGauge"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "duistermaat-van-der-kallen-nonvanishing": {
+      "label": "duistermaat-van-der-kallen-nonvanishing (long-mathematics/duistermaat-van-der-kallen-nonvanishing; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/long-mathematics/duistermaat-van-der-kallen-nonvanishing",
+      "commit": "20f13044f15fd445845bf33fe74e24c3a7424598",
+      "toolchain": "leanprover/lean4:v4.34.0",
+      "roots": [
+        "DuistermaatVanDerKallen"
+      ],
+      "licence": "MIT"
     }
   }
 }
