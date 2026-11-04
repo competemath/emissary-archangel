@@ -1,0 +1,106 @@
+{
+  "shard": 0,
+  "shards": 2,
+  "commit": "efede9693a3192e324bc092e5510f16a2aff1804",
+  "toolchain": "leanprover/lean4:v4.35.0-rc2",
+  "modules": 101,
+  "exported": 101,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "ErdosLean.Erdos995.Defs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos995.Defs "
+      },
+      {
+        "module": "ErdosLean.Erdos995.Parts.Atoms",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos995.Parts.Atoms "
+      },
+      {
+        "module": "ErdosLean.Erdos995.Parts.BorelCantelli",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos995.Parts.BorelCantelli "
+      },
+      {
+        "module": "ErdosLean.Erdos995.Parts.Master",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos995.Parts.Master "
+      },
+      {
+        "module": "ErdosLean.Erdos995.Parts.Params",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos995.Parts.Params "
+      },
+      {
+        "module": "ErdosLean.Erdos995.Parts.UpperBorelCantelli",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos995.Parts.UpperBorelCantelli "
+      },
+      {
+        "module": "ErdosLean.Erdos995.Parts.UpperL2",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos995.Parts.UpperL2 "
+      },
+      {
+        "module": "ErdosLean.Erdos996.Defs",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos996.Defs "
+      },
+      {
+        "module": "ErdosLean.Erdos996.Main",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos996.Main "
+      },
+      {
+        "module": "ErdosLean.Erdos996.Parts.Asm.Atoms",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos996.Parts.Asm.Atoms "
+      },
+      {
+        "module": "ErdosLean.Erdos996.Parts.Asm.Construction",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos996.Parts.Asm.Construction "
+      },
+      {
+        "module": "ErdosLean.Erdos996.Parts.Asm.Master",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos996.Parts.Asm.Master "
+      },
+      {
+        "module": "ErdosLean.Erdos996.Parts.Asm.Params",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos996.Parts.Asm.Params "
+      },
+      {
+        "module": "ErdosLean.Erdos996.Parts.Asm.ParsevalTail",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos996.Parts.Asm.ParsevalTail "
+      },
+      {
+        "module": "ErdosLean.Erdos996.Parts.Asm.PartialSumL2",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos996.Parts.Asm.PartialSumL2 "
+      },
+      {
+        "module": "ErdosLean.Erdos996.Parts.Asm.SpikeMeasure",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos996.Parts.Asm.SpikeMeasure "
+      },
+      {
+        "module": "ErdosLean.Erdos996.Parts.Asm.TailAsymp",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos996.Parts.Asm.TailAsymp "
+      },
+      {
+        "module": "ErdosLean.Erdos996.Parts.BlockFloor",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos996.Parts.BlockFloor "
+      },
+      {
+        "module": "ErdosLean.Erdos996.Parts.DigitIndependence",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos996.Parts.DigitIndependence "
+      },
+      {
+        "module": "ErdosLean.Erdos996.Parts.SpikeFourierSupport",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/erdos-lean ErdosLean ErdosLean.Erdos996.Parts.SpikeFourierSupport "
+      }
+    ]
+  },
+  "tools": {
+    "lean": "4.35.0-rc2 (commit 11acb17ec6b07a8f9e9173e6845197929540936b, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+11acb17",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "6cea97789dc0 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1"
+  },
+  "minutes": 7,
+  "finishedAt": "2026-11-04T05:45:35.664Z"
+}
