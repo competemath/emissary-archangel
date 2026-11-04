@@ -1,6 +1,7 @@
 // node scripts/test-setup-bisect.mjs — the closure and export phases: a batch that fails is split in two and each half tried (down to
 // single modules, where a module that fails alone is recorded once and the rest go on), and the phases after the build run under the
-// lone-process memory limit, with Lean's -M following it. Runs setup-source.mjs for real, in a throwaway root, against a local git
+// lone-process memory limit, with Lean's -M following it in the phases that run Lean itself (closures, expansion; lean4export takes no
+// -M, the watchdog alone bounds it). Runs setup-source.mjs for real, in a throwaway root, against a local git
 // repository, a stand-in `elan`, a stand-in lean4export folder and a stand-in `lake` whose `lean --run` refuses a closure batch larger
 // than FAKE_CLOSURE_MAX modules and whose `lean4export --batch` refuses one larger than FAKE_EXPORT_MAX (as a memory kill does), and
 // whose exporter refuses the module FAKE_EXPORT_REFUSE in any company. No Lean, no network.
@@ -58,7 +59,7 @@ writeFileSync(join(bin, "elan"), `#!/bin/sh\necho "${TC} (default)"\n`)
 // module, or fails (like a memory kill) when the batch is bigger than FAKE_CLOSURE_MAX; `lake env <lean4export> --only-listed --batch=<tsv>`
 // writes one declaration to each listed module's file, or fails when the list is longer than FAKE_EXPORT_MAX or holds FAKE_EXPORT_REFUSE;
 // `lake env <lean4export> M --only-listed -- names...` prints one declaration, or fails for FAKE_EXPORT_REFUSE. Every call is appended to a
-// log with its -M value; an export call is logged as `export-batch M...` or `export-one M`.
+// log as its argument list (a Lean call with its -M value); an export call is logged again as `export-batch M...` or `export-one M`.
 writeFileSync(
   join(bin, "lake"),
   `#!/usr/bin/env node
@@ -120,7 +121,8 @@ chmodSync(join(bin, "lake"), 0o755)
 const exportsDir = join(root, "data", "exports", "t")
 const setup = (args, env = {}, only = ["--only", "expand"]) =>
   spawnSync("node", [join(root, "scripts", "setup-source.mjs"), "t", ...only, "--keep-build", ...args], {
-    env: { ...process.env, HOME: home, EMISSARY_WATCH_MS: "300", EMISSARY_FOOTPRINT_MB: "150", EMISSARY_RETRY_FOOTPRINT_MB: "2048", EMISSARY_LEAN_MB: "100", ...env },
+    // every FAKE_* knob is set here, so that nothing in the caller's environment changes a split
+    env: { ...process.env, HOME: home, EMISSARY_WATCH_MS: "300", EMISSARY_FOOTPRINT_MB: "150", EMISSARY_RETRY_FOOTPRINT_MB: "2048", EMISSARY_LEAN_MB: "100", FAKE_CLOSURE_MAX: "1000", FAKE_EXPORT_MAX: "1000", FAKE_EXPORT_REFUSE: "", ...env },
     encoding: "utf8",
   })
 const calls = () => (existsSync(join(tmp, "lake-calls")) ? readFileSync(join(tmp, "lake-calls"), "utf8").trim().split("\n") : [])
