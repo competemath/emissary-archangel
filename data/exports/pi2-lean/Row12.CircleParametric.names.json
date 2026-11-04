@@ -1,0 +1,1 @@
+{"names":["Row12.circleParametric_hasDerivAt","Row12.circleIntegral_exactDerivative"],"modules":["Row12.CircleParametric"],"moduleOf":{"Row12.circleParametric_hasDerivAt":"Row12.CircleParametric","Row12.circleIntegral_exactDerivative":"Row12.CircleParametric"},"deps":{"Row12.circleParametric_hasDerivAt":[],"Row12.circleIntegral_exactDerivative":[]}}

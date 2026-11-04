@@ -1,0 +1,46 @@
+{
+  "key": "pi2-lean",
+  "repo": "https://github.com/NERV-WMY/pi2-lean",
+  "commit": "89a161a4f6526bea4605fdf6b2b1156e34ca7d11",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "Row12",
+    "Row12EulerSupport",
+    "Row12GaussGauge"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/pi2-lean/repo",
+  "entries": 766,
+  "modules": 68,
+  "exported": 68,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 766,
+    "kept": 766,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 766,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1"
+  },
+  "exportsBytes": 22200320,
+  "minutes": 111,
+  "finishedAt": "2026-11-04T05:56:53.044Z"
+}
