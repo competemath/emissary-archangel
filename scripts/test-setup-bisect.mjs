@@ -9,7 +9,7 @@
 // Why: flt-anthropic, 3-4 Nov 2026. Every closure process was killed at 10.3-11.8 GB under the 10 GB per-process limit, a batch of
 // 350-600 or a single module alike; the fallback then ran one ~11 GB import per module, serially, and 62 of 64 export shards ran to their
 // 300-minute cap with nothing exported (shard 5 handed on 129 files). Round 2 was repeating it on 12 runners.
-import { execFileSync, spawnSync } from "node:child_process"
+import { execFileSync, spawn, spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
@@ -226,6 +226,34 @@ for (let i = 0; i < 20 && pids.some(alive); i++) spawnSync("sleep", ["0.2"])
 check("three exporters hung, and none of them is still running", pids.length === 3 && !pids.some(alive), `pids ${pids.join(",")}, alive ${pids.filter(alive).join(",")}`)
 for (const pid of pids.filter(alive)) process.kill(pid, "SIGKILL") // a failing run must not leave them behind
 check("it took seconds, not the hours of the old limits", Date.now() - started < 60000, `${Date.now() - started} ms`)
+
+check("the limits in force are in the log: the knobs as set", /limits: a batch 1 s \+ 0\.1 s per module \(at most 60 min\), one module alone 0\.9 s/.test(r.stdout), r.stdout)
+
+// 9. the knobs take only a positive number a timer can hold: 0, text and 99999999999 ms (setTimeout turns a delay over 2^31-1 ms into 1 ms) fall back to the defaults
+fresh()
+fakeExporter()
+r = setup(["--export-batch", "6"], { EMISSARY_EXPORT_BASE_MS: "0", EMISSARY_EXPORT_PER_MODULE_MS: "abc", EMISSARY_EXPORT_SINGLE_MS: "99999999999" }, [])
+check("a knob that is 0, text or too large for a timer is the default", r.status === 0 && /limits: a batch 180 s \+ 3 s per module \(at most 60 min\), one module alone 1200 s/.test(r.stdout), r.stdout)
+
+// 10. a SIGTERM to the script ends the commands it started: each leads its own process group, so the terminal's Ctrl-C and a plain kill of the script no longer reach them
+fresh()
+fakeExporter()
+rmSync(join(tmp, "hung-pids"), { force: true })
+const child = spawn("node", [join(root, "scripts", "setup-source.mjs"), "t", "--keep-build", "--export-batch", "6"], {
+  env: { ...process.env, HOME: home, EMISSARY_WATCH_MS: "300", EMISSARY_FOOTPRINT_MB: "150", EMISSARY_RETRY_FOOTPRINT_MB: "2048", EMISSARY_LEAN_MB: "100", FAKE_EXPORT_HANG: "Lib.F" },
+  stdio: "ignore",
+})
+const exitCode = new Promise((res) => child.on("close", (code, sig) => res(sig ?? code)))
+for (let i = 0; i < 100 && !existsSync(join(tmp, "hung-pids")); i++) await new Promise((r2) => setTimeout(r2, 200))
+const hung = existsSync(join(tmp, "hung-pids")) ? readFileSync(join(tmp, "hung-pids"), "utf8").trim().split("\n").map(Number) : []
+check("the exporter hangs under the default limits (the script is waiting for it)", hung.length === 1 && alive(hung[0]), `pids ${hung.join(",")}`)
+child.kill("SIGTERM")
+const how = await Promise.race([exitCode, new Promise((r2) => setTimeout(() => r2("still running"), 15000))])
+for (let i = 0; i < 20 && hung.some(alive); i++) await new Promise((r2) => setTimeout(r2, 200))
+check("after a SIGTERM the script has exited, with 143", how === 143, String(how))
+check("and the exporter it was waiting for is gone", hung.length === 1 && !alive(hung[0]), `alive ${hung.filter(alive).join(",")}`)
+for (const pid of hung.filter(alive)) process.kill(pid, "SIGKILL")
+if (how === "still running") child.kill("SIGKILL")
 
 rmSync(tmp, { recursive: true, force: true })
 if (bad) {

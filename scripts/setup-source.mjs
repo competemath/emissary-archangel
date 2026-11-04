@@ -66,7 +66,8 @@ const LEAN_MB = Math.max(1024, Number(process.env.EMISSARY_LEAN_MB || 11264))
 const EXPORT_BATCH = Math.max(1, Number(flag("export-batch", 8)))
 // How long an export may take. A healthy batch of 400 modules took 5.5 min (flt-anthropic, 4 Nov 2026), so a batch gets a base plus a few seconds per module, up to an hour,
 // instead of an hour whatever its size: a batch that hangs is found in minutes, and each halving of it is cheaper than the one before. One module alone gets EXPORT_SINGLE_MS.
-const envMs = (name, dflt) => (Number(process.env[name]) >= 0 && process.env[name] !== undefined && process.env[name] !== "" ? Number(process.env[name]) : dflt)
+// a positive number of milliseconds a timer can hold (setTimeout turns a longer delay into 1 ms, and 0 would end every export at once); anything else is the default
+const envMs = (name, dflt) => (Number(process.env[name]) > 0 && Number(process.env[name]) <= 2 ** 31 - 1 ? Number(process.env[name]) : dflt)
 const EXPORT_BASE_MS = envMs("EMISSARY_EXPORT_BASE_MS", 3 * 60 * 1000)
 const EXPORT_PER_MODULE_MS = envMs("EMISSARY_EXPORT_PER_MODULE_MS", 3000)
 const EXPORT_SINGLE_MS = envMs("EMISSARY_EXPORT_SINGLE_MS", 20 * 60 * 1000)
@@ -134,6 +135,14 @@ const SETUP_JSON = join(INFRA, "setup.json")
 mkdirSync(INFRA, { recursive: true })
 mkdirSync(EXPORTS, { recursive: true })
 
+// The commands that are running (each leads its own process group): a SIGINT or SIGTERM to this script, which no longer reaches them through the terminal's group, ends them too.
+const live = new Set()
+for (const [sig, code] of [["SIGINT", 130], ["SIGTERM", 143]]) {
+  process.on(sig, () => {
+    for (const p of live) killGroup(p)
+    process.exit(code)
+  })
+}
 // Kills a command started with `detached: true` and everything it started (its process group); the command alone if the group is already gone.
 function killGroup(p) {
   try {
@@ -151,6 +160,7 @@ function run(cmd, args, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000, quiet = f
     // killing `lake` alone left the tool running, reparented to init, out of the watchdog's sight, and holding the CPU and memory the next attempt needed
     // (flt-anthropic round 4, 4 Nov 2026: four shards re-ran a timed-out export on halves of 200, 100 and 50 modules, each timing out too, for five hours).
     const p = spawn(cmd, args, { cwd, env: ENV, stdio: ["ignore", "pipe", "pipe"], detached: true })
+    live.add(p)
     let tail = ""
     const onData = (d) => {
       const s = d.toString()
@@ -164,6 +174,7 @@ function run(cmd, args, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000, quiet = f
       res({ code: 124, tail: tail + `\n[timed out after ${timeoutMs / 1000}s]` })
     }, timeoutMs)
     p.on("close", (code) => {
+      live.delete(p)
       clearTimeout(t)
       res({ code: code ?? 1, tail })
     })
@@ -187,13 +198,14 @@ function runToFile(cmd, args, outPath, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 
   return new Promise((res) => {
     const fd = openSync(outPath, "w")
     const p = spawn(cmd, args, { cwd, env: ENV, stdio: ["ignore", fd, "pipe"], detached: true })
+    live.add(p)
     let tail = ""
     p.stderr.on("data", (d) => { tail = (tail + d.toString()).slice(-4000) })
     // the file is closed once: after a timeout the killed command's own `close` event comes as well, and a second closeSync of the same descriptor throws (EBADF)
     let open = true
     const closeOnce = () => { if (open) { open = false; closeSync(fd) } }
     const t = setTimeout(() => { killGroup(p); closeOnce(); res({ code: 124, tail: tail + `\n[timed out after ${timeoutMs / 1000}s]` }) }, timeoutMs)
-    p.on("close", (code) => { clearTimeout(t); closeOnce(); res({ code: code ?? 1, tail }) })
+    p.on("close", (code) => { live.delete(p); clearTimeout(t); closeOnce(); res({ code: code ?? 1, tail }) })
   })
 }
 // A path component that is not a plain identifier (formal-conjectures' arXiv directories,
@@ -697,7 +709,7 @@ function removeLeftovers() {
 async function exports(modules) {
   const failed = []
   const todo = modules.filter((m) => !existsSync(join(EXPORTS, `${m}.ndjson`)))
-  log(`exports: ${todo.length} to do, ${modules.length - todo.length} present, batches of ${EXPORT_BATCH}, concurrency ${CONCURRENCY}`)
+  log(`exports: ${todo.length} to do, ${modules.length - todo.length} present, batches of ${EXPORT_BATCH}, concurrency ${CONCURRENCY}; limits: a batch ${EXPORT_BASE_MS / 1000} s + ${EXPORT_PER_MODULE_MS / 1000} s per module (at most 60 min), one module alone ${EXPORT_SINGLE_MS / 1000} s`)
   let done = 0
   const namesOf = (m) => {
     const namesPath = join(EXPORTS, `${m}.names.json`)
