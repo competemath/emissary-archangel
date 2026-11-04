@@ -1,0 +1,59 @@
+{
+  "key": "entropy-constrained-missing-mass",
+  "repo": "https://github.com/long-mathematics/entropy-constrained-missing-mass",
+  "commit": "cfc6f0e70596b36c2309cccbb931a1c84f63ad7f",
+  "toolchain": "leanprover/lean4:v4.34.0",
+  "roots": [
+    "EntropyConstrainedMissingMass"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/entropy-constrained-missing-mass/repo",
+  "entries": 1231,
+  "modules": 111,
+  "exported": 111,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1231,
+    "kept": 1231,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 1231,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "sharded": {
+    "records": 2,
+    "shards": [
+      2
+    ]
+  },
+  "tools": {
+    "lean": "4.34.0 (commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+293d5d0",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "076e8e57707e + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1 | ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 43032576,
+  "minutes": 4,
+  "finishedAt": "2026-11-04T05:35:41.490Z",
+  "archive": {
+    "release": "exports-entropy-constrained-missing-mass",
+    "asset": "entropy-constrained-missing-mass@cfc6f0e70596-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-entropy-constrained-missing-mass/entropy-constrained-missing-mass@cfc6f0e70596-exports.tar.zst",
+    "bytes": 3994232,
+    "sha256": "5eea205b175e34909746243a470f01c9e764fd02385f8bb63e03633413c66dca",
+    "files": 222,
+    "unpack": "tar --zstd -xf entropy-constrained-missing-mass@cfc6f0e70596-exports.tar.zst -C data/exports/entropy-constrained-missing-mass"
+  }
+}
