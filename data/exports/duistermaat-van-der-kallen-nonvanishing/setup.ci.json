@@ -1,0 +1,44 @@
+{
+  "key": "duistermaat-van-der-kallen-nonvanishing",
+  "repo": "https://github.com/long-mathematics/duistermaat-van-der-kallen-nonvanishing",
+  "commit": "20f13044f15fd445845bf33fe74e24c3a7424598",
+  "toolchain": "leanprover/lean4:v4.34.0",
+  "roots": [
+    "DuistermaatVanDerKallen"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/duistermaat-van-der-kallen-nonvanishing/repo",
+  "entries": 705,
+  "modules": 114,
+  "exported": 114,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 705,
+    "kept": 705,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 705,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.34.0 (commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+293d5d0",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "076e8e57707e + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1"
+  },
+  "exportsBytes": 39272448,
+  "minutes": 8,
+  "finishedAt": "2026-11-04T06:20:29.430Z"
+}
