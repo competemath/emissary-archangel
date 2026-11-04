@@ -240,20 +240,30 @@ fresh()
 fakeExporter()
 rmSync(join(tmp, "hung-pids"), { force: true })
 const child = spawn("node", [join(root, "scripts", "setup-source.mjs"), "t", "--keep-build", "--export-batch", "6"], {
-  env: { ...process.env, HOME: home, EMISSARY_WATCH_MS: "300", EMISSARY_FOOTPRINT_MB: "150", EMISSARY_RETRY_FOOTPRINT_MB: "2048", EMISSARY_LEAN_MB: "100", FAKE_EXPORT_HANG: "Lib.F" },
+  // the three export knobs are the defaults, whatever the caller has set: a short limit would end the hang before the SIGTERM; its own process group, so that a failing test can end the script and the fake lake with it
+  env: { ...process.env, HOME: home, EMISSARY_WATCH_MS: "300", EMISSARY_FOOTPRINT_MB: "150", EMISSARY_RETRY_FOOTPRINT_MB: "2048", EMISSARY_LEAN_MB: "100", FAKE_EXPORT_HANG: "Lib.F", EMISSARY_EXPORT_BASE_MS: "180000", EMISSARY_EXPORT_PER_MODULE_MS: "3000", EMISSARY_EXPORT_SINGLE_MS: "1200000" },
   stdio: "ignore",
+  detached: true,
 })
 const exitCode = new Promise((res) => child.on("close", (code, sig) => res(sig ?? code)))
 for (let i = 0; i < 100 && !existsSync(join(tmp, "hung-pids")); i++) await new Promise((r2) => setTimeout(r2, 200))
 const hung = existsSync(join(tmp, "hung-pids")) ? readFileSync(join(tmp, "hung-pids"), "utf8").trim().split("\n").map(Number) : []
 check("the exporter hangs under the default limits (the script is waiting for it)", hung.length === 1 && alive(hung[0]), `pids ${hung.join(",")}`)
 child.kill("SIGTERM")
-const how = await Promise.race([exitCode, new Promise((r2) => setTimeout(() => r2("still running"), 15000))])
+let guard
+const how = await Promise.race([exitCode, new Promise((r2) => { guard = setTimeout(() => r2("still running"), 15000) })])
+clearTimeout(guard)
 for (let i = 0; i < 20 && hung.some(alive); i++) await new Promise((r2) => setTimeout(r2, 200))
 check("after a SIGTERM the script has exited, with 143", how === 143, String(how))
 check("and the exporter it was waiting for is gone", hung.length === 1 && !alive(hung[0]), `alive ${hung.filter(alive).join(",")}`)
 for (const pid of hung.filter(alive)) process.kill(pid, "SIGKILL")
-if (how === "still running") child.kill("SIGKILL")
+if (how === "still running") {
+  try {
+    process.kill(-child.pid, "SIGKILL") // the script, the fake lake and whatever else is in its group
+  } catch {
+    /* already gone */
+  }
+}
 
 rmSync(tmp, { recursive: true, force: true })
 if (bad) {
