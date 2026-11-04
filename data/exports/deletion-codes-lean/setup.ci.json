@@ -1,0 +1,44 @@
+{
+  "key": "deletion-codes-lean",
+  "repo": "https://github.com/eengad/deletion-codes-lean",
+  "commit": "24d093a4db95895a7206d8a23dbe2d7922258701",
+  "toolchain": "leanprover/lean4:v4.34.0",
+  "roots": [
+    "DeletionCode"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/deletion-codes-lean/repo",
+  "entries": 960,
+  "modules": 125,
+  "exported": 125,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 960,
+    "kept": 960,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 960,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.34.0 (commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+293d5d0",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "076e8e57707e + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1"
+  },
+  "exportsBytes": 63496192,
+  "minutes": 7,
+  "finishedAt": "2026-11-04T06:08:40.223Z"
+}
