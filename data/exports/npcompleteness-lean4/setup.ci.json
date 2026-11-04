@@ -1,0 +1,53 @@
+{
+  "key": "npcompleteness-lean4",
+  "repo": "https://github.com/RBarish-UTokyo/NPCompleteness-Lean4",
+  "commit": "3e603e795b44fedcf7d6dd65b7d1e30547ead925",
+  "toolchain": "leanprover/lean4:v4.35.0-rc2",
+  "roots": [
+    "Audit",
+    "Challenge",
+    "Complexity",
+    "Examples",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/npcompleteness-lean4/repo",
+  "entries": 2188,
+  "modules": 144,
+  "exported": 144,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "Complexity.Planar.VerifierChk",
+        "why": "Command failed: lake env lean -M 12288 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/npcompleteness-lean4 Audit,Challenge,Complexity,Examples,Solution Complexity.Planar.VerifierChk "
+      }
+    ]
+  },
+  "seed": {
+    "records": 2188,
+    "kept": 2188,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 2188,
+    "sorryOriginals": 0,
+    "emptyProofs": 11
+  },
+  "tools": {
+    "lean": "4.35.0-rc2 (commit 11acb17ec6b07a8f9e9173e6845197929540936b, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+11acb17",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "6cea97789dc0 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1"
+  },
+  "exportsBytes": 162684928,
+  "minutes": 3,
+  "finishedAt": "2026-11-04T03:13:34.639Z"
+}
