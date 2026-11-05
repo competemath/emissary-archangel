@@ -194,4 +194,30 @@ check("setup-auto never builds or runs the library", !/\blake\b|elan|setup-sourc
 check("setup-auto checks the key before using it", /\^\[a-z0-9\]\[a-z0-9-\]\*\$/.test(planBlock), "")
 const runBodies = [...planBlock.matchAll(/run: \|\n((?: {10}.*\n?|\n)+)/g)].map((m) => m[1]).join("\n")
 check("no ${{ }} expression sits inside a shell script of setup-auto", !/\$\{\{/.test(runBodies), runBodies.match(/.*\$\{\{.*/)?.[0])
+
+// a round that was cancelled never merged its shard outputs: the next round (shards and finish alike) falls back to them instead of failing on a missing exports-partial
+// (flt-anthropic, 4 Nov 2026: round 5 failed in every shard after round 4 was cancelled; it took a hand-dispatched bank run to get the finished shards' exports back)
+for (const job of ["shard", "finish"]) {
+  const b = sharded[job]
+  const prev = b.slice(b.indexOf("- name: The previous round's outputs"))
+  check(`${job}: the previous round's exports-partial is read with continue-on-error and an id`, /- name: The previous round's outputs\n\s+id: partial\n\s+if: inputs\.resume_run != ''\n\s+continue-on-error: true/.test(b), "")
+  check(`${job}: when exports-partial is missing the shard outputs (out-*) of that round are read`, /steps\.partial\.outcome == 'failure'/.test(prev) && /pattern: "out-\*", path: prev-out, merge-multiple: true, run-id: "\$\{\{ inputs\.resume_run \}\}"/.test(prev), "")
+  check(`${job}: those outputs are unpacked with the rest`, /if \[ -d prev-out \]; then for f in prev-out\/\*\.tar\.zst; do \[ -f "\$f" \] && unpack "\$f"; done; rm -rf prev-out; fi/.test(b), "")
+}
+// the round a bank run dispatches takes the build the bank run was given: a bank run has no prime job, so its own run id carries no build
+const dispatch = sharded.finish.slice(sharded.finish.indexOf("gh workflow run setup-sharded.yml") - 1200)
+check("the next round gets build_run from a bank run's input (and the default from an ordinary round), in the step that dispatches", /BUILD_RUN: \$\{\{ inputs\.bank_run != '' && inputs\.build_run \|\| '' \}\}[\s\S]*gh workflow run setup-sharded\.yml[^\n]*[\s\S]*-f build_run="\$BUILD_RUN"/.test(dispatch), "")
+for (const job of ["shard", "finish"]) {
+  const b = sharded[job]
+  const step = b.slice(b.indexOf("- name: The previous round's shard outputs"), b.indexOf("- name: The previous round's shard outputs") + 1400)
+  check(`${job}: a cancelled run without out-* does not end the round (the fallback download goes on after a failure)`, /continue-on-error: true\n\s+uses: actions\/download-artifact/.test(step), "")
+}
+
+// the fallback is not silent: a round that went on from deltas says so (a transient failure of the exports-partial read looks like a missing artifact)
+for (const job of ["shard", "finish"]) {
+  const b = sharded[job]
+  const say = b.slice(b.indexOf("- name: Say that the round resumed from deltas"), b.indexOf("- name: Say that the round resumed from deltas") + 1500)
+  check(`${job}: a round that resumed from the per-shard outputs says so, when exports-partial failed, with values through env`, /if: inputs\.resume_run != '' && steps\.partial\.outcome == 'failure'\n\s+env: \{ RESUME_RUN: "\$\{\{ inputs\.resume_run \}\}", OUTS: "\$\{\{ steps\.outs\.outcome \}\}" \}/.test(say), "")
+  check(`${job}: the warning names the run and the outcome of the out-* download, in a block scalar (a colon-space in a one-line value made the workflow invalid YAML)`, /\n\s+run: \|\n\s+echo "::warning::exports-partial of run \$RESUME_RUN [^\n]*\(download outcome: \$OUTS\)/.test(say), "")
+}
 process.exit(bad ? 1 : 0)
