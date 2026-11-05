@@ -45,7 +45,26 @@ class RealLibraries(unittest.TestCase):
             self.assertIn(f"/data/tentative/{key}/", tf.sparse_paths(SOURCES, key), key)
             got = tf.globs(SOURCES, key, "T")
             for n in setup_rule(key):
-                self.assertIn(f"T/data/tentative/{n}", got, (key, n))
+                # every listed file is reached by a pattern: by itself, or by the directory's glob when it lies inside it
+                self.assertTrue(f"T/data/tentative/{n}" in got or tf.covered_by_directory(key, n), (key, n))
+            self.assertEqual(len(got), len(set(got)), key)
+
+    def test_no_file_is_reached_by_two_patterns_for_any_real_library(self):
+        """Gate 2 expands each pattern on its own: a file two patterns reach is parsed twice (lean-pool lists files inside its own directory)."""
+        reached_twice = []
+        with tempfile.TemporaryDirectory() as d:
+            for key in KEYS:
+                base = Path(d) / key / "data" / "tentative"
+                (base / key).mkdir(parents=True)
+                for n in setup_rule(key):
+                    (base / n).parent.mkdir(parents=True, exist_ok=True)
+                    (base / n).write_text("{}\n")
+                seen = []
+                for pat in tf.globs(SOURCES, key, str(Path(d) / key)):
+                    seen += glob.glob(pat)
+                if len(seen) != len(set(seen)):
+                    reached_twice.append(key)
+        self.assertEqual(reached_twice, [])
 
     def test_on_disk_exactly_the_listed_files_that_exist_and_the_directory_are_found(self):
         rnd = random.Random(20261105)

@@ -22,8 +22,13 @@ def sparse_paths(sources: dict, key: str) -> list[str]:
     return [f"/data/tentative/{n}" for n in names(sources, key)] + [f"/data/tentative/{key}/"]
 
 
+def covered_by_directory(key: str, name: str) -> bool:
+    """A listed file inside the library's own directory (lean-pool/records-001.jsonl) is read by the directory's glob: not twice (Gate 2 expands each pattern on its own)."""
+    return name.startswith(key + "/") and name.endswith(".jsonl") and "/" not in name[len(key) + 1 :]
+
+
 def globs(sources: dict, key: str, root: str) -> list[str]:
-    return [f"{root}/data/tentative/{n}" for n in names(sources, key)] + [f"{root}/data/tentative/{key}/*.jsonl"]
+    return [f"{root}/data/tentative/{n}" for n in names(sources, key) if not covered_by_directory(key, n)] + [f"{root}/data/tentative/{key}/*.jsonl"]
 
 
 def files(sources: dict, key: str, root: str) -> list[str]:
