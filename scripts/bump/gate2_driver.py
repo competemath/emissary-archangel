@@ -139,6 +139,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--budget-min", type=float, default=270)
     ap.add_argument("--rss-share", type=float, default=0.80)
     ap.add_argument("--rss-limit-mb", type=int, default=0, help="a fixed limit per Lean process instead of the share of the machine (tests)")
+    ap.add_argument("--count-swap", action="store_true", help="the machine's swap counts as memory, for the limit and for what a Lean process holds (the job added swap for modules too big for the runner's RAM)")
     ap.add_argument("--log", default="gate2.log")
     ap.add_argument("--killed", default="gate2-killed.json")
     ap.add_argument("--plan", default="plan.json")
@@ -157,11 +158,11 @@ def main(argv: list[str]) -> int:
             g.generate(ns)
         return json.loads(check.with_suffix(".plan.json").read_text())
 
-    limit = a.rss_limit_mb * 1024 if a.rss_limit_mb else mem_limit_kb(a.rss_share)
+    limit = a.rss_limit_mb * 1024 if a.rss_limit_mb else mem_limit_kb(a.rss_share, a.count_swap)
     print(f"gate2: memory limit {limit // 1024} MB per Lean process, chunks of at most {a.max_decls} declarations")
 
     def run(meta: dict) -> tuple[str, str]:
-        res = run_guarded(["lean", "gate2-check.lean"], lib, {**os.environ, "LEAN_PATH": a.lean_path}, pass_log, a.chunk_timeout_min * 60, limit)
+        res = run_guarded(["lean", "gate2-check.lean"], lib, {**os.environ, "LEAN_PATH": a.lean_path}, pass_log, a.chunk_timeout_min * 60, limit, count_swap=a.count_swap)
         text = pass_log.read_text(errors="replace")
         print(f"gate2: {meta['modules_checked']} modules, {meta['declarations']} declarations: {res.kind}, {res.seconds}s, peak {res.peak_kb // 1024} MB, "
               f"{text.count('GATE2B_')} verdict lines")

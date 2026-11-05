@@ -220,10 +220,12 @@ check(
     o = only(v)
     check(`ONLY with ${name} stops the phase and unpacks nothing`, o.res.status !== 0 && re.test(o.res.stdout + o.res.stderr) && !existsSync(olean("A")), o.res.stdout + o.res.stderr)
   }
-  // empty or only commas: everything, as before
-  for (const v of ["", ",", ",,"]) {
+  // nothing asked for: everything; a list with no name in it: an error, not "everything"
+  o = only("")
+  check(`ONLY="" means all modules: both are restored`, o.res.status === 0 && existsSync(olean("A")) && existsSync(olean("B")), o.res.stdout + o.res.stderr)
+  for (const v of [",", ",,", ", ,"]) {
     o = only(v)
-    check(`ONLY=${JSON.stringify(v)} means all modules: both are restored`, o.res.status === 0 && existsSync(olean("A")) && existsSync(olean("B")), o.res.stdout + o.res.stderr)
+    check(`ONLY=${JSON.stringify(v)} holds no module name: the phase stops and nothing is unpacked or built`, o.res.status !== 0 && /holds no module name/.test(o.res.stdout + o.res.stderr) && !existsSync(olean("A")), o.res.stdout + o.res.stderr)
   }
   // the other phases ignore it
   const s0 = setup(["--phase", "build-status"])
