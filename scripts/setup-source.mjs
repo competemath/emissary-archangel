@@ -696,13 +696,23 @@ async function closures(modules) {
           log(`WARNING: closure batch of ${batch.length} failed, exit ${r.code} (${r.tail.slice(-600)})`)
           return false
         }
-        writeClosureSections(r.stdout)
+        try {
+          writeClosureSections(r.stdout)
+        } catch (e) {
+          // as before: a section that cannot be read or written is a failed batch (logged, then halved), not the end of the setup
+          log(`WARNING: closure batch of ${batch.length} could not be written (${e.message})`)
+          return false
+        }
         return true
       }
       const runOne = async (m) => {
         const r = await runCapture("lake", ["env", "lean", "-M", String(leanMB()), "--run", CLOSURE_LEAN, pfx, m], { cwd: REPO, timeoutMs: CLOSURE_SINGLE_MS, maxBuffer: 256 * 1024 * 1024 })
         if (r.code !== 0) return log(`closure failed for ${m}: exit ${r.code} (${r.tail.slice(-300)})`)
-        writeClosureSections(r.stdout)
+        try {
+          writeClosureSections(r.stdout)
+        } catch (e) {
+          log(`closure failed for ${m}: could not be written (${e.message})`)
+        }
       }
       await bisect(chunk, runBatch, runOne, "closure")
     }

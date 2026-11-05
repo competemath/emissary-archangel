@@ -84,6 +84,7 @@ if (cmd === "env" && args[1] === "lean") {
     const [pfx, ...mods] = rest
     const max = Number(process.env.FAKE_CLOSURE_MAX || 1000)
     if (process.env.FAKE_CLOSURE_HANG && mods.includes(process.env.FAKE_CLOSURE_HANG)) hangForever()
+    if (process.env.FAKE_CLOSURE_BAD && mods.includes(process.env.FAKE_CLOSURE_BAD)) { process.stdout.write("== nodir/Lib.F\\nname\\tmod\\t\\n"); process.exit(0) }
     if (mods.length > max) { process.stderr.write("memory\\n"); process.exit(1) }
     for (const m of mods) process.stdout.write("== " + m + "\\n" + "t_" + m.split(".").pop().toLowerCase() + "\\t" + m + "\\t\\n")
     process.exit(0)
@@ -132,7 +133,7 @@ const exportsDir = join(root, "data", "exports", "t")
 const setup = (args, env = {}, only = ["--only", "expand"]) =>
   spawnSync("node", [join(root, "scripts", "setup-source.mjs"), "t", ...only, "--keep-build", ...args], {
     // every FAKE_* knob is set here, so that nothing in the caller's environment changes a split
-    env: { ...process.env, HOME: home, EMISSARY_WATCH_MS: "300", EMISSARY_FOOTPRINT_MB: "150", EMISSARY_RETRY_FOOTPRINT_MB: "2048", EMISSARY_LEAN_MB: "100", FAKE_CLOSURE_MAX: "1000", FAKE_EXPORT_MAX: "1000", FAKE_EXPORT_REFUSE: "", FAKE_EXPORT_HANG: "", FAKE_CLOSURE_HANG: "", ...env },
+    env: { ...process.env, HOME: home, EMISSARY_WATCH_MS: "300", EMISSARY_FOOTPRINT_MB: "150", EMISSARY_RETRY_FOOTPRINT_MB: "2048", EMISSARY_LEAN_MB: "100", FAKE_CLOSURE_MAX: "1000", FAKE_EXPORT_MAX: "1000", FAKE_EXPORT_REFUSE: "", FAKE_EXPORT_HANG: "", FAKE_CLOSURE_HANG: "", FAKE_CLOSURE_BAD: "", ...env },
     encoding: "utf8",
   })
 const calls = () => (existsSync(join(tmp, "lake-calls")) ? readFileSync(join(tmp, "lake-calls"), "utf8").trim().split("\n") : [])
@@ -279,6 +280,13 @@ const cpids = existsSync(join(tmp, "hung-pids")) ? readFileSync(join(tmp, "hung-
 for (let i = 0; i < 20 && cpids.some(alive); i++) spawnSync("sleep", ["0.2"])
 check("three closure runs hung, and none of them is still running", cpids.length === 3 && !cpids.some(alive), `pids ${cpids.join(",")}, alive ${cpids.filter(alive).join(",")}`)
 for (const pid of cpids.filter(alive)) process.kill(pid, "SIGKILL")
+
+// 12. a closure output that cannot be written (a section named for a folder that does not exist) is a failed batch, halved like any other: the setup goes on, and the modules around it have their closures
+fresh()
+r = setup(["--closure-batch", "6"], { FAKE_CLOSURE_BAD: "Lib.F" })
+cc = closureCalls()
+check("a closure output that cannot be written does not stop the setup: the five others have their closures", r.status === 0 && closures().join("") === "ABCDE", out(r))
+check("it is logged and halved like any failed batch: 6, 3+3, 2+1", /closure batch of 6 could not be written/.test(r.stdout) && cc.map((c) => c.length).join(",") === "6,3,3,2,1", cc.map((c) => c.length).join(",") + "\n" + r.stdout)
 
 rmSync(tmp, { recursive: true, force: true })
 if (bad) {
