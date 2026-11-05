@@ -92,3 +92,24 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const plan = decide({ entries, mode: process.env.MODE || "auto", shards: Number(process.env.SHARDS || 0) })
   for (const [k, v] of Object.entries({ entries, ...plan })) console.log(`${k}=${v}`)
 }
+
+// Modules the memory watchdog killed even when built alone (a 16 GB runner, a 14 GB limit): flt-anthropic had four of them, `P2M.Sol.*` proofs of 100-200 KB, and 86 of its modules,
+// the whole top of the proof (the final theorem, the Frey package, modularity lifting, the Taylor-Wiles patching), import one. The build was called complete and the shards went on without them,
+// and nobody noticed until the failed list was read. A build that finishes with such modules gets ONE more round, automatically, in which the prime job has swap and a limit that counts
+// RAM and swap together; a module that still does not fit then is left out as before, and the run says so in its summary and its issue.
+//   complete   the build has nothing more to try at the current limit (--phase build-status)
+//   toobig     modules killed even alone at that limit
+//   retryMb    the limit this round ran with (setup-sharded.yml retry_mb)
+export const ESCALATE_RETRY_MB = 57344 // 56 GB of RAM plus swap
+export const ESCALATE_SWAP_GB = 48
+export const ESCALATE_SOLO_MINUTES = 300
+export function escalation({ complete, toobig, retryMb, escalateMb = ESCALATE_RETRY_MB }) {
+  if (typeof complete !== "boolean") throw new Error(`complete is true or false, not ${complete}`)
+  count(toobig, "toobig")
+  count(retryMb, "retryMb")
+  count(escalateMb, "escalateMb")
+  if (!complete) return { escalate: false, why: "the build is not complete: the next round is an ordinary one" }
+  if (toobig === 0) return { escalate: false, why: "no module was killed for memory" }
+  if (retryMb >= escalateMb) return { escalate: false, why: `${toobig} modules did not fit even at ${retryMb} MB: nothing bigger to try` }
+  return { escalate: true, why: `${toobig} modules were killed for memory at ${retryMb} MB: one round with swap and ${escalateMb} MB` }
+}

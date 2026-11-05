@@ -10,7 +10,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { roundProgress } from "./setup-plan.mjs"
+import { roundProgress, escalation, ESCALATE_RETRY_MB, ESCALATE_SWAP_GB, ESCALATE_SOLO_MINUTES } from "./setup-plan.mjs"
 
 const wf = join(dirname(fileURLToPath(import.meta.url)), "..", ".github", "workflows")
 let bad = 0
@@ -41,8 +41,8 @@ check("build-gate checks nothing out and runs no node, lake or lean", !/actions\
 check("build-gate sends only numbers to the dispatch, checked first", /\^\[0-9\]\+\$/.test(sharded["build-gate"]) && !/\$\{\{\s*needs\.prime\.outputs[^}]*\}\}[^\n]*gh workflow run/.test(sharded["build-gate"]), "")
 check("build-gate stops at max_build_rounds", /BUILD_ROUND" -ge "\$MAX_BUILD_ROUNDS"/.test(sharded["build-gate"]), "")
 check("build-gate runs only when the build is incomplete", /needs\.prime\.outputs\.complete != 'true'/.test(sharded["build-gate"]), "")
-check("shard starts only on a complete build (or without a prime)", /prime_minutes == '0' \|\| needs\.prime\.outputs\.complete == 'true'/.test(sharded.shard.split("runs-on")[0]), "")
-check("finish starts only on a complete build (or a bank_run, or without a prime)", /inputs\.bank_run != '' \|\| inputs\.prime_minutes == '0' \|\| needs\.prime\.outputs\.complete == 'true'/.test(sharded.finish.split("runs-on")[0]), "")
+check("shard starts only on a complete build (or without a prime)", /prime_minutes == '0' \|\| \(needs\.prime\.outputs\.complete == 'true' && needs\.prime\.outputs\.escalate != 'true'\)/.test(sharded.shard.split("runs-on")[0]), "")
+check("finish starts only on a complete build (or a bank_run, or without a prime)", /inputs\.bank_run != '' \|\| inputs\.prime_minutes == '0' \|\| \(needs\.prime\.outputs\.complete == 'true' && needs\.prime\.outputs\.escalate != 'true'\)/.test(sharded.finish.split("runs-on")[0]), "")
 check("the complete word is cut down to true or false before it is an output", /grep -E '\^complete=\(true\|false\)\$'/.test(sharded.prime), "")
 check("the prime job restores the previous build and goes on if it has expired", /continue-on-error: true/.test(sharded.prime.split("Build what fits")[0].split("The previous round's build")[1] || ""), "")
 check("build-gate forwards tengoku_ref, as the export round does (after checking it is a branch name)", /-f tengoku_ref="\$TENGOKU_REF"/.test(sharded["build-gate"]) && /TENGOKU_REF" =~ \^\[A-Za-z0-9\._\/-\]\*\$/.test(sharded["build-gate"]), "")
@@ -76,7 +76,7 @@ const inputsOf = readFileSync(join(wf, "setup-sharded.yml"), "utf8").split("\n  
 check("prev_built (default empty) and min_progress (default 1) are workflow inputs", /\n      prev_built:\n(?:        .*\n)*?        default: ""\n/.test(inputsOf) && /\n      min_progress:\n(?:        .*\n)*?        default: "1"\n/.test(inputsOf), "")
 check("the prime job hands the build-gate its counts, each cut down to a decimal number first", /built: \$\{\{ steps\.status\.outputs\.built \}\}/.test(sharded.prime) && /\^\$\{name\}=\(0\|\[1-9\]\[0-9\]\{0,8\}\)\$/.test(sharded.prime) && /for name in built modules/.test(sharded.prime), "")
 check("the counts reach the build-gate through env, are validated before use, and prev_built is passed on to the next round", /BUILT: \$\{\{ needs\.prime\.outputs\.built \}\}/.test(gate) && /\^\(0\|\[1-9\]\[0-9\]\{0,8\}\)\$/.test(gate) && /-f prev_built="\$BUILT"/.test(gate) && /-f min_progress="\$MIN_PROGRESS"/.test(gate), "")
-check("build-gate stops with an ::error:: holding the numbers, before it dispatches anything", /::error::[^\n]*\$BUILT[^\n]*\$PREV_BUILT[^\n]*\$added/.test(gate) && gate.indexOf("made no progress") > 0 && gate.indexOf("made no progress") < gate.indexOf("gh workflow run"), "")
+check("build-gate stops with an ::error:: holding the numbers, before it dispatches anything", /::error::[^\n]*\$BUILT[^\n]*\$PREV_BUILT[^\n]*\$added/.test(gate) && gate.indexOf("made no progress") > 0 && gate.indexOf("made no progress") < gate.lastIndexOf("gh workflow run"), "")
 check("build-gate judges only a round after the first", /if \[ "\$BUILD_ROUND" -gt 1 \] && \[ -n "\$PREV_BUILT" \] && \[ -n "\$BUILT" \]/.test(gate), "")
 check("build-gate still holds actions: write and nothing else (the issue is written by another job)", /^\{ actions: write \}$/.test(permissionsOf(gate) || ""), permissionsOf(gate))
 check("report-stall holds issues: write and nothing else, and no other job holds it", /^\{ issues: write \}$/.test(permissionsOf(report) || "") && Object.keys(sharded).filter((j) => /issues/.test(permissionsOf(sharded[j]) || "")).join() === "report-stall", permissionsOf(report))
@@ -95,7 +95,7 @@ const stepRun = (block, name) => {
 }
 const gateScript = stepRun(gate, "Dispatch the next build round")
 const envNames = [...gate.slice(gate.indexOf("env:"), gate.indexOf("run: |")).matchAll(/^ {10}([A-Z_]+):/gm)].map((m) => m[1])
-check("the harness gives the build-gate step every variable its env defines, and nothing it does not", ["BUILT", "MODULES", "TOOBIG", "BLOCKED", "PREV_BUILT", "MIN_PROGRESS", "BUILD_ROUND", "MAX_BUILD_ROUNDS", "TENGOKU_REF"].every((n) => envNames.includes(n)) && envNames.length === 17, envNames)
+check("the harness gives the build-gate step every variable its env defines, and nothing it does not", ["BUILT", "MODULES", "TOOBIG", "BLOCKED", "PREV_BUILT", "MIN_PROGRESS", "BUILD_ROUND", "MAX_BUILD_ROUNDS", "TENGOKU_REF"].every((n) => envNames.includes(n)) && ["ESCALATE", "RETRY_MB", "SWAP_GB", "SOLO_MINUTES", "FROM_RELEASE", "ONLY_MODULES"].every((n) => envNames.includes(n)) && envNames.length === 23, envNames)
 const sandbox = mkdtempSync(join(tmpdir(), "gate-"))
 writeFileSync(join(sandbox, "gh"), '#!/bin/sh\necho "gh $*" >> "$GH_CALLS"\nexit 0\n')
 chmodSync(join(sandbox, "gh"), 0o755)
@@ -110,6 +110,7 @@ const runGate = (script, c) => {
       PATH: `${sandbox}:${process.env.PATH}`, GH_CALLS: calls, GITHUB_OUTPUT: outFile, GITHUB_REPOSITORY: "o/r", GH_TOKEN: "x", KEY: "k",
       SHARDS: "16", PRIME_MINUTES: "300", EXPAND_CHUNK: "1", ROUND: "1", MAX_ROUNDS: "4", PARALLEL: "6", RESUME_RUN: "", GITHUB_RUN_ID: "77", TENGOKU_REF: "", MAX_BUILD_ROUNDS: "99",
       BUILD_ROUND: String(c.round), PREV_BUILT: c.prev, BUILT: c.built, MODULES: "30662", MIN_PROGRESS: String(c.min), TOOBIG: c.toobig ?? "", BLOCKED: c.blocked ?? "",
+      ESCALATE: c.escalate ?? "", RETRY_MB: c.retry ?? "14336", SWAP_GB: c.swap ?? "0", SOLO_MINUTES: c.solo ?? "90", FROM_RELEASE: c.fromRelease ?? "false", ONLY_MODULES: c.only ?? "",
     },
   })
   return { code: r.status, text: r.stdout + r.stderr, output: readFileSync(outFile, "utf8"), calls: readFileSync(calls, "utf8") }
@@ -182,8 +183,162 @@ for (const [name, from, to] of [
   ["not forwarding min_progress", ' -f min_progress="$MIN_PROGRESS"', ""],
   ["stopping when the count of the round before is missing", '&& [ -n "$PREV_BUILT" ] && [ -n "$BUILT" ]', "&& [ -n \"$BUILT\" ]"],
 ]) {
-  const mutated = gateScript.replace(from.replaceAll("\n", "\n"), to)
+  const at = gateScript.lastIndexOf(from)   // the ordinary dispatch comes after the escalation one, which has some of the same words
+  const mutated = at < 0 ? gateScript : gateScript.slice(0, at) + to + gateScript.slice(at + from.length)
   check(`mutant: ${name} is noticed`, mutated !== gateScript && wrong(mutated, cases, true).length > 0, mutated === gateScript ? "pattern not found" : "")
+}
+
+// ---- modules too big for a runner: the memory knobs, the swap, the escalation round, the published archive as a starting point ----
+// (flt-anthropic, 5 Nov 2026: 86 modules, the final theorem and everything leading to it, were left out for 14 GB and the build was called complete)
+{
+  const text = readFileSync(join(wf, "setup-sharded.yml"), "utf8")
+  const inputBlock = (name) => (text.match(new RegExp(`\\n      ${name}:\\n((?:        .*\\n)+)`)) || [])[1] || ""
+  check("retry_mb, swap_gb, solo_minutes and from_release are inputs, with defaults that change nothing (14336, 0, 90, false)", /default: "14336"/.test(inputBlock("retry_mb")) && /default: "0"/.test(inputBlock("swap_gb")) && /default: "90"/.test(inputBlock("solo_minutes")) && /default: "false"/.test(inputBlock("from_release")), "")
+  const memEnv = "EMISSARY_RETRY_FOOTPRINT_MB: ${{ inputs.retry_mb }}"
+  check("the bigger limit and the solo time are set in the prime job and in no other (a shard has no swap: a limit above its RAM would let a runaway take the runner)", sharded.prime.includes(memEnv) && !sharded.shard.includes("EMISSARY_RETRY_FOOTPRINT_MB") && !sharded.finish.includes("EMISSARY_RETRY_FOOTPRINT_MB") && !text.split("\njobs:\n")[0].includes("EMISSARY_RETRY_FOOTPRINT_MB"), "")
+  check("the guard counts swap only in the prime job, and only when the job added swap", /EMISSARY_COUNT_SWAP: \$\{\{ inputs\.swap_gb != '0' && '1' \|\| '0' \}\}/.test(sharded.prime) && !/EMISSARY_COUNT_SWAP/.test(sharded.shard + sharded.finish), "")
+  const buildStep = sharded.prime.slice(sharded.prime.indexOf("- name: Build what fits"), sharded.prime.indexOf("- name: This round in numbers"))
+  check("the swap is added by setup-source.mjs itself (EMISSARY_ADD_SWAP_GB from swap_gb, prime job only), synchronously after the unpack and before the build, not by a background process in the workflow", /EMISSARY_ADD_SWAP_GB: \$\{\{ inputs\.swap_gb \}\}/.test(sharded.prime.split("steps:")[0]) && !/EMISSARY_ADD_SWAP_GB/.test(sharded.shard + sharded.finish) && !/sh scripts\/add-swap\.sh/.test(sharded.prime) && !/- name: Swap \(swap_gb\)/.test(sharded.prime) && (() => { const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "setup-source.mjs"), "utf8"); const at = src.indexOf('if (PHASE === "build") {'); const blk = src.slice(at, src.indexOf("return log(`done ${key} (build phase)", at)); return blk.indexOf("await restoreBuild") >= 0 && blk.indexOf("await restoreBuild") < blk.indexOf("await addSwap()") && blk.indexOf("await addSwap()") < blk.indexOf("await build(modules)") })(), buildStep)
+  check("the prime job deletes the unpacked earlier build's archive (EMISSARY_DROP_RESTORED=1) and removes the swap file before the build is packed", /EMISSARY_DROP_RESTORED: "1"/.test(sharded.prime.split("steps:")[0]) && !/EMISSARY_DROP_RESTORED/.test(sharded.shard + sharded.finish) && sharded.prime.indexOf("swapoff /swapfile") > sharded.prime.indexOf("- name: Pack the build") && sharded.prime.indexOf("swapoff /swapfile") < sharded.prime.indexOf("tar --zstd --exclude"), "")
+  const knobStep = sharded.prime.slice(sharded.prime.indexOf("- name: The memory knobs are numbers"), sharded.prime.indexOf("- name: Free disk"))
+  check("the prime job's first step checks retry_mb, swap_gb and solo_minutes are numbers (a malformed retry_mb silently switched the escalation off), through env", sharded.prime.indexOf("- name: The memory knobs are numbers") > 0 && sharded.prime.indexOf("- name: The memory knobs are numbers") < sharded.prime.indexOf("- name: Free disk") && /RETRY_MB" =~ \^\[1-9\]\[0-9\]\{0,8\}\$/.test(knobStep) && /SWAP_GB" =~ \^\(0\|\[1-9\]\[0-9\]\{0,2\}\)\$/.test(knobStep) && /SOLO_MINUTES" -le 340/.test(knobStep) && !/\$\{\{/.test(knobStep.slice(knobStep.indexOf("run: |"))), knobStep)
+  {
+    const kdir = mkdtempSync(join(tmpdir(), "knobs-")), ks = stepRun(sharded.prime, "The memory knobs are numbers")
+    writeFileSync(join(kdir, "k.sh"), ks)
+    const runKnobs = (script, e) => spawnSync("bash", ["--noprofile", "--norc", "-e", script], { encoding: "utf8", env: { PATH: process.env.PATH, RETRY_MB: "14336", SWAP_GB: "0", SOLO_MINUTES: "90", ONLY_MODULES: "", FROM_RELEASE: "false", ...e } }).status
+    let okc = 0, wrongK = []
+    for (const [e, want] of [[{}, 0], [{ RETRY_MB: "57344", SWAP_GB: "48", SOLO_MINUTES: "300" }, 0], [{ SOLO_MINUTES: "340" }, 0], [{ RETRY_MB: "" }, 1], [{ RETRY_MB: "0" }, 1], [{ RETRY_MB: "14336 " }, 1], [{ RETRY_MB: "1e5" }, 1], [{ RETRY_MB: "14336; id" }, 1], [{ RETRY_MB: "-5" }, 1], [{ RETRY_MB: "0123" }, 1], [{ SWAP_GB: "4G" }, 1], [{ SWAP_GB: "" }, 1], [{ SWAP_GB: "1000" }, 1], [{ ONLY_MODULES: "Theorems.Thm_A,Definitions.Def_B", FROM_RELEASE: "true" }, 0], [{ ONLY_MODULES: "«a.b».C,D,Lib.α,Ünï.β", FROM_RELEASE: "true" }, 0], [{ ONLY_MODULES: "Theorems.Thm_A" }, 1], [{ FROM_RELEASE: "yes" }, 1], [{ FROM_RELEASE: "" }, 1], [{ FROM_RELEASE: "TRUE" }, 1], [{ FROM_RELEASE: "true" }, 0], [{ FROM_RELEASE: "true; id" }, 1], [{ ONLY_MODULES: "A;id", FROM_RELEASE: "true" }, 1], [{ ONLY_MODULES: "A B", FROM_RELEASE: "true" }, 1], [{ ONLY_MODULES: "A$(id)", FROM_RELEASE: "true" }, 1], [{ ONLY_MODULES: "A`id`", FROM_RELEASE: "true" }, 1], [{ ONLY_MODULES: "A|B", FROM_RELEASE: "true" }, 1], [{ ONLY_MODULES: "x".repeat(60001), FROM_RELEASE: "true" }, 1], [{ SOLO_MINUTES: "341" }, 1], [{ SOLO_MINUTES: "0" }, 1], [{ SOLO_MINUTES: "x" }, 1]]) {
+      okc++
+      if ((runKnobs(join(kdir, "k.sh"), e) === 0 ? 0 : 1) !== want) wrongK.push(e)
+    }
+    check(`the knob step accepts good values and refuses malformed ones, on ${okc} inputs`, wrongK.length === 0, wrongK)
+    writeFileSync(join(kdir, "m.sh"), ks.replace("RETRY_MB\" =~ ^[1-9][0-9]{0,8}$", "RETRY_MB\" =~ ^[0-9]*$"))
+    check("mutant: a retry_mb check that lets an empty value through is noticed", runKnobs(join(kdir, "m.sh"), { RETRY_MB: "" }) === 0, "")
+  }
+  check("the shards (not the finish job) get EMISSARY_ONLY_MODULES, so that they export only the named modules and unpack only their closure; setup-source.mjs applies it in the shard phase", /EMISSARY_ONLY_MODULES: \$\{\{ inputs\.only_modules \}\}/.test(sharded.shard.split("steps:")[0]) && !/EMISSARY_ONLY_MODULES/.test(sharded.finish) && /PHASE === "build" \|\| PHASE === "build-status" \|\| PHASE === "shard" \? onlyModules\(\)/.test(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "setup-source.mjs"), "utf8")), "")
+  check("the prime job hands the build-gate an escalate word, and the shards and the finish job wait for it to be false", /escalate: \$\{\{ steps\.status\.outputs\.escalate \}\}/.test(sharded.prime) && /needs\.prime\.outputs\.complete == 'true' && needs\.prime\.outputs\.escalate != 'true'/.test(sharded.shard.split("runs-on")[0]) && /needs\.prime\.outputs\.complete == 'true' && needs\.prime\.outputs\.escalate != 'true'/.test(sharded.finish.split("runs-on")[0]), "")
+  check("the build-gate also runs when the build is complete but the prime job says escalate", /\(needs\.prime\.outputs\.complete != 'true' \|\| needs\.prime\.outputs\.escalate == 'true'\)/.test(gate.split("runs-on")[0]), gate.split("runs-on")[0])
+  check("ESCALATE_MB in the workflow is the limit setup-plan.mjs escalation uses", new RegExp(`ESCALATE_MB: "${ESCALATE_RETRY_MB}"`).test(sharded.prime) && new RegExp(`retry_mb="${ESCALATE_RETRY_MB}" -f swap_gb="${ESCALATE_SWAP_GB}" -f solo_minutes="${ESCALATE_SOLO_MINUTES}"`).test(gate), `${ESCALATE_RETRY_MB} ${ESCALATE_SWAP_GB} ${ESCALATE_SOLO_MINUTES}`)
+  for (const [name, block] of [["build-gate (ordinary round)", gate], ["finish (next export round)", sharded.finish]]) {
+    check(`${name} carries retry_mb, swap_gb, solo_minutes, from_release and only_modules on`, /-f retry_mb="\$RETRY_MB" -f swap_gb="\$SWAP_GB" -f solo_minutes="\$SOLO_MINUTES" -f from_release="\$FROM_RELEASE" -f only_modules="\$ONLY_MODULES"/.test(block), "")
+  }
+  for (const job of ["shard", "finish"]) {
+    const b = sharded[job]
+    const at = b.indexOf("- name: The published export archive (from_release)")
+    const step = b.slice(at, b.indexOf("- name:", at + 10))
+    check(`${job}: from_release downloads the library's release archive (joined when published in parts) before anything is unpacked, only when asked`, at > 0 && /if: inputs\.from_release == 'true'/.test(step) && /gh release download "exports-\$KEY" -R "\$GITHUB_REPOSITORY" -p "\$asset\*"/.test(step) && /cat release-dl\/"\$asset"\.part-\* > release\.tar\.zst/.test(step) && at < b.indexOf("unpack release.tar.zst"), step)
+    check(`${job}: the release archive is unpacked FIRST, so that exports-partial and the shards' outputs lay over it`, b.indexOf("unpack release.tar.zst") > 0 && b.indexOf("unpack release.tar.zst") < b.indexOf("unpack exports-partial.tar.zst"), "")
+  }
+  check("the shard job still holds no write permission with from_release (the release is read, not written)", !writes(permissionsOf(sharded.shard)), permissionsOf(sharded.shard))
+
+  // the status step against the rule: run for real with a fake node that prints what --phase build-status prints
+  const statusScript = stepRun(sharded.prime, "Is the build complete?")
+  const sdir = mkdtempSync(join(tmpdir(), "status-"))
+  writeFileSync(join(sdir, "node"), '#!/bin/sh\nprintf "%s\\n" "$FAKE_ANSWER"\nexit 0\n')
+  chmodSync(join(sdir, "node"), 0o755)
+  writeFileSync(join(sdir, "status.sh"), statusScript)
+  const runStatus = (answer, retry) => {
+    const out = join(sdir, "output"), summary = join(sdir, "summary")
+    writeFileSync(out, ""); writeFileSync(summary, "")
+    const r = spawnSync("bash", ["--noprofile", "--norc", "-e", join(sdir, "status.sh")], { cwd: sdir, encoding: "utf8", env: { PATH: `${sdir}:${process.env.PATH}`, GITHUB_OUTPUT: out, GITHUB_STEP_SUMMARY: summary, KEY: "k", RETRY_MB: String(retry), ESCALATE_MB: String(ESCALATE_RETRY_MB), FAKE_ANSWER: answer } })
+    const o = readFileSync(out, "utf8")
+    return { code: r.status, text: r.stdout + r.stderr, escalate: (o.match(/^escalate=(.*)$/gm) || []).map((l) => l.slice(9)), complete: (o.match(/^complete=(.*)$/m) || [])[1], out: o }
+  }
+  const answerOf = (complete, toobig, extra = "") => `[19:52:20] build status: 30576/30662 modules have an .olean; ${toobig} too big\nbuilt=30576\nmodules=30662\ntoobig=${toobig}\nblocked=82\ncomplete=${complete}\n${extra}`
+  let n = 0, wrongStatus = []
+  for (const complete of [true, false]) for (const toobig of [0, 1, 4, 86, 123456]) for (const retry of [0, 14336, 20000, ESCALATE_RETRY_MB - 1, ESCALATE_RETRY_MB, ESCALATE_RETRY_MB + 1]) {
+    n++
+    const r = runStatus(answerOf(complete, toobig), retry)
+    const want = escalation({ complete, toobig, retryMb: retry }).escalate
+    if (r.code !== 0 || r.escalate.length !== 1 || r.escalate[0] !== String(want) || r.complete !== String(complete)) wrongStatus.push({ complete, toobig, retry, got: r.escalate, code: r.code, text: r.text.slice(0, 200) })
+  }
+  check(`the status step says escalate exactly when the rule (setup-plan.mjs escalation) does, once, on ${n} states`, wrongStatus.length === 0, wrongStatus.slice(0, 3))
+  for (const [name, answer, retry, want] of [
+    ["a toobig line that is not a count is ignored (no escalation)", answerOf(true, 0, "toobig=4; rm -rf /\ntoobig=-3\n"), 14336, "false"],
+    ["a RETRY_MB that is not a number never escalates", answerOf(true, 4), "14336; id", "false"],
+    ["no toobig line at all (an older setup-source) never escalates", "built=5\nmodules=5\ncomplete=true\n", 14336, "false"],
+    ["the last toobig line counts", answerOf(true, 0, "toobig=4\n"), 14336, "true"],
+  ]) {
+    n++
+    const r = runStatus(answer, retry)
+    check(name, r.code === 0 && r.escalate.length === 1 && r.escalate[0] === want, r.out + r.text)
+  }
+  const warn = runStatus(answerOf(true, 4), ESCALATE_RETRY_MB)
+  check("a build that ends with modules too big even for swap says so with a ::warning:: (no silence), naming the counts", /::warning::4 module\(s\) did not fit in 57344 MB of RAM and swap and are left out, with 82 modules/.test(warn.text), warn.text)
+  check("no warning when nothing is too big, or while the escalation is still to come", !/::warning::/.test(runStatus(answerOf(true, 0), ESCALATE_RETRY_MB).text) && !/::warning::/.test(runStatus(answerOf(true, 4), 14336).text), "")
+
+  // the gate against the rule: the escalation round is dispatched once, with the top settings, never judged for progress, whatever the numbers
+  let g = 0, wrongGate = []
+  const escCases = []
+  for (const round of [1, 2, 3, 6]) for (const [prev, built] of [["", "30576"], ["30576", "30576"], ["30000", "30576"], ["30576", "100"]]) for (const min of [0, 1, 5]) for (const retry of ["14336", "20000"]) for (const fromRelease of ["false", "true"]) escCases.push({ round, prev, built, min, retry, fromRelease, escalate: "true", toobig: "4", blocked: "82", only: fromRelease === "true" && (round + min) % 2 ? "Theorems.Thm_A,Definitions.Def_B,Lib.α" : "" })
+  const escOk = (c, r) => {
+    const calls = r.calls.split("\n").filter((l) => l.includes("workflow run"))
+    return r.code === 0 && calls.length === 1 && calls[0].includes('retry_mb=57344') && calls[0].includes(`swap_gb=${ESCALATE_SWAP_GB}`) && calls[0].includes(`solo_minutes=${ESCALATE_SOLO_MINUTES}`) && calls[0].includes("build_run=77") && calls[0].includes(`build_round=${c.round + 1}`) && calls[0].includes(`from_release=${c.fromRelease}`) && calls[0].split(/\s+/).includes(`only_modules=${c.only ?? ""}`) && calls[0].includes(`prev_built=${c.built}`) && /dispatched build round/.test(r.text) && !/::error::/.test(r.text) && !/stalled/.test(r.output)
+  }
+  const wrongEsc = (script, first = false) => {
+    const bad = []
+    for (const c of escCases) { g++; const r = runGate(script, c); if (!escOk(c, r)) { bad.push({ c, code: r.code, calls: r.calls.slice(0, 220), text: r.text.slice(0, 200) }); if (first) break } }
+    return bad
+  }
+  wrongGate = wrongEsc(gateScript)
+  check(`the gate dispatches the escalation round exactly once, with swap and the top limit, whatever the progress numbers, on ${escCases.length} states`, wrongGate.length === 0, wrongGate.slice(0, 2))
+  // an ordinary round (no escalate word) still carries the knobs it was given, unchanged
+  let ordinary = 0, wrongOrd = []
+  for (const retry of ["14336", "57344"]) for (const swap of ["0", "48"]) for (const solo of ["90", "300"]) for (const fromRelease of ["false", "true"]) for (const round of [2, 3]) {
+    ordinary++
+    const c = { round, prev: "100", built: "200", min: 1, retry, swap, solo, fromRelease, escalate: "false", only: round === 3 && fromRelease === "true" ? "Theorems.Thm_A,Definitions.Def_B,Lib.α" : "" }
+    const r = runGate(gateScript, c)
+    const call = r.calls.split("\n").find((l) => l.includes("workflow run")) || ""
+    if (!(r.code === 0 && call.includes(`retry_mb=${retry}`) && call.includes(`swap_gb=${swap}`) && call.includes(`solo_minutes=${solo}`) && call.includes(`from_release=${fromRelease}`) && call.split(/\s+/).includes(`only_modules=${c.only}`) && call.includes(`build_round=${round + 1}`))) wrongOrd.push({ c, call: call.slice(0, 200) })
+  }
+  check(`an ordinary round carries retry_mb, swap_gb, solo_minutes and from_release on unchanged, on ${ordinary} states`, wrongOrd.length === 0, wrongOrd.slice(0, 2))
+  for (const [name, c] of [["a retry_mb that is not a number", { round: 2, prev: "1", built: "2", min: 1, retry: "14336;id" }], ["a swap_gb that is not a number", { round: 2, prev: "1", built: "2", min: 1, swap: "4G" }], ["a solo_minutes that is not a number", { round: 2, prev: "1", built: "2", min: 1, solo: "x" }], ["a from_release that is neither true nor false", { round: 2, prev: "1", built: "2", min: 1, fromRelease: "yes" }], ["an only_modules with a shell word in it", { round: 2, prev: "1", built: "2", min: 1, fromRelease: "true", only: "Theorems.Thm_A; rm -rf /" }], ["an only_modules with a space", { round: 2, prev: "1", built: "2", min: 1, fromRelease: "true", only: "A B" }], ["an only_modules without from_release (the finish job would publish a library of only those modules)", { round: 2, prev: "1", built: "2", min: 1, fromRelease: "false", only: "Theorems.Thm_A" }]]) {
+    const r = runGate(gateScript, c)
+    check(`the gate refuses ${name} before it dispatches anything`, r.code !== 0 && !r.calls.includes("workflow run"), r.text)
+  }
+  // the old stall rule still applies to an ordinary round when ESCALATE is anything but "true"
+  for (const e of ["", "false", "TRUE", "1", "true; id"]) {
+    const r = runGate(gateScript, { round: 3, prev: "100", built: "100", min: 1, escalate: e })
+    check(`ESCALATE=${JSON.stringify(e)} is not an escalation: a round that added nothing still stops`, r.code !== 0 && !r.calls.includes("workflow run") && /stalled=true/.test(r.output), r.text)
+  }
+  const escMutants = [
+    ["the escalation round is followed by an ordinary dispatch too (no exit after it)", '  exit 0\nfi\n# A round that did nothing', "  :\nfi\n# A round that did nothing"],
+    ["the escalation round keeps the old limit", '-f retry_mb="57344"', '-f retry_mb="$RETRY_MB"'],
+    ["the escalation round has no swap", `-f swap_gb="${ESCALATE_SWAP_GB}"`, '-f swap_gb="$SWAP_GB"'],
+    ["the escalation round is judged for progress first (the escalation moved below the stall check)", 'if [ "$ESCALATE" = "true" ]; then', 'if [ "$ESCALATE" = "true" ] && [ "$BUILT" != "$PREV_BUILT" ]; then'],
+    ["the escalation round forgets which build it continues", '-f build_run="$GITHUB_RUN_ID" -f build_round="$((BUILD_ROUND + 1))" -f max_build_rounds="$MAX_BUILD_ROUNDS" \\\n    -f tengoku_ref', '-f build_round="$((BUILD_ROUND + 1))" -f max_build_rounds="$MAX_BUILD_ROUNDS" \\\n    -f tengoku_ref'],
+    ["the escalation round forgets from_release", ' -f from_release="$FROM_RELEASE" -f only_modules="$ONLY_MODULES"\n  echo "::notice::${TOOBIG', ' -f only_modules="$ONLY_MODULES"\n  echo "::notice::${TOOBIG'],
+    ["the escalation round forgets only_modules", ' -f only_modules="$ONLY_MODULES"\n  echo "::notice::${TOOBIG', '\n  echo "::notice::${TOOBIG'],
+  ]
+  for (const [name, from, to] of escMutants) {
+    const mutated = gateScript.replace(from, to)
+    check(`mutant: ${name} is noticed`, mutated !== gateScript && wrongEsc(mutated, true).length > 0, mutated === gateScript ? "pattern not found" : "")
+  }
+  const ordMutants = [
+    ["the ordinary dispatch drops retry_mb", ' -f retry_mb="$RETRY_MB" -f swap_gb="$SWAP_GB"', ' -f swap_gb="$SWAP_GB"'],
+    ["the ordinary dispatch drops from_release", ' -f solo_minutes="$SOLO_MINUTES" -f from_release="$FROM_RELEASE" -f only_modules="$ONLY_MODULES"\necho "::notice::the build is not complete', ' -f solo_minutes="$SOLO_MINUTES" -f only_modules="$ONLY_MODULES"\necho "::notice::the build is not complete'],
+    ["the ordinary dispatch drops only_modules", ' -f only_modules="$ONLY_MODULES"\necho "::notice::the build is not complete', '\necho "::notice::the build is not complete'],
+  ]
+  for (const [name, from, to] of ordMutants) {
+    const mutated = gateScript.replace(from, to)
+    let caughtOrd = false
+    if (mutated !== gateScript) for (const retry of ["57344"]) { const r = runGate(mutated, { round: 2, prev: "1", built: "2", min: 1, retry, escalate: "false", fromRelease: "true", only: "Theorems.Thm_A" }); const call = r.calls.split("\n").find((l) => l.includes("workflow run")) || ""; if (!(call.includes("retry_mb=57344") && call.includes("from_release=true") && call.includes("only_modules=Theorems.Thm_A"))) caughtOrd = true }
+    check(`mutant: ${name} is noticed`, caughtOrd, mutated === gateScript ? "pattern not found" : "")
+  }
+  // mutants of the status step
+  for (const [name, from, to] of [
+    ["the status step escalates without checking that the build is complete", '[ "${word#complete=}" = "true" ] && ', ""],
+    ["the status step escalates at the top limit too", '[ "$RETRY_MB" -lt "$ESCALATE_MB" ]; then\n  echo "escalate=true"', '[ "$RETRY_MB" -le "$ESCALATE_MB" ]; then\n  echo "escalate=true"'],
+    ["the status step escalates with nothing too big", '[ "${toobig:-0}" -gt 0 ] && [ "$RETRY_MB" -lt', '[ "${toobig:-0}" -ge 0 ] && [ "$RETRY_MB" -lt'],
+  ]) {
+    const mutated = statusScript.replace(from, to)
+    writeFileSync(join(sdir, "status.sh"), mutated)
+    let caughtStatus = false
+    for (const [complete, toobig, retry] of [[false, 4, 14336], [true, 4, ESCALATE_RETRY_MB], [true, 0, 14336]]) { const r = runStatus(answerOf(complete, toobig), retry); if (r.escalate[0] !== String(escalation({ complete, toobig, retryMb: retry }).escalate)) caughtStatus = true }
+    check(`mutant: ${name} is noticed`, mutated !== statusScript && caughtStatus, mutated === statusScript ? "pattern not found" : "")
+    writeFileSync(join(sdir, "status.sh"), statusScript)
+  }
+  console.log(`(escalation checks ran ${n} status runs and ${g + ordinary} gate runs)`)
 }
 
 const auto = jobsOf("setup-auto.yml")
