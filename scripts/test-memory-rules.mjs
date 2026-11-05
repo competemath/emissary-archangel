@@ -126,7 +126,8 @@ check("the escalation settings are inside what a hosted runner and a job can do"
         cases++
         // never one file too few; a file too many only where a kept module's path is the start of another module's (X/c and X/c.d)
         const wantSet = new Set(want)
-        const extraOk = (f) => [...keep].some((k) => f.includes(`/${k}.`))
+        const allPaths = all.map(pathOf)
+        const extraOk = (f) => [...keep].some((k) => allPaths.some((q) => q.startsWith(`${k}.`) && f.includes(`/${q}.`)))   // a file of a module whose path starts with a kept path plus a dot
         if (want.some((f) => !got.includes(f)) || got.some((f) => !wantSet.has(f) && !extraOk(f))) { wrongM++; if (print && wrongM <= 3) console.log("FAIL membersOf", lib, frac, got.length, want.length) }
       }
     }

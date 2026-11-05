@@ -144,6 +144,7 @@ jobs:
       - name: The memory knobs are numbers (a malformed retry_mb would silently switch the escalation off)
         env: { RETRY_MB: "${{ inputs.retry_mb }}", SWAP_GB: "${{ inputs.swap_gb }}", SOLO_MINUTES: "${{ inputs.solo_minutes }}", ONLY_MODULES: "${{ inputs.only_modules }}", FROM_RELEASE: "${{ inputs.from_release }}" }
         run: |
+          [[ "$FROM_RELEASE" =~ ^(true|false)$ ]] || { echo "::error::from_release is true or false, not $FROM_RELEASE"; exit 1; }
           bad='[[:space:];&|<>()`$"\\*]'; if [[ "$ONLY_MODULES" =~ $bad || ${#ONLY_MODULES} -gt 60000 ]]; then echo "::error::only_modules is a comma list of module names (setup-source.mjs checks each one)"; exit 1; fi
           # only_modules without from_release would build, export and PUBLISH a library that is only those modules (the release archive would be replaced by it)
           [ -z "$ONLY_MODULES" ] || [ "$FROM_RELEASE" = true ] || { echo "::error::only_modules needs from_release=true: the shards and the finish job must start from the published archive"; exit 1; }
