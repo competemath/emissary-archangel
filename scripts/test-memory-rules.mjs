@@ -89,19 +89,22 @@ function run(rules, print) {
   ]
   for (const [s, want] of flt) { cases++; if (rules.escalation(s).escalate !== want) v("escalation on a real state of flt-anthropic", JSON.stringify(s)) }
   // buildAttempts and soloMax: the defaults for a build without swap, the larger ones for the escalation's, a valid setting wins, anything else is ignored
-  const retries = [undefined, "", " ", "abc", "-1", "1e5", "0", "1", "500", "14336", "40000", String(ESCALATED_RETRY_MB - 1), String(ESCALATED_RETRY_MB), String(ESCALATED_RETRY_MB + 1), "57344", " 57344 ", "99999999"]
-  const settings = [undefined, "", " ", "0", "1", "2", "4", "7", "25", "99", "100", "999", "1000", "1001", "99999", "-3", "2.5", "1e2", "abc", "0012", " 12 ", "12 ", "0x10", "٣", "5;rm"]
-  const valid = (s) => typeof s === "string" && /^[1-9][0-9]{0,3}$/.test(s.trim()) && Number(s) <= 1000
-  const esc = (r) => /^[0-9]+$/.test(String(r ?? "").trim()) && Number(r) >= ESCALATED_RETRY_MB
-  for (const r of retries) for (const s of settings) for (const [fn, key, dflt, bigger] of [["buildAttempts", "EMISSARY_BUILD_ATTEMPTS", BUILD_ATTEMPTS_DEFAULT, BUILD_ATTEMPTS_ESCALATED], ["soloMax", "EMISSARY_SOLO_MAX", SOLO_MAX_DEFAULT, SOLO_MAX_ESCALATED]]) {
+  // literal expected values, written out (not recomputed with the rule's own regex): which retry limits are the escalation's (57344 MB or more, read as a number), and what each setting means
+  const retries = [[undefined, false], ["", false], [" ", false], ["abc", false], ["-1", false], ["0", false], ["1", false], ["500", false], ["14336", false], ["40000", false], ["57343", false], ["57343.9", false], ["5e4", false],
+    ["57344", true], [" 57344 ", true], ["57344.5", true], ["57345", true], ["6e4", true], ["99999999", true]]
+  const settings = [[undefined, null], ["", null], [" ", null], ["0", null], ["1", 1], ["2", 2], ["4", 4], ["7", 7], ["25", 25], ["99", 99], ["100", 100], ["999", 999], ["1000", 1000], ["1001", null], ["99999", null], ["-3", null],
+    ["2.5", null], ["1e2", null], ["abc", null], ["0012", null], [" 12 ", 12], ["12 ", 12], ["0x10", null], ["٣", null], ["5;rm", null]]
+  for (const [r, isEsc] of retries) for (const [s, set] of settings) for (const [fn, key, dflt, bigger] of [["buildAttempts", "EMISSARY_BUILD_ATTEMPTS", BUILD_ATTEMPTS_DEFAULT, BUILD_ATTEMPTS_ESCALATED], ["soloMax", "EMISSARY_SOLO_MAX", SOLO_MAX_DEFAULT, SOLO_MAX_ESCALATED]]) {
     cases++
     const env = {}
     if (r !== undefined) env.EMISSARY_RETRY_FOOTPRINT_MB = r
     if (s !== undefined) env[key] = s
-    const want = valid(s) ? Number(s) : esc(r) ? bigger : dflt
+    const want = set ?? (isEsc ? bigger : dflt)
     const got = rules[fn](env)
     if (got !== want) v(fn, `${JSON.stringify(env)}: ${got} != ${want}`)
   }
+  cases++
+  if (BUILD_ATTEMPTS_DEFAULT !== 4 || SOLO_MAX_DEFAULT !== 25 || BUILD_ATTEMPTS_ESCALATED !== 100 || SOLO_MAX_ESCALATED !== 200 || ESCALATED_RETRY_MB !== 57344 || ESCALATED_RETRY_MB !== ESCALATE_RETRY_MB) v("the constants are not 4/25/100/200 and the escalation's 57344 (setup-plan.mjs ESCALATE_RETRY_MB)")
   cases++
   if (rules.buildAttempts({}) !== 4 || rules.soloMax({}) !== 25) v("buildAttempts/soloMax: the unset defaults are not 4 and 25 (a build without swap is unchanged)")
   cases++
@@ -203,6 +206,8 @@ const mutants = {
   "the tries setting accepts anything Number() accepts": { ...real, buildAttempts: (env) => (Number(env.EMISSARY_BUILD_ATTEMPTS) > 0 ? Number(env.EMISSARY_BUILD_ATTEMPTS) : real.buildAttempts({ ...env, EMISSARY_BUILD_ATTEMPTS: undefined })) },
   "the solo cap has no upper limit": { ...real, soloMax: (env) => (Number(env.EMISSARY_SOLO_MAX) > 0 ? Number(env.EMISSARY_SOLO_MAX) : real.soloMax({ ...env, EMISSARY_SOLO_MAX: undefined })) },
   "a limit just below the escalation's counts as escalated": { ...real, buildAttempts: (env) => (valid0(env.EMISSARY_BUILD_ATTEMPTS) ? Number(env.EMISSARY_BUILD_ATTEMPTS) : Number(env.EMISSARY_RETRY_FOOTPRINT_MB) >= ESCALATED_RETRY_MB - 1 ? BUILD_ATTEMPTS_ESCALATED : 4) },
+  "the retry limit is read as whole digits only (57344.5 and 6e4 are not escalated)": { ...real, buildAttempts: (env) => (valid0(env.EMISSARY_BUILD_ATTEMPTS) ? Number(env.EMISSARY_BUILD_ATTEMPTS) : /^[0-9]+$/.test(String(env.EMISSARY_RETRY_FOOTPRINT_MB ?? "").trim()) && Number(env.EMISSARY_RETRY_FOOTPRINT_MB) >= ESCALATED_RETRY_MB ? BUILD_ATTEMPTS_ESCALATED : 4) },
+  "the escalated limit is 49152 (not the escalation's 57344)": { ...real, buildAttempts: (env) => (valid0(env.EMISSARY_BUILD_ATTEMPTS) ? Number(env.EMISSARY_BUILD_ATTEMPTS) : Number(env.EMISSARY_RETRY_FOOTPRINT_MB) >= 49152 ? BUILD_ATTEMPTS_ESCALATED : 4) },
   "the escalation never stops (no limit check)": { ...real, escalation: (s) => ({ escalate: s.complete && s.toobig > 0, why: "x" }) },
   "the escalation ignores a build that is not complete": { ...real, escalation: (s) => ({ escalate: s.toobig > 0 && s.retryMb < ESCALATE_RETRY_MB, why: "x" }) },
   "the escalation fires with nothing too big": { ...real, escalation: (s) => ({ escalate: s.complete && s.retryMb < ESCALATE_RETRY_MB, why: "x" }) },

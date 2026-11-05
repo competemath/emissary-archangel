@@ -27,7 +27,7 @@ for (const [m, imp] of Object.entries(files)) writeFileSync(join(lib, "Lib", `${
 const TC = "leanprover/lean4:v4.0.0"
 writeFileSync(join(lib, "lean-toolchain"), TC + "\n")
 for (let i = 1; i <= CHAIN; i++) writeFileSync(join(lib, "Lib", `G${i}.lean`), `import Lib.${i === 1 ? "A" : `G${i - 1}`}\n\ntheorem t_g${i} : True := trivial\n`)
-files.G1 = files.G2 = files.G3 = files.G4 = files.G5 = files.G6 = "" // only their names are needed below
+for (let i = 1; i <= CHAIN; i++) files[`G${i}`] = "" // only their names are needed below
 const git = (...a) => sh("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...a], { cwd: lib })
 git("init", "-q")
 git("add", ".")
@@ -88,7 +88,7 @@ chmodSync(join(bin, "lake"), 0o755)
 const repo = join(root, "infra", "t", "repo")
 const olean = (m) => join(repo, ".lake", "build", "lib", "lean", "Lib", `${m}.olean`)
 const memo = join(repo, ".lake", "build", "emissary-oom.json")
-const IMPORTS = JSON.stringify({ "Lib.C": ["Lib.A"], "Lib.D": ["Lib.C"], "Lib.E": ["Lib.A"], "Lib.F": ["Lib.A"], "Lib.G1": ["Lib.A"], ...Object.fromEntries([2, 3, 4, 5, 6].map((i) => [`Lib.G${i}`, [`Lib.G${i - 1}`]])) })
+const IMPORTS = JSON.stringify({ "Lib.C": ["Lib.A"], "Lib.D": ["Lib.C"], "Lib.E": ["Lib.A"], "Lib.F": ["Lib.A"], "Lib.G1": ["Lib.A"], ...Object.fromEntries(Array.from({ length: CHAIN - 1 }, (_, k) => [`Lib.G${k + 2}`, [`Lib.G${k + 1}`]])) })
 // a watchdog that looks every 300 ms, a limit of 150 MB for a process, 500 MB for one built alone
 const setup = (args, env = {}) =>
   spawnSync("node", [join(root, "scripts", "setup-source.mjs"), "t", ...args], {
@@ -167,16 +167,16 @@ check("status counts it as missing for another reason, with the module behind it
 // 8. a chain of big modules, each importing the one before: every try of the chunk finds ONE new kill (the 86 of flt-anthropic: a Thm_ module imports its P2M.Sol proof, round 4 of
 // 2026-11-05 finished 4 of them in 4 tries and the next round started from a 28 minute restore). A build with the default 4 tries leaves the end of the chain for the next round;
 // a build with the tries the escalation gives (EMISSARY_BUILD_ATTEMPTS here, memory-rules.mjs buildAttempts for the real rule) finishes it in one run.
-const hungryChain = JSON.stringify(Object.fromEntries([1, 2, 3, 4, 5, 6].map((i) => [`Lib.G${i}`, 300])))
-const gs = [1, 2, 3, 4, 5, 6]
+const gs = Array.from({ length: CHAIN }, (_, i) => i + 1)
+const hungryChain = JSON.stringify(Object.fromEntries(gs.map((i) => [`Lib.G${i}`, 300])))
 const gBuilt = () => gs.filter((i) => existsSync(olean(`G${i}`)))
 fresh()
 r = setup(["--phase", "build"], { FAKE_HUNGRY: hungryChain, FAKE_HOLD_MS: "3000", EMISSARY_SOLO_MAX: "50" })
-check("default tries (4): the first four of a chain of six big modules are built, the last two wait for the next round", r.status === 0 && gBuilt().join() === "1,2,3,4", `${gBuilt()}\n${out(r)}`)
+check("default tries (4): the first four of a chain of six big modules are built, the last two wait for the next round", r.status === 0 && gBuilt().join() === gs.slice(0, 4).join(), `${gBuilt()}\n${out(r)}`)
 check("the two that wait are not remembered as too big", !existsSync(memo) || Object.keys(JSON.parse(readFileSync(memo, "utf8")).toobig).length === 0, "")
 fresh()
 r = setup(["--phase", "build"], { FAKE_HUNGRY: hungryChain, FAKE_HOLD_MS: "3000", EMISSARY_SOLO_MAX: "50", EMISSARY_BUILD_ATTEMPTS: "20" })
-check("20 tries: the whole chain is built in one run, each module alone after its own kill", r.status === 0 && gBuilt().join() === "1,2,3,4,5,6" && gs.every((i) => new RegExp(`Lib\\.G${i} built alone`).test(r.stdout)), `${gBuilt()}\n${out(r)}`)
+check("20 tries: the whole chain is built in one run, each module alone after its own kill", r.status === 0 && gBuilt().join() === gs.join() && gs.every((i) => new RegExp(`Lib\\.G${i} built alone`).test(r.stdout)), `${gBuilt()}\n${out(r)}`)
 check("and the build says it is complete", (setup(["--phase", "build-status"]).stdout.match(/^complete=true$/m) ?? []).length === 1, "")
 // the tries are a limit, not a promise: a chain whose modules do not fit even alone stops at the first one (nothing is rescued, so the chunk is not tried again and again)
 fresh()

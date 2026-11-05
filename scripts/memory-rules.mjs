@@ -16,15 +16,15 @@ export function soloBuildMs(env = process.env) {
 // How many times one chunk of the build is tried, and how many killed modules one run builds alone. A killed module is built alone and the chunk is tried again; when a
 // chain of big modules each imports the one before (flt-anthropic: a `Thm_` module imports its `P2M.Sol` proof), every try finds ONE new kill, so the number of tries is
 // the number of modules the round can finish. 4 tries and 25 solos were the defaults of a build that had no swap; the round that has swap (the retry limit is the escalation's,
-// 49152 MB or more) finished 4 of the 86 modules per round (round 4, 2026-11-05) while a restore alone costs 28 minutes. A try always rescues something, or the chunk stops,
+// 57344 MB or more, setup-plan.mjs ESCALATE_RETRY_MB) finished 4 of the 86 modules per round (round 4, 2026-11-05) while a restore alone costs 28 minutes. A try always rescues something, or the chunk stops,
 // so a higher number only lets a chunk that is making progress go on. EMISSARY_BUILD_ATTEMPTS and EMISSARY_SOLO_MAX (a positive whole number up to 1000) set them; anything else is the default.
 export const BUILD_ATTEMPTS_DEFAULT = 4
 export const SOLO_MAX_DEFAULT = 25
-export const ESCALATED_RETRY_MB = 49152
+export const ESCALATED_RETRY_MB = 57344 // setup-plan.mjs ESCALATE_RETRY_MB (test-memory-rules.mjs checks they are the same number)
 export const BUILD_ATTEMPTS_ESCALATED = 100
 export const SOLO_MAX_ESCALATED = 200
 const positiveInt = (v, max) => (typeof v === "string" && /^[1-9][0-9]{0,3}$/.test(v.trim()) && Number(v) <= max ? Number(v) : null)
-const escalated = (env) => /^[0-9]+$/.test(String(env.EMISSARY_RETRY_FOOTPRINT_MB ?? "").trim()) && Number(env.EMISSARY_RETRY_FOOTPRINT_MB) >= ESCALATED_RETRY_MB
+const escalated = (env) => Number(env.EMISSARY_RETRY_FOOTPRINT_MB) >= ESCALATED_RETRY_MB // the same reading of the number as setup-source.mjs RETRY_FOOTPRINT_MB (57344.5 and 6e4 count)
 export const buildAttempts = (env = process.env) => positiveInt(env.EMISSARY_BUILD_ATTEMPTS, 1000) ?? (escalated(env) ? BUILD_ATTEMPTS_ESCALATED : BUILD_ATTEMPTS_DEFAULT)
 export const soloMax = (env = process.env) => positiveInt(env.EMISSARY_SOLO_MAX, 1000) ?? (escalated(env) ? SOLO_MAX_ESCALATED : SOLO_MAX_DEFAULT)
 

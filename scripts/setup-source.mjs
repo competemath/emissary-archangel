@@ -279,7 +279,7 @@ const oleanOf = (m) => {
 const oomKilled = new Map() // module -> { mb, why }: killed by the watchdog since the last time it was looked at
 const RETRY_FOOTPRINT_MB = Number(process.env.EMISSARY_RETRY_FOOTPRINT_MB) > 0 ? Number(process.env.EMISSARY_RETRY_FOOTPRINT_MB) : 14336
 const OOM_FILE = join(REPO, ".lake", "build", "emissary-oom.json")
-const SOLO_MAX = soloMax() // modules built alone in one run: each can take minutes (memory-rules.mjs: more when the round has swap)
+const SOLO_MAX = soloMax() // modules built alone in one run: each can take minutes (memory-rules.mjs: more when the retry limit is the escalation's, EMISSARY_RETRY_FOOTPRINT_MB >= 57344)
 const BUILD_ATTEMPTS = buildAttempts() // tries of one chunk, each after the killed modules were built alone
 const SOLO_BUILD_MS = soloBuildMs()
 const MODULE_NAME = /^(?:[\p{L}_][\p{L}\p{N}_'!?]*|«[^»]+»)(?:\.(?:[\p{L}_][\p{L}\p{N}_'!?]*|«[^»]+»))*$/u
