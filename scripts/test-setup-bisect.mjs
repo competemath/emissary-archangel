@@ -249,7 +249,7 @@ const child = spawn("node", [join(root, "scripts", "setup-source.mjs"), "t", "--
   detached: true,
 })
 const exitCode = new Promise((res) => child.on("close", (code, sig) => res(sig ?? code)))
-for (let i = 0; i < 1200 && !existsSync(join(tmp, "hung-pids")); i++) await new Promise((r2) => setTimeout(r2, 200)) // up to 4 minutes: the script runs the whole setup first, and a loaded machine is slow to get there
+for (let i = 0; i < 1200 && !existsSync(join(tmp, "hung-pids")) && child.exitCode === null && child.signalCode === null; i++) await new Promise((r2) => setTimeout(r2, 200)) // up to 4 minutes: the script runs the whole setup first, and a loaded machine is slow to get there; not once the script has exited without ever hanging
 const hung = existsSync(join(tmp, "hung-pids")) ? readFileSync(join(tmp, "hung-pids"), "utf8").trim().split("\n").map(Number) : []
 check("the exporter hangs under the default limits (the script is waiting for it)", hung.length === 1 && alive(hung[0]), `pids ${hung.join(",")}`)
 child.kill("SIGTERM")
