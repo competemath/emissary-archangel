@@ -27,9 +27,7 @@ on:
       gate2_budget_min: { description: "minutes Gate 2 may spend on each shard (default 150; the shard job has 345 in all, the build and export come first). A shard whose chunks do not fit leaves the rest unjudged, and an unjudged module is cut with its importers", default: "150" }
       gate2_skip: { description: "modules (comma list, the library's own names) that killed Lean alone in an earlier run: Gate 2 does not try them again (they get no verdict, as before) and spends the time on the others", default: "" }
       gate2_rss_share: { description: "the share of the runner's memory one Lean process of Gate 2 may use (default 0.80 = 12.8 GB of 16). A module that outgrows it alone gets no verdict and is cut with its importers", default: "0.80" }
-      only_modules: { description: "ONLY THESE: a comma list of the library's modules. Only they are judged (the plan's targets); what they import is built as always. For a library whose first bump left some modules without a verdict (modules too big for a runner, left out of its setup and added later): judge those, nothing else", default: "" }
-      swap_gb: { description: "GB of swap every shard adds (0: none): for the modules too big for a runner's RAM (flt-anthropic's P2M.Sol proofs of 100-900 KB). Gate 2 then counts swap as memory", default: "0" }
-      build_timeout_min: { description: "minutes one module may take to build in a shard (default 90); modules run on swap need more (at most 170: the shard job has 345 minutes, and its setup and Gate 2 come out of them)", default: "90" }
+      heavy: { description: "MODULES TOO BIG FOR A RUNNER (flt-anthropic's P2M.Sol proofs of 100-900 KB), as key=value pairs separated by ';': swap_gb=48 (GB of swap every shard adds; Gate 2 then counts swap as memory), build_timeout_min=150 (minutes one module may take to build in a shard; default 90, at most 170: the shard job has 345 minutes), only_modules=A.B,C.D (judge only these modules: the plan's targets; what they import is built as always; an unknown name, or a list with no name, stops the run). GitHub allows 25 inputs for a dispatch, so the three share one. Empty: none of them", default: "" }
       only_shards: { description: "RESUME: run only these shards of the plan (comma list of shard numbers), the one that died; with fill_from for the others", default: "" }
       fill_from: { description: "RESUME: the id of an earlier run of this workflow for this key whose shard artifacts fill in the shards this run does not build. Its plan must be this run's plan (checked)", default: "" }
       fill_unrecorded: { description: "RESUME: fill_from is a run from before plans recorded what the shards are built with (plan/inputs.json): you vouch that it ran with the same mathlib, toolchain, imports and tengoku_ref as this one", default: "false" }
@@ -44,10 +42,12 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 90
     permissions: { contents: read }
-    env: { KEY: "${{ inputs.key }}", SHARDS: "${{ inputs.shards }}", MAX_TARGETS: "${{ inputs.max_targets }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}", ONLY_MODULES: "${{ inputs.only_modules }}" }
+    env: { KEY: "${{ inputs.key }}", SHARDS: "${{ inputs.shards }}", MAX_TARGETS: "${{ inputs.max_targets }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}", HEAVY: "${{ inputs.heavy }}" }
     outputs:
       shards: ${{ steps.p.outputs.shards }}
       run_shards: ${{ steps.run.outputs.run_shards }}
+      swap_gb: ${{ steps.heavy.outputs.swap_gb }}
+      build_timeout_min: ${{ steps.heavy.outputs.build_timeout_min }}
     steps:
       - name: This repository (scripts, the library's setup) and tengoku's entries for it
         run: |
@@ -58,9 +58,14 @@ jobs:
           git -C tengoku sparse-checkout set --no-cone $(python3 emissary/scripts/bump/tentative_files.py sparse emissary/sources.json "$KEY")
           # TENGOKU_REF: a branch of the tree repository that holds the records of a library whose PR is not merged yet (empty: main)
           ref=${TENGOKU_REF:+origin/$TENGOKU_REF}; git -C tengoku checkout -q "${ref:-main}"
+      - name: The heavy settings (swap, build timeout, only these modules), checked
+        id: heavy
+        working-directory: emissary
+        run: python3 scripts/bump/plan_inputs.py heavy "$HEAVY" >> "$GITHUB_OUTPUT"
       - name: The library, its import graph, the plan
         id: p
         working-directory: emissary
+        env: { ONLY_MODULES: "${{ steps.heavy.outputs.only_modules }}" }
         run: |
           read -r repo commit _ roots < <(python3 scripts/trial-library-build.py meta "$KEY")
           git clone -q --filter=blob:none "$repo" lib && git -C lib checkout -q "$commit"
@@ -109,7 +114,7 @@ jobs:
       # what the shards are built with: shards built under other settings must not be mixed in by a resume (fill_from), and the plan alone does not say
       - name: What the shards are built with
         working-directory: emissary
-        env: { MATHLIB: "${{ inputs.mathlib }}", TOOLCHAIN: "${{ inputs.toolchain }}", IMPORTS: "${{ inputs.imports }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}", SWAP_GB: "${{ inputs.swap_gb }}", BUILD_TIMEOUT_MIN: "${{ inputs.build_timeout_min }}" }
+        env: { MATHLIB: "${{ inputs.mathlib }}", TOOLCHAIN: "${{ inputs.toolchain }}", IMPORTS: "${{ inputs.imports }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}", SWAP_GB: "${{ steps.heavy.outputs.swap_gb }}", BUILD_TIMEOUT_MIN: "${{ steps.heavy.outputs.build_timeout_min }}" }
         run: python3 scripts/bump/plan_inputs.py ../plan/inputs.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: { name: "plan-${{ inputs.key }}", path: plan, retention-days: 14 }
@@ -131,8 +136,8 @@ jobs:
       gate2_budget_min: ${{ inputs.gate2_budget_min }}
       gate2_rss_share: ${{ inputs.gate2_rss_share }}
       gate2_skip: ${{ inputs.gate2_skip }}
-      swap_gb: ${{ inputs.swap_gb }}
-      build_timeout_min: ${{ inputs.build_timeout_min }}
+      swap_gb: ${{ needs.plan.outputs.swap_gb }}
+      build_timeout_min: ${{ needs.plan.outputs.build_timeout_min }}
     permissions: { contents: read }
   # compose: the DRAFT. Merges the shards and cuts the bundle exactly as `finish` will, and hands the draft to `verify` (the tree's own build of it). Nothing is signed here
   # and no code of the library runs: the shards' artifacts are read as data (shard_pack.merge refuses symlinks and `..`).
