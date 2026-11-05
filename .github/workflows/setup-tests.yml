@@ -30,6 +30,7 @@ jobs:
       - run: node scripts/test-setup-build.mjs
       - run: node scripts/test-setup-memory.mjs
       - run: node scripts/test-setup-bisect.mjs
+      - run: node scripts/test-bisect-property.mjs
       - run: node scripts/test-setup-workflows.mjs
       - run: node scripts/test-setup-tools.mjs
       - run: node scripts/test-workflow-pins.mjs
