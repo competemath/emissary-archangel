@@ -230,6 +230,7 @@ def knob_problems(sharded: str, shard: str) -> list[str]:
         (sharded, re.escape('out=$(python3 scripts/bump/plan_inputs.py heavy "$HEAVY") || { echo "$out"; exit 1; }'), "the heavy settings are parsed and checked by plan_inputs.py before anything uses them, and an error is shown, not written to $GITHUB_OUTPUT"),
         (sharded, re.escape("ps.restrict_wanted(wanted, only, set(imp))"), "the plan restricts the wanted set"),
         (shard, re.escape('--timeout "$BUILD_TIMEOUT_MIN"'), "tolerant_build gets the timeout"),
+        (shard, re.escape('node scripts/fetch-exports.mjs "$KEY" --modules ../targets.txt'), "the early fetch reads targets.txt from the workspace root (the copy into emissary/ comes with the build step, after it)"),
         (shard, r"- name: This shard's modules[\s\S]*- name: The old exports of this shard's targets[\s\S]*- name: elan[\s\S]*- name: The library at its pinned commit[\s\S]*- name: Build this shard's modules", "the old exports are fetched before the library is built (a failed download must cost minutes, not the shard)"),
         (shard, re.escape('run: sh emissary/scripts/add-swap.sh "$SWAP_GB" 40'), "the swap is added by add-swap.sh, sized from the free space"),
         (shard, re.escape('$([ "$SWAP_GB" != 0 ] && echo --count-swap)'), "Gate 2 counts swap when swap was added"),
@@ -474,6 +475,25 @@ class DispatchInputLimit(unittest.TestCase):
         self.assertEqual(self.inputs_of("on: [push]\njobs: {}\n"), [])
         self.assertLessEqual(len(names), 25)
 
+
+
+class EarlyStepsReadFilesThatExist(unittest.TestCase):
+    def test_no_step_before_the_copy_reads_a_bare_targets_txt(self):
+        text = (WORKFLOWS / "bump-shard.yml").read_text()
+        steps = text.split("    steps:\n", 1)[1]
+        copy_at = steps.index("cp ../build.txt build.txt; cp ../targets.txt targets.txt")
+        before = steps[:copy_at]
+        # inside emissary/ the file does not exist yet: only ../targets.txt (or the workspace root) is readable before the copy
+        for m in re.finditer(r"(?<![./\w])targets\.txt", before):
+            line = before[before.rfind("\n", 0, m.start()) + 1:before.find("\n", m.end())]
+            self.assertTrue(any(x in line for x in ('open("targets.txt"', "> targets.txt", "sparse.txt", "../targets.txt")) or "working-directory" in line,
+                            f"a step before the copy reads targets.txt where it does not exist yet: {line.strip()[:120]}")
+
+    def test_the_real_shard_failed_this_way(self):
+        broken = (WORKFLOWS / "bump-shard.yml").read_text().replace("--modules ../targets.txt", "--modules targets.txt")
+        steps = broken.split("    steps:\n", 1)[1]
+        before = steps[:steps.index("cp ../build.txt build.txt; cp ../targets.txt targets.txt")]
+        self.assertRegex(before, r'fetch-exports\.mjs "\$KEY" --modules targets\.txt', "the mutant (the old text) is what the regression test must refuse")
 
 
 if __name__ == "__main__":
