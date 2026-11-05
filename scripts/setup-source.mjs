@@ -36,7 +36,7 @@ import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import { collectTools, exporterAction, mergeTools, patchFingerprint } from "./setup-tools.mjs"
 import { bisectItems } from "./bisect.mjs"
-import { availableFrom, membersOf, soloBuildMs } from "./memory-rules.mjs"
+import { availableFrom, buildAttempts, membersOf, soloBuildMs, soloMax } from "./memory-rules.mjs"
 
 const x = promisify(execFile)
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -279,7 +279,8 @@ const oleanOf = (m) => {
 const oomKilled = new Map() // module -> { mb, why }: killed by the watchdog since the last time it was looked at
 const RETRY_FOOTPRINT_MB = Number(process.env.EMISSARY_RETRY_FOOTPRINT_MB) > 0 ? Number(process.env.EMISSARY_RETRY_FOOTPRINT_MB) : 14336
 const OOM_FILE = join(REPO, ".lake", "build", "emissary-oom.json")
-const SOLO_MAX = Number(process.env.EMISSARY_SOLO_MAX) > 0 ? Number(process.env.EMISSARY_SOLO_MAX) : 25 // modules built alone in one run: each can take minutes
+const SOLO_MAX = soloMax() // modules built alone in one run: each can take minutes (memory-rules.mjs: more when the retry limit is the escalation's, EMISSARY_RETRY_FOOTPRINT_MB >= 57344)
+const BUILD_ATTEMPTS = buildAttempts() // tries of one chunk, each after the killed modules were built alone
 const SOLO_BUILD_MS = soloBuildMs()
 const MODULE_NAME = /^(?:[\p{L}_][\p{L}\p{N}_'!?]*|«[^»]+»)(?:\.(?:[\p{L}_][\p{L}\p{N}_'!?]*|«[^»]+»))*$/u
 const moduleOfCommand = (cmd) => {
@@ -637,7 +638,7 @@ async function build(modules) {
   }
   for (let i = 0; i < modules.length; i += BUILD_CHUNK) {
     let chunk = modules.slice(i, i + BUILD_CHUNK).filter((m) => !blocker.has(m))
-    for (let attempt = 0; chunk.length && attempt < 4; attempt++) {
+    for (let attempt = 0; chunk.length && attempt < BUILD_ATTEMPTS; attempt++) {
       const r = await run("lake", ["build", ...chunk], { cwd: REPO, timeoutMs: 6 * 3600 * 1000 })
       if (r.code === 0) break
       log(`WARNING: lake build chunk ${i / BUILD_CHUNK + 1} exited ${r.code}: ${r.tail.slice(-400)} — modules that did not build are reported at export`)

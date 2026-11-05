@@ -7,12 +7,13 @@
 //        c. the guard (under 1536 MB left) fires on the same samples as before when swap is not counted, and on none of them with 48 GB of swap counted;
 //        d. a text with no MemAvailable (not Linux) is Infinity.
 //   2. soloBuildMs (how long a killed module may take alone): the values the workflow inputs can hold, and values that must fall back to the default.
+//   3b. buildAttempts / soloMax (how many tries a chunk gets and how many killed modules are built alone): the grid of every retry limit and every setting a person could write.
 //   3. escalation (setup-plan.mjs): every combination of the build's state, and the real states flt-anthropic had.
 // Then the same checks run on broken versions of each rule, and each must be caught.
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { availableFrom, membersOf, soloBuildMs, SOLO_BUILD_DEFAULT_MS } from "./memory-rules.mjs"
+import { availableFrom, buildAttempts, BUILD_ATTEMPTS_DEFAULT, BUILD_ATTEMPTS_ESCALATED, ESCALATED_RETRY_MB, membersOf, soloBuildMs, SOLO_BUILD_DEFAULT_MS, soloMax, SOLO_MAX_DEFAULT, SOLO_MAX_ESCALATED } from "./memory-rules.mjs"
 import { escalation, ESCALATE_RETRY_MB, ESCALATE_SWAP_GB, ESCALATE_SOLO_MINUTES } from "./setup-plan.mjs"
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -87,13 +88,34 @@ function run(rules, print) {
     [{ complete: true, toobig: 0, retryMb: 14336 }, false],
   ]
   for (const [s, want] of flt) { cases++; if (rules.escalation(s).escalate !== want) v("escalation on a real state of flt-anthropic", JSON.stringify(s)) }
+  // buildAttempts and soloMax: the defaults for a build without swap, the larger ones for the escalation's, a valid setting wins, anything else is ignored
+  // literal expected values, written out (not recomputed with the rule's own regex): which retry limits are the escalation's (57344 MB or more, read as a number), and what each setting means
+  const retries = [[undefined, false], ["", false], [" ", false], ["abc", false], ["-1", false], ["0", false], ["1", false], ["500", false], ["14336", false], ["40000", false], ["57343", false], ["57343.9", false], ["5e4", false],
+    ["57344", true], [" 57344 ", true], ["57344.5", true], ["57345", true], ["6e4", true], ["99999999", true]]
+  const settings = [[undefined, null], ["", null], [" ", null], ["0", null], ["1", 1], ["2", 2], ["4", 4], ["7", 7], ["25", 25], ["99", 99], ["100", 100], ["999", 999], ["1000", 1000], ["1001", null], ["99999", null], ["-3", null],
+    ["2.5", null], ["1e2", null], ["abc", null], ["0012", null], [" 12 ", 12], ["12 ", 12], ["0x10", null], ["٣", null], ["5;rm", null]]
+  for (const [r, isEsc] of retries) for (const [s, set] of settings) for (const [fn, key, dflt, bigger] of [["buildAttempts", "EMISSARY_BUILD_ATTEMPTS", BUILD_ATTEMPTS_DEFAULT, BUILD_ATTEMPTS_ESCALATED], ["soloMax", "EMISSARY_SOLO_MAX", SOLO_MAX_DEFAULT, SOLO_MAX_ESCALATED]]) {
+    cases++
+    const env = {}
+    if (r !== undefined) env.EMISSARY_RETRY_FOOTPRINT_MB = r
+    if (s !== undefined) env[key] = s
+    const want = set ?? (isEsc ? bigger : dflt)
+    const got = rules[fn](env)
+    if (got !== want) v(fn, `${JSON.stringify(env)}: ${got} != ${want}`)
+  }
+  cases++
+  if (BUILD_ATTEMPTS_DEFAULT !== 4 || SOLO_MAX_DEFAULT !== 25 || BUILD_ATTEMPTS_ESCALATED !== 100 || SOLO_MAX_ESCALATED !== 200 || ESCALATED_RETRY_MB !== 57344 || ESCALATED_RETRY_MB !== ESCALATE_RETRY_MB) v("the constants are not 4/25/100/200 and the escalation's 57344 (setup-plan.mjs ESCALATE_RETRY_MB)")
+  cases++
+  if (rules.buildAttempts({}) !== 4 || rules.soloMax({}) !== 25) v("buildAttempts/soloMax: the unset defaults are not 4 and 25 (a build without swap is unchanged)")
+  cases++
+  if (rules.buildAttempts({ EMISSARY_RETRY_FOOTPRINT_MB: "57344" }) < 86 || rules.soloMax({ EMISSARY_RETRY_FOOTPRINT_MB: "57344" }) < 86) v("the escalation's round cannot try or rescue the 86 modules of flt-anthropic")
   // the escalation round is one round: asking again with the settings it dispatched never escalates
   cases++
   if (rules.escalation({ complete: true, toobig: 9, retryMb: ESCALATE_RETRY_MB }).escalate) v("the escalated round escalates again")
   return { cases, violations }
 }
 
-const real = { availableFrom, soloBuildMs, escalation }
+const real = { availableFrom, soloBuildMs, escalation, buildAttempts, soloMax }
 const good = run(real, true)
 console.log(`memory rules: ${good.cases} cases over ${samples.length} real memory samples (${fixture.source}): ${good.violations} violations`)
 check("the real rules hold on every case", good.violations === 0, good.violations)
@@ -164,10 +186,12 @@ check("the escalation settings are inside what a hosted runner and a job can do"
 {
   const src = readFileSync(join(here, "setup-source.mjs"), "utf8")
   check("buildAlone's timeout is the rule's, not a fixed 90 minutes", /const SOLO_BUILD_MS = soloBuildMs\(\)/.test(src) && /run\("lake", \["build", m\], \{ cwd: REPO, timeoutMs: SOLO_BUILD_MS \}\)/.test(src), "")
+  check("a chunk is tried BUILD_ATTEMPTS times (the rule's number), not a fixed 4, and the solo cap is the rule's", /const BUILD_ATTEMPTS = buildAttempts\(\)/.test(src) && /attempt < BUILD_ATTEMPTS; attempt\+\+/.test(src) && /const SOLO_MAX = soloMax\(\)/.test(src) && !/attempt < 4/.test(src), "")
   check("the available-memory guard reads /proc/meminfo through availableFrom, counting swap only when the job said so (EMISSARY_COUNT_SWAP=1)", /availableFrom\(readFileSync\("\/proc\/meminfo", "utf8"\), COUNT_SWAP\)/.test(src) && /const COUNT_SWAP = process\.env\.EMISSARY_COUNT_SWAP === "1"/.test(src), "")
 }
 
 // broken versions: each must be noticed
+const valid0 = (s) => typeof s === "string" && /^[1-9][0-9]{0,3}$/.test(s.trim()) && Number(s) <= 1000
 const mutants = {
   "swap is always counted": { ...real, availableFrom: (t) => availableFrom(t, true) },
   "swap is never counted": { ...real, availableFrom: (t) => availableFrom(t, false) },
@@ -176,6 +200,14 @@ const mutants = {
   "the solo time has no upper limit": { ...real, soloBuildMs: (env) => (Number(env.EMISSARY_SOLO_BUILD_MINUTES) > 0 ? Number(env.EMISSARY_SOLO_BUILD_MINUTES) * 60e3 : SOLO_BUILD_DEFAULT_MS) },
   "the solo time accepts a value that rounds to 0 ms": { ...real, soloBuildMs: (env) => { const v = env.EMISSARY_SOLO_BUILD_MINUTES; if (typeof v !== "string" || !/^[0-9]+(\.[0-9]+)?$/.test(v.trim())) return SOLO_BUILD_DEFAULT_MS; const m = Number(v); return m > 0 && m <= 340 ? Math.round(m * 60e3) : SOLO_BUILD_DEFAULT_MS } },
   "the solo time accepts anything Number() accepts": { ...real, soloBuildMs: (env) => (Number(env.EMISSARY_SOLO_BUILD_MINUTES) > 0 && Number(env.EMISSARY_SOLO_BUILD_MINUTES) <= 340 ? Math.round(Number(env.EMISSARY_SOLO_BUILD_MINUTES) * 60e3) : SOLO_BUILD_DEFAULT_MS) },
+  "a chunk is always tried 4 times": { ...real, buildAttempts: () => 4 },
+  "the escalation's round gets the same tries as any build": { ...real, buildAttempts: (env) => { const v = env.EMISSARY_BUILD_ATTEMPTS; return typeof v === "string" && /^[1-9][0-9]{0,3}$/.test(v.trim()) && Number(v) <= 1000 ? Number(v) : 4 } },
+  "the solo cap is always 25": { ...real, soloMax: () => 25 },
+  "the tries setting accepts anything Number() accepts": { ...real, buildAttempts: (env) => (Number(env.EMISSARY_BUILD_ATTEMPTS) > 0 ? Number(env.EMISSARY_BUILD_ATTEMPTS) : real.buildAttempts({ ...env, EMISSARY_BUILD_ATTEMPTS: undefined })) },
+  "the solo cap has no upper limit": { ...real, soloMax: (env) => (Number(env.EMISSARY_SOLO_MAX) > 0 ? Number(env.EMISSARY_SOLO_MAX) : real.soloMax({ ...env, EMISSARY_SOLO_MAX: undefined })) },
+  "a limit just below the escalation's counts as escalated": { ...real, buildAttempts: (env) => (valid0(env.EMISSARY_BUILD_ATTEMPTS) ? Number(env.EMISSARY_BUILD_ATTEMPTS) : Number(env.EMISSARY_RETRY_FOOTPRINT_MB) >= ESCALATED_RETRY_MB - 1 ? BUILD_ATTEMPTS_ESCALATED : 4) },
+  "the retry limit is read as whole digits only (57344.5 and 6e4 are not escalated)": { ...real, buildAttempts: (env) => (valid0(env.EMISSARY_BUILD_ATTEMPTS) ? Number(env.EMISSARY_BUILD_ATTEMPTS) : /^[0-9]+$/.test(String(env.EMISSARY_RETRY_FOOTPRINT_MB ?? "").trim()) && Number(env.EMISSARY_RETRY_FOOTPRINT_MB) >= ESCALATED_RETRY_MB ? BUILD_ATTEMPTS_ESCALATED : 4) },
+  "the escalated limit is 49152 (not the escalation's 57344)": { ...real, buildAttempts: (env) => (valid0(env.EMISSARY_BUILD_ATTEMPTS) ? Number(env.EMISSARY_BUILD_ATTEMPTS) : Number(env.EMISSARY_RETRY_FOOTPRINT_MB) >= 49152 ? BUILD_ATTEMPTS_ESCALATED : 4) },
   "the escalation never stops (no limit check)": { ...real, escalation: (s) => ({ escalate: s.complete && s.toobig > 0, why: "x" }) },
   "the escalation ignores a build that is not complete": { ...real, escalation: (s) => ({ escalate: s.toobig > 0 && s.retryMb < ESCALATE_RETRY_MB, why: "x" }) },
   "the escalation fires with nothing too big": { ...real, escalation: (s) => ({ escalate: s.complete && s.retryMb < ESCALATE_RETRY_MB, why: "x" }) },
