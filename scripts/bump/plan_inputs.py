@@ -32,6 +32,9 @@ def dump(rec: dict) -> str:
     return json.dumps(rec, indent=1, sort_keys=True)
 
 
+# a Lean module name as setup-source.mjs accepts it: components separated by dots, each a letter or underscore followed by letters, digits, _ ' ! ?, or anything between « and »
+_COMPONENT = r"(?:[^\W\d][\w'!?]*|«[^»]+»)"
+MODULE_NAME = re.compile(rf"{_COMPONENT}(?:\.{_COMPONENT})*")
 HEAVY_KEYS = ("swap_gb", "build_timeout_min", "only_modules")
 HEAVY_DEFAULTS = {"swap_gb": "0", "build_timeout_min": "90", "only_modules": ""}
 MAX_BUILD_TIMEOUT_MIN = 170  # the shard job has 345 minutes; its setup and Gate 2 come out of them
@@ -66,6 +69,12 @@ def parse_heavy(raw: str) -> dict:
         else:
             if len(v) > 60000 or re.search(r"[\s;&|<>()`$\"\\*]", v):
                 raise ValueError("heavy: only_modules is a comma list of module names, without spaces or shell characters")
+            names = [m for m in v.split(",") if m != ""]
+            if v != "" and not names:
+                raise ValueError("heavy: only_modules holds no module name")
+            for m in names:
+                if len(m) > 300 or not MODULE_NAME.fullmatch(m):
+                    raise ValueError(f"heavy: only_modules has {m[:40]!r}, which is not a module name")
         out[k] = v.strip() if k == "only_modules" else v
     return out
 

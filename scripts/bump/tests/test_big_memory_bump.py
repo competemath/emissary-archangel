@@ -49,7 +49,7 @@ class GuardCountsSwap(unittest.TestCase):
                     self.assertEqual(counted, int((mem_gb + swap_gb) * self.GB * share))
                     self.assertGreaterEqual(counted, plain)
                     n += 1
-        self.assertGreaterEqual(n, 150)
+        self.assertGreaterEqual(n, 200)
 
     def test_default_is_unchanged(self):
         # without count_swap nothing changes, whatever the swap: the 4 GB a hosted runner has by default must not raise the limit
@@ -227,7 +227,7 @@ def knob_problems(sharded: str, shard: str) -> list[str]:
         (sharded, re.escape("swap_gb: ${{ needs.plan.outputs.swap_gb }}"), "swap_gb handed to the shards from the checked heavy settings"),
         (sharded, re.escape("build_timeout_min: ${{ needs.plan.outputs.build_timeout_min }}"), "build_timeout_min handed to the shards from the checked heavy settings"),
         (sharded, re.escape('ONLY_MODULES: "${{ steps.heavy.outputs.only_modules }}"'), "only_modules reaches the plan through the checked heavy step"),
-        (sharded, re.escape('python3 scripts/bump/plan_inputs.py heavy "$HEAVY" >> "$GITHUB_OUTPUT"'), "the heavy settings are parsed and checked by plan_inputs.py before anything uses them"),
+        (sharded, re.escape('out=$(python3 scripts/bump/plan_inputs.py heavy "$HEAVY") || { echo "$out"; exit 1; }'), "the heavy settings are parsed and checked by plan_inputs.py before anything uses them, and an error is shown, not written to $GITHUB_OUTPUT"),
         (sharded, re.escape("ps.restrict_wanted(wanted, only, set(imp))"), "the plan restricts the wanted set"),
         (shard, re.escape('--timeout "$BUILD_TIMEOUT_MIN"'), "tolerant_build gets the timeout"),
         (shard, r"- name: This shard's modules[\s\S]*- name: The old exports of this shard's targets[\s\S]*- name: elan[\s\S]*- name: The library at its pinned commit[\s\S]*- name: Build this shard's modules", "the old exports are fetched before the library is built (a failed download must cost minutes, not the shard)"),
@@ -267,7 +267,8 @@ class WorkflowsCarryTheKnobs(unittest.TestCase):
         s, h = self.sharded, self.shard
         mutants = {
             "no swap_gb in the sharded workflow": (s.replace("swap_gb: ${{ needs.plan.outputs.swap_gb }}", ""), h),
-            "the heavy settings are not checked": (s.replace('python3 scripts/bump/plan_inputs.py heavy "$HEAVY" >> "$GITHUB_OUTPUT"', 'echo "$HEAVY" >> "$GITHUB_OUTPUT"'), h),
+            "the heavy settings are not checked": (s.replace('out=$(python3 scripts/bump/plan_inputs.py heavy "$HEAVY") || { echo "$out"; exit 1; }', 'out="$HEAVY"'), h),
+            "an error goes into $GITHUB_OUTPUT": (s.replace('|| { echo "$out"; exit 1; }', '>> "$GITHUB_OUTPUT"'), h),
             "no timeout for tolerant_build": (s, h.replace(' --timeout "$BUILD_TIMEOUT_MIN"', "")),
             "Gate 2 never counts swap": (s, h.replace('$([ "$SWAP_GB" != 0 ] && echo --count-swap)', "")),
             "the timeout is not checked": (s, h.replace('-le 170', "-le 99999")),
@@ -407,7 +408,7 @@ class HeavySettings(unittest.TestCase):
     def test_grid(self):
         n = 0
         for swap in (None, "0", "1", "48", "999"):
-            for timeout in (None, "1", "90", "170"):
+            for timeout in (None, "1", "90", "120", "170"):
                 for only in (None, "A.B", "A.B,C.D", "Lib.α,«a.b».C"):
                     items = [f"{k}={v}" for k, v in (("swap_gb", swap), ("build_timeout_min", timeout), ("only_modules", only)) if v is not None]
                     for raw in (";".join(items), ";".join(reversed(items))):
@@ -418,12 +419,12 @@ class HeavySettings(unittest.TestCase):
                         self.assertEqual(got["only_modules"], only or "")
         self.assertEqual(self.pi.parse_heavy(""), self.pi.HEAVY_DEFAULTS)
         self.assertEqual(self.pi.parse_heavy("  "), self.pi.HEAVY_DEFAULTS)
-        self.assertGreaterEqual(n, 150)
+        self.assertGreaterEqual(n, 200)
 
     def test_malformed_is_an_error(self):
         for raw in ("swap_gb", "swap_gb=", "swap_gb=48;", ";swap_gb=48", "swap_gb=4G", "swap_gb=-1", "swap_gb=0123", "swap_gb=1000", "swap_gb=48;swap_gb=16",
                     "build_timeout_min=0", "build_timeout_min=171", "build_timeout_min=340", "build_timeout_min=9x", "build_timeout_min=",
-                    "only_modules=A B", "only_modules=A;id", "only_modules=A$(id)", "only_modules=A`id`", "only_modules=A|B", "only_modules=" + "x" * 60001,
+                    "only_modules=A/B", "only_modules=A..B", "only_modules=.A", "only_modules=A.", "only_modules=1A", "only_modules=,", "only_modules=,,", "only_modules=A,B/C", "only_modules=A B", "only_modules=A;id", "only_modules=A$(id)", "only_modules=A`id`", "only_modules=A|B", "only_modules=" + "x" * 60001,
                     "swap=48", "ONLY_MODULES=A", "gate2=1", "swap_gb=48;;build_timeout_min=90"):
             with self.assertRaises(ValueError, msg=raw[:40]):
                 self.pi.parse_heavy(raw)
@@ -446,10 +447,12 @@ class DispatchInputLimit(unittest.TestCase):
 
     @staticmethod
     def inputs_of(text: str) -> list[str]:
-        m = re.search(r"^on:\n  workflow_dispatch:\n    inputs:\n((?:      .*\n|\n)+)", text, re.M)
-        if not m:
+        import yaml
+
+        on = yaml.safe_load(text).get("on", yaml.safe_load(text).get(True))  # YAML reads a bare `on` as true
+        if not isinstance(on, dict):
             return []
-        return re.findall(r"^      ([A-Za-z0-9_]+):", m.group(1), re.M)
+        return list(((on.get("workflow_dispatch") or {}).get("inputs") or {}).keys())
 
     def test_no_workflow_has_more_than_25_inputs(self):
         counted = 0
@@ -457,7 +460,7 @@ class DispatchInputLimit(unittest.TestCase):
             n = len(self.inputs_of(f.read_text()))
             counted += n > 0
             self.assertLessEqual(n, 25, f"{f.name} has {n} workflow_dispatch inputs: GitHub refuses to dispatch it")
-        self.assertGreaterEqual(counted, 8, "the workflows with inputs were not found")
+        self.assertGreaterEqual(counted, 12, "the workflows with inputs were not found")
 
     def test_bump_sharded_is_at_the_limit_and_a_26th_would_be_caught(self):
         text = (WORKFLOWS / "bump-sharded.yml").read_text()
@@ -465,6 +468,10 @@ class DispatchInputLimit(unittest.TestCase):
         self.assertEqual(len(names), 25)
         broken = text.replace("      heavy: {", "      extra_one: { description: \"x\", default: \"\" }\n      heavy: {", 1)
         self.assertEqual(len(self.inputs_of(broken)), 26)
+        # a workflow that lists `schedule:` before `workflow_dispatch:` (intake-open, memory-intake, translate-all) is counted too
+        sched = "on:\n  schedule:\n    - cron: '0 * * * *'\n  workflow_dispatch:\n    inputs:\n      a: { default: '' }\n      b: { default: '' }\njobs: {}\n"
+        self.assertEqual(self.inputs_of(sched), ["a", "b"])
+        self.assertEqual(self.inputs_of("on: [push]\njobs: {}\n"), [])
         self.assertLessEqual(len(names), 25)
 
 

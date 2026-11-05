@@ -61,7 +61,9 @@ jobs:
       - name: The heavy settings (swap, build timeout, only these modules), checked
         id: heavy
         working-directory: emissary
-        run: python3 scripts/bump/plan_inputs.py heavy "$HEAVY" >> "$GITHUB_OUTPUT"
+        run: |
+          out=$(python3 scripts/bump/plan_inputs.py heavy "$HEAVY") || { echo "$out"; exit 1; }   # an error is shown as an annotation; $GITHUB_OUTPUT gets key=value lines only
+          echo "$out" >> "$GITHUB_OUTPUT"
       - name: The library, its import graph, the plan
         id: p
         working-directory: emissary
