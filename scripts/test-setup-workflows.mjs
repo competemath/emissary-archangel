@@ -216,6 +216,8 @@ for (const job of ["shard", "finish"]) {
 // the fallback is not silent: a round that went on from deltas says so (a transient failure of the exports-partial read looks like a missing artifact)
 for (const job of ["shard", "finish"]) {
   const b = sharded[job]
-  check(`${job}: a round that resumed from the per-shard outputs says so (a warning that names the run and the download outcome, values through env)`, /if: inputs\.resume_run != '' && steps\.partial\.outcome == 'failure'\n\s+env: \{ RESUME_RUN: "\$\{\{ inputs\.resume_run \}\}", OUTS: "\$\{\{ steps\.outs\.outcome \}\}" \}[\s\S]*?::warning::exports-partial of run \$RESUME_RUN/.test(b), "")
+  const say = b.slice(b.indexOf("- name: Say that the round resumed from deltas"), b.indexOf("- name: Say that the round resumed from deltas") + 1500)
+  check(`${job}: a round that resumed from the per-shard outputs says so, when exports-partial failed, with values through env`, /if: inputs\.resume_run != '' && steps\.partial\.outcome == 'failure'\n\s+env: \{ RESUME_RUN: "\$\{\{ inputs\.resume_run \}\}", OUTS: "\$\{\{ steps\.outs\.outcome \}\}" \}/.test(say), "")
+  check(`${job}: the warning names the run and the outcome of the out-* download, in a block scalar (a colon-space in a one-line value made the workflow invalid YAML)`, /\n\s+run: \|\n\s+echo "::warning::exports-partial of run \$RESUME_RUN [^\n]*\(download outcome: \$OUTS\)/.test(say), "")
 }
 process.exit(bad ? 1 : 0)
