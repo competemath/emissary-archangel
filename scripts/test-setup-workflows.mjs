@@ -199,6 +199,21 @@ for (const [name, from, to] of [
   check("the guard counts swap only in the prime job, and only when the job added swap", /EMISSARY_COUNT_SWAP: \$\{\{ inputs\.swap_gb != '0' && '1' \|\| '0' \}\}/.test(sharded.prime) && !/EMISSARY_COUNT_SWAP/.test(sharded.shard + sharded.finish), "")
   const swap = sharded.prime.slice(sharded.prime.indexOf("- name: Swap (swap_gb)"), sharded.prime.indexOf("- uses: actions/checkout"))
   check("the swap step runs only when prime_minutes and swap_gb are set, checks the size is a number of GB, and comes after the disk is freed and before the build", /if: inputs\.prime_minutes != '0' && inputs\.swap_gb != '0'/.test(swap) && /SWAP_GB" =~ \^\[1-9\]\[0-9\]\{0,2\}\$/.test(swap) && /fallocate -l "\$\{SWAP_GB\}G" \/swapfile/.test(swap) && /swapon \/swapfile/.test(swap) && sharded.prime.indexOf("- name: Free disk") < sharded.prime.indexOf("- name: Swap (swap_gb)") && sharded.prime.indexOf("- name: Swap (swap_gb)") < sharded.prime.indexOf("- name: Build what fits"), swap)
+  const knobStep = sharded.prime.slice(sharded.prime.indexOf("- name: The memory knobs are numbers"), sharded.prime.indexOf("- name: Free disk"))
+  check("the prime job's first step checks retry_mb, swap_gb and solo_minutes are numbers (a malformed retry_mb silently switched the escalation off), through env", sharded.prime.indexOf("- name: The memory knobs are numbers") > 0 && sharded.prime.indexOf("- name: The memory knobs are numbers") < sharded.prime.indexOf("- name: Free disk") && /RETRY_MB" =~ \^\[1-9\]\[0-9\]\{0,8\}\$/.test(knobStep) && /SWAP_GB" =~ \^\(0\|\[1-9\]\[0-9\]\{0,2\}\)\$/.test(knobStep) && /SOLO_MINUTES" -le 340/.test(knobStep) && !/\$\{\{/.test(knobStep.slice(knobStep.indexOf("run: |"))), knobStep)
+  {
+    const kdir = mkdtempSync(join(tmpdir(), "knobs-")), ks = stepRun(sharded.prime, "The memory knobs are numbers")
+    writeFileSync(join(kdir, "k.sh"), ks)
+    const runKnobs = (script, e) => spawnSync("bash", ["--noprofile", "--norc", "-e", script], { encoding: "utf8", env: { PATH: process.env.PATH, RETRY_MB: "14336", SWAP_GB: "0", SOLO_MINUTES: "90", ...e } }).status
+    let okc = 0, wrongK = []
+    for (const [e, want] of [[{}, 0], [{ RETRY_MB: "57344", SWAP_GB: "48", SOLO_MINUTES: "300" }, 0], [{ SOLO_MINUTES: "340" }, 0], [{ RETRY_MB: "" }, 1], [{ RETRY_MB: "0" }, 1], [{ RETRY_MB: "14336 " }, 1], [{ RETRY_MB: "1e5" }, 1], [{ RETRY_MB: "14336; id" }, 1], [{ RETRY_MB: "-5" }, 1], [{ RETRY_MB: "0123" }, 1], [{ SWAP_GB: "4G" }, 1], [{ SWAP_GB: "" }, 1], [{ SWAP_GB: "1000" }, 1], [{ SOLO_MINUTES: "341" }, 1], [{ SOLO_MINUTES: "0" }, 1], [{ SOLO_MINUTES: "x" }, 1]]) {
+      okc++
+      if ((runKnobs(join(kdir, "k.sh"), e) === 0 ? 0 : 1) !== want) wrongK.push(e)
+    }
+    check(`the knob step accepts good values and refuses malformed ones, on ${okc} inputs`, wrongK.length === 0, wrongK)
+    writeFileSync(join(kdir, "m.sh"), ks.replace("RETRY_MB\" =~ ^[1-9][0-9]{0,8}$", "RETRY_MB\" =~ ^[0-9]*$"))
+    check("mutant: a retry_mb check that lets an empty value through is noticed", runKnobs(join(kdir, "m.sh"), { RETRY_MB: "" }) === 0, "")
+  }
   check("no ${{ }} expression sits inside the swap step's shell (the size comes through env, checked)", !/\$\{\{/.test(swap.slice(swap.indexOf("run: |"))), "")
   check("the prime job hands the build-gate an escalate word, and the shards and the finish job wait for it to be false", /escalate: \$\{\{ steps\.status\.outputs\.escalate \}\}/.test(sharded.prime) && /needs\.prime\.outputs\.complete == 'true' && needs\.prime\.outputs\.escalate != 'true'/.test(sharded.shard.split("runs-on")[0]) && /needs\.prime\.outputs\.complete == 'true' && needs\.prime\.outputs\.escalate != 'true'/.test(sharded.finish.split("runs-on")[0]), "")
   check("the build-gate also runs when the build is complete but the prime job says escalate", /\(needs\.prime\.outputs\.complete != 'true' \|\| needs\.prime\.outputs\.escalate == 'true'\)/.test(gate.split("runs-on")[0]), gate.split("runs-on")[0])

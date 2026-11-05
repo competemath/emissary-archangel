@@ -9,7 +9,8 @@ export function soloBuildMs(env = process.env) {
   const v = env.EMISSARY_SOLO_BUILD_MINUTES
   if (typeof v !== "string" || !/^[0-9]+(\.[0-9]+)?$/.test(v.trim())) return SOLO_BUILD_DEFAULT_MS
   const minutes = Number(v)
-  return minutes > 0 && minutes <= SOLO_BUILD_MAX_MINUTES ? Math.round(minutes * 60 * 1000) : SOLO_BUILD_DEFAULT_MS
+  const ms = Math.round(minutes * 60 * 1000)
+  return minutes <= SOLO_BUILD_MAX_MINUTES && ms > 0 ? ms : SOLO_BUILD_DEFAULT_MS // a sub-millisecond value rounds to 0, which would end every solo build at once
 }
 
 // Memory a process can still get, in MB, from the text of /proc/meminfo. With `countSwap` (the job added swap for the modules that do not fit in a runner's RAM,

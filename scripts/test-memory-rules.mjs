@@ -55,6 +55,7 @@ function run(rules, print) {
   const table = [
     ["90", 90 * 60e3], ["300", 300 * 60e3], ["340", 340 * 60e3], ["1", 60e3], ["120.5", Math.round(120.5 * 60e3)], [" 90 ", 90 * 60e3],
     ["", SOLO_BUILD_DEFAULT_MS], ["0", SOLO_BUILD_DEFAULT_MS], ["-5", SOLO_BUILD_DEFAULT_MS], ["341", SOLO_BUILD_DEFAULT_MS], ["99999", SOLO_BUILD_DEFAULT_MS], ["abc", SOLO_BUILD_DEFAULT_MS],
+    ["0.0000001", SOLO_BUILD_DEFAULT_MS], ["0.000001", SOLO_BUILD_DEFAULT_MS], ["0.00001", 1], ["0.0000083", SOLO_BUILD_DEFAULT_MS],
     ["300; rm -rf /", SOLO_BUILD_DEFAULT_MS], ["1e3", SOLO_BUILD_DEFAULT_MS], ["NaN", SOLO_BUILD_DEFAULT_MS], ["Infinity", SOLO_BUILD_DEFAULT_MS], ["0x10", SOLO_BUILD_DEFAULT_MS], ["9 0", SOLO_BUILD_DEFAULT_MS],
   ]
   for (const [input, want] of table) {
@@ -112,6 +113,7 @@ const mutants = {
   "SwapTotal is counted instead of SwapFree": { ...real, availableFrom: (t, c) => { const a = availableFrom(t, false); const m = /^SwapTotal:\s+(\d+) kB/m.exec(t); return c && m ? a + Number(m[1]) / 1024 : a } },
   "a text with no MemAvailable is zero": { ...real, availableFrom: (t, c) => { const r = availableFrom(t, c); return r === Infinity ? 0 : r } },
   "the solo time has no upper limit": { ...real, soloBuildMs: (env) => (Number(env.EMISSARY_SOLO_BUILD_MINUTES) > 0 ? Number(env.EMISSARY_SOLO_BUILD_MINUTES) * 60e3 : SOLO_BUILD_DEFAULT_MS) },
+  "the solo time accepts a value that rounds to 0 ms": { ...real, soloBuildMs: (env) => { const v = env.EMISSARY_SOLO_BUILD_MINUTES; if (typeof v !== "string" || !/^[0-9]+(\\.[0-9]+)?$/.test(v.trim())) return SOLO_BUILD_DEFAULT_MS; const m = Number(v); return m > 0 && m <= 340 ? Math.round(m * 60e3) : SOLO_BUILD_DEFAULT_MS } },
   "the solo time accepts anything Number() accepts": { ...real, soloBuildMs: (env) => (Number(env.EMISSARY_SOLO_BUILD_MINUTES) > 0 && Number(env.EMISSARY_SOLO_BUILD_MINUTES) <= 340 ? Math.round(Number(env.EMISSARY_SOLO_BUILD_MINUTES) * 60e3) : SOLO_BUILD_DEFAULT_MS) },
   "the escalation never stops (no limit check)": { ...real, escalation: (s) => ({ escalate: s.complete && s.toobig > 0, why: "x" }) },
   "the escalation ignores a build that is not complete": { ...real, escalation: (s) => ({ escalate: s.toobig > 0 && s.retryMb < ESCALATE_RETRY_MB, why: "x" }) },

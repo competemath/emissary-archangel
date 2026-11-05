@@ -134,6 +134,12 @@ jobs:
       EMISSARY_SOLO_BUILD_MINUTES: ${{ inputs.solo_minutes }}
       EMISSARY_COUNT_SWAP: ${{ inputs.swap_gb != '0' && '1' || '0' }}
     steps:
+      - name: The memory knobs are numbers (a malformed retry_mb would silently switch the escalation off)
+        env: { RETRY_MB: "${{ inputs.retry_mb }}", SWAP_GB: "${{ inputs.swap_gb }}", SOLO_MINUTES: "${{ inputs.solo_minutes }}" }
+        run: |
+          [[ "$RETRY_MB" =~ ^[1-9][0-9]{0,8}$ ]] || { echo "::error::retry_mb is a number of MB, not $RETRY_MB"; exit 1; }
+          [[ "$SWAP_GB" =~ ^(0|[1-9][0-9]{0,2})$ ]] || { echo "::error::swap_gb is a number of GB, not $SWAP_GB"; exit 1; }
+          [[ "$SOLO_MINUTES" =~ ^[1-9][0-9]{0,2}$ ]] && [ "$SOLO_MINUTES" -le 340 ] || { echo "::error::solo_minutes is 1-340 minutes, not $SOLO_MINUTES"; exit 1; }
       - name: Free disk (a Mathlib cache plus a library build need ~20 GB)
         if: inputs.prime_minutes != '0'
         run: |
