@@ -1,0 +1,54 @@
+{
+  "shard": 12,
+  "shards": 16,
+  "commit": "aa2d8b34692b16c70f699536de0d8e75b9a3e9ef",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "modules": 1952,
+  "exported": 1945,
+  "failed": [
+    {
+      "module": "Theorems.Thm_CuspForm_IsNewform_exists_galoisRepAdic_charpoly_inertia_eq_cyclotomicCharacter_of_linearMap_psCarrier_ne_zero_of_not_isUnramified_ratio_of_factorization_eq_two",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_heckeLocal_exists_algHom_length_cotangent_le_of_isResiduallyModular_of_level_of_inertia_moves_torsion_of_eq_three_of_not_cube_dvd_of_level_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_heckeLocal_exists_heckeModules_levelRaising_and_taylorWiles_of_index_two_irreducible_strictOrdinary_of_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_FLT_fermatLastTheorem",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_FreyPackage_level_lowering_at_p_of_conductorLevel",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_hasJZeroNeronAtPDataOrdV22",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_isResiduallyModularOfLevel_div_of_isPeuRamifieeAt_of_five_le",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 2,
+    "verbatim": 183,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "tools": {
+    "lean": "4.33.0 (commit d8b18978322de05a8f3dba51ef03cf5461676c17, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+d8b1897",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1"
+  },
+  "minutes": 64,
+  "finishedAt": "2026-11-05T08:10:59.127Z"
+}

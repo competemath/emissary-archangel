@@ -1,0 +1,34 @@
+{
+  "shard": 1,
+  "shards": 64,
+  "commit": "aa2d8b34692b16c70f699536de0d8e75b9a3e9ef",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "modules": 494,
+  "exported": 492,
+  "failed": [
+    {
+      "module": "Theorems.Thm_CuspForm_heckeLocal_exists_algHom_length_cotangent_le_of_isResiduallyModular_of_level_of_not_sq_dvd_of_not_cube_dvd_of_level_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_NeronExtension_le_finPts_of_hopf_of_forall_smul_sub_mem",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "tools": {
+    "lean": "4.33.0 (commit d8b18978322de05a8f3dba51ef03cf5461676c17, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+d8b1897",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1"
+  },
+  "minutes": 64,
+  "finishedAt": "2026-11-04T23:08:37.255Z"
+}
