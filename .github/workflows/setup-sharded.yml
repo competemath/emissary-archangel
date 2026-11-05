@@ -384,9 +384,15 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { name: build }
       - name: The previous round's outputs
+        id: partial
         if: inputs.resume_run != ''
+        continue-on-error: true   # a round that was cancelled never merged its outputs into exports-partial: the next step reads its per-shard outputs instead
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { name: exports-partial, run-id: "${{ inputs.resume_run }}", github-token: "${{ github.token }}" }
+      - name: The previous round's shard outputs (it was cancelled before it merged them)
+        if: inputs.resume_run != '' && steps.partial.outcome == 'failure'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { pattern: "out-*", path: prev-out, merge-multiple: true, run-id: "${{ inputs.resume_run }}", github-token: "${{ github.token }}" }
       - name: Everything present before this shard runs
         run: |
           d="data/exports/$KEY"
@@ -401,6 +407,7 @@ jobs:
             esac
           }
           if [ -f exports-partial.tar.zst ]; then unpack exports-partial.tar.zst; rm exports-partial.tar.zst; fi
+          if [ -d prev-out ]; then for f in prev-out/*.tar.zst; do [ -f "$f" ] && unpack "$f"; done; rm -rf prev-out; fi
           find "$d" -type f | sort > before.lst
       - name: Shard ${{ matrix.shard }} of ${{ inputs.shards }}
         run: |
@@ -457,9 +464,15 @@ jobs:
           # TENGOKU_REF: a branch of the tree repository that holds records not merged yet (empty: the default branch)
           if [ -n "${TENGOKU_REF:-}" ]; then git -C tengoku checkout -q "origin/$TENGOKU_REF"; else git -C tengoku checkout -q; fi
       - name: The previous round's outputs
+        id: partial
         if: inputs.resume_run != ''
+        continue-on-error: true   # a round that was cancelled never merged its outputs into exports-partial: the next step reads its per-shard outputs instead
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { name: exports-partial, run-id: "${{ inputs.resume_run }}", github-token: "${{ github.token }}" }
+      - name: The previous round's shard outputs (it was cancelled before it merged them)
+        if: inputs.resume_run != '' && steps.partial.outcome == 'failure'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { pattern: "out-*", path: prev-out, merge-multiple: true, run-id: "${{ inputs.resume_run }}", github-token: "${{ github.token }}" }
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         continue-on-error: true   # a round in which no shard uploaded anything still dispatches the next one
         with: { pattern: "out-*", path: shard-out, merge-multiple: true, run-id: "${{ inputs.bank_run || github.run_id }}", github-token: "${{ github.token }}" }
@@ -478,6 +491,7 @@ jobs:
             esac
           }
           if [ -f exports-partial.tar.zst ]; then unpack exports-partial.tar.zst; rm exports-partial.tar.zst; fi
+          if [ -d prev-out ]; then for f in prev-out/*.tar.zst; do [ -f "$f" ] && unpack "$f"; done; rm -rf prev-out; fi
           for f in shard-out/out-*.tar.zst; do unpack "$f"; done
           rm -rf shard-out
           echo "$(find "$d" -name '*.ndjson' | wc -l | tr -d ' ') exports, $(du -sh "$d" | cut -f1)"
@@ -556,8 +570,10 @@ jobs:
           EXPAND_CHUNK: ${{ inputs.expand_chunk }}
           PARALLEL: ${{ inputs.parallel || '12' }}
           MAX_BUILD_ROUNDS: ${{ inputs.max_build_rounds }}
+          # a bank run (bank_run set) has no prime job and so no build of its own: the next round takes the build it was given, not the empty default (this run)
+          BUILD_RUN: ${{ inputs.bank_run != '' && inputs.build_run || '' }}
         run: |
           gh workflow run setup-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$KEY" -f shards="$SHARDS" -f prime_minutes="$PRIME_MINUTES" \
             -f expand_chunk="$EXPAND_CHUNK" -f round="$((ROUND + 1))" -f max_rounds="$MAX_ROUNDS" -f resume_run="$GITHUB_RUN_ID" -f parallel="$PARALLEL" \
-            -f max_build_rounds="$MAX_BUILD_ROUNDS" -f tengoku_ref="$TENGOKU_REF"
+            -f build_run="$BUILD_RUN" -f max_build_rounds="$MAX_BUILD_ROUNDS" -f tengoku_ref="$TENGOKU_REF"
           echo "::notice::dispatched round $((ROUND + 1))"
