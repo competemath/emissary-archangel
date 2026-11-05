@@ -47,7 +47,7 @@ const sha256 = (p) =>
 try {
   rmSync(tmp, { force: true })
   console.log(`${key}: downloading ${a.asset} (${(a.bytes / 1048576).toFixed(0)} MB${urls.length > 1 ? `, ${urls.length} parts` : ""})`)
-  for (const u of urls) execFileSync("sh", ["-c", 'curl -fL --retry 3 --progress-bar "$1" >> "$2"', "sh", u, tmp], { stdio: "inherit" })
+  for (const u of urls) execFileSync("sh", ["-c", 'curl -fL --retry 8 --retry-delay 15 --retry-all-errors --progress-bar "$1" >> "$2"', "sh", u, tmp], { stdio: "inherit" })
   const got = await sha256(tmp)
   if (got !== a.sha256) throw new Error(`the download's sha256 is ${got}, the record says ${a.sha256}`)
   if (only) {

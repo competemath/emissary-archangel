@@ -74,6 +74,9 @@ jobs:
           # TENGOKU_REF: a branch of the tree repository that holds the records of a library whose PR is not merged yet (empty: main)
           ref=${TENGOKU_REF:+origin/$TENGOKU_REF}; git -C tengoku checkout -q "${ref:-main}"
           du -sh emissary/data/exports/"$KEY" | cut -f1
+      - name: The old exports of this shard's targets (a library set up across runners keeps them in a release, not in git); first, so that a failed download costs minutes and not the shard's hours of build
+        working-directory: emissary
+        run: node scripts/fetch-exports.mjs "$KEY" --modules targets.txt
       - name: elan
         run: |
           curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none
@@ -132,9 +135,6 @@ jobs:
           echo "$TOOLCHAIN" > lean-toolchain
           printf 'name = "V"\ndefaultTargets = ["Vendor"]\n[[lean_lib]]\nname = "Vendor"\n' > lakefile.toml
           lake build Vendor 2>&1 | tail -3
-      - name: The old exports of this shard's targets (a library set up across runners keeps them in a release, not in git)
-        working-directory: emissary
-        run: node scripts/fetch-exports.mjs "$KEY" --modules targets.txt
       - name: Batched Gate 2 over the declarations of this shard's targets
         working-directory: emissary
         run: |

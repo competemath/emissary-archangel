@@ -230,6 +230,7 @@ def knob_problems(sharded: str, shard: str) -> list[str]:
         (sharded, re.escape('ONLY_MODULES: "${{ inputs.only_modules }}"'), "only_modules reaches the plan through env"),
         (sharded, re.escape("ps.restrict_wanted(wanted, only, set(imp))"), "the plan restricts the wanted set"),
         (shard, re.escape('--timeout "$BUILD_TIMEOUT_MIN"'), "tolerant_build gets the timeout"),
+        (shard, r"- name: This shard's modules[\s\S]*- name: The old exports of this shard's targets[\s\S]*- name: elan[\s\S]*- name: The library at its pinned commit[\s\S]*- name: Build this shard's modules", "the old exports are fetched before the library is built (a failed download must cost minutes, not the shard)"),
         (shard, re.escape('run: sh emissary/scripts/add-swap.sh "$SWAP_GB" 40'), "the swap is added by add-swap.sh, sized from the free space"),
         (shard, re.escape('$([ "$SWAP_GB" != 0 ] && echo --count-swap)'), "Gate 2 counts swap when swap was added"),
         (shard, r'BUILD_TIMEOUT_MIN" =~ \^\[1-9\]\[0-9\]\{0,2\}\$ \]\] && \[ "\$BUILD_TIMEOUT_MIN" -le 340 \]', "build_timeout_min is checked: 1-340"),
@@ -272,6 +273,7 @@ class WorkflowsCarryTheKnobs(unittest.TestCase):
             "the swap comes before the disk is freed": (s, h.replace("- name: Free disk", "- name: Swap (swap_gb), for modules that do not fit in a runner's RAM\n        if: inputs.swap_gb != '0'\n        run: true\n      - name: Free disk", 1)),
             "the swap comes before the scripts are checked out": (s, h.replace("      - uses: actions/download-artifact", "      - name: Swap (swap_gb), for modules that do not fit in a runner's RAM\n        run: true\n      - uses: actions/download-artifact", 1)),
             "an expression inside the swap shell": (s, h.replace('add-swap.sh "$SWAP_GB" 40', 'add-swap.sh "${{ inputs.swap_gb }}" 40')),
+            "the old exports are fetched after the build again": (s, h.replace(h[h.index("      - name: The old exports of this shard's targets"):h.index("      - name: elan\n")], "").replace("      - name: What the passed theorems are made of\n", "      - name: The old exports of this shard's targets\n        run: node scripts/fetch-exports.mjs \"$KEY\" --modules targets.txt\n      - name: What the passed theorems are made of\n", 1)),
             "a fixed swap file instead of add-swap.sh": (s, h.replace('run: sh emissary/scripts/add-swap.sh "$SWAP_GB" 40', 'run: sudo fallocate -l "${SWAP_GB}G" /swapfile')),
         }
         for name, (ms, mh) in mutants.items():
@@ -280,6 +282,17 @@ class WorkflowsCarryTheKnobs(unittest.TestCase):
 
 
 import time  # noqa: E402  (used by the real-proc test)
+
+class FetchExportsRetries(unittest.TestCase):
+    def test_a_504_is_retried_for_minutes_not_seconds(self):
+        src = (ROOT / "scripts" / "fetch-exports.mjs").read_text()
+        m = re.search(r"curl -fL (--retry \d+) (--retry-delay \d+) (--retry-all-errors)", src)
+        self.assertIsNotNone(m, "curl needs --retry N --retry-delay S --retry-all-errors (a 504 is not a transient error to curl's default retry)")
+        retries, delay = int(m.group(1).split()[1]), int(m.group(2).split()[1])
+        self.assertGreaterEqual(retries * delay, 90, "the retries must span at least a minute and a half (it was 3 retries over 7 seconds: a 504 lost a 3-hour shard)")
+        broken = src.replace(" --retry-all-errors", "")
+        self.assertIsNone(re.search(r"--retry-all-errors", broken))
+
 
 if __name__ == "__main__":
     unittest.main()
