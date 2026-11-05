@@ -5,9 +5,9 @@
 name: setup-tests
 on:
   push:
-    paths: ["scripts/setup-plan.mjs", "scripts/setup-source.mjs", "scripts/setup-tools.mjs", "scripts/bisect.mjs", "scripts/memory-rules.mjs", "scripts/test-memory-rules.mjs", "scripts/fixtures/real-free-memory.json", "scripts/test-bisect-property.mjs", "scripts/fixtures/real-module-lists.json", "scripts/make-module-fixture.mjs", "scripts/test-setup-*.mjs", "scripts/test-workflow-pins.mjs", "scripts/check-workflow-pins.mjs", "scripts/runner-watch.sh", "scripts/round-summary.py", ".github/workflows/*.yml", ".github/workflows/*.yaml"]
+    paths: ["scripts/setup-plan.mjs", "scripts/setup-source.mjs", "scripts/setup-tools.mjs", "scripts/bisect.mjs", "scripts/memory-rules.mjs", "scripts/add-swap.sh", "scripts/test-add-swap.mjs", "scripts/test-memory-rules.mjs", "scripts/fixtures/real-free-memory.json", "scripts/test-bisect-property.mjs", "scripts/fixtures/real-module-lists.json", "scripts/make-module-fixture.mjs", "scripts/test-setup-*.mjs", "scripts/test-workflow-pins.mjs", "scripts/check-workflow-pins.mjs", "scripts/runner-watch.sh", "scripts/round-summary.py", ".github/workflows/*.yml", ".github/workflows/*.yaml"]
   pull_request:
-    paths: ["scripts/setup-plan.mjs", "scripts/setup-source.mjs", "scripts/setup-tools.mjs", "scripts/bisect.mjs", "scripts/memory-rules.mjs", "scripts/test-memory-rules.mjs", "scripts/fixtures/real-free-memory.json", "scripts/test-bisect-property.mjs", "scripts/fixtures/real-module-lists.json", "scripts/make-module-fixture.mjs", "scripts/test-setup-*.mjs", "scripts/test-workflow-pins.mjs", "scripts/check-workflow-pins.mjs", "scripts/runner-watch.sh", "scripts/round-summary.py", ".github/workflows/*.yml", ".github/workflows/*.yaml"]
+    paths: ["scripts/setup-plan.mjs", "scripts/setup-source.mjs", "scripts/setup-tools.mjs", "scripts/bisect.mjs", "scripts/memory-rules.mjs", "scripts/add-swap.sh", "scripts/test-add-swap.mjs", "scripts/test-memory-rules.mjs", "scripts/fixtures/real-free-memory.json", "scripts/test-bisect-property.mjs", "scripts/fixtures/real-module-lists.json", "scripts/make-module-fixture.mjs", "scripts/test-setup-*.mjs", "scripts/test-workflow-pins.mjs", "scripts/check-workflow-pins.mjs", "scripts/runner-watch.sh", "scripts/round-summary.py", ".github/workflows/*.yml", ".github/workflows/*.yaml"]
 permissions: {}
 defaults:
   run:
@@ -32,6 +32,7 @@ jobs:
       - run: node scripts/test-setup-bisect.mjs
       - run: node scripts/test-bisect-property.mjs
       - run: node scripts/test-memory-rules.mjs
+      - run: node scripts/test-add-swap.mjs
       - run: node scripts/test-setup-workflows.mjs
       - run: node scripts/test-setup-tools.mjs
       - run: node scripts/test-workflow-pins.mjs

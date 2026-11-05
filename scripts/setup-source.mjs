@@ -1052,6 +1052,15 @@ function restoreBuild({ required }) {
   }
   return run("tar", ["--zstd", "--exclude=*.setup.json", "-xf", resolve(RESTORE), "-C", REPO], { timeoutMs: 60 * 60 * 1000 }).then((r) => {
     if (r.code !== 0) fail(`could not restore the build from ${RESTORE}: ${r.tail.slice(-300)}`)
+    // EMISSARY_DROP_RESTORED=1 (the prime job): the archive is not needed any more, and 16 GB of it is what the swap of the big-memory round has to be added from
+    if (process.env.EMISSARY_DROP_RESTORED === "1") {
+      try {
+        rmSync(resolve(RESTORE), { force: true })
+        log(`restored build unpacked; ${RESTORE} deleted to free its disk space`)
+      } catch (e) {
+        log(`WARNING: could not delete ${RESTORE}: ${e.message}`)
+      }
+    }
   })
 }
 

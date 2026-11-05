@@ -110,6 +110,28 @@ check(
   "",
 )
 
+// 2b. EMISSARY_DROP_RESTORED=1 (the prime job) deletes the archive once it is unpacked, so that the swap of the big-memory round can be added from the space it frees; without it, and when the unpack fails, it stays
+{
+  const keep = packed(["A", "B"], join(tmp, "keep.tar.zst"))
+  rmSync(join(repo, ".lake"), { recursive: true, force: true })
+  r = setup(["--phase", "build", "--restore", keep])
+  check("without EMISSARY_DROP_RESTORED the archive is kept", r.status === 0 && existsSync(keep), r.stdout + r.stderr)
+  rmSync(join(repo, ".lake"), { recursive: true, force: true })
+  r = setup(["--phase", "build", "--restore", keep], { EMISSARY_DROP_RESTORED: "1" })
+  check("with EMISSARY_DROP_RESTORED=1 the archive is deleted after it is unpacked, and the build is there", r.status === 0 && !existsSync(keep) && existsSync(olean("A")) && existsSync(olean("B")) && /deleted to free its disk space/.test(r.stdout + r.stderr), r.stdout + r.stderr)
+  const broken = join(tmp, "broken.tar.zst")
+  writeFileSync(broken, "this is not an archive")
+  rmSync(join(repo, ".lake"), { recursive: true, force: true })
+  r = setup(["--phase", "build", "--restore", broken], { EMISSARY_DROP_RESTORED: "1" })
+  check("an archive that cannot be unpacked is not deleted (and the phase fails)", r.status !== 0 && existsSync(broken), r.stdout + r.stderr)
+  for (const v of ["0", "true", "yes", ""]) {
+    const again = packed(["A"], join(tmp, `v${v || "empty"}.tar.zst`))
+    rmSync(join(repo, ".lake"), { recursive: true, force: true })
+    r = setup(["--phase", "build", "--restore", again], { EMISSARY_DROP_RESTORED: v })
+    check(`EMISSARY_DROP_RESTORED=${JSON.stringify(v)} is not "1": the archive is kept`, existsSync(again), r.stdout + r.stderr)
+  }
+}
+
 // 3. the earlier round got through half: the build phase finishes the rest
 rmSync(join(repo, ".lake"), { recursive: true, force: true })
 r = setup(["--phase", "build", "--restore", packed(["A"], join(tmp, "half.tar.zst"))], { FAKE_LAKE_MAKES: "all" })
