@@ -402,7 +402,8 @@ jobs:
         if: inputs.resume_run != '' && steps.partial.outcome == 'failure'
         env: { RESUME_RUN: "${{ inputs.resume_run }}", OUTS: "${{ steps.outs.outcome }}" }
         # exports-partial missing is the case this step handles; a read that failed for another reason (a transient error) looks the same: say so, so that a round that went on from deltas alone is not silent
-        run: echo "::warning::exports-partial of run $RESUME_RUN could not be read; this round resumed from that round's per-shard outputs (download outcome: $OUTS). If the run has an exports-partial, re-run this job."
+        run: |
+          echo "::warning::exports-partial of run $RESUME_RUN could not be read; this round resumed from that round's per-shard outputs (download outcome: $OUTS). If the run has an exports-partial, re-run this job."
       - name: Everything present before this shard runs
         run: |
           d="data/exports/$KEY"
@@ -492,7 +493,8 @@ jobs:
         if: inputs.resume_run != '' && steps.partial.outcome == 'failure'
         env: { RESUME_RUN: "${{ inputs.resume_run }}", OUTS: "${{ steps.outs.outcome }}" }
         # exports-partial missing is the case this step handles; a read that failed for another reason (a transient error) looks the same: say so, so that a round that went on from deltas alone is not silent
-        run: echo "::warning::exports-partial of run $RESUME_RUN could not be read; this round resumed from that round's per-shard outputs (download outcome: $OUTS). If the run has an exports-partial, re-run this job."
+        run: |
+          echo "::warning::exports-partial of run $RESUME_RUN could not be read; this round resumed from that round's per-shard outputs (download outcome: $OUTS). If the run has an exports-partial, re-run this job."
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         continue-on-error: true   # a round in which no shard uploaded anything still dispatches the next one
         with: { pattern: "out-*", path: shard-out, merge-multiple: true, run-id: "${{ inputs.bank_run || github.run_id }}", github-token: "${{ github.token }}" }
