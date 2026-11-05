@@ -1059,8 +1059,9 @@ async function addSwap() {
 function onlyModules() {
   const raw = process.env.EMISSARY_ONLY_MODULES
   if (!raw) return null
-  const names = raw.split(",").filter(Boolean)
-  if (!names.length) return null
+  const names = raw.split(",").map((s) => s.trim()).filter(Boolean)
+  if (!raw.trim()) return null
+  if (!names.length) fail(`EMISSARY_ONLY_MODULES holds no module name: ${raw.slice(0, 40)}`)
   for (const m of names) if (m.length > 300 || !MODULE_NAME.test(m)) fail(`EMISSARY_ONLY_MODULES: not a module name: ${m.slice(0, 80)}`)
   return new Set(names)
 }

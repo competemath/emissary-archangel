@@ -47,7 +47,15 @@ const sha256 = (p) =>
 try {
   rmSync(tmp, { force: true })
   console.log(`${key}: downloading ${a.asset} (${(a.bytes / 1048576).toFixed(0)} MB${urls.length > 1 ? `, ${urls.length} parts` : ""})`)
-  for (const u of urls) execFileSync("sh", ["-c", 'curl -fL --retry 8 --retry-delay 15 --retry-all-errors --progress-bar "$1" >> "$2"', "sh", u, tmp], { stdio: "inherit" })
+  // each part into a file of its own, appended only once curl has succeeded: a transfer that dies half way must not leave its bytes in the archive. --retry 8 --retry-delay 15: curl retries 408, 429 and
+  // 5xx (a 504 included) for about two minutes; the default, 3 retries 1, 2 and 4 seconds apart, gave up on a 504 that was gone a minute later and cost a bump shard its three hours of build.
+  const part = `${tmp}.part`
+  for (const u of urls) {
+    rmSync(part, { force: true })
+    execFileSync("sh", ["-c", 'curl -fL --retry 8 --retry-delay 15 --progress-bar -o "$2" "$1"', "sh", u, part], { stdio: "inherit" })
+    execFileSync("sh", ["-c", 'cat "$1" >> "$2"', "sh", part, tmp], { stdio: "inherit" })
+    rmSync(part, { force: true })
+  }
   const got = await sha256(tmp)
   if (got !== a.sha256) throw new Error(`the download's sha256 is ${got}, the record says ${a.sha256}`)
   if (only) {
@@ -71,4 +79,5 @@ try {
   }
 } finally {
   rmSync(tmp, { force: true })
+  rmSync(`${tmp}.part`, { force: true })
 }

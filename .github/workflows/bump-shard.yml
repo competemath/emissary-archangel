@@ -44,7 +44,7 @@ jobs:
       - name: The memory knobs are numbers (they reach shell and Python)
         run: |
           [[ "$SWAP_GB" =~ ^(0|[1-9][0-9]{0,2})$ ]] || { echo "::error::swap_gb is a number of GB, not $SWAP_GB"; exit 1; }
-          [[ "$BUILD_TIMEOUT_MIN" =~ ^[1-9][0-9]{0,2}$ ]] && [ "$BUILD_TIMEOUT_MIN" -le 340 ] || { echo "::error::build_timeout_min is 1-340 minutes, not $BUILD_TIMEOUT_MIN"; exit 1; }
+          [[ "$BUILD_TIMEOUT_MIN" =~ ^[1-9][0-9]{0,2}$ ]] && [ "$BUILD_TIMEOUT_MIN" -le 170 ] || { echo "::error::build_timeout_min is 1-170 minutes (the job has 345, and its setup and Gate 2 come out of them), not $BUILD_TIMEOUT_MIN"; exit 1; }
       - name: Free disk
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift

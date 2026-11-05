@@ -13,6 +13,7 @@ import json
 import os
 import random
 import re
+import shutil
 import sys
 import tempfile
 import unittest
@@ -193,7 +194,7 @@ class OnlyModules(unittest.TestCase):
                 targets = [t for s in plan["shards"] for t in s["targets"]]
                 self.assertEqual(sorted(targets), sorted(restricted), f"{lib} k={k}: every named module is judged once, and nothing else")
                 for s in plan["shards"]:
-                    self.assertGreaterEqual(set(s["build"]), closure(imp, s["targets"]), f"{lib} k={k}: a shard builds the closure of its targets")
+                    self.assertEqual(set(s["build"]), closure(imp, s["targets"]), f"{lib} k={k}: a shard builds exactly the closure of its targets, no module more")
                 full = ps.plan(imp, weight, k, wanted=wanted)
                 self.assertLessEqual(sum(len(s["build"]) for s in plan["shards"]), sum(len(s["build"]) for s in full["shards"]) + len(mods), f"{lib} k={k}")
                 planned += 1
@@ -233,7 +234,9 @@ def knob_problems(sharded: str, shard: str) -> list[str]:
         (shard, r"- name: This shard's modules[\s\S]*- name: The old exports of this shard's targets[\s\S]*- name: elan[\s\S]*- name: The library at its pinned commit[\s\S]*- name: Build this shard's modules", "the old exports are fetched before the library is built (a failed download must cost minutes, not the shard)"),
         (shard, re.escape('run: sh emissary/scripts/add-swap.sh "$SWAP_GB" 40'), "the swap is added by add-swap.sh, sized from the free space"),
         (shard, re.escape('$([ "$SWAP_GB" != 0 ] && echo --count-swap)'), "Gate 2 counts swap when swap was added"),
-        (shard, r'BUILD_TIMEOUT_MIN" =~ \^\[1-9\]\[0-9\]\{0,2\}\$ \]\] && \[ "\$BUILD_TIMEOUT_MIN" -le 340 \]', "build_timeout_min is checked: 1-340"),
+        (shard, r'BUILD_TIMEOUT_MIN" =~ \^\[1-9\]\[0-9\]\{0,2\}\$ \]\] && \[ "\$BUILD_TIMEOUT_MIN" -le 170 \]', "build_timeout_min is checked: 1-170 (the job has 345 minutes)"),
+        (sharded, re.escape("python3 scripts/bump/plan_inputs.py ../plan/inputs.json"), "the plan records what the shards are built with through plan_inputs.py"),
+        (sharded, re.escape("ps.parse_only(os.environ.get(\"ONLY_MODULES\", \"\"))"), "only_modules is parsed strictly (a list with no name is an error)"),
         (shard, r'SWAP_GB" =~ \^\(0\|\[1-9\]\[0-9\]\{0,2\}\)\$', "swap_gb is checked: a number of GB"),
     ]
     for text, pattern, what in need:
@@ -266,10 +269,11 @@ class WorkflowsCarryTheKnobs(unittest.TestCase):
             "no swap_gb in the sharded workflow": (s.replace("swap_gb: ${{ inputs.swap_gb }}", ""), h),
             "no timeout for tolerant_build": (s, h.replace(' --timeout "$BUILD_TIMEOUT_MIN"', "")),
             "Gate 2 never counts swap": (s, h.replace('$([ "$SWAP_GB" != 0 ] && echo --count-swap)', "")),
-            "the timeout is not checked": (s, h.replace('-le 340', "-le 99999")),
+            "the timeout is not checked": (s, h.replace('-le 170', "-le 99999")),
+            "the timeout cap is the whole job again": (s, h.replace('-le 170', "-le 340")),
             "the swap size is not checked": (s, h.replace("^(0|[1-9][0-9]{0,2})$", "^[0-9]+$")),
             "only_modules is not applied": (s.replace("ps.restrict_wanted(wanted, only, set(imp))", "wanted"), h),
-            "the plan is cut before the restriction": (s.replace('          only = {m for m in os.environ.get("ONLY_MODULES"', '          k = int(os.environ["SHARDS"] or 0)\n          only = {m for m in os.environ.get("ONLY_MODULES"', 1), h),
+            "the plan is cut before the restriction": (s.replace('          try:  # ONLY THESE', '          k = int(os.environ["SHARDS"] or 0)\n          try:  # ONLY THESE', 1), h),
             "the swap comes before the disk is freed": (s, h.replace("- name: Free disk", "- name: Swap (swap_gb), for modules that do not fit in a runner's RAM\n        if: inputs.swap_gb != '0'\n        run: true\n      - name: Free disk", 1)),
             "the swap comes before the scripts are checked out": (s, h.replace("      - uses: actions/download-artifact", "      - name: Swap (swap_gb), for modules that do not fit in a runner's RAM\n        run: true\n      - uses: actions/download-artifact", 1)),
             "an expression inside the swap shell": (s, h.replace('add-swap.sh "$SWAP_GB" 40', 'add-swap.sh "${{ inputs.swap_gb }}" 40')),
@@ -284,14 +288,113 @@ class WorkflowsCarryTheKnobs(unittest.TestCase):
 import time  # noqa: E402  (used by the real-proc test)
 
 class FetchExportsRetries(unittest.TestCase):
-    def test_a_504_is_retried_for_minutes_not_seconds(self):
+    def test_a_504_is_retried_for_minutes_and_a_part_is_appended_only_when_complete(self):
         src = (ROOT / "scripts" / "fetch-exports.mjs").read_text()
-        m = re.search(r"curl -fL (--retry \d+) (--retry-delay \d+) (--retry-all-errors)", src)
-        self.assertIsNotNone(m, "curl needs --retry N --retry-delay S --retry-all-errors (a 504 is not a transient error to curl's default retry)")
-        retries, delay = int(m.group(1).split()[1]), int(m.group(2).split()[1])
-        self.assertGreaterEqual(retries * delay, 90, "the retries must span at least a minute and a half (it was 3 retries over 7 seconds: a 504 lost a 3-hour shard)")
-        broken = src.replace(" --retry-all-errors", "")
-        self.assertIsNone(re.search(r"--retry-all-errors", broken))
+        m = re.search(r"curl -fL --retry (\d+) --retry-delay (\d+) --progress-bar -o \"\$2\" \"\$1\"", src)
+        self.assertIsNotNone(m, "curl needs --retry N --retry-delay S and -o PART: each part into its own file")
+        self.assertGreaterEqual(int(m.group(1)) * int(m.group(2)), 90, "the retries must span at least a minute and a half (3 retries over 7 seconds lost a 3-hour shard)")
+        self.assertNotIn("--retry-all-errors", src, "curl already retries 408, 429 and 5xx; --retry-all-errors would also retry a 404 for two minutes")
+        self.assertIn('cat "$1" >> "$2"', src)
+        self.assertLess(src.index('-o "$2" "$1"'), src.index('cat "$1" >> "$2"'))
+
+    @unittest.skipUnless(shutil.which("node") and shutil.which("tar") and shutil.which("zstd"), "needs node, tar and zstd")
+    def test_the_real_script_with_a_fake_curl(self):
+        # a two-part archive; curl is a recorder that honours -o. A failing second part must leave nothing of it in the archive and fail the script; a good run unpacks the files.
+        import hashlib
+        import subprocess
+
+        tmp = Path(tempfile.mkdtemp())
+        exports = tmp / "exports" / "k"
+        exports.mkdir(parents=True)
+        stage = tmp / "stage"
+        stage.mkdir()
+        (stage / "Lib.A.ndjson").write_text("a\n" * 2000)
+        (stage / "Lib.A.names.json").write_text("[]")
+        archive = tmp / "k.tar.zst"
+        subprocess.run(["tar", "--zstd", "-cf", str(archive), "-C", str(stage), "."], check=True)
+        blob = archive.read_bytes()
+        half = len(blob) // 2
+        (tmp / "p1").write_bytes(blob[:half])
+        (tmp / "p2").write_bytes(blob[half:])
+        rec = {"archive": {"sha256": hashlib.sha256(blob).hexdigest(), "asset": "k.tar.zst", "bytes": len(blob), "files": 2, "url": "http://x/whole",
+                           "parts": [{"url": "http://x/p1"}, {"url": "http://x/p2"}]}}
+        (exports / "setup.ci.json").write_text(json.dumps(rec))
+        (tmp / "mods.txt").write_text("Lib.A\n")
+        bindir = tmp / "bin"
+        bindir.mkdir()
+        curl = bindir / "curl"
+        curl.write_text('#!/bin/sh\nurl=; out=\nwhile [ $# -gt 0 ]; do case "$1" in -o) out=$2; shift;; http*) url=$1;; esac; shift; done\n'
+                        'echo "$url" >> "$CURL_LOG"\n'
+                        'case "$url" in\n  */p1) cp "$P1" "$out";;\n  */p2) if [ -n "$FAIL_P2" ]; then head -c 1000 "$P2" > "$out"; exit 22; fi; cp "$P2" "$out";;\nesac\n')
+        curl.chmod(0o755)
+        env = {**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}", "GATE2_EXPORTS_DIR": str(tmp / "exports"), "CURL_LOG": str(tmp / "log"), "P1": str(tmp / "p1"), "P2": str(tmp / "p2")}
+        script = str(ROOT / "scripts" / "fetch-exports.mjs")
+        bad = subprocess.run(["node", script, "k", "--modules", str(tmp / "mods.txt")], env={**env, "FAIL_P2": "1"}, capture_output=True, text=True)
+        self.assertNotEqual(bad.returncode, 0, "a part that cannot be downloaded must fail the script")
+        self.assertFalse((exports / "Lib.A.ndjson").exists())
+        good = subprocess.run(["node", script, "k", "--modules", str(tmp / "mods.txt")], env=env, capture_output=True, text=True)
+        self.assertEqual(good.returncode, 0, good.stdout + good.stderr)
+        self.assertEqual((exports / "Lib.A.ndjson").read_text(), "a\n" * 2000)
+        self.assertEqual(list((tmp / "log").read_text().split()).count("http://x/p1"), 2)
+
+
+class PlanInputsRecord(unittest.TestCase):
+    def test_defaults_leave_the_record_as_it_was_and_other_settings_change_it(self):
+        import plan_inputs as pi
+        base = {"MATHLIB": "v4.34.0-rc2", "TOOLCHAIN": "leanprover/lean4:v4.34.0-rc2", "IMPORTS": "faithful", "TENGOKU_REF": ""}
+        old = json.dumps({k.lower(): v for k, v in base.items()}, indent=1, sort_keys=True)  # what the workflow wrote before swap_gb and build_timeout_min existed
+        cases = 0
+        for swap in ("0", "16", "48", "100"):
+            for timeout in ("90", "120", "170"):
+                for imports in ("full", "faithful"):
+                    env = {**base, "IMPORTS": imports, "SWAP_GB": swap, "BUILD_TIMEOUT_MIN": timeout}
+                    rec = pi.record(env)
+                    cases += 1
+                    if swap == "0" and timeout == "90":
+                        self.assertEqual(pi.dump(rec), json.dumps({k.lower(): v for k, v in {**base, "IMPORTS": imports}.items()}, indent=1, sort_keys=True))
+                    else:
+                        self.assertNotEqual(pi.dump(rec), pi.dump(pi.record({**base, "IMPORTS": imports})), "other settings must not look like the defaults")
+        self.assertEqual(pi.dump(pi.record(base)), old, "an environment with neither setting (an older caller) gives the old record")
+        self.assertEqual(cases, 24)
+        # two runs that differ only in swap or only in timeout never compare equal
+        a, b, c = (pi.dump(pi.record({**base, "SWAP_GB": s, "BUILD_TIMEOUT_MIN": t})) for s, t in (("48", "90"), ("0", "170"), ("48", "170")))
+        self.assertEqual(len({a, b, c, pi.dump(pi.record(base))}), 4)
+
+
+class OnlyListParsing(unittest.TestCase):
+    def test_a_list_with_no_name_is_an_error_not_everything(self):
+        self.assertEqual(ps.parse_only(""), set())
+        self.assertEqual(ps.parse_only("A,B,,C "), {"A", "B", "C"})
+        self.assertEqual(ps.parse_only(" A , B"), {"A", "B"})
+        for raw in (",", ",,", " ", ", ,", " , "):
+            if raw.strip():
+                with self.assertRaises(ValueError, msg=repr(raw)):
+                    ps.parse_only(raw)
+            else:
+                self.assertEqual(ps.parse_only(raw), set())
+
+
+class GuardEnforcesSwapAwareLimit(unittest.TestCase):
+    def test_count_swap_decides_whether_the_process_is_killed(self):
+        # a long-lived child; the footprint is read through rss_kb, which is replaced by one that returns what a process with 100 MB in RAM and 9.9 GB in swap would show: killed only when swap counts
+        real = gg.rss_kb
+        seen = []
+
+        def fake(pid, count_swap=False):
+            seen.append(count_swap)
+            return 10_000_000 if count_swap else 100_000
+
+        gg.rss_kb = fake
+        try:
+            log = Path(tempfile.mkdtemp()) / "g.log"
+            plain = gg.run_guarded([sys.executable, "-c", "import time; time.sleep(1.5)"], ".", dict(os.environ), log, 20, 5_000_000, poll_s=0.05, count_swap=False)
+            counted = gg.run_guarded([sys.executable, "-c", "import time; time.sleep(30)"], ".", dict(os.environ), log, 20, 5_000_000, poll_s=0.05, count_swap=True)
+        finally:
+            gg.rss_kb = real
+        self.assertEqual(plain.kind, "ok", "100 MB resident is under the 5 GB limit when swap is not counted")
+        self.assertEqual(counted.kind, "memory", "9.9 GB in swap is over the limit when swap is counted: the child must be killed")
+        self.assertLess(counted.seconds, 10)
+        self.assertEqual(set(seen), {False, True})
 
 
 if __name__ == "__main__":
