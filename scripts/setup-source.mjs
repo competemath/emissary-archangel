@@ -35,6 +35,7 @@ import { basename, dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import { collectTools, exporterAction, mergeTools, patchFingerprint } from "./setup-tools.mjs"
+import { bisectItems } from "./bisect.mjs"
 
 const x = promisify(execFile)
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -1205,14 +1206,8 @@ function leanMB() {
 // modules: every batch that fits costs one environment import, instead of one import per module from the first failure on (flt-anthropic:
 // one batch of 471 killed at once sent the shard down 471 single imports of ~11 GB each, past its 5 hours, for 129 files). `runBatch` says
 // whether the batch went through; `runOne` handles a single module and its own failure.
-async function bisect(items, runBatch, runOne, label) {
-  if (items.length === 1) return runOne(items[0])
-  if (await runBatch(items)) return
-  const half = Math.ceil(items.length / 2)
-  log(`${label}: a batch of ${items.length} failed: trying its two halves (${half} and ${items.length - half})`)
-  await bisect(items.slice(0, half), runBatch, runOne, label)
-  await bisect(items.slice(half), runBatch, runOne, label)
-}
+const bisect = (items, runBatch, runOne, label) =>
+  bisectItems(items, runBatch, runOne, (size, half) => log(`${label}: a batch of ${size} failed: trying its two halves (${half} and ${size - half})`))
 const WATCH_MS = Number(process.env.EMISSARY_WATCH_MS) > 0 ? Number(process.env.EMISSARY_WATCH_MS) : 10000
 const UNIT_MB = { B: 1 / 1048576, K: 1 / 1024, M: 1, G: 1024, T: 1048576 }
 function descendants(root) {
