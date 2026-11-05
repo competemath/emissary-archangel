@@ -1,6 +1,6 @@
 // node scripts/test-bisect-property.mjs — the halving of a failed batch (scripts/bisect.mjs), on REAL module lists.
-// The modules are the ones the pipeline has set up: every data/exports/<library>/<Module>.names.json in the repository is a real module of a real library (140 libraries,
-// about 15,000 modules, names with dots, guillemets, long theorem names). For each library, many failure patterns (nothing fails, one module, 1 %, 10 %, half, all; the batch limit
+// The modules are the ones the pipeline has set up: scripts/fixtures/real-module-lists.json holds every real module of every library set up so far (110 libraries,
+// 14,913 modules, names with dots, guillemets, long theorem names), made from data/exports/<library>/<Module>.names.json. For each library, many failure patterns (nothing fails, one module, 1 %, 10 %, half, all; the batch limit
 // from none to 25 modules; the order of the modules shuffled) are run through the model of a closure or export process (a batch fails when it holds a poison module or is
 // over the limit; a module alone fails when it is poison), and the invariants are checked:
 //   1. every module that is not poison goes through exactly once, in exactly one successful batch or alone;
@@ -10,26 +10,16 @@
 //   4. a failed batch of k modules is followed by a run of its first half, ceil(k / 2) modules (the halving, not one process per module);
 //   5. the outcome (which modules went through, which failed) does not depend on the order of the modules.
 // Then the same checks are run on four broken versions of the halving, and each must be caught (a test that cannot fail proves nothing).
-import { existsSync, readdirSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { bisectItems } from "./bisect.mjs"
 
 const here = dirname(fileURLToPath(import.meta.url))
-const exportsDir = join(here, "..", "data", "exports")
 
-// real modules, by library
+// real modules, by library: scripts/fixtures/real-module-lists.json (made by scripts/make-module-fixture.mjs from the real exports; CI does not check the 2 GB of exports out)
 const libs = new Map()
-for (const lib of existsSync(exportsDir) ? readdirSync(exportsDir) : []) {
-  const dir = join(exportsDir, lib)
-  let mods
-  try {
-    mods = readdirSync(dir).filter((f) => f.endsWith(".names.json")).map((f) => f.slice(0, -".names.json".length))
-  } catch {
-    continue
-  }
-  if (mods.length) libs.set(lib, mods.sort())
-}
+for (const [lib, mods] of Object.entries(JSON.parse(readFileSync(join(here, "fixtures", "real-module-lists.json"), "utf8")))) libs.set(lib, mods)
 const realModules = [...libs.values()].reduce((a, m) => a + m.length, 0)
 // violations are counted per suite; only the first few of the real halving are printed (a broken version is expected to break the invariants)
 const state = { count: 0, print: false }
@@ -38,7 +28,7 @@ const fail = (what, detail) => {
   if (state.print && state.count <= 12) console.log("FAIL", what, detail ?? "")
 }
 if (libs.size < 100 || realModules < 10000) {
-  console.log(`FAIL the real corpus is missing or too small: ${libs.size} libraries, ${realModules} modules (data/exports/*/*.names.json)`)
+  console.log(`FAIL the real corpus is missing or too small: ${libs.size} libraries, ${realModules} modules (scripts/fixtures/real-module-lists.json)`)
   process.exit(1)
 }
 
@@ -146,7 +136,7 @@ async function suite(bisect, print) {
         const again = await run(bisect, shuffled(mods), poison, limit)
         checkCase(`${lib} (${n} modules), poison ${pname}, limit ${limit}`, items, poison, limit, res, again)
         cases += 2
-        modulesRun += 2 * n
+        for (const r of [res, again]) modulesRun += r.batches.reduce((a, b) => a + b.size, 0) + r.aloneRuns.size
       }
     }
   }
