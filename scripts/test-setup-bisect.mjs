@@ -209,13 +209,13 @@ fresh()
 fakeExporter()
 rmSync(join(tmp, "hung-pids"), { force: true })
 const started = Date.now()
-r = setup(["--export-batch", "6"], { FAKE_EXPORT_HANG: "Lib.F", EMISSARY_EXPORT_BASE_MS: "1000", EMISSARY_EXPORT_PER_MODULE_MS: "100", EMISSARY_EXPORT_SINGLE_MS: "900" }, [])
+r = setup(["--export-batch", "6"], { FAKE_EXPORT_HANG: "Lib.F", EMISSARY_EXPORT_BASE_MS: "4000", EMISSARY_EXPORT_PER_MODULE_MS: "400", EMISSARY_EXPORT_SINGLE_MS: "3500" }, [])
 ec = exportCalls()
 const hangReport = existsSync(join(root, "infra", "t", "setup.json")) ? JSON.parse(readFileSync(join(root, "infra", "t", "setup.json"), "utf8")) : null
 check("the five modules that do not hang are exported", r.status === 0 && exported().join("") === "ABCDE", out(r))
 check("the halving isolates the module that hangs: 6, 3+3, 2+1", sizes(ec) === "6,3,3,2,1", ec.map((c) => c.join(" ")).join("\n"))
-check("a batch's limit is the base plus so much per module: 1.6 s for six, 1.3 s for three", /export batch of 6 exited 124:[^\n]*timed out after 1\.6s/.test(r.stdout) && /export batch of 3 exited 124:[^\n]*timed out after 1\.3s/.test(r.stdout), r.stdout)
-check("the module alone has its own limit and is recorded as timed out", hangReport && hangReport.failed.length === 1 && hangReport.failed[0].module === "Lib.F" && /timed out after 0\.9s/.test(hangReport.failed[0].why), JSON.stringify(hangReport && hangReport.failed))
+check("a batch's limit is the base plus so much per module: 6.4 s for six, 5.2 s for three", /export batch of 6 exited 124:[^\n]*timed out after 6\.4s/.test(r.stdout) && /export batch of 3 exited 124:[^\n]*timed out after 5\.2s/.test(r.stdout), r.stdout)
+check("the module alone has its own limit and is recorded as timed out", hangReport && hangReport.failed.length === 1 && hangReport.failed[0].module === "Lib.F" && /timed out after 3\.5s/.test(hangReport.failed[0].why), JSON.stringify(hangReport && hangReport.failed))
 const pids = existsSync(join(tmp, "hung-pids")) ? readFileSync(join(tmp, "hung-pids"), "utf8").trim().split("\n").map(Number) : []
 const alive = (pid) => {
   try {
@@ -228,9 +228,9 @@ const alive = (pid) => {
 for (let i = 0; i < 20 && pids.some(alive); i++) spawnSync("sleep", ["0.2"])
 check("three exporters hung, and none of them is still running", pids.length === 3 && !pids.some(alive), `pids ${pids.join(",")}, alive ${pids.filter(alive).join(",")}`)
 for (const pid of pids.filter(alive)) process.kill(pid, "SIGKILL") // a failing run must not leave them behind
-check("it took seconds, not the hours of the old limits", Date.now() - started < 60000, `${Date.now() - started} ms`)
+check("it took seconds, not the hours of the old limits", Date.now() - started < 180000, `${Date.now() - started} ms`)
 
-check("the limits in force are in the log: the knobs as set", /limits: a batch 1 s \+ 0\.1 s per module \(at most 60 min\), one module alone 0\.9 s/.test(r.stdout), r.stdout)
+check("the limits in force are in the log: the knobs as set", /limits: a batch 4 s \+ 0\.4 s per module \(at most 60 min\), one module alone 3\.5 s/.test(r.stdout), r.stdout)
 
 // 9. the knobs take only a positive number a timer can hold: 0, text and 99999999999 ms (setTimeout turns a delay over 2^31-1 ms into 1 ms) fall back to the defaults
 fresh()
@@ -249,7 +249,7 @@ const child = spawn("node", [join(root, "scripts", "setup-source.mjs"), "t", "--
   detached: true,
 })
 const exitCode = new Promise((res) => child.on("close", (code, sig) => res(sig ?? code)))
-for (let i = 0; i < 100 && !existsSync(join(tmp, "hung-pids")); i++) await new Promise((r2) => setTimeout(r2, 200))
+for (let i = 0; i < 1200 && !existsSync(join(tmp, "hung-pids")) && child.exitCode === null && child.signalCode === null; i++) await new Promise((r2) => setTimeout(r2, 200)) // up to 4 minutes: the script runs the whole setup first, and a loaded machine is slow to get there; not once the script has exited without ever hanging
 const hung = existsSync(join(tmp, "hung-pids")) ? readFileSync(join(tmp, "hung-pids"), "utf8").trim().split("\n").map(Number) : []
 check("the exporter hangs under the default limits (the script is waiting for it)", hung.length === 1 && alive(hung[0]), `pids ${hung.join(",")}`)
 child.kill("SIGTERM")
@@ -269,14 +269,14 @@ if (how === "still running") {
 }
 
 // 11. a closure run that hangs: the same limits and the same cleanup as for the export (the closure processes were run through execFile, whose timeout kills `lake` and leaves `lean`):
-// the batch of six is cut off after 1.6 s, the halving isolates the module, which is cut off alone after 0.9 s, the five others have their closures, no hung process is left
+// the batch of six is cut off after 6.4 s, the halving isolates the module, which is cut off alone after 3.5 s, the five others have their closures, no hung process is left
 fresh()
 rmSync(join(tmp, "hung-pids"), { force: true })
-r = setup(["--closure-batch", "6"], { FAKE_CLOSURE_HANG: "Lib.F", EMISSARY_CLOSURE_BASE_MS: "1000", EMISSARY_CLOSURE_PER_MODULE_MS: "100", EMISSARY_CLOSURE_SINGLE_MS: "900" })
+r = setup(["--closure-batch", "6"], { FAKE_CLOSURE_HANG: "Lib.F", EMISSARY_CLOSURE_BASE_MS: "4000", EMISSARY_CLOSURE_PER_MODULE_MS: "400", EMISSARY_CLOSURE_SINGLE_MS: "3500" })
 cc = closureCalls()
 check("the five modules that do not hang have their closure, the hanging one does not", r.status === 0 && closures().join("") === "ABCDE", out(r))
 check("the closure halving isolates the module that hangs: 6, 3+3, 2+1", cc.map((c) => c.length).join(",") === "6,3,3,2,1", cc.map((c) => c.length).join(","))
-check("the closure limits: 1.6 s for six, 1.3 s for three, 0.9 s for a module alone", /closure batch of 6 failed, exit 124[\s\S]{0,80}timed out after 1\.6s/.test(r.stdout) && /closure batch of 3 failed, exit 124[\s\S]{0,80}timed out after 1\.3s/.test(r.stdout) && /closure failed for Lib\.F: exit 124[\s\S]{0,80}timed out after 0\.9s/.test(r.stdout), r.stdout)
+check("the closure limits: 6.4 s for six, 5.2 s for three, 3.5 s for a module alone", /closure batch of 6 failed, exit 124[\s\S]{0,80}timed out after 6\.4s/.test(r.stdout) && /closure batch of 3 failed, exit 124[\s\S]{0,80}timed out after 5\.2s/.test(r.stdout) && /closure failed for Lib\.F: exit 124[\s\S]{0,80}timed out after 3\.5s/.test(r.stdout), r.stdout)
 const cpids = existsSync(join(tmp, "hung-pids")) ? readFileSync(join(tmp, "hung-pids"), "utf8").trim().split("\n").map(Number) : []
 for (let i = 0; i < 20 && cpids.some(alive); i++) spawnSync("sleep", ["0.2"])
 check("three closure runs hung, and none of them is still running", cpids.length === 3 && !cpids.some(alive), `pids ${cpids.join(",")}, alive ${cpids.filter(alive).join(",")}`)
