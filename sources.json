@@ -411,9 +411,9 @@
           "--build-chunk",
           "1000",
           "--closure-batch",
-          "600",
+          "60",
           "--export-batch",
-          "400"
+          "100"
         ]
       },
       "repo": "https://github.com/anthropics/fermats-last-theorem",

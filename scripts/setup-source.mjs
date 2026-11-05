@@ -72,6 +72,12 @@ const EXPORT_BASE_MS = envMs("EMISSARY_EXPORT_BASE_MS", 3 * 60 * 1000)
 const EXPORT_PER_MODULE_MS = envMs("EMISSARY_EXPORT_PER_MODULE_MS", 3000)
 const EXPORT_SINGLE_MS = envMs("EMISSARY_EXPORT_SINGLE_MS", 20 * 60 * 1000)
 const exportBatchMs = (n) => Math.min(60 * 60 * 1000, EXPORT_BASE_MS + EXPORT_PER_MODULE_MS * n)
+// The closure phase, the same way (flt-anthropic, round 5, 5 Nov 2026: shard 59's closure batch of 337 modules ran its whole hour and failed, then 169 failed after another hour, and the
+// shard took 4 hours; shard 55's batch of 497 the same): a closure process imports the union of its batch's modules, and for heavy modules that grows faster than the batch.
+const CLOSURE_BASE_MS = envMs("EMISSARY_CLOSURE_BASE_MS", 10 * 60 * 1000)
+const CLOSURE_PER_MODULE_MS = envMs("EMISSARY_CLOSURE_PER_MODULE_MS", 30 * 1000)
+const CLOSURE_SINGLE_MS = envMs("EMISSARY_CLOSURE_SINGLE_MS", 20 * 60 * 1000)
+const closureBatchMs = (n) => Math.min(60 * 60 * 1000, CLOSURE_BASE_MS + CLOSURE_PER_MODULE_MS * n)
 // Per-process sizes; a library of tens of thousands of tiny modules (flt-anthropic) wants them
 // large: every process pays the environment import, the modules themselves cost seconds.
 const BUILD_CHUNK = Math.max(1, Number(flag("build-chunk", 150)))
@@ -193,6 +199,40 @@ const toolsNow = () =>
     l4eDir: L4E_DIR,
     patchRecorded: existsSync(PATCH_MARK) ? readFileSync(PATCH_MARK, "utf8") : null,
   })
+// Like run(), with stdout (up to maxBuffer bytes) and the tail of stderr handed back. A timeout kills the whole process group, so that `lake env lean` leaves no `lean` behind
+// (execFile's `timeout` kills only `lake`).
+function runCapture(cmd, args, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000, maxBuffer = 512 * 1024 * 1024 } = {}) {
+  return new Promise((res) => {
+    const p = spawn(cmd, args, { cwd, env: ENV, stdio: ["ignore", "pipe", "pipe"], detached: true })
+    live.add(p)
+    const out = []
+    let size = 0
+    let tail = ""
+    let done = false
+    const finish = (r) => {
+      if (done) return
+      done = true
+      clearTimeout(t)
+      live.delete(p)
+      res(r)
+    }
+    p.stdout.on("data", (d) => {
+      size += d.length
+      if (size > maxBuffer) {
+        killGroup(p)
+        return finish({ code: 1, stdout: "", tail: `stdout over ${maxBuffer} bytes` })
+      }
+      out.push(d)
+    })
+    p.stderr.on("data", (d) => { tail = (tail + d.toString()).slice(-4000) })
+    const t = setTimeout(() => {
+      killGroup(p)
+      finish({ code: 124, stdout: "", tail: tail + `\n[timed out after ${timeoutMs / 1000}s]` })
+    }, timeoutMs)
+    p.on("close", (code) => finish({ code: code ?? 1, stdout: Buffer.concat(out).toString(), tail }))
+    p.on("error", (e) => finish({ code: 1, stdout: "", tail: String(e) }))
+  })
+}
 // Like run(), with stdout written to `outPath` (stderr captured for the report).
 function runToFile(cmd, args, outPath, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000 } = {}) {
   return new Promise((res) => {
@@ -649,23 +689,29 @@ async function closures(modules) {
   for (const [pfx, mods] of byPfx) {
     for (let i = 0; i < mods.length; i += CLOSURE_BATCH) {
       const chunk = mods.slice(i, i + CLOSURE_BATCH)
-      log(`closure: ${chunk.length} modules under ${pfx} (${i + 1}-${i + chunk.length} of ${mods.length})`)
+      log(`closure: ${chunk.length} modules under ${pfx} (${i + 1}-${i + chunk.length} of ${mods.length}); limits: a batch ${closureBatchMs(chunk.length) / 1000} s at most, one module alone ${CLOSURE_SINGLE_MS / 1000} s`)
       const runBatch = async (batch) => {
-        try {
-          const { stdout } = await x("lake", ["env", "lean", "-M", String(leanMB()), "--run", CLOSURE_LEAN, pfx, ...batch], { cwd: REPO, env: ENV, maxBuffer: 512 * 1024 * 1024, timeout: 60 * 60 * 1000 })
-          writeClosureSections(stdout)
-          return true
-        } catch (e) {
-          log(`WARNING: closure batch of ${batch.length} failed (${(e.stderr || e.message || "").toString().slice(-600)})`)
+        const r = await runCapture("lake", ["env", "lean", "-M", String(leanMB()), "--run", CLOSURE_LEAN, pfx, ...batch], { cwd: REPO, timeoutMs: closureBatchMs(batch.length) })
+        if (r.code !== 0) {
+          log(`WARNING: closure batch of ${batch.length} failed, exit ${r.code} (${r.tail.slice(-600)})`)
           return false
         }
+        try {
+          writeClosureSections(r.stdout)
+        } catch (e) {
+          // as before: a section that cannot be read or written is a failed batch (logged, then halved), not the end of the setup
+          log(`WARNING: closure batch of ${batch.length} could not be written (${e.message})`)
+          return false
+        }
+        return true
       }
       const runOne = async (m) => {
+        const r = await runCapture("lake", ["env", "lean", "-M", String(leanMB()), "--run", CLOSURE_LEAN, pfx, m], { cwd: REPO, timeoutMs: CLOSURE_SINGLE_MS, maxBuffer: 256 * 1024 * 1024 })
+        if (r.code !== 0) return log(`closure failed for ${m}: exit ${r.code} (${r.tail.slice(-300)})`)
         try {
-          const { stdout } = await x("lake", ["env", "lean", "-M", String(leanMB()), "--run", CLOSURE_LEAN, pfx, m], { cwd: REPO, env: ENV, maxBuffer: 256 * 1024 * 1024, timeout: 20 * 60 * 1000 })
-          writeClosureSections(stdout)
-        } catch (e2) {
-          log(`closure failed for ${m}: ${(e2.stderr || e2.message || "").toString().slice(-300)}`)
+          writeClosureSections(r.stdout)
+        } catch (e) {
+          log(`closure failed for ${m}: could not be written (${e.message})`)
         }
       }
       await bisect(chunk, runBatch, runOne, "closure")

@@ -5,7 +5,7 @@
 // repository, a stand-in `elan`, a stand-in lean4export folder and a stand-in `lake` whose `lean --run` refuses a closure batch larger
 // than FAKE_CLOSURE_MAX modules and whose `lean4export --batch` refuses one larger than FAKE_EXPORT_MAX (as a memory kill does), and
 // whose exporter refuses the module FAKE_EXPORT_REFUSE in any company, and hangs (a child process that never ends, as lean4export under `lake env` does)
-// on the module FAKE_EXPORT_HANG: the export timeouts are scaled down to a second or two for it. No Lean, no network.
+// on the module FAKE_EXPORT_HANG (and a closure run on FAKE_CLOSURE_HANG): the timeouts are scaled down to a second or two for it. No Lean, no network.
 // Why: flt-anthropic, 3-4 Nov 2026. Every closure process was killed at 10.3-11.8 GB under the 10 GB per-process limit, a batch of
 // 350-600 or a single module alike; the fallback then ran one ~11 GB import per module, serially, and 62 of 64 export shards ran to their
 // 300-minute cap with nothing exported (shard 5 handed on 129 files). Round 2 was repeating it on 12 runners.
@@ -83,6 +83,8 @@ if (cmd === "env" && args[1] === "lean") {
   if (script.endsWith("corpus-closure-batch.lean")) {
     const [pfx, ...mods] = rest
     const max = Number(process.env.FAKE_CLOSURE_MAX || 1000)
+    if (process.env.FAKE_CLOSURE_HANG && mods.includes(process.env.FAKE_CLOSURE_HANG)) hangForever()
+    if (process.env.FAKE_CLOSURE_BAD && mods.includes(process.env.FAKE_CLOSURE_BAD)) { process.stdout.write("== nodir/Lib.F\\nname\\tmod\\t\\n"); process.exit(0) }
     if (mods.length > max) { process.stderr.write("memory\\n"); process.exit(1) }
     for (const m of mods) process.stdout.write("== " + m + "\\n" + "t_" + m.split(".").pop().toLowerCase() + "\\t" + m + "\\t\\n")
     process.exit(0)
@@ -131,7 +133,7 @@ const exportsDir = join(root, "data", "exports", "t")
 const setup = (args, env = {}, only = ["--only", "expand"]) =>
   spawnSync("node", [join(root, "scripts", "setup-source.mjs"), "t", ...only, "--keep-build", ...args], {
     // every FAKE_* knob is set here, so that nothing in the caller's environment changes a split
-    env: { ...process.env, HOME: home, EMISSARY_WATCH_MS: "300", EMISSARY_FOOTPRINT_MB: "150", EMISSARY_RETRY_FOOTPRINT_MB: "2048", EMISSARY_LEAN_MB: "100", FAKE_CLOSURE_MAX: "1000", FAKE_EXPORT_MAX: "1000", FAKE_EXPORT_REFUSE: "", FAKE_EXPORT_HANG: "", ...env },
+    env: { ...process.env, HOME: home, EMISSARY_WATCH_MS: "300", EMISSARY_FOOTPRINT_MB: "150", EMISSARY_RETRY_FOOTPRINT_MB: "2048", EMISSARY_LEAN_MB: "100", FAKE_CLOSURE_MAX: "1000", FAKE_EXPORT_MAX: "1000", FAKE_EXPORT_REFUSE: "", FAKE_EXPORT_HANG: "", FAKE_CLOSURE_HANG: "", FAKE_CLOSURE_BAD: "", ...env },
     encoding: "utf8",
   })
 const calls = () => (existsSync(join(tmp, "lake-calls")) ? readFileSync(join(tmp, "lake-calls"), "utf8").trim().split("\n") : [])
@@ -264,6 +266,27 @@ if (how === "still running") {
     /* already gone */
   }
 }
+
+// 11. a closure run that hangs: the same limits and the same cleanup as for the export (the closure processes were run through execFile, whose timeout kills `lake` and leaves `lean`):
+// the batch of six is cut off after 1.6 s, the halving isolates the module, which is cut off alone after 0.9 s, the five others have their closures, no hung process is left
+fresh()
+rmSync(join(tmp, "hung-pids"), { force: true })
+r = setup(["--closure-batch", "6"], { FAKE_CLOSURE_HANG: "Lib.F", EMISSARY_CLOSURE_BASE_MS: "1000", EMISSARY_CLOSURE_PER_MODULE_MS: "100", EMISSARY_CLOSURE_SINGLE_MS: "900" })
+cc = closureCalls()
+check("the five modules that do not hang have their closure, the hanging one does not", r.status === 0 && closures().join("") === "ABCDE", out(r))
+check("the closure halving isolates the module that hangs: 6, 3+3, 2+1", cc.map((c) => c.length).join(",") === "6,3,3,2,1", cc.map((c) => c.length).join(","))
+check("the closure limits: 1.6 s for six, 1.3 s for three, 0.9 s for a module alone", /closure batch of 6 failed, exit 124[\s\S]{0,80}timed out after 1\.6s/.test(r.stdout) && /closure batch of 3 failed, exit 124[\s\S]{0,80}timed out after 1\.3s/.test(r.stdout) && /closure failed for Lib\.F: exit 124[\s\S]{0,80}timed out after 0\.9s/.test(r.stdout), r.stdout)
+const cpids = existsSync(join(tmp, "hung-pids")) ? readFileSync(join(tmp, "hung-pids"), "utf8").trim().split("\n").map(Number) : []
+for (let i = 0; i < 20 && cpids.some(alive); i++) spawnSync("sleep", ["0.2"])
+check("three closure runs hung, and none of them is still running", cpids.length === 3 && !cpids.some(alive), `pids ${cpids.join(",")}, alive ${cpids.filter(alive).join(",")}`)
+for (const pid of cpids.filter(alive)) process.kill(pid, "SIGKILL")
+
+// 12. a closure output that cannot be written (a section named for a folder that does not exist) is a failed batch, halved like any other: the setup goes on, and the modules around it have their closures
+fresh()
+r = setup(["--closure-batch", "6"], { FAKE_CLOSURE_BAD: "Lib.F" })
+cc = closureCalls()
+check("a closure output that cannot be written does not stop the setup: the five others have their closures", r.status === 0 && closures().join("") === "ABCDE", out(r))
+check("it is logged and halved like any failed batch: 6, 3+3, 2+1", /closure batch of 6 could not be written/.test(r.stdout) && cc.map((c) => c.length).join(",") === "6,3,3,2,1", cc.map((c) => c.length).join(",") + "\n" + r.stdout)
 
 rmSync(tmp, { recursive: true, force: true })
 if (bad) {
