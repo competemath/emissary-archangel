@@ -89,7 +89,7 @@ const mutants = [
   ["keep is ignored", 'room=$((avail - keep))', 'room=$avail'],
   ["the maximum is ignored", '[ "$size" -le "$max" ] || size=$max', ":"],
   ["a swap under 8 GB is added", 'if [ "$room" -lt 8 ]; then', 'if [ "$room" -lt 0 ]; then'],
-  ["the free space is read rounded up (df -BG)", "df -B1 --output=avail / | tail -n 1 | tr -dc '0-9')", "df -BG --output=avail / | tail -n 1 | tr -dc '0-9')\navail_g=$bytes; bytes=$((bytes * 1073741824)"],
+  ["the free space is read rounded up (df -BG, multiplied back to bytes)", "df -B1 --output=avail / | tail -n 1 | tr -dc '0-9')", "df -BG --output=avail / | tail -n 1 | tr -dc '0-9'); bytes=$((${bytes:-0} * 1073741824))"],
   ["a failing fallocate is ignored", 'sudo fallocate -l "${size}G" /swapfile || fail fallocate', 'sudo fallocate -l "${size}G" /swapfile || true'],
   ["a failing mkswap is ignored", "sudo mkswap /swapfile || fail mkswap", "sudo mkswap /swapfile || true"],
   ["a failing swapon is ignored", "sudo swapon /swapfile || fail swapon", "sudo swapon /swapfile || true"],
@@ -102,7 +102,11 @@ const mutants = [
 let caught = 0
 for (const [name, from, to] of mutants) {
   if (!real.includes(from)) { check(`mutant: ${name}`, false, "pattern not found"); continue }
-  const r = suite(real.replace(from, to), false, false)
+  const mutated = real.replace(from, to)
+  writeFileSync(join(box, "syntax.sh"), mutated)
+  const syn = spawnSync("sh", ["-n", join(box, "syntax.sh")], { encoding: "utf8" })
+  if (syn.status !== 0) { check(`mutant: ${name} is valid shell (a mutant that does not parse is "caught" by every run failing, not by the rule it breaks)`, false, syn.stderr); continue }
+  const r = suite(mutated, false, false)
   if (r.wrong > 0) caught++
   check(`the broken version "${name}" is caught (${r.wrong} violations in ${r.cases} cases)`, r.wrong > 0, "")
 }

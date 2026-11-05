@@ -107,7 +107,7 @@ check("the escalation settings are inside what a hosted runner and a job can do"
 {
   const real = JSON.parse(readFileSync(join(here, "fixtures", "real-module-lists.json"), "utf8"))
   const componentsOf = (m) => m.match(/«[^»]+»|[^.«»]+/g)
-  const pathOf = (m) => componentsOf(m).join("/")
+  const pathOf = (m) => componentsOf(m).map((c) => c.replace(/^«|»$/g, "")).join("/")   // as setup-source.mjs pathOfModule: no guillemets in a file path
   const LIB = [".olean", ".ilean", ".olean.hash", ".ilean.hash", ".trace", ".hash"], IR = [".c", ".c.hash", ".setup.json"]
   const filesOf = (m) => [...LIB.map((s) => `.lake/build/lib/lean/${pathOf(m)}${s}`), ...IR.map((s) => `.lake/build/ir/${pathOf(m)}${s}`)]
   const wanted = (m) => filesOf(m).filter((f) => !f.endsWith(".setup.json"))
@@ -124,29 +124,33 @@ check("the escalation settings are inside what a hosted runner and a job can do"
         const got = rule(listing, keep).sort()
         const want = keepMods.flatMap(wanted).sort()
         cases++
-        if (got.length !== want.length || got.some((f, i) => f !== want[i])) { wrongM++; if (print && wrongM <= 3) console.log("FAIL membersOf", lib, frac, got.length, want.length) }
+        // never one file too few; a file too many only where a kept module's path is the start of another module's (X/c and X/c.d)
+        const wantSet = new Set(want)
+        const extraOk = (f) => [...keep].some((k) => f.includes(`/${k}.`))
+        if (want.some((f) => !got.includes(f)) || got.some((f) => !wantSet.has(f) && !extraOk(f))) { wrongM++; if (print && wrongM <= 3) console.log("FAIL membersOf", lib, frac, got.length, want.length) }
       }
     }
     return { cases, wrongM }
   }
   const goodM = run2(membersOf, true)
   const nmods = Object.values(real).reduce((a, m) => a + new Set(m).size, 0)
-  check(`membersOf returns exactly the files of the kept modules, on ${goodM.cases} real library listings (${nmods} real modules, ${nmods * 9} files, 5 keep fractions), never a setup.json`, goodM.wrongM === 0, goodM.wrongM)
+  check(`membersOf returns every file of the kept modules and nothing else (bar a module whose path starts another's), on ${goodM.cases} real library listings (${nmods} real modules, ${nmods * 9} files, 5 keep fractions), never a setup.json`, goodM.wrongM === 0, goodM.wrongM)
   // neighbours with a similar name are not confused
   const near = ["A", "A_b", "AB", "A.B", "A.B.C", "Ab"].flatMap((m) => filesOf(m)).join("\n")
-  { const odd = ["«a.b».C", "X.«c.d»", "X.«c»", "X.c"], ol = odd.flatMap(filesOf).join("\n"); check("dotted «guillemet» components are kept whole and told from their neighbours", odd.every((m) => JSON.stringify(membersOf(ol, new Set([pathOf(m)])).sort()) === JSON.stringify(wanted(m).sort())), "") }
-  check("neighbouring names (A, A_b, AB, A.B, Ab) are told apart", JSON.stringify(membersOf(near, new Set(["A"])).sort()) === JSON.stringify(wanted("A").sort()) && membersOf(near, new Set(["A/B"])).length === wanted("A.B").length, "")
+  { const odd = ["«a.b».C", "X.«c.d»", "Y.«e.f».«g.h»", "Lib.α"], ol = odd.flatMap(filesOf).join("\n"); check("modules with dotted «guillemet» components (their files are X/c.d.olean, with no guillemets) and Unicode names are found", odd.every((m) => JSON.stringify(membersOf(ol, new Set([pathOf(m)])).sort()) === JSON.stringify(wanted(m).sort())), odd.map((m) => `${m} -> ${pathOf(m)}`).join(" ")) }
+  { const both = ["X.c", "X.«c.d»"], bl = both.flatMap(filesOf).join("\n"); check("a module and one whose path starts with its own (X/c and X/c.d): keeping X/c.d takes only its own files, keeping X/c may take both, never fewer", JSON.stringify(membersOf(bl, new Set(["X/c.d"])).sort()) === JSON.stringify(wanted("X.«c.d»").sort()) && wanted("X.c").every((f) => membersOf(bl, new Set(["X/c"])).includes(f)), "") }
+  check("neighbouring names (A, A_b, AB, A.B, Ab) are told apart", JSON.stringify(membersOf(near, new Set(["A"])).sort()) === JSON.stringify(wanted("A").sort()) && JSON.stringify(membersOf(near, new Set(["A/B"])).sort()) === JSON.stringify(wanted("A.B").sort()), "")
   const brokenRules = {
     "setup.json files are restored too": (l, k) => { const out = []; for (const line of l.split("\n")) { const m = /^\.lake\/build\/(?:lib\/lean|ir)\/(.+)$/.exec(line); if (!m) continue; const parts = m[1].split("/"); const last = parts.pop(); if (k.has([...parts, last.split(".")[0]].join("/"))) out.push(line) } return out },
     "a module is matched by prefix (A takes A_b)": (l, k) => l.split("\n").filter((line) => [...k].some((x) => line.includes(`/${x}`))),
     "only the lib/lean files are kept, not the C output": (l, k) => membersOf(l, k).filter((f) => f.includes("/lib/lean/")),
-    "the guillemet component is cut at its first dot": (l, k) => { const out = []; for (const line of l.split("\n")) { const m = /^\.lake\/build\/(?:lib\/lean|ir)\/(.+)$/.exec(line); if (!m || line.endsWith(".setup.json")) continue; const parts = m[1].split("/"); const last = parts.pop(); if (k.has([...parts, last.split(".")[0]].join("/"))) out.push(line) } return out },
+    "the path is cut at the first dot of the file name (the old rule)": (l, k) => { const out = []; for (const line of l.split("\n")) { const m = /^\.lake\/build\/(?:lib\/lean|ir)\/(.+)$/.exec(line); if (!m || line.endsWith(".setup.json")) continue; const parts = m[1].split("/"); const last = parts.pop(); if (k.has([...parts, last.split(".")[0]].join("/"))) out.push(line) } return out },
   }
   let caughtM = 0
   for (const [name, rule] of Object.entries(brokenRules)) {
     const r = run2(rule, false)
     // names the real corpus may not have: a dotted «guillemet» component, one more neighbour
-    const odd = ["«a.b».C", "X.«c.d»", "X.«c»", "X.c"]
+    const odd = ["«a.b».C", "X.«c.d»", "Y.«e.f».«g.h»", "Lib.α"]
     const oddListing = odd.flatMap(filesOf).join("\n")
     for (const keepOne of odd) { r.cases++; if (JSON.stringify(rule(oddListing, new Set([pathOf(keepOne)])).sort()) !== JSON.stringify(wanted(keepOne).sort())) r.wrongM++ }
     if (r.wrongM > 0) caughtM++

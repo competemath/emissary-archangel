@@ -4,7 +4,7 @@
 # The size is what the disk can spare, never more than MAX_GB: free space (whole GB, rounded DOWN) minus KEEP_GB, which is left for the build. A fixed 48 GB took the space the
 # previous round's build needs to unpack (the first retry of flt-anthropic, 5 Nov 2026, died with "No space left on device" four minutes into the restore).
 # setup-source.mjs runs this itself, right after it has unpacked the earlier build and deleted its archive (EMISSARY_ADD_SWAP_GB), so the free space is measured when it is known
-# and the swap is there before the first module is compiled. bump-shard.yml runs it before it builds the library.
+# and the swap is there before the first module is compiled.
 # Under 8 GB to spare: no swap, said plainly, exit 0 (nothing to add, nothing broken). A command that fails (fallocate, mkswap, swapon): the file is removed and the exit is 1,
 # so that the job stops instead of running a big-memory round without the memory.
 max=$1; keep=$2

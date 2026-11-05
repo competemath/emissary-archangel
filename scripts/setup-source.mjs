@@ -1107,6 +1107,8 @@ function restoreBuild({ required }) {
         rmSync(resolve(RESTORE), { force: true })
         log(`restored build unpacked; ${RESTORE} deleted to free its disk space`)
       } catch (e) {
+        // the swap is sized from the space this frees: without it the big-memory round would run with less swap than it asked for, or none
+        if (process.env.EMISSARY_ADD_SWAP_GB && process.env.EMISSARY_ADD_SWAP_GB !== "0") fail(`could not delete ${RESTORE}, which the swap of the big-memory round needs the space of: ${e.message}`)
         log(`WARNING: could not delete ${RESTORE}: ${e.message}`)
       }
     }
@@ -1356,7 +1358,7 @@ async function main() {
   await ensureClone()
   const { entries, stats } = seedQueue()
   let modules = Array.from(new Set(entries.map((e) => moduleOfPath(e.sourcePath)))).sort()
-  const only = PHASE === "build" || PHASE === "build-status" ? onlyModules() : null
+  const only = PHASE === "build" || PHASE === "build-status" || PHASE === "shard" ? onlyModules() : null
   if (only) {
     const unknown = [...only].filter((m) => !modules.includes(m))
     if (unknown.length) fail(`EMISSARY_ONLY_MODULES names modules with no entries in ${key}: ${unknown.slice(0, 5).join(", ")}`)

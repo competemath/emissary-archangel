@@ -25,7 +25,9 @@ export function availableFrom(meminfo, countSwap = false) {
 }
 
 // The files of a packed build (.lake/build/lib/lean/<path>.* and .lake/build/ir/<path>.*, never *.setup.json) that belong to the modules in `keep`; `listing` is `tar -t` of the archive.
-// A file is named <path>.<suffixes>, the module's path being everything up to the first dot of the last component (a «guillemet» component may hold dots).
+// `keep` holds module paths as setup-source.mjs's pathOfModule writes them (a «guillemet» component is written without the guillemets, dots inside it stay: X.«c.d» is X/c.d).
+// A file is <path>.<suffixes>, and a path may itself hold dots, so every dot of the last component is tried as the end of the path. That can take the files of a module X/c.d along with those
+// of a module X/c (when both exist): a few files too many, never one too few.
 export function membersOf(listing, keep) {
   const out = []
   for (const line of listing.split("\n")) {
@@ -34,9 +36,12 @@ export function membersOf(listing, keep) {
     if (!m || f.endsWith(".setup.json")) continue
     const parts = m[1].split("/")
     const last = parts.pop()
-    const stem = last.startsWith("«") ? last.slice(0, last.indexOf("»") + 1) : last.split(".")[0]
-    if (!last.slice(stem.length).startsWith(".")) continue
-    if (keep.has([...parts, stem].join("/"))) out.push(f)
+    for (let i = last.indexOf("."); i > 0; i = last.indexOf(".", i + 1)) {
+      if (keep.has([...parts, last.slice(0, i)].join("/"))) {
+        out.push(f)
+        break
+      }
+    }
   }
   return out
 }

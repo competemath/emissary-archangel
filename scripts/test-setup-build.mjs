@@ -197,6 +197,22 @@ check(
   // the archive is deleted after the restricted unpack too
   o = only("Lib.A", { EMISSARY_DROP_RESTORED: "1" })
   check("with EMISSARY_DROP_RESTORED=1 the archive is deleted after a restricted unpack", o.res.status === 0 && !existsSync(o.arc), o.res.stdout + o.res.stderr)
+  // an archive that cannot be deleted: fatal when the swap is asked for (it is sized from the space the deletion frees), only a warning otherwise
+  {
+    const sb = join(tmp, "swapbin"), GIB = 1073741824   // the recorders of 2c
+    const dir = mkdtempSync(join(tmp, "locked-"))
+    const mk = () => { rmSync(join(repo, ".lake"), { recursive: true, force: true }); const a = packed(["A"], join(dir, "locked.tar.zst")); chmodSync(dir, 0o555); return a }
+    let arc3 = mk()
+    let rr = setup(["--phase", "build", "--restore", arc3], { PATH: `${sb}:${process.env.PATH}`, FAKE_BYTES: String(113 * GIB), EMISSARY_DROP_RESTORED: "1", EMISSARY_ADD_SWAP_GB: "48", FAKE_LAKE_MAKES: "all" })
+    chmodSync(dir, 0o755)
+    const asRoot = process.getuid && process.getuid() === 0   // root deletes anything: the case cannot be made
+    check("an archive that cannot be deleted stops a big-memory round (its swap is sized from that space)", asRoot || (rr.status !== 0 && /could not delete/.test(rr.stdout + rr.stderr)), rr.stdout + rr.stderr)
+    rmSync(arc3, { force: true })
+    arc3 = mk()
+    rr = setup(["--phase", "build", "--restore", arc3], { EMISSARY_DROP_RESTORED: "1", FAKE_LAKE_MAKES: "all" })
+    chmodSync(dir, 0o755)
+    check("without a swap asked for, an archive that cannot be deleted is only a warning", asRoot || (rr.status === 0 && /WARNING: could not delete/.test(rr.stdout + rr.stderr)), rr.stdout + rr.stderr)
+  }
   // names are checked before anything is built or unpacked
   for (const [name, v, re] of [["a module with no entries in the library", "Lib.Nope", /no entries/], ["a shell word", "Lib.A;id", /not a module name/], ["a space", "Lib.A Lib.B", /not a module name/], ["a name that starts with a digit", "1Lib", /not a module name/]]) {
     o = only(v)

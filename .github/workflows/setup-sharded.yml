@@ -142,9 +142,11 @@ jobs:
       EMISSARY_ADD_SWAP_GB: ${{ inputs.swap_gb }}   # setup-source.mjs adds that swap (scripts/add-swap.sh) right after the unpack, before any module is compiled
     steps:
       - name: The memory knobs are numbers (a malformed retry_mb would silently switch the escalation off)
-        env: { RETRY_MB: "${{ inputs.retry_mb }}", SWAP_GB: "${{ inputs.swap_gb }}", SOLO_MINUTES: "${{ inputs.solo_minutes }}", ONLY_MODULES: "${{ inputs.only_modules }}" }
+        env: { RETRY_MB: "${{ inputs.retry_mb }}", SWAP_GB: "${{ inputs.swap_gb }}", SOLO_MINUTES: "${{ inputs.solo_minutes }}", ONLY_MODULES: "${{ inputs.only_modules }}", FROM_RELEASE: "${{ inputs.from_release }}" }
         run: |
-          [[ "$ONLY_MODULES" =~ ^[A-Za-z0-9_.,\'!?«»]*$ && ${#ONLY_MODULES} -le 60000 ]] || { echo "::error::only_modules is a comma list of module names"; exit 1; }
+          bad='[[:space:];&|<>()`$"\\*]'; if [[ "$ONLY_MODULES" =~ $bad || ${#ONLY_MODULES} -gt 60000 ]]; then echo "::error::only_modules is a comma list of module names (setup-source.mjs checks each one)"; exit 1; fi
+          # only_modules without from_release would build, export and PUBLISH a library that is only those modules (the release archive would be replaced by it)
+          [ -z "$ONLY_MODULES" ] || [ "$FROM_RELEASE" = true ] || { echo "::error::only_modules needs from_release=true: the shards and the finish job must start from the published archive"; exit 1; }
           [[ "$RETRY_MB" =~ ^[1-9][0-9]{0,8}$ ]] || { echo "::error::retry_mb is a number of MB, not $RETRY_MB"; exit 1; }
           [[ "$SWAP_GB" =~ ^(0|[1-9][0-9]{0,2})$ ]] || { echo "::error::swap_gb is a number of GB, not $SWAP_GB"; exit 1; }
           [[ "$SOLO_MINUTES" =~ ^[1-9][0-9]{0,2}$ ]] && [ "$SOLO_MINUTES" -le 340 ] || { echo "::error::solo_minutes is 1-340 minutes, not $SOLO_MINUTES"; exit 1; }
@@ -315,7 +317,9 @@ jobs:
           [[ "$RESUME_RUN" =~ ^[0-9]*$ ]] || { echo "::error::resume_run is not a run id"; exit 1; }
           [[ "$TENGOKU_REF" =~ ^[A-Za-z0-9._/-]*$ ]] || { echo "::error::tengoku_ref is not a branch name"; exit 1; }
           [[ "$FROM_RELEASE" =~ ^(true|false)$ ]] || { echo "::error::from_release is true or false"; exit 1; }
-          [[ "$ONLY_MODULES" =~ ^[A-Za-z0-9_.,\'!?«»]*$ && ${#ONLY_MODULES} -le 60000 ]] || { echo "::error::only_modules is a comma list of module names"; exit 1; }
+          bad='[[:space:];&|<>()`$"\\*]'; if [[ "$ONLY_MODULES" =~ $bad || ${#ONLY_MODULES} -gt 60000 ]]; then echo "::error::only_modules is a comma list of module names (setup-source.mjs checks each one)"; exit 1; fi
+          # only_modules without from_release would build, export and PUBLISH a library that is only those modules (the release archive would be replaced by it)
+          [ -z "$ONLY_MODULES" ] || [ "$FROM_RELEASE" = true ] || { echo "::error::only_modules needs from_release=true: the shards and the finish job must start from the published archive"; exit 1; }
           # Modules killed for memory even alone, at a limit below the escalation limit (the prime job decided; scripts/setup-plan.mjs escalation is the same rule): ONE more build round, with swap and a limit
           # that counts RAM and swap together. It is not judged for progress (nothing was added by the round that found the modules, that is why it is needed), and its own limit is the top one, so it is never followed by another.
           # flt-anthropic, 5 Nov 2026: 86 modules, the final theorem and everything that leads to it, were left out for 14 GB and nobody was told.
@@ -426,6 +430,7 @@ jobs:
         shard: ${{ fromJSON(needs.prime.outputs.shards) }}
     env:
       I: ${{ matrix.shard }}
+      EMISSARY_ONLY_MODULES: ${{ inputs.only_modules }}   # only the named modules are exported (and their closure unpacked from the prime's build)
     steps:
       - name: Free disk
         run: |
