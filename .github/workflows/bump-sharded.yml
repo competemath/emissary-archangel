@@ -52,7 +52,7 @@ jobs:
           git -C emissary sparse-checkout set --no-cone "/scripts/" "/sources.json" "/data/exports/$KEY/setup.ci.json"
           git -C emissary checkout -q "$GITHUB_SHA"
           git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
-          git -C tengoku sparse-checkout set --no-cone "/data/tentative/$KEY.jsonl" "/data/tentative/$KEY/"
+          git -C tengoku sparse-checkout set --no-cone $(python3 emissary/scripts/bump/tentative_files.py sparse emissary/sources.json "$KEY")
           # TENGOKU_REF: a branch of the tree repository that holds the records of a library whose PR is not merged yet (empty: main)
           ref=${TENGOKU_REF:+origin/$TENGOKU_REF}; git -C tengoku checkout -q "${ref:-main}"
       - name: The library, its import graph, the plan
@@ -68,11 +68,11 @@ jobs:
           python3 - <<'PY'
           import glob, json, math, os, sys
           sys.path.insert(0, "scripts/bump")
-          import gate2_batch as g, plan_shards as ps
+          import gate2_batch as g, plan_shards as ps, tentative_files as tf
           from pathlib import Path
           key = os.environ["KEY"]
           roots = [r for r in json.load(open(f"data/exports/{key}/setup.ci.json"))["roots"]]
-          ents = g.tentative_entries(sorted(glob.glob(f"../tengoku/data/tentative/{key}.jsonl") + glob.glob(f"../tengoku/data/tentative/{key}/*.jsonl")))
+          ents = g.tentative_entries(tf.files(json.load(open("sources.json")), key, "../tengoku"))
           import tolerant_build as tb
           wanted = {".".join(tb.esc(x) for x in r["sourcePath"][:-5].split("/")) for r in ents.values()}
           imp, weight = ps.graph(Path("lib"), roots)
