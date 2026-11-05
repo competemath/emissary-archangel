@@ -394,9 +394,15 @@ jobs:
         # one round back: these are the outputs of THAT round (what its shards added to what it resumed from). A round that was itself resumed from an earlier
         # exports-partial and was then cancelled loses that earlier base: the chain walk (scripts/resume-chain) is the next change; until then, bank_run with resume_run set.
         # A cancelled run with no out-* at all leaves prev-out missing: the round then starts from nothing it can read, as before this step existed.
+        id: outs
         continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { pattern: "out-*", path: prev-out, merge-multiple: true, run-id: "${{ inputs.resume_run }}", github-token: "${{ github.token }}" }
+      - name: Say that the round resumed from deltas (exports-partial could not be read)
+        if: inputs.resume_run != '' && steps.partial.outcome == 'failure'
+        env: { RESUME_RUN: "${{ inputs.resume_run }}", OUTS: "${{ steps.outs.outcome }}" }
+        # exports-partial missing is the case this step handles; a read that failed for another reason (a transient error) looks the same: say so, so that a round that went on from deltas alone is not silent
+        run: echo "::warning::exports-partial of run $RESUME_RUN could not be read; this round resumed from that round's per-shard outputs (download outcome: $OUTS). If the run has an exports-partial, re-run this job."
       - name: Everything present before this shard runs
         run: |
           d="data/exports/$KEY"
@@ -478,9 +484,15 @@ jobs:
         # one round back: these are the outputs of THAT round (what its shards added to what it resumed from). A round that was itself resumed from an earlier
         # exports-partial and was then cancelled loses that earlier base: the chain walk (scripts/resume-chain) is the next change; until then, bank_run with resume_run set.
         # A cancelled run with no out-* at all leaves prev-out missing: the round then starts from nothing it can read, as before this step existed.
+        id: outs
         continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { pattern: "out-*", path: prev-out, merge-multiple: true, run-id: "${{ inputs.resume_run }}", github-token: "${{ github.token }}" }
+      - name: Say that the round resumed from deltas (exports-partial could not be read)
+        if: inputs.resume_run != '' && steps.partial.outcome == 'failure'
+        env: { RESUME_RUN: "${{ inputs.resume_run }}", OUTS: "${{ steps.outs.outcome }}" }
+        # exports-partial missing is the case this step handles; a read that failed for another reason (a transient error) looks the same: say so, so that a round that went on from deltas alone is not silent
+        run: echo "::warning::exports-partial of run $RESUME_RUN could not be read; this round resumed from that round's per-shard outputs (download outcome: $OUTS). If the run has an exports-partial, re-run this job."
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         continue-on-error: true   # a round in which no shard uploaded anything still dispatches the next one
         with: { pattern: "out-*", path: shard-out, merge-multiple: true, run-id: "${{ inputs.bank_run || github.run_id }}", github-token: "${{ github.token }}" }

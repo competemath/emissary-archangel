@@ -212,4 +212,10 @@ for (const job of ["shard", "finish"]) {
   const step = b.slice(b.indexOf("- name: The previous round's shard outputs"), b.indexOf("- name: The previous round's shard outputs") + 1400)
   check(`${job}: a cancelled run without out-* does not end the round (the fallback download goes on after a failure)`, /continue-on-error: true\n\s+uses: actions\/download-artifact/.test(step), "")
 }
+
+// the fallback is not silent: a round that went on from deltas says so (a transient failure of the exports-partial read looks like a missing artifact)
+for (const job of ["shard", "finish"]) {
+  const b = sharded[job]
+  check(`${job}: a round that resumed from the per-shard outputs says so (a warning that names the run and the download outcome, values through env)`, /if: inputs\.resume_run != '' && steps\.partial\.outcome == 'failure'\n\s+env: \{ RESUME_RUN: "\$\{\{ inputs\.resume_run \}\}", OUTS: "\$\{\{ steps\.outs\.outcome \}\}" \}[\s\S]*?::warning::exports-partial of run \$RESUME_RUN/.test(b), "")
+}
 process.exit(bad ? 1 : 0)
