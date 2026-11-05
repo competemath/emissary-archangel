@@ -173,7 +173,7 @@ jobs:
         run: |
           cmp plan-old/plan.json plan-new/plan.json || { echo "::error::the plan of fill_from differs from this run's, so its shards are not these shards (same shards, library commit?)"; exit 1; }
           if [ -f plan-old/inputs.json ]; then
-            cmp plan-old/inputs.json plan-new/inputs.json || { echo "::error::fill_from was built with other settings (mathlib, toolchain, imports, tengoku_ref) than this run"; exit 1; }
+            cmp plan-old/inputs.json plan-new/inputs.json || { echo "::error::fill_from was built with other settings (mathlib, toolchain, imports, tengoku_ref, swap_gb, build_timeout_min) than this run"; exit 1; }
           elif [ "$UNRECORDED" != true ]; then
             echo "::error::fill_from recorded no settings (it predates plan/inputs.json): pass fill_unrecorded=true to vouch that they are the same"; exit 1
           fi

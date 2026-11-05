@@ -236,6 +236,7 @@ def knob_problems(sharded: str, shard: str) -> list[str]:
         (shard, re.escape('$([ "$SWAP_GB" != 0 ] && echo --count-swap)'), "Gate 2 counts swap when swap was added"),
         (shard, r'BUILD_TIMEOUT_MIN" =~ \^\[1-9\]\[0-9\]\{0,2\}\$ \]\] && \[ "\$BUILD_TIMEOUT_MIN" -le 170 \]', "build_timeout_min is checked: 1-170 (the job has 345 minutes)"),
         (sharded, re.escape("python3 scripts/bump/plan_inputs.py ../plan/inputs.json"), "the plan records what the shards are built with through plan_inputs.py"),
+        (sharded, re.escape("(mathlib, toolchain, imports, tengoku_ref, swap_gb, build_timeout_min) than this run"), "a rejected fill names every setting the record holds"),
         (sharded, re.escape("ps.parse_only(os.environ.get(\"ONLY_MODULES\", \"\"))"), "only_modules is parsed strictly (a list with no name is an error)"),
         (shard, r'SWAP_GB" =~ \^\(0\|\[1-9\]\[0-9\]\{0,2\}\)\$', "swap_gb is checked: a number of GB"),
     ]
