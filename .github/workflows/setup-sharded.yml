@@ -391,6 +391,10 @@ jobs:
         with: { name: exports-partial, run-id: "${{ inputs.resume_run }}", github-token: "${{ github.token }}" }
       - name: The previous round's shard outputs (it was cancelled before it merged them)
         if: inputs.resume_run != '' && steps.partial.outcome == 'failure'
+        # one round back: these are the outputs of THAT round (what its shards added to what it resumed from). A round that was itself resumed from an earlier
+        # exports-partial and was then cancelled loses that earlier base: the chain walk (scripts/resume-chain) is the next change; until then, bank_run with resume_run set.
+        # A cancelled run with no out-* at all leaves prev-out missing: the round then starts from nothing it can read, as before this step existed.
+        continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { pattern: "out-*", path: prev-out, merge-multiple: true, run-id: "${{ inputs.resume_run }}", github-token: "${{ github.token }}" }
       - name: Everything present before this shard runs
@@ -471,6 +475,10 @@ jobs:
         with: { name: exports-partial, run-id: "${{ inputs.resume_run }}", github-token: "${{ github.token }}" }
       - name: The previous round's shard outputs (it was cancelled before it merged them)
         if: inputs.resume_run != '' && steps.partial.outcome == 'failure'
+        # one round back: these are the outputs of THAT round (what its shards added to what it resumed from). A round that was itself resumed from an earlier
+        # exports-partial and was then cancelled loses that earlier base: the chain walk (scripts/resume-chain) is the next change; until then, bank_run with resume_run set.
+        # A cancelled run with no out-* at all leaves prev-out missing: the round then starts from nothing it can read, as before this step existed.
+        continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { pattern: "out-*", path: prev-out, merge-multiple: true, run-id: "${{ inputs.resume_run }}", github-token: "${{ github.token }}" }
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4

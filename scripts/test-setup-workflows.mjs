@@ -205,5 +205,11 @@ for (const job of ["shard", "finish"]) {
   check(`${job}: those outputs are unpacked with the rest`, /if \[ -d prev-out \]; then for f in prev-out\/\*\.tar\.zst; do \[ -f "\$f" \] && unpack "\$f"; done; rm -rf prev-out; fi/.test(b), "")
 }
 // the round a bank run dispatches takes the build the bank run was given: a bank run has no prime job, so its own run id carries no build
-check("the next round gets build_run from a bank run's input (and the default from an ordinary round)", /BUILD_RUN: \$\{\{ inputs\.bank_run != '' && inputs\.build_run \|\| '' \}\}/.test(sharded.finish) && /-f build_run="\$BUILD_RUN"/.test(sharded.finish), "")
+const dispatch = sharded.finish.slice(sharded.finish.indexOf("gh workflow run setup-sharded.yml") - 1200)
+check("the next round gets build_run from a bank run's input (and the default from an ordinary round), in the step that dispatches", /BUILD_RUN: \$\{\{ inputs\.bank_run != '' && inputs\.build_run \|\| '' \}\}[\s\S]*gh workflow run setup-sharded\.yml[^\n]*[\s\S]*-f build_run="\$BUILD_RUN"/.test(dispatch), "")
+for (const job of ["shard", "finish"]) {
+  const b = sharded[job]
+  const step = b.slice(b.indexOf("- name: The previous round's shard outputs"), b.indexOf("- name: The previous round's shard outputs") + 1400)
+  check(`${job}: a cancelled run without out-* does not end the round (the fallback download goes on after a failure)`, /continue-on-error: true\n\s+uses: actions\/download-artifact/.test(step), "")
+}
 process.exit(bad ? 1 : 0)
