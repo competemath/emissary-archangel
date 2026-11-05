@@ -1,0 +1,406 @@
+{
+  "key": "flt-anthropic",
+  "repo": "https://github.com/anthropics/fermats-last-theorem",
+  "commit": "aa2d8b34692b16c70f699536de0d8e75b9a3e9ef",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "roots": [
+    "Theorems",
+    "Definitions"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/flt-anthropic/repo",
+  "entries": 48460,
+  "modules": 30662,
+  "exported": 30576,
+  "failed": [
+    {
+      "module": "Theorems.Thm_CuspForm_IsEigenformWith_exists_basis_inertia_apply_eq_smul_of_dvd_of_not_sq_dvd_of_dvd_sub_one_of_residual_isAbsolutelyIrreducible",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_IsEigenformWith_exists_linearIndependent_inertia_apply_eq_smul_of_dvd_of_not_sq_dvd_of_dvd_conductor_of_residual_isAbsolutelyIrreducible",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_IsEigenformWith_isRoot_charpoly_one_of_mem_inertiaSubgroupIn_of_factorization_eq_one_of_conductor_factorization_eq_one",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_IsNewform_exists_charpoly_inertia_eq_and_pow_eq_one_iff_of_linearMap_psCarrier_ne_zero_of_factorization_eq_two",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_IsNewform_exists_charpoly_inertia_eq_principalSeries_supercuspidal_of_galoisRepAdic_of_two_laws_of_irreducible_odd_of_ne_two_of_factorization_eq_two",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_IsNewform_exists_galoisRepAdic_charpoly_inertia_eq_cyclotomicCharacter_of_linearMap_psCarrier_ne_zero_of_not_isUnramified_ratio_of_factorization_eq_two",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_IsNewform_exists_galoisRepAdic_not_isUnipotentOnInertiaAt_of_factorization_eq_two_of_absIrred_odd_of_ne_two",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_IsNewform_exists_isCuspidalOfType_gl2ReductionRep_of_inertia_labels_eq_pow_of_irreducible_odd_of_cast_eq_neg_one",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_IsNewform_linearMap_psCarrier_eq_zero_of_charpoly_inertia_eq_mul_of_eq_pow_of_pow_sub_one_ne_one_exponent_two",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_IsNewform_psCarrier_lam_dvd_sub_one_or_no_psCarrier_lam_dvd_add_one_of_factorization_eq_two_of_residual_isUnipotent_of_irreducible_odd_of_absIrred_odd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_IsPrimitiveForm_exists_galoisRepAdic_charpoly_frobenius_eq_and_isRoot_charpoly_one_of_dvd_of_factorization_eq_conductor_factorization_of_not_sq_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_IsPrimitiveForm_exists_galoisRepAdic_forall_inertiaSubgroupIn_apply_eq_self_of_linearMap_psCarrier_isUnramified_of_factorization_eq_one",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_IsPrimitiveForm_exists_galoisRepAdic_linearIndependent_inertia_apply_eq_smul_of_dvd_of_not_sq_dvd_of_dvd_conductor",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_IsPrimitiveForm_exists_ne_zero_forall_inertiaSubgroupIn_apply_eq_self_of_linearMap_psCarrier_isUnramified_of_factorization_eq_one",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_TWLevel_HeckeRing_exists_basis_inertia_apply_eq_diamond_smul",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_TWLevel_HeckeRing_exists_basis_inertia_apply_eq_diamond_smul_of_algHom",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_TWLevel_exists_algHom_deformationRing_moduleEnd_ML_flat",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_TWLevel_exists_algHom_deformationRing_moduleEnd_ML_of_not_isFlatAt_strictOrdinary",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_TWLevel_exists_galoisRepAdic_moduleEnd_ML_flat",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_TWLevel_exists_galoisRepAdic_moduleEnd_ML_of_not_isFlatAt_strictOrdinary",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_heckeLocal_bijective_and_exists_presentation_of_ordinaryCondition_of_finiteAt_of_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_heckeLocal_exists_algHom_length_cotangent_le_of_isResiduallyModular_of_level_of_inertia_moves_torsion_of_eq_three_of_not_cube_dvd_of_level_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_heckeLocal_exists_algHom_length_cotangent_le_of_isResiduallyModular_of_level_of_not_sq_dvd_of_not_cube_dvd_of_level_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_heckeLocal_exists_heckeModules_levelRaising_and_taylorWiles_auxLevel_of_isEis_kernel_pair_strictOrdinary_of_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_heckeLocal_exists_heckeModules_levelRaising_and_taylorWiles_of_index_two_irreducible_strictOrdinary_of_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_heckeLocal_exists_patchingDatum_of_isResiduallyModular_of_level_of_inertia_moves_torsion_of_eq_three_of_not_cube_dvd_of_level_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_heckeLocal_exists_patchingDatum_of_isResiduallyModular_of_level_of_not_sq_dvd_of_not_cube_dvd_of_level_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_heckeLocal_exists_taylorWilesModule_of_linearEquiv_ML_flat",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_CuspForm_heckeLocal_exists_taylorWilesModule_of_linearEquiv_ML_of_not_isFlatAt_strictOrdinary",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_FLT_fermatLastTheorem",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_FreyPackage_atPNewLowering",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_FreyPackage_atPNewLoweringAtUniform",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_FreyPackage_fermatLastTheoremFor_of_five_le",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_FreyPackage_frey_isModular",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_FreyPackage_level_lowering_at_p_of_conductorLevel",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_FreyPackage_level_lowering_to_two",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_FreyPackage_level_lowering_to_two_of_conductorLevel",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_FreyPackage_mazurPrincipleAtPStep",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_FreyPackage_modularRepOfConductorLevel",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_FreyPackage_no_frey_package",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_GaloisRepAdic_not_isUnipotentOnInertiaAt_and_charpoly_frobenius_of_factorization_eq_two_of_absIrred_odd_of_ne_two",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_LanglandsTunnell_RankinSelberg_exists_gl3Translates_sum_rsFinIntegral_cells_eq_const_and_dual_eq_rootNumberMonomial_of_finWhittaker_one_ne_zero_of_localSpaceAt_of_member_of_fe32_normPin_twisted_offSQ_archPsi_bump_levelShift_global",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_NeronExtension_exists_forall_mul_eq_specMap_forall_specMap_comp_eq_ptsN_of_bialgHom_of_isLocalRing",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_NeronExtension_exists_hopfAlgebra_finPts_equiv_forall_specMap_comp_eq_ptsN",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_NeronExtension_exists_isFinite_forall_ptsN_comp_eq_of_hopf",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_NeronExtension_exists_ptsN_eq_comp_of_mem_inertiaInvariants",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_NeronExtension_extN_of_mem_of_hopf_of_forall_smul_sub_mem",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_NeronExtension_inertiaInvariants_le_extPts",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_NeronExtension_le_finPts_of_hopf_of_forall_smul_sub_mem",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_exists_jZeroNeronAtPDataOrdV22_of_children",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_exists_jZeroNeronAtPDataOrdV22_of_children_of_neronExtension",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_exists_jZeroNeronAtPDataOrdV22_toric_eq_fin_eq_of_forall_smul_sub_mem",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_XOneP_exists_coprime_algEquiv_finset_addMonoidHom_proj_snd_heckeGenOne_eq_symm_frob_smul_and_proj_snd_diamondGen_eq_smul_of_pic0Mk_single_sub_single_snd_specialFibre_twoChartModel_x1_mul_of_atkinLehner_of_diamondConj",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_exists_galoisRepAdic_charpoly_frobenius_and_inertia_mul_eq_zero_and_hecke_frobenius_mul_inertia_eq_zero_of_heckeDiamondChar_of_dvd_of_not_sq_dvd_of_le_div",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_exists_jZeroNeronAtPDataOrdV22_pNew",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_exists_qExpSemistableSpecializationPinnedV3_family_normFreePart_and_diamond_of_dvd_of_not_sq_dvd_of_le_div",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_hasJZeroNeronAtPDataCore",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_hasJZeroNeronAtPDataOrdV22",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_hasLowerLevelTorsion_jZero_of_isPeuRamifieeAt",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_hasLowerLevelTorsion_jZero_of_isPeuRamifieeAt_of_five_le",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_hasLowerLevelTorsion_of_finiteFlat_rankTwo_heckeTorsion",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_hasLowerLevelTorsion_of_finiteFlat_rankTwo_heckeTorsion_of_five_le",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_rep_diamondGen_apply_inertia_sub_eq_of_nsmul_sub_sum_tateModule_jOne_of_dvd_of_not_sq_dvd_of_le_div",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_rep_frobenius_rep_heckeGenOne_sub_smul_rep_diamondGen_rep_inertia_sub_eq_zero_normFreePartAt_tateModule_jOne_of_le_div",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_exists_H1_parabolic_not_dvd_diamondRaw_heckeT_congr_apOfModel_level_div_of_forall_linearMap_psCarrier_eq_zero",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_exists_charP_rep_steinberg_quotient_isEigensystemH1_apOfModel_of_isSemistableModel_of_qCoeff_congr",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_exists_finite_extension_heckeGaloisRepDatum_patchingDatum_of_isResiduallyModular_of_level_of_inertia_moves_torsion_of_eq_three_capped_of_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_exists_finite_extension_heckeGaloisRepDatum_patchingDatum_of_isResiduallyModular_of_level_of_not_sq_dvd_capped_of_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_exists_heckeGaloisRepDatum_of_isResiduallyModular_of_inertia_moves_torsion_of_eq_three_capped_of_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_exists_heckeGaloisRepDatum_of_isResiduallyModular_of_level_of_not_sq_dvd_capped_of_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_exists_isNormalizedEigenform_level_div_of_forall_linearMap_psCarrier_eq_zero_of_cast_eq_neg_one",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_exists_isNormalizedEigenform_level_div_of_isNewform_of_factorization_eq_two",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_isEigensystemH1_comp_apOfModel_of_isSemistableModel_of_qCoeff_congr_of_steinberg_quotient",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_isModularModelOfLevel_conductorLevel_of_not_cube_dvd_of_modRepIsIrreducible_of_factorization_eq",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_isModularModelOfLevel_conductorLevel_of_not_cube_dvd_of_modRepIsIrreducible_of_not_sq_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_isResiduallyModularOfLevel_div_of_isGoodPrimeFor",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_isResiduallyModularOfLevel_div_of_isGoodPrimeFor_of_dvd_apOfModel",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_isResiduallyModularOfLevel_div_of_isPeuRamifieeAt",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_isResiduallyModularOfLevel_div_of_isPeuRamifieeAt_of_five_le",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_isResiduallyModularOfLevel_div_of_prime_sq_dvd_of_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_isResiduallyModularOfLevel_minimalLevel_of_level_of_inertia_moves_torsion_of_eq_three_of_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_isResiduallyModularOfLevel_minimalLevel_of_level_of_not_sq_dvd_of_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_modularityLiftingAtConductor_threeFive_of_level_of_inertia_moves_torsion_of_eq_three_of_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_modularityLiftingAtConductor_threeFive_of_level_of_not_sq_dvd_of_not_cube_dvd",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_modularity_of_semistableModel",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_fermat_last_theorem",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 116,
+    "verbatim": 4515,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 48507,
+    "kept": 48460,
+    "skippedRoot": 4,
+    "skippedDup": 43,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 43230,
+    "lineUnverified": 347,
+    "nameFixed": 1036,
+    "sorryOriginals": 0,
+    "emptyProofs": 6
+  },
+  "sharded": {
+    "records": 67,
+    "shards": [
+      64,
+      16
+    ]
+  },
+  "tools": {
+    "lean": "4.33.0 (commit d8b18978322de05a8f3dba51ef03cf5461676c17, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+d8b1897",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1 | ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 3610787840,
+  "minutes": 286,
+  "finishedAt": "2026-11-05T08:12:33.451Z",
+  "archive": {
+    "release": "exports-flt-anthropic",
+    "asset": "flt-anthropic@aa2d8b34692b-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-flt-anthropic/flt-anthropic@aa2d8b34692b-exports.tar.zst",
+    "bytes": 271945033,
+    "sha256": "bcbf325a6dcbedabda278b569c4ebb3a7cd7758a29515fdf3d7d15e1dac9a06f",
+    "files": 61102,
+    "unpack": "tar --zstd -xf flt-anthropic@aa2d8b34692b-exports.tar.zst -C data/exports/flt-anthropic"
+  }
+}

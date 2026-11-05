@@ -1,0 +1,42 @@
+{
+  "shard": 29,
+  "shards": 64,
+  "commit": "aa2d8b34692b16c70f699536de0d8e75b9a3e9ef",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "modules": 480,
+  "exported": 476,
+  "failed": [
+    {
+      "module": "Theorems.Thm_CuspForm_IsEigenformWith_exists_linearIndependent_inertia_apply_eq_smul_of_dvd_of_not_sq_dvd_of_dvd_conductor_of_residual_isAbsolutelyIrreducible",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_NeronExtension_inertiaInvariants_le_extPts",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_XOneP_exists_coprime_algEquiv_finset_addMonoidHom_proj_snd_heckeGenOne_eq_symm_frob_smul_and_proj_snd_diamondGen_eq_smul_of_pic0Mk_single_sub_single_snd_specialFibre_twoChartModel_x1_mul_of_atkinLehner_of_diamondConj",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_WeierstrassCurve_isModularModelOfLevel_conductorLevel_of_not_cube_dvd_of_modRepIsIrreducible_of_not_sq_dvd",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 3,
+    "verbatim": 138,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "tools": {
+    "lean": "4.33.0 (commit d8b18978322de05a8f3dba51ef03cf5461676c17, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+d8b1897",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "minutes": 201,
+  "finishedAt": "2026-11-05T02:17:27.925Z"
+}

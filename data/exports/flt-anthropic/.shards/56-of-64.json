@@ -1,0 +1,38 @@
+{
+  "shard": 56,
+  "shards": 64,
+  "commit": "aa2d8b34692b16c70f699536de0d8e75b9a3e9ef",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "modules": 496,
+  "exported": 493,
+  "failed": [
+    {
+      "module": "Theorems.Thm_CuspForm_IsEigenformWith_isRoot_charpoly_one_of_mem_inertiaSubgroupIn_of_factorization_eq_one_of_conductor_factorization_eq_one",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_NeronExtension_exists_forall_mul_eq_specMap_forall_specMap_comp_eq_ptsN_of_bialgHom_of_isLocalRing",
+      "why": "no closure"
+    },
+    {
+      "module": "Theorems.Thm_ModularCurve_exists_galoisRepAdic_charpoly_frobenius_and_inertia_mul_eq_zero_and_hecke_frobenius_mul_inertia_eq_zero_of_heckeDiamondChar_of_dvd_of_not_sq_dvd_of_le_div",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 2,
+    "verbatim": 504,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "tools": {
+    "lean": "4.33.0 (commit d8b18978322de05a8f3dba51ef03cf5461676c17, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+d8b1897",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "minutes": 160,
+  "finishedAt": "2026-11-05T03:56:26.423Z"
+}
