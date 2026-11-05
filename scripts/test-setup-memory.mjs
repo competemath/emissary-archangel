@@ -21,10 +21,13 @@ const sh = (cmd, args, opts = {}) => execFileSync(cmd, args, { stdio: ["ignore",
 // the library: A; C and E and F import A; D imports C
 const lib = join(tmp, "lib-src")
 mkdirSync(join(lib, "Lib"), { recursive: true })
+const CHAIN = 6 // G1 imports A, G2 imports G1, ... (a `Thm_` module imports its `P2M.Sol` proof: each try of the chunk finds one new kill)
 const files = { A: "", C: "import Lib.A\n", D: "-- header comment\n/- outer\n/- nested -/\nstill the outer comment -/\nimport Lib.C\n", E: "import Lib.A\n", F: "/- block\ncomment -/\nimport Lib.A -- trailing\n" }
 for (const [m, imp] of Object.entries(files)) writeFileSync(join(lib, "Lib", `${m}.lean`), `${imp}\ntheorem t_${m.toLowerCase()} : True := trivial\n`)
 const TC = "leanprover/lean4:v4.0.0"
 writeFileSync(join(lib, "lean-toolchain"), TC + "\n")
+for (let i = 1; i <= CHAIN; i++) writeFileSync(join(lib, "Lib", `G${i}.lean`), `import Lib.${i === 1 ? "A" : `G${i - 1}`}\n\ntheorem t_g${i} : True := trivial\n`)
+files.G1 = files.G2 = files.G3 = files.G4 = files.G5 = files.G6 = "" // only their names are needed below
 const git = (...a) => sh("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...a], { cwd: lib })
 git("init", "-q")
 git("add", ".")
@@ -85,7 +88,7 @@ chmodSync(join(bin, "lake"), 0o755)
 const repo = join(root, "infra", "t", "repo")
 const olean = (m) => join(repo, ".lake", "build", "lib", "lean", "Lib", `${m}.olean`)
 const memo = join(repo, ".lake", "build", "emissary-oom.json")
-const IMPORTS = JSON.stringify({ "Lib.C": ["Lib.A"], "Lib.D": ["Lib.C"], "Lib.E": ["Lib.A"], "Lib.F": ["Lib.A"] })
+const IMPORTS = JSON.stringify({ "Lib.C": ["Lib.A"], "Lib.D": ["Lib.C"], "Lib.E": ["Lib.A"], "Lib.F": ["Lib.A"], "Lib.G1": ["Lib.A"], ...Object.fromEntries([2, 3, 4, 5, 6].map((i) => [`Lib.G${i}`, [`Lib.G${i - 1}`]])) })
 // a watchdog that looks every 300 ms, a limit of 150 MB for a process, 500 MB for one built alone
 const setup = (args, env = {}) =>
   spawnSync("node", [join(root, "scripts", "setup-source.mjs"), "t", ...args], {
@@ -118,9 +121,9 @@ const saved = existsSync(memo) ? JSON.parse(readFileSync(memo, "utf8")) : null
 check("the module is written to the build folder, which is what gets packed", saved?.toobig?.["Lib.C"]?.capMB === 500 && saved.toobig["Lib.C"].peakMB >= 500, JSON.stringify(saved))
 r = setup(["--phase", "build-status"])
 const st = statusOf()
-check("status says why: 1 too big, 1 blocked behind it, nothing unexplained, so no further round can add anything: complete", /^toobig=1$/m.test(r.stdout) && /^blocked=1$/m.test(r.stdout) && /^complete=true$/m.test(r.stdout) && st.complete === true && st.built === 3 && st.other === 0 && st.toobig[0].module === "Lib.C" && st.toobig[0].blocks === 1, JSON.stringify(st))
+check("status says why: 1 too big, 1 blocked behind it, nothing unexplained, so no further round can add anything: complete", /^toobig=1$/m.test(r.stdout) && /^blocked=1$/m.test(r.stdout) && /^complete=true$/m.test(r.stdout) && st.complete === true && st.built === names.length - 2 && st.other === 0 && st.toobig[0].module === "Lib.C" && st.toobig[0].blocks === 1, JSON.stringify(st))
 const summary = readFileSync(join(root, "infra", "t", "unbuilt-summary.md"), "utf8")
-check("the run summary names the module and the size", /Modules without an \.olean: 2 of 5/.test(summary) && /`Lib\.C`: killed at \d+ MB with a limit of 500 MB; 1 modules import it/.test(summary), summary)
+check("the run summary names the module and the size", new RegExp(`Modules without an \\.olean: 2 of ${names.length}`).test(summary) && /`Lib\.C`: killed at \d+ MB with a limit of 500 MB; 1 modules import it/.test(summary), summary)
 
 // 3. the next round (the memo comes back with the build): the module is not tried again, and neither is anything behind it
 const before = calls().length
@@ -160,6 +163,27 @@ check("a module that fails alone without a watchdog kill is said so, not called 
 check("and it is not written to the memo", !existsSync(memo) || Object.keys(JSON.parse(readFileSync(memo, "utf8")).toobig).length === 0, "")
 r = setup(["--phase", "build-status"])
 check("status counts it as missing for another reason, with the module behind it", /^toobig=0$/m.test(r.stdout) && statusOf().other === 2 && statusOf().blocked === 0, JSON.stringify(statusOf()))
+
+// 8. a chain of big modules, each importing the one before: every try of the chunk finds ONE new kill (the 86 of flt-anthropic: a Thm_ module imports its P2M.Sol proof, round 4 of
+// 2026-11-05 finished 4 of them in 4 tries and the next round started from a 28 minute restore). A build with the default 4 tries leaves the end of the chain for the next round;
+// a build with the tries the escalation gives (EMISSARY_BUILD_ATTEMPTS here, memory-rules.mjs buildAttempts for the real rule) finishes it in one run.
+const hungryChain = JSON.stringify(Object.fromEntries([1, 2, 3, 4, 5, 6].map((i) => [`Lib.G${i}`, 300])))
+const gs = [1, 2, 3, 4, 5, 6]
+const gBuilt = () => gs.filter((i) => existsSync(olean(`G${i}`)))
+fresh()
+r = setup(["--phase", "build"], { FAKE_HUNGRY: hungryChain, FAKE_HOLD_MS: "3000", EMISSARY_SOLO_MAX: "50" })
+check("default tries (4): the first four of a chain of six big modules are built, the last two wait for the next round", r.status === 0 && gBuilt().join() === "1,2,3,4", `${gBuilt()}\n${out(r)}`)
+check("the two that wait are not remembered as too big", !existsSync(memo) || Object.keys(JSON.parse(readFileSync(memo, "utf8")).toobig).length === 0, "")
+fresh()
+r = setup(["--phase", "build"], { FAKE_HUNGRY: hungryChain, FAKE_HOLD_MS: "3000", EMISSARY_SOLO_MAX: "50", EMISSARY_BUILD_ATTEMPTS: "20" })
+check("20 tries: the whole chain is built in one run, each module alone after its own kill", r.status === 0 && gBuilt().join() === "1,2,3,4,5,6" && gs.every((i) => new RegExp(`Lib\\.G${i} built alone`).test(r.stdout)), `${gBuilt()}\n${out(r)}`)
+check("and the build says it is complete", (setup(["--phase", "build-status"]).stdout.match(/^complete=true$/m) ?? []).length === 1, "")
+// the tries are a limit, not a promise: a chain whose modules do not fit even alone stops at the first one (nothing is rescued, so the chunk is not tried again and again)
+fresh()
+const before8 = calls().length
+r = setup(["--phase", "build"], { FAKE_HUNGRY: JSON.stringify({ "Lib.G1": 700, "Lib.G2": 700 }), FAKE_HOLD_MS: "3000", EMISSARY_BUILD_ATTEMPTS: "1000" })
+const lakeCalls = calls().slice(before8).filter((c) => c.startsWith("build "))
+check("1000 tries, a module that does not fit alone: the chunk is not tried over and over (a try that rescues nothing ends it)", r.status === 0 && lakeCalls.length <= 4 && /Lib\.G1 did not build alone either/.test(r.stdout), `${lakeCalls.length} lake builds\n${out(r)}`)
 
 rmSync(tmp, { recursive: true, force: true })
 process.exit(bad ? 1 : 0)
