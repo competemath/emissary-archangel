@@ -36,6 +36,7 @@ import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import { collectTools, exporterAction, mergeTools, patchFingerprint } from "./setup-tools.mjs"
 import { bisectItems } from "./bisect.mjs"
+import { availableFrom, soloBuildMs } from "./memory-rules.mjs"
 
 const x = promisify(execFile)
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -279,6 +280,7 @@ const oomKilled = new Map() // module -> { mb, why }: killed by the watchdog sin
 const RETRY_FOOTPRINT_MB = Number(process.env.EMISSARY_RETRY_FOOTPRINT_MB) > 0 ? Number(process.env.EMISSARY_RETRY_FOOTPRINT_MB) : 14336
 const OOM_FILE = join(REPO, ".lake", "build", "emissary-oom.json")
 const SOLO_MAX = Number(process.env.EMISSARY_SOLO_MAX) > 0 ? Number(process.env.EMISSARY_SOLO_MAX) : 25 // modules built alone in one run: each can take minutes
+const SOLO_BUILD_MS = soloBuildMs()
 const MODULE_NAME = /^(?:[\p{L}_][\p{L}\p{N}_'!?]*|«[^»]+»)(?:\.(?:[\p{L}_][\p{L}\p{N}_'!?]*|«[^»]+»))*$/u
 const moduleOfCommand = (cmd) => {
   for (const tok of cmd.split(/\s+/)) {
@@ -579,7 +581,7 @@ async function mathlibCache() {
 async function buildAlone(m) {
   footprintLimit = RETRY_FOOTPRINT_MB
   try {
-    const r = await run("lake", ["build", m], { cwd: REPO, timeoutMs: 90 * 60 * 1000 })
+    const r = await run("lake", ["build", m], { cwd: REPO, timeoutMs: SOLO_BUILD_MS })
     if (r.code !== 0) log(`WARNING: lake build ${m} (alone) exited ${r.code}`)
   } finally {
     footprintLimit = FOOTPRINT_MB
@@ -1272,9 +1274,9 @@ function watchMemory() {
 // process is killed. Not on macOS, where compression makes the figure unreliable.
 // A value that is not a positive number ("1536MB") falls back to the default; NaN would make every check a shortage.
 const MIN_AVAILABLE_MB = Number(process.env.EMISSARY_MIN_AVAILABLE_MB) > 0 ? Number(process.env.EMISSARY_MIN_AVAILABLE_MB) : 1536
+const COUNT_SWAP = process.env.EMISSARY_COUNT_SWAP === "1"
 function availableMB() {
-  const m = readFileSync("/proc/meminfo", "utf8").match(/^MemAvailable:\s+(\d+) kB/m)
-  return m ? Number(m[1]) / 1024 : Infinity
+  return availableFrom(readFileSync("/proc/meminfo", "utf8"), COUNT_SWAP)
 }
 function watchAvailable() {
   try {

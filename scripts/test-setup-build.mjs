@@ -42,6 +42,7 @@ mkdirSync(join(root, "data"), { recursive: true })
 cpSync(join(here, "setup-source.mjs"), join(root, "scripts", "setup-source.mjs"))
 cpSync(join(here, "setup-tools.mjs"), join(root, "scripts", "setup-tools.mjs"))
 cpSync(join(here, "bisect.mjs"), join(root, "scripts", "bisect.mjs"))
+cpSync(join(here, "memory-rules.mjs"), join(root, "scripts", "memory-rules.mjs"))
 writeFileSync(join(root, "sources.json"), JSON.stringify({ sources: { t: { repo: lib, commit, toolchain: TC, roots: ["Lib"] } } }))
 writeFileSync(join(root, "data", "queue-t.json"), JSON.stringify([
   { id: 1, name: "a", sourcePath: "Lib/A.lean", sourceLine: 1, status: "pending" },
