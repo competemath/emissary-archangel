@@ -94,6 +94,10 @@ on:
         description: "Minutes one module killed for its memory may take when built alone (at most 340)."
         required: false
         default: "90"
+      only_modules:
+        description: "A comma list of the library's modules: only these are built and judged in the build and build-status phases, and the earlier build is unpacked for their closure only. For adding a few modules that could not be built before (flt-anthropic's 86 top-of-proof modules) to a library whose earlier build does not fit on one runner next to its own archive. Empty: all."
+        required: false
+        default: ""
       from_release:
         description: "'true': the shards and the finish job start from the library's published export archive (release exports-<key>) instead of from nothing: to add modules that could not be built before to a library that is already set up. Use few shards then."
         required: false
@@ -133,12 +137,14 @@ jobs:
       EMISSARY_RETRY_FOOTPRINT_MB: ${{ inputs.retry_mb }}
       EMISSARY_SOLO_BUILD_MINUTES: ${{ inputs.solo_minutes }}
       EMISSARY_COUNT_SWAP: ${{ inputs.swap_gb != '0' && '1' || '0' }}
+      EMISSARY_ONLY_MODULES: ${{ inputs.only_modules }}
       EMISSARY_DROP_RESTORED: "1"   # the unpacked earlier build's archive is deleted (16 GB): the swap of the big-memory round is added from the space it frees
-      SWAP_GB: ${{ inputs.swap_gb }}
+      EMISSARY_ADD_SWAP_GB: ${{ inputs.swap_gb }}   # setup-source.mjs adds that swap (scripts/add-swap.sh) right after the unpack, before any module is compiled
     steps:
       - name: The memory knobs are numbers (a malformed retry_mb would silently switch the escalation off)
-        env: { RETRY_MB: "${{ inputs.retry_mb }}", SWAP_GB: "${{ inputs.swap_gb }}", SOLO_MINUTES: "${{ inputs.solo_minutes }}" }
+        env: { RETRY_MB: "${{ inputs.retry_mb }}", SWAP_GB: "${{ inputs.swap_gb }}", SOLO_MINUTES: "${{ inputs.solo_minutes }}", ONLY_MODULES: "${{ inputs.only_modules }}" }
         run: |
+          [[ "$ONLY_MODULES" =~ ^[A-Za-z0-9_.,\'!?«»]*$ && ${#ONLY_MODULES} -le 60000 ]] || { echo "::error::only_modules is a comma list of module names"; exit 1; }
           [[ "$RETRY_MB" =~ ^[1-9][0-9]{0,8}$ ]] || { echo "::error::retry_mb is a number of MB, not $RETRY_MB"; exit 1; }
           [[ "$SWAP_GB" =~ ^(0|[1-9][0-9]{0,2})$ ]] || { echo "::error::swap_gb is a number of GB, not $SWAP_GB"; exit 1; }
           [[ "$SOLO_MINUTES" =~ ^[1-9][0-9]{0,2}$ ]] && [ "$SOLO_MINUTES" -le 340 ] || { echo "::error::solo_minutes is 1-340 minutes, not $SOLO_MINUTES"; exit 1; }
@@ -199,8 +205,6 @@ jobs:
           # one line a minute: free memory, modules built, the biggest process (build-metrics.tsv, kept as an artifact); every fifth is also printed so the log is never silent
           sh scripts/runner-watch.sh "infra/$KEY/repo/$sub/.lake/build/lib/lean" build-metrics.tsv 60 &
           watcher=$!
-          # swap for modules that do not fit in a runner's RAM (swap_gb): added once the earlier build is unpacked and its archive deleted, sized from the free space then (scripts/add-swap.sh)
-          if [ "$SWAP_GB" != 0 ]; then sh scripts/add-swap.sh "$SWAP_GB" 25 build.tar.zst & fi
           timeout -k 2m "${PRIME_MINUTES}m" node scripts/setup-source.mjs "$KEY" --phase build $restore $args || echo "::notice::the prime build stopped at its budget; the shards build the rest"
           pkill -f 'bin/lake|bin/lean' || true
           kill "$cleaner" 2>/dev/null || true
@@ -298,6 +302,7 @@ jobs:
           SWAP_GB: ${{ inputs.swap_gb }}
           SOLO_MINUTES: ${{ inputs.solo_minutes }}
           FROM_RELEASE: ${{ inputs.from_release }}
+          ONLY_MODULES: ${{ inputs.only_modules }}
         run: |
           for v in "$SHARDS" "$PRIME_MINUTES" "$EXPAND_CHUNK" "$ROUND" "$MAX_ROUNDS" "$PARALLEL" "$BUILD_ROUND" "$MAX_BUILD_ROUNDS" "$RETRY_MB" "$SWAP_GB" "$SOLO_MINUTES"; do
             [[ "$v" =~ ^[0-9]+$ ]] || { echo "::error::an input is not a number: $v"; exit 1; }
@@ -310,6 +315,7 @@ jobs:
           [[ "$RESUME_RUN" =~ ^[0-9]*$ ]] || { echo "::error::resume_run is not a run id"; exit 1; }
           [[ "$TENGOKU_REF" =~ ^[A-Za-z0-9._/-]*$ ]] || { echo "::error::tengoku_ref is not a branch name"; exit 1; }
           [[ "$FROM_RELEASE" =~ ^(true|false)$ ]] || { echo "::error::from_release is true or false"; exit 1; }
+          [[ "$ONLY_MODULES" =~ ^[A-Za-z0-9_.,\'!?«»]*$ && ${#ONLY_MODULES} -le 60000 ]] || { echo "::error::only_modules is a comma list of module names"; exit 1; }
           # Modules killed for memory even alone, at a limit below the escalation limit (the prime job decided; scripts/setup-plan.mjs escalation is the same rule): ONE more build round, with swap and a limit
           # that counts RAM and swap together. It is not judged for progress (nothing was added by the round that found the modules, that is why it is needed), and its own limit is the top one, so it is never followed by another.
           # flt-anthropic, 5 Nov 2026: 86 modules, the final theorem and everything that leads to it, were left out for 14 GB and nobody was told.
@@ -318,7 +324,7 @@ jobs:
               -f expand_chunk="$EXPAND_CHUNK" -f round="$ROUND" -f max_rounds="$MAX_ROUNDS" -f parallel="$PARALLEL" -f resume_run="$RESUME_RUN" \
               -f build_run="$GITHUB_RUN_ID" -f build_round="$((BUILD_ROUND + 1))" -f max_build_rounds="$MAX_BUILD_ROUNDS" \
               -f tengoku_ref="$TENGOKU_REF" -f min_progress="$MIN_PROGRESS" -f prev_built="$BUILT" \
-              -f retry_mb="57344" -f swap_gb="48" -f solo_minutes="300" -f from_release="$FROM_RELEASE"
+              -f retry_mb="57344" -f swap_gb="48" -f solo_minutes="300" -f from_release="$FROM_RELEASE" -f only_modules="$ONLY_MODULES"
             echo "::notice::${TOOBIG:-some} modules were killed for memory at ${RETRY_MB} MB even alone: dispatched build round $((BUILD_ROUND + 1)) with swap and a limit of 57344 MB"
             exit 0
           fi
@@ -344,7 +350,7 @@ jobs:
             -f expand_chunk="$EXPAND_CHUNK" -f round="$ROUND" -f max_rounds="$MAX_ROUNDS" -f parallel="$PARALLEL" -f resume_run="$RESUME_RUN" \
             -f build_run="$GITHUB_RUN_ID" -f build_round="$((BUILD_ROUND + 1))" -f max_build_rounds="$MAX_BUILD_ROUNDS" \
             -f tengoku_ref="$TENGOKU_REF" -f min_progress="$MIN_PROGRESS" -f prev_built="$BUILT" \
-            -f retry_mb="$RETRY_MB" -f swap_gb="$SWAP_GB" -f solo_minutes="$SOLO_MINUTES" -f from_release="$FROM_RELEASE"
+            -f retry_mb="$RETRY_MB" -f swap_gb="$SWAP_GB" -f solo_minutes="$SOLO_MINUTES" -f from_release="$FROM_RELEASE" -f only_modules="$ONLY_MODULES"
           echo "::notice::the build is not complete: dispatched build round $((BUILD_ROUND + 1)) of at most $MAX_BUILD_ROUNDS"
 
   # The build-gate job stopped the chain because a round built (almost) nothing: say so where it will be seen, in ONE issue (opened, or updated when it is already open). Runs none of the
@@ -690,9 +696,10 @@ jobs:
           SWAP_GB: ${{ inputs.swap_gb }}
           SOLO_MINUTES: ${{ inputs.solo_minutes }}
           FROM_RELEASE: ${{ inputs.from_release }}
+          ONLY_MODULES: ${{ inputs.only_modules }}
         run: |
           gh workflow run setup-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$KEY" -f shards="$SHARDS" -f prime_minutes="$PRIME_MINUTES" \
             -f expand_chunk="$EXPAND_CHUNK" -f round="$((ROUND + 1))" -f max_rounds="$MAX_ROUNDS" -f resume_run="$GITHUB_RUN_ID" -f parallel="$PARALLEL" \
             -f build_run="$BUILD_RUN" -f max_build_rounds="$MAX_BUILD_ROUNDS" -f tengoku_ref="$TENGOKU_REF" \
-            -f retry_mb="$RETRY_MB" -f swap_gb="$SWAP_GB" -f solo_minutes="$SOLO_MINUTES" -f from_release="$FROM_RELEASE"
+            -f retry_mb="$RETRY_MB" -f swap_gb="$SWAP_GB" -f solo_minutes="$SOLO_MINUTES" -f from_release="$FROM_RELEASE" -f only_modules="$ONLY_MODULES"
           echo "::notice::dispatched round $((ROUND + 1))"

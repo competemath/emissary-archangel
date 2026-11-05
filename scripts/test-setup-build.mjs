@@ -43,6 +43,7 @@ cpSync(join(here, "setup-source.mjs"), join(root, "scripts", "setup-source.mjs")
 cpSync(join(here, "setup-tools.mjs"), join(root, "scripts", "setup-tools.mjs"))
 cpSync(join(here, "bisect.mjs"), join(root, "scripts", "bisect.mjs"))
 cpSync(join(here, "memory-rules.mjs"), join(root, "scripts", "memory-rules.mjs"))
+cpSync(join(here, "add-swap.sh"), join(root, "scripts", "add-swap.sh"))
 writeFileSync(join(root, "sources.json"), JSON.stringify({ sources: { t: { repo: lib, commit, toolchain: TC, roots: ["Lib"] } } }))
 writeFileSync(join(root, "data", "queue-t.json"), JSON.stringify([
   { id: 1, name: "a", sourcePath: "Lib/A.lean", sourceLine: 1, status: "pending" },
@@ -57,6 +58,7 @@ writeFileSync(join(bin, "elan"), `#!/bin/sh\necho "${TC} (default)"\n`)
 // lake: records its call; with FAKE_LAKE_MAKES set it "compiles" every module it is asked for
 writeFileSync(join(bin, "lake"), `#!/bin/sh
 echo "$@" >> "${tmp}/lake-calls"
+echo "lake $@" >> "${tmp}/order"
 if [ -n "$FAKE_LAKE_HANGS" ] && [ "$1" = build ]; then exec sleep 25; fi
 if [ "$FAKE_LAKE_MAKES" = all ] && [ "$1" = build ]; then
   shift
@@ -130,6 +132,84 @@ check(
     r = setup(["--phase", "build", "--restore", again], { EMISSARY_DROP_RESTORED: v })
     check(`EMISSARY_DROP_RESTORED=${JSON.stringify(v)} is not "1": the archive is kept`, existsSync(again), r.stdout + r.stderr)
   }
+}
+
+// 2c. EMISSARY_ADD_SWAP_GB (the big-memory round): the swap is added right after the earlier build is unpacked and its archive deleted, BEFORE any module is compiled, and a failure to add it stops the
+// phase (cubic: a swap added in the background could come after the first compile, or never, and the round would run without the memory it was made for). df, sudo and free are recorders.
+{
+  const sb = join(tmp, "swapbin")
+  mkdirSync(sb, { recursive: true })
+  const order = join(tmp, "order")
+  const GIB = 1073741824
+  writeFileSync(join(sb, "df"), '#!/bin/sh\nprintf "Avail\\n%s\\n" "$FAKE_BYTES"\n')
+  writeFileSync(join(sb, "sudo"), `#!/bin/sh\necho "sudo $*" >> "${order}"\n[ -e "$ARCHIVE" ] && echo "ARCHIVE-STILL-THERE" >> "${order}"\n[ "$1" = "$FAIL_ON" ] && exit 1\nexit 0\n`)
+  writeFileSync(join(sb, "free"), "#!/bin/sh\nexit 0\n")
+  for (const f of ["df", "sudo", "free"]) chmodSync(join(sb, f), 0o755)
+  const withSwap = (archive, env) => {
+    rmSync(join(repo, ".lake"), { recursive: true, force: true })
+    writeFileSync(order, "")
+    const r = setup(["--phase", "build", ...(archive ? ["--restore", archive] : [])], { PATH: `${sb}:${process.env.PATH}`, FAKE_BYTES: String(113 * GIB), ARCHIVE: archive || "/nonexistent", EMISSARY_DROP_RESTORED: "1", ...env })
+    const log = readFileSync(order, "utf8").split("\n").filter(Boolean)
+    return { r, log, first: (re) => log.findIndex((l) => re.test(l)) }
+  }
+  let a = withSwap(packed(["A"], join(tmp, "swap1.tar.zst")), { EMISSARY_ADD_SWAP_GB: "48" })
+  check("the swap (48 GB of 113 free, 25 kept) is added after the unpack and before the first compile, with the archive already deleted", a.r.status === 0 && a.first(/fallocate -l 48G/) >= 0 && a.first(/swapon \/swapfile/) >= 0 && a.first(/^lake build/) > a.first(/swapon \/swapfile/) && !a.log.includes("ARCHIVE-STILL-THERE"), a.log.join("\n") + a.r.stderr)
+  a = withSwap(packed(["A"], join(tmp, "swap2.tar.zst")), { EMISSARY_ADD_SWAP_GB: "999" })
+  check("the swap is what the disk can spare (113 - 25 = 88 GB), not what was asked", a.r.status === 0 && a.first(/fallocate -l 88G/) >= 0, a.log.join("\n"))
+  a = withSwap(null, { EMISSARY_ADD_SWAP_GB: "48", FAKE_LAKE_MAKES: "all" })
+  check("an expired earlier build (nothing to restore): the swap is still added, before the build", a.r.status === 0 && a.first(/swapon \/swapfile/) >= 0 && a.first(/^lake build/) > a.first(/swapon \/swapfile/), a.log.join("\n") + a.r.stderr)
+  a = withSwap(packed(["A"], join(tmp, "swap3.tar.zst")), { EMISSARY_ADD_SWAP_GB: "48", FAIL_ON: "fallocate" })
+  check("a swap that cannot be added stops the phase before anything is compiled", a.r.status !== 0 && a.first(/^lake build/) < 0 && /could not add the swap/.test(a.r.stdout + a.r.stderr), a.log.join("\n") + a.r.stdout + a.r.stderr)
+  for (const v of [undefined, "0", ""]) {
+    a = withSwap(packed(["A"], join(tmp, "swap4.tar.zst")), v === undefined ? {} : { EMISSARY_ADD_SWAP_GB: v })
+    check(`EMISSARY_ADD_SWAP_GB=${JSON.stringify(v)}: no swap is touched and the build goes on`, a.r.status === 0 && !a.log.some((l) => l.startsWith("sudo")) && a.first(/^lake build/) >= 0, a.log.join("\n"))
+  }
+  for (const v of ["4G", "0123", "1000", "48;id", "-1", "x"]) {
+    a = withSwap(packed(["A"], join(tmp, "swap5.tar.zst")), { EMISSARY_ADD_SWAP_GB: v })
+    check(`EMISSARY_ADD_SWAP_GB=${JSON.stringify(v)} is refused before anything is compiled`, a.r.status !== 0 && a.first(/^lake build/) < 0 && !a.log.some((l) => l.startsWith("sudo")) && /EMISSARY_ADD_SWAP_GB is a number/.test(a.r.stdout + a.r.stderr), a.log.join("\n") + a.r.stdout + a.r.stderr)
+  }
+}
+
+// 2d. EMISSARY_ONLY_MODULES: only the named modules are built and judged, and the earlier build is unpacked for their closure only (the 16.5 GB archive of flt-anthropic's 30,000 modules did not fit
+// next to its own unpacked files on a runner, twice, and the 86 modules that were wanted need a few thousand of them)
+{
+  const only = (names, env = {}, archiveNames = ["A", "B"]) => {
+    rmSync(join(repo, ".lake"), { recursive: true, force: true })
+    const arc = packed(archiveNames, join(tmp, `only-${Math.random().toString(36).slice(2)}.tar.zst`))
+    const res = setup(["--phase", "build", "--restore", arc], { EMISSARY_ONLY_MODULES: names, ...env })
+    return { res, arc }
+  }
+  let o = only("Lib.A")
+  let st = statusOf(setup(["--phase", "build-status"], { EMISSARY_ONLY_MODULES: "Lib.A" }))
+  check("ONLY=Lib.A: A (which imports nothing) is restored and B is not", o.res.status === 0 && existsSync(olean("A")) && !existsSync(olean("B")), o.res.stdout + o.res.stderr)
+  check("ONLY=Lib.A: the status judges one module, and it is complete", st.file.modules === 1 && st.file.built === 1 && st.file.complete === true && st.word === "true", JSON.stringify(st))
+  o = only("Lib.B")
+  check("ONLY=Lib.B: B and what it imports (A) are restored", o.res.status === 0 && existsSync(olean("A")) && existsSync(olean("B")) && /restoring the closure of 1 modules only: 2 modules/.test(o.res.stdout + o.res.stderr), o.res.stdout + o.res.stderr)
+  // unrelated members of the archive stay in the archive
+  rmSync(join(repo, ".lake"), { recursive: true, force: true })
+  const stage = mkdtempSync(join(tmp, "stage-"))
+  mkdirSync(join(stage, ".lake", "build", "lib", "lean", "Lib"), { recursive: true })
+  for (const n of ["A", "B", "Other"]) writeFileSync(join(stage, ".lake", "build", "lib", "lean", "Lib", `${n}.olean`), "")
+  const arc2 = join(tmp, "only-other.tar.zst")
+  sh("tar", ["--zstd", "-cf", arc2, "-C", stage, ".lake/build"])
+  const r2 = setup(["--phase", "build", "--restore", arc2], { EMISSARY_ONLY_MODULES: "Lib.B" })
+  check("a member of the archive that no named module imports is not unpacked", r2.status === 0 && existsSync(olean("B")) && !existsSync(join(repo, ".lake", "build", "lib", "lean", "Lib", "Other.olean")), r2.stdout + r2.stderr)
+  // the archive is deleted after the restricted unpack too
+  o = only("Lib.A", { EMISSARY_DROP_RESTORED: "1" })
+  check("with EMISSARY_DROP_RESTORED=1 the archive is deleted after a restricted unpack", o.res.status === 0 && !existsSync(o.arc), o.res.stdout + o.res.stderr)
+  // names are checked before anything is built or unpacked
+  for (const [name, v, re] of [["a module with no entries in the library", "Lib.Nope", /no entries/], ["a shell word", "Lib.A;id", /not a module name/], ["a space", "Lib.A Lib.B", /not a module name/], ["a name that starts with a digit", "1Lib", /not a module name/]]) {
+    o = only(v)
+    check(`ONLY with ${name} stops the phase and unpacks nothing`, o.res.status !== 0 && re.test(o.res.stdout + o.res.stderr) && !existsSync(olean("A")), o.res.stdout + o.res.stderr)
+  }
+  // empty or only commas: everything, as before
+  for (const v of ["", ",", ",,"]) {
+    o = only(v)
+    check(`ONLY=${JSON.stringify(v)} means all modules: both are restored`, o.res.status === 0 && existsSync(olean("A")) && existsSync(olean("B")), o.res.stdout + o.res.stderr)
+  }
+  // the other phases ignore it
+  const s0 = setup(["--phase", "build-status"])
+  check("build-status without ONLY judges both modules", /^modules=2$/m.test(s0.stdout), s0.stdout)
 }
 
 // 3. the earlier round got through half: the build phase finishes the rest

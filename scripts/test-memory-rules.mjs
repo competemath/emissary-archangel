@@ -12,7 +12,7 @@
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { availableFrom, soloBuildMs, SOLO_BUILD_DEFAULT_MS } from "./memory-rules.mjs"
+import { availableFrom, membersOf, soloBuildMs, SOLO_BUILD_DEFAULT_MS } from "./memory-rules.mjs"
 import { escalation, ESCALATE_RETRY_MB, ESCALATE_SWAP_GB, ESCALATE_SOLO_MINUTES } from "./setup-plan.mjs"
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -98,6 +98,62 @@ const good = run(real, true)
 console.log(`memory rules: ${good.cases} cases over ${samples.length} real memory samples (${fixture.source}): ${good.violations} violations`)
 check("the real rules hold on every case", good.violations === 0, good.violations)
 check("the escalation settings are inside what a hosted runner and a job can do", ESCALATE_SWAP_GB >= 16 && ESCALATE_SWAP_GB <= 100 && ESCALATE_SOLO_MINUTES <= 340 && ESCALATE_RETRY_MB > 14336 && ESCALATE_RETRY_MB <= (16 + ESCALATE_SWAP_GB) * 1024, `${ESCALATE_RETRY_MB} ${ESCALATE_SWAP_GB} ${ESCALATE_SOLO_MINUTES}`)
+
+
+// ---- membersOf: which files of a packed build belong to the modules whose closure is restored (only_modules) ----
+// Every real module of every library set up so far (scripts/fixtures/real-module-lists.json: 110 libraries, 14,913 modules, with dots, guillemets and long names) gets the files a Lake build leaves for it
+// (olean, ilean, hashes, trace, C output, and the setup.json that is never restored), in both places, in a made-up archive listing; a random subset is kept, and the files returned must be exactly
+// the files of the kept modules, whatever their neighbours are called (A, A_b, A.B and AB all in one archive).
+{
+  const real = JSON.parse(readFileSync(join(here, "fixtures", "real-module-lists.json"), "utf8"))
+  const componentsOf = (m) => m.match(/«[^»]+»|[^.«»]+/g)
+  const pathOf = (m) => componentsOf(m).join("/")
+  const LIB = [".olean", ".ilean", ".olean.hash", ".ilean.hash", ".trace", ".hash"], IR = [".c", ".c.hash", ".setup.json"]
+  const filesOf = (m) => [...LIB.map((s) => `.lake/build/lib/lean/${pathOf(m)}${s}`), ...IR.map((s) => `.lake/build/ir/${pathOf(m)}${s}`)]
+  const wanted = (m) => filesOf(m).filter((f) => !f.endsWith(".setup.json"))
+  let seed = 42
+  const rnd = (n) => { seed = (seed + 0x6d2b79f5) | 0; let x = Math.imul(seed ^ (seed >>> 15), 1 | seed); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) % n }
+  const run2 = (rule, print) => {
+    let cases = 0, wrongM = 0
+    for (const [lib, mods] of Object.entries(real)) {
+      const all = [...new Set(mods)]
+      for (const frac of [0, 1, 5, 50, 100]) {
+        const keepMods = all.filter(() => rnd(100) < frac)
+        const keep = new Set(keepMods.map(pathOf))
+        const listing = [...all.flatMap(filesOf), ".lake/build/lib/lean/", ".lake/build/", ".lake/build/lib/lean/Zzz.lock", ".lake/build/ir/Lib.c.txt", "./.lake/build/lib/lean/Elsewhere.olean"].sort(() => rnd(3) - 1).join("\n")
+        const got = rule(listing, keep).sort()
+        const want = keepMods.flatMap(wanted).sort()
+        cases++
+        if (got.length !== want.length || got.some((f, i) => f !== want[i])) { wrongM++; if (print && wrongM <= 3) console.log("FAIL membersOf", lib, frac, got.length, want.length) }
+      }
+    }
+    return { cases, wrongM }
+  }
+  const goodM = run2(membersOf, true)
+  const nmods = Object.values(real).reduce((a, m) => a + new Set(m).size, 0)
+  check(`membersOf returns exactly the files of the kept modules, on ${goodM.cases} real library listings (${nmods} real modules, ${nmods * 9} files, 5 keep fractions), never a setup.json`, goodM.wrongM === 0, goodM.wrongM)
+  // neighbours with a similar name are not confused
+  const near = ["A", "A_b", "AB", "A.B", "A.B.C", "Ab"].flatMap((m) => filesOf(m)).join("\n")
+  { const odd = ["«a.b».C", "X.«c.d»", "X.«c»", "X.c"], ol = odd.flatMap(filesOf).join("\n"); check("dotted «guillemet» components are kept whole and told from their neighbours", odd.every((m) => JSON.stringify(membersOf(ol, new Set([pathOf(m)])).sort()) === JSON.stringify(wanted(m).sort())), "") }
+  check("neighbouring names (A, A_b, AB, A.B, Ab) are told apart", JSON.stringify(membersOf(near, new Set(["A"])).sort()) === JSON.stringify(wanted("A").sort()) && membersOf(near, new Set(["A/B"])).length === wanted("A.B").length, "")
+  const brokenRules = {
+    "setup.json files are restored too": (l, k) => { const out = []; for (const line of l.split("\n")) { const m = /^\.lake\/build\/(?:lib\/lean|ir)\/(.+)$/.exec(line); if (!m) continue; const parts = m[1].split("/"); const last = parts.pop(); if (k.has([...parts, last.split(".")[0]].join("/"))) out.push(line) } return out },
+    "a module is matched by prefix (A takes A_b)": (l, k) => l.split("\n").filter((line) => [...k].some((x) => line.includes(`/${x}`))),
+    "only the lib/lean files are kept, not the C output": (l, k) => membersOf(l, k).filter((f) => f.includes("/lib/lean/")),
+    "the guillemet component is cut at its first dot": (l, k) => { const out = []; for (const line of l.split("\n")) { const m = /^\.lake\/build\/(?:lib\/lean|ir)\/(.+)$/.exec(line); if (!m || line.endsWith(".setup.json")) continue; const parts = m[1].split("/"); const last = parts.pop(); if (k.has([...parts, last.split(".")[0]].join("/"))) out.push(line) } return out },
+  }
+  let caughtM = 0
+  for (const [name, rule] of Object.entries(brokenRules)) {
+    const r = run2(rule, false)
+    // names the real corpus may not have: a dotted «guillemet» component, one more neighbour
+    const odd = ["«a.b».C", "X.«c.d»", "X.«c»", "X.c"]
+    const oddListing = odd.flatMap(filesOf).join("\n")
+    for (const keepOne of odd) { r.cases++; if (JSON.stringify(rule(oddListing, new Set([pathOf(keepOne)])).sort()) !== JSON.stringify(wanted(keepOne).sort())) r.wrongM++ }
+    if (r.wrongM > 0) caughtM++
+    check(`the broken version "${name}" is caught (${r.wrongM} of ${r.cases} listings wrong)`, r.wrongM > 0, "")
+  }
+  check("every broken membersOf was caught", caughtM === Object.keys(brokenRules).length, `${caughtM}`)
+}
 
 // setup-source.mjs really uses them: the solo build is bounded by the rule, the guard reads meminfo through it
 {

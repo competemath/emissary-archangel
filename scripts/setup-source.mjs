@@ -36,7 +36,7 @@ import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import { collectTools, exporterAction, mergeTools, patchFingerprint } from "./setup-tools.mjs"
 import { bisectItems } from "./bisect.mjs"
-import { availableFrom, soloBuildMs } from "./memory-rules.mjs"
+import { availableFrom, membersOf, soloBuildMs } from "./memory-rules.mjs"
 
 const x = promisify(execFile)
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -1040,9 +1040,42 @@ function adopt(entries, modules, stats, t0) {
   return true
 }
 
+// Swap for the big-memory round (EMISSARY_ADD_SWAP_GB, set by the prime job when swap_gb is not 0): added here, right after the earlier build is unpacked and its archive deleted,
+// by scripts/add-swap.sh, which sizes it from the free space at this moment. Synchronous: no module is compiled before it is there, and a failure to add it stops the phase.
+async function addSwap() {
+  const gb = process.env.EMISSARY_ADD_SWAP_GB
+  if (!gb || gb === "0") return
+  if (!/^[1-9][0-9]{0,2}$/.test(gb)) fail(`EMISSARY_ADD_SWAP_GB is a number of GB, not ${gb}`)
+  const r = await run("sh", [join(APP_ROOT, "scripts", "add-swap.sh"), gb, "25"], { timeoutMs: 10 * 60 * 1000 })
+  if (r.code !== 0) fail(`could not add the swap for the big-memory round (add-swap.sh exited ${r.code}): ${r.tail.slice(-300)}`)
+}
+
 // Unpacks an earlier round's build over the checkout. A shard needs it (it is the prime's build); the prime
 // itself uses it to carry on where the last round stopped, and goes without when the artifact has expired.
 // The *.setup.json files (Lake's per-module setup, 7.6 MB each here, 89 GB for 11,792 modules) are never restored, also from a build packed before they were left out.
+// ONLY THESE MODULES (EMISSARY_ONLY_MODULES, a comma list; setup-sharded.yml only_modules): the build and build-status phases look at these modules only, and the earlier build is
+// restored for their closure only. For adding a few modules that could not be built before (flt-anthropic's 86 top-of-proof modules) to a library whose earlier build is far too big
+// to unpack next to its own archive on one runner (the 16.5 GB archive of 30,000 modules: "No space left on device" twice, 5 Nov 2026). Names are checked: a typo must not look like a build.
+function onlyModules() {
+  const raw = process.env.EMISSARY_ONLY_MODULES
+  if (!raw) return null
+  const names = raw.split(",").filter(Boolean)
+  if (!names.length) return null
+  for (const m of names) if (m.length > 300 || !MODULE_NAME.test(m)) fail(`EMISSARY_ONLY_MODULES: not a module name: ${m.slice(0, 80)}`)
+  return new Set(names)
+}
+// the module and everything of the library it imports, directly or not
+function closureOf(roots) {
+  const seen = new Set()
+  const stack = [...roots]
+  while (stack.length) {
+    const m = stack.pop()
+    if (seen.has(m)) continue
+    seen.add(m)
+    for (const i of importsOf(m) ?? []) stack.push(i)
+  }
+  return seen
+}
 function restoreBuild({ required }) {
   if (!RESTORE) return Promise.resolve()
   if (!existsSync(resolve(RESTORE))) {
@@ -1050,7 +1083,23 @@ function restoreBuild({ required }) {
     log(`no earlier build at ${RESTORE}: building from what the checkout has`)
     return Promise.resolve()
   }
-  return run("tar", ["--zstd", "--exclude=*.setup.json", "-xf", resolve(RESTORE), "-C", REPO], { timeoutMs: 60 * 60 * 1000 }).then((r) => {
+  const only = onlyModules()
+  const unpack = async () => {
+    if (!only) return run("tar", ["--zstd", "--exclude=*.setup.json", "-xf", resolve(RESTORE), "-C", REPO], { timeoutMs: 60 * 60 * 1000 })
+    // the closure of the named modules only: list the archive, keep their files, unpack exactly those
+    const keep = new Set([...closureOf(only)].map((m) => pathOfModule(m).replace(/\.lean$/, "")))
+    const listFile = join(INFRA, "restore-listing.txt")
+    const l = await runToFile("tar", ["--zstd", "-tf", resolve(RESTORE)], listFile, { timeoutMs: 30 * 60 * 1000 })
+    if (l.code !== 0) return l
+    const members = membersOf(readFileSync(listFile, "utf8"), keep)
+    const pick = join(INFRA, "restore-members.txt")
+    writeFileSync(pick, members.join("\n") + "\n")
+    log(`restoring the closure of ${only.size} modules only: ${keep.size} modules, ${members.length} files of the archive`)
+    rmSync(listFile, { force: true })
+    if (!members.length) return { code: 0, tail: "" }
+    return run("tar", ["--zstd", "-xf", resolve(RESTORE), "-C", REPO, "-T", pick], { timeoutMs: 60 * 60 * 1000 })
+  }
+  return unpack().then((r) => {
     if (r.code !== 0) fail(`could not restore the build from ${RESTORE}: ${r.tail.slice(-300)}`)
     // EMISSARY_DROP_RESTORED=1 (the prime job): the archive is not needed any more, and 16 GB of it is what the swap of the big-memory round has to be added from
     if (process.env.EMISSARY_DROP_RESTORED === "1") {
@@ -1306,7 +1355,14 @@ async function main() {
   log(`setup ${key}: ${src.repo} @ ${src.commit.slice(0, 12)} on ${src.toolchain}, roots ${src.roots.join(", ")}`)
   await ensureClone()
   const { entries, stats } = seedQueue()
-  const modules = Array.from(new Set(entries.map((e) => moduleOfPath(e.sourcePath)))).sort()
+  let modules = Array.from(new Set(entries.map((e) => moduleOfPath(e.sourcePath)))).sort()
+  const only = PHASE === "build" || PHASE === "build-status" ? onlyModules() : null
+  if (only) {
+    const unknown = [...only].filter((m) => !modules.includes(m))
+    if (unknown.length) fail(`EMISSARY_ONLY_MODULES names modules with no entries in ${key}: ${unknown.slice(0, 5).join(", ")}`)
+    modules = modules.filter((m) => only.has(m))
+    log(`only ${modules.length} named modules are built and judged (EMISSARY_ONLY_MODULES)`)
+  }
   log(`${entries.length} entries in ${modules.length} modules`)
   if (ONLY === "seed") return
   if (PHASE === "finish") return finish(entries, modules, stats, t0)
@@ -1315,6 +1371,7 @@ async function main() {
   await ensureToolchain()
   if (PHASE === "build") {
     await restoreBuild({ required: false })
+    await addSwap()
     await build(modules)
     return log(`done ${key} (build phase): the build stays for the shards`)
   }

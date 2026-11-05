@@ -23,3 +23,20 @@ export function availableFrom(meminfo, countSwap = false) {
   const swap = countSwap ? /^SwapFree:\s+(\d+) kB/m.exec(meminfo) : null
   return (Number(m[1]) + (swap ? Number(swap[1]) : 0)) / 1024
 }
+
+// The files of a packed build (.lake/build/lib/lean/<path>.* and .lake/build/ir/<path>.*, never *.setup.json) that belong to the modules in `keep`; `listing` is `tar -t` of the archive.
+// A file is named <path>.<suffixes>, the module's path being everything up to the first dot of the last component (a «guillemet» component may hold dots).
+export function membersOf(listing, keep) {
+  const out = []
+  for (const line of listing.split("\n")) {
+    const f = line.replace(/^\.\//, "")
+    const m = /^\.lake\/build\/(?:lib\/lean|ir)\/(.+)$/.exec(f)
+    if (!m || f.endsWith(".setup.json")) continue
+    const parts = m[1].split("/")
+    const last = parts.pop()
+    const stem = last.startsWith("«") ? last.slice(0, last.indexOf("»") + 1) : last.split(".")[0]
+    if (!last.slice(stem.length).startsWith(".")) continue
+    if (keep.has([...parts, stem].join("/"))) out.push(f)
+  }
+  return out
+}
