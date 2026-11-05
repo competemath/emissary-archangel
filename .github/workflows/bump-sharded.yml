@@ -27,6 +27,9 @@ on:
       gate2_budget_min: { description: "minutes Gate 2 may spend on each shard (default 150; the shard job has 345 in all, the build and export come first). A shard whose chunks do not fit leaves the rest unjudged, and an unjudged module is cut with its importers", default: "150" }
       gate2_skip: { description: "modules (comma list, the library's own names) that killed Lean alone in an earlier run: Gate 2 does not try them again (they get no verdict, as before) and spends the time on the others", default: "" }
       gate2_rss_share: { description: "the share of the runner's memory one Lean process of Gate 2 may use (default 0.80 = 12.8 GB of 16). A module that outgrows it alone gets no verdict and is cut with its importers", default: "0.80" }
+      only_modules: { description: "ONLY THESE: a comma list of the library's modules. Only they are judged (the plan's targets); what they import is built as always. For a library whose first bump left some modules without a verdict (modules too big for a runner, left out of its setup and added later): judge those, nothing else", default: "" }
+      swap_gb: { description: "GB of swap every shard adds (0: none): for the modules too big for a runner's RAM (flt-anthropic's P2M.Sol proofs of 100-900 KB). Gate 2 then counts swap as memory", default: "0" }
+      build_timeout_min: { description: "minutes one module may take to build in a shard (default 90); modules run on swap need more (at most 340)", default: "90" }
       only_shards: { description: "RESUME: run only these shards of the plan (comma list of shard numbers), the one that died; with fill_from for the others", default: "" }
       fill_from: { description: "RESUME: the id of an earlier run of this workflow for this key whose shard artifacts fill in the shards this run does not build. Its plan must be this run's plan (checked)", default: "" }
       fill_unrecorded: { description: "RESUME: fill_from is a run from before plans recorded what the shards are built with (plan/inputs.json): you vouch that it ran with the same mathlib, toolchain, imports and tengoku_ref as this one", default: "false" }
@@ -41,7 +44,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 90
     permissions: { contents: read }
-    env: { KEY: "${{ inputs.key }}", SHARDS: "${{ inputs.shards }}", MAX_TARGETS: "${{ inputs.max_targets }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}" }
+    env: { KEY: "${{ inputs.key }}", SHARDS: "${{ inputs.shards }}", MAX_TARGETS: "${{ inputs.max_targets }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}", ONLY_MODULES: "${{ inputs.only_modules }}" }
     outputs:
       shards: ${{ steps.p.outputs.shards }}
       run_shards: ${{ steps.run.outputs.run_shards }}
@@ -77,6 +80,13 @@ jobs:
           wanted = {".".join(tb.esc(x) for x in r["sourcePath"][:-5].split("/")) for r in ents.values()}
           imp, weight = ps.graph(Path("lib"), roots)
           wanted &= set(imp)
+          only = {m for m in os.environ.get("ONLY_MODULES", "").split(",") if m}
+          try:  # ONLY THESE: the named modules only; an unknown name, or nothing left to judge, stops the run (a typo must not look like success)
+              wanted = ps.restrict_wanted(wanted, only, set(imp))
+          except ValueError as e:
+              sys.exit(str(e))
+          if only:
+              print("only_modules:", len(only), "named,", len(wanted), "to judge")
           k = int(os.environ["SHARDS"] or 0)
           if k <= 0:  # automatic: start from one shard per ~200k lines, then as many as it takes for no shard to build more than ps.MAX_SHARD_LINES (Gate 2 is one lean process: a bigger shard is OOM-killed)
               k, plan = ps.choose_k(imp, weight, wanted, max(1, math.ceil(sum(weight.values()) / 200_000)))
@@ -126,6 +136,8 @@ jobs:
       gate2_budget_min: ${{ inputs.gate2_budget_min }}
       gate2_rss_share: ${{ inputs.gate2_rss_share }}
       gate2_skip: ${{ inputs.gate2_skip }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
     permissions: { contents: read }
   # compose: the DRAFT. Merges the shards and cuts the bundle exactly as `finish` will, and hands the draft to `verify` (the tree's own build of it). Nothing is signed here
   # and no code of the library runs: the shards' artifacts are read as data (shard_pack.merge refuses symlinks and `..`).

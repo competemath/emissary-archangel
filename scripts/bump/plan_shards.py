@@ -115,6 +115,20 @@ def plan(imp: dict[str, list[str]], weight: dict[str, int], k: int, cap: float =
             "max_shard_lines": max(x["lines"] for x in shards), "mean_shard_lines": round(total * dup / k), "shards": shards}
 
 
+def restrict_wanted(wanted: set[str], only: set[str], modules: set[str]) -> set[str]:
+    """ONLY THESE (bump-sharded `only_modules`): of the modules that need checking, only the named ones. A name the library does not have is an error, and so is a result with nothing
+    to judge: a typo must not turn into a bump that judges nothing and looks like success."""
+    if not only:
+        return set(wanted)
+    unknown = sorted(only - modules)
+    if unknown:
+        raise ValueError(f"only_modules names modules the library does not have: {unknown[:5]}")
+    kept = wanted & only
+    if not kept:
+        raise ValueError("only_modules: none of the named modules has entries to judge")
+    return kept
+
+
 MAX_SHARD_LINES = 250_000  # what one 7 GB runner's Gate 2 (one lean process loading the whole shard) survives; navier-stokes-euler's 601k-line shard was OOM-killed twice
 MAX_SHARDS = 32
 
