@@ -122,7 +122,11 @@ class Item:
 
 
 def declared_name_matches(name: str, written: str) -> bool:
-    """The text at the name's position is the theorem's name, in full or as the last components (`theorem Foo.bar` inside `namespace X`, or `bar` inside it)."""
+    """The text at the name's position is the theorem's name, in full or as the last components (`theorem Foo.bar` inside `namespace X`, or `bar` inside it).
+    `_root_.Foo.bar` declares exactly `Foo.bar`, whatever namespaces are open (yamaguchi-papers part 3, 6 Nov 2026: ten modules with `theorem _root_.AlgebraicGeometry...` were skipped as
+    "generated", stayed untagged, and the tag push refused the whole PR)."""
+    if written.startswith("_root_."):
+        return name == written[len("_root_.") :]
     return name == written or name.endswith("." + written)
 
 
