@@ -1,0 +1,59 @@
+{
+  "key": "foundation",
+  "repo": "https://github.com/FormalizedFormalLogic/Foundation",
+  "commit": "81810b9f22c49fbb32bd89c1e9737059d83a37e6",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "Foundation"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/foundation/repo",
+  "entries": 5504,
+  "modules": 183,
+  "exported": 183,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 5565,
+    "kept": 5504,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 61,
+    "lineFixed": 5014,
+    "lineUnverified": 43,
+    "nameFixed": 405,
+    "sorryOriginals": 0,
+    "emptyProofs": 7
+  },
+  "sharded": {
+    "records": 8,
+    "shards": [
+      8
+    ]
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 1536167936,
+  "minutes": 2,
+  "finishedAt": "2026-11-06T21:47:31.759Z",
+  "archive": {
+    "release": "exports-foundation",
+    "asset": "foundation@81810b9f22c4-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-foundation/foundation@81810b9f22c4-exports.tar.zst",
+    "bytes": 154039697,
+    "sha256": "f78c6f99c2e0d64cdb4fb105731cbc9fdd5f3c65f5bc1bacf30d1c3fefab2cb0",
+    "files": 366,
+    "unpack": "tar --zstd -xf foundation@81810b9f22c4-exports.tar.zst -C data/exports/foundation"
+  }
+}
