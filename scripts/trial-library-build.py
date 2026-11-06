@@ -151,7 +151,7 @@ def retarget_lean(text: str, mathlib: str) -> str:
             elif re.search(r'@\s*"[^"]*"', stmt):
                 stmt = re.sub(r'(@\s*)"[^"]*"', lambda m: f'{m.group(1)}"{mathlib}"', stmt, count=1)
             else:
-                stmt += f' @ git "{mathlib}"' if "/" in stmt.split("@")[0] else f' @ "{mathlib}"'
+                stmt += f' @ git "{mathlib}"' if re.match(r'\s*require\s+"[^"]+"\s*/', stmt) else f' @ "{mathlib}"'
             out.append(stmt)
         else:
             out.append(stmt)

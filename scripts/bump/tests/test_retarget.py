@@ -65,6 +65,9 @@ class EveryMathlibSpelling(unittest.TestCase):
             out.append(f'require {name} from git "https://github.com/leanprover-community/mathlib4.git" @ "v1.2.3"')
             out.append(f'require {name} from git\n  "https://github.com/leanprover-community/mathlib4.git" @ "v1.2.3"')
             out.append(f'require {name} @ git "v1.2.3"')
+            # no revision at all: the scoped form gets `@ git "rev"`, the `from git "url"` form `@ "rev"` (a URL has slashes too: cubic, #142)
+            out.append(f'require {name} from git "https://github.com/leanprover-community/mathlib4.git"')
+            out.append(f'require {name} from git\n  "https://github.com/leanprover-community/mathlib4.git"')
         return out
 
     def test_grid(self):
@@ -81,7 +84,9 @@ class EveryMathlibSpelling(unittest.TestCase):
                         self.assertNotIn('"v1.2.3"', out, req)
                         self.assertEqual(out.count("require"), text.count("require"), f"no require added or lost:\n{req}")
                         self.assertEqual(tlb.retarget_lean(out, "v9.9.9"), out, f"retargeting twice changes nothing:\n{req}")
-        self.assertGreaterEqual(cases, 720)  # 60 spellings x 2 x 2 x 3 surroundings
+                        if "from git" in req:  # `require mathlib from git "url" @ "rev"` is Lake syntax; `from git "url" @ git "rev"` is not (a URL has slashes: cubic, #142)
+                            self.assertNotIn('@ git', out, req)
+        self.assertGreaterEqual(cases, 768)  # 64 spellings x 2 x 2 x 3 surroundings
 
     def test_the_real_compply_lakefile(self):
         text = REAL["compply"]
