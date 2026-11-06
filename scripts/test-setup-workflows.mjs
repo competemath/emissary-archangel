@@ -163,6 +163,11 @@ check("the cases hold both a stop and a dispatch, rounds with and without a coun
     const g = runGate(gateScript, { round, maxRounds: 6, prev: "100", built: "100", min: 1, toobig: "4", escalate: "true", fromRelease: "true", only: "Theorem.A" })
     check(`an escalation at round ${round} of a plan of 6 is dispatched whatever the ceiling (it is never followed by another)`, g.code === 0 && g.calls.includes("retry_mb=57344") && g.calls.includes(`build_round=${round + 1}`), g.text.slice(0, 200))
   }
+  // an enormous plan size would overflow the shell arithmetic of the ceiling (cubic, #145): refused with a message, nothing dispatched
+  for (const huge of ["9223372036854775808", "99999999999999999999", "10000"]) {
+    const g = runGate(gateScript, { round: 7, maxRounds: huge, prev: "70", built: "85", min: 1 })
+    check(`a max_build_rounds of ${huge} is refused before any arithmetic`, g.code !== 0 && !g.calls.includes("workflow run") && /at most four digits/.test(g.text), g.text.slice(0, 200))
+  }
   const messages = runGate(gateScript, { round: 6, maxRounds: 6, prev: "70", built: "85", min: 1 })
   check("the notice at the boundary says the planned round was reached and names the ceiling, the next one says planned and ceiling", /reached the planned 6/.test(messages.text) && /ceiling 18/.test(messages.text) && /planned 6, ceiling 18/.test(messages.text), messages.text)
   const stop = runGate(gateScript, { round: 7, maxRounds: 6, prev: "", built: "", min: 1 })

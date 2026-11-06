@@ -310,6 +310,8 @@ jobs:
           for v in "$SHARDS" "$PRIME_MINUTES" "$EXPAND_CHUNK" "$ROUND" "$MAX_ROUNDS" "$PARALLEL" "$BUILD_ROUND" "$MAX_BUILD_ROUNDS" "$RETRY_MB" "$SWAP_GB" "$SOLO_MINUTES"; do
             [[ "$v" =~ ^[0-9]+$ ]] || { echo "::error::an input is not a number: $v"; exit 1; }
           done
+          # the plan and the round are small counts (at most four digits): the ceiling of three times the plan is computed in bash integer arithmetic, which overflows on a digit string like 9223372036854775808
+          [ "${#MAX_BUILD_ROUNDS}" -le 4 ] && [ "${#BUILD_ROUND}" -le 4 ] || { echo "::error::max_build_rounds and the build round are counts of at most four digits: $MAX_BUILD_ROUNDS, $BUILD_ROUND"; exit 1; }
           # the counts are plain decimal numbers (no sign, no leading zero: bash would read 08 as octal), at most nine digits; prev_built, built and modules may be empty (nothing known)
           [[ "$MIN_PROGRESS" =~ ^(0|[1-9][0-9]{0,8})$ ]] || { echo "::error::min_progress is not a count: $MIN_PROGRESS"; exit 1; }
           for v in "$PREV_BUILT" "$BUILT" "$MODULES" "$TOOBIG" "$BLOCKED"; do
