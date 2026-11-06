@@ -1,5 +1,5 @@
 // node scripts/test-setup-plan.mjs — the route a library is set up by (exits 1 on a wrong plan)
-import { decide, roundProgress, MIN_PROGRESS_DEFAULT, ONE_SHOT_MAX_ENTRIES, MAX_SHARDS } from "./setup-plan.mjs"
+import { decide, roundProgress, roundsCap, BUILD_ROUNDS_CEILING_FACTOR, MIN_PROGRESS_DEFAULT, ONE_SHOT_MAX_ENTRIES, MAX_SHARDS } from "./setup-plan.mjs"
 let bad = 0
 const check = (name, ok, got) => {
   if (!ok) { bad++; console.log("FAIL", name, JSON.stringify(got)) } else console.log("ok", name)
@@ -72,4 +72,17 @@ check("mutant: reading no count as zero is noticed", disagrees(({ round, prev, b
 check("mutant: counting a fall as no change is noticed", disagrees(({ round, prev, built, min }) => (round === 1 || prev === null ? false : Math.max(0, built - prev) < min && built >= prev)), null)
 check("mutant: comparing with the library's size instead of the round before is noticed", disagrees(({ round, prev, built, min }) => (round === 1 || prev === null ? false : built < min)), null)
 check("mutant: stopping on a fall although min is 0 is noticed", disagrees(({ round, prev, built, min }) => (round === 1 || prev === null ? false : built - prev < min || (min === 0 && built < prev))), null)
+
+// roundsCap: the plan's number of build rounds is a budget, not a wall (flt-anthropic, 6 Nov 2026: round 6 of 6 built 85 of 86 modules and the chain stopped until a person raised the cap)
+{
+  const c = (a) => roundsCap(a).stop
+  check("within the plan, another round whatever the counts", [1, 2, 5].every((r) => !c({ round: r, maxRounds: 6, prev: null, built: null })), null)
+  check("the real case: round 6 of 6 added 15 modules (70 -> 85): another round", !c({ round: 6, maxRounds: 6, prev: 70, built: 85 }), null)
+  check("past the plan with no gain, or a fall, or no count: stop", c({ round: 6, maxRounds: 6, prev: 85, built: 85 }) && c({ round: 7, maxRounds: 6, prev: 85, built: 80 }) && c({ round: 6, maxRounds: 6, prev: null, built: 85 }) && c({ round: 6, maxRounds: 6, prev: 85, built: null }), null)
+  check("min_progress counts: 4 added with min 5 stops, 5 added continues, min 0 still needs one", c({ round: 6, maxRounds: 6, prev: 100, built: 104, min: 5 }) && !c({ round: 6, maxRounds: 6, prev: 100, built: 105, min: 5 }) && c({ round: 6, maxRounds: 6, prev: 100, built: 100, min: 0 }) && !c({ round: 6, maxRounds: 6, prev: 100, built: 101, min: 0 }), null)
+  check("the ceiling is three times the plan, whatever the gain", !c({ round: 17, maxRounds: 6, prev: 1, built: 999 }) && c({ round: 18, maxRounds: 6, prev: 1, built: 999 }) && BUILD_ROUNDS_CEILING_FACTOR === 3, null)
+  let threw = 0
+  for (const a of [{ round: 0, maxRounds: 6 }, { round: 1, maxRounds: 0 }, { round: 1.5, maxRounds: 6 }, { round: 1, maxRounds: 6, min: -1 }]) { try { roundsCap(a) } catch { threw++ } }
+  check("a round or a plan that is not a count is an error", threw === 4, threw)
+}
 process.exit(bad ? 1 : 0)
