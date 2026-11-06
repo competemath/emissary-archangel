@@ -25,7 +25,26 @@ if (!existsSync(recPath)) {
   console.error(`${recPath} does not exist: ${key} has no runner setup record`)
   process.exit(1)
 }
-const a = JSON.parse(readFileSync(recPath, "utf8")).archive
+let a = JSON.parse(readFileSync(recPath, "utf8")).archive
+// The record in this checkout can be older than the archive it names: a setup round that republishes the library's archive (the same asset name, new bytes and a new sha256) while a long run is in flight
+// leaves the run's checkout pointing at an archive that no longer exists (flt-anthropic, 6 Nov 2026: the shards of a pilot that started after the 86's export round republished the archive all failed with
+// "the download's sha256 is c335..., the record says bcbf..."). So the current record of the default branch is read first (EMISSARY_RECORD_URL, or GITHUB_REPOSITORY's main); when it names another archive, that
+// one is used. Unreachable or unreadable: the checkout's own record, as before.
+function currentArchive(mine) {
+  const url = process.env.EMISSARY_RECORD_URL || (process.env.GITHUB_REPOSITORY ? `https://raw.githubusercontent.com/${process.env.GITHUB_REPOSITORY}/main/data/exports/${key}/setup.ci.json` : "")
+  if (!url) return mine
+  try {
+    const fresh = JSON.parse(execFileSync("curl", ["-fsSL", "--retry", "3", "--retry-delay", "5", "--max-time", "60", url], { stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 << 20 }).toString()).archive
+    if (fresh?.sha256 && fresh.sha256 !== mine?.sha256) {
+      console.log(`${key}: this checkout's record names ${mine?.sha256?.slice(0, 12)}, the current record ${fresh.sha256.slice(0, 12)}: the archive was republished; using the current one`)
+      return fresh
+    }
+  } catch {
+    /* unreachable or not a record: the checkout's own */
+  }
+  return mine
+}
+a = currentArchive(a)
 if (!a?.sha256) {
   console.log(`${key} keeps its exports in git: nothing to download`)
   process.exit(0)
@@ -57,7 +76,7 @@ try {
     rmSync(part, { force: true })
   }
   const got = await sha256(tmp)
-  if (got !== a.sha256) throw new Error(`the download's sha256 is ${got}, the record says ${a.sha256}`)
+  if (got !== a.sha256) throw new Error(`the download's sha256 is ${got}, the record says ${a.sha256} (the archive may have been republished since the record was read; the current record could not be used to tell)`)
   if (only) {
     // the members' names (with or without a leading ./): the files of the wanted modules, under either spelling of a module name
     const members = new Set(execFileSync("tar", ["--zstd", "-tf", tmp], { maxBuffer: 1 << 30 }).toString().split("\n").filter(Boolean))
