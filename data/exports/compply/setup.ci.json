@@ -1,0 +1,59 @@
+{
+  "key": "compply",
+  "repo": "https://github.com/Verified-zkEVM/CompPoly",
+  "commit": "4ce69b905b618ad147e4d3a27ee0a841263d49a0",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "CompPoly"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/compply/repo",
+  "entries": 4832,
+  "modules": 241,
+  "exported": 241,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 4918,
+    "kept": 4832,
+    "skippedRoot": 59,
+    "skippedDup": 24,
+    "skippedNoFile": 0,
+    "skippedCommented": 3,
+    "lineFixed": 2352,
+    "lineUnverified": 8,
+    "nameFixed": 184,
+    "sorryOriginals": 0,
+    "emptyProofs": 19
+  },
+  "sharded": {
+    "records": 7,
+    "shards": [
+      7
+    ]
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 220098560,
+  "minutes": 2,
+  "finishedAt": "2026-11-06T00:53:41.332Z",
+  "archive": {
+    "release": "exports-compply",
+    "asset": "compply@4ce69b905b61-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-compply/compply@4ce69b905b61-exports.tar.zst",
+    "bytes": 23080116,
+    "sha256": "571fa14dd9103ba1efb4e0ee2f984ae59990380fa57451a68bbba73ccad1b705",
+    "files": 482,
+    "unpack": "tar --zstd -xf compply@4ce69b905b61-exports.tar.zst -C data/exports/compply"
+  }
+}
