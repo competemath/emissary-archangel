@@ -11,7 +11,7 @@ import tolerant_build as tb  # noqa: E402
 
 lib = Path(sys.argv[1])
 roots = [r for r in sys.argv[2].split(",") if r]
-mods = tb.module_files(lib, roots)
+mods = tb.module_files(lib, roots, follow_imports=True)
 own = set(mods)
 imp = {m: [d for d in tb.header_imports(p.read_text(errors="replace")) if d in own] for m, p in mods.items()}
 depth, closure = {}, {}

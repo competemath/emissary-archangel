@@ -103,7 +103,9 @@ jobs:
               plan = ps.plan(imp, weight, k, wanted=wanted, max_targets=int(os.environ["MAX_TARGETS"]))
           os.makedirs("../plan", exist_ok=True)
           json.dump(plan, open("../plan/plan.json", "w"))
-          print({kk: v for kk, v in plan.items() if kk != "shards"}, "entries:", len(ents), "modules with entries:", len(wanted))
+          print({kk: (len(v) if kk == "deferred" else v) for kk, v in plan.items() if kk != "shards"}, "entries:", len(ents), "modules with entries:", len(wanted))
+          if plan.get("deferred"):
+              print(f"::notice::{len(plan['deferred'])} targets import more than a shard can build (the biggest closures of the library): they are not judged in this run, only in a later wave, once what they import is in the tree")
           shards = [s["shard"] for s in plan["shards"] if s["targets"]]
           out = os.environ["GITHUB_OUTPUT"]
           open(out, "a").write("shards=" + json.dumps(shards) + "\n")
