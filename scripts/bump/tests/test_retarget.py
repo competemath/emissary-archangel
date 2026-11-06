@@ -1,4 +1,6 @@
 import importlib.util
+import json
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -7,6 +9,8 @@ spec = importlib.util.spec_from_file_location("tlb", Path(__file__).resolve().pa
 tlb = importlib.util.module_from_spec(spec)
 sys.modules["tlb"] = tlb
 spec.loader.exec_module(tlb)
+
+REAL = json.loads((Path(__file__).resolve().parent / "fixtures" / "real-lakefiles.json").read_text())  # lakefile.lean of the registered libraries, at the commits sources.json pins
 
 SLT = '''import Lake
 open Lake DSL
@@ -40,6 +44,66 @@ class RetargetLean(unittest.TestCase):
     def test_reservoir_spelling(self):
         out = tlb.retarget_lean('require "leanprover-community" / "mathlib" @ git "v4.1.0"\n', "v9")
         self.assertIn('@ git "v9"', out)
+
+
+MATHLIB_REQUIRE = re.compile(r'^\s*require\s+(?:«?mathlib»?\b|"[^"]+"\s*/\s*(?:«?mathlib»?\b|"mathlib"))', re.M)
+
+
+class EveryMathlibSpelling(unittest.TestCase):
+    """compply and polyfun write `require "leanprover-community" / mathlib @ git "v4.35.0"` (the name not in quotes): retarget_lean did not know the spelling, appended a SECOND require, and
+    every shard of the bump died with "`mathlib` has already been declared" (2026-11-06). Every way Lake accepts a Mathlib require, with and without other requires around it."""
+
+    def spellings(self):
+        out = []
+        for scope in ("leanprover-community", "leanprover"):
+            for name in ("mathlib", '"mathlib"', "«mathlib»"):
+                for tail in (' @ git "v1.2.3"', ' @ "v1.2.3"', ""):
+                    out.append(f'require "{scope}" / {name}{tail}')
+                    out.append(f'require "{scope}" /\n  {name}{tail}')  # the scope and the name on two lines (cubic, #142)
+                    out.append(f'require "{scope}"\n  / {name}{tail}')
+        for name in ("mathlib", "«mathlib»"):
+            out.append(f'require {name} from git "https://github.com/leanprover-community/mathlib4.git" @ "v1.2.3"')
+            out.append(f'require {name} from git\n  "https://github.com/leanprover-community/mathlib4.git" @ "v1.2.3"')
+            out.append(f'require {name} @ git "v1.2.3"')
+            # no revision at all: the scoped form gets `@ git "rev"`, the `from git "url"` form `@ "rev"` (a URL has slashes too: cubic, #142)
+            out.append(f'require {name} from git "https://github.com/leanprover-community/mathlib4.git"')
+            out.append(f'require {name} from git\n  "https://github.com/leanprover-community/mathlib4.git"')
+        return out
+
+    def test_grid(self):
+        cases = 0
+        for req in self.spellings():
+            for before in ("", 'require batteries from git "https://github.com/leanprover-community/batteries" @ "main"\n'):
+                for after in ("", '\nrequire aesop from git "https://github.com/leanprover-community/aesop" @ "master"\n'):
+                    for tail in ("", "\n", "\n\n@[default_target]\nlean_lib X\n"):
+                        text = f"import Lake\nopen Lake DSL\n\npackage X\n\n{before}{req}\n{after}{tail}"
+                        out = tlb.retarget_lean(text, "v9.9.9")
+                        cases += 1
+                        self.assertEqual(len(MATHLIB_REQUIRE.findall(out)), 1, f"exactly one Mathlib require, not a second one appended:\n{req}\n---\n{out}")
+                        self.assertIn('"v9.9.9"', out, req)
+                        self.assertNotIn('"v1.2.3"', out, req)
+                        self.assertEqual(out.count("require"), text.count("require"), f"no require added or lost:\n{req}")
+                        self.assertEqual(tlb.retarget_lean(out, "v9.9.9"), out, f"retargeting twice changes nothing:\n{req}")
+                        if "from git" in req:  # `require mathlib from git "url" @ "rev"` is Lake syntax; `from git "url" @ git "rev"` is not (a URL has slashes: cubic, #142)
+                            self.assertNotIn('@ git', out, req)
+        self.assertGreaterEqual(cases, 768)  # 64 spellings x 2 x 2 x 3 surroundings
+
+    def test_the_real_compply_lakefile(self):
+        text = REAL["compply"]
+        self.assertRegex(text, r'require "leanprover-community" / mathlib @ git "v4\.33\.1"')
+        out = tlb.retarget_lean(text, "v4.34.0-rc2")
+        self.assertEqual(len(MATHLIB_REQUIRE.findall(out)), 1)
+        self.assertIn('/ mathlib @ git "v4.34.0-rc2"', out)
+
+    def test_every_real_lakefile_of_the_registry(self):
+        """The lakefile.lean of every registered library that has one (35, at the commits sources.json pins): after the retarget there is exactly one Mathlib require, with the target revision,
+        and retargeting again changes nothing."""
+        self.assertGreaterEqual(len(REAL), 30)
+        for key, text in REAL.items():
+            out = tlb.retarget_lean(text, "v4.34.0-rc2")
+            self.assertEqual(len(MATHLIB_REQUIRE.findall(out)), 1, f"{key}:\n{out[-600:]}")
+            self.assertTrue(any('"v4.34.0-rc2"' in statement for statement in re.split(r"(?m)(?=^\s*require\b)", out) if MATHLIB_REQUIRE.match(statement)), key)
+            self.assertEqual(tlb.retarget_lean(out, "v4.34.0-rc2"), out, key)
 
 
 CL = """name = "complexitylib"
