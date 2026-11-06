@@ -59,6 +59,8 @@ class EveryMathlibSpelling(unittest.TestCase):
             for name in ("mathlib", '"mathlib"', "«mathlib»"):
                 for tail in (' @ git "v1.2.3"', ' @ "v1.2.3"', ""):
                     out.append(f'require "{scope}" / {name}{tail}')
+                    out.append(f'require "{scope}" /\n  {name}{tail}')  # the scope and the name on two lines (cubic, #142)
+                    out.append(f'require "{scope}"\n  / {name}{tail}')
         for name in ("mathlib", "«mathlib»"):
             out.append(f'require {name} from git "https://github.com/leanprover-community/mathlib4.git" @ "v1.2.3"')
             out.append(f'require {name} from git\n  "https://github.com/leanprover-community/mathlib4.git" @ "v1.2.3"')
@@ -79,7 +81,7 @@ class EveryMathlibSpelling(unittest.TestCase):
                         self.assertNotIn('"v1.2.3"', out, req)
                         self.assertEqual(out.count("require"), text.count("require"), f"no require added or lost:\n{req}")
                         self.assertEqual(tlb.retarget_lean(out, "v9.9.9"), out, f"retargeting twice changes nothing:\n{req}")
-        self.assertGreaterEqual(cases, 288)  # 24 spellings x 2 x 2 x 3 surroundings
+        self.assertGreaterEqual(cases, 720)  # 60 spellings x 2 x 2 x 3 surroundings
 
     def test_the_real_compply_lakefile(self):
         text = REAL["compply"]
@@ -95,6 +97,7 @@ class EveryMathlibSpelling(unittest.TestCase):
         for key, text in REAL.items():
             out = tlb.retarget_lean(text, "v4.34.0-rc2")
             self.assertEqual(len(MATHLIB_REQUIRE.findall(out)), 1, f"{key}:\n{out[-600:]}")
+            self.assertTrue(any('"v4.34.0-rc2"' in statement for statement in re.split(r"(?m)(?=^\s*require\b)", out) if MATHLIB_REQUIRE.match(statement)), key)
             self.assertEqual(tlb.retarget_lean(out, "v4.34.0-rc2"), out, key)
 
 

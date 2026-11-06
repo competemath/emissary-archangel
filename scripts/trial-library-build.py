@@ -143,7 +143,7 @@ def retarget_lean(text: str, mathlib: str) -> str:
                 out.pop()
             if out and re.match(r"\s*(?:meta\s+)?if\b.*\bthen\s*$", out[-1]):
                 out.pop()
-        elif mathlib_re.search(lines[i]):
+        elif mathlib_re.match(stmt.lstrip()):  # the whole statement: a scope and a name may stand on two lines (`require "leanprover-community" /` then an indented `mathlib @ git ...`)
             seen = True
             stmt = official_url(stmt)
             if re.search(r'@\s*git\s*"[^"]*"', stmt):
@@ -151,7 +151,7 @@ def retarget_lean(text: str, mathlib: str) -> str:
             elif re.search(r'@\s*"[^"]*"', stmt):
                 stmt = re.sub(r'(@\s*)"[^"]*"', lambda m: f'{m.group(1)}"{mathlib}"', stmt, count=1)
             else:
-                stmt += f' @ git "{mathlib}"' if "/" in lines[i] else f' @ "{mathlib}"'
+                stmt += f' @ git "{mathlib}"' if "/" in stmt.split("@")[0] else f' @ "{mathlib}"'
             out.append(stmt)
         else:
             out.append(stmt)
