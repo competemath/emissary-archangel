@@ -149,18 +149,30 @@ check("the cases hold both a stop and a dispatch, rounds with and without a coun
   const verdict = (script, c) => {
     const stall = expected(c)
     const cap = stall.stop ? { stop: true } : roundsCap({ round: c.round, maxRounds: c.maxRounds, prev: c.prev === "" ? null : Number(c.prev), built: c.built === "" ? null : Number(c.built), min: c.min })
-    const g = runGate(script, c)
+    const g = runGate(script, { ...c, maxRounds: c.maxRoundsText ?? c.maxRounds })
     const dispatched = g.calls.includes("workflow run")
     return { ok: cap.stop ? g.code !== 0 && !dispatched : g.code === 0 && dispatched && g.calls.includes(`build_round=${c.round + 1}`), c, cap, code: g.code, text: g.text.slice(0, 200) }
   }
+  // a plan size written with a leading zero is a decimal number (08 was read as octal and aborted the arithmetic): cubic, #145
+  for (const [maxRounds, text] of [[6, "06"], [8, "08"], [9, "09"], [10, "010"]]) for (const round of [maxRounds, maxRounds + 1, maxRounds * 3 - 1, maxRounds * 3]) for (const [prev, built] of [["70", "85"], ["85", "85"]]) capCases.push({ round, maxRounds, maxRoundsText: text, prev, built, min: 1 })
   const bad = capCases.map((c) => verdict(gateScript, c)).filter((v) => !v.ok)
   check(`build-gate past the planned rounds: another round while a round still adds modules, a stop at no gain, no count, or three times the plan, on ${capCases.length} cases`, bad.length === 0, bad.slice(0, 3))
   check("the cap cases hold rounds before, at and past the plan, the ceiling, and both outcomes", capCases.some((c) => c.round === 7 && c.maxRounds === 6 && c.built === "101") && capCases.some((c) => c.round === 18 && c.maxRounds === 6) && capCases.some((c) => c.round < c.maxRounds), "")
+  // the escalation round is ONE round that is never followed by another, so the ceiling does not apply to it (cubic, #145): defined here, not left implicit
+  for (const round of [6, 17, 18, 40]) {
+    const g = runGate(gateScript, { round, maxRounds: 6, prev: "100", built: "100", min: 1, toobig: "4", escalate: "true", fromRelease: "true", only: "Theorem.A" })
+    check(`an escalation at round ${round} of a plan of 6 is dispatched whatever the ceiling (it is never followed by another)`, g.code === 0 && g.calls.includes("retry_mb=57344") && g.calls.includes(`build_round=${round + 1}`), g.text.slice(0, 200))
+  }
+  const messages = runGate(gateScript, { round: 6, maxRounds: 6, prev: "70", built: "85", min: 1 })
+  check("the notice at the boundary says the planned round was reached and names the ceiling, the next one says planned and ceiling", /reached the planned 6/.test(messages.text) && /ceiling 18/.test(messages.text) && /planned 6, ceiling 18/.test(messages.text), messages.text)
+  const stop = runGate(gateScript, { round: 7, maxRounds: 6, prev: "", built: "", min: 1 })
+  check("a stop without counts says that the counts are not available", stop.code !== 0 && /is not available/.test(stop.text) && /planned 6, ceiling 18/.test(stop.text), stop.text)
   const capMutants = {
-    "the plan is a wall again": gateScript.replace(/if \[ "\$BUILD_ROUND" -lt \$\(\( MAX_BUILD_ROUNDS \* 3 \)\) \] && \[ -n "\$PREV_BUILT" \] && \[ -n "\$BUILT" \] && \[ \$\(\( 10#\$BUILT - 10#\$PREV_BUILT \)\) -ge "\$need" \]; then/, "if false; then"),
-    "no ceiling": gateScript.replace('[ "$BUILD_ROUND" -lt $(( MAX_BUILD_ROUNDS * 3 )) ] && ', ""),
+    "the octal trap is back": gateScript.replace("ceiling=$(( 10#$MAX_BUILD_ROUNDS * 3 ))", "ceiling=$(( MAX_BUILD_ROUNDS * 3 ))"),
+    "the plan is a wall again": gateScript.replace('if [ "$BUILD_ROUND" -lt "$ceiling" ] && [ -n "$PREV_BUILT" ] && [ -n "$BUILT" ] && [ $(( 10#$BUILT - 10#$PREV_BUILT )) -ge "$need" ]; then', "if false; then"),
+    "no ceiling": gateScript.replace('[ "$BUILD_ROUND" -lt "$ceiling" ] && ', ""),
     "progress is not asked for": gateScript.replace(' && [ $(( 10#$BUILT - 10#$PREV_BUILT )) -ge "$need" ]', ""),
-    "any gain will do, min_progress ignored": gateScript.replace("need=$(( MIN_PROGRESS > 0 ? MIN_PROGRESS : 1 ))", "need=1"),
+    "any gain will do, min_progress ignored": gateScript.replace("need=$(( 10#$MIN_PROGRESS > 0 ? 10#$MIN_PROGRESS : 1 ))", "need=1"),
   }
   for (const [name, mutated] of Object.entries(capMutants)) {
     const caught = mutated !== gateScript && capCases.some((c) => !verdict(mutated, c).ok)

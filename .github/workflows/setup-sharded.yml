@@ -321,6 +321,7 @@ jobs:
           bad='[[:space:];&|<>()`$"\\*]'; if [[ "$ONLY_MODULES" =~ $bad || ${#ONLY_MODULES} -gt 60000 ]]; then echo "::error::only_modules is a comma list of module names (setup-source.mjs checks each one)"; exit 1; fi
           # only_modules without from_release would build, export and PUBLISH a library that is only those modules (the release archive would be replaced by it)
           [ -z "$ONLY_MODULES" ] || [ "$FROM_RELEASE" = true ] || { echo "::error::only_modules needs from_release=true: the shards and the finish job must start from the published archive"; exit 1; }
+          # The escalation round below is not subject to the ceiling on purpose: it is ONE round that is never followed by another (its limit is the top one), whatever round it is.
           # Modules killed for memory even alone, at a limit below the escalation limit (the prime job decided; scripts/setup-plan.mjs escalation is the same rule): ONE more build round, with swap and a limit
           # that counts RAM and swap together. It is not judged for progress (nothing was added by the round that found the modules, that is why it is needed), and its own limit is the top one, so it is never followed by another.
           # flt-anthropic, 5 Nov 2026: 86 modules, the final theorem and everything that leads to it, were left out for 14 GB and nobody was told.
@@ -350,11 +351,12 @@ jobs:
           # max_build_rounds is the planned number of rounds, a budget and not a wall: a round that still added modules (at least min_progress) is followed by another, up to three times the plan
           # (flt-anthropic, 6 Nov 2026: round 6 built 85 of 86 modules and the chain stopped at max_build_rounds=6 until a person raised it). scripts/setup-plan.mjs roundsCap is the same rule.
           if [ "$BUILD_ROUND" -ge "$MAX_BUILD_ROUNDS" ]; then
-            need=$(( MIN_PROGRESS > 0 ? MIN_PROGRESS : 1 ))
-            if [ "$BUILD_ROUND" -lt $(( MAX_BUILD_ROUNDS * 3 )) ] && [ -n "$PREV_BUILT" ] && [ -n "$BUILT" ] && [ $(( 10#$BUILT - 10#$PREV_BUILT )) -ge "$need" ]; then
-              echo "::notice::build round $BUILD_ROUND is past the planned $MAX_BUILD_ROUNDS but still added modules ($PREV_BUILT -> $BUILT): another round"
+            need=$(( 10#$MIN_PROGRESS > 0 ? 10#$MIN_PROGRESS : 1 ))   # 10#: a value like 08 is a decimal number, not an octal one
+            ceiling=$(( 10#$MAX_BUILD_ROUNDS * 3 ))
+            if [ "$BUILD_ROUND" -lt "$ceiling" ] && [ -n "$PREV_BUILT" ] && [ -n "$BUILT" ] && [ $(( 10#$BUILT - 10#$PREV_BUILT )) -ge "$need" ]; then
+              echo "::notice::build round $BUILD_ROUND reached the planned $MAX_BUILD_ROUNDS and the last round still added modules ($PREV_BUILT -> $BUILT): another round (ceiling $ceiling)"
             else
-              echo "::error::$KEY is not built after $BUILD_ROUND build rounds (see the 'Is the build complete?' step of the prime job): the last round added no more modules, or the ceiling of three times max_build_rounds is reached; the library may need a bigger runner"
+              echo "::error::$KEY is not built after $BUILD_ROUND build rounds (planned $MAX_BUILD_ROUNDS, ceiling $ceiling; see the 'Is the build complete?' step of the prime job): the last round added no more modules, or its count (or the one before it) is not available, or the ceiling is reached; the library may need a bigger runner"
               exit 1
             fi
           fi
@@ -363,7 +365,7 @@ jobs:
             -f build_run="$GITHUB_RUN_ID" -f build_round="$((BUILD_ROUND + 1))" -f max_build_rounds="$MAX_BUILD_ROUNDS" \
             -f tengoku_ref="$TENGOKU_REF" -f min_progress="$MIN_PROGRESS" -f prev_built="$BUILT" \
             -f retry_mb="$RETRY_MB" -f swap_gb="$SWAP_GB" -f solo_minutes="$SOLO_MINUTES" -f from_release="$FROM_RELEASE" -f only_modules="$ONLY_MODULES"
-          echo "::notice::the build is not complete: dispatched build round $((BUILD_ROUND + 1)) of at most $MAX_BUILD_ROUNDS"
+          echo "::notice::the build is not complete: dispatched build round $((BUILD_ROUND + 1)) (planned $MAX_BUILD_ROUNDS, ceiling $(( 10#$MAX_BUILD_ROUNDS * 3 )))"
 
   # The build-gate job stopped the chain because a round built (almost) nothing: say so where it will be seen, in ONE issue (opened, or updated when it is already open). Runs none of the
   # library's code and checks nothing out; the only things it takes from the other jobs are numbers, checked again here. `issues: write` is held by this job alone.
