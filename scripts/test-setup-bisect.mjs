@@ -86,6 +86,7 @@ if (cmd === "env" && args[1] === "lean") {
     const [pfx, ...mods] = rest
     const max = Number(process.env.FAKE_CLOSURE_MAX || 1000)
     if (process.env.FAKE_CLOSURE_HANG && mods.includes(process.env.FAKE_CLOSURE_HANG)) hangForever()
+    if (process.env.FAKE_CLOSURE_SLOW && mods.includes(process.env.FAKE_CLOSURE_SLOW)) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Number(process.env.FAKE_CLOSURE_SLOW_MS || 8000))
     if (process.env.FAKE_CLOSURE_BAD && mods.includes(process.env.FAKE_CLOSURE_BAD)) { process.stdout.write("== nodir/Lib.F\\nname\\tmod\\t\\n"); process.exit(0) }
     if (mods.length > max) { process.stderr.write("memory\\n"); process.exit(1) }
     for (const m of mods) process.stdout.write("== " + m + "\\n" + "t_" + m.split(".").pop().toLowerCase() + "\\t" + m + "\\t\\n")
@@ -135,7 +136,7 @@ const exportsDir = join(root, "data", "exports", "t")
 const setup = (args, env = {}, only = ["--only", "expand"]) =>
   spawnSync("node", [join(root, "scripts", "setup-source.mjs"), "t", ...only, "--keep-build", ...args], {
     // every FAKE_* knob is set here, so that nothing in the caller's environment changes a split
-    env: { ...process.env, HOME: home, EMISSARY_WATCH_MS: "300", EMISSARY_FOOTPRINT_MB: "150", EMISSARY_RETRY_FOOTPRINT_MB: "2048", EMISSARY_LEAN_MB: "100", FAKE_CLOSURE_MAX: "1000", FAKE_EXPORT_MAX: "1000", FAKE_EXPORT_REFUSE: "", FAKE_EXPORT_HANG: "", FAKE_CLOSURE_HANG: "", FAKE_CLOSURE_BAD: "", ...env },
+    env: { ...process.env, HOME: home, EMISSARY_WATCH_MS: "300", EMISSARY_FOOTPRINT_MB: "150", EMISSARY_RETRY_FOOTPRINT_MB: "2048", EMISSARY_LEAN_MB: "100", FAKE_CLOSURE_MAX: "1000", FAKE_EXPORT_MAX: "1000", FAKE_EXPORT_REFUSE: "", FAKE_CLOSURE_SLOW: "", FAKE_CLOSURE_SLOW_MS: "", FAKE_EXPORT_HANG: "", FAKE_CLOSURE_HANG: "", FAKE_CLOSURE_BAD: "", ...env },
     encoding: "utf8",
   })
 const calls = () => (existsSync(join(tmp, "lake-calls")) ? readFileSync(join(tmp, "lake-calls"), "utf8").trim().split("\n") : [])
@@ -276,12 +277,26 @@ rmSync(join(tmp, "hung-pids"), { force: true })
 r = setup(["--closure-batch", "6"], { FAKE_CLOSURE_HANG: "Lib.F", EMISSARY_CLOSURE_BASE_MS: "4000", EMISSARY_CLOSURE_PER_MODULE_MS: "400", EMISSARY_CLOSURE_SINGLE_MS: "3500" })
 cc = closureCalls()
 check("the five modules that do not hang have their closure, the hanging one does not", r.status === 0 && closures().join("") === "ABCDE", out(r))
-check("the closure halving isolates the module that hangs: 6, 3+3, 2+1", cc.map((c) => c.length).join(",") === "6,3,3,2,1", cc.map((c) => c.length).join(","))
-check("the closure limits: 6.4 s for six, 5.2 s for three, 3.5 s for a module alone", /closure batch of 6 failed, exit 124[\s\S]{0,80}timed out after 6\.4s/.test(r.stdout) && /closure batch of 3 failed, exit 124[\s\S]{0,80}timed out after 5\.2s/.test(r.stdout) && /closure failed for Lib\.F: exit 124[\s\S]{0,80}timed out after 3\.5s/.test(r.stdout), r.stdout)
+check("the closure halving isolates the module that hangs: 6, 3+3, 2+1, and the module alone once more with a longer limit", cc.map((c) => c.length).join(",") === "6,3,3,2,1,1", cc.map((c) => c.length).join(","))
+check("the closure limits: 6.4 s for six, 5.2 s for three, 3.5 s for a module alone", /closure batch of 6 failed, exit 124[\s\S]{0,80}timed out after 6\.4s/.test(r.stdout) && /closure batch of 3 failed, exit 124[\s\S]{0,80}timed out after 5\.2s/.test(r.stdout) && /Lib\.F ran out of 3\.5 s alone; trying it once more with 14 s/.test(r.stdout) && /closure failed for Lib\.F: exit 124[\s\S]{0,80}timed out after 14s/.test(r.stdout), r.stdout)
 const cpids = existsSync(join(tmp, "hung-pids")) ? readFileSync(join(tmp, "hung-pids"), "utf8").trim().split("\n").map(Number) : []
 for (let i = 0; i < 20 && cpids.some(alive); i++) spawnSync("sleep", ["0.2"])
-check("three closure runs hung, and none of them is still running", cpids.length === 3 && !cpids.some(alive), `pids ${cpids.join(",")}, alive ${cpids.filter(alive).join(",")}`)
+check("four closure runs hung (six, three, one, and the longer try of the one), and none of them is still running", cpids.length === 4 && !cpids.some(alive), `pids ${cpids.join(",")}, alive ${cpids.filter(alive).join(",")}`)
 for (const pid of cpids.filter(alive)) process.kill(pid, "SIGKILL")
+
+// 11b. a closure that is only SLOW (flt-anthropic, 6 Nov 2026: the 86 top-of-proof modules needed more than the 20 minutes a single module gets, and 86 modules were recorded as failed): the module alone gets one more try
+// with four times the limit, and has its closure; with no room in the job's budget it fails once, as before
+fresh()
+r = setup(["--closure-batch", "6"], { FAKE_CLOSURE_SLOW: "Lib.F", FAKE_CLOSURE_SLOW_MS: "7500", EMISSARY_CLOSURE_BASE_MS: "4000", EMISSARY_CLOSURE_PER_MODULE_MS: "400", EMISSARY_CLOSURE_SINGLE_MS: "3500" })
+check("a slow closure gets one longer try alone and succeeds: all six modules have their closure", r.status === 0 && closures().join("") === "ABCDEF", out(r))
+check("it says so: ran out of 3.5 s alone, trying once more with 14 s", /Lib\.F ran out of 3\.5 s alone; trying it once more with 14 s/.test(r.stdout) && !/closure failed for Lib\.F/.test(r.stdout), r.stdout)
+fresh()
+r = setup(["--closure-batch", "6"], { FAKE_CLOSURE_SLOW: "Lib.F", FAKE_CLOSURE_SLOW_MS: "7500", EMISSARY_CLOSURE_BASE_MS: "4000", EMISSARY_CLOSURE_PER_MODULE_MS: "400", EMISSARY_CLOSURE_SINGLE_MS: "3500", EMISSARY_CLOSURE_BUDGET_MINUTES: "0.2" })
+check("with no room in the budget (12 s of it, a try of 14 s) there is no longer try: the five others have their closure, the slow one fails as before", r.status === 0 && closures().join("") === "ABCDE" && /no room for a longer try/.test(r.stdout) && /closure failed for Lib\.F/.test(r.stdout), out(r))
+fresh()
+r = setup(["--closure-batch", "6"], { FAKE_CLOSURE_HANG: "Lib.F", EMISSARY_CLOSURE_BASE_MS: "4000", EMISSARY_CLOSURE_PER_MODULE_MS: "400", EMISSARY_CLOSURE_SINGLE_MS: "1500" })
+check("a module that hangs for good is tried twice at most (3 s, then 6 s) and fails: no loop", r.status === 0 && closures().join("") === "ABCDE" && (r.stdout.match(/trying it once more/g) || []).length === 1 && /closure failed for Lib\.F/.test(r.stdout), out(r))
+for (const pid of (existsSync(join(tmp, "hung-pids")) ? readFileSync(join(tmp, "hung-pids"), "utf8").trim().split("\n").map(Number) : []).filter(alive)) process.kill(pid, "SIGKILL")
 
 // 12. a closure output that cannot be written (a section named for a folder that does not exist) is a failed batch, halved like any other: the setup goes on, and the modules around it have their closures
 fresh()
