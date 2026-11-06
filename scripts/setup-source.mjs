@@ -36,7 +36,7 @@ import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import { collectTools, exporterAction, mergeTools, patchFingerprint } from "./setup-tools.mjs"
 import { bisectItems } from "./bisect.mjs"
-import { availableFrom, buildAttempts, membersOf, soloBuildMs, soloMax } from "./memory-rules.mjs"
+import { availableFrom, buildAttempts, closureBudgetMs, closureRetryMs, membersOf, soloBuildMs, soloMax } from "./memory-rules.mjs"
 
 const x = promisify(execFile)
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -79,6 +79,8 @@ const exportBatchMs = (n) => Math.min(60 * 60 * 1000, EXPORT_BASE_MS + EXPORT_PE
 const CLOSURE_BASE_MS = envMs("EMISSARY_CLOSURE_BASE_MS", 10 * 60 * 1000)
 const CLOSURE_PER_MODULE_MS = envMs("EMISSARY_CLOSURE_PER_MODULE_MS", 30 * 1000)
 const CLOSURE_SINGLE_MS = envMs("EMISSARY_CLOSURE_SINGLE_MS", 20 * 60 * 1000)
+const STARTED_MS = Date.now()
+const CLOSURE_BUDGET_MS = closureBudgetMs()
 const closureBatchMs = (n) => Math.min(60 * 60 * 1000, CLOSURE_BASE_MS + CLOSURE_PER_MODULE_MS * n)
 // Per-process sizes; a library of tens of thousands of tiny modules (flt-anthropic) wants them
 // large: every process pays the environment import, the modules themselves cost seconds.
@@ -710,7 +712,15 @@ async function closures(modules) {
         return true
       }
       const runOne = async (m) => {
-        const r = await runCapture("lake", ["env", "lean", "-M", String(leanMB()), "--run", CLOSURE_LEAN, pfx, m], { cwd: REPO, timeoutMs: CLOSURE_SINGLE_MS, maxBuffer: 256 * 1024 * 1024 })
+        let r = await runCapture("lake", ["env", "lean", "-M", String(leanMB()), "--run", CLOSURE_LEAN, pfx, m], { cwd: REPO, timeoutMs: CLOSURE_SINGLE_MS, maxBuffer: 256 * 1024 * 1024 })
+        if (r.code === 124) {
+          // out of time alone: one more try with a longer limit while the job's budget holds it (memory-rules.mjs closureRetryMs); a module that needs more time is not a module that cannot be exported
+          const longer = closureRetryMs({ singleMs: CLOSURE_SINGLE_MS, elapsedMs: Date.now() - STARTED_MS, budgetMs: CLOSURE_BUDGET_MS })
+          if (longer > 0) {
+            log(`closure: ${m} ran out of ${CLOSURE_SINGLE_MS / 1000} s alone; trying it once more with ${longer / 1000} s`)
+            r = await runCapture("lake", ["env", "lean", "-M", String(leanMB()), "--run", CLOSURE_LEAN, pfx, m], { cwd: REPO, timeoutMs: longer, maxBuffer: 256 * 1024 * 1024 })
+          } else log(`closure: ${m} ran out of ${CLOSURE_SINGLE_MS / 1000} s alone and the job's budget has no room for a longer try`)
+        }
         if (r.code !== 0) return log(`closure failed for ${m}: exit ${r.code} (${r.tail.slice(-300)})`)
         try {
           writeClosureSections(r.stdout)

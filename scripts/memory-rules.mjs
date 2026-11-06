@@ -28,6 +28,24 @@ const escalated = (env) => Number(env.EMISSARY_RETRY_FOOTPRINT_MB) >= ESCALATED_
 export const buildAttempts = (env = process.env) => positiveInt(env.EMISSARY_BUILD_ATTEMPTS, 1000) ?? (escalated(env) ? BUILD_ATTEMPTS_ESCALATED : BUILD_ATTEMPTS_DEFAULT)
 export const soloMax = (env = process.env) => positiveInt(env.EMISSARY_SOLO_MAX, 1000) ?? (escalated(env) ? SOLO_MAX_ESCALATED : SOLO_MAX_DEFAULT)
 
+// A module whose closure ran out of time alone gets ONE more try with a longer limit (flt-anthropic, 6 Nov 2026: the closure of the 86 top-of-proof modules, the final theorem among them, took
+// more than the 20 minutes a single module gets, so the export recorded "86 failed" after 5 hours and nobody could tell the library from a module that needs more time). The retry is four times the
+// first limit, at most four hours, and only when what is left of the job's budget (EMISSARY_CLOSURE_BUDGET_MINUTES, default 300 of the shard job's 345) holds it; 0 means no retry.
+export const CLOSURE_RETRY_FACTOR = 4
+export const CLOSURE_RETRY_MAX_MS = 4 * 60 * 60 * 1000
+export const CLOSURE_BUDGET_DEFAULT_MS = 300 * 60 * 1000
+export function closureBudgetMs(env = process.env) {
+  const v = env.EMISSARY_CLOSURE_BUDGET_MINUTES
+  if (typeof v !== "string" || !/^[0-9]+(\.[0-9]+)?$/.test(v.trim())) return CLOSURE_BUDGET_DEFAULT_MS
+  const ms = Math.round(Number(v) * 60 * 1000)
+  return ms > 0 && ms <= 340 * 60 * 1000 ? ms : CLOSURE_BUDGET_DEFAULT_MS
+}
+export function closureRetryMs({ singleMs, elapsedMs, budgetMs }) {
+  if (!(singleMs > 0) || !(elapsedMs >= 0) || !(budgetMs > 0)) return 0
+  const want = Math.min(singleMs * CLOSURE_RETRY_FACTOR, CLOSURE_RETRY_MAX_MS)
+  return budgetMs - elapsedMs >= want ? want : 0
+}
+
 // Memory a process can still get, in MB, from the text of /proc/meminfo. With `countSwap` (the job added swap for the modules that do not fit in a runner's RAM,
 // EMISSARY_COUNT_SWAP=1) the free swap counts too: those modules are meant to run on swap, and RAM alone is nearly all used then, which the guard would take for a
 // shortage and kill the very module the swap was added for. Without it swap is not counted: the 4 GB a hosted runner has by default must not hide a real shortage.

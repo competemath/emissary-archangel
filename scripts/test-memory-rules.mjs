@@ -13,7 +13,7 @@
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { availableFrom, buildAttempts, BUILD_ATTEMPTS_DEFAULT, BUILD_ATTEMPTS_ESCALATED, ESCALATED_RETRY_MB, membersOf, soloBuildMs, SOLO_BUILD_DEFAULT_MS, soloMax, SOLO_MAX_DEFAULT, SOLO_MAX_ESCALATED } from "./memory-rules.mjs"
+import { availableFrom, buildAttempts, closureBudgetMs, closureRetryMs, CLOSURE_RETRY_FACTOR, CLOSURE_RETRY_MAX_MS, CLOSURE_BUDGET_DEFAULT_MS, BUILD_ATTEMPTS_DEFAULT, BUILD_ATTEMPTS_ESCALATED, ESCALATED_RETRY_MB, membersOf, soloBuildMs, SOLO_BUILD_DEFAULT_MS, soloMax, SOLO_MAX_DEFAULT, SOLO_MAX_ESCALATED } from "./memory-rules.mjs"
 import { escalation, ESCALATE_RETRY_MB, ESCALATE_SWAP_GB, ESCALATE_SOLO_MINUTES } from "./setup-plan.mjs"
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -188,6 +188,33 @@ check("the escalation settings are inside what a hosted runner and a job can do"
   check("buildAlone's timeout is the rule's, not a fixed 90 minutes", /const SOLO_BUILD_MS = soloBuildMs\(\)/.test(src) && /run\("lake", \["build", m\], \{ cwd: REPO, timeoutMs: SOLO_BUILD_MS \}\)/.test(src), "")
   check("a chunk is tried BUILD_ATTEMPTS times (the rule's number), not a fixed 4, and the solo cap is the rule's", /const BUILD_ATTEMPTS = buildAttempts\(\)/.test(src) && /attempt < BUILD_ATTEMPTS; attempt\+\+/.test(src) && /const SOLO_MAX = soloMax\(\)/.test(src) && !/attempt < 4/.test(src), "")
   check("the available-memory guard reads /proc/meminfo through availableFrom, counting swap only when the job said so (EMISSARY_COUNT_SWAP=1)", /availableFrom\(readFileSync\("\/proc\/meminfo", "utf8"\), COUNT_SWAP\)/.test(src) && /const COUNT_SWAP = process\.env\.EMISSARY_COUNT_SWAP === "1"/.test(src), "")
+}
+
+// ---- closureRetryMs / closureBudgetMs: a closure that ran out of time alone gets one longer try while the job's budget holds it (flt-anthropic, 6 Nov 2026: 86 top-of-proof modules "failed") ----
+{
+  const MIN = 60 * 1000
+  const rule = (impl) => {
+    let cases = 0, wrongN = 0
+    for (const singleMs of [1000, 3500, 20 * MIN, 59 * MIN, 61 * MIN, 120 * MIN, 600 * MIN]) for (const elapsedMs of [0, 1, 17 * MIN, 100 * MIN, 280 * MIN, 299 * MIN, 300 * MIN, 5000 * MIN]) for (const budgetMs of [300 * MIN, 12 * 1000, 1, 0, -5, 340 * MIN]) {
+      cases++
+      const want = Math.min(singleMs * 4, 4 * 60 * MIN)
+      const ok = budgetMs > 0 && budgetMs - elapsedMs >= want
+      if (impl({ singleMs, elapsedMs, budgetMs }) !== (ok ? want : 0)) wrongN++
+    }
+    for (const bad of [{ singleMs: 0, elapsedMs: 0, budgetMs: 1e9 }, { singleMs: -1, elapsedMs: 0, budgetMs: 1e9 }, { singleMs: 1000, elapsedMs: -1, budgetMs: 1e9 }, { singleMs: NaN, elapsedMs: 0, budgetMs: 1e9 }, { singleMs: 1000, elapsedMs: 0, budgetMs: NaN }]) { cases++; if (impl(bad) !== 0) wrongN++ }
+    return { cases, wrongN }
+  }
+  const good = rule(closureRetryMs)
+  check(`closureRetryMs: four times the limit, at most four hours, only while the budget holds it, on ${good.cases} cases`, good.wrongN === 0 && CLOSURE_RETRY_FACTOR === 4 && CLOSURE_RETRY_MAX_MS === 4 * 60 * MIN, good.wrongN)
+  check("the real case: a module alone gets 20 minutes, its retry is 80 minutes, 17 minutes into a 300-minute budget", closureRetryMs({ singleMs: 20 * MIN, elapsedMs: 17 * MIN, budgetMs: 300 * MIN }) === 80 * MIN && closureRetryMs({ singleMs: 20 * MIN, elapsedMs: 230 * MIN, budgetMs: 300 * MIN }) === 0, "")
+  for (const [name, impl] of Object.entries({
+    "the factor is 2": ({ singleMs, elapsedMs, budgetMs }) => (budgetMs - elapsedMs >= Math.min(singleMs * 2, 4 * 60 * MIN) ? Math.min(singleMs * 2, 4 * 60 * MIN) : 0),
+    "no four hour ceiling": ({ singleMs, elapsedMs, budgetMs }) => (budgetMs - elapsedMs >= singleMs * 4 ? singleMs * 4 : 0),
+    "the budget is ignored": ({ singleMs }) => Math.min(singleMs * 4, 4 * 60 * MIN),
+    "a try is made that does not fit the budget": ({ singleMs, elapsedMs, budgetMs }) => (budgetMs - elapsedMs > 0 ? Math.min(singleMs * 4, 4 * 60 * MIN) : 0),
+  })) check(`mutant: ${name} is noticed`, rule(impl).wrongN > 0, "")
+  const budgetTable = [[undefined, CLOSURE_BUDGET_DEFAULT_MS], ["", CLOSURE_BUDGET_DEFAULT_MS], ["abc", CLOSURE_BUDGET_DEFAULT_MS], ["0", CLOSURE_BUDGET_DEFAULT_MS], ["-5", CLOSURE_BUDGET_DEFAULT_MS], ["1e2", CLOSURE_BUDGET_DEFAULT_MS], ["341", CLOSURE_BUDGET_DEFAULT_MS], ["340", 340 * MIN], ["0.2", 12000], ["120", 120 * MIN], [" 120 ", 120 * MIN], ["300", 300 * MIN]]
+  check(`closureBudgetMs: minutes, a number up to 340, anything else is the default (${budgetTable.length} settings)`, budgetTable.every(([v, want]) => closureBudgetMs(v === undefined ? {} : { EMISSARY_CLOSURE_BUDGET_MINUTES: v }) === want), "")
 }
 
 // broken versions: each must be noticed
