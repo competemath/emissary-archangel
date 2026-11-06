@@ -339,7 +339,79 @@ def tentative_entries(paths: list[str]) -> dict[str, dict]:
                 path, sub = m.group(1), subdirs.get(r.get("library", ""), "")
                 if sub and path.startswith(sub + "/"):
                     path = path[len(sub) + 1 :]  # the link is repository-relative, the library's modules are relative to its Lake project (openai-math: lean/OAI/X.lean is module OAI.X)
-                out[r["name"]] = {"name": r["name"], "sourcePath": path, "outcome": "untriaged"}
+                key = r["name"]
+                if key in out and out[key]["sourcePath"] != path:  # one short name in two modules (`mem_set_iff` in two namespaces): both are kept, `qualify` tells them apart
+                    key = f"{r['name']}\t{path}"
+                out[key] = {"name": r["name"], "sourcePath": path, "outcome": "untriaged"}
+    return out
+
+
+def qualify(entries: dict[str, dict], exports: Path, lib: Path | None) -> dict[str, dict]:
+    """The entries under the Lean names their modules declare. A harvested record names a declaration as its source writes it, inside its namespace: foundation (2026-11-06) has
+    `mem_set_iff` where the module declares `AdjunctiveSet.mem_set_iff`, and 5,544 of its 5,565 records were never judged ('name not in the export'; 21 passed). A name the module's export
+    does not have is resolved to the ONE name the module DECLARES ITSELF that ends in `.<name>`: its export's names minus those of the exports of every library module it imports (an export
+    holds the library constants the module uses as well). None or several: the entry stays as it was and is not judged, as before. Gate 2 then compares the original and the new declaration
+    of that full name, so a resolution can only choose what is judged, never what passes. Without the library's sources (`lib`) nothing is resolved. The ledger's rows come first and win."""
+    sys.path.insert(0, str(HERE))
+    import tolerant_build as tb
+
+    names_memo: dict[str, set[str] | None] = {}
+    imports_memo: dict[str, set[str]] = {}
+    tails: dict[str, dict[str, list[str]]] = {}
+
+    def names(mod: str) -> set[str] | None:
+        if mod not in names_memo:
+            plain = mod.replace("«", "").replace("»", "")
+            f = next((exports / f"{m}.names.json" for m in (mod, plain) if (exports / f"{m}.names.json").exists()), None)
+            names_memo[mod] = set(json.loads(f.read_text()).get("names", [])) if f else None
+        return names_memo[mod]
+
+    def imported(mod: str) -> set[str]:
+        """every library module `mod` imports, directly or not (iterative: a chain of thousands of modules must not hit the recursion limit)"""
+        if mod in imports_memo:
+            return imports_memo[mod]
+        seen: set[str] = set()
+        todo = [mod]
+        while todo:
+            m = todo.pop()
+            parts = tb.split_mod(m)
+            f = lib.joinpath(*parts[:-1], parts[-1] + ".lean")
+            if not f.is_file():
+                continue
+            for d in tb.header_imports(f.read_text(errors="replace")):
+                dp = tb.split_mod(d)
+                if d not in seen and lib.joinpath(*dp[:-1], dp[-1] + ".lean").is_file():
+                    seen.add(d)
+                    todo.append(d)
+        imports_memo[mod] = seen
+        return seen
+
+    def own_tails(mod: str, have: set[str]) -> dict[str, list[str]]:
+        if mod not in tails:
+            inherited: set[str] = set()
+            for d in imported(mod):
+                inherited |= names(d) or set()
+            idx: dict[str, list[str]] = defaultdict(list)
+            for h in have - inherited:
+                parts = h.split(".")
+                for i in range(1, len(parts)):
+                    idx[".".join(parts[i:])].append(h)
+            tails[mod] = idx
+        return tails[mod]
+
+    out: dict[str, dict] = {}
+    for key, r in entries.items():
+        n, mod = r["name"], module_of(r["sourcePath"])
+        full = n
+        have = names(mod) if lib is not None else None
+        if have is not None and n not in have:
+            found = own_tails(mod, have).get(n, [])
+            if len(found) == 1:
+                full = found[0]
+        if full != n:
+            out.setdefault(full, {**r, "name": full, "short": n})
+        else:
+            out.setdefault(key, r)
     return out
 
 
@@ -360,10 +432,11 @@ def generate(a: argparse.Namespace) -> None:
         tent = tentative_entries([f for pat in a.tentative.split(",") if pat for f in sorted(glob.glob(pat))])
         for n, r in tent.items():
             entries.setdefault(n, r)  # the ledger's row (with the pipeline's outcome) wins
+    entries = qualify(entries, exports, lib)
     built = built_modules(lib, roots)
     by_module: dict[str, list[str]] = defaultdict(list)
-    for name, r in entries.items():
-        by_module[module_of(r["sourcePath"])].append(name)
+    for r in entries.values():
+        by_module[module_of(r["sourcePath"])].append(r["name"])
     plan, skipped = [], Counter()
     excluded = {m for m in a.exclude.split(",") if m}
     only = {m for m in a.only.split(",") if m}
@@ -408,6 +481,8 @@ def generate(a: argparse.Namespace) -> None:
         skipped["name_not_in_export_closure"] += len(names) - len(present)
         if present:
             plan.append((mod, export, present))
+    # what was NOT judged and why, on stderr: a counter nobody printed hid that 5,544 of foundation's 5,565 entries were never judged (short names, 2026-11-06)
+    print(f"gate2 generate: {sum(len(n) for _, _, n in plan)} declarations in {len(plan)} modules to judge; not judged: {dict(skipped)}", file=sys.stderr)
     imports = "".join(f"import {mod}\n" for mod, _, _ in plan)
     # A library that never imports Mathlib (lean4-analysis-tao: "tactic shims that replace the bits of Mathlib") is checked
     # without it: Gate 2's logic needs only Lean, and the library may declare names (a notation `≃`) Mathlib also declares,
@@ -489,6 +564,8 @@ def parse(a: argparse.Namespace) -> None:
     if a.tentative:
         for n, r in tentative_entries([f for pat in a.tentative.split(",") if pat for f in sorted(glob.glob(pat))]).items():
             entries.setdefault(n, r)
+    if a.exports:  # the names Gate 2 judged are the qualified ones (generate): the entries are looked up under them
+        entries = qualify(entries, Path(a.exports), Path(a.lib) if a.lib else None)
     own = {k: v for k, v in verdicts.items() if k[0] == k[1]}
     cross = {k: v for k, v in verdicts.items() if k[0] != k[1]}
     by_outcome: dict[str, Counter] = defaultdict(Counter)
@@ -542,5 +619,7 @@ if __name__ == "__main__":
     for f in ("log", "ledger", "out"):
         q.add_argument(f"--{f}", required=True)
     q.add_argument("--tentative", default="")
+    q.add_argument("--exports", default="", help="the library's exports (data/exports/<key>): entries are looked up under the names generate qualified")
+    q.add_argument("--lib", default="", help="the library's sources (what its modules import), for the same qualification as generate")
     args = ap.parse_args()
     {"generate": generate, "parse": parse, "emit-vendor": emit_vendor}[args.cmd](args)
