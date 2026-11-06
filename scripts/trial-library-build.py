@@ -120,11 +120,12 @@ def retarget_lean(text: str, mathlib: str) -> str:
     """lakefile.lean: each `require` is a statement (it may continue on indented lines). A development-only one is
     dropped whole; Mathlib's is pointed at `mathlib`, in whichever of its spellings the file uses:
         require mathlib from git "url" @ "rev"          (also with the url on the next line)
-        require "leanprover-community" / "mathlib" @ git "rev"
+        require "leanprover-community" / "mathlib" @ git "rev"        (the name also unquoted: / mathlib)
     """
     lines, out, i = text.splitlines(), [], 0
     dev = re.compile(r'["«](?:' + "|".join(map(re.escape, DEV_ONLY)) + r')["»]|require\s+(?:' + "|".join(map(re.escape, DEV_ONLY)) + r')\b')
-    mathlib_re = re.compile(r'require\s+(?:«?mathlib»?\b|"[^"]+"\s*/\s*"mathlib")')
+    # the name after the scope is an identifier or a string, as Lake reads either: `"leanprover-community" / mathlib` (CompPoly, PolyFun) and `/ "mathlib"` and `/ «mathlib»`
+    mathlib_re = re.compile(r'require\s+(?:«?mathlib»?\b|"[^"]+"\s*/\s*(?:«?mathlib»?\b|"mathlib"))')
     seen = False
     while i < len(lines):
         if not re.match(r"\s*require\b", lines[i]):
