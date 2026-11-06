@@ -345,7 +345,7 @@ class FetchExportsStaleRecord(unittest.TestCase):
     """flt-anthropic, 6 Nov 2026: a pilot started at 11:56; at ~15:00 a setup round republished the library's archive (same asset, new bytes, new sha256) and the record on main; every shard of the pilot that started
     afterwards failed in 1-2 minutes with "the download's sha256 is c335..., the record says bcbf..." (its checkout held the old record). The current record is read first."""
 
-    def setup_case(self, record_url_works=True, fresh_same=False):
+    def setup_case(self, record_url_works=True, fresh_same=False, fresh_commit="c1", midway=False):
         import hashlib
         import subprocess
 
@@ -361,21 +361,26 @@ class FetchExportsStaleRecord(unittest.TestCase):
         subprocess.run(["tar", "--zstd", "-cf", str(archive), "-C", str(stage), "."], check=True)
         blob = archive.read_bytes()
         new_sha = hashlib.sha256(blob).hexdigest()
-        old = {"archive": {"sha256": "0" * 64, "asset": "k.tar.zst", "bytes": len(blob), "files": 2, "url": "http://x/asset"}}
-        fresh = {"archive": {"sha256": new_sha, "asset": "k.tar.zst", "bytes": len(blob), "files": 2, "url": "http://x/asset"}}
+        old = {"commit": "c1", "archive": {"sha256": "0" * 64, "asset": "k.tar.zst", "bytes": len(blob), "files": 2, "url": "http://x/asset"}}
+        fresh = {"commit": fresh_commit, "archive": {"sha256": new_sha, "asset": "k.tar.zst", "bytes": len(blob), "files": 2, "url": "http://x/asset"}}
         (exports / "setup.ci.json").write_text(json.dumps(fresh if fresh_same else old))
         (tmp / "fresh.json").write_text(json.dumps(fresh))
+        (tmp / "stale.json").write_text(json.dumps(old))
         (tmp / "asset").write_bytes(blob)
         (tmp / "mods.txt").write_text("Lib.A\n")
         bindir = tmp / "bin"
         bindir.mkdir()
         curl = bindir / "curl"
-        curl.write_text('#!/bin/sh\nurl=; out=\nwhile [ $# -gt 0 ]; do case "$1" in -o) out=$2; shift;; http*) url=$1;; esac; shift; done\n'
-                        'echo "$url" >> "$CURL_LOG"\n'
-                        'case "$url" in\n  */setup.ci.json) if [ -n "$NO_RECORD" ]; then exit 22; fi; cat "$FRESH";;\n  */asset) cp "$ASSET" "$out";;\nesac\n')
+        curl.write_text('#!/bin/sh\nall="$*"; url=; out=\nwhile [ $# -gt 0 ]; do case "$1" in -o) out=$2; shift;; http*) url=$1;; esac; shift; done\n'
+                        'echo "$all" >> "$CURL_LOG"\n'
+                        # MIDWAY: the record still names the stale archive until the archive has been downloaded once (the republish happens during the run)
+                        'case "$url" in\n  */setup.ci.json) if [ -n "$NO_RECORD" ]; then exit 22; fi; if [ -n "$MIDWAY" ] && [ ! -f "$FLAG" ]; then cat "$STALE"; else cat "$FRESH"; fi;;\n'
+                        '  */asset) touch "$FLAG"; cp "$ASSET" "$out";;\nesac\n')
         curl.chmod(0o755)
-        env = {**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}", "GATE2_EXPORTS_DIR": str(tmp / "exports"), "CURL_LOG": str(tmp / "log"), "FRESH": str(tmp / "fresh.json"), "ASSET": str(tmp / "asset"),
+        env = {**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}", "GATE2_EXPORTS_DIR": str(tmp / "exports"), "CURL_LOG": str(tmp / "log"), "FRESH": str(tmp / "fresh.json"), "STALE": str(tmp / "stale.json"), "FLAG": str(tmp / "flag"), "ASSET": str(tmp / "asset"),
                "GITHUB_REPOSITORY": "o/r"}
+        if midway:
+            env["MIDWAY"] = "1"
         if not record_url_works:
             env["NO_RECORD"] = "1"
         return tmp, exports, env
@@ -401,6 +406,36 @@ class FetchExportsStaleRecord(unittest.TestCase):
         self.assertNotEqual(p.returncode, 0)
         self.assertIn("may have been republished", p.stderr)
         self.assertFalse((exports / "Lib.A.ndjson").exists())
+
+    @unittest.skipUnless(shutil.which("node") and shutil.which("tar") and shutil.which("zstd"), "needs node, tar and zstd")
+    def test_a_record_for_another_library_commit_is_not_used(self):
+        import subprocess
+
+        tmp, exports, env = self.setup_case(fresh_commit="c2")
+        p = subprocess.run(["node", str(ROOT / "scripts" / "fetch-exports.mjs"), "k", "--modules", str(tmp / "mods.txt")], env=env, capture_output=True, text=True)
+        self.assertNotEqual(p.returncode, 0)  # the stale archive is gone and the other commit's exports are not taken in its place
+        self.assertIn("not used", p.stdout)
+        self.assertFalse((exports / "Lib.A.ndjson").exists())
+
+    @unittest.skipUnless(shutil.which("node") and shutil.which("tar") and shutil.which("zstd"), "needs node, tar and zstd")
+    def test_an_archive_republished_after_the_record_was_read_is_downloaded_again(self):
+        import subprocess
+
+        tmp, exports, env = self.setup_case(midway=True)
+        p = subprocess.run(["node", str(ROOT / "scripts" / "fetch-exports.mjs"), "k", "--modules", str(tmp / "mods.txt")], env=env, capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual((exports / "Lib.A.ndjson").read_text(), "new\n" * 500)
+        log = (tmp / "log").read_text().splitlines()
+        self.assertEqual(sum("/asset" in ln for ln in log), 2)  # downloaded twice: the first one did not match the record, which had changed
+
+    @unittest.skipUnless(shutil.which("node") and shutil.which("tar") and shutil.which("zstd"), "needs node, tar and zstd")
+    def test_the_record_lookup_retries_like_the_download(self):
+        import subprocess
+
+        tmp, exports, env = self.setup_case()
+        subprocess.run(["node", str(ROOT / "scripts" / "fetch-exports.mjs"), "k", "--modules", str(tmp / "mods.txt")], env=env, capture_output=True, text=True)
+        lookup = [ln for ln in (tmp / "log").read_text().splitlines() if "setup.ci.json" in ln]
+        self.assertTrue(lookup and all("--retry 8" in ln and "--retry-delay 15" in ln for ln in lookup), lookup)
 
     @unittest.skipUnless(shutil.which("node") and shutil.which("tar") and shutil.which("zstd"), "needs node, tar and zstd")
     def test_a_record_that_is_already_current_changes_nothing_and_no_repository_means_no_lookup(self):
