@@ -16,7 +16,7 @@ import tolerant_build as tb  # noqa: E402
 
 
 def args_for(key: str, src: Path, roots: list[str]) -> list[str]:
-    mods = sorted(tb.module_files(src, roots))
+    mods = sorted(tb.module_files(src, roots, follow_imports=True))
     out: list[str] = []
     for m in mods:
         out += ["--module", m]

@@ -29,7 +29,7 @@ def pack(a: argparse.Namespace) -> None:
     lib, out = Path(a.lib), Path(a.out)
     roots = [r for r in a.roots.split(",") if r]
     (out / "src").mkdir(parents=True, exist_ok=True)
-    mods = tb.module_files(lib, roots)
+    mods = tb.module_files(lib, roots, follow_imports=True)
     build = {ln.strip() for ln in Path(a.modules).read_text().splitlines() if ln.strip()} if a.modules else set(mods)
     for m, path in mods.items():
         if m in build:

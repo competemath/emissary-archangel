@@ -1,0 +1,223 @@
+"""The library's modules are the roots' modules AND what they import from the rest of the library (tolerant_build.module_files), and the planner can plan a library of 60,000 modules.
+
+Why: flt-anthropic (6 Nov 2026). Roots `Theorems` and `Definitions`; each of its 29,511 Theorems modules imports its proof `P2M.Sol.S_...` and a tactic from `P2M.Util`. Those 29,513 modules
+were not library modules: every shard called them bad imports (424 of 584 modules), the repair dropped them, the proofs became sorry, and Gate 2 passed 320 names of 23,500. The planner then
+needed hours for 60,474 modules (a bit-by-bit sum of lines, quadratic in the size) and put the whole library into one shard.
+
+The real case is scripts/bump/tests/fixtures/real-flt-imports.json.gz: the header imports and the line count of every module of anthropics/fermats-last-theorem at aa2d8b34 (60,474 modules).
+"""
+
+import gzip
+import json
+import math
+import random
+import sys
+import tempfile
+import time
+import unittest
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(HERE))
+import plan_shards as ps  # noqa: E402
+import tolerant_build as tb  # noqa: E402
+
+FIXTURE = Path(__file__).resolve().parent / "fixtures" / "real-flt-imports.json.gz"
+_REAL = None
+
+
+def real():
+    global _REAL
+    if _REAL is None:
+        d = json.load(gzip.open(FIXTURE, "rt"))
+        own = set(d["imports"])
+        _REAL = (d["imports"], {m: [x for x in v if x in own] for m, v in d["imports"].items()}, d["lines"])
+    return _REAL
+
+
+def write_tree(root: Path, imports: dict[str, list[str]]) -> None:
+    for m, imps in imports.items():
+        parts = tb.split_mod(m)
+        p = root.joinpath(*parts[:-1], parts[-1] + ".lean")
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("".join(f"import {i}\n" for i in imps) + "\ntheorem x : True := trivial\n")
+
+
+class FollowImports(unittest.TestCase):
+    def lib(self, files: dict[str, str]) -> Path:
+        root = Path(tempfile.mkdtemp())
+        for rel, text in files.items():
+            p = root / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(text)
+        return root
+
+    def test_a_package_the_roots_import_is_part_of_the_library(self):
+        lib = self.lib(
+            {
+                "Theorems/A.lean": "import Mathlib\nimport P2M.Sol.S_A\nimport P2M.Util\n",
+                "Definitions/D.lean": "import Mathlib\n",
+                "P2M/Util.lean": "import Lean\n",
+                "P2M/Sol/S_A.lean": "import Mathlib\nimport Helpers.H\n",
+                "Helpers/H.lean": "import Mathlib\n",
+                "Unused/U.lean": "import Mathlib\n",
+            }
+        )
+        got = set(tb.module_files(lib, ["Theorems", "Definitions"], follow_imports=True))
+        self.assertEqual(got, {"Theorems.A", "Definitions.D", "P2M.Util", "P2M.Sol.S_A", "Helpers.H"}, "P2M through the imports of Theorems, Helpers through P2M; Unused imported by nobody")
+        self.assertEqual(set(tb.module_files(lib, ["Theorems", "Definitions"])), {"Theorems.A", "Definitions.D"})
+
+    def test_a_root_file_next_to_its_directory_and_public_and_all_imports(self):
+        lib = self.lib(
+            {
+                "Theorems.lean": "import Pkg\n",
+                "Pkg.lean": "public import Pkg.Sub\n",
+                "Pkg/Sub.lean": "import all Other\n",
+                "Other.lean": "import Mathlib\n",
+            }
+        )
+        self.assertEqual(set(tb.module_files(lib, ["Theorems"], follow_imports=True)), {"Theorems", "Pkg", "Pkg.Sub", "Other"})
+
+    def test_toolchain_and_dependency_names_are_never_followed(self):
+        # a directory of the library that is called like Mathlib or Lean is not the library's own module set
+        lib = self.lib({"Theorems/A.lean": "import Mathlib.Tactic\nimport Lean.Elab\nimport Batteries.Data\n", "Mathlib/Tactic.lean": "", "Lean/Elab.lean": "", "Batteries/Data.lean": ""})
+        self.assertEqual(set(tb.module_files(lib, ["Theorems"], follow_imports=True)), {"Theorems.A"})
+
+    def test_imports_that_are_not_in_the_header_are_not_followed(self):
+        lib = self.lib({"Theorems/A.lean": "import Mathlib\n/- import Hidden.X -/\n-- import Hidden.Y\ntheorem t : True := trivial\n-- import Late\n", "Hidden/X.lean": "", "Hidden/Y.lean": "", "Late.lean": ""})
+        self.assertEqual(set(tb.module_files(lib, ["Theorems"], follow_imports=True)), {"Theorems.A"})
+
+    def test_guillemet_names_and_cycles_terminate(self):
+        lib = self.lib({"Theorems/A.lean": "import «Odd.Pkg».Sub\nimport B\n", "Odd.Pkg/Sub.lean": "import B\n", "B.lean": "import B2\n", "B2.lean": "import B\n"})
+        got = set(tb.module_files(lib, ["Theorems"], follow_imports=True))
+        self.assertIn("Theorems.A", got)
+        self.assertIn("B", got)
+        self.assertIn("B2", got)
+        self.assertTrue(any("Sub" in m for m in got), got)
+
+    def test_nothing_changes_for_a_library_whose_roots_import_only_themselves(self):
+        lib = self.lib({"Lib/A.lean": "import Mathlib\nimport Lib.B\n", "Lib/B.lean": "import Mathlib\n", "Tests/T.lean": "import Lib.A\n"})
+        self.assertEqual(tb.module_files(lib, ["Lib"], follow_imports=True), tb.module_files(lib, ["Lib"]))
+
+    def test_the_real_flt_library(self):
+        imports, _, _ = real()
+        root = Path(tempfile.mkdtemp())
+        write_tree(root, imports)
+        old = tb.module_files(root, ["Theorems", "Definitions"])
+        new = tb.module_files(root, ["Theorems", "Definitions"], follow_imports=True)
+        self.assertEqual((len(old), len(new)), (30961, 60474), "Theorems + Definitions, then P2M (29,513 modules) through the imports")
+        self.assertEqual(sum(1 for m in new if m.startswith("P2M")), 29513)
+        # every import of a Theorems module that is a file of the library is a library module now
+        missing = [(m, d) for m, ds in imports.items() if m.startswith("Theorems.") for d in ds if d in imports and d not in new]
+        self.assertEqual(missing, [])
+        # and the old view lost exactly those: 424 of 584 modules of shard 22 had a bad import because of it
+        bad_old = [m for m in old if any(d in imports and d not in old for d in imports[m])]
+        self.assertGreaterEqual(len(bad_old), 29000)
+
+
+class Planner(unittest.TestCase):
+    @staticmethod
+    def old_lines_of(bits, w_of):
+        s = 0
+        while bits:
+            low = bits & -bits
+            s += w_of[low.bit_length() - 1]
+            bits ^= low
+        return s
+
+    def random_dag(self, rnd, n):
+        names = [f"M{i}" for i in range(n)]
+        imp = {names[i]: sorted({names[j] for j in rnd.sample(range(i), min(i, rnd.randint(0, 4)))}) for i in range(n)}
+        return imp, {m: rnd.randint(1, 500) for m in names}
+
+    def test_small_libraries_get_the_plan_they_always_got(self):
+        """The bit-by-bit sum of lines and the table of bytes give the same number, and below FAST_ABOVE every shard is priced: the plan of every library set up so far is unchanged."""
+        rnd = random.Random(7)
+        cases = 0
+        for n in (1, 2, 5, 30, 120, 400):
+            for _ in range(8):
+                imp, w = self.random_dag(rnd, n)
+                wanted = {m for m in imp if rnd.random() < 0.7} or None
+                for k in (1, 2, 5, 17):
+                    p = ps.plan(imp, w, k, wanted=wanted)
+                    cases += 1
+                    # the reference: the old algorithm, written out
+                    order = ps.topo(imp)
+                    idx = {m: i for i, m in enumerate(order)}
+                    clos = {}
+                    for m in order:
+                        b = 1 << idx[m]
+                        for d in imp[m]:
+                            b |= clos[d]
+                        clos[m] = b
+                    w_of = [w[m] for m in order]
+                    limit = 1.05 * sum(w.values()) / k
+                    built, load, tg = [0] * k, [0] * k, [[] for _ in range(k)]
+                    for m in order:
+                        if wanted is not None and m not in wanted:
+                            continue
+                        cands = []
+                        for s in range(k):
+                            eb = clos[m] & ~built[s]
+                            extra = self.old_lines_of(eb, w_of) if eb else 0
+                            cands.append((load[s] + extra > limit, extra, load[s], s))
+                        _, extra, _, s = min(cands)
+                        tg[s].append(m)
+                        built[s] |= clos[m]
+                        load[s] += extra
+                    self.assertEqual([x["targets"] for x in p["shards"]], tg)
+                    self.assertEqual([x["lines"] for x in p["shards"]], load)
+        self.assertGreaterEqual(cases, 190)
+
+    def test_the_big_library_plan_covers_every_target_and_every_closure(self):
+        _, imp, w = real()
+        wanted = {m for m in imp if m.startswith("Theorems.")}
+        t = time.time()
+        k, p = ps.choose_k(imp, w, wanted, max(1, math.ceil(sum(w.values()) / 200_000)))
+        p = ps.plan(imp, w, k, wanted=wanted, max_targets=400)
+        took = time.time() - t
+        self.assertLess(took, 600, "the plan of 60,474 modules took hours before the table of bytes")
+        got = [m for s in p["shards"] for m in s["targets"]]
+        self.assertEqual(len(got), len(wanted))
+        self.assertEqual(set(got), wanted, "every Theorems module is judged by exactly one shard")
+        self.assertEqual(len(set(got)), len(got))
+        self.assertLessEqual(max(len(s["targets"]) for s in p["shards"]), 400)
+        # each shard builds the closure of its targets (a sample of 3,000 targets, all shards)
+        rnd = random.Random(1)
+        in_shard = {m: s for s in p["shards"] for m in s["targets"]}
+        build_sets = {}
+        for m in rnd.sample(sorted(wanted), 3000):
+            s = in_shard[m]
+            bs = build_sets.setdefault(s["shard"], set(s["build"]))
+            stack, seen = [m], set()
+            while stack:
+                x = stack.pop()
+                if x in seen:
+                    continue
+                seen.add(x)
+                self.assertIn(x, bs, f"{x} (closure of {m}) is not built by its shard")
+                stack.extend(imp[x])
+        # P2M is built by the shards: the plan has them in `build` (the old plan had no P2M module at all)
+        self.assertTrue(any(x.startswith("P2M.Sol.") for s in p["shards"] for x in s["build"]))
+
+    def test_the_fast_path_prices_few_shards_but_loses_no_target(self):
+        rnd = random.Random(3)
+        old = ps.FAST_ABOVE
+        try:
+            ps.FAST_ABOVE = 0
+            for n in (50, 300, 800):
+                imp, w = self.random_dag(rnd, n)
+                for k in (2, 7):
+                    p = ps.plan(imp, w, k, wanted=set(imp))
+                    got = [m for s in p["shards"] for m in s["targets"]]
+                    self.assertEqual(sorted(got), sorted(imp))
+                    for s in p["shards"]:
+                        bs = set(s["build"])
+                        for m in s["targets"]:
+                            self.assertTrue(set(imp[m]) <= bs)
+        finally:
+            ps.FAST_ABOVE = old
+
+
+if __name__ == "__main__":
+    unittest.main()

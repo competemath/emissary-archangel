@@ -23,7 +23,7 @@ import tolerant_build as tb  # noqa: E402
 
 
 def graph(lib: Path, roots: list[str]):
-    mods = tb.module_files(lib, roots)
+    mods = tb.module_files(lib, roots, follow_imports=True)
     own = set(mods)
     imp = {m: [d for d in tb.header_imports(p.read_text(errors="replace")) if d in own] for m, p in mods.items()}
     weight = {m: max(1, len(p.read_text(errors="replace").splitlines())) for m, p in mods.items()}
@@ -47,6 +47,9 @@ def topo(imp: dict[str, list[str]]) -> list[str]:
     return order
 
 
+FAST_ABOVE = 20_000  # modules: above it a target is priced against a few shards, not all (below it every plan is the one the exhaustive search always made)
+
+
 def plan(imp: dict[str, list[str]], weight: dict[str, int], k: int, cap: float = 1.05, wanted: set[str] | None = None, max_targets: int = 0) -> dict:
     """`wanted`: the modules that need checking (those with ledger entries); the rest is only built where something imports it.
     `max_targets`: a shard with more targets than this is cut into shards of at most that many, in import order (0: never). Gate 2 judges a shard's targets one after the other inside the
@@ -66,20 +69,29 @@ def plan(imp: dict[str, list[str]], weight: dict[str, int], k: int, cap: float =
     load = [0] * k  # lines of the built set
     targets: list[list[str]] = [[] for _ in range(k)]
     w_of = [weight[m] for m in order]
+    nbytes = (len(order) + 7) // 8
+    # lines of a set of modules (a bitset over `idx`): one table lookup per byte of the bitset instead of one step per module (the old loop was quadratic in the library's size: 60,474 modules
+    # of flt-anthropic took hours). The sum is the same number.
+    table = [[sum(w_of[8 * c + j] for j in range(8) if b >> j & 1 and 8 * c + j < len(order)) for b in range(256)] for c in range(nbytes)]
 
     def lines_of(bits: int) -> int:
-        s, i = 0, 0
-        while bits:
-            low = bits & -bits
-            s += w_of[low.bit_length() - 1]
-            bits ^= low
-        return s
+        return sum(table[c][b] for c, b in enumerate(bits.to_bytes(nbytes, "little")) if b)
+
+    fast = len(order) > FAST_ABOVE
+    if fast:
+        # every target of a big library shares a large base (flt-anthropic: its Definitions, up to 279k lines, are imported by almost every theorem): a shard is full when it holds that base plus its
+        # share of the rest. Without it every shard is over the limit from the first target on and one shard ends up with the whole library (13.5M lines).
+        limit += max(lines_of(clos[m]) for m in order if wanted is None or m in wanted)
 
     for m in order:
         if wanted is not None and m not in wanted:
             continue
         cands = []
-        for s in range(k):
+        pool = range(k)
+        if fast:  # a library this big (flt-anthropic: 60,474 modules): only the shards that already hold most of the closure, and the least loaded one, are priced exactly
+            ranked = sorted(range(k), key=lambda s: (-(clos[m] & built[s]).bit_count(), load[s], s))[:3]
+            pool = list(dict.fromkeys(ranked + [min(range(k), key=lambda s: (load[s], s))]))
+        for s in pool:
             extra_bits = clos[m] & ~built[s]
             extra = lines_of(extra_bits) if extra_bits else 0
             cands.append((load[s] + extra > limit, extra, load[s], s))

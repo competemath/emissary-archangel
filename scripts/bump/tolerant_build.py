@@ -52,7 +52,7 @@ def split_mod(mod: str) -> list[str]:
     return [m.group(0).strip("«»") for m in re.finditer(r"«[^»]*»|[^.]+", mod)]
 
 
-def module_files(lib: Path, roots: list[str]) -> dict[str, Path]:
+def _under_roots(lib: Path, roots: list[str]) -> dict[str, Path]:
     found: dict[str, Path] = {}
     for r in roots:
         top = lib / f"{r}.lean"
@@ -61,6 +61,38 @@ def module_files(lib: Path, roots: list[str]) -> dict[str, Path]:
         if (lib / r).is_dir():
             for p in sorted((lib / r).rglob("*.lean")):
                 found[".".join(esc(x) for x in p.relative_to(lib).with_suffix("").parts)] = p
+    return found
+
+
+# top-level names of modules that come from the toolchain or a Lake dependency, never from the library: a directory of the library called like one is not followed
+NOT_OUR_ROOTS = frozenset({"Init", "Std", "Lean", "Lake", "Mathlib", "Batteries", "Aesop", "Qq", "ProofWidgets", "Plausible", "LeanSearchClient", "ImportGraph", "Cli"})
+
+
+def module_files(lib: Path, roots: list[str], follow_imports: bool = False) -> dict[str, Path]:
+    """The library's modules: every .lean file under the roots, AND every module of the library that those import from OUTSIDE the roots (and what those import, and so on). flt-anthropic
+    (6 Nov 2026): roots Theorems and Definitions, but each of its 29,511 Theorems modules imports its proof `P2M.Sol.S_...` and a tactic from `P2M.Util`; they were not library modules, so
+    every shard called those imports bad (424 of 584 modules), the repair dropped them, the proofs became sorry and Gate 2 passed 320 names of 23,500. `follow_imports=False` is the old,
+    roots-only view, which is still the default (vendor_deps asks which modules the library itself defines to find clashes with its dependencies' modules); the build, the plan, the shard packs, the import graph and the leak
+    scan ask for `follow_imports=True`."""
+    found = _under_roots(lib, roots)
+    if not follow_imports:
+        return found
+    done, todo = set(roots), list(found)
+    while todo:
+        new: list[str] = []
+        for m in todo:
+            for d in header_imports(found[m].read_text(errors="replace")):
+                top = split_mod(d)[0]
+                if top in done or top in NOT_OUR_ROOTS or top.startswith("."):
+                    continue
+                if (lib / top).is_dir() or (lib / f"{top}.lean").is_file():
+                    done.add(top)
+                    new.append(top)
+        if not new:
+            break
+        more = _under_roots(lib, new)
+        todo = [m for m in more if m not in found]
+        found.update(more)
     return found
 
 
@@ -110,7 +142,7 @@ class Builder:
         self.cache.mkdir(parents=True, exist_ok=True)
         self.timeout = a.timeout * 60
         self.jobs = a.jobs or os.cpu_count() or 2
-        self.mods = module_files(self.lib, self.roots)
+        self.mods = module_files(self.lib, self.roots, follow_imports=True)
         if a.modules:  # a shard: only these (a dependency-closed set: everything they import is in it)
             keep = {ln.strip() for ln in Path(a.modules).read_text().splitlines() if ln.strip()}
             self.mods = {m: p for m, p in self.mods.items() if m in keep}
