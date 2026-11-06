@@ -61,6 +61,8 @@ if (cmd !== "build") process.exit(0)
 const hungry = JSON.parse(process.env.FAKE_HUNGRY || "{}")
 const imports = JSON.parse(process.env.FAKE_IMPORTS || "{}")
 const failAlone = JSON.parse(process.env.FAKE_FAIL_ALONE || "[]")
+const brokenMods = JSON.parse(process.env.FAKE_BROKEN || "[]")
+const failElsewhere = JSON.parse(process.env.FAKE_FAIL_ELSEWHERE || "[]")
 const olean = (m) => path.join(".lake", "build", "lib", "lean", m.split(".").join("/") + ".olean")
 const result = new Map()
 const build = (m) => {
@@ -68,6 +70,10 @@ const build = (m) => {
   if (result.has(m)) return result.get(m)
   for (const i of imports[m] || []) if (!build(i)) { result.set(m, false); return false }
   if (mods.length === 1 && failAlone.includes(m)) { result.set(m, false); return false } // a compile error that only shows alone, not a kill
+  // does not compile at all: Lake's own error line for the module's file, as tnlean's TNLean/Archive/BlockingPeriodicityCFII2.lean printed it on 2026-11-06
+  // fails, but the error Lake prints is in ANOTHER file (a dependency's, a generated one): not this module's own error
+  if (failElsewhere.includes(m)) { console.log("error: Lib/Generated.lean:1:1: something else"); result.set(m, false); return false }
+  if (brokenMods.includes(m)) { console.log("error: " + m.split(".").join("/") + ".lean:694:4: Unknown identifier \`isIrreducibleCP_transferMap_of_isIrreducibleTensor\`"); console.log("error: Lean exited with code 1"); result.set(m, false); return false }
   if (hungry[m]) {
     const file = path.join(process.cwd(), m.split(".").join("/") + ".lean")
     const r = spawnSync(process.execPath, ["-e", "const b = Buffer.alloc(" + hungry[m] + " * 1024 * 1024, 1); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, " + (process.env.FAKE_HOLD_MS || 4000) + "); process.exit(b.length ? 0 : 1)", "--", file, "-R", "."])
@@ -184,6 +190,41 @@ const before8 = calls().length
 r = setup(["--phase", "build"], { FAKE_HUNGRY: JSON.stringify({ "Lib.G1": 700, "Lib.G2": 700 }), FAKE_HOLD_MS: "3000", EMISSARY_BUILD_ATTEMPTS: "1000" })
 const lakeCalls = calls().slice(before8).filter((c) => c.startsWith("build "))
 check("1000 tries, a module that does not fit alone: the chunk is not tried over and over (a try that rescues nothing ends it)", r.status === 0 && lakeCalls.length <= 4 && /Lib\.G1 did not build alone either/.test(r.stdout), `${lakeCalls.length} lake builds\n${out(r)}`)
+
+// 9. a module that does not compile at the library's own commit (an error in its own file, its imports built): tnlean, 2026-11-06, 1,155 of 1,156 modules built and the
+// chain stopped because the next round added nothing, so nothing was exported. It is written down as broken, the build is complete without it (and what imports it),
+// and the shards export the rest.
+const brokenMemo = join(repo, ".lake", "build", "emissary-broken.json")
+fresh()
+r = setup(["--phase", "build"], { FAKE_BROKEN: JSON.stringify(["Lib.C"]) })
+const bm = existsSync(brokenMemo) ? JSON.parse(readFileSync(brokenMemo, "utf8")).broken : {}
+check("a module with an error in its own file is recorded as broken, with Lake's error line", r.status === 0 && Object.keys(bm).join() === "Lib.C" && /BlockingPeriodicityCFII2|Lib\/C\.lean:694:4: Unknown identifier/.test(bm["Lib.C"].error) && /broken: Lib\.C does not compile at this commit/.test(r.stdout), out(r))
+r = setup(["--phase", "build-status"])
+check("the build is complete without it and the module that imports it (D)", /^complete=true$/m.test(r.stdout) && statusOf().other === 0 && statusOf().blocked === 1 && statusOf().broken.map((b) => b.module).join() === "Lib.C", JSON.stringify(statusOf()))
+check("the others are built", ["A", "E", "F"].every((m) => existsSync(olean(m))) && !existsSync(olean("D")), "")
+// the next round does not try it again (it is blocked like a too-big one) and the record survives the round
+r = setup(["--phase", "build"], { FAKE_BROKEN: JSON.stringify(["Lib.C"]) })
+check("a second round keeps the record and says nothing new about it", r.status === 0 && Object.keys(JSON.parse(readFileSync(brokenMemo, "utf8")).broken).join() === "Lib.C" && !/broken: Lib\.C/.test(r.stdout), out(r))
+
+// 10. NOT broken: a module that fails without an error line of its own file (case 7's compile error that only shows alone, printed nowhere), and a module whose import is missing
+fresh()
+r = setup(["--phase", "build"], { FAKE_HUNGRY: JSON.stringify({ "Lib.C": 300 }), FAKE_FAIL_ALONE: JSON.stringify(["Lib.C"]) })
+check("a failure without an error line of the module's own file is not called broken", r.status === 0 && !existsSync(brokenMemo), out(r))
+check("so the build is not complete (it may build next round)", /^complete=false$/m.test(setup(["--phase", "build-status"]).stdout), "")
+fresh()
+r = setup(["--phase", "build"], { FAKE_HUNGRY: JSON.stringify({ "Lib.C": 700 }) })
+check("a module behind one too big for memory is not called broken (D imports C, which was killed)", r.status === 0 && !existsSync(brokenMemo), out(r))
+// a module that fails with an error in a different file, its imports built and nothing killed: probed, and NOT called broken
+fresh()
+r = setup(["--phase", "build"], { FAKE_FAIL_ELSEWHERE: JSON.stringify(["Lib.E"]) })
+check("a failure whose error line names another file is not called broken", r.status === 0 && !existsSync(brokenMemo) && !existsSync(olean("E")) && calls().some((c) => c === "build Lib.E"), out(r) + calls().join("\n"))
+check("and the build is not complete", /^complete=false$/m.test(setup(["--phase", "build-status"]).stdout), "")
+// a record from an artifact is data: anything that is not a module name with an error text is dropped
+fresh()
+mkdirSync(dirname(brokenMemo), { recursive: true })
+writeFileSync(brokenMemo, JSON.stringify({ version: 1, broken: { "Lib.C": { error: "error: x" }, "bad name;rm": { error: "e" }, "Lib.E": { error: 7 } } }))
+r = setup(["--phase", "build-status"])
+check("a malformed broken record keeps only the well-formed entry", statusOf().broken.map((b) => b.module).join() === "Lib.C", JSON.stringify(statusOf()))
 
 rmSync(tmp, { recursive: true, force: true })
 process.exit(bad ? 1 : 0)

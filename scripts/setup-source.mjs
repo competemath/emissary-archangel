@@ -310,6 +310,32 @@ function loadOom({ prune = false } = {}) {
   if (prune && dropped) saveOom(out) // the build phase writes the forgetting down; the status phase only reads
   return out
 }
+// A module that does not compile at the library's own commit, with every library module it imports built: its own file has an error (tnlean, 6 Nov 2026:
+// TNLean.Archive.BlockingPeriodicityCFII2, two unknown identifiers upstream). No round can build it, so it is written down here (packed with the build, as the
+// too-big ones are) and buildStatus counts it, and what imports it, like a too-big module: the build is complete without them and the shards export the rest.
+// Before, one such file stopped the whole library: the round after added nothing, the chain stopped, and 1,155 built modules were never exported.
+const BROKEN_FILE = join(REPO, ".lake", "build", "emissary-broken.json")
+const BROKEN_PROBE_MAX = 50 // modules tried alone for this at the end of a round (each a few seconds to minutes)
+function loadBroken() {
+  const out = new Map()
+  try {
+    const raw = JSON.parse(readFileSync(BROKEN_FILE, "utf8"))
+    for (const [m, v] of Object.entries(raw?.broken ?? {})) if (m.length <= 300 && MODULE_NAME.test(m) && typeof v?.error === "string") out.set(m, { error: v.error.slice(0, 300) })
+  } catch {
+    /* none yet, or unreadable */
+  }
+  return out
+}
+function saveBroken(map) {
+  mkdirSync(dirname(BROKEN_FILE), { recursive: true })
+  writeAtomic(BROKEN_FILE, JSON.stringify({ version: 1, broken: Object.fromEntries(map) }, null, 2))
+}
+// The first error a build printed for the file of module `m` itself (`error: ./Lib/X.lean:3:4: ...`, or without ./), or null.
+function ownError(m, text) {
+  const path = pathOfModule(m).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const hit = text.match(new RegExp(`^error: (?:\\./)?${path}:\\d+:\\d+: .*$`, "m"))
+  return hit ? hit[0].slice(0, 300) : null
+}
 function saveOom(map) {
   mkdirSync(dirname(OOM_FILE), { recursive: true })
   writeAtomic(OOM_FILE, JSON.stringify({ version: 1, toobig: Object.fromEntries(map) }, null, 2))
@@ -648,6 +674,26 @@ async function build(modules) {
       chunk = chunk.filter((m) => !blocker.has(m) && !existsSync(oleanOf(m)))
     }
   }
+  // Modules still without an .olean whose library imports are all built and that are not left out for memory: built alone once more; one that fails with an error in its
+  // own file (and no watchdog kill) does not compile at this commit and is written down as broken (BROKEN_FILE).
+  const broken = loadBroken()
+  let probed = 0
+  for (const m of modules) {
+    if (probed >= BROKEN_PROBE_MAX) break
+    if (existsSync(oleanOf(m)) || blocker.has(m) || broken.has(m)) continue
+    const own = (importsOf(m) ?? []).filter((i) => importsOf(i) !== null)
+    if (!own.every((i) => existsSync(oleanOf(i)))) continue
+    probed++
+    oomKilled.delete(m)
+    const r = await run("lake", ["build", m], { cwd: REPO, timeoutMs: SOLO_BUILD_MS })
+    if (existsSync(oleanOf(m)) || oomKilled.has(m) || r.code === 124) continue
+    const err = ownError(m, r.tail)
+    if (err) {
+      broken.set(m, { error: err })
+      log(`broken: ${m} does not compile at this commit (${err}); it and the modules that import it are left out, the rest is exported`)
+    }
+  }
+  if (broken.size) saveBroken(broken)
   // None of the modules built (an invalid lake flag, a dependency that failed to fetch): writing setup.json
   // now would record a library with 0 exports as done — zkevm-clean, aisafety-atlas and algolean were.
   const built = modules.filter((m) => existsSync(oleanOf(m))).length
@@ -1133,8 +1179,9 @@ function buildStatus(modules) {
   const missing = modules.filter((m) => !existsSync(oleanOf(m)))
   const built = modules.length - missing.length
   const toobig = loadOom()
-  const blocker = blockedBy(toobig, modules)
-  const blockedMissing = missing.filter((m) => blocker.has(m) && !toobig.has(m))
+  const broken = loadBroken()
+  const blocker = blockedBy(new Set([...toobig.keys(), ...broken.keys()]), modules)
+  const blockedMissing = missing.filter((m) => blocker.has(m) && !toobig.has(m) && !broken.has(m))
   const other = missing.filter((m) => !blocker.has(m))
   const status = {
     key,
@@ -1146,6 +1193,8 @@ function buildStatus(modules) {
     complete: other.length === 0,
     // Why modules are missing, as far as it is known: killed for memory (and not built alone either), blocked behind one of those, and the rest (an error, or not tried yet).
     toobig: [...toobig].map(([module, v]) => ({ module, peakMB: v.peakMB, capMB: v.capMB, blocks: [...blocker].filter(([x, b]) => b === module && x !== module).length })),
+    // does not compile at the library's own commit (an error in its own file, every import built): left out with what imports it
+    broken: [...broken].filter(([m]) => missing.includes(m)).map(([module, v]) => ({ module, error: v.error })),
     blocked: blockedMissing.length,
     other: other.length,
     otherSample: other.slice(0, 20),
@@ -1158,9 +1207,14 @@ function buildStatus(modules) {
     for (const t of status.toobig.slice(0, 20)) md.push(`- \`${t.module}\`: killed at ${t.peakMB} MB with a limit of ${t.capMB} MB; ${t.blocks} modules import it`)
     md.push("")
   }
+  if (status.broken.length) {
+    md.push(`Do not compile at the library's own commit (${status.broken.length}):`, "")
+    for (const b of status.broken.slice(0, 20)) md.push(`- \`${b.module}\`: ${b.error.replace(/`/g, "'")}`)
+    md.push("")
+  }
   md.push(`${blockedMissing.length} modules wait behind those; ${other.length} are missing for another reason${other.length ? ", first: " + other.slice(0, 5).map((m) => `\`${m}\``).join(", ") : ""}.`)
   writeAtomic(join(INFRA, "unbuilt-summary.md"), md.join("\n") + "\n")
-  log(`build status: ${built}/${modules.length} modules have an .olean; ${toobig.size} too big, ${blockedMissing.length} behind them, ${other.length} other`)
+  log(`build status: ${built}/${modules.length} modules have an .olean; ${toobig.size} too big, ${status.broken.length} do not compile, ${blockedMissing.length} behind them, ${other.length} other`)
   console.log(`built=${built}`)
   console.log(`modules=${modules.length}`)
   console.log(`toobig=${toobig.size}`)

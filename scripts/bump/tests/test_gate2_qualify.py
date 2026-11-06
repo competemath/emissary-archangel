@@ -93,31 +93,38 @@ class RealFoundation(unittest.TestCase):
         self.assertLess(sum(r["name"] in have for r in self.entries.values()), 100)
 
     def test_invariants_on_every_record(self):
+        changed = 0
         for key, r in self.entries.items():
             mod = g.module_of(r["sourcePath"])
             have = set(self.names.get(mod, []))
-            cands = [h for h in self.own.get(mod, set()) if h.endswith("." + r["name"])]
-            if r["name"] in have or mod not in self.names or len(cands) != 1:
-                self.assertIn(key, self.out, r)  # 1 and 3: unchanged, under its own key
+            got = [x for x in self.out.values() if x.get("short") == r["name"] and g.module_of(x["sourcePath"]) == mod]
+            if r["name"] in have or mod not in self.names:
+                self.assertIn(key, self.out, r)  # 1: a name the export has (or a module without an export) is never changed
                 self.assertEqual(self.out[key]["name"], r["name"])
-            else:
-                full = cands[0]  # 2: the one name ending in .<name>
-                self.assertIn(full, self.out, r)
-                got = self.out[full]
-                self.assertEqual(got["name"], full)
-                self.assertEqual(g.module_of(got["sourcePath"]), mod)  # 4: the declaration of the same module
+                continue
+            if not got:  # 3: unresolved, under its own key, unchanged
+                self.assertEqual(self.out[key]["name"], r["name"])
+                continue
+            full = got[0]["name"]
+            changed += 1
+            self.assertIn(full, have)  # 2: in its own module's export, ending in .<name>
+            self.assertTrue(full.endswith("." + r["name"]), full)
+            for d in closure(self.imports, mod):  # and in no export of a module it imports
+                self.assertNotIn(full, self.names.get(d, []), (full, mod, d))
+            # the only candidate: no other name of the module's export that no import exports ends in .<name>
+            others = [h for h in self.own[mod] if h.endswith("." + r["name"]) and h != full]
+            self.assertEqual(others, [], (full, others))
+        self.assertGreater(changed, 4000)
 
-    def test_counts_match_a_brute_force_count(self):
-        resolved = set()
-        for r in self.entries.values():
-            mod = g.module_of(r["sourcePath"])
-            have = set(self.names.get(mod, []))
-            if mod in self.names and r["name"] not in have:
-                cands = [h for h in self.own[mod] if h.endswith("." + r["name"])]
-                if len(cands) == 1:
-                    resolved.add(cands[0])
-        self.assertEqual(len([r for r in self.out.values() if "short" in r]), len(resolved))
-        self.assertGreaterEqual(len(resolved), 4600)  # foundation: 21 judged before (4,686 distinct declarations at 81810b9f)
+    def test_counts(self):
+        resolved = [r for r in self.out.values() if "short" in r]
+        self.assertGreaterEqual(len(resolved), 4600)  # foundation: 21 judged before (4,682 at 81810b9f)
+        self.assertEqual(len({r["name"] for r in resolved}), len(resolved))  # one record per declaration
+
+    def test_each_resolution_stays_with_its_module(self):
+        for full, r in self.out.items():
+            if "short" in r:
+                self.assertIn(full, self.names[g.module_of(r["sourcePath"])])
 
     def test_idempotent(self):
         self.assertEqual(g.qualify(self.out, self.exports, self.lib), self.out)
@@ -144,7 +151,14 @@ class Synthetic(unittest.TestCase):
         self.assertEqual(len(ents), 2)  # the old dict kept only the last one
         exp = write_exports(self.tmp, {"L.A": ["A.foo"], "L.B": ["B.foo"]})
         out = g.qualify(ents, exp, write_lib(self.tmp, {"L.A": [], "L.B": []}))
-        self.assertEqual(sorted(r["name"] for r in out.values()), ["A.foo", "B.foo"])
+        self.assertEqual(sorted((r["name"], r["sourcePath"]) for r in out.values()), [("A.foo", "L/A.lean"), ("B.foo", "L/B.lean")])
+
+    def test_a_name_two_modules_resolve_to_stays_with_the_first(self):
+        rows = [{"name": "foo", "sourcePath": "L/A.lean"}, {"name": "foo", "sourcePath": "L/B.lean"}]
+        ents = g.tentative_entries([write_records(self.tmp, rows, "x")])
+        exp = write_exports(self.tmp, {"L.A": ["N.foo"], "L.B": ["N.foo"]})  # two unrelated modules whose exports both have N.foo
+        out = g.qualify(ents, exp, write_lib(self.tmp, {"L.A": [], "L.B": []}))
+        self.assertEqual(sorted((r["name"], r["sourcePath"]) for r in out.values()), [("N.foo", "L/A.lean"), ("foo", "L/B.lean")])
 
     def test_ambiguous_none_missing_export_and_exact(self):
         rows = [{"name": "amb", "sourcePath": "L/A.lean"}, {"name": "none", "sourcePath": "L/A.lean"}, {"name": "x", "sourcePath": "L/Gone.lean"},
