@@ -20,7 +20,7 @@ def args_for(key: str, src: Path, roots: list[str]) -> list[str]:
     out: list[str] = []
     for m in mods:
         out += ["--module", m]
-    for r in roots:
+    for r in tb.library_roots(src, roots):
         out += ["--prefix", r]
     return out + ["--tree-prefix", f"Tengoku.{bundle.pascal(key)}"]
 

@@ -166,7 +166,7 @@ def keep_input(a: argparse.Namespace) -> None:
     lib = Path(a.lib)
     roots = [r for r in a.roots.split(",") if r]
     passed = json.loads(Path(a.passed).read_text())
-    mods = built_modules(lib, roots)
+    mods = built_modules(lib, tb.library_roots(lib, roots))  # the roots AND the packages they import from the rest of the library (flt-anthropic: P2M)
     # Modules that cannot be loaded together with the rest (two modules of the library declare one name: Lean says `import X failed, environment already contains …`) are
     # left out, with what imports them, and compose is told the same list: the tree loads every module into one environment, so such a pair cannot both be in it.
     dropped = importers_closure(lib, mods, {m.strip() for m in (a.drop or "").split(",") if m.strip()})

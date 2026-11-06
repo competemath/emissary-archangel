@@ -35,6 +35,23 @@ def real():
     return _REAL
 
 
+_TREE = None
+
+
+def real_tree() -> Path:
+    """The real flt library as a tree of files that hold only their header imports (written once for the module, removed when the tests are done)."""
+    global _TREE
+    if _TREE is None:
+        _TREE = tempfile.TemporaryDirectory()
+        write_tree(Path(_TREE.name), real()[0])
+    return Path(_TREE.name)
+
+
+def tearDownModule():
+    if _TREE is not None:
+        _TREE.cleanup()
+
+
 def write_tree(root: Path, imports: dict[str, list[str]]) -> None:
     for m, imps in imports.items():
         parts = tb.split_mod(m)
@@ -45,7 +62,9 @@ def write_tree(root: Path, imports: dict[str, list[str]]) -> None:
 
 class FollowImports(unittest.TestCase):
     def lib(self, files: dict[str, str]) -> Path:
-        root = Path(tempfile.mkdtemp())
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
         for rel, text in files.items():
             p = root / rel
             p.parent.mkdir(parents=True, exist_ok=True)
@@ -78,6 +97,12 @@ class FollowImports(unittest.TestCase):
         )
         self.assertEqual(set(tb.module_files(lib, ["Theorems"], follow_imports=True)), {"Theorems", "Pkg", "Pkg.Sub", "Other"})
 
+    def test_only_the_imported_files_are_followed_not_the_package_around_them(self):
+        lib = self.lib({"Theorems/A.lean": "import Pkg.Used\n", "Pkg/Used.lean": "import Pkg.Deeper\n", "Pkg/Deeper.lean": "", "Pkg/Unused.lean": "import Mathlib\n", "Pkg/Sub/Also.lean": ""})
+        got = set(tb.module_files(lib, ["Theorems"], follow_imports=True))
+        self.assertEqual(got, {"Theorems.A", "Pkg.Used", "Pkg.Deeper"})
+        self.assertEqual(tb.library_roots(lib, ["Theorems"]), ["Theorems", "Pkg"], "the names to filter built modules and prefixes by: the package of every followed module")
+
     def test_toolchain_and_dependency_names_are_never_followed(self):
         # a directory of the library that is called like Mathlib or Lean is not the library's own module set
         lib = self.lib({"Theorems/A.lean": "import Mathlib.Tactic\nimport Lean.Elab\nimport Batteries.Data\n", "Mathlib/Tactic.lean": "", "Lean/Elab.lean": "", "Batteries/Data.lean": ""})
@@ -93,7 +118,7 @@ class FollowImports(unittest.TestCase):
         self.assertIn("Theorems.A", got)
         self.assertIn("B", got)
         self.assertIn("B2", got)
-        self.assertTrue(any("Sub" in m for m in got), got)
+        self.assertIn("«Odd.Pkg».Sub", got)
 
     def test_nothing_changes_for_a_library_whose_roots_import_only_themselves(self):
         lib = self.lib({"Lib/A.lean": "import Mathlib\nimport Lib.B\n", "Lib/B.lean": "import Mathlib\n", "Tests/T.lean": "import Lib.A\n"})
@@ -101,18 +126,57 @@ class FollowImports(unittest.TestCase):
 
     def test_the_real_flt_library(self):
         imports, _, _ = real()
-        root = Path(tempfile.mkdtemp())
-        write_tree(root, imports)
+        root = real_tree()
         old = tb.module_files(root, ["Theorems", "Definitions"])
         new = tb.module_files(root, ["Theorems", "Definitions"], follow_imports=True)
         self.assertEqual((len(old), len(new)), (30961, 60474), "Theorems + Definitions, then P2M (29,513 modules) through the imports")
         self.assertEqual(sum(1 for m in new if m.startswith("P2M")), 29513)
+        self.assertEqual(tb.library_roots(root, ["Theorems", "Definitions"]), ["Theorems", "Definitions", "P2M"])
         # every import of a Theorems module that is a file of the library is a library module now
         missing = [(m, d) for m, ds in imports.items() if m.startswith("Theorems.") for d in ds if d in imports and d not in new]
         self.assertEqual(missing, [])
         # and the old view lost exactly those: 424 of 584 modules of shard 22 had a bad import because of it
         bad_old = [m for m in old if any(d in imports and d not in old for d in imports[m])]
         self.assertGreaterEqual(len(bad_old), 29000)
+
+
+class InternalMissingImports(unittest.TestCase):
+    """A module of the library that the roots import but that is not in the module set is a pipeline error, not a `bad_import` of the library (which the repair would silently drop)."""
+
+    def lib(self, files):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        for rel, text in files.items():
+            p = root / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(text)
+        return root
+
+    def imports_of(self, mods):
+        return {m: tb.header_imports(p.read_text()) for m, p in mods.items()}
+
+    def test_a_library_file_outside_the_module_set_is_found(self):
+        lib = self.lib({"Theorems/A.lean": "import Mathlib\nimport P2M.S\nimport Gone.X\n", "P2M/S.lean": "import Mathlib\n", "Mathlib/Fake.lean": ""})
+        old = tb.module_files(lib, ["Theorems"])
+        self.assertEqual(tb.internal_missing_imports(lib, old, self.imports_of(old)), [("Theorems.A", "P2M.S")], "P2M.S is a file of the library; Gone.X does not exist anywhere: that one stays an ordinary bad import")
+        new = tb.module_files(lib, ["Theorems"], follow_imports=True)
+        self.assertEqual(tb.internal_missing_imports(lib, new, self.imports_of(new)), [])
+
+    def test_the_real_flt_library_with_and_without_the_closure(self):
+        root = real_tree()
+        old = tb.module_files(root, ["Theorems", "Definitions"])
+        found = tb.internal_missing_imports(root, old, self.imports_of(old))
+        self.assertGreaterEqual(len(found), 29511, "every Theorems module names its P2M proof")
+        self.assertTrue(all(d.startswith("P2M.") for _, d in found))
+        new = tb.module_files(root, ["Theorems", "Definitions"], follow_imports=True)
+        self.assertEqual(tb.internal_missing_imports(root, new, self.imports_of(new)), [])
+
+    def test_a_shard_module_list_that_is_not_closed_is_found(self):
+        lib = self.lib({"Lib/A.lean": "import Lib.B\n", "Lib/B.lean": "import Lib.C\n", "Lib/C.lean": ""})
+        mods = tb.module_files(lib, ["Lib"])
+        shard = {m: p for m, p in mods.items() if m != "Lib.C"}
+        self.assertEqual(tb.internal_missing_imports(lib, shard, self.imports_of(shard)), [("Lib.B", "Lib.C")])
 
 
 class Planner(unittest.TestCase):
@@ -178,17 +242,21 @@ class Planner(unittest.TestCase):
         took = time.time() - t
         self.assertLess(took, 600, "the plan of 60,474 modules took hours before the table of bytes")
         got = [m for s in p["shards"] for m in s["targets"]]
-        self.assertEqual(len(got), len(wanted))
-        self.assertEqual(set(got), wanted, "every Theorems module is judged by exactly one shard")
+        deferred = set(p.get("deferred", []))
+        self.assertEqual(len(got) + len(deferred), len(wanted))
+        self.assertEqual(set(got) | deferred, wanted, "every Theorems module is judged by exactly one shard, or deferred (listed in the plan)")
         self.assertEqual(len(set(got)), len(got))
+        self.assertEqual(set(got) & deferred, set())
         self.assertLessEqual(max(len(s["targets"]) for s in p["shards"]), 400)
         # each shard builds the closure of its targets (a sample of 3,000 targets, all shards)
         rnd = random.Random(1)
         in_shard = {m: s for s in p["shards"] for m in s["targets"]}
         build_sets = {}
-        for m in rnd.sample(sorted(wanted), 3000):
+        for m in rnd.sample(sorted(set(got)), 3000):
             s = in_shard[m]
-            bs = build_sets.setdefault(s["shard"], set(s["build"]))
+            if s["shard"] not in build_sets:
+                build_sets[s["shard"]] = set(s["build"])
+            bs = build_sets[s["shard"]]
             stack, seen = [m], set()
             while stack:
                 x = stack.pop()
@@ -199,6 +267,37 @@ class Planner(unittest.TestCase):
                 stack.extend(imp[x])
         # P2M is built by the shards: the plan has them in `build` (the old plan had no P2M module at all)
         self.assertTrue(any(x.startswith("P2M.Sol.") for s in p["shards"] for x in s["build"]))
+
+    def test_the_final_theorem_is_deferred_and_no_shard_holds_the_library(self):
+        """The final theorem of flt-anthropic imports the whole library (13.5M lines): no shard job can build it before what it imports is in the tree. The plan defers such targets and lists them; every
+        other shard stays within a few times the share of one shard (before this a single shard took 13.5M lines)."""
+        _, imp, w = real()
+        wanted = {m for m in imp if m.startswith("Theorems.")}
+        k, p = ps.choose_k(imp, w, wanted, max(1, math.ceil(sum(w.values()) / 200_000)))
+        p = ps.plan(imp, w, k, wanted=wanted, max_targets=400)
+        deferred = p["deferred"]
+        self.assertGreaterEqual(len(deferred), 18, "at least the 18 theorems whose closure is over 6M lines")
+        self.assertIn("Theorems.Thm_FLT_fermatLastTheorem", deferred)
+        planned = {m for s in p["shards"] for m in s["targets"]}
+        self.assertEqual(planned | set(deferred), wanted)
+        self.assertEqual(planned & set(deferred), set())
+        self.assertLess(max(s["lines"] for s in p["shards"]), 4_000_000, "no shard holds the library any more")
+        self.assertGreater(len(planned), 28000)
+        # a plan without a deferred target has no `deferred` key: the plan of every other library is the same bytes
+        small = ps.plan({"A": [], "B": ["A"]}, {"A": 1, "B": 1}, 1, wanted={"B"})
+        self.assertNotIn("deferred", small)
+
+    def test_no_targets_is_a_plan_with_nothing_to_do(self):
+        imp = {f"M{i}": ([f"M{i - 1}"] if i else []) for i in range(30)}
+        w = {m: 3 for m in imp}
+        for fast in (0, 10**9):
+            old = ps.FAST_ABOVE
+            ps.FAST_ABOVE = fast
+            try:
+                p = ps.plan(imp, w, 3, wanted=set())
+            finally:
+                ps.FAST_ABOVE = old
+            self.assertEqual([s["targets"] for s in p["shards"]], [[], [], []])
 
     def test_the_fast_path_prices_few_shards_but_loses_no_target(self):
         rnd = random.Random(3)

@@ -69,31 +69,39 @@ NOT_OUR_ROOTS = frozenset({"Init", "Std", "Lean", "Lake", "Mathlib", "Batteries"
 
 
 def module_files(lib: Path, roots: list[str], follow_imports: bool = False) -> dict[str, Path]:
-    """The library's modules: every .lean file under the roots, AND every module of the library that those import from OUTSIDE the roots (and what those import, and so on). flt-anthropic
-    (6 Nov 2026): roots Theorems and Definitions, but each of its 29,511 Theorems modules imports its proof `P2M.Sol.S_...` and a tactic from `P2M.Util`; they were not library modules, so
-    every shard called those imports bad (424 of 584 modules), the repair dropped them, the proofs became sorry and Gate 2 passed 320 names of 23,500. `follow_imports=False` is the old,
-    roots-only view, which is still the default (vendor_deps asks which modules the library itself defines to find clashes with its dependencies' modules); the build, the plan, the shard packs, the import graph and the leak
-    scan ask for `follow_imports=True`."""
+    """The library's modules: every .lean file under the roots, AND (with `follow_imports`) every module of the library that those import from OUTSIDE the roots, and what those import, and so on:
+    exactly the imported files, not the packages around them. flt-anthropic (6 Nov 2026): roots Theorems and Definitions, but each of its 29,511 Theorems modules imports its proof `P2M.Sol.S_...`
+    and a tactic from `P2M.Util`; they were not library modules, so every shard called those imports bad (424 of 584 modules), the repair dropped them, the proofs became sorry and Gate 2 passed 320
+    names of 23,500. The default is the old roots-only view (vendor_deps asks which modules the library itself defines to find clashes with its dependencies' modules); the build, the plan, the shard
+    packs, the import graph and the leak scan ask for `follow_imports=True`."""
     found = _under_roots(lib, roots)
     if not follow_imports:
         return found
-    done, todo = set(roots), list(found)
+    todo = list(found)
     while todo:
-        new: list[str] = []
+        nxt: list[str] = []
         for m in todo:
             for d in header_imports(found[m].read_text(errors="replace")):
-                top = split_mod(d)[0]
-                if top in done or top in NOT_OUR_ROOTS or top.startswith("."):
+                parts = split_mod(d)
+                key = ".".join(esc(x) for x in parts)
+                if key in found or parts[0] in NOT_OUR_ROOTS or parts[0].startswith("."):
                     continue
-                if (lib / top).is_dir() or (lib / f"{top}.lean").is_file():
-                    done.add(top)
-                    new.append(top)
-        if not new:
-            break
-        more = _under_roots(lib, new)
-        todo = [m for m in more if m not in found]
-        found.update(more)
+                f = lib.joinpath(*parts[:-1], parts[-1] + ".lean")
+                if f.is_file():
+                    found[key] = f
+                    nxt.append(key)
+        todo = nxt
     return found
+
+
+def library_roots(lib: Path, roots: list[str]) -> list[str]:
+    """The roots plus the top-level packages of the modules the roots import from the rest of the library: the names to filter built modules and prefixes by (bundle keep-input, leak scan)."""
+    extra: list[str] = []
+    for m in module_files(lib, roots, follow_imports=True):
+        top = split_mod(m)[0]
+        if top not in roots and top not in extra:
+            extra.append(top)
+    return list(roots) + sorted(extra)
 
 
 MODNAME = r"(?:«[^»]*»|[^\s«»])+"
@@ -130,6 +138,24 @@ def header_imports(text: str) -> list[str]:
     return out
 
 
+def internal_missing_imports(lib: Path, mods: dict, imports: dict[str, list[str]]) -> list[tuple[str, str]]:
+    """(module, import) for every import that names a module the LIBRARY itself has as a file but that is not in the module set. That is never the library's fault: a root that imports another package
+    of the library (flt-anthropic: `P2M.Sol.S_...` from every Theorems module) was not followed, a shard's module list was not closed under imports, or the plan left something out. Such a module used to
+    be called `bad_import`, its import was dropped by the repair, its proofs became sorry and the bump looked like a library that does not compile. It is a pipeline error and must stop the run."""
+    out = []
+    for m, imps in imports.items():
+        for d in imps:
+            if d in mods:
+                continue
+            parts = split_mod(d)
+            top = parts[0]
+            if top in NOT_OUR_ROOTS or top.startswith("."):
+                continue
+            if lib.joinpath(*parts[:-1], parts[-1] + ".lean").is_file():
+                out.append((m, d))
+    return out
+
+
 class Builder:
     def __init__(self, a: argparse.Namespace):
         self.lib = Path(a.lib).resolve()
@@ -153,6 +179,11 @@ class Builder:
         self.done = {m: threading.Event() for m in self.mods}
         self.imports = {m: header_imports(p.read_text(errors="replace")) for m, p in self.mods.items()}
         self.ext_cache: dict[str, bool] = {}
+        missing = internal_missing_imports(self.lib, self.mods, self.imports)
+        if missing:
+            sys.exit(
+                f"pipeline error: {len(missing)} imports name modules the library has but that are not in the module set (first: {missing[:3]}): the roots, the plan or the shard's module list is not closed under the library's own imports"
+            )
 
     def olean_of(self, mod: str, base: Path | None = None) -> Path:
         parts = split_mod(mod)

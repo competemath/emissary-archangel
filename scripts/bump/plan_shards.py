@@ -50,7 +50,7 @@ def topo(imp: dict[str, list[str]]) -> list[str]:
 FAST_ABOVE = 20_000  # modules: above it a target is priced against a few shards, not all (below it every plan is the one the exhaustive search always made)
 
 
-def plan(imp: dict[str, list[str]], weight: dict[str, int], k: int, cap: float = 1.05, wanted: set[str] | None = None, max_targets: int = 0) -> dict:
+def plan(imp: dict[str, list[str]], weight: dict[str, int], k: int, cap: float = 1.05, wanted: set[str] | None = None, max_targets: int = 0, max_closure_lines: int | None = None) -> dict:
     """`wanted`: the modules that need checking (those with ledger entries); the rest is only built where something imports it.
     `max_targets`: a shard with more targets than this is cut into shards of at most that many, in import order (0: never). Gate 2 judges a shard's targets one after the other inside the
     shard job's time (navier-stokes-euler, 2026-10-20: shard 1 had 1,758 targets, one flat chain of 1,838 modules that cannot be spread by closure; its Gate 2 got through 535 of them in
@@ -78,10 +78,20 @@ def plan(imp: dict[str, list[str]], weight: dict[str, int], k: int, cap: float =
         return sum(table[c][b] for c, b in enumerate(bits.to_bytes(nbytes, "little")) if b)
 
     fast = len(order) > FAST_ABOVE
+    deferred: list[str] = []
     if fast:
-        # every target of a big library shares a large base (flt-anthropic: its Definitions, up to 279k lines, are imported by almost every theorem): a shard is full when it holds that base plus its
-        # share of the rest. Without it every shard is over the limit from the first target on and one shard ends up with the whole library (13.5M lines).
-        limit += max(lines_of(clos[m]) for m in order if wanted is None or m in wanted)
+        # every target of a big library shares a large base (flt-anthropic: its Definitions, up to 279k lines, are imported by almost every theorem): a shard is full when it holds a typical closure
+        # (the 90th percentile of the targets') plus its share of the rest. Without it every shard is over the limit from the first target on and one shard ends up with the whole library.
+        # A target whose closure is far bigger than a shard (the final theorem of flt-anthropic imports the whole library: 13.5M lines) cannot be judged in one shard job: it is DEFERRED to a later
+        # wave, when what it imports is in the tree, and listed in the plan (`deferred`). `max_closure_lines` sets the bound (0: none; default 8 x the share of one shard).
+        sized = {m: lines_of(clos[m]) for m in order if wanted is None or m in wanted}
+        if max_closure_lines is None:
+            max_closure_lines = int(8 * limit)
+        if max_closure_lines > 0:
+            deferred = [m for m in order if m in sized and sized[m] > max_closure_lines]
+            wanted = {m for m in sized if m not in set(deferred)}
+        kept = sorted(v for m, v in sized.items() if m not in set(deferred))
+        limit += kept[int(0.9 * (len(kept) - 1))] if kept else 0
 
     for m in order:
         if wanted is not None and m not in wanted:
@@ -123,8 +133,11 @@ def plan(imp: dict[str, list[str]], weight: dict[str, int], k: int, cap: float =
             sh["shard"] = n
         k = len(shards)
     dup = sum(len(x["build"]) for x in shards) / max(1, len(order))
-    return {"modules": len(order), "lines": total, "k": k, "duplication": round(dup, 2),
-            "max_shard_lines": max(x["lines"] for x in shards), "mean_shard_lines": round(total * dup / k), "shards": shards}
+    out = {"modules": len(order), "lines": total, "k": k, "duplication": round(dup, 2),
+           "max_shard_lines": max(x["lines"] for x in shards), "mean_shard_lines": round(total * dup / k), "shards": shards}
+    if deferred:  # only when there are some: the plan of every other library stays the same bytes
+        out["deferred"] = deferred
+    return out
 
 
 def parse_only(raw: str) -> set[str]:
