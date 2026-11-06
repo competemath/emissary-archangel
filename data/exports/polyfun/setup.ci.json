@@ -1,0 +1,62 @@
+{
+  "key": "polyfun",
+  "repo": "https://github.com/Verified-zkEVM/PolyFun",
+  "commit": "31773b17a2c4c9d884c43cd34eb9365b2bb4deb9",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "PolyFunCslib",
+    "PolyFunTest",
+    "PolyFun",
+    "ToCslib"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/polyfun/repo",
+  "entries": 4108,
+  "modules": 301,
+  "exported": 301,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 4114,
+    "kept": 4108,
+    "skippedRoot": 4,
+    "skippedDup": 1,
+    "skippedNoFile": 0,
+    "skippedCommented": 1,
+    "lineFixed": 2311,
+    "lineUnverified": 0,
+    "nameFixed": 44,
+    "sorryOriginals": 0,
+    "emptyProofs": 85
+  },
+  "sharded": {
+    "records": 6,
+    "shards": [
+      6
+    ]
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 162234368,
+  "minutes": 2,
+  "finishedAt": "2026-11-06T00:53:23.696Z",
+  "archive": {
+    "release": "exports-polyfun",
+    "asset": "polyfun@31773b17a2c4-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-polyfun/polyfun@31773b17a2c4-exports.tar.zst",
+    "bytes": 18688624,
+    "sha256": "23e702d64cc7d0ea1648570a3e90806ef78de4e5b93ef305c454e4b490c42684",
+    "files": 602,
+    "unpack": "tar --zstd -xf polyfun@31773b17a2c4-exports.tar.zst -C data/exports/polyfun"
+  }
+}
