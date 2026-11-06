@@ -67,6 +67,22 @@ export function roundProgress({ round, prev = null, built, min = MIN_PROGRESS_DE
   return { stop: false, added, why: min === 0 ? `round ${round} added ${added} modules (${prev} -> ${built}); min 0: no stop` : `round ${round} added ${added} modules (${prev} -> ${built})` }
 }
 
+// Past the planned number of build rounds: the plan (`maxRounds`) is a budget, not a wall. A round that still added modules (at least `min`, and at least 1) is followed by another, up to `maxRounds * 3`.
+// Without a count to compare with (`prev` or `built` empty) there is no evidence of progress, so the plan's end is the end. The build-gate shell does the same arithmetic; test-setup-workflows.mjs runs it.
+export const BUILD_ROUNDS_CEILING_FACTOR = 3
+export function roundsCap({ round, maxRounds, prev = null, built = null, min = MIN_PROGRESS_DEFAULT }) {
+  if (!Number.isInteger(round) || round < 1) throw new Error(`round is 1 or more, not ${round}`)
+  if (!Number.isInteger(maxRounds) || maxRounds < 1) throw new Error(`maxRounds is 1 or more, not ${maxRounds}`)
+  count(min, "min")
+  if (round < maxRounds) return { stop: false, why: `round ${round} is within the planned ${maxRounds}` }
+  const ceiling = maxRounds * BUILD_ROUNDS_CEILING_FACTOR
+  if (round >= ceiling) return { stop: true, why: `round ${round} reached the ceiling of ${ceiling} (three times the plan)` }
+  if (prev === null || prev === undefined || prev === "" || built === null || built === undefined || built === "") return { stop: true, why: "past the plan with no count to show progress" }
+  const added = count(built, "built") - count(prev, "prev")
+  const need = Math.max(1, min)
+  return added >= need ? { stop: false, why: `round ${round} is past the plan but added ${added}` } : { stop: true, why: `round ${round} is past the plan and added ${added}, fewer than ${need}` }
+}
+
 // Entries the setup will seed: the committed queue when there is one, else the tentative records of the tree.
 export function countEntries(root, key, tentativeDir) {
   const queue = join(root, "data", `queue-${key}.json`)

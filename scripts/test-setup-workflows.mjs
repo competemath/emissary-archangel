@@ -10,7 +10,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { roundProgress, escalation, ESCALATE_RETRY_MB, ESCALATE_SWAP_GB, ESCALATE_SOLO_MINUTES } from "./setup-plan.mjs"
+import { roundProgress, roundsCap, escalation, ESCALATE_RETRY_MB, ESCALATE_SWAP_GB, ESCALATE_SOLO_MINUTES } from "./setup-plan.mjs"
 
 const wf = join(dirname(fileURLToPath(import.meta.url)), "..", ".github", "workflows")
 let bad = 0
@@ -108,7 +108,7 @@ const runGate = (script, c) => {
     encoding: "utf8",
     env: {
       PATH: `${sandbox}:${process.env.PATH}`, GH_CALLS: calls, GITHUB_OUTPUT: outFile, GITHUB_REPOSITORY: "o/r", GH_TOKEN: "x", KEY: "k",
-      SHARDS: "16", PRIME_MINUTES: "300", EXPAND_CHUNK: "1", ROUND: "1", MAX_ROUNDS: "4", PARALLEL: "6", RESUME_RUN: "", GITHUB_RUN_ID: "77", TENGOKU_REF: "", MAX_BUILD_ROUNDS: "99",
+      SHARDS: "16", PRIME_MINUTES: "300", EXPAND_CHUNK: "1", ROUND: "1", MAX_ROUNDS: "4", PARALLEL: "6", RESUME_RUN: "", GITHUB_RUN_ID: "77", TENGOKU_REF: "", MAX_BUILD_ROUNDS: String(c.maxRounds ?? 99),
       BUILD_ROUND: String(c.round), PREV_BUILT: c.prev, BUILT: c.built, MODULES: "30662", MIN_PROGRESS: String(c.min), TOOBIG: c.toobig ?? "", BLOCKED: c.blocked ?? "",
       ESCALATE: c.escalate ?? "", RETRY_MB: c.retry ?? "14336", SWAP_GB: c.swap ?? "0", SOLO_MINUTES: c.solo ?? "90", FROM_RELEASE: c.fromRelease ?? "false", ONLY_MODULES: c.only ?? "",
     },
@@ -140,6 +140,33 @@ for (let i = 0; i < 30; i++) { const prev = rnd(30000); cases.push({ round: 1 + 
 const verdicts = wrong(gateScript, cases)
 check(`build-gate's shell does what the rule says, on ${cases.length} rounds (boundaries, empty counts, random)`, verdicts.length === 0, verdicts.slice(0, 3))
 check("the cases hold both a stop and a dispatch, rounds with and without a count, and a fall at min 0", cases.some((c) => c.min === 0 && c.round > 1 && Number(c.built) < Number(c.prev) && !expected(c).stop) && cases.some((c) => expected(c).stop) && cases.some((c) => !expected(c).stop) && cases.some((c) => c.round > 1 && c.prev === ""), "")
+
+// past the planned number of build rounds (flt-anthropic, 6 Nov 2026: round 6 of 6 built 85 of 86 modules and the chain stopped until a person raised the cap): the plan is a budget, not a wall.
+// Every round from 1 to one past the ceiling, every plan size, every kind of count; the shell against roundsCap (and the stall rule that comes first).
+{
+  const capCases = []
+  for (const maxRounds of [1, 2, 6]) for (let round = 1; round <= maxRounds * 3 + 1; round++) for (const [prev, built] of [["", ""], ["100", ""], ["", "100"], ["100", "100"], ["100", "101"], ["100", "186"], ["100", "99"]]) for (const min of [0, 1, 5]) capCases.push({ round, maxRounds, prev, built, min })
+  const verdict = (script, c) => {
+    const stall = expected(c)
+    const cap = stall.stop ? { stop: true } : roundsCap({ round: c.round, maxRounds: c.maxRounds, prev: c.prev === "" ? null : Number(c.prev), built: c.built === "" ? null : Number(c.built), min: c.min })
+    const g = runGate(script, c)
+    const dispatched = g.calls.includes("workflow run")
+    return { ok: cap.stop ? g.code !== 0 && !dispatched : g.code === 0 && dispatched && g.calls.includes(`build_round=${c.round + 1}`), c, cap, code: g.code, text: g.text.slice(0, 200) }
+  }
+  const bad = capCases.map((c) => verdict(gateScript, c)).filter((v) => !v.ok)
+  check(`build-gate past the planned rounds: another round while a round still adds modules, a stop at no gain, no count, or three times the plan, on ${capCases.length} cases`, bad.length === 0, bad.slice(0, 3))
+  check("the cap cases hold rounds before, at and past the plan, the ceiling, and both outcomes", capCases.some((c) => c.round === 7 && c.maxRounds === 6 && c.built === "101") && capCases.some((c) => c.round === 18 && c.maxRounds === 6) && capCases.some((c) => c.round < c.maxRounds), "")
+  const capMutants = {
+    "the plan is a wall again": gateScript.replace(/if \[ "\$BUILD_ROUND" -lt \$\(\( MAX_BUILD_ROUNDS \* 3 \)\) \] && \[ -n "\$PREV_BUILT" \] && \[ -n "\$BUILT" \] && \[ \$\(\( 10#\$BUILT - 10#\$PREV_BUILT \)\) -ge "\$need" \]; then/, "if false; then"),
+    "no ceiling": gateScript.replace('[ "$BUILD_ROUND" -lt $(( MAX_BUILD_ROUNDS * 3 )) ] && ', ""),
+    "progress is not asked for": gateScript.replace(' && [ $(( 10#$BUILT - 10#$PREV_BUILT )) -ge "$need" ]', ""),
+    "any gain will do, min_progress ignored": gateScript.replace("need=$(( MIN_PROGRESS > 0 ? MIN_PROGRESS : 1 ))", "need=1"),
+  }
+  for (const [name, mutated] of Object.entries(capMutants)) {
+    const caught = mutated !== gateScript && capCases.some((c) => !verdict(mutated, c).ok)
+    check(`mutant: ${name} is noticed`, caught, mutated === gateScript ? "pattern not found" : "")
+  }
+}
 
 // the memory counts: passed on when the gate stops, checked before use, and said in the issue
 {
@@ -181,7 +208,7 @@ for (const [name, from, to] of [
   ["dispatching after the error", "    exit 1\n  fi\nelif", "    :\n  fi\nelif"],
   ["passing the old count on to the next round", '-f prev_built="$BUILT"', '-f prev_built="$PREV_BUILT"'],
   ["not forwarding min_progress", ' -f min_progress="$MIN_PROGRESS"', ""],
-  ["stopping when the count of the round before is missing", '&& [ -n "$PREV_BUILT" ] && [ -n "$BUILT" ]', "&& [ -n \"$BUILT\" ]"],
+  ["stopping when the count of the round before is missing", '[ "$BUILD_ROUND" -gt 1 ] && [ -n "$PREV_BUILT" ] && [ -n "$BUILT" ]', '[ "$BUILD_ROUND" -gt 1 ] && [ -n "$BUILT" ]'],
 ]) {
   const at = gateScript.lastIndexOf(from)   // the ordinary dispatch comes after the escalation one, which has some of the same words
   const mutated = at < 0 ? gateScript : gateScript.slice(0, at) + to + gateScript.slice(at + from.length)

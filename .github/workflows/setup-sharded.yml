@@ -347,9 +347,16 @@ jobs:
           elif [ "$BUILD_ROUND" -gt 1 ]; then
             echo "::notice::build round $BUILD_ROUND: no count of the round before it (prev_built=${PREV_BUILT:-empty}, built=${BUILT:-empty}), so its progress is not judged"
           fi
+          # max_build_rounds is the planned number of rounds, a budget and not a wall: a round that still added modules (at least min_progress) is followed by another, up to three times the plan
+          # (flt-anthropic, 6 Nov 2026: round 6 built 85 of 86 modules and the chain stopped at max_build_rounds=6 until a person raised it). scripts/setup-plan.mjs roundsCap is the same rule.
           if [ "$BUILD_ROUND" -ge "$MAX_BUILD_ROUNDS" ]; then
-            echo "::error::$KEY is not built after $BUILD_ROUND build rounds (see the 'Is the build complete?' step of the prime job): raise max_build_rounds, or the library needs a bigger runner"
-            exit 1
+            need=$(( MIN_PROGRESS > 0 ? MIN_PROGRESS : 1 ))
+            if [ "$BUILD_ROUND" -lt $(( MAX_BUILD_ROUNDS * 3 )) ] && [ -n "$PREV_BUILT" ] && [ -n "$BUILT" ] && [ $(( 10#$BUILT - 10#$PREV_BUILT )) -ge "$need" ]; then
+              echo "::notice::build round $BUILD_ROUND is past the planned $MAX_BUILD_ROUNDS but still added modules ($PREV_BUILT -> $BUILT): another round"
+            else
+              echo "::error::$KEY is not built after $BUILD_ROUND build rounds (see the 'Is the build complete?' step of the prime job): the last round added no more modules, or the ceiling of three times max_build_rounds is reached; the library may need a bigger runner"
+              exit 1
+            fi
           fi
           gh workflow run setup-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$KEY" -f shards="$SHARDS" -f prime_minutes="$PRIME_MINUTES" \
             -f expand_chunk="$EXPAND_CHUNK" -f round="$ROUND" -f max_rounds="$MAX_ROUNDS" -f parallel="$PARALLEL" -f resume_run="$RESUME_RUN" \
