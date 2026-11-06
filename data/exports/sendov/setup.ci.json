@@ -1,0 +1,44 @@
+{
+  "key": "sendov",
+  "repo": "https://github.com/teorth/sendov",
+  "commit": "1ddea92d89f951a0a7cbbffa6c267cf7e6640b1d",
+  "toolchain": "leanprover/lean4:v4.34.0-rc1",
+  "roots": [
+    "Sendov"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/sendov/repo",
+  "entries": 676,
+  "modules": 75,
+  "exported": 75,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 678,
+    "kept": 676,
+    "skippedRoot": 2,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 350,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.34.0-rc1 (commit 3447a668783dbce1a8fdb97101dd067687b2b418, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+3447a66",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "b18d673bd29b + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 26669056,
+  "minutes": 15,
+  "finishedAt": "2026-11-06T00:58:55.862Z"
+}
