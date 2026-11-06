@@ -30,7 +30,7 @@ export const soloMax = (env = process.env) => positiveInt(env.EMISSARY_SOLO_MAX,
 
 // A module whose closure ran out of time alone gets ONE more try with a longer limit (flt-anthropic, 6 Nov 2026: the closure of the 86 top-of-proof modules, the final theorem among them, took
 // more than the 20 minutes a single module gets, so the export recorded "86 failed" after 5 hours and nobody could tell the library from a module that needs more time). The retry is four times the
-// first limit, at most four hours, and only when what is left of the job's budget (EMISSARY_CLOSURE_BUDGET_MINUTES, default 300 of the shard job's 345) holds it; 0 means no retry.
+// first limit, at most four hours, and only when what is left of the job's budget (EMISSARY_CLOSURE_BUDGET_MINUTES, default and at most 300: the shard process's own timeout) holds it; 0 means no retry.
 export const CLOSURE_RETRY_FACTOR = 4
 export const CLOSURE_RETRY_MAX_MS = 4 * 60 * 60 * 1000
 export const CLOSURE_BUDGET_DEFAULT_MS = 300 * 60 * 1000
@@ -38,7 +38,7 @@ export function closureBudgetMs(env = process.env) {
   const v = env.EMISSARY_CLOSURE_BUDGET_MINUTES
   if (typeof v !== "string" || !/^[0-9]+(\.[0-9]+)?$/.test(v.trim())) return CLOSURE_BUDGET_DEFAULT_MS
   const ms = Math.round(Number(v) * 60 * 1000)
-  return ms > 0 && ms <= 340 * 60 * 1000 ? ms : CLOSURE_BUDGET_DEFAULT_MS
+  return ms > 0 && ms <= CLOSURE_BUDGET_DEFAULT_MS ? ms : CLOSURE_BUDGET_DEFAULT_MS  // never more than the 300 minutes of the shard process (setup-sharded.yml): a longer budget could be cut off by the workflow before it ends
 }
 export function closureRetryMs({ singleMs, elapsedMs, budgetMs }) {
   if (!(singleMs > 0) || !(elapsedMs >= 0) || !(budgetMs > 0)) return 0

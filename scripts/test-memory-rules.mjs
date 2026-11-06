@@ -195,7 +195,7 @@ check("the escalation settings are inside what a hosted runner and a job can do"
   const MIN = 60 * 1000
   const rule = (impl) => {
     let cases = 0, wrongN = 0
-    for (const singleMs of [1000, 3500, 20 * MIN, 59 * MIN, 61 * MIN, 120 * MIN, 600 * MIN]) for (const elapsedMs of [0, 1, 17 * MIN, 100 * MIN, 280 * MIN, 299 * MIN, 300 * MIN, 5000 * MIN]) for (const budgetMs of [300 * MIN, 12 * 1000, 1, 0, -5, 340 * MIN]) {
+    for (const singleMs of [1000, 3500, 20 * MIN, 59 * MIN, 61 * MIN, 120 * MIN, 600 * MIN]) for (const elapsedMs of [0, 1, 17 * MIN, 100 * MIN, 280 * MIN, 299 * MIN, 300 * MIN, 5000 * MIN]) for (const budgetMs of [300 * MIN, 12 * 1000, 1, 0, -5]) {
       cases++
       const want = Math.min(singleMs * 4, 4 * 60 * MIN)
       const ok = budgetMs > 0 && budgetMs - elapsedMs >= want
@@ -213,8 +213,8 @@ check("the escalation settings are inside what a hosted runner and a job can do"
     "the budget is ignored": ({ singleMs }) => Math.min(singleMs * 4, 4 * 60 * MIN),
     "a try is made that does not fit the budget": ({ singleMs, elapsedMs, budgetMs }) => (budgetMs - elapsedMs > 0 ? Math.min(singleMs * 4, 4 * 60 * MIN) : 0),
   })) check(`mutant: ${name} is noticed`, rule(impl).wrongN > 0, "")
-  const budgetTable = [[undefined, CLOSURE_BUDGET_DEFAULT_MS], ["", CLOSURE_BUDGET_DEFAULT_MS], ["abc", CLOSURE_BUDGET_DEFAULT_MS], ["0", CLOSURE_BUDGET_DEFAULT_MS], ["-5", CLOSURE_BUDGET_DEFAULT_MS], ["1e2", CLOSURE_BUDGET_DEFAULT_MS], ["341", CLOSURE_BUDGET_DEFAULT_MS], ["340", 340 * MIN], ["0.2", 12000], ["120", 120 * MIN], [" 120 ", 120 * MIN], ["300", 300 * MIN]]
-  check(`closureBudgetMs: minutes, a number up to 340, anything else is the default (${budgetTable.length} settings)`, budgetTable.every(([v, want]) => closureBudgetMs(v === undefined ? {} : { EMISSARY_CLOSURE_BUDGET_MINUTES: v }) === want), "")
+  const budgetTable = [["299", 299 * MIN], [undefined, CLOSURE_BUDGET_DEFAULT_MS], ["", CLOSURE_BUDGET_DEFAULT_MS], ["abc", CLOSURE_BUDGET_DEFAULT_MS], ["0", CLOSURE_BUDGET_DEFAULT_MS], ["-5", CLOSURE_BUDGET_DEFAULT_MS], ["1e2", CLOSURE_BUDGET_DEFAULT_MS], ["341", CLOSURE_BUDGET_DEFAULT_MS], ["340", CLOSURE_BUDGET_DEFAULT_MS], ["301", CLOSURE_BUDGET_DEFAULT_MS], ["0.2", 12000], ["120", 120 * MIN], [" 120 ", 120 * MIN], ["300", 300 * MIN]]
+  check(`closureBudgetMs: minutes, a number up to 300 (the shard process timeout), anything else is the default (${budgetTable.length} settings)`, budgetTable.every(([v, want]) => closureBudgetMs(v === undefined ? {} : { EMISSARY_CLOSURE_BUDGET_MINUTES: v }) === want), "")
 }
 
 // broken versions: each must be noticed

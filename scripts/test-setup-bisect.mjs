@@ -136,7 +136,7 @@ const exportsDir = join(root, "data", "exports", "t")
 const setup = (args, env = {}, only = ["--only", "expand"]) =>
   spawnSync("node", [join(root, "scripts", "setup-source.mjs"), "t", ...only, "--keep-build", ...args], {
     // every FAKE_* knob is set here, so that nothing in the caller's environment changes a split
-    env: { ...process.env, HOME: home, EMISSARY_WATCH_MS: "300", EMISSARY_FOOTPRINT_MB: "150", EMISSARY_RETRY_FOOTPRINT_MB: "2048", EMISSARY_LEAN_MB: "100", FAKE_CLOSURE_MAX: "1000", FAKE_EXPORT_MAX: "1000", FAKE_EXPORT_REFUSE: "", FAKE_EXPORT_HANG: "", FAKE_CLOSURE_HANG: "", FAKE_CLOSURE_BAD: "", ...env },
+    env: { ...process.env, HOME: home, EMISSARY_WATCH_MS: "300", EMISSARY_FOOTPRINT_MB: "150", EMISSARY_RETRY_FOOTPRINT_MB: "2048", EMISSARY_LEAN_MB: "100", FAKE_CLOSURE_MAX: "1000", FAKE_EXPORT_MAX: "1000", FAKE_EXPORT_REFUSE: "", FAKE_CLOSURE_SLOW: "", FAKE_CLOSURE_SLOW_MS: "", FAKE_EXPORT_HANG: "", FAKE_CLOSURE_HANG: "", FAKE_CLOSURE_BAD: "", ...env },
     encoding: "utf8",
   })
 const calls = () => (existsSync(join(tmp, "lake-calls")) ? readFileSync(join(tmp, "lake-calls"), "utf8").trim().split("\n") : [])
