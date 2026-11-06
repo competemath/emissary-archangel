@@ -1,0 +1,44 @@
+{
+  "key": "htpi",
+  "repo": "https://github.com/djvelleman/HTPILeanPackage",
+  "commit": "0df4435fb0be652b90821f81b1cda252970b996a",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "roots": [
+    "HTPILib"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/htpi/repo",
+  "entries": 356,
+  "modules": 9,
+  "exported": 9,
+  "failed": [],
+  "expansion": {
+    "expanded": 265,
+    "verbatim": 436,
+    "unexpanded": 2,
+    "failed": []
+  },
+  "seed": {
+    "records": 389,
+    "kept": 356,
+    "skippedRoot": 26,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 7,
+    "lineFixed": 335,
+    "lineUnverified": 0,
+    "nameFixed": 1,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.0 (commit d8b18978322de05a8f3dba51ef03cf5461676c17, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+d8b1897",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261026.180.1"
+  },
+  "exportsBytes": 3809280,
+  "minutes": 3,
+  "finishedAt": "2026-11-06T01:04:41.592Z"
+}

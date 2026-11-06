@@ -1403,22 +1403,23 @@ def sum_from_to {A : Type} [AddZeroClass A] (k n : Nat) (f : Nat → A) : A :=
 -- @@ L1116-1116 verbatim
 syntax (name := sumFromTo) "Sum " ident " from " term " to " term ", " term:51 : term
 
--- @@ L1117-1118 verbatim
+-- @@ L1117-1118 unexpanded
 macro_rules (kind := sumFromTo)
   | `(Sum $i from $k to $n, $p) => `(sum_from_to $k $n (fun $i => $p))
 
 
--- @@ L1120-1123 verbatim
+-- @@ L1120-1123 unexpanded
 @[app_unexpander sum_from_to] def unexpandSumFromTo : Lean.PrettyPrinter.Unexpander
   | `($_ $k:term $n:term fun $i:ident => $b) => `(Sum $i from $k to $n, $b)
   | `($_ $k:term $n:term fun ($i:ident : $_) => $b) => `(Sum $i from $k to $n, $b)
   | _ => throw ()
 
 
--- @@ L1125-1132 verbatim
+-- @@ L1125-1132 expanded
 theorem sum_base {A : Type} [AddZeroClass A] {k : Nat} {f : Nat → A} :
-    Sum i from k to k, f i = f k := by
-  define : Sum i from k to k, f i
+    sum_from_to k k (fun i => f i) = f k :=
+  by
+  define : sum_from_to k k (fun i => f i)
   rewrite [Nat.add_sub_cancel_left]
   rewrite [sum_seq, sum_seq]
   rewrite [zero_add, add_zero]
@@ -1426,34 +1427,39 @@ theorem sum_base {A : Type} [AddZeroClass A] {k : Nat} {f : Nat → A} :
   done
 
 
--- @@ L1134-1147 verbatim
-theorem sum_step {A : Type} [AddZeroClass A] {k n : Nat} {f : Nat → A}
-    (h : k ≤ n) : Sum i from k to (n + 1), f i = (Sum i from k to n, f i) + f (n + 1) := by
-  define : Sum i from k to (n + 1), f i
+-- @@ L1134-1147 expanded
+theorem sum_step {A : Type} [AddZeroClass A] {k n : Nat} {f : Nat → A} (h : k ≤ n) :
+    sum_from_to k (n + 1) (fun i => f i) = (sum_from_to k n (fun i => f i)) + f (n + 1) :=
+  by
+  define : sum_from_to k (n + 1) (fun i => f i)
   obtain j h1 from Nat.le.dest h
-  have h2 : n + 1 + 1 - k = n + 1 - k + 1 := by
-    rewrite [←h1, add_assoc, add_assoc, Nat.add_sub_cancel_left,
-      add_assoc, Nat.add_sub_cancel_left, add_assoc]
+  have h2 : n + 1 + 1 - k = n + 1 - k + 1 :=
+    by
+    rewrite [← h1, add_assoc, add_assoc, Nat.add_sub_cancel_left, add_assoc,
+      Nat.add_sub_cancel_left, add_assoc]
     rfl
-  have h3 : f (n + 1) = f (k + (n + 1 - k)) := by
-    rewrite [←h1, add_assoc, Nat.add_sub_cancel_left]
+  have h3 : f (n + 1) = f (k + (n + 1 - k)) :=
+    by
+    rewrite [← h1, add_assoc, Nat.add_sub_cancel_left]
     rfl
   rewrite [h2, h3]
   rfl
   done
 
 
--- @@ L1149-1151 verbatim
+-- @@ L1149-1151 expanded
 theorem sum_from_zero_step {A : Type} [AddZeroClass A] {n : Nat} {f : Nat → A} :
-    Sum i from 0 to (n + 1), f i = (Sum i from 0 to n, f i) + f (n + 1) :=
+    sum_from_to 0 (n + 1) (fun i => f i) = (sum_from_to 0 n (fun i => f i)) + f (n + 1) :=
   sum_step (Nat.zero_le n)
 
 
--- @@ L1153-1159 verbatim
-theorem sum_empty {A : Type} [AddZeroClass A] {k n : Nat} {f : Nat → A}
-    (h : n < k) : Sum i from k to n, f i = 0 := by
-  define : Sum i from k to n, f i
+-- @@ L1153-1159 expanded
+theorem sum_empty {A : Type} [AddZeroClass A] {k n : Nat} {f : Nat → A} (h : n < k) :
+    sum_from_to k n (fun i => f i) = 0 :=
+  by
+  define : sum_from_to k n (fun i => f i)
   have h2 : n + 1 - k = 0 := Nat.sub_eq_zero_of_le h
   rewrite [h2]
   rfl
   done
+
