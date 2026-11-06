@@ -11,6 +11,7 @@ import gzip
 import json
 import math
 import random
+import subprocess
 import sys
 import tempfile
 import time
@@ -177,6 +178,64 @@ class InternalMissingImports(unittest.TestCase):
         mods = tb.module_files(lib, ["Lib"])
         shard = {m: p for m, p in mods.items() if m != "Lib.C"}
         self.assertEqual(tb.internal_missing_imports(lib, shard, self.imports_of(shard)), [("Lib.B", "Lib.C")])
+
+
+class ThePackageTheRootsImportReachesEveryStep(unittest.TestCase):
+    """cubic, #144: the shard pack, the bundle's keep step and the leak scan each had their own idea of the library's modules. A module the roots import from outside them (flt-anthropic: P2M) is copied
+    into the shard's sources, kept by the keep step and scanned for leaks; reverting any of the three leaves the plan and the build intact, so each has its own test."""
+
+    def lib(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        for rel, text in {"Theorems/A.lean": "import Mathlib\nimport P2M.S\n", "P2M/S.lean": "import Mathlib\n", "Other/U.lean": "import Mathlib\n"}.items():
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text(text)
+        return root
+
+    def test_the_shard_pack_copies_the_modules_outside_the_roots_that_the_build_has(self):
+        lib = self.lib()
+        out = lib.parent / (lib.name + "-out")
+        self.addCleanup(lambda: __import__("shutil").rmtree(out, ignore_errors=True))
+        mods = lib.parent / (lib.name + "-build.txt")
+        mods.write_text("Theorems.A\nP2M.S\n")
+        self.addCleanup(lambda: mods.unlink(missing_ok=True))
+        empty = lib.parent / (lib.name + "-empty")
+        empty.write_text("")
+        self.addCleanup(lambda: empty.unlink(missing_ok=True))
+        (lib / ".lake" / "build" / "lib" / "lean").mkdir(parents=True)
+        p = subprocess.run(
+            [sys.executable, str(HERE / "shard_pack.py"), "pack", "--lib", str(lib), "--roots", "Theorems", "--modules", str(mods), "--out", str(out), "--gate2", str(empty), "--errors", str(empty), "--passed", str(empty), "--keep", str(empty)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertTrue((out / "src" / "Theorems" / "A.lean").is_file())
+        self.assertTrue((out / "src" / "P2M" / "S.lean").is_file(), "the proof module the root imports is in the shard pack")
+        self.assertFalse((out / "src" / "Other" / "U.lean").exists(), "a module nobody imports is not")
+
+    def test_the_keep_step_lists_the_built_modules_of_the_packages_the_roots_import(self):
+        lib = self.lib()
+        base = lib / ".lake" / "build" / "lib" / "lean"
+        for rel in ("Theorems/A.olean", "P2M/S.olean", "Other/U.olean"):
+            (base / rel).parent.mkdir(parents=True, exist_ok=True)
+            (base / rel).write_text("")
+        passed = lib / "passed.json"
+        passed.write_text("{}")
+        out = lib / "keep.json"
+        p = subprocess.run([sys.executable, str(HERE / "bundle.py"), "keep-input", "--lib", str(lib), "--passed", str(passed), "--roots", "Theorems", "--out", str(out)], capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(sorted(json.loads(out.read_text())["libs"]), ["P2M.S", "Theorems.A"], "the library's own modules for BundleKeep: the roots' and the imported package's, not the unrelated one")
+
+    def test_the_leak_scan_gets_the_modules_and_the_prefix_of_the_imported_package(self):
+        import leakscan_args
+
+        lib = self.lib()
+        args = leakscan_args.args_for("some-lib", lib, ["Theorems"])
+        pairs = list(zip(args[::2], args[1::2]))
+        self.assertIn(("--module", "P2M.S"), pairs)
+        self.assertIn(("--prefix", "P2M"), pairs)
+        self.assertNotIn(("--prefix", "Other"), pairs)
 
 
 class Planner(unittest.TestCase):
