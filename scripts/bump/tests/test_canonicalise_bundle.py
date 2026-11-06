@@ -19,7 +19,7 @@ REPO = HERE.parents[2]
 SCRIPT = HERE.parent / "canonicalise_bundle.py"
 
 # The same pin and the same cases are in tengoku's scripts/ci/tests/test_isnad_copy.py: a change to either file fails a test in its own repository until the other is changed.
-PIN = "585bd7ea7eff7a0067cf1c1c4a4ef260f5f8267d6e571a537569eb4de619185c"  # sha256 of scripts/isnad_tag.py in competemath/tengoku, which scripts/bump/isnad_tag.py here is a verbatim copy of
+PIN = "1b6127b2e5853f057c35bc177d7f5565966304e07e0d15c294c9d78e02a8bac2"  # sha256 of scripts/isnad_tag.py in competemath/tengoku, which scripts/bump/isnad_tag.py here is a verbatim copy of
 GOLDEN = {
     "one-line docstring": ("/-- Words. -/\ntheorem a : True := trivial\n", "/-- Words.-/\ntheorem a : True := trivial\n"),
     "two-line docstring": ("/-- Two\nlines. -/\ntheorem g : True := trivial\n", "/-- Two\nlines.-/\ntheorem g : True := trivial\n"),

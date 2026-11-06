@@ -120,11 +120,12 @@ def retarget_lean(text: str, mathlib: str) -> str:
     """lakefile.lean: each `require` is a statement (it may continue on indented lines). A development-only one is
     dropped whole; Mathlib's is pointed at `mathlib`, in whichever of its spellings the file uses:
         require mathlib from git "url" @ "rev"          (also with the url on the next line)
-        require "leanprover-community" / "mathlib" @ git "rev"
+        require "leanprover-community" / "mathlib" @ git "rev"        (the name also unquoted: / mathlib)
     """
     lines, out, i = text.splitlines(), [], 0
     dev = re.compile(r'["«](?:' + "|".join(map(re.escape, DEV_ONLY)) + r')["»]|require\s+(?:' + "|".join(map(re.escape, DEV_ONLY)) + r')\b')
-    mathlib_re = re.compile(r'require\s+(?:«?mathlib»?\b|"[^"]+"\s*/\s*"mathlib")')
+    # the name after the scope is an identifier or a string, as Lake reads either: `"leanprover-community" / mathlib` (CompPoly, PolyFun) and `/ "mathlib"` and `/ «mathlib»`
+    mathlib_re = re.compile(r'require\s+(?:«?mathlib»?\b|"[^"]+"\s*/\s*(?:«?mathlib»?\b|"mathlib"))')
     seen = False
     while i < len(lines):
         if not re.match(r"\s*require\b", lines[i]):
@@ -142,7 +143,7 @@ def retarget_lean(text: str, mathlib: str) -> str:
                 out.pop()
             if out and re.match(r"\s*(?:meta\s+)?if\b.*\bthen\s*$", out[-1]):
                 out.pop()
-        elif mathlib_re.search(lines[i]):
+        elif mathlib_re.match(stmt.lstrip()):  # the whole statement: a scope and a name may stand on two lines (`require "leanprover-community" /` then an indented `mathlib @ git ...`)
             seen = True
             stmt = official_url(stmt)
             if re.search(r'@\s*git\s*"[^"]*"', stmt):
@@ -150,7 +151,7 @@ def retarget_lean(text: str, mathlib: str) -> str:
             elif re.search(r'@\s*"[^"]*"', stmt):
                 stmt = re.sub(r'(@\s*)"[^"]*"', lambda m: f'{m.group(1)}"{mathlib}"', stmt, count=1)
             else:
-                stmt += f' @ git "{mathlib}"' if "/" in lines[i] else f' @ "{mathlib}"'
+                stmt += f' @ git "{mathlib}"' if re.match(r'\s*require\s+"[^"]+"\s*/', stmt) else f' @ "{mathlib}"'
             out.append(stmt)
         else:
             out.append(stmt)
