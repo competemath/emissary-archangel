@@ -103,10 +103,13 @@ def _namespace_at(text: str, mask: list[bool], pos: int) -> str:
     return ".".join(n for k, n in stack if k == "namespace" and n)
 
 
-def _set_item(item: str, names: set[str]) -> tuple[str, str, bool] | None:
-    """(set, modifier, removal) when an attribute item names one of `names`: `X`, `X =`, `scoped X`, `local X =`, `-X` (a removal); None otherwise"""
+def _set_item(item: str, names: set[str], local_cmd: bool = False) -> tuple[str, str, bool, bool] | None:
+    """(set, modifier, removal, local) when an attribute item names one of `names`: `X`, `X =`, `scoped X`, `local X =`, `-X` (a removal); None otherwise. `local`: the tag holds
+    in its own file only (`local X`, or a `local attribute [...]` command), so a call in another module does not see it"""
     parts = item.split()
+    local = local_cmd
     while parts and parts[0] in ("scoped", "local"):
+        local = local or parts[0] == "local"
         parts = parts[1:]
     if not parts:
         return None
@@ -115,7 +118,7 @@ def _set_item(item: str, names: set[str]) -> tuple[str, str, bool] | None:
         head, removal = head[1:], True
     if head not in names:
         return None
-    return head, " ".join(parts[1:]), removal
+    return head, " ".join(parts[1:]), removal, local
 
 
 def sets_of(texts: dict[str, str]) -> dict[str, str]:
@@ -129,8 +132,8 @@ def sets_of(texts: dict[str, str]) -> dict[str, str]:
     return out
 
 
-def tags_of(text: str, names: set[str]) -> list[tuple[int, str, str, bool, str]]:
-    """(position, set, modifier, private, lemma name) for every lemma the module puts in one of `names`; the name is qualified with the namespace it is declared in.
+def tags_of(text: str, names: set[str]) -> list[tuple[int, str, str, bool, str, bool]]:
+    """(position, set, modifier, private, lemma name, local) for every lemma the module puts in one of `names`; the name is qualified with the namespace it is declared in.
     A removal (`attribute [-X] foo`) is listed with the modifier "-" (see removed_of)."""
     mask = code_mask(text)
     out = []
@@ -147,7 +150,7 @@ def tags_of(text: str, names: set[str]) -> list[tuple[int, str, str, bool, str]]
                     name = d.group(1)
                     full = name if name.startswith("_root_.") or not ns else f"{ns}.{name}"
                     private = re.match(r"\s*(?:/--.*?-/\s*)?(?:\w+\s+)*?private\b", text[end : d.start(1)], re.S) is not None
-                    out.append((m.start(), hit[0], hit[1], private, full.removeprefix("_root_.")))
+                    out.append((m.start(), hit[0], hit[1], private, full.removeprefix("_root_."), hit[3]))
     for m in ATTR_CMD.finditer(text):
         if not mask[m.end() - 1]:
             continue
@@ -155,14 +158,15 @@ def tags_of(text: str, names: set[str]) -> list[tuple[int, str, str, bool, str]]
         line_end = text.find("\n", end)
         targets = text[end : len(text) if line_end < 0 else line_end].split()
         ns = _namespace_at(text, mask, m.start())
+        local_cmd = re.match(r"[ \t]*local\b", text[m.start() : m.end()]) is not None
         for item in _items(text[m.end() : end - 1]):
-            hit = _set_item(item, names)
+            hit = _set_item(item, names, local_cmd)
             if hit:
                 for tgt in targets:
                     full = tgt if ("." in tgt or not ns) else f"{ns}.{tgt}"
                     # a private declaration (its name is mangled) can only be named in its own module
                     private = re.search(rf"\bprivate\s+(?:\w+\s+)*?(?:theorem|lemma|def|abbrev|instance)\s+{re.escape(tgt.split('.')[-1])}\b", text) is not None
-                    out.append((m.start(), hit[0], "-" if hit[2] else hit[1], private, full))
+                    out.append((m.start(), hit[0], "-" if hit[2] else hit[1], private, full, hit[3]))
     return sorted(out)
 
 
@@ -242,11 +246,12 @@ def rewrite_grind_sets(texts: dict[str, str], imports: dict[str, list[str]]) -> 
                 if s not in names:
                     new_items.append(s)
                     continue
-                visible = [(md, t) for md in sorted(below(mod)) for t in tags.get(md, []) if t[1] == s and not t[3]]
+                # another module's tag is seen unless it is private (a mangled name) or local (it holds in its own file only)
+                visible = [(md, t) for md in sorted(below(mod)) for t in tags.get(md, []) if t[1] == s and not t[3] and not t[5]]
                 visible += [(mod, t) for t in tags.get(mod, []) if t[1] == s and t[0] < m.start()]
                 # `attribute [-X] foo` takes foo out of the set (anywhere the call sees: an imported module, or earlier in its own file)
                 removed = {t[4] for _, t in visible if t[2] == "-"}
-                for md, (_, _, modifier, private, full) in visible:
+                for md, (_, _, modifier, private, full, _) in visible:
                     if modifier != "-" and full not in removed and kept(md, full):
                         new_items.append(f"{modifier} {full.split('.')[-1] if private else full}".strip())
                         st["lemmas listed"] += 1

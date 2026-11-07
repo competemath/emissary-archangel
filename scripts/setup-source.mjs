@@ -700,7 +700,10 @@ async function build(modules) {
   // None of the modules built (an invalid lake flag, a dependency that failed to fetch): writing setup.json
   // now would record a library with 0 exports as done — zkevm-clean, aisafety-atlas and algolean were.
   const built = modules.filter((m) => existsSync(oleanOf(m))).length
-  if (modules.length && !built) fail(`lake build produced none of the ${modules.length} modules — not recording this library as set up`)
+  // ... counting only the modules that can be built: a module recorded as not compiling at this commit (BROKEN_FILE) is not a sign of a broken build. tnlean, 2026-11-07: the export
+  // shard that held its one broken file had nothing else left to build, stopped here ("none of the 1 modules"), never recorded the module as failed, and the rounds went on forever.
+  const buildable = modules.filter((m) => !loadBroken().has(m))
+  if (buildable.length && !buildable.some((m) => existsSync(oleanOf(m)))) fail(`lake build produced none of the ${buildable.length} modules — not recording this library as set up`)
   log(`build: ${built}/${modules.length} modules have an .olean`)
   // A Mathlib the cache did not serve (a pin off Mathlib's master) was compiled here, hours of
   // work: pack it into the local cache, which lives on until the toolchain group ends, so the
@@ -817,6 +820,7 @@ function removeLeftovers() {
 }
 async function exports(modules) {
   const failed = []
+  const brokenHere = loadBroken()
   const todo = modules.filter((m) => !existsSync(join(EXPORTS, `${m}.ndjson`)))
   log(`exports: ${todo.length} to do, ${modules.length - todo.length} present, batches of ${EXPORT_BATCH}, concurrency ${CONCURRENCY}; limits: a batch ${EXPORT_BASE_MS / 1000} s + ${EXPORT_PER_MODULE_MS / 1000} s per module (at most 60 min), one module alone ${EXPORT_SINGLE_MS / 1000} s`)
   let done = 0
@@ -861,7 +865,7 @@ async function exports(modules) {
       const members = []
       for (const m of group) {
         const names = namesOf(m)
-        if (!names) failed.push([m, "no closure"])
+        if (!names) failed.push([m, brokenHere.has(m) ? `does not compile at the library's own commit: ${brokenHere.get(m).error}` : "no closure"])
         else members.push([m, names])
       }
       const runBatch = async (batch) => {

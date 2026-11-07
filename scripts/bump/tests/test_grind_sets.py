@@ -81,7 +81,7 @@ class RealCslib(unittest.TestCase):
                 self.assertNotIn(m, self.changes)
 
     def test_every_written_lemma_was_tagged_where_the_call_can_see_it(self):
-        tagged = {m: {full for _, s, _, _, full in gs.tags_of(t, {"modal"})} for m, t in self.texts.items()}
+        tagged = {m: {full for _, s, _, _, full, local in gs.tags_of(t, {"modal"})} for m, t in self.texts.items()}
         checked = 0
         for m, t in self.texts.items():
             if "modal" not in t:
@@ -186,6 +186,11 @@ class MoreCases(unittest.TestCase):
         out, _, _ = self.rw({"L.R": self.REG, "L.A": "import L.R\n\n@[local s] theorem a : True := trivial\nattribute [scoped s =] a\nexample : True := by grind [s]\n"})
         self.assertEqual(self.args(out["L.A"]), ["a", "= a"])
         self.assertNotIn("s]", out["L.A"].split("example")[0].replace("[s]", ""))
+
+    def test_a_local_tag_is_not_seen_from_another_module(self):
+        out, _, _ = self.rw({"L.R": self.REG, "L.A": "import L.R\n\n@[local s] theorem a : True := trivial\n@[s] theorem b : True := trivial\nlocal attribute [s] b2\ntheorem b2 : True := trivial\n",
+                             "L.B": "import L.A\n\nexample : True := by grind [s]\n"})
+        self.assertEqual(self.args(out["L.B"]), ["b"])  # a and b2 hold in L.A only
 
     def test_a_removed_lemma_is_not_listed(self):
         out, _, _ = self.rw({"L.R": self.REG, "L.A": "import L.R\n\n@[s] theorem a : True := trivial\n@[s] theorem b : True := trivial\nattribute [-s] a\nexample : True := by grind [s]\n"})
