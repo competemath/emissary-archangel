@@ -20,7 +20,7 @@ STEP = next(s for s in DOC["jobs"]["shard"]["steps"] if "The library at its pinn
 class ToolchainRetry(unittest.TestCase):
     def test_the_toolchain_is_installed_before_the_first_lake(self):
         self.assertIn('elan toolchain install "$TOOLCHAIN"', STEP)
-        self.assertLess(STEP.index('elan toolchain install "$TOOLCHAIN"'), STEP.index("lake update"))
+        self.assertLess(STEP.index('elan toolchain install "$TOOLCHAIN"'), STEP.index("scripts/bump/lake_fetch.py lib"))  # the first lake call (lake update, then cache get) is in lake_fetch.py since 2026-11-07
         self.assertLess(STEP.index("trial-library-build.py retarget"), STEP.index('elan toolchain install "$TOOLCHAIN"'))  # the toolchain the library will ask for is the one that is written
 
     def test_it_is_tried_several_times_with_a_longer_wait_each_time(self):
