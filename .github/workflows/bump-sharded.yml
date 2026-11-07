@@ -538,7 +538,7 @@ jobs:
     needs: [compose, verify]
     if: ${{ !cancelled() && needs.compose.result == 'success' && (needs.verify.result == 'success' || needs.verify.result == 'skipped') }}
     runs-on: ubuntu-26.04
-    timeout-minutes: 140  # 120 + the 20 minutes the attestation may wait for the transparency log
+    timeout-minutes: 155  # 120 + the 20 minutes of waiting between tries + 3 tries of at most 5 minutes
     permissions: { contents: read, id-token: write, attestations: write, actions: read }  # actions: read = the shard artifacts of an earlier run (recut)
     env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}", SCOPE: "${{ inputs.scope }}", PARTS: "${{ inputs.parts }}", FROM_TREE: "${{ inputs.from_tree }}", DUPS: "${{ inputs.dups }}", VERIFIED: "${{ needs.verify.result }}", IMPORTS: "${{ inputs.imports }}" }
     steps:
@@ -654,6 +654,7 @@ jobs:
       # it is tried three times, 5 and then 15 minutes apart, and only the third failure fails the job (an unattested bundle is never uploaded: the opener would refuse it).
       - id: attest_1
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        timeout-minutes: 5  # an attestation takes seconds; a stalled try must leave the job time for the next one
         continue-on-error: true
         with: { subject-path: "bundle-${{ inputs.key }}-*.tar" }
       - name: The transparency log refused the attestation; trying again in 5 minutes
@@ -661,6 +662,7 @@ jobs:
         run: sleep 300
       - id: attest_2
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        timeout-minutes: 5  # an attestation takes seconds; a stalled try must leave the job time for the next one
         if: steps.attest_1.outcome == 'failure'
         continue-on-error: true
         with: { subject-path: "bundle-${{ inputs.key }}-*.tar" }
@@ -669,6 +671,7 @@ jobs:
         run: sleep 900
       - id: attest_3
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        timeout-minutes: 5  # an attestation takes seconds; a stalled try must leave the job time for the next one
         if: steps.attest_2.outcome == 'failure'
         with: { subject-path: "bundle-${{ inputs.key }}-*.tar" }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

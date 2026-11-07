@@ -37,11 +37,31 @@ class PartsDefault(unittest.TestCase):
         pr = (HERE / "open_intake_pr.py").read_text()
         self.assertIn('suffix = "" if a.part is None else f"-part-{a.part:03d}"', pr)  # a named part is a -part-NNN archive
 
-    def test_the_pack_step_cuts_parts_unless_parts_is_0(self):
+    def test_the_parts_are_cut_inside_the_guard(self):
+        # the cut is inside `if [ "${PARTS:-0}" != 0 ]; then ... fi` of a run step (cubic on #155: two strings anywhere in the file proved nothing)
+        import yaml
+
         for wf in ("bump-sharded.yml", "bump-library.yml"):
-            text = (ROOT / ".github" / "workflows" / wf).read_text()
-            self.assertIn('if [ "${PARTS:-0}" != 0 ]; then', text, wf)
-            self.assertIn('--max-modules "$PARTS"', text, wf)
+            doc = yaml.safe_load((ROOT / ".github" / "workflows" / wf).read_text())
+            runs = [s["run"] for j in doc["jobs"].values() for s in j.get("steps", []) if "run" in s and '--max-modules "$PARTS"' in s["run"]]
+            self.assertEqual(len(runs), 1, wf)
+            lines = runs[0].splitlines()
+            start = next(i for i, ln in enumerate(lines) if ln.strip() == 'if [ "${PARTS:-0}" != 0 ]; then')
+            depth, end = 0, None
+            for i in range(start, len(lines)):
+                t = lines[i].strip()
+                depth += t.startswith("if ") - (t == "fi")
+                if depth == 0:
+                    end = i
+                    break
+            cut = next(i for i, ln in enumerate(lines) if '--max-modules "$PARTS"' in ln)
+            self.assertTrue(start < cut < end, wf)
+
+    def test_the_automatic_recut_cuts_parts_too(self):
+        # bump-autocut.yml dispatches bump-library with its own `parts`: its default was 0, which reached the opener as a run without parts
+        d = inputs("bump-autocut.yml")["parts"]["default"]
+        self.assertEqual(d, "300")
+        self.assertIn('-f "parts=$PARTS"', (ROOT / ".github" / "workflows" / "bump-autocut.yml").read_text())
 
 
 if __name__ == "__main__":

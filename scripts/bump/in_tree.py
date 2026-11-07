@@ -35,6 +35,8 @@ def verdict(paths: list[str], key: str, from_tree: str, parts: str) -> tuple[boo
         n_parts = int(parts.strip() or "0")
     except ValueError:
         return False, f"parts={parts!r} is not a number"
+    if n_parts < 0:
+        return False, f"parts={parts!r} is negative: a part holds at least one module (0 = no parts)"
     if want and n_parts <= 0:
         return False, f"from_tree=true cuts parts after the tree's, but parts={parts or 0}: no part would be cut. Dispatch again with parts=300 (or the size you want)"
     if nums and not want:

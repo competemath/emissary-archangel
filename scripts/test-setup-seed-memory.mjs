@@ -90,7 +90,8 @@ check(`the seed of ${FILES} files (${total} MB of two-byte text) finishes under 
 const n = small.queue ? JSON.parse(small.queue).length : 0
 check(`every record became an entry (${records.length})`, n === records.length, `${n}`)
 
-// the same queue as a cache that keeps everything (a heap big enough for it)
+// the same queue as a cache that keeps everything (a heap big enough for it); the queue file is removed first, or setup-source keeps it and seeds nothing
+rmSync(join(root, "data", "queue-t.json"), { force: true })
 const keepAll = spawnSync("node", ["--max-old-space-size=4096", join(root, "scripts", "setup-source.mjs"), "t", "--only", "seed"], {
   env: { ...process.env, HOME: home, EMISSARY_TENTATIVE_DIR: tent, EMISSARY_SEED_CACHE_MB: "100000" },
   encoding: "utf8",
@@ -98,6 +99,15 @@ const keepAll = spawnSync("node", ["--max-old-space-size=4096", join(root, "scri
 })
 const fullQueue = readFileSync(join(root, "data", "queue-t.json"), "utf8")
 check("the queue is byte for byte the one an unbounded cache gives", keepAll.status === 0 && fullQueue === small.queue)
+
+// a budget smaller than one file: no file is kept (each is read for its records and let go), the queue is the same, and the heap holds
+const tiny = seed(records, { EMISSARY_SEED_CACHE_MB: "1" })
+check("a budget smaller than any file: nothing is kept, and the queue is the same", tiny.code === 0 && tiny.queue === fullQueue && /seed: 0 source file\(s\) kept at the end/.test(tiny.out), tiny.out.slice(-300))
+// a budget that is no finite number falls back to the default (256 MB): it never means 'keep everything'
+for (const v of ["Infinity", "1e309", "NaN", "-5", "0"]) {
+  const r = seed(records.slice(0, 5), { EMISSARY_SEED_CACHE_MB: v })
+  check(`EMISSARY_SEED_CACHE_MB=${v} falls back to the default budget`, r.code === 0 && /kept within 256 MB of text/.test(r.out), r.out.slice(-300))
+}
 
 // the worst order: records interleaved across files, so every record evicts the file the next one needs
 const inter = []

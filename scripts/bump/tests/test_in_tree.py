@@ -57,6 +57,12 @@ class Verdict(unittest.TestCase):
         self.assertFalse(in_tree.verdict([], "formal-conjectures", "true", "0")[0])  # also for a library not in the tree
         self.assertFalse(in_tree.verdict([], "formal-conjectures", "", "x")[0])
 
+    def test_negative_parts_are_refused(self):
+        for key, paths, ft in (("formal-conjectures", [], ""), ("foundation", FOUNDATION, "true"), ("lana-pi1", LANA, "")):
+            ok, why = in_tree.verdict(paths, key, ft, "-1")
+            self.assertFalse(ok, key)
+            self.assertIn("negative", why)
+
     def test_a_library_not_in_the_tree_runs(self):
         for parts in ("0", "300"):
             self.assertTrue(in_tree.verdict([], "formal-conjectures", "", parts)[0])

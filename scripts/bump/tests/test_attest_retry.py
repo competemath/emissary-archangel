@@ -83,7 +83,8 @@ class Retry(unittest.TestCase):
             self.assertTrue(attests[0].get("continue-on-error") and attests[1].get("continue-on-error"), wf)
             self.assertFalse(attests[2].get("continue-on-error", False), wf)  # the last failure fails the job
             self.assertEqual(len({str(s["with"]) for s in attests}), 1, wf)  # the same subject every time
-        others = [p.name for p in (ROOT / ".github" / "workflows").glob("*.yml") if p.name not in WORKFLOWS and "attest-build-provenance@" in p.read_text()]
+        wfs = [*(ROOT / ".github" / "workflows").glob("*.yml"), *(ROOT / ".github" / "workflows").glob("*.yaml")]  # both extensions GitHub reads
+        others = [p.name for p in wfs if p.name not in WORKFLOWS and "attest-build-provenance@" in p.read_text()]
         self.assertEqual(others, [], "a workflow that attests without the retries")
 
     def test_every_sequence_of_answers(self):
@@ -119,7 +120,10 @@ class Retry(unittest.TestCase):
         import yaml
 
         limits = {wf: yaml.safe_load((ROOT / ".github" / "workflows" / wf).read_text())["jobs"][job]["timeout-minutes"] for wf, job in WORKFLOWS.items()}
-        self.assertEqual(limits, {"bump-library.yml": 50, "bump-sharded.yml": 140, "memory-intake.yml": 50})  # each 20 minutes more than before
+        self.assertEqual(limits, {"bump-library.yml": 65, "bump-sharded.yml": 155, "memory-intake.yml": 65})  # each 35 more than before: 20 of waiting, 3 tries of 5
+        for wf in WORKFLOWS:
+            tries = [s for s in steps_of(wf) if is_attest(s)]
+            self.assertTrue(all(s.get("timeout-minutes") == 5 for s in tries), wf)  # a stalled try cannot eat the job's time: each has its own limit
 
 
 if __name__ == "__main__":

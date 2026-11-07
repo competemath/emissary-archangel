@@ -91,7 +91,9 @@ check("the log says what was done", msgs.some((m) => m.includes("fetched it by i
 
 // a commit the clone has is not fetched again: the remote is gone, so a fetch would fail
 rmSync(up, { recursive: true, force: true })
-const again = repairPins(repo, log)
+const msgs2 = []
+const again = repairPins(repo, log, { log: (s) => msgs2.push(s) })
+check("the log says the commit was already there, not that it was fetched", msgs2.some((m) => m.includes("already in its clone")) && !msgs2.some((m) => m.includes("fetched")), msgs2.join("\n"))
 check("a commit the clone already has is not fetched again", again.fetched.length === 1 && again.failed.length === 0, JSON.stringify(again))
 
 // 4. what cannot be repaired is reported, never counted as fetched

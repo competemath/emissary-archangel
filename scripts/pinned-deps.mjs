@@ -53,7 +53,8 @@ export function repairPins(repo, output, { git = gitDefault, log = () => {} } = 
       failed.push({ pkg, rev, why: `no clone at ${dir}` })
       continue
     }
-    if (!hasCommit(git, dir, rev)) {
+    const had = hasCommit(git, dir, rev)
+    if (!had) {
       try {
         git(["fetch", "--quiet", "origin", rev], dir)
       } catch (e) {
@@ -62,7 +63,7 @@ export function repairPins(repo, output, { git = gitDefault, log = () => {} } = 
       }
     }
     if (hasCommit(git, dir, rev)) {
-      log(`dependency ${pkg}: commit ${rev.slice(0, 12)} is on no branch of its repository; fetched it by its hash`)
+      log(had ? `dependency ${pkg}: commit ${rev.slice(0, 12)} is already in its clone` : `dependency ${pkg}: commit ${rev.slice(0, 12)} is on no branch of its repository; fetched it by its hash`)
       fetched.push({ pkg, rev })
     } else failed.push({ pkg, rev, why: "fetched, but the commit is still not in the clone" })
   }

@@ -504,7 +504,9 @@ function seedQueue() {
   // The files read so far, kept within a budget (EMISSARY_SEED_CACHE_MB of text, default 256): leanbridge (7 Nov 2026) has 1.5 GB of Lean sources (LMFDB tables, up to 53 MB a
   // file), and keeping every file's lines killed Node at its 4 GB heap in every phase ("JavaScript heap out of memory", setup runs 42386199526 and 42387020776). The records of a
   // file come together (each tentative file lists them file by file), so each file is read once; a file evicted and asked for again is read again, with the same result.
-  const cacheBudget = Math.max(1, Number(process.env.EMISSARY_SEED_CACHE_MB || 256)) * 1024 * 1024
+  const budgetMb = Number(process.env.EMISSARY_SEED_CACHE_MB || 256)
+  const cacheBudget = (Number.isFinite(budgetMb) && budgetMb >= 1 ? budgetMb : 256) * 1024 * 1024 // a value that is no finite number of MB falls back to the default
+  log(`seed: the files read are kept within ${cacheBudget / 1024 / 1024} MB of text`)
   const fileCache = new Map()
   let cached = 0
   const fileOf = (p) => {
@@ -521,6 +523,7 @@ function seedQueue() {
       const lines = text.split("\n")
       file = { lines, depth: commentDepths(lines), size: text.length }
     }
+    if (file && file.size > cacheBudget) return file // a file larger than the whole budget is used and not kept
     fileCache.set(p, file)
     cached += file ? file.size : 0
     for (const [k, v] of fileCache) {
@@ -610,6 +613,7 @@ function seedQueue() {
     stats.kept++
   }
   writeAtomic(QUEUE, JSON.stringify(entries, null, 2))
+  log(`seed: ${fileCache.size} source file(s) kept at the end`)
   log(`seeded ${QUEUE}: ${JSON.stringify(stats)}`)
   return { entries, stats }
 }
