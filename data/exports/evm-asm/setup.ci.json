@@ -1,0 +1,59 @@
+{
+  "key": "evm-asm",
+  "repo": "https://github.com/Verified-zkEVM/evm-asm",
+  "commit": "7e65e4d024718f704226cd795f3d03d4e9aafe13",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "roots": [
+    "EvmAsm"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/evm-asm/repo",
+  "entries": 28853,
+  "modules": 2675,
+  "exported": 2675,
+  "failed": [],
+  "expansion": {
+    "expanded": 32,
+    "verbatim": 103498,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 29114,
+    "kept": 28853,
+    "skippedRoot": 0,
+    "skippedDup": 195,
+    "skippedNoFile": 0,
+    "skippedCommented": 66,
+    "lineFixed": 13601,
+    "lineUnverified": 40,
+    "nameFixed": 855,
+    "sorryOriginals": 0,
+    "emptyProofs": 18
+  },
+  "sharded": {
+    "records": 39,
+    "shards": [
+      39
+    ]
+  },
+  "tools": {
+    "lean": "4.33.0 (commit d8b18978322de05a8f3dba51ef03cf5461676c17, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+d8b1897",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 2562183168,
+  "minutes": 30,
+  "finishedAt": "2026-11-07T03:39:36.889Z",
+  "archive": {
+    "release": "exports-evm-asm",
+    "asset": "evm-asm@7e65e4d02471-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-evm-asm/evm-asm@7e65e4d02471-exports.tar.zst",
+    "bytes": 229752160,
+    "sha256": "1c98952dee5318fa1382ff6f67453575a990163c238065b7968305c8205ad065",
+    "files": 5350,
+    "unpack": "tar --zstd -xf evm-asm@7e65e4d02471-exports.tar.zst -C data/exports/evm-asm"
+  }
+}

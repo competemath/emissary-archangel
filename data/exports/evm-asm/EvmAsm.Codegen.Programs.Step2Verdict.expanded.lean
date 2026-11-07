@@ -1,0 +1,368 @@
+/-
+  EvmAsm.Codegen.Programs.Step2Verdict
+
+  step2_verdict (bead evm-asm-fhsxz.2.4.2, composition core): given a
+  withdrawal-only block and its parent + pre-state witness, decide the
+  successful_validation bit by composing the verified Step-2 pieces:
+
+    1. block_header_ssz_to_rlp(payload, roots)        -> this header RLP
+    2. validate_header_rlp_pair(this_rlp, parent_rlp) -> header validity
+    3. withdrawals_state_root(parent.state_root,
+         witness, withdrawals)                        -> recomputed post root
+    4. memcmp(recomputed, this.state_root)            -> state-transition ok
+    verdict = 1  iff  (header valid AND recompute ok AND root matches);
+              else 0.
+
+  This proves the WHOLE Step-2 verdict produces the right bit on a consistent
+  synthetic block (verdict=1) and rejects a tampered one (verdict=0). It is
+  the composition core of the guest-entry wiring (.2.4.2): the remaining work
+  is feeding these inputs from the real SSZ guest input (the guest already
+  decodes most of them for the NPR root). Soundness: verdict=1 REQUIRES the
+  recomputed root to equal the claimed state_root, so an invalid block cannot
+  false-positive.
+
+  Bundles the union of the block_header / validate_header / withdrawals_state_root
+  closures (deduped against the withdrawals base). All memcmp/byte reads are
+  byte-wise (no-misaligned invariant).
+-/
+
+import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
+import EvmAsm.Codegen.Programs.DispatcherExecStateGas
+import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.Programs.Mpt
+import EvmAsm.Codegen.Programs.MptEncode
+import EvmAsm.Codegen.Programs.MptSet
+import EvmAsm.Codegen.Programs.MptSetAcc
+import EvmAsm.Codegen.Programs.AccountBalance
+import EvmAsm.Codegen.Programs.Withdrawal
+import EvmAsm.Codegen.Programs.WithdrawalPath
+import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
+import EvmAsm.Codegen.Programs.HeaderDecode
+import EvmAsm.Codegen.Programs.HeaderBaseFee
+import EvmAsm.Codegen.Programs.HeadersKeccak
+import EvmAsm.Codegen.Programs.ValidateHeader
+import EvmAsm.Codegen.Programs.ValidateHeaderPair
+import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
+
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
+
+
+-- @@ L57-57 verbatim
+namespace EvmAsm.Codegen
+
+
+-- @@ L59-59 verbatim
+open EvmAsm.Rv64
+
+
+-- @@ L61-68 verbatim
+/-! ## step2_verdict -- compose the full Step-2 successful_validation bit.
+
+    a0 = params ptr (13 u64 fields):
+      +0 payload   +8 parent_rlp  +16 parent_rlp_len  +24 parent_state_root
+      +32 tx_root  +40 wd_root     +48 beacon_root     +56 requests_hash
+      +64 wds_descriptors  +72 n_wds  +80 witness  +88 witness_len
+      +96 block_access_list_hash
+    a0 (output) = verdict bit (0 / 1). -/
+
+-- @@ L69-128 verbatim
+def step2Verdict_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .LD .x10 .x8 (0 : BitVec 12),
+    .LD .x11 .x8 (32 : BitVec 12),
+    .LD .x12 .x8 (40 : BitVec 12),
+    .LD .x13 .x8 (48 : BitVec 12),
+    .LD .x14 .x8 (56 : BitVec 12),
+    .LD .x17 .x8 (96 : BitVec 12),
+    .AUIPC .x15 (laHi GuestAddrs.sv_this_rlp (GuestAddrs.step2_verdict + 48)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.sv_this_rlp (GuestAddrs.step2_verdict + 48)),
+    .AUIPC .x16 (laHi GuestAddrs.sv_this_rlp_len (GuestAddrs.step2_verdict + 56)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.sv_this_rlp_len (GuestAddrs.step2_verdict + 56)),
+    .JAL .x1 (jalOff GuestAddrs.block_header_ssz_to_rlp (GuestAddrs.step2_verdict + 64)),
+    .AUIPC .x10 (laHi GuestAddrs.sv_this_rlp (GuestAddrs.step2_verdict + 68)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.sv_this_rlp (GuestAddrs.step2_verdict + 68)),
+    .AUIPC .x5 (laHi GuestAddrs.sv_this_rlp_len (GuestAddrs.step2_verdict + 76)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_this_rlp_len (GuestAddrs.step2_verdict + 76)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LD .x12 .x8 (8 : BitVec 12),
+    .LD .x13 .x8 (16 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.validate_header_rlp_pair (GuestAddrs.step2_verdict + 96)),
+    .MV .x9 .x10,
+    .LD .x10 .x8 (24 : BitVec 12),
+    .LD .x11 .x8 (80 : BitVec 12),
+    .LD .x12 .x8 (88 : BitVec 12),
+    .LD .x13 .x8 (64 : BitVec 12),
+    .LD .x14 .x8 (72 : BitVec 12),
+    .AUIPC .x15 (laHi GuestAddrs.sv_recomputed (GuestAddrs.step2_verdict + 124)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.sv_recomputed (GuestAddrs.step2_verdict + 124)),
+    .JAL .x1 (jalOff GuestAddrs.withdrawals_state_root (GuestAddrs.step2_verdict + 132)),
+    .MV .x18 .x10,
+    .AUIPC .x5 (laHi GuestAddrs.sv_recomputed (GuestAddrs.step2_verdict + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_recomputed (GuestAddrs.step2_verdict + 140)),
+    .LD .x6 .x8 (0 : BitVec 12),
+    .ADDI .x6 .x6 (52 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BEQ .x7 .x0 (32 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .BNE .x28 .x29 (36 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .BNE .x9 .x0 (16 : BitVec 13),
+    .BNE .x18 .x0 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L130-142 verbatim
+/-- Reloc side-table for `step2Verdict_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def step2Verdict_relocs : RelocTable :=
+  [ (12, .la .x15 "sv_this_rlp"),
+    (14, .la .x16 "sv_this_rlp_len"),
+    (16, .jal .x1 "block_header_ssz_to_rlp"),
+    (17, .la .x10 "sv_this_rlp"),
+    (19, .la .x5 "sv_this_rlp_len"),
+    (24, .jal .x1 "validate_header_rlp_pair"),
+    (31, .la .x15 "sv_recomputed"),
+    (33, .jal .x1 "withdrawals_state_root"),
+    (35, .la .x5 "sv_recomputed") ]
+
+
+-- @@ L144-145 verbatim
+def step2VerdictFunction : String :=
+  "step2_verdict:\n" ++ emitProgramR step2Verdict_prog step2Verdict_relocs
+
+
+-- @@ L147-156 verbatim
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `step2Verdict_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem step2VerdictFunction_eq_prog :
+    step2VerdictFunction = "step2_verdict:\n" ++ emitProgramR step2Verdict_prog step2Verdict_relocs := rfl
+
+#guard step2VerdictFunction.startsWith "step2_verdict:\n"
+#guard step2Verdict_prog.length = 59
+
+-- @@ L157-269 verbatim
+/-- `zisk_step2_verdict`: probe. Input layout (file -> INPUT+8):
+      +8  witness_len   +16 n_wds   +24 parent_rlp_len   +32 payload_len
+      +40 parent_state_root(32)  +72 tx_root(32)  +104 wd_root(32)
+      +136 beacon_root(32)  +168 requests_hash(32)
+      +200 block_access_list_hash(32)
+      +232 parent_rlp (parent_rlp_len, 8-aligned)
+      then payload (payload_len, 8-aligned), then wd length table (N x u64)
+      + wd blobs (8-aligned each), then witness (8-aligned).
+    The prologue builds the params struct + the wd descriptor array, then
+    calls step2_verdict. Output: OUTPUT+0 = verdict bit. -/
+def ziskStep2VerdictPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld a2, 8(t0)                # witness_len\n" ++
+  "  ld a4, 16(t0)               # n_wds\n" ++
+  "  ld a3, 24(t0)               # parent_rlp_len\n" ++
+  "  ld a5, 32(t0)               # payload_len\n" ++
+  "  la t1, sv_params\n" ++
+  "  addi t2, t0, 40;  sd t2, 24(t1)  # parent_state_root\n" ++
+  "  addi t2, t0, 72;  sd t2, 32(t1)  # tx_root\n" ++
+  "  addi t2, t0, 104; sd t2, 40(t1)  # wd_root\n" ++
+  "  addi t2, t0, 136; sd t2, 48(t1)  # beacon_root\n" ++
+  "  addi t2, t0, 168; sd t2, 56(t1)  # requests_hash\n" ++
+  "  addi t2, t0, 200; sd t2, 96(t1)  # block_access_list_hash\n" ++
+  "  sd a3, 16(t1)                    # parent_rlp_len\n" ++
+  "  sd a4, 72(t1)                    # n_wds\n" ++
+  "  sd a2, 88(t1)                    # witness_len\n" ++
+  "  addi t3, t0, 232; sd t3, 8(t1)   # parent_rlp ptr (= INPUT+232)\n" ++
+  "  # payload ptr = parent_rlp + roundup8(parent_rlp_len)\n" ++
+  "  addi t4, a3, 7; andi t4, t4, -8; add t3, t3, t4; sd t3, 0(t1)\n" ++
+  "  # wd table base = payload + roundup8(payload_len)\n" ++
+  "  addi t4, a5, 7; andi t4, t4, -8; add t6, t3, t4\n" ++
+  "  # build wd descriptor array at sv_wds; blobs after the N-entry length table.\n" ++
+  "  slli t4, a4, 3; add t2, t6, t4   # blob cursor = wd_table + 8*N\n" ++
+  "  la t5, sv_wds\n" ++
+  "  li a0, 0\n" ++
+  ".Lsvp_build:\n" ++
+  "  beq a0, a4, .Lsvp_done\n" ++
+  "  slli t3, a0, 3; add t3, t6, t3; ld t4, 0(t3)   # wd_rlp_len[i]\n" ++
+  "  sd t2, 0(t5); sd t4, 8(t5)\n" ++
+  "  addi t4, t4, 7; andi t4, t4, -8; add t2, t2, t4\n" ++
+  "  addi t5, t5, 16; addi a0, a0, 1\n" ++
+  "  j .Lsvp_build\n" ++
+  ".Lsvp_done:\n" ++
+  "  la t1, sv_params\n" ++
+  "  sd t2, 80(t1)               # witness ptr (after last wd blob)\n" ++
+  "  la t3, sv_wds; sd t3, 64(t1) # wds descriptors\n" ++
+  "  mv a0, t1\n" ++
+  "  jal ra, step2_verdict\n" ++
+  "  li t0, 0xa0010000; sd a0, 0(t0)   # verdict at OUTPUT+0\n" ++
+  "  j .Lsv_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  mptNodeKindFunction ++ "\n" ++
+  mptBranchChildFunction ++ "\n" ++
+  hpDecodeNibblesFunction ++ "\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeUintBeFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  rlpItemSizeFunction ++ "\n" ++
+  rlpItemSpanFunction ++ "\n" ++
+  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+  mptNodeSlotEncodeFunction ++ "\n" ++
+  bytesToNibblesFunction ++ "\n" ++
+  u256FromU64BeFunction ++ "\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256DivU64BeFunction ++ "\n" ++
+  u256IsZeroFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  u256SubBeFunction ++ "\n" ++
+  u256EqFunction ++ "\n" ++
+  u256LtBeFunction ++ "\n" ++
+  withdrawalDecodeFunction ++ "\n" ++
+  withdrawalToPathDeltaFunction ++ "\n" ++
+  msetMemcpyFunction ++ "\n" ++
+  mptSpliceSlotFunction ++ "\n" ++
+  accountAddBalanceFunction ++ "\n" ++
+  mptWalkFunction ++ "\n" ++
+  nodeDbAppendFunction ++ "\n" ++
+  nodeDbLookupFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
+  mptNodeResolveFunction ++ "\n" ++
+  mptSetRecordWalkDbFunction ++ "\n" ++
+  mptSetAccFunction ++ "\n" ++
+  mptStateRootFunction ++ "\n" ++
+  withdrawalsStateRootFunction ++ "\n" ++
+  validateHeaderBasicFunction ++ "\n" ++
+  checkGasLimitFunction ++ "\n" ++
+  headerValidatePostMergeFunction ++ "\n" ++
+  headerValidateExtraDataLengthFunction ++ "\n" ++
+  amsterdamBlobGasPriceU256Function ++ "\n" ++
+  eip1559CalcBaseFeePerGasFunction ++ "\n" ++
+  headerValidateBaseFeeFunction ++ "\n" ++
+  headerValidateExcessBlobGasFunction ++ "\n" ++
+  validateHeaderFunction ++ "\n" ++
+  -- cursor-walk helpers (closure-drift fix for rewritten decoders)
+  rlpWalkHelpersClosure ++ "\n" ++
+  rlpWalkNextLeafFunction ++ "\n" ++
+  headerExtendedDecodeFunction ++ "\n" ++
+  headerExtendedDecodeArityCheckFunction ++ "\n" ++
+  headersParentHashFunction ++ "\n" ++
+  headerValidateParentHashFunction ++ "\n" ++
+  validateHeaderRlpPairFunction ++ "\n" ++
+  bhrRevLeBeFunction ++ "\n" ++
+  blockHeaderSszToRlpFunction ++ "\n" ++
+  step2VerdictFunction ++ "\n" ++
+  ".Lsv_pdone:"
+
+
+-- @@ L271-328 verbatim
+/-- Data section: the withdrawals_state_root scratch (covers the recompute +
+    keccak + u256 + rfu + zk3 scratch) plus the validate_header and
+    block_header extras (deduped) plus the verdict's own buffers. -/
+def ziskStep2VerdictDataSection : String :=
+  ziskWithdrawalsStateRootDataSection ++ "\n" ++
+  -- validate_header_rlp_pair extras (u256m_acc/rfu_*/zk3_state already present)
+  ".balign 32\n" ++
+  "empty_ommers_hash:\n" ++
+  "  .byte 0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a\n" ++
+  "  .byte 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a\n" ++
+  "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
+  "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47\n" ++
+  ".balign 32\n" ++
+  "hvbf_expected:\n  .zero 32\n" ++
+  ".balign 32\n" ++
+  "hvebg_threshold:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "hvpm_off:\n  .zero 8\n" ++
+  "hvpm_len:\n  .zero 8\n" ++
+  "hved_off:\n  .zero 8\n" ++
+  "hved_len:\n  .zero 8\n" ++
+  "hmd_offset:\n  .zero 8\n" ++
+  "hmd_length:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "hvph_claimed:\n  .zero 32\n" ++
+  ".balign 32\n" ++
+  "hvph_computed:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "vhrp_this_struct:\n  .zero 144\n" ++
+  ".balign 8\n" ++
+  "vhrp_parent_struct:\n  .zero 144\n" ++
+  -- block_header_ssz_to_rlp extras (zk3_state already present)
+  ".balign 32\n" ++
+  "bhr_empty_ommers:\n" ++
+  "  .byte 0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a\n" ++
+  "  .byte 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a\n" ++
+  "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
+  "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47\n" ++
+  ".balign 8\n" ++
+  "bhr_zero8:\n  .zero 8\n" ++
+  "bhr_flen:\n  .zero 8\n" ++
+  "bhr_prefix_len:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bhr_uint_be:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "bhr_result_len:\n  .zero 8\n" ++
+  "bhr_payload:\n  .zero 1024\n" ++
+  ".balign 8\n" ++
+  "bhr_result:\n  .zero 1024\n" ++
+  -- verdict scratch
+  ".balign 8\n" ++
+  "sv_this_rlp_len:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "sv_recomputed:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "sv_params:\n  .zero 104\n" ++
+  "sv_wds:\n  .zero 1024\n" ++
+  "sv_this_rlp:\n  .zero 1024"
+
+
+-- @@ L330-336 verbatim
+/-- Standalone Step2 probes link the recursive decoder closure themselves, so
+    they need the private frame section that the production V2 data closure
+    places at its established tail.  Keep this probe-only wrapper separate:
+    inserting the frame into `ziskStep2VerdictDataSection` would move every
+    inherited V2/guest data label. -/
+def ziskStep2VerdictProbeDataSection : String :=
+  ziskStep2VerdictDataSection ++ "\n" ++ rlpRecursiveDecodeFrameData
+
+
+-- @@ L338-342 verbatim
+def ziskStep2VerdictProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskStep2VerdictPrologue
+  dataAsm     := ziskStep2VerdictProbeDataSection
+}
+
+
+-- @@ L344-344 verbatim
+end EvmAsm.Codegen

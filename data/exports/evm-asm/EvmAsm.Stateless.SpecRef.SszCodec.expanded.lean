@@ -1,0 +1,628 @@
+/-
+  EvmAsm.Stateless.SpecRef.SszCodec
+
+  A generic, executable SSZ engine for the stateless-guest reference port:
+  a value model (`SszValue`), a type descriptor for type-directed decoding
+  (`SszType`), and the three operations the Python shell depends on:
+
+  * `serialize`      — `remerkleable`'s `.encode_bytes()`
+  * `deserialize`    — `remerkleable`'s `.decode_bytes(ty, …)`
+  * `hashTreeRoot`   — `remerkleable`'s `.hash_tree_root()`
+
+  Nothing pure-Lean for this existed in the repo (only SAsm emitters and
+  doc-only contracts under `EvmAsm/Stateless/SSZ/`), so this is a fresh
+  port of the SSZ spec
+  (https://github.com/ethereum/consensus-specs/blob/dev/ssz/simple-serialize.md),
+  built on the sha256 in `Crypto.lean`.
+
+  Recursion over the (finite, shallow) SSZ schema uses the repo's explicit
+  fuel convention (cf. `powModAux` in `EvmAsm/Rv64/ZiskAccel.lean`): the
+  fuel bounds *type-nesting depth* (not element count), so a small constant
+  budget is always sufficient and the definitions stay kernel-reducible.
+-/
+
+module
+
+public import EvmAsm.Stateless.SpecRef.Types
+
+
+-- @@ L28-28 verbatim
+@[expose] public section
+
+
+-- @@ L30-30 verbatim
+namespace EvmAsm.Stateless.SpecRef
+
+
+-- @@ L32-34 verbatim
+/-- Depth budget for SSZ recursion. The deepest schema
+    (`SszStatelessInput`) nests ~7 levels; 64 is comfortably safe. -/
+def sszFuel : Nat := 64
+
+
+-- @@ L36-37 verbatim
+/-- SSZ length-offset width (`BYTES_PER_LENGTH_OFFSET`). -/
+def sszOffsetSize : Nat := 4
+
+
+-- @@ L39-39 verbatim
+/-! ## Value and type models -/
+
+
+-- @@ L41-52 verbatim
+/-- An SSZ value. `byteVector` carries its bytes (its length is implicit);
+    `list` carries `elemBasicSize = some sz` when its elements are a basic
+    type (packed during merkleization) or `none` for composite elements
+    (one Merkle root per element). -/
+inductive SszValue where
+  | uint (width : Nat) (val : Nat)
+  | bool (b : Bool)
+  | byteVector (data : Bytes)
+  | byteList (limit : Nat) (data : Bytes)
+  | container (fields : List SszValue)
+  | list (limit : Nat) (elemBasicSize : Option Nat) (elems : List SszValue)
+  deriving Repr, Inhabited
+
+
+-- @@ L54-62 verbatim
+/-- An SSZ type descriptor, used to drive `deserialize`. -/
+inductive SszType where
+  | uint (width : Nat)
+  | bool
+  | byteVector (len : Nat)
+  | byteList (limit : Nat)
+  | container (fields : List SszType)
+  | list (elem : SszType) (limit : Nat)
+  deriving Repr, Inhabited
+
+
+-- @@ L64-64 verbatim
+/-! ## Structural predicates on types -/
+
+
+-- @@ L66-74 verbatim
+/-- Whether an SSZ type is variable-size. Fuel bounds type-nesting depth. -/
+def SszType.isVariableAux : Nat → SszType → Bool
+  | 0, _ => false
+  | _ + 1, .uint _ => false
+  | _ + 1, .bool => false
+  | _ + 1, .byteVector _ => false
+  | _ + 1, .byteList _ => true
+  | _ + 1, .list _ _ => true
+  | f + 1, .container fields => fields.any (fun t => SszType.isVariableAux f t)
+
+
+-- @@ L76-76 verbatim
+def SszType.isVariable (t : SszType) : Bool := SszType.isVariableAux sszFuel t
+
+
+-- @@ L78-90 verbatim
+/-- Fixed byte size of a fixed-size SSZ type (meaningless for variable
+    types, where the offset slot size `sszOffsetSize` is used instead). -/
+def SszType.fixedSizeAux : Nat → SszType → Nat
+  | 0, _ => 0
+  | _ + 1, .uint w => w
+  | _ + 1, .bool => 1
+  | _ + 1, .byteVector n => n
+  | _ + 1, .byteList _ => 0
+  | _ + 1, .list _ _ => 0
+  | f + 1, .container fields =>
+      (fields.map (fun t =>
+        if SszType.isVariableAux f t then sszOffsetSize
+        else SszType.fixedSizeAux f t)).foldl (· + ·) 0
+
+
+-- @@ L92-92 verbatim
+def SszType.fixedSize (t : SszType) : Nat := SszType.fixedSizeAux sszFuel t
+
+
+-- @@ L94-98 verbatim
+/-- The basic-type element size, if `t` is a basic type (`uint`/`bool`). -/
+def SszType.basicSize? : SszType → Option Nat
+  | .uint w => some w
+  | .bool => some 1
+  | _ => none
+
+
+-- @@ L100-100 verbatim
+/-! ## Serialization (`encode_bytes`) -/
+
+
+-- @@ L102-110 verbatim
+/-- Whether a value is variable-size (for offset layout). -/
+def SszValue.isVariableAux : Nat → SszValue → Bool
+  | 0, _ => false
+  | _ + 1, .uint _ _ => false
+  | _ + 1, .bool _ => false
+  | _ + 1, .byteVector _ => false
+  | _ + 1, .byteList _ _ => true
+  | _ + 1, .list _ _ _ => true
+  | f + 1, .container fields => fields.any (fun v => SszValue.isVariableAux f v)
+
+
+-- @@ L112-112 verbatim
+def SszValue.isVariable (v : SszValue) : Bool := SszValue.isVariableAux sszFuel v
+
+
+-- @@ L114-126 verbatim
+/-- Assemble a serialized element sequence from per-element
+    `(isVariable, serialized bytes)` parts: the SSZ fixed part (values +
+    4-byte offsets) followed by the concatenated variable parts. -/
+def sszAssembleSeq (parts : List (Bool × Bytes)) : Bytes :=
+  let fixedLen :=
+    (parts.map (fun p => if p.1 then sszOffsetSize else p.2.length)).foldl (· + ·) 0
+  let fixedRegion : Bytes :=
+    (parts.foldl (fun (acc : Bytes × Nat) p =>
+      if p.1 then (acc.1 ++ natToBytesLE sszOffsetSize acc.2, acc.2 + p.2.length)
+      else (acc.1 ++ p.2, acc.2)) ([], fixedLen)).1
+  let varRegion : Bytes :=
+    (parts.filterMap (fun p => if p.1 then some p.2 else none)).flatten
+  fixedRegion ++ varRegion
+
+
+-- @@ L128-143 verbatim
+/-- Serialize a value. Fuel bounds nesting depth.
+
+    The sequence assembly lives in `sszAssembleSeq` (rather than a `where`
+    helper taking the fuel) so that the recursion is structural on the
+    fuel: a same-fuel mutual helper forces well-founded compilation, which
+    blocks kernel reduction and hence `decide` on concrete inputs. -/
+def SszValue.serializeAux : Nat → SszValue → Bytes
+  | 0, _ => []
+  | _ + 1, .uint width val => natToBytesLE width val
+  | _ + 1, .bool b => [if b then (1 : Byte) else 0]
+  | _ + 1, .byteVector data => data
+  | _ + 1, .byteList _ data => data
+  | f + 1, .container fields =>
+      sszAssembleSeq (fields.map (fun e => (e.isVariable, SszValue.serializeAux f e)))
+  | f + 1, .list _ _ elems =>
+      sszAssembleSeq (elems.map (fun e => (e.isVariable, SszValue.serializeAux f e)))
+
+
+-- @@ L145-145 verbatim
+def SszValue.serialize (v : SszValue) : Bytes := SszValue.serializeAux sszFuel v
+
+
+-- @@ L147-147 verbatim
+/-! ## Deserialization (`decode_bytes`) -/
+
+
+-- @@ L149-151 verbatim
+/-- `data[start .. stop)` (clamped). -/
+def sliceBytes (data : Bytes) (start stop : Nat) : Bytes :=
+  (data.drop start).take (stop - start)
+
+
+-- @@ L153-155 verbatim
+/-- Read a little-endian offset (`sszOffsetSize` bytes) at `pos`. -/
+def readOffset (data : Bytes) (pos : Nat) : Nat :=
+  bytesLEtoNat ((data.drop pos).take sszOffsetSize)
+
+
+-- @@ L157-158 verbatim
+/-- Ceil-div by 32 (chunk count for `len` bytes). -/
+def chunkCount (len : Nat) : Nat := (len + 31) / 32
+
+
+-- @@ L160-162 verbatim
+/-- One field parsed from a container's fixed region: either its raw
+    fixed bytes (`Sum.inl`) or its variable-part offset (`Sum.inr`). -/
+abbrev Head := SszType × (Bytes ⊕ Nat)
+
+
+-- @@ L164-172 verbatim
+/-- Walk the fixed region collecting per-field fixed bytes or offsets. -/
+def collectHeads (data : Bytes) : List SszType → Nat → List Head
+  | [], _ => []
+  | t :: rest, cur =>
+    if t.isVariable then
+      (t, Sum.inr (readOffset data cur)) :: collectHeads data rest (cur + sszOffsetSize)
+    else
+      let sz := t.fixedSize
+      (t, Sum.inl (sliceBytes data cur (cur + sz))) :: collectHeads data rest (cur + sz)
+
+
+-- @@ L174-182 verbatim
+/-- Assign each head its byte slice; variable heads span from their offset
+    to the next variable offset (or end of `data`). -/
+def headsToSegments (data : Bytes) : List Head → List Nat → List (SszType × Bytes)
+  | [], _ => []
+  | (t, Sum.inl b) :: rest, stops => (t, b) :: headsToSegments data rest stops
+  | (t, Sum.inr off) :: rest, stop :: stops =>
+      (t, sliceBytes data off stop) :: headsToSegments data rest stops
+  | (t, Sum.inr off) :: rest, [] =>
+      (t, sliceBytes data off data.length) :: headsToSegments data rest []
+
+
+-- @@ L184-187 verbatim
+/-- SSZ offsets must be nondecreasing. -/
+def offsetsNondecreasing : List Nat → Bool
+  | [] | [_] => true
+  | a :: b :: rest => a ≤ b && offsetsNondecreasing (b :: rest)
+
+
+-- @@ L189-254 verbatim
+/-- Deserialize a value of type `t` from exactly `data`. Fuel bounds
+    type-nesting depth. -/
+def deserializeAux : Nat → SszType → Bytes → Except SpecError SszValue
+  | 0, _, _ => .error (.sszError "ssz decode fuel exhausted")
+  | f + 1, t, data =>
+    match t with
+    | .uint w =>
+        if data.length = w then .ok (.uint w (bytesLEtoNat data))
+        else .error (.sszError s!"uint{w} wrong length {data.length}")
+    | .bool =>
+        match data with
+        | [b] =>
+            if b.toNat ≤ 1 then .ok (.bool (b.toNat = 1))
+            else .error (.sszError "boolean out of range")
+        | _ => .error (.sszError "boolean wrong length")
+    | .byteVector n =>
+        if data.length = n then .ok (.byteVector data)
+        else .error (.sszError s!"byte vector wrong length {data.length} ≠ {n}")
+    | .byteList lim =>
+        if data.length ≤ lim then .ok (.byteList lim data)
+        else .error (.sszError "byte list over limit")
+    | .container fields =>
+        let fixedLen := t.fixedSize
+        if data.length < fixedLen then
+          .error (.sszError "container shorter than fixed section")
+        else
+          let heads := collectHeads data fields 0
+          let varOffsets := heads.filterMap (fun h =>
+            match h.2 with | Sum.inr o => some o | _ => none)
+          if varOffsets.any (fun off => off < fixedLen || data.length < off)
+              || !offsetsNondecreasing varOffsets
+              || (varOffsets != [] && varOffsets.getD 0 fixedLen != fixedLen) then
+            .error (.sszError "invalid container offsets")
+          else
+            let stops := varOffsets.drop 1 ++ [data.length]
+            let segs := headsToSegments data heads stops
+            (segs.mapM (fun s => deserializeAux f s.1 s.2)).map SszValue.container
+    | .list elem lim =>
+        if elem.isVariable then
+          match data with
+          | [] => .ok (.list lim elem.basicSize? [])
+          | _ =>
+              let firstOff := readOffset data 0
+              let count := firstOff / sszOffsetSize
+              let offsets := (List.range count).map (fun i => readOffset data (i * sszOffsetSize))
+              if firstOff = 0 || firstOff % sszOffsetSize != 0 || data.length < firstOff
+                  || count > lim || offsets.getD 0 firstOff != firstOff
+                  || offsets.any (fun off => off < firstOff || data.length < off)
+                  || !offsetsNondecreasing offsets then
+                .error (.sszError "invalid variable-list offsets")
+              else
+                let stops := offsets.drop 1 ++ [data.length]
+                let segs := (offsets.zip stops).map (fun p => sliceBytes data p.1 p.2)
+                (segs.mapM (fun b => deserializeAux f elem b)).map
+                  (fun vs => .list lim elem.basicSize? vs)
+        else
+          let sz := elem.fixedSize
+          if sz = 0 then .error (.sszError "zero-size list element")
+          else
+            let count := data.length / sz
+            if data.length % sz != 0 then .error (.sszError "fixed-list trailing bytes")
+            else if count > lim then .error (.sszError "list over limit")
+            else
+              let segs := (List.range count).map (fun i => sliceBytes data (i * sz) (i * sz + sz))
+              (segs.mapM (fun b => deserializeAux f elem b)).map
+                (fun vs => .list lim elem.basicSize? vs)
+
+
+-- @@ L256-257 verbatim
+def deserialize (t : SszType) (data : Bytes) : Except SpecError SszValue :=
+  deserializeAux sszFuel t data
+
+
+-- @@ L259-259 verbatim
+/-! ## Merkleization (`hash_tree_root`) -/
+
+
+-- @@ L261-262 verbatim
+/-- The all-zero 32-byte chunk (`Z_0`). -/
+def zeroChunk : Bytes := List.replicate 32 (0 : Byte)
+
+
+-- @@ L264-270 verbatim
+/-- Pack bytes into right-zero-padded 32-byte chunks. -/
+def packBytesAux : Nat → Bytes → List Bytes
+  | 0, _ => []
+  | _, [] => []
+  | fuel + 1, data =>
+      let chunk := data.take 32
+      (chunk ++ List.replicate (32 - chunk.length) (0 : Byte)) :: packBytesAux fuel (data.drop 32)
+
+
+-- @@ L272-272 verbatim
+def packBytes (data : Bytes) : List Bytes := packBytesAux (data.length + 1) data
+
+
+-- @@ L274-280 verbatim
+/-- SSZ zero hash at depth `d`: `Z_0 = 0…0`, `Z_{i+1} = sha256(Z_i ‖ Z_i)`.
+    Lets merkleization skip all-zero padding subtrees in `O(depth)` instead
+    of materializing `2^depth` leaves (essential — real SSZ capacities reach
+    `2^24`). -/
+def zeroHash : Nat → Bytes
+  | 0 => zeroChunk
+  | d + 1 => let z := zeroHash d; sha256Pair z z
+
+
+-- @@ L282-285 verbatim
+/-- Ceil log2: smallest `d` with `2^d ≥ n` (with `ceilLog2 0 = 0`). -/
+def ceilLog2Aux : Nat → Nat → Nat → Nat
+  | 0, _, d => d
+  | f + 1, n, d => if 2 ^ d ≥ n then d else ceilLog2Aux f n (d + 1)
+
+
+-- @@ L287-287 verbatim
+def ceilLog2 (n : Nat) : Nat := ceilLog2Aux 64 (max n 1) 0
+
+
+-- @@ L289-293 verbatim
+/-- Pair-hash adjacent chunks once (halving a power-of-two-length list). -/
+def pairReduce : List Bytes → List Bytes
+  | [] => []
+  | [a] => [a]
+  | a :: b :: rest => sha256Pair a b :: pairReduce rest
+
+
+-- @@ L295-300 verbatim
+/-- Reduce a power-of-two leaf list to its Merkle root. -/
+def merkleizeReduce : Nat → List Bytes → Bytes
+  | 0, leaves => leaves.headD zeroChunk
+  | _, [] => zeroChunk
+  | _, [x] => x
+  | f + 1, leaves => merkleizeReduce f (pairReduce leaves)
+
+
+-- @@ L302-309 verbatim
+/-- Lift `partial` (root of a populated subtree at `cur` depth) up to
+    `target` depth by pair-hashing with the zero-subtree root at each level
+    (the right sibling above the populated region is all zeros = `Z_d`). -/
+def liftToDepth : Nat → Bytes → Nat → Nat → Bytes
+  | 0, part, _, _ => part
+  | f + 1, part, cur, target =>
+      if cur ≥ target then part
+      else liftToDepth f (sha256Pair part (zeroHash cur)) (cur + 1) target
+
+
+-- @@ L311-323 verbatim
+/-- SSZ `merkleize(chunks, limit)`: the root of a depth-`ceil(log2 limit)`
+    perfect tree whose first `chunks.length` leaves are `chunks` and the rest
+    are zero. Only the populated part is materialized; the zero upper region
+    is folded in via `zeroHash` (`O(n + log limit)`). -/
+def merkleize (chunks : List Bytes) (limitChunks : Nat) : Bytes :=
+  let target := max (ceilLog2 limitChunks) (ceilLog2 chunks.length)
+  match chunks with
+  | [] => zeroHash target
+  | _ =>
+      let pd := ceilLog2 chunks.length
+      let padded := chunks ++ List.replicate (2 ^ pd - chunks.length) zeroChunk
+      let part := merkleizeReduce (2 ^ pd + 1) padded
+      liftToDepth (target + 1) part pd target
+
+
+-- @@ L325-327 verbatim
+/-- SSZ `mix_in_length(root, length)`. -/
+def mixInLength (root : Bytes) (length : Nat) : Bytes :=
+  sha256Pair root (natToBytesLE 32 length)
+
+
+-- @@ L329-348 verbatim
+/-- `hash_tree_root(value)`. Fuel bounds nesting depth. -/
+def SszValue.hashTreeRootAux : Nat → SszValue → Bytes
+  | 0, _ => zeroChunk
+  | _ + 1, .uint _ val => natToBytesLE 32 val
+  | _ + 1, .bool b => (if b then (1 : Byte) else 0) :: List.replicate 31 (0 : Byte)
+  | _ + 1, .byteVector data => merkleize (packBytes data) (chunkCount data.length)
+  | _ + 1, .byteList lim data =>
+      mixInLength (merkleize (packBytes data) (chunkCount lim)) data.length
+  | f + 1, .container fields =>
+      merkleize (fields.map (fun v => SszValue.hashTreeRootAux f v)) fields.length
+  | f + 1, .list lim elemBasicSize elems =>
+      match elemBasicSize with
+      | some sz =>
+          -- basic-element list: pack serialized elements, mix in the count
+          let packed := packBytes (elems.flatMap SszValue.serialize)
+          mixInLength (merkleize packed (chunkCount (lim * sz))) elems.length
+      | none =>
+          -- composite-element list: one root per element, mix in the count
+          mixInLength (merkleize (elems.map (fun v => SszValue.hashTreeRootAux f v)) lim)
+            elems.length
+
+
+-- @@ L350-350 verbatim
+def SszValue.hashTreeRoot (v : SszValue) : Bytes := SszValue.hashTreeRootAux sszFuel v
+
+
+-- @@ L352-356 verbatim
+/-! ## Length lemmas: every Merkle root is 32 bytes
+
+    Chained to `sha256_length` (`Crypto.lean`); the payoff is
+    `hashTreeRoot_length`, which gives the accept branch of the guest a
+    32-byte `new_payload_request_root` with no hypotheses. -/
+
+
+-- @@ L358-359 verbatim
+@[simp] theorem zeroChunk_length : zeroChunk.length = 32 := by
+  simp [zeroChunk]
+
+
+-- @@ L361-364 verbatim
+theorem zeroHash_length (d : Nat) : (zeroHash d).length = 32 := by
+  induction d with
+  | zero => simp [zeroHash]
+  | succ d _ => simp [zeroHash]
+
+
+-- @@ L366-380 verbatim
+theorem packBytesAux_mem_length (fuel : Nat) (data : Bytes) :
+    ∀ c ∈ packBytesAux fuel data, c.length = 32 := by
+  induction fuel generalizing data with
+  | zero => simp [packBytesAux]
+  | succ fuel ih =>
+      cases data with
+      | nil => simp [packBytesAux]
+      | cons b bs =>
+          intro c hc
+          simp only [packBytesAux, List.mem_cons] at hc
+          rcases hc with h | h
+          · subst h
+            simp only [List.length_append, List.length_replicate, List.length_take]
+            omega
+          · exact ih _ c h
+
+
+-- @@ L382-394 verbatim
+theorem pairReduce_mem_length : ∀ (l : List Bytes),
+    (∀ c ∈ l, c.length = 32) → ∀ c ∈ pairReduce l, c.length = 32
+  | [], _, c, hc => by simp [pairReduce] at hc
+  | [a], h, c, hc => by
+      rw [pairReduce] at hc
+      simp only [List.mem_singleton] at hc
+      exact hc ▸ h a (by simp)
+  | a :: b :: rest, h, c, hc => by
+      rw [pairReduce] at hc
+      rcases List.mem_cons.mp hc with h1 | h1
+      · exact h1 ▸ sha256Pair_length a b
+      · exact pairReduce_mem_length rest
+          (fun c hc => h c (by simp [hc])) c h1
+
+
+-- @@ L396-410 verbatim
+theorem merkleizeReduce_length (f : Nat) (leaves : List Bytes)
+    (h : ∀ c ∈ leaves, c.length = 32) :
+    (merkleizeReduce f leaves).length = 32 := by
+  induction f generalizing leaves with
+  | zero =>
+      cases leaves with
+      | nil => simp [merkleizeReduce]
+      | cons a rest => simpa [merkleizeReduce] using h a (by simp)
+  | succ f ih =>
+      match leaves, h with
+      | [], _ => simp [merkleizeReduce]
+      | [x], h => simpa [merkleizeReduce] using h x (by simp)
+      | a :: b :: rest, h =>
+          simp only [merkleizeReduce]
+          exact ih _ (pairReduce_mem_length _ h)
+
+
+-- @@ L412-420 verbatim
+theorem liftToDepth_length (f : Nat) (part : Bytes) (cur target : Nat)
+    (h : part.length = 32) : (liftToDepth f part cur target).length = 32 := by
+  induction f generalizing part cur with
+  | zero => simpa [liftToDepth] using h
+  | succ f ih =>
+      rw [liftToDepth]
+      split
+      · exact h
+      · exact ih _ _ (sha256Pair_length _ _)
+
+
+-- @@ L422-437 verbatim
+theorem merkleize_length (chunks : List Bytes) (limitChunks : Nat)
+    (h : ∀ c ∈ chunks, c.length = 32) :
+    (merkleize chunks limitChunks).length = 32 := by
+  cases chunks with
+  | nil =>
+      simp only [merkleize]
+      exact zeroHash_length _
+  | cons a rest =>
+      simp only [merkleize]
+      refine liftToDepth_length _ _ _ _ ?_
+      refine merkleizeReduce_length _ _ ?_
+      intro c hc
+      rcases List.mem_append.mp hc with h1 | h1
+      · exact h c h1
+      · rw [List.eq_of_mem_replicate h1]
+        exact zeroChunk_length
+
+
+-- @@ L439-440 verbatim
+@[simp] theorem mixInLength_length (root : Bytes) (n : Nat) :
+    (mixInLength root n).length = 32 := sha256Pair_length _ _
+
+
+-- @@ L442-466 verbatim
+theorem hashTreeRootAux_length (f : Nat) (v : SszValue) :
+    (SszValue.hashTreeRootAux f v).length = 32 := by
+  induction f generalizing v with
+  | zero => simp [SszValue.hashTreeRootAux]
+  | succ f ih =>
+      cases v with
+      | uint w val => simp [SszValue.hashTreeRootAux]
+      | bool b => simp [SszValue.hashTreeRootAux]
+      | byteVector data =>
+          simp only [SszValue.hashTreeRootAux]
+          exact merkleize_length _ _ (packBytesAux_mem_length _ _)
+      | byteList lim data =>
+          simp only [SszValue.hashTreeRootAux]
+          exact mixInLength_length _ _
+      | container fields =>
+          simp only [SszValue.hashTreeRootAux]
+          refine merkleize_length _ _ ?_
+          intro c hc
+          obtain ⟨v, _, rfl⟩ := List.mem_map.mp hc
+          exact ih v
+      | list lim ebs elems =>
+          simp only [SszValue.hashTreeRootAux]
+          cases ebs with
+          | some sz => exact mixInLength_length _ _
+          | none => exact mixInLength_length _ _
+
+
+-- @@ L468-470 verbatim
+/-- Every SSZ Merkle root is exactly 32 bytes, unconditionally. -/
+theorem hashTreeRoot_length (v : SszValue) : v.hashTreeRoot.length = 32 :=
+  hashTreeRootAux_length sszFuel v
+
+
+-- @@ L472-486 verbatim
+/-! ## Canonicality (named residual — stated, deliberately not proven)
+
+    A blanket "trailing/missing bytes are rejected" is NOT a theorem of
+    this codec: a container's final variable field absorbs aligned extra
+    bytes (e.g. `sszStatelessInputType` ends in a list of 65-byte public
+    keys, so ±65 trailing bytes decode as ±1 key). The honest general
+    statement is *canonicality* — an accepted byte string is exactly the
+    serialization of its decoded value — which also fails for one shape:
+    a container with no variable field never slices its trailing region
+    (the `.container` arm above gates only `data.length < fixedLen`), so
+    trailing bytes are silently ignored there. No type reachable from the
+    guest schemas is a fixed-only container, but any canonicality proof
+    must carry that side condition. The negative control below pins the
+    hole; proving the positive direction for the guest schemas is future
+    work. -/
+
+
+-- @@ L488-494 verbatim
+/-- `deserialize t` is canonical when every accepted byte string is exactly
+    the serialization of its decoded value (hence `deserialize t` is
+    injective on its domain). -/
+def SszDeserializeCanonical (t : SszType) : Prop :=
+  ∀ bs v, deserialize t bs = .ok v → v.serialize = bs
+
+-- Non-vacuity: byte vectors decode canonically.
+
+-- @@ L495-504 verbatim
+example (n : Nat) : SszDeserializeCanonical (.byteVector n) := by
+  intro bs v h
+  simp only [deserialize, sszFuel, deserializeAux] at h
+  split at h
+  · cases h
+    rfl
+  · cases h
+
+-- Negative control: a fixed-only container is provably NOT canonical —
+-- the decoder accepts (and discards) the trailing garbage byte `0x63`.
+
+-- @@ L505-508 verbatim
+example : ¬ SszDeserializeCanonical (.container [.uint 1]) := by
+  intro hcanon
+  have h := hcanon [0, 0x63] (.container [.uint 1 0]) rfl
+  exact absurd h (by decide)
+
+
+-- @@ L510-510 verbatim
+end EvmAsm.Stateless.SpecRef

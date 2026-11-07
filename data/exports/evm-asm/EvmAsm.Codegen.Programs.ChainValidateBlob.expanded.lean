@@ -1,0 +1,656 @@
+/-
+  EvmAsm.Codegen.Programs.ChainValidateBlob
+
+  Blob-related chain-level validators (header fields 17/18,
+  Cancun+), carved out of `Programs.ChainValidate` per the
+  file-size hard cap. Hosts:
+
+    K274  chain_validate_excess_blob_gas_non_decreasing
+
+  Sister modules for non-blob chain validators stay in
+  `Programs.ChainValidate` (timestamps / numbers / gas_used /
+  gas_limit / basefee). Future Cancun+ predicates over fields 17
+  / 18 / 19 land here.
+
+  All predicates compose K20 `rlp_list_nth_item` + K34
+  `rlp_field_to_u64_strict` helpers, shared with the rest of the
+  validators.
+
+  No proofs yet -- these are codegen `String` defs only.
+-/
+
+import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.Programs.ChainValidateOfflineAddrs
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.Tx
+
+
+-- @@ L31-31 verbatim
+namespace EvmAsm.Codegen
+
+
+-- @@ L33-33 verbatim
+open EvmAsm.Rv64
+
+-- @@ L34-34 verbatim
+open EvmAsm.Rv64.Program
+
+
+-- @@ L36-60 verbatim
+/-! ## chain_validate_excess_blob_gas_non_decreasing -- PR-K274
+
+    Per-pair invariant: `excess_blob_gas[i] <= excess_blob_gas[i+1]`
+    for all 0 <= i < N-1 (header field 18, Cancun+). Useful for
+    spotting sustained over-target blob windows where the running
+    counter grows monotonically.
+
+    Mirrors K267 chain_validate_basefee_non_decreasing in shape;
+    differs by field (18 vs 15).
+
+    Pre-Cancun headers (<19 fields) raise parse-failure status.
+
+    Vacuous-true on N <= 1.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : u64 out (is_valid)
+      a4 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure on some header
+        2 : excess_blob_gas field > 8 bytes BE on some header -/
+
+-- @@ L61-125 verbatim
+def chainValidateExcessBlobGasNonDecreasingFunction : String :=
+  "chain_validate_excess_blob_gas_non_decreasing:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
+  "  li t0, 2\n" ++
+  "  bltu s0, t0, .Lcvebnd_done\n" ++
+  "  # Extract headers[0].excess_blob_gas into s5 (prev)\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  li a2, 18\n" ++
+  "  la a3, cvebnd_field\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
+  "  bnez a0, .Lcvebnd_propagate\n" ++
+  "  la t0, cvebnd_field; ld s5, 0(t0)\n" ++
+  "  ld t0, 0(s1)\n" ++
+  "  add t1, s2, t0\n" ++
+  "  li t2, 1\n" ++
+  ".Lcvebnd_loop:\n" ++
+  "  beq t2, s0, .Lcvebnd_done\n" ++
+  "  la t0, cvebnd_iter_child; sd t1, 0(t0)\n" ++
+  "  la t0, cvebnd_iter_i;     sd t2, 0(t0)\n" ++
+  "  la t0, cvebnd_iter_prev;  sd s5, 0(t0)\n" ++
+  "  slli t3, t2, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld a1, 0(t3)\n" ++
+  "  mv a0, t1\n" ++
+  "  li a2, 18\n" ++
+  "  la a3, cvebnd_field\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
+  "  bnez a0, .Lcvebnd_propagate\n" ++
+  "  la t0, cvebnd_field;        ld t3, 0(t0)\n" ++
+  "  la t0, cvebnd_iter_prev;    ld t4, 0(t0)\n" ++
+  "  bltu t3, t4, .Lcvebnd_pred_false\n" ++
+  "  la t0, cvebnd_iter_child;   ld t1, 0(t0)\n" ++
+  "  la t0, cvebnd_iter_i;       ld t2, 0(t0)\n" ++
+  "  mv s5, t3\n" ++
+  "  slli t5, t2, 3\n" ++
+  "  add t5, s1, t5\n" ++
+  "  ld t6, 0(t5)\n" ++
+  "  add t1, t1, t6\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  j .Lcvebnd_loop\n" ++
+  ".Lcvebnd_pred_false:\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  la t0, cvebnd_iter_i; ld t1, 0(t0)\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcvebnd_ret\n" ++
+  ".Lcvebnd_propagate:\n" ++
+  "  la t0, cvebnd_iter_i; ld t1, 0(t0)\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  j .Lcvebnd_ret\n" ++
+  ".Lcvebnd_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lcvebnd_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+
+-- @@ L127-144 verbatim
+def ziskChainValidateExcessBlobGasNonDecreasingPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_validate_excess_blob_gas_non_decreasing\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcvebnd_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
+  chainValidateExcessBlobGasNonDecreasingFunction ++ "\n" ++
+  ".Lcvebnd_pdone:"
+
+
+-- @@ L146-162 verbatim
+def ziskChainValidateExcessBlobGasNonDecreasingDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cvebnd_field:\n" ++
+  "  .zero 8\n" ++
+  "cvebnd_iter_child:\n" ++
+  "  .zero 8\n" ++
+  "cvebnd_iter_i:\n" ++
+  "  .zero 8\n" ++
+  "cvebnd_iter_prev:\n" ++
+  "  .zero 8"
+
+
+
+-- @@ L165-186 verbatim
+/-! ## chain_validate_excess_blob_gas_non_increasing -- PR-K275
+
+    Per-pair invariant: `excess_blob_gas[i] >= excess_blob_gas[i+1]`
+    for all 0 <= i < N-1 (header field 18, Cancun+). Min-side
+    mirror of K274 chain_validate_excess_blob_gas_non_decreasing;
+    useful for sustained under-target blob windows.
+
+    Pre-Cancun headers (<19 fields) raise parse-failure status.
+
+    Vacuous-true on N <= 1.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : u64 out (is_valid)
+      a4 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure on some header
+        2 : excess_blob_gas field > 8 bytes BE on some header -/
+
+-- @@ L187-251 verbatim
+def chainValidateExcessBlobGasNonIncreasingFunction : String :=
+  "chain_validate_excess_blob_gas_non_increasing:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
+  "  li t0, 2\n" ++
+  "  bltu s0, t0, .Lcvebni_done\n" ++
+  "  # Extract headers[0].excess_blob_gas into s5 (prev)\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  li a2, 18\n" ++
+  "  la a3, cvebni_field\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
+  "  bnez a0, .Lcvebni_propagate\n" ++
+  "  la t0, cvebni_field; ld s5, 0(t0)\n" ++
+  "  ld t0, 0(s1)\n" ++
+  "  add t1, s2, t0\n" ++
+  "  li t2, 1\n" ++
+  ".Lcvebni_loop:\n" ++
+  "  beq t2, s0, .Lcvebni_done\n" ++
+  "  la t0, cvebni_iter_child; sd t1, 0(t0)\n" ++
+  "  la t0, cvebni_iter_i;     sd t2, 0(t0)\n" ++
+  "  la t0, cvebni_iter_prev;  sd s5, 0(t0)\n" ++
+  "  slli t3, t2, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld a1, 0(t3)\n" ++
+  "  mv a0, t1\n" ++
+  "  li a2, 18\n" ++
+  "  la a3, cvebni_field\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
+  "  bnez a0, .Lcvebni_propagate\n" ++
+  "  la t0, cvebni_field;        ld t3, 0(t0)\n" ++
+  "  la t0, cvebni_iter_prev;    ld t4, 0(t0)\n" ++
+  "  bltu t4, t3, .Lcvebni_pred_false\n" ++
+  "  la t0, cvebni_iter_child;   ld t1, 0(t0)\n" ++
+  "  la t0, cvebni_iter_i;       ld t2, 0(t0)\n" ++
+  "  mv s5, t3\n" ++
+  "  slli t5, t2, 3\n" ++
+  "  add t5, s1, t5\n" ++
+  "  ld t6, 0(t5)\n" ++
+  "  add t1, t1, t6\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  j .Lcvebni_loop\n" ++
+  ".Lcvebni_pred_false:\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  la t0, cvebni_iter_i; ld t1, 0(t0)\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcvebni_ret\n" ++
+  ".Lcvebni_propagate:\n" ++
+  "  la t0, cvebni_iter_i; ld t1, 0(t0)\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  j .Lcvebni_ret\n" ++
+  ".Lcvebni_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lcvebni_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+
+-- @@ L253-270 verbatim
+def ziskChainValidateExcessBlobGasNonIncreasingPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_validate_excess_blob_gas_non_increasing\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcvebni_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
+  chainValidateExcessBlobGasNonIncreasingFunction ++ "\n" ++
+  ".Lcvebni_pdone:"
+
+
+-- @@ L272-288 verbatim
+def ziskChainValidateExcessBlobGasNonIncreasingDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cvebni_field:\n" ++
+  "  .zero 8\n" ++
+  "cvebni_iter_child:\n" ++
+  "  .zero 8\n" ++
+  "cvebni_iter_i:\n" ++
+  "  .zero 8\n" ++
+  "cvebni_iter_prev:\n" ++
+  "  .zero 8"
+
+
+
+-- @@ L291-317 verbatim
+/-! ## chain_validate_blob_gas_used_under_max -- PR-K277
+
+    Per-header invariant: `blob_gas_used <= MAX_BLOB_GAS_PER_BLOCK`
+    (field 17, Cancun+). The Amsterdam EEST frontier carries the
+    blob schedule in the stateless chain config and currently uses
+    `BLOB_SCHEDULE_MAX = 21`, so
+    `MAX_BLOB_GAS_PER_BLOCK = 21 * GAS_PER_BLOB = 21 * 131072 = 2752512`.
+
+    Useful as a per-block sanity check on RLP-decoded blob_gas_used
+    values. A failure signals corrupted header data or a future
+    fork that hasn't been wired in yet.
+
+    Pre-Cancun headers (<18 fields) raise parse-failure status.
+
+    Vacuous-true on N = 0.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : u64 out (is_valid)
+      a4 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure on some header
+        2 : blob_gas_used field > 8 bytes BE on some header -/
+
+-- @@ L318-384 verbatim
+def chainValidateBlobGasUsedUnderMax_prog : Program :=
+  [ .ADDI .x2 .x2 (-56 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .LI .x5 (1 : Word),
+    .SD .x19 .x5 (0 : BitVec 12),
+    .SD .x20 .x0 (0 : BitVec 12),
+    .LI .x21 (0 : Word),
+    .BEQ .x21 .x8 (brOff (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 224) (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 68)),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgum_iter_ptr (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 72)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgum_iter_ptr (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 72)),
+    .SD .x5 .x18 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgum_iter_i (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgum_iter_i (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 84)),
+    .SD .x5 .x21 (0 : BitVec 12),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x11 .x28 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .LI .x12 (17 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.cvbgum_field (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 116)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cvbgum_field (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 116)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 124)),
+    .BNE .x10 .x0 (brOff (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 216) (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 128)),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgum_iter_ptr (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 132)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgum_iter_ptr (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 132)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgum_iter_i (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 144)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgum_iter_i (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 144)),
+    .LD .x21 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgum_field (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 156)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgum_field (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 156)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (672 : BitVec 20),
+    .BLTU .x7 .x6 (28 : BitVec 13),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x29 .x28 (0 : BitVec 12),
+    .ADD .x18 .x18 .x29,
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (jalOff (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 68) (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_under_max + 196)),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x20 .x21 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .SD .x20 .x21 (0 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L386-396 verbatim
+/-- Reloc side-table for `chainValidateBlobGasUsedUnderMax_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def chainValidateBlobGasUsedUnderMax_relocs : RelocTable :=
+  [ (18, .la .x5 "cvbgum_iter_ptr"),
+    (21, .la .x5 "cvbgum_iter_i"),
+    (29, .la .x13 "cvbgum_field"),
+    (31, .jal .x1 "rlp_field_to_u64_strict"),
+    (33, .la .x5 "cvbgum_iter_ptr"),
+    (36, .la .x5 "cvbgum_iter_i"),
+    (39, .la .x5 "cvbgum_field") ]
+
+
+-- @@ L398-399 verbatim
+def chainValidateBlobGasUsedUnderMaxFunction : String :=
+  "chain_validate_blob_gas_used_under_max:\n" ++ emitProgramR chainValidateBlobGasUsedUnderMax_prog chainValidateBlobGasUsedUnderMax_relocs
+
+
+-- @@ L401-410 verbatim
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainValidateBlobGasUsedUnderMax_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainValidateBlobGasUsedUnderMaxFunction_eq_prog :
+    chainValidateBlobGasUsedUnderMaxFunction = "chain_validate_blob_gas_used_under_max:\n" ++ emitProgramR chainValidateBlobGasUsedUnderMax_prog chainValidateBlobGasUsedUnderMax_relocs := rfl
+
+#guard chainValidateBlobGasUsedUnderMaxFunction.startsWith "chain_validate_blob_gas_used_under_max:\n"
+#guard chainValidateBlobGasUsedUnderMax_prog.length = 66
+
+-- @@ L411-428 verbatim
+def ziskChainValidateBlobGasUsedUnderMaxPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_validate_blob_gas_used_under_max\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcvbgum_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
+  chainValidateBlobGasUsedUnderMaxFunction ++ "\n" ++
+  ".Lcvbgum_pdone:"
+
+
+-- @@ L430-444 verbatim
+def ziskChainValidateBlobGasUsedUnderMaxDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cvbgum_field:\n" ++
+  "  .zero 8\n" ++
+  "cvbgum_iter_ptr:\n" ++
+  "  .zero 8\n" ++
+  "cvbgum_iter_i:\n" ++
+  "  .zero 8"
+
+
+
+-- @@ L447-472 verbatim
+/-! ## chain_validate_blob_gas_used_multiple -- PR-K278
+
+    Per-header invariant: `blob_gas_used % GAS_PER_BLOB == 0`
+    (header field 17, Cancun+). EIP-4844 defines blob_gas_used
+    as `len(blob_versioned_hashes) * GAS_PER_BLOB`, so any valid
+    Cancun+ header must have `blob_gas_used` as a non-negative
+    multiple of `GAS_PER_BLOB = 131072 = 2^17`.
+
+    Checked via the low-17-bits mask (`blob_gas_used & 0x1ffff
+    == 0`).
+
+    Pre-Cancun headers (<18 fields) raise parse-failure status.
+
+    Vacuous-true on N = 0.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : u64 out (is_valid)
+      a4 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure on some header
+        2 : blob_gas_used field > 8 bytes BE on some header -/
+
+-- @@ L473-541 verbatim
+def chainValidateBlobGasUsedMultiple_prog : Program :=
+  [ .ADDI .x2 .x2 (-56 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .LI .x5 (1 : Word),
+    .SD .x19 .x5 (0 : BitVec 12),
+    .SD .x20 .x0 (0 : BitVec 12),
+    .LI .x21 (0 : Word),
+    .BEQ .x21 .x8 (brOff (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 232) (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 68)),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgm_iter_ptr (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 72)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgm_iter_ptr (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 72)),
+    .SD .x5 .x18 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgm_iter_i (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgm_iter_i (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 84)),
+    .SD .x5 .x21 (0 : BitVec 12),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x11 .x28 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .LI .x12 (17 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.cvbgm_field (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 116)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cvbgm_field (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 116)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 124)),
+    .BNE .x10 .x0 (brOff (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 224) (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 128)),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgm_iter_ptr (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 132)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgm_iter_ptr (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 132)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgm_iter_i (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 144)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgm_iter_i (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 144)),
+    .LD .x21 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvbgm_field (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 156)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvbgm_field (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 156)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (32 : BitVec 20),
+    .ADDIW .x7 .x7 (-1 : BitVec 12),
+    .AND .x30 .x6 .x7,
+    .BNE .x30 .x0 (28 : BitVec 13),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x29 .x28 (0 : BitVec 12),
+    .ADD .x18 .x18 .x29,
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (jalOff (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 68) (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 204)),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x20 .x21 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .SD .x20 .x21 (0 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L543-553 verbatim
+/-- Reloc side-table for `chainValidateBlobGasUsedMultiple_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def chainValidateBlobGasUsedMultiple_relocs : RelocTable :=
+  [ (18, .la .x5 "cvbgm_iter_ptr"),
+    (21, .la .x5 "cvbgm_iter_i"),
+    (29, .la .x13 "cvbgm_field"),
+    (31, .jal .x1 "rlp_field_to_u64_strict"),
+    (33, .la .x5 "cvbgm_iter_ptr"),
+    (36, .la .x5 "cvbgm_iter_i"),
+    (39, .la .x5 "cvbgm_field") ]
+
+
+-- @@ L555-556 verbatim
+def chainValidateBlobGasUsedMultipleFunction : String :=
+  "chain_validate_blob_gas_used_multiple:\n" ++ emitProgramR chainValidateBlobGasUsedMultiple_prog chainValidateBlobGasUsedMultiple_relocs
+
+
+-- @@ L558-567 verbatim
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainValidateBlobGasUsedMultiple_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainValidateBlobGasUsedMultipleFunction_eq_prog :
+    chainValidateBlobGasUsedMultipleFunction = "chain_validate_blob_gas_used_multiple:\n" ++ emitProgramR chainValidateBlobGasUsedMultiple_prog chainValidateBlobGasUsedMultiple_relocs := rfl
+
+#guard chainValidateBlobGasUsedMultipleFunction.startsWith "chain_validate_blob_gas_used_multiple:\n"
+#guard chainValidateBlobGasUsedMultiple_prog.length = 68
+
+-- @@ L568-585 verbatim
+def ziskChainValidateBlobGasUsedMultiplePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_validate_blob_gas_used_multiple\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcvbgm_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
+  chainValidateBlobGasUsedMultipleFunction ++ "\n" ++
+  ".Lcvbgm_pdone:"
+
+
+-- @@ L587-601 verbatim
+def ziskChainValidateBlobGasUsedMultipleDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cvbgm_field:\n" ++
+  "  .zero 8\n" ++
+  "cvbgm_iter_ptr:\n" ++
+  "  .zero 8\n" ++
+  "cvbgm_iter_i:\n" ++
+  "  .zero 8"
+
+
+
+-- @@ L604-604 verbatim
+end EvmAsm.Codegen

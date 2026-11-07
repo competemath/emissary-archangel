@@ -1,0 +1,100 @@
+/-
+  EvmAsm.Codegen.Programs.CreateInitcodeSizeValid
+
+  `create_initcode_size_valid` (bead fhsxz.2.4.2.61.8, CREATE deposit slice) — the
+  EIP-3860 init-code size gate a CREATE/CREATE2 must pass before executing the init
+  code. Per execution-specs amsterdam (EIP-3860), CREATE fails (the sub-call is not
+  entered, the opcode pushes 0) when
+
+    len(initcode) > MAX_INITCODE_SIZE = 2 * MAX_CODE_SIZE = 131072 (0x10000).
+
+  Amsterdam (EIP-7954) doubled MAX_CODE_SIZE to 0x10000 (65536), so MAX_INITCODE_SIZE
+  = 131072 — NOT the pre-Amsterdam 2*0x6000 = 49152 (bead xpgl5; the stale cutoff
+  wrongly rejected init code in (49152, 131072], which Amsterdam accepts). This is
+  the same threshold the live tx-level gate enforces (BlockVerdictGasGate,
+  `li t2, 131072`). This standalone gate enforces the EIP-3860 length rejection
+  explicitly for the CREATE/CREATE2 path;
+  it pairs with create_deployed_code_valid (#8601, the post-execution deployed-code
+  EIP-3541/EIP-170 gate) and is wired into the CREATE tail alongside it when CREATE
+  is activated (.8c). EIP-3860 also charges 2 gas/word of init code, which the tail
+  already accounts for (createInitcodeGasAsm); this is the SIZE rejection only.
+-/
+
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Emit
+
+
+-- @@ L29-29 verbatim
+@[expose] public section
+
+
+-- @@ L31-31 verbatim
+namespace EvmAsm.Codegen
+
+
+-- @@ L33-33 verbatim
+open EvmAsm.Rv64
+
+
+-- @@ L35-36 verbatim
+/-- EIP-3860 MAX_INITCODE_SIZE (bytes) = 2 * Amsterdam/EIP-7954 MAX_CODE_SIZE (65536) = 131072. -/
+def maxInitcodeSize : Nat := 131072
+
+
+-- @@ L38-46 verbatim
+/-- The `create_initcode_size_valid` body as a STRUCTURED RV64 program (a0=x10,
+    t0=x5; `bgtu a0,t0,L` ≡ `bltu x5,x10,.+12`, `ret` ≡ `jalr x0,0(x1)`). This is
+    what `emitProgram` renders below — byte-identical to the former hand-written
+    asm — and what `EvmAsm.Codegen.Proofs.cisv_spec` proves as a `cpsTriple`:
+    `a0 := (if maxInitcodeSize < len then 1 else 0); return`. -/
+def cisvProgram : Program :=
+  [ .LI .x5 (131072 : Word), .BLTU .x5 .x10 (12 : BitVec 13),
+    .LI .x10 (0 : Word), .JALR .x0 .x1 0,
+    .LI .x10 (1 : Word), .JALR .x0 .x1 0 ]
+
+
+-- @@ L48-52 verbatim
+/-! ## create_initcode_size_valid
+    a0 = init code length (bytes)
+    a0 (output) = 0 valid / 1 invalid (len > MAX_INITCODE_SIZE).
+    Leaf; clobbers t0. Emitted from the verified `cisvProgram` (cpsTriple-proven
+    by `cisv_spec`); byte-identical to the prior hand-written asm. -/
+
+-- @@ L53-54 verbatim
+def createInitcodeSizeValidFunction : String :=
+  "create_initcode_size_valid:\n" ++ emitProgram cisvProgram
+
+
+-- @@ L56-72 verbatim
+/-- `zisk_create_initcode_size_valid`: known-answer probe. Surfaces 4 results to
+    OUTPUT (0xa0010000):
+      +0  len 0      -> 0 valid
+      +8  len 32     -> 0 valid
+      +16 len 131072  -> 0 valid (boundary)
+      +24 len 131073 -> 1 invalid -/
+def ziskCreateInitcodeSizeValidPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0xa0010000\n" ++
+  "  li a0, 0;     jal ra, create_initcode_size_valid; sd a0, 0(s0)\n" ++
+  "  li a0, 32;    jal ra, create_initcode_size_valid; sd a0, 8(s0)\n" ++
+  "  li a0, 131072; jal ra, create_initcode_size_valid; sd a0, 16(s0)\n" ++
+  "  li a0, 131073; jal ra, create_initcode_size_valid; sd a0, 24(s0)\n" ++
+  "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+  "  j .Lcisv_done\n" ++
+  createInitcodeSizeValidFunction ++ "\n" ++
+  ".Lcisv_done:"
+
+
+-- @@ L74-77 verbatim
+def ziskCreateInitcodeSizeValidDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "cisv_pad:\n  .zero 8\n"
+
+
+
+-- @@ L80-80 verbatim
+end EvmAsm.Codegen

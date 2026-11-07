@@ -1,0 +1,443 @@
+/-
+  EvmAsm.Codegen.Programs.Secp256k1PointDoubleSAsmStage
+
+  Staging infrastructure for `secp256k1_point_double` (bead
+  evm-asm-4ch8f.38.5, the inline-CSRS half): the emitted routine
+  (`pdBody`/`pdFrame`/`pdProg_tie`), its code map (`pdCr`), the four
+  callee focused adapters (`secfIsZero32Flat_spec` / `secfZero32Flat_spec`
+  / `secfBeToLeFlat_spec` / `secfLeToBeFlat_spec`), and the inline
+  CSR-2052 curve tangent-doubling step (`curveStep_spec`).  The capstone
+  `pointDouble_spec` lives in `Secp256k1PointDoubleSAsm`, which imports
+  this file.  See that file's header for the full design notes.
+-/
+
+import EvmAsm.Codegen.Programs.Secp256k1Curve
+import EvmAsm.Codegen.Programs.Secp256k1FieldConvSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldLeToBeSAsm
+-- The own-`CodeReq` converter entry triples the two flat contracts below are
+-- now ⊆-monotonicity corollaries of (#12244).
+import EvmAsm.Codegen.Programs.Secp256k1FieldConvFlatEntry
+import EvmAsm.Codegen.Programs.Secp256k1FieldIsZeroSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldLeavesSAsm
+import EvmAsm.Rv64.SAsm.RwSubwindow
+import EvmAsm.Rv64.SAsm.AbiFrameCall
+import EvmAsm.Rv64.SAsm.FnFlat
+import EvmAsm.Rv64.LaResolve
+import EvmAsm.Crypto.PowLadder
+
+
+-- @@ L28-28 verbatim
+namespace EvmAsm.Codegen
+
+
+-- @@ L30-30 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Crypto
+
+
+-- @@ L32-32 verbatim
+namespace Secp256k1PointDoubleSAsm
+
+
+-- @@ L34-34 verbatim
+open Secp256k1FieldConvSAsm (secfBeToLeFn secfBeToLeFn_spec)
+
+-- @@ L35-35 verbatim
+open Secp256k1FieldConvSAsm (secfLeToBeFn secfLeToBeFn_spec)
+
+-- @@ L36-36 verbatim
+open Secp256k1FieldIsZeroSAsm (secfIsZero32Fn secfIsZero32Fn_spec)
+
+-- @@ L37-37 verbatim
+open Secp256k1FieldLeavesSAsm (secfZero32Fn secfZero32Fn_spec)
+
+-- @@ L38-38 verbatim
+open EvmAsm.Rv64.SAsm.WhileBreakDemo (nlz nlz_le nlz_spec nlz_boundary)
+
+
+-- @@ L40-42 verbatim
+/-- The staging-point base (`secc_le_p1`): a 64-byte LE point image
+    `x || y`, four u64 limbs per coordinate. -/
+def arenaB : Word := GuestAddrs.secc_le_p1
+
+
+-- @@ L44-45 verbatim
+/-- The frame and body of the emitted routine. -/
+def pdFrame : FrameDesc := [(.x1, 0), (.x8, 8), (.x9, 16)]
+
+
+-- @@ L47-80 verbatim
+def pdBody : List Instr :=
+  [ .MV .x8 .x10,
+    .MV .x9 .x11,
+    .ADDI .x10 .x8 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.secf_is_zero32 (GuestAddrs.secp256k1_point_double + 28)),
+    .BEQ .x10 .x0 (28 : BitVec 13),
+    .MV .x10 .x9,
+    .JAL .x1 (jalOff GuestAddrs.secf_zero32 (GuestAddrs.secp256k1_point_double + 40)),
+    .ADDI .x10 .x9 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.secf_zero32 (GuestAddrs.secp256k1_point_double + 48)),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (92 : BitVec 21),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_double + 64)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_double + 64)),
+    .JAL .x1 (jalOff GuestAddrs.secf_be_to_le (GuestAddrs.secp256k1_point_double + 72)),
+    .ADDI .x10 .x8 (32 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_double + 80)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_double + 80)),
+    .ADDI .x11 .x11 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.secf_be_to_le (GuestAddrs.secp256k1_point_double + 92)),
+    .AUIPC .x5 (laHi GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_double + 96)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_double + 96)),
+    .CSRS (2052 : BitVec 12) .x5,
+    .AUIPC .x10 (laHi GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_double + 108)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_double + 108)),
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.secf_le_to_be (GuestAddrs.secp256k1_point_double + 120)),
+    .AUIPC .x10 (laHi GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_double + 124)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_double + 124)),
+    .ADDI .x10 .x10 (32 : BitVec 12),
+    .ADDI .x11 .x9 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.secf_le_to_be (GuestAddrs.secp256k1_point_double + 140)),
+    .LI .x10 (0 : Word) ]
+
+
+-- @@ L82-86 verbatim
+/-- Byte tie (kernel-checked): the emitted routine IS the ABI frame over
+    the body — byte-transparent, no A/B. -/
+theorem pdProg_tie :
+    abiFrameProg (-32 : BitVec 12) (32 : BitVec 12) pdFrame pdBody
+      = secp256k1PointDouble_prog := rfl
+
+
+-- @@ L88-94 verbatim
+/-- The routine's single code map: its own program plus the four callees'. -/
+def pdCr : CodeReq :=
+  (CodeReq.ofProg (GuestAddrs.secp256k1_point_double : Word) secp256k1PointDouble_prog).union
+    ((CodeReq.ofProg (GuestAddrs.secf_is_zero32 : Word) secfIsZero32_prog).union
+      ((CodeReq.ofProg (GuestAddrs.secf_zero32 : Word) secfZero32_prog).union
+        ((CodeReq.ofProg (GuestAddrs.secf_be_to_le : Word) secfBeToLe_prog).union
+          (CodeReq.ofProg (GuestAddrs.secf_le_to_be : Word) secfLeToBe_prog))))
+
+
+-- @@ L96-98 verbatim
+/-- The exposed registers the converter contracts clobber beyond `a0`/`a1`. -/
+def convScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31, .x12, .x13, .x14, .x15, .x16, .x17]
+
+
+-- @@ L100-109 verbatim
+/-- The exposed registers beyond `a0` (single-pointer callees). -/
+def a0Rest : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x11, .x12, .x13, .x14, .x15, .x16, .x17]
+
+-- `exposedRegs_split2` (the `a0`/`a1`/`convScratch` split) lived here for the two
+-- converter proofs alone; those are now ⊆-monotonicity corollaries (#12244), so
+-- it moved to `Secp256k1FieldConvFlatEntry` beside the theorem that needs it.
+-- `exposedRegs_splitA0` below is a DIFFERENT split (single-pointer callees) and
+-- is still used.
+
+
+-- @@ L111-118 verbatim
+private theorem exposedRegs_splitA0 (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** regAtomsOf vf a0Rest) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [a0Rest, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+
+-- @@ L120-124 verbatim
+private theorem x10_notin_a0Rest : (.x10 : Reg) ∉ a0Rest := by decide
+
+-- ============================================================================
+-- Flat contract: secf_is_zero32 (read-only leaf, no rw window)
+-- ============================================================================
+
+
+-- @@ L126-190 expanded
+/-- **Flat contract for `secf_is_zero32`** (adapter-derived, deterministic
+    post: `a0 = 1` iff the 32 bytes are all zero). -/
+theorem secfIsZero32Flat_spec (ret ptr : Word) (bs : List (BitVec 8)) (hlen : bs.length = 32)
+    (hwfR : Region.wf ⟨ptr, bs⟩) (hso : ptr.toNat + 32 < 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((secfIsZero32Fn ptr bs).body.steps + 1) (GuestAddrs.secf_is_zero32 : Word) ret
+      pdCr (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ ptr) ** regOwns a0Rest ** bytesRegion ptr bs)
+      (((.x1 : Reg) ↦ᵣ ret) **
+        (.x10 ↦ᵣ (if nlz bs 32 = 32 then (1 : Word) else (0 : Word))) **
+          regOwns a0Rest ** bytesRegion ptr bs) :=
+  by
+  refine
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+      (cpsTripleWithin_peel_regOwns a0Rest (by decide) (P :=
+        ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ ptr) ** bytesRegion ptr bs) (fun vf => ?_))
+  have had :=
+    Fn.retSpecFlat (secfIsZero32Fn ptr bs) (GuestAddrs.secf_is_zero32 : Word)
+      (secfIsZero32Fn_spec ptr bs hwfR (GuestAddrs.secf_is_zero32 : Word))
+      (by show 4 * (11 + 1) ≤ 2 ^ 64; decide) ret halign (fun r => if r = .x10 then ptr else vf r)
+      [] (by show ([] : List (BitVec 8)).length = 0; rfl)
+      (by
+        refine ⟨?_, hlen, hso, rfl⟩
+        show RegFile.get _ .x10 = ptr
+        rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+        exact if_pos rfl)
+      (fun _ _ _ h => h.2.2.2) (Q :=
+      (.x10 ↦ᵣ (if nlz bs 32 = 32 then (1 : Word) else (0 : Word))) ** regOwns a0Rest)
+      (fun rf' ws' hlen' hpost' hp hh =>
+        by
+        obtain rfl := List.eq_nil_of_length_eq_zero hlen'
+        rw [show (secfIsZero32Fn ptr bs).rw.base = (0 : Word) from rfl, bytesRegion_nil,
+          sepConj_emp_right'] at hh
+        rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide), exposedRegs_splitA0,
+          show (rf' Reg.x10 : Word) = (if nlz bs 32 = 32 then (1 : Word) else (0 : Word)) from
+            by
+            have h10 := hpost'.1
+            rwa [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)] at h10] at hh
+        exact sepConj_mono_right (regAtomsOf_to_regOwns (fun r => rf' r) a0Rest) hp hh)
+  rw [show (secfIsZero32Fn ptr bs).programRet (GuestAddrs.secf_is_zero32 : Word) = secfIsZero32_prog
+      from rfl] at had
+  have hadC :=
+    liftCode (cr' := pdCr) had
+      (by
+        first
+        | (with_reducible exact fun a i h => h)
+        | ((with_reducible refine CodeReq.singleton_mono ?_); decide)
+        | ((with_reducible refine CodeReq.sub_ofProg_of_lookup _ _ ?_ ?_) <;> decide))
+  rw [show (secfIsZero32Fn ptr bs).region = (⟨ptr, bs⟩ : Region) from rfl,
+    show (secfIsZero32Fn ptr bs).rw.base = (0 : Word) from rfl, bytesRegion_nil,
+    sepConj_emp_right'] at hadC
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide), exposedRegs_splitA0,
+    show (if (Reg.x10 : Reg) = .x10 then ptr else vf .x10) = ptr from if_pos rfl,
+    regAtomsOf_congr (fun r => if r = .x10 then ptr else vf r) vf a0Rest
+      (fun r hr => by
+        show (if r = .x10 then ptr else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) => x10_notin_a0Rest (hc ▸ hr))])] at hadC
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hadC
+
+
+-- @@ L192-246 expanded
+/-- **Flat contract for `secf_zero32`** (adapter-derived, deterministic
+    post: the 32-byte window at `a0` becomes all-zero). -/
+theorem secfZero32Flat_spec (ret dst : Word) (ob : List (BitVec 8)) (holen : ob.length = 32)
+    (hrww : RwRegion.wf ⟨dst, 32⟩) (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((secfZero32Fn 0 []).body.steps + 1) (GuestAddrs.secf_zero32 : Word) ret pdCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** regOwns a0Rest ** bytesRegion dst ob)
+      (((.x1 : Reg) ↦ᵣ ret) **
+        regOwns exposedRegs ** bytesRegion dst (List.replicate 32 (0 : BitVec 8))) :=
+  by
+  refine
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+      (cpsTripleWithin_peel_regOwns a0Rest (by decide) (P :=
+        ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** bytesRegion dst ob) (fun vf => ?_))
+  have had :=
+    Fn.retSpecFlat (secfZero32Fn dst ob) (GuestAddrs.secf_zero32 : Word)
+      (secfZero32Fn_spec dst ob hrww (GuestAddrs.secf_zero32 : Word))
+      (by show 4 * (4 + 1) ≤ 2 ^ 64; decide) ret halign (fun r => if r = .x10 then dst else vf r) ob
+      (by show ob.length = 32; exact holen)
+      (by
+        refine ⟨?_, rfl, holen, rfl⟩
+        show RegFile.get _ .x10 = dst
+        rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+        exact if_pos rfl)
+      (fun _ _ _ h => h.2) (Q :=
+      regOwns exposedRegs ** bytesRegion dst (List.replicate 32 (0 : BitVec 8)))
+      (fun rf' ws' hlen' hpost' hp hh =>
+        by
+        rw [show (secfZero32Fn dst ob).rw.base = dst from rfl, hpost'.1] at hh
+        rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
+        exact sepConj_mono_left (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
+  rw [show (secfZero32Fn dst ob).programRet (GuestAddrs.secf_zero32 : Word) = secfZero32_prog from
+      rfl] at had
+  have hadC :=
+    liftCode (cr' := pdCr) had
+      (by
+        first
+        | (with_reducible exact fun a i h => h)
+        | ((with_reducible refine CodeReq.singleton_mono ?_); decide)
+        | ((with_reducible refine CodeReq.sub_ofProg_of_lookup _ _ ?_ ?_) <;> decide))
+  rw [show (secfZero32Fn dst ob).region = Region.empty from rfl,
+    show (Region.empty).bytes = ([] : List (BitVec 8)) from rfl, bytesRegion_nil,
+    sepConj_emp_right', sepConj_emp_right',
+    show (secfZero32Fn dst ob).rw.base = dst from rfl] at hadC
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide), exposedRegs_splitA0,
+    show (if (Reg.x10 : Reg) = .x10 then dst else vf .x10) = dst from if_pos rfl,
+    regAtomsOf_congr (fun r => if r = .x10 then dst else vf r) vf a0Rest
+      (fun r hr => by
+        show (if r = .x10 then dst else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) => x10_notin_a0Rest (hc ▸ hr))])] at hadC
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hadC
+
+
+-- @@ L248-268 expanded
+/-- **Flat contract for `secf_be_to_le`** (adapter-derived, ∃-post: the
+    written window's exact bytes are existential, its 256-bit LE decode is
+    pinned to the input's BE value). -/
+theorem secfBeToLeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
+    (hilen : inb.length = 32) (holen : ob.length = 32) (hwfR : Region.wf ⟨srci, inb⟩)
+    (hrww : RwRegion.wf ⟨dsti, 32⟩) (hso : srci.toNat + 32 < 2 ^ 64)
+    (hdo : dsti.toNat + 32 < 2 ^ 64)
+    (hdisj : srci.toNat + 32 ≤ dsti.toNat ∨ dsti.toNat + 32 ≤ srci.toNat)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((secfBeToLeFn srci dsti inb ob).body.steps + 1)
+      (GuestAddrs.secf_be_to_le : Word) ret pdCr
+      (((.x1 : Reg) ↦ᵣ ret) **
+        (.x10 ↦ᵣ srci) **
+          (.x11 ↦ᵣ dsti) ** regOwns convScratch ** bytesRegion dsti ob ** bytesRegion srci inb)
+      (fun hp =>
+        ∃ ws',
+          ((⌜wsNat256 ws' 0 = beBytesToNat inb ∧ ws'.length = 32⌝ **
+              ((.x1 : Reg) ↦ᵣ ret) **
+                regOwns exposedRegs ** bytesRegion dsti ws' ** bytesRegion srci inb))
+            hp) :=
+  -- ⊆-monotonicity from the own-`CodeReq` entry triple (#12244), which is what
+    -- the ~64 lines removed here built inline before calling `liftCode` on it.
+  
+  liftCode
+    (Secp256k1FieldConvSAsm.secfBeToLeFlatEntry_spec ret srci dsti inb ob hilen holen hwfR hrww hso
+      hdo hdisj halign)
+    (by
+      first
+      | (with_reducible exact fun a i h => h)
+      | ((with_reducible refine CodeReq.singleton_mono ?_); decide)
+      | ((with_reducible refine CodeReq.sub_ofProg_of_lookup _ _ ?_ ?_) <;> decide))
+
+
+-- @@ L270-295 expanded
+/-- **Flat contract for `secf_le_to_be`** (adapter-derived, ∃-post: the
+    output's BE decode is pinned to the LE staging window's value). -/
+theorem secfLeToBeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
+    (hilen : inb.length = 32) (holen : ob.length = 32) (hwfR : Region.wf ⟨srci, inb⟩)
+    (hrww : RwRegion.wf ⟨dsti, 32⟩) (hso : srci.toNat + 32 < 2 ^ 64)
+    (hdo : dsti.toNat + 32 < 2 ^ 64)
+    (hdisj : srci.toNat + 32 ≤ dsti.toNat ∨ dsti.toNat + 32 ≤ srci.toNat)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((secfLeToBeFn srci dsti inb ob).body.steps + 1)
+      (GuestAddrs.secf_le_to_be : Word) ret pdCr
+      (((.x1 : Reg) ↦ᵣ ret) **
+        (.x10 ↦ᵣ srci) **
+          (.x11 ↦ᵣ dsti) ** regOwns convScratch ** bytesRegion dsti ob ** bytesRegion srci inb)
+      (fun hp =>
+        ∃ ws',
+          ((⌜beBytesToNat ws' = wsNat256 inb 0 ∧ ws'.length = 32⌝ **
+              ((.x1 : Reg) ↦ᵣ ret) **
+                regOwns exposedRegs ** bytesRegion dsti ws' ** bytesRegion srci inb))
+            hp) :=
+  -- Same collapse as its twin above (#12244). The ~99 lines removed here also
+    -- carried an `Accel.leLimbsToNat [wsDword inb 0, …] = wsNat256 inb 0` bridge
+    -- that the entry triple discharges by `rfl` in the same step, so the final
+    -- statement is unchanged.
+  
+  liftCode
+    (Secp256k1FieldConvSAsm.secfLeToBeFlatEntry_spec ret srci dsti inb ob hilen holen hwfR hrww hso
+      hdo hdisj halign)
+    (by
+      first
+      | (with_reducible exact fun a i h => h)
+      | ((with_reducible refine CodeReq.singleton_mono ?_); decide)
+      | ((with_reducible refine CodeReq.sub_ofProg_of_lookup _ _ ?_ ?_) <;> decide))
+      -- ============================================================================
+      -- The inline curve tangent-doubling step (CSR 0x804 = 2052)
+      -- ============================================================================
+
+
+-- @@ L297-300 verbatim
+/-- Exposed registers other than `t0` (the point pointer). -/
+def csrsRest : List Reg :=
+  [.x6, .x7, .x28, .x29, .x30, .x31,
+   .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17]
+
+
+-- @@ L302-308 verbatim
+private theorem exposedRegs_split5 (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x5 ↦ᵣ vf .x5) ** regAtomsOf vf csrsRest) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [csrsRest, regAtomsOf_cons, regAtomsOf_nil]
+
+
+-- @@ L310-310 verbatim
+private theorem x5_notin_csrsRest : (.x5 : Reg) ∉ csrsRest := by decide
+
+
+-- @@ L312-375 expanded
+/-- The one-step accelerator triple at atom granularity: `t0` points at the
+    staged LE point, the whole 64-byte staging window rides as ONE atom, and
+    it becomes the `Accel.curveDbl` tangent-doubling result in place —
+    nothing else (registers or other memory) moves.  Preconditions are
+    exactly the accelerator's `csrsValid`: reduced coordinates and `y ≠ 0`. -/
+theorem curveStep_spec (img : List (BitVec 8)) (hlen : img.length = 64)
+    (hvalid : ∀ j, j < 64 → isValidMemAddr (arenaB + BitVec.ofNat 64 j) = true)
+    (hx : wsNat256 img 0 < Accel.secpP) (hy : wsNat256 img 0x20 < Accel.secpP)
+    (hyne : wsNat256 img 0x20 ≠ 0) :
+    cpsTripleWithin 1 ((GuestAddrs.secp256k1_point_double + 104) : Word)
+      ((GuestAddrs.secp256k1_point_double + 108) : Word) pdCr
+      (((.x5 : Reg) ↦ᵣ (GuestAddrs.secc_le_p1 : Word)) **
+        regOwns csrsRest ** bytesRegion arenaB img)
+      (((.x5 : Reg) ↦ᵣ (GuestAddrs.secc_le_p1 : Word)) **
+        regOwns csrsRest **
+          bytesRegion arenaB
+            (setBytes img 0
+              (pairBytes 4 (Accel.curveDbl Accel.secpP (wsNat256 img 0) (wsNat256 img 0x20))))) :=
+  by
+  refine
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+      (cpsTripleWithin_peel_regOwns csrsRest (by decide) (P :=
+        ((.x5 : Reg) ↦ᵣ (GuestAddrs.secc_le_p1 : Word)) ** bytesRegion arenaB img) (fun vf => ?_))
+  have hcs :=
+    csrs_curveDbl_spec_within .secp256k1 ((GuestAddrs.secp256k1_point_double + 104) : Word) .x5
+      (by decide) arenaB 64 img (fun r => if r = .x5 then (GuestAddrs.secc_le_p1 : Word) else vf r)
+      hlen (by decide) hvalid 0
+      (by
+        show RegFile.get _ .x5 = arenaB + BitVec.ofNat 64 0
+        rw [RegFile.get, if_neg (by decide : (Reg.x5 : Reg) ≠ .x0)]
+        show (if (Reg.x5 : Reg) = .x5 then (GuestAddrs.secc_le_p1 : Word) else vf .x5) = _
+        rw [if_pos rfl]
+        decide)
+      ⟨0, rfl⟩ (by decide) (by rw [show CurveId.nl .secp256k1 = 4 from rfl, wsNat_four]; exact hx)
+      (by
+        rw [show CurveId.nl .secp256k1 = 4 from rfl, wsNat_four,
+          show (0 + 8 * 4 : Nat) = 0x20 from rfl]
+        exact hy)
+      (by
+        rw [show CurveId.nl .secp256k1 = 4 from rfl, wsNat_four,
+          show (0 + 8 * 4 : Nat) = 0x20 from rfl]
+        exact hyne)
+  have hcsC :=
+    liftCode (cr' := pdCr) hcs
+      (by
+        first
+        | (with_reducible exact fun a i h => h)
+        | ((with_reducible refine CodeReq.singleton_mono ?_); decide)
+        | ((with_reducible refine CodeReq.sub_ofProg_of_lookup _ _ ?_ ?_) <;> decide))
+  rw [show
+      ((GuestAddrs.secp256k1_point_double + 104) : Word) + 4 =
+        ((GuestAddrs.secp256k1_point_double + 108) : Word)
+      from by decide,
+    show CurveId.p .secp256k1 = Accel.secpP from rfl, show CurveId.nl .secp256k1 = 4 from rfl,
+    wsNat_four, show (0 + 8 * 4 : Nat) = 0x20 from rfl, wsNat_four] at hcsC
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide), exposedRegs_split5,
+    show
+      (if (Reg.x5 : Reg) = .x5 then (GuestAddrs.secc_le_p1 : Word) else vf .x5) =
+        (GuestAddrs.secc_le_p1 : Word)
+      from if_pos rfl,
+    regAtomsOf_congr (fun r => if r = .x5 then (GuestAddrs.secc_le_p1 : Word) else vf r) vf csrsRest
+      (fun r hr =>
+        by
+        show (if r = .x5 then (GuestAddrs.secc_le_p1 : Word) else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x5) => x5_notin_csrsRest (hc ▸ hr))])] at hcsC
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hq => ?_) hcsC
+  have hq2 := sepConj_mono_left (sepConj_mono_right (regAtomsOf_to_regOwns vf csrsRest)) h hq
+  xperm_hyp hq2
+
+
+-- @@ L377-377 verbatim
+end Secp256k1PointDoubleSAsm
+
+
+-- @@ L379-379 verbatim
+end EvmAsm.Codegen

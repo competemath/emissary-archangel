@@ -1,0 +1,615 @@
+/-
+  EvmAsm.Codegen.Programs.Bn254Fq12SetOneSAsm
+
+  **The first tactic-driven cross-call sp-frame port** (bead
+  evm-asm-4ch8f.58.3.17, unblocked by the `abiFrameCall_spec` bridge and the
+  `FramePort` automation): `bnq_set_one`, byte-TRANSPARENT (the existing
+  emitted `bnqSetOne_prog` already IS an `abiFrameProg` flatten — no re-emit,
+  no guest-byte change):
+
+      bnq_set_one:  addi sp, sp, -16
+                    sd   ra, 0(sp)
+                    sd   s0, 8(sp)
+                    mv   s0, a0            -- clobbers callee-saved s0
+                    jal  ra, bnq_zero      -- zero all 48 dwords (clobbers ra!)
+                    li   t0, 1
+                    sd   t0 -> 0(s0)       -- coefficient 0 := 1
+                    ld   ra, 0(sp)
+                    ld   s0, 8(sp)
+                    addi sp, sp, +16
+                    ret
+
+  The callee `bnq_zero`'s FLAT whole-routine contract (`bnqZeroFlat_spec`)
+  — the `cpsTripleWithin` shape `callWithin_spec` consumes — is DERIVED
+  from the structured `Bn254Fq12ZeroSAsm.bnqZeroFn_spec` by the
+  flat-contract adapter (`Fn.retSpecFlat`, bead evm-asm-el1w2): no
+  hand-written per-callee loop proof.  The adapter carries the leaf's own
+  post faithfully (advanced `a0`, zeroed window) and surfaces the callee's
+  full exposed-register footprint as `regOwns bnqScratch` riders — the
+  inherent width of an `Fn.Spec`-derived contract (see `FnFlat.lean`).
+
+  `bnqSetOneFrame_spec` is the whole-routine ABI contract, wrapped by
+  `abi_frame`: on return `sp`, `ra` (clobbered by the real `jal`!), and `s0`
+  (clobbered by the body) are restored to entry, and the FQ12 at the entry
+  `a0` holds ONE — dword 0 = 1, the other 47 dwords = 0 — the genuine,
+  unweakened semantics.  `a0` itself ends at `dst + 384` (advanced by
+  `bnq_zero`), exactly as the machine leaves it.
+
+  Byte-tie: `#guard`/`rfl` against the emitted `bnqSetOne_prog` (including
+  the concrete guest-linked `jalOff`) and the `GuestAddrs` anchors.
+-/
+
+import EvmAsm.Rv64.SAsm.FramePort
+import EvmAsm.Rv64.SAsm.FnFlat
+import EvmAsm.Rv64.SAsm.Fn
+import EvmAsm.Rv64.Tactics.RunBlock
+import EvmAsm.Rv64.Tactics.XSimp
+import EvmAsm.Codegen.Programs.Bn254Fq12
+import EvmAsm.Codegen.Programs.Bn254Fq12ZeroSAsm
+
+
+-- @@ L50-50 verbatim
+namespace EvmAsm.Codegen
+
+
+-- @@ L52-52 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Rv64.Tactics
+
+
+-- @@ L54-61 verbatim
+namespace Bn254Fq12SetOneSAsm
+
+-- ============================================================================
+-- Anchors and byte-ties.
+-- ============================================================================
+
+-- The two routines are adjacent in the guest text: `bnq_zero` (6 slots)
+-- immediately precedes `bnq_set_one`.
+
+-- @@ L62-62 verbatim
+#guard GuestAddrs.bnq_zero + 4 * bnqZero_prog.length = GuestAddrs.bnq_set_one
+
+
+-- @@ L64-65 verbatim
+/-- The caller's 2-slot frame: `ra` at 0, `s0` at 8. -/
+def setOneFrame : FrameDesc := [(.x1, 0), (.x8, 8)]
+
+
+-- @@ L67-75 verbatim
+/-- The caller body: pointer copy, the cross-call, the coefficient-0 store. -/
+def setOneBody : List Instr :=
+  [ .MV .x8 .x10,
+    .JAL .x1 (jalOff GuestAddrs.bnq_zero (GuestAddrs.bnq_set_one + 16)),
+    .LI .x5 (1 : Word),
+    .SD .x8 .x5 (0 : BitVec 12) ]
+
+-- Byte-transparency: the emitted `bnqSetOne_prog` IS the abiFrameProg
+-- flatten of this frame + body — verified == emitted, bytes unchanged.
+
+-- @@ L76-77 verbatim
+#guard abiFrameProg (-16 : BitVec 12) (16 : BitVec 12) setOneFrame setOneBody
+  = bnqSetOne_prog
+
+
+-- @@ L79-82 verbatim
+/-- Byte-transparency, kernel-checked. -/
+theorem setOneProg_eq :
+    abiFrameProg (-16 : BitVec 12) (16 : BitVec 12) setOneFrame setOneBody
+      = bnqSetOne_prog := rfl
+
+
+-- @@ L84-91 verbatim
+/-- The verification `CodeReq`: both adjacent routines, at their guest
+    addresses. -/
+def bnqCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.bnq_zero : Word) (bnqZero_prog ++ bnqSetOne_prog)
+
+-- ============================================================================
+-- Word / list helpers.
+-- ============================================================================
+
+
+-- @@ L93-96 verbatim
+private theorem add_sext0 (x : Word) : x + signExtend12 (0 : BitVec 12) = x := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_add, show (signExtend12 (0 : BitVec 12)).toNat = 0 from by decide,
+      Nat.add_zero, Nat.mod_eq_of_lt x.isLt]
+
+
+-- @@ L98-106 verbatim
+private theorem add_ofNat_zero (x : Word) : x + BitVec.ofNat 64 0 = x := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.zero_mod, Nat.add_zero,
+      Nat.mod_eq_of_lt x.isLt]
+
+-- ============================================================================
+-- The callee's flat contract, DERIVED from its `Fn.Spec` by the adapter
+-- (`Fn.retSpecFlat`, bead evm-asm-el1w2) — no hand-written loop proof here.
+-- ============================================================================
+
+
+-- @@ L108-112 verbatim
+/-- The exposed registers other than `a0` — the callee owns the whole exposed
+    file (that is what its `Fn.Spec` claims), surfaced as `regOwn` riders. -/
+def bnqScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x11, .x12, .x13, .x14, .x15, .x16, .x17]
+
+
+-- @@ L114-122 verbatim
+/-- Split the full exposed file into the `a0` atom plus the scratch atoms. -/
+private theorem exposedRegs_split (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** regAtomsOf vf bnqScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [bnqScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+
+-- @@ L124-124 verbatim
+private theorem x10_notin_scratch : (.x10 : Reg) ∉ bnqScratch := by decide
+
+
+-- @@ L126-156 expanded
+/-- **The flat whole-routine contract for `bnq_zero`** — the exact
+    `cpsTripleWithin` shape `callWithin_spec` consumes, now DERIVED from the
+    structured `Bn254Fq12ZeroSAsm.bnqZeroFn_spec` by `Fn.retSpecFlat`:
+    entered at its guest address with any aligned return address in `ra`, a
+    buffer pointer in `a0`, ownership of the remaining exposed registers,
+    and 48 owned dwords, it returns with all 48 dwords zero, `a0` advanced
+    past the buffer, and `ra` intact. -/
+theorem bnqZeroFlat_spec (ret dst : Word) (vs : List Word) (hlen : vs.length = 48)
+    (hwf : RwRegion.wf ⟨dst, 384⟩) (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin (1 + 48 * (3 + 1) + 1) (GuestAddrs.bnq_zero : Word) ret bnqCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** regOwns bnqScratch ** dwordsIs dst vs)
+      (((.x1 : Reg) ↦ᵣ ret) **
+        (.x10 ↦ᵣ (dst + BitVec.ofNat 64 384)) **
+          regOwns bnqScratch ** dwordsIs dst (List.replicate 48 (0 : Word))) :=
+  -- ⊆-monotonicity from the own-`CodeReq` entry triple (#12244). The ~70 lines
+    -- that used to be here built exactly that triple inline and then widened it
+    -- with `liftCode (cr' := bnqCr)`, so this loses nothing but the duplicate.
+    -- ⚠️ The lift is PREFIX containment, not a union: `bnqCr` holds
+    -- `bnqZero_prog ++ bnqSetOne_prog` at this address, and `code_mem` discharges
+    -- `bnqZero_prog ⊆` that because the concatenation starts with it.
+    -- ⚠️ `code_mem` matches a LITERAL `CodeReq.ofProg`, so the entry triple's named
+    -- `bnqZeroCr` has to be unfolded before it fires.
+  
+  liftCode (Bn254Fq12ZeroSAsm.bnqZeroFlatEntry_spec ret dst vs hlen hwf halign)
+    (by simp only [Bn254Fq12ZeroSAsm.bnqZeroCr];
+      first
+      | (with_reducible exact fun a i h => h)
+      | ((with_reducible refine CodeReq.singleton_mono ?_); decide)
+      | ((with_reducible refine CodeReq.sub_ofProg_of_lookup _ _ ?_ ?_) <;> decide))
+      -- ============================================================================
+      -- The caller: `bnq_set_one` via the frame + cross-call composition.
+      -- ============================================================================
+
+
+-- @@ L158-161 verbatim
+/-- The exposed registers the caller does not track across the call
+    (`bnqScratch` minus `t0`/`t2`, which the caller's statement names). -/
+def bnqRiders : List Reg :=
+  [.x6, .x28, .x29, .x30, .x31, .x11, .x12, .x13, .x14, .x15, .x16, .x17]
+
+
+-- @@ L163-165 verbatim
+/-- Entry values of the saved registers. -/
+def setOneVals (ret arb8 : Word) : Reg → Word :=
+  fun r => match r with | .x1 => ret | .x8 => arb8 | _ => 0
+
+
+-- @@ L167-177 verbatim
+/-- Post-body values: `ra` holds the call's link address (genuinely
+    clobbered by the `jal`; the epilogue restores it from the slot), `s0`
+    the buffer pointer. -/
+def setOneVals' (dst : Word) : Reg → Word :=
+  fun r => match r with | .x1 => ((GuestAddrs.bnq_zero + 44) : Word) | .x8 => dst | _ => 0
+
+/- **The whole-routine ABI contract for `bnq_set_one`.**  On return `sp`,
+    `ra`, and `s0` are restored to ENTRY values (`ra` was clobbered by the
+    real cross-call; `s0` by the body), and the FQ12 at the entry `a0` holds
+    ONE: dword 0 = 1, dwords 1–47 = 0 — the genuine, unweakened semantics.
+    `a0` ends at `dst + 384` exactly as `bnq_zero` leaves it. -/
+
+-- @@ L178-191 verbatim
+/-- #12797. `bnqSetOneFrame_spec` below states its entry PC as
+    `GuestAddrs.bnq_zero + 24` rather than as `GuestAddrs.bnq_set_one`. That is the
+    RIGHT address today — but it is the right address by *arithmetic over a sibling
+    symbol's body length*, not by naming the symbol, and nothing checked the equality.
+    If `bnq_zero` ever grew, `bnq_zero + 24` would quietly stop being `bnq_set_one`
+    while the registry row kept its `bnq_set_one` label.
+
+    ⚠️ Distinct from the STRUCTURAL co-location in #12204's `.dispatch_resume` case,
+    where two labels are emitted consecutively with no instruction between them and so
+    co-locate in every layout. This one holds only while a body length does.
+
+    Pinned here so a relayout breaks the build instead of the row's meaning. -/
+theorem bnqSetOne_entry_addr_pin :
+    GuestAddrs.bnq_zero + 24 = GuestAddrs.bnq_set_one := by decide
+
+
+-- @@ L193-197 verbatim
+/-- Negative control: the offset is EXACT, not merely a bound. An equation between
+    two closed `Nat` literals cannot be vacuously true, so the meaningful control here
+    is that a neighbouring offset is refuted — i.e. `24` is load-bearing. -/
+theorem bnqSetOne_entry_addr_pin_tight :
+    GuestAddrs.bnq_zero + 25 ≠ GuestAddrs.bnq_set_one := by decide
+
+
+-- @@ L199-202 verbatim
+/-- The `Word`-level form actually used in the triple's entry position. -/
+theorem bnqSetOne_entry_addr_pin_word :
+    ((GuestAddrs.bnq_zero + 24 : Nat) : Word) = ((GuestAddrs.bnq_set_one : Nat) : Word) := by
+  rw [bnqSetOne_entry_addr_pin]
+
+-- @@ L203-362 expanded
+/-- The callee contract is the adapter-derived `bnqZeroFlat_spec`, so the
+    caller owns the callee's full exposed-register footprint across the
+    call: the untracked registers ride as `regOwns bnqRiders`. -/
+theorem bnqSetOneFrame_spec (sp0 ret dst arb8 v5 v7 : Word) (vs : List Word) (hlen : vs.length = 48)
+    (hwf : RwRegion.wf ⟨dst, 384⟩) (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin
+      (1 + setOneFrame.length + (1 + (1 + (1 + 48 * (3 + 1) + 1)) + 1 + 1) + setOneFrame.length +
+          1 +
+        1)
+      ((GuestAddrs.bnq_zero + 24) : Word) ret bnqCr
+      ((.x2 ↦ᵣ sp0) **
+        regsAt setOneFrame (setOneVals ret arb8) **
+          frameSlotsOwn setOneFrame (sp0 + signExtend12 (-16 : BitVec 12)) **
+            ((.x10 ↦ᵣ dst) **
+              (.x5 ↦ᵣ v5) **
+                (.x7 ↦ᵣ v7) ** regOwns bnqRiders ** (Reg.x0 ↦ᵣ (0 : Word)) ** dwordsIs dst vs))
+      ((.x2 ↦ᵣ sp0) **
+        regsAt setOneFrame (setOneVals ret arb8) **
+          frameSlotsSaved setOneFrame (sp0 + signExtend12 (-16 : BitVec 12))
+              (setOneVals ret arb8) **
+            ((.x10 ↦ᵣ (dst + BitVec.ofNat 64 384)) **
+              regOwn .x5 **
+                regOwn .x7 **
+                  regOwns bnqRiders **
+                    (Reg.x0 ↦ᵣ (0 : Word)) **
+                      dwordsIs dst ((1 : Word) :: List.replicate 47 (0 : Word)))) :=
+  by
+  -- ---- the single-exit body: mv ; call ; li ; sd ----
+    -- mv s0, a0
+  
+  have hmv := mv_spec_gen_within .x8 .x10 dst arb8 ((GuestAddrs.bnq_zero + 36) : Word) (by decide)
+  rw [show ((GuestAddrs.bnq_zero + 36) : Word) + 4 = ((GuestAddrs.bnq_zero + 40) : Word) from by
+      decide] at hmv
+  have hmvC :=
+    liftCode (cr' := bnqCr) hmv
+      (by
+        first
+        | (with_reducible exact fun a i h => h)
+        | ((with_reducible refine CodeReq.singleton_mono ?_); decide)
+        | ((with_reducible refine CodeReq.sub_ofProg_of_lookup _ _ ?_ ?_) <;> decide))
+  have hmvF :=
+    cpsTripleWithin_frameR
+      (((.x1 : Reg) ↦ᵣ ret) **
+        (.x5 ↦ᵣ v5) **
+          (.x7 ↦ᵣ v7) ** regOwns bnqRiders ** (Reg.x0 ↦ᵣ (0 : Word)) ** dwordsIs dst vs)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hmvC
+  have hcallee :=
+    bnqZeroFlat_spec (((GuestAddrs.bnq_zero + 40) : Word) + 4) dst vs hlen hwf (by decide)
+  have hcall :=
+    callWithin_spec ((GuestAddrs.bnq_zero + 40) : Word) (GuestAddrs.bnq_zero : Word) ret
+      (jalOff GuestAddrs.bnq_zero (GuestAddrs.bnq_set_one + 16)) (1 + 48 * (3 + 1) + 1) (by decide)
+      (by
+        first
+        | (with_reducible exact fun a i h => h)
+        | ((with_reducible refine CodeReq.singleton_mono ?_); decide)
+        | ((with_reducible refine CodeReq.sub_ofProg_of_lookup _ _ ?_ ?_) <;> decide))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hcallee
+  rw [show ((GuestAddrs.bnq_zero + 40) : Word) + 4 = ((GuestAddrs.bnq_zero + 44) : Word) from by
+      decide] at hcall
+  have hcallW :=
+    cpsTripleWithin_weaken (P' :=
+      ((.x1 : Reg) ↦ᵣ ret) **
+        (.x10 ↦ᵣ dst) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** regOwns bnqRiders ** dwordsIs dst vs)
+      (fun h hp =>
+        by
+        simp only [bnqScratch, bnqRiders, regOwns_cons, regOwns_nil] at hp ⊢
+        have hp1 :
+          ((.x5 ↦ᵣ v5) **
+              (.x7 ↦ᵣ v7) **
+                (((.x1 : Reg) ↦ᵣ ret) **
+                  (.x10 ↦ᵣ dst) **
+                    regOwn .x6 **
+                      regOwn .x28 **
+                        regOwn .x29 **
+                          regOwn .x30 **
+                            regOwn .x31 **
+                              regOwn .x11 **
+                                regOwn .x12 **
+                                  regOwn .x13 **
+                                    regOwn .x14 **
+                                      regOwn .x15 **
+                                        regOwn .x16 **
+                                          regOwn .x17 ** empAssertion ** dwordsIs dst vs))
+            h :=
+          by xperm_hyp hp
+        have hp2 :=
+          sepConj_mono (regIs_to_regOwn .x5 v5)
+            (sepConj_mono (regIs_to_regOwn .x7 v7) (fun _ hh => hh)) h hp1
+        xperm_hyp hp2)
+      (fun _ hq => hq) hcall
+  have hcallF :=
+    cpsTripleWithin_frameR ((.x8 ↦ᵣ dst) ** (Reg.x0 ↦ᵣ (0 : Word)))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hcallW
+  have hli := li_spec_gen_own_within .x5 (1 : Word) ((GuestAddrs.bnq_zero + 44) : Word) (by decide)
+  rw [show ((GuestAddrs.bnq_zero + 44) : Word) + 4 = ((GuestAddrs.bnq_zero + 48) : Word) from by
+      decide] at hli
+  have hliC :=
+    liftCode (cr' := bnqCr) hli
+      (by
+        first
+        | (with_reducible exact fun a i h => h)
+        | ((with_reducible refine CodeReq.singleton_mono ?_); decide)
+        | ((with_reducible refine CodeReq.sub_ofProg_of_lookup _ _ ?_ ?_) <;> decide))
+  have hliF :=
+    cpsTripleWithin_frameR
+      (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnq_zero + 44) : Word)) **
+        (.x8 ↦ᵣ dst) **
+          (.x10 ↦ᵣ (dst + BitVec.ofNat 64 384)) **
+            regOwn .x7 **
+              regOwns bnqRiders **
+                (Reg.x0 ↦ᵣ (0 : Word)) ** dwordsIs dst (List.replicate 48 (0 : Word)))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hliC
+  obtain ⟨front, rest, hf, hr, heq1, heq2⟩ :=
+    dwordsIs_at_set dst (List.replicate 48 (0 : Word)) 0 1 (by decide)
+  have hcell0 : dst + BitVec.ofNat 64 (8 * 0) = dst :=
+    by
+    rw [show (8 * 0 : Nat) = 0 from rfl]
+    exact add_ofNat_zero dst
+  rw [hcell0] at heq1 heq2
+  have hone :
+    (List.replicate 48 (0 : Word)).set 0 1 = ((1 : Word) :: List.replicate 47 (0 : Word)) := by
+    decide
+  rw [hone] at heq2
+  have hsd :=
+    sd_spec_gen_within .x8 .x5 dst (1 : Word) ((List.replicate 48 (0 : Word)).getD 0 0)
+      (0 : BitVec 12) ((GuestAddrs.bnq_zero + 48) : Word)
+  rw [add_sext0] at hsd
+  rw [show ((GuestAddrs.bnq_zero + 48) : Word) + 4 = ((GuestAddrs.bnq_zero + 52) : Word) from by
+      decide] at hsd
+  have hsdC :=
+    liftCode (cr' := bnqCr) hsd
+      (by
+        first
+        | (with_reducible exact fun a i h => h)
+        | ((with_reducible refine CodeReq.singleton_mono ?_); decide)
+        | ((with_reducible refine CodeReq.sub_ofProg_of_lookup _ _ ?_ ?_) <;> decide))
+  have hsdF :=
+    cpsTripleWithin_frameR
+      (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnq_zero + 44) : Word)) **
+        (.x10 ↦ᵣ (dst + BitVec.ofNat 64 384)) **
+          regOwn .x7 ** regOwns bnqRiders ** (Reg.x0 ↦ᵣ (0 : Word)) ** front ** rest)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_regOwns _
+          | exact hf
+          | exact hr)
+      hsdC
+  have hscr : regOwns bnqScratch = (regOwn .x5 ** regOwn .x7 ** regOwns bnqRiders) :=
+    by
+    simp only [bnqScratch, bnqRiders, regOwns_cons, regOwns_nil]
+    xperm
+      -- chain: mv ; call ; li ; sd
+      
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hmvF hcallF
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by rw [hscr] at hp; xperm_hyp hp) s1 hliF
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by rw [heq1] at hp; xperm_hyp hp) s2 hsdF
+  have hbody :
+    cpsTripleWithin (1 + (1 + (1 + 48 * (3 + 1) + 1)) + 1 + 1)
+      (((GuestAddrs.bnq_zero + 24) : Word) + BitVec.ofNat 64 (4 * (1 + setOneFrame.length)))
+      (((GuestAddrs.bnq_zero + 24) : Word) +
+        BitVec.ofNat 64 (4 * (1 + setOneFrame.length + setOneBody.length)))
+      bnqCr
+      ((.x2 ↦ᵣ (sp0 + signExtend12 (-16 : BitVec 12))) **
+        regsAt setOneFrame (setOneVals ret arb8) **
+          frameSlotsSaved setOneFrame (sp0 + signExtend12 (-16 : BitVec 12))
+              (setOneVals ret arb8) **
+            ((.x10 ↦ᵣ dst) **
+              (.x5 ↦ᵣ v5) **
+                (.x7 ↦ᵣ v7) ** regOwns bnqRiders ** (Reg.x0 ↦ᵣ (0 : Word)) ** dwordsIs dst vs))
+      ((.x2 ↦ᵣ (sp0 + signExtend12 (-16 : BitVec 12))) **
+        regsAt setOneFrame (setOneVals' dst) **
+          frameSlotsSaved setOneFrame (sp0 + signExtend12 (-16 : BitVec 12))
+              (setOneVals ret arb8) **
+            ((.x10 ↦ᵣ (dst + BitVec.ofNat 64 384)) **
+              regOwn .x5 **
+                regOwn .x7 **
+                  regOwns bnqRiders **
+                    (Reg.x0 ↦ᵣ (0 : Word)) **
+                      dwordsIs dst ((1 : Word) :: List.replicate 47 (0 : Word)))) :=
+    by
+    have hentry :
+      ((GuestAddrs.bnq_zero + 24) : Word) + BitVec.ofNat 64 (4 * (1 + setOneFrame.length)) =
+        ((GuestAddrs.bnq_zero + 36) : Word) :=
+      by decide
+    have hexit :
+      ((GuestAddrs.bnq_zero + 24) : Word) +
+          BitVec.ofNat 64 (4 * (1 + setOneFrame.length + setOneBody.length)) =
+        ((GuestAddrs.bnq_zero + 52) : Word) :=
+      by decide
+    rw [hentry, hexit]
+    simp only [setOneFrame, regsAt, frameSlotsSaved, setOneVals, setOneVals', List.foldr_cons,
+      List.foldr_nil, sepConj_emp_right']
+    have hchainF :=
+      cpsTripleWithin_frameR
+        ((.x2 ↦ᵣ (sp0 + signExtend12 (-16 : BitVec 12))) **
+          (((sp0 + signExtend12 (-16 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ ret) **
+            (((sp0 + signExtend12 (-16 : BitVec 12)) + signExtend12 (8 : BitVec 12)) ↦ₘ arb8))
+        (by
+          repeat
+            first
+            | apply pcFree_sepConj
+            | exact pcFree_regIs
+            | exact pcFree_regOwn
+            | exact pcFree_memIs
+            | exact pcFree_memOwn
+            | exact pcFree_emp
+            | exact pcFree_pure
+            | exact pcFree_instrAt
+            | exact bytesRegion_pcFree _ _
+            | exact pcFree_stackFree _ _
+            | exact pcFree_dwordsIs _ _
+            | exact pcFree_regsAt _ _
+            | exact pcFree_frameSlotsOwn _ _
+            | exact pcFree_frameSlotsSaved _ _ _
+            | exact pcFree_regFileIs _)
+        s3
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hq => ?_) hchainF
+    have hq1 :
+      ((.x5 ↦ᵣ (1 : Word)) **
+          (((.x1 : Reg) ↦ᵣ ((GuestAddrs.bnq_zero + 44) : Word)) **
+            (.x8 ↦ᵣ dst) **
+              (.x10 ↦ᵣ (dst + BitVec.ofNat 64 384)) **
+                regOwn .x7 **
+                  regOwns bnqRiders **
+                    (Reg.x0 ↦ᵣ (0 : Word)) **
+                      dwordsIs dst ((1 : Word) :: List.replicate 47 (0 : Word)) **
+                        (.x2 ↦ᵣ (sp0 + signExtend12 (-16 : BitVec 12))) **
+                          (((sp0 + signExtend12 (-16 : BitVec 12)) +
+                                signExtend12 (0 : BitVec 12)) ↦ₘ
+                              ret) **
+                            (((sp0 + signExtend12 (-16 : BitVec 12)) +
+                                signExtend12 (8 : BitVec 12)) ↦ₘ
+                              arb8)))
+        h :=
+      by
+      rw [heq2]
+      xperm_hyp hq
+    have hq2 := sepConj_mono (regIs_to_regOwn .x5 _) (fun _ hh => hh) h hq1
+    xperm_hyp hq2
+  exact
+    abiFrame_spec (posImm := (16 : BitVec 12)) (hframe := rfl) (hne := by decide) (hbound := by
+      decide) (hprogBound := by decide) (hret := rfl) (halign := halign) (hframeRestore :=
+      sext_frameRestore _ _ _ (by decide)) (hcpF := by
+      repeat
+        first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_regOwn
+        | exact pcFree_memIs
+        | exact pcFree_memOwn
+        | exact pcFree_emp
+        | exact pcFree_pure
+        | exact pcFree_instrAt
+        | exact bytesRegion_pcFree _ _
+        | exact pcFree_stackFree _ _
+        | exact pcFree_dwordsIs _ _
+        | exact pcFree_regsAt _ _
+        | exact pcFree_frameSlotsOwn _ _
+        | exact pcFree_frameSlotsSaved _ _ _
+        | exact pcFree_regFileIs _)
+      (hcpF' := by
+      repeat
+        first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_regOwn
+        | exact pcFree_memIs
+        | exact pcFree_memOwn
+        | exact pcFree_emp
+        | exact pcFree_pure
+        | exact pcFree_instrAt
+        | exact bytesRegion_pcFree _ _
+        | exact pcFree_stackFree _ _
+        | exact pcFree_dwordsIs _ _
+        | exact pcFree_regsAt _ _
+        | exact pcFree_frameSlotsOwn _ _
+        | exact pcFree_frameSlotsSaved _ _ _
+        | exact pcFree_regFileIs _)
+      (hsub := by
+      first
+      | (with_reducible exact fun a i h => h)
+      | ((with_reducible refine CodeReq.singleton_mono ?_); decide)
+      | ((with_reducible refine CodeReq.sub_ofProg_of_lookup _ _ ?_ ?_) <;> decide))
+      (hbody := hbody)
+
+
+-- @@ L365-365 verbatim
+end Bn254Fq12SetOneSAsm
+
+
+-- @@ L367-367 verbatim
+end EvmAsm.Codegen

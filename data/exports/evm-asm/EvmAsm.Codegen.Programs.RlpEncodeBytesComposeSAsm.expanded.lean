@@ -1,0 +1,1569 @@
+/-
+  EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
+
+  **The whole-routine triple for `rlp_encode_bytes`** (#10780 item 2, stage 3):
+  the composition of the block theorems in `RlpEncodeBytesBlocksSAsm.lean` /
+  `RlpEncodeBytesLadderSAsm.lean` into a single
+  `cpsTripleWithin … rebBase (ra &&& ~~~1)`, and with it the first statement
+  that the routine *computes RLP* rather than that its blocks do sixteen
+  things.
+
+  ## Both sides of 55/56, in one theorem
+
+  The routine is **total** — `a0 = 0` always — and the composed triple covers
+  every input length: the raw single byte, the `0x80 + len` short form for
+  `len < 56`, and the `0xb7 + bc` long form for `len ≥ 56` with a canonical
+  (minimal, no leading zero) length-of-length.  There is **no input-domain
+  restriction**, unlike `rlp_encode_uint_be`'s `≤ 55` bound: covering the
+  boundary from both sides is the point of the exercise.
+
+  ## The three machine paths
+
+  All three exit at `ra &&& ~~~1`, so the composition is a triple, not a
+  branch.  Which one runs is decided by the data, so the proof splits on
+  `data` *before* touching the machine:
+
+  | path | condition | exit | steps |
+  |---|---|---|---|
+  | A | `data = [b]`, `b < 0x80` | [12] | 13 |
+  | B | `len < 56`, not A | [29] | `16 + 7·len` (+3 if `len = 1`) |
+  | C | `len ≥ 56` | [75] | `19 + 10·bc + 7·len` |
+
+  No `sorry`/`admit`/`native_decide`/`bv_decide`; classical-3 axioms only.
+-/
+
+import EvmAsm.Codegen.Programs.RlpEncodeBytesBlocksSAsm
+import EvmAsm.Rv64.SAsm.BytesRegionWindow
+
+
+-- @@ L38-38 verbatim
+namespace EvmAsm.Codegen
+
+
+-- @@ L40-40 verbatim
+namespace RlpEncodeBytesSAsm
+
+
+-- @@ L42-42 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
+
+-- @@ L43-43 verbatim
+open EvmAsm.EL.RLP
+
+-- @@ L44-44 verbatim
+open EvmAsm.Rv64.RLP (copyN copyN_eq_append word_ofNat_add_one)
+
+-- @@ L45-45 verbatim
+open EvmAsm.Codegen.RlpListEncodedSizeSAsm (u64ByteLen u64ByteLen_le)
+
+
+-- @@ L47-53 verbatim
+/-! ## §1  The ABI-level pre and post
+
+    Scratch registers are explicit values on the way in (matching the block
+    theorems) and `regOwn` on the way out, because the three paths leave them
+    holding different things.  Both outputs are in the post: the byte region at
+    `a2` holds the encoding at the front with the remainder untouched, and the
+    dword at `a3` holds the written length. -/
+
+
+-- @@ L55-67 verbatim
+/-- Entry state: `a0` data ptr, `a1` length, `a2` out ptr, `a3` the u64-out
+    cell, plus the seven registers the routine clobbers. -/
+def rebAbiPre (srcPtr outPtr cellPtr raVal cellOld : Word)
+    (data outBytes : List Byte) (n : Nat)
+    (v5 v6 v7 v28 v29 v30 v31 : Word) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+  ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+  ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+  ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+  ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+  bytesRegion srcPtr data ** bytesRegion outPtr outBytes **
+  (cellPtr ↦ₘ cellOld)
+
+
+-- @@ L69-81 verbatim
+/-- Exit state: status `a0 = 0` (total function), the output region beginning
+    with `encodeBytes data` and otherwise untouched, the written length in the
+    `a3` cell, and the source region unchanged. -/
+def rebAbiPost (srcPtr outPtr cellPtr raVal : Word)
+    (data outBytes : List Byte) (n : Nat) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+  ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+  ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+  regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  bytesRegion srcPtr data **
+  bytesRegion outPtr (encodeBytes data ++ outBytes.drop (encodeBytes data).length) **
+  (cellPtr ↦ₘ BitVec.ofNat 64 (encodeBytes data).length)
+
+
+-- @@ L83-89 verbatim
+/-! ## §1a  Arena-level ABI views
+
+    The producer-facing form keeps the output arena aligned while the logical
+    output pointer in `x12` may be at any byte offset.  This is the shared
+    Route-A contract: all encoder writes remain inside the arena, and the post
+    records the exact `setBytes` update rather than pretending the logical
+    pointer owns an aligned `bytesRegion`. -/
+
+
+-- @@ L91-102 verbatim
+def rebAbiArenaPre (srcPtr arenaPtr cellPtr raVal cellOld : Word)
+    (data arenaBytes : List Byte) (off n : Nat)
+    (v5 v6 v7 v28 v29 v30 v31 : Word) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+  ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+  ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ v5) **
+  ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+  ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+  ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+  bytesRegion srcPtr data ** bytesRegion arenaPtr arenaBytes **
+  (cellPtr ↦ₘ cellOld)
+
+
+-- @@ L104-113 verbatim
+def rebAbiArenaPost (srcPtr arenaPtr cellPtr raVal : Word)
+    (data arenaBytes : List Byte) (off : Nat) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 data.length) **
+  ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+  ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  bytesRegion srcPtr data **
+  bytesRegion arenaPtr (setBytes arenaBytes off (encodeBytes data)) **
+  (cellPtr ↦ₘ BitVec.ofNat 64 (encodeBytes data).length)
+
+
+-- @@ L115-115 verbatim
+/-! ## §2  List bookkeeping (ports of item 1's compose lemmas) -/
+
+
+-- @@ L117-119 verbatim
+/-! `setBytes` has the same prefix/payload/suffix normal form as `copyN`.
+    Keeping this bridge here lets the arena contracts expose `setBytes` while
+    the existing payload-loop contracts continue to expose `copyN`. -/
+
+
+-- @@ L121-135 verbatim
+private theorem setBytes_eq_append (bs ns : List Byte) (i : Nat)
+    (hfit : i + ns.length ≤ bs.length) :
+    setBytes bs i ns = bs.take i ++ ns ++ bs.drop (i + ns.length) := by
+  have hleft : (setBytes bs i ns).take i = bs.take i :=
+    setBytes_take_of_ge ns bs i i (Nat.le_refl _)
+  have hmid : ((setBytes bs i ns).drop i).take ns.length = ns :=
+    window_readback bs ns i hfit
+  have hright : (setBytes bs i ns).drop (i + ns.length) =
+      bs.drop (i + ns.length) :=
+    setBytes_drop_of_le ns bs i (i + ns.length) (by omega)
+  rw [← List.take_append_drop i (setBytes bs i ns)]
+  rw [hleft, ← List.take_append_drop ns.length ((setBytes bs i ns).drop i)]
+  rw [hmid,
+    List.drop_drop (l := setBytes bs i ns) (i := ns.length) (j := i), hright]
+  simp only [List.append_assoc]
+
+
+-- @@ L137-139 verbatim
+/-! The zero-offset view is exactly the pre-existing ABI view.  Keeping this
+    as an explicit compatibility theorem is the producer-side check that the
+    arena generalisation has not changed the original contract. -/
+
+-- @@ L140-147 verbatim
+theorem rebAbiArenaPre_zero (srcPtr outPtr cellPtr raVal cellOld : Word)
+    (data outBytes : List Byte) (n : Nat)
+    (v5 v6 v7 v28 v29 v30 v31 : Word) :
+    rebAbiArenaPre srcPtr outPtr cellPtr raVal cellOld data outBytes 0 n
+        v5 v6 v7 v28 v29 v30 v31 =
+      rebAbiPre srcPtr outPtr cellPtr raVal cellOld data outBytes n
+        v5 v6 v7 v28 v29 v30 v31 := by
+  simp [rebAbiArenaPre, rebAbiPre]
+
+
+-- @@ L149-157 verbatim
+theorem rebAbiArenaPost_zero (srcPtr outPtr cellPtr raVal : Word)
+    (data outBytes : List Byte) (n : Nat)
+    (hn : data.length = n)
+    (hfit : (encodeBytes data).length ≤ outBytes.length) :
+    rebAbiArenaPost srcPtr outPtr cellPtr raVal data outBytes 0 =
+      rebAbiPost srcPtr outPtr cellPtr raVal data outBytes n := by
+  unfold rebAbiArenaPost rebAbiPost
+  rw [setBytes_eq_append outBytes (encodeBytes data) 0 (by simpa using hfit)]
+  simp [hn]
+
+
+-- @@ L159-192 verbatim
+private theorem short_copy_result (arenaBytes data : List Byte) (off n : Nat)
+    (hdr : Byte) (hn : data.length = n)
+    (hfit : off + (1 + n) ≤ arenaBytes.length) :
+    copyN (arenaBytes.set off hdr) data (off + 1) 0 n =
+      setBytes arenaBytes off (hdr :: data) := by
+  rw [copyN_eq_append _ _ _ _ _ (by rw [List.length_set]; omega)
+      (by omega), setBytes_eq_append _ _ _ (by simp [hn]; omega)]
+  have hoff : off < arenaBytes.length := by omega
+  have hmin : min off arenaBytes.length = off := Nat.min_eq_left (by omega)
+  rw [List.set_eq_take_cons_drop _ hoff]
+  rw [List.take_append, List.drop_append]
+  simp only [List.length_take, hmin]
+  have htake : List.take (off + 1) (List.take off arenaBytes) =
+      List.take off arenaBytes :=
+    List.take_of_length_le (by simp [hmin])
+  have hdrop1 : List.drop (off + 1 + n) (List.take off arenaBytes) = [] :=
+    List.drop_eq_nil_of_le (by simp [hmin]; omega)
+  have hdrop2 : List.drop (off + 1 + n - off)
+      (hdr :: List.drop (off + 1) arenaBytes) =
+      List.drop (off + 1 + n) arenaBytes := by
+    rw [show off + 1 + n - off = n + 1 by omega,
+      List.drop_succ_cons, List.drop_drop]
+  rw [htake, hdrop1, hdrop2]
+  simp only [List.drop_zero]
+  have hdatatake : List.take n data = data :=
+    List.take_of_length_le (by rw [hn])
+  rw [hdatatake]
+  have hhdrtake : List.take (off + 1 - off)
+      (hdr :: List.drop (off + 1) arenaBytes) = [hdr] := by
+    rw [show off + 1 - off = 1 by omega, List.take_cons (by decide),
+      List.take_zero]
+  have hlenhdr : (hdr :: data).length = 1 + n := by simp [hn, Nat.add_comm]
+  rw [hhdrtake, hlenhdr, show off + (1 + n) = off + 1 + n by omega]
+  simp [List.cons_append, List.append_assoc]
+
+
+-- @@ L194-293 verbatim
+private theorem long_copy_result (arenaBytes data : List Byte) (off n bc : Nat)
+    (hdr : Byte) (hn : data.length = n)
+    (hbc : bc = (Nat.toBytesBE n).length)
+    (hfit : off + (1 + bc) + n ≤ arenaBytes.length) :
+    copyN (writeShift (arenaBytes.set off hdr) (off + 1) n bc) data
+        (off + 1 + bc) 0 n =
+      setBytes arenaBytes off (hdr :: Nat.toBytesBE n ++ data) := by
+  have hoff : off < arenaBytes.length := by omega
+  have hset_len : (arenaBytes.set off hdr).length = arenaBytes.length :=
+    List.length_set ..
+  have hprefix : (hdr :: Nat.toBytesBE n).length = 1 + bc := by
+    simp [hbc]
+    omega
+  have hwrite := writeShift_eq_append bc (arenaBytes.set off hdr) (off + 1) n
+    (by rw [hset_len]; omega)
+  have htake : (arenaBytes.set off hdr).take (off + 1) =
+      arenaBytes.take off ++ [hdr] := by
+    rw [List.set_eq_take_cons_drop _ hoff, List.take_append]
+    have hlen : (arenaBytes.take off).length = off := by
+      rw [List.length_take]; omega
+    rw [List.take_of_length_le (by omega), hlen,
+      show off + 1 - off = 1 by omega, List.take_succ_cons, List.take_zero]
+  have hdrop : (arenaBytes.set off hdr).drop (off + 1 + bc) =
+      arenaBytes.drop (off + 1 + bc) := by
+    rw [List.set_eq_take_cons_drop _ hoff, List.drop_append]
+    have hlen : (arenaBytes.take off).length = off := by
+      rw [List.length_take]; omega
+    rw [List.drop_eq_nil_of_le (by omega), hlen,
+      show off + 1 + bc - off = bc + 1 by omega,
+      List.drop_succ_cons, List.drop_drop]
+    simp
+  have hbs : beShift n bc = Nat.toBytesBE n := by
+    rw [hbc]; exact beShift_eq_toBytesBE n
+  rw [writeShift_eq_append bc (arenaBytes.set off hdr) (off + 1) n
+      (by rw [hset_len]; omega), htake, hdrop, hbs]
+  have hcopy_fit : off + 1 + bc + n ≤
+      (arenaBytes.take off ++ [hdr] ++
+        (Nat.toBytesBE n ++ List.drop (off + 1 + bc) arenaBytes)).length := by
+    simp only [List.length_append, List.length_cons, List.length_nil,
+      List.length_take, List.length_drop]
+    have hmin : min off arenaBytes.length = off :=
+      Nat.min_eq_left (by omega)
+    rw [hmin, hbc]
+    omega
+  rw [copyN_eq_append _ _ _ _ _
+      hcopy_fit
+      (by rw [hn]; omega)]
+  have htake_len : (arenaBytes.take off).length = off := by
+    rw [List.length_take]; omega
+  have hpre : (arenaBytes.take off ++ [hdr] ++ Nat.toBytesBE n).length =
+      off + 1 + bc := by
+    calc
+      (arenaBytes.take off ++ [hdr] ++ Nat.toBytesBE n).length =
+          (arenaBytes.take off).length + (hdr :: Nat.toBytesBE n).length := by
+            simp only [List.length_append, List.length_cons, List.length_nil]
+            omega
+      _ = off + (1 + bc) := by rw [htake_len, hprefix]
+      _ = off + 1 + bc := by omega
+  have htake2 :
+      (arenaBytes.take off ++ [hdr] ++ Nat.toBytesBE n ++
+        arenaBytes.drop (off + 1 + bc)).take (off + 1 + bc) =
+      arenaBytes.take off ++ [hdr] ++ Nat.toBytesBE n := by
+    exact List.take_left' hpre
+  have hdrop2 :
+      (arenaBytes.take off ++ [hdr] ++ Nat.toBytesBE n ++
+        arenaBytes.drop (off + 1 + bc)).drop (off + 1 + bc + n) =
+      arenaBytes.drop (off + 1 + bc + n) := by
+    rw [List.drop_append]
+    have hleft : List.drop (off + 1 + bc + n)
+        (arenaBytes.take off ++ [hdr] ++ Nat.toBytesBE n) = [] := by
+      exact List.drop_eq_nil_of_le (by rw [hpre]; omega)
+    rw [hleft, List.drop_drop, hpre]
+    have hshift : off + 1 + bc + n - (off + 1 + bc) = n := by omega
+    rw [hshift]
+    simp
+  have htake2' :
+      (arenaBytes.take off ++ [hdr] ++
+        (Nat.toBytesBE n ++ List.drop (off + 1 + bc) arenaBytes)).take
+          (off + 1 + bc) = arenaBytes.take off ++ [hdr] ++ Nat.toBytesBE n := by
+    simpa only [List.append_assoc] using htake2
+  have hdrop2' :
+      (arenaBytes.take off ++ [hdr] ++
+        (Nat.toBytesBE n ++ List.drop (off + 1 + bc) arenaBytes)).drop
+          (off + 1 + bc + n) = List.drop (off + 1 + bc + n) arenaBytes := by
+    simpa only [List.append_assoc] using hdrop2
+  rw [htake2', hdrop2']
+  rw [setBytes_eq_append arenaBytes (hdr :: Nat.toBytesBE n ++ data) off
+      (by simp [hn]; omega)]
+  have henc_len : (hdr :: Nat.toBytesBE n ++ data).length = 1 + bc + n := by
+    simp [hbc, hn]
+    omega
+  rw [henc_len]
+  simp only [List.drop_zero]
+  have hdata_take : List.take n data = data :=
+    List.take_of_length_le (by rw [hn])
+  rw [hdata_take]
+  simp only [List.append_assoc]
+  have hidx : off + (1 + bc + n) = off + 1 + bc + n := by omega
+  rw [hidx]
+  simp
+
+
+-- @@ L295-300 verbatim
+/-- Writing one byte at the front of a nonempty buffer is `[b] ++ tail`. -/
+private theorem set_zero_eq_append (out : List Byte) (b : Byte) (h : 0 < out.length) :
+    out.set 0 b = [b] ++ out.drop 1 := by
+  cases out with
+  | nil => simp at h
+  | cons a t => simp
+
+
+-- @@ L302-307 verbatim
+/-- The header byte is the whole of the first cell after the set. -/
+theorem take_one_set_zero (out : List Byte) (b : Byte) (h : 0 < out.length) :
+    (out.set 0 b).take 1 = [b] := by
+  cases out with
+  | nil => simp at h
+  | cons a t => simp
+
+
+-- @@ L309-316 verbatim
+/-- Everything from index 1 on survives the header write. -/
+theorem drop_set_zero (out : List Byte) (b : Byte) (k : Nat) (hk : 1 ≤ k) :
+    (out.set 0 b).drop k = out.drop k := by
+  cases out with
+  | nil => simp
+  | cons a t =>
+    obtain ⟨k, rfl⟩ : ∃ k', k = k' + 1 := ⟨k - 1, by omega⟩
+    simp
+
+
+-- @@ L318-322 verbatim
+/-! ## §3  The scratch discharge, shared by all paths
+
+    Each path exits with the seven clobbered registers in different states —
+    some concrete, some already `regOwn` from a loop post — so the discharge is
+    generic in an implication per register. -/
+
+
+-- @@ L324-349 verbatim
+theorem scratch7 (a0 nW outPtr cellPtr raVal cellVal : Word)
+    (srcPtr : Word) (data newOut : List Byte)
+    (A5 A6 A7 A28 A29 A30 A31 : Assertion)
+    (h5 : ∀ h, A5 h → regOwn .x5 h) (h6 : ∀ h, A6 h → regOwn .x6 h)
+    (h7 : ∀ h, A7 h → regOwn .x7 h) (h28 : ∀ h, A28 h → regOwn .x28 h)
+    (h29 : ∀ h, A29 h → regOwn .x29 h) (h30 : ∀ h, A30 h → regOwn .x30 h)
+    (h31 : ∀ h, A31 h → regOwn .x31 h) :
+    ∀ h, (((.x10 : Reg) ↦ᵣ a0) ** ((.x11 : Reg) ↦ᵣ nW) **
+      ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+      ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      A5 ** A6 ** A7 ** A28 ** A29 ** A30 ** A31 **
+      bytesRegion srcPtr data ** bytesRegion outPtr newOut **
+      (cellPtr ↦ₘ cellVal)) h →
+    (((.x10 : Reg) ↦ᵣ a0) ** ((.x11 : Reg) ↦ᵣ nW) **
+      ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+      ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      bytesRegion srcPtr data ** bytesRegion outPtr newOut **
+      (cellPtr ↦ₘ cellVal)) h := by
+  intro h hp
+  exact sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono h5 (sepConj_mono h6 (sepConj_mono h7 (sepConj_mono h28
+        (sepConj_mono h29 (sepConj_mono h30 (sepConj_mono h31
+          (fun _ x => x))))))))))))) h hp
+
+
+-- @@ L351-379 verbatim
+/-- The same scratch discharge when the output register points into an
+    arbitrary logical window of a larger arena.  The register keeps the
+    window pointer, while the framed memory assertion owns the whole arena. -/
+private theorem scratch7_arena (a0 nW outPtr arenaPtr cellPtr raVal cellVal : Word)
+    (srcPtr : Word) (data arenaBytes : List Byte)
+    (A5 A6 A7 A28 A29 A30 A31 : Assertion)
+    (h5 : ∀ h, A5 h → regOwn .x5 h) (h6 : ∀ h, A6 h → regOwn .x6 h)
+    (h7 : ∀ h, A7 h → regOwn .x7 h) (h28 : ∀ h, A28 h → regOwn .x28 h)
+    (h29 : ∀ h, A29 h → regOwn .x29 h) (h30 : ∀ h, A30 h → regOwn .x30 h)
+    (h31 : ∀ h, A31 h → regOwn .x31 h) :
+    ∀ h, (((.x10 : Reg) ↦ᵣ a0) ** ((.x11 : Reg) ↦ᵣ nW) **
+      ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+      ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      A5 ** A6 ** A7 ** A28 ** A29 ** A30 ** A31 **
+      bytesRegion srcPtr data ** bytesRegion arenaPtr arenaBytes **
+      (cellPtr ↦ₘ cellVal)) h →
+    (((.x10 : Reg) ↦ᵣ a0) ** ((.x11 : Reg) ↦ᵣ nW) **
+      ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+      ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      bytesRegion srcPtr data ** bytesRegion arenaPtr arenaBytes **
+      (cellPtr ↦ₘ cellVal)) h := by
+  intro h hp
+  exact sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono h5 (sepConj_mono h6 (sepConj_mono h7 (sepConj_mono h28
+        (sepConj_mono h29 (sepConj_mono h30 (sepConj_mono h31
+          (fun _ x => x))))))))))))) h hp
+
+
+-- @@ L381-381 verbatim
+/-! ## §4  Path A — the raw single byte (`data = [b]`, `b < 0x80`) -/
+
+
+-- @@ L383-452 verbatim
+set_option maxRecDepth 8000 in
+/-- **Whole routine, raw byte**: `rebBase → ra &&& ~~~1` in 13 steps
+    (prologue 5, probe 3, tail 5).  The byte is its own encoding. -/
+theorem reb_spec_raw (srcPtr outPtr cellPtr raVal cellOld : Word)
+    (v5 v6 v7 v28 v29 v30 v31 : Word) (data outBytes : List Byte) (b : Byte)
+    (hdata : data = [b]) (hsmall : b.toNat < 128)
+    (holen : 0 < outBytes.length)
+    (hsalign : srcPtr.toNat % 8 = 0) (hoalign : outPtr.toNat % 8 = 0)
+    (hsover : srcPtr.toNat < 2 ^ 64) (hoover : outPtr.toNat < 2 ^ 64)
+    (hsvalid : isValidByteAccess srcPtr = true)
+    (hovalid : isValidByteAccess outPtr = true) :
+    cpsTripleWithin 13 rebBase (raVal &&& ~~~1) rebCode
+      (rebAbiPre srcPtr outPtr cellPtr raVal cellOld data outBytes 1
+        v5 v6 v7 v28 v29 v30 v31)
+      (rebAbiPost srcPtr outPtr cellPtr raVal data outBytes 1) := by
+  subst hdata
+  have henc : encodeBytes [b] = [b] := encodeBytes_single_small b hsmall
+  have h0 : 0 < ([b] : List Byte).length := by simp
+  have hb0 : ([b] : List Byte)[0]'h0 = b := rfl
+  -- [0]-[4], len = 1
+  have hpro := rebPrologueEq1 srcPtr outPtr (BitVec.ofNat 64 1) v5 v6 v7 v28
+    (by decide)
+  have hproF := cpsTripleWithin_frameR
+    (((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x29 : Reg) ↦ᵣ v29) **
+     ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+     bytesRegion srcPtr [b] ** bytesRegion outPtr outBytes **
+     (cellPtr ↦ₘ cellOld)) (by pcFree) hpro
+  -- [5]-[7], byte below 0x80
+  have hprobe := rebRawProbeSmall srcPtr v29 v30 [b] h0
+    (by rw [hb0]; exact hsmall) hsalign hsover hsvalid
+  rw [hb0] at hprobe
+  have hprobeF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 1) **
+     ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+     ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 1) ** ((.x7 : Reg) ↦ᵣ outPtr) **
+     ((.x28 : Reg) ↦ᵣ (1 : Word)) ** ((.x31 : Reg) ↦ᵣ v31) **
+     bytesRegion outPtr outBytes ** (cellPtr ↦ₘ cellOld)) (by pcFree) hprobe
+  -- [8]-[12], the tail (x10 still holds srcPtr on entry)
+  have htail := rebRawTail outPtr cellPtr raVal cellOld v31 srcPtr b outBytes
+    holen hoalign hoover hovalid
+  have htailF := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 1) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ srcPtr) **
+     ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 1) ** ((.x28 : Reg) ↦ᵣ (1 : Word)) **
+     ((.x30 : Reg) ↦ᵣ (128 : Word)) ** bytesRegion srcPtr [b])
+    (by pcFree) htail
+  have s12 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    hproF hprobeF
+  have s123 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    s12 htailF
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_) s123
+  · unfold rebAbiPre at hp
+    xperm_hyp hp
+  · unfold rebAbiPost
+    rw [henc, show ([b] : List Byte).length = 1 from rfl,
+        ← set_zero_eq_append outBytes b holen,
+        show BitVec.ofNat 64 1 = (1 : Word) from by decide]
+    refine scratch7 (0 : Word) (BitVec.ofNat 64 1) outPtr cellPtr raVal (1 : Word)
+      srcPtr [b] (outBytes.set 0 b)
+      ((.x5 : Reg) ↦ᵣ srcPtr) ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 1)
+      ((.x7 : Reg) ↦ᵣ outPtr) ((.x28 : Reg) ↦ᵣ (1 : Word))
+      ((.x29 : Reg) ↦ᵣ b.zeroExtend 64) ((.x30 : Reg) ↦ᵣ (128 : Word))
+      ((.x31 : Reg) ↦ᵣ (1 : Word))
+      (regIs_implies_regOwn .x5) (regIs_implies_regOwn .x6)
+      (regIs_implies_regOwn .x7) (regIs_implies_regOwn .x28)
+      (regIs_implies_regOwn .x29) (regIs_implies_regOwn .x30)
+      (regIs_implies_regOwn .x31) h ?_
+    xperm_hyp hp
+
+
+-- @@ L454-457 verbatim
+set_option maxRecDepth 8000 in
+/-! **Arena form of the raw whole routine.**  The fast path writes one byte
+    through the logical `x12` window, while the framed post keeps ownership of
+    the complete aligned arena. -/
+
+-- @@ L458-525 verbatim
+theorem reb_spec_raw_arena (srcPtr arenaPtr cellPtr raVal cellOld : Word)
+    (v5 v6 v7 v28 v29 v30 v31 : Word) (data arenaBytes : List Byte) (off : Nat)
+    (b : Byte) (hdata : data = [b]) (hsmall : b.toNat < 128)
+    (hfit : off + 1 ≤ arenaBytes.length)
+    (hsalign : srcPtr.toNat % 8 = 0) (hbase_align : arenaPtr.toNat % 8 = 0)
+    (hsover : srcPtr.toNat < 2 ^ 64)
+    (hover : arenaPtr.toNat + off < 2 ^ 64)
+    (hsvalid : isValidByteAccess srcPtr = true)
+    (hvalid : isValidByteAccess (arenaPtr + BitVec.ofNat 64 off) = true) :
+    cpsTripleWithin 13 rebBase (raVal &&& ~~~1) rebCode
+      (rebAbiArenaPre srcPtr arenaPtr cellPtr raVal cellOld data arenaBytes off 1
+        v5 v6 v7 v28 v29 v30 v31)
+      (rebAbiArenaPost srcPtr arenaPtr cellPtr raVal data arenaBytes off) := by
+  subst hdata
+  have henc : encodeBytes [b] = [b] := encodeBytes_single_small b hsmall
+  have h0 : 0 < ([b] : List Byte).length := by simp
+  have hb0 : ([b] : List Byte)[0]'h0 = b := rfl
+  have hpro := rebPrologueEq1 srcPtr
+      (arenaPtr + BitVec.ofNat 64 off) (BitVec.ofNat 64 1) v5 v6 v7 v28
+      (by decide)
+  have hproF := cpsTripleWithin_frameR
+    (((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x29 : Reg) ↦ᵣ v29) **
+     ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+     bytesRegion srcPtr [b] ** bytesRegion arenaPtr arenaBytes **
+     (cellPtr ↦ₘ cellOld)) (by pcFree) hpro
+  have hprobe := rebRawProbeSmall srcPtr v29 v30 [b] h0
+    (by rw [hb0]; exact hsmall) hsalign hsover hsvalid
+  rw [hb0] at hprobe
+  have hprobeF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 1) **
+     ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 1) **
+     ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x28 : Reg) ↦ᵣ (1 : Word)) ** ((.x31 : Reg) ↦ᵣ v31) **
+     bytesRegion arenaPtr arenaBytes ** (cellPtr ↦ₘ cellOld)) (by pcFree) hprobe
+  have htail := rebRawTail_arena arenaPtr cellPtr raVal cellOld v31 srcPtr b
+    arenaBytes off (by omega) hbase_align (by omega) hover hvalid
+  have htailF := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 1) **
+     ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ srcPtr) **
+     ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 1) ** ((.x28 : Reg) ↦ᵣ (1 : Word)) **
+     ((.x30 : Reg) ↦ᵣ (128 : Word)) **
+     bytesRegion srcPtr [b]) (by pcFree) htail
+  have s12 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    hproF hprobeF
+  have s123 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    s12 htailF
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_) s123
+  · unfold rebAbiArenaPre at hp
+    xperm_hyp hp
+  · unfold rebAbiArenaPost
+    rw [henc, setBytes_singleton]
+    refine scratch7_arena (0 : Word) (BitVec.ofNat 64 1)
+      (arenaPtr + BitVec.ofNat 64 off) arenaPtr cellPtr raVal (1 : Word)
+      srcPtr [b] (arenaBytes.set off b)
+      ((.x5 : Reg) ↦ᵣ srcPtr) ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 1)
+      ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off))
+      ((.x28 : Reg) ↦ᵣ (1 : Word))
+      ((.x29 : Reg) ↦ᵣ b.zeroExtend 64) ((.x30 : Reg) ↦ᵣ (128 : Word))
+      ((.x31 : Reg) ↦ᵣ (1 : Word))
+      (regIs_implies_regOwn .x5) (regIs_implies_regOwn .x6)
+      (regIs_implies_regOwn .x7) (regIs_implies_regOwn .x28)
+      (regIs_implies_regOwn .x29) (regIs_implies_regOwn .x30)
+      (regIs_implies_regOwn .x31) h ?_
+    xperm_hyp hp
+
+
+-- @@ L527-535 verbatim
+/-! ## §5  Path B — the short form (`len < 56`, not path A)
+
+    Two routes reach the dispatch at `+52`: the `len ≠ 1` prologue exit, and the
+    `len = 1, byte ≥ 0x80` probe exit.  They differ only in `x29`/`x30`, both
+    overwritten downstream, so the tail from `+52` is proved once, universally
+    quantified over those two registers, and each route instantiates it —
+    item 1's technique.  This is sound because `rebAbiPost` returns the scratch
+    registers as `regOwn`: no caller may rely on them, so the routes' different
+    values need never be reconciled. -/
+
+
+-- @@ L537-541 verbatim
+/-- Word-level bridges for the short path. -/
+theorem ofNat_toNat_eq (n : Nat) (h : n < 2 ^ 64) :
+    (BitVec.ofNat 64 n).toNat = n := by
+  rw [BitVec.toNat_ofNat]
+  omega
+
+
+-- @@ L543-550 verbatim
+/-- The short header byte, tied to the model's `0x80 + len` form.
+    Unconditional: `mod 2 ^ 64` and `mod 2 ^ 8` absorb the reductions. -/
+private theorem short_hdr_byte (n : Nat) :
+    (BitVec.ofNat 64 n + 128).truncate 8 = BitVec.ofNat 8 (128 + n) := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_setWidth, BitVec.toNat_add, BitVec.toNat_ofNat,
+      BitVec.toNat_ofNat, show (128 : Word).toNat = 128 from by decide]
+  omega
+
+
+-- @@ L552-558 verbatim
+/-- `BNE`'s taken side needs the word form of `n ≠ 1`. -/
+theorem ofNat_ne_one (n : Nat) (hne : n ≠ 1) (h : n < 2 ^ 64) :
+    BitVec.ofNat 64 n ≠ (1 : Word) := by
+  intro hc
+  have := congrArg BitVec.toNat hc
+  rw [ofNat_toNat_eq n h, show (1 : Word).toNat = 1 from by decide] at this
+  exact hne this
+
+
+-- @@ L560-674 verbatim
+set_option maxRecDepth 8000 in
+/-- The shared short-path tail: dispatch, header, copy loop, tail —
+    `rebBase+52 → ra &&& ~~~1` in `11 + 7*n` steps, for any `x29`/`x30`. -/
+private theorem reb_short_rest (srcPtr outPtr cellPtr raVal cellOld : Word)
+    (w29 w30 v31 : Word) (data outBytes : List Byte) (n : Nat)
+    (hn : data.length = n) (hn56 : n < 56) (hn64 : n < 2 ^ 64)
+    (hnot_raw : ∀ b, data = [b] → ¬ b.toNat < 0x80)
+    (holen : n + 1 ≤ outBytes.length)
+    (hsalign : srcPtr.toNat % 8 = 0) (hoalign : outPtr.toNat % 8 = 0)
+    (hsover : srcPtr.toNat + n < 2 ^ 64)
+    (hoover : outPtr.toNat + (n + 1) ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < n → isValidByteAccess (srcPtr + BitVec.ofNat 64 k) = true)
+    (hovalid : ∀ k, k < n + 1 → isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (11 + 7 * n) (rebBase + 52) (raVal &&& ~~~1) rebCode
+      (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+       ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x5 : Reg) ↦ᵣ srcPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x7 : Reg) ↦ᵣ outPtr) ** ((.x28 : Reg) ↦ᵣ (1 : Word)) **
+       ((.x29 : Reg) ↦ᵣ w29) ** ((.x30 : Reg) ↦ᵣ w30) **
+       ((.x31 : Reg) ↦ᵣ v31) **
+       bytesRegion srcPtr data ** bytesRegion outPtr outBytes **
+       (cellPtr ↦ₘ cellOld))
+      (rebAbiPost srcPtr outPtr cellPtr raVal data outBytes n) := by
+  have hlenN : (BitVec.ofNat 64 n).toNat = n := ofNat_toNat_eq n hn64
+  have haddr0 : srcPtr + BitVec.ofNat 64 0 = srcPtr := by bv_omega
+  -- the model side
+  have hout : encodeBytes data = BitVec.ofNat 8 (128 + n) :: data := by
+    have h := rebOut_short_form data (by omega) hnot_raw
+    rwa [hn] at h
+  have hlen : (encodeBytes data).length = n + 1 := by
+    rw [hout, List.length_cons, hn]
+  -- the region the copy loop produces IS the encoding at the front
+  have hregion : copyN (outBytes.set 0 (BitVec.ofNat 8 (128 + n))) data 1 0 n
+      = encodeBytes data ++ outBytes.drop (encodeBytes data).length := by
+    rw [copyN_eq_append _ _ _ _ _ (by rw [List.length_set]; omega) (by omega),
+        take_one_set_zero _ _ (by omega), drop_set_zero _ _ _ (by omega),
+        List.drop_zero, List.take_of_length_le (by omega), hlen, hout,
+        show 1 + n = n + 1 from by omega]
+    rfl
+  -- [13]-[14]
+  have hdisp := rebDispatchShort (BitVec.ofNat 64 n) (1 : Word) (by omega)
+  have hdispF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+     ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     ((.x5 : Reg) ↦ᵣ srcPtr) ** ((.x7 : Reg) ↦ᵣ outPtr) **
+     ((.x29 : Reg) ↦ᵣ w29) ** ((.x30 : Reg) ↦ᵣ w30) **
+     ((.x31 : Reg) ↦ᵣ v31) **
+     bytesRegion srcPtr data ** bytesRegion outPtr outBytes **
+     (cellPtr ↦ₘ cellOld)) (by pcFree) hdisp
+  -- [15]-[18]
+  have hhdr := rebShortHeader outPtr (BitVec.ofNat 64 n) w29 outBytes
+    (by omega) hoalign (by omega)
+    (by have := hovalid 0 (by omega)
+        rwa [show outPtr + BitVec.ofNat 64 0 = outPtr from by bv_omega] at this)
+  rw [short_hdr_byte n] at hhdr
+  have hhdrF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+     ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     ((.x5 : Reg) ↦ᵣ srcPtr) ** ((.x30 : Reg) ↦ᵣ w30) **
+     ((.x31 : Reg) ↦ᵣ v31) **
+     bytesRegion srcPtr data ** (cellPtr ↦ₘ cellOld)) (by pcFree) hhdr
+  -- [19]-[25]
+  have hloop := rebShortCopyLoop srcPtr outPtr ((BitVec.ofNat 64 n) + 128)
+    data (outBytes.set 0 (BitVec.ofNat 8 (128 + n))) 0 1 n
+    hsalign hoalign (by omega) (by rw [List.length_set]; omega)
+    (by omega) (by omega) hn64
+    (fun k hk => by have := hsvalid k hk; simpa using this)
+    (fun k hk => by have := hovalid (1 + k) (by omega); simpa using this)
+  rw [haddr0] at hloop
+  simp only [Nat.zero_add] at hloop
+  have hloopF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+     ((.x1 : Reg) ↦ᵣ raVal) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x30 : Reg) ↦ᵣ w30) ** ((.x31 : Reg) ↦ᵣ v31) **
+     (cellPtr ↦ₘ cellOld)) (by pcFree) hloop
+  -- [26]-[29]
+  have htail := rebShortTail cellPtr raVal cellOld (BitVec.ofNat 64 n) v31 srcPtr
+  have htailF := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n)) **
+     ((.x7 : Reg) ↦ᵣ (outPtr + BitVec.ofNat 64 (1 + n))) **
+     ((.x29 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ w30) ** regOwn .x28 **
+     bytesRegion srcPtr data **
+     bytesRegion outPtr (copyN (outBytes.set 0 (BitVec.ofNat 8 (128 + n))) data 1 0 n))
+    (by pcFree) htail
+  -- chain and close
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    hdispF hhdrF
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    s1 hloopF
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    s2 htailF
+  refine cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_) s3)
+  · xperm_hyp hp
+  · unfold rebAbiPost
+    rw [← hregion, hlen]
+    refine scratch7 (0 : Word) (BitVec.ofNat 64 n) outPtr cellPtr raVal
+      (BitVec.ofNat 64 (n + 1)) srcPtr data _
+      ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n))
+      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n)
+      ((.x7 : Reg) ↦ᵣ (outPtr + BitVec.ofNat 64 (1 + n)))
+      (regOwn .x28)
+      ((.x29 : Reg) ↦ᵣ (0 : Word)) ((.x30 : Reg) ↦ᵣ w30)
+      ((.x31 : Reg) ↦ᵣ (BitVec.ofNat 64 (n + 1)))
+      (regIs_implies_regOwn .x5) (regIs_implies_regOwn .x6)
+      (regIs_implies_regOwn .x7) (fun _ x => x)
+      (regIs_implies_regOwn .x29) (regIs_implies_regOwn .x30)
+      (regIs_implies_regOwn .x31) h ?_
+    rw [word_ofNat_add_one n]
+    xperm_hyp hp
+
+-- @@ L675-747 verbatim
+set_option maxRecDepth 8000 in
+/-- **Whole routine, short form** (`len < 56`, not the raw-byte case):
+    `rebBase → ra &&& ~~~1` in at most `19 + 7*n` steps.  The `len ≠ 1` route
+    costs `16 + 7n`; the `len = 1, byte ≥ 0x80` route costs three more for the
+    probe.  Both land in `reb_short_rest`. -/
+theorem reb_spec_short (srcPtr outPtr cellPtr raVal cellOld : Word)
+    (v5 v6 v7 v28 v29 v30 v31 : Word) (data outBytes : List Byte) (n : Nat)
+    (hn : data.length = n) (hn56 : n < 56) (hn64 : n < 2 ^ 64)
+    (hnot_raw : ∀ b, data = [b] → ¬ b.toNat < 0x80)
+    (holen : n + 1 ≤ outBytes.length)
+    (hsalign : srcPtr.toNat % 8 = 0) (hoalign : outPtr.toNat % 8 = 0)
+    (hsover : srcPtr.toNat + n < 2 ^ 64)
+    (hoover : outPtr.toNat + (n + 1) ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < n → isValidByteAccess (srcPtr + BitVec.ofNat 64 k) = true)
+    (hovalid : ∀ k, k < n + 1 → isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (19 + 7 * n) rebBase (raVal &&& ~~~1) rebCode
+      (rebAbiPre srcPtr outPtr cellPtr raVal cellOld data outBytes n
+        v5 v6 v7 v28 v29 v30 v31)
+      (rebAbiPost srcPtr outPtr cellPtr raVal data outBytes n) := by
+  have hrest := fun w29 w30 => reb_short_rest srcPtr outPtr cellPtr raVal cellOld
+    w29 w30 v31 data outBytes n hn hn56 hn64 hnot_raw holen
+    hsalign hoalign hsover hoover hsvalid hovalid
+  by_cases h1 : n = 1
+  · -- the `len = 1, byte ≥ 0x80` route: prologue falls through, probe jumps
+    subst h1
+    obtain ⟨b, hb⟩ := List.length_eq_one_iff.mp hn
+    subst hb
+    have h0 : 0 < ([b] : List Byte).length := by simp
+    have hb0 : ([b] : List Byte)[0]'h0 = b := rfl
+    have hpro := rebPrologueEq1 srcPtr outPtr (BitVec.ofNat 64 1) v5 v6 v7 v28
+      (by decide)
+    have hproF := cpsTripleWithin_frameR
+      (((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x29 : Reg) ↦ᵣ v29) **
+       ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+       bytesRegion srcPtr [b] ** bytesRegion outPtr outBytes **
+       (cellPtr ↦ₘ cellOld)) (by pcFree) hpro
+    have hprobe := rebRawProbeLarge srcPtr v29 v30 [b] h0
+      (by rw [hb0]; have := hnot_raw b rfl; omega)
+      hsalign (by omega) (by
+        have := hsvalid 0 (by omega)
+        rwa [show srcPtr + BitVec.ofNat 64 0 = srcPtr from by bv_omega] at this)
+    rw [hb0] at hprobe
+    have hprobeF := cpsTripleWithin_frameR
+      (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 1) **
+       ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+       ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 1) ** ((.x7 : Reg) ↦ᵣ outPtr) **
+       ((.x28 : Reg) ↦ᵣ (1 : Word)) ** ((.x31 : Reg) ↦ᵣ v31) **
+       bytesRegion outPtr outBytes ** (cellPtr ↦ₘ cellOld)) (by pcFree) hprobe
+    have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+      hproF hprobeF
+    have s2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+      s1 (hrest (b.zeroExtend 64) (128 : Word))
+    refine cpsTripleWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_weaken (fun h hp => ?_) (fun _ hp => hp) s2)
+    unfold rebAbiPre at hp
+    xperm_hyp hp
+  · -- the `len ≠ 1` route: prologue jumps straight to the dispatch
+    have hpro := rebPrologueNe1 srcPtr outPtr (BitVec.ofNat 64 n) v5 v6 v7 v28
+      (ofNat_ne_one n h1 hn64)
+    have hproF := cpsTripleWithin_frameR
+      (((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x29 : Reg) ↦ᵣ v29) **
+       ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+       bytesRegion srcPtr data ** bytesRegion outPtr outBytes **
+       (cellPtr ↦ₘ cellOld)) (by pcFree) hpro
+    have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+      hproF (hrest v29 v30)
+    refine cpsTripleWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_weaken (fun h hp => ?_) (fun _ hp => hp) s1)
+    unfold rebAbiPre at hp
+    xperm_hyp hp
+
+
+-- @@ L749-753 verbatim
+set_option maxRecDepth 8000 in
+/-! **Arena form of the short-path continuation.**  The code still receives
+    the logical output pointer in `x12`; only the ownership assertion is
+    widened to the aligned arena and the payload loop is instantiated at the
+    logical byte offset. -/
+
+-- @@ L754-870 verbatim
+private theorem reb_short_rest_arena (srcPtr arenaPtr cellPtr raVal cellOld : Word)
+    (w29 w30 v31 : Word) (data arenaBytes : List Byte) (off n : Nat)
+    (hn : data.length = n) (hn56 : n < 56) (hn64 : n < 2 ^ 64)
+    (hnot_raw : ∀ b, data = [b] → ¬ b.toNat < 0x80)
+    (hfit : off + (n + 1) ≤ arenaBytes.length)
+    (hsalign : srcPtr.toNat % 8 = 0) (hbase_align : arenaPtr.toNat % 8 = 0)
+    (hsover : srcPtr.toNat + n < 2 ^ 64)
+    (hover : arenaPtr.toNat + (off + n + 1) < 2 ^ 64)
+    (hsvalid : ∀ k, k < n → isValidByteAccess (srcPtr + BitVec.ofNat 64 k) = true)
+    (hvalid : ∀ k, k < n + 1 →
+      isValidByteAccess (arenaPtr + BitVec.ofNat 64 (off + k)) = true) :
+    cpsTripleWithin (11 + 7 * n) (rebBase + 52) (raVal &&& ~~~1) rebCode
+      (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ srcPtr) **
+       ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x28 : Reg) ↦ᵣ (1 : Word)) ** ((.x29 : Reg) ↦ᵣ w29) **
+       ((.x30 : Reg) ↦ᵣ w30) ** ((.x31 : Reg) ↦ᵣ v31) **
+       bytesRegion srcPtr data ** bytesRegion arenaPtr arenaBytes **
+       (cellPtr ↦ₘ cellOld))
+      (rebAbiArenaPost srcPtr arenaPtr cellPtr raVal data arenaBytes off) := by
+  have haddr0 : srcPtr + BitVec.ofNat 64 0 = srcPtr := by bv_omega
+  have haddr1 : (arenaPtr + BitVec.ofNat 64 off) + BitVec.ofNat 64 1 =
+      arenaPtr + BitVec.ofNat 64 (off + 1) := by
+    rw [windowDword_addr_add (B := arenaPtr) (a := off) (b := 1) (by omega)]
+  have hlenN : (BitVec.ofNat 64 n).toNat = n := ofNat_toNat_eq n hn64
+  have hout : encodeBytes data = BitVec.ofNat 8 (128 + n) :: data := by
+    have h := rebOut_short_form data (by omega) hnot_raw
+    rwa [hn] at h
+  have hlen : (encodeBytes data).length = n + 1 := by
+    rw [hout, List.length_cons, hn]
+  have hcopy := short_copy_result arenaBytes data off n
+    (BitVec.ofNat 8 (128 + n)) hn (by simpa [Nat.add_comm] using hfit)
+  have hoff : off < arenaBytes.length := by omega
+  have hhdr := rebShortHeader_arena arenaPtr (BitVec.ofNat 64 n) w29 arenaBytes off
+    (by omega) hbase_align hoff (by omega) (by have := hvalid 0 (by omega); simpa using this)
+  rw [short_hdr_byte n] at hhdr
+  rw [haddr1] at hhdr
+  have hdisp := rebDispatchShort (BitVec.ofNat 64 n) (1 : Word)
+    (by rw [hlenN]; exact hn56)
+  have hdispF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ srcPtr) **
+     ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x29 : Reg) ↦ᵣ w29) ** ((.x30 : Reg) ↦ᵣ w30) **
+     ((.x31 : Reg) ↦ᵣ v31) ** bytesRegion srcPtr data **
+     bytesRegion arenaPtr arenaBytes ** (cellPtr ↦ₘ cellOld)) (by pcFree) hdisp
+  have hhdrF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ srcPtr) **
+     ((.x30 : Reg) ↦ᵣ w30) ** ((.x31 : Reg) ↦ᵣ v31) **
+     bytesRegion srcPtr data ** (cellPtr ↦ₘ cellOld)) (by pcFree) hhdr
+  have hloop := rebShortCopyLoop srcPtr arenaPtr
+    ((BitVec.ofNat 64 n) + 128) data
+    (arenaBytes.set off (BitVec.ofNat 8 (128 + n))) 0 (off + 1) n
+    hsalign hbase_align (by omega) (by rw [List.length_set]; omega)
+    (by omega) (by omega) hn64
+    (fun k hk => by simpa [haddr0] using hsvalid k hk)
+    (fun k hk => by
+      have hh := hvalid (1 + k) (by omega)
+      simpa [show off + (1 + k) = off + 1 + k by omega] using hh)
+  rw [haddr0] at hloop
+  simp only [Nat.zero_add] at hloop
+  have hloopF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** ((.x30 : Reg) ↦ᵣ w30) **
+     ((.x31 : Reg) ↦ᵣ v31) ** (cellPtr ↦ₘ cellOld)) (by pcFree) hloop
+  have htail := rebShortTail cellPtr raVal cellOld (BitVec.ofNat 64 n) v31 srcPtr
+  have htailF := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n)) **
+     ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 (off + 1 + n))) **
+     ((.x29 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ w30) ** regOwn .x28 **
+     bytesRegion srcPtr data **
+     bytesRegion arenaPtr
+       (copyN (arenaBytes.set off (BitVec.ofNat 8 (128 + n))) data
+         (off + 1) 0 n)) (by pcFree) htail
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    hdispF hhdrF
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    s1 hloopF
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    s2 htailF
+  refine cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_) s3)
+  · xperm_hyp hp
+  · unfold rebAbiArenaPost
+    rw [hout, ← hcopy, hn]
+    simp only [List.length_cons, hn]
+    refine scratch7_arena (0 : Word) (BitVec.ofNat 64 n)
+      (arenaPtr + BitVec.ofNat 64 off) arenaPtr cellPtr raVal
+      (BitVec.ofNat 64 (n + 1))
+      srcPtr data
+        (copyN (arenaBytes.set off (BitVec.ofNat 8 (128 + n))) data
+          (off + 1) 0 n)
+      ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n))
+      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n)
+      ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 (off + 1 + n)))
+      (regOwn .x28) ((.x29 : Reg) ↦ᵣ (0 : Word))
+      ((.x30 : Reg) ↦ᵣ w30)
+      ((.x31 : Reg) ↦ᵣ (BitVec.ofNat 64 (n + 1)))
+      (regIs_implies_regOwn .x5) (regIs_implies_regOwn .x6)
+      (regIs_implies_regOwn .x7) (fun _ x => x)
+      (regIs_implies_regOwn .x29) (regIs_implies_regOwn .x30)
+      (regIs_implies_regOwn .x31) h ?_
+    rw [word_ofNat_add_one n]
+    xperm_hyp hp
+
+
+-- @@ L872-875 verbatim
+set_option maxRecDepth 8000 in
+/-! **Arena form of the short whole routine.**  This is the same two-way
+    prologue split as `reb_spec_short`, with the output ownership widened to
+    the aligned arena and the logical pointer carried at `arenaPtr + off`. -/
+
+-- @@ L876-945 verbatim
+theorem reb_spec_short_arena (srcPtr arenaPtr cellPtr raVal cellOld : Word)
+    (v5 v6 v7 v28 v29 v30 v31 : Word) (data arenaBytes : List Byte) (off n : Nat)
+    (hn : data.length = n) (hn56 : n < 56) (hn64 : n < 2 ^ 64)
+    (hnot_raw : ∀ b, data = [b] → ¬ b.toNat < 0x80)
+    (hfit : off + (n + 1) ≤ arenaBytes.length)
+    (hsalign : srcPtr.toNat % 8 = 0) (hbase_align : arenaPtr.toNat % 8 = 0)
+    (hsover : srcPtr.toNat + n < 2 ^ 64)
+    (hover : arenaPtr.toNat + (off + n + 1) < 2 ^ 64)
+    (hsvalid : ∀ k, k < n → isValidByteAccess (srcPtr + BitVec.ofNat 64 k) = true)
+    (hvalid : ∀ k, k < n + 1 →
+      isValidByteAccess (arenaPtr + BitVec.ofNat 64 (off + k)) = true) :
+    cpsTripleWithin (19 + 7 * n) rebBase (raVal &&& ~~~1) rebCode
+      (rebAbiArenaPre srcPtr arenaPtr cellPtr raVal cellOld data arenaBytes off n
+        v5 v6 v7 v28 v29 v30 v31)
+      (rebAbiArenaPost srcPtr arenaPtr cellPtr raVal data arenaBytes off) := by
+  have hrest := fun w29 w30 => reb_short_rest_arena srcPtr arenaPtr cellPtr raVal cellOld
+    w29 w30 v31 data arenaBytes off n hn hn56 hn64 hnot_raw hfit
+    hsalign hbase_align hsover hover hsvalid hvalid
+  by_cases h1 : n = 1
+  · subst h1
+    obtain ⟨b, hb⟩ := List.length_eq_one_iff.mp hn
+    subst hb
+    have h0 : 0 < ([b] : List Byte).length := by simp
+    have hb0 : ([b] : List Byte)[0]'h0 = b := rfl
+    have hpro := rebPrologueEq1 srcPtr
+      (arenaPtr + BitVec.ofNat 64 off) (BitVec.ofNat 64 1) v5 v6 v7 v28
+      (by decide)
+    have hproF := cpsTripleWithin_frameR
+      (((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x29 : Reg) ↦ᵣ v29) **
+       ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+       bytesRegion srcPtr [b] ** bytesRegion arenaPtr arenaBytes **
+       (cellPtr ↦ₘ cellOld)) (by pcFree) hpro
+    have hprobe := rebRawProbeLarge srcPtr v29 v30 [b] h0
+      (by rw [hb0]; have := hnot_raw b rfl; omega)
+      hsalign (by omega) (by
+        have := hsvalid 0 (by omega)
+        rwa [show srcPtr + BitVec.ofNat 64 0 = srcPtr from by bv_omega] at this)
+    rw [hb0] at hprobe
+    have hprobeF := cpsTripleWithin_frameR
+      (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 1) **
+       ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 1) **
+       ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x28 : Reg) ↦ᵣ (1 : Word)) ** ((.x31 : Reg) ↦ᵣ v31) **
+       bytesRegion arenaPtr arenaBytes ** (cellPtr ↦ₘ cellOld)) (by pcFree) hprobe
+    have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+      hproF hprobeF
+    have s2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+      s1 (hrest (b.zeroExtend 64) (128 : Word))
+    refine cpsTripleWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_weaken (fun h hp => ?_) (fun _ hp => hp) s2)
+    · unfold rebAbiArenaPre at hp
+      xperm_hyp hp
+  · have hpro := rebPrologueNe1 srcPtr
+      (arenaPtr + BitVec.ofNat 64 off) (BitVec.ofNat 64 n) v5 v6 v7 v28
+      (ofNat_ne_one n h1 hn64)
+    have hproF := cpsTripleWithin_frameR
+      (((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x29 : Reg) ↦ᵣ v29) **
+       ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+       bytesRegion srcPtr data ** bytesRegion arenaPtr arenaBytes **
+       (cellPtr ↦ₘ cellOld)) (by pcFree) hpro
+    have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+      hproF (hrest v29 v30)
+    refine cpsTripleWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_weaken (fun h hp => ?_) (fun _ hp => hp) s1)
+    · unfold rebAbiArenaPre at hp
+      xperm_hyp hp
+
+
+-- @@ L947-955 verbatim
+/-! ## §6  Path C — the long form (`len ≥ 56`)
+
+    The longest chain: prologue, dispatch, the `bc` ladder, the long header,
+    the length-of-length loop, the payload copy, the tail.  Three loop posts
+    return a register as `regOwn` that the next block needs concrete, so the
+    chain has three `∀ w` seams joined by
+    `cpsTripleWithin_of_forall_regIs_to_regOwn` — each pre shaped with the
+    quantified register as the OUTERMOST right factor, which is all that
+    combinator can see. -/
+
+
+-- @@ L957-964 verbatim
+/-- The long header byte, tied to the model's `0xb7 + lenlen` form.
+    Unconditional. -/
+private theorem long_hdr_byte (bc : Nat) :
+    (BitVec.ofNat 64 bc + 183).truncate 8 = BitVec.ofNat 8 (183 + bc) := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_setWidth, BitVec.toNat_add, BitVec.toNat_ofNat,
+    show (183 : Word).toNat = 183 from by decide]
+  omega
+
+
+-- @@ L966-972 verbatim
+/-- The written length in word form.  Unconditional. -/
+theorem long_cell_word (bc n : Nat) :
+    BitVec.ofNat 64 bc + 1 + BitVec.ofNat 64 n = BitVec.ofNat 64 (bc + 1 + n) := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_add, BitVec.toNat_ofNat,
+    show (1 : Word).toNat = 1 from by decide]
+  omega
+
+
+-- @@ L974-1067 verbatim
+set_option maxRecDepth 8000 in
+/-- The long path from the copy loop on ([64]-[75]): `rebBase+256 → ra &&& ~~~1`
+    in `7*n + 6` steps, for any incoming `x30`. -/
+theorem reb_long_tail2 (srcPtr outPtr cellPtr raVal cellOld w30 : Word)
+    (data dst : List Byte) (n bc : Nat)
+    (hn : data.length = n) (hn64 : n < 2 ^ 64)
+    (hdlen : (1 + bc) + n ≤ dst.length)
+    (hsalign : srcPtr.toNat % 8 = 0) (hoalign : outPtr.toNat % 8 = 0)
+    (hsover : srcPtr.toNat + n < 2 ^ 64)
+    (hoover : outPtr.toNat + ((1 + bc) + n) ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < n → isValidByteAccess (srcPtr + BitVec.ofNat 64 k) = true)
+    (hovalid : ∀ k, k < n → isValidByteAccess (outPtr + BitVec.ofNat 64 ((1 + bc) + k)) = true) :
+    cpsTripleWithin (7 * n + 6) (rebBase + 256) (raVal &&& ~~~1) rebCode
+      ((((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+        ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+        ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x5 : Reg) ↦ᵣ srcPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+        ((.x7 : Reg) ↦ᵣ (outPtr + BitVec.ofNat 64 (1 + bc))) **
+        ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 bc) **
+        ((.x29 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** regOwn .x31 **
+        bytesRegion srcPtr data ** bytesRegion outPtr dst **
+        (cellPtr ↦ₘ cellOld)) ** ((.x30 : Reg) ↦ᵣ w30))
+      (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+       ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n)) **
+       ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x7 : Reg) ↦ᵣ (outPtr + BitVec.ofNat 64 ((1 + bc) + n))) **
+       ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 bc) ** ((.x29 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x30 : Reg) ↦ᵣ (BitVec.ofNat 64 bc + 1 + BitVec.ofNat 64 n)) **
+       regOwn .x31 **
+       bytesRegion srcPtr data **
+       bytesRegion outPtr (copyN dst data (1 + bc) 0 n) **
+       (cellPtr ↦ₘ (BitVec.ofNat 64 bc + 1 + BitVec.ofNat 64 n))) := by
+  have haddr0 : srcPtr + BitVec.ofNat 64 0 = srcPtr := by bv_omega
+  -- [64]-[70]
+  have hloop := rebLongCopyLoop srcPtr outPtr w30 data dst 0 (1 + bc) n
+    hsalign hoalign (by omega) hdlen (by omega) (by omega) hn64
+    (fun k hk => by have := hsvalid k hk; simpa using this)
+    (fun k hk => hovalid k hk)
+  rw [haddr0] at hloop
+  simp only [Nat.zero_add] at hloop
+  have hloopF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+     ((.x1 : Reg) ↦ᵣ raVal) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 bc) ** regOwn .x31 **
+     (cellPtr ↦ₘ cellOld)) (by pcFree) hloop
+  -- [71]-[75], for any x30 the copy loop leaves behind.  The instance type is
+  -- stated in full: with it inferred, `xperm` runs against a metavariable and
+  -- reports "LHS has 1 atom".
+  have htail3i : ∀ w30' : Word, cpsTripleWithin 5 (rebBase + 284) (raVal &&& ~~~1)
+      rebCode
+      ((((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+        ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+        ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n)) **
+        ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+        ((.x7 : Reg) ↦ᵣ (outPtr + BitVec.ofNat 64 ((1 + bc) + n))) **
+        ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 bc) ** ((.x29 : Reg) ↦ᵣ (0 : Word)) **
+        regOwn .x31 ** bytesRegion srcPtr data **
+        bytesRegion outPtr (copyN dst data (1 + bc) 0 n) **
+        (cellPtr ↦ₘ cellOld)) ** ((.x30 : Reg) ↦ᵣ w30'))
+      (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+       ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n)) **
+       ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x7 : Reg) ↦ᵣ (outPtr + BitVec.ofNat 64 ((1 + bc) + n))) **
+       ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 bc) ** ((.x29 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x30 : Reg) ↦ᵣ (BitVec.ofNat 64 bc + 1 + BitVec.ofNat 64 n)) **
+       regOwn .x31 ** bytesRegion srcPtr data **
+       bytesRegion outPtr (copyN dst data (1 + bc) 0 n) **
+       (cellPtr ↦ₘ (BitVec.ofNat 64 bc + 1 + BitVec.ofNat 64 n))) := by
+    intro w30'
+    have ht := rebLongTail cellPtr raVal cellOld (BitVec.ofNat 64 bc)
+      (BitVec.ofNat 64 n) w30' srcPtr
+    have htF := cpsTripleWithin_frameR
+      (((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n)) **
+       ((.x7 : Reg) ↦ᵣ (outPtr + BitVec.ofNat 64 ((1 + bc) + n))) **
+       ((.x29 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x31 **
+       bytesRegion srcPtr data **
+       bytesRegion outPtr (copyN dst data (1 + bc) 0 n)) (by pcFree) ht
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+      (fun h hp => by xperm_hyp hp) htF
+  have htail3 := cpsTripleWithin_of_forall_regIs_to_regOwn htail3i
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by
+      have hp1 := sepConj_mono_right (fun h' hp' => hp') h hp
+      xperm_hyp hp1) hloopF htail3
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_) s1
+  · xperm_hyp hp
+  · xperm_hyp hp
+
+
+-- @@ L1069-1072 verbatim
+set_option maxRecDepth 8000 in
+/-! **Arena form of the long payload tail.**  The copy loop's destination index
+    is the logical offset into an aligned arena; the framed assertion remains
+    the complete arena throughout the call. -/
+
+-- @@ L1073-1169 verbatim
+private theorem reb_long_tail2_arena (srcPtr arenaPtr cellPtr raVal cellOld w30 : Word)
+    (data dst : List Byte) (off n bc : Nat)
+    (hn : data.length = n) (hn64 : n < 2 ^ 64)
+    (hdlen : off + (1 + bc) + n ≤ dst.length)
+    (hsalign : srcPtr.toNat % 8 = 0) (hbase_align : arenaPtr.toNat % 8 = 0)
+    (hsover : srcPtr.toNat + n < 2 ^ 64)
+    (hover : arenaPtr.toNat + (off + (1 + bc) + n) ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < n → isValidByteAccess (srcPtr + BitVec.ofNat 64 k) = true)
+    (hvalid : ∀ k, k < n →
+      isValidByteAccess (arenaPtr + BitVec.ofNat 64 (off + (1 + bc) + k)) = true) :
+    cpsTripleWithin (7 * n + 6) (rebBase + 256) (raVal &&& ~~~1) rebCode
+      ((((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+        ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+        ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x5 : Reg) ↦ᵣ srcPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+        ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 (off + 1 + bc))) **
+        ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 bc) **
+        ((.x29 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** regOwn .x31 **
+        bytesRegion srcPtr data ** bytesRegion arenaPtr dst **
+        (cellPtr ↦ₘ cellOld)) ** ((.x30 : Reg) ↦ᵣ w30))
+      (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n)) **
+       ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 (off + (1 + bc) + n))) **
+       ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 bc) ** ((.x29 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x30 : Reg) ↦ᵣ (BitVec.ofNat 64 bc + 1 + BitVec.ofNat 64 n)) **
+       regOwn .x31 ** bytesRegion srcPtr data **
+       bytesRegion arenaPtr (copyN dst data (off + (1 + bc)) 0 n) **
+       (cellPtr ↦ₘ (BitVec.ofNat 64 bc + 1 + BitVec.ofNat 64 n))) := by
+  have haddr0 : srcPtr + BitVec.ofNat 64 0 = srcPtr := by bv_omega
+  have hloop := rebLongCopyLoop srcPtr arenaPtr w30 data dst 0 (off + (1 + bc)) n
+    hsalign hbase_align (by omega) hdlen (by omega) hover hn64
+    (fun k hk => by have := hsvalid k hk; simpa using this)
+    (fun k hk => by
+      have := hvalid k hk
+      simpa [Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using this)
+  rw [haddr0] at hloop
+  simp only [Nat.zero_add] at hloop
+  have hloopF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 bc) ** regOwn .x31 **
+     (cellPtr ↦ₘ cellOld)) (by pcFree) hloop
+  have htail3i : ∀ w30' : Word, cpsTripleWithin 5 (rebBase + 284) (raVal &&& ~~~1)
+      rebCode
+      ((((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+        ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+        ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n)) **
+        ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+        ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 (off + (1 + bc) + n))) **
+        ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 bc) ** ((.x29 : Reg) ↦ᵣ (0 : Word)) **
+        regOwn .x31 ** bytesRegion srcPtr data **
+        bytesRegion arenaPtr (copyN dst data (off + (1 + bc)) 0 n) **
+        (cellPtr ↦ₘ cellOld)) ** ((.x30 : Reg) ↦ᵣ w30'))
+      (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n)) **
+       ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 (off + (1 + bc) + n))) **
+       ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 bc) ** ((.x29 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x30 : Reg) ↦ᵣ (BitVec.ofNat 64 bc + 1 + BitVec.ofNat 64 n)) **
+       regOwn .x31 ** bytesRegion srcPtr data **
+       bytesRegion arenaPtr (copyN dst data (off + (1 + bc)) 0 n) **
+       (cellPtr ↦ₘ (BitVec.ofNat 64 bc + 1 + BitVec.ofNat 64 n))) := by
+    intro w30'
+    have ht := rebLongTail cellPtr raVal cellOld (BitVec.ofNat 64 bc)
+      (BitVec.ofNat 64 n) w30' srcPtr
+    have htF := cpsTripleWithin_frameR
+      (((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n)) **
+       ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 (off + (1 + bc) + n))) **
+       ((.x29 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x31 **
+       bytesRegion srcPtr data **
+       bytesRegion arenaPtr (copyN dst data (off + (1 + bc)) 0 n)) (by pcFree) ht
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+      (fun h hp => by xperm_hyp hp) htF
+  have htail3 := cpsTripleWithin_of_forall_regIs_to_regOwn htail3i
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by
+      have hp1 := sepConj_mono_right (fun h' hp' => hp') h hp
+      xperm_hyp hp1) hloopF htail3
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_) s1
+  · have hptr : off + (1 + bc) = off + 1 + bc := by omega
+    rw [← hptr] at hp
+    xperm_hyp hp
+  · xperm_hyp hp
+
+
+-- @@ L1171-1254 verbatim
+set_option maxRecDepth 8000 in
+/-- The long path's middle: header, length-of-length loop, copy setup —
+    `rebBase+208 → rebBase+256` in `7*bc + 6` steps, for any incoming `x29`. -/
+theorem reb_long_mid (srcPtr outPtr cellPtr raVal cellOld w29 v30 v31 : Word)
+    (data outBytes : List Byte) (n : Nat)
+    (hn64 : n < 2 ^ 64)
+    (holen : 1 + u64ByteLen (BitVec.ofNat 64 n) ≤ outBytes.length)
+    (hoalign : outPtr.toNat % 8 = 0)
+    (hoover : outPtr.toNat + (1 + u64ByteLen (BitVec.ofNat 64 n)) ≤ 2 ^ 64)
+    (hovalid : ∀ k, k < 1 + u64ByteLen (BitVec.ofNat 64 n) →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (7 * u64ByteLen (BitVec.ofNat 64 n) + 6)
+      (rebBase + 208) (rebBase + 256) rebCode
+      ((((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+        ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+        ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x5 : Reg) ↦ᵣ srcPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+        ((.x7 : Reg) ↦ᵣ outPtr) **
+        ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 (u64ByteLen (BitVec.ofNat 64 n))) **
+        ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+        bytesRegion srcPtr data ** bytesRegion outPtr outBytes **
+        (cellPtr ↦ₘ cellOld)) ** ((.x29 : Reg) ↦ᵣ w29))
+      (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+       ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x5 : Reg) ↦ᵣ srcPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x7 : Reg) ↦ᵣ (outPtr + BitVec.ofNat 64 (1 + u64ByteLen (BitVec.ofNat 64 n)))) **
+       ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 (u64ByteLen (BitVec.ofNat 64 n))) **
+       ((.x29 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** regOwn .x30 ** regOwn .x31 **
+       bytesRegion srcPtr data **
+       bytesRegion outPtr
+         (writeShift
+           (outBytes.set 0 (BitVec.ofNat 8 (183 + u64ByteLen (BitVec.ofNat 64 n))))
+           1 n (u64ByteLen (BitVec.ofNat 64 n))) **
+       (cellPtr ↦ₘ cellOld)) := by
+  set bc := u64ByteLen (BitVec.ofNat 64 n) with hbc
+  have hlenN : (BitVec.ofNat 64 n).toNat = n := ofNat_toNat_eq n hn64
+  -- [52]-[55]
+  have hhdr := rebLongHeader outPtr (BitVec.ofNat 64 bc) w29 outBytes
+    (by omega) hoalign (by omega)
+    (by have := hovalid 0 (by omega)
+        rwa [show outPtr + BitVec.ofNat 64 0 = outPtr from by bv_omega] at this)
+  rw [long_hdr_byte bc] at hhdr
+  have hhdrF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+     ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     ((.x5 : Reg) ↦ᵣ srcPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+     bytesRegion srcPtr data ** (cellPtr ↦ₘ cellOld)) (by pcFree) hhdr
+  -- [56]-[62]
+  have hlol := rebLolLoop outPtr v30 v31 (BitVec.ofNat 64 n)
+    (outBytes.set 0 (BitVec.ofNat 8 (183 + bc))) 1 bc
+    (u64ByteLen_le _) hoalign (by rw [List.length_set]; omega) (by omega)
+    (fun k hk => by have := hovalid (1 + k) (by omega); simpa using this)
+  rw [hlenN] at hlol
+  have hlolF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+     ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x5 : Reg) ↦ᵣ srcPtr) **
+     ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 bc) **
+     bytesRegion srcPtr data ** (cellPtr ↦ₘ cellOld)) (by pcFree) hlol
+  -- [63]
+  have hsetup := rebLongCopySetup (BitVec.ofNat 64 n) (-1 : Word)
+  have hsetupF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+     ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     ((.x5 : Reg) ↦ᵣ srcPtr) **
+     ((.x7 : Reg) ↦ᵣ (outPtr + BitVec.ofNat 64 (1 + bc))) **
+     ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 bc) ** regOwn .x30 ** regOwn .x31 **
+     bytesRegion srcPtr data **
+     bytesRegion outPtr
+       (writeShift (outBytes.set 0 (BitVec.ofNat 8 (183 + bc))) 1 n bc) **
+     (cellPtr ↦ₘ cellOld)) (by pcFree) hsetup
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    hhdrF hlolF
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    s1 hsetupF
+  refine cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_) s2)
+  · xperm_hyp hp
+  · xperm_hyp hp
+
+
+-- @@ L1256-1258 verbatim
+set_option maxRecDepth 8000 in
+/-! **Arena form of the long middle.**  The length-of-length and setup loops
+    write at `off + 1`; all bytes remain framed by the same arena. -/
+
+-- @@ L1259-1345 verbatim
+private theorem reb_long_mid_arena (srcPtr arenaPtr cellPtr raVal cellOld w29 v30 v31 : Word)
+    (data arenaBytes : List Byte) (off n : Nat) (hn64 : n < 2 ^ 64)
+    (holen : off + 1 + u64ByteLen (BitVec.ofNat 64 n) ≤ arenaBytes.length)
+    (hbase_align : arenaPtr.toNat % 8 = 0)
+    (hover : arenaPtr.toNat + (off + 1 + u64ByteLen (BitVec.ofNat 64 n)) < 2 ^ 64)
+    (hvalid : ∀ k, k < 1 + u64ByteLen (BitVec.ofNat 64 n) →
+      isValidByteAccess (arenaPtr + BitVec.ofNat 64 (off + k)) = true) :
+    cpsTripleWithin (7 * u64ByteLen (BitVec.ofNat 64 n) + 6)
+      (rebBase + 208) (rebBase + 256) rebCode
+      ((((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+        ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+        ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ srcPtr) **
+        ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+        ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+        ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 (u64ByteLen (BitVec.ofNat 64 n))) **
+        ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+        bytesRegion srcPtr data ** bytesRegion arenaPtr arenaBytes **
+        (cellPtr ↦ₘ cellOld)) ** ((.x29 : Reg) ↦ᵣ w29))
+      (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ srcPtr) **
+       ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 (off + 1 + u64ByteLen (BitVec.ofNat 64 n)))) **
+       ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 (u64ByteLen (BitVec.ofNat 64 n))) **
+       ((.x29 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** regOwn .x30 ** regOwn .x31 **
+       bytesRegion srcPtr data **
+       bytesRegion arenaPtr
+         (writeShift (arenaBytes.set off
+           (BitVec.ofNat 8 (183 + u64ByteLen (BitVec.ofNat 64 n))))
+           (off + 1) n (u64ByteLen (BitVec.ofNat 64 n))) **
+       (cellPtr ↦ₘ cellOld)) := by
+  set bc := u64ByteLen (BitVec.ofNat 64 n) with hbc
+  have hlenN : (BitVec.ofNat 64 n).toNat = n := ofNat_toNat_eq n hn64
+  have hhead : (arenaPtr + BitVec.ofNat 64 off) + BitVec.ofNat 64 1 =
+      arenaPtr + BitVec.ofNat 64 (off + 1) := by
+    have h_off1 : arenaPtr.toNat + off + 1 < 2 ^ 64 := by
+      calc
+        arenaPtr.toNat + off + 1 ≤ arenaPtr.toNat + (off + 1 + u64ByteLen (BitVec.ofNat 64 n)) := by omega
+        _ < 2 ^ 64 := hover
+    rw [windowDword_addr_add (B := arenaPtr) (a := off) (b := 1) h_off1]
+  have hhdr := rebLongHeader_arena arenaPtr (BitVec.ofNat 64 bc) w29 arenaBytes off
+    (by omega) hbase_align (by omega) (by omega)
+      (by have := hvalid 0 (by omega); simpa using this)
+  rw [long_hdr_byte bc, hhead] at hhdr
+  have hhdrF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ srcPtr) **
+     ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+     bytesRegion srcPtr data ** (cellPtr ↦ₘ cellOld)) (by pcFree) hhdr
+  have hlol := rebLolLoop arenaPtr v30 v31 (BitVec.ofNat 64 n)
+    (arenaBytes.set off (BitVec.ofNat 8 (183 + bc))) (off + 1) bc
+    (u64ByteLen_le _) hbase_align (by rw [List.length_set]; omega) (by omega)
+    (fun k hk => by
+      have := hvalid (1 + k) (by omega)
+      simpa [Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using this)
+  rw [hlenN] at hlol
+  have hlolF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x5 : Reg) ↦ᵣ srcPtr) ** ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 bc) **
+     bytesRegion srcPtr data ** (cellPtr ↦ₘ cellOld)) (by pcFree) hlol
+  have hsetup := rebLongCopySetup (BitVec.ofNat 64 n) (-1 : Word)
+  have hsetupF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ srcPtr) **
+     ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 (off + 1 + bc))) **
+     ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 bc) ** regOwn .x30 ** regOwn .x31 **
+     bytesRegion srcPtr data **
+     bytesRegion arenaPtr
+       (writeShift (arenaBytes.set off (BitVec.ofNat 8 (183 + bc))) (off + 1) n bc) **
+     (cellPtr ↦ₘ cellOld)) (by pcFree) hsetup
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    hhdrF hlolF
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    s1 hsetupF
+  refine cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_) s2)
+  · xperm_hyp hp
+  · xperm_hyp hp
+
+
+-- @@ L1347-1350 verbatim
+set_option maxRecDepth 8000 in
+/-! **Arena form of the long whole routine.**  The prologue, dispatch and
+    ladder are memory-free; the two loop continuations carry the complete
+    aligned arena while their logical cursor is `off`. -/
+
+-- @@ L1351-1467 verbatim
+theorem reb_spec_long_arena (srcPtr arenaPtr cellPtr raVal cellOld : Word)
+    (v5 v6 v7 v28 v29 v30 v31 : Word) (data arenaBytes : List Byte) (off n : Nat)
+    (hn : data.length = n) (hn56 : 56 ≤ n) (hn64 : n < 2 ^ 64)
+    (holen : off + (1 + u64ByteLen (BitVec.ofNat 64 n)) + n ≤ arenaBytes.length)
+    (hsalign : srcPtr.toNat % 8 = 0) (hbase_align : arenaPtr.toNat % 8 = 0)
+    (hsover : srcPtr.toNat + n < 2 ^ 64)
+    (hover : arenaPtr.toNat + (off + (1 + u64ByteLen (BitVec.ofNat 64 n)) + n) < 2 ^ 64)
+    (hsvalid : ∀ k, k < n → isValidByteAccess (srcPtr + BitVec.ofNat 64 k) = true)
+    (hvalid : ∀ k, k < (1 + u64ByteLen (BitVec.ofNat 64 n)) + n →
+      isValidByteAccess (arenaPtr + BitVec.ofNat 64 (off + k)) = true) :
+    cpsTripleWithin (19 + 10 * u64ByteLen (BitVec.ofNat 64 n) + 7 * n)
+      rebBase (raVal &&& ~~~1) rebCode
+      (rebAbiArenaPre srcPtr arenaPtr cellPtr raVal cellOld data arenaBytes off n
+        v5 v6 v7 v28 v29 v30 v31)
+      (rebAbiArenaPost srcPtr arenaPtr cellPtr raVal data arenaBytes off) := by
+  set bc := u64ByteLen (BitVec.ofNat 64 n) with hbc
+  have hlenN : (BitVec.ofNat 64 n).toNat = n := ofNat_toNat_eq n hn64
+  have hbc8 : bc ≤ 8 := u64ByteLen_le _
+  have hbc_len : bc = (Nat.toBytesBE n).length := by
+    rw [hbc, u64ByteLen_eq_toBytesBE_length, hlenN]
+  have henc : encodeBytes data =
+      [BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE n).length)] ++
+        Nat.toBytesBE n ++ data := by
+    have h := encodeBytes_long_of_length data (by omega)
+    rwa [hn] at h
+  have hlen : (encodeBytes data).length = (1 + bc) + n := by
+    rw [henc]
+    simp only [List.length_append, List.length_cons, List.length_nil, hn, ← hbc_len]
+  have hregion :
+      copyN (writeShift (arenaBytes.set off (BitVec.ofNat 8 (183 + bc)))
+          (off + 1) n bc) data (off + 1 + bc) 0 n =
+        setBytes arenaBytes off (encodeBytes data) := by
+    rw [long_copy_result arenaBytes data off n bc
+      (BitVec.ofNat 8 (183 + bc)) hn hbc_len (by omega)]
+    rw [henc, hbc_len]
+    simp
+  have hpro := rebPrologueNe1 srcPtr (arenaPtr + BitVec.ofNat 64 off)
+    (BitVec.ofNat 64 n) v5 v6 v7 v28 (ofNat_ne_one n (by omega) hn64)
+  have hproF := cpsTripleWithin_frameR
+    (((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x29 : Reg) ↦ᵣ v29) **
+     ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+     bytesRegion srcPtr data ** bytesRegion arenaPtr arenaBytes **
+     (cellPtr ↦ₘ cellOld)) (by pcFree) hpro
+  have hdisp := rebDispatchLong (BitVec.ofNat 64 n) (1 : Word)
+    (by rw [hlenN]; exact hn56)
+  have hdispF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ srcPtr) **
+     ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x29 : Reg) ↦ᵣ v29) ** ((.x30 : Reg) ↦ᵣ v30) **
+     ((.x31 : Reg) ↦ᵣ v31) ** bytesRegion srcPtr data **
+     bytesRegion arenaPtr arenaBytes ** (cellPtr ↦ₘ cellOld)) (by pcFree) hdisp
+  have hlad := rebLadder (BitVec.ofNat 64 n) (56 : Word) v29
+    (by rw [hlenN]; exact hn56)
+  have hladF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ srcPtr) **
+     ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+     bytesRegion srcPtr data ** bytesRegion arenaPtr arenaBytes **
+     (cellPtr ↦ₘ cellOld)) (by pcFree) hlad
+  have f1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    hproF hdispF
+  have f2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    f1 hladF
+  have hmid := cpsTripleWithin_of_forall_regIs_to_regOwn (fun w29 =>
+    reb_long_mid_arena srcPtr arenaPtr cellPtr raVal cellOld w29 v30 v31
+      data arenaBytes off n hn64 (by omega) hbase_align (by omega)
+      (fun k hk => hvalid k (by omega)))
+  have c1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    f2 hmid
+  have hdst_len :
+      (writeShift (arenaBytes.set off (BitVec.ofNat 8 (183 + bc)))
+        (off + 1) n bc).length = arenaBytes.length := by
+    rw [writeShift_length, List.length_set]
+  have htl := cpsTripleWithin_of_forall_regIs_to_regOwn (fun w30 =>
+    reb_long_tail2_arena srcPtr arenaPtr cellPtr raVal cellOld w30 data
+      (writeShift (arenaBytes.set off (BitVec.ofNat 8 (183 + bc)))
+        (off + 1) n bc) off n bc hn hn64
+      (by rw [hdst_len]; omega) hsalign hbase_align hsover (by omega) hsvalid
+      (fun k hk => by
+        have := hvalid ((1 + bc) + k) (by omega)
+        simpa [Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using this))
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    c1 htl
+  refine cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_) c2)
+  · unfold rebAbiArenaPre at hp
+    xperm_hyp hp
+  · unfold rebAbiArenaPost
+    rw [← hregion, hlen, hn]
+    rw [long_cell_word bc n,
+      show bc + 1 + n = (1 + bc) + n by omega] at hp
+    refine scratch7_arena (0 : Word) (BitVec.ofNat 64 n)
+      (arenaPtr + BitVec.ofNat 64 off) arenaPtr cellPtr raVal
+      (BitVec.ofNat 64 ((1 + bc) + n)) srcPtr data
+      (copyN (writeShift (arenaBytes.set off (BitVec.ofNat 8 (183 + bc)))
+        (off + 1) n bc) data (off + 1 + bc) 0 n)
+      ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n))
+      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n)
+      ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 (off + 1 + bc + n)))
+      ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 bc)
+      ((.x29 : Reg) ↦ᵣ (0 : Word))
+      ((.x30 : Reg) ↦ᵣ BitVec.ofNat 64 ((1 + bc) + n))
+      (regOwn .x31)
+      (regIs_implies_regOwn .x5) (regIs_implies_regOwn .x6)
+      (regIs_implies_regOwn .x7) (regIs_implies_regOwn .x28)
+      (regIs_implies_regOwn .x29) (regIs_implies_regOwn .x30)
+      (fun _ x => x) h ?_
+    have hptr : off + (1 + bc) = off + 1 + bc := by omega
+    rw [hptr] at hp
+    xperm_hyp hp

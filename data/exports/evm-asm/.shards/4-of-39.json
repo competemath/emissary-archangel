@@ -1,0 +1,25 @@
+{
+  "shard": 4,
+  "shards": 39,
+  "commit": "7e65e4d024718f704226cd795f3d03d4e9aafe13",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "modules": 65,
+  "exported": 65,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 2516,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "tools": {
+    "lean": "4.33.0 (commit d8b18978322de05a8f3dba51ef03cf5461676c17, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+d8b1897",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "minutes": 15,
+  "finishedAt": "2026-11-07T02:30:21.112Z"
+}

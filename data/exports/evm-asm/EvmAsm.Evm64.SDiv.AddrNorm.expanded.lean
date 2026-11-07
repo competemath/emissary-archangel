@@ -1,0 +1,155 @@
+/-
+  EvmAsm.Evm64.SDiv.AddrNorm
+
+  Address-normalization simp set for SDIV composition proofs.
+
+  The base `signExtend12` literals live in `Rv64.AddrNorm`; this module
+  re-tags the SDIV stack-slot subset and records the composed address
+  equalities that recur in the SDIV bridge layer.
+-/
+
+module
+
+public import EvmAsm.Rv64.AddrNorm
+public import EvmAsm.Evm64.SDiv.AddrNormAttr
+public import EvmAsm.Evm64.SDiv.Program
+meta import EvmAsm.Rv64.AddrNorm
+meta import EvmAsm.Evm64.SDiv.AddrNormAttr
+meta import EvmAsm.Evm64.SDiv.Program
+
+
+-- @@ L20-20 verbatim
+public section
+
+
+-- @@ L22-22 verbatim
+namespace EvmAsm.Evm64.SDiv.AddrNorm
+
+
+-- @@ L24-32 verbatim
+attribute [sdiv_addr]
+  EvmAsm.Rv64.AddrNorm.se12_0
+  EvmAsm.Rv64.AddrNorm.se12_8
+  EvmAsm.Rv64.AddrNorm.se12_16
+  EvmAsm.Rv64.AddrNorm.se12_24
+  EvmAsm.Rv64.AddrNorm.se12_32
+  EvmAsm.Rv64.AddrNorm.se12_40
+  EvmAsm.Rv64.AddrNorm.se12_48
+  EvmAsm.Rv64.AddrNorm.se12_56
+
+
+-- @@ L34-37 verbatim
+@[sdiv_addr, grind =] theorem stackSlot0 (sp : Word) :
+    (sp + EvmAsm.Rv64.signExtend12 (0 : BitVec 12) : Word) = sp := by
+  rw [EvmAsm.Rv64.AddrNorm.se12_0]
+  simp
+
+
+-- @@ L39-41 verbatim
+@[sdiv_addr, grind =] theorem stackSlot8 (sp : Word) :
+    (sp + EvmAsm.Rv64.signExtend12 (8 : BitVec 12) : Word) = sp + 8 := by
+  rw [EvmAsm.Rv64.AddrNorm.se12_8]
+
+
+-- @@ L43-45 verbatim
+@[sdiv_addr, grind =] theorem stackSlot16 (sp : Word) :
+    (sp + EvmAsm.Rv64.signExtend12 (16 : BitVec 12) : Word) = sp + 16 := by
+  rw [EvmAsm.Rv64.AddrNorm.se12_16]
+
+
+-- @@ L47-49 verbatim
+@[sdiv_addr, grind =] theorem stackSlot24 (sp : Word) :
+    (sp + EvmAsm.Rv64.signExtend12 (24 : BitVec 12) : Word) = sp + 24 := by
+  rw [EvmAsm.Rv64.AddrNorm.se12_24]
+
+
+-- @@ L51-53 verbatim
+@[sdiv_addr, grind =] theorem stackSlot32 (sp : Word) :
+    (sp + EvmAsm.Rv64.signExtend12 (32 : BitVec 12) : Word) = sp + 32 := by
+  rw [EvmAsm.Rv64.AddrNorm.se12_32]
+
+
+-- @@ L55-57 verbatim
+@[sdiv_addr, grind =] theorem stackSlot40 (sp : Word) :
+    (sp + EvmAsm.Rv64.signExtend12 (40 : BitVec 12) : Word) = sp + 40 := by
+  rw [EvmAsm.Rv64.AddrNorm.se12_40]
+
+
+-- @@ L59-61 verbatim
+@[sdiv_addr, grind =] theorem stackSlot48 (sp : Word) :
+    (sp + EvmAsm.Rv64.signExtend12 (48 : BitVec 12) : Word) = sp + 48 := by
+  rw [EvmAsm.Rv64.AddrNorm.se12_48]
+
+
+-- @@ L63-65 verbatim
+@[sdiv_addr, grind =] theorem stackSlot56 (sp : Word) :
+    (sp + EvmAsm.Rv64.signExtend12 (56 : BitVec 12) : Word) = sp + 56 := by
+  rw [EvmAsm.Rv64.AddrNorm.se12_56]
+
+
+-- @@ L67-69 verbatim
+@[sdiv_addr, grind =] theorem divisorBaseSlot0 (sp : Word) :
+    (sp + EvmAsm.Rv64.signExtend12 (32 : BitVec 12) : Word) = sp + 32 := by
+  exact stackSlot32 sp
+
+
+-- @@ L71-74 verbatim
+@[sdiv_addr, grind =] theorem divisorBaseSlot8 (sp : Word) :
+    (sp + EvmAsm.Rv64.signExtend12 (40 : BitVec 12) : Word) = (sp + 32) + 8 := by
+  rw [EvmAsm.Rv64.AddrNorm.se12_40]
+  bv_omega
+
+
+-- @@ L76-79 verbatim
+@[sdiv_addr, grind =] theorem divisorBaseSlot16 (sp : Word) :
+    (sp + EvmAsm.Rv64.signExtend12 (48 : BitVec 12) : Word) = (sp + 32) + 16 := by
+  rw [EvmAsm.Rv64.AddrNorm.se12_48]
+  bv_omega
+
+
+-- @@ L81-84 verbatim
+@[sdiv_addr, grind =] theorem divisorBaseSlot24 (sp : Word) :
+    (sp + EvmAsm.Rv64.signExtend12 (56 : BitVec 12) : Word) = (sp + 32) + 24 := by
+  rw [EvmAsm.Rv64.AddrNorm.se12_56]
+  bv_omega
+
+
+-- @@ L86-90 verbatim
+@[sdiv_addr, grind =] theorem dividendTopSlot (sp : Word) :
+    (sp + EvmAsm.Rv64.signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff : Word) =
+      sp + 24 := by
+  unfold EvmAsm.Evm64.evm_sdivDividendTopLimbOff
+  exact stackSlot24 sp
+
+
+-- @@ L92-99 verbatim
+@[sdiv_addr, grind =] theorem divisorTopSlot (sp : Word) :
+    (sp + EvmAsm.Rv64.signExtend12 EvmAsm.Evm64.evm_sdivDivisorTopLimbOff : Word) =
+      sp + 56 := by
+  unfold EvmAsm.Evm64.evm_sdivDivisorTopLimbOff
+  exact stackSlot56 sp
+
+-- The variable-head LHS is deliberate: this is the `sdiv_addr` set's start-of-
+-- program normalization anchor, so the (v4.31+) varHead lint is expected here.
+
+-- @@ L100-105 verbatim
+set_option warning.simp.varHead false in
+/-- The wrapper starts at the enclosing SDIV program base. -/
+@[sdiv_addr]
+theorem wrapperStart_addr (base : Word) :
+    base = base + BitVec.ofNat 64 (4 * 0) := by
+  bv_omega
+
+
+-- @@ L107-113 verbatim
+/-- The appended unsigned DIV callable starts after the 71-instruction wrapper,
+    at byte offset 284 from the enclosing SDIV program base. -/
+@[sdiv_addr]
+theorem divCallableStart_addr (base : Word) :
+    base + (284 : Word) =
+      base + BitVec.ofNat 64 (4 * 71) := by
+  bv_omega
+
+
+-- @@ L115-115 verbatim
+end EvmAsm.Evm64.SDiv.AddrNorm

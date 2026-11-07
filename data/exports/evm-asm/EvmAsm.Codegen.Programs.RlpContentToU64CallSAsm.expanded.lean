@@ -1,0 +1,89 @@
+import EvmAsm.Codegen.Programs.RlpFieldToU64SAsm
+import EvmAsm.Rv64.RLP.ContentToU64
+import EvmAsm.EL.RLP.Scalar
+
+
+-- @@ L5-5 verbatim
+namespace EvmAsm.Codegen
+
+
+-- @@ L7-7 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
+
+-- @@ L8-8 verbatim
+open EvmAsm.EL.RLP
+
+
+-- @@ L10-10 verbatim
+namespace RlpContentToU64CallSAsm
+
+
+-- @@ L12-12 verbatim
+abbrev B : Word := (GuestAddrs.rlp_content_to_u64 : Word)
+
+
+-- @@ L14-14 verbatim
+/-! Flat caller framing for the lenient content-to-u64 leaf. -/
+
+
+-- @@ L16-23 verbatim
+def flatPre
+    (srcBase : Word) (srcOff len : Nat)
+    (t0Old x6Old t2Old t3Old : Word)
+    (srcBytes : List (BitVec 8)) : Assertion :=
+  ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+   (.x11 ↦ᵣ BitVec.ofNat 64 len) ** (.x5 ↦ᵣ t0Old) **
+   (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+   (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes)
+
+
+-- @@ L25-35 verbatim
+def flatPost
+    (srcBase : Word) (srcOff len : Nat)
+    (srcBytes : List (BitVec 8)) : Assertion :=
+  ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** (.x0 ↦ᵣ (0 : Word)) **
+    bytesRegion srcBase srcBytes) **
+   (fun h =>
+     (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
+     (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
+     (((.x10 ↦ᵣ (BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len)))) **
+        (.x11 ↦ᵣ (0 : Word)) **
+        ⌜0 < len ∧ len ≤ 8⌝) h)))
+
+
+
+-- @@ L38-63 verbatim
+theorem rlpContentToU64_call_spec_within
+    (base srcBase raVal : Word) (t0Old x6Old t2Old t3Old : Word)
+    (srcBytes : List (BitVec 8)) (srcOff len : Nat)
+    (A : Assertion) (hA : A.pcFree)
+    (hlen64 : len < 2 ^ 64)
+    (hsalign : srcBase.toNat % 8 = 0)
+    (hslen : srcOff + len ≤ srcBytes.length)
+    (hsover : srcBase.toNat + (srcOff + len) ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + k)) = true) :
+    cpsTripleWithin (7 * len + 9) base (raVal &&& ~~~1)
+      (rlp_content_to_u64_code base)
+      ((.x1 ↦ᵣ raVal) ** flatPre srcBase srcOff len t0Old x6Old t2Old t3Old srcBytes ** A)
+      ((.x1 ↦ᵣ raVal) ** flatPost srcBase srcOff len srcBytes ** A) := by
+  have hc := rlp_content_to_u64_spec_within base srcBase raVal t0Old x6Old t2Old t3Old
+    srcBytes srcOff len hlen64 hsalign hslen hsover hsvalid
+  have hcf := cpsTripleWithin_frameR A hA hc
+  refine cpsTripleWithin_weaken
+    (P' := ((.x1 ↦ᵣ raVal) **
+      flatPre srcBase srcOff len t0Old x6Old t2Old t3Old srcBytes ** A))
+    (Q' := ((.x1 ↦ᵣ raVal) ** flatPost srcBase srcOff len srcBytes ** A))
+    (fun h hp => ?_) (fun h hp => ?_) hcf
+  · unfold flatPre at hp
+    xperm_hyp hp
+  · unfold flatPost
+    xperm_hyp hp
+
+
+
+-- @@ L66-66 verbatim
+end RlpContentToU64CallSAsm
+
+-- @@ L67-67 verbatim
+end EvmAsm.Codegen

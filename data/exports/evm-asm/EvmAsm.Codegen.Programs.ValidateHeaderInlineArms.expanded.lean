@@ -1,0 +1,1836 @@
+/-
+  EvmAsm.Codegen.Programs.ValidateHeaderInlineArms
+
+  Inline scalar-comparison arms of SpecRef-shaped `validate_header` (#12346):
+  conjuncts 1, 3, 5, 6.  No callee triple — each reject arm is proved against
+  the linked exit (relative to `H`), carrying DISTINCT statuses 1 / 3 / 5 / 6.
+
+  Reuses `H` / `callerCode` / `validateHeader_length` from
+  `ValidateHeaderCorrespondence` — do not invent a second entry contract.
+
+  Absolute PCs move with the link; proofs use `H + offset` only.
+-/
+
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasArms
+import EvmAsm.Rv64.SAsm.AbiFrameCall
+import EvmAsm.Evm64.CallingConvention
+
+
+-- @@ L19-19 verbatim
+namespace EvmAsm.Codegen.ValidateHeaderInlineArms
+
+
+-- @@ L21-21 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
+
+-- @@ L22-22 verbatim
+open EvmAsm.Codegen.ValidateHeaderCorrespondence
+
+-- @@ L23-27 verbatim
+open EvmAsm.Codegen.ValidateHeaderGasCorrespondence
+  (excessFrame excessSavedFrame excessEntryRest excessCalleePost excessFrameVals
+    ExcessRet ExcessK k70Cr k70Target
+    validate_header_excess_blob_gas_call_spec_within
+    header_validate_excess_blob_gas_under_target_spec_within)
+
+
+-- @@ L29-29 verbatim
+abbrev prog : Program := EvmAsm.Codegen.validateHeader_prog
+
+
+-- @@ L31-31 verbatim
+theorem prog_length : prog.length = 97 := validateHeader_length
+
+
+-- @@ L33-35 verbatim
+/-! ## Shared epilogue at `H + 352` (idx 88–96)
+
+    Same 56-byte ABI-frame restore as `cvitEpilogue`. -/
+
+
+-- @@ L37-121 expanded
+set_option maxRecDepth 8000 in
+theorem vhEpi (sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 : Word)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12)) (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 9 (H + 352) raIn callerCode
+      ((.x2 ↦ᵣ spC) **
+        (.x1 ↦ᵣ o1) **
+          (.x8 ↦ᵣ o8) **
+            (.x9 ↦ᵣ o9) **
+              (.x18 ↦ᵣ o18) **
+                (.x19 ↦ᵣ o19) **
+                  (.x20 ↦ᵣ o20) **
+                    (.x21 ↦ᵣ o21) **
+                      (spC ↦ₘ raIn) **
+                        ((spC + 8) ↦ₘ cs0) **
+                          ((spC + 16) ↦ₘ cs1) **
+                            ((spC + 24) ↦ₘ cs2) **
+                              ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5))
+      ((.x1 ↦ᵣ raIn) **
+        (.x2 ↦ᵣ sp0) **
+          (.x8 ↦ᵣ cs0) **
+            (.x9 ↦ᵣ cs1) **
+              (.x18 ↦ᵣ cs2) **
+                (.x19 ↦ᵣ cs3) **
+                  (.x20 ↦ᵣ cs4) **
+                    (.x21 ↦ᵣ cs5) **
+                      (spC ↦ₘ raIn) **
+                        ((spC + 8) ↦ₘ cs0) **
+                          ((spC + 16) ↦ₘ cs1) **
+                            ((spC + 24) ↦ₘ cs2) **
+                              ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5)) :=
+  by
+  subst hspC
+  have l0 :=
+    ld_spec_gen_within .x1 .x2 (sp0 + signExtend12 (-56 : BitVec 12)) o1 raIn (0 : BitVec 12)
+      (H + 352) (by decide)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show (sp0 + signExtend12 (-56 : BitVec 12)) + (0 : Word) = sp0 + signExtend12 (-56 : BitVec 12)
+      from by bv_omega] at l0
+  have l1 :=
+    ld_spec_gen_within .x8 .x2 (sp0 + signExtend12 (-56 : BitVec 12)) o8 cs0 (8 : BitVec 12)
+      (H + 356) (by decide)
+  rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide] at l1
+  have l2 :=
+    ld_spec_gen_within .x9 .x2 (sp0 + signExtend12 (-56 : BitVec 12)) o9 cs1 (16 : BitVec 12)
+      (H + 360) (by decide)
+  rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide] at l2
+  have l3 :=
+    ld_spec_gen_within .x18 .x2 (sp0 + signExtend12 (-56 : BitVec 12)) o18 cs2 (24 : BitVec 12)
+      (H + 364) (by decide)
+  rw [show signExtend12 (24 : BitVec 12) = (24 : Word) from by decide] at l3
+  have l4 :=
+    ld_spec_gen_within .x19 .x2 (sp0 + signExtend12 (-56 : BitVec 12)) o19 cs3 (32 : BitVec 12)
+      (H + 368) (by decide)
+  rw [show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide] at l4
+  have l5 :=
+    ld_spec_gen_within .x20 .x2 (sp0 + signExtend12 (-56 : BitVec 12)) o20 cs4 (40 : BitVec 12)
+      (H + 372) (by decide)
+  rw [show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide] at l5
+  have l6 :=
+    ld_spec_gen_within .x21 .x2 (sp0 + signExtend12 (-56 : BitVec 12)) o21 cs5 (48 : BitVec 12)
+      (H + 376) (by decide)
+  rw [show signExtend12 (48 : BitVec 12) = (48 : Word) from by decide] at l6
+  have l7 :=
+    addi_spec_gen_same_within .x2 (sp0 + signExtend12 (-56 : BitVec 12)) (56 : BitVec 12) (H + 380)
+      (by decide)
+  rw [show (sp0 + signExtend12 (-56 : BitVec 12)) + signExtend12 (56 : BitVec 12) = sp0 from by
+      rw [show signExtend12 (-56 : BitVec 12) = (-56 : Word) from by decide,
+        show signExtend12 (56 : BitVec 12) = (56 : Word) from by decide];
+      bv_omega] at l7
+  have hblock :
+    cpsTripleWithin 8 (H + 352) (H + 384) callerCode
+      ((.x2 ↦ᵣ (sp0 + signExtend12 (-56 : BitVec 12))) **
+        (.x1 ↦ᵣ o1) **
+          (.x8 ↦ᵣ o8) **
+            (.x9 ↦ᵣ o9) **
+              (.x18 ↦ᵣ o18) **
+                (.x19 ↦ᵣ o19) **
+                  (.x20 ↦ᵣ o20) **
+                    (.x21 ↦ᵣ o21) **
+                      ((sp0 + signExtend12 (-56 : BitVec 12)) ↦ₘ raIn) **
+                        ((sp0 + signExtend12 (-56 : BitVec 12) + 8) ↦ₘ cs0) **
+                          ((sp0 + signExtend12 (-56 : BitVec 12) + 16) ↦ₘ cs1) **
+                            ((sp0 + signExtend12 (-56 : BitVec 12) + 24) ↦ₘ cs2) **
+                              ((sp0 + signExtend12 (-56 : BitVec 12) + 32) ↦ₘ cs3) **
+                                ((sp0 + signExtend12 (-56 : BitVec 12) + 40) ↦ₘ cs4) **
+                                  ((sp0 + signExtend12 (-56 : BitVec 12) + 48) ↦ₘ cs5))
+      ((.x1 ↦ᵣ raIn) **
+        (.x8 ↦ᵣ cs0) **
+          (.x9 ↦ᵣ cs1) **
+            (.x18 ↦ᵣ cs2) **
+              (.x19 ↦ᵣ cs3) **
+                (.x20 ↦ᵣ cs4) **
+                  (.x21 ↦ᵣ cs5) **
+                    (.x2 ↦ᵣ sp0) **
+                      ((sp0 + signExtend12 (-56 : BitVec 12)) ↦ₘ raIn) **
+                        ((sp0 + signExtend12 (-56 : BitVec 12) + 8) ↦ₘ cs0) **
+                          ((sp0 + signExtend12 (-56 : BitVec 12) + 16) ↦ₘ cs1) **
+                            ((sp0 + signExtend12 (-56 : BitVec 12) + 24) ↦ₘ cs2) **
+                              ((sp0 + signExtend12 (-56 : BitVec 12) + 32) ↦ₘ cs3) **
+                                ((sp0 + signExtend12 (-56 : BitVec 12) + 40) ↦ₘ cs4) **
+                                  ((sp0 + signExtend12 (-56 : BitVec 12) + 48) ↦ₘ cs5)) :=
+    by runBlock l0 l1 l2 l3 l4 l5 l6 l7
+  have hjalr := EvmAsm.Evm64.ret_spec_within' (H + 384) raIn
+  rw [hret] at hjalr
+  have hjalrC :=
+    cpsTripleWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 384) prog 96 (.JALR .x0 .x1 (0 : BitVec 12)) (by bv_omega)
+        (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hjalr
+  have hjalrF :=
+    cpsTripleWithin_frameR
+      ((.x8 ↦ᵣ cs0) **
+        (.x9 ↦ᵣ cs1) **
+          (.x18 ↦ᵣ cs2) **
+            (.x19 ↦ᵣ cs3) **
+              (.x20 ↦ᵣ cs4) **
+                (.x21 ↦ᵣ cs5) **
+                  (.x2 ↦ᵣ sp0) **
+                    ((sp0 + signExtend12 (-56 : BitVec 12)) ↦ₘ raIn) **
+                      ((sp0 + signExtend12 (-56 : BitVec 12) + 8) ↦ₘ cs0) **
+                        ((sp0 + signExtend12 (-56 : BitVec 12) + 16) ↦ₘ cs1) **
+                          ((sp0 + signExtend12 (-56 : BitVec 12) + 24) ↦ₘ cs2) **
+                            ((sp0 + signExtend12 (-56 : BitVec 12) + 32) ↦ₘ cs3) **
+                              ((sp0 + signExtend12 (-56 : BitVec 12) + 40) ↦ₘ cs4) **
+                                ((sp0 + signExtend12 (-56 : BitVec 12) + 48) ↦ₘ cs5))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hjalrC
+  have hall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hblock hjalrF
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hall
+
+
+-- @@ L123-126 verbatim
+/-! ## Conjunct 1 status exit — `li a0, 1` @ `H+260` → `j` → epilogue
+
+    Building block for the `number < 1` reject arm. Post carries **`a0 = 1`**.
+    Pattern mirrors `cvpmfRetNonce` / `hfStatus1Return` (LI+JAL block then epi). -/
+
+
+-- @@ L128-194 expanded
+set_option maxRecDepth 8000 in
+theorem status1Exit (sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o10 o1 o8 o9 o18 o19 o20 o21 : Word)
+    (G : Assertion) (hG : G.pcFree) (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 11 (H + 260) raIn callerCode
+      ((.x10 ↦ᵣ o10) **
+        (.x2 ↦ᵣ spC) **
+          (.x1 ↦ᵣ o1) **
+            (.x8 ↦ᵣ o8) **
+              (.x9 ↦ᵣ o9) **
+                (.x18 ↦ᵣ o18) **
+                  (.x19 ↦ᵣ o19) **
+                    (.x20 ↦ᵣ o20) **
+                      (.x21 ↦ᵣ o21) **
+                        (spC ↦ₘ raIn) **
+                          ((spC + 8) ↦ₘ cs0) **
+                            ((spC + 16) ↦ₘ cs1) **
+                              ((spC + 24) ↦ₘ cs2) **
+                                ((spC + 32) ↦ₘ cs3) **
+                                  ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      ((.x10 ↦ᵣ (1 : Word)) **
+        (.x1 ↦ᵣ raIn) **
+          (.x2 ↦ᵣ sp0) **
+            (.x8 ↦ᵣ cs0) **
+              (.x9 ↦ᵣ cs1) **
+                (.x18 ↦ᵣ cs2) **
+                  (.x19 ↦ᵣ cs3) **
+                    (.x20 ↦ᵣ cs4) **
+                      (.x21 ↦ᵣ cs5) **
+                        (spC ↦ₘ raIn) **
+                          ((spC + 8) ↦ₘ cs0) **
+                            ((spC + 16) ↦ₘ cs1) **
+                              ((spC + 24) ↦ₘ cs2) **
+                                ((spC + 32) ↦ₘ cs3) **
+                                  ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G) :=
+  by
+  have s0 := li_spec_gen_within .x10 o10 (1 : Word) (H + 260) (by decide)
+  have s1 :=
+    jal_x0_spec_gen_within
+      (jalOff (GuestAddrs.validate_header + 352) (GuestAddrs.validate_header + 264)) (H + 264)
+  rw [show
+      (H + 264) +
+          signExtend21
+            (jalOff (GuestAddrs.validate_header + 352) (GuestAddrs.validate_header + 264)) =
+        H + 352
+      from
+      by
+      change
+        BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 264 + _ =
+          BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 352
+      have hL :
+        BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 264 =
+          BitVec.ofNat 64 (GuestAddrs.validate_header + 264) :=
+        by
+        apply BitVec.eq_of_toNat_eq; simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+        have := (by decide : GuestAddrs.validate_header + 264 < 2 ^ 64); omega
+      have hR :
+        BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 352 =
+          BitVec.ofNat 64 (GuestAddrs.validate_header + 352) :=
+        by
+        apply BitVec.eq_of_toNat_eq; simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+        have := (by decide : GuestAddrs.validate_header + 352 < 2 ^ 64); omega
+      rw [hL, hR]
+      exact
+        jalOff_correct (GuestAddrs.validate_header + 352) (GuestAddrs.validate_header + 264)
+          (by decide)] at s1
+  have hblock :
+    cpsTripleWithin 2 (H + 260) (H + 352) callerCode ((.x10 ↦ᵣ o10)) ((.x10 ↦ᵣ (1 : Word))) :=
+    by
+    have s0C :=
+      cpsTripleWithin_extend_code
+        (CodeReq.ofProg_mem_at H (H + 260) prog 65 (.LI .x10 (1 : Word)) (by bv_omega)
+          (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+        s0
+    have s1C :=
+      cpsTripleWithin_extend_code
+        (CodeReq.ofProg_mem_at H (H + 264) prog 66
+          (.JAL .x0 (jalOff (GuestAddrs.validate_header + 352) (GuestAddrs.validate_header + 264)))
+          (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+        s1
+    runBlock s0C s1C
+  have hblockF :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ spC) **
+        (.x1 ↦ᵣ o1) **
+          (.x8 ↦ᵣ o8) **
+            (.x9 ↦ᵣ o9) **
+              (.x18 ↦ᵣ o18) **
+                (.x19 ↦ᵣ o19) **
+                  (.x20 ↦ᵣ o20) **
+                    (.x21 ↦ᵣ o21) **
+                      (spC ↦ₘ raIn) **
+                        ((spC + 8) ↦ₘ cs0) **
+                          ((spC + 16) ↦ₘ cs1) **
+                            ((spC + 24) ↦ₘ cs2) **
+                              ((spC + 32) ↦ₘ cs3) **
+                                ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      (by
+        repeat'
+          first
+          | exact hG
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_memIs)
+      hblock
+  have hepi := vhEpi sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 hspC hret
+  have hepiF :=
+    cpsTripleWithin_frameR ((.x10 ↦ᵣ (1 : Word)) ** G)
+      (by refine pcFree_sepConj ?_ hG;
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hepi
+  have hall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hblockF hepiF
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hall
+
+
+-- @@ L196-199 verbatim
+/-! ## Conjunct 1 — `number < 1` (beqz) → status 1
+
+    `LD x5, 64(s2)` @ `H+56`, then `BEQ x5, x0` @ `H+60` taken → `status1Exit`.
+    No `< 2^64` gate: the check is pure zero-test. -/
+
+
+-- @@ L201-202 verbatim
+abbrev numberZeroBrOff : BitVec 13 :=
+  brOff (GuestAddrs.validate_header + 260) (GuestAddrs.validate_header + 60)
+
+
+-- @@ L204-211 verbatim
+theorem numberZeroBeq_taken_pc :
+    (H + 60) + signExtend13 numberZeroBrOff = H + 260 := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 60 +
+      signExtend13 (brOff (GuestAddrs.validate_header + 260)
+        (GuestAddrs.validate_header + 60)) =
+    BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 260
+  exact brOff_correct_base_off GuestAddrs.validate_header 60 260
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+
+-- @@ L213-227 verbatim
+theorem numberZeroBeq_taken (number : Word) (hnum : number = 0) :
+    cpsTripleWithin 1 (H + 60) (H + 260) callerCode
+      ((.x5 ↦ᵣ number) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x5 ↦ᵣ number) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbeq := beq_spec_gen_within .x5 .x0 numberZeroBrOff number (0 : Word) (H + 60)
+  rw [numberZeroBeq_taken_pc] at hbeq
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 60) prog 15
+        (.BEQ .x5 .x0 numberZeroBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbeq)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact ((sepConj_pure_right _).1 hBP).2 hnum)
+
+
+-- @@ L229-244 verbatim
+/-- Fall-through when `number ≠ 0` (vacuous for the reject arm). -/
+theorem numberZeroBeq_ntaken (number : Word) (hnum : number ≠ 0) :
+    cpsTripleWithin 1 (H + 60) (H + 64) callerCode
+      ((.x5 ↦ᵣ number) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x5 ↦ᵣ number) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbeq := beq_spec_gen_within .x5 .x0 numberZeroBrOff number (0 : Word) (H + 60)
+  rw [show (H + 60 : Word) + 4 = H + 64 from by bv_omega] at hbeq
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 60) prog 15
+        (.BEQ .x5 .x0 numberZeroBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbeq)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact hnum ((sepConj_pure_right _).1 hBP).2)
+
+
+-- @@ L246-256 verbatim
+theorem ldNumber (headerBase o5 number : Word) :
+    cpsTripleWithin 1 (H + 56) (H + 60) callerCode
+      ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ o5) ** ((headerBase + 64) ↦ₘ number))
+      ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ number) ** ((headerBase + 64) ↦ₘ number)) := by
+  have h := ld_spec_gen_within .x5 .x18 headerBase o5 number (64 : BitVec 12) (H + 56)
+    (by decide)
+  rw [show signExtend12 (64 : BitVec 12) = (64 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 56) prog 14 (.LD .x5 .x18 (64 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+    h
+
+
+-- @@ L258-315 verbatim
+set_option maxRecDepth 8000 in
+theorem numberLt1_reject
+    (sp0 spC raIn headerBase number
+      cs0 cs1 cs2 cs3 cs4 cs5 o10 o5 o1 o8 o9 o19 o20 o21 : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (hnum : number = 0) :
+    cpsTripleWithin 13 (H + 56) raIn callerCode
+      ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ o5) ** ((headerBase + 64) ↦ₘ number) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+        (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) **
+        (.x21 ↦ᵣ o21) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      ((.x10 ↦ᵣ (1 : Word)) ** (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) **
+        (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) **
+        (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
+        (.x5 ↦ᵣ number) ** (.x0 ↦ᵣ (0 : Word)) **
+        ((headerBase + 64) ↦ₘ number) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G) := by
+  -- Live `x18 = headerBase` for the LD; epilogue restores `x18` from `cs2`.
+  -- Ambient framed over `status1Exit` must omit regs the epi clobbers.
+  have hld := ldNumber headerBase o5 number
+  have hldF := cpsTripleWithin_frameR
+    ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+      (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) **
+      (.x21 ↦ᵣ o21) **
+      (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+      ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) hld
+  have hb := numberZeroBeq_taken number hnum
+  have hbF := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ headerBase) ** ((headerBase + 64) ↦ₘ number) **
+      (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+      (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) **
+      (.x21 ↦ᵣ o21) **
+      (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+      ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) hb
+  have hex := status1Exit sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5
+    o10 o1 o8 o9 headerBase o19 o20 o21
+    ((.x5 ↦ᵣ number) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((headerBase + 64) ↦ₘ number) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs)
+    hspC hret
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hldF hbF
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 hex
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) s2
+
+
+
+-- @@ L318-318 verbatim
+/-! ## Status 3 exit — `li a0, 3` @ `H+276` → `j` → epilogue -/
+
+
+-- @@ L320-386 expanded
+set_option maxRecDepth 8000 in
+theorem status3Exit (sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o10 o1 o8 o9 o18 o19 o20 o21 : Word)
+    (G : Assertion) (hG : G.pcFree) (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 11 (H + 276) raIn callerCode
+      ((.x10 ↦ᵣ o10) **
+        (.x2 ↦ᵣ spC) **
+          (.x1 ↦ᵣ o1) **
+            (.x8 ↦ᵣ o8) **
+              (.x9 ↦ᵣ o9) **
+                (.x18 ↦ᵣ o18) **
+                  (.x19 ↦ᵣ o19) **
+                    (.x20 ↦ᵣ o20) **
+                      (.x21 ↦ᵣ o21) **
+                        (spC ↦ₘ raIn) **
+                          ((spC + 8) ↦ₘ cs0) **
+                            ((spC + 16) ↦ₘ cs1) **
+                              ((spC + 24) ↦ₘ cs2) **
+                                ((spC + 32) ↦ₘ cs3) **
+                                  ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      ((.x10 ↦ᵣ (3 : Word)) **
+        (.x1 ↦ᵣ raIn) **
+          (.x2 ↦ᵣ sp0) **
+            (.x8 ↦ᵣ cs0) **
+              (.x9 ↦ᵣ cs1) **
+                (.x18 ↦ᵣ cs2) **
+                  (.x19 ↦ᵣ cs3) **
+                    (.x20 ↦ᵣ cs4) **
+                      (.x21 ↦ᵣ cs5) **
+                        (spC ↦ₘ raIn) **
+                          ((spC + 8) ↦ₘ cs0) **
+                            ((spC + 16) ↦ₘ cs1) **
+                              ((spC + 24) ↦ₘ cs2) **
+                                ((spC + 32) ↦ₘ cs3) **
+                                  ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G) :=
+  by
+  have s0 := li_spec_gen_within .x10 o10 (3 : Word) (H + 276) (by decide)
+  have s1 :=
+    jal_x0_spec_gen_within
+      (jalOff (GuestAddrs.validate_header + 352) (GuestAddrs.validate_header + 280)) (H + 280)
+  rw [show
+      (H + 280) +
+          signExtend21
+            (jalOff (GuestAddrs.validate_header + 352) (GuestAddrs.validate_header + 280)) =
+        H + 352
+      from
+      by
+      change
+        BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 280 + _ =
+          BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 352
+      have hL :
+        BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 280 =
+          BitVec.ofNat 64 (GuestAddrs.validate_header + 280) :=
+        by
+        apply BitVec.eq_of_toNat_eq; simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+        have := (by decide : GuestAddrs.validate_header + 280 < 2 ^ 64); omega
+      have hR :
+        BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 352 =
+          BitVec.ofNat 64 (GuestAddrs.validate_header + 352) :=
+        by
+        apply BitVec.eq_of_toNat_eq; simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+        have := (by decide : GuestAddrs.validate_header + 352 < 2 ^ 64); omega
+      rw [hL, hR]
+      exact
+        jalOff_correct (GuestAddrs.validate_header + 352) (GuestAddrs.validate_header + 280)
+          (by decide)] at s1
+  have hblock :
+    cpsTripleWithin 2 (H + 276) (H + 352) callerCode ((.x10 ↦ᵣ o10)) ((.x10 ↦ᵣ (3 : Word))) :=
+    by
+    have s0C :=
+      cpsTripleWithin_extend_code
+        (CodeReq.ofProg_mem_at H (H + 276) prog 69 (.LI .x10 (3 : Word)) (by bv_omega)
+          (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+        s0
+    have s1C :=
+      cpsTripleWithin_extend_code
+        (CodeReq.ofProg_mem_at H (H + 280) prog 70
+          (.JAL .x0 (jalOff (GuestAddrs.validate_header + 352) (GuestAddrs.validate_header + 280)))
+          (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+        s1
+    runBlock s0C s1C
+  have hblockF :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ spC) **
+        (.x1 ↦ᵣ o1) **
+          (.x8 ↦ᵣ o8) **
+            (.x9 ↦ᵣ o9) **
+              (.x18 ↦ᵣ o18) **
+                (.x19 ↦ᵣ o19) **
+                  (.x20 ↦ᵣ o20) **
+                    (.x21 ↦ᵣ o21) **
+                      (spC ↦ₘ raIn) **
+                        ((spC + 8) ↦ₘ cs0) **
+                          ((spC + 16) ↦ₘ cs1) **
+                            ((spC + 24) ↦ₘ cs2) **
+                              ((spC + 32) ↦ₘ cs3) **
+                                ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      (by
+        repeat'
+          first
+          | exact hG
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_memIs)
+      hblock
+  have hepi := vhEpi sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 hspC hret
+  have hepiF :=
+    cpsTripleWithin_frameR ((.x10 ↦ᵣ (3 : Word)) ** G)
+      (by refine pcFree_sepConj ?_ hG;
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hepi
+  have hall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hblockF hepiF
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hall
+
+
+-- @@ L389-389 verbatim
+/-! ## Status 5 exit — `li a0, 5` @ `H+292` → `j` → epilogue -/
+
+
+-- @@ L391-441 expanded
+set_option maxRecDepth 8000 in
+theorem status5Exit (sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o10 o1 o8 o9 o18 o19 o20 o21 : Word)
+    (G : Assertion) (hG : G.pcFree) (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 11 (H + 292) raIn callerCode
+      ((.x10 ↦ᵣ o10) **
+        (.x2 ↦ᵣ spC) **
+          (.x1 ↦ᵣ o1) **
+            (.x8 ↦ᵣ o8) **
+              (.x9 ↦ᵣ o9) **
+                (.x18 ↦ᵣ o18) **
+                  (.x19 ↦ᵣ o19) **
+                    (.x20 ↦ᵣ o20) **
+                      (.x21 ↦ᵣ o21) **
+                        (spC ↦ₘ raIn) **
+                          ((spC + 8) ↦ₘ cs0) **
+                            ((spC + 16) ↦ₘ cs1) **
+                              ((spC + 24) ↦ₘ cs2) **
+                                ((spC + 32) ↦ₘ cs3) **
+                                  ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      ((.x10 ↦ᵣ (5 : Word)) **
+        (.x1 ↦ᵣ raIn) **
+          (.x2 ↦ᵣ sp0) **
+            (.x8 ↦ᵣ cs0) **
+              (.x9 ↦ᵣ cs1) **
+                (.x18 ↦ᵣ cs2) **
+                  (.x19 ↦ᵣ cs3) **
+                    (.x20 ↦ᵣ cs4) **
+                      (.x21 ↦ᵣ cs5) **
+                        (spC ↦ₘ raIn) **
+                          ((spC + 8) ↦ₘ cs0) **
+                            ((spC + 16) ↦ₘ cs1) **
+                              ((spC + 24) ↦ₘ cs2) **
+                                ((spC + 32) ↦ₘ cs3) **
+                                  ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G) :=
+  by
+  have s0 := li_spec_gen_within .x10 o10 (5 : Word) (H + 292) (by decide)
+  have s1 := jal_x0_spec_gen_within (56 : BitVec 21) (H + 296)
+  rw [show (H + 296) + signExtend21 (56 : BitVec 21) = H + 352 from
+      by
+      rw [show signExtend21 (56 : BitVec 21) = (56 : Word) from by decide]
+      bv_omega] at s1
+  have hblock :
+    cpsTripleWithin 2 (H + 292) (H + 352) callerCode ((.x10 ↦ᵣ o10)) ((.x10 ↦ᵣ (5 : Word))) :=
+    by
+    have s0C :=
+      cpsTripleWithin_extend_code
+        (CodeReq.ofProg_mem_at H (H + 292) prog 73 (.LI .x10 (5 : Word)) (by bv_omega)
+          (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+        s0
+    have s1C :=
+      cpsTripleWithin_extend_code
+        (CodeReq.ofProg_mem_at H (H + 296) prog 74 (.JAL .x0 (56 : BitVec 21)) (by bv_omega)
+          (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+        s1
+    runBlock s0C s1C
+  have hblockF :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ spC) **
+        (.x1 ↦ᵣ o1) **
+          (.x8 ↦ᵣ o8) **
+            (.x9 ↦ᵣ o9) **
+              (.x18 ↦ᵣ o18) **
+                (.x19 ↦ᵣ o19) **
+                  (.x20 ↦ᵣ o20) **
+                    (.x21 ↦ᵣ o21) **
+                      (spC ↦ₘ raIn) **
+                        ((spC + 8) ↦ₘ cs0) **
+                          ((spC + 16) ↦ₘ cs1) **
+                            ((spC + 24) ↦ₘ cs2) **
+                              ((spC + 32) ↦ₘ cs3) **
+                                ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      (by
+        repeat'
+          first
+          | exact hG
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_memIs)
+      hblock
+  have hepi := vhEpi sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 hspC hret
+  have hepiF :=
+    cpsTripleWithin_frameR ((.x10 ↦ᵣ (5 : Word)) ** G)
+      (by refine pcFree_sepConj ?_ hG;
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hepi
+  have hall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hblockF hepiF
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hall
+
+
+-- @@ L444-444 verbatim
+/-! ## Status 6 exit — `li a0, 6` @ `H+300` → `j` → epilogue -/
+
+
+-- @@ L446-496 expanded
+set_option maxRecDepth 8000 in
+theorem status6Exit (sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o10 o1 o8 o9 o18 o19 o20 o21 : Word)
+    (G : Assertion) (hG : G.pcFree) (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 11 (H + 300) raIn callerCode
+      ((.x10 ↦ᵣ o10) **
+        (.x2 ↦ᵣ spC) **
+          (.x1 ↦ᵣ o1) **
+            (.x8 ↦ᵣ o8) **
+              (.x9 ↦ᵣ o9) **
+                (.x18 ↦ᵣ o18) **
+                  (.x19 ↦ᵣ o19) **
+                    (.x20 ↦ᵣ o20) **
+                      (.x21 ↦ᵣ o21) **
+                        (spC ↦ₘ raIn) **
+                          ((spC + 8) ↦ₘ cs0) **
+                            ((spC + 16) ↦ₘ cs1) **
+                              ((spC + 24) ↦ₘ cs2) **
+                                ((spC + 32) ↦ₘ cs3) **
+                                  ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      ((.x10 ↦ᵣ (6 : Word)) **
+        (.x1 ↦ᵣ raIn) **
+          (.x2 ↦ᵣ sp0) **
+            (.x8 ↦ᵣ cs0) **
+              (.x9 ↦ᵣ cs1) **
+                (.x18 ↦ᵣ cs2) **
+                  (.x19 ↦ᵣ cs3) **
+                    (.x20 ↦ᵣ cs4) **
+                      (.x21 ↦ᵣ cs5) **
+                        (spC ↦ₘ raIn) **
+                          ((spC + 8) ↦ₘ cs0) **
+                            ((spC + 16) ↦ₘ cs1) **
+                              ((spC + 24) ↦ₘ cs2) **
+                                ((spC + 32) ↦ₘ cs3) **
+                                  ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G) :=
+  by
+  have s0 := li_spec_gen_within .x10 o10 (6 : Word) (H + 300) (by decide)
+  have s1 := jal_x0_spec_gen_within (48 : BitVec 21) (H + 304)
+  rw [show (H + 304) + signExtend21 (48 : BitVec 21) = H + 352 from
+      by
+      rw [show signExtend21 (48 : BitVec 21) = (48 : Word) from by decide]
+      bv_omega] at s1
+  have hblock :
+    cpsTripleWithin 2 (H + 300) (H + 352) callerCode ((.x10 ↦ᵣ o10)) ((.x10 ↦ᵣ (6 : Word))) :=
+    by
+    have s0C :=
+      cpsTripleWithin_extend_code
+        (CodeReq.ofProg_mem_at H (H + 300) prog 75 (.LI .x10 (6 : Word)) (by bv_omega)
+          (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+        s0
+    have s1C :=
+      cpsTripleWithin_extend_code
+        (CodeReq.ofProg_mem_at H (H + 304) prog 76 (.JAL .x0 (48 : BitVec 21)) (by bv_omega)
+          (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+        s1
+    runBlock s0C s1C
+  have hblockF :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ spC) **
+        (.x1 ↦ᵣ o1) **
+          (.x8 ↦ᵣ o8) **
+            (.x9 ↦ᵣ o9) **
+              (.x18 ↦ᵣ o18) **
+                (.x19 ↦ᵣ o19) **
+                  (.x20 ↦ᵣ o20) **
+                    (.x21 ↦ᵣ o21) **
+                      (spC ↦ₘ raIn) **
+                        ((spC + 8) ↦ₘ cs0) **
+                          ((spC + 16) ↦ₘ cs1) **
+                            ((spC + 24) ↦ₘ cs2) **
+                              ((spC + 32) ↦ₘ cs3) **
+                                ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      (by
+        repeat'
+          first
+          | exact hG
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_memIs)
+      hblock
+  have hepi := vhEpi sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 hspC hret
+  have hepiF :=
+    cpsTripleWithin_frameR ((.x10 ↦ᵣ (6 : Word)) ** G)
+      (by refine pcFree_sepConj ?_ hG;
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hepi
+  have hall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hblockF hepiF
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hall
+
+
+-- @@ L499-501 verbatim
+/-! ## Conjunct 3 — `gasUsed > gasLimit` (bltu) → status 3
+
+    `LD` used@88 / lim@80, then `BLTU lim, used` @ `H+96` taken → `status3Exit`. -/
+
+
+-- @@ L503-504 verbatim
+abbrev gasUsedExceedsBrOff : BitVec 13 :=
+  brOff (GuestAddrs.validate_header + 276) (GuestAddrs.validate_header + 96)
+
+
+-- @@ L506-513 verbatim
+theorem gasUsedExceeds_taken_pc :
+    (H + 96) + signExtend13 gasUsedExceedsBrOff = H + 276 := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 96 +
+      signExtend13 (brOff (GuestAddrs.validate_header + 276)
+        (GuestAddrs.validate_header + 96)) =
+    BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 276
+  exact brOff_correct_base_off GuestAddrs.validate_header 96 276
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+
+-- @@ L515-530 verbatim
+theorem gasUsedExceeds_taken (gasLimit gasUsed : Word)
+    (h_ult : BitVec.ult gasLimit gasUsed) :
+    cpsTripleWithin 1 (H + 96) (H + 276) callerCode
+      ((.x6 ↦ᵣ gasLimit) ** (.x5 ↦ᵣ gasUsed))
+      ((.x6 ↦ᵣ gasLimit) ** (.x5 ↦ᵣ gasUsed)) := by
+  have hbr := bltu_spec_gen_within .x6 .x5 gasUsedExceedsBrOff gasLimit gasUsed (H + 96)
+  rw [gasUsedExceeds_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 96) prog 24
+        (.BLTU .x6 .x5 gasUsedExceedsBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact ((sepConj_pure_right _).1 hBP).2 h_ult)
+
+
+-- @@ L532-547 verbatim
+theorem gasUsedExceeds_ntaken (gasLimit gasUsed : Word)
+    (h_ok : ¬ BitVec.ult gasLimit gasUsed) :
+    cpsTripleWithin 1 (H + 96) (H + 100) callerCode
+      ((.x6 ↦ᵣ gasLimit) ** (.x5 ↦ᵣ gasUsed))
+      ((.x6 ↦ᵣ gasLimit) ** (.x5 ↦ᵣ gasUsed)) := by
+  have hbr := bltu_spec_gen_within .x6 .x5 gasUsedExceedsBrOff gasLimit gasUsed (H + 96)
+  rw [show (H + 96 : Word) + 4 = H + 100 from by bv_omega] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 96) prog 24
+        (.BLTU .x6 .x5 gasUsedExceedsBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact h_ok ((sepConj_pure_right _).1 hBP).2)
+
+
+-- @@ L549-559 verbatim
+theorem ldGasUsed (headerBase o5 gasUsed : Word) :
+    cpsTripleWithin 1 (H + 88) (H + 92) callerCode
+      ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ o5) ** ((headerBase + 88) ↦ₘ gasUsed))
+      ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ gasUsed) ** ((headerBase + 88) ↦ₘ gasUsed)) := by
+  have h := ld_spec_gen_within .x5 .x18 headerBase o5 gasUsed (88 : BitVec 12) (H + 88)
+    (by decide)
+  rw [show signExtend12 (88 : BitVec 12) = (88 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 88) prog 22 (.LD .x5 .x18 (88 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+    h
+
+
+-- @@ L561-571 verbatim
+theorem ldGasLimit (headerBase o6 gasLimit : Word) :
+    cpsTripleWithin 1 (H + 92) (H + 96) callerCode
+      ((.x18 ↦ᵣ headerBase) ** (.x6 ↦ᵣ o6) ** ((headerBase + 80) ↦ₘ gasLimit))
+      ((.x18 ↦ᵣ headerBase) ** (.x6 ↦ᵣ gasLimit) ** ((headerBase + 80) ↦ₘ gasLimit)) := by
+  have h := ld_spec_gen_within .x6 .x18 headerBase o6 gasLimit (80 : BitVec 12) (H + 92)
+    (by decide)
+  rw [show signExtend12 (80 : BitVec 12) = (80 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 92) prog 23 (.LD .x6 .x18 (80 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+    h
+
+
+-- @@ L573-643 verbatim
+set_option maxRecDepth 8000 in
+theorem gasUsedExceeds_reject
+    (sp0 spC raIn headerBase gasLimit gasUsed
+      cs0 cs1 cs2 cs3 cs4 cs5 o10 o5 o6 o1 o8 o9 o19 o20 o21 : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (h_ult : BitVec.ult gasLimit gasUsed) :
+    cpsTripleWithin 14 (H + 88) raIn callerCode
+      ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ o5) ** (.x6 ↦ᵣ o6) **
+        ((headerBase + 88) ↦ₘ gasUsed) ** ((headerBase + 80) ↦ₘ gasLimit) **
+        (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+        (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) **
+        (.x21 ↦ᵣ o21) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      ((.x10 ↦ᵣ (3 : Word)) ** (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) **
+        (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) **
+        (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
+        (.x5 ↦ᵣ gasUsed) ** (.x6 ↦ᵣ gasLimit) **
+        ((headerBase + 88) ↦ₘ gasUsed) ** ((headerBase + 80) ↦ₘ gasLimit) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G) := by
+  have h0 := ldGasUsed headerBase o5 gasUsed
+  have h0F := cpsTripleWithin_frameR
+    ((.x6 ↦ᵣ o6) ** ((headerBase + 80) ↦ₘ gasLimit) **
+      (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+      (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) **
+      (.x21 ↦ᵣ o21) **
+      (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+      ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) h0
+  have h1 := ldGasLimit headerBase o6 gasLimit
+  have h1F := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ gasUsed) ** ((headerBase + 88) ↦ₘ gasUsed) **
+      (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+      (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) **
+      (.x21 ↦ᵣ o21) **
+      (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+      ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) h1
+  have hb := gasUsedExceeds_taken gasLimit gasUsed h_ult
+  have hbF := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ headerBase) ** ((headerBase + 88) ↦ₘ gasUsed) **
+      ((headerBase + 80) ↦ₘ gasLimit) **
+      (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+      (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) **
+      (.x21 ↦ᵣ o21) **
+      (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+      ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) hb
+  have hex := status3Exit sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5
+    o10 o1 o8 o9 headerBase o19 o20 o21
+    ((.x5 ↦ᵣ gasUsed) ** (.x6 ↦ᵣ gasLimit) **
+      ((headerBase + 88) ↦ₘ gasUsed) ** ((headerBase + 80) ↦ₘ gasLimit) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs)
+    hspC hret
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h0F h1F
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 hbF
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s2 hex
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) s3
+
+
+
+-- @@ L646-649 verbatim
+/-! ## Conjunct 5 — `timestamp ≤ parent` (bgeu) → status 5
+
+    `LD` header@72 / parent@72, then `BGEU parent, header` @ `H+148` taken
+    → `status5Exit`. -/
+
+
+-- @@ L651-652 verbatim
+abbrev timestampNotIncreasingBrOff : BitVec 13 :=
+  brOff (GuestAddrs.validate_header + 292) (GuestAddrs.validate_header + 148)
+
+
+-- @@ L654-661 verbatim
+theorem timestampNotIncreasing_taken_pc :
+    (H + 148) + signExtend13 timestampNotIncreasingBrOff = H + 292 := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 148 +
+      signExtend13 (brOff (GuestAddrs.validate_header + 292)
+        (GuestAddrs.validate_header + 148)) =
+    BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 292
+  exact brOff_correct_base_off GuestAddrs.validate_header 148 292
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+
+-- @@ L663-679 verbatim
+theorem timestampNotIncreasing_taken (parentTs headerTs : Word)
+    (h_ge : ¬ BitVec.ult parentTs headerTs) :
+    cpsTripleWithin 1 (H + 148) (H + 292) callerCode
+      ((.x6 ↦ᵣ parentTs) ** (.x5 ↦ᵣ headerTs))
+      ((.x6 ↦ᵣ parentTs) ** (.x5 ↦ᵣ headerTs)) := by
+  have hbr := bgeu_spec_gen_within .x6 .x5 timestampNotIncreasingBrOff parentTs headerTs
+    (H + 148)
+  rw [timestampNotIncreasing_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 148) prog 37
+        (.BGEU .x6 .x5 timestampNotIncreasingBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact h_ge ((sepConj_pure_right _).1 hBP).2)
+
+
+-- @@ L681-697 verbatim
+theorem timestampNotIncreasing_ntaken (parentTs headerTs : Word)
+    (h_lt : BitVec.ult parentTs headerTs) :
+    cpsTripleWithin 1 (H + 148) (H + 152) callerCode
+      ((.x6 ↦ᵣ parentTs) ** (.x5 ↦ᵣ headerTs))
+      ((.x6 ↦ᵣ parentTs) ** (.x5 ↦ᵣ headerTs)) := by
+  have hbr := bgeu_spec_gen_within .x6 .x5 timestampNotIncreasingBrOff parentTs headerTs
+    (H + 148)
+  rw [show (H + 148 : Word) + 4 = H + 152 from by bv_omega] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 148) prog 37
+        (.BGEU .x6 .x5 timestampNotIncreasingBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact ((sepConj_pure_right _).1 hBP).2 h_lt)
+
+
+-- @@ L699-709 verbatim
+theorem ldHeaderTimestamp (headerBase o5 headerTs : Word) :
+    cpsTripleWithin 1 (H + 140) (H + 144) callerCode
+      ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ o5) ** ((headerBase + 72) ↦ₘ headerTs))
+      ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ headerTs) ** ((headerBase + 72) ↦ₘ headerTs)) := by
+  have h := ld_spec_gen_within .x5 .x18 headerBase o5 headerTs (72 : BitVec 12) (H + 140)
+    (by decide)
+  rw [show signExtend12 (72 : BitVec 12) = (72 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 140) prog 35 (.LD .x5 .x18 (72 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+    h
+
+
+-- @@ L711-721 verbatim
+theorem ldParentTimestamp (parentBase o6 parentTs : Word) :
+    cpsTripleWithin 1 (H + 144) (H + 148) callerCode
+      ((.x19 ↦ᵣ parentBase) ** (.x6 ↦ᵣ o6) ** ((parentBase + 72) ↦ₘ parentTs))
+      ((.x19 ↦ᵣ parentBase) ** (.x6 ↦ᵣ parentTs) ** ((parentBase + 72) ↦ₘ parentTs)) := by
+  have h := ld_spec_gen_within .x6 .x19 parentBase o6 parentTs (72 : BitVec 12) (H + 144)
+    (by decide)
+  rw [show signExtend12 (72 : BitVec 12) = (72 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 144) prog 36 (.LD .x6 .x19 (72 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+    h
+
+
+-- @@ L723-789 verbatim
+set_option maxRecDepth 8000 in
+theorem timestampNotIncreasing_reject
+    (sp0 spC raIn headerBase parentBase headerTs parentTs
+      cs0 cs1 cs2 cs3 cs4 cs5 o10 o5 o6 o1 o8 o9 o20 o21 : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (h_ge : ¬ BitVec.ult parentTs headerTs) :
+    cpsTripleWithin 14 (H + 140) raIn callerCode
+      ((.x18 ↦ᵣ headerBase) ** (.x19 ↦ᵣ parentBase) ** (.x5 ↦ᵣ o5) ** (.x6 ↦ᵣ o6) **
+        ((headerBase + 72) ↦ₘ headerTs) ** ((parentBase + 72) ↦ₘ parentTs) **
+        (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+        (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      ((.x10 ↦ᵣ (5 : Word)) ** (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) **
+        (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) **
+        (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
+        (.x5 ↦ᵣ headerTs) ** (.x6 ↦ᵣ parentTs) **
+        ((headerBase + 72) ↦ₘ headerTs) ** ((parentBase + 72) ↦ₘ parentTs) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G) := by
+  have h0 := ldHeaderTimestamp headerBase o5 headerTs
+  have h0F := cpsTripleWithin_frameR
+    ((.x19 ↦ᵣ parentBase) ** (.x6 ↦ᵣ o6) ** ((parentBase + 72) ↦ₘ parentTs) **
+      (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+      (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+      (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+      ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) h0
+  have h1 := ldParentTimestamp parentBase o6 parentTs
+  have h1F := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ headerTs) ** ((headerBase + 72) ↦ₘ headerTs) **
+      (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+      (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+      (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+      ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) h1
+  have hb := timestampNotIncreasing_taken parentTs headerTs h_ge
+  have hbF := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ headerBase) ** (.x19 ↦ᵣ parentBase) **
+      ((headerBase + 72) ↦ₘ headerTs) ** ((parentBase + 72) ↦ₘ parentTs) **
+      (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+      (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+      (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+      ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) hb
+  have hex := status5Exit sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5
+    o10 o1 o8 o9 headerBase parentBase o20 o21
+    ((.x5 ↦ᵣ headerTs) ** (.x6 ↦ᵣ parentTs) **
+      ((headerBase + 72) ↦ₘ headerTs) ** ((parentBase + 72) ↦ₘ parentTs) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs)
+    hspC hret
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h0F h1F
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 hbF
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s2 hex
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) s3
+
+
+
+-- @@ L792-796 verbatim
+/-! ## Conjunct 6 — `number ≠ parent + 1` (addi+bne) → status 6
+
+    BitVec `+ 1` is mod `2^64`. SpecRef correspondence for unbounded
+    `parent.number + 1` needs a named no-wrap gate on the parent number
+    (`parent ≠ ~~~0`); the reject arm itself is the RV64 comparison. -/
+
+
+-- @@ L798-799 verbatim
+abbrev numberNotSuccBrOff : BitVec 13 :=
+  brOff (GuestAddrs.validate_header + 300) (GuestAddrs.validate_header + 164)
+
+
+-- @@ L801-808 verbatim
+theorem numberNotSucc_taken_pc :
+    (H + 164) + signExtend13 numberNotSuccBrOff = H + 300 := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 164 +
+      signExtend13 (brOff (GuestAddrs.validate_header + 300)
+        (GuestAddrs.validate_header + 164)) =
+    BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 300
+  exact brOff_correct_base_off GuestAddrs.validate_header 164 300
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+
+-- @@ L810-825 verbatim
+theorem numberNotSucc_taken (headerNum parentSucc : Word)
+    (hne : headerNum ≠ parentSucc) :
+    cpsTripleWithin 1 (H + 164) (H + 300) callerCode
+      ((.x5 ↦ᵣ headerNum) ** (.x6 ↦ᵣ parentSucc))
+      ((.x5 ↦ᵣ headerNum) ** (.x6 ↦ᵣ parentSucc)) := by
+  have hbr := bne_spec_gen_within .x5 .x6 numberNotSuccBrOff headerNum parentSucc (H + 164)
+  rw [numberNotSucc_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 164) prog 41
+        (.BNE .x5 .x6 numberNotSuccBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact hne ((sepConj_pure_right _).1 hBP).2)
+
+
+-- @@ L827-842 verbatim
+theorem numberNotSucc_ntaken (headerNum parentSucc : Word)
+    (heq : headerNum = parentSucc) :
+    cpsTripleWithin 1 (H + 164) (H + 168) callerCode
+      ((.x5 ↦ᵣ headerNum) ** (.x6 ↦ᵣ parentSucc))
+      ((.x5 ↦ᵣ headerNum) ** (.x6 ↦ᵣ parentSucc)) := by
+  have hbr := bne_spec_gen_within .x5 .x6 numberNotSuccBrOff headerNum parentSucc (H + 164)
+  rw [show (H + 164 : Word) + 4 = H + 168 from by bv_omega] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 164) prog 41
+        (.BNE .x5 .x6 numberNotSuccBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact ((sepConj_pure_right _).1 hBP).2 heq)
+
+
+-- @@ L844-854 verbatim
+theorem ldHeaderNumber6 (headerBase o5 headerNum : Word) :
+    cpsTripleWithin 1 (H + 152) (H + 156) callerCode
+      ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ o5) ** ((headerBase + 64) ↦ₘ headerNum))
+      ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ headerNum) ** ((headerBase + 64) ↦ₘ headerNum)) := by
+  have h := ld_spec_gen_within .x5 .x18 headerBase o5 headerNum (64 : BitVec 12) (H + 152)
+    (by decide)
+  rw [show signExtend12 (64 : BitVec 12) = (64 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 152) prog 38 (.LD .x5 .x18 (64 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+    h
+
+
+-- @@ L856-866 verbatim
+theorem ldParentNumber6 (parentBase o6 parentNum : Word) :
+    cpsTripleWithin 1 (H + 156) (H + 160) callerCode
+      ((.x19 ↦ᵣ parentBase) ** (.x6 ↦ᵣ o6) ** ((parentBase + 64) ↦ₘ parentNum))
+      ((.x19 ↦ᵣ parentBase) ** (.x6 ↦ᵣ parentNum) ** ((parentBase + 64) ↦ₘ parentNum)) := by
+  have h := ld_spec_gen_within .x6 .x19 parentBase o6 parentNum (64 : BitVec 12) (H + 156)
+    (by decide)
+  rw [show signExtend12 (64 : BitVec 12) = (64 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 156) prog 39 (.LD .x6 .x19 (64 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+    h
+
+
+-- @@ L868-877 verbatim
+theorem addiParentSucc (parentNum : Word) :
+    cpsTripleWithin 1 (H + 160) (H + 164) callerCode
+      (.x6 ↦ᵣ parentNum)
+      (.x6 ↦ᵣ (parentNum + 1)) := by
+  have h := addi_spec_gen_same_within .x6 parentNum (1 : BitVec 12) (H + 160) (by decide)
+  rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 160) prog 40 (.ADDI .x6 .x6 (1 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+    h
+
+
+-- @@ L879-965 verbatim
+set_option maxRecDepth 8000 in
+theorem numberNotSucc_reject
+    (sp0 spC raIn headerBase parentBase headerNum parentNum
+      cs0 cs1 cs2 cs3 cs4 cs5 o10 o5 o6 o1 o8 o9 o20 o21 : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (hne : headerNum ≠ parentNum + 1) :
+    cpsTripleWithin 15 (H + 152) raIn callerCode
+      ((.x18 ↦ᵣ headerBase) ** (.x19 ↦ᵣ parentBase) ** (.x5 ↦ᵣ o5) ** (.x6 ↦ᵣ o6) **
+        ((headerBase + 64) ↦ₘ headerNum) ** ((parentBase + 64) ↦ₘ parentNum) **
+        (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+        (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      ((.x10 ↦ᵣ (6 : Word)) ** (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) **
+        (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) **
+        (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
+        (.x5 ↦ᵣ headerNum) ** (.x6 ↦ᵣ (parentNum + 1)) **
+        ((headerBase + 64) ↦ₘ headerNum) ** ((parentBase + 64) ↦ₘ parentNum) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G) := by
+  have h0 := ldHeaderNumber6 headerBase o5 headerNum
+  have h0F := cpsTripleWithin_frameR
+    ((.x19 ↦ᵣ parentBase) ** (.x6 ↦ᵣ o6) ** ((parentBase + 64) ↦ₘ parentNum) **
+      (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+      (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+      (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+      ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) h0
+  have h1 := ldParentNumber6 parentBase o6 parentNum
+  have h1F := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ headerNum) ** ((headerBase + 64) ↦ₘ headerNum) **
+      (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+      (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+      (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+      ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) h1
+  have h2 := addiParentSucc parentNum
+  have h2F := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ headerBase) ** (.x19 ↦ᵣ parentBase) ** (.x5 ↦ᵣ headerNum) **
+      ((headerBase + 64) ↦ₘ headerNum) ** ((parentBase + 64) ↦ₘ parentNum) **
+      (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+      (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+      (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+      ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) h2
+  have hb := numberNotSucc_taken headerNum (parentNum + 1) hne
+  have hbF := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ headerBase) ** (.x19 ↦ᵣ parentBase) **
+      ((headerBase + 64) ↦ₘ headerNum) ** ((parentBase + 64) ↦ₘ parentNum) **
+      (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+      (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+      (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+      ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) hb
+  have hex := status6Exit sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5
+    o10 o1 o8 o9 headerBase parentBase o20 o21
+    ((.x5 ↦ᵣ headerNum) ** (.x6 ↦ᵣ (parentNum + 1)) **
+      ((headerBase + 64) ↦ₘ headerNum) ** ((parentBase + 64) ↦ₘ parentNum) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs)
+    hspC hret
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h0F h1F
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 h2F
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s2 hbF
+  have s4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s3 hex
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) s4
+
+-- ---------------------------------------------------------------------
+-- Core-body argument-setup arms (the ten instructions feeding the K70 /
+-- K74 / K67 JALs from the `validateHeaderCoreContract` route, #12346).
+-- Each is a pure 1-step LD/ADDI: ESTABLISHES the loaded/base+imm value in
+-- the target register; OWNS the source register and the (base + imm) mem
+-- atom. They are callee-free, so nothing about them depends on K70/K67
+-- landing, and they compose into every one of the twelve remaining exits.
+
+
+-- @@ L967-976 verbatim
+/-- `LD x10, 136(x18)` @ H+64: load `this.excessBlobGas` into x10. -/
+theorem ldThisExcessBlobGas (thisPtr o10 excessBlobGas : Word) :
+    cpsTripleWithin 1 (H + 64) (H + 68) callerCode
+      ((.x18 ↦ᵣ thisPtr) ** (.x10 ↦ᵣ o10) ** ((thisPtr + 136) ↦ₘ excessBlobGas))
+      ((.x18 ↦ᵣ thisPtr) ** (.x10 ↦ᵣ excessBlobGas) ** ((thisPtr + 136) ↦ₘ excessBlobGas)) := by
+  have h := ld_spec_gen_within .x10 .x18 thisPtr o10 excessBlobGas (136 : BitVec 12) (H + 64) (by decide)
+  rw [show signExtend12 (136 : BitVec 12) = (136 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 64) prog 16 (.LD .x10 .x18 (136 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+
+-- @@ L978-987 verbatim
+/-- `LD x11, 128(x19)` @ H+68: load `parent.blobGasUsed` into x11. -/
+theorem ldParentBlobGasUsed (parentPtr o11 blobGasUsed : Word) :
+    cpsTripleWithin 1 (H + 68) (H + 72) callerCode
+      ((.x19 ↦ᵣ parentPtr) ** (.x11 ↦ᵣ o11) ** ((parentPtr + 128) ↦ₘ blobGasUsed))
+      ((.x19 ↦ᵣ parentPtr) ** (.x11 ↦ᵣ blobGasUsed) ** ((parentPtr + 128) ↦ₘ blobGasUsed)) := by
+  have h := ld_spec_gen_within .x11 .x19 parentPtr o11 blobGasUsed (128 : BitVec 12) (H + 68) (by decide)
+  rw [show signExtend12 (128 : BitVec 12) = (128 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 68) prog 17 (.LD .x11 .x19 (128 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+
+-- @@ L989-998 verbatim
+/-- `LD x12, 136(x19)` @ H+72: load `parent.excessBlobGas` into x12. -/
+theorem ldParentExcessBlobGas (parentPtr o12 excessBlobGas : Word) :
+    cpsTripleWithin 1 (H + 72) (H + 76) callerCode
+      ((.x19 ↦ᵣ parentPtr) ** (.x12 ↦ᵣ o12) ** ((parentPtr + 136) ↦ₘ excessBlobGas))
+      ((.x19 ↦ᵣ parentPtr) ** (.x12 ↦ᵣ excessBlobGas) ** ((parentPtr + 136) ↦ₘ excessBlobGas)) := by
+  have h := ld_spec_gen_within .x12 .x19 parentPtr o12 excessBlobGas (136 : BitVec 12) (H + 72) (by decide)
+  rw [show signExtend12 (136 : BitVec 12) = (136 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 72) prog 18 (.LD .x12 .x19 (136 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+
+-- @@ L1000-1010 verbatim
+/-- `ADDI x13, x19, 96` @ H+76: set x13 := parentPtr + 96 (the excess-blob
+    argument block pointer). ESTABLISHES `x13 = parentPtr + 96`. -/
+theorem addiParentStructPtr96 (parentPtr x13Old : Word) :
+    cpsTripleWithin 1 (H + 76) (H + 80) callerCode
+      ((.x19 ↦ᵣ parentPtr) ** (.x13 ↦ᵣ x13Old))
+      ((.x19 ↦ᵣ parentPtr) ** (.x13 ↦ᵣ (parentPtr + 96))) := by
+  have h := addi_spec_gen_within .x13 .x19 x13Old parentPtr (96 : BitVec 12) (H + 76) (by decide)
+  rw [show signExtend12 (96 : BitVec 12) = (96 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 76) prog 19 (.ADDI .x13 .x19 (96 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+
+-- @@ L1012-1021 verbatim
+/-- `LD x10, 80(x18)` @ H+100: load `this.gasLimit` into x10. -/
+theorem ldThisGasLimit (thisPtr o10 gasLimit : Word) :
+    cpsTripleWithin 1 (H + 100) (H + 104) callerCode
+      ((.x18 ↦ᵣ thisPtr) ** (.x10 ↦ᵣ o10) ** ((thisPtr + 80) ↦ₘ gasLimit))
+      ((.x18 ↦ᵣ thisPtr) ** (.x10 ↦ᵣ gasLimit) ** ((thisPtr + 80) ↦ₘ gasLimit)) := by
+  have h := ld_spec_gen_within .x10 .x18 thisPtr o10 gasLimit (80 : BitVec 12) (H + 100) (by decide)
+  rw [show signExtend12 (80 : BitVec 12) = (80 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 100) prog 25 (.LD .x10 .x18 (80 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+
+-- @@ L1023-1032 verbatim
+/-- `LD x11, 80(x19)` @ H+104: load `parent.gasLimit` into x11. -/
+theorem ldParentGasLimit (parentPtr o11 gasLimit : Word) :
+    cpsTripleWithin 1 (H + 104) (H + 108) callerCode
+      ((.x19 ↦ᵣ parentPtr) ** (.x11 ↦ᵣ o11) ** ((parentPtr + 80) ↦ₘ gasLimit))
+      ((.x19 ↦ᵣ parentPtr) ** (.x11 ↦ᵣ gasLimit) ** ((parentPtr + 80) ↦ₘ gasLimit)) := by
+  have h := ld_spec_gen_within .x11 .x19 parentPtr o11 gasLimit (80 : BitVec 12) (H + 104) (by decide)
+  rw [show signExtend12 (80 : BitVec 12) = (80 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 104) prog 26 (.LD .x11 .x19 (80 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+
+-- @@ L1034-1044 verbatim
+/-- `ADDI x10, x18, 96` @ H+116: set x10 := thisPtr + 96 (the base-fee
+    argument block pointer). ESTABLISHES `x10 = thisPtr + 96`. -/
+theorem addiThisStructPtr96 (thisPtr x10Old : Word) :
+    cpsTripleWithin 1 (H + 116) (H + 120) callerCode
+      ((.x18 ↦ᵣ thisPtr) ** (.x10 ↦ᵣ x10Old))
+      ((.x18 ↦ᵣ thisPtr) ** (.x10 ↦ᵣ (thisPtr + 96))) := by
+  have h := addi_spec_gen_within .x10 .x18 x10Old thisPtr (96 : BitVec 12) (H + 116) (by decide)
+  rw [show signExtend12 (96 : BitVec 12) = (96 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 116) prog 29 (.ADDI .x10 .x18 (96 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+
+-- @@ L1046-1055 verbatim
+/-- `LD x11, 80(x19)` @ H+120: load `parent.gasLimit` into x11 (base-fee block). -/
+theorem ldParentGasLimitRe (parentPtr o11 gasLimit : Word) :
+    cpsTripleWithin 1 (H + 120) (H + 124) callerCode
+      ((.x19 ↦ᵣ parentPtr) ** (.x11 ↦ᵣ o11) ** ((parentPtr + 80) ↦ₘ gasLimit))
+      ((.x19 ↦ᵣ parentPtr) ** (.x11 ↦ᵣ gasLimit) ** ((parentPtr + 80) ↦ₘ gasLimit)) := by
+  have h := ld_spec_gen_within .x11 .x19 parentPtr o11 gasLimit (80 : BitVec 12) (H + 120) (by decide)
+  rw [show signExtend12 (80 : BitVec 12) = (80 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 120) prog 30 (.LD .x11 .x19 (80 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+
+-- @@ L1057-1066 verbatim
+/-- `LD x12, 88(x19)` @ H+124: load `parent.gasUsed` into x12. -/
+theorem ldParentGasUsed (parentPtr o12 gasUsed : Word) :
+    cpsTripleWithin 1 (H + 124) (H + 128) callerCode
+      ((.x19 ↦ᵣ parentPtr) ** (.x12 ↦ᵣ o12) ** ((parentPtr + 88) ↦ₘ gasUsed))
+      ((.x19 ↦ᵣ parentPtr) ** (.x12 ↦ᵣ gasUsed) ** ((parentPtr + 88) ↦ₘ gasUsed)) := by
+  have h := ld_spec_gen_within .x12 .x19 parentPtr o12 gasUsed (88 : BitVec 12) (H + 124) (by decide)
+  rw [show signExtend12 (88 : BitVec 12) = (88 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 124) prog 31 (.LD .x12 .x19 (88 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+
+-- @@ L1068-1078 verbatim
+/-- `ADDI x13, x19, 96` @ H+128: set x13 := parentPtr + 96 (the base-fee
+    argument block pointer). ESTABLISHES `x13 = parentPtr + 96`. -/
+theorem addiParentStructPtr96Re (parentPtr x13Old : Word) :
+    cpsTripleWithin 1 (H + 128) (H + 132) callerCode
+      ((.x19 ↦ᵣ parentPtr) ** (.x13 ↦ᵣ x13Old))
+      ((.x19 ↦ᵣ parentPtr) ** (.x13 ↦ᵣ (parentPtr + 96))) := by
+  have h := addi_spec_gen_within .x13 .x19 x13Old parentPtr (96 : BitVec 12) (H + 128) (by decide)
+  rw [show signExtend12 (96 : BitVec 12) = (96 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 128) prog 32 (.ADDI .x13 .x19 (96 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+
+-- @@ L1080-1087 verbatim
+/-! ## Callee status-dispatch branches and argument moves
+
+The core body branches on each callee's status in `x10` right after the JAL
+returns, and moves the header/headerLen pointers into the argument registers
+for the next callee. These arms are the status-dispatch composition pieces
+(item three of the #12346 decomposition): each BNE pair routes a callee's
+status to the matching exit tail (taken) or to the next check (fall-through),
+and each MV establishes the argument registers for the following JAL. -/
+
+
+-- @@ L1089-1090 verbatim
+abbrev excessStatusBrOff : BitVec 13 :=
+  brOff (GuestAddrs.validate_header + 268) (GuestAddrs.validate_header + 84)
+
+
+-- @@ L1092-1099 verbatim
+theorem excessStatusBne_taken_pc :
+    (H + 84) + signExtend13 excessStatusBrOff = H + 268 := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 84 +
+      signExtend13 (brOff (GuestAddrs.validate_header + 268)
+        (GuestAddrs.validate_header + 84)) =
+    BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 268
+  exact brOff_correct_base_off GuestAddrs.validate_header 84 268
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+
+-- @@ L1101-1118 verbatim
+/-- `BNE x10, x0` @ H+84: the excess-blob callee returned a nonzero status
+    (excess mismatch) → exit tail at H+268 (status 2). ESTABLISHES `x10` is
+    unchanged (the status). -/
+theorem excessStatusBne_taken (status : Word) (hne : status ≠ 0) :
+    cpsTripleWithin 1 (H + 84) (H + 268) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 excessStatusBrOff status (0 : Word) (H + 84)
+  rw [excessStatusBne_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 84) prog 21
+        (.BNE .x10 .x0 excessStatusBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact hne ((sepConj_pure_right _).1 hBP).2)
+
+
+-- @@ L1120-1136 verbatim
+/-- `BNE x10, x0` @ H+84 fall-through: the excess-blob callee returned status
+    0 → continue at H+88. ESTABLISHES `x10` is unchanged (the status). -/
+theorem excessStatusBne_ntaken (status : Word) (heq : status = 0) :
+    cpsTripleWithin 1 (H + 84) (H + 88) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 excessStatusBrOff status (0 : Word) (H + 84)
+  rw [show (H + 84 : Word) + 4 = H + 88 from by bv_omega] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 84) prog 21
+        (.BNE .x10 .x0 excessStatusBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact ((sepConj_pure_right _).1 hBP).2 heq)
+
+
+-- @@ L1138-1139 verbatim
+abbrev checkGasLimitBrOff : BitVec 13 :=
+  brOff (GuestAddrs.validate_header + 284) (GuestAddrs.validate_header + 112)
+
+
+-- @@ L1141-1148 verbatim
+theorem checkGasLimitBne_taken_pc :
+    (H + 112) + signExtend13 checkGasLimitBrOff = H + 284 := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 112 +
+      signExtend13 (brOff (GuestAddrs.validate_header + 284)
+        (GuestAddrs.validate_header + 112)) =
+    BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 284
+  exact brOff_correct_base_off GuestAddrs.validate_header 112 284
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+
+-- @@ L1150-1166 verbatim
+/-- `BNE x10, x0` @ H+112: `check_gas_limit` failed → exit tail at H+284
+    (status 4). ESTABLISHES `x10` is unchanged (the status). -/
+theorem checkGasLimitBne_taken (status : Word) (hne : status ≠ 0) :
+    cpsTripleWithin 1 (H + 112) (H + 284) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 checkGasLimitBrOff status (0 : Word) (H + 112)
+  rw [checkGasLimitBne_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 112) prog 28
+        (.BNE .x10 .x0 checkGasLimitBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact hne ((sepConj_pure_right _).1 hBP).2)
+
+
+-- @@ L1168-1184 verbatim
+/-- `BNE x10, x0` @ H+112 fall-through: `check_gas_limit` succeeded → continue
+    at H+116. ESTABLISHES `x10` is unchanged (the status). -/
+theorem checkGasLimitBne_ntaken (status : Word) (heq : status = 0) :
+    cpsTripleWithin 1 (H + 112) (H + 116) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 checkGasLimitBrOff status (0 : Word) (H + 112)
+  rw [show (H + 112 : Word) + 4 = H + 116 from by bv_omega] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 112) prog 28
+        (.BNE .x10 .x0 checkGasLimitBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact ((sepConj_pure_right _).1 hBP).2 heq)
+
+
+-- @@ L1186-1187 verbatim
+abbrev baseFeeBrOff : BitVec 13 :=
+  brOff (GuestAddrs.validate_header + 284) (GuestAddrs.validate_header + 136)
+
+
+-- @@ L1189-1196 verbatim
+theorem baseFeeBne_taken_pc :
+    (H + 136) + signExtend13 baseFeeBrOff = H + 284 := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 136 +
+      signExtend13 (brOff (GuestAddrs.validate_header + 284)
+        (GuestAddrs.validate_header + 136)) =
+    BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 284
+  exact brOff_correct_base_off GuestAddrs.validate_header 136 284
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+
+-- @@ L1198-1215 verbatim
+/-- `BNE x10, x0` @ H+136: the base-fee callee returned a nonzero status
+    (base-fee mismatch) → exit tail at H+284 (status 4). ESTABLISHES `x10` is
+    unchanged (the status). -/
+theorem baseFeeBne_taken (status : Word) (hne : status ≠ 0) :
+    cpsTripleWithin 1 (H + 136) (H + 284) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 baseFeeBrOff status (0 : Word) (H + 136)
+  rw [baseFeeBne_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 136) prog 34
+        (.BNE .x10 .x0 baseFeeBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact hne ((sepConj_pure_right _).1 hBP).2)
+
+
+-- @@ L1217-1233 verbatim
+/-- `BNE x10, x0` @ H+136 fall-through: the base-fee callee returned status 0
+    → continue at H+140. ESTABLISHES `x10` is unchanged (the status). -/
+theorem baseFeeBne_ntaken (status : Word) (heq : status = 0) :
+    cpsTripleWithin 1 (H + 136) (H + 140) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 baseFeeBrOff status (0 : Word) (H + 136)
+  rw [show (H + 136 : Word) + 4 = H + 140 from by bv_omega] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 136) prog 34
+        (.BNE .x10 .x0 baseFeeBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact ((sepConj_pure_right _).1 hBP).2 heq)
+
+
+-- @@ L1235-1236 verbatim
+abbrev extraDataBrOff : BitVec 13 :=
+  brOff (GuestAddrs.validate_header + 308) (GuestAddrs.validate_header + 180)
+
+
+-- @@ L1238-1245 verbatim
+theorem extraDataBne_taken_pc :
+    (H + 180) + signExtend13 extraDataBrOff = H + 308 := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 180 +
+      signExtend13 (brOff (GuestAddrs.validate_header + 308)
+        (GuestAddrs.validate_header + 180)) =
+    BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 308
+  exact brOff_correct_base_off GuestAddrs.validate_header 180 308
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+
+-- @@ L1247-1264 verbatim
+/-- `BNE x10, x0` @ H+180: `header_validate_extra_data_length` failed (extra
+    data too long) → exit tail at H+308 (status 7). ESTABLISHES `x10` is
+    unchanged (the status). -/
+theorem extraDataBne_taken (status : Word) (hne : status ≠ 0) :
+    cpsTripleWithin 1 (H + 180) (H + 308) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 extraDataBrOff status (0 : Word) (H + 180)
+  rw [extraDataBne_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 180) prog 45
+        (.BNE .x10 .x0 extraDataBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact hne ((sepConj_pure_right _).1 hBP).2)
+
+
+-- @@ L1266-1283 verbatim
+/-- `BNE x10, x0` @ H+180 fall-through: `header_validate_extra_data_length`
+    succeeded → continue at H+184. ESTABLISHES `x10` is unchanged (the
+    status). -/
+theorem extraDataBne_ntaken (status : Word) (heq : status = 0) :
+    cpsTripleWithin 1 (H + 180) (H + 184) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 extraDataBrOff status (0 : Word) (H + 180)
+  rw [show (H + 180 : Word) + 4 = H + 184 from by bv_omega] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 180) prog 45
+        (.BNE .x10 .x0 extraDataBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact ((sepConj_pure_right _).1 hBP).2 heq)
+
+
+-- @@ L1285-1286 verbatim
+abbrev parentHashBrOff : BitVec 13 :=
+  brOff (GuestAddrs.validate_header + 340) (GuestAddrs.validate_header + 248)
+
+
+-- @@ L1288-1295 verbatim
+theorem parentHashBne_taken_pc :
+    (H + 248) + signExtend13 parentHashBrOff = H + 340 := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 248 +
+      signExtend13 (brOff (GuestAddrs.validate_header + 340)
+        (GuestAddrs.validate_header + 248)) =
+    BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 340
+  exact brOff_correct_base_off GuestAddrs.validate_header 248 340
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+
+-- @@ L1297-1314 verbatim
+/-- `BNE x10, x0` @ H+248: `header_validate_parent_hash` failed (parent hash
+    mismatch) → exit tail at H+340 (status 11). ESTABLISHES `x10` is unchanged
+    (the status). -/
+theorem parentHashBne_taken (status : Word) (hne : status ≠ 0) :
+    cpsTripleWithin 1 (H + 248) (H + 340) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 parentHashBrOff status (0 : Word) (H + 248)
+  rw [parentHashBne_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 248) prog 62
+        (.BNE .x10 .x0 parentHashBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact hne ((sepConj_pure_right _).1 hBP).2)
+
+
+-- @@ L1316-1333 verbatim
+/-- `BNE x10, x0` @ H+248 fall-through: `header_validate_parent_hash`
+    succeeded → continue at H+252 (the status-0 tail). ESTABLISHES `x10` is
+    unchanged (the status). -/
+theorem parentHashBne_ntaken (status : Word) (heq : status = 0) :
+    cpsTripleWithin 1 (H + 248) (H + 252) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 parentHashBrOff status (0 : Word) (H + 248)
+  rw [show (H + 248 : Word) + 4 = H + 252 from by bv_omega] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 248) prog 62
+        (.BNE .x10 .x0 parentHashBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact ((sepConj_pure_right _).1 hBP).2 heq)
+
+
+-- @@ L1335-1344 verbatim
+/-- `MV x10, x8` @ H+168: set x10 := header (the extra-data-length argument).
+    ESTABLISHES `x10 = header`. -/
+theorem mvExtraDataArgs (header o10 : Word) :
+    cpsTripleWithin 1 (H + 168) (H + 172) callerCode
+      ((.x8 ↦ᵣ header) ** (.x10 ↦ᵣ o10))
+      ((.x8 ↦ᵣ header) ** (.x10 ↦ᵣ header)) := by
+  have h := mv_spec_gen_within .x10 .x8 header o10 (H + 168) (by decide)
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 168) prog 42 (.MV .x10 .x8)
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+
+-- @@ L1346-1355 verbatim
+/-- `MV x11, x9` @ H+172: set x11 := headerLen (the extra-data-length
+    argument). ESTABLISHES `x11 = headerLen`. -/
+theorem mvExtraDataArgs2 (headerLen o11 : Word) :
+    cpsTripleWithin 1 (H + 172) (H + 176) callerCode
+      ((.x9 ↦ᵣ headerLen) ** (.x11 ↦ᵣ o11))
+      ((.x9 ↦ᵣ headerLen) ** (.x11 ↦ᵣ headerLen)) := by
+  have h := mv_spec_gen_within .x11 .x9 headerLen o11 (H + 172) (by decide)
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 172) prog 43 (.MV .x11 .x9)
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+
+
+-- @@ L1358-1367 verbatim
+/-- `MV x10, x8` @ H+184: set x10 := header (the post-merge argument).
+    ESTABLISHES `x10 = header`. -/
+theorem mvPostMergeArgs (header o10 : Word) :
+    cpsTripleWithin 1 (H + 184) (H + 188) callerCode
+      ((.x8 ↦ᵣ header) ** (.x10 ↦ᵣ o10))
+      ((.x8 ↦ᵣ header) ** (.x10 ↦ᵣ header)) := by
+  have h := mv_spec_gen_within .x10 .x8 header o10 (H + 184) (by decide)
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 184) prog 46 (.MV .x10 .x8)
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+
+-- @@ L1369-1378 verbatim
+/-- `MV x11, x9` @ H+188: set x11 := headerLen (the post-merge argument).
+    ESTABLISHES `x11 = headerLen`. -/
+theorem mvPostMergeArgs2 (headerLen o11 : Word) :
+    cpsTripleWithin 1 (H + 188) (H + 192) callerCode
+      ((.x9 ↦ᵣ headerLen) ** (.x11 ↦ᵣ o11))
+      ((.x9 ↦ᵣ headerLen) ** (.x11 ↦ᵣ headerLen)) := by
+  have h := mv_spec_gen_within .x11 .x9 headerLen o11 (H + 188) (by decide)
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 188) prog 47 (.MV .x11 .x9)
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+
+-- @@ L1380-1380 verbatim
+end EvmAsm.Codegen.ValidateHeaderInlineArms

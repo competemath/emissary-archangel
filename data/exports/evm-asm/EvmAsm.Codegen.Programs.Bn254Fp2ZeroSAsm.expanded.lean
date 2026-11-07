@@ -1,0 +1,463 @@
+/-
+  EvmAsm.Codegen.Programs.Bn254Fp2ZeroSAsm
+
+  Verified SAsm port of `bnp_fp2_zero`: zero the 64-byte BN254 Fp2 buffer at
+  `a0`.  The emitted routine is eight straight-line aligned dword stores.
+-/
+
+import EvmAsm.Rv64.SAsm.MultiDword
+import EvmAsm.Rv64.SAsm.Tactic
+import EvmAsm.Codegen.Programs.Bn254Fp2
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.SAsm.FnFlat
+
+
+-- @@ L14-14 verbatim
+namespace EvmAsm.Codegen
+
+
+-- @@ L16-16 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Rv64.SAsm.Stmt
+
+
+-- @@ L18-18 verbatim
+namespace Bn254Fp2ZeroSAsm
+
+
+-- @@ L20-29 verbatim
+/-- The eight stores of `bnp_fp2_zero`, excluding the shared `ret`. -/
+private def bnpFp2ZeroInstrs : List Instr :=
+  [ .SD .x10 .x0 (0 : BitVec 12),
+    .SD .x10 .x0 (8 : BitVec 12),
+    .SD .x10 .x0 (16 : BitVec 12),
+    .SD .x10 .x0 (24 : BitVec 12),
+    .SD .x10 .x0 (32 : BitVec 12),
+    .SD .x10 .x0 (40 : BitVec 12),
+    .SD .x10 .x0 (48 : BitVec 12),
+    .SD .x10 .x0 (56 : BitVec 12) ]
+
+
+-- @@ L31-32 verbatim
+def bnpFp2ZeroBody : Stmt :=
+  .block "zero" bnpFp2ZeroInstrs
+
+
+-- @@ L34-43 verbatim
+def bnpFp2ZeroFn (dst : Word) (orig : List (BitVec 8)) : Fn where
+  name := "bnpFp2Zero"
+  rw := ⟨dst, 64⟩
+  -- ⚠️ Ambient PINNED in pre and post: both flat adapters require the post to
+  -- DETERMINE it (`hpostEmp` / `hpostAmb`). See `bncZero64Fn` (#12244).
+  pre := fun rf ws A =>
+    rf.get .x10 = dst ∧ ws = orig ∧ orig.length = 64 ∧ A = empAssertion
+  post := fun _ ws A =>
+    ws = List.replicate 64 (0 : BitVec 8) ∧ A = empAssertion
+  body := bnpFp2ZeroBody
+
+
+-- @@ L45-47 verbatim
+/-- Byte-identity to the emitted guest routine. -/
+theorem bnpFp2Zero_byte_tie :
+    bnpFp2ZeroBody.flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)] = bnpFp2Zero_prog := rfl
+
+
+-- @@ L49-49 verbatim
+#guard bnpFp2ZeroBody.flatten 0 = bnpFp2ZeroBody.flatten 0x80000000
+
+-- @@ L50-50 verbatim
+#guard (bnpFp2ZeroBody.flatten 0).length = 8
+
+
+-- @@ L52-52 verbatim
+private theorem se12_0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+
+-- @@ L53-53 verbatim
+private theorem se12_8 : signExtend12 (8 : BitVec 12) = (8 : Word) := by decide
+
+-- @@ L54-54 verbatim
+private theorem se12_16 : signExtend12 (16 : BitVec 12) = (16 : Word) := by decide
+
+-- @@ L55-55 verbatim
+private theorem se12_24 : signExtend12 (24 : BitVec 12) = (24 : Word) := by decide
+
+-- @@ L56-56 verbatim
+private theorem se12_32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by decide
+
+-- @@ L57-57 verbatim
+private theorem se12_40 : signExtend12 (40 : BitVec 12) = (40 : Word) := by decide
+
+-- @@ L58-58 verbatim
+private theorem se12_48 : signExtend12 (48 : BitVec 12) = (48 : Word) := by decide
+
+-- @@ L59-59 verbatim
+private theorem se12_56 : signExtend12 (56 : BitVec 12) = (56 : Word) := by decide
+
+
+-- @@ L61-81 verbatim
+private theorem inRw_store64 (dst : Word) (ws : List (BitVec 8)) (ofs : Word)
+    (hws : ws.length = 64)
+    (hofs : ofs = 0 ∨ ofs = 8 ∨ ofs = 16 ∨ ofs = 24 ∨
+      ofs = 32 ∨ ofs = 40 ∨ ofs = 48 ∨ ofs = 56) :
+    inRw dst ws (dst + ofs) 8 ∧ 8 ∣ ((dst + ofs) - dst).toNat := by
+  rcases hofs with rfl | hofs
+  · constructor <;> first | (unfold inRw; rw [hws]; bv_omega) | bv_omega
+  rcases hofs with rfl | hofs
+  · constructor <;> first | (unfold inRw; rw [hws]; bv_omega) | bv_omega
+  rcases hofs with rfl | hofs
+  · constructor <;> first | (unfold inRw; rw [hws]; bv_omega) | bv_omega
+  rcases hofs with rfl | hofs
+  · constructor <;> first | (unfold inRw; rw [hws]; bv_omega) | bv_omega
+  rcases hofs with rfl | hofs
+  · constructor <;> first | (unfold inRw; rw [hws]; bv_omega) | bv_omega
+  rcases hofs with rfl | hofs
+  · constructor <;> first | (unfold inRw; rw [hws]; bv_omega) | bv_omega
+  rcases hofs with rfl | hofs
+  · constructor <;> first | (unfold inRw; rw [hws]; bv_omega) | bv_omega
+  rcases hofs with rfl
+  constructor <;> first | (unfold inRw; rw [hws]; bv_omega) | bv_omega
+
+
+
+-- @@ L84-89 verbatim
+private theorem inRw_store64_ofs (dst : Word) (ws : List (BitVec 8)) (ofs : Word)
+    (hws : ws.length = 64)
+    (hofs : ofs = 0 ∨ ofs = 8 ∨ ofs = 16 ∨ ofs = 24 ∨
+      ofs = 32 ∨ ofs = 40 ∨ ofs = 48 ∨ ofs = 56) :
+    inRw dst ws (dst + ofs) 8 :=
+  (inRw_store64 dst ws ofs hws hofs).1
+
+
+-- @@ L91-95 verbatim
+private theorem div8_store64_ofs (dst : Word) (ofs : Word)
+    (hofs : ofs = 0 ∨ ofs = 8 ∨ ofs = 16 ∨ ofs = 24 ∨
+      ofs = 32 ∨ ofs = 40 ∨ ofs = 48 ∨ ofs = 56) :
+    8 ∣ ((dst + ofs) - dst).toNat :=
+  (inRw_store64 dst (List.replicate 64 (0 : BitVec 8)) ofs (by simp) hofs).2
+
+
+-- @@ L97-98 verbatim
+def zeroWin64 (orig : List (BitVec 8)) (i : Nat) : List (BitVec 8) :=
+  List.replicate (8 * i) (0 : BitVec 8) ++ orig.drop (8 * i)
+
+
+-- @@ L100-101 verbatim
+theorem zeroWin64_zero (orig : List (BitVec 8)) : zeroWin64 orig 0 = orig := by
+  simp [zeroWin64]
+
+
+-- @@ L103-106 verbatim
+theorem zeroWin64_8_eq (orig : List (BitVec 8)) (h : orig.length = 64) :
+    zeroWin64 orig 8 = List.replicate 64 (0 : BitVec 8) := by
+  simp only [zeroWin64, Nat.reduceMul,
+    List.drop_eq_nil_of_le (by omega : orig.length <= 64), List.append_nil]
+
+
+-- @@ L108-139 verbatim
+theorem zeroWin64_step (orig : List (BitVec 8)) (i : Nat)
+    (h : orig.length = 64) (hi : i < 8) :
+    setBytes (zeroWin64 orig i) (8 * i) (dwordBytes (0 : Word)) = zeroWin64 orig (i + 1) := by
+  rw [zeroWin64]
+  rw [setBytes_append_right _ _ _ _ (by simp)]
+  simp only [List.length_replicate, Nat.sub_self]
+  have hsuf : (orig.drop (8 * i)).length = 64 - 8 * i := by simp [h]
+  have hfit : 0 + (dwordBytes (0 : Word)).length <= (orig.drop (8 * i)).length := by
+    rw [length_dwordBytes, hsuf]
+    omega
+  have hslot := setBytes_slot (orig.drop (8 * i)) (dwordBytes (0 : Word)) 0 hfit
+  rw [List.drop_zero, length_dwordBytes] at hslot
+  have hdrop : (setBytes (orig.drop (8 * i)) 0 (dwordBytes (0 : Word))).drop 8
+      = (orig.drop (8 * i)).drop 8 := by
+    simpa [length_dwordBytes] using
+      (setBytes_drop_of_le (dwordBytes (0 : Word)) (orig.drop (8 * i)) 0 8 (by
+        rw [length_dwordBytes]))
+  have hset : setBytes (List.drop (8 * i) orig) 0 (dwordBytes (0 : Word))
+      = dwordBytes (0 : Word) ++ (List.drop (8 * i) orig).drop 8 := by
+    conv_lhs =>
+      rw [<- List.take_append_drop 8 (setBytes (List.drop (8 * i) orig) 0 (dwordBytes 0))]
+    rw [hslot, hdrop]
+  rw [hset]
+  rw [show (List.drop (8 * i) orig).drop 8 = orig.drop (8 * (i + 1)) from by
+    rw [List.drop_drop]
+    congr 1]
+  rw [show dwordBytes (0 : Word) = List.replicate 8 (0 : BitVec 8) from by decide]
+  simp only [zeroWin64]
+  rw [<- List.append_assoc]
+  congr 1
+  rw [List.replicate_append_replicate]
+  congr
+
+
+
+-- @@ L142-157 verbatim
+private def zeroStores64 (orig : List (BitVec 8)) : List (BitVec 8) :=
+  setBytes
+    (setBytes
+      (setBytes
+        (setBytes
+          (setBytes
+            (setBytes
+              (setBytes
+                (setBytes orig 0 (dwordBytes (0 : Word)))
+                8 (dwordBytes (0 : Word)))
+              16 (dwordBytes (0 : Word)))
+            24 (dwordBytes (0 : Word)))
+          32 (dwordBytes (0 : Word)))
+        40 (dwordBytes (0 : Word)))
+      48 (dwordBytes (0 : Word)))
+    56 (dwordBytes (0 : Word))
+
+
+-- @@ L159-184 verbatim
+private theorem setBytes_zero64 (orig : List (BitVec 8)) (h : orig.length = 64) :
+    setBytes
+      (setBytes
+        (setBytes
+          (setBytes
+            (setBytes
+              (setBytes
+                (setBytes
+                  (setBytes orig 0 (dwordBytes (0 : Word)))
+                  8 (dwordBytes (0 : Word)))
+                16 (dwordBytes (0 : Word)))
+              24 (dwordBytes (0 : Word)))
+            32 (dwordBytes (0 : Word)))
+          40 (dwordBytes (0 : Word)))
+        48 (dwordBytes (0 : Word)))
+      56 (dwordBytes (0 : Word)) = List.replicate 64 (0 : BitVec 8) := by
+  rw [show orig = zeroWin64 orig 0 by rw [zeroWin64_zero]]
+  rw [zeroWin64_step orig 0 h (by omega)]
+  rw [zeroWin64_step orig 1 h (by omega)]
+  rw [zeroWin64_step orig 2 h (by omega)]
+  rw [zeroWin64_step orig 3 h (by omega)]
+  rw [zeroWin64_step orig 4 h (by omega)]
+  rw [zeroWin64_step orig 5 h (by omega)]
+  rw [zeroWin64_step orig 6 h (by omega)]
+  rw [zeroWin64_step orig 7 h (by omega)]
+  exact zeroWin64_8_eq orig h
+
+
+-- @@ L186-189 verbatim
+private theorem zeroStores64_eq (orig : List (BitVec 8)) (h : orig.length = 64) :
+    zeroStores64 orig = List.replicate 64 (0 : BitVec 8) := by
+  unfold zeroStores64
+  exact setBytes_zero64 orig h
+
+
+-- @@ L191-251 verbatim
+private theorem bnpFp2Zero_blockVCs (dst : Word) (rf : RegFile) (ws : List (BitVec 8))
+    (hx10 : rf.get .x10 = dst) (hws64 : ws.length = 64) :
+    blockVCs Region.empty dst rf ws bnpFp2ZeroInstrs := by
+  simp only [bnpFp2ZeroInstrs, blockVCs, loadSem, storeSem, hx10,
+    RegFile.get_x0, se12_0, se12_8, se12_16, se12_24, se12_32, se12_40,
+    se12_48, se12_56,
+    execInstrRF_sd_dword Region.empty dst rf ws .x10 .x0 (0 : BitVec 12) 0
+      (by rw [hx10, se12_0]; bv_omega),
+    execInstrRF_sd_dword Region.empty dst rf
+      (setBytes ws 0 (dwordBytes (0 : Word))) .x10 .x0 (8 : BitVec 12) 8
+      (by rw [hx10, se12_8]; bv_omega),
+    execInstrRF_sd_dword Region.empty dst rf
+      (setBytes (setBytes ws 0 (dwordBytes (0 : Word))) 8 (dwordBytes (0 : Word)))
+      .x10 .x0 (16 : BitVec 12) 16
+      (by rw [hx10, se12_16]; bv_omega),
+    execInstrRF_sd_dword Region.empty dst rf
+      (setBytes
+        (setBytes (setBytes ws 0 (dwordBytes (0 : Word))) 8 (dwordBytes (0 : Word)))
+        16 (dwordBytes (0 : Word))) .x10 .x0 (24 : BitVec 12) 24
+      (by rw [hx10, se12_24]; bv_omega),
+    execInstrRF_sd_dword Region.empty dst rf
+      (setBytes
+        (setBytes
+          (setBytes (setBytes ws 0 (dwordBytes (0 : Word))) 8 (dwordBytes (0 : Word)))
+          16 (dwordBytes (0 : Word))) 24 (dwordBytes (0 : Word)))
+      .x10 .x0 (32 : BitVec 12) 32
+      (by rw [hx10, se12_32]; bv_omega),
+    execInstrRF_sd_dword Region.empty dst rf
+      (setBytes
+        (setBytes
+          (setBytes
+            (setBytes (setBytes ws 0 (dwordBytes (0 : Word))) 8 (dwordBytes (0 : Word)))
+            16 (dwordBytes (0 : Word))) 24 (dwordBytes (0 : Word)))
+        32 (dwordBytes (0 : Word))) .x10 .x0 (40 : BitVec 12) 40
+      (by rw [hx10, se12_40]; bv_omega),
+    execInstrRF_sd_dword Region.empty dst rf
+      (setBytes
+        (setBytes
+          (setBytes
+            (setBytes
+              (setBytes (setBytes ws 0 (dwordBytes (0 : Word))) 8 (dwordBytes (0 : Word)))
+              16 (dwordBytes (0 : Word))) 24 (dwordBytes (0 : Word)))
+          32 (dwordBytes (0 : Word))) 40 (dwordBytes (0 : Word)))
+      .x10 .x0 (48 : BitVec 12) 48
+      (by rw [hx10, se12_48]; bv_omega)]
+  exact ⟨⟨inRw_store64_ofs dst _ (0 : Word) (by simp [hws64]) (by simp),
+      div8_store64_ofs dst (0 : Word) (by simp)⟩,
+    ⟨⟨inRw_store64_ofs dst _ (8 : Word) (by simp [hws64]) (by simp),
+        div8_store64_ofs dst (8 : Word) (by simp)⟩,
+      ⟨⟨inRw_store64_ofs dst _ (16 : Word) (by simp [hws64]) (by simp),
+          div8_store64_ofs dst (16 : Word) (by simp)⟩,
+        ⟨⟨inRw_store64_ofs dst _ (24 : Word) (by simp [hws64]) (by simp),
+            div8_store64_ofs dst (24 : Word) (by simp)⟩,
+          ⟨⟨inRw_store64_ofs dst _ (32 : Word) (by simp [hws64]) (by simp),
+              div8_store64_ofs dst (32 : Word) (by simp)⟩,
+            ⟨⟨inRw_store64_ofs dst _ (40 : Word) (by simp [hws64]) (by simp),
+                div8_store64_ofs dst (40 : Word) (by simp)⟩,
+              ⟨⟨inRw_store64_ofs dst _ (48 : Word) (by simp [hws64]) (by simp),
+                  div8_store64_ofs dst (48 : Word) (by simp)⟩,
+                ⟨⟨inRw_store64_ofs dst _ (56 : Word) (by simp [hws64]) (by simp),
+                    div8_store64_ofs dst (56 : Word) (by simp)⟩, trivial⟩⟩⟩⟩⟩⟩⟩⟩
+
+
+-- @@ L253-276 verbatim
+private theorem bnpFp2Zero_engine (dst : Word) (orig : List (BitVec 8)) (rf : RegFile)
+    (hx10 : rf.get .x10 = dst) (hlen : orig.length = 64) :
+    (execBlock Region.empty dst rf orig bnpFp2ZeroInstrs).2 =
+      List.replicate 64 (0 : BitVec 8) := by
+  rw [bnpFp2ZeroInstrs]
+  rw [execBlock_cons, execInstrRF_sd_dword _ _ _ _ _ _ _ 0 (by
+    rw [hx10, se12_0]; bv_omega)]
+  rw [execBlock_cons, execInstrRF_sd_dword _ _ _ _ _ _ _ 8 (by
+    rw [hx10, se12_8]; bv_omega)]
+  rw [execBlock_cons, execInstrRF_sd_dword _ _ _ _ _ _ _ 16 (by
+    rw [hx10, se12_16]; bv_omega)]
+  rw [execBlock_cons, execInstrRF_sd_dword _ _ _ _ _ _ _ 24 (by
+    rw [hx10, se12_24]; bv_omega)]
+  rw [execBlock_cons, execInstrRF_sd_dword _ _ _ _ _ _ _ 32 (by
+    rw [hx10, se12_32]; bv_omega)]
+  rw [execBlock_cons, execInstrRF_sd_dword _ _ _ _ _ _ _ 40 (by
+    rw [hx10, se12_40]; bv_omega)]
+  rw [execBlock_cons, execInstrRF_sd_dword _ _ _ _ _ _ _ 48 (by
+    rw [hx10, se12_48]; bv_omega)]
+  rw [execBlock_cons, execInstrRF_sd_dword _ _ _ _ _ _ _ 56 (by
+    rw [hx10, se12_56]; bv_omega)]
+  rw [execBlock_nil, RegFile.get_x0]
+  simp only
+  exact setBytes_zero64 orig hlen
+
+
+-- @@ L278-294 verbatim
+theorem bnpFp2ZeroFn_spec (dst : Word) (orig : List (BitVec 8))
+    (hwf : RwRegion.wf ⟨dst, 64⟩) (base : Word) :
+    (bnpFp2ZeroFn dst orig).Spec base := by
+  have hbase : (bnpFp2ZeroFn dst orig).rw.base = dst := rfl
+  vcgen
+  case region => exact ⟨Region.empty_wf, hwf⟩
+  case bnpFp2Zero.zero.mem =>
+    rintro rf ws A hws ⟨hx10, hwsOrig, hlen, -⟩
+    exact bnpFp2Zero_blockVCs dst rf ws hx10 (by simpa [hwsOrig] using hlen)
+  case bnpFp2Zero.post =>
+    rintro rf' ws' A' ⟨rf, ws, hwsLen, ⟨hx10, hwsOrig, hlen, hA⟩, hrf', hws'⟩
+    -- ⭐ `hA` is about `A'` already: the reachability tuple destructures
+    -- `pre rf ws A'`, so the pinned ambient comes straight back out.
+    refine ⟨?_, hA⟩
+    rw [hws']
+    rw [hwsOrig]
+    exact bnpFp2Zero_engine dst orig rf hx10 hlen
+
+
+-- @@ L296-300 verbatim
+/-! ## Flat linked-entry contract (#12244)
+
+    Same recipe as `bncZero64Flat_spec`, on the STRAIGHT-LINE member of the family:
+    `bnpFp2ZeroBody` is a single block of eight `SD`s with no loop, so there was no
+    invariant to amend — only the `Fn`'s pre/post. -/
+
+
+-- @@ L302-303 verbatim
+def bnpFp2ZeroCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.bnp_fp2_zero : Word) bnpFp2Zero_prog
+
+
+-- @@ L305-308 verbatim
+/-- The exposed registers other than `a0`. -/
+def bnpFp2ZeroScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x11, .x12, .x13, .x14, .x15, .x16, .x17]
+
+
+-- @@ L310-317 verbatim
+private theorem exposedRegs_split_bnpFp2Zero (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** regAtomsOf vf bnpFp2ZeroScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [bnpFp2ZeroScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+
+-- @@ L319-320 verbatim
+private theorem x10_notin_bnpFp2Zero_scratch :
+    (.x10 : Reg) ∉ bnpFp2ZeroScratch := by decide
+
+
+-- @@ L322-384 verbatim
+/-- **`bnp_fp2_zero`, whole-routine flat triple at the guest entry.**
+
+    Zeroes the 64-byte BN254 Fp2 element at `a0` with eight aligned dword stores — no
+    loop, so 8 steps + the return. Anchored over
+    `bnpFp2ZeroCr = CodeReq.ofProg (GuestAddrs.bnp_fp2_zero) bnpFp2Zero_prog`, the
+    `GuestImageEntries` pairing. Post is COMPLETE and deterministic.
+
+    ⭐ TOTAL over its argument type: one live window, ABI hypotheses only. -/
+theorem bnpFp2ZeroFlat_spec (ret dst : Word) (orig : List (BitVec 8))
+    (hrww : RwRegion.wf ⟨dst, 64⟩)
+    (hlen : orig.length = 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((bnpFp2ZeroFn dst orig).body.steps + 1)
+      (GuestAddrs.bnp_fp2_zero : Word) ret bnpFp2ZeroCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** regOwns bnpFp2ZeroScratch **
+        bytesRegion dst orig)
+      (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs **
+        bytesRegion dst (List.replicate 64 (0 : BitVec 8))) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns bnpFp2ZeroScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** bytesRegion dst orig)
+      (fun vf => ?_))
+  have hpre : (bnpFp2ZeroFn dst orig).pre
+      (fun r => if r = .x10 then dst else vf r) orig empAssertion := by
+    refine ⟨?_, rfl, hlen, rfl⟩
+    show RegFile.get _ .x10 = dst
+    rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+    exact if_pos rfl
+  have had := Fn.retSpecFlat (bnpFp2ZeroFn dst orig)
+    (GuestAddrs.bnp_fp2_zero : Word)
+    (bnpFp2ZeroFn_spec dst orig hrww (GuestAddrs.bnp_fp2_zero : Word))
+    -- 8 = the flattened block length pinned by this module's own `#guard`.
+    (by show 4 * (8 + 1) ≤ 2 ^ 64; decide)
+    ret halign
+    (fun r => if r = .x10 then dst else vf r)
+    orig hlen hpre
+    (fun _ _ _ hpost => hpost.2)
+    (Q := regOwns exposedRegs **
+      bytesRegion dst (List.replicate 64 (0 : BitVec 8)))
+    (fun rf' ws' _ hpost' hp hh => by
+      obtain ⟨hws', -⟩ := hpost'
+      subst ws'
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
+      exact sepConj_mono_left
+        (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
+  rw [show (bnpFp2ZeroFn dst orig).programRet (GuestAddrs.bnp_fp2_zero : Word)
+      = bnpFp2Zero_prog from rfl] at had
+  rw [show (bnpFp2ZeroFn dst orig).region = Region.empty from rfl,
+    show bytesRegion Region.empty.base Region.empty.bytes = empAssertion from
+      bytesRegion_nil _] at had
+  simp only [sepConj_emp_right'] at had
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_bnpFp2Zero,
+    show (if (Reg.x10 : Reg) = .x10 then dst else vf .x10) = dst from if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then dst else vf r) vf bnpFp2ZeroScratch
+      (fun r hr => by
+        show (if r = .x10 then dst else vf r) = vf r
+        exact if_neg (fun (hc : r = .x10) =>
+          x10_notin_bnpFp2Zero_scratch (hc ▸ hr))),
+    show (bnpFp2ZeroFn dst orig).rw.base = dst from rfl] at had
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) had
+
+
+-- @@ L386-386 verbatim
+end Bn254Fp2ZeroSAsm
+
+-- @@ L387-387 verbatim
+end EvmAsm.Codegen

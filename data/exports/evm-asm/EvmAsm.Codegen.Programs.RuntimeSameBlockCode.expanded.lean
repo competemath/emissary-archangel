@@ -1,0 +1,165 @@
+/-
+  EvmAsm.Codegen.Programs.RuntimeSameBlockCode
+
+  Runtime helper for EIP-7702 same-block code observations. EXTCODESIZE,
+  EXTCODEHASH, and EXTCODECOPY observe an account's current code. During a
+  set-code transaction, that current code can be the 0xef0100||address
+  delegation marker even though the pre-state trie still has empty code.
+
+  #11396: reads transaction/block account-write maps only — never the
+  supplied BAL. Spec pin e5a8caf1b amsterdam fork.py:928-930 builds BAL
+  after execution; provided BAL is not an execution input.
+-/
+
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.AsmReloc
+
+
+-- @@ L25-25 verbatim
+@[expose] public section
+
+
+-- @@ L27-27 verbatim
+namespace EvmAsm.Codegen
+
+
+-- @@ L29-29 verbatim
+open EvmAsm.Rv64
+
+
+-- @@ L31-44 verbatim
+/-! ## runtime_same_block_delegation_code
+
+    Calling convention:
+      a0 = 20-byte address ptr
+    Returns:
+      a0 = 0 if the account-write map has authoritative same-tx code that is either
+           empty (cleared EIP-7702 delegation) or exactly a 23-byte EIP-7702
+           delegation marker; then rsbd_code_ptr/rsbd_code_len name those bytes.
+      a0 = 1 otherwise (caller falls through to ordinary code lookup).
+
+    Source: `account_writes_lookup_current` → transaction/block account-write
+    maps written by authorization/code effects — not BAL.  The concrete
+    GuestAddrs target is refreshed with the single final guest regeneration;
+    the symbolic relocation below is the emitted call contract. -/
+
+-- @@ L45-92 verbatim
+def runtimeSameBlockDelegationCode_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .JAL .x1 (jalOff GuestAddrs.account_writes_lookup_current (GuestAddrs.runtime_same_block_delegation_code + 24)),
+    .LI .x5 (2 : Word),
+    .BEQ .x10 .x5 (brOff (GuestAddrs.runtime_same_block_delegation_code + 160) (GuestAddrs.runtime_same_block_delegation_code + 32)),
+    .LI .x5 (1 : Word),
+    .BNE .x10 .x5 (brOff (GuestAddrs.runtime_same_block_delegation_code + 160) (GuestAddrs.runtime_same_block_delegation_code + 40)),
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .BEQ .x18 .x0 (brOff (GuestAddrs.runtime_same_block_delegation_code + 128) (GuestAddrs.runtime_same_block_delegation_code + 52)),
+    .LI .x5 (23 : Word),
+    .BNE .x18 .x5 (brOff (GuestAddrs.runtime_same_block_delegation_code + 160) (GuestAddrs.runtime_same_block_delegation_code + 60)),
+    .LBU .x5 .x9 (0 : BitVec 12),
+    .LI .x6 (239 : Word),
+    .BNE .x5 .x6 (brOff (GuestAddrs.runtime_same_block_delegation_code + 160) (GuestAddrs.runtime_same_block_delegation_code + 72)),
+    .LBU .x5 .x9 (1 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .BNE .x5 .x6 (brOff (GuestAddrs.runtime_same_block_delegation_code + 160) (GuestAddrs.runtime_same_block_delegation_code + 84)),
+    .LBU .x5 .x9 (2 : BitVec 12),
+    .BNE .x5 .x0 (brOff (GuestAddrs.runtime_same_block_delegation_code + 160) (GuestAddrs.runtime_same_block_delegation_code + 92)),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_ptr (GuestAddrs.runtime_same_block_delegation_code + 96)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_ptr (GuestAddrs.runtime_same_block_delegation_code + 96)),
+    .SD .x5 .x9 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_len (GuestAddrs.runtime_same_block_delegation_code + 108)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_len (GuestAddrs.runtime_same_block_delegation_code + 108)),
+    .SD .x5 .x18 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (40 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_ptr (GuestAddrs.runtime_same_block_delegation_code + 128)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_ptr (GuestAddrs.runtime_same_block_delegation_code + 128)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_len (GuestAddrs.runtime_same_block_delegation_code + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_len (GuestAddrs.runtime_same_block_delegation_code + 140)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L94-102 verbatim
+/-- Reloc side-table for `runtimeSameBlockDelegationCode_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def runtimeSameBlockDelegationCode_relocs : RelocTable :=
+  [ (6, .jal .x1 "account_writes_lookup_current"),
+    (24, .la .x5 "rsbd_code_ptr"),
+    (27, .la .x5 "rsbd_code_len"),
+    (32, .la .x5 "rsbd_code_ptr"),
+    (35, .la .x5 "rsbd_code_len") ]
+
+
+-- @@ L104-105 verbatim
+def runtimeSameBlockDelegationCodeFunction : String :=
+  "runtime_same_block_delegation_code:\n" ++ emitProgramR runtimeSameBlockDelegationCode_prog runtimeSameBlockDelegationCode_relocs
+
+
+-- @@ L107-113 verbatim
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `runtimeSameBlockDelegationCode_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem runtimeSameBlockDelegationCodeFunction_eq_prog :
+    runtimeSameBlockDelegationCodeFunction = "runtime_same_block_delegation_code:\n" ++ emitProgramR runtimeSameBlockDelegationCode_prog runtimeSameBlockDelegationCode_relocs := rfl
+
+
+-- @@ L115-115 verbatim
+#guard runtimeSameBlockDelegationCodeFunction.startsWith "runtime_same_block_delegation_code:\n"
+
+-- @@ L116-116 verbatim
+#guard runtimeSameBlockDelegationCode_prog.length = 47
+
+-- @@ L117-117 verbatim
+#guard (runtimeSameBlockDelegationCodeFunction.splitOn "account_writes_lookup_current").length == 2
+
+-- @@ L118-118 verbatim
+#guard !(runtimeSameBlockDelegationCodeFunction.contains "runtime_current_bal_ptr")
+
+-- @@ L119-119 verbatim
+#guard !(runtimeSameBlockDelegationCodeFunction.contains "rlp_list_count_items")
+
+-- @@ L120-120 verbatim
+#guard !(runtimeSameBlockDelegationCodeFunction.contains "code_state_lookup_current")
+
+
+-- @@ L122-131 verbatim
+/-- Scratch/output cells. `rsbd_*` / `eahsr_*` / `ecc_*` are shared with
+    EXTCODEHASH/COPY handlers. -/
+def runtimeSameBlockDelegationCodeData : String :=
+  ".balign 8\n" ++
+  "rsbd_code_ptr:\n  .zero 8\n" ++
+  "rsbd_code_len:\n  .zero 8\n" ++
+  "rsbd_hash:\n  .zero 32\n" ++
+  "eahsr_same_tx_empty_flag:\n  .zero 8\n" ++
+  "ecc_old_active:\n  .zero 8\n" ++
+  "ecc_same_block_hit:\n  .zero 8\n"
+
+
+-- @@ L133-133 verbatim
+end EvmAsm.Codegen

@@ -1,0 +1,973 @@
+/-
+Body-window contracts for `amsterdam_blob_gas_price_u256` (#12851 body discharge).
+Windows proven here (instruction indices into `amsterdamBlobGasPriceU256_prog`,
+which the ABI-shell PR proved equal to `abiFrameProg (-208) 208 priceFrame priceBody`):
+* setup   (instrs 9..35,  `PriceK+36  → PriceK+144`): register/buffer initialisation;
+* or-test (instrs 36..48, `PriceK+144 → PriceK+196`): the 6-limb acc-zero test chain
+  that feeds `taylorLoopInv` into the loop-head dispatch;
+* beqz    (instr 49,      `PriceK+196`): acc == 0 branch to the exit tail (`+804`);
+* bgeu    (instr 51,      `PriceK+204`): i >= 496 branch to the overflow tail (`+964`).
+The remaining windows (add6 / mul6 / swapDiv / exitDiv / tail) are future work; the
+assembled `priceBodyContract` discharge consumes them via `TwoExitLoop`.
+-/
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
+import EvmAsm.Rv64.SyscallSpecs
+
+-- @@ L15-15 verbatim
+namespace EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
+
+-- @@ L16-16 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Codegen EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
+
+-- @@ L17-17 verbatim
+set_option maxRecDepth 8000
+
+-- @@ L18-18 verbatim
+/-! ## Buffer cell vocabulary -/
+
+-- @@ L19-22 verbatim
+/-- Pinned dword cells at `base + signExtend12 o`, right-nested, ending `empAssertion`. -/
+def bufCells : Word → List (BitVec 12 × Word) → Assertion
+  | _, [] => empAssertion
+  | base, (o, v) :: rest => ((base + signExtend12 o) ↦ₘ v) ** bufCells base rest
+
+-- @@ L23-26 verbatim
+/-- `memOwn` cells at `base + signExtend12 o`, right-nested, ending `empAssertion`. -/
+private def bufOwns : Word → List (BitVec 12) → Assertion
+  | _, [] => empAssertion
+  | base, o :: rest => memOwn (base + signExtend12 o) ** bufOwns base rest
+
+-- @@ L27-27 verbatim
+private def accOffs : List (BitVec 12) := [64, 72, 80, 88, 96, 104]
+
+-- @@ L28-28 verbatim
+private def prodOffs : List (BitVec 12) := [112, 120, 128, 136, 144, 152]
+
+-- @@ L29-29 verbatim
+private def sumOffs : List (BitVec 12) := [160, 168, 176, 184, 192, 200]
+
+-- @@ L30-30 verbatim
+private def bufOffs18 : List (BitVec 12) := accOffs ++ prodOffs ++ sumOffs
+
+-- @@ L31-31 verbatim
+/-! ## The D constant as the emitted LUI+ADDIW composite -/
+
+-- @@ L32-33 verbatim
+@[reducible] private def taylorDWHi : Word :=
+  (((2853 : BitVec 20).zeroExtend 32 : BitVec 32) <<< 12).signExtend 64
+
+-- @@ L34-36 verbatim
+@[reducible] def taylorDW : Word :=
+  ((taylorDWHi.truncate 32 + (signExtend12 (-1217 : BitVec 12)).truncate 32 :
+    BitVec 32).signExtend 64)
+
+-- @@ L37-37 verbatim
+private theorem taylorDW_eq : taylorDW = 11684671 := by decide
+
+-- @@ L38-38 verbatim
+/-! ## Loop invariant -/
+
+-- @@ L39-51 verbatim
+/-- State at the loop head (`PriceK+144`) of the inlined taylor recurrence.
+Buffers are pinned; `iVal` is the recurrence index; the saved-frame cells and the
+caller-owned registers ride along framed. -/
+def taylorLoopInv (newSp excess outPtr iVal : Word) (vals : Reg → Word)
+    (aC pC sC : List (BitVec 12 × Word)) : Assertion :=
+  (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+  (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) ** (.x18 ↦ᵣ iVal) **
+  (.x19 ↦ᵣ (newSp + signExtend12 64)) ** (.x20 ↦ᵣ (newSp + signExtend12 112)) **
+  (.x21 ↦ᵣ outPtr) ** (.x22 ↦ᵣ (newSp + signExtend12 160)) **
+  frameSlotsSaved priceFrame newSp vals **
+  (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+    regOwn .x30 ** regOwn .x31) **
+  bufCells newSp aC ** bufCells newSp pC ** bufCells newSp sC
+
+-- @@ L52-52 verbatim
+/-! ## Setup window (instrs 9..35) -/
+
+-- @@ L53-123 verbatim
+/-- Entry-to-loop-head: `mv s0,a0; mv s5,a1; lui s1,0xb25; addiw s1,s1,-1217; li s2,1;
+addi s3,sp,64; addi s4,sp,112; addi s6,sp,160; 18x sd zero,off(sp); sd s1,64(sp)`. -/
+private theorem price_setup_core (_sp0 newSp excess outPtr : Word) (vals : Reg → Word)
+    (m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 m16 m17 : Word) :
+    cpsTripleWithin 27 (PriceK + 36) (PriceK + 144) priceCode
+      ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+        (.x8 ↦ᵣ (vals .x8)) ** (.x9 ↦ᵣ (vals .x9)) ** (.x18 ↦ᵣ (vals .x18)) **
+        (.x19 ↦ᵣ (vals .x19)) ** (.x20 ↦ᵣ (vals .x20)) ** (.x21 ↦ᵣ (vals .x21)) **
+        (.x22 ↦ᵣ (vals .x22)) **
+        frameSlotsSaved priceFrame newSp vals **
+        (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31) **
+        ((newSp + signExtend12 64) ↦ₘ m0) ** ((newSp + signExtend12 72) ↦ₘ m1) **
+        ((newSp + signExtend12 80) ↦ₘ m2) ** ((newSp + signExtend12 88) ↦ₘ m3) **
+        ((newSp + signExtend12 96) ↦ₘ m4) ** ((newSp + signExtend12 104) ↦ₘ m5) **
+        ((newSp + signExtend12 112) ↦ₘ m6) ** ((newSp + signExtend12 120) ↦ₘ m7) **
+        ((newSp + signExtend12 128) ↦ₘ m8) ** ((newSp + signExtend12 136) ↦ₘ m9) **
+        ((newSp + signExtend12 144) ↦ₘ m10) ** ((newSp + signExtend12 152) ↦ₘ m11) **
+        ((newSp + signExtend12 160) ↦ₘ m12) ** ((newSp + signExtend12 168) ↦ₘ m13) **
+        ((newSp + signExtend12 176) ↦ₘ m14) ** ((newSp + signExtend12 184) ↦ₘ m15) **
+        ((newSp + signExtend12 192) ↦ₘ m16) ** ((newSp + signExtend12 200) ↦ₘ m17))
+      ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+        (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) ** (.x18 ↦ᵣ (1 : Word)) **
+        (.x19 ↦ᵣ (newSp + signExtend12 64)) ** (.x20 ↦ᵣ (newSp + signExtend12 112)) **
+        (.x21 ↦ᵣ outPtr) ** (.x22 ↦ᵣ (newSp + signExtend12 160)) **
+        frameSlotsSaved priceFrame newSp vals **
+        (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31) **
+        ((newSp + signExtend12 64) ↦ₘ taylorDW) ** ((newSp + signExtend12 72) ↦ₘ (0 : Word)) **
+        ((newSp + signExtend12 80) ↦ₘ (0 : Word)) ** ((newSp + signExtend12 88) ↦ₘ (0 : Word)) **
+        ((newSp + signExtend12 96) ↦ₘ (0 : Word)) ** ((newSp + signExtend12 104) ↦ₘ (0 : Word)) **
+        ((newSp + signExtend12 112) ↦ₘ (0 : Word)) ** ((newSp + signExtend12 120) ↦ₘ (0 : Word)) **
+        ((newSp + signExtend12 128) ↦ₘ (0 : Word)) ** ((newSp + signExtend12 136) ↦ₘ (0 : Word)) **
+        ((newSp + signExtend12 144) ↦ₘ (0 : Word)) ** ((newSp + signExtend12 152) ↦ₘ (0 : Word)) **
+        ((newSp + signExtend12 160) ↦ₘ (0 : Word)) ** ((newSp + signExtend12 168) ↦ₘ (0 : Word)) **
+        ((newSp + signExtend12 176) ↦ₘ (0 : Word)) ** ((newSp + signExtend12 184) ↦ₘ (0 : Word)) **
+        ((newSp + signExtend12 192) ↦ₘ (0 : Word)) ** ((newSp + signExtend12 200) ↦ₘ (0 : Word))) := by
+  have hv1 := mv_spec_gen_within .x8 .x10 excess (vals .x8) (PriceK + 36) (by decide)
+  have hv2 := mv_spec_gen_within .x21 .x11 outPtr (vals .x21) (PriceK + 40) (by decide)
+  have hv3 := lui_spec_gen_within .x9 (vals .x9) (2853 : BitVec 20) (PriceK + 44) (by decide)
+  have hv4 := addiw_spec_gen_same_within .x9 taylorDWHi (-1217 : BitVec 12)
+    (PriceK + 48) (by decide)
+  have hv5 := li_spec_gen_within .x18 (vals .x18) (1 : Word) (PriceK + 52) (by decide)
+  have hv6 := addi_spec_gen_within .x19 .x2 (vals .x19) newSp (64 : BitVec 12)
+    (PriceK + 56) (by decide)
+  have hv7 := addi_spec_gen_within .x20 .x2 (vals .x20) newSp (112 : BitVec 12)
+    (PriceK + 60) (by decide)
+  have hv8 := addi_spec_gen_within .x22 .x2 (vals .x22) newSp (160 : BitVec 12)
+    (PriceK + 64) (by decide)
+  have hv9 := sd_x0_spec_gen_within .x2 newSp m0 (64 : BitVec 12) (PriceK + 68)
+  have hv10 := sd_x0_spec_gen_within .x2 newSp m1 (72 : BitVec 12) (PriceK + 72)
+  have hv11 := sd_x0_spec_gen_within .x2 newSp m2 (80 : BitVec 12) (PriceK + 76)
+  have hv12 := sd_x0_spec_gen_within .x2 newSp m3 (88 : BitVec 12) (PriceK + 80)
+  have hv13 := sd_x0_spec_gen_within .x2 newSp m4 (96 : BitVec 12) (PriceK + 84)
+  have hv14 := sd_x0_spec_gen_within .x2 newSp m5 (104 : BitVec 12) (PriceK + 88)
+  have hv15 := sd_x0_spec_gen_within .x2 newSp m6 (112 : BitVec 12) (PriceK + 92)
+  have hv16 := sd_x0_spec_gen_within .x2 newSp m7 (120 : BitVec 12) (PriceK + 96)
+  have hv17 := sd_x0_spec_gen_within .x2 newSp m8 (128 : BitVec 12) (PriceK + 100)
+  have hv18 := sd_x0_spec_gen_within .x2 newSp m9 (136 : BitVec 12) (PriceK + 104)
+  have hv19 := sd_x0_spec_gen_within .x2 newSp m10 (144 : BitVec 12) (PriceK + 108)
+  have hv20 := sd_x0_spec_gen_within .x2 newSp m11 (152 : BitVec 12) (PriceK + 112)
+  have hv21 := sd_x0_spec_gen_within .x2 newSp m12 (160 : BitVec 12) (PriceK + 116)
+  have hv22 := sd_x0_spec_gen_within .x2 newSp m13 (168 : BitVec 12) (PriceK + 120)
+  have hv23 := sd_x0_spec_gen_within .x2 newSp m14 (176 : BitVec 12) (PriceK + 124)
+  have hv24 := sd_x0_spec_gen_within .x2 newSp m15 (184 : BitVec 12) (PriceK + 128)
+  have hv25 := sd_x0_spec_gen_within .x2 newSp m16 (192 : BitVec 12) (PriceK + 132)
+  have hv26 := sd_x0_spec_gen_within .x2 newSp m17 (200 : BitVec 12) (PriceK + 136)
+  have hv27 := sd_spec_gen_within .x2 .x9 newSp taylorDW (0 : Word) (64 : BitVec 12)
+    (PriceK + 140)
+  runBlock hv1 hv2 hv3 hv4 hv5 hv6 hv7 hv8 hv9 hv10 hv11 hv12 hv13 hv14 hv15 hv16
+    hv17 hv18 hv19 hv20 hv21 hv22 hv23 hv24 hv25 hv26 hv27
+
+-- @@ L124-158 verbatim
+/-- The concrete setup-window contract.  It keeps the eighteen old dword
+    values explicit: the ownership-only lift belongs to the contract-family
+    adapter, while this window theorem describes the emitted stores directly. -/
+theorem price_setup_spec (sp0 excess outPtr : Word) (vals : Reg → Word)
+    (m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 m16 m17 : Word) :
+    cpsTripleWithin 27 (PriceK + 36) (PriceK + 144) priceCode
+      ((.x2 ↦ᵣ (sp0 + signExtend12 (-208 : BitVec 12))) **
+        (.x1 ↦ᵣ (vals .x1)) ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+        (.x8 ↦ᵣ (vals .x8)) ** (.x9 ↦ᵣ (vals .x9)) **
+        (.x18 ↦ᵣ (vals .x18)) ** (.x19 ↦ᵣ (vals .x19)) **
+        (.x20 ↦ᵣ (vals .x20)) ** (.x21 ↦ᵣ (vals .x21)) **
+        (.x22 ↦ᵣ (vals .x22)) **
+        frameSlotsSaved priceFrame (sp0 + signExtend12 (-208 : BitVec 12)) vals **
+        (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31) **
+        bufCells (sp0 + signExtend12 (-208 : BitVec 12))
+          [(64, m0), (72, m1), (80, m2), (88, m3), (96, m4), (104, m5), (112, m6),
+            (120, m7), (128, m8), (136, m9), (144, m10), (152, m11), (160, m12),
+            (168, m13), (176, m14), (184, m15), (192, m16), (200, m17)])
+      (taylorLoopInv (sp0 + signExtend12 (-208 : BitVec 12)) excess outPtr
+        (1 : Word) vals
+        [(64, taylorDW), (72, 0), (80, 0), (88, 0), (96, 0), (104, 0)]
+        [(112, (0 : Word)), (120, 0), (128, 0), (136, 0), (144, 0), (152, 0)]
+        [(160, (0 : Word)), (168, 0), (176, 0), (184, 0), (192, 0), (200, 0)]) := by
+  refine cpsTripleWithin_weaken (P := _) (Q := _) ?_ ?_
+    (price_setup_core sp0 (sp0 + signExtend12 (-208 : BitVec 12)) excess outPtr vals
+      m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 m16 m17)
+  · intro h hx
+    simp only [priceFrame, frameSlotsSaved, bufCells, List.foldr_cons, List.foldr_nil,
+      sepConj_emp_right'] at hx ⊢
+    xperm_hyp hx
+  · intro h hx
+    simp only [taylorLoopInv, priceFrame, frameSlotsSaved, bufCells,
+      List.foldr_cons, List.foldr_nil, sepConj_emp_right'] at hx ⊢
+    xperm_hyp hx
+
+-- @@ L159-159 verbatim
+/-! ## Loop-head or-chain (instrs 36..48) -/
+
+-- @@ L160-162 verbatim
+/-- `or6` as the exact left-associated chain produced by the six `or t0,t0,t1`s. -/
+private def or6 (a0 a1 a2 a3 a4 a5 : Word) : Word :=
+  ((((((0 : Word) ||| a0) ||| a1) ||| a2) ||| a3) ||| a4) ||| a5
+
+-- @@ L163-165 verbatim
+private theorem or6_eq_chain (a0 a1 a2 a3 a4 a5 : Word) :
+    or6 a0 a1 a2 a3 a4 a5 =
+      ((((((0 : Word) ||| a0) ||| a1) ||| a2) ||| a3) ||| a4) ||| a5 := rfl
+
+-- @@ L166-235 verbatim
+/-- `li t0,0; 6x (ld t1,off(s3); or t0,t0,t1)`. Stated standalone-spelled: `x6` must
+enter pinned (no `ld` own-variant exists); the iteration lemma instantiates `v6`.
+Acc cells are leaf-exact NESTED `((newSp + se12 64) + se12 off)`; prod/sum cells flat. -/
+theorem loop_test_or_chain_spec (newSp excess outPtr iVal v6 : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word) :
+    cpsTripleWithin 13 (PriceK + 144) (PriceK + 196) priceCode
+      ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+        (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) ** (.x18 ↦ᵣ iVal) **
+        (.x19 ↦ᵣ (newSp + signExtend12 64)) ** (.x20 ↦ᵣ (newSp + signExtend12 112)) **
+        (.x21 ↦ᵣ outPtr) ** (.x22 ↦ᵣ (newSp + signExtend12 160)) **
+        frameSlotsSaved priceFrame newSp vals **
+        (regOwn .x5 ** (.x6 ↦ᵣ v6) ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31) **
+        (((newSp + signExtend12 64) + signExtend12 0) ↦ₘ a0) **
+        (((newSp + signExtend12 64) + signExtend12 8) ↦ₘ a1) **
+        (((newSp + signExtend12 64) + signExtend12 16) ↦ₘ a2) **
+        (((newSp + signExtend12 64) + signExtend12 24) ↦ₘ a3) **
+        (((newSp + signExtend12 64) + signExtend12 32) ↦ₘ a4) **
+        (((newSp + signExtend12 64) + signExtend12 40) ↦ₘ a5) **
+        ((newSp + signExtend12 112) ↦ₘ p0) ** ((newSp + signExtend12 120) ↦ₘ p1) **
+        ((newSp + signExtend12 128) ↦ₘ p2) ** ((newSp + signExtend12 136) ↦ₘ p3) **
+        ((newSp + signExtend12 144) ↦ₘ p4) ** ((newSp + signExtend12 152) ↦ₘ p5) **
+        ((newSp + signExtend12 160) ↦ₘ s0) ** ((newSp + signExtend12 168) ↦ₘ s1) **
+        ((newSp + signExtend12 176) ↦ₘ s2) ** ((newSp + signExtend12 184) ↦ₘ s3) **
+        ((newSp + signExtend12 192) ↦ₘ s4) ** ((newSp + signExtend12 200) ↦ₘ s5))
+      ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+        (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) ** (.x18 ↦ᵣ iVal) **
+        (.x19 ↦ᵣ (newSp + signExtend12 64)) ** (.x20 ↦ᵣ (newSp + signExtend12 112)) **
+        (.x21 ↦ᵣ outPtr) ** (.x22 ↦ᵣ (newSp + signExtend12 160)) **
+        frameSlotsSaved priceFrame newSp vals **
+        ((.x5 ↦ᵣ (((((((0 : Word) ||| a0) ||| a1) ||| a2) ||| a3) ||| a4) ||| a5)) **
+          (.x6 ↦ᵣ a5) ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31) **
+        (((newSp + signExtend12 64) + signExtend12 0) ↦ₘ a0) **
+        (((newSp + signExtend12 64) + signExtend12 8) ↦ₘ a1) **
+        (((newSp + signExtend12 64) + signExtend12 16) ↦ₘ a2) **
+        (((newSp + signExtend12 64) + signExtend12 24) ↦ₘ a3) **
+        (((newSp + signExtend12 64) + signExtend12 32) ↦ₘ a4) **
+        (((newSp + signExtend12 64) + signExtend12 40) ↦ₘ a5) **
+        ((newSp + signExtend12 112) ↦ₘ p0) ** ((newSp + signExtend12 120) ↦ₘ p1) **
+        ((newSp + signExtend12 128) ↦ₘ p2) ** ((newSp + signExtend12 136) ↦ₘ p3) **
+        ((newSp + signExtend12 144) ↦ₘ p4) ** ((newSp + signExtend12 152) ↦ₘ p5) **
+        ((newSp + signExtend12 160) ↦ₘ s0) ** ((newSp + signExtend12 168) ↦ₘ s1) **
+        ((newSp + signExtend12 176) ↦ₘ s2) ** ((newSp + signExtend12 184) ↦ₘ s3) **
+        ((newSp + signExtend12 192) ↦ₘ s4) ** ((newSp + signExtend12 200) ↦ₘ s5)) := by
+  have hli := li_spec_gen_own_within .x5 (0 : Word) (PriceK + 144) (by decide)
+  have hld1 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) v6 a0
+    (0 : BitVec 12) (PriceK + 148) (by decide)
+  have hor1 := or_spec_gen_rd_eq_rs1_within .x5 .x6 (0 : Word) a0 (PriceK + 152) (by decide)
+  have hld2 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) a0 a1
+    (8 : BitVec 12) (PriceK + 156) (by decide)
+  have hor2 := or_spec_gen_rd_eq_rs1_within .x5 .x6 ((0 : Word) ||| a0) a1
+    (PriceK + 160) (by decide)
+  have hld3 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) a1 a2
+    (16 : BitVec 12) (PriceK + 164) (by decide)
+  have hor3 := or_spec_gen_rd_eq_rs1_within .x5 .x6 (((0 : Word) ||| a0) ||| a1) a2
+    (PriceK + 168) (by decide)
+  have hld4 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) a2 a3
+    (24 : BitVec 12) (PriceK + 172) (by decide)
+  have hor4 := or_spec_gen_rd_eq_rs1_within .x5 .x6 ((((0 : Word) ||| a0) ||| a1) ||| a2) a3
+    (PriceK + 176) (by decide)
+  have hld5 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) a3 a4
+    (32 : BitVec 12) (PriceK + 180) (by decide)
+  have hor5 := or_spec_gen_rd_eq_rs1_within .x5 .x6 (((((0 : Word) ||| a0) ||| a1) ||| a2) ||| a3) a4
+    (PriceK + 184) (by decide)
+  have hld6 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) a4 a5
+    (40 : BitVec 12) (PriceK + 188) (by decide)
+  have hor6 := or_spec_gen_rd_eq_rs1_within .x5 .x6
+    ((((((0 : Word) ||| a0) ||| a1) ||| a2) ||| a3) ||| a4) a5 (PriceK + 192) (by decide)
+  runBlock hli hld1 hor1 hld2 hor2 hld3 hor3 hld4 hor4 hld5 hor5 hld6 hor6
+
+-- @@ L236-236 verbatim
+/-! ## Loop-head dispatch branches -/
+
+-- @@ L237-250 verbatim
+/-- `beqz t0` at `PriceK+196`: acc == 0 → exit tail at `PriceK+804`. -/
+theorem loop_test_beqz_branch (w : Word) :
+    cpsBranchWithin 1 (PriceK + 196) priceCode ((.x5 ↦ᵣ w) ** (.x0 ↦ᵣ (0 : Word)))
+      (PriceK + 804) ((.x5 ↦ᵣ w) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜w = (0 : Word)⌝)
+      (PriceK + 200) ((.x5 ↦ᵣ w) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜w ≠ (0 : Word)⌝) := by
+  have hleaf := beq_spec_gen_within .x5 .x0 (608 : BitVec 13) w (0 : Word) (PriceK + 196)
+  rw [show (PriceK + 196 : Word) + signExtend13 (608 : BitVec 13) = PriceK + 804 from by
+      rw [show signExtend13 (608 : BitVec 13) = (608 : Word) from by decide]; decide,
+    show (PriceK + 196 : Word) + 4 = PriceK + 200 from by decide] at hleaf
+  have hins : amsterdamBlobGasPriceU256_prog[49]'(by decide) =
+      .BEQ .x5 .x0 (608 : BitVec 13) := by decide
+  exact cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 196) amsterdamBlobGasPriceU256_prog 49
+      (.BEQ .x5 .x0 (608 : BitVec 13)) (by decide) (by decide) hins (by decide)) hleaf
+
+-- @@ L251-265 verbatim
+/-- `bgeu s2,t0` at `PriceK+204` (after `li t0,496`): i >= 496 → overflow tail at
+`PriceK+964`; fall-through into the add6 window at `PriceK+208`. -/
+theorem loop_test_bgeu_branch (iVal v5 : Word) :
+    cpsBranchWithin 1 (PriceK + 204) priceCode ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ v5))
+      (PriceK + 964) ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ v5) ** ⌜¬BitVec.ult iVal v5⌝)
+      (PriceK + 208) ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ v5) ** ⌜BitVec.ult iVal v5⌝) := by
+  have hleaf := bgeu_spec_gen_within .x18 .x5 (760 : BitVec 13) iVal v5 (PriceK + 204)
+  rw [show (PriceK + 204 : Word) + signExtend13 (760 : BitVec 13) = PriceK + 964 from by
+      rw [show signExtend13 (760 : BitVec 13) = (760 : Word) from by decide]; decide,
+    show (PriceK + 204 : Word) + 4 = PriceK + 208 from by decide] at hleaf
+  have hins : amsterdamBlobGasPriceU256_prog[51]'(by decide) =
+      .BGEU .x18 .x5 (760 : BitVec 13) := by decide
+  exact cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 204) amsterdamBlobGasPriceU256_prog 51
+      (.BGEU .x18 .x5 (760 : BitVec 13)) (by decide) (by decide) hins (by decide)) hleaf
+
+-- @@ L266-279 verbatim
+/-- The terminal-index specialization of the linked `li t0,496; bgeu s2,t0`
+    pair.  The linked artifact `70ce14de6cd119437d05785633ec3f03b4b535fa73f4eb5c77d6f2f924b31959`
+    has `li t0,496` at `0x8000b414` (`PriceK+200`) and
+    `bgeu s2,t0,0x8000b710` at `0x8000b418` (`PriceK+204`, `PriceK+964`). -/
+theorem loop_test_bgeu_terminal_496 (iVal : Word) (h_i : iVal = (496 : Word)) :
+    cpsTripleWithin 1 (PriceK + 204) (PriceK + 964) priceCode
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)))
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)) **
+        ⌜¬ BitVec.ult iVal (496 : Word)⌝) := by
+  apply cpsBranchWithin_takenPath (loop_test_bgeu_branch iVal (496 : Word))
+  intro _ hQf
+  obtain ⟨_, _, _, _, _, h_pure⟩ := hQf
+  have h_ult := ((sepConj_pure_right _).1 h_pure).2
+  simp [h_i] at h_ult
+
+
+-- @@ L281-309 verbatim
+/-- The two-instruction terminal-index round, including `li t0,496` at
+    `PriceK+200` and the taken `bgeu s2,t0` at `PriceK+204`.  The linked
+    artifact cited above places the taken edge at `0x8000b710` (`PriceK+964`). -/
+theorem loop_test_li_bgeu_terminal_496 (iVal vOld : Word)
+    (h_i : iVal = (496 : Word)) :
+    cpsTripleWithin 2 (PriceK + 200) (PriceK + 964) priceCode
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ vOld))
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)) **
+        ⌜¬ BitVec.ult iVal (496 : Word)⌝) := by
+  have hLi := li_spec_gen_within .x5 vOld (496 : Word) (PriceK + 200) (by decide)
+  have hLiF : cpsTripleWithin 1 (PriceK + 200) (PriceK + 204) priceCode
+      ((.x5 ↦ᵣ vOld) ** (.x18 ↦ᵣ iVal))
+      ((.x5 ↦ᵣ (496 : Word)) ** (.x18 ↦ᵣ iVal)) := by
+    refine cpsTripleWithin_extend_code ?_
+      (cpsTripleWithin_frameR (.x18 ↦ᵣ iVal) (by pcFree) hLi)
+    intro a i hi
+    have hins : amsterdamBlobGasPriceU256_prog[50]'(by decide) =
+        .LI .x5 (496 : Word) := by decide
+    show priceCode a = some i
+    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 200)
+      amsterdamBlobGasPriceU256_prog 50 (.LI .x5 (496 : Word))
+      (by decide) (by decide) hins (by decide) a i hi
+  have hLiF' : cpsTripleWithin 1 (PriceK + 200) (PriceK + 204) priceCode
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ vOld))
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word))) := by
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hLiF
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hLiF' (loop_test_bgeu_terminal_496 iVal h_i)
+
+
+-- @@ L311-311 verbatim
+/-! ## add6 window (instrs 52..107): 6-limb ripple-carry `sum += acc` with carry-out branch. -/
+
+-- @@ L312-313 verbatim
+/-- Add-with-carry parts: `rAdc x y c` is the limb sum, `rCry x y c` the carry-out bit. -/
+@[reducible] private def rAdc (x y c : Word) : Word := (x + y) + c
+
+-- @@ L314-316 verbatim
+@[reducible] private def rCry (x y c : Word) : Word :=
+  (if BitVec.ult (x + y) x then (1 : Word) else (0 : Word)) |||
+    (if BitVec.ult ((x + y) + c) (x + y) then (1 : Word) else (0 : Word))
+
+-- @@ L317-426 verbatim
+theorem add6_core (newSp excess outPtr iVal : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (v5 v6 v7 v28 v29 v30 v31 : Word) :
+    cpsTripleWithin 55 (PriceK + 208) (PriceK + 428) priceCode
+      (        (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+        (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) ** (.x18 ↦ᵣ iVal) **
+        (.x19 ↦ᵣ (newSp + signExtend12 64)) ** (.x20 ↦ᵣ (newSp + signExtend12 112)) **
+        (.x21 ↦ᵣ outPtr) ** (.x22 ↦ᵣ (newSp + signExtend12 160)) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+        (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+        frameSlotsSaved priceFrame newSp vals **
+        (((newSp + signExtend12 64) + signExtend12 (0 : BitVec 12)) ↦ₘ a0) **
+        (((newSp + signExtend12 64) + signExtend12 (8 : BitVec 12)) ↦ₘ a1) **
+        (((newSp + signExtend12 64) + signExtend12 (16 : BitVec 12)) ↦ₘ a2) **
+        (((newSp + signExtend12 64) + signExtend12 (24 : BitVec 12)) ↦ₘ a3) **
+        (((newSp + signExtend12 64) + signExtend12 (32 : BitVec 12)) ↦ₘ a4) **
+        (((newSp + signExtend12 64) + signExtend12 (40 : BitVec 12)) ↦ₘ a5) **
+        (((newSp + signExtend12 112) + signExtend12 (0 : BitVec 12)) ↦ₘ p0) **
+        (((newSp + signExtend12 112) + signExtend12 (8 : BitVec 12)) ↦ₘ p1) **
+        (((newSp + signExtend12 112) + signExtend12 (16 : BitVec 12)) ↦ₘ p2) **
+        (((newSp + signExtend12 112) + signExtend12 (24 : BitVec 12)) ↦ₘ p3) **
+        (((newSp + signExtend12 112) + signExtend12 (32 : BitVec 12)) ↦ₘ p4) **
+        (((newSp + signExtend12 112) + signExtend12 (40 : BitVec 12)) ↦ₘ p5) **
+        (((newSp + signExtend12 160) + signExtend12 (0 : BitVec 12)) ↦ₘ s0) **
+        (((newSp + signExtend12 160) + signExtend12 (8 : BitVec 12)) ↦ₘ s1) **
+        (((newSp + signExtend12 160) + signExtend12 (16 : BitVec 12)) ↦ₘ s2) **
+        (((newSp + signExtend12 160) + signExtend12 (24 : BitVec 12)) ↦ₘ s3) **
+        (((newSp + signExtend12 160) + signExtend12 (32 : BitVec 12)) ↦ₘ s4) **
+        (((newSp + signExtend12 160) + signExtend12 (40 : BitVec 12)) ↦ₘ s5))
+      (        (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+        (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) ** (.x18 ↦ᵣ iVal) **
+        (.x19 ↦ᵣ (newSp + signExtend12 64)) ** (.x20 ↦ᵣ (newSp + signExtend12 112)) **
+        (.x21 ↦ᵣ outPtr) ** (.x22 ↦ᵣ (newSp + signExtend12 160)) **
+        (.x5 ↦ᵣ (rCry a5 s5 (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))))) ** (.x6 ↦ᵣ a5) ** (.x7 ↦ᵣ s5) ** (.x28 ↦ᵣ (a5 + s5)) ** (.x29 ↦ᵣ (rCry a5 s5 (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))))) **
+        (.x30 ↦ᵣ ((a5 + s5) + (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))))) ** (.x31 ↦ᵣ (if BitVec.ult ((a5 + s5) + (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))) (a5 + s5) then (1 : Word) else (0 : Word))) **
+        frameSlotsSaved priceFrame newSp vals **
+        (((newSp + signExtend12 64) + signExtend12 (0 : BitVec 12)) ↦ₘ a0) **
+        (((newSp + signExtend12 64) + signExtend12 (8 : BitVec 12)) ↦ₘ a1) **
+        (((newSp + signExtend12 64) + signExtend12 (16 : BitVec 12)) ↦ₘ a2) **
+        (((newSp + signExtend12 64) + signExtend12 (24 : BitVec 12)) ↦ₘ a3) **
+        (((newSp + signExtend12 64) + signExtend12 (32 : BitVec 12)) ↦ₘ a4) **
+        (((newSp + signExtend12 64) + signExtend12 (40 : BitVec 12)) ↦ₘ a5) **
+        (((newSp + signExtend12 112) + signExtend12 (0 : BitVec 12)) ↦ₘ p0) **
+        (((newSp + signExtend12 112) + signExtend12 (8 : BitVec 12)) ↦ₘ p1) **
+        (((newSp + signExtend12 112) + signExtend12 (16 : BitVec 12)) ↦ₘ p2) **
+        (((newSp + signExtend12 112) + signExtend12 (24 : BitVec 12)) ↦ₘ p3) **
+        (((newSp + signExtend12 112) + signExtend12 (32 : BitVec 12)) ↦ₘ p4) **
+        (((newSp + signExtend12 112) + signExtend12 (40 : BitVec 12)) ↦ₘ p5) **
+        (((newSp + signExtend12 160) + signExtend12 (0 : BitVec 12)) ↦ₘ ((a0 + s0) + (0 : Word))) **
+        (((newSp + signExtend12 160) + signExtend12 (8 : BitVec 12)) ↦ₘ ((a1 + s1) + (rCry a0 s0 (0 : Word)))) **
+        (((newSp + signExtend12 160) + signExtend12 (16 : BitVec 12)) ↦ₘ ((a2 + s2) + (rCry a1 s1 (rCry a0 s0 (0 : Word))))) **
+        (((newSp + signExtend12 160) + signExtend12 (24 : BitVec 12)) ↦ₘ ((a3 + s3) + (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) **
+        (((newSp + signExtend12 160) + signExtend12 (32 : BitVec 12)) ↦ₘ ((a4 + s4) + (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))) **
+        (((newSp + signExtend12 160) + signExtend12 (40 : BitVec 12)) ↦ₘ ((a5 + s5) + (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))))) := by
+  have hli := li_spec_gen_within .x5 v5 (0 : Word) (PriceK + 208) (by decide)
+  have hldA0 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) v6 a0 (0 : BitVec 12) (PriceK + 212) (by decide)
+  have hldB0 := ld_spec_gen_within .x7 .x22 (newSp + signExtend12 160) v7 s0 (0 : BitVec 12) (PriceK + 216) (by decide)
+  have hadd0 := add_spec_gen_within .x28 .x6 .x7 a0 s0 v28 (PriceK + 220) (by decide)
+  have hsl10 := sltu_spec_gen_within .x29 .x28 .x6 v29 (a0 + s0) a0 (PriceK + 224) (by decide)
+  have hadd20 := add_spec_gen_within .x30 .x28 .x5 (a0 + s0) (0 : Word) v30 (PriceK + 228) (by decide)
+  have hsl20 := sltu_spec_gen_within .x31 .x30 .x28 v31 ((a0 + s0) + (0 : Word)) (a0 + s0) (PriceK + 232) (by decide)
+  have hor0 := or_spec_gen_rd_eq_rs1_within .x29 .x31 (if BitVec.ult (a0 + s0) a0 then (1 : Word) else (0 : Word)) (if BitVec.ult ((a0 + s0) + (0 : Word)) (a0 + s0) then (1 : Word) else (0 : Word)) (PriceK + 236) (by decide)
+  have hsd0 := sd_spec_gen_within .x22 .x30 (newSp + signExtend12 160) ((a0 + s0) + (0 : Word)) s0 (0 : BitVec 12) (PriceK + 240)
+  have hmv0 := mv_spec_gen_within .x5 .x29 (rCry a0 s0 (0 : Word)) (0 : Word) (PriceK + 244) (by decide)
+  have hldA1 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) a0 a1 (8 : BitVec 12) (PriceK + 248) (by decide)
+  have hldB1 := ld_spec_gen_within .x7 .x22 (newSp + signExtend12 160) s0 s1 (8 : BitVec 12) (PriceK + 252) (by decide)
+  have hadd1 := add_spec_gen_within .x28 .x6 .x7 a1 s1 (a0 + s0) (PriceK + 256) (by decide)
+  have hsl11 := sltu_spec_gen_within .x29 .x28 .x6 (rCry a0 s0 (0 : Word)) (a1 + s1) a1 (PriceK + 260) (by decide)
+  have hadd21 := add_spec_gen_within .x30 .x28 .x5 (a1 + s1) (rCry a0 s0 (0 : Word)) ((a0 + s0) + (0 : Word)) (PriceK + 264) (by decide)
+  have hsl21 := sltu_spec_gen_within .x31 .x30 .x28 (if BitVec.ult ((a0 + s0) + (0 : Word)) (a0 + s0) then (1 : Word) else (0 : Word)) ((a1 + s1) + (rCry a0 s0 (0 : Word))) (a1 + s1) (PriceK + 268) (by decide)
+  have hor1 := or_spec_gen_rd_eq_rs1_within .x29 .x31 (if BitVec.ult (a1 + s1) a1 then (1 : Word) else (0 : Word)) (if BitVec.ult ((a1 + s1) + (rCry a0 s0 (0 : Word))) (a1 + s1) then (1 : Word) else (0 : Word)) (PriceK + 272) (by decide)
+  have hsd1 := sd_spec_gen_within .x22 .x30 (newSp + signExtend12 160) ((a1 + s1) + (rCry a0 s0 (0 : Word))) s1 (8 : BitVec 12) (PriceK + 276)
+  have hmv1 := mv_spec_gen_within .x5 .x29 (rCry a1 s1 (rCry a0 s0 (0 : Word))) (rCry a0 s0 (0 : Word)) (PriceK + 280) (by decide)
+  have hldA2 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) a1 a2 (16 : BitVec 12) (PriceK + 284) (by decide)
+  have hldB2 := ld_spec_gen_within .x7 .x22 (newSp + signExtend12 160) s1 s2 (16 : BitVec 12) (PriceK + 288) (by decide)
+  have hadd2 := add_spec_gen_within .x28 .x6 .x7 a2 s2 (a1 + s1) (PriceK + 292) (by decide)
+  have hsl12 := sltu_spec_gen_within .x29 .x28 .x6 (rCry a1 s1 (rCry a0 s0 (0 : Word))) (a2 + s2) a2 (PriceK + 296) (by decide)
+  have hadd22 := add_spec_gen_within .x30 .x28 .x5 (a2 + s2) (rCry a1 s1 (rCry a0 s0 (0 : Word))) ((a1 + s1) + (rCry a0 s0 (0 : Word))) (PriceK + 300) (by decide)
+  have hsl22 := sltu_spec_gen_within .x31 .x30 .x28 (if BitVec.ult ((a1 + s1) + (rCry a0 s0 (0 : Word))) (a1 + s1) then (1 : Word) else (0 : Word)) ((a2 + s2) + (rCry a1 s1 (rCry a0 s0 (0 : Word)))) (a2 + s2) (PriceK + 304) (by decide)
+  have hor2 := or_spec_gen_rd_eq_rs1_within .x29 .x31 (if BitVec.ult (a2 + s2) a2 then (1 : Word) else (0 : Word)) (if BitVec.ult ((a2 + s2) + (rCry a1 s1 (rCry a0 s0 (0 : Word)))) (a2 + s2) then (1 : Word) else (0 : Word)) (PriceK + 308) (by decide)
+  have hsd2 := sd_spec_gen_within .x22 .x30 (newSp + signExtend12 160) ((a2 + s2) + (rCry a1 s1 (rCry a0 s0 (0 : Word)))) s2 (16 : BitVec 12) (PriceK + 312)
+  have hmv2 := mv_spec_gen_within .x5 .x29 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))) (rCry a1 s1 (rCry a0 s0 (0 : Word))) (PriceK + 316) (by decide)
+  have hldA3 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) a2 a3 (24 : BitVec 12) (PriceK + 320) (by decide)
+  have hldB3 := ld_spec_gen_within .x7 .x22 (newSp + signExtend12 160) s2 s3 (24 : BitVec 12) (PriceK + 324) (by decide)
+  have hadd3 := add_spec_gen_within .x28 .x6 .x7 a3 s3 (a2 + s2) (PriceK + 328) (by decide)
+  have hsl13 := sltu_spec_gen_within .x29 .x28 .x6 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))) (a3 + s3) a3 (PriceK + 332) (by decide)
+  have hadd23 := add_spec_gen_within .x30 .x28 .x5 (a3 + s3) (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))) ((a2 + s2) + (rCry a1 s1 (rCry a0 s0 (0 : Word)))) (PriceK + 336) (by decide)
+  have hsl23 := sltu_spec_gen_within .x31 .x30 .x28 (if BitVec.ult ((a2 + s2) + (rCry a1 s1 (rCry a0 s0 (0 : Word)))) (a2 + s2) then (1 : Word) else (0 : Word)) ((a3 + s3) + (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) (a3 + s3) (PriceK + 340) (by decide)
+  have hor3 := or_spec_gen_rd_eq_rs1_within .x29 .x31 (if BitVec.ult (a3 + s3) a3 then (1 : Word) else (0 : Word)) (if BitVec.ult ((a3 + s3) + (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) (a3 + s3) then (1 : Word) else (0 : Word)) (PriceK + 344) (by decide)
+  have hsd3 := sd_spec_gen_within .x22 .x30 (newSp + signExtend12 160) ((a3 + s3) + (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) s3 (24 : BitVec 12) (PriceK + 348)
+  have hmv3 := mv_spec_gen_within .x5 .x29 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))) (PriceK + 352) (by decide)
+  have hldA4 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) a3 a4 (32 : BitVec 12) (PriceK + 356) (by decide)
+  have hldB4 := ld_spec_gen_within .x7 .x22 (newSp + signExtend12 160) s3 s4 (32 : BitVec 12) (PriceK + 360) (by decide)
+  have hadd4 := add_spec_gen_within .x28 .x6 .x7 a4 s4 (a3 + s3) (PriceK + 364) (by decide)
+  have hsl14 := sltu_spec_gen_within .x29 .x28 .x6 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) (a4 + s4) a4 (PriceK + 368) (by decide)
+  have hadd24 := add_spec_gen_within .x30 .x28 .x5 (a4 + s4) (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) ((a3 + s3) + (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) (PriceK + 372) (by decide)
+  have hsl24 := sltu_spec_gen_within .x31 .x30 .x28 (if BitVec.ult ((a3 + s3) + (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) (a3 + s3) then (1 : Word) else (0 : Word)) ((a4 + s4) + (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) (a4 + s4) (PriceK + 376) (by decide)
+  have hor4 := or_spec_gen_rd_eq_rs1_within .x29 .x31 (if BitVec.ult (a4 + s4) a4 then (1 : Word) else (0 : Word)) (if BitVec.ult ((a4 + s4) + (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) (a4 + s4) then (1 : Word) else (0 : Word)) (PriceK + 380) (by decide)
+  have hsd4 := sd_spec_gen_within .x22 .x30 (newSp + signExtend12 160) ((a4 + s4) + (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) s4 (32 : BitVec 12) (PriceK + 384)
+  have hmv4 := mv_spec_gen_within .x5 .x29 (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) (PriceK + 388) (by decide)
+  have hldA5 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) a4 a5 (40 : BitVec 12) (PriceK + 392) (by decide)
+  have hldB5 := ld_spec_gen_within .x7 .x22 (newSp + signExtend12 160) s4 s5 (40 : BitVec 12) (PriceK + 396) (by decide)
+  have hadd5 := add_spec_gen_within .x28 .x6 .x7 a5 s5 (a4 + s4) (PriceK + 400) (by decide)
+  have hsl15 := sltu_spec_gen_within .x29 .x28 .x6 (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) (a5 + s5) a5 (PriceK + 404) (by decide)
+  have hadd25 := add_spec_gen_within .x30 .x28 .x5 (a5 + s5) (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) ((a4 + s4) + (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) (PriceK + 408) (by decide)
+  have hsl25 := sltu_spec_gen_within .x31 .x30 .x28 (if BitVec.ult ((a4 + s4) + (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) (a4 + s4) then (1 : Word) else (0 : Word)) ((a5 + s5) + (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))) (a5 + s5) (PriceK + 412) (by decide)
+  have hor5 := or_spec_gen_rd_eq_rs1_within .x29 .x31 (if BitVec.ult (a5 + s5) a5 then (1 : Word) else (0 : Word)) (if BitVec.ult ((a5 + s5) + (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))) (a5 + s5) then (1 : Word) else (0 : Word)) (PriceK + 416) (by decide)
+  have hsd5 := sd_spec_gen_within .x22 .x30 (newSp + signExtend12 160) ((a5 + s5) + (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))) s5 (40 : BitVec 12) (PriceK + 420)
+  have hmv5 := mv_spec_gen_within .x5 .x29 (rCry a5 s5 (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))) (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) (PriceK + 424) (by decide)
+  runBlock hli hldA0 hldB0 hadd0 hsl10 hadd20 hsl20 hor0 hsd0 hmv0 hldA1 hldB1 hadd1 hsl11 hadd21 hsl21 hor1 hsd1 hmv1 hldA2 hldB2 hadd2 hsl12 hadd22 hsl22 hor2 hsd2 hmv2 hldA3 hldB3 hadd3 hsl13 hadd23 hsl23 hor3 hsd3 hmv3 hldA4 hldB4 hadd4 hsl14 hadd24 hsl24 hor4 hsd4 hmv4 hldA5 hldB5 hadd5 hsl15 hadd25 hsl25 hor5 hsd5 hmv5
+
+-- @@ L427-440 verbatim
+/-- Carry-out branch at `PriceK+428`: nonzero carry → overflow tail at `+964`. -/
+theorem add6_carry_branch (c : Word) :
+    cpsBranchWithin 1 (PriceK + 428) priceCode ((.x5 ↦ᵣ c) ** (.x0 ↦ᵣ (0 : Word)))
+      (PriceK + 964) ((.x5 ↦ᵣ c) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜c ≠ (0 : Word)⌝)
+      (PriceK + 432) ((.x5 ↦ᵣ c) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜c = (0 : Word)⌝) := by
+  have hleaf := bne_spec_gen_within .x5 .x0 (536 : BitVec 13) c (0 : Word) (PriceK + 428)
+  rw [show (PriceK + 428 : Word) + signExtend13 (536 : BitVec 13) = PriceK + 964 from by
+      rw [show signExtend13 (536 : BitVec 13) = (536 : Word) from by decide]; decide,
+    show (PriceK + 428 : Word) + 4 = PriceK + 432 from by decide] at hleaf
+  have hins : amsterdamBlobGasPriceU256_prog[107]'(by decide) =
+      .BNE .x5 .x0 (536 : BitVec 13) := by decide
+  exact cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 428) amsterdamBlobGasPriceU256_prog 107
+      (.BNE .x5 .x0 (536 : BitVec 13)) (by decide) (by decide) hins (by decide)) hleaf
+
+-- @@ L441-441 verbatim
+#print axioms price_setup_spec
+
+-- @@ L442-442 verbatim
+#print axioms loop_test_or_chain_spec
+
+-- @@ L443-443 verbatim
+#print axioms loop_test_beqz_branch
+
+-- @@ L444-444 verbatim
+#print axioms loop_test_bgeu_branch
+
+-- @@ L445-445 verbatim
+#print axioms loop_test_bgeu_terminal_496
+
+-- @@ L446-446 verbatim
+#print axioms loop_test_li_bgeu_terminal_496
+
+
+-- @@ L448-448 verbatim
+#print axioms add6_core
+
+-- @@ L449-449 verbatim
+#print axioms add6_carry_branch
+
+
+-- @@ L451-451 verbatim
+end EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
+
+
+-- @@ L453-453 verbatim
+namespace EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell
+
+
+-- @@ L455-455 verbatim
+set_option maxRecDepth 8000
+
+
+-- @@ L457-457 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
+
+-- @@ L458-458 verbatim
+open EvmAsm.Codegen
+
+-- @@ L459-459 verbatim
+open EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
+
+
+-- @@ L461-466 verbatim
+/-- The functional body: instructions 9..241 of the 252-instruction routine,
+    i.e. everything between the `abiFrameProg` prologue and epilogue. -/
+def priceBody : Program :=
+  amsterdamBlobGasPriceU256_prog.drop (1 + priceFrame.length)
+    |>.take (amsterdamBlobGasPriceU256_prog.length
+      - (1 + priceFrame.length) - (priceFrame.length + 2))
+
+
+-- @@ L468-470 verbatim
+#guard priceBody.length = 233
+
+-- The emitted program is exactly the ABI-frame wrapping of the body.
+
+-- @@ L471-475 verbatim
+set_option maxRecDepth 8000 in
+theorem amsterdam_blob_gas_price_prog_eq_abiFrameProg :
+    amsterdamBlobGasPriceU256_prog
+      = abiFrameProg (-208 : BitVec 12) (208 : BitVec 12) priceFrame priceBody := by
+  decide
+
+
+-- @@ L477-496 verbatim
+/-- Body-entry precondition: the caller-supplied output pointer, its ABI
+    alignment/range/validity facts, frame slots saved (holding the entry
+    values), frame registers exposed, caller ABI atoms (`x10` = excess,
+    `x11` = outPtr, temporaries owned), the explicit setup workspace, the four
+    writable output cells, plus the caller's residual `scratch`.  The output
+    cells are explicit because the status-0 path writes all 32 output bytes;
+    leaving them in an arbitrary frame would make the CPS contract false under
+    a frame that owns the same cells.  The pure geometry premise is discharged
+    by `decide` at the two static linked callers and remains an ABI premise for
+    dynamic callers. -/
+def priceBodyPre
+    (newSp : Word) (vals : Reg → Word)
+    (excess outPtr : Word) (scratch : Assertion) : Assertion :=
+  (.x2 ↦ᵣ newSp) ** regsAt priceFrame vals **
+    frameSlotsSaved priceFrame newSp vals **
+    (⌜priceOutputGeometry outPtr⌝ **
+      ((.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+        priceWorkspaceOwn newSp **
+        priceOutputOwn outPtr **
+        regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch))
+
+
+-- @@ L498-511 verbatim
+/-- Body-exit postcondition: `x10` = status, `x11` still exactly `outPtr`
+    (audited: the body never writes `x11`), temporaries owned, frame
+    registers at their body-exit values `bodyVals` (the epilogue restores
+    from the slots, so these may differ from `vals`). -/
+def priceBodyPost
+    (newSp : Word) (vals bodyVals : Reg → Word)
+    (status outPtr : Word) (outBytes : List (BitVec 8))
+    (scratchPost : Assertion) : Assertion :=
+  (.x2 ↦ᵣ newSp) ** regsAt priceFrame bodyVals **
+    frameSlotsSaved priceFrame newSp vals **
+    ((.x10 ↦ᵣ status) ** (.x11 ↦ᵣ outPtr) **
+      regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] **
+      priceWorkspaceOwn newSp **
+      priceOutputPost status outPtr outBytes ** scratchPost)
+
+
+-- @@ L513-516 verbatim
+/-! The body does not preserve the ABI-frame registers at their entry values.
+    Setup establishes the six fixed frame values below, while the outer loop
+    exchanges x19 and x20 once per successful iteration.  Keep that relation
+    explicit at the seam instead of hiding it in an unconstrained bodyVals. -/
+
+
+-- @@ L518-532 verbatim
+def priceBodyFrameRel
+    (newSp excess outPtr finalIndex : Word) (vals bodyVals : Reg → Word)
+    (swapCount : Nat) : Prop :=
+  bodyVals .x1 = vals .x1 ∧
+  bodyVals .x8 = excess ∧
+  bodyVals .x9 = EvmAsm.Codegen.AmsterdamBlobGasPriceU256Sat.taylorConstant ∧
+  bodyVals .x18 = finalIndex ∧
+  bodyVals .x21 = outPtr ∧
+  bodyVals .x22 = newSp + signExtend12 (160 : BitVec 12) ∧
+  ((swapCount % 2 = 0 ∧
+      bodyVals .x19 = newSp + signExtend12 (64 : BitVec 12) ∧
+      bodyVals .x20 = newSp + signExtend12 (112 : BitVec 12)) ∨
+    (swapCount % 2 = 1 ∧
+      bodyVals .x19 = newSp + signExtend12 (112 : BitVec 12) ∧
+      bodyVals .x20 = newSp + signExtend12 (64 : BitVec 12)))
+
+
+-- @@ L534-546 verbatim
+/-- The outer-loop counters are not independent witnesses.  `swapCount` counts
+    exchanges of the two six-limb buffers.  A terminal path before (or after)
+    the exchange has `x18 = swapCount + 1`; the swap/division overflow path
+    has already exchanged once in the current round and therefore has
+    `x18 = swapCount`.  The latter path cannot occur before its first swap.
+    The 495 bound is the emitted `i < 496` horizon, not an assumed status. -/
+def priceBodyRouteRel (status finalIndex : Word) (swapCount : Nat) : Prop :=
+  swapCount ≤ 495 ∧
+    ((status = (0 : Word) ∧
+        finalIndex = BitVec.ofNat 64 (swapCount + 1)) ∨
+      (status = (1 : Word) ∧
+        ((finalIndex = BitVec.ofNat 64 (swapCount + 1)) ∨
+          (swapCount > 0 ∧ finalIndex = BitVec.ofNat 64 swapCount))))
+
+
+-- @@ L548-555 verbatim
+/-- Outcome relation for the body seam.  The body contract is parameterised by
+    an outcome function so that status and exact output bytes are tied to the
+    excess input; they are not fixed constants hidden in a supposedly
+    unconditional triple. -/
+def priceBodyOutcomeRel
+    (outcome : Word → Word × List (BitVec 8))
+    (excess status : Word) (outBytes : List (BitVec 8)) : Prop :=
+  outcome excess = (status, outBytes)
+
+
+-- @@ L557-570 verbatim
+/-- The frame valuation established by `price_setup_spec` at the loop head.
+    Registers outside the ABI frame are intentionally inherited from `vals`.
+    The body relation only observes the eight frame registers. -/
+def priceBodySetupVals
+    (newSp excess outPtr : Word) (vals : Reg → Word) : Reg → Word
+  | .x1 => vals .x1
+  | .x8 => excess
+  | .x9 => EvmAsm.Codegen.AmsterdamBlobGasPriceU256Sat.taylorConstant
+  | .x18 => 1
+  | .x19 => newSp + signExtend12 (64 : BitVec 12)
+  | .x20 => newSp + signExtend12 (112 : BitVec 12)
+  | .x21 => outPtr
+  | .x22 => newSp + signExtend12 (160 : BitVec 12)
+  | r => vals r
+
+
+-- @@ L572-576 verbatim
+theorem priceBodyFrameRel_setup
+    (newSp excess outPtr : Word) (vals : Reg → Word) :
+    priceBodyFrameRel newSp excess outPtr 1 vals
+      (priceBodySetupVals newSp excess outPtr vals) 0 := by
+  simp [priceBodyFrameRel, priceBodySetupVals]
+
+
+-- @@ L578-581 verbatim
+/-! The body post is determined by the model outcome and the number of
+    completed buffer exchanges.  In particular, do not existentially hide
+    `bodyVals`: that would let `regsAt` choose an arbitrary post-state rather
+    than describe the registers produced by the loop. -/
+
+
+-- @@ L583-602 verbatim
+def priceBodyPostVals
+    (newSp excess outPtr finalIndex : Word)
+    (vals : Reg → Word) (swapCount : Nat) : Reg → Word
+  | .x1 => vals .x1
+  | .x8 => excess
+  | .x9 => EvmAsm.Codegen.AmsterdamBlobGasPriceU256Sat.taylorConstant
+  | .x18 => finalIndex
+  | .x19 =>
+      if swapCount % 2 = 0 then
+        newSp + signExtend12 (64 : BitVec 12)
+      else
+        newSp + signExtend12 (112 : BitVec 12)
+  | .x20 =>
+      if swapCount % 2 = 0 then
+        newSp + signExtend12 (112 : BitVec 12)
+      else
+        newSp + signExtend12 (64 : BitVec 12)
+  | .x21 => outPtr
+  | .x22 => newSp + signExtend12 (160 : BitVec 12)
+  | r => vals r
+
+
+-- @@ L604-612 verbatim
+theorem priceBodyFrameRel_postVals
+    (newSp excess outPtr finalIndex : Word)
+    (vals : Reg → Word) (swapCount : Nat) :
+    priceBodyFrameRel newSp excess outPtr finalIndex vals
+      (priceBodyPostVals newSp excess outPtr finalIndex vals swapCount) swapCount := by
+  by_cases hparity : swapCount % 2 = 0
+  · simp [priceBodyFrameRel, priceBodyPostVals, hparity]
+  · have hmod : swapCount % 2 = 1 := by omega
+    simp [priceBodyFrameRel, priceBodyPostVals, hmod]
+
+
+-- @@ L614-618 verbatim
+/-! The executable body has no operation that changes the caller's residual
+    assertion.  Keep that residual outside the existential outcome witness so
+    the frame rule can carry it from entry to exit.  In particular, do not
+    quantify an unrelated `scratchPost`: that would promise a transition from
+    one arbitrary resource to another that the body cannot perform. -/
+
+-- @@ L619-630 verbatim
+def priceBodyOutcomeCore
+    (outcome : Word → Word × List (BitVec 8))
+    (newSp : Word) (vals : Reg → Word) (excess outPtr status : Word)
+    : Assertion :=
+  fun h => ∃ (finalIndex : Word) (swapCount : Nat),
+    priceBodyFrameRel newSp excess outPtr finalIndex vals
+        (priceBodyPostVals newSp excess outPtr finalIndex vals swapCount) swapCount ∧
+    priceBodyRouteRel status finalIndex swapCount ∧
+    priceBodyOutcomeRel outcome excess status (outcome excess).2 ∧
+    priceBodyPost newSp vals
+      (priceBodyPostVals newSp excess outPtr finalIndex vals swapCount)
+      status outPtr (outcome excess).2 empAssertion h
+
+
+-- @@ L632-636 verbatim
+def priceBodyOutcomePost
+    (outcome : Word → Word × List (BitVec 8))
+    (newSp : Word) (vals : Reg → Word) (excess outPtr status : Word)
+    (scratch : Assertion) : Assertion :=
+  priceBodyOutcomeCore outcome newSp vals excess outPtr status ** scratch
+
+
+-- @@ L638-648 verbatim
+/-! The open seam statement (#12851 / K70 item 7): a model-indexed two-exit
+    triple for the functional body between the frame entry (`PriceK + 36`)
+    and the epilogue (`PriceK + 968`).  The status-0 arm carries exact output
+    bytes; the status-1 arm carries only output ownership through
+    `priceOutputPost`.  Discharging this over the emitted body — including the
+    6-limb bignum arithmetic and the Taylor recurrence invariant — is the
+    remaining machine work.  The same `scratch` assertion is used on both
+    sides: the body preserves the caller's residual frame, and arbitrary
+    `pcFree` scratch is obtained by framing the core (`empAssertion`) contract.
+    The former independent `scratchPost` quantified a behavior the body cannot
+    perform and was therefore not a stronger contract. -/
+
+-- @@ L649-662 verbatim
+def priceBodyContract
+    (bodySteps : Nat) (sp0 : Word) (vals : Reg → Word)
+    (excess outPtr : Word)
+    (outcome : Word → Word × List (BitVec 8))
+    (scratch : Assertion) : Prop :=
+  cpsNBranchWithin bodySteps
+    (PriceK + 36) priceCode
+    (priceBodyPre (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr scratch)
+    [(PriceK + 968,
+        priceBodyOutcomePost outcome
+          (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr 0 scratch),
+      (PriceK + 968,
+        priceBodyOutcomePost outcome
+          (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr 1 scratch)]
+
+
+-- @@ L664-679 verbatim
+/-- Frame the core body contract with any caller-owned, PC-free residual.
+    This is the general form used by callers: the executable body is proved
+    once against `empAssertion`, then `scratch` is carried unchanged by the
+    separation-logic frame rule. -/
+theorem priceBodyContract_frame
+    {bodySteps : Nat} (sp0 : Word) (vals : Reg → Word)
+    (excess outPtr : Word)
+    (outcome : Word → Word × List (BitVec 8))
+    (scratch : Assertion)
+    (hcore : priceBodyContract bodySteps sp0 vals excess outPtr outcome empAssertion)
+    (hscratch : scratch.pcFree) :
+    priceBodyContract bodySteps sp0 vals excess outPtr outcome scratch := by
+  unfold priceBodyContract at hcore ⊢
+  have hfr := cpsNBranchWithin_frameR hscratch hcore
+  simpa only [List.map, priceBodyOutcomePost, priceBodyOutcomeCore,
+    priceBodyPre, sepConj_emp_right', sepConj_emp_left', sepConj_assoc'] using hfr
+
+
+-- @@ L681-687 verbatim
+theorem priceOutputPost_pcFree (status outPtr : Word) (outBytes : List (BitVec 8)) :
+    (priceOutputPost status outPtr outBytes).pcFree := by
+  unfold priceOutputPost
+  split
+  · exact bytesRegion_pcFree outPtr outBytes
+  · exact pcFree_sepConj pcFree_memOwn (pcFree_sepConj pcFree_memOwn
+      (pcFree_sepConj pcFree_memOwn pcFree_memOwn))
+
+
+-- @@ L689-699 verbatim
+/-- `hsub` for the canonical code request: the whole program is the frame
+    wrapping, so `priceCode` agrees with the `abiFrameProg` rendering. -/
+theorem priceCode_sub_abiFrameProg
+    (a : Word) (i : Instr)
+    (h : CodeReq.ofProg PriceK
+        (abiFrameProg (-208 : BitVec 12) (208 : BitVec 12) priceFrame priceBody) a
+        = some i) :
+    priceCode a = some i := by
+  show CodeReq.ofProg PriceK amsterdamBlobGasPriceU256_prog a = some i
+  rw [amsterdam_blob_gas_price_prog_eq_abiFrameProg]
+  exact h
+
+
+-- @@ L701-799 expanded
+/-- **The ABI-frame shell** (mirror of `k70_abi_from_body`): lift a body
+    contract to the whole-routine triple `priceEntryRest → priceCalleePost`.
+    The step count is `bodySteps + 18` (1 alloc + 8 saves + body + 8 restores
+    + 1 dealloc + 1 return-jump). -/
+theorem amsterdam_blob_gas_price_abi_from_body {cr : CodeReq} {bodySteps : Nat} (sp0 ret : Word)
+    (vals bodyVals : Reg → Word) (excess outPtr status : Word) (outBytes : List (BitVec 8))
+    (scratch scratchPost F : Assertion) (hret : vals .x1 = ret)
+    (hretAlign : (ret &&& ~~~(1 : Word)) = ret) (hscratch : scratch.pcFree)
+    (hscratchPost : scratchPost.pcFree) (hF : F.pcFree)
+    (hsub :
+      ∀ a i,
+        CodeReq.ofProg PriceK
+              (abiFrameProg (-208 : BitVec 12) (208 : BitVec 12) priceFrame priceBody) a =
+            some i →
+          cr a = some i)
+    (hbody :
+      cpsTripleWithin bodySteps (PriceK + 36) (PriceK + 968) cr
+        (priceBodyPre (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr scratch)
+        (priceBodyPost (sp0 + signExtend12 (-208 : BitVec 12)) vals bodyVals status outPtr outBytes
+          scratchPost)) :
+    cpsTripleWithin (1 + priceFrame.length + bodySteps + priceFrame.length + 1 + 1) PriceK ret cr
+      (priceEntryRest sp0 ret vals excess outPtr scratch ** F)
+      (priceCalleePost sp0 ret vals status outPtr outBytes scratchPost ** F) :=
+  by
+  have hframe : priceFrame = (.x1, (0 : BitVec 12)) :: priceSavedFrame := by rfl
+  have hworkspace : (priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12))).pcFree := by
+    repeat
+      first
+      | apply pcFree_sepConj
+      | exact pcFree_regIs
+      | exact pcFree_regOwn
+      | exact pcFree_memIs
+      | exact pcFree_memOwn
+      | exact pcFree_emp
+      | exact pcFree_pure
+      | exact pcFree_instrAt
+      | exact bytesRegion_pcFree _ _
+      | exact pcFree_stackFree _ _
+      | exact pcFree_dwordsIs _ _
+      | exact pcFree_regsAt _ _
+      | exact pcFree_frameSlotsOwn _ _
+      | exact pcFree_frameSlotsSaved _ _ _
+      | exact pcFree_regFileIs _
+  have hcallerPre :
+    (⌜priceOutputGeometry outPtr⌝ **
+        ((.x10 ↦ᵣ excess) **
+          (.x11 ↦ᵣ outPtr) **
+            priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
+              priceOutputOwn outPtr **
+                regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch)).pcFree :=
+    by
+    exact
+      pcFree_sepConj pcFree_pure
+        (pcFree_sepConj pcFree_regIs
+          (pcFree_sepConj pcFree_regIs
+            (pcFree_sepConj hworkspace
+              (pcFree_sepConj
+                (EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec.priceOutputOwn_pcFree outPtr)
+                (pcFree_sepConj (pcFree_regOwns _) hscratch)))))
+  have hcallerPost :
+    ((.x10 ↦ᵣ status) **
+        (.x11 ↦ᵣ outPtr) **
+          regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] **
+            priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
+              priceOutputPost status outPtr outBytes ** scratchPost).pcFree :=
+    by
+    exact
+      pcFree_sepConj pcFree_regIs
+        (pcFree_sepConj pcFree_regIs
+          (pcFree_sepConj (pcFree_regOwns _)
+            (pcFree_sepConj hworkspace
+              (pcFree_sepConj (priceOutputPost_pcFree status outPtr outBytes) hscratchPost))))
+  have habi :=
+    abiFrame_spec (base := PriceK) (sp0 := sp0) (ret := ret) (negImm := (-208 : BitVec 12))
+      (posImm := (208 : BitVec 12)) (frame := priceFrame) (raOfs := (0 : BitVec 12)) (sregs :=
+      priceSavedFrame) (vals := vals) (vals' := bodyVals) (body := priceBody) (bodySteps :=
+      bodySteps) (callerPre :=
+      ⌜priceOutputGeometry outPtr⌝ **
+        ((.x10 ↦ᵣ excess) **
+          (.x11 ↦ᵣ outPtr) **
+            priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
+              priceOutputOwn outPtr ** regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch))
+      (callerPost :=
+      (.x10 ↦ᵣ status) **
+        (.x11 ↦ᵣ outPtr) **
+          regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] **
+            priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
+              priceOutputPost status outPtr outBytes ** scratchPost)
+      (cr := cr) hframe (by decide) (by decide) (by decide) hret hretAlign
+      (by
+        rw [BitVec.add_assoc,
+          show signExtend12 (-208 : BitVec 12) + signExtend12 (208 : BitVec 12) = (0 : Word) from by
+            decide]
+        exact BitVec.add_zero sp0)
+      hcallerPre hcallerPost hsub
+      (by
+        have hentry : PriceK + BitVec.ofNat 64 (4 * (1 + priceFrame.length)) = PriceK + 36 := by
+          decide
+        have hexit :
+          PriceK + BitVec.ofNat 64 (4 * (1 + priceFrame.length + priceBody.length)) =
+            PriceK + 968 :=
+          by decide
+        rw [hentry, hexit]
+        simpa [priceBodyPre, priceBodyPost] using hbody)
+  have habiF := cpsTripleWithin_frameR F hF habi
+  refine cpsTripleWithin_weaken (P := _) (Q := _) ?_ ?_ habiF
+  · intro h hp
+    rw [← hret] at hp
+    simp [priceEntryRest, priceFrame, priceSavedFrame, frameSlotsOwn, regsAt, regOwns,
+      sepConj_emp_right'] at hp ⊢
+    xperm_hyp hp
+  · intro h hq
+    simp [priceCalleePost, priceCalleePostCore, priceFrame, priceSavedFrame, priceFrameVals,
+      frameSlotsSaved, regsAt, regOwns, sepConj_emp_right'] at hq ⊢
+    rw [← hret]
+    xperm_hyp hq
+
+
+-- @@ L801-801 verbatim
+#print axioms amsterdam_blob_gas_price_prog_eq_abiFrameProg
+
+-- @@ L802-802 verbatim
+#print axioms priceCode_sub_abiFrameProg
+
+-- @@ L803-803 verbatim
+#print axioms priceBodyContract_frame
+
+-- @@ L804-804 verbatim
+#print axioms amsterdam_blob_gas_price_abi_from_body
+
+
+-- @@ L806-806 verbatim
+end EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell

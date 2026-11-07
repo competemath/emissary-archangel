@@ -1,0 +1,510 @@
+/-
+  EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
+
+  Top triple `zkvm_keccak256_spec_within` via no-ra frame + body_spec.
+
+  PR note: outer absorb uses `signedCountdownLoop_reload_spec` (hdr=LI at
+  0x8000368c). The BLT-header `signedCountdownLoop_spec` does NOT apply
+  (JAL target LI ≠ BLT at 0x80003690).
+-/
+
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakBody
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakFrame
+import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.Tactics.XPermChunked
+
+
+-- @@ L17-17 verbatim
+namespace EvmAsm.Codegen.Proofs
+
+
+-- @@ L19-19 verbatim
+open EvmAsm.Rv64
+
+-- @@ L20-20 verbatim
+open EvmAsm.Rv64.SAsm
+
+-- @@ L21-21 verbatim
+open EvmAsm.Codegen
+
+
+-- @@ L23-23 verbatim
+set_option maxRecDepth 8000
+
+
+-- @@ L25-25 verbatim
+private abbrev B : Word := BitVec.ofNat 64 GuestAddrs.zkvm_keccak256
+
+-- @@ L26-26 verbatim
+private abbrev Zk3 : Word := BitVec.ofNat 64 GuestAddrs.zk3_state
+
+-- @@ L27-27 verbatim
+private abbrev keccakProgL : List Instr := zkvmKeccak256_prog
+
+-- @@ L28-28 verbatim
+private abbrev keccakCr : CodeReq := CodeReq.ofProg B keccakProgL
+
+
+-- @@ L30-32 verbatim
+private theorem keccakProgL_len : keccakProgL.length = 69 := by
+  simp only [keccakProgL, zkvmKeccak256_prog, zkvmKeccak256_prog_of]
+  decide
+
+
+-- @@ L34-35 verbatim
+private theorem keccakProgL_bound : 4 * keccakProgL.length < 2 ^ 64 := by
+  rw [keccakProgL_len]; norm_num
+
+
+-- @@ L37-43 verbatim
+private theorem mem_at (k : Nat) (ins : Instr) (A : Word)
+    (hA : A = B + BitVec.ofNat 64 (4 * k))
+    (hk : k < keccakProgL.length)
+    (hins : keccakProgL[k]'hk = ins) :
+    ∀ a i, CodeReq.singleton A ins a = some i → keccakCr a = some i :=
+  fun a i h =>
+    CodeReq.ofProg_mem_at B A keccakProgL k ins hA hk hins keccakProgL_bound a i h
+
+
+-- @@ L45-55 verbatim
+/-- Caller ambient at entry (no frame regs x8/x9/x18/x20). -/
+def keccakCallerPre (inputBase lenW outputBase : Word)
+    (v28 v29 : Word) (os input out0 : List (BitVec 8))
+    (A : Assertion) : Assertion :=
+  (.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+    (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+    (.x0 ↦ᵣ (0 : Word)) **
+    regOwns keccakBodyFreeTemps **
+    bytesRegion Zk3 os **
+    bytesRegion inputBase input **
+    bytesRegion outputBase out0 ** A
+
+
+-- @@ L57-71 verbatim
+theorem keccakCallerPre_pcFree (inputBase lenW outputBase : Word)
+    (v28 v29 : Word) (os input out0 : List (BitVec 8))
+    (A : Assertion) (hA : A.pcFree) :
+    (keccakCallerPre inputBase lenW outputBase v28 v29 os input out0 A).pcFree := by
+  simp only [keccakCallerPre]
+  exact pcFree_sepConj (by pcf) <|
+    pcFree_sepConj (by pcf) <|
+    pcFree_sepConj (by pcf) <|
+    pcFree_sepConj (by pcf) <|
+    pcFree_sepConj (by pcf) <|
+    pcFree_sepConj (by pcf) <|
+    pcFree_sepConj (pcFree_regOwns _) <|
+    pcFree_sepConj (bytesRegion_pcFree _ _) <|
+    pcFree_sepConj (bytesRegion_pcFree _ _) <|
+    pcFree_sepConj (bytesRegion_pcFree _ _) hA
+
+
+-- @@ L73-77 verbatim
+/-- Caller free A: input residual+prefix only (frame owns x9/x20 separately). -/
+def keccakCallerFreeA (inputBase : Word) (input : List (BitVec 8)) (N : Nat)
+    (A : Assertion) : Assertion :=
+  bytesRegion (keccakAbsorbCursor inputBase N) (keccakResidual input N) **
+    bytesRegion inputBase (input.take (keccakAbsorbStep * N)) ** A
+
+
+-- @@ L79-83 verbatim
+theorem keccakCallerFreeA_pcFree (inputBase : Word) (input : List (BitVec 8))
+    (N : Nat) (A : Assertion) (hA : A.pcFree) :
+    (keccakCallerFreeA inputBase input N A).pcFree :=
+  pcFree_sepConj (bytesRegion_pcFree _ _) <|
+  pcFree_sepConj (bytesRegion_pcFree _ _) hA
+
+
+-- @@ L85-94 verbatim
+/-- Caller post: a0=0, digest written, sponge final; frame owns separate. -/def keccakCallerPost (inputBase outputBase : Word)
+    (input : List (BitVec 8)) (N rem : Nat)
+    (A : Assertion) : Assertion :=
+  (regOwn .x5) ** (.x10 ↦ᵣ (0 : Word)) **
+    bytesRegion Zk3
+      (setBytes (keccakGuestPad (keccakBodyPrePad input N rem) rem) 0
+        (keccakBytes (keccakGuestPad (keccakBodyPrePad input N rem) rem) 0)) **
+    bytesRegion outputBase (keccakBodyDigest input N rem) **
+    ((.x0 ↦ᵣ (0 : Word)) ** regOwns keccakCsrsRestNoX5 **
+      keccakCallerFreeA inputBase input N A)
+
+
+-- @@ L96-107 verbatim
+theorem keccakCallerPost_pcFree (inputBase outputBase : Word)
+    (input : List (BitVec 8)) (N rem : Nat)
+    (A : Assertion) (hA : A.pcFree) :
+    (keccakCallerPost inputBase outputBase input N rem A).pcFree := by
+  simp only [keccakCallerPost]
+  exact pcFree_sepConj (by pcf) <|
+    pcFree_sepConj (by pcf) <|
+    pcFree_sepConj (bytesRegion_pcFree _ _) <|
+    pcFree_sepConj (bytesRegion_pcFree _ _) <|
+    pcFree_sepConj (by pcf) <|
+    pcFree_sepConj (pcFree_regOwns _) <|
+    keccakCallerFreeA_pcFree _ _ _ _ hA
+
+
+-- @@ L109-115 verbatim
+/-- Entry vals for frame regs. -/
+def keccakEntryVals (v8 v9 v18 v20 : Word) : Reg → Word
+  | .x8 => v8
+  | .x9 => v9
+  | .x18 => v18
+  | .x20 => v20
+  | _ => (0 : Word)
+
+
+-- @@ L117-119 verbatim
+/-- Flat frame regs (no trailing emp). -/
+private abbrev frameRegsIs (v8 v9 v18 v20 : Word) : Assertion :=
+  (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** (.x20 ↦ᵣ v20)
+
+
+-- @@ L121-122 verbatim
+private abbrev frameRegsOwn : Assertion :=
+  (regOwn .x8) ** (regOwn .x9) ** (regOwn .x18) ** (regOwn .x20)
+
+
+-- @@ L124-129 verbatim
+/-- foldr regsAt = flat frame regs (emp stripped). -/
+private theorem regsAt_flat (v8 v9 v18 v20 : Word) :
+    regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) =
+      frameRegsIs v8 v9 v18 v20 := by
+  simp only [frameRegsIs, keccakFrame, regsAt, keccakEntryVals, List.foldr,
+    sepConj_emp_right']
+
+
+-- @@ L131-134 verbatim
+private theorem regsOwnAt_flat :
+    regsOwnAt keccakFrame = frameRegsOwn := by
+  simp only [frameRegsOwn, keccakFrame, regsOwnAt, List.foldr,
+    sepConj_emp_right']
+
+
+-- @@ L136-151 verbatim
+/-- regsAt+callerPre → bodyEntryPre (holds). -/
+private theorem entryCore_to_body (h : PartialState)
+    (inputBase lenW outputBase : Word)
+    (v8 v9 v18 v20 v28 v29 : Word)
+    (os input out0 : List (BitVec 8)) (A : Assertion)
+    (hp :
+      (regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
+        keccakCallerPre inputBase lenW outputBase v28 v29 os input out0 A) h) :
+    keccakBodyEntryPre inputBase lenW outputBase v20 v9 v18 v8 v28 v29
+      os input out0 A h := by
+  have hp1 :
+      (frameRegsIs v8 v9 v18 v20 **
+        keccakCallerPre inputBase lenW outputBase v28 v29 os input out0 A) h := by
+    simpa [regsAt_flat] using hp
+  simp only [frameRegsIs, keccakCallerPre, keccakBodyEntryPre] at hp1 ⊢
+  xperm_chunked hp1
+
+
+-- @@ L153-194 verbatim
+/-- bodyExitPost padFree → regsOwn+callerPost (holds). -/
+private theorem exitCore_to_caller (h : PartialState)
+    (inputBase outputBase : Word)
+    (input : List (BitVec 8)) (N rem : Nat) (A : Assertion)
+    (hp :
+      keccakBodyExitPost outputBase input N rem
+        (keccakPadFreeA inputBase input N A) h) :
+    (regsOwnAt keccakFrame **
+      keccakCallerPost inputBase outputBase input N rem A) h := by
+  -- Fully unfold exit+padFree, then drop x8/x18, then xperm
+  have hp0 :
+      ((.x8 ↦ᵣ Zk3) ** (.x18 ↦ᵣ outputBase) **
+        (regOwn .x5) ** (.x10 ↦ᵣ (0 : Word)) **
+        bytesRegion Zk3
+          (setBytes (keccakGuestPad (keccakBodyPrePad input N rem) rem) 0
+            (keccakBytes (keccakGuestPad (keccakBodyPrePad input N rem) rem) 0)) **
+        bytesRegion outputBase (keccakBodyDigest input N rem) **
+        ((.x0 ↦ᵣ (0 : Word)) ** regOwns keccakCsrsRestNoX5 **
+          (bytesRegion (keccakAbsorbCursor inputBase N) (keccakResidual input N) **
+            bytesRegion inputBase (input.take (keccakAbsorbStep * N)) **
+            (regOwn .x9) ** (regOwn .x20) ** A))) h := by
+    simpa [keccakBodyExitPost, keccakPadFreeA] using hp
+  have hp1 :
+      ((regOwn .x8) ** (regOwn .x18) **
+        (regOwn .x5) ** (.x10 ↦ᵣ (0 : Word)) **
+        bytesRegion Zk3
+          (setBytes (keccakGuestPad (keccakBodyPrePad input N rem) rem) 0
+            (keccakBytes (keccakGuestPad (keccakBodyPrePad input N rem) rem) 0)) **
+        bytesRegion outputBase (keccakBodyDigest input N rem) **
+        ((.x0 ↦ᵣ (0 : Word)) ** regOwns keccakCsrsRestNoX5 **
+          (bytesRegion (keccakAbsorbCursor inputBase N) (keccakResidual input N) **
+            bytesRegion inputBase (input.take (keccakAbsorbStep * N)) **
+            (regOwn .x9) ** (regOwn .x20) ** A))) h := by
+    refine sepConj_mono (regIs_implies_regOwn (r := .x8)) ?_ h hp0
+    intro h1 hp1
+    exact sepConj_mono (regIs_implies_regOwn (r := .x18)) (fun _ => id) h1 hp1
+  have hp2 :
+      (frameRegsOwn **
+        keccakCallerPost inputBase outputBase input N rem A) h := by
+    simp only [frameRegsOwn, keccakCallerPost, keccakCallerFreeA] at hp1 ⊢
+    xperm_chunked hp1
+  simpa [regsOwnAt_flat] using hp2
+
+
+-- @@ L196-278 verbatim
+/-- Framed body for no-ra wrap. -/
+theorem keccakBody_framed (sp0 ret : Word)
+    (inputBase outputBase : Word)
+    (input : List (BitVec 8)) (N rem : Nat) (out0 : List (BitVec 8))
+    (v8 v9 v18 v20 v28 v29 : Word)
+    (os : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
+    (hfit : keccakAbsorbStep * N + rem ≤ input.length)
+    (hrem_le : rem ≤ 135)
+    (hout0 : out0.length = 32)
+    (hos : os.length = 200)
+    (halign_zk : Zk3.toNat % 8 = 0)
+    (hover : Zk3.toNat + 200 < 2 ^ 64)
+    (hNbound : keccakAbsorbStep * N + rem < 2 ^ 63)
+    (hrem64 : rem < 2 ^ 64)
+    (hb8i : (keccakAbsorbCursor inputBase N).toNat % 8 = 0)
+    (hovers : ∀ n, n < rem → Zk3.toNat + (rem - (n + 1)) < 2 ^ 64)
+    (hoveri : ∀ n, n < rem →
+      (keccakAbsorbCursor inputBase N).toNat + (rem - (n + 1)) < 2 ^ 64)
+    (hvalids : ∀ n, n < rem →
+      isValidByteAccess (Zk3 + BitVec.ofNat 64 (rem - (n + 1))) = true)
+    (hvalidi : ∀ n, n < rem →
+      isValidByteAccess
+        (keccakAbsorbCursor inputBase N + BitVec.ofNat 64 (rem - (n + 1))) = true)
+    (hvalidRem : isValidByteAccess (Zk3 + BitVec.ofNat 64 rem) = true)
+    (hvalid135 : isValidByteAccess (Zk3 + BitVec.ofNat 64 135) = true)
+    (hvalidMem : ∀ j, j < 200 →
+      isValidMemAddr (Zk3 + BitVec.ofNat 64 j) = true) :
+    let newSp := sp0 + signExtend12 ((-32 : BitVec 12))
+    let vals := keccakEntryVals v8 v9 v18 v20
+    let lenW := BitVec.ofNat 64 (keccakAbsorbStep * N + rem)
+    cpsTripleWithin (keccakBodyFuel N rem)
+      (keccakBodyEntry B) (keccakBodyExit B) keccakCr
+      ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ ret) **
+        regsAt keccakFrame vals **
+        frameSlotsSaved keccakFrame newSp vals **
+        keccakCallerPre inputBase lenW outputBase v28 v29 os input out0 A)
+      ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ ret) **
+        regsOwnAt keccakFrame **
+        frameSlotsSaved keccakFrame newSp vals **
+        keccakCallerPost inputBase outputBase input N rem A) := by
+  intro newSp vals lenW
+  have hbody0 := keccakBody_spec inputBase outputBase input N rem out0
+    v20 v9 v18 v8 v28 v29 os A hA
+    hfit hrem_le hout0 hos halign_zk hover hNbound hrem64 hb8i
+    hovers hoveri hvalids hvalidi hvalidRem hvalid135 hvalidMem
+  have hslots : (frameSlotsSaved keccakFrame newSp vals).pcFree :=
+    pcFree_frameSlotsSaved _ _ _
+  -- frameR: bodyEntry → bodyExit becomes bodyEntry ** F / bodyExit ** F
+  -- where F = x2 ** x1 ** slots
+  have hbodyF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ ret) **
+      frameSlotsSaved keccakFrame newSp vals)
+    (pcFree_sepConj (by pcf) (pcFree_sepConj (by pcf) hslots))
+    hbody0
+  -- Reshape theorem pre/post ↔ bodyEntry ** F / owns+caller ** F
+  refine cpsTripleWithin_weaken
+    (fun h hp => by
+      -- hp : x2 ** x1 ** regsAt ** slots ** callerPre
+      -- need : bodyEntry ** (x2 ** x1 ** slots)
+      have hp1 :
+          ((regsAt keccakFrame vals **
+              keccakCallerPre inputBase lenW outputBase v28 v29 os input out0 A) **
+            ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ ret) **
+              frameSlotsSaved keccakFrame newSp vals)) h := by
+        xperm_hyp hp
+      refine sepConj_mono ?_ (fun _ => id) h hp1
+      intro h1 hp1'
+      exact entryCore_to_body h1 inputBase lenW outputBase
+        v8 v9 v18 v20 v28 v29 os input out0 A (by simpa [vals] using hp1'))
+    (fun h hq => by
+      -- hq : bodyExit ** (x2 ** x1 ** slots)
+      -- need : x2 ** x1 ** regsOwn ** slots ** callerPost
+      have hq1 :
+          ((regsOwnAt keccakFrame **
+              keccakCallerPost inputBase outputBase input N rem A) **
+            ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ ret) **
+              frameSlotsSaved keccakFrame newSp vals)) h := by
+        refine sepConj_mono ?_ (fun _ => id) h hq
+        intro h1 hp1
+        exact exitCore_to_caller h1 inputBase outputBase input N rem A
+          (by simpa using hp1)
+      xperm_hyp hq1)
+    hbodyF
+
+
+-- @@ L280-404 verbatim
+/-- **Envelope seam** for `zkvm_keccak256` (issue #13014).
+
+    Same triple as `zkvm_keccak256_spec_within`, but the input resource is only
+    required to be **at least** as long as the hashed length: the caller may
+    hand over a region that runs past `136*N + rem` bytes — a dword envelope,
+    say — and the trailing bytes are carried through the triple as a resource
+    and never read.  This is what lets a caller hash an *interior slice* of a
+    buffer it already owns: `bytesRegion_window_focus_any` hands back exactly
+    the dword envelope of an unaligned window, and this seam consumes it.
+
+    The digest still depends only on the first `136*N + rem` bytes — see
+    `keccakBodyDigest_congr` / `keccakBodyDigest_append`.
+
+    Crucially the seam does **not** assume the trailing bytes are zero.  An
+    exactly-sized `bytesRegion base bs` with `8 ∤ bs.length` pins the bytes
+    after `bs` to `0x00` (`packBytes` zero-pads the last, partial dword), which
+    is a *content* claim about the caller's buffer, not resource framing; that
+    is precisely the assumption this seam removes.
+
+    Outer loop uses LI-header reload (`signedCountdownLoop_reload_spec`);
+    BLT-header lemma does not apply (JAL→LI 0x8000368c ≠ BLT 0x80003690). -/
+theorem zkvm_keccak256_spec_within_envelope (sp0 ret : Word)
+    (inputBase outputBase : Word)
+    (input : List (BitVec 8)) (N rem : Nat) (out0 : List (BitVec 8))
+    (v8 v9 v18 v20 v28 v29 : Word)
+    (os : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
+    (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
+    (hfit : keccakAbsorbStep * N + rem ≤ input.length)
+    (hrem_le : rem ≤ 135)
+    (hout0 : out0.length = 32)
+    (hos : os.length = 200)
+    (halign_zk : Zk3.toNat % 8 = 0)
+    (hover : Zk3.toNat + 200 < 2 ^ 64)
+    (hNbound : keccakAbsorbStep * N + rem < 2 ^ 63)
+    (hrem64 : rem < 2 ^ 64)
+    (hb8i : (keccakAbsorbCursor inputBase N).toNat % 8 = 0)
+    (hovers : ∀ n, n < rem → Zk3.toNat + (rem - (n + 1)) < 2 ^ 64)
+    (hoveri : ∀ n, n < rem →
+      (keccakAbsorbCursor inputBase N).toNat + (rem - (n + 1)) < 2 ^ 64)
+    (hvalids : ∀ n, n < rem →
+      isValidByteAccess (Zk3 + BitVec.ofNat 64 (rem - (n + 1))) = true)
+    (hvalidi : ∀ n, n < rem →
+      isValidByteAccess
+        (keccakAbsorbCursor inputBase N + BitVec.ofNat 64 (rem - (n + 1))) = true)
+    (hvalidRem : isValidByteAccess (Zk3 + BitVec.ofNat 64 rem) = true)
+    (hvalid135 : isValidByteAccess (Zk3 + BitVec.ofNat 64 135) = true)
+    (hvalidMem : ∀ j, j < 200 →
+      isValidMemAddr (Zk3 + BitVec.ofNat 64 j) = true) :
+    let vals := keccakEntryVals v8 v9 v18 v20
+    let lenW := BitVec.ofNat 64 (keccakAbsorbStep * N + rem)
+    let newSp := sp0 + signExtend12 ((-32 : BitVec 12))
+    cpsTripleWithin (5 + keccakBodyFuel N rem + 6) B ret keccakCr
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ ret) **
+        regsAt keccakFrame vals **
+        frameSlotsOwn keccakFrame newSp **
+        keccakCallerPre inputBase lenW outputBase v28 v29 os input out0 A)
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ ret) **
+        regsAt keccakFrame vals **
+        frameSlotsSaved keccakFrame newSp vals **
+        keccakCallerPost inputBase outputBase input N rem A) := by
+  intro vals lenW newSp
+  have hbody := keccakBody_framed sp0 ret inputBase outputBase input N rem out0
+    v8 v9 v18 v20 v28 v29 os A hA
+    hfit hrem_le hout0 hos halign_zk hover hNbound hrem64 hb8i
+    hovers hoveri hvalids hvalidi hvalidRem hvalid135 hvalidMem
+  refine keccakFrame_spec_own keccakCr B sp0 ret vals (keccakBodyFuel N rem)
+    (keccakCallerPre inputBase lenW outputBase v28 v29 os input out0 A)
+    (keccakCallerPost inputBase outputBase input N rem A)
+    halign_ret
+    (keccakCallerPre_pcFree _ _ _ _ _ _ _ _ _ hA)
+    (keccakCallerPost_pcFree _ _ _ _ _ _ hA)
+    (mem_at 0 (.ADDI .x2 .x2 (-32 : BitVec 12)) B
+      (by decide) (by rw [keccakProgL_len]; norm_num) (by rfl))
+    ?hmemS ?hmemL
+    (mem_at 67 (.ADDI .x2 .x2 (32 : BitVec 12)) (B + 268)
+      (by decide) (by rw [keccakProgL_len]; norm_num) (by rfl))
+    (mem_at 68 (.JALR .x0 .x1 (0 : BitVec 12)) (B + 272)
+      (by decide) (by rw [keccakProgL_len]; norm_num) (by rfl))
+    ?hbody
+  · -- store prog at base+4
+    intro a i h
+    have hsub := CodeReq.ofProg_mono_subrange B
+      [(.ADDI .x2 .x2 (-32 : BitVec 12))]
+      (storeProg keccakFrame)
+      (keccakProgL.drop 5)
+      (by
+        have : keccakProgL =
+            [(.ADDI .x2 .x2 (-32 : BitVec 12))] ++ storeProg keccakFrame ++
+              keccakProgL.drop 5 := by
+          simp only [keccakProgL, zkvmKeccak256_prog, zkvmKeccak256_prog_of,
+            storeProg, keccakFrame]
+          decide
+        rw [← this]; exact keccakProgL_bound)
+      a i h
+    exact hsub
+  · -- load prog at body exit base+252
+    intro a i h
+    have hsub := CodeReq.ofProg_mono_subrange B
+      (keccakProgL.take 63)
+      (loadProg keccakFrame)
+      (keccakProgL.drop 67)
+      (by
+        have : keccakProgL =
+            keccakProgL.take 63 ++ loadProg keccakFrame ++
+              keccakProgL.drop 67 := by
+          simp only [keccakProgL, zkvmKeccak256_prog, zkvmKeccak256_prog_of,
+            loadProg, keccakFrame]
+          decide
+        rw [← this]; exact keccakProgL_bound)
+      a i (by
+        -- startA = bodyExit = B+252 = B+4*63
+        have hA : keccakBodyExit B = B + BitVec.ofNat 64 (4 * 63) := by
+          simp only [keccakBodyExit]
+          decide
+        -- ofProg at bodyExit vs ofProg at B+(take 63)
+        -- mono_subrange expects ofProg (B + 4*|pre|) mid
+        have : CodeReq.ofProg (B + BitVec.ofNat 64 (4 * (keccakProgL.take 63).length))
+            (loadProg keccakFrame) a = some i := by
+          have hlen : (keccakProgL.take 63).length = 63 := by
+            simp only [List.length_take, keccakProgL_len]; norm_num
+          simpa [hlen, hA, keccakBodyExit] using h
+        exact this)
+    exact hsub
+  · -- body: PC pins bodyEntry/Exit = B+20 / B+252
+    simpa [keccakBodyEntry, keccakBodyExit, newSp, vals, lenW] using hbody
+
+
+-- @@ L406-450 verbatim
+/-- Top triple for `zkvm_keccak256` (exactly-sized input region).
+    The `= 136*N + rem` instance of `zkvm_keccak256_spec_within_envelope`. -/
+theorem zkvm_keccak256_spec_within (sp0 ret : Word)
+    (inputBase outputBase : Word)
+    (input : List (BitVec 8)) (N rem : Nat) (out0 : List (BitVec 8))
+    (v8 v9 v18 v20 v28 v29 : Word)
+    (os : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
+    (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
+    (hlen : input.length = keccakAbsorbStep * N + rem)
+    (hrem_le : rem ≤ 135)
+    (hout0 : out0.length = 32)
+    (hos : os.length = 200)
+    (halign_zk : Zk3.toNat % 8 = 0)
+    (hover : Zk3.toNat + 200 < 2 ^ 64)
+    (hNbound : keccakAbsorbStep * N + rem < 2 ^ 63)
+    (hrem64 : rem < 2 ^ 64)
+    (hb8i : (keccakAbsorbCursor inputBase N).toNat % 8 = 0)
+    (hovers : ∀ n, n < rem → Zk3.toNat + (rem - (n + 1)) < 2 ^ 64)
+    (hoveri : ∀ n, n < rem →
+      (keccakAbsorbCursor inputBase N).toNat + (rem - (n + 1)) < 2 ^ 64)
+    (hvalids : ∀ n, n < rem →
+      isValidByteAccess (Zk3 + BitVec.ofNat 64 (rem - (n + 1))) = true)
+    (hvalidi : ∀ n, n < rem →
+      isValidByteAccess
+        (keccakAbsorbCursor inputBase N + BitVec.ofNat 64 (rem - (n + 1))) = true)
+    (hvalidRem : isValidByteAccess (Zk3 + BitVec.ofNat 64 rem) = true)
+    (hvalid135 : isValidByteAccess (Zk3 + BitVec.ofNat 64 135) = true)
+    (hvalidMem : ∀ j, j < 200 →
+      isValidMemAddr (Zk3 + BitVec.ofNat 64 j) = true) :
+    let vals := keccakEntryVals v8 v9 v18 v20
+    let lenW := BitVec.ofNat 64 (keccakAbsorbStep * N + rem)
+    let newSp := sp0 + signExtend12 ((-32 : BitVec 12))
+    cpsTripleWithin (5 + keccakBodyFuel N rem + 6) B ret keccakCr
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ ret) **
+        regsAt keccakFrame vals **
+        frameSlotsOwn keccakFrame newSp **
+        keccakCallerPre inputBase lenW outputBase v28 v29 os input out0 A)
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ ret) **
+        regsAt keccakFrame vals **
+        frameSlotsSaved keccakFrame newSp vals **
+        keccakCallerPost inputBase outputBase input N rem A) :=
+  zkvm_keccak256_spec_within_envelope sp0 ret inputBase outputBase input N rem
+    out0 v8 v9 v18 v20 v28 v29 os A hA halign_ret (Nat.le_of_eq hlen.symm)
+    hrem_le hout0 hos halign_zk hover hNbound hrem64 hb8i hovers hoveri
+    hvalids hvalidi hvalidRem hvalid135 hvalidMem
+
+
+-- @@ L452-452 verbatim
+end EvmAsm.Codegen.Proofs

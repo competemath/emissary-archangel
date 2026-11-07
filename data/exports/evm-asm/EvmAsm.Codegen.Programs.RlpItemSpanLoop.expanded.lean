@@ -1,0 +1,850 @@
+/-
+  EvmAsm.Codegen.Programs.RlpItemSpanLoop
+
+  Extracted from `RlpItemSpanBody.lean` to stay under the Codegen/Programs
+  1500-line FileSizeGuard (#11577 / PR #11936). Holds the ambient/loop
+  assertions and the k < i continue triple (precall / size call / postcall).
+  The top-level `rlp_item_span_spec_within` remains in `RlpItemSpanBody.lean`.
+
+  ⭐ OUTER-HEADER AGNOSTIC (#10780). The walk cursor is `listCursor`, whose
+  header length comes from `hdrLen`, so nothing here mentions the short
+  form: the loop is shared verbatim by the short (`0xC0+len`) and long
+  (`0xF7+lenlen`) outer-header arms. The old `payloadLen items ≤ 55` gate
+  is gone — every bound it supplied (`i < 2 ^ 64`, the callee's
+  `< 256 ^ 8` size gate, cursor-in-buffer) now comes from `h_over`, i.e.
+  from the buffer fitting the 64-bit envelope. Only the HEADER block
+  (`RlpItemSpanBody.header_to_loop`, `RlpItemSpanLong.header_to_loop_long`)
+  is form-specific.
+-/
+
+import EvmAsm.Codegen.Programs.RlpItemSpanMachine
+import EvmAsm.Codegen.Programs.RlpItemSpanSizeOffset
+import EvmAsm.Rv64.SAsm.FramePort
+import EvmAsm.Rv64.SAsm.AbiFrameCall
+import EvmAsm.Rv64.SAsm.DualReadByteScan
+import EvmAsm.Rv64.Tactics.XPerm
+import EvmAsm.Rv64.Tactics.XPermChunked
+import EvmAsm.Rv64.Tactics.RunBlock
+
+
+-- @@ L29-29 verbatim
+namespace EvmAsm.Codegen
+
+-- @@ L30-30 verbatim
+namespace RlpItemSpanSpec
+
+
+-- @@ L32-32 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Rv64.Tactics
+
+-- @@ L33-33 verbatim
+open EvmAsm.EL.RLP
+
+-- @@ L34-34 verbatim
+open EvmAsm.Codegen.RlpSpliceHelperSpec
+
+-- @@ L35-35 verbatim
+open EvmAsm.Codegen.MptSpliceSlotSpec
+
+
+-- @@ L37-37 verbatim
+/-! ## Base + code membership -/
+
+
+-- @@ L39-39 verbatim
+abbrev B : Word := rlpItemSpanBase
+
+
+-- @@ L41-41 verbatim
+theorem span_len : rlpItemSpan_prog.length = 57 := rlpItemSpan_prog_length
+
+-- @@ L42-43 verbatim
+theorem span_bound : 4 * rlpItemSpan_prog.length < 2 ^ 64 := by
+  rw [span_len]; norm_num
+
+
+-- @@ L45-46 verbatim
+/-- Unfold `Program` so `GetElem` / length facts reduce. -/
+abbrev spanProg : List Instr := rlpItemSpan_prog
+
+
+-- @@ L48-48 verbatim
+theorem spanProg_len : spanProg.length = 57 := span_len
+
+-- @@ L49-49 verbatim
+theorem spanProg_bound : 4 * spanProg.length < 2 ^ 64 := span_bound
+
+
+-- @@ L51-58 verbatim
+/-- Singleton at index `k` ⊆ ofProg ⊆ spanCr. -/
+theorem mem_at (k : Nat) (ins : Instr) (A : Word)
+    (hA : A = B + BitVec.ofNat 64 (4 * k))
+    (hk : k < spanProg.length)
+    (hins : spanProg[k]'hk = ins) :
+    ∀ a i, CodeReq.singleton A ins a = some i → spanCr a = some i :=
+  fun a i h =>
+    span_sub a i (CodeReq.ofProg_mem_at B A spanProg k ins hA hk hins spanProg_bound a i h)
+
+
+-- @@ L60-60 verbatim
+/-! ## Ambient packing -/
+
+
+-- @@ L62-69 verbatim
+/-- Frame + outs + bytes + zero + saved ra — stable across the body. -/
+def amb (newSp listBase endPtr indexW outStart outSize
+    st sz raVal : Word) (saved : Saved) (bs : List (BitVec 8)) : Assertion :=
+  ((.x2 ↦ᵣ newSp) ** savedFrame newSp saved **
+   (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ endPtr) **
+   (.x18 ↦ᵣ indexW) ** (.x19 ↦ᵣ outStart) ** (.x20 ↦ᵣ outSize) **
+   (outStart ↦ₘ st) ** (outSize ↦ₘ sz) **
+   (.x1 ↦ᵣ raVal) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bs)
+
+
+-- @@ L71-74 expanded
+theorem amb_pcFree (newSp listBase endPtr indexW outStart outSize st sz raVal : Word)
+    (saved : Saved) (bs : List (BitVec 8)) :
+    (amb newSp listBase endPtr indexW outStart outSize st sz raVal saved bs).pcFree := by
+  unfold amb;
+  repeat
+    first
+    | apply pcFree_sepConj
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
+    | exact pcFree_emp
+    | exact pcFree_pure
+    | exact pcFree_instrAt
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_stackFree _ _
+    | exact pcFree_dwordsIs _ _
+    | exact pcFree_regsAt _ _
+    | exact pcFree_frameSlotsOwn _ _
+    | exact pcFree_frameSlotsSaved _ _ _
+    | exact pcFree_regFileIs _
+
+
+-- @@ L76-87 verbatim
+/-- Loop inv at header: counter k, cursor at listCursor k.
+    `x5`/`x6` are `regOwn` (size callee clobbers them). -/
+def inv (newSp listBase endPtr indexW outStart outSize
+    st sz raVal : Word) (saved : Saved) (items : List RLPItem) (k : Nat)
+    (v7 v10 v11 v12 v13 v14 : Word) : Assertion :=
+  amb newSp listBase endPtr indexW outStart outSize st sz raVal saved
+      (encode (.list items)) **
+    ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items k))) **
+     (.x22 ↦ᵣ BitVec.ofNat 64 k) **
+     regOwn .x5 ** regOwn .x6 ** (.x7 ↦ᵣ v7) **
+     (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
+     (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14))
+
+
+-- @@ L89-94 expanded
+theorem inv_pcFree (newSp listBase endPtr indexW outStart outSize st sz raVal : Word)
+    (saved : Saved) (items : List RLPItem) (k : Nat) (v7 v10 v11 v12 v13 v14 : Word) :
+    (inv newSp listBase endPtr indexW outStart outSize st sz raVal saved items k v7 v10 v11 v12 v13
+        v14).pcFree :=
+  by unfold inv amb;
+  repeat
+    first
+    | apply pcFree_sepConj
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
+    | exact pcFree_emp
+    | exact pcFree_pure
+    | exact pcFree_instrAt
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_stackFree _ _
+    | exact pcFree_dwordsIs _ _
+    | exact pcFree_regsAt _ _
+    | exact pcFree_frameSlotsOwn _ _
+    | exact pcFree_frameSlotsSaved _ _ _
+    | exact pcFree_regFileIs _
+
+
+-- @@ L96-109 verbatim
+/-- Body-exit success post. -/
+def bodyPost (newSp listBase endPtr indexW outStart outSize
+    raVal : Word) (saved : Saved) (items : List RLPItem) (i : Nat)
+    (hi : i < items.length) : Assertion :=
+  let startOff := listCursor items i
+  let itemSz := (encode (items[i]'hi)).length
+  amb newSp listBase endPtr indexW outStart outSize
+      (BitVec.ofNat 64 startOff) (BitVec.ofNat 64 itemSz) raVal saved
+      (encode (.list items)) **
+    ((.x10 ↦ᵣ (0 : Word)) **
+     (.x21 ↦ᵣ (listBase + BitVec.ofNat 64 startOff)) **
+     (.x22 ↦ᵣ BitVec.ofNat 64 i) **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+     regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14)
+
+
+-- @@ L111-111 verbatim
+/-! ## Setup block (idx 9..13 → B+36 .. B+56) -/
+
+
+
+-- @@ L114-114 verbatim
+/-! ## Loop step helpers (k < i) -/
+
+
+-- @@ L116-120 verbatim
+theorem ofNat64_inj_of_lt (a b : Nat) (ha : a < 2 ^ 64) (hb : b < 2 ^ 64)
+    (heq : BitVec.ofNat 64 a = BitVec.ofNat 64 b) : a = b := by
+  have := congrArg BitVec.toNat heq
+  simp only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb] at this
+  exact this
+
+
+-- @@ L122-128 verbatim
+/-- `listBase + ofNat n` toNat under a concrete envelope bound. -/
+theorem listBase_add_toNat (listBase : Word) (n len : Nat)
+    (hn : n ≤ len) (h_over : listBase.toNat + len < 2 ^ 64) :
+    (listBase + BitVec.ofNat 64 n).toNat = listBase.toNat + n := by
+  have hn64 : n < 2 ^ 64 := by omega
+  rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hn64]
+  omega
+
+
+-- @@ L130-248 expanded
+/-- BEQ ntaken + BGEU ntaken + MV x10←x21: inv → call site at B+120. -/
+theorem loop_continue_precall (newSp listBase endPtr indexW outStart outSize st sz raVal : Word)
+    (saved : Saved) (items : List RLPItem) (k i : Nat) (v7 v10 v11 v12 v13 v14 : Word)
+    (h_end : endPtr = listBase + BitVec.ofNat 64 (encode (.list items)).length)
+    (h_over : listBase.toNat + (encode (.list items)).length < 2 ^ 64) (hi : i < items.length)
+    (hk_lt : k < i) (h_idx : indexW = BitVec.ofNat 64 i) :
+    cpsTripleWithin 3 (B + 124) (B + 136) spanCr
+      (inv newSp listBase endPtr indexW outStart outSize st sz raVal saved items k v7 v10 v11 v12
+        v13 v14)
+      (amb newSp listBase endPtr indexW outStart outSize st sz raVal saved (encode (.list items)) **
+        ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items k))) **
+          (.x22 ↦ᵣ BitVec.ofNat 64 k) **
+            regOwn .x5 **
+              regOwn .x6 **
+                (.x7 ↦ᵣ v7) **
+                  (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items k))) **
+                    (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14))) :=
+  by
+  set bs := encode (.list items)
+  have hbs_len : bs.length = (encode (.list items)).length := rfl
+  have hk_items : k < items.length := Nat.lt_trans hk_lt hi
+  have hcur_lt := listCursor_lt items k hk_items
+  have hcur_le : listCursor items k ≤ bs.length := by rw [hbs_len]; exact Nat.le_of_lt hcur_lt
+  have hilen : items.length ≤ bs.length := by rw [hbs_len]; exact items_length_le_encode items
+  have hi64 : i < 2 ^ 64 := by omega
+  have hk64 : k < 2 ^ 64 := Nat.lt_trans hk_lt hi64
+  have hk_ne : BitVec.ofNat 64 k ≠ BitVec.ofNat 64 i :=
+    by
+    intro heq
+    exact Nat.ne_of_lt hk_lt (ofNat64_inj_of_lt k i hk64 hi64 heq)
+  have hult_cur : BitVec.ult (listBase + BitVec.ofNat 64 (listCursor items k)) endPtr :=
+    by
+    have hsum_c :=
+      listBase_add_toNat listBase (listCursor items k) bs.length hcur_le
+        (by rwa [hbs_len] at h_over ⊢)
+    have hsum_e :=
+      listBase_add_toNat listBase bs.length bs.length (Nat.le_refl _) (by rwa [hbs_len] at h_over ⊢)
+    rw [h_end, BitVec.ult, decide_eq_true_eq, hsum_c, hsum_e, hbs_len]
+    have : listCursor items k < (encode (.list items)).length := hcur_lt
+    omega
+      -- idx27 BEQ ntaken
+      
+  have hbr27 :=
+    cpsBranchWithin_extend_code
+      (mem_at 31 (.BEQ .x22 .x18 (28 : BitVec 13)) (B + 124) (by bv_omega)
+        (by rw [spanProg_len]; norm_num) (by rfl))
+      (beq_spec_gen_within .x22 .x18 (28 : BitVec 13) (BitVec.ofNat 64 k) indexW (B + 124))
+  rw [show (B + 124 : Word) + signExtend13 (28 : BitVec 13) = B + 152 from by
+      rw [show signExtend13 (28 : BitVec 13) = (28 : Word) from by decide]; bv_omega,
+    show (B + 124 : Word) + 4 = B + 128 from by decide] at hbr27
+  have hk_ne' : BitVec.ofNat 64 k ≠ indexW := by rw [h_idx]; exact hk_ne
+  have hnt27 :=
+    cpsBranchWithin_ntakenStripPure2 hbr27
+      (fun _hp hQt => by
+        obtain ⟨_, _, _, _, _, hQ⟩ := hQt
+        exact hk_ne' ((sepConj_pure_right _).1 hQ).2)
+        -- idx28 BGEU ntaken
+        
+  have hbr28 :=
+    cpsBranchWithin_extend_code
+      (mem_at 32 (.BGEU .x21 .x9 (56 : BitVec 13)) (B + 128) (by bv_omega)
+        (by rw [spanProg_len]; norm_num) (by rfl))
+      (bgeu_spec_gen_within .x21 .x9 (56 : BitVec 13)
+        (listBase + BitVec.ofNat 64 (listCursor items k)) endPtr (B + 128))
+  rw [show (B + 128 : Word) + signExtend13 (56 : BitVec 13) = B + 184 from by
+      rw [show signExtend13 (56 : BitVec 13) = (56 : Word) from by decide]; bv_omega,
+    show (B + 128 : Word) + 4 = B + 132 from by decide] at hbr28
+  have hnt28 :=
+    cpsBranchWithin_ntakenStripPure2 hbr28
+      (fun _hp hQt => by
+        obtain ⟨_, _, _, _, _, hQ⟩ := hQt
+        exact ((sepConj_pure_right _).1 hQ).2 hult_cur)
+        -- idx29 MV
+        
+  have hmv29 :=
+    cpsTripleWithin_extend_code
+      (mem_at 33 (.MV .x10 .x21) (B + 132) (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
+      (mv_spec_gen_within .x10 .x21 (listBase + BitVec.ofNat 64 (listCursor items k)) v10 (B + 132)
+        (by decide))
+  rw [show (B + 132 : Word) + 4 = B + 136 from by decide] at hmv29
+  have f27 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x9 ↦ᵣ endPtr) **
+              (.x19 ↦ᵣ outStart) **
+                (.x20 ↦ᵣ outSize) **
+                  (.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items k))) **
+                    savedFrame newSp saved **
+                      regOwn .x5 **
+                        regOwn .x6 **
+                          (.x7 ↦ᵣ v7) **
+                            (.x10 ↦ᵣ v10) **
+                              (.x11 ↦ᵣ v11) **
+                                (.x12 ↦ᵣ v12) **
+                                  (.x13 ↦ᵣ v13) **
+                                    (.x14 ↦ᵣ v14) **
+                                      (.x0 ↦ᵣ (0 : Word)) **
+                                        bytesRegion listBase bs **
+                                          (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hnt27
+  have f28 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x18 ↦ᵣ indexW) **
+              (.x19 ↦ᵣ outStart) **
+                (.x20 ↦ᵣ outSize) **
+                  (.x22 ↦ᵣ BitVec.ofNat 64 k) **
+                    savedFrame newSp saved **
+                      regOwn .x5 **
+                        regOwn .x6 **
+                          (.x7 ↦ᵣ v7) **
+                            (.x10 ↦ᵣ v10) **
+                              (.x11 ↦ᵣ v11) **
+                                (.x12 ↦ᵣ v12) **
+                                  (.x13 ↦ᵣ v13) **
+                                    (.x14 ↦ᵣ v14) **
+                                      (.x0 ↦ᵣ (0 : Word)) **
+                                        bytesRegion listBase bs **
+                                          (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hnt28
+  have f29 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x9 ↦ᵣ endPtr) **
+              (.x18 ↦ᵣ indexW) **
+                (.x19 ↦ᵣ outStart) **
+                  (.x20 ↦ᵣ outSize) **
+                    (.x22 ↦ᵣ BitVec.ofNat 64 k) **
+                      savedFrame newSp saved **
+                        regOwn .x5 **
+                          regOwn .x6 **
+                            (.x7 ↦ᵣ v7) **
+                              (.x11 ↦ᵣ v11) **
+                                (.x12 ↦ᵣ v12) **
+                                  (.x13 ↦ᵣ v13) **
+                                    (.x14 ↦ᵣ v14) **
+                                      (.x0 ↦ᵣ (0 : Word)) **
+                                        bytesRegion listBase bs **
+                                          (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hmv29
+  have c01 :=
+    cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by simp only [savedFrame] at hp ⊢; xperm_chunked hp) f27 f28
+  have c02 :=
+    cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by simp only [savedFrame] at hp ⊢; xperm_chunked hp) c01 f29
+  refine
+    cpsTripleWithin_weaken
+      (fun h hp => by
+        simp only [inv, amb, savedFrame] at hp ⊢
+        xperm_chunked hp)
+      (fun h hq => by
+        simp only [amb, savedFrame] at hq ⊢
+        xperm_chunked hq)
+      c02
+
+
+-- @@ L250-349 expanded
+/-- Size call at B+120: cursor in x10 → length in x10; ra becomes B+124. -/
+theorem loop_continue_size_call (newSp listBase endPtr indexW outStart outSize st sz raVal : Word)
+    (saved : Saved) (items : List RLPItem) (k : Nat) (v7 v11 v12 v13 v14 : Word)
+    (h_align : listBase.toNat % 8 = 0)
+    (h_over : listBase.toNat + (encode (.list items)).length < 2 ^ 64)
+    (h_valid :
+      ∀ j,
+        j < (encode (.list items)).length → isValidByteAccess (listBase + BitVec.ofNat 64 j) = true)
+    (hk_items : k < items.length) (h_walk_k : SpanForm ((encode (items[k]'hk_items)).getD 0 0)) :
+    cpsTripleWithin 13 (B + 136) (B + 140) spanCr
+      (amb newSp listBase endPtr indexW outStart outSize st sz raVal saved (encode (.list items)) **
+        ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items k))) **
+          (.x22 ↦ᵣ BitVec.ofNat 64 k) **
+            regOwn .x5 **
+              regOwn .x6 **
+                (.x7 ↦ᵣ v7) **
+                  (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items k))) **
+                    (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14)))
+      (amb newSp listBase endPtr indexW outStart outSize st sz (B + 140) saved
+          (encode (.list items)) **
+        ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items k))) **
+          (.x22 ↦ᵣ BitVec.ofNat 64 k) **
+            regOwn .x5 **
+              regOwn .x6 **
+                (.x7 ↦ᵣ v7) **
+                  (.x10 ↦ᵣ BitVec.ofNat 64 (encode (items[k]'hk_items)).length) **
+                    (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14))) :=
+  by
+  set bs := encode (.list items)
+  set cursor : Word := listBase + BitVec.ofNat 64 (listCursor items k)
+  set itemLenW : Word := BitVec.ofNat 64 (encode (items[k]'hk_items)).length
+  have hbs_len : bs.length = (encode (.list items)).length := rfl
+  have hcur_lt := listCursor_lt items k hk_items
+  have h_off : listCursor items k < bs.length := by rwa [hbs_len]
+  have h_over_off : listBase.toNat + listCursor items k < 2 ^ 64 := by have := hcur_lt; omega
+  have hL64 : (encode (.list items)).length < 2 ^ 64 :=
+    by
+    have hover' : listBase.toNat + bs.length < 2 ^ 64 := h_over
+    rw [hbs_len] at hover'; omega
+  have hsz := encode_item_length_lt_bound items k hk_items hL64
+  have hdec := decode_at_listCursor items k hk_items hsz
+  have hform := span_form_at_listCursor items k hk_items hsz h_walk_k
+  have hret_even : ((B + 140 : Word) &&& ~~~(1 : Word)) = B + 140 := by decide
+  have hsize0 :=
+    rlp_item_size_offset_spec_within listBase (listCursor items k) (B + 140) bs (items[k]'hk_items)
+      (encode.encodeItems (items.drop (k + 1))) h_align h_off h_over_off
+      (by intro j hj; rw [hbs_len] at hj; exact h_valid j hj) (by simpa [bs] using hdec)
+      (by simpa [bs] using hform)
+  rw [hret_even] at hsize0
+  have hsizeC := cpsTripleWithin_extend_code size_sub hsize0
+  have hpc : (B + 136 + 4 : Word) = B + 140 := by decide
+  have hsizeW :
+    cpsTripleWithin 12 rlpItemSizeBase (B + 136 + 4) spanCr
+      (((.x1 : Reg) ↦ᵣ (B + 136 + 4)) **
+        (((.x10 : Reg) ↦ᵣ cursor) **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion listBase bs ** regOwn .x5 ** regOwn .x6))
+      (((.x1 : Reg) ↦ᵣ (B + 136 + 4)) **
+        (((.x10 : Reg) ↦ᵣ itemLenW) **
+          regOwn .x5 ** regOwn .x6 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion listBase bs)) :=
+    by
+    rw [hpc]
+    refine
+      cpsTripleWithin_weaken
+        (fun _ hp => by
+          simp only [cursor] at hp ⊢
+          xperm_chunked hp)
+        (fun _ hq => by
+          simp only [itemLenW] at hq ⊢
+          xperm_chunked hq)
+        hsizeC
+  have htarget :
+    (B + 136 : Word) +
+        signExtend21 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 136)) =
+      rlpItemSizeBase :=
+    by unfold B rlpItemSpanBase rlpItemSizeBase; decide
+  have hcall :=
+    callWithin_spec (B + 136) rlpItemSizeBase raVal
+      (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 136)) 12 htarget
+      (mem_at 34 (.JAL .x1 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 136)))
+        (B + 136) (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hsizeW
+  rw [hpc] at hcall
+  have fcall :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x8 ↦ᵣ listBase) **
+          (.x9 ↦ᵣ endPtr) **
+            (.x18 ↦ᵣ indexW) **
+              (.x19 ↦ᵣ outStart) **
+                (.x20 ↦ᵣ outSize) **
+                  (.x21 ↦ᵣ cursor) **
+                    (.x22 ↦ᵣ BitVec.ofNat 64 k) **
+                      savedFrame newSp saved **
+                        (.x7 ↦ᵣ v7) **
+                          (.x11 ↦ᵣ v11) **
+                            (.x12 ↦ᵣ v12) **
+                              (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hcall
+  refine
+    cpsTripleWithin_weaken
+      (fun h hp => by
+        simp only [amb, cursor, savedFrame] at hp ⊢
+        xperm_chunked hp)
+      (fun h hq => by
+        simp only [amb, cursor, itemLenW, savedFrame] at hq ⊢
+        xperm_chunked hq)
+      fcall
+
+
+-- @@ L351-492 expanded
+/-- ADD cursor, ADDI k, JAL back — post size-call → inv (k+1).
+    Requires `k + 1 < items.length` (true in the continue arm: `k < i < length`). -/
+theorem loop_continue_postcall (newSp listBase endPtr indexW outStart outSize st sz : Word)
+    (saved : Saved) (items : List RLPItem) (k : Nat) (v7 v11 v12 v13 v14 : Word)
+    (h_over : listBase.toNat + (encode (.list items)).length < 2 ^ 64) (hk_items : k < items.length)
+    (hk_succ_lt : k + 1 < items.length) :
+    cpsTripleWithin 3 (B + 140) (B + 124) spanCr
+      (amb newSp listBase endPtr indexW outStart outSize st sz (B + 140) saved
+          (encode (.list items)) **
+        ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items k))) **
+          (.x22 ↦ᵣ BitVec.ofNat 64 k) **
+            regOwn .x5 **
+              regOwn .x6 **
+                (.x7 ↦ᵣ v7) **
+                  (.x10 ↦ᵣ BitVec.ofNat 64 (encode (items[k]'hk_items)).length) **
+                    (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14)))
+      (inv newSp listBase endPtr indexW outStart outSize st sz (B + 140) saved items (k + 1) v7
+        (BitVec.ofNat 64 (encode (items[k]'hk_items)).length) v11 v12 v13 v14) :=
+  by
+  set bs := encode (.list items)
+  set itemLenW : Word := BitVec.ofNat 64 (encode (items[k]'hk_items)).length
+  set cursor : Word := listBase + BitVec.ofNat 64 (listCursor items k)
+  have hbs_len : bs.length = (encode (.list items)).length := rfl
+  have hilen : items.length ≤ bs.length := by rw [hbs_len]; exact items_length_le_encode items
+  have hover' : listBase.toNat + bs.length < 2 ^ 64 := h_over
+  have hk64 : k + 1 < 2 ^ 64 := by omega
+  have hcur_lt_k := listCursor_lt items k hk_items
+  have hcur_lt_succ := listCursor_lt items (k + 1) hk_succ_lt
+  have hadd31 :=
+    cpsTripleWithin_extend_code
+      (mem_at 35 (.ADD .x21 .x21 .x10) (B + 140) (by bv_omega) (by rw [spanProg_len]; norm_num)
+        (by rfl))
+      (add_spec_gen_rd_eq_rs1_within .x21 .x10 cursor itemLenW (B + 140) (by decide))
+  rw [show (B + 140 : Word) + 4 = B + 144 from by decide] at hadd31
+  have haddi32 :=
+    cpsTripleWithin_extend_code
+      (mem_at 36 (.ADDI .x22 .x22 (1 : BitVec 12)) (B + 144) (by bv_omega)
+        (by rw [spanProg_len]; norm_num) (by rfl))
+      (addi_spec_gen_same_within .x22 (BitVec.ofNat 64 k) (1 : BitVec 12) (B + 144) (by decide))
+  rw [show (B + 144 : Word) + 4 = B + 148 from by decide] at haddi32
+  have hjal33 :=
+    cpsTripleWithin_extend_code
+      (mem_at 37 (.JAL .x0 (-24 : BitVec 21)) (B + 148) (by bv_omega)
+        (by rw [spanProg_len]; norm_num) (by rfl))
+      (jal_x0_spec_gen_within (-24 : BitVec 21) (B + 148))
+  rw [show (B + 148 : Word) + signExtend21 (-24 : BitVec 21) = B + 124 from
+      by
+      rw [show signExtend21 (-24 : BitVec 21) = BitVec.ofInt 64 (-24) from by decide]
+      bv_omega] at hjal33
+  set restFrame : Assertion :=
+    ((.x2 ↦ᵣ newSp) **
+      (.x1 ↦ᵣ (B + 140)) **
+        (.x8 ↦ᵣ listBase) **
+          (.x9 ↦ᵣ endPtr) **
+            (.x18 ↦ᵣ indexW) **
+              (.x19 ↦ᵣ outStart) **
+                (.x20 ↦ᵣ outSize) **
+                  savedFrame newSp saved **
+                    regOwn .x5 **
+                      regOwn .x6 **
+                        (.x7 ↦ᵣ v7) **
+                          (.x11 ↦ᵣ v11) **
+                            (.x12 ↦ᵣ v12) **
+                              (.x13 ↦ᵣ v13) **
+                                (.x14 ↦ᵣ v14) **
+                                  (.x0 ↦ᵣ (0 : Word)) **
+                                    bytesRegion listBase bs ** (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+  have hrest_pc : restFrame.pcFree := by simp only [restFrame, savedFrame];
+    repeat
+      first
+      | apply pcFree_sepConj
+      | exact pcFree_regIs
+      | exact pcFree_regOwn
+      | exact pcFree_memIs
+      | exact pcFree_memOwn
+      | exact pcFree_emp
+      | exact pcFree_pure
+      | exact pcFree_instrAt
+      | exact bytesRegion_pcFree _ _
+      | exact pcFree_stackFree _ _
+      | exact pcFree_dwordsIs _ _
+      | exact pcFree_regsAt _ _
+      | exact pcFree_frameSlotsOwn _ _
+      | exact pcFree_frameSlotsSaved _ _ _
+      | exact pcFree_regFileIs _
+  have f31 :=
+    cpsTripleWithin_frameR (restFrame ** (.x22 ↦ᵣ BitVec.ofNat 64 k))
+      (by simp only [restFrame, savedFrame];
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hadd31
+  have f32 :=
+    cpsTripleWithin_frameR (restFrame ** (.x21 ↦ᵣ (cursor + itemLenW)) ** (.x10 ↦ᵣ itemLenW))
+      (by simp only [restFrame, savedFrame];
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      haddi32
+  have f33raw :=
+    cpsTripleWithin_frameR
+      (restFrame **
+        (.x21 ↦ᵣ (cursor + itemLenW)) **
+          (.x10 ↦ᵣ itemLenW) ** (.x22 ↦ᵣ (BitVec.ofNat 64 k + signExtend12 (1 : BitVec 12))))
+      (by simp only [restFrame, savedFrame];
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hjal33
+  have f33 :
+    cpsTripleWithin 1 (B + 148) (B + 124) spanCr
+      (restFrame **
+        (.x21 ↦ᵣ (cursor + itemLenW)) **
+          (.x10 ↦ᵣ itemLenW) ** (.x22 ↦ᵣ (BitVec.ofNat 64 k + signExtend12 (1 : BitVec 12))))
+      (restFrame **
+        (.x21 ↦ᵣ (cursor + itemLenW)) **
+          (.x10 ↦ᵣ itemLenW) ** (.x22 ↦ᵣ (BitVec.ofNat 64 k + signExtend12 (1 : BitVec 12)))) :=
+    cpsTripleWithin_weaken (fun _ hp => (sepConj_emp_left _).2 hp)
+      (fun _ hq => (sepConj_emp_left _).1 hq) f33raw
+  have c01 :=
+    cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by simp only [restFrame, savedFrame] at hp ⊢; xperm_chunked hp) f31 f32
+  have c02 :=
+    cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by simp only [restFrame, savedFrame] at hp ⊢; xperm_chunked hp) c01 f33
+  have hcur_succ : cursor + itemLenW = listBase + BitVec.ofNat 64 (listCursor items (k + 1)) :=
+    by
+    have hs := listCursor_succ items k hk_items
+    have ha : listCursor items k + (encode (items[k]'hk_items)).length = listCursor items (k + 1) :=
+      by omega
+    have hsum_c :=
+      listBase_add_toNat listBase (listCursor items k) bs.length
+        (Nat.le_of_lt (by simpa [hbs_len] using hcur_lt_k)) (by simpa [hbs_len] using h_over)
+    have hsum2 :=
+      listBase_add_toNat listBase (listCursor items (k + 1)) bs.length
+        (Nat.le_of_lt (by simpa [hbs_len] using hcur_lt_succ)) (by simpa [hbs_len] using h_over)
+    have hsum1 :
+      (cursor + itemLenW).toNat =
+        listBase.toNat + listCursor items k + (encode (items[k]'hk_items)).length :=
+      by
+      simp only [cursor, itemLenW]
+      have hlen64 : (encode (items[k]'hk_items)).length < 2 ^ 64 := by omega
+      have hsum_bound :
+        listBase.toNat + listCursor items k + (encode (items[k]'hk_items)).length < 2 ^ 64 :=
+        by
+        have : listCursor items k + (encode (items[k]'hk_items)).length ≤ bs.length :=
+          by
+          have : listCursor items (k + 1) ≤ bs.length := by rw [hbs_len];
+            exact Nat.le_of_lt hcur_lt_succ
+          omega
+        omega
+      rw [BitVec.toNat_add, hsum_c, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlen64,
+        Nat.mod_eq_of_lt hsum_bound]
+    apply BitVec.eq_of_toNat_eq
+    rw [hsum1, hsum2, Nat.add_assoc, ha]
+  have hk_succ_w : BitVec.ofNat 64 k + signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 (k + 1) :=
+    by
+    rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+    have hk0 : k < 2 ^ 64 := Nat.lt_trans (Nat.lt_succ_self k) hk64
+    apply BitVec.eq_of_toNat_eq
+    have h1 : (1 : Word).toNat = 1 := rfl
+    have hL : (BitVec.ofNat 64 k + (1 : Word)).toNat = k + 1 :=
+      by
+      simp only [BitVec.toNat_add, BitVec.toNat_ofNat, h1, Nat.mod_eq_of_lt hk0]
+      rw [Nat.mod_eq_of_lt hk64]
+    have hR : (BitVec.ofNat 64 (k + 1)).toNat = k + 1 := by
+      simp only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hk64]
+    omega
+  refine
+    cpsTripleWithin_weaken
+      (fun h hp => by
+        simp only [amb, cursor, itemLenW, restFrame, savedFrame] at hp ⊢
+        xperm_chunked hp)
+      (fun h hq => ?_) c02
+  have hq1 :
+    (restFrame **
+        (.x21 ↦ᵣ (cursor + itemLenW)) **
+          (.x10 ↦ᵣ itemLenW) ** (.x22 ↦ᵣ (BitVec.ofNat 64 k + signExtend12 (1 : BitVec 12))))
+      h :=
+    by
+    simp only [restFrame, savedFrame] at hq ⊢
+    xperm_chunked hq
+  rw [hcur_succ, hk_succ_w] at hq1
+  simp only [inv, amb, restFrame, savedFrame, itemLenW] at hq1 ⊢
+  xperm_chunked hq1
+
+
+-- @@ L494-533 verbatim
+/-- One loop iteration when `k < i`: inv k → inv (k+1) at header. -/
+theorem loop_continue
+    (newSp listBase endPtr indexW outStart outSize st sz raVal : Word)
+    (saved : Saved) (items : List RLPItem) (k i : Nat)
+    (v7 v10 v11 v12 v13 v14 : Word)
+    (h_end : endPtr =
+      listBase + BitVec.ofNat 64 (encode (.list items)).length)
+    (h_align : listBase.toNat % 8 = 0)
+    (h_over : listBase.toNat + (encode (.list items)).length < 2 ^ 64)
+    (h_valid : ∀ j, j < (encode (.list items)).length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 j) = true)
+    (hi : i < items.length)
+    (hk_lt : k < i)
+    (h_idx : indexW = BitVec.ofNat 64 i)
+    (h_walk : WalkedSpanForm items i) :
+    cpsTripleWithin 19 (B + 124) (B + 124) spanCr
+      (inv newSp listBase endPtr indexW outStart outSize st sz raVal
+        saved items k v7 v10 v11 v12 v13 v14)
+      (inv newSp listBase endPtr indexW outStart outSize st sz (B + 140)
+        saved items (k + 1) v7
+        (BitVec.ofNat 64 (encode (items[k]'(Nat.lt_trans hk_lt hi))).length)
+        v11 v12 v13 v14) := by
+  have hk_items : k < items.length := Nat.lt_trans hk_lt hi
+  have hk_succ_lt : k + 1 < items.length :=
+    Nat.lt_of_le_of_lt (Nat.succ_le_of_lt hk_lt) hi
+  have h_walk_k : SpanForm ((encode (items[k]'hk_items)).getD 0 0) :=
+    h_walk k (Nat.le_of_lt hk_lt) hk_items
+  have h1 := loop_continue_precall newSp listBase endPtr indexW outStart outSize
+    st sz raVal saved items k i v7 v10 v11 v12 v13 v14
+    h_end h_over hi hk_lt h_idx
+  have h2 := loop_continue_size_call newSp listBase endPtr indexW outStart outSize
+    st sz raVal saved items k v7 v11 v12 v13 v14
+    h_align h_over h_valid hk_items h_walk_k
+  have h3 := loop_continue_postcall newSp listBase endPtr indexW outStart outSize
+    st sz saved items k v7 v11 v12 v13 v14
+    h_over hk_items hk_succ_lt
+  have c12 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by simp only [savedFrame, amb] at hp ⊢; xperm_chunked hp) h1 h2
+  exact cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by simp only [savedFrame, amb] at hp ⊢; xperm_chunked hp) c12 h3
+
+
+-- @@ L535-535 verbatim
+end RlpItemSpanSpec

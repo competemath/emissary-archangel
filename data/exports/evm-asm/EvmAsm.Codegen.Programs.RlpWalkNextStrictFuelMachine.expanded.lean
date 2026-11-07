@@ -1,0 +1,1632 @@
+/-
+  EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachine
+
+  Option-2 machine-indexed families for #12419.  The structural
+  `cycleFuel_mutual_strong_induction` stays the index eliminator; these
+  families carry `sharedCyclePre` / `validateCyclePre`, concrete `CodeReq`,
+  and the #12408 continuation-output anti-vacuity witness — content that
+  `sharedIndexedFamily` / `validateIndexedFamily` deliberately omitted.
+-/
+
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuel
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelContracts
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelModel
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelStatus
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
+import EvmAsm.Rv64.Tactics.XPermChunked
+
+
+-- @@ L18-18 verbatim
+namespace EvmAsm.Codegen.RlpWalkNextStrictFuel
+
+
+-- @@ L20-20 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.EL.RLP
+
+-- @@ L21-21 verbatim
+open EvmAsm.Rv64.Tactics
+
+
+-- @@ L23-30 verbatim
+/-! ## Machine-indexed families (option 2)
+
+Each family is quantified like `SharedFuelFamily` / `ValidateFuelFamily`: at a
+fixed `fuel` index, every cursor window whose `cycleFuel` equals that index
+must supply a real machine contract.  The ambient `P` remains a static frame
+fragment; the fuel-dependent pure (`SharedFuel` / `ValidateFuel`) lives inside
+`sharedCyclePre` / `validateCyclePre`, so the induction cannot instantiate at
+`P = ⌜False⌝` and claim success without a concrete pre/post relation. -/
+
+
+-- @@ L32-48 verbatim
+def sharedMachineIndexedFamily
+    {α : Type} (bytes : List (BitVec 8)) (base : Word) (floor : Nat)
+    (sp budget a2 : Word) (P : Assertion) (post : α → Assertion)
+    (exit_ : Word) (contCode : CodeReq) (R : Assertion)
+    (fuel : Nat) : Prop :=
+  ∀ {cursorOff endOff : Nat},
+    fuel = cycleFuel cursorOff endOff →
+    cursorOff ≤ endOff →
+    endOff ≤ bytes.length →
+    base.toNat % 8 = 0 →
+    base.toNat + bytes.length < 2 ^ 64 →
+    base.toNat + endOff + 9 < 2 ^ 64 →
+    (∀ off, off < endOff →
+      isValidByteAccess (base + BitVec.ofNat 64 off) = true) →
+    P.pcFree →
+    Nonempty (SharedMachineContract bytes base floor fuel cursorOff endOff
+      sp budget a2 P post exit_ contCode R)
+
+
+-- @@ L50-67 verbatim
+def validateMachineIndexedFamily
+    (bytes : List (BitVec 8)) (base : Word) (floor : Nat)
+    (sp raVal exit_ : Word) (wholeCode : CodeReq) (P : Assertion)
+    (fuel : Nat) : Prop :=
+  ∀ {cursorOff endOff : Nat},
+    fuel = cycleFuel cursorOff endOff →
+    cursorOff ≤ endOff →
+    endOff ≤ bytes.length →
+    base.toNat % 8 = 0 →
+    base.toNat + bytes.length < 2 ^ 64 →
+    base.toNat + endOff + 9 < 2 ^ 64 →
+    (∀ off, off < endOff →
+      isValidByteAccess (base + BitVec.ofNat 64 off) = true) →
+    exit_ = raVal &&& ~~~(1 : Word) →
+    P.pcFree →
+    (∀ a i, validateCR a = some i → wholeCode a = some i) →
+    Nonempty (ValidateMachineContract bytes base floor fuel cursorOff endOff
+      sp raVal exit_ wholeCode P)
+
+
+-- @@ L69-76 verbatim
+/-! ## Knot-body family (recursive Validate surface, #12419)
+
+Full-entry `validateMachineIndexedFamily` is derived ONCE from this family via
+`validate_machine_proof_of_knot` (in Cont/Knot).  The recursive induction edge
+is the V+36 knot body: loop-back lands here with `x1 = V+40`; entry prologue
+lands with `x1 = raVal`.  Both are instances of the `x1Old`-parametric pre.
+`validateKnotFrameRest` in Cont is the named twin of the inlined frame atoms
+below — inlined here so Machine does not import Cont (Cont imports Machine). -/
+
+
+-- @@ L78-89 verbatim
+/-- The first three dwords of the nested Shared frame below `sp`.
+
+The linked Shared body allocates six dwords at `sp - 64`, `sp - 56`,
+`sp - 48`, `sp - 40`, `sp - 32`, and `sp - 24`. The knot-body caller keeps
+`x2 = sp`, so the first three cells must be caller-owned before the V+36 call;
+the remaining three stay in the Shared-side frame/ambient premise and must be
+accounted for there. Naming the explicit transfer keeps it visible instead
+of hiding it in an arbitrary ambient assertion. -/
+def validateKnotSharedFrame (sp : Word) : Assertion :=
+  ((memOwn (sp - BitVec.ofNat 64 64)) **
+    (memOwn (sp - BitVec.ofNat 64 56)) **
+    (memOwn (sp - BitVec.ofNat 64 48)))
+
+
+-- @@ L91-107 verbatim
+/-- Knot-body pre at `V+36`: parametric `x1Old` + frame rest + `x0`/`x12`/bytes/fuel. -/
+def validateKnotBodyPre
+    (bytes : List (BitVec 8)) (base : Word)
+    (fuel cursorOff endOff : Nat) (sp raVal x1Old : Word) (P : Assertion) :
+    Assertion :=
+  (((regIs .x1 x1Old) **
+    (regIs .x2 sp) **
+    (regIs .x10 (base + BitVec.ofNat 64 cursorOff)) **
+    (regIs .x5 (base + BitVec.ofNat 64 endOff)) **
+    (regIs .x11 (base + BitVec.ofNat 64 endOff)) **
+    (memIs sp raVal) **
+    (memIs (sp + 8) (base + BitVec.ofNat 64 cursorOff)) **
+    (memIs (sp + 16) (base + BitVec.ofNat 64 endOff))) **
+    (regIs .x0 (0 : Word)) ** regOwn .x12 **
+    validateKnotSharedFrame sp **
+    bytesRegion base bytes **
+    ⌜ValidateFuel bytes fuel cursorOff endOff⌝ ** P)
+
+
+-- @@ L109-139 verbatim
+/-- Machine contract at knot-body altitude (`V+36` → `validateCyclePost`). -/
+structure ValidateKnotBodyContract
+    (bytes : List (BitVec 8)) (base : Word)
+    (floor fuel cursorOff endOff : Nat) (sp raVal exit_ : Word)
+    (wholeCode : CodeReq) (P : Assertion) : Type where
+  hbase_aligned : base.toNat % 8 = 0
+  hcursor : cursorOff ≤ endOff
+  hwindow : endOff ≤ bytes.length
+  hover : base.toNat + bytes.length < 2 ^ 64
+  hnowrap : base.toNat + endOff + 9 < 2 ^ 64
+  hvalid : ∀ off, off < endOff →
+    isValidByteAccess (base + BitVec.ofNat 64 off) = true
+  hexit : exit_ = raVal &&& ~~~(1 : Word)
+  hP : P.pcFree
+  /-- The continuation is carried as data, not as a type parameter. -/
+  continuationCode : CodeReq
+  /-- The one code requirement consumed by the V+36 body seam. -/
+  bodyCode : CodeReq
+  hbodyCode : bodyCode = validateKnotBodyCode continuationCode
+  hbodyDisjoint : (validateKnotCallCode.union nestedCR).Disjoint
+    continuationCode
+  /-- Every instruction in the concrete call/nested/continuation composite is
+  present in the machine's whole-code requirement.  This strictly subsumes
+  the old `validateCR ⊆ wholeCode` field at the V+36 consumer. -/
+  hbodySub : ∀ a i, bodyCode a = some i → wholeCode a = some i
+  steps : Nat
+  /-- Parametric in incoming `x1` (entry `raVal` or loop-back `V+40`). -/
+  proof : ∀ x1Old,
+    cpsTripleWithin steps (validateEntry + 36) exit_ wholeCode
+      (validateKnotBodyPre bytes base fuel cursorOff endOff sp raVal x1Old P)
+      (validateCyclePost bytes base floor fuel cursorOff endOff sp raVal P)
+
+
+-- @@ L141-159 verbatim
+/-- Recursive Validate family: every window at this `cycleFuel` supplies a
+knot-body contract. -/
+def knotBodyMachineIndexedFamily
+    (bytes : List (BitVec 8)) (base : Word) (floor : Nat)
+    (sp raVal exit_ : Word) (wholeCode : CodeReq) (P : Assertion)
+    (fuel : Nat) : Prop :=
+  ∀ {cursorOff endOff : Nat},
+    fuel = cycleFuel cursorOff endOff →
+    cursorOff ≤ endOff →
+    endOff ≤ bytes.length →
+    base.toNat % 8 = 0 →
+    base.toNat + bytes.length < 2 ^ 64 →
+    base.toNat + endOff + 9 < 2 ^ 64 →
+    (∀ off, off < endOff →
+      isValidByteAccess (base + BitVec.ofNat 64 off) = true) →
+    exit_ = raVal &&& ~~~(1 : Word) →
+    P.pcFree →
+    Nonempty (ValidateKnotBodyContract bytes base floor fuel cursorOff endOff
+      sp raVal exit_ wholeCode P)
+
+
+-- @@ L161-175 verbatim
+/-! ## Fuel-indexed step budget `B(fuel)` (option 3, #12419)
+
+`ValidateKnotContGoal`'s `nCont` is UNIFORM over `ValidateResult`, while a
+knot-body contract's `steps` is per-window and recursively
+`1 + (1 + nShared) + nCont_child` at strictly smaller child fuels.  There is no
+closed uniform bound on the raw family surface (the named builder wall).
+
+The fix that keeps budgets DERIVED and BOTTOM-UP rather than capped top-down is
+a *bound as a function of the fuel index*: a monotone `B : Nat → Nat` such that
+every window at index `fuel` runs within `B fuel`.  Monotonicity is the whole
+point — a child window at `k < fuel` satisfies `B k ≤ B fuel`, so
+`cpsTripleWithin_mono_nSteps` lifts every child triple to the SAME bound
+`B fuel`, which is exactly the uniformity ContGoal asks for.  `B` is never
+chosen here: it is a parameter the builder must exhibit, so the budget still
+composes upward from per-routine step counts. -/
+
+-- @@ L176-180 verbatim
+structure KnotStepBudget where
+  /-- Step bound as a function of the `cycleFuel` index. -/
+  B : Nat → Nat
+  /-- Monotone in the fuel index: child windows fit inside the parent's bound. -/
+  hmono : ∀ {a b : Nat}, a ≤ b → B a ≤ B b
+
+
+-- @@ L182-200 verbatim
+/-- Knot-body family with a fuel-indexed step bound.  Same content as
+`knotBodyMachineIndexedFamily` plus `steps ≤ bud.B fuel`. -/
+def knotBodyBoundedFamily
+    (bytes : List (BitVec 8)) (base : Word) (floor : Nat)
+    (sp raVal exit_ : Word) (wholeCode : CodeReq) (P : Assertion)
+    (bud : KnotStepBudget) (fuel : Nat) : Prop :=
+  ∀ {cursorOff endOff : Nat},
+    fuel = cycleFuel cursorOff endOff →
+    cursorOff ≤ endOff →
+    endOff ≤ bytes.length →
+    base.toNat % 8 = 0 →
+    base.toNat + bytes.length < 2 ^ 64 →
+    base.toNat + endOff + 9 < 2 ^ 64 →
+    (∀ off, off < endOff →
+      isValidByteAccess (base + BitVec.ofNat 64 off) = true) →
+    exit_ = raVal &&& ~~~(1 : Word) →
+    P.pcFree →
+    ∃ C : ValidateKnotBodyContract bytes base floor fuel cursorOff endOff
+      sp raVal exit_ wholeCode P, C.steps ≤ bud.B fuel
+
+
+-- @@ L202-214 verbatim
+/-- A bounded family is in particular a family (bound forgotten). -/
+theorem knotBodyMachineIndexedFamily_of_bounded
+    {bytes : List (BitVec 8)} {base : Word} {floor : Nat}
+    {sp raVal exit_ : Word} {wholeCode : CodeReq} {P : Assertion}
+    {bud : KnotStepBudget} {fuel : Nat}
+    (h : knotBodyBoundedFamily bytes base floor sp raVal exit_ wholeCode P
+      bud fuel) :
+    knotBodyMachineIndexedFamily bytes base floor sp raVal exit_ wholeCode P
+      fuel := by
+  intro cursorOff endOff hfuel hcursor hwindow hal hover hnowrap hvalid hexit
+    hP
+  obtain ⟨C, _⟩ := h hfuel hcursor hwindow hal hover hnowrap hvalid hexit hP
+  exact ⟨C⟩
+
+
+-- @@ L216-230 verbatim
+/-- The uniformity lemma: a bounded contract at ANY index `k ≤ fuel` yields a
+knot-body triple at the single bound `bud.B fuel`.  This is what makes a
+uniform `nCont` / `nKnot` available at the parent altitude. -/
+theorem knotBody_proof_at_bound
+    {bytes : List (BitVec 8)} {base : Word}
+    {floor k fuel cursorOff endOff : Nat} {P : Assertion}
+    {wholeCode : CodeReq} {sp raVal exit_ : Word}
+    {bud : KnotStepBudget}
+    (C : ValidateKnotBodyContract bytes base floor k cursorOff endOff
+      sp raVal exit_ wholeCode P)
+    (hsteps : C.steps ≤ bud.B k) (hk : k ≤ fuel) (x1Old : Word) :
+    cpsTripleWithin (bud.B fuel) (validateEntry + 36) exit_ wholeCode
+      (validateKnotBodyPre bytes base k cursorOff endOff sp raVal x1Old P)
+      (validateCyclePost bytes base floor k cursorOff endOff sp raVal P) :=
+  cpsTripleWithin_mono_nSteps (le_trans hsteps (bud.hmono hk)) (C.proof x1Old)
+
+
+-- @@ L232-233 verbatim
+/-! The option-2 eliminator: `cycleFuel` strong induction over Shared +
+**knot-body** Validate (not full-entry).  Full-entry is derived once outside. -/
+
+-- @@ L234-261 verbatim
+theorem actual_strict_walk_machine_induction
+    {α : Type} {bytes : List (BitVec 8)} {base : Word} {floor : Nat}
+    {sp budget a2 raVal exit_ : Word} {P : Assertion} {post : α → Assertion}
+    {contCode wholeCode : CodeReq} {R : Assertion}
+    (hshared : ∀ fuel,
+      (∀ k, k < fuel →
+        sharedMachineIndexedFamily bytes base floor sp budget a2 P post
+          exit_ contCode R k ∧
+        knotBodyMachineIndexedFamily bytes base floor sp raVal exit_
+          wholeCode P k) →
+      sharedMachineIndexedFamily bytes base floor sp budget a2 P post
+        exit_ contCode R fuel)
+    (hknot : ∀ fuel,
+      (∀ k, k < fuel →
+        sharedMachineIndexedFamily bytes base floor sp budget a2 P post
+          exit_ contCode R k ∧
+        knotBodyMachineIndexedFamily bytes base floor sp raVal exit_
+          wholeCode P k) →
+      knotBodyMachineIndexedFamily bytes base floor sp raVal exit_
+        wholeCode P fuel) :
+    ∀ fuel,
+      sharedMachineIndexedFamily bytes base floor sp budget a2 P post
+        exit_ contCode R fuel ∧
+      knotBodyMachineIndexedFamily bytes base floor sp raVal exit_
+        wholeCode P fuel := by
+  apply cycleFuel_mutual_strong_induction
+  intro fuel ih
+  exact ⟨hshared fuel ih, hknot fuel ih⟩
+
+
+-- @@ L263-268 verbatim
+/-! A base-aware fixpoint for the machine families.  Unlike the raw
+`cycleFuel_mutual_strong_induction` eliminator, this entry point consumes the
+concrete zero-window package explicitly.  The positive-index step is where a
+builder applies `shared_list_recursive_continuation` (and the knot-body
+continuation) to the smaller-index contracts supplied by `ih`; those child
+contracts are not retained in the result. -/
+
+-- @@ L269-298 verbatim
+theorem actual_strict_walk_machine_induction_from_base
+    {α : Type} {bytes : List (BitVec 8)} {base : Word} {floor : Nat}
+    {sp budget a2 raVal exit_ : Word} {P : Assertion} {post : α → Assertion}
+    {contCode wholeCode : CodeReq} {R : Assertion}
+    (hbase :
+      sharedMachineIndexedFamily bytes base floor sp budget a2 P post
+        exit_ contCode R 0 ∧
+      knotBodyMachineIndexedFamily bytes base floor sp raVal exit_
+        wholeCode P 0)
+    (hstep : ∀ fuel, 0 < fuel →
+      (∀ k, k < fuel →
+        sharedMachineIndexedFamily bytes base floor sp budget a2 P post
+          exit_ contCode R k ∧
+        knotBodyMachineIndexedFamily bytes base floor sp raVal exit_
+          wholeCode P k) →
+      sharedMachineIndexedFamily bytes base floor sp budget a2 P post
+        exit_ contCode R fuel ∧
+      knotBodyMachineIndexedFamily bytes base floor sp raVal exit_
+        wholeCode P fuel) :
+    ∀ fuel,
+      sharedMachineIndexedFamily bytes base floor sp budget a2 P post
+        exit_ contCode R fuel ∧
+      knotBodyMachineIndexedFamily bytes base floor sp raVal exit_
+        wholeCode P fuel := by
+  intro fuel
+  induction fuel using Nat.strong_induction_on with
+  | h fuel ih =>
+      by_cases hzero : fuel = 0
+      · simpa [hzero] using hbase
+      · exact hstep fuel (Nat.pos_of_ne_zero hzero) ih
+
+
+-- @@ L300-303 verbatim
+/-! ## Degenerate-window facts
+
+`cycleFuel c e = 0` forces `c = e`.  These lemmas pin the empty-window
+boundary the base cases must inhabit. -/
+
+-- @@ L304-312 verbatim
+theorem cycleFuel_eq_zero_iff
+    {cursor endOff : Nat} :
+    cycleFuel cursor endOff = 0 ↔ cursor = endOff ∨ endOff < cursor := by
+  unfold cycleFuel remainingBytes
+  constructor
+  · intro h
+    omega
+  · intro h
+    omega
+
+
+-- @@ L314-319 verbatim
+theorem cycleFuel_eq_zero_of_eq
+    {cursor endOff : Nat} (heq : cursor = endOff) :
+    cycleFuel cursor endOff = 0 := by
+  subst endOff
+  unfold cycleFuel remainingBytes
+  omega
+
+
+-- @@ L321-329 verbatim
+/-! ## Machine base: exact end cursor
+
+The zero-fuel case is a real machine contract, not a child-arm premise.  At
+`cursorOff = endOff` the validator's precheck takes the empty-window branch;
+the recursive Shared/Nested families, item decoder, and tail `ValidateK`
+obligations are all discharged by the strict inequalities in their interfaces.
+In particular, the base package below does not quantify over a status wrapper
+or ask a caller to supply an arm contract.  This is the base consumed by the
+eventual `cycleFuel` fixpoint. -/
+
+-- @@ L330-508 verbatim
+theorem validate_machine_contract_empty_base
+    {bytes : List (BitVec 8)} {base : Word} {floor cursorOff endOff : Nat}
+    {sp raVal exit_ : Word} {wholeCode : CodeReq} {P : Assertion}
+    (heq : cursorOff = endOff)
+    (hbase_aligned : base.toNat % 8 = 0)
+    (hwindow : endOff ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hnowrap : base.toNat + endOff + 9 < 2 ^ 64)
+    (hvalid : ∀ off, off < endOff →
+      isValidByteAccess (base + BitVec.ofNat 64 off) = true)
+    (hexit : exit_ = raVal &&& ~~~(1 : Word))
+    (hP : P.pcFree)
+    (hvalidateSub : ∀ a i, validateCR a = some i → wholeCode a = some i) :
+    Nonempty (ValidateMachineContract bytes base floor
+      (cycleFuel cursorOff endOff) cursorOff endOff
+      sp raVal exit_ wholeCode P) := by
+  have hzero : cycleFuel cursorOff endOff = 0 :=
+    cycleFuel_eq_zero_of_eq heq
+  have hVF : ValidateFuel bytes (cycleFuel cursorOff endOff)
+      cursorOff endOff := by
+    simpa [hzero] using
+      (ValidateFuel.empty (bytes := bytes)
+        (cursor := cursorOff) (endOff := endOff) ⟨heq, hwindow⟩)
+  let cursor := base + BitVec.ofNat 64 cursorOff
+  let endPtr := base + BitVec.ofNat 64 endOff
+  have hptr : cursor = endPtr := by
+    simp only [cursor, endPtr, heq]
+  let emptyResult : ValidateResult :=
+    { next := endOff, cursor := endPtr, status := 0, len := 0 }
+  have hFacts : validateResultFacts bytes base floor cursorOff endOff
+      (cycleFuel cursorOff endOff) endPtr emptyResult := by
+    unfold validateResultFacts
+    dsimp [emptyResult]
+    change ((0 : Word) = 0 ∧
+      ((cursorOff = endOff ∧ endOff = endOff ∧ (0 : Word) = 0) ∨
+        (_ ∧ _))) ∨ (0 : Word) ≠ 0
+    exact Or.inl ⟨rfl, Or.inl ⟨heq, rfl, rfl⟩⟩
+  have hshared : ∀ k, k < cycleFuel cursorOff endOff →
+      Nonempty (IndexedCpsContract k
+        (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
+        sharedCR
+        ((regIs .x1 (validateEntry + 40)) ** P)
+        (cpsDepPost (validateResultDependentPost bytes base floor
+          cursorOff endOff (cycleFuel cursorOff endOff)))) := by
+    intro k hk
+    rw [hzero] at hk
+    omega
+  have hnested : ∀ k, k < cycleFuel cursorOff endOff →
+      Nonempty (IndexedCpsContract k
+        (rlpWalkNextNestedOfflineAddr : Word) (validateEntry + 40)
+        nestedMachineCode
+        ((regIs .x1 (validateEntry + 40)) ** P)
+        (cpsDepPost (validateResultDependentPost bytes base floor
+          cursorOff endOff (cycleFuel cursorOff endOff)))) := by
+    intro k hk
+    rw [hzero] at hk
+    omega
+  have hitem : ∀ {cursor' next len}, cursorOff ≤ cursor' →
+      cursor' < next → next ≤ endOff → endOff ≤ bytes.length →
+      rlpItemDecodeStrictW bytes base cursor' next endOff len (floor + 1) := by
+    intro cursor' next len hstart hlt hnext _
+    subst endOff
+    omega
+  have hK : ∀ {next}, cursorOff < next → next ≤ endOff →
+      ValidateK bytes base floor
+        (base + BitVec.ofNat 64 next)
+        (base + BitVec.ofNat 64 endOff)
+        next endOff (endOff - next) := by
+    intro next hnext hbound
+    subst endOff
+    omega
+  let preCore : Assertion :=
+    ((regIs .x2 (sp + 32)) ** (regIs .x1 raVal) **
+      (regIs .x10 cursor) ** (regIs .x11 endPtr) **
+      memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16))
+  let ambient : Assertion :=
+    ((regIs .x0 (0 : Word)) ** regOwn .x12 ** bytesRegion base bytes **
+      ⌜ValidateFuel bytes (cycleFuel cursorOff endOff)
+        cursorOff endOff⌝ ** P)
+  have hambient : ambient.pcFree := by
+    simp only [ambient]
+    repeat first
+      | apply pcFree_sepConj
+      | exact pcFree_regIs
+      | exact pcFree_regOwn
+      | exact bytesRegion_pcFree _ _
+      | exact pcFree_pure
+      | exact hP
+  have hforall : ∀ x5Old,
+      cpsTripleWithin 12 validateEntry (raVal &&& ~~~1) validateCR
+        ((preCore ** ambient) ** (regIs .x5 x5Old))
+        (((regIs .x2 (sp + 32)) ** (regIs .x10 (0 : Word)) **
+          (regIs .x1 raVal) ** (regIs .x5 endPtr) **
+          (regIs .x11 endPtr) **
+          (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+          (memIs (sp + 16) endPtr)) ** ambient) := by
+    intro x5Old
+    have h0 := rlp_validate_payload_empty_cursor_cps
+      sp raVal cursor endPtr x5Old hptr
+    have h0F := cpsTripleWithin_frameR ambient hambient h0
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by
+        simp only [preCore, ambient] at hp ⊢
+        xperm_chunked hp)
+      (fun _ hp => hp) h0F
+  have hown := cpsTripleWithin_of_forall_regIs_to_regOwn
+    (P := preCore ** ambient) (r := .x5) hforall
+  let postWeak : Assertion :=
+    ((regIs .x2 (sp + 32)) ** (regIs .x10 (0 : Word)) **
+      (regIs .x1 raVal) ** regOwn .x5 **
+      (regIs .x11 endPtr) **
+      (memIs sp raVal) ** memOwn (sp + 8) **
+      (memIs (sp + 16) endPtr))
+  have hpostWeak : ∀ h,
+      ((regIs .x2 (sp + 32)) ** (regIs .x10 (0 : Word)) **
+        (regIs .x1 raVal) ** (regIs .x5 endPtr) **
+        (regIs .x11 endPtr) **
+        (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+        (memIs (sp + 16) endPtr)) h →
+      postWeak h := by
+    intro h hp
+    simp only [postWeak] at ⊢
+    exact sepConj_mono (fun _ h => h)
+      (sepConj_mono (fun _ h => h)
+        (sepConj_mono (fun _ h => h)
+          (sepConj_mono (regIs_implies_regOwn .x5)
+          (sepConj_mono (fun _ h => h)
+            (sepConj_mono (fun _ h => h)
+              (sepConj_mono memIs_implies_memOwn
+                (fun _ h => h))))))) h hp
+  have hproof : cpsTripleWithin 12 validateEntry
+      (raVal &&& ~~~1) validateCR
+      (validateCyclePre bytes base (cycleFuel cursorOff endOff)
+        cursorOff endOff sp raVal P)
+      (validateCyclePost bytes base floor (cycleFuel cursorOff endOff)
+        cursorOff endOff sp raVal P) := by
+    have hpre : cpsTripleWithin 12 validateEntry
+        (raVal &&& ~~~1) validateCR
+        (validateCyclePre bytes base (cycleFuel cursorOff endOff)
+          cursorOff endOff sp raVal P)
+        (((regIs .x2 (sp + 32)) ** (regIs .x10 (0 : Word)) **
+          (regIs .x1 raVal) ** (regIs .x5 endPtr) **
+          (regIs .x11 endPtr) ** (memIs sp raVal) **
+          (memIs (sp + 8) cursor) **
+          (memIs (sp + 16) endPtr)) ** ambient) :=
+      cpsTripleWithin_weaken
+      (fun _ hp => by
+        simp only [validateCyclePre, preCore, ambient] at hp ⊢
+        xperm_chunked hp)
+      (fun _ hp => hp) hown
+    refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ hpre
+    intro h hp
+    refine ⟨emptyResult, ?_⟩
+    have hp' : (postWeak ** ambient) h := by
+      exact sepConj_mono_left hpostWeak h hp
+    have hp'' : ((postWeak ** ambient) **
+        ⌜validateResultFacts bytes base floor cursorOff endOff
+          (cycleFuel cursorOff endOff) endPtr emptyResult⌝) h :=
+      (sepConj_pure_right _).2 ⟨hp', hFacts⟩
+    simp only [validateResultPost, emptyResult] at ⊢
+    exact (by xperm_chunked hp'')
+  have hproofWhole := cpsTripleWithin_extend_code hvalidateSub hproof
+  exact ⟨{
+    hbase_aligned := hbase_aligned
+    hcursor := le_of_eq heq
+    hwindow := hwindow
+    hover := hover
+    hnowrap := hnowrap
+    hvalid := hvalid
+    hexit := hexit
+    hP := hP
+    hvalidateSub := hvalidateSub
+    hshared := hshared
+    hnested := hnested
+    hitem := hitem
+    hK := hK
+    steps := 12
+    proof := by simpa [hexit] using hproofWhole
+  }⟩
+
+
+-- @@ L510-513 verbatim
+/-! The base contract lifts directly to the indexed family.  The only
+arithmetic fact needed here is `cycleFuel = 0 → cursor = endOff` under the
+family's static cursor ordering; no Shared/Nested child contract is an input
+to the base. -/
+
+-- @@ L514-528 verbatim
+theorem validate_machine_indexed_family_zero
+    {bytes : List (BitVec 8)} {base : Word} {floor : Nat}
+    {sp raVal exit_ : Word} {wholeCode : CodeReq} {P : Assertion} :
+    validateMachineIndexedFamily bytes base floor sp raVal exit_ wholeCode P 0 := by
+  intro cursorOff endOff hfuel hcursor hendOff hbase hover hnowrap hvalid hexit hP
+    hvalidateSub
+  have hfuel' : cycleFuel cursorOff endOff = 0 := hfuel.symm
+  have heq : cursorOff = endOff := by
+    rcases (cycleFuel_eq_zero_iff.mp hfuel') with heq | hgt
+    · exact heq
+    · omega
+  simpa [hfuel'] using
+    (validate_machine_contract_empty_base (floor := floor) (sp := sp)
+      (raVal := raVal) (wholeCode := wholeCode) (P := P)
+      heq hbase hendOff hover hnowrap hvalid hexit hP hvalidateSub)
+
+
+-- @@ L530-535 verbatim
+/-! ## Closed: anti-vacuity shape for the enriched Shared family
+
+`SharedMachineContract` already requires `sharedDependentContinuation`, which
+includes `sharedContinuationOutput`.  The two elim lemmas below reuse the
+#12408 guards so a "success" that packages `Empty` / `⌜False⌝` posts cannot
+inhabit the enriched family. -/
+
+-- @@ L536-553 verbatim
+theorem sharedMachineIndexedFamily_empty_post_elim
+    {bytes : List (BitVec 8)} {base : Word} {floor : Nat}
+    {sp budget a2 : Word} {P : Assertion} {exit_ : Word}
+    {contCode : CodeReq} {R : Assertion} {fuel : Nat}
+    (h : sharedMachineIndexedFamily (α := Empty) bytes base floor
+      sp budget a2 P (fun _ => ⌜True⌝) exit_ contCode R fuel)
+    {cursorOff endOff : Nat}
+    (hfuel : fuel = cycleFuel cursorOff endOff)
+    (hcursor : cursorOff ≤ endOff) (hwindow : endOff ≤ bytes.length)
+    (hbase_aligned : base.toNat % 8 = 0)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hnowrap : base.toNat + endOff + 9 < 2 ^ 64)
+    (hvalid : ∀ off, off < endOff →
+      isValidByteAccess (base + BitVec.ofNat 64 off) = true)
+    (hP : P.pcFree) :
+    False := by
+  rcases h hfuel hcursor hwindow hbase_aligned hover hnowrap hvalid hP with ⟨C⟩
+  exact sharedDependentContinuation_empty_elim C.hcontinuation
+
+
+-- @@ L555-572 verbatim
+theorem sharedMachineIndexedFamily_false_post_elim
+    {bytes : List (BitVec 8)} {base : Word} {floor : Nat}
+    {sp budget a2 : Word} {P : Assertion} {exit_ : Word}
+    {contCode : CodeReq} {R : Assertion} {fuel : Nat}
+    (h : sharedMachineIndexedFamily (α := Unit) bytes base floor
+      sp budget a2 P (fun _ => ⌜False⌝) exit_ contCode R fuel)
+    {cursorOff endOff : Nat}
+    (hfuel : fuel = cycleFuel cursorOff endOff)
+    (hcursor : cursorOff ≤ endOff) (hwindow : endOff ≤ bytes.length)
+    (hbase_aligned : base.toNat % 8 = 0)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hnowrap : base.toNat + endOff + 9 < 2 ^ 64)
+    (hvalid : ∀ off, off < endOff →
+      isValidByteAccess (base + BitVec.ofNat 64 off) = true)
+    (hP : P.pcFree) :
+    False := by
+  rcases h hfuel hcursor hwindow hbase_aligned hover hnowrap hvalid hP with ⟨C⟩
+  exact sharedDependentContinuation_false_post_elim C.hcontinuation
+
+
+-- @@ L574-579 verbatim
+/-! ## Open obligations (named; not discharged)
+
+Each residual is stated as the exact Prop the induction step must prove.
+Leaving them as `theorem ... := by sorry` would expand the axiom baseline;
+instead they are `def` aliases of the goal types so the report can quote them
+without introducing `sorryAx`. -/
+
+
+-- @@ L581-672 verbatim
+/-- Shared-side residual: under a strictly smaller Validate-family witness,
+merge short `S+148` and long `S+88` arms via `shared_list_arm_cps_under_validator`.
+Closed: long-prefix loop; preamble→payload (`*_preamble_zero_to_payload`,
+`*_preamble_n_iter_to_payload`); short/long validate_call adapters;
+`*_validate_then_cont`; depth+status `hcont` (`shared_after_validate_*`);
+result→pre bridge; `*_validate_then_status`.
+Still open: (1) inhabit full `ValidateKnotContGoal` — nonzero arm closed
+(`validateKnotCont_nonzero`); zero arm's `V+40 → V+16` edge now DERIVED
+(`validateKnotCont_zero_to_reload`, via the split-`callRa` zero-loop so
+`x1 = V+40` and `memIs sp = raVal` hold together); `validateKnotCont_zero`
+no longer takes `ValidateKnotContZeroToReloadGoal` as an input.  Remaining:
+`ValidateKnotContZeroReloadGoal` (`V+16` → cycle post) is now OWNED under an
+explicit knot-body IH: `validateKnotCont_zero_reload_of_body` (classical-clean)
+discharges empty ∪ `nonempty_of_body` after peeling Pre pures.  Premises the
+induction builder must still supply: (i) remaining-window `ValidateFuel` at
+`cycleFuel nextOff endOff` for every `nextOff < endOff`, (ii) `ValidateKnotBodyRemainingGoal`
+at that same window.  `validateKnotCont_zero` still TAKES the Goal as input —
+but the Goal is no longer an unowned packaging hole; its owner is
+`ValidateKnotContZeroReloadOfBodyGoal` once the builder wires those two
+premises.
+
+IH-ALTITUDE FINDING (#12419): remaining→outer bridge DERIVED
+(`validateCyclePost_reindex_window`); nonempty composition DERIVED
+(`validateKnotCont_zero_reload_nonempty_of_body`).  Loop-back lands at `V+36`
+with `validateKnotLoopBackFrame`.  DONE: `actual_strict_walk_machine_induction`
+now inducts on `knotBodyMachineIndexedFamily` (V+36, `x1Old`-parametric);
+full-entry `validateMachineIndexedFamily` is derived once via
+`validate_machine_proof_of_knot` (Cont/Knot), not a parallel recursive family.
+FUEL-INDEX CORRECTION: BodyRemainingGoal / of_body index `ValidateFuel` and
+remaining `validateCyclePost` at `cycleFuel next endOff` (what
+`ValidateFuel`'s constructors inhabit), not `endOff - next` (that slot belongs
+to `PayloadStrictFuel` / `ValidateK` only).  Decrease unchanged:
+`cursor < next ≤ endOff` ⇒ `cycleFuel next endOff < cycleFuel cursor endOff`
+(`cycleFuel_strict_of_advance`); equivalent to `endOff - next < endOff - cursor`
+by the factor-of-two definition.
+OPEN: wire knot-body builder to discharge `ValidateKnotContZeroReloadOfBodyGoal`
+(BodyRemainingGoal at `x1Old = V+40` + rem VF from family), then ContGoal.
+
+FINDING — ContGoal UNIFORM STEP BOUND (#12419 builder wall):
+`ValidateKnotContGoal` / `cpsTripleWithin_seq_dep_post`'s `hcont` require a
+*uniform* `nCont` across every `ValidateResult`.  `ValidateKnotBodyContract.steps`
+is per-window and recursively `1+(1+nShared)+nCont_child` at child fuels — no
+closed uniform bound exists on the current Prop surface.  Therefore the
+knot-body builder cannot INHABIT `ValidateKnotContGoal` (as stated) from
+`knotBodyMachineIndexedFamily` without one of:
+  (1) restating ContGoal / dep-bind `hcont` as `∀ r, ∃ n, cpsTripleWithin n`
+      (alters the claimed API — stop and ask),
+  (2) taking an unowned uniform step bound (RELABELLING — refuse),
+  (3) proving a fuel-indexed step bound `∀ windows at fuel, steps ≤ B(fuel)`
+      (new lemma; not yet attempted).
+`actual_strict_walk_machine_induction` itself (Shared ∧ knotBody on cycleFuel)
+is not the obstruction — ContGoal's uniform-`nCont` statement is.
+
+RESOLVED by (3), no statement change: `KnotStepBudget` + `knotBodyBoundedFamily`
+above, and in `…MachineKnot.lean`
+`validateKnotBodyRemainingGoal_of_bounded` /
+`validateKnotBodyRemainingGoal_uniform_of_boundedFamily` /
+`validateKnotContGoal_of_bound`.  Monotone `B` makes every child window at
+index `k ≤ fuel` lift to the single bound `B fuel`, so the uniform indices are
+the closed chain `nKnot = B fuel`, `nReload = max 8 (5 + B fuel)`,
+`nCont = max 5 (5 + nReload)`.  `of_body`'s single `nKnot` for all remaining
+windows is the SAME construction (no asymmetry between the altitudes): both
+need only child-index ≤ parent-index ⇒ `B` mono ⇒ `cpsTripleWithin_mono_nSteps`.
+`B` is exhibited by the builder, never capped here.
+
+STILL UNOWNED at ContGoal (labelled, not counted as derived): none — ContGoal
+consumer is DERIVED.  `validateKnotContGoal_of_bound` takes only statics +
+ZeroReload; `hK`/`hdecode` peel from SharedPost via `validateResultFacts` + the
+success-only cursor pin `r.status = 0 → r.cursor = base + r.next` added to
+`validateKnotSharedPost` (#12419 (c); NOT in `validateResultFacts`).
+
+OPEN residual (producer, not ContGoal): `hshared` in
+`validate_knot_body_under_shared_framed` must inhabit the strengthened
+`validateKnotSharedPost` (including the cursor pin).  No concrete Shared proof
+posts that shape yet — the pin is what the nested success path establishes and
+must publish.  If that obligation cannot be discharged, bank there; do not
+re-introduce hK/hdecode as ContGoal inputs. -/
+/- The list-arm adapter is intentionally stated at the call seam rather than
+   as a free-standing implication over a child fuel. `SharedListSelection`
+   packages the semantic `SharedFuel.list` witness: the parent index is tied to
+   `cycleFuel cursorOff endOff`, and the selected child carries
+   `ValidateFuel (cycleFuel payloadStart payloadEnd) payloadStart payloadEnd`.
+   The `toSharedFuel` projection below is the constructor consumed by the
+   strong-induction step; it is not a second, independent fuel convention. -/
+
+/- The byte loaded into `pfx` by the list-arm preamble.  The selector uses
+   this relation to publish the long-header result without adding a second
+   input field to `SharedListArmInputs`. -/
+def sharedPrefixByteAt
+    (bytes : List Byte) (cursorOff : Nat) (pfx : Word) : Prop :=
+  ∃ hcursor : cursorOff < bytes.length,
+    pfx = BitVec.zeroExtend 64 (bytes.get ⟨cursorOff, hcursor⟩)
+
+
+-- @@ L674-694 verbatim
+structure SharedListSelection
+    (bytes : List Byte) (parentFuel cursorOff endOff : Nat) : Type where
+  payloadStart : Nat
+  payloadEnd : Nat
+  hparent : parentFuel = cycleFuel cursorOff endOff
+  hcursor : cursorOff < payloadStart
+  hpayload : payloadStart ≤ payloadEnd
+  hpayloadEnd : payloadEnd ≤ endOff
+  houter : endOff ≤ bytes.length
+  hvalidate : ValidateFuel bytes (cycleFuel payloadStart payloadEnd)
+    payloadStart payloadEnd
+  /-- Successful long-header decoding publishes the facts established by the
+      machine rather than asking the caller to repeat them as premises.  The
+      prefix argument is related to the loaded byte through the selector
+      consumer; the implication is vacuous on short-list prefixes. -/
+  hlongHeader : ∀ pfx, sharedPrefixByteAt bytes cursorOff pfx →
+    ¬ BitVec.ult pfx (248 : Word) →
+      ∃ n, n ≤ 8 ∧
+        pfx - (247 : Word) = BitVec.ofNat 64 n ∧
+        payloadStart = cursorOff + 1 + n ∧
+        cursorOff + n < endOff
+
+
+-- @@ L696-701 verbatim
+theorem SharedListSelection.toSharedFuel
+    {bytes : List Byte} {parentFuel cursorOff endOff : Nat}
+    (s : SharedListSelection bytes parentFuel cursorOff endOff) :
+    SharedFuel bytes parentFuel cursorOff endOff := by
+  rw [s.hparent]
+  exact SharedFuel.list s.hcursor s.hpayload s.hpayloadEnd s.houter s.hvalidate
+
+
+-- @@ L703-711 verbatim
+/-- Exact validator-call register pins used by
+    `shared_short_arm_validate_call`: the child enters with the return PC in
+    `x1`, its list base in `x5`, and both cursor registers at `listBase + 1`.
+    The long arm has the analogous concrete cursor/prefix pins. This helper
+    is a named target for the adapter; it is deliberately not an extra premise
+    that could make the goal vacuous. -/
+def sharedListValidateCallPre (listBase : Word) (P : Assertion) : Assertion :=
+  ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) ** (regIs .x5 listBase) **
+    (regIs .x12 (listBase + 1)) ** (regIs .x10 (listBase + 1)) ** P)
+
+
+-- @@ L713-718 verbatim
+/-! S+156 partition: `sp` is the Shared frame pointer and `spV` is the
+validator frame pointer, with `sp = spV + 32`.  The caller transfers `x2 = sp`,
+`x11 = endPtr`, and the three validator cells to the child exactly once.
+`P` is the child ambient and contains none of these resources.
+`ValidateFuel` is a pure child fact supplied by the selector, not an owned
+remainder atom. -/
+
+-- @@ L719-721 verbatim
+def sharedValidateCallRemainder (spV sp endPtr : Word) : Assertion :=
+  ((regIs .x2 sp) ** (regIs .x11 endPtr) ** memOwn spV **
+    memOwn (spV + 8) ** memOwn (spV + 16))
+
+
+-- @@ L723-737 verbatim
+theorem validateCyclePre_of_sharedValidateCallRemainder
+    {bytes : List (BitVec 8)} {base : Word} {fuel cursorOff endOff : Nat}
+    {spV sp raVal endPtr : Word} {P : Assertion}
+    (hsp : sp = spV + 32)
+    (hendPtr : endPtr = base + BitVec.ofNat 64 endOff) :
+    ∀ hp,
+      ((regIs .x1 raVal) ** (regIs .x0 (0 : Word)) **
+        (regIs .x10 (base + BitVec.ofNat 64 cursorOff)) ** regOwn .x5 **
+        regOwn .x12 ** bytesRegion base bytes **
+        ⌜ValidateFuel bytes fuel cursorOff endOff⌝ **
+        sharedValidateCallRemainder spV sp endPtr ** P) hp →
+      validateCyclePre bytes base fuel cursorOff endOff spV raVal P hp := by
+  intro hp h
+  simp only [validateCyclePre, sharedValidateCallRemainder, hsp, hendPtr] at h ⊢
+  xperm_chunked h
+
+
+-- @@ L739-761 verbatim
+structure SharedListArmInputs
+    (bytes : List (BitVec 8)) (base : Word) (floor parentFuel : Nat)
+    (cursorOff endOff : Nat)
+    (spV sp raVal exit_ endPtr pfx listBase depth : Word)
+    (oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word)
+    (P : Assertion) : Type where
+  selector : SharedListSelection bytes parentFuel cursorOff endOff
+  hprefix : sharedPrefixByteAt bytes cursorOff pfx
+  hlistPrefix : ¬ BitVec.ult pfx (192 : Word)
+  hdepth : BitVec.ult depth (rlpRecursiveDecodeDepthCap : Word)
+  hsp : sp = spV + 32
+  hlistBase : listBase = base + BitVec.ofNat 64 cursorOff
+  hendPtr : endPtr = base + BitVec.ofNat 64 endOff
+  hbase_aligned : base.toNat % 8 = 0
+  hover : base.toNat + bytes.length < 2 ^ 64
+  hnowrap : base.toNat + endOff + 9 < 2 ^ 64
+  hvalid : ∀ off, off < endOff →
+    isValidByteAccess (base + BitVec.ofNat 64 off) = true
+  hP : P.pcFree
+  hchild : validateMachineIndexedFamily bytes base floor spV
+    (RlpWalkNextStrictTie.S + 160)
+    ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR P
+    (cycleFuel selector.payloadStart selector.payloadEnd)
+
+
+-- @@ L763-834 verbatim
+/-- Real list-arm call-seam goal.
+
+The antecedent is the data supplied by one `hstep` IH instance: the semantic
+list selector, the machine's prefix load, the list/depth branch facts, the
+base/end-pointer relations, and the ordinary static/code obligations. The
+child validator family is instantiated at the selector's payload window and
+with the genuine stack pointer `sp`; the validator call itself has
+`x1 = S + 160` and returns to `(S + 160) &&& ~~~1`, while `raVal` remains the
+caller's genuine saved return address in the shared-arm frame. The strict edge
+`cycleFuel payloadStart payloadEnd < parentFuel` is derived from
+`sel.hcursor`, `sel.hpayload`, and `sel.hpayloadEnd` by
+`shared_list_edge_decreases`, rather than assumed as a second premise.
+
+The conclusion keeps the existing `S+148` short and `S+88` long arm shapes,
+including the caller frame registers. Their pure selectors are the machine
+branch facts (`pfx < 248` and its negation); the prefix/list/depth facts are
+also carried as pure frame atoms so the adapter can feed the existing arm
+lemmas without inventing a hidden input restriction.
+
+Code requirement: both arms unconditionally execute the `JAL` at `S+156` into
+the validator body, so the conclusions are stated under
+`sharedCode.union validateCR` — the convention the call-boundary lemmas
+(`shared_short_arm_validate_call`, `shared_long_arm_validate_call`,
+`validate_call_dep_hcallee`, `shared_after_validate_cont_family`) already
+use. Stating them under `sharedCode` alone makes the triples false (the CPS
+model quantifies over all states satisfying the requirement, including ones
+with no validator code loaded; see the method note on GH issue #12457).
+`hchild` is at `validateCR` because the call-boundary lemmas take the callee
+triple under `validateCR` and `cpsTripleWithin_extend_code` weakens code
+requirements one way only; the earlier `wholeCode` parameter and
+`hvalidateSub` premise were dead and have been removed. -/
+def SharedListArmsFromValidateGoal
+    (bytes : List (BitVec 8)) (base : Word) (floor parentFuel : Nat)
+    (cursorOff endOff : Nat)
+    (spV sp raVal exit_ endPtr pfx listBase depth : Word)
+    (oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word)
+    (P R : Assertion) : Prop :=
+  ∀ h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff spV sp raVal
+      exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
+      oldRem old13 old29 oldAcc P,
+    ∃ nShort nLong,
+      cpsTripleWithin nShort (RlpWalkNextStrictTie.S + 148) exit_
+        (RlpWalkNextStrictTie.sharedCode.union validateCR)
+        (((regIs .x5 listBase) ** (regIs .x12 oldPayload) **
+          (regIs .x10 old10) ** (regIs .x1 raVal) **
+          ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
+          ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
+          ⌜BitVec.ult depth (rlpRecursiveDecodeDepthCap : Word)⌝ **
+          ⌜cursorOff < h.selector.payloadStart⌝ **
+          ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
+          ⌜BitVec.ult pfx (248 : Word)⌝ **
+          sharedValidateCallRemainder spV sp endPtr **
+          ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+            h.selector.payloadEnd) h.selector.payloadStart
+            h.selector.payloadEnd⌝) ** P) R ∧
+      cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88) exit_
+        (RlpWalkNextStrictTie.sharedCode.union validateCR)
+        (((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
+          (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
+          (regOwn .x30) ** (regOwn .x31) ** (regIs .x12 oldOut) **
+          (regIs .x10 old10) ** (regIs .x1 raVal) **
+          (regIs .x0 (0 : Word)) ** bytesRegion base bytes **
+          ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
+          ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
+          ⌜BitVec.ult depth (rlpRecursiveDecodeDepthCap : Word)⌝ **
+          ⌜cursorOff < h.selector.payloadStart⌝ **
+          ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
+          ⌜¬ BitVec.ult pfx (248 : Word)⌝ **
+          sharedValidateCallRemainder spV sp endPtr **
+          ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+            h.selector.payloadEnd) h.selector.payloadStart
+            h.selector.payloadEnd⌝) ** P) R
+
+
+-- @@ L836-873 verbatim
+/-- Validate-side residual: from a strictly smaller Shared-family witness,
+plus static window/code facts and an entry-level CPS proof (via
+`validate_machine_proof_of_knot` / `rlp_validate_payload_cps_under_shared`),
+obtain `ValidateMachineContract`. -/
+def ValidateFromSharedGoal
+    (bytes : List (BitVec 8)) (base : Word) (floor fuel : Nat)
+    (cursorOff endOff : Nat) (sp raVal exit_ : Word)
+    (wholeCode : CodeReq) (P : Assertion) : Prop :=
+  exit_ = raVal &&& ~~~(1 : Word) →
+  P.pcFree →
+  (∀ a i, validateCR a = some i → wholeCode a = some i) →
+  base.toNat % 8 = 0 →
+  cursorOff ≤ endOff →
+  endOff ≤ bytes.length →
+  base.toNat + bytes.length < 2 ^ 64 →
+  base.toNat + endOff + 9 < 2 ^ 64 →
+  (∀ off, off < endOff →
+    isValidByteAccess (base + BitVec.ofNat 64 off) = true) →
+  (∀ {cursor next len}, cursorOff ≤ cursor → cursor < next → next ≤ endOff →
+    endOff ≤ bytes.length →
+    rlpItemDecodeStrictW bytes base cursor next endOff len (floor + 1)) →
+  (∀ {next}, cursorOff < next → next ≤ endOff →
+    ValidateK bytes base floor
+      (base + BitVec.ofNat 64 next)
+      (base + BitVec.ofNat 64 endOff)
+      next endOff (endOff - next)) →
+  (∀ k, k < fuel →
+    Nonempty (IndexedCpsContract k
+      (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
+      sharedCR
+      ((regIs .x1 (validateEntry + 40)) ** P)
+      (cpsDepPost (validateResultDependentPost bytes base floor
+        cursorOff endOff fuel)))) →
+  (∃ steps, cpsTripleWithin steps validateEntry exit_ wholeCode
+    (validateCyclePre bytes base fuel cursorOff endOff sp raVal P)
+    (validateCyclePost bytes base floor fuel cursorOff endOff sp raVal P)) →
+  Nonempty (ValidateMachineContract bytes base floor fuel cursorOff endOff
+    sp raVal exit_ wholeCode P)
+
+
+-- @@ L875-898 verbatim
+/-- Top-level residual: the two builders that `actual_strict_walk_machine_induction`
+still needs (Shared + **knot-body** Validate), with `cycleFuel` decrease at each
+recursive edge.  Full-entry `validateMachineIndexedFamily` is derived once from
+the knot-body family, not inducted in parallel. -/
+def MachineInductionBuildersGoal
+    {α : Type} (bytes : List (BitVec 8)) (base : Word) (floor : Nat)
+    (sp budget a2 raVal exit_ : Word) (P : Assertion) (post : α → Assertion)
+    (contCode wholeCode : CodeReq) (R : Assertion) : Prop :=
+  (∀ fuel,
+    (∀ k, k < fuel →
+      sharedMachineIndexedFamily bytes base floor sp budget a2 P post
+        exit_ contCode R k ∧
+      knotBodyMachineIndexedFamily bytes base floor sp raVal exit_
+        wholeCode P k) →
+    sharedMachineIndexedFamily bytes base floor sp budget a2 P post
+      exit_ contCode R fuel) ∧
+  (∀ fuel,
+    (∀ k, k < fuel →
+      sharedMachineIndexedFamily bytes base floor sp budget a2 P post
+        exit_ contCode R k ∧
+      knotBodyMachineIndexedFamily bytes base floor sp raVal exit_
+        wholeCode P k) →
+    knotBodyMachineIndexedFamily bytes base floor sp raVal exit_
+      wholeCode P fuel)
+
+
+-- @@ L900-907 verbatim
+/-! ## Degenerate inhabitant (anti-vacuity): empty ValidateFuel structural side
+
+Structural empty windows are inhabited for every `bytes` (fuel model).  The
+machine contract at `validateEntry+36` is a *nonempty* knot entry — empty
+payloads exit before that PC — so the Validate machine family at fuel 0 is
+not discharged by `rlp_validate_payload_empty_cursor_cps` alone.  Record the
+structural half here as a positive inhabitant; the machine half remains open
+under `ValidateFromSharedGoal`. -/
+
+-- @@ L908-914 verbatim
+theorem validateFuel_empty_window_inhabited
+    (bytes : List (BitVec 8)) {cursorOff endOff : Nat}
+    (heq : cursorOff = endOff) (hend : endOff ≤ bytes.length) :
+    ValidateFuel bytes (cycleFuel cursorOff endOff) cursorOff endOff := by
+  simpa [cycleFuel_eq_zero_of_eq heq] using
+    (ValidateFuel.empty (bytes := bytes) (cursor := cursorOff) (endOff := endOff)
+      ⟨heq, hend⟩)
+
+
+-- @@ L916-923 verbatim
+theorem sharedFuel_empty_window_inhabited
+    (bytes : List (BitVec 8)) {cursorOff endOff : Nat}
+    (heq : cursorOff = endOff) (hend : endOff ≤ bytes.length) :
+    SharedFuel bytes (cycleFuel cursorOff endOff) cursorOff endOff := by
+  have hwindow : cursorOff ≤ endOff ∧ endOff ≤ bytes.length := ⟨le_of_eq heq, hend⟩
+  simpa [cycleFuel_eq_zero_of_eq heq] using
+    (SharedFuel.nonList (bytes := bytes) (cursor := cursorOff) (endOff := endOff)
+      hwindow)
+
+
+-- @@ L925-931 verbatim
+/-! ## Closed slice of the long-prefix residual
+
+Zero-remaining exit from the length-decoder header (`S+104` init + taken
+`BEQ` at `S+108`) lands at the payload-base setup (`S+136`).  This is the
+loop-exit edge; the nonzero body (shift/LBU/OR/cursor/remaining/backedge)
+and the Validate handoff after `S+136` remain open under
+`SharedListArmsFromValidateGoal`. -/
+
+-- @@ L932-953 verbatim
+theorem shared_long_prefix_zero_remaining_to_payload_base
+    (oldAcc : Word) :
+    cpsTripleWithin 2 (RlpWalkNextStrictTie.S + 104)
+      (RlpWalkNextStrictTie.S + 136) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x30 oldAcc) ** (regIs .x28 (0 : Word)) ** (regIs .x0 (0 : Word)))
+      ((regIs .x30 (0 : Word)) ** (regIs .x28 (0 : Word)) **
+        (regIs .x0 (0 : Word))) := by
+  have hinit0 := shared_long_prefix_init_acc oldAcc
+  have hinit := cpsTripleWithin_frameR
+    ((regIs .x28 (0 : Word)) ** (regIs .x0 (0 : Word)))
+    (by apply pcFree_sepConj <;> exact pcFree_regIs) hinit0
+  have hbr0 := shared_long_prefix_branch (0 : Word)
+  have htaken0 := cpsBranchWithin_takenStripPure2 hbr0 (by
+    intro _ hQf
+    obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
+    exact absurd rfl ((sepConj_pure_right _).mp h_rest).2)
+  have htaken := cpsTripleWithin_frameR (regIs .x30 (0 : Word))
+    (by exact pcFree_regIs) htaken0
+  have hseq := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hinit htaken
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) hseq
+
+
+-- @@ L955-958 verbatim
+/-! Zero-length long-prefix payload setup: after the length loop exits with
+`acc = 0`, compute `payload = cursor + pfx + 1` and fall through to the
+validator handoff at `S+152`.  Does not yet include the Validate call or the
+status continuation (`SharedListArmsFromValidateGoal`). -/
+
+-- @@ L959-977 verbatim
+theorem shared_long_prefix_zero_payload_setup
+    (cursor pfx oldOut : Word) :
+    cpsTripleWithin 3 (RlpWalkNextStrictTie.S + 136)
+      (RlpWalkNextStrictTie.S + 152) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x12 oldOut) ** (regIs .x5 cursor) ** (regIs .x13 pfx))
+      ((regIs .x12 (cursor + pfx + 1)) ** (regIs .x5 cursor) **
+        (regIs .x13 pfx)) := by
+  have hbase := shared_long_prefix_payload_base cursor pfx oldOut
+  have hstart := shared_long_prefix_payload_start cursor pfx
+  have hto0 := shared_long_prefix_to_validator (cursor + pfx + 1)
+  have hto := cpsTripleWithin_frameR
+    ((regIs .x5 cursor) ** (regIs .x13 pfx))
+    (by apply pcFree_sepConj <;> exact pcFree_regIs) hto0
+  have h1 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hbase hstart
+  have h2 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) h1 hto
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) h2
+
+
+-- @@ L979-982 verbatim
+/-! One nonzero long-prefix iteration body: shift → LBU → OR → cursor++ →
+remaining-- → backedge to `S+108`.  Pattern mirrors
+`rlp_phase2_long_loop_succ_spec_within`, specialised to the shared-walker
+register assignment (`x30` acc, `x29` cursor, `x28` remaining). -/
+
+-- @@ L983-1076 verbatim
+theorem shared_long_prefix_one_iter
+    (acc cursor remaining oldByte dwordAddr wordVal : Word)
+    (hne : remaining ≠ 0)
+    (halign : alignToDword cursor = dwordAddr)
+    (hvalid : isValidByteAccess cursor = true) :
+    cpsTripleWithin 7 (RlpWalkNextStrictTie.S + 108)
+      (RlpWalkNextStrictTie.S + 108) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x30 acc) ** (regIs .x29 cursor) ** (regIs .x28 remaining) **
+        (regIs .x31 oldByte) ** (regIs .x0 (0 : Word)) **
+        (dwordAddr ↦ₘ wordVal))
+      ((regIs .x30
+          ((acc <<< 8) |||
+            (extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+        (regIs .x29 (cursor + 1)) ** (regIs .x28 (remaining - 1)) **
+        (regIs .x31 ((extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+        (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) := by
+  have hbr0 := shared_long_prefix_branch remaining
+  have hntaken0 := cpsBranchWithin_ntakenStripPure2 hbr0 (by
+    intro _ hQt
+    obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
+    exact absurd ((sepConj_pure_right _).mp h_rest).2 hne)
+  have hntaken := cpsTripleWithin_frameR
+    ((regIs .x30 acc) ** (regIs .x29 cursor) ** (regIs .x31 oldByte) **
+      (dwordAddr ↦ₘ wordVal))
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_memIs)
+    hntaken0
+  have hshift0 := shared_long_prefix_shift acc
+  have hshift := cpsTripleWithin_frameR
+    ((regIs .x29 cursor) ** (regIs .x28 remaining) ** (regIs .x31 oldByte) **
+      (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal))
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_memIs)
+    hshift0
+  have hload0 := shared_long_prefix_load_byte cursor oldByte dwordAddr wordVal
+    halign hvalid
+  have hload := cpsTripleWithin_frameR
+    ((regIs .x30 (acc <<< 8)) ** (regIs .x28 remaining) **
+      (regIs .x0 (0 : Word)))
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs)
+    hload0
+  have hacc0 := shared_long_prefix_accumulate_byte (acc <<< 8)
+    ((extractByte wordVal (byteOffset cursor)).zeroExtend 64)
+  have hacc := cpsTripleWithin_frameR
+    ((regIs .x29 cursor) ** (regIs .x28 remaining) **
+      (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal))
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_memIs)
+    hacc0
+  have hcur0 := shared_long_prefix_cursor_increment cursor remaining
+  have hcur := cpsTripleWithin_frameR
+    ((regIs .x30
+        ((acc <<< 8) |||
+          (extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+      (regIs .x31 ((extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+      (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal))
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_memIs)
+    hcur0
+  have hdec0 := shared_long_prefix_decrement remaining (cursor + 1)
+  have hdec := cpsTripleWithin_frameR
+    ((regIs .x30
+        ((acc <<< 8) |||
+          (extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+      (regIs .x31 ((extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+      (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal))
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_memIs)
+    hdec0
+  have hback0 := shared_long_prefix_loop_backedge (cursor + 1) (remaining - 1)
+  have hback := cpsTripleWithin_frameR
+    ((regIs .x30
+        ((acc <<< 8) |||
+          (extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+      (regIs .x31 ((extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+      (dwordAddr ↦ₘ wordVal))
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_memIs)
+    hback0
+  have s1 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hntaken hshift
+  have s2 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) s1 hload
+  have s3 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) s2 hacc
+  have s4 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) s3 hcur
+  have s5 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) s4 hdec
+  have s6 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) s5 hback
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) s6
+
+
+-- @@ L1078-1079 verbatim
+/-! One-byte long-prefix decode: one nonzero iteration then the zero-remaining
+exit to `S+136`.  Entry is the loop header at `S+108` with `remaining = 1`. -/
+
+-- @@ L1080-1131 verbatim
+theorem shared_long_prefix_one_byte_to_payload_base
+    (acc cursor oldByte dwordAddr wordVal : Word)
+    (halign : alignToDword cursor = dwordAddr)
+    (hvalid : isValidByteAccess cursor = true) :
+    cpsTripleWithin 8 (RlpWalkNextStrictTie.S + 108)
+      (RlpWalkNextStrictTie.S + 136) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x30 acc) ** (regIs .x29 cursor) ** (regIs .x28 (1 : Word)) **
+        (regIs .x31 oldByte) ** (regIs .x0 (0 : Word)) **
+        (dwordAddr ↦ₘ wordVal))
+      ((regIs .x30
+          ((acc <<< 8) |||
+            (extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+        (regIs .x29 (cursor + 1)) ** (regIs .x28 (0 : Word)) **
+        (regIs .x31 ((extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+        (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) := by
+  have hne : (1 : Word) ≠ 0 := by decide
+  have hiter := shared_long_prefix_one_iter acc cursor (1 : Word) oldByte
+    dwordAddr wordVal hne halign hvalid
+  -- After one iter: remaining = 0, at S+108; take the zero exit.
+  have hbr0 := shared_long_prefix_branch (0 : Word)
+  have htaken0 := cpsBranchWithin_takenStripPure2 hbr0 (by
+    intro _ hQf
+    obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
+    exact absurd rfl ((sepConj_pure_right _).mp h_rest).2)
+  have htaken := cpsTripleWithin_frameR
+    ((regIs .x30
+        ((acc <<< 8) |||
+          (extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+      (regIs .x29 (cursor + 1)) **
+      (regIs .x31 ((extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+      (dwordAddr ↦ₘ wordVal))
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_memIs)
+    htaken0
+  -- `one_iter` leaves remaining-1 = 0 definitionally for remaining=1.
+  have hiter' : cpsTripleWithin 7 (RlpWalkNextStrictTie.S + 108)
+      (RlpWalkNextStrictTie.S + 108) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x30 acc) ** (regIs .x29 cursor) ** (regIs .x28 (1 : Word)) **
+        (regIs .x31 oldByte) ** (regIs .x0 (0 : Word)) **
+        (dwordAddr ↦ₘ wordVal))
+      ((regIs .x30
+          ((acc <<< 8) |||
+            (extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+        (regIs .x29 (cursor + 1)) ** (regIs .x28 (0 : Word)) **
+        (regIs .x31 ((extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+        (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) := by
+    simpa using hiter
+  have hseq := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hiter' htaken
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hp => by xperm_hyp hp) hseq)
+
+
+-- @@ L1133-1137 verbatim
+/-! ## Long-prefix preamble `S+88` → `S+108`
+
+Index 22–26 of `rlpWalkNextShared_prog`: compute `remaining = pfx - 247`,
+stash it in `x13`, set the length-cursor to `listBase + 1`, and clear the
+accumulator before the loop header. -/
+
+-- @@ L1138-1154 verbatim
+theorem shared_long_prefix_li247 (old7 : Word) :
+    cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 88)
+      (RlpWalkNextStrictTie.S + 92) RlpWalkNextStrictTie.sharedCode
+      (regIs .x7 old7) (regIs .x7 (247 : Word)) := by
+  have h := li_spec_gen_within .x7 old7 (247 : Word)
+    (RlpWalkNextStrictTie.S + 88) (by decide)
+  rw [show RlpWalkNextStrictTie.S + 88 + 4 = RlpWalkNextStrictTie.S + 92 by bv_omega] at h
+  have hmono : ∀ a i, CodeReq.singleton (RlpWalkNextStrictTie.S + 88)
+      (.LI .x7 (247 : Word)) a = some i →
+      CodeReq.ofProg RlpWalkNextStrictTie.S rlpWalkNextShared_prog a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+      rlpWalkNextShared_prog 22 (RlpWalkNextStrictTie.S + 88)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))
+  have hcode := cpsTripleWithin_extend_code hmono h
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) hcode
+
+
+-- @@ L1156-1174 verbatim
+theorem shared_long_prefix_remaining (pfx oldRem : Word) :
+    cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 92)
+      (RlpWalkNextStrictTie.S + 96) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) ** (regIs .x28 oldRem))
+      ((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+        (regIs .x28 (pfx - 247))) := by
+  have h := sub_spec_gen_within .x28 .x6 .x7 pfx (247 : Word) oldRem
+    (RlpWalkNextStrictTie.S + 92) (by decide)
+  rw [show RlpWalkNextStrictTie.S + 92 + 4 = RlpWalkNextStrictTie.S + 96 by bv_omega] at h
+  have hmono : ∀ a i, CodeReq.singleton (RlpWalkNextStrictTie.S + 92)
+      (.SUB .x28 .x6 .x7) a = some i →
+      CodeReq.ofProg RlpWalkNextStrictTie.S rlpWalkNextShared_prog a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+      rlpWalkNextShared_prog 23 (RlpWalkNextStrictTie.S + 92)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))
+  have hcode := cpsTripleWithin_extend_code hmono h
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) hcode
+
+
+-- @@ L1176-1193 verbatim
+theorem shared_long_prefix_stash_len (remaining old13 : Word) :
+    cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 96)
+      (RlpWalkNextStrictTie.S + 100) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x28 remaining) ** (regIs .x13 old13))
+      ((regIs .x28 remaining) ** (regIs .x13 remaining)) := by
+  have h := mv_spec_gen_within .x13 .x28 remaining old13
+    (RlpWalkNextStrictTie.S + 96) (by decide)
+  rw [show RlpWalkNextStrictTie.S + 96 + 4 = RlpWalkNextStrictTie.S + 100 by bv_omega] at h
+  have hmono : ∀ a i, CodeReq.singleton (RlpWalkNextStrictTie.S + 96)
+      (.MV .x13 .x28) a = some i →
+      CodeReq.ofProg RlpWalkNextStrictTie.S rlpWalkNextShared_prog a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+      rlpWalkNextShared_prog 24 (RlpWalkNextStrictTie.S + 96)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))
+  have hcode := cpsTripleWithin_extend_code hmono h
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) hcode
+
+
+-- @@ L1195-1214 verbatim
+theorem shared_long_prefix_len_cursor (listBase old29 : Word) :
+    cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 100)
+      (RlpWalkNextStrictTie.S + 104) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x5 listBase) ** (regIs .x29 old29))
+      ((regIs .x5 listBase) ** (regIs .x29 (listBase + 1))) := by
+  have h := addi_spec_gen_within .x29 .x5 old29 listBase (1 : BitVec 12)
+    (RlpWalkNextStrictTie.S + 100) (by decide)
+  rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide,
+    show listBase + (1 : Word) = listBase + 1 by bv_omega,
+    show RlpWalkNextStrictTie.S + 100 + 4 = RlpWalkNextStrictTie.S + 104 by bv_omega] at h
+  have hmono : ∀ a i, CodeReq.singleton (RlpWalkNextStrictTie.S + 100)
+      (.ADDI .x29 .x5 (1 : BitVec 12)) a = some i →
+      CodeReq.ofProg RlpWalkNextStrictTie.S rlpWalkNextShared_prog a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+      rlpWalkNextShared_prog 25 (RlpWalkNextStrictTie.S + 100)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))
+  have hcode := cpsTripleWithin_extend_code hmono h
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) hcode
+
+
+-- @@ L1216-1276 verbatim
+/-- Preamble from the long-arm entry through accumulator init, landing on the
+loop header with `remaining = pfx - 247`, `x13 = remaining`, `x29 = listBase+1`,
+`x30 = 0`. -/
+theorem shared_long_prefix_preamble
+    (pfx listBase old7 oldRem old13 old29 oldAcc : Word) :
+    cpsTripleWithin 5 (RlpWalkNextStrictTie.S + 88)
+      (RlpWalkNextStrictTie.S + 108) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
+        (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
+        (regIs .x30 oldAcc))
+      ((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+        (regIs .x28 (pfx - 247)) ** (regIs .x13 (pfx - 247)) **
+        (regIs .x5 listBase) ** (regIs .x29 (listBase + 1)) **
+        (regIs .x30 (0 : Word))) := by
+  have hli0 := shared_long_prefix_li247 old7
+  have hli := cpsTripleWithin_frameR
+    ((regIs .x6 pfx) ** (regIs .x28 oldRem) ** (regIs .x13 old13) **
+      (regIs .x5 listBase) ** (regIs .x29 old29) ** (regIs .x30 oldAcc))
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs)
+    hli0
+  have hrem0 := shared_long_prefix_remaining pfx oldRem
+  have hrem := cpsTripleWithin_frameR
+    ((regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
+      (regIs .x30 oldAcc))
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs)
+    hrem0
+  have hstash0 := shared_long_prefix_stash_len (pfx - 247) old13
+  have hstash := cpsTripleWithin_frameR
+    ((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) ** (regIs .x5 listBase) **
+      (regIs .x29 old29) ** (regIs .x30 oldAcc))
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs)
+    hstash0
+  have hcur0 := shared_long_prefix_len_cursor listBase old29
+  have hcur := cpsTripleWithin_frameR
+    ((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+      (regIs .x28 (pfx - 247)) ** (regIs .x13 (pfx - 247)) **
+      (regIs .x30 oldAcc))
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs)
+    hcur0
+  have hacc0 := shared_long_prefix_init_acc oldAcc
+  have hacc := cpsTripleWithin_frameR
+    ((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+      (regIs .x28 (pfx - 247)) ** (regIs .x13 (pfx - 247)) **
+      (regIs .x5 listBase) ** (regIs .x29 (listBase + 1)))
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs)
+    hacc0
+  have s1 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hli hrem
+  have s2 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) s1 hstash
+  have s3 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) s2 hcur
+  have s4 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) s3 hacc
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) s4
+
+
+-- @@ L1278-1282 verbatim
+/-! ## n-iteration long-prefix loop
+
+Parametric over a concrete `Nat` count `n = remaining`.  The inductive step
+reuses `shared_long_prefix_one_iter`.  Window hypotheses require every loaded
+byte to share one dword (same shape as Phase2). -/
+
+-- @@ L1283-1289 verbatim
+def sharedLongAcc (wordVal : Word) (acc ptr : Word) : Nat → Word
+  | 0 => acc
+  | k + 1 =>
+      sharedLongAcc wordVal
+        ((acc <<< 8) |||
+          (extractByte wordVal (byteOffset ptr)).zeroExtend 64)
+        (ptr + 1) k
+
+
+-- @@ L1291-1294 verbatim
+def sharedLongLastByte (wordVal : Word) (cursor oldByte : Word) : Nat → Word
+  | 0 => oldByte
+  | n + 1 =>
+      (extractByte wordVal (byteOffset (cursor + BitVec.ofNat 64 n))).zeroExtend 64
+
+
+-- @@ L1296-1297 verbatim
+theorem sharedLongAcc_zero (wordVal acc ptr : Word) :
+    sharedLongAcc wordVal acc ptr 0 = acc := rfl
+
+
+-- @@ L1299-1304 verbatim
+theorem sharedLongAcc_succ (wordVal acc ptr : Word) (k : Nat) :
+    sharedLongAcc wordVal acc ptr (k + 1) =
+      sharedLongAcc wordVal
+        ((acc <<< 8) |||
+          (extractByte wordVal (byteOffset ptr)).zeroExtend 64)
+        (ptr + 1) k := rfl
+
+
+-- @@ L1306-1307 verbatim
+theorem sharedLongLastByte_zero (wordVal cursor oldByte : Word) :
+    sharedLongLastByte wordVal cursor oldByte 0 = oldByte := rfl
+
+
+-- @@ L1309-1312 verbatim
+theorem sharedLongLastByte_succ (wordVal cursor oldByte : Word) (n : Nat) :
+    sharedLongLastByte wordVal cursor oldByte (n + 1) =
+      (extractByte wordVal (byteOffset (cursor + BitVec.ofNat 64 n))).zeroExtend 64 :=
+  rfl
+
+
+-- @@ L1314-1318 verbatim
+theorem cursor_add_ofNat_succ (cursor : Word) (i : Nat) :
+    cursor + BitVec.ofNat 64 (i + 1) = (cursor + 1) + BitVec.ofNat 64 i := by
+  apply BitVec.eq_of_toNat_eq
+  simp [BitVec.toNat_add, BitVec.toNat_ofNat]
+  omega
+
+
+-- @@ L1320-1330 verbatim
+theorem sharedLongLastByte_succ_step (wordVal cursor oldByte : Word) (k : Nat) :
+    sharedLongLastByte wordVal cursor oldByte (k + 1) =
+      sharedLongLastByte wordVal (cursor + 1)
+        ((extractByte wordVal (byteOffset cursor)).zeroExtend 64) k := by
+  cases k with
+  | zero =>
+      simp [sharedLongLastByte_succ, sharedLongLastByte_zero,
+        show cursor + BitVec.ofNat 64 0 = cursor by simp]
+  | succ k' =>
+      simp only [sharedLongLastByte_succ]
+      rw [cursor_add_ofNat_succ]
+
+
+-- @@ L1332-1346 verbatim
+theorem word_ofNat_succ_sub_one (k : Nat) :
+    BitVec.ofNat 64 (k + 1) - (1 : Word) = BitVec.ofNat 64 k := by
+  have hsign : signExtend12 (-1 : BitVec 12) = (-1 : Word) := by decide
+  have hsub : BitVec.ofNat 64 (k + 1) - (1 : Word) =
+      BitVec.ofNat 64 (k + 1) + signExtend12 (-1 : BitVec 12) := by
+    rw [hsign]
+    bv_omega
+  have hdec : BitVec.ofNat 64 (k + 1) + signExtend12 (-1 : BitVec 12) =
+      BitVec.ofNat 64 k := by
+    apply BitVec.eq_of_toNat_eq
+    have hs : (signExtend12 (-1 : BitVec 12) : Word).toNat =
+        18446744073709551615 := by decide
+    rw [BitVec.toNat_add, hs, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+    omega
+  rw [hsub, hdec]
+
+
+-- @@ L1348-1352 verbatim
+theorem word_ofNat_succ_ne_zero' (k : Nat) (hk : k + 1 ≤ 8) :
+    BitVec.ofNat 64 (k + 1) ≠ (0 : Word) := by
+  match k with
+  | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 => decide
+  | n + 8 => omega
+
+
+-- @@ L1354-1446 verbatim
+/-- Run `n` loop iterations, staying at the header with `remaining = 0`. -/
+theorem shared_long_prefix_loop_to_zero
+    (n : Nat) (hn : n ≤ 8)
+    (acc cursor oldByte dwordAddr wordVal : Word)
+    (hwin : ∀ i, i < n →
+      alignToDword (cursor + BitVec.ofNat 64 i) = dwordAddr ∧
+      isValidByteAccess (cursor + BitVec.ofNat 64 i) = true) :
+    cpsTripleWithin (7 * n) (RlpWalkNextStrictTie.S + 108)
+      (RlpWalkNextStrictTie.S + 108) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x30 acc) ** (regIs .x29 cursor) **
+        (regIs .x28 (BitVec.ofNat 64 n)) ** (regIs .x31 oldByte) **
+        (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal))
+      ((regIs .x30 (sharedLongAcc wordVal acc cursor n)) **
+        (regIs .x29 (cursor + BitVec.ofNat 64 n)) **
+        (regIs .x28 (0 : Word)) **
+        (regIs .x31 (sharedLongLastByte wordVal cursor oldByte n)) **
+        (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) := by
+  induction n generalizing acc cursor oldByte with
+  | zero =>
+      have hrefl :=
+        cpsTripleWithin_refl (addr := RlpWalkNextStrictTie.S + 108)
+          (P :=
+            ((regIs .x30 acc) ** (regIs .x29 cursor) **
+              (regIs .x28 (0 : Word)) ** (regIs .x31 oldByte) **
+              (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal)))
+          (fun _ hp => hp)
+      have hcode := cpsTripleWithin_extend_code
+        (cr := CodeReq.empty) (cr' := RlpWalkNextStrictTie.sharedCode)
+        (fun _ _ h => nomatch h) hrefl
+      have hpre :
+          ((regIs .x30 acc) ** (regIs .x29 cursor) **
+            (regIs .x28 (BitVec.ofNat 64 0)) ** (regIs .x31 oldByte) **
+            (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) =
+          ((regIs .x30 acc) ** (regIs .x29 cursor) **
+            (regIs .x28 (0 : Word)) ** (regIs .x31 oldByte) **
+            (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) := by
+        simp only [show (BitVec.ofNat 64 0 : Word) = 0 from rfl]
+      have hpost :
+          ((regIs .x30 (sharedLongAcc wordVal acc cursor 0)) **
+            (regIs .x29 (cursor + BitVec.ofNat 64 0)) **
+            (regIs .x28 (0 : Word)) **
+            (regIs .x31 (sharedLongLastByte wordVal cursor oldByte 0)) **
+            (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) =
+          ((regIs .x30 acc) ** (regIs .x29 cursor) **
+            (regIs .x28 (0 : Word)) ** (regIs .x31 oldByte) **
+            (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) := by
+        simp only [sharedLongAcc_zero, sharedLongLastByte_zero,
+          show cursor + (0 : Word) = cursor by bv_omega,
+          show (BitVec.ofNat 64 0 : Word) = 0 from rfl]
+      -- `rw` (syntactic) rather than `simpa`: at v4.33 simp normalises
+      -- `cursor + BitVec.ofNat 64 0` to `cursor` inside the goal before `hpost`
+      -- gets a chance to fire, so `hpost`'s LHS no longer matches.
+      rw [hpre, hpost]
+      exact hcode
+  | succ k ih =>
+      have hne := word_ofNat_succ_ne_zero' k (by omega)
+      obtain ⟨ha0, hv0⟩ := hwin 0 (by omega)
+      rw [show cursor + BitVec.ofNat 64 0 = cursor by simp] at ha0 hv0
+      have hiter := shared_long_prefix_one_iter acc cursor
+        (BitVec.ofNat 64 (k + 1)) oldByte dwordAddr wordVal hne ha0 hv0
+      have hwin' : ∀ i, i < k →
+          alignToDword ((cursor + 1) + BitVec.ofNat 64 i) = dwordAddr ∧
+          isValidByteAccess ((cursor + 1) + BitVec.ofNat 64 i) = true := by
+        intro i hi
+        have h := hwin (i + 1) (by omega)
+        rwa [cursor_add_ofNat_succ cursor i] at h
+      have hrem := word_ofNat_succ_sub_one k
+      have hiter' : cpsTripleWithin 7 (RlpWalkNextStrictTie.S + 108)
+          (RlpWalkNextStrictTie.S + 108) RlpWalkNextStrictTie.sharedCode
+          ((regIs .x30 acc) ** (regIs .x29 cursor) **
+            (regIs .x28 (BitVec.ofNat 64 (k + 1))) ** (regIs .x31 oldByte) **
+            (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal))
+          ((regIs .x30
+              ((acc <<< 8) |||
+                (extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+            (regIs .x29 (cursor + 1)) ** (regIs .x28 (BitVec.ofNat 64 k)) **
+            (regIs .x31
+              ((extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+            (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) := by
+        rw [← hrem]; exact hiter
+      have ihspec := ih (by omega)
+        ((acc <<< 8) |||
+          (extractByte wordVal (byteOffset cursor)).zeroExtend 64)
+        (cursor + 1)
+        ((extractByte wordVal (byteOffset cursor)).zeroExtend 64)
+        hwin'
+      have composed := cpsTripleWithin_seq_perm_same_cr
+        (fun _ hp => by xperm_hyp hp) hiter' ihspec
+      have hsteps : 7 * (k + 1) = 7 + 7 * k := by omega
+      rw [hsteps, sharedLongAcc_succ, sharedLongLastByte_succ_step,
+        cursor_add_ofNat_succ]
+      exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+        (fun _ hp => by xperm_hyp hp) composed
+
+
+-- @@ L1448-1484 verbatim
+/-- Full n-byte long-prefix decode: `n` iterations then the zero-remaining exit
+to `S+136`. -/
+theorem shared_long_prefix_n_iter
+    (n : Nat) (hn : n ≤ 8)
+    (acc cursor oldByte dwordAddr wordVal : Word)
+    (hwin : ∀ i, i < n →
+      alignToDword (cursor + BitVec.ofNat 64 i) = dwordAddr ∧
+      isValidByteAccess (cursor + BitVec.ofNat 64 i) = true) :
+    cpsTripleWithin (7 * n + 1) (RlpWalkNextStrictTie.S + 108)
+      (RlpWalkNextStrictTie.S + 136) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x30 acc) ** (regIs .x29 cursor) **
+        (regIs .x28 (BitVec.ofNat 64 n)) ** (regIs .x31 oldByte) **
+        (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal))
+      ((regIs .x30 (sharedLongAcc wordVal acc cursor n)) **
+        (regIs .x29 (cursor + BitVec.ofNat 64 n)) **
+        (regIs .x28 (0 : Word)) **
+        (regIs .x31 (sharedLongLastByte wordVal cursor oldByte n)) **
+        (regIs .x0 (0 : Word)) ** (dwordAddr ↦ₘ wordVal)) := by
+  have hloop := shared_long_prefix_loop_to_zero n hn acc cursor oldByte
+    dwordAddr wordVal hwin
+  have hbr0 := shared_long_prefix_branch (0 : Word)
+  have htaken0 := cpsBranchWithin_takenStripPure2 hbr0 (by
+    intro _ hQf
+    obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
+    exact absurd rfl ((sepConj_pure_right _).mp h_rest).2)
+  have htaken := cpsTripleWithin_frameR
+    ((regIs .x30 (sharedLongAcc wordVal acc cursor n)) **
+      (regIs .x29 (cursor + BitVec.ofNat 64 n)) **
+      (regIs .x31 (sharedLongLastByte wordVal cursor oldByte n)) **
+      (dwordAddr ↦ₘ wordVal))
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_memIs)
+    htaken0
+  have hseq := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hloop htaken
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) hseq
+
+
+-- @@ L1486-1486 verbatim
+end EvmAsm.Codegen.RlpWalkNextStrictFuel

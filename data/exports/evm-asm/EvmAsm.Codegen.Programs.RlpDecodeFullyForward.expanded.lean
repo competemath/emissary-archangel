@@ -1,0 +1,413 @@
+/- EvmAsm.Codegen.Programs.RlpDecodeFullyForward: forward (model to guest) construction of rlp_list_nth_item's success predicate and the whole-input decodeFully capstone, folded together from RlpListNthItemForward and the former split module. Children must be byte strings, inherited from ItemDecodeForward. -/
+
+import EvmAsm.Codegen.Programs.RlpListNthItemSAsmBase
+import EvmAsm.Rv64.RLP.ItemDecodeForward
+
+
+-- @@ L6-6 verbatim
+namespace EvmAsm.Codegen.RlpListNthItemSAsm
+
+
+-- @@ L8-8 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.EL.RLP
+
+
+-- @@ L10-10 verbatim
+/-! ## The selected child -/
+
+
+-- @@ L12-69 verbatim
+/-- From a byte-string `DecodeChain` covering the list payload, the guest's
+    `StrictNthItem` holds for whichever child the model put at `index`.
+
+    Induction is on `index`, generalising the item list and the start offset:
+    the head decode supplies one `rlpItemDecode`, and the tail supplies the
+    rest of the chain re-entered at `(next - base).toNat`. -/
+theorem strictNthItem_of_chain
+    (bytes : List Byte) (base : Word) (endOff : Nat)
+    (hendOff : endOff ≤ bytes.length) (hover : base.toNat + bytes.length < 2 ^ 64) :
+    ∀ (index : Nat) (items : List RLPItem) (off offEnd : Nat) (p : List Byte),
+      DecodeChain bytes off items offEnd → offEnd ≤ endOff →
+      (∀ it ∈ items, ∃ q, it = RLPItem.bytes q) →
+      items[index]? = some (RLPItem.bytes p) →
+      ∃ next off', next = base + BitVec.ofNat 64 off' ∧
+        StrictNthItem bytes base (base + BitVec.ofNat 64 endOff) index off next
+          (BitVec.ofNat 64 p.length) ∧
+        (bytes.drop (off' - p.length)).take p.length = p ∧ p.length ≤ off' ∧
+        off' ≤ endOff := by
+  intro index
+  induction index with
+  | zero =>
+      intro items off offEnd p hchain hle hbytes hidx
+      cases items with
+      | nil => simp at hidx
+      | cons item rest =>
+          simp only [List.getElem?_cons_zero, Option.some.injEq] at hidx
+          subst hidx
+          obtain ⟨off', hdec, hrest⟩ := hchain
+          have hoff'le : off' ≤ offEnd :=
+            DecodeChain.le_of_bytes rest off' offEnd hrest (by omega)
+              (fun it hit => hbytes it (List.mem_cons_of_mem _ hit))
+          refine ⟨base + BitVec.ofNat 64 off', off', rfl, ?_, ?_⟩
+          · exact .zero off _ _
+              (rlpItemDecode_of_decodeAux_bytes bytes base off off' endOff 0 p
+                (hdec 0) (by omega) hendOff hover)
+          · obtain ⟨hc, hb⟩ := decodeAux_bytes_content bytes off off' 0 p (hdec 0) (by omega)
+            exact ⟨hc, by omega, by omega⟩
+  | succ index ih =>
+      intro items off offEnd p hchain hle hbytes hidx
+      cases items with
+      | nil => simp at hidx
+      | cons item rest =>
+          simp only [List.getElem?_cons_succ] at hidx
+          obtain ⟨off', hdec, hrest⟩ := hchain
+          obtain ⟨q, hq⟩ := hbytes item (List.mem_cons_self ..)
+          subst hq
+          have hoff'le : off' ≤ offEnd :=
+            DecodeChain.le_of_bytes rest off' offEnd hrest (by omega)
+              (fun it hit => hbytes it (List.mem_cons_of_mem _ hit))
+          have hhead := rlpItemDecode_of_decodeAux_bytes bytes base off off' endOff 0 q
+            (hdec 0) (by omega) hendOff hover
+          have hrec := ih rest off' offEnd p hrest hle
+            (fun it hit => hbytes it (List.mem_cons_of_mem _ hit)) hidx
+          have hback : ((base + BitVec.ofNat 64 off') - base).toNat = off' :=
+            sub_base_of_base_add (bound := bytes.length) (by omega) hover
+          obtain ⟨next, off'', hnexteq, h, hcont, hple, hoe⟩ := hrec
+          refine ⟨next, off'', hnexteq, ?_, hcont, hple, hoe⟩
+          exact .succ index off _ _ _ _ hhead (by rw [hback]; exact h)
+
+
+-- @@ L71-71 verbatim
+/-! ## The outer list header -/
+
+
+-- @@ L73-99 verbatim
+/-- Long-list header (`0xF8..0xFF`), forward.  This is the shape a block
+    header takes: ~500 bytes of payload means a `0xF9` prefix with two length
+    bytes. -/
+theorem strictListPayload_long_forward
+    (bytes : List Byte) (base : Word) (b : Byte) (lol payloadLen : Nat)
+    (hbyte : bytes[0]? = some b)
+    (hlong : 0xF8 ≤ b.toNat)
+    (hlolDef : lol = b.toNat - 0xF7)
+    (hfirst : ∃ first : Byte, bytes[1]? = some first ∧ first ≠ 0)
+    (hpayLen : Nat.fromBytesBE ((bytes.drop 1).take lol) = payloadLen)
+    (hminimal : 56 ≤ payloadLen) :
+    StrictListPayload bytes base (1 + lol + payloadLen) (1 + lol)
+      (base + BitVec.ofNat 64 (1 + lol + payloadLen)) := by
+  obtain ⟨first, hfirstGet, hfirstNz⟩ := hfirst
+  have hb256 : b.toNat < 256 := b.isLt
+  have hlolNat : (b.zeroExtend 64 - (0xf7 : Word)).toNat = lol := by
+    have hw : b.zeroExtend 64 - (0xf7 : Word) = BitVec.ofNat 64 lol := by
+      rw [show (0xf7 : Word) = BitVec.ofNat 64 0xf7 from by decide]
+      exact zeroExtend_sub_eq_ofNat (by omega) hlolDef (by norm_num)
+    rw [hw, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
+  have hnotlt : ¬ BitVec.ult (b.zeroExtend 64) (0xf8 : Word) = true := by
+    rw [show (0xf8 : Word) = BitVec.ofNat 64 0xf8 from by decide]
+    exact fun hc => absurd ((ult_zeroExtend_iff (by norm_num)).mp hc) (by omega)
+  exact .long (1 + lol + payloadLen) (1 + lol) b first hbyte hnotlt hfirstGet hfirstNz
+    (by rw [hlolNat, hpayLen]; exact hminimal)
+    (by rw [hlolNat])
+    (by rw [hlolNat, hpayLen])
+
+
+-- @@ L101-119 verbatim
+/-- Short-list header (`0xC0..0xF7`), forward. -/
+theorem strictListPayload_short_forward
+    (bytes : List Byte) (base : Word) (b : Byte) (payloadLen : Nat)
+    (hbyte : bytes[0]? = some b)
+    (hlo : 0xC0 ≤ b.toNat) (hhi : b.toNat < 0xF8)
+    (hpay : payloadLen = b.toNat - 0xC0) :
+    StrictListPayload bytes base (payloadLen + 1) 1
+      (base + BitVec.ofNat 64 (payloadLen + 1)) := by
+  have hb256 : b.toNat < 256 := b.isLt
+  have hlenNat : (b.zeroExtend 64 - (0xc0 : Word)).toNat = payloadLen := by
+    have hw : b.zeroExtend 64 - (0xc0 : Word) = BitVec.ofNat 64 payloadLen := by
+      rw [show (0xc0 : Word) = BitVec.ofNat 64 0xc0 from by decide]
+      exact zeroExtend_sub_eq_ofNat (by omega) hpay (by norm_num)
+    rw [hw, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
+  refine .short (payloadLen + 1) 1 b hbyte ?_ ?_ rfl (by rw [hlenNat])
+  · rw [show (0xc0 : Word) = BitVec.ofNat 64 0xc0 from by decide]
+    exact fun hc => absurd ((ult_zeroExtend_iff (by norm_num)).mp hc) (by omega)
+  · rw [show (0xf8 : Word) = BitVec.ofNat 64 0xf8 from by decide]
+    exact (ult_zeroExtend_iff (by norm_num)).mpr (by omega)
+
+
+-- @@ L121-121 verbatim
+/-! ## Assembling `Success` -/
+
+
+-- @@ L123-140 verbatim
+/-- The full forward construction: a model-side list decode whose children are
+    all byte strings yields the guest's `Success` for any child index the model
+    provides.  `listLen` is the **complete** encoded length (header + payload),
+    matching `StrictListPayload`'s index. -/
+theorem success_forward
+    (bytes : List Byte) (base : Word) (listLen cursorOff index : Nat)
+    (items : List RLPItem) (p : List Byte)
+    (hpayload : StrictListPayload bytes base listLen cursorOff
+      (base + BitVec.ofNat 64 listLen))
+    (hchain : DecodeChain bytes cursorOff items listLen)
+    (hbytes : ∀ it ∈ items, ∃ q, it = RLPItem.bytes q)
+    (hidx : items[index]? = some (RLPItem.bytes p))
+    (hlistLen : listLen ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64) :
+    ∃ offset, Success bytes base listLen index offset (BitVec.ofNat 64 p.length) := by
+  obtain ⟨next, -, -, h, -, -, -⟩ := strictNthItem_of_chain bytes base listLen hlistLen hover
+    index items cursorOff listLen p hchain (le_refl _) hbytes hidx
+  exact ⟨_, cursorOff, base + BitVec.ofNat 64 listLen, next, hpayload, h, rfl⟩
+
+
+-- @@ L142-147 verbatim
+/-! ## Non-vacuity
+
+End-to-end on a concrete buffer: `c4 83 01 02 03` is a four-byte-payload list
+holding one three-byte string.  Both the header lemma and the chain feed
+`success_forward`, so the whole composition is demonstrably instantiable — the
+hypothesis set is satisfiable, not merely consistent. -/
+
+
+-- @@ L149-159 verbatim
+set_option maxRecDepth 8000 in
+example :
+    ∃ offset, Success [0xc4, 0x83, 0x01, 0x02, 0x03] (0x1000 : Word) 5 0 offset
+      (BitVec.ofNat 64 3) := by
+  refine success_forward [0xc4, 0x83, 0x01, 0x02, 0x03] (0x1000 : Word) 5 1 0
+    [RLPItem.bytes [0x01, 0x02, 0x03]] [0x01, 0x02, 0x03]
+    (strictListPayload_short_forward _ _ 0xc4 4 rfl (by decide) (by decide) (by decide))
+    ⟨5, fun _ => rfl, rfl⟩ ?_ rfl (by norm_num) (by decide)
+  intro it hit
+  simp only [List.mem_singleton] at hit
+  exact ⟨[0x01, 0x02, 0x03], hit⟩
+
+
+-- @@ L161-169 verbatim
+private theorem takeBytes_all_of_nil {bytes : List Byte} {k n : Nat}
+    {payload : List Byte}
+    (h : takeBytes (bytes.drop k) n = some (payload, [])) :
+    n = bytes.length - k ∧ payload = bytes.drop k := by
+  obtain ⟨hcat, hlen⟩ := takeBytes_eq_some_imp h
+  rw [List.append_nil] at hcat
+  have := congrArg List.length hcat
+  rw [List.length_drop] at this
+  exact ⟨by omega, hcat.symm⟩
+
+
+-- @@ L171-289 verbatim
+/-- From a whole-input list decode, the guest's outer-list predicate and the
+    child chain, both at the offsets the walk uses.  `listLen` is the full
+    buffer length because `decodeFully` leaves no trailing bytes. -/
+theorem listPayload_chain_of_decodeFully
+    (bytes : List Byte) (base : Word) (items : List RLPItem)
+    (hdec : decodeFully bytes = some (.list items))
+    (hbytes : ∀ it ∈ items, ∃ q, it = RLPItem.bytes q) :
+    ∃ cursorOff,
+      StrictListPayload bytes base bytes.length cursorOff
+        (base + BitVec.ofNat 64 bytes.length) ∧
+      DecodeChain bytes cursorOff items bytes.length := by
+  rw [decodeFully_eq_some_iff] at hdec
+  cases hbs : bytes with
+  | nil => rw [hbs] at hdec; simp [decode, decodeAux] at hdec
+  | cons x xs =>
+      rw [hbs, decode_cons_eq_decodeAux_fuel] at hdec
+      have hfuel : 2 * xs.length + 2 = (2 * xs.length + 1) + 1 := by omega
+      rw [hfuel] at hdec
+      set n := 2 * xs.length + 1 with hn
+      have hxs : (x :: xs).length = xs.length + 1 := rfl
+      have hdrop1 : (x :: xs).drop 1 = xs := rfl
+      have hget0 : (x :: xs)[0]? = some x := rfl
+      cases hclass : classifyPrefix x with
+      | singleByte =>
+          rw [decodeAux_cons_singleByte_of_classifyPrefix n x xs hclass] at hdec
+          simp at hdec
+      | shortBytes =>
+          rw [decodeAux_cons_shortBytes_of_classifyPrefix n x xs hclass] at hdec
+          cases htake : takeBytes xs (rlpPrefixShortBytesPayloadLen x) with
+          | none => simp [htake] at hdec
+          | some pr =>
+              obtain ⟨data, rest'⟩ := pr
+              rw [htake] at hdec
+              rcases data with _ | ⟨c, tl⟩
+              · simp at hdec
+              · cases tl with
+                | nil => by_cases hc : c.toNat < 128 <;> simp [hc] at hdec
+                | cons d ds => simp at hdec
+      | longBytes =>
+          rw [decodeAux_cons_longBytes_of_classifyPrefix n x xs hclass] at hdec
+          cases hread : readLength xs (rlpPrefixLongBytesLenOfLen x) with
+          | none => simp [hread] at hdec
+          | some pr =>
+              obtain ⟨lenVal, rest'⟩ := pr
+              rw [hread] at hdec
+              by_cases hshort : lenVal ≤ 55
+              · simp [hshort] at hdec
+              · cases htake : takeBytes rest' lenVal with
+                | none => simp [hshort, htake] at hdec
+                | some pr2 => obtain ⟨d, r⟩ := pr2; simp [hshort, htake] at hdec
+      | shortList =>
+          obtain ⟨hlo, hhi⟩ := (classifyPrefix_shortList_iff x).mp hclass
+          obtain ⟨payload, htake, hpay⟩ :=
+            (ListDecodeBridge.decodeAux_cons_shortList_eq_some_iff n x xs hclass
+              items []).mp hdec
+          rw [← hdrop1] at htake
+          obtain ⟨hplen, hpayEq⟩ := takeBytes_all_of_nil htake
+          rw [hxs] at hplen
+          have hlenEq : (x :: xs).length = rlpPrefixShortListPayloadLen x + 1 := by
+            rw [hxs]; omega
+          refine ⟨1, ?_, ?_⟩
+          · rw [hlenEq]
+            exact strictListPayload_short_forward (x :: xs) base x
+              (rlpPrefixShortListPayloadLen x) hget0 (by omega) (by omega) rfl
+          · refine decodeItems_to_chain (x :: xs) items n 1 ?_ (by rw [hxs]; omega) hbytes
+            rw [hdrop1] at hpayEq
+            rw [← hpayEq]
+            exact (ListDecodeBridge.decodeListPayload_eq_some_iff n payload items).mp hpay
+      | longList =>
+          have hlo := (classifyPrefix_longList_iff x).mp hclass
+          obtain ⟨lenVal, rest', payload, hread, hlong, htake, hpay⟩ :=
+            (ListDecodeBridge.decodeAux_cons_longList_eq_some_iff n x xs hclass
+              items []).mp hdec
+          have hlolEq : rlpPrefixLongListLenOfLen x = x.toNat - 0xF7 := rfl
+          rw [hlolEq] at hread
+          obtain ⟨hklen, hlenVal, hrestEq, c, hc0, hcnz⟩ :=
+            readLength_inv (by omega) hread
+          -- the length bytes sit at offset 1, the payload right after them
+          have hrest' : rest' = (x :: xs).drop (1 + (x.toNat - 0xF7)) := by
+            rw [hrestEq, show (1 + (x.toNat - 0xF7)) = (x.toNat - 0xF7) + 1 from by omega,
+              List.drop_succ_cons]
+          rw [hrest'] at htake
+          obtain ⟨hplen, hpayEq⟩ := takeBytes_all_of_nil htake
+          rw [hxs] at hplen
+          have hnz : ∃ first : Byte, (x :: xs)[1]? = some first ∧ first ≠ 0 := by
+            refine ⟨c, by simpa using hc0, ?_⟩
+            rcases Nat.lt_or_ge 1 (x.toNat - 0xF7) with hk | hk
+            · intro hzero
+              exact hcnz hk (by rw [hzero]; rfl)
+            · have hk1 : x.toNat - 0xF7 = 1 := by omega
+              intro hzero
+              have hsing : xs.take (x.toNat - 0xF7) = [c] := by
+                rw [hk1]
+                cases hxx : xs with
+                | nil => rw [hxx] at hc0; simp at hc0
+                | cons y ys =>
+                    rw [hxx] at hc0
+                    have hy : y = c := by
+                      rw [List.getElem?_eq_getElem (by simp)] at hc0
+                      exact Option.some.inj hc0
+                    simp [hy]
+              rw [hsing] at hlenVal
+              have hcv : lenVal = c.toNat := by rw [hlenVal]; simp [Nat.fromBytesBE]
+              rw [hzero] at hcv
+              simp at hcv
+              omega
+          have hlenEq : (x :: xs).length
+              = 1 + (x.toNat - 0xF7) + (xs.length + 1 - (1 + (x.toNat - 0xF7))) := by
+            rw [hxs]; omega
+          refine ⟨1 + (x.toNat - 0xF7), ?_, ?_⟩
+          · rw [hlenEq]
+            refine strictListPayload_long_forward (x :: xs) base x (x.toNat - 0xF7)
+              (xs.length + 1 - (1 + (x.toNat - 0xF7))) hget0 (by omega) rfl hnz ?_ (by omega)
+            rw [hdrop1, ← hlenVal]
+            exact hplen
+          · refine decodeItems_to_chain (x :: xs) items n (1 + (x.toNat - 0xF7)) ?_
+              (by rw [hxs]; omega) hbytes
+            rw [← hpayEq]
+            exact (ListDecodeBridge.decodeListPayload_eq_some_iff n payload items).mp hpay
+
+
+-- @@ L291-296 verbatim
+/-! ## Capstone
+
+The whole forward stack in one step: a model decode of the buffer as a list of
+byte strings yields the guest's `Success` for whichever child index the model
+provides.  This is the form the header extractors consume — for
+`header_extract_number`, `index = 8`. -/
+
+
+-- @@ L298-308 verbatim
+theorem success_of_decodeFully_list
+    (bytes : List Byte) (base : Word) (items : List RLPItem) (index : Nat) (p : List Byte)
+    (hdec : decodeFully bytes = some (.list items))
+    (hbytes : ∀ it ∈ items, ∃ q, it = RLPItem.bytes q)
+    (hidx : items[index]? = some (RLPItem.bytes p))
+    (hover : base.toNat + bytes.length < 2 ^ 64) :
+    ∃ offset, Success bytes base bytes.length index offset (BitVec.ofNat 64 p.length) := by
+  obtain ⟨cursorOff, hpay, hchain⟩ :=
+    listPayload_chain_of_decodeFully bytes base items hdec hbytes
+  exact success_forward bytes base bytes.length cursorOff index items p hpay hchain
+    hbytes hidx (le_refl _) hover
+
+
+-- @@ L310-358 verbatim
+/-- `success_of_decodeFully_list` together with the **content** of the selected
+    field: the bytes the guest will read at `Success`'s reported offset are
+    exactly the model's payload.
+
+    Callers tying a guest output value to a model field need this as well as the
+    `Success` predicate — the predicate alone pins the payload's *length*, not
+    its bytes. -/
+theorem success_content_of_decodeFully_list
+    (bytes : List Byte) (base : Word) (items : List RLPItem) (index : Nat) (p : List Byte)
+    (hdec : decodeFully bytes = some (.list items))
+    (hbytes : ∀ it ∈ items, ∃ q, it = RLPItem.bytes q)
+    (hidx : items[index]? = some (RLPItem.bytes p))
+    (hover : base.toNat + bytes.length < 2 ^ 64) :
+    ∃ offset, Success bytes base bytes.length index offset (BitVec.ofNat 64 p.length) ∧
+      (bytes.drop offset.toNat).take p.length = p ∧
+      offset.toNat + p.length ≤ bytes.length := by
+  obtain ⟨cursorOff, hpay, hchain⟩ :=
+    listPayload_chain_of_decodeFully bytes base items hdec hbytes
+  obtain ⟨next, off', hnexteq, hnth, hcont, hple, hoe⟩ :=
+    strictNthItem_of_chain bytes base bytes.length (le_refl _) hover index items
+      cursorOff bytes.length p hchain (le_refl _) hbytes hidx
+  -- the reported offset is `off' - p.length` once the word arithmetic is done
+  have hoff : (next - BitVec.ofNat 64 p.length - base).toNat = off' - p.length := by
+    rw [hnexteq]
+    have h1 : base + BitVec.ofNat 64 off' - BitVec.ofNat 64 p.length - base
+        = BitVec.ofNat 64 (off' - p.length) := by
+      apply BitVec.eq_of_toNat_eq
+      have hlt : off' - p.length < 2 ^ 64 := by omega
+      rw [BitVec.toNat_sub, BitVec.toNat_sub,
+        toNat_base_add_ofNat (bound := bytes.length) (by omega) hover,
+        BitVec.toNat_ofNat, BitVec.toNat_ofNat,
+        Nat.mod_eq_of_lt (show p.length < 2 ^ 64 by omega), Nat.mod_eq_of_lt hlt]
+      have hsplit : (2 ^ 64 - base.toNat +
+          (2 ^ 64 - p.length + (base.toNat + off')) % 2 ^ 64) % 2 ^ 64
+          = off' - p.length := by
+        have e1 : 2 ^ 64 - p.length + (base.toNat + off')
+            = 2 ^ 64 + (base.toNat + off' - p.length) := by omega
+        rw [e1, Nat.add_mod_left,
+          Nat.mod_eq_of_lt (show base.toNat + off' - p.length < 2 ^ 64 by omega)]
+        have e2 : 2 ^ 64 - base.toNat + (base.toNat + off' - p.length)
+            = 2 ^ 64 + (off' - p.length) := by omega
+        rw [e2, Nat.add_mod_left, Nat.mod_eq_of_lt hlt]
+      exact hsplit
+    rw [h1, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
+  refine ⟨next - BitVec.ofNat 64 p.length - base, ⟨cursorOff,
+    base + BitVec.ofNat 64 bytes.length, next, hpay, hnth, rfl⟩, ?_, ?_⟩
+  · rw [hoff]; exact hcont
+  -- `off' - p.length + p.length = off'` needs `hple`; then `hoe` closes it
+  · rw [hoff]; omega
+
+
+-- @@ L360-363 verbatim
+/-! ## Non-vacuity
+
+`c4 83 01 02 03` decoded by the **model** (not hand-assembled), driven all the
+way to the guest's `Success`. -/
+
+
+-- @@ L365-373 verbatim
+set_option maxRecDepth 8000 in
+example :
+    ∃ offset, Success [0xc4, 0x83, 0x01, 0x02, 0x03] (0x1000 : Word) 5 0 offset
+      (BitVec.ofNat 64 3) := by
+  refine success_of_decodeFully_list [0xc4, 0x83, 0x01, 0x02, 0x03] (0x1000 : Word)
+    [RLPItem.bytes [0x01, 0x02, 0x03]] 0 [0x01, 0x02, 0x03] rfl ?_ rfl (by decide)
+  intro it hit
+  simp only [List.mem_singleton] at hit
+  exact ⟨[0x01, 0x02, 0x03], hit⟩
+
+
+-- @@ L375-375 verbatim
+end EvmAsm.Codegen.RlpListNthItemSAsm

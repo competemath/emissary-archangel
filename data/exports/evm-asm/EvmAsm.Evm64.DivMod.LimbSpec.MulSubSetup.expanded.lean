@@ -1,0 +1,95 @@
+/-
+  EvmAsm.Evm64.DivMod.LimbSpec.MulSubSetup
+
+  CPS specs for the small setup/save/init blocks around the mul-sub and
+  add-back inner loops of the Knuth Algorithm D step:
+    * `divK_mulsub_setup_spec_within` — 5 instructions (LD, SLLI, ADDI, SUB,
+      ADDI) that restore `j` from scratch, compute `uBase = sp - 8*j`,
+      and zero the carry.
+    * `divK_save_j_spec_within` — single SD storing `j` back to scratch.
+    * `divK_addback_init_spec_within` — single ADDI zeroing the add-back carry.
+
+  Eighteenth chunk of the `LimbSpec.lean` split tracked by issue #312.
+  The consumer surface is unchanged: `LimbSpec.lean` re-exports this file
+  so every existing `import EvmAsm.Evm64.DivMod.LimbSpec` still sees all
+  three specs.
+-/
+
+module
+
+public import EvmAsm.Evm64.DivMod.Program
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+
+-- @@ L26-26 verbatim
+public section
+
+
+-- @@ L28-28 verbatim
+open EvmAsm.Rv64.Tactics
+
+
+-- @@ L30-30 verbatim
+namespace EvmAsm.Evm64
+
+
+-- @@ L32-32 verbatim
+open EvmAsm.Rv64
+
+
+-- @@ L34-61 verbatim
+/-- Mul-sub setup: restore j from scratch, compute uBase, zero carry. -/
+theorem divK_mulsub_setup_spec_within (sp qHat j v9Old v5Old v6Old v10Old : Word)
+    (base : Word) :
+    let jX8 := j <<< (3 : BitVec 6).toNat
+    let sp_m40 := sp + signExtend12 4056
+    let uBase := sp_m40 - jX8
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LD .x9 .x12 3976))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.SLLI .x5 .x9 3))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x6 .x12 4056))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SUB .x6 .x6 .x5))
+       (CodeReq.singleton (base + 16) (.ADDI .x10 .x0 0)))))
+    cpsTripleWithin 5 base (base + 20) cr
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+       (.x9 ↦ᵣ v9Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x10 ↦ᵣ v10Old) ** (.x0 ↦ᵣ 0) **
+       (sp + signExtend12 3976 ↦ₘ j))
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+       (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ jX8) ** (.x6 ↦ᵣ uBase) **
+       (.x10 ↦ᵣ signExtend12 0) ** (.x0 ↦ᵣ 0) **
+       (sp + signExtend12 3976 ↦ₘ j)) := by
+  intro jX8 sp_m40 uBase cr
+  have I0 := ld_spec_gen_within .x9 .x12 sp v9Old j 3976 base (by nofun)
+  have I1 := slli_spec_gen_within .x5 .x9 v5Old j 3 (base + 4) (by nofun)
+  have I2 := addi_spec_gen_within .x6 .x12 v6Old sp 4056 (base + 8) (by nofun)
+  have I3 := sub_spec_gen_rd_eq_rs1_within .x6 .x5 sp_m40 jX8 (base + 12) (by nofun)
+  have I4 := addi_x0_spec_gen_within .x10 v10Old 0 (base + 16) (by nofun)
+  runBlock I0 I1 I2 I3 I4
+
+
+-- @@ L63-71 verbatim
+/-- Save j to scratch memory. -/
+theorem divK_save_j_spec_within (sp j jOld : Word) (base : Word) :
+    let cr := CodeReq.singleton base (.SD .x12 .x9 3976)
+    cpsTripleWithin 1 base (base + 4) cr
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) ** (sp + signExtend12 3976 ↦ₘ jOld))
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) ** (sp + signExtend12 3976 ↦ₘ j)) := by
+  intro cr
+  have I0 := sd_spec_gen_within .x12 .x9 sp j jOld 3976 base
+  runBlock I0
+
+
+-- @@ L73-81 verbatim
+/-- Initialize add-back carry to 0. -/
+theorem divK_addback_init_spec_within (v7Old : Word) (base : Word) :
+    let cr := CodeReq.singleton base (.ADDI .x7 .x0 0)
+    cpsTripleWithin 1 base (base + 4) cr
+      ((.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ 0))
+      ((.x7 ↦ᵣ signExtend12 0) ** (.x0 ↦ᵣ 0)) := by
+  intro cr
+  have I0 := addi_x0_spec_gen_within .x7 v7Old 0 base (by nofun)
+  runBlock I0

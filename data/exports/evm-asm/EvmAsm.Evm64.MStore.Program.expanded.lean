@@ -1,0 +1,317 @@
+/-
+  EvmAsm.Evm64.MStore.Program
+
+  256-bit EVM `MSTORE`: pop a 32-byte `offset` and a 32-byte `value` from
+  the EVM stack, then write `value` (big-endian) to 32 contiguous bytes
+  of EVM memory starting at byte address `memBase + offset_lo`. Net EVM
+  stack movement: `+64` (two 32-byte pops, no push).
+
+  This slice is **program-only**, mirroring the shape of
+  `EvmAsm/Evm64/MLoad/Program.lean`. The byte-extract identity, per-byte
+  / per-limb composition specs, and the eventual
+  `evm_mstore_stack_spec_within_region` land in follow-up sub-slices per
+  `docs/99-mstore-design.md` §6 (sub-slices 4b..4f).
+
+  Layout (71 instructions = 284 bytes):
+
+    prologue (2 instr):
+      LD   offReg     x12  0           -- low limb of `offset` (high 3
+                                       -- limbs assumed 0 by the spec
+                                       -- precondition; see design §3.5)
+      ADD  addrReg    memBaseReg offReg
+                                       -- base byte address of the
+                                       -- 32-byte write window
+
+    per limb j ∈ {0, 1, 2, 3} (17 instr each — 68 total):
+      LD   accReg     x12   (8 * j + 32)             -- load limb j of value
+      SRLI byteReg    accReg ((7 - 0) * 8)
+      SB   addrReg    byteReg (8 * (3 - j) + 0)      -- write MSB of limb j
+      SRLI byteReg    accReg ((7 - 1) * 8)
+      SB   addrReg    byteReg (8 * (3 - j) + 1)
+      ...                                            -- 7 more (SRLI + SB)
+      SRLI byteReg    accReg 0  ;; SB addrReg byteReg (8 * (3 - j) + 7)
+
+    epilogue (1 instr):
+      ADDI .x12 .x12 64                              -- pop both 32-byte words
+
+  Big-endian per-limb ordering (`offset+0` is the MSB of EVM word):
+
+    EVM memory byte `off + k` (`k = 0..31`) receives the byte at
+    position `7 - k%8` of RV64 limb `3 - k/8`. That is, the high RV64
+    limb (`sp_evm + 24 + 32`) carries the most-significant 8 bytes of
+    the EVM word and the low limb (`sp_evm + 0 + 32`) carries the
+    least-significant 8 bytes (little-endian limbs of a big-endian
+    word). See `docs/99-mstore-design.md` §3.1.
+
+  Per-byte instruction pattern is **(a) shift-then-store** per design
+  §3.2: `acc` stays invariant for the whole limb; `byteReg` is the
+  per-byte SRLI scratch. This matches MLOAD's load-then-shift-then-OR
+  shape so the per-byte specs share a uniform `runBlock` structure.
+
+  Register convention (all caller-saved temporaries per LP64; see
+  `AGENTS.md` "Calling Convention (LP64)"):
+
+    `offReg`     — receives the low 64 bits of the popped `offset`.
+    `valReg`     — currently unused at the program level (the per-limb
+                   loads go directly into `accReg`); reserved for a
+                   future variant that pre-loads all four value limbs.
+    `byteReg`    — scratch for the per-byte `SRLI` result.
+    `accReg`     — running per-limb value, freshly loaded for each
+                   limb.
+    `addrReg`    — scratch holding `memBaseReg + offReg`.
+    `memBaseReg` — caller-supplied EVM memory buffer base address.
+
+  The caller is expected to choose distinct registers for the scratch
+  roles and to keep `memBaseReg` alive across the call. The spec slice
+  (`evm_mstore_stack_spec_within_region`) will pin down the exact disjointness
+  side conditions.
+
+  Memory-expansion bookkeeping (`evmMemSizeIs` update) is **not**
+  performed by this program; it will either be lifted to the spec
+  precondition or added in a later sub-slice (cf.
+  `docs/99-mstore-design.md` §4 and the parallel MLOAD discussion).
+
+  Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
+-/
+
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.SepLogic
+
+
+-- @@ L82-82 verbatim
+@[expose] public section
+
+
+-- @@ L84-84 verbatim
+namespace EvmAsm.Evm64
+
+
+-- @@ L86-86 verbatim
+open EvmAsm.Rv64
+
+
+-- @@ L88-114 verbatim
+/-- Unpack `k+1` bytes of `accReg` (the current limb value) into EVM
+    memory starting at `addrReg + limbStart`, big-endian.
+
+    `limbStart` is the byte-offset, inside the 32-byte write window, of
+    the most-significant byte of the limb being disassembled (i.e.
+    `8 * (3 - j)` for limb `j`). For byte index `i` (`0 ≤ i ≤ k`) the
+    pattern is
+
+      SRLI byteReg accReg ((7 - i) * 8)
+      SB   addrReg byteReg (limbStart + i)
+
+    so byte `0` (the MSB of the limb) lands at `limbStart` and byte `k`
+    lands at `limbStart + k`. The recursion shape mirrors
+    `Evm64.MLoad.mload_byte_pack`: emitting one byte at a time so a
+    single uniform per-byte block can be unfolded by the spec slices.
+
+    `accReg` must differ from `byteReg`; the spec slice will enforce
+    this via a `Reg` disjointness hypothesis. -/
+def mstore_byte_unpack
+    (addrReg byteReg accReg : Reg) (limbStart : Nat) : Nat → Program
+  | 0     =>
+      SRLI byteReg accReg (BitVec.ofNat 6 ((7 - 0) * 8)) ;;
+      SB addrReg byteReg (BitVec.ofNat 12 (limbStart + 0))
+  | k + 1 =>
+      mstore_byte_unpack addrReg byteReg accReg limbStart k ;;
+      SRLI byteReg accReg (BitVec.ofNat 6 ((7 - (k + 1)) * 8)) ;;
+      SB addrReg byteReg (BitVec.ofNat 12 (limbStart + (k + 1)))
+
+
+-- @@ L116-129 verbatim
+/-- Load one EVM-stack input limb (`limb j` of `value`) and unpack its 8
+    bytes (big-endian) into EVM memory at the canonical write window
+    offset `8 * (3 - j)`.
+
+    For `j = 0` (the low limb) the MSB lives at byte `(off + 24)` of the
+    EVM word (so `limbStart = 24`); for `j = 3` (the high limb) the MSB
+    lives at byte `(off + 0)`, i.e. `limbStart = 0`. The general
+    formula is `limbStart = 8 * (3 - j)`. The value limb is read from
+    `x12 + 8 * j + 32` (top-of-stack `value` lives 32 bytes below
+    `offset`). -/
+def mstore_one_limb
+    (addrReg byteReg accReg : Reg) (j : Nat) : Program :=
+  LD accReg .x12 (BitVec.ofNat 12 (8 * j + 32)) ;;
+  mstore_byte_unpack addrReg byteReg accReg (8 * (3 - j)) 7
+
+
+-- @@ L131-134 verbatim
+private theorem mstore_byte_unpack_7_length
+    (addrReg byteReg accReg : Reg) (limbStart : Nat) :
+    (mstore_byte_unpack addrReg byteReg accReg limbStart 7).length = 16 := by
+  simp [mstore_byte_unpack, SRLI, SB, single, seq]
+
+
+-- @@ L136-141 verbatim
+private theorem mstore_one_limb_length
+    (addrReg byteReg accReg : Reg) (j : Nat) :
+    (mstore_one_limb addrReg byteReg accReg j).length = 17 := by
+  unfold mstore_one_limb LD single seq
+  rw [Program.length_append, mstore_byte_unpack_7_length]
+  rfl
+
+
+-- @@ L143-151 verbatim
+def evm_mstore_prefix
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg) : Program :=
+  let _ := valReg
+  LD offReg .x12 0 ;;
+  ADD addrReg memBaseReg offReg ;;
+  mstore_one_limb addrReg byteReg accReg 0 ;;
+  mstore_one_limb addrReg byteReg accReg 1 ;;
+  mstore_one_limb addrReg byteReg accReg 2 ;;
+  mstore_one_limb addrReg byteReg accReg 3
+
+
+-- @@ L153-157 verbatim
+private theorem evm_mstore_prefix_length
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :
+    (evm_mstore_prefix offReg valReg byteReg accReg addrReg memBaseReg).length =
+      70 := by
+  simp [evm_mstore_prefix, LD, ADD, single, seq, mstore_one_limb_length]
+
+
+-- @@ L159-175 verbatim
+/-- 256-bit EVM `MSTORE` program.
+
+    Pops a 32-byte `offset` from the EVM stack at `x12 + 0`, a 32-byte
+    `value` at `x12 + 32`, and writes `value` (big-endian) to 32 bytes
+    of EVM memory starting at `memBaseReg + offset_lo`. The high three
+    limbs of `offset` must be zero (spec precondition; no runtime
+    check). The EVM-stack pointer is advanced by 64 (both 32-byte words
+    popped).
+
+    `valReg` is currently a placeholder (not emitted) — the per-limb
+    loads target `accReg` directly. It is kept in the parameter list to
+    match the design-note signature so spec slices can introduce it
+    without changing call sites. -/
+def evm_mstore (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :
+    Program :=
+  evm_mstore_prefix offReg valReg byteReg accReg addrReg memBaseReg ;;
+  ADDI .x12 .x12 (BitVec.ofNat 12 64)
+
+
+-- @@ L177-181 verbatim
+/-- `CodeReq` for `evm_mstore` placed at `base`. -/
+abbrev evm_mstore_code
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg) (base : Word) :
+    CodeReq :=
+  CodeReq.ofProg base (evm_mstore offReg valReg byteReg accReg addrReg memBaseReg)
+
+
+-- @@ L183-187 verbatim
+/-- Concrete instruction length of `evm_mstore`. -/
+theorem evm_mstore_length
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :
+    (evm_mstore offReg valReg byteReg accReg addrReg memBaseReg).length = 71 := by
+  simp [evm_mstore, ADDI, single, seq, evm_mstore_prefix_length]
+
+
+-- @@ L189-205 verbatim
+theorem evm_mstore_prologue_slice
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :
+    ((evm_mstore offReg valReg byteReg accReg addrReg memBaseReg).drop 0).take
+      (LD offReg .x12 0 ;; ADD addrReg memBaseReg offReg).length =
+      (LD offReg .x12 0 ;; ADD addrReg memBaseReg offReg) := by
+  simp only [evm_mstore, evm_mstore_prefix, LD, ADD, single, seq, Program,
+    List.drop_zero]
+  let prologue : List Instr :=
+    [Instr.LD offReg .x12 0] ++ [Instr.ADD addrReg memBaseReg offReg]
+  let suffix : List Instr :=
+    (mstore_one_limb addrReg byteReg accReg 0 ++
+      (mstore_one_limb addrReg byteReg accReg 1 ++
+        (mstore_one_limb addrReg byteReg accReg 2 ++
+          mstore_one_limb addrReg byteReg accReg 3))) ++
+      ADDI .x12 .x12 (BitVec.ofNat 12 64)
+  change List.take prologue.length (prologue ++ suffix) = prologue
+  exact List.take_left
+
+
+-- @@ L207-227 verbatim
+theorem evm_mstore_epilogue_slice
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :
+    ((evm_mstore offReg valReg byteReg accReg addrReg memBaseReg).drop 70).take
+        (ADDI .x12 .x12 (BitVec.ofNat 12 64)).length =
+      (ADDI .x12 .x12 (BitVec.ofNat 12 64)) := by
+  unfold evm_mstore
+  simp only [seq, Program, ADDI, single]
+  let pre : List Instr := evm_mstore_prefix offReg valReg byteReg accReg addrReg memBaseReg
+  let suffix : List Instr := [Instr.ADDI .x12 .x12 (BitVec.ofNat 12 64)]
+  change List.take suffix.length
+      (List.drop 70 (pre ++ suffix)) = suffix
+  have hdrop :
+      List.drop 70 (pre ++ suffix) =
+        suffix := by
+    have hpre_len : pre.length = 70 := by
+      dsimp [pre]
+      exact evm_mstore_prefix_length offReg valReg byteReg accReg addrReg memBaseReg
+    rw [← hpre_len]
+    exact List.drop_left
+  rw [hdrop]
+  simp
+
+
+-- @@ L229-233 verbatim
+/-- Concrete byte length of `evm_mstore` when placed in RV64 code memory. -/
+theorem evm_mstore_byte_length
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :
+    4 * (evm_mstore offReg valReg byteReg accReg addrReg memBaseReg).length = 284 := by
+  rw [evm_mstore_length]
+
+
+-- @@ L235-237 verbatim
+/-- Byte offset of the first MSTORE limb block after the two-instruction prologue. -/
+theorem evm_mstore_limb0_byte_off : 4 * (2 + 17 * 0) = 8 := by
+  rfl
+
+
+-- @@ L239-241 verbatim
+/-- Byte offset of the second MSTORE limb block. -/
+theorem evm_mstore_limb1_byte_off : 4 * (2 + 17 * 1) = 76 := by
+  rfl
+
+
+-- @@ L243-245 verbatim
+/-- Byte offset of the third MSTORE limb block. -/
+theorem evm_mstore_limb2_byte_off : 4 * (2 + 17 * 2) = 144 := by
+  rfl
+
+
+-- @@ L247-249 verbatim
+/-- Byte offset of the fourth MSTORE limb block. -/
+theorem evm_mstore_limb3_byte_off : 4 * (2 + 17 * 3) = 212 := by
+  rfl
+
+
+-- @@ L251-254 verbatim
+/-- Byte offset of the SRLI instruction for byte `i` inside `mstore_byte_unpack`. -/
+theorem mstore_byte_unpack_srli_byte_off (i : Nat) :
+    4 * (2 * i) = 8 * i := by
+  omega
+
+
+-- @@ L256-259 verbatim
+/-- Byte offset of the SB instruction for byte `i` inside `mstore_byte_unpack`. -/
+theorem mstore_byte_unpack_sb_byte_off (i : Nat) :
+    4 * (2 * i + 1) = 4 + 8 * i := by
+  omega
+
+
+-- @@ L261-263 verbatim
+/-- Byte offset where the byte-unpack sequence starts inside one MSTORE limb block. -/
+theorem mstore_one_limb_unpack_byte_off : 4 * 1 = 4 := by
+  rfl
+
+
+-- @@ L265-267 verbatim
+/-- Byte offset of the final stack-pointer update in `evm_mstore`. -/
+theorem evm_mstore_epilogue_byte_off : 4 * (2 + 17 * 4) = 280 := by
+  rfl
+
+
+-- @@ L269-269 verbatim
+end EvmAsm.Evm64
