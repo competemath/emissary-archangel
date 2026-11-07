@@ -109,7 +109,8 @@ jobs:
             if [ "$attempt" = 5 ]; then echo "::error::the toolchain $TOOLCHAIN did not download in 5 attempts"; exit 1; fi
             sleep $((attempt * 20))
           done
-          (cd lib && lake update 2>&1 | tail -2 && lake exe cache get 2>&1 | tail -1)
+          # each under a time limit, tried again when it fails or hangs (evm-asm, 7 Nov 2026: one shard failed to fetch the cache, one hung here 5 h 43 min until the job was cancelled)
+          python3 scripts/bump/lake_fetch.py lib
           # full: every seeded import becomes the umbrellas (the environment a record is verified in). faithful: the library keeps the imports its authors wrote, so that names
           # resolve as upstream (bundle.py compose --imports faithful names them in the tree's modules); see bump-sharded.yml `imports`
           if [ "$IMPORTS" = full ]; then python3 scripts/bump/engine.py normalize-imports --lib lib --roots "$(echo "$roots" | tr ' ' ',')" --lean-path "$(cd lib && lake env printenv LEAN_PATH)"; fi
