@@ -43,19 +43,38 @@ LINTER_IN = re.compile(r"set_option[ \t]+linter\.[\w.]+[ \t]+\S+[ \t]+in\b[ \t]*
 LINTER_LINE = re.compile(r"^[ \t]*set_option[ \t]+linter\.[\w.]+[ \t]+\S+[ \t]*(?:\n|$)", re.M)
 
 
+_MASKS: dict[str, list[bool]] = {}
+
+
+def _mask(text: str) -> list[bool]:
+    """code_mask of `text`, kept for the last text asked about (the scanners ask about the same text many times)"""
+    m = _MASKS.get(text)
+    if m is None:
+        m = code_mask(text)
+        _MASKS.clear()
+        _MASKS[text] = m
+    return m
+
+
 def _close(text: str, i: int) -> int:
-    """the index just past the `]` that closes the bracket opened right before i (nested brackets counted)"""
+    """the index just past the `]` that closes the bracket opened right before i (nested brackets counted; a bracket in a comment or a string is not one)"""
+    mask = _mask(text)
     depth = 1
     while i < len(text) and depth:
-        depth += {"[": 1, "]": -1}.get(text[i], 0)
+        if mask[i]:
+            depth += {"[": 1, "]": -1}.get(text[i], 0)
         i += 1
     return i
 
 
 def _items(body: str) -> list[str]:
-    """the comma-separated items of a bracket's content, at the top level"""
+    """the comma-separated items of a bracket's content, at the top level (a comma or bracket in a comment or a string does not count)"""
+    mask = code_mask(body)
     out, depth, cur = [], 0, ""
-    for ch in body:
+    for k, ch in enumerate(body):
+        if not mask[k]:
+            cur += ch
+            continue
         if ch in "([{⟨":
             depth += 1
         elif ch in ")]}⟩":
@@ -84,6 +103,21 @@ def _namespace_at(text: str, mask: list[bool], pos: int) -> str:
     return ".".join(n for k, n in stack if k == "namespace" and n)
 
 
+def _set_item(item: str, names: set[str]) -> tuple[str, str, bool] | None:
+    """(set, modifier, removal) when an attribute item names one of `names`: `X`, `X =`, `scoped X`, `local X =`, `-X` (a removal); None otherwise"""
+    parts = item.split()
+    while parts and parts[0] in ("scoped", "local"):
+        parts = parts[1:]
+    if not parts:
+        return None
+    head, removal = parts[0], False
+    if head.startswith("-") and head[1:] in names:
+        head, removal = head[1:], True
+    if head not in names:
+        return None
+    return head, " ".join(parts[1:]), removal
+
+
 def sets_of(texts: dict[str, str]) -> dict[str, str]:
     """custom grind set -> the module that registers it"""
     out = {}
@@ -96,7 +130,8 @@ def sets_of(texts: dict[str, str]) -> dict[str, str]:
 
 
 def tags_of(text: str, names: set[str]) -> list[tuple[int, str, str, bool, str]]:
-    """(position, set, modifier, private, lemma name) for every lemma the module puts in one of `names`; the name is qualified with the namespace it is declared in"""
+    """(position, set, modifier, private, lemma name) for every lemma the module puts in one of `names`; the name is qualified with the namespace it is declared in.
+    A removal (`attribute [-X] foo`) is listed with the modifier "-" (see removed_of)."""
     mask = code_mask(text)
     out = []
     for m in ATTR_BLOCK.finditer(text):
@@ -104,15 +139,15 @@ def tags_of(text: str, names: set[str]) -> list[tuple[int, str, str, bool, str]]
             continue
         end = _close(text, m.end())
         for item in _items(text[m.end() : end - 1]):
-            parts = item.split()
-            if parts and parts[0] in names:
+            hit = _set_item(item, names)
+            if hit and not hit[2]:
                 d = DECL.match(text, end)
                 if d:
                     ns = _namespace_at(text, mask, m.start())
                     name = d.group(1)
                     full = name if name.startswith("_root_.") or not ns else f"{ns}.{name}"
                     private = re.match(r"\s*(?:/--.*?-/\s*)?(?:\w+\s+)*?private\b", text[end : d.start(1)], re.S) is not None
-                    out.append((m.start(), parts[0], " ".join(parts[1:]), private, full.removeprefix("_root_.")))
+                    out.append((m.start(), hit[0], hit[1], private, full.removeprefix("_root_.")))
     for m in ATTR_CMD.finditer(text):
         if not mask[m.end() - 1]:
             continue
@@ -121,13 +156,13 @@ def tags_of(text: str, names: set[str]) -> list[tuple[int, str, str, bool, str]]
         targets = text[end : len(text) if line_end < 0 else line_end].split()
         ns = _namespace_at(text, mask, m.start())
         for item in _items(text[m.end() : end - 1]):
-            parts = item.split()
-            if parts and parts[0] in names:
+            hit = _set_item(item, names)
+            if hit:
                 for tgt in targets:
                     full = tgt if ("." in tgt or not ns) else f"{ns}.{tgt}"
                     # a private declaration (its name is mangled) can only be named in its own module
                     private = re.search(rf"\bprivate\s+(?:\w+\s+)*?(?:theorem|lemma|def|abbrev|instance)\s+{re.escape(tgt.split('.')[-1])}\b", text) is not None
-                    out.append((m.start(), parts[0], " ".join(parts[1:]), private, full))
+                    out.append((m.start(), hit[0], "-" if hit[2] else hit[1], private, full))
     return sorted(out)
 
 
@@ -141,20 +176,33 @@ def _drop_from_lists(text: str, names: set[str]) -> tuple[str, int]:
                 continue
             end = _close(text, m.end())
             items = _items(text[m.end() : end - 1])
-            kept = [it for it in items if not (it.split() and it.split()[0] in names)]
-            if len(kept) != len(items):
+            kept = [it for it in items if not _set_item(it, names)]
+            if len(kept) == len(items):
+                continue
+            if kept:
                 edits.append((m.end(), end - 1, ", ".join(k.strip() for k in kept)))
+            elif rx is ATTR_BLOCK:  # `@[X]` alone: the whole `@[...]` goes, with the space after it
+                stop = end
+                while stop < len(text) and text[stop] in " \t":
+                    stop += 1
+                if stop < len(text) and text[stop] == "\n" and text[m.start() - 1 : m.start()] in ("", "\n"):
+                    stop += 1
+                edits.append((m.start(), stop, ""))
+            else:  # `attribute [X] a b`: the whole command, to the end of its line
+                line_end = text.find("\n", end)
+                edits.append((m.start(), len(text) if line_end < 0 else line_end + 1, ""))
     for a, b, new in sorted(edits, reverse=True):
         text = text[:a] + new + text[b:]
     return text, len(edits)
 
 
-def rewrite_grind_sets(texts: dict[str, str], imports: dict[str, list[str]]) -> tuple[dict[str, str], dict[str, int]]:
-    """See the module's doc. `imports`: module -> the library modules it imports directly. Returns the new texts and counts."""
+def rewrite_grind_sets(texts: dict[str, str], imports: dict[str, list[str]]) -> tuple[dict[str, str], dict[str, dict[str, int]]]:
+    """See the module's doc. `imports`: module -> the library modules it imports directly. Returns the new texts and, per module, its counts (rewrite() adds up those of the
+    modules the guard lets through)."""
     sets = sets_of(texts)
-    stats = {"grind sets": len(sets), "set tags removed": 0, "grind calls rewritten": 0, "lemmas listed": 0}
+    per: dict[str, dict[str, int]] = {}
     if not sets:
-        return texts, stats
+        return texts, per
     names = set(sets)
     tags = {mod: tags_of(t, names) for mod, t in texts.items()}
     # which lemmas the bundle keeps: a name it declares in its pruned text
@@ -178,6 +226,7 @@ def rewrite_grind_sets(texts: dict[str, str], imports: dict[str, list[str]]) -> 
 
     out = {}
     for mod, text in texts.items():
+        st = per.setdefault(mod, {"set tags removed": 0, "grind calls rewritten": 0, "lemmas listed": 0, "set registrations removed": 0})
         mask = code_mask(text)
         edits = []
         for m in GRIND_CALL.finditer(text):
@@ -195,20 +244,24 @@ def rewrite_grind_sets(texts: dict[str, str], imports: dict[str, list[str]]) -> 
                     continue
                 visible = [(md, t) for md in sorted(below(mod)) for t in tags.get(md, []) if t[1] == s and not t[3]]
                 visible += [(mod, t) for t in tags.get(mod, []) if t[1] == s and t[0] < m.start()]
+                # `attribute [-X] foo` takes foo out of the set (anywhere the call sees: an imported module, or earlier in its own file)
+                removed = {t[4] for _, t in visible if t[2] == "-"}
                 for md, (_, _, modifier, private, full) in visible:
-                    if kept(md, full):
+                    if modifier != "-" and full not in removed and kept(md, full):
                         new_items.append(f"{modifier} {full.split('.')[-1] if private else full}".strip())
-                        stats["lemmas listed"] += 1
+                        st["lemmas listed"] += 1
             edits.append((m.end(), end - 1, ", ".join(dict.fromkeys(new_items))))
-            stats["grind calls rewritten"] += 1
+            st["grind calls rewritten"] += 1
         for a, b, new in sorted(edits, reverse=True):
             text = text[:a] + new + text[b:]
         text, n = _drop_from_lists(text, names)
-        stats["set tags removed"] += n
+        st["set tags removed"] += n
         mask = code_mask(text)
-        text = "".join(piece for piece in _cut(text, [(_with_doc(text, r.start()), r.end()) for r in REGISTER.finditer(text) if mask[r.start(1)]]))
+        regs = [(_with_doc(text, r.start()), r.end()) for r in REGISTER.finditer(text) if mask[r.start(1)]]
+        st["set registrations removed"] += len(regs)
+        text = "".join(piece for piece in _cut(text, regs))
         out[mod] = text
-    return out, stats
+    return out, per
 
 
 def _with_doc(text: str, start: int) -> int:
@@ -282,11 +335,13 @@ def rewrite(texts: dict[str, str], imports: dict[str, list[str]]) -> tuple[dict[
     """Custom grind sets rewritten away (rewrite_grind_sets) and inert lines removed (strip_inert_lines), module by module, under a GUARD: a module whose skeleton (_skeleton)
     is not the same before and after is shipped as it was (and the lint refuses it as before), so the rewrite can never change anything but attribute lists, grind's lemma
     lists and the removed lines. Returns the texts, what was changed in each changed module (for its notice), and counts."""
-    new, gstats = rewrite_grind_sets(texts, imports)
+    new, per = rewrite_grind_sets(texts, imports)
     sets = sets_of(texts)
     out: dict[str, str] = {}
     changes: dict[str, list[str]] = {}
-    stats = {**gstats, "inert lines removed": 0, "modules changed": 0, "modules kept as they were (guard)": 0}
+    # counts of the changes that SHIP: a module the guard keeps as it was adds nothing to them
+    stats = {"grind sets": len(sets), "set registrations removed": 0, "set tags removed": 0, "grind calls rewritten": 0, "lemmas listed": 0, "inert lines removed": 0,
+             "modules changed": 0, "modules kept as they were (guard)": 0}
     for mod, before in texts.items():
         after, inert = strip_inert_lines(new[mod])
         if after == before:
@@ -310,6 +365,8 @@ def rewrite(texts: dict[str, str], imports: dict[str, list[str]]) -> tuple[dict[
             what.append(f"removed {inert} `#adaptation_note` / `set_option linter` line(s) (notes and linter settings: no declaration depends on them)")
         stats["inert lines removed"] += inert
         stats["modules changed"] += 1
+        for k, v in per.get(mod, {}).items():
+            stats[k] += v
         out[mod] = after
         changes[mod] = what
     return out, changes, stats

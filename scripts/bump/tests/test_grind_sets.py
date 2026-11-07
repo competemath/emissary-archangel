@@ -129,7 +129,7 @@ class Synthetic(unittest.TestCase):
         self.assertNotIn("the set's doc", out["L.Attrs"])  # a doc comment left without its command does not compile
         self.assertIn("theorem a", out["L.A"])
         self.assertNotIn("myset", out["L.A"])
-        self.assertIn("@[simp]", out["L.A"].replace("@[simp, ]", "@[simp]") if "@[simp" in out["L.A"] else "@[simp]")
+        self.assertIn("@[simp] theorem b", out["L.A"])  # the other attribute of the list stays
         # the first call sees a and b (imported, with b's modifier) but not d (later in the file); the private c is not visible from another module
         first, second = [m for m in gs.GRIND_CALL.finditer(out["L.B"])]
         args1 = out["L.B"][first.end() : gs._close(out["L.B"], first.end()) - 1]
@@ -167,6 +167,153 @@ class Synthetic(unittest.TestCase):
         self.assertEqual(changes, {})
 
 
+class MoreCases(unittest.TestCase):
+    def rw(self, texts):
+        imports = {m: [i for i in tb.header_imports(t) if i in texts] for m, t in texts.items()}
+        return gs.rewrite(texts, imports)
+
+    def args(self, text, k=0):
+        c = list(gs.GRIND_CALL.finditer(text))[k]
+        return [x.strip() for x in gs._items(text[c.end() : gs._close(text, c.end()) - 1])]
+
+    REG = "module\n\nregister_grind_attr s\n"
+
+    def test_a_private_lemma_in_the_calls_own_module_keeps_its_short_name(self):
+        out, _, _ = self.rw({"L.R": self.REG, "L.A": "import L.R\n\nnamespace N\n@[s] private theorem p : True := trivial\nexample : True := by grind [s]\nend N\n"})
+        self.assertEqual(self.args(out["L.A"]), ["p"])
+
+    def test_scoped_and_local_tags_count(self):
+        out, _, _ = self.rw({"L.R": self.REG, "L.A": "import L.R\n\n@[local s] theorem a : True := trivial\nattribute [scoped s =] a\nexample : True := by grind [s]\n"})
+        self.assertEqual(self.args(out["L.A"]), ["a", "= a"])
+        self.assertNotIn("s]", out["L.A"].split("example")[0].replace("[s]", ""))
+
+    def test_a_removed_lemma_is_not_listed(self):
+        out, _, _ = self.rw({"L.R": self.REG, "L.A": "import L.R\n\n@[s] theorem a : True := trivial\n@[s] theorem b : True := trivial\nattribute [-s] a\nexample : True := by grind [s]\n"})
+        self.assertEqual(self.args(out["L.A"]), ["b"])
+
+    def test_an_emptied_attribute_list_or_command_goes_whole(self):
+        out, _, _ = self.rw({"L.R": self.REG, "L.A": "import L.R\n\n@[s] theorem a : True := trivial\ntheorem b : True := trivial\nattribute [s] b\nexample : True := by grind [s]\n"})
+        self.assertNotIn("@[]", out["L.A"])
+        self.assertNotIn("attribute []", out["L.A"])
+        self.assertNotIn("attribute [", out["L.A"])
+        self.assertIn("theorem a : True := trivial", out["L.A"])
+
+    def test_a_bracket_in_a_comment_inside_a_grind_list_is_not_one(self):
+        out, _, _ = self.rw({"L.R": self.REG, "L.A": "import L.R\n\n@[s] theorem a : True := trivial\nexample : True := by grind [s, /- an unbalanced ] in a note -/ other]\n"})
+        call = list(gs.GRIND_CALL.finditer(out["L.A"]))[0]
+        self.assertEqual(out["L.A"][call.start() : gs._close(out["L.A"], call.end())], "grind [a, /- an unbalanced ] in a note -/ other]")
+
+    def test_a_module_the_guard_keeps_adds_nothing_to_the_counts(self):
+        real = gs.strip_inert_lines
+        try:
+            gs.strip_inert_lines = lambda t: ((t.replace("theorem a", "theorem a'"), 1) if "theorem a" in t else (t, 0))
+            out, changes, stats = self.rw({"L.R": self.REG, "L.A": "import L.R\n\n@[s] theorem a : True := trivial\nexample : True := by grind [s]\n"})
+        finally:
+            gs.strip_inert_lines = real
+        self.assertNotIn("L.A", changes)
+        self.assertEqual(stats["grind calls rewritten"], 0)  # L.A's call was not shipped rewritten
+        self.assertEqual(stats["set tags removed"], 0)
+        self.assertEqual(stats["set registrations removed"], 1)  # L.R's change ships
+        self.assertEqual(stats["modules kept as they were (guard)"], 1)
+
+
+class Compose(unittest.TestCase):
+    """bundle.py compose on the toy library of test_bundle, with an inert line in the module that ships: the shipped file carries its change notice and the report counts it."""
+
+    def test_the_shipped_file_has_its_notice_and_the_report_its_counts(self):
+        import subprocess
+        import tempfile
+
+        sys.path.insert(0, str(HERE / "tests"))
+        import test_records as T
+
+        d = Path(tempfile.mkdtemp())
+        lib = d / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        B = T.B.replace("namespace Toy\n", "set_option linter.unusedVariables false\n\nnamespace Toy\n", 1)
+        (lib / "Toy" / "A.lean").write_text(T.A)
+        (lib / "Toy" / "B.lean").write_text(B)
+        la, lb = T.A.split("\n"), B.split("\n")
+        ln = lambda lines, needle: next(i + 1 for i, x in enumerate(lines) if needle in x)
+        sidecars = {"Toy/A": [["Toy.one", ln(la, "/-- the number one"), ln(la, "def one")], ["Toy.one_pos", ln(la, "theorem one_pos"), ln(la, "theorem one_pos")]],
+                    "Toy/B": [["Toy.uses_one_pos", ln(lb, "open Nat in"), ln(lb, "theorem uses_one_pos")]]}
+        for m, rows in sidecars.items():
+            f = lib / ".lake" / "build" / "lib" / "lean" / (m + ".olean.ranges.json")
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(json.dumps(rows))
+        keep = [["Toy.B", "Toy.uses_one_pos"], ["Toy.A", "Toy.one_pos"], ["Toy.A", "Toy.one"]]
+        (d / "deps.log").write_text(f"x:1:0: info: BUNDLE_KEEP {json.dumps(keep)} BUNDLE_END\n")
+        (d / "passed.json").write_text(json.dumps({"Toy.B": ["Toy.uses_one_pos"]}))
+        (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy", "commit": "abc123def456789"}))
+        (d / "build.log").write_text("")
+        (d / "gate2.log").write_text("GATE2B_PASS old=Toy.uses_one_pos new=Toy.uses_one_pos via=equal\n")
+        (d / "killed.json").write_text("[]")
+        subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", "--gate2-killed", str(d / "killed.json"), "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"),
+                        "--meta", str(d / "setup.json"), "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"),
+                        "--src", str(d / "src")], check=True, capture_output=True)
+        b = (d / "bundle-proposed" / "Tengoku" / "ToyLib" / "Toy" / "B.lean").read_text()
+        self.assertIn("Tengoku change notice", b)
+        self.assertIn("https://github.com/o/toy@abc123def456", b)
+        self.assertIn("`Toy/B.lean`", b)
+        self.assertFalse(any(ln.strip().startswith("set_option linter") for ln in b.splitlines()))  # the line is gone (the notice names it)
+        report = json.loads((d / "bundle-proposed" / "report.json").read_text())
+        self.assertEqual(report["factory_changes"].get("inert lines removed"), 1)
+        self.assertEqual(report["factory_changes"].get("modules changed"), 1)
+        self.assertEqual(report["theorems"], 1)
+
+
+class SpaceInAModuleName(unittest.TestCase):
+    """uniform-sheafy-tate-domains, 2026-11-07: 4 of the 6 modules of its draft live under `Adic spaces/`; the verify build split `«Adic spaces».X` at the space
+    (`unknown target ...«Adic`) and died before building anything, and the tree's merge queue builds the same space-separated list."""
+
+    def test_compose_leaves_such_a_module_out_and_says_why(self):
+        import subprocess
+        import tempfile
+
+        sys.path.insert(0, str(HERE / "tests"))
+        import test_records as T
+
+        d = Path(tempfile.mkdtemp())
+        lib = d / "lib"
+        (lib / "Toy" / "Sub dir").mkdir(parents=True)
+        (lib / "Toy" / "A.lean").write_text(T.A)
+        (lib / "Toy" / "Sub dir" / "B.lean").write_text(T.B)
+        la, lb = T.A.split("\n"), T.B.split("\n")
+        ln = lambda lines, needle: next(i + 1 for i, x in enumerate(lines) if needle in x)
+        sidecars = {"Toy/A": [["Toy.one", ln(la, "/-- the number one"), ln(la, "def one")], ["Toy.one_pos", ln(la, "theorem one_pos"), ln(la, "theorem one_pos")]],
+                    "Toy/Sub dir/B": [["Toy.uses_one_pos", ln(lb, "open Nat in"), ln(lb, "theorem uses_one_pos")]]}
+        for m, rows in sidecars.items():
+            f = lib / ".lake" / "build" / "lib" / "lean" / (m + ".olean.ranges.json")
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(json.dumps(rows))
+        keep = [["Toy.«Sub dir».B", "Toy.uses_one_pos"], ["Toy.A", "Toy.one_pos"], ["Toy.A", "Toy.one"]]
+        (d / "deps.log").write_text(f"x:1:0: info: BUNDLE_KEEP {json.dumps(keep)} BUNDLE_END\n")
+        (d / "passed.json").write_text(json.dumps({"Toy.«Sub dir».B": ["Toy.uses_one_pos"]}))
+        (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy", "commit": "abc"}))
+        (d / "build.log").write_text("")
+        (d / "gate2.log").write_text("GATE2B_PASS old=Toy.uses_one_pos new=Toy.uses_one_pos via=equal\n")
+        (d / "killed.json").write_text("[]")
+        p = subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", "--gate2-killed", str(d / "killed.json"), "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"),
+                            "--meta", str(d / "setup.json"), "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"),
+                            "--src", str(d / "src")], capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stderr[-2000:])
+        report = json.loads((d / "bundle-proposed" / "report.json").read_text())
+        self.assertTrue(any("a module name with a space" in k for k in report["left_out"]), report["left_out"])
+        self.assertFalse((d / "bundle-proposed" / "Tengoku" / "ToyLib" / "Toy" / "Sub dir" / "B.lean").exists())
+
+    def test_the_verify_build_passes_one_argument_per_module(self):
+        import yaml
+
+        wf = yaml.safe_load((ROOT / ".github" / "workflows" / "bump-sharded.yml").read_text())
+        step = next(s["run"] for s in wf["jobs"]["verify"]["steps"] if s.get("name") == "Build them (the queue's own command)")
+        self.assertIn("mapfile -t tg < <(grep -v '^[[:space:]]*$' ../out/targets.txt)", step)
+        self.assertIn('lake build "${tg[@]}"', step)
+        self.assertNotIn("lake build $targets", step)
+
+
+ROOT = Path(__file__).resolve().parents[3]
+
+
 class Notice(unittest.TestCase):
     def test_the_notice_names_the_upstream_the_file_and_the_change(self):
         n = gs.notice("https://github.com/o/lib@abc123", "Lib/X.lean", ["removed the registration of the grind set `s`"])
@@ -179,6 +326,10 @@ class Notice(unittest.TestCase):
 
         self.assertIn("import A\n\n/-! note -/", bundle.add_change_notice("import A\n\ntheorem t : True := trivial\n", "/-! note -/"))
         self.assertTrue(bundle.add_change_notice("theorem t : True := trivial\n", "/-! note -/").rstrip().endswith("/-! note -/"))
+
+    def test_a_part_report_keeps_the_changes(self):
+        text = (HERE / "bundle_layers.py").read_text()
+        self.assertIn('"factory_changes": report.get("factory_changes", {})', text)
 
     def test_the_intake_pr_says_what_was_changed(self):
         import open_intake_pr as o

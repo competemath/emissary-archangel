@@ -815,7 +815,7 @@ class Wiring(unittest.TestCase):
 
     def test_the_second_build_has_its_own_time_limit_below_the_first(self):
         v = self.verify_job()
-        first = int(re.search(r"timeout -k 60 (\d+)m lake build \$targets 2>&1 \| tee \.\./out/build\.log", v)[1])
+        first = int(re.search(r"timeout -k 60 (\d+)m lake build (?:\$targets|\"\$\{tg\[@\]\}\") 2>&1 \| tee \.\./out/build\.log", v)[1])  # one argument per module since 2026-11-07
         second = int(re.search(r"timeout -k 60 (\d+)m lake build \$targets 2>&1 \| tee -a \.\./out/build\.log", v)[1])
         self.assertLess(second, first)
 

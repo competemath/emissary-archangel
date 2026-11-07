@@ -346,6 +346,10 @@ def compose(a: argparse.Namespace) -> None:
     # a module that imports a package the tree does not have cannot be built there, nor can what imports it
     base_dropped: dict[str, str] = {m: "imports " + ", ".join(b) for m, b in external.items()}
     base_dropped.update({m: "an error outside any declaration (glue)" for m in glue_error})
+    # A module whose name has a space (`«Adic spaces».Foo`, from a directory `Adic spaces/`): the tree's merge queue builds the new modules as one space-separated `lake build` list,
+    # which splits the name (uniform-sheafy-tate-domains, 2026-11-07: `unknown target Tengoku.UniformSheafyTateDomains.«Adic`, and the verify build of the whole draft died at once).
+    # Left out with what imports it, and said so, until the queue takes such names.
+    base_dropped.update({m: "a module name with a space: the tree's merge queue builds a space-separated module list" for m in modules if re.search(r"\s", m) and m not in base_dropped})
     # modules the merge queue's build of the tree could not compile (a name Mathlib has and the tree does not: a deprecated alias...): left out with what imports them
     asked = [m.strip() for m in (a.drop_modules or "").split(",") if m.strip()]
     # Nothing that Gate 2 did not judge is shipped (2026-10-17: navier-stokes-euler part 1 carried 89 modules, 504 theorem commands, that two shards ran out of memory and time on; the driver
