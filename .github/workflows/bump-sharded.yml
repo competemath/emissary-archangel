@@ -209,8 +209,10 @@ jobs:
           cat ../logs/gate2-results.json
           # the copies of tree modules stay in the draft for the tree's build to decide (tree_dups.py), when asked for and when there is a tree build to decide them
           keep=(); if [ "$DUPS" = true ] && [ "$VERIFY" != false ]; then keep=(--keep-dups); fi
+          # the modules a shard's keep step left out for an import clash go too, with what imports them (bump-shard.yml)
+          drop=$(printf '%s\n' "$DROP" | tr ', ' '\n\n' | cat - ../logs/keep-drops.txt | { grep -v '^[[:space:]]*$' || true; } | sort -u | paste -sd, -)
           python3 scripts/bump/bundle.py compose --lib ../merged --log ../logs/bundle-deps.log --passed ../logs/passed.json --meta "data/exports/$KEY/setup.ci.json" \
-            --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --gate2-killed ../logs/gate2-killed.json --out ../bundle --src ../pruned-src --drop-modules "$DROP" \
+            --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --gate2-killed ../logs/gate2-killed.json --out ../bundle --src ../pruned-src --drop-modules "$drop" \
             --tree-names ../tree-names.txt --tree-decls ../tree-decls.txt --drop-leaks --imports "$IMPORTS" "${keep[@]}"
       - name: Make the registrations that leak into other libraries local (RECUT only)
         if: ${{ inputs.scope != '' }}
@@ -587,8 +589,10 @@ jobs:
           python3 scripts/bump/shard_pack.py merge --shards ../shards --out ../merged --logs ../logs
           cat ../logs/gate2-results.json
           keep=(); if [ "$DUPS" = true ] && [ "$VERIFIED" = success ]; then keep=(--keep-dups --tree-dups ../tree-dups.json); fi
+          # the modules a shard's keep step left out for an import clash go too, with what imports them (bump-shard.yml)
+          drop=$(printf '%s\n' "$DROP" | tr ', ' '\n\n' | cat - ../logs/keep-drops.txt | { grep -v '^[[:space:]]*$' || true; } | sort -u | paste -sd, -)
           python3 scripts/bump/bundle.py compose --lib ../merged --log ../logs/bundle-deps.log --passed ../logs/passed.json --meta "data/exports/$KEY/setup.ci.json" \
-            --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --gate2-killed ../logs/gate2-killed.json --out ../bundle --src ../pruned-src --drop-modules "$DROP" \
+            --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --gate2-killed ../logs/gate2-killed.json --out ../bundle --src ../pruned-src --drop-modules "$drop" \
             --tree-names ../tree-names.txt --tree-decls ../tree-decls.txt --drop-leaks --tree-failures ../tree-failures.txt --tree-repairs ../tree-repairs.json --imports "$IMPORTS" "${keep[@]}"
       - name: Make the registrations that leak into other libraries local (RECUT only)
         if: ${{ inputs.scope != '' }}

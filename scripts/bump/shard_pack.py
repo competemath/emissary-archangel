@@ -54,6 +54,9 @@ def pack(a: argparse.Namespace) -> None:
         shutil.copy2(a.keep, out / "bundle-deps.log")
     if a.results and Path(a.results).exists():
         shutil.copy2(a.results, out / "gate2-results.json")
+    if a.keep_drops and Path(a.keep_drops).exists():
+        # the modules this shard's keep step left out (an import clash: two modules of the library declare one name), for compose to leave out with what imports them
+        shutil.copy2(a.keep_drops, out / "keep-drops.txt")
     print(f"packed {len(build)} modules")
 
 
@@ -65,6 +68,7 @@ def merge(a: argparse.Namespace) -> None:
     logs = {"gate2.log": [], "errors.log": [], "bundle-deps.log": []}
     packs = 0
     killed: set[str] = set()
+    keep_drops: set[str] = set()
     for d in sorted(Path(a.shards).glob("*")):
         artifact = d
         d = next(iter(d.glob("shard-pack")), d) if d.is_dir() else d
@@ -93,6 +97,8 @@ def merge(a: argparse.Namespace) -> None:
             if not dst.exists():
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(f, dst)
+        if (d / "keep-drops.txt").is_file():
+            keep_drops.update(x.strip() for x in (d / "keep-drops.txt").read_text(errors="replace").splitlines() if x.strip())
         for name, acc in logs.items():
             if (d / name).exists():
                 acc.append((d / name).read_text(errors="replace"))
@@ -116,8 +122,10 @@ def merge(a: argparse.Namespace) -> None:
         (Path(a.logs) / name).write_text("\n".join(acc))
     (Path(a.logs) / "gate2-results.json").write_text(json.dumps(total, indent=1))
     (Path(a.logs) / "gate2-killed.json").write_text(json.dumps(sorted(killed)))
+    (Path(a.logs) / "keep-drops.txt").write_text("".join(m + "\n" for m in sorted(keep_drops)))
     (Path(a.logs) / "passed.json").write_text(json.dumps({m: sorted(v) for m, v in passed.items()}))
-    print(f"merged: {sum(len(v) for v in passed.values())} passed names in {len(passed)} modules; {len(killed)} modules without a Gate 2 verdict")
+    print(f"merged: {sum(len(v) for v in passed.values())} passed names in {len(passed)} modules; {len(killed)} modules without a Gate 2 verdict"
+          + (f"; {len(keep_drops)} left out of the keep step for an import clash: {', '.join(sorted(keep_drops))}" if keep_drops else ""))
 
 
 def has_pack(artifact: Path) -> bool:
@@ -166,6 +174,7 @@ if __name__ == "__main__":
         p.add_argument(f"--{f}", required=True)
     p.add_argument("--modules", default="")
     p.add_argument("--results", default="")
+    p.add_argument("--keep-drops", default="", help="the modules the keep step left out for an import clash, one a line")
     m = sub.add_parser("merge")
     for f in ("shards", "out", "logs"):
         m.add_argument(f"--{f}", required=True)
