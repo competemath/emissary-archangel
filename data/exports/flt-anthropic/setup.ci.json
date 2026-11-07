@@ -10,14 +10,10 @@
   "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/flt-anthropic/repo",
   "entries": 48460,
   "modules": 30662,
-  "exported": 30576,
+  "exported": 30599,
   "failed": [
     {
       "module": "Theorems.Thm_CuspForm_IsEigenformWith_exists_basis_inertia_apply_eq_smul_of_dvd_of_not_sq_dvd_of_dvd_sub_one_of_residual_isAbsolutelyIrreducible",
-      "why": "no closure"
-    },
-    {
-      "module": "Theorems.Thm_CuspForm_IsEigenformWith_exists_linearIndependent_inertia_apply_eq_smul_of_dvd_of_not_sq_dvd_of_dvd_conductor_of_residual_isAbsolutelyIrreducible",
       "why": "no closure"
     },
     {
@@ -41,19 +37,7 @@
       "why": "no closure"
     },
     {
-      "module": "Theorems.Thm_CuspForm_IsNewform_exists_isCuspidalOfType_gl2ReductionRep_of_inertia_labels_eq_pow_of_irreducible_odd_of_cast_eq_neg_one",
-      "why": "no closure"
-    },
-    {
-      "module": "Theorems.Thm_CuspForm_IsNewform_linearMap_psCarrier_eq_zero_of_charpoly_inertia_eq_mul_of_eq_pow_of_pow_sub_one_ne_one_exponent_two",
-      "why": "no closure"
-    },
-    {
       "module": "Theorems.Thm_CuspForm_IsNewform_psCarrier_lam_dvd_sub_one_or_no_psCarrier_lam_dvd_add_one_of_factorization_eq_two_of_residual_isUnipotent_of_irreducible_odd_of_absIrred_odd",
-      "why": "no closure"
-    },
-    {
-      "module": "Theorems.Thm_CuspForm_IsPrimitiveForm_exists_galoisRepAdic_charpoly_frobenius_eq_and_isRoot_charpoly_one_of_dvd_of_factorization_eq_conductor_factorization_of_not_sq_dvd",
       "why": "no closure"
     },
     {
@@ -81,19 +65,7 @@
       "why": "no closure"
     },
     {
-      "module": "Theorems.Thm_CuspForm_TWLevel_exists_algHom_deformationRing_moduleEnd_ML_of_not_isFlatAt_strictOrdinary",
-      "why": "no closure"
-    },
-    {
       "module": "Theorems.Thm_CuspForm_TWLevel_exists_galoisRepAdic_moduleEnd_ML_flat",
-      "why": "no closure"
-    },
-    {
-      "module": "Theorems.Thm_CuspForm_TWLevel_exists_galoisRepAdic_moduleEnd_ML_of_not_isFlatAt_strictOrdinary",
-      "why": "no closure"
-    },
-    {
-      "module": "Theorems.Thm_CuspForm_heckeLocal_bijective_and_exists_presentation_of_ordinaryCondition_of_finiteAt_of_not_cube_dvd",
       "why": "no closure"
     },
     {
@@ -102,10 +74,6 @@
     },
     {
       "module": "Theorems.Thm_CuspForm_heckeLocal_exists_algHom_length_cotangent_le_of_isResiduallyModular_of_level_of_not_sq_dvd_of_not_cube_dvd_of_level_not_cube_dvd",
-      "why": "no closure"
-    },
-    {
-      "module": "Theorems.Thm_CuspForm_heckeLocal_exists_heckeModules_levelRaising_and_taylorWiles_auxLevel_of_isEis_kernel_pair_strictOrdinary_of_not_cube_dvd",
       "why": "no closure"
     },
     {
@@ -161,19 +129,11 @@
       "why": "no closure"
     },
     {
-      "module": "Theorems.Thm_FreyPackage_mazurPrincipleAtPStep",
-      "why": "no closure"
-    },
-    {
       "module": "Theorems.Thm_FreyPackage_modularRepOfConductorLevel",
       "why": "no closure"
     },
     {
       "module": "Theorems.Thm_FreyPackage_no_frey_package",
-      "why": "no closure"
-    },
-    {
-      "module": "Theorems.Thm_GaloisRepAdic_not_isUnipotentOnInertiaAt_and_charpoly_frobenius_of_factorization_eq_two_of_absIrred_odd_of_ne_two",
       "why": "no closure"
     },
     {
@@ -185,23 +145,11 @@
       "why": "no closure"
     },
     {
-      "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_NeronExtension_exists_hopfAlgebra_finPts_equiv_forall_specMap_comp_eq_ptsN",
-      "why": "no closure"
-    },
-    {
-      "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_NeronExtension_exists_isFinite_forall_ptsN_comp_eq_of_hopf",
-      "why": "no closure"
-    },
-    {
       "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_NeronExtension_exists_ptsN_eq_comp_of_mem_inertiaInvariants",
       "why": "no closure"
     },
     {
       "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_NeronExtension_extN_of_mem_of_hopf_of_forall_smul_sub_mem",
-      "why": "no closure"
-    },
-    {
-      "module": "Theorems.Thm_ModularCurve_JZeroNeronObjectAtP_NeronExtension_inertiaInvariants_le_extPts",
       "why": "no closure"
     },
     {
@@ -233,10 +181,6 @@
       "why": "no closure"
     },
     {
-      "module": "Theorems.Thm_ModularCurve_exists_qExpSemistableSpecializationPinnedV3_family_normFreePart_and_diamond_of_dvd_of_not_sq_dvd_of_le_div",
-      "why": "no closure"
-    },
-    {
       "module": "Theorems.Thm_ModularCurve_hasJZeroNeronAtPDataCore",
       "why": "no closure"
     },
@@ -249,23 +193,11 @@
       "why": "no closure"
     },
     {
-      "module": "Theorems.Thm_ModularCurve_hasLowerLevelTorsion_jZero_of_isPeuRamifieeAt_of_five_le",
-      "why": "no closure"
-    },
-    {
       "module": "Theorems.Thm_ModularCurve_hasLowerLevelTorsion_of_finiteFlat_rankTwo_heckeTorsion",
       "why": "no closure"
     },
     {
-      "module": "Theorems.Thm_ModularCurve_hasLowerLevelTorsion_of_finiteFlat_rankTwo_heckeTorsion_of_five_le",
-      "why": "no closure"
-    },
-    {
       "module": "Theorems.Thm_ModularCurve_rep_diamondGen_apply_inertia_sub_eq_of_nsmul_sub_sum_tateModule_jOne_of_dvd_of_not_sq_dvd_of_le_div",
-      "why": "no closure"
-    },
-    {
-      "module": "Theorems.Thm_ModularCurve_rep_frobenius_rep_heckeGenOne_sub_smul_rep_diamondGen_rep_inertia_sub_eq_zero_normFreePartAt_tateModule_jOne_of_le_div",
       "why": "no closure"
     },
     {
@@ -281,19 +213,11 @@
       "why": "no closure"
     },
     {
-      "module": "Theorems.Thm_WeierstrassCurve_exists_finite_extension_heckeGaloisRepDatum_patchingDatum_of_isResiduallyModular_of_level_of_not_sq_dvd_capped_of_not_cube_dvd",
-      "why": "no closure"
-    },
-    {
       "module": "Theorems.Thm_WeierstrassCurve_exists_heckeGaloisRepDatum_of_isResiduallyModular_of_inertia_moves_torsion_of_eq_three_capped_of_not_cube_dvd",
       "why": "no closure"
     },
     {
       "module": "Theorems.Thm_WeierstrassCurve_exists_heckeGaloisRepDatum_of_isResiduallyModular_of_level_of_not_sq_dvd_capped_of_not_cube_dvd",
-      "why": "no closure"
-    },
-    {
-      "module": "Theorems.Thm_WeierstrassCurve_exists_isNormalizedEigenform_level_div_of_forall_linearMap_psCarrier_eq_zero_of_cast_eq_neg_one",
       "why": "no closure"
     },
     {
@@ -309,19 +233,7 @@
       "why": "no closure"
     },
     {
-      "module": "Theorems.Thm_WeierstrassCurve_isModularModelOfLevel_conductorLevel_of_not_cube_dvd_of_modRepIsIrreducible_of_not_sq_dvd",
-      "why": "no closure"
-    },
-    {
-      "module": "Theorems.Thm_WeierstrassCurve_isResiduallyModularOfLevel_div_of_isGoodPrimeFor",
-      "why": "no closure"
-    },
-    {
       "module": "Theorems.Thm_WeierstrassCurve_isResiduallyModularOfLevel_div_of_isGoodPrimeFor_of_dvd_apOfModel",
-      "why": "no closure"
-    },
-    {
-      "module": "Theorems.Thm_WeierstrassCurve_isResiduallyModularOfLevel_div_of_isPeuRamifieeAt",
       "why": "no closure"
     },
     {
@@ -338,10 +250,6 @@
     },
     {
       "module": "Theorems.Thm_WeierstrassCurve_isResiduallyModularOfLevel_minimalLevel_of_level_of_not_sq_dvd_of_not_cube_dvd",
-      "why": "no closure"
-    },
-    {
-      "module": "Theorems.Thm_WeierstrassCurve_modularityLiftingAtConductor_threeFive_of_level_of_inertia_moves_torsion_of_eq_three_of_not_cube_dvd",
       "why": "no closure"
     },
     {
@@ -377,10 +285,11 @@
     "emptyProofs": 6
   },
   "sharded": {
-    "records": 67,
+    "records": 69,
     "shards": [
       64,
-      16
+      16,
+      8
     ]
   },
   "tools": {
@@ -391,16 +300,16 @@
     "node": "v22.23.4",
     "runnerImage": "ubuntu26/20261026.180.1 | ubuntu26/20261101.186.1"
   },
-  "exportsBytes": 3610828800,
+  "exportsBytes": 3614277632,
   "minutes": 286,
-  "finishedAt": "2026-11-06T15:00:28.053Z",
+  "finishedAt": "2026-11-07T07:51:44.477Z",
   "archive": {
     "release": "exports-flt-anthropic",
     "asset": "flt-anthropic@aa2d8b34692b-exports.tar.zst",
     "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-flt-anthropic/flt-anthropic@aa2d8b34692b-exports.tar.zst",
-    "bytes": 271936967,
-    "sha256": "c3357cb6ee82315849158c4001dddf88ec7807070014efc01dd9d2efabf73c87",
-    "files": 61121,
+    "bytes": 272214321,
+    "sha256": "50a37b814f15c85d2dbc75a0ac9571f94865698df18537f23164845cdab240fa",
+    "files": 61187,
     "unpack": "tar --zstd -xf flt-anthropic@aa2d8b34692b-exports.tar.zst -C data/exports/flt-anthropic"
   }
 }
