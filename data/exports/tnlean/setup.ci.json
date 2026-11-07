@@ -1,0 +1,64 @@
+{
+  "key": "tnlean",
+  "repo": "https://github.com/LionSR/TNLean",
+  "commit": "6380bb1d39803d845c01d27c6c8eb3b01331ed6a",
+  "toolchain": "leanprover/lean4:v4.34.0-rc1",
+  "roots": [
+    "TNLean"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/tnlean/repo",
+  "entries": 10378,
+  "modules": 1156,
+  "exported": 1155,
+  "failed": [
+    {
+      "module": "TNLean.Archive.BlockingPeriodicityCFII2",
+      "why": "does not compile at the library's own commit: error: TNLean/Archive/BlockingPeriodicityCFII2.lean:694:4: Unknown identifier `isIrreducibleCP_transferMap_of_isIrreducibleTensor`"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 10405,
+    "kept": 10378,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 27,
+    "lineFixed": 1679,
+    "lineUnverified": 56,
+    "nameFixed": 304,
+    "sorryOriginals": 0,
+    "emptyProofs": 4
+  },
+  "sharded": {
+    "records": 8,
+    "shards": [
+      8
+    ]
+  },
+  "tools": {
+    "lean": "4.34.0-rc1 (commit 3447a668783dbce1a8fdb97101dd067687b2b418, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+3447a66",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "b18d673bd29b + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 803725312,
+  "minutes": 2,
+  "finishedAt": "2026-11-07T05:48:36.981Z",
+  "archive": {
+    "release": "exports-tnlean",
+    "asset": "tnlean@6380bb1d3980-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-tnlean/tnlean@6380bb1d3980-exports.tar.zst",
+    "bytes": 87548960,
+    "sha256": "b18012a3d2394ee9ee069df5a1c606a049aee788c8191ba6dc4bc765842a7fbf",
+    "files": 2310,
+    "unpack": "tar --zstd -xf tnlean@6380bb1d3980-exports.tar.zst -C data/exports/tnlean"
+  }
+}
