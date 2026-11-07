@@ -275,8 +275,14 @@ unsafe def run (names whole : List Name) : IO UInt32 := do
   IO.println s!"fingerprints: {count} declarations"
   return 0
 
+/-- A module name as a list spells it, `Tengoku.Lib.2d` or `Tengoku.Lib.«2d»`: split at the dots, every part a string component, guillemets dropped. `String.toName` reads a part that
+is no identifier (`2d`, `A-B`) as no name at all and a part of digits (`1`) as a number, while a module's parts are strings: formal-conjectures' `Geometry.«2d»` made the axiom check die with
+"trying to import module with anonymous name" (2026-11-07, run 42370333452), and the clash check left such a module out without a word. -/
+def listModuleName (s : String) : Name :=
+  (s.splitOn ".").foldl (fun n c => Name.mkStr n ((c.replace "«" "").replace "»" "")) Name.anonymous
+
 def readModules (file : String) : IO (List Name) := do
-  return ((← IO.FS.lines file).toList.map fun l => l.trimAscii.toString).filter (· != "") |>.map String.toName
+  return ((← IO.FS.lines file).toList.map fun l => l.trimAscii.toString).filter (· != "") |>.map listModuleName
 
 unsafe def main (argv : List String) : IO UInt32 := do
   match argv with
