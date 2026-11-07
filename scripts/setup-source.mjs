@@ -29,7 +29,7 @@
 //   --phase finish                  writes setup.json from the exports and the shard records, once every module
 //                                   is exported or recorded as failed by a shard that finished
 import { execFile, execFileSync, spawn } from "node:child_process"
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync, readdirSync, statSync } from "node:fs"
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync, writeSync, readdirSync, statSync } from "node:fs"
 import os from "node:os"
 import { basename, dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -407,6 +407,27 @@ function writeAtomic(path, data) {
   writeFileSync(tmp, data)
   renameSync(tmp, path)
 }
+// The bytes of JSON.stringify(items, null, 2), written item by item: leanbridge's queue (15 tentative files of ~40 MB, records with long proofs) as one string did not fit
+// in Node's heap next to the entries themselves (setup runs 42387020776, 42411218917: "JavaScript heap out of memory" in the seed step).
+function writeJsonArrayAtomic(path, items) {
+  const tmp = `${path}.tmp-${process.pid}`
+  const fd = openSync(tmp, "w")
+  try {
+    if (!items.length) writeSync(fd, "[]")
+    else {
+      writeSync(fd, "[\n")
+      items.forEach((e, i) => writeSync(fd, "  " + JSON.stringify(e, null, 2).replace(/\n/g, "\n  ") + (i < items.length - 1 ? ",\n" : "\n")))
+      writeSync(fd, "]")
+    }
+  } finally {
+    closeSync(fd)
+  }
+  renameSync(tmp, path)
+}
+// The lines of the tentative files, one file in memory at a time (leanbridge has 15 of them, ~600 MB together).
+function* tentativeLines() {
+  for (const f of TENTATIVE_FILES) yield* readFileSync(f, "utf8").split("\n")
+}
 // github.com reachable: a failure while offline is an interruption, not a verdict on the library.
 const online = () => x("curl", ["-sI", "-m", "10", "https://github.com"], { env: ENV }).then(() => true, () => false)
 
@@ -534,7 +555,7 @@ function seedQueue() {
     return file
   }
   const entries = []
-  for (const raw of TENTATIVE_FILES.flatMap((f) => readFileSync(f, "utf8").split("\n"))) {
+  for (const raw of tentativeLines()) {
     if (!raw.trim()) continue
     const r = JSON.parse(raw)
     stats.records++
@@ -612,7 +633,7 @@ function seedQueue() {
     })
     stats.kept++
   }
-  writeAtomic(QUEUE, JSON.stringify(entries, null, 2))
+  writeJsonArrayAtomic(QUEUE, entries)
   log(`seed: ${[...fileCache.values()].filter(Boolean).length} source file(s) kept at the end`) // a missing file is cached as null: not a file kept
   log(`seeded ${QUEUE}: ${JSON.stringify(stats)}`)
   return { entries, stats }
