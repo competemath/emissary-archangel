@@ -234,6 +234,13 @@ echo ok
         self.assertIn("did not succeed in 2 tries", p.stdout)
         self.assertNotIn("fetched it by its hash", p.stdout)
 
+    def test_the_library_folder_given_as_the_workflows_give_it(self):
+        # bump-shard.yml runs `python3 scripts/bump/lake_fetch.py lib` from the folder above the library: a relative path
+        env = {**os.environ, "PATH": f"{self.tmp / 'bin'}:{os.environ['PATH']}"}
+        p = subprocess.run([sys.executable, str(SCRIPT), "lib", "--tries", "1", "--minutes", "1", "--pause", "0"], cwd=self.tmp, env=env, capture_output=True, text=True, timeout=120)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("fetched it by its hash", p.stdout)
+
     def test_the_repair_leaves_every_try_for_other_failures(self):
         # after the repair, `lake update` fails once more for another reason (the network), then succeeds: with 2 tries that is still a success, because the repair was free
         lake = self.tmp / "bin" / "lake"

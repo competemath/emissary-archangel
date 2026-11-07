@@ -76,7 +76,8 @@ def repair_pins(directory: str, output: str, deadline: float | None = None) -> l
             if left <= 0:
                 return fixed  # the step's budget is spent: no repair outruns it
             # through run(): a fetch that runs out of the time left is killed with its whole process group (its ssh/https transport child too), and is a failed repair
-            code, _ = run(["git", "-C", str(clone), "fetch", "--quiet", "origin", rev], directory, left)
+            # an absolute path: run() works in `directory`, and the workflows pass it relative (`lib`), so `lib/.lake/…` would be read as `lib/lib/.lake/…` (cubic on #156)
+            code, _ = run(["git", "-C", str(clone.resolve()), "fetch", "--quiet", "origin", rev], directory, left)
             if code is None:
                 continue
             if has_commit(clone, rev):
