@@ -58,6 +58,10 @@ if (!a?.sha256) {
 }
 const modIdx = process.argv.indexOf("--modules")
 const only = modIdx > 0 ? readFileSync(process.argv[modIdx + 1], "utf8").split(/[\n,]+/).map((x) => x.trim()).filter(Boolean) : null
+// --names FILE (with --modules): the .names.json of these modules too, without their .ndjson. A shard's Gate 2 tells a module's own declarations from the ones it uses by the names
+// of everything the module imports (gate2_batch.qualify), and those are the shard's build list, far more than its targets.
+const namesIdx = process.argv.indexOf("--names")
+const namesOnly = namesIdx > 0 ? readFileSync(process.argv[namesIdx + 1], "utf8").split(/[\n,]+/).map((x) => x.trim()).filter(Boolean) : []
 const markerOf = (x) => join(dir, `.archive-${x.sha256.slice(0, 16)}`)
 if (existsSync(markerOf(a)) && !process.argv.includes("--force")) {
   console.log(`${key}: ${a.asset} is already unpacked`)
@@ -94,17 +98,19 @@ try {
   if (only) {
     // the members' names (with or without a leading ./): the files of the wanted modules, under either spelling of a module name
     const members = new Set(execFileSync("tar", ["--zstd", "-tf", tmp], { maxBuffer: 1 << 30 }).toString().split("\n").filter(Boolean))
-    const wanted = []
-    for (const m of only) {
-      for (const name of new Set([m, m.replace(/[«»]/g, "")])) {
-        for (const f of [`${name}.ndjson`, `${name}.names.json`]) for (const c of [f, `./${f}`]) if (members.has(c)) wanted.push(c)
+    const wanted = new Set()
+    for (const [list, kinds] of [[only, [".ndjson", ".names.json"]], [namesOnly, [".names.json"]]]) {
+      for (const m of list) {
+        for (const name of new Set([m, m.replace(/[«»]/g, "")])) {
+          for (const k of kinds) for (const c of [`${name}${k}`, `./${name}${k}`]) if (members.has(c)) wanted.add(c)
+        }
       }
     }
     const listFile = `${tmp}.list`
-    writeFileSync(listFile, wanted.join("\n") + "\n")
-    if (wanted.length) execFileSync("tar", ["--zstd", "-xf", tmp, "-C", dir, "-T", listFile], { stdio: "inherit" })
+    writeFileSync(listFile, [...wanted].join("\n") + "\n")
+    if (wanted.size) execFileSync("tar", ["--zstd", "-xf", tmp, "-C", dir, "-T", listFile], { stdio: "inherit" })
     rmSync(listFile, { force: true })
-    console.log(`${key}: unpacked ${wanted.length} files of ${only.length} modules into ${dir}`)
+    console.log(`${key}: unpacked ${wanted.size} files of ${only.length} modules (and the names of ${namesOnly.length}) into ${dir}`)
   } else {
     execFileSync("tar", ["--zstd", "-xf", tmp, "-C", dir], { stdio: "inherit" })
     writeFileSync(markerOf(a), `${a.asset}\n`)

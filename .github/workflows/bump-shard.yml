@@ -63,6 +63,11 @@ jobs:
           for m in p["targets"]:
               for variant in {m, m.replace("«", "").replace("»", "")}:
                   pats += [f"/data/exports/{key}/{variant}.ndjson", f"/data/exports/{key}/{variant}.names.json"]
+          # the names of every module the shard builds: Gate 2 tells a module's own declarations from the ones it uses by them (gate2_batch.qualify). A library whose exports are in
+          # git; one that keeps them in a release (the big ones: 60k modules would be 120k sparse patterns) gets them from fetch-exports --names below
+          for m in (p["build"] if len(p["build"]) <= 5000 else []):
+              for variant in {m, m.replace("«", "").replace("»", "")}:
+                  pats.append(f"/data/exports/{key}/{variant}.names.json")
           open("sparse.txt", "w").write("\n".join(["/scripts/", "/gate2/", "/sources.json"] + pats) + "\n")
           print(len(p["targets"]), "targets,", len(p["build"]), "modules to build")
           PY
@@ -76,7 +81,7 @@ jobs:
           du -sh emissary/data/exports/"$KEY" | cut -f1
       - name: The old exports of this shard's targets (a library set up across runners keeps them in a release, not in git); first, so that a failed download costs minutes and not the shard's hours of build
         working-directory: emissary
-        run: node scripts/fetch-exports.mjs "$KEY" --modules ../targets.txt   # targets.txt is in the workspace root at this point (the build step copies it into emissary/ later)
+        run: node scripts/fetch-exports.mjs "$KEY" --modules ../targets.txt --names ../build.txt   # targets.txt is in the workspace root at this point (the build step copies it into emissary/ later)
       - name: elan
         run: |
           curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none
@@ -146,7 +151,7 @@ jobs:
           # kernel, or took the runner down, on navier-stokes-euler. A module that kills Lean alone gets no verdict and is listed in gate2-killed.json.
           python3 scripts/bump/gate2_driver.py --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
             --roots "$ROOTS" --controls "$CONTROLS" --tentative "$TENT" --only "$mine" --lean-path "$LP" --budget-min "$GATE2_BUDGET_MIN" --rss-share "$GATE2_RSS_SHARE" --skip "$GATE2_SKIP" $([ "$SWAP_GB" != 0 ] && echo --count-swap)
-          python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json --tentative "$TENT"
+          python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json --exports "data/exports/$KEY" --lib lib --tentative "$TENT"
       - name: What the passed theorems are made of
         working-directory: emissary
         run: |

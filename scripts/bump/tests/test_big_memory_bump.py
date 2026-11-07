@@ -408,6 +408,45 @@ class FetchExportsStaleRecord(unittest.TestCase):
         self.assertFalse((exports / "Lib.A.ndjson").exists())
 
     @unittest.skipUnless(shutil.which("node") and shutil.which("tar") and shutil.which("zstd"), "needs node, tar and zstd")
+    def test_names_only_modules_get_their_names_and_not_their_exports(self):
+        import hashlib
+        import subprocess
+
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(tmp, ignore_errors=True))
+        exports = tmp / "exports" / "k"
+        exports.mkdir(parents=True)
+        stage = tmp / "stage"
+        stage.mkdir()
+        for m in ("Lib.A", "Lib.B", "Lib.C"):
+            (stage / f"{m}.ndjson").write_text("x\n")
+            (stage / f"{m}.names.json").write_text('{"names": []}')
+        archive = tmp / "k.tar.zst"
+        subprocess.run(["tar", "--zstd", "-cf", str(archive), "-C", str(stage), "."], check=True)
+        blob = archive.read_bytes()
+        rec = {"commit": "c1", "archive": {"sha256": hashlib.sha256(blob).hexdigest(), "asset": "k.tar.zst", "bytes": len(blob), "files": 6, "url": "http://x/asset"}}
+        (exports / "setup.ci.json").write_text(json.dumps(rec))
+        (tmp / "asset").write_bytes(blob)
+        (tmp / "targets.txt").write_text("Lib.A\n")
+        (tmp / "build.txt").write_text("Lib.A\nLib.B\n")
+        bindir = tmp / "bin"
+        bindir.mkdir()
+        (bindir / "curl").write_text('#!/bin/sh\nout=\nwhile [ $# -gt 0 ]; do case "$1" in -o) out=$2; shift;; esac; shift; done\n[ -n "$out" ] && cp "$ASSET" "$out"; exit 0\n')
+        (bindir / "curl").chmod(0o755)
+        env = {**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}", "GATE2_EXPORTS_DIR": str(tmp / "exports"), "ASSET": str(tmp / "asset")}
+        env.pop("GITHUB_REPOSITORY", None)
+        env.pop("EMISSARY_RECORD_URL", None)
+        p = subprocess.run(["node", str(ROOT / "scripts" / "fetch-exports.mjs"), "k", "--modules", str(tmp / "targets.txt"), "--names", str(tmp / "build.txt")], env=env, capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        got = sorted(f.name for f in exports.iterdir() if f.name != "setup.ci.json")
+        self.assertEqual(got, ["Lib.A.names.json", "Lib.A.ndjson", "Lib.B.names.json"])  # B: names only; C: nothing
+
+    def test_the_shard_fetches_the_names_of_its_build(self):
+        text = (ROOT / ".github" / "workflows" / "bump-shard.yml").read_text()
+        self.assertIn('node scripts/fetch-exports.mjs "$KEY" --modules ../targets.txt --names ../build.txt', text)
+        self.assertIn('for m in (p["build"] if len(p["build"]) <= 5000 else []):', text)
+
+    @unittest.skipUnless(shutil.which("node") and shutil.which("tar") and shutil.which("zstd"), "needs node, tar and zstd")
     def test_a_record_for_another_library_commit_is_not_used(self):
         import subprocess
 

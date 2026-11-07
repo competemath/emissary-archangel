@@ -170,7 +170,7 @@ jobs:
       - name: Verdicts against the per-theorem pipeline's
         working-directory: emissary
         run: |
-          python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json \
+          python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json --exports "data/exports/$KEY" --lib lib \
             --tentative "$(python3 scripts/bump/tentative_files.py globs sources.json "$KEY" ../tengoku)"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         name: Upload the build and Gate 2 results now (the records step is the longest and must not be able to lose them)
