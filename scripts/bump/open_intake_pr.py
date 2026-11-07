@@ -34,6 +34,15 @@ import tempfile
 from pathlib import Path
 
 
+def changes_line(report: dict) -> str:
+    """The changes the factory made to the library's own text (grind_sets.py), for the PR: each changed file carries a change notice saying what and from where."""
+    ch = {k: v for k, v in (report.get("factory_changes") or {}).items() if v}
+    if not ch:
+        return ""
+    return ("\n- changed from upstream, with what every declaration states unchanged (each changed file carries a change notice naming the upstream commit and the change; "
+            "the content lint and the tree's build check them like any other file): " + ", ".join(f"{k}: {v}" for k, v in ch.items()))
+
+
 def parts_total(plan: dict) -> int:
     """How many parts the library has: the last part's number (a recut from the tree starts at 2, so counting the plan's parts would say one too few)."""
     return max(part["part"] for part in plan["parts"])
@@ -190,7 +199,7 @@ def main() -> None:
 - {theorems} theorems{" of " + str(report["passed_total"]) + " the factory's batched Gate 2 passed" if "passed_total" in report else ""}, in {modules} modules ({n_files} files); lint mode **{a.mode}**
 - every theorem: its statement entails the original's (kernel-checked: identical, or a bridge `new → old`), no `sorry`, only the three standard axioms; the library definitions
   its statement is built on are definitionally equal to the originals; the pruned sources were built clean by the factory
-- left out and why: {json.dumps(report.get("left_out", {}))}
+- left out and why: {json.dumps(report.get("left_out", {}))}{changes_line(report)}
 - the archive of these files is attested: `gh attestation verify bundle.tar --repo {a.factory}` (the gate rebuilds the archive from this PR's files and checks it)
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)

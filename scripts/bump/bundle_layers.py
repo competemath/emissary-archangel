@@ -185,6 +185,7 @@ def plan(files: dict[str, bytes], ns: str, max_modules: int = DEFAULT_MAX, tree_
                     "modules": len(chunk),
                     "theorems": len(part.manifest_lines),
                     "lint_mode": report.get("lint_mode"),
+                    "factory_changes": report.get("factory_changes", {}),  # what the factory changed in the library's text (grind_sets.py): the intake PR of every part says so
                     "gate2_unjudged": report.get("gate2_unjudged"),
                     "bundle_sha256": digest,
                 },

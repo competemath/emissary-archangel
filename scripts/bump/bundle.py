@@ -40,6 +40,7 @@ import bundle_rehead as rehead  # noqa: E402
 import keep_closure  # noqa: E402
 import lean_names  # noqa: E402
 import strip_attrs  # noqa: E402
+import grind_sets  # noqa: E402
 import tolerant_build as tb  # noqa: E402
 import tree_dups  # noqa: E402
 import tree_repair  # noqa: E402
@@ -249,6 +250,13 @@ def add_repair_notes(text: str, notes: list[str]) -> str:
     return "\n".join(lines[: last + 1] + ["", *notes] + lines[last + 1 :])
 
 
+def add_change_notice(text: str, note: str) -> str:
+    """The change notice of a module the factory changed: after the imports (add_repair_notes), or at the end of a module that has none (a module docstring cannot stand
+    before the imports, and a changed file must carry its notice)."""
+    out = add_repair_notes(text, [note])
+    return out if out != text else text.rstrip("\n") + "\n\n" + note + "\n"
+
+
 def to_tree(text: str, key: str, own: set[str], rel: Path, faithful: bool = False) -> str:
     """A pruned library module as the tree writes it: imports mapped to the tree's (`once`), and the library's auto-generated instance names given the
     tree's suffix (autonames.py: the name Lean generates depends on the module's root, which changes when the file moves into Tengoku). `faithful`: the imports keep
@@ -338,6 +346,10 @@ def compose(a: argparse.Namespace) -> None:
     # a module that imports a package the tree does not have cannot be built there, nor can what imports it
     base_dropped: dict[str, str] = {m: "imports " + ", ".join(b) for m, b in external.items()}
     base_dropped.update({m: "an error outside any declaration (glue)" for m in glue_error})
+    # A module whose name has a space (`«Adic spaces».Foo`, from a directory `Adic spaces/`): the tree's merge queue builds the new modules as one space-separated `lake build` list,
+    # which splits the name (uniform-sheafy-tate-domains, 2026-11-07: `unknown target Tengoku.UniformSheafyTateDomains.«Adic`, and the verify build of the whole draft died at once).
+    # Left out with what imports it, and said so, until the queue takes such names.
+    base_dropped.update({m: "a module name with a space: the tree's merge queue builds a space-separated module list" for m in modules if re.search(r"\s", m) and m not in base_dropped})
     # modules the merge queue's build of the tree could not compile (a name Mathlib has and the tree does not: a deprecated alias...): left out with what imports them
     asked = [m.strip() for m in (a.drop_modules or "").split(",") if m.strip()]
     # Nothing that Gate 2 did not judge is shipped (2026-10-17: navier-stokes-euler part 1 carried 89 modules, 504 theorem commands, that two shards ran out of memory and time on; the driver
@@ -395,6 +407,11 @@ def compose(a: argparse.Namespace) -> None:
     # attributes the tree's allow-list refuses are left out of the declarations that stay (strip_attrs.py): they never change what a declaration
     # says, and a proof that relied on one is found by the verification build
     stripped_attrs: Counter = Counter()
+    # A library's custom grind sets and its inert lines, rewritten away with what every declaration says unchanged (grind_sets.py: under a guard, a module whose text
+    # changes anywhere else is shipped as it was). Every changed module says so in a change notice: where it came from and what was changed.
+    pruned, changed, gstats = grind_sets.rewrite(pruned, {m: [d for d in imports.get(m, []) if d in pruned] for m in pruned})
+    for mod, what in changed.items():
+        pruned[mod] = add_change_notice(pruned[mod], grind_sets.notice(f"{meta.get('repo', a.key)}@{str(meta.get('commit', ''))[:12]}", str(modules[mod].path.relative_to(lib)), what))
     for mod in list(pruned):
         pruned[mod], c = strip_attrs.strip_attributes(pruned[mod])
         stripped_attrs.update(c)
@@ -653,7 +670,7 @@ def compose(a: argparse.Namespace) -> None:
             json.dumps({"library": a.key, "lint_mode": mode, "verified": total, "shipped": len(manifest), "left_out": dict(left_out), "modules": dict(sorted(ledger.items()))}, indent=1)
         )
         report = {"library": a.key, "lint_mode": mode, "gate2_unjudged": unjudged, "gate2_left_out": no_verdict, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]), "dropped_truncated": len(dropped) > 50,
-                  "theorems": len(manifest), "notation_scoped": notation_scoped["scoped"], "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "textually_kept": textually_kept, "dependency_graph": ({**graph_stats, "text_kept_tainted": len(graph_stats["text_kept_tainted"]), "text_kept_tainted_first": graph_stats["text_kept_tainted"][:20], "taint_drops": a.taint_drops} if graph is not None else None), "failed_seeds_shipped": [f"{m}:{b[0]}" for m, b in failed_seeds[:50]], "failed_seeds_shipped_total": len(failed_seeds), "stripped_attributes": dict(stripped_attrs.most_common(15)),
+                  "theorems": len(manifest), "notation_scoped": notation_scoped["scoped"], "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "textually_kept": textually_kept, "dependency_graph": ({**graph_stats, "text_kept_tainted": len(graph_stats["text_kept_tainted"]), "text_kept_tainted_first": graph_stats["text_kept_tainted"][:20], "taint_drops": a.taint_drops} if graph is not None else None), "failed_seeds_shipped": [f"{m}:{b[0]}" for m, b in failed_seeds[:50]], "failed_seeds_shipped_total": len(failed_seeds), "stripped_attributes": dict(stripped_attrs.most_common(15)), "factory_changes": {k: v for k, v in gstats.items() if v},
                   "lint_cost": dict(sorted(classes.items(), key=lambda x: -x[1])[:15])}
         if a.keep_dups:
             report["dups"] = {"aliased": len(aliased), "aliased_modules": dict(list(aliased.items())[:50]), "kept_for_the_tree_build": 0 if tree_dups_by_mode is not None else len(dup_modules),

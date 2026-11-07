@@ -302,8 +302,9 @@ jobs:
           # the disk, every minute: a runner whose disk fills dies without a word, and this is what says so afterwards
           ( while sleep 60; do echo "$(date -u +%H:%M:%S) $(df -h / | tail -1 | awk '{print "used=" $3 " avail=" $4}') mem_avail_kb=$(awk '/MemAvailable/ {print $2}' /proc/meminfo)" >> ../out/disk.log; done ) &
           sampler=$!
-          # shellcheck disable=SC2086  # targets is a space-separated module list
-          timeout -k 60 210m lake build $targets 2>&1 | tee ../out/build.log
+          # one argument per module (a name never splits; compose leaves out names with a space, which the tree's queue would split)
+          mapfile -t tg < <(grep -v '^[[:space:]]*$' ../out/targets.txt)
+          timeout -k 60 210m lake build "${tg[@]}" 2>&1 | tee ../out/build.log
           echo "lake exit status: ${PIPESTATUS[0]}"
           kill "$sampler" 2>/dev/null || true
           { echo "== after the build"; df -h / | tail -1; du -sh .lake/build 2>/dev/null; } >> ../out/disk.log
