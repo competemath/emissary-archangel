@@ -293,6 +293,16 @@ check("it says so: ran out of 3.5 s alone, trying once more with 14 s", /Lib\.F 
 fresh()
 r = setup(["--closure-batch", "6"], { FAKE_CLOSURE_SLOW: "Lib.F", FAKE_CLOSURE_SLOW_MS: "7500", EMISSARY_CLOSURE_BASE_MS: "4000", EMISSARY_CLOSURE_PER_MODULE_MS: "400", EMISSARY_CLOSURE_SINGLE_MS: "3500", EMISSARY_CLOSURE_BUDGET_MINUTES: "0.2" })
 check("with no room in the budget (12 s of it, a try of 14 s) there is no longer try: the five others have their closure, the slow one fails as before", r.status === 0 && closures().join("") === "ABCDE" && /no room for a longer try/.test(r.stdout) && /closure failed for Lib\.F/.test(r.stdout), out(r))
+// 11c. a BIG module (its import closure at least EMISSARY_CLOSURE_BIG_MODULES modules; 1 here, so every module of this library counts) goes alone first with its share of the budget:
+// no batch call is ever made, and the slow one closes on its first and only try, with no "ran out" (flt-anthropic, 7 Nov 2026: batches of 8, 4, 2 ran out first and 63 of the 86 got no closure)
+fresh()
+const callsBefore = existsSync(join(tmp, "lake-calls")) ? readFileSync(join(tmp, "lake-calls"), "utf8").split("\n").length : 0
+r = setup(["--closure-batch", "6"], { FAKE_CLOSURE_SLOW: "Lib.F", FAKE_CLOSURE_SLOW_MS: "7500", EMISSARY_CLOSURE_BASE_MS: "4000", EMISSARY_CLOSURE_PER_MODULE_MS: "400", EMISSARY_CLOSURE_SINGLE_MS: "3500", EMISSARY_CLOSURE_BIG_MODULES: "1" })
+const bigCalls = readFileSync(join(tmp, "lake-calls"), "utf8").split("\n").slice(Math.max(0, callsBefore - 1)).filter((l) => l.includes("corpus-closure-batch.lean"))
+check("big modules: every closure call is for one module, and the slow one closes on its only try", r.status === 0 && closures().join("") === "ABCDEF" && bigCalls.length === 6 && bigCalls.every((l) => l.trim().split(/\s+/).slice(-2)[0] === "Lib") && !/ran out of/.test(r.stdout) && (r.stdout.match(/imports most of the library: alone first/g) || []).length === 6, out(r) + "\n" + bigCalls.join("\n"))
+fresh()
+r = setup(["--closure-batch", "6"], { FAKE_CLOSURE_SLOW: "Lib.F", FAKE_CLOSURE_SLOW_MS: "7500", EMISSARY_CLOSURE_BASE_MS: "4000", EMISSARY_CLOSURE_PER_MODULE_MS: "400", EMISSARY_CLOSURE_SINGLE_MS: "3500", EMISSARY_CLOSURE_BIG_MODULES: "2" })
+check("no module is big (each imports only itself, 1 < 2): the batch path as before", r.status === 0 && closures().join("") === "ABCDEF" && !/alone first/.test(r.stdout) && /ran out of 3\.5 s alone/.test(r.stdout), out(r))
 fresh()
 r = setup(["--closure-batch", "6"], { FAKE_CLOSURE_HANG: "Lib.F", EMISSARY_CLOSURE_BASE_MS: "4000", EMISSARY_CLOSURE_PER_MODULE_MS: "400", EMISSARY_CLOSURE_SINGLE_MS: "1500" })
 check("a module that hangs for good is tried twice at most (3 s, then 6 s) and fails: no loop", r.status === 0 && closures().join("") === "ABCDE" && (r.stdout.match(/trying it once more/g) || []).length === 1 && /closure failed for Lib\.F/.test(r.stdout), out(r))

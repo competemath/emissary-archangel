@@ -46,6 +46,21 @@ export function closureRetryMs({ singleMs, elapsedMs, budgetMs }) {
   return budgetMs - elapsedMs >= want ? want : 0
 }
 
+// A module whose closure is most of the library (flt-anthropic's 86 top-of-proof modules import ~62,000 modules: the final theorem, the Frey package) is not tried in a batch first:
+// a batch of 8 such modules ran out of its 14 minutes, then 4, then 2, each loading the whole library again, so a module reached its own try ~40 minutes late and the shard's 300-minute
+// budget ran out before the longer retry (7 Nov 2026: 63 of the 86 recorded "no closure"). Such a module goes ALONE FIRST, with an equal share of what is left of the budget for the big
+// modules still to do, at most four hours. EMISSARY_CLOSURE_BIG_MODULES (a positive whole number) sets the size, in library modules of its import closure, from which a module counts as big.
+export const CLOSURE_BIG_MODULES_DEFAULT = 20000
+export function closureBigModules(env = process.env) {
+  const v = env.EMISSARY_CLOSURE_BIG_MODULES
+  return typeof v === "string" && /^[1-9][0-9]{0,7}$/.test(v.trim()) ? Number(v) : CLOSURE_BIG_MODULES_DEFAULT
+}
+export function aloneFirstMs({ elapsedMs, budgetMs, left }) {
+  if (!(elapsedMs >= 0) || !(budgetMs > 0) || !Number.isInteger(left) || left < 1) return 0
+  const share = Math.floor((budgetMs - elapsedMs) / left)
+  return share > 0 ? Math.min(share, CLOSURE_RETRY_MAX_MS) : 0
+}
+
 // Memory a process can still get, in MB, from the text of /proc/meminfo. With `countSwap` (the job added swap for the modules that do not fit in a runner's RAM,
 // EMISSARY_COUNT_SWAP=1) the free swap counts too: those modules are meant to run on swap, and RAM alone is nearly all used then, which the guard would take for a
 // shortage and kill the very module the swap was added for. Without it swap is not counted: the 4 GB a hosted runner has by default must not hide a real shortage.
