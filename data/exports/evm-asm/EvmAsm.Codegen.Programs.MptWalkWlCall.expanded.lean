@@ -1,0 +1,116 @@
+/-
+  Walk → `witness_lookup_by_hash` call-site helpers (#11799 / #12144).
+
+  ## What lives where
+
+  * **PRODUCTION empty-miss (enable=1):** `MptWalkWlEnabledEmpty` —
+    `root/branch/ext_wl_enabled_empty_establishes_shape` establish
+    `wlCallWithinShapeEn` under walk fullCode via
+    `wlhCallWithin_enabled_empty` (fuel 1+87) over
+    `witness_lookup_by_hash_spec_within_enabled_empty` (fuel 87). Domain:
+    `widx_enabled = 1`, `widx_count = 0`, `section_len = 0` — REACHABLE.
+    Nested Own at newSp-64 (walk entry `stackFree sp0 16` — SAY SO).
+
+  * **LEGACY empty-miss (enable=0):** `MptWalkWlEmpty` —
+    `root_wl_call_empty_section` / `branch_wl_call_empty_section` /
+    `ext_wl_call_empty_section` via linear `empty_section`. Not production
+    walk ambient after successful `witness_index_build` (#12183).
+
+  * **Hit residual (DEPENDENCY):** `MptWalkResidualChain.wlCallWithinShapeHit`
+    and the `*_wl_hit_chain` lemmas. Still unsatisfiable until a hit-domain
+    machine triple lands.
+
+  ## Retired (#12144 follow-up)
+
+  `root_wl_call_residual` / `branch_wl_call_residual` / `ext_wl_call_residual`
+  took free `h_wl : wlCallWithinShape fullCode …` with `wlCallEntry` omitting
+  telemetry (Blocker 2 unrepaired) — vacuous compile-only progress. Deleted;
+  no external consumers. Do not reintroduce that shape without repairing
+  the entry ambient to carry `wlhArgs`/`wlhMissOut` (or a hit-domain triple).
+-/
+
+import EvmAsm.Codegen.Programs.MptWalkResiduals
+import EvmAsm.Codegen.Programs.MptWalkSetupBody
+import EvmAsm.Codegen.Programs.MptWalkBranchHash
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.Tactics.XPermChunked
+
+
+-- @@ L38-38 verbatim
+namespace EvmAsm.Codegen.MptWalkSpec
+
+
+-- @@ L40-40 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
+
+-- @@ L41-41 verbatim
+open EvmAsm.Codegen
+
+
+-- @@ L43-43 verbatim
+set_option maxRecDepth 8000
+
+
+-- @@ L45-49 verbatim
+private theorem root_wl_jal_target :
+    pc 35 + signExtend21
+      (jalOff GuestAddrs.witness_lookup_by_hash (GuestAddrs.mpt_walk + 140)) =
+      WlB := by
+  unfold pc walkB WlB; decide
+
+
+-- @@ L51-53 verbatim
+private theorem root_wl_ret_even :
+    ((pc 35 + 4) &&& ~~~(1 : Word)) = pc 35 + 4 := by
+  unfold pc walkB; decide
+
+
+-- @@ L55-59 verbatim
+private theorem branch_wl_jal_target :
+    pc 101 + signExtend21
+      (jalOff GuestAddrs.witness_lookup_by_hash (GuestAddrs.mpt_walk + 404)) =
+      WlB := by
+  unfold pc walkB WlB; decide
+
+
+-- @@ L61-63 verbatim
+private theorem branch_wl_ret_even :
+    ((pc 101 + 4) &&& ~~~(1 : Word)) = pc 101 + 4 := by
+  unfold pc walkB; decide
+
+
+-- @@ L65-70 verbatim
+/-- Walk ambient framed through a residual wl call.
+    Does NOT include x0/sp/stackFree — those live in the call entry/return
+    ambient (avoid double-own under sep). -/
+def wlSiteFrame (newSp : Word) (ws : WalkSaved)
+    (extra : Assertion) : Assertion :=
+  walkSavedFrame newSp ws ** extra
+
+
+-- @@ L72-78 verbatim
+theorem wlSiteFrame_pcFree (newSp : Word) (ws : WalkSaved)
+    (extra : Assertion) (hE : extra.pcFree) :
+    (wlSiteFrame newSp ws extra).pcFree := by
+  unfold wlSiteFrame walkSavedFrame
+  repeat' first
+    | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+    | exact hE | apply pcFree_sepConj
+
+
+-- @@ L80-84 verbatim
+private theorem ext_wl_jal_target :
+    pc 210 + signExtend21
+      (jalOff GuestAddrs.witness_lookup_by_hash (GuestAddrs.mpt_walk + 840)) =
+      WlB := by
+  unfold pc walkB WlB; decide
+
+
+-- @@ L86-88 verbatim
+private theorem ext_wl_ret_even :
+    ((pc 210 + 4) &&& ~~~(1 : Word)) = pc 210 + 4 := by
+  unfold pc walkB; decide
+
+
+-- @@ L90-90 verbatim
+end EvmAsm.Codegen.MptWalkSpec

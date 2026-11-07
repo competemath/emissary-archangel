@@ -1,0 +1,136 @@
+/-
+  EvmAsm.Rv64.RLP.Phase2LongAcc
+
+  EL.3 Phase 2 (long form) — big-endian accumulation step.
+
+  For a long-form RLP prefix (`0xB8..0xBF` byte string or `0xF8..0xFF` list),
+  the payload length is encoded as the next `lenLen` bytes in big-endian.
+  Decoding loops over those bytes, accumulating:
+
+      length = length * 256 + next_byte
+
+  This file defines the two-instruction arithmetic core of that loop:
+
+      SLLI x11, x11, 8        ; length <<= 8      (i.e. length *= 256)
+      ADD  x11, x11, x12      ; length += byte
+
+  The surrounding loop (byte load, counter decrement, branch-back) is
+  layered on top in a follow-up. Keeping the arithmetic step as a
+  self-contained spec makes the loop proof's invariant step a direct
+  application of this lemma.
+
+  Register usage:
+    x11 — accumulated length (mutated)
+    x12 — input byte, assumed zero-extended (low 8 bits) (preserved)
+-/
+
+import EvmAsm.Rv64.Program
+import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.AddrNorm
+import EvmAsm.Rv64.Tactics.RunBlock
+
+
+-- @@ L32-32 verbatim
+namespace EvmAsm.Rv64.RLP
+
+
+-- @@ L34-34 verbatim
+open EvmAsm.Rv64
+
+-- @@ L35-39 verbatim
+open EvmAsm.Rv64.AddrNorm (bv6_toNat_8)
+
+-- ============================================================================
+-- Program definition
+-- ============================================================================
+
+
+-- @@ L41-44 verbatim
+/-- Two-instruction big-endian accumulation step:
+    `SLLI x11, x11, 8 ; ADD x11, x11, x12`. -/
+def rlp_phase2_long_acc_prog : Program :=
+  [.SLLI .x11 .x11 8, .ADD .x11 .x11 .x12]
+
+
+-- @@ L46-50 verbatim
+example : rlp_phase2_long_acc_prog.length = 2 := rfl
+
+-- ============================================================================
+-- Spec
+-- ============================================================================
+
+
+-- @@ L52-57 verbatim
+/-- Bundled postcondition for the accumulation step: `x11` now holds
+    `(length <<< 8) + byte`; `x12` is unchanged. -/
+@[irreducible]
+def rlp_phase2_long_acc_post (len byte : Word) : Assertion :=
+  let length' := (len <<< 8) + byte
+  (.x11 ↦ᵣ length') ** (.x12 ↦ᵣ byte)
+
+
+-- @@ L59-62 verbatim
+theorem rlp_phase2_long_acc_post_unfold {len byte : Word} :
+    rlp_phase2_long_acc_post len byte =
+    ((.x11 ↦ᵣ ((len <<< 8) + byte)) ** (.x12 ↦ᵣ byte)) := by
+  delta rlp_phase2_long_acc_post; rfl
+
+
+-- @@ L64-100 verbatim
+/-- `cpsTripleWithin` spec for the big-endian accumulation step. Composes SLLI
+    (mutates x11 in place) with ADD rd=rs1 (folds x12 into x11).
+
+    The caller must supply a `byte` value whose high 56 bits are zero (the
+    natural result of an `LBU` load); this spec does not enforce that
+    constraint, so the post `(len <<< 8) + byte` is exact BitVec arithmetic
+    even if the high bits are set — only the low 8 bits are "meaningful"
+    for RLP length decoding. -/
+theorem rlp_phase2_long_acc_spec_within (len byte : Word) (base : Word) :
+    cpsTripleWithin 2 base (base + 8)
+      (CodeReq.ofProg base rlp_phase2_long_acc_prog)
+      ((.x11 ↦ᵣ len) ** (.x12 ↦ᵣ byte))
+      (rlp_phase2_long_acc_post len byte) := by
+  simp only [rlp_phase2_long_acc_post_unfold]
+  -- Reshape the code requirement: a 2-instruction `ofProg` is the disjoint
+  -- union of two singletons.
+  rw [show CodeReq.ofProg base rlp_phase2_long_acc_prog =
+      (CodeReq.singleton base (.SLLI .x11 .x11 8)).union
+      (CodeReq.singleton (base + 4) (.ADD .x11 .x11 .x12)) from
+    CodeReq.ofProg_pair]
+  -- Step 1: SLLI x11, x11, 8 — use `slli_spec_gen_same` (rd = rs1),
+  -- then frame with x12 to bring it into scope.
+  have s1Base := slli_spec_gen_same_within .x11 len 8 base (by nofun)
+  have s1 : cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.SLLI .x11 .x11 8))
+      ((.x11 ↦ᵣ len) ** (.x12 ↦ᵣ byte))
+      ((.x11 ↦ᵣ (len <<< (8 : BitVec 6).toNat)) ** (.x12 ↦ᵣ byte)) :=
+    cpsTripleWithin_frameR (.x12 ↦ᵣ byte) (by pcFree) s1Base
+  -- Step 2: ADD x11, x11, x12 — `add_spec_gen_rd_eq_rs1` (rd = rs1 = x11,
+  -- rs2 = x12). No framing needed.
+  have s2 := add_spec_gen_rd_eq_rs1_within .x11 .x12
+    (len <<< (8 : BitVec 6).toNat) byte (base + 4) (by nofun)
+  rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at s2
+  -- Compose with bounded runBlock. Normalize the shift amount in both local
+  -- specs so their midpoint atoms are syntactically identical.
+  rw [bv6_toNat_8] at s1 s2
+  runBlock s1 s2
+
+
+-- @@ L102-104 verbatim
+example : (((0 : Word) <<< 8) + (0x42 : Word)) = (0x42 : Word) := by decide
+
+-- Accumulating 2 bytes (0x01, 0x00) gives 0x100 = 256.
+
+-- @@ L105-108 verbatim
+example : ((((0 : Word) <<< 8) + (0x01 : Word)) <<< 8) + (0x00 : Word) =
+    (0x100 : Word) := by decide
+
+-- Accumulating 3 bytes (0x01, 0x02, 0x03) gives 0x010203 = 66051.
+
+-- @@ L109-110 verbatim
+example : (((((0 : Word) <<< 8) + (0x01 : Word)) <<< 8) + (0x02 : Word)) <<< 8 +
+    (0x03 : Word) = (0x010203 : Word) := by decide
+
+
+-- @@ L112-112 verbatim
+end EvmAsm.Rv64.RLP

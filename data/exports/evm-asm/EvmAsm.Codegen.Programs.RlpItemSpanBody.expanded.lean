@@ -1,0 +1,2015 @@
+/-
+  EvmAsm.Codegen.Programs.RlpItemSpanBody
+
+  Body + whole-routine `cpsTripleWithin` for `rlp_item_span` under the
+  short-list outer + WalkedSpanForm domain (#11577).
+
+  Pattern: RlpListNthItemSAsmBase.setupMoves (B+N PCs, ofProg_mem_at,
+  frameR, seq_perm, weaken xperm).
+
+  Loop continue machinery lives in `RlpItemSpanLoop.lean` (file-size split).
+-/
+
+import EvmAsm.Codegen.Programs.RlpItemSpanLoop
+import EvmAsm.Rv64.SAsm.FramePort
+import EvmAsm.Rv64.SAsm.AbiFrameCall
+import EvmAsm.Rv64.SAsm.DualReadByteScan
+import EvmAsm.Rv64.Tactics.XPerm
+import EvmAsm.Rv64.Tactics.XPermChunked
+import EvmAsm.Rv64.Tactics.RunBlock
+
+
+-- @@ L21-21 verbatim
+namespace EvmAsm.Codegen
+
+-- @@ L22-22 verbatim
+namespace RlpItemSpanSpec
+
+
+-- @@ L24-24 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Rv64.Tactics
+
+-- @@ L25-25 verbatim
+open EvmAsm.EL.RLP
+
+-- @@ L26-26 verbatim
+open EvmAsm.Codegen.RlpSpliceHelperSpec
+
+-- @@ L27-27 verbatim
+open EvmAsm.Codegen.MptSpliceSlotSpec
+
+
+-- @@ L29-145 expanded
+/-- Copy ABI args into callee-saved regs: MV s0,a0; ADD s1,a0,a1; MV s2..s4. -/
+theorem setup_spec
+    (newSp listBase listLenW indexW outStart outSize st sz raVal s0 s1 s2 s3 s4 s5 s6 v5 v6 v7 :
+      Word)
+    (bs : List (BitVec 8)) :
+    cpsTripleWithin 5 (B + 36) (B + 56) spanCr
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ s0) **
+            (.x9 ↦ᵣ s1) **
+              (.x18 ↦ᵣ s2) **
+                (.x19 ↦ᵣ s3) **
+                  (.x20 ↦ᵣ s4) **
+                    (.x21 ↦ᵣ s5) **
+                      (.x22 ↦ᵣ s6) **
+                        savedFrame newSp
+                            { ra := raVal, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4,
+                              s5 := s5, s6 := s6 } **
+                          (.x10 ↦ᵣ listBase) **
+                            (.x11 ↦ᵣ listLenW) **
+                              (.x12 ↦ᵣ indexW) **
+                                (.x13 ↦ᵣ outStart) **
+                                  (.x14 ↦ᵣ outSize) **
+                                    (.x5 ↦ᵣ v5) **
+                                      (.x6 ↦ᵣ v6) **
+                                        (.x7 ↦ᵣ v7) **
+                                          (.x0 ↦ᵣ (0 : Word)) **
+                                            bytesRegion listBase bs **
+                                              (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x9 ↦ᵣ (listBase + listLenW)) **
+              (.x18 ↦ᵣ indexW) **
+                (.x19 ↦ᵣ outStart) **
+                  (.x20 ↦ᵣ outSize) **
+                    (.x21 ↦ᵣ s5) **
+                      (.x22 ↦ᵣ s6) **
+                        savedFrame newSp
+                            { ra := raVal, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4,
+                              s5 := s5, s6 := s6 } **
+                          (.x10 ↦ᵣ listBase) **
+                            (.x11 ↦ᵣ listLenW) **
+                              (.x12 ↦ᵣ indexW) **
+                                (.x13 ↦ᵣ outStart) **
+                                  (.x14 ↦ᵣ outSize) **
+                                    (.x5 ↦ᵣ v5) **
+                                      (.x6 ↦ᵣ v6) **
+                                        (.x7 ↦ᵣ v7) **
+                                          (.x0 ↦ᵣ (0 : Word)) **
+                                            bytesRegion listBase bs **
+                                              (outStart ↦ₘ st) ** (outSize ↦ₘ sz)) :=
+  by
+  -- raw single-instr triples (normalize exit PCs to B+4k form)
+  
+  have h0 := mv_spec_gen_within .x8 .x10 listBase s0 (B + 36) (by decide)
+  rw [show (B + 36 : Word) + 4 = B + 40 from by decide] at h0
+  have h1 := add_spec_gen_within .x9 .x10 .x11 listBase listLenW s1 (B + 40) (by decide)
+  rw [show (B + 40 : Word) + 4 = B + 44 from by decide] at h1
+  have h2 := mv_spec_gen_within .x18 .x12 indexW s2 (B + 44) (by decide)
+  rw [show (B + 44 : Word) + 4 = B + 48 from by decide] at h2
+  have h3 := mv_spec_gen_within .x19 .x13 outStart s3 (B + 48) (by decide)
+  rw [show (B + 48 : Word) + 4 = B + 52 from by decide] at h3
+  have h4 := mv_spec_gen_within .x20 .x14 outSize s4 (B + 52) (by decide)
+  rw [show (B + 52 : Word) + 4 = B + 56 from by decide] at h4
+  have l0 :=
+    cpsTripleWithin_extend_code
+      (mem_at 9 (.MV .x8 .x10) (B + 36) (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl)) h0
+  have l1 :=
+    cpsTripleWithin_extend_code
+      (mem_at 10 (.ADD .x9 .x10 .x11) (B + 40) (by bv_omega) (by rw [spanProg_len]; norm_num)
+        (by rfl))
+      h1
+  have l2 :=
+    cpsTripleWithin_extend_code
+      (mem_at 11 (.MV .x18 .x12) (B + 44) (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
+      h2
+  have l3 :=
+    cpsTripleWithin_extend_code
+      (mem_at 12 (.MV .x19 .x13) (B + 48) (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
+      h3
+  have l4 :=
+    cpsTripleWithin_extend_code
+      (mem_at 13 (.MV .x20 .x14) (B + 52) (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
+      h4
+  have f0 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x9 ↦ᵣ s1) **
+            (.x18 ↦ᵣ s2) **
+              (.x19 ↦ᵣ s3) **
+                (.x20 ↦ᵣ s4) **
+                  (.x21 ↦ᵣ s5) **
+                    (.x22 ↦ᵣ s6) **
+                      savedFrame newSp
+                          { ra := raVal, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4, s5 := s5,
+                            s6 := s6 } **
+                        (.x11 ↦ᵣ listLenW) **
+                          (.x12 ↦ᵣ indexW) **
+                            (.x13 ↦ᵣ outStart) **
+                              (.x14 ↦ᵣ outSize) **
+                                (.x5 ↦ᵣ v5) **
+                                  (.x6 ↦ᵣ v6) **
+                                    (.x7 ↦ᵣ v7) **
+                                      (.x0 ↦ᵣ (0 : Word)) **
+                                        bytesRegion listBase bs **
+                                          (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      l0
+  have f1 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x18 ↦ᵣ s2) **
+              (.x19 ↦ᵣ s3) **
+                (.x20 ↦ᵣ s4) **
+                  (.x21 ↦ᵣ s5) **
+                    (.x22 ↦ᵣ s6) **
+                      savedFrame newSp
+                          { ra := raVal, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4, s5 := s5,
+                            s6 := s6 } **
+                        (.x12 ↦ᵣ indexW) **
+                          (.x13 ↦ᵣ outStart) **
+                            (.x14 ↦ᵣ outSize) **
+                              (.x5 ↦ᵣ v5) **
+                                (.x6 ↦ᵣ v6) **
+                                  (.x7 ↦ᵣ v7) **
+                                    (.x0 ↦ᵣ (0 : Word)) **
+                                      bytesRegion listBase bs **
+                                        (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      l1
+  have f2 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x9 ↦ᵣ (listBase + listLenW)) **
+              (.x19 ↦ᵣ s3) **
+                (.x20 ↦ᵣ s4) **
+                  (.x21 ↦ᵣ s5) **
+                    (.x22 ↦ᵣ s6) **
+                      savedFrame newSp
+                          { ra := raVal, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4, s5 := s5,
+                            s6 := s6 } **
+                        (.x10 ↦ᵣ listBase) **
+                          (.x11 ↦ᵣ listLenW) **
+                            (.x13 ↦ᵣ outStart) **
+                              (.x14 ↦ᵣ outSize) **
+                                (.x5 ↦ᵣ v5) **
+                                  (.x6 ↦ᵣ v6) **
+                                    (.x7 ↦ᵣ v7) **
+                                      (.x0 ↦ᵣ (0 : Word)) **
+                                        bytesRegion listBase bs **
+                                          (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      l2
+  have f3 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x9 ↦ᵣ (listBase + listLenW)) **
+              (.x18 ↦ᵣ indexW) **
+                (.x20 ↦ᵣ s4) **
+                  (.x21 ↦ᵣ s5) **
+                    (.x22 ↦ᵣ s6) **
+                      savedFrame newSp
+                          { ra := raVal, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4, s5 := s5,
+                            s6 := s6 } **
+                        (.x10 ↦ᵣ listBase) **
+                          (.x11 ↦ᵣ listLenW) **
+                            (.x12 ↦ᵣ indexW) **
+                              (.x14 ↦ᵣ outSize) **
+                                (.x5 ↦ᵣ v5) **
+                                  (.x6 ↦ᵣ v6) **
+                                    (.x7 ↦ᵣ v7) **
+                                      (.x0 ↦ᵣ (0 : Word)) **
+                                        bytesRegion listBase bs **
+                                          (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      l3
+  have f4 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x9 ↦ᵣ (listBase + listLenW)) **
+              (.x18 ↦ᵣ indexW) **
+                (.x19 ↦ᵣ outStart) **
+                  (.x21 ↦ᵣ s5) **
+                    (.x22 ↦ᵣ s6) **
+                      savedFrame newSp
+                          { ra := raVal, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4, s5 := s5,
+                            s6 := s6 } **
+                        (.x10 ↦ᵣ listBase) **
+                          (.x11 ↦ᵣ listLenW) **
+                            (.x12 ↦ᵣ indexW) **
+                              (.x13 ↦ᵣ outStart) **
+                                (.x5 ↦ᵣ v5) **
+                                  (.x6 ↦ᵣ v6) **
+                                    (.x7 ↦ᵣ v7) **
+                                      (.x0 ↦ᵣ (0 : Word)) **
+                                        bytesRegion listBase bs **
+                                          (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      l4
+  have c01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) f0 f1
+  have c02 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c01 f2
+  have c03 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c02 f3
+  have c04 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c03 f4
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) c04
+
+
+-- @@ L147-147 verbatim
+/-! ## Header → loop (idx 14..26 short path: B+56 → B+108) -/
+
+
+-- @@ L149-149 verbatim
+private theorem add_ofNat_zero (x : Word) : x + BitVec.ofNat 64 0 = x := by bv_omega
+
+
+-- @@ L151-394 expanded
+/-- Short-list header path lands at loopHdr with cursor = listBase+1, k = 0. -/
+theorem header_to_loop (newSp listBase endPtr indexW outStart outSize st sz raVal : Word)
+    (saved : Saved) (items : List RLPItem) (v5 v6 v7 v10 v11 v12 v13 v14 s5 s6 : Word)
+    (hshort : payloadLen items ≤ 55)
+    (h_end : endPtr = listBase + BitVec.ofNat 64 (encode (.list items)).length)
+    (h_align : listBase.toNat % 8 = 0)
+    (h_over : listBase.toNat + (encode (.list items)).length < 2 ^ 64)
+    (h_valid :
+      ∀ k,
+        k < (encode (.list items)).length → isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hlen_pos : 0 < (encode (.list items)).length) :
+    cpsTripleWithin 8 (B + 56) (B + 124) spanCr
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x9 ↦ᵣ endPtr) **
+              (.x18 ↦ᵣ indexW) **
+                (.x19 ↦ᵣ outStart) **
+                  (.x20 ↦ᵣ outSize) **
+                    (.x21 ↦ᵣ s5) **
+                      (.x22 ↦ᵣ s6) **
+                        savedFrame newSp saved **
+                          (.x10 ↦ᵣ v10) **
+                            (.x11 ↦ᵣ v11) **
+                              (.x12 ↦ᵣ v12) **
+                                (.x13 ↦ᵣ v13) **
+                                  (.x14 ↦ᵣ v14) **
+                                    (.x5 ↦ᵣ v5) **
+                                      (.x6 ↦ᵣ v6) **
+                                        (.x7 ↦ᵣ v7) **
+                                          (.x0 ↦ᵣ (0 : Word)) **
+                                            bytesRegion listBase (encode (.list items)) **
+                                              (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (inv newSp listBase endPtr indexW outStart outSize st sz raVal saved items 0 v7 v10 v11 v12
+        v13 v14) :=
+  by
+  set bs := encode (.list items)
+  have hgetD : bs.getD 0 0 = bs[0]'hlen_pos := by
+    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlen_pos]; rfl
+  have hlo : 0xc0 ≤ (bs[0]'hlen_pos).toNat :=
+    by
+    have := short_list_head_lo items hshort
+    rwa [← hgetD]
+  have hhi : (bs[0]'hlen_pos).toNat < 0xf8 :=
+    by
+    have := short_list_head_hi items hshort
+    rwa [← hgetD]
+  have hult_end : BitVec.ult listBase endPtr :=
+    by
+    have hsum : (listBase + BitVec.ofNat 64 bs.length).toNat = listBase.toNat + bs.length :=
+      by
+      have ha := listBase.isLt
+      rw [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
+    rw [h_end, BitVec.ult, decide_eq_true_eq, hsum]
+    omega
+      -- idx14 BGEU x8,x9,+128 @ B+56 — NOT taken → B+60
+      
+  have hbr14 :=
+    cpsBranchWithin_extend_code
+      (mem_at 14 (.BGEU .x8 .x9 (128 : BitVec 13)) (B + 56) (by bv_omega)
+        (by rw [spanProg_len]; norm_num) (by rfl))
+      (bgeu_spec_gen_within .x8 .x9 (128 : BitVec 13) listBase endPtr (B + 56))
+  rw [show (B + 56 : Word) + signExtend13 (128 : BitVec 13) = B + 184 from by
+      rw [show signExtend13 (128 : BitVec 13) = (128 : Word) from by decide]; bv_omega,
+    show (B + 56 : Word) + 4 = B + 60 from by decide] at hbr14
+  have hnt14 :=
+    cpsBranchWithin_ntakenStripPure2 hbr14
+      (fun _hp hQt => by
+        obtain ⟨_, _, _, _, _, hQ⟩ := hQt
+        exact ((sepConj_pure_right _).1 hQ).2 hult_end)
+        -- idx15 LBU x5,0(x8) @ B+60
+        
+  have hlbu :=
+    bytesRegion_lbu_within .x5 .x8 listBase v5 (B + 60) bs 0 (by decide) h_align hlen_pos (by omega)
+      (h_valid 0 hlen_pos)
+  rw [add_ofNat_zero listBase] at hlbu
+  have hlbu' :=
+    cpsTripleWithin_extend_code
+      (mem_at 15 (.LBU .x5 .x8 (0 : BitVec 12)) (B + 60) (by bv_omega)
+        (by rw [spanProg_len]; norm_num) (by rfl))
+      hlbu
+  rw [show (B + 60 : Word) + 4 = B + 64 from by decide] at hlbu'
+  have hli16 :=
+    cpsTripleWithin_extend_code
+      (mem_at 16 (.LI .x6 (192 : Word)) (B + 64) (by bv_omega) (by rw [spanProg_len]; norm_num)
+        (by rfl))
+      (li_spec_gen_within .x6 v6 (192 : Word) (B + 64) (by decide))
+  rw [show (B + 64 : Word) + 4 = B + 68 from by decide] at hli16
+  have hbr17 :=
+    cpsBranchWithin_extend_code
+      (mem_at 17 (.BLTU .x5 .x6 (116 : BitVec 13)) (B + 68) (by bv_omega)
+        (by rw [spanProg_len]; norm_num) (by rfl))
+      (bltu_spec_gen_within .x5 .x6 (116 : BitVec 13) ((bs[0]'hlen_pos).zeroExtend 64) (192 : Word)
+        (B + 68))
+  rw [show (B + 68 : Word) + signExtend13 (116 : BitVec 13) = B + 184 from by
+      rw [show signExtend13 (116 : BitVec 13) = (116 : Word) from by decide]; bv_omega,
+    show (B + 68 : Word) + 4 = B + 72 from by decide] at hbr17
+  have hnult17 : ¬BitVec.ult ((bs[0]'hlen_pos).zeroExtend 64) (192 : Word) :=
+    not_ult_zx_of_ge _ _ (by rw [show ((192 : Word)).toNat = 192 from by decide]; exact hlo)
+  have hnt17 :=
+    cpsBranchWithin_ntakenStripPure2 hbr17
+      (fun _hp hQt => by
+        obtain ⟨_, _, _, _, _, hQ⟩ := hQt
+        exact hnult17 ((sepConj_pure_right _).1 hQ).2)
+        -- idx18 LI x6, 248 @ B+72
+        
+  have hli18 :=
+    cpsTripleWithin_extend_code
+      (mem_at 18 (.LI .x6 (248 : Word)) (B + 72) (by bv_omega) (by rw [spanProg_len]; norm_num)
+        (by rfl))
+      (li_spec_gen_within .x6 (192 : Word) (248 : Word) (B + 72) (by decide))
+  rw [show (B + 72 : Word) + 4 = B + 76 from by decide] at hli18
+  have hbr19 :=
+    cpsBranchWithin_extend_code
+      (mem_at 19 (.BLTU .x5 .x6 (40 : BitVec 13)) (B + 76) (by bv_omega)
+        (by rw [spanProg_len]; norm_num) (by rfl))
+      (bltu_spec_gen_within .x5 .x6 (40 : BitVec 13) ((bs[0]'hlen_pos).zeroExtend 64) (248 : Word)
+        (B + 76))
+  rw [show (B + 76 : Word) + signExtend13 (40 : BitVec 13) = B + 116 from by
+      rw [show signExtend13 (40 : BitVec 13) = (40 : Word) from by decide]; bv_omega,
+    show (B + 76 : Word) + 4 = B + 80 from by decide] at hbr19
+  have hult19 : BitVec.ult ((bs[0]'hlen_pos).zeroExtend 64) (248 : Word) :=
+    ult_zx_of_lt _ _ (by rw [show ((248 : Word)).toNat = 248 from by decide]; exact hhi)
+  have ht19 :=
+    cpsBranchWithin_takenStripPure2 hbr19
+      (fun _hp hQf => by
+        obtain ⟨_, _, _, _, _, hQ⟩ := hQf
+        exact ((sepConj_pure_right _).1 hQ).2 hult19)
+        -- idx29 ADDI x21,x8,1 @ B+116
+        
+  have haddi25 :=
+    cpsTripleWithin_extend_code
+      (mem_at 29 (.ADDI .x21 .x8 (1 : BitVec 12)) (B + 116) (by bv_omega)
+        (by rw [spanProg_len]; norm_num) (by rfl))
+      (addi_spec_gen_within .x21 .x8 s5 listBase (1 : BitVec 12) (B + 116) (by decide))
+  rw [show (B + 116 : Word) + 4 = B + 120 from by decide] at haddi25
+  have hli26 :=
+    cpsTripleWithin_extend_code
+      (mem_at 30 (.LI .x22 (0 : Word)) (B + 120) (by bv_omega) (by rw [spanProg_len]; norm_num)
+        (by rfl))
+      (li_spec_gen_within .x22 s6 (0 : Word) (B + 120) (by decide))
+  rw [show (B + 120 : Word) + 4 = B + 124 from by decide] at hli26
+  set Fstable : Assertion :=
+    ((.x2 ↦ᵣ newSp) **
+      (.x1 ↦ᵣ raVal) **
+        (.x18 ↦ᵣ indexW) **
+          (.x19 ↦ᵣ outStart) **
+            (.x20 ↦ᵣ outSize) **
+              savedFrame newSp saved **
+                (.x10 ↦ᵣ v10) **
+                  (.x11 ↦ᵣ v11) **
+                    (.x12 ↦ᵣ v12) **
+                      (.x13 ↦ᵣ v13) **
+                        (.x14 ↦ᵣ v14) **
+                          (.x0 ↦ᵣ (0 : Word)) **
+                            bytesRegion listBase bs ** (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+  have f14 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x18 ↦ᵣ indexW) **
+            (.x19 ↦ᵣ outStart) **
+              (.x20 ↦ᵣ outSize) **
+                (.x21 ↦ᵣ s5) **
+                  (.x22 ↦ᵣ s6) **
+                    savedFrame newSp saved **
+                      (.x10 ↦ᵣ v10) **
+                        (.x11 ↦ᵣ v11) **
+                          (.x12 ↦ᵣ v12) **
+                            (.x13 ↦ᵣ v13) **
+                              (.x14 ↦ᵣ v14) **
+                                (.x5 ↦ᵣ v5) **
+                                  (.x6 ↦ᵣ v6) **
+                                    (.x7 ↦ᵣ v7) **
+                                      (.x0 ↦ᵣ (0 : Word)) **
+                                        bytesRegion listBase bs **
+                                          (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hnt14
+  have f15 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x9 ↦ᵣ endPtr) **
+            (.x18 ↦ᵣ indexW) **
+              (.x19 ↦ᵣ outStart) **
+                (.x20 ↦ᵣ outSize) **
+                  (.x21 ↦ᵣ s5) **
+                    (.x22 ↦ᵣ s6) **
+                      savedFrame newSp saved **
+                        (.x10 ↦ᵣ v10) **
+                          (.x11 ↦ᵣ v11) **
+                            (.x12 ↦ᵣ v12) **
+                              (.x13 ↦ᵣ v13) **
+                                (.x14 ↦ᵣ v14) **
+                                  (.x6 ↦ᵣ v6) **
+                                    (.x7 ↦ᵣ v7) **
+                                      (.x0 ↦ᵣ (0 : Word)) ** (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hlbu'
+  have f16 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x9 ↦ᵣ endPtr) **
+              (.x18 ↦ᵣ indexW) **
+                (.x19 ↦ᵣ outStart) **
+                  (.x20 ↦ᵣ outSize) **
+                    (.x21 ↦ᵣ s5) **
+                      (.x22 ↦ᵣ s6) **
+                        savedFrame newSp saved **
+                          (.x10 ↦ᵣ v10) **
+                            (.x11 ↦ᵣ v11) **
+                              (.x12 ↦ᵣ v12) **
+                                (.x13 ↦ᵣ v13) **
+                                  (.x14 ↦ᵣ v14) **
+                                    (.x5 ↦ᵣ ((bs[0]'hlen_pos).zeroExtend 64)) **
+                                      (.x7 ↦ᵣ v7) **
+                                        (.x0 ↦ᵣ (0 : Word)) **
+                                          bytesRegion listBase bs **
+                                            (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hli16
+  have f17 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x9 ↦ᵣ endPtr) **
+              (.x18 ↦ᵣ indexW) **
+                (.x19 ↦ᵣ outStart) **
+                  (.x20 ↦ᵣ outSize) **
+                    (.x21 ↦ᵣ s5) **
+                      (.x22 ↦ᵣ s6) **
+                        savedFrame newSp saved **
+                          (.x10 ↦ᵣ v10) **
+                            (.x11 ↦ᵣ v11) **
+                              (.x12 ↦ᵣ v12) **
+                                (.x13 ↦ᵣ v13) **
+                                  (.x14 ↦ᵣ v14) **
+                                    (.x7 ↦ᵣ v7) **
+                                      (.x0 ↦ᵣ (0 : Word)) **
+                                        bytesRegion listBase bs **
+                                          (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hnt17
+  have f18 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x9 ↦ᵣ endPtr) **
+              (.x18 ↦ᵣ indexW) **
+                (.x19 ↦ᵣ outStart) **
+                  (.x20 ↦ᵣ outSize) **
+                    (.x21 ↦ᵣ s5) **
+                      (.x22 ↦ᵣ s6) **
+                        savedFrame newSp saved **
+                          (.x10 ↦ᵣ v10) **
+                            (.x11 ↦ᵣ v11) **
+                              (.x12 ↦ᵣ v12) **
+                                (.x13 ↦ᵣ v13) **
+                                  (.x14 ↦ᵣ v14) **
+                                    (.x5 ↦ᵣ ((bs[0]'hlen_pos).zeroExtend 64)) **
+                                      (.x7 ↦ᵣ v7) **
+                                        (.x0 ↦ᵣ (0 : Word)) **
+                                          bytesRegion listBase bs **
+                                            (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hli18
+  have f19 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x9 ↦ᵣ endPtr) **
+              (.x18 ↦ᵣ indexW) **
+                (.x19 ↦ᵣ outStart) **
+                  (.x20 ↦ᵣ outSize) **
+                    (.x21 ↦ᵣ s5) **
+                      (.x22 ↦ᵣ s6) **
+                        savedFrame newSp saved **
+                          (.x10 ↦ᵣ v10) **
+                            (.x11 ↦ᵣ v11) **
+                              (.x12 ↦ᵣ v12) **
+                                (.x13 ↦ᵣ v13) **
+                                  (.x14 ↦ᵣ v14) **
+                                    (.x7 ↦ᵣ v7) **
+                                      (.x0 ↦ᵣ (0 : Word)) **
+                                        bytesRegion listBase bs **
+                                          (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      ht19
+  have f25 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x9 ↦ᵣ endPtr) **
+            (.x18 ↦ᵣ indexW) **
+              (.x19 ↦ᵣ outStart) **
+                (.x20 ↦ᵣ outSize) **
+                  (.x22 ↦ᵣ s6) **
+                    savedFrame newSp saved **
+                      (.x10 ↦ᵣ v10) **
+                        (.x11 ↦ᵣ v11) **
+                          (.x12 ↦ᵣ v12) **
+                            (.x13 ↦ᵣ v13) **
+                              (.x14 ↦ᵣ v14) **
+                                (.x5 ↦ᵣ ((bs[0]'hlen_pos).zeroExtend 64)) **
+                                  (.x6 ↦ᵣ (248 : Word)) **
+                                    (.x7 ↦ᵣ v7) **
+                                      (.x0 ↦ᵣ (0 : Word)) **
+                                        bytesRegion listBase bs **
+                                          (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      haddi25
+  have f26 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x9 ↦ᵣ endPtr) **
+              (.x18 ↦ᵣ indexW) **
+                (.x19 ↦ᵣ outStart) **
+                  (.x20 ↦ᵣ outSize) **
+                    (.x21 ↦ᵣ (listBase + signExtend12 (1 : BitVec 12))) **
+                      savedFrame newSp saved **
+                        (.x10 ↦ᵣ v10) **
+                          (.x11 ↦ᵣ v11) **
+                            (.x12 ↦ᵣ v12) **
+                              (.x13 ↦ᵣ v13) **
+                                (.x14 ↦ᵣ v14) **
+                                  (.x5 ↦ᵣ ((bs[0]'hlen_pos).zeroExtend 64)) **
+                                    (.x6 ↦ᵣ (248 : Word)) **
+                                      (.x7 ↦ᵣ v7) **
+                                        (.x0 ↦ᵣ (0 : Word)) **
+                                          bytesRegion listBase bs **
+                                            (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hli26
+  have c01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) f14 f15
+  have c02 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c01 f16
+  have c03 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c02 f17
+  have c04 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c03 f18
+  have c05 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c04 f19
+  have c06 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c05 f25
+  have c07 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c06 f26
+  have hcur :
+    listBase + signExtend12 (1 : BitVec 12) = listBase + BitVec.ofNat 64 (listCursor items 0) :=
+    by
+    rw [listCursor_zero_short items hshort,
+      show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+    rfl
+  have hk0 : (0 : Word) = BitVec.ofNat 64 0 := rfl
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hq => ?_) c07
+  simp only [inv, amb, listCursor_zero_short items hshort]
+    -- Flatten composed post, rewrite cursor/k, then mono x5/x6 to ownership.
+    
+  have hq1 :
+    ((.x5 ↦ᵣ ((bs[0]'hlen_pos).zeroExtend 64)) **
+        (.x6 ↦ᵣ (248 : Word)) **
+          (.x2 ↦ᵣ newSp) **
+            savedFrame newSp saved **
+              (.x8 ↦ᵣ listBase) **
+                (.x9 ↦ᵣ endPtr) **
+                  (.x18 ↦ᵣ indexW) **
+                    (.x19 ↦ᵣ outStart) **
+                      (.x20 ↦ᵣ outSize) **
+                        (outStart ↦ₘ st) **
+                          (outSize ↦ₘ sz) **
+                            (.x1 ↦ᵣ raVal) **
+                              (.x0 ↦ᵣ (0 : Word)) **
+                                bytesRegion listBase bs **
+                                  (.x21 ↦ᵣ (listBase + signExtend12 (1 : BitVec 12))) **
+                                    (.x22 ↦ᵣ (0 : Word)) **
+                                      (.x7 ↦ᵣ v7) **
+                                        (.x10 ↦ᵣ v10) **
+                                          (.x11 ↦ᵣ v11) **
+                                            (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14))
+      h :=
+    by xperm_hyp hq
+  rw [hcur, listCursor_zero_short items hshort, hk0] at hq1
+  have hown :
+    ((regOwn .x5) **
+        (regOwn .x6) **
+          (.x2 ↦ᵣ newSp) **
+            savedFrame newSp saved **
+              (.x8 ↦ᵣ listBase) **
+                (.x9 ↦ᵣ endPtr) **
+                  (.x18 ↦ᵣ indexW) **
+                    (.x19 ↦ᵣ outStart) **
+                      (.x20 ↦ᵣ outSize) **
+                        (outStart ↦ₘ st) **
+                          (outSize ↦ₘ sz) **
+                            (.x1 ↦ᵣ raVal) **
+                              (.x0 ↦ᵣ (0 : Word)) **
+                                bytesRegion listBase bs **
+                                  (.x21 ↦ᵣ (listBase + BitVec.ofNat 64 1)) **
+                                    (.x22 ↦ᵣ BitVec.ofNat 64 0) **
+                                      (.x7 ↦ᵣ v7) **
+                                        (.x10 ↦ᵣ v10) **
+                                          (.x11 ↦ᵣ v11) **
+                                            (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14))
+      h :=
+    sepConj_mono (regIs_implies_regOwn .x5)
+      (sepConj_mono (regIs_implies_regOwn .x6) (fun _ hh => hh)) h hq1
+  xperm_hyp hown
+
+
+-- @@ L396-436 expanded
+/-- Loop exit when `k = i`: BEQ taken → exitGate B+136. -/
+theorem loop_exit (newSp listBase endPtr indexW outStart outSize st sz raVal : Word) (saved : Saved)
+    (items : List RLPItem) (i : Nat) (v7 v10 v11 v12 v13 v14 : Word)
+    (h_idx : indexW = BitVec.ofNat 64 i) :
+    cpsTripleWithin 1 (B + 124) (B + 152) spanCr
+      (inv newSp listBase endPtr indexW outStart outSize st sz raVal saved items i v7 v10 v11 v12
+        v13 v14)
+      (inv newSp listBase endPtr indexW outStart outSize st sz raVal saved items i v7 v10 v11 v12
+        v13 v14) :=
+  by
+  have hbr27 :=
+    cpsBranchWithin_extend_code
+      (mem_at 31 (.BEQ .x22 .x18 (28 : BitVec 13)) (B + 124) (by bv_omega)
+        (by rw [spanProg_len]; norm_num) (by rfl))
+      (beq_spec_gen_within .x22 .x18 (28 : BitVec 13) (BitVec.ofNat 64 i) indexW (B + 124))
+  rw [show (B + 124 : Word) + signExtend13 (28 : BitVec 13) = B + 152 from by
+      rw [show signExtend13 (28 : BitVec 13) = (28 : Word) from by decide]; bv_omega,
+    show (B + 124 : Word) + 4 = B + 128 from by decide] at hbr27
+  have heq : BitVec.ofNat 64 i = indexW := by rw [h_idx]
+  have ht27 :=
+    cpsBranchWithin_takenStripPure2 hbr27
+      (fun _hp hQf => by
+        obtain ⟨_, _, _, _, _, hQ⟩ := hQf
+        exact ((sepConj_pure_right _).1 hQ).2 heq)
+  have f27 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x9 ↦ᵣ endPtr) **
+              (.x19 ↦ᵣ outStart) **
+                (.x20 ↦ᵣ outSize) **
+                  (.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
+                    savedFrame newSp saved **
+                      regOwn .x5 **
+                        regOwn .x6 **
+                          (.x7 ↦ᵣ v7) **
+                            (.x10 ↦ᵣ v10) **
+                              (.x11 ↦ᵣ v11) **
+                                (.x12 ↦ᵣ v12) **
+                                  (.x13 ↦ᵣ v13) **
+                                    (.x14 ↦ᵣ v14) **
+                                      (.x0 ↦ᵣ (0 : Word)) **
+                                        bytesRegion listBase (encode (.list items)) **
+                                          (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      ht27
+  refine
+    cpsTripleWithin_weaken
+      (fun h hp => by
+        simp only [inv, amb, savedFrame] at hp ⊢
+        xperm_chunked hp)
+      (fun h hq => by
+        simp only [inv, amb, savedFrame] at hq ⊢
+        xperm_chunked hq)
+      f27
+
+
+-- @@ L438-520 expanded
+/-- Exit precall: BGEU ntaken + MV at exitGate → size call site B+144. -/
+theorem exit_precall (newSp listBase endPtr indexW outStart outSize st sz raVal : Word)
+    (saved : Saved) (items : List RLPItem) (i : Nat) (v7 v10 v11 v12 v13 v14 : Word)
+    (h_end : endPtr = listBase + BitVec.ofNat 64 (encode (.list items)).length)
+    (h_over : listBase.toNat + (encode (.list items)).length < 2 ^ 64) (hi : i < items.length) :
+    cpsTripleWithin 2 (B + 152) (B + 160) spanCr
+      (inv newSp listBase endPtr indexW outStart outSize st sz raVal saved items i v7 v10 v11 v12
+        v13 v14)
+      (amb newSp listBase endPtr indexW outStart outSize st sz raVal saved (encode (.list items)) **
+        ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
+          (.x22 ↦ᵣ BitVec.ofNat 64 i) **
+            regOwn .x5 **
+              regOwn .x6 **
+                (.x7 ↦ᵣ v7) **
+                  (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
+                    (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14))) :=
+  by
+  set bs := encode (.list items)
+  have hbs_len : bs.length = (encode (.list items)).length := rfl
+  have hcur_lt := listCursor_lt items i hi
+  have hcur_le : listCursor items i ≤ bs.length := by rw [hbs_len]; exact Nat.le_of_lt hcur_lt
+  have hult_cur : BitVec.ult (listBase + BitVec.ofNat 64 (listCursor items i)) endPtr :=
+    by
+    have hsum_c :=
+      listBase_add_toNat listBase (listCursor items i) bs.length hcur_le
+        (by rwa [hbs_len] at h_over ⊢)
+    have hsum_e :=
+      listBase_add_toNat listBase bs.length bs.length (Nat.le_refl _) (by rwa [hbs_len] at h_over ⊢)
+    rw [h_end, BitVec.ult, decide_eq_true_eq, hsum_c, hsum_e, hbs_len]
+    have : listCursor items i < (encode (.list items)).length := hcur_lt
+    omega
+      -- idx34 BGEU ntaken
+      
+  have hbr34 :=
+    cpsBranchWithin_extend_code
+      (mem_at 38 (.BGEU .x21 .x9 (32 : BitVec 13)) (B + 152) (by bv_omega)
+        (by rw [spanProg_len]; norm_num) (by rfl))
+      (bgeu_spec_gen_within .x21 .x9 (32 : BitVec 13)
+        (listBase + BitVec.ofNat 64 (listCursor items i)) endPtr (B + 152))
+  rw [show (B + 152 : Word) + signExtend13 (32 : BitVec 13) = B + 184 from by
+      rw [show signExtend13 (32 : BitVec 13) = (32 : Word) from by decide]; bv_omega,
+    show (B + 152 : Word) + 4 = B + 156 from by decide] at hbr34
+  have hnt34 :=
+    cpsBranchWithin_ntakenStripPure2 hbr34
+      (fun _hp hQt => by
+        obtain ⟨_, _, _, _, _, hQ⟩ := hQt
+        exact ((sepConj_pure_right _).1 hQ).2 hult_cur)
+        -- idx35 MV
+        
+  have hmv35 :=
+    cpsTripleWithin_extend_code
+      (mem_at 39 (.MV .x10 .x21) (B + 156) (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
+      (mv_spec_gen_within .x10 .x21 (listBase + BitVec.ofNat 64 (listCursor items i)) v10 (B + 156)
+        (by decide))
+  rw [show (B + 156 : Word) + 4 = B + 160 from by decide] at hmv35
+  have f34 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x18 ↦ᵣ indexW) **
+              (.x19 ↦ᵣ outStart) **
+                (.x20 ↦ᵣ outSize) **
+                  (.x22 ↦ᵣ BitVec.ofNat 64 i) **
+                    savedFrame newSp saved **
+                      regOwn .x5 **
+                        regOwn .x6 **
+                          (.x7 ↦ᵣ v7) **
+                            (.x10 ↦ᵣ v10) **
+                              (.x11 ↦ᵣ v11) **
+                                (.x12 ↦ᵣ v12) **
+                                  (.x13 ↦ᵣ v13) **
+                                    (.x14 ↦ᵣ v14) **
+                                      (.x0 ↦ᵣ (0 : Word)) **
+                                        bytesRegion listBase bs **
+                                          (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hnt34
+  have f35 :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x1 ↦ᵣ raVal) **
+          (.x8 ↦ᵣ listBase) **
+            (.x9 ↦ᵣ endPtr) **
+              (.x18 ↦ᵣ indexW) **
+                (.x19 ↦ᵣ outStart) **
+                  (.x20 ↦ᵣ outSize) **
+                    (.x22 ↦ᵣ BitVec.ofNat 64 i) **
+                      savedFrame newSp saved **
+                        regOwn .x5 **
+                          regOwn .x6 **
+                            (.x7 ↦ᵣ v7) **
+                              (.x11 ↦ᵣ v11) **
+                                (.x12 ↦ᵣ v12) **
+                                  (.x13 ↦ᵣ v13) **
+                                    (.x14 ↦ᵣ v14) **
+                                      (.x0 ↦ᵣ (0 : Word)) **
+                                        bytesRegion listBase bs **
+                                          (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hmv35
+  have c01 :=
+    cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by simp only [savedFrame] at hp ⊢; xperm_chunked hp) f34 f35
+  refine
+    cpsTripleWithin_weaken
+      (fun h hp => by
+        simp only [inv, amb, savedFrame] at hp ⊢
+        xperm_chunked hp)
+      (fun h hq => by
+        simp only [amb, savedFrame] at hq ⊢
+        xperm_chunked hq)
+      c01
+
+
+-- @@ L522-620 expanded
+/-- Size call at exit B+144: cursor in x10 → length in x10; ra becomes B+148. -/
+theorem exit_size_call (newSp listBase endPtr indexW outStart outSize st sz raVal : Word)
+    (saved : Saved) (items : List RLPItem) (i : Nat) (v7 v11 v12 v13 v14 : Word)
+    (h_align : listBase.toNat % 8 = 0)
+    (h_over : listBase.toNat + (encode (.list items)).length < 2 ^ 64)
+    (h_valid :
+      ∀ j,
+        j < (encode (.list items)).length → isValidByteAccess (listBase + BitVec.ofNat 64 j) = true)
+    (hi : i < items.length) (h_walk_i : SpanForm ((encode (items[i]'hi)).getD 0 0)) :
+    cpsTripleWithin 13 (B + 160) (B + 164) spanCr
+      (amb newSp listBase endPtr indexW outStart outSize st sz raVal saved (encode (.list items)) **
+        ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
+          (.x22 ↦ᵣ BitVec.ofNat 64 i) **
+            regOwn .x5 **
+              regOwn .x6 **
+                (.x7 ↦ᵣ v7) **
+                  (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
+                    (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14)))
+      (amb newSp listBase endPtr indexW outStart outSize st sz (B + 164) saved
+          (encode (.list items)) **
+        ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
+          (.x22 ↦ᵣ BitVec.ofNat 64 i) **
+            regOwn .x5 **
+              regOwn .x6 **
+                (.x7 ↦ᵣ v7) **
+                  (.x10 ↦ᵣ BitVec.ofNat 64 (encode (items[i]'hi)).length) **
+                    (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14))) :=
+  by
+  set bs := encode (.list items)
+  set cursor : Word := listBase + BitVec.ofNat 64 (listCursor items i)
+  set itemLenW : Word := BitVec.ofNat 64 (encode (items[i]'hi)).length
+  have hbs_len : bs.length = (encode (.list items)).length := rfl
+  have hcur_lt := listCursor_lt items i hi
+  have h_off : listCursor items i < bs.length := by rwa [hbs_len]
+  have h_over_off : listBase.toNat + listCursor items i < 2 ^ 64 := by have := hcur_lt; omega
+  have hL64 : (encode (.list items)).length < 2 ^ 64 :=
+    by
+    have hover' : listBase.toNat + bs.length < 2 ^ 64 := h_over
+    rw [hbs_len] at hover'; omega
+  have hsz := encode_item_length_lt_bound items i hi hL64
+  have hdec := decode_at_listCursor items i hi hsz
+  have hform := span_form_at_listCursor items i hi hsz h_walk_i
+  have hret_even : ((B + 164 : Word) &&& ~~~(1 : Word)) = B + 164 := by decide
+  have hsize0 :=
+    rlp_item_size_offset_spec_within listBase (listCursor items i) (B + 164) bs (items[i]'hi)
+      (encode.encodeItems (items.drop (i + 1))) h_align h_off h_over_off
+      (by intro j hj; rw [hbs_len] at hj; exact h_valid j hj) (by simpa [bs] using hdec)
+      (by simpa [bs] using hform)
+  rw [hret_even] at hsize0
+  have hsizeC := cpsTripleWithin_extend_code size_sub hsize0
+  have hpc : (B + 160 + 4 : Word) = B + 164 := by decide
+  have hsizeW :
+    cpsTripleWithin 12 rlpItemSizeBase (B + 160 + 4) spanCr
+      (((.x1 : Reg) ↦ᵣ (B + 160 + 4)) **
+        (((.x10 : Reg) ↦ᵣ cursor) **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion listBase bs ** regOwn .x5 ** regOwn .x6))
+      (((.x1 : Reg) ↦ᵣ (B + 160 + 4)) **
+        (((.x10 : Reg) ↦ᵣ itemLenW) **
+          regOwn .x5 ** regOwn .x6 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion listBase bs)) :=
+    by
+    rw [hpc]
+    refine
+      cpsTripleWithin_weaken
+        (fun _ hp => by
+          simp only [cursor] at hp ⊢
+          xperm_chunked hp)
+        (fun _ hq => by
+          simp only [itemLenW] at hq ⊢
+          xperm_chunked hq)
+        hsizeC
+  have htarget :
+    (B + 160 : Word) +
+        signExtend21 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 160)) =
+      rlpItemSizeBase :=
+    by unfold B rlpItemSpanBase rlpItemSizeBase; decide
+  have hcall :=
+    callWithin_spec (B + 160) rlpItemSizeBase raVal
+      (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 160)) 12 htarget
+      (mem_at 40 (.JAL .x1 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 160)))
+        (B + 160) (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hsizeW
+  rw [hpc] at hcall
+  have fcall :=
+    cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ newSp) **
+        (.x8 ↦ᵣ listBase) **
+          (.x9 ↦ᵣ endPtr) **
+            (.x18 ↦ᵣ indexW) **
+              (.x19 ↦ᵣ outStart) **
+                (.x20 ↦ᵣ outSize) **
+                  (.x21 ↦ᵣ cursor) **
+                    (.x22 ↦ᵣ BitVec.ofNat 64 i) **
+                      savedFrame newSp saved **
+                        (.x7 ↦ᵣ v7) **
+                          (.x11 ↦ᵣ v11) **
+                            (.x12 ↦ᵣ v12) **
+                              (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hcall
+  refine
+    cpsTripleWithin_weaken
+      (fun h hp => by
+        simp only [amb, cursor, savedFrame] at hp ⊢
+        xperm_chunked hp)
+      (fun h hq => by
+        simp only [amb, cursor, itemLenW, savedFrame] at hq ⊢
+        xperm_chunked hq)
+      fcall
+
+
+-- @@ L622-790 expanded
+/-- Finish exit: SUB start, SD start, SD size, LI 0, JAL epi → bodyPost. -/
+theorem exit_finish (newSp listBase endPtr indexW outStart outSize st sz : Word) (saved : Saved)
+    (items : List RLPItem) (i : Nat) (v7 v11 v12 v13 v14 : Word) (hi : i < items.length) :
+    cpsTripleWithin 5 (B + 164) (B + 188) spanCr
+      (amb newSp listBase endPtr indexW outStart outSize st sz (B + 164) saved
+          (encode (.list items)) **
+        ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
+          (.x22 ↦ᵣ BitVec.ofNat 64 i) **
+            regOwn .x5 **
+              regOwn .x6 **
+                (.x7 ↦ᵣ v7) **
+                  (.x10 ↦ᵣ BitVec.ofNat 64 (encode (items[i]'hi)).length) **
+                    (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14)))
+      (bodyPost newSp listBase endPtr indexW outStart outSize (B + 164) saved items i hi) :=
+  by
+  set bs := encode (.list items)
+  set cursor : Word := listBase + BitVec.ofNat 64 (listCursor items i)
+  set itemLenW : Word := BitVec.ofNat 64 (encode (items[i]'hi)).length
+  set startOff : Nat := listCursor items i
+  set startOffW : Word := BitVec.ofNat 64 startOff
+  have hsub_eq : cursor - listBase = startOffW :=
+    by
+    simp only [cursor, startOffW, startOff]
+    rw [BitVec.add_comm, BitVec.add_sub_cancel]
+      -- Peel regOwn x6 to concrete v6 for SUB destination.
+      
+  refine
+    cpsTripleWithin_weaken
+      (fun _ hp => by
+        simp only [amb, savedFrame] at hp ⊢
+        xperm_chunked hp)
+      (fun _ hq => hq)
+      (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x6) (P :=
+        amb newSp listBase endPtr indexW outStart outSize st sz (B + 164) saved bs **
+          ((.x21 ↦ᵣ cursor) **
+            (.x22 ↦ᵣ BitVec.ofNat 64 i) **
+              regOwn .x5 **
+                (.x7 ↦ᵣ v7) **
+                  (.x10 ↦ᵣ itemLenW) **
+                    (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14)))
+        (fun v6 => ?_))
+        -- idx37 SUB x6, x21, x8
+        
+  have hsub37 :=
+    cpsTripleWithin_extend_code
+      (mem_at 41 (.SUB .x6 .x21 .x8) (B + 164) (by bv_omega) (by rw [spanProg_len]; norm_num)
+        (by rfl))
+      (sub_spec_gen_within .x6 .x21 .x8 cursor listBase v6 (B + 164) (by decide))
+  rw [show (B + 164 : Word) + 4 = B + 168 from by decide] at hsub37
+  rw [hsub_eq] at hsub37
+  have hsd38 :=
+    cpsTripleWithin_extend_code
+      (mem_at 42 (.SD .x19 .x6 (0 : BitVec 12)) (B + 168) (by bv_omega)
+        (by rw [spanProg_len]; norm_num) (by rfl))
+      (sd_spec_gen_within .x19 .x6 outStart startOffW st (0 : BitVec 12) (B + 168))
+  rw [show (B + 168 : Word) + 4 = B + 172 from by decide,
+    show outStart + signExtend12 (0 : BitVec 12) = outStart from by
+      rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega] at hsd38
+  have hsd39 :=
+    cpsTripleWithin_extend_code
+      (mem_at 43 (.SD .x20 .x10 (0 : BitVec 12)) (B + 172) (by bv_omega)
+        (by rw [spanProg_len]; norm_num) (by rfl))
+      (sd_spec_gen_within .x20 .x10 outSize itemLenW sz (0 : BitVec 12) (B + 172))
+  rw [show (B + 172 : Word) + 4 = B + 176 from by decide,
+    show outSize + signExtend12 (0 : BitVec 12) = outSize from by
+      rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega] at hsd39
+  have hli40 :=
+    cpsTripleWithin_extend_code
+      (mem_at 44 (.LI .x10 (0 : Word)) (B + 176) (by bv_omega) (by rw [spanProg_len]; norm_num)
+        (by rfl))
+      (li_spec_gen_within .x10 itemLenW (0 : Word) (B + 176) (by decide))
+  rw [show (B + 176 : Word) + 4 = B + 180 from by decide] at hli40
+  have hjal41 :=
+    cpsTripleWithin_extend_code
+      (mem_at 45 (.JAL .x0 (8 : BitVec 21)) (B + 180) (by bv_omega) (by rw [spanProg_len]; norm_num)
+        (by rfl))
+      (jal_x0_spec_gen_within (8 : BitVec 21) (B + 180))
+  rw [show (B + 180 : Word) + signExtend21 (8 : BitVec 21) = B + 188 from by
+      rw [show signExtend21 (8 : BitVec 21) = (8 : Word) from by decide]; bv_omega] at hjal41
+  set Fbase : Assertion :=
+    ((.x2 ↦ᵣ newSp) **
+      (.x1 ↦ᵣ (B + 164)) **
+        (.x9 ↦ᵣ endPtr) **
+          (.x18 ↦ᵣ indexW) **
+            savedFrame newSp saved **
+              regOwn .x5 **
+                (.x7 ↦ᵣ v7) **
+                  (.x11 ↦ᵣ v11) **
+                    (.x12 ↦ᵣ v12) **
+                      (.x13 ↦ᵣ v13) **
+                        (.x14 ↦ᵣ v14) **
+                          (.x0 ↦ᵣ (0 : Word)) **
+                            bytesRegion listBase bs ** (.x22 ↦ᵣ BitVec.ofNat 64 i))
+  have f37 :=
+    cpsTripleWithin_frameR
+      (Fbase **
+        (.x19 ↦ᵣ outStart) **
+          (.x20 ↦ᵣ outSize) ** (.x10 ↦ᵣ itemLenW) ** (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (by simp only [Fbase, savedFrame];
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hsub37
+  have f38 :=
+    cpsTripleWithin_frameR
+      (Fbase **
+        (.x20 ↦ᵣ outSize) **
+          (.x8 ↦ᵣ listBase) ** (.x21 ↦ᵣ cursor) ** (.x10 ↦ᵣ itemLenW) ** (outSize ↦ₘ sz))
+      (by simp only [Fbase, savedFrame];
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hsd38
+  have f39 :=
+    cpsTripleWithin_frameR
+      (Fbase **
+        (.x19 ↦ᵣ outStart) **
+          (.x8 ↦ᵣ listBase) ** (.x21 ↦ᵣ cursor) ** (.x6 ↦ᵣ startOffW) ** (outStart ↦ₘ startOffW))
+      (by simp only [Fbase, savedFrame];
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hsd39
+  have f40 :=
+    cpsTripleWithin_frameR
+      (Fbase **
+        (.x19 ↦ᵣ outStart) **
+          (.x20 ↦ᵣ outSize) **
+            (.x8 ↦ᵣ listBase) **
+              (.x21 ↦ᵣ cursor) **
+                (.x6 ↦ᵣ startOffW) ** (outStart ↦ₘ startOffW) ** (outSize ↦ₘ itemLenW))
+      (by simp only [Fbase, savedFrame];
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hli40
+  have f41raw :=
+    cpsTripleWithin_frameR
+      (Fbase **
+        (.x19 ↦ᵣ outStart) **
+          (.x20 ↦ᵣ outSize) **
+            (.x8 ↦ᵣ listBase) **
+              (.x21 ↦ᵣ cursor) **
+                (.x6 ↦ᵣ startOffW) **
+                  (.x10 ↦ᵣ (0 : Word)) ** (outStart ↦ₘ startOffW) ** (outSize ↦ₘ itemLenW))
+      (by simp only [Fbase, savedFrame];
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hjal41
+  have f41 :
+    cpsTripleWithin 1 (B + 180) (B + 188) spanCr
+      (Fbase **
+        (.x19 ↦ᵣ outStart) **
+          (.x20 ↦ᵣ outSize) **
+            (.x8 ↦ᵣ listBase) **
+              (.x21 ↦ᵣ cursor) **
+                (.x6 ↦ᵣ startOffW) **
+                  (.x10 ↦ᵣ (0 : Word)) ** (outStart ↦ₘ startOffW) ** (outSize ↦ₘ itemLenW))
+      (Fbase **
+        (.x19 ↦ᵣ outStart) **
+          (.x20 ↦ᵣ outSize) **
+            (.x8 ↦ᵣ listBase) **
+              (.x21 ↦ᵣ cursor) **
+                (.x6 ↦ᵣ startOffW) **
+                  (.x10 ↦ᵣ (0 : Word)) ** (outStart ↦ₘ startOffW) ** (outSize ↦ₘ itemLenW)) :=
+    cpsTripleWithin_weaken (fun _ hp => (sepConj_emp_left _).2 hp)
+      (fun _ hq => (sepConj_emp_left _).1 hq) f41raw
+  have c01 :=
+    cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by simp only [Fbase, savedFrame] at hp ⊢; xperm_chunked hp) f37 f38
+  have c02 :=
+    cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by simp only [Fbase, savedFrame] at hp ⊢; xperm_chunked hp) c01 f39
+  have c03 :=
+    cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by simp only [Fbase, savedFrame] at hp ⊢; xperm_chunked hp) c02 f40
+  have c04 :=
+    cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by simp only [Fbase, savedFrame] at hp ⊢; xperm_chunked hp) c03 f41
+  refine
+    cpsTripleWithin_weaken
+      (fun h hp => by
+        simp only [amb, cursor, itemLenW, Fbase, savedFrame, bs] at hp ⊢
+        xperm_chunked hp)
+      (fun h hq => by
+        -- Rearrange concrete post into amb ** (x10 ** x21 ** x22 ** own5 ** x6↦ ** …)
+        
+        have hq1 :
+          (amb newSp listBase endPtr indexW outStart outSize startOffW itemLenW (B + 164) saved
+                bs **
+              ((.x10 ↦ᵣ (0 : Word)) **
+                (.x21 ↦ᵣ cursor) **
+                  (.x22 ↦ᵣ BitVec.ofNat 64 i) **
+                    regOwn .x5 **
+                      (.x6 ↦ᵣ startOffW) **
+                        (.x7 ↦ᵣ v7) **
+                          (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14)))
+            h :=
+          by
+          simp only [amb, Fbase, savedFrame, cursor, startOffW, itemLenW, bs] at hq ⊢
+          xperm_chunked hq
+        have hq2 :
+          (amb newSp listBase endPtr indexW outStart outSize startOffW itemLenW (B + 164) saved
+                bs **
+              ((.x10 ↦ᵣ (0 : Word)) **
+                (.x21 ↦ᵣ cursor) **
+                  (.x22 ↦ᵣ BitVec.ofNat 64 i) **
+                    regOwn .x5 **
+                      regOwn .x6 **
+                        regOwn .x7 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14))
+            h :=
+          by
+          refine
+            sepConj_mono (fun _ x => x)
+              (sepConj_mono (fun _ x => x)
+                (sepConj_mono (fun _ x => x)
+                  (sepConj_mono (fun _ x => x)
+                    (sepConj_mono (fun _ x => x)
+                      (sepConj_mono (regIs_implies_regOwn .x6)
+                        (sepConj_mono (regIs_implies_regOwn .x7)
+                          (sepConj_mono (regIs_implies_regOwn .x11)
+                            (sepConj_mono (regIs_implies_regOwn .x12)
+                              (sepConj_mono (regIs_implies_regOwn .x13)
+                                (regIs_implies_regOwn .x14))))))))))
+              _ hq1
+        simp only [bodyPost, startOff, startOffW, itemLenW, cursor, bs] at hq2 ⊢
+        exact hq2)
+      c04
+
+
+-- @@ L792-824 verbatim
+/-- Compose exit path: inv at exitGate → bodyPost at bodyExit. -/
+theorem exit_stores
+    (newSp listBase endPtr indexW outStart outSize st sz raVal : Word)
+    (saved : Saved) (items : List RLPItem) (i : Nat)
+    (v7 v10 v11 v12 v13 v14 : Word)
+    (h_end : endPtr =
+      listBase + BitVec.ofNat 64 (encode (.list items)).length)
+    (h_align : listBase.toNat % 8 = 0)
+    (h_over : listBase.toNat + (encode (.list items)).length < 2 ^ 64)
+    (h_valid : ∀ j, j < (encode (.list items)).length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 j) = true)
+    (hi : i < items.length)
+    (h_walk : WalkedSpanForm items i) :
+    cpsTripleWithin 20 (B + 152) (B + 188) spanCr
+      (inv newSp listBase endPtr indexW outStart outSize st sz raVal
+        saved items i v7 v10 v11 v12 v13 v14)
+      (bodyPost newSp listBase endPtr indexW outStart outSize (B + 164)
+        saved items i hi) := by
+  have h_walk_i : SpanForm ((encode (items[i]'hi)).getD 0 0) :=
+    h_walk i (Nat.le_refl _) hi
+  have h1 := exit_precall newSp listBase endPtr indexW outStart outSize
+    st sz raVal saved items i v7 v10 v11 v12 v13 v14
+    h_end h_over hi
+  have h2 := exit_size_call newSp listBase endPtr indexW outStart outSize
+    st sz raVal saved items i v7 v11 v12 v13 v14
+    h_align h_over h_valid hi h_walk_i
+  have h3 := exit_finish newSp listBase endPtr indexW outStart outSize
+    st sz saved items i v7 v11 v12 v13 v14
+    hi
+  have c12 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by simp only [savedFrame, amb] at hp ⊢; xperm_chunked hp) h1 h2
+  exact cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by simp only [savedFrame, amb] at hp ⊢; xperm_chunked hp) c12 h3
+
+
+-- @@ L826-826 verbatim
+/-! ## Compose: loop induction, body, abiFrame wrap -/
+
+
+-- @@ L828-832 verbatim
+/-- After `n` continues, ra is the size-call return (`B+124`); else entry ra.
+    Not `private`: `RlpItemSpanLong.body_spec_long` composes the same
+    `loop_to_exit` → `exit_stores` hand-off for the long header arm. -/
+def loopExitRa (n : Nat) (raVal : Word) : Word :=
+  if n = 0 then raVal else B + 140
+
+
+-- @@ L834-910 verbatim
+/-- Walk from counter `k` to `i`, landing at the exit gate. -/
+theorem loop_to_exit
+    (newSp listBase endPtr indexW outStart outSize st sz raVal : Word)
+    (saved : Saved) (items : List RLPItem) (k i : Nat)
+    (v7 v10 v11 v12 v13 v14 : Word)
+    (h_end : endPtr =
+      listBase + BitVec.ofNat 64 (encode (.list items)).length)
+    (h_align : listBase.toNat % 8 = 0)
+    (h_over : listBase.toNat + (encode (.list items)).length < 2 ^ 64)
+    (h_valid : ∀ j, j < (encode (.list items)).length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 j) = true)
+    (hi : i < items.length)
+    (hk_le : k ≤ i)
+    (h_idx : indexW = BitVec.ofNat 64 i)
+    (h_walk : WalkedSpanForm items i) :
+    ∃ v10f,
+      cpsTripleWithin (1 + 19 * (i - k)) (B + 124) (B + 152) spanCr
+        (inv newSp listBase endPtr indexW outStart outSize st sz raVal
+          saved items k v7 v10 v11 v12 v13 v14)
+        (inv newSp listBase endPtr indexW outStart outSize st sz
+          (loopExitRa (i - k) raVal)
+          saved items i v7 v10f v11 v12 v13 v14) := by
+  -- Induct on n = i - k via a strengthened motive.
+  suffices h : ∀ n k raVal v10,
+      n = i - k → k ≤ i →
+      ∃ v10f,
+        cpsTripleWithin (1 + 19 * (i - k)) (B + 124) (B + 152) spanCr
+          (inv newSp listBase endPtr indexW outStart outSize st sz raVal
+            saved items k v7 v10 v11 v12 v13 v14)
+          (inv newSp listBase endPtr indexW outStart outSize st sz
+            (loopExitRa (i - k) raVal)
+            saved items i v7 v10f v11 v12 v13 v14) by
+    exact h (i - k) k raVal v10 rfl hk_le
+  intro n
+  induction n with
+  | zero =>
+    intro k raVal v10 hn hk_le
+    have hk_eq : k = i := by omega
+    refine ⟨v10, ?_⟩
+    have hex :=
+      loop_exit newSp listBase endPtr indexW outStart outSize st sz raVal
+        saved items i v7 v10 v11 v12 v13 v14 h_idx
+    -- after k=i: fuel 1+19*0, ra = loopExitRa 0 raVal = raVal
+    rw [hk_eq]
+    simpa [loopExitRa, Nat.sub_self] using hex
+  | succ n ih =>
+    intro k raVal v10 hn hk_le
+    have hk_lt : k < i := by omega
+    have hstep :=
+      loop_continue newSp listBase endPtr indexW outStart outSize st sz raVal
+        saved items k i v7 v10 v11 v12 v13 v14
+        h_end h_align h_over h_valid hi hk_lt h_idx h_walk
+    have hk_items : k < items.length := Nat.lt_trans hk_lt hi
+    set v10m : Word :=
+      BitVec.ofNat 64 (encode (items[k]'hk_items)).length
+    have ⟨v10f, hrest⟩ :=
+      ih (k + 1) (B + 140) v10m (by omega) (by omega)
+    have hfuel :
+        1 + 19 * (i - k) = 19 + (1 + 19 * (i - (k + 1))) := by omega
+    have hra :
+        loopExitRa (i - (k + 1)) (B + 140) = loopExitRa (i - k) raVal := by
+      have hpos : i - k ≠ 0 := by omega
+      simp only [loopExitRa, hpos, ↓reduceIte]
+      split <;> rfl
+    have hrest' :
+        cpsTripleWithin (1 + 19 * (i - (k + 1))) (B + 124) (B + 152) spanCr
+          (inv newSp listBase endPtr indexW outStart outSize st sz (B + 140)
+            saved items (k + 1) v7 v10m v11 v12 v13 v14)
+          (inv newSp listBase endPtr indexW outStart outSize st sz
+            (loopExitRa (i - k) raVal)
+            saved items i v7 v10f v11 v12 v13 v14) := by
+      rwa [hra] at hrest
+    have c := cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by simp only [savedFrame, amb, inv] at hp ⊢; xperm_chunked hp)
+      hstep hrest'
+    refine ⟨v10f, ?_⟩
+    rwa [hfuel]
+
+
+-- @@ L912-1023 verbatim
+/-- Full body: setup + short header + loop + exit stores.
+    `saved.ra` must equal `raVal` (caller return still in x1 at body entry). -/
+theorem body_spec
+    (newSp listBase listLenW indexW outStart outSize st sz raVal : Word)
+    (saved : Saved) (items : List RLPItem) (i : Nat)
+    (v5 v6 v7 : Word)
+    (hshort : payloadLen items ≤ 55)
+    (h_len : listLenW =
+      BitVec.ofNat 64 (encode (.list items)).length)
+    (h_align : listBase.toNat % 8 = 0)
+    (h_over : listBase.toNat + (encode (.list items)).length < 2 ^ 64)
+    (h_valid : ∀ j, j < (encode (.list items)).length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 j) = true)
+    (hi : i < items.length)
+    (h_idx : indexW = BitVec.ofNat 64 i)
+    (h_walk : WalkedSpanForm items i)
+    (hra : saved.ra = raVal) :
+    cpsTripleWithin (34 + 19 * i) (B + 36) (B + 188) spanCr
+      ((.x2 ↦ᵣ newSp) **
+       (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) **
+       (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) ** (.x20 ↦ᵣ saved.s4) **
+       (.x21 ↦ᵣ saved.s5) ** (.x22 ↦ᵣ saved.s6) **
+       savedFrame newSp saved **
+       (.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listLenW) ** (.x12 ↦ᵣ indexW) **
+       (.x13 ↦ᵣ outStart) ** (.x14 ↦ᵣ outSize) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase (encode (.list items)) **
+       (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+      (bodyPost newSp listBase (listBase + listLenW) indexW outStart outSize
+        (B + 164) saved items i hi) := by
+  set bs := encode (.list items)
+  set endPtr : Word := listBase + listLenW
+  have h_end : endPtr =
+      listBase + BitVec.ofNat 64 (encode (.list items)).length := by
+    simp only [endPtr]; rw [h_len]
+  have hlen_pos : 0 < bs.length := by
+    simp only [bs]; exact encode_length_pos (.list items)
+  -- setup constructs Saved.mk raVal s0..; rewrite to `saved`
+  -- setup builds Saved.mk raVal s0..; transport via hra
+  have hsetup0 := setup_spec newSp listBase listLenW indexW outStart outSize
+    st sz raVal saved.s0 saved.s1 saved.s2 saved.s3 saved.s4 saved.s5 saved.s6
+    v5 v6 v7 bs
+  have hsetup' :
+      cpsTripleWithin 5 (B + 36) (B + 56) spanCr
+        ((.x2 ↦ᵣ newSp) **
+         (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) **
+         (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) ** (.x20 ↦ᵣ saved.s4) **
+         (.x21 ↦ᵣ saved.s5) ** (.x22 ↦ᵣ saved.s6) **
+         savedFrame newSp saved **
+         (.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listLenW) ** (.x12 ↦ᵣ indexW) **
+         (.x13 ↦ᵣ outStart) ** (.x14 ↦ᵣ outSize) **
+         (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+         (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bs **
+         (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
+        ((.x2 ↦ᵣ newSp) **
+         (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ endPtr) **
+         (.x18 ↦ᵣ indexW) ** (.x19 ↦ᵣ outStart) ** (.x20 ↦ᵣ outSize) **
+         (.x21 ↦ᵣ saved.s5) ** (.x22 ↦ᵣ saved.s6) **
+         savedFrame newSp saved **
+         (.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listLenW) ** (.x12 ↦ᵣ indexW) **
+         (.x13 ↦ᵣ outStart) ** (.x14 ↦ᵣ outSize) **
+         (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+         (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bs **
+         (outStart ↦ₘ st) ** (outSize ↦ₘ sz)) := by
+    -- savedFrame of mk-raVal equals savedFrame of saved under hra
+    have hsf :
+        savedFrame newSp
+            { ra := raVal, s0 := saved.s0, s1 := saved.s1, s2 := saved.s2,
+              s3 := saved.s3, s4 := saved.s4, s5 := saved.s5, s6 := saved.s6 }
+          = savedFrame newSp saved := by
+      simp only [savedFrame, hra]
+    simpa [hsf, endPtr] using hsetup0
+  -- header
+  have hheader := header_to_loop newSp listBase endPtr indexW outStart outSize
+    st sz raVal saved items v5 v6 v7 listBase listLenW indexW outStart outSize
+    saved.s5 saved.s6 hshort h_end h_align h_over h_valid hlen_pos
+  -- loop 0 → i (entry x10 = listBase)
+  have ⟨v10f, hloop⟩ :=
+    loop_to_exit newSp listBase endPtr indexW outStart outSize st sz raVal
+      saved items 0 i v7 listBase listLenW indexW outStart outSize
+      h_end h_align h_over h_valid hi (Nat.zero_le _) h_idx h_walk
+  -- exit
+  have hexit :=
+    exit_stores newSp listBase endPtr indexW outStart outSize st sz
+      (loopExitRa i raVal) saved items i
+      v7 v10f listLenW indexW outStart outSize
+      h_end h_align h_over h_valid hi h_walk
+  -- compose 5+8+(1+19*i)+20 = 34+19*i
+  -- mid0: setup post ↔ header pre (both flat ABI regs)
+  have c01 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_chunked hp) hsetup' hheader
+  -- mid1: header post = inv k=0 raVal ↔ loop pre (same)
+  -- `savedFrame`/`bs` keep the atom shape xperm_chunked expects even when
+  -- some simp args fire as no-ops on one side (silence unused-arg linter).
+  have c02 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      set_option linter.unusedSimpArgs false in
+        simp only [inv, amb, savedFrame, bs] at hp ⊢
+      xperm_chunked hp)
+    c01 hloop
+  -- mid2: loop post = inv i (loopExitRa i raVal) ↔ exit pre
+  have c03 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      set_option linter.unusedSimpArgs false in
+        simp only [inv, amb, savedFrame, bodyPost, bs, Nat.sub_zero] at hp ⊢
+      xperm_chunked hp)
+    c02 hexit
+  -- fuel association from nested seq
+  have hfuel :
+      5 + 8 + (1 + 19 * (i - 0)) + 20 = 34 + 19 * i := by omega
+  convert c03 using 1
+  · exact hfuel.symm
+
+
+-- @@ L1025-1028 verbatim
+/-- Entry frame-reg map. -/
+def spanVals (ret s0 s1 s2 s3 s4 s5 s6 : Word) : Reg → Word
+  | .x1 => ret | .x8 => s0 | .x9 => s1 | .x18 => s2
+  | .x19 => s3 | .x20 => s4 | .x21 => s5 | .x22 => s6 | _ => 0
+
+
+-- @@ L1030-1041 verbatim
+/-- Body-exit frame-reg map. -/
+def spanVals' (listBase endPtr indexW outStart outSize : Word)
+    (items : List RLPItem) (i : Nat) : Reg → Word
+  | .x1 => B + 164
+  | .x8 => listBase
+  | .x9 => endPtr
+  | .x18 => indexW
+  | .x19 => outStart
+  | .x20 => outSize
+  | .x21 => listBase + BitVec.ofNat 64 (listCursor items i)
+  | .x22 => BitVec.ofNat 64 i
+  | _ => 0
+
+
+-- @@ L1043-1047 verbatim
+theorem spanVals_saved (ret s0 s1 s2 s3 s4 s5 s6 : Word) :
+    spanVals ret s0 s1 s2 s3 s4 s5 s6 =
+      savedVals { ra := ret, s0 := s0, s1 := s1, s2 := s2, s3 := s3,
+                  s4 := s4, s5 := s5, s6 := s6 } := by
+  funext r; cases r <;> rfl
+
+
+-- @@ L1049-1157 expanded
+/-- Whole-routine success triple under short-list + WalkedSpanForm domain. -/
+theorem rlp_item_span_spec_within (sp0 ret listBase listLenW indexW outStart outSize st sz : Word)
+    (s0 s1 s2 s3 s4 s5 s6 v5 v6 v7 : Word) (items : List RLPItem) (i : Nat)
+    (hshort : payloadLen items ≤ 55)
+    (h_len : listLenW = BitVec.ofNat 64 (encode (.list items)).length)
+    (h_align : listBase.toNat % 8 = 0)
+    (h_over : listBase.toNat + (encode (.list items)).length < 2 ^ 64)
+    (h_valid :
+      ∀ j,
+        j < (encode (.list items)).length → isValidByteAccess (listBase + BitVec.ofNat 64 j) = true)
+    (hi : i < items.length) (h_idx : indexW = BitVec.ofNat 64 i) (h_walk : WalkedSpanForm items i)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin (1 + spanFrame.length + (34 + 19 * i) + spanFrame.length + 1 + 1)
+      rlpItemSpanBase ret spanCr
+      ((.x2 ↦ᵣ sp0) **
+        regsAt spanFrame (spanVals ret s0 s1 s2 s3 s4 s5 s6) **
+          frameSlotsOwn spanFrame (sp0 + signExtend12 (-64 : BitVec 12)) **
+            ((.x10 ↦ᵣ listBase) **
+              (.x11 ↦ᵣ listLenW) **
+                (.x12 ↦ᵣ indexW) **
+                  (.x13 ↦ᵣ outStart) **
+                    (.x14 ↦ᵣ outSize) **
+                      (.x5 ↦ᵣ v5) **
+                        (.x6 ↦ᵣ v6) **
+                          (.x7 ↦ᵣ v7) **
+                            (.x0 ↦ᵣ (0 : Word)) **
+                              bytesRegion listBase (encode (.list items)) **
+                                (outStart ↦ₘ st) ** (outSize ↦ₘ sz)))
+      ((.x2 ↦ᵣ sp0) **
+        regsAt spanFrame (spanVals ret s0 s1 s2 s3 s4 s5 s6) **
+          frameSlotsSaved spanFrame (sp0 + signExtend12 (-64 : BitVec 12))
+              (spanVals ret s0 s1 s2 s3 s4 s5 s6) **
+            ((.x10 ↦ᵣ (0 : Word)) **
+              (outStart ↦ₘ BitVec.ofNat 64 (listCursor items i)) **
+                (outSize ↦ₘ BitVec.ofNat 64 (encode (items[i]'hi)).length) **
+                  (.x0 ↦ᵣ (0 : Word)) **
+                    bytesRegion listBase (encode (.list items)) **
+                      regOwn .x5 **
+                        regOwn .x6 **
+                          regOwn .x7 **
+                            regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14)) :=
+  by
+  set saved : Saved :=
+    { ra := ret, s0 := s0, s1 := s1, s2 := s2, s3 := s3, s4 := s4, s5 := s5, s6 := s6 }
+  set newSp := sp0 + signExtend12 (-64 : BitVec 12)
+  set endPtr := listBase + listLenW
+  set vals := spanVals ret s0 s1 s2 s3 s4 s5 s6
+  set vals' := spanVals' listBase endPtr indexW outStart outSize items i
+  have hentry : rlpItemSpanBase + BitVec.ofNat 64 (4 * (1 + spanFrame.length)) = B + 36 := by
+    simp only [spanFrame_length, B]; decide
+  have hexit :
+    rlpItemSpanBase + BitVec.ofNat 64 (4 * (1 + spanFrame.length + spanBody.length)) = B + 188 := by
+    simp only [spanFrame_length, spanBody_length, B]; decide
+  have hb0 :=
+    body_spec newSp listBase listLenW indexW outStart outSize st sz ret saved items i v5 v6 v7
+      hshort h_len h_align h_over h_valid hi h_idx h_walk (by rfl)
+  have hbody :
+    cpsTripleWithin (34 + 19 * i) (rlpItemSpanBase + BitVec.ofNat 64 (4 * (1 + spanFrame.length)))
+      (rlpItemSpanBase + BitVec.ofNat 64 (4 * (1 + spanFrame.length + spanBody.length))) spanCr
+      ((.x2 ↦ᵣ newSp) **
+        regsAt spanFrame vals **
+          frameSlotsSaved spanFrame newSp vals **
+            ((.x10 ↦ᵣ listBase) **
+              (.x11 ↦ᵣ listLenW) **
+                (.x12 ↦ᵣ indexW) **
+                  (.x13 ↦ᵣ outStart) **
+                    (.x14 ↦ᵣ outSize) **
+                      (.x5 ↦ᵣ v5) **
+                        (.x6 ↦ᵣ v6) **
+                          (.x7 ↦ᵣ v7) **
+                            (.x0 ↦ᵣ (0 : Word)) **
+                              bytesRegion listBase (encode (.list items)) **
+                                (outStart ↦ₘ st) ** (outSize ↦ₘ sz)))
+      ((.x2 ↦ᵣ newSp) **
+        regsAt spanFrame vals' **
+          frameSlotsSaved spanFrame newSp vals **
+            ((.x10 ↦ᵣ (0 : Word)) **
+              (outStart ↦ₘ BitVec.ofNat 64 (listCursor items i)) **
+                (outSize ↦ₘ BitVec.ofNat 64 (encode (items[i]'hi)).length) **
+                  (.x0 ↦ᵣ (0 : Word)) **
+                    bytesRegion listBase (encode (.list items)) **
+                      regOwn .x5 **
+                        regOwn .x6 **
+                          regOwn .x7 **
+                            regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14)) :=
+    by
+    rw [hentry, hexit]
+    have hvals : vals = savedVals saved := by simp only [vals, saved, spanVals_saved]
+    have hslots : frameSlotsSaved spanFrame newSp vals = savedFrame newSp saved := by rw [hvals];
+      exact frameSlotsSaved_spanFrame newSp saved
+    have hregs :
+      regsAt spanFrame vals =
+        ((.x1 ↦ᵣ ret) **
+          (.x8 ↦ᵣ s0) **
+            (.x9 ↦ᵣ s1) **
+              (.x18 ↦ᵣ s2) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** (.x22 ↦ᵣ s6)) :=
+      by rw [hvals, regsAt_spanFrame]
+    have hregs' :
+      regsAt spanFrame vals' =
+        ((.x1 ↦ᵣ (B + 164)) **
+          (.x8 ↦ᵣ listBase) **
+            (.x9 ↦ᵣ endPtr) **
+              (.x18 ↦ᵣ indexW) **
+                (.x19 ↦ᵣ outStart) **
+                  (.x20 ↦ᵣ outSize) **
+                    (.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
+                      (.x22 ↦ᵣ BitVec.ofNat 64 i)) :=
+      by
+      simp only [vals', spanVals', regsAt, spanFrame, endPtr, h_idx, List.foldr_cons,
+        List.foldr_nil, sepConj_emp_right']
+    refine cpsTripleWithin_weaken ?pre ?post hb0
+    · intro h hp
+      rw [hregs, hslots] at hp
+      simp only [saved] at hp ⊢
+      xperm_chunked hp
+    · intro h hq
+      simp only [bodyPost, amb] at hq
+      rw [hregs', hslots]
+      simp only [saved, endPtr, h_idx] at hq ⊢
+      xperm_chunked hq
+  exact
+    abiFrame_spec (posImm := (64 : BitVec 12)) (hframe := rfl) (hne := by decide) (hbound := by
+      decide) (hprogBound := by decide) (hret := rfl) (halign := halign) (hframeRestore :=
+      sext_frameRestore _ _ _ (by decide)) (hcpF := by
+      repeat
+        first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_regOwn
+        | exact pcFree_memIs
+        | exact pcFree_memOwn
+        | exact pcFree_emp
+        | exact pcFree_pure
+        | exact pcFree_instrAt
+        | exact bytesRegion_pcFree _ _
+        | exact pcFree_stackFree _ _
+        | exact pcFree_dwordsIs _ _
+        | exact pcFree_regsAt _ _
+        | exact pcFree_frameSlotsOwn _ _
+        | exact pcFree_frameSlotsSaved _ _ _
+        | exact pcFree_regFileIs _)
+      (hcpF' := by
+      repeat
+        first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_regOwn
+        | exact pcFree_memIs
+        | exact pcFree_memOwn
+        | exact pcFree_emp
+        | exact pcFree_pure
+        | exact pcFree_instrAt
+        | exact bytesRegion_pcFree _ _
+        | exact pcFree_stackFree _ _
+        | exact pcFree_dwordsIs _ _
+        | exact pcFree_regsAt _ _
+        | exact pcFree_frameSlotsOwn _ _
+        | exact pcFree_frameSlotsSaved _ _ _
+        | exact pcFree_regFileIs _)
+      (hsub := by
+      first
+      | (with_reducible exact fun a i h => h)
+      | ((with_reducible refine CodeReq.singleton_mono ?_); decide)
+      | ((with_reducible refine CodeReq.sub_ofProg_of_lookup _ _ ?_ ?_) <;> decide))
+      (hbody := hbody)
+
+
+-- @@ L1159-1159 verbatim
+end RlpItemSpanSpec

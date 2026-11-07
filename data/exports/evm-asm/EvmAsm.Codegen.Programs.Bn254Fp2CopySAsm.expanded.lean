@@ -1,0 +1,530 @@
+/-
+  EvmAsm.Codegen.Programs.Bn254Fp2CopySAsm
+
+  Verified SAsm port of `bnp_fp2_copy`: copy the 64-byte BN254 Fp2 buffer from
+  `a0` to the writable destination at `a1`.  The emitted routine is a
+  straight-line sequence of eight LD/SD dword pairs.
+-/
+
+import EvmAsm.Rv64.SAsm.MultiDword
+import EvmAsm.Rv64.SAsm.MultiRw
+import EvmAsm.Rv64.SAsm.Tactic
+import EvmAsm.Codegen.Programs.Bn254Fp2
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.SAsm.FnFlat
+
+
+-- @@ L16-16 verbatim
+namespace EvmAsm.Codegen
+
+
+-- @@ L18-18 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Rv64.SAsm.Stmt
+
+
+-- @@ L20-20 verbatim
+namespace Bn254Fp2CopySAsm
+
+
+-- @@ L22-30 verbatim
+private def bnpFp2CopyInstrs : List Instr :=
+  [.LD .x5 .x10 (0 : BitVec 12), .SD .x11 .x5 (0 : BitVec 12),
+   .LD .x5 .x10 (8 : BitVec 12), .SD .x11 .x5 (8 : BitVec 12),
+   .LD .x5 .x10 (16 : BitVec 12), .SD .x11 .x5 (16 : BitVec 12),
+   .LD .x5 .x10 (24 : BitVec 12), .SD .x11 .x5 (24 : BitVec 12),
+   .LD .x5 .x10 (32 : BitVec 12), .SD .x11 .x5 (32 : BitVec 12),
+   .LD .x5 .x10 (40 : BitVec 12), .SD .x11 .x5 (40 : BitVec 12),
+   .LD .x5 .x10 (48 : BitVec 12), .SD .x11 .x5 (48 : BitVec 12),
+   .LD .x5 .x10 (56 : BitVec 12), .SD .x11 .x5 (56 : BitVec 12)]
+
+
+-- @@ L32-32 verbatim
+def bnpFp2CopyBody : Stmt := .block "copy" bnpFp2CopyInstrs
+
+
+-- @@ L34-36 verbatim
+def frameOk64 (src dst : Word) : Prop :=
+  src.toNat + 64 < 2 ^ 64 ∧ dst.toNat + 64 < 2 ^ 64 ∧
+    (src.toNat + 64 ≤ dst.toNat ∨ dst.toNat + 64 ≤ src.toNat)
+
+
+-- @@ L38-48 verbatim
+def bnpFp2CopyFn (src dst : Word) (srcBytes orig : List (BitVec 8)) : Fn where
+  name := "bnpFp2Copy"
+  region := ⟨src, srcBytes⟩
+  rw := ⟨dst, 64⟩
+  -- ⚠️ Ambient PINNED: both flat adapters need the post to DETERMINE it. See
+  -- `bncZero64Fn` (#12244).
+  pre := fun rf ws A =>
+    rf.get .x10 = src ∧ rf.get .x11 = dst ∧ ws = orig ∧
+    orig.length = 64 ∧ srcBytes.length = 64 ∧ frameOk64 src dst ∧ A = empAssertion
+  post := fun _ ws A => ws = srcBytes ∧ A = empAssertion
+  body := bnpFp2CopyBody
+
+
+-- @@ L50-54 verbatim
+def bnpFp2Copy_verified : Program := bnpFp2CopyBody.flatten 0
+
+#guard (bnpFp2Copy_verified : List Instr).length = 16
+#guard bnpFp2CopyBody.flatten 0 = bnpFp2CopyBody.flatten 0x80000000
+#guard bnpFp2CopyBody.flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)] = bnpFp2Copy_prog
+
+
+-- @@ L56-56 verbatim
+private theorem se12_0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+
+-- @@ L57-57 verbatim
+private theorem se12_8 : signExtend12 (8 : BitVec 12) = (8 : Word) := by decide
+
+-- @@ L58-58 verbatim
+private theorem se12_16 : signExtend12 (16 : BitVec 12) = (16 : Word) := by decide
+
+-- @@ L59-59 verbatim
+private theorem se12_24 : signExtend12 (24 : BitVec 12) = (24 : Word) := by decide
+
+-- @@ L60-60 verbatim
+private theorem se12_32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by decide
+
+-- @@ L61-61 verbatim
+private theorem se12_40 : signExtend12 (40 : BitVec 12) = (40 : Word) := by decide
+
+-- @@ L62-62 verbatim
+private theorem se12_48 : signExtend12 (48 : BitVec 12) = (48 : Word) := by decide
+
+-- @@ L63-63 verbatim
+private theorem se12_56 : signExtend12 (56 : BitVec 12) = (56 : Word) := by decide
+
+
+-- @@ L65-66 verbatim
+private def copyWin64 (srcBytes orig : List (BitVec 8)) (i : Nat) : List (BitVec 8) :=
+  srcBytes.take (8 * i) ++ orig.drop (8 * i)
+
+
+-- @@ L68-70 verbatim
+private theorem copyWin64_zero (srcBytes orig : List (BitVec 8)) :
+    copyWin64 srcBytes orig 0 = orig := by
+  simp [copyWin64]
+
+
+-- @@ L72-76 verbatim
+private theorem copyWin64_8_eq (srcBytes orig : List (BitVec 8))
+    (hs : srcBytes.length = 64) (ho : orig.length = 64) :
+    copyWin64 srcBytes orig 8 = srcBytes := by
+  simp only [copyWin64, Nat.reduceMul]
+  rw [List.take_of_length_le (by omega), List.drop_eq_nil_of_le (by omega), List.append_nil]
+
+
+-- @@ L78-123 verbatim
+private theorem copyWin64_step (srcBytes orig : List (BitVec 8)) (i : Nat)
+    (hs : srcBytes.length = 64) (ho : orig.length = 64) (hi : i < 8) :
+    setBytes (copyWin64 srcBytes orig i) (8 * i)
+      (dwordBytes (packBytes ((srcBytes.drop (8 * i)).take 8))) =
+    copyWin64 srcBytes orig (i + 1) := by
+  have htake : (srcBytes.take (8 * i)).length = 8 * i := by
+    simp only [List.length_take, hs]
+    omega
+  have hseglen : ((srcBytes.drop (8 * i)).take 8).length = 8 := by
+    simp only [List.length_take, List.length_drop, hs]
+    omega
+  have hpayload : dwordBytes (packBytes ((srcBytes.drop (8 * i)).take 8)) =
+      (srcBytes.drop (8 * i)).take 8 := by
+    exact dwordBytes_packBytes _ hseglen
+  rw [hpayload]
+  rw [copyWin64]
+  rw [setBytes_append_right _ _ _ _ (by rw [htake])]
+  rw [htake, Nat.sub_self]
+  have hfit : 0 + ((srcBytes.drop (8 * i)).take 8).length ≤ (orig.drop (8 * i)).length := by
+    rw [hseglen]
+    simp only [List.length_drop, ho]
+    omega
+  have hslot := setBytes_slot (orig.drop (8 * i)) ((srcBytes.drop (8 * i)).take 8) 0 hfit
+  rw [List.drop_zero, hseglen] at hslot
+  have hdrop : (setBytes (orig.drop (8 * i)) 0 ((srcBytes.drop (8 * i)).take 8)).drop 8
+      = (orig.drop (8 * i)).drop 8 := by
+    simpa [hseglen] using
+      (setBytes_drop_of_le ((srcBytes.drop (8 * i)).take 8) (orig.drop (8 * i)) 0 8 (by
+        rw [hseglen]))
+  have hset : setBytes (orig.drop (8 * i)) 0 ((srcBytes.drop (8 * i)).take 8)
+      = (srcBytes.drop (8 * i)).take 8 ++ (orig.drop (8 * i)).drop 8 := by
+    conv_lhs =>
+      rw [← List.take_append_drop 8
+        (setBytes (orig.drop (8 * i)) 0 ((srcBytes.drop (8 * i)).take 8))]
+    rw [hslot, hdrop]
+  rw [hset]
+  rw [show (orig.drop (8 * i)).drop 8 = orig.drop (8 * (i + 1)) from by
+    rw [List.drop_drop]
+    congr 1]
+  simp only [copyWin64]
+  rw [← List.append_assoc]
+  congr 1
+  rw [show srcBytes.take (8 * i) ++ (srcBytes.drop (8 * i)).take 8 =
+      srcBytes.take (8 * (i + 1)) from by
+    rw [← List.take_add]
+    congr 1]
+
+
+-- @@ L125-132 verbatim
+private theorem copy_load_miss (src dst : Word) (w : List (BitVec 8)) (k : Nat)
+    (hwl : w.length = 64) (hk : k ≤ 56) (hnw_s : src.toNat + 64 < 2 ^ 64)
+    (hnw_d : dst.toNat + 64 < 2 ^ 64)
+    (hdisj : src.toNat + 64 ≤ dst.toNat ∨ dst.toNat + 64 ≤ src.toNat) :
+    ¬ inRw dst w (src + BitVec.ofNat 64 k) 8 := by
+  unfold inRw
+  rw [hwl]
+  rcases hdisj with h | h <;> bv_omega
+
+
+-- @@ L134-142 verbatim
+private theorem execInstrRF_ld_romiss (ro : Region) (rwBase : Word)
+    (rf : RegFile) (ws : List (BitVec 8)) (rd rs1 : Reg) (ofs : BitVec 12)
+    (v : Word)
+    (hmiss : ¬ inRw rwBase ws (rf.get rs1 + signExtend12 ofs) 8)
+    (hv : ro.dwordAt (rf.get rs1 + signExtend12 ofs) = v) :
+    execInstrRF ro rwBase rf ws (.LD rd rs1 ofs) = (rf.set rd v, ws) := by
+  unfold execInstrRF
+  dsimp only [aluSem, loadSem]
+  rw [if_neg hmiss, hv]
+
+
+-- @@ L144-164 verbatim
+private theorem copyFold64 (orig srcBytes : List (BitVec 8))
+    (ho : orig.length = 64) (hs : srcBytes.length = 64) :
+    setBytes (setBytes (setBytes (setBytes (setBytes (setBytes (setBytes (setBytes orig 0
+        (dwordBytes (packBytes ((srcBytes.drop 0).take 8)))) 8
+        (dwordBytes (packBytes ((srcBytes.drop 8).take 8)))) 16
+        (dwordBytes (packBytes ((srcBytes.drop 16).take 8)))) 24
+        (dwordBytes (packBytes ((srcBytes.drop 24).take 8)))) 32
+        (dwordBytes (packBytes ((srcBytes.drop 32).take 8)))) 40
+        (dwordBytes (packBytes ((srcBytes.drop 40).take 8)))) 48
+        (dwordBytes (packBytes ((srcBytes.drop 48).take 8)))) 56
+        (dwordBytes (packBytes ((srcBytes.drop 56).take 8))) = srcBytes := by
+  rw [show orig = copyWin64 srcBytes orig 0 from by rw [copyWin64_zero]]
+  rw [copyWin64_step srcBytes orig 0 hs ho (by omega),
+    copyWin64_step srcBytes orig 1 hs ho (by omega),
+    copyWin64_step srcBytes orig 2 hs ho (by omega),
+    copyWin64_step srcBytes orig 3 hs ho (by omega),
+    copyWin64_step srcBytes orig 4 hs ho (by omega),
+    copyWin64_step srcBytes orig 5 hs ho (by omega),
+    copyWin64_step srcBytes orig 6 hs ho (by omega),
+    copyWin64_step srcBytes orig 7 hs ho (by omega),
+    copyWin64_8_eq srcBytes orig hs ho]
+
+
+
+
+-- @@ L168-172 verbatim
+private theorem off_load_ok64 (base : Word) (k : Nat) (hk : k ≤ 56) (hdiv : 8 ∣ k) :
+    8 ∣ (base + BitVec.ofNat 64 k - base).toNat ∧
+      (base + BitVec.ofNat 64 k - base).toNat + 8 ≤ 64 := by
+  rw [show (base + BitVec.ofNat 64 k - base).toNat = k from by bv_omega]
+  omega
+
+
+-- @@ L174-178 verbatim
+private theorem off_store_ok64 (base : Word) (k : Nat) (hk : k ≤ 56) (hdiv : 8 ∣ k) :
+    (base + BitVec.ofNat 64 k - base).toNat + 8 ≤ 64 ∧
+      8 ∣ (base + BitVec.ofNat 64 k - base).toNat := by
+  rw [show (base + BitVec.ofNat 64 k - base).toNat = k from by bv_omega]
+  omega
+
+
+-- @@ L180-222 verbatim
+private theorem copy_blockVCs (src dst : Word) (srcBytes : List (BitVec 8))
+    (rf : RegFile) (ws : List (BitVec 8))
+    (hx10 : rf.get .x10 = src) (hx11 : rf.get .x11 = dst)
+    (hws : ws.length = 64) (hs : srcBytes.length = 64) (hfr : frameOk64 src dst) :
+    blockVCs ⟨src, srcBytes⟩ dst rf ws bnpFp2CopyInstrs := by
+  obtain ⟨hnws, hnwd, hdisj⟩ := hfr
+  have hxne1 : Reg.x10 ≠ Reg.x5 := by decide
+  have hxne2 : Reg.x11 ≠ Reg.x5 := by decide
+  have hmiss : ∀ (w : List (BitVec 8)) (ofs : BitVec 12) (k : Nat), w.length = 64 →
+      signExtend12 ofs = BitVec.ofNat 64 k → k ≤ 56 →
+      ¬ inRw dst w (rf.get .x10 + signExtend12 ofs) 8 := by
+    intro w ofs k hwl hofs hk
+    rw [hofs, hx10]
+    exact copy_load_miss src dst w k hwl hk hnws hnwd hdisj
+  simp only [bnpFp2CopyInstrs, blockVCs, loadSem, storeSem, execInstrRF_ld_snd,
+    execInstrRF_sd_fst, execInstrRF_sd_snd, execInstrRF_ld_get_ne (h := hxne1),
+    execInstrRF_ld_get_ne (h := hxne2)]
+  rw [if_neg (hmiss _ 0 0 (by simp only [hws]) se12_0 (by decide)),
+    if_neg (hmiss _ 8 8 (by simp only [length_setBytes, hws]) se12_8 (by decide)),
+    if_neg (hmiss _ 16 16 (by simp only [length_setBytes, hws]) se12_16 (by decide)),
+    if_neg (hmiss _ 24 24 (by simp only [length_setBytes, hws]) se12_24 (by decide)),
+    if_neg (hmiss _ 32 32 (by simp only [length_setBytes, hws]) se12_32 (by decide)),
+    if_neg (hmiss _ 40 40 (by simp only [length_setBytes, hws]) se12_40 (by decide)),
+    if_neg (hmiss _ 48 48 (by simp only [length_setBytes, hws]) se12_48 (by decide)),
+    if_neg (hmiss _ 56 56 (by simp only [length_setBytes, hws]) se12_56 (by decide))]
+  simp only [Region.loadOk, inRw, hx10, hx11, se12_0, se12_8, se12_16, se12_24,
+    se12_32, se12_40, se12_48, se12_56, length_setBytes, hws, hs]
+  exact ⟨off_load_ok64 src 0 (by decide) (by decide),
+    off_store_ok64 dst 0 (by decide) (by decide),
+    off_load_ok64 src 8 (by decide) (by decide),
+    off_store_ok64 dst 8 (by decide) (by decide),
+    off_load_ok64 src 16 (by decide) (by decide),
+    off_store_ok64 dst 16 (by decide) (by decide),
+    off_load_ok64 src 24 (by decide) (by decide),
+    off_store_ok64 dst 24 (by decide) (by decide),
+    off_load_ok64 src 32 (by decide) (by decide),
+    off_store_ok64 dst 32 (by decide) (by decide),
+    off_load_ok64 src 40 (by decide) (by decide),
+    off_store_ok64 dst 40 (by decide) (by decide),
+    off_load_ok64 src 48 (by decide) (by decide),
+    off_store_ok64 dst 48 (by decide) (by decide),
+    off_load_ok64 src 56 (by decide) (by decide),
+    off_store_ok64 dst 56 (by decide) (by decide), trivial⟩
+
+
+-- @@ L224-329 verbatim
+private theorem copy_engine (src dst : Word) (srcBytes orig : List (BitVec 8))
+    (rf : RegFile) (hsrc : srcBytes.length = 64) (horig : orig.length = 64)
+    (hx10 : rf.get .x10 = src) (hx11 : rf.get .x11 = dst) (hfr : frameOk64 src dst) :
+    (execBlock ⟨src, srcBytes⟩ dst rf orig bnpFp2CopyInstrs).2 = srcBytes := by
+  obtain ⟨hnw_s, hnw_d, hdisj⟩ := hfr
+  set v0 := Region.dwordAt ⟨src, srcBytes⟩ (src + signExtend12 0) with hv0
+  set v8 := Region.dwordAt ⟨src, srcBytes⟩ (src + signExtend12 8) with hv8
+  set v16 := Region.dwordAt ⟨src, srcBytes⟩ (src + signExtend12 16) with hv16
+  set v24 := Region.dwordAt ⟨src, srcBytes⟩ (src + signExtend12 24) with hv24
+  set v32 := Region.dwordAt ⟨src, srcBytes⟩ (src + signExtend12 32) with hv32
+  set v40 := Region.dwordAt ⟨src, srcBytes⟩ (src + signExtend12 40) with hv40
+  set v48 := Region.dwordAt ⟨src, srcBytes⟩ (src + signExtend12 48) with hv48
+  set v56 := Region.dwordAt ⟨src, srcBytes⟩ (src + signExtend12 56) with hv56
+  have hxne : (Reg.x10 ≠ .x5) ∧ (Reg.x11 ≠ .x5) := ⟨by decide, by decide⟩
+  simp only [bnpFp2CopyInstrs]
+  rw [execBlock_cons, execInstrRF_ld_romiss ⟨src, srcBytes⟩ dst rf orig .x5 .x10 0 v0
+    (by rw [hx10]; exact copy_load_miss src dst orig 0 horig (by omega) hnw_s hnw_d hdisj)
+    (by rw [hv0, hx10])]
+  dsimp only
+  rw [execBlock_cons, execInstrRF_sd_dword ⟨src, srcBytes⟩ dst _ orig .x11 .x5 0 0
+    (by rw [RegFile.get_set_ne _ _ _ _ hxne.2, hx11, se12_0]; bv_omega)]
+  dsimp only
+  rw [RegFile.get_set_self _ _ _ (by decide)]
+  rw [execBlock_cons, execInstrRF_ld_romiss ⟨src, srcBytes⟩ dst _ _ .x5 .x10 8 v8
+    (by simp only [RegFile.get_set_ne _ _ _ _ hxne.1, hx10]
+        exact copy_load_miss src dst _ 8 (by simp [length_setBytes, horig]) (by omega)
+          hnw_s hnw_d hdisj)
+    (by simp only [hv8, RegFile.get_set_ne _ _ _ _ hxne.1, hx10])]
+  dsimp only
+  rw [execBlock_cons, execInstrRF_sd_dword ⟨src, srcBytes⟩ dst _ _ .x11 .x5 8 8
+    (by simp only [RegFile.get_set_ne _ _ _ _ hxne.2, hx11, se12_8]; bv_omega)]
+  dsimp only
+  rw [RegFile.get_set_self _ _ _ (by decide)]
+  rw [execBlock_cons, execInstrRF_ld_romiss ⟨src, srcBytes⟩ dst _ _ .x5 .x10 16 v16
+    (by simp only [RegFile.get_set_ne _ _ _ _ hxne.1, hx10]
+        exact copy_load_miss src dst _ 16 (by simp [length_setBytes, horig]) (by omega)
+          hnw_s hnw_d hdisj)
+    (by simp only [hv16, RegFile.get_set_ne _ _ _ _ hxne.1, hx10])]
+  dsimp only
+  rw [execBlock_cons, execInstrRF_sd_dword ⟨src, srcBytes⟩ dst _ _ .x11 .x5 16 16
+    (by simp only [RegFile.get_set_ne _ _ _ _ hxne.2, hx11, se12_16]; bv_omega)]
+  dsimp only
+  rw [RegFile.get_set_self _ _ _ (by decide)]
+  rw [execBlock_cons, execInstrRF_ld_romiss ⟨src, srcBytes⟩ dst _ _ .x5 .x10 24 v24
+    (by simp only [RegFile.get_set_ne _ _ _ _ hxne.1, hx10]
+        exact copy_load_miss src dst _ 24 (by simp [length_setBytes, horig]) (by omega)
+          hnw_s hnw_d hdisj)
+    (by simp only [hv24, RegFile.get_set_ne _ _ _ _ hxne.1, hx10])]
+  dsimp only
+  rw [execBlock_cons, execInstrRF_sd_dword ⟨src, srcBytes⟩ dst _ _ .x11 .x5 24 24
+    (by simp only [RegFile.get_set_ne _ _ _ _ hxne.2, hx11, se12_24]; bv_omega)]
+  dsimp only
+  rw [RegFile.get_set_self _ _ _ (by decide)]
+  rw [execBlock_cons, execInstrRF_ld_romiss ⟨src, srcBytes⟩ dst _ _ .x5 .x10 32 v32
+    (by simp only [RegFile.get_set_ne _ _ _ _ hxne.1, hx10]
+        exact copy_load_miss src dst _ 32 (by simp [length_setBytes, horig]) (by omega)
+          hnw_s hnw_d hdisj)
+    (by simp only [hv32, RegFile.get_set_ne _ _ _ _ hxne.1, hx10])]
+  dsimp only
+  rw [execBlock_cons, execInstrRF_sd_dword ⟨src, srcBytes⟩ dst _ _ .x11 .x5 32 32
+    (by simp only [RegFile.get_set_ne _ _ _ _ hxne.2, hx11, se12_32]; bv_omega)]
+  dsimp only
+  rw [RegFile.get_set_self _ _ _ (by decide)]
+  rw [execBlock_cons, execInstrRF_ld_romiss ⟨src, srcBytes⟩ dst _ _ .x5 .x10 40 v40
+    (by simp only [RegFile.get_set_ne _ _ _ _ hxne.1, hx10]
+        exact copy_load_miss src dst _ 40 (by simp [length_setBytes, horig]) (by omega)
+          hnw_s hnw_d hdisj)
+    (by simp only [hv40, RegFile.get_set_ne _ _ _ _ hxne.1, hx10])]
+  dsimp only
+  rw [execBlock_cons, execInstrRF_sd_dword ⟨src, srcBytes⟩ dst _ _ .x11 .x5 40 40
+    (by simp only [RegFile.get_set_ne _ _ _ _ hxne.2, hx11, se12_40]; bv_omega)]
+  dsimp only
+  rw [RegFile.get_set_self _ _ _ (by decide)]
+  rw [execBlock_cons, execInstrRF_ld_romiss ⟨src, srcBytes⟩ dst _ _ .x5 .x10 48 v48
+    (by simp only [RegFile.get_set_ne _ _ _ _ hxne.1, hx10]
+        exact copy_load_miss src dst _ 48 (by simp [length_setBytes, horig]) (by omega)
+          hnw_s hnw_d hdisj)
+    (by simp only [hv48, RegFile.get_set_ne _ _ _ _ hxne.1, hx10])]
+  dsimp only
+  rw [execBlock_cons, execInstrRF_sd_dword ⟨src, srcBytes⟩ dst _ _ .x11 .x5 48 48
+    (by simp only [RegFile.get_set_ne _ _ _ _ hxne.2, hx11, se12_48]; bv_omega)]
+  dsimp only
+  rw [RegFile.get_set_self _ _ _ (by decide)]
+  rw [execBlock_cons, execInstrRF_ld_romiss ⟨src, srcBytes⟩ dst _ _ .x5 .x10 56 v56
+    (by simp only [RegFile.get_set_ne _ _ _ _ hxne.1, hx10]
+        exact copy_load_miss src dst _ 56 (by simp [length_setBytes, horig]) (by omega)
+          hnw_s hnw_d hdisj)
+    (by simp only [hv56, RegFile.get_set_ne _ _ _ _ hxne.1, hx10])]
+  dsimp only
+  rw [execBlock_cons, execInstrRF_sd_dword ⟨src, srcBytes⟩ dst _ _ .x11 .x5 56 56
+    (by simp only [RegFile.get_set_ne _ _ _ _ hxne.2, hx11, se12_56]; bv_omega)]
+  dsimp only
+  rw [RegFile.get_set_self _ _ _ (by decide), execBlock_nil]
+  dsimp only
+  rw [hv0, hv8, hv16, hv24, hv32, hv40, hv48, hv56]
+  simp only [Region.dwordAt, se12_0, se12_8, se12_16, se12_24, se12_32, se12_40,
+    se12_48, se12_56]
+  rw [show (src + 0 - src).toNat = 0 from by bv_omega,
+    show (src + 8 - src).toNat = 8 from by bv_omega,
+    show (src + 16 - src).toNat = 16 from by bv_omega,
+    show (src + 24 - src).toNat = 24 from by bv_omega,
+    show (src + 32 - src).toNat = 32 from by bv_omega,
+    show (src + 40 - src).toNat = 40 from by bv_omega,
+    show (src + 48 - src).toNat = 48 from by bv_omega,
+    show (src + 56 - src).toNat = 56 from by bv_omega]
+  exact copyFold64 orig srcBytes horig hsrc
+
+
+-- @@ L331-345 verbatim
+theorem bnpFp2CopyFn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
+    (hwf : (Region.mk src srcBytes).wf) (hrww : RwRegion.wf ⟨dst, 64⟩) (base : Word) :
+    (bnpFp2CopyFn src dst srcBytes orig).Spec base := by
+  vcgen
+  case region => exact ⟨hwf, hrww⟩
+  case bnpFp2Copy.copy.mem =>
+    rintro rf ws A hlen ⟨hx10, hx11, -, -, hs, hfr, -⟩
+    exact copy_blockVCs src dst srcBytes rf ws hx10 hx11 hlen hs hfr
+  case bnpFp2Copy.post =>
+    rintro rf ws A
+      ⟨rf₀, ws₀, hlen, ⟨hx10, hx11, hwseq, hlenorig, hs, hfr, hA⟩, hrfeq, hwseq2⟩
+    subst ws₀
+    rw [hwseq2]
+    -- conjunction now: window equality, then the pinned ambient
+    exact ⟨copy_engine src dst srcBytes orig rf₀ hs hlenorig hx10 hx11 hfr, hA⟩
+
+
+-- @@ L347-352 verbatim
+/-! ## Flat linked-entry contract (#12244)
+
+    Same recipe as `bncZero64Flat_spec`, on the COPIER shape. ⚠️ One structural
+    difference from the zeroers: `region := ⟨src, srcBytes⟩` is NON-EMPTY, so the
+    read-only source window rides through the adapter as an outer conjunct and the
+    `Region.empty` collapse the zeroer lifts use does not apply here. -/
+
+
+-- @@ L354-355 verbatim
+def bnpFp2CopyCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.bnp_fp2_copy : Word) bnpFp2Copy_prog
+
+
+-- @@ L357-360 verbatim
+/-- The exposed registers other than `a0`/`a1`. -/
+def bnpFp2CopyScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x12, .x13, .x14, .x15, .x16, .x17]
+
+
+-- @@ L362-369 verbatim
+private theorem exposedRegs_split_bnpFp2Copy (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) ** regAtomsOf vf bnpFp2CopyScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [bnpFp2CopyScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+
+-- @@ L371-371 verbatim
+private theorem x10_notin_bnpFp2Copy_scratch : (.x10 : Reg) ∉ bnpFp2CopyScratch := by decide
+
+-- @@ L372-372 verbatim
+private theorem x11_notin_bnpFp2Copy_scratch : (.x11 : Reg) ∉ bnpFp2CopyScratch := by decide
+
+
+-- @@ L374-452 verbatim
+/-- **`bnp_fp2_copy`, whole-routine flat triple at the guest entry.**
+
+    Copies the 64 bytes at `a0` to `a1`. Anchored over
+    `bnpFp2CopyCr = CodeReq.ofProg (GuestAddrs.bnp_fp2_copy) bnpFp2Copy_prog`, the `GuestImageEntries`
+    pairing, so this IS the image claim and is rowable.
+
+    DETERMINISTIC post: the destination becomes exactly `srcBytes`, and the SOURCE
+    region is pinned INTACT.
+
+    ⚠️ NOT total over its argument types: `frameOk64 src dst` unfolds to both bases
+    non-overflowing AND the two windows DISJOINT, so the overlapping case is outside
+    the domain rather than handled. -/
+theorem bnpFp2CopyFlat_spec (ret src dst : Word) (srcBytes orig : List (BitVec 8))
+    (hwfR : Region.wf ⟨src, srcBytes⟩) (hrww : RwRegion.wf ⟨dst, 64⟩)
+    (hs : srcBytes.length = 64) (ho : orig.length = 64)
+    (hfr : frameOk64 src dst)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((bnpFp2CopyFn src dst srcBytes orig).body.steps + 1)
+      (GuestAddrs.bnp_fp2_copy : Word) ret bnpFp2CopyCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst) **
+        regOwns bnpFp2CopyScratch ** bytesRegion dst orig ** bytesRegion src srcBytes)
+      (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs **
+        bytesRegion dst srcBytes ** bytesRegion src srcBytes) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns bnpFp2CopyScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst) **
+        bytesRegion dst orig ** bytesRegion src srcBytes)
+      (fun vf => ?_))
+  have hpre : (bnpFp2CopyFn src dst srcBytes orig).pre
+      (fun r => if r = .x10 then src else if r = .x11 then dst else vf r)
+      orig empAssertion := by
+    -- ⚠️ This module's `pre` lists `orig.length` BEFORE `srcBytes.length`, the
+    -- opposite of `bncCopy64Fn`; supply them in that order.
+    refine ⟨?_, ?_, rfl, ho, hs, hfr, rfl⟩
+    · show RegFile.get _ .x10 = src
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = dst
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlat (bnpFp2CopyFn src dst srcBytes orig)
+    (GuestAddrs.bnp_fp2_copy : Word)
+    (bnpFp2CopyFn_spec src dst srcBytes orig hwfR hrww (GuestAddrs.bnp_fp2_copy : Word))
+    -- literal, not `body.size`: a `show` mentioning the arguments leaves free
+    -- variables and `decide` refuses.
+    (by show 4 * (16 + 1) ≤ 2 ^ 64; decide)
+    ret halign
+    (fun r => if r = .x10 then src else if r = .x11 then dst else vf r)
+    orig ho hpre
+    (fun _ _ _ hpost => hpost.2)
+    (Q := regOwns exposedRegs ** bytesRegion dst srcBytes)
+    (fun rf' ws' _ hpost' hp hh => by
+      obtain ⟨hws', -⟩ := hpost'
+      subst ws'
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
+      exact sepConj_mono_left
+        (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
+  rw [show (bnpFp2CopyFn src dst srcBytes orig).programRet (GuestAddrs.bnp_fp2_copy : Word)
+      = bnpFp2Copy_prog from rfl] at had
+  rw [show (bnpFp2CopyFn src dst srcBytes orig).region = (⟨src, srcBytes⟩ : Region) from rfl,
+      show (bnpFp2CopyFn src dst srcBytes orig).rw.base = dst from rfl] at had
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_bnpFp2Copy,
+    show (if (Reg.x10 : Reg) = .x10 then src else
+        if (Reg.x10 : Reg) = .x11 then dst else vf .x10) = src from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then src else
+        if (Reg.x11 : Reg) = .x11 then dst else vf .x11) = dst from by
+      rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]
+      exact if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then src else if r = .x11 then dst else vf r)
+      vf bnpFp2CopyScratch
+      (fun r hr => by
+        show (if r = .x10 then src else if r = .x11 then dst else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) => x10_notin_bnpFp2Copy_scratch (hc ▸ hr)),
+            if_neg (fun (hc : r = .x11) => x11_notin_bnpFp2Copy_scratch (hc ▸ hr))])] at had
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) had
+
+
+-- @@ L454-454 verbatim
+end Bn254Fp2CopySAsm
+
+
+-- @@ L456-456 verbatim
+end EvmAsm.Codegen

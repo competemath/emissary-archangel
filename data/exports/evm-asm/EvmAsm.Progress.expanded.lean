@@ -1,0 +1,1247 @@
+/-
+  EvmAsm.Progress
+
+  Drift-proof registry of per-opcode verification state across the
+  143 EVM opcode bytes modeled by `EvmAsm.Evm64.EvmOpcode`. The
+  registry is the single source of truth for the rendered coverage
+  tables; renaming or deleting a theorem named below fails this
+  file's elaboration via the witness `abbrev`s at the bottom.
+
+  See `scripts/progress-report.sh` for how the registry is consumed.
+  To read the rendered report, generate it:
+  `scripts/progress-report.sh --write` (it is a generated artifact and
+  is deliberately NOT committed — #12683). The committed sibling render
+  is `DRIFT.md` (`scripts/drift-report.sh --write`, drift-gated).
+
+  Conventions:
+  * `ProofTier` classifies an `EvmOpcode` constructor by how deep
+    its verification reaches.
+  * `OpcodeEntry` is one row of the registry.
+  * Parameterized opcode families (`DUP n`, `SWAP n`, `LOG kind`)
+    are one row each.
+  * Counts are kernel-checked via `by decide` theorems.
+-/
+
+import EvmAsm.Evm64.Add.Spec
+import EvmAsm.Evm64.Sub.Spec
+import EvmAsm.Evm64.Multiply.Spec
+import EvmAsm.Evm64.SignExtend.Spec
+import EvmAsm.Evm64.And.Spec
+import EvmAsm.Evm64.Or.Spec
+import EvmAsm.Evm64.Xor.Spec
+import EvmAsm.Evm64.Not.Spec
+import EvmAsm.Evm64.Byte.Spec
+import EvmAsm.Evm64.Shift.Semantic
+import EvmAsm.Evm64.Shift.ShlSemantic
+import EvmAsm.Evm64.Shift.SarSemantic
+import EvmAsm.Evm64.Lt.Spec
+import EvmAsm.Evm64.Gt.Spec
+import EvmAsm.Evm64.Eq.Spec
+import EvmAsm.Evm64.IsZero.Spec
+import EvmAsm.Evm64.Slt.Spec
+import EvmAsm.Evm64.Sgt.Spec
+import EvmAsm.Evm64.Pop.Spec
+import EvmAsm.Evm64.Push0.Spec
+import EvmAsm.Evm64.Push.Spec
+import EvmAsm.Evm64.Push.ImmediateCompose
+import EvmAsm.Evm64.Dup.Spec
+import EvmAsm.Evm64.Swap.Spec
+import EvmAsm.Evm64.MSize.Spec
+import EvmAsm.Stateless.State.AccountAssertions
+import EvmAsm.Stateless.State.AccountWriteUpsert
+import EvmAsm.Stateless.State.StorageWriteUpsert
+import EvmAsm.Stateless.SpecRef.StateTracker
+import EvmAsm.Evm64.MLoad.MemoryRegionStackSpec
+import EvmAsm.Evm64.MptAssertions
+import EvmAsm.Evm64.MptCorrespondence
+import EvmAsm.Evm64.WitnessAssertions
+import EvmAsm.Evm64.MStore8.Spec
+import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
+-- #10190 / PR #11910: the `evmMemoryIs` bridge lemmas, so the axiom gate covers them.
+-- MSTORE public top is region-backed; UnalignedFramed is pulled in transitively.
+import EvmAsm.Evm64.MStore.MemoryRegionStackSpec
+import EvmAsm.Evm64.DivMod.Spec.Unified
+import EvmAsm.Evm64.DivMod.V5StackSurfaceShared
+import EvmAsm.Evm64.DivMod.Compose.V6DivStackSpec
+import EvmAsm.Evm64.SDiv.SpecShared
+import EvmAsm.Evm64.SDiv.Compose.StackSpecV5
+import EvmAsm.Evm64.SDiv.Compose.ResultStackV5
+import EvmAsm.Evm64.SMod.Compose.StackSpecV5
+import EvmAsm.Evm64.SMod.Compose.ResultStackV5
+import EvmAsm.Evm64.SMod.SpecAllCase
+import EvmAsm.Evm64.AddMod.ResultTotalShared
+import EvmAsm.Evm64.MulMod.Compose.StackSpecAll
+import EvmAsm.Evm64.Exp.Spec
+import EvmAsm.Evm64.Exp.HeadroomProgramSpec
+import EvmAsm.Evm64.Exp.StackExecutionBridge
+import EvmAsm.Evm64.Env.Wrappers
+import EvmAsm.Evm64.Calldata.SizeSpec
+import EvmAsm.Evm64.Code.SizeSpec
+import EvmAsm.Evm64.ControlFlow.PcSpec
+import EvmAsm.Evm64.ControlFlow.JumpSpec
+import EvmAsm.Evm64.ControlFlow.JumpiSpec
+import EvmAsm.Evm64.GasOpcode.Spec
+import EvmAsm.Evm64.ReturnData.SizeSpec
+import EvmAsm.Evm64.BlobBaseFee.Spec
+import EvmAsm.Evm64.BlobHash.Spec
+import EvmAsm.Evm64.BlockHash.Spec
+import EvmAsm.Evm64.Code.CopyLoopSpec
+import EvmAsm.Evm64.ControlFlow.Jumpdest
+import EvmAsm.Evm64.Calldata.StageSpec
+import EvmAsm.Evm64.Calldata.CopySpec
+import EvmAsm.Evm64.Calldata.CopyLoopSpec
+import EvmAsm.Evm64.Terminating.StopSpec
+import EvmAsm.Evm64.Terminating.InvalidSpec
+import EvmAsm.Evm64.Terminating.ReturnHaltSpec
+import EvmAsm.Evm64.Terminating.ReturnSpec
+import EvmAsm.Evm64.Terminating.ReturnCaptureSpec
+import EvmAsm.Evm64.Terminating.ReturnHaltResolved
+import EvmAsm.Evm64.Terminating.RevertSpec
+import EvmAsm.Evm64.Terminating.SelfdestructSpec
+import EvmAsm.Evm64.Terminating.SelfdestructHaltResolved
+import EvmAsm.Evm64.Transient.StoreSpec
+import EvmAsm.Evm64.Transient.LoadSpec
+import EvmAsm.Evm64.Mcopy.Spec
+import EvmAsm.Evm64.ReturnData.CopySpec
+-- #11711: only the EL RLP fuel-monotonicity witnesses at the bottom of this file
+-- need it. `EL.RLP` was already reachable transitively (that is how
+-- `Nat.fromBytesBE_eq_zero_iff` resolves), but `FuelMono` is a new leaf, so it
+-- takes a direct import. Core → core, and no Codegen, so the rebuild-cost note in
+-- `Progress/Routines.lean`'s header is unaffected.
+import EvmAsm.EL.RLP.FuelMono
+-- #11896: the canonicality direction of the RLP round trip.
+import EvmAsm.EL.RLP.EncodeDecode
+-- #10780 item 3: the long-form span lemmas, the read side's missing `SpanForm` arms.
+import EvmAsm.EL.RLP.LongSpan
+
+
+-- @@ L117-117 verbatim
+namespace EvmAsm.Progress
+
+
+-- @@ L119-136 verbatim
+/-- Verification depth for one EVM opcode (or parameterized family). -/
+inductive ProofTier
+  /-- Top-level stack-level Hoare triple is proven for the full opcode. -/
+  | proven
+  /-- Program defined + `EvmWord.<op>_correct` theorem proven, but no
+      top-level `evm_<op>_stack_spec_within` wrap yet. -/
+  | partly
+  /-- Top-level Hoare triple proven, but gated by a nonvacuous input-domain
+      precondition (e.g. DIV/MOD `b.getLimbN 3 = 0`, SDIV `hStack`) — distinct
+      from `partly` (no complete triple). The dashboard shows domain coverage,
+      not blurred existence. -/
+  | conditional
+  /-- Pure executable-spec / handler / bridge semantics only; no RV64
+      subroutine produces the EVM result for this opcode. -/
+  | execSpec
+  /-- Not represented in `EvmOpcode` yet (e.g. unimplemented EIPs). -/
+  | notStarted
+  deriving DecidableEq, BEq, Repr
+
+
+-- @@ L138-177 verbatim
+/-- One row of the progress registry. -/
+structure OpcodeEntry where
+  /-- Display name; usually the EVM mnemonic. Parameterized families
+      use a width range, e.g. "PUSH1" or "DUP1..16". -/
+  name : String
+  /-- Verification depth. -/
+  tier : ProofTier
+  /-- Best-available witness theorem name, for diff readability. -/
+  proofRef : Option String
+  /-- Optional short note for the rendered report. -/
+  notes : String := ""
+  /-- Worst-case `cpsTripleWithin N` step bound for the witness theorem, when
+      one exists. Typed source of truth for the C.1 cycle-bound surrogate: a
+      silent `cpsTripleWithin 30 → 100` inflation now shows up as a registry
+      diff rather than buried in a free-text note (R-C4). `none` where the
+      opcode has no top-level triple yet, or where the bound is parametric in a
+      runtime operand or a family index (`MCOPY`'s `7 * len + 8`, `PUSH2..32`'s
+      `5 + 2 * n`, the copy loops' `9 * size + 10`) so no single literal
+      describes the row. A bound merely *named* rather than spelled is still a
+      literal and is recorded: `unifiedDivBound` is `def … : Nat := 946`, so
+      SDIV/SMOD/ADDMOD close to 1018/1018/3050.
+
+      This `N` is **bound to the witness theorem's own step bound** by
+      `EvmAsm/Progress/CycleBounds.lean` (#10552): every row that records a
+      literal here carries a `pin_cycle_bound` line, which reads the bound out
+      of the theorem's elaborated type and makes the kernel check it against
+      this field. Editing this number without the proof (or the proof without
+      this number) is a build failure, and a *new* row that records a bound
+      without a pin is a build failure too. -/
+  cycleBound : Option Nat := none
+  /-- Optional graded sub-lemma milestones (decode / stack-effect /
+      memory-effect / gas / composed-triple) so a long opcode push emits
+      incremental signal (R-A4). Empty = no milestone scaffold recorded. -/
+  milestones : List String := []
+  /-- For a `conditional` entry: name of a `…_precondition_reachable` lemma
+      (`decide`-checked on representative real inputs) proving the gating
+      antecedent is *satisfiable* — the anti-near-vacuity cover property
+      (R-A3). `none` until such a lemma is written. -/
+  coverRef : Option String := none
+  deriving Repr
+
+
+-- @@ L179-189 verbatim
+/-- Smart constructor for a registry row. Keeps the optional fields
+    (`cycleBound`, `milestones`, `coverRef`) defaulted so common rows stay
+    terse and only the entries that carry the extra data spell them out
+    (typically via the named `(cycleBound := N)` / `(coverRef := …)` args).
+    The anonymous `⟨…⟩` constructor cannot omit trailing defaulted fields, so
+    this wrapper is what makes the defaults usable in the registry literal. -/
+def entry (name : String) (tier : ProofTier) (proofRef : Option String)
+    (notes : String := "") (cycleBound : Option Nat := none)
+    (milestones : List String := []) (coverRef : Option String := none) :
+    OpcodeEntry :=
+  { name, tier, proofRef, notes, cycleBound, milestones, coverRef }
+
+
+-- @@ L191-194 verbatim
+/-! ## Registry
+
+    Ordering follows EVM opcode bytes 0x00..0xff for easy cross-reference
+    with `EvmAsm.Evm64.EvmOpcode.byte?`. -/
+
+-- @@ L195-555 verbatim
+def registry : List OpcodeEntry := [
+  -- Stop and arithmetic (0x00..0x0b)
+  entry "STOP" .proven (some "evm_stop_stack_spec_within")
+      ("halt-triple over the verified `evm_stop` program (byte image of the "
+       ++ "emitted `dispatchHaltRet 1` tail): sets `evm_halt_flag := 1`, points "
+       ++ "x1 at `.dispatch_resume`, and rets to `resume &&& ~~~1`; the two "
+       ++ "`la`s stay `hla1`/`hla2` reconstruction hyps as in the guard/glue "
+       ++ "precedents. First terminating/halt opcode — shape for INVALID/RETURN/"
+       ++ "REVERT/SELFDESTRUCT")
+      (cycleBound := some 7),
+  entry "ADD" .proven (some "evm_add_stack_spec_within") (cycleBound := some 30),
+  entry "MUL" .proven (some "evm_mul_stack_spec_within") (cycleBound := some 63),
+  entry "SUB" .proven (some "evm_sub_stack_spec_within") (cycleBound := some 30),
+  entry "DIV" .proven (some "evm_div_v6_stack_spec")
+      ("full-domain unconditional v6 DIV stack spec over divCodeV6 (n=1 " ++
+       "single-limb fast-path dispatch); the n≥2 / b=0 arm reuses the v5 " ++
+       "proof (evm_div_v5_unconditional_over_divCodeV6), the n=1 fast arm is " ++
+       "divK_fastBody_dispatchPostV5_within_v6, merged via the BNE/BEQ dispatch")
+      (cycleBound := some 954),
+  entry "SDIV" .proven (some "evm_sdiv_exact_callable_return_result_stack_spec_within_v5")
+      ("unconditional SDIV stack spec over sdivCodeV5 (the shipped v5 codegen — " ++
+       "signed DIV via the proven unsigned evm_div_callable_v5); the former " ++
+       "hStack is discharged by M2's callable correctness, incoming x2/x9 " ++
+       "generalized (both dead), x9 shed at the return.  The conclusion spells " ++
+       "its bound `cpsTripleWithin (((49 + (unifiedDivBound + 1)) + 21) + 1)`, " ++
+       "which is NAMED but CLOSED — `unifiedDivBound` is `def … : Nat := 946` " ++
+       "(DivMod/Spec/UnifiedBzero.lean) — so it evaluates to 1018 and is " ++
+       "recorded like any other literal; the pin in Progress/CycleBounds.lean " ++
+       "is what computes it")
+      (cycleBound := some 1018),
+  entry "MOD" .proven (some "evm_mod_v6_stack_spec")
+      ("full-domain unconditional v6 MOD stack spec over modCodeV6 (n=1 " ++
+       "single-limb fast-path dispatch); the n≥2 / b=0 arm reuses the v5 " ++
+       "proof (evm_mod_v5_unconditional_over_modCodeV6), the n=1 fast arm is " ++
+       "modK_fastBody_dispatchPostV5_within_v6, merged via the BNE/BEQ dispatch")
+      (cycleBound := some 954),
+  entry "SMOD" .proven
+      (some "evm_smod_exact_callable_return_result_stack_spec_within_v5")
+      ("unconditional SMOD stack spec over smodCodeV5 (the shipped v5 codegen — " ++
+       "signed MOD via the proven unsigned evm_mod_callable_v5); the former " ++
+       "hStack is discharged by M2's callable correctness, incoming x2/x9 " ++
+       "generalized (both dead), x9 shed at the return.  Bound spelled " ++
+       "`cpsTripleWithin (((49 + (unifiedDivBound + 1)) + 21) + 1)` — named but " ++
+       "CLOSED (`unifiedDivBound = 946`), evaluating to 1018; see SDIV.  (was: " ++
+       "nonzero path still parameterized by unsigned-MOD callable h_stack")
+      (cycleBound := some 1018),
+  entry "ADDMOD" .proven (some "evm_addmod_total_result_stack_spec_within")
+      ("unconditional total ADDMOD stack spec over evm_addmod_total ∪ " ++
+       "evm_mod_callable_v5 (the shipped codegen — issue #9704): all three " ++
+       "runtime branches covered (N = 0 zero path; no-carry low-sum " ++
+       "reduction; the 257-bit carry-out path computing (2^256 + r) mod N " ++
+       "via three MOD near-calls — rMod, pow256ModN N as ((2^256−1) mod N " ++
+       "+ 1) mod N, and a pre-reduced modular add with branch-free " ++
+       "conditional subtract). Public form evmStackIs sp [a, b, N] → " ++
+       "evmStackIs (sp+64) [EvmWord.addmod a b N]; only dispatcher-pinned " ++
+       "code-layout side conditions.  The bound is a nested sum over three " ++
+       "`unifiedDivBound` MOD near-calls, `cpsTripleWithin (((30 + 1) + 8) + " ++
+       "(1 + ((((((21 + (1 + (unifiedDivBound + 1))) + 1) + (((24 + (1 + " ++
+       "(unifiedDivBound + 1))) + 1))) + ((24 + (1 + (unifiedDivBound + 1))) " ++
+       "+ 1)) + (((8 + 30) + 25) + 30)) + 1)))` — named but CLOSED " ++
+       "(`unifiedDivBound = 946`), evaluating to 3050.  (was: partial " ++
+       "OR-guard domain surface over the legacy v1 callable)")
+      (cycleBound := some 3050),
+  entry "MULMOD" .proven (some "evm_mulmod_stack_spec_within")
+      ("full-domain unconditional MULMOD stack spec for every modulus (no " ++
+       "n ≤ 2^255 hypothesis); bit-serial 512-bit reducer. Scratchpad " ++
+       "relocated below the stack pointer (sp + signExtend12 3936..4088 = " ++
+       "sp-160..sp-8) so the live EVM stack is preserved")
+      (cycleBound := some 34295),
+  entry "EXP" .proven (some "evm_exp_stack_spec_within")
+      ("unconditional EXP stack spec over the concrete appended headroom " ++
+       "program (evm_exp_msb_saved_bit_two_mul_fixed_headroom ;; mul_callable, " ++
+       "CodeReq.ofProg): full 256-iteration square-and-multiply loop via the " ++
+       "proven MUL callable; pre = evmStackIs evmSp (base :: exponent :: rest) " ++
+       "plus an explicit x2 local frame and 8 headroom dwords + 2 scratch EVM " ++
+       "words below the live stack (evmSp-128..evmSp-32 — MULMOD below-sp " ++
+       "precedent); post = evmStackIs (evmSp+32) (EvmWord.exp base exponent " ++
+       ":: rest) with clobbered state shed to evmExpHeadroomPublicLeftoverFrame; " ++
+       "only side condition is the even entry base.  (was: partial headroom " ++
+       "surface pending the public wrapper)")
+      (cycleBound := some 49447),
+  entry "SIGNEXTEND" .proven (some "evm_signextend_stack_spec_within") (cycleBound := some 28),
+
+  -- Comparison and bitwise (0x10..0x1d)
+  entry "LT" .proven (some "evm_lt_stack_spec_within") (cycleBound := some 26),
+  entry "GT" .proven (some "evm_gt_stack_spec_within") (cycleBound := some 26),
+  entry "SLT" .proven (some "evm_slt_stack_spec_within") (cycleBound := some 25),
+  entry "SGT" .proven (some "evm_sgt_stack_spec_within") (cycleBound := some 25),
+  entry "EQ" .proven (some "evm_eq_stack_spec_within") (cycleBound := some 21),
+  entry "ISZERO" .proven (some "evm_iszero_stack_spec_within") (cycleBound := some 12),
+  entry "AND" .proven (some "evm_and_stack_spec_within") (cycleBound := some 17),
+  entry "OR" .proven (some "evm_or_stack_spec_within") (cycleBound := some 17),
+  entry "XOR" .proven (some "evm_xor_stack_spec_within") (cycleBound := some 17),
+  entry "NOT" .proven (some "evm_not_stack_spec_within") (cycleBound := some 12),
+  entry "BYTE" .proven (some "evm_byte_stack_spec_within") (cycleBound := some 29),
+  -- The three shift bounds were 90/90/95 until `Progress/CycleBounds.lean`'s
+  -- pins were added; all three theorems prove `cpsTripleWithin 46`. 90 and 95
+  -- are `360 / 4` and `380 / 4` — the *instruction* counts of `shlCode` /
+  -- `sarCode` (the exit offsets in the specs are `base + 360` / `base + 380`),
+  -- carried over from the free-text `N=…` notes that predate the typed field
+  -- and never reconciled with the bound the proof actually establishes
+  -- (`afe4d54df` bounded the shift specs at 46 three weeks before the registry
+  -- landed). This is exactly the divergence class #10552 is about, and it is
+  -- now impossible to reintroduce: see `EvmAsm/Progress/CycleBounds.lean`.
+  entry "SHL" .proven (some "evm_shl_stack_spec_within") (cycleBound := some 46),
+  entry "SHR" .proven (some "evm_shr_stack_spec_within") (cycleBound := some 46),
+  entry "SAR" .proven (some "evm_sar_stack_spec_within") (cycleBound := some 46),
+
+  -- KECCAK (0x20)
+  entry "KECCAK256" .execSpec none
+      "delegated to zkvm_keccak256 accelerator; EL/Keccak*Bridge",
+
+  -- Environment (0x30..0x3e)
+  entry "ADDRESS" .proven (some "Env.evm_address_stack_spec_within")
+      (cycleBound := some 9),
+  entry "BALANCE" .execSpec none "witness-backed account read",
+  entry "ORIGIN" .proven (some "Env.evm_origin_stack_spec_within")
+      (cycleBound := some 9),
+  entry "CALLER" .proven (some "Env.evm_caller_stack_spec_within")
+      (cycleBound := some 9),
+  entry "CALLVALUE" .proven (some "Env.evm_callvalue_stack_spec_within")
+      (cycleBound := some 9),
+  entry "CALLDATALOAD" .proven
+      (some "Calldata.evm_calldataload_staged_stack_spec_within")
+      (cycleBound := some 401),
+  entry "CALLDATASIZE" .proven
+      (some "Calldata.evm_calldatasize_stack_spec_within")
+      (cycleBound := some 6),
+  entry "CALLDATACOPY" .proven
+      (some "Calldata.evm_calldatacopy_stack_spec_within")
+      ("`cycleBound` stays `none`: the bound is a LOOP bound in the operand — " ++
+       "`cpsTripleWithin (9 * (size.getLimbN 0).toNat + 10)` — not a literal"),
+  entry "CODESIZE" .proven (some "Code.evm_codesize_stack_spec_within")
+      (cycleBound := some 6),
+  entry "CODECOPY" .proven (some "Code.evm_codecopy_stack_spec_within")
+      ("copy-loop body proven (mirror of CALLDATACOPY); preBody gas/MSIZE " ++
+       "glue unverified per DRIFT.  `cycleBound` stays `none`: the bound is a " ++
+       "LOOP bound in the operand — `cpsTripleWithin (9 * (size.getLimbN " ++
+       "0).toNat + 9)` — not a literal"),
+  entry "GASPRICE" .proven (some "Env.evm_gasprice_stack_spec_within")
+      (cycleBound := some 9),
+  entry "EXTCODESIZE" .execSpec none "witness-backed account read",
+  entry "EXTCODECOPY" .execSpec none "witness-backed code copy",
+  entry "RETURNDATASIZE" .proven
+      (some "ReturnData.evm_returndatasize_stack_spec_within")
+      (cycleBound := some 6),
+  entry "RETURNDATACOPY" .proven
+      (some "ReturnData.evm_returndatacopy_body_stack_spec_within")
+      ("whole-body stack triple over guards ++ setup ++ copy loop "
+       ++ "(ReturnData/{RevertProgram,RevertSpec,CopyProgram,CopyLoopSpec,"
+       ++ "CopySpec}.lean), base→base+80, composed with "
+       ++ "cpsTripleWithin_seq_perm_same_cr: the guard prefix loads the three low "
+       ++ "stack limbs, materializes `evm_precompile_frame`, loads the return-data "
+       ++ "length and falls through the two execution-specs bounds checks "
+       ++ "(start+size wrap, start+size>retlen — the old 256-byte frame cap was "
+       ++ "removed from the guest in #10160); setup pops the operands, takes the "
+       ++ "size≠0 skip and builds the pointers; the byte-identical bottom-tested "
+       ++ "`do..while` loop copies stagedBytes[start..start+size) into EVM memory "
+       ++ "(NO size≥1 gate: the size=0 path is proven too — guards fall through, "
+       ++ "operands pop, the beqz skip is taken to the exit and the postcondition "
+       ++ "degenerates to unchanged memory — so this is .proven, not .conditional, "
+       ++ "matching CALLDATACOPY whose top-tested loop exits at zero size) "
+       ++ "[destOff,destOff+size) via the Mcopy forward-loop content model, with "
+       ++ "the source region anchored at the aligned frame+16 base and the read "
+       ++ "offset carried in the pointer register (decoupled from destOff). The "
+       ++ "two invalid exits are companion witnesses "
+       ++ "(guard_{wrap,len}_invalid_stack). Same scope as CALLDATACOPY's "
+       ++ "registered witness: interleaved gas/OOG/MSIZE glue is framed out per "
+       ++ "DRIFT. RESIDUAL: the image also excises the handler's two high-limb "
+       ++ "operand guards — memDynamicU256RangeOogGuardAsm (high-limb size, and "
+       ++ "high-limb destOffset when size≠0, to .exit_outofgas) and the "
+       ++ "ld/or/or/bnez on dataOffset limbs 1-3 (to .exit_invalid) — so the "
+       ++ "triple describes only the path where those fall through. The "
+       ++ "h_destOff/h_srcOff/h_sizeV hypotheses are low-limb NAMING bridges and "
+       ++ "constrain no high limb. Each excised guard matches a real "
+       ++ "execution-specs outcome, but by three DIFFERENT arguments: high-limb "
+       ++ "size by gas; high-limb destOffset by gas only when size≠0 (at size=0 "
+       ++ "the spec charges nothing and ACCEPTS it — the guest matches via the "
+       ++ "guard's beqz ordering); high-limb dataOffset NOT by gas but by the "
+       ++ "spec's explicit start+size>len(return_data) OutOfBoundsRead, which "
+       ++ "fires at size=0 too. Costs coverage, hides no divergence; see DRIFT "
+       ++ "for the per-hypothesis table and where each argument lives. "
+       ++ "`cycleBound` stays `none`: the bound is a LOOP bound in the copy "
+       ++ "size — `cpsTripleWithin (14 + 6 * sz)` — not a literal."),
+  entry "EXTCODEHASH" .execSpec none "witness-backed account read",
+
+  -- Block (0x40..0x4a)
+  entry "BLOCKHASH" .proven (some "BlockHash.evm_blockhash_stack_spec_within")
+      (cycleBound := some 24),
+  entry "COINBASE" .proven (some "Env.evm_coinbase_stack_spec_within")
+      (cycleBound := some 9),
+  entry "TIMESTAMP" .proven (some "Env.evm_timestamp_stack_spec_within")
+      (cycleBound := some 9),
+  entry "NUMBER" .proven (some "Env.evm_number_stack_spec_within")
+      (cycleBound := some 9),
+  entry "PREVRANDAO" .proven (some "Env.evm_prevrandao_stack_spec_within")
+      (cycleBound := some 9),
+  entry "GASLIMIT" .proven (some "Env.evm_gaslimit_stack_spec_within")
+      (cycleBound := some 9),
+  entry "CHAINID" .proven (some "Env.evm_chainid_stack_spec_within")
+      (cycleBound := some 9),
+  entry "SELFBALANCE" .proven (some "Env.evm_selfbalance_stack_spec_within")
+      (cycleBound := some 9),
+  entry "BASEFEE" .proven (some "Env.evm_basefee_stack_spec_within")
+      (cycleBound := some 9),
+  entry "BLOBHASH" .proven (some "BlobHash.evm_blobhash_stack_spec_within")
+      (cycleBound := some 20),
+  entry "BLOBBASEFEE" .proven (some "BlobBaseFee.evm_blobbasefee_stack_spec_within")
+      (cycleBound := some 9),
+
+  -- Stack/Memory/Storage/Flow (0x50..0x5f)
+  entry "POP" .proven (some "evm_pop_stack_spec_within") (cycleBound := some 1),
+  entry "MLOAD" .proven (some "evm_mload_stack_spec_within")
+      ("all byte alignments; memory framed by evmMemoryIs; the explicit " ++
+       "trailing guard band supplies the pair-read tail.  cycleBound 94 is " ++
+       "the closed literal sum `2 + (23 + 23 + 23 + 23)` spelled in " ++
+       "evm_mload_stack_spec_within's conclusion (one 23-step block per " ++
+       "quarter word); no symbolic component")
+      (cycleBound := some 94),
+  entry "MSTORE" .proven (some "evm_mstore_stack_spec_within_region")
+      ("region-backed spec covers every byte offset with an explicit guard; " ++
+       "HandlerSpecs:1543 is now the sole remaining consumer of the raw " ++
+       "eight-cell theorem; UnalignedVacuity proves that form vacuous off-" ++
+       "alignment, and migration is blocked on the handler layer acquiring a " ++
+       "whole-region memory assertion (see #11983).  cycleBound 71 is the " ++
+       "closed literal sum `2 + (17 + 17 + 17 + 17) + 1` spelled in " ++
+       "evm_mstore_stack_spec_within_region's conclusion (one 17-step block " ++
+       "per quarter word); no symbolic component")
+      (cycleBound := some 71),
+  entry "MSTORE8" .proven (some "evm_mstore8_stack_spec_within") (cycleBound := some 5),
+  entry "SLOAD" .execSpec none
+      "The legacy append-only persistent-log proof was retired; persistent storage now follows the spec-shaped storage-write path.",
+  entry "SSTORE" .execSpec none "Storage*.lean; ECALL → host",
+  entry "JUMP" .proven (some "ControlFlow.evm_jump_stack_spec_within")
+      (cycleBound := some 13),
+  entry "JUMPI" .proven (some "ControlFlow.evm_jumpi_stack_spec_within")
+      (cycleBound := some 21),
+  entry "PC" .proven (some "ControlFlow.evm_pc_stack_spec_within")
+      (cycleBound := some 6),
+  entry "MSIZE" .proven (some "evm_msize_stack_spec_within") (cycleBound := some 6),
+  entry "GAS" .proven (some "GasOpcode.evm_gas_stack_spec_within")
+      (cycleBound := some 6),
+  entry "JUMPDEST" .proven (some "ControlFlow.evm_jumpdest_stack_spec_within")
+      (cycleBound := some 0),
+  entry "TLOAD" .proven (some "Transient.evm_tload_stack_spec_within")
+      ("`cycleBound` stays `none`: the bound is a LOOP bound in the transient " ++
+       "log length — `cpsTripleWithin (7 + 34 * n)` — not a literal"),
+  entry "TSTORE" .proven (some "Transient.evm_tstore_stack_spec_within")
+      (cycleBound := some 35),
+  entry "MCOPY" .proven (some "Mcopy.evm_mcopy_stack_spec_within")
+      ("EIP-5656 (Cancun) overlap-aware memmove copy core proven "
+       ++ "(Mcopy/{Program,Result,ForwardLoopSpec,BackwardLoopSpec,Spec}.lean): "
+       ++ "byte-identical body-as-Program of the h_MCOPY handler tail (verified "
+       ++ "against riscv64-elf-as), TOTAL over all (destOff,srcOff,len) — the two "
+       ++ "BGEU offset comparisons dispatch to a forward (low→high) or backward "
+       ++ "(high→low) byte loop, both proven to land on the same direction-"
+       ++ "independent mcopyResult (memmove: dst window ← original src slice) via "
+       ++ "a single evolving evmMemoryIs slab with a read-sees-original invariant "
+       ++ "per direction. Stack decode + gas/MSIZE/range-guard glue unverified per "
+       ++ "DRIFT (same as CALLDATACOPY/CODECOPY). First memory→memory / overlap-"
+       ++ "aware opcode; first two-directional loop proof. `cycleBound` stays "
+       ++ "`none`: the bound is a LOOP bound in the copy length — "
+       ++ "`cpsTripleWithin (7 * len + 8)` — not a literal."),
+  entry "PUSH0" .proven (some "evm_push0_stack_spec_within") (cycleBound := some 5),
+
+  -- Push family (0x60..0x7f). PUSH1 has its own top-level spec; PUSH2..32
+  -- share one parameterized full-immediate spec generic over the width n.
+  entry "PUSH1" .proven (some "evm_push1_stack_spec_within")
+      (cycleBound := some 7),
+  entry "PUSH2..32" .proven (some "evm_push_stack_spec_within")
+      ("single proof generic over n=2..32; pushes the big-endian immediate; " ++
+       "31 byte-codes.  `cycleBound` stays `none`: the bound is PARAMETRIC in " ++
+       "the family index — `cpsTripleWithin (5 + 2 * n)` — so no single " ++
+       "literal covers the row (n=2 gives 9, n=32 gives 69)"),
+
+  -- Dup/Swap families (0x80..0x9f) — single generic proof each
+  entry "DUP1..16" .proven (some "evm_dup_stack_spec_within")
+      "single proof generic over n=1..16; the 9-step bound is uniform in n"
+      (cycleBound := some 9),
+  entry "SWAP1..16" .proven (some "evm_swap_stack_spec_within")
+      "single proof generic over n=1..16; the 16-step bound is uniform in n"
+      (cycleBound := some 16),
+
+  -- Log family (0xa0..0xa4)
+  entry "LOG0..4" .execSpec none
+      "LogArgs + LogDataBridge + LogExecutionBridge; 5 byte-codes",
+
+  -- System (0xf0..0xff)
+  entry "CREATE" .execSpec none
+      "Create.lean + CreateAddress + CreateArgsBridge + CreateEffects",
+  entry "CALL" .execSpec none "CallArgs + Call*Bridge family",
+  entry "CALLCODE" .execSpec none "ChildFrameHandlers; shared CALL family",
+  entry "RETURN" .conditional (some "Terminating.evm_return_stack_spec_within_with_capture")
+      ("full standalone (depthAware=false) return-data window + halt core, from " ++
+       "the post-gas handler entry through the RETURN-only system_call_mode " ++
+       "capture block and the 0xa0010000 descriptor (header/22-dword-body " ++
+       "zeroing, size@+64, clamped=min(size,176)@+248, " ++
+       "evm_memory[offset..offset+clamped] copied to +72, first min(size,32) " ++
+       "bytes to +0, kind=1@+32) to the shared dispatchHaltRet 2 core " ++
+       "(evm_halt_flag:=2, x1:=resume, ret to resume&&&~~~1). The front now " ++
+       "covers all system_call_mode cases: zero skips capture; nonzero with " ++
+       "size>4096 skips conservatively; nonzero with size<=4096 stores " ++
+       "system_call_returndata_len:=size and copies the full returndata window " ++
+       "to system_call_returndata. `.conditional` remains because the memory-gas " ++
+       "`preBody` (its .exit_outofgas branch) is framed OUT as a decision-1 TCB " ++
+       "boundary, so the theorem still carries the post-gas memory-domain hyps " ++
+       "(hOff/hOff32 and branch-conditional hOffCapture/hRdCapture). The seven " ++
+       "`la` immediates stay as reconstruction hyps (shared deferred byte-check, " ++
+       "as in the halt core). `cycleBound` stays `none`: the bound is a LOOP " ++
+       "bound in the return-data size — `cpsTripleWithin (164 + 7 * " ++
+       "size.toNat + 7 * (returnClamp size).toNat + 7 * (returnClamp32 " ++
+       "size).toNat)` — not a literal.")
+      (coverRef := some "return_capture_nondegenerate"),
+  entry "DELEGATECALL" .execSpec none "CallArgs kind = .delegatecall",
+  entry "CREATE2" .execSpec none "shared Create family",
+  entry "STATICCALL" .execSpec none "CallArgs kind = .staticcall",
+  entry "REVERT" .conditional (some "Terminating.evm_revert_stack_spec_within")
+      ("full standalone (depthAware=false) return-data window + rollback + halt " ++
+       "core, from the post-gas handler entry through the 0xa0010000 descriptor " ++
+       "(header/22-dword-body zeroing, size@+64, clamped=min(size,176)@+248, " ++
+       "evm_memory[offset..offset+clamped] copied to +72, first min(size,32) " ++
+       "bytes to +0, kind=2@+32), the five straight-line rollback env-cell stores " ++
+       "on x20 (env+448:=env+456, env+464:=0, env+472:=env+480), to the shared " ++
+       "dispatchHaltRet 2 core (evm_halt_flag:=2, x1:=resume, ret to " ++
+       "resume&&&~~~1). Near-clone of RETURN reusing its window loop closures + " ++
+       "halt core verbatim (only the code layout shifts down 80 bytes with no " ++
+       "capture block, the kind-store value is 2, and the rollback is appended). " ++
+       "`.conditional` NOT because of a system_call_mode gate (REVERT has no " ++
+       "capture block — that is kind==1/RETURN-only — so it is strictly more " ++
+       "general than RETURN) but because (1) the memory-gas `preBody` (its " ++
+       ".exit_outofgas branch) is framed OUT as a decision-1 TCB boundary and " ++
+       "(2) the evm_memory well-formedness domain hyps (hOff/hOff32 etc.) restrict " ++
+       "the input domain, exactly as in RETURN. The four `la` immediates stay as " ++
+       "reconstruction hyps (shared deferred byte-check, as in the halt core). " ++
+       "`cycleBound` stays `none`: the bound is a LOOP bound in the " ++
+       "return-data size — `cpsTripleWithin (155 + 7 * (returnClamp " ++
+       "size).toNat + 7 * (returnClamp32 size).toNat)` — not a literal.")
+      (coverRef := some "revert_window_nondegenerate"),
+  entry "INVALID" .proven (some "evm_invalid_stack_spec_within")
+      ("halt-triple over the verified `evm_invalid` program (byte image of the "
+       ++ "emitted `dispatchHaltRet 3` tail): sets `evm_halt_flag := 3`, points "
+       ++ "x1 at `.dispatch_resume`, and rets to `resume &&& ~~~1`; the two "
+       ++ "`la`s stay `hla1`/`hla2` reconstruction hyps as in the guard/glue "
+       ++ "precedents. Direct STOP clone with routing code 3 (`.exit_invalid_op`)")
+      (cycleBound := some 7),
+  entry "SELFDESTRUCT" .conditional (some "Terminating.evm_selfdestruct_stack_spec_resolved")
+      ("halt/routing tail only — the shared dispatchHaltRet 4 core (evm_halt_flag:=4, " ++
+       "x1:=.dispatch_resume, ret to resume&&&~~~1) over the verified `evm_selfdestruct` " ++
+       "program; direct STOP/INVALID clone with routing code 4 (`.exit_selfdestruct`). " ++
+       "The two `la`s (`evm_halt_flag`, `.dispatch_resume`) are RESOLVED via `la_resolve` " ++
+       "(#10059), leaving only decidable `laInRange` per `la`. `.conditional` — NOT `.proven` " ++
+       "unlike STOP/INVALID (whose dispatched handler IS just the halt tail, body:=[]) — " ++
+       "because SELFDESTRUCT's dispatched handler (`selfdestructTailAsm`) runs a substantial " ++
+       "effects body BEFORE this tail that is framed OUT as the residual: cold-access gas " ++
+       "(with its own .exit_outofgas branch), new-account surcharge, EIP-6780 created-in-tx " ++
+       "detection, balance transfer to the beneficiary, EIP-7708 log, beneficiary nonstorage " ++
+       "record, and the CREATE-child frame_return path. A larger residual than RETURN/REVERT's " ++
+       "gas-only preBody; a future phase proves it against `EL/SelfdestructEffects` to earn " ++
+       "`.proven`.")
+      (cycleBound := some 7),
+]
+
+
+-- @@ L557-557 verbatim
+/-! ## Counts (kernel-checked) -/
+
+
+-- @@ L559-561 verbatim
+/-- Count of registry entries at a given tier. -/
+def countTier (t : ProofTier) : Nat :=
+  registry.countP (fun e => e.tier == t)
+
+
+-- @@ L563-563 verbatim
+def provenCount      : Nat := countTier .proven
+
+-- @@ L564-564 verbatim
+def partialCount     : Nat := countTier .partly
+
+-- @@ L565-565 verbatim
+def conditionalCount : Nat := countTier .conditional
+
+-- @@ L566-566 verbatim
+def execSpecCount    : Nat := countTier .execSpec
+
+-- @@ L567-567 verbatim
+def notStartedCount  : Nat := countTier .notStarted
+
+-- @@ L568-568 verbatim
+def totalEntries     : Nat := registry.length
+
+
+-- @@ L570-570 verbatim
+theorem provenCount_eq      : provenCount      = 68 := by decide
+
+-- @@ L571-571 verbatim
+theorem partialCount_eq     : partialCount     = 0  := by decide
+
+-- @@ L572-572 verbatim
+theorem conditionalCount_eq : conditionalCount = 3  := by decide
+
+-- @@ L573-573 verbatim
+theorem execSpecCount_eq    : execSpecCount    = 14 := by decide
+
+-- @@ L574-574 verbatim
+theorem notStartedCount_eq  : notStartedCount  = 0  := by decide
+
+-- @@ L575-575 verbatim
+theorem totalEntries_eq     : totalEntries     = 85 := by decide
+
+
+-- @@ L577-582 verbatim
+/-! ## Byte-code counts
+
+    Counts opcode *bytes* (not registry entries), expanding the
+    parameterized families. Each `OpcodeEntry` whose `name` matches one
+    of the families below contributes its width; everything else
+    contributes 1. -/
+
+
+-- @@ L584-590 verbatim
+def entryByteCount (e : OpcodeEntry) : Nat :=
+  match e.name with
+  | "PUSH2..32" => 31
+  | "DUP1..16"  => 16
+  | "SWAP1..16" => 16
+  | "LOG0..4"   => 5
+  | _           => 1
+
+
+-- @@ L592-594 verbatim
+def byteCountTier (t : ProofTier) : Nat :=
+  (registry.filter (fun e => e.tier == t)).foldl
+    (fun acc e => acc + entryByteCount e) 0
+
+
+-- @@ L596-596 verbatim
+def provenBytes      : Nat := byteCountTier .proven
+
+-- @@ L597-597 verbatim
+def partialBytes     : Nat := byteCountTier .partly
+
+-- @@ L598-598 verbatim
+def conditionalBytes : Nat := byteCountTier .conditional
+
+-- @@ L599-599 verbatim
+def execSpecBytes    : Nat := byteCountTier .execSpec
+
+-- @@ L600-600 verbatim
+def notStartedBytes  : Nat := byteCountTier .notStarted
+
+-- @@ L601-602 verbatim
+def totalBytes       : Nat :=
+  provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
+
+
+-- @@ L604-604 verbatim
+theorem provenBytes_eq      : provenBytes      = 128 := by decide
+
+-- @@ L605-605 verbatim
+theorem partialBytes_eq     : partialBytes     = 0   := by decide
+
+-- @@ L606-606 verbatim
+theorem conditionalBytes_eq : conditionalBytes = 3   := by decide
+
+-- @@ L607-607 verbatim
+theorem execSpecBytes_eq    : execSpecBytes    = 18  := by decide
+
+-- @@ L608-608 verbatim
+theorem notStartedBytes_eq  : notStartedBytes  = 0   := by decide
+
+-- @@ L609-609 verbatim
+theorem totalBytes_eq       : totalBytes       = 149 := by decide
+
+
+-- @@ L611-619 verbatim
+/-! ## Witness `abbrev`s
+
+    Each `.proven`, `.conditional`, and `.partly` entry above names a
+    theorem; the abbrev below forces its definition to exist. If a theorem is
+    renamed or deleted, this file fails to elaborate. Update both
+    the registry entry and this section when refactoring.
+
+    Convention: name the abbrev `_<lower>_witness`; mark it
+    `private noncomputable` to avoid polluting the namespace. -/
+
+
+-- @@ L621-621 verbatim
+private noncomputable abbrev _add_witness        := @EvmAsm.Evm64.evm_add_stack_spec_within
+
+-- @@ L622-622 verbatim
+private noncomputable abbrev _mul_witness        := @EvmAsm.Evm64.evm_mul_stack_spec_within
+
+-- @@ L623-623 verbatim
+private noncomputable abbrev _sub_witness        := @EvmAsm.Evm64.evm_sub_stack_spec_within
+
+-- @@ L624-624 verbatim
+private noncomputable abbrev _div_witness        := @EvmAsm.Evm64.evm_div_v6_stack_spec
+
+-- @@ L625-626 verbatim
+private noncomputable abbrev _sdiv_witness       :=
+  @EvmAsm.Evm64.SDiv.Compose.evm_sdiv_exact_callable_return_result_stack_spec_within_v5
+
+-- @@ L627-627 verbatim
+private noncomputable abbrev _mod_witness        := @EvmAsm.Evm64.evm_mod_v6_stack_spec
+
+-- @@ L628-629 verbatim
+private noncomputable abbrev _smod_witness       :=
+  @EvmAsm.Evm64.SMod.Compose.evm_smod_exact_callable_return_result_stack_spec_within_v5
+
+-- @@ L630-631 verbatim
+private noncomputable abbrev _addmod_witness     :=
+  @EvmAsm.Evm64.AddMod.Compose.evm_addmod_total_result_stack_spec_within
+
+-- @@ L632-632 verbatim
+private noncomputable abbrev _mulmod_witness      := @EvmAsm.Evm64.MulMod.Compose.evm_mulmod_stack_spec_within
+
+-- @@ L633-633 verbatim
+private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_stack_spec_within
+
+-- @@ L634-634 verbatim
+private noncomputable abbrev _signextend_witness := @EvmAsm.Evm64.evm_signextend_stack_spec_within
+
+-- @@ L635-635 verbatim
+private noncomputable abbrev _lt_witness         := @EvmAsm.Evm64.evm_lt_stack_spec_within
+
+-- @@ L636-636 verbatim
+private noncomputable abbrev _gt_witness         := @EvmAsm.Evm64.evm_gt_stack_spec_within
+
+-- @@ L637-637 verbatim
+private noncomputable abbrev _slt_witness        := @EvmAsm.Evm64.evm_slt_stack_spec_within
+
+-- @@ L638-638 verbatim
+private noncomputable abbrev _sgt_witness        := @EvmAsm.Evm64.evm_sgt_stack_spec_within
+
+-- @@ L639-639 verbatim
+private noncomputable abbrev _eq_witness         := @EvmAsm.Evm64.evm_eq_stack_spec_within
+
+-- @@ L640-640 verbatim
+private noncomputable abbrev _iszero_witness     := @EvmAsm.Evm64.evm_iszero_stack_spec_within
+
+-- @@ L641-641 verbatim
+private noncomputable abbrev _and_witness        := @EvmAsm.Evm64.evm_and_stack_spec_within
+
+-- @@ L642-642 verbatim
+private noncomputable abbrev _or_witness         := @EvmAsm.Evm64.evm_or_stack_spec_within
+
+-- @@ L643-643 verbatim
+private noncomputable abbrev _xor_witness        := @EvmAsm.Evm64.evm_xor_stack_spec_within
+
+-- @@ L644-644 verbatim
+private noncomputable abbrev _not_witness        := @EvmAsm.Evm64.evm_not_stack_spec_within
+
+-- @@ L645-645 verbatim
+private noncomputable abbrev _byte_witness       := @EvmAsm.Evm64.evm_byte_stack_spec_within
+
+-- @@ L646-646 verbatim
+private noncomputable abbrev _shl_witness        := @EvmAsm.Evm64.evm_shl_stack_spec_within
+
+-- @@ L647-647 verbatim
+private noncomputable abbrev _shr_witness        := @EvmAsm.Evm64.evm_shr_stack_spec_within
+
+-- @@ L648-648 verbatim
+private noncomputable abbrev _sar_witness        := @EvmAsm.Evm64.evm_sar_stack_spec_within
+
+-- @@ L649-649 verbatim
+private noncomputable abbrev _address_witness    := @EvmAsm.Evm64.Env.evm_address_stack_spec_within
+
+-- @@ L650-650 verbatim
+private noncomputable abbrev _origin_witness     := @EvmAsm.Evm64.Env.evm_origin_stack_spec_within
+
+-- @@ L651-651 verbatim
+private noncomputable abbrev _caller_witness     := @EvmAsm.Evm64.Env.evm_caller_stack_spec_within
+
+-- @@ L652-652 verbatim
+private noncomputable abbrev _callvalue_witness  := @EvmAsm.Evm64.Env.evm_callvalue_stack_spec_within
+
+-- @@ L653-653 verbatim
+private noncomputable abbrev _gasprice_witness   := @EvmAsm.Evm64.Env.evm_gasprice_stack_spec_within
+
+-- @@ L654-654 verbatim
+private noncomputable abbrev _coinbase_witness   := @EvmAsm.Evm64.Env.evm_coinbase_stack_spec_within
+
+-- @@ L655-655 verbatim
+private noncomputable abbrev _timestamp_witness  := @EvmAsm.Evm64.Env.evm_timestamp_stack_spec_within
+
+-- @@ L656-656 verbatim
+private noncomputable abbrev _number_witness     := @EvmAsm.Evm64.Env.evm_number_stack_spec_within
+
+-- @@ L657-657 verbatim
+private noncomputable abbrev _prevrandao_witness := @EvmAsm.Evm64.Env.evm_prevrandao_stack_spec_within
+
+-- @@ L658-658 verbatim
+private noncomputable abbrev _gaslimit_witness   := @EvmAsm.Evm64.Env.evm_gaslimit_stack_spec_within
+
+-- @@ L659-659 verbatim
+private noncomputable abbrev _chainid_witness    := @EvmAsm.Evm64.Env.evm_chainid_stack_spec_within
+
+-- @@ L660-660 verbatim
+private noncomputable abbrev _selfbalance_witness := @EvmAsm.Evm64.Env.evm_selfbalance_stack_spec_within
+
+-- @@ L661-661 verbatim
+private noncomputable abbrev _basefee_witness    := @EvmAsm.Evm64.Env.evm_basefee_stack_spec_within
+
+-- @@ L662-663 verbatim
+private noncomputable abbrev _calldataload_witness :=
+  @EvmAsm.Evm64.Calldata.evm_calldataload_staged_stack_spec_within
+
+-- @@ L664-665 verbatim
+private noncomputable abbrev _calldatasize_witness :=
+  @EvmAsm.Evm64.Calldata.evm_calldatasize_stack_spec_within
+
+-- @@ L666-667 verbatim
+private noncomputable abbrev _calldatacopy_witness :=
+  @EvmAsm.Evm64.Calldata.evm_calldatacopy_stack_spec_within
+
+-- @@ L668-669 verbatim
+private noncomputable abbrev _codesize_witness :=
+  @EvmAsm.Evm64.Code.evm_codesize_stack_spec_within
+
+-- @@ L670-671 verbatim
+private noncomputable abbrev _pc_witness :=
+  @EvmAsm.Evm64.ControlFlow.evm_pc_stack_spec_within
+
+-- @@ L672-673 verbatim
+private noncomputable abbrev _gas_witness :=
+  @EvmAsm.Evm64.GasOpcode.evm_gas_stack_spec_within
+
+-- @@ L674-675 verbatim
+private noncomputable abbrev _blobbasefee_witness :=
+  @EvmAsm.Evm64.BlobBaseFee.evm_blobbasefee_stack_spec_within
+
+-- @@ L676-677 verbatim
+private noncomputable abbrev _jumpdest_witness :=
+  @EvmAsm.Evm64.ControlFlow.evm_jumpdest_stack_spec_within
+
+-- @@ L678-679 verbatim
+private noncomputable abbrev _jump_witness :=
+  @EvmAsm.Evm64.ControlFlow.evm_jump_stack_spec_within
+
+-- @@ L680-681 verbatim
+private noncomputable abbrev _jumpi_witness :=
+  @EvmAsm.Evm64.ControlFlow.evm_jumpi_stack_spec_within
+
+-- @@ L682-683 verbatim
+private noncomputable abbrev _blobhash_witness :=
+  @EvmAsm.Evm64.BlobHash.evm_blobhash_stack_spec_within
+
+-- @@ L684-685 verbatim
+private noncomputable abbrev _blockhash_witness :=
+  @EvmAsm.Evm64.BlockHash.evm_blockhash_stack_spec_within
+
+-- @@ L686-687 verbatim
+private noncomputable abbrev _codecopy_witness :=
+  @EvmAsm.Evm64.Code.evm_codecopy_stack_spec_within
+
+-- @@ L688-689 verbatim
+private noncomputable abbrev _returndatasize_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatasize_stack_spec_within
+
+-- @@ L690-691 verbatim
+private noncomputable abbrev _returndatacopy_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatacopy_body_stack_spec_within
+
+-- @@ L692-693 verbatim
+private noncomputable abbrev _returndatacopy_copy_core_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatacopy_stack_spec_within
+
+-- @@ L694-695 verbatim
+private noncomputable abbrev _returndatacopy_setup_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatacopy_setup_spec_within
+
+-- @@ L696-697 verbatim
+private noncomputable abbrev _returndatacopy_setup_zero_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatacopy_setup_zero_spec_within
+
+-- @@ L698-699 verbatim
+private noncomputable abbrev _returndatacopy_guard_success_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatacopy_guard_success_stack_spec_within
+
+-- @@ L700-701 verbatim
+private noncomputable abbrev _returndatacopy_guard_wrap_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatacopy_guard_wrap_invalid_stack_spec_within
+
+-- @@ L702-703 verbatim
+private noncomputable abbrev _returndatacopy_guard_len_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatacopy_guard_len_invalid_stack_spec_within
+
+-- @@ L704-705 verbatim
+private noncomputable abbrev _tload_witness :=
+  @EvmAsm.Evm64.Transient.evm_tload_stack_spec_within
+
+-- @@ L706-711 verbatim
+private noncomputable abbrev _tstore_witness :=
+  @EvmAsm.Evm64.Transient.evm_tstore_stack_spec_within
+-- MCOPY has been registered `.proven` since the registry was introduced, but
+-- carried no abbrev, so `check-axioms.sh` never audited it (found by the
+-- `proofRef`-vs-abbrev cross-check added in #11042: naming a theorem in a row
+-- does not put it in the gate).
+
+-- @@ L712-713 verbatim
+private noncomputable abbrev _mcopy_witness :=
+  @EvmAsm.Evm64.Mcopy.evm_mcopy_stack_spec_within
+
+-- @@ L714-715 verbatim
+private noncomputable abbrev _stop_witness :=
+  @EvmAsm.Evm64.Terminating.evm_stop_stack_spec_within
+
+-- @@ L716-718 verbatim
+private noncomputable abbrev _invalid_witness :=
+  @EvmAsm.Evm64.Terminating.evm_invalid_stack_spec_within
+-- Shared RETURN/REVERT halt core (`dispatchHaltRet 2` → `.exit_no_epilogue`).
+
+-- @@ L719-721 verbatim
+private noncomputable abbrev _return_halt_witness :=
+  @EvmAsm.Evm64.Terminating.evm_return_halt_spec_within
+-- Full RETURN (0xf3) return-data window + halt core (see the registry note).
+
+-- @@ L722-723 verbatim
+private noncomputable abbrev _return_witness :=
+  @EvmAsm.Evm64.Terminating.evm_return_stack_spec_within_with_capture
+
+-- @@ L724-726 verbatim
+private noncomputable abbrev _return_cover :=
+  @EvmAsm.Evm64.Terminating.return_capture_nondegenerate
+-- Full REVERT (0xfd) return-data window + rollback + halt core (see the note).
+
+-- @@ L727-728 verbatim
+private noncomputable abbrev _revert_witness :=
+  @EvmAsm.Evm64.Terminating.evm_revert_stack_spec_within
+
+-- @@ L729-731 verbatim
+private noncomputable abbrev _revert_cover :=
+  @EvmAsm.Evm64.Terminating.revert_window_nondegenerate
+-- SELFDESTRUCT (0xff) halt tail with the two `la`s resolved (see the registry note).
+
+-- @@ L732-733 verbatim
+private noncomputable abbrev _selfdestruct_witness :=
+  @EvmAsm.Evm64.Terminating.evm_selfdestruct_stack_spec_resolved
+
+-- @@ L734-734 verbatim
+private noncomputable abbrev _pop_witness        := @EvmAsm.Evm64.evm_pop_stack_spec_within
+
+-- @@ L735-738 verbatim
+private noncomputable abbrev _mload_witness      := @EvmAsm.Evm64.evm_mload_stack_spec_within
+-- #10190: the registry's .proven grade rests on the region-backed theorem,
+-- which covers every offset residue.  The two existing lift consumers retain
+-- the raw eight-cell theorem until their adapter/interface migration lands.
+
+-- @@ L739-739 verbatim
+private noncomputable abbrev _mstore_witness     := @EvmAsm.Evm64.evm_mstore_stack_spec_within_region
+
+-- @@ L740-740 verbatim
+private noncomputable abbrev _mstore8_witness    := @EvmAsm.Evm64.evm_mstore8_stack_spec_within
+
+-- @@ L741-741 verbatim
+private noncomputable abbrev _msize_witness      := @EvmAsm.Evm64.evm_msize_stack_spec_within
+
+-- @@ L742-742 verbatim
+private noncomputable abbrev _push0_witness      := @EvmAsm.Evm64.evm_push0_stack_spec_within
+
+-- @@ L743-743 verbatim
+private noncomputable abbrev _push1_witness      := @EvmAsm.Evm64.evm_push1_stack_spec_within
+
+-- @@ L744-744 verbatim
+private noncomputable abbrev _push_witness       := @EvmAsm.Evm64.evm_push_stack_spec_within
+
+-- @@ L745-745 verbatim
+private noncomputable abbrev _dup_witness        := @EvmAsm.Evm64.evm_dup_stack_spec_within
+
+-- @@ L746-746 verbatim
+private noncomputable abbrev _swap_witness       := @EvmAsm.Evm64.evm_swap_stack_spec_within
+
+
+-- @@ L748-753 verbatim
+/-! ### State-assertion vocabulary witnesses
+
+    Headline lemmas of the separation-logic Assertions over the guest's
+    structured arenas (`evmMemoryIs` PR #9844; MPT node / node-DB;
+    witness-section / code-DB
+    assertions). Fenced here so `scripts/check-axioms.sh` audits them. -/
+
+
+-- @@ L755-756 verbatim
+private noncomputable abbrev _evm_memory_is_mload_witness :=
+  @EvmAsm.Evm64.evm_mload_stack_spec_within
+
+-- @@ L757-758 verbatim
+private noncomputable abbrev _evm_memory_is_peel_witness :=
+  @EvmAsm.Evm64.evmMemoryIs_peel_window64
+
+-- @@ L759-760 verbatim
+private noncomputable abbrev _mpt_node_kind_spec_witness :=
+  @EvmAsm.Evm64.mptNodeKindSpec_rlp
+
+-- @@ L761-762 verbatim
+private noncomputable abbrev _hp_roundtrip_witness :=
+  @EvmAsm.Evm64.hpDecode_hpEncode
+
+-- @@ L763-764 verbatim
+private noncomputable abbrev _rlp_to_mutable_node_witness :=
+  @EvmAsm.Evm64.rlpToMutableNode_rlp
+
+-- @@ L765-766 verbatim
+private noncomputable abbrev _node_db_snoc_witness :=
+  @EvmAsm.Evm64.nodeDbIs_snoc
+
+-- @@ L767-768 verbatim
+private noncomputable abbrev _node_db_lookup_spec_witness :=
+  @EvmAsm.Evm64.nodeDbLookupSpec_eq_build_node_db
+
+-- @@ L769-770 verbatim
+private noncomputable abbrev _node_db_stride_witness :=
+  @EvmAsm.Evm64.roundUp8_eq_alignToDword
+
+-- @@ L771-772 verbatim
+private noncomputable abbrev _witness_lookup_spec_witness :=
+  @EvmAsm.Evm64.witnessLookupSpec_correct
+
+-- @@ L773-774 verbatim
+private noncomputable abbrev _witness_index_split_witness :=
+  @EvmAsm.Evm64.witnessIndexIs_split_at
+
+-- @@ L775-776 verbatim
+private noncomputable abbrev _index_of_section_hashes_witness :=
+  @EvmAsm.Evm64.indexOfSection_hashes_eq_build_code_db
+
+-- @@ L777-778 verbatim
+private noncomputable abbrev _index_of_section_matches_witness :=
+  @EvmAsm.Evm64.indexOfSection_matchesSection
+
+-- @@ L779-780 verbatim
+private noncomputable abbrev _account_rlp_decode_witness :=
+  @EvmAsm.Stateless.decode_account_from_leaf_accountRlp
+
+-- @@ L781-782 verbatim
+private noncomputable abbrev _account_balance_slot_witness :=
+  @EvmAsm.Stateless.bytesBEtoNat_beBytes32
+
+-- @@ L783-788 verbatim
+private noncomputable abbrev _account_rlp_length_witness :=
+  @EvmAsm.Stateless.accountRlp_length_le
+-- #11345: the reference-side inversion. Witnessed here so the axiom gate covers
+-- it mechanically rather than relying on someone remembering to look.
+-- #11346 item 2: big-endian zero is length-insensitive, so the reference's
+-- `bytesBEtoNat` is lenient about non-canonical zeros exactly as the guest is.
+
+-- @@ L789-794 verbatim
+private noncomputable abbrev _fromBytesBE_eq_zero_iff_witness :=
+  @EvmAsm.EL.RLP.Nat.fromBytesBE_eq_zero_iff
+-- #11711: RLP decoder fuel monotonicity — extra budget never changes a successful
+-- decode. Witnessed because it is the lemma the fuel-sensitive chain predicate
+-- (`Rv64/RLP/WalkDecodeBridge.lean`'s `DecodeChainFrom`) rests on, and an
+-- unwitnessed load-bearing lemma is the #11678 hole in miniature.
+
+-- @@ L795-796 verbatim
+private noncomputable abbrev _decodeAux_mono_fuel_witness :=
+  @EvmAsm.EL.RLP.decodeAux_mono_fuel
+
+-- @@ L797-807 verbatim
+private noncomputable abbrev _decodeItems_mono_fuel_witness :=
+  @EvmAsm.EL.RLP.decodeItems_mono_fuel
+-- #11678: the RLP encode→decode round-trip was proven and `sorry`-free but
+-- reached NO gate — `decode_encode` appeared nowhere under `Progress/`, so a
+-- later edit could have introduced a `sorryAx` or a TCB-expanding tactic into it
+-- or its dependency chain with nothing to object. `Nat.fromBytesBE_eq_zero_iff`
+-- above was the only `EL.RLP` witness. Referencing a theorem does not gate it;
+-- the abbrev is what does (PLAN.md, #11671), which is why the residual survived
+-- #11661's sweep. No registry row is claimed here: a row asserts a tier, and
+-- these are pure-spec lemmas about the EL model with no RV64 routine behind
+-- them — same footing as the reference-side inversions witnessed just above.
+
+-- @@ L808-812 verbatim
+private noncomputable abbrev _rlp_decode_encode_witness :=
+  @EvmAsm.EL.RLP.decode_encode
+-- The fuel-parametric general form `decode_encode` specialises. Witnessed
+-- separately so a regression localises to the induction rather than only
+-- surfacing at the specialisation.
+
+-- @@ L813-820 verbatim
+private noncomputable abbrev _rlp_decode_encode_mutual_witness :=
+  @EvmAsm.EL.RLP.decode_encode_mutual
+-- The `decodeFully` lift. Deliberately `decodeFully_encode` and NOT
+-- `decodeFully_encode_of_decode_encode`, which #11678 named: that one *takes*
+-- `decode (encode item) = some (item, [])` as a hypothesis, so witnessing it
+-- alone certifies a re-wrapping whose interesting premise is supplied by the
+-- caller. `decodeFully_encode` is the composition with that premise discharged
+-- from the length bound, so it is the form whose axioms are worth auditing.
+
+-- @@ L821-826 verbatim
+private noncomputable abbrev _rlp_decodeFully_encode_witness :=
+  @EvmAsm.EL.RLP.decodeFully_encode
+-- Injectivity of `encode` over decoder-supported items: distinct items never
+-- share an encoding. Same dependency chain as the round-trip, and the
+-- soundness-relevant direction — a collision here would be a canonical-form
+-- confusion, the shape #11523's non-canonical leaves live in.
+
+-- @@ L827-835 verbatim
+private noncomputable abbrev _rlp_encode_injective_witness :=
+  @EvmAsm.EL.RLP.encode_injective
+-- #11896: the CANONICALITY direction — `decode bs = some (item, []) → encode item = bs`,
+-- i.e. the decoder has no non-canonical accepts. This is the prerequisite for every
+-- `.machineOnly → .bridged` upgrade whose reference side is an ENCODER, because
+-- composing that encoder with `decode_encode` gives a reference decoder only for bytes
+-- already known to be an encoding; transferring a differential for ARBITRARY input is
+-- exactly this direction. Witnessed alongside `decode_injective`, its dual to
+-- `encode_injective` above.
+
+-- @@ L836-837 verbatim
+private noncomputable abbrev _rlp_encode_decode_witness :=
+  @EvmAsm.EL.RLP.encode_decode
+
+-- @@ L838-839 verbatim
+private noncomputable abbrev _rlp_encode_decode_mutual_witness :=
+  @EvmAsm.EL.RLP.encode_decode_mutual
+
+-- @@ L840-844 verbatim
+private noncomputable abbrev _rlp_decode_injective_witness :=
+  @EvmAsm.EL.RLP.decode_injective
+-- #10780 item 3: the long-form spans excluded by `SpanForm`, plus the two `readLength`
+-- inversions they rest on. Witnessed because the machine half will consume them as its
+-- specification, and a specification outside the axiom gate is the #11637 failure mode.
+
+-- @@ L845-846 verbatim
+private noncomputable abbrev _rlp_decode_span_longBytes_witness :=
+  @EvmAsm.EL.RLP.decode_span_longBytes
+
+-- @@ L847-848 verbatim
+private noncomputable abbrev _rlp_decode_span_longList_witness :=
+  @EvmAsm.EL.RLP.decode_span_longList
+
+-- @@ L849-850 verbatim
+private noncomputable abbrev _rlp_readLength_length_witness :=
+  @EvmAsm.EL.RLP.readLength_length
+
+-- @@ L851-859 verbatim
+private noncomputable abbrev _rlp_readLength_takeBytes_witness :=
+  @EvmAsm.EL.RLP.readLength_takeBytes
+-- #10190 (PR #11910). Flagged there: `check-axioms.sh` only inspects proofs witnessed
+-- here, so these two were NOT covered by CI's axiom gate despite being the load-bearing
+-- content of the MSTORE `evmMemoryIs` migration. `bytesRegion_dword_pair_at_setBytes` is
+-- the straddling generalisation of `Rv64.bytesRegion_dword_at_setBytes` (payload may span
+-- two dwords rather than one), and `evmMemoryIs_quarter_pair_setBytes` is the
+-- interface-level bridge #10190 asks for -- the shape that avoids the eight-disjoint-dword
+-- precondition whose unsatisfiability is #11913.
+
+-- @@ L860-864 verbatim
+private noncomputable abbrev _mstore_dword_pair_setBytes_witness :=
+  @EvmAsm.Evm64.bytesRegion_dword_pair_at_setBytes
+-- #10190 (bridge cut): the complete one-limb byte-store conversion is
+-- witnessed separately from the topmost MSTORE re-point.  It is uniform in
+-- every residue `start < 8`; no registry row is changed here.
+
+-- @@ L865-869 verbatim
+private noncomputable abbrev _mstore_limb_store_bridge_witness :=
+  @EvmAsm.Evm64.mstoreDwordPairStoreLimb_eq_dwordAt_setBytes
+-- #10190 (topmost region cut): the complete region-backed wrapper is
+-- witnessed additively; the existing raw stack theorem and registry row stay
+-- untouched until the topmost consumer is re-pointed in a later step.
+
+-- @@ L870-871 verbatim
+private noncomputable abbrev _mstore_stack_region_witness :=
+  @EvmAsm.Evm64.evm_mstore_stack_spec_within_region
+
+-- @@ L872-873 verbatim
+private noncomputable abbrev _mstore_evmMemoryIs_quarter_pair_witness :=
+  @EvmAsm.Evm64.evmMemoryIs_quarter_pair_setBytes
+
+-- @@ L874-883 verbatim
+private noncomputable abbrev _decode_account_from_leaf_inv_witness :=
+  @EvmAsm.Stateless.SpecRef.decode_account_from_leaf_inv
+-- #11921 row 1: the `account_write_record` writer model turns `AccountWriteRowsMap`'s
+-- `Nodup` clause from a precondition into a theorem. Model-level (there is no SAsm
+-- transcription of the routine to attach a triple to), so no registry row is claimed —
+-- witnessed here so the invariant and the `dictSet` key correspondence are axiom-gated.
+-- #11921 row 2: the flat→nested storage abstraction, discharged. Witnessed
+-- because it is what a `StateTracker` storage correspondence consumes, and because the
+-- surprise (no hypothesis is needed) is exactly the kind of claim that should be
+-- axiom-checked rather than trusted from a docstring.
+
+-- @@ L884-885 verbatim
+private noncomputable abbrev _storageRowsAbstract_holds_witness :=
+  @EvmAsm.Stateless.storageRowsAbstract_holds
+
+-- @@ L886-887 verbatim
+private noncomputable abbrev _groupByAddress_keys_nodup_witness :=
+  @EvmAsm.Stateless.groupByAddress_keys_nodup
+
+-- @@ L888-889 verbatim
+private noncomputable abbrev _groupByAddress_total_witness :=
+  @EvmAsm.Stateless.groupByAddress_total
+
+-- @@ L890-891 verbatim
+private noncomputable abbrev _accountWriteUpsert_nodup_witness :=
+  @EvmAsm.Stateless.State.accountWriteUpsert_nodup
+
+-- @@ L892-893 verbatim
+private noncomputable abbrev _accountWriteUpsert_rowsMap_witness :=
+  @EvmAsm.Stateless.State.accountWriteUpsert_rowsMap
+
+-- @@ L894-903 verbatim
+private noncomputable abbrev _accountWriteUpsert_keys_dictSet_witness :=
+  @EvmAsm.Stateless.State.accountWriteUpsert_keys_dictSet
+-- #11921 row 2 (writer half): the storage-side counterpart. `storageWriteUpsert_rowsMap`
+-- is the row-1 argument transposed -- `StorageWriteRowsMap`'s `Nodup` clause becomes a
+-- theorem about the writer. `storageWriteUpsert_baselines` has no row-1 analogue and is
+-- the one to keep gated: it says the writer never modifies an existing row's baseline,
+-- and a writer that merged `+96` like `+64` would keep uniqueness while producing a wrong
+-- state root -- which is #11547 / the 7251 multi-block residual, not a hypothetical.
+-- Model-level, same as row 1: both routines are raw `String`s (coverage doc :211,213), so
+-- no triple can be attached and no registry row is claimed.
+
+-- @@ L904-905 verbatim
+private noncomputable abbrev _storageWriteUpsert_rowsMap_witness :=
+  @EvmAsm.Stateless.State.storageWriteUpsert_rowsMap
+
+-- @@ L906-907 verbatim
+private noncomputable abbrev _storageWriteUpsert_nodup_witness :=
+  @EvmAsm.Stateless.State.storageWriteUpsert_nodup
+
+-- @@ L908-909 verbatim
+private noncomputable abbrev _storageWriteUpsert_baselines_witness :=
+  @EvmAsm.Stateless.State.storageWriteUpsert_baselines
+
+-- @@ L910-913 verbatim
+private noncomputable abbrev _storageRowLookup_storageWriteUpsert_witness :=
+  @EvmAsm.Stateless.State.storageRowLookup_storageWriteUpsert
+-- #11346: `account_exists_and_is_empty` split into the address lookup and the
+-- pure `EMPTY_ACCOUNT` kernel, which is the guest routine's comparison point.
+
+-- @@ L914-915 verbatim
+private noncomputable abbrev _accountExistsAndIsEmpty_eq_kernel_witness :=
+  @EvmAsm.Stateless.SpecRef.accountExistsAndIsEmpty_eq_kernel
+
+-- @@ L916-917 verbatim
+private noncomputable abbrev _beq_EMPTY_ACCOUNT_witness :=
+  @EvmAsm.Stateless.SpecRef.beq_EMPTY_ACCOUNT
+
+
+-- @@ L919-919 verbatim
+end EvmAsm.Progress

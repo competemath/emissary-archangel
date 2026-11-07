@@ -1,0 +1,901 @@
+/-
+  EvmAsm.Codegen.Programs.RlpWalk
+
+  Cursor-advancing RLP walker primitives -- a single-pass
+  alternative to the index-based `rlp_list_nth_item` (PR-K20) used
+  by the container decoders in `Tx.lean` / `TxDecode{1559,2930,
+  4844,7702}.lean`.
+
+  Motivation: every call to `rlp_list_nth_item` / `rlp_field_to_*`
+  re-walks the list from byte 0, so decoding all N fields of one
+  container costs 0+1+...+(N-1) = O(N^2) item visits. The pair
+  here walks the list exactly once: `rlp_walk_init` positions the
+  cursor at the first item, then each `rlp_walk_next` advances
+  past exactly one item and reports its content bounds, so the
+  decoder consumes fields 0..N-1 in N visits.
+
+  Key invariant.  For every RLP item form, the content (payload)
+  start pointer is recoverable from the two values `walk_next`
+  returns -- the *advanced* cursor and the *content length*:
+
+      content_ptr = advanced_cursor - content_length
+
+  Verified per form (C = item-start cursor):
+    * single byte  (<0x80)   : adv = C+1, len = 1     -> ptr = C
+    * short string (0x80..b7): adv = C+1+len          -> ptr = C+1
+    * long string  (b8..bf)  : adv = C+1+lol+len      -> ptr = C+1+lol
+    * short list   (c0..f7)  : len = full span, ptr = C
+    * long list    (f8..ff)  : len = full span, ptr = C
+
+  This mirrors PR-K20's content semantics exactly: byte-string
+  items are prefix-stripped, sub-list items are returned in full
+  (so callers can recurse / store whole-encoded spans).
+
+  No proofs yet -- these are codegen `String` defs only.  The
+  verified cursor-advancing walker in `EvmAsm.Rv64.RLP` (e.g.
+  `ValidatingFieldWalk.lean`) is the future verification target.
+-/
+
+import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Rv64.RLP.WalkInit
+import EvmAsm.Rv64.RLP.WalkNext
+import EvmAsm.Rv64.RLP.ContentToU64
+import EvmAsm.Rv64.RLP.ContentToU256Be
+import EvmAsm.Rv64.RLP.ContentToU64Strict
+import EvmAsm.Rv64.RLP.ContentToU256BeStrict
+import EvmAsm.Rv64.RLP.RecDecode.DecodeFn
+
+
+-- @@ L52-52 verbatim
+namespace EvmAsm.Codegen
+
+
+-- @@ L54-54 verbatim
+open EvmAsm.Rv64
+
+
+-- @@ L56-82 verbatim
+/-! ## rlp_walk_init -- position cursor at the first list item
+
+    Skip the outer RLP list prefix (0xc0..0xff) so the cursor
+    points at the first encoded child item.
+
+    Calling convention:
+      a0 (input)  : list bytes ptr (start of outer list prefix)
+      a1 (input)  : total list byte length (full encoded item)
+      ra (input)  : return
+      a0 (output) : cursor (first child item, abs ptr)
+      a1 (output) : end (list_ptr + list_len, exclusive)
+      a2 (output) : status (0 ok; nonzero = malformed, distinct per reason):
+                      1 not-a-list (prefix < 0xc0)
+                      2 empty (list_len == 0)
+                      3 short-list length mismatch (1 + (prefix-0xc0) != list_len)
+                      4 long-list header truncated (1 + lol > list_len)
+                      5 long-list length-field leading zero (len[0] == 0)
+                      6 long-list non-minimal (decoded < 56)
+                      7 long-list length mismatch (1 + lol + decoded != list_len)
+
+    EXACT (execution-specs-equivalent): the list's self-declared length must
+    equal `list_len` -- `1 + lol + decoded` (long) or `1 + (prefix-0xc0)` (short).
+    Frameless leaf -- clobbers t0..t6, returns in a0/a1/a2.
+
+    Emitted from the verified body `EvmAsm.Rv64.RLP.rlp_walk_init_prog` (proven
+    correct by `rlp_walk_init_spec_within`); the rendered assembly is
+    instruction-identical to the prior hand-written version (EEST 200/200 on spike). -/
+
+-- @@ L83-84 verbatim
+def rlpWalkInitFunction : String :=
+  "rlp_walk_init:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_walk_init_prog
+
+
+-- @@ L86-93 verbatim
+/-- Kernel-checked drift guard: the Codegen helper string is exactly the
+    verified `rlp_walk_init_prog` rendered under its label, so any future
+    hand-edit of `rlpWalkInitFunction` that diverges from the verified body
+    fails to typecheck here. -/
+theorem rlpWalkInitFunction_eq_verified_prog :
+    rlpWalkInitFunction =
+      "rlp_walk_init:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_walk_init_prog :=
+  rfl
+
+
+-- @@ L95-96 verbatim
+#guard rlpWalkInitFunction.startsWith "rlp_walk_init:\n"
+-- Length pin against the measured linked span (212 B at `GuestAddrs.rlp_walk_init`; GH #12686).
+
+-- @@ L97-97 verbatim
+#guard EvmAsm.Rv64.RLP.rlp_walk_init_prog.length = 53
+
+
+-- @@ L99-104 verbatim
+/-! ## rlp_walk_next -- advance cursor past one item (STRICT)
+
+    #12021: recursive wrapper transcribed to Programs (356 B unconverted region).
+    Core remains verified `rlp_walk_next_prog` (103 insn). Status 7 = recursively
+    invalid list payload via `rlp_validate_payload`.
+-/
+
+-- @@ L105-118 verbatim
+def rlpWalkNext_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SUB .x5 .x11 .x10,
+    .SLLI .x8 .x5 (1 : BitVec 6),
+    .LI .x9 (0 : Word),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next_shared (GuestAddrs.rlp_walk_next + 28)),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L120-124 verbatim
+/-- Reloc side-table for `rlpWalkNext_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def rlpWalkNext_relocs : RelocTable :=
+  [ (7, .jal .x1 "rlp_walk_next_shared") ]
+
+
+-- @@ L126-127 verbatim
+def rlpWalkNextEntryFunction : String :=
+  "rlp_walk_next:\n" ++ emitProgramR rlpWalkNext_prog rlpWalkNext_relocs
+
+
+-- @@ L129-135 verbatim
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `rlpWalkNext_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem rlpWalkNextEntryFunction_eq_prog :
+    rlpWalkNextEntryFunction = "rlp_walk_next:\n" ++ emitProgramR rlpWalkNext_prog rlpWalkNext_relocs := rfl
+
+
+-- @@ L137-137 verbatim
+#guard rlpWalkNextEntryFunction.startsWith "rlp_walk_next:\n"
+
+-- @@ L138-138 verbatim
+#guard rlpWalkNext_prog.length = 13
+
+
+-- @@ L140-149 verbatim
+/-! The shared walker and the eager validator consume the same depth-budget
+    policy.  `depthCap` is the strict upper bound loaded into `x7` and compared
+    with the current list-depth counter in `x9`: descent is allowed only while
+    `x9 < depthCap`, and the `x9 ≥ depthCap` arm is the clean depth rejection.
+    The externally observed nesting count includes two wrapper levels above
+    this machine counter: with cap `C`, the linked walk accepts through
+    observed depth `C + 1` and first rejects at observed depth `C + 2`.
+    This offset is an interface fact, not another cap or a replacement value.
+    Keep the instruction-level program parameterized so changing that policy
+    is an instantiation, not a second literal (GH #12846). -/
+
+-- @@ L150-202 verbatim
+def rlpWalkNextShared_prog_of (depthCap : Word) : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x10 (8 : BitVec 12),
+    .SD .x2 .x11 (16 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next_core (GuestAddrs.rlp_walk_next_shared + 16)),
+    .SD .x2 .x10 (24 : BitVec 12),
+    .SD .x2 .x11 (32 : BitVec 12),
+    .SD .x2 .x12 (40 : BitVec 12),
+    .BNE .x11 .x0 (brOff (GuestAddrs.rlp_walk_next_shared + 184) (GuestAddrs.rlp_walk_next_shared + 32)),
+    .LI .x5 (2 : Word),
+    .BLTU .x8 .x5 (brOff (GuestAddrs.rlp_walk_next_shared + 168) (GuestAddrs.rlp_walk_next_shared + 40)),
+    .ADDI .x8 .x8 (-2 : BitVec 12),
+    .LD .x5 .x2 (8 : BitVec 12),
+    .LBU .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (192 : Word),
+    .BLTU .x6 .x7 (brOff (GuestAddrs.rlp_walk_next_shared + 184) (GuestAddrs.rlp_walk_next_shared + 60)),
+    .LI .x7 depthCap,
+    .BGEU .x9 .x7 (brOff (GuestAddrs.rlp_walk_next_shared + 168) (GuestAddrs.rlp_walk_next_shared + 68)),
+    .ADDI .x9 .x9 (1 : BitVec 12),
+    .LD .x11 .x2 (24 : BitVec 12),
+    .LI .x7 (248 : Word),
+    .BLTU .x6 .x7 (brOff (GuestAddrs.rlp_walk_next_shared + 148) (GuestAddrs.rlp_walk_next_shared + 84)),
+    .LI .x7 (247 : Word),
+    .SUB .x28 .x6 .x7,
+    .MV .x13 .x28,
+    .ADDI .x29 .x5 (1 : BitVec 12),
+    .LI .x30 (0 : Word),
+    .BEQ .x28 .x0 (28 : BitVec 13),
+    .SLLI .x30 .x30 (8 : BitVec 6),
+    .LBU .x31 .x29 (0 : BitVec 12),
+    .OR .x30 .x30 .x31,
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADD .x12 .x5 .x13,
+    .ADDI .x12 .x12 (1 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .ADDI .x12 .x5 (1 : BitVec 12),
+    .MV .x10 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_validate_payload (GuestAddrs.rlp_walk_next_shared + 156)),
+    .ADDI .x9 .x9 (-1 : BitVec 12),
+    .BEQ .x10 .x0 (20 : BitVec 13),
+    .LD .x10 .x2 (8 : BitVec 12),
+    .LI .x11 (7 : Word),
+    .LI .x12 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LD .x10 .x2 (24 : BitVec 12),
+    .LD .x11 .x2 (32 : BitVec 12),
+    .LD .x12 .x2 (40 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L204-205 verbatim
+/-! The linked Amsterdam image uses the one policy instantiation shared with
+    the validator program; no replacement value is chosen here. -/
+
+-- @@ L206-207 verbatim
+def rlpWalkNextShared_prog : Program :=
+  rlpWalkNextShared_prog_of (rlpRecursiveDecodeDepthCap : Word)
+
+
+-- @@ L209-214 verbatim
+/-- Reloc side-table for `rlpWalkNextShared_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def rlpWalkNextShared_relocs : RelocTable :=
+  [ (4, .jal .x1 "rlp_walk_next_core"),
+    (39, .jal .x1 "rlp_validate_payload") ]
+
+
+-- @@ L216-218 verbatim
+def rlpWalkNextSharedFunction_with_cap (depthCap : Word) : String :=
+  "rlp_walk_next_shared:\n" ++
+    emitProgramR (rlpWalkNextShared_prog_of depthCap) rlpWalkNextShared_relocs
+
+
+-- @@ L220-221 verbatim
+def rlpWalkNextSharedFunction : String :=
+  "rlp_walk_next_shared:\n" ++ emitProgramR rlpWalkNextShared_prog rlpWalkNextShared_relocs
+
+
+-- @@ L223-229 verbatim
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `rlpWalkNextShared_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem rlpWalkNextSharedFunction_eq_prog :
+    rlpWalkNextSharedFunction = "rlp_walk_next_shared:\n" ++ emitProgramR rlpWalkNextShared_prog rlpWalkNextShared_relocs := rfl
+
+
+-- @@ L231-235 verbatim
+theorem rlpWalkNextSharedFunction_with_cap_eq_prog (depthCap : Word) :
+    rlpWalkNextSharedFunction_with_cap depthCap =
+      "rlp_walk_next_shared:\n" ++
+        emitProgramR (rlpWalkNextShared_prog_of depthCap)
+          rlpWalkNextShared_relocs := rfl
+
+
+-- @@ L237-237 verbatim
+#guard rlpWalkNextSharedFunction.startsWith "rlp_walk_next_shared:\n"
+
+-- @@ L238-238 verbatim
+#guard rlpWalkNextShared_prog.length = 52
+
+-- @@ L239-239 verbatim
+#guard (rlpWalkNextShared_prog_of (rlpRecursiveDecodeDepthCap : Word)).length = 52
+
+
+-- @@ L241-245 verbatim
+/-! ## Recursive payload validator (parameterized cap)
+
+The linked guest instantiates the policy cap below, but the program family is
+kept parameterized so the unresolved reference-runtime recursion policy can be
+changed without rewriting the routine or its contracts. -/
+
+
+-- @@ L247-251 verbatim
+/-- Replace one instruction without changing a flattened program's length. -/
+def rlpReplaceInstrAt : Nat → Instr → Program → Program
+  | _, _, [] => []
+  | 0, i, _ :: is => i :: is
+  | n + 1, i, j :: is => j :: rlpReplaceInstrAt n i is
+
+
+-- @@ L253-259 verbatim
+/-- Symbolic direct-call relocs for the linked items routine.  These are the
+    same call slots as the model's `li x28; jalr` pairs, but retain the
+    two-instruction footprint as `jal; nop`. -/
+def rlpDecodeItemsDirectRelocs : RelocTable :=
+  [ (24, .jal .x1 "rlp_recursive_decode_read_be"),
+    (51, .jal .x1 "rlp_recursive_decode_read_be"),
+    (77, .jal .x1 "rlp_recursive_decode") ]
+
+
+-- @@ L261-264 verbatim
+def rlpDecodeDecDirectRelocs : RelocTable :=
+  [ (41, .jal .x1 "rlp_recursive_decode_read_be"),
+    (79, .jal .x1 "rlp_recursive_decode_read_be"),
+    (98, .jal .x1 "rlp_recursive_decode_items") ]
+
+
+-- @@ L266-279 verbatim
+def rlpDecodeItemsDirect_prog : Program :=
+  rlpReplaceInstrAt 25 .NOP <|
+    rlpReplaceInstrAt 24
+      (.JAL .x1 (jalOff GuestAddrs.rlp_recursive_decode_read_be
+        (GuestAddrs.rlp_recursive_decode_items + 96))) <|
+    rlpReplaceInstrAt 52 .NOP <|
+      rlpReplaceInstrAt 51
+        (.JAL .x1 (jalOff GuestAddrs.rlp_recursive_decode_read_be
+          (GuestAddrs.rlp_recursive_decode_items + 204))) <|
+      rlpReplaceInstrAt 78 .NOP <|
+        rlpReplaceInstrAt 77
+          (.JAL .x1 (jalOff GuestAddrs.rlp_recursive_decode
+            (GuestAddrs.rlp_recursive_decode_items + 308)))
+            EvmAsm.Rv64.SAsm.RecDecode.itemsProg
+
+
+-- @@ L281-294 verbatim
+def rlpDecodeDecDirect_prog : Program :=
+  rlpReplaceInstrAt 42 .NOP <|
+    rlpReplaceInstrAt 41
+      (.JAL .x1 (jalOff GuestAddrs.rlp_recursive_decode_read_be
+        (GuestAddrs.rlp_recursive_decode + 164))) <|
+    rlpReplaceInstrAt 80 .NOP <|
+      rlpReplaceInstrAt 79
+        (.JAL .x1 (jalOff GuestAddrs.rlp_recursive_decode_read_be
+          (GuestAddrs.rlp_recursive_decode + 316))) <|
+      rlpReplaceInstrAt 99 .NOP <|
+        rlpReplaceInstrAt 98
+          (.JAL .x1 (jalOff GuestAddrs.rlp_recursive_decode_items
+            (GuestAddrs.rlp_recursive_decode + 392)))
+              EvmAsm.Rv64.SAsm.RecDecode.decProg
+
+
+-- @@ L296-296 verbatim
+#guard rlpDecodeItemsDirect_prog.length = 93
+
+-- @@ L297-297 verbatim
+#guard rlpDecodeDecDirect_prog.length = 106
+
+
+-- @@ L299-303 verbatim
+/-- The linked source uses direct `jal` plus `nop` at each recursive call.
+    Keeping this as a symbolic relocation rendering makes the source-level
+    program and the linked image agree without a non-kernel string rewrite. -/
+def rlpDecodeDecBody : String :=
+  emitProgramR rlpDecodeDecDirect_prog rlpDecodeDecDirectRelocs
+
+
+-- @@ L305-306 verbatim
+def rlpDecodeItemsBody : String :=
+  emitProgramR rlpDecodeItemsDirect_prog rlpDecodeItemsDirectRelocs
+
+
+-- @@ L308-309 verbatim
+private def rlpDecodeReadBeBody : String :=
+  emitProgram EvmAsm.Rv64.SAsm.RecDecode.rdbeProg
+
+
+-- @@ L311-312 verbatim
+#guard rlpRecursiveDecodeFrameBytes rlpRecursiveDecodeDepthCap =
+  40 * rlpRecursiveDecodeDepthCap + 40
+
+
+-- @@ L314-314 verbatim
+def rlpRecursiveDecodeFrameAddr : Word := GuestAddrs.rlp_recursive_decode_frame
+
+
+-- @@ L316-319 verbatim
+def rlpRecursiveDecodeFunction : String :=
+  "rlp_recursive_decode:\n" ++ rlpDecodeDecBody ++ "\n" ++
+  "rlp_recursive_decode_items:\n" ++ rlpDecodeItemsBody ++ "\n" ++
+  "rlp_recursive_decode_read_be:\n" ++ rlpDecodeReadBeBody
+
+
+-- @@ L321-321 verbatim
+#guard rlpRecursiveDecodeFunction.startsWith "rlp_recursive_decode:\n"
+
+
+-- @@ L323-348 verbatim
+/-- Validator entry parameterization.  `depthCap` is copied to the recursive
+    decoder's budget register (`x12`); the decoder consumes that budget and
+    returns its existing failure status when it reaches zero.  The linked
+    caller supplies the same policy value as `rlpWalkNextShared_prog`. -/
+def rlpValidatePayload_prog_of (depthCap : Word) : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x13 (8 : BitVec 12),
+    .BEQ .x10 .x11 (44 : BitVec 13),
+    .BGEU .x10 .x11 (48 : BitVec 13),
+    .MV .x15 .x10,
+    .MV .x16 .x11,
+    .LI .x12 depthCap,
+    .AUIPC .x13 (laHi GuestAddrs.rlp_recursive_decode_frame (GuestAddrs.rlp_validate_payload + 32)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.rlp_recursive_decode_frame (GuestAddrs.rlp_validate_payload + 32)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_recursive_decode_items (GuestAddrs.rlp_validate_payload + 40)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .LI .x10 (7 : Word),
+    .JAL .x0 (20 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (7 : Word),
+    .LD .x13 .x2 (8 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L350-352 verbatim
+/-! The validator's linked entry uses the same policy instantiation as the
+    shared walker above.  The cap remains a parameter of the program family;
+    this default is the single production instantiation. -/
+
+-- @@ L353-354 verbatim
+def rlpValidatePayload_prog : Program :=
+  rlpValidatePayload_prog_of (rlpRecursiveDecodeDepthCap : Word)
+
+
+-- @@ L356-361 verbatim
+/-- Reloc side-table for `rlpValidatePayload_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def rlpValidatePayload_relocs : RelocTable :=
+  [ (8, .la .x13 "rlp_recursive_decode_frame"),
+    (10, .jal .x1 "rlp_recursive_decode_items") ]
+
+
+-- @@ L363-364 verbatim
+def rlpValidatePayloadFunction : String :=
+  "rlp_validate_payload:\n" ++ emitProgramR rlpValidatePayload_prog rlpValidatePayload_relocs
+
+
+-- @@ L366-368 verbatim
+def rlpValidatePayloadFunction_with_cap (depthCap : Word) : String :=
+  "rlp_validate_payload:\n" ++
+    emitProgramR (rlpValidatePayload_prog_of depthCap) rlpValidatePayload_relocs
+
+
+-- @@ L370-376 verbatim
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `rlpValidatePayload_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem rlpValidatePayloadFunction_eq_prog :
+    rlpValidatePayloadFunction = "rlp_validate_payload:\n" ++ emitProgramR rlpValidatePayload_prog rlpValidatePayload_relocs := rfl
+
+
+-- @@ L378-381 verbatim
+theorem rlpValidatePayloadFunction_with_cap_eq_prog (depthCap : Word) :
+    rlpValidatePayloadFunction_with_cap depthCap =
+      "rlp_validate_payload:\n" ++
+        emitProgramR (rlpValidatePayload_prog_of depthCap) rlpValidatePayload_relocs := rfl
+
+
+-- @@ L383-383 verbatim
+#guard rlpValidatePayloadFunction.startsWith "rlp_validate_payload:\n"
+
+-- @@ L384-384 verbatim
+#guard rlpValidatePayload_prog.length = 21
+
+
+-- @@ L386-389 verbatim
+/-! Retired strict-fuel proof anchor.  This is kept under an explicit offline
+name so no production coverage row can mistake it for the linked adapter.  The
+one-instruction nested jump used by this anchor is no longer emitted; its
+symbolic address is kept separately as `rlpWalkNextNestedOfflineAddr`. -/
+
+-- @@ L390-391 verbatim
+def rlpWalkNextNestedOfflineAddr : Nat :=
+  GuestAddrs.rlp_walk_next_shared - 4
+
+
+-- @@ L393-417 verbatim
+def rlpValidatePayloadOffline_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x10 (8 : BitVec 12),
+    .SD .x2 .x11 (16 : BitVec 12),
+    .LD .x10 .x2 (8 : BitVec 12),
+    .LD .x5 .x2 (16 : BitVec 12),
+    .MV .x11 .x5,
+    .BEQ .x10 .x5 (32 : BitVec 13),
+    .BLTU .x5 .x10 (44 : BitVec 13),
+    .JAL .x1 (jalOff rlpWalkNextNestedOfflineAddr
+      (GuestAddrs.rlp_validate_payload + 36)),
+    .BNE .x11 .x0 (36 : BitVec 13),
+    .LD .x5 .x2 (16 : BitVec 12),
+    .BLTU .x5 .x10 (28 : BitVec 13),
+    .SD .x2 .x10 (8 : BitVec 12),
+    .JAL .x0 (-40 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (7 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L419-419 verbatim
+#guard rlpValidatePayloadOffline_prog.length = 23
+
+
+-- @@ L421-524 verbatim
+def rlpWalkNextCore_prog : Program :=
+  [ .BGEU .x10 .x11 (brOff (GuestAddrs.rlp_walk_next_core + 352) (GuestAddrs.rlp_walk_next_core + 0)),
+    .LBU .x5 .x10 (0 : BitVec 12),
+    .LI .x6 (128 : Word),
+    .BLTU .x5 .x6 (brOff (GuestAddrs.rlp_walk_next_core + 300) (GuestAddrs.rlp_walk_next_core + 12)),
+    .LI .x6 (184 : Word),
+    .BLTU .x5 .x6 (brOff (GuestAddrs.rlp_walk_next_core + 248) (GuestAddrs.rlp_walk_next_core + 20)),
+    .LI .x6 (192 : Word),
+    .BLTU .x5 .x6 (brOff (GuestAddrs.rlp_walk_next_core + 148) (GuestAddrs.rlp_walk_next_core + 28)),
+    .LI .x6 (248 : Word),
+    .BLTU .x5 .x6 (brOff (GuestAddrs.rlp_walk_next_core + 316) (GuestAddrs.rlp_walk_next_core + 36)),
+    .LI .x6 (247 : Word),
+    .SUB .x7 .x5 .x6,
+    .ADDI .x6 .x7 (1 : BitVec 12),
+    .ADD .x29 .x10 .x6,
+    .BLTU .x11 .x29 (brOff (GuestAddrs.rlp_walk_next_core + 364) (GuestAddrs.rlp_walk_next_core + 56)),
+    .ADDI .x30 .x10 (1 : BitVec 12),
+    .LBU .x31 .x30 (0 : BitVec 12),
+    .BEQ .x31 .x0 (brOff (GuestAddrs.rlp_walk_next_core + 388) (GuestAddrs.rlp_walk_next_core + 68)),
+    .LI .x28 (0 : Word),
+    .MV .x6 .x7,
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .SLLI .x28 .x28 (8 : BitVec 6),
+    .LBU .x31 .x30 (0 : BitVec 12),
+    .OR .x28 .x28 .x31,
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x6 (56 : Word),
+    .BLTU .x28 .x6 (brOff (GuestAddrs.rlp_walk_next_core + 376) (GuestAddrs.rlp_walk_next_core + 112)),
+    .ADD .x31 .x7 .x28,
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .SUB .x6 .x11 .x29,
+    .BLTU .x6 .x28 (brOff (GuestAddrs.rlp_walk_next_core + 364) (GuestAddrs.rlp_walk_next_core + 128)),
+    .ADD .x10 .x31 .x10,
+    .MV .x12 .x31,
+    .LI .x11 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x6 (183 : Word),
+    .SUB .x7 .x5 .x6,
+    .ADDI .x6 .x7 (1 : BitVec 12),
+    .ADD .x29 .x10 .x6,
+    .BLTU .x11 .x29 (brOff (GuestAddrs.rlp_walk_next_core + 364) (GuestAddrs.rlp_walk_next_core + 164)),
+    .ADDI .x30 .x10 (1 : BitVec 12),
+    .LBU .x31 .x30 (0 : BitVec 12),
+    .BEQ .x31 .x0 (brOff (GuestAddrs.rlp_walk_next_core + 388) (GuestAddrs.rlp_walk_next_core + 176)),
+    .LI .x28 (0 : Word),
+    .MV .x6 .x7,
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .SLLI .x28 .x28 (8 : BitVec 6),
+    .LBU .x31 .x30 (0 : BitVec 12),
+    .OR .x28 .x28 .x31,
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x6 (56 : Word),
+    .BLTU .x28 .x6 (brOff (GuestAddrs.rlp_walk_next_core + 376) (GuestAddrs.rlp_walk_next_core + 220)),
+    .SUB .x6 .x11 .x29,
+    .BLTU .x6 .x28 (brOff (GuestAddrs.rlp_walk_next_core + 364) (GuestAddrs.rlp_walk_next_core + 228)),
+    .ADD .x10 .x29 .x28,
+    .MV .x12 .x28,
+    .LI .x11 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x6 (128 : Word),
+    .SUB .x12 .x5 .x6,
+    .ADDI .x7 .x10 (1 : BitVec 12),
+    .SUB .x28 .x11 .x10,
+    .BGEU .x12 .x28 (brOff (GuestAddrs.rlp_walk_next_core + 364) (GuestAddrs.rlp_walk_next_core + 264)),
+    .LI .x6 (1 : Word),
+    .BNE .x12 .x6 (16 : BitVec 13),
+    .LBU .x6 .x7 (0 : BitVec 12),
+    .LI .x29 (128 : Word),
+    .BLTU .x6 .x29 (brOff (GuestAddrs.rlp_walk_next_core + 400) (GuestAddrs.rlp_walk_next_core + 284)),
+    .ADD .x10 .x7 .x12,
+    .LI .x11 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .LI .x12 (1 : Word),
+    .LI .x11 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x6 (192 : Word),
+    .SUB .x31 .x5 .x6,
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .SUB .x6 .x11 .x10,
+    .BLTU .x6 .x31 (32 : BitVec 13),
+    .ADD .x10 .x31 .x10,
+    .MV .x12 .x31,
+    .LI .x11 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x11 (2 : Word),
+    .LI .x12 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x11 (3 : Word),
+    .LI .x12 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x11 (4 : Word),
+    .LI .x12 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x11 (5 : Word),
+    .LI .x12 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x11 (6 : Word),
+    .LI .x12 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L526-527 verbatim
+def rlpWalkNextCoreFunction : String :=
+  "rlp_walk_next_core:\n" ++ emitProgram rlpWalkNextCore_prog
+
+
+-- @@ L529-534 verbatim
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `rlpWalkNextCore_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem rlpWalkNextCoreFunction_eq_prog :
+    rlpWalkNextCoreFunction = "rlp_walk_next_core:\n" ++ emitProgram rlpWalkNextCore_prog := rfl
+
+
+-- @@ L536-536 verbatim
+#guard rlpWalkNextCoreFunction.startsWith "rlp_walk_next_core:\n"
+
+-- @@ L537-537 verbatim
+#guard rlpWalkNextCore_prog.length = 103
+
+
+-- @@ L539-546 verbatim
+/-! **Guest-anchor tie for the verified core.**
+
+    The semantic triple in `EvmAsm.Rv64.RLP.WalkNext` is parameterised by a
+    code base and names `rlp_walk_next_code base`, while this Codegen module
+    names the linked entry through `GuestAddrs.rlp_walk_next_core`. Keep the
+    two program copies tied without pinning the numeric address: the only
+    equality needed here is the program-body equality above, and the base is
+    the symbolic GuestAddrs value. -/
+
+-- @@ L547-554 verbatim
+theorem rlpWalkNextCoreCode_eq_verified :
+    CodeReq.ofProg (GuestAddrs.rlp_walk_next_core : Word) rlpWalkNextCore_prog =
+      EvmAsm.Rv64.RLP.rlp_walk_next_code
+        (GuestAddrs.rlp_walk_next_core : Word) := by
+  change CodeReq.ofProg (GuestAddrs.rlp_walk_next_core : Word) rlpWalkNextCore_prog =
+    CodeReq.ofProg (GuestAddrs.rlp_walk_next_core : Word)
+      EvmAsm.Rv64.RLP.rlp_walk_next_prog
+  rw [show rlpWalkNextCore_prog = EvmAsm.Rv64.RLP.rlp_walk_next_prog from rfl]
+
+
+-- @@ L556-562 verbatim
+/-- Concatenated emission used by Dispatch: entry+nested+shared+validate+core. -/
+def rlpWalkNextFunction : String :=
+  rlpWalkNextEntryFunction ++ "\n" ++
+  rlpWalkNextSharedFunction ++ "\n" ++
+  rlpValidatePayloadFunction ++ "\n" ++
+  rlpWalkNextCoreFunction ++ "\n" ++
+  rlpRecursiveDecodeFunction
+
+
+-- @@ L564-564 verbatim
+#guard rlpWalkNextFunction.startsWith "rlp_walk_next:\n"
+
+
+-- @@ L566-588 verbatim
+/-! ## rlp_content_to_u64 -- big-endian content bytes -> u64
+
+    Decode a big-endian byte string (the prefix-stripped payload
+    of an RLP byte-string item, as reported by `rlp_walk_next`) as
+    a u64.  This is the BE-decode half of PR-K34
+    `rlp_field_to_u64`, taking an explicit (ptr, len) instead of
+    re-walking the list.
+
+    Emitted from the verified **lenient** body
+    `EvmAsm.Rv64.RLP.rlp_content_to_u64_prog` (proven correct by the three-way
+    dispatch theorem `rlp_content_to_u64_spec_within`, see
+    `EvmAsm/Rv64/RLP/ContentToU64.lean`). Leading-zero scalar bytes are accepted,
+    matching the guest's `int.from_bytes` semantics; only over-width content
+    returns status `2`.
+
+    Calling convention:
+      a0 (input)  : content bytes ptr
+      a1 (input)  : content byte length
+      ra (input)  : return
+      a0 (output) : u64 value (LE register form)
+      a1 (output) : status (0 ok / 2 too long (> 8 bytes))
+
+    Frameless leaf. -/
+
+-- @@ L589-590 verbatim
+def rlpContentToU64Function : String :=
+  "rlp_content_to_u64:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u64_prog
+
+
+-- @@ L592-599 verbatim
+/-- Kernel-checked drift guard: the Codegen helper string is exactly the
+    verified `rlp_content_to_u64_prog` rendered under its label, so any
+    future hand-edit of `rlpContentToU64Function` that diverges from the
+    verified body fails to typecheck here. -/
+theorem rlpContentToU64Function_eq_verified_prog :
+    rlpContentToU64Function =
+      "rlp_content_to_u64:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u64_prog :=
+  rfl
+
+
+-- @@ L601-602 verbatim
+#guard rlpContentToU64Function.startsWith "rlp_content_to_u64:\n"
+-- Length pin against the measured linked span (72 B at `GuestAddrs.rlp_content_to_u64`; GH #12686).
+
+-- @@ L603-603 verbatim
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 18
+
+
+-- @@ L605-614 verbatim
+/-! ## rlp_content_to_u64_strict -- canonical scalar -> u64
+
+    This is the typed-transaction / typed-withdrawal surface.  It is kept
+    beside the lenient witness/account decoder because the two callers have
+    different reference semantics: typed scalar decoding rejects a leading
+    zero, while account and BAL state witnesses use `int.from_bytes`.
+
+    The strict leaf returns status `3` for a nonempty payload whose first byte
+    is zero, status `2` for a payload wider than eight bytes, and status `0`
+    otherwise. -/
+
+-- @@ L615-617 verbatim
+def rlpContentToU64StrictFunction : String :=
+  "rlp_content_to_u64_strict:\n" ++
+    emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog
+
+
+-- @@ L619-623 verbatim
+theorem rlpContentToU64StrictFunction_eq_verified_prog :
+    rlpContentToU64StrictFunction =
+      "rlp_content_to_u64_strict:\n" ++
+        emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog :=
+  rfl
+
+
+-- @@ L625-626 verbatim
+#guard rlpContentToU64StrictFunction.startsWith "rlp_content_to_u64_strict:\n"
+-- Length pin against the measured linked span (88 B at `GuestAddrs.rlp_content_to_u64_strict`; GH #12686).
+
+-- @@ L627-627 verbatim
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog.length = 22
+
+
+-- @@ L629-655 verbatim
+/-! ## rlp_content_to_u256_be -- right-align content bytes -> u256 BE
+
+    Right-align a big-endian byte string (the prefix-stripped
+    payload of an RLP byte-string item) into a 32-byte BE u256
+    buffer.  This is the copy half of PR-K35
+    `rlp_field_to_u256_be`, taking an explicit (ptr, len, out)
+    instead of re-walking the list.
+
+    Emitted from the verified **lenient** body
+    `EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog` (proven correct by the
+    three-way dispatch theorem `rlp_content_to_u256_be_spec_within`, see
+    `EvmAsm/Rv64/RLP/ContentToU256Be.lean`). Behavior difference from the
+    prior hand-written body that matters for callers: leading-zero scalar bytes
+    are accepted and right-aligned; only content wider than 32 bytes returns
+    status `2`.
+
+    Calling convention:
+      a0 (input)  : content bytes ptr
+      a1 (input)  : content byte length
+      a2 (input)  : 32-byte u256 BE output ptr (right-aligned)
+      ra (input)  : return
+      a0 (output) : status
+                      0 ok (len <= 32)
+                      2 too long (len > 32)
+
+    The output is always zeroed first, so fail / too-long
+    paths leave a zero u256. Frameless leaf. -/
+
+-- @@ L656-658 verbatim
+def rlpContentToU256BeFunction : String :=
+  "rlp_content_to_u256_be:\n" ++
+    emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog
+
+
+-- @@ L660-668 verbatim
+/-- Kernel-checked drift guard: the Codegen helper string is exactly the
+    verified `rlp_content_to_u256_be_prog` rendered under its label, so any
+    future hand-edit of `rlpContentToU256BeFunction` that diverges from the
+    verified body fails to typecheck here. -/
+theorem rlpContentToU256BeFunction_eq_verified_prog :
+    rlpContentToU256BeFunction =
+      "rlp_content_to_u256_be:\n" ++
+        emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog :=
+  rfl
+
+
+-- @@ L670-671 verbatim
+#guard rlpContentToU256BeFunction.startsWith "rlp_content_to_u256_be:\n"
+-- Length pin against the measured linked span (104 B at `GuestAddrs.rlp_content_to_u256_be`; GH #12686).
+
+-- @@ L672-672 verbatim
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog.length = 26
+
+
+-- @@ L674-678 verbatim
+/-! ## rlp_content_to_u256_be_strict -- canonical scalar -> u256 BE
+
+    The strict typed-scalar counterpart of the lenient state-witness helper.
+    It uses the same output-buffer ABI and adds status `3` for a nonempty
+    leading-zero payload. -/
+
+-- @@ L679-681 verbatim
+def rlpContentToU256BeStrictFunction : String :=
+  "rlp_content_to_u256_be_strict:\n" ++
+    emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u256_be_strict_prog
+
+
+-- @@ L683-687 verbatim
+theorem rlpContentToU256BeStrictFunction_eq_verified_prog :
+    rlpContentToU256BeStrictFunction =
+      "rlp_content_to_u256_be_strict:\n" ++
+        emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u256_be_strict_prog :=
+  rfl
+
+
+-- @@ L689-690 verbatim
+#guard rlpContentToU256BeStrictFunction.startsWith "rlp_content_to_u256_be_strict:\n"
+-- Length pin against the measured linked span (104 B at `GuestAddrs.rlp_content_to_u256_be_strict`; GH #12686).
+
+-- @@ L691-691 verbatim
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u256_be_strict_prog.length = 26
+
+
+-- @@ L693-699 verbatim
+/-! The cursor-walk primitives concatenated as a single helper block.
+
+    Standalone debug probes that embed the tx/header decoders (which now use
+    the single-pass cursor walker) must link these bodies too. Mirrors the
+    index-based RLP primitives each such probe already bundles; centralised
+    here so new probes don't hand-copy the six helper definitions (the documented closure-drift
+    pattern, see `BlockVerdictV2.lean` ziskStatelessVerdictV2ProbeUnit). -/
+
+-- @@ L700-706 verbatim
+def rlpWalkHelpersClosure : String :=
+  rlpWalkInitFunction ++ "\n" ++
+  rlpWalkNextFunction ++ "\n" ++
+  rlpContentToU64Function ++ "\n" ++
+  rlpContentToU256BeFunction ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpContentToU256BeStrictFunction
+
+
+-- @@ L708-723 verbatim
+/-- Kernel-checked drift guard: the closure is exactly the concatenation of
+    the six guarded helper definitions, so future edits cannot quietly
+    bypass one of them (each helper is itself tied to its verified Rv64
+    program by `rlpWalkInitFunction_eq_verified_prog`,
+    `rlpWalkNextCoreFunction_eq_prog`,
+    `rlpContentToU64Function_eq_verified_prog`, and
+    `rlpContentToU256BeFunction_eq_verified_prog` and their strict counterparts). -/
+theorem rlpWalkHelpersClosure_eq_helpers :
+    rlpWalkHelpersClosure =
+      rlpWalkInitFunction ++ "\n" ++
+      rlpWalkNextFunction ++ "\n" ++
+      rlpContentToU64Function ++ "\n" ++
+      rlpContentToU256BeFunction ++ "\n" ++
+      rlpContentToU64StrictFunction ++ "\n" ++
+      rlpContentToU256BeStrictFunction :=
+  rfl
+
+
+-- @@ L725-725 verbatim
+end EvmAsm.Codegen

@@ -1,0 +1,124 @@
+/-
+  EvmAsm.Evm64.DivMod.LimbSpec.Div128PhaseEnd
+
+  Full compositions for the first and last straight-line phases of the
+  `div128` trial-division subroutine:
+    * `divK_div128_phase1_spec_within` — Instrs [0]-[9], 10 instructions:
+      SD+SD+SRLI+SLLI+SRLI+SD (save_split_d) followed by
+      SRLI+SLLI+SRLI+SD (split_ulo). Saves the return address and `d`,
+      splits `d` into `dHi`/`dLo`, splits `uLo` into `un1`/`un0`.
+    * `divK_div128_end_spec_within` — Instrs [45]-[48], 4 instructions:
+      SLLI+OR (combine_q → `q = q1<<32 | q0`) followed by LD+JALR
+      (restore return addr and jump back). Exits at `retAddr`.
+
+  Twenty-seventh chunk of the `LimbSpec.lean` split tracked by issue #312.
+  The consumer surface is unchanged: `LimbSpec.lean` re-exports this file
+  so every existing `import EvmAsm.Evm64.DivMod.LimbSpec` still sees both
+  specs.
+-/
+
+module
+
+public import EvmAsm.Evm64.DivMod.Program
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+
+-- @@ L28-28 verbatim
+public section
+
+
+-- @@ L30-30 verbatim
+open EvmAsm.Rv64.Tactics
+
+
+-- @@ L32-32 verbatim
+namespace EvmAsm.Evm64
+
+
+-- @@ L34-34 verbatim
+open EvmAsm.Rv64
+
+
+-- @@ L36-83 verbatim
+/-- div128 Phase 1: save return addr/d, split d and uLo. Instrs [0]-[9].
+    Input: x12=sp, x2=retAddr, x10=d, x5=uLo, x7=uHi.
+    Output: x6=dHi, x11=un1, x5=un0 (saved), x7=uHi (unchanged). -/
+theorem divK_div128_phase1_spec_within
+    (sp retAddr d uLo uHi v9Old v6Old v11Old
+     retMem dMem dloMem un0Mem : Word) (base : Word) :
+    let dHi := d >>> (32 : BitVec 6).toNat
+    let dLo := (d <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let un1 := uLo >>> (32 : BitVec 6).toNat
+    let un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.SD .x12 .x2 3968))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.SD .x12 .x10 3960))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SRLI .x6 .x10 32))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SLLI .x9 .x10 32))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.SRLI .x9 .x9 32))
+      (CodeReq.union (CodeReq.singleton (base + 20) (.SD .x12 .x9 3952))
+      (CodeReq.union (CodeReq.singleton (base + 24) (.SRLI .x11 .x5 32))
+      (CodeReq.union (CodeReq.singleton (base + 28) (.SLLI .x5 .x5 32))
+      (CodeReq.union (CodeReq.singleton (base + 32) (.SRLI .x5 .x5 32))
+       (CodeReq.singleton (base + 36) (.SD .x12 .x5 3944))))))))))
+    cpsTripleWithin 10 base (base + 40) cr
+      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
+       (.x6 ↦ᵣ v6Old) ** (.x9 ↦ᵣ v9Old) ** (.x5 ↦ᵣ uLo) **
+       (.x11 ↦ᵣ v11Old) ** (.x7 ↦ᵣ uHi) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ un0Mem))
+      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
+       (.x6 ↦ᵣ dHi) ** (.x9 ↦ᵣ dLo) ** (.x5 ↦ᵣ un0) **
+       (.x11 ↦ᵣ un1) ** (.x7 ↦ᵣ uHi) **
+       (sp + signExtend12 3968 ↦ₘ retAddr) **
+       (sp + signExtend12 3960 ↦ₘ d) **
+       (sp + signExtend12 3952 ↦ₘ dLo) **
+       (sp + signExtend12 3944 ↦ₘ un0)) := by
+  intro dHi dLo un1 un0 cr
+  have I0 := sd_spec_gen_within .x12 .x2 sp retAddr retMem 3968 base
+  have I1 := sd_spec_gen_within .x12 .x10 sp d dMem 3960 (base + 4)
+  have I2 := srli_spec_gen_within .x6 .x10 v6Old d 32 (base + 8) (by nofun)
+  have I3 := slli_spec_gen_within .x9 .x10 v9Old d 32 (base + 12) (by nofun)
+  have I4 := srli_spec_gen_same_within .x9 (d <<< (32 : BitVec 6).toNat) 32 (base + 16) (by nofun)
+  have I5 := sd_spec_gen_within .x12 .x9 sp dLo dloMem 3952 (base + 20)
+  have I6 := srli_spec_gen_within .x11 .x5 v11Old uLo 32 (base + 24) (by nofun)
+  have I7 := slli_spec_gen_same_within .x5 uLo 32 (base + 28) (by nofun)
+  have I8 := srli_spec_gen_same_within .x5 (uLo <<< (32 : BitVec 6).toNat) 32 (base + 32) (by nofun)
+  have I9 := sd_spec_gen_within .x12 .x5 sp un0 un0Mem 3944 (base + 36)
+  runBlock I0 I1 I2 I3 I4 I5 I6 I7 I8 I9
+
+
+-- @@ L85-108 verbatim
+/-- div128 end phase: combine q1,q0 into q, restore return addr, return.
+    Instrs [45]-[48]. Exit to retAddr. -/
+theorem divK_div128_end_spec_within
+    (sp q1 q0 v2Old v11Old retAddr : Word) (base : Word)
+    (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
+    let q1Hi := q1 <<< (32 : BitVec 6).toNat
+    let q := q1Hi ||| q0
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.SLLI .x11 .x10 32))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.OR .x11 .x11 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.LD .x2 .x12 3968))
+       (CodeReq.singleton (base + 12) (.JALR .x0 .x2 0))))
+    cpsTripleWithin 4 base retAddr cr
+      ((.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ v11Old) **
+       (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ v2Old) ** (sp + signExtend12 3968 ↦ₘ retAddr))
+      ((.x10 ↦ᵣ q1) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ q) **
+       (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (sp + signExtend12 3968 ↦ₘ retAddr)) := by
+  intro q1Hi q cr
+  have I0 := slli_spec_gen_within .x11 .x10 v11Old q1 32 base (by nofun)
+  have I1 := or_spec_gen_rd_eq_rs1_within .x11 .x5 q1Hi q0 (base + 4) (by nofun)
+  have I2 := ld_spec_gen_within .x2 .x12 sp v2Old retAddr 3968 (base + 8) (by nofun)
+  have I3 := jalr_x0_spec_gen_within .x2 retAddr 0 (base + 12)
+  rw [halign] at I3
+  runBlock I0 I1 I2 I3
+
+
+-- @@ L110-110 verbatim
+end EvmAsm.Evm64

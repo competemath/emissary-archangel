@@ -1,0 +1,1302 @@
+/-
+  EvmAsm.Codegen.Programs.Header
+
+  Block-header decoding and validation cluster lifted out of
+  `EvmAsm.Codegen.Programs` per the file-size hard cap.
+
+  Header decoders:
+    K38  header_minimal_decode
+    K39  header_extended_decode
+    K55  coinbase_extract_from_header
+    K90  header_extract_blob_gas_pair
+    K93  block_validate_blob_gas_max_cap
+    K95  header_extract_block_roots
+
+  Header validators:
+    K43  validate_header_basic
+    K72  check_gas_limit
+         amsterdam_blob_gas_price_u256
+    K67  header_validate_post_merge
+    K68  header_validate_extra_data_length
+
+  Pre- / post-exec account mutations (placed adjacently in the
+  source file; they consume the header-validation pipeline's
+  outputs for gas / base-fee fields):
+    K81  account_charge_gas_pre_exec
+    K82  account_refund_gas_post_exec
+
+  Header fee-validation chain:
+    K73  eip1559_calc_base_fee_per_gas
+    K74  header_validate_base_fee
+    K75  validate_header_full
+
+  No proofs yet -- these are codegen `String` defs only.
+
+  Header scalar routing (Amsterdam `blocks.py` / `SpecRef.Types`):
+    `number : Uint`       -> strict K34
+    `gas_limit : Uint`    -> strict K34
+    `gas_used : Uint`     -> strict K34
+    `timestamp : U256`    -> strict path (the guest's u64 projection)
+    `blob_gas_used : U64` -> strict K34
+    `excess_blob_gas : U64` -> strict K34
+  The per-field reference type, rather than the shared header location, is
+  what selects the decoder family. -/
+
+import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.Tx
+
+
+-- @@ L54-54 verbatim
+namespace EvmAsm.Codegen
+
+
+-- @@ L56-56 verbatim
+open EvmAsm.Rv64
+
+
+-- @@ L58-95 verbatim
+/-! ## header_extract_blob_gas_pair -- PR-K90 Cancun blob fields
+
+    Extract the EIP-4844 blob-gas fields from an Amsterdam header:
+
+      blob_gas_used    (header field 17, u64) — total blob gas
+        consumed by all transactions in this block (= sum of
+        `len(tx.blob_versioned_hashes) × GAS_PER_BLOB` over type-3
+        txs). Cross-checks against PR-K89.
+
+      excess_blob_gas  (header field 18, u64) — running total used
+        for the blob-fee adjustment formula.
+
+    Cancun-era (and later) headers always have both. Pre-Cancun
+    headers don't, and the extractor reports a parse failure.
+
+    Direct inputs to:
+      * the apply_body invariant
+        `header.blob_gas_used == sum(tx.blob_gas_used)`
+      * the next-block `excess_blob_gas` recurrence used in
+        `calculate_excess_blob_gas`.
+
+    Output layout (16 bytes):
+       0..  8  blob_gas_used    (u64 LE)
+       8.. 16  excess_blob_gas  (u64 LE)
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 16-byte output ptr (caller-supplied)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : header parse failed / field 17 missing / not u64
+        2 : field 18 missing / not u64
+
+    Composes PR-K20 `rlp_list_nth_item` via PR-K53
+    `rlp_field_to_u64`. Uses two 8-byte `.data` scratch slots
+    (`rfu_offset`, `rfu_length`) shared with other K-helpers. -/
+
+-- @@ L96-131 verbatim
+def headerExtractBlobGasPair_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (17 : Word),
+    .MV .x13 .x18,
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483696),
+    .BEQ .x10 .x0 (20 : BitVec 13),
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x18 .x0 (8 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (48 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (18 : Word),
+    .ADDI .x13 .x18 (8 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483736),
+    .BEQ .x10 .x0 (20 : BitVec 13),
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x18 .x0 (8 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L133-138 verbatim
+/-- Reloc side-table for `headerExtractBlobGasPair_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerExtractBlobGasPair_relocs : RelocTable :=
+  [ (12, .jal .x1 "rlp_field_to_u64_strict"),
+    (22, .jal .x1 "rlp_field_to_u64_strict") ]
+
+
+-- @@ L140-141 verbatim
+def headerExtractBlobGasPairFunction : String :=
+  "header_extract_blob_gas_pair:\n" ++ emitProgramR headerExtractBlobGasPair_prog headerExtractBlobGasPair_relocs
+
+
+-- @@ L143-149 verbatim
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerExtractBlobGasPair_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerExtractBlobGasPairFunction_eq_prog :
+    headerExtractBlobGasPairFunction = "header_extract_blob_gas_pair:\n" ++ emitProgramR headerExtractBlobGasPair_prog headerExtractBlobGasPair_relocs := rfl
+
+
+-- @@ L151-151 verbatim
+#guard headerExtractBlobGasPairFunction.startsWith "header_extract_blob_gas_pair:\n"
+
+-- @@ L152-152 verbatim
+#guard headerExtractBlobGasPair_prog.length = 35
+
+
+-- @@ L154-197 verbatim
+/-! ## block_validate_blob_gas_max_cap -- PR-K93
+
+    Cancun cap enforcement: a block's `blob_gas_used` cannot exceed
+    `MAX_BLOB_GAS_PER_BLOCK = BLOB_SCHEDULE_MAX × GAS_PER_BLOB`.
+
+    Python reference (`forks/amsterdam/fork.py`):
+
+      MAX_BLOB_GAS_PER_BLOCK = BLOB_SCHEDULE_MAX * GAS_PER_BLOB
+      blob_gas_available = MAX_BLOB_GAS_PER_BLOCK - block_output.blob_gas_used
+      # …enforced per-tx as `tx_blob_gas_used > blob_gas_available`
+
+    The block-level cap is the loop invariant: at end-of-block,
+    `block_output.blob_gas_used == header.blob_gas_used`, so the
+    consensus check that `header.blob_gas_used ≤ MAX_BLOB_GAS_PER_BLOCK`
+    is the closed form. On Amsterdam mainnet:
+
+      MAX_BLOB_GAS_PER_BLOCK = 21 × 131072 = 2,752,512
+
+    Both parameters are passed in so the helper works across
+    forks that adjust either.
+
+    Computation:
+      1. Extract `header.blob_gas_used` (field 17, u64) via PR-K53
+         `rlp_field_to_u64`.
+      2. Compute `cap = max_blobs_per_block × gas_per_blob`; reject
+         on u64 overflow.
+      3. Compare `blob_gas_used ≤ cap`.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : max_blobs_per_block (u64; 21 on mainnet Amsterdam)
+      a3 (input)  : gas_per_blob (u64; 131072 on mainnet)
+      ra (input)  : return
+      a0 (output) : composite status
+
+    Status encoding:
+      0 : within cap
+      1 : header parse / field 17 missing / not u64
+      2 : `max_blobs_per_block × gas_per_blob` overflows u64
+      3 : `blob_gas_used > cap`
+
+    Composes PR-K20 `rlp_list_nth_item` via PR-K53
+    `rlp_field_to_u64`. -/
+
+-- @@ L198-233 verbatim
+def blockValidateBlobGasMaxCapFunction : String :=
+  "block_validate_blob_gas_max_cap:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a2                   # max_blobs_per_block\n" ++
+  "  mv s1, a3                   # gas_per_blob\n" ++
+  "  # Step 1: extract header.blob_gas_used (field 17, u64).\n" ++
+  "  # a0,a1 still hold (header_ptr, header_len).\n" ++
+  "  li a2, 17\n" ++
+  "  la a3, bvbmc_bgu\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
+  "  beqz a0, .Lbvbmc_step2\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbvbmc_ret\n" ++
+  ".Lbvbmc_step2:\n" ++
+  "  # Step 2: cap = max_blobs × gas_per_blob, with u64 overflow check.\n" ++
+  "  mulhu t0, s0, s1            # high half of unsigned product\n" ++
+  "  bnez t0, .Lbvbmc_overflow\n" ++
+  "  mul s2, s0, s1              # cap (low 64 bits)\n" ++
+  "  # Step 3: compare blob_gas_used <= cap.\n" ++
+  "  la t0, bvbmc_bgu\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  bgtu t1, s2, .Lbvbmc_exceeds\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbvbmc_ret\n" ++
+  ".Lbvbmc_overflow:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lbvbmc_ret\n" ++
+  ".Lbvbmc_exceeds:\n" ++
+  "  li a0, 3\n" ++
+  ".Lbvbmc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+
+-- @@ L235-264 verbatim
+/-! ## header_extract_block_roots -- PR-K95
+
+    Extract the three remaining 32-byte root fields from an
+    Amsterdam header that the existing extended-decode helpers
+    don't cover:
+
+       0..32   transactions_root  (field 4)
+      32..64   receipt_root       (field 5)
+      64..96   withdrawals_root   (field 16)
+
+    Used by `validate_block_body` callers that cross-check the
+    body's tx/receipt/withdrawal MPT roots against the consensus-
+    layer commitment, and by the trie-rebuild path. The state_root
+    (field 3) is already covered by PR-K39 `header_extended_decode`;
+    `parent_hash` by PR-K17; `coinbase` by PR-K55.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 96-byte output ptr (caller-supplied)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : field 4 (transactions_root) missing / not 32 B
+        2 : field 5 (receipt_root) missing / not 32 B
+        3 : field 16 (withdrawals_root) missing / not 32 B
+            (pre-Shanghai headers don't have this field)
+
+    Composes PR-K20 `rlp_list_nth_item`. Uses two 8-byte `.data`
+    scratch slots (`hebr_offset`, `hebr_length`). -/
+
+-- @@ L265-335 verbatim
+def headerExtractBlockRootsFunction : String :=
+  "header_extract_block_roots:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                  # header_rlp ptr\n" ++
+  "  mv s1, a1                  # header_len\n" ++
+  "  mv s2, a2                  # 96B output ptr\n" ++
+  "  # Field 4: transactions_root → out[0..32]\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 4\n" ++
+  "  la a3, hebr_offset; la a4, hebr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhebr_f4_fail\n" ++
+  "  la t0, hebr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhebr_f4_fail\n" ++
+  "  la t0, hebr_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
+  "  # Field 5: receipt_root → out[32..64]\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
+  "  la a3, hebr_offset; la a4, hebr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhebr_f5_fail\n" ++
+  "  la t0, hebr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhebr_f5_fail\n" ++
+  "  la t0, hebr_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  addi t5, s2, 32\n" ++
+  "  ld t4,  0(t3); sd t4,  0(t5)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(t5)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(t5)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(t5)\n" ++
+  "  # Field 16: withdrawals_root → out[64..96]\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 16\n" ++
+  "  la a3, hebr_offset; la a4, hebr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhebr_f16_fail\n" ++
+  "  la t0, hebr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhebr_f16_fail\n" ++
+  "  la t0, hebr_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  addi t5, s2, 64\n" ++
+  "  ld t4,  0(t3); sd t4,  0(t5)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(t5)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(t5)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(t5)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhebr_ret\n" ++
+  ".Lhebr_f4_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhebr_zero_ret\n" ++
+  ".Lhebr_f5_fail:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lhebr_zero_ret\n" ++
+  ".Lhebr_f16_fail:\n" ++
+  "  li a0, 3\n" ++
+  ".Lhebr_zero_ret:\n" ++
+  "  # Zero the output on any failure.\n" ++
+  "  mv t0, s2; li t1, 12\n" ++
+  ".Lhebr_zero:\n" ++
+  "  beqz t1, .Lhebr_ret\n" ++
+  "  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1\n" ++
+  "  j .Lhebr_zero\n" ++
+  ".Lhebr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+
+-- @@ L337-363 verbatim
+/-! ## validate_header_basic -- PR-K43 per-header semantic checks
+
+    Three u64 invariants from `validate_header` (Python:
+    `forks/amsterdam/fork.py`):
+
+      1. gas_used <= gas_limit
+      2. number >= 1 and number == parent.number + 1
+      3. timestamp > parent.timestamp
+
+    Both inputs are 128-byte extended-header structs as produced
+    by PR-K39 `header_extended_decode`. Only the u64 fields at
+    offsets 64 (number), 72 (timestamp), 80 (gas_limit), 88
+    (gas_used) are read; the hash fields (parent_hash,
+    state_root) and base_fee_per_gas are ignored here -- those
+    are checked elsewhere (PR-K18 `validate_chain` for the hash
+    chain, future PR for the EIP-1559 base-fee formula).
+
+    Calling convention:
+      a0 (input)  : header_ptr (128-byte struct, this header)
+      a1 (input)  : parent_ptr (128-byte struct, parent header)
+      ra (input)  : return
+      a0 (output) : 0 ok
+                    1 gas_used > gas_limit
+                    2 number < 1 or number != parent.number + 1
+                    3 timestamp <= parent.timestamp
+
+    Pure register arithmetic, no scratch memory, leaf-callable. -/
+
+-- @@ L364-383 verbatim
+def validateHeaderBasic_prog : Program :=
+  [ .LD .x5 .x10 (88 : BitVec 12),
+    .LD .x6 .x10 (80 : BitVec 12),
+    .BLTU .x6 .x5 (44 : BitVec 13),
+    .LD .x5 .x10 (64 : BitVec 12),
+    .BEQ .x5 .x0 (44 : BitVec 13),
+    .LD .x6 .x11 (64 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .BNE .x5 .x6 (32 : BitVec 13),
+    .LD .x5 .x10 (72 : BitVec 12),
+    .LD .x6 .x11 (72 : BitVec 12),
+    .BGEU .x6 .x5 (28 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (3 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L385-386 verbatim
+def validateHeaderBasicFunction : String :=
+  "validate_header_basic:\n" ++ emitProgram validateHeaderBasic_prog
+
+
+-- @@ L388-393 verbatim
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `validateHeaderBasic_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem validateHeaderBasicFunction_eq_prog :
+    validateHeaderBasicFunction = "validate_header_basic:\n" ++ emitProgram validateHeaderBasic_prog := rfl
+
+
+-- @@ L395-395 verbatim
+#guard validateHeaderBasicFunction.startsWith "validate_header_basic:\n"
+
+-- @@ L396-396 verbatim
+#guard validateHeaderBasic_prog.length = 19
+
+
+-- @@ L398-421 verbatim
+/-! ## check_gas_limit -- PR-K72 gas-limit continuity check
+
+    Verify the per-header gas-limit elasticity rules per
+    Ethereum's `check_gas_limit`:
+
+      max_adjustment_delta = parent_gas_limit // 1024
+      |gas_limit - parent_gas_limit| < max_adjustment_delta
+      gas_limit >= GAS_LIMIT_MINIMUM (5000)
+
+    Used by `validate_header` to ensure consecutive blocks
+    smoothly adjust their gas-limit ceiling. Adoption is
+    EIP-1985 + EIP-1559 elasticity.
+
+    Pure u64 arithmetic (shift, sub, compare). No scratch
+    memory, leaf-callable.
+
+    Calling convention:
+      a0 (input)  : new.gas_limit    (u64)
+      a1 (input)  : parent.gas_limit (u64)
+      ra (input)  : return
+      a0 (output) :
+        0  : all checks pass
+        1  : new.gas_limit < GAS_LIMIT_MINIMUM (5000)
+        2  : |new - parent| >= parent / 1024 (jumped too far) -/
+
+-- @@ L422-437 verbatim
+def checkGasLimit_prog : Program :=
+  [ .LUI .x5 (1 : BitVec 20),
+    .ADDIW .x5 .x5 (904 : BitVec 12),
+    .BLTU .x10 .x5 (36 : BitVec 13),
+    .SRLI .x6 .x11 (10 : BitVec 6),
+    .BLTU .x11 .x10 (12 : BitVec 13),
+    .SUB .x7 .x11 .x10,
+    .JAL .x0 (8 : BitVec 21),
+    .SUB .x7 .x10 .x11,
+    .BGEU .x7 .x6 (20 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L439-440 verbatim
+def checkGasLimitFunction : String :=
+  "check_gas_limit:\n" ++ emitProgram checkGasLimit_prog
+
+
+-- @@ L442-447 verbatim
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `checkGasLimit_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem checkGasLimitFunction_eq_prog :
+    checkGasLimitFunction = "check_gas_limit:\n" ++ emitProgram checkGasLimit_prog := rfl
+
+
+-- @@ L449-449 verbatim
+#guard checkGasLimitFunction.startsWith "check_gas_limit:\n"
+
+-- @@ L450-450 verbatim
+#guard checkGasLimit_prog.length = 15
+
+
+-- @@ L452-452 verbatim
+/-! ## K69 tx_validate_against_block — moved to `Programs/Tx.lean` (file-size hard cap). -/
+
+
+-- @@ L454-489 verbatim
+/-! ## amsterdam_blob_gas_price_u256 -- wide-result blob fee fake exponential
+
+    `taylor_exponential(1, excess_blob_gas, 11684671)`, accumulating the
+    numerator in six little-endian 64-bit limbs and returning the price as a
+    32-byte big-endian u256.
+    (A u64 variant existed and was removed in #11350 — zero production
+    callers; this is the only blob-gas-price routine in the guest.)
+    the u64 envelope (around excess ≈ 328M), which is well below the EIP-4844
+    consensus-reachable range: e.g. `excess_blob_gas = 564,002,816` yields a
+    blob gas price ≈ e^48 ≈ 9.4e20 (~70 bits). The spec's `taylor_exponential`
+    is arbitrary precision, so a u64-overflowing helper false-rejects valid
+    headers in `header_validate_excess_blob_gas` (the EIP-7918 reserve-price
+    comparison `BLOB_BASE_COST * base_fee > PER_BLOB * blob_gas_price`). This
+    The 384-bit intermediate is the measured machine envelope.  With the
+    exact guard order (output bound before product bound), an exhaustive
+    fixed-state prefix search over the full u64 domain found a maximum of 495
+    nonzero transitions at `excess_blob_gas = 2,073,394,370`, and a maximum
+    pre-division product of 377 bits at
+    `excess_blob_gas = 4,033,036,207,587,913,316`, state `i = 9`.  The
+    in-envelope boundary itself peaks at 306 bits; `u64.max` bails at state
+    `i = 8` with a 359-bit product.  These are sizing measurements, not a
+    replacement for the exact model contract.  The routine reports overflow
+    when the intermediate or final result is outside its fixed
+    representation.
+
+    Calling convention:
+      a0 (input)  : excess_blob_gas (u64)
+      a1 (input)  : output price ptr (32 bytes, BE)
+      ra (input)  : return
+      a0 (output) : status, 0 ok / 1 u256 overflow (output left undefined).
+
+    Uses three 48-byte little-endian stack buffers (accumulator, product and
+    Taylor sum) in a 208-byte frame.  Each division is a bounded 384-bit
+    restoring division by `D * i`; no external helper or mutable `.data`
+    scratch is used.  The loop cap is `i < 496`, covering the measured 495
+    transitions at the acceptance boundary. -/
+
+-- @@ L490-742 verbatim
+def amsterdamBlobGasPriceU256_prog : Program :=
+  [ .ADDI .x2 .x2 (-208 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x21 .x11,
+    .LUI .x9 (2853 : BitVec 20),
+    .ADDIW .x9 .x9 (-1217 : BitVec 12),
+    .LI .x18 (1 : Word),
+    .ADDI .x19 .x2 (64 : BitVec 12),
+    .ADDI .x20 .x2 (112 : BitVec 12),
+    .ADDI .x22 .x2 (160 : BitVec 12),
+    .SD .x2 .x0 (64 : BitVec 12),
+    .SD .x2 .x0 (72 : BitVec 12),
+    .SD .x2 .x0 (80 : BitVec 12),
+    .SD .x2 .x0 (88 : BitVec 12),
+    .SD .x2 .x0 (96 : BitVec 12),
+    .SD .x2 .x0 (104 : BitVec 12),
+    .SD .x2 .x0 (112 : BitVec 12),
+    .SD .x2 .x0 (120 : BitVec 12),
+    .SD .x2 .x0 (128 : BitVec 12),
+    .SD .x2 .x0 (136 : BitVec 12),
+    .SD .x2 .x0 (144 : BitVec 12),
+    .SD .x2 .x0 (152 : BitVec 12),
+    .SD .x2 .x0 (160 : BitVec 12),
+    .SD .x2 .x0 (168 : BitVec 12),
+    .SD .x2 .x0 (176 : BitVec 12),
+    .SD .x2 .x0 (184 : BitVec 12),
+    .SD .x2 .x0 (192 : BitVec 12),
+    .SD .x2 .x0 (200 : BitVec 12),
+    .SD .x2 .x9 (64 : BitVec 12),
+    .LI .x5 (0 : Word),
+    .LD .x6 .x19 (0 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .LD .x6 .x19 (8 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .LD .x6 .x19 (16 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .LD .x6 .x19 (24 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .LD .x6 .x19 (32 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .LD .x6 .x19 (40 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .BEQ .x5 .x0 (brOff (GuestAddrs.amsterdam_blob_gas_price_u256 + 804) (GuestAddrs.amsterdam_blob_gas_price_u256 + 196)),
+    .LI .x5 (496 : Word),
+    .BGEU .x18 .x5 (brOff (GuestAddrs.amsterdam_blob_gas_price_u256 + 964) (GuestAddrs.amsterdam_blob_gas_price_u256 + 204)),
+    .LI .x5 (0 : Word),
+    .LD .x6 .x19 (0 : BitVec 12),
+    .LD .x7 .x22 (0 : BitVec 12),
+    .ADD .x28 .x6 .x7,
+    .SLTU .x29 .x28 .x6,
+    .ADD .x30 .x28 .x5,
+    .SLTU .x31 .x30 .x28,
+    .OR .x29 .x29 .x31,
+    .SD .x22 .x30 (0 : BitVec 12),
+    .MV .x5 .x29,
+    .LD .x6 .x19 (8 : BitVec 12),
+    .LD .x7 .x22 (8 : BitVec 12),
+    .ADD .x28 .x6 .x7,
+    .SLTU .x29 .x28 .x6,
+    .ADD .x30 .x28 .x5,
+    .SLTU .x31 .x30 .x28,
+    .OR .x29 .x29 .x31,
+    .SD .x22 .x30 (8 : BitVec 12),
+    .MV .x5 .x29,
+    .LD .x6 .x19 (16 : BitVec 12),
+    .LD .x7 .x22 (16 : BitVec 12),
+    .ADD .x28 .x6 .x7,
+    .SLTU .x29 .x28 .x6,
+    .ADD .x30 .x28 .x5,
+    .SLTU .x31 .x30 .x28,
+    .OR .x29 .x29 .x31,
+    .SD .x22 .x30 (16 : BitVec 12),
+    .MV .x5 .x29,
+    .LD .x6 .x19 (24 : BitVec 12),
+    .LD .x7 .x22 (24 : BitVec 12),
+    .ADD .x28 .x6 .x7,
+    .SLTU .x29 .x28 .x6,
+    .ADD .x30 .x28 .x5,
+    .SLTU .x31 .x30 .x28,
+    .OR .x29 .x29 .x31,
+    .SD .x22 .x30 (24 : BitVec 12),
+    .MV .x5 .x29,
+    .LD .x6 .x19 (32 : BitVec 12),
+    .LD .x7 .x22 (32 : BitVec 12),
+    .ADD .x28 .x6 .x7,
+    .SLTU .x29 .x28 .x6,
+    .ADD .x30 .x28 .x5,
+    .SLTU .x31 .x30 .x28,
+    .OR .x29 .x29 .x31,
+    .SD .x22 .x30 (32 : BitVec 12),
+    .MV .x5 .x29,
+    .LD .x6 .x19 (40 : BitVec 12),
+    .LD .x7 .x22 (40 : BitVec 12),
+    .ADD .x28 .x6 .x7,
+    .SLTU .x29 .x28 .x6,
+    .ADD .x30 .x28 .x5,
+    .SLTU .x31 .x30 .x28,
+    .OR .x29 .x29 .x31,
+    .SD .x22 .x30 (40 : BitVec 12),
+    .MV .x5 .x29,
+    .BNE .x5 .x0 (brOff (GuestAddrs.amsterdam_blob_gas_price_u256 + 964) (GuestAddrs.amsterdam_blob_gas_price_u256 + 428)),
+    .LI .x31 (0 : Word),
+    .LD .x5 .x19 (0 : BitVec 12),
+    .MUL .x6 .x5 .x8,
+    .MULHU .x7 .x5 .x8,
+    .ADD .x28 .x6 .x31,
+    .SLTU .x29 .x28 .x6,
+    .ADD .x30 .x7 .x29,
+    .SLTU .x29 .x30 .x7,
+    .BNE .x29 .x0 (brOff (GuestAddrs.amsterdam_blob_gas_price_u256 + 964) (GuestAddrs.amsterdam_blob_gas_price_u256 + 464)),
+    .SD .x20 .x28 (0 : BitVec 12),
+    .MV .x31 .x30,
+    .LD .x5 .x19 (8 : BitVec 12),
+    .MUL .x6 .x5 .x8,
+    .MULHU .x7 .x5 .x8,
+    .ADD .x28 .x6 .x31,
+    .SLTU .x29 .x28 .x6,
+    .ADD .x30 .x7 .x29,
+    .SLTU .x29 .x30 .x7,
+    .BNE .x29 .x0 (brOff (GuestAddrs.amsterdam_blob_gas_price_u256 + 964) (GuestAddrs.amsterdam_blob_gas_price_u256 + 504)),
+    .SD .x20 .x28 (8 : BitVec 12),
+    .MV .x31 .x30,
+    .LD .x5 .x19 (16 : BitVec 12),
+    .MUL .x6 .x5 .x8,
+    .MULHU .x7 .x5 .x8,
+    .ADD .x28 .x6 .x31,
+    .SLTU .x29 .x28 .x6,
+    .ADD .x30 .x7 .x29,
+    .SLTU .x29 .x30 .x7,
+    .BNE .x29 .x0 (brOff (GuestAddrs.amsterdam_blob_gas_price_u256 + 964) (GuestAddrs.amsterdam_blob_gas_price_u256 + 544)),
+    .SD .x20 .x28 (16 : BitVec 12),
+    .MV .x31 .x30,
+    .LD .x5 .x19 (24 : BitVec 12),
+    .MUL .x6 .x5 .x8,
+    .MULHU .x7 .x5 .x8,
+    .ADD .x28 .x6 .x31,
+    .SLTU .x29 .x28 .x6,
+    .ADD .x30 .x7 .x29,
+    .SLTU .x29 .x30 .x7,
+    .BNE .x29 .x0 (brOff (GuestAddrs.amsterdam_blob_gas_price_u256 + 964) (GuestAddrs.amsterdam_blob_gas_price_u256 + 584)),
+    .SD .x20 .x28 (24 : BitVec 12),
+    .MV .x31 .x30,
+    .LD .x5 .x19 (32 : BitVec 12),
+    .MUL .x6 .x5 .x8,
+    .MULHU .x7 .x5 .x8,
+    .ADD .x28 .x6 .x31,
+    .SLTU .x29 .x28 .x6,
+    .ADD .x30 .x7 .x29,
+    .SLTU .x29 .x30 .x7,
+    .BNE .x29 .x0 (brOff (GuestAddrs.amsterdam_blob_gas_price_u256 + 964) (GuestAddrs.amsterdam_blob_gas_price_u256 + 624)),
+    .SD .x20 .x28 (32 : BitVec 12),
+    .MV .x31 .x30,
+    .LD .x5 .x19 (40 : BitVec 12),
+    .MUL .x6 .x5 .x8,
+    .MULHU .x7 .x5 .x8,
+    .ADD .x28 .x6 .x31,
+    .SLTU .x29 .x28 .x6,
+    .ADD .x30 .x7 .x29,
+    .SLTU .x29 .x30 .x7,
+    .BNE .x29 .x0 (brOff (GuestAddrs.amsterdam_blob_gas_price_u256 + 964) (GuestAddrs.amsterdam_blob_gas_price_u256 + 664)),
+    .SD .x20 .x28 (40 : BitVec 12),
+    .MV .x31 .x30,
+    .BNE .x31 .x0 (brOff (GuestAddrs.amsterdam_blob_gas_price_u256 + 964) (GuestAddrs.amsterdam_blob_gas_price_u256 + 676)),
+    .MV .x5 .x19,
+    .MV .x19 .x20,
+    .MV .x20 .x5,
+    .MUL .x5 .x9 .x18,
+    .MULHU .x6 .x9 .x18,
+    .BNE .x6 .x0 (brOff (GuestAddrs.amsterdam_blob_gas_price_u256 + 964) (GuestAddrs.amsterdam_blob_gas_price_u256 + 700)),
+    .MV .x6 .x0,
+    .MV .x30 .x19,
+    .ADDI .x30 .x30 (40 : BitVec 12),
+    .LI .x31 (6 : Word),
+    .LD .x7 .x30 (0 : BitVec 12),
+    .LI .x28 (0 : Word),
+    .LI .x29 (64 : Word),
+    .SLLI .x6 .x6 (1 : BitVec 6),
+    .BLT .x7 .x0 (12 : BitVec 13),
+    .SLLI .x7 .x7 (1 : BitVec 6),
+    .JAL .x0 (12 : BitVec 21),
+    .SLLI .x7 .x7 (1 : BitVec 6),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .SLLI .x28 .x28 (1 : BitVec 6),
+    .BLTU .x6 .x5 (12 : BitVec 13),
+    .SUB .x6 .x6 .x5,
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .BNE .x29 .x0 (-44 : BitVec 13),
+    .SD .x30 .x28 (0 : BitVec 12),
+    .ADDI .x30 .x30 (-8 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .BNE .x31 .x0 (brOff (GuestAddrs.amsterdam_blob_gas_price_u256 + 720) (GuestAddrs.amsterdam_blob_gas_price_u256 + 792)),
+    .ADDI .x18 .x18 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.amsterdam_blob_gas_price_u256 + 144) (GuestAddrs.amsterdam_blob_gas_price_u256 + 800)),
+    .MV .x5 .x9,
+    .MV .x6 .x0,
+    .MV .x30 .x22,
+    .ADDI .x30 .x30 (40 : BitVec 12),
+    .LI .x31 (6 : Word),
+    .LD .x7 .x30 (0 : BitVec 12),
+    .LI .x28 (0 : Word),
+    .LI .x29 (64 : Word),
+    .SLLI .x6 .x6 (1 : BitVec 6),
+    .BLT .x7 .x0 (12 : BitVec 13),
+    .SLLI .x7 .x7 (1 : BitVec 6),
+    .JAL .x0 (12 : BitVec 21),
+    .SLLI .x7 .x7 (1 : BitVec 6),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .SLLI .x28 .x28 (1 : BitVec 6),
+    .BLTU .x6 .x5 (12 : BitVec 13),
+    .SUB .x6 .x6 .x5,
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .BNE .x29 .x0 (-44 : BitVec 13),
+    .SD .x30 .x28 (0 : BitVec 12),
+    .ADDI .x30 .x30 (-8 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .BNE .x31 .x0 (brOff (GuestAddrs.amsterdam_blob_gas_price_u256 + 824) (GuestAddrs.amsterdam_blob_gas_price_u256 + 896)),
+    .LD .x5 .x22 (32 : BitVec 12),
+    .LD .x6 .x22 (40 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .BNE .x5 .x0 (52 : BitVec 13),
+    .LI .x30 (0 : Word),
+    .LI .x29 (31 : Word),
+    .SUB .x29 .x29 .x30,
+    .ADD .x28 .x22 .x29,
+    .LBU .x7 .x28 (0 : BitVec 12),
+    .ADD .x28 .x21 .x30,
+    .SB .x28 .x7 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .LI .x29 (32 : Word),
+    .BLTU .x30 .x29 (-32 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (208 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L744-745 verbatim
+def amsterdamBlobGasPriceU256Function : String :=
+  "amsterdam_blob_gas_price_u256:\n" ++ emitProgram amsterdamBlobGasPriceU256_prog
+
+
+-- @@ L747-752 verbatim
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `amsterdamBlobGasPriceU256_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem amsterdamBlobGasPriceU256Function_eq_prog :
+    amsterdamBlobGasPriceU256Function = "amsterdam_blob_gas_price_u256:\n" ++ emitProgram amsterdamBlobGasPriceU256_prog := rfl
+
+
+-- @@ L754-754 verbatim
+#guard amsterdamBlobGasPriceU256Function.startsWith "amsterdam_blob_gas_price_u256:\n"
+
+-- @@ L755-755 verbatim
+#guard amsterdamBlobGasPriceU256_prog.length = 252
+
+
+
+-- @@ L758-814 verbatim
+/-! ## header_validate_post_merge -- PR-K67
+
+    Verify the three post-merge header invariants:
+
+      1. header.difficulty == 0   (canonical RLP: empty-string,
+                                   content_length == 0)
+      2. header.nonce == 0x0000000000000000   (8 zero bytes)
+      3. header.ommers_hash == EMPTY_OMMERS_HASH
+         (= keccak256(rlp([])) = 0x1dcc4de8...49347)
+
+    Mirrors the Python `validate_header` checks added at the
+    Merge fork:
+
+      assert header.ommers_hash == EMPTY_OMMERS_HASH
+      assert header.difficulty == 0
+      assert header.nonce == b"\\x00" * 8
+
+    Composes `rlp_walk_init` followed by a FIFTEEN-ITERATION LOOP of
+    `rlp_walk_next` calls (one static loop body, field index in `x20`)
+    to walk header fields 0-14 (relocs: init `jal` at 10, next `jal`
+    at 16, `la` at 51).  The field-1 (ommers) content end/len are
+    captured into `x8`/`x9` on iteration 1; the field-7 (difficulty)
+    content-length check runs on iteration 7.  Each check has a
+    distinct return code so callers can pinpoint which invariant
+    failed.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      ra (input)  : return
+      a0 (output) :
+        0  : all three invariants hold
+        1  : difficulty != 0
+        2  : nonce not 8 zero bytes
+        3  : ommers_hash mismatch
+        4  : RLP parse failure (e.g. not a list, field missing)
+
+    Uses a 48-byte stack frame (spills `ra`/`x8`/`x9`/`x18`/`x19`/
+    `x20` at 0/8/16/24/32/40; `x20` is the spilled loop index) and
+    reads the 32-byte `empty_ommers_hash` `.data` constant at
+    `GuestAddrs.empty_ommers_hash` (the `la` relocation below); it
+    does NOT touch the `.data` scratch cells `hvpm_off`/`hvpm_len`,
+    which belong to `post_merge_invariants_at_block_hash`/
+    `step2_verdict`.
+
+    The nonce and ommers-hash compares are BYTE-WISE (`lbu` loads,
+    destination registers never equal their base registers): the
+    compared field content is arbitrarily aligned (input-dependent
+    RLP layout), and the verified RV64 model gives misaligned `ld`
+    no semantics, while the zkVM target (Zicclsm) executes misaligned
+    wide loads transparently — byte-wise loads read exactly the same
+    little-endian bytes on both, so observable behavior is unchanged
+    and the program is provable in the model.  The nonce check tests
+    all eight bytes (8 x `lbu`+`bne`), the ommers compare all 32
+    (unrolled byte-pair chain against the constant).  Static size:
+    166 instructions = 664 bytes (+39 / +156 B vs the unrolled
+    predecessor; the loop reshape itself is a net -60). -/
+
+-- @@ L815-981 verbatim
+def headerValidatePostMerge_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .LI .x20 (0 : Word),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.header_validate_post_merge + 40)),
+    .BNE .x12 .x0 (brOff (GuestAddrs.header_validate_post_merge + 628) (GuestAddrs.header_validate_post_merge + 44)),
+    .MV .x18 .x10,
+    .MV .x19 .x11,
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_validate_post_merge + 64)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.header_validate_post_merge + 628) (GuestAddrs.header_validate_post_merge + 68)),
+    .LI .x5 (1 : Word),
+    .BNE .x20 .x5 (12 : BitVec 13),
+    .MV .x8 .x10,
+    .MV .x9 .x12,
+    .LI .x5 (7 : Word),
+    .BNE .x20 .x5 (8 : BitVec 13),
+    .BNE .x12 .x0 (brOff (GuestAddrs.header_validate_post_merge + 604) (GuestAddrs.header_validate_post_merge + 96)),
+    .MV .x18 .x10,
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .LI .x5 (15 : Word),
+    .BNE .x20 .x5 (-56 : BitVec 13),
+    .LI .x5 (8 : Word),
+    .BNE .x12 .x5 (brOff (GuestAddrs.header_validate_post_merge + 612) (GuestAddrs.header_validate_post_merge + 120)),
+    .SUB .x6 .x10 .x12,
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .BNE .x7 .x0 (brOff (GuestAddrs.header_validate_post_merge + 612) (GuestAddrs.header_validate_post_merge + 132)),
+    .LBU .x7 .x6 (1 : BitVec 12),
+    .BNE .x7 .x0 (brOff (GuestAddrs.header_validate_post_merge + 612) (GuestAddrs.header_validate_post_merge + 140)),
+    .LBU .x7 .x6 (2 : BitVec 12),
+    .BNE .x7 .x0 (brOff (GuestAddrs.header_validate_post_merge + 612) (GuestAddrs.header_validate_post_merge + 148)),
+    .LBU .x7 .x6 (3 : BitVec 12),
+    .BNE .x7 .x0 (brOff (GuestAddrs.header_validate_post_merge + 612) (GuestAddrs.header_validate_post_merge + 156)),
+    .LBU .x7 .x6 (4 : BitVec 12),
+    .BNE .x7 .x0 (brOff (GuestAddrs.header_validate_post_merge + 612) (GuestAddrs.header_validate_post_merge + 164)),
+    .LBU .x7 .x6 (5 : BitVec 12),
+    .BNE .x7 .x0 (brOff (GuestAddrs.header_validate_post_merge + 612) (GuestAddrs.header_validate_post_merge + 172)),
+    .LBU .x7 .x6 (6 : BitVec 12),
+    .BNE .x7 .x0 (brOff (GuestAddrs.header_validate_post_merge + 612) (GuestAddrs.header_validate_post_merge + 180)),
+    .LBU .x7 .x6 (7 : BitVec 12),
+    .BNE .x7 .x0 (brOff (GuestAddrs.header_validate_post_merge + 612) (GuestAddrs.header_validate_post_merge + 188)),
+    .LI .x5 (32 : Word),
+    .BNE .x9 .x5 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 196)),
+    .SUB .x6 .x8 .x9,
+    .AUIPC .x5 (laHi GuestAddrs.empty_ommers_hash (GuestAddrs.header_validate_post_merge + 204)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.empty_ommers_hash (GuestAddrs.header_validate_post_merge + 204)),
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 220)),
+    .LBU .x7 .x6 (1 : BitVec 12),
+    .LBU .x28 .x5 (1 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 232)),
+    .LBU .x7 .x6 (2 : BitVec 12),
+    .LBU .x28 .x5 (2 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 244)),
+    .LBU .x7 .x6 (3 : BitVec 12),
+    .LBU .x28 .x5 (3 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 256)),
+    .LBU .x7 .x6 (4 : BitVec 12),
+    .LBU .x28 .x5 (4 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 268)),
+    .LBU .x7 .x6 (5 : BitVec 12),
+    .LBU .x28 .x5 (5 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 280)),
+    .LBU .x7 .x6 (6 : BitVec 12),
+    .LBU .x28 .x5 (6 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 292)),
+    .LBU .x7 .x6 (7 : BitVec 12),
+    .LBU .x28 .x5 (7 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 304)),
+    .LBU .x7 .x6 (8 : BitVec 12),
+    .LBU .x28 .x5 (8 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 316)),
+    .LBU .x7 .x6 (9 : BitVec 12),
+    .LBU .x28 .x5 (9 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 328)),
+    .LBU .x7 .x6 (10 : BitVec 12),
+    .LBU .x28 .x5 (10 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 340)),
+    .LBU .x7 .x6 (11 : BitVec 12),
+    .LBU .x28 .x5 (11 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 352)),
+    .LBU .x7 .x6 (12 : BitVec 12),
+    .LBU .x28 .x5 (12 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 364)),
+    .LBU .x7 .x6 (13 : BitVec 12),
+    .LBU .x28 .x5 (13 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 376)),
+    .LBU .x7 .x6 (14 : BitVec 12),
+    .LBU .x28 .x5 (14 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 388)),
+    .LBU .x7 .x6 (15 : BitVec 12),
+    .LBU .x28 .x5 (15 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 400)),
+    .LBU .x7 .x6 (16 : BitVec 12),
+    .LBU .x28 .x5 (16 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 412)),
+    .LBU .x7 .x6 (17 : BitVec 12),
+    .LBU .x28 .x5 (17 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 424)),
+    .LBU .x7 .x6 (18 : BitVec 12),
+    .LBU .x28 .x5 (18 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 436)),
+    .LBU .x7 .x6 (19 : BitVec 12),
+    .LBU .x28 .x5 (19 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 448)),
+    .LBU .x7 .x6 (20 : BitVec 12),
+    .LBU .x28 .x5 (20 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 460)),
+    .LBU .x7 .x6 (21 : BitVec 12),
+    .LBU .x28 .x5 (21 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 472)),
+    .LBU .x7 .x6 (22 : BitVec 12),
+    .LBU .x28 .x5 (22 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 484)),
+    .LBU .x7 .x6 (23 : BitVec 12),
+    .LBU .x28 .x5 (23 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 496)),
+    .LBU .x7 .x6 (24 : BitVec 12),
+    .LBU .x28 .x5 (24 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 508)),
+    .LBU .x7 .x6 (25 : BitVec 12),
+    .LBU .x28 .x5 (25 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 520)),
+    .LBU .x7 .x6 (26 : BitVec 12),
+    .LBU .x28 .x5 (26 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 532)),
+    .LBU .x7 .x6 (27 : BitVec 12),
+    .LBU .x28 .x5 (27 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 544)),
+    .LBU .x7 .x6 (28 : BitVec 12),
+    .LBU .x28 .x5 (28 : BitVec 12),
+    .BNE .x7 .x28 (brOff (GuestAddrs.header_validate_post_merge + 620) (GuestAddrs.header_validate_post_merge + 556)),
+    .LBU .x7 .x6 (29 : BitVec 12),
+    .LBU .x28 .x5 (29 : BitVec 12),
+    .BNE .x7 .x28 (52 : BitVec 13),
+    .LBU .x7 .x6 (30 : BitVec 12),
+    .LBU .x28 .x5 (30 : BitVec 12),
+    .BNE .x7 .x28 (40 : BitVec 13),
+    .LBU .x7 .x6 (31 : BitVec 12),
+    .LBU .x28 .x5 (31 : BitVec 12),
+    .BNE .x7 .x28 (28 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (32 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (3 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (4 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L983-989 verbatim
+/-- Reloc side-table for `headerValidatePostMerge_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerValidatePostMerge_relocs : RelocTable :=
+  [ (10, .jal .x1 "rlp_walk_init"),
+    (16, .jal .x1 "rlp_walk_next"),
+    (51, .la .x5 "empty_ommers_hash") ]
+
+
+-- @@ L991-992 verbatim
+def headerValidatePostMergeFunction : String :=
+  "header_validate_post_merge:\n" ++ emitProgramR headerValidatePostMerge_prog headerValidatePostMerge_relocs
+
+
+-- @@ L994-1000 verbatim
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerValidatePostMerge_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerValidatePostMergeFunction_eq_prog :
+    headerValidatePostMergeFunction = "header_validate_post_merge:\n" ++ emitProgramR headerValidatePostMerge_prog headerValidatePostMerge_relocs := rfl
+
+
+-- @@ L1002-1002 verbatim
+#guard headerValidatePostMergeFunction.startsWith "header_validate_post_merge:\n"
+
+-- @@ L1003-1003 verbatim
+#guard headerValidatePostMerge_prog.length = 166
+
+-- @@ L1004-1026 verbatim
+/-! ## header_validate_extra_data_length -- PR-K68
+
+    Verify the Ethereum spec constraint that `header.extra_data`
+    is at most 32 bytes (Yellow Paper §4.4.4).
+
+    Mirrors the Python check in `validate_header`:
+
+      assert len(header.extra_data) <= 32
+
+    Composes PR-K20 `rlp_list_nth_item` to extract field 12
+    (extra_data) and a single u64 compare.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      ra (input)  : return
+      a0 (output) :
+        0  : extra_data length ≤ 32 bytes
+        1  : extra_data length > 32 bytes (reject)
+        2  : RLP parse failure (e.g. not a list, field missing)
+
+    Uses two 8-byte `.data` scratch slots (`hved_off`,
+    `hved_len`). -/
+
+-- @@ L1027-1049 verbatim
+def headerValidateExtraDataLength_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .LI .x12 (12 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.hved_off (GuestAddrs.header_validate_extra_data_length + 12)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.hved_off (GuestAddrs.header_validate_extra_data_length + 12)),
+    .AUIPC .x14 (laHi GuestAddrs.hved_len (GuestAddrs.header_validate_extra_data_length + 20)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.hved_len (GuestAddrs.header_validate_extra_data_length + 20)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.header_validate_extra_data_length + 28)),
+    .BNE .x10 .x0 (40 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.hved_len (GuestAddrs.header_validate_extra_data_length + 36)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hved_len (GuestAddrs.header_validate_extra_data_length + 36)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BLTU .x7 .x6 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L1051-1058 verbatim
+/-- Reloc side-table for `headerValidateExtraDataLength_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerValidateExtraDataLength_relocs : RelocTable :=
+  [ (3, .la .x13 "hved_off"),
+    (5, .la .x14 "hved_len"),
+    (7, .jal .x1 "rlp_list_nth_item"),
+    (9, .la .x5 "hved_len") ]
+
+
+-- @@ L1060-1061 verbatim
+def headerValidateExtraDataLengthFunction : String :=
+  "header_validate_extra_data_length:\n" ++ emitProgramR headerValidateExtraDataLength_prog headerValidateExtraDataLength_relocs
+
+
+-- @@ L1063-1069 verbatim
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerValidateExtraDataLength_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerValidateExtraDataLengthFunction_eq_prog :
+    headerValidateExtraDataLengthFunction = "header_validate_extra_data_length:\n" ++ emitProgramR headerValidateExtraDataLength_prog headerValidateExtraDataLength_relocs := rfl
+
+
+-- @@ L1071-1071 verbatim
+#guard headerValidateExtraDataLengthFunction.startsWith "header_validate_extra_data_length:\n"
+
+-- @@ L1072-1072 verbatim
+#guard headerValidateExtraDataLength_prog.length = 22
+
+
+-- @@ L1074-1075 verbatim
+/-! ## u256-BE arithmetic / comparison / pricing helpers (PR-K51/K52/K56/K58/K59/K60/K61/K62/K70/K53/K54)
+    Function + probe defs moved to `Programs/Tx.lean` (see file-size hard cap at the bottom of this file). -/
+
+
+-- @@ L1077-1101 verbatim
+/-! ## block_hash_from_header -- PR-K172
+
+    Compute the block hash of an Ethereum block header:
+    `block_hash = keccak256(header_rlp_bytes)`.
+
+    The header RLP is the canonical wire encoding of the
+    15-or-16-field header list (parent_hash, ommers_hash,
+    beneficiary, state_root, transactions_root, receipts_root,
+    logs_bloom, difficulty, number, gas_limit, gas_used,
+    timestamp, extra_data, prev_randao, nonce, [base_fee, ...
+    withdrawals_root, blob_gas_used, excess_blob_gas,
+    parent_beacon_block_root]).
+
+    The block hash is identified by `parent_hash` in the next
+    header in the chain, so this primitive is the natural
+    building block for `validate_headers` (which walks the
+    chain and checks each `header[i].parent_hash ==
+    block_hash_from_header(header[i-1])`).
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 32-byte output ptr (block_hash lands here)
+      ra (input)  : return
+      (no output register; result is in memory at `a2`) -/
+
+-- @@ L1102-1108 verbatim
+def blockHashFromHeader_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.block_hash_from_header + 8)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L1110-1114 verbatim
+/-- Reloc side-table for `blockHashFromHeader_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blockHashFromHeader_relocs : RelocTable :=
+  [ (2, .jal .x1 "zkvm_keccak256") ]
+
+
+-- @@ L1116-1117 verbatim
+def blockHashFromHeaderFunction : String :=
+  "block_hash_from_header:\n" ++ emitProgramR blockHashFromHeader_prog blockHashFromHeader_relocs
+
+
+-- @@ L1119-1125 verbatim
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blockHashFromHeader_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem blockHashFromHeaderFunction_eq_prog :
+    blockHashFromHeaderFunction = "block_hash_from_header:\n" ++ emitProgramR blockHashFromHeader_prog blockHashFromHeader_relocs := rfl
+
+
+-- @@ L1127-1127 verbatim
+#guard blockHashFromHeaderFunction.startsWith "block_hash_from_header:\n"
+
+-- @@ L1128-1128 verbatim
+#guard blockHashFromHeader_prog.length = 6
+
+
+-- @@ L1130-1130 verbatim
+/-! ## K201..K208 single-field extractors -- moved to Programs/HeaderFields.lean (file-size hard cap). -/
+
+
+-- @@ L1132-1145 verbatim
+/-! ## header_extract_timestamp -- PR-K232
+
+    Extract `timestamp` (field 11, u64 BE) from a header RLP.
+    Cross-fork — every header has timestamp.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : u64 out ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure
+        2 : field 11 exceeds 8 bytes BE -/
+
+-- @@ L1146-1154 verbatim
+def headerExtractTimestamp_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .MV .x13 .x12,
+    .LI .x12 (11 : Word),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483664),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+
+-- @@ L1156-1160 verbatim
+/-- Reloc side-table for `headerExtractTimestamp_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerExtractTimestamp_relocs : RelocTable :=
+  [ (4, .jal .x1 "rlp_field_to_u64_strict") ]
+
+
+-- @@ L1162-1163 verbatim
+def headerExtractTimestampFunction : String :=
+  "header_extract_timestamp:\n" ++ emitProgramR headerExtractTimestamp_prog headerExtractTimestamp_relocs
+
+
+-- @@ L1165-1171 verbatim
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerExtractTimestamp_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerExtractTimestampFunction_eq_prog :
+    headerExtractTimestampFunction = "header_extract_timestamp:\n" ++ emitProgramR headerExtractTimestamp_prog headerExtractTimestamp_relocs := rfl
+
+
+-- @@ L1173-1173 verbatim
+#guard headerExtractTimestampFunction.startsWith "header_extract_timestamp:\n"
+
+-- @@ L1174-1174 verbatim
+#guard headerExtractTimestamp_prog.length = 8
+
+
+-- @@ L1176-1176 verbatim
+end EvmAsm.Codegen

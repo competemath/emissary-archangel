@@ -1,0 +1,1536 @@
+/-
+  EvmAsm.Evm64.DivMod.Spec.Unified
+
+  Unified-bound DIV/MOD stack-spec wrappers. The valid n=1, n=2, and n=3
+  dispatcher-surface specs all have different `cpsTripleWithin` step bounds.
+  Before they can be combined into a single `evm_div_stack_spec` /
+  `evm_mod_stack_spec` via case-split, they need a shared bound — otherwise the
+  case-split branches produce triples with incompatible `nSteps`.
+
+  The n=4 stack-surface path is intentionally absent while the call-addback
+  algorithm is being repaired; the old n=4 wrappers depended on a false
+  semantic premise.
+
+  This file imports `unifiedDivBound : Nat := 946` (the maximum across n=1..4)
+  from `UnifiedBzero` and defines `_uni` wrappers for each per-`n`
+  dispatcher-surface spec that lift the existing bound to `unifiedDivBound`
+  via `cpsTripleWithin_mono_nSteps`.
+
+  Pre/post are unchanged; the proof is a single `cpsTripleWithin_mono_nSteps`
+  application with `by decide` for the bound inequality.
+
+  Legacy carry note:
+  The n=2 and n=3 `_uni` wrappers in this file still thread the old universal
+  `Carry2NzAll` package through the dispatcher stack surface. Those wrappers
+  are compatibility shims for the pre-selected-carry proof path. New final v4
+  stack work should use selected-carry wrappers instead of extending these raw
+  `Carry2NzAll` surfaces.
+
+  Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
+
+  Refs: GH #61, beads `evm-asm-unta` (parent `evm-asm-4keh`, grandparent
+  `evm-asm-pb40`).
+-/
+
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+public import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
+public import EvmAsm.Evm64.DivMod.Spec.N2DivStackSpec
+public import EvmAsm.Evm64.DivMod.Spec.N2ModStackSpec
+public import EvmAsm.Evm64.DivMod.Spec.N2QuotientStackBridge
+public import EvmAsm.Evm64.DivMod.Spec.N3DivStackSpec
+public import EvmAsm.Evm64.DivMod.Spec.N3ModBridge
+public import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
+
+
+-- @@ L47-47 verbatim
+@[expose] public section
+
+
+-- @@ L49-49 verbatim
+namespace EvmAsm.Evm64
+
+
+-- @@ L51-51 verbatim
+open EvmAsm.Rv64
+
+
+-- @@ L53-53 verbatim
+/-! ### DIV `_uni` wrappers -/
+
+
+-- @@ L55-127 verbatim
+/-- n=3 quotient bridge specialized to branch constructors that store
+    `a`/`b` as `EvmWord`s and refer to their limbs directly. -/
+theorem fullDivN3QuotientWord_eq_div_of_getLimbN_mulsub_overestimate
+    (bltu_1 bltu_0 : Bool) {a b : EvmWord}
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+    (hmulsub :
+      EvmWord.val256 (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) =
+        (((fullDivN3R1 bltu_1 (a.getLimbN 0) (a.getLimbN 1)
+              (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3)).1).toNat * 2^64 +
+          ((fullDivN3R0 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1)
+              (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3)).1).toNat) *
+          EvmWord.val256 (b.getLimbN 0) (b.getLimbN 1)
+            (b.getLimbN 2) (b.getLimbN 3) +
+        EvmWord.val256
+          ((fullDivN3R0 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1)
+          ((fullDivN3R0 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1)
+          ((fullDivN3R0 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1)
+          ((fullDivN3R0 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1))
+    (hge :
+      EvmWord.val256 (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) /
+        EvmWord.val256 (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3) ≤
+        ((fullDivN3R1 bltu_1
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1).toNat *
+            2^64 +
+          ((fullDivN3R0 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+            (b.getLimbN 3)).1).toNat) :
+    fullDivN3QuotientWord bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.div a b := by
+  have hraw :=
+    fullDivN3QuotientWord_eq_div_of_mulsub_overestimate
+      bltu_1 bltu_0 hbnz hmulsub hge
+  change
+    fullDivN3QuotientWord bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.div
+          (EvmWord.fromLimbs fun i : Fin 4 =>
+            match i with
+            | 0 => a.getLimbN 0
+            | 1 => a.getLimbN 1
+            | 2 => a.getLimbN 2
+            | 3 => a.getLimbN 3)
+          (EvmWord.fromLimbs fun i : Fin 4 =>
+            match i with
+            | 0 => b.getLimbN 0
+            | 1 => b.getLimbN 1
+            | 2 => b.getLimbN 2
+            | 3 => b.getLimbN 3) at hraw
+  exact hraw.trans (by
+    congr
+    · exact EvmWord.fromLimbs_match_getLimbN_id a
+    · exact EvmWord.fromLimbs_match_getLimbN_id b)
+
+
+-- @@ L129-198 verbatim
+/-- Unified-bound wrapper for `evm_div_n1_stack_spec_within_word`. -/
+theorem evm_div_n1_stack_spec_within_word_uni
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
+    (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu_3 : isTrialN1_j3 bltu_3 a3 b0)
+    (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2 a2 a3 b0 b1 b2 b3)
+    (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
+    (hbltu_0 : isTrialN1_j0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b0).1).toNat % 64))
+      ((b1 <<< (((clzResult b0).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))
+      ((b2 <<< (((clzResult b0).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))
+      ((b3 <<< (((clzResult b0).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64))))
+    (hmulsub :
+      EvmWord.val256 a0 a1 a2 a3 =
+        (((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+          EvmWord.val256 b0 b1 b2 b3 +
+        EvmWord.val256
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1))
+    (hge :
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+        ((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode base)
+      (divModStackDispatchPre sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word))
+        ((clzResult b0).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPost sp a b) := by
+  have hdivWord :=
+    fullDivN1QuotientWord_eq_div_of_limbs_mulsub_overestimate
+      bltu_3 bltu_2 bltu_1 bltu_0 ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3
+      hbnz hmulsub hge
+  exact cpsTripleWithin_mono_nSteps (by decide)
+    (evm_div_n1_stack_spec_within_word bltu_3 bltu_2 bltu_1 bltu_0
+      sp base a b a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1z
+      hshift_nz halign hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hdivWord)
+
+
+-- @@ L200-271 verbatim
+/-- Unified-bound wrapper for
+    `evm_div_n1_stack_spec_within_word_exact_x1`. -/
+theorem evm_div_n1_stack_spec_within_word_exact_x1_uni
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
+    (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu_3 : isTrialN1_j3 bltu_3 a3 b0)
+    (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2 a2 a3 b0 b1 b2 b3)
+    (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
+    (hbltu_0 : isTrialN1_j0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b0).1).toNat % 64))
+      ((b1 <<< (((clzResult b0).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))
+      ((b2 <<< (((clzResult b0).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))
+      ((b3 <<< (((clzResult b0).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64))))
+    (hmulsub :
+      EvmWord.val256 a0 a1 a2 a3 =
+        (((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+          EvmWord.val256 b0 b1 b2 b3 +
+        EvmWord.val256
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1))
+    (hge :
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+        ((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode base)
+      (divModStackDispatchPre sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word))
+        ((clzResult b0).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPostNoX1 sp a b **
+        (.x9 ↦ᵣ (signExtend12 4095 : Word))) := by
+  have hdivWord :=
+    fullDivN1QuotientWord_eq_div_of_limbs_mulsub_overestimate
+      bltu_3 bltu_2 bltu_1 bltu_0 ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3
+      hbnz hmulsub hge
+  exact cpsTripleWithin_mono_nSteps (by decide)
+    (evm_div_n1_stack_spec_within_word_exact_x1 bltu_3 bltu_2 bltu_1 bltu_0
+      sp base a b a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1z
+      hshift_nz halign hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hdivWord)
+
+
+-- @@ L273-342 verbatim
+/-- Unified-bound wrapper for `evm_div_n1_stack_spec_within_word_noNop`. -/
+theorem evm_div_n1_stack_spec_within_word_noNop_uni
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
+    (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu_3 : isTrialN1_j3 bltu_3 a3 b0)
+    (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2 a2 a3 b0 b1 b2 b3)
+    (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
+    (hbltu_0 : isTrialN1_j0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b0).1).toNat % 64))
+      ((b1 <<< (((clzResult b0).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))
+      ((b2 <<< (((clzResult b0).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))
+      ((b3 <<< (((clzResult b0).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64))))
+    (hmulsub :
+      EvmWord.val256 a0 a1 a2 a3 =
+        (((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+          EvmWord.val256 b0 b1 b2 b3 +
+        EvmWord.val256
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1))
+    (hge :
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+        ((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop base)
+      (divModStackDispatchPre sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word))
+        ((clzResult b0).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPost sp a b) := by
+  have hdivWord :=
+    fullDivN1QuotientWord_eq_div_of_limbs_mulsub_overestimate
+      bltu_3 bltu_2 bltu_1 bltu_0 ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3
+      hbnz hmulsub hge
+  exact cpsTripleWithin_mono_nSteps (by decide)
+    (evm_div_n1_stack_spec_within_word_noNop bltu_3 bltu_2 bltu_1 bltu_0
+      sp base a b a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1z
+      hshift_nz halign hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hdivWord)
+
+
+-- @@ L344-408 verbatim
+/-- Unified-bound wrapper for `evm_div_n2_stack_spec_within_word`. -/
+theorem evm_div_n2_stack_spec_within_word_uni
+    (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
+    (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
+    (hshift_nz : (clzResult b1).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu_2 : isTrialN2_j2 bltu_2 a3 b0 b1)
+    (hbltu_1 : isTrialN2_j1 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
+    (hbltu_0 : isTrialN2_j0 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b1).1).toNat % 64))
+      ((b1 <<< (((clzResult b1).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
+      ((b2 <<< (((clzResult b1).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
+      ((b3 <<< (((clzResult b1).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64))))
+    (hmulsub :
+      EvmWord.val256 a0 a1 a2 a3 =
+        (((fullDivN2R2 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN2R1 bltu_2 bltu_1
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+          EvmWord.val256 b0 b1 b2 b3 +
+        EvmWord.val256
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1))
+    (hge :
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+        ((fullDivN2R2 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN2R1 bltu_2 bltu_1
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode base)
+      (divModStackDispatchPre sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word))
+        ((clzResult b1).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPost sp a b) := by
+  have hdivWord :=
+    fullDivN2QuotientWord_eq_div_of_limbs_mulsub_overestimate
+      bltu_2 bltu_1 bltu_0 ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3
+      hbnz hmulsub hge
+  exact cpsTripleWithin_mono_nSteps (by decide)
+    (evm_div_n2_stack_spec_within_word bltu_2 bltu_1 bltu_0
+      sp base a b a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1nz
+      hshift_nz halign hbltu_2 hbltu_1 hbltu_0 hcarry2 hdivWord)
+
+
+-- @@ L410-476 verbatim
+/-- Unified-bound wrapper for
+    `evm_div_n2_stack_spec_within_word_exact_x1`. -/
+theorem evm_div_n2_stack_spec_within_word_exact_x1_uni
+    (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
+    (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
+    (hshift_nz : (clzResult b1).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu_2 : isTrialN2_j2 bltu_2 a3 b0 b1)
+    (hbltu_1 : isTrialN2_j1 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
+    (hbltu_0 : isTrialN2_j0 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b1).1).toNat % 64))
+      ((b1 <<< (((clzResult b1).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
+      ((b2 <<< (((clzResult b1).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
+      ((b3 <<< (((clzResult b1).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64))))
+    (hmulsub :
+      EvmWord.val256 a0 a1 a2 a3 =
+        (((fullDivN2R2 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN2R1 bltu_2 bltu_1
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+          EvmWord.val256 b0 b1 b2 b3 +
+        EvmWord.val256
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1))
+    (hge :
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+        ((fullDivN2R2 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN2R1 bltu_2 bltu_1
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode base)
+      (divModStackDispatchPre sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word))
+        ((clzResult b1).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPostNoX1 sp a b **
+        (.x9 ↦ᵣ (signExtend12 4095 : Word))) := by
+  have hdivWord :=
+    fullDivN2QuotientWord_eq_div_of_limbs_mulsub_overestimate
+      bltu_2 bltu_1 bltu_0 ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3
+      hbnz hmulsub hge
+  exact cpsTripleWithin_mono_nSteps (by decide)
+    (evm_div_n2_stack_spec_within_word_exact_x1 bltu_2 bltu_1 bltu_0
+      sp base a b a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1nz
+      hshift_nz halign hbltu_2 hbltu_1 hbltu_0 hcarry2 hdivWord)
+
+
+-- @@ L478-542 verbatim
+/-- Unified-bound wrapper for `evm_div_n2_stack_spec_within_word_noNop`. -/
+theorem evm_div_n2_stack_spec_within_word_noNop_uni
+    (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
+    (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
+    (hshift_nz : (clzResult b1).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu_2 : isTrialN2_j2 bltu_2 a3 b0 b1)
+    (hbltu_1 : isTrialN2_j1 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
+    (hbltu_0 : isTrialN2_j0 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b1).1).toNat % 64))
+      ((b1 <<< (((clzResult b1).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
+      ((b2 <<< (((clzResult b1).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
+      ((b3 <<< (((clzResult b1).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64))))
+    (hmulsub :
+      EvmWord.val256 a0 a1 a2 a3 =
+        (((fullDivN2R2 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN2R1 bltu_2 bltu_1
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+          EvmWord.val256 b0 b1 b2 b3 +
+        EvmWord.val256
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1))
+    (hge :
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+        ((fullDivN2R2 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN2R1 bltu_2 bltu_1
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop base)
+      (divModStackDispatchPre sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word))
+        ((clzResult b1).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPost sp a b) := by
+  have hdivWord :=
+    fullDivN2QuotientWord_eq_div_of_limbs_mulsub_overestimate
+      bltu_2 bltu_1 bltu_0 ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3
+      hbnz hmulsub hge
+  exact cpsTripleWithin_mono_nSteps (by decide)
+    (evm_div_n2_stack_spec_within_word_noNop bltu_2 bltu_1 bltu_0
+      sp base a b a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1nz
+      hshift_nz halign hbltu_2 hbltu_1 hbltu_0 hcarry2 hdivWord)
+
+
+-- @@ L544-605 verbatim
+/-- Unified-bound wrapper for `evm_div_n3_stack_spec_within_word`. -/
+theorem evm_div_n3_stack_spec_within_word_uni
+    (bltu_1 bltu_0 : Bool) (sp base : Word)
+    (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2nz : b2 ≠ 0)
+    (hshift_nz : (clzResult b2).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu_1 : isTrialN3_j1 bltu_1 a3 b1 b2)
+    (hbltu_0 : isTrialN3_j0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b2).1).toNat % 64))
+      ((b1 <<< (((clzResult b2).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64)))
+      ((b2 <<< (((clzResult b2).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64)))
+      ((b3 <<< (((clzResult b2).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64))))
+    (hmulsub :
+      EvmWord.val256 a0 a1 a2 a3 =
+        (((fullDivN3R1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+            2^64 +
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+          EvmWord.val256 b0 b1 b2 b3 +
+        EvmWord.val256
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1))
+    (hge :
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+        ((fullDivN3R1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+            2^64 +
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode base)
+      (divModStackDispatchPre sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word))
+        ((clzResult b2).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPost sp a b) := by
+  have hdivWord :=
+    fullDivN3QuotientWord_eq_div_of_limbs_mulsub_overestimate
+      bltu_1 bltu_0 ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hmulsub hge
+  exact
+  cpsTripleWithin_mono_nSteps (by decide)
+    (evm_div_n3_stack_spec_within_word bltu_1 bltu_0
+      sp base a b a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2nz
+      hshift_nz halign hbltu_1 hbltu_0 hcarry2 hdivWord)
+
+
+-- @@ L607-670 verbatim
+/-- Unified-bound wrapper for
+    `evm_div_n3_stack_spec_within_word_exact_x1`. -/
+theorem evm_div_n3_stack_spec_within_word_exact_x1_uni
+    (bltu_1 bltu_0 : Bool) (sp base : Word)
+    (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2nz : b2 ≠ 0)
+    (hshift_nz : (clzResult b2).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu_1 : isTrialN3_j1 bltu_1 a3 b1 b2)
+    (hbltu_0 : isTrialN3_j0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b2).1).toNat % 64))
+      ((b1 <<< (((clzResult b2).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64)))
+      ((b2 <<< (((clzResult b2).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64)))
+      ((b3 <<< (((clzResult b2).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64))))
+    (hmulsub :
+      EvmWord.val256 a0 a1 a2 a3 =
+        (((fullDivN3R1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+            2^64 +
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+          EvmWord.val256 b0 b1 b2 b3 +
+        EvmWord.val256
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1))
+    (hge :
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+        ((fullDivN3R1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+            2^64 +
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode base)
+      (divModStackDispatchPre sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word))
+        ((clzResult b2).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPostNoX1 sp a b **
+        (.x9 ↦ᵣ (signExtend12 4095 : Word))) := by
+  have hdivWord :=
+    fullDivN3QuotientWord_eq_div_of_limbs_mulsub_overestimate
+      bltu_1 bltu_0 ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hmulsub hge
+  exact
+  cpsTripleWithin_mono_nSteps (by decide)
+    (evm_div_n3_stack_spec_within_word_exact_x1 bltu_1 bltu_0
+      sp base a b a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2nz
+      hshift_nz halign hbltu_1 hbltu_0 hcarry2 hdivWord)
+
+
+-- @@ L672-733 verbatim
+/-- Unified-bound wrapper for `evm_div_n3_stack_spec_within_word_noNop`. -/
+theorem evm_div_n3_stack_spec_within_word_noNop_uni
+    (bltu_1 bltu_0 : Bool) (sp base : Word)
+    (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2nz : b2 ≠ 0)
+    (hshift_nz : (clzResult b2).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu_1 : isTrialN3_j1 bltu_1 a3 b1 b2)
+    (hbltu_0 : isTrialN3_j0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b2).1).toNat % 64))
+      ((b1 <<< (((clzResult b2).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64)))
+      ((b2 <<< (((clzResult b2).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64)))
+      ((b3 <<< (((clzResult b2).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64))))
+    (hmulsub :
+      EvmWord.val256 a0 a1 a2 a3 =
+        (((fullDivN3R1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+            2^64 +
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+          EvmWord.val256 b0 b1 b2 b3 +
+        EvmWord.val256
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1))
+    (hge :
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+        ((fullDivN3R1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+            2^64 +
+          ((fullDivN3R0 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop base)
+      (divModStackDispatchPre sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word))
+        ((clzResult b2).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPost sp a b) := by
+  have hdivWord :=
+    fullDivN3QuotientWord_eq_div_of_limbs_mulsub_overestimate
+      bltu_1 bltu_0 ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hmulsub hge
+  exact
+  cpsTripleWithin_mono_nSteps (by decide)
+    (evm_div_n3_stack_spec_within_word_noNop bltu_1 bltu_0
+      sp base a b a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2nz
+      hshift_nz halign hbltu_1 hbltu_0 hcarry2 hdivWord)
+
+
+-- @@ L735-735 verbatim
+/-! ### Single DIV dispatcher theorem -/
+
+
+-- @@ L737-982 verbatim
+/-- Branch certificate for the single public DIV stack spec.
+
+The constructors mirror the dispatcher branches. Each nonzero branch carries
+exactly the semantic side conditions required by the corresponding
+`evm_div_stack_spec_within_*` alias, but states them directly over `a` and `b`
+via `getLimbN` instead of exposing separate limb variables in the final theorem.
+-/
+inductive DivStackSpecCase (base : Word) (a b : EvmWord) where
+  | bzero (v1 v2 : Word) (hbz : b = 0)
+  | n1Full (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+      (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+      (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+      (hb1z : b.getLimbN 1 = 0)
+      (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
+      (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&&
+        ~~~(1 : Word) = base + div128CallRetOff)
+      (hbltu_3 : isTrialN1_j3 bltu_3 (a.getLimbN 3) (b.getLimbN 0))
+      (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2
+        (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1
+        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hbltu_0 : isTrialN1_j0 bltu_3 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hcarry2 : Carry2NzAll
+        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64))
+        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+          (b.getLimbN 0 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 0)).1).toNat % 64)))
+        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+          (b.getLimbN 1 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 0)).1).toNat % 64)))
+        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+          (b.getLimbN 2 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 0)).1).toNat % 64))))
+      (hmulsub :
+        EvmWord.val256 (a.getLimbN 0) (a.getLimbN 1)
+            (a.getLimbN 2) (a.getLimbN 3) =
+          (((fullDivN1R3 bltu_3
+                (a.getLimbN 0) (a.getLimbN 1)
+                (a.getLimbN 2) (a.getLimbN 3)
+                (b.getLimbN 0) (b.getLimbN 1)
+                (b.getLimbN 2) (b.getLimbN 3)).1).toNat * 2^192 +
+            ((fullDivN1R2 bltu_3 bltu_2
+                (a.getLimbN 0) (a.getLimbN 1)
+                (a.getLimbN 2) (a.getLimbN 3)
+                (b.getLimbN 0) (b.getLimbN 1)
+                (b.getLimbN 2) (b.getLimbN 3)).1).toNat * 2^128 +
+            ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+                (a.getLimbN 0) (a.getLimbN 1)
+                (a.getLimbN 2) (a.getLimbN 3)
+                (b.getLimbN 0) (b.getLimbN 1)
+                (b.getLimbN 2) (b.getLimbN 3)).1).toNat * 2^64 +
+            ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+                (a.getLimbN 0) (a.getLimbN 1)
+                (a.getLimbN 2) (a.getLimbN 3)
+                (b.getLimbN 0) (b.getLimbN 1)
+                (b.getLimbN 2) (b.getLimbN 3)).1).toNat) *
+            EvmWord.val256 (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3) +
+          EvmWord.val256
+            ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).2.1)
+            ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).2.2.1)
+            ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).2.2.2.1)
+            ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).2.2.2.2.1))
+      (hge :
+        EvmWord.val256 (a.getLimbN 0) (a.getLimbN 1)
+            (a.getLimbN 2) (a.getLimbN 3) /
+          EvmWord.val256 (b.getLimbN 0) (b.getLimbN 1)
+            (b.getLimbN 2) (b.getLimbN 3) ≤
+          ((fullDivN1R3 bltu_3
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+            (b.getLimbN 3)).1).toNat * 2^192 +
+            ((fullDivN1R2 bltu_3 bltu_2
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).1).toNat * 2^128 +
+            ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).1).toNat * 2^64 +
+            ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).1).toNat)
+  | n2Full (bltu_2 bltu_1 bltu_0 : Bool)
+      (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+      (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+      (hb1nz : b.getLimbN 1 ≠ 0)
+      (hshift_nz : (clzResult (b.getLimbN 1)).1 ≠ 0)
+      (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&&
+        ~~~(1 : Word) = base + div128CallRetOff)
+      (hbltu_2 : isTrialN2_j2 bltu_2 (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1))
+      (hbltu_1 : isTrialN2_j1 bltu_2 bltu_1
+        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hbltu_0 : isTrialN2_j0 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hcarry2 : Carry2NzAll
+        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 1)).1).toNat % 64))
+        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 1)).1).toNat % 64)) |||
+          (b.getLimbN 0 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 1)).1).toNat % 64)))
+        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 1)).1).toNat % 64)) |||
+          (b.getLimbN 1 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 1)).1).toNat % 64)))
+        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 1)).1).toNat % 64)) |||
+          (b.getLimbN 2 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 1)).1).toNat % 64))))
+      (hmulsub :
+        EvmWord.val256 (a.getLimbN 0) (a.getLimbN 1)
+            (a.getLimbN 2) (a.getLimbN 3) =
+          (((fullDivN2R2 bltu_2
+                (a.getLimbN 0) (a.getLimbN 1)
+                (a.getLimbN 2) (a.getLimbN 3)
+                (b.getLimbN 0) (b.getLimbN 1)
+                (b.getLimbN 2) (b.getLimbN 3)).1).toNat * 2^128 +
+            ((fullDivN2R1 bltu_2 bltu_1
+                (a.getLimbN 0) (a.getLimbN 1)
+                (a.getLimbN 2) (a.getLimbN 3)
+                (b.getLimbN 0) (b.getLimbN 1)
+                (b.getLimbN 2) (b.getLimbN 3)).1).toNat * 2^64 +
+            ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+                (a.getLimbN 0) (a.getLimbN 1)
+                (a.getLimbN 2) (a.getLimbN 3)
+                (b.getLimbN 0) (b.getLimbN 1)
+                (b.getLimbN 2) (b.getLimbN 3)).1).toNat) *
+            EvmWord.val256 (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3) +
+          EvmWord.val256
+            ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).2.1)
+            ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).2.2.1)
+            ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).2.2.2.1)
+            ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).2.2.2.2.1))
+      (hge :
+        EvmWord.val256 (a.getLimbN 0) (a.getLimbN 1)
+            (a.getLimbN 2) (a.getLimbN 3) /
+          EvmWord.val256 (b.getLimbN 0) (b.getLimbN 1)
+            (b.getLimbN 2) (b.getLimbN 3) ≤
+          ((fullDivN2R2 bltu_2
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+            (b.getLimbN 3)).1).toNat * 2^128 +
+            ((fullDivN2R1 bltu_2 bltu_1
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).1).toNat * 2^64 +
+            ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).1).toNat)
+  | n3Full (bltu_1 bltu_0 : Bool)
+      (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+      (hb3z : b.getLimbN 3 = 0) (hb2nz : b.getLimbN 2 ≠ 0)
+      (hshift_nz : (clzResult (b.getLimbN 2)).1 ≠ 0)
+      (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&&
+        ~~~(1 : Word) = base + div128CallRetOff)
+      (hbltu_1 : isTrialN3_j1 bltu_1 (a.getLimbN 3)
+        (b.getLimbN 1) (b.getLimbN 2))
+      (hbltu_0 : isTrialN3_j0 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hcarry2 : Carry2NzAll
+        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 2)).1).toNat % 64))
+        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 2)).1).toNat % 64)) |||
+          (b.getLimbN 0 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 2)).1).toNat % 64)))
+        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 2)).1).toNat % 64)) |||
+          (b.getLimbN 1 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 2)).1).toNat % 64)))
+        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 2)).1).toNat % 64)) |||
+          (b.getLimbN 2 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 2)).1).toNat % 64))))
+      (hmulsub :
+        EvmWord.val256 (a.getLimbN 0) (a.getLimbN 1)
+            (a.getLimbN 2) (a.getLimbN 3) =
+          (((fullDivN3R1 bltu_1 (a.getLimbN 0) (a.getLimbN 1)
+                (a.getLimbN 2) (a.getLimbN 3)
+                (b.getLimbN 0) (b.getLimbN 1)
+                (b.getLimbN 2) (b.getLimbN 3)).1).toNat * 2^64 +
+            ((fullDivN3R0 bltu_1 bltu_0
+                (a.getLimbN 0) (a.getLimbN 1)
+                (a.getLimbN 2) (a.getLimbN 3)
+                (b.getLimbN 0) (b.getLimbN 1)
+                (b.getLimbN 2) (b.getLimbN 3)).1).toNat) *
+            EvmWord.val256 (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3) +
+          EvmWord.val256
+            ((fullDivN3R0 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).2.1)
+            ((fullDivN3R0 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).2.2.1)
+            ((fullDivN3R0 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).2.2.2.1)
+            ((fullDivN3R0 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).2.2.2.2.1))
+      (hge :
+        EvmWord.val256 (a.getLimbN 0) (a.getLimbN 1)
+            (a.getLimbN 2) (a.getLimbN 3) /
+          EvmWord.val256 (b.getLimbN 0) (b.getLimbN 1)
+            (b.getLimbN 2) (b.getLimbN 3) ≤
+          ((fullDivN3R1 bltu_1
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+            (b.getLimbN 3)).1).toNat * 2^64 +
+            ((fullDivN3R0 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+              (b.getLimbN 3)).1).toNat)
+
+
+-- @@ L984-984 verbatim
+namespace DivStackSpecCase
+
+
+-- @@ L986-988 verbatim
+def x1 {base : Word} {a b : EvmWord} : DivStackSpecCase base a b → Word
+  | .bzero v1 _ _ => v1
+  | _ => signExtend12 (4 : BitVec 12) - (4 : Word)
+
+
+-- @@ L990-991 verbatim
+/-- x9 is the loop-counter register (renamed from x1 post-fix). -/
+def x9 {base : Word} {a b : EvmWord} : DivStackSpecCase base a b → Word := x1
+
+
+-- @@ L993-997 verbatim
+def x2 {base : Word} {a b : EvmWord} : DivStackSpecCase base a b → Word
+  | .bzero _ v2 _ => v2
+  | .n1Full .. => (clzResult (b.getLimbN 0)).2 >>> (63 : Nat)
+  | .n2Full .. => (clzResult (b.getLimbN 1)).2 >>> (63 : Nat)
+  | .n3Full .. => (clzResult (b.getLimbN 2)).2 >>> (63 : Nat)
+
+
+-- @@ L999-1001 verbatim
+def returnX1 {base : Word} {a b : EvmWord} : DivStackSpecCase base a b → Word
+  | .bzero v1 _ _ => v1
+  | _ => signExtend12 (4095 : BitVec 12)
+
+
+-- @@ L1003-1004 verbatim
+/-- returnX9 is the final loop-counter value (renamed from returnX1 post-fix). -/
+def returnX9 {base : Word} {a b : EvmWord} : DivStackSpecCase base a b → Word := returnX1
+
+
+-- @@ L1006-1006 verbatim
+end DivStackSpecCase
+
+
+-- @@ L1008-1058 verbatim
+/-- Single named DIV stack spec over the dispatcher branch certificate. -/
+theorem evm_div_stack_spec (sp base : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (branch : DivStackSpecCase base a b) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode base)
+      (divModStackDispatchPre sp a b
+        branch.x9 branch.x2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPost sp a b) := by
+  cases branch with
+  | bzero v1 v2 hbz =>
+      exact evm_div_bzero_stack_spec_within_dispatch_uni sp base a b
+        v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0 hbz
+  | n1Full bltu_3 bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1z hshift_nz halign
+      hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge =>
+      exact evm_div_n1_stack_spec_within_word_uni
+        bltu_3 bltu_2 bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2z hb1z hshift_nz halign
+        hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge
+  | n2Full bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1nz hshift_nz halign
+      hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge =>
+      exact evm_div_n2_stack_spec_within_word_uni
+        bltu_2 bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2z hb1nz hshift_nz halign
+        hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge
+  | n3Full bltu_1 bltu_0 hbnz hb3z hb2nz hshift_nz halign
+      hbltu_1 hbltu_0 hcarry2 hmulsub hge =>
+      exact evm_div_n3_stack_spec_within_word_uni
+        bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2nz hshift_nz halign
+        hbltu_1 hbltu_0 hcarry2 hmulsub hge
+
+
+-- @@ L1060-1113 verbatim
+/-- Single named DIV stack spec that preserves the caller-owned `x1` atom
+    through the dispatcher surface. -/
+theorem evm_div_stack_spec_exact_x1 (sp base : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (branch : DivStackSpecCase base a b) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode base)
+      (divModStackDispatchPre sp a b
+        branch.x9 branch.x2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPostNoX1 sp a b ** (.x9 ↦ᵣ branch.returnX1)) := by
+  cases branch with
+  | bzero v1 v2 hbz =>
+      have hStack :=
+        evm_div_bzero_stack_spec_within_dispatch_noNop_preserving_x1_uni
+        sp base a b v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0 hbz
+      exact cpsTripleWithin_extend_code (hmono := divCode_noNop_sub_divCode) hStack
+  | n1Full bltu_3 bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1z hshift_nz halign
+      hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge =>
+      exact evm_div_n1_stack_spec_within_word_exact_x1_uni
+        bltu_3 bltu_2 bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2z hb1z hshift_nz halign
+        hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge
+  | n2Full bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1nz hshift_nz halign
+      hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge =>
+      exact evm_div_n2_stack_spec_within_word_exact_x1_uni
+        bltu_2 bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2z hb1nz hshift_nz halign
+        hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge
+  | n3Full bltu_1 bltu_0 hbnz hb3z hb2nz hshift_nz halign
+      hbltu_1 hbltu_0 hcarry2 hmulsub hge =>
+      exact evm_div_n3_stack_spec_within_word_exact_x1_uni
+        bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2nz hshift_nz halign
+        hbltu_1 hbltu_0 hcarry2 hmulsub hge
+
+
+-- @@ L1115-1165 verbatim
+/-- Single named DIV stack spec over `divCode_noNop`. -/
+theorem evm_div_stack_spec_noNop (sp base : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (branch : DivStackSpecCase base a b) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop base)
+      (divModStackDispatchPre sp a b
+        branch.x9 branch.x2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPost sp a b) := by
+  cases branch with
+  | bzero v1 v2 hbz =>
+      exact evm_div_bzero_stack_spec_within_dispatch_noNop_uni sp base a b
+        v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0 hbz
+  | n1Full bltu_3 bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1z hshift_nz halign
+      hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge =>
+      exact evm_div_n1_stack_spec_within_word_noNop_uni
+        bltu_3 bltu_2 bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2z hb1z hshift_nz halign
+        hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge
+  | n2Full bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1nz hshift_nz halign
+      hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge =>
+      exact evm_div_n2_stack_spec_within_word_noNop_uni
+        bltu_2 bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2z hb1nz hshift_nz halign
+        hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge
+  | n3Full bltu_1 bltu_0 hbnz hb3z hb2nz hshift_nz halign
+      hbltu_1 hbltu_0 hcarry2 hmulsub hge =>
+      exact evm_div_n3_stack_spec_within_word_noNop_uni
+        bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2nz hshift_nz halign
+        hbltu_1 hbltu_0 hcarry2 hmulsub hge
+
+
+-- @@ L1167-1167 verbatim
+/-! ### MOD `_uni` wrappers -/
+
+
+-- @@ L1169-1208 verbatim
+/-- Unified-bound wrapper for `evm_mod_n1_stack_spec_within_word`. -/
+theorem evm_mod_n1_stack_spec_within_word_uni
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
+    (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu_3 : isTrialN1_j3 bltu_3 a3 b0)
+    (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2 a2 a3 b0 b1 b2 b3)
+    (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
+    (hbltu_0 : isTrialN1_j0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b0).1).toNat % 64))
+      ((b1 <<< (((clzResult b0).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))
+      ((b2 <<< (((clzResult b0).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))
+      ((b3 <<< (((clzResult b0).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64))))
+    (hmodWord : fullModN1RemainderWord bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.mod a b) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (modCode base)
+      (divModStackDispatchPre sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word))
+        ((clzResult b0).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (modStackDispatchPost sp a b) :=
+  cpsTripleWithin_mono_nSteps (by decide)
+    (evm_mod_n1_stack_spec_within_word bltu_3 bltu_2 bltu_1 bltu_0
+      sp base a b a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1z
+      hshift_nz halign hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmodWord)
+
+
+-- @@ L1210-1248 verbatim
+/-- Unified-bound wrapper for `evm_mod_n2_stack_spec_within_word`. -/
+theorem evm_mod_n2_stack_spec_within_word_uni
+    (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
+    (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
+    (hshift_nz : (clzResult b1).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu_2 : isTrialN2_j2 bltu_2 a3 b0 b1)
+    (hbltu_1 : isTrialN2_j1 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3)
+    (hbltu_0 : isTrialN2_j0 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b1).1).toNat % 64))
+      ((b1 <<< (((clzResult b1).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
+      ((b2 <<< (((clzResult b1).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64)))
+      ((b3 <<< (((clzResult b1).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b1).1).toNat % 64))))
+    (hmodWord : fullModN2RemainderWord bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.mod a b) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (modCode base)
+      (divModStackDispatchPre sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word))
+        ((clzResult b1).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (modStackDispatchPost sp a b) :=
+  cpsTripleWithin_mono_nSteps (by decide)
+    (evm_mod_n2_stack_spec_within_word bltu_2 bltu_1 bltu_0
+      sp base a b a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1nz
+      hshift_nz halign hbltu_2 hbltu_1 hbltu_0 hcarry2 hmodWord)
+
+
+-- @@ L1250-1287 verbatim
+/-- Unified-bound wrapper for `evm_mod_n3_stack_spec_within_word`. -/
+theorem evm_mod_n3_stack_spec_within_word_uni
+    (bltu_1 bltu_0 : Bool) (sp base : Word)
+    (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2nz : b2 ≠ 0)
+    (hshift_nz : (clzResult b2).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu_1 : isTrialN3_j1 bltu_1 a3 b1 b2)
+    (hbltu_0 : isTrialN3_j0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b2).1).toNat % 64))
+      ((b1 <<< (((clzResult b2).1).toNat % 64)) ||| (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64)))
+      ((b2 <<< (((clzResult b2).1).toNat % 64)) ||| (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64)))
+      ((b3 <<< (((clzResult b2).1).toNat % 64)) ||| (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b2).1).toNat % 64))))
+    (hmodWord : fullModN3RemainderWord bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.mod a b) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (modCode base)
+      (divModStackDispatchPre sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word))
+        ((clzResult b2).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (modStackDispatchPost sp a b) :=
+  cpsTripleWithin_mono_nSteps (by decide)
+    (evm_mod_n3_stack_spec_within_word bltu_1 bltu_0
+      sp base a b a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2nz
+      hshift_nz halign hbltu_1 hbltu_0 hcarry2 hmodWord)
+
+
+-- @@ L1289-1289 verbatim
+/-! ### Single MOD dispatcher theorem -/
+
+
+-- @@ L1291-1387 verbatim
+/-- Branch certificate for the single public MOD stack spec.
+
+The constructors mirror the dispatcher branches. Each nonzero branch carries
+exactly the semantic side conditions required by the corresponding
+`evm_mod_stack_spec_within_*` alias, but states them directly over `a` and `b`
+via `getLimbN` instead of exposing separate limb variables in the final theorem.
+-/
+inductive ModStackSpecCase (base : Word) (a b : EvmWord) where
+  | bzero (v1 v2 : Word) (hbz : b = 0)
+  | n1Full (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+      (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+      (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+      (hb1z : b.getLimbN 1 = 0)
+      (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
+      (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&&
+        ~~~(1 : Word) = base + div128CallRetOff)
+      (hbltu_3 : isTrialN1_j3 bltu_3 (a.getLimbN 3) (b.getLimbN 0))
+      (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2
+        (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1
+        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hbltu_0 : isTrialN1_j0 bltu_3 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hcarry2 : Carry2NzAll
+        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64))
+        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+          (b.getLimbN 0 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 0)).1).toNat % 64)))
+        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+          (b.getLimbN 1 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 0)).1).toNat % 64)))
+        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+          (b.getLimbN 2 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 0)).1).toNat % 64))))
+      (hmodWord : fullModN1RemainderWord bltu_3 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.mod a b)
+  | n2Full (bltu_2 bltu_1 bltu_0 : Bool)
+      (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+      (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+      (hb1nz : b.getLimbN 1 ≠ 0)
+      (hshift_nz : (clzResult (b.getLimbN 1)).1 ≠ 0)
+      (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&&
+        ~~~(1 : Word) = base + div128CallRetOff)
+      (hbltu_2 : isTrialN2_j2 bltu_2 (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1))
+      (hbltu_1 : isTrialN2_j1 bltu_2 bltu_1
+        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hbltu_0 : isTrialN2_j0 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hcarry2 : Carry2NzAll
+        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 1)).1).toNat % 64))
+        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 1)).1).toNat % 64)) |||
+          (b.getLimbN 0 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 1)).1).toNat % 64)))
+        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 1)).1).toNat % 64)) |||
+          (b.getLimbN 1 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 1)).1).toNat % 64)))
+        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 1)).1).toNat % 64)) |||
+          (b.getLimbN 2 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 1)).1).toNat % 64))))
+      (hmodWord : fullModN2RemainderWord bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.mod a b)
+  | n3Full (bltu_1 bltu_0 : Bool)
+      (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+      (hb3z : b.getLimbN 3 = 0) (hb2nz : b.getLimbN 2 ≠ 0)
+      (hshift_nz : (clzResult (b.getLimbN 2)).1 ≠ 0)
+      (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&&
+        ~~~(1 : Word) = base + div128CallRetOff)
+      (hbltu_1 : isTrialN3_j1 bltu_1 (a.getLimbN 3)
+        (b.getLimbN 1) (b.getLimbN 2))
+      (hbltu_0 : isTrialN3_j0 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hcarry2 : Carry2NzAll
+        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 2)).1).toNat % 64))
+        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 2)).1).toNat % 64)) |||
+          (b.getLimbN 0 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 2)).1).toNat % 64)))
+        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 2)).1).toNat % 64)) |||
+          (b.getLimbN 1 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 2)).1).toNat % 64)))
+        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 2)).1).toNat % 64)) |||
+          (b.getLimbN 2 >>> ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 2)).1).toNat % 64))))
+      (hmodWord : fullModN3RemainderWord bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.mod a b)
+
+
+-- @@ L1389-1389 verbatim
+namespace ModStackSpecCase
+
+
+-- @@ L1391-1393 verbatim
+def x1 {base : Word} {a b : EvmWord} : ModStackSpecCase base a b → Word
+  | .bzero v1 _ _ => v1
+  | _ => signExtend12 (4 : BitVec 12) - (4 : Word)
+
+
+-- @@ L1395-1396 verbatim
+/-- x9 is the loop-counter register (renamed from x1 post-fix). -/
+def x9 {base : Word} {a b : EvmWord} : ModStackSpecCase base a b → Word := x1
+
+
+-- @@ L1398-1402 verbatim
+def x2 {base : Word} {a b : EvmWord} : ModStackSpecCase base a b → Word
+  | .bzero _ v2 _ => v2
+  | .n1Full .. => (clzResult (b.getLimbN 0)).2 >>> (63 : Nat)
+  | .n2Full .. => (clzResult (b.getLimbN 1)).2 >>> (63 : Nat)
+  | .n3Full .. => (clzResult (b.getLimbN 2)).2 >>> (63 : Nat)
+
+
+-- @@ L1404-1404 verbatim
+end ModStackSpecCase
+
+
+-- @@ L1406-1456 verbatim
+/-- Single named MOD stack spec over the dispatcher branch certificate. -/
+theorem evm_mod_stack_spec (sp base : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (branch : ModStackSpecCase base a b) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (modCode base)
+      (divModStackDispatchPre sp a b
+        branch.x9 branch.x2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (modStackDispatchPost sp a b) := by
+  cases branch with
+  | bzero v1 v2 hbz =>
+      exact evm_mod_bzero_stack_spec_within_dispatch_uni sp base a b
+        v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0 hbz
+  | n1Full bltu_3 bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1z hshift_nz halign
+      hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmodWord =>
+      exact evm_mod_n1_stack_spec_within_word_uni
+        bltu_3 bltu_2 bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2z hb1z hshift_nz halign
+        hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmodWord
+  | n2Full bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1nz hshift_nz halign
+      hbltu_2 hbltu_1 hbltu_0 hcarry2 hmodWord =>
+      exact evm_mod_n2_stack_spec_within_word_uni
+        bltu_2 bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2z hb1nz hshift_nz halign
+        hbltu_2 hbltu_1 hbltu_0 hcarry2 hmodWord
+  | n3Full bltu_1 bltu_0 hbnz hb3z hb2nz hshift_nz halign
+      hbltu_1 hbltu_0 hcarry2 hmodWord =>
+      exact evm_mod_n3_stack_spec_within_word_uni
+        bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2nz hshift_nz halign
+        hbltu_1 hbltu_0 hcarry2 hmodWord
+
+
+-- @@ L1458-1458 verbatim
+end EvmAsm.Evm64

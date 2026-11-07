@@ -1,0 +1,1622 @@
+/-
+  EvmAsm.Progress.Correspondence
+
+  Kernel-checked registry of **spec-correspondence verdicts**: for each audited
+  guest routine, whether the Lean spec proven about it agrees with the external
+  reference implementation, and on what evidence.
+
+  Where `EvmAsm.Progress` answers *"how deep is each opcode proven?"* and
+  `EvmAsm.Progress.Obligations` answers *"which obligations remain?"*, this
+  module answers a third, orthogonal question: **does a proven routine prove the
+  right thing?** A whole-routine Hoare triple ties RISC-V to the Lean spec beside
+  it and says nothing about whether that spec matches the reference. Stricter than
+  the reference ⇒ false-rejects on valid chain data; looser ⇒ a false-accept, the
+  one gate that never relaxes (`docs/agents/spec-alignment-doctrine.md` §2).
+
+  Method: `docs/agents/spec-correspondence.md`.
+  Per-family findings and prose: `docs/<family>-spec-correspondence.md`.
+
+  What is kernel-checked here:
+  * the per-verdict and per-basis counts (`by decide`), as in `Progress.lean`;
+  * `no_looser_verdicts` — the soundness invariant, stated so that recording a
+    `looser` row fails elaboration until someone deliberately amends the theorem
+    (a divergence should not be able to land quietly);
+  * `verdict_requires_spec` — a routine with no spec cannot carry a verdict other
+    than `unproven`/`noCounterpart`, since the question is unanswerable without a
+    spec;
+  * `basis_diff_requires_spec` — a `diff`-graded row must name a spec;
+  * `portDefect_cites_issue` — a row blaming the `SpecRef` port must name the
+    issue tracking that defect, so "the port is wrong" cannot be asserted without
+    something to fix it against. Note this is a field, not a verdict: `Verdict`
+    grades the guest, and keeping the port on its own axis is what stops a
+    false-accept from being graded around `no_looser_verdicts`;
+  * the **`abbrev` witnesses at the bottom**, which make every `spec` string real:
+    renaming or deleting a named theorem fails this file's elaboration rather than
+    silently leaving a stale row. This is the same device as
+    `Progress.lean`'s witness block and is the whole reason this registry exists
+    in Lean rather than in markdown.
+
+  What is *not* kernel-forced: the `verdict` and `basis` values themselves. Those
+  are human judgements backed by the evidence named in `note` — for `diff` rows,
+  by `lake exe correspondence-check <family>`. The registry records and drift-gates
+  them; it cannot derive them.
+
+  WHAT DOES *NOT* BELONG HERE — routines whose only available verdict is
+  `noCounterpart`. A row is worth writing when it can go one of several ways;
+  a row that could only ever read "there is nothing to compare against" records
+  a fact about the *reference*, not about our proof, and it orients no spec
+  effort. `docs/leaf-routine-targets.md` states this for `b1_sender_table_find`
+  and `exec_log_latest_value`, which are deliberately left out on exactly this
+  ground. The two `noCounterpart` rows that *do* appear below
+  (`rlp_list_truncate_to_n_fields`, `rlp_prefix_to_buffer`) sit inside a family
+  that is otherwise genuinely audited, where they still carry drift-guard value;
+  an entire family of them would carry none, and would dilute the per-verdict
+  `by decide` totals that make a `looser` row impossible to land quietly.
+
+  Ruled once, so it is not re-litigated (#12225): the **u256 big-endian
+  arithmetic helpers** (`u256_add_be`, `u256_sub_be`, `u256_lt_be`, `u256_eq`,
+  `u256_is_zero`, `u256_mul_u64_be`) get **no** family here. Execution-specs
+  writes `a + b` on unbounded `Uint`; the 32-byte big-endian *window* is a guest
+  representation choice, so there is no reference function to grade against. The
+  agreement content these routines do have is already stated in the registry
+  that owns that claim: the `.proven` rows `u256AddBeFlat_spec`,
+  `u256SubBeFlat_spec` and `u256FromU64BeFlat_spec` are the artifacts witnessed
+  from `Progress/Routines.lean`, and the numeric bridges they rest on are stated
+  in `Codegen/Proofs/U256BeFlatTriples.lean` (`beBytesToNat_u256AddBeBytes`,
+  `beBytesToNat_u256SubBeBytes`, `beBytesToNat_u256FromU64Bytes`) and
+  `Codegen/Programs/U256MulU64Be/Arith.lean` (`beBytesToNat_mulOutput`), and
+  consumed at `HeaderValidateBaseFeeCompositionIncreaseRoute.lean:156,247`.
+  Per #12526 a
+  correspondence row is a *distinct* claim from a machine triple; restating those
+  bridges here would blur that line in the direction that makes this registry
+  mean less. One carve-out is left open rather than denied: `u256_from_u64_be`
+  does have a plausible counterpart in `SpecRef/InstructionsCore.lean`
+  (`toBeBytes32 = natToBytesBE 32`, the port of `U256.to_be_bytes32`), so a
+  single `.ported` row for it — restricted to `x < 2^64`, on the `blsg_lt_p`
+  pattern — would be well-formed if a consumer ever wants it.
+
+  NOTE ON BUILD COST: this module is in the **heavy** tier — it must import the
+  proof modules in order to witness their theorems. The correspondence *harness*
+  (`EvmAsm/Tests/Correspondence/Harness.lean`) is deliberately Mathlib-free so it
+  can gate per-PR; do not confuse the two.
+-/
+
+import EvmAsm.Progress
+import EvmAsm.Rv64.RLP.WalkInit
+import EvmAsm.Rv64.RLP.WalkNext
+import EvmAsm.Rv64.RLP.ContentToU64
+import EvmAsm.Rv64.RLP.ContentToU64Strict
+import EvmAsm.Rv64.RLP.ContentToU256Be
+import EvmAsm.Rv64.RLP.ContentToU256BeStrict
+import EvmAsm.Rv64.RLP.ContentToU256BeBridge
+import EvmAsm.Rv64.RLP.RecDecode.Correct
+import EvmAsm.EL.RLP.RefDecodeToBytesFidelity
+
+
+-- @@ L95-95 verbatim
+namespace EvmAsm.Progress.Correspondence
+
+
+-- @@ L97-123 verbatim
+/-! ### Grading a restriction: ask *whose* limit it is
+
+    Every non-`agrees` verdict answers one question — **which side is limited?** —
+    and the four answers are not interchangeable:
+
+    | limit lives in | verdict | is it a defect? |
+    |---|---|---|
+    | the **proof** (we did not cover the case) | `domainRestricted` | no — prove more |
+    | the **triple's precondition** (the ABI obliges the caller) | `domainRestricted` | no, but it can be *violated* |
+    | the **guest** (it refuses input the spec accepts) | `stricter` | **yes, guest-side** |
+    | the **port** (it accepts input the Python rejects) | `portDefect` field | **yes, reference-side** |
+
+    ⚠️ The last row is **not a verdict**. `Verdict` grades the *guest* only, and a
+    port defect is recorded orthogonally on `Entry.portDefect`, because the two
+    facts are independent: all four combinations of (guest right/wrong) ×
+    (port right/wrong) occur, and a row must be able to say both. Folding the port
+    into `Verdict` would also open a hole in `no_looser_verdicts` — a row that
+    ought to be `looser` could be graded "port defect" instead and the invariant
+    would still pass.
+
+    So grade by asking "does the *guest* reject this, or did we merely not prove
+    it?" — and, when the guest does reject, "is the *port* the thing that is
+    wrong?". Reaching for `domainRestricted` because a restriction is benign
+    collapses the first three rows together, which is how #11493 started: a guest
+    rejection was wearing a verdict whose docstring says "Not a defect", and
+    `stricter` had zero occurrences despite describing the most safety-relevant
+    outcome in the schema. -/
+
+-- @@ L124-149 verbatim
+/-- How a routine's spec relates to the external reference.
+
+    The vocabulary is **asymmetric on purpose**: `looser` is a soundness finding,
+    `stricter` is a false-reject risk, and `domainRestricted` is not a defect at
+    all. Collapsing them to a boolean would discard exactly the distinction the
+    audit exists to make. -/
+inductive Verdict where
+  /-- Spec and reference agree on the routine's whole domain. -/
+  | agrees
+  /-- Agrees, but the spec covers strictly less input than the reference accepts.
+      Not a defect; a coverage gap callers must respect.
+
+      Covers two situations that are both benign but make different promises: a
+      **coverage gap** (the guest may well handle the case; we have not proved it)
+      and an **ABI precondition** (the triple obliges the caller). The second can
+      be violated, the first cannot — the row's note must say which it is. -/
+  | domainRestricted
+  /-- We reject input the reference accepts → false-rejects on valid chain data. -/
+  | stricter
+  /-- We accept input the reference rejects → **false-accept; file immediately.** -/
+  | looser
+  /-- A guest-specific operation with no reference function to compare against. -/
+  | noCounterpart
+  /-- No spec exists, so the question is not answerable. An honest result. -/
+  | unproven
+  deriving DecidableEq, BEq, Repr
+
+
+-- @@ L151-189 verbatim
+/-- How much weight a verdict carries. This column is the product: a verdict
+    without a basis is an unverified claim, which is the failure mode the audit
+    exists to prevent. -/
+inductive Basis where
+  /-- Backed by the executable differential (`lake exe correspondence-check`). -/
+  | diff
+  /-- The spec is stated over, or tied by a cited bridge lemma to, the shared
+      model, so it inherits the `diff` result. -/
+  | bridged
+  /-- The spec is tied by a **cited and consumed** bridge lemma to a `SpecRef`
+      **port** of the reference that is not itself differentially backed.
+
+      Stronger than `inspection` — the tie is machine-checked, not read. Weaker
+      than `bridged` — there is no `diff` result to inherit, so the row's value is
+      bounded by the port's fidelity to the Python.
+
+      ⚠️ **A row may only claim this rung if it records a port-fidelity clause
+      table**: a clause-by-clause comparison of the port against the vendored
+      source, with every non-syntactic restatement either proved or named as an
+      assumption. Without that requirement this rung is `machineOnly` with a
+      friendlier name. The worked example is `check_gas_limit`, where the port
+      writes clause 2 as `gl + delta ≤ p` while `fork.py` writes
+      `gl ≤ p - delta` — algebraically equal only because `delta ≤ p`, proved as
+      `clause2_port_faithful` rather than assumed.
+
+      Introduced in #11341 because the schema previously forced such rows onto
+      `machineOnly`, whose *description* ("stated over a locally defined
+      predicate") is false for them even though its *operative* clause ("the
+      differential does not transfer") is true. -/
+  | ported
+  /-- The spec is stated over a *locally defined* machine predicate that
+      re-derives the reference's rules independently of the shared model. The
+      differential result does **not** transfer. -/
+  | machineOnly
+  /-- Established by reading both sides; no executable or formal backing. -/
+  | inspection
+  /-- No basis applies (the row has no verdict to support). -/
+  | none
+  deriving DecidableEq, BEq, Repr
+
+
+-- @@ L191-204 verbatim
+/-- Which layer a row is about.
+
+    BAL forced this distinction. Its *model* is differential-backed while every
+    *guest* routine is unproven — a shape the schema could not express when every
+    row was assumed to be a guest routine with a theorem. Recording only the
+    guest rows would hide the result; recording the model row as if it were a
+    routine would misreport what is proven. -/
+inductive Layer where
+  /-- A guest RISC-V routine. Its evidence is a whole-routine spec. -/
+  | guest
+  /-- A pure Lean model function. Its evidence is the executable differential,
+      not a theorem. -/
+  | model
+  deriving DecidableEq, BEq, Repr
+
+
+-- @@ L206-236 verbatim
+/-- One audited routine or model function. -/
+structure Entry where
+  /-- Guest routine or model function? -/
+  kind : Layer := .guest
+  /-- Family name; matches the `correspondence-check` subject and the doc page. -/
+  family : String
+  /-- Guest routine symbol as it appears in the linker facts. -/
+  routine : String
+  /-- Whole-routine spec theorem, if one exists. Backed by an `abbrev` witness
+      below when present. -/
+  spec : Option String := none
+  verdict : Verdict := .unproven
+  basis : Basis := .none
+  /-- The reference function this row is compared against. -/
+  reference : String := ""
+  /-- A defect in the **`SpecRef` port** — the port diverges from the Python — as
+      the GitHub issue tracking it.
+
+      Orthogonal to `verdict` on purpose. `verdict` grades the **guest**; this
+      grades the **reference side**, and the two are independent facts: a row may
+      have a correct guest and a broken port, a broken guest and a correct port,
+      or both. Folding this into `Verdict` made the "guest agrees AND port is
+      wrong" combination unrepresentable, since choosing that constructor erased
+      the guest grade — and it put an alternative beside `looser` in the same
+      enum, which would let a false-accept be graded around `no_looser_verdicts`.
+
+      `portDefect_cites_issue` rejects `some 0`: "the port is wrong" cannot be
+      recorded without something to fix it against. -/
+  portDefect : Option Nat := none
+  note : String := ""
+  deriving Repr
+
+
+-- @@ L238-248 verbatim
+/-! ## The registry
+
+    RLP rows: see `docs/rlp-spec-correspondence.md`. Row list is the linker
+    facts (`scripts/asm-fixtures/symbol-addresses.tsv`), filtered to `rlp_*`.
+
+    SSZ is deliberately **not** enumerated here yet: its guest tower was built
+    independently of `SpecRef/SszCodec.lean` and its reference codec is a
+    separate external package, so no row could carry a basis better than
+    `inspection`. `docs/ssz-spec-correspondence.md` records that as prose until
+    a shared model exists. Registering unbacked verdicts would be the exact
+    unaudited-measurement failure this registry is meant to prevent. -/
+
+
+-- @@ L250-1303 verbatim
+def registry : List Entry := [
+  { family := "rlp", routine := "rlp_walk_init",
+    spec := some "rlp_walk_init_spec_within",
+    verdict := .agrees, basis := .bridged,
+    reference := "ethereum_rlp.rlp.decode_to_sequence entry",
+    note := "9 paths; bridged via Rv64/RLP/WalkDecodeBridge.lean" },
+  { family := "rlp", routine := "rlp_walk_next",
+    spec := some "rlp_walk_next_spec_within",
+    verdict := .agrees, basis := .bridged,
+    reference := "ethereum_rlp.rlp.decode_item_length + ethereum_rlp.rlp.decode_joined_encodings loop",
+    note := "18 paths → 6 statuses; predicate rlpItemDecode, bridged. Two-level \
+model: this row is the CORE's lenient span relation; the strict wrapper \
+(`rlp_walk_next_shared`/`rlp_validate_payload`, the only guest call surface — \
+165/165 `jal rlp_walk_next` sites) has relation `rlpItemDecodeStrictW` with the \
+reverse bridge proven (`Rv64/RLP/WalkNextStrict.lean`). Machine-tying is no longer \
+blocked on transcription — #12021 landed the three production wrapper programs \
+(`Codegen/Programs/RlpWalk.lean:104`/`:162`/`:237`); the retired four-byte nested \
+edge is retained only in the strict-fuel proof as an offline adapter — but the \
+full production LIST cycle remains open as ordinary proof work" },
+  -- #12843 §1: `decode_to_bytes` was the one reference function in the RLP
+  -- correspondence map with NO named row. It has two counterparts, and they
+  -- differ in a way worth recording separately rather than averaging into one
+  -- verdict: the walker decides item-LOCAL validity, the eager decoder decides
+  -- WINDOW-EXACT validity, and that difference IS #12842's asymmetry.
+  { family := "rlp", routine := "rlp_walk_next",
+    spec := some "rlp_walk_next_spec_within",
+    verdict := .domainRestricted, basis := .machineOnly,
+    reference := "ethereum_rlp.rlp.decode_to_bytes",
+    note := "THE WALKER'S STRING ARM, audited clause by clause against \
+rlp.py:387-424. Proves four of the six check classes, each as its own status: \
+short-form truncation → 3 (`rlp_walk_next_short_string_bound_spec_within`), \
+short-form non-canonical single byte → 6 (`…_noncanon_spec_within`), long-form \
+length-field truncation → 3 (`…_long_string_header_spec_within`), leading-zero \
+length field → 5 (`…_long_string_lz_spec_within`), `len < 56` → 4 \
+(`…_long_string_nonmin_spec_within`), payload truncation → 3 \
+(`…_long_string_content_spec_within`). ⛔ DOES NOT PROVE, and structurally \
+cannot: (a) the `< 0x80` prefix with a window longer than one byte — \
+`rlp_walk_next_single_spec_within` returns status 0 for EVERY such prefix \
+regardless of how much window remains, because advancing one byte is the \
+correct walker behaviour there; (b) EITHER trailing-bytes clause (rlp.py:400 \
+and :422). Both omissions have one cause: the accept relation `rlpItemDecode` \
+is SPAN-FIT (`span ≤ available`), never SPAN-EXACT, since `endPtr` reaches this \
+routine as an upper bound and not as an exact end. The restriction is therefore \
+a COVERAGE GAP of the item-local contract, not an ABI precondition a caller \
+could violate — window-exactness is not a fact this routine is given the \
+information to decide. `machineOnly` because `rlpItemDecode` is local and its \
+bridges (`Rv64/RLP/WalkNextStrict.lean`) go to `EL.RLP.decodeAux`, the \
+STREAMING decoder — a different model from `Ref.decodeToBytes`, so no \
+differential transfers. Exactness is supplied, where it is supplied at all, by \
+the root span; that it is NOT supplied for un-walked siblings is #12842" },
+  { family := "rlp", routine := "rlp_recursive_decode",
+    spec := some "rlp_decode_correct",
+    verdict := .agrees, basis := .ported,
+    reference := "ethereum_rlp.rlp.decode_to_bytes",
+    note := "THE EAGER LEAF ARM. Decides all six check classes, window-exact, \
+via `decStatus_eq_zero_iff`/`decStatus_eq_one_iff` (`RecDecode/Correct.lean:57`\
+/`:80`) tying the machine status to `EL.RLP.Ref.decode`, which dispatches every \
+prefix ≤ 0xBF to `Ref.decodeToBytes` (`RefDecode.lean:146`). Per-clause content \
+is in `EL/RLP/RefDecodeStatus.lean`: `decodeD_single_ok`:165, \
+`decodeD_single_long`:178 (the negative-length clause the walker omits), \
+`decodeD_short_bytes_badlen`:193 (truncated AND trailing), \
+`decodeD_short_bytes_noncanon`:215, `decodeD_long_bytes_trunc`:270, \
+`decodeD_long_bytes_zero`:288, `decodeD_long_bytes_small`:311, \
+`decodeD_long_bytes_badlen`:338. PORT-FIDELITY TABLE, required for this rung: \
+`EL/RLP/RefDecodeToBytesFidelity.lean` grades all ten clauses and proves the \
+four that are NOT syntactic restatements — clause 2 because Python's \
+`len_raw_data < 0` is a SIGNED test that `Nat` truncation cannot express after \
+the fact, and clauses 6/9/10 because Python names `decoded_data_start_idx` and \
+`decoded_data_end_idx` and then tests them shifted by one. Each range \
+hypothesis carries a negative control exhibiting a point where the two sides \
+disagree without it. ⚠️ SCOPE, stated because the row would otherwise be read \
+as stronger than it is: this triple is over the SYNTHETIC `decCr` at the \
+model's own entries, NOT the linked guest image — the direct-JAL tie is #12749, \
+and until it closes this row grades the DECODER'S SPEC against the reference, \
+not the linked bytes" },
+  { family := "rlp", routine := "rlp_content_to_u64",
+    spec := some "rlp_content_to_u64_spec_within",
+    verdict := .agrees, basis := .inspection,
+    reference := "int.from_bytes at U64",
+    note := "len>8 → status 2; leading-zero encodings are accepted and decoded by \
+big-endian magnitude, matching U64 int.from_bytes semantics" },
+  { family := "rlp", routine := "rlp_content_to_u64_strict",
+    spec := some "rlp_content_to_u64_strict_spec_within",
+    verdict := .agrees, basis := .inspection,
+    reference := "_deserialize_to_uint at U64",
+    note := "canonical scalar decoding: empty content is zero, a leading-zero \
+byte returns status 3, and nonzero content is decoded big-endian; this is the \
+prefix-stripped leaf counterpart of `EL.RLP.decodeScalar`" },
+  { family := "rlp", routine := "rlp_content_to_u256_be",
+    spec := some "rlp_content_to_u256_be_scalar_spec_within",
+    verdict := .agrees, basis := .bridged,
+    reference := "_deserialize_to_uint at U256",
+    note := "the machine triple states its outcome as a right-aligned `copyN` and a \
+length bound. Bridged in #11341 (`Rv64/RLP/ContentToU256BeBridge.lean`) by \
+`ctu256_accept_decodeScalar` (the 32-byte buffer denotes exactly the value \
+`decodeScalar` returns, via `fromBytesBE_replicate_zero_append` — right-alignment is \
+value-preserving). The bridge carries an explicit canonical-input hypothesis because \
+the machine decoder is lenient. The row names the consumer, which restates the triple's outcome \
+disjunction over `decodeScalar`. U256 FIELDS ONLY, and now precisely: the bridge is \
+scoped to `len ≤ 32`, so the status-2 arm is excluded — that arm is the U256 width \
+rejection and `decodeScalar` is untyped, so it is the one outcome the shared model does \
+not speak to (`from_be_bytes` at U256 is a layer above it). ⚠️ `len > 32` IS REACHABLE — \
+`a1` is the content length `rlp_walk_next` returns, unclamped, and all 7 call sites \
+(`accountExtractBalance`, `txEip2930Decode` x4, `txEip1559Decode`, `headerExtendedDecode`, \
+`balAccountNonstorageFinals`) test `bnez a0` and fail, i.e. they RELY on the status-2 \
+rejection. So `hle32` is not an ABI hypothesis the way `hbound` is on the size rows; it \
+scopes the BRIDGE, not the routine. The verdict stays `.agrees` because the reference \
+is `_deserialize_to_uint` AT U256, which rejects >32 bytes exactly as the guest does — \
+the two agree on the whole domain. What `len > 32` limits is the BASIS: that one arm \
+has no counterpart in the untyped shared model, so it rests on the machine triple \
+(which does cover it) rather than on the differential" },
+  { family := "rlp", routine := "rlp_content_to_u256_be_strict",
+    spec := some "rlp_content_to_u256_be_strict_spec_within",
+    verdict := .agrees, basis := .inspection,
+    reference := "_deserialize_to_uint at U256",
+    note := "canonical scalar decoding for the fixed-width U256 surface: empty \
+content is zero, leading-zero content returns status 3, content wider than 32 \
+bytes returns status 2, and canonical content is right-aligned; the scalar rule \
+is mirrored by `EL.RLP.decodeScalar`" },
+  { family := "rlp", routine := "rlp_item_size",
+    spec := some "rlp_item_size_spec_within",
+    verdict := .domainRestricted, basis := .bridged,
+    reference := "ethereum_rlp.rlp.decode_item_length",
+    note := "short forms only (SpanForm); long string 0xb8-0xbf and long list 0xf8-0xff uncovered" },
+  { family := "rlp", routine := "rlp_item_span",
+    spec := some "rlp_item_span_spec_within",
+    verdict := .domainRestricted, basis := .machineOnly,
+    reference := "ethereum_rlp.rlp.decode_item_length",
+    note := "whole-routine cpsTripleWithin under short-list outer (payload ≤ 55) + \
+WalkedSpanForm on every walked prefix 0..i (#11577). coverRef \
+`rlp_item_span_precondition_reachable` ([0xc1,0x80] i=0). ⭐ #10780 CLOSED THE \
+OUTER-HEADER HALF: `rlp_item_span_long_spec_within` proves the long form \
+(`0xF7 + lenlen`, all widths 1..8) and `rlp_item_span_any_header_spec_within` \
+dispatches the two arms, so the header form is no longer a restriction — read \
+this row's `payload ≤ 55` as this ARM's gate, not the routine's. Still \
+uncovered: non-SpanForm walked items, and rejection of NON-CANONICAL long \
+headers whose payload is below `0x38` (the guest now checks the leading-zero \
+length field but still does not check the long-form minimality condition; the \
+domain `bs = encode (.list items)` excludes the remaining malformed case). \
+Witnessed in Progress/Routines.lean" },
+  { family := "rlp", routine := "rlp_item_span",
+    spec := some "rlp_item_span_any_header_spec_within",
+    verdict := .domainRestricted, basis := .machineOnly,
+    reference := "ethereum_rlp.rlp.decode_to_sequence",
+    note := "#10780. Total over outer-header forms: the payload start is \
+`hdrLen`, which is the spec's `joined_encodings_start_idx = 1 + \
+encoded_sequence[0] - 0xF7` in the long branch and `1` in the short one \
+(rlp.py:428-434). Domain restriction is now WalkedSpanForm plus ABI/resource \
+premises only. Does NOT claim the remaining canonicality REJECTION the spec \
+decoder performs (rlp.py:441): the guest checks the leading-zero condition \
+(rlp.py:436) but still omits the long-form minimality check, which holds by \
+construction on canonically encoded input" },
+  { family := "rlp", routine := "rlp_list_count_items",
+    spec := some "rlp_list_count_items_spec_within",
+    verdict := .agrees, basis := .machineOnly,
+    reference := "ethereum_rlp.rlp.decode_joined_encodings",
+    note := "⛔ STILL `machineOnly`, AND THE BLOCKER IS NO LONGER THE ONE THIS ROW NAMED. \
+The previous note (2026-08-07) read `BLOCKED ON #11711` and put the obstruction in \
+`DecodeChain`'s per-link fuel-insensitivity. #11711 IS CLOSED and its deliverable LANDED, so \
+that citation was pointing at a resolved issue: `DecodeChainFrom` \
+(`Rv64/RLP/WalkDecodeBridge.lean:499`) carries a single `floor` and states each link as a \
+plain `decodeAux floor …` obligation, `decodeItems_of_chainFrom` (:527) composes a chain \
+under the ONE side condition `floor ≤ k + 1`, and `decodeAux_mono_fuel` \
+(`EL/RLP/FuelMono.lean:216`) removes the per-link fuel algebra entirely. A NESTED LIST IS \
+NOW A LEGAL LINK. The machine-side structural half is done too: `DecodeChainFrom.snoc` and \
+`StrictPrefix.decodeChainFrom_of_itemBridge` (`RlpListCountItemsBridge.lean:346`, `:373`) \
+turn a `StrictPrefix` of length `count` into a `DecodeChainFrom` over exactly `count` items. \
+So the fuel obstruction is GONE and the row still cannot be regraded — the citation had to \
+be replaced, not refreshed. \
+⭐ RE-MEASURED AGAINST `rlpItemDecodeStrictW` (`Rv64/RLP/WalkNextStrict.lean:52`), the \
+fuel-sensitive wrapper relation with both bridge directions proven \
+(`rlpItemDecodeStrictW_to_decodeAux` :788, `rlpItemDecodeStrictW_of_decodeAux` :829). IT \
+DOES NOT BRIDGE THIS ROW, and the reason is that it is not additional strength but the \
+missing hypothesis under a new name. Its second conjunct — on a list prefix, `decodeAux` \
+decodes the span as a `.list` — is pointwise the already-named residual \
+`RlpListInteriorsDecode` (`RlpListCountItemsBridge.lean:405`), i.e. the payload conjunct of \
+`rlpItemDecodeStrict` (:475). Accordingly the forward bridge proves its two LIST arms by \
+CONSUMING that conjunct (`obtain ⟨inner, hdec⟩ := hrecursive …`), never by discharging it. \
+Both directions being proven is a statement about the MODEL's two levels; it moves nothing \
+on the guest side. \
+⛔ THE GAP IS MACHINE-SIDE, WHICH IS WHY NO MODEL-SIDE PREDICATE CAN CLOSE IT. \
+`rlp_list_count_items_spec_within`'s post is `StrictPrefix` \
+(`RlpListNthItemSAsmBase.lean:312`), whose `succ` constructor carries the LENIENT \
+`rlpItemDecode` — the routine embeds `rlp_walk_next_prog`, the 412-byte CORE, and consumes \
+the core triple `rlp_walk_next_spec_within` (`RlpListCountItemsSAsmCode.lean:20`, \
+`…SAsmNext.lean:62`). Nothing in that post mentions the recursive payload check, so \
+`rlpItemDecodeStrictW` cannot be OBTAINED from the theorem this row cites; assuming it \
+would be exactly the over-grading #11341 exists to prevent. \
+⚠️ AND THE BYTE-LEVEL VERSION OF THE MISSING FACT IS FALSE, kernel-checked, not merely \
+unproven: `not_rlpWalkNextStrict_nestedNonCanonical` (`RlpListCountItemsBridge.lean:595`) \
+refutes it on `[0xc3,0xc2,0x81,0x00]` — an outer list whose span fits and whose interior is \
+non-canonical, accepted by the machine span-only list arm and rejected by `decodeAux`. So \
+there is no route through the weak relation at all; the fact must come from ACCEPTANCE, \
+which is why the residual is stated as `RlpWalkNextAccepts` (:618) with the accept \
+predicate ABSTRACT. \
+⇒ THE BLOCKER IS THAT NOTHING PROVEN COVERS THE RECURSIVE VALIDATOR, so there is nothing \
+to instantiate `accept` with. ⭐ NOTE THIS IS NO LONGER A REPRESENTATION GAP: #12021 landed \
+the three production programs — `rlpWalkNext_prog` (`Codegen/Programs/RlpWalk.lean:104`), \
+`rlpWalkNextShared_prog` (`:162`) and \
+`rlpValidatePayload_prog` (`:237`), each with its `_eq_prog` drift guard. The retired \
+nested edge survives only as the synthetic offline adapter used by the strict-fuel proof. \
+What is missing is a TRIPLE over the production cycle, so the \
+routine still consumes only the 412-byte core's `rlp_walk_next_spec_within`, whose post \
+carries the LENIENT `rlpItemDecode`. That is ordinary proof work on a statable goal rather \
+than a prerequisite, which is a better position than this row previously recorded. \
+⚠️ `WalkNextStrict.lean`'s own header still names #12021 as the dependency and is stale in \
+the same way this note was. \
+⚠️ THE DOMAIN STILL CONTAINS NESTED LISTS, so this is live rather than hypothetical: since \
+#11675 the routine is called by `mpt_node_kind` to check node arity, and MPT branch \
+children are either a 32-byte hash or an INLINE EMBEDDED NODE — \
+`SpecRef/IncrementalMpt.lean:155` `resolveChildRefAux` has an explicit `| .list items =>` \
+arm for exactly that. \
+CLAUSE-FIDELITY STATUS, unchanged: the byte-string item clauses ARE discharged \
+(`decodeAux_of_singleByte` / `decodeAux_of_shortBytes`), the list-payload clause is not, \
+and no complete table or `ported` regrade is claimed. Separately noted on #11341 and still \
+open: the machine relation accepts a list item whose SPAN fits without validating its \
+interior, where `decode_joined_encodings` decodes every item — a looser-than-reference \
+shape whose reachability on a live accepted MPT path is NOT established" },
+  { family := "rlp", routine := "rlp_list_nth_item",
+    spec := some "rlpListNthItem_spec_within",
+    verdict := .agrees, basis := .bridged,
+    reference := "ethereum_rlp.rlp.decode_to_sequence + index" },
+  { family := "rlp", routine := "rlp_field_to_u64",
+    spec := some "rlpFieldToU64_spec_within",
+    verdict := .agrees, basis := .inspection,
+    reference := "_deserialize_to_uint at U64 ∘ walk",
+    note := "walk layer bridged; scalar layer inspection-only" },
+  -- #12386: retired from the production guest image.  The Program and proof
+  -- remain offline under RlpFieldToU256BeOfflineAddrs; this row asserts the
+  -- correspondence for that offline Program only, not production coverage.
+  { family := "rlp", routine := "rlp_field_to_u256_be",
+    spec := some "rlpFieldToU256Be_spec_within",
+    verdict := .agrees, basis := .inspection,
+    reference := "_deserialize_to_uint at U256 ∘ walk",
+    note := "walk layer bridged; scalar layer inspection-only" },
+  { family := "rlp", routine := "rlp_bytes_encoded_size",
+    spec := some "rlpBytesEncodedSize_encode_spec",
+    verdict := .agrees, basis := .bridged,
+    reference := "len(ethereum_rlp.rlp.encode_bytes(...))",
+    note := "was machineOnly — `rbesSize` is standalone arithmetic, not \
+(encode …).length. Bridged in #11341 by `rbesSize_eq_encodeBytes_length` \
+(`Codegen/Programs/RlpBytesEncodedSizeBridge.lean`), whose load-bearing sublemma \
+`u64ByteLen_eq_toBytesBE_length` identifies the guest's 9-way length-of-length \
+ladder with `(Nat.toBytesBE ·).length`. The row now names the model-facing \
+`rlpBytesEncodedSize_encode_spec` (post: `a0 = (encodeBytes xs).length`), a one-rewrite \
+consequence of the untouched machine triple `rlpBytesEncodedSize_spec`. Full domain: \
+the `hbound` side condition is 64-bit non-overflow on the register. That is a \
+REPRESENTABILITY guard, not a domain restriction, and the distinction is what keeps this \
+row `.agrees` rather than `.domainRestricted`: `domainRestricted` means the reference \
+accepts inputs the spec excludes, whereas a `List Byte` of length ≥ 2^64 - 9 has no \
+representation on the target at all, so `hbound` excludes no input the routine could ever \
+be handed. Every byte string the guest can physically be called on is inside the claim" },
+  { family := "rlp", routine := "rlp_list_encoded_size",
+    spec := some "rlpListEncodedSize_encode_spec",
+    verdict := .agrees, basis := .bridged,
+    reference := "len(ethereum_rlp.rlp.encode_sequence(...))",
+    note := "was machineOnly, and weaker than its sibling: the size formula was \
+written INLINE in `rlpListEncodedSize_spec`'s statement and never named, so there \
+was nothing to compare against the reference. Bridged in #11341 by \
+`rlesSize_eq_encode_list_length` (`Codegen/Programs/RlpListEncodedSizeBridge.lean`), \
+which names the formula as `rlesSize` and ties it to `(encode (.list items)).length` \
+via `encode_list_short`/`encode_list_long` and the shared sublemma \
+`u64ByteLen_eq_toBytesBE_length`. Stated against the item list whose encoded payload \
+is the register argument — the guest sees only that length, and so does \
+`len(encode_sequence(...))`" },
+  { family := "rlp", routine := "rlp_encode_uint_be",
+    spec := some "reub_spec_within",
+    verdict := .domainRestricted, basis := .bridged,
+    reference := "ethereum_rlp.rlp.encode(Uint) → ethereum_rlp.rlp.encode_bytes(to_be_bytes()) — unbounded",
+    note := "whole-routine triple landed in #11040, so the ≤55 bound is now a proven property \
+of the ROUTINE rather than a documented property of the model — which is exactly the condition \
+this row's previous note said would move it off `unproven`. `domainRestricted` because the \
+reference accepts any length while the spec needs the stripped payload ≤ 55; `bridged` because \
+reub_spec_encode_within restates the post over encodeBytes ∘ toBytesBE ∘ fromBytesBE via \
+reubOut_eq_encode_toBytesBE." },
+  { family := "rlp", routine := "rlp_encode_list_prefix",
+    spec := some "rlp_encode_list_prefix_short_pinned_spec_within",
+    verdict := .domainRestricted, basis := .bridged,
+    reference := "header of ethereum_rlp.rlp.encode_sequence",
+    note := "no unified dispatch theorem — EIGHT per-form pinned triples, cited here by \
+the short one because this file carries one row per routine. Coverage is \
+`len < 2^56`: short (`len < 56`), long1 (`56 ≤ len < 256`), long2 \
+(`256 ≤ len < 65536`, where the length-byte loop first runs more than once and canonical \
+form stops being vacuous), long3 (`65536 ≤ len < 16777216`), long4 \
+(`16777216 ≤ len < 4294967296`), and long5/long6/long7 \
+(`…_long{5,6,7}_pinned_spec_within`, header bytes `0xFC`/`0xFD`/`0xFE`, header lengths \
+6/7/8, step bounds 62/72/82). ⚠️ THE CUT IS `lenlen ≥ 8` (payload ≥ 2^56 B). It \
+was `lenlen ≥ 2` in this note until long2 landed, `≥ 3` until long3, `≥ 4` until long4 \
+and `≥ 5` until long5-7; `Progress/Routines.lean` carried the rows each time while \
+this row described the previous state, so keep them in step. ⭐ The per-width cost long4 \
+measured held exactly across three more widths: three extra dispatch steps and seven extra \
+loop steps each, nothing else — header writer (idx30-34), epilogue (idx42-44), frame and \
+clobber set are identical across long4-long7, and the loop is CITED via `lpLolLoop` at \
+`m := 5/6/7` rather than unrolled. The ladder is fully regular: branch `j` sits at \
+`idx 10+3(j-1)` = `base+40+12(j-1)` with offset `+(80-12(j-1))`, so every branch targets \
+the shared header writer at `base+120`. ⚠️ `lenlen = 8` REMAINS OPEN, and the reason is \
+now MEASURED rather than predicted: `lpLolLoop`'s side condition \
+`outPtr.toNat + (1+m) ≤ 2^64` closes from `outPtr.toNat % 8 = 0` alone at `+6`, `+7` and \
+`+8` — long7's `+8` is the exact boundary — while `+9` does not. Checked directly: \
+`x < 2^64 ∧ x % 8 = 0 ⊢ x + 8 ≤ 2^64` closes under `omega`; the same step at `+9` fails. \
+So `lenlen = 8` needs an explicit bound on `outPtr`, not more alignment" },
+  { family := "rlp", routine := "rlp_encode_bytes",
+    spec := some "reb_spec_within",
+    verdict := .agrees, basis := .bridged, reference := "ethereum_rlp.rlp.encode_bytes",
+    note := "whole-routine triple over `encodeBytes` itself — the function SpecRef's \
+encoders call (`encR := EL.RLP.encode`, `encode (.bytes d) = encodeBytes d` definitionally), \
+so no bridge lemma is even needed; `agrees` on the full domain (total function, both sides \
+of 55/56 covered; resource preconditions only). Witnessed in `Progress/Routines.lean`, \
+not here — this file deliberately does not import Codegen (see the Witnesses block)." },
+  { family := "rlp", routine := "rlp_encode_u64",
+    verdict := .unproven, basis := .none, reference := "ethereum_rlp.rlp.encode(U64)",
+    note := "drift guard only" },
+  { family := "rlp", routine := "rlp_list_truncate_to_n_fields",
+    verdict := .noCounterpart, basis := .inspection,
+    note := "signing-hash truncation is guest-specific" },
+  { family := "rlp", routine := "rlp_prefix_to_buffer",
+    verdict := .noCounterpart, basis := .inspection,
+    note := "header emission; no standalone counterpart. Also has NO drift guard" },
+  { family := "rlp", routine := "withdrawal_decode",
+    spec := some "withdrawal_decode_spec_within",
+    verdict := .agrees, basis := .machineOnly,
+    reference := "inverse of withdrawalToRlpItem (SpecRef/BlocksRlp): RLP → (index, \
+validatorIndex, address, amount)",
+    note := "whole-routine triple `wdPrologue ;; wdBBField0` proven against LOCAL \
+`Decoded`/`DecodeFailure` predicates. CLAUSE-FIDELITY ATTEMPT against \
+`execution-specs/forks/amsterdam/blocks.py:36-50` and the port's \
+`withdrawalToRlpItem`: list arity/order (four fields) matches; address width (20 bytes) \
+matches; scalar direction (canonical minimal big-endian bytes, U64 width for index and \
+validator index) matches the strict local decoder. The defeated clause is the CONVERSE \
+reconstruction needed to consume that encoder: no SpecRef RLP decoder theorem produces a \
+`Withdrawal` from arbitrary decoded bytes, and `WithdrawalItemReconstructs` remains unproved \
+because scalar inversion needs canonicality plus the private `scalarItem` definition \
+(`BlocksRlpRoundTrip.lean:29-42`). A leading-zero scalar is deliberately outside the \
+encoder image, so the round-trip direction alone cannot transfer the machine theorem. \
+SpecRef also carries SSZ decode but no consumed RLP reconstruction; the differential does not \
+transfer — `machineOnly`, not `ported`/`bridged`. Registered in #11291; this row added in \
+#11342 because a witnessed routine with no Correspondence row passed the #11335 gate \
+vacuously. Witnessed in `Progress/Routines.lean`, not here — this file deliberately does not \
+import Codegen." },
+
+  -- BAL canonical ordering. The model is differential-backed; every guest
+  -- routine is unproven because BalCanonicalSort.lean defines only Strings —
+  -- no `Program`, so no triple is statable (issue #10817). That split IS the
+  -- finding: the ordering is right, and whether the asm implements it is open.
+  { family := "bal", kind := .model, routine := "_build_from_builder",
+    verdict := .agrees, basis := .diff,
+    reference := "block_access_lists.py _build_from_builder (vendored)",
+    note := "1149/1149 records agree via `lake exe correspondence-check bal`; \
+covers account order (byte-lexicographic), slot order (numeric, NOT \
+encoded-byte), per-index orders, and the read/write exclusion" },
+  { family := "bal", routine := "bal_canonical_sort",
+    verdict := .unproven, basis := .none,
+    reference := "the ordering _build_from_builder imposes",
+    note := "⚠️ STALE CLAIM CORRECTED (#10817): this note used to say \
+`BalCanonicalSort.lean is String-only; no \\`: Program\\`, so no cpsTripleWithin is statable`. \
+FALSIFIED by #11046, which converted the routine to `balCanonicalSort_prog` (147 instructions, \
+head ++ digit ++ tail) and registered it in the guest image -- a triple IS statable today, and \
+the row stays `.unproven` because nobody has stated one, not because nobody can. \
+STILL BLOCKING, and it is a PREDICATE gap rather than a Program gap: the headline obligation is \
+PERMUTATION (a sort that silently drops rows is still sorted, and the end-to-end hash test \
+CANNOT see it -- it compares against a model built from the DECLARED rows), and permutation \
+cannot be stated without a List-indexed assertion over the row array. \
+`RegionPredicates.balEntriesFrom`/`balBuffer`/`balOwn` now supply it, stride-parameterised \
+because the six live calls use four distinct strides. \
+INDEPENDENT KEY: available and corpus-validated -- `_build_from_builder` at 1149/1149 via \
+`lake exe correspondence-check bal` (#11016), which is what a sortedness predicate must be \
+stated against rather than against the guest's own digit extraction (the vacuity trap the \
+module header warns about). ⚠️ Slots sort NUMERICALLY (`slot : U256`, \
+block_access_lists.py:564); the reference DOCSTRING says `lexicographically` and is wrong -- \
+see docs/bal-spec-correspondence.md. Live path: 6 calls in bal_serializer_rebuild_hash" },
+
+  -- #11344: MPT key expansion. Row mandatory once the symbol is witnessed (#11342).
+  { family := "mpt", routine := "bytes_to_nibbles",
+    spec := some "bytesToNibblesFlat_spec",
+    verdict := .agrees, basis := .ported,
+    reference := "keyToNibbles (SpecRef/WitnessState.lean:78); also the \
+nibble-expansion half of compact_to_nibbles",
+    note := "PORT-FIDELITY CLAUSE TABLE (required by `.ported`). The reference is a \
+one-line `List.flatMap` producing `[b >>> 4, b &&& 0x0F]` per byte. TWO clauses differ \
+from the guest, both PROVED not assumed: (1) the machine writes `BitVec.truncate 8 \
+(b.zeroExtend 64 >>> 4)` where the reference writes `BitVec.ofNat 8 (b.toNat >>> 4)` — \
+`highNibble_eq`; (2) the machine ANDs against `signExtend12 15` where the reference uses \
+`&&& 0x0F` — `lowNibble_eq`. The accumulator/flatMap shape difference is the third and \
+largest: `nibblePrefix` appends on the RIGHT while `flatMap` builds on the LEFT, tied by \
+`nibblePrefix_eq_keyToNibbles_take` (induction via `List.take_add_one`). Nothing else \
+differs. WHY `.ported` AND NOT `.bridged`: the MPT/witness family has no executable \
+differential, so there is no `diff` result to inherit. FULL DOMAIN: the only side \
+conditions are ABI (region wf, non-overlap, non-overflow), and `len <= srcBytes.length` \
+is the ABI contract, not an input-domain gate" },
+
+  -- #11799 dep / leaf-routine-targets row 4: walker dispatch machine triple.
+  { family := "mpt", routine := "mpt_node_kind",
+    spec := some "mpt_node_kind_spec_within",
+    verdict := .agrees, basis := .machineOnly,
+    reference := "node-shape dispatch of _decode_witness_node \
+(SpecRef/IncrementalMpt.lean:182) — 17-item branch vs 2-item leaf/extension",
+     note := "WHOLE-ROUTINE cpsTripleWithin at `GuestAddrs.mpt_node_kind` (#11799 dep). \
+Post is operational `MptNodeKindResult` (countFail/branch/badArity/nthFail/emptyPath/path \
+with HP nibble), matching the guest's arity-exact control flow after #11347. POST \
+STRENGTHEN (path preserve, free — NOT a domain restriction): x18..x21 stay concrete \
+at their entry values; the guest restores them through count/nth saves, so the old \
+regOwn export discarded information the machine preserves and blocked every consumer \
+that needed the path. PRE unchanged (kindCallerPre already carried concrete v18..v21 \
+via countAmbient). #12027 WIRING: `MptNodeKindWire.mptNodeKindResult_eq_kindTag` \
+(success arms `kind < 3`) and `mptNodeKindResult_exists_kindTag` tie operational \
+Result to `MptNode.kindTag` under WF via encode-domain count Success + path head \
+HP nibble — does NOT need #11341 (top-level items are `.bytes` only under WF). \
+Does NOT consume the deleted pure `mptNodeKindGuest_eq_kindTag` bridge \
+(superseded unused; `mptNodeKindGuest` def remains for coverRef only). \
+Fail arms (`kind = 3`) excluded: pure `Failure` is over-broad at exclusive list end. \
+WHY still `.machineOnly` AND NOT `.ported`/`.bridged`: the MPT family has no \
+executable differential; wiring closes the kindTag consumer gap for kind dispatch \
+ONLY — not full SpecRef `decodeNodeItemAux` (leaf/ext value + child-ref checks \
+remain). Port-fidelity clause table for a future `.ported` would need those. The pure \
+`MptAssertions.mptNodeKindSpec` is LOOSER (2 < len → branch) and STALE vs the arity-17 \
+guest; it is NOT the machine post. FULL DOMAIN: no input-domain gate (ABI hyps only). \
+coverRef `mpt_node_kind_precondition_reachable`. Witnessed in Progress/Routines.lean. \
+Walk body (`mpt_walk`) still open under #11799" },
+
+
+  -- #11799 residual audit: hp_decode_nibbles machine predated registration.
+  { family := "mpt", routine := "hp_decode_nibbles",
+    spec := some "hp_decode_nibbles_spec_ported",
+    verdict := .agrees, basis := .ported,
+    reference := "compact_to_nibbles (`execution-specs/src/ethereum/forks/amsterdam/\
+incremental_mpt.py:859-889`), ported at SpecRef/IncrementalMpt.lean:71-89",
+    note := "PORT-FIDELITY CLAUSE TABLE (required by `.ported`), consumed by \
+`hp_decode_nibbles_spec_ported` in `Codegen/Programs/HpDecodeCompactBridge.lean`: \
+(1) input/empty: Python indexes `compact[0]`, so empty input rejects; the port \
+does the same and the bridge ties its error to guest `none`; (2) flags: Python \
+uses bits 1 and 0 of `compact[0] >>> 4`, while the guest branches on `% 4`; \
+`flag_bits` proves equality for all 256 head bytes; (3) odd path: Python \
+prepends `compact[0] &&& 0x0f` exactly when bit 0 is set; \
+`compact_to_nibbles_eq_hpDecode` plus `hpUnpackPairs_eq_keyToNibbles` proves \
+the same tuple; (4) even path: Python omits the low head nibble and expands only \
+the tail; the same bridge proves that shape; (5) result representation: the \
+port returns `(nibbles,is_leaf)` / error and `hpDecode` returns `(is_leaf,nibbles)` \
+/ `none`; the bridge proves the checked reordering and error correspondence. \
+No clause is a prose assumption. The port-shaped post is reconciled to the \
+machine post by `hdnPortPost_eq_hdnCallerPost`, and the whole theorem consumes \
+that rewrite. WHY `.ported` AND NOT `.bridged`: MPT has no executable differential. \
+FULL DOMAIN: ABI/resource hypotheses only. The existing `hp_decode_nibbles_spec` \
+machine contract and `hp_decode_nibbles_call_spec_within` adapter remain the \
+same; this row now records their SpecRef tie rather than calling it a guest-only \
+mirror." },
+
+  -- #11516: account-leaf decode, the pairing that issue says must be stated.
+  { family := "account", routine := "account_decode",
+    spec := some "account_decode_spec_within",
+    verdict := .domainRestricted, basis := .bridged,
+    reference := "decode_account_from_leaf (SpecRef/WitnessState.lean:117), tied by \
+AccountDecodeCompose.decoded_matches_specRef",
+    note := "⭐ WHY THIS ROW EXISTS AT ALL is #11516's finding: we maintain a Lean port of \
+execution-specs *specifically to be the reference*, plus an asm-side predicate (`Decoded`) \
+that CONTRADICTED it, and nothing noticed -- every gate we had checked a different axis \
+(bytes vs Program, addresses vs image, BAL edges, TCB). The divergence surfaced only when a \
+fixture failed for an unrelated reason. An unstated pairing is how a predicate drifts from \
+the reference indefinitely. WHY `domainRestricted` AND NOT `agrees`: fields 2/3 were closed \
+by #11483/#11484 (zero-length storage_root/code_hash now fold to EMPTY_TRIE_ROOT / \
+EMPTY_CODE_HASH, matching the reference's `if decoded[2] else EMPTY_TRIE_ROOT`), but \
+`Decoded` still carries the guest's significant-length checks `≤ 8` for nonce and `≤ 32` \
+for balance. These are load-bearing emitted branches, not ABI facts: `State.lean:97-98` \
+branches on `bltu 8, sigLen` to the decode failure, and `State.lean:130-131` does the \
+same for `bltu 32, sigLen`; `AccountDecodeDispatch.lean:318-330` ties those branches to \
+`nonceValueOk`/`balanceValueOk`. The reference at `SpecRef/WitnessState.lean:121-122` \
+just runs `bytesBEtoNat` and imposes neither cap, so a field with nine significant nonce \
+bytes or 33 significant balance bytes is accepted there and rejected by the guest. That \
+semantic mismatch cannot be removed by a proof-only change: `.agrees` requires changing \
+the guest checks or narrowing the reference domain. #11523 remains the open semantic gap, \
+and this row keeps it visible. `AccountRecord.WF` (`AccountAssertions.lean:92-94`) repeats \
+the bounds for modelled valid records, but is not an ABI precondition on arbitrary leaf \
+bytes and cannot erase the decoder-domain mismatch. ⚠️ NOT a portDefect: #11516 checked \
+`decode_account_from_leaf` field-for-field against witness_state.py:112-118 and found them \
+identical, including the malformed case -- SpecRef modelled the folds correctly all along, so \
+the outlier was our own predicate. Standing hazard from that issue, repeated here because it \
+applies to this row's evidence: SpecRef is a port and drifts, so cite execution-specs at the \
+pin, never SpecRef alone -- citing our own Lean to justify spec alignment is circular" },
+
+  -- #11348: the block/receipt bloom accumulation.
+  { family := "bloom", routine := "bloom_or_into",
+    spec := some "bloomOrIntoFn_spec",
+    verdict := .agrees, basis := .bridged,
+    reference := "logs_bloom's pointwise-OR decomposition \
+(SpecRef/BloomAlgebra.lean: bloomOr, logs_bloom_append)",
+    note := "⭐ THE COUNTERPART HAD TO BE CONSTRUCTED, which is the whole content of \
+this row. The reference `logs_bloom` (Fork.lean:133) never ORs two blooms: it folds \
+*bit-sets* into one accumulator via `add_to_bloom`'s three `List.set`s, over the \
+block's logs as one flat list. The guest instead materialises a bloom per receipt and \
+ORs them pairwise. So before #11348 there was no reference term for this routine's post \
+at all and the only honest verdict would have been `noCounterpart`. BloomAlgebra supplies \
+the missing algebra: `add_to_bloom b e = bloomOr b (add_to_bloom zeroBloom e)`, whose \
+proof is NOT the obvious disjoint-update argument -- the three bit indices derived from \
+one entry CAN collide into the same byte, so it goes through `setOr_getD` with a case \
+split per step, handling collisions by `Nat.lor` idempotence rather than avoiding them. \
+That yields `logs_bloom_append`, and hence `bloomOrInto_fold_eq_logs_bloom`: folding \
+this routine over per-receipt log groups from the zero bloom equals the reference bloom \
+of all the logs. WHY `.bridged`: the guest side is a machine-level SAsm triple \
+(`bloomOrIntoFn_spec`) whose post is `orWin src orig 32`, and it is tied to `bloomOr` by \
+a Lean theorem (`orWin_full_eq_bloomOr`, BloomOrIntoBridge.lean) rather than by \
+inspection -- the two shapes match definitionally because `bloomOr` was deliberately \
+written in the guest's `(List.range 256).map` form. ⚠️ SCOPE: the FOLD only, per the \
+issue and docs/leaf-routine-targets.md. The per-log index derivation (keccak256 + the \
+11-bit extraction) is an opaque function of the entry here; a divergence in THAT would \
+not be caught by this row" },
+
+  -- #11349: the header gas-limit rule. Row is mandatory once the symbol is witnessed
+  -- in Routines.lean -- #11342 showed an absent row passes the cross-registry gate
+  -- vacuously.
+  { family := "header", routine := "check_gas_limit",
+    spec := some "checkGasLimit_ref_spec",
+    verdict := .agrees, basis := .ported,
+    reference := "check_gas_limit (SpecRef/SeamShell.lean:200, fork.py)",
+    note := "FULL DOMAIN and no side condition, which is not the obvious reading: the \
+reference is written with two additions (`gl >= p + d`, `gl + d <= p`) that are \
+overflow-free only because `Uint = Nat`, so a naive bridge would carry a u64 envelope \
+hypothesis and land `domainRestricted`. It needs none, because the guest never forms \
+either sum -- it compares `|new - parent|` against `parent / 1024`, and those two guards \
+are together equivalent to the single inequality. Tied by `cglStatus_eq_zero_iff` \
+(`Codegen/Programs/CheckGasLimitBridge.lean`). WHY `.ported` AND NOT `.bridged`: the tie is \
+FORMAL (machine-checked), not a local restatement, but this family has no executable \
+differential for a `bridged` grade to inherit. Was `.machineOnly` before the rung existed; \
+regraded in #11341. NOT claimed: the \
+guest's 1-vs-2 distinction (below-minimum vs out-of-range) is guest-specific; the \
+reference returns a bare false, so the bridge is an iff on ACCEPTANCE only. \
+PORT-FIDELITY CLAUSE TABLE (required by `.ported`): clauses 1 and 3 are syntactically \
+identical to fork.py:1259-1264; clause 2 differs — fork.py writes clause 2 as `gl <= p - delta` while the port writes \
+`gl + delta <= p` (avoiding a truncating Uint subtraction). That restatement is \
+algebraic, not syntactic, and is PROVED here by `clause2_port_faithful` rather than \
+relied upon -- it is the one clause where the port could silently diverge from the \
+Python while looking faithful" },
+  -- #11351: the second `header` row. `number` is the family representative because
+  -- `getN 8` is identical in BOTH fork arms, so the 23-vs-21 discriminant is a no-op
+  -- for it -- see the note.
+  -- ⚠️ THE TRIPLE PREDATED THIS ROW by over a week (`header_extract_number_spec_within`,
+  -- HeaderExtractNumberSpec.lean, landed 27 July in c67f0a988); only the correspondence
+  -- was missing. I rebuilt it from scratch in #11457 before finding it, having read "no
+  -- registry row" as "no proof" after a truncated survey search. AN ABSENT ROW IS NOT
+  -- EVIDENCE OF AN ABSENT PROOF -- grep the tree, unabridged, before rebuilding anything.
+  { family := "header", routine := "header_validate_extra_data_length",
+    spec := some "header_extra_data_length_of_decode",
+    verdict := .domainRestricted, basis := .ported,
+    reference := "the `extra_data` length clause of `validate_header` \
+(SpecRef/SeamShell.lean:248, fork.py) over `_decode_header`'s field 12",
+    note := "#11575 row 2. ⚠️ THIS ROW'S COMPARISON BOUNDARY IS NOT THE ONE THE OTHER `header` \
+ROWS USE, and the method doc requires saying so (spec-correspondence.md 5). Every other \
+`header_*` row ties a routine to a FIELD OF `_decode_header`. This one cannot: `extra_data` is \
+plain `Bytes` in the reference, genuinely UNBOUNDED at decode time -- unlike the `FixedBytes` \
+aliases that #11615 made checkable -- so there is nothing in `_decode_header` to compare a \
+length against. The <=32 rule is a clause of a DIFFERENT spec function, `validate_header`. So \
+the boundary is: `_decode_header` supplies the field, and the routine implements a \
+`validate_header` clause over it, which is why the tie has TWO conclusions (a length equation \
+on the decode side, a decision equivalence on the validation side) rather than one. \
+THE DECISION IS AN IFF, not one-directional: `hvedPost`'s first two arms differ only in the \
+guard -- `a0 = 0` with `not (32 <u len)` and `a0 = 1` with `32 <u len` -- so on a successful \
+decode the guest's accept/reject choice is TOTAL over the field, and the honest statement is an \
+equivalence with the reference's throw condition. That is stronger than row 9's field tie and \
+is worth noting: the guest is not merely value-correct here, it makes the same DECISION. \
+DOMAIN RESTRICTION -- ARITY ONLY (taxonomy row 1, a proof limit), as for row 1: the guest never \
+checks how many fields the header has, so on a list of any other length it still returns a \
+verdict where `_decode_header` errors. Field 12 exists in BOTH the 23- and 21-field arms, which \
+is why this row pairs with `chain_validate_extra_data_length`. NO precondition and NO \
+`portDefect`: the field needs neither, since the reference imposes no decode-time width on it. \
+STEP BOUND: K20 (`rlp_list_nth_item`) only, so this row does NOT inherit #11461's \
+`7 * (2^64 - 1)` factor -- same as row 1, unlike the five numeric siblings. \
+Tied by `header_extra_data_length_of_decode` \
+(`Codegen/Programs/HeaderValidateExtraDataLengthSpec.lean`), consuming the machine triple \
+`header_validate_extra_data_length_spec_within` and `decode_header_inv`. WHY `.ported` AND NOT \
+`.bridged`: the tie is FORMAL, but this family has no executable differential to inherit. \
+PORT-FIDELITY CLAUSE TABLE (required by `.ported`): `mkHeaderFields`' `extraData := getB 12` is \
+syntactically the `header.extra_data` assignment of stateless.py:244; the guard \
+`if header.extraData.length > 32 then throw` is syntactically fork.py's clause; and the \
+Word-vs-Nat comparison is PROVED equivalent rather than assumed -- the bridge derives \
+`(bs.getD 12 []).length < 2 ^ 64` from the buffer bound, so `not (32 <u ofNat 64 L)` and \
+`L <= 32` coincide with no wraparound. NOT NEEDED: any width side condition on the field, and \
+that absence is the point -- `extra_data` is the ONE header byte field where guest and \
+reference genuinely differ in KIND rather than in bound (#11615)" },
+  { family := "header", routine := "header_extract_logs_bloom",
+    spec := some "header_logs_bloom_of_decode",
+    verdict := .domainRestricted, basis := .ported,
+    reference := "the `bloom` field of `_decode_header` (SpecRef/Stateless.lean:235, \
+stateless.py:244)",
+    note := "#11575 row 1, the first fork of #11351's pattern -- and it lands CLEANER than \
+its representative, which is the point worth recording. \
+DOMAIN RESTRICTION -- ARITY ONLY, and it is taxonomy row 1 (a proof limit): the guest never \
+checks how many fields the header has, so on a list of any other length it still returns a \
+value where `_decode_header` errors; the honest statement is `_decode_header = .ok h -> guest \
+succeeds and output = h.bloom`, not an iff. Unlike `header_extract_number` there is NO second \
+restriction: no precondition on the field, no `portDefect`. \
+WHY THE CONTENT AXIS IS CLEAN, WHICH IT WAS NOT BEFORE #11615: `helbRetPost`'s middle arm is \
+`a0 = 2 AND Success .. 6 fo len AND len /= 256` -- the guest REJECTING a `bloom` whose content \
+length is not 256. Graded against the port as it stood, that read as the guest being STRICTER, \
+because `getB` was a bare `bs.getD i []` and a successful decode said nothing about width. It \
+was never a guest defect: `_deserialize_to_bytes` constructs the annotated type and \
+`FixedBytes.__new__` enforces `LENGTH`, so `Bloom = Bytes256` IS width-checked by the reference \
+(`ethereum_types` 0.4.1 bytes.py:29-37). SECOND INSTANCE of the misattribution #11493 unpicked \
+-- a port gap making a correct guest look strict -- the first being canonicality on `number` \
+(#11617). ⚠️ NOT a third instance, and #11620 is NOT one either: there the reference imposes no \
+bound at all (`Uint.from_be_bytes` is a plain `int.from_bytes`) while the guest bounds at 8, so \
+the guest genuinely rejects more -- grouping it here would invite reading it as closable, which \
+it is not (maintainer correction on #11624). The transferable shape: `guest stricter than port` \
+RESOLVES DIFFERENTLY PER ANNOTATION -- matched for `FixedBytes`/`FixedUnsigned`, a genuine \
+over-rejection for `Uint`. With #11615 the width is a CONCLUSION of `decode_header_inv`, so \
+`header_logs_bloom_of_decode` carries no width hypothesis at all and its `len = 256` is what \
+excludes the `a0 = 2` arm for a composing caller. \
+GUEST-SIDE WIDTH ENFORCEMENT IS INDEPENDENTLY CONFIRMED, which matters because a LENIENT guest \
+here would be a soundness gap rather than a correspondence gap: \
+`headerExtractLogsBloomFunction.s:14-15` emits `li t2, 256` / `bne t1, t2, .Lhelb_size_fail`, \
+and the rejection is PROVEN not merely emitted -- it is the `a0 = 2` arm of `helbRetPost` \
+(`HeaderExtractLogsBloomSpec.lean:343`). See #11615 for the same check on \
+`state_root`/`receipts_root`/`withdrawals_root`. \
+STEP BOUND: this row does NOT inherit #11461's `7 * (2^64 - 1)` factor. Its bound's `7 * 256` \
+term is the genuine 256-byte bloom copy, i.e. data-derived -- the routine calls K20 \
+(`rlp_list_nth_item`) and never the K34 scalar loop that is #11461's origin. Recorded because \
+the numeric siblings in #11575 DO inherit it, and the difference is not obvious from the row. \
+Tied by `header_logs_bloom_of_decode` \
+(`Codegen/Programs/HeaderExtractLogsBloomBridge.lean`), consuming the machine triple \
+`headerExtractLogsBloom_spec_within` and `decode_header_inv`. WHY `.ported` AND NOT `.bridged`: \
+the tie is FORMAL, but this family has no executable differential to inherit. \
+PORT-FIDELITY CLAUSE TABLE (required by `.ported`): `mkHeaderFields`' `bloom := getB 6` is \
+syntactically the `header.bloom` assignment of stateless.py:244; the arity guard \
+`bs.length = 23 / 21` is the port's rendering of the fork discriminant; and the width clause is \
+`fixedBytesFieldWidths`' `(6, 256)`, whose provenance is `Bloom = Bytes256` \
+(amsterdam/fork_types.py:34 -> ethereum_types bytes.py:154-159) and whose enforcement is \
+`decodeItemFixedBytes`, PROVED to pin the length by `decodeItemFixedBytes_inv` rather than \
+assumed. ⚠️ CITATION KIND: the `FixedBytes` clause cites an EXTERNAL package, so \
+`scripts/check-spec-refs.sh` cannot machine-check it -- read, not verified; `uv.lock` pins \
+`ethereum-types == 0.4.1`. See #11615, #11575" },
+  { family := "header", routine := "header_extract_number",
+    spec := some "header_number_of_decode",
+    verdict := .domainRestricted, basis := .ported,
+    reference := "the `number` field of `_decode_header` (SpecRef/Stateless.lean:235, \
+stateless.py:244)",
+    note := "`portDefect` CLEARED in #11513; verdict STAYS `.domainRestricted`, but for a \
+different reason than before and the reason is the whole content of this row. The previous note \
+asserted that the guest's two rejections BOTH match `rlp.decode_to`, so that only the port was \
+lenient. Only ONE of them does. \
+(a) CANONICALITY -- was a real port defect, NOW FIXED. `_deserialize_to_uint` rejects a \
+leading zero byte on every uint field, and the port's `getN = bytesBEtoNat` did not; \
+`_decode_header` now runs `numericFieldWidths` through `decodeItemScalar`, so the port is \
+faithful ON THE NUMERIC FIELDS and this row's `portDefect` is retired. The scalar bridge \
+has no noncanonical machine outcome; model canonicality is an explicit input \
+hypothesis rather than an assumed machine rejection. \
+⚠️ SCOPE OF THAT CLAIM: it covers the nine numeric fields, which is all this row's `number` \
+depends on. A SECOND, independent leniency survives on the FIXED-WIDTH BYTE fields -- \
+`_deserialize_to_bytes` builds the annotated type and `FixedBytes.__new__` raises when the \
+length is wrong, so the reference length-checks `Hash32`/`Address`/`Root`/`Bloom`/`Bytes32`/ \
+`Bytes8`, while the port's `getB` was a bare `bs.getD i []`. #11513 dismissed those fields as \
+`byte strings either way`; that was wrong, and it is NOW ALSO FIXED (#11615), separately \
+because the check is ARITY-DEPENDENT -- a `length = 32` sweep would reject every 21-field \
+header, where the numeric sweep was safe because `[]` passes a uint check. Neither gap affects \
+this row, whose field is numeric, but together they are what let the byte-field sibling rows \
+(notably `header_extract_logs_bloom`, whose success arm needs `Bloom`'s 256) be stated without \
+a width hypothesis. \
+(b) WIDTH -- is NOT a port defect, and NOT an FR either. It is a PROJECT-WIDE INPUT \
+ASSUMPTION, i.e. the ABI-PRECONDITION flavour of `.domainRestricted` (taxonomy row 2, not row \
+1) -- and per that table's requirement, this note says WHICH: precondition, not coverage gap. \
+The mechanism: the width bound comes from the target type's `from_be_bytes`, NOT from \
+`_deserialize_to_uint`. `FixedUnsigned.from_be_bytes` raises when the buffer exceeds the type \
+(`ethereum_types` 0.4.1 numeric.py:566-577), while `Uint.from_be_bytes` is a plain \
+`int.from_bytes` with NO length check (numeric.py:523-528). `number` is annotated `Uint` \
+(amsterdam/blocks.py:157), so CPython ACCEPTS a nine-byte `number` and so does the fixed port, \
+while the guest's `Result.tooLong` rejects it. \
+WHY NOT `.stricter` -- maintainer ruling, #11620: evm-asm carries a project-wide assumption \
+for exactly `difficulty`, `number`, `gasUsed`, `gasLimit` and `timestamp`, and `the \
+project-wide assumptions give the guest freedom to choose its behavior`; rejecting \
+out-of-assumption input is the PREFERRED behaviour, not a defect to remove. So within the \
+domain the project states there is no valid input the guest false-rejects, which is what \
+`.stricter` would assert. #11620 also records the follow-up @pirapira suggested: a SECOND top \
+theorem proving the guest rejects out-of-assumption header values, which would turn this from \
+permitted-freedom into a proven property. \
+⚠️ WHAT KEEPS THIS HONEST: the precondition is EXPLICIT IN THE STATEMENT -- \
+`header_number_of_decode` takes `hfits : hdr.number < 2 ^ 64`. An unstated bound wearing a \
+benign verdict would be strictly worse than an FR, because an FR at least gets counted. And a \
+`#guard` in Stateless.lean pins that the nine-byte `number` is ACCEPTED BY THE PORT: the \
+assumption is about the GUEST's reading width, so tightening the port to 8 would convert a \
+stated precondition into a port defect in the opposite direction. \
+SYSTEMIC, NOT PER-FIELD: the guest is a u64 machine reading fields the spec types as \
+arbitrary-precision or 256-bit. The same shape covers `gasLimit`/`gasUsed` (`Uint`) and \
+`timestamp` (`U256`, reference bound 32 bytes vs guest 8 -- the field most easily missed, since \
+it is bounded on both sides at different widths). The #11575 sibling rows inherit it, and each \
+must state the precondition explicitly as here. Only the three `U64` fields agree outright. \
+(c) ARITY is the OTHER thing `.domainRestricted` covers here, and it IS taxonomy row 1 -- a \
+genuine proof limit: the guest never checks how many fields the header has, so on a list of \
+any other length it still returns a value where `_decode_header` errors; the honest statement \
+is `_decode_header = .ok h -> guest succeeds and value = h.number`, not an iff. `number` is \
+`getN 8` in BOTH the 23-field (current fork) and 21-field (previous) arms, which is why this \
+row represents the family. So this single verdict carries BOTH flavours, which the note must \
+disambiguate: (b) precondition, (c) coverage. \
+Tied by `header_number_of_decode` (`Codegen/Programs/HeaderExtractNumberBridge.lean`), \
+consuming the machine triple `header_extract_number_spec_within` and `decode_header_inv`. Its \
+one remaining hypothesis is `hfits : hdr.number < 2 ^ 64` -- the FR in (b), and phrasable over \
+the VALUE only because (a) is now enforced: with no leading zeros, `at most eight bytes` and \
+`< 2 ^ 64` coincide (`Nat.length_le_of_canonical_lt`). \
+NOT NEEDED: any byte-string side condition -- `_decode_header` runs `items.mapM rlpBytes?`, \
+which sends `.list` to `none`, so a successful header decode already implies every field is a \
+byte string. WHY `.ported` AND NOT `.bridged`: the tie is FORMAL, but this family has no \
+executable differential to inherit. \
+PORT-FIDELITY CLAUSE TABLE (required by `.ported`): `mkHeaderFields`' `number := getN 8` is \
+syntactically the `header.number` assignment of stateless.py:244; the arity guard \
+`bs.length = 23 / 21` is the port's rendering of the fork discriminant; the per-field typed \
+checks are `numericFieldWidths` + `decodeItemScalar`, whose `Option Nat` width argument is the \
+`Uint`-vs-`FixedUnsigned` split, with the width table read off `Header`'s annotations; and \
+assigning `bytesBEtoNat` alongside a passing check rather than the checked decoder's own \
+result is PROVED equivalent, not assumed (`decodeItemScalar_value`). \
+⚠️ CITATION KIND: the `_deserialize_to_uint` and `from_be_bytes` clauses cite EXTERNAL \
+packages (`ethereum_rlp`, `ethereum_types`), not the vendored tree, so \
+`scripts/check-spec-refs.sh` cannot machine-check them the way it checks a `forks/.../x.py:NNN` \
+line -- they are read, not verified. `uv.lock` pins BOTH exactly \
+(`ethereum-rlp == 0.1.6`, `ethereum-types == 0.4.1`); note a stale local `.venv` may carry \
+0.1.5/0.3.0, and reading those inverts this row's verdict -- see \
+docs/agents/spec-correspondence.md 6a. The RLP rows above use the same package-qualified \
+`ethereum_rlp.rlp.*` convention. See #11513" },
+  -- #12223 close-out. The family's first row about a HASH rather than a field:
+  -- the other four grade a decoded field against `_decode_header`, this one
+  -- grades the digest the guest leaves against `SpecRef.headerHash`.
+  { family := "header", routine := "block_hash_from_header",
+    spec := some "block_hash_from_header_headerHash_within",
+    verdict := .domainRestricted, basis := .ported,
+    reference := "`headerHash` (SpecRef/BlocksRlp.lean:90), the port of \
+`keccak256(rlp.encode(header))` — the block-hash expression at \
+amsterdam/stateless_host.py:91 and fork.py:244/511",
+    note := "#12223. WHAT IS GRADED: the 32-byte cell this routine writes, against the \
+REFERENCE header hash rather than the guest's own sponge model. The `.proven` row in \
+Routines.lean (`block_hash_from_header_spec_within`) says only `output = keccakBodyDigest \
+input`, i.e. the digest of WHATEVER bytes the caller supplied — that is a machine triple and \
+says nothing about headers. This row grades the companion \
+`block_hash_from_header_headerHash_within`, whose post reads \
+`bytesRegion outputBase (SpecRef.headerHash hdr)`. \
+⭐ THE SEAM, AND WHY IT IS NOT A RE-ENCODE OBLIGATION: an earlier reading of #12223 held that \
+the missing half was proving the guest CONSTRUCTS the header RLP from fields. It does not — \
+`block_hash_from_header` hashes bytes handed to it from the witness, and the guest DECODES \
+them (`header_extended_decode`). So the seam `the bytes at inputBase are the header's \
+encoding` is discharged from the DECODE, by canonicality, not from a construction proof. Two \
+cited and consumed bridge lemmas: `keccakBodyDigest_eq_specref` (#12037/#12104) turns the \
+sponge model into `SpecRef.keccak256`, and `SpecRef.encode_headerToRlpItem_of_decode` (#12647, \
+SpecRef/HeaderRoundTrip.lean:231) turns `_decode_header hb = .ok hdr` into \
+`encode (headerToRlpItem hdr) = hb`. `keccakBodyDigest_eq_headerHash_of_decode` composes them. \
+DOMAIN RESTRICTION -- taxonomy row 1 (a proof/statement limit) PLUS row 2 (ABI \
+precondition), and per that table's requirement this note says which is which. Row 1: \
+`headerHash` is total on the `Header` structure, while this theorem covers only headers in the \
+IMAGE of `_decode_header` — those with annotation-conformant field widths and canonical \
+scalars. A `Header` record with, say, a five-byte `parentHash` is outside the claim. That is \
+the operative domain (it is exactly the headers reachable from chain data), but it is strictly \
+less than the reference's, so the honest verdict is not `.agrees`. Row 2: the remaining \
+hypotheses are the callee's resource/ABI bundle — ra alignment, the \
+`len = 136 * N + rem` partition, and validity/alignment of the 200-byte sponge scratch at \
+`GuestAddrs.zk3_state`. Those are caller obligations, not input-domain gates. \
+⚠️ NOT CLAIMED, and this is the residual #12223 leaves behind: nothing here ties the \
+hypothesis `SpecRef._decode_header hb = .ok hdr` to the GUEST's own decoder. \
+`header_extended_decode` is `.proven` as a machine triple, but its agreement with \
+`SpecRef._decode_header` on the same buffer is a separate correspondence obligation, so a \
+whole-execution argument still has to supply the decode from somewhere. The surrounding search \
+is also open (`blockhash_from_witness_headers` is `.conditional`, empty-section arm only). \
+WHY `.ported` AND NOT `.bridged`: the tie is FORMAL, but this family has no executable \
+differential to inherit. \
+PORT-FIDELITY CLAUSE TABLE (required by `.ported`), against amsterdam/blocks.py at the pinned \
+e5a8caf1b. (1) FIELD ORDER AND ARITY: `headerToRlpItem` emits the 23 fields in the declaration \
+order of `class Header` (parent_hash:77, ommers_hash:85, coinbase:96, state_root:107, \
+transactions_root:121, receipt_root:133, bloom:144, difficulty:152, number:157, gas_limit:162, \
+gas_used:178, timestamp:183, extra_data:188, prev_randao:193, nonce:198, base_fee_per_gas:203, \
+withdrawals_root:212, blob_gas_used:218, excess_blob_gas:226, parent_beacon_block_root:236, \
+requests_hash:241, block_access_list_hash:251, slot_number:263), which is what \
+`ethereum_rlp` encodes a dataclass as; the 21-field arm drops the last two, matching \
+`PreviousForkHeader = ethereum.forks.bpo5.blocks.Header` (amsterdam/stateless.py:15). \
+(2) SCALAR ENCODING: `Uint`/`U64`/`U256` fields go through `scalarItem = Nat.toBytesBE`, \
+minimal big-endian with no leading zero — the `ethereum_rlp` encoding of an unsigned. \
+(3) BYTE FIELDS: `Hash32`/`Address`/`Root`/`Bloom`/`Bytes32`/`Bytes8` are emitted verbatim. \
+(4) THE HASH: `headerHash = keccak256 (encode (headerToRlpItem h))` is syntactically \
+`keccak256(rlp.encode(header))` (stateless_host.py:91). \
+⚠️ CITATION KIND: clause 2's `ethereum_rlp` behaviour cites an EXTERNAL package (uv.lock pins \
+`ethereum-rlp == 0.1.6`), read not machine-checked; clauses 1, 3 and 4 cite the vendored tree. \
+NON-SYNTACTIC RESTATEMENT: none in this table — the port is field-for-field. What is NOT \
+syntactic is the guest side, and that is PROVED rather than assumed by the two bridge lemmas \
+above. \
+NON-VACUITY: the composed hypothesis bundle is inhabited — `BlocksRlp.lean`'s `rlpTestHeader` \
+(hash pinned to the Python value 0xaa1274..89e2) decodes, and `#guard`s in \
+`BlockHashFromHeaderSpec.lean` evaluate the conclusion there. NEGATIVE CONTROL: the same \
+header re-encoded with `number` as the non-canonical `[0x00, 0x01]` is accepted by \
+`decodeFully`, REJECTED by `_decode_header`, and hashes to a different digest — so the decode \
+hypothesis is load-bearing and not decoration. Witnessed in `Progress/Routines.lean`, not \
+here — this file deliberately does not import Codegen" },
+  -- `bal_sort_storage_writes` / `bal_sort_account_writes` had rows here while
+  -- they were dead-but-present code. Both routines were deleted from the image
+  -- in da930613c (GH #11054); measured absent on main 696c236f2 -- zero
+  -- occurrences in the emitted asm, including the `.globl` and label, and zero
+  -- in the ELF symbol table. A registry row for a symbol that does not exist
+  -- misreports the unproven count, so the rows go with the routines.
+
+  -- #11352: the guest-input u32 accessor. A row is MANDATORY here, not optional:
+  -- `bgv_u32le` is now witnessed in Routines.lean, and #11342 established that a
+  -- witnessed symbol with NO row passes the cross-registry gate vacuously.
+  { family := "guest", routine := "bgv_u32le",
+    spec := some "bgv_u32le_offset_spec_within",
+    verdict := .domainRestricted, basis := .ported,
+    reference := "the fixed-width LE reads of deserialize_stateless_input \
+(SpecRef/Guest.lean:29), which reduce to bytesLEtoNat (SpecRef/Crypto.lean:44)",
+    note := "PORT-FIDELITY CLAUSE TABLE (required by `.ported`). Reference: the \
+fixed-width LE reads in `deserialize_stateless_input` reduce to `bytesLEtoNat` \
+(SpecRef/Crypto.lean:44), a port of the SSZ uint decoder. ONE clause: `bytesLEtoNat` \
+accumulates `b + 256 * rest` where the guest ORs four shifted bytes. That restatement is \
+NOT syntactic and is PROVED, not assumed, by `leU32_eq_bytesLEtoNat` via `toNat_or_shift` \
+(OR past the accumulated width is addition). No other clause differs. \
+WHY `.ported` AND NOT `.bridged`: the guest/SSZ family has no executable differential. \
+#11578: witness is offset form (a0=listBase+off may be unaligned). WHY \
+`domainRestricted` AND NOT `agrees`: h_align listBase.toNat%8=0 is a CALLER \
+assumption at production sites (listBase is ABI a0 / buffer start, not a static \
+GuestAddrs pin discharged by decide). coverRef \
+`bgv_u32le_offset_precondition_reachable`. Prior flat_spec had the same gate as \
+Region.wf on a0 and failed offs 4/12; moving alignment to listBase fixed production \
+shape but did not erase the hyp. Value tie unchanged" },
+
+  -- #11578 rescope: validation-accept prefix of execution_requests_hash.
+  -- Anchor is SszCodec.deserializeAux fixed-list shape (not compute_requests_hash).
+  -- Hash half residual; consumers still String asm (parked, not scaffold).
+  { family := "guest", routine := "execution_requests_hash",
+    spec := some "execution_requests_hash_validation_accept",
+    verdict := .domainRestricted, basis := .machineOnly,
+    reference := "SszCodec.deserializeAux fixed-list length/divisibility gates \
+(requests section lengths multiple of stride and under cap)",
+    note := "WHY `domainRestricted`: ACCEPT PATH ONLY. FULL named gates matching \
+the top-triple binder list (not intent): h_align listBase.toNat%8=0 (ABI a0, \
+universally quantified — NOT a static GuestAddrs pin discharged by decide); \
+h_fit 20≤bs.length; h_ge ¬ult endW 20; erhOffsetsMonoW; erhGatesOkW. \
+h_valid/h_over ordinary memory framing only. Reject arms + hash half residual. \
+coverRef `erh_validation_precondition_reachable` (non-empty deposit 192). \
+WHY `.machineOnly`: no SpecRef differential for the validation prefix alone; \
+hash half (erh_hash_one + zkvm_sha256) unproven. bgv reads use offset form \
+(flat_spec Region.wf a0%8=0 does not cover offs 4/12). \
+NOT leaves: derive_* are 7-insn JAL x0 stage_system_call shims. \
+PARKED: block_state_root is still String asm (blockStateRootFunction, no _prog). \
+⚠️ The former \"+ requests_hash_verify\" half of this note was STALE and is \
+removed (#12206 item 2): that routine has been Program-valued since \
+requestsHashVerify_prog and now carries a whole-routine Routines row, \
+requests_hash_verify_spec_within. It gets NO Correspondence row: its digest is \
+abstract under the ErhCallShape residual, so it ties to no spec-side VALUE and \
+a verdict here would overstate it. This row's non-returning B → B+300 prefix is \
+exactly why that triple is conditional" },
+
+  -- #11574: the crypto family's first two rows. ⚠️ BOTH machine triples predate
+  -- this registration by months; a name search for the routines found nothing
+  -- because the specs live in sibling `*SAsm` modules. What was missing is the
+  -- SpecRef vocabulary and these rows, not the proofs.
+  { family := "crypto", routine := "blsg_lt_p",
+    spec := some "blsgLtP_spec_specref",
+    verdict := .domainRestricted, basis := .ported,
+    reference := "Bls12.bytes_to_fq (SpecRef/PrecompilesBls.lean:79), a port of \
+amsterdam/vm/precompiled_contracts/bls12_381/__init__.py:426-454",
+    note := "WHY `domainRestricted` AND NOT `agrees`: the tie carries \
+`w.length = 64` and `∀ i < 16, w.getD i 0 = 0` — the EIP-2537 wire pad. That gate is \
+LOAD-BEARING, not decorative: the reference decodes all 64 bytes, so a nonzero pad byte \
+makes the value ≥ 2^384 > p and the reference REJECTS, while this routine scans only the \
+48 compact bytes and would not see it. \
+⭐ THE GUEST DOES CHECK THE PAD, and this is a COVERAGE gap rather than a behavioural one. \
+Every calldata reader of a wire felt calls `blsg_is_zero_n(ptr, 16)` and rejects on \
+nonzero before scanning: `blsg_decode_g1` (Programs/Bls12G1.lean:692-700, both \
+coordinates), `blsg2_decode_g2` (Bls12G2.lean:774-784, all four felts), \
+`zkvm_bls12_map_fp_to_g1` (Bls12MapG1Real.lean:23-29), `zkvm_bls12_map_fp2_to_g2` \
+(Bls12MapG2Real.lean:23-38). All are reachable — the precompile dispatch table wires \
+0x0b..0x11 (PrecompileSharedExecute.lean:136-142). \
+⚠️ WHAT IS NOT PROVED, stated so the gate is not read as narrower than it is: that \
+composition. `blsg_is_zero_n(16) ∧ blsg_lt_p(48) ⟹ bytes_to_fq`'s verdict on the 64-byte \
+felt is not a theorem, and cannot be one yet — those decoders exist only as assembly \
+STRINGS, with no `Program`, no `_eq_prog` drift guard, and no fixture. Closing this row to \
+`agrees` needs that conversion first. \
+⚠️ PREDICATE agreement only: `lt_p` returns a boolean, never the field element, so value \
+agreement is NOT available from this routine and is not claimed. \
+PORT-FIDELITY CLAUSE TABLE (required by `.ported`), four clauses against \
+__init__.py:446-454. (1) `len(data) != 64 -> InvalidParameter` is syntactically the port's \
+`if data.length ≠ 64 then throw` (PrecompilesBls.lean:79). (2) `c = int.from_bytes(data[:64], \
+\"big\")` vs `bytesBEtoNat data`: `data[:64] = data` follows from clause 1 and is DISCHARGED \
+by the theorem's `hlen`; `int.from_bytes(·,\"big\")` vs `Nat.fromBytesBE` is READ, not \
+proved. (3) `c >= FQ.field_modulus` vs `c ≥ blsP` needs `FQ.field_modulus = blsP`; py_ecc \
+`fields/field_properties.py:29` gives 4002409555221667393417789825735904156556882819939\
+007885332058136124031650490837864442687629129015664037894272559787, verified equal to \
+`0x1a0111ea…aaab`. (4) `return FQ(c)` vs `pure c`: the port represents the element by its \
+`Nat` representative and drops the `FQ` wrapper — immaterial here, since the row claims \
+only the accept/reject predicate. \
+⚠️ CITATION KIND: clauses 2 and 3 cite CPython's builtin and the EXTERNAL `py_ecc` \
+package, not the vendored tree, so `scripts/check-spec-refs.sh` cannot machine-check them \
+the way it checks a `forks/.../x.py:NNN` line — they are read, not verified. See \
+docs/agents/spec-correspondence.md 6a. \
+⚠️ BASE FIELD, NOT SCALAR ORDER: #11574 as filed paired this routine with \
+`Kzg.bytes_to_bls_field` / `BLS_MODULUS`, the 255-bit scalar order. Different prime, \
+different routine (`blsk_lt_be`). `Stateless.Crypto.blsP_ne_blsModulus` pins that they \
+differ. See #11574" },
+  { family := "crypto", routine := "bnf_lt_p",
+    spec := some "bnfLtP_spec_specref",
+    verdict := .agrees, basis := .ported,
+    reference := "the `x >= field_modulus` guard of Bn128.bytes_to_g1 \
+(SpecRef/PrecompilesCurve.lean:85), a port of \
+amsterdam/vm/precompiled_contracts/alt_bn128.py:39-82",
+    note := "⭐ NO wire-pad gate, unlike the BLS twin, and the asymmetry is real rather \
+than an oversight: `bytes_to_g1` reads `buffer_read(data, 0, 32)` directly against a guest \
+routine scanning the same 32 bytes, so there is no pad to relate and the restatement is \
+TOTAL over 32-byte inputs. \
+⚠️ THE SUBJECT IS THE CLAUSE, NOT THE FUNCTION. `bytes_to_g1` also bounds `y` and tests \
+`y² = x³ + 3`; this routine looks at neither. `agrees` is graded against the \
+`x >= field_modulus` conjunct named in `reference`, which is what \
+`bnf_lt_p_agrees_field_bound` states. Grading it as whole-function agreement would be an \
+overclaim. \
+PORT-FIDELITY CLAUSE TABLE (required by `.ported`), against alt_bn128.py:59-70. \
+(1) ⚠️ `len(data) != 64 -> InvalidParameter(\"Input should be 64 bytes long\")` is ABSENT \
+from the port. NOT recorded as a `portDefect`: it is UNREACHABLE, because every port call \
+site passes `buffer_read data k 64` (PrecompilesCurve.lean:113/115/124) and `buffer_read` \
+pads to exactly `size` (Vm.lean:299-301), so the guard's precondition holds at every call. \
+An unreachable defensive check is not a behavioural divergence — but a future caller \
+handing `bytes_to_g1` a short list WOULD diverge, so it is named rather than dropped. \
+(2) `x = int(U256.from_be_bytes(buffer_read(data,0,32)))` vs `bytesBEtoNat (data.take 32)`: \
+equal given length 64, where the padding is a no-op; `U256.from_be_bytes` vs \
+`Nat.fromBytesBE` is READ, not proved. (3) The Python raises separately for `x` and for \
+`y`; the port MERGES them into one disjunction. Same accept/reject set, and identical \
+message anyway — and immaterial to this row, which claims only the `x` conjunct. Reason \
+strings are not compared (harness contract, docs/agents/spec-correspondence.md 9). \
+(4) `field_modulus` is syntactically the port's `fieldModulus`, same decimal literal; \
+the Python imports it from py_ecc `fields/field_properties.py:24`, verified identical. \
+⚠️ CITATION KIND: clauses 2 and 4 cite CPython and EXTERNAL `py_ecc`, not the vendored \
+tree — read, not machine-checked. See #11574" },
+
+  -- #11901: the `tx` family's FIRST row, and the family's existence is the finding.
+  -- The divergence #11901 reported was fixed in the guest (#11929) and then recorded
+  -- NOWHERE: `tx_type_dispatch` was `.proven` in `Progress/Routines.lean` with no
+  -- Correspondence row, and `countFamily "tx"` was 0 -- i.e. the one registry that
+  -- exists to record spec correspondence had nothing to say about the routine whose
+  -- spec correspondence was the subject of an issue. #11342 established that this
+  -- shape passes the cross-registry gate VACUOUSLY.
+  { family := "tx", routine := "tx_signing_hash",
+    spec := some "tx_signing_hash_specRef_correspondence",
+    verdict := .domainRestricted, basis := .ported,
+    reference := "signing_hash_2930 / signing_hash_1559 / signing_hash_4844 / \
+signing_hash_7702 (SpecRef/Transactions.lean:625, 631, 638, 646), the ports of \
+amsterdam/transactions.py signing_hash_2930/_1559/_4844/_7702",
+    note := "⚠️ THIS ROW GRADES A DIFFERENT THEOREM FROM THE `.conditional` ROUTINE ROW. \
+`tx_signing_hash_spec_within` (Progress/Routines.lean) posts the OPERATIONAL digest \
+`keccak256 (kssMsg segs)` and deliberately claims nothing about SpecRef. \
+`tx_signing_hash_specRef_correspondence` (Codegen/Programs/TxSigningHashSpec.lean:1087) \
+is a whole-routine `cpsTripleWithin` at the same entry `H` over the same `fullCode`, \
+weakened from it, whose SUCCESS arm's output region is the selected \
+`SpecRef.Transactions.signing_hash_*` and whose FAILURE arm is carried through \
+verbatim. So the tie is a machine triple, not a model-to-model equation — but per \
+#12526 that does not discharge the machine-triple obligation, which the routine row \
+already carries. \
+DOMAIN, and it is a restriction of the PROOF plus a caller precondition, not of the \
+guest: (i) FOUR of the six SpecRef signing hashes are reached — `_2930` (n=8, \
+prefix 1), `_1559` (9, 2), `_4844` (11, 3), `_7702` (10, 4), selected by \
+`txSigningHashSpecRefTarget`. `signing_hash_pre155` is NOT reached, and this is \
+proved rather than asserted: the selector's `.legacy` arm needs `typePrefix = 0` while \
+the triple carries `hnzType : a3 ≠ 0`, so `tsh_specRef_pre155_arm_unreachable` shows \
+that arm is `none` under the theorem's own hypotheses. `signing_hash_155` belongs to a \
+DIFFERENT ROUTINE, K146 `tx_signing_hash_legacy_eip155`, which has no whole-routine \
+triple at all (#12038); (ii) the outer-RLP header gate `hge` (0xc0 ≤ input[0] ≤ 0xff) \
+inherited from the routine row — non-list first bytes take the guest's status-1 reject \
+path; (iii) ONE named residual, `h_decoder_payload`, an ABI precondition the caller \
+must meet: the input decodes to `txToRlpItem tx` and the gathered payload is the \
+`nFields`-truncation of that list. It is a precondition, so it CAN be violated — see \
+the doctrine note above on which of the two `domainRestricted` situations a row means. \
+NON-VACUITY: `tsh_specRef_domain_nonvacuous` — a closed positive control on a concrete \
+non-degenerate EIP-2930 transaction (chain 1, nonce 1, gasPrice 10, gas 21000, a real \
+20-byte `to`, value 100; 34-byte input, 30-byte payload, header 0xe1) jointly \
+satisfying both conjuncts of `h_decoder_payload`, the selector, `hge`, `hhdrLen`, the \
+`hpayload` slice equation and the nonzero `a2`/`a3` gates, and yielding \
+`signing_hash_2930`; and `tsh_specRef_domain_nonvacuous_4844`, the SAME bundle at the \
+other end of the range — 11 fields, prefix 3, a MANDATORY `to : Address` rather than an \
+`Option`, a nested blob-hash list, and a 68-byte payload so the outer header is LONG \
+(`f8 47`, `hdrLen = 2`) where the 2930 witness is short. Two controls rather than one \
+because four arms are proved and a single witness leaves open whether the other three \
+are vacuous instances of it. ⚠️ To be exact: TWO of the four arms are witnessed, not \
+four. `_1559` and `_7702` are not separately witnessed — they are the INTERMEDIATE \
+arms, at arity 9 and 10 between the witnessed 8 and 11, and each shares its `to` \
+representation with one of the two that are (`_1559` the `Option` with `_2930`, `_7702` \
+the mandatory `Address` with `_4844`). So the pair brackets them rather than covering \
+them, and a reader should not take four proved arms for four inhabited ones. CONTROLS: `tsh_specRef_target_false_on_wrong_prefix` (same field \
+count, prefix 2 ⇒ `none`) and `tsh_specRef_target_false_on_wrong_arity` (same prefix, \
+9 fields ⇒ `none`) show the selector is load-bearing in both coordinates; \
+`tsh_specRef_pre155_arm_unreachable` is the third and is the exclusion in (i). \
+PORT-FIDELITY CLAUSE TABLE (required for the `ported` rung; port = \
+SpecRef/Transactions.lean, source = forks/amsterdam/transactions.py and \
+forks/amsterdam/fork_types.py): \
+(1) TYPE BYTE — Python prepends b'\\x01'/b'\\x02'/b'\\x03'/b'\\x04'; port's `signPrefix \
+(some 0x0N)` prepends the same single byte. Syntactic. \
+(2) FIELD LIST AND ORDER — compared name by name for all four variants; identical, \
+including 4844's `max_fee_per_blob_gas` before `blob_versioned_hashes` and 7702's \
+`authorizations` last. Syntactic. \
+(3) SCALAR ENCODING — the one NON-SYNTACTIC restatement, and it is NAMED AS AN \
+ASSUMPTION, not proved here: Python passes `Uint`/`U64`/`U256` straight to `rlp.encode`, \
+whose integer case is minimal big-endian with 0 ↦ b''; the port writes `scalarT n = \
+.bytes (EvmAsm.EL.RLP.Nat.toBytesBE n)`. The assumption is that `Nat.toBytesBE` IS that \
+encoding. It is the shared `EL.RLP` convention used by every other row in this file, so \
+a divergence would surface far more widely than here. \
+(4) `to` — legacy/2930/1559 have `Address | Bytes0` and the port's `toItem` maps \
+`none ↦ .bytes []`; 4844/7702 have a MANDATORY `to: Address` (fork_types/transactions \
+checked) and the port correspondingly writes `.bytes tx.to` with no `Option`. Matching \
+asymmetry, syntactic. \
+(5) `access_list` — Python `Tuple[Access, ...]` with `Access(account, slots)`; port \
+`accessItem a = .list [.bytes a.account, .list (a.slots.map .bytes)]`, i.e. the \
+dataclass's two fields in order. Syntactic. \
+(6) `authorizations` (7702 only) — Python `Authorization(chain_id, address, nonce, \
+y_parity, r, s)`; port `authItem` lists exactly those six in that order. Syntactic. \
+So the only rung-limiting clause is (3), and it is an assumption about the shared RLP \
+integer encoder rather than about transactions. No differential exists for this family \
+(`tx_type_dispatch`'s row says the same), which is why this is `ported` and not \
+`bridged`. NO PORT DEFECT FOUND." },
+
+  { family := "tx", routine := "tx_type_dispatch",
+    spec := some "txTypeDispatch_spec_within",
+    verdict := .agrees, basis := .machineOnly,
+    reference := "the first-byte envelope dispatch of `decode_transaction` \
+(SpecRef/Transactions.lean:394), a port of amsterdam/transactions.py:575-577 -- \
+0x01..0x04 typed, 0xC0..0xFE legacy, anything else (including 0xFF) rejected",
+    note := "⭐ THE AGREEMENT ON THE 0xFF BOUNDARY IS ENGINEERED, NOT INCIDENTAL, and a \
+reader must not take it for a coincidence. #11901 found the guest MODEL treating `0xff` as \
+a legacy prefix while the emitted routine already rejected it; the resolution was to \
+change the GUEST to match the port and the Python, per the maintainer's reading of the \
+reference. `teerTxTypeDispatch` (`Codegen/Programs/TxTypeDispatchSpec.lean:53`) is now \
+closed-range -- `if 192 ≤ b.toNat ∧ b.toNat < 255 then (0,0,0)` -- and the emitted program \
+carries the matching guard, `.LI .x6 (255 : Word)` then `.BEQ .x5 .x6` at \
+`Codegen/Programs/TxExtract.lean:124-125` (45 -> 48 instructions, #11929, dc3a45d7a). So \
+the 0xff arm is a FAILURE disjunct inside a post that stays TOTAL over the first byte, not \
+an omission. \
+⚠️ NO NEGATIVE CONTROL / REFUTATION DECLARATION EXISTS, and that is worth saying out loud \
+because it bounds what this row protects: the divergence was FIXED rather than \
+CHARACTERISED, so there is nothing in the tree of the shape \
+`not_rlpWalkNextStrict_nestedNonCanonical` (the RLP rows' kernel-checked refutation) \
+pinning the old 0xff reading as wrong. The machine triple would fail if the emitted guard \
+were removed while the model kept it -- real protection, but protection of the GUEST \
+against `teerTxTypeDispatch`, not of `teerTxTypeDispatch` against `transactions.py`. \
+WHY `.machineOnly` AND NOT `.ported`/`.bridged`: `txTypeDispatch_spec_within` is proven \
+against `teerTxTypeDispatch`, a LOCAL Lean restatement of the classification that lives in \
+the same Codegen module as the program and re-derives the reference's rules independently. \
+There is NO bridge lemma -- cited or consumed -- from it to `SpecRef.decode_transaction`, \
+and no port-fidelity clause table, so `.ported`'s stated requirement is unmet; and the tx \
+family has no executable differential for `.bridged` to inherit. #11341 exists precisely \
+because four rows were graded as though a local restatement were the spec: when the tie is \
+to our own Lean model rather than to SpecRef, the honest rung is the weaker one. \
+WHAT WOULD LIFT IT: the target already exists and is byte-for-byte the guest's range -- \
+the port renders the boundary in its legacy arm (`decode_transaction`, \
+SpecRef/Transactions.lean:394-415) as `0xC0 ≤ b0.toNat && b0.toNat ≤ 0xFE`, with 0x01..0x04 \
+above it and a `txErr` fallthrough. Nobody has stated the tie. \
+⚠️ THE SUBJECT IS THE DISPATCH CLAUSE, NOT `decode_transaction` AS A WHOLE. That function \
+also decodes the envelope payload (`decodeFully` plus the per-type field decoders) and can \
+fail there; this routine returns only (type, inner_offset) and never looks at the payload. \
+`.agrees` is graded against the first-byte classification named in `reference`, exactly as \
+`bnf_lt_p` is graded against the `x >= field_modulus` conjunct of `bytes_to_g1`. Reading \
+it as whole-function agreement would be an overclaim: a legacy envelope with malformed RLP \
+is classified (0,0,0) here and REJECTED by `decode_transaction`, which is not a leniency \
+of this routine but a consequence of its narrower job -- the callers that decode the \
+payload are the ones that must reject it. \
+FULL DOMAIN on that clause, both sides, which is what keeps this `.agrees` rather than \
+`.domainRestricted`: empty -> reject (the reference's `tx[0]` IndexError), 0x01..0x04 -> \
+typed with inner offset 1, 0xc0..0xfe -> legacy (0,0,0), and 0x00 / 0x05..0xbf / 0xff -> \
+reject. No input-domain precondition on `txBytes`; the triple's hypotheses are ABI only \
+(aligned `ra`, 8-aligned `txBase`, size bound, byte-access validity). Witnessed in \
+`Progress/Routines.lean`, not here -- this file deliberately does not import Codegen (see \
+the Witnesses block)" }
+]
+
+
+-- @@ L1305-1305 verbatim
+/-! ## Counts -/
+
+
+-- @@ L1307-1307 verbatim
+def countVerdict (v : Verdict) : Nat := (registry.filter (·.verdict == v)).length
+
+
+-- @@ L1309-1312 verbatim
+/-- Rows carrying a `SpecRef` port defect. Counted over the orthogonal field, so
+    it is independent of the guest verdict — a row appears here *and* in whichever
+    `countVerdict` bucket its guest grade puts it. -/
+def countPortDefect : Nat := (registry.filter (·.portDefect.isSome)).length
+
+-- @@ L1313-1313 verbatim
+def countBasis (b : Basis) : Nat := (registry.filter (·.basis == b)).length
+
+-- @@ L1314-1314 verbatim
+def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
+
+
+-- @@ L1316-1316 verbatim
+def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
+
+
+-- @@ L1318-1318 verbatim
+theorem registry_size : registry.length = 42 := by decide
+
+-- @@ L1319-1319 verbatim
+theorem rlp_rows : countFamily "rlp" = 24 := by decide
+
+-- @@ L1320-1320 verbatim
+theorem bal_rows : countFamily "bal" = 2 := by decide
+
+-- @@ L1321-1322 verbatim
+/-- #11352 bgv_u32le + #11578 execution_requests_hash. No differential. -/
+theorem guest_rows : countFamily "guest" = 2 := by decide
+
+-- @@ L1323-1325 verbatim
+/-- #11349, #11351, #11575 (two), and #12223's `block_hash_from_header`. No
+    differential for this family -- see the rows' notes. -/
+theorem header_rows : countFamily "header" = 5 := by decide
+
+-- @@ L1326-1327 verbatim
+/-- #11344 + #11799 dep (`mpt_node_kind`) + `hp_decode_nibbles` residual audit. -/
+theorem mpt_rows : countFamily "mpt" = 3 := by decide
+
+-- @@ L1328-1329 verbatim
+/-- #11516. One row; the pairing that issue says must be stated. -/
+theorem account_rows : countFamily "account" = 1 := by decide
+
+-- @@ L1330-1332 verbatim
+/-- #11348. One row; the reference counterpart is constructed in BloomAlgebra rather
+    than found in the fork spec -- see the row's note. -/
+theorem bloom_rows : countFamily "bloom" = 1 := by decide
+
+-- @@ L1333-1335 verbatim
+/-- #11574. Two rows, the family's first. Both machine triples predated the rows
+    by months — the gap was vocabulary and registration, not proof. -/
+theorem crypto_rows : countFamily "crypto" = 2 := by decide
+
+-- @@ L1336-1342 verbatim
+/-- #11901. The family's first row, opened by `tx_type_dispatch`. Before it
+    `countFamily "tx"` was **0** -- the routine was `.proven` and its spec
+    correspondence was the subject of an issue, and neither fact was recorded here.
+    No differential for this family; see the row's note for why `.machineOnly`.
+    #12038 added the second: `tx_signing_hash`'s SpecRef correspondence, on the
+    `ported` rung with the clause table its note records. -/
+theorem tx_rows : countFamily "tx" = 2 := by decide
+
+
+-- @@ L1344-1364 verbatim
+/-- ⚠️ `stricter` is still **0**, and #11513/#11620 is the worked example of why
+    that is not automatically a sign the schema has stopped discriminating.
+
+    `header_extract_number` looked like it belonged here: the guest bounds
+    `number` at eight bytes where the reference's `Uint` has no bound at all,
+    which reads as a false reject. It is not one, because evm-asm states a
+    project-wide assumption that these header fields arrive within their
+    bit-width, and the maintainer ruling on #11620 is that this "gives the guest
+    freedom to choose its behavior" — rejecting out-of-assumption input is
+    *preferred*. `stricter` means "we reject input the reference accepts **and
+    the project claims to handle**"; a stated precondition is not that.
+
+    The guard against this becoming a rubber stamp is that the precondition must
+    be **explicit in the theorem statement** — here `hfits : hdr.number < 2 ^ 64`
+    on `header_number_of_decode`. Grading a restriction as a precondition while
+    leaving it implicit in the guest's behaviour is worse than recording an FR,
+    because an FR at least appears in this census. -/
+theorem verdict_counts :
+    countVerdict .agrees = 23 ∧ countVerdict .domainRestricted = 15 ∧
+    countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
+    countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 2 := by decide
+
+
+-- @@ L1366-1371 verbatim
+/-- Port defects are counted separately because they are a different axis.
+    **Back to 0 as of #11513**, which fixed the one defect that had been
+    recorded: `_decode_header`'s numeric fields now carry the canonicality check
+    `_deserialize_to_uint` performs. The axis stays in the schema — #11493's
+    design argument is about representability, not about this row. -/
+theorem port_defect_count : countPortDefect = 0 := by decide
+
+
+-- @@ L1373-1377 verbatim
+theorem basis_counts :
+    countBasis .diff = 1 ∧ countBasis .bridged = 12 ∧
+    countBasis .ported = 12 ∧
+    countBasis .machineOnly = 8 ∧ countBasis .inspection = 7 ∧
+    countBasis .none = 2 := by decide
+
+
+-- @@ L1379-1382 verbatim
+/-! ## Invariants
+
+    These are the reason the registry is Lean and not markdown: each is a
+    property a hand-maintained table can silently violate. -/
+
+
+-- @@ L1384-1387 verbatim
+/-- **The soundness invariant.** No audited routine accepts input the reference
+    rejects. Recording a `looser` row fails this theorem, so a false-accept
+    cannot land quietly — amending it must be deliberate and visible in review. -/
+theorem no_looser_verdicts : countVerdict .looser = 0 := by decide
+
+
+-- @@ L1389-1395 verbatim
+/-- **Every port-defect row names a tracked defect.** `some 0` is rejected, so
+    "the port is wrong" cannot be asserted without something to fix it against —
+    the difference between a recorded defect and a note nobody acts on. -/
+theorem portDefect_cites_issue :
+    registry.all (fun e => match e.portDefect with
+      | some issue => issue != 0
+      | none => true) = true := by decide
+
+
+-- @@ L1397-1405 verbatim
+/-- A **guest routine** with no spec cannot carry a substantive verdict: without
+    a spec there is nothing to compare, so the only honest values are `unproven`
+    and `noCounterpart`. Model rows are exempt — their evidence is the
+    differential, not a theorem. -/
+theorem verdict_requires_spec :
+    registry.all (fun e =>
+      e.kind != .guest || e.spec.isSome
+        || e.verdict == .unproven || e.verdict == .noCounterpart) := by
+  decide
+
+
+-- @@ L1407-1412 verbatim
+/-- A `diff`-graded **guest** row must name the spec it is grading; a guest
+    routine cannot inherit the differential without a theorem tying it to the
+    model. -/
+theorem basis_diff_requires_spec :
+    registry.all (fun e => e.kind != .guest || e.basis != .diff || e.spec.isSome) := by
+  decide
+
+
+-- @@ L1414-1419 verbatim
+/-- Only model rows may be `diff`-graded without a spec — stated so that adding
+    a spec-less `diff` guest row fails elaboration rather than quietly
+    overclaiming. -/
+theorem specless_diff_is_model_only :
+    registry.all (fun e => e.basis != .diff || e.spec.isSome || e.kind == .model) := by
+  decide
+
+
+-- @@ L1421-1422 verbatim
+/-- Every row names the family it belongs to. -/
+theorem families_nonempty : registry.all (fun e => e.family != "") := by decide
+
+
+-- @@ L1424-1446 verbatim
+/-! ## Witnesses
+
+    These `abbrev`s are what make the `spec` strings above real: renaming or
+    deleting one of these theorems fails this file's elaboration instead of
+    silently leaving a stale registry row. Same device as the witness block at
+    the bottom of `Progress.lean`.
+
+    Only routines whose spec lives in a module this file can import without
+    cycling are witnessed here; the rest are covered by the doc page's
+    grep-verified table. Extending the witness set is strictly an improvement —
+    add the import and the `abbrev`.
+
+    Codegen-proved specs (`reub_spec_within`, `reb_spec_within`, …) are
+    deliberately NOT witnessed here even though they could be: since #11273,
+    `check-layering.sh` L1 exempts all of `EvmAsm/Progress/**` (sound because
+    L2 makes the registries pure sinks), so importing Codegen from this file
+    would elaborate AND pass the gate. It stays unimported to keep this
+    module's closure light. Those specs are witnessed in
+    `EvmAsm/Progress/Routines.lean` instead, with `#print axioms` lines in
+    `AxiomWitnesses.lean` — a rename fails *that* file's elaboration, so a
+    local `abbrev` here would be a redundant convenience, not protection.
+    (An earlier revision of this comment claimed L1 *forbids* the import;
+    that predates the #11273 exemption and was stale — GH #11294 rider.) -/
+
+
+-- @@ L1448-1449 verbatim
+private noncomputable abbrev _rlp_walk_init_witness :=
+  @EvmAsm.Rv64.RLP.rlp_walk_init_spec_within
+
+-- @@ L1450-1451 verbatim
+private noncomputable abbrev _rlp_walk_next_witness :=
+  @EvmAsm.Rv64.RLP.rlp_walk_next_spec_within
+
+-- @@ L1452-1453 verbatim
+private noncomputable abbrev _rlp_content_to_u64_witness :=
+  @EvmAsm.Rv64.RLP.rlp_content_to_u64_spec_within
+
+-- @@ L1454-1455 verbatim
+private noncomputable abbrev _rlp_content_to_u64_strict_witness :=
+  @EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_spec_within
+
+-- @@ L1456-1457 verbatim
+private noncomputable abbrev _rlp_content_to_u256_be_witness :=
+  @EvmAsm.Rv64.RLP.rlp_content_to_u256_be_spec_within
+
+-- @@ L1458-1462 verbatim
+private noncomputable abbrev _rlp_content_to_u256_be_strict_witness :=
+  @EvmAsm.Rv64.RLP.rlp_content_to_u256_be_strict_spec_within
+-- #11341: the model-facing counterpart, named by the `.bridged` row above. Witnessed
+-- here rather than in `Routines.lean` because this file already imports the Rv64 spec
+-- module — the Codegen-side bridges cannot do that, which is why they live over there.
+
+-- @@ L1463-1470 verbatim
+private noncomputable abbrev _rlp_content_to_u256_be_scalar_witness :=
+  @EvmAsm.Rv64.RLP.rlp_content_to_u256_be_scalar_spec_within
+
+-- #12843 §1: the `decode_to_bytes` rows. The eager arm's spec and the
+-- port-fidelity clause table that lets its row claim the `ported` rung.
+-- The eight per-clause lemmas the eager arm's row cites as its evidence. They
+-- are the row's content, so the axiom gate must audit them and not only the
+-- triple that consumes them.
+
+-- @@ L1471-1472 verbatim
+private noncomputable abbrev _decodeD_single_ok_witness :=
+  @EvmAsm.EL.RLP.Ref.decodeD_single_ok
+
+-- @@ L1473-1474 verbatim
+private noncomputable abbrev _decodeD_single_long_witness :=
+  @EvmAsm.EL.RLP.Ref.decodeD_single_long
+
+-- @@ L1475-1476 verbatim
+private noncomputable abbrev _decodeD_short_bytes_badlen_witness :=
+  @EvmAsm.EL.RLP.Ref.decodeD_short_bytes_badlen
+
+-- @@ L1477-1478 verbatim
+private noncomputable abbrev _decodeD_short_bytes_noncanon_witness :=
+  @EvmAsm.EL.RLP.Ref.decodeD_short_bytes_noncanon
+
+-- @@ L1479-1480 verbatim
+private noncomputable abbrev _decodeD_long_bytes_trunc_witness :=
+  @EvmAsm.EL.RLP.Ref.decodeD_long_bytes_trunc
+
+-- @@ L1481-1482 verbatim
+private noncomputable abbrev _decodeD_long_bytes_zero_witness :=
+  @EvmAsm.EL.RLP.Ref.decodeD_long_bytes_zero
+
+-- @@ L1483-1484 verbatim
+private noncomputable abbrev _decodeD_long_bytes_small_witness :=
+  @EvmAsm.EL.RLP.Ref.decodeD_long_bytes_small
+
+-- @@ L1485-1486 verbatim
+private noncomputable abbrev _decodeD_long_bytes_badlen_witness :=
+  @EvmAsm.EL.RLP.Ref.decodeD_long_bytes_badlen
+
+-- @@ L1487-1488 verbatim
+private noncomputable abbrev _rlp_recursive_decode_witness :=
+  @EvmAsm.Rv64.SAsm.RecDecode.rlp_decode_correct
+
+-- @@ L1489-1490 verbatim
+private noncomputable abbrev _decode_to_bytes_clause2_faithful_witness :=
+  @EvmAsm.EL.RLP.RefDecodeToBytesFidelity.negative_length_test_faithful
+
+-- @@ L1491-1492 verbatim
+private noncomputable abbrev _decode_to_bytes_clause6_faithful_witness :=
+  @EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_trunc_test_faithful
+
+-- @@ L1493-1494 verbatim
+private noncomputable abbrev _decode_to_bytes_clause9_faithful_witness :=
+  @EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_end_test_faithful
+
+-- @@ L1495-1496 verbatim
+private noncomputable abbrev _decode_to_bytes_clause10_faithful_witness :=
+  @EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_trailing_test_faithful
+
+-- @@ L1497-1498 verbatim
+private noncomputable abbrev _decode_to_bytes_clause6_control_witness :=
+  @EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_trunc_test_needs_range
+
+-- @@ L1499-1500 verbatim
+private noncomputable abbrev _decode_to_bytes_clause9_control_witness :=
+  @EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_end_test_needs_range
+
+-- @@ L1501-1502 verbatim
+private noncomputable abbrev _decode_to_bytes_clause10_control_witness :=
+  @EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_trailing_test_needs_range
+
+
+-- @@ L1504-1504 verbatim
+end EvmAsm.Progress.Correspondence

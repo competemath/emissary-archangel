@@ -1,0 +1,631 @@
+/-
+  EvmAsm.Evm64.DivMod.Compose.Offsets
+
+  Named constants for byte offsets of each DivMod code block from the program
+  base. Canonical source of truth for `divCode`, `modCode`, `sharedDivModCode`,
+  and all downstream proofs that reference block boundaries.
+
+  Issue #301: Previously the offsets were hardcoded literals (`base + 448`,
+  `base + 904`, ...) scattered across ~40 files. Adding a single instruction
+  to one block would cascade into 500+ line diffs and error-prone sed-based
+  replacements. Named offsets localize the knowledge to this file; the
+  `drift_check_*` examples below fail at compile time if a block length
+  changes without updating the corresponding offset, pointing reviewers at
+  the exact constant that must be bumped.
+
+  Layout of `divCode` / `modCode` (all values in bytes from program base):
+
+    [phaseAOff    =   0] divK_phaseA        (32 bytes)
+      [phaseABeqOff =  28]  phaseA-end BEQ → zeroPath (phaseAOff + 28)
+    [phaseBOff    =  32] divK_phaseB        (84 bytes)
+      [phaseBInit2Off = 60]  divK_phaseB_init2 sub-block (phaseBOff + 28)
+      [phaseBTailOff = 96]  divK_phaseB_tail sub-block (phaseBOff + 64)
+    [clzOff       = 116] divK_clz           (96 bytes)
+    [phaseC2Off   = 212] divK_phaseC2       (16 bytes)
+    [normBOff     = 228] divK_normB         (84 bytes)
+    [normAOff     = 312] divK_normA         (84 bytes)
+    [copyAUOff    = 396] divK_copyAU        (36 bytes)
+    [loopSetupOff = 432] divK_loopSetup     (16 bytes)
+    [loopBodyOff  = 448] divK_loopBody     (460 bytes)
+      [trialCallOff = 500]  divK_loopBody trial-divide call-site (loopBodyOff + 52)
+      [trialMaxOff  = 504]  divK_loopBody divK_trial_max sub-block (trialCallOff + 4)
+      [correctionSkipBeqOff = 728]  divK_loopBody mulsub-correction-skip BEQ entry (loopBodyOff + 280)
+      [storeLoopOff = 884]  divK_store_qj sub-block (loopBodyOff + 436)
+      [loopBackBgeOff = 904]  loop-back BGE entry (denormOff - 4 = loopBodyOff + 456)
+    [denormOff    = 908] divK_denorm       (100 bytes)
+    [epilogueOff  =1008] divK_{div,mod}_epilogue (40 bytes)
+    [zeroPathOff  =1048] divK_zeroPath      (20 bytes)
+    [nopOff       =1068] ADDI x0, x0, 0      (4 bytes)
+    [div128Off    =1072] divK_div128       (196 bytes)
+-/
+
+module
+
+public import EvmAsm.Evm64.DivMod.Program
+
+
+-- @@ L46-46 verbatim
+public section
+
+
+-- @@ L48-48 verbatim
+namespace EvmAsm.Evm64
+
+
+-- @@ L50-54 verbatim
+open EvmAsm.Rv64
+
+-- ============================================================================
+-- Block start offsets (in bytes, as Word for direct use in `base + off`)
+-- ============================================================================
+
+
+-- @@ L56-57 verbatim
+/-- Offset of `divK_phaseA` (the entry block). -/
+abbrev phaseAOff    : Word :=    0
+
+-- @@ L58-64 verbatim
+/-- Offset of the phaseA-end BEQ instruction inside `divK_phaseA`.
+    Entry PC of the `BEQ x5, x0, 1020` instruction that branches to
+    `divK_zeroPath` when the OR-reduce of the four divisor limbs equals 0
+    (the b=0 detection at the end of phaseA). Sub-offset relative to the
+    phaseA block (= phaseAOff + 28, i.e. 7 instructions into phaseA — the
+    final branch instruction, with the next PC = `phaseBOff`). -/
+abbrev phaseABeqOff : Word :=   28
+
+-- @@ L65-66 verbatim
+/-- Offset of `divK_phaseB` (b=0 branch + leading-limb analysis). -/
+abbrev phaseBOff    : Word :=   32
+
+-- @@ L67-73 verbatim
+/-- Offset of the `divK_phaseB_init2` sub-block inside `divK_phaseB`.
+    Entry PC of the second pair of phaseB init loads (`LD x6 sp 16 ;; LD x7 sp 24`),
+    7 instructions / 28 bytes into `divK_phaseB`. The per-limb specs in
+    `Compose/PhaseAB.lean`, `Compose/ModPhaseB.lean`, `Compose/ModPhaseBn3.lean`,
+    and `Compose/ModPhaseBn21.lean` invoke `divK_phaseB_init2_spec_within` at
+    this address. Sub-offset relative to `divK_phaseB` (= phaseBOff + 28). -/
+abbrev phaseBInit2Off : Word :=   60
+
+-- @@ L74-81 verbatim
+/-- Offset of the `divK_phaseB` step0 selection instruction (n=4 path).
+    Entry PC of the `ADDI x5, x0, 4` that loads the limb-count `n = 4` into
+    `x5`; the immediately-following `BNE x7, x0, +8` (at `phaseBBneOff = 72`)
+    selects the n=4 path when the top divisor limb is non-zero. Sub-offset
+    relative to `divK_phaseB` (= phaseBOff + 36 = phaseBBneOff − 4).
+    Mirrors `phaseBStep1Off` (76, n=3 selection) and `phaseBStep2Off`
+    (84, n=2 selection). -/
+abbrev phaseBStep0Off : Word :=   68
+
+-- @@ L82-88 verbatim
+/-- Offset of the BNE-to-`divK_phaseB_tail` instruction inside `divK_phaseB`.
+    Entry PC of the `BNE x10, x0, +24` that ends the leading-limb-analysis
+    cascade step and branches forward into `divK_phaseB_tail` when the current
+    candidate top limb is non-zero (falls through to the next per-limb
+    cascade step otherwise). Sub-offset relative to `divK_phaseB`
+    (= phaseBOff + 40 = phaseBTailOff − 24). -/
+abbrev phaseBBneOff : Word :=   72
+
+-- @@ L89-94 verbatim
+/-- Offset of `divK_phaseB_step1` inside `divK_phaseB`.
+    Entry PC of the `ADDI x5, x0, 3 ;; BNE x7, x0, 16` pair that selects
+    the n=3 path during leading-limb analysis (the third per-limb step
+    of the cascade following `divK_phaseB_init2`). Sub-offset relative
+    to `divK_phaseB` (= phaseBOff + 44 = phaseBBneOff + 4). -/
+abbrev phaseBStep1Off : Word :=   76
+
+-- @@ L95-100 verbatim
+/-- Offset of `divK_phaseB_step2` inside `divK_phaseB`.
+    Entry PC of the `ADDI x5, x0, 2 ;; BNE x6, x0, 8` pair that selects
+    the n=2 path during leading-limb analysis (the fourth per-limb step
+    of the cascade following `divK_phaseB_step1`). Sub-offset relative
+    to `divK_phaseB` (= phaseBOff + 52). -/
+abbrev phaseBStep2Off : Word :=   84
+
+-- @@ L101-108 verbatim
+/-- Offset of the second BNE-to-`divK_phaseB_tail` instruction inside
+    `divK_phaseB`. Entry PC of the `BNE x7, x0, +16` that ends the
+    second per-limb leading-limb-analysis cascade step and branches
+    forward into `divK_phaseB_tail` when the current candidate top limb
+    is non-zero (falls through to the next per-limb cascade step
+    otherwise). Sub-offset relative to `divK_phaseB`
+    (= phaseBOff + 48 = phaseBTailOff − 16). -/
+abbrev phaseBBne2Off : Word :=   80
+
+-- @@ L109-115 verbatim
+/-- Offset of the third BNE-to-`divK_phaseB_tail` instruction inside
+    `divK_phaseB`. Entry PC of the `BNE x6, x0, +8` that ends the
+    third per-limb leading-limb-analysis cascade step and branches
+    forward into `divK_phaseB_tail` when `x6 = b[1] ≠ 0` (yielding
+    n = 2; falls through to the n = 1 fallback otherwise). Sub-offset
+    relative to `divK_phaseB` (= phaseBOff + 56 = phaseBTailOff − 8). -/
+abbrev phaseBBne3Off : Word :=   88
+
+-- @@ L116-121 verbatim
+/-- Offset of `divK_phaseB` step3 (n=1 path selection) inside `divK_phaseB`.
+    Entry PC of the `ADDI x5, x0, 1` instruction selecting the n=1 path —
+    the fallthrough from the BNE x6 x0 8 at `phaseBOff + 56` (= base + 88,
+    third BNE in the per-limb cascade) when b[1] = 0. Sub-offset relative
+    to `divK_phaseB` (= phaseBOff + 60 = phaseBTailOff − 4). -/
+abbrev phaseBStep3Off : Word :=   92
+
+-- @@ L122-129 verbatim
+/-- Offset of the `divK_phaseB_tail` sub-block inside `divK_phaseB`.
+    Entry PC of the leading-limb-analysis tail (16 instructions / 64 bytes
+    into `divK_phaseB`); the per-limb cascade in `divK_phaseB_cascade` falls
+    through to this PC, and the per-limb specs in `Compose/PhaseAB.lean`,
+    `Compose/ModPhaseB.lean`, and `Compose/ModPhaseBn21.lean` invoke
+    `divK_phaseB_tail_spec_within` at this address. Sub-offset relative to
+    `divK_phaseB` (= phaseBOff + 64). -/
+abbrev phaseBTailOff : Word :=   96
+
+-- @@ L130-131 verbatim
+/-- Offset of `divK_clz` (count leading zeros for shift amount). -/
+abbrev clzOff       : Word :=  116
+
+-- @@ L132-133 verbatim
+/-- Offset of `divK_phaseC2` (branch on shift=0 fast path). -/
+abbrev phaseC2Off   : Word :=  212
+
+-- @@ L134-135 verbatim
+/-- Offset of `divK_normB` (normalize divisor b). -/
+abbrev normBOff     : Word :=  228
+
+-- @@ L136-137 verbatim
+/-- Offset of `divK_normA` (normalize dividend a). -/
+abbrev normAOff     : Word :=  312
+
+-- @@ L138-139 verbatim
+/-- Offset of `divK_copyAU` (copy a[] into u[] scratch). -/
+abbrev copyAUOff    : Word :=  396
+
+-- @@ L140-141 verbatim
+/-- Offset of `divK_loopSetup` (initialize loop counter j). -/
+abbrev loopSetupOff : Word :=  432
+
+-- @@ L142-143 verbatim
+/-- Offset of `divK_loopBody` (Knuth Algorithm D main loop body). -/
+abbrev loopBodyOff  : Word :=  448
+
+-- @@ L144-148 verbatim
+/-- Offset of the trial-divide call-site sub-block inside `divK_loopBody`.
+    Entry PC of the BLTU/JAL sequence that loads the trial divisor and calls
+    into `divK_div128`. Sub-offset relative to the loopBody block
+    (= loopBodyOff + 52, i.e. 13 instructions into the loop body). -/
+abbrev trialCallOff : Word :=  500
+
+-- @@ L149-155 verbatim
+/-- Offset of the trial-quotient `divK_trial_max` sub-block inside `divK_loopBody`.
+    Entry PC of the BLT-fall-through into the "max" trial-quotient `divK_trial_max`
+    snippet (`q̂ = 2^64 - 1`) — the BLTU instruction at `trialCallOff` falls
+    through here when the high limb does NOT equal the divisor's top limb.
+    Sub-offset relative to the loopBody block (= trialCallOff + 4
+    = loopBodyOff + 56, i.e. 14 instructions into the loop body). -/
+abbrev trialMaxOff : Word :=  504
+
+-- @@ L156-163 verbatim
+/-- Offset of the trial-divide JAL-to-`divK_div128` call site inside `divK_loopBody`.
+    Entry PC of the BLTU-taken target / JAL instruction that calls into the
+    `divK_div128` long-division subroutine to compute the trial quotient.
+    Sub-offset relative to the loopBody block (= trialCallOff + 12
+    = trialMaxOff + 8 = loopBodyOff + 64, i.e. 16 instructions into the loop
+    body — past the trial-divide entry, immediately before the div128
+    call-return PC `divCallRetOff = loopBodyOff + 68`). -/
+abbrev trialJalOff : Word :=  512
+
+-- @@ L164-170 verbatim
+/-- Offset of the `divK_mulsub_correction` sub-block inside `divK_loopBody`.
+    Entry PC of the mulsub-correction snippet that computes
+    `u[j..j+n] := u[j..j+n] − q̂ · v` (the trial-quotient subtract step in
+    Knuth Algorithm D). Sub-offset relative to the loopBody block
+    (= loopBodyOff + 88, i.e. 22 instructions into the loop body — past
+    the trial-divide entry and div128 call site). -/
+abbrev mulsubOff : Word :=  536
+
+-- @@ L171-176 verbatim
+/-- Offset of the mulsub correction-skip sub-block inside `divK_loopBody`.
+    Entry PC of the divK_sub_carry (sub-borrow) chain that runs along the
+    skip-correction path when the trial-quotient mulsub did not borrow.
+    Sub-offset relative to the loopBody block (= loopBodyOff + 176, i.e. 44
+    instructions into the loop body). -/
+abbrev correctionSkipOff : Word :=  624
+
+-- @@ L177-182 verbatim
+/-- Offset of the mulsub correction-skip BEQ entry inside `divK_loopBody`.
+    Entry PC of the BEQ instruction that branches over the addback correction
+    block when the trial-quotient mulsub did not borrow (the "skip" path).
+    Sub-offset relative to the loopBody block (= loopBodyOff + 280, i.e. 70
+    instructions into the loop body). -/
+abbrev correctionSkipBeqOff : Word :=  728
+
+-- @@ L183-188 verbatim
+/-- Offset of the correction-addback sub-block entry inside `divK_loopBody`.
+    Entry PC of the `divK_sub_carry` snippet that runs the carry/borrow path
+    used by mulsub correction (the start of the addback-correction path,
+    66 instructions into the loop body). Sub-offset relative to the loopBody
+    block (= loopBodyOff + 264). -/
+abbrev correctionAddbackOff : Word :=  712
+
+-- @@ L189-195 verbatim
+/-- Offset of the add-back carry-init sub-block inside `divK_loopBody`.
+    Entry PC of the `divK_addback_init` ADDI snippet that zeros the add-back
+    carry register before the per-limb addback corrections (the start of the
+    addback-correction body, fall-through from the correction-skip BEQ, 71
+    instructions into the loop body). Sub-offset relative to the loopBody
+    block (= correctionSkipBeqOff + 4 = loopBodyOff + 284). -/
+abbrev addbackInitOff : Word :=  732
+
+-- @@ L196-201 verbatim
+/-- Offset of the limb-0 addback step inside `divK_loopBody`.
+    Entry PC of the `divK_addback_step` snippet for `q[j] · b[0]` (the first
+    per-limb addback fixup, run only when the trial quotient overshoots).
+    Sub-offset relative to the loopBody block
+    (= addbackInitOff + 4 = loopBodyOff + 288). -/
+abbrev addbackLimb0Off : Word :=  736
+
+-- @@ L202-205 verbatim
+/-- Offset of the limb-1 addback step inside `divK_loopBody`.
+    Sub-offset relative to the loopBody block
+    (= addbackLimb0Off + 32 = loopBodyOff + 320). -/
+abbrev addbackLimb1Off : Word :=  768
+
+-- @@ L206-209 verbatim
+/-- Offset of the limb-2 addback step inside `divK_loopBody`.
+    Sub-offset relative to the loopBody block
+    (= addbackLimb1Off + 32 = loopBodyOff + 352). -/
+abbrev addbackLimb2Off : Word :=  800
+
+-- @@ L210-213 verbatim
+/-- Offset of the limb-3 addback step inside `divK_loopBody`.
+    Sub-offset relative to the loopBody block
+    (= addbackLimb2Off + 32 = loopBodyOff + 384). -/
+abbrev addbackLimb3Off : Word :=  832
+
+-- @@ L214-219 verbatim
+/-- Offset of the final addback fixup (`divK_addback_final`) inside
+    `divK_loopBody`. The 4-instruction snippet that propagates the final
+    addback carry into the high limb, immediately before the addback-skip
+    BEQ. Sub-offset relative to the loopBody block
+    (= addbackLimb3Off + 32 = addbackBeqOff - 16 = loopBodyOff + 416). -/
+abbrev addbackFinalOff : Word :=  864
+
+-- @@ L220-225 verbatim
+/-- Offset of the addback-skip BEQ sub-block inside `divK_loopBody`.
+    Entry PC of the `BEQ x7, x0, +4` instruction that branches over the
+    addback fixup (executed when the trial-quotient `q̂` did NOT overshoot,
+    so no addback is needed). Sub-offset relative to the loopBody block
+    (= storeLoopOff - 4 = loopBodyOff + 432). -/
+abbrev addbackBeqOff : Word :=  880
+
+-- @@ L226-231 verbatim
+/-- Offset of the store-quotient sub-block inside `divK_loopBody`.
+    Entry PC of the `divK_store_qj` snippet that writes the trial-quotient
+    digit `q[j]` to the output buffer (followed by the loop-back / loop-exit
+    branch into the next iteration or `divK_denorm`). Sub-offset relative
+    to the loopBody block (= loopBodyOff + 436). -/
+abbrev storeLoopOff : Word :=  884
+
+-- @@ L232-237 verbatim
+/-- Offset of the `divK_loop_control` sub-block inside `divK_loopBody`.
+    Entry PC of the 2-instruction snippet (`ADDI x1, ., 4095` + back-jump BGE)
+    sandwiched between `divK_store_qj` and `divK_denorm`. Sub-offset relative
+    to the loopBody block
+    (= storeLoopOff + 16 = denormOff - 8 = loopBackBgeOff - 4 = loopBodyOff + 452). -/
+abbrev loopControlOff : Word :=  900
+
+-- @@ L238-243 verbatim
+/-- Offset of the loop-back BGE sub-block inside `divK_loopBody`.
+    Entry PC of the `BGE x1, x0, -...` instruction at the end of the loop
+    body that branches back to `loopBodyOff` for the next iteration when
+    `j ≥ 0`, falling through to `denormOff` otherwise. Sub-offset relative
+    to the loopBody block (= loopBodyOff + 456 = denormOff - 4). -/
+abbrev loopBackBgeOff : Word :=  904
+
+-- @@ L244-245 verbatim
+/-- Offset of `divK_denorm` (denormalize result back to original shift). -/
+abbrev denormOff    : Word :=  908
+
+-- @@ L246-248 verbatim
+/-- Offset of the epilogue (`divK_div_epilogue` for DIV, `divK_mod_epilogue`
+    for MOD; both are 40 bytes). -/
+abbrev epilogueOff  : Word := 1008
+
+-- @@ L249-250 verbatim
+/-- Offset of `divK_zeroPath` (b=0 quick return with result 0). -/
+abbrev zeroPathOff  : Word := 1048
+
+-- @@ L251-253 verbatim
+/-- Offset of the NOP separator between `divK_zeroPath` and `divK_div128`.
+    Ensures the subroutine entry differs from any block exit PC. -/
+abbrev nopOff       : Word := 1068
+
+-- @@ L254-255 verbatim
+/-- Offset of `divK_div128` (the 128÷64 long-division subroutine). -/
+abbrev div128Off    : Word := 1072
+
+
+-- @@ L257-276 verbatim
+/-- Return-site PC of the `divK_div128` call from inside `divK_loopBody`.
+    The call sits 68 bytes (17 instructions) into `divK_loopBody`, so the
+    JALR-saved return address is `base + loopBodyOff + 68 = base + div128CallRetOff`.
+    Used pervasively across `LoopBody*`, `LoopIter*`, `LoopCompose*`,
+    `LoopUnified*`, `Compose/FullPath*`, and `Spec/Call*` files. -/
+abbrev div128CallRetOff : Word := 516
+
+-- ============================================================================
+-- Consistency / drift checks
+--
+-- Each `drift_check_*` below ties an offset to the sum of the previous offset
+-- plus the previous block's length × 4 (bytes per RV64 instruction). If a
+-- block grows or shrinks without the corresponding offset being updated, the
+-- affected check fails at compile time with a clear error pointing at the
+-- stale constant. This localizes address maintenance to this one file.
+--
+-- These are `example` declarations so they participate in the kernel check
+-- without polluting the name space. They resolve by `decide` (all inputs
+-- reduce to concrete numerals).
+-- ============================================================================
+
+
+-- @@ L278-280 verbatim
+/-- phaseABeqOff = phaseAOff + 28 (sub-block offset within `divK_phaseA`).
+    The phaseA-end BEQ to `divK_zeroPath` sits 7 instructions into phaseA. -/
+example : phaseABeqOff = phaseAOff + 28 := by decide
+
+-- @@ L281-281 verbatim
+example : phaseABeqOff + 4 = phaseBOff := by decide
+
+-- @@ L282-285 verbatim
+/-- phaseBInit2Off = phaseBOff + 28 (sub-block offset within `divK_phaseB`).
+    The second pair of phaseB init loads (`LD x6 sp 16 ;; LD x7 sp 24`) sits
+    7 instructions into phaseB. -/
+example : phaseBInit2Off = phaseBOff + 28 := by decide
+
+-- @@ L286-287 verbatim
+/-- phaseBOff = phaseAOff + 4 · |divK_phaseA 1020|. -/
+example : phaseBOff = phaseAOff + 4 * (divK_phaseA 1020).length := by decide
+
+-- @@ L288-289 verbatim
+/-- clzOff = phaseBOff + 4 · |divK_phaseB|. -/
+example : clzOff = phaseBOff + 4 * divK_phaseB.length := by decide
+
+-- @@ L290-291 verbatim
+/-- phaseC2Off = clzOff + 4 · |divK_clz|. -/
+example : phaseC2Off = clzOff + 4 * divK_clz.length := by decide
+
+-- @@ L292-293 verbatim
+/-- normBOff = phaseC2Off + 4 · |divK_phaseC2 172|. -/
+example : normBOff = phaseC2Off + 4 * (divK_phaseC2 172).length := by decide
+
+-- @@ L294-295 verbatim
+/-- normAOff = normBOff + 4 · |divK_normB|. -/
+example : normAOff = normBOff + 4 * divK_normB.length := by decide
+
+-- @@ L296-297 verbatim
+/-- copyAUOff = normAOff + 4 · |divK_normA 40|. -/
+example : copyAUOff = normAOff + 4 * (divK_normA 40).length := by decide
+
+-- @@ L298-299 verbatim
+/-- loopSetupOff = copyAUOff + 4 · |divK_copyAU|. -/
+example : loopSetupOff = copyAUOff + 4 * divK_copyAU.length := by decide
+
+-- @@ L300-301 verbatim
+/-- loopBodyOff = loopSetupOff + 4 · |divK_loopSetup 464|. -/
+example : loopBodyOff = loopSetupOff + 4 * (divK_loopSetup 464).length := by decide
+
+-- @@ L302-303 verbatim
+/-- denormOff = loopBodyOff + 4 · |divK_loopBody 560 7736|. -/
+example : denormOff = loopBodyOff + 4 * (divK_loopBody 560 7736).length := by decide
+
+-- @@ L304-307 verbatim
+/-- addbackBeqOff = storeLoopOff - 4 (= loopBodyOff + 432, sub-block offset
+    within `divK_loopBody`). The addback-skip BEQ sits one instruction before
+    the `divK_store_qj` entry. -/
+example : addbackBeqOff = storeLoopOff - 4 := by decide
+
+-- @@ L308-308 verbatim
+example : addbackBeqOff = loopBodyOff + 432 := by decide
+
+-- @@ L309-311 verbatim
+/-- storeLoopOff = loopBodyOff + 436 (sub-block offset within `divK_loopBody`).
+    The `divK_store_qj` snippet starts 109 instructions into the loop body. -/
+example : storeLoopOff = loopBodyOff + 436 := by decide
+
+-- @@ L312-315 verbatim
+/-- loopControlOff = storeLoopOff + 16 (= loopBodyOff + 452, sub-block offset
+    within `divK_loopBody`). The `divK_loop_control` snippet sits 4 instructions
+    after the `divK_store_qj` entry. -/
+example : loopControlOff = storeLoopOff + 16 := by decide
+
+-- @@ L316-316 verbatim
+example : loopControlOff = loopBodyOff + 452 := by decide
+
+-- @@ L317-317 verbatim
+example : loopControlOff = loopBackBgeOff - 4 := by decide
+
+-- @@ L318-321 verbatim
+/-- loopBackBgeOff = denormOff - 4 (= loopBodyOff + 456, sub-block offset
+    within `divK_loopBody`). The loop-back BGE sits one instruction before
+    the `divK_denorm` block. -/
+example : loopBackBgeOff = denormOff - 4 := by decide
+
+-- @@ L322-322 verbatim
+example : loopBackBgeOff = loopBodyOff + 456 := by decide
+
+-- @@ L323-326 verbatim
+/-- loopControlOff = storeLoopOff + 16 (= loopBodyOff + 452 = denormOff - 8,
+    sub-block offset within `divK_loopBody`). The 2-instruction loop-control
+    snippet sits between `divK_store_qj` and `divK_denorm`. -/
+example : loopControlOff = storeLoopOff + 16 := by decide
+
+-- @@ L327-327 verbatim
+example : loopControlOff = denormOff - 8 := by decide
+
+-- @@ L328-328 verbatim
+example : loopControlOff = loopBodyOff + 452 := by decide
+
+-- @@ L329-332 verbatim
+/-- correctionSkipBeqOff = loopBodyOff + 280 (sub-block offset within
+    `divK_loopBody`). The mulsub correction-skip BEQ sits 70 instructions
+    into the loop body. -/
+example : correctionSkipBeqOff = loopBodyOff + 280 := by decide
+
+-- @@ L333-337 verbatim
+/-- addbackInitOff = correctionSkipBeqOff + 4 (= loopBodyOff + 284, sub-block
+    offset within `divK_loopBody`). The add-back carry-init ADDI sits one
+    instruction past the correction-skip BEQ (the BEQ's not-taken / fall-through
+    target, 71 instructions into the loop body). -/
+example : addbackInitOff = correctionSkipBeqOff + 4 := by decide
+
+-- @@ L338-338 verbatim
+example : addbackInitOff = loopBodyOff + 284 := by decide
+
+-- @@ L339-342 verbatim
+/-- correctionAddbackOff = loopBodyOff + 264 (sub-block offset within
+    `divK_loopBody`). The correction-addback path (sub-carry snippet entry)
+    sits 66 instructions into the loop body. -/
+example : correctionAddbackOff = loopBodyOff + 264 := by decide
+
+-- @@ L343-347 verbatim
+/-- addbackLimb{0..3}Off and addbackFinalOff are evenly spaced 32 bytes (8
+    instructions) apart starting at `addbackInitOff + 4`, ending at
+    `addbackBeqOff - 16` (the 4-instruction `divK_addback_final` fixup before
+    the addback-skip BEQ). -/
+example : addbackLimb0Off = addbackInitOff + 4 := by decide
+
+-- @@ L348-348 verbatim
+example : addbackLimb1Off = addbackLimb0Off + 32 := by decide
+
+-- @@ L349-349 verbatim
+example : addbackLimb2Off = addbackLimb1Off + 32 := by decide
+
+-- @@ L350-350 verbatim
+example : addbackLimb3Off = addbackLimb2Off + 32 := by decide
+
+-- @@ L351-351 verbatim
+example : addbackFinalOff = addbackLimb3Off + 32 := by decide
+
+-- @@ L352-352 verbatim
+example : addbackFinalOff + 16 = addbackBeqOff := by decide
+
+-- @@ L353-353 verbatim
+example : addbackLimb0Off = loopBodyOff + 288 := by decide
+
+-- @@ L354-354 verbatim
+example : addbackFinalOff = loopBodyOff + 416 := by decide
+
+-- @@ L355-357 verbatim
+/-- trialCallOff = loopBodyOff + 52 (sub-block offset within `divK_loopBody`).
+    The trial-divide call-site sits 13 instructions into the loop body. -/
+example : trialCallOff = loopBodyOff + 52 := by decide
+
+-- @@ L358-361 verbatim
+/-- trialMaxOff = trialCallOff + 4 (= loopBodyOff + 56, sub-block offset within
+    `divK_loopBody`). The `divK_trial_max` snippet is the BLT fall-through one
+    instruction past `trialCallOff`. -/
+example : trialMaxOff = trialCallOff + 4 := by decide
+
+-- @@ L362-362 verbatim
+example : trialMaxOff = loopBodyOff + 56 := by decide
+
+-- @@ L363-367 verbatim
+/-- trialJalOff = trialCallOff + 12 (= loopBodyOff + 64, sub-block offset within
+    `divK_loopBody`). The JAL-to-`divK_div128` call site sits 16 instructions
+    into the loop body, immediately before the div128 call-return PC
+    `divCallRetOff = loopBodyOff + 68`. -/
+example : trialJalOff = trialCallOff + 12 := by decide
+
+-- @@ L368-368 verbatim
+example : trialJalOff = loopBodyOff + 64 := by decide
+
+-- @@ L369-369 verbatim
+example : trialJalOff + 4 = div128CallRetOff := by decide
+
+-- @@ L370-373 verbatim
+/-- phaseBBneOff = phaseBOff + 40 (sub-block offset within `divK_phaseB`).
+    The BNE-to-`divK_phaseB_tail` instruction sits 10 instructions into
+    `divK_phaseB`, 24 bytes (6 instructions) before `phaseBTailOff`. -/
+example : phaseBBneOff = phaseBOff + 40 := by decide
+
+-- @@ L374-374 verbatim
+example : phaseBBneOff + 24 = phaseBTailOff := by decide
+
+-- @@ L375-377 verbatim
+/-- phaseBStep2Off = phaseBOff + 52. The
+    `ADDI x5, x0, 2 ;; BNE x6, x0, 8` pair selecting the n=2 path. -/
+example : phaseBStep2Off = phaseBOff + 52 := by decide
+
+-- @@ L378-381 verbatim
+/-- phaseBBne2Off = phaseBOff + 48 (sub-block offset within `divK_phaseB`).
+    The second BNE-to-`divK_phaseB_tail` instruction sits 12 instructions
+    into `divK_phaseB`, 16 bytes (4 instructions) before `phaseBTailOff`. -/
+example : phaseBBne2Off = phaseBOff + 48 := by decide
+
+-- @@ L382-382 verbatim
+example : phaseBBne2Off + 16 = phaseBTailOff := by decide
+
+-- @@ L383-383 verbatim
+example : phaseBBne2Off = phaseBBneOff + 8 := by decide
+
+-- @@ L384-387 verbatim
+/-- phaseBBne3Off = phaseBOff + 56 (sub-block offset within `divK_phaseB`).
+    The third BNE-to-`divK_phaseB_tail` instruction sits 14 instructions
+    into `divK_phaseB`, 8 bytes (2 instructions) before `phaseBTailOff`. -/
+example : phaseBBne3Off = phaseBOff + 56 := by decide
+
+-- @@ L388-388 verbatim
+example : phaseBBne3Off + 8 = phaseBTailOff := by decide
+
+-- @@ L389-389 verbatim
+example : phaseBBne3Off = phaseBBneOff + 16 := by decide
+
+-- @@ L390-393 verbatim
+/-- phaseBStep3Off = phaseBOff + 60 (sub-block offset within `divK_phaseB`).
+    The `ADDI x5, x0, 1` selecting the n=1 path sits 15 instructions into
+    `divK_phaseB`, 4 bytes (1 instruction) before `phaseBTailOff`. -/
+example : phaseBStep3Off = phaseBOff + 60 := by decide
+
+-- @@ L394-394 verbatim
+example : phaseBStep3Off + 4 = phaseBTailOff := by decide
+
+-- @@ L395-399 verbatim
+/-- mulsubOff = loopBodyOff + 88 (sub-block offset within `divK_loopBody`).
+    The `divK_mulsub_correction` snippet starts 22 instructions into the loop
+    body, after the trial-divide entry (~13 instructions) and the div128 call
+    site (~9 instructions including the JAL+JALR ABI dance). -/
+example : mulsubOff = loopBodyOff + 88 := by decide
+
+-- @@ L400-403 verbatim
+/-- correctionSkipOff = loopBodyOff + 176 (sub-block offset within
+    `divK_loopBody`). The divK_sub_carry chain on the skip-correction path
+    sits 44 instructions into the loop body. -/
+example : correctionSkipOff = loopBodyOff + 176 := by decide
+
+-- @@ L404-405 verbatim
+/-- epilogueOff = denormOff + 4 · |divK_denorm|. -/
+example : epilogueOff = denormOff + 4 * divK_denorm.length := by decide
+
+-- @@ L406-408 verbatim
+/-- zeroPathOff = epilogueOff + 4 · |divK_div_epilogue 24|
+    (DIV and MOD epilogues share the same length). -/
+example : zeroPathOff = epilogueOff + 4 * (divK_div_epilogue 24).length := by decide
+
+-- @@ L409-409 verbatim
+example : zeroPathOff = epilogueOff + 4 * (divK_mod_epilogue 24).length := by decide
+
+-- @@ L410-411 verbatim
+/-- nopOff = zeroPathOff + 4 · |divK_zeroPath|. -/
+example : nopOff = zeroPathOff + 4 * divK_zeroPath.length := by decide
+
+-- @@ L412-413 verbatim
+/-- div128Off = nopOff + 4 (single NOP instruction). -/
+example : div128Off = nopOff + 4 := by decide
+
+-- @@ L414-417 verbatim
+/-- div128CallRetOff = loopBodyOff + 68 (17 instructions into `divK_loopBody`).
+    If the prelude of `divK_loopBody` before the JAL to `divK_div128` ever
+    changes length, this check fails and points at the constant to update. -/
+example : div128CallRetOff = loopBodyOff + 68 := by decide
+
+
+-- @@ L419-419 verbatim
+end EvmAsm.Evm64

@@ -1,0 +1,136 @@
+/-
+  EvmAsm.Evm64.DivMod.LimbSpec.Div128UnProdCheck
+
+  CPS specs for the middle of the `div128` trial-division subroutine —
+  the un21 computation, the product-check body shared between step 1
+  and step 2, and the two small "q-- and rhat += dHi" correction
+  blocks:
+    * `divK_div128_compute_un21_spec_within` — 5-instruction LD/SLLI/OR/MUL/SUB
+      computing `un21 = rhat*2^32 + un1 - q1*dLo`.
+    * `divK_div128_prodcheck_body_spec_within` — 4-instruction LD/MUL/SLLI/OR
+      producing `q*dLo` (x5) and `rhat*2^32 + un1` (x1) for BLTU.
+    * `divK_div128_correct_q1_spec_within` — 2-instruction q1-- / rhat += dHi
+      correction on x10/x7.
+    * `divK_div128_correct_q0_spec_within` — same shape but on x5/x11 for q0.
+
+  Twenty-first chunk of the `LimbSpec.lean` split tracked by issue #312.
+  The consumer surface is unchanged: `LimbSpec.lean` re-exports this file
+  so every existing `import EvmAsm.Evm64.DivMod.LimbSpec` still sees all
+  four specs.
+-/
+
+module
+
+public import EvmAsm.Evm64.DivMod.Program
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+
+-- @@ L30-30 verbatim
+public section
+
+
+-- @@ L32-32 verbatim
+open EvmAsm.Rv64.Tactics
+
+
+-- @@ L34-34 verbatim
+namespace EvmAsm.Evm64
+
+
+-- @@ L36-36 verbatim
+open EvmAsm.Rv64
+
+
+-- @@ L38-64 verbatim
+/-- div128 un21 = rhat*2^32 + un1 - q1*dLo.
+    Loads dLo from scratch memory. -/
+theorem divK_div128_compute_un21_spec_within (sp q1 rhat un1 v9Old v5Old dloMem : Word) (base : Word) :
+    let rhatHi := rhat <<< (32 : BitVec 6).toNat
+    let rhatUn1 := rhatHi ||| un1
+    let q1Dlo := q1 * dloMem
+    let un21 := rhatUn1 - q1Dlo
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LD .x9 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.SLLI .x5 .x7 32))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.OR .x5 .x5 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.MUL .x9 .x10 .x9))
+       (CodeReq.singleton (base + 16) (.SUB .x7 .x5 .x9)))))
+    cpsTripleWithin 5 base (base + 20) cr
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) **
+       (.x11 ↦ᵣ un1) ** (.x5 ↦ᵣ v5Old) ** (.x9 ↦ᵣ v9Old) **
+       (sp + signExtend12 3952 ↦ₘ dloMem))
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ un21) **
+       (.x11 ↦ᵣ un1) ** (.x5 ↦ᵣ rhatUn1) ** (.x9 ↦ᵣ q1Dlo) **
+       (sp + signExtend12 3952 ↦ₘ dloMem)) := by
+  intro rhatHi rhatUn1 q1Dlo un21 cr
+  have I0 := ld_spec_gen_within .x9 .x12 sp v9Old dloMem 3952 base (by nofun)
+  have I1 := slli_spec_gen_within .x5 .x7 v5Old rhat 32 (base + 4) (by nofun)
+  have I2 := or_spec_gen_rd_eq_rs1_within .x5 .x11 rhatHi un1 (base + 8) (by nofun)
+  have I3 := mul_spec_gen_rd_eq_rs2_within .x9 .x10 q1 dloMem (base + 12) (by nofun)
+  have I4 := sub_spec_gen_within .x7 .x5 .x9 rhatUn1 q1Dlo rhat (base + 16) (by nofun)
+  runBlock I0 I1 I2 I3 I4
+
+
+-- @@ L66-86 verbatim
+/-- div128 product check body: compute q*dLo and rhat*2^32+un1 for comparison. -/
+theorem divK_div128_prodcheck_body_spec_within (sp q rhat un1 v9Old v5Old dlo : Word) (base : Word) :
+    let qDlo := q * dlo
+    let rhatHi := rhat <<< (32 : BitVec 6).toNat
+    let rhatUn1 := rhatHi ||| un1
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LD .x9 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x9 .x7 32))
+       (CodeReq.singleton (base + 12) (.OR .x9 .x9 .x11))))
+    cpsTripleWithin 4 base (base + 16) cr
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
+       (.x5 ↦ᵣ v5Old) ** (.x9 ↦ᵣ v9Old) ** (sp + signExtend12 3952 ↦ₘ dlo))
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
+       (.x5 ↦ᵣ qDlo) ** (.x9 ↦ᵣ rhatUn1) ** (sp + signExtend12 3952 ↦ₘ dlo)) := by
+  intro qDlo rhatHi rhatUn1 cr
+  have I0 := ld_spec_gen_within .x9 .x12 sp v9Old dlo 3952 base (by nofun)
+  have I1 := mul_spec_gen_within .x5 .x10 .x9 v5Old q dlo (base + 4) (by nofun)
+  have I2 := slli_spec_gen_within .x9 .x7 dlo rhat 32 (base + 8) (by nofun)
+  have I3 := or_spec_gen_rd_eq_rs1_within .x9 .x11 (rhat <<< (32 : BitVec 6).toNat) un1 (base + 12) (by nofun)
+  runBlock I0 I1 I2 I3
+
+
+-- @@ L88-101 verbatim
+/-- div128 correction: q-- and rhat += dHi. Generic for q1 (x10) or q0 (x5). -/
+theorem divK_div128_correct_q1_spec_within (q rhat dHi : Word) (base : Word) :
+    let q' := q + signExtend12 4095
+    let rhat' := rhat + dHi
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.ADDI .x10 .x10 4095))
+       (CodeReq.singleton (base + 4) (.ADD .x7 .x7 .x6))
+    cpsTripleWithin 2 base (base + 8) cr
+      ((.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ dHi))
+      ((.x10 ↦ᵣ q') ** (.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ dHi)) := by
+  intro q' rhat' cr
+  have I0 := addi_spec_gen_same_within .x10 q 4095 base (by nofun)
+  have I1 := add_spec_gen_rd_eq_rs1_within .x7 .x6 rhat dHi (base + 4) (by nofun)
+  runBlock I0 I1
+
+
+-- @@ L103-116 verbatim
+/-- div128 correction for q0: q0-- and rhat2 += dHi. -/
+theorem divK_div128_correct_q0_spec_within (q0 rhat2 dHi : Word) (base : Word) :
+    let q0' := q0 + signExtend12 4095
+    let rhat2' := rhat2 + dHi
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.ADDI .x5 .x5 4095))
+       (CodeReq.singleton (base + 4) (.ADD .x11 .x11 .x6))
+    cpsTripleWithin 2 base (base + 8) cr
+      ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi))
+      ((.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ rhat2') ** (.x6 ↦ᵣ dHi)) := by
+  intro q0' rhat2' cr
+  have I0 := addi_spec_gen_same_within .x5 q0 4095 base (by nofun)
+  have I1 := add_spec_gen_rd_eq_rs1_within .x11 .x6 rhat2 dHi (base + 4) (by nofun)
+  runBlock I0 I1
+
+
+-- @@ L118-118 verbatim
+end EvmAsm.Evm64

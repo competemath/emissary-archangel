@@ -1,0 +1,254 @@
+/-
+  EvmAsm.Codegen.Programs.HeaderFieldsSpec
+
+  Caller `Fn.Spec`-shaped contracts (raw pinned `cpsTripleWithin`) for the
+  migrated RLP-header-field extractors in `HeaderFields.lean`:
+
+    * `header_extract_state_root`      (field 3  = rlp_walk_init + 4 rlp_walk_next)
+    * `header_extract_receipts_root`   (field 5  = init + 6)
+    * `header_extract_withdrawals_root`(field 16 = init + 17)
+
+  Each body is proven as a raw `cpsTripleWithin` over
+  `CodeReq.ofProg base headerExtract*_prog`: ABI prologue/frame → one
+  `rlp_walk_init` call → N sequential `rlp_walk_next` calls (composed via
+  `EvmAsm.Codegen.RlpWalkCallSAsm.walk_init_next_N`, threading the strict
+  `StrictListPayload`/`StrictPrefix`/`rlpWalkNextOk` invariants each next's
+  precondition needs) → the status/length branch → the fixed 32-byte LBU/SB
+  copy loop (the alignment-free re-emit, modeled on `mset_memcpy`) → the
+  restore/return epilogue.
+
+  This file is PROOF-ONLY over the already-emitted (LBU-fixed) bytes; it changes
+  no guest bytes. Classical-3 axioms only; no `sorry`/`native_decide`/`bv_decide`.
+-/
+import EvmAsm.Codegen.Programs.HeaderFields
+import EvmAsm.Codegen.Programs.RlpWalkCallSAsm
+import EvmAsm.Codegen.Programs.RlpWalkInitFlatSAsm
+import EvmAsm.Codegen.Programs.RlpWalkNextFlatSAsm
+import EvmAsm.Codegen.Programs.RlpListNthItemSAsmBase
+import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
+import EvmAsm.Rv64.SAsm.AbiFrame
+import EvmAsm.Rv64.Tactics.XPerm
+import EvmAsm.Rv64.LaResolve
+import EvmAsm.Codegen.Programs.HeaderFieldsSpecDispatch2
+
+
+-- @@ L34-34 verbatim
+namespace EvmAsm.Codegen.HeaderFieldsSpec
+
+
+-- @@ L36-36 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
+
+-- @@ L37-37 verbatim
+open EvmAsm.Rv64.Tactics
+
+-- @@ L38-38 verbatim
+open EvmAsm.Evm64.Terminating (copyIntoRegion copyIntoRegion_length)
+
+
+-- @@ L40-50 verbatim
+/-- Discharge a `.pcFree` side goal over frames of `bytesRegion`/`regIs`/`memIs`
+    cells (local re-declaration of the `mset_memcpy` helper macro). -/
+local macro "pcFreeR" : tactic =>
+  `(tactic| repeat' first
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
+    | apply pcFree_sepConj
+    | pcFree)
+
+
+-- @@ L52-109 verbatim
+set_option maxRecDepth 8000 in
+/-- The whole-program `header_extract_state_root` caller `Fn.Spec`: a single
+    raw-pinned `cpsTripleWithin` over all 68 instructions from `hesrBase` to the
+    function return (`saved.ra &&& ~~~1`), composing the ABI prologue [0]-[9]
+    with the init-call dispatch (`hesrInitDispatch`).  `listLen = ofNat listLenN`. -/
+theorem header_extract_state_root_fnspec
+    (sp0 newSp listBase outPtr : Word) (saved : Saved)
+    (headerBytes outBytes : List (BitVec 8)) (listLenN : Nat)
+    {cr : CodeReq}
+    (hcr_prog : ∀ a i, hesrCode a = some i → cr a = some i)
+    (hcr_wn : ∀ a i, rlp_walk_next_code wnBase a = some i → cr a = some i)
+    (hcr_wi : ∀ a i,
+      (CodeReq.singleton (hesrBase + 40) (.JAL .x1 hesrInitOffset)).union
+        (rlp_walk_init_code wiBase) a = some i → cr a = some i)
+    (h_src_align : listBase.toNat % 8 = 0)
+    (h_dst_align : outPtr.toNat % 8 = 0)
+    (h_slack : listLenN + 9 ≤ headerBytes.length)
+    (h_src_over : listBase.toNat + headerBytes.length < 2 ^ 64)
+    (h_dst_over : outPtr.toNat + outBytes.length < 2 ^ 64)
+    (h_dst_bound : 32 ≤ outBytes.length)
+    (h_src_valid : ∀ k, k < headerBytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true)
+    (hbound : ∀ o next len, o ≤ listLenN →
+      rlpItemDecode headerBytes o (listBase + BitVec.ofNat 64 o)
+        (listBase + BitVec.ofNat 64 listLenN) next len →
+      (next - len - listBase).toNat + 32 ≤ headerBytes.length)
+    (h_newSp : newSp = sp0 + signExtend12 (-48 : BitVec 12)) :
+    cpsTripleWithin
+      (10 + (1 + 81 + (1 + (4 + (1 + 87 + (1 + (3 + (1 + 87 + (1 + (3 + (1 + 87 +
+        (1 + (3 + (1 + 87 + (1 + (9 + 4 + (1 + 204)))))))))))))))))
+      hesrBase (saved.ra &&& ~~~(1 : Word)) cr
+      (((.x2 ↦ᵣ sp0) ** regsAt hxFrame (savedVals saved) ** frameSlotsOwn hxFrame newSp **
+        (.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 listLenN) ** (.x12 ↦ᵣ outPtr) **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes **
+        memOwn hesrOffAddr ** memOwn hesrLenAddr ** memOwn (newSp + 32) ** memOwn (newSp + 40)) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+       regOwn .x31)
+      (hesrRetPost newSp listBase outPtr saved headerBytes outBytes listLenN 3
+        (regOwn .x11 ** regOwn .x30 ** regOwn .x31 **
+         memOwn (newSp + 32) ** memOwn (newSp + 40))) := by
+  apply cpsTripleWithin_of_forall_regIs_to_regOwn7
+  intro v5 v6 v7 v28 v29 v30 v31
+  have hpro := cpsTripleWithin_extend_code hcr_prog
+    (hesrPrologue sp0 newSp listBase (BitVec.ofNat 64 listLenN) outPtr saved h_newSp)
+  have hproF := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+     (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) **
+     bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes **
+     memOwn hesrOffAddr ** memOwn hesrLenAddr ** memOwn (newSp + 32) ** memOwn (newSp + 40))
+    (by pcFreeR) hpro
+  have hdisp := hesrInitDispatch listBase outPtr newSp saved.ra v5 v6 v7 v28 v29 v30 v31 saved
+    headerBytes outBytes listLenN hcr_prog hcr_wn hcr_wi h_src_align h_dst_align h_slack
+    h_src_over h_dst_over h_dst_bound h_src_valid h_dst_valid hbound
+  have hcomp := cpsTripleWithin_seq_perm_same_cr
+    (fun h hq => by unfold hesrAmbient; xperm_chunked hq) hproF hdisp
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_chunked hp) (fun _ h => h) hcomp
+
+
+-- @@ L111-117 verbatim
+/-! ## Guest-image specialization (`hesrFullCode`)
+
+    `header_extract_state_root_fnspec` is already a whole-program triple at
+    `GuestAddrs.header_extract_state_root`; it only lacks a concrete `CodeReq`.
+    Pin `cr` to the wrapper ∪ `rlp_walk_init` ∪ `rlp_walk_next` and discharge
+    the three `hcr_*` linkage hyps. The `hbound` input-domain hyp is kept —
+    that is the honest `.conditional` gate for the Progress row (#12313). -/
+
+
+-- @@ L119-121 verbatim
+/-- Linked callees of `header_extract_state_root`: walk-init then walk-next. -/
+def hesrCalleeCode : CodeReq :=
+  (rlp_walk_init_code wiBase).union (rlp_walk_next_code wnBase)
+
+
+-- @@ L123-124 verbatim
+/-- Concrete guest image for the flat state-root triple. -/
+def hesrFullCode : CodeReq := hesrCode.union hesrCalleeCode
+
+
+-- @@ L126-132 verbatim
+theorem hesr_walk_init_disjoint :
+    hesrCode.Disjoint (rlp_walk_init_code wiBase) := by
+  unfold hesrCode rlp_walk_init_code wiBase hesrBase
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [hesr_prog_length]; decide
+  · rw [rlp_walk_init_prog_length]; decide
+  · rw [hesr_prog_length, rlp_walk_init_prog_length]; decide
+
+
+-- @@ L134-140 verbatim
+theorem hesr_walk_next_disjoint :
+    hesrCode.Disjoint (rlp_walk_next_code wnBase) := by
+  unfold hesrCode rlp_walk_next_code wnBase hesrBase
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [hesr_prog_length]; decide
+  · rw [rlp_walk_next_prog_length]; decide
+  · rw [hesr_prog_length, rlp_walk_next_prog_length]; decide
+
+
+-- @@ L142-144 verbatim
+theorem hesr_callee_disjoint : hesrCode.Disjoint hesrCalleeCode := by
+  unfold hesrCalleeCode
+  exact CodeReq.Disjoint.union_right hesr_walk_init_disjoint hesr_walk_next_disjoint
+
+
+-- @@ L146-150 verbatim
+theorem hesr_hcr_prog :
+    ∀ a i, hesrCode a = some i → hesrFullCode a = some i := by
+  intro a i hi
+  unfold hesrFullCode
+  exact CodeReq.union_mono_left a i hi
+
+
+-- @@ L152-159 verbatim
+theorem hesr_hcr_wn :
+    ∀ a i, rlp_walk_next_code wnBase a = some i → hesrFullCode a = some i := by
+  intro a i hi
+  unfold hesrFullCode hesrCalleeCode
+  exact CodeReq.mono_union_right hesr_walk_next_disjoint
+    (fun a i h =>
+      CodeReq.mono_union_right walk_init_next_disjoint (fun _ _ h' => h') a i h)
+    a i hi
+
+
+-- @@ L161-176 verbatim
+theorem hesr_hcr_wi :
+    ∀ a i,
+      (CodeReq.singleton (hesrBase + 40) (.JAL .x1 hesrInitOffset)).union
+        (rlp_walk_init_code wiBase) a = some i → hesrFullCode a = some i := by
+  intro a i h
+  refine CodeReq.union_split_mono ?hsing ?hwi a i h
+  · intro a i hs
+    apply hesr_hcr_prog
+    exact CodeReq.ofProg_mem_at hesrBase (hesrBase + 40)
+      Codegen.headerExtractStateRoot_prog 10 (.JAL .x1 hesrInitOffset)
+      (by bv_omega) (by rw [hesr_prog_length]; decide) rfl
+      (by rw [hesr_prog_length]; decide) a i hs
+  · intro a i hi
+    unfold hesrFullCode hesrCalleeCode
+    exact CodeReq.mono_union_right hesr_walk_init_disjoint
+      (fun a i h => CodeReq.union_mono_left a i h) a i hi
+
+
+-- @@ L178-218 verbatim
+/-- Flat guest-image triple for `header_extract_state_root`.
+
+    Same hypotheses as `header_extract_state_root_fnspec` except the abstract
+    `cr` / `hcr_*` linkage is replaced by `hesrFullCode`. Residual gate:
+    `hbound` (every walked `rlpItemDecode` has 32 bytes of content room). -/
+theorem header_extract_state_root_spec_within
+    (sp0 newSp listBase outPtr : Word) (saved : Saved)
+    (headerBytes outBytes : List (BitVec 8)) (listLenN : Nat)
+    (h_src_align : listBase.toNat % 8 = 0)
+    (h_dst_align : outPtr.toNat % 8 = 0)
+    (h_slack : listLenN + 9 ≤ headerBytes.length)
+    (h_src_over : listBase.toNat + headerBytes.length < 2 ^ 64)
+    (h_dst_over : outPtr.toNat + outBytes.length < 2 ^ 64)
+    (h_dst_bound : 32 ≤ outBytes.length)
+    (h_src_valid : ∀ k, k < headerBytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true)
+    (hbound : ∀ o next len, o ≤ listLenN →
+      rlpItemDecode headerBytes o (listBase + BitVec.ofNat 64 o)
+        (listBase + BitVec.ofNat 64 listLenN) next len →
+      (next - len - listBase).toNat + 32 ≤ headerBytes.length)
+    (h_newSp : newSp = sp0 + signExtend12 (-48 : BitVec 12)) :
+    cpsTripleWithin
+      (10 + (1 + 81 + (1 + (4 + (1 + 87 + (1 + (3 + (1 + 87 + (1 + (3 + (1 + 87 +
+        (1 + (3 + (1 + 87 + (1 + (9 + 4 + (1 + 204)))))))))))))))))
+      hesrBase (saved.ra &&& ~~~(1 : Word)) hesrFullCode
+      (((.x2 ↦ᵣ sp0) ** regsAt hxFrame (savedVals saved) ** frameSlotsOwn hxFrame newSp **
+        (.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 listLenN) ** (.x12 ↦ᵣ outPtr) **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes **
+        memOwn hesrOffAddr ** memOwn hesrLenAddr ** memOwn (newSp + 32) ** memOwn (newSp + 40)) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+       regOwn .x31)
+      (hesrRetPost newSp listBase outPtr saved headerBytes outBytes listLenN 3
+        (regOwn .x11 ** regOwn .x30 ** regOwn .x31 **
+         memOwn (newSp + 32) ** memOwn (newSp + 40))) :=
+  header_extract_state_root_fnspec sp0 newSp listBase outPtr saved
+    headerBytes outBytes listLenN
+    hesr_hcr_prog hesr_hcr_wn hesr_hcr_wi
+    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound
+    h_src_valid h_dst_valid hbound h_newSp
+
+
+-- @@ L220-220 verbatim
+end EvmAsm.Codegen.HeaderFieldsSpec

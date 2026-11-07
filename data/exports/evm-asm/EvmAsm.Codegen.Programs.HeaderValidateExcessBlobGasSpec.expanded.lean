@@ -1,0 +1,1530 @@
+/-
+  K70 `header_validate_excess_blob_gas`.
+
+  This file owns the whole-routine contract for the linked K70 wrapper.  The
+  Amsterdam price routine is not yet rowed, so its whole-routine contract is
+  an explicit premise of the K70 composition.  The premise is stated at the
+  price routine's actual ABI rather than at a proof-convenient projection:
+  x10 carries the excess value, x11 carries the 32-byte BE output pointer, and
+  the callee owns a 208-byte frame plus its three 48-byte working regions.
+  `priceEntryRest_inhabited` keeps that gate honest by exhibiting the concrete
+  non-degenerate entry layout already checked for Amsterdam.
+-/
+
+import EvmAsm.Codegen.Programs.HeaderBaseFee
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceU256Sat
+import EvmAsm.Rv64.SAsm.AbiFrameCall
+import EvmAsm.Codegen.Programs.ValidateHeader
+import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthSpec
+
+
+-- @@ L20-20 verbatim
+namespace EvmAsm.Codegen.ValidateHeaderCorrespondence
+
+
+-- @@ L22-22 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
+
+
+-- @@ L24-24 verbatim
+/-! ## Linked code and the call-site frame -/
+
+
+-- @@ L26-26 verbatim
+abbrev H : Word := (GuestAddrs.validate_header : Word)
+
+-- @@ L27-27 verbatim
+abbrev A : Word := H + 176
+
+-- @@ L28-28 verbatim
+abbrev Ret : Word := H + 180
+
+-- @@ L29-30 verbatim
+abbrev Callee : Word :=
+  (GuestAddrs.header_validate_extra_data_length : Word)
+
+
+-- @@ L32-32 verbatim
+abbrev callerCode : CodeReq := CodeReq.ofProg H EvmAsm.Codegen.validateHeader_prog
+
+
+-- @@ L34-35 verbatim
+def fullCode : CodeReq :=
+  callerCode.union EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.fullCode
+
+
+-- @@ L37-44 verbatim
+theorem validateHeader_length : EvmAsm.Codegen.validateHeader_prog.length = 97 := by
+  decide
+
+/- The frame at the call entry is the callee precondition with the linking
+   register removed.  The caller's live `s0/s1/s2/s3` values are carried by
+   `saved.s0..saved.s3`; `saved.s4/s5` are the caller's parent RLP pointer and
+   length.  `x12/x13/x14` are intentionally arbitrary at this call site: the
+   callee overwrites its own field index and output-cell pointers. -/
+
+-- @@ L45-60 verbatim
+def extraDataCallFrame
+    (sp0 oldRaSlot spH newSp listBase listLenW old12 old13 old14
+      oldOffset oldLen : Word) (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) : Assertion :=
+  (.x2 ↦ᵣ sp0) ** (spH ↦ₘ oldRaSlot) **
+  (.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listLenW) ** (.x12 ↦ᵣ old12) **
+  (.x13 ↦ᵣ old13) ** (.x14 ↦ᵣ old14) **
+  (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) **
+  (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) **
+  (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+  regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+  bytesRegion listBase bytes **
+  frameSlotsOwn EvmAsm.Codegen.RlpListNthItemSAsm.listNthFrame newSp **
+  (EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.Off ↦ₘ oldOffset) **
+  (EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.Len ↦ₘ oldLen)
+
+
+-- @@ L62-80 verbatim
+theorem caller_hved_disjoint :
+    callerCode.Disjoint EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.fullCode := by
+  unfold callerCode
+    EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.fullCode
+    EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.hvedCode
+    EvmAsm.Codegen.RlpListNthItemSAsm.code
+  apply CodeReq.Disjoint.union_right
+  · apply CodeReq.Disjoint.ofProg_ranges
+    · rw [validateHeader_length]; decide
+    · rw [EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.hved_length]; decide
+    · rw [validateHeader_length,
+        EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.hved_length]
+      decide
+  · apply CodeReq.Disjoint.ofProg_ranges
+    · rw [validateHeader_length]; decide
+    · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
+    · rw [validateHeader_length,
+        EvmAsm.Codegen.RlpListNthItemSAsm.total_length]
+      decide
+
+
+-- @@ L82-86 verbatim
+theorem caller_mono :
+    ∀ a i, callerCode a = some i → fullCode a = some i := by
+  intro a i hi
+  unfold fullCode
+  exact CodeReq.union_mono_left a i hi
+
+
+-- @@ L88-93 verbatim
+theorem hved_mono :
+    ∀ a i, EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.fullCode a = some i →
+      fullCode a = some i := by
+  intro a i hi
+  unfold fullCode
+  exact CodeReq.mono_union_right caller_hved_disjoint (fun _ _ h => h) a i hi
+
+
+-- @@ L95-95 verbatim
+/-! ## Conjunct-7 call composition -/
+
+
+-- @@ L97-172 expanded
+set_option maxRecDepth 8000 in
+/-- **Conjunct 7 at the real `validate_header` call site.**
+
+    The entry contract is the caller-owned frame above, plus the linking
+    register supplied by `jal`.  The call at `H + 176` is the concrete
+    instruction 44 of `validateHeader_prog`; its linked target is
+    `header_validate_extra_data_length`.  The post is exactly the callee's
+    three-way result, so the reference-side decision can be consumed by
+    `header_extra_data_length_of_decode` without inventing a result predicate.
+
+    The only input-domain hypotheses here are those required by the already
+    proven callee: 8-byte alignment, byte-access validity, enough caller-owned
+    RLP region for K20's strict scanner, and a non-wrapping address range.  In
+    particular, this conjunct does not assume a width bound on either header
+    number; those are named project-assumption gates for later conjuncts. -/
+theorem validate_header_extra_data_length_call_spec_within
+    (sp0 oldRa oldRaSlot spH newSp listBase listLenW old12 old13 old14 oldOffset oldLen : Word)
+    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved) (bytes : List (BitVec 8)) (listLen : Nat)
+    (hspH : spH = sp0 + signExtend12 (-16 : BitVec 12))
+    (hnewSp : newSp = spH + signExtend12 (-64 : BitVec 12))
+    (hlistLenW : listLenW = BitVec.ofNat 64 listLen) (hsalign : listBase.toNat % 8 = 0)
+    (hslack : listLen + 9 ≤ bytes.length) (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length → isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hraSaved : saved.ra = EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.H + 32) :
+    cpsTripleWithin (1 + (7 + 1 + EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.nCall + 11)) A
+      Ret fullCode
+      ((.x1 ↦ᵣ oldRa) **
+        extraDataCallFrame sp0 oldRaSlot spH newSp listBase listLenW old12 old13 old14 oldOffset
+          oldLen saved bytes)
+      (EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.hvedPost sp0 spH newSp Ret listBase
+        oldOffset oldLen saved bytes listLen) :=
+  by
+  have hjal :=
+    jal_link_spec_within
+      (jalOff GuestAddrs.header_validate_extra_data_length (GuestAddrs.validate_header + 176)) A
+      oldRa
+  rw [show
+      (H + 176) +
+          signExtend21
+            (jalOff GuestAddrs.header_validate_extra_data_length
+              (GuestAddrs.validate_header + 176)) =
+        Callee
+      from
+      by
+      change
+        BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 176 + _ =
+          BitVec.ofNat 64 GuestAddrs.header_validate_extra_data_length
+      exact
+        jalOff_correct_add GuestAddrs.header_validate_extra_data_length GuestAddrs.validate_header
+          176 (by decide) (by decide) (by decide) (by decide),
+    show (H + 176 + 4 : Word) = Ret from by bv_omega] at hjal
+  have hjalC :=
+    cpsTripleWithin_extend_code caller_mono
+      (cpsTripleWithin_extend_code (cr' := callerCode)
+        (CodeReq.ofProg_mem_at H A EvmAsm.Codegen.validateHeader_prog 44
+          (.JAL .x1
+            (jalOff GuestAddrs.header_validate_extra_data_length
+              (GuestAddrs.validate_header + 176)))
+          (by bv_omega) (by rw [validateHeader_length]; decide) rfl
+          (by rw [validateHeader_length]; decide))
+        hjal)
+  have hjalF :=
+    cpsTripleWithin_frameR
+      (extraDataCallFrame sp0 oldRaSlot spH newSp listBase listLenW old12 old13 old14 oldOffset
+        oldLen saved bytes)
+      (by unfold extraDataCallFrame;
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hjalC
+  have hcallee0 :=
+    EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
+      sp0 Ret oldRaSlot spH newSp listBase listLenW old12 old13 old14 oldOffset oldLen saved bytes
+      listLen hspH hnewSp hlistLenW hsalign hslack hover hvalid (by decide) hraSaved
+  have hcalleeC := cpsTripleWithin_extend_code hved_mono hcallee0
+  have hcallee :
+    cpsTripleWithin (7 + 1 + EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.nCall + 11) Callee Ret
+      fullCode
+      ((.x1 ↦ᵣ Ret) **
+        extraDataCallFrame sp0 oldRaSlot spH newSp listBase listLenW old12 old13 old14 oldOffset
+          oldLen saved bytes)
+      (EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.hvedPost sp0 spH newSp Ret listBase
+        oldOffset oldLen saved bytes listLen) :=
+    by
+    exact
+      cpsTripleWithin_weaken
+        (fun _ hp =>
+          by
+          unfold EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.hvedPre at ⊢
+          unfold extraDataCallFrame at hp
+          xperm_hyp hp)
+        (fun _ hq => hq) hcalleeC
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hjalF hcallee
+
+
+-- @@ L174-174 verbatim
+end EvmAsm.Codegen.ValidateHeaderCorrespondence
+
+
+
+-- @@ L177-177 verbatim
+namespace EvmAsm.Codegen.ValidateHeaderGasCorrespondence
+
+
+-- @@ L179-179 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
+
+
+-- @@ L181-181 verbatim
+abbrev H : Word := EvmAsm.Codegen.ValidateHeaderCorrespondence.H
+
+-- @@ L182-182 verbatim
+abbrev callerCode : CodeReq := EvmAsm.Codegen.ValidateHeaderCorrespondence.callerCode
+
+
+-- @@ L184-184 verbatim
+abbrev ExcessA : Word := H + 80
+
+-- @@ L185-185 verbatim
+abbrev ExcessRet : Word := H + 84
+
+-- @@ L186-186 verbatim
+abbrev ExcessK : Word := (GuestAddrs.header_validate_excess_blob_gas : Word)
+
+
+-- @@ L188-188 verbatim
+abbrev BaseA : Word := H + 132
+
+-- @@ L189-189 verbatim
+abbrev BaseRet : Word := H + 136
+
+-- @@ L190-190 verbatim
+abbrev BaseK : Word := (GuestAddrs.header_validate_base_fee : Word)
+
+
+-- @@ L192-194 verbatim
+def excessFrame : FrameDesc :=
+  [(.x1, 0), (.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32),
+   (.x20, 40), (.x21, 48)]
+
+
+-- @@ L196-197 verbatim
+def excessSavedFrame : FrameDesc :=
+  [(.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40), (.x21, 48)]
+
+
+-- @@ L199-200 verbatim
+def excessFrameVals (ret : Word) (vals : Reg → Word) : Reg → Word :=
+  fun r => if r = .x1 then ret else vals r
+
+
+-- @@ L202-210 verbatim
+def excessEntryRest
+    (sp0 : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 : Word) (scratch : Assertion) : Assertion :=
+  (.x2 ↦ᵣ sp0) **
+  frameSlotsOwn excessFrame (sp0 + signExtend12 (-64 : BitVec 12)) **
+  regsAt excessSavedFrame vals **
+  (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) **
+  regOwns [.x5, .x6, .x28, .x29, .x30, .x31] **
+  (.x0 ↦ᵣ (0 : Word)) ** scratch
+
+
+-- @@ L212-221 verbatim
+def excessCalleePost
+    (sp0 : Word) (vals : Reg → Word) (status ret : Word)
+    (scratchPost : Assertion) : Assertion :=
+  (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) **
+  frameSlotsSaved excessFrame (sp0 + signExtend12 (-64 : BitVec 12))
+    (excessFrameVals ret vals) **
+  regsAt excessSavedFrame vals **
+  (.x10 ↦ᵣ status) **
+  regOwns [.x5, .x6, .x11, .x12, .x13, .x28, .x29, .x30, .x31] **
+  (.x0 ↦ᵣ (0 : Word)) ** scratchPost
+
+
+-- @@ L223-223 verbatim
+def baseFrame : FrameDesc := [(.x1, 0), (.x8, 8)]
+
+
+-- @@ L225-225 verbatim
+def baseSavedFrame : FrameDesc := [(.x8, 8)]
+
+
+-- @@ L227-228 verbatim
+def baseFrameVals (ret : Word) (vals : Reg → Word) : Reg → Word :=
+  fun r => if r = .x1 then ret else vals r
+
+
+-- @@ L230-238 verbatim
+def baseEntryRest
+    (sp0 : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 : Word) (scratch : Assertion) : Assertion :=
+  (.x2 ↦ᵣ sp0) **
+  frameSlotsOwn baseFrame (sp0 + signExtend12 (-16 : BitVec 12)) **
+  regsAt baseSavedFrame vals **
+  (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) **
+  regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] **
+  (.x0 ↦ᵣ (0 : Word)) ** scratch
+
+
+-- @@ L240-249 verbatim
+def baseCalleePost
+    (sp0 : Word) (vals : Reg → Word) (status ret : Word)
+    (scratchPost : Assertion) : Assertion :=
+  (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) **
+  frameSlotsSaved baseFrame (sp0 + signExtend12 (-16 : BitVec 12))
+    (baseFrameVals ret vals) **
+  regsAt baseSavedFrame vals **
+  (.x10 ↦ᵣ status) **
+  regOwns [.x5, .x6, .x7, .x11, .x12, .x13, .x28, .x29, .x30, .x31] **
+  (.x0 ↦ᵣ (0 : Word)) ** scratchPost
+
+
+-- @@ L251-257 expanded
+theorem excessEntryRest_pcFree (sp0 : Word) (vals : Reg → Word) (a0 a1 a2 a3 : Word)
+    (scratch : Assertion) (hscratch : scratch.pcFree) :
+    (excessEntryRest sp0 vals a0 a1 a2 a3 scratch).pcFree :=
+  by
+  unfold excessEntryRest excessFrame excessSavedFrame
+  repeat
+    first
+    | apply pcFree_sepConj
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
+    | exact pcFree_emp
+    | exact pcFree_pure
+    | exact pcFree_instrAt
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_stackFree _ _
+    | exact pcFree_dwordsIs _ _
+    | exact pcFree_regsAt _ _
+    | exact pcFree_frameSlotsOwn _ _
+    | exact pcFree_frameSlotsSaved _ _ _
+    | exact pcFree_regFileIs _
+  exact hscratch
+
+
+-- @@ L259-265 expanded
+theorem baseEntryRest_pcFree (sp0 : Word) (vals : Reg → Word) (a0 a1 a2 a3 : Word)
+    (scratch : Assertion) (hscratch : scratch.pcFree) :
+    (baseEntryRest sp0 vals a0 a1 a2 a3 scratch).pcFree :=
+  by
+  unfold baseEntryRest baseFrame baseSavedFrame
+  repeat
+    first
+    | apply pcFree_sepConj
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
+    | exact pcFree_emp
+    | exact pcFree_pure
+    | exact pcFree_instrAt
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_stackFree _ _
+    | exact pcFree_dwordsIs _ _
+    | exact pcFree_regsAt _ _
+    | exact pcFree_frameSlotsOwn _ _
+    | exact pcFree_frameSlotsSaved _ _ _
+    | exact pcFree_regFileIs _
+  exact hscratch
+
+
+-- @@ L267-274 verbatim
+theorem excess_jal_mem :
+    ∀ a i, CodeReq.singleton ExcessA
+      (.JAL .x1 (jalOff GuestAddrs.header_validate_excess_blob_gas
+        (GuestAddrs.validate_header + 80))) a = some i → callerCode a = some i := by
+  exact CodeReq.ofProg_mem_at
+    (GuestAddrs.validate_header : Word) ExcessA EvmAsm.Codegen.validateHeader_prog 20 _
+    (by bv_omega) (by rw [EvmAsm.Codegen.ValidateHeaderCorrespondence.validateHeader_length]; decide)
+    rfl (by rw [EvmAsm.Codegen.ValidateHeaderCorrespondence.validateHeader_length]; decide)
+
+
+-- @@ L276-283 verbatim
+theorem base_jal_mem :
+    ∀ a i, CodeReq.singleton BaseA
+      (.JAL .x1 (jalOff GuestAddrs.header_validate_base_fee
+        (GuestAddrs.validate_header + 132))) a = some i → callerCode a = some i := by
+  exact CodeReq.ofProg_mem_at
+    (GuestAddrs.validate_header : Word) BaseA EvmAsm.Codegen.validateHeader_prog 33 _
+    (by bv_omega) (by rw [EvmAsm.Codegen.ValidateHeaderCorrespondence.validateHeader_length]; decide)
+    rfl (by rw [EvmAsm.Codegen.ValidateHeaderCorrespondence.validateHeader_length]; decide)
+
+
+-- @@ L285-291 verbatim
+theorem excess_target :
+    ExcessA + signExtend21 (jalOff GuestAddrs.header_validate_excess_blob_gas
+      (GuestAddrs.validate_header + 80)) = ExcessK := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 80 + _ =
+    BitVec.ofNat 64 GuestAddrs.header_validate_excess_blob_gas
+  exact jalOff_correct_add GuestAddrs.header_validate_excess_blob_gas
+    GuestAddrs.validate_header 80 (by decide) (by decide) (by decide) (by decide)
+
+
+-- @@ L293-299 verbatim
+theorem base_target :
+    BaseA + signExtend21 (jalOff GuestAddrs.header_validate_base_fee
+      (GuestAddrs.validate_header + 132)) = BaseK := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 132 + _ =
+    BitVec.ofNat 64 GuestAddrs.header_validate_base_fee
+  exact jalOff_correct_add GuestAddrs.header_validate_base_fee
+    GuestAddrs.validate_header 132 (by decide) (by decide) (by decide) (by decide)
+
+
+-- @@ L301-334 verbatim
+set_option maxRecDepth 8000 in
+theorem validate_header_excess_blob_gas_call_spec_within
+    {cr calleeCode : CodeReq} {n : Nat}
+    (sp0 : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 status oldRa : Word)
+    (scratch scratchPost F : Assertion)
+    (hscratch : scratch.pcFree) (hF : F.pcFree)
+    (hcallerDisj : callerCode.Disjoint calleeCode)
+    (hcode : ∀ a i, (callerCode.union calleeCode) a = some i → cr a = some i)
+    (hcallee : cpsTripleWithin n ExcessK ExcessRet calleeCode
+      ((.x1 ↦ᵣ ExcessRet) ** excessEntryRest sp0 vals a0 a1 a2 a3 scratch)
+      (excessCalleePost sp0 vals status ExcessRet scratchPost)) :
+    cpsTripleWithin (1 + n) ExcessA ExcessRet cr
+      (((.x1 ↦ᵣ oldRa) ** excessEntryRest sp0 vals a0 a1 a2 a3 scratch) ** F)
+      (excessCalleePost sp0 vals status ExcessRet scratchPost ** F) := by
+  have hret : ExcessA + 4 = ExcessRet := by decide
+  have hmem : ∀ a i,
+      CodeReq.singleton ExcessA
+        (.JAL .x1 (jalOff GuestAddrs.header_validate_excess_blob_gas
+          (GuestAddrs.validate_header + 80))) a = some i →
+      (callerCode.union calleeCode) a = some i := by
+    intro a i hi
+    exact CodeReq.union_mono_left a i (excess_jal_mem a i hi)
+  have hcalleeU := cpsTripleWithin_extend_code
+    (CodeReq.mono_union_right hcallerDisj (fun _ _ h => h)) hcallee
+  have hcall := callWithin_spec (cr := callerCode.union calleeCode)
+    ExcessA ExcessK oldRa
+    (jalOff GuestAddrs.header_validate_excess_blob_gas
+      (GuestAddrs.validate_header + 80)) n excess_target hmem
+    (excessEntryRest_pcFree sp0 vals a0 a1 a2 a3 scratch hscratch) hcalleeU
+  have hcallCr := cpsTripleWithin_extend_code hcode hcall
+  have hcallF := cpsTripleWithin_frameR F hF hcallCr
+  rw [hret] at hcallF
+  exact hcallF
+
+
+-- @@ L336-369 verbatim
+set_option maxRecDepth 8000 in
+theorem validate_header_base_fee_call_spec_within
+    {cr calleeCode : CodeReq} {n : Nat}
+    (sp0 : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 status oldRa : Word)
+    (scratch scratchPost F : Assertion)
+    (hscratch : scratch.pcFree) (hF : F.pcFree)
+    (hcallerDisj : callerCode.Disjoint calleeCode)
+    (hcode : ∀ a i, (callerCode.union calleeCode) a = some i → cr a = some i)
+    (hcallee : cpsTripleWithin n BaseK BaseRet calleeCode
+      ((.x1 ↦ᵣ BaseRet) ** baseEntryRest sp0 vals a0 a1 a2 a3 scratch)
+      (baseCalleePost sp0 vals status BaseRet scratchPost)) :
+    cpsTripleWithin (1 + n) BaseA BaseRet cr
+      (((.x1 ↦ᵣ oldRa) ** baseEntryRest sp0 vals a0 a1 a2 a3 scratch) ** F)
+      (baseCalleePost sp0 vals status BaseRet scratchPost ** F) := by
+  have hret : BaseA + 4 = BaseRet := by decide
+  have hmem : ∀ a i,
+      CodeReq.singleton BaseA
+        (.JAL .x1 (jalOff GuestAddrs.header_validate_base_fee
+          (GuestAddrs.validate_header + 132))) a = some i →
+      (callerCode.union calleeCode) a = some i := by
+    intro a i hi
+    exact CodeReq.union_mono_left a i (base_jal_mem a i hi)
+  have hcalleeU := cpsTripleWithin_extend_code
+    (CodeReq.mono_union_right hcallerDisj (fun _ _ h => h)) hcallee
+  have hcall := callWithin_spec (cr := callerCode.union calleeCode)
+    BaseA BaseK oldRa
+    (jalOff GuestAddrs.header_validate_base_fee
+      (GuestAddrs.validate_header + 132)) n base_target hmem
+    (baseEntryRest_pcFree sp0 vals a0 a1 a2 a3 scratch hscratch) hcalleeU
+  have hcallCr := cpsTripleWithin_extend_code hcode hcall
+  have hcallF := cpsTripleWithin_frameR F hF hcallCr
+  rw [hret] at hcallF
+  exact hcallF
+
+
+-- @@ L371-371 verbatim
+end EvmAsm.Codegen.ValidateHeaderGasCorrespondence
+
+
+-- @@ L373-373 verbatim
+namespace EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
+
+
+-- @@ L375-375 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
+
+-- @@ L376-376 verbatim
+open EvmAsm.Codegen
+
+-- @@ L377-377 verbatim
+open EvmAsm.Codegen.ValidateHeaderGasCorrespondence
+
+-- @@ L378-378 verbatim
+open EvmAsm.Codegen.AmsterdamBlobGasPriceU256Sat
+
+
+-- @@ L380-380 verbatim
+abbrev K : Word := ExcessK
+
+-- @@ L381-381 verbatim
+abbrev Ret : Word := ExcessRet
+
+-- @@ L382-382 verbatim
+abbrev PriceK : Word := (GuestAddrs.amsterdam_blob_gas_price_u256 : Word)
+
+
+-- @@ L384-386 verbatim
+def priceFrame : FrameDesc :=
+  [(.x1, 0), (.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40),
+   (.x21, 48), (.x22, 56)]
+
+
+-- @@ L388-390 verbatim
+def priceSavedFrame : FrameDesc :=
+  [(.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40), (.x21, 48),
+   (.x22, 56)]
+
+
+-- @@ L392-393 verbatim
+def priceFrameVals (ret : Word) (vals : Reg → Word) : Reg → Word :=
+  fun r => if r = .x1 then ret else vals r
+
+
+-- @@ L395-397 verbatim
+def priceOutputOwn (outPtr : Word) : Assertion :=
+  memOwn outPtr ** memOwn (outPtr + 8) ** memOwn (outPtr + 16) **
+    memOwn (outPtr + 24)
+
+
+-- @@ L399-404 verbatim
+theorem priceOutputOwn_pcFree (outPtr : Word) :
+    (priceOutputOwn outPtr).pcFree := by
+  unfold priceOutputOwn
+  exact pcFree_sepConj pcFree_memOwn
+    (pcFree_sepConj pcFree_memOwn
+      (pcFree_sepConj pcFree_memOwn pcFree_memOwn))
+
+
+-- @@ L406-414 verbatim
+/-- ABI geometry required by the Amsterdam price body for its 32-byte output.
+    The pointer value in `x11` does not establish these facts, so they travel
+    as an explicit pure premise of the caller contract.  The static linked
+    callers discharge this predicate by `decide`; dynamic callers must provide
+    the corresponding ABI facts at their own call sites. -/
+def priceOutputGeometry (outPtr : Word) : Prop :=
+  outPtr.toNat % 8 = 0 ∧
+    outPtr.toNat + 32 < 2 ^ 64 ∧
+    ∀ i < 32, isValidByteAccess (outPtr + BitVec.ofNat 64 i) = true
+
+
+-- @@ L416-438 verbatim
+/-- The three 48-byte work windows used by the inlined Amsterdam price loop.
+    These are ownership tokens, not value assertions: the setup window writes
+    all eighteen dwords before the first loop test, so callers need to provide
+    writable memory without pre-initialising its contents. -/
+def priceWorkspaceOwn (newSp : Word) : Assertion :=
+  (memOwn (newSp + signExtend12 (64 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (72 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (80 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (88 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (96 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (104 : BitVec 12))) **
+  (memOwn (newSp + signExtend12 (112 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (120 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (128 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (136 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (144 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (152 : BitVec 12))) **
+  (memOwn (newSp + signExtend12 (160 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (168 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (176 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (184 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (192 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (200 : BitVec 12)))
+
+
+-- @@ L440-443 verbatim
+def priceOutputPost (status outPtr : Word)
+    (outBytes : List (BitVec 8)) : Assertion :=
+  if status = (0 : Word) then bytesRegion outPtr outBytes
+  else priceOutputOwn outPtr
+
+
+-- @@ L445-454 verbatim
+def priceEntryRest
+    (sp0 ret : Word) (vals : Reg → Word)
+    (excess outPtr : Word) (scratch : Assertion) : Assertion :=
+  ⌜priceOutputGeometry outPtr⌝ **
+  ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) **
+    frameSlotsOwn priceFrame (sp0 + signExtend12 (-208 : BitVec 12)) **
+    priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
+    priceOutputOwn outPtr **
+    regsAt priceSavedFrame vals ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+    regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch)
+
+
+-- @@ L456-459 verbatim
+/-! The machine-owned part of the price post is independent of the caller's
+    residual assertion.  Keep that residual diagonal at the contract boundary:
+    the body has no instruction that can turn one arbitrary assertion into a
+    different one. -/
+
+-- @@ L460-470 verbatim
+def priceCalleePostCore
+    (sp0 ret : Word) (vals : Reg → Word)
+    (status outPtr : Word) (outBytes : List (BitVec 8))
+    : Assertion :=
+  (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) **
+  frameSlotsSaved priceFrame (sp0 + signExtend12 (-208 : BitVec 12))
+    (priceFrameVals ret vals) ** regsAt priceSavedFrame vals **
+  priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
+  (.x10 ↦ᵣ status) ** (.x11 ↦ᵣ outPtr) **
+  regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] **
+  priceOutputPost status outPtr outBytes
+
+
+-- @@ L472-476 verbatim
+def priceCalleePost
+    (sp0 ret : Word) (vals : Reg → Word)
+    (status outPtr : Word) (outBytes : List (BitVec 8))
+    (scratch : Assertion) : Assertion :=
+  priceCalleePostCore sp0 ret vals status outPtr outBytes ** scratch
+
+
+-- @@ L478-478 verbatim
+def priceCode : CodeReq := CodeReq.ofProg PriceK amsterdamBlobGasPriceU256_prog
+
+
+-- @@ L480-492 verbatim
+/-- The explicit missing-seam hypothesis consumed by the K70 route.  The
+    result is an N-branch because status 0 preserves the exact output bytes,
+    while status 1 leaves the output unspecified and therefore returns only
+    ownership of its four dwords.  Both branches return to the K70 instruction
+    immediately after the call. -/
+def priceContractCore
+    (n : Nat) (sp0 ret : Word) (vals : Reg → Word)
+    (excess outPtr : Word) (outBytes : List (BitVec 8))
+    : Prop :=
+  cpsNBranchWithin n PriceK priceCode
+    (priceEntryRest sp0 ret vals excess outPtr empAssertion)
+    [ (ret, priceCalleePost sp0 ret vals 0 outPtr outBytes empAssertion),
+      (ret, priceCalleePost sp0 ret vals 1 outPtr outBytes empAssertion) ]
+
+
+-- @@ L494-498 verbatim
+/-! The public K70 seam contract is diagonal in the residual assertion: the
+    price routine preserves the caller's `scratch` on every exit.  Its core
+    `empAssertion` instance can be framed to any PC-free caller residual by
+    `priceContract_frame`; there is no independent `scratchPost` transition.
+-/
+
+-- @@ L499-506 verbatim
+def priceContract
+    (n : Nat) (sp0 ret : Word) (vals : Reg → Word)
+    (excess outPtr : Word) (outBytes : List (BitVec 8))
+    (scratch : Assertion) : Prop :=
+  cpsNBranchWithin n PriceK priceCode
+    (priceEntryRest sp0 ret vals excess outPtr scratch)
+    [ (ret, priceCalleePost sp0 ret vals 0 outPtr outBytes scratch),
+      (ret, priceCalleePost sp0 ret vals 1 outPtr outBytes scratch) ]
+
+
+-- @@ L508-523 verbatim
+/-- Frame the diagonal price contract with any caller-owned, PC-free residual.
+    The core contract is the machine-owned `empAssertion` instance; the
+    residual is carried unchanged through every exit. -/
+theorem priceContract_frame
+    {n : Nat} (sp0 ret : Word) (vals : Reg → Word)
+    (excess outPtr : Word) (outBytes : List (BitVec 8))
+    (scratch : Assertion)
+    (hcore : priceContractCore n sp0 ret vals excess outPtr outBytes)
+    (hscratch : scratch.pcFree) :
+    priceContract n sp0 ret vals excess outPtr outBytes scratch := by
+  unfold priceContract
+  unfold priceContractCore at hcore
+  have hfr := cpsNBranchWithin_frameR hscratch hcore
+  simpa only [List.map, priceEntryRest, priceCalleePost,
+    priceCalleePostCore, sepConj_emp_right', sepConj_emp_left',
+    sepConj_assoc'] using hfr
+
+
+-- @@ L525-526 verbatim
+def priceScratch : Assertion :=
+  empAssertion
+
+
+-- @@ L528-536 verbatim
+private theorem zero32_to_memOwn4 (base : Word) :
+    ∀ h, bytesRegion base zero32 h →
+      (memOwn base ** memOwn (base + 8) ** memOwn (base + 16) **
+        memOwn (base + 24)) h := by
+  intro h hp
+  rw [zero32_region_expands base] at hp
+  exact sepConj_mono memIs_implies_memOwn
+    (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)) h hp
+
+
+-- @@ L538-548 verbatim
+private theorem zero48_to_memOwn6 (base : Word) :
+    ∀ h, bytesRegion base zero48 h →
+      (memOwn base ** memOwn (base + 8) ** memOwn (base + 16) **
+        memOwn (base + 24) ** memOwn (base + 32) ** memOwn (base + 40)) h := by
+  intro h hp
+  rw [zero48_region_expands base] at hp
+  exact sepConj_mono memIs_implies_memOwn
+    (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+        (sepConj_mono memIs_implies_memOwn
+          (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)))) h hp
+
+
+-- @@ L550-588 verbatim
+private theorem sample_stacks_to_workspace :
+    ∀ h, (bytesRegion sampleStackA zero48 **
+      bytesRegion sampleStackB zero48 ** bytesRegion sampleStackC zero48) h →
+      priceWorkspaceOwn sampleNewSp h := by
+  intro h hp
+  have hown := sepConj_mono (zero48_to_memOwn6 sampleStackA)
+    (sepConj_mono (zero48_to_memOwn6 sampleStackB)
+      (zero48_to_memOwn6 sampleStackC)) h hp
+  have hown' :
+      ((memOwn sampleStackA ** memOwn (sampleStackA + 8) **
+        memOwn (sampleStackA + 16) ** memOwn (sampleStackA + 24) **
+        memOwn (sampleStackA + 32) ** memOwn (sampleStackA + 40)) **
+        ((memOwn sampleStackB ** memOwn (sampleStackB + 8) **
+          memOwn (sampleStackB + 16) ** memOwn (sampleStackB + 24) **
+          memOwn (sampleStackB + 32) ** memOwn (sampleStackB + 40)) **
+          (memOwn sampleStackC ** memOwn (sampleStackC + 8) **
+            memOwn (sampleStackC + 16) ** memOwn (sampleStackC + 24) **
+            memOwn (sampleStackC + 32) ** memOwn (sampleStackC + 40)))) h := by
+    simpa only [sepConj_assoc'] using hown
+  have h64 : sampleNewSp + signExtend12 (64 : BitVec 12) = sampleStackA := by decide
+  have h72 : sampleNewSp + signExtend12 (72 : BitVec 12) = sampleStackA + 8 := by decide
+  have h80 : sampleNewSp + signExtend12 (80 : BitVec 12) = sampleStackA + 16 := by decide
+  have h88 : sampleNewSp + signExtend12 (88 : BitVec 12) = sampleStackA + 24 := by decide
+  have h96 : sampleNewSp + signExtend12 (96 : BitVec 12) = sampleStackA + 32 := by decide
+  have h104 : sampleNewSp + signExtend12 (104 : BitVec 12) = sampleStackA + 40 := by decide
+  have h112 : sampleNewSp + signExtend12 (112 : BitVec 12) = sampleStackB := by decide
+  have h120 : sampleNewSp + signExtend12 (120 : BitVec 12) = sampleStackB + 8 := by decide
+  have h128 : sampleNewSp + signExtend12 (128 : BitVec 12) = sampleStackB + 16 := by decide
+  have h136 : sampleNewSp + signExtend12 (136 : BitVec 12) = sampleStackB + 24 := by decide
+  have h144 : sampleNewSp + signExtend12 (144 : BitVec 12) = sampleStackB + 32 := by decide
+  have h152 : sampleNewSp + signExtend12 (152 : BitVec 12) = sampleStackB + 40 := by decide
+  have h160 : sampleNewSp + signExtend12 (160 : BitVec 12) = sampleStackC := by decide
+  have h168 : sampleNewSp + signExtend12 (168 : BitVec 12) = sampleStackC + 8 := by decide
+  have h176 : sampleNewSp + signExtend12 (176 : BitVec 12) = sampleStackC + 16 := by decide
+  have h184 : sampleNewSp + signExtend12 (184 : BitVec 12) = sampleStackC + 24 := by decide
+  have h192 : sampleNewSp + signExtend12 (192 : BitVec 12) = sampleStackC + 32 := by decide
+  have h200 : sampleNewSp + signExtend12 (200 : BitVec 12) = sampleStackC + 40 := by decide
+  simpa only [priceWorkspaceOwn, sepConj_assoc', h64, h72, h80, h88, h96, h104,
+    h112, h120, h128, h136, h144, h152, h160, h168, h176, h184, h192, h200] using hown'
+
+
+-- @@ L590-592 verbatim
+private def priceSamplePrefix : Assertion :=
+  (.x1 ↦ᵣ sampleRet) ** (.x2 ↦ᵣ sampleSp0) **
+  frameSlotsOwn priceFrame sampleNewSp
+
+
+-- @@ L594-597 verbatim
+private def priceSampleSuffix : Assertion :=
+  regsAt priceSavedFrame sampleSaved ** (.x10 ↦ᵣ (0 : Word)) **
+  (.x11 ↦ᵣ sampleOutPtr) **
+  regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31]
+
+
+-- @@ L599-611 verbatim
+private theorem entryPre_sample_shape :
+    ∀ h, entryPre h →
+      (priceSamplePrefix **
+        ((bytesRegion sampleStackA zero48 ** bytesRegion sampleStackB zero48 **
+          bytesRegion sampleStackC zero48) **
+          (bytesRegion sampleOutPtr zero32 ** priceSampleSuffix))) h := by
+  intro h hp
+  simp [entryPre, priceSamplePrefix, priceSampleSuffix, priceFrame,
+    priceSavedFrame, sampleFrame, sampleSaved, sampleSp0, sampleNewSp,
+    sampleStackA, sampleStackB, sampleStackC, sampleOutPtr,
+    frameSlotsOwn, regsAt, regOwns, sepConj_emp_right'] at hp ⊢
+  simp only [sepConj_assoc']
+  xperm_hyp hp
+
+
+-- @@ L613-644 verbatim
+private theorem priceEntryRest_sample_from_entryPre :
+    ∀ h, entryPre h →
+      priceEntryRest sampleSp0 sampleRet sampleSaved
+        (0 : Word) sampleOutPtr priceScratch h := by
+  intro h hp
+  have hshape := entryPre_sample_shape h hp
+  have hown :
+      (priceSamplePrefix **
+        (priceWorkspaceOwn sampleNewSp **
+          (bytesRegion sampleOutPtr zero32 ** priceSampleSuffix))) h := by
+    exact sepConj_mono (fun _ hp' => hp')
+      (sepConj_mono sample_stacks_to_workspace
+        (fun _ hp' => hp')) h hshape
+  have hown' :
+      (priceSamplePrefix **
+        (priceWorkspaceOwn sampleNewSp **
+          (priceOutputOwn sampleOutPtr ** priceSampleSuffix))) h := by
+    exact sepConj_mono (fun _ hp' => hp')
+      (sepConj_mono (fun _ hp' => hp')
+        (sepConj_mono (zero32_to_memOwn4 sampleOutPtr)
+          (fun _ hp' => hp'))) h hown
+  have hgeom : priceOutputGeometry sampleOutPtr := by
+    unfold priceOutputGeometry
+    decide
+  have hwithgeom :
+      (⌜priceOutputGeometry sampleOutPtr⌝ **
+        (priceSamplePrefix **
+          (priceWorkspaceOwn sampleNewSp **
+            (priceOutputOwn sampleOutPtr ** priceSampleSuffix)))) h := by
+    exact (sepConj_pure_left h).2 ⟨hgeom, hown'⟩
+  simpa [priceEntryRest, priceScratch, priceSamplePrefix, priceSampleSuffix,
+    sampleNewSp, sepConj_assoc', sepConj_emp_right'] using hwithgeom
+
+
+-- @@ L646-654 verbatim
+/-- The price premise is not an uninhabited symbolic shape: it has the
+    concrete non-overlapping layout used by the existing Amsterdam witness.
+    The witness is intentionally retained here rather than relying on the
+    existence of the separate `entryState_exists` theorem. -/
+theorem priceEntryRest_inhabited :
+    (priceEntryRest sampleSp0 sampleRet sampleSaved
+      (0 : Word) sampleOutPtr priceScratch).holdsFor sampleState := by
+  obtain ⟨h, hcompat, hp⟩ := entryState_exists.2.2
+  exact ⟨h, hcompat, priceEntryRest_sample_from_entryPre h hp⟩
+
+
+-- @@ L656-661 verbatim
+/-- The header-validation caller's static output cell satisfies all three
+    output-buffer ABI facts required by the body. -/
+theorem price_output_geometry_hvebg_threshold :
+    priceOutputGeometry (GuestAddrs.hvebg_threshold : Word) := by
+  unfold priceOutputGeometry
+  decide
+
+
+-- @@ L663-668 verbatim
+/-- The block-verdict gas-gate caller's static output cell satisfies all three
+    output-buffer ABI facts required by the body. -/
+theorem price_output_geometry_bsg_blob_price_be :
+    priceOutputGeometry (GuestAddrs.bsg_blob_price_be : Word) := by
+  unfold priceOutputGeometry
+  decide
+
+
+-- @@ L670-675 verbatim
+/-! ## ABI shell
+
+The wrapper's prologue and epilogue are already an ordinary `abiFrame_spec`
+instance.  Keeping this shell separate makes the remaining route obligation
+visible: the body theorem below is a continuation from `K + 32` to `K + 260`,
+not a renamed copy of the final whole-routine statement. -/
+
+
+-- @@ L677-677 verbatim
+def k70Body : Program := headerValidateExcessBlobGas_prog.drop 8 |>.take 57
+
+
+-- @@ L679-686 verbatim
+def k70BodyPre
+    (spC : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 : Word) (scratch : Assertion) : Assertion :=
+  ((.x2 ↦ᵣ spC) ** regsAt excessFrame vals **
+    frameSlotsSaved excessFrame spC vals **
+    (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) **
+    regOwns [.x5, .x6, .x28, .x29, .x30, .x31] **
+    (.x0 ↦ᵣ (0 : Word)) ** scratch)
+
+
+-- @@ L688-694 verbatim
+def k70BodyPost
+    (spC : Word) (vals bodyVals : Reg → Word)
+    (status : Word) (scratchPost : Assertion) : Assertion :=
+  ((.x2 ↦ᵣ spC) ** regsAt excessFrame bodyVals **
+    frameSlotsSaved excessFrame spC vals ** (.x10 ↦ᵣ status) **
+    regOwns [.x5, .x6, .x11, .x12, .x13, .x28, .x29, .x30, .x31] **
+    (.x0 ↦ᵣ (0 : Word)) ** scratchPost)
+
+
+-- @@ L696-713 verbatim
+private theorem k70_piece_mem
+    {cr : CodeReq} {pre mid suf : Program}
+    (hfull : abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+      excessFrame k70Body = pre ++ mid ++ suf)
+    (hbound : 4 * (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+      excessFrame k70Body).length < 2 ^ 64)
+    (hsub : ∀ a i,
+      CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+        excessFrame k70Body) a = some i → cr a = some i) :
+    ∀ a i, CodeReq.ofProg (K + BitVec.ofNat 64 (4 * pre.length)) mid a = some i →
+      cr a = some i := by
+  intro a i hi
+  apply hsub
+  have hbound' : 4 * (pre ++ mid ++ suf).length < 2 ^ 64 := by
+    rw [← hfull]
+    exact hbound
+  rw [hfull]
+  exact CodeReq.ofProg_mono_subrange K pre mid suf hbound' a i hi
+
+
+-- @@ L715-792 expanded
+theorem k70_prefix_spec {cr : CodeReq} (sp0 ret : Word) (vals : Reg → Word) (a0 a1 a2 a3 : Word)
+    (scratch : Assertion) (hret : vals .x1 = ret) (hscratch : scratch.pcFree)
+    (hsub :
+      ∀ a i,
+        CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) a =
+            some i →
+          cr a = some i) :
+    cpsTripleWithin (1 + excessFrame.length) K (K + 32) cr
+      ((.x1 ↦ᵣ ret) ** excessEntryRest sp0 vals a0 a1 a2 a3 scratch)
+      (k70BodyPre (sp0 + signExtend12 (-64 : BitVec 12)) vals a0 a1 a2 a3 scratch) :=
+  by
+  let newSp := sp0 + signExtend12 (-64 : BitVec 12)
+  let callerPre : Assertion :=
+    (.x10 ↦ᵣ a0) **
+      (.x11 ↦ᵣ a1) **
+        (.x12 ↦ᵣ a2) **
+          (.x13 ↦ᵣ a3) **
+            regOwns [.x5, .x6, .x28, .x29, .x30, .x31] ** (.x0 ↦ᵣ (0 : Word)) ** scratch
+  let pre : Program := [.ADDI .x2 .x2 (-64 : BitVec 12)]
+  let mid : Program := storeProg excessFrame
+  let suf : Program :=
+    k70Body ++ (loadProg excessFrame ++ [.ADDI .x2 .x2 (64 : BitVec 12)]) ++ [.JALR .x0 .x1 0]
+  have hfull :
+    abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body = pre ++ mid ++ suf := by
+    rfl
+  have hbound :
+    4 * (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body).length < 2 ^ 64 := by
+    decide
+  have hlookA :
+    CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) K =
+      some (.ADDI .x2 .x2 (-64 : BitVec 12)) :=
+    by
+    rw [show
+        abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body =
+          .ADDI .x2 .x2 (-64 : BitVec 12) ::
+            (storeProg excessFrame ++ k70Body ++ frameEpilogue (64 : BitVec 12) excessFrame ++
+              [.JALR .x0 .x1 0])
+        from by simp [abiFrameProg, framePrologue, frameEpilogue, List.append_assoc]]
+    rw [CodeReq.ofProg_cons]
+    simp [CodeReq.union, CodeReq.singleton]
+  have mAlloc := CodeReq.singleton_mono (hsub K _ hlookA)
+  have mStore := k70_piece_mem hfull hbound hsub
+  have hNewSp : sp0 + signExtend12 (-64 : BitVec 12) = newSp := rfl
+  have hpcRegs := pcFree_regsAt excessFrame vals
+  have hpcOwn := pcFree_frameSlotsOwn excessFrame newSp
+  have halloc := addi_spec_gen_same_within .x2 sp0 (-64 : BitVec 12) K (by decide)
+  rw [hNewSp] at halloc
+  have hallocF :=
+    cpsTripleWithin_frameR (regsAt excessFrame vals ** frameSlotsOwn excessFrame newSp ** callerPre)
+      (pcFree_sepConj hpcRegs
+        (pcFree_sepConj hpcOwn
+          (by
+            dsimp [callerPre]
+            repeat
+              first
+              | apply pcFree_sepConj
+              | exact pcFree_regIs
+              | exact pcFree_regOwn
+              | exact pcFree_memIs
+              | exact pcFree_memOwn
+              | exact pcFree_emp
+              | exact pcFree_pure
+              | exact pcFree_instrAt
+              | exact bytesRegion_pcFree _ _
+              | exact pcFree_stackFree _ _
+              | exact pcFree_dwordsIs _ _
+              | exact pcFree_regsAt _ _
+              | exact pcFree_frameSlotsOwn _ _
+              | exact pcFree_frameSlotsSaved _ _ _
+              | exact pcFree_regFileIs _
+            exact hscratch)))
+      halloc
+  have hallocC := cpsTripleWithin_extend_code mAlloc hallocF
+  have hstore := storeSeq_spec excessFrame newSp vals (K + 4) (by decide)
+  rw [show (K + 4 : Word) + BitVec.ofNat 64 (4 * excessFrame.length) = K + 32 from by
+      decide] at hstore
+  have hstoreF :=
+    cpsTripleWithin_frameR callerPre
+      (by dsimp [callerPre];
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _;
+        exact hscratch)
+      hstore
+  have hstoreC := cpsTripleWithin_extend_code mStore hstoreF
+  have hprefix := cpsTripleWithin_seq_perm_same_cr (by xsimp) hallocC hstoreC
+  have hprefix' :=
+    cpsTripleWithin_weaken (P :=
+      ((.x2 ↦ᵣ sp0) ** regsAt excessFrame vals ** frameSlotsOwn excessFrame newSp ** callerPre))
+      (P' := ((.x1 ↦ᵣ ret) ** excessEntryRest sp0 vals a0 a1 a2 a3 scratch)) (Q :=
+      (((.x2 ↦ᵣ newSp) ** regsAt excessFrame vals ** frameSlotsSaved excessFrame newSp vals) **
+        callerPre))
+      (Q' := k70BodyPre newSp vals a0 a1 a2 a3 scratch)
+      (fun _ hp =>
+        by
+        simp [excessEntryRest, excessFrame, excessSavedFrame, frameSlotsOwn, regsAt, regOwns,
+          callerPre, newSp, hret, sepConj_emp_right'] at hp ⊢
+        xperm_hyp hp)
+      (fun _ hq => by simpa [k70BodyPre, callerPre, sepConj_assoc'] using hq) hprefix
+  simpa [k70BodyPre, callerPre, newSp, sepConj_assoc'] using hprefix'
+
+
+-- @@ L794-823 verbatim
+theorem k70_body_mem
+    {cr : CodeReq}
+    (hsub : ∀ a i,
+      CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+        excessFrame k70Body) a = some i → cr a = some i) :
+    ∀ a i, CodeReq.ofProg (K + 32) k70Body a = some i → cr a = some i := by
+  intro a i hi
+  let pre : Program :=
+    [.ADDI .x2 .x2 (-64 : BitVec 12)] ++ storeProg excessFrame
+  let suf : Program :=
+    loadProg excessFrame ++ [.ADDI .x2 .x2 (64 : BitVec 12), .JALR .x0 .x1 0]
+  have hfull : abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+      excessFrame k70Body = pre ++ k70Body ++ suf := by
+    rfl
+  have hpre : pre.length = 8 := by
+    simp [pre, excessFrame]
+  have hmid : CodeReq.ofProg (K + BitVec.ofNat 64 (4 * pre.length)) k70Body a = some i := by
+    simpa [hpre] using hi
+  have hbound :
+      4 * (pre ++ k70Body ++ suf).length < 2 ^ 64 := by
+    simp [pre, suf, storeProg_length, loadProg_length]
+    decide
+  have hmem := CodeReq.ofProg_mono_subrange K
+    pre k70Body suf
+    hbound a i hmid
+  have hmem' : CodeReq.ofProg K
+      (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) a = some i := by
+    rw [hfull]
+    simpa [List.append_assoc] using hmem
+  exact hsub a i hmem'
+
+
+-- @@ L825-830 verbatim
+def k70StatusTailRest
+    (spC : Word) (vals : Reg → Word) (scratch : Assertion) : Assertion :=
+  (.x2 ↦ᵣ spC) ** regsAt excessFrame vals **
+  frameSlotsSaved excessFrame spC vals **
+  regOwns [.x5, .x6, .x11, .x12, .x13, .x28, .x29, .x30, .x31] **
+  (.x0 ↦ᵣ (0 : Word)) ** scratch
+
+
+-- @@ L832-887 expanded
+theorem k70_status1_tail_spec {cr : CodeReq} (spC : Word) (vals : Reg → Word) (old10 : Word)
+    (scratch : Assertion) (hscratch : scratch.pcFree)
+    (hsub :
+      ∀ a i,
+        CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) a =
+            some i →
+          cr a = some i) :
+    cpsTripleWithin 2 (K + 248) (K + 260) cr (k70StatusTailRest spC vals scratch ** (.x10 ↦ᵣ old10))
+      (k70StatusTailRest spC vals scratch ** (.x10 ↦ᵣ (1 : Word))) :=
+  by
+  let rest := k70StatusTailRest spC vals scratch
+  have hrest : rest.pcFree := by
+    dsimp [rest, k70StatusTailRest]
+    repeat
+      first
+      | apply pcFree_sepConj
+      | exact pcFree_regIs
+      | exact pcFree_regOwn
+      | exact pcFree_memIs
+      | exact pcFree_memOwn
+      | exact pcFree_emp
+      | exact pcFree_pure
+      | exact pcFree_instrAt
+      | exact bytesRegion_pcFree _ _
+      | exact pcFree_stackFree _ _
+      | exact pcFree_dwordsIs _ _
+      | exact pcFree_regsAt _ _
+      | exact pcFree_frameSlotsOwn _ _
+      | exact pcFree_frameSlotsSaved _ _ _
+      | exact pcFree_regFileIs _
+    exact hscratch
+  have hliAny :
+    ∀ v,
+      cpsTripleWithin 1 (K + 248) (K + 252) cr (rest ** (.x10 ↦ᵣ v))
+        (rest ** (.x10 ↦ᵣ (1 : Word))) :=
+    by
+    intro v
+    have hli := li_spec_gen_within .x10 v (1 : Word) (K + 248) (by decide)
+    have hliMem :=
+      CodeReq.ofProg_mem_at K (K + 248)
+        (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) 62
+        (.LI .x10 (1 : Word)) (by decide) (by decide) rfl (by decide)
+    have hliC := cpsTripleWithin_extend_code (fun a i hi => hsub a i (hliMem a i hi)) hli
+    have hliF := cpsTripleWithin_frameR rest hrest hliC
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hliF
+  have hliOwn :=
+    cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x10) (P := rest) (Q :=
+      rest ** (.x10 ↦ᵣ (1 : Word))) hliAny
+  have hj := jal_x0_spec_gen_within (8 : BitVec 21) (K + 252)
+  rw [show (K + 252) + signExtend21 (8 : BitVec 21) = K + 260 from by decide] at hj
+  have hjMem :=
+    CodeReq.ofProg_mem_at K (K + 252)
+      (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) 63
+      (.JAL .x0 (8 : BitVec 21)) (by decide) (by decide) rfl (by decide)
+  have hjC := cpsTripleWithin_extend_code (fun a i hi => hsub a i (hjMem a i hi)) hj
+  have hjF :=
+    cpsTripleWithin_frameR ((.x10 ↦ᵣ (1 : Word)) ** rest)
+      (by
+        dsimp [rest, k70StatusTailRest]
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _
+        exact hscratch)
+      hjC
+  have hjump :
+    cpsTripleWithin 1 (K + 252) (K + 260) cr (rest ** (.x10 ↦ᵣ (1 : Word)))
+      (rest ** (.x10 ↦ᵣ (1 : Word))) :=
+    by
+    simpa [rest, sepConj_assoc', sepConj_comm', sepConj_left_comm', sepConj_emp_left',
+      sepConj_emp_right'] using hjF
+  have hseq := cpsTripleWithin_seq_same_cr hliOwn hjump
+  have hseqOld :=
+    cpsTripleWithin_weaken (P := rest ** regOwn .x10) (P' := rest ** (.x10 ↦ᵣ old10)) (Q :=
+      rest ** (.x10 ↦ᵣ (1 : Word))) (Q' := rest ** (.x10 ↦ᵣ (1 : Word)))
+      (fun _ hp => sepConj_mono_right (regIs_to_regOwn .x10 old10) _ hp) (fun _ hq => hq) hseq
+  simpa [rest, k70StatusTailRest, sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hseqOld
+
+
+-- @@ L889-998 expanded
+theorem k70_tail_spec {cr : CodeReq} (sp0 ret : Word) (vals bodyVals : Reg → Word) (status : Word)
+    (scratchPost : Assertion) (hret : vals .x1 = ret) (hretAlign : (ret &&& ~~~(1 : Word)) = ret)
+    (hscratchPost : scratchPost.pcFree)
+    (hsub :
+      ∀ a i,
+        CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) a =
+            some i →
+          cr a = some i) :
+    cpsTripleWithin (excessFrame.length + 1 + 1) (K + 260) ret cr
+      (k70BodyPost (sp0 + signExtend12 (-64 : BitVec 12)) vals bodyVals status scratchPost)
+      (excessCalleePost sp0 vals status ret scratchPost) :=
+  by
+  let newSp := sp0 + signExtend12 (-64 : BitVec 12)
+  have hsp : sp0 + signExtend12 (-64 : BitVec 12) = newSp := rfl
+  have hspNorm : sp0 + signExtend12 (4032 : BitVec 12) = newSp := by rfl
+  let callerPost : Assertion :=
+    (.x10 ↦ᵣ status) **
+      regOwns [.x5, .x6, .x11, .x12, .x13, .x28, .x29, .x30, .x31] **
+        (.x0 ↦ᵣ (0 : Word)) ** scratchPost
+  let preLoad : Program := [.ADDI .x2 .x2 (-64 : BitVec 12)] ++ storeProg excessFrame ++ k70Body
+  let preDealloc : Program := preLoad ++ loadProg excessFrame
+  let preRet : Program := preDealloc ++ [.ADDI .x2 .x2 (64 : BitVec 12)]
+  let sufLoad : Program := [.ADDI .x2 .x2 (64 : BitVec 12), .JALR .x0 .x1 0]
+  let sufDealloc : Program := [.JALR .x0 .x1 0]
+  let sufRet : Program := []
+  have hfullLoad :
+    abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body =
+      preLoad ++ loadProg excessFrame ++ sufLoad :=
+    by rfl
+  have hfullDealloc :
+    abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body =
+      preDealloc ++ [.ADDI .x2 .x2 (64 : BitVec 12)] ++ sufDealloc :=
+    by rfl
+  have hfullRet :
+    abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body =
+      preRet ++ [.JALR .x0 .x1 0] ++ sufRet :=
+    by rfl
+  have hbound :
+    4 * (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body).length < 2 ^ 64 := by
+    decide
+  have mLoad := k70_piece_mem hfullLoad hbound hsub
+  have mDealloc := k70_piece_mem hfullDealloc hbound hsub
+  have mRet := k70_piece_mem hfullRet hbound hsub
+  have hpcFrame := pcFree_frameSlotsSaved excessFrame newSp vals
+  have hload := loadSeq_spec excessFrame newSp vals bodyVals (K + 260) (by decide) (by decide)
+  rw [show (K + 260 : Word) + BitVec.ofNat 64 (4 * excessFrame.length) = K + 288 from by
+      decide] at hload
+  have hloadF :=
+    cpsTripleWithin_frameR callerPost
+      (by dsimp [callerPost];
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _;
+        exact hscratchPost)
+      hload
+  have hloadC := cpsTripleWithin_extend_code mLoad hloadF
+  have hdealloc := addi_spec_gen_same_within .x2 newSp (64 : BitVec 12) (K + 288) (by decide)
+  have hrestore : newSp + signExtend12 (64 : BitVec 12) = sp0 :=
+    by
+    dsimp [newSp]
+    rw [BitVec.add_assoc]
+    change sp0 + (signExtend12 (-64 : BitVec 12) + signExtend12 (64 : BitVec 12)) = sp0
+    rw [show signExtend12 (-64 : BitVec 12) + signExtend12 (64 : BitVec 12) = (0 : Word) from by
+        decide]
+    exact BitVec.add_zero sp0
+  rw [hrestore] at hdealloc
+  have hdeallocF :=
+    cpsTripleWithin_frameR
+      (regsAt excessFrame vals ** frameSlotsSaved excessFrame newSp vals ** callerPost)
+      (pcFree_sepConj (pcFree_regsAt excessFrame vals)
+        (pcFree_sepConj hpcFrame
+          (by dsimp [callerPost];
+            repeat
+              first
+              | apply pcFree_sepConj
+              | exact pcFree_regIs
+              | exact pcFree_regOwn
+              | exact pcFree_memIs
+              | exact pcFree_memOwn
+              | exact pcFree_emp
+              | exact pcFree_pure
+              | exact pcFree_instrAt
+              | exact bytesRegion_pcFree _ _
+              | exact pcFree_stackFree _ _
+              | exact pcFree_dwordsIs _ _
+              | exact pcFree_regsAt _ _
+              | exact pcFree_frameSlotsOwn _ _
+              | exact pcFree_frameSlotsSaved _ _ _
+              | exact pcFree_regFileIs _;
+            exact hscratchPost)))
+      hdealloc
+  have hdeallocC := cpsTripleWithin_extend_code mDealloc hdeallocF
+  have hReg : regsAt excessFrame vals = ((.x1 ↦ᵣ ret) ** regsAt excessSavedFrame vals) :=
+    by
+    rw [show excessFrame = (.x1, (0 : BitVec 12)) :: excessSavedFrame from rfl]
+    simp only [regsAt_cons, hret]
+  have hslots :
+    frameSlotsSaved excessFrame newSp vals =
+      frameSlotsSaved excessFrame newSp (excessFrameVals ret vals) :=
+    by simp [excessFrame, excessFrameVals, hret]
+  have hret0 :=
+    Fn.jalr_ret_spec (K + 292) ret hretAlign (P :=
+      (.x2 ↦ᵣ sp0) **
+        regsAt excessSavedFrame vals ** frameSlotsSaved excessFrame newSp vals ** callerPost)
+      (pcFree_sepConj pcFree_regIs
+        (pcFree_sepConj (pcFree_regsAt excessSavedFrame vals)
+          (pcFree_sepConj hpcFrame
+            (by dsimp [callerPost];
+              repeat
+                first
+                | apply pcFree_sepConj
+                | exact pcFree_regIs
+                | exact pcFree_regOwn
+                | exact pcFree_memIs
+                | exact pcFree_memOwn
+                | exact pcFree_emp
+                | exact pcFree_pure
+                | exact pcFree_instrAt
+                | exact bytesRegion_pcFree _ _
+                | exact pcFree_stackFree _ _
+                | exact pcFree_dwordsIs _ _
+                | exact pcFree_regsAt _ _
+                | exact pcFree_frameSlotsOwn _ _
+                | exact pcFree_frameSlotsSaved _ _ _
+                | exact pcFree_regFileIs _;
+              exact hscratchPost))))
+  have hretC := cpsTripleWithin_extend_code mRet hret0
+  have htail := cpsTripleWithin_seq_perm_same_cr (by xsimp) hloadC hdeallocC
+  rw [hReg] at htail
+  have htail' := cpsTripleWithin_seq_perm_same_cr (by xsimp) htail hretC
+  refine
+    cpsTripleWithin_weaken (P :=
+      (((.x2 ↦ᵣ newSp) ** regsAt excessFrame bodyVals ** frameSlotsSaved excessFrame newSp vals) **
+        callerPost))
+      (P' := k70BodyPost (sp0 + signExtend12 (-64 : BitVec 12)) vals bodyVals status scratchPost)
+      (Q :=
+      (.x1 ↦ᵣ ret) **
+        (.x2 ↦ᵣ sp0) **
+          regsAt excessSavedFrame vals ** frameSlotsSaved excessFrame newSp vals ** callerPost)
+      (Q' := excessCalleePost sp0 vals status ret scratchPost)
+      (fun _ hp => by
+        rw [← hsp]
+        simpa [k70BodyPost, callerPost, sepConj_assoc'] using hp)
+      (fun _ hq => by
+        dsimp [excessCalleePost, excessFrameVals, callerPost]
+        change
+          ((.x1 ↦ᵣ ret) **
+              (.x2 ↦ᵣ sp0) **
+                frameSlotsSaved excessFrame newSp (excessFrameVals ret vals) **
+                  regsAt excessSavedFrame vals **
+                    (.x10 ↦ᵣ status) **
+                      regOwns [.x5, .x6, .x11, .x12, .x13, .x28, .x29, .x30, .x31] **
+                        (.x0 ↦ᵣ (0 : Word)) ** scratchPost)
+            _
+        rw [← hslots]
+        xperm_hyp hq)
+      htail'
+
+
+-- @@ L1000-1037 verbatim
+/-- Compose K70's ABI prefix with an arbitrary body N-branch and a uniform
+continuation from every body exit.  The body premise is deliberately an
+unrestricted exit list: no branch guard or status assumption is used here.
+The Amsterdam price contract remains a separate premise at the route that
+constructs `hbody` and the exit continuations (item 7 in the seam inventory).
+-/
+theorem k70_abi_from_nbranch
+    {cr : CodeReq} {bodySteps tailSteps : Nat}
+    {exits : List (Word × Assertion)}
+    (sp0 ret : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 : Word) (scratch F finalPost : Assertion)
+    (hret : vals .x1 = ret)
+    (hscratch : scratch.pcFree)
+    (hF : F.pcFree)
+    (hsub : ∀ a i,
+      CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+        excessFrame k70Body) a = some i → cr a = some i)
+    (hbody : cpsNBranchWithin bodySteps (K + 32) cr
+      (k70BodyPre (sp0 + signExtend12 (-64 : BitVec 12)) vals
+        a0 a1 a2 a3 scratch) exits)
+    (htail : ∀ ex, ex ∈ exits →
+      cpsTripleWithin tailSteps ex.1 ret cr ex.2 finalPost) :
+    cpsTripleWithin (1 + excessFrame.length + bodySteps + tailSteps)
+      K ret cr
+      (((.x1 ↦ᵣ ret) ** excessEntryRest sp0 vals a0 a1 a2 a3 scratch) ** F)
+      (finalPost ** F) := by
+  have hprefix := k70_prefix_spec
+    (cr := cr) sp0 ret vals a0 a1 a2 a3 scratch hret hscratch hsub
+  have hprefixF := cpsTripleWithin_frameR F hF hprefix
+  have hbodyF := cpsNBranchWithin_frameR hF hbody
+  have hseq := cpsTripleWithin_seq_cpsNBranchWithin_same_cr hprefixF hbodyF
+  have htailF : ∀ ex,
+      ex ∈ exits.map (fun ex => (ex.1, ex.2 ** F)) →
+      cpsTripleWithin tailSteps ex.1 ret cr ex.2 (finalPost ** F) := by
+    intro ex hex
+    rcases List.mem_map.mp hex with ⟨ex0, hex0, rfl⟩
+    exact cpsTripleWithin_frameR F hF (htail ex0 hex0)
+  exact cpsNBranchWithin_merge hseq htailF
+
+
+-- @@ L1039-1110 expanded
+/-- K70's ABI composition around the body route.
+
+This theorem discharges only the frame/prologue/epilogue part and consumes
+`hbody` as the remaining body obligation.  In particular, the Amsterdam
+`priceContract` above is still undischarged item 7 of the K70 seam inventory;
+it is deliberately not hidden inside this theorem or presented as an existing
+machine triple. -/
+theorem k70_abi_from_body {cr : CodeReq} {bodySteps : Nat} (sp0 ret : Word)
+    (vals bodyVals : Reg → Word) (a0 a1 a2 a3 status : Word) (scratch scratchPost F : Assertion)
+    (hret : vals .x1 = ret) (hretAlign : (ret &&& ~~~(1 : Word)) = ret) (hscratch : scratch.pcFree)
+    (hscratchPost : scratchPost.pcFree) (hF : F.pcFree)
+    (hsub :
+      ∀ a i,
+        CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) a =
+            some i →
+          cr a = some i)
+    (hbody :
+      cpsTripleWithin bodySteps (K + 32) (K + 260) cr
+        (k70BodyPre (sp0 + signExtend12 (-64 : BitVec 12)) vals a0 a1 a2 a3 scratch)
+        (k70BodyPost (sp0 + signExtend12 (-64 : BitVec 12)) vals bodyVals status scratchPost)) :
+    cpsTripleWithin (1 + excessFrame.length + bodySteps + excessFrame.length + 1 + 1) K ret cr
+      (((.x1 ↦ᵣ ret) ** excessEntryRest sp0 vals a0 a1 a2 a3 scratch) ** F)
+      (excessCalleePost sp0 vals status ret scratchPost ** F) :=
+  by
+  have hframe : excessFrame = (.x1, (0 : BitVec 12)) :: excessSavedFrame := by rfl
+  have habi :=
+    abiFrame_spec (base := K) (sp0 := sp0) (ret := ret) (negImm := (-64 : BitVec 12)) (posImm :=
+      (64 : BitVec 12)) (frame := excessFrame) (raOfs := (0 : BitVec 12)) (sregs :=
+      excessSavedFrame) (vals := vals) (vals' := bodyVals) (body := k70Body) (bodySteps :=
+      bodySteps) (callerPre :=
+      (.x10 ↦ᵣ a0) **
+        (.x11 ↦ᵣ a1) **
+          (.x12 ↦ᵣ a2) **
+            (.x13 ↦ᵣ a3) **
+              regOwns [.x5, .x6, .x28, .x29, .x30, .x31] ** (.x0 ↦ᵣ (0 : Word)) ** scratch)
+      (callerPost :=
+      (.x10 ↦ᵣ status) **
+        regOwns [.x5, .x6, .x11, .x12, .x13, .x28, .x29, .x30, .x31] **
+          (.x0 ↦ᵣ (0 : Word)) ** scratchPost)
+      (cr := cr) hframe (by decide) (by decide) (by decide) hret hretAlign
+      (by
+        rw [BitVec.add_assoc,
+          show signExtend12 (-64 : BitVec 12) + signExtend12 (64 : BitVec 12) = (0 : Word) from by
+            decide]
+        exact BitVec.add_zero sp0)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _;
+        exact hscratch)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _;
+        exact hscratchPost)
+      hsub
+      (by
+        have hentry : K + BitVec.ofNat 64 (4 * (1 + excessFrame.length)) = K + 32 := by decide
+        have hexit :
+          K + BitVec.ofNat 64 (4 * (1 + excessFrame.length + k70Body.length)) = K + 260 := by decide
+        rw [hentry, hexit]
+        simpa [k70BodyPre, k70BodyPost] using hbody)
+  have habiF := cpsTripleWithin_frameR F hF habi
+  refine cpsTripleWithin_weaken (P := _) (Q := _) ?_ ?_ habiF
+  · intro h hp
+    rw [← hret] at hp
+    simp [excessEntryRest, excessFrame, excessSavedFrame, frameSlotsOwn, regsAt, regOwns,
+      sepConj_emp_right'] at hp ⊢
+    xperm_hyp hp
+  · intro h hq
+    simp [excessCalleePost, excessFrame, excessSavedFrame, excessFrameVals, frameSlotsSaved, regsAt,
+      regOwns, sepConj_emp_right'] at hq ⊢
+    rw [← hret]
+    xperm_hyp hq
+
+
+-- @@ L1112-1112 verbatim
+#print axioms priceContract_frame
+
+
+-- @@ L1114-1114 verbatim
+end EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec

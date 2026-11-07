@@ -1,0 +1,1776 @@
+/-
+  EvmAsm.Codegen.Programs.TxSigningHashSpecBodyEarly
+
+  Body phases for K145 `tx_signing_hash`: setup through post-nth BNE.
+-/
+
+import EvmAsm.Codegen.Programs.TxSigningHashSpecCore
+
+
+-- @@ L9-9 verbatim
+namespace EvmAsm.Codegen.TxSigningHashSpec
+
+
+-- @@ L11-11 verbatim
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
+
+-- @@ L12-12 verbatim
+open EvmAsm.Codegen
+
+-- @@ L13-13 verbatim
+open EvmAsm.Codegen.TxSigningHashResidual
+
+-- @@ L14-14 verbatim
+open EvmAsm.Codegen.Proofs
+
+-- @@ L15-15 verbatim
+open EvmAsm.Stateless.SpecRef
+
+-- @@ L16-16 verbatim
+open EvmAsm.Rv64.Tactics
+
+
+-- @@ L18-21 verbatim
+/-! ## Body entry and setup moves (body indices 0–4)
+
+    Body entry is `H + 4·(1+|frame|) = H+36`. The first five instructions
+    save `a0..a4` into `s0..s4` (`x8,x9,x18,x19,x20`). -/
+
+
+-- @@ L23-23 verbatim
+abbrev tshBodyEntry : Word := H + BitVec.ofNat 64 (4 * (1 + tshFrame.length))
+
+-- @@ L24-25 verbatim
+abbrev tshBodyExit : Word :=
+  H + BitVec.ofNat 64 (4 * (1 + tshFrame.length + tshBody.length))
+
+
+-- @@ L27-28 verbatim
+theorem tshBodyEntry_eq : tshBodyEntry = H + 36 := by
+  unfold tshBodyEntry; rw [tshFrame_length]; decide
+
+
+-- @@ L30-31 verbatim
+theorem tshBodyExit_eq : tshBodyExit = H + 332 := by
+  unfold tshBodyExit; rw [tshFrame_length]; decide
+
+
+-- @@ L33-153 expanded
+/-- Five ABI moves: `s0:=a0 … s4:=a4`. `H+36 → H+56`. -/
+theorem tshSetupMoves_spec (a0 a1 a2 a3 a4 v8 v9 v18 v19 v20 : Word) :
+    cpsTripleWithin 5 (H + 36) (H + 56) fullCode
+      ((.x10 ↦ᵣ a0) **
+        (.x11 ↦ᵣ a1) **
+          (.x12 ↦ᵣ a2) **
+            (.x13 ↦ᵣ a3) **
+              (.x14 ↦ᵣ a4) **
+                (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20))
+      ((.x10 ↦ᵣ a0) **
+        (.x11 ↦ᵣ a1) **
+          (.x12 ↦ᵣ a2) **
+            (.x13 ↦ᵣ a3) **
+              (.x14 ↦ᵣ a4) **
+                (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ a1) ** (.x18 ↦ᵣ a2) ** (.x19 ↦ᵣ a3) ** (.x20 ↦ᵣ a4)) :=
+  by
+  -- MV x8, x10  (prog idx 9)
+  
+  have h0 := mv_spec_gen_within .x8 .x10 a0 v8 (H + 36) (by decide)
+  rw [show (H + 36 : Word) + 4 = H + 40 from by decide] at h0
+  have l0 :=
+    cpsTripleWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 36) 9 (.MV .x8 .x10)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl)
+      h0
+  have c0 :
+    cpsTripleWithin 1 (H + 36) (H + 40) fullCode
+      ((.x10 ↦ᵣ a0) **
+        (.x11 ↦ᵣ a1) **
+          (.x12 ↦ᵣ a2) **
+            (.x13 ↦ᵣ a3) **
+              (.x14 ↦ᵣ a4) **
+                (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20))
+      ((.x10 ↦ᵣ a0) **
+        (.x11 ↦ᵣ a1) **
+          (.x12 ↦ᵣ a2) **
+            (.x13 ↦ᵣ a3) **
+              (.x14 ↦ᵣ a4) **
+                (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20)) :=
+    by
+    have hF :=
+      cpsTripleWithin_frameR
+        ((.x11 ↦ᵣ a1) **
+          (.x12 ↦ᵣ a2) **
+            (.x13 ↦ᵣ a3) **
+              (.x14 ↦ᵣ a4) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20))
+        (by
+          repeat
+            first
+            | apply pcFree_sepConj
+            | exact pcFree_regIs
+            | exact pcFree_regOwn
+            | exact pcFree_memIs
+            | exact pcFree_memOwn
+            | exact pcFree_emp
+            | exact pcFree_pure
+            | exact pcFree_instrAt
+            | exact bytesRegion_pcFree _ _
+            | exact pcFree_stackFree _ _
+            | exact pcFree_dwordsIs _ _
+            | exact pcFree_regsAt _ _
+            | exact pcFree_frameSlotsOwn _ _
+            | exact pcFree_frameSlotsSaved _ _ _
+            | exact pcFree_regFileIs _)
+        l0
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hF
+  have h1 := mv_spec_gen_within .x9 .x11 a1 v9 (H + 40) (by decide)
+  rw [show (H + 40 : Word) + 4 = H + 44 from by decide] at h1
+  have l1 :=
+    cpsTripleWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 40) 10 (.MV .x9 .x11)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl)
+      h1
+  have c1 :
+    cpsTripleWithin 1 (H + 40) (H + 44) fullCode
+      ((.x10 ↦ᵣ a0) **
+        (.x11 ↦ᵣ a1) **
+          (.x12 ↦ᵣ a2) **
+            (.x13 ↦ᵣ a3) **
+              (.x14 ↦ᵣ a4) **
+                (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20))
+      ((.x10 ↦ᵣ a0) **
+        (.x11 ↦ᵣ a1) **
+          (.x12 ↦ᵣ a2) **
+            (.x13 ↦ᵣ a3) **
+              (.x14 ↦ᵣ a4) **
+                (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ a1) ** (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20)) :=
+    by
+    have hF :=
+      cpsTripleWithin_frameR
+        ((.x10 ↦ᵣ a0) **
+          (.x12 ↦ᵣ a2) **
+            (.x13 ↦ᵣ a3) **
+              (.x14 ↦ᵣ a4) ** (.x8 ↦ᵣ a0) ** (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20))
+        (by
+          repeat
+            first
+            | apply pcFree_sepConj
+            | exact pcFree_regIs
+            | exact pcFree_regOwn
+            | exact pcFree_memIs
+            | exact pcFree_memOwn
+            | exact pcFree_emp
+            | exact pcFree_pure
+            | exact pcFree_instrAt
+            | exact bytesRegion_pcFree _ _
+            | exact pcFree_stackFree _ _
+            | exact pcFree_dwordsIs _ _
+            | exact pcFree_regsAt _ _
+            | exact pcFree_frameSlotsOwn _ _
+            | exact pcFree_frameSlotsSaved _ _ _
+            | exact pcFree_regFileIs _)
+        l1
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hF
+  have c01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c0 c1
+  have h2 := mv_spec_gen_within .x18 .x12 a2 v18 (H + 44) (by decide)
+  rw [show (H + 44 : Word) + 4 = H + 48 from by decide] at h2
+  have l2 :=
+    cpsTripleWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 44) 11 (.MV .x18 .x12)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl)
+      h2
+  have c2 :
+    cpsTripleWithin 1 (H + 44) (H + 48) fullCode
+      ((.x10 ↦ᵣ a0) **
+        (.x11 ↦ᵣ a1) **
+          (.x12 ↦ᵣ a2) **
+            (.x13 ↦ᵣ a3) **
+              (.x14 ↦ᵣ a4) **
+                (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ a1) ** (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20))
+      ((.x10 ↦ᵣ a0) **
+        (.x11 ↦ᵣ a1) **
+          (.x12 ↦ᵣ a2) **
+            (.x13 ↦ᵣ a3) **
+              (.x14 ↦ᵣ a4) **
+                (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ a1) ** (.x18 ↦ᵣ a2) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20)) :=
+    by
+    have hF :=
+      cpsTripleWithin_frameR
+        ((.x10 ↦ᵣ a0) **
+          (.x11 ↦ᵣ a1) **
+            (.x13 ↦ᵣ a3) **
+              (.x14 ↦ᵣ a4) ** (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ a1) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20))
+        (by
+          repeat
+            first
+            | apply pcFree_sepConj
+            | exact pcFree_regIs
+            | exact pcFree_regOwn
+            | exact pcFree_memIs
+            | exact pcFree_memOwn
+            | exact pcFree_emp
+            | exact pcFree_pure
+            | exact pcFree_instrAt
+            | exact bytesRegion_pcFree _ _
+            | exact pcFree_stackFree _ _
+            | exact pcFree_dwordsIs _ _
+            | exact pcFree_regsAt _ _
+            | exact pcFree_frameSlotsOwn _ _
+            | exact pcFree_frameSlotsSaved _ _ _
+            | exact pcFree_regFileIs _)
+        l2
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hF
+  have c012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c01 c2
+  have h3 := mv_spec_gen_within .x19 .x13 a3 v19 (H + 48) (by decide)
+  rw [show (H + 48 : Word) + 4 = H + 52 from by decide] at h3
+  have l3 :=
+    cpsTripleWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 48) 12 (.MV .x19 .x13)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl)
+      h3
+  have c3 :
+    cpsTripleWithin 1 (H + 48) (H + 52) fullCode
+      ((.x10 ↦ᵣ a0) **
+        (.x11 ↦ᵣ a1) **
+          (.x12 ↦ᵣ a2) **
+            (.x13 ↦ᵣ a3) **
+              (.x14 ↦ᵣ a4) **
+                (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ a1) ** (.x18 ↦ᵣ a2) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20))
+      ((.x10 ↦ᵣ a0) **
+        (.x11 ↦ᵣ a1) **
+          (.x12 ↦ᵣ a2) **
+            (.x13 ↦ᵣ a3) **
+              (.x14 ↦ᵣ a4) **
+                (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ a1) ** (.x18 ↦ᵣ a2) ** (.x19 ↦ᵣ a3) ** (.x20 ↦ᵣ v20)) :=
+    by
+    have hF :=
+      cpsTripleWithin_frameR
+        ((.x10 ↦ᵣ a0) **
+          (.x11 ↦ᵣ a1) **
+            (.x12 ↦ᵣ a2) **
+              (.x14 ↦ᵣ a4) ** (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ a1) ** (.x18 ↦ᵣ a2) ** (.x20 ↦ᵣ v20))
+        (by
+          repeat
+            first
+            | apply pcFree_sepConj
+            | exact pcFree_regIs
+            | exact pcFree_regOwn
+            | exact pcFree_memIs
+            | exact pcFree_memOwn
+            | exact pcFree_emp
+            | exact pcFree_pure
+            | exact pcFree_instrAt
+            | exact bytesRegion_pcFree _ _
+            | exact pcFree_stackFree _ _
+            | exact pcFree_dwordsIs _ _
+            | exact pcFree_regsAt _ _
+            | exact pcFree_frameSlotsOwn _ _
+            | exact pcFree_frameSlotsSaved _ _ _
+            | exact pcFree_regFileIs _)
+        l3
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hF
+  have c0123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c012 c3
+  have h4 := mv_spec_gen_within .x20 .x14 a4 v20 (H + 52) (by decide)
+  rw [show (H + 52 : Word) + 4 = H + 56 from by decide] at h4
+  have l4 :=
+    cpsTripleWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 52) 13 (.MV .x20 .x14)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl)
+      h4
+  have c4 :
+    cpsTripleWithin 1 (H + 52) (H + 56) fullCode
+      ((.x10 ↦ᵣ a0) **
+        (.x11 ↦ᵣ a1) **
+          (.x12 ↦ᵣ a2) **
+            (.x13 ↦ᵣ a3) **
+              (.x14 ↦ᵣ a4) **
+                (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ a1) ** (.x18 ↦ᵣ a2) ** (.x19 ↦ᵣ a3) ** (.x20 ↦ᵣ v20))
+      ((.x10 ↦ᵣ a0) **
+        (.x11 ↦ᵣ a1) **
+          (.x12 ↦ᵣ a2) **
+            (.x13 ↦ᵣ a3) **
+              (.x14 ↦ᵣ a4) **
+                (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ a1) ** (.x18 ↦ᵣ a2) ** (.x19 ↦ᵣ a3) ** (.x20 ↦ᵣ a4)) :=
+    by
+    have hF :=
+      cpsTripleWithin_frameR
+        ((.x10 ↦ᵣ a0) **
+          (.x11 ↦ᵣ a1) **
+            (.x12 ↦ᵣ a2) **
+              (.x13 ↦ᵣ a3) ** (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ a1) ** (.x18 ↦ᵣ a2) ** (.x19 ↦ᵣ a3))
+        (by
+          repeat
+            first
+            | apply pcFree_sepConj
+            | exact pcFree_regIs
+            | exact pcFree_regOwn
+            | exact pcFree_memIs
+            | exact pcFree_memOwn
+            | exact pcFree_emp
+            | exact pcFree_pure
+            | exact pcFree_instrAt
+            | exact bytesRegion_pcFree _ _
+            | exact pcFree_stackFree _ _
+            | exact pcFree_dwordsIs _ _
+            | exact pcFree_regsAt _ _
+            | exact pcFree_frameSlotsOwn _ _
+            | exact pcFree_frameSlotsSaved _ _ _
+            | exact pcFree_regFileIs _)
+        l4
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hF
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c0123 c4
+
+
+-- @@ L155-168 verbatim
+theorem tshSetupMoves_spec_bodyEntry
+    (a0 a1 a2 a3 a4 v8 v9 v18 v19 v20 : Word) :
+    cpsTripleWithin 5 tshBodyEntry (tshBodyEntry + 20) fullCode
+      ((.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) **
+        (.x14 ↦ᵣ a4) **
+        (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) **
+        (.x20 ↦ᵣ v20))
+      ((.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) **
+        (.x14 ↦ᵣ a4) **
+        (.x8 ↦ᵣ a0) ** (.x9 ↦ᵣ a1) ** (.x18 ↦ᵣ a2) ** (.x19 ↦ᵣ a3) **
+        (.x20 ↦ᵣ a4)) := by
+  have h := tshSetupMoves_spec a0 a1 a2 a3 a4 v8 v9 v18 v19 v20
+  simp only [tshBodyEntry_eq, show (H + 36 : Word) + 20 = H + 56 from by decide] at h ⊢
+  exact h
+
+
+-- @@ L170-170 verbatim
+/-! ## Body: `la t0, tsh_buf` then store type-prefix byte (`H+56 → H+68`) -/
+
+
+-- @@ L172-175 verbatim
+theorem tsh_la_buf_hi :
+    Codegen.laHi GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 56) =
+      Rv64.laHi (H + 56) TshBuf := by
+  decide
+
+
+-- @@ L177-180 verbatim
+theorem tsh_la_buf_lo :
+    Codegen.laLo GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 56) =
+      Rv64.laLo (H + 56) TshBuf := by
+  decide
+
+
+-- @@ L182-183 verbatim
+theorem tsh_la_buf_range : laInRange (H + 56) TshBuf := by
+  decide
+
+
+-- @@ L185-213 verbatim
+/-- `la t0, tsh_buf` at body offset 5. `H+56 → H+64`. -/
+theorem tshSetupLa_spec (v5 : Word) :
+    cpsTripleWithin 2 (H + 56) (H + 64) fullCode
+      (.x5 ↦ᵣ v5) (.x5 ↦ᵣ TshBuf) := by
+  have hau : ∀ a i,
+      CodeReq.singleton (H + 56)
+        (.AUIPC .x5 (Rv64.laHi (H + 56) TshBuf)) a = some i →
+        fullCode a = some i := by
+    intro a i hi
+    have hmem := tshMem (txSigningHash_prog : List Instr) rfl (H + 56) 14
+      (.AUIPC .x5 (Codegen.laHi GuestAddrs.tsh_buf
+        (GuestAddrs.tx_signing_hash + 56)))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl
+    exact hmem a i (by rwa [← tsh_la_buf_hi] at hi)
+  have had : ∀ a i,
+      CodeReq.singleton ((H + 56) + 4)
+        (.ADDI .x5 .x5 (Rv64.laLo (H + 56) TshBuf)) a = some i →
+        fullCode a = some i := by
+    intro a i hi
+    have hmem := tshMem (txSigningHash_prog : List Instr) rfl (H + 60) 15
+      (.ADDI .x5 .x5 (Codegen.laLo GuestAddrs.tsh_buf
+        (GuestAddrs.tx_signing_hash + 56)))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl
+    have hpc : (H + 56 : Word) + 4 = H + 60 := by decide
+    rw [hpc, ← tsh_la_buf_lo] at hi
+    exact hmem a i hi
+  have h := la_materialize_within .x5 v5 (H + 56) TshBuf
+    (by decide) tsh_la_buf_range hau had
+  rwa [show (H + 56 : Word) + 8 = H + 64 from by decide] at h
+
+
+-- @@ L215-239 verbatim
+/-- `sb t0, 0(s3)` — write type-prefix low byte into `tsh_buf[0]`.
+    `H+64 → H+68`. Owns the containing dword at `TshBuf`. -/
+theorem tshSetupSbType_spec (typePrefix wordOld : Word)
+    (halign : alignToDword TshBuf = TshBuf)
+    (hvalid : isValidByteAccess TshBuf = true) :
+    cpsTripleWithin 1 (H + 64) (H + 68) fullCode
+      ((.x5 ↦ᵣ TshBuf) ** (.x19 ↦ᵣ typePrefix) ** (TshBuf ↦ₘ wordOld))
+      ((.x5 ↦ᵣ TshBuf) ** (.x19 ↦ᵣ typePrefix) **
+        (TshBuf ↦ₘ replaceByte wordOld (byteOffset TshBuf)
+          (typePrefix.truncate 8))) := by
+  have h0 := sb_spec_gen_within .x5 .x19 TshBuf typePrefix (0 : BitVec 12)
+    (H + 64) TshBuf wordOld
+    (by
+      have : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+      simp only [this]; exact halign)
+    (by
+      have : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+      simp only [this]; exact hvalid)
+  rw [show (H + 64 : Word) + 4 = H + 68 from by decide,
+      show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+      show (TshBuf + 0 : Word) = TshBuf from by bv_omega] at h0
+  exact cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl (H + 64) 16
+      (.SB .x5 .x19 (0 : BitVec 12))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl) h0
+
+
+-- @@ L241-254 expanded
+/-- Combined setup la+sb: `H+56 → H+68`. -/
+theorem tshSetupLaSb_spec (v5 typePrefix wordOld : Word) (halign : alignToDword TshBuf = TshBuf)
+    (hvalid : isValidByteAccess TshBuf = true) :
+    cpsTripleWithin 3 (H + 56) (H + 68) fullCode
+      ((.x5 ↦ᵣ v5) ** (.x19 ↦ᵣ typePrefix) ** (TshBuf ↦ₘ wordOld))
+      ((.x5 ↦ᵣ TshBuf) **
+        (.x19 ↦ᵣ typePrefix) **
+          (TshBuf ↦ₘ replaceByte wordOld (byteOffset TshBuf) (typePrefix.truncate 8))) :=
+  by
+  have hla := tshSetupLa_spec v5
+  have hlaF :=
+    cpsTripleWithin_frameR ((.x19 ↦ᵣ typePrefix) ** (TshBuf ↦ₘ wordOld))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hla
+  have hsb := tshSetupSbType_spec typePrefix wordOld halign hvalid
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hlaF hsb
+
+
+-- @@ L256-259 verbatim
+/-! ## Body: empty-length `beq s1, x0` (`H+68`)
+
+    Taken jumps to the fail `li a0, 1` at `H+328`. Not-taken falls through to
+    the list-header parse at `H+72`. -/
+
+
+-- @@ L261-261 verbatim
+abbrev tshEmptyLenBeqOff : BitVec 13 := (260 : BitVec 13)
+
+-- @@ L262-262 verbatim
+abbrev tshFailLiPC : Word := H + 328
+
+
+-- @@ L264-266 verbatim
+theorem tshEmptyLenBeq_taken_pc :
+    (H + 68) + signExtend13 tshEmptyLenBeqOff = tshFailLiPC := by
+  unfold tshEmptyLenBeqOff tshFailLiPC H; decide
+
+
+-- @@ L268-282 verbatim
+/-- Empty input length: branch to fail status. `H+68 → H+328`. -/
+theorem tshEmptyLenBeq_taken (lenW : Word) (hlen : lenW = 0) :
+    cpsTripleWithin 1 (H + 68) tshFailLiPC fullCode
+      ((.x9 ↦ᵣ lenW) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x9 ↦ᵣ lenW) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbeq := beq_spec_gen_within .x9 .x0 tshEmptyLenBeqOff lenW 0 (H + 68)
+  rw [tshEmptyLenBeq_taken_pc] at hbeq
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 68) 17
+        (.BEQ .x9 .x0 tshEmptyLenBeqOff)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl) hbeq)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact ((sepConj_pure_right _).1 hBP).2 hlen)
+
+
+-- @@ L284-298 verbatim
+/-- Non-empty length: fall through to header parse. `H+68 → H+72`. -/
+theorem tshEmptyLenBeq_ntaken (lenW : Word) (hlen : lenW ≠ 0) :
+    cpsTripleWithin 1 (H + 68) (H + 72) fullCode
+      ((.x9 ↦ᵣ lenW) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x9 ↦ᵣ lenW) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbeq := beq_spec_gen_within .x9 .x0 tshEmptyLenBeqOff lenW 0 (H + 68)
+  rw [show (H + 68 : Word) + 4 = H + 72 from by decide] at hbeq
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 68) 17
+        (.BEQ .x9 .x0 tshEmptyLenBeqOff)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl) hbeq)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact hlen ((sepConj_pure_right _).1 hBP).2)
+
+
+-- @@ L300-304 verbatim
+/-! ## Body: fail / success status reconverge (`H+320` / `H+328`)
+
+    Success writes `a0 := 0` then jumps over the fail `li`; empty-length and
+    other fail arms land on `li a0, 1`. Both meet the frame epilogue at
+    `tshBodyExit = H+332`. -/
+
+
+-- @@ L306-317 verbatim
+/-- Fail status: `li a0, 1` at `H+328 → H+332`. -/
+theorem tshFailLi_spec (v10 : Word) :
+    cpsTripleWithin 1 tshFailLiPC tshBodyExit fullCode
+      (.x10 ↦ᵣ v10) (.x10 ↦ᵣ (1 : Word)) := by
+  have h0 := li_spec_gen_within .x10 v10 (1 : Word) tshFailLiPC (by decide)
+  rw [show tshFailLiPC + 4 = tshBodyExit from by
+    unfold tshFailLiPC; rw [tshBodyExit_eq]; decide] at h0
+  exact cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl tshFailLiPC 82
+      (.LI .x10 (1 : Word))
+      (by rw [tsh_prog_length]; decide)
+      (by unfold tshFailLiPC; decide) rfl) h0
+
+
+-- @@ L319-332 expanded
+/-- Empty-length failure path: beq-taken then `li a0,1`. `H+68 → H+332`. -/
+theorem tshEmptyLenFail_spec (lenW v10 : Word) (hlen : lenW = 0) :
+    cpsTripleWithin 2 (H + 68) tshBodyExit fullCode
+      ((.x9 ↦ᵣ lenW) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10))
+      ((.x9 ↦ᵣ lenW) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ (1 : Word))) :=
+  by
+  have hbr := tshEmptyLenBeq_taken lenW hlen
+  have hbrF :=
+    cpsTripleWithin_frameR (.x10 ↦ᵣ v10)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hbr
+  have hli := tshFailLi_spec v10
+  have hliF :=
+    cpsTripleWithin_frameR ((.x9 ↦ᵣ lenW) ** (.x0 ↦ᵣ (0 : Word)))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hli
+  have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hbrF hliF
+  exact
+    cpsTripleWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) c)
+
+
+-- @@ L334-343 verbatim
+/-- Success status: `li a0, 0` at `H+320 → H+324`. -/
+theorem tshSuccessLi_spec (v10 : Word) :
+    cpsTripleWithin 1 (H + 320) (H + 324) fullCode
+      (.x10 ↦ᵣ v10) (.x10 ↦ᵣ (0 : Word)) := by
+  have h0 := li_spec_gen_within .x10 v10 (0 : Word) (H + 320) (by decide)
+  rw [show (H + 320 : Word) + 4 = H + 324 from by decide] at h0
+  exact cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl (H + 320) 80
+      (.LI .x10 (0 : Word))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl) h0
+
+
+-- @@ L345-356 verbatim
+/-- Unconditional skip of fail `li`: `jal x0, +8` at `H+324 → H+332`, framed. -/
+theorem tshSuccessSkipFail_spec (P : Assertion) (hP : P.pcFree) :
+    cpsTripleWithin 1 (H + 324) tshBodyExit fullCode P P := by
+  have h0 := jal_x0_spec_gen_within (8 : BitVec 21) (H + 324)
+  rw [show (H + 324 : Word) + signExtend21 (8 : BitVec 21) = tshBodyExit from by
+    rw [tshBodyExit_eq]; decide] at h0
+  have l0 := cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl (H + 324) 81
+      (.JAL .x0 (8 : BitVec 21))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl) h0
+  have hF := cpsTripleWithin_frameL P hP l0
+  exact (sepConj_emp_right' P) ▸ hF
+
+
+-- @@ L358-365 expanded
+/-- Success reconverge: `li a0,0; jal skip`. `H+320 → H+332`. -/
+theorem tshSuccessStatus_spec (v10 : Word) :
+    cpsTripleWithin 2 (H + 320) tshBodyExit fullCode (.x10 ↦ᵣ v10) (.x10 ↦ᵣ (0 : Word)) :=
+  by
+  have hli := tshSuccessLi_spec v10
+  have hjal :=
+    tshSuccessSkipFail_spec (.x10 ↦ᵣ (0 : Word))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+  exact
+    cpsTripleWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hli hjal)
+
+
+-- @@ L367-373 verbatim
+/-! ## Body: list-header parse (`H+72`), both arms
+
+    `lbu` first input byte; reject `< 0xc0`; short list (`< 0xf8`) sets
+    `s5 := 1` (header length) via the taken `bltu` to `H+104`. The long-list
+    arm (`≥ 0xf8`) falls through to `H+92` and sets `s5 := hdr - 246`
+    (`1 + lenlen`). Both arms reconverge at `H+108`, and `s5` is the only
+    value the rest of the routine reads from the header. -/
+
+
+-- @@ L375-376 verbatim
+abbrev tshHdrByte (input : List (BitVec 8)) (h0 : 0 < input.length) : Word :=
+  (input[0]'h0).zeroExtend 64
+
+
+-- @@ L378-400 verbatim
+/-- `lbu t0, 0(s0)` — load RLP list header byte. `H+72 → H+76`. -/
+theorem tshHdrLbu_spec (inPtr v5 : Word) (input : List (BitVec 8))
+    (h0 : 0 < input.length)
+    (halign : inPtr.toNat % 8 = 0)
+    (hover : inPtr.toNat < 2 ^ 64)
+    (hvalid : isValidByteAccess inPtr = true) :
+    cpsTripleWithin 1 (H + 72) (H + 76) fullCode
+      ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ v5) ** bytesRegion inPtr input)
+      ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ tshHdrByte input h0) **
+        bytesRegion inPtr input) := by
+  have hptr : inPtr + BitVec.ofNat 64 0 = inPtr := by bv_omega
+  have hlbu := bytesRegion_lbu_within .x5 .x8 inPtr v5 (H + 72) input 0
+    (by decide) halign h0 (by omega) (by rwa [hptr])
+  rw [hptr, show (H + 72 : Word) + 4 = H + 76 from by decide] at hlbu
+  change cpsTripleWithin 1 (H + 72) (H + 76)
+      (CodeReq.singleton (H + 72) (.LBU .x5 .x8 0))
+      ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ v5) ** bytesRegion inPtr input)
+      ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ tshHdrByte input h0) **
+        bytesRegion inPtr input) at hlbu
+  exact cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl (H + 72) 18
+      (.LBU .x5 .x8 (0 : BitVec 12))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl) hlbu
+
+
+-- @@ L402-411 verbatim
+/-- `li t1, 192`. `H+76 → H+80`. -/
+theorem tshHdrLi192_spec (v6 : Word) :
+    cpsTripleWithin 1 (H + 76) (H + 80) fullCode
+      (.x6 ↦ᵣ v6) (.x6 ↦ᵣ (192 : Word)) := by
+  have h0 := li_spec_gen_within .x6 v6 (192 : Word) (H + 76) (by decide)
+  rw [show (H + 76 : Word) + 4 = H + 80 from by decide] at h0
+  exact cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl (H + 76) 19
+      (.LI .x6 (192 : Word))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl) h0
+
+
+-- @@ L413-413 verbatim
+abbrev tshNotListBeqOff : BitVec 13 := (248 : BitVec 13)
+
+
+-- @@ L415-417 verbatim
+theorem tshNotListBeq_taken_pc :
+    (H + 80) + signExtend13 tshNotListBeqOff = tshFailLiPC := by
+  unfold tshNotListBeqOff tshFailLiPC H; decide
+
+
+-- @@ L419-433 verbatim
+/-- Header `< 0xc0`: fail. `H+80 → H+328`. -/
+theorem tshHdrNotList_taken (hdr : Word) (hult : BitVec.ult hdr (192 : Word)) :
+    cpsTripleWithin 1 (H + 80) tshFailLiPC fullCode
+      ((.x5 ↦ᵣ hdr) ** (.x6 ↦ᵣ (192 : Word)))
+      ((.x5 ↦ᵣ hdr) ** (.x6 ↦ᵣ (192 : Word))) := by
+  have hbr := bltu_spec_gen_within .x5 .x6 tshNotListBeqOff hdr (192 : Word) (H + 80)
+  rw [tshNotListBeq_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 80) 20
+        (.BLTU .x5 .x6 tshNotListBeqOff)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl) hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact ((sepConj_pure_right _).1 hBP).2 hult)
+
+
+-- @@ L435-449 verbatim
+/-- Header `≥ 0xc0`: continue. `H+80 → H+84`. -/
+theorem tshHdrNotList_ntaken (hdr : Word) (hge : ¬BitVec.ult hdr (192 : Word)) :
+    cpsTripleWithin 1 (H + 80) (H + 84) fullCode
+      ((.x5 ↦ᵣ hdr) ** (.x6 ↦ᵣ (192 : Word)))
+      ((.x5 ↦ᵣ hdr) ** (.x6 ↦ᵣ (192 : Word))) := by
+  have hbr := bltu_spec_gen_within .x5 .x6 tshNotListBeqOff hdr (192 : Word) (H + 80)
+  rw [show (H + 80 : Word) + 4 = H + 84 from by decide] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 80) 20
+        (.BLTU .x5 .x6 tshNotListBeqOff)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl) hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact hge ((sepConj_pure_right _).1 hBP).2)
+
+
+-- @@ L451-460 verbatim
+/-- `li t1, 248`. `H+84 → H+88`. -/
+theorem tshHdrLi248_spec (v6 : Word) :
+    cpsTripleWithin 1 (H + 84) (H + 88) fullCode
+      (.x6 ↦ᵣ v6) (.x6 ↦ᵣ (248 : Word)) := by
+  have h0 := li_spec_gen_within .x6 v6 (248 : Word) (H + 84) (by decide)
+  rw [show (H + 84 : Word) + 4 = H + 88 from by decide] at h0
+  exact cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl (H + 84) 21
+      (.LI .x6 (248 : Word))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl) h0
+
+
+-- @@ L462-462 verbatim
+abbrev tshShortListBeqOff : BitVec 13 := (16 : BitVec 13)
+
+-- @@ L463-463 verbatim
+abbrev tshShortHdrLiPC : Word := H + 104
+
+
+-- @@ L465-467 verbatim
+theorem tshShortListBeq_taken_pc :
+    (H + 88) + signExtend13 tshShortListBeqOff = tshShortHdrLiPC := by
+  unfold tshShortListBeqOff tshShortHdrLiPC H; decide
+
+
+-- @@ L469-483 verbatim
+/-- Short list (`hdr < 0xf8`): jump to `li s5, 1`. `H+88 → H+104`. -/
+theorem tshHdrShortList_taken (hdr : Word) (hult : BitVec.ult hdr (248 : Word)) :
+    cpsTripleWithin 1 (H + 88) tshShortHdrLiPC fullCode
+      ((.x5 ↦ᵣ hdr) ** (.x6 ↦ᵣ (248 : Word)))
+      ((.x5 ↦ᵣ hdr) ** (.x6 ↦ᵣ (248 : Word))) := by
+  have hbr := bltu_spec_gen_within .x5 .x6 tshShortListBeqOff hdr (248 : Word) (H + 88)
+  rw [tshShortListBeq_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 88) 22
+        (.BLTU .x5 .x6 tshShortListBeqOff)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl) hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact ((sepConj_pure_right _).1 hBP).2 hult)
+
+
+-- @@ L485-496 verbatim
+/-- `li s5, 1` — short-list header length. `H+104 → H+108`. -/
+theorem tshShortHdrLi_spec (v21 : Word) :
+    cpsTripleWithin 1 tshShortHdrLiPC (H + 108) fullCode
+      (.x21 ↦ᵣ v21) (.x21 ↦ᵣ (1 : Word)) := by
+  have h0 := li_spec_gen_within .x21 v21 (1 : Word) tshShortHdrLiPC (by decide)
+  rw [show tshShortHdrLiPC + 4 = H + 108 from by
+    unfold tshShortHdrLiPC; decide] at h0
+  exact cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl tshShortHdrLiPC 26
+      (.LI .x21 (1 : Word))
+      (by rw [tsh_prog_length]; decide)
+      (by unfold tshShortHdrLiPC; decide) rfl) h0
+
+
+-- @@ L498-505 verbatim
+/-! ### Long-list arm (`0xf8 ≤ hdr ≤ 0xff`)
+
+    Fallthrough of the `bltu t0, 248` at `H+88`. Three instructions:
+    `addi s5, t0, -247` (length-of-length `lenlen = hdr - 247 ∈ 1..8`),
+    `addi s5, s5, 1` (add the prefix byte, so `s5 = 1 + lenlen = hdr - 246`),
+    then an unconditional `jal x0, +8` over the short-list `li s5, 1`.
+    Both arms reconverge at `H+108` with the *total* outer-header length in
+    `s5`, which is the only value the rest of the routine reads. -/
+
+
+-- @@ L507-521 verbatim
+/-- Long list (`hdr ≥ 0xf8`): fall through. `H+88 → H+92`. -/
+theorem tshHdrShortList_ntaken (hdr : Word) (hge : ¬BitVec.ult hdr (248 : Word)) :
+    cpsTripleWithin 1 (H + 88) (H + 92) fullCode
+      ((.x5 ↦ᵣ hdr) ** (.x6 ↦ᵣ (248 : Word)))
+      ((.x5 ↦ᵣ hdr) ** (.x6 ↦ᵣ (248 : Word))) := by
+  have hbr := bltu_spec_gen_within .x5 .x6 tshShortListBeqOff hdr (248 : Word) (H + 88)
+  rw [show (H + 88 : Word) + 4 = H + 92 from by decide] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 88) 22
+        (.BLTU .x5 .x6 tshShortListBeqOff)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl) hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact hge ((sepConj_pure_right _).1 hBP).2)
+
+
+-- @@ L523-534 verbatim
+/-- `addi s5, t0, -247` — length-of-length. `H+92 → H+96`. -/
+theorem tshLongHdrLenLen_spec (hdr v21 : Word) :
+    cpsTripleWithin 1 (H + 92) (H + 96) fullCode
+      ((.x5 ↦ᵣ hdr) ** (.x21 ↦ᵣ v21))
+      ((.x5 ↦ᵣ hdr) ** (.x21 ↦ᵣ (hdr + signExtend12 (-247 : BitVec 12)))) := by
+  have h0 := addi_spec_gen_within .x21 .x5 v21 hdr (-247 : BitVec 12) (H + 92)
+    (by decide)
+  rw [show (H + 92 : Word) + 4 = H + 96 from by decide] at h0
+  exact cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl (H + 92) 23
+      (.ADDI .x21 .x5 (-247 : BitVec 12))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl) h0
+
+
+-- @@ L536-545 verbatim
+/-- `addi s5, s5, 1` — add the prefix byte. `H+96 → H+100`. -/
+theorem tshLongHdrPlusOne_spec (v21 : Word) :
+    cpsTripleWithin 1 (H + 96) (H + 100) fullCode
+      (.x21 ↦ᵣ v21) (.x21 ↦ᵣ (v21 + signExtend12 (1 : BitVec 12))) := by
+  have h0 := addi_spec_gen_same_within .x21 v21 (1 : BitVec 12) (H + 96) (by decide)
+  rw [show (H + 96 : Word) + 4 = H + 100 from by decide] at h0
+  exact cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl (H + 96) 24
+      (.ADDI .x21 .x21 (1 : BitVec 12))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl) h0
+
+
+-- @@ L547-558 verbatim
+/-- `jal x0, +8` over the short-list `li`. `H+100 → H+108`, framed. -/
+theorem tshLongHdrSkipShort_spec (P : Assertion) (hP : P.pcFree) :
+    cpsTripleWithin 1 (H + 100) (H + 108) fullCode P P := by
+  have h0 := jal_x0_spec_gen_within (8 : BitVec 21) (H + 100)
+  rw [show (H + 100 : Word) + signExtend21 (8 : BitVec 21) = H + 108 from by
+    decide] at h0
+  have l0 := cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl (H + 100) 25
+      (.JAL .x0 (8 : BitVec 21))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl) h0
+  have hF := cpsTripleWithin_frameL P hP l0
+  exact (sepConj_emp_right' P) ▸ hF
+
+
+-- @@ L560-566 verbatim
+/-- The two `addi`s compute the total outer-header length `hdr - 246`. -/
+theorem tshLongHdrLen_eq (hdr : Word) :
+    hdr + signExtend12 (-247 : BitVec 12) + signExtend12 (1 : BitVec 12) =
+      hdr - (246 : Word) := by
+  rw [show signExtend12 (-247 : BitVec 12) = (-247 : Word) from by decide,
+    show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+  bv_omega
+
+
+-- @@ L568-575 verbatim
+/-- Total outer-RLP-list header length materialised in `s5` by the K145 parse.
+
+    `1` for a short list header (`0xc0 ≤ hdr < 0xf8`); `hdr - 246`, i.e.
+    `1 + lenlen ∈ 2..9`, for a long one (`0xf8 ≤ hdr ≤ 0xff`). This is a
+    *function of the header byte alone*, so threading it replaces what would
+    otherwise be a nine-way case split over the header widths. -/
+def tshHdrLenOf (hdr : Word) : Word :=
+  if BitVec.ult hdr (248 : Word) then (1 : Word) else hdr - (246 : Word)
+
+
+-- @@ L577-579 verbatim
+/-- The header length the routine computes from the first input byte. -/
+abbrev tshHdrLen (input : List (BitVec 8)) (h0 : 0 < input.length) : Word :=
+  tshHdrLenOf (tshHdrByte input h0)
+
+
+-- @@ L581-583 verbatim
+theorem tshHdrLenOf_short (hdr : Word) (h : BitVec.ult hdr (248 : Word)) :
+    tshHdrLenOf hdr = (1 : Word) := by
+  simp only [tshHdrLenOf, h, if_true]
+
+
+-- @@ L585-588 verbatim
+theorem tshHdrLenOf_long (hdr : Word) (h : ¬BitVec.ult hdr (248 : Word)) :
+    tshHdrLenOf hdr = hdr - (246 : Word) := by
+  simp only [tshHdrLenOf]
+  rw [if_neg h]
+
+
+-- @@ L590-653 expanded
+/-- Long-list header parse through `s5 := hdr - 246`.
+    Requires nonempty input, dword-aligned `inPtr`, and `0xf8 ≤ hdr`.
+    `H+72 → H+108`. -/
+theorem tshHdrParseLong_spec (inPtr v5 v6 v21 : Word) (input : List (BitVec 8))
+    (h0 : 0 < input.length) (halign : inPtr.toNat % 8 = 0) (hover : inPtr.toNat < 2 ^ 64)
+    (hvalid : isValidByteAccess inPtr = true) (hge : ¬BitVec.ult (tshHdrByte input h0) (192 : Word))
+    (hlong : ¬BitVec.ult (tshHdrByte input h0) (248 : Word)) :
+    cpsTripleWithin 8 (H + 72) (H + 108) fullCode
+      ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x21 ↦ᵣ v21) ** bytesRegion inPtr input)
+      ((.x8 ↦ᵣ inPtr) **
+        (.x5 ↦ᵣ tshHdrByte input h0) **
+          (.x6 ↦ᵣ (248 : Word)) **
+            (.x21 ↦ᵣ (tshHdrByte input h0 - (246 : Word))) ** bytesRegion inPtr input) :=
+  by
+  have hlbu := tshHdrLbu_spec inPtr v5 input h0 halign hover hvalid
+  have hlbuF :=
+    cpsTripleWithin_frameR ((.x6 ↦ᵣ v6) ** (.x21 ↦ᵣ v21))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hlbu
+  have hli192 := tshHdrLi192_spec v6
+  have hli192F :=
+    cpsTripleWithin_frameR
+      ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ tshHdrByte input h0) ** (.x21 ↦ᵣ v21) ** bytesRegion inPtr input)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hli192
+  have c01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hlbuF hli192F
+  have hnt := tshHdrNotList_ntaken (tshHdrByte input h0) hge
+  have hntF :=
+    cpsTripleWithin_frameR ((.x8 ↦ᵣ inPtr) ** (.x21 ↦ᵣ v21) ** bytesRegion inPtr input)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hnt
+  have c012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c01 hntF
+  have hli248 := tshHdrLi248_spec (192 : Word)
+  have hli248F :=
+    cpsTripleWithin_frameR
+      ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ tshHdrByte input h0) ** (.x21 ↦ᵣ v21) ** bytesRegion inPtr input)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hli248
+  have c0123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c012 hli248F
+  have hnt2 := tshHdrShortList_ntaken (tshHdrByte input h0) hlong
+  have hnt2F :=
+    cpsTripleWithin_frameR ((.x8 ↦ᵣ inPtr) ** (.x21 ↦ᵣ v21) ** bytesRegion inPtr input)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hnt2
+  have c4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c0123 hnt2F
+  have hll := tshLongHdrLenLen_spec (tshHdrByte input h0) v21
+  have hllF :=
+    cpsTripleWithin_frameR ((.x8 ↦ᵣ inPtr) ** (.x6 ↦ᵣ (248 : Word)) ** bytesRegion inPtr input)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hll
+  have c5 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c4 hllF
+  have hp1 := tshLongHdrPlusOne_spec (tshHdrByte input h0 + signExtend12 (-247 : BitVec 12))
+  have hp1F :=
+    cpsTripleWithin_frameR
+      ((.x8 ↦ᵣ inPtr) **
+        (.x5 ↦ᵣ tshHdrByte input h0) ** (.x6 ↦ᵣ (248 : Word)) ** bytesRegion inPtr input)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hp1
+  have c6 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c5 hp1F
+  have hjal :=
+    tshLongHdrSkipShort_spec
+      ((.x8 ↦ᵣ inPtr) **
+        (.x5 ↦ᵣ tshHdrByte input h0) **
+          (.x6 ↦ᵣ (248 : Word)) **
+            (.x21 ↦ᵣ
+                (tshHdrByte input h0 + signExtend12 (-247 : BitVec 12) +
+                  signExtend12 (1 : BitVec 12))) **
+              bytesRegion inPtr input)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+  have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c6 hjal
+  rw [← tshLongHdrLen_eq (tshHdrByte input h0)]
+  exact
+    cpsTripleWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) c)
+
+
+-- @@ L655-703 expanded
+/-- Short-list header parse through `s5 := 1`.
+    Requires nonempty input, dword-aligned `inPtr`, and `0xc0 ≤ hdr < 0xf8`.
+    `H+72 → H+108`. -/
+theorem tshHdrParseShort_spec (inPtr v5 v6 v21 : Word) (input : List (BitVec 8))
+    (h0 : 0 < input.length) (halign : inPtr.toNat % 8 = 0) (hover : inPtr.toNat < 2 ^ 64)
+    (hvalid : isValidByteAccess inPtr = true) (hge : ¬BitVec.ult (tshHdrByte input h0) (192 : Word))
+    (hult : BitVec.ult (tshHdrByte input h0) (248 : Word)) :
+    cpsTripleWithin 7 (H + 72) (H + 108) fullCode
+      ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x21 ↦ᵣ v21) ** bytesRegion inPtr input)
+      ((.x8 ↦ᵣ inPtr) **
+        (.x5 ↦ᵣ tshHdrByte input h0) **
+          (.x6 ↦ᵣ (248 : Word)) ** (.x21 ↦ᵣ (1 : Word)) ** bytesRegion inPtr input) :=
+  by
+  have hlbu := tshHdrLbu_spec inPtr v5 input h0 halign hover hvalid
+  have hlbuF :=
+    cpsTripleWithin_frameR ((.x6 ↦ᵣ v6) ** (.x21 ↦ᵣ v21))
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hlbu
+  have hli192 := tshHdrLi192_spec v6
+  have hli192F :=
+    cpsTripleWithin_frameR
+      ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ tshHdrByte input h0) ** (.x21 ↦ᵣ v21) ** bytesRegion inPtr input)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hli192
+  have c01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hlbuF hli192F
+  have hnt := tshHdrNotList_ntaken (tshHdrByte input h0) hge
+  have hntF :=
+    cpsTripleWithin_frameR ((.x8 ↦ᵣ inPtr) ** (.x21 ↦ᵣ v21) ** bytesRegion inPtr input)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hnt
+  have c012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c01 hntF
+  have hli248 := tshHdrLi248_spec (192 : Word)
+  have hli248F :=
+    cpsTripleWithin_frameR
+      ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ tshHdrByte input h0) ** (.x21 ↦ᵣ v21) ** bytesRegion inPtr input)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hli248
+  have c0123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c012 hli248F
+  have htk := tshHdrShortList_taken (tshHdrByte input h0) hult
+  have htkF :=
+    cpsTripleWithin_frameR ((.x8 ↦ᵣ inPtr) ** (.x21 ↦ᵣ v21) ** bytesRegion inPtr input)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      htk
+  have c01234 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c0123 htkF
+  have hli1 := tshShortHdrLi_spec v21
+  have hli1F :=
+    cpsTripleWithin_frameR
+      ((.x8 ↦ᵣ inPtr) **
+        (.x5 ↦ᵣ tshHdrByte input h0) ** (.x6 ↦ᵣ (248 : Word)) ** bytesRegion inPtr input)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      hli1
+  have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c01234 hli1F
+  exact
+    cpsTripleWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) c)
+
+
+-- @@ L705-728 verbatim
+/-- **Total outer-header parse.** `H+72 → H+108` for *every* RLP list header
+    byte `0xc0 ≤ hdr ≤ 0xff` — short (`< 0xf8`) and long (`0xf8..0xff`,
+    `lenlen = 1..8`) alike — leaving the total header length in `s5`.
+
+    Only `hge` remains: `hdr < 0xc0` is the routine's reject path and exits at
+    `tshFailLiPC`, not at `H+108`. -/
+theorem tshHdrParseAny_spec (inPtr v5 v6 v21 : Word) (input : List (BitVec 8))
+    (h0 : 0 < input.length)
+    (halign : inPtr.toNat % 8 = 0)
+    (hover : inPtr.toNat < 2 ^ 64)
+    (hvalid : isValidByteAccess inPtr = true)
+    (hge : ¬BitVec.ult (tshHdrByte input h0) (192 : Word)) :
+    cpsTripleWithin 8 (H + 72) (H + 108) fullCode
+      ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x21 ↦ᵣ v21) **
+        bytesRegion inPtr input)
+      ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ tshHdrByte input h0) ** (.x6 ↦ᵣ (248 : Word)) **
+        (.x21 ↦ᵣ tshHdrLen input h0) ** bytesRegion inPtr input) := by
+  by_cases hult : BitVec.ult (tshHdrByte input h0) (248 : Word)
+  · rw [show tshHdrLen input h0 = (1 : Word) from tshHdrLenOf_short _ hult]
+    exact cpsTripleWithin_mono_nSteps (by omega)
+      (tshHdrParseShort_spec inPtr v5 v6 v21 input h0 halign hover hvalid hge hult)
+  · rw [show tshHdrLen input h0 = tshHdrByte input h0 - (246 : Word) from
+      tshHdrLenOf_long _ hult]
+    exact tshHdrParseLong_spec inPtr v5 v6 v21 input h0 halign hover hvalid hge hult
+
+
+-- @@ L730-733 verbatim
+/-! ## Body: nth-call setup after the header parse (`H+108 → H+156`)
+
+    `li s6, 0`; if `nFields ≠ 0`, `index := nFields - 1`, shuffle ABI args,
+    materialize `tsh_buf+64` / `+72` scratch pointers, then JAL nth. -/
+
+
+-- @@ L735-744 verbatim
+/-- `li s6, 0`. `H+108 → H+112`. -/
+theorem tshPayloadOffInit_spec (v22 : Word) :
+    cpsTripleWithin 1 (H + 108) (H + 112) fullCode
+      (.x22 ↦ᵣ v22) (.x22 ↦ᵣ (0 : Word)) := by
+  have h0 := li_spec_gen_within .x22 v22 (0 : Word) (H + 108) (by decide)
+  rw [show (H + 108 : Word) + 4 = H + 112 from by decide] at h0
+  exact cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl (H + 108) 27
+      (.LI .x22 (0 : Word))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl) h0
+
+
+-- @@ L746-746 verbatim
+abbrev tshNFieldsBeqOff : BitVec 13 := (76 : BitVec 13)
+
+-- @@ L747-747 verbatim
+abbrev tshSkipNthPC : Word := H + 188
+
+
+-- @@ L749-751 verbatim
+theorem tshNFieldsBeq_taken_pc :
+    (H + 112) + signExtend13 tshNFieldsBeqOff = tshSkipNthPC := by
+  unfold tshNFieldsBeqOff tshSkipNthPC H; decide
+
+
+-- @@ L753-767 verbatim
+/-- `nFields = 0`: skip nth. `H+112 → H+188`. -/
+theorem tshNFieldsBeq_taken (nFields : Word) (hz : nFields = 0) :
+    cpsTripleWithin 1 (H + 112) tshSkipNthPC fullCode
+      ((.x18 ↦ᵣ nFields) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x18 ↦ᵣ nFields) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbeq := beq_spec_gen_within .x18 .x0 tshNFieldsBeqOff nFields 0 (H + 112)
+  rw [tshNFieldsBeq_taken_pc] at hbeq
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 112) 28
+        (.BEQ .x18 .x0 tshNFieldsBeqOff)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl) hbeq)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact ((sepConj_pure_right _).1 hBP).2 hz)
+
+
+-- @@ L769-783 verbatim
+/-- `nFields ≠ 0`: fall through to nth setup. `H+112 → H+116`. -/
+theorem tshNFieldsBeq_ntaken (nFields : Word) (hnz : nFields ≠ 0) :
+    cpsTripleWithin 1 (H + 112) (H + 116) fullCode
+      ((.x18 ↦ᵣ nFields) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x18 ↦ᵣ nFields) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbeq := beq_spec_gen_within .x18 .x0 tshNFieldsBeqOff nFields 0 (H + 112)
+  rw [show (H + 112 : Word) + 4 = H + 116 from by decide] at hbeq
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 112) 28
+        (.BEQ .x18 .x0 tshNFieldsBeqOff)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl) hbeq)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact hnz ((sepConj_pure_right _).1 hBP).2)
+
+
+-- @@ L785-796 verbatim
+/-- `addi t0, s2, -1` — last-field index. `H+116 → H+120`. -/
+theorem tshNthIndex_spec (nFields v5 : Word) :
+    cpsTripleWithin 1 (H + 116) (H + 120) fullCode
+      ((.x18 ↦ᵣ nFields) ** (.x5 ↦ᵣ v5))
+      ((.x18 ↦ᵣ nFields) ** (.x5 ↦ᵣ (nFields + signExtend12 (-1 : BitVec 12)))) := by
+  have h0 := addi_spec_gen_within .x5 .x18 v5 nFields (-1 : BitVec 12) (H + 116)
+    (by decide)
+  rw [show (H + 116 : Word) + 4 = H + 120 from by decide] at h0
+  exact cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl (H + 116) 29
+      (.ADDI .x5 .x18 (-1 : BitVec 12))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl) h0
+
+
+-- @@ L798-852 expanded
+/-- Three ABI MVs for nth: `a0:=s0, a1:=s1, a2:=t0`. `H+120 → H+132`. -/
+theorem tshNthArgMoves_spec (inPtr lenW indexW v10 v11 v12 : Word) :
+    cpsTripleWithin 3 (H + 120) (H + 132) fullCode
+      ((.x8 ↦ᵣ inPtr) **
+        (.x9 ↦ᵣ lenW) ** (.x5 ↦ᵣ indexW) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12))
+      ((.x8 ↦ᵣ inPtr) **
+        (.x9 ↦ᵣ lenW) **
+          (.x5 ↦ᵣ indexW) ** (.x10 ↦ᵣ inPtr) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ indexW)) :=
+  by
+  have h0 := mv_spec_gen_within .x10 .x8 inPtr v10 (H + 120) (by decide)
+  rw [show (H + 120 : Word) + 4 = H + 124 from by decide] at h0
+  have l0 :=
+    cpsTripleWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 120) 30 (.MV .x10 .x8)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl)
+      h0
+  have c0 :
+    cpsTripleWithin 1 (H + 120) (H + 124) fullCode
+      ((.x8 ↦ᵣ inPtr) **
+        (.x9 ↦ᵣ lenW) ** (.x5 ↦ᵣ indexW) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12))
+      ((.x8 ↦ᵣ inPtr) **
+        (.x9 ↦ᵣ lenW) ** (.x5 ↦ᵣ indexW) ** (.x10 ↦ᵣ inPtr) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12)) :=
+    by
+    have hF :=
+      cpsTripleWithin_frameR ((.x9 ↦ᵣ lenW) ** (.x5 ↦ᵣ indexW) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12))
+        (by
+          repeat
+            first
+            | apply pcFree_sepConj
+            | exact pcFree_regIs
+            | exact pcFree_regOwn
+            | exact pcFree_memIs
+            | exact pcFree_memOwn
+            | exact pcFree_emp
+            | exact pcFree_pure
+            | exact pcFree_instrAt
+            | exact bytesRegion_pcFree _ _
+            | exact pcFree_stackFree _ _
+            | exact pcFree_dwordsIs _ _
+            | exact pcFree_regsAt _ _
+            | exact pcFree_frameSlotsOwn _ _
+            | exact pcFree_frameSlotsSaved _ _ _
+            | exact pcFree_regFileIs _)
+        l0
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hF
+  have h1 := mv_spec_gen_within .x11 .x9 lenW v11 (H + 124) (by decide)
+  rw [show (H + 124 : Word) + 4 = H + 128 from by decide] at h1
+  have l1 :=
+    cpsTripleWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 124) 31 (.MV .x11 .x9)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl)
+      h1
+  have c1 :
+    cpsTripleWithin 1 (H + 124) (H + 128) fullCode
+      ((.x8 ↦ᵣ inPtr) **
+        (.x9 ↦ᵣ lenW) ** (.x5 ↦ᵣ indexW) ** (.x10 ↦ᵣ inPtr) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12))
+      ((.x8 ↦ᵣ inPtr) **
+        (.x9 ↦ᵣ lenW) ** (.x5 ↦ᵣ indexW) ** (.x10 ↦ᵣ inPtr) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ v12)) :=
+    by
+    have hF :=
+      cpsTripleWithin_frameR ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ indexW) ** (.x10 ↦ᵣ inPtr) ** (.x12 ↦ᵣ v12))
+        (by
+          repeat
+            first
+            | apply pcFree_sepConj
+            | exact pcFree_regIs
+            | exact pcFree_regOwn
+            | exact pcFree_memIs
+            | exact pcFree_memOwn
+            | exact pcFree_emp
+            | exact pcFree_pure
+            | exact pcFree_instrAt
+            | exact bytesRegion_pcFree _ _
+            | exact pcFree_stackFree _ _
+            | exact pcFree_dwordsIs _ _
+            | exact pcFree_regsAt _ _
+            | exact pcFree_frameSlotsOwn _ _
+            | exact pcFree_frameSlotsSaved _ _ _
+            | exact pcFree_regFileIs _)
+        l1
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hF
+  have c01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c0 c1
+  have h2 := mv_spec_gen_within .x12 .x5 indexW v12 (H + 128) (by decide)
+  rw [show (H + 128 : Word) + 4 = H + 132 from by decide] at h2
+  have l2 :=
+    cpsTripleWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 128) 32 (.MV .x12 .x5)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl)
+      h2
+  have c2 :
+    cpsTripleWithin 1 (H + 128) (H + 132) fullCode
+      ((.x8 ↦ᵣ inPtr) **
+        (.x9 ↦ᵣ lenW) ** (.x5 ↦ᵣ indexW) ** (.x10 ↦ᵣ inPtr) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ v12))
+      ((.x8 ↦ᵣ inPtr) **
+        (.x9 ↦ᵣ lenW) **
+          (.x5 ↦ᵣ indexW) ** (.x10 ↦ᵣ inPtr) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ indexW)) :=
+    by
+    have hF :=
+      cpsTripleWithin_frameR ((.x8 ↦ᵣ inPtr) ** (.x9 ↦ᵣ lenW) ** (.x10 ↦ᵣ inPtr) ** (.x11 ↦ᵣ lenW))
+        (by
+          repeat
+            first
+            | apply pcFree_sepConj
+            | exact pcFree_regIs
+            | exact pcFree_regOwn
+            | exact pcFree_memIs
+            | exact pcFree_memOwn
+            | exact pcFree_emp
+            | exact pcFree_pure
+            | exact pcFree_instrAt
+            | exact bytesRegion_pcFree _ _
+            | exact pcFree_stackFree _ _
+            | exact pcFree_dwordsIs _ _
+            | exact pcFree_regsAt _ _
+            | exact pcFree_frameSlotsOwn _ _
+            | exact pcFree_frameSlotsSaved _ _ _
+            | exact pcFree_regFileIs _)
+        l2
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hF
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c01 c2
+
+
+-- @@ L854-854 verbatim
+/-! ## Body: materialize nth scratch pointers (`H+132 → H+156`) -/
+
+
+-- @@ L856-859 verbatim
+theorem tsh_la_nth_off_hi :
+    Codegen.laHi GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 132) =
+      Rv64.laHi (H + 132) TshBuf := by
+  decide
+
+
+-- @@ L861-864 verbatim
+theorem tsh_la_nth_off_lo :
+    Codegen.laLo GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 132) =
+      Rv64.laLo (H + 132) TshBuf := by
+  decide
+
+
+-- @@ L866-867 verbatim
+theorem tsh_la_nth_off_range : laInRange (H + 132) TshBuf := by
+  decide
+
+
+-- @@ L869-872 verbatim
+theorem tsh_la_nth_len_hi :
+    Codegen.laHi GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 144) =
+      Rv64.laHi (H + 144) TshBuf := by
+  decide
+
+
+-- @@ L874-877 verbatim
+theorem tsh_la_nth_len_lo :
+    Codegen.laLo GuestAddrs.tsh_buf (GuestAddrs.tx_signing_hash + 144) =
+      Rv64.laLo (H + 144) TshBuf := by
+  decide
+
+
+-- @@ L879-880 verbatim
+theorem tsh_la_nth_len_range : laInRange (H + 144) TshBuf := by
+  decide
+
+
+-- @@ L882-921 verbatim
+/-- `la a3, tsh_buf; addi a3, a3, 64` → `tshNthOffPtr`. `H+132 → H+144`. -/
+theorem tshNthOffPtr_spec (v13 : Word) :
+    cpsTripleWithin 3 (H + 132) (H + 144) fullCode
+      (.x13 ↦ᵣ v13) (.x13 ↦ᵣ tshNthOffPtr) := by
+  have hau : ∀ a i,
+      CodeReq.singleton (H + 132)
+        (.AUIPC .x13 (Rv64.laHi (H + 132) TshBuf)) a = some i →
+        fullCode a = some i := by
+    intro a i hi
+    have hmem := tshMem (txSigningHash_prog : List Instr) rfl (H + 132) 33
+      (.AUIPC .x13 (Codegen.laHi GuestAddrs.tsh_buf
+        (GuestAddrs.tx_signing_hash + 132)))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl
+    exact hmem a i (by rwa [← tsh_la_nth_off_hi] at hi)
+  have had : ∀ a i,
+      CodeReq.singleton ((H + 132) + 4)
+        (.ADDI .x13 .x13 (Rv64.laLo (H + 132) TshBuf)) a = some i →
+        fullCode a = some i := by
+    intro a i hi
+    have hmem := tshMem (txSigningHash_prog : List Instr) rfl (H + 136) 34
+      (.ADDI .x13 .x13 (Codegen.laLo GuestAddrs.tsh_buf
+        (GuestAddrs.tx_signing_hash + 132)))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl
+    have hpc : (H + 132 : Word) + 4 = H + 136 := by decide
+    rw [hpc, ← tsh_la_nth_off_lo] at hi
+    exact hmem a i hi
+  have hla := la_materialize_within .x13 v13 (H + 132) TshBuf
+    (by decide) tsh_la_nth_off_range hau had
+  rw [show (H + 132 : Word) + 8 = H + 140 from by decide] at hla
+  have haddi := addi_spec_gen_same_within .x13 TshBuf (64 : BitVec 12) (H + 140)
+    (by decide)
+  rw [show (H + 140 : Word) + 4 = H + 144 from by decide,
+      show TshBuf + signExtend12 (64 : BitVec 12) = tshNthOffPtr from by
+        unfold tshNthOffPtr TshBuf; decide] at haddi
+  have laddi := cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl (H + 140) 35
+      (.ADDI .x13 .x13 (64 : BitVec 12))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl) haddi
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_seq_same_cr hla laddi)
+
+
+-- @@ L923-962 verbatim
+/-- `la a4, tsh_buf; addi a4, a4, 72` → `tshNthLenPtr`. `H+144 → H+156`. -/
+theorem tshNthLenPtr_spec (v14 : Word) :
+    cpsTripleWithin 3 (H + 144) (H + 156) fullCode
+      (.x14 ↦ᵣ v14) (.x14 ↦ᵣ tshNthLenPtr) := by
+  have hau : ∀ a i,
+      CodeReq.singleton (H + 144)
+        (.AUIPC .x14 (Rv64.laHi (H + 144) TshBuf)) a = some i →
+        fullCode a = some i := by
+    intro a i hi
+    have hmem := tshMem (txSigningHash_prog : List Instr) rfl (H + 144) 36
+      (.AUIPC .x14 (Codegen.laHi GuestAddrs.tsh_buf
+        (GuestAddrs.tx_signing_hash + 144)))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl
+    exact hmem a i (by rwa [← tsh_la_nth_len_hi] at hi)
+  have had : ∀ a i,
+      CodeReq.singleton ((H + 144) + 4)
+        (.ADDI .x14 .x14 (Rv64.laLo (H + 144) TshBuf)) a = some i →
+        fullCode a = some i := by
+    intro a i hi
+    have hmem := tshMem (txSigningHash_prog : List Instr) rfl (H + 148) 37
+      (.ADDI .x14 .x14 (Codegen.laLo GuestAddrs.tsh_buf
+        (GuestAddrs.tx_signing_hash + 144)))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl
+    have hpc : (H + 144 : Word) + 4 = H + 148 := by decide
+    rw [hpc, ← tsh_la_nth_len_lo] at hi
+    exact hmem a i hi
+  have hla := la_materialize_within .x14 v14 (H + 144) TshBuf
+    (by decide) tsh_la_nth_len_range hau had
+  rw [show (H + 144 : Word) + 8 = H + 152 from by decide] at hla
+  have haddi := addi_spec_gen_same_within .x14 TshBuf (72 : BitVec 12) (H + 152)
+    (by decide)
+  rw [show (H + 152 : Word) + 4 = H + 156 from by decide,
+      show TshBuf + signExtend12 (72 : BitVec 12) = tshNthLenPtr from by
+        unfold tshNthLenPtr TshBuf; decide] at haddi
+  have laddi := cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl (H + 152) 38
+      (.ADDI .x14 .x14 (72 : BitVec 12))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl) haddi
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_seq_same_cr hla laddi)
+
+
+-- @@ L964-983 expanded
+/-- Combined pointer materialization. `H+132 → H+156`. -/
+theorem tshNthPtrs_spec (v13 v14 : Word) :
+    cpsTripleWithin (3 + 3) (H + 132) (H + 156) fullCode ((.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14))
+      ((.x13 ↦ᵣ tshNthOffPtr) ** (.x14 ↦ᵣ tshNthLenPtr)) :=
+  by
+  have h1 := tshNthOffPtr_spec v13
+  have h1F :=
+    cpsTripleWithin_frameR (.x14 ↦ᵣ v14)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      h1
+  have h1W :
+    cpsTripleWithin 3 (H + 132) (H + 144) fullCode ((.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14))
+      ((.x14 ↦ᵣ v14) ** (.x13 ↦ᵣ tshNthOffPtr)) :=
+    by refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) h1F
+  have h2 := tshNthLenPtr_spec v14
+  have h2F :=
+    cpsTripleWithin_frameR (.x13 ↦ᵣ tshNthOffPtr)
+      (by
+        repeat
+          first
+          | apply pcFree_sepConj
+          | exact pcFree_regIs
+          | exact pcFree_regOwn
+          | exact pcFree_memIs
+          | exact pcFree_memOwn
+          | exact pcFree_emp
+          | exact pcFree_pure
+          | exact pcFree_instrAt
+          | exact bytesRegion_pcFree _ _
+          | exact pcFree_stackFree _ _
+          | exact pcFree_dwordsIs _ _
+          | exact pcFree_regsAt _ _
+          | exact pcFree_frameSlotsOwn _ _
+          | exact pcFree_frameSlotsSaved _ _ _
+          | exact pcFree_regFileIs _)
+      h2
+  have h2W :
+    cpsTripleWithin 3 (H + 144) (H + 156) fullCode ((.x14 ↦ᵣ v14) ** (.x13 ↦ᵣ tshNthOffPtr))
+      ((.x13 ↦ᵣ tshNthOffPtr) ** (.x14 ↦ᵣ tshNthLenPtr)) :=
+    by refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) h2F
+  exact cpsTripleWithin_seq_same_cr h1W h2W
+
+
+-- @@ L985-988 verbatim
+/-! ## Body: post-nth status check (`H+160`)
+
+    `bne a0, x0` — nonzero nth status jumps to fail `li`; success falls
+    through to payload-length compute + prefix setup. -/
+
+
+-- @@ L990-990 verbatim
+abbrev tshNthFailBeqOff : BitVec 13 := (168 : BitVec 13)
+
+
+-- @@ L992-994 verbatim
+theorem tshNthFailBeq_taken_pc :
+    (H + 160) + signExtend13 tshNthFailBeqOff = tshFailLiPC := by
+  unfold tshNthFailBeqOff tshFailLiPC H; decide
+
+
+-- @@ L996-1010 verbatim
+/-- nth returned nonzero: fail. `H+160 → H+328`. -/
+theorem tshNthFail_taken (st : Word) (hnz : st ≠ 0) :
+    cpsTripleWithin 1 (H + 160) tshFailLiPC fullCode
+      ((.x10 ↦ᵣ st) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ st) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 tshNthFailBeqOff st 0 (H + 160)
+  rw [tshNthFailBeq_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 160) 40
+        (.BNE .x10 .x0 tshNthFailBeqOff)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl) hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact hnz ((sepConj_pure_right _).1 hBP).2)
+
+
+-- @@ L1012-1026 verbatim
+/-- nth returned 0: continue. `H+160 → H+164`. -/
+theorem tshNthFail_ntaken (st : Word) (hz : st = 0) :
+    cpsTripleWithin 1 (H + 160) (H + 164) fullCode
+      ((.x10 ↦ᵣ st) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ st) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 tshNthFailBeqOff st 0 (H + 160)
+  rw [show (H + 160 : Word) + 4 = H + 164 from by decide] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 160) 40
+        (.BNE .x10 .x0 tshNthFailBeqOff)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl) hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact ((sepConj_pure_right _).1 hBP).2 hz)
+
+
+
+-- @@ L1029-1029 verbatim
+end EvmAsm.Codegen.TxSigningHashSpec

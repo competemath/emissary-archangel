@@ -1,0 +1,217 @@
+/-
+  EvmAsm.Evm64.Add.LimbSpec
+
+  Per-limb ADD specs (from Arithmetic.lean).
+-/
+
+module
+
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+
+-- @@ L12-12 verbatim
+@[expose] public section
+
+
+-- @@ L14-14 verbatim
+open EvmAsm.Rv64.Tactics
+
+
+-- @@ L16-16 verbatim
+namespace EvmAsm.Evm64
+
+
+-- @@ L18-18 verbatim
+open EvmAsm.Rv64
+
+
+-- @@ L20-45 verbatim
+/-- ADD limb 0 spec (5 instructions): LD, LD, ADD, SLTU, SD.
+    Computes sum = a + b (mod 2^64) and carry = (sum < b ? 1 : 0). -/
+theorem add_limb0_spec_within (offA offB : BitVec 12)
+    (sp aLimb bLimb v7 v6 v5 : Word) (base : Word) :
+    let memA := sp + signExtend12 offA
+    let memB := sp + signExtend12 offB
+    let sum := aLimb + bLimb
+    let carry := if BitVec.ult sum bLimb then (1 : Word) else 0
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 offA))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 offB))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.ADD .x7 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SLTU .x5 .x7 .x6))
+       (CodeReq.singleton (base + 16) (.SD .x12 .x7 offB)))))
+    cpsTripleWithin 5 base (base + 20) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
+       (memA ↦ₘ aLimb) ** (memB ↦ₘ bLimb))
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ sum) ** (.x6 ↦ᵣ bLimb) ** (.x5 ↦ᵣ carry) **
+       (memA ↦ₘ aLimb) ** (memB ↦ₘ sum)) := by
+  intro memA memB sum carry cr
+  have L0 := ld_spec_gen_within .x7 .x12 sp v7 aLimb offA base (by nofun)
+  have L1 := ld_spec_gen_within .x6 .x12 sp v6 bLimb offB (base + 4) (by nofun)
+  have A := add_spec_gen_rd_eq_rs1_within .x7 .x6 aLimb bLimb (base + 8) (by nofun)
+  have C := sltu_spec_gen_within .x5 .x7 .x6 v5 sum bLimb (base + 12) (by nofun)
+  have S := sd_spec_gen_within .x12 .x7 sp sum bLimb offB (base + 16)
+  runBlock L0 L1 A C S
+
+
+
+-- @@ L48-71 verbatim
+/-- ADD carry limb phase 1 (4 instructions): LD, LD, ADD, SLTU.
+    Loads aLimb and bLimb, computes psum = a + b, carry1 = (psum < b ? 1 : 0). -/
+theorem add_limb_carry_spec_phase1_within (offA offB : BitVec 12)
+    (sp aLimb bLimb v7 v6 carryIn v11 : Word) (base : Word) :
+    let memA := sp + signExtend12 offA
+    let memB := sp + signExtend12 offB
+    let psum := aLimb + bLimb
+    let carry1 := if BitVec.ult psum bLimb then (1 : Word) else 0
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 offA))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 offB))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.ADD .x7 .x7 .x6))
+       (CodeReq.singleton (base + 12) (.SLTU .x11 .x7 .x6))))
+    cpsTripleWithin 4 base (base + 16) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ carryIn) ** (.x11 ↦ᵣ v11) **
+       (memA ↦ₘ aLimb) ** (memB ↦ₘ bLimb))
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ psum) ** (.x6 ↦ᵣ bLimb) ** (.x5 ↦ᵣ carryIn) ** (.x11 ↦ᵣ carry1) **
+       (memA ↦ₘ aLimb) ** (memB ↦ₘ bLimb)) := by
+  intro memA memB psum carry1 cr
+  have L0 := ld_spec_gen_within .x7 .x12 sp v7 aLimb offA base (by nofun)
+  have L1 := ld_spec_gen_within .x6 .x12 sp v6 bLimb offB (base + 4) (by nofun)
+  have A := add_spec_gen_rd_eq_rs1_within .x7 .x6 aLimb bLimb (base + 8) (by nofun)
+  have C := sltu_spec_gen_within .x11 .x7 .x6 v11 psum bLimb (base + 12) (by nofun)
+  runBlock L0 L1 A C
+
+
+
+-- @@ L74-98 verbatim
+/-- ADD carry limb phase 2 (4 instructions): ADD, SLTU, OR, SD.
+    Takes psum, carry1, carryIn, computes result = psum + carryIn,
+    carry2 = (result < carryIn ? 1 : 0), carryOut = carry1 ||| carry2. -/
+theorem add_limb_carry_spec_phase2_within (offB : BitVec 12)
+    (sp psum bLimb carryIn carry1 aLimb : Word) (memA : Word) (base : Word) :
+    let memB := sp + signExtend12 offB
+    let result := psum + carryIn
+    let carry2 := if BitVec.ult result carryIn then (1 : Word) else 0
+    let carryOut := carry1 ||| carry2
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.ADD .x7 .x7 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.SLTU .x6 .x7 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.OR .x5 .x11 .x6))
+       (CodeReq.singleton (base + 12) (.SD .x12 .x7 offB))))
+    cpsTripleWithin 4 base (base + 16) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ psum) ** (.x6 ↦ᵣ bLimb) ** (.x5 ↦ᵣ carryIn) ** (.x11 ↦ᵣ carry1) **
+       (memA ↦ₘ aLimb) ** (memB ↦ₘ bLimb))
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ carry2) ** (.x5 ↦ᵣ carryOut) ** (.x11 ↦ᵣ carry1) **
+       (memA ↦ₘ aLimb) ** (memB ↦ₘ result)) := by
+  intro memB result carry2 carryOut cr
+  have A := add_spec_gen_rd_eq_rs1_within .x7 .x5 psum carryIn base (by nofun)
+  have C := sltu_spec_gen_within .x6 .x7 .x5 bLimb result carryIn (base + 4) (by nofun)
+  have O := or_spec_gen_within .x5 .x11 .x6 carryIn carry1 carry2 (base + 8) (by nofun)
+  have S := sd_spec_gen_within .x12 .x7 sp result bLimb offB (base + 12)
+  runBlock A C O S
+
+
+
+-- @@ L101-130 verbatim
+/-- ADD carry limb spec (8 instructions): LD, LD, ADD, SLTU, ADD, SLTU, OR, SD.
+    Composed from phase1 and phase2. -/
+theorem add_limb_carry_spec_within (offA offB : BitVec 12)
+    (sp aLimb bLimb v7 v6 carryIn v11 : Word) (base : Word) :
+    let memA := sp + signExtend12 offA
+    let memB := sp + signExtend12 offB
+    let psum := aLimb + bLimb
+    let carry1 := if BitVec.ult psum bLimb then (1 : Word) else 0
+    let result := psum + carryIn
+    let carry2 := if BitVec.ult result carryIn then (1 : Word) else 0
+    let carryOut := carry1 ||| carry2
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 offA))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 offB))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.ADD .x7 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SLTU .x11 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.ADD .x7 .x7 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 20) (.SLTU .x6 .x7 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 24) (.OR .x5 .x11 .x6))
+       (CodeReq.singleton (base + 28) (.SD .x12 .x7 offB))))))))
+    cpsTripleWithin 8 base (base + 32) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ carryIn) ** (.x11 ↦ᵣ v11) **
+       (memA ↦ₘ aLimb) ** (memB ↦ₘ bLimb))
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ carry2) ** (.x5 ↦ᵣ carryOut) ** (.x11 ↦ᵣ carry1) **
+       (memA ↦ₘ aLimb) ** (memB ↦ₘ result)) := by
+  have p1 := add_limb_carry_spec_phase1_within offA offB sp aLimb bLimb v7 v6 carryIn v11 base
+  have p2 := add_limb_carry_spec_phase2_within offB sp (aLimb + bLimb) bLimb carryIn
+    (if BitVec.ult (aLimb + bLimb) bLimb then (1 : Word) else 0)
+    aLimb (sp + signExtend12 offA) (base + 16)
+  runBlock p1 p2
+
+
+-- @@ L132-138 verbatim
+/-- Code requirement for `add_limb0_spec_within`. -/
+abbrev addLimb0Code (offA offB : BitVec 12) (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 offA))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 offB))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.ADD .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SLTU .x5 .x7 .x6))
+   (CodeReq.singleton (base + 16) (.SD .x12 .x7 offB)))))
+
+
+-- @@ L140-146 verbatim
+/-- Bundled postcondition for `add_limb0_spec_within`. Hides `sum` and `carry` lets. -/
+@[irreducible]
+def addLimb0Post (sp : Word) (offA offB : BitVec 12) (aLimb bLimb : Word) : Assertion :=
+  let sum := aLimb + bLimb
+  let carry := if BitVec.ult sum bLimb then (1 : Word) else 0
+  (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ sum) ** (.x6 ↦ᵣ bLimb) ** (.x5 ↦ᵣ carry) **
+  ((sp + signExtend12 offA) ↦ₘ aLimb) ** ((sp + signExtend12 offB) ↦ₘ sum)
+
+
+-- @@ L148-157 verbatim
+/-- Code requirement for `add_limb_carry_spec_within`. -/
+abbrev addLimbCarryCode (offA offB : BitVec 12) (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 offA))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 offB))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.ADD .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SLTU .x11 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.ADD .x7 .x7 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.SLTU .x6 .x7 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.OR .x5 .x11 .x6))
+   (CodeReq.singleton (base + 28) (.SD .x12 .x7 offB))))))))
+
+
+-- @@ L159-168 verbatim
+/-- Bundled postcondition for `add_limb_carry_spec_within`. Hides 7 computation lets. -/
+@[irreducible]
+def addLimbCarryPost (sp : Word) (offA offB : BitVec 12) (aLimb bLimb carryIn : Word) : Assertion :=
+  let psum := aLimb + bLimb
+  let carry1 := if BitVec.ult psum bLimb then (1 : Word) else 0
+  let result := psum + carryIn
+  let carry2 := if BitVec.ult result carryIn then (1 : Word) else 0
+  let carryOut := carry1 ||| carry2
+  (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ carry2) ** (.x5 ↦ᵣ carryOut) ** (.x11 ↦ᵣ carry1) **
+  ((sp + signExtend12 offA) ↦ₘ aLimb) ** ((sp + signExtend12 offB) ↦ₘ result)
+
+
+-- @@ L170-176 verbatim
+/-- Bundled postcondition for `add_limb_carry_spec_phase1_within`. -/
+@[irreducible]
+def addLimbCarryPhase1Post (sp : Word) (offA offB : BitVec 12) (aLimb bLimb : Word) : Assertion :=
+  let psum := aLimb + bLimb
+  let carry1 := if BitVec.ult psum bLimb then (1 : Word) else 0
+  (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ psum) ** (.x6 ↦ᵣ bLimb) ** (.x11 ↦ᵣ carry1) **
+  ((sp + signExtend12 offA) ↦ₘ aLimb) ** ((sp + signExtend12 offB) ↦ₘ bLimb)
+
+
+-- @@ L178-185 verbatim
+/-- Bundled postcondition for `add_limb_carry_spec_phase2_within`. -/
+@[irreducible]
+def addLimbCarryPhase2Post (sp : Word) (offB : BitVec 12) (psum carryIn carry1 aLimb : Word) (memA : Word) : Assertion :=
+  let result := psum + carryIn
+  let carry2 := if BitVec.ult result carryIn then (1 : Word) else 0
+  let carryOut := carry1 ||| carry2
+  (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ carry2) ** (.x5 ↦ᵣ carryOut) ** (.x11 ↦ᵣ carry1) **
+  (memA ↦ₘ aLimb) ** ((sp + signExtend12 offB) ↦ₘ result)
+
+
+-- @@ L187-187 verbatim
+end EvmAsm.Evm64

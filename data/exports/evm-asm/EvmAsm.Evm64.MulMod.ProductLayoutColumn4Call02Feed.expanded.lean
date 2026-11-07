@@ -1,0 +1,1340 @@
+module
+
+public import EvmAsm.Evm64.MulMod.ProductLayoutPublicAlgebra
+
+
+-- @@ L5-5 verbatim
+@[expose] public section
+
+
+-- @@ L7-7 verbatim
+namespace EvmAsm.Evm64
+
+
+-- @@ L9-9 verbatim
+open EvmAsm.Rv64
+
+-- @@ L10-10 verbatim
+open EvmAsm.Evm64.MulMod.ProductAlgebra
+
+
+-- @@ L12-58 verbatim
+/-- Column-4 call03-feed value with the call02 high carry expanded into
+    the explicit carry out of the two column-1 high/carry contributions. -/
+@[irreducible] def mulModProductLayoutColumn4Call02FeedValue (a b : EvmWord) : Word :=
+  let hi01 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 1)
+  let carry01 := if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+      a.getLimbN 1 * b.getLimbN 0 + a.getLimbN 0 * b.getLimbN 1)
+      (a.getLimbN 0 * b.getLimbN 1) then (1 : Word) else 0
+  let hi10 := rv64_mulhu (a.getLimbN 1) (b.getLimbN 0)
+  let carry10 := if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+      a.getLimbN 1 * b.getLimbN 0) (a.getLimbN 1 * b.getLimbN 0) then
+      (1 : Word) else 0
+  let carry02Prefix := if BitVec.ult ((hi01 + carry01) + (hi10 + carry10))
+      (hi01 + carry01) then (1 : Word) else 0
+  let hi20 := rv64_mulhu (a.getLimbN 2) (b.getLimbN 0)
+  let carry20 := if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+      (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0
+  let hi11 := rv64_mulhu (a.getLimbN 1) (b.getLimbN 1)
+  let carry11 := if BitVec.ult (mulModProductLayoutCall03P112 a b + a.getLimbN 1 * b.getLimbN 1)
+      (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0
+  let hi02 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 2)
+  let carry02 := if BitVec.ult (mulModProductLayoutCall04P112 a b + a.getLimbN 0 * b.getLimbN 2)
+      (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0
+  let feed03 := carry02Prefix + (hi20 + carry20)
+  let feed04 := feed03 + (hi11 + carry11)
+  let feed05 := feed04 + (hi02 + carry02)
+  let feed06 := feed05 + a.getLimbN 3 * b.getLimbN 0
+  let feed07 := feed06 + a.getLimbN 2 * b.getLimbN 1
+  (((if BitVec.ult feed03 (hi20 + carry20) then (1 : Word) else 0) +
+      (if BitVec.ult feed04 (hi11 + carry11) then (1 : Word) else 0)) +
+      (if BitVec.ult feed05 (hi02 + carry02) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 3) (b.getLimbN 0) +
+      (if BitVec.ult (feed05 + a.getLimbN 3 * b.getLimbN 0)
+          (a.getLimbN 3 * b.getLimbN 0) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 2) (b.getLimbN 1) +
+      (if BitVec.ult (feed06 + a.getLimbN 2 * b.getLimbN 1)
+          (a.getLimbN 2 * b.getLimbN 1) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 1) (b.getLimbN 2) +
+      (if BitVec.ult (feed07 + a.getLimbN 1 * b.getLimbN 2)
+          (a.getLimbN 1 * b.getLimbN 2) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 0) (b.getLimbN 3) +
+      (if BitVec.ult ((a * b).getLimbN 3) (a.getLimbN 0 * b.getLimbN 3) then
+        (1 : Word)
+      else
+        0)) +
+    a.getLimbN 3 * b.getLimbN 1 +
+    a.getLimbN 2 * b.getLimbN 2 +
+    a.getLimbN 1 * b.getLimbN 3
+
+
+-- @@ L60-107 verbatim
+/-- Column-4 call02-feed value with the call02 low-column-2 cell expanded
+    into the explicit column-1 high/carry sum used by the next low carry. -/
+@[irreducible] def mulModProductLayoutColumn4Call02P112FeedValue (a b : EvmWord) : Word :=
+  let hi01 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 1)
+  let carry01 := if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+      a.getLimbN 1 * b.getLimbN 0 + a.getLimbN 0 * b.getLimbN 1)
+      (a.getLimbN 0 * b.getLimbN 1) then (1 : Word) else 0
+  let hi10 := rv64_mulhu (a.getLimbN 1) (b.getLimbN 0)
+  let carry10 := if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+      a.getLimbN 1 * b.getLimbN 0) (a.getLimbN 1 * b.getLimbN 0) then
+      (1 : Word) else 0
+  let p112 := hi01 + hi10 + carry01 + carry10
+  let carry02Prefix := if BitVec.ult ((hi01 + carry01) + (hi10 + carry10))
+      (hi01 + carry01) then (1 : Word) else 0
+  let hi20 := rv64_mulhu (a.getLimbN 2) (b.getLimbN 0)
+  let carry20 := if BitVec.ult (p112 + a.getLimbN 2 * b.getLimbN 0)
+      (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0
+  let hi11 := rv64_mulhu (a.getLimbN 1) (b.getLimbN 1)
+  let carry11 := if BitVec.ult (mulModProductLayoutCall03P112 a b + a.getLimbN 1 * b.getLimbN 1)
+      (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0
+  let hi02 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 2)
+  let carry02 := if BitVec.ult (mulModProductLayoutCall04P112 a b + a.getLimbN 0 * b.getLimbN 2)
+      (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0
+  let feed03 := carry02Prefix + (hi20 + carry20)
+  let feed04 := feed03 + (hi11 + carry11)
+  let feed05 := feed04 + (hi02 + carry02)
+  let feed06 := feed05 + a.getLimbN 3 * b.getLimbN 0
+  let feed07 := feed06 + a.getLimbN 2 * b.getLimbN 1
+  (((if BitVec.ult feed03 (hi20 + carry20) then (1 : Word) else 0) +
+      (if BitVec.ult feed04 (hi11 + carry11) then (1 : Word) else 0)) +
+      (if BitVec.ult feed05 (hi02 + carry02) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 3) (b.getLimbN 0) +
+      (if BitVec.ult (feed05 + a.getLimbN 3 * b.getLimbN 0)
+          (a.getLimbN 3 * b.getLimbN 0) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 2) (b.getLimbN 1) +
+      (if BitVec.ult (feed06 + a.getLimbN 2 * b.getLimbN 1)
+          (a.getLimbN 2 * b.getLimbN 1) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 1) (b.getLimbN 2) +
+      (if BitVec.ult (feed07 + a.getLimbN 1 * b.getLimbN 2)
+          (a.getLimbN 1 * b.getLimbN 2) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 0) (b.getLimbN 3) +
+      (if BitVec.ult ((a * b).getLimbN 3) (a.getLimbN 0 * b.getLimbN 3) then
+        (1 : Word)
+      else
+        0)) +
+    a.getLimbN 3 * b.getLimbN 1 +
+    a.getLimbN 2 * b.getLimbN 2 +
+    a.getLimbN 1 * b.getLimbN 3
+
+
+-- @@ L109-113 verbatim
+theorem mulModProductLayoutColumn4Call03FeedValue_eq_call02FeedValue (a b : EvmWord) :
+    mulModProductLayoutColumn4Call03FeedValue a b =
+      mulModProductLayoutColumn4Call02FeedValue a b := by
+  unfold mulModProductLayoutColumn4Call03FeedValue mulModProductLayoutColumn4Call02FeedValue
+  rw [mulModProductLayoutCall02P120_eq_expanded]
+
+
+-- @@ L115-163 verbatim
+/-- Column-4 call02-P112-feed value with the call03 low-column-2 cell
+    expanded into the explicit column-1 high/carry sum plus `a2*b0`. -/
+@[irreducible] def mulModProductLayoutColumn4Call03P112FeedValue (a b : EvmWord) : Word :=
+  let hi01 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 1)
+  let carry01 := if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+      a.getLimbN 1 * b.getLimbN 0 + a.getLimbN 0 * b.getLimbN 1)
+      (a.getLimbN 0 * b.getLimbN 1) then (1 : Word) else 0
+  let hi10 := rv64_mulhu (a.getLimbN 1) (b.getLimbN 0)
+  let carry10 := if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+      a.getLimbN 1 * b.getLimbN 0) (a.getLimbN 1 * b.getLimbN 0) then
+      (1 : Word) else 0
+  let p112 := hi01 + hi10 + carry01 + carry10
+  let p112a := p112 + a.getLimbN 2 * b.getLimbN 0
+  let carry02Prefix := if BitVec.ult ((hi01 + carry01) + (hi10 + carry10))
+      (hi01 + carry01) then (1 : Word) else 0
+  let hi20 := rv64_mulhu (a.getLimbN 2) (b.getLimbN 0)
+  let carry20 := if BitVec.ult (p112 + a.getLimbN 2 * b.getLimbN 0)
+      (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0
+  let hi11 := rv64_mulhu (a.getLimbN 1) (b.getLimbN 1)
+  let carry11 := if BitVec.ult (p112a + a.getLimbN 1 * b.getLimbN 1)
+      (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0
+  let hi02 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 2)
+  let carry02 := if BitVec.ult (mulModProductLayoutCall04P112 a b + a.getLimbN 0 * b.getLimbN 2)
+      (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0
+  let feed03 := carry02Prefix + (hi20 + carry20)
+  let feed04 := feed03 + (hi11 + carry11)
+  let feed05 := feed04 + (hi02 + carry02)
+  let feed06 := feed05 + a.getLimbN 3 * b.getLimbN 0
+  let feed07 := feed06 + a.getLimbN 2 * b.getLimbN 1
+  (((if BitVec.ult feed03 (hi20 + carry20) then (1 : Word) else 0) +
+      (if BitVec.ult feed04 (hi11 + carry11) then (1 : Word) else 0)) +
+      (if BitVec.ult feed05 (hi02 + carry02) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 3) (b.getLimbN 0) +
+      (if BitVec.ult (feed05 + a.getLimbN 3 * b.getLimbN 0)
+          (a.getLimbN 3 * b.getLimbN 0) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 2) (b.getLimbN 1) +
+      (if BitVec.ult (feed06 + a.getLimbN 2 * b.getLimbN 1)
+          (a.getLimbN 2 * b.getLimbN 1) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 1) (b.getLimbN 2) +
+      (if BitVec.ult (feed07 + a.getLimbN 1 * b.getLimbN 2)
+          (a.getLimbN 1 * b.getLimbN 2) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 0) (b.getLimbN 3) +
+      (if BitVec.ult ((a * b).getLimbN 3) (a.getLimbN 0 * b.getLimbN 3) then
+        (1 : Word)
+      else
+        0)) +
+    a.getLimbN 3 * b.getLimbN 1 +
+    a.getLimbN 2 * b.getLimbN 2 +
+    a.getLimbN 1 * b.getLimbN 3
+
+
+-- @@ L165-214 verbatim
+/-- Column-4 call03-P112-feed value with the call04 low-column-2 cell
+    expanded into the explicit column-1 high/carry sum plus `a2*b0 + a1*b1`. -/
+@[irreducible] def mulModProductLayoutColumn4Call04P112FeedValue (a b : EvmWord) : Word :=
+  let hi01 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 1)
+  let carry01 := if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+      a.getLimbN 1 * b.getLimbN 0 + a.getLimbN 0 * b.getLimbN 1)
+      (a.getLimbN 0 * b.getLimbN 1) then (1 : Word) else 0
+  let hi10 := rv64_mulhu (a.getLimbN 1) (b.getLimbN 0)
+  let carry10 := if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+      a.getLimbN 1 * b.getLimbN 0) (a.getLimbN 1 * b.getLimbN 0) then
+      (1 : Word) else 0
+  let p112 := hi01 + hi10 + carry01 + carry10
+  let p112a := p112 + a.getLimbN 2 * b.getLimbN 0
+  let p112b := p112a + a.getLimbN 1 * b.getLimbN 1
+  let carry02Prefix := if BitVec.ult ((hi01 + carry01) + (hi10 + carry10))
+      (hi01 + carry01) then (1 : Word) else 0
+  let hi20 := rv64_mulhu (a.getLimbN 2) (b.getLimbN 0)
+  let carry20 := if BitVec.ult (p112 + a.getLimbN 2 * b.getLimbN 0)
+      (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0
+  let hi11 := rv64_mulhu (a.getLimbN 1) (b.getLimbN 1)
+  let carry11 := if BitVec.ult (p112a + a.getLimbN 1 * b.getLimbN 1)
+      (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0
+  let hi02 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 2)
+  let carry02 := if BitVec.ult (p112b + a.getLimbN 0 * b.getLimbN 2)
+      (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0
+  let feed03 := carry02Prefix + (hi20 + carry20)
+  let feed04 := feed03 + (hi11 + carry11)
+  let feed05 := feed04 + (hi02 + carry02)
+  let feed06 := feed05 + a.getLimbN 3 * b.getLimbN 0
+  let feed07 := feed06 + a.getLimbN 2 * b.getLimbN 1
+  (((if BitVec.ult feed03 (hi20 + carry20) then (1 : Word) else 0) +
+      (if BitVec.ult feed04 (hi11 + carry11) then (1 : Word) else 0)) +
+      (if BitVec.ult feed05 (hi02 + carry02) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 3) (b.getLimbN 0) +
+      (if BitVec.ult (feed05 + a.getLimbN 3 * b.getLimbN 0)
+          (a.getLimbN 3 * b.getLimbN 0) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 2) (b.getLimbN 1) +
+      (if BitVec.ult (feed06 + a.getLimbN 2 * b.getLimbN 1)
+          (a.getLimbN 2 * b.getLimbN 1) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 1) (b.getLimbN 2) +
+      (if BitVec.ult (feed07 + a.getLimbN 1 * b.getLimbN 2)
+          (a.getLimbN 1 * b.getLimbN 2) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 0) (b.getLimbN 3) +
+      (if BitVec.ult ((a * b).getLimbN 3) (a.getLimbN 0 * b.getLimbN 3) then
+        (1 : Word)
+      else
+        0)) +
+    a.getLimbN 3 * b.getLimbN 1 +
+    a.getLimbN 2 * b.getLimbN 2 +
+    a.getLimbN 1 * b.getLimbN 3
+
+
+-- @@ L216-264 verbatim
+/-- Column-4 call04-P112-feed value with the final low-column-2 cell folded
+    back to the layout's call05 P112 value. -/
+@[irreducible] def mulModProductLayoutColumn4Call05P112FeedValue (a b : EvmWord) : Word :=
+  let hi01 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 1)
+  let carry01 := if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+      a.getLimbN 1 * b.getLimbN 0 + a.getLimbN 0 * b.getLimbN 1)
+      (a.getLimbN 0 * b.getLimbN 1) then (1 : Word) else 0
+  let hi10 := rv64_mulhu (a.getLimbN 1) (b.getLimbN 0)
+  let carry10 := if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+      a.getLimbN 1 * b.getLimbN 0) (a.getLimbN 1 * b.getLimbN 0) then
+      (1 : Word) else 0
+  let p112 := hi01 + hi10 + carry01 + carry10
+  let p112a := p112 + a.getLimbN 2 * b.getLimbN 0
+  let carry02Prefix := if BitVec.ult ((hi01 + carry01) + (hi10 + carry10))
+      (hi01 + carry01) then (1 : Word) else 0
+  let hi20 := rv64_mulhu (a.getLimbN 2) (b.getLimbN 0)
+  let carry20 := if BitVec.ult (p112 + a.getLimbN 2 * b.getLimbN 0)
+      (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0
+  let hi11 := rv64_mulhu (a.getLimbN 1) (b.getLimbN 1)
+  let carry11 := if BitVec.ult (p112a + a.getLimbN 1 * b.getLimbN 1)
+      (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0
+  let hi02 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 2)
+  let carry02 := if BitVec.ult (mulModProductLayoutCall05P112 a b)
+      (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0
+  let feed03 := carry02Prefix + (hi20 + carry20)
+  let feed04 := feed03 + (hi11 + carry11)
+  let feed05 := feed04 + (hi02 + carry02)
+  let feed06 := feed05 + a.getLimbN 3 * b.getLimbN 0
+  let feed07 := feed06 + a.getLimbN 2 * b.getLimbN 1
+  (((if BitVec.ult feed03 (hi20 + carry20) then (1 : Word) else 0) +
+      (if BitVec.ult feed04 (hi11 + carry11) then (1 : Word) else 0)) +
+      (if BitVec.ult feed05 (hi02 + carry02) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 3) (b.getLimbN 0) +
+      (if BitVec.ult (feed05 + a.getLimbN 3 * b.getLimbN 0)
+          (a.getLimbN 3 * b.getLimbN 0) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 2) (b.getLimbN 1) +
+      (if BitVec.ult (feed06 + a.getLimbN 2 * b.getLimbN 1)
+          (a.getLimbN 2 * b.getLimbN 1) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 1) (b.getLimbN 2) +
+      (if BitVec.ult (feed07 + a.getLimbN 1 * b.getLimbN 2)
+          (a.getLimbN 1 * b.getLimbN 2) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 0) (b.getLimbN 3) +
+      (if BitVec.ult ((a * b).getLimbN 3) (a.getLimbN 0 * b.getLimbN 3) then
+        (1 : Word)
+      else
+        0)) +
+    a.getLimbN 3 * b.getLimbN 1 +
+    a.getLimbN 2 * b.getLimbN 2 +
+    a.getLimbN 1 * b.getLimbN 3
+
+
+-- @@ L266-314 verbatim
+/-- Column-4 call05-P112-feed value with the final low-column-2 cell exposed
+    as the concrete second limb of the full product. -/
+@[irreducible] def mulModProductLayoutColumn4Limb2FeedValue (a b : EvmWord) : Word :=
+  let hi01 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 1)
+  let carry01 := if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+      a.getLimbN 1 * b.getLimbN 0 + a.getLimbN 0 * b.getLimbN 1)
+      (a.getLimbN 0 * b.getLimbN 1) then (1 : Word) else 0
+  let hi10 := rv64_mulhu (a.getLimbN 1) (b.getLimbN 0)
+  let carry10 := if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+      a.getLimbN 1 * b.getLimbN 0) (a.getLimbN 1 * b.getLimbN 0) then
+      (1 : Word) else 0
+  let p112 := hi01 + hi10 + carry01 + carry10
+  let p112a := p112 + a.getLimbN 2 * b.getLimbN 0
+  let carry02Prefix := if BitVec.ult ((hi01 + carry01) + (hi10 + carry10))
+      (hi01 + carry01) then (1 : Word) else 0
+  let hi20 := rv64_mulhu (a.getLimbN 2) (b.getLimbN 0)
+  let carry20 := if BitVec.ult (p112 + a.getLimbN 2 * b.getLimbN 0)
+      (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0
+  let hi11 := rv64_mulhu (a.getLimbN 1) (b.getLimbN 1)
+  let carry11 := if BitVec.ult (p112a + a.getLimbN 1 * b.getLimbN 1)
+      (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0
+  let hi02 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 2)
+  let carry02 := if BitVec.ult ((a * b).getLimbN 2)
+      (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0
+  let feed03 := carry02Prefix + (hi20 + carry20)
+  let feed04 := feed03 + (hi11 + carry11)
+  let feed05 := feed04 + (hi02 + carry02)
+  let feed06 := feed05 + a.getLimbN 3 * b.getLimbN 0
+  let feed07 := feed06 + a.getLimbN 2 * b.getLimbN 1
+  (((if BitVec.ult feed03 (hi20 + carry20) then (1 : Word) else 0) +
+      (if BitVec.ult feed04 (hi11 + carry11) then (1 : Word) else 0)) +
+      (if BitVec.ult feed05 (hi02 + carry02) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 3) (b.getLimbN 0) +
+      (if BitVec.ult (feed05 + a.getLimbN 3 * b.getLimbN 0)
+          (a.getLimbN 3 * b.getLimbN 0) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 2) (b.getLimbN 1) +
+      (if BitVec.ult (feed06 + a.getLimbN 2 * b.getLimbN 1)
+          (a.getLimbN 2 * b.getLimbN 1) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 1) (b.getLimbN 2) +
+      (if BitVec.ult (feed07 + a.getLimbN 1 * b.getLimbN 2)
+          (a.getLimbN 1 * b.getLimbN 2) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 0) (b.getLimbN 3) +
+      (if BitVec.ult ((a * b).getLimbN 3) (a.getLimbN 0 * b.getLimbN 3) then
+        (1 : Word)
+      else
+        0)) +
+    a.getLimbN 3 * b.getLimbN 1 +
+    a.getLimbN 2 * b.getLimbN 2 +
+    a.getLimbN 1 * b.getLimbN 3
+
+
+-- @@ L316-352 verbatim
+/-- Column-4 limb2-feed value with the first high carry folded back to
+    the layout's call02 P120 value. -/
+@[irreducible] def mulModProductLayoutColumn4Call02P120Limb2FeedValue (a b : EvmWord) : Word :=
+  let hi20 := rv64_mulhu (a.getLimbN 2) (b.getLimbN 0)
+  let carry20 := if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+      (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0
+  let hi11 := rv64_mulhu (a.getLimbN 1) (b.getLimbN 1)
+  let carry11 := if BitVec.ult (mulModProductLayoutCall03P112 a b + a.getLimbN 1 * b.getLimbN 1)
+      (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0
+  let hi02 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 2)
+  let carry02 := if BitVec.ult ((a * b).getLimbN 2)
+      (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0
+  let feed03 := mulModProductLayoutCall02P120 a b + (hi20 + carry20)
+  let feed04 := feed03 + (hi11 + carry11)
+  let feed05 := feed04 + (hi02 + carry02)
+  let feed06 := feed05 + a.getLimbN 3 * b.getLimbN 0
+  let feed07 := feed06 + a.getLimbN 2 * b.getLimbN 1
+  (((if BitVec.ult feed03 (hi20 + carry20) then (1 : Word) else 0) +
+      (if BitVec.ult feed04 (hi11 + carry11) then (1 : Word) else 0)) +
+      (if BitVec.ult feed05 (hi02 + carry02) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 3) (b.getLimbN 0) +
+      (if BitVec.ult (feed05 + a.getLimbN 3 * b.getLimbN 0)
+          (a.getLimbN 3 * b.getLimbN 0) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 2) (b.getLimbN 1) +
+      (if BitVec.ult (feed06 + a.getLimbN 2 * b.getLimbN 1)
+          (a.getLimbN 2 * b.getLimbN 1) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 1) (b.getLimbN 2) +
+      (if BitVec.ult (feed07 + a.getLimbN 1 * b.getLimbN 2)
+          (a.getLimbN 1 * b.getLimbN 2) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 0) (b.getLimbN 3) +
+      (if BitVec.ult ((a * b).getLimbN 3) (a.getLimbN 0 * b.getLimbN 3) then
+        (1 : Word)
+      else
+        0)) +
+    a.getLimbN 3 * b.getLimbN 1 +
+    a.getLimbN 2 * b.getLimbN 2 +
+    a.getLimbN 1 * b.getLimbN 3
+
+
+-- @@ L354-395 verbatim
+/-- Column-4 call02-P120 limb2-feed value with the next high carry folded
+    back to the layout's call03 P120 value. -/
+@[irreducible] def mulModProductLayoutColumn4Call03P120Limb2FeedValue (a b : EvmWord) : Word :=
+  let hi11 := rv64_mulhu (a.getLimbN 1) (b.getLimbN 1)
+  let carry11 := if BitVec.ult (mulModProductLayoutCall03P112 a b + a.getLimbN 1 * b.getLimbN 1)
+      (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0
+  let hi02 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 2)
+  let carry02 := if BitVec.ult ((a * b).getLimbN 2)
+      (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0
+  let feed04 := mulModProductLayoutCall03P120 a b + (hi11 + carry11)
+  let feed05 := feed04 + (hi02 + carry02)
+  let feed06 := feed05 + a.getLimbN 3 * b.getLimbN 0
+  let feed07 := feed06 + a.getLimbN 2 * b.getLimbN 1
+  (((if BitVec.ult (mulModProductLayoutCall02P120 a b +
+          (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+            (if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+                (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0)))
+          (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+            (if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+                (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0)) then
+        (1 : Word)
+      else
+        0) +
+      (if BitVec.ult feed04 (hi11 + carry11) then (1 : Word) else 0)) +
+      (if BitVec.ult feed05 (hi02 + carry02) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 3) (b.getLimbN 0) +
+      (if BitVec.ult (feed05 + a.getLimbN 3 * b.getLimbN 0)
+          (a.getLimbN 3 * b.getLimbN 0) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 2) (b.getLimbN 1) +
+      (if BitVec.ult (feed06 + a.getLimbN 2 * b.getLimbN 1)
+          (a.getLimbN 2 * b.getLimbN 1) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 1) (b.getLimbN 2) +
+      (if BitVec.ult (feed07 + a.getLimbN 1 * b.getLimbN 2)
+          (a.getLimbN 1 * b.getLimbN 2) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 0) (b.getLimbN 3) +
+      (if BitVec.ult ((a * b).getLimbN 3) (a.getLimbN 0 * b.getLimbN 3) then
+        (1 : Word)
+      else
+        0)) +
+    a.getLimbN 3 * b.getLimbN 1 +
+    a.getLimbN 2 * b.getLimbN 2 +
+    a.getLimbN 1 * b.getLimbN 3
+
+
+-- @@ L397-443 verbatim
+/-- Column-4 call03-P120 limb2-feed value with the next high carry folded
+    back to the layout's call04 P120 value. -/
+@[irreducible] def mulModProductLayoutColumn4Call04P120Limb2FeedValue (a b : EvmWord) : Word :=
+  let hi02 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 2)
+  let carry02 := if BitVec.ult ((a * b).getLimbN 2)
+      (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0
+  let feed05 := mulModProductLayoutCall04P120 a b + (hi02 + carry02)
+  let feed06 := feed05 + a.getLimbN 3 * b.getLimbN 0
+  let feed07 := feed06 + a.getLimbN 2 * b.getLimbN 1
+  (((if BitVec.ult (mulModProductLayoutCall02P120 a b +
+          (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+            (if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+                (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0)))
+          (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+            (if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+                (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0)) then
+        (1 : Word)
+      else
+        0) +
+      (if BitVec.ult (mulModProductLayoutCall03P120 a b +
+          (rv64_mulhu (a.getLimbN 1) (b.getLimbN 1) +
+            (if BitVec.ult (mulModProductLayoutCall03P112 a b + a.getLimbN 1 * b.getLimbN 1)
+                (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0)))
+          (rv64_mulhu (a.getLimbN 1) (b.getLimbN 1) +
+            (if BitVec.ult (mulModProductLayoutCall03P112 a b + a.getLimbN 1 * b.getLimbN 1)
+                (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0)) then
+        (1 : Word)
+      else
+        0)) +
+      (if BitVec.ult feed05 (hi02 + carry02) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 3) (b.getLimbN 0) +
+      (if BitVec.ult (feed05 + a.getLimbN 3 * b.getLimbN 0)
+          (a.getLimbN 3 * b.getLimbN 0) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 2) (b.getLimbN 1) +
+      (if BitVec.ult (feed06 + a.getLimbN 2 * b.getLimbN 1)
+          (a.getLimbN 2 * b.getLimbN 1) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 1) (b.getLimbN 2) +
+      (if BitVec.ult (feed07 + a.getLimbN 1 * b.getLimbN 2)
+          (a.getLimbN 1 * b.getLimbN 2) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 0) (b.getLimbN 3) +
+      (if BitVec.ult ((a * b).getLimbN 3) (a.getLimbN 0 * b.getLimbN 3) then
+        (1 : Word)
+      else
+        0)) +
+    a.getLimbN 3 * b.getLimbN 1 +
+    a.getLimbN 2 * b.getLimbN 2 +
+    a.getLimbN 1 * b.getLimbN 3
+
+
+-- @@ L445-496 verbatim
+/-- Column-4 call04-P120 limb2-feed value with the column-2 high feed folded
+    back to the layout's call05 P120 value. -/
+@[irreducible] def mulModProductLayoutColumn4Call05P120FeedValue (a b : EvmWord) : Word :=
+  let feed06 := mulModProductLayoutCall05P120 a b + a.getLimbN 3 * b.getLimbN 0
+  let feed07 := feed06 + a.getLimbN 2 * b.getLimbN 1
+  (((if BitVec.ult (mulModProductLayoutCall02P120 a b +
+          (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+            (if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+                (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0)))
+          (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+            (if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+                (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0)) then
+        (1 : Word)
+      else
+        0) +
+      (if BitVec.ult (mulModProductLayoutCall03P120 a b +
+          (rv64_mulhu (a.getLimbN 1) (b.getLimbN 1) +
+            (if BitVec.ult (mulModProductLayoutCall03P112 a b + a.getLimbN 1 * b.getLimbN 1)
+                (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0)))
+          (rv64_mulhu (a.getLimbN 1) (b.getLimbN 1) +
+            (if BitVec.ult (mulModProductLayoutCall03P112 a b + a.getLimbN 1 * b.getLimbN 1)
+                (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0)) then
+        (1 : Word)
+      else
+        0)) +
+      (if BitVec.ult (mulModProductLayoutCall04P120 a b +
+          (rv64_mulhu (a.getLimbN 0) (b.getLimbN 2) +
+            (if BitVec.ult (mulModProductLayoutCall05P112 a b)
+                (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0)))
+          (rv64_mulhu (a.getLimbN 0) (b.getLimbN 2) +
+            (if BitVec.ult (mulModProductLayoutCall05P112 a b)
+                (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0)) then
+        (1 : Word)
+      else
+        0)) +
+    (rv64_mulhu (a.getLimbN 3) (b.getLimbN 0) +
+      (if BitVec.ult (mulModProductLayoutCall05P120 a b + a.getLimbN 3 * b.getLimbN 0)
+          (a.getLimbN 3 * b.getLimbN 0) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 2) (b.getLimbN 1) +
+      (if BitVec.ult (feed06 + a.getLimbN 2 * b.getLimbN 1)
+          (a.getLimbN 2 * b.getLimbN 1) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 1) (b.getLimbN 2) +
+      (if BitVec.ult (feed07 + a.getLimbN 1 * b.getLimbN 2)
+          (a.getLimbN 1 * b.getLimbN 2) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 0) (b.getLimbN 3) +
+      (if BitVec.ult ((a * b).getLimbN 3) (a.getLimbN 0 * b.getLimbN 3) then
+        (1 : Word)
+      else
+        0)) +
+    a.getLimbN 3 * b.getLimbN 1 +
+    a.getLimbN 2 * b.getLimbN 2 +
+    a.getLimbN 1 * b.getLimbN 3
+
+
+-- @@ L498-548 verbatim
+/-- Column-4 call05-P120 feed value with the next running high-feed cell
+    folded back to the layout's call06 P120 value. -/
+@[irreducible] def mulModProductLayoutColumn4Call06P120FeedValue (a b : EvmWord) : Word :=
+  let feed07 := mulModProductLayoutCall06P120 a b + a.getLimbN 2 * b.getLimbN 1
+  (((if BitVec.ult (mulModProductLayoutCall02P120 a b +
+          (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+            (if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+                (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0)))
+          (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+            (if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+                (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0)) then
+        (1 : Word)
+      else
+        0) +
+      (if BitVec.ult (mulModProductLayoutCall03P120 a b +
+          (rv64_mulhu (a.getLimbN 1) (b.getLimbN 1) +
+            (if BitVec.ult (mulModProductLayoutCall03P112 a b + a.getLimbN 1 * b.getLimbN 1)
+                (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0)))
+          (rv64_mulhu (a.getLimbN 1) (b.getLimbN 1) +
+            (if BitVec.ult (mulModProductLayoutCall03P112 a b + a.getLimbN 1 * b.getLimbN 1)
+                (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0)) then
+        (1 : Word)
+      else
+        0)) +
+      (if BitVec.ult (mulModProductLayoutCall04P120 a b +
+          (rv64_mulhu (a.getLimbN 0) (b.getLimbN 2) +
+            (if BitVec.ult (mulModProductLayoutCall05P112 a b)
+                (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0)))
+          (rv64_mulhu (a.getLimbN 0) (b.getLimbN 2) +
+            (if BitVec.ult (mulModProductLayoutCall05P112 a b)
+                (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0)) then
+        (1 : Word)
+      else
+        0)) +
+    (rv64_mulhu (a.getLimbN 3) (b.getLimbN 0) +
+      (if BitVec.ult (mulModProductLayoutCall05P120 a b + a.getLimbN 3 * b.getLimbN 0)
+          (a.getLimbN 3 * b.getLimbN 0) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 2) (b.getLimbN 1) +
+      (if BitVec.ult (mulModProductLayoutCall06P120 a b + a.getLimbN 2 * b.getLimbN 1)
+          (a.getLimbN 2 * b.getLimbN 1) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 1) (b.getLimbN 2) +
+      (if BitVec.ult (feed07 + a.getLimbN 1 * b.getLimbN 2)
+          (a.getLimbN 1 * b.getLimbN 2) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 0) (b.getLimbN 3) +
+      (if BitVec.ult ((a * b).getLimbN 3) (a.getLimbN 0 * b.getLimbN 3) then
+        (1 : Word)
+      else
+        0)) +
+    a.getLimbN 3 * b.getLimbN 1 +
+    a.getLimbN 2 * b.getLimbN 2 +
+    a.getLimbN 1 * b.getLimbN 3
+
+
+-- @@ L550-599 verbatim
+/-- Column-4 call06-P120 feed value with the next running high-feed cell
+    folded back to the layout's call07 P120 value. -/
+@[irreducible] def mulModProductLayoutColumn4Call07P120FeedValue (a b : EvmWord) : Word :=
+  (((if BitVec.ult (mulModProductLayoutCall02P120 a b +
+          (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+            (if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+                (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0)))
+          (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+            (if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+                (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0)) then
+        (1 : Word)
+      else
+        0) +
+      (if BitVec.ult (mulModProductLayoutCall03P120 a b +
+          (rv64_mulhu (a.getLimbN 1) (b.getLimbN 1) +
+            (if BitVec.ult (mulModProductLayoutCall03P112 a b + a.getLimbN 1 * b.getLimbN 1)
+                (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0)))
+          (rv64_mulhu (a.getLimbN 1) (b.getLimbN 1) +
+            (if BitVec.ult (mulModProductLayoutCall03P112 a b + a.getLimbN 1 * b.getLimbN 1)
+                (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0)) then
+        (1 : Word)
+      else
+        0)) +
+      (if BitVec.ult (mulModProductLayoutCall04P120 a b +
+          (rv64_mulhu (a.getLimbN 0) (b.getLimbN 2) +
+            (if BitVec.ult (mulModProductLayoutCall05P112 a b)
+                (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0)))
+          (rv64_mulhu (a.getLimbN 0) (b.getLimbN 2) +
+            (if BitVec.ult (mulModProductLayoutCall05P112 a b)
+                (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0)) then
+        (1 : Word)
+      else
+        0)) +
+    (rv64_mulhu (a.getLimbN 3) (b.getLimbN 0) +
+      (if BitVec.ult (mulModProductLayoutCall05P120 a b + a.getLimbN 3 * b.getLimbN 0)
+          (a.getLimbN 3 * b.getLimbN 0) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 2) (b.getLimbN 1) +
+      (if BitVec.ult (mulModProductLayoutCall06P120 a b + a.getLimbN 2 * b.getLimbN 1)
+          (a.getLimbN 2 * b.getLimbN 1) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 1) (b.getLimbN 2) +
+      (if BitVec.ult (mulModProductLayoutCall07P120 a b + a.getLimbN 1 * b.getLimbN 2)
+          (a.getLimbN 1 * b.getLimbN 2) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 0) (b.getLimbN 3) +
+      (if BitVec.ult ((a * b).getLimbN 3) (a.getLimbN 0 * b.getLimbN 3) then
+        (1 : Word)
+      else
+        0)) +
+    a.getLimbN 3 * b.getLimbN 1 +
+    a.getLimbN 2 * b.getLimbN 2 +
+    a.getLimbN 1 * b.getLimbN 3
+
+
+-- @@ L601-648 verbatim
+/-- Column-4 call07-P120 feed value with the final running high-feed cell
+    folded back to the layout's call08 P120 value. -/
+@[irreducible] def mulModProductLayoutColumn4Call08P120FeedValue (a b : EvmWord) : Word :=
+  (((if BitVec.ult (mulModProductLayoutCall02P120 a b +
+          (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+            (if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+                (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0)))
+          (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+            (if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+                (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0)) then
+        (1 : Word)
+      else
+        0) +
+      (if BitVec.ult (mulModProductLayoutCall03P120 a b +
+          (rv64_mulhu (a.getLimbN 1) (b.getLimbN 1) +
+            (if BitVec.ult (mulModProductLayoutCall03P112 a b + a.getLimbN 1 * b.getLimbN 1)
+                (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0)))
+          (rv64_mulhu (a.getLimbN 1) (b.getLimbN 1) +
+            (if BitVec.ult (mulModProductLayoutCall03P112 a b + a.getLimbN 1 * b.getLimbN 1)
+                (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0)) then
+        (1 : Word)
+      else
+        0)) +
+      (if BitVec.ult (mulModProductLayoutCall04P120 a b +
+          (rv64_mulhu (a.getLimbN 0) (b.getLimbN 2) +
+            (if BitVec.ult (mulModProductLayoutCall05P112 a b)
+                (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0)))
+          (rv64_mulhu (a.getLimbN 0) (b.getLimbN 2) +
+            (if BitVec.ult (mulModProductLayoutCall05P112 a b)
+                (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0)) then
+        (1 : Word)
+      else
+        0)) +
+    (rv64_mulhu (a.getLimbN 3) (b.getLimbN 0) +
+      (if BitVec.ult (mulModProductLayoutCall05P120 a b + a.getLimbN 3 * b.getLimbN 0)
+          (a.getLimbN 3 * b.getLimbN 0) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 2) (b.getLimbN 1) +
+      (if BitVec.ult (mulModProductLayoutCall06P120 a b + a.getLimbN 2 * b.getLimbN 1)
+          (a.getLimbN 2 * b.getLimbN 1) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 1) (b.getLimbN 2) +
+      (if BitVec.ult (mulModProductLayoutCall07P120 a b + a.getLimbN 1 * b.getLimbN 2)
+          (a.getLimbN 1 * b.getLimbN 2) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 0) (b.getLimbN 3) +
+      (if BitVec.ult (mulModProductLayoutCall08P120 a b + a.getLimbN 0 * b.getLimbN 3)
+          (a.getLimbN 0 * b.getLimbN 3) then (1 : Word) else 0)) +
+    a.getLimbN 3 * b.getLimbN 1 +
+    a.getLimbN 2 * b.getLimbN 2 +
+    a.getLimbN 1 * b.getLimbN 3
+
+
+-- @@ L650-654 verbatim
+theorem mulModProductLayoutColumn4Call02FeedValue_eq_call02P112FeedValue (a b : EvmWord) :
+    mulModProductLayoutColumn4Call02FeedValue a b =
+      mulModProductLayoutColumn4Call02P112FeedValue a b := by
+  unfold mulModProductLayoutColumn4Call02FeedValue mulModProductLayoutColumn4Call02P112FeedValue
+  rw [mulModProductLayoutCall02P112_eq_expanded]
+
+
+-- @@ L656-660 verbatim
+theorem mulModProductLayoutColumn4Call02P112FeedValue_eq_call03P112FeedValue (a b : EvmWord) :
+    mulModProductLayoutColumn4Call02P112FeedValue a b =
+      mulModProductLayoutColumn4Call03P112FeedValue a b := by
+  unfold mulModProductLayoutColumn4Call02P112FeedValue mulModProductLayoutColumn4Call03P112FeedValue
+  rw [mulModProductLayoutCall03P112_eq_expanded]
+
+
+-- @@ L662-666 verbatim
+theorem mulModProductLayoutColumn4Call03P112FeedValue_eq_call04P112FeedValue (a b : EvmWord) :
+    mulModProductLayoutColumn4Call03P112FeedValue a b =
+      mulModProductLayoutColumn4Call04P112FeedValue a b := by
+  unfold mulModProductLayoutColumn4Call03P112FeedValue mulModProductLayoutColumn4Call04P112FeedValue
+  rw [mulModProductLayoutCall04P112_eq_expanded]
+
+
+-- @@ L668-696 verbatim
+/-- The call05 low-column-2 cell written out as the fully expanded column-1
+    high/carry sum plus the three column-2 low partial products.
+
+    This is the `_eq_expanded` companion of
+    `mulModProductLayoutCall05P112_eq_add`, and it exists purely to keep the
+    `mulModAddPartialLoProduct` unfolding and the associativity bookkeeping in
+    this small context: the two column-4 feed rewrites below fire it as a
+    single `rw` on a term that is otherwise large enough that unfolding and
+    AC-normalising in place blows the heartbeat budget. -/
+private theorem mulModProductLayoutCall05P112_eq_expanded (a b : EvmWord) :
+    mulModProductLayoutCall05P112 a b =
+      rv64_mulhu (a.getLimbN 0) (b.getLimbN 1) +
+        rv64_mulhu (a.getLimbN 1) (b.getLimbN 0) +
+        (if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+              a.getLimbN 1 * b.getLimbN 0 + a.getLimbN 0 * b.getLimbN 1)
+            (a.getLimbN 0 * b.getLimbN 1) then
+            (1 : Word)
+          else
+            0) +
+        (if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+              a.getLimbN 1 * b.getLimbN 0) (a.getLimbN 1 * b.getLimbN 0) then
+            (1 : Word)
+          else
+            0) +
+        a.getLimbN 2 * b.getLimbN 0 +
+        a.getLimbN 1 * b.getLimbN 1 +
+        a.getLimbN 0 * b.getLimbN 2 := by
+  rw [mulModProductLayoutCall05P112_eq_add, mulModProductLayoutCall04P112_eq_expanded]
+  simp only [mulModAddPartialLoProduct]
+
+
+-- @@ L698-702 verbatim
+theorem mulModProductLayoutColumn4Call04P112FeedValue_eq_call05P112FeedValue (a b : EvmWord) :
+    mulModProductLayoutColumn4Call04P112FeedValue a b =
+      mulModProductLayoutColumn4Call05P112FeedValue a b := by
+  unfold mulModProductLayoutColumn4Call04P112FeedValue mulModProductLayoutColumn4Call05P112FeedValue
+  rw [mulModProductLayoutCall05P112_eq_expanded]
+
+
+-- @@ L704-708 verbatim
+theorem mulModProductLayoutColumn4Call05P112FeedValue_eq_limb2FeedValue (a b : EvmWord) :
+    mulModProductLayoutColumn4Call05P112FeedValue a b =
+      mulModProductLayoutColumn4Limb2FeedValue a b := by
+  unfold mulModProductLayoutColumn4Call05P112FeedValue mulModProductLayoutColumn4Limb2FeedValue
+  rw [mulModProductLayoutCall05P112_eq_mul_limb2]
+
+
+-- @@ L710-719 verbatim
+theorem mulModProductLayoutColumn4Limb2FeedValue_eq_call02P120Limb2FeedValue (a b : EvmWord) :
+    mulModProductLayoutColumn4Limb2FeedValue a b =
+      mulModProductLayoutColumn4Call02P120Limb2FeedValue a b := by
+  unfold mulModProductLayoutColumn4Limb2FeedValue
+    mulModProductLayoutColumn4Call02P120Limb2FeedValue
+  rw [← mulModProductLayoutCall05P112_eq_mul_limb2]
+  rw [mulModProductLayoutCall05P112_eq_expanded]
+  rw [mulModProductLayoutCall03P112_eq_expanded]
+  rw [mulModProductLayoutCall02P112_eq_expanded]
+  rw [mulModProductLayoutCall02P120_eq_expanded]
+
+
+-- @@ L721-730 verbatim
+theorem mulModProductLayoutColumn4Call02P120Limb2FeedValue_eq_call03P120Limb2FeedValue
+    (a b : EvmWord) :
+    mulModProductLayoutColumn4Call02P120Limb2FeedValue a b =
+      mulModProductLayoutColumn4Call03P120Limb2FeedValue a b := by
+  unfold mulModProductLayoutColumn4Call02P120Limb2FeedValue
+    mulModProductLayoutColumn4Call03P120Limb2FeedValue
+  rw [mulModProductLayoutCall03P120_eq_add]
+  simp only [mulModAddPartialHiProduct, mulModAddPartialLoCarry,
+    mulModAddPartialLoProduct]
+  rfl
+
+
+-- @@ L732-741 verbatim
+theorem mulModProductLayoutColumn4Call03P120Limb2FeedValue_eq_call04P120Limb2FeedValue
+    (a b : EvmWord) :
+    mulModProductLayoutColumn4Call03P120Limb2FeedValue a b =
+      mulModProductLayoutColumn4Call04P120Limb2FeedValue a b := by
+  unfold mulModProductLayoutColumn4Call03P120Limb2FeedValue
+    mulModProductLayoutColumn4Call04P120Limb2FeedValue
+  rw [mulModProductLayoutCall04P120_eq_add]
+  simp only [mulModAddPartialHiProduct, mulModAddPartialLoCarry,
+    mulModAddPartialLoProduct]
+  rfl
+
+
+-- @@ L743-753 verbatim
+theorem mulModProductLayoutColumn4Call04P120Limb2FeedValue_eq_call05P120FeedValue
+    (a b : EvmWord) :
+    mulModProductLayoutColumn4Call04P120Limb2FeedValue a b =
+      mulModProductLayoutColumn4Call05P120FeedValue a b := by
+  unfold mulModProductLayoutColumn4Call04P120Limb2FeedValue
+    mulModProductLayoutColumn4Call05P120FeedValue
+  rw [← mulModProductLayoutCall05P112_eq_mul_limb2]
+  rw [mulModProductLayoutCall05P120_eq_add]
+  simp only [mulModAddPartialHiProduct, mulModAddPartialLoCarry,
+    mulModAddPartialLoProduct]
+  rfl
+
+
+-- @@ L755-763 verbatim
+theorem mulModProductLayoutColumn4Call05P120FeedValue_eq_call06P120FeedValue
+    (a b : EvmWord) :
+    mulModProductLayoutColumn4Call05P120FeedValue a b =
+      mulModProductLayoutColumn4Call06P120FeedValue a b := by
+  unfold mulModProductLayoutColumn4Call05P120FeedValue
+    mulModProductLayoutColumn4Call06P120FeedValue
+  rw [mulModProductLayoutCall06P120_eq_add]
+  simp only [mulModAddPartialLoProduct]
+  rfl
+
+
+-- @@ L765-773 verbatim
+theorem mulModProductLayoutColumn4Call06P120FeedValue_eq_call07P120FeedValue
+    (a b : EvmWord) :
+    mulModProductLayoutColumn4Call06P120FeedValue a b =
+      mulModProductLayoutColumn4Call07P120FeedValue a b := by
+  unfold mulModProductLayoutColumn4Call06P120FeedValue
+    mulModProductLayoutColumn4Call07P120FeedValue
+  rw [mulModProductLayoutCall07P120_eq_add]
+  simp only [mulModAddPartialLoProduct]
+  rfl
+
+
+-- @@ L775-784 verbatim
+theorem mulModProductLayoutColumn4Call07P120FeedValue_eq_call08P120FeedValue
+    (a b : EvmWord) :
+    mulModProductLayoutColumn4Call07P120FeedValue a b =
+      mulModProductLayoutColumn4Call08P120FeedValue a b := by
+  unfold mulModProductLayoutColumn4Call07P120FeedValue
+    mulModProductLayoutColumn4Call08P120FeedValue
+  rw [← mulModProductLayoutCall09P120_eq_mul_limb3]
+  rw [mulModProductLayoutCall09P120_eq_add]
+  simp only [mulModAddPartialLoProduct]
+  rfl
+
+
+-- @@ L786-790 verbatim
+theorem mulModProductLayoutColumn4Call03FeedValue_eq_productLimb_four_of_call02FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call02FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call03FeedValue a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4Call03FeedValue_eq_call02FeedValue, h_col]
+
+
+-- @@ L792-797 verbatim
+theorem mulModProductLayoutColumn4Call04FeedValue_eq_productLimb_four_of_call02FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call02FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call04FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call04FeedValue_eq_productLimb_four_of_call03FeedValue
+    (mulModProductLayoutColumn4Call03FeedValue_eq_productLimb_four_of_call02FeedValue h_col)
+
+
+-- @@ L799-804 verbatim
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call02FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call02FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call03FeedValue
+    (mulModProductLayoutColumn4Call03FeedValue_eq_productLimb_four_of_call02FeedValue h_col)
+
+
+-- @@ L806-810 verbatim
+theorem mulModProductLayoutColumn4Call02FeedValue_eq_productLimb_four_of_call02P112FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call02P112FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call02FeedValue a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4Call02FeedValue_eq_call02P112FeedValue, h_col]
+
+
+-- @@ L812-817 verbatim
+theorem mulModProductLayoutColumn4Call03FeedValue_eq_productLimb_four_of_call02P112FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call02P112FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call03FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call03FeedValue_eq_productLimb_four_of_call02FeedValue
+    (mulModProductLayoutColumn4Call02FeedValue_eq_productLimb_four_of_call02P112FeedValue h_col)
+
+
+-- @@ L819-824 verbatim
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call02P112FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call02P112FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call02FeedValue
+    (mulModProductLayoutColumn4Call02FeedValue_eq_productLimb_four_of_call02P112FeedValue h_col)
+
+
+-- @@ L826-830 verbatim
+theorem mulModProductLayoutColumn4Call02P112FeedValue_eq_productLimb_four_of_call03P112FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call03P112FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call02P112FeedValue a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4Call02P112FeedValue_eq_call03P112FeedValue, h_col]
+
+
+-- @@ L832-837 verbatim
+theorem mulModProductLayoutColumn4Call02FeedValue_eq_productLimb_four_of_call03P112FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call03P112FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call02FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call02FeedValue_eq_productLimb_four_of_call02P112FeedValue
+    (mulModProductLayoutColumn4Call02P112FeedValue_eq_productLimb_four_of_call03P112FeedValue h_col)
+
+
+-- @@ L839-844 verbatim
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call03P112FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call03P112FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call02P112FeedValue
+    (mulModProductLayoutColumn4Call02P112FeedValue_eq_productLimb_four_of_call03P112FeedValue h_col)
+
+
+-- @@ L846-850 verbatim
+theorem mulModProductLayoutColumn4Call03P112FeedValue_eq_productLimb_four_of_call04P112FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call04P112FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call03P112FeedValue a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4Call03P112FeedValue_eq_call04P112FeedValue, h_col]
+
+
+-- @@ L852-857 verbatim
+theorem mulModProductLayoutColumn4Call02P112FeedValue_eq_productLimb_four_of_call04P112FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call04P112FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call02P112FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call02P112FeedValue_eq_productLimb_four_of_call03P112FeedValue
+    (mulModProductLayoutColumn4Call03P112FeedValue_eq_productLimb_four_of_call04P112FeedValue h_col)
+
+
+-- @@ L859-864 verbatim
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call04P112FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call04P112FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call03P112FeedValue
+    (mulModProductLayoutColumn4Call03P112FeedValue_eq_productLimb_four_of_call04P112FeedValue h_col)
+
+
+-- @@ L866-870 verbatim
+theorem mulModProductLayoutColumn4Call04P112FeedValue_eq_productLimb_four_of_call05P112FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call05P112FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call04P112FeedValue a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4Call04P112FeedValue_eq_call05P112FeedValue, h_col]
+
+
+-- @@ L872-877 verbatim
+theorem mulModProductLayoutColumn4Call03P112FeedValue_eq_productLimb_four_of_call05P112FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call05P112FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call03P112FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call03P112FeedValue_eq_productLimb_four_of_call04P112FeedValue
+    (mulModProductLayoutColumn4Call04P112FeedValue_eq_productLimb_four_of_call05P112FeedValue h_col)
+
+
+-- @@ L879-884 verbatim
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call05P112FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call05P112FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call04P112FeedValue
+    (mulModProductLayoutColumn4Call04P112FeedValue_eq_productLimb_four_of_call05P112FeedValue h_col)
+
+
+-- @@ L886-890 verbatim
+theorem mulModProductLayoutColumn4Call05P112FeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call05P112FeedValue a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4Call05P112FeedValue_eq_limb2FeedValue, h_col]
+
+
+-- @@ L892-897 verbatim
+theorem mulModProductLayoutColumn4Call04P112FeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call04P112FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call04P112FeedValue_eq_productLimb_four_of_call05P112FeedValue
+    (mulModProductLayoutColumn4Call05P112FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+
+-- @@ L899-904 verbatim
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call05P112FeedValue
+    (mulModProductLayoutColumn4Call05P112FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+
+-- @@ L906-911 verbatim
+theorem mulModProductLayoutColumn4Call03P112FeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call03P112FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call03P112FeedValue_eq_productLimb_four_of_call05P112FeedValue
+    (mulModProductLayoutColumn4Call05P112FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+
+-- @@ L913-918 verbatim
+theorem mulModProductLayoutColumn4Call02P112FeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call02P112FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call02P112FeedValue_eq_productLimb_four_of_call03P112FeedValue
+    (mulModProductLayoutColumn4Call03P112FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+
+-- @@ L920-925 verbatim
+theorem mulModProductLayoutColumn4Call02FeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call02FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call02FeedValue_eq_productLimb_four_of_call02P112FeedValue
+    (mulModProductLayoutColumn4Call02P112FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+
+-- @@ L927-932 verbatim
+theorem mulModProductLayoutColumn4Call03FeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call03FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call03FeedValue_eq_productLimb_four_of_call02FeedValue
+    (mulModProductLayoutColumn4Call02FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+
+-- @@ L934-939 verbatim
+theorem mulModProductLayoutColumn4Call04FeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call04FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call04FeedValue_eq_productLimb_four_of_call03FeedValue
+    (mulModProductLayoutColumn4Call03FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+
+-- @@ L941-946 verbatim
+theorem mulModProductLayoutColumn4PrefixFeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4PrefixFeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4PrefixFeedValue_eq_productLimb_four_of_call04FeedValue
+    (mulModProductLayoutColumn4Call04FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+
+-- @@ L948-953 verbatim
+theorem mulModProductLayoutColumn4Limb3FeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Limb3FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Limb3FeedValue_eq_productLimb_four_of_prefixFeedValue
+    (mulModProductLayoutColumn4PrefixFeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+
+-- @@ L955-960 verbatim
+theorem mulModProductLayoutColumn4LowFeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4LowFeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4LowFeedValue_eq_productLimb_four_of_limb3FeedValue
+    (mulModProductLayoutColumn4Limb3FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+
+-- @@ L962-967 verbatim
+theorem mulModProductLayoutColumn4ExpandedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4ExpandedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4ExpandedValue_eq_productLimb_four_of_lowFeedValue
+    (mulModProductLayoutColumn4LowFeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+
+-- @@ L969-974 verbatim
+theorem mulModProductLayoutColumn4Value_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Value a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Value_eq_productLimb_four_of_expandedValue
+    (mulModProductLayoutColumn4ExpandedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+
+-- @@ L976-980 verbatim
+theorem mulModProductLayoutColumn4Limb2FeedValue_eq_productLimb_four_of_call02P120Limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call02P120Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4Limb2FeedValue_eq_call02P120Limb2FeedValue, h_col]
+
+
+-- @@ L982-987 verbatim
+theorem mulModProductLayoutColumn4Value_eq_productLimb_four_of_call02P120Limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call02P120Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Value a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Value_eq_productLimb_four_of_limb2FeedValue
+    (mulModProductLayoutColumn4Limb2FeedValue_eq_productLimb_four_of_call02P120Limb2FeedValue h_col)
+
+
+-- @@ L989-994 verbatim
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call02P120Limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call02P120Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_limb2FeedValue
+    (mulModProductLayoutColumn4Limb2FeedValue_eq_productLimb_four_of_call02P120Limb2FeedValue h_col)
+
+
+-- @@ L996-1000 verbatim
+theorem mulModProductLayoutColumn4Call02P120Limb2FeedValue_eq_productLimb_four_of_call03P120Limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call03P120Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call02P120Limb2FeedValue a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4Call02P120Limb2FeedValue_eq_call03P120Limb2FeedValue, h_col]
+
+
+-- @@ L1002-1007 verbatim
+theorem mulModProductLayoutColumn4Limb2FeedValue_eq_productLimb_four_of_call03P120Limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call03P120Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Limb2FeedValue_eq_productLimb_four_of_call02P120Limb2FeedValue
+    (mulModProductLayoutColumn4Call02P120Limb2FeedValue_eq_productLimb_four_of_call03P120Limb2FeedValue h_col)
+
+
+-- @@ L1009-1014 verbatim
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call03P120Limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call03P120Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call02P120Limb2FeedValue
+    (mulModProductLayoutColumn4Call02P120Limb2FeedValue_eq_productLimb_four_of_call03P120Limb2FeedValue h_col)
+
+
+-- @@ L1016-1020 verbatim
+theorem mulModProductLayoutColumn4Call03P120Limb2FeedValue_eq_productLimb_four_of_call04P120Limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call04P120Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call03P120Limb2FeedValue a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4Call03P120Limb2FeedValue_eq_call04P120Limb2FeedValue, h_col]
+
+
+-- @@ L1022-1027 verbatim
+theorem mulModProductLayoutColumn4Call02P120Limb2FeedValue_eq_productLimb_four_of_call04P120Limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call04P120Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call02P120Limb2FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call02P120Limb2FeedValue_eq_productLimb_four_of_call03P120Limb2FeedValue
+    (mulModProductLayoutColumn4Call03P120Limb2FeedValue_eq_productLimb_four_of_call04P120Limb2FeedValue h_col)
+
+
+-- @@ L1029-1034 verbatim
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call04P120Limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call04P120Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call03P120Limb2FeedValue
+    (mulModProductLayoutColumn4Call03P120Limb2FeedValue_eq_productLimb_four_of_call04P120Limb2FeedValue h_col)
+
+
+-- @@ L1036-1040 verbatim
+theorem mulModProductLayoutColumn4Call04P120Limb2FeedValue_eq_productLimb_four_of_call05P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call05P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call04P120Limb2FeedValue a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4Call04P120Limb2FeedValue_eq_call05P120FeedValue, h_col]
+
+
+-- @@ L1042-1047 verbatim
+theorem mulModProductLayoutColumn4Call03P120Limb2FeedValue_eq_productLimb_four_of_call05P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call05P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call03P120Limb2FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call03P120Limb2FeedValue_eq_productLimb_four_of_call04P120Limb2FeedValue
+    (mulModProductLayoutColumn4Call04P120Limb2FeedValue_eq_productLimb_four_of_call05P120FeedValue h_col)
+
+
+-- @@ L1049-1054 verbatim
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call05P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call05P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call04P120Limb2FeedValue
+    (mulModProductLayoutColumn4Call04P120Limb2FeedValue_eq_productLimb_four_of_call05P120FeedValue h_col)
+
+
+-- @@ L1056-1060 verbatim
+theorem mulModProductLayoutColumn4Call05P120FeedValue_eq_productLimb_four_of_call06P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call06P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call05P120FeedValue a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4Call05P120FeedValue_eq_call06P120FeedValue, h_col]
+
+
+-- @@ L1062-1067 verbatim
+theorem mulModProductLayoutColumn4Call04P120Limb2FeedValue_eq_productLimb_four_of_call06P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call06P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call04P120Limb2FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call04P120Limb2FeedValue_eq_productLimb_four_of_call05P120FeedValue
+    (mulModProductLayoutColumn4Call05P120FeedValue_eq_productLimb_four_of_call06P120FeedValue h_col)
+
+
+-- @@ L1069-1074 verbatim
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call06P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call06P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call05P120FeedValue
+    (mulModProductLayoutColumn4Call05P120FeedValue_eq_productLimb_four_of_call06P120FeedValue h_col)
+
+
+-- @@ L1076-1080 verbatim
+theorem mulModProductLayoutColumn4Call06P120FeedValue_eq_productLimb_four_of_call07P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call07P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call06P120FeedValue a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4Call06P120FeedValue_eq_call07P120FeedValue, h_col]
+
+
+-- @@ L1082-1087 verbatim
+theorem mulModProductLayoutColumn4Call05P120FeedValue_eq_productLimb_four_of_call07P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call07P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call05P120FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call05P120FeedValue_eq_productLimb_four_of_call06P120FeedValue
+    (mulModProductLayoutColumn4Call06P120FeedValue_eq_productLimb_four_of_call07P120FeedValue h_col)
+
+
+-- @@ L1089-1094 verbatim
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call07P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call07P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call06P120FeedValue
+    (mulModProductLayoutColumn4Call06P120FeedValue_eq_productLimb_four_of_call07P120FeedValue h_col)
+
+
+-- @@ L1096-1100 verbatim
+theorem mulModProductLayoutColumn4Call07P120FeedValue_eq_productLimb_four_of_call08P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call08P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call07P120FeedValue a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4Call07P120FeedValue_eq_call08P120FeedValue, h_col]
+
+
+-- @@ L1102-1107 verbatim
+theorem mulModProductLayoutColumn4Call06P120FeedValue_eq_productLimb_four_of_call08P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call08P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call06P120FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call06P120FeedValue_eq_productLimb_four_of_call07P120FeedValue
+    (mulModProductLayoutColumn4Call07P120FeedValue_eq_productLimb_four_of_call08P120FeedValue h_col)
+
+
+-- @@ L1109-1114 verbatim
+theorem mulModProductLayoutColumn4Call05P120FeedValue_eq_productLimb_four_of_call08P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call08P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call05P120FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call05P120FeedValue_eq_productLimb_four_of_call07P120FeedValue
+    (mulModProductLayoutColumn4Call07P120FeedValue_eq_productLimb_four_of_call08P120FeedValue h_col)
+
+
+-- @@ L1116-1121 verbatim
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call08P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call08P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call07P120FeedValue
+    (mulModProductLayoutColumn4Call07P120FeedValue_eq_productLimb_four_of_call08P120FeedValue h_col)
+
+
+-- @@ L1123-1129 verbatim
+theorem mulModProductLayoutColumn4Call08P120FeedValue_eq_expandedValue
+    (a b : EvmWord) :
+    mulModProductLayoutColumn4Call08P120FeedValue a b =
+      mulModProductLayoutColumn4ExpandedValue a b := by
+  unfold mulModProductLayoutColumn4Call08P120FeedValue
+    mulModProductLayoutColumn4ExpandedValue mulModProductLayoutColumn4PrefixCarry
+  rfl
+
+
+-- @@ L1131-1135 verbatim
+theorem mulModProductLayoutColumn4ExpandedValue_eq_productLimb_four_of_call08P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call08P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4ExpandedValue a b = productLimb a b 4 := by
+  rw [← mulModProductLayoutColumn4Call08P120FeedValue_eq_expandedValue, h_col]
+
+
+-- @@ L1137-1142 verbatim
+theorem mulModProductLayoutColumn4Value_eq_productLimb_four_of_call08P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call08P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Value a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Value_eq_productLimb_four_of_expandedValue
+    (mulModProductLayoutColumn4ExpandedValue_eq_productLimb_four_of_call08P120FeedValue h_col)
+
+
+-- @@ L1144-1149 verbatim
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call08P120FeedValue_via_expanded
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call08P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_expandedValue
+    (mulModProductLayoutColumn4ExpandedValue_eq_productLimb_four_of_call08P120FeedValue h_col)
+
+
+-- @@ L1151-1155 verbatim
+theorem mulModProductLayoutColumn4Call08P120FeedValue_eq_productLimb_four_of_expandedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4ExpandedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call08P120FeedValue a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4Call08P120FeedValue_eq_expandedValue, h_col]
+
+
+-- @@ L1157-1162 verbatim
+theorem mulModProductLayoutCall12P128_eq_productLimb_four_of_call08P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call08P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = productLimb a b 4 := by
+  rw [mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call08P120FeedValue h_col]
+  rw [← productLimb_four_eq_mulHigh_getLimbN_zero]
+
+
+-- @@ L1164-1164 verbatim
+end EvmAsm.Evm64
