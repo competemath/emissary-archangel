@@ -36,6 +36,7 @@ import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import { collectTools, exporterAction, mergeTools, patchFingerprint } from "./setup-tools.mjs"
 import { bisectItems } from "./bisect.mjs"
+import { repairPins } from "./pinned-deps.mjs"
 import { aloneFirstMs, availableFrom, buildAttempts, closureBigModules, closureBudgetMs, closureRetryMs, membersOf, soloBuildMs, soloMax } from "./memory-rules.mjs"
 
 const x = promisify(execFile)
@@ -597,7 +598,21 @@ function seedQueue() {
 }
 
 // ---- 4. build -------------------------------------------------------------------
+// Lake resolves the library's dependencies first. A dependency pinned to a commit that no branch holds (padic-l-functions, 7 Nov 2026: "fatal: unable to read tree") is fetched
+// by its hash and Lake runs again (pinned-deps.mjs); any other failure is left to the steps after it, which report it as before.
+async function ensureDeps() {
+  for (let i = 0; i < 5; i++) {
+    const r = await run("lake", ["env", "true"], { cwd: REPO, timeoutMs: 90 * 60 * 1000 })
+    if (r.code === 0) return true
+    const { fetched, failed } = repairPins(REPO, r.tail, { log })
+    for (const f of failed) log(`WARNING: dependency ${f.pkg} at ${f.rev.slice(0, 12)} cannot be checked out: ${f.why}`)
+    if (!fetched.length) return false
+  }
+  return false
+}
+
 async function mathlibCache() {
+  await ensureDeps()
   const manifest = join(REPO, "lake-manifest.json")
   const hasMathlib = existsSync(manifest) && /"name":\s*"mathlib"/.test(readFileSync(manifest, "utf8"))
   if (hasMathlib) {
