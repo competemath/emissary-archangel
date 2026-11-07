@@ -75,10 +75,10 @@ def repair_pins(directory: str, output: str, deadline: float | None = None) -> l
             left = 600.0 if deadline is None else min(600.0, deadline - time.monotonic())
             if left <= 0:
                 return fixed  # the step's budget is spent: no repair outruns it
-            try:
-                subprocess.run(["git", "-C", str(clone), "fetch", "--quiet", "origin", rev], capture_output=True, timeout=left)
-            except subprocess.TimeoutExpired:
-                continue  # a fetch that ran out of the time left is a failed repair, not a crash
+            # through run(): a fetch that runs out of the time left is killed with its whole process group (its ssh/https transport child too), and is a failed repair
+            code, _ = run(["git", "-C", str(clone), "fetch", "--quiet", "origin", rev], directory, left)
+            if code is None:
+                continue
             if has_commit(clone, rev):
                 print(f"dependency {clone.name}: commit {rev[:12]} is on no branch of its repository; fetched it by its hash")
                 fixed.append(clone.name)

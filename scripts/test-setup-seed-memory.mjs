@@ -127,14 +127,12 @@ check("the fixture reproduces the failure: with every file kept, the seed dies a
 // one JSON string, did not fit next to the entries either. 6 tentative files of 12 MB of long proofs are seeded under a 300 MB heap: the files are read one at a time and the
 // queue is written entry by entry; its bytes are exactly JSON.stringify(entries, null, 2) (parsed and written again, the same bytes).
 {
-  const proof = ":= by\n" + "  simp [Finset.sum_range_succ, ℤ, ∑]\n".repeat(700) // ~25 KB, non-Latin-1 like the real proofs
+  // every record of the library once, each pointing at its own declaration (so no record takes the unverified-line fallback), its proof made long
+  const proof = ":= by\n" + "  simp [Finset.sum_range_succ, ℤ, ∑]\n".repeat(2800) // ~100 KB, non-Latin-1 like the real proofs
   const tfiles = []
+  const per = Math.ceil(records.length / 6)
   for (let t = 0; t < 6; t++) {
-    const rows = []
-    for (let i = 0; i < 480; i++) {
-      const r = records[(t * 480 + i) % records.length]
-      rows.push(JSON.stringify({ ...r, name: `${r.name}_${t}_${i}`, statement: r.statement.replace(/theorem (\S+)/, `theorem $1_${t}_${i}`), proof }))
-    }
+    const rows = records.slice(t * per, (t + 1) * per).map((r) => JSON.stringify({ ...r, proof }))
     const name = `t-${String(t + 1).padStart(3, "0")}.jsonl`
     writeFileSync(join(tent, name), rows.join("\n") + "\n")
     tfiles.push(name)
@@ -146,11 +144,14 @@ check("the fixture reproduces the failure: with every file kept, the seed dies a
     encoding: "utf8",
     maxBuffer: 1 << 26,
   })
-  check("six tentative files of long proofs (72 MB) are seeded under a 300 MB heap", r.status === 0, (r.stdout + r.stderr).slice(-400))
+  check(`six tentative files of long proofs (${records.length} records, ~${Math.round((records.length * proof.length) / 1e6)} MB) are seeded under a 300 MB heap`, r.status === 0, (r.stdout + r.stderr).slice(-400))
+  const stats = JSON.parse(((r.stdout || "").match(/seeded \S+: (\{.*\})/) || [, "{}"])[1])
+  check("no record took the unverified-line fallback: each line was checked against its declaration", stats.kept === records.length && stats.lineUnverified === 0, JSON.stringify(stats))
   const text = r.status === 0 ? readFileSync(join(root, "data", "queue-t.json"), "utf8") : ""
   const parsed = text ? JSON.parse(text) : []
   check("the queue's bytes are JSON.stringify(entries, null, 2) exactly", text !== "" && text === JSON.stringify(parsed, null, 2))
-  check("every record of the six files became an entry, in order", parsed.length === 6 * 480 && parsed[0].name.endsWith("_0_0") && parsed.at(-1).name.endsWith("_5_479"), `${parsed.length}`)
+  const want = records.map((r) => r.name)
+  check("every record of the six files became an entry, in order, once", JSON.stringify(parsed.map((e) => e.name)) === JSON.stringify(want), `${parsed.length} of ${want.length}`)
 }
 
 rmSync(tmp, { recursive: true, force: true })

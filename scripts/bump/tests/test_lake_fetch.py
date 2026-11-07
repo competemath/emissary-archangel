@@ -297,6 +297,33 @@ class RepairLimits(unittest.TestCase):
         self.assertNotIn("Traceback", p.stderr)  # a fetch that runs out of time is a failed repair, not a crash
         self.assertLess(took, 20, took)  # the 6-second budget, not the 60-second fetch
 
+    def test_a_timed_out_fetch_leaves_no_child_running(self):
+        # the fetch's transport (ssh / https helper) is a child of git: a timeout kills the whole process group, not git alone (cubic on #156)
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        clone = tmp / "lib" / ".lake" / "packages" / "Slow"
+        clone.mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", str(clone)], check=True)
+        (tmp / "bin").mkdir()
+        real_git = shutil.which("git")
+        (tmp / "bin" / "git").write_text(f'#!/bin/sh\ncase " $* " in *" fetch "*) sleep 60 & echo $! > {tmp}/child; wait;; esac\nexec {real_git} "$@"\n')
+        (tmp / "bin" / "lake").write_text("#!/bin/sh\necho 'fatal: unable to read tree (" + "c" * 40 + ")'\nexit 1\n")
+        for f in ("git", "lake"):
+            (tmp / "bin" / f).chmod(0o755)
+        env = {**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}"}
+        p = subprocess.run([sys.executable, str(SCRIPT), str(tmp / "lib"), "--tries", "1", "--minutes", "1", "--budget-minutes", "0.1", "--pause", "0"], env=env, capture_output=True, text=True, timeout=120)
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        child = int((tmp / "child").read_text())
+        for _ in range(50):
+            try:
+                os.kill(child, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.1)
+        else:
+            os.kill(child, 9)
+            self.fail("the timed-out fetch's child was left running")
+
     def test_this_file_runs_every_test_when_executed_directly(self):
         import ast
 
