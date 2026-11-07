@@ -48,17 +48,13 @@ theorem isCrystalWithComponents_35_5_7 : IsCrystalWithComponents 35 5 7 := by
 -- TODO(firsching): show divisibility properties from section 3.
 
 
--- @@ L42-47 verbatim
+-- @@ L42-51 verbatim
 /--
 If $n = ab$ is a crystal, then there are no other pairs of
 positive integers $c, d > 1$, different from the couple $a, b$, such that $n = cd$ and
 $B(c, d) ∈ ℕ$, i.e., the components of the crystals are unique.
 -/
-@[category research 
--- @@ L47-47 verbatim
-open, AMS 11 26]
-
--- @@ L48-51 verbatim
+@[category research open, AMS 11 26]
 theorem crystals_components_unique (n a b c d : ℕ)
     (hab : IsCrystalWithComponents n a b) (hcd : IsCrystalWithComponents n c d) :
     ({a, b} : Finset ℕ) = {c, d} := by

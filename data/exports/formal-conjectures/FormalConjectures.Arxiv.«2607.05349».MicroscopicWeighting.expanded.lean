@@ -111,7 +111,7 @@ def HasFiniteConcentration (M : Matrix X X ℝ) : Prop :=
 -- markdown processing strips one backslash from `\\` before KaTeX runs, which destroys the
 -- row breaks.
 
--- @@ L89-141 verbatim
+-- @@ L89-145 verbatim
 /--
 **Conjecture 3.3 (Roff-Willerton, 2026).** A finite metric space admits a microscopic weighting
 if and only if its distance matrix has finite concentration.
@@ -165,35 +165,29 @@ This certificate shows that the obstruction $v^\top B$ annihilates $\ker A$, mak
 @[category research solved, AMS 15 51,
   formal_proof using lean4 at
     "https://github.com/KitaKen1/microscopic-weighting-counterexample/blob/eff8979/lean/MicroscopicWeightingCounterexampleFC.lean#L886-L894"]
-
--- @@ L142-145 verbatim
 theorem microscopic_weighting_iff_finite_concentration :
     answer(False) ↔ ∀ (X : Type) [Fintype X] [DecidableEq X] [Nonempty X] [MetricSpace X],
       HasMicroscopicWeighting X ↔ HasFiniteConcentration (distanceMatrix X) := by
   sorry
 
 
--- @@ L147-151 verbatim
+-- @@ L147-154 verbatim
 /--
 One direction is known: a microscopic weighting implies finite concentration (Theorem 3.1(3)).
 Together with the conjecture above this leaves the converse, that finite concentration is enough.
 -/
 @[category research solved, AMS 15 51]
-
--- @@ L152-154 verbatim
 theorem hasFiniteConcentration_of_hasMicroscopicWeighting
     (h : HasMicroscopicWeighting X) : HasFiniteConcentration (distanceMatrix X) := by
   sorry
 
 
--- @@ L156-160 verbatim
+-- @@ L156-163 verbatim
 /--
 Theorem 3.8: the conjecture is known when the distance matrix is invertible, and the microscopic
 weighting is then the unique gauging.
 -/
 @[category research solved, AMS 15 51]
-
--- @@ L161-163 verbatim
 theorem hasMicroscopicWeighting_iff_of_isUnit (h : IsUnit (distanceMatrix X).det) :
     HasMicroscopicWeighting X ↔ HasFiniteConcentration (distanceMatrix X) := by
   sorry

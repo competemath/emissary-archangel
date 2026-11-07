@@ -43,7 +43,7 @@ namespace ZagierMZV
 open Finset BigOperators
 
 
--- @@ L39-50 verbatim
+-- @@ L39-55 verbatim
 /--
 The multiple zeta value $\zeta(s_1, s_2, \ldots, s_k)$, defined as
 $$\zeta(s_1, \ldots, s_k) = \sum_{n_1 > n_2 > \cdots > n_k > 0}
@@ -56,9 +56,7 @@ noncomputable def multiZeta : List ℕ → ℝ
   | [] => 1
   | s :: rest => ∑' n : ℕ, (1 / (n + 1 : ℝ) ^ s) * multiZeta.aux rest n
 where
-  
--- @@ L51-55 verbatim
-/-- Auxiliary function for `multiZeta`: computes the inner sum
+  /-- Auxiliary function for `multiZeta`: computes the inner sum
   $\sum_{n_2 > \cdots > n_k > 0, n_2 < \text{bound}} \frac{1}{n_2^{s_2} \cdots n_k^{s_k}}$. -/
   aux : List ℕ → ℕ → ℝ
   | [], _ => 1
@@ -104,7 +102,7 @@ def zagierDim : ℕ → ℕ
   | (n + 3) => zagierDim (n + 1) + zagierDim n
 
 
--- @@ L86-93 verbatim
+-- @@ L86-96 verbatim
 /--
 **Zagier's conjecture**
 
@@ -112,25 +110,19 @@ The $\mathbb{Q}$-dimension of the vector space spanned by all multiple zeta valu
 of weight $n$ equals $d_n$, where $d_n$ is the Zagier dimension sequence
 satisfying $d_0 = 1$, $d_1 = 0$, $d_2 = 1$, and $d_n = d_{n-2} + d_{n-3}$ for $n \geq 3$.
 -/
-@[category research 
--- @@ L93-93 verbatim
-open, AMS 11]
-
--- @@ L94-96 verbatim
+@[category research open, AMS 11]
 theorem zagier_conjecture :
     answer(sorry) ↔ ∀ n : ℕ, Module.finrank ℚ (mzvSpanOfWeight n) = zagierDim n := by
   sorry
 
 
--- @@ L98-103 verbatim
+-- @@ L98-110 verbatim
 /--
 **Upper bound** [Te02, DG05]
 
 The dimension of the $\mathbb{Q}$-vector space of MZVs of weight $n$ is at most $d_n$.
 -/
 @[category research solved, AMS 11]
-
--- @@ L104-110 verbatim
 theorem zagier_upper_bound :
     ∀ n : ℕ, Module.finrank ℚ (mzvSpanOfWeight n) ≤ zagierDim n := by
   sorry

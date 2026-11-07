@@ -27,53 +27,47 @@ public meta import FormalConjecturesUtil.Linters.CategoryLinter
 set_option linter.style.category_attribute true
 
 
--- @@ L25-28 verbatim
+-- @@ L25-27 verbatim
 namespace CategoryLinter
 
 -- Definitions aren't required to have a category attribute
-#guard_msgs in
 
--- @@ L29-29 verbatim
+-- @@ L28-29 verbatim
+#guard_msgs in
 def foo : Nat := 1
 
 
--- @@ L31-36 verbatim
+-- @@ L31-39 verbatim
 /--
 warning: Missing problem category attribute
 
 Note: This linter can be disabled with `set_option linter.style.category_attribute false`
 -/
 #guard_msgs in
-
--- @@ L37-39 verbatim
 /-- A highly non-trivial theorem -/
 theorem test_theorem : 1 + 1 = 2 := by
   rfl
 
 
--- @@ L41-46 verbatim
+-- @@ L41-49 verbatim
 /--
 warning: Missing problem category attribute
 
 Note: This linter can be disabled with `set_option linter.style.category_attribute false`
 -/
 #guard_msgs in
-
--- @@ L47-49 verbatim
 /-- A highly non-trivial theorem with a helpful hypothesis -/
 theorem test_theorem_with_hypothesis (_ : True) : 1 + 1 = 2 := by
   rfl
 
 
--- @@ L51-56 verbatim
+-- @@ L51-59 verbatim
 /--
 warning: Missing problem category attribute
 
 Note: This linter can be disabled with `set_option linter.style.category_attribute false`
 -/
 #guard_msgs in
-
--- @@ L57-59 verbatim
 /-- A highly non-trivial theorem with two helpful hypotheses -/
 theorem test_theorem_with_hypotheses (_ : True) (_ : False): 1 + 1 = 2 := by
   rfl
@@ -91,149 +85,109 @@ lemma test_lemma : 1 + 1 = 2 := by
   rfl
 
 
--- @@ L71-76 verbatim
+-- @@ L71-78 verbatim
 /--
 warning: Missing problem category attribute
 
 Note: This linter can be disabled with `set_option linter.style.category_attribute false`
 -/
 #guard_msgs in
-
--- @@ L77-78 verbatim
 example : 1 + 1 = 2 := by
   rfl
 
 
--- @@ L80-85 verbatim
+-- @@ L80-89 verbatim
 /--
 warning: If a problem has a sorry-free proof, it should not be categorised as `open`.
 
 Note: This linter can be disabled with `set_option linter.style.category_attribute false`
 -/
 #guard_msgs in
-
--- @@ L86-87 verbatim
 /-- A highly non-trivial theorem with a helpful hypothesis -/
-@[category research 
--- @@ L87-87 verbatim
-open]
-
--- @@ L88-89 verbatim
+@[category research open]
 theorem test_theorem_with_docstring : 1 + 1 = 2 := by
   rfl
 
 
--- @@ L91-96 verbatim
+-- @@ L91-103 verbatim
 /--
 warning: If a problem has a sorry-free proof, it should not be categorised as `open`.
 
 Note: This linter can be disabled with `set_option linter.style.category_attribute false`
 -/
 #guard_msgs in
-
--- @@ L97-97 verbatim
-@[category research 
--- @@ L97-104 verbatim
-open]
+@[category research open]
 lemma test_lemma_sorry_free : 1 + 1 = 2 := by
   rfl
 
 -- The `category` attribute on an `example` records no tag, and an `example` leaves no
 -- declaration to look a proof up under, so the sorry-free check cannot reach it. The
 -- attribute check above still applies.
+
+-- @@ L104-107 verbatim
 #guard_msgs in
-
--- @@ L105-105 verbatim
-@[category research 
--- @@ L105-105 verbatim
-open]
-
--- @@ L106-107 verbatim
+@[category research open]
 example : 1 + 1 = 2 := by
   rfl
 
 
--- @@ L109-114 verbatim
+-- @@ L109-119 verbatim
 /--
 warning: If a problem has a sorry-free proof, it should not be categorised as `open`.
 
 Note: This linter can be disabled with `set_option linter.style.category_attribute false`
 -/
 #guard_msgs in
-
--- @@ L115-115 verbatim
-@[category research 
--- @@ L115-115 verbatim
-open]
-
--- @@ L116-119 verbatim
+@[category research open]
 private theorem test_private_sorry_free : 1 + 1 = 2 := by
   rfl
 
 -- A proof given by match alternatives rather than `:=` is still a `declVal`.
 
--- @@ L120-125 verbatim
+-- @@ L120-129 verbatim
 /--
 warning: Missing problem category attribute
 
 Note: This linter can be disabled with `set_option linter.style.category_attribute false`
 -/
 #guard_msgs in
-
--- @@ L126-131 verbatim
 /-- A highly non-trivial theorem proved by cases -/
 theorem test_theorem_match : ∀ l : List Nat, l = l
   | [] => rfl
   | _ :: _ => rfl
 
+
+-- @@ L131-136 verbatim
 #guard_msgs in
-
--- @@ L132-132 verbatim
-@[category research 
--- @@ L132-132 verbatim
-open]
-
--- @@ L133-137 verbatim
+@[category research open]
 theorem test_2 : 1 + 1 = 3 := by
   sorry
 
 -- The linter is compatible with theorems having other attributes.
+
+-- @@ L137-142 verbatim
 #guard_msgs in
-
--- @@ L138-138 verbatim
-@[simp, category research 
--- @@ L138-138 verbatim
-open]
-
--- @@ L139-143 verbatim
+@[simp, category research open]
 theorem test_1 : 1 + 1 = 3 := by
   sorry
 
 -- The order of attributes is irrelevant.
+
+-- @@ L143-146 verbatim
 #guard_msgs in
-
--- @@ L144-144 verbatim
-@[category research 
--- @@ L144-144 verbatim
-open, simp]
-
--- @@ L145-146 verbatim
+@[category research open, simp]
 theorem test_3 : 1 + 1 = 3 := by
   sorry
 
 
--- @@ L148-153 verbatim
+-- @@ L148-156 verbatim
 /--
 warning: Duplicate category attribute. There should be only one category attribute per declaration
 
 Note: This linter can be disabled with `set_option linter.style.category_attribute false`
 -/
 #guard_msgs in
-
--- @@ L154-154 verbatim
 @[category research solved, category test]
-
--- @@ L155-156 verbatim
 theorem test_duplicate_category : 1 + 1 = 2 := by
   rfl
 

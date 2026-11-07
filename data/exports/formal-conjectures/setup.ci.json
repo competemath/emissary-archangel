@@ -1,0 +1,47 @@
+{
+  "key": "formal-conjectures",
+  "repo": "https://github.com/google-deepmind/formal-conjectures",
+  "commit": "71a0744be944b9d26864cef6f970c291c8e79a2d",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "FormalConjectures",
+    "FormalConjecturesForMathlib",
+    "FormalConjecturesTest",
+    "FormalConjecturesUtil"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/formal-conjectures/repo",
+  "entries": 2584,
+  "modules": 591,
+  "exported": 591,
+  "failed": [],
+  "expansion": {
+    "expanded": 143,
+    "verbatim": 6936,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 2584,
+    "kept": 2584,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 1326,
+    "lineUnverified": 5,
+    "nameFixed": 16,
+    "sorryOriginals": 0,
+    "emptyProofs": 5
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 28856320,
+  "minutes": 104,
+  "finishedAt": "2026-11-07T11:55:58.133Z"
+}
