@@ -203,10 +203,14 @@ r = setup(["--phase", "build-status"])
 check("the build is complete without it and the module that imports it (D)", /^complete=true$/m.test(r.stdout) && statusOf().other === 0 && statusOf().blocked === 1 && statusOf().broken.map((b) => b.module).join() === "Lib.C", JSON.stringify(statusOf()))
 check("the others are built", ["A", "E", "F"].every((m) => existsSync(olean(m))) && !existsSync(olean("D")), "")
 // the next round does not try it again (it is blocked like a too-big one) and the record survives the round
+const before9 = calls().length
 r = setup(["--phase", "build"], { FAKE_BROKEN: JSON.stringify(["Lib.C"]) })
+const round2 = calls().slice(before9).join("\n")
+check("a second round does not hand the broken module or its importer to lake", !/\bLib\.C\b/.test(round2) && !/\bLib\.D\b/.test(round2), round2)
 check("a second round keeps the record and says nothing new about it", r.status === 0 && Object.keys(JSON.parse(readFileSync(brokenMemo, "utf8")).broken).join() === "Lib.C" && !/broken: Lib\.C/.test(r.stdout), out(r))
 
-// 10. NOT broken: a module that fails without an error line of its own file (case 7's compile error that only shows alone, printed nowhere), and a module whose import is missing
+// 10. NOT broken: a module that fails without an error line of its own file (case 7's compile error that only shows alone, printed nowhere), a module whose import is missing
+// (D imports C, which was killed for memory: its import has no .olean, so it is never probed), and one whose error line is in another file
 fresh()
 r = setup(["--phase", "build"], { FAKE_HUNGRY: JSON.stringify({ "Lib.C": 300 }), FAKE_FAIL_ALONE: JSON.stringify(["Lib.C"]) })
 check("a failure without an error line of the module's own file is not called broken", r.status === 0 && !existsSync(brokenMemo), out(r))

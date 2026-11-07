@@ -624,7 +624,8 @@ async function build(modules) {
   const toobig = loadOom({ prune: true })
   // Modules not built again in THIS run: the too-big ones of earlier rounds, and any that was killed but not built alone (the cap) or failed alone for another reason.
   // Only toobig is written down for the next round; the others get another go then.
-  const avoid = new Set(toobig.keys())
+  // ... and the modules an earlier round found broken (they do not compile at this commit; BROKEN_FILE): not handed to lake again, nor what imports them
+  const avoid = new Set([...toobig.keys(), ...loadBroken().keys()])
   let blocker = blockedBy(avoid, modules)
   if (toobig.size) log(`memory: ${toobig.size} modules did not fit in ${RETRY_FOOTPRINT_MB} MB in an earlier round; they and the ${[...blocker.keys()].filter((m) => !avoid.has(m)).length} modules that import them are not built again`)
   let solos = 0
@@ -690,10 +691,10 @@ async function build(modules) {
     const err = ownError(m, r.tail)
     if (err) {
       broken.set(m, { error: err })
+      saveBroken(broken) // at once: a job that runs out of time later must not lose what was found
       log(`broken: ${m} does not compile at this commit (${err}); it and the modules that import it are left out, the rest is exported`)
     }
   }
-  if (broken.size) saveBroken(broken)
   // None of the modules built (an invalid lake flag, a dependency that failed to fetch): writing setup.json
   // now would record a library with 0 exports as done — zkevm-clean, aisafety-atlas and algolean were.
   const built = modules.filter((m) => existsSync(oleanOf(m))).length

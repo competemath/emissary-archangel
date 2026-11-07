@@ -116,10 +116,42 @@ class RealFoundation(unittest.TestCase):
             self.assertEqual(others, [], (full, others))
         self.assertGreater(changed, 4000)
 
-    def test_counts(self):
-        resolved = [r for r in self.out.values() if "short" in r]
-        self.assertGreaterEqual(len(resolved), 4600)  # foundation: 21 judged before (4,682 at 81810b9f)
-        self.assertEqual(len({r["name"] for r in resolved}), len(resolved))  # one record per declaration
+    def test_counts_equal_an_independent_count(self):
+        """The rule, written again from its definition (recursive, not the implementation's loop): modules in import order (the record modules sorted, each after what it imports, imports
+        in file order); a name's module is the first in that order whose export has it; a record resolves exactly when its module's export lacks the name, ONE name of the module's own ends
+        in .<name>, and every other name of the export ending in .<name> belongs to a module it imports."""
+        sys.setrecursionlimit(100000)
+        order, seen = [], set()
+
+        def visit(m):
+            if m in seen:
+                return
+            seen.add(m)
+            for d in self.imports.get(m, []):
+                visit(d)
+            order.append(m)
+
+        for m in sorted({g.module_of(r["sourcePath"]) for r in self.entries.values()}):
+            visit(m)
+        owner = {}
+        for m in order:
+            for n in self.names.get(m, []):
+                owner.setdefault(n, m)
+        expected = set()
+        for r in self.entries.values():
+            mod, n = g.module_of(r["sourcePath"]), r["name"]
+            have = self.names.get(mod)
+            if have is None or n in have:
+                continue
+            ends = [h for h in have if h.endswith("." + n)]
+            own = [h for h in ends if owner.get(h) == mod]
+            below = closure(self.imports, mod)
+            if len(own) == 1 and all(owner.get(h) in below for h in ends if h != own[0]):
+                expected.add((own[0], mod))
+        got = {(r["name"], g.module_of(r["sourcePath"])) for r in self.out.values() if "short" in r}
+        self.assertEqual(got, expected)
+        self.assertGreaterEqual(len(got), 4600)  # foundation: 21 judged before (4,680 at 81810b9f)
+        self.assertEqual(len({n for n, _ in got}), len(got))  # one record per declaration
 
     def test_each_resolution_stays_with_its_module(self):
         for full, r in self.out.items():
