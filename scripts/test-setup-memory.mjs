@@ -226,9 +226,16 @@ check("and the build is not complete", /^complete=false$/m.test(setup(["--phase"
 // a record from an artifact is data: anything that is not a module name with an error text is dropped
 fresh()
 mkdirSync(dirname(brokenMemo), { recursive: true })
-writeFileSync(brokenMemo, JSON.stringify({ version: 1, broken: { "Lib.C": { error: "error: x" }, "bad name;rm": { error: "e" }, "Lib.E": { error: 7 } } }))
+writeFileSync(brokenMemo, JSON.stringify({ version: 1, commit, broken: { "Lib.C": { error: "error: x" }, "bad name;rm": { error: "e" }, "Lib.E": { error: 7 } } }))
 r = setup(["--phase", "build-status"])
 check("a malformed broken record keeps only the well-formed entry", statusOf().broken.map((b) => b.module).join() === "Lib.C", JSON.stringify(statusOf()))
+// a record made at another commit of the library says nothing about this one (a re-pin may have fixed the file)
+writeFileSync(brokenMemo, JSON.stringify({ version: 1, commit: "0".repeat(40), broken: { "Lib.C": { error: "error: x" } } }))
+r = setup(["--phase", "build-status"])
+check("a broken record of another library commit is ignored", statusOf().broken.length === 0, JSON.stringify(statusOf()))
+writeFileSync(brokenMemo, JSON.stringify({ version: 1, broken: { "Lib.C": { error: "error: x" } } }))
+r = setup(["--phase", "build-status"])
+check("so is one that names no commit", statusOf().broken.length === 0, JSON.stringify(statusOf()))
 
 rmSync(tmp, { recursive: true, force: true })
 process.exit(bad ? 1 : 0)

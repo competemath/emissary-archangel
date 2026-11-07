@@ -320,6 +320,8 @@ function loadBroken() {
   const out = new Map()
   try {
     const raw = JSON.parse(readFileSync(BROKEN_FILE, "utf8"))
+    // broken at THIS commit only: a library re-pinned to another commit may compile the module now
+    if (raw?.commit !== src.commit) return out
     for (const [m, v] of Object.entries(raw?.broken ?? {})) if (m.length <= 300 && MODULE_NAME.test(m) && typeof v?.error === "string") out.set(m, { error: v.error.slice(0, 300) })
   } catch {
     /* none yet, or unreadable */
@@ -328,7 +330,7 @@ function loadBroken() {
 }
 function saveBroken(map) {
   mkdirSync(dirname(BROKEN_FILE), { recursive: true })
-  writeAtomic(BROKEN_FILE, JSON.stringify({ version: 1, broken: Object.fromEntries(map) }, null, 2))
+  writeAtomic(BROKEN_FILE, JSON.stringify({ version: 1, commit: src.commit, broken: Object.fromEntries(map) }, null, 2))
 }
 // The first error a build printed for the file of module `m` itself (`error: ./Lib/X.lean:3:4: ...`, or without ./), or null.
 function ownError(m, text) {
