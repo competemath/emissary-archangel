@@ -1,0 +1,44 @@
+{
+  "key": "padic-l-functions",
+  "repo": "https://github.com/CBirkbeck/padic-L-functions",
+  "commit": "45307015169791f1316f23a459c8e92ed5961c54",
+  "toolchain": "leanprover/lean4:v4.31.0-rc1",
+  "roots": [
+    "PadicLFunctions"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/padic-l-functions/repo",
+  "entries": 1397,
+  "modules": 53,
+  "exported": 53,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1416,
+    "kept": 1397,
+    "skippedRoot": 0,
+    "skippedDup": 18,
+    "skippedNoFile": 0,
+    "skippedCommented": 1,
+    "lineFixed": 186,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 1
+  },
+  "tools": {
+    "lean": "4.31.0-rc1 (commit fd009949156901e6cf15b6d9bf1122294b8e697a, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+fd00994",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "cd502a76e055 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 46895104,
+  "minutes": 9,
+  "finishedAt": "2026-11-07T19:50:50.236Z"
+}
