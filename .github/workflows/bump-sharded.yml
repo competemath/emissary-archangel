@@ -17,7 +17,7 @@ on:
       drop: { description: "RECUT: modules (comma list) that did not build on the tree, from the merge queue's build of the bundle", default: "" }
       scope: { description: "RECUT: the `leak:` lines of the merge queue's leak report (separated by `;`): those registrations are made local (scripts/bump/scope_rewrite.py)", default: "" }
       tengoku_ref: { description: "a branch of competemath/tengoku to read the library's tentative records from (default main), for records whose PR is not merged yet", default: "" }
-      parts: { description: "PARTS: cut each bundle into parts of at most this many modules (scripts/bump/bundle_layers.py), each attested as bundle-<key>-<mode>-part-NNN.tar, for a library too big for one intake PR (the queue builds ~3 s a module in 40 minutes: 300). 0 = no parts", default: "0" }
+      parts: { description: "PARTS: cut each bundle into parts of at most this many modules (scripts/bump/bundle_layers.py), each attested as bundle-<key>-<mode>-part-NNN.tar, for a library too big for one intake PR (the queue builds ~3 s a module in 40 minutes: 300). 0 = no parts, and then the opener cannot open the run (it opens part archives only: formal-conjectures run 42392708632, 7 Nov, 'has no archive …-part-001.tar'), so the default cuts parts", default: "300" }
       verify: { description: "build the bundle in the TREE's own environment (the merge queue's own build, on a checkout seeded from the tree's cache) before it is cut into parts: the modules the tree refuses are dropped with their importers, and what ships is proven byte for byte what was built there. `false` skips it", default: "true" }
       verify_partial: { description: "verify: a build that runs out of its time (210 min) still ships the modules it built; the rest are left for the next from-tree round. For a library with more new modules than one runner builds in that time (a first cut of a giant). Default `false`: a build that does not finish fails the run", default: "false" }
       verify_modes: { description: "the bundle modes that are built in the tree (comma list of strict, proposed, wide): the intake opener ships `proposed`; a mode that is not built ships as the factory cut it", default: "proposed" }
@@ -58,6 +58,12 @@ jobs:
           git -C tengoku sparse-checkout set --no-cone $(python3 emissary/scripts/bump/tentative_files.py sparse emissary/sources.json "$KEY")
           # TENGOKU_REF: a branch of the tree repository that holds the records of a library whose PR is not merged yet (empty: main)
           ref=${TENGOKU_REF:+origin/$TENGOKU_REF}; git -C tengoku checkout -q "${ref:-main}"
+      # A library whose parts are in the tree already is cut from the tree (from_tree=true, with parts), or the run stops here: otherwise its parts are numbered from 001 again
+      # and the opener skips them as 'every part is in the tree' (foundation, 2026-11-07: 108 theorems shipped by nobody). scripts/bump/in_tree.py says why and what to dispatch.
+      - name: A library in the tree is cut from the tree
+        working-directory: emissary
+        env: { FROM_TREE: "${{ inputs.from_tree }}", PARTS: "${{ inputs.parts }}" }
+        run: git -C ../tengoku ls-tree -r --name-only main -- "data/intake/$KEY" | python3 scripts/bump/in_tree.py --key "$KEY" --from-tree "$FROM_TREE" --parts "$PARTS"
       - name: The heavy settings (swap, build timeout, only these modules), checked
         id: heavy
         working-directory: emissary
@@ -532,7 +538,7 @@ jobs:
     needs: [compose, verify]
     if: ${{ !cancelled() && needs.compose.result == 'success' && (needs.verify.result == 'success' || needs.verify.result == 'skipped') }}
     runs-on: ubuntu-26.04
-    timeout-minutes: 120
+    timeout-minutes: 155  # 120 + the 20 minutes of waiting between tries + 3 tries of at most 5 minutes
     permissions: { contents: read, id-token: write, attestations: write, actions: read }  # actions: read = the shard artifacts of an earlier run (recut)
     env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}", SCOPE: "${{ inputs.scope }}", PARTS: "${{ inputs.parts }}", FROM_TREE: "${{ inputs.from_tree }}", DUPS: "${{ inputs.dups }}", VERIFIED: "${{ needs.verify.result }}", IMPORTS: "${{ inputs.imports }}" }
     steps:
@@ -644,7 +650,29 @@ jobs:
         if: ${{ inputs.from_tree == 'true' }}
         continue-on-error: true
         run: python3 emissary/scripts/bump/deficient_tree.py --bundle "bundle-$KEY-proposed.tar" --tree tengoku --lib "$KEY" --out deficient-plan.json | tee -a "$GITHUB_STEP_SUMMARY"
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+      # The attestation is written to the public transparency log (rekor), which answered HTTP 500 on 2026-11-07 for long enough to drop a Tengoku merge and a sandbox campaign:
+      # it is tried three times, 5 and then 15 minutes apart, and only the third failure fails the job (an unattested bundle is never uploaded: the opener would refuse it).
+      - id: attest_1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        timeout-minutes: 5  # an attestation takes seconds; a stalled try must leave the job time for the next one
+        continue-on-error: true
+        with: { subject-path: "bundle-${{ inputs.key }}-*.tar" }
+      - name: The transparency log refused the attestation; trying again in 5 minutes
+        if: steps.attest_1.outcome == 'failure'
+        run: sleep 300
+      - id: attest_2
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        timeout-minutes: 5  # an attestation takes seconds; a stalled try must leave the job time for the next one
+        if: steps.attest_1.outcome == 'failure'
+        continue-on-error: true
+        with: { subject-path: "bundle-${{ inputs.key }}-*.tar" }
+      - name: The transparency log refused the attestation twice; trying a last time in 15 minutes
+        if: steps.attest_2.outcome == 'failure'
+        run: sleep 900
+      - id: attest_3
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        timeout-minutes: 5  # an attestation takes seconds; a stalled try must leave the job time for the next one
+        if: steps.attest_2.outcome == 'failure'
         with: { subject-path: "bundle-${{ inputs.key }}-*.tar" }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

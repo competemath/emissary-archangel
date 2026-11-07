@@ -27,7 +27,7 @@ on:
       mode: { description: "the bundle the queue built (the intake opener ships proposed)", type: choice, options: [proposed, strict, wide], default: proposed }
       prior_drop: { description: "the drop of the recut that made the shipped bundle (comma list); empty for the first recut of bump_run", default: "" }
       scope: { description: "the scope of that recut (the `leak:` lines, separated by `;`), repeated", default: "" }
-      parts: { description: "the parts of that recut, repeated (0 = no parts)", default: "0" }
+      parts: { description: "the parts of that recut, repeated (0 = no parts, and then the opener cannot open it: it opens part archives only)", default: "300" }
       drop_unexplained: { description: "also propose modules whose errors nothing explains (class D). false: a module like that is left to a person and no recut starts", type: choice, options: ["false", "true"], default: "false" }
       recut: { description: "true = start the recut when the proposal is complete; false = only write the proposal", type: choice, options: ["true", "false"], default: "true" }
 permissions: {}

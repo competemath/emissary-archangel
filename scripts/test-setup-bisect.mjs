@@ -47,6 +47,7 @@ cpSync(join(here, "setup-source.mjs"), join(root, "scripts", "setup-source.mjs")
 cpSync(join(here, "setup-tools.mjs"), join(root, "scripts", "setup-tools.mjs"))
 cpSync(join(here, "bisect.mjs"), join(root, "scripts", "bisect.mjs"))
 cpSync(join(here, "memory-rules.mjs"), join(root, "scripts", "memory-rules.mjs"))
+cpSync(join(here, "pinned-deps.mjs"), join(root, "scripts", "pinned-deps.mjs"))
 cpSync(join(here, "patch-lean4export.py"), join(root, "scripts", "patch-lean4export.py"))
 writeFileSync(join(root, "sources.json"), JSON.stringify({ sources: { t: { repo: lib, commit, toolchain: TC, roots: ["Lib"] } } }))
 writeFileSync(

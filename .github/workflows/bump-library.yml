@@ -25,7 +25,7 @@ on:
       recut_from: { description: "RECUT: the id of an earlier run of this workflow for this key. No build: its bundle is packed again (with the Deps.lean marker) and attested by this run", default: "" }
       drop: { description: "RECUT: modules (comma list, the library's own names) that did not build on the tree, from the merge queue's build; they and what imports them are left out (scripts/bump/bundle_cut.py)", default: "" }
       scope: { description: "RECUT: the `leak:` lines of the merge queue's leak report (separated by `;`): those registrations are made local (scripts/bump/scope_rewrite.py)", default: "" }
-      parts: { description: "PARTS: cut each bundle into parts of at most this many modules (scripts/bump/bundle_layers.py), each attested as bundle-<key>-<mode>-part-NNN.tar, for a library too big for one intake PR (the queue builds ~3 s a module in 40 minutes: 300). 0 = no parts", default: "0" }
+      parts: { description: "PARTS: cut each bundle into parts of at most this many modules (scripts/bump/bundle_layers.py), each attested as bundle-<key>-<mode>-part-NNN.tar, for a library too big for one intake PR (the queue builds ~3 s a module in 40 minutes: 300). 0 = no parts, and then the opener cannot open the run (it opens part archives only: formal-conjectures run 42392708632, 7 Nov, 'has no archive …-part-001.tar'), so the default cuts parts", default: "300" }
       from_tree: { description: "PARTS, on a recut after some parts merged: cut only the modules the tree does not have yet (the library's Tengoku/<Ns>.lean on tengoku main), numbered from the next part, so the new parts extend what merged (scripts/bump/bundle_layers.py --tree-umbrella)", default: "" }
 permissions: {}
 defaults:
@@ -313,7 +313,7 @@ jobs:
     needs: bump
     if: ${{ !cancelled() && (inputs.recut_from != '' || needs.bump.result == 'success') }}
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 65  # 30 + the 20 minutes of waiting between tries + 3 tries of at most 5 minutes
     permissions: { contents: read, id-token: write, attestations: write, actions: read }  # actions: read = the results of an earlier run (recut)
     env: { KEY: "${{ inputs.key }}", SCOPE: "${{ inputs.scope }}", DROP: "${{ inputs.drop }}", PARTS: "${{ inputs.parts }}", FROM_TREE: "${{ inputs.from_tree }}" }
     steps:
@@ -382,7 +382,29 @@ jobs:
             fi
           done
           sha256sum out/bundle-"$KEY"-*.tar | tee out/bundle.sha256; ls -l out | awk '{print $5, $9}'
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+      # The attestation is written to the public transparency log (rekor), which answered HTTP 500 on 2026-11-07 for long enough to drop a Tengoku merge and a sandbox campaign:
+      # it is tried three times, 5 and then 15 minutes apart, and only the third failure fails the job (an unattested bundle is never uploaded: the opener would refuse it).
+      - id: attest_1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        timeout-minutes: 5  # an attestation takes seconds; a stalled try must leave the job time for the next one
+        continue-on-error: true
+        with: { subject-path: "out/bundle-${{ inputs.key }}-*.tar" }
+      - name: The transparency log refused the attestation; trying again in 5 minutes
+        if: steps.attest_1.outcome == 'failure'
+        run: sleep 300
+      - id: attest_2
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        timeout-minutes: 5  # an attestation takes seconds; a stalled try must leave the job time for the next one
+        if: steps.attest_1.outcome == 'failure'
+        continue-on-error: true
+        with: { subject-path: "out/bundle-${{ inputs.key }}-*.tar" }
+      - name: The transparency log refused the attestation twice; trying a last time in 15 minutes
+        if: steps.attest_2.outcome == 'failure'
+        run: sleep 900
+      - id: attest_3
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        timeout-minutes: 5  # an attestation takes seconds; a stalled try must leave the job time for the next one
+        if: steps.attest_2.outcome == 'failure'
         with: { subject-path: "out/bundle-${{ inputs.key }}-*.tar" }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: { name: "bump-${{ inputs.key }}", path: out, retention-days: 90 }
