@@ -101,8 +101,10 @@ const fullQueue = readFileSync(join(root, "data", "queue-t.json"), "utf8")
 check("the queue is byte for byte the one an unbounded cache gives", keepAll.status === 0 && fullQueue === small.queue)
 
 // a budget smaller than one file: no file is kept (each is read for its records and let go), the queue is the same, and the heap holds
-const tiny = seed(records, { EMISSARY_SEED_CACHE_MB: "1" })
-check("a budget smaller than any file: nothing is kept, and the queue is the same", tiny.code === 0 && tiny.queue === fullQueue && /seed: 0 source file\(s\) kept at the end/.test(tiny.out), tiny.out.slice(-300))
+// one record names a file the library does not have: it is cached as "no file", which is not a file kept
+const missing = { ...records[0], name: "gone", source_url: records[0].source_url.replace(/F0\.lean#L\d+$/, "Gone.lean#L1") }
+const tiny = seed([...records, missing], { EMISSARY_SEED_CACHE_MB: "1" })
+check("a budget smaller than any file: nothing is kept (a missing file is no file kept), and the queue is the same", tiny.code === 0 && tiny.queue === fullQueue && /seed: 0 source file\(s\) kept at the end/.test(tiny.out), tiny.out.slice(-300))
 // a budget that is no finite number falls back to the default (256 MB): it never means 'keep everything'
 for (const v of ["Infinity", "1e309", "NaN", "-5", "0"]) {
   const r = seed(records.slice(0, 5), { EMISSARY_SEED_CACHE_MB: v })

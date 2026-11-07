@@ -613,7 +613,7 @@ function seedQueue() {
     stats.kept++
   }
   writeAtomic(QUEUE, JSON.stringify(entries, null, 2))
-  log(`seed: ${fileCache.size} source file(s) kept at the end`)
+  log(`seed: ${[...fileCache.values()].filter(Boolean).length} source file(s) kept at the end`) // a missing file is cached as null: not a file kept
   log(`seeded ${QUEUE}: ${JSON.stringify(stats)}`)
   return { entries, stats }
 }
