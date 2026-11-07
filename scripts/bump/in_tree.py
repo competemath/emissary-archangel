@@ -6,7 +6,7 @@ foundation (2026-11-07, run 42370781841): its parts 001-002 had merged; a new bu
 which cut part 003). The opener knows a run continues the tree only from its title, which the dispatch fixes; so the plan refuses the run at once, naming the dispatch that works,
 instead of running for hours and shipping nothing. `from_tree` also needs `parts` (the pack step cuts no part when it is 0).
 
-  git -C tengoku ls-tree -r --name-only main -- data/intake/KEY/parts | in_tree.py --key KEY --from-tree "$FROM_TREE" --parts "$PARTS"
+  git -C tengoku ls-tree -r --name-only main -- data/intake/KEY | in_tree.py --key KEY --from-tree "$FROM_TREE" --parts "$PARTS"
 
 Exit 0: the bump may run. Exit 1: a GitHub error line says why and what to dispatch.
 """
@@ -19,9 +19,13 @@ import sys
 
 
 def merged_parts(paths: list[str], key: str) -> list[int]:
-    """the part numbers the tree records for `key` (data/intake/<key>/parts/NNN.json)"""
+    """the part numbers the tree records for `key`: data/intake/<key>/parts/NNN.json, and part 001 for a library merged in one part (the tree then records only
+    data/intake/<key>/manifest.jsonl: lana-pi1, ns-p23, flt-anthropic on 7 Nov). The same rule as the pack step's next part number (its last part defaults to 1)."""
     rx = re.compile(rf"^data/intake/{re.escape(key)}/parts/(\d{{3}})\.json$")
-    return sorted({int(m.group(1)) for p in paths for m in [rx.match(p.strip())] if m})
+    nums = {int(m.group(1)) for p in paths for m in [rx.match(p.strip())] if m}
+    if not nums and any(p.strip() == f"data/intake/{key}/manifest.jsonl" for p in paths):
+        nums = {1}
+    return sorted(nums)
 
 
 def verdict(paths: list[str], key: str, from_tree: str, parts: str) -> tuple[bool, str]:

@@ -21,8 +21,9 @@ ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 import in_tree  # noqa: E402
 
-FOUNDATION = ["data/intake/foundation/parts/002.json"]
-LEAN_POOL = [f"data/intake/lean-pool/parts/{n:03d}.json" for n in range(2, 17)]
+FOUNDATION = ["data/intake/foundation/manifest.jsonl", "data/intake/foundation/parts/002.json", "data/intake/foundation/report.json"]
+LANA = ["data/intake/lana-pi1/manifest.jsonl", "data/intake/lana-pi1/report.json"]  # merged in one part (#733): no parts/ directory
+LEAN_POOL = ["data/intake/lean-pool/manifest.jsonl"] + [f"data/intake/lean-pool/parts/{n:03d}.json" for n in range(2, 17)]
 
 
 class Verdict(unittest.TestCase):
@@ -35,6 +36,14 @@ class Verdict(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("from_tree=true parts=300", why)
         self.assertIn("from part 017", why)
+
+    def test_a_library_merged_in_one_part_is_in_the_tree(self):
+        # lana-pi1, ns-p23 and flt-anthropic (#740) were merged as 'part 1 of 1': the tree records the manifest and no parts/
+        ok, why = in_tree.verdict(LANA, "lana-pi1", "", "0")
+        self.assertFalse(ok)
+        self.assertIn("from part 002", why)
+        self.assertTrue(in_tree.verdict(LANA, "lana-pi1", "true", "300")[0])
+        self.assertTrue(in_tree.verdict(["data/intake/lana-pi1/report.json"], "lana-pi1", "", "0")[0])  # a report alone is not a merge
 
     def test_from_tree_with_parts_runs(self):
         self.assertEqual(in_tree.verdict(FOUNDATION, "foundation", "true", "300")[0], True)
@@ -58,7 +67,7 @@ class Verdict(unittest.TestCase):
 
     def test_every_combination(self):
         # 3 listings x 4 from_tree values x 4 parts values: the rule, stated once, holds for each
-        listings = {"foundation": FOUNDATION, "lean-pool": LEAN_POOL, "formal-conjectures": []}
+        listings = {"foundation": FOUNDATION, "lean-pool": LEAN_POOL, "lana-pi1": LANA, "formal-conjectures": []}
         n = 0
         for key, paths in listings.items():
             for ft in ("", "false", "true", "TRUE"):
@@ -68,7 +77,7 @@ class Verdict(unittest.TestCase):
                     expect = (has_parts if want_ft else not paths)
                     self.assertEqual(ok, expect, (key, ft, parts))
                     n += 1
-        self.assertEqual(n, 48)
+        self.assertEqual(n, 64)
 
 
 class PlanStep(unittest.TestCase):
@@ -82,6 +91,9 @@ class PlanStep(unittest.TestCase):
         tree = self.tmp / "tengoku"
         (tree / "data/intake/foundation/parts").mkdir(parents=True)
         (tree / "data/intake/foundation/parts/002.json").write_text("{}\n")
+        (tree / "data/intake/foundation/manifest.jsonl").write_text("{}\n")
+        (tree / "data/intake/lana-pi1").mkdir(parents=True)
+        (tree / "data/intake/lana-pi1/manifest.jsonl").write_text("{}\n")
         (tree / "README.md").write_text("tree\n")
         git = ["git", "-C", str(tree), "-c", "user.name=t", "-c", "user.email=t@t", "-c", "init.defaultBranch=main"]
         subprocess.run(["git", "-c", "init.defaultBranch=main", "init", "-q", str(tree)], check=True)
@@ -103,6 +115,11 @@ class PlanStep(unittest.TestCase):
         p = self.run_step("foundation", "", "0")
         self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
         self.assertIn("::error::foundation is in the tree already", p.stdout)
+
+    def test_the_step_refuses_a_library_merged_in_one_part(self):
+        p = self.run_step("lana-pi1", "", "0")
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("from part 002", p.stdout)
 
     def test_the_step_lets_the_right_dispatches_run(self):
         self.assertEqual(self.run_step("foundation", "true", "300").returncode, 0)

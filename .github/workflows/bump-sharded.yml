@@ -63,7 +63,7 @@ jobs:
       - name: A library in the tree is cut from the tree
         working-directory: emissary
         env: { FROM_TREE: "${{ inputs.from_tree }}", PARTS: "${{ inputs.parts }}" }
-        run: git -C ../tengoku ls-tree -r --name-only main -- "data/intake/$KEY/parts" | python3 scripts/bump/in_tree.py --key "$KEY" --from-tree "$FROM_TREE" --parts "$PARTS"
+        run: git -C ../tengoku ls-tree -r --name-only main -- "data/intake/$KEY" | python3 scripts/bump/in_tree.py --key "$KEY" --from-tree "$FROM_TREE" --parts "$PARTS"
       - name: The heavy settings (swap, build timeout, only these modules), checked
         id: heavy
         working-directory: emissary
