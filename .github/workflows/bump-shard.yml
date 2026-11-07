@@ -162,13 +162,19 @@ jobs:
           # module into one environment: the later one is left out with what imports it, the keep step runs again on the rest, and compose leaves out the same
           # (keep-drops.txt, through the shard pack). archon-firstproof-p6 (2026-11-07): FirstProof6_constant and FirstProof6_constant3 hold one file twice, and the
           # keep step printed only the clash, so compose found no BUNDLE_KEEP line and the bump died. bump-library.yml has had this loop; the shards had not.
+          # One budget for all the tries: the 120 minutes the single run had, so the job's 345 are not overrun. The module is read up to the fixed words after it, so a quoted
+          # part with a space stays whole; the drop lists are comma lists, so a name with a comma stops the step instead of dropping the wrong module.
           drop=""
           : > keep-drops.txt
+          deadline=$(( $(date +%s) + 120 * 60 ))
           for attempt in $(seq 1 25); do
+            left=$(( deadline - $(date +%s) ))
+            if [ "$left" -le 60 ]; then echo "::warning::the keep step's 120 minutes are spent after $((attempt - 1)) tries; compose reads the last log"; break; fi
             python3 scripts/bump/bundle.py keep-input --lib lib --passed passed.json --roots "$ROOTS" --drop "$drop" --out lib/bundle-keep.json
-            (cd lib && timeout 120m lake env lean --run "$W/scripts/bump/BundleKeep.lean" bundle-keep.json > "$W/bundle-deps.log" 2>&1 || true)
-            bad=$(sed -nE 's/.*import ([^ ]+) failed, environment already contains.*/\1/p' bundle-deps.log | head -1 || true)
+            (cd lib && timeout "${left}s" lake env lean --run "$W/scripts/bump/BundleKeep.lean" bundle-keep.json > "$W/bundle-deps.log" 2>&1 || true)
+            bad=$(sed -nE 's/.*import (.+) failed, environment already contains .*/\1/p' bundle-deps.log | head -1 || true)
             [ -z "$bad" ] && break
+            case "$bad" in *,*) echo "::error::import clash in the keep step on a module whose name has a comma ($bad): the drop lists are comma lists"; exit 1;; esac
             echo "import clash in the keep step: $bad (and what imports it) is left out of the bundle"; drop="$drop,$bad"; echo "$bad" >> keep-drops.txt
           done
           grep -c BUNDLE_KEEP bundle-deps.log || true

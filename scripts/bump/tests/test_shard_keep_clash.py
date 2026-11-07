@@ -158,6 +158,54 @@ class ShardKeepStep(unittest.TestCase):
         self.assertEqual((r.returncode, r.stdout), (0, "[]"))  # nothing to drop: an empty list, and the step does not fail on it
 
 
+class ReadingTheClash(unittest.TestCase):
+    """The step's own line that reads the module out of Lean's refusal (cubic on emissary#154: a quoted part with a space was cut at the space, and the retry dropped nothing)."""
+
+    def bad_of(self, log: str) -> str:
+        run = step_run("bump-shard.yml", "What the passed theorems are made of")
+        line = next(ln.strip() for ln in run.splitlines() if ln.strip().startswith("bad=$("))
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, True)
+        (d / "bundle-deps.log").write_text(log)
+        r = subprocess.run(["bash", "-e", "-o", "pipefail", "-c", line + '\nprintf "%s" "$bad"'], cwd=d, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r.stdout
+
+    def test_the_module_is_read_whole(self):
+        self.assertEqual(self.bad_of("x\n" + CLASH + "\n"), B)  # the real line
+        for mod in ("Lib.«bar baz».Aux", "Lib.«1102.4662»", "Lib.«a-b»", "Lib.A"):
+            line = f"uncaught exception: import {mod} failed, environment already contains 'X.y' from Lib.Other\n"
+            self.assertEqual(self.bad_of("warning: z\n" + line), mod)
+        self.assertEqual(self.bad_of("x:1:0: info: BUNDLE_KEEP [] BUNDLE_END\n"), "")  # no clash: nothing
+        self.assertEqual(self.bad_of("uncaught exception: import Lib.A failed, object file ./Lib/A.olean does not exist\n"), "")  # not a clash: no drop
+
+
+class Budget(ShardKeepStep):
+    def test_a_name_with_a_comma_stops_the_step(self):
+        lake = self.tmp / "bin" / "lake"
+        lake.write_text("#!/bin/sh\necho \"uncaught exception: import FirstProof.«a,b» failed, environment already contains 'x' from FirstProof.Other\"\n")
+        p = self.run_step(step_run("bump-shard.yml", "What the passed theorems are made of"))
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("has a comma", p.stdout)
+
+    def test_the_tries_share_one_budget(self):
+        # a clock that moves 4,000 s each time it is read: the budget is 7,200 s, so the first try runs and the second finds the budget spent
+        clock = self.tmp / "bin" / "date"
+        clock.write_text(f"#!/bin/sh\nf={self.tmp}/clock; n=$(cat \"$f\" 2>/dev/null || echo 0); echo $((n + 1)) > \"$f\"; echo $((1000000 + n * 4000))\n")
+        clock.chmod(0o755)
+        lake = self.tmp / "bin" / "lake"
+        lake.write_text("#!/bin/sh\necho \"uncaught exception: import X.Y$$ failed, environment already contains 'x' from X.Z\"\n")  # a new clash every try
+        p = self.run_step(step_run("bump-shard.yml", "What the passed theorems are made of"))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("the keep step's 120 minutes are spent after 1 tries", p.stdout)
+        self.assertEqual(len((self.em / "keep-drops.txt").read_text().split()), 1)
+
+    def test_each_try_is_limited_to_what_is_left(self):
+        run = step_run("bump-shard.yml", "What the passed theorems are made of")
+        self.assertIn('timeout "${left}s" lake env lean --run', run)
+        self.assertNotIn("timeout 120m", run)
+
+
 class Workflows(unittest.TestCase):
     def test_every_compose_of_the_sharded_bump_drops_what_the_keep_step_left_out(self):
         text = (ROOT / ".github" / "workflows" / "bump-sharded.yml").read_text()

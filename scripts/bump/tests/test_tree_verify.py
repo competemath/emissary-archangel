@@ -199,12 +199,13 @@ class Axioms(Fixture):
         self.collect(LOG_C_FAILS)
         self.assertEqual((self.out / "built.txt").read_text().split(), ["Tengoku.ToyLib.Toy.B"])
 
-    def test_a_module_with_a_dash_in_its_name_is_listed_without_guillemets_and_matched_with_or_without(self):
+    def test_a_module_with_a_dash_in_its_name_is_listed_as_lean_spells_it_and_matched_with_or_without(self):
+        """2026-11-07 (formal-conjectures, `Geometry.«2d»`): the list was written without guillemets for `String.toName`, which reads `2d` as no name at all; the Lean programs now read
+        the list part by part (listModuleName) and a part in guillemets whole, so the list keeps Lean's spelling (`«1102.4662»` would otherwise be two parts)."""
         write(self.bundle, {"Tengoku/ToyLib/Toy/A-B.lean": "theorem ab : 5 = 5 := rfl\n", "Tengoku/ToyLib.lean": UMBRELLA + "import Tengoku.ToyLib.Toy.«A-B»\n"})
         self.apply()
         self.collect("✔ [1/9] Built Tengoku.ToyLib.Toy.«A-B» (1s)\nBuild completed successfully.\n")
-        self.assertIn("Tengoku.ToyLib.Toy.A-B", (self.out / "built.txt").read_text().split())  # what `String.toName` splits on dots: no « » in the file
-        self.assertNotIn("«", (self.out / "built.txt").read_text())
+        self.assertIn("Tengoku.ToyLib.Toy.«A-B»", (self.out / "built.txt").read_text().split())
         (self.d / "axioms.txt").write_text("AXIOM\tTengoku.ToyLib.Toy.A-B\td\tlcProof\naxioms: 3 declarations checked, 1 with non-standard axioms\n")
         tv.main(["collect", "--new", str(self.out / "new.json"), "--log", str(self.d / "build.log"), "--out", str(self.out), "--axioms", str(self.d / "axioms.txt")])
         self.assertIn("Toy.«A-B»", (self.out / "failing.txt").read_text().split())
@@ -378,6 +379,14 @@ class UnionImport(Fixture):
         self.prepare(built=("Tengoku.ToyLib.Toy.A-B",))
         lines = self.union_input("--root", "Tengoku.Other")
         self.assertEqual(lines[:2], ["import Tengoku.Other", "import Tengoku.ToyLib.Toy.«A-B»"])
+
+    def test_a_part_with_a_dot_stays_one_part_in_the_union_file(self):
+        """a file `1102.4662.lean` is the module `….«1102.4662»`: written back from a list without guillemets it became `….«1102».«4662»`, a module that does not exist"""
+        write(self.bundle, {"Tengoku/ToyLib/Toy/1102.4662.lean": "theorem ax : 5 = 5 := rfl\n"})
+        for listed in ("Tengoku.ToyLib.Toy.«1102.4662»", "Tengoku.ToyLib.Toy.1102.4662"):
+            self.prepare(built=(listed,))
+            lines = self.union_input()
+            self.assertEqual(lines[1:-1], ["import Tengoku.ToyLib.Toy.«1102.4662»"], listed)
 
     def test_a_new_module_that_did_not_build_is_not_imported_even_if_it_has_an_olean(self):
         self.prepare(built=("Tengoku.ToyLib.Toy.B",))

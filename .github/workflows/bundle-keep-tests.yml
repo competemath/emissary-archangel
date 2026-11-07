@@ -131,7 +131,7 @@ jobs:
           assert tv.CLASH_DONE.search(none).group("pairs") == "0", none  # A and B clash, but neither is new: not this bundle's business
           print("clash pair named:", got)
           PY
-      # A module name with a part that is no identifier (formal-conjectures' `Geometry.«2d»`; `«1»`; `«A-B»`). tree_verify writes its lists without the guillemets, and `String.toName` reads
+      # A module name with a part that is no identifier (formal-conjectures' `Geometry.«2d»`; `«1»`; `«A-B»`; `«1102.4662»`, a part with a dot). tree_verify wrote its lists without the guillemets (it now writes Lean's spelling), and `String.toName` reads
       # `2d` and `A-B` as no name at all and `1` as a number: the axiom check died with "trying to import module with anonymous name" (2026-11-07, run 42370333452) and the clash check
       # left such a module out without a word. The programs read a list part by part (listModuleName). 2d declares `Toy.clashing` like A and B of the step above: with either spelling of the
       # list, the axiom check finishes over all three modules and the clash check names 2d against both.
@@ -143,10 +143,12 @@ jobs:
           printf 'def Toy.clashing := 7\ntheorem Toy.odd2d : 2 = 2 := rfl\n' > "$src/Tengoku/LibN/2d.lean"
           printf 'theorem Toy.odd1 : 1 = 1 := rfl\n' > "$src/Tengoku/LibN/1.lean"
           printf 'theorem Toy.oddAB : 3 = 3 := rfl\n' > "$src/Tengoku/LibN/A-B.lean"
-          for m in 2d 1 A-B; do lake env lean --root="$src" -o "$root/Tengoku/LibN/$m.olean" "$src/Tengoku/LibN/$m.lean"; done
+          printf 'theorem Toy.oddDot : 4 = 4 := rfl\n' > "$src/Tengoku/LibN/1102.4662.lean"
+          for m in 2d 1 A-B 1102.4662; do lake env lean --root="$src" -o "$root/Tengoku/LibN/$m.olean" "$src/Tengoku/LibN/$m.lean"; done
           lp="$root:$(lake env printenv LEAN_PATH)"
           printf 'Tengoku.LibN.2d\nTengoku.LibN.1\nTengoku.LibN.A-B\n' > "$RUNNER_TEMP/odd-plain.txt"
-          printf 'Tengoku.LibN.«2d»\nTengoku.LibN.«1»\nTengoku.LibN.«A-B»\n' > "$RUNNER_TEMP/odd-quoted.txt"
+          # a part with a dot in it (an arXiv number as a file name) can only be written with guillemets: tree_verify writes the list as Lean spells it
+          printf 'Tengoku.LibN.«2d»\nTengoku.LibN.«1»\nTengoku.LibN.«A-B»\nTengoku.LibN.«1102.4662»\n' > "$RUNNER_TEMP/odd-quoted.txt"
           for v in plain quoted; do
             lake env env LEAN_PATH="$lp" lean --run ../scripts/bump/ModuleAxioms.lean "$RUNNER_TEMP/odd-$v.txt" 2>&1 | tee "$RUNNER_TEMP/odd-ax-$v.out"
             lake env lean --run ../scripts/bump/ModuleClashes.lean "$root" "$RUNNER_TEMP/odd-$v.txt" Tengoku 2>&1 | tee "$RUNNER_TEMP/odd-cl-$v.out"
@@ -162,7 +164,7 @@ jobs:
               ax = open(os.path.join(t, f"odd-ax-{v}.out"), encoding="utf-8").read()
               done = tv.AXIOM_DONE.search(ax)
               assert done, (v, ax[-800:])  # the run finished
-              assert int(done.group("checked")) >= 3, (v, done.group(0))  # Toy.odd2d, Toy.odd1, Toy.oddAB at least: every module was read, none as no name
+              assert int(done.group("checked")) >= len(mods), (v, done.group(0))  # Toy.odd2d, Toy.odd1, Toy.oddAB (Toy.oddDot) at least: every module was read, none as no name
               assert tv.axiom_offenders(ax, mods) == {}, v
               cl = open(os.path.join(t, f"odd-cl-{v}.out"), encoding="utf-8").read()
               got = tv.clash_offenders(cl, mods)

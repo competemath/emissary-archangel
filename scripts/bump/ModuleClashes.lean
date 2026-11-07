@@ -44,11 +44,22 @@ partial def oleans (rootLen : Nat) (dir : System.FilePath) (acc : Array (Name ×
       acc := acc.push ((dirs ++ [stem]).foldl (fun n c => Name.mkStr n c) Name.anonymous, p)
   return acc
 
-/-- A module name as a list spells it, `Tengoku.Lib.2d` or `Tengoku.Lib.«2d»`: split at the dots, every part a string component, guillemets dropped. `String.toName` reads a part that
+/-- A module name as a list spells it, `Tengoku.Lib.2d` or `Tengoku.Lib.«2d»`: split at the dots outside guillemets, every part a string component. `String.toName` reads a part that
 is no identifier (`2d`, `A-B`) as no name at all and a part of digits (`1`) as a number, while a module's parts are strings: formal-conjectures' `Geometry.«2d»` made the axiom check die with
 "trying to import module with anonymous name" (2026-11-07, run 42370333452), and the clash check left such a module out without a word. -/
-def listModuleName (s : String) : Name :=
-  (s.splitOn ".").foldl (fun n c => Name.mkStr n ((c.replace "«" "").replace "»" "")) Name.anonymous
+def listModuleName (s : String) : Name := Id.run do
+  -- split at the dots outside guillemets (`Lib.«1102.4662».A` has three parts), guillemets dropped
+  let mut n : Name := Name.anonymous
+  let mut part : String := ""
+  let mut quoted := false
+  for c in s.toList do
+    if c == '«' then quoted := true
+    else if c == '»' then quoted := false
+    else if c == '.' && !quoted then
+      n := Name.mkStr n part
+      part := ""
+    else part := part.push c
+  return Name.mkStr n part
 
 def main (argv : List String) : IO UInt32 := do
   let [root, file, pre] := argv | IO.eprintln "usage: ModuleClashes.lean OLEAN_ROOT modules.txt PREFIX"; return 2

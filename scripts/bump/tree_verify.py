@@ -164,11 +164,12 @@ def cmd_union_input(a: argparse.Namespace) -> None:
     holds modules that are alternatives to each other and never imported together (Aesop's `DiscrKeyConfig` and `DiscrTreeConfig` both declare `Aesop.indexConfig`; the first attempt that imported every
     module was refused by that pair), and its cache holds the oleans of modules that no longer exist."""
     new = json.loads(Path(a.new).read_text())["modules"]
-    keep = set(read_lines(a.keep))
-    excluded = set(read_lines(a.excluded))
-    out_of_play = {plain(m) for m in new if plain(m) not in keep} | excluded  # new modules that did not build, were refused, or were excluded are not imported
-    mods = sorted({plain(m) for m in new} - out_of_play)
-    Path(a.out).write_text(f"import {lean_module(a.root)}\n" + "".join(f"import {lean_module(m)}\n" for m in mods))
+    keep = {plain(m) for m in read_lines(a.keep)}
+    excluded = {plain(m) for m in read_lines(a.excluded)}
+    spelled = {plain(m): m for m in new}  # the import as the bundle writes it: a part with a dot in it stays one part
+    out_of_play = {m for m in spelled if m not in keep} | excluded  # new modules that did not build, were refused, or were excluded are not imported
+    mods = sorted(set(spelled) - out_of_play)
+    Path(a.out).write_text(f"import {lean_module(a.root)}\n" + "".join(f"import {spelled[m]}\n" for m in mods))
     print(f"{a.root} and {len(mods)} new module(s) to import ({len(out_of_play)} new module(s) out of play)")
 
 
@@ -182,7 +183,7 @@ def cmd_union_next(a: argparse.Namespace) -> None:
     new = json.loads(Path(a.new).read_text())
     mods = new["modules"]
     key_of = {plain(m): m for m in mods}
-    in_play = (set(key_of) & set(read_lines(a.keep))) - set(read_lines(a.excluded))
+    in_play = (set(key_of) & {plain(m) for m in read_lines(a.keep)}) - {plain(m) for m in read_lines(a.excluded)}
     offender = plain(x) if plain(x) in in_play else plain(y) if plain(y) in in_play else None
     if offender is None:
         sys.exit(f"the tree does not import: {plain(x)} and {plain(y)} both declare `{name}` and neither is a new module still in play (the tree itself, or a module already excluded)")
@@ -269,7 +270,8 @@ def cmd_collect(a: argparse.Namespace) -> None:
     ok = {m: mods[m]["sha256"] for m in mods if m not in failing and m not in cascade}
     (out / "failing.txt").write_text("".join(library_module(m, ns) + "\n" for m in sorted(failing)))
     (out / "ok.json").write_text(json.dumps(ok, indent=1) + "\n")
-    (out / "built.txt").write_text("".join(plain(m) + "\n" for m in sorted(ok)))
+    # as Lean spells the module (`Tengoku.Lib.«1102.4662»`): the Lean programs read a part in guillemets whole, and the readers here compare through `plain`
+    (out / "built.txt").write_text("".join(m + "\n" for m in sorted(ok)))
     summary = (
         f"{len(mods)} new module(s): {len(ok)} built in the tree, {len(failing)} refused ({len(unaccounted)} of them not reached, {len(offenders)} on an axiom, {len(clashing)} on a name another module declares, {len(union_hit)} on the import of the whole tree), "
         f"{len(cascade - failing)} more import a refused one and go with it"
