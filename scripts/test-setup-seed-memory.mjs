@@ -123,6 +123,37 @@ check("records interleaved across files: the same queue with a small budget as w
 const unbounded = seed(records, { EMISSARY_SEED_CACHE_MB: "100000" })
 check("the fixture reproduces the failure: with every file kept, the seed dies at the heap limit", unbounded.code !== 0 && /heap out of memory|Allocation failed/.test(unbounded.out), `${unbounded.code} ${unbounded.out.slice(-300)}`)
 
+// leanbridge's other half (setup run 42411218917, 7 Nov): 15 tentative files of ~40 MB (records whose proofs run to tens of KB), all read at once, and the queue written as
+// one JSON string, did not fit next to the entries either. 6 tentative files of 12 MB of long proofs are seeded under a 300 MB heap: the files are read one at a time and the
+// queue is written entry by entry; its bytes are exactly JSON.stringify(entries, null, 2) (parsed and written again, the same bytes).
+{
+  // every record of the library once, each pointing at its own declaration (so no record takes the unverified-line fallback), its proof made long
+  const proof = ":= by\n" + "  simp [Finset.sum_range_succ, ℤ, ∑]\n".repeat(2800) // ~100 KB, non-Latin-1 like the real proofs
+  const tfiles = []
+  const per = Math.ceil(records.length / 6)
+  for (let t = 0; t < 6; t++) {
+    const rows = records.slice(t * per, (t + 1) * per).map((r) => JSON.stringify({ ...r, proof }))
+    const name = `t-${String(t + 1).padStart(3, "0")}.jsonl`
+    writeFileSync(join(tent, name), rows.join("\n") + "\n")
+    tfiles.push(name)
+  }
+  writeFileSync(join(root, "sources.json"), JSON.stringify({ sources: { t: { repo: lib, commit, toolchain: TC, roots: ["Lib"], tentative: tfiles } } }))
+  rmSync(join(root, "data", "queue-t.json"), { force: true })
+  const r = spawnSync("node", ["--max-old-space-size=300", join(root, "scripts", "setup-source.mjs"), "t", "--only", "seed"], {
+    env: { ...process.env, HOME: home, EMISSARY_TENTATIVE_DIR: tent, EMISSARY_SEED_CACHE_MB: "16" },
+    encoding: "utf8",
+    maxBuffer: 1 << 26,
+  })
+  check(`six tentative files of long proofs (${records.length} records, ~${Math.round((records.length * proof.length) / 1e6)} MB) are seeded under a 300 MB heap`, r.status === 0, (r.stdout + r.stderr).slice(-400))
+  const stats = JSON.parse(((r.stdout || "").match(/seeded \S+: (\{.*\})/) || [, "{}"])[1])
+  check("no record took the unverified-line fallback: each line was checked against its declaration", stats.kept === records.length && stats.lineUnverified === 0, JSON.stringify(stats))
+  const text = r.status === 0 ? readFileSync(join(root, "data", "queue-t.json"), "utf8") : ""
+  const parsed = text ? JSON.parse(text) : []
+  check("the queue's bytes are JSON.stringify(entries, null, 2) exactly", text !== "" && text === JSON.stringify(parsed, null, 2))
+  const want = records.map((r) => r.name)
+  check("every record of the six files became an entry, in order, once", JSON.stringify(parsed.map((e) => e.name)) === JSON.stringify(want), `${parsed.length} of ${want.length}`)
+}
+
 rmSync(tmp, { recursive: true, force: true })
 if (bad) {
   console.log(`${bad} FAILED`)

@@ -167,5 +167,178 @@ class Workflows(unittest.TestCase):
         self.assertIsNotNone(re.search(r"\blake\s+update\b", code))
 
 
+
+class PinnedCommit(unittest.TestCase):
+    """padic-l-functions (bump run 42408598866, 7 Nov): its manifest pins LeanModularForms at 512911ce, a commit no branch holds; Lake's clone lacks it and `lake update` failed four
+    times with "fatal: unable to read tree (512911ce…)". The real git case: an upstream whose pinned commit is on no branch (it serves a commit named by hash, as GitHub does), a clone
+    made over the transport (which is shown to lack it), and a stand-in `lake` that prints Lake's real lines until the clone has the commit."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        g = lambda *a, cwd: subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "init.defaultBranch=main", *a], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
+        up = self.tmp / "up"
+        up.mkdir()
+        g("init", "-q", cwd=up)
+        (up / "A.lean").write_text("def a := 1\n")
+        g("add", "-A", cwd=up)
+        g("commit", "-qm", "main", cwd=up)
+        g("checkout", "-qb", "work", cwd=up)
+        (up / "B.lean").write_text("def b := 2\n")
+        g("add", "-A", cwd=up)
+        g("commit", "-qm", "pinned", cwd=up)
+        self.rev = g("rev-parse", "HEAD", cwd=up)
+        g("checkout", "-q", "main", cwd=up)
+        g("branch", "-qD", "work", cwd=up)
+        g("config", "uploadpack.allowAnySHA1InWant", "true", cwd=up)
+        self.lib = self.tmp / "lib"
+        clone = self.lib / ".lake" / "packages" / "LeanModularForms"
+        clone.parent.mkdir(parents=True)
+        g("clone", "-q", "--no-local", str(up), str(clone), cwd=self.tmp)
+        self.clone = clone
+        (self.tmp / "bin").mkdir()
+        lake = self.tmp / "bin" / "lake"
+        lake.write_text(f"""#!/bin/sh
+echo "$@" >> {self.tmp}/calls
+if [ "$1" = update ] && ! git -C {clone} cat-file -e {self.rev}^{{commit}} 2>/dev/null; then
+  echo "info: LeanModularForms: checking out revision '{self.rev}'"
+  echo "info: stderr:"
+  echo "fatal: unable to read tree ({self.rev})"
+  echo "error: external command 'git' exited with code 128"
+  exit 1
+fi
+echo ok
+""")
+        lake.chmod(0o755)
+
+    def fetch(self, tries="1"):
+        env = {**os.environ, "PATH": f"{self.tmp / 'bin'}:{os.environ['PATH']}"}
+        return subprocess.run([sys.executable, str(SCRIPT), str(self.lib), "--tries", tries, "--minutes", "1", "--pause", "0"], env=env, capture_output=True, text=True, timeout=120)
+
+    def test_the_fixture_lacks_the_commit(self):
+        r = subprocess.run(["git", "-C", str(self.clone), "cat-file", "-e", f"{self.rev}^{{commit}}"], capture_output=True)
+        self.assertNotEqual(r.returncode, 0)  # the clone was made over the transport: the commit on no branch is not in it
+
+    def test_the_commit_is_fetched_by_hash_and_the_try_does_not_count(self):
+        p = self.fetch("1")  # one try only: the repair must not use it up
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("fetched it by its hash", p.stdout)
+        calls = (self.tmp / "calls").read_text().split("\n")
+        self.assertEqual([c for c in calls if c], ["update", "update", "exe cache get"])
+
+    def test_a_commit_the_remote_does_not_have_is_an_ordinary_failure(self):
+        lake = self.tmp / "bin" / "lake"
+        lake.write_text(lake.read_text().replace(self.rev, "0" * 40))  # Lake asks for a commit nobody has
+        p = self.fetch("2")
+        self.assertEqual(p.returncode, 1)
+        self.assertIn("did not succeed in 2 tries", p.stdout)
+        self.assertNotIn("fetched it by its hash", p.stdout)
+
+    def test_the_library_folder_given_as_the_workflows_give_it(self):
+        # bump-shard.yml runs `python3 scripts/bump/lake_fetch.py lib` from the folder above the library: a relative path
+        env = {**os.environ, "PATH": f"{self.tmp / 'bin'}:{os.environ['PATH']}"}
+        p = subprocess.run([sys.executable, str(SCRIPT), "lib", "--tries", "1", "--minutes", "1", "--pause", "0"], cwd=self.tmp, env=env, capture_output=True, text=True, timeout=120)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("fetched it by its hash", p.stdout)
+
+    def test_the_repair_leaves_every_try_for_other_failures(self):
+        # after the repair, `lake update` fails once more for another reason (the network), then succeeds: with 2 tries that is still a success, because the repair was free
+        lake = self.tmp / "bin" / "lake"
+        text = lake.read_text().replace("echo ok\n", f"""if [ "$1" = update ] && [ ! -e {self.tmp}/flaked ]; then : > {self.tmp}/flaked; echo "error: network"; exit 1; fi
+echo ok
+""")
+        lake.write_text(text)
+        p = self.fetch("2")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        calls = [c for c in (self.tmp / "calls").read_text().split("\n") if c]
+        self.assertEqual(calls, ["update", "update", "update", "exe cache get"])  # repaired, failed once, succeeded
+
+
+class RepairLimits(unittest.TestCase):
+    """cubic on emissary#156: a repair's fetch must stay inside the step's budget (a slow origin neither outruns it nor crashes the step), the free repairs are five for the
+    whole step (both commands together), and the tests of this file run when it is executed directly."""
+
+    def test_the_free_repairs_are_five_for_the_whole_step(self):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("lake_fetch_mod", SCRIPT)
+        lf = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(lf)
+        calls = {"update": 0, "cache": 0, "repairs": 0}
+
+        def run(cmd, cwd, seconds):
+            key = "update" if cmd[1] == "update" else "cache"
+            calls[key] += 1
+            if key == "update" and calls["update"] > 3:
+                return 0, "ok"
+            return 1, "fatal: unable to read tree (" + "a" * 40 + ")"
+
+        def repair(directory, output, deadline=None):
+            calls["repairs"] += 1
+            return ["Pkg"]
+
+        lf.run, lf.repair_pins, lf.time.sleep = run, repair, (lambda s: None)
+        ok = lf.fetch("lib", tries=1, minutes=1, pause=0, budget_minutes=5)
+        self.assertFalse(ok)
+        self.assertEqual(calls["repairs"], 5)  # 3 during update, 2 left for cache get (the old counter gave cache get 5 more)
+        self.assertEqual(calls["cache"], 3)  # 2 repaired tries and the one counted try
+
+    def test_a_slow_fetch_stays_inside_the_budget(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        clone = tmp / "lib" / ".lake" / "packages" / "Slow"
+        clone.mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", str(clone)], check=True)
+        (tmp / "bin").mkdir()
+        real_git = shutil.which("git")
+        # git that hangs on `fetch` (a slow origin) and is itself otherwise
+        (tmp / "bin" / "git").write_text(f'#!/bin/sh\ncase " $* " in *" fetch "*) exec sleep 60;; esac\nexec {real_git} "$@"\n')
+        (tmp / "bin" / "lake").write_text("#!/bin/sh\necho 'fatal: unable to read tree (" + "b" * 40 + ")'\nexit 1\n")
+        for f in ("git", "lake"):
+            (tmp / "bin" / f).chmod(0o755)
+        env = {**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}"}
+        t0 = time.time()
+        p = subprocess.run([sys.executable, str(SCRIPT), str(tmp / "lib"), "--tries", "2", "--minutes", "1", "--budget-minutes", "0.1", "--pause", "0"], env=env, capture_output=True, text=True, timeout=120)
+        took = time.time() - t0
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertNotIn("Traceback", p.stderr)  # a fetch that runs out of time is a failed repair, not a crash
+        self.assertLess(took, 20, took)  # the 6-second budget, not the 60-second fetch
+
+    def test_a_timed_out_fetch_leaves_no_child_running(self):
+        # the fetch's transport (ssh / https helper) is a child of git: a timeout kills the whole process group, not git alone (cubic on #156)
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        clone = tmp / "lib" / ".lake" / "packages" / "Slow"
+        clone.mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", str(clone)], check=True)
+        (tmp / "bin").mkdir()
+        real_git = shutil.which("git")
+        (tmp / "bin" / "git").write_text(f'#!/bin/sh\ncase " $* " in *" fetch "*) sleep 60 & echo $! > {tmp}/child; wait;; esac\nexec {real_git} "$@"\n')
+        (tmp / "bin" / "lake").write_text("#!/bin/sh\necho 'fatal: unable to read tree (" + "c" * 40 + ")'\nexit 1\n")
+        for f in ("git", "lake"):
+            (tmp / "bin" / f).chmod(0o755)
+        env = {**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}"}
+        p = subprocess.run([sys.executable, str(SCRIPT), str(tmp / "lib"), "--tries", "1", "--minutes", "1", "--budget-minutes", "0.1", "--pause", "0"], env=env, capture_output=True, text=True, timeout=120)
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        child = int((tmp / "child").read_text())
+        for _ in range(50):
+            try:
+                os.kill(child, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.1)
+        else:
+            os.kill(child, 9)
+            self.fail("the timed-out fetch's child was left running")
+
+    def test_this_file_runs_every_test_when_executed_directly(self):
+        import ast
+
+        tree = ast.parse(Path(__file__).read_text())
+        last = tree.body[-1]
+        self.assertIsInstance(last, ast.If)  # the `__main__` guard is the last statement: no test class is defined after unittest.main()
+        self.assertIn("__main__", ast.unparse(last.test))
+
+
 if __name__ == "__main__":
     unittest.main()
