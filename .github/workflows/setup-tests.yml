@@ -38,3 +38,4 @@ jobs:
       - run: node scripts/test-workflow-pins.mjs
       - run: node scripts/test-setup-watch.mjs
       - run: node scripts/test-pinned-deps.mjs
+      - run: node scripts/test-setup-seed-memory.mjs

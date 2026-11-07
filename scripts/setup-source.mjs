@@ -501,17 +501,34 @@ function seedQueue() {
   for (const f of TENTATIVE_FILES) if (!existsSync(f)) fail(`no tentative file at ${f}`)
   const roots = new Set(src.roots)
   const seen = new Set()
+  // The files read so far, kept within a budget (EMISSARY_SEED_CACHE_MB of text, default 256): leanbridge (7 Nov 2026) has 1.5 GB of Lean sources (LMFDB tables, up to 53 MB a
+  // file), and keeping every file's lines killed Node at its 4 GB heap in every phase ("JavaScript heap out of memory", setup runs 42386199526 and 42387020776). The records of a
+  // file come together (each tentative file lists them file by file), so each file is read once; a file evicted and asked for again is read again, with the same result.
+  const cacheBudget = Math.max(1, Number(process.env.EMISSARY_SEED_CACHE_MB || 256)) * 1024 * 1024
   const fileCache = new Map()
+  let cached = 0
   const fileOf = (p) => {
-    if (!fileCache.has(p)) {
-      const abs = join(REPO, p)
-      if (!existsSync(abs)) fileCache.set(p, null)
-      else {
-        const lines = readFileSync(abs, "utf8").split("\n")
-        fileCache.set(p, { lines, depth: commentDepths(lines) })
-      }
+    if (fileCache.has(p)) {
+      const hit = fileCache.get(p)
+      fileCache.delete(p) // most recently used last
+      fileCache.set(p, hit)
+      return hit
     }
-    return fileCache.get(p)
+    const abs = join(REPO, p)
+    let file = null
+    if (existsSync(abs)) {
+      const text = readFileSync(abs, "utf8")
+      const lines = text.split("\n")
+      file = { lines, depth: commentDepths(lines), size: text.length }
+    }
+    fileCache.set(p, file)
+    cached += file ? file.size : 0
+    for (const [k, v] of fileCache) {
+      if (cached <= cacheBudget || k === p) break
+      fileCache.delete(k)
+      cached -= v ? v.size : 0
+    }
+    return file
   }
   const entries = []
   for (const raw of TENTATIVE_FILES.flatMap((f) => readFileSync(f, "utf8").split("\n"))) {
