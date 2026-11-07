@@ -58,6 +58,12 @@ jobs:
           git -C tengoku sparse-checkout set --no-cone $(python3 emissary/scripts/bump/tentative_files.py sparse emissary/sources.json "$KEY")
           # TENGOKU_REF: a branch of the tree repository that holds the records of a library whose PR is not merged yet (empty: main)
           ref=${TENGOKU_REF:+origin/$TENGOKU_REF}; git -C tengoku checkout -q "${ref:-main}"
+      # A library whose parts are in the tree already is cut from the tree (from_tree=true, with parts), or the run stops here: otherwise its parts are numbered from 001 again
+      # and the opener skips them as 'every part is in the tree' (foundation, 2026-11-07: 108 theorems shipped by nobody). scripts/bump/in_tree.py says why and what to dispatch.
+      - name: A library in the tree is cut from the tree
+        working-directory: emissary
+        env: { FROM_TREE: "${{ inputs.from_tree }}", PARTS: "${{ inputs.parts }}" }
+        run: git -C ../tengoku ls-tree -r --name-only main -- "data/intake/$KEY/parts" | python3 scripts/bump/in_tree.py --key "$KEY" --from-tree "$FROM_TREE" --parts "$PARTS"
       - name: The heavy settings (swap, build timeout, only these modules), checked
         id: heavy
         working-directory: emissary
