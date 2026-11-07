@@ -169,3 +169,82 @@ class Workflows(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PinnedCommit(unittest.TestCase):
+    """padic-l-functions (bump run 42408598866, 7 Nov): its manifest pins LeanModularForms at 512911ce, a commit no branch holds; Lake's clone lacks it and `lake update` failed four
+    times with "fatal: unable to read tree (512911ce…)". The real git case: an upstream whose pinned commit is on no branch (it serves a commit named by hash, as GitHub does), a clone
+    made over the transport (which is shown to lack it), and a stand-in `lake` that prints Lake's real lines until the clone has the commit."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        g = lambda *a, cwd: subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "init.defaultBranch=main", *a], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
+        up = self.tmp / "up"
+        up.mkdir()
+        g("init", "-q", cwd=up)
+        (up / "A.lean").write_text("def a := 1\n")
+        g("add", "-A", cwd=up)
+        g("commit", "-qm", "main", cwd=up)
+        g("checkout", "-qb", "work", cwd=up)
+        (up / "B.lean").write_text("def b := 2\n")
+        g("add", "-A", cwd=up)
+        g("commit", "-qm", "pinned", cwd=up)
+        self.rev = g("rev-parse", "HEAD", cwd=up)
+        g("checkout", "-q", "main", cwd=up)
+        g("branch", "-qD", "work", cwd=up)
+        g("config", "uploadpack.allowAnySHA1InWant", "true", cwd=up)
+        self.lib = self.tmp / "lib"
+        clone = self.lib / ".lake" / "packages" / "LeanModularForms"
+        clone.parent.mkdir(parents=True)
+        g("clone", "-q", "--no-local", str(up), str(clone), cwd=self.tmp)
+        self.clone = clone
+        (self.tmp / "bin").mkdir()
+        lake = self.tmp / "bin" / "lake"
+        lake.write_text(f"""#!/bin/sh
+echo "$@" >> {self.tmp}/calls
+if [ "$1" = update ] && ! git -C {clone} cat-file -e {self.rev}^{{commit}} 2>/dev/null; then
+  echo "info: LeanModularForms: checking out revision '{self.rev}'"
+  echo "info: stderr:"
+  echo "fatal: unable to read tree ({self.rev})"
+  echo "error: external command 'git' exited with code 128"
+  exit 1
+fi
+echo ok
+""")
+        lake.chmod(0o755)
+
+    def fetch(self, tries="1"):
+        env = {**os.environ, "PATH": f"{self.tmp / 'bin'}:{os.environ['PATH']}"}
+        return subprocess.run([sys.executable, str(SCRIPT), str(self.lib), "--tries", tries, "--minutes", "1", "--pause", "0"], env=env, capture_output=True, text=True, timeout=120)
+
+    def test_the_fixture_lacks_the_commit(self):
+        r = subprocess.run(["git", "-C", str(self.clone), "cat-file", "-e", f"{self.rev}^{{commit}}"], capture_output=True)
+        self.assertNotEqual(r.returncode, 0)  # the clone was made over the transport: the commit on no branch is not in it
+
+    def test_the_commit_is_fetched_by_hash_and_the_try_does_not_count(self):
+        p = self.fetch("1")  # one try only: the repair must not use it up
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn("fetched it by its hash", p.stdout)
+        calls = (self.tmp / "calls").read_text().split("\n")
+        self.assertEqual([c for c in calls if c], ["update", "update", "exe cache get"])
+
+    def test_a_commit_the_remote_does_not_have_is_an_ordinary_failure(self):
+        lake = self.tmp / "bin" / "lake"
+        lake.write_text(lake.read_text().replace(self.rev, "0" * 40))  # Lake asks for a commit nobody has
+        p = self.fetch("2")
+        self.assertEqual(p.returncode, 1)
+        self.assertIn("did not succeed in 2 tries", p.stdout)
+        self.assertNotIn("fetched it by its hash", p.stdout)
+
+    def test_the_repair_leaves_every_try_for_other_failures(self):
+        # after the repair, `lake update` fails once more for another reason (the network), then succeeds: with 2 tries that is still a success, because the repair was free
+        lake = self.tmp / "bin" / "lake"
+        text = lake.read_text().replace("echo ok\n", f"""if [ "$1" = update ] && [ ! -e {self.tmp}/flaked ]; then : > {self.tmp}/flaked; echo "error: network"; exit 1; fi
+echo ok
+""")
+        lake.write_text(text)
+        p = self.fetch("2")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        calls = [c for c in (self.tmp / "calls").read_text().split("\n") if c]
+        self.assertEqual(calls, ["update", "update", "update", "exe cache get"])  # repaired, failed once, succeeded
