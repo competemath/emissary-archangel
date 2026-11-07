@@ -222,6 +222,46 @@ class MoreCases(unittest.TestCase):
         self.assertEqual(stats["modules kept as they were (guard)"], 1)
 
 
+# the change notice of the one changed file that shipped in formal-conjectures' bundle (bump run 42394559819, Tengoku #752)
+REAL_NOTICE = ("/-! Tengoku change notice: this file was changed by the Tengoku factory from https://github.com/google-deepmind/formal-conjectures@71a0744be944, "
+               "`FormalConjecturesForMathlib/Geometry/2d.lean`: removed 3 `#adaptation_note` / `set_option linter` line(s) (notes and linter settings: no declaration depends on them). "
+               "What every declaration states is unchanged, and every proof is checked again by the kernel and by the tree's own build. -/")
+
+
+class ShippedChanges(unittest.TestCase):
+    """The counts of a report are read from the notices of the files that ship (formal-conjectures, Tengoku #752: 6 modules / 8 lines counted before compose dropped five
+    of them; one shipped file with a notice of 3 lines)."""
+
+    def test_the_real_notice(self):
+        self.assertEqual(gs.shipped_changes(["import A\n\n" + REAL_NOTICE + "\ntheorem t : True := trivial\n"]), {"modules changed": 1, "inert lines removed": 3})
+        self.assertEqual(gs.shipped_changes(["theorem t : True := trivial\n", ""]), {})  # files without a notice count nothing
+
+    def test_every_notice_the_rewrite_writes_is_read_back_exactly(self):
+        # the notices of every combination of changes, as rewrite() words them: the counts read back are the counts written, summed over files
+        import itertools
+
+        n = 0
+        for reg, tags, calls, inert in itertools.product((0, 1, 2), (0, 1, 7), (0, 1, 12), (0, 1, 3)):
+            if not (reg or tags or calls or inert):
+                continue
+            sets = [f"set{i}" for i in range(max(reg, 1))]
+            what = []
+            if reg:
+                what.append("removed the registration of the grind set" + ("s " if reg > 1 else " ") + ", ".join(f"`{x}`" for x in sets[:reg]) + " (it runs code when the module loads)")
+            if tags:
+                what.append(f"removed {tags} tag(s) of the custom grind set(s) {', '.join(f'`{x}`' for x in sets)} from declarations")
+            if calls:
+                what.append(f"wrote out the lemmas of those sets in {calls} `grind` call(s)")
+            if inert:
+                what.append(f"removed {inert} `#adaptation_note` / `set_option linter` line(s) (notes and linter settings: no declaration depends on them)")
+            text = gs.notice("https://github.com/o/r@abc", "A.lean", what)
+            got = gs.shipped_changes([text, text])
+            want = {"modules changed": 2, "set registrations removed": 2 * reg, "set tags removed": 2 * tags, "grind calls rewritten": 2 * calls, "inert lines removed": 2 * inert}
+            self.assertEqual(got, {k: v for k, v in want.items() if v}, what)
+            n += 1
+        self.assertEqual(n, 80)  # 3 x 3 x 3 x 3 combinations, less the one that changes nothing
+
+
 class Compose(unittest.TestCase):
     """bundle.py compose on the toy library of test_bundle, with an inert line in the module that ships: the shipped file carries its change notice and the report counts it."""
 
@@ -265,6 +305,53 @@ class Compose(unittest.TestCase):
         self.assertEqual(report["factory_changes"].get("inert lines removed"), 1)
         self.assertEqual(report["factory_changes"].get("modules changed"), 1)
         self.assertEqual(report["theorems"], 1)
+
+
+class ComposeDrops(unittest.TestCase):
+    """A changed module that compose leaves out is not counted: formal-conjectures (Tengoku #752) reported 6 changed modules, 5 of them dropped after the rewrite."""
+
+    def test_a_changed_module_compose_leaves_out_is_not_counted(self):
+        import subprocess
+        import tempfile
+
+        sys.path.insert(0, str(HERE / "tests"))
+        import test_records as T
+
+        d = Path(tempfile.mkdtemp())
+        lib = d / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        B = T.B.replace("namespace Toy\n", "set_option linter.unusedVariables false\n\nnamespace Toy\n", 1)
+        # C changes too (two inert lines), and the lint refuses it: `#eval` runs code while the tree compiles
+        C = "import Toy.A\n\nset_option linter.unusedVariables false\nset_option linter.style.longLine false\n\nnamespace Toy\n\n#eval (1 : Nat)\n\ntheorem c_thm : one = 1 := rfl\n\nend Toy\n"
+        (lib / "Toy" / "A.lean").write_text(T.A)
+        (lib / "Toy" / "B.lean").write_text(B)
+        (lib / "Toy" / "C.lean").write_text(C)
+        la, lb, lc = T.A.split("\n"), B.split("\n"), C.split("\n")
+        ln = lambda lines, needle: next(i + 1 for i, x in enumerate(lines) if needle in x)
+        sidecars = {"Toy/A": [["Toy.one", ln(la, "/-- the number one"), ln(la, "def one")], ["Toy.one_pos", ln(la, "theorem one_pos"), ln(la, "theorem one_pos")]],
+                    "Toy/B": [["Toy.uses_one_pos", ln(lb, "open Nat in"), ln(lb, "theorem uses_one_pos")]],
+                    "Toy/C": [["Toy.c_thm", ln(lc, "theorem c_thm"), ln(lc, "theorem c_thm")]]}
+        for m, rows in sidecars.items():
+            f = lib / ".lake" / "build" / "lib" / "lean" / (m + ".olean.ranges.json")
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(json.dumps(rows))
+        keep = [["Toy.B", "Toy.uses_one_pos"], ["Toy.A", "Toy.one_pos"], ["Toy.A", "Toy.one"], ["Toy.C", "Toy.c_thm"]]
+        (d / "deps.log").write_text(f"x:1:0: info: BUNDLE_KEEP {json.dumps(keep)} BUNDLE_END\n")
+        (d / "passed.json").write_text(json.dumps({"Toy.B": ["Toy.uses_one_pos"], "Toy.C": ["Toy.c_thm"]}))
+        (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy", "commit": "abc123def456789"}))
+        (d / "build.log").write_text("")
+        (d / "gate2.log").write_text("GATE2B_PASS old=Toy.uses_one_pos new=Toy.uses_one_pos via=equal\nGATE2B_PASS old=Toy.c_thm new=Toy.c_thm via=equal\n")
+        (d / "killed.json").write_text("[]")
+        r = subprocess.run([sys.executable, str(HERE / "bundle.py"), "compose", "--gate2-killed", str(d / "killed.json"), "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"),
+                            "--meta", str(d / "setup.json"), "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"),
+                            "--src", str(d / "src")], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+        report = json.loads((d / "bundle-proposed" / "report.json").read_text())
+        self.assertFalse((d / "bundle-proposed" / "Tengoku" / "ToyLib" / "Toy" / "C.lean").exists(), report.get("dropped"))  # the fixture: compose left C out
+        self.assertIn("Toy.C", json.dumps(report.get("dropped")))
+        shipped = [f.read_text() for f in (d / "bundle-proposed" / "Tengoku" / "ToyLib").rglob("*.lean")]
+        self.assertEqual(sum("Tengoku change notice" in t for t in shipped), 1)  # B only
+        self.assertEqual(report["factory_changes"], {"modules changed": 1, "inert lines removed": 1})  # what ships: B's one line, not C's two
 
 
 class SpaceInAModuleName(unittest.TestCase):
@@ -332,9 +419,20 @@ class Notice(unittest.TestCase):
         self.assertIn("import A\n\n/-! note -/", bundle.add_change_notice("import A\n\ntheorem t : True := trivial\n", "/-! note -/"))
         self.assertTrue(bundle.add_change_notice("theorem t : True := trivial\n", "/-! note -/").rstrip().endswith("/-! note -/"))
 
-    def test_a_part_report_keeps_the_changes(self):
-        text = (HERE / "bundle_layers.py").read_text()
-        self.assertIn('"factory_changes": report.get("factory_changes", {})', text)
+    def test_a_part_report_counts_the_changes_of_its_own_files(self):
+        """each part says what was changed in ITS files: a part without a changed file says nothing (it used to copy the whole bundle's counts)"""
+        import bundle_layers as bl
+
+        files = {
+            "Tengoku/Lib.lean": b"import Tengoku.Lib.A\nimport Tengoku.Lib.B\n",
+            "Tengoku/Lib/A.lean": b"theorem a : True := trivial\n",
+            "Tengoku/Lib/B.lean": ("import Tengoku.Lib.A\n\n" + REAL_NOTICE + "\n\ntheorem b : True := trivial\n").encode(),
+            "manifest.jsonl": b'{"module": "Tengoku.Lib.A", "name": "a"}\n{"module": "Tengoku.Lib.B", "name": "b"}\n',
+            "report.json": json.dumps({"library": "lib", "factory_changes": {"modules changed": 6, "inert lines removed": 8}}).encode(),
+        }
+        parts = bl.plan(files, "Lib", max_modules=1)
+        reports = [json.loads(p.files["report.json"]) for p in parts]
+        self.assertEqual([r["factory_changes"] for r in reports], [{}, {"modules changed": 1, "inert lines removed": 3}])
 
     def test_the_intake_pr_says_what_was_changed(self):
         import open_intake_pr as o

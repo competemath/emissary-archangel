@@ -336,6 +336,30 @@ def notice(upstream: str, path: str, what: list[str]) -> str:
             + ". What every declaration states is unchanged, and every proof is checked again by the kernel and by the tree's own build. -/")
 
 
+NOTICE_BODY = re.compile(r"/-! Tengoku change notice: (?P<body>.*?) -/", re.S)
+
+
+def shipped_changes(texts) -> dict[str, int]:
+    """What the factory changed, counted from the change notices of the files that SHIP (`texts`: the module files of a bundle or a part). Counted before the bundle is
+    cut, the numbers named modules that compose or the verification build dropped later: formal-conjectures (Tengoku #752, 7 Nov) reported 6 changed modules and 8 removed
+    lines while one shipped file carried a notice (3 lines); the reviewer read that as 5 changed files without the notice the licence asks for. A file's notice is what it ships
+    with, so a count read from the notices can never name a change that is not in the files."""
+    stats = {"modules changed": 0, "set registrations removed": 0, "set tags removed": 0, "grind calls rewritten": 0, "inert lines removed": 0}
+    for text in texts:
+        m = NOTICE_BODY.search(text)
+        if not m:
+            continue
+        body = m.group("body")
+        stats["modules changed"] += 1
+        reg = re.search(r"removed the registration of the grind sets? (?P<names>.*?) \(it runs code", body)
+        if reg:
+            stats["set registrations removed"] += len(re.findall(r"`[^`]+`", reg.group("names")))
+        stats["set tags removed"] += sum(int(x) for x in re.findall(r"removed (\d+) tag\(s\) of the custom grind set", body))
+        stats["grind calls rewritten"] += sum(int(x) for x in re.findall(r"in (\d+) `grind` call\(s\)", body))
+        stats["inert lines removed"] += sum(int(x) for x in re.findall(r"removed (\d+) `#adaptation_note` / `set_option linter` line\(s\)", body))
+    return {k: v for k, v in stats.items() if v}
+
+
 def rewrite(texts: dict[str, str], imports: dict[str, list[str]]) -> tuple[dict[str, str], dict[str, list[str]], dict[str, int]]:
     """Custom grind sets rewritten away (rewrite_grind_sets) and inert lines removed (strip_inert_lines), module by module, under a GUARD: a module whose skeleton (_skeleton)
     is not the same before and after is shipped as it was (and the lint refuses it as before), so the rewrite can never change anything but attribute lists, grind's lemma
