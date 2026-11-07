@@ -13,7 +13,7 @@
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { availableFrom, buildAttempts, closureBudgetMs, closureRetryMs, CLOSURE_RETRY_FACTOR, CLOSURE_RETRY_MAX_MS, CLOSURE_BUDGET_DEFAULT_MS, BUILD_ATTEMPTS_DEFAULT, BUILD_ATTEMPTS_ESCALATED, ESCALATED_RETRY_MB, membersOf, soloBuildMs, SOLO_BUILD_DEFAULT_MS, soloMax, SOLO_MAX_DEFAULT, SOLO_MAX_ESCALATED } from "./memory-rules.mjs"
+import { aloneFirstMs, availableFrom, buildAttempts, closureBigModules, CLOSURE_BIG_MODULES_DEFAULT, closureBudgetMs, closureRetryMs, CLOSURE_RETRY_FACTOR, CLOSURE_RETRY_MAX_MS, CLOSURE_BUDGET_DEFAULT_MS, BUILD_ATTEMPTS_DEFAULT, BUILD_ATTEMPTS_ESCALATED, ESCALATED_RETRY_MB, membersOf, soloBuildMs, SOLO_BUILD_DEFAULT_MS, soloMax, SOLO_MAX_DEFAULT, SOLO_MAX_ESCALATED } from "./memory-rules.mjs"
 import { escalation, ESCALATE_RETRY_MB, ESCALATE_SWAP_GB, ESCALATE_SOLO_MINUTES } from "./setup-plan.mjs"
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -215,6 +215,34 @@ check("the escalation settings are inside what a hosted runner and a job can do"
   })) check(`mutant: ${name} is noticed`, rule(impl).wrongN > 0, "")
   const budgetTable = [["299", 299 * MIN], [undefined, CLOSURE_BUDGET_DEFAULT_MS], ["", CLOSURE_BUDGET_DEFAULT_MS], ["abc", CLOSURE_BUDGET_DEFAULT_MS], ["0", CLOSURE_BUDGET_DEFAULT_MS], ["-5", CLOSURE_BUDGET_DEFAULT_MS], ["1e2", CLOSURE_BUDGET_DEFAULT_MS], ["341", CLOSURE_BUDGET_DEFAULT_MS], ["340", CLOSURE_BUDGET_DEFAULT_MS], ["301", CLOSURE_BUDGET_DEFAULT_MS], ["0.2", 12000], ["120", 120 * MIN], [" 120 ", 120 * MIN], ["300", 300 * MIN]]
   check(`closureBudgetMs: minutes, a number up to 300 (the shard process timeout), anything else is the default (${budgetTable.length} settings)`, budgetTable.every(([v, want]) => closureBudgetMs(v === undefined ? {} : { EMISSARY_CLOSURE_BUDGET_MINUTES: v }) === want), "")
+}
+
+// ---- aloneFirstMs / closureBigModules: a module whose closure is most of the library goes alone first, with an equal share of the budget left (flt-anthropic, 7 Nov 2026: 63 of the 86 "no closure") ----
+{
+  const MIN = 60 * 1000
+  const rule = (impl) => {
+    let cases = 0, wrongN = 0
+    for (const elapsedMs of [0, 1, 17 * MIN, 40 * MIN, 100 * MIN, 280 * MIN, 299 * MIN, 300 * MIN, 5000 * MIN]) for (const budgetMs of [300 * MIN, 12 * 1000, 1, 0, -5]) for (const left of [1, 2, 3, 8, 63, 0, -1, 1.5]) {
+      cases++
+      const got = impl({ elapsedMs, budgetMs, left })
+      const rest = budgetMs - elapsedMs
+      const valid = budgetMs > 0 && Number.isInteger(left) && left >= 1
+      const want = valid && rest > 0 ? Math.min(Math.floor(rest / left), 4 * 60 * MIN) : 0
+      // the invariants: never more than four hours, never more than an equal share of what is left (so the last big module still gets its turn), 0 when nothing is left
+      if (got !== Math.max(0, want) || got > 4 * 60 * MIN || (valid && got * left > Math.max(0, rest))) wrongN++
+    }
+    return { cases, wrongN }
+  }
+  const good = rule(aloneFirstMs)
+  check(`aloneFirstMs: an equal share of the budget left, at most four hours, 0 when nothing is left, on ${good.cases} cases`, good.wrongN === 0, good.wrongN)
+  check("the real case: 63 big modules in 8 shards (8 each), the first 35 minutes into a 300-minute budget gets 33 minutes; a shard with 2 gets 2 h 12 min each", aloneFirstMs({ elapsedMs: 35 * MIN, budgetMs: 300 * MIN, left: 8 }) === Math.floor(265 * MIN / 8) && aloneFirstMs({ elapsedMs: 36 * MIN, budgetMs: 300 * MIN, left: 2 }) === 132 * MIN, "")
+  for (const [name, impl] of Object.entries({
+    "no four hour ceiling": ({ elapsedMs, budgetMs, left }) => (left >= 1 && budgetMs > 0 ? Math.max(0, Math.floor((budgetMs - elapsedMs) / left)) : 0),
+    "the whole rest for each": ({ elapsedMs, budgetMs, left }) => (left >= 1 && budgetMs > 0 && budgetMs - elapsedMs > 0 ? Math.min(budgetMs - elapsedMs, 4 * 60 * MIN) : 0),
+    "a fractional count is taken": ({ elapsedMs, budgetMs, left }) => (left > 0 && budgetMs > 0 && budgetMs - elapsedMs > 0 ? Math.min(Math.floor((budgetMs - elapsedMs) / left), 4 * 60 * MIN) : 0),
+  })) check(`mutant: ${name} is noticed`, rule(impl).wrongN > 0, "")
+  const sizeTable = [[undefined, CLOSURE_BIG_MODULES_DEFAULT], ["", CLOSURE_BIG_MODULES_DEFAULT], ["0", CLOSURE_BIG_MODULES_DEFAULT], ["-1", CLOSURE_BIG_MODULES_DEFAULT], ["1e4", CLOSURE_BIG_MODULES_DEFAULT], ["2.5", CLOSURE_BIG_MODULES_DEFAULT], ["abc", CLOSURE_BIG_MODULES_DEFAULT], ["1", 1], ["3", 3], [" 5000 ", 5000], ["99999999", 99999999], ["100000000", CLOSURE_BIG_MODULES_DEFAULT]]
+  check(`closureBigModules: a positive whole number of modules (at most 8 digits), anything else is the default ${CLOSURE_BIG_MODULES_DEFAULT} (${sizeTable.length} settings)`, CLOSURE_BIG_MODULES_DEFAULT === 20000 && sizeTable.every(([v, want]) => closureBigModules(v === undefined ? {} : { EMISSARY_CLOSURE_BIG_MODULES: v }) === want), "")
 }
 
 // broken versions: each must be noticed

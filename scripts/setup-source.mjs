@@ -36,7 +36,7 @@ import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import { collectTools, exporterAction, mergeTools, patchFingerprint } from "./setup-tools.mjs"
 import { bisectItems } from "./bisect.mjs"
-import { availableFrom, buildAttempts, closureBudgetMs, closureRetryMs, membersOf, soloBuildMs, soloMax } from "./memory-rules.mjs"
+import { aloneFirstMs, availableFrom, buildAttempts, closureBigModules, closureBudgetMs, closureRetryMs, membersOf, soloBuildMs, soloMax } from "./memory-rules.mjs"
 
 const x = promisify(execFile)
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -739,8 +739,34 @@ async function closures(modules) {
   // those up front; the export step reports them as unbuilt.
   const unbuilt = new Set(modules.filter((m) => !existsSync(oleanOf(m))))
   if (unbuilt.size) log(`closures: ${unbuilt.size} modules have no .olean — skipped: ${[...unbuilt].slice(0, 6).join(", ")}${unbuilt.size > 6 ? ", …" : ""}`)
-  const todo = modules.filter((m) => !unbuilt.has(m) && !existsSync(join(EXPORTS, `${m}.names.json`)))
+  let todo = modules.filter((m) => !unbuilt.has(m) && !existsSync(join(EXPORTS, `${m}.names.json`)))
   if (!todo.length) return log("closures: all present")
+  // BIG modules first, each alone (memory-rules.mjs closureBigModules / aloneFirstMs): a module whose import closure is most of the library loses its time in batches. Measured only for a
+  // short list (a round for a few named modules, like flt-anthropic's 86): counting the closure of every module of a 60,000-module library would cost more than it saves.
+  if (todo.length <= 500) {
+    const big = todo.filter((m) => libraryClosureSize(m, closureBigModules()) >= closureBigModules())
+    for (let k = 0; k < big.length; k++) {
+      const m = big[k]
+      const limit = aloneFirstMs({ elapsedMs: Date.now() - STARTED_MS, budgetMs: CLOSURE_BUDGET_MS, left: big.length - k })
+      if (!limit) {
+        log(`closure: ${m} imports most of the library and the job's budget has no room left for it; it waits for the next round`)
+        continue
+      }
+      log(`closure: ${m} imports most of the library: alone first, limit ${Math.round(limit / 1000)} s`)
+      const r = await runCapture("lake", ["env", "lean", "-M", String(leanMB()), "--run", CLOSURE_LEAN, m.split(".")[0], m], { cwd: REPO, timeoutMs: limit, maxBuffer: 256 * 1024 * 1024 })
+      if (r.code !== 0) log(`closure failed for ${m}: exit ${r.code} (${r.tail.slice(-300)})`)
+      else {
+        try {
+          writeClosureSections(r.stdout)
+        } catch (e) {
+          log(`closure failed for ${m}: could not be written (${e.message})`)
+        }
+      }
+    }
+    const done = new Set(big)
+    todo = todo.filter((m) => !done.has(m))
+    if (!todo.length) return
+  }
   // One process per root prefix (the closure is filtered by module prefix), all of its modules at once.
   const byPfx = new Map()
   for (const m of todo) byPfx.set(m.split(".")[0], [...(byPfx.get(m.split(".")[0]) || []), m])
@@ -783,6 +809,20 @@ async function closures(modules) {
       await bisect(chunk, runBatch, runOne, "closure")
     }
   }
+}
+// How many modules of the library a module imports, itself included, directly or not; counting stops at `cap` (only "at least cap" matters).
+function libraryClosureSize(m, cap) {
+  const seen = new Set([m])
+  const todo = [m]
+  while (todo.length && seen.size < cap) {
+    for (const d of importsOf(todo.pop()) ?? []) {
+      if (!seen.has(d) && importsOf(d) !== null) {
+        seen.add(d)
+        todo.push(d)
+      }
+    }
+  }
+  return seen.size
 }
 function writeClosureSections(stdout) {
   let cur = null
