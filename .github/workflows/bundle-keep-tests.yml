@@ -134,7 +134,7 @@ jobs:
       # A module name with a part that is no identifier (formal-conjectures' `Geometry.«2d»`; `«1»`; `«A-B»`; `«1102.4662»`, a part with a dot). tree_verify wrote its lists without the guillemets (it now writes Lean's spelling), and `String.toName` reads
       # `2d` and `A-B` as no name at all and `1` as a number: the axiom check died with "trying to import module with anonymous name" (2026-11-07, run 42370333452) and the clash check
       # left such a module out without a word. The programs read a list part by part (listModuleName). 2d declares `Toy.clashing` like A and B of the step above: with either spelling of the
-      # list, the axiom check finishes over all three modules and the clash check names 2d against both.
+      # list, the axiom check finishes over every module and the clash check names 2d (against the module that declared the name first).
       - name: Module names whose parts are not identifiers are read, with guillemets or without
         working-directory: gate2
         run: |
@@ -169,7 +169,8 @@ jobs:
               cl = open(os.path.join(t, f"odd-cl-{v}.out"), encoding="utf-8").read()
               got = tv.clash_offenders(cl, mods)
               assert list(got) == [two_d], (v, got, cl[-800:])  # 2d is a new module that declares Toy.clashing; 1 and A-B declare nothing another module does
-              assert sorted(x.split(" also declared by ")[1] for x in got[two_d]) == ["Tengoku.LibA.A", "Tengoku.LibB.B"], (v, got)
+              [one] = got[two_d]  # named against the module that declared the name first (one pair is enough to drop it)
+              assert one.startswith("Toy.clashing") and one.split(" also declared by ")[1] in ("Tengoku.LibA.A", "Tengoku.LibB.B"), (v, got)
               print(v, "list:", done.group(0), "| clashes:", got)
           PY
       # The fingerprint of the copies of tree modules (tree_dups.py). Toy modules compiled to oleans (core Lean only): I is the tree's module and M a copy of it (the same text); D declares the same names
