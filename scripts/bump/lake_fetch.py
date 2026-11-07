@@ -61,7 +61,7 @@ def has_commit(clone: Path, rev: str) -> bool:
     return subprocess.run(["git", "-C", str(clone), "cat-file", "-e", f"{rev}^{{commit}}"], capture_output=True).returncode == 0
 
 
-def repair_pins(directory: str, output: str) -> list[str]:
+def repair_pins(directory: str, output: str, deadline: float | None = None) -> list[str]:
     """A dependency pinned to a commit that no branch of its repository holds: Lake's clone does not have it and git says "fatal: unable to read tree (<rev>)" (padic-l-functions
     pins LeanModularForms at 512911ce, 7 Nov 2026: its setup was repaired by scripts/pinned-deps.mjs, and its bump then failed here, four tries of `lake update` with the same line).
     GitHub serves a commit named by its hash: each clone of the library's packages that lacks the commit fetches it. Returns the packages that now have it (Lake runs again)."""
@@ -72,7 +72,13 @@ def repair_pins(directory: str, output: str) -> list[str]:
         for clone in sorted(p for p in root.glob("*") if (p / ".git").exists()):
             if has_commit(clone, rev):
                 continue
-            subprocess.run(["git", "-C", str(clone), "fetch", "--quiet", "origin", rev], capture_output=True, timeout=600)
+            left = 600.0 if deadline is None else min(600.0, deadline - time.monotonic())
+            if left <= 0:
+                return fixed  # the step's budget is spent: no repair outruns it
+            try:
+                subprocess.run(["git", "-C", str(clone), "fetch", "--quiet", "origin", rev], capture_output=True, timeout=left)
+            except subprocess.TimeoutExpired:
+                continue  # a fetch that ran out of the time left is a failed repair, not a crash
             if has_commit(clone, rev):
                 print(f"dependency {clone.name}: commit {rev[:12]} is on no branch of its repository; fetched it by its hash")
                 fixed.append(clone.name)
@@ -81,9 +87,10 @@ def repair_pins(directory: str, output: str) -> list[str]:
 
 def fetch(directory: str, tries: int, minutes: float, pause: float, budget_minutes: float) -> bool:
     deadline = time.monotonic() + budget_minutes * 60
+    repairs = 0  # at most 5 free repairs in the whole step, both commands together
     for cmd in (["lake", "update"], ["lake", "exe", "cache", "get"]):
         name = " ".join(cmd)
-        attempt, repairs = 0, 0
+        attempt = 0
         while True:
             left = deadline - time.monotonic()
             if left <= 0:
@@ -98,7 +105,7 @@ def fetch(directory: str, tries: int, minutes: float, pause: float, budget_minut
             why = "ran out of time" if code is None else f"exited {code}"
             print(f"::warning::{name} {why} (try {attempt} of {tries})" + (f": {tail}" if tail else ""))
             # a pinned commit Lake's clone lacks is fetched by its hash, and that try does not count: the next one runs at once (at most 5 such repairs)
-            if code is not None and repairs < 5 and repair_pins(directory, tail):
+            if code is not None and repairs < 5 and repair_pins(directory, tail, deadline):
                 repairs += 1
                 attempt -= 1
                 continue

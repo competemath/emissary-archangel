@@ -167,9 +167,6 @@ class Workflows(unittest.TestCase):
         self.assertIsNotNone(re.search(r"\blake\s+update\b", code))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class PinnedCommit(unittest.TestCase):
     """padic-l-functions (bump run 42408598866, 7 Nov): its manifest pins LeanModularForms at 512911ce, a commit no branch holds; Lake's clone lacks it and `lake update` failed four
@@ -248,3 +245,66 @@ echo ok
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         calls = [c for c in (self.tmp / "calls").read_text().split("\n") if c]
         self.assertEqual(calls, ["update", "update", "update", "exe cache get"])  # repaired, failed once, succeeded
+
+
+class RepairLimits(unittest.TestCase):
+    """cubic on emissary#156: a repair's fetch must stay inside the step's budget (a slow origin neither outruns it nor crashes the step), the free repairs are five for the
+    whole step (both commands together), and the tests of this file run when it is executed directly."""
+
+    def test_the_free_repairs_are_five_for_the_whole_step(self):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("lake_fetch_mod", SCRIPT)
+        lf = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(lf)
+        calls = {"update": 0, "cache": 0, "repairs": 0}
+
+        def run(cmd, cwd, seconds):
+            key = "update" if cmd[1] == "update" else "cache"
+            calls[key] += 1
+            if key == "update" and calls["update"] > 3:
+                return 0, "ok"
+            return 1, "fatal: unable to read tree (" + "a" * 40 + ")"
+
+        def repair(directory, output, deadline=None):
+            calls["repairs"] += 1
+            return ["Pkg"]
+
+        lf.run, lf.repair_pins, lf.time.sleep = run, repair, (lambda s: None)
+        ok = lf.fetch("lib", tries=1, minutes=1, pause=0, budget_minutes=5)
+        self.assertFalse(ok)
+        self.assertEqual(calls["repairs"], 5)  # 3 during update, 2 left for cache get (the old counter gave cache get 5 more)
+        self.assertEqual(calls["cache"], 3)  # 2 repaired tries and the one counted try
+
+    def test_a_slow_fetch_stays_inside_the_budget(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        clone = tmp / "lib" / ".lake" / "packages" / "Slow"
+        clone.mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", str(clone)], check=True)
+        (tmp / "bin").mkdir()
+        real_git = shutil.which("git")
+        # git that hangs on `fetch` (a slow origin) and is itself otherwise
+        (tmp / "bin" / "git").write_text(f'#!/bin/sh\ncase " $* " in *" fetch "*) exec sleep 60;; esac\nexec {real_git} "$@"\n')
+        (tmp / "bin" / "lake").write_text("#!/bin/sh\necho 'fatal: unable to read tree (" + "b" * 40 + ")'\nexit 1\n")
+        for f in ("git", "lake"):
+            (tmp / "bin" / f).chmod(0o755)
+        env = {**os.environ, "PATH": f"{tmp / 'bin'}:{os.environ['PATH']}"}
+        t0 = time.time()
+        p = subprocess.run([sys.executable, str(SCRIPT), str(tmp / "lib"), "--tries", "2", "--minutes", "1", "--budget-minutes", "0.1", "--pause", "0"], env=env, capture_output=True, text=True, timeout=120)
+        took = time.time() - t0
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertNotIn("Traceback", p.stderr)  # a fetch that runs out of time is a failed repair, not a crash
+        self.assertLess(took, 20, took)  # the 6-second budget, not the 60-second fetch
+
+    def test_this_file_runs_every_test_when_executed_directly(self):
+        import ast
+
+        tree = ast.parse(Path(__file__).read_text())
+        last = tree.body[-1]
+        self.assertIsInstance(last, ast.If)  # the `__main__` guard is the last statement: no test class is defined after unittest.main()
+        self.assertIn("__main__", ast.unparse(last.test))
+
+
+if __name__ == "__main__":
+    unittest.main()
