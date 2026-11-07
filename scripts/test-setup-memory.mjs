@@ -213,6 +213,8 @@ check("a second round keeps the record and says nothing new about it", r.status 
 // module was never recorded as failed and the export rounds went on forever). Here: the broken record is there, and the build is asked for that module only.
 r = setup(["--phase", "build"], { FAKE_BROKEN: JSON.stringify(["Lib.C"]), EMISSARY_ONLY_MODULES: "Lib.C" })
 check("a build asked only for a module recorded as broken does not stop the job", r.status === 0 && !/produced none of the/.test(out(r)), out(r))
+r = setup(["--phase", "build"], { FAKE_BROKEN: JSON.stringify(["Lib.C"]), EMISSARY_ONLY_MODULES: "Lib.D" })
+check("nor does a build asked only for a module that imports one (D imports the broken C)", r.status === 0 && !/produced none of the/.test(out(r)), out(r))
 
 // 10. NOT broken: a module that fails without an error line of its own file (case 7's compile error that only shows alone, printed nowhere), a module whose import is missing
 // (D imports C, which was killed for memory: its import has no .olean, so it is never probed), and one whose error line is in another file

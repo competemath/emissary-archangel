@@ -700,9 +700,9 @@ async function build(modules) {
   // None of the modules built (an invalid lake flag, a dependency that failed to fetch): writing setup.json
   // now would record a library with 0 exports as done — zkevm-clean, aisafety-atlas and algolean were.
   const built = modules.filter((m) => existsSync(oleanOf(m))).length
-  // ... counting only the modules that can be built: a module recorded as not compiling at this commit (BROKEN_FILE) is not a sign of a broken build. tnlean, 2026-11-07: the export
+  // ... counting only the modules that can be built: a module recorded as not compiling at this commit (BROKEN_FILE) or too big, and what imports one, is not a sign of a broken build. tnlean, 2026-11-07: the export
   // shard that held its one broken file had nothing else left to build, stopped here ("none of the 1 modules"), never recorded the module as failed, and the rounds went on forever.
-  const buildable = modules.filter((m) => !loadBroken().has(m))
+  const buildable = modules.filter((m) => !blocker.has(m)) // a module left out for memory or as broken, or one that imports such a module, cannot be built
   if (buildable.length && !buildable.some((m) => existsSync(oleanOf(m)))) fail(`lake build produced none of the ${buildable.length} modules — not recording this library as set up`)
   log(`build: ${built}/${modules.length} modules have an .olean`)
   // A Mathlib the cache did not serve (a pin off Mathlib's master) was compiled here, hours of
