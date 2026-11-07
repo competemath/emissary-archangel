@@ -158,14 +158,31 @@ jobs:
         run: |
           # a program that imports only Lean and loads the library at run time (BundleKeep.lean says why: a script that imported the library parsed with its tokens)
           W="$PWD"  # `lib` is a symlink for a library with a `subdir`: a ../ after `cd lib` is the target's parent, not this directory
-          python3 scripts/bump/bundle.py keep-input --lib lib --passed passed.json --roots "$ROOTS" --out lib/bundle-keep.json
-          (cd lib && timeout 120m lake env lean --run "$W/scripts/bump/BundleKeep.lean" bundle-keep.json > "$W/bundle-deps.log" 2>&1 || true)
+          # Two modules of a library that declare one name cannot be loaded together (`import X failed, environment already contains …`), and the tree loads every
+          # module into one environment: the later one is left out with what imports it, the keep step runs again on the rest, and compose leaves out the same
+          # (keep-drops.txt, through the shard pack). archon-firstproof-p6 (2026-11-07): FirstProof6_constant and FirstProof6_constant3 hold one file twice, and the
+          # keep step printed only the clash, so compose found no BUNDLE_KEEP line and the bump died. bump-library.yml has had this loop; the shards had not.
+          # One budget for all the tries: the 120 minutes the single run had, so the job's 345 are not overrun. The module is read up to the fixed words after it, so a quoted
+          # part with a space stays whole; the drop lists are comma lists, so a name with a comma stops the step instead of dropping the wrong module.
+          drop=""
+          : > keep-drops.txt
+          deadline=$(( $(date +%s) + 120 * 60 ))
+          for attempt in $(seq 1 25); do
+            left=$(( deadline - $(date +%s) ))
+            if [ "$left" -le 60 ]; then echo "::warning::the keep step's 120 minutes are spent after $((attempt - 1)) tries; compose reads the last log"; break; fi
+            python3 scripts/bump/bundle.py keep-input --lib lib --passed passed.json --roots "$ROOTS" --drop "$drop" --out lib/bundle-keep.json
+            (cd lib && timeout "${left}s" lake env lean --run "$W/scripts/bump/BundleKeep.lean" bundle-keep.json > "$W/bundle-deps.log" 2>&1 || true)
+            bad=$(sed -nE 's/.*import (.+) failed, environment already contains .*/\1/p' bundle-deps.log | head -1 || true)
+            [ -z "$bad" ] && break
+            case "$bad" in *,*) echo "::error::import clash in the keep step on a module whose name has a comma ($bad): the drop lists are comma lists"; exit 1;; esac
+            echo "import clash in the keep step: $bad (and what imports it) is left out of the bundle"; drop="$drop,$bad"; echo "$bad" >> keep-drops.txt
+          done
           grep -c BUNDLE_KEEP bundle-deps.log || true
       - name: Pack this shard
         working-directory: emissary
         run: |
           python3 scripts/bump/shard_pack.py pack --lib lib --roots "$ROOTS" --modules build.txt --out ../shard-pack --gate2 gate2.log --errors build-final.log \
-            --passed passed.json --keep bundle-deps.log --results gate2-results.json
+            --passed passed.json --keep bundle-deps.log --results gate2-results.json --keep-drops keep-drops.txt
           du -sh ../shard-pack | cut -f1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()

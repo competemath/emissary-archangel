@@ -2,7 +2,7 @@
 ModuleAxioms — the merge queue's axiom check (the tree's TengokuAxioms.lean), with the module of every offender in its output, so that the module can be dropped.
 
   lake env lean --run scripts/bump/ModuleAxioms.lean modules.txt        (in the tree, after the build; scripts/bump/tree_verify.py writes modules.txt)
-  modules.txt: one module per line, exact names, without guillemets (`Tengoku.Lib.Foo.A-B`): the declarations of exactly these modules are checked
+  modules.txt: one module per line, exact names, with or without guillemets (`Tengoku.Lib.Foo.A-B`, `Tengoku.Lib.«2d»`; `listModuleName`): the declarations of exactly these modules are checked
   prints, for every declaration that rests on an axiom other than propext, Classical.choice, Quot.sound:
       AXIOM <TAB> module <TAB> declaration <TAB> the axioms, separated by spaces
   and last:   axioms: N declarations checked, M with non-standard axioms
@@ -14,6 +14,23 @@ The loop is TengokuAxioms.lean's, so the two agree on what is checked: every con
 import Lean
 
 open Lean
+
+/-- A module name as a list spells it, `Tengoku.Lib.2d` or `Tengoku.Lib.«2d»`: split at the dots outside guillemets, every part a string component. `String.toName` reads a part that
+is no identifier (`2d`, `A-B`) as no name at all and a part of digits (`1`) as a number, while a module's parts are strings: formal-conjectures' `Geometry.«2d»` made the axiom check die with
+"trying to import module with anonymous name" (2026-11-07, run 42370333452), and the clash check left such a module out without a word. -/
+def listModuleName (s : String) : Name := Id.run do
+  -- split at the dots outside guillemets (`Lib.«1102.4662».A` has three parts), guillemets dropped
+  let mut n : Name := Name.anonymous
+  let mut part : String := ""
+  let mut quoted := false
+  for c in s.toList do
+    if c == '«' then quoted := true
+    else if c == '»' then quoted := false
+    else if c == '.' && !quoted then
+      n := Name.mkStr n part
+      part := ""
+    else part := part.push c
+  return Name.mkStr n part
 
 def allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
 
@@ -39,7 +56,7 @@ def check (mods : NameSet) : CoreM UInt32 := do
 unsafe def main (argv : List String) : IO UInt32 := do
   enableInitializersExecution
   let [file] := argv | IO.eprintln "usage: ModuleAxioms.lean <modules.txt>"; return 2
-  let names := ((← IO.FS.lines file).toList.map String.trim).filter (· != "") |>.map String.toName
+  let names := ((← IO.FS.lines file).toList.map String.trim).filter (· != "") |>.map listModuleName
   initSearchPath (← findSysroot)
   let env ← importModules (names.toArray.map fun m => { module := m }) {} (trustLevel := 0) (loadExts := true)
   let ctx : Core.Context := { fileName := "<ModuleAxioms>", fileMap := default, maxHeartbeats := 0 }

@@ -131,6 +131,49 @@ jobs:
           assert tv.CLASH_DONE.search(none).group("pairs") == "0", none  # A and B clash, but neither is new: not this bundle's business
           print("clash pair named:", got)
           PY
+      # A module name with a part that is no identifier (formal-conjectures' `Geometry.«2d»`; `«1»`; `«A-B»`; `«1102.4662»`, a part with a dot). tree_verify wrote its lists without the guillemets (it now writes Lean's spelling), and `String.toName` reads
+      # `2d` and `A-B` as no name at all and `1` as a number: the axiom check died with "trying to import module with anonymous name" (2026-11-07, run 42370333452) and the clash check
+      # left such a module out without a word. The programs read a list part by part (listModuleName). 2d declares `Toy.clashing` like A and B of the step above: with either spelling of the
+      # list, the axiom check finishes over every module and the clash check names 2d (against the module that declared the name first).
+      - name: Module names whose parts are not identifiers are read, with guillemets or without
+        working-directory: gate2
+        run: |
+          root="$RUNNER_TEMP/oleans"; src="$RUNNER_TEMP/oddsrc"
+          mkdir -p "$src/Tengoku/LibN" "$root/Tengoku/LibN"
+          printf 'def Toy.clashing := 7\ntheorem Toy.odd2d : 2 = 2 := rfl\n' > "$src/Tengoku/LibN/2d.lean"
+          printf 'theorem Toy.odd1 : 1 = 1 := rfl\n' > "$src/Tengoku/LibN/1.lean"
+          printf 'theorem Toy.oddAB : 3 = 3 := rfl\n' > "$src/Tengoku/LibN/A-B.lean"
+          printf 'theorem Toy.oddDot : 4 = 4 := rfl\n' > "$src/Tengoku/LibN/1102.4662.lean"
+          for m in 2d 1 A-B 1102.4662; do lake env lean --root="$src" -o "$root/Tengoku/LibN/$m.olean" "$src/Tengoku/LibN/$m.lean"; done
+          lp="$root:$(lake env printenv LEAN_PATH)"
+          printf 'Tengoku.LibN.2d\nTengoku.LibN.1\nTengoku.LibN.A-B\n' > "$RUNNER_TEMP/odd-plain.txt"
+          # a part with a dot in it (an arXiv number as a file name) can only be written with guillemets: tree_verify writes the list as Lean spells it
+          printf 'Tengoku.LibN.«2d»\nTengoku.LibN.«1»\nTengoku.LibN.«A-B»\nTengoku.LibN.«1102.4662»\n' > "$RUNNER_TEMP/odd-quoted.txt"
+          for v in plain quoted; do
+            lake env env LEAN_PATH="$lp" lean --run ../scripts/bump/ModuleAxioms.lean "$RUNNER_TEMP/odd-$v.txt" 2>&1 | tee "$RUNNER_TEMP/odd-ax-$v.out"
+            lake env lean --run ../scripts/bump/ModuleClashes.lean "$root" "$RUNNER_TEMP/odd-$v.txt" Tengoku 2>&1 | tee "$RUNNER_TEMP/odd-cl-$v.out"
+          done
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, "../scripts/bump")
+          import tree_verify as tv
+          t = os.environ["RUNNER_TEMP"]
+          for v in ("plain", "quoted"):
+              mods = {ln.strip() for ln in open(os.path.join(t, f"odd-{v}.txt"), encoding="utf-8") if ln.strip()}
+              two_d = next(m for m in mods if "2d" in m)
+              ax = open(os.path.join(t, f"odd-ax-{v}.out"), encoding="utf-8").read()
+              done = tv.AXIOM_DONE.search(ax)
+              assert done, (v, ax[-800:])  # the run finished
+              assert int(done.group("checked")) >= len(mods), (v, done.group(0))  # Toy.odd2d, Toy.odd1, Toy.oddAB (Toy.oddDot) at least: every module was read, none as no name
+              assert tv.axiom_offenders(ax, mods) == {}, v
+              cl = open(os.path.join(t, f"odd-cl-{v}.out"), encoding="utf-8").read()
+              got = tv.clash_offenders(cl, mods)
+              assert list(got) == [two_d], (v, got, cl[-800:])  # 2d is a new module that declares Toy.clashing; 1 and A-B declare nothing another module does
+              # named against the module the program met first with the name: A or B, or both when it met 2d first (it reads the directories in no fixed order); one pair drops it
+              assert 1 <= len(got[two_d]) <= 2, (v, got)
+              assert all(x.startswith("Toy.clashing") and x.split(" also declared by ")[1] in ("Tengoku.LibA.A", "Tengoku.LibB.B") for x in got[two_d]), (v, got)
+              print(v, "list:", done.group(0), "| clashes:", got)
+          PY
       # The fingerprint of the copies of tree modules (tree_dups.py). Toy modules compiled to oleans (core Lean only): I is the tree's module and M a copy of it (the same text); D declares the same names
       # with another body (`Toy.f`) and other binders (`Toy.imp`); X imports M, Y is X's text on I, Z is X's text on D. What the program must show, read by tree_dups.py (the code that decides):
       #   M's declarations have I's fingerprints, and D's do not: `Toy.f` differs, and `Toy.g` and `Toy.t` differ although their TEXT is the same, because they stand on `Toy.f` (the fingerprint is deep);

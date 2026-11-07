@@ -3,7 +3,7 @@ ModuleClashes — the names that two modules of the tree both declare: what `imp
 
   lake env lean --run scripts/bump/ModuleClashes.lean OLEAN_ROOT modules.txt PREFIX      (in the tree, after the build)
   OLEAN_ROOT: where the oleans are (`.lake/build/lib/lean`); PREFIX: only modules under it are read (`Tengoku`)
-  modules.txt: the NEW modules, one per line, exact names without guillemets (`Tengoku.Lib.Foo.A-B`); tree_verify.py writes it
+  modules.txt: the NEW modules, one per line, as Lean spells them (`Tengoku.Lib.Foo.«A-B»`; a part with a dot, `«1102.4662»`, must keep its guillemets); tree_verify.py writes it (built.txt)
   prints, for every pair of modules that declare a common name where at least one of the two is new:
       CLASH <TAB> module <TAB> other module <TAB> how many names <TAB> the first of them
   and last:   clashes: P module pair(s), N name(s)
@@ -44,9 +44,26 @@ partial def oleans (rootLen : Nat) (dir : System.FilePath) (acc : Array (Name ×
       acc := acc.push ((dirs ++ [stem]).foldl (fun n c => Name.mkStr n c) Name.anonymous, p)
   return acc
 
+/-- A module name as a list spells it, `Tengoku.Lib.2d` or `Tengoku.Lib.«2d»`: split at the dots outside guillemets, every part a string component. `String.toName` reads a part that
+is no identifier (`2d`, `A-B`) as no name at all and a part of digits (`1`) as a number, while a module's parts are strings: formal-conjectures' `Geometry.«2d»` made the axiom check die with
+"trying to import module with anonymous name" (2026-11-07, run 42370333452), and the clash check left such a module out without a word. -/
+def listModuleName (s : String) : Name := Id.run do
+  -- split at the dots outside guillemets (`Lib.«1102.4662».A` has three parts), guillemets dropped
+  let mut n : Name := Name.anonymous
+  let mut part : String := ""
+  let mut quoted := false
+  for c in s.toList do
+    if c == '«' then quoted := true
+    else if c == '»' then quoted := false
+    else if c == '.' && !quoted then
+      n := Name.mkStr n part
+      part := ""
+    else part := part.push c
+  return Name.mkStr n part
+
 def main (argv : List String) : IO UInt32 := do
   let [root, file, pre] := argv | IO.eprintln "usage: ModuleClashes.lean OLEAN_ROOT modules.txt PREFIX"; return 2
-  let newMods : NameSet := ((← IO.FS.lines file).toList.map String.trim).filter (· != "") |>.foldl (fun s m => s.insert m.toName) {}
+  let newMods : NameSet := ((← IO.FS.lines file).toList.map String.trim).filter (· != "") |>.foldl (fun s m => s.insert (listModuleName m)) {}
   let prefixName := pre.toName
   let rootPath := System.FilePath.mk root
   let all ← oleans rootPath.components.length rootPath #[]
