@@ -343,6 +343,29 @@ class Refine(unittest.TestCase):
             self.assertEqual(sorted(rep["verification_dropped"]), ["X.A", "X.B"])
         self.assertFalse((d / "src-proposed" / "X" / "B.lean").exists())
 
+    def test_the_factory_changes_are_counted_again_from_what_is_left(self):
+        """a changed module the verification build drops takes its change out of the report (the count is read from the notices of the files left)"""
+        note = lambda n: ("/-! Tengoku change notice: this file was changed by the Tengoku factory from https://github.com/o/r@abc, `X.lean`: removed "
+                          f"{n} `#adaptation_note` / `set_option linter` line(s) (notes and linter settings: no declaration depends on them). What every declaration states is unchanged. -/\n")
+        d = Path(tempfile.mkdtemp())
+        mods = {"X.A": "import Mathlib\n" + note(2) + "theorem a : True := trivial\n", "X.C": "import Mathlib\n" + note(1) + "theorem c : True := trivial\n"}
+        for out, src in ((d / "bundle", d / "src"), (d / "bundle-proposed", d / "src-proposed")):
+            for m, text in mods.items():
+                rel = Path(*m.split(".")).with_suffix(".lean")
+                for root in (src, out / "Tengoku" / "ToyLib"):
+                    (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                    (root / rel).write_text(text)
+            (out / "Tengoku" / "ToyLib.lean").write_text("".join(f"import Tengoku.ToyLib.{m}\n" for m in mods))
+            (out / "manifest.jsonl").write_text("".join(json.dumps({"name": n, "module": f"Tengoku.ToyLib.{m}"}) + "\n" for n, m in (("a", "X.A"), ("c", "X.C"))))
+            (out / "report.json").write_text(json.dumps({"theorems": 2, "modules_in_bundle": 2, "left_out": {}, "factory_changes": {"modules changed": 2, "inert lines removed": 3}}))
+        (d / "verify.json").write_text(json.dumps({"status": {"X.A": {"state": "errors"}, "X.C": {"state": "clean"}}}))
+        (d / "verify.log").write_text("error: X/A.lean:3:0: unsolved goals\n")
+        r = subprocess.run([sys.executable, str(HERE / "bundle.py"), "refine", "--report", str(d / "verify.json"), "--log", str(d / "verify.log"), "--key", "toy-lib",
+                            "--out", str(d / "bundle"), "--src", str(d / "src")], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        for out in (d / "bundle", d / "bundle-proposed"):
+            self.assertEqual(json.loads((out / "report.json").read_text())["factory_changes"], {"modules changed": 1, "inert lines removed": 1})
+
     def test_a_bundle_with_nothing_left_fails(self):
         d = Path(tempfile.mkdtemp())
         for out, src in ((d / "bundle", d / "src"), (d / "bundle-proposed", d / "src-proposed")):

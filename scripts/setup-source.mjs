@@ -36,6 +36,7 @@ import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import { collectTools, exporterAction, mergeTools, patchFingerprint } from "./setup-tools.mjs"
 import { bisectItems } from "./bisect.mjs"
+import { repairPins } from "./pinned-deps.mjs"
 import { aloneFirstMs, availableFrom, buildAttempts, closureBigModules, closureBudgetMs, closureRetryMs, membersOf, soloBuildMs, soloMax } from "./memory-rules.mjs"
 
 const x = promisify(execFile)
@@ -500,17 +501,37 @@ function seedQueue() {
   for (const f of TENTATIVE_FILES) if (!existsSync(f)) fail(`no tentative file at ${f}`)
   const roots = new Set(src.roots)
   const seen = new Set()
+  // The files read so far, kept within a budget (EMISSARY_SEED_CACHE_MB of text, default 256): leanbridge (7 Nov 2026) has 1.5 GB of Lean sources (LMFDB tables, up to 53 MB a
+  // file), and keeping every file's lines killed Node at its 4 GB heap in every phase ("JavaScript heap out of memory", setup runs 42386199526 and 42387020776). The records of a
+  // file come together (each tentative file lists them file by file), so each file is read once; a file evicted and asked for again is read again, with the same result.
+  const budgetMb = Number(process.env.EMISSARY_SEED_CACHE_MB || 256)
+  const cacheBudget = (Number.isFinite(budgetMb) && budgetMb >= 1 ? budgetMb : 256) * 1024 * 1024 // a value that is no finite number of MB falls back to the default
+  log(`seed: the files read are kept within ${cacheBudget / 1024 / 1024} MB of text`)
   const fileCache = new Map()
+  let cached = 0
   const fileOf = (p) => {
-    if (!fileCache.has(p)) {
-      const abs = join(REPO, p)
-      if (!existsSync(abs)) fileCache.set(p, null)
-      else {
-        const lines = readFileSync(abs, "utf8").split("\n")
-        fileCache.set(p, { lines, depth: commentDepths(lines) })
-      }
+    if (fileCache.has(p)) {
+      const hit = fileCache.get(p)
+      fileCache.delete(p) // most recently used last
+      fileCache.set(p, hit)
+      return hit
     }
-    return fileCache.get(p)
+    const abs = join(REPO, p)
+    let file = null
+    if (existsSync(abs)) {
+      const text = readFileSync(abs, "utf8")
+      const lines = text.split("\n")
+      file = { lines, depth: commentDepths(lines), size: text.length }
+    }
+    if (file && file.size > cacheBudget) return file // a file larger than the whole budget is used and not kept
+    fileCache.set(p, file)
+    cached += file ? file.size : 0
+    for (const [k, v] of fileCache) {
+      if (cached <= cacheBudget || k === p) break
+      fileCache.delete(k)
+      cached -= v ? v.size : 0
+    }
+    return file
   }
   const entries = []
   for (const raw of TENTATIVE_FILES.flatMap((f) => readFileSync(f, "utf8").split("\n"))) {
@@ -592,12 +613,27 @@ function seedQueue() {
     stats.kept++
   }
   writeAtomic(QUEUE, JSON.stringify(entries, null, 2))
+  log(`seed: ${[...fileCache.values()].filter(Boolean).length} source file(s) kept at the end`) // a missing file is cached as null: not a file kept
   log(`seeded ${QUEUE}: ${JSON.stringify(stats)}`)
   return { entries, stats }
 }
 
 // ---- 4. build -------------------------------------------------------------------
+// Lake resolves the library's dependencies first. A dependency pinned to a commit that no branch holds (padic-l-functions, 7 Nov 2026: "fatal: unable to read tree") is fetched
+// by its hash and Lake runs again (pinned-deps.mjs); any other failure is left to the steps after it, which report it as before.
+async function ensureDeps() {
+  for (let i = 0; i < 5; i++) {
+    const r = await run("lake", ["env", "true"], { cwd: REPO, timeoutMs: 90 * 60 * 1000 })
+    if (r.code === 0) return true
+    const { fetched, failed } = repairPins(REPO, r.tail, { log })
+    for (const f of failed) log(`WARNING: dependency ${f.pkg} at ${f.rev.slice(0, 12)} cannot be checked out: ${f.why}`)
+    if (!fetched.length) return false
+  }
+  return false
+}
+
 async function mathlibCache() {
+  await ensureDeps()
   const manifest = join(REPO, "lake-manifest.json")
   const hasMathlib = existsSync(manifest) && /"name":\s*"mathlib"/.test(readFileSync(manifest, "utf8"))
   if (hasMathlib) {

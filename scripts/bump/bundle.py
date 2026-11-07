@@ -670,7 +670,7 @@ def compose(a: argparse.Namespace) -> None:
             json.dumps({"library": a.key, "lint_mode": mode, "verified": total, "shipped": len(manifest), "left_out": dict(left_out), "modules": dict(sorted(ledger.items()))}, indent=1)
         )
         report = {"library": a.key, "lint_mode": mode, "gate2_unjudged": unjudged, "gate2_left_out": no_verdict, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]), "dropped_truncated": len(dropped) > 50,
-                  "theorems": len(manifest), "notation_scoped": notation_scoped["scoped"], "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "textually_kept": textually_kept, "dependency_graph": ({**graph_stats, "text_kept_tainted": len(graph_stats["text_kept_tainted"]), "text_kept_tainted_first": graph_stats["text_kept_tainted"][:20], "taint_drops": a.taint_drops} if graph is not None else None), "failed_seeds_shipped": [f"{m}:{b[0]}" for m, b in failed_seeds[:50]], "failed_seeds_shipped_total": len(failed_seeds), "stripped_attributes": dict(stripped_attrs.most_common(15)), "factory_changes": {k: v for k, v in gstats.items() if v},
+                  "theorems": len(manifest), "notation_scoped": notation_scoped["scoped"], "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "textually_kept": textually_kept, "dependency_graph": ({**graph_stats, "text_kept_tainted": len(graph_stats["text_kept_tainted"]), "text_kept_tainted_first": graph_stats["text_kept_tainted"][:20], "taint_drops": a.taint_drops} if graph is not None else None), "failed_seeds_shipped": [f"{m}:{b[0]}" for m, b in failed_seeds[:50]], "failed_seeds_shipped_total": len(failed_seeds), "stripped_attributes": dict(stripped_attrs.most_common(15)), "factory_changes": grind_sets.shipped_changes(f.read_text(encoding="utf-8") for f in sorted(tree_root.rglob("*.lean"))),
                   "lint_cost": dict(sorted(classes.items(), key=lambda x: -x[1])[:15])}
         if a.keep_dups:
             report["dups"] = {"aliased": len(aliased), "aliased_modules": dict(list(aliased.items())[:50]), "kept_for_the_tree_build": 0 if tree_dups_by_mode is not None else len(dup_modules),
@@ -722,6 +722,7 @@ def refine(a: argparse.Namespace) -> None:
         cut = len(rows) - len(kept_rows)
         report["modules_in_bundle"] = len(keep)
         report["theorems"] = len(kept_rows)
+        report["factory_changes"] = grind_sets.shipped_changes(f.read_text(encoding="utf-8") for f in sorted(tree_root.rglob("*.lean")))  # what the files that are left say
         report["verification_dropped"] = {**report.get("verification_dropped", {}), **{m: ("did not build in the verification build" if m in bad else "imports a module that did not build") for m in sorted(gone)}}
         report["left_out"] = {**report.get("left_out", {}), "verification build: module did not build, or imports one": report.get("left_out", {}).get("verification build: module did not build, or imports one", 0) + cut}
         (out_dir / "report.json").write_text(json.dumps(report, indent=1))
