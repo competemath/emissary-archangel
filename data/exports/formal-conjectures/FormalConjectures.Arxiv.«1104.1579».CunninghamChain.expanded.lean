@@ -88,33 +88,25 @@ theorem seven_starts_secondKind_length_two : IsSecondKindChainOfLength 7 2 := by
   interval_cases i <;> norm_num [secondKindTerm]
 
 
--- @@ L74-79 verbatim
+-- @@ L74-82 verbatim
 /--
 Jones's conjecture (first kind): for every positive integer $k$, there are
 infinitely many primes $p$ that start a first-kind Cunningham chain of
 exactly length $k$.
 -/
-@[category research 
--- @@ L79-79 verbatim
-open, AMS 11]
-
--- @@ L80-82 verbatim
+@[category research open, AMS 11]
 theorem infinitely_many_firstKind_chains (k : ℕ) (hk : 0 < k) :
     Set.Infinite {p : ℕ | IsFirstKindChainOfLength p k} := by
   sorry
 
 
--- @@ L84-89 verbatim
+-- @@ L84-92 verbatim
 /--
 Jones's conjecture (second kind): for every positive integer $k$, there are
 infinitely many primes $p$ that start a second-kind Cunningham chain of
 exactly length $k$.
 -/
-@[category research 
--- @@ L89-89 verbatim
-open, AMS 11]
-
--- @@ L90-92 verbatim
+@[category research open, AMS 11]
 theorem infinitely_many_secondKind_chains (k : ℕ) (hk : 0 < k) :
     Set.Infinite {p : ℕ | IsSecondKindChainOfLength p k} := by
   sorry

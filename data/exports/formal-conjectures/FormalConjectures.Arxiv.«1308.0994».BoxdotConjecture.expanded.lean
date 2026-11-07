@@ -71,9 +71,9 @@ scoped notation "⊥" => Falsum
 infixr:80 " ~> " => Formula.Imp
 
 
--- @@ L61-62 verbatim
+-- @@ L61-62 expanded
 /-- `~ α` is the negation of `α`. `~ α` is also equivalent to `α ~> ⊥`. -/
-scoped notation:max " ~ " φ => φ ~> ⊥
+scoped notation:max " ~ " φ => Formula.Imp φ ⊥
 
 
 -- @@ L64-65 verbatim
@@ -81,10 +81,11 @@ scoped notation:max " ~ " φ => φ ~> ⊥
 scoped prefix:95 "□" => Nec
 
 
--- @@ L67-69 verbatim
+-- @@ L67-69 expanded
 /-- `Conj α β` is the conjunction `α ∧ β`. We define `α & β` as `~(α ~> ~β)` for simplicity. -/
 @[reducible]
-def Conj (α β : Formula) : Formula := ~(α ~> ~β)
+def Conj (α β : Formula) : Formula :=
+   ~ (Formula.Imp α ~ β)
 
 
 -- @@ L71-72 verbatim
@@ -92,16 +93,15 @@ def Conj (α β : Formula) : Formula := ~(α ~> ~β)
 scoped infixr:85 " & " => Conj
 
 
--- @@ L74-84 verbatim
-/--
-`t φ` is the Boxdot translation of a formula `φ`. Roughly, t is the mapping `φ ↦ t φ`
+-- @@ L74-84 expanded
+/-- `t φ` is the Boxdot translation of a formula `φ`. Roughly, t is the mapping `φ ↦ t φ`
 from the language of monomodal logic into itself that preserves variables and the logical constant `⊥`,
 commutes with the standard truth-functional operators, and is such that `t □a` = `□t a & t a`.
 This implementation follows the definition in Steinsvold (AJL).
 -/
 def t (φ : Formula) : Formula :=
   match φ with
-  | α ~> β => t α ~> t β
+  | Formula.Imp α β => Formula.Imp (t α) (t β)
   | □α => □t α & t α
   | _ => φ
 
@@ -112,61 +112,55 @@ scoped prefix:95 "■" => t
 
 
 
--- @@ L90-96 verbatim
-/--
-`KProof Γ φ` is the usual Hilbert‐style proof relation for the minimal normal modal logic K,
+-- @@ L90-108 expanded
+/-- `KProof Γ φ` is the usual Hilbert‐style proof relation for the minimal normal modal logic K,
 with assumptions drawn from `Γ`.
 -/
-inductive KProof : Set Formula → Formula → Prop
-/-- Assumption rule: if `α ∈ Γ` then `α` is provable from `Γ`. -/
-| ax {Γ} {α} (h : α ∈ Γ) : KProof Γ α
+inductive KProof : Set Formula → Formula → Prop/--
+Assumption rule: if `α ∈ Γ` then `α` is provable from `Γ`. -/
 
--- @@ L97-98 verbatim
-/-- Ax1: every instance of the schema `α → (β → α)` is a theorem. -/
-| ax1 {Γ} {α β} : KProof Γ (α ~> β ~> α)
+  | ax {Γ} {α} (h : α ∈ Γ) : KProof Γ α/--
+Ax1: every instance of the schema `α → (β → α)` is a theorem. -/
 
--- @@ L99-100 verbatim
-/-- Ax2: every instance of the schema `(α ~> β ~> γ) ~> (α ~> β) ~> (α ~> γ)` is a theorem. -/
-| ax2 {Γ} {α β γ} : KProof Γ ((α ~> β ~> γ) ~> (α ~> β) ~> (α ~> γ))
+  | ax1 {Γ} {α β} : KProof Γ (Formula.Imp α (Formula.Imp β α))/--
+Ax2: every instance of the schema `(α ~> β ~> γ) ~> (α ~> β) ~> (α ~> γ)` is a theorem. -/
 
--- @@ L101-102 verbatim
-/-- Ax3 (contraposition): every instance of the schema `(~α ~> ~β) ~> (β ~> α)` is a theorem. -/
-| ax3 {Γ} {α β} : KProof Γ (((~α) ~> (~β)) ~> (β ~> α))
+  |
+  ax2 {Γ} {α β γ} :
+    KProof Γ
+      (Formula.Imp (Formula.Imp α (Formula.Imp β γ))
+        (Formula.Imp (Formula.Imp α β) (Formula.Imp α γ)))/--
+Ax3 (contraposition): every instance of the schema `(~α ~> ~β) ~> (β ~> α)` is a theorem. -/
 
--- @@ L103-104 verbatim
-/-- Modus Ponens: if `Γ ⊢ α ~> β` and `Γ ⊢ α`, then `Γ ⊢ β`. -/
-| mp {Γ} {α β} (_ : KProof Γ (α ~> β)) (_ : KProof Γ α) : KProof Γ β
+  | ax3 {Γ} {α β} : KProof Γ (Formula.Imp (Formula.Imp ( ~ α) ( ~ β)) (Formula.Imp β α))/--
+Modus Ponens: if `Γ ⊢ α ~> β` and `Γ ⊢ α`, then `Γ ⊢ β`. -/
 
--- @@ L105-106 verbatim
-/-- Necessitation: if `⊢ α` then `⊢ □α`. -/
-| nec {Γ} {α} (_ : KProof ∅ α) : KProof Γ (□ α)
+  | mp {Γ} {α β} (_ : KProof Γ (Formula.Imp α β)) (_ : KProof Γ α) : KProof Γ β/--
+Necessitation: if `⊢ α` then `⊢ □α`. -/
 
--- @@ L107-108 verbatim
-/-- Distribution: every instance of the schema `□(α ~> β) ~> (□α ~> □β)` is a theorem. -/
-| distr {Γ} {α β} : KProof Γ (□ (α ~> β) ~> □ α ~> □ β)
+  | nec {Γ} {α} (_ : KProof ∅ α) : KProof Γ (□α)/--
+Distribution: every instance of the schema `□(α ~> β) ~> (□α ~> □β)` is a theorem. -/
 
+  | distr {Γ} {α β} : KProof Γ (Formula.Imp (□(Formula.Imp α β)) (Formula.Imp (□α) (□β)))
 
 
--- @@ L111-120 verbatim
-/--
-`KTProof Γ φ` denotes that `φ` is provable from the premises `Γ` in the normal modal logic KT
+-- @@ L111-124 expanded
+/-- `KTProof Γ φ` denotes that `φ` is provable from the premises `Γ` in the normal modal logic KT
 (also called T). KT extends system K by adding the instances of the T-axiom schema `□φ ~> φ` to K’s
 usual axioms and rules of inference.
 -/
-inductive KTProof : Set Formula → Formula → Prop
-/-- Embedding of K proofs into KT. -/
-| lift_K {Γ} {α} (h : KProof Γ α) : KTProof Γ α
-/-- T-axiom schema: every instance of `□α ~> α` is a theorem. -/
-| axT {Γ} {α} : KTProof Γ (□ α ~> α)
+inductive KTProof : Set Formula → Formula → Prop/-- Embedding of K proofs into KT. -/
 
--- @@ L121-122 verbatim
-/-- Modus Ponens: if `Γ ⊢ α ~> β` and `Γ ⊢ α`, then `Γ ⊢ β`. -/
-| mp {Γ} {α β} (_ : KTProof Γ (α ~> β)) (_ : KTProof Γ α) : KTProof Γ β
+  | lift_K {Γ} {α} (h : KProof Γ α) : KTProof Γ α/--
+T-axiom schema: every instance of `□α ~> α` is a theorem. -/
 
--- @@ L123-124 verbatim
-/-- Necessitation: if `⊢ α` then `⊢ □α`. -/
-| nec {Γ} {α} (_ : KTProof ∅ α) : KTProof Γ (□ α)
+  | axT {Γ} {α} : KTProof Γ (Formula.Imp (□α) α)/--
+Modus Ponens: if `Γ ⊢ α ~> β` and `Γ ⊢ α`, then `Γ ⊢ β`. -/
 
+  | mp {Γ} {α β} (_ : KTProof Γ (Formula.Imp α β)) (_ : KTProof Γ α) : KTProof Γ β/--
+Necessitation: if `⊢ α` then `⊢ □α`. -/
+
+  | nec {Γ} {α} (_ : KTProof ∅ α) : KTProof Γ (□α)
 
 
 -- @@ L127-127 verbatim
@@ -183,9 +177,8 @@ lemma KTExtendsK {Γ φ} (h : KProof Γ φ) : KTProof Γ φ :=
   lift_K h
 
 
--- @@ L137-147 verbatim
-/--
-A “normal modal logic” L is any `Set Formula` such that:
+-- @@ L137-153 expanded
+/-- A “normal modal logic” L is any `Set Formula` such that:
   1. If `K ⊢ φ`, then `φ ∈ L`          (L extends K)
   2. If `φ ∈ L` and `(φ ~> ψ) ∈ L`, then `ψ ∈ L`  (Closed under MP)
   3. If `φ ∈ L`, then `□φ ∈ L`          (Closed under Necessitation)
@@ -195,17 +188,12 @@ structure NormalModalLogic : Type where
   thms : Set Formula
   /-- `extK` means that if `K ⊢ φ`, then `φ ∈ thms`. That is, the logic extends system K. -/
   extK : ∀ {φ}, KProof ∅ φ → φ ∈ thms
-  
--- @@ L148-150 verbatim
-/-- `mp` means that if `φ ∈ thms` and `(φ ~> ψ) ∈ thms`, then `ψ ∈ thms`. That is, thms is closed
-  under modus ponens. -/
-  mp : ∀ {φ ψ}, φ ∈ thms → (φ ~> ψ) ∈ thms → ψ ∈ thms
-  
--- @@ L151-153 verbatim
-/-- `nec` means that if `φ ∈ thms`, then `□φ ∈ thms`. Equivalently, `thms` is closed under
-  necessitation -/
-  nec : ∀ {φ}, φ ∈ thms → □ φ ∈ thms
-
+  /-- `mp` means that if `φ ∈ thms` and `(φ ~> ψ) ∈ thms`, then `ψ ∈ thms`. That is, thms is closed
+    under modus ponens. -/
+  mp : ∀ {φ ψ}, φ ∈ thms → (Formula.Imp φ ψ) ∈ thms → ψ ∈ thms
+  /-- `nec` means that if `φ ∈ thms`, then `□φ ∈ thms`. Equivalently, `thms` is closed under
+    necessitation -/
+  nec : ∀ {φ}, φ ∈ thms → □φ ∈ thms
 
 
 -- @@ L156-156 verbatim
@@ -241,7 +229,7 @@ def KT : NormalModalLogic := by
 
 
 
--- @@ L183-189 verbatim
+-- @@ L183-191 verbatim
 /--
 Boxdot Conjecture: every normal modal logic that faithfully interprets KT
 by the boxdot translation is included in KT.
@@ -249,8 +237,6 @@ by the boxdot translation is included in KT.
 @[category research solved, AMS 3, formal_proof using lean4 at "https://github.com/FormalizedFormalLogic/Foundation"]
 -- The formal proof was done by Mashu Noguchi et al.
 -- see linked repo for the full list of contributors
-
--- @@ L190-191 verbatim
 theorem BoxdotConjecture (L : NormalModalLogic) (H : ∀ φ, L ⊢ ■ φ ↔ KT ⊢ φ) : L.thms ⊆ KT.thms := by
   sorry
 

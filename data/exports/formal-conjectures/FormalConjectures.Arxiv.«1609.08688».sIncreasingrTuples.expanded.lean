@@ -224,7 +224,7 @@ lemma exists_pair_of_mem_Icc {s : List (Fin 3 → ℕ)} {n : ℕ} (_hn : 2 ≤ n
   exact ⟨i, j, hij, congrArg Prod.fst hfij, congrArg Prod.snd hfij⟩
 
 
--- @@ L180-186 verbatim
+-- @@ L180-210 verbatim
 /--
 For all $n$ we have $F(n) \leq n^2$.
 
@@ -232,8 +232,6 @@ This is the upper bound in [GoLo21, Proposition 1.4], proved by applying the
 pigeonhole principle to the first two coordinates.
 -/
 @[category research solved, AMS 5]
-
--- @@ L187-210 verbatim
 theorem maximalLength_le (n : ℕ) : F n ≤ n ^ 2 := by
   by_cases hn : 2 ≤ n
   · rw [maximalLength]
@@ -260,11 +258,9 @@ theorem maximalLength_le (n : ℕ) : F n ≤ n ^ 2 := by
         exact (hn (Nat.succ_le_succ (Nat.succ_le_succ (Nat.zero_le _)))).elim
 
 
--- @@ L212-213 verbatim
+-- @@ L212-216 verbatim
 /-- Moreover, whenever $n$ is a perfect square we have $F(n) \geq n^{3/2}$. -/
 @[category research solved, AMS 5]
-
--- @@ L214-216 verbatim
 theorem maximalLength_ge_of_isSquare {n : ℕ} (h : IsSquare n) :
     n.sqrt ^ 3 ≤ F n := by
   sorry
@@ -283,12 +279,10 @@ def IsComparableSet₂ {α : Type*} [LT α] (s : List (Fin 3 → α)) : Prop :=
   ∃ t₁ t₂, t₁ ≠ t₂ ∧ t₁ ∈ s ∧ t₂ ∈ s ∧ IsComparable₂ t₁ t₂
 
 
--- @@ L227-229 verbatim
+-- @@ L227-233 verbatim
 open Filter in
 /-- $F(n) \leq n^2 / \exp(\Omega(\log^*(n)))$. -/
 @[category research solved, AMS 5]
-
--- @@ L230-233 verbatim
 theorem maximalLength_le_isBigO : ∃ Ω : ℕ → ℝ,
     (fun (n : ℕ) => (Real.iteratedLog n : ℝ)) =O[atTop] Ω ∧
       ∀ n, F n ≤ n ^ 2 / Real.exp (Ω n) := by
@@ -335,24 +329,18 @@ theorem sequenceProduct_example : [![1, 1, 1]] ⊗₂ [![1, 1, 1]] = toLex [toLe
   simp [sequenceProduct]
 
 
--- @@ L263-265 verbatim
+-- @@ L263-268 verbatim
 /-- Suppose that for some $n$ we have $F(n) = n ^ {\alpha}$. Then there are arbitrarily
 large $m$ such that $F(m) \geq m^{\alpha}$. -/
 @[category research solved, AMS 5]
-
--- @@ L266-268 verbatim
 theorem maximalLength_pow {n : ℕ} {e : ℝ} (hn : 1 < n) (h : F n = (n : ℝ) ^ e) :
     ∀ᶠ m : ℕ in Filter.atTop, (m : ℝ) ^ e ≤ F m := by
   sorry
 
 
--- @@ L270-271 verbatim
+-- @@ L270-273 verbatim
 /-- $F(n) \leq n^{3/2}$. -/
-@[category research 
--- @@ L271-271 verbatim
-open, AMS 5]
-
--- @@ L272-273 verbatim
+@[category research open, AMS 5]
 theorem maximalLength_le_strong (n : ℕ) : F n ≤ Real.sqrt n ^ 3 := by
   sorry
 

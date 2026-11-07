@@ -41,7 +41,7 @@ set_option warn.sorry false
 namespace AnswerLinter
 
 
--- @@ L35-44 verbatim
+-- @@ L35-47 verbatim
 /--
 warning: Move the quantifiers outward:
 instead of
@@ -52,29 +52,27 @@ likely the intention was
 Note: This linter can be disabled with `set_option linter.style.answer_attribute false`
 -/
 #guard_msgs in
-
--- @@ L45-49 verbatim
 /-- An exampe of what we want to lint against -/
 theorem flagged_by_linter (h : True) (b : Nat) : answer(sorry) ↔ 1 + 1 = 2 := by
   sorry
 
-#guard_msgs in
 
--- @@ L50-54 verbatim
+-- @@ L49-52 verbatim
+#guard_msgs in
 /-- An non-exampe: we want don't to lint against this case -/
 theorem not_flagged_no_answer_sorry (_ : True) (_ : Nat) : 1 + 1 = 2 := by
   rfl
 
-#guard_msgs in
 
--- @@ L55-59 verbatim
+-- @@ L54-57 verbatim
+#guard_msgs in
 /-- An non-exampe: we want don't to lint against this case-/
 theorem not_flagged_no_arguments : answer(sorry) ↔ 1 + 1 = 2 := by
   sorry
 
-#guard_msgs in
 
--- @@ L60-63 verbatim
+-- @@ L59-63 verbatim
+#guard_msgs in
 /-- An non-exampe: here `answer(sorry)` is not a `Prop`, and not the entire left
 hand side of the iff. -/
 theorem not_flagged_non_prop_answer (h : True) (b : Nat) : answer(sorry) = 2 ↔ 1 + 1 = 2 := by

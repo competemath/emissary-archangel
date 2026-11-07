@@ -27,53 +27,47 @@ public meta import FormalConjecturesUtil.Linters.AMSLinter
 set_option linter.style.ams_attribute true
 
 
--- @@ L25-28 verbatim
+-- @@ L25-27 verbatim
 namespace AMSLinter
 
 -- Definitions aren't required to have an AMS attribute
-#guard_msgs in
 
--- @@ L29-29 verbatim
+-- @@ L28-29 verbatim
+#guard_msgs in
 def foo : Nat := 1
 
 
--- @@ L31-36 verbatim
+-- @@ L31-39 verbatim
 /--
 warning: Missing AMS attribute.
 
 Note: This linter can be disabled with `set_option linter.style.ams_attribute false`
 -/
 #guard_msgs in
-
--- @@ L37-39 verbatim
 /-- A highly non-trivial theorem -/
 theorem test_theorem : 1 + 1 = 2 := by
   rfl
 
 
--- @@ L41-46 verbatim
+-- @@ L41-49 verbatim
 /--
 warning: Missing AMS attribute.
 
 Note: This linter can be disabled with `set_option linter.style.ams_attribute false`
 -/
 #guard_msgs in
-
--- @@ L47-49 verbatim
 /-- A highly non-trivial theorem with a helpful hypothesis -/
 theorem test_theorem_with_hypothesis (_ : True) : 1 + 1 = 2 := by
   rfl
 
 
--- @@ L51-56 verbatim
+-- @@ L51-59 verbatim
 /--
 warning: Missing AMS attribute.
 
 Note: This linter can be disabled with `set_option linter.style.ams_attribute false`
 -/
 #guard_msgs in
-
--- @@ L57-59 verbatim
 /-- A highly non-trivial theorem with two helpful hypotheses -/
 theorem test_theorem_with_hypotheses (_ : True) (_ : False): 1 + 1 = 2 := by
   rfl
@@ -91,88 +85,74 @@ lemma test_lemma : 1 + 1 = 2 := by
   rfl
 
 
--- @@ L71-76 verbatim
+-- @@ L71-78 verbatim
 /--
 warning: Missing AMS attribute.
 
 Note: This linter can be disabled with `set_option linter.style.ams_attribute false`
 -/
 #guard_msgs in
-
--- @@ L77-78 verbatim
 example : 1 + 1 = 2 := by
   rfl
 
 
--- @@ L80-85 verbatim
+-- @@ L80-89 verbatim
 /--
 warning: The AMS tag should be formatted as AMS 1 3 rather than AMS 1, AMS 3
 
 Note: This linter can be disabled with `set_option linter.style.ams_attribute false`
 -/
 #guard_msgs in
-
--- @@ L86-91 verbatim
 /-- A highly non-trivial theorem with a helpful hypothesis -/
 @[AMS 1, AMS 3]
 theorem test_theorem_with_docstring : 1 + 1 = 2 := by
   rfl
 
-#guard_msgs in
 
--- @@ L92-93 verbatim
+-- @@ L91-97 verbatim
+#guard_msgs in
 /-- A highly non-trivial theorem with a helpful hypothesis -/
 @[AMS 1 3]
-
--- @@ L94-98 verbatim
 example: 1 + 1 = 2 := by
   rfl
 
 -- The linter is compatible with theorems having other attributes.
-#guard_msgs in
 
--- @@ L99-104 verbatim
+-- @@ L98-103 verbatim
+#guard_msgs in
 @[simp, AMS 1]
 theorem test_1 : 1 + 1 = 2 := by
   rfl
 
 -- The order of attributes is irrelevant.
-#guard_msgs in
 
--- @@ L105-107 verbatim
+-- @@ L104-107 verbatim
+#guard_msgs in
 @[AMS 1, simp]
 theorem test_3 : 1 + 1 = 2 := by
   rfl
 
 
--- @@ L109-114 verbatim
+-- @@ L109-117 verbatim
 /--
 warning: The AMS tags should be ordered as AMS 1 3
 
 Note: This linter can be disabled with `set_option linter.style.ams_attribute false`
 -/
 #guard_msgs in
-
--- @@ L115-115 verbatim
 @[AMS 3 1]
-
--- @@ L116-117 verbatim
 theorem test_out_of_order : 1 + 1 = 2 := by
   rfl
 
 
--- @@ L119-124 verbatim
+-- @@ L119-127 verbatim
 /--
 warning: AMS tags contain duplicates. This should be AMS 3
 
 Note: This linter can be disabled with `set_option linter.style.ams_attribute false`
 -/
 #guard_msgs in
-
--- @@ L125-125 verbatim
 @[AMS 3 3]
-
--- @@ L126-127 verbatim
 theorem test_dup : 1 + 1 = 2 := by
   rfl
 
