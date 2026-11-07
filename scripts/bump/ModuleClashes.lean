@@ -3,7 +3,7 @@ ModuleClashes — the names that two modules of the tree both declare: what `imp
 
   lake env lean --run scripts/bump/ModuleClashes.lean OLEAN_ROOT modules.txt PREFIX      (in the tree, after the build)
   OLEAN_ROOT: where the oleans are (`.lake/build/lib/lean`); PREFIX: only modules under it are read (`Tengoku`)
-  modules.txt: the NEW modules, one per line, exact names without guillemets (`Tengoku.Lib.Foo.A-B`); tree_verify.py writes it
+  modules.txt: the NEW modules, one per line, as Lean spells them (`Tengoku.Lib.Foo.«A-B»`; a part with a dot, `«1102.4662»`, must keep its guillemets); tree_verify.py writes it (built.txt)
   prints, for every pair of modules that declare a common name where at least one of the two is new:
       CLASH <TAB> module <TAB> other module <TAB> how many names <TAB> the first of them
   and last:   clashes: P module pair(s), N name(s)

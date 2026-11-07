@@ -448,9 +448,12 @@ def cmd_candidates(a: argparse.Namespace) -> None:
             cands[m] = {"partners": sorted(ps), "importers": imps}
     before = sorted({tv.plain(m) for m in cands} | {tv.plain(x) for c in cands.values() for x in c["importers"]})
     whole = sorted({tv.plain(p) for c in cands.values() for p in c["partners"]})
+    # the lists ModuleFingerprint.lean reads are written as Lean spells each module (`Tengoku.Lib.«1102.4662»`): it reads a part in guillemets whole, and a dotted part written plain
+    # would be four parts, a module that does not exist (cubic on emissary#154). The bundle's own spelling (new.json) and the clash check's (the partners) are both Lean's.
+    spelled = {**{tv.plain(p): p for c in cands.values() for p in c["partners"]}, **keyed}
     out.mkdir(parents=True, exist_ok=True)
-    (out / "dups-before.txt").write_text("".join(m + "\n" for m in before))
-    (out / "dups-partners.txt").write_text("".join(m + "\n" for m in whole))
+    (out / "dups-before.txt").write_text("".join(spelled.get(m, tv.lean_module(m)) + "\n" for m in before))
+    (out / "dups-partners.txt").write_text("".join(spelled.get(m, tv.lean_module(m)) + "\n" for m in whole))
     (out / "dups-candidates.json").write_text(json.dumps({"ns": ns, "candidates": cands, "skipped": skipped}, indent=1) + "\n")
     # the verdict until `plan` says otherwise: nothing is aliased (a step that does not run, or has no time, leaves exactly this)
     (out / "dups.json").write_text(json.dumps({"ns": ns, "mode": a.mode, "aliases": {}, "not_same": {}, "refused": {}}, indent=1) + "\n")
@@ -652,8 +655,9 @@ def alive_after(a: argparse.Namespace) -> tuple[dict, dict, set[str], set[str]]:
 def cmd_after_list(a: argparse.Namespace) -> None:
     dups, new, importers, gone = alive_after(a)
     alive = sorted(importers - gone)
+    spelled = {tv.plain(m): m for m in new["modules"]}  # as Lean spells them, for ModuleFingerprint.lean (see cmd_candidates)
     Path(a.out).mkdir(parents=True, exist_ok=True)
-    (Path(a.out) / "dups-after.txt").write_text("".join(m + "\n" for m in alive))
+    (Path(a.out) / "dups-after.txt").write_text("".join(spelled.get(m, tv.lean_module(m)) + "\n" for m in alive))
     print(f"{len(alive)} of {len(importers)} importing module(s) built on the tree's module")
 
 

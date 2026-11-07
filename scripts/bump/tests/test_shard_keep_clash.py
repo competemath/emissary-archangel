@@ -74,7 +74,9 @@ def compose_drop_lines() -> list[str]:
     return re.findall(r"^\s*(drop=\$\(.*keep-drops\.txt.*\))\s*$", text, re.M)
 
 
-class ShardKeepStep(unittest.TestCase):
+class KeepFixture(unittest.TestCase):
+    """the library, the stand-in lake and timeout, and how the step is run (no test of its own)"""
+
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
@@ -105,6 +107,8 @@ class ShardKeepStep(unittest.TestCase):
     def run_step(self, script: str) -> subprocess.CompletedProcess:
         return subprocess.run(["bash", "-e", "-o", "pipefail", "-c", script], cwd=self.em, env=self.env, capture_output=True, text=True, timeout=120)
 
+
+class ShardKeepStep(KeepFixture):
     def test_the_clash_is_left_out_and_the_step_ends_with_a_keep_line(self):
         p = self.run_step(step_run("bump-shard.yml", "What the passed theorems are made of"))
         self.assertEqual(p.returncode, 0, p.stderr + p.stdout)
@@ -180,7 +184,7 @@ class ReadingTheClash(unittest.TestCase):
         self.assertEqual(self.bad_of("uncaught exception: import Lib.A failed, object file ./Lib/A.olean does not exist\n"), "")  # not a clash: no drop
 
 
-class Budget(ShardKeepStep):
+class Budget(KeepFixture):
     def test_a_name_with_a_comma_stops_the_step(self):
         lake = self.tmp / "bin" / "lake"
         lake.write_text("#!/bin/sh\necho \"uncaught exception: import FirstProof.«a,b» failed, environment already contains 'x' from FirstProof.Other\"\n")

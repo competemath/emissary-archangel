@@ -2,7 +2,7 @@
 ModuleFingerprint — a deep fingerprint of every declaration of some modules, to say whether a declaration in one environment is the same declaration as one in another.
 
   lake env lean --run scripts/bump/ModuleFingerprint.lean modules.txt [whole.txt]        (in the tree, after the build; scripts/bump/tree_dups.py writes both)
-  modules.txt: one module per line, exact names, without guillemets (`Tengoku.Lib.Foo.A-B`): the declarations of exactly these modules are fingerprinted
+  modules.txt: one module per line, as Lean spells it (`Tengoku.Lib.Foo.«A-B»`; a part with a dot, `«1102.4662»`, must keep its guillemets): the declarations of exactly these modules are fingerprinted
   whole.txt (optional, same format): modules of the tree's seed that are compared whole, like the library's own, wherever they are reached from. Every comparison that is to agree with another
              must be given the same list (a seed module is otherwise a leaf: counted by name and type, see below).
   Every module is fingerprinted in an environment of its own (its imports and nothing else): modules that declare one name (a copy and the tree's module) never meet, so one clash does not lose

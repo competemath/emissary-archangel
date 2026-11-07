@@ -169,8 +169,9 @@ jobs:
               cl = open(os.path.join(t, f"odd-cl-{v}.out"), encoding="utf-8").read()
               got = tv.clash_offenders(cl, mods)
               assert list(got) == [two_d], (v, got, cl[-800:])  # 2d is a new module that declares Toy.clashing; 1 and A-B declare nothing another module does
-              [one] = got[two_d]  # named against the module that declared the name first (one pair is enough to drop it)
-              assert one.startswith("Toy.clashing") and one.split(" also declared by ")[1] in ("Tengoku.LibA.A", "Tengoku.LibB.B"), (v, got)
+              # named against the module the program met first with the name: A or B, or both when it met 2d first (it reads the directories in no fixed order); one pair drops it
+              assert 1 <= len(got[two_d]) <= 2, (v, got)
+              assert all(x.startswith("Toy.clashing") and x.split(" also declared by ")[1] in ("Tengoku.LibA.A", "Tengoku.LibB.B") for x in got[two_d]), (v, got)
               print(v, "list:", done.group(0), "| clashes:", got)
           PY
       # The fingerprint of the copies of tree modules (tree_dups.py). Toy modules compiled to oleans (core Lean only): I is the tree's module and M a copy of it (the same text); D declares the same names

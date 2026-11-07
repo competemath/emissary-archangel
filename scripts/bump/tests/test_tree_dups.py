@@ -250,7 +250,7 @@ class FlowBase(unittest.TestCase):
     def setUp(self):
         self.d = Path(tempfile.mkdtemp())
         self.bundle = write(self.d / "bundle", self.FILES)
-        self.tree = write(self.d / "tree", {"Tengoku/Other/Lib/X.lean": "def Toy.f := 1\n"})
+        self.tree = write(self.d / "tree", getattr(self, "tree_files", {"Tengoku/Other/Lib/X.lean": "def Toy.f := 1\n"}))
         self.out = self.d / "out"
         tv.main(["apply", "--bundle", str(self.bundle), "--tree", str(self.tree), "--out", str(self.out)])
         (self.d / "build.log").write_text(self.BUILT)
@@ -439,6 +439,34 @@ class Flow(FlowBase):
         (self.d / "bad.json").write_text(json.dumps({"modes": {"proposed": {"aliases": ["Toy.M"]}}}))
         with self.assertRaises(SystemExit):
             td.load_for_compose(str(self.d / "bad.json"))
+
+
+class DottedFlow(FlowBase):
+    """The copy is a file with a dot in its name (`1102.4662.lean`, an arXiv number: the module `….«1102.4662»`) and the tree's module a part that is no identifier (`«2d»`).
+    ModuleFingerprint.lean reads a part in guillemets whole, so the lists it reads keep Lean's spelling; written plain, the copy would be four parts, a module that does not exist,
+    and would never be fingerprinted (cubic on emissary#154)."""
+
+    M = "Tengoku.ToyLib.Toy.«1102.4662»"
+    FILES = {
+        "Tengoku/ToyLib/Toy/1102.4662.lean": "import Tengoku\n\ndef Toy.f := 1\n",
+        "Tengoku/ToyLib/Toy/B.lean": "import Tengoku\nimport Tengoku.ToyLib.Toy.«1102.4662»\n\ntheorem Toy.t : Toy.f = 1 := rfl\n",
+        "Tengoku/ToyLib/Toy/C.lean": "import Tengoku.ToyLib.Toy.B\n\ntheorem Toy.u : 1 = 1 := rfl\n",
+        "Tengoku/ToyLib/Toy/U.lean": "import Tengoku\n\ntheorem Toy.v : 2 = 2 := rfl\n",
+        "Tengoku/ToyLib.lean": "".join(f"import Tengoku.ToyLib.Toy.{m}\n" for m in ("«1102.4662»", "B", "C", "U")),
+        "Tengoku/ToyLib/Deps.lean": "-- ToyLib\n",
+    }
+    BUILT = "".join(f"✔ [{i}/4] Built Tengoku.ToyLib.Toy.{m} (1s)\n" for i, m in enumerate(("«1102.4662»", "B", "C", "U"), 1)) + "Build completed successfully.\n"
+    CLASH = "CLASH\tTengoku.ToyLib.Toy.«1102.4662»\tTengoku.Other.Lib.«2d»\t1\tToy.f\nclashes: 1 module pair(s), 1 name(s)\n"
+
+    def setUp(self):
+        self.tree_files = {"Tengoku/Other/Lib/2d.lean": "def Toy.f := 1\n"}
+        super().setUp()
+
+    def test_the_lists_for_the_fingerprints_keep_lean_spelling(self):
+        cand = json.loads((self.out / "dups-candidates.json").read_text())["candidates"]
+        self.assertEqual(list(cand), [self.M])
+        self.assertEqual((self.out / "dups-before.txt").read_text().split(), [self.M, "Tengoku.ToyLib.Toy.B", "Tengoku.ToyLib.Toy.C"])  # in the order of the plain names
+        self.assertEqual((self.out / "dups-partners.txt").read_text().split(), ["Tengoku.Other.Lib.«2d»"])
 
 
 class KeepFlow(FlowBase):
