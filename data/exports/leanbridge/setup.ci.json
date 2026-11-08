@@ -1,0 +1,68 @@
+{
+  "key": "leanbridge",
+  "repo": "https://github.com/CBirkbeck/LeanBridge",
+  "commit": "4dffaca404780f5ec439bda834fbc90a891174c2",
+  "toolchain": "leanprover/lean4:v4.31.0",
+  "roots": [
+    "LeanBridge"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/leanbridge/repo",
+  "entries": 10952,
+  "modules": 2181,
+  "exported": 2179,
+  "failed": [
+    {
+      "module": "LeanBridge.ForMathlib.Irreduciblepolys.min_poly_deg2_1_minus1_minus1",
+      "why": "does not compile at the library's own commit: error: LeanBridge/ForMathlib/Irreduciblepolys/min_poly_deg2_1_minus1_minus1.lean:20:6: `irreducible_poly` has already been declared"
+    },
+    {
+      "module": "LeanBridge.Mathlib.\u00abUnits.lean\u00bb.unitmk",
+      "why": "does not compile at the library's own commit: error: LeanBridge/Mathlib/Units.lean/unitmk.lean:1:0: import LeanBridge.ForMathlib.tactics.LMFDB_Proof_2_2_8_1 failed, environment already contains 'C._proof_6' from LeanBridge.ForMathlib.tactics.LMFDB_Proof_2_2_13_1"
+    }
+  ],
+  "expansion": {
+    "expanded": 36,
+    "verbatim": 204,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 10980,
+    "kept": 10952,
+    "skippedRoot": 0,
+    "skippedDup": 28,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 6775,
+    "lineUnverified": 0,
+    "nameFixed": 1,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "sharded": {
+    "records": 15,
+    "shards": [
+      15
+    ]
+  },
+  "tools": {
+    "lean": "4.31.0 (commit 68218e876d2a38b1985b8590fff244a83c321783, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+68218e8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "8554815c2dc6 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 2050727936,
+  "minutes": 27,
+  "finishedAt": "2026-11-08T08:26:21.732Z",
+  "archive": {
+    "release": "exports-leanbridge",
+    "asset": "leanbridge@4dffaca40478-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-leanbridge/leanbridge@4dffaca40478-exports.tar.zst",
+    "bytes": 368691699,
+    "sha256": "49d55d4f70a1e870bdbfb5c87b7418f97c1b28b928585ec29e0d9dd3384ea1ab",
+    "files": 4358,
+    "unpack": "tar --zstd -xf leanbridge@4dffaca40478-exports.tar.zst -C data/exports/leanbridge"
+  }
+}
