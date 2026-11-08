@@ -28,13 +28,16 @@ take minutes instead of seconds. -/
 def modOf (env : Environment) (moduleNames : Array Name) (n : Name) : Option Name :=
   (env.getModuleIdxFor? n).bind fun i => moduleNames[i.toNat]?
 
-/-- Does the constant stand on `sorryAx`, directly or through a library constant? (a failed proof, or anything built on one) -/
+/-- Does the constant stand on `sorryAx` or an axiom of the library, directly or through a library constant? (a failed proof, an unproved input, or anything built on one) -/
 partial def tainted (env : Environment) (isOwn : Name → Bool) (memo : IO.Ref (Std.HashMap Name Bool)) (c : Name) : IO Bool := do
   if let some b := (← memo.get)[c]? then return b
   memo.modify (·.insert c false)  -- in progress: a cycle does not taint itself
   let some ci := env.find? c | return false
   let used := ci.getUsedConstantsAsSet
-  let mut t := used.contains ``sorryAx
+  -- an axiom of the library is an unproved input, not glue: it stays out unless a kept constant uses it, and the lint then refuses it. prime-gaps-186 (8 Nov 2026) declares three, used
+  -- by its last theorem only; kept as glue they took all 3,170 verified theorems of its one module out with them
+  let isOwnAxiom := isOwn c && (match ci with | .axiomInfo _ => true | _ => false)
+  let mut t := used.contains ``sorryAx || isOwnAxiom
   unless t do
     for u in used.toList do
       if isOwn u && (← tainted env isOwn memo u) then
