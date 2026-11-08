@@ -1,0 +1,30 @@
+{
+  "shard": 2,
+  "shards": 4,
+  "commit": "61340d0b74163003b32756bb16e91d9209a5e330",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "modules": 1,
+  "exported": 1,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "PrimeGaps186",
+        "why": "Command failed: lake env lean -M 14336 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/prime-gaps-186 PrimeGaps186,Challenge PrimeGaps186 "
+      }
+    ]
+  },
+  "tools": {
+    "lean": "4.34.0-rc2 (commit 6a10ac8c22beadecabdbb0919c2b50214762f91d, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+6a10ac8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "483e011449cc + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "minutes": 27,
+  "finishedAt": "2026-11-08T19:39:22.196Z"
+}

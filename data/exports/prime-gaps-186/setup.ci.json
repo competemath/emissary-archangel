@@ -8,43 +8,58 @@
     "Challenge"
   ],
   "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/prime-gaps-186/repo",
-  "entries": 0,
-  "modules": 0,
-  "exported": 0,
+  "entries": 3504,
+  "modules": 1,
+  "exported": 1,
   "failed": [],
   "expansion": {
     "expanded": 0,
     "verbatim": 0,
     "unexpanded": 0,
-    "failed": []
+    "failed": [
+      {
+        "module": "PrimeGaps186",
+        "why": "Command failed: lake env lean -M 14336 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/prime-gaps-186 PrimeGaps186,Challenge PrimeGaps186 "
+      }
+    ]
   },
   "seed": {
     "records": 3504,
-    "kept": 0,
-    "skippedRoot": 3504,
+    "kept": 3504,
+    "skippedRoot": 0,
     "skippedDup": 0,
     "skippedNoFile": 0,
     "skippedCommented": 0,
-    "lineFixed": 0,
-    "lineUnverified": 0,
-    "nameFixed": 0,
+    "lineFixed": 18,
+    "lineUnverified": 43,
+    "nameFixed": 3465,
     "sorryOriginals": 0,
     "emptyProofs": 0
   },
   "sharded": {
-    "records": 0,
-    "shards": []
+    "records": 4,
+    "shards": [
+      4
+    ]
   },
-  "exportsBytes": 8192,
-  "minutes": 0,
-  "finishedAt": "2026-11-08T15:30:29.648Z",
+  "tools": {
+    "lean": "4.34.0-rc2 (commit 6a10ac8c22beadecabdbb0919c2b50214762f91d, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+6a10ac8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "483e011449cc + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 19730432,
+  "minutes": 28,
+  "finishedAt": "2026-11-08T19:40:10.158Z",
   "archive": {
     "release": "exports-prime-gaps-186",
     "asset": "prime-gaps-186@61340d0b7416-exports.tar.zst",
     "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-prime-gaps-186/prime-gaps-186@61340d0b7416-exports.tar.zst",
-    "bytes": 24,
-    "sha256": "b606db750a03e4627037ef2de8288c10527247be5eda31904b1230670e177a19",
-    "files": 0,
+    "bytes": 2512392,
+    "sha256": "e5ee0140fef8b18e8401740f426954dbccb8398dad39cf241984bd934b81f54e",
+    "files": 2,
     "unpack": "tar --zstd -xf prime-gaps-186@61340d0b7416-exports.tar.zst -C data/exports/prime-gaps-186"
   }
 }
