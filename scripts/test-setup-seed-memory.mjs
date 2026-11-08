@@ -160,7 +160,7 @@ check("the fixture reproduces the failure: with every file kept, the seed dies a
 // The records here have the REAL sizes of leanbridge-001's 1,645 records (fixtures/real-leanbridge-001-sizes.json: statement and proof lengths, two-byte text where the real one
 // is, the real 341 files), twice (as leanbridge-001 and -002), ~80 MB of text, ~240 MB as entries: more than the 128 MB heap the seed and build-status run under here.
 // Invariants: the seed finishes under the cap; the queue holds every record whole (statement and proof), in order, and its bytes are JSON.stringify(entries, null, 2); build-status
-// reads that queue back under the same cap and counts every module; a queue of another shape (minified, empty) is still read; a cut-off queue is refused, not half-read.
+// reads that queue back under the same cap and counts every module; a queue of another shape (minified, empty) is still read; a cut-off queue, a missing comma or a trailing comma is refused, not half-read.
 {
   const real = JSON.parse(readFileSync(join(here, "fixtures", "real-leanbridge-001-sizes.json"), "utf8"))
   check("the fixture is leanbridge-001's 1,645 records in 341 files", real.records === 1645 && real.rows.length === 1645 && real.files === 341)
@@ -232,6 +232,14 @@ check("the fixture reproduces the failure: with every file kept, the seed dies a
   writeFileSync(qfile, text.slice(0, Math.floor(text.length / 2)))
   const cut = run(["--phase", "build-status"], 1024)
   check("a queue cut off in the middle is refused, not half-read", cut.status !== 0 && /ends before its closing \]|not the start of an entry/.test(cut.stdout + cut.stderr), `${cut.status} ${(cut.stdout + cut.stderr).slice(-300)}`)
+  // the separators are checked: an entry without the comma before it, or a comma before the closing ], is a queue no writer made
+  const ents = text.split("\n  },\n")
+  writeFileSync(qfile, ents[0] + "\n  }\n" + ents.slice(1).join("\n  },\n"))
+  const noComma = run(["--phase", "build-status"], 1024)
+  check("an entry without the comma before it is refused", noComma.status !== 0 && /an entry without a comma before it/.test(noComma.stdout + noComma.stderr), `${noComma.status} ${(noComma.stdout + noComma.stderr).slice(-300)}`)
+  writeFileSync(qfile, text.replace(/\n  \}\n\]$/, "\n  },\n]"))
+  const trailing = run(["--phase", "build-status"], 1024)
+  check("a comma before the closing ] is refused", trailing.status !== 0 && /a comma before the closing \]/.test(trailing.stdout + trailing.stderr), `${trailing.status} ${(trailing.stdout + trailing.stderr).slice(-300)}`)
   writeFileSync(qfile, text + "\n[]")
   const extra = run(["--phase", "build-status"], 1024)
   check("text after the closing ] is refused", extra.status !== 0 && /text after the closing \]/.test(extra.stdout + extra.stderr), `${extra.status} ${(extra.stdout + extra.stderr).slice(-300)}`)

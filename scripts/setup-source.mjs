@@ -429,7 +429,8 @@ function jsonArrayWriter(path) {
 }
 // The entries of a queue in the shape JSON.stringify(items, null, 2) writes, read one entry at a time: leanbridge's queue is ~600 million characters, longer than the longest string
 // Node can make, so the next step of the same job (build-status after the build) could not read it whole. JSON strings hold no raw newline, so an entry is the lines from "  {"
-// to "  }" or "  },". `keep` cuts each entry down to what is used. A file of another shape (minified, "[]") is parsed whole, as before.
+// to "  }" or "  },", and the commas are checked (every entry but the last ends with one). `keep` cuts each entry down to what is used. A file of another shape (minified, "[]")
+// is parsed whole, as before.
 function readQueueEntries(path, keep) {
   const fd = openSync(path, "r")
   try {
@@ -441,19 +442,21 @@ function readQueueEntries(path, keep) {
     let rest = ""
     let cur = null
     let ended = false
+    let after = "[" // what the last entry ended with: "[" (none yet), "," (another must follow) or "}" (the last one: "]" must follow)
     const line = (l, no) => {
       if (ended) {
         if (l !== "") throw new Error(`queue ${path}: text after the closing ]`)
       } else if (no === 0) {
         if (l !== "[") throw new Error(`queue ${path}: does not start with [`)
       } else if (cur === null) {
-        if (l === "]") ended = true
-        else if (l === "  {") cur = [l]
-        else throw new Error(`queue ${path}: line ${no + 1} is not the start of an entry`)
+        if (l === "]" && after === "}") ended = true
+        else if (l === "  {" && after !== "}") cur = [l]
+        else throw new Error(`queue ${path}: line ${no + 1} is not ${after === "}" ? "the closing ] (an entry without a comma before it?)" : after === "," ? "the start of an entry (a comma before the closing ]?)" : "the start of an entry"}`)
       } else if (l === "  }" || l === "  },") {
         cur.push("}")
         out.push(keep(JSON.parse(cur.join("\n"))))
         cur = null
+        after = l === "  }" ? "}" : ","
       } else cur.push(l)
     }
     let no = 0
