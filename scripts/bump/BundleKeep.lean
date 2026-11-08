@@ -6,7 +6,7 @@ BundleKeep — which library constants a bundle must keep (scripts/bump/bundle.p
   prints:  BUNDLE_KEEP [["Module", "const"], ...] BUNDLE_END
            BUNDLE_GRAPH {"nodes": [["Module", "const"], ...], "edges": [[i, [j, ...]], ...], "tainted": [i, ...]} BUNDLE_END
   The graph is of every library constant that is NOT kept: nodes are numbered by their place in `nodes`; an edge `[i, [j, ...]]` says that constant i uses constants j (own, not kept, anything
-  kept is already in the bundle); `tainted` are the nodes that stand on `sorryAx`, directly or through another library constant. bundle.py compose follows it from every declaration that
+  kept is already in the bundle); `tainted` are the nodes that stand on `sorryAx` or on an axiom of the library (the axiom itself included), directly or through another library constant. bundle.py compose follows it from every declaration that
   is kept only because TEXT names it (glue, a `simp` attribute line, a name in a proof): such a declaration has no term in the keep step, so what its term uses was never kept.
 
 The keep set is the closure of the types, values and proofs of the passed theorems AND of every library constant that is not a theorem and stands on nothing
