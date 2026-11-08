@@ -42,10 +42,10 @@ IMPORT_LINE = re.compile(r"^(?P<pre>\s*(?:(?:public|private|meta)\s+)*import\s+)
 def lean_files(lib: Path, roots: list[str]) -> list[Path]:
     files = []
     for r in roots:
-        if (lib / f"{r}.lean").exists():
+        if (lib / f"{r}.lean").is_file():
             files.append(lib / f"{r}.lean")
         if (lib / r).is_dir():
-            files += sorted((lib / r).rglob("*.lean"))
+            files += sorted(p for p in (lib / r).rglob("*.lean") if p.is_file())
     return files
 
 

@@ -56,10 +56,10 @@ def _under_roots(lib: Path, roots: list[str]) -> dict[str, Path]:
     found: dict[str, Path] = {}
     for r in roots:
         top = lib / f"{r}.lean"
-        if top.exists():
+        if top.is_file():
             found[r] = top
         if (lib / r).is_dir():
-            for p in sorted((lib / r).rglob("*.lean")):
+            for p in sorted(x for x in (lib / r).rglob("*.lean") if x.is_file()):  # a DIRECTORY can be named X.lean (leanbridge: LeanBridge/Mathlib/Units.lean/unitmk.lean)
                 found[".".join(esc(x) for x in p.relative_to(lib).with_suffix("").parts)] = p
     return found
 

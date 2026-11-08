@@ -205,7 +205,7 @@ def index_package(pkg_dir: Path) -> dict[str, Path]:
     for src in package_src_dirs(pkg_dir):
         if not src.is_dir():
             continue
-        for p in sorted(src.rglob("*.lean")):
+        for p in sorted(x for x in src.rglob("*.lean") if x.is_file()):
             rel = p.relative_to(src)
             parts = rel.with_suffix("").parts
             if any(x in (".lake", "lake-packages", ".git") for x in parts) or (len(parts) == 1 and parts[0].lower().startswith("lakefile")):

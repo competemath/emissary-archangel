@@ -170,7 +170,7 @@ def adapt_library(key: str, lib: Path, roots: list[str]) -> tuple[int, int]:
         if (lib / f"{r}.lean").is_file():
             paths.append(lib / f"{r}.lean")
         if (lib / r).is_dir():
-            paths += sorted((lib / r).rglob("*.lean"))
+            paths += sorted(p for p in (lib / r).rglob("*.lean") if p.is_file())
     for p in paths:
         old = p.read_text(encoding="utf-8")
         new, n = fn(old)
