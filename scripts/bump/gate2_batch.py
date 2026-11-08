@@ -316,9 +316,11 @@ def ledger_latest(path: Path) -> dict[str, dict]:
 
 
 def subdirs_of_libraries() -> dict[str, str]:
-    """library key -> the subdirectory of its repository that is the Lake project (sources.json `subdir`; fagin `proofs`, openai-math `lean`). Empty where sources.json is not checked out."""
+    """library key -> what comes before a module's path in a repository link: the Lake project's subdirectory (sources.json `subdir`; fagin `proofs`, openai-math `lean`), then its source
+    folder (`srcdir`; classfieldtheory-yamaguchi `Lean4`). Empty where sources.json is not checked out."""
     try:
-        return {k: v["subdir"] for k, v in json.loads((Path(__file__).resolve().parents[2] / "sources.json").read_text())["sources"].items() if v.get("subdir")}
+        sources = json.loads((Path(__file__).resolve().parents[2] / "sources.json").read_text())["sources"].items()
+        return {k: "/".join(x for x in (v.get("subdir"), v.get("srcdir")) if x) for k, v in sources if v.get("subdir") or v.get("srcdir")}
     except (OSError, ValueError, KeyError):
         return {}
 

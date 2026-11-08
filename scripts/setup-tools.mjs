@@ -101,3 +101,10 @@ export function mergeTools(list) {
   }
   return out
 }
+
+// The root a repository-relative source path belongs to: the first directory, or for a file at the top of the repository the module it is (`PrimeGaps186.lean`, the root
+// `PrimeGaps186`). OpenAI's single-file proofs have every record in such a file; compared as `PrimeGaps186.lean` they all fell outside the roots.
+export const rootOfRepoPath = (p) => {
+  const parts = String(p).split("/")
+  return parts.length > 1 ? parts[0] : parts[0].replace(/\.lean$/, "")
+}

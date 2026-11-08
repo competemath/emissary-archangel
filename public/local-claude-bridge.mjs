@@ -3055,12 +3055,11 @@ const architectDriverFor = (name) => (architectConfigFor(name).driver === "claud
 // The two verifier groups DO NOT run the same Lean. A certificate that names the
 // wrong one is a false claim about how the proof was checked, so the toolchain is
 // carried per run (from whichever group actually certified the proof) instead of
-// being assumed. Sources: Leak II/IV lean-toolchain + lake-manifest (mathlib tag
-// v4.29.1, rev 5e932f9…); Leak XII/XIV gateway/lean-toolchain + lakefile.toml
+// being assumed. Sources: Leak I/II/IV serve the Tengoku tree (its lean-toolchain); Leak XII/XIV gateway/lean-toolchain + lakefile.toml
 // (mathlib tag v4.32.0). Update these together with those pins.
 const TOOLCHAINS = {
   // Leak I / II / IV — the original group, gate = verify_full_script.
-  legacy: { lean: "leanprover/lean4:v4.29.1", mathlib: "v4.29.1", group: "Leak I/II/IV" },
+  legacy: { lean: "leanprover/lean4:v4.34.0-rc2", mathlib: "tengoku", group: "Leak I/II/IV" },
   // Leak XI / XII / XIV — the LeanArchitect group, gate = Leak XIV.
   architect: { lean: "leanprover/lean4:v4.32.0", mathlib: "v4.32.0", group: "Leak XI/XII/XIV" },
 }

@@ -81,6 +81,7 @@ jobs:
           # still resolves next to it in the clone (as bump-library.yml does)
           sub=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")
           if [ -n "$sub" ]; then mv lib lib-repo && ln -s "lib-repo/$sub" lib; fi
+          python3 scripts/bump/link_srcdir.py "$KEY" lib   # modules under a source folder (sources.json `srcdir`) are linked where their names say
           python3 - <<'PY'
           import glob, json, math, os, sys
           sys.path.insert(0, "scripts/bump")
