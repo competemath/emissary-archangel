@@ -39,4 +39,5 @@ jobs:
       - run: node scripts/test-setup-watch.mjs
       - run: node scripts/test-pinned-deps.mjs
       - run: node scripts/test-setup-seed-memory.mjs
+      - run: node scripts/test-setup-seed-roots.mjs
       - run: node scripts/test-setup-budget-run.mjs

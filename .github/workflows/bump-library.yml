@@ -82,6 +82,7 @@ jobs:
           # (`../concepts`) still resolves next to it in the clone
           sub=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")
           if [ -n "$sub" ]; then mv lib lib-repo && ln -s "lib-repo/$sub" lib; fi
+          python3 scripts/bump/link_srcdir.py "$KEY" lib   # modules under a source folder (sources.json `srcdir`) are linked where their names say
           # Mathlib's revision the library is on: from its lake-manifest.json, or, when the project does not commit one (szymtor's immerman-vardi and fagin), from the
           # `rev` of its mathlib requirement in lakefile.toml
           OLD_MATHLIB=$(python3 - <<'PY'

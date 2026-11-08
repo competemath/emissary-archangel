@@ -1405,6 +1405,7 @@
       "repo": "https://github.com/n-yamaguchi-0729/ClassFieldTheory",
       "commit": "2eb22d6485af45f29c5219de6c49f196a61c4f49",
       "toolchain": "leanprover/lean4:v4.34.0",
+      "srcdir": "Lean4",
       "roots": [
         "ClassFieldTheory",
         "ValuedFieldTheory",

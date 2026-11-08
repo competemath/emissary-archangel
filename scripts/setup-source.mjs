@@ -35,7 +35,7 @@ import { basename, dirname, join, relative, resolve } from "node:path"
 import { StringDecoder } from "node:string_decoder"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
-import { collectTools, exporterAction, mergeTools, patchFingerprint } from "./setup-tools.mjs"
+import { collectTools, exporterAction, mergeTools, patchFingerprint, rootOfRepoPath } from "./setup-tools.mjs"
 import { bisectItems } from "./bisect.mjs"
 import { repairPins } from "./pinned-deps.mjs"
 import { aloneFirstMs, availableFrom, buildAttempts, closureBigModules, closureBudgetMs, closureRetryMs, membersOf, soloBuildMs, soloMax } from "./memory-rules.mjs"
@@ -291,7 +291,7 @@ const moduleOfCommand = (cmd) => {
   for (const tok of cmd.split(/\s+/)) {
     if (!tok.endsWith(".lean")) continue
     const rel = relative(REPO, resolve(REPO, tok)).replace(/\\/g, "/")
-    if (rel && !rel.startsWith("..")) return moduleOfPath(rel)
+    if (rel && !rel.startsWith("..")) return moduleOfPath(src.srcdir && rel.startsWith(src.srcdir + "/") ? rel.slice(src.srcdir.length + 1) : rel)
   }
   return null
 }
@@ -511,6 +511,10 @@ async function ensureClone() {
     if (pinned && pinned !== src.toolchain) log(`WARNING: checkout pins ${pinned}, registry says ${src.toolchain} — using the checkout's`)
     if (pinned) src.toolchain = pinned
   }
+  if (src.srcdir) {
+    const r = await run("python3", [join(APP_ROOT, "scripts", "bump", "link_srcdir.py"), key, REPO], { timeoutMs: 60 * 1000 })
+    if (r.code !== 0) fail(`link_srcdir: ${r.tail.slice(-500)}`)
+  }
   log(`checkout ${REPO} @ ${src.commit.slice(0, 12)} (${src.toolchain})`)
 }
 
@@ -605,6 +609,7 @@ function seedQueue() {
     return file
   }
   const entries = []
+  const skippedTops = new Map() // what the records outside the roots start with, for the message below
   const queue = jsonArrayWriter(QUEUE)
   for (const raw of tentativeLines()) {
     if (!raw.trim()) continue
@@ -618,8 +623,11 @@ function seedQueue() {
     let [, ownerRepo, commit, path] = m
     let line = Number(m[4])
     if (src.subdir && path.startsWith(src.subdir + "/")) path = path.slice(src.subdir.length + 1) // records are repository-relative
-    if (!roots.has(path.split("/")[0]) || path.includes("..")) {
+    if (src.srcdir && path.startsWith(src.srcdir + "/")) path = path.slice(src.srcdir.length + 1) // and a module is named from inside its source folder (Lean4/A/B.lean is A.B)
+    if (!roots.has(rootOfRepoPath(path)) || path.includes("..")) {
       stats.skippedRoot++
+      const top = path.split("/")[0]
+      skippedTops.set(top, (skippedTops.get(top) || 0) + 1)
       continue
     }
     const file = fileOf(path)
@@ -687,6 +695,13 @@ function seedQueue() {
     stats.kept++
   }
   queue.close()
+  // Every record outside the roots is a registry that does not describe the repository, never a library with nothing to give: such a setup used to succeed with 0 modules
+  // and 35,297 records of four libraries were lost without a word (8 Nov 2026). It stops here, and leaves no empty queue for the next run to keep.
+  if (stats.records && stats.skippedRoot === stats.records) {
+    rmSync(QUEUE, { force: true })
+    const tops = [...skippedTops].sort((x, y) => y[1] - x[1]).slice(0, 5).map(([t, n]) => `${t} (${n})`).join(", ")
+    fail(`seed: all ${stats.records} records are outside the roots ${[...roots].join(", ")}; their paths start with ${tops}: fix the roots or the layout of ${key} in sources.json`)
+  }
   log(`seed: ${[...fileCache.values()].filter(Boolean).length} source file(s) kept at the end`) // a missing file is cached as null: not a file kept
   log(`seeded ${QUEUE}: ${JSON.stringify(stats)}`)
   return { entries, stats }
