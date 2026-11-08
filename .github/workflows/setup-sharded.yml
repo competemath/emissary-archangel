@@ -208,7 +208,7 @@ jobs:
           # one line a minute: free memory, modules built, the biggest process (build-metrics.tsv, kept as an artifact); every fifth is also printed so the log is never silent
           sh scripts/runner-watch.sh "infra/$KEY/repo/$sub/.lake/build/lib/lean" build-metrics.tsv 60 &
           watcher=$!
-          timeout -k 2m "${PRIME_MINUTES}m" node scripts/setup-source.mjs "$KEY" --phase build $restore $args || echo "::notice::the prime build stopped at its budget; the shards build the rest"
+          bash scripts/budget-run.sh "$PRIME_MINUTES" "the prime build" "the shards build the rest" node scripts/setup-source.mjs "$KEY" --phase build $restore $args
           pkill -f 'bin/lake|bin/lean' || true
           kill "$cleaner" 2>/dev/null || true
           kill "$watcher" 2>/dev/null || true; wait "$watcher" 2>/dev/null || true   # the watcher takes a last sample when told to stop
@@ -226,7 +226,7 @@ jobs:
         env: { RETRY_MB: "${{ inputs.retry_mb }}", ESCALATE_MB: "57344" }
         run: |
           # runs no Lean; the library's own code has run in this job, so only a word and two counts are taken from the answer, each cut down to its shape
-          answer=$(node scripts/setup-source.mjs "$KEY" --phase build-status || true)
+          answer=$(node scripts/setup-source.mjs "$KEY" --phase build-status) || echo "::error::the build status could not be read (exit code $?; 134: Node ran out of memory, see the log above): the next round has no count to compare"
           word=$(printf '%s\n' "$answer" | grep -E '^complete=(true|false)$' | tail -n 1 || true)
           echo "complete=${word#complete=}" | grep -E '^complete=(true|false)$' >> "$GITHUB_OUTPUT" || echo "complete=false" >> "$GITHUB_OUTPUT"
           # built = modules with an .olean after this round: the next round's build-gate compares its own count with it. Nothing is written when the line is not a count (the gate then has nothing to compare)
@@ -533,7 +533,7 @@ jobs:
           sub=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")
           ( while sleep 300; do find "infra/$KEY/repo/$sub/.lake/build/ir" -name '*.setup.json' -mmin +15 -delete 2>/dev/null; done ) &
           cleaner=$!   # stopped right after the build: it must not delete files while the next step packs the folder (tar: file changed as we read it)
-          timeout -k 2m 300m node scripts/setup-source.mjs "$KEY" --phase shard --shard "$I/$SHARDS" --restore build.tar.zst $args || echo "::notice::shard $I stopped before finishing; handing on what it produced"
+          bash scripts/budget-run.sh 300 "shard $I" "handing on what it produced" node scripts/setup-source.mjs "$KEY" --phase shard --shard "$I/$SHARDS" --restore build.tar.zst $args
           pkill -f 'bin/lake|bin/lean' || true
           kill "$cleaner" 2>/dev/null || true
           rm -f build.tar.zst
