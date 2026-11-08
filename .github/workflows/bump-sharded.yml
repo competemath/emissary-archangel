@@ -150,6 +150,22 @@ jobs:
       swap_gb: ${{ needs.plan.outputs.swap_gb }}
       build_timeout_min: ${{ needs.plan.outputs.build_timeout_min }}
     permissions: { contents: read }
+  # A shard killed for memory: the whole plan again with swap, once (rerun_killed.py). A run that already has `heavy`, or is a resume, never starts another.
+  rerun-with-swap:
+    needs: [plan, shard]
+    if: ${{ !cancelled() && needs.shard.result == 'failure' && inputs.heavy == '' && inputs.only_shards == '' && inputs.fill_from == '' && inputs.recut_from == '' && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions: { actions: write, contents: read }  # read the run's jobs and logs, dispatch this workflow
+    env: { GH_TOKEN: "${{ github.token }}", INPUTS: "${{ toJSON(inputs) }}" }
+    steps:
+      - name: The scripts of this commit
+        run: |
+          git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
+          git -C emissary sparse-checkout set --no-cone "/scripts/bump/"
+          git -C emissary checkout -q "$GITHUB_SHA"
+      - name: Start the plan again if every failed shard was killed for memory
+        run: python3 emissary/scripts/bump/rerun_killed.py "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
   # compose: the DRAFT. Merges the shards and cuts the bundle exactly as `finish` will, and hands the draft to `verify` (the tree's own build of it). Nothing is signed here
   # and no code of the library runs: the shards' artifacts are read as data (shard_pack.merge refuses symlinks and `..`).
   compose:
