@@ -55,7 +55,13 @@ const MATHLIB_LIMIT = {
   "full-closure": "The original's export holds the Mathlib constants its statement reaches (lean4export without --only-listed, scripts/attest/export-full.mjs). Gate 2 replays those the tree does not have, under their old names, and refuses (name_collision) one the tree has with a different type; a Mathlib constant the tree has with the same type is taken to mean the same.",
 }
 export const EXPORT_MODES = Object.keys(MATHLIB_LIMIT)
-export const limitsFor = (exportMode) => [...LIMITS_COMMON, MATHLIB_LIMIT[exportMode] || MATHLIB_LIMIT["library-only"]]
+const BATCH_LIMITS = [
+  "The proofs are `sorry`: this is a check of STATEMENTS, never a translation, and never admissible to Tengoku. Gate 1 (Leak IV: no sorry, no warning) is not run. The statement-only rule lets `sorry` stand only in the PROOF of the theorem checked: the statement and every definition either side's statement reaches must stand on the three standard axioms.",
+  "Gate 2's batch check: each definition the statements reach (library or Mathlib) must be identical, or the kernel must accept `native = original` by `Eq.refl` with the original's replayed beside it (definitional equality, universe and instance paths included); then the two statements are structurally equal (`via=equal`) or the bridge `fun h => h : T_translated -> T_original` is accepted (`via=entails`).",
+  "Direction: translated -> original. A proof of the translated statement proves the original one; the converse is not checked, except where `via=equal`.",
+  "A Mathlib constant the tree has with the same type and a different definition is accepted only if the kernel finds the two definitions definitionally equal; a constant of the original's toolchain the tree lacks is replayed under its old name from the full-closure export.",
+]
+export const limitsFor = (exportMode, checker = "daemon") => (checker === "batch-statement-only" ? BATCH_LIMITS : [...LIMITS_COMMON, MATHLIB_LIMIT[exportMode] || MATHLIB_LIMIT["library-only"]])
 
 /** One problem's entry in the attestation. */
 export function problemEntry({ problem, qualifiedName, oldId, exportSha256, verdict, gate2Text }) {
@@ -67,14 +73,15 @@ export function problemEntry({ problem, qualifiedName, oldId, exportSha256, verd
     reason: verdict.reason,
     statementsIdentical: verdict.identical,
     translatedSha256: sha256(problem.statement),
+    ...(verdict.via ? { via: verdict.via } : {}),
     ...(oldId ? { oldId } : {}),
     ...(exportSha256 ? { exportSha256 } : {}),
     ...(problem.port ? { port: problem.port.kind } : {}),
-    ...(verdict.ok ? {} : { detail: String(gate2Text || "").replace(/\s+/g, " ").slice(0, 600) }),
+    ...(verdict.ok ? {} : { detail: String(gate2Text || [verdict.msg, verdict.diff, ...(verdict.names ? [`names: ${verdict.names.join(",")}`] : []), ...(verdict.errors || [])].filter(Boolean).join(" | ")).replace(/\s+/g, " ").slice(0, 600) }),
   }
 }
 
-export function buildAttestation({ subject, upstream, target, inputs, gate2, problems, run, exportMode = "library-only" }) {
+export function buildAttestation({ subject, upstream, target, inputs, gate2, problems, run, exportMode = "library-only", checker = "daemon" }) {
   const counts = { total: problems.length, pass: 0, fail: 0 }
   const reasons = {}
   for (const p of problems) {
@@ -89,11 +96,11 @@ export function buildAttestation({ subject, upstream, target, inputs, gate2, pro
     subject,
     upstream,
     target,
-    inputs: { ...inputs, exportMode },
+    inputs: { ...inputs, exportMode, checker },
     gate2,
     run,
     counts: { ...counts, failReasons: reasons },
-    limits: limitsFor(exportMode),
+    limits: limitsFor(exportMode, checker),
     problems,
   }
 }
@@ -117,4 +124,79 @@ export function checkAttestation(a) {
   if (a?.counts?.pass !== pass) bad.push(`counts.pass ${a?.counts?.pass} != ${pass}`)
   if (a?.counts?.total !== (a?.problems || []).length) bad.push("counts.total differs from the problems")
   return bad
+}
+
+// ---- the batch checker (scripts/attest/attest-batch.mjs) ------------------------------------------------
+
+const stripLeanComments = (text) => {
+  let out = ""
+  let depth = 0
+  for (let i = 0; i < text.length; i++) {
+    const two = text.slice(i, i + 2)
+    if (two === "/-") (depth++, (i += 1))
+    else if (two === "-/" && depth) (depth--, (i += 1))
+    else if (depth) out += text[i] === "\n" ? "\n" : " "
+    else if (two === "--") while (i < text.length && text[i] !== "\n") i++, (out += " ")
+    else out += text[i]
+  }
+  return out
+}
+
+/** The qualified name of the theorem `bare` in a statement file, from its `namespace`/`end` lines; null when it is not declared exactly once. */
+export function qualifiedTarget(statement, bare) {
+  const ns = []
+  const found = []
+  for (const line of stripLeanComments(statement).split("\n")) {
+    let m = line.match(/^\s*namespace\s+(\S+)/)
+    if (m) {
+      ns.push(m[1])
+      continue
+    }
+    m = line.match(/^\s*end\s+(\S+)/)
+    if (m && ns.length && ns[ns.length - 1] === m[1]) {
+      ns.pop()
+      continue
+    }
+    m = line.match(/^\s*(?:@\[[^\]]*\]\s*)*(?:(?:private|protected|noncomputable)\s+)*(?:theorem|lemma)\s+([^\s({[:]+)/)
+    if (m && (m[1] === bare || m[1].endsWith(`.${bare}`))) found.push([...ns, m[1]].join("."))
+  }
+  return found.length === 1 ? found[0] : null
+}
+
+const leanString = (s) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
+
+/** One problem's part of a check file: marker, the original's export, the translation in a section of its own (an `open` in it cannot reach the next problem), the check. */
+export function problemBlock({ id, exportPath, statement, qualified }) {
+  return `\n#attest_begin "${leanString(id)}"\n#tengoku_import_parse "${leanString(exportPath)}"\nsection\n${statement.trim()}\nend\n#gate2_statements "${leanString(qualified)}"\n`
+}
+
+export function checkFileText(treeImport, blocks) {
+  return `import Lean\nimport ${treeImport}\nimport Vendor.Attest\n\nset_option maxErrors 0\nset_option Elab.async false\n${blocks.join("")}`
+}
+
+/** The log of one Lean process -> { id: text up to the next marker }. */
+export function splitLog(text) {
+  const out = {}
+  const marks = [...text.matchAll(/ATTEST_BEGIN (\S+)/g)]
+  marks.forEach((m, i) => {
+    out[m[1]] = text.slice(m.index + m[0].length, i + 1 < marks.length ? marks[i + 1].index : undefined)
+  })
+  return out
+}
+
+/** One problem's segment -> { ok, reason, via, errors } (`ok: null` when the segment holds no verdict at all). */
+export function readBatchVerdict(segment) {
+  const flat = String(segment).replace(/\s+/g, " ")
+  const errors = [...String(segment).matchAll(/^[^\n]*?: error: ([^\n]*)/gm)].map((m) => m[1].slice(0, 240)).slice(0, 3)
+  const m = flat.match(/GATE2S_(PASS|FAIL) old=(\S+) new=(\S+)/)
+  if (!m) return { ok: null, reason: errors.length ? "elaboration_error" : "no_verdict", via: null, errors }
+  const kind = m[1]
+  // the verdict's own words: up to the next marker of this message or of the next one
+  const tail = flat.slice(m.index + m[0].length, m.index + m[0].length + 1500).split(/ GATE2B_DIFF| GATE2S_| ATTEST_BEGIN/)[0]
+  const via = (tail.match(/ via=(\w+)/) || [])[1]
+  const reason = (tail.match(/ reason=(\w+)/) || [])[1]
+  const msg = (tail.match(/ msg=(.*?)(?= names=|$)/) || [])[1]
+  const names = (tail.match(/ names=(\S+)/) || [])[1]
+  const diff = (flat.slice(m.index, m.index + 3000).match(/GATE2B_DIFF (.*?) GATE2B_END/) || [])[1]
+  return { ok: kind === "PASS", reason: kind === "PASS" ? "pass" : reason || "unspecified", via: via || null, errors, ...(msg ? { msg: msg.slice(0, 300) } : {}), ...(names ? { names: names.split(",").slice(0, 8) } : {}), ...(diff ? { diff: diff.slice(0, 500) } : {}) }
 }

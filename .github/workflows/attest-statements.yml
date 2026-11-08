@@ -1,7 +1,8 @@
 name: attest-statements
 run-name: attest FATE-X statements (${{ github.event_name }})
-# TEMPORARY, STATEMENT-ONLY. Archangel (Gate 2) over the FATE-X problems as they were translated for the tree, against exports of the ORIGINALS made on their own
-# toolchain (Lean v4.28.0): the kernel must accept `fun h => h : T_translated -> T_original` for each. The problems' proofs are `sorry`, so Gate 1 (Leak IV: no `sorry`,
+# TEMPORARY, STATEMENT-ONLY. Gate 2's batch check, with the statement-only rule (scripts/attest/emit_attest_vendor.py), over the FATE-X problems as they were translated for the tree,
+# against exports of the ORIGINALS made on their own toolchain (Lean v4.28.0): each definition the statements reach must be identical or kernel-equal, and the kernel must accept
+# `fun h => h : T_translated -> T_original` (or find the statements equal). The problems' proofs are `sorry`, so Gate 1 (Leak IV: no `sorry`,
 # no warning) is not run and nothing here is a translation. What stops this from ever reaching Tengoku:
 #   - nothing here banks: no TENGOKU_BOT_TOKEN, no bank-flush, no push, no pull request, no write permission on contents (scripts/test-attest-statements.mjs checks this file for them);
 #   - the output is data/attest-style JSON marked `admissible: false`, written outside every directory a record is banked from (scripts/attest/lib.mjs ADMISSION_DIRS);
@@ -85,6 +86,8 @@ jobs:
           node scripts/attest/export-full.mjs --key fate-x --toolchain "$(python3 -c "import json; print(json.load(open('data/attest/fate-x/source.json'))['toolchain'])")" \
             --repo infra/fate-x/repo --names data/exports/fate-x --out data/exports-full --concurrency 3 2>&1 | tee export-full.log | tail -n 20
           du -sh data/exports-full
+          # the full-closure exports replace the library-only ones: they are what the checker reads
+          cp data/exports-full/*.ndjson data/exports/fate-x/
       - name: What was exported
         run: |
           ls data/exports/fate-x | grep -c '\.ndjson$' || true
@@ -92,11 +95,48 @@ jobs:
           cat infra/fate-x/setup.json 2>/dev/null | head -c 1500 || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
-        with: { name: fatex-exports, path: "data/exports/fate-x\ndata/exports-full\ninfra/fate-x/setup.json\nsetup.log\nexport-full.log", retention-days: 14, if-no-files-found: error }
+        with: { name: fatex-exports, path: "data/exports/fate-x\ninfra/fate-x/setup.json\nsetup.log\nexport-full.log", retention-days: 14, if-no-files-found: error }
 
-  # 2. The translations, in the tree: Archangel hosted on the tree's attested cache, as a separate user, and the driver (scripts/attest/attest-statements.mjs) calling it once per problem.
+  # 2a. Gate 2's own Lean modules, with the statement-only check, built in a project of their own (they import only Lean): a compile error shows here in minutes, not after the tree.
+  vendor:
+    if: github.repository == 'competemath/emissary-archangel'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 40
+    permissions: { contents: read }
+    env:
+      TREE_REF: ${{ inputs.tree_ref || 'main' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          filter: "blob:none"
+          persist-credentials: false
+          sparse-checkout: |
+            scripts
+            gate2
+      - name: elan
+        run: |
+          for try in $(seq 1 20); do curl --proto '=https' --tlsv1.2 -sSfL --max-time 120 -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh && echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c - && timeout 300 sh elan-init.sh -y --default-toolchain none && break; [ "$try" -lt 20 ] || exit 1; echo "::notice::the Lean installer failed (try $try of 20): again in 30 s"; sleep 30; done
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: The tree's toolchain, and Gate 2's modules with the statement-only check
+        run: |
+          git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tree-meta
+          git -C tree-meta checkout -q "$TREE_REF" -- lean-toolchain
+          mkdir vendorproj && cp -r gate2/Vendor.lean gate2/Vendor vendorproj/
+          python3 -I scripts/attest/emit_attest_vendor.py --out vendorproj
+          cd vendorproj
+          cp ../tree-meta/lean-toolchain lean-toolchain
+          printf 'name = "V"\ndefaultTargets = ["Vendor"]\n[[lean_lib]]\nname = "Vendor"\n' > lakefile.toml
+          cat lean-toolchain
+          lake build Vendor 2>&1 | tee ../vendor-build.log | tail -n 60
+          test "${PIPESTATUS[0]}" -eq 0
+      - run: tar czf vendorproj.tgz vendorproj
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with: { name: fatex-vendor, path: "vendorproj.tgz\nvendor-build.log", retention-days: 14, if-no-files-found: error }
+
+  # 2b. The translations, in the tree: the tree's attested cache, and the batch checker (scripts/attest/attest-batch.mjs) running Lean as a separate user.
   gate:
-    needs: old
+    needs: [old, vendor]
     if: github.repository == 'competemath/emissary-archangel'
     runs-on: ubuntu-26.04
     timeout-minutes: 300
@@ -118,7 +158,6 @@ jobs:
             scripts
             lib
             public
-            gate2
             data/attest
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: "22" }
@@ -140,48 +179,28 @@ jobs:
           echo "tree at $(git rev-parse HEAD), $(cat lean-toolchain)"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { name: fatex-exports, path: . }
-      - name: The exports are where Archangel looks for them (data/exports/<old id>.ndjson); the full-closure ones replace the library-only ones
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { name: fatex-vendor, path: . }
+      - name: The exports of the originals (full closure) and Gate 2's modules
         run: |
           ls data/exports/fate-x | grep -c '\.ndjson$'
-          ls data/exports-full | grep -c '\.ndjson$'
-          cp data/exports-full/*.ndjson data/exports/fate-x/
           chmod -R a+rX data/exports
-      - name: Archangel, on the tree, as a separate user
-        # It elaborates Lean from the translations and replays the originals' exports, which can run code: as the user `lean` it cannot read the runner user's files.
+          tar xzf vendorproj.tgz
+          ls vendorproj/.lake/build/lib/lean/Vendor | head
+      - name: The batch checker over the statements, Lean as a separate user
+        # It elaborates the translations (third-party Lean text, which can run code) and replays the originals' exports: as the user `lean` it cannot read the runner user's files.
         run: |
           sudo useradd -m lean
           sudo chmod o+x "$HOME"
-          sudo python3 -m venv /opt/svc
-          sudo /opt/svc/bin/pip install -q "mcp==1.30.0" "uvicorn==0.52.4" "starlette==1.6.0"
-          # Archangel elaborates in the tree checked out here, not a git copy of it
-          python3 - <<'PY'
-          import re
-          p = "gate2/lakefile.toml"
-          t = open(p).read()
-          t, n = re.subn(r'\[\[require\]\]\nname = "tengoku"\ngit = "[^"]*"\nrev = "[^"]*"', '[[require]]\nname = "tengoku"\npath = "../tree"', t)
-          assert n == 1, "gate2/lakefile.toml: the tengoku require moved"
-          open(p, "w").write(t)
-          PY
-          (cd gate2 && lake update 2>&1 | tail -2 && lake build 2>&1 | tail -2)
-          sudo chown -R lean tree gate2
+          sudo install -d -m 777 -o lean out
           bin="$HOME/.elan/toolchains/$(sed 's|/|--|; s|:|---|' tree/lean-toolchain)/bin"
-          test -x "$bin/lake"
-          sudo -u lean env -i HOME=/home/lean PATH="$bin:/usr/bin:/bin" LEAN_NUM_THREADS=4 PORT=7872 TENGOKU_DIR="$PWD/tree" EMISSARY_OLD_EXPORT="$PWD/data/export.ndjson" \
-            /opt/svc/bin/python gate2/server.py > gate2.log 2>&1 &
-          # an SSE endpoint never finishes a response: ready means it answered 200, not that curl exited 0
-          for _ in $(seq 1 120); do
-            [ "$(curl -s -m 2 -o /dev/null -w '%{http_code}' -H 'Accept: text/event-stream' "http://127.0.0.1:7872/sse" || true)" = 200 ] && break
-            sleep 5
-          done
-          tail -3 gate2.log
-      - name: Gate 2 over the statements
-        run: |
-          mkdir -p out
-          node scripts/attest/attest-statements.mjs --problems data/attest/fate-x/translated.json --exports data/exports/fate-x --key fate-x --root FATEX \
-            --gate2 http://127.0.0.1:7872/sse --source data/attest/fate-x/source.json --out out --tree tree --limit "$LIMIT" --export-mode full-closure 2>&1 | tee out/driver.log | grep -E '^\[..:..:..\]' | tail -n 140
-      - name: Archangel's log (on failure)
-        if: failure()
-        run: tail -60 gate2.log 2>/dev/null || true
+          test -x "$bin/lean"
+          LP="$(cd tree && lake env printenv LEAN_PATH):$PWD/vendorproj/.lake/build/lib/lean"
+          tree_commit="$(git -C tree rev-parse HEAD)"
+          sudo -u lean env -i HOME=/home/lean PATH="$bin:/usr/bin:/bin" LEAN_NUM_THREADS=4 \
+            "$(command -v node)" scripts/attest/attest-batch.mjs --problems data/attest/fate-x/translated.json --exports data/exports/fate-x --key fate-x --root FATEX \
+            --source data/attest/fate-x/source.json --out out --tree tree --tree-commit "$tree_commit" --emissary-commit "$GITHUB_SHA" \
+            --lean "$bin/lean" --lean-path "$LP" --vendor vendorproj --chunk 25 --parallel 2 --limit "$LIMIT" --export-mode full-closure 2>&1 | tee out/driver.log | grep -E '^\[..:..:..\]' | tail -n 170
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with: { name: fatex-attestation-unsigned, path: out/, retention-days: 14, if-no-files-found: error }

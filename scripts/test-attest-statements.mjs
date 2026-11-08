@@ -6,10 +6,10 @@
 //   - the workflow holds no way to bank or publish, signs in a job that compiles nothing, and names the guards.
 import assert from "node:assert/strict"
 import { execFileSync, spawnSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import { join } from "node:path"
-import { ADMISSION_DIRS, EXPORT_MODES, SCHEMA, limitsFor, assertNotAdmissionPath, buildAttestation, checkAttestation, exportCandidates, problemEntry, readVerdict, sha256 } from "./attest/lib.mjs"
+import { ADMISSION_DIRS, EXPORT_MODES, SCHEMA, checkFileText, limitsFor, problemBlock, qualifiedTarget, readBatchVerdict, splitLog, assertNotAdmissionPath, buildAttestation, checkAttestation, exportCandidates, problemEntry, readVerdict, sha256 } from "./attest/lib.mjs"
 
 const ROOT = new URL("..", import.meta.url).pathname
 const tmp = mkdtempSync(join(os.tmpdir(), "attest-test-"))
@@ -139,6 +139,96 @@ r = drive(join(ROOT, "data", "bank", "attest-test"))
 assert.notEqual(r.status, 0, "the driver refuses an output directory under data/bank")
 assert.match(r.stderr, /refusing to write a statement attestation under data\/bank/)
 ok("driver end to end: pass, kernel refusal, no export, declaration not found; --only; refuses data/bank")
+
+// ---- the batch checker: helpers ---------------------------------------------------------------------
+eq(qualifiedTarget("namespace Problem9\n\n/-- theorem foo -/\ntheorem foo_bar (x : Nat) : x = x := by\n  sorry\n\nend Problem9\n", "foo_bar"), "Problem9.foo_bar")
+eq(qualifiedTarget("namespace A\nnamespace B\nlemma t : True := by\n  sorry\nend B\nend A\n", "t"), "A.B.t")
+eq(qualifiedTarget("theorem a : True := by\n  sorry\ntheorem a : True := by\n  sorry\n", "a"), null, "twice is not once")
+eq(qualifiedTarget("namespace P\ntheorem x : True := by\n  sorry\nend P\n", "y"), null)
+const blk = problemBlock({ id: "p1", exportPath: "/x/FATEX.«1».ndjson", statement: "theorem t : True := by\n  sorry\n", qualified: "P.t" })
+assert.match(blk, /#attest_begin "p1"\n#tengoku_import_parse "\/x\/FATEX\.«1»\.ndjson"\nsection\ntheorem t/)
+assert.match(blk, /end\n#gate2_statements "P\.t"\n$/, "the translation sits in a section of its own, the check after it")
+assert.match(checkFileText("Tengoku.All", [blk]), /^import Lean\nimport Tengoku\.All\nimport Vendor\.Attest\n/)
+const segs = splitLog("a: info: ATTEST_BEGIN p1\nx info: GATE2S_PASS old=P.t new=P.t via=entails\ny: info: ATTEST_BEGIN p2\nz: error: boom\n w info: ATTEST_BEGIN p3\n GATE2S_FAIL old=A new=A reason=name_collision names=X,Y GATE2B_DIFF d GATE2B_END\n q info: ATTEST_BEGIN p4\n GATE2S_FAIL old=A new=A reason=rejected msg=Type mismatch here GATE2B_DIFF old type = x || new type = y GATE2B_END\n")
+eq(Object.keys(segs), ["p1", "p2", "p3", "p4"])
+eq([readBatchVerdict(segs.p1).ok, readBatchVerdict(segs.p1).via], [true, "entails"])
+eq([readBatchVerdict(segs.p2).ok, readBatchVerdict(segs.p2).reason, readBatchVerdict(segs.p2).errors], [null, "elaboration_error", ["boom"]])
+eq([readBatchVerdict(segs.p3).reason, readBatchVerdict(segs.p3).names, readBatchVerdict(segs.p3).diff], ["name_collision", ["X", "Y"], "d"])
+eq([readBatchVerdict(segs.p4).reason, readBatchVerdict(segs.p4).msg], ["rejected", "Type mismatch here"])
+eq(readBatchVerdict("GATE2B_PASS old=A new=A via=equal").ok, null, "a BATCH verdict is not a statement verdict")
+ok("batch helpers: names, blocks, log splitting, verdicts (a GATE2B verdict is never read as GATE2S)")
+
+// ---- the Lean modules: derived from the batch check, with exactly the statement-only differences ------------------
+const vend = join(tmp, "vendor")
+mkdirSync(join(vend, "Vendor"), { recursive: true })
+writeFileSync(join(vend, "Vendor.lean"), "import Vendor.Importer\n")
+for (const f of ["Importer", "ReplayCore", "DriverState", "Gate2"]) writeFileSync(join(vend, "Vendor", `${f}.lean`), `import Lean\n`)
+r = spawnSync("python3", ["-I", join(ROOT, "scripts/attest/emit_attest_vendor.py"), "--out", vend], { encoding: "utf8" })
+assert.equal(r.status, 0, r.stdout + r.stderr)
+const att_lean = readFileSync(join(vend, "Vendor", "Attest.lean"), "utf8")
+assert.match(att_lean, /def gate2sCheck \(oldN newN : Name\)/)
+assert.ok(!/GATE2B_(PASS|FAIL)/.test(att_lean), "no batch verdict is left in the statement check")
+assert.ok(/GATE2S_PASS/.test(att_lean) && /GATE2S_FAIL/.test(att_lean))
+for (const reason of ["not_a_theorem", "statement_uses_sorry", "original_definition_uses_sorry", "nonstandard_axiom"]) assert.ok(att_lean.includes(`reason=${reason}`), reason)
+assert.ok(!/reason=uses_sorry"/.test(att_lean), "the batch's blanket sorry refusal is replaced")
+assert.ok(/``sorryAx/.test(att_lean) && /a != ``sorryAx/.test(att_lean), "sorry is allowed in the proof only")
+assert.ok(/#gate2_statements/.test(att_lean) && /#attest_begin/.test(att_lean))
+assert.match(readFileSync(join(vend, "Vendor.lean"), "utf8"), /import Vendor\.Attest/)
+// the batch check itself (and its kernel-checked sameness of definitions) is used, not copied
+assert.ok(/gate2bSameDef/.test(att_lean) && /statementReach all \[oldN\]/.test(att_lean) && /fun h => h/.test(att_lean))
+// a change to the batch check that the transformation does not know stops it
+const tamper = spawnSync("python3", ["-I", "-c", `import sys; sys.path.insert(0, ${JSON.stringify(join(ROOT, "scripts/attest"))}); sys.path.insert(0, ${JSON.stringify(join(ROOT, "scripts/bump"))}); import emit_attest_vendor as e; b = e.batch_lean().replace("let closure := statementReach all [oldN]", "let closure := other all [oldN]"); e.derive(b)`], { encoding: "utf8" })
+assert.notEqual(tamper.status, 0)
+assert.match(tamper.stderr + tamper.stdout, /not found exactly once/)
+const tamper2 = spawnSync("python3", ["-I", "-c", `import sys; sys.path.insert(0, ${JSON.stringify(join(ROOT, "scripts/attest"))}); sys.path.insert(0, ${JSON.stringify(join(ROOT, "scripts/bump"))}); import emit_attest_vendor as e; b = e.batch_lean().replace("reason=nonstandard_axiom axioms={extra.toList}", "reason=other"); e.derive(b)`], { encoding: "utf8" })
+assert.notEqual(tamper2.status, 0, "a changed sorry block is noticed")
+ok("Vendor/Attest.lean: derived from the batch check, statement-only differences only, drift stops the generator")
+
+// ---- the batch driver, with a stand-in for lean -----------------------------------------------------------------
+const fakeLean = join(tmp, "lean")
+writeFileSync(
+  fakeLean,
+  `#!/usr/bin/env node
+const fs = require("fs")
+if (process.argv[2] === "--version") { console.log("Lean (version 9.9.9)"); process.exit(0) }
+const text = fs.readFileSync(process.argv[2], "utf8")
+const ids = [...text.matchAll(/#attest_begin "(\\S+?)"/g)].map((m) => m[1])
+for (const id of ids) {
+  console.log("f.lean:1:0: info: ATTEST_BEGIN " + id)
+  if (id === "q3" && ids.length > 1) process.kill(process.pid, "SIGKILL") // dies in a chunk, fine alone
+  if (id === "q1" || id === "q3") console.log("f.lean:2:0: info: GATE2S_PASS old=" + id + " new=" + id + " via=" + (id === "q1" ? "equal" : "entails"))
+  else if (id === "q2") console.log("f.lean:2:0: info: GATE2S_FAIL old=A new=A reason=name_collision names=X,Y GATE2B_DIFF d GATE2B_END")
+  else if (id === "q4") console.log("f.lean:2:0: error: boom")
+}
+`,
+)
+chmodSync(fakeLean, 0o755)
+const bprobs = [1, 2, 3, 4, 5, 6].map((i) => ({ id: "q" + i, index: i, name: "t" + i, statement: "namespace P" + i + "\n\ntheorem t" + i + " : True := by\n  sorry\n\nend P" + i + "\n" }))
+bprobs[5].statement = "theorem other : True := by\n  sorry\n" // declares no theorem t6
+const bex = join(tmp, "bexports")
+mkdirSync(bex)
+for (const i of [1, 2, 3, 4, 6]) writeFileSync(join(bex, "FATEX.«" + i + "».ndjson"), "{}\n")
+writeFileSync(join(tmp, "bproblems.json"), JSON.stringify(bprobs))
+const batch = (out, extra = []) =>
+  spawnSync(process.execPath, [join(ROOT, "scripts/attest/attest-batch.mjs"), "--problems", join(tmp, "bproblems.json"), "--exports", bex, "--key", "k", "--root", "FATEX", "--source", join(tmp, "source.json"), "--out", out, "--lean", fakeLean, "--lean-path", "/nonexistent", "--chunk", "4", "--parallel", "2", "--tree-commit", "abc123", "--emissary-commit", "def456", ...extra], { encoding: "utf8" })
+r = batch(join(tmp, "bout"))
+assert.equal(r.status, 0, r.stdout + r.stderr)
+const ba = JSON.parse(readFileSync(join(tmp, "bout", "statement-attestation.json"), "utf8"))
+eq(checkAttestation(ba), [])
+const bb = Object.fromEntries(ba.problems.map((p) => [p.id, p]))
+eq([bb.q1.verdict, bb.q1.via], ["pass", "equal"])
+eq([bb.q2.verdict, bb.q2.reason], ["fail", "name_collision"])
+eq([bb.q3.verdict, bb.q3.via], ["pass", "entails"], "a problem whose chunk died is run again alone")
+eq([bb.q4.verdict, bb.q4.reason], ["fail", "elaboration_error"])
+eq([bb.q5.verdict, bb.q5.reason], ["fail", "no_export_for_module"])
+eq([bb.q6.verdict, bb.q6.reason], ["fail", "target_decl_not_found"])
+eq([ba.kind, ba.admissible, ba.inputs.checker, ba.inputs.exportMode, ba.gate2.checker, ba.target.treeCommit, ba.gate2.emissaryCommit, ba.target.lean], ["statement-only", false, "batch-statement-only", "full-closure", "batch-statement-only", "abc123", "def456", "Lean (version 9.9.9)"])
+assert.ok(ba.limits.some((l) => /statement-only rule/.test(l)), "the limits are the batch checker's")
+assert.equal(bb.q1.exportSha256, sha256("{}\n"))
+r = batch(join(ROOT, "data", "staging", "x"))
+assert.notEqual(r.status, 0)
+assert.match(r.stderr, /refusing to write a statement attestation under data\/staging/)
+ok("batch driver end to end: pass equal/entails, collision, elaboration error, a dying chunk run again alone, no export, no declaration; refuses data/staging")
 
 // ---- the workflow ------------------------------------------------------------------------------
 const wf = readFileSync(join(ROOT, ".github/workflows/attest-statements.yml"), "utf8")
