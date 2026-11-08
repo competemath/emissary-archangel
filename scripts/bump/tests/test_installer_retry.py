@@ -1,13 +1,18 @@
-"""Every workflow step that installs Lean's installer (elan) tries again, up to 20 times, 30 s apart.
+"""Every workflow step that installs Lean's installer (elan) tries again, up to 20 times, 30 s apart, and never runs what fails its digest.
 
-The real case: on 8 Nov 2026 from 09:34 the download `github.com/leanprover/elan/releases/latest/download/...` answered 504 on the Actions runners ("curl: (22) The requested URL
-returned error: 504", "elan: command failed: curl -sSfL ..."), while a Tengoku job got through at 09:47 and the same URL answered 200 from elsewhere. One try per step: #158's
-`lean` job and its campaign failed seven times in 35 minutes, each in 5 seconds, with no second try.
+The real case: on 8 Nov 2026 from 09:34, on and off for over 90 minutes, the download `github.com/leanprover/elan/releases/latest/download/...` answered 504 on the Actions runners
+("curl: (22) The requested URL returned error: 504", "elan: command failed: curl -sSfL ..."), while a Tengoku job got through at 09:47. One try per step: emissary #158's job and campaigns
+failed in seconds, again and again.
 
-Invariants, on the real text of every install step of every workflow (the step's own line, run by bash -e -o pipefail, as Actions does, with a fake `curl`/`sleep`):
-  * every install of elan in every workflow is inside the retry; there are at least the 12 known sites;
-  * an installer that fails 1, 5 or 19 times with the real error text and then succeeds: the step succeeds, the installer ran exactly that many times + 1, the sleeps are all 30 s;
-  * an installer that always fails: the step fails, after exactly 20 tries and 19 sleeps (never loops for ever, never reports success);
+One form at every site (the same text but for the toolchain): each try fetches the pinned script to a file with a time limit, checks its digest, runs it with a time limit. The earlier
+`curl | sh` reports sh's status: a step without pipefail read a failed fetch as success (cubic, #159), which is why the steps here are run with AND without pipefail.
+
+Invariants, on the real line of every install step of every workflow (.yml and .yaml), under bash -e and under bash -e -o pipefail, with fake curl, sha256sum, timeout and sleep:
+  * every install is in the one form; there are at least the 12 known sites; no site pipes the installer into a shell, and no fetch or digest is left outside the loop;
+  * the fetch failing, or the installer failing with the real error text, or a try hanging (timeout's 124), 1, 5 or 19 times and then succeeding: the step passes, after exactly that many
+    + 1 tries, with 30 s sleeps;
+  * a dead download (the fetch or the installer always failing): the step fails after exactly 20 tries and 19 sleeps; it never reports success;
+  * a digest that does not match: the installer NEVER runs, and the step fails after 20 tries;
   * a success on the first try: one run, no sleep, no notice.
 """
 
@@ -23,58 +28,82 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
-WF = sorted(glob.glob(str(REPO / ".github" / "workflows" / "*.yml")))
-INSTALL = re.compile(r"elan-init\.sh( \| sh -s --)? -y --default-toolchain ")  # the two forms: run the checked file, or the pinned script piped to sh; any toolchain
-ERROR = "curl: (22) The requested URL returned error: 504\nelan: command failed: curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz"
+WF = sorted(glob.glob(str(REPO / ".github" / "workflows" / "*.yml")) + glob.glob(str(REPO / ".github" / "workflows" / "*.yaml")))
+ERROR = "curl: (22) The requested URL returned error: 504\\nelan: command failed: curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_64-unknown-linux-gnu.tar.gz"
+MODES = (["-e"], ["-e", "-o", "pipefail"])  # a step's `run:` is bash -e by default, bash -e -o pipefail under `shell: bash`
 
 
 def sites() -> list[tuple[str, int, str]]:
-    out = []
-    for f in WF:
-        for i, line in enumerate(Path(f).read_text(encoding="utf-8").split("\n"), 1):
-            if INSTALL.search(line):
-                out.append((Path(f).name, i, line.strip()))
-    return out
+    return [(Path(f).name, i, line.strip()) for f in WF for i, line in enumerate(Path(f).read_text(encoding="utf-8").split("\n"), 1) if "elan-init" in line]
+
+
+def forms() -> list[tuple[str, int, str]]:
+    """One site per distinct text (the sites are one text but for the toolchain: test_every_install_is_in_the_one_form), so the behaviour is run on each form once."""
+    seen: dict[str, tuple[str, int, str]] = {}
+    for s in sites():
+        seen.setdefault(s[2], s)
+    return list(seen.values())
+
+
+def fake(path: Path, body: str) -> None:
+    path.write_text("#!/bin/bash\n" + body)
+    path.chmod(path.stat().st_mode | stat.S_IEXEC)
 
 
 class InstallerRetry(unittest.TestCase):
-    def run_line(self, line: str, fails: int) -> tuple[int, str, int, list[str]]:
+    def run_line(self, line: str, mode: list[str], curl_fails: int = 0, install_fails: int = 0, hangs: int = 0, digest_ok: bool = True) -> dict:
         with tempfile.TemporaryDirectory() as tmp:
             t = Path(tmp)
             (t / "bin").mkdir()
-            count, sleeps = t / "count", t / "sleeps"
-            count.write_text("0")
-            # the installer: fails `fails` times with the real text, then succeeds. The piped form runs what the fake curl prints; the file form runs elan-init.sh
-            body = f'n=$(cat "{count}"); n=$((n+1)); echo $n > "{count}"; if [ "$n" -le {fails} ]; then echo "{ERROR}" >&2; exit 1; fi; exit 0\n'
-            (t / "elan-init.sh").write_text(body)
-            fake_curl = t / "bin" / "curl"
-            fake_curl.write_text(f'#!/bin/sh\ncat "{t / "elan-init.sh"}"\n')
-            fake_curl.chmod(fake_curl.stat().st_mode | stat.S_IEXEC)
-            fake_sleep = t / "bin" / "sleep"
-            fake_sleep.write_text(f'#!/bin/sh\necho "$1" >> "{sleeps}"\n')
-            fake_sleep.chmod(fake_sleep.stat().st_mode | stat.S_IEXEC)
+            for c in ("fetches", "installs", "timeouts"):
+                (t / c).write_text("0")
+            bump = lambda name: f'n=$(cat "{t / name}"); n=$((n+1)); echo $n > "{t / name}"'
+            fake(t / "bin" / "curl", f'{bump("fetches")}\nif [ "$n" -le {curl_fails} ]; then echo "curl: (22) The requested URL returned error: 504" >&2; exit 22; fi\n'
+                 f'while [ $# -gt 0 ]; do [ "$1" = -o ] && out="$2"; shift; done\ncp "{t / "script"}" "$out"\n')
+            (t / "script").write_text(f'{bump("installs")}\nif [ "$n" -le {install_fails} ]; then printf "{ERROR}\\n" >&2; exit 1; fi\nexit 0\n')
+            fake(t / "bin" / "sha256sum", f'cat >/dev/null\nexit {0 if digest_ok else 1}\n')
+            fake(t / "bin" / "timeout", f'{bump("timeouts")}\nif [ "$n" -le {hangs} ]; then exit 124; fi\nshift\nexec "$@"\n')
+            fake(t / "bin" / "sleep", f'echo "$1" >> "{t / "sleeps"}"\n')
             (t / "step.sh").write_text(line + "\n")
-            env = {"PATH": f"{t / 'bin'}:{os.environ['PATH']}", "HOME": str(t), "GITHUB_PATH": str(t / "gp"), "TOOLCHAIN": "leanprover/lean4:v4.31.0"}
-            r = subprocess.run(["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", str(t / "step.sh")], cwd=t, env=env, capture_output=True, text=True, check=False)
-            return r.returncode, r.stdout + r.stderr, int(count.read_text()), sleeps.read_text().split() if sleeps.exists() else []
+            env = {"PATH": f"{t / 'bin'}:{os.environ['PATH']}", "HOME": str(t), "TOOLCHAIN": "leanprover/lean4:v4.31.0"}
+            r = subprocess.run(["bash", "--noprofile", "--norc", *mode, str(t / "step.sh")], cwd=t, env=env, capture_output=True, text=True, check=False)
+            sleeps = (t / "sleeps").read_text().split() if (t / "sleeps").exists() else []
+            return {"code": r.returncode, "out": r.stdout + r.stderr, "fetches": int((t / "fetches").read_text()), "installs": int((t / "installs").read_text()), "sleeps": sleeps}
 
-    def test_every_install_is_inside_the_retry(self):
+    def test_every_install_is_in_the_one_form(self):
         found = sites()
         self.assertGreaterEqual(len(found), 12, found)
-        bad = [(f, n) for f, n, line in found if not line.startswith("for try in $(seq 1 20); do ")]
-        self.assertEqual(bad, [])
+        form = re.compile(r"""^for try in \$\(seq 1 20\); do curl --proto '=https' --tlsv1\.2 -sSfL --max-time 120 -o elan-init\.sh https://raw\.githubusercontent\.com/leanprover/elan/[0-9a-f]{40}/elan-init\.sh && echo "[0-9a-f]{64}  elan-init\.sh" \| sha256sum -c - && timeout 300 sh elan-init\.sh -y --default-toolchain (none|"\$TOOLCHAIN") && break; \[ "\$try" -lt 20 \] \|\| exit 1; echo "::notice::the Lean installer failed \(try \$try of 20\): again in 30 s"; sleep 30; done$""")
+        self.assertEqual([(f, n) for f, n, line in found if not form.match(line)], [])
+        self.assertEqual(len({re.sub(r"--default-toolchain \S+", "", line) for _, _, line in found}), 1)  # one text: a fix cannot reach some sites and miss others
 
-    def test_it_recovers_after_failures_and_gives_up_after_twenty_on_every_site(self):
-        for f, n, line in sites():
-            for fails in (0, 1, 5, 19):
-                code, out, ran, sleeps = self.run_line(line, fails)
-                self.assertEqual(code, 0, f"{f}:{n} fails={fails}: {out}")
-                self.assertEqual(ran, fails + 1, f"{f}:{n} fails={fails}")
-                self.assertEqual(sleeps, ["30"] * fails, f"{f}:{n}")
-                self.assertEqual(out.count("::notice::the Lean installer failed"), fails, f"{f}:{n}")
-            code, out, ran, sleeps = self.run_line(line, 10_000)
-            self.assertNotEqual(code, 0, f"{f}:{n}: a dead download must fail the step")
-            self.assertEqual((ran, len(sleeps)), (20, 19), f"{f}:{n}")
+    def test_it_recovers_and_gives_up_after_twenty_in_both_shell_modes(self):
+        self.assertEqual(len(forms()), 2)  # the toolchain `none` and "$TOOLCHAIN"
+        for f, n, line in forms():
+            for mode in MODES:
+                where = f"{f}:{n} {mode}"
+                r = self.run_line(line, mode)
+                self.assertEqual((r["code"], r["fetches"], r["installs"], r["sleeps"]), (0, 1, 1, []), where)
+                self.assertNotIn("::notice::", r["out"], where)
+                for fails in (1, 5, 19):
+                    r = self.run_line(line, mode, curl_fails=fails)
+                    self.assertEqual((r["code"], r["fetches"], r["installs"], r["sleeps"]), (0, fails + 1, 1, ["30"] * fails), f"{where} fetch fails {fails}")
+                    r = self.run_line(line, mode, install_fails=fails)
+                    self.assertEqual((r["code"], r["fetches"], r["installs"], r["sleeps"]), (0, fails + 1, fails + 1, ["30"] * fails), f"{where} install fails {fails}")
+                    r = self.run_line(line, mode, hangs=fails)
+                    self.assertEqual((r["code"], r["installs"], r["sleeps"]), (0, 1, ["30"] * fails), f"{where} hangs {fails}")
+                for kw in ({"curl_fails": 10_000}, {"install_fails": 10_000}, {"hangs": 10_000}):
+                    r = self.run_line(line, mode, **kw)
+                    self.assertNotEqual(r["code"], 0, f"{where} {kw}: a dead download must fail the step")
+                    self.assertEqual(len(r["sleeps"]), 19, f"{where} {kw}")
+                    self.assertEqual(r["fetches"], 20, f"{where} {kw}")
+
+    def test_a_wrong_digest_never_runs_the_installer(self):
+        for f, n, line in forms():
+            for mode in MODES:
+                r = self.run_line(line, mode, digest_ok=False)
+                self.assertNotEqual(r["code"], 0, f"{f}:{n} {mode}")
+                self.assertEqual((r["installs"], r["fetches"]), (0, 20), f"{f}:{n} {mode}")
 
 
 if __name__ == "__main__":
