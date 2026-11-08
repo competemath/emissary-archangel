@@ -693,3 +693,20 @@ jobs:
             logs/gate2-results.json
             logs/passed.json
           retention-days: 90
+  # The run's parts are opened at once: the opener's schedule says "every 10 minutes", but GitHub ran it at 18:12, 21:47 and 00:55 on 7-8 Nov 2026, so a finished bump waited
+  # hours for its pull requests and was opened by hand (intake-open run 42444625597). This job starts the opener for this one library. It runs nothing of the run (no checkout,
+  # no artifact): only the dispatch, with the key checked against the shape of a registered key first. Only in the factory itself: a rehearsal of this workflow elsewhere (the
+  # sandbox campaign) must never open pull requests in the tree.
+  open:
+    needs: [finish]
+    if: ${{ !cancelled() && needs.finish.result == 'success' && inputs.parts != '0' && github.repository == 'competemath/emissary-archangel' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions: { actions: write }  # workflow_dispatch of intake-open.yml, nothing else
+    env: { KEY: "${{ inputs.key }}", GH_TOKEN: "${{ github.token }}" }
+    steps:
+      - name: Start the opener for this library
+        run: |
+          [[ "$KEY" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { echo "::error::'$KEY' is not the shape of a library key; nothing was opened"; exit 1; }
+          gh workflow run intake-open.yml -R "$GITHUB_REPOSITORY" --ref main -f target=competemath/tengoku -f keys="$KEY" -f dry_run=false
+          echo "::notice::the opener was started for $KEY (intake-open.yml): its pull requests open in a few minutes"
