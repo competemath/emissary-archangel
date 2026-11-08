@@ -19,11 +19,14 @@ def link(project: Path, srcdir: str, roots: list[str]) -> list[str]:
     if not parts or PurePosixPath(srcdir).is_absolute() or ".." in parts:
         raise ValueError(f"srcdir {srcdir!r}: a folder inside the Lake project")
     made = []
+    inside = project.resolve()
     for root in roots:
         for name in (root, f"{root}.lean"):
             target = project.joinpath(*parts, name)
             if not target.exists():
                 continue
+            if not target.resolve().is_relative_to(inside):  # a link in the repository (the folder itself, or a root under it) that leads out of the project
+                raise ValueError(f"{srcdir}/{name} resolves outside the project")
             here = project / name
             relative = PurePosixPath(*parts, name).as_posix()
             if here.is_symlink() and here.readlink().as_posix() == relative:

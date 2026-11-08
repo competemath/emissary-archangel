@@ -695,12 +695,14 @@ function seedQueue() {
     stats.kept++
   }
   queue.close()
-  // Every record outside the roots is a registry that does not describe the repository, never a library with nothing to give: such a setup used to succeed with 0 modules
-  // and 35,297 records of four libraries were lost without a word (8 Nov 2026). It stops here, and leaves no empty queue for the next run to keep.
-  if (stats.records && stats.skippedRoot === stats.records) {
+  // A library with records of which none is kept is a registry that does not describe the repository (or a harvest of something else), never a library with nothing to give:
+  // such a setup used to succeed with 0 modules, and 35,297 records of four libraries were lost without a word (8 Nov 2026). It stops here, and leaves no empty queue for the next run to keep.
+  if (stats.records && stats.kept === 0) {
     rmSync(QUEUE, { force: true })
     const tops = [...skippedTops].sort((x, y) => y[1] - x[1]).slice(0, 5).map(([t, n]) => `${t} (${n})`).join(", ")
-    fail(`seed: all ${stats.records} records are outside the roots ${[...roots].join(", ")}; their paths start with ${tops}: fix the roots or the layout of ${key} in sources.json`)
+    fail(
+      `seed: none of the ${stats.records} records was kept (outside the roots ${[...roots].join(", ")}: ${stats.skippedRoot}${tops ? `, paths starting with ${tops}` : ""}; no file: ${stats.skippedNoFile}; duplicates: ${stats.skippedDup}; commented out: ${stats.skippedCommented}): fix the roots or the layout of ${key} in sources.json`,
+    )
   }
   log(`seed: ${[...fileCache.values()].filter(Boolean).length} source file(s) kept at the end`) // a missing file is cached as null: not a file kept
   log(`seeded ${QUEUE}: ${JSON.stringify(stats)}`)

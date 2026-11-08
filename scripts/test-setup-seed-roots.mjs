@@ -104,8 +104,12 @@ const mixed = seed(["Single", "Sub"], [rec("t0", "Single.lean", 1), rec("s0", "S
 check("a top-level file that is no root stays out, the others are kept, the seed passes", mixed.code === 0 && mixed.queue?.map((e) => e.sourcePath).sort().join() === "Single.lean,Sub/F.lean" && /"skippedRoot":1/.test(mixed.out), mixed.out.slice(-400))
 const none = seed(["Single"], [rec("g0", "Lean4/Deep/G.lean", 1), rec("o0", "Other.lean", 1)])
 check("every record outside the roots: the setup stops", none.code !== 0, none.out.slice(-400))
-check("the message names the roots and what the paths start with", /all 2 records are outside the roots Single/.test(none.out) && /Lean4 \(1\)/.test(none.out) && /Other\.lean \(1\)/.test(none.out), none.out.slice(-400))
+check("the message names the roots and what the paths start with", /none of the 2 records was kept \(outside the roots Single: 2/.test(none.out) && /Lean4 \(1\)/.test(none.out) && /Other\.lean \(1\)/.test(none.out), none.out.slice(-400))
 check("no empty queue is left for the next run to keep", none.queue === null)
+const noFile = seed(["Single"], [rec("t0", "Single/Gone.lean", 1)])
+check("every record names a file the repository does not have: the setup stops and says so", noFile.code !== 0 && /none of the 1 records was kept/.test(noFile.out) && /no file: 1/.test(noFile.out) && noFile.queue === null, noFile.out.slice(-400))
+const badUrl = seed(["Single"], [{ ...rec("t0", "Single.lean", 1), source_url: "https://example.org/not-a-blob" }])
+check("every record has a link that is no repository link: the setup stops", badUrl.code !== 0 && /none of the 1 records was kept/.test(badUrl.out) && badUrl.queue === null, badUrl.out.slice(-400))
 // a source folder (classfieldtheory-yamaguchi's Lean4/): the record's path is read from inside it, the root is linked at the top
 const inFolder = seed(["Deep"], [rec("g0", "Lean4/Deep/G.lean", 1)], { srcdir: "Lean4" })
 check("a source folder: the record is seeded under its module's own path", inFolder.code === 0 && inFolder.queue?.[0]?.sourcePath === "Deep/G.lean", inFolder.out.slice(-500))

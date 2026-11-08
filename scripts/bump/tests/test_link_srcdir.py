@@ -108,6 +108,33 @@ class Refusals(unittest.TestCase):
             with self.assertRaises(ValueError):
                 link_srcdir.link(d, "src", ["A"])
 
+    def test_a_source_folder_that_is_a_link_out_of_the_project(self):
+        with tempfile.TemporaryDirectory() as t, tempfile.TemporaryDirectory() as out:
+            d = Path(t) / "p"
+            d.mkdir()
+            (Path(out) / "A").mkdir()
+            (d / "src").symlink_to(out)
+            with self.assertRaises(ValueError):
+                link_srcdir.link(d, "src", ["A"])
+            self.assertFalse((d / "A").exists())
+
+    def test_a_root_under_the_folder_that_is_a_link_out_of_the_project(self):
+        with tempfile.TemporaryDirectory() as t, tempfile.TemporaryDirectory() as out:
+            d = Path(t) / "p"
+            (d / "src").mkdir(parents=True)
+            (Path(out) / "A.lean").write_text("-- outside\n")
+            (d / "src" / "A.lean").symlink_to(Path(out) / "A.lean")
+            with self.assertRaises(ValueError):
+                link_srcdir.link(d, "src", ["A"])
+            self.assertFalse((d / "A.lean").is_symlink())
+
+    def test_a_link_inside_the_project_is_followed(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            (d / "real" / "A").mkdir(parents=True)
+            (d / "src").symlink_to("real")
+            self.assertEqual(link_srcdir.link(d, "src", ["A"]), ["A"])
+
     def test_no_root_under_the_folder(self):
         with tempfile.TemporaryDirectory() as t:
             (Path(t) / "src").mkdir()
