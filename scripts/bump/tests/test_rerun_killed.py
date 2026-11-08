@@ -95,11 +95,16 @@ class TheRunItStarts(unittest.TestCase):
 
 
 class Fake:
-    def __init__(self, jobs, logs):
-        self.jobs, self.logs, self.posts = jobs, logs, []
+    def __init__(self, jobs, logs, post_failures=0):
+        self.jobs, self.logs, self.posts, self.post_failures, self.tries = jobs, logs, [], post_failures, 0
 
-    def __call__(self, args, stdin=None):
+    def __call__(self, args, stdin=None, must=False):
         if "--method" in args:
+            self.tries += 1
+            if self.tries <= self.post_failures:
+                if must:
+                    raise RuntimeError("HTTP 500")
+                return ""
             self.posts.append((args, json.loads(stdin)))
             return ""
         if args[1].endswith("/logs"):
@@ -135,7 +140,26 @@ class Main(unittest.TestCase):
         self.assertEqual(len(f.posts), 1)
 
     def test_jobs_that_cannot_be_read_are_an_error(self):
-        self.assertEqual(rk.run("o/r", "9", INPUTS, lambda a, stdin=None: ""), 1)
+        self.assertEqual(rk.run("o/r", "9", INPUTS, lambda a, stdin=None, must=False: ""), 1)
+
+    def killed_run(self, failures):
+        waits = []
+        f = Fake([self.job(1, "shard (6) / shard", ["Gate 2"])], {1: "exit code 137"}, post_failures=failures)
+        return rk.run("o/r", "9", INPUTS, f, waits.append), f, waits
+
+    def test_a_dispatch_that_keeps_failing_is_a_failure_not_a_rerun(self):
+        code, f, waits = self.killed_run(rk.TRIES)
+        self.assertEqual((code, f.tries, f.posts), (1, rk.TRIES, []))
+        self.assertEqual(len(waits), rk.TRIES - 1)
+
+    def test_a_dispatch_that_fails_once_is_tried_again_and_starts_one_run(self):
+        code, f, _ = self.killed_run(1)
+        self.assertEqual((code, f.tries, len(f.posts)), (0, 2, 1))
+
+    def test_the_real_gh_raises_when_a_post_fails(self):
+        with self.assertRaises(RuntimeError):
+            rk.gh(["no-such-gh-command-for-this-test"], must=True)
+        self.assertEqual(rk.gh(["no-such-gh-command-for-this-test"]), "")
 
 
 class Workflow(unittest.TestCase):
