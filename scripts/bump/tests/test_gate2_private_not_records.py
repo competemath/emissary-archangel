@@ -26,9 +26,10 @@ FIXTURE = json.loads(gzip.open(HERE / "tests" / "fixtures" / "real-gate2-private
 
 
 class PrivateNotRecords(unittest.TestCase):
-    def parse(self, lib: dict) -> tuple[dict, dict]:
+    def parse(self, lib: dict, into: Path | None = None) -> tuple[dict, dict]:
         with tempfile.TemporaryDirectory() as tmp:
-            t = Path(tmp)
+            t = into or Path(tmp)
+            t.mkdir(parents=True, exist_ok=True)
             (t / "gate2.log").write_text("\n".join(lib["gate2_lines"]) + "\n")
             # the entries the shard looked the names up in: each passed name under its module's source path (what the tentative records gave the real run)
             rows = [{"name": n, "sourcePath": m.replace(".", "/") + ".lean", "outcome": "tentative"} for m, ns in lib["passed"].items() for n in ns]
@@ -64,6 +65,32 @@ class PrivateNotRecords(unittest.TestCase):
         passed, _ = self.parse(FIXTURE["libraries"]["padic-l-functions"])
         self.assertEqual(sum(len(ns) for ns in passed.values()), 138)
         self.assertEqual(len(passed), 44 - 12)
+
+    def test_the_merge_of_the_shards_keeps_the_count(self):
+        # cubic (#158): the merge summed checked/pass/... and dropped the new count, so a sharded run's results could not say how many private passes made no record.
+        # The two real shards as two shard artifacts of one run (shard-pack/ with its gate2-results.json and passed.json, emissary/gate2-killed.json)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            want_passed: dict[str, set] = {}
+            for i, lib in enumerate(FIXTURE["libraries"].values()):
+                pack = root / "shards" / f"shard-x-{i}" / "shard-pack"
+                (pack / "src").mkdir(parents=True)
+                (root / "shards" / f"shard-x-{i}" / "emissary").mkdir()
+                (root / "shards" / f"shard-x-{i}" / "emissary" / "gate2-killed.json").write_text("[]")
+                passed, _ = self.parse(lib, into=pack)
+                for m, ns in passed.items():
+                    want_passed.setdefault(m, set()).update(ns)
+            (root / "merged").mkdir()
+            (root / "logs").mkdir()
+            r = subprocess.run([sys.executable, str(HERE / "shard_pack.py"), "merge", "--shards", str(root / "shards"), "--out", str(root / "merged"), "--logs", str(root / "logs")],
+                               capture_output=True, text=True, check=False)
+            self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+            total = json.loads((root / "logs" / "gate2-results.json").read_text())
+            self.assertEqual(total["pass_private_not_records"], 45 + 70)
+            self.assertEqual(total["pass"], 45 + 208)
+            merged = json.loads((root / "logs" / "passed.json").read_text())
+            self.assertEqual({m: set(ns) for m, ns in merged.items()}, want_passed)
+            self.assertFalse(any(n.startswith("_private.") for ns in merged.values() for n in ns))
 
 
 if __name__ == "__main__":

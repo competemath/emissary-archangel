@@ -64,7 +64,7 @@ def merge(a: argparse.Namespace) -> None:
     out = Path(a.out)
     (out / ".lake" / "build" / "lib" / "lean").mkdir(parents=True, exist_ok=True)
     passed: dict[str, set[str]] = {}
-    total: dict = {"shards": 0, "checked": 0, "pass": 0, "pass_equal": 0, "pass_entails": 0, "fail_reasons": {}, "definitions": {}, "controls_wrongly_passed": 0}
+    total: dict = {"shards": 0, "checked": 0, "pass": 0, "pass_equal": 0, "pass_entails": 0, "pass_private_not_records": 0, "fail_reasons": {}, "definitions": {}, "controls_wrongly_passed": 0}
     logs = {"gate2.log": [], "errors.log": [], "bundle-deps.log": []}
     packs = 0
     killed: set[str] = set()
@@ -105,7 +105,7 @@ def merge(a: argparse.Namespace) -> None:
         if (d / "gate2-results.json").exists():
             r = json.loads((d / "gate2-results.json").read_text())
             total["shards"] += 1
-            for k in ("checked", "pass", "pass_equal", "pass_entails"):
+            for k in ("checked", "pass", "pass_equal", "pass_entails", "pass_private_not_records"):  # the private passes no record was made of (gate2_batch.py parse)
                 total[k] += r.get(k, 0)
             for k in ("fail_reasons",):
                 for kk, v in r.get(k, {}).items():
