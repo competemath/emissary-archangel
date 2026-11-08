@@ -7,7 +7,7 @@
 // Records have the real shape (keys of a leanbridge record). Invariants: the seed finishes under the cap with a small budget; the queue is byte for byte the one an unbounded
 // cache gives (same entries, same order, same names and lines); with the records interleaved across files (the worst order) the queue is still the same.
 import { execFileSync, spawnSync } from "node:child_process"
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -152,6 +152,89 @@ check("the fixture reproduces the failure: with every file kept, the seed dies a
   check("the queue's bytes are JSON.stringify(entries, null, 2) exactly", text !== "" && text === JSON.stringify(parsed, null, 2))
   const want = records.map((r) => r.name)
   check("every record of the six files became an entry, in order, once", JSON.stringify(parsed.map((e) => e.name)) === JSON.stringify(want), `${parsed.length} of ${want.length}`)
+}
+
+// leanbridge's third half (setup run 42427677819 and the five rounds after it, 7-8 Nov): with the files read one at a time and the queue written entry by entry, the seed still
+// died at the 4 GB heap in every round, in the build and in build-status: every entry kept its statement and proof until the end (the 1,645 records of leanbridge-001 take 118 MB
+// of heap, ~1.7 GB for the 15 files), and the queue it wrote (~600 million characters) is longer than the longest string Node can make, so the next step could not read it.
+// The records here have the REAL sizes of leanbridge-001's 1,645 records (fixtures/real-leanbridge-001-sizes.json: statement and proof lengths, two-byte text where the real one
+// is, the real 341 files), twice (as leanbridge-001 and -002), ~80 MB of text, ~240 MB as entries: more than the 128 MB heap the seed and build-status run under here.
+// Invariants: the seed finishes under the cap; the queue holds every record whole (statement and proof), in order, and its bytes are JSON.stringify(entries, null, 2); build-status
+// reads that queue back under the same cap and counts every module; a queue of another shape (minified, empty) is still read; a cut-off queue is refused, not half-read.
+{
+  const real = JSON.parse(readFileSync(join(here, "fixtures", "real-leanbridge-001-sizes.json"), "utf8"))
+  check("the fixture is leanbridge-001's 1,645 records in 341 files", real.records === 1645 && real.rows.length === 1645 && real.files === 341)
+  const lib2 = join(tmp, "lib-lb")
+  mkdirSync(join(lib2, "LB"), { recursive: true })
+  writeFileSync(join(lib2, "lean-toolchain"), TC + "\n")
+  const pad = (n, wide) => (wide ? "ℚ∑ₙ" : "abc").repeat(Math.ceil(n / 3)).slice(0, Math.max(0, n))
+  const files = new Map() // file -> lines
+  const recs = []
+  for (const copy of [0, 1])
+    for (const [i, [f, st, pr, wide]] of real.rows.entries()) {
+      const file = `LB/F${copy}_${f}.lean`
+      if (!files.has(file)) files.set(file, [])
+      const lines = files.get(file)
+      const name = `r${copy}_${i}`
+      const head = `theorem ${name} : ${i} = ${i}`
+      lines.push(head + " := rfl", "")
+      const statement = head + "\n" + pad(st - head.length - 1, wide) // the real length; the first line is the declaration's
+      const proof = ":= by\n" + pad(pr - 6, wide)
+      recs.push({ name, statement, proof, status: "tentative", library: "lb", source_url: `PATH:${file}#L${lines.length - 1}`, toolchain: TC })
+    }
+  for (const [file, lines] of files) writeFileSync(join(lib2, file), lines.join("\n"))
+  const git2 = (...a) => sh("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...a], { cwd: lib2 })
+  git2("init", "-q")
+  git2("add", ".")
+  git2("commit", "-q", "-m", "lib")
+  const c2 = git2("rev-parse", "HEAD").trim()
+  for (const r of recs) r.source_url = r.source_url.replace("PATH:", `https://github.com/o/lb/blob/${c2}/`)
+  const half = recs.length / 2
+  writeFileSync(join(tent, "lb-001.jsonl"), recs.slice(0, half).map((r) => JSON.stringify(r)).join("\n") + "\n")
+  writeFileSync(join(tent, "lb-002.jsonl"), recs.slice(half).map((r) => JSON.stringify(r)).join("\n") + "\n")
+  writeFileSync(join(root, "sources.json"), JSON.stringify({ sources: { lb: { repo: lib2, commit: c2, toolchain: TC, roots: ["LB"], tentative: ["lb-001.jsonl", "lb-002.jsonl"] } } }))
+  const textMB = Math.round(recs.reduce((a, r) => a + r.statement.length + r.proof.length, 0) / 1048576)
+  const qfile = join(root, "data", "queue-lb.json")
+  const statusFile = join(root, "infra", "lb", "build-status.json")
+  const run = (args, heapMb = 128) =>
+    spawnSync("node", [`--max-old-space-size=${heapMb}`, join(root, "scripts", "setup-source.mjs"), "lb", ...args], {
+      env: { ...process.env, HOME: home, EMISSARY_TENTATIVE_DIR: tent, EMISSARY_SEED_CACHE_MB: "8" },
+      encoding: "utf8",
+      maxBuffer: 1 << 26,
+    })
+  rmSync(qfile, { force: true })
+  const s = run(["--only", "seed"])
+  check(`${recs.length} records of leanbridge's real sizes (${textMB} MB of text) are seeded under a 128 MB heap`, s.status === 0, (s.stdout + s.stderr).slice(-400))
+  const text = s.status === 0 ? readFileSync(qfile, "utf8") : ""
+  const parsed = text ? JSON.parse(text) : []
+  check("the queue's bytes are JSON.stringify(entries, null, 2) exactly", text !== "" && text === JSON.stringify(parsed, null, 2))
+  check(
+    "every record is in the queue whole, in order: its name, statement and proof",
+    parsed.length === recs.length && parsed.every((e, i) => e.name === recs[i].name && e.oldStatement === recs[i].statement && e.oldProofText === recs[i].proof && e.id === i + 1),
+    `${parsed.length} of ${recs.length}`,
+  )
+  const modules = new Set(recs.map((r) => r.source_url.match(/blob\/[0-9a-f]+\/(.+)\.lean#/)[1].replace(/\//g, "."))).size
+  // the next step of the same job: the queue exists, and is read back
+  rmSync(statusFile, { force: true })
+  const b = run(["--phase", "build-status"])
+  const st = existsSync(statusFile) ? JSON.parse(readFileSync(statusFile, "utf8")) : {}
+  check(`build-status reads the queue back under the same heap and counts all ${modules} modules`, b.status === 0 && st.modules === modules && st.built === 0 && /queue exists: .* \(3290 entries\)/.test(b.stdout), `${b.status} ${JSON.stringify(st).slice(0, 200)} ${(b.stdout + b.stderr).slice(-300)}`)
+  // a queue of another shape is parsed whole, as before: minified, and empty
+  writeFileSync(qfile, JSON.stringify(parsed.slice(0, 50)))
+  rmSync(statusFile, { force: true })
+  const m = run(["--phase", "build-status"], 1024)
+  const m50 = new Set(parsed.slice(0, 50).map((e) => e.sourcePath)).size
+  check(`a minified queue is still read (${m50} modules of its 50 entries)`, m.status === 0 && JSON.parse(readFileSync(statusFile, "utf8")).modules === m50, (m.stdout + m.stderr).slice(-300))
+  writeFileSync(qfile, "[]")
+  const e = run(["--phase", "build-status"], 1024)
+  check("an empty queue is read as no entries", e.status === 0 && /queue exists: .* \(0 entries\)/.test(e.stdout), (e.stdout + e.stderr).slice(-300))
+  // a queue cut off in the middle (a full disk, a killed job) is refused, never read as the entries before the cut
+  writeFileSync(qfile, text.slice(0, Math.floor(text.length / 2)))
+  const cut = run(["--phase", "build-status"], 1024)
+  check("a queue cut off in the middle is refused, not half-read", cut.status !== 0 && /ends before its closing \]|not the start of an entry/.test(cut.stdout + cut.stderr), `${cut.status} ${(cut.stdout + cut.stderr).slice(-300)}`)
+  writeFileSync(qfile, text + "\n[]")
+  const extra = run(["--phase", "build-status"], 1024)
+  check("text after the closing ] is refused", extra.status !== 0 && /text after the closing \]/.test(extra.stdout + extra.stderr), `${extra.status} ${(extra.stdout + extra.stderr).slice(-300)}`)
 }
 
 rmSync(tmp, { recursive: true, force: true })

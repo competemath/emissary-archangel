@@ -29,9 +29,10 @@
 //   --phase finish                  writes setup.json from the exports and the shard records, once every module
 //                                   is exported or recorded as failed by a shard that finished
 import { execFile, execFileSync, spawn } from "node:child_process"
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync, writeSync, readdirSync, statSync } from "node:fs"
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, writeFileSync, writeSync, readdirSync, statSync } from "node:fs"
 import os from "node:os"
 import { basename, dirname, join, relative, resolve } from "node:path"
+import { StringDecoder } from "node:string_decoder"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import { collectTools, exporterAction, mergeTools, patchFingerprint } from "./setup-tools.mjs"
@@ -407,23 +408,69 @@ function writeAtomic(path, data) {
   writeFileSync(tmp, data)
   renameSync(tmp, path)
 }
-// The bytes of JSON.stringify(items, null, 2), written item by item: leanbridge's queue (15 tentative files of ~40 MB, records with long proofs) as one string did not fit
-// in Node's heap next to the entries themselves (setup runs 42387020776, 42411218917: "JavaScript heap out of memory" in the seed step).
-function writeJsonArrayAtomic(path, items) {
+// The bytes of JSON.stringify(items, null, 2), written item by item as the seed makes them: leanbridge's queue (15 tentative files of ~40 MB, records with long proofs) as one
+// string did not fit in Node's heap (setup runs 42387020776, 42411218917), and neither did the entries themselves, every statement and proof kept until the end (1,645 records of
+// leanbridge-001 take 118 MB of heap, ~1.7 GB for the 15 files: "JavaScript heap out of memory" in the seed of every build round of setup run 42427677819 and the five after it).
+// The file is renamed into place by close(), so a queue is whole or absent.
+function jsonArrayWriter(path) {
   const tmp = `${path}.tmp-${process.pid}`
   const fd = openSync(tmp, "w")
+  let n = 0
+  return {
+    push(e) {
+      writeSync(fd, (n++ ? ",\n" : "[\n") + "  " + JSON.stringify(e, null, 2).replace(/\n/g, "\n  "))
+    },
+    close() {
+      writeSync(fd, n ? "\n]" : "[]")
+      closeSync(fd)
+      renameSync(tmp, path)
+    },
+  }
+}
+// The entries of a queue in the shape JSON.stringify(items, null, 2) writes, read one entry at a time: leanbridge's queue is ~600 million characters, longer than the longest string
+// Node can make, so the next step of the same job (build-status after the build) could not read it whole. JSON strings hold no raw newline, so an entry is the lines from "  {"
+// to "  }" or "  },". `keep` cuts each entry down to what is used. A file of another shape (minified, "[]") is parsed whole, as before.
+function readQueueEntries(path, keep) {
+  const fd = openSync(path, "r")
   try {
-    if (!items.length) writeSync(fd, "[]")
-    else {
-      writeSync(fd, "[\n")
-      items.forEach((e, i) => writeSync(fd, "  " + JSON.stringify(e, null, 2).replace(/\n/g, "\n  ") + (i < items.length - 1 ? ",\n" : "\n")))
-      writeSync(fd, "]")
+    const head = Buffer.alloc(2)
+    if (readSync(fd, head, 0, 2, 0) < 2 || head.toString() !== "[\n") return JSON.parse(readFileSync(path, "utf8")).map(keep)
+    const out = []
+    const dec = new StringDecoder("utf8")
+    const buf = Buffer.allocUnsafe(1 << 24)
+    let rest = ""
+    let cur = null
+    let ended = false
+    const line = (l, no) => {
+      if (ended) {
+        if (l !== "") throw new Error(`queue ${path}: text after the closing ]`)
+      } else if (no === 0) {
+        if (l !== "[") throw new Error(`queue ${path}: does not start with [`)
+      } else if (cur === null) {
+        if (l === "]") ended = true
+        else if (l === "  {") cur = [l]
+        else throw new Error(`queue ${path}: line ${no + 1} is not the start of an entry`)
+      } else if (l === "  }" || l === "  },") {
+        cur.push("}")
+        out.push(keep(JSON.parse(cur.join("\n"))))
+        cur = null
+      } else cur.push(l)
     }
+    let no = 0
+    for (let pos = 0, got; (got = readSync(fd, buf, 0, buf.length, pos)) > 0; pos += got) {
+      const lines = (rest + dec.write(buf.subarray(0, got))).split("\n")
+      rest = lines.pop()
+      for (const l of lines) line(l, no++)
+    }
+    line(rest + dec.end(), no)
+    if (!ended || cur !== null) throw new Error(`queue ${path}: ends before its closing ]`)
+    return out
   } finally {
     closeSync(fd)
   }
-  renameSync(tmp, path)
 }
+// What the setup itself uses of an entry (its module, and the count): the statement and proof stay in the queue file, for the translation that reads it (queue-server.mjs).
+const slimEntry = (e) => ({ id: e.id, name: e.name, sourcePath: e.sourcePath, sourceLine: e.sourceLine, status: e.status })
 // The lines of the tentative files, one file in memory at a time (leanbridge has 15 of them, ~600 MB together).
 function* tentativeLines() {
   for (const f of TENTATIVE_FILES) yield* readFileSync(f, "utf8").split("\n")
@@ -515,7 +562,7 @@ function qualify(lines, declLine, bare) {
 function seedQueue() {
   const stats = { records: 0, kept: 0, skippedRoot: 0, skippedDup: 0, skippedNoFile: 0, skippedCommented: 0, lineFixed: 0, lineUnverified: 0, nameFixed: 0, sorryOriginals: 0, emptyProofs: 0 }
   if (existsSync(QUEUE) && !RESEED) {
-    const q = JSON.parse(readFileSync(QUEUE, "utf8"))
+    const q = readQueueEntries(QUEUE, slimEntry)
     log(`queue exists: ${QUEUE} (${q.length} entries) — keeping it (--reseed to rebuild)`)
     return { entries: q, stats: null }
   }
@@ -555,6 +602,7 @@ function seedQueue() {
     return file
   }
   const entries = []
+  const queue = jsonArrayWriter(QUEUE)
   for (const raw of tentativeLines()) {
     if (!raw.trim()) continue
     const r = JSON.parse(raw)
@@ -617,7 +665,7 @@ function seedQueue() {
     if (/\bsorry\b/.test(r.proof || "")) stats.sorryOriginals++
     if (!String(r.proof || "").replace(/^\s*:=\s*/, "").trim()) stats.emptyProofs++
     seen.add(name)
-    entries.push({
+    const entry = {
       id: entries.length + 1,
       name,
       oldStatement: r.statement,
@@ -630,10 +678,12 @@ function seedQueue() {
       sourceRef: `${ownerRepo}@${commit}:${path}#L${line}`,
       sourcePath: path,
       sourceLine: line,
-    })
+    }
+    queue.push(entry)
+    entries.push(slimEntry(entry))
     stats.kept++
   }
-  writeJsonArrayAtomic(QUEUE, entries)
+  queue.close()
   log(`seed: ${[...fileCache.values()].filter(Boolean).length} source file(s) kept at the end`) // a missing file is cached as null: not a file kept
   log(`seeded ${QUEUE}: ${JSON.stringify(stats)}`)
   return { entries, stats }
