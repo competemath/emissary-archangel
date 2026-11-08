@@ -628,13 +628,20 @@ def parse(a: argparse.Namespace) -> None:
             "drifted": {m.group(1): re.sub(r"\s+", " ", m.group(3))[:300] for m in DEFLINE.finditer(text) if m.group(2) == "drift"},
         },
     }
-    Path(a.out).write_text(json.dumps(res, indent=2))
-    # the declarations that passed, by module: what scripts/bump/records.py turns into records
+    # the declarations that passed, by module: what scripts/bump/records.py turns into records. A private declaration (`_private.<Module>.0.<name>`) is no record: no other
+    # module can cite it, so no prover can use it, and the tree's isnad population leaves internal declarations out (TengokuIsnad.okName), so the tree cannot tag it. primecert
+    # part 1 (tengoku #758, 8 Nov 2026) was 16 private lemmas and nothing else: "not born tagged" for every file. Its Gate 2 verdict stays in the results above.
     passed: dict[str, list[str]] = defaultdict(list)
+    private = 0
     for (old, _), (kind, _) in own.items():
         r = entries.get(old)
         if kind == "PASS" and r:
+            if old.startswith("_private."):
+                private += 1
+                continue
             passed[module_of(r["sourcePath"])].append(old)
+    res["pass_private_not_records"] = private
+    Path(a.out).write_text(json.dumps(res, indent=2))
     Path(a.out).with_name("passed.json").write_text(json.dumps({m: sorted(ns) for m, ns in passed.items()}))
     print(json.dumps(res, indent=2))
 

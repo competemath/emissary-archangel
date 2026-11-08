@@ -408,3 +408,21 @@ jobs:
         with: { subject-path: "out/bundle-${{ inputs.key }}-*.tar" }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: { name: "bump-${{ inputs.key }}", path: out, retention-days: 90 }
+  # The run's parts are opened at once: the opener's schedule says "every 10 minutes", but GitHub ran it at 18:12, 21:47 and 00:55 on 7-8 Nov 2026, so a finished bump waited
+  # hours for its pull requests and was opened by hand (intake-open runs 42444625597, 42445304275, 42446068096). This job starts the opener for EVERY library with a finished
+  # bundle, not for this key: intake-open keeps one pending run (concurrency group, cancel-in-progress false) and GitHub replaces a pending run with a newer one, so a run for
+  # one key could be dropped and that library would wait for the schedule again (cubic, #158); any run that survives opens them all. It takes no input of the run, runs
+  # nothing of it (no checkout, no artifact), and only on main (the opener ignores bump runs of other branches), only when parts were cut, and only in the factory itself:
+  # a rehearsal of this workflow elsewhere (the sandbox campaign) must never open pull requests in the tree.
+  open:
+    needs: [attest]
+    if: ${{ !cancelled() && needs.attest.result == 'success' && inputs.parts != '' && inputs.parts != '0' && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions: { actions: write }  # workflow_dispatch of intake-open.yml, nothing else
+    env: { GH_TOKEN: "${{ github.token }}" }
+    steps:
+      - name: Start the opener (every library with a finished bundle)
+        run: |
+          gh workflow run intake-open.yml -R "$GITHUB_REPOSITORY" --ref main -f target=competemath/tengoku -f dry_run=false
+          echo "::notice::the opener was started (intake-open.yml, every library with a finished bundle): this run's pull requests open in a few minutes"

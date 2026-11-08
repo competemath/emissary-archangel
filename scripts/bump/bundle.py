@@ -79,6 +79,80 @@ def tv_plain(module: str) -> str:
     return module.replace("«", "").replace("»", "")
 
 
+
+CASCADE = "imports a module that cannot go to the tree"
+
+
+def cascade_roots(imports: dict[str, list[str]], dropped: dict[str, str]) -> dict[str, list[str]]:
+    """For every module dropped only because it imports a dropped module, the modules dropped for a reason of their own (the roots) it reaches through dropped imports.
+    foundation's re-bump (8 Nov 2026): 2,491 passed theorems were left out as "imports a module that cannot go to the tree", and nothing said behind WHICH modules; the
+    ledger now names them, so the few roots that hold back the most can be fixed first.
+
+    The dropped modules and their imports among themselves form a graph whose sinks are the roots (a root's own imports are not followed). Its strongly connected components
+    (Tarjan, iterative: an import chain is thousands of modules deep) are finished sinks first, so each component's roots are its own plus those of the components it imports:
+    exact even for a cycle (Lean forbids one, a malformed graph must not lose roots or loop; cubic, #158)."""
+    succ = {m: ([d for d in imports.get(m, []) if d in dropped] if why == CASCADE else []) for m, why in dropped.items()}
+    index: dict[str, int] = {}
+    low: dict[str, int] = {}
+    on_stack: set[str] = set()
+    stack: list[str] = []
+    comp_of: dict[str, int] = {}
+    comp_roots: list[frozenset[str]] = []
+    counter = 0
+    for start in sorted(succ):
+        if start in index:
+            continue
+        work = [(start, iter(succ[start]))]
+        index[start] = low[start] = counter
+        counter += 1
+        stack.append(start)
+        on_stack.add(start)
+        while work:
+            v, it = work[-1]
+            w = next(it, None)
+            if w is not None:
+                if w not in index:
+                    index[w] = low[w] = counter
+                    counter += 1
+                    stack.append(w)
+                    on_stack.add(w)
+                    work.append((w, iter(succ[w])))
+                elif w in on_stack:
+                    low[v] = min(low[v], index[w])
+                continue
+            work.pop()
+            if work:
+                low[work[-1][0]] = min(low[work[-1][0]], low[v])
+            if low[v] == index[v]:  # v closes a component; every component it imports is finished already
+                members = []
+                while True:
+                    x = stack.pop()
+                    on_stack.discard(x)
+                    comp_of[x] = len(comp_roots)
+                    members.append(x)
+                    if x == v:
+                        break
+                acc: set[str] = {x for x in members if dropped[x] != CASCADE}
+                for x in members:
+                    for d in succ[x]:
+                        if comp_of[d] != len(comp_roots):
+                            acc |= comp_roots[comp_of[d]]
+                comp_roots.append(frozenset(acc))
+    return {m: sorted(comp_roots[comp_of[m]]) for m, why in dropped.items() if why == CASCADE}
+
+
+def held_back_by_root(ledger: dict[str, dict], roots_of: dict[str, list[str]]) -> dict[str, int]:
+    """The passed theorems each root holds back: its own (when it is in the ledger) and those of every cascade module behind it; largest first."""
+    held: Counter = Counter()
+    for mod, entry in ledger.items():
+        if entry["reason"] == CASCADE:
+            for r in roots_of.get(mod, []):
+                held[r] += entry["names"]
+        else:
+            held[mod] += entry["names"]
+    return dict(sorted(held.items(), key=lambda x: (-x[1], x[0])))
+
+
 def keep_gaps(passed: dict[str, list[str]], kept: set[tuple[str, str]]) -> list[tuple[str, str]]:
     """The passed (module, name) pairs the Lean step kept no constant for. Every passed theorem is a seed of `#bundle_keep`, so each must be there."""
     return [(m, n) for m, ns in passed.items() for n in ns if (m, n) not in kept]
@@ -536,7 +610,7 @@ def compose(a: argparse.Namespace) -> None:
                 changed = False
                 for mod, ds in imports.items():
                     if mod not in dropped and any(d in dropped for d in ds):
-                        dropped[mod] = "imports a module that cannot go to the tree"
+                        dropped[mod] = CASCADE
                         changed = True
             needed.clear()
             for mod in keep_blocks:
@@ -666,8 +740,14 @@ def compose(a: argparse.Namespace) -> None:
         if accounted != total:
             sys.exit(f"accounting broke in the {mode} bundle: {total} verified theorems, {len(manifest)} shipped + {sum(left_out.values())} left out = {accounted}")
         # beside the bundle directory, not in it: everything inside is archived and sent to the tree (a ledger.json inside reached tengoku's first tauceti PR as a root file, 2026-10-11)
+        # which refused modules hold the cascade back: each cascade module names its roots, and the roots are ranked by the passed theorems behind them
+        roots_of = cascade_roots(imports, dropped)
+        for mod, entry in ledger.items():
+            if entry["reason"] == CASCADE:
+                entry["blocked_by"] = roots_of.get(mod, [])
         out_dir.with_name(out_dir.name + ".ledger.json").write_text(
-            json.dumps({"library": a.key, "lint_mode": mode, "verified": total, "shipped": len(manifest), "left_out": dict(left_out), "modules": dict(sorted(ledger.items()))}, indent=1)
+            json.dumps({"library": a.key, "lint_mode": mode, "verified": total, "shipped": len(manifest), "left_out": dict(left_out), "modules": dict(sorted(ledger.items())),
+                        "held_back_by_root": {r: {"names": n, "reason": dropped.get(r, ledger.get(r, {}).get("reason", ""))} for r, n in held_back_by_root(ledger, roots_of).items()}}, indent=1)
         )
         report = {"library": a.key, "lint_mode": mode, "gate2_unjudged": unjudged, "gate2_left_out": no_verdict, "modules_in_bundle": len(needed), "modules_dropped": len(dropped), "dropped": dict(list(dropped.items())[:50]), "dropped_truncated": len(dropped) > 50,
                   "theorems": len(manifest), "notation_scoped": notation_scoped["scoped"], "passed_total": sum(len(v) for v in passed.values()), "left_out": dict(left_out), "kept_constants": len(kept), "textually_kept": textually_kept, "dependency_graph": ({**graph_stats, "text_kept_tainted": len(graph_stats["text_kept_tainted"]), "text_kept_tainted_first": graph_stats["text_kept_tainted"][:20], "taint_drops": a.taint_drops} if graph is not None else None), "failed_seeds_shipped": [f"{m}:{b[0]}" for m, b in failed_seeds[:50]], "failed_seeds_shipped_total": len(failed_seeds), "stripped_attributes": dict(stripped_attrs.most_common(15)), "factory_changes": grind_sets.shipped_changes(f.read_text(encoding="utf-8") for f in sorted(tree_root.rglob("*.lean"))),

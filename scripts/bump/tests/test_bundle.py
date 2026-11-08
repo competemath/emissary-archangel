@@ -128,7 +128,9 @@ class Bundle(unittest.TestCase):
             self.assertEqual(led["verified"], led["shipped"] + sum(led["left_out"].values()))  # nothing is missing without a reason
             self.assertEqual(led["verified"], rep["passed_total"])
             self.assertEqual(set(led["modules"]), {"Toy.B"})  # Toy.A has no verified theorem: nothing of it is missing, so it is not a ledger line
-            self.assertEqual(led["modules"]["Toy.B"], {"reason": "imports a module that cannot go to the tree", "names": 1})
+            self.assertEqual(led["modules"]["Toy.B"], {"reason": "imports a module that cannot go to the tree", "names": 1, "blocked_by": ["Toy.A"]})  # the root it is behind
+            self.assertEqual(list(led["held_back_by_root"]), ["Toy.A"])
+            self.assertEqual(led["held_back_by_root"]["Toy.A"]["names"], 1)
             self.assertEqual((led["verified"], led["shipped"]), (1, 0))
 
     def test_a_module_gate2_gave_no_verdict_is_left_out_with_its_importers(self):
