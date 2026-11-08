@@ -8,9 +8,9 @@
     "Challenge"
   ],
   "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/long-gaps-between-primes/repo",
-  "entries": 0,
-  "modules": 0,
-  "exported": 0,
+  "entries": 244,
+  "modules": 1,
+  "exported": 1,
   "failed": [],
   "expansion": {
     "expanded": 0,
@@ -20,14 +20,14 @@
   },
   "seed": {
     "records": 244,
-    "kept": 0,
-    "skippedRoot": 244,
+    "kept": 244,
+    "skippedRoot": 0,
     "skippedDup": 0,
     "skippedNoFile": 0,
     "skippedCommented": 0,
     "lineFixed": 0,
     "lineUnverified": 0,
-    "nameFixed": 0,
+    "nameFixed": 244,
     "sorryOriginals": 0,
     "emptyProofs": 0
   },
@@ -39,7 +39,7 @@
     "node": "v22.23.4",
     "runnerImage": "ubuntu26/20261101.186.1"
   },
-  "exportsBytes": 4096,
-  "minutes": 2,
-  "finishedAt": "2026-11-08T15:28:30.283Z"
+  "exportsBytes": 917504,
+  "minutes": 5,
+  "finishedAt": "2026-11-08T18:22:39.374Z"
 }
