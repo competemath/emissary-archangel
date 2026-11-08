@@ -5,9 +5,9 @@ and nothing said behind which modules: the few refused roots that hold back thou
 
 Fixture: the real import graph of flt-anthropic (fixtures/real-flt-imports.json.gz, 60,474 modules). Real modules are refused for a reason of their own (P2M.Util, which every
 Theorems module imports, and 40 P2M.Sol proofs); every module that imports a refused one, directly or not, is dropped as the cascade (computed here by its own reverse search).
-Invariants: every cascade module's roots are exactly the refused modules it reaches through dropped imports (an independent forward search, on 3,000 cascade modules and on
-every Theorems module); a module dropped for its own reason is no cascade entry; held_back_by_root counts each root's own theorems plus those of every cascade module behind
-it, largest first; a cycle among dropped modules ends.
+Invariants: every cascade module's roots are exactly the refused modules it reaches through dropped imports (an independent forward search, on 3,000 cascade modules and
+2,000 Theorems modules); a module dropped for its own reason is no cascade entry; held_back_by_root counts each root's own theorems plus those of every cascade module behind
+it, largest first; a cycle gives every member every root whatever the order; a chain 5,000 deep needs no recursion.
 """
 
 from __future__ import annotations
@@ -70,7 +70,8 @@ class CascadeRoots(unittest.TestCase):
     def test_each_cascade_module_names_exactly_the_roots_it_is_behind(self):
         cascade = sorted(m for m, w in self.dropped.items() if w == bundle.CASCADE)
         self.assertEqual(set(self.got), set(cascade))  # a module refused for its own reason is no cascade entry
-        sample = random.Random(1).sample(cascade, 3000) + [m for m in cascade if m.startswith("Theorems.")]
+        theorems = [m for m in cascade if m.startswith("Theorems.")]
+        sample = random.Random(1).sample(cascade, 3000) + random.Random(2).sample(theorems, min(2000, len(theorems)))  # bounded: one search per module (cubic, #158)
         for m in sample:
             self.assertEqual(self.got[m], self.expected(m), m)
             self.assertTrue(self.got[m], m)  # a cascade module is behind at least one root
@@ -92,6 +93,24 @@ class CascadeRoots(unittest.TestCase):
         imports = {"A": ["B"], "B": ["A", "R"], "R": []}
         dropped = {"A": bundle.CASCADE, "B": bundle.CASCADE, "R": "lint"}
         self.assertEqual(bundle.cascade_roots(imports, dropped), {"A": ["R"], "B": ["R"]})
+
+    def test_a_cycle_gives_every_member_every_root_whatever_the_order(self):
+        # cubic (#158): with a memo, B reached from A first (A on the path) was cached without the root behind A, and kept it
+        imports = {"A": ["B", "R2"], "B": ["A", "R1"], "C": ["B"], "R1": [], "R2": []}
+        dropped = {"A": bundle.CASCADE, "B": bundle.CASCADE, "C": bundle.CASCADE, "R1": "lint", "R2": "glue"}
+        want = {"A": ["R1", "R2"], "B": ["R1", "R2"], "C": ["R1", "R2"]}
+        for order in (["A", "B", "C", "R1", "R2"], ["C", "B", "A", "R2", "R1"], ["B", "A", "C", "R1", "R2"]):
+            self.assertEqual(bundle.cascade_roots(imports, {k: dropped[k] for k in order}), want, order)
+
+    def test_a_chain_deeper_than_pythons_recursion_limit(self):
+        n = 5000  # an import chain thousands deep: no recursion limit is hit
+        imports = {f"M{i}": [f"M{i + 1}"] for i in range(n)}
+        imports[f"M{n}"] = []
+        dropped = {f"M{i}": bundle.CASCADE for i in range(n)}
+        dropped[f"M{n}"] = "lint"
+        got = bundle.cascade_roots(imports, dropped)
+        self.assertEqual(got["M0"], [f"M{n}"])
+        self.assertEqual(len(got), n)
 
 
 if __name__ == "__main__":

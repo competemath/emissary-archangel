@@ -86,22 +86,59 @@ CASCADE = "imports a module that cannot go to the tree"
 def cascade_roots(imports: dict[str, list[str]], dropped: dict[str, str]) -> dict[str, list[str]]:
     """For every module dropped only because it imports a dropped module, the modules dropped for a reason of their own (the roots) it reaches through dropped imports.
     foundation's re-bump (8 Nov 2026): 2,491 passed theorems were left out as "imports a module that cannot go to the tree", and nothing said behind WHICH modules; the
-    ledger now names them, so the few roots that hold back the most can be fixed first."""
-    memo: dict[str, frozenset[str]] = {}
+    ledger now names them, so the few roots that hold back the most can be fixed first.
 
-    def roots(mod: str, path: frozenset[str]) -> frozenset[str]:
-        if mod in memo:
-            return memo[mod]
-        if dropped.get(mod) != CASCADE:
-            return frozenset([mod])
-        out: set[str] = set()
-        for d in imports.get(mod, []):
-            if d in dropped and d not in path:  # an import cycle among dropped modules (Lean forbids it; a malformed graph must not loop)
-                out |= roots(d, path | {mod})
-        memo[mod] = frozenset(out)
-        return memo[mod]
-
-    return {m: sorted(roots(m, frozenset())) for m, why in dropped.items() if why == CASCADE}
+    The dropped modules and their imports among themselves form a graph whose sinks are the roots (a root's own imports are not followed). Its strongly connected components
+    (Tarjan, iterative: an import chain is thousands of modules deep) are finished sinks first, so each component's roots are its own plus those of the components it imports:
+    exact even for a cycle (Lean forbids one, a malformed graph must not lose roots or loop; cubic, #158)."""
+    succ = {m: ([d for d in imports.get(m, []) if d in dropped] if why == CASCADE else []) for m, why in dropped.items()}
+    index: dict[str, int] = {}
+    low: dict[str, int] = {}
+    on_stack: set[str] = set()
+    stack: list[str] = []
+    comp_of: dict[str, int] = {}
+    comp_roots: list[frozenset[str]] = []
+    counter = 0
+    for start in sorted(succ):
+        if start in index:
+            continue
+        work = [(start, iter(succ[start]))]
+        index[start] = low[start] = counter
+        counter += 1
+        stack.append(start)
+        on_stack.add(start)
+        while work:
+            v, it = work[-1]
+            w = next(it, None)
+            if w is not None:
+                if w not in index:
+                    index[w] = low[w] = counter
+                    counter += 1
+                    stack.append(w)
+                    on_stack.add(w)
+                    work.append((w, iter(succ[w])))
+                elif w in on_stack:
+                    low[v] = min(low[v], index[w])
+                continue
+            work.pop()
+            if work:
+                low[work[-1][0]] = min(low[work[-1][0]], low[v])
+            if low[v] == index[v]:  # v closes a component; every component it imports is finished already
+                members = []
+                while True:
+                    x = stack.pop()
+                    on_stack.discard(x)
+                    comp_of[x] = len(comp_roots)
+                    members.append(x)
+                    if x == v:
+                        break
+                acc: set[str] = {x for x in members if dropped[x] != CASCADE}
+                for x in members:
+                    for d in succ[x]:
+                        if comp_of[d] != len(comp_roots):
+                            acc |= comp_roots[comp_of[d]]
+                comp_roots.append(frozenset(acc))
+    return {m: sorted(comp_roots[comp_of[m]]) for m, why in dropped.items() if why == CASCADE}
 
 
 def held_back_by_root(ledger: dict[str, dict], roots_of: dict[str, list[str]]) -> dict[str, int]:
