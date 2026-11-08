@@ -128,6 +128,25 @@ class Refusals(unittest.TestCase):
                 link_srcdir.link(d, "src", ["A"])
             self.assertFalse((d / "A.lean").is_symlink())
 
+    def test_a_root_that_is_not_one_name_at_the_top(self):
+        for bad in ("../A", "a/../../A", "/abs", "..", ".", "", "x/y", "x\\y"):
+            with tempfile.TemporaryDirectory() as t:
+                d = Path(t) / "p"
+                for present in ("src/a", "src/x/y", "A"):  # what each bad name would reach under the source folder, so that only the rule can refuse it
+                    (d / present).mkdir(parents=True)
+                with self.assertRaises(ValueError, msg=bad):
+                    link_srcdir.link(d, "src", [bad])
+                self.assertEqual(sorted(p.name for p in d.iterdir()), ["A", "src"], bad)
+                self.assertEqual([p.name for p in d.parent.iterdir()], ["p"], bad)
+
+    def test_every_root_of_the_registry_is_one_name(self):
+        """the rule must not refuse a root the registry really has"""
+        sources = json.loads((REPO / "sources.json").read_text())["sources"]
+        for key, src in sources.items():
+            for root in src.get("roots") or []:
+                self.assertNotIn("/", root, key)
+                self.assertNotIn(root, ("", ".", ".."), key)
+
     def test_a_link_inside_the_project_is_followed(self):
         with tempfile.TemporaryDirectory() as t:
             d = Path(t)

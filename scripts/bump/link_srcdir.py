@@ -21,6 +21,8 @@ def link(project: Path, srcdir: str, roots: list[str]) -> list[str]:
     made = []
     inside = project.resolve()
     for root in roots:
+        if "/" in root or "\\" in root or root in ("", ".", ".."):  # a root is one name at the top of the project: anything else would put the link somewhere else
+            raise ValueError(f"root {root!r}: one name at the top of the project")
         for name in (root, f"{root}.lean"):
             target = project.joinpath(*parts, name)
             if not target.exists():
