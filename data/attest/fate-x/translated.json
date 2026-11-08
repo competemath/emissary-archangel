@@ -1,0 +1,638 @@
+[
+ {
+  "id": "fatex_001",
+  "index": 1,
+  "name": "isPrincipalIdealRing_of_associated_or_associated",
+  "statement": "namespace Problem1\n\ntheorem isPrincipalIdealRing_of_associated_or_associated {R : Type} [CommRing R] [IsDomain R]\n    [UniqueFactorizationMonoid R] {p q : R} (hp : Prime p) (hq : Prime q) (hpq : ¬ Associated p q)\n    (h : ∀ {x : R}, Prime x → Associated x p ∨ Associated x q) :\n    IsPrincipalIdealRing R := by\n  sorry\n\nend Problem1\n"
+ },
+ {
+  "id": "fatex_002",
+  "index": 2,
+  "name": "card_minimal_normal_subgroup_le_2",
+  "statement": "namespace Problem2\n\ntheorem card_minimal_normal_subgroup_le_2 (G : Type) [Group G] [Finite G]\n    (L : Subgroup G) (h_ne_top : L ≠ ⊤) (h_maximal : IsMax (⟨L, h_ne_top⟩ : {H : Subgroup G // H ≠ ⊤}))\n    (h_simple : IsSimpleGroup L) (h_non_comm : ∃ (x y : L), x * y ≠ y * x) :\n    {H : {H : Subgroup G // H.Normal} | IsMin H}.ncard ≤ 2 := by\n  sorry\n\nend Problem2\n"
+ },
+ {
+  "id": "fatex_003",
+  "index": 3,
+  "name": "exists_leftCoset_rightCoset_representative",
+  "statement": "namespace Problem3\n\ntheorem exists_leftCoset_rightCoset_representative\n    (G : Type) [Group G] (H : Subgroup G) [H.FiniteIndex] :\n    ∃ S : Set G, Subgroup.IsComplement S H ∧ Subgroup.IsComplement H S := by\n  sorry\n\nend Problem3\n"
+ },
+ {
+  "id": "fatex_004",
+  "index": 4,
+  "name": "add_one_eq_two_pow_of_sylow_subgroup_not_normal",
+  "statement": "namespace Problem4\n\ntheorem add_one_eq_two_pow_of_sylow_subgroup_not_normal (p : ℕ) (h_odd : Odd p) (G : Type)\n    (hp : p.Prime) [Finite G] [Group G] (h_card : Nat.card G = p * (p + 1))\n    (h_sylow : ∀ (H : Sylow p G), ¬ H.Normal) : ∃ (n : ℕ), p + 1 = 2 ^ n := by\n  sorry\n\nend Problem4\n"
+ },
+ {
+  "id": "fatex_005",
+  "index": 5,
+  "name": "maximal_abelian_normal_subgroup_of_p_group_is_maximal_abelian_subgroup",
+  "statement": "namespace Problem5\n\ntheorem maximal_abelian_normal_subgroup_of_p_group_is_maximal_abelian_subgroup\n    (p : ℕ) (hp : p.Prime) (G : Type) [Group G] [Finite G] (h_pgroup : IsPGroup p G)\n    (H : Subgroup G) (h_normal : H.Normal) (h_comm : IsMulCommutative H)\n    (h_maximal_normal_abelian : ∀ (K : Subgroup G), K.Normal → IsMulCommutative K → H ≤ K → H = K) :\n    ∀ (K : Subgroup G), IsMulCommutative K → H ≤ K → H = K := by\n  sorry\n\nend Problem5\n"
+ },
+ {
+  "id": "fatex_006",
+  "index": 6,
+  "name": "not_isSimpleGroup_of_card_eq_396",
+  "statement": "namespace Problem6\n\ntheorem not_isSimpleGroup_of_card_eq_396 (G : Type) [Group G]\n    [Finite G] (h_card : Nat.card G = 396) : ¬ IsSimpleGroup G := by\n  sorry\n\nend Problem6\n"
+ },
+ {
+  "id": "fatex_007",
+  "index": 7,
+  "name": "not_isSimpleGroup_of_card_eq_1785",
+  "statement": "namespace Problem7\n\ntheorem not_isSimpleGroup_of_card_eq_1785 (G : Type) [Group G]\n    [Finite G] (h_card : Nat.card G = 1785) : ¬ IsSimpleGroup G := by\n  sorry\n\nend Problem7\n"
+ },
+ {
+  "id": "fatex_008",
+  "index": 8,
+  "name": "quaternionAlgebra_isomorphic_to_matrix_ring_or_quaternion_ring",
+  "statement": "namespace Problem8\n\nopen Quaternion\n\ntheorem quaternionAlgebra_isomorphic_to_matrix_ring_or_quaternion_ring\n    (A B : ℚ) (ha : A ≠ 0) (hb : B ≠ 0) :\n    ((Nonempty (ℍ[ℝ, A, B] ≃ₐ[ℝ] ℍ[ℝ, -1, -1])) ∨ (Nonempty (ℍ[ℝ, A, B] ≃ₐ[ℝ] Matrix (Fin 2) (Fin 2) ℝ)))\n    ∧ IsEmpty (Matrix (Fin 2) (Fin 2) ℝ ≃ₐ[ℝ] ℍ[ℝ, -1, -1]) := by\n  sorry\n\nend Problem8\n"
+ },
+ {
+  "id": "fatex_009",
+  "index": 9,
+  "name": "sylow_subgroup_not_normal_of_maximal_intersection",
+  "statement": "namespace Problem9\n\ntheorem sylow_subgroup_not_normal_of_maximal_intersection (G : Type) [Finite G] [Group G]\n    (p : ℕ) [Fact (Nat.Prime p)] (S T : Sylow p G) (h_ne : S ≠ T)\n    (h_maximal : ∀ (S' T' : Sylow p G), S' ≠ T' →\n    ((S' : Set G) ⊓ T').ncard ≤ ((S : Set G) ⊓ T).ncard) :\n    ∀ (P : Sylow p (Subgroup.normalizer (((S : Subgroup G) ⊓ (T : Subgroup G) : Subgroup G) : Set G))), ¬ P.Normal := by\n  sorry\n\nend Problem9\n",
+  "port": {
+   "kind": "mathlib-api",
+   "change": "`Subgroup.normalizer` now takes a `Set G`, so the field notation on a `Subgroup` no longer resolves; the normalizer of the coerced subgroup is the same subgroup (`Subgroup.mem_normalizer_iff`)."
+  }
+ },
+ {
+  "id": "fatex_010",
+  "index": 10,
+  "name": "isPrincipalIdealRing_quot_X_pow_two_plus_Y_pow_two_plus_one",
+  "statement": "namespace Problem10\n\ntheorem isPrincipalIdealRing_quot_X_pow_two_plus_Y_pow_two_plus_one :\n    IsPrincipalIdealRing ((MvPolynomial (Fin 2) ℝ) ⧸\n    Ideal.span {(.X 0 ^ 2 + .X 1 ^ 2 + .C 1 : (MvPolynomial (Fin 2) ℝ))}) := by\n  sorry\n\nend Problem10\n"
+ },
+ {
+  "id": "fatex_011",
+  "index": 11,
+  "name": "not_isomorphic_euclideanDomain",
+  "statement": "namespace Problem11\n\nclass EuclideanNormNat (R : Type) [CommRing R] extends Nontrivial R where\n  quotient : R → R → R\n  quotient_zero : ∀ a, quotient a 0 = 0\n  remainder : R → R → R\n  quotient_mul_add_remainder_eq : ∀ a b, b * quotient a b + remainder a b = a\n  norm : R → ℕ\n  remainder_lt : ∀ (a) {b}, b ≠ 0 → norm (remainder a b) < norm b\n  mul_left_not_lt : ∀ (a) {b}, b ≠ 0 → ¬ norm (a * b) < norm a\n\ntheorem not_isomorphic_euclideanDomain : IsEmpty <| EuclideanNormNat (((MvPolynomial (Fin 2) ℝ) ⧸\n    Ideal.span {(.X 0 ^ 2 + .X 1 ^ 2 + .C 1: MvPolynomial (Fin 2) ℝ)})) := by\n  sorry\n\nend Problem11\n"
+ },
+ {
+  "id": "fatex_012",
+  "index": 12,
+  "name": "isPrincipalIdealRing_of_quadratic_integer_19",
+  "statement": "namespace Problem12\n\ntheorem isPrincipalIdealRing_of_quadratic_integer_19 :\n    IsPrincipalIdealRing (Algebra.adjoin ℤ {(1 + (Real.sqrt 19) * Complex.I) / 2}) ∧ IsDomain (Algebra.adjoin ℤ {(1 + (Real.sqrt 19) * Complex.I) / 2}) := by\n  sorry\n\nend Problem12\n"
+ },
+ {
+  "id": "fatex_013",
+  "index": 13,
+  "name": "sq_eq_self_of_not_unit",
+  "statement": "namespace Problem13\n\ntheorem sq_eq_self_of_not_unit {R : Type} [Ring R] (h : ¬ IsField R)\n    (h2 : ∀ x : R, ¬ IsUnit x → x^2 = x) (x : R) : x^2 = x := by\n  sorry\n\nend Problem13\n"
+ },
+ {
+  "id": "fatex_014",
+  "index": 14,
+  "name": "isomorphic_real_of_fractionRing_isomorphic_real_of_UFD",
+  "statement": "namespace Problem14\n\ntheorem isomorphic_real_of_fractionRing_isomorphic_real_of_UFD (R : Type) [CommRing R] [IsDomain R]\n    [UniqueFactorizationMonoid R] (h : Nonempty ((FractionRing R) ≃+* ℝ)) :\n    Nonempty (R ≃+* ℝ) := by\n  sorry\n\nend Problem14\n"
+ },
+ {
+  "id": "fatex_015",
+  "index": 15,
+  "name": "exists_swap_stepwiseQuotient",
+  "statement": "namespace Problem15\n\nstructure Subgroup.IsMaximalNormal {G : Type} [Group G] (H₁ H₂ : Subgroup G) : Prop where\n  le : H₁ ≤ H₂\n  subgroupOf_normal : (H₁.subgroupOf H₂).Normal\n  is_maximal : ∀ H : Subgroup G, H₁ ≤ H → H ≤ H₂ → (H.subgroupOf H₂).Normal → (H = H₁ ∨ H = H₂)\n\ndef Subgroup.IsMaximalNormal.setRel {G : Type} [Group G] : SetRel (Subgroup G) (Subgroup G) :=\n  fun (H₁, H₂) ↦ Subgroup.IsMaximalNormal H₁ H₂\n\nstructure NormalSubgroupCompositionSeries (G : Type) [Group G] : Type where\n  toRelSeries : RelSeries (Subgroup.IsMaximalNormal.setRel (G := G))\n  maximal : ∀ s : RelSeries (Subgroup.IsMaximalNormal.setRel (G := G)),\n      s.length ≤ toRelSeries.length\n\ndef StepwiseQuotient {G : Type} [Group G] (s : NormalSubgroupCompositionSeries G)\n    (i : Fin s.toRelSeries.length) : Type :=\n  s.toRelSeries i.succ ⧸ (s.toRelSeries i.castSucc).subgroupOf _\n\ninstance {G : Type} [Group G] (s : NormalSubgroupCompositionSeries G)\n    (i : Fin s.toRelSeries.length) : Group (StepwiseQuotient s i) :=\n  QuotientGroup.Quotient.group _ (nN := (s.toRelSeries.step i).subgroupOf_normal)\n\ntheorem exists_swap_stepwiseQuotient {p q r t : ℕ} (hp : p.Prime) (hq : q.Prime) (hr : r.Prime)\n    (ht : 0 < t) (G : Type) [Group G] [Fintype G] (H : Subgroup G) [H.Normal]\n    (hH : Nat.card (G ⧸ H) = r ^ t) (Hs : NormalSubgroupCompositionSeries H)\n    (hHs: Hs.toRelSeries.length = 2) (hHs0 : StepwiseQuotient Hs ⟨0, by omega⟩ ≃* ZMod p)\n    (hHs1 : StepwiseQuotient Hs ⟨1, by omega⟩ ≃* ZMod q)\n    (Gs : NormalSubgroupCompositionSeries G) (i j : Fin Gs.toRelSeries.length) (hij : i < j)\n    (hGi : StepwiseQuotient Gs i ≃* ZMod q) (hGj : StepwiseQuotient Gs j ≃* ZMod p) :\n    ∃ (Hs' : NormalSubgroupCompositionSeries H) (hlen : Hs'.toRelSeries.length = 2),\n    Nonempty (StepwiseQuotient Hs' ⟨0, by omega⟩  ≃* ZMod q) ∧\n    Nonempty (StepwiseQuotient Hs' ⟨1, by omega⟩  ≃* ZMod p) := by\n  sorry\n\nend Problem15\n"
+ },
+ {
+  "id": "fatex_016",
+  "index": 16,
+  "name": "normalClosure_isPExtension_of_isPExtension",
+  "statement": "namespace Problem16\n\nclass IsPExtension (F E : Type) [Field F] [Field E] [Algebra F E]\n    (p : ℕ) : Prop extends IsGalois F E where\n    rank_eq_pow : ∃ (n : ℕ), Module.rank F E = p ^ n\n\nset_option linter.overlappingInstances false in\ntheorem normalClosure_isPExtension_of_isPExtension (F E : Type) [Field F] [Field E]\n    [Algebra F E] (L : IntermediateField F E) (K : IntermediateField F L) (p : ℕ) (hp : p.Prime)\n    [IsPExtension F K p] [IsGalois K L] [IsPExtension K L p]\n    (h_normalClosure : IsNormalClosure F L E) : IsPExtension F E p := by\n  sorry\n\nend Problem16\n",
+  "port": {
+   "kind": "linter",
+   "change": "Mathlib 4.34 added a linter that warns the statement has overlapping instance arguments; Leak IV counts any warning as a failure, so a proof of this statement could never pass. The linter is switched off for the one declaration; the statement is untouched."
+  }
+ },
+ {
+  "id": "fatex_017",
+  "index": 17,
+  "name": "countable_index_of_maximal_subfield_sqrt_2_nmem",
+  "statement": "namespace Problem17\n\ntheorem countable_index_of_maximal_subfield_sqrt_2_nmem\n    (K : Subfield ℂ) (h_nmem : (Real.sqrt 2 : ℂ) ∉ K)\n    (h : ∀ (L : Subfield ℂ), K ≤ L → (Real.sqrt 2 : ℂ) ∉ L → K = L) :\n    Module.rank K ℂ = Cardinal.aleph0 := by\n  sorry\n\nend Problem17\n"
+ },
+ {
+  "id": "fatex_018",
+  "index": 18,
+  "name": "isEmpty_embedding_intermediateField_of_odd_degree_galois",
+  "statement": "namespace Problem18\n\ndef IsRadicalExtension (E F : Type) [CommRing E] [CommRing F] [Algebra E F] : Prop :=\n    ∃ (x : F), Algebra.adjoin E {x} = ⊤ ∧ (∃ (n : ℕ) (e : E), n ≥ 1 ∧ x ^ n - (algebraMap E F) e = 0)\n\ninductive IsRadicalTower : ∀ (E : Type) (F : Type) [CommRing E] [CommRing F] [Algebra E F], Prop\n  | of_isRadicalExtension (E : Type) (F : Type)\n      [CommRing E] [CommRing F] [Algebra E F] : IsRadicalExtension E F → IsRadicalTower E F\n  | of_composition (E : Type) (F : Type) [CommRing E] [CommRing F] [Algebra E F] (F' : Subalgebra E F) :\n      IsRadicalExtension F' F → IsRadicalTower E F' → IsRadicalTower E F\n\ntheorem isEmpty_embedding_intermediateField_of_odd_degree_galois (E : Subfield ℝ) (K : Type)\n    [Field K] [Algebra E K] [IsGalois E K] (n : ℕ) (h_odd : Odd n) (hn : n > 1) (h_deg_eq : Module.rank E K = n)\n    (K' : IntermediateField E ℝ) (h_radical : IsRadicalTower E K') :\n    IsEmpty (K →ₐ[E] K') := by\n  sorry\n\nend Problem18\n"
+ },
+ {
+  "id": "fatex_019",
+  "index": 19,
+  "name": "galoisGroup_iso_quaternion_group",
+  "statement": "namespace Problem19\n\nabbrev E : Type := (Algebra.adjoin ℚ {Real.sqrt ((2 + Real.sqrt 2) * (3 + Real.sqrt 3))})\n\ntheorem galoisGroup_iso_quaternion_group : Nonempty ((E ≃ₐ[ℚ] E) ≃* (QuaternionGroup 2)) := by\n  sorry\n\nend Problem19\n"
+ },
+ {
+  "id": "fatex_020",
+  "index": 20,
+  "name": "generated_single_elem_of_degree_le_p",
+  "statement": "namespace Problem20\n\ntheorem generated_single_elem_of_degree_le_p (p : ℕ) [Fact (Nat.Prime p)]\n    (K L : Type) [Field K] [Field L] [CharP L p] [Algebra K L] [FiniteDimensional K L]\n    (h : Module.rank (IntermediateField.adjoin K ((frobenius L p).range : Set L)) L ≤ p) :\n    ∃ (x : L), IntermediateField.adjoin K {x} = ⊤ := by\n  sorry\n\nend Problem20\n"
+ },
+ {
+  "id": "fatex_021",
+  "index": 21,
+  "name": "intermediateField_rank_eq_ringChar",
+  "statement": "namespace Problem21\n\nopen Polynomial\n\ntheorem intermediateField_rank_eq_ringChar (F : Type) [Field F] (f : Polynomial F) (hf : Irreducible f)\n    (K : Type) [Field K] [Algebra F K] (hK : f.IsSplittingField F K) (α : K)\n    (hα : f.aeval α = 0) (hα1 : f.aeval (α + 1) = 0) :\n    ∃ (E : IntermediateField F K), Module.rank E K = ringChar F := by\n  sorry\n\nend Problem21\n"
+ },
+ {
+  "id": "fatex_022",
+  "index": 22,
+  "name": "finite_algebraic_integers_of_finite_module",
+  "statement": "namespace Problem22\n\ntheorem finite_algebraic_integers_of_finite_module\n    (F : IntermediateField ℚ ℂ) (h_fin : Module.Finite ℚ F) [IsGalois ℚ F]\n    (h : IsMulCommutative (F ≃ₐ[ℚ] F)) : {x : F | IsIntegral ℤ x ∧ ‖(x : ℂ)‖ = 1}.Finite ∧\n    (∀ x : F, IsIntegral ℤ x → ‖(x : ℂ)‖ = 1 → ∃ n,  x ^ n = 1) := by\n  sorry\n\nend Problem22\n"
+ },
+ {
+  "id": "fatex_023",
+  "index": 23,
+  "name": "ratio_tendsto_one_of_irreducible",
+  "statement": "namespace Problem23\n\nlocal instance (p : Nat.Primes) : NeZero p.1 := ⟨p.2.ne_zero⟩\nlocal instance (p : Nat.Primes) : IsDomain (ZMod p) := @ZMod.instIsDomain p ⟨p.2⟩\n\ntheorem ratio_tendsto_one_of_irreducible (f : Polynomial ℤ) (h_irr : Irreducible f) :\n    Function.rightLim\n    (fun (s : ℝ) ↦\n    (tsum (fun p : Nat.Primes ↦ (f.rootSet (ZMod p)).ncard * ((p : ℝ) ^ (-s)))) /\n    (tsum (fun p : Nat.Primes ↦ (p : ℝ) ^ (-s)))) 1 = 1 := by\n  sorry\n\nend Problem23\n"
+ },
+ {
+  "id": "fatex_024",
+  "index": 24,
+  "name": "galoisGroup_iso_of_distinct_primes",
+  "statement": "namespace Problem24\n\nabbrev RatAdjoinSqrt {I : Type} (p : I → ℕ) : Type :=\n  Algebra.adjoin ℚ (Set.range (fun i ↦ Real.sqrt (p i)))\n\ntheorem galoisGroup_iso_of_distinct_primes {I : Type} [Finite I] (p : I → ℕ)\n    (hp : ∀ (i : I), (p i).Prime) (h_inj : p.Injective) :\n    Nonempty ((RatAdjoinSqrt p ≃ₐ[ℚ] RatAdjoinSqrt p) ≃* (Multiplicative (I → (ZMod 2)))) := by\n  sorry\n\nend Problem24\n"
+ },
+ {
+  "id": "fatex_025",
+  "index": 25,
+  "name": "fixedField_eq_algebra_adjoin",
+  "statement": "namespace Problem25\n\ntheorem fixedField_eq_algebra_adjoin :\n    Nonempty ((RatFunc (ZMod 2) ≃+* RatFunc (ZMod 2)) ≃* (Equiv.Perm (Fin 3))) ∧\n    IntermediateField.fixedField (F := ZMod 2) (E := RatFunc (ZMod 2)) ⊤ =\n    IntermediateField.adjoin (ZMod 2) {((.X ^ 4 - .X) ^ 3 / (.X ^ 2 - .X) ^ 5 : (RatFunc (ZMod 2)))} := by\n  sorry\n\nend Problem25\n"
+ },
+ {
+  "id": "fatex_026",
+  "index": 26,
+  "name": "card_one_or_two_of_finite_closed_subgroup_of_absoluteGaloisGroup",
+  "statement": "namespace Problem26\n\ntheorem card_one_or_two_of_finite_closed_subgroup_of_absoluteGaloisGroup\n    (K : Type) [Field K] [Algebra ℚ K] [Module.Finite ℚ K]\n    (H : Subgroup (Field.absoluteGaloisGroup K))\n    (h_closed : IsClosed (H : Set (Field.absoluteGaloisGroup K)))\n    (h_fin : Finite H) : Nat.card H = 1 ∨ Nat.card H = 2 := by\n  sorry\n\nend Problem26\n"
+ },
+ {
+  "id": "fatex_027",
+  "index": 27,
+  "name": "isGalois_and_rank_eq_of_isPrimitiveRoot_sq",
+  "statement": "namespace Problem27\n\ntheorem isGalois_and_rank_eq_of_isPrimitiveRoot_sq (p : ℕ) (hp : p.Prime) {K : Type} [Field K]\n    [NumberField K] {ζ : K} (h : IsPrimitiveRoot ζ (p^2))\n    {L : IntermediateField K (AlgebraicClosure K)} [IsGalois K L]\n    (hdeg : Module.rank K L = p) :\n    ∃ (L' : Type) (_ : Field L') (_ : Algebra K L')\n    (_ : Algebra L L') (_ : IsScalarTower K L L'),\n    IsGalois K L' ∧ IsGalois L L' ∧ Module.rank L L' = p := by\n  sorry\n\nend Problem27\n"
+ },
+ {
+  "id": "fatex_028",
+  "index": 28,
+  "name": "infinite_conj_of_ne_1_absoluteGaloisGroup",
+  "statement": "namespace Problem28\n\ntheorem infinite_conj_of_ne_1_absoluteGaloisGroup (K : Type)\n    [Field K] [Algebra ℚ K] [Module.Finite ℚ K] (g : Field.absoluteGaloisGroup K) (h : g ≠ 1) :\n    {g' : Field.absoluteGaloisGroup K | IsConj g g'}.Infinite := by\n  sorry\n\nend Problem28\n"
+ },
+ {
+  "id": "fatex_029",
+  "index": 29,
+  "name": "isClosed_zpowers_iff_isOfFinOrder",
+  "statement": "namespace Problem29\n\ntheorem isClosed_zpowers_iff_isOfFinOrder (K : Type)\n    [Field K] [Algebra ℚ K] [Module.Finite ℚ K] (g : Field.absoluteGaloisGroup K) :\n    IsClosed ((Subgroup.zpowers g) : Set (Field.absoluteGaloisGroup K)) ↔ IsOfFinOrder g := by\n  sorry\n\nend Problem29\n"
+ },
+ {
+  "id": "fatex_030",
+  "index": 30,
+  "name": "integrallyClosedIn_of_complement_multiplicatively_closed",
+  "statement": "namespace Problem30\n\ntheorem integrallyClosedIn_of_complement_multiplicatively_closed (B : Type) [CommRing B] (A : Subring B)\n    (h : ∀ (x y : B), x ∉ A → y ∉ A → x * y ∉ A) : IsIntegrallyClosedIn A B := by\n  sorry\n\nend Problem30\n"
+ },
+ {
+  "id": "fatex_031",
+  "index": 31,
+  "name": "UFD_of_ge_5",
+  "statement": "namespace Problem31\n\nopen MvPolynomial\n\nabbrev R (n : ℕ) : Type :=\n  MvPolynomial (Fin n) ℂ ⧸ Ideal.span {(∑ i : Fin n, X i ^ 2 : MvPolynomial (Fin n) ℂ)}\n\ntheorem UFD_of_ge_5 (n : ℕ) (h : n ≥ 5) :\n    ∃ (h : IsDomain (R n)), UniqueFactorizationMonoid (R n) := by\n  sorry\n\nend Problem31\n"
+ },
+ {
+  "id": "fatex_032",
+  "index": 32,
+  "name": "UFD_of_adicCompletion_UFD",
+  "statement": "namespace Problem32\n\nopen IsLocalRing\n\ntheorem UFD_of_adicCompletion_UFD (R : Type) [CommRing R] [IsLocalRing R] [IsNoetherianRing R]\n    [IsDomain (AdicCompletion (maximalIdeal R) R)]\n    [UniqueFactorizationMonoid (AdicCompletion (maximalIdeal R) R)] :\n    ∃ (h : IsDomain R), UniqueFactorizationMonoid R := by\n  sorry\n\nend Problem32\n"
+ },
+ {
+  "id": "fatex_033",
+  "index": 33,
+  "name": "isNoetherianRing_of_fg_of_isNoetherianRing",
+  "statement": "namespace Problem33\n\ntheorem isNoetherianRing_of_fg_of_isNoetherianRing (B : Type) [CommRing B] [IsNoetherianRing B]\n    (A : Subring B) (h : Module.Finite A B) : IsNoetherianRing A := by\n  sorry\n\nend Problem33\n"
+ },
+ {
+  "id": "fatex_034",
+  "index": 34,
+  "name": "powerSeries_not_integrallyClosed_of_two_lt_ringKrullDim",
+  "statement": "namespace Problem34\n\nopen PowerSeries\n\ntheorem powerSeries_not_integrallyClosed_of_two_lt_ringKrullDim (R : Type) [CommRing R]\n    [IsDomain R] [ValuationRing R] (two_lt : 2 ≤ ringKrullDim R) :\n    ¬ (IsIntegrallyClosed R⟦X⟧) := by\n  sorry\n\nend Problem34\n"
+ },
+ {
+  "id": "fatex_035",
+  "index": 35,
+  "name": "noetherian_of_prime_ideals_fg",
+  "statement": "namespace Problem35\n\ntheorem noetherian_of_prime_ideals_fg (R : Type) [CommRing R]\n    (h_fg : ∀ (p : Ideal R), p.IsPrime → p.FG) : IsNoetherianRing R := by\n  sorry\n\nend Problem35\n"
+ },
+ {
+  "id": "fatex_036",
+  "index": 36,
+  "name": "associatedPrimes_hom_eq_support_inter_associatedPrimes",
+  "statement": "namespace Problem36\n\ntheorem associatedPrimes_hom_eq_support_inter_associatedPrimes (R : Type) [CommRing R]\n    [IsNoetherianRing R] (M N : Type) [AddCommGroup M] [AddCommGroup N] [Module R M] [Module R N]\n    [Module.Finite R M] [Module.Finite R N] : associatedPrimes R (M →ₗ[R] N) =\n    {p | p ∈ associatedPrimes R N ∧ Module.annihilator R M ≤ p} := by\n  sorry\n\nend Problem36\n"
+ },
+ {
+  "id": "fatex_037",
+  "index": 37,
+  "name": "ufd_quotDetSubOne",
+  "statement": "namespace Problem37\n\nabbrev QuotDetSubOne (n : ℕ) : Type := MvPolynomial ((Fin n) × (Fin n)) ℂ ⧸ Ideal.span {\n      Matrix.det (fun (i : Fin n) ↦ (fun (j : Fin n) ↦ (.X ⟨i, j⟩ : (MvPolynomial ((Fin n) × (Fin n)) ℂ)))) - .C 1}\n\ntheorem ufd_quotDetSubOne (n : ℕ) (h : n ≥ 1) : ∃ (h : IsDomain (QuotDetSubOne n)),\n    UniqueFactorizationMonoid (QuotDetSubOne n) := by\n  sorry\n\nend Problem37\n"
+ },
+ {
+  "id": "fatex_038",
+  "index": 38,
+  "name": "free_dualNumber_and_rank_eq_2",
+  "statement": "namespace Problem38\n\nopen Polynomial DualNumber\n\nabbrev S (k : Type) [Field k] : Type := ((DualNumber k)[X] ⧸ Ideal.span {((Polynomial.C ε) * Polynomial.X^3 + (Polynomial.C ε) * Polynomial.X^2 - Polynomial.X^2 - Polynomial.X : (DualNumber k)[X])})\n\nnoncomputable instance (k : Type) [Field k] : Module (DualNumber k) (S k) := Module.compHom _ Polynomial.C\n\ntheorem free_dualNumber_and_rank_eq_2 (k : Type) [Field k] :\n    Module.Free (DualNumber k) (S k) ∧ Module.rank (DualNumber k) (S k) = 2 := by\n  sorry\n\nend Problem38\n",
+  "port": {
+   "kind": "tree-name-clash",
+   "change": "The tree holds translated libraries that declare root-level `C` and `X`; under `open Polynomial` the bare names are ambiguous. Qualified to the `Polynomial` ones the `open` was meant to reach."
+  }
+ },
+ {
+  "id": "fatex_039",
+  "index": 39,
+  "name": "finite_primes_lies_over_of_finite_extension",
+  "statement": "namespace Problem39\n\ntheorem finite_primes_lies_over_of_finite_extension (R : Type) [CommRing R] [IsDomain R]\n    [IsNoetherianRing R] [IsIntegrallyClosed R] (L : Type) [Field L] [Algebra R L]\n    [Algebra (FractionRing R) L] [IsScalarTower R (FractionRing R) L]\n    [FiniteDimensional (FractionRing R) L] (p : Ideal R) [p.IsPrime] :\n    (p.primesOver (integralClosure R L)).Finite := by\n  sorry\n\nend Problem39\n"
+ },
+ {
+  "id": "fatex_040",
+  "index": 40,
+  "name": "free_of_rank_iff",
+  "statement": "namespace Problem40\n\nopen TensorProduct\n\ntheorem free_of_rank_iff (R : Type) [CommRing R] [IsLocalRing R] [IsReduced R]\n    (h : (minimalPrimes R).Finite) (r : ℕ) (M : Type) [AddCommGroup M] [Module R M] [Module.Finite R M] :\n    Module.Free R M ∧ Module.rank R M = r ↔\n    (Module.rank (IsLocalRing.ResidueField R) ((IsLocalRing.ResidueField R) ⊗[R] M) = r ∧\n    ∀ p ∈ minimalPrimes R,\n    Module.rank (FractionRing (R ⧸ p)) ((FractionRing (R ⧸ p)) ⊗[R] M) = r) := by\n  sorry\n\nend Problem40\n"
+ },
+ {
+  "id": "fatex_041",
+  "index": 41,
+  "name": "isNoetherianRing_and_krullDim_eq_top",
+  "statement": "namespace Problem41\n\nnoncomputable def compl_all {α R : Type} [CommRing R] (I : α → Ideal R) : Submonoid R :=\n  Submonoid.closure (⋃ (i : α), (I i : Set R))ᶜ\n\nnoncomputable def ideal_x {α : Type} (R : Type) [CommRing R] (J : Set α) : Ideal (MvPolynomial α R) :=\n  Ideal.span ((MvPolynomial.X)'' J)\n\nnoncomputable abbrev SInvA (k : Type) [Field k] (m : ℕ → ℕ) : Type := (Localization (compl_all fun (n : ℕ) ↦ ideal_x k (Set.Ioc (m n) (m (n + 1)))))\n\ntheorem isNoetherianRing_and_krullDim_eq_top (k : Type) [Field k] (m : ℕ → ℕ) (h : StrictMono m) (h_diff_mono : StrictMono (fun (i : ℕ) ↦ m (i + 1) - m i)) :\n    IsNoetherianRing (SInvA k m) ∧\n    ringKrullDim (SInvA k m) = ⊤ := by\n  sorry\n\nend Problem41\n",
+  "port": {
+   "kind": "modifier",
+   "change": "`AddMonoidAlgebra.semiring` is noncomputable on this toolchain, so the definitions need `noncomputable`; the statement is untouched."
+  }
+ },
+ {
+  "id": "fatex_042",
+  "index": 42,
+  "name": "nonEmpty_ringEquiv_of_sub_in_cube",
+  "statement": "namespace Problem42\n\ntheorem nonEmpty_ringEquiv_of_sub_in_cube (k : Type) [Field k]\n    (g : MvPowerSeries (Fin 2) k) (hg : g - .X 0 * .X 1 ∈ (Ideal.span {MvPowerSeries.X 0, .X 1}) ^ 3) :\n    Nonempty (((MvPowerSeries (Fin 2) k) ⧸ Ideal.span {(.X 0 * .X 1 : (MvPowerSeries (Fin 2) k))}) ≃+*\n    ((MvPowerSeries (Fin 2) k) ⧸ Ideal.span {g})) := by\n  sorry\n\nend Problem42\n"
+ },
+ {
+  "id": "fatex_043",
+  "index": 43,
+  "name": "IsRegularLocalRing.frobenius_flat",
+  "statement": "namespace Problem43\n\nopen IsLocalRing\n\nclass IsRegularLocalRing (R : Type) [CommRing R] : Prop extends\n    IsLocalRing R, IsNoetherianRing R where\n  reg : Module.finrank (ResidueField R) (CotangentSpace R) = ringKrullDim R\n\ntheorem IsRegularLocalRing.frobenius_flat {A : Type} [CommRing A] [IsNoetherianRing A]\n    [IsLocalRing A] [IsReduced A] (p : ℕ) [Fact p.Prime] [CharP A p] :\n    (frobenius A p).Flat ↔ IsRegularLocalRing A := by\n  sorry\n\nend Problem43\n"
+ },
+ {
+  "id": "fatex_044",
+  "index": 44,
+  "name": "quot_x2_sub_y2_y2_sub_z2_xy_yz_zx_not_global_complete_intersection",
+  "statement": "namespace Problem44\n\nopen MvPolynomial\n\nclass IsGlobalCompleteIntersection (k : Type) [Field k] (S : Type) [CommRing S] [Algebra k S] :\n    Prop extends Algebra.FiniteType k S where\n  isGlobalCompleteIntersection : ∃ n : ℕ, ∃ rs : List (MvPolynomial (Fin n) k),\n    Nonempty (S ≃ₐ[k] (MvPolynomial (Fin n) k) ⧸ Ideal.ofList rs) ∧ ringKrullDim S + rs.length = n\n\ntheorem quot_x2_sub_y2_y2_sub_z2_xy_yz_zx_not_global_complete_intersection (k : Type) [Field k] :\n    ¬ IsGlobalCompleteIntersection k (MvPolynomial (Fin 3) k ⧸ Ideal.span\n    ({(MvPolynomial.X 0)^ 2 - (MvPolynomial.X 1)^2, (MvPolynomial.X 1)^2 - (MvPolynomial.X 2)^2, (MvPolynomial.X 0) * (MvPolynomial.X 1), (MvPolynomial.X 1) * (MvPolynomial.X 2), (MvPolynomial.X 2) * (MvPolynomial.X 0)} :\n    Set (MvPolynomial (Fin 3) k))) := by\n  sorry\n\nend Problem44\n",
+  "port": {
+   "kind": "tree-name-clash",
+   "change": "The tree holds a translated library that declares a root-level `X`; under `open MvPolynomial` the bare `X` is ambiguous. Qualified to `MvPolynomial.X`, which the `open` was meant to reach."
+  }
+ },
+ {
+  "id": "fatex_045",
+  "index": 45,
+  "name": "free_of_free_resolution",
+  "statement": "namespace Problem45\n\ndef IsGradedHom {R M N ι : Type} [CommRing R] [AddCommGroup M] [AddCommGroup N]\n    [Module R M] [Module R N] (𝓜 : ι → Submodule R M) (𝒩 : ι → Submodule R N)\n    (f : M →ₗ[R] N) : Prop := ∀ (i : ι) (x : 𝓜 i), f x ∈ 𝒩 i\n\ntheorem free_of_free_resolution {k : Type} [Field k] {r : ℕ}\n    (C : ChainComplex (ModuleCat.{0} (MvPolynomial (Fin r) k)) ℕ)\n    (hC : ∀ (n : ℕ), n > (r + 1) → CategoryTheory.Limits.IsZero (C.X n))\n    (𝓜 : ∀ (n : ℕ), (ℕ → Submodule (MvPolynomial (Fin r) k) (C.X n)))\n    [hM : ∀ (n : ℕ), DirectSum.Decomposition (𝓜 n)]\n    [hM' : ∀ (n : ℕ), SetLike.GradedSMul (MvPolynomial.homogeneousSubmodule (Fin r) k) (𝓜 n)]\n    (h_exact : C.Acyclic)\n    (h_gr : ∀ (i j : ℕ), IsGradedHom (𝓜 i) (𝓜 j) (C.d i j).hom)\n    (h_free : ∀ (n : ℕ), 1 ≤ n ∧ n ≤ r → Module.Free (MvPolynomial (Fin r) k) (C.X n)) :\n    Module.Free (MvPolynomial (Fin r) k) (C.X (r + 1)) := by\n  sorry\n\nend Problem45\n"
+ },
+ {
+  "id": "fatex_046",
+  "index": 46,
+  "name": "module_flat_iff",
+  "statement": "namespace Problem46\n\ntheorem module_flat_iff (R : Type) [CommRing R] (M : Type) [AddCommGroup M] [Module R M] :\n    Module.Flat R M ↔\n    ∀ P : Type, ∀ (_ : AddCommGroup P), ∀ (_ : Module R P), ∀ f : P →ₗ[R] M, Module.FinitePresentation R P →\n      ∃ (F : Type) (_ : AddCommGroup F) (_ : Module R F), Module.Finite R F ∧ Module.Free R F ∧\n      ∃ h : P →ₗ[R] F, ∃ g : F →ₗ[R] M, f = g.comp h := by\n  sorry\n\nend Problem46\n"
+ },
+ {
+  "id": "fatex_047",
+  "index": 47,
+  "name": "isEmpty_isomorphism_UFD_of_quotient",
+  "statement": "namespace Problem47\n\nabbrev A {k : Type} [Field k] {n : ℕ} (t : (Fin n) → k) : Type := (MvPolynomial (Fin 2) k) ⧸ Ideal.span {(.X 1 ^ 2) - ∏ (m : Fin n), (.X 0 - .C (t m) : (MvPolynomial (Fin 2) k))}\n\ntheorem isEmpty_isomorphism_UFD_of_quotient (k : Type) [Field k] (h_char : ¬ CharP k 2)\n    (n : ℕ) (h_ge : n ≥ 3) (h_odd : Odd n) (t : (Fin n) → k) (h_inj : Function.Injective t) :\n    ∃ _ : IsDedekindDomain (A t), Nontrivial (ClassGroup (A t)) := by\n  sorry\n\nend Problem47\n"
+ },
+ {
+  "id": "fatex_048",
+  "index": 48,
+  "name": "isAbsolutelyFlat_iff_principal_ideal_idempotent",
+  "statement": "namespace Problem48\n\nclass IsAbsolutelyFlat (R : Type) [CommRing R] : Prop where\n  out ⦃P : Type⦄ [AddCommGroup P] [Module R P] : Module.Flat R P\n\ntheorem isAbsolutelyFlat_iff_principal_ideal_idempotent (R : Type) [CommRing R] :\n    IsAbsolutelyFlat R ↔ (∀ I : Ideal R, I.IsPrincipal → I ^ 2 = I) := by\n  sorry\n\nend Problem48\n"
+ },
+ {
+  "id": "fatex_049",
+  "index": 49,
+  "name": "principal_ideal_idempotent_iff_fg_ideal_is_direct_summand",
+  "statement": "namespace Problem49\n\ntheorem principal_ideal_idempotent_iff_fg_ideal_is_direct_summand (A : Type) [CommRing A] :\n    (∀ I : Ideal A, I.IsPrincipal → I ^ 2 = I) ↔\n    (∀ I : Ideal A, I.FG → (∃ J : Ideal A, I ⊔ J = ⊤ ∧ I ⊓ J = ⊥ )) := by\n  sorry\n\nend Problem49\n"
+ },
+ {
+  "id": "fatex_050",
+  "index": 50,
+  "name": "isNoetherianRing_of_isLocalRing_of_field_inj_of_adicComplete_of_maximalIdeal_finite",
+  "statement": "namespace Problem50\n\ntheorem isNoetherianRing_of_isLocalRing_of_field_inj_of_adicComplete_of_maximalIdeal_finite\n    (R : Type) [CommRing R] [IsLocalRing R] [IsAdicComplete (IsLocalRing.maximalIdeal R) R]\n    (k : Type) [Field k] [Algebra k R] [NoZeroSMulDivisors k R]\n    (hfg : (IsLocalRing.maximalIdeal R).FG) : IsNoetherianRing R := by\n  sorry\n\nend Problem50\n"
+ },
+ {
+  "id": "fatex_051",
+  "index": 51,
+  "name": "adicCompletion_faithfullyFlat_iff",
+  "statement": "namespace Problem51\n\ntheorem adicCompletion_faithfullyFlat_iff (A : Type) [CommRing A] [IsNoetherianRing A]\n    (I : Ideal A) : Module.FaithfullyFlat A (AdicCompletion I A) ↔ I ≤ Ring.jacobson A := by\n  sorry\n\nend Problem51\n"
+ },
+ {
+  "id": "fatex_052",
+  "index": 52,
+  "name": "generate_unit_ideal_of_quotient",
+  "statement": "namespace Problem52\n\ntheorem generate_unit_ideal_of_quotient (R : Type) [CommRing R] (m : Ideal R)\n    (h_le_jac : m ≤ Ring.jacobson R) (G₁ G₂ : Polynomial R) (h_monic : G₁.Monic)\n    (h_gen : Ideal.span {G₁.map (Ideal.Quotient.mk m), G₂.map (Ideal.Quotient.mk m)} = ⊤) :\n    Ideal.span {G₁, G₂} = ⊤ := by\n  sorry\n\nend Problem52\n"
+ },
+ {
+  "id": "fatex_053",
+  "index": 53,
+  "name": "isGorensteinRing_quot_x2_sub_y2_y2_sub_z2_xy_yz_zx",
+  "statement": "namespace Problem53\n\nopen IsLocalRing ModuleCat CategoryTheory MvPolynomial\n\ninstance (R : Type) [CommRing R] : CategoryTheory.HasExt.{0} (ModuleCat.{0} R) :=\n  CategoryTheory.hasExt_of_enoughProjectives.{0} (ModuleCat.{0} R)\n\nclass IsGorensteinLocalRing (R : Type) [CommRing R] : Prop extends\n    IsLocalRing R, IsNoetherianRing R where\n  injDim_le_infity :\n    ∃ n : ℕ, ∀ i : ℕ, n ≤ i →\n    Subsingleton (Abelian.Ext.{0} (of.{0} R (ResidueField R)) (of.{0} R R) i)\n\nclass IsGorensteinRing (R : Type) [CommRing R] : Prop extends IsNoetherianRing R where\n  localization_maximal_isGorensteinLocalRing :\n    ∀ m : Ideal R, (_ : m.IsMaximal) → IsGorensteinLocalRing (Localization.AtPrime m)\n\ntheorem isGorensteinRing_quot_x2_sub_y2_y2_sub_z2_xy_yz_zx (k : Type) [Field k] :\n    IsGorensteinRing <| MvPolynomial (Fin 3) k ⧸ Ideal.span ({(MvPolynomial.X 0)^ 2 - (MvPolynomial.X 1)^2, (MvPolynomial.X 1)^2 - (MvPolynomial.X 2)^2,\n    (MvPolynomial.X 0) * (MvPolynomial.X 1), (MvPolynomial.X 1) * (MvPolynomial.X 2), (MvPolynomial.X 2) * (MvPolynomial.X 0)} : Set (MvPolynomial (Fin 3) k)) := by\n  sorry\n\nend Problem53\n",
+  "port": {
+   "kind": "tree-name-clash",
+   "change": "The tree holds a translated library that declares a root-level `X`; under `open MvPolynomial` the bare `X` is ambiguous. Qualified to `MvPolynomial.X`, which the `open` was meant to reach."
+  }
+ },
+ {
+  "id": "fatex_054",
+  "index": 54,
+  "name": "not_zero_divisor_of_hausdorff_of_der_eq_one",
+  "statement": "namespace Problem54\n\ntheorem not_zero_divisor_of_hausdorff_of_der_eq_one (A : Type) [CommRing A] [Algebra ℚ A]\n    (x : A) (D : Derivation ℤ A A) (h_dx : D x = 1) (h_hausdorff : IsHausdorff (Ideal.span {x}) A) :\n    x ∈ nonZeroDivisors A := by\n  sorry\n\nend Problem54\n"
+ },
+ {
+  "id": "fatex_055",
+  "index": 55,
+  "name": "stablyFree_iff_free_of_not_fg",
+  "statement": "namespace Problem55\n\ndef IsStablyFree (R : Type) (M : Type) [CommRing R] [AddCommGroup M] [Module R M] : Prop :=\n    ∃ (N : Type) (_ : AddCommGroup N) (_ : Module R N),\n    Module.Finite R N ∧ Module.Free R N ∧ Module.Free R (M × N)\n\ntheorem stablyFree_iff_free_of_not_fg (R : Type) (M : Type) [CommRing R] [AddCommGroup M]\n    [Module R M] (h : ¬ Module.Finite R M) : Module.Free R M ↔ IsStablyFree R M := by\n  sorry\n\nend Problem55\n"
+ },
+ {
+  "id": "fatex_056",
+  "index": 56,
+  "name": "projective_of_faithfullyFlat_base_change",
+  "statement": "namespace Problem56\n\ntheorem projective_of_faithfullyFlat_base_change (R S M : Type) [CommRing R] [CommRing S]\n    [Algebra R S] [Module.FaithfullyFlat R S] [AddCommGroup M] [Module R M]\n    [Module.Projective S (TensorProduct R S M)] : Module.Projective R M := by\n  sorry\n\nend Problem56\n"
+ },
+ {
+  "id": "fatex_057",
+  "index": 57,
+  "name": "completely_integrally_closed_polynomial_ring",
+  "statement": "namespace Problem57\n\ndef IsAlmostIntegral {A : Type} [CommRing A] [IsDomain A] (x : FractionRing A) : Prop :=\n  ∃ r : A, r ≠ 0 ∧ ∀ n : ℕ, ∃ y : A, r • (x ^ n) = algebraMap A (FractionRing A) y\n\ndef IsCompletelyIntegrallyClosed (A : Type) [CommRing A] [IsDomain A] : Prop :=\n  ∀ x : FractionRing A, IsAlmostIntegral x → ∃ y : A, x = algebraMap A (FractionRing A) y\n\ntheorem completely_integrally_closed_polynomial_ring {A : Type} [CommRing A] [IsDomain A]\n    (h : IsCompletelyIntegrallyClosed A) : IsCompletelyIntegrallyClosed (Polynomial A) := by\n  sorry\n\nend Problem57\n"
+ },
+ {
+  "id": "fatex_058",
+  "index": 58,
+  "name": "flat_of_flat_over_quotient",
+  "statement": "namespace Problem58\n\nopen TensorProduct\n\ntheorem flat_of_flat_over_quotient (R S : Type) [CommRing R] [CommRing S]\n    [IsLocalRing R] [IsLocalRing S] [IsNoetherianRing R] [IsNoetherianRing S] [Algebra R S]\n    (h_map : Ideal.map (algebraMap R S) (IsLocalRing.maximalIdeal R) ≤ IsLocalRing.maximalIdeal S)\n    (M : Type) [AddCommGroup M] [Module S M] [Module R M] [IsScalarTower R S M] [Module.Finite S M]\n    (h_flat_quotient : ∀ (n : ℕ), Module.Flat (R ⧸ (IsLocalRing.maximalIdeal R) ^ n) ((R ⧸ (IsLocalRing.maximalIdeal R) ^ n) ⊗[R] M)) :\n    Module.Flat R M := by\n  sorry\n\nend Problem58\n"
+ },
+ {
+  "id": "fatex_059",
+  "index": 59,
+  "name": "exists_unique_valuation_eq",
+  "statement": "namespace Problem59\n\ntheorem exists_unique_valuation_eq (α : ℝ) (h_pos : α > 0) (h_irr : Irrational α)\n    (k : Type) [Field k] : ∃! (v : AddValuation (FractionRing (MvPolynomial (Fin 2) k)) (WithTop ℝ)),\n    ∀ (f : MvPolynomial (Fin 2) k), v (algebraMap _ _ f) = Finset.inf (Finset.image (fun s ↦ ((s 0 + α * s 1) : WithTop ℝ)) f.support) id := by\n  sorry\n\nend Problem59\n"
+ },
+ {
+  "id": "fatex_060",
+  "index": 60,
+  "name": "invertible_iff_codimension_one",
+  "statement": "namespace Problem60\n\nopen Problem60\n\ndef Ideal.Invertible {R : Type} [CommRing R] [IsDomain R] (I : Ideal R) : Prop :=\n    I ≠ ⊥ ∧ ∃ (N : Ideal R), (N * I).IsPrincipal ∧ N ≠ ⊥\n\ntheorem invertible_iff_codimension_one (R : Type) [CommRing R] [IsDomain R] [IsNoetherianRing R]\n    (h_ufd : ∀ (p : Ideal R), (h : p.IsMaximal) → UniqueFactorizationMonoid (Localization.AtPrime p))\n    (I : Ideal R) : I.Invertible ↔ ∀ (p : associatedPrimes R I), ringKrullDim (R ⧸ p.1) = 1 := by\n  sorry\n\nend Problem60\n"
+ },
+ {
+  "id": "fatex_061",
+  "index": 61,
+  "name": "formallySmooth_of_formallySmooth_quotient",
+  "statement": "namespace Problem61\n\ntheorem formallySmooth_of_formallySmooth_quotient (R S : Type) [CommRing R] [CommRing S]\n    [Algebra R S] [Module.Flat R S] (I : Ideal R) (h : I ^ 2 = 0)\n    [Algebra.FormallySmooth (R ⧸ I) (S ⧸ (I.map (algebraMap R S)))] :\n    Algebra.FormallySmooth R S := by\n  sorry\n\nend Problem61\n"
+ },
+ {
+  "id": "fatex_062",
+  "index": 62,
+  "name": "adicCompletion_equiv_of_smooth",
+  "statement": "namespace Problem62\n\ntheorem adicCompletion_equiv_of_smooth (R S : Type) [CommRing R] [CommRing S]\n    [Algebra R S] [Algebra.Smooth R S] (σ : S →+* R)\n    (h : Function.LeftInverse σ (algebraMap R S)) (hf : Module.Free R (RingHom.ker σ).Cotangent) :\n    ∃ d : ℕ, Nonempty (AdicCompletion (RingHom.ker σ) S ≃ₐ[R] MvPowerSeries (Fin d) R) := by\n  sorry\n\nend Problem62\n"
+ },
+ {
+  "id": "fatex_063",
+  "index": 63,
+  "name": "surjection_of_formally_unramified",
+  "statement": "namespace Problem63\n\ndef UniversalProperty.liftOfSqZeroIdeal {R S S' : Type} [CommRing R] [CommRing S] [CommRing S']\n    [Algebra R S] [Algebra R S'] (f : S' →ₐ[R] S) :=\n  ∀ (A : Type) [CommRing A] [Algebra R A] (I : Ideal A) (g : S →ₐ[R] A⧸I),\n  I^2 = 0 → (g.toRingHom.comp (algebraMap R S) = (Ideal.Quotient.mk I).comp (algebraMap R A)) →\n  ∃! (g' : S' →ₐ[R] A), (Ideal.Quotient.mk I).comp g'.toRingHom  = g.comp f\n\ntheorem surjection_of_formally_unramified (R S : Type) [CommRing R] [CommRing S]\n    [Algebra R S] [Algebra.FormallyUnramified R S] :\n    ∃ (S' : Type) (_ : CommRing S') (_ : Algebra R S') (f : S' →ₐ[R] S), (RingHom.ker f) ^ 2 = 0 ∧ UniversalProperty.liftOfSqZeroIdeal f := by\n  sorry\n\nend Problem63\n"
+ },
+ {
+  "id": "fatex_064",
+  "index": 64,
+  "name": "homogeneous_coordinate_ring_not_isCohenMacaulayRing",
+  "statement": "namespace Problem64\n\nsection\n\nopen CategoryTheory Abelian Problem64\n\nvariable {R : Type} [CommRing R]\n\ninstance : CategoryTheory.HasExt.{0} (ModuleCat.{0} R) :=\n  CategoryTheory.hasExt_of_enoughProjectives (ModuleCat R)\n\nnoncomputable def moduleDepth (N M : ModuleCat.{0} R) : ℕ∞ :=\n  sSup {n : ℕ∞ | ∀ i : ℕ, i < n → Subsingleton (CategoryTheory.Abelian.Ext.{0} N M i)}\n\nnoncomputable def Ideal.depth (I : Ideal R) (M : ModuleCat.{0} R) : ℕ∞ :=\n  moduleDepth (ModuleCat.of R (R ⧸ I)) M\n\nnoncomputable def IsLocalRing.depth [IsLocalRing R] (M : ModuleCat.{0} R) : ℕ∞ :=\n  (IsLocalRing.maximalIdeal R).depth M\n\nvariable (R)\n\nclass IsCohenMacaulayLocalRing : Prop extends IsLocalRing R where\n  depth_eq_dim : ringKrullDim R = IsLocalRing.depth (ModuleCat.of R R)\n\nclass IsCohenMacaulayRing : Prop where\n  CM_localize : ∀ p : Ideal R, ∀ (_ : p.IsPrime), IsCohenMacaulayLocalRing (Localization.AtPrime p)\n\nend\n\nopen MvPolynomial\n\ntheorem homogeneous_coordinate_ring_not_isCohenMacaulayRing (k : Type) [Field k] :\n    ¬ IsCohenMacaulayRing (Algebra.adjoin k ({(MvPolynomial.X 0) ^ 4, (MvPolynomial.X 0) ^ 3 * MvPolynomial.X 1,\n      MvPolynomial.X 0 * (MvPolynomial.X 1) ^ 3, (MvPolynomial.X 1) ^ 4} : Set (MvPolynomial (Fin 2) k))) := by\n  sorry\n\nend Problem64\n",
+  "port": {
+   "kind": "tree-name-clash",
+   "change": "The tree holds a translated library that declares a root-level `X`; under `open MvPolynomial` the bare `X` is ambiguous. Qualified to `MvPolynomial.X`, which the `open` was meant to reach."
+  }
+ },
+ {
+  "id": "fatex_065",
+  "index": 65,
+  "name": "Polynomial.isGorensteinRing",
+  "statement": "namespace Problem65\n\nopen IsLocalRing ModuleCat CategoryTheory Polynomial\n\ninstance (R : Type) [CommRing R] : CategoryTheory.HasExt.{0} (ModuleCat.{0} R) :=\n  CategoryTheory.hasExt_of_enoughProjectives.{0} (ModuleCat.{0} R)\n\nclass IsGorensteinLocalRing (R : Type) [CommRing R] : Prop extends\n    IsLocalRing R, IsNoetherianRing R where\n  injDim_le_infity :\n    ∃ n : ℕ, ∀ i : ℕ, n ≤ i →\n    Subsingleton (Abelian.Ext.{0} (of.{0} R (ResidueField R)) (of.{0} R R) i)\n\nclass IsGorensteinRing (R : Type) [CommRing R] : Prop extends IsNoetherianRing R where\n  localization_maximal_isGorensteinLocalRing :\n    ∀ m : Ideal R, (_ : m.IsMaximal) → IsGorensteinLocalRing (Localization.AtPrime m)\n\ntheorem Polynomial.isGorensteinRing {R : Type} [CommRing R] [IsGorensteinRing R] :\n    IsGorensteinRing R[X] := by\n  sorry\n\nend Problem65\n"
+ },
+ {
+  "id": "fatex_066",
+  "index": 66,
+  "name": "exists_eq_ofList_and_isRegular_of_perm",
+  "statement": "namespace Problem66\n\nopen RingTheory\n\ntheorem exists_eq_ofList_and_isRegular_of_perm {R : Type} [CommRing R] [IsNoetherianRing R] (I : Ideal R) (rs : List R)\n    (gen : I = Ideal.ofList rs) (h₂ : Sequence.IsRegular R rs) : ∃ rs' : List R,\n    I = Ideal.ofList rs' ∧ (∀ l : List R, (l.Perm rs') → Sequence.IsRegular R l) := by\n  sorry\n\nend Problem66\n"
+ },
+ {
+  "id": "fatex_067",
+  "index": 67,
+  "name": "isEmpty_mvPowerSeries_tensor_mvPowerSeries_algEquiv",
+  "statement": "namespace Problem67\n\nopen scoped TensorProduct\n\ntheorem isEmpty_mvPowerSeries_tensor_mvPowerSeries_algEquiv\n    {k : Type} [Field k] (n : ℕ) (hn : n ≠ 0) :\n    IsEmpty ((MvPowerSeries (Fin n) k) ⊗[k] (MvPowerSeries (Fin n) k) ≃ₐ[k]\n    (MvPowerSeries (Fin (n + n)) k)) := by\n  sorry\n\nend Problem67\n"
+ },
+ {
+  "id": "fatex_068",
+  "index": 68,
+  "name": "localization_jacobson_of_one_lt_ringKrullDim",
+  "statement": "namespace Problem68\n\ntheorem localization_jacobson_of_one_lt_ringKrullDim (R : Type) [CommRing R] [IsLocalRing R]\n    [IsNoetherianRing R] (f : R) (hf : f ∈ IsLocalRing.maximalIdeal R) (ne0 : ¬ IsNilpotent f) :\n    IsJacobsonRing (Localization.Away f) := by\n  sorry\n\nend Problem68\n"
+ },
+ {
+  "id": "fatex_069",
+  "index": 69,
+  "name": "IsRegularLocalRing.regularAtPrime",
+  "statement": "namespace Problem69\n\nopen IsLocalRing Polynomial\n\nclass IsRegularLocalRing (R : Type) [CommRing R] : Prop extends\n    IsLocalRing R, IsNoetherianRing R where\n  reg : Module.finrank (ResidueField R) (CotangentSpace R) = ringKrullDim R\n\ntheorem IsRegularLocalRing.regularAtPrime {R : Type} [CommRing R] [IsRegularLocalRing R]\n    (P : Ideal R[X]) [P.IsPrime] [P.LiesOver (maximalIdeal R)] :\n    IsRegularLocalRing (Localization.AtPrime P) := by\n  sorry\n\nend Problem69\n"
+ },
+ {
+  "id": "fatex_070",
+  "index": 70,
+  "name": "exists_minimalPrime_map_zero",
+  "statement": "namespace Problem70\n\ntheorem exists_minimalPrime_map_zero (R S : Type) [CommRing R] [IsDomain R] [IsNoetherianRing R]\n    [CommRing S] [IsNoetherianRing S] [IsLocalRing S] [Algebra R S] [NoZeroSMulDivisors R S] :\n    ∃ (p : minimalPrimes S), Ideal.comap (algebraMap R S) p.1 = ⊥ := by\n  sorry\n\nend Problem70\n"
+ },
+ {
+  "id": "fatex_071",
+  "index": 71,
+  "name": "fixedPoints_isCohenMacaulayRing",
+  "statement": "namespace Problem71\n\nsection\n\nvariable (A B : Type) [CommRing A] [CommRing B] [Algebra A B]\nvariable (G : Type) [Monoid G] [MulSemiringAction G B] [SMulCommClass G A B]\n\ndef FixedPoints.subring : Subring B where\n  __ := FixedPoints.addSubgroup G B\n  __ := FixedPoints.submonoid G B\n\ndef FixedPoints.subalgebra : Subalgebra A B where\n  __ := FixedPoints.addSubgroup G B\n  __ := FixedPoints.submonoid G B\n  algebraMap_mem' r := by simp\n\nend\n\nsection\n\nopen CategoryTheory Abelian Problem71\n\nvariable {R : Type} [CommRing R]\n\ninstance : CategoryTheory.HasExt.{0} (ModuleCat.{0} R) :=\n  CategoryTheory.hasExt_of_enoughProjectives (ModuleCat R)\n\nnoncomputable def moduleDepth (N M : ModuleCat.{0} R) : ℕ∞ :=\n  sSup {n : ℕ∞ | ∀ i : ℕ, i < n → Subsingleton (CategoryTheory.Abelian.Ext.{0} N M i)}\n\nnoncomputable def Ideal.depth (I : Ideal R) (M : ModuleCat.{0} R) : ℕ∞ :=\n  moduleDepth (ModuleCat.of R (R ⧸ I)) M\n\nnoncomputable def IsLocalRing.depth [IsLocalRing R] (M : ModuleCat.{0} R) : ℕ∞ :=\n  (IsLocalRing.maximalIdeal R).depth M\n\nvariable (R)\n\nclass IsCohenMacaulayLocalRing : Prop extends IsLocalRing R where\n  depth_eq_dim : ringKrullDim R = IsLocalRing.depth (ModuleCat.of R R)\n\nclass IsCohenMacaulayRing : Prop where\n  CM_localize : ∀ p : Ideal R, ∀ (_ : p.IsPrime), IsCohenMacaulayLocalRing (Localization.AtPrime p)\n\nend\n\ntheorem fixedPoints_isCohenMacaulayRing {R : Type} [CommRing R] (k : Type) [Field k]\n    [CharZero k] [Algebra k R] [IsNoetherianRing R] [IsCohenMacaulayRing R]\n    (G : Subgroup (R ≃ₐ[k] R)) [Finite G] :\n    IsCohenMacaulayRing (FixedPoints.subalgebra k R G) := by\n  sorry\n\nend Problem71\n"
+ },
+ {
+  "id": "fatex_072",
+  "index": 72,
+  "name": "isCohenMacaulay_extendScalars_over_mvPolynomial_of_isCohenMacaulay",
+  "statement": "namespace Problem72\n\nnoncomputable def Module.supportDim (R : Type) [CommRing R] (M : Type) [AddCommGroup M]\n    [Module R M] : WithBot ℕ∞ :=\n  Order.krullDim (Module.support R M)\n\nsection\n\nopen CategoryTheory Abelian Problem72\n\nvariable {R : Type} [CommRing R]\n\ninstance : CategoryTheory.HasExt.{0} (ModuleCat.{0} R) :=\n  CategoryTheory.hasExt_of_enoughProjectives (ModuleCat R)\n\nnoncomputable def moduleDepth (N M : ModuleCat.{0} R) : ℕ∞ :=\n  sSup {n : ℕ∞ | ∀ i : ℕ, i < n → Subsingleton (CategoryTheory.Abelian.Ext.{0} N M i)}\n\nnoncomputable def Ideal.depth (I : Ideal R) (M : ModuleCat.{0} R) : ℕ∞ :=\n  moduleDepth (ModuleCat.of R (R ⧸ I)) M\n\nnoncomputable def IsLocalRing.depth [IsLocalRing R] (M : ModuleCat.{0} R) : ℕ∞ :=\n  (IsLocalRing.maximalIdeal R).depth M\n\nclass ModuleCat.IsCohenMacaulay [IsLocalRing R] (M : ModuleCat.{0} R) : Prop where\n  depth_eq_dim : Subsingleton M ∨ Module.supportDim R M = IsLocalRing.depth M\n\nvariable (R)\n\nclass Module.IsCohenMacaulay (M : Type) [AddCommGroup M] [Module R M] : Prop where\n  depth_eq_dim : ∀ p : Ideal R, ∀ (_ : p.IsPrime), (ModuleCat.of (Localization.AtPrime p)\n    (LocalizedModule.AtPrime p M)).IsCohenMacaulay\n\nend\n\nopen TensorProduct\n\nnoncomputable instance (R : Type) [CommRing R] (M : Type) [AddCommGroup M] [Module R M] (n : ℕ) :\n    Module (MvPolynomial (Fin n) R) ((MvPolynomial (Fin n) R) ⊗[R] M) := leftModule\n\ntheorem isCohenMacaulay_extendScalars_over_mvPolynomial_of_isCohenMacaulay\n    (R : Type) [CommRing R] (M : Type) [AddCommGroup M] [Module R M]\n    [IsNoetherianRing R] [Module.IsCohenMacaulay R M] (n : ℕ) :\n    Module.IsCohenMacaulay (MvPolynomial (Fin n) R) ((MvPolynomial (Fin n) R) ⊗[R] M) := by\n  sorry\n\nend Problem72\n"
+ },
+ {
+  "id": "fatex_073",
+  "index": 73,
+  "name": "mvPolynomial_quotient_isCohenMacaulayRing_iff",
+  "statement": "namespace Problem73\n\nsection\n\nopen CategoryTheory Abelian Problem73\n\nvariable {R : Type} [CommRing R]\n\ninstance : CategoryTheory.HasExt.{0} (ModuleCat.{0} R) :=\n  CategoryTheory.hasExt_of_enoughProjectives (ModuleCat R)\n\nnoncomputable def moduleDepth (N M : ModuleCat.{0} R) : ℕ∞ :=\n  sSup {n : ℕ∞ | ∀ i : ℕ, i < n → Subsingleton (CategoryTheory.Abelian.Ext.{0} N M i)}\n\nnoncomputable def Ideal.depth (I : Ideal R) (M : ModuleCat.{0} R) : ℕ∞ :=\n  moduleDepth (ModuleCat.of R (R ⧸ I)) M\n\nnoncomputable def IsLocalRing.depth [IsLocalRing R] (M : ModuleCat.{0} R) : ℕ∞ :=\n  (IsLocalRing.maximalIdeal R).depth M\n\nvariable (R)\n\nclass IsCohenMacaulayLocalRing : Prop extends IsLocalRing R where\n  depth_eq_dim : ringKrullDim R = IsLocalRing.depth (ModuleCat.of R R)\n\nclass IsCohenMacaulayRing : Prop where\n  CM_localize : ∀ p : Ideal R, ∀ (_ : p.IsPrime), IsCohenMacaulayLocalRing (Localization.AtPrime p)\n\nend\n\nattribute [local instance] MvPolynomial.gradedAlgebra\n\ntheorem mvPolynomial_quotient_isCohenMacaulayRing_iff (k : Type) [Field k] (n : ℕ)\n    (R : Type) [CommRing R] (f : (MvPolynomial (Fin n) k) →+* R) (surj : Function.Surjective f)\n    (homo : (RingHom.ker f).IsHomogeneous (MvPolynomial.homogeneousSubmodule (Fin n) k))\n    (le : RingHom.ker f ≤ RingHom.ker MvPolynomial.constantCoeff) :\n    IsCohenMacaulayRing R ↔\n    IsCohenMacaulayRing (Localization.AtPrime ((RingHom.ker MvPolynomial.constantCoeff).map f)\n      (hp := Ideal.map_isPrime_of_surjective surj le (H := RingHom.ker_isPrime _))) := by\n  sorry\n\nend Problem73\n"
+ },
+ {
+  "id": "fatex_074",
+  "index": 74,
+  "name": "IsRegularLocalRing.gorensteinAtRegularSequence",
+  "statement": "namespace Problem74\n\nopen IsLocalRing ModuleCat CategoryTheory\n\ninstance (R : Type) [CommRing R] : CategoryTheory.HasExt.{0} (ModuleCat.{0} R) :=\n  CategoryTheory.hasExt_of_enoughProjectives.{0} (ModuleCat.{0} R)\n\nclass IsRegularLocalRing (R : Type) [CommRing R] : Prop extends\n    IsLocalRing R, IsNoetherianRing R where\n  reg : Module.finrank (ResidueField R) (CotangentSpace R) = ringKrullDim R\n\nclass IsGorensteinLocalRing (R : Type) [CommRing R] : Prop extends\n    IsLocalRing R, IsNoetherianRing R where\n  injDim_le_infity :\n    ∃ n : ℕ, ∀ i : ℕ, n ≤ i →\n    Subsingleton (Abelian.Ext.{0} (of.{0} R (ResidueField R)) (of.{0} R R) i)\n\nclass IsGorensteinRing (R : Type) [CommRing R] : Prop extends IsNoetherianRing R where\n  localization_maximal_isGorensteinLocalRing :\n    ∀ m : Ideal R, (_ : m.IsMaximal) → IsGorensteinLocalRing (Localization.AtPrime m)\nvariable {R : Type} [CommRing R]\n\ntheorem IsRegularLocalRing.gorensteinAtRegularSequence {R : Type} [CommRing R]\n    [IsRegularLocalRing R] {rs : List R} (reg : RingTheory.Sequence.IsRegular R rs) (y : R)\n    (h : y ∉ Ideal.ofList rs) : IsGorensteinRing (R ⧸ (Ideal.ofList rs / Ideal.span {y})) := by\n  sorry\n\nend Problem74\n"
+ },
+ {
+  "id": "fatex_075",
+  "index": 75,
+  "name": "gradedAlgebra_isCohenMacaulay_iff_homogeneously_localize",
+  "statement": "namespace Problem75\n\nopen IsLocalRing ModuleCat CategoryTheory Problem75\n\nsection\n\nvariable {R : Type} [CommRing R]\n\ninstance : CategoryTheory.HasExt.{0} (ModuleCat.{0} R) :=\n  CategoryTheory.hasExt_of_enoughProjectives (ModuleCat R)\n\nnoncomputable def moduleDepth (N M : ModuleCat.{0} R) : ℕ∞ :=\n  sSup {n : ℕ∞ | ∀ i : ℕ, i < n → Subsingleton (CategoryTheory.Abelian.Ext.{0} N M i)}\n\nnoncomputable def Ideal.depth (I : Ideal R) (M : ModuleCat.{0} R) : ℕ∞ :=\n  moduleDepth (ModuleCat.of R (R ⧸ I)) M\n\nnoncomputable def IsLocalRing.depth [IsLocalRing R] (M : ModuleCat.{0} R) : ℕ∞ :=\n  (IsLocalRing.maximalIdeal R).depth M\n\nvariable (R)\n\nclass IsCohenMacaulayLocalRing : Prop extends IsLocalRing R where\n  depth_eq_dim : ringKrullDim R = IsLocalRing.depth (ModuleCat.of R R)\n\nclass IsCohenMacaulayRing : Prop where\n  CM_localize : ∀ p : Ideal R, ∀ (_ : p.IsPrime), IsCohenMacaulayLocalRing (Localization.AtPrime p)\n\nend\n\ntheorem gradedAlgebra_isCohenMacaulay_iff_homogeneously_localize {A : Type} [CommRing A] [IsNoetherianRing A]\n    (𝒜 : ℕ → Submodule ℤ A) [GradedAlgebra 𝒜] (h : IsField (𝒜 0)) (h1 : Algebra.adjoin (𝒜 0) (𝒜 1) = (⊤ : Subalgebra (𝒜 0) A)) : IsCohenMacaulayRing A ↔\n    ∀ p : Ideal A, (_ : p.IsPrime) → p.IsHomogeneous 𝒜 →\n    IsCohenMacaulayLocalRing (HomogeneousLocalization.AtPrime 𝒜 p) := by\n  sorry\n\nend Problem75\n"
+ },
+ {
+  "id": "fatex_076",
+  "index": 76,
+  "name": "IsCatenary.of_noetherian_ufd_of_dim_le_three",
+  "statement": "namespace Problem76\n\nopen List\n\ndef IsCatenary (R : Type) [CommRing R] : Prop :=\n  ∀ p q : PrimeSpectrum R, p ≤ q →\n  ∃ n : ℕ, ∀ (l : LTSeries (PrimeSpectrum R)), l.head = p → l.last = q →\n  (∀ l' : LTSeries (PrimeSpectrum R), l'.head = p → l'.last = q → l.toList <+ l'.toList → l' = l) →\n  l.toList.length = n\n\ntheorem IsCatenary.of_noetherian_ufd_of_dim_le_three {A : Type} [CommRing A] [IsNoetherianRing A]\n    [IsDomain A] [UniqueFactorizationMonoid A] (h : ringKrullDim A ≤ 3) : IsCatenary A := by\n  sorry\n\nend Problem76\n"
+ },
+ {
+  "id": "fatex_077",
+  "index": 77,
+  "name": "infinite_intermediate_primes",
+  "statement": "namespace Problem77\n\ntheorem infinite_intermediate_primes (R : Type) [CommRing R] [IsNoetherianRing R] (P Q : Ideal R)\n    (le : P ≤ Q) [P.IsPrime] [Q.IsPrime] (h d : ℕ) (lt : 1 < d) (ht1 : P.height = h)\n    (ht2 : (Q.map (Ideal.Quotient.mk P)).height = d) :\n    {P' : Ideal R | P ≤ P' ∧ P' ≤ Q ∧ P'.IsPrime ∧ P'.height = h + 1 ∧\n      (Q.map (Ideal.Quotient.mk P')).height = d - 1}.Infinite := by\n  sorry\n\nend Problem77\n"
+ },
+ {
+  "id": "fatex_078",
+  "index": 78,
+  "name": "IsCohenMacaulayLocalRing.isGorensteinRing_of_ufd",
+  "statement": "namespace Problem78\n\nopen IsLocalRing ModuleCat CategoryTheory Problem78\n\nsection\n\nvariable {R : Type} [CommRing R]\n\ninstance : CategoryTheory.HasExt.{0} (ModuleCat.{0} R) :=\n  CategoryTheory.hasExt_of_enoughProjectives (ModuleCat R)\n\nnoncomputable def moduleDepth (N M : ModuleCat.{0} R) : ℕ∞ :=\n  sSup {n : ℕ∞ | ∀ i : ℕ, i < n → Subsingleton (CategoryTheory.Abelian.Ext.{0} N M i)}\n\nnoncomputable def Ideal.depth (I : Ideal R) (M : ModuleCat.{0} R) : ℕ∞ :=\n  moduleDepth (ModuleCat.of R (R ⧸ I)) M\n\nnoncomputable def IsLocalRing.depth [IsLocalRing R] (M : ModuleCat.{0} R) : ℕ∞ :=\n  (IsLocalRing.maximalIdeal R).depth M\n\nvariable (R)\n\nclass IsCohenMacaulayLocalRing : Prop extends IsLocalRing R where\n  depth_eq_dim : ringKrullDim R = IsLocalRing.depth (ModuleCat.of R R)\n\nclass IsCohenMacaulayRing : Prop where\n  CM_localize : ∀ p : Ideal R, ∀ (_ : p.IsPrime), IsCohenMacaulayLocalRing (Localization.AtPrime p)\n\nend\n\nclass IsRegularLocalRing (R : Type) [CommRing R] : Prop extends\n    IsLocalRing R, IsNoetherianRing R where\n  reg : Module.finrank (ResidueField R) (CotangentSpace R) = ringKrullDim R\n\nclass IsGorensteinLocalRing (R : Type) [CommRing R] : Prop extends\n    IsLocalRing R, IsNoetherianRing R where\n  injDim_le_infity :\n    ∃ n : ℕ, ∀ i : ℕ, n ≤ i →\n    Subsingleton (Abelian.Ext.{0} (of.{0} R (ResidueField R)) (of.{0} R R) i)\n\nclass IsGorensteinRing (R : Type) [CommRing R] : Prop extends IsNoetherianRing R where\n  localization_maximal_isGorensteinLocalRing :\n    ∀ m : Ideal R, (_ : m.IsMaximal) → IsGorensteinLocalRing (Localization.AtPrime m)\n\ntheorem IsCohenMacaulayLocalRing.isGorensteinRing_of_ufd {A B : Type} [CommRing A]\n    [IsCohenMacaulayLocalRing A] [IsDomain A] [UniqueFactorizationMonoid A] [CommRing B]\n    [IsRegularLocalRing B] {f : B →+* A} (hf : Function.Surjective f) :\n    IsGorensteinRing A := by\n  sorry\n\nend Problem78\n"
+ },
+ {
+  "id": "fatex_079",
+  "index": 79,
+  "name": "IsLocalRing.not_isCompleteIntersection.height_not_zero_and_not_one",
+  "statement": "namespace Problem79\n\nopen IsLocalRing ModuleCat CategoryTheory\n\ninstance (R : Type) [CommRing R] : CategoryTheory.HasExt.{0} (ModuleCat.{0} R) :=\n  CategoryTheory.hasExt_of_enoughProjectives.{0} (ModuleCat.{0} R)\n\nclass IsRegularLocalRing (R : Type) [CommRing R] : Prop extends\n    IsLocalRing R, IsNoetherianRing R where\n  reg : Module.finrank (ResidueField R) (CotangentSpace R) = ringKrullDim R\n\nclass IsGorensteinLocalRing (R : Type) [CommRing R] : Prop extends\n    IsLocalRing R, IsNoetherianRing R where\n  injDim_le_infity :\n    ∃ n : ℕ, ∀ i : ℕ, n ≤ i →\n    Subsingleton (Abelian.Ext.{0} (of.{0} R (ResidueField R)) (of.{0} R R) i)\n\nclass IsGorensteinRing (R : Type) [CommRing R] : Prop extends IsNoetherianRing R where\n  localization_maximal_isGorensteinLocalRing :\n    ∀ m : Ideal R, (_ : m.IsMaximal) → IsGorensteinLocalRing (Localization.AtPrime m)\n\n@[stacks 09Q3]\nclass IsLocalCompleteIntersectionRing (A : Type) [CommRing A] : Prop extends\n    IsLocalRing A, IsNoetherianRing A where\n  out (R : Type) [CommRing R] [IsRegularLocalRing R]\n    (f : R →+* (AdicCompletion (maximalIdeal A) A)) (_ : IsLocalHom f) (_ : Function.Surjective f) :\n      ∃ (rs : List R), RingTheory.Sequence.IsRegular R rs ∧ RingHom.ker f = Ideal.ofList rs\n\ntheorem IsLocalRing.not_isCompleteIntersection.height_not_zero_and_not_one (B : Type) [CommRing B]\n    [IsRegularLocalRing B] (I : Ideal B) [IsGorensteinRing (B ⧸ I)]\n    (hc : ¬ IsLocalCompleteIntersectionRing (B ⧸ I)) : I.height ≠ 0 ∧ I.height ≠ 1 := by\n  sorry\n\nend Problem79\n"
+ },
+ {
+  "id": "fatex_080",
+  "index": 80,
+  "name": "isCohenMacaulayRing_of_dimension_three",
+  "statement": "namespace Problem80\n\nsection\n\nopen CategoryTheory Abelian Problem80\n\nvariable {R : Type} [CommRing R]\n\ninstance : CategoryTheory.HasExt.{0} (ModuleCat.{0} R) :=\n  CategoryTheory.hasExt_of_enoughProjectives (ModuleCat R)\n\nnoncomputable def moduleDepth (N M : ModuleCat.{0} R) : ℕ∞ :=\n  sSup {n : ℕ∞ | ∀ i : ℕ, i < n → Subsingleton (CategoryTheory.Abelian.Ext.{0} N M i)}\n\nnoncomputable def Ideal.depth (I : Ideal R) (M : ModuleCat.{0} R) : ℕ∞ :=\n  moduleDepth (ModuleCat.of R (R ⧸ I)) M\n\nnoncomputable def IsLocalRing.depth [IsLocalRing R] (M : ModuleCat.{0} R) : ℕ∞ :=\n  (IsLocalRing.maximalIdeal R).depth M\n\nvariable (R)\n\nclass IsCohenMacaulayLocalRing : Prop extends IsLocalRing R where\n  depth_eq_dim : ringKrullDim R = IsLocalRing.depth (ModuleCat.of R R)\n\nclass IsCohenMacaulayRing : Prop where\n  CM_localize : ∀ p : Ideal R, ∀ (_ : p.IsPrime), IsCohenMacaulayLocalRing (Localization.AtPrime p)\n\nend\n\nopen MvPolynomial\n\nabbrev target_ring_aux (k : Type) [Field k] :=\n    (MvPolynomial (Fin 6) k) ⧸ Ideal.span ({\n    MvPolynomial.X 1 * MvPolynomial.X 3 + MvPolynomial.X 2 * MvPolynomial.X 5, MvPolynomial.X 2 * MvPolynomial.X 4 + MvPolynomial.X 0 * MvPolynomial.X 5, MvPolynomial.X 0 * MvPolynomial.X 1 - MvPolynomial.X 1 * MvPolynomial.X 4 + MvPolynomial.X 2 * MvPolynomial.X 4 - MvPolynomial.X 4 * MvPolynomial.X 5,\n    MvPolynomial.X 1 * MvPolynomial.X 2 + MvPolynomial.X 1 * MvPolynomial.X 3 + MvPolynomial.X 1 * MvPolynomial.X 5 + (MvPolynomial.X 5)^2, (MvPolynomial.X 2)^2 + MvPolynomial.X 2 * MvPolynomial.X 3 + MvPolynomial.X 2 * MvPolynomial.X 5 - MvPolynomial.X 3 * MvPolynomial.X 5,\n    MvPolynomial.X 0 * MvPolynomial.X 2 + MvPolynomial.X 0 * MvPolynomial.X 3 + MvPolynomial.X 3 * MvPolynomial.X 4 + MvPolynomial.X 0 * MvPolynomial.X 5} : Set (MvPolynomial (Fin 6) k))\n\ntheorem isCohenMacaulayRing_of_dimension_three (k : Type) [Field k] :\n    IsCohenMacaulayRing (target_ring_aux k) ∧ (ringKrullDim (target_ring_aux k) = 3) := by\n  sorry\n\nend Problem80\n",
+  "port": {
+   "kind": "tree-name-clash",
+   "change": "The tree holds a translated library that declares a root-level `X`; under `open MvPolynomial` the bare `X` is ambiguous. Qualified to `MvPolynomial.X`, which the `open` was meant to reach."
+  }
+ },
+ {
+  "id": "fatex_081",
+  "index": 81,
+  "name": "generated_by_regular_sequence_iff",
+  "statement": "namespace Problem81\n\ntheorem generated_by_regular_sequence_iff (R : Type) [CommRing R] [IsLocalRing R]\n    [IsNoetherianRing R] (I : Ideal R) (netop : I ≠ ⊤) :\n    ∃ (rs : List R), (RingTheory.Sequence.IsRegular R rs) ∧ Ideal.ofList rs = I ↔\n    Module.Free (R ⧸ I) I.Cotangent ∧\n    (∃ n, CategoryTheory.HasProjectiveDimensionLE (ModuleCat.of R I) n) := by\n  sorry\n\nend Problem81\n"
+ },
+ {
+  "id": "fatex_082",
+  "index": 82,
+  "name": "subring_iso_mvPowerSeries_over_DVR",
+  "statement": "namespace Problem82\n\nopen IsLocalRing\n\ntheorem subring_iso_mvPowerSeries_over_DVR (d : ℕ) (A : Type) [CommRing A] [IsLocalRing A]\n    [IsNoetherianRing A] [IsAdicComplete (maximalIdeal A) A] (dim : ringKrullDim A = d)\n    {p : ℕ} (hp : p.Prime) [CharZero A] [CharP (ResidueField A) p]\n    (ht : (Ideal.span {(p : A)}).height = 1) :\n    ∃ B : Subring A, Module.Finite B A ∧\n    ∃ (C : Type) (_ : CommRing C) (_ : IsDomain C), IsDiscreteValuationRing C ∧\n    Nonempty (B ≃+* MvPowerSeries (Fin (d - 1)) C) := by\n  sorry\n\nend Problem82\n"
+ },
+ {
+  "id": "fatex_083",
+  "index": 83,
+  "name": "IsRegularLocalRing.flat_local_of_regular",
+  "statement": "namespace Problem83\n\nopen IsLocalRing\n\nclass IsRegularLocalRing (R : Type) [CommRing R] : Prop extends\n    IsLocalRing R, IsNoetherianRing R where\n  reg : Module.finrank (ResidueField R) (CotangentSpace R) = ringKrullDim R\n\ntheorem IsRegularLocalRing.flat_local_of_regular {A B : Type} [CommRing A] [CommRing B]\n    [IsRegularLocalRing A] [IsNoetherianRing B] [IsLocalRing B] {f : A →+* B} (hfl : IsLocalHom f)\n    (hff : f.Flat) [IsRegularLocalRing (B ⧸ (maximalIdeal A).map f)] : IsRegularLocalRing B := by\n  sorry\n\nend Problem83\n"
+ },
+ {
+  "id": "fatex_084",
+  "index": 84,
+  "name": "exists_directSum_free_free_of_projective",
+  "statement": "namespace Problem84\n\ntheorem exists_directSum_free_free_of_projective (R M : Type) [CommRing R] [AddCommGroup M]\n    [Module R M] [Module.Projective R M] : ∃ (N : Type) (_ : AddCommGroup N) (_ : Module R N),\n    Module.Free R N ∧ Module.Free R (N × M) := by\n  sorry\n\nend Problem84\n"
+ },
+ {
+  "id": "fatex_085",
+  "index": 85,
+  "name": "exist_euclideanDomain_not_norm_nat",
+  "statement": "namespace Problem85\n\nclass EuclideanNormNat (R : Type) [CommRing R] extends Nontrivial R where\n  quotient : R → R → R\n  quotient_zero : ∀ a, quotient a 0 = 0\n  remainder : R → R → R\n  quotient_mul_add_remainder_eq : ∀ a b, b * quotient a b + remainder a b = a\n  norm : R → ℕ\n  remainder_lt : ∀ (a) {b}, b ≠ 0 → norm (remainder a b) < norm b\n  mul_left_not_lt : ∀ (a) {b}, b ≠ 0 → ¬ norm (a * b) < norm a\n\ntheorem exist_euclideanDomain_not_norm_nat :\n    ∃ (R : Type) (_ : EuclideanDomain R), IsEmpty (EuclideanNormNat R) := by\n  sorry\n\nend Problem85\n"
+ },
+ {
+  "id": "fatex_086",
+  "index": 86,
+  "name": "dimension_convex",
+  "statement": "namespace Problem86\n\ntheorem dimension_convex (A : Type) [CommRing A] :\n    ringKrullDim (MvPolynomial (Fin 2) A) + ringKrullDim A ≤ 2 * ringKrullDim (Polynomial A) := by\n  sorry\n\nend Problem86\n"
+ },
+ {
+  "id": "fatex_087",
+  "index": 87,
+  "name": "exists_polynomial_ringEquiv_isEmpty_ringEquiv",
+  "statement": "namespace Problem87\n\ntheorem exists_polynomial_ringEquiv_isEmpty_ringEquiv :\n    ∃ (R S : Type) (_ : CommRing R) (_ : CommRing S),\n    Nonempty ((Polynomial R) ≃+* (Polynomial S)) ∧ IsEmpty (R ≃+* S) := by\n  sorry\n\nend Problem87\n"
+ },
+ {
+  "id": "fatex_088",
+  "index": 88,
+  "name": "quotient_not_UFD",
+  "statement": "namespace Problem88\n\nabbrev R : Type := (MvPolynomial (Fin 3) ℂ) ⧸ Ideal.span {(.X 0 ^ 2 + .X 1 ^ 3 + .X 2 ^ 7 : MvPolynomial (Fin 3) ℂ)}\n\ntheorem quotient_not_UFD :\n    ∃ (h : IsDomain R),\n    (UniqueFactorizationMonoid R) := by\n  sorry\n\nend Problem88\n"
+ },
+ {
+  "id": "fatex_089",
+  "index": 89,
+  "name": "not_isSimpleGroup_of_card_eq_336",
+  "statement": "namespace Problem89\n\ntheorem not_isSimpleGroup_of_card_eq_336 (G : Type) [Group G]\n    [Finite G] (h_card : Nat.card G = 336) : ¬ IsSimpleGroup G := by\n  sorry\n\nend Problem89\n"
+ },
+ {
+  "id": "fatex_090",
+  "index": 90,
+  "name": "not_finiteType_inf_algebraMap_range",
+  "statement": "namespace Problem90\n\ntheorem not_finiteType_inf_algebraMap_range (k : Type) [Field k] :\n    ∃ (n : ℕ) (K : IntermediateField k (FractionRing (MvPolynomial (Fin n) k))),\n    ¬ Algebra.FiniteType k (K.toSubalgebra ⊓ (Algebra.algHom k (MvPolynomial (Fin n) k)\n    (FractionRing (MvPolynomial (Fin n) k))).range :\n    Subalgebra k (FractionRing (MvPolynomial (Fin n) k))) := by\n  sorry\n\nend Problem90\n"
+ },
+ {
+  "id": "fatex_091",
+  "index": 91,
+  "name": "pic_three_lines",
+  "statement": "namespace Problem91\n\nopen CategoryTheory MvPolynomial\n\nabbrev CommRing.Pic (R : Type) [CommRing R] : Type 1 := (Skeleton <| ModuleCat.{0} R)ˣ\n\ntheorem pic_three_lines {k : Type} [Field k] : Nonempty <|\n    CommRing.Pic (MvPolynomial (Fin 2) k ⧸ Ideal.span ({(MvPolynomial.X 0) * (MvPolynomial.X 1) * (MvPolynomial.X 0 + MvPolynomial.X 1 - 1)} :\n    Set (MvPolynomial (Fin 2) k))) ≃* kˣ := by\n  sorry\n\nend Problem91\n",
+  "port": {
+   "kind": "tree-name-clash",
+   "change": "The tree holds a translated library that declares a root-level `X`; under `open MvPolynomial` the bare `X` is ambiguous. Qualified to `MvPolynomial.X`, which the `open` was meant to reach."
+  }
+ },
+ {
+  "id": "fatex_092",
+  "index": 92,
+  "name": "dimension_sequences_of_one_dimensional_rings",
+  "statement": "namespace Problem92\n\ndef a (k : ℕ∞) (n : ℕ) :=\n  if h : n ≤ k then 2 * n + 1\n  else n + WithTop.untop k (by rintro rfl; exact h le_top) + 1\n\ntheorem dimension_sequences_of_one_dimensional_rings :\n    (∀ (A : Type) [CommRing A] (h : ringKrullDim A = 1),\n      ∃ (k : ℕ∞), (∀ (n : ℕ), ringKrullDim (MvPolynomial (Fin n) A) = a k n)) ∧\n    (∀ (k : ℕ), ∃ (A : Type) (_ : CommRing A) (h : ringKrullDim A = 1),\n      (∀ (n : ℕ), ringKrullDim (MvPolynomial (Fin n) A) = a k n)):= by\n  sorry\n\nend Problem92\n"
+ },
+ {
+  "id": "fatex_093",
+  "index": 93,
+  "name": "exists_integral_finiteType_not_finiteDimensional",
+  "statement": "namespace Problem93\n\ntheorem exists_integral_finiteType_not_finiteDimensional : ∃ (k A : Type) (_ : Field k)\n    (_ : Ring A) (_ : Algebra k A),\n    Algebra.IsIntegral k A ∧ Algebra.FiniteType k A ∧ ¬ FiniteDimensional k A := by\n  sorry\n\nend Problem93\n"
+ },
+ {
+  "id": "fatex_094",
+  "index": 94,
+  "name": "zeroSet_finite_or_contain_arithmetic_progression",
+  "statement": "namespace Problem94\n\nvariable {k A : Type} [Field k] [CharZero k] [CommRing A] [IsDomain A] [Algebra k A]\n  [Algebra.FiniteType k A] (f : A →ₐ[k] A) (ϕ : A →ₐ[k] k) (I : Ideal A)\n\ndef zeroSet : Set ℕ := {n | ∀ x : I, (ϕ.comp (f ^ n)) (x : A) = 0}\n\ntheorem zeroSet_finite_or_contain_arithmetic_progression (hf : f.FormallyEtale) :\n    (zeroSet f ϕ I).Finite ∨ ∃ (d : ℕ+) (a : ℕ), ∀ n : ℕ, a + d * n ∈ zeroSet f ϕ I := by\n  sorry\n\nend Problem94\n"
+ },
+ {
+  "id": "fatex_095",
+  "index": 95,
+  "name": "p_map_ne_p",
+  "statement": "namespace Problem95\n\nopen Polynomial Bivariate\n\nnoncomputable\ndef f (a : ℂ) (p : ℂ[X]): ℂ[X][Y] →+* ℂ[X][Y] :=\n  eval₂RingHom (aeval (a • Y + C p)).toRingHom (C X)\n\ntheorem p_map_ne_p (p : ℂ[X]) (h : p.natDegree > 1) {a : ℂ} (ha : a ≠ 0)\n    (𝔭 : Ideal ℂ[X][Y]) (h𝔭 : 𝔭.IsPrime) (h : 𝔭.height = 1) :\n    𝔭.map (f a p) ≠ 𝔭 := by\n  sorry\n\nend Problem95\n"
+ },
+ {
+  "id": "fatex_096",
+  "index": 96,
+  "name": "ratFunc_square_is_poly_of_orbit_contain_infinite_integer",
+  "statement": "namespace Problem96\n\nopen RatFunc\n\ntheorem ratFunc_square_is_poly_of_orbit_contain_infinite_integer\n    {f : RatFunc ℚ} (hf : f.num.natDegree ≥ 2 ∨ f.denom.natDegree ≥ 2) {a : ℚ}\n    (h : ∀ n : ℕ, (f.eval (RingHom.id ℚ))^[n] a ≠ 0) -- exclude the case that the `denom` is zero\n    (ha : {m : ℤ | ∃ n : ℕ, m = (f.eval (RingHom.id ℚ))^[n] a}.Infinite) :\n    ∃ g : Polynomial ℚ, g = f.eval C f := by\n  sorry\n\nend Problem96\n"
+ },
+ {
+  "id": "fatex_097",
+  "index": 97,
+  "name": "exists_point_not_in_zero_set",
+  "statement": "namespace Problem97\n\nopen scoped Polynomial\n\ntheorem exists_point_not_in_zero_set {τ k : Type} [Finite τ] [Nonempty τ] [Field k] [CharZero k]\n    {f : τ → k[X]} (hfd : ∀ i : τ, (f i).natDegree ≥ 2): ∃ a : τ → k,\n    ∀ p : MvPolynomial τ k, p ≠ 0 →\n    ∃ m : ℕ, (((MvPolynomial.aeval (fun i ↦ (f i).toMvPolynomial i)) ^ m) p).aeval a ≠ 0 := by\n  sorry\n\nend Problem97\n"
+ },
+ {
+  "id": "fatex_098",
+  "index": 98,
+  "name": "exists_maximal_ideal_not_in_finite_order",
+  "statement": "namespace Problem98\n\ntheorem exists_maximal_ideal_not_in_finite_order {K A : Type} [Field K] [NumberField K] [CommRing A]\n    [IsDomain A] [Algebra K A] [Algebra.FiniteType K A] {f : A →ₐ[K] A} (hf : ∀ n > 0, f ^ n ≠ 1) :\n    ∃ m : Ideal A, m.IsMaximal ∧ ∀ n > 0, m.comap (f ^ n) ≠ m := by\n  sorry\n\nend Problem98\n"
+ },
+ {
+  "id": "fatex_099",
+  "index": 99,
+  "name": "equiv_of_aut_equiv",
+  "statement": "namespace Problem99\n\ntheorem equiv_of_aut_equiv {A : Type} [CommRing A] [IsDomain A] [Algebra ℂ A]\n    [Algebra.FiniteType ℂ A] {n : ℕ} (hn : n ≥ 1)\n    (e : (A ≃ₐ[ℂ] A) ≃* (MvPolynomial (Fin n) ℂ ≃ₐ[ℂ] MvPolynomial (Fin n) ℂ)) :\n    Nonempty (A ≃ₐ[ℂ] MvPolynomial (Fin n) ℂ) := by\n  sorry\n\nend Problem99\n"
+ },
+ {
+  "id": "fatex_100",
+  "index": 100,
+  "name": "free_of_countably_generated_projective_of_local_infinite_rank",
+  "statement": "namespace Problem100\n\nopen Module\n\ntheorem free_of_countably_generated_projective_of_local_infinite_rank {R : Type} [CommRing R]\n    [IsNoetherianRing R] (P : Type) [AddCommGroup P] [Module R P] [Projective R P]\n    (hcg : ∃ s : Set P, s.Countable ∧ Submodule.span R s = ⊤)\n    (hm : ∀ m : Ideal R, (_ : m.IsMaximal) →\n      ¬ Module.Finite (Localization.AtPrime m) (LocalizedModule.AtPrime m P)) : Free R P := by\n  sorry\n\nend Problem100\n"
+ }
+]

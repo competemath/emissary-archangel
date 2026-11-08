@@ -1,0 +1,252 @@
+name: attest-statements
+run-name: attest FATE-X statements (${{ github.event_name }})
+# TEMPORARY, STATEMENT-ONLY. Archangel (Gate 2) over the FATE-X problems as they were translated for the tree, against exports of the ORIGINALS made on their own
+# toolchain (Lean v4.28.0): the kernel must accept `fun h => h : T_translated -> T_original` for each. The problems' proofs are `sorry`, so Gate 1 (Leak IV: no `sorry`,
+# no warning) is not run and nothing here is a translation. What stops this from ever reaching Tengoku:
+#   - nothing here banks: no TENGOKU_BOT_TOKEN, no bank-flush, no push, no pull request, no write permission on contents (scripts/test-attest-statements.mjs checks this file for them);
+#   - the output is data/attest-style JSON marked `admissible: false`, written outside every directory a record is banked from (scripts/attest/lib.mjs ADMISSION_DIRS);
+#   - it is signed here, under THIS workflow's identity, in a job that compiles nothing: tengoku's gate accepts a build attestation only from bump-library.yml or
+#     bump-sharded.yml and only from refs/heads/main (tengoku .github/workflows/pr-gate.yml, "provenance"). The last job asserts that this file fails both rules.
+# It runs on pull requests that change the inputs (a workflow_dispatch needs the file on main first); it is not meant to be merged without a decision.
+on:
+  pull_request:
+    paths: [".github/workflows/attest-statements.yml", "data/attest/**", "scripts/attest/**"]
+  workflow_dispatch:
+    inputs:
+      tree_ref: { description: "competemath/tengoku ref whose compiled tree is the target", required: false, default: main }
+      limit: { description: "problems to check, 0 = all (a quick test: 3)", required: false, default: "0" }
+
+permissions: {}
+
+concurrency:
+  group: attest-statements-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  KEY: fate-x
+  TENGOKU_VERIFY: require   # the tree's cache is used only if its build attestation checks out
+
+jobs:
+  # 1. The originals: FATE-X at its pinned commit, built on its own toolchain, one lean4export per problem (scripts/setup-source.mjs, the same setup every library goes through).
+  old:
+    if: github.repository == 'competemath/emissary-archangel'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 350
+    permissions: { contents: read }
+    env:
+      LEAN_NUM_THREADS: "4"
+      EMISSARY_TENTATIVE_DIR: ${{ github.workspace }}/tentative
+    steps:
+      - name: Free disk, in the background
+        run: |
+          nohup bash -c 'sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift; touch /tmp/disk-freed' > /dev/null 2>&1 &
+          df -h / | tail -1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          filter: "blob:none"
+          persist-credentials: false
+          sparse-checkout: |
+            scripts
+            lib
+            public
+            sources.json
+            data/attest
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: "22" }
+      - name: elan
+        run: |
+          for try in $(seq 1 20); do curl --proto '=https' --tlsv1.2 -sSfL --max-time 120 -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh && echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c - && timeout 300 sh elan-init.sh -y --default-toolchain none && break; [ "$try" -lt 20 ] || exit 1; echo "::notice::the Lean installer failed (try $try of 20): again in 30 s"; sleep 30; done
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Register the source for this run only (the shared sources.json is not changed in git), clone it at its pinned commit, write its statement records
+        run: |
+          python3 - <<'PY'
+          import json
+          s = json.load(open("sources.json"))
+          s["sources"]["fate-x"] = json.load(open("data/attest/fate-x/source.json"))
+          json.dump(s, open("sources.json", "w"), indent=1)
+          PY
+          commit=$(python3 -c "import json; print(json.load(open('data/attest/fate-x/source.json'))['commit'])")
+          repo=$(python3 -c "import json; print(json.load(open('data/attest/fate-x/source.json'))['repo'])")
+          mkdir -p infra/fate-x tentative
+          git clone -q --filter=blob:none "$repo" infra/fate-x/repo
+          git -C infra/fate-x/repo -c advice.detachedHead=false checkout -q "$commit"
+          python3 -I scripts/attest/seed_tentative.py --repo infra/fate-x/repo --commit "$commit" --repo-url "$repo" --out tentative/fate-x.jsonl
+      - name: Set up FATE-X (toolchain, build, lean4export, closure, one export per problem)
+        run: |
+          avail() { df --output=avail -BG / | tail -1 | tr -dc 0-9; }
+          while [ ! -f /tmp/disk-freed ] && [ "$(avail)" -lt 25 ]; do sleep 5; done
+          node scripts/setup-source.mjs "$KEY" 2>&1 | tee setup.log | tail -n 80
+      - name: What was exported
+        run: |
+          ls data/exports/fate-x | grep -c '\.ndjson$' || true
+          cat infra/fate-x/setup.json 2>/dev/null | head -c 1500 || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with: { name: fatex-exports, path: "data/exports/fate-x\ninfra/fate-x/setup.json\nsetup.log", retention-days: 14, if-no-files-found: error }
+
+  # 2. The translations, in the tree: Archangel hosted on the tree's attested cache, as a separate user, and the driver (scripts/attest/attest-statements.mjs) calling it once per problem.
+  gate:
+    needs: old
+    if: github.repository == 'competemath/emissary-archangel'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 300
+    permissions: { contents: read }
+    env:
+      LEAN_NUM_THREADS: "4"
+      TREE_REF: ${{ inputs.tree_ref || 'main' }}
+      LIMIT: ${{ inputs.limit || '0' }}
+    steps:
+      - name: Free disk, in the background
+        run: |
+          nohup bash -c 'sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift; touch /tmp/disk-freed' > /dev/null 2>&1 &
+          df -h / | tail -1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          filter: "blob:none"
+          persist-credentials: false
+          sparse-checkout: |
+            scripts
+            lib
+            public
+            gate2
+            data/attest
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: "22" }
+      - name: elan
+        run: |
+          for try in $(seq 1 20); do curl --proto '=https' --tlsv1.2 -sSfL --max-time 120 -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh && echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c - && timeout 300 sh elan-init.sh -y --default-toolchain none && break; [ "$try" -lt 20 ] || exit 1; echo "::notice::the Lean installer failed (try $try of 20): again in 30 s"; sleep 30; done
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: The Tengoku tree, compiled (its attested cache)
+        env: { GH_TOKEN: "${{ github.token }}" }   # gh attestation verify
+        run: |
+          git clone -q --filter=blob:none https://github.com/competemath/tengoku tree
+          git -C tree checkout -q "$TREE_REF"
+          avail() { df --output=avail -BG / | tail -1 | tr -dc 0-9; }
+          while [ ! -f /tmp/disk-freed ] && [ "$(avail)" -lt 30 ]; do sleep 5; done
+          echo "free: $(avail) GB"
+          cd tree
+          scripts/cache.sh get 2>&1 | tail -5
+          lake build Tengoku.All 2>&1 | tail -2
+          echo "tree at $(git rev-parse HEAD), $(cat lean-toolchain)"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { name: fatex-exports, path: . }
+      - name: The exports are where Archangel looks for them (data/exports/<old id>.ndjson)
+        run: |
+          ls data/exports/fate-x | grep -c '\.ndjson$'
+          chmod -R a+rX data/exports
+      - name: Archangel, on the tree, as a separate user
+        # It elaborates Lean from the translations and replays the originals' exports, which can run code: as the user `lean` it cannot read the runner user's files.
+        run: |
+          sudo useradd -m lean
+          sudo chmod o+x "$HOME"
+          sudo python3 -m venv /opt/svc
+          sudo /opt/svc/bin/pip install -q "mcp==1.30.0" "uvicorn==0.52.4" "starlette==1.6.0"
+          # Archangel elaborates in the tree checked out here, not a git copy of it
+          python3 - <<'PY'
+          import re
+          p = "gate2/lakefile.toml"
+          t = open(p).read()
+          t, n = re.subn(r'\[\[require\]\]\nname = "tengoku"\ngit = "[^"]*"\nrev = "[^"]*"', '[[require]]\nname = "tengoku"\npath = "../tree"', t)
+          assert n == 1, "gate2/lakefile.toml: the tengoku require moved"
+          open(p, "w").write(t)
+          PY
+          (cd gate2 && lake update 2>&1 | tail -2 && lake build 2>&1 | tail -2)
+          sudo chown -R lean tree gate2
+          bin="$HOME/.elan/toolchains/$(sed 's|/|--|; s|:|---|' tree/lean-toolchain)/bin"
+          test -x "$bin/lake"
+          sudo -u lean env -i HOME=/home/lean PATH="$bin:/usr/bin:/bin" LEAN_NUM_THREADS=4 PORT=7872 TENGOKU_DIR="$PWD/tree" EMISSARY_OLD_EXPORT="$PWD/data/export.ndjson" \
+            /opt/svc/bin/python gate2/server.py > gate2.log 2>&1 &
+          # an SSE endpoint never finishes a response: ready means it answered 200, not that curl exited 0
+          for _ in $(seq 1 120); do
+            [ "$(curl -s -m 2 -o /dev/null -w '%{http_code}' -H 'Accept: text/event-stream' "http://127.0.0.1:7872/sse" || true)" = 200 ] && break
+            sleep 5
+          done
+          tail -3 gate2.log
+      - name: Gate 2 over the statements
+        run: |
+          mkdir -p out
+          node scripts/attest/attest-statements.mjs --problems data/attest/fate-x/translated.json --exports data/exports/fate-x --key fate-x --root FATEX \
+            --gate2 http://127.0.0.1:7872/sse --source data/attest/fate-x/source.json --out out --tree tree --limit "$LIMIT" 2>&1 | tee out/driver.log | grep -E '^\[..:..:..\]' | tail -n 140
+      - name: Archangel's log (on failure)
+        if: failure()
+        run: tail -60 gate2.log 2>/dev/null || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with: { name: fatex-attestation-unsigned, path: out/, retention-days: 14, if-no-files-found: error }
+
+  # 3. Signing. A job that compiles nothing and runs no code of the library or of the translations: it reads the JSON as data, checks its invariants, signs it, and checks that the
+  # signature would NOT be accepted by tengoku's gate (wrong workflow, and not from main).
+  attest:
+    needs: gate
+    if: github.repository == 'competemath/emissary-archangel'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 65
+    permissions: { contents: read, id-token: write, attestations: write }
+    env: { GH_TOKEN: "${{ github.token }}" }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/attest
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { name: fatex-attestation-unsigned, path: out }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: "22" }
+      - name: The attestation holds its own invariants (statement-only, not admissible, one entry per problem, hashes)
+        run: |
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs"
+            import { checkAttestation } from "./scripts/attest/lib.mjs"
+            const a = JSON.parse(readFileSync("out/statement-attestation.json", "utf8"))
+            const bad = checkAttestation(a)
+            if (bad.length) { console.error(bad.join("\n")); process.exit(1) }
+            console.log(JSON.stringify(a.counts))
+          '
+          sha256sum out/statement-attestation.json
+      # The transparency log answered HTTP 500 for long enough on 2026-11-07 to drop a Tengoku merge: three tries, 5 and then 15 minutes apart, as bump-library.yml does.
+      - id: attest_1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        timeout-minutes: 5
+        continue-on-error: true
+        with: { subject-path: "out/statement-attestation.json" }
+      - name: The transparency log refused the attestation; trying again in 5 minutes
+        if: steps.attest_1.outcome == 'failure'
+        run: sleep 300
+      - id: attest_2
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        timeout-minutes: 5
+        if: steps.attest_1.outcome == 'failure'
+        continue-on-error: true
+        with: { subject-path: "out/statement-attestation.json" }
+      - name: The transparency log refused the attestation twice; trying a last time in 15 minutes
+        if: steps.attest_2.outcome == 'failure'
+        run: sleep 900
+      - id: attest_3
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        timeout-minutes: 5
+        if: steps.attest_2.outcome == 'failure'
+        with: { subject-path: "out/statement-attestation.json" }
+      - name: Verify it as itself, and show that tengoku's gate would refuse it
+        run: |
+          me="$GITHUB_REPOSITORY/.github/workflows/attest-statements.yml"
+          gh attestation verify out/statement-attestation.json --repo "$GITHUB_REPOSITORY" --signer-workflow "$me"
+          # tengoku's pr-gate accepts a bundle attested by bump-library.yml or bump-sharded.yml from refs/heads/main: this file is neither
+          for wf in bump-library bump-sharded; do
+            if gh attestation verify out/statement-attestation.json --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/$wf.yml" --source-ref refs/heads/main > /dev/null 2>&1; then
+              echo "::error::tengoku's gate would accept this statement attestation as a $wf bundle"; exit 1
+            fi
+          done
+          echo "refused as a factory bundle: ok"
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            if gh attestation verify out/statement-attestation.json --repo "$GITHUB_REPOSITORY" --signer-workflow "$me" --source-ref refs/heads/main > /dev/null 2>&1; then
+              echo "::error::a run from $GITHUB_REF verifies as built from main"; exit 1
+            fi
+            echo "not built from main: ok ($GITHUB_REF)"
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: fatex-statement-attestation, path: out/, retention-days: 30 }
