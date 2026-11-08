@@ -18,30 +18,58 @@
     "All"
   ],
   "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/ten-proofs/repo",
-  "entries": 0,
-  "modules": 0,
-  "exported": 0,
+  "entries": 18223,
+  "modules": 10,
+  "exported": 10,
   "failed": [],
   "expansion": {
     "expanded": 0,
     "verbatim": 0,
     "unexpanded": 0,
-    "failed": []
+    "failed": [
+      {
+        "module": "GapCVP",
+        "why": "-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/ten-proofs CompactnessAndDegeneracy,MulticolorTriangleRamsey,QuantumParallelRepetition,SpherePacking,MetricCodes,ConnesRigidity,NonSoficGroup,GapCVP,EhrhartVolumeInequality,ComparatorChallenges,Permanent,All GapCVP "
+      }
+    ]
   },
   "seed": {
     "records": 18223,
-    "kept": 0,
-    "skippedRoot": 18223,
+    "kept": 18223,
+    "skippedRoot": 0,
     "skippedDup": 0,
     "skippedNoFile": 0,
     "skippedCommented": 0,
-    "lineFixed": 0,
-    "lineUnverified": 0,
-    "nameFixed": 0,
+    "lineFixed": 67,
+    "lineUnverified": 148,
+    "nameFixed": 18223,
     "sorryOriginals": 0,
     "emptyProofs": 0
   },
-  "exportsBytes": 4096,
-  "minutes": 2,
-  "finishedAt": "2026-09-25T15:45:43.434Z"
+  "sharded": {
+    "records": 6,
+    "shards": [
+      6
+    ]
+  },
+  "tools": {
+    "lean": "4.32.0 (commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+8c9756b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "4e7915201d3f + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 139325440,
+  "minutes": 36,
+  "finishedAt": "2026-11-08T21:46:37.089Z",
+  "archive": {
+    "release": "exports-ten-proofs",
+    "asset": "ten-proofs@94bc0feb6a9f-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-ten-proofs/ten-proofs@94bc0feb6a9f-exports.tar.zst",
+    "bytes": 16195480,
+    "sha256": "255c0fda23a9f87684d37668706c562d0f31c14566cda3e38f846436f6cd5b1f",
+    "files": 20,
+    "unpack": "tar --zstd -xf ten-proofs@94bc0feb6a9f-exports.tar.zst -C data/exports/ten-proofs"
+  }
 }

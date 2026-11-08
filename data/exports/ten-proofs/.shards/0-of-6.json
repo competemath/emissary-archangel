@@ -1,0 +1,30 @@
+{
+  "shard": 0,
+  "shards": 6,
+  "commit": "94bc0feb6a9ff12c7d31d6de640a725c9d43d2b6",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "modules": 3,
+  "exported": 3,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "GapCVP",
+        "why": "-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/ten-proofs CompactnessAndDegeneracy,MulticolorTriangleRamsey,QuantumParallelRepetition,SpherePacking,MetricCodes,ConnesRigidity,NonSoficGroup,GapCVP,EhrhartVolumeInequality,ComparatorChallenges,Permanent,All GapCVP "
+      }
+    ]
+  },
+  "tools": {
+    "lean": "4.32.0 (commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+8c9756b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "4e7915201d3f + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "minutes": 35,
+  "finishedAt": "2026-11-08T21:45:25.516Z"
+}
