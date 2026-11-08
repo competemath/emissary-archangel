@@ -80,7 +80,7 @@ jobs:
           avail() { df --output=avail -BG / | tail -1 | tr -dc 0-9; }
           while [ ! -f /tmp/disk-freed ] && [ "$(avail)" -lt 25 ]; do sleep 5; done
           node scripts/setup-source.mjs "$KEY" --keep-build 2>&1 | tee setup.log | tail -n 80
-      - name: Export every original again WITH the Mathlib constants its statement reaches (the first run's 33 "unknown constant" refusals: scripts/attest/export-full.mjs)
+      - name: Export every original again WITH the Mathlib constants its statement reaches (scripts/attest/export-full.mjs, for the 33 unknown-constant refusals of the first run)
         run: |
           node scripts/attest/export-full.mjs --key fate-x --toolchain "$(python3 -c "import json; print(json.load(open('data/attest/fate-x/source.json'))['toolchain'])")" \
             --repo infra/fate-x/repo --names data/exports/fate-x --out data/exports-full --concurrency 3 2>&1 | tee export-full.log | tail -n 20
