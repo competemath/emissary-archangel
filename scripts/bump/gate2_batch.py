@@ -525,7 +525,7 @@ def generate(a: argparse.Namespace) -> None:
     # which would make the two unimportable together.
     uses_mathlib = any(
         re.match(r"\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)?(?:Mathlib|Batteries|Aesop|Qq|ProofWidgets|Plausible)\b", ln)
-        for f in lib.rglob("*.lean") if ".lake" not in f.parts and f.name not in ("gate2-check.lean", "records-deps.lean")
+        for f in lib.rglob("*.lean") if f.is_file() and ".lake" not in f.parts and f.name not in ("gate2-check.lean", "records-deps.lean")
         for ln in f.read_text(errors="replace").splitlines()[:80]
     )
     # The helper code is compiled (Vendor.Core, Vendor.Batch: `emit-vendor`); only commands are parsed here, so no notation a

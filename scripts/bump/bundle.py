@@ -212,7 +212,7 @@ def uses_mathlib(lib: Path) -> bool:
     return any(
         pat.match(ln)
         for f in lib.rglob("*.lean")
-        if ".lake" not in f.parts and f.name not in ("gate2-check.lean", "records-deps.lean", "bundle-deps.lean")
+        if f.is_file() and ".lake" not in f.parts and f.name not in ("gate2-check.lean", "records-deps.lean", "bundle-deps.lean")
         for ln in f.read_text(errors="replace").splitlines()[:80]
     )
 
