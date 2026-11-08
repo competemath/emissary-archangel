@@ -13,7 +13,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 
 SWAP = "swap_gb=48;build_timeout_min=170"
 RESUME_INPUTS = ("only_shards", "fill_from", "fill_unrecorded", "recut_from")
@@ -53,11 +52,8 @@ def gh(args: list[str], stdin: str | None = None, must: bool = False) -> str:
     return r.stdout if r.returncode == 0 else ""
 
 
-TRIES = 3
-WAIT_S = 20
 
-
-def run(repo: str, run_id: str, inputs: dict, api=gh, sleep=time.sleep) -> int:
+def run(repo: str, run_id: str, inputs: dict, api=gh) -> int:
     jobs, page = [], 1
     while True:
         batch = json.loads(api(["api", f"repos/{repo}/actions/runs/{run_id}/jobs?per_page=100&page={page}"]) or "{}").get("jobs", [])
@@ -75,19 +71,13 @@ def run(repo: str, run_id: str, inputs: dict, api=gh, sleep=time.sleep) -> int:
         print(f"not started again: {why}")
         return 0
     body = json.dumps({"ref": "main", "inputs": payload(inputs)})
-    for attempt in range(1, TRIES + 1):
-        try:
-            api(["api", "--method", "POST", f"repos/{repo}/actions/workflows/bump-sharded.yml/dispatches", "--input", "-"], stdin=body, must=True)
-        except RuntimeError as e:  # a rerun that was never started must not read as started
-            print(f"could not start the run (try {attempt} of {TRIES}): {e}")
-            if attempt == TRIES:
-                print(f"::error::{why}, and the run could not be started: {e}", file=sys.stderr)
-                return 1
-            sleep(WAIT_S)
-            continue
-        print(f"::notice::{why}: the whole plan runs again with {SWAP}")
-        return 0
-    return 1
+    try:  # one try: a dispatch reported as failed may still have been accepted, and a second one would run the whole plan twice
+        api(["api", "--method", "POST", f"repos/{repo}/actions/workflows/bump-sharded.yml/dispatches", "--input", "-"], stdin=body, must=True)
+    except RuntimeError as e:  # a rerun that was never started must not read as started
+        print(f"::error::{why}, and the run could not be started: {e}", file=sys.stderr)
+        return 1
+    print(f"::notice::{why}: the whole plan runs again with {SWAP}")
+    return 0
 
 
 if __name__ == "__main__":
