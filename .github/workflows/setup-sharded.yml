@@ -184,7 +184,7 @@ jobs:
       - name: elan
         if: inputs.prime_minutes != '0'
         run: |
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none
+          for try in $(seq 1 20); do curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none && break; [ "$try" -lt 20 ] || exit 1; echo "::notice::the Lean installer failed (try $try of 20; GitHub answered 504 for 35 minutes on 8 Nov 2026): again in 30 s"; sleep 30; done
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: The previous round's build
         if: (inputs.build_run != '' || inputs.resume_run != '') && inputs.prime_minutes != '0'
@@ -468,7 +468,7 @@ jobs:
           if [ -n "${TENGOKU_REF:-}" ]; then git -C tengoku checkout -q "origin/$TENGOKU_REF"; else git -C tengoku checkout -q; fi
       - name: elan
         run: |
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none
+          for try in $(seq 1 20); do curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none && break; [ "$try" -lt 20 ] || exit 1; echo "::notice::the Lean installer failed (try $try of 20; GitHub answered 504 for 35 minutes on 8 Nov 2026): again in 30 s"; sleep 30; done
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { name: build }

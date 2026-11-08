@@ -30,7 +30,7 @@ jobs:
         with: { filter: "blob:none", sparse-checkout: "data/bank", persist-credentials: false }
       - name: elan
         run: |
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none
+          for try in $(seq 1 20); do curl -sSfL https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh | sh -s -- -y --default-toolchain none && break; [ "$try" -lt 20 ] || exit 1; echo "::notice::the Lean installer failed (try $try of 20; GitHub answered 504 for 35 minutes on 8 Nov 2026): again in 30 s"; sleep 30; done
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: The tree at the ref, compiled (its attested cache)
         env: { GH_TOKEN: "${{ github.token }}" }
