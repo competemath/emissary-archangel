@@ -31,7 +31,20 @@
     "sorryOriginals": 0,
     "emptyProofs": 0
   },
-  "exportsBytes": 4096,
-  "minutes": 4,
-  "finishedAt": "2026-09-25T15:23:41.599Z"
+  "sharded": {
+    "records": 0,
+    "shards": []
+  },
+  "exportsBytes": 8192,
+  "minutes": 0,
+  "finishedAt": "2026-11-08T15:30:29.648Z",
+  "archive": {
+    "release": "exports-prime-gaps-186",
+    "asset": "prime-gaps-186@61340d0b7416-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-prime-gaps-186/prime-gaps-186@61340d0b7416-exports.tar.zst",
+    "bytes": 24,
+    "sha256": "b606db750a03e4627037ef2de8288c10527247be5eda31904b1230670e177a19",
+    "files": 0,
+    "unpack": "tar --zstd -xf prime-gaps-186@61340d0b7416-exports.tar.zst -C data/exports/prime-gaps-186"
+  }
 }
