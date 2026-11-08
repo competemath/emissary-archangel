@@ -157,6 +157,12 @@ def normalize_imports(lib: Path, roots: list[str], lean_path: str = "") -> dict:
     return {"files_changed": changed, "imports_replaced": removed}
 
 
+def own_file(lib: Path, mod: str) -> bool:
+    """`mod` is a module of the library itself: it has a source file in the library (`P2M.Sol.S_X` is P2M/Sol/S_X.lean; a part in guillemets is one component)."""
+    parts = [m.group(0).strip("«»") for m in re.finditer(r"«[^»]*»|[^.]+", mod)]
+    return bool(parts) and lib.joinpath(*parts[:-1], parts[-1] + ".lean").is_file()  # not with_suffix: `1102.4662` would become `1102.lean`
+
+
 def repair(a: argparse.Namespace) -> None:
     lib = Path(a.lib)
     roots = [r for r in a.roots.split(",") if r]
@@ -195,8 +201,11 @@ def repair(a: argparse.Namespace) -> None:
         mine_set.add(r)
     per_file: dict[str, dict[str, list[str]]] = {}
     for f, mod in BAD_IMPORT.findall(log):
-        if mod == "Mathlib" or mod.startswith(tuple(r + "." for r in roots)) or mod in mine_set:
-            continue  # the library's own module: blocked behind a failure, nothing to repair here
+        if mod == "Mathlib" or mod.startswith(tuple(r + "." for r in roots)) or mod in mine_set or own_file(lib, mod):
+            # the library's own module (under the roots, or in another package of the library: flt-anthropic's P2M.Util and P2M.Sol.*,
+            # imported by its Theorems): not built yet or blocked behind a failure, nothing to repair here. Replacing such an import with
+            # `import Mathlib` took away P2M.Util's tactics and P2M.Sol's proofs from 828 imports of one shard (flt bump, 5 Nov).
+            continue
         per_file.setdefault(f, {})[mod] = moves.get(mod) or ["Mathlib"]
     for f, repl in per_file.items():
         p = lib / f
