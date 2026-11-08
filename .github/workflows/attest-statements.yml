@@ -1,7 +1,7 @@
 name: attest-statements
 run-name: attest FATE-X statements (${{ github.event_name }})
 # TEMPORARY, STATEMENT-ONLY. Gate 2's batch check, with the statement-only rule (scripts/attest/emit_attest_vendor.py), over the FATE-X problems as they were translated for the tree,
-# against exports of the ORIGINALS made on their own toolchain (Lean v4.28.0): each definition the statements reach must be identical or kernel-equal, and the kernel must accept
+# against exports of the ORIGINALS (the library's own constants) made on their own toolchain (Lean v4.28.0): each definition the statements reach must be identical or kernel-equal, and the kernel must accept
 # `fun h => h : T_translated -> T_original` (or find the statements equal). The problems' proofs are `sorry`, so Gate 1 (Leak IV: no `sorry`,
 # no warning) is not run and nothing here is a translation. What stops this from ever reaching Tengoku:
 #   - nothing here banks: no TENGOKU_BOT_TOKEN, no bank-flush, no push, no pull request, no write permission on contents (scripts/test-attest-statements.mjs checks this file for them);
@@ -80,22 +80,14 @@ jobs:
         run: |
           avail() { df --output=avail -BG / | tail -1 | tr -dc 0-9; }
           while [ ! -f /tmp/disk-freed ] && [ "$(avail)" -lt 25 ]; do sleep 5; done
-          node scripts/setup-source.mjs "$KEY" --keep-build 2>&1 | tee setup.log | tail -n 80
-      - name: Export every original again WITH the Mathlib constants its statement reaches (scripts/attest/export-full.mjs, for the 33 unknown-constant refusals of the first run)
-        run: |
-          node scripts/attest/export-full.mjs --key fate-x --toolchain "$(python3 -c "import json; print(json.load(open('data/attest/fate-x/source.json'))['toolchain'])")" \
-            --repo infra/fate-x/repo --names data/exports/fate-x --out data/exports-full --concurrency 3 2>&1 | tee export-full.log | tail -n 20
-          du -sh data/exports-full
-          # the full-closure exports replace the library-only ones: they are what the checker reads
-          cp data/exports-full/*.ndjson data/exports/fate-x/
+          node scripts/setup-source.mjs "$KEY" 2>&1 | tee setup.log | tail -n 80
       - name: What was exported
         run: |
           ls data/exports/fate-x | grep -c '\.ndjson$' || true
-          ls data/exports-full | grep -c '\.ndjson$' || true
           cat infra/fate-x/setup.json 2>/dev/null | head -c 1500 || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
-        with: { name: fatex-exports, path: "data/exports/fate-x\ninfra/fate-x/setup.json\nsetup.log\nexport-full.log", retention-days: 14, if-no-files-found: error }
+        with: { name: fatex-exports, path: "data/exports/fate-x\ninfra/fate-x/setup.json\nsetup.log", retention-days: 14, if-no-files-found: error }
 
   # 2a. Gate 2's own Lean modules, with the statement-only check, built in a project of their own (they import only Lean): a compile error shows here in minutes, not after the tree.
   vendor:
@@ -200,7 +192,7 @@ jobs:
           sudo -u lean env -i HOME=/home/lean PATH="$bin:/usr/bin:/bin" LEAN_NUM_THREADS=4 \
             "$(command -v node)" scripts/attest/attest-batch.mjs --problems data/attest/fate-x/translated.json --exports data/exports/fate-x --key fate-x --root FATEX \
             --source data/attest/fate-x/source.json --out out --tree tree --tree-commit "$tree_commit" --emissary-commit "$GITHUB_SHA" \
-            --lean "$bin/lean" --lean-path "$LP" --vendor vendorproj --chunk 25 --parallel 2 --limit "$LIMIT" --export-mode full-closure 2>&1 | tee out/driver.log | grep -E '^\[..:..:..\]' | tail -n 170
+            --lean "$bin/lean" --lean-path "$LP" --vendor vendorproj --chunk 25 --parallel 2 --limit "$LIMIT" --export-mode library-only 2>&1 | tee out/driver.log | grep -E '^\[..:..:..\]' | tail -n 170
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with: { name: fatex-attestation-unsigned, path: out/, retention-days: 14, if-no-files-found: error }
