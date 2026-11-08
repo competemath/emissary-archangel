@@ -9,7 +9,7 @@ import { execFileSync, spawnSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import { join } from "node:path"
-import { ADMISSION_DIRS, SCHEMA, assertNotAdmissionPath, buildAttestation, checkAttestation, exportCandidates, problemEntry, readVerdict, sha256 } from "./attest/lib.mjs"
+import { ADMISSION_DIRS, EXPORT_MODES, SCHEMA, limitsFor, assertNotAdmissionPath, buildAttestation, checkAttestation, exportCandidates, problemEntry, readVerdict, sha256 } from "./attest/lib.mjs"
 
 const ROOT = new URL("..", import.meta.url).pathname
 const tmp = mkdtempSync(join(os.tmpdir(), "attest-test-"))
@@ -127,6 +127,14 @@ assert.equal(readFileSync(join(out, "results.jsonl"), "utf8").trim().split("\n")
 r = drive(join(tmp, "out2"), ["--only", "p1"])
 assert.equal(r.status, 0, r.stderr)
 eq(JSON.parse(readFileSync(join(tmp, "out2", "statement-attestation.json"), "utf8")).counts.total, 1, "--only")
+r = drive(join(tmp, "out3"), ["--export-mode", "full-closure"])
+assert.equal(r.status, 0, r.stderr)
+const full = JSON.parse(readFileSync(join(tmp, "out3", "statement-attestation.json"), "utf8"))
+eq([full.inputs.exportMode, att.inputs.exportMode], ["full-closure", "library-only"], "the export mode is recorded, library-only by default")
+assert.ok(full.limits.some((l) => /full-closure|without --only-listed/.test(l)) && !full.limits.some((l) => /are not in the original's export/.test(l)), "the Mathlib limit says what the export held")
+assert.ok(att.limits.some((l) => /are not in the original's export/.test(l)))
+eq(EXPORT_MODES, ["library-only", "full-closure"])
+assert.notEqual(drive(join(tmp, "out4"), ["--export-mode", "everything"]).status, 0, "an unknown export mode is refused")
 r = drive(join(ROOT, "data", "bank", "attest-test"))
 assert.notEqual(r.status, 0, "the driver refuses an output directory under data/bank")
 assert.match(r.stderr, /refusing to write a statement attestation under data\/bank/)

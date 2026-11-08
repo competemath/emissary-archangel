@@ -13,7 +13,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, append
 import { execFileSync } from "node:child_process"
 import { join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
-import { ADMISSION_DIRS, assertNotAdmissionPath, buildAttestation, checkAttestation, exportCandidates, problemEntry, readVerdict, sha256 } from "./lib.mjs"
+import { ADMISSION_DIRS, EXPORT_MODES, assertNotAdmissionPath, buildAttestation, checkAttestation, exportCandidates, problemEntry, readVerdict, sha256 } from "./lib.mjs"
 
 const argv = process.argv.slice(2)
 const opt = (n, d = null) => (argv.includes(`--${n}`) ? argv[argv.indexOf(`--${n}`) + 1] : d)
@@ -29,6 +29,8 @@ const sourceFile = need("source")
 const outDir = resolve(need("out"))
 const treeDir = opt("tree")
 const limit = Number(opt("limit", "0")) || 0
+const exportMode = opt("export-mode", "library-only")
+if (!EXPORT_MODES.includes(exportMode)) (console.error(`attest-statements: --export-mode is one of ${EXPORT_MODES.join(", ")}`), process.exit(2))
 const only = (opt("only", "") || "").split(",").filter(Boolean)
 assertNotAdmissionPath(outDir, ROOT)
 mkdirSync(outDir, { recursive: true })
@@ -102,6 +104,7 @@ const attestation = buildAttestation({
     emissaryCommit: git(ROOT, "rev-parse", "HEAD"),
   },
   problems: entries,
+  exportMode,
   run: { repository: process.env.GITHUB_REPOSITORY || null, workflow: process.env.GITHUB_WORKFLOW_REF || null, runId: process.env.GITHUB_RUN_ID || null, sha: process.env.GITHUB_SHA || null, ref: process.env.GITHUB_REF || null },
 })
 const bad = checkAttestation(attestation)

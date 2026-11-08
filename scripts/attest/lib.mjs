@@ -45,12 +45,17 @@ export function readVerdict(result) {
   }
 }
 
-export const LIMITS = [
+const LIMITS_COMMON = [
   "The proofs are `sorry`: this is a check of STATEMENTS. Gate 1 (Leak IV: no sorry, no warning) is not run, so this is not a translation and is never admissible to Tengoku.",
   "Direction: the kernel accepted translated -> original (a proof of the translated statement proves the original one). The converse is not checked; `statementsIdentical` is a printed-text hint, not a proof of it.",
-  "Constants of Mathlib are not in the original's export (setup-source exports only the library's own constants, --only-listed): a Mathlib name is taken to mean in the tree what it meant on the original's toolchain unless its type differs, in which case the kernel refuses the bridge.",
   "The original is replayed with the library's own definitions under their names; a definition of the translation that differs from the original's is a name collision and fails.",
 ]
+const MATHLIB_LIMIT = {
+  "library-only": "Constants of Mathlib are not in the original's export (setup-source exports only the library's own constants, --only-listed): a Mathlib name is taken to mean in the tree what it meant on the original's toolchain unless its type differs, in which case the kernel refuses the bridge.",
+  "full-closure": "The original's export holds the Mathlib constants its statement reaches (lean4export without --only-listed, scripts/attest/export-full.mjs). Gate 2 replays those the tree does not have, under their old names, and refuses (name_collision) one the tree has with a different type; a Mathlib constant the tree has with the same type is taken to mean the same.",
+}
+export const EXPORT_MODES = Object.keys(MATHLIB_LIMIT)
+export const limitsFor = (exportMode) => [...LIMITS_COMMON, MATHLIB_LIMIT[exportMode] || MATHLIB_LIMIT["library-only"]]
 
 /** One problem's entry in the attestation. */
 export function problemEntry({ problem, qualifiedName, oldId, exportSha256, verdict, gate2Text }) {
@@ -69,7 +74,7 @@ export function problemEntry({ problem, qualifiedName, oldId, exportSha256, verd
   }
 }
 
-export function buildAttestation({ subject, upstream, target, inputs, gate2, problems, run }) {
+export function buildAttestation({ subject, upstream, target, inputs, gate2, problems, run, exportMode = "library-only" }) {
   const counts = { total: problems.length, pass: 0, fail: 0 }
   const reasons = {}
   for (const p of problems) {
@@ -84,11 +89,11 @@ export function buildAttestation({ subject, upstream, target, inputs, gate2, pro
     subject,
     upstream,
     target,
-    inputs,
+    inputs: { ...inputs, exportMode },
     gate2,
     run,
     counts: { ...counts, failReasons: reasons },
-    limits: LIMITS,
+    limits: limitsFor(exportMode),
     problems,
   }
 }

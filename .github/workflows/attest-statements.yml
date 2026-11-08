@@ -79,14 +79,20 @@ jobs:
         run: |
           avail() { df --output=avail -BG / | tail -1 | tr -dc 0-9; }
           while [ ! -f /tmp/disk-freed ] && [ "$(avail)" -lt 25 ]; do sleep 5; done
-          node scripts/setup-source.mjs "$KEY" 2>&1 | tee setup.log | tail -n 80
+          node scripts/setup-source.mjs "$KEY" --keep-build 2>&1 | tee setup.log | tail -n 80
+      - name: Export every original again WITH the Mathlib constants its statement reaches (the first run's 33 "unknown constant" refusals: scripts/attest/export-full.mjs)
+        run: |
+          node scripts/attest/export-full.mjs --key fate-x --toolchain "$(python3 -c "import json; print(json.load(open('data/attest/fate-x/source.json'))['toolchain'])")" \
+            --repo infra/fate-x/repo --names data/exports/fate-x --out data/exports-full --concurrency 3 2>&1 | tee export-full.log | tail -n 20
+          du -sh data/exports-full
       - name: What was exported
         run: |
           ls data/exports/fate-x | grep -c '\.ndjson$' || true
+          ls data/exports-full | grep -c '\.ndjson$' || true
           cat infra/fate-x/setup.json 2>/dev/null | head -c 1500 || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
-        with: { name: fatex-exports, path: "data/exports/fate-x\ninfra/fate-x/setup.json\nsetup.log", retention-days: 14, if-no-files-found: error }
+        with: { name: fatex-exports, path: "data/exports/fate-x\ndata/exports-full\ninfra/fate-x/setup.json\nsetup.log\nexport-full.log", retention-days: 14, if-no-files-found: error }
 
   # 2. The translations, in the tree: Archangel hosted on the tree's attested cache, as a separate user, and the driver (scripts/attest/attest-statements.mjs) calling it once per problem.
   gate:
@@ -134,9 +140,11 @@ jobs:
           echo "tree at $(git rev-parse HEAD), $(cat lean-toolchain)"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { name: fatex-exports, path: . }
-      - name: The exports are where Archangel looks for them (data/exports/<old id>.ndjson)
+      - name: The exports are where Archangel looks for them (data/exports/<old id>.ndjson); the full-closure ones replace the library-only ones
         run: |
           ls data/exports/fate-x | grep -c '\.ndjson$'
+          ls data/exports-full | grep -c '\.ndjson$'
+          cp data/exports-full/*.ndjson data/exports/fate-x/
           chmod -R a+rX data/exports
       - name: Archangel, on the tree, as a separate user
         # It elaborates Lean from the translations and replays the originals' exports, which can run code: as the user `lean` it cannot read the runner user's files.
@@ -170,7 +178,7 @@ jobs:
         run: |
           mkdir -p out
           node scripts/attest/attest-statements.mjs --problems data/attest/fate-x/translated.json --exports data/exports/fate-x --key fate-x --root FATEX \
-            --gate2 http://127.0.0.1:7872/sse --source data/attest/fate-x/source.json --out out --tree tree --limit "$LIMIT" 2>&1 | tee out/driver.log | grep -E '^\[..:..:..\]' | tail -n 140
+            --gate2 http://127.0.0.1:7872/sse --source data/attest/fate-x/source.json --out out --tree tree --limit "$LIMIT" --export-mode full-closure 2>&1 | tee out/driver.log | grep -E '^\[..:..:..\]' | tail -n 140
       - name: Archangel's log (on failure)
         if: failure()
         run: tail -60 gate2.log 2>/dev/null || true
