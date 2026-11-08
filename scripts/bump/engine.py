@@ -160,7 +160,14 @@ def normalize_imports(lib: Path, roots: list[str], lean_path: str = "") -> dict:
 def own_file(lib: Path, mod: str) -> bool:
     """`mod` is a module of the library itself: it has a source file in the library (`P2M.Sol.S_X` is P2M/Sol/S_X.lean; a part in guillemets is one component)."""
     parts = [m.group(0).strip("«»") for m in re.finditer(r"«[^»]*»|[^.]+", mod)]
-    return bool(parts) and lib.joinpath(*parts[:-1], parts[-1] + ".lean").is_file()  # not with_suffix: `1102.4662` would become `1102.lean`
+    # only a file inside the library: a part `..`, `.` or with a slash, or a symlink out of it, is not the library's own module (its import is repaired as before)
+    if not parts or any(p in ("", ".", "..") or "/" in p or "\\" in p for p in parts):
+        return False
+    f = lib.joinpath(*parts[:-1], parts[-1] + ".lean")  # not with_suffix: `1102.4662` would become `1102.lean`
+    try:
+        return f.is_file() and f.resolve().is_relative_to(lib.resolve())
+    except OSError:
+        return False
 
 
 def repair(a: argparse.Namespace) -> None:

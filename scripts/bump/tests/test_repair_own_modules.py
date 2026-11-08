@@ -83,6 +83,23 @@ class RepairOwnModules(unittest.TestCase):
         (self.lib / "P2M" / "Sol" / "1102.4662.lean").write_text("theorem x : True := trivial\n")
         self.assertTrue(engine.own_file(self.lib, "P2M.Sol.«1102.4662»"))
 
+    def test_own_file_never_reaches_outside_the_library(self):
+        # a source file outside the library is not the library's own module: its import is repaired as before (cubic, #157)
+        (self.tmp / "Outside.lean").write_text("theorem o : True := trivial\n")
+        (self.lib / "Theorems" / "Link.lean").symlink_to(self.tmp / "Outside.lean")
+        (self.lib / "Theorems" / "Inside.lean").symlink_to(self.lib / "P2M" / "Util.lean")
+        for mod in ["«..».Outside", "Theorems.«..».«..».Outside", "«.».Theorems.Gone", "Theorems.Link", "«../Outside»", f"«{self.tmp}/Outside»", "Theorems.«»"]:
+            self.assertFalse(engine.own_file(self.lib, mod), mod)
+        self.assertTrue(engine.own_file(self.lib, "Theorems.Inside"))  # a symlink that stays inside the library is a file of it
+        # through the repair: an import of a file outside the library is still taken out of the file that has it
+        gone = self.lib / "Theorems" / "Gone.lean"
+        gone.write_text("import «..».Outside\nimport P2M.Util\n\ntheorem g : True := trivial\n")
+        (self.tmp / "build.log").write_text("error: Theorems/Gone.lean: bad import '«..».Outside'\n")
+        summary = self.repair()
+        self.assertEqual(summary["moved_imports"], 1)
+        self.assertNotIn("Outside", gone.read_text())
+        self.assertIn("import P2M.Util\n", gone.read_text())
+
 
 if __name__ == "__main__":
     unittest.main()
