@@ -33,7 +33,30 @@
     "sorryOriginals": 0,
     "emptyProofs": 0
   },
-  "exportsBytes": 4096,
+  "sharded": {
+    "records": 1,
+    "shards": [
+      8
+    ]
+  },
+  "tools": {
+    "lean": "4.34.0 (commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+293d5d0",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "076e8e57707e + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 16384,
   "minutes": 2,
-  "finishedAt": "2026-10-18T21:05:41.757Z"
+  "finishedAt": "2026-11-08T15:30:32.123Z",
+  "archive": {
+    "release": "exports-classfieldtheory-yamaguchi",
+    "asset": "classfieldtheory-yamaguchi@2eb22d6485af-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-classfieldtheory-yamaguchi/classfieldtheory-yamaguchi@2eb22d6485af-exports.tar.zst",
+    "bytes": 24,
+    "sha256": "b606db750a03e4627037ef2de8288c10527247be5eda31904b1230670e177a19",
+    "files": 0,
+    "unpack": "tar --zstd -xf classfieldtheory-yamaguchi@2eb22d6485af-exports.tar.zst -C data/exports/classfieldtheory-yamaguchi"
+  }
 }
