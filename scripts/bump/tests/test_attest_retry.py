@@ -1,4 +1,4 @@
-"""The attestation is tried three times, 5 and 15 minutes apart, in every emissary workflow that attests (bump-library, bump-sharded, memory-intake).
+"""The attestation is tried three times, 5 and 15 minutes apart, in every emissary workflow that attests (bump-library, bump-sharded, memory-intake, attest-statements).
 
 The real case: 2026-11-07, rekor (the public transparency log) answered HTTP 500 ("error creating tlog entry - (500) unexpected result from transparency log"): Tengoku's queue
 publish of #751 failed at 13:54 and 14:28, and the sandbox campaign of emissary#154 (run 42381696374) failed in its judge. A bump whose attestation fails uploads no bundle, and the
@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-WORKFLOWS = {"bump-library.yml": "attest", "bump-sharded.yml": "finish", "memory-intake.yml": "collect"}
+WORKFLOWS = {"bump-library.yml": "attest", "bump-sharded.yml": "finish", "memory-intake.yml": "collect", "attest-statements.yml": "attest"}
 
 
 def steps_of(wf: str) -> list[dict]:
@@ -102,7 +102,7 @@ class Retry(unittest.TestCase):
                     self.assertEqual(r["upload"], first_ok is not None, (wf, answers))  # never an unattested upload
                     self.assertEqual(len(r["waits"]), (first_ok or 3) - 1, (wf, answers))  # a wait only between failed tries
                     n += 1
-        self.assertEqual(n, 12)  # 3 workflows x (written at once, at the second try, at the third, never)
+        self.assertEqual(n, 16)  # 4 workflows x (written at once, at the second try, at the third, never)
 
     def test_a_failure_before_the_attestation_still_stops_everything(self):
         for wf in WORKFLOWS:
@@ -120,7 +120,7 @@ class Retry(unittest.TestCase):
         import yaml
 
         limits = {wf: yaml.safe_load((ROOT / ".github" / "workflows" / wf).read_text())["jobs"][job]["timeout-minutes"] for wf, job in WORKFLOWS.items()}
-        self.assertEqual(limits, {"bump-library.yml": 65, "bump-sharded.yml": 155, "memory-intake.yml": 65})  # each 35 more than before: 20 of waiting, 3 tries of 5
+        self.assertEqual(limits, {"bump-library.yml": 65, "bump-sharded.yml": 155, "memory-intake.yml": 65, "attest-statements.yml": 65})  # each 35 more than before: 20 of waiting, 3 tries of 5
         for wf in WORKFLOWS:
             tries = [s for s in steps_of(wf) if is_attest(s)]
             self.assertTrue(all(s.get("timeout-minutes") == 5 for s in tries), wf)  # a stalled try cannot eat the job's time: each has its own limit
