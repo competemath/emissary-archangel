@@ -1,16 +1,21 @@
-"""A finished bump starts the opener for its own library (the `open` job of bump-sharded.yml and bump-library.yml).
+"""A finished bump starts the opener (the `open` job of bump-sharded.yml and bump-library.yml).
 
 The real case: intake-open.yml's schedule says "every 10 minutes" (cron 3-59/10), but GitHub ran it at 18:12, 21:47 and 00:55 on 7-8 Nov 2026, so a finished bump waited hours
-for its pull requests; padic-l-functions' re-bump (run 42441872493) was opened by hand (intake-open run 42444625597), and twelve more bumps were in flight.
+for its pull requests; padic-l-functions, zeta-3-irrational and primecert were opened by hand (intake-open runs 42444625597, 42445304275, 42446068096), twelve more bumps were in flight.
+
+The opener keeps one pending run (concurrency group intake-open, cancel-in-progress false), and GitHub replaces a pending run with a newer one: a dispatch for one key could be
+dropped (cubic, #158). So the job starts the opener for every library with a finished bundle; whichever run survives opens them all.
 
 Invariants, on both workflows:
-  * the job runs only after the job that publishes the archive succeeded (bump-sharded: finish; bump-library: attest), only when parts are cut (the opener opens part archives
-    only), and only in the factory itself, never in a rehearsal (the sandbox campaign must never open pull requests in the tree);
-  * its only permission is `actions: write` (the dispatch), and it runs nothing of the run: no checkout, no artifact, no `uses:` step;
-  * the real `run:` text, executed by bash with a fake `gh`, starts intake-open.yml once with target competemath/tengoku, keys = exactly this key, dry_run=false, on main;
-    for every registered key of sources.json (the real registry);
-  * a malformed key (a shell word, an upper-case name, empty, a path) is refused before `gh` is called;
-  * the inputs it passes are inputs intake-open.yml declares (target, keys, dry_run), so a rename there cannot silently break the dispatch.
+  * the job runs only after the job that publishes the archive succeeded (bump-sharded: finish; bump-library: attest), only when parts were cut (`parts` neither empty nor 0:
+    the opener opens part archives only), only for a run on main (the opener ignores bump runs of other branches), and only in the factory itself, never in a rehearsal (the
+    sandbox campaign must never open pull requests in the tree);
+  * its only permission is `actions: write`, and it runs nothing of the run and takes nothing from it: no checkout, no artifact, no `uses:` step, no `${{ }}` and no input
+    variable in its shell;
+  * the real `run:` text, executed by bash with a fake `gh`, starts intake-open.yml exactly once, on main, with target competemath/tengoku and dry_run=false and no `keys`
+    (every library); whatever the run's key, the dispatch is the same: checked for every registered key of sources.json (the real registry) and for hostile values;
+  * the inputs it passes are inputs intake-open.yml declares, and `keys` defaults to every library there, so a change in the opener cannot silently break the dispatch;
+  * intake-open still has the one-pending concurrency this design answers.
 """
 
 from __future__ import annotations
@@ -56,17 +61,26 @@ class OpenAfterFinish(unittest.TestCase):
             gh.write_text(FAKE_GH)
             gh.chmod(gh.stat().st_mode | stat.S_IEXEC)
             (t / "step.sh").write_text(script)
-            env = {"PATH": f"{t / 'bin'}:{os.environ['PATH']}", "KEY": key, "GH_TOKEN": "x", "GITHUB_REPOSITORY": "competemath/emissary-archangel", "GH_CALLS": str(t / "calls")}
+            env = {"PATH": f"{t / 'bin'}:{os.environ['PATH']}", "KEY": key, "PARTS": key, "GH_TOKEN": "x", "GITHUB_REPOSITORY": "competemath/emissary-archangel", "GH_CALLS": str(t / "calls")}
             r = subprocess.run(["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", str(t / "step.sh")], env=env, capture_output=True, text=True, check=False)
             calls = [(t / "calls" / c).read_text().splitlines() for c in sorted(os.listdir(t / "calls"))]
             return r.returncode, r.stdout + r.stderr, calls
 
-    def test_runs_only_after_the_archive_is_published_with_parts_and_only_in_the_factory(self):
+    def assert_the_dispatch(self, calls: list[list[str]], what: str) -> None:
+        self.assertEqual(len(calls), 1, what)
+        c = calls[0]
+        self.assertEqual(c[:5], ["workflow", "run", "intake-open.yml", "-R", "competemath/emissary-archangel"], what)
+        self.assertEqual(c[c.index("--ref") + 1], "main", what)
+        fields = sorted(c[i + 1] for i, a in enumerate(c) if a == "-f")
+        self.assertEqual(fields, ["dry_run=false", "target=competemath/tengoku"], f"{what}: {c}")
+
+    def test_runs_only_after_the_archive_is_published_with_parts_on_main_in_the_factory(self):
         for wf, after in self.CASES:
             j = self.job(wf)
             self.assertEqual(j["needs"], [after], wf)
             cond = j["if"]
-            for part in (f"needs.{after}.result == 'success'", "inputs.parts != '0'", "github.repository == 'competemath/emissary-archangel'", "!cancelled()"):
+            for part in (f"needs.{after}.result == 'success'", "inputs.parts != ''", "inputs.parts != '0'", "github.ref == 'refs/heads/main'",
+                         "github.repository == 'competemath/emissary-archangel'", "!cancelled()"):
                 self.assertIn(part, cond, wf)
 
     def test_only_the_dispatch_permission_and_nothing_of_the_run(self):
@@ -75,39 +89,29 @@ class OpenAfterFinish(unittest.TestCase):
             self.assertEqual(j["permissions"], {"actions": "write"}, wf)
             self.assertEqual(len(j["steps"]), 1, wf)
             self.assertNotIn("uses", j["steps"][0], wf)
+            self.assertEqual(set(j.get("env", {})), {"GH_TOKEN"}, wf)  # no input of the run reaches the job
             text = j["steps"][0]["run"]
-            for word in ("checkout", "download-artifact", "git clone", "${{"):
+            for word in ("checkout", "download-artifact", "git clone", "${{", "$KEY", "$PARTS", "inputs."):
                 self.assertNotIn(word, text, f"{wf}: {word}")
 
-    def test_every_registered_key_starts_the_opener_for_that_key_only(self):
+    def test_one_dispatch_for_every_library_whatever_the_key(self):
         keys = sorted(SOURCES)
         self.assertGreater(len(keys), 100)
+        hostile = ["", "a;b", "$(id)", "Foo", "../x", "a b", "-x", "x" * 65, "a\nb", "padic-l-functions;rm -rf ~"]
         for wf, _ in self.CASES:
             j = self.job(wf)
-            for key in keys:
+            for key in keys + hostile:
                 code, out, calls = self.run_step(j, key)
-                self.assertEqual(code, 0, f"{wf} {key}: {out}")
-                self.assertEqual(len(calls), 1, f"{wf} {key}")
-                c = calls[0]
-                self.assertEqual(c[:4], ["workflow", "run", "intake-open.yml", "-R"], f"{wf} {key}")
-                self.assertEqual(c[4], "competemath/emissary-archangel")
-                fields = [c[i + 1] for i, a in enumerate(c) if a == "-f"]
-                self.assertEqual(sorted(fields), sorted(["target=competemath/tengoku", f"keys={key}", "dry_run=false"]), f"{wf} {key}: {c}")
-                self.assertEqual(c[c.index("--ref") + 1], "main")
+                self.assertEqual(code, 0, f"{wf} {key!r}: {out}")
+                self.assert_the_dispatch(calls, f"{wf} {key!r}")
 
-    def test_a_malformed_key_is_refused_before_gh(self):
-        for wf, _ in self.CASES:
-            j = self.job(wf)
-            for key in ["", "a;b", "$(id)", "Foo", "../x", "a b", "-x", "x" * 65, "a\nb", "padic-l-functions;rm -rf ~"]:
-                code, out, calls = self.run_step(j, key)
-                self.assertNotEqual(code, 0, f"{wf} {key!r}")
-                self.assertEqual(calls, [], f"{wf} {key!r}: gh was called")
-                self.assertIn("nothing was opened", out)
-
-    def test_the_inputs_passed_are_inputs_of_the_opener(self):
-        inputs = load("intake-open.yml")[True]["workflow_dispatch"]["inputs"]  # YAML reads the key `on` as True
-        for name in ("target", "keys", "dry_run"):
+    def test_the_opener_takes_these_inputs_and_keeps_one_pending_run(self):
+        d = load("intake-open.yml")
+        inputs = d[True]["workflow_dispatch"]["inputs"]  # YAML reads the key `on` as True
+        for name in ("target", "dry_run", "keys"):
             self.assertIn(name, inputs)
+        self.assertEqual(inputs["keys"].get("default", ""), "")  # no keys: every library with a finished bundle
+        self.assertEqual(d["concurrency"], {"group": "intake-open", "cancel-in-progress": False})
 
 
 if __name__ == "__main__":
