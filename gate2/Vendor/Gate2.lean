@@ -71,8 +71,31 @@ the tree's own lemmas are still allowed in the proof; the entailment has to come
 
 open Lean Elab Command TengokuImport Meta
 
-def parseDottedName (s : String) : Name :=
-  (s.splitOn ".").foldl (fun n part => Name.mkStr n part) Name.anonymous
+/-- A name as `Name.toString` prints it. A part of digits only is a NUMERIC component: a private declaration is `_private.<Module>.0.<name>`
+(the `0` is `Name.num`), and splitting it into string parts made `«0»`, which no export has: every private lemma of every library was left
+unjudged ('old_name_not_in_export', padic-l-functions 474 of 1,253, 7 Nov 2026). A part in guillemets is one string component, dots and
+digits included (`«1»`, `«1102.4662»`), which is how `Name.toString` writes a string component that is no identifier. -/
+def parseDottedName (s : String) : Name := Id.run do
+  let mut n : Name := Name.anonymous
+  let mut part : String := ""
+  let mut quoted := false
+  let mut wasQuoted := false
+  for c in s.toList do
+    if c == '«' then
+      quoted := true
+      wasQuoted := true
+    else if c == '»' then
+      quoted := false
+    else if c == '.' && !quoted then
+      n := parsedPart n part wasQuoted
+      part := ""
+      wasQuoted := false
+    else
+      part := part.push c
+  return parsedPart n part wasQuoted
+where
+  parsedPart (n : Name) (part : String) (quoted : Bool) : Name :=
+    if !quoted && !part.isEmpty && part.all Char.isDigit then Name.mkNum n part.toNat! else Name.mkStr n part
 
 /-- Walks `new`/`old` together, introducing one shared local (fvar) per
 matching leading Pi-binder (domains checked defeq — same notion of

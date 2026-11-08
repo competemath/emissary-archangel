@@ -86,6 +86,36 @@ class Gate2Lean(unittest.TestCase):
         )
         self.assertTrue(v.startswith("GATE2_PASS"), v)
 
+    def test_a_private_name_is_read_back_as_the_declaration_lean_made(self):
+        """padic-l-functions (bump run 42427653347, 7 Nov 2026): 474 of 1,253 records were private lemmas and none was judged ('old_name_not_in_export'),
+        because `_private.<Module>.0.<name>` was split into string parts and the `0` became `«0»`. A real private theorem's real name, printed as Lean prints it
+        and parsed back, must be that declaration; so must a name with a part in guillemets."""
+        f = self.proj / "Names.lean"
+        f.write_text("""import Vendor.Gate2
+open Lean Elab Command
+
+namespace PadicLFunctions.Coleman
+private theorem norm_sub_one_eq : True := trivial
+end PadicLFunctions.Coleman
+theorem «1102.4662».«1».x : True := trivial
+
+run_cmd (do
+  let env ← getEnv
+  let priv := (env.constants.toList.map (·.1)).filter (fun n => n.isInternal && (toString n).endsWith "norm_sub_one_eq")
+  let some p := priv.head? | throwError "no private name"
+  let back := parseDottedName (toString p)
+  unless back == p do throwError "private name read back as {back}, not {p}"
+  unless env.contains back do throwError "{back} is not in the environment"
+  let q := ``«1102.4662».«1».x
+  unless parseDottedName (toString q) == q do throwError "quoted name read back as {parseDottedName (toString q)}, not {q}"
+  unless parseDottedName "Foo.bar_1.baz" == `Foo.bar_1.baz do throwError "ordinary name changed"
+  logInfo m!"NAMES_OK {p}" : CommandElabM Unit)
+""")
+        r = subprocess.run(["lake", "env", "lean", "Names.lean"], cwd=self.proj, capture_output=True, text=True, check=False)
+        out = r.stdout + r.stderr
+        self.assertIn("NAMES_OK", out, out[-1500:])
+        self.assertIn("_private.", out)
+
     def test_the_name_guards_still_hold(self):
         # the translation reusing the original's name is the v0.0.4 tautology
         v = self.verdict(self.OLD, '#gate2_verify "Old" "Old" "Bridge" "fun h => h"')
