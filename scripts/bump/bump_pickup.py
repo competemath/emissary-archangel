@@ -10,12 +10,15 @@ import argparse
 import json
 import re
 import subprocess
-from datetime import datetime
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 SETUP_COMMIT = re.compile(r"^exports: ([A-Za-z0-9_.-]+) \((?:sharded )?runner\)$")
 FIRST_SETUP = 1794211200  # 2026-11-09 08:00 UTC: older setups were bumped by hand, or left unbumped on purpose
 RUNNERS, NEED_FREE, MAX_MODULES = 20, 10, 10000
+WINDOW_DAYS = 14  # a setup waits this long at most: the runs that say whether it was bumped can then always be read in full
+LIST_LIMIT = 1000  # the most runs GitHub lists for a date range: a list that long may have lost some, and a run it lost could be a setup's bump
 REPOS = ("competemath/tengoku", "competemath/emissary-archangel", "competemath/emissary-sandbox", "competemath/tengoku-sandbox")
 BUMP = {"shards": "0", "max_targets": "400", "parts": "300", "imports": "faithful", "verify": "true", "verify_partial": "true", "verify_modes": "proposed"}
 
@@ -43,7 +46,7 @@ def last_bumps(runs: list[dict]) -> dict[str, int]:
     out: dict[str, int] = {}
     for r in runs:
         words = r["displayTitle"].split()
-        if len(words) >= 2 and words[0] == "bump-sharded":
+        if len(words) >= 2 and words[0] in ("bump", "bump-sharded"):  # bump-library.yml and bump-sharded.yml
             out[words[1]] = max(out.get(words[1], 0), _epoch(r["createdAt"]))
     return out
 
@@ -57,12 +60,16 @@ def parallel_for(free: int) -> int:
     return min(6, max(3, (free - 4) // 2))
 
 
-def decide(published: dict[str, int], records: dict[str, dict], bumps: dict[str, int], parts: set[str], free: int) -> tuple[str | None, list[str]]:
+def window_start(now: int) -> int:
+    return max(FIRST_SETUP, now - WINDOW_DAYS * 86400)
+
+
+def decide(published: dict[str, int], records: dict[str, dict], bumps: dict[str, int], parts: set[str], free: int, since: int = FIRST_SETUP) -> tuple[str | None, list[str]]:
     """(the library to bump or None, why each other one is left)"""
     notes, ready = [], []
     for key, when in sorted(published.items()):
         rec = records.get(key)
-        if when < FIRST_SETUP:
+        if when < since:
             continue
         if bumps.get(key, 0) >= when:
             continue
@@ -90,18 +97,38 @@ def dispatch_args(key: str, free: int, repo: str) -> list[str]:
     return args
 
 
-def _gh(*args: str):
-    return json.loads(subprocess.run(["gh", *args], check=True, capture_output=True, text=True).stdout)
+def _lines(*args: str) -> list:
+    """gh, one JSON value per line of its answer (--paginate --jq writes a line per item, whatever the number of pages)"""
+    out = subprocess.run(["gh", *args], check=True, capture_output=True, text=True).stdout
+    return [json.loads(ln) for ln in out.splitlines() if ln.strip()]
 
 
-def runners_in_use() -> int:
+def runners_in_use(gh=_lines) -> int:
     used = 0
     for repo in REPOS:
         for status in ("in_progress", "queued"):
-            for run in _gh("api", f"repos/{repo}/actions/runs?status={status}&per_page=100")["workflow_runs"]:
-                jobs = _gh("api", f"repos/{repo}/actions/runs/{run['id']}/jobs?per_page=100")["jobs"]
-                used += sum(j["status"] in ("in_progress", "queued") for j in jobs)
+            for run in gh("api", "--paginate", f"repos/{repo}/actions/runs?status={status}&per_page=100", "--jq", ".workflow_runs[].id"):
+                used += sum(gh("api", "--paginate", f"repos/{repo}/actions/runs/{run}/jobs?per_page=100", "--jq", '[.jobs[] | select(.status == "in_progress" or .status == "queued")] | length'))
     return used
+
+
+def bump_runs(repo: str, since: int, gh=_lines) -> list[dict]:
+    """every run of the two bump workflows since `since`; a list so long that some may be missing stops the pickup instead of starting a bump twice"""
+    day = datetime.fromtimestamp(since, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    runs: list[dict] = []
+    for wf in ("bump-sharded.yml", "bump-library.yml"):
+        got = gh("api", "--paginate", f"repos/{repo}/actions/workflows/{wf}/runs?per_page=100&created=>={day}", "--jq", ".workflow_runs[] | {displayTitle: .display_title, createdAt: .created_at}")
+        if len(got) >= LIST_LIMIT:
+            raise RuntimeError(f"{wf}: {len(got)} runs since {day}: the list may be cut short")
+        runs += got
+    return runs
+
+
+def open_titles(tree: str, gh=_lines) -> list[str]:
+    got = gh("pr", "list", "-R", tree, "--state", "open", "-L", str(LIST_LIMIT), "--json", "title", "--jq", ".[].title | @json")
+    if len(got) >= LIST_LIMIT:
+        raise RuntimeError(f"{tree}: {len(got)} open pull requests: the list may be cut short")
+    return got
 
 
 def main() -> None:
@@ -118,10 +145,10 @@ def main() -> None:
         if p.exists():
             r = json.loads(p.read_text(encoding="utf-8"))
             records[key] = {"exported": int(r.get("exported") or 0), "modules": len(r["modules"]) if isinstance(r.get("modules"), list) else int(r.get("modules") or 0)}
-    runs = _gh("run", "list", "-R", a.repo, "-w", "bump-sharded.yml", "-L", "1000", "--json", "displayTitle,createdAt")
-    titles = [p["title"] for p in _gh("pr", "list", "-R", a.tree, "--state", "open", "-L", "200", "--json", "title")]
+    since = window_start(int(time.time()))
+    runs = bump_runs(a.repo, since)
     free = max(0, RUNNERS - runners_in_use())
-    key, notes = decide(published, records, last_bumps(runs), open_parts(titles), free)
+    key, notes = decide(published, records, last_bumps(runs), open_parts(open_titles(a.tree)), free, since)
     for n in notes:
         print(n)
     print(f"{free} runners free; bump: {key or 'none'}")

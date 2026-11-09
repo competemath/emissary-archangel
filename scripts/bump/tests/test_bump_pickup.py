@@ -61,6 +61,58 @@ class RealHistory(unittest.TestCase):
         self.assertEqual(bp.open_parts(["intake: tnlean part 1 of 1 (959 verified theorems in 119 modules)", "extend: lean-pool part 11 of 40 (1 verified)", "build(deps): bump the actions group"]), {"tnlean", "lean-pool"})
 
 
+class Reading(unittest.TestCase):
+    """what GitHub answers, however many pages it takes"""
+
+    def test_every_page_of_runs_and_jobs_counts(self):
+        calls = []
+
+        def gh(*args):
+            calls.append(args)
+            path = args[2]
+            if "/jobs" in path:
+                return [100, 3]  # two pages of one run
+            if "tengoku?" in path or "repos/competemath/tengoku/actions/runs?status=in_progress" in path:
+                return [1, 2]
+            return []
+
+        self.assertEqual(bp.runners_in_use(gh), 206)
+        self.assertTrue(all("--paginate" in c for c in calls))
+
+    def test_both_bump_workflows_are_read_since_the_window(self):
+        calls = []
+
+        def gh(*args):
+            calls.append(args)
+            return [{"displayTitle": "bump k", "createdAt": "2026-11-09T09:00:00Z"}] if "bump-library.yml" in args[2] else [{"displayTitle": "bump-sharded j", "createdAt": "2026-11-09T09:00:00Z"}]
+
+        runs = bp.bump_runs("o/r", bp.FIRST_SETUP, gh)
+        self.assertEqual(set(bp.last_bumps(runs)), {"j", "k"})
+        self.assertTrue(all("--paginate" in c and "created=>=2026-11-09T08:00:00Z" in c[2] for c in calls))
+
+    def test_a_list_that_may_be_cut_short_stops_the_pickup(self):
+        full = [{"displayTitle": "bump-sharded j", "createdAt": "2026-11-09T09:00:00Z"}] * bp.LIST_LIMIT
+        with self.assertRaisesRegex(RuntimeError, "cut short"):
+            bp.bump_runs("o/r", bp.FIRST_SETUP, lambda *a: full)
+        with self.assertRaisesRegex(RuntimeError, "cut short"):
+            bp.open_titles("o/t", lambda *a: ["x"] * bp.LIST_LIMIT)
+
+    def test_a_bump_of_a_small_library_counts_as_its_bump(self):
+        """bump-library.yml names its runs `bump KEY`, as on the real stafford38-formal"""
+        runs = [{"displayTitle": "bump stafford38-formal", "createdAt": "2026-11-09T09:00:00Z"}]
+        bumps = bp.last_bumps(runs)
+        self.assertEqual(list(bumps), ["stafford38-formal"])
+        self.assertIsNone(bp.decide({"stafford38-formal": AFTER - 60}, {"stafford38-formal": {"exported": 3, "modules": 3}}, bumps, set(), 20)[0])
+
+    def test_a_setup_older_than_the_window_waits_no_longer(self):
+        rec = {"a": {"exported": 5, "modules": 5}}
+        now = AFTER + 30 * 86400
+        self.assertEqual(bp.window_start(now), now - bp.WINDOW_DAYS * 86400)
+        self.assertEqual(bp.window_start(bp.FIRST_SETUP + 5), bp.FIRST_SETUP)
+        self.assertIsNone(bp.decide({"a": AFTER}, rec, {}, set(), 20, bp.window_start(now))[0])
+        self.assertEqual(bp.decide({"a": now - 60}, rec, {}, set(), 20, bp.window_start(now))[0], "a")
+
+
 class Commits(unittest.TestCase):
     def log(self, subject, key="k"):
         return f"@{AFTER}\t{subject}\n\ndata/exports/{key}/setup.ci.json\n"
@@ -109,6 +161,7 @@ class Decide(unittest.TestCase):
 
     def test_the_dispatch_is_the_standard_bump(self):
         a = bp.dispatch_args("aintlib", 20, "o/r")
+        self.assertEqual(a[:8], ["gh", "workflow", "run", "bump-sharded.yml", "-R", "o/r", "--ref", "main"])
         got = dict(x.split("=", 1) for x in a[a.index("-f") + 1 :: 2])
         self.assertEqual(got, {"key": "aintlib", "parallel": "6", "shards": "0", "max_targets": "400", "parts": "300", "imports": "faithful", "verify": "true", "verify_partial": "true", "verify_modes": "proposed"})
 
@@ -145,6 +198,7 @@ class Workflow(unittest.TestCase):
         text = json.dumps(job["steps"])
         self.assertNotIn("${{", text)
         self.assertNotIn("lake", text)
+        self.assertIn("python3 scripts/bump/bump_pickup.py", job["steps"][-1]["run"])
 
 
 if __name__ == "__main__":

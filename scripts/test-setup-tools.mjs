@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { TOOL_FIELDS, collectTools, exporterAction, mergeTools, parseElan, patchFingerprint, parseLake, parseLean, plain, retrying, runnerImage } from "./setup-tools.mjs"
+import { TOOL_FIELDS, collectTools, exporterAction, mergeTools, parseElan, patchFingerprint, parseLake, parseLean, plain, retrying, runnerImage, transientDownload } from "./setup-tools.mjs"
 
 let bad = 0
 const check = (name, ok, got) => {
@@ -131,6 +131,15 @@ const schedule = async (answers, opts = {}) => {
     propertyOk &&= s.calls === Math.min(fails + 1, tries) && (fails < tries ? s.r.code === 0 : s.r.code !== 0) && s.waits.length === s.calls - 1 && s.waits.every((w, k) => w === (k + 1) * 20000)
   }
   check("retry: 2,000 random schedules: stops at the first success, never more than the tries, one wait between tries", propertyOk, null)
-  check("setup-source.mjs installs Lean through the retry", /retrying\(\(\) => run\("elan", \["toolchain", "install"/.test(src), null)
+  check("setup-source.mjs installs Lean through the retry, only for a passing fault", /retrying\(\(\) => run\("elan", \["toolchain", "install"[^\n]*shouldRetry: transientDownload/.test(src), null)
+  check("the real 504 is a passing fault", transientDownload({ code: 1, tail: real504 }), null)
+  check("a passing fault: a connection or TLS failure", ["error: SSL connect error", "curl: (35) TLS handshake failed", "connection reset by peer", "error: connection timed out"].every((tail) => transientDownload({ code: 1, tail })), null)
+  check("not a passing fault: the toolchain does not exist (404), or any other error", !transientDownload({ code: 1, tail: "http request returned an unsuccessful status code: 404" }) && !transientDownload({ code: 1, tail: "error: invalid toolchain name" }) && !transientDownload({ code: 1 }), null)
+  const hung = { code: 124, tail: "\n[timed out after 1800s]" }
+  check("an install that hung for its whole limit is not a passing fault", !transientDownload(hung), null)
+  const notAgain = await schedule([{ code: 1, tail: "status code: 404" }, { code: 0 }], { shouldRetry: transientDownload })
+  check("retry: an answer that is not a passing fault is returned at once", notAgain.calls === 1 && notAgain.r.code === 1 && notAgain.waits.length === 0, notAgain)
+  const hungOnce = await schedule([hung, { code: 0 }], { shouldRetry: transientDownload })
+  check("retry: a hung install is not started again", hungOnce.calls === 1 && hungOnce.r.code === 124, hungOnce)
 }
 process.exit(bad ? 1 : 0)
