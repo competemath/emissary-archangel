@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { TOOL_FIELDS, collectTools, exporterAction, mergeTools, parseElan, patchFingerprint, parseLake, parseLean, plain, retrying, runnerImage, transientDownload } from "./setup-tools.mjs"
+import { TOOL_FIELDS, collectTools, exporterAction, mergeTools, parseElan, patchFingerprint, parseLake, parseLean, plain, errorLineKeeper, ownErrorLine, retrying, runnerImage, transientDownload } from "./setup-tools.mjs"
 
 let bad = 0
 const check = (name, ok, got) => {
@@ -141,5 +141,37 @@ const schedule = async (answers, opts = {}) => {
   check("retry: an answer that is not a passing fault is returned at once", notAgain.calls === 1 && notAgain.r.code === 1 && notAgain.waits.length === 0, notAgain)
   const hungOnce = await schedule([hung, { code: 0 }], { shouldRetry: transientDownload })
   check("retry: a hung install is not started again", hungOnce.calls === 1 && hungOnce.r.code === 124, hungOnce)
+}
+
+// a module's own error line, from aintlib's real build log of 9 Nov 2026
+{
+  const aintDirs = ["Common", "projects/AdicSpaces", "projects/DedekindResidue", "projects/FltRegularBernoulli", "projects/HasseWeil", "projects/ModularCurves", "projects/NagellLutz"]
+  const path = "ModularCurves/Picard/InvertibleSheafGlueDataDescent.lean"
+  const real = "error: projects/ModularCurves/ModularCurves/Picard/InvertibleSheafGlueDataDescent.lean:78:8: (kernel) deterministic timeout"
+  check("error line: a module under a source folder, as Lake really printed it", ownErrorLine(path, aintDirs, real) === real, null)
+  check("error line: without the source folder that same line is another file's", ownErrorLine(path, [], real) === null, null)
+  check("error line: a plain library still matches, with or without ./", ownErrorLine("Lib/C.lean", [], "error: Lib/C.lean:694:4: Unknown identifier") !== null && ownErrorLine("Lib/C.lean", [], "error: ./Lib/C.lean:1:1: x") !== null, null)
+  check("error line: the same path inside a package is not the module's own file", ownErrorLine(path, aintDirs, "error: .lake/packages/x/ModularCurves/Picard/InvertibleSheafGlueDataDescent.lean:1:1: x") === null, null)
+  check("error line: another file in the source folder is not the module's own", ownErrorLine(path, aintDirs, "error: projects/ModularCurves/ModularCurves/Picard/Other.lean:1:1: x") === null, null)
+  check("error line: a folder that only ends like a source folder is not one", ownErrorLine(path, aintDirs, "error: xprojects/ModularCurves/ModularCurves/Picard/InvertibleSheafGlueDataDescent.lean:1:1: x") === null, null)
+  check("error line: a name with regex characters is taken literally", ownErrorLine("A/«b+c».lean", [], "error: A/«b+c».lean:1:1: x") !== null && ownErrorLine("A/b.c.lean", [], "error: A/bxc.lean:1:1: x") === null, null)
+  check("error line: a warning is not an error", ownErrorLine("Lib/C.lean", [], "warning: Lib/C.lean:1:1: x") === null, null)
+  const k = errorLineKeeper()
+  k.add("warning: a\nerr")
+  k.add("or: first\nwarning: b\nerror: second\n")
+  check("kept errors: a line cut across two chunks is whole", k.text() === "error: first\nerror: second", k.text())
+  const few = errorLineKeeper(2)
+  few.add("error: 1\nerror: 2\nerror: 3\n")
+  check("kept errors: no more than the limit", few.text() === "error: 1\nerror: 2", few.text())
+  let keepOk = true
+  for (let i = 0; i < 2000; i++) {
+    const lines = Array.from({ length: rnd(60) }, (_, j) => (rnd(3) === 0 ? `error: e${j}` : `note ${"x".repeat(rnd(80))}`))
+    const whole = lines.map((l) => l + "\n").join("")
+    const c = errorLineKeeper()
+    for (let at = 0; at < whole.length; ) { const n = 1 + rnd(50); c.add(whole.slice(at, at + n)); at += n }
+    keepOk &&= c.text() === lines.filter((l) => l.startsWith("error: ")).join("\n")
+  }
+  check("kept errors: 2,000 random outputs in random chunks give exactly the error lines", keepOk, null)
+  check("setup-source.mjs looks for the error in the kept errors as well as the tail", /ownError\(m, `\$\{r\.errors\}\\n\$\{r\.tail\}`\)/.test(src), null)
 }
 process.exit(bad ? 1 : 0)

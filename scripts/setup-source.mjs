@@ -35,7 +35,7 @@ import { basename, dirname, join, relative, resolve } from "node:path"
 import { StringDecoder } from "node:string_decoder"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
-import { collectTools, exporterAction, mergeTools, patchFingerprint, retrying, rootOfRepoPath, transientDownload } from "./setup-tools.mjs"
+import { collectTools, exporterAction, mergeTools, patchFingerprint, ownErrorLine, errorLineKeeper, retrying, rootOfRepoPath, transientDownload } from "./setup-tools.mjs"
 import { bisectItems } from "./bisect.mjs"
 import { repairPins } from "./pinned-deps.mjs"
 import { aloneFirstMs, availableFrom, buildAttempts, closureBigModules, closureBudgetMs, closureRetryMs, membersOf, soloBuildMs, soloMax } from "./memory-rules.mjs"
@@ -174,21 +174,23 @@ function run(cmd, args, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000, quiet = f
     const p = spawn(cmd, args, { cwd, env: ENV, stdio: ["ignore", "pipe", "pipe"], detached: true })
     live.add(p)
     let tail = ""
+    const errors = errorLineKeeper()
     const onData = (d) => {
       const s = d.toString()
       tail = (tail + s).slice(-4000)
+      errors.add(s)
       if (!quiet) process.stdout.write(s)
     }
     p.stdout.on("data", onData)
     p.stderr.on("data", onData)
     const t = setTimeout(() => {
       killGroup(p)
-      res({ code: 124, tail: tail + `\n[timed out after ${timeoutMs / 1000}s]` })
+      res({ code: 124, tail: tail + `\n[timed out after ${timeoutMs / 1000}s]`, errors: errors.text() })
     }, timeoutMs)
     p.on("close", (code) => {
       live.delete(p)
       clearTimeout(t)
-      res({ code: code ?? 1, tail })
+      res({ code: code ?? 1, tail, errors: errors.text() })
     })
   })
 }
@@ -341,11 +343,7 @@ function saveBroken(map) {
   writeAtomic(BROKEN_FILE, JSON.stringify({ version: 1, commit: src.commit, broken: Object.fromEntries(map) }, null, 2))
 }
 // The first error a build printed for the file of module `m` itself (`error: ./Lib/X.lean:3:4: ...`, or without ./), or null.
-function ownError(m, text) {
-  const path = pathOfModule(m).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  const hit = text.match(new RegExp(`^error: (?:\\./)?${path}:\\d+:\\d+: .*$`, "m"))
-  return hit ? hit[0].slice(0, 300) : null
-}
+const ownError = (m, text) => ownErrorLine(pathOfModule(m), SRCDIRS, text)
 function saveOom(map) {
   mkdirSync(dirname(OOM_FILE), { recursive: true })
   writeAtomic(OOM_FILE, JSON.stringify({ version: 1, toobig: Object.fromEntries(map) }, null, 2))
@@ -823,7 +821,7 @@ async function build(modules) {
     oomKilled.delete(m)
     const r = await run("lake", ["build", m], { cwd: REPO, timeoutMs: SOLO_BUILD_MS })
     if (existsSync(oleanOf(m)) || oomKilled.has(m) || r.code === 124) continue
-    const err = ownError(m, r.tail)
+    const err = ownError(m, `${r.errors}\n${r.tail}`)
     if (err) {
       broken.set(m, { error: err })
       saveBroken(broken) // at once: a job that runs out of time later must not lose what was found

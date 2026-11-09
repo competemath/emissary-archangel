@@ -64,6 +64,7 @@ const imports = JSON.parse(process.env.FAKE_IMPORTS || "{}")
 const failAlone = JSON.parse(process.env.FAKE_FAIL_ALONE || "[]")
 const brokenMods = JSON.parse(process.env.FAKE_BROKEN || "[]")
 const failElsewhere = JSON.parse(process.env.FAKE_FAIL_ELSEWHERE || "[]")
+const chatty = JSON.parse(process.env.FAKE_BROKEN_CHATTY || "[]")
 const olean = (m) => path.join(".lake", "build", "lib", "lean", m.split(".").join("/") + ".olean")
 const result = new Map()
 const build = (m) => {
@@ -74,6 +75,7 @@ const build = (m) => {
   // does not compile at all: Lake's own error line for the module's file, as tnlean's TNLean/Archive/BlockingPeriodicityCFII2.lean printed it on 2026-11-06
   // fails, but the error Lake prints is in ANOTHER file (a dependency's, a generated one): not this module's own error
   if (failElsewhere.includes(m)) { console.log("error: Lib/Generated.lean:1:1: something else"); result.set(m, false); return false }
+  if (chatty.includes(m)) { console.log("error: " + m.split(".").join("/") + ".lean:78:8: (kernel) deterministic timeout"); for (let i = 0; i < 400; i++) console.log("warning: " + m.split(".").join("/") + ".lean:" + i + ":2: Try this: omit [CommRing A] in theorem"); result.set(m, false); return false }
   if (brokenMods.includes(m)) { console.log("error: " + m.split(".").join("/") + ".lean:694:4: Unknown identifier \`isIrreducibleCP_transferMap_of_isIrreducibleTensor\`"); console.log("error: Lean exited with code 1"); result.set(m, false); return false }
   if (hungry[m]) {
     const file = path.join(process.cwd(), m.split(".").join("/") + ".lean")
@@ -217,6 +219,11 @@ check("a build asked only for a module recorded as broken does not stop the job"
 r = setup(["--phase", "build"], { FAKE_BROKEN: JSON.stringify(["Lib.C"]), EMISSARY_ONLY_MODULES: "Lib.D" })
 check("nor does a build asked only for a module that imports one (D imports the broken C)", r.status === 0 && !/produced none of the/.test(out(r)), out(r))
 
+// 9c. aintlib, 9 Nov 2026: the error line came before thousands of characters of warnings, so it was no longer in the last 4,000 characters of what the command printed
+fresh()
+r = setup(["--phase", "build"], { FAKE_BROKEN_CHATTY: JSON.stringify(["Lib.C"]) })
+check("an error followed by thousands of characters of warnings still makes the module broken", r.status === 0 && existsSync(brokenMemo) && Object.keys(JSON.parse(readFileSync(brokenMemo, "utf8")).broken).join() === "Lib.C" && /deterministic timeout/.test(JSON.stringify(JSON.parse(readFileSync(brokenMemo, "utf8")).broken)), out(r))
+check("and the build is complete without it", /^complete=true$/m.test(setup(["--phase", "build-status"]).stdout), "")
 // 10. NOT broken: a module that fails without an error line of its own file (case 7's compile error that only shows alone, printed nowhere), a module whose import is missing
 // (D imports C, which was killed for memory: its import has no .olean, so it is never probed), and one whose error line is in another file
 fresh()

@@ -125,3 +125,26 @@ export async function retrying(attempt, { tries = 5, waitMs = 20000, sleep = (ms
   }
   return answer
 }
+
+// The error line of a module's own file, in what `lake build` printed. Lake names a module under a source folder by its real path (sources.json `srcdir`): aintlib, 9 Nov 2026, printed
+// `error: projects/ModularCurves/ModularCurves/Picard/InvertibleSheafGlueDataDescent.lean:78:8: (kernel) deterministic timeout` for ModularCurves.Picard.InvertibleSheafGlueDataDescent, the module was
+// never called broken, the build was never complete, and 151 modules were left with the setup stopped at 1,884 of 2,035.
+export function ownErrorLine(path, srcdirs, text) {
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const folder = srcdirs.length ? `(?:(?:${srcdirs.map(esc).join("|")})/)?` : ""
+  const hit = text.match(new RegExp(`^error: (?:\\./)?${folder}${esc(path)}:\\d+:\\d+: .*$`, "m"))
+  return hit ? hit[0].slice(0, 300) : null
+}
+// The lines that start with `error: `, however the output is cut into chunks. A command's tail is its last 4,000 characters, and a module with many warnings after its errors pushes them out of it.
+export function errorLineKeeper(limit = 500) {
+  let partial = ""
+  const lines = []
+  return {
+    add(chunk) {
+      const parts = (partial + chunk).split("\n")
+      partial = parts.pop()
+      for (const l of parts) if (l.startsWith("error: ") && lines.length < limit) lines.push(l)
+    },
+    text: () => lines.join("\n"),
+  }
+}
