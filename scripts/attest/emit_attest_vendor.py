@@ -75,9 +75,20 @@ ALL_RENAMED = '''  let all ← importedConstantsRef.get
   let all := if ren.isEmpty then all else all.map (fun _ ci => attestRenameCi ren ci)
 '''
 CLOSURE_ANCHOR = "      let closure := statementReach all [oldN]\n"
+GOAL_ANCHOR = "                let goalType := Expr.forallE `h newBody oldBody BinderInfo.default\n"
+GOAL_DIAG = '''                let d1 ← attestFirstDiff newBody oldBody
+                let d2 ← try
+                    Meta.check oldBody
+                    (pure none : MetaM (Option String))
+                  catch e =>
+                    let m ← e.toMessageData.toString
+                    pure (some m)
+                attestDiagRef.set s!"{d1.getD "none"} || the original's statement on its own: {d2.getD "well typed"}"
+'''
+RESULT_ANCHOR = "            let result ← liftTermElabM <| Term.withoutErrToSorry <| observing do\n"
 REFUSED_ANCHOR = '''              logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=rejected msg={first} GATE2B_DIFF old type = {oldCi.type} || new type = {newCi.type} GATE2B_END"\n'''
-REFUSED_REPLACEMENT = '''              let whereDiff ← try (liftTermElabM (attestFirstDiff oldType newCi.type)) catch _ => pure none
-              logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=rejected msg={first} GATE2B_DIFF old type = {oldCi.type} || new type = {newCi.type} GATE2B_FIRSTDIFF {whereDiff.getD "none"} GATE2B_END"
+REFUSED_REPLACEMENT = '''              let whereDiff ← attestDiagRef.get
+              logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=rejected msg={first} GATE2B_DIFF old type = {oldCi.type} || new type = {newCi.type} GATE2B_FIRSTDIFF {whereDiff} GATE2B_END"
 '''
 BOUNDARY_ANCHOR = "      boundary := boundary.erase oldN\n"
 MISSING_AND_MIGRATED = '''      -- what the original's statement (and the declarations replayed for it) still lacks in the tree, and which migration-table entries it reaches
@@ -126,6 +137,9 @@ def attestRenameCi (ren : Std.HashMap Name Name) (ci : ConstantInfo) : ConstantI
   | .axiomInfo i => .axiomInfo { i with type := r i.type }
   | .opaqueInfo i => .opaqueInfo { i with type := r i.type, value := r i.value }
   | other => other
+
+/-- Diagnostics only, set while a bridge is tried: the first difference the elaborator does not see through, and whether the original's statement is well typed on its own (`Meta.check`). -/
+initialize attestDiagRef : IO.Ref String ← IO.mkRef ""
 
 /-- Diagnostics only: the first place where two types differ, as text (heads and the two subterms), so that a refused bridge can be read without a Lean build. -/
 partial def attestFirstDiff (a b : Expr) : MetaM (Option String) := do
@@ -213,6 +227,11 @@ def derive(batch: str) -> str:
     if chk.count(BOUNDARY_ANCHOR) != 1:
         sys.exit("emit_attest_vendor: `boundary := boundary.erase oldN` not found exactly once")
     chk = chk.replace(BOUNDARY_ANCHOR, BOUNDARY_ANCHOR + MISSING_AND_MIGRATED, 1)
+    for anchor in (GOAL_ANCHOR, RESULT_ANCHOR):
+        if chk.count(anchor) != 1:
+            sys.exit(f"emit_attest_vendor: `{anchor.strip()}` not found exactly once")
+    chk = chk.replace(GOAL_ANCHOR, GOAL_ANCHOR + GOAL_DIAG, 1)
+    chk = chk.replace(RESULT_ANCHOR, "            attestDiagRef.set \"\"\n" + RESULT_ANCHOR, 1)
     if chk.count(REFUSED_ANCHOR) != 1:
         sys.exit("emit_attest_vendor: the refused-bridge log line was not found exactly once")
     chk = chk.replace(REFUSED_ANCHOR, REFUSED_REPLACEMENT, 1)
