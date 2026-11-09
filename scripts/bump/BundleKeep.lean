@@ -6,7 +6,7 @@ BundleKeep — which library constants a bundle must keep (scripts/bump/bundle.p
   prints:  BUNDLE_KEEP [["Module", "const"], ...] BUNDLE_END
            BUNDLE_GRAPH {"nodes": [["Module", "const"], ...], "edges": [[i, [j, ...]], ...], "tainted": [i, ...]} BUNDLE_END
   The graph is of every library constant that is NOT kept: nodes are numbered by their place in `nodes`; an edge `[i, [j, ...]]` says that constant i uses constants j (own, not kept, anything
-  kept is already in the bundle); `tainted` are the nodes that stand on `sorryAx`, directly or through another library constant. bundle.py compose follows it from every declaration that
+  kept is already in the bundle); `tainted` are the nodes that stand on `sorryAx` or on an axiom of the library (the axiom itself included), directly or through another library constant. bundle.py compose follows it from every declaration that
   is kept only because TEXT names it (glue, a `simp` attribute line, a name in a proof): such a declaration has no term in the keep step, so what its term uses was never kept.
 
 The keep set is the closure of the types, values and proofs of the passed theorems AND of every library constant that is not a theorem and stands on nothing
@@ -28,13 +28,16 @@ take minutes instead of seconds. -/
 def modOf (env : Environment) (moduleNames : Array Name) (n : Name) : Option Name :=
   (env.getModuleIdxFor? n).bind fun i => moduleNames[i.toNat]?
 
-/-- Does the constant stand on `sorryAx`, directly or through a library constant? (a failed proof, or anything built on one) -/
+/-- Does the constant stand on `sorryAx` or an axiom of the library, directly or through a library constant? (a failed proof, an unproved input, or anything built on one) -/
 partial def tainted (env : Environment) (isOwn : Name → Bool) (memo : IO.Ref (Std.HashMap Name Bool)) (c : Name) : IO Bool := do
   if let some b := (← memo.get)[c]? then return b
   memo.modify (·.insert c false)  -- in progress: a cycle does not taint itself
   let some ci := env.find? c | return false
   let used := ci.getUsedConstantsAsSet
-  let mut t := used.contains ``sorryAx
+  -- an axiom of the library is an unproved input, not glue: it stays out unless a kept constant uses it, and the lint then refuses it. prime-gaps-186 (8 Nov 2026) declares three, used
+  -- by its last theorem only; kept as glue they took all 3,170 verified theorems of its one module out with them
+  let isOwnAxiom := isOwn c && (match ci with | .axiomInfo _ => true | _ => false)
+  let mut t := used.contains ``sorryAx || isOwnAxiom
   unless t do
     for u in used.toList do
       if isOwn u && (← tainted env isOwn memo u) then

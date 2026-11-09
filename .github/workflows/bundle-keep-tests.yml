@@ -60,6 +60,39 @@ jobs:
           assert sum(len(v) for v in graph.values()) > 0, "no theorem of Init.Data.Nat.Basic uses another one?"
           print(len(graph), "constants with edges,", sum(len(v) for v in graph.values()), "edges,", len(tainted), "tainted,", len(kept), "kept")
           PY
+      # An axiom of the library is an unproved input: not kept as glue, nor is a definition that stands on it; a clean definition is, and an axiom a passed theorem really uses stays (the lint then refuses it)
+      - name: An axiom of the library is not kept as glue, nor what stands on it
+        working-directory: gate2
+        run: |
+          mkdir -p "$RUNNER_TEMP/k"
+          printf '%s\n' 'axiom KeepAx.unproved : 1 = 1' 'def KeepAx.standsOn : 1 = 1 := KeepAx.unproved' 'def KeepAx.standsFurther : 1 = 1 := KeepAx.standsOn' 'def KeepAx.clean : Nat := 1' 'theorem KeepAx.usesIt : 1 = 1 := KeepAx.unproved' 'theorem KeepAx.fine : 1 = 1 := rfl' > "$RUNNER_TEMP/k/KeepAx.lean"
+          lean --root="$RUNNER_TEMP/k" -o "$RUNNER_TEMP/k/KeepAx.olean" "$RUNNER_TEMP/k/KeepAx.lean"
+          run() { printf '%s' "{\"imports\": [\"KeepAx\"], \"names\": $1, \"libs\": [\"KeepAx\"]}" > "$RUNNER_TEMP/keep-$2.json"; LEAN_PATH="$RUNNER_TEMP/k" lean --run ../scripts/bump/BundleKeep.lean "$RUNNER_TEMP/keep-$2.json" > "$RUNNER_TEMP/keep-$2.out"; }
+          run '["KeepAx.fine"]' clean
+          run '["KeepAx.usesIt"]' used
+          printf '%s' '{"imports": ["Init.Prelude"], "names": [], "libs": ["Init.Prelude"]}' > "$RUNNER_TEMP/keep3.json"
+          lake env lean --run ../scripts/bump/BundleKeep.lean "$RUNNER_TEMP/keep3.json" > "$RUNNER_TEMP/keep3.out"
+          python3 - <<'PY'
+          import json, os, re
+          t = os.environ["RUNNER_TEMP"]
+          def read(f):
+              out = open(os.path.join(t, f)).read()
+              kept = {name for _, name in json.loads(re.search(r"BUNDLE_KEEP (\[.*?\]) BUNDLE_END", out, re.S).group(1))}
+              g = json.loads(re.search(r"BUNDLE_GRAPH (\{.*?\}) BUNDLE_END", out, re.S).group(1))
+              return kept, {g["nodes"][i][1] for i in g["tainted"]}
+          kept, tainted = read("keep-clean.out")
+          assert kept == {"KeepAx.fine", "KeepAx.clean"}, sorted(kept)
+          assert {"KeepAx.unproved", "KeepAx.standsOn", "KeepAx.standsFurther", "KeepAx.usesIt"} <= tainted, sorted(tainted)
+          kept, _ = read("keep-used.out")
+          assert {"KeepAx.usesIt", "KeepAx.unproved"} <= kept, sorted(kept)  # really used: it stays, and the lint refuses the module
+          assert "KeepAx.standsOn" not in kept, sorted(kept)
+          kept, tainted = read("keep3.out")
+          for ax in ("lcProof", "lcAny", "lcUnreachable"):
+              assert ax not in kept, ax
+          assert "lcProof" in tainted, sorted(tainted)[:20]
+          assert "Nat.add" in kept and "id" in kept, sorted(kept)[:20]
+          print(len(kept), "constants of Init.Prelude kept, no axiom among them")
+          PY
       - name: A name that does not exist keeps nothing and does not fail the program
         working-directory: gate2
         run: |
