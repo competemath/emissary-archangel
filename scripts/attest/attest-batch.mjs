@@ -88,10 +88,12 @@ for (const problem of problems) {
 }
 log(`${problems.length} problems, ${prepared.size} ready for Lean, ${entries.size} already failed`)
 
-const runLean = (name, items) =>
+// a problem the plain bridge `fun h => h` refuses is tried once more, alone, with this term (the kernel checks it like any other)
+const SECOND_BRIDGE = "fun h => by convert h"
+const runLean = (name, items, bridge = null) =>
   new Promise((done) => {
     const file = join(outDir, "chunks", `${name}.lean`)
-    writeFileSync(file, checkFileText(treeImport, items.map((p) => problemBlock({ id: p.problem.id, exportPath: p.exportPath, statement: p.problem.statement, qualified: p.qualified, migration }))))
+    writeFileSync(file, checkFileText(treeImport, items.map((p) => problemBlock({ id: p.problem.id, exportPath: p.exportPath, statement: p.problem.statement, qualified: p.qualified, migration })), bridge))
     const logFile = join(outDir, "chunks", `${name}.log`)
     const t0 = Date.now()
     const child = spawn(lean, [file], { env: { ...process.env, LEAN_PATH: leanPath }, cwd: outDir, stdio: ["ignore", "pipe", "pipe"] })
@@ -109,8 +111,8 @@ const runLean = (name, items) =>
   })
 
 // a chunk's problems that got a verdict are settled; the others are returned (the process died before them, or a segment holds nothing readable)
-const runChunk = async (name, items) => {
-  const r = await runLean(name, items)
+const runChunk = async (name, items, bridge = null) => {
+  const r = await runLean(name, items, bridge)
   const segments = splitLog(r.text)
   const left = []
   for (const p of items) {
@@ -121,7 +123,7 @@ const runChunk = async (name, items) => {
       continue
     }
     const ok = v.ok === true
-    settle(p.problem, problemEntry({ problem: p.problem, qualifiedName: p.qualified, oldId: p.oldId, exportSha256: p.exportSha256, verdict: ok ? v : { ...v, ok: false }, gate2Text: null }), { checker: "batch-statement-only", segment: (seg || "").replace(/\s+/g, " ").slice(0, 3000) })
+    settle(p.problem, problemEntry({ problem: p.problem, qualifiedName: p.qualified, oldId: p.oldId, exportSha256: p.exportSha256, verdict: ok ? { ...v, ...(bridge ? { bridge } : {}) } : { ...v, ok: false }, gate2Text: null }), { checker: "batch-statement-only", segment: (seg || "").replace(/\s+/g, " ").slice(0, 3000) })
     log(`${p.problem.id} ${p.qualified}: ${ok ? `PASS via=${v.via}` : `FAIL ${v.reason}`}`)
   }
   return left
@@ -153,6 +155,25 @@ if (again.length) {
     }),
   )
   for (const p of stuck) settle(p.problem, problemEntry({ problem: p.problem, qualifiedName: p.qualified, oldId: p.oldId, exportSha256: p.exportSha256, verdict: { ok: false, reason: "process_died", via: null }, gate2Text: "Lean was killed (memory or time) alone on this problem" }))
+}
+
+// second pass: the problems refused by the plain bridge, each in a process of its own, with the other bridge term. Only a pass replaces the first verdict.
+const refused = [...prepared.values()].filter((p) => entries.get(p.problem.id)?.verdict === "fail" && entries.get(p.problem.id)?.reason === "rejected")
+if (refused.length) {
+  log(`${refused.length} problems were refused by the plain bridge: each once more with \`${SECOND_BRIDGE}\``)
+  const jobs = refused.map((p) => ({ name: `bridge2-${p.problem.id}`, items: [p] }))
+  await Promise.all(
+    Array.from({ length: Math.min(parallel, jobs.length) }, async () => {
+      while (jobs.length) {
+        const job = jobs.shift()
+        const before = entries.get(job.items[0].problem.id)
+        const left = await runChunk(job.name, job.items, SECOND_BRIDGE)
+        // a second-pass failure keeps the first verdict (its reason and difference are the ones to read)
+        if (entries.get(job.items[0].problem.id)?.verdict !== "pass") entries.set(job.items[0].problem.id, before)
+        void left
+      }
+    }),
+  )
 }
 
 const sha = (p) => (p && existsSync(p) ? sha256(readFileSync(p)) : null)

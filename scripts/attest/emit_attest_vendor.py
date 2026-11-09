@@ -93,8 +93,24 @@ GOAL_DIAG = '''                let d1 ← attestFirstDiff newBody oldBody
 '''
 RESULT_ANCHOR = "            let result ← liftTermElabM <| Term.withoutErrToSorry <| observing do\n"
 REFUSED_ANCHOR = '''              logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=rejected msg={first} GATE2B_DIFF old type = {oldCi.type} || new type = {newCi.type} GATE2B_END"\n'''
-REFUSED_REPLACEMENT = '''              let whereDiff ← attestDiagRef.get
+REFUSED_REPLACEMENT = '''              let whereDiff := s!"{← attestDiagRef.get} || full message: {(msg.replace "\\n" " ").take 900}"
               logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=rejected msg={first} GATE2B_DIFF old type = {oldCi.type} || new type = {newCi.type} GATE2B_FIRSTDIFF {whereDiff} GATE2B_END"
+'''
+BRIDGE_ANCHOR = '`term "fun h => h" "gate2b_bridge"'
+BRIDGE_REPLACEMENT = '`term (← attestBridgeRef.get) "gate2b_bridge"'
+DRIFT_ANCHOR = '            if drift.isEmpty then why := s!"{c}: {msg}"\n'
+DRIFT_REPLACEMENT = '''            if drift.isEmpty then
+              -- diagnostics: where the original definition's value and the tree's first differ (what the elaborator does not see through)
+              let dd ← (try liftTermElabM (do
+                  match all[c]?, env.find? c with
+                  | some (.defnInfo a), some (.defnInfo b) =>
+                    if a.levelParams.length == b.levelParams.length then
+                      let ls := b.levelParams.map Level.param
+                      let r ← attestFirstDiff (a.value.instantiateLevelParams a.levelParams ls) b.value
+                      pure (r.getD "none")
+                    else pure "universe parameters differ"
+                  | _, _ => pure "not both definitions") catch _ => pure "diagnostic failed")
+              why := s!"{c}: {msg} FIRSTDIFF {dd}"
 '''
 BOUNDARY_ANCHOR = "      boundary := boundary.erase oldN\n"
 MISSING_AND_MIGRATED = '''      -- what the original's statement (and the declarations replayed for it) still lacks in the tree, and which migration-table entries it reaches
@@ -181,6 +197,10 @@ def attestRepairCi (ci : ConstantInfo) : MetaM ConstantInfo := do
   | .opaqueInfo i => return .opaqueInfo { i with type := ← rep i.type }
   | other => return other
 
+/-- The bridge term tried between the translated and the original statement: `fun h => h` first; the driver runs the problems it refuses once more with another (`#attest_bridge`). The kernel checks
+every bridge: a different term is a different proof of the same implication, never a different claim. -/
+initialize attestBridgeRef : IO.Ref String ← IO.mkRef "fun h => h"
+
 /-- Diagnostics only, set while a bridge is tried: the first difference the elaborator does not see through, and whether the original's statement is well typed on its own (`Meta.check`). -/
 initialize attestDiagRef : IO.Ref String ← IO.mkRef ""
 
@@ -234,6 +254,9 @@ elab "#attest_env_save " names:str rens:str : command => do
     | _ => pure ()
   attestRenameRef.set m
 
+/-- The bridge term for the problems that follow (default `fun h => h`). -/
+elab "#attest_bridge " t:str : command => attestBridgeRef.set t.getString
+
 /-- End of it: the environment as it was, so that the next problem's statement is elaborated without the old names. -/
 elab "#attest_env_restore" : command => do
   if let some e ← attestSavedEnv.get then setEnv e
@@ -264,6 +287,10 @@ def derive(batch: str) -> str:
     if chk.count(CLOSURE_ANCHOR) != 1:
         sys.exit("emit_attest_vendor: `let closure := statementReach all [oldN]` not found exactly once")
     chk = chk.replace(CLOSURE_ANCHOR, CLOSURE_ANCHOR + ORIGINAL_SORRY, 1)
+    for anchor in (BRIDGE_ANCHOR, DRIFT_ANCHOR):
+        if chk.count(anchor) != 1:
+            sys.exit(f"emit_attest_vendor: `{anchor.strip()}` not found exactly once")
+    chk = chk.replace(BRIDGE_ANCHOR, BRIDGE_REPLACEMENT, 1).replace(DRIFT_ANCHOR, DRIFT_REPLACEMENT, 1)
     if chk.count(ALL_ANCHOR) != 1:
         sys.exit("emit_attest_vendor: `let all ← importedConstantsRef.get` not found exactly once in the check")
     chk = chk.replace(ALL_ANCHOR, ALL_RENAMED, 1)

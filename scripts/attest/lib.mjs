@@ -60,6 +60,7 @@ const BATCH_LIMITS = [
   "Gate 2's batch check: each definition the statements reach (library or Mathlib) must be identical, or the kernel must accept `native = original` by `Eq.refl` with the original's replayed beside it (definitional equality, universe and instance paths included); then the two statements are structurally equal (`via=equal`) or the bridge `fun h => h : T_translated -> T_original` is accepted (`via=entails`).",
   "Direction: translated -> original. A proof of the translated statement proves the original one; the converse is not checked, except where `via=equal`.",
   "A Mathlib constant the tree has with the same type and a different definition is accepted only if the kernel finds the two definitions definitionally equal.",
+  "BRIDGE (`bridge`, only when it is not `fun h => h`): a problem the plain bridge refused was tried once more with the term named there. The kernel checks that term like any other; it is a different proof of the same implication.",
   "REPAIRED INSTANCE ARGUMENTS (`repairedInstanceArguments`): where the original's term applies a constant of the tree to an instance argument of a type the tree's constant no longer takes (a `Ring` where it now wants `NonAssocRing`, a renamed class), the tree re-synthesizes that argument. The count is per problem; the kernel still has to accept the bridge between the translation and the repaired original. A pass with a count above 0 is relative to the tree's choice of those instances.",
   "MIGRATION TABLE (`interpretation`): the original's exports hold the library's own constants only, and a handful of Mathlib instances its statements mention by name (Monoid.toNatPow, algebraMap, ...) no longer exist in the tree's Mathlib. They are defined by hand, for the check of one problem at a time, by the tree's own constants. A pass whose `migrated` list is not empty is RELATIVE to that table: it says the translated statement implies the original one reading those names as the table defines them. The table is hashed here and its text is in this file; it is reviewable, not kernel-derived.",
 ]
@@ -81,6 +82,7 @@ export function problemEntry({ problem, qualifiedName, oldId, exportSha256, verd
     ...(exportSha256 ? { exportSha256 } : {}),
     ...(problem.port ? { port: problem.port.kind } : {}),
     ...(migrated ? { migrated } : {}),
+    ...(verdict.bridge ? { bridge: verdict.bridge } : {}),
     ...(verdict.repaired ? { repairedInstanceArguments: verdict.repaired } : {}),
     ...(verdict.ok ? {} : { ...(verdict.missing && verdict.missing.length ? { missing: verdict.missing } : {}), detail: String(gate2Text || [verdict.msg, verdict.firstDiff ? `first difference: ${verdict.firstDiff}` : null, verdict.diff, ...(verdict.names ? [`names: ${verdict.names.join(",")}`] : []), ...(verdict.errors || [])].filter(Boolean).join(" | ")).replace(/\s+/g, " ").slice(0, 1800) }),
   }
@@ -184,8 +186,8 @@ export function problemBlock({ id, exportPath, statement, qualified, migration =
   const restore = migration ? `#attest_env_restore\n` : ""
   return `\n#attest_begin "${leanString(id)}"\n#tengoku_import_parse "${leanString(exportPath)}"\nsection\n${statement.trim()}\nend\n${mig}#gate2_statements "${leanString(qualified)}"\n${restore}`
 }
-export function checkFileText(treeImport, blocks) {
-  return `import Lean\nimport ${treeImport}\nimport Vendor.Attest\n\nset_option maxErrors 100000\nset_option Elab.async false\n${blocks.join("")}`
+export function checkFileText(treeImport, blocks, bridge = null) {
+  return `import Lean\nimport ${treeImport}\nimport Vendor.Attest\n\nset_option maxErrors 100000\nset_option Elab.async false\n${bridge ? `#attest_bridge "${leanString(bridge)}"\n` : ""}${blocks.join("")}`
 }
 
 /** The log of one Lean process -> { id: text up to the next marker }. */
