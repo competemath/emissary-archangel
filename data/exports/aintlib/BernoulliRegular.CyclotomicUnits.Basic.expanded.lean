@@ -1,0 +1,137 @@
+/-
+Copyright (c) 2026 Chris Birkbeck. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Chris Birkbeck
+-/
+module
+
+public import BernoulliRegular.FLT37.PrimaryUnits
+
+
+-- @@ L10-15 verbatim
+/-!
+# Real cyclotomic units
+
+This file gives the cyclotomic-unit route a stable, non-FLT37-facing name for
+the standard real cyclotomic units in `K⁺`.
+-/
+
+
+-- @@ L17-17 verbatim
+@[expose] public section
+
+
+-- @@ L19-19 verbatim
+noncomputable section
+
+
+-- @@ L21-21 verbatim
+open NumberField NumberField.IsCMField
+
+
+-- @@ L23-23 verbatim
+namespace BernoulliRegular
+
+
+-- @@ L25-25 verbatim
+variable {p : ℕ} [Fact p.Prime]
+
+-- @@ L26-27 verbatim
+variable {K : Type*} [Field K] [NumberField K] [IsCyclotomicExtension {p} ℚ K]
+  [IsCMField K]
+
+
+-- @@ L29-29 verbatim
+local notation3 "K⁺" => NumberField.maximalRealSubfield K
+
+
+-- @@ L31-42 verbatim
+/-- Indices `2 ≤ a ≤ (p - 1) / 2` are automatically coprime to the prime
+conductor `p`. -/
+theorem realCyclotomicUnit_index_coprime {a : ℕ}
+    (ha_two : 2 ≤ a) (ha_le : a ≤ (p - 1) / 2) : a.Coprime p := by
+  have hp_prime : Nat.Prime p := Fact.out
+  have ha_pos : 0 < a := by omega
+  have ha_lt : a < p := by
+    have hhalf : (p - 1) / 2 < p := by omega
+    omega
+  have hnot : ¬ p ∣ a := fun hpa => by
+    exact (not_le_of_gt ha_lt) (Nat.le_of_dvd ha_pos hpa)
+  exact (hp_prime.coprime_iff_not_dvd.mpr hnot).symm
+
+
+-- @@ L44-54 verbatim
+/-- The real cyclotomic unit in `𝓞 K⁺` attached to
+`2 ≤ a ≤ (p - 1) / 2`.
+
+This wraps the existing descended unit
+`FLT37.realCyclotomicUnitPlusUnit p K a`, with the index coprimality proved
+from the standard prime-conductor range. -/
+noncomputable def realCyclotomicUnit (a : ℕ)
+    (ha_two : 2 ≤ a) (ha_le : a ≤ (p - 1) / 2) : (𝓞 K⁺)ˣ :=
+  FLT37.realCyclotomicUnitPlusUnit p K a
+    (realCyclotomicUnit_index_coprime (p := p) ha_two ha_le)
+    (Fact.out : Nat.Prime p).two_le
+
+
+-- @@ L56-62 verbatim
+@[simp]
+theorem realCyclotomicUnit_val (a : ℕ)
+    (ha_two : 2 ≤ a) (ha_le : a ≤ (p - 1) / 2) :
+    (realCyclotomicUnit (p := p) (K := K) a ha_two ha_le : 𝓞 K⁺) =
+      FLT37.realCyclotomicUnitPlus p K a := by
+  simp only [realCyclotomicUnit]
+  rw [FLT37.realCyclotomicUnitPlusUnit_val]
+
+
+-- @@ L64-70 verbatim
+/-- The route-level real cyclotomic unit is a unit. -/
+theorem realCyclotomicUnit_isUnit (a : ℕ)
+    (ha_two : 2 ≤ a) (ha_le : a ≤ (p - 1) / 2) :
+    IsUnit (FLT37.realCyclotomicUnitPlus p K a) :=
+  FLT37.isUnit_realCyclotomicUnitPlus p K a
+    (realCyclotomicUnit_index_coprime (p := p) ha_two ha_le)
+    (Fact.out : Nat.Prime p).two_le
+
+
+-- @@ L72-79 verbatim
+/-- The image of the real cyclotomic unit in `𝓞 K` is the σ-fixed product
+`cyclotomicUnit a * σ(cyclotomicUnit a)`. -/
+theorem algebraMap_realCyclotomicUnit (a : ℕ)
+    (ha_two : 2 ≤ a) (ha_le : a ≤ (p - 1) / 2) :
+    algebraMap (𝓞 K⁺) (𝓞 K)
+        (realCyclotomicUnit (p := p) (K := K) a ha_two ha_le : 𝓞 K⁺) =
+      FLT37.realCyclotomicUnit p K a := by
+  rw [realCyclotomicUnit_val, FLT37.algebraMap_realCyclotomicUnitPlus]
+
+
+-- @@ L81-91 verbatim
+/-- The image of `realCyclotomicUnit` in `𝓞 K` is fixed by complex
+conjugation. -/
+theorem realCyclotomicUnit_conj_eq_self (a : ℕ)
+    (ha_two : 2 ≤ a) (ha_le : a ≤ (p - 1) / 2) :
+    ringOfIntegersComplexConj K
+        (algebraMap (𝓞 K⁺) (𝓞 K)
+          (realCyclotomicUnit (p := p) (K := K) a ha_two ha_le : 𝓞 K⁺)) =
+      algebraMap (𝓞 K⁺) (𝓞 K)
+        (realCyclotomicUnit (p := p) (K := K) a ha_two ha_le : 𝓞 K⁺) := by
+  rw [algebraMap_realCyclotomicUnit]
+  exact FLT37.realCyclotomicUnit_complexConj p K a
+
+
+-- @@ L93-99 verbatim
+/-- The image of `realCyclotomicUnit` is a real unit of `K`. -/
+theorem realCyclotomicUnit_mem_real (a : ℕ)
+    (ha_two : 2 ≤ a) (ha_le : a ≤ (p - 1) / 2) :
+    Units.map (algebraMap (𝓞 K⁺) (𝓞 K)).toMonoidHom
+        (realCyclotomicUnit (p := p) (K := K) a ha_two ha_le) ∈
+      realUnits K :=
+  ⟨realCyclotomicUnit (p := p) (K := K) a ha_two ha_le, rfl⟩
+
+
+-- @@ L101-101 verbatim
+end BernoulliRegular
+
+
+-- @@ L103-103 verbatim
+end

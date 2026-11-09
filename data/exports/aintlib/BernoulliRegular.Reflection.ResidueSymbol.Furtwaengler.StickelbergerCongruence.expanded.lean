@@ -1,0 +1,170 @@
+module
+
+public import BernoulliRegular.Reflection.ResidueSymbol.Furtwaengler.Setup
+public import BernoulliRegular.Reflection.ResidueSymbol.Furtwaengler.DigitSum
+
+
+-- @@ L6-13 verbatim
+/-!
+# Stickelberger congruence assembly (Layer 2)
+
+This file contains the ideal-theoretic assembly step for the digit-sum
+Stickelberger congruence.  Once the Gauss sum is known congruent modulo
+`Q^(s+1)` to a leading term of exact `Q`-adic order `s`, the desired
+membership/non-membership statement follows formally.
+-/
+
+
+-- @@ L15-15 verbatim
+@[expose] public section
+
+
+-- @@ L17-17 verbatim
+noncomputable section
+
+
+-- @@ L19-19 verbatim
+namespace BernoulliRegular
+
+
+-- @@ L21-21 verbatim
+namespace Furtwaengler
+
+
+-- @@ L23-42 verbatim
+/-- If `x` is congruent to `y` modulo `I^(n+1)` and `y` has exact
+`I`-adic order `n`, then `x` has exact `I`-adic order `n`.
+
+This is the final ideal-calculus step in the Stickelberger congruence:
+all arithmetic work is concentrated in proving the leading congruence and
+the exact order of the leading term. -/
+theorem exact_mem_pow_of_sub_mem_succ
+    {R : Type*} [CommRing R] {I : Ideal R} {x y : R} {n : ℕ}
+    (hy_mem : y ∈ I ^ n) (hy_not_mem_succ : y ∉ I ^ (n + 1))
+    (hxy : x - y ∈ I ^ (n + 1)) :
+    x ∈ I ^ n ∧ x ∉ I ^ (n + 1) := by
+  have hsucc_le : I ^ (n + 1) ≤ I ^ n :=
+    Ideal.pow_le_pow_right (Nat.le_succ n)
+  refine ⟨?_, ?_⟩
+  · rw [show x = (x - y) + y by ring]
+    exact (I ^ n).add_mem (hsucc_le hxy) hy_mem
+  · intro hx
+    apply hy_not_mem_succ
+    rw [show y = x - (x - y) by ring]
+    exact (I ^ (n + 1)).sub_mem hx hxy
+
+
+-- @@ L44-44 verbatim
+variable {p : ℕ} [Fact p.Prime]
+
+-- @@ L45-45 verbatim
+variable {k : Type*} [Field k] [Fintype k]
+
+-- @@ L46-46 verbatim
+variable {R' : Type*} [CommRing R'] [IsDomain R']
+
+
+-- @@ L48-48 verbatim
+namespace StickelbergerSetup
+
+
+-- @@ L50-50 verbatim
+variable (S : StickelbergerSetup p k R')
+
+
+-- @@ L52-60 verbatim
+/-- Non-triviality of the powers `χ_q^a` in the Stickelberger range
+`1 ≤ a ≤ p - 1`. -/
+theorem residueChar_pow_ne_one {a : ℕ} (ha₁ : 1 ≤ a) (ha₂ : a ≤ p - 1) :
+    S.residueChar ^ a ≠ 1 := fun h ↦ by
+  -- `orderOf χ_q = p` divides `a`, but `1 ≤ a ≤ p - 1 < p`.
+  have h_dvd : p ∣ a := S.orderOf_residueChar ▸ orderOf_dvd_of_pow_eq_one h
+  have hp_pos : 0 < p := (Fact.out : Nat.Prime p).pos
+  have : p ≤ a := Nat.le_of_dvd (by omega) h_dvd
+  omega
+
+
+-- @@ L62-70 verbatim
+/-- Phase-B containment for every non-trivial power of the residue character.
+If the additive character is constantly `1` modulo `I`, then
+`g(χ_q^a, ψ_q) ∈ I` for `1 ≤ a ≤ p - 1`. -/
+theorem gaussSum_residueChar_pow_mem_ideal {I : Ideal R'} {a : ℕ}
+    (ha₁ : 1 ≤ a) (ha₂ : a ≤ p - 1)
+    (hψ : ∀ x : k, S.psi_q x - 1 ∈ I) :
+    _root_.gaussSum (S.residueChar ^ a) S.psi_q ∈ I :=
+  gaussSum_mem_ideal_of_addChar_sub_one_mem
+    (S.residueChar_pow_ne_one ha₁ ha₂) S.psi_q hψ
+
+
+-- @@ L72-83 verbatim
+/-- Cyclotomic form of `gaussSum_residueChar_pow_mem_ideal`: if
+`ψ_q(x) = ζ^f(x)` and the prime ideal contains the residue characteristic,
+then every Stickelberger-range Gauss sum lies in `Q`. -/
+theorem gaussSum_residueChar_pow_mem_ideal_of_q_mem
+    {ℓ : ℕ} [Fact ℓ.Prime] {ζ : R'} (hζ : IsPrimitiveRoot ζ ℓ)
+    (f : k → ℕ) (hf : ∀ x : k, S.psi_q x = ζ ^ f x)
+    {Q : Ideal R'} [Q.IsPrime] (hQ : (ℓ : R') ∈ Q)
+    {a : ℕ} (ha₁ : 1 ≤ a) (ha₂ : a ≤ p - 1) :
+    _root_.gaussSum (S.residueChar ^ a) S.psi_q ∈ Q :=
+  S.gaussSum_residueChar_pow_mem_ideal ha₁ ha₂ fun x ↦ by
+    rw [hf x]
+    exact zeta_pow_sub_one_mem_of_natCast_mem hζ hQ (f x)
+
+
+-- @@ L85-102 verbatim
+/-- First-order exactness for every non-trivial power of the residue
+character.  This is the `s = 1` version of the Stickelberger congruence:
+the containment is Phase B, and non-membership in `Q^2` follows from the
+linear coefficient not vanishing modulo `Q`. -/
+theorem gaussSum_residueChar_pow_qadic_ord_eq_one_under_nondeg
+    {ℓ : ℕ} [Fact ℓ.Prime] {ζ : R'} (hζ : IsPrimitiveRoot ζ ℓ)
+    (f : k → ℕ) (hf : ∀ x : k, S.psi_q x = ζ ^ f x)
+    {Q : Ideal R'} [Q.IsPrime] (hQ : (ℓ : R') ∈ Q)
+    {a : ℕ} (ha₁ : 1 ≤ a) (ha₂ : a ≤ p - 1)
+    (h_lead :
+      (ζ - 1) * (∑ x, (S.residueChar ^ a) x * (f x : R')) ∉ Q ^ 2) :
+    _root_.gaussSum (S.residueChar ^ a) S.psi_q ∈ Q ∧
+      _root_.gaussSum (S.residueChar ^ a) S.psi_q ∉ Q ^ 2 := by
+  refine ⟨?_, ?_⟩
+  · exact S.gaussSum_residueChar_pow_mem_ideal_of_q_mem hζ f hf hQ ha₁ ha₂
+  · exact gaussSum_not_mem_sq_of_psi_pow
+      (S.residueChar_pow_ne_one ha₁ ha₂) f hf
+      (zeta_sub_one_mem_of_natCast_mem hζ hQ) h_lead
+
+
+-- @@ L104-104 verbatim
+end StickelbergerSetup
+
+
+-- @@ L106-128 verbatim
+omit [IsDomain R'] in
+/-- Layer 2 assembly for the digit-sum Stickelberger congruence.
+
+Let `s = digitSum ℓ (a * ((#k - 1) / p))`.  If a proposed leading term
+`lead` has exact `Q`-adic order `s` and the Gauss sum is congruent to it
+modulo `Q^(s+1)`, then the Gauss sum has the target exact order.
+
+The remaining mathematical content is to construct `lead` as the usual unit
+times `(ζ_ℓ - 1)^s` and prove the congruence. -/
+theorem stickelberger_qadic_ord_at_prime_of_leading_congruence
+    (S : StickelbergerSetup p k R') {ℓ : ℕ} (a : ℕ) {Q : Ideal R'} {lead : R'}
+    (h_lead_mem :
+      lead ∈ Q ^ digitSum ℓ (a * ((Fintype.card k - 1) / p)))
+    (h_lead_not_mem_succ :
+      lead ∉ Q ^ (digitSum ℓ (a * ((Fintype.card k - 1) / p)) + 1))
+    (h_congr :
+      gaussSum (S.residueChar ^ a) S.psi_q - lead ∈
+        Q ^ (digitSum ℓ (a * ((Fintype.card k - 1) / p)) + 1)) :
+    gaussSum (S.residueChar ^ a) S.psi_q ∈
+        Q ^ digitSum ℓ (a * ((Fintype.card k - 1) / p)) ∧
+      gaussSum (S.residueChar ^ a) S.psi_q ∉
+        Q ^ (digitSum ℓ (a * ((Fintype.card k - 1) / p)) + 1) :=
+  exact_mem_pow_of_sub_mem_succ h_lead_mem h_lead_not_mem_succ h_congr
+
+
+-- @@ L130-130 verbatim
+end Furtwaengler
+
+
+-- @@ L132-132 verbatim
+end BernoulliRegular

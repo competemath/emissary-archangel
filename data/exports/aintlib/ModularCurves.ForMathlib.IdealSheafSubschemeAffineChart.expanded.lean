@@ -1,0 +1,102 @@
+import Mathlib.AlgebraicGeometry.Cover.Open
+import Mathlib.AlgebraicGeometry.IdealSheaf.Subscheme
+
+
+-- @@ L4-9 verbatim
+/-!
+# Affine charts of ideal-sheaf subschemes
+
+The inverse image of an affine open under an ideal-sheaf subscheme inclusion is
+canonically the spectrum of the corresponding quotient ring.
+-/
+
+
+-- @@ L11-11 verbatim
+open CategoryTheory
+
+
+-- @@ L13-13 verbatim
+noncomputable section
+
+
+-- @@ L15-15 verbatim
+universe u
+
+
+-- @@ L17-17 verbatim
+namespace AlgebraicGeometry.Scheme.IdealSheafData
+
+
+-- @@ L19-19 verbatim
+variable {X : Scheme.{u}} (J : X.IdealSheafData)
+
+
+-- @@ L21-24 verbatim
+private theorem chartMap_isOpenImmersion (U : X.affineOpens) :
+    IsOpenImmersion (J.glueData.ι U ≫ J.subschemeIso.inv) := by
+  change IsOpenImmersion (J.subschemeCover.f U)
+  exact J.subschemeCover.map_prop U
+
+
+-- @@ L26-39 verbatim
+private theorem range_chartMap (U : X.affineOpens) :
+    Set.range (J.glueData.ι U ≫ J.subschemeIso.inv) =
+      (J.subschemeι ⁻¹ᵁ U.1 : Set J.subscheme) := by
+  change Set.range (J.subschemeCover.f U) =
+    (J.subschemeι ⁻¹ᵁ U.1 : Set J.subscheme)
+  letI : IsOpenImmersion (J.subschemeCover.f U) :=
+    J.subschemeCover.map_prop U
+  calc
+    Set.range (J.subschemeCover.f U) =
+        ((J.subschemeCover.f U).opensRange : Set J.subscheme) :=
+      (Scheme.Hom.coe_opensRange _).symm
+    _ = (J.subschemeι ⁻¹ᵁ U.1 : Set J.subscheme) :=
+      congrArg (fun V : J.subscheme.Opens => (V : Set J.subscheme))
+        (J.opensRange_subschemeCover_map U)
+
+
+-- @@ L41-50 verbatim
+/-- The quotient-spectrum chart is the restriction of the ideal-sheaf subscheme
+to the corresponding ambient affine open. -/
+noncomputable def subschemeAffineChartIso (U : X.affineOpens) :
+    J.glueDataObj U ≅ (J.subschemeι ⁻¹ᵁ U.1).toScheme :=
+  @IsOpenImmersion.isoOfRangeEq _ _ _
+    (J.glueData.ι U ≫ J.subschemeIso.inv)
+    (J.subschemeι ⁻¹ᵁ U.1).ι
+    (J.chartMap_isOpenImmersion U)
+    inferInstance
+    ((J.range_chartMap U).trans (Scheme.Opens.range_ι _).symm)
+
+
+-- @@ L52-66 verbatim
+@[reassoc (attr := simp)]
+theorem subschemeAffineChartIso_hom_ι (U : X.affineOpens) :
+    (J.subschemeAffineChartIso U).hom ≫
+        (J.subschemeι ⁻¹ᵁ U.1).ι =
+      J.subschemeCover.f U := by
+  change (J.subschemeAffineChartIso U).hom ≫
+    (J.subschemeι ⁻¹ᵁ U.1).ι =
+      J.glueData.ι U ≫ J.subschemeIso.inv
+  unfold subschemeAffineChartIso
+  exact @IsOpenImmersion.isoOfRangeEq_hom_fac _ _ _
+    (J.glueData.ι U ≫ J.subschemeIso.inv)
+    (J.subschemeι ⁻¹ᵁ U.1).ι
+    (J.chartMap_isOpenImmersion U)
+    inferInstance
+    ((J.range_chartMap U).trans (Scheme.Opens.range_ι _).symm)
+
+
+-- @@ L68-76 verbatim
+@[reassoc (attr := simp)]
+theorem subschemeAffineChartIso_hom_restrict (U : X.affineOpens) :
+    (J.subschemeAffineChartIso U).hom ≫
+        (J.subschemeι ∣_ U.1) =
+      J.glueDataObjι U := by
+  rw [← cancel_mono U.1.ι]
+  rw [Category.assoc, morphismRestrict_ι]
+  rw [← Category.assoc, J.subschemeAffineChartIso_hom_ι]
+  exact J.subschemeCover_map_subschemeι U
+
+
+-- @@ L78-78 verbatim
+end AlgebraicGeometry.Scheme.IdealSheafData

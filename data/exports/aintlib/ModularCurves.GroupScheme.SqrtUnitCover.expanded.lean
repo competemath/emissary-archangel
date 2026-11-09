@@ -1,0 +1,357 @@
+/-
+Copyright (c) 2026 Chris Birkbeck. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Chris Birkbeck
+-/
+import Mathlib.RingTheory.Etale.StandardEtale
+import Mathlib.RingTheory.AdjoinRoot
+import Mathlib.AlgebraicGeometry.Morphisms.Etale
+import Mathlib.AlgebraicGeometry.Morphisms.Finite
+
+
+-- @@ L11-26 verbatim
+/-!
+# The square-root cover of a unit (the `u² = d` finite étale double cover)
+
+The pure-geometry layer of the `±ω` scale-torsor (CHARTER-G, (G1)): for a unit `d` of
+a ring `A`, the standard étale pair `(X² − d, 2d)` presents the double cover
+`A[u]/(u² − d)` (the `2d`-localization is trivial once `2` and `d` are invertible).
+Mathlib's `StandardEtalePair` machinery gives étaleness and the universal property
+(`homEquiv`) for free; here we add finiteness (rank 2, via `AdjoinRoot` freeness) and
+the `x² = d` form of the point spec.
+
+* `sqrtPair d` — the standard étale pair `(X² − C d, C (2d))`.
+* `sqrtPair_hasMap_iff` — mapping `X ↦ x` exists iff `x² = d` (once `2` is a unit in
+  the target).
+* `sqrtPairCongr` — the twist `X ↦ c⁻¹X` identifying the `d`-cover with the
+  `c²d`-cover: the gluing ingredient for the twisted (line-bundle-valued) case.
+-/
+
+
+-- @@ L28-28 verbatim
+open Polynomial
+
+
+-- @@ L30-30 verbatim
+noncomputable section
+
+
+-- @@ L32-32 verbatim
+namespace ModularCurves
+
+
+-- @@ L34-34 verbatim
+variable {A : Type*} [CommRing A]
+
+
+-- @@ L36-49 verbatim
+/-- The standard étale pair `(X² − d, 2d)` of a unit `d`: the presentation of the
+square-root double cover. The pair condition is the identity
+`(2X)·X + (X² − d)·(−2) = 2d`. -/
+def sqrtPair (d : Aˣ) : StandardEtalePair A where
+  f := X ^ 2 - C (d : A)
+  monic_f := (monic_X_pow_sub_C (d : A) two_ne_zero)
+  g := C ((2 : A) * d)
+  cond := by
+    refine ⟨X, -2, 1, ?_⟩
+    have hder : derivative (X ^ 2 - C (d : A)) = 2 * X := by
+      simp [derivative_sub]
+      ring
+    rw [hder, C_mul, map_ofNat]
+    ring
+
+
+-- @@ L51-69 verbatim
+/-- Mapping the coordinate to `x : S` is possible iff `x² = d` — the `2d`-invertibility
+conjunct is automatic when `2` is a unit in `S` (the image of the unit `d` always is). -/
+theorem sqrtPair_hasMap_iff {S : Type*} [CommRing S] [Algebra A S]
+    (d : Aˣ) (h2 : IsUnit (2 : S)) (x : S) :
+    (sqrtPair d).HasMap x ↔ x ^ 2 = algebraMap A S (d : A) := by
+  constructor
+  · rintro ⟨h1, -⟩
+    have := h1
+    rw [show (sqrtPair d).f = X ^ 2 - C (d : A) from rfl] at this
+    simpa [sub_eq_zero] using this
+  · intro hx
+    refine ⟨?_, ?_⟩
+    · rw [show (sqrtPair d).f = X ^ 2 - C (d : A) from rfl]
+      simpa [sub_eq_zero] using hx
+    · rw [show (sqrtPair d).g = C ((2 : A) * d) from rfl]
+      rw [aeval_C, map_mul]
+      refine IsUnit.mul ?_ (d.isUnit.map (algebraMap A S))
+      rw [map_ofNat]
+      exact h2
+
+
+-- @@ L71-71 verbatim
+/-! ### Finiteness of the square-root cover -/
+
+
+-- @@ L73-78 verbatim
+/-- The localization element of the `sqrtPair` presentation is a unit of
+`AdjoinRoot (X² − d)` once `2` is a unit of `A`. -/
+theorem sqrtPair_mk_g_isUnit (d : Aˣ) (h2 : IsUnit (2 : A)) :
+    IsUnit (AdjoinRoot.mk (sqrtPair d).f (sqrtPair d).g) := by
+  rw [show (sqrtPair d).g = C ((2 : A) * d) from rfl, AdjoinRoot.mk_C, map_mul]
+  exact (h2.map _).mul (d.isUnit.map _)
+
+
+-- @@ L80-95 verbatim
+/-- The square-root algebra is module-finite over the base once `2` is a unit:
+through `equivAwayAdjoinRoot` it is the trivial localization of the rank-2 free
+`AdjoinRoot (X² − d)`. -/
+noncomputable def sqrtPairAdjoinRootEquiv (d : Aˣ) (h2 : IsUnit (2 : A)) :
+    (sqrtPair d).Ring ≃ₐ[A] AdjoinRoot (sqrtPair d).f := by
+  haveI hloc : IsLocalization
+      (Submonoid.powers (AdjoinRoot.mk (sqrtPair d).f (sqrtPair d).g))
+      (AdjoinRoot (sqrtPair d).f) :=
+    IsLocalization.away_of_isUnit_of_bijective _ (sqrtPair_mk_g_isUnit d h2)
+      Function.bijective_id
+  exact (sqrtPair d).equivAwayAdjoinRoot.trans
+    ((IsLocalization.algEquiv
+      (Submonoid.powers (AdjoinRoot.mk (sqrtPair d).f (sqrtPair d).g))
+      (AdjoinRoot (sqrtPair d).f)
+      (Localization.Away (AdjoinRoot.mk (sqrtPair d).f (sqrtPair d).g))).restrictScalars
+        A).symm
+
+
+-- @@ L97-101 verbatim
+theorem sqrtPair_finite (d : Aˣ) (h2 : IsUnit (2 : A)) :
+    Module.Finite A (sqrtPair d).Ring := by
+  haveI hfin : Module.Finite A (AdjoinRoot (sqrtPair d).f) :=
+    Module.Finite.of_basis (AdjoinRoot.powerBasis' (sqrtPair d).monic_f).basis
+  exact Module.Finite.equiv (sqrtPairAdjoinRootEquiv d h2).symm.toLinearEquiv
+
+
+-- @@ L103-103 verbatim
+/-! ### The twist: the `d`-cover is the `c²d`-cover -/
+
+
+-- @@ L105-109 verbatim
+theorem sqrtPair_X_sq (d : Aˣ) :
+    (sqrtPair d).X ^ 2 = algebraMap A (sqrtPair d).Ring (d : A) := by
+  have h := (StandardEtalePair.hasMap_X (P := sqrtPair d)).1
+  rw [show (sqrtPair d).f = X ^ 2 - C (d : A) from rfl] at h
+  simpa [sub_eq_zero] using h
+
+
+-- @@ L111-115 verbatim
+/-- Two algebra maps out of a standard étale algebra agreeing on `X` are equal. -/
+theorem StandardEtalePair.algHom_ext {S : Type*} [CommRing S] [Algebra A S]
+    {P : StandardEtalePair A} {φ ψ : P.Ring →ₐ[A] S} (h : φ P.X = ψ P.X) : φ = ψ := by
+  have h1 := P.homEquiv.injective (a₁ := φ) (a₂ := ψ)
+  exact h1 (Subtype.ext h)
+
+
+-- @@ L117-158 verbatim
+/-- **The twist**: scaling the square root by `c` identifies the `c²d`-cover with the
+`d`-cover — the cocycle ingredient for gluing line-bundle-valued square roots. -/
+noncomputable def sqrtPairCongr (d : Aˣ) (c : Aˣ) (h2 : IsUnit (2 : A)) :
+    (sqrtPair (c ^ 2 * d)).Ring ≃ₐ[A] (sqrtPair d).Ring := by
+  have h2d : IsUnit (2 : (sqrtPair d).Ring) := by
+    have := h2.map (algebraMap A (sqrtPair d).Ring)
+    rwa [map_ofNat] at this
+  have h2cd : IsUnit (2 : (sqrtPair (c ^ 2 * d)).Ring) := by
+    have := h2.map (algebraMap A (sqrtPair (c ^ 2 * d)).Ring)
+    rwa [map_ofNat] at this
+  have hmapF : (sqrtPair (c ^ 2 * d)).HasMap
+      (algebraMap A (sqrtPair d).Ring (c : A) * (sqrtPair d).X) := by
+    rw [sqrtPair_hasMap_iff _ h2d]
+    rw [mul_pow, sqrtPair_X_sq, ← map_pow, ← map_mul]
+    rfl
+  have hmapB : (sqrtPair d).HasMap
+      (algebraMap A (sqrtPair (c ^ 2 * d)).Ring ((c⁻¹ : Aˣ) : A) *
+        (sqrtPair (c ^ 2 * d)).X) := by
+    rw [sqrtPair_hasMap_iff _ h2cd]
+    rw [mul_pow, sqrtPair_X_sq, ← map_pow, ← map_mul]
+    congr 1
+    rw [show ((c ^ 2 * d : Aˣ) : A) = (c : A) ^ 2 * (d : A) from rfl]
+    rw [show ((c⁻¹ : Aˣ) : A) ^ 2 = ((c ^ 2)⁻¹ : Aˣ) from by
+      rw [← Units.val_pow_eq_pow_val, inv_pow]]
+    rw [← mul_assoc]
+    rw [show ((( c ^ 2)⁻¹ : Aˣ) : A) * ((c : A) ^ 2) = 1 from by
+      rw [← Units.val_pow_eq_pow_val, ← Units.val_mul, inv_mul_cancel, Units.val_one]]
+    rw [one_mul]
+  refine AlgEquiv.ofAlgHom ((sqrtPair (c ^ 2 * d)).lift _ hmapF)
+    ((sqrtPair d).lift _ hmapB) ?_ ?_
+  · refine StandardEtalePair.algHom_ext ?_
+    rw [AlgHom.comp_apply, StandardEtalePair.lift_X, map_mul, AlgHom.commutes,
+      StandardEtalePair.lift_X, AlgHom.id_apply, ← mul_assoc, ← map_mul]
+    rw [show (((c⁻¹ : Aˣ) : A)) * (c : A) = 1 from by
+      rw [← Units.val_mul, inv_mul_cancel, Units.val_one]]
+    rw [map_one, one_mul]
+  · refine StandardEtalePair.algHom_ext ?_
+    rw [AlgHom.comp_apply, StandardEtalePair.lift_X, map_mul, AlgHom.commutes,
+      StandardEtalePair.lift_X, AlgHom.id_apply, ← mul_assoc, ← map_mul]
+    rw [show ((c : A)) * ((c⁻¹ : Aˣ) : A) = 1 from by
+      rw [← Units.val_mul, mul_inv_cancel, Units.val_one]]
+    rw [map_one, one_mul]
+
+
+-- @@ L160-160 verbatim
+/-! ### Base change of the square-root cover -/
+
+
+-- @@ L162-180 verbatim
+/-- The `sqrtPair` construction commutes with ring maps. -/
+theorem sqrtPair_map {B : Type*} [CommRing B] (φ : A →+* B) (d : Aˣ) :
+    (sqrtPair d).map φ = sqrtPair (Units.map φ d) := by
+  have hf : ((sqrtPair d).map φ).f = (sqrtPair (Units.map φ d)).f := by
+    show (X ^ 2 - C (d : A)).map φ = X ^ 2 - C ((Units.map φ d : Bˣ) : B)
+    rw [Polynomial.map_sub, Polynomial.map_pow, map_X, map_C]
+    rfl
+  have hg : ((sqrtPair d).map φ).g = (sqrtPair (Units.map φ d)).g := by
+    show (C ((2 : A) * d)).map φ = C ((2 : B) * (Units.map φ d : Bˣ))
+    rw [map_C]
+    congr 1
+    rw [map_mul, map_ofNat]
+    rfl
+  have hext : ∀ (P Q : StandardEtalePair B), P.f = Q.f → P.g = Q.g → P = Q := by
+    rintro ⟨f₁, m₁, g₁, c₁⟩ ⟨f₂, m₂, g₂, c₂⟩ h1 h2
+    cases h1
+    cases h2
+    rfl
+  exact hext _ _ hf hg
+
+
+-- @@ L182-192 verbatim
+/-- The identity presentation: a standard étale pair presents its own ring. -/
+def StandardEtalePair.selfPresentation (P : StandardEtalePair A) :
+    StandardEtalePresentation A P.Ring where
+  __ := P
+  x := P.X
+  hasMap := StandardEtalePair.hasMap_X
+  lift_bijective := by
+    have hid : P.lift P.X StandardEtalePair.hasMap_X = AlgHom.id A P.Ring :=
+      StandardEtalePair.algHom_ext (by rw [StandardEtalePair.lift_X, AlgHom.id_apply])
+    rw [hid]
+    exact Function.bijective_id
+
+
+-- @@ L194-200 verbatim
+open scoped TensorProduct in
+/-- Base change of a standard étale algebra along `A → B`: the tensor is the mapped
+pair's algebra. -/
+noncomputable def StandardEtalePair.baseChangeEquiv {B : Type*} [CommRing B]
+    [Algebra A B] (P : StandardEtalePair A) :
+    (B ⊗[A] P.Ring) ≃ₐ[B] (P.map (algebraMap A B)).Ring :=
+  ((StandardEtalePair.selfPresentation P).baseChange).equivRing
+
+
+-- @@ L202-208 verbatim
+open scoped TensorProduct in
+/-- The canonical map to the base-changed square-root algebra: the right tensor
+inclusion transported through the base-change equivalence. -/
+noncomputable def sqrtPairMapRingHom {B : Type*} [CommRing B] [Algebra A B]
+    (P : StandardEtalePair A) : P.Ring →+* (P.map (algebraMap A B)).Ring :=
+  (StandardEtalePair.baseChangeEquiv P).toRingEquiv.toRingHom.comp
+    (Algebra.TensorProduct.includeRight (R := A) (A := B) (B := P.Ring)).toRingHom
+
+
+-- @@ L210-215 verbatim
+open scoped TensorProduct in
+@[simp]
+theorem baseChangeEquiv_includeRight {B : Type*} [CommRing B] [Algebra A B]
+    (P : StandardEtalePair A) (y : P.Ring) :
+    StandardEtalePair.baseChangeEquiv P ((1 : B) ⊗ₜ[A] y) = sqrtPairMapRingHom P y :=
+  rfl
+
+
+-- @@ L217-217 verbatim
+/-! ### The scheme-level cover -/
+
+
+-- @@ L219-219 verbatim
+section SchemeLevel
+
+
+-- @@ L221-221 verbatim
+open AlgebraicGeometry CategoryTheory
+
+
+-- @@ L223-223 verbatim
+universe u
+
+
+-- @@ L225-252 verbatim
+/-- Morphisms of affine schemes over a common affine base are algebra
+homomorphisms (the over-`Spec` form of `Spec`-full-faithfulness). -/
+noncomputable def overSpecEquivAlgHom (A B C : Type u) [CommRing A] [CommRing B]
+    [CommRing C] [Algebra A B] [Algebra A C] :
+    { s : Spec (CommRingCat.of C) ⟶ Spec (CommRingCat.of B) //
+      s ≫ Spec.map (CommRingCat.ofHom (algebraMap A B))
+        = Spec.map (CommRingCat.ofHom (algebraMap A C)) } ≃ (B →ₐ[A] C) where
+  toFun s :=
+    { toRingHom := (Spec.preimage s.1).hom
+      commutes' := fun a => by
+        have hcomp : Spec.map (CommRingCat.ofHom
+            ((Spec.preimage s.1).hom.comp (algebraMap A B)))
+            = Spec.map (CommRingCat.ofHom (algebraMap A C)) := by
+          rw [CommRingCat.ofHom_comp, Spec.map_comp, CommRingCat.ofHom_hom, Spec.map_preimage]
+          exact s.2
+        have h := Spec.map_injective hcomp
+        exact congrArg (fun (ψ : CommRingCat.of A ⟶ CommRingCat.of C) => ψ.hom a) h }
+  invFun χ := ⟨Spec.map (CommRingCat.ofHom χ.toRingHom), by
+    rw [← Spec.map_comp, ← CommRingCat.ofHom_comp]
+    congr 1
+    ext a
+    exact χ.commutes a⟩
+  left_inv s := Subtype.ext (Spec.map_preimage s.1)
+  right_inv χ := by
+    ext b
+    show (Spec.preimage (Spec.map (CommRingCat.ofHom χ.toRingHom))).hom b = χ b
+    rw [Spec.preimage_map]
+    rfl
+
+
+-- @@ L254-254 verbatim
+variable {A : Type u} [CommRing A]
+
+
+-- @@ L256-259 verbatim
+/-- The square-root cover as a morphism of affine schemes. -/
+noncomputable def sqrtCoverπ (d : Aˣ) :
+    Spec (CommRingCat.of (sqrtPair d).Ring) ⟶ Spec (CommRingCat.of A) :=
+  Spec.map (CommRingCat.ofHom (algebraMap A (sqrtPair d).Ring))
+
+
+-- @@ L261-267 verbatim
+/-- The square-root cover is étale (unconditionally — the ramified fibres are cut
+out by the `2d`-localization inside the standard étale presentation). -/
+theorem sqrtCoverπ_etale (d : Aˣ) : AlgebraicGeometry.Etale (sqrtCoverπ d) := by
+  rw [sqrtCoverπ, HasRingHomProperty.Spec_iff (P := @AlgebraicGeometry.Etale)]
+  show RingHom.Etale (algebraMap A (sqrtPair d).Ring)
+  rw [RingHom.etale_algebraMap]
+  infer_instance
+
+
+-- @@ L269-276 verbatim
+/-- The square-root cover is finite once `2` is a unit on the base. -/
+theorem sqrtCoverπ_isFinite (d : Aˣ) (h2 : IsUnit (2 : A)) :
+    AlgebraicGeometry.IsFinite (sqrtCoverπ d) := by
+  rw [sqrtCoverπ, AlgebraicGeometry.IsFinite.SpecMap_iff]
+  show RingHom.Finite (algebraMap A (sqrtPair d).Ring)
+  haveI := sqrtPair_finite d h2
+  rw [RingHom.finite_algebraMap]
+  infer_instance
+
+
+-- @@ L278-287 verbatim
+/-- **The point spec of the square-root cover**: sections over an `A`-algebra point
+are the square roots of (the image of) `d`. -/
+noncomputable def sqrtCoverSectionsEquiv (d : Aˣ) {C : Type u} [CommRing C]
+    [Algebra A C] (h2C : IsUnit (2 : C)) :
+    { s : Spec (CommRingCat.of C) ⟶ Spec (CommRingCat.of (sqrtPair d).Ring) //
+      s ≫ sqrtCoverπ d = Spec.map (CommRingCat.ofHom (algebraMap A C)) } ≃
+      { x : C // x ^ 2 = algebraMap A C (d : A) } :=
+  (overSpecEquivAlgHom A (sqrtPair d).Ring C).trans
+    ((sqrtPair d).homEquiv.trans
+      (Equiv.subtypeEquivRight (fun x => sqrtPair_hasMap_iff d h2C x)))
+
+
+-- @@ L289-289 verbatim
+end SchemeLevel
+
+
+-- @@ L291-291 verbatim
+end ModularCurves

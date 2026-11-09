@@ -1,0 +1,167 @@
+/-
+Copyright (c) 2026 The AINTLIB contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: AINTLIB ModularCurves project
+-/
+import ModularCurves.ForMathlib.SheafModuleCechTopExact
+import ModularCurves.ForMathlib.SheafModuleCechTwoCoverBicomplex
+
+
+-- @@ L9-17 verbatim
+/-!
+# Exact augmented rows of the module-valued two-cover Cech bicomplex
+
+The horizontal augmentation is the top-sections Cech augmentation precomposed
+with the top-sections comparison isomorphism. Thus the sheaf condition gives
+exactness at the start of every horizontal row while retaining the coefficient
+ring action. Exactness in the next Cech degree remains an explicit acyclicity
+input.
+-/
+
+
+-- @@ L19-19 verbatim
+open CategoryTheory TopologicalSpace
+
+
+-- @@ L21-21 verbatim
+noncomputable section
+
+
+-- @@ L23-23 verbatim
+universe u
+
+
+-- @@ L25-25 verbatim
+namespace TopCat.Sheaf
+
+
+-- @@ L27-27 verbatim
+variable {R : Type u} [CommRing R] {X : TopCat.{u}}
+
+-- @@ L28-28 verbatim
+variable (F : Sheaf (ModuleCat.{u} R) X)
+
+-- @@ L29-29 verbatim
+variable {ι κ : Type u} (U : ι → Opens X) (V : κ → Opens X)
+
+
+-- @@ L31-38 verbatim
+/-- A horizontal row of the two-cover bicomplex, augmented by the native Cech
+complex for the outer family. -/
+noncomputable def moduleCechTwoCoverHorizontalAugmentedShortComplex
+    (q : ℕ) : ShortComplex (ModuleCat.{u} R) :=
+  ShortComplex.mk
+    (moduleCechTwoCoverHorizontalAugmentation F U V q)
+    (((moduleCechTwoCoverBicomplex F U V).X q).d 0 1)
+    (moduleCechTwoCoverHorizontalAugmentation_comp_d F U V q)
+
+
+-- @@ L40-62 verbatim
+/-- The augmented horizontal row is the top-sections augmented native Cech
+short complex of the corresponding outer Cech term. -/
+noncomputable def moduleCechTwoCoverHorizontalAugmentedShortComplexIso
+    (q : ℕ) :
+    moduleCechTwoCoverHorizontalAugmentedShortComplex F U V q ≅
+      moduleCechTopSectionsNativeShortComplex
+        (moduleCechTerm F U q) V :=
+  ShortComplex.isoMk
+    (moduleCechTermTopSectionsIso F U q).symm
+    (Iso.refl _)
+    (Iso.refl _)
+    (by
+      change
+        (moduleCechTermTopSectionsIso F U q).inv ≫
+            moduleCechTopSectionsAugmentation
+              (moduleCechTerm F U q) V =
+          ((moduleCechTermTopSectionsIso F U q).inv ≫
+            moduleCechTopSectionsAugmentation
+              (moduleCechTerm F U q) V) ≫ 𝟙 _
+      rw [Category.comp_id])
+    (by
+      simp [moduleCechTwoCoverHorizontalAugmentedShortComplex,
+        moduleCechTopSectionsNativeShortComplex])
+
+
+-- @@ L64-72 verbatim
+/-- Every augmented horizontal row is exact when the inner family is an open
+cover. -/
+theorem moduleCechTwoCoverHorizontalAugmentedShortComplex_exact
+    (q : ℕ) (hV : ⨆ i, V i = ⊤) :
+    (moduleCechTwoCoverHorizontalAugmentedShortComplex F U V q).Exact := by
+  exact ShortComplex.exact_of_iso
+    (moduleCechTwoCoverHorizontalAugmentedShortComplexIso F U V q).symm
+    (moduleCechTopSectionsNativeShortComplex_exact
+      (moduleCechTerm F U q) V hV)
+
+
+-- @@ L74-82 verbatim
+/-- Every horizontal augmentation is monic when the inner family is an open
+cover. -/
+theorem moduleCechTwoCoverHorizontalAugmentation_mono
+    (q : ℕ) (hV : ⨆ i, V i = ⊤) :
+    Mono (moduleCechTwoCoverHorizontalAugmentation F U V q) := by
+  apply mono_comp'
+  · infer_instance
+  · exact moduleCechTopSectionsAugmentation_mono
+      (moduleCechTerm F U q) V hV
+
+
+-- @@ L84-97 verbatim
+/-- Native degree-one Cech exactness for an outer Cech term is exactly the
+degree-one row condition in the two-cover bicomplex. -/
+theorem moduleCechTwoCover_row_exactAt_one
+    (q : ℕ)
+    (h : ((cechComplexFunctor V).obj
+      (moduleCechTerm F U q).obj).ExactAt 1) :
+    (ShortComplex.mk
+      (((moduleCechTwoCoverBicomplex F U V).X q).d 0 1)
+      (((moduleCechTwoCoverBicomplex F U V).X q).d 1 2)
+      (((moduleCechTwoCoverBicomplex F U V).X q).d_comp_d 0 1 2)).Exact := by
+  apply (HomologicalComplex.exactAt_iff'
+    ((moduleCechTwoCoverBicomplex F U V).X q)
+      0 1 2 (by simp) (by simp)).1
+  exact h
+
+
+-- @@ L99-117 verbatim
+/-- Native Cech exactness in an arbitrary positive degree for an outer Cech
+term is the corresponding positive-row condition in the two-cover
+bicomplex. -/
+theorem moduleCechTwoCover_row_exactAt
+    (q p : ℕ) (hp : 0 < p)
+    (h : ((cechComplexFunctor V).obj
+      (moduleCechTerm F U q).obj).ExactAt p) :
+    (ShortComplex.mk
+      (((moduleCechTwoCoverBicomplex F U V).X q).d (p - 1) p)
+      (((moduleCechTwoCoverBicomplex F U V).X q).d p (p + 1))
+      (((moduleCechTwoCoverBicomplex F U V).X q).d_comp_d
+        (p - 1) p (p + 1))).Exact := by
+  apply (HomologicalComplex.exactAt_iff'
+    ((moduleCechTwoCoverBicomplex F U V).X q)
+      (p - 1) p (p + 1)
+      ((ComplexShape.up ℕ).prev_eq' (by
+        exact ComplexShape.up'_mk 1 (p - 1) p (by omega)))
+      ((ComplexShape.up ℕ).next_eq' rfl)).1
+  exact h
+
+
+-- @@ L119-133 verbatim
+/-- Native Cech exactness in a positive degree for an outer Cech term is the
+corresponding positive-row condition in the two-cover bicomplex. -/
+theorem moduleCechTwoCover_row_exactAt_succ
+    (q n : ℕ)
+    (h : ((cechComplexFunctor V).obj
+      (moduleCechTerm F U q).obj).ExactAt (n + 1)) :
+    (ShortComplex.mk
+      (((moduleCechTwoCoverBicomplex F U V).X q).d n (n + 1))
+      (((moduleCechTwoCoverBicomplex F U V).X q).d (n + 1) (n + 2))
+      (((moduleCechTwoCoverBicomplex F U V).X q).d_comp_d
+        n (n + 1) (n + 2))).Exact := by
+  apply (HomologicalComplex.exactAt_iff'
+    ((moduleCechTwoCoverBicomplex F U V).X q)
+      n (n + 1) (n + 2) (by simp) (by simp)).1
+  exact h
+
+
+-- @@ L135-135 verbatim
+end TopCat.Sheaf

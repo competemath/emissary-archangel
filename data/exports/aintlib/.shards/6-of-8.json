@@ -1,0 +1,86 @@
+{
+  "shard": 6,
+  "shards": 8,
+  "commit": "160e446617a2168c34c95bbe7a76c4105b392434",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "modules": 253,
+  "exported": 238,
+  "failed": [
+    {
+      "module": "ModularCurves.EllipticCurve.AbelEquivalence",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.DegreeOneFibreCohomology",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleFiltrationMonomialBasis",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafMonomialSequence",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapFinite",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapSectionNeighborhoodAway",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistFixedPresentation",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.ProjectiveFactorizationCechHOne",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ModularCurve.RhoPairingBridge",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ModularCurve.RhoPoints",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.AlternationReduction",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.CurveNaturality",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.KMBilinear",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.KMPairing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.SelfUniversalVanishing",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "tools": {
+    "lean": "4.34.0-rc2 (commit 6a10ac8c22beadecabdbb0919c2b50214762f91d, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+6a10ac8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "483e011449cc + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "minutes": 120,
+  "finishedAt": "2026-11-09T21:35:18.446Z"
+}

@@ -1,0 +1,110 @@
+{
+  "shard": 5,
+  "shards": 8,
+  "commit": "160e446617a2168c34c95bbe7a76c4105b392434",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "modules": 237,
+  "exported": 216,
+  "failed": [
+    {
+      "module": "ModularCurves.EllipticCurve.PoleFiltrationMonomialSequence",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafAwayAffineModelEval",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafProjectiveCoordinates",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafProjectiveXY",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafSuccessorCoordinateMul",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafUniformMonomialBasis",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapGlobalFinite",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassRelation",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpacePositiveTwistCoproductCech",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ModularCurve.RhoDescent",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ModularCurve.RhoSections",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.FieldPairingUnique",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.FullLevelPairing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.GaloisFunctionField",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.GlobalFibreChart",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.NativeRestriction",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.Nondegenerate",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.PoincareBiextension",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.SelfUniversal",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.TheoremOfSquareBaseChange",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.Translation",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "tools": {
+    "lean": "4.34.0-rc2 (commit 6a10ac8c22beadecabdbb0919c2b50214762f91d, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+6a10ac8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "483e011449cc + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "minutes": 92,
+  "finishedAt": "2026-11-09T21:09:29.701Z"
+}

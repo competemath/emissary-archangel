@@ -1,0 +1,118 @@
+module
+
+public import BernoulliRegular.Reflection.ClassGroupModP.AtomC
+public import BernoulliRegular.Reflection.ClassGroupModP.Plus
+public import BernoulliRegular.Reflection.ClassGroupModP.PlusMinusInstance
+
+
+-- @@ L7-31 verbatim
+/-!
+# SP-2: Plus-side identification (Cl(K⁺)/p nontrivial ⟹ even-eigenspace nontrivial)
+
+Under `p ∣ h⁺(K)`, there exists an even index `i ∈ (0, p)` such that the
+`ω^i`-eigenspace of `Cl(K)/p` is non-trivial.
+
+The proof composes:
+
+* `classGroupMap_modP_injective_unconditional` (SP-2a unconditional, in
+  `Plus.lean`): `Cl(K⁺)/p ↪ Cl(K)/p`.
+* `cyclotomicGalActionInstance_neg_one_classGroupMap` (in
+  `PlusMinusInstance.lean`): the image is `σ_{-1}`-fixed.
+* `exists_even_eigenspaceComponentNontrivial_of_sigma_fixed_nontrivial`
+  (in `AtomC.lean`): a non-zero `σ_{-1}`-fixed element forces some
+  even `V_k` to be non-trivial.
+
+The `V₀ = 0` (trivial-character eigenspace) hypothesis encodes the
+classical fact that `(Cl(K)/p)^Δ = 0` for cyclotomic `K`, which would
+otherwise allow `i = 0` and break `IsReflectionComponentIndex p i`'s
+`0 < i` constraint.
+
+## References
+
+* [Wash97] §10.1.
+-/
+
+
+-- @@ L33-33 verbatim
+@[expose] public section
+
+
+-- @@ L35-35 verbatim
+noncomputable section
+
+
+-- @@ L37-37 verbatim
+open NumberField
+
+
+-- @@ L39-39 verbatim
+namespace BernoulliRegular
+
+
+-- @@ L41-41 verbatim
+variable (p : ℕ) [hp : Fact p.Prime] (hp_odd : p ≠ 2)
+
+-- @@ L42-43 verbatim
+variable (K : Type) [Field K] [NumberField K]
+  [IsCyclotomicExtension {p} ℚ K] [NumberField.IsCMField K]
+
+
+-- @@ L45-94 verbatim
+include hp_odd in
+/-- **SP-2 (Plus-side identification, conditional on V₀ trivial)**: under
+`p ∣ h⁺(K)` and the trivial-character eigenspace `V₀ := (Cl(K)/p)^Δ`
+being trivial, there exists an even index `i` with
+`IsReflectionComponentIndex p i` (i.e. `0 < i < p`) such that the
+`ω^i`-eigenspace of `Cl(K)/p` is non-trivial. -/
+theorem even_eigenspace_nontrivial_of_dvd_hPlus
+    (h_decomp : StandardEigenspaceDecompositionComplete
+        (V := Additive (ClassGroupModP K p))
+        (cyclotomicGalActionInstance (p := p) (K := K)))
+    (h_V0_trivial : eigenspace (V := Additive (ClassGroupModP K p))
+        (cyclotomicGalActionInstance (p := p) (K := K)) 0 = ⊥)
+    (h_dvd : (p : ℕ) ∣ hPlus K) :
+    ∃ i : ℕ, IsReflectionComponentIndex p i ∧ Even i ∧
+      eigenspaceComponentNontrivial p K i := by
+  classical
+  set Kplus := NumberField.maximalRealSubfield K
+  letI : Nontrivial (ClassGroupModP Kplus p) :=
+    nontrivial_classGroupModP_of_dvd_card p Kplus h_dvd
+  obtain ⟨cPlus, hcPlus_ne⟩ := exists_ne (1 : ClassGroupModP Kplus p)
+  set v : Additive (ClassGroupModP K p) :=
+    Additive.ofMul (FLT37.classGroupMap_modP p K cPlus)
+  have hv_ne : v ≠ 0 := by
+    intro heq
+    apply hcPlus_ne
+    have h_mul : FLT37.classGroupMap_modP p K cPlus = 1 :=
+      by simpa [v] using congrArg Additive.toMul heq
+    exact FLT37.classGroupMap_modP_injective_unconditional p K hp_odd
+      (h_mul.trans (map_one (FLT37.classGroupMap_modP p K)).symm)
+  have h_fixed : cyclotomicGalActionInstance (p := p) (K := K) (-1) v = v := by
+    obtain ⟨cI, rfl⟩ := QuotientGroup.mk_surjective cPlus
+    simp only [v]
+    change cyclotomicGalActionInstance (p := p) (K := K) (-1)
+        (Additive.ofMul (FLT37.classGroupMap_modP p K (QuotientGroup.mk cI))) =
+      Additive.ofMul (FLT37.classGroupMap_modP p K (QuotientGroup.mk cI))
+    rw [show FLT37.classGroupMap_modP p K (QuotientGroup.mk cI) =
+        QuotientGroup.mk (classGroupMap K cI) from rfl]
+    exact cyclotomicGalActionInstance_neg_one_classGroupMap hp_odd cI
+  obtain ⟨i, hi_lt, hi_even, hi_nontrivial⟩ :=
+    exists_even_eigenspaceComponentNontrivial_of_sigma_fixed_nontrivial
+      p K hp_odd h_decomp h_fixed hv_ne
+  have hi_pos : 0 < i := by
+    by_contra! h_not_pos
+    interval_cases i
+    obtain ⟨v0, hv0_mem, hv0_ne⟩ := hi_nontrivial
+    apply hv0_ne
+    rw [h_V0_trivial] at hv0_mem
+    exact (Submodule.mem_bot (R := ZMod p)).mp hv0_mem
+  refine ⟨i, ⟨hi_pos, ?_⟩, hi_even, hi_nontrivial⟩
+  omega
+
+
+-- @@ L96-96 verbatim
+end BernoulliRegular
+
+
+-- @@ L98-98 verbatim
+end

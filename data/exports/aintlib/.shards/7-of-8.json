@@ -1,0 +1,138 @@
+{
+  "shard": 7,
+  "shards": 8,
+  "commit": "160e446617a2168c34c95bbe7a76c4105b392434",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "modules": 250,
+  "exported": 222,
+  "failed": [
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafFiniteStageLinearEquiv",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafMonomialBasis",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafNeighborhoodHOne",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafPowerOneAwayBaseChangeBasis",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafRankTwoThree",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassAway",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassChart",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapProper",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapSectionAwayIso",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceClosedPositiveTwistCechVanishing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpacePositiveTwistCechVanishing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistCech",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistCechHOne",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistCechWeightAssembly",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistCechWeightComponents",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistFinitePresentation",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.RelativeProjectiveTwist",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.SchemeModuleCanonicalSupportChowComparison",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.SeesawGlobalBase",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ModularCurve.RhoSmooth",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.Picard.SelfAdjointN",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.ChartFromUniversalPair",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.ConstReading",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.DescentFaithful",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.FibreGalois",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.GaloisFieldPairing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.OrdPipeline",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.TorsionSqBaseChange",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "tools": {
+    "lean": "4.34.0-rc2 (commit 6a10ac8c22beadecabdbb0919c2b50214762f91d, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+6a10ac8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "483e011449cc + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "minutes": 126,
+  "finishedAt": "2026-11-09T21:40:35.793Z"
+}

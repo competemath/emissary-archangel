@@ -1,0 +1,677 @@
+{
+  "key": "aintlib",
+  "repo": "https://github.com/CBirkbeck/AINTLIB",
+  "commit": "160e446617a2168c34c95bbe7a76c4105b392434",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "ModularCurves",
+    "BernoulliRegular",
+    "HasseWeil",
+    "DedekindResidue",
+    "LutzNagell"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/aintlib/repo",
+  "entries": 29920,
+  "modules": 2035,
+  "exported": 1884,
+  "failed": [
+    {
+      "module": "ModularCurves.EllipticCurve.AbelEquivalence",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.DegreeOneFibreCohomology",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.FibrewiseLocallyWeierstrass",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleFiltrationMonomialBasis",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleFiltrationMonomialSequence",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafAwayAffineModelEval",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafAwayChartFactor",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafAwayChartHom",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafAwayCoordinateRing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafFiniteStageAwayCompatibility",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafFiniteStageLinearEquiv",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafMonomialAway",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafMonomialBasis",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafMonomialBasisAway",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafMonomialSequence",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafNeighborhoodHOne",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafNoetherianStage",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafNoetherianStageCech",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafPowerOneAwayBaseChangeBasis",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafPowerOneProjectiveBaseChange",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafPowerOneProjectiveCoordinates",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafProjectiveBaseChange",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafProjectiveBaseChangeHOne",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafProjectiveCech",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafProjectiveCoordinates",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafProjectiveXY",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafRankTwoThree",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafSuccessorCoordinateMul",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafSuccessorProductBasis",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafUniformMonomialBasis",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassAway",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassChart",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassComparison",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapFinite",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapGlobalFinite",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapGlue",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapOverlap",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapPreimage",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapProper",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapSectionAwayIso",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapSectionNeighborhood",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapSectionNeighborhoodAway",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapZeroIdeal",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassPointed",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassRelation",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveCoordinatePullbackTwistMap",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveCoordinateTwistMap",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectivePointChartShrink",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceClosedPositiveTwistCechVanishing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpacePoleSheafBaseChange",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpacePositiveTwistCechVanishing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpacePositiveTwistCoproductCech",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpacePositiveTwistQuasicoherent",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpacePositiveTwistTensorCech",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwist",
+      "why": "does not compile at the library's own commit: error: projects/ModularCurves/ModularCurves/EllipticCurve/ProjectiveSpaceTwist.lean:940:8: (kernel) deterministic timeout"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistCech",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistCechFinite",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistCechFirstLaurent",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistCechHOne",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistCechHigher",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistCechWeightAssembly",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistCechWeightComponents",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistCechWeights",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistFinitePresentation",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistFixedPresentation",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistPairingIso",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistPullbackEquivalence",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistShiftedPresentation",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistTensorEquivalence",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.RelativeProjectiveCoordinateTwistCechVanishing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.RelativeProjectiveTwistCechVanishing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.ProjectiveFactorizationCechFinite",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.ProjectiveFactorizationCechHOne",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.ProjectiveFactorizationFiniteSections",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.RelativeProjectivePushforwardFiniteType",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.RelativeProjectiveTwist",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.SchemeModuleCanonicalSupportChowChart",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.SchemeModuleCanonicalSupportChowComparison",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.SchemeModuleCanonicalSupportChowLowDegreeAssembly",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.SchemeModuleCanonicalSupportChowLowDegreeFinite",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.SchemeModuleProperLowDegreeCechFinite",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.Seesaw",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.SeesawBaseLocallyTrivial",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.SeesawGlobalBase",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.SeesawPushforwardInvertible",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ModularCurve.IrreducibilityScoping",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ModularCurve.RhoDescent",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ModularCurve.RhoPairingBridge",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ModularCurve.RhoPoints",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ModularCurve.RhoSections",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ModularCurve.RhoSmooth",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ModularCurve.VRhoGroup",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ModularCurve.YRho",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.Picard.InvertibleSheafCocycleSmoothStage",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.Picard.InvertibleSheafGlueBaseChange",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.Picard.InvertibleSheafGlueDataDescent",
+      "why": "does not compile at the library's own commit: error: projects/ModularCurves/ModularCurves/Picard/InvertibleSheafGlueDataDescent.lean:78:8: (kernel) deterministic timeout"
+    },
+    {
+      "module": "ModularCurves.Picard.InvertibleSheafGlueEffectivity",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.Picard.InvertibleSheafNoetherianSmoothStage",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.Picard.InvertibleSheafNoetherianStage",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.Picard.InvertibleSheafProperCechResidueSpread",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.Picard.SelfAdjointN",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.AlternationReduction",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.Basic",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.CharZeroAssembly",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.CharZeroDescent",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.ChartFromUniversalPair",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.ChartGroupSum",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.ConstReading",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.CurveNaturality",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.DescentFaithful",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.DetCocycle",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.EtaleDescent",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.FibreGalois",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.FibrePointDict",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.FieldLeaf",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.FieldPairing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.FieldPairingDet",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.FieldPairingUnique",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.FieldPairingValue",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.FullLevelBaseChange",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.FullLevelPairing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.GaloisFibre",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.GaloisFieldPairing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.GaloisFunctionField",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.GlobalFibreChart",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.GlueDataset",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.KMBilinear",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.KMCompatibility",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.KMDataset",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.KMIndependence",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.KMNaturality",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.KMPairing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.KMPatching",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.KMUniqueness",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.MuNBaseChange",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.NativeRestriction",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.Nondegenerate",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.OrdPipeline",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.PairingTransport",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.PoincareBiextension",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.RootPowerPoints",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.RootSplitting",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.SelfField",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.SelfUniversal",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.SelfUniversalVanishing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.TensorCocycle",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.TheoremOfSquareBaseChange",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.TheoremOfSquareUniversal",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.TorsionBaseChange",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.TorsionSqBaseChange",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.Translation",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 168,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "ModularCurves.EllipticCurve.PoleSheafModel",
+        "why": "e env lean -M 14336 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/aintlib ModularCurves,BernoulliRegular,HasseWeil,DedekindResidue,LutzNagell ModularCurves.EllipticCurve.PoleSheafModel "
+      },
+      {
+        "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassOverlap",
+        "why": " 14336 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/aintlib ModularCurves,BernoulliRegular,HasseWeil,DedekindResidue,LutzNagell ModularCurves.EllipticCurve.PoleSheafWeierstrassOverlap "
+      }
+    ]
+  },
+  "seed": {
+    "records": 30142,
+    "kept": 29920,
+    "skippedRoot": 18,
+    "skippedDup": 181,
+    "skippedNoFile": 0,
+    "skippedCommented": 23,
+    "lineFixed": 7060,
+    "lineUnverified": 102,
+    "nameFixed": 1701,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "sharded": {
+    "records": 8,
+    "shards": [
+      8
+    ]
+  },
+  "tools": {
+    "lean": "4.34.0-rc2 (commit 6a10ac8c22beadecabdbb0919c2b50214762f91d, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+6a10ac8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "483e011449cc + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 4805156864,
+  "minutes": 146,
+  "finishedAt": "2026-11-09T22:01:44.501Z",
+  "archive": {
+    "release": "exports-aintlib",
+    "asset": "aintlib@160e446617a2-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-aintlib/aintlib@160e446617a2-exports.tar.zst",
+    "bytes": 522083092,
+    "sha256": "4f6b297280781bb279534bca9d925836dddcc0329480223c24fddfb5d80b7e1c",
+    "files": 3768,
+    "unpack": "tar --zstd -xf aintlib@160e446617a2-exports.tar.zst -C data/exports/aintlib"
+  }
+}

@@ -1,0 +1,327 @@
+/-
+Copyright (c) 2026 Chris Birkbeck. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Chris Birkbeck
+-/
+module
+
+public import Mathlib.RingTheory.Teichmuller
+public import BernoulliRegular.Reflection.ResidueSymbol.Furtwaengler.KummerArtinHasseUnitResidue
+
+
+-- @@ L11-26 verbatim
+/-!
+# Teichmüller residue-unit lifts at `lambda`
+
+This file replaces the arbitrary residue lifts from
+`KummerArtinHasseUnitResidue` by adic Teichmüller lifts in the completed
+local integer ring.  This is the second piece of the explicit local
+decomposition used by the Kummer--Artin--Hasse correction:
+
+* identify the completed first residue quotient with the uncompleted residue
+  quotient already used by the unit-residue map;
+* construct the Teichmüller lift of each nonzero residue class;
+* prove its residue and finite-order equations.
+
+The construction uses `Perfection.teichmuller₀` and stays in the explicit
+local model.
+-/
+
+
+-- @@ L28-28 verbatim
+@[expose] public section
+
+
+-- @@ L30-30 verbatim
+noncomputable section
+
+
+-- @@ L32-32 verbatim
+open scoped NumberField
+
+
+-- @@ L34-34 verbatim
+namespace BernoulliRegular
+
+-- @@ L35-35 verbatim
+namespace Furtwaengler
+
+-- @@ L36-36 verbatim
+namespace KummerArtinHasse
+
+
+
+-- @@ L39-39 verbatim
+variable (p : ℕ) [Fact p.Prime]
+
+-- @@ L40-40 verbatim
+variable (K : Type*) [Field K] [NumberField K] [IsCyclotomicExtension {p} ℚ K]
+
+
+-- @@ L42-50 verbatim
+/-- In a monoid, `u ^ (p - 1) = 1` upgrades to `u ^ p = u`. -/
+theorem pow_prime_eq_self_of_pow_sub_one_eq_one
+    {G : Type*} [Monoid G] (u : G) {p : ℕ}
+    (hp_one : 1 ≤ p) (h : u ^ (p - 1) = 1) :
+    u ^ p = u := by
+  calc
+    u ^ p = u ^ ((p - 1) + 1) := by rw [Nat.sub_add_cancel hp_one]
+    _ = u ^ (p - 1) * u := by rw [pow_succ]
+    _ = u := by rw [h, one_mul]
+
+
+-- @@ L52-54 verbatim
+/-- The residue quotient of the completed local integer ring. -/
+abbrev LambdaCompletedResidueRing : Type _ :=
+  LambdaLocalIntegerRing p K ⧸ LambdaMaximalIdeal p K
+
+
+-- @@ L56-67 verbatim
+/-- The completed first residue quotient is canonically the same as the
+uncompleted residue quotient, via `AdicCompletion.evalOneₐ`. -/
+noncomputable def lambdaCompletedResidueEquivLocal :
+    LambdaCompletedResidueRing p K ≃+* LambdaResidueRing p K :=
+  (Ideal.quotEquivOfEq
+      (Reflection.Local.completedLocalCyclotomicMaximalIdeal_eq_ker_evalOne
+        (p := p) (K := K))).trans
+    (RingHom.quotientKerEquivOfSurjective
+      (f := (AdicCompletion.evalOneₐ
+        (Reflection.Local.localCyclotomicMaximalIdeal p K)).toRingHom)
+      (AdicCompletion.evalOneₐ_surjective
+        (Reflection.Local.localCyclotomicMaximalIdeal p K)))
+
+
+-- @@ L69-79 verbatim
+/-- The identification is the evaluation-at-level-one map on residue classes. -/
+@[simp]
+theorem lambdaCompletedResidueEquivLocal_mk
+    (x : LambdaLocalIntegerRing p K) :
+    lambdaCompletedResidueEquivLocal p K
+        (Ideal.Quotient.mk (LambdaMaximalIdeal p K) x) =
+      AdicCompletion.evalOneₐ
+        (Reflection.Local.localCyclotomicMaximalIdeal p K) x := by
+  rw [lambdaCompletedResidueEquivLocal, RingEquiv.trans_apply,
+    Ideal.quotEquivOfEq_mk, RingHom.quotientKerEquivOfSurjective_apply_mk]
+  rfl
+
+
+-- @@ L81-85 verbatim
+/-- The completed residue ring has `p` elements. -/
+theorem lambdaCompletedResidueRing_natCard :
+    Nat.card (LambdaCompletedResidueRing p K) = p :=
+  (Nat.card_congr (lambdaCompletedResidueEquivLocal p K).toEquiv).trans
+    (Reflection.Local.localCyclotomicResidueCard (p := p) (K := K))
+
+
+-- @@ L87-91 verbatim
+instance lambdaCompletedResidueRing_finite :
+    Finite (LambdaCompletedResidueRing p K) :=
+  Nat.finite_of_card_ne_zero <| by
+    rw [lambdaCompletedResidueRing_natCard (p := p) (K := K)]
+    exact (Fact.out : Nat.Prime p).ne_zero
+
+
+-- @@ L93-95 verbatim
+noncomputable instance lambdaCompletedResidueRing_fintype :
+    Fintype (LambdaCompletedResidueRing p K) :=
+  Fintype.ofFinite (LambdaCompletedResidueRing p K)
+
+
+-- @@ L97-101 verbatim
+/-- The same count, as a `Fintype.card`. -/
+theorem lambdaCompletedResidueRing_card :
+    Fintype.card (LambdaCompletedResidueRing p K) = p := by
+  rw [← Nat.card_eq_fintype_card]
+  exact lambdaCompletedResidueRing_natCard (p := p) (K := K)
+
+
+-- @@ L103-105 verbatim
+instance lambdaCompletedResidueRing_charP :
+    CharP (LambdaCompletedResidueRing p K) p :=
+  charP_of_card_eq_prime (lambdaCompletedResidueRing_card (p := p) (K := K))
+
+
+-- @@ L107-119 verbatim
+/-- Hence the residue ring is `ZMod p`, and Fermat's little theorem holds in it. -/
+theorem lambdaCompletedResidueRing_pow_prime
+    (x : LambdaCompletedResidueRing p K) :
+    x ^ p = x := by
+  let e : ZMod p ≃+* LambdaCompletedResidueRing p K :=
+    ZMod.ringEquivOfPrime (LambdaCompletedResidueRing p K)
+      (Fact.out : Nat.Prime p)
+      (lambdaCompletedResidueRing_card (p := p) (K := K))
+  calc
+    x ^ p = e ((e.symm x) ^ p) := by
+      rw [map_pow, RingEquiv.apply_symm_apply]
+    _ = e (e.symm x) := by rw [ZMod.pow_card]
+    _ = x := by simp
+
+
+-- @@ L121-129 verbatim
+/-- A residue *unit* pulls back to a nonzero element of the completed residue ring. -/
+theorem lambdaCompletedResidueRing_symm_residueUnit_ne_zero
+    (a : LambdaResidueUnitGroup p K) :
+    (lambdaCompletedResidueEquivLocal p K).symm (a : LambdaResidueRing p K) ≠ 0 := by
+  intro h
+  have ha0 : (a : LambdaResidueRing p K) = 0 := by
+    rw [← (lambdaCompletedResidueEquivLocal p K).apply_symm_apply
+      (a : LambdaResidueRing p K), h, map_zero]
+  exact a.ne_zero ha0
+
+
+-- @@ L131-155 verbatim
+/-- …and one satisfying `x ^ (p - 1) = 1`. -/
+theorem lambdaCompletedResidueRing_symm_residueUnit_pow_sub_one
+    (a : LambdaResidueUnitGroup p K) :
+    ((lambdaCompletedResidueEquivLocal p K).symm (a : LambdaResidueRing p K)) ^
+        (p - 1) = 1 := by
+  let e : ZMod p ≃+* LambdaCompletedResidueRing p K :=
+    ZMod.ringEquivOfPrime (LambdaCompletedResidueRing p K)
+      (Fact.out : Nat.Prime p)
+      (lambdaCompletedResidueRing_card (p := p) (K := K))
+  have hc_ne :
+      e.symm ((lambdaCompletedResidueEquivLocal p K).symm
+        (a : LambdaResidueRing p K)) ≠ 0 := fun h =>
+    lambdaCompletedResidueRing_symm_residueUnit_ne_zero (p := p) (K := K) a
+      (by
+        rw [← e.apply_symm_apply
+          ((lambdaCompletedResidueEquivLocal p K).symm (a : LambdaResidueRing p K)),
+          h, map_zero])
+  calc
+    ((lambdaCompletedResidueEquivLocal p K).symm (a : LambdaResidueRing p K)) ^
+        (p - 1) =
+      e ((e.symm ((lambdaCompletedResidueEquivLocal p K).symm
+        (a : LambdaResidueRing p K))) ^ (p - 1)) := by
+        rw [map_pow, RingEquiv.apply_symm_apply]
+    _ = e 1 := by rw [ZMod.pow_card_sub_one_eq_one hc_ne]
+    _ = 1 := by simp
+
+
+-- @@ L157-162 verbatim
+/-- The constant perfection element attached to a nonzero residue class. -/
+noncomputable def lambdaTeichmullerInput
+    (a : LambdaResidueUnitGroup p K) :
+    Perfection (LambdaCompletedResidueRing p K) p :=
+  ⟨fun _ => (lambdaCompletedResidueEquivLocal p K).symm a,
+    fun _ => lambdaCompletedResidueRing_pow_prime (p := p) (K := K) _⟩
+
+
+-- @@ L164-169 verbatim
+/-- The perfection element inherits `x ^ (p - 1) = 1` level by level. -/
+theorem lambdaTeichmullerInput_pow_sub_one
+    (a : LambdaResidueUnitGroup p K) :
+    lambdaTeichmullerInput p K a ^ (p - 1) = 1 := by
+  ext n
+  exact lambdaCompletedResidueRing_symm_residueUnit_pow_sub_one (p := p) (K := K) a
+
+
+-- @@ L171-175 verbatim
+/-- The Teichmüller lift in the completed local integer ring. -/
+noncomputable def lambdaTeichmullerRingLift
+    (a : LambdaResidueUnitGroup p K) : LambdaLocalIntegerRing p K :=
+  Perfection.teichmuller₀ p (LambdaMaximalIdeal p K)
+    (lambdaTeichmullerInput p K a)
+
+
+-- @@ L177-186 verbatim
+/-- The Teichmüller lift lifts: its residue is the class one started from. -/
+@[simp]
+theorem lambdaTeichmullerRingLift_residue
+    (a : LambdaResidueUnitGroup p K) :
+    AdicCompletion.evalOneₐ
+        (Reflection.Local.localCyclotomicMaximalIdeal p K)
+        (lambdaTeichmullerRingLift p K a) = a := by
+  rw [← lambdaCompletedResidueEquivLocal_mk (p := p) (K := K)]
+  rw [lambdaTeichmullerRingLift, Perfection.mk_teichmuller₀]
+  simp [lambdaTeichmullerInput]
+
+
+-- @@ L188-193 verbatim
+/-- …and it satisfies `x ^ (p - 1) = 1` exactly, not just modulo the maximal ideal. -/
+theorem lambdaTeichmullerRingLift_pow_sub_one
+    (a : LambdaResidueUnitGroup p K) :
+    lambdaTeichmullerRingLift p K a ^ (p - 1) = 1 := by
+  rw [lambdaTeichmullerRingLift, ← map_pow,
+    lambdaTeichmullerInput_pow_sub_one, map_one]
+
+
+-- @@ L195-202 verbatim
+/-- The Teichmüller lift is a unit, as its residue is nonzero. -/
+noncomputable def lambdaTeichmullerUnitLift
+    (a : LambdaResidueUnitGroup p K) : LambdaUnitGroup p K :=
+  (IsUnit.of_pow_eq_one
+    (lambdaTeichmullerRingLift_pow_sub_one (p := p) (K := K) a)
+    (by
+      have hp_gt_one : 1 < p := (Fact.out : Nat.Prime p).one_lt
+      omega)).unit
+
+
+-- @@ L204-210 verbatim
+/-- The underlying ring element of the Teichmüller unit. -/
+@[simp]
+theorem lambdaTeichmullerUnitLift_val
+    (a : LambdaResidueUnitGroup p K) :
+    (lambdaTeichmullerUnitLift p K a : LambdaLocalIntegerRing p K) =
+      lambdaTeichmullerRingLift p K a :=
+  IsUnit.unit_spec _
+
+
+-- @@ L212-218 verbatim
+/-- The Teichmüller unit has the prescribed residue. -/
+@[simp]
+theorem lambdaTeichmullerUnitLift_residue
+    (a : LambdaResidueUnitGroup p K) :
+    lambdaCompletedUnitResidue p K (lambdaTeichmullerUnitLift p K a) = a := by
+  ext
+  simp [lambdaCompletedUnitResidue]
+
+
+-- @@ L220-226 verbatim
+/-- The Teichmüller unit is a `(p - 1)`-st root of unity. -/
+theorem lambdaTeichmullerUnitLift_pow_sub_one
+    (a : LambdaResidueUnitGroup p K) :
+    lambdaTeichmullerUnitLift p K a ^ (p - 1) = 1 := by
+  apply Units.ext
+  change ((lambdaTeichmullerUnitLift p K a : LambdaLocalIntegerRing p K) ^ (p - 1)) = 1
+  rw [lambdaTeichmullerUnitLift_val, lambdaTeichmullerRingLift_pow_sub_one]
+
+
+-- @@ L228-236 verbatim
+/-- Equivalently, it is fixed by `x ↦ x ^ p` — the characterising property of the
+Teichmüller lift. -/
+theorem lambdaTeichmullerUnitLift_pow_prime
+    (a : LambdaResidueUnitGroup p K) :
+    lambdaTeichmullerUnitLift p K a ^ p = lambdaTeichmullerUnitLift p K a :=
+  pow_prime_eq_self_of_pow_sub_one_eq_one
+    (lambdaTeichmullerUnitLift p K a)
+    (Nat.Prime.one_le (Fact.out : Nat.Prime p))
+    (lambdaTeichmullerUnitLift_pow_sub_one (p := p) (K := K) a)
+
+
+-- @@ L238-245 verbatim
+/-- The Teichmüller factor is a `p`-th power in the completed local unit group;
+it is its own `p`-th root. -/
+theorem lambdaTeichmullerUnitLift_mem_powMonoidHom_range
+    (a : LambdaResidueUnitGroup p K) :
+    lambdaTeichmullerUnitLift p K a ∈
+      (powMonoidHom p : LambdaUnitGroup p K →* LambdaUnitGroup p K).range :=
+  ⟨lambdaTeichmullerUnitLift p K a,
+    lambdaTeichmullerUnitLift_pow_prime (p := p) (K := K) a⟩
+
+
+-- @@ L247-251 verbatim
+/-- The Teichmüller factor has order dividing `p - 1`. -/
+theorem orderOf_lambdaTeichmullerUnitLift_dvd
+    (a : LambdaResidueUnitGroup p K) :
+    orderOf (lambdaTeichmullerUnitLift p K a) ∣ p - 1 :=
+  orderOf_dvd_of_pow_eq_one (lambdaTeichmullerUnitLift_pow_sub_one (p := p) (K := K) a)
+
+
+-- @@ L253-253 verbatim
+end KummerArtinHasse
+
+-- @@ L254-254 verbatim
+end Furtwaengler
+
+-- @@ L255-255 verbatim
+end BernoulliRegular

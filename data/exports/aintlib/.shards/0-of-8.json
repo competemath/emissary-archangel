@@ -1,0 +1,122 @@
+{
+  "shard": 0,
+  "shards": 8,
+  "commit": "160e446617a2168c34c95bbe7a76c4105b392434",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "modules": 276,
+  "exported": 252,
+  "failed": [
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafAwayChartFactor",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafPowerOneProjectiveBaseChange",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafPowerOneProjectiveCoordinates",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassComparison",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapOverlap",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveCoordinatePullbackTwistMap",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpacePositiveTwistQuasicoherent",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwist",
+      "why": "does not compile at the library's own commit: error: projects/ModularCurves/ModularCurves/EllipticCurve/ProjectiveSpaceTwist.lean:940:8: (kernel) deterministic timeout"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistCechFinite",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistCechFirstLaurent",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistCechHigher",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistCechWeights",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveSpaceTwistPullbackEquivalence",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.RelativeProjectiveTwistCechVanishing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.SchemeModuleCanonicalSupportChowLowDegreeAssembly",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.Picard.InvertibleSheafGlueDataDescent",
+      "why": "does not compile at the library's own commit: error: projects/ModularCurves/ModularCurves/Picard/InvertibleSheafGlueDataDescent.lean:78:8: (kernel) deterministic timeout"
+    },
+    {
+      "module": "ModularCurves.Picard.InvertibleSheafGlueEffectivity",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.Picard.InvertibleSheafProperCechResidueSpread",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.Basic",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.CharZeroAssembly",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.FibrePointDict",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.KMIndependence",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.KMPatching",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.SelfField",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "tools": {
+    "lean": "4.34.0-rc2 (commit 6a10ac8c22beadecabdbb0919c2b50214762f91d, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+6a10ac8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "483e011449cc + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "minutes": 142,
+  "finishedAt": "2026-11-09T21:56:33.209Z"
+}

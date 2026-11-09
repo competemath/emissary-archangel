@@ -1,0 +1,74 @@
+/-
+Copyright (c) 2026 Chris Birkbeck. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Chris Birkbeck
+-/
+module
+
+public import BernoulliRegular.Reflection.Final
+
+
+-- @@ L10-23 verbatim
+/-!
+# T044 contrapositive packaging (LV005d)
+
+The reflection theorem T044a (`Reflection/Final.lean`,
+`ReflectionMinusNontrivialityBridge.dvd_hMinus_of_dvd_hPlus_of_bridge`)
+states `p ∣ hPlus K ⟹ p ∣ hMinus K` given the reflection bridge data.
+LV005's final assembly consumes this in its contrapositive form
+`¬ p ∣ hMinus K ⟹ ¬ p ∣ hPlus K`.
+
+## References
+
+* Washington, *Introduction to Cyclotomic Fields*, §10.3.
+* Diekmann, *FLT for regular primes*, §6.
+-/
+
+
+-- @@ L25-25 verbatim
+@[expose] public section
+
+
+-- @@ L27-27 verbatim
+noncomputable section
+
+
+-- @@ L29-29 verbatim
+open NumberField
+
+
+-- @@ L31-31 verbatim
+namespace BernoulliRegular
+
+
+-- @@ L33-33 verbatim
+universe u
+
+
+-- @@ L35-35 verbatim
+variable (p : ℕ) [Fact p.Prime]
+
+
+-- @@ L37-38 verbatim
+variable (K : Type u) [Field K] [NumberField K] [IsCyclotomicExtension {p} ℚ K]
+  [IsCMField K]
+
+
+-- @@ L40-48 verbatim
+/-- **T044 contrapositive (bridge-parametric form)**: given the reflection
+bridge data, `¬ p ∣ hMinus K ⟹ ¬ p ∣ hPlus K`. Mirrors T044a's contrapositive
+for downstream callers that already hold the bridge. -/
+theorem not_dvd_hPlus_of_not_dvd_hMinus_of_bridge
+    (B : ReflectionMinusNontrivialityBridge p K)
+    (h_minus : ¬ (p : ℕ) ∣ hMinus K) :
+    ¬ (p : ℕ) ∣ hPlus K :=
+  fun h_plus => h_minus
+    (B.dvd_hMinus_of_dvd_hPlus_of_bridge (p := p) (K := K) h_plus)
+
+
+-- @@ L50-50 verbatim
+end BernoulliRegular
+
+
+-- @@ L52-52 verbatim
+end

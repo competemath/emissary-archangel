@@ -1,0 +1,83 @@
+{
+  "shard": 4,
+  "shards": 8,
+  "commit": "160e446617a2168c34c95bbe7a76c4105b392434",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "modules": 262,
+  "exported": 250,
+  "failed": [
+    {
+      "module": "ModularCurves.EllipticCurve.FibrewiseLocallyWeierstrass",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafFiniteStageAwayCompatibility",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafSuccessorProductBasis",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapGlue",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapSectionNeighborhood",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassMapZeroIdeal",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassPointed",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectiveCoordinateTwistMap",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ModularCurve.YRho",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.Picard.InvertibleSheafNoetherianSmoothStage",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.ChartGroupSum",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.RootPowerPoints",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 168,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "ModularCurves.EllipticCurve.PoleSheafModel",
+        "why": "e env lean -M 14336 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/aintlib ModularCurves,BernoulliRegular,HasseWeil,DedekindResidue,LutzNagell ModularCurves.EllipticCurve.PoleSheafModel "
+      },
+      {
+        "module": "ModularCurves.EllipticCurve.PoleSheafWeierstrassOverlap",
+        "why": " 14336 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/aintlib ModularCurves,BernoulliRegular,HasseWeil,DedekindResidue,LutzNagell ModularCurves.EllipticCurve.PoleSheafWeierstrassOverlap "
+      }
+    ]
+  },
+  "tools": {
+    "lean": "4.34.0-rc2 (commit 6a10ac8c22beadecabdbb0919c2b50214762f91d, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+6a10ac8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "483e011449cc + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "minutes": 146,
+  "finishedAt": "2026-11-09T22:00:41.868Z"
+}

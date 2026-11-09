@@ -1,0 +1,98 @@
+{
+  "shard": 2,
+  "shards": 8,
+  "commit": "160e446617a2168c34c95bbe7a76c4105b392434",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "modules": 254,
+  "exported": 236,
+  "failed": [
+    {
+      "module": "ModularCurves.EllipticCurve.PoleSheafNoetherianStage",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.ProjectivePointChartShrink",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.EllipticCurve.RelativeProjectiveCoordinateTwistCechVanishing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.ProjectiveFactorizationFiniteSections",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.RelativeProjectivePushforwardFiniteType",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.SchemeModuleCanonicalSupportChowChart",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.SchemeModuleProperLowDegreeCechFinite",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ForMathlib.SeesawPushforwardInvertible",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.ModularCurve.VRhoGroup",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.Picard.InvertibleSheafNoetherianStage",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.CharZeroDescent",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.FieldLeaf",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.FieldPairing",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.FullLevelBaseChange",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.KMCompatibility",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.KMDataset",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.KMUniqueness",
+      "why": "no closure"
+    },
+    {
+      "module": "ModularCurves.WeilPairing.RootSplitting",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "tools": {
+    "lean": "4.34.0-rc2 (commit 6a10ac8c22beadecabdbb0919c2b50214762f91d, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+6a10ac8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "483e011449cc + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "minutes": 107,
+  "finishedAt": "2026-11-09T21:21:09.429Z"
+}
