@@ -1,0 +1,8 @@
+{
+  "label": "FATE-X v1.2.0 (statement attestation only; this entry is never added to sources.json)",
+  "repo": "https://github.com/frenzymath/FATE-X",
+  "commit": "a6fb49ee85fd05bb8ce9fc66e1c66797b5a0592d",
+  "toolchain": "leanprover/lean4:v4.28.0",
+  "roots": ["FATEX"],
+  "licence": "MIT"
+}
