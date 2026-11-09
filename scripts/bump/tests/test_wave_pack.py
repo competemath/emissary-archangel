@@ -104,7 +104,7 @@ class Restore(unittest.TestCase):
         for m in failed:
             write(self.lib, m, built=False)
         mods = [*built, *failed]
-        return wp.pack(self.lib, {m: src(self.lib, m) for m in mods}, mods, self.packs / name, set(mods))
+        return wp.pack(self.lib, {m: src(self.lib, m) for m in mods}, mods, self.packs / name, set(built))
 
     def fresh(self):
         n = self.t / "fresh"
