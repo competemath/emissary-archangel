@@ -53,15 +53,15 @@ universe u v u_1 u_2
 -- ---- constants whose SIGNATURE changed (migration.json `renames`): the original's reference to `Subring` is read as a reference to the wrapper below, which has the old signature ----
 
 -- v4.28.0 `structure Subring (R : Type u) [Ring R]`; the tree: `Subring (R : Type u) [NonAssocRing R]`. Same subrings of the same ring.
-@[reducible] def AttestOld.Subring (R : Type u) [Ring R] : Type u := Subring R
+@[reducible] def AttestOld.Subring (R : Type u) [Ring R] : Type u := _root_.Subring R
 
 -- v4.28.0 `Subgroup.normalizer (H : Subgroup G) : Subgroup G`; the tree: it takes a `Set G` (`Subgroup.normalizer (s : Set G)`), the normalizer of the set `↑H`.
-@[reducible] def AttestOld.Subgroup.normalizer {G : Type u_1} [Group G] (H : Subgroup G) : Subgroup G := Subgroup.normalizer (H : Set G)
+@[reducible] def AttestOld.Subgroup.normalizer {G : Type u_1} [Group G] (H : _root_.Subgroup G) : _root_.Subgroup G := _root_.Subgroup.normalizer (H : Set G)
 
 -- v4.28.0 Mathlib/Algebra/Ring/Subring/Basic.lean:1072 `instance [AddCommMonoid α] [Module R α] (S : Subring R) : Module S α`.
-@[reducible] def Subring.instModuleSubtypeMem {R : Type u_1} {α : Type u_2} [Ring R] [AddCommMonoid α] [Module R α] (S : AttestOld.Subring R) : Module S α := inferInstanceAs (Module (S : Subring R) α)
+@[reducible] def Subring.instModuleSubtypeMem {R : Type u_1} {α : Type u_2} [Ring R] [AddCommMonoid α] [Module R α] (S : AttestOld.Subring R) : Module (S : _root_.Subring R) α := inferInstance
 
 -- v4.28.0 Mathlib/Algebra/Algebra/Basic.lean:100 `instance ofSubring {R A : Type*} [CommRing R] [Ring A] [Algebra R A] (S : Subring R) : Algebra S A`.
-@[reducible] def Algebra.ofSubring {R : Type u_1} {A : Type u_2} [CommRing R] [Ring A] [Algebra R A] (S : AttestOld.Subring R) : Algebra S A := inferInstanceAs (Algebra (S : Subring R) A)
+@[reducible] def Algebra.ofSubring {R : Type u_1} {A : Type u_2} [CommRing R] [Ring A] [Algebra R A] (S : AttestOld.Subring R) : Algebra (S : _root_.Subring R) A := inferInstance
 
 end AttestMigration
