@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { TOOL_FIELDS, collectTools, exporterAction, mergeTools, parseElan, patchFingerprint, parseLake, parseLean, plain, errorLineKeeper, ownErrorLine, retrying, runnerImage, transientDownload } from "./setup-tools.mjs"
+import { TOOL_FIELDS, collectTools, exporterAction, mergeTools, parseElan, patchFingerprint, parseLake, parseLean, plain, brokenAlone, errorLineKeeper, ownErrorLine, retrying, runnerImage, transientDownload } from "./setup-tools.mjs"
 
 let bad = 0
 const check = (name, ok, got) => {
@@ -185,6 +185,13 @@ const schedule = async (answers, opts = {}) => {
     keepOk &&= c.text() === lines.filter((l) => l.startsWith("error: ")).join("\n")
   }
   check("kept errors: 2,000 random outputs in random chunks give exactly the error lines", keepOk, null)
+  const ownLine = "error: projects/ModularCurves/ModularCurves/EllipticCurve/ProjectiveSpaceTwist.lean:940:8: (kernel) deterministic timeout"
+  const ownPath = "ModularCurves/EllipticCurve/ProjectiveSpaceTwist.lean"
+  check("alone: the real error line, from a build that ended by itself, is the module's fault", brokenAlone({ code: 1, errors: ownLine, tail: "" }, ownPath, aintDirs) === ownLine, null)
+  check("alone: the same line in the tail counts too", brokenAlone({ code: 1, errors: "", tail: ownLine }, ownPath, aintDirs) === ownLine, null)
+  check("alone: a build that ran out of its time limit says nothing, even with an error line", brokenAlone({ code: 124, errors: ownLine, tail: "[timed out after 18000s]" }, ownPath, aintDirs) === null, null)
+  check("alone: a failure with no error of its own says nothing", brokenAlone({ code: 1, errors: "", tail: "error: build failed" }, ownPath, aintDirs) === null, null)
+  check("setup-source.mjs asks brokenAlone about a module that failed alone", /const err = brokenAlone\(aloneResult, pathOfModule\(m\), SRCDIRS\)/.test(src), null)
   check("setup-source.mjs keeps stdout and stderr apart", /p\.stdout\.on\("data", onData\("out"\)\)/.test(src) && /p\.stderr\.on\("data", onData\("err"\)\)/.test(src), null)
   check("setup-source.mjs looks for the error in the kept errors as well as the tail", /ownError\(m, `\$\{r\.errors\}\\n\$\{r\.tail\}`\)/.test(src), null)
 }

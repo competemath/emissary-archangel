@@ -149,3 +149,8 @@ export function errorLineKeeper() {
     text: () => [...lines, ...[...partial.values()].filter((l) => l.startsWith("error: ")).map((l) => l.slice(0, 400))].join("\n"),
   }
 }
+
+// Why a module built alone did not build, if it is a fault of its own file. A build that ran out of its time limit (exit 124) says nothing: it may have printed an error and might have finished with more time.
+export function brokenAlone(result, path, srcdirs) {
+  return result.code === 124 ? null : ownErrorLine(path, srcdirs, `${result.errors}\n${result.tail}`)
+}

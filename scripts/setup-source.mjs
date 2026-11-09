@@ -35,7 +35,7 @@ import { basename, dirname, join, relative, resolve } from "node:path"
 import { StringDecoder } from "node:string_decoder"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
-import { collectTools, exporterAction, mergeTools, patchFingerprint, ownErrorLine, errorLineKeeper, retrying, rootOfRepoPath, transientDownload } from "./setup-tools.mjs"
+import { collectTools, exporterAction, mergeTools, patchFingerprint, ownErrorLine, errorLineKeeper, brokenAlone, retrying, rootOfRepoPath, transientDownload } from "./setup-tools.mjs"
 import { bisectItems } from "./bisect.mjs"
 import { repairPins } from "./pinned-deps.mjs"
 import { aloneFirstMs, availableFrom, buildAttempts, closureBigModules, closureBudgetMs, closureRetryMs, membersOf, soloBuildMs, soloMax } from "./memory-rules.mjs"
@@ -740,10 +740,12 @@ async function mathlibCache() {
 }
 
 // Builds one module that the watchdog killed, with the machine to itself (the other chunks have finished) and a higher limit; true when it now has an .olean.
+let aloneResult = { code: 0, errors: "", tail: "" } // what the last build alone answered
 async function buildAlone(m) {
   footprintLimit = RETRY_FOOTPRINT_MB
   try {
     const r = await run("lake", ["build", m], { cwd: REPO, timeoutMs: SOLO_BUILD_MS })
+    aloneResult = r
     if (r.code !== 0) log(`WARNING: lake build ${m} (alone) exited ${r.code}`)
   } finally {
     footprintLimit = FOOTPRINT_MB
@@ -785,8 +787,17 @@ async function build(modules) {
       const retryKill = oomKilled.get(m)
       oomKilled.delete(m)
       if (!retryKill) {
-        // failed alone, but not killed: a compile error or a timeout, not memory. Not written down as too big (that would block its importers for good).
-        log(`memory: ${m} failed alone without a watchdog kill (a compile error or a timeout?): not recorded as too big, tried again next round`)
+        // failed alone, but not killed: a compile error or a timeout, not memory. Not written down as too big (that would block its importers for good). An error in its own file means it does
+        // not compile at this commit, and the probe at the end of the round never reaches a module left out here (aintlib, 9 Nov 2026: ModularCurves.EllipticCurve.ProjectiveSpaceTwist).
+        const err = brokenAlone(aloneResult, pathOfModule(m), SRCDIRS)
+        if (err) {
+          const known = loadBroken()
+          known.set(m, { error: err })
+          saveBroken(known)
+          log(`broken: ${m} does not compile at this commit (${err}); it and the modules that import it are left out, the rest is exported`)
+        } else {
+          log(`memory: ${m} failed alone without a watchdog kill (a compile error or a timeout?): not recorded as too big, tried again next round`)
+        }
         blocker = blockedBy(avoid, modules)
         continue
       }
