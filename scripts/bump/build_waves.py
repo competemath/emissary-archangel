@@ -142,6 +142,30 @@ def job_inputs(waves: list[dict], imports: dict[str, list[str]], wave: int, job:
     return sorted(seen), [list(t) for t in sorted({where[m] for m in seen})]
 
 
+def to_shards(waves: list[dict], imports: dict[str, list[str]], wanted: set[str]) -> dict:
+    """The plan a build-once runs, in the format of plan_shards.plan: one shard per job, numbered wave after wave. `own` is what it builds, `build` that and everything it imports, `targets` the modules of
+    `own` Gate 2 judges, `restore` the shards whose packs hold the rest. A shard with no targets still runs: later waves need what it builds."""
+    number: dict[tuple[int, int], int] = {}
+    for w, wave in enumerate(waves):
+        for j in range(len(wave["jobs"])):
+            number[(w, j)] = len(number)
+    shards = []
+    for w, wave in enumerate(waves):
+        for j, job in enumerate(wave["jobs"]):
+            closure, sources = job_inputs(waves, imports, w, j)
+            shards.append(
+                {
+                    "shard": number[(w, j)],
+                    "wave": w,
+                    "targets": sorted(set(job["modules"]) & wanted),
+                    "own": sorted(job["modules"]),
+                    "build": sorted({*job["modules"], *closure}),
+                    "restore": sorted(number[(a, b)] for a, b in sources),
+                }
+            )
+    return {"shards": shards, "waves": len(waves)}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("graph")

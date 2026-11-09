@@ -120,6 +120,47 @@ class Determinism(unittest.TestCase):
             self.assertEqual(json.dumps(a), json.dumps(b), case)
 
 
+class Shards(unittest.TestCase):
+    """the plan handed to the shard workflow, on the real graph"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.waves = bw.plan(G["imports"], G["lines"], 132000, 17)
+        cls.wanted = {m for i, m in enumerate(sorted(G["imports"])) if i % 2 == 0}
+        cls.plan = bw.to_shards(cls.waves, G["imports"], cls.wanted)
+
+    def test_every_module_is_owned_once_and_judged_once(self):
+        own = [m for s in self.plan["shards"] for m in s["own"]]
+        self.assertEqual(len(own), len(set(own)))
+        self.assertEqual(set(own), set(G["imports"]))
+        targets = [m for s in self.plan["shards"] for m in s["targets"]]
+        self.assertEqual(len(targets), len(set(targets)))
+        self.assertEqual(set(targets), self.wanted)
+
+    def test_a_shard_is_numbered_after_what_it_restores_and_restores_only_earlier_waves(self):
+        wave = {s["shard"]: s["wave"] for s in self.plan["shards"]}
+        self.assertEqual([s["shard"] for s in self.plan["shards"]], list(range(len(wave))))
+        for s in self.plan["shards"]:
+            for r in s["restore"]:
+                self.assertLess(r, s["shard"])
+                self.assertLess(wave[r], s["wave"])
+
+    def test_what_a_shard_builds_is_closed_under_imports(self):
+        for s in self.plan["shards"]:
+            build = set(s["build"])
+            for m in build:
+                self.assertTrue(set(d for d in G["imports"][m] if d in G["imports"]) <= build, m)
+
+    def test_the_restored_shards_hold_everything_that_is_not_its_own(self):
+        owner = {m: s["shard"] for s in self.plan["shards"] for m in s["own"]}
+        for s in self.plan["shards"]:
+            self.assertEqual({owner[m] for m in set(s["build"]) - set(s["own"])}, set(s["restore"]))
+
+    def test_a_shard_with_nothing_to_judge_is_still_in_the_plan(self):
+        p = bw.to_shards(bw.plan({"A": [], "B": ["A"]}, {"A": 5, "B": 5}, 5, 1), {"A": [], "B": ["A"]}, {"B"})
+        self.assertEqual([(s["own"], s["targets"]) for s in p["shards"]], [(["A"], []), (["B"], ["B"])])
+
+
 class Edges(unittest.TestCase):
     def test_a_chain_of_one_piece_is_cut_at_the_budget(self):
         names = [f"M{i}" for i in range(10)]
