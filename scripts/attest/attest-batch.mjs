@@ -89,7 +89,7 @@ for (const problem of problems) {
 log(`${problems.length} problems, ${prepared.size} ready for Lean, ${entries.size} already failed`)
 
 // a problem the plain bridge `fun h => h` refuses is tried once more, alone, with these terms in turn (the kernel checks each like any other)
-const BRIDGES = ["fun h => by with_unfolding_all exact h", "fun h => by convert h"]
+const BRIDGES = ["fun h => by with_unfolding_all exact h", "fun h => by convert h", "fun h => by convert h <;> first | rfl | exact Subsingleton.elim _ _ | exact proof_irrel _ _"]
 const runLean = (name, items, bridge = null) =>
   new Promise((done) => {
     const file = join(outDir, "chunks", `${name}.lean`)

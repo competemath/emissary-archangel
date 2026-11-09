@@ -110,7 +110,13 @@ DRIFT_REPLACEMENT = '''            if drift.isEmpty then
                     if a.levelParams.length == b.levelParams.length then
                       let ls := b.levelParams.map Level.param
                       let av := a.value.instantiateLevelParams a.levelParams ls
-                      let r ← attestFirstDiff av b.value true
+                      let r0 ← attestFirstDiff av b.value true
+                      -- the kernel's `Eq.refl` also needs the two TYPES to agree
+                      let rt ← attestFirstDiff (a.type.instantiateLevelParams a.levelParams ls) b.type true
+                      let r := match r0, rt with
+                        | some t, _ => some t
+                        | none, some t => some s!"TYPE: {t}"
+                        | none, none => none
                       match r with
                       | some t => pure t
                       | none =>
