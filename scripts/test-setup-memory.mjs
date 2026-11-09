@@ -65,12 +65,14 @@ const failAlone = JSON.parse(process.env.FAKE_FAIL_ALONE || "[]")
 const brokenMods = JSON.parse(process.env.FAKE_BROKEN || "[]")
 const failElsewhere = JSON.parse(process.env.FAKE_FAIL_ELSEWHERE || "[]")
 const chatty = JSON.parse(process.env.FAKE_BROKEN_CHATTY || "[]")
+const errorAlone = JSON.parse(process.env.FAKE_ERROR_ALONE || "[]")
 const olean = (m) => path.join(".lake", "build", "lib", "lean", m.split(".").join("/") + ".olean")
 const result = new Map()
 const build = (m) => {
   if (fs.existsSync(olean(m))) return true
   if (result.has(m)) return result.get(m)
   for (const i of imports[m] || []) if (!build(i)) { result.set(m, false); return false }
+  if (mods.length === 1 && errorAlone.includes(m)) { console.log("error: " + m.split(".").join("/") + ".lean:940:8: (kernel) deterministic timeout"); result.set(m, false); return false } // killed in a chunk, then a real error alone
   if (mods.length === 1 && failAlone.includes(m)) { result.set(m, false); return false } // a compile error that only shows alone, not a kill
   // does not compile at all: Lake's own error line for the module's file, as tnlean's TNLean/Archive/BlockingPeriodicityCFII2.lean printed it on 2026-11-06
   // fails, but the error Lake prints is in ANOTHER file (a dependency's, a generated one): not this module's own error
@@ -224,6 +226,11 @@ fresh()
 r = setup(["--phase", "build"], { FAKE_BROKEN_CHATTY: JSON.stringify(["Lib.C"]) })
 check("an error followed by thousands of characters of warnings still makes the module broken", r.status === 0 && existsSync(brokenMemo) && Object.keys(JSON.parse(readFileSync(brokenMemo, "utf8")).broken).join() === "Lib.C" && /deterministic timeout/.test(JSON.stringify(JSON.parse(readFileSync(brokenMemo, "utf8")).broken)), out(r))
 check("and the build is complete without it", /^complete=true$/m.test(setup(["--phase", "build-status"]).stdout), "")
+// 9d. aintlib, 9 Nov 2026: killed for memory in a chunk, then a real error when built alone with room. It is left out for the round before the broken probe, so the probe never saw it
+fresh()
+r = setup(["--phase", "build"], { FAKE_HUNGRY: JSON.stringify({ "Lib.C": 300 }), FAKE_ERROR_ALONE: JSON.stringify(["Lib.C"]) })
+check("a module killed in a chunk that then fails alone with an error in its own file is broken", r.status === 0 && existsSync(brokenMemo) && Object.keys(JSON.parse(readFileSync(brokenMemo, "utf8")).broken).join() === "Lib.C" && /deterministic timeout/.test(JSON.stringify(JSON.parse(readFileSync(brokenMemo, "utf8")).broken)), out(r))
+check("and the build is complete without it and what imports it", /^complete=true$/m.test(setup(["--phase", "build-status"]).stdout) && statusOf().other === 0, JSON.stringify(statusOf()))
 // 10. NOT broken: a module that fails without an error line of its own file (case 7's compile error that only shows alone, printed nowhere), a module whose import is missing
 // (D imports C, which was killed for memory: its import has no .olean, so it is never probed), and one whose error line is in another file
 fresh()
