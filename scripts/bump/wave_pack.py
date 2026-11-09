@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """wave_pack.py: what one job of a build-once hands to the jobs after it (build_waves.py plans the jobs).
 
-  wave_pack.py pack --lib DIR --roots R,R --modules own.txt --out DIR     this job's oleans, their cache entries and the sources it repaired, with a manifest
+  wave_pack.py pack --lib DIR --roots R,R --modules own.txt --report tb.json --out DIR     this job's oleans, their cache entries and the sources it repaired, with a manifest
   wave_pack.py restore --lib DIR --packs DIR --modules closure.txt        the files of exactly those modules, out of every pack under DIR
   wave_pack.py fetch --lib DIR --modules closure.txt --repo R --run ID --key K --shards 1,2   the same, each pack downloaded when its turn comes and deleted after
   wave_pack.py place --from DIR --lib DIR                                 moves what was restored into the library, once the library is ready for it
@@ -61,11 +61,17 @@ def _extract(archive: Path, lib: Path, paths: list[str]) -> None:
             raise RuntimeError(f"{archive} is damaged")
 
 
-def pack(lib: Path, sources: dict[str, Path], modules: list[str], out: Path) -> dict[str, list[str]]:
+def built_in(report: dict) -> set[str]:
+    """The modules the job's LAST build produced (tolerant_build's report). A module whose import stopped building in a later repair round keeps the olean of the round before: that file is stale, and handing
+    it on would let later jobs build on a module that no longer stands."""
+    return {m for m, st in report["status"].items() if st["state"] in ("clean", "errors")}
+
+
+def pack(lib: Path, sources: dict[str, Path], modules: list[str], out: Path, built: set[str]) -> dict[str, list[str]]:
     unknown = [m for m in modules if m not in sources]
     if unknown:
         raise ValueError(f"{len(unknown)} modules are not in the library (first: {unknown[:3]})")
-    manifest = {m: files_of(lib, m, str(sources[m].relative_to(lib))) for m in modules}
+    manifest = {m: files_of(lib, m, str(sources[m].relative_to(lib))) if m in built else [] for m in modules}
     out.mkdir(parents=True, exist_ok=True)
     listing = sorted({f for fs in manifest.values() for f in fs})
     if listing:
@@ -166,6 +172,7 @@ def main() -> None:
     p.add_argument("--roots", required=True)
     p.add_argument("--modules", required=True)
     p.add_argument("--out", required=True)
+    p.add_argument("--report", required=True, help="tolerant_build's report of the last build")
     r = sub.add_parser("restore")
     r.add_argument("--lib", required=True)
     r.add_argument("--packs", required=True)
@@ -188,7 +195,7 @@ def main() -> None:
     elif a.cmd == "place":
         print(f"placed {place(Path(a.src), lib)} files")
     elif a.cmd == "pack":
-        m = pack(lib, tb.module_files(lib, [x for x in a.roots.split(",") if x], follow_imports=True), _names(a.modules), Path(a.out))
+        m = pack(lib, tb.module_files(lib, [x for x in a.roots.split(",") if x], follow_imports=True), _names(a.modules), Path(a.out), built_in(json.loads(Path(a.report).read_text(encoding="utf-8"))))
         print(f"packed {sum(bool(v) for v in m.values())} of {len(m)} modules")
     else:
         print(restore(lib, Path(a.packs), _names(a.modules)))

@@ -14,7 +14,7 @@ on:
       runners: { description: "runners a wave may use at most: the plan's bands are cut to this", default: "17" }
       parallel: { description: "jobs running at once", default: "17" }
       tengoku_ref: { description: "a branch of competemath/tengoku to read the records from (default main)", default: "" }
-      imports: { description: "as in bump-sharded.yml", default: "faithful" }
+      imports: { description: "faithful: the library keeps the imports its authors wrote, as every bump is dispatched now (bump-sharded.yml's own default is older and is full)", default: "faithful" }
       gate2_budget_min: { description: "as in bump-sharded.yml", default: "150" }
       gate2_rss_share: { description: "as in bump-sharded.yml", default: "0.80" }
       swap_gb: { description: "GB of swap every job adds", default: "48" }

@@ -7,6 +7,7 @@ import gzip
 import json
 import random
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -39,6 +40,8 @@ def violations(imports, lines, waves, budget):
         for job in wave["jobs"]:
             if job["lines"] != sum(lines.get(m, 1) for m in job["modules"]):
                 out.append("a job's lines are wrong")
+            if job["lines"] > budget and len(job["modules"]) > 1:
+                out.append(f"a job of {len(job['modules'])} modules is over the budget")
     return out
 
 
@@ -96,8 +99,11 @@ class RandomGraphs(unittest.TestCase):
             imports = {m: sorted({names[rnd.randrange(i)] for _ in range(rnd.randint(0, 3))}) if i else [] for i, m in enumerate(names)}
             lines = {m: rnd.randint(1, 50) for m in names}
             budget = rnd.randint(1, 200)
-            w = bw.plan(imports, lines, budget, rnd.randint(1, 6))
+            runners = rnd.randint(1, 6)
+            w = bw.plan(imports, lines, budget, runners)
             self.assertEqual(violations(imports, lines, w, budget), [], case)
+            for x in w:
+                self.assertTrue(len(x["jobs"]) <= runners or x["depths"][0] == x["depths"][1], (case, x["depths"], len(x["jobs"]), runners))
             deps = [x["depths"] for x in w]
             self.assertEqual(deps[0][0], 0)
             for p, q in zip(deps, deps[1:]):
@@ -162,6 +168,24 @@ class Shards(unittest.TestCase):
 
 
 class Edges(unittest.TestCase):
+    def test_the_command_on_an_empty_library_says_so(self):
+        with tempfile.TemporaryDirectory() as t:
+            g, o = Path(t) / "g.json", Path(t) / "o.json"
+            g.write_text(json.dumps({"imports": {}, "lines": {}}))
+            argv, sys.argv = sys.argv, ["build_waves.py", str(g), str(o), "--budget-lines", "10", "--runners", "2"]
+            try:
+                bw.main()
+            finally:
+                sys.argv = argv
+            self.assertEqual(json.loads(o.read_text()), {"waves": []})
+
+    def test_a_wave_keeps_to_the_runners(self):
+        imports = {"A": [], "B": [], "C": ["A"], "D": ["B"]}
+        lines = dict.fromkeys(imports, 10)
+        self.assertEqual([[len(x["jobs"]), x["depths"]] for x in bw.plan(imports, lines, 10, 2)], [[2, [0, 0]], [2, [1, 1]]])
+        self.assertEqual([[len(x["jobs"]), x["depths"]] for x in bw.plan(imports, lines, 20, 2)], [[2, [0, 1]]])
+
+
     def test_a_chain_of_one_piece_is_cut_at_the_budget(self):
         names = [f"M{i}" for i in range(10)]
         imports = {m: ([names[i - 1]] if i else []) for i, m in enumerate(names)}

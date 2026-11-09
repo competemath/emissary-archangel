@@ -93,6 +93,9 @@ class Chain(unittest.TestCase):
         self.assertIn('recut_from="$GITHUB_RUN_ID"', run)
         self.assertNotIn("${{", run)
 
+    def test_a_build_once_keeps_the_authors_imports(self):
+        self.assertEqual(ON["workflow_dispatch"]["inputs"]["imports"]["default"], "faithful")
+
     def test_no_step_of_the_plan_interpolates_an_input(self):
         for s in waves["jobs"]["plan"]["steps"]:
             self.assertNotIn("${{", s.get("run", ""), s.get("name"))
@@ -119,6 +122,7 @@ class ShardSteps(unittest.TestCase):
         self.assertLess(index(self.place), index(self.build))
         self.assertLess(index(self.build), index(self.pack))
         self.assertLess(index(self.pack), index(self.gate2))
+        self.assertIn("--report tb-final.json", STEPS[index(self.pack)]["run"])
 
     def test_the_build_once_steps_are_off_for_a_plain_bump(self):
         for words in (self.fetch, self.place, self.pack):

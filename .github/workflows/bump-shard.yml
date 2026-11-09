@@ -157,7 +157,7 @@ jobs:
       - name: This job's work, for the jobs after it (a build-once; before Gate 2, so that a Gate 2 that dies does not cost the waves after it their build)
         if: inputs.build_once == 'true'
         working-directory: emissary
-        run: python3 scripts/bump/wave_pack.py pack --lib lib --roots "$ROOTS" --modules own.txt --out ../wave-pack
+        run: python3 scripts/bump/wave_pack.py pack --lib lib --roots "$ROOTS" --modules own.txt --report tb-final.json --out ../wave-pack
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: inputs.build_once == 'true'
         with: { name: "wave-${{ inputs.key }}-${{ inputs.shard }}", path: wave-pack, retention-days: 14, compression-level: 0 }

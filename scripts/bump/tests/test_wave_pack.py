@@ -83,7 +83,7 @@ class RealPlan(unittest.TestCase):
                         done += 1
                     for m in job["modules"]:
                         write(lib, m)
-                    wp.pack(lib, {m: src(lib, m) for m in job["modules"]}, job["modules"], packs / f"{w}-{j}")
+                    wp.pack(lib, {m: src(lib, m) for m in job["modules"]}, job["modules"], packs / f"{w}-{j}", set(job["modules"]))
             self.assertGreater(done, 0)
 
 
@@ -104,7 +104,7 @@ class Restore(unittest.TestCase):
         for m in failed:
             write(self.lib, m, built=False)
         mods = [*built, *failed]
-        return wp.pack(self.lib, {m: src(self.lib, m) for m in mods}, mods, self.packs / name)
+        return wp.pack(self.lib, {m: src(self.lib, m) for m in mods}, mods, self.packs / name, set(mods))
 
     def fresh(self):
         n = self.t / "fresh"
@@ -155,15 +155,27 @@ class Restore(unittest.TestCase):
         real.write_text("-- the text\n")
         src(self.lib, "A.B").unlink()
         src(self.lib, "A.B").symlink_to(real)
-        wp.pack(self.lib, {"A.B": src(self.lib, "A.B")}, ["A.B"], self.packs / "a")
+        wp.pack(self.lib, {"A.B": src(self.lib, "A.B")}, ["A.B"], self.packs / "a", {"A.B"})
         n = self.fresh()
         wp.restore(n, self.packs, ["A.B"])
         self.assertFalse(src(n, "A.B").is_symlink())
         self.assertEqual(src(n, "A.B").read_text(), "-- the text\n")
 
+    def test_a_module_blocked_in_the_last_build_is_not_handed_on_though_its_old_olean_is_there(self):
+        write(self.lib, "A.Good")
+        write(self.lib, "A.Stale")
+        report = {"status": {"A.Good": {"state": "errors"}, "A.Stale": {"state": "blocked"}, "A.Other": {"state": "crashed"}, "A.Bad": {"state": "bad_import"}}}
+        self.assertEqual(wp.built_in(report), {"A.Good"})
+        m = wp.pack(self.lib, {x: src(self.lib, x) for x in ("A.Good", "A.Stale")}, ["A.Good", "A.Stale"], self.packs / "a", wp.built_in(report))
+        self.assertEqual(m["A.Stale"], [])
+        self.assertTrue(m["A.Good"])
+        n = self.fresh()
+        self.assertEqual(wp.restore(n, self.packs, ["A.Good", "A.Stale"]), {"restored": 1, "no_olean": 1})
+        self.assertFalse(olean(n, "A.Stale").exists())
+
     def test_an_unknown_module_cannot_be_packed(self):
         with self.assertRaisesRegex(ValueError, "not in the library"):
-            wp.pack(self.lib, {}, ["Nope"], self.packs / "a")
+            wp.pack(self.lib, {}, ["Nope"], self.packs / "a", set())
 
 
 class FetchAndPlace(unittest.TestCase):
@@ -175,7 +187,7 @@ class FetchAndPlace(unittest.TestCase):
         for name, mods in {"1": ["A.B"], "2": ["A.C"], "3": ["A.D"]}.items():
             for m in mods:
                 write(self.lib, m)
-            wp.pack(self.lib, {m: src(self.lib, m) for m in mods}, mods, self.t / "uploaded" / name)
+            wp.pack(self.lib, {m: src(self.lib, m) for m in mods}, mods, self.t / "uploaded" / name, set(mods))
         self.seen = []
         self.on_disk = []
 

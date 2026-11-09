@@ -108,11 +108,10 @@ def plan(imports: dict[str, list[str]], lines: dict[str, int], budget: int, runn
             for m in by_depth[b]:
                 p.add(m, lines.get(m, 1), [d for d in imports[m] if d in inside])
             inside.update(by_depth[b])
-            if p.largest > budget and b > a:  # this depth joined pieces beyond a job: the band ends before it
+            # this depth joined pieces beyond a job, or the band no longer fits the runners: the band ends before it. One depth alone may need more jobs than there are runners: they queue
+            if b > a and (p.largest > budget or len(pack({r: p.size[r] for r in p.parent if p.find(r) == r}, budget)) > runners):
                 break
             last = b
-            if p.total > runners * budget:
-                break
             b += 1
         modules = [m for k in range(a, last + 1) for m in by_depth[k]]
         q = band(modules, imports, lines)
@@ -179,7 +178,7 @@ def main() -> None:
     w = plan(g["imports"], g["lines"], a.budget_lines, a.runners)
     with open(a.out, "w", encoding="utf-8") as f:
         json.dump({"waves": w}, f)
-    print(f"{len(w)} waves, {sum(len(x['jobs']) for x in w)} jobs, at most {max(len(x['jobs']) for x in w)} jobs in a wave")
+    print(f"{len(w)} waves, {sum(len(x['jobs']) for x in w)} jobs, at most {max((len(x['jobs']) for x in w), default=0)} jobs in a wave")
 
 
 if __name__ == "__main__":
