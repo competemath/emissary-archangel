@@ -179,6 +179,37 @@ class Lists(unittest.TestCase):
             (d / "docs").mkdir()  # the repository's own: no clash, it holds no Lean
             self.assertEqual(link_srcdir.link(d, ["a"], ["M"]), ["M"])
 
+    def test_a_source_folder_the_project_does_not_have_stops(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            (d / "a" / "M").mkdir(parents=True)
+            (d / "a" / "M" / "X.lean").write_text("--\n")
+            with self.assertRaises(ValueError):
+                link_srcdir.link(d, ["a", "gone"], ["M"])
+
+    def test_every_root_must_be_found(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            (d / "a" / "M").mkdir(parents=True)
+            (d / "a" / "M" / "X.lean").write_text("--\n")
+            with self.assertRaises(ValueError):
+                link_srcdir.link(d, ["a"], ["M", "Gone"])
+
+    def test_a_root_named_after_its_source_folder_counts(self):
+        """lean_lib Common, srcDir Common: the root is linked as its children"""
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            (d / "Common" / "Common" / "A").mkdir(parents=True)
+            (d / "Common" / "Common" / "A" / "X.lean").write_text("-- x\n")
+            self.assertEqual(link_srcdir.link(d, ["Common"], ["Common"]), ["Common/A"])
+            self.assertEqual((d / "Common" / "A" / "X.lean").read_text(), "-- x\n")
+
+    def test_a_root_named_after_its_source_folder_with_no_lean_yet_counts(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            (d / "Common" / "Common").mkdir(parents=True)
+            self.assertEqual(link_srcdir.link(d, ["Common"], ["Common"]), [])
+
     def test_srcdirs_of(self):
         self.assertEqual(link_srcdir.srcdirs_of({"srcdir": "x"}), ["x"])
         self.assertEqual(link_srcdir.srcdirs_of({"srcdir": ["x", "y"]}), ["x", "y"])

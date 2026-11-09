@@ -41,7 +41,7 @@ def _make(project: Path, inside: Path, here_rel: PurePosixPath, target_rel: Pure
 def link(project: Path, srcdirs: str | list[str], roots: list[str]) -> list[str]:
     """Link what each source folder holds at the top of the project: the roots, and every other top-level name that holds Lean files (a root imports the library's other folders). Returns
     what was linked. A source folder named after the module inside it (lean_lib Common, srcDir Common: Common.X is Common/Common/X.lean) cannot be linked at the top, which is that folder:
-    the children of the module folder are linked inside it. Raises ValueError for a source folder that leaves the project, a name something else already has, or no root found."""
+    the children of the module folder are linked inside it. Raises ValueError for a source folder that leaves the project, a name something else already has, a folder the project does not have, or a root that is in no source folder."""
     srcdirs = [srcdirs] if isinstance(srcdirs, str) else srcdirs
     for root in roots:
         if "/" in root or "\\" in root or root in ("", ".", ".."):  # a root is one name at the top of the project: anything else would put the link somewhere else
@@ -50,27 +50,31 @@ def link(project: Path, srcdirs: str | list[str], roots: list[str]) -> list[str]
         raise ValueError("no source folder")
     named = {n for r in roots for n in (r, f"{r}.lean")}
     made: list[str] = []
+    found: set[str] = set()
     inside = project.resolve()
     for srcdir in srcdirs:
         parts = PurePosixPath(srcdir).parts
         if not parts or PurePosixPath(srcdir).is_absolute() or ".." in parts:
             raise ValueError(f"srcdir {srcdir!r}: a folder inside the Lake project")
         folder = project.joinpath(*parts)
-        if not folder.is_dir():
-            continue
+        if not folder.is_dir():  # a registry that names a folder the repository does not have: the records under it would be dropped as missing files
+            raise ValueError(f"srcdir {srcdir!r} is not a folder of the project")
         for child in sorted(folder.iterdir()):
             if child.name.startswith(".") or not (child.name in named or _holds_lean(child)):
                 continue
             if len(parts) == 1 and child.is_symlink() and child.readlink().as_posix().startswith(parts[0] + "/"):
                 continue  # one of this function's own links from an earlier run, inside a folder named after its module
+            if child.name in named:
+                found.add(child.name)
             if len(parts) == 1 and child.name == parts[0]:  # the module folder has the source folder's own name
                 for inner in sorted(child.iterdir()):
                     if not inner.name.startswith(".") and _holds_lean(inner):
                         _make(project, inside, PurePosixPath(parts[0], inner.name), PurePosixPath(child.name, inner.name), f"{srcdir}/{child.name}/{inner.name}", made)
                 continue
             _make(project, inside, PurePosixPath(child.name), PurePosixPath(*parts, child.name), f"{srcdir}/{child.name}", made)
-    if not named & set(made):
-        raise ValueError(f"none of the roots {roots} is under {srcdirs}")
+    missing = [r for r in roots if r not in found and f"{r}.lean" not in found]
+    if missing:
+        raise ValueError(f"the roots {missing} are under none of the source folders {srcdirs}")
     return made
 
 
