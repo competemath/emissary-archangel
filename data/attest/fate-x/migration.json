@@ -7,7 +7,12 @@
     "MvPolynomial.commSemiring",
     "MvPolynomial.instCommRingMvPolynomial",
     "PowerSeries.instCommRing",
-    "AddSubmonoidClass.nSMul"
+    "AddSubmonoidClass.nSMul",
+    "MvPolynomial.algebra",
+    "MvPolynomial.module",
+    "SubmonoidClass.nPow",
+    "SubgroupClass.zpow",
+    "AddSubgroupClass.zsmul"
   ],
   "oldToolchain": "leanprover/lean4:v4.28.0",
   "newToolchain": "leanprover/lean4:v4.34.0-rc2"

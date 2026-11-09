@@ -37,7 +37,7 @@ jobs:
     if: github.repository == 'competemath/emissary-archangel'
     runs-on: ubuntu-26.04
     timeout-minutes: 350
-    permissions: { contents: read }
+    permissions: { contents: read, actions: read }   # actions: read only to download the exports of an earlier run (reuse-exports-run.txt)
     env:
       LEAN_NUM_THREADS: "4"
       EMISSARY_TENTATIVE_DIR: ${{ github.workspace }}/tentative
@@ -58,11 +58,24 @@ jobs:
             data/attest
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: "22" }
+      - name: Reuse the exports of an earlier run, when data/attest/fate-x/reuse-exports-run.txt names one (a change of the migration table needs none of the 12 minutes of setup)
+        id: reuse
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          f=data/attest/fate-x/reuse-exports-run.txt
+          if [ -s "$f" ]; then
+            rid=$(tr -dc 0-9 < "$f")
+            gh run download "$rid" -R "$GITHUB_REPOSITORY" -n fatex-exports -D .
+            echo "reused=true" >> "$GITHUB_OUTPUT"
+            echo "exports of run $rid: $(ls data/exports/fate-x | grep -c '\.ndjson$') modules"
+          fi
       - name: elan
+        if: steps.reuse.outputs.reused != 'true'
         run: |
           for try in $(seq 1 20); do curl --proto '=https' --tlsv1.2 -sSfL --max-time 120 -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh && echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c - && timeout 300 sh elan-init.sh -y --default-toolchain none && break; [ "$try" -lt 20 ] || exit 1; echo "::notice::the Lean installer failed (try $try of 20): again in 30 s"; sleep 30; done
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: Register the source for this run only (the shared sources.json is not changed in git), clone it at its pinned commit, write its statement records
+        if: steps.reuse.outputs.reused != 'true'
         run: |
           python3 - <<'PY'
           import json
@@ -77,11 +90,13 @@ jobs:
           git -C infra/fate-x/repo -c advice.detachedHead=false checkout -q "$commit"
           python3 -I scripts/attest/seed_tentative.py --repo infra/fate-x/repo --commit "$commit" --repo-url "$repo" --out tentative/fate-x.jsonl
       - name: Set up FATE-X (toolchain, build, lean4export, closure, one export per problem)
+        if: steps.reuse.outputs.reused != 'true'
         run: |
           avail() { df --output=avail -BG / | tail -1 | tr -dc 0-9; }
           while [ ! -f /tmp/disk-freed ] && [ "$(avail)" -lt 25 ]; do sleep 5; done
           node scripts/setup-source.mjs "$KEY" --keep-build 2>&1 | tee setup.log | tail -n 80
       - name: The old signatures of the names the migration table defines (Lean v4.28.0, printed so that the table can be reviewed against them)
+        if: steps.reuse.outputs.reused != 'true'
         continue-on-error: true
         run: |
           python3 - <<'PY' > infra/fate-x/repo/migration-probe.lean

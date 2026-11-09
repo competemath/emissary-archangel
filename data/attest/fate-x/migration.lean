@@ -35,4 +35,19 @@ universe u v u_1 u_2
 @[reducible] def AddSubmonoidClass.nSMul {M : Type u_1} [AddMonoid M] {A : Type u_2} [SetLike A M] [AddSubmonoidClass A M] (S : A) : SMul ℕ S :=
   ⟨fun n a => ⟨n • a.1, nsmul_mem a.2 n⟩⟩
 
+-- v4.28.0 Mathlib/Algebra/MvPolynomial/Basic.lean:129 `instance algebra [CommSemiring R] [CommSemiring S₁] [Algebra R S₁] : Algebra R (MvPolynomial σ S₁) := AddMonoidAlgebra.algebra`.
+@[reducible] def MvPolynomial.algebra {R : Type u} {S₁ : Type v} {σ : Type u_1} [CommSemiring R] [CommSemiring S₁] [Algebra R S₁] : Algebra R (MvPolynomial σ S₁) := inferInstance
+
+-- v4.28.0 Mathlib/Algebra/MvPolynomial/Basic.lean:114 `instance module [Semiring R] [CommSemiring S₁] [Module R S₁] : Module R (MvPolynomial σ S₁) := AddMonoidAlgebra.module`.
+@[reducible] def MvPolynomial.module {R : Type u} {S₁ : Type v} {σ : Type u_1} [Semiring R] [CommSemiring S₁] [Module R S₁] : Module R (MvPolynomial σ S₁) := inferInstance
+
+-- v4.28.0 Mathlib/Algebra/Group/Submonoid/Defs.lean:369 `instance nPow {M} [Monoid M] {A} [SetLike A M] [SubmonoidClass A M] (S : A) : Pow S ℕ`; the tree: `SubmonoidClass.instPow`, the same.
+@[reducible] def SubmonoidClass.nPow {M : Type u_1} [Monoid M] {A : Type u_2} [SetLike A M] [SubmonoidClass A M] (S : A) : Pow S ℕ := SubmonoidClass.instPow S
+
+-- v4.28.0 Mathlib/Algebra/Group/Subgroup/Defs.lean:200 `instance zpow {M S} [DivInvMonoid M] [SetLike S M] [SubgroupClass S M] {H : S} : Pow H ℤ := ⟨fun a n => ⟨a.1 ^ n, zpow_mem a.2 n⟩⟩`.
+@[reducible] def SubgroupClass.zpow {M : Type u_1} {S : Type u_2} [DivInvMonoid M] [SetLike S M] [SubgroupClass S M] {H : S} : Pow H ℤ := ⟨fun a n => ⟨a.1 ^ n, zpow_mem a.2 n⟩⟩
+
+-- v4.28.0 Mathlib/Algebra/Group/Subgroup/Defs.lean:194 `instance AddSubgroupClass.zsmul {M S} [SubNegMonoid M] [SetLike S M] [AddSubgroupClass S M] {H : S} : SMul ℤ H := ⟨fun n a => ⟨n • a.1, zsmul_mem a.2 n⟩⟩`.
+@[reducible] def AddSubgroupClass.zsmul {M : Type u_1} {S : Type u_2} [SubNegMonoid M] [SetLike S M] [AddSubgroupClass S M] {H : S} : SMul ℤ H := ⟨fun n a => ⟨n • a.1, zsmul_mem a.2 n⟩⟩
+
 end AttestMigration
