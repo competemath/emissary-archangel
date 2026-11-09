@@ -48,6 +48,8 @@ def link(project: Path, srcdirs: str | list[str], roots: list[str]) -> list[str]
             raise ValueError(f"root {root!r}: one name at the top of the project")
     if not srcdirs:
         raise ValueError("no source folder")
+    if not roots:
+        raise ValueError("no root: a library with source folders names the roots that hold its records")
     named = {n for r in roots for n in (r, f"{r}.lean")}
     made: list[str] = []
     found: set[str] = set()

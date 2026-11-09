@@ -210,6 +210,15 @@ class Lists(unittest.TestCase):
             (d / "Common" / "Common").mkdir(parents=True)
             self.assertEqual(link_srcdir.link(d, ["Common"], ["Common"]), [])
 
+    def test_no_root_is_an_error_before_anything_is_linked(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            (d / "a" / "M").mkdir(parents=True)
+            (d / "a" / "M" / "X.lean").write_text("--\n")
+            with self.assertRaises(ValueError):
+                link_srcdir.link(d, ["a"], [])
+            self.assertFalse((d / "M").exists())
+
     def test_srcdirs_of(self):
         self.assertEqual(link_srcdir.srcdirs_of({"srcdir": "x"}), ["x"])
         self.assertEqual(link_srcdir.srcdirs_of({"srcdir": ["x", "y"]}), ["x", "y"])
