@@ -7,6 +7,7 @@ import argparse
 import gzip
 import json
 import os
+import shutil
 import stat
 import sys
 import tempfile
@@ -163,6 +164,76 @@ class Restore(unittest.TestCase):
     def test_an_unknown_module_cannot_be_packed(self):
         with self.assertRaisesRegex(ValueError, "not in the library"):
             wp.pack(self.lib, {}, ["Nope"], self.packs / "a")
+
+
+class FetchAndPlace(unittest.TestCase):
+    def setUp(self):
+        self.d = tempfile.TemporaryDirectory()
+        self.t = Path(self.d.name)
+        self.lib = self.t / "built"
+        self.lib.mkdir()
+        for name, mods in {"1": ["A.B"], "2": ["A.C"], "3": ["A.D"]}.items():
+            for m in mods:
+                write(self.lib, m)
+            wp.pack(self.lib, {m: src(self.lib, m) for m in mods}, mods, self.t / "uploaded" / name)
+        self.seen = []
+        self.on_disk = []
+
+    def tearDown(self):
+        self.d.cleanup()
+
+    def download(self, shard, into):
+        self.seen.append(shard)
+        self.on_disk.append(len(list((self.t / "work").glob("*"))))
+        for f in (self.t / "uploaded" / str(shard)).iterdir():
+            shutil.copy2(f, into / f.name)
+
+    def test_packs_come_one_at_a_time_and_are_deleted(self):
+        got = wp.fetch_all(self.t / "restored", ["A.B", "A.C"], [1, 2], self.download, self.t / "work")
+        self.assertEqual(got, {"restored": 2, "no_olean": 0})
+        self.assertEqual(self.seen, [1, 2])
+        self.assertEqual(self.on_disk, [1, 1])
+        self.assertEqual(list((self.t / "work").glob("*")), [])
+
+    def test_a_module_the_named_packs_do_not_hold_stops_the_job(self):
+        with self.assertRaisesRegex(ValueError, "in no pack"):
+            wp.fetch_all(self.t / "restored", ["A.B", "A.D"], [1, 2], self.download, self.t / "work")
+
+    def test_a_download_is_tried_again_and_then_gives_up(self):
+        answers = iter([1, 1, 0])
+        calls, waits = [], []
+        run = lambda cmd, check: (calls.append(cmd), type("R", (), {"returncode": next(answers)})())[1]  # noqa: E731
+        wp.gh_download("o/r", "77", "flt", runner=run, sleep=waits.append)(5, self.t)
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(waits, [30, 60])
+        self.assertEqual(calls[0][:8], ["gh", "run", "download", "77", "-R", "o/r", "-n", "wave-flt-5"])
+        never = lambda cmd, check: type("R", (), {"returncode": 1})()  # noqa: E731
+        with self.assertRaisesRegex(RuntimeError, "could not be fetched"):
+            wp.gh_download("o/r", "77", "flt", runner=never, sleep=lambda _: None)(5, self.t)
+
+    def test_place_moves_files_and_replaces_what_is_there(self):
+        restored = self.t / "restored"
+        wp.fetch_all(restored, ["A.B"], [1], self.download, self.t / "work")
+        lib = self.t / "lib"
+        src(lib, "A.B").parent.mkdir(parents=True)
+        src(lib, "A.B").write_text("-- the unrepaired text\n")
+        n = wp.place(restored, lib)
+        self.assertEqual(n, 4)
+        self.assertEqual(src(lib, "A.B").read_text(encoding="utf-8"), "-- repaired A.B\n")
+        self.assertEqual(olean(lib, "A.B").read_bytes(), b"olean A.B")
+        self.assertEqual([p for p in restored.rglob("*") if p.is_file()], [])
+
+    def test_place_replaces_a_link_instead_of_writing_through_it(self):
+        restored = self.t / "r2"
+        wp.fetch_all(restored, ["A.B"], [1], self.download, self.t / "work")
+        lib = self.t / "lib2"
+        src(lib, "A.B").parent.mkdir(parents=True)
+        target = self.t / "upstream.lean"
+        target.write_text("-- upstream\n")
+        src(lib, "A.B").symlink_to(target)
+        wp.place(restored, lib)
+        self.assertFalse(src(lib, "A.B").is_symlink())
+        self.assertEqual(target.read_text(), "-- upstream\n")
 
 
 FAKE_LEAN = """#!/bin/sh

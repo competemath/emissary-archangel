@@ -3,15 +3,19 @@
 
   wave_pack.py pack --lib DIR --roots R,R --modules own.txt --out DIR     this job's oleans, their cache entries and the sources it repaired, with a manifest
   wave_pack.py restore --lib DIR --packs DIR --modules closure.txt        the files of exactly those modules, out of every pack under DIR
+  wave_pack.py fetch --lib DIR --modules closure.txt --repo R --run ID --key K --shards 1,2   the same, each pack downloaded when its turn comes and deleted after
+  wave_pack.py place --from DIR --lib DIR                                 moves what was restored into the library, once the library is ready for it
 
 A late job needs most of a 60,000-module library and a whole pack would not fit beside it, so a restore takes only the files of the job's closure. A module no pack knows stops the job: a lost job upstream
 must not look like a module that failed to build. A module a pack lists with no files is one its job could not build, and tolerant_build --own reports it as blocked."""
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -78,27 +82,76 @@ def _checked(manifest: dict[str, list[str]], where: Path) -> None:
                 raise ValueError(f"{where}: module {m} lists a file outside the library: {f}")
 
 
-def restore(lib: Path, packs: Path, modules: list[str]) -> dict[str, int]:
-    wanted = set(modules)
-    owner: dict[str, Path] = {}
+def _from_pack(found: Path, lib: Path, wanted: set[str], owner: dict[str, Path]) -> tuple[int, int]:
+    manifest = json.loads(found.read_text(encoding="utf-8"))
+    _checked(manifest, found)
+    listing: list[str] = []
     restored = empty = 0
-    for found in sorted(packs.rglob(MANIFEST)):
-        manifest = json.loads(found.read_text(encoding="utf-8"))
-        _checked(manifest, found)
-        listing: list[str] = []
-        for m in sorted(wanted & set(manifest)):
-            if m in owner:
-                raise ValueError(f"{m} is in two packs: {owner[m]} and {found}")
-            owner[m] = found
-            listing += manifest[m]
-            restored += bool(manifest[m])
-            empty += not manifest[m]
-        if listing:
-            _extract(found.parent / ARCHIVE, lib, listing)
+    for m in sorted(wanted & set(manifest)):
+        if m in owner:
+            raise ValueError(f"{m} is in two packs: {owner[m]} and {found}")
+        owner[m] = found
+        listing += manifest[m]
+        restored += bool(manifest[m])
+        empty += not manifest[m]
+    if listing:
+        _extract(found.parent / ARCHIVE, lib, listing)
+    return restored, empty
+
+
+def _lost(wanted: set[str], owner: dict[str, Path]) -> None:
     lost = sorted(wanted - set(owner))
     if lost:
         raise ValueError(f"{len(lost)} modules are in no pack (first: {lost[:5]}): a job before this one is missing")
+
+
+def restore(lib: Path, packs: Path, modules: list[str]) -> dict[str, int]:
+    wanted, owner = set(modules), {}
+    restored = empty = 0
+    for found in sorted(packs.rglob(MANIFEST)):
+        r, e = _from_pack(found, lib, wanted, owner)
+        restored, empty = restored + r, empty + e
+    _lost(wanted, owner)
     return {"restored": restored, "no_olean": empty}
+
+
+def fetch_all(lib: Path, modules: list[str], shards: list[int], download, work: Path) -> dict[str, int]:
+    """restore, with the packs fetched one at a time and each deleted once read: a late job's closure is most of the library, and every pack on disk at once would not fit beside it"""
+    lib.mkdir(parents=True, exist_ok=True)
+    work.mkdir(parents=True, exist_ok=True)
+    wanted, owner = set(modules), {}
+    restored = empty = 0
+    for s in shards:
+        with tempfile.TemporaryDirectory(dir=work) as d:
+            download(s, Path(d))
+            r, e = _from_pack(Path(d) / MANIFEST, lib, wanted, owner)
+            restored, empty = restored + r, empty + e
+    _lost(wanted, owner)
+    return {"restored": restored, "no_olean": empty}
+
+
+def gh_download(repo: str, run: str, key: str, tries: int = 4, wait: int = 30, runner=subprocess.run, sleep=time.sleep):
+    def download(shard: int, into: Path) -> None:
+        for attempt in range(1, tries + 1):
+            r = runner(["gh", "run", "download", run, "-R", repo, "-n", f"wave-{key}-{shard}", "-D", str(into)], check=False)
+            if r.returncode == 0:
+                return
+            if attempt < tries:
+                sleep(attempt * wait)
+        raise RuntimeError(f"the pack of shard {shard} could not be fetched in {tries} tries")
+
+    return download
+
+
+def place(src: Path, lib: Path) -> int:
+    """Moves what was restored into the library, a moved file replacing what is there: the restored text is what the earlier job built."""
+    moved = 0
+    for f in sorted(p for p in src.rglob("*") if p.is_file() and not p.is_symlink()):
+        dst = lib / f.relative_to(src)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(f, dst)
+        moved += 1
+    return moved
 
 
 def _names(path: str) -> list[str]:
@@ -117,9 +170,24 @@ def main() -> None:
     r.add_argument("--lib", required=True)
     r.add_argument("--packs", required=True)
     r.add_argument("--modules", required=True)
+    f = sub.add_parser("fetch")
+    f.add_argument("--lib", required=True)
+    f.add_argument("--modules", required=True)
+    f.add_argument("--repo", required=True)
+    f.add_argument("--run", required=True)
+    f.add_argument("--key", required=True)
+    f.add_argument("--shards", required=True, help="comma list")
+    f.add_argument("--work", default="wave-packs")
+    m = sub.add_parser("place")
+    m.add_argument("--from", dest="src", required=True)
+    m.add_argument("--lib", required=True)
     a = ap.parse_args()
     lib = Path(a.lib).resolve()
-    if a.cmd == "pack":
+    if a.cmd == "fetch":
+        print(fetch_all(lib, _names(a.modules), [int(x) for x in a.shards.split(",") if x], gh_download(a.repo, a.run, a.key), Path(a.work)))
+    elif a.cmd == "place":
+        print(f"placed {place(Path(a.src), lib)} files")
+    elif a.cmd == "pack":
         m = pack(lib, tb.module_files(lib, [x for x in a.roots.split(",") if x], follow_imports=True), _names(a.modules), Path(a.out))
         print(f"packed {sum(bool(v) for v in m.values())} of {len(m)} modules")
     else:
