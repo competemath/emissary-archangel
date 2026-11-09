@@ -160,18 +160,28 @@ const schedule = async (answers, opts = {}) => {
   k.add("warning: a\nerr")
   k.add("or: first\nwarning: b\nerror: second\n")
   check("kept errors: a line cut across two chunks is whole", k.text() === "error: first\nerror: second", k.text())
-  const few = errorLineKeeper(2)
-  few.add("error: 1\nerror: 2\nerror: 3\n")
-  check("kept errors: no more than the limit", few.text() === "error: 1\nerror: 2", few.text())
+  const streams = errorLineKeeper()
+  streams.add("✔ [12/20] Building Lib.A", "out")
+  streams.add("error: Lib/C.lean:1:1: x\n", "err")
+  streams.add("\n", "out")
+  check("kept errors: a piece of stdout does not end up in front of a line of stderr", streams.text() === "error: Lib/C.lean:1:1: x", streams.text())
+  const many = errorLineKeeper()
+  for (let i = 0; i < 20000; i++) many.add(`error: Other/M${i}.lean:1:1: x\n`, "out")
+  many.add("error: Lib/C.lean:1:1: last\n", "out")
+  check("kept errors: a module's error is found after 20,000 other error lines", ownErrorLine("Lib/C.lean", [], many.text()) !== null, null)
+  const long = errorLineKeeper()
+  long.add("error: " + "x".repeat(5000) + "\n", "out")
+  check("kept errors: a very long line is cut", long.text().length === 400, long.text().length)
   let keepOk = true
   for (let i = 0; i < 2000; i++) {
     const lines = Array.from({ length: rnd(60) }, (_, j) => (rnd(3) === 0 ? `error: e${j}` : `note ${"x".repeat(rnd(80))}`))
     const whole = lines.map((l) => l + "\n").join("")
     const c = errorLineKeeper()
-    for (let at = 0; at < whole.length; ) { const n = 1 + rnd(50); c.add(whole.slice(at, at + n)); at += n }
+    for (let at = 0; at < whole.length; ) { const n = 1 + rnd(50); c.add(whole.slice(at, at + n), "out"); c.add(rnd(2) ? "noise without an end" : "", "err"); at += n }
     keepOk &&= c.text() === lines.filter((l) => l.startsWith("error: ")).join("\n")
   }
   check("kept errors: 2,000 random outputs in random chunks give exactly the error lines", keepOk, null)
+  check("setup-source.mjs keeps stdout and stderr apart", /p\.stdout\.on\("data", onData\("out"\)\)/.test(src) && /p\.stderr\.on\("data", onData\("err"\)\)/.test(src), null)
   check("setup-source.mjs looks for the error in the kept errors as well as the tail", /ownError\(m, `\$\{r\.errors\}\\n\$\{r\.tail\}`\)/.test(src), null)
 }
 process.exit(bad ? 1 : 0)

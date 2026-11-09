@@ -136,14 +136,15 @@ export function ownErrorLine(path, srcdirs, text) {
   return hit ? hit[0].slice(0, 300) : null
 }
 // The lines that start with `error: `, however the output is cut into chunks. A command's tail is its last 4,000 characters, and a module with many warnings after its errors pushes them out of it.
-export function errorLineKeeper(limit = 500) {
-  let partial = ""
+// Each stream has its own unfinished line: stdout and stderr are separate pipes, and a piece of one must not end up in front of a line of the other. Every error line is kept, cut to 400 characters.
+export function errorLineKeeper() {
+  const partial = new Map()
   const lines = []
   return {
-    add(chunk) {
-      const parts = (partial + chunk).split("\n")
-      partial = parts.pop()
-      for (const l of parts) if (l.startsWith("error: ") && lines.length < limit) lines.push(l)
+    add(chunk, stream = "out") {
+      const parts = ((partial.get(stream) ?? "") + chunk).split("\n")
+      partial.set(stream, parts.pop())
+      for (const l of parts) if (l.startsWith("error: ")) lines.push(l.slice(0, 400))
     },
     text: () => lines.join("\n"),
   }

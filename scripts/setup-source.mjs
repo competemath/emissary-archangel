@@ -175,14 +175,14 @@ function run(cmd, args, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000, quiet = f
     live.add(p)
     let tail = ""
     const errors = errorLineKeeper()
-    const onData = (d) => {
+    const onData = (stream) => (d) => {
       const s = d.toString()
       tail = (tail + s).slice(-4000)
-      errors.add(s)
+      errors.add(s, stream)
       if (!quiet) process.stdout.write(s)
     }
-    p.stdout.on("data", onData)
-    p.stderr.on("data", onData)
+    p.stdout.on("data", onData("out"))
+    p.stderr.on("data", onData("err"))
     const t = setTimeout(() => {
       killGroup(p)
       res({ code: 124, tail: tail + `\n[timed out after ${timeoutMs / 1000}s]`, errors: errors.text() })
