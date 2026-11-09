@@ -720,3 +720,7 @@ jobs:
             -f build_run="$BUILD_RUN" -f max_build_rounds="$MAX_BUILD_ROUNDS" -f tengoku_ref="$TENGOKU_REF" \
             -f retry_mb="$RETRY_MB" -f swap_gb="$SWAP_GB" -f solo_minutes="$SOLO_MINUTES" -f from_release="$FROM_RELEASE" -f only_modules="$ONLY_MODULES"
           echo "::notice::dispatched round $((ROUND + 1))"
+      - name: Start the bump this setup is waiting for (GitHub's hourly schedule can be hours late; a dispatch that fails is left to the schedule, the setup is done)
+        if: env.partial != '1' && vars.LANE_ENABLED == 'true' && github.repository == 'competemath/emissary-archangel' && github.ref == 'refs/heads/main'
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: gh workflow run bump-pickup.yml -R "$GITHUB_REPOSITORY" --ref main -f dry_run=false || echo "::warning::could not start bump-pickup; the hourly schedule will pick this setup up"

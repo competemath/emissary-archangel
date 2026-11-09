@@ -77,6 +77,7 @@ class Chain(unittest.TestCase):
             j = waves["jobs"][f"w{i}"]
             self.assertEqual(j["uses"], "./.github/workflows/bump-shard.yml")
             self.assertEqual(j["with"]["build_once"], "true")
+            self.assertEqual(j["with"]["imports"], "${{ inputs.imports }}")
             self.assertEqual(j["permissions"], {"contents": "read", "actions": "read"})
 
     def test_the_wave_passes_only_inputs_the_shard_workflow_has(self):

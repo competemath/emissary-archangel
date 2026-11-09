@@ -104,7 +104,7 @@ class Restore(unittest.TestCase):
         for m in failed:
             write(self.lib, m, built=False)
         mods = [*built, *failed]
-        return wp.pack(self.lib, {m: src(self.lib, m) for m in mods}, mods, self.packs / name, set(mods))
+        return wp.pack(self.lib, {m: src(self.lib, m) for m in mods}, mods, self.packs / name, set(built))
 
     def fresh(self):
         n = self.t / "fresh"
@@ -172,6 +172,20 @@ class Restore(unittest.TestCase):
         n = self.fresh()
         self.assertEqual(wp.restore(n, self.packs, ["A.Good", "A.Stale"]), {"restored": 1, "no_olean": 1})
         self.assertFalse(olean(n, "A.Stale").exists())
+
+    def test_every_file_lean_writes_for_a_module_travels(self):
+        """Lean's writeModule writes the olean, its server and private halves, `.ir.sig` and `.ir`. The first real run lost `.ir.sig`, and every module that reached a restored module only through `meta import` crashed."""
+        write(self.lib, "A.B")
+        base = olean(self.lib, "A.B").with_suffix("")
+        for ext in (".olean.server", ".olean.private", ".ilean", ".ir.sig", ".ir"):
+            Path(str(base) + ext).write_bytes(ext.encode())
+        wp.pack(self.lib, {"A.B": src(self.lib, "A.B")}, ["A.B"], self.packs / "a", {"A.B"})
+        n = self.fresh()
+        wp.restore(n, self.packs, ["A.B"])
+        out = olean(n, "A.B").with_suffix("")
+        for ext in (".olean.server", ".olean.private", ".ilean", ".ir.sig", ".ir"):
+            self.assertEqual(Path(str(out) + ext).read_bytes(), ext.encode(), ext)
+        self.assertEqual(olean(n, "A.B").read_bytes(), b"olean A.B")
 
     def test_an_unknown_module_cannot_be_packed(self):
         with self.assertRaisesRegex(ValueError, "not in the library"):

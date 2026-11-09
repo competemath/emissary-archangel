@@ -23,7 +23,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import tolerant_build as tb  # noqa: E402
 
 OUT = PurePosixPath(".lake/build/lib/lean")
-SUFFIXES = (".olean", ".olean.server", ".olean.private", ".ilean", ".ir")
+# everything Lean writes for a module (writeModule). `.ir.sig` is not optional: Lean loads a module's IR only if it exists, and a module reached only through a `meta import` has nothing else, so without it
+# the importer stops with `missing data file for module` (PrimeCert.SieveBase and PrimeCert.Meta.Pocklington on the first real run, 9 Nov 2026)
+SUFFIXES = (".olean", ".olean.server", ".olean.private", ".ilean", ".ir.sig", ".ir")
 ARCHIVE, MANIFEST = "pack.tar.zst", "manifest.json"
 
 
