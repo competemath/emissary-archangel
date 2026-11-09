@@ -192,6 +192,40 @@ class Decide(unittest.TestCase):
         self.assertGreater(started, 500)
 
 
+class SetupsStartThePickup(unittest.TestCase):
+    """GitHub ran this repository's schedules twice in 12 hours on 9 Nov 2026 (intake-open, every 10 minutes on paper: 01:51 and 08:43), so a finished setup starts the pickup itself"""
+
+    def wf(self, name):
+        return yaml.safe_load((HERE.parents[2] / ".github" / "workflows" / name).read_text())
+
+    def check_step(self, step):
+        self.assertIn("gh workflow run bump-pickup.yml", step["run"])
+        self.assertIn("--ref main", step["run"])
+        self.assertIn("-f dry_run=false", step["run"])
+        self.assertIn("|| echo", step["run"], "a dispatch that fails must not fail a setup that is done")
+
+    def test_a_sharded_setup_starts_it_once_its_record_is_published(self):
+        steps = self.wf("setup-sharded.yml")["jobs"]["finish"]["steps"]
+        names = [s.get("name", "") for s in steps]
+        i = next(n for n, x in enumerate(names) if x.startswith("Start the bump this setup"))
+        self.check_step(steps[i])
+        self.assertIn("env.partial != '1'", steps[i]["if"])
+        self.assertIn("vars.LANE_ENABLED == 'true'", steps[i]["if"])
+        self.assertIn("competemath/emissary-archangel", steps[i]["if"])
+        self.assertIn("refs/heads/main", steps[i]["if"])
+        publish = next(n for n, s in enumerate(steps) if "published $KEY" in s.get("run", ""))
+        self.assertGreater(i, publish)
+
+    def test_a_small_setup_starts_it_after_its_jobs(self):
+        job = self.wf("setup-libraries.yml")["jobs"]["pickup"]
+        self.assertEqual(job["needs"], "setup")
+        self.assertEqual(job["permissions"], {"actions": "write"})
+        self.assertIn("!cancelled()", job["if"])
+        self.assertIn("vars.LANE_ENABLED == 'true'", job["if"])
+        self.assertIn("competemath/emissary-archangel", job["if"])
+        self.check_step(job["steps"][0])
+
+
 class Workflow(unittest.TestCase):
     def test_it_can_dispatch_and_nothing_else(self):
         w = yaml.safe_load((HERE.parents[2] / ".github" / "workflows" / "bump-pickup.yml").read_text())

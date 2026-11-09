@@ -119,3 +119,14 @@ jobs:
             sleep $((RANDOM % 25 + 5))
           done
           echo "could not push after 30 attempts"; exit 1
+  # the libraries of this run that finished get their bump: the hourly schedule can be hours late (bump_pickup.py decides what starts)
+  pickup:
+    needs: setup
+    if: ${{ !cancelled() && vars.LANE_ENABLED == 'true' && github.repository == 'competemath/emissary-archangel' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions: { actions: write }  # dispatch bump-pickup
+    env: { GH_TOKEN: "${{ github.token }}" }
+    steps:
+      - name: Start the bump a finished setup is waiting for
+        run: gh workflow run bump-pickup.yml -R "$GITHUB_REPOSITORY" --ref main -f dry_run=false || echo "::warning::could not start bump-pickup; the hourly schedule will pick this setup up"

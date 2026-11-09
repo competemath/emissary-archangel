@@ -146,6 +146,6 @@ export function errorLineKeeper() {
       partial.set(stream, parts.pop())
       for (const l of parts) if (l.startsWith("error: ")) lines.push(l.slice(0, 400))
     },
-    text: () => lines.join("\n"),
+    text: () => [...lines, ...[...partial.values()].filter((l) => l.startsWith("error: ")).map((l) => l.slice(0, 400))].join("\n"),
   }
 }
