@@ -106,8 +106,15 @@ DRIFT_REPLACEMENT = '''            if drift.isEmpty then
                   | some (.defnInfo a), some (.defnInfo b) =>
                     if a.levelParams.length == b.levelParams.length then
                       let ls := b.levelParams.map Level.param
-                      let r ← attestFirstDiff (a.value.instantiateLevelParams a.levelParams ls) b.value
-                      pure (r.getD "none")
+                      let av := a.value.instantiateLevelParams a.levelParams ls
+                      let r ← attestFirstDiff av b.value
+                      match r with
+                      | some t => pure t
+                      | none =>
+                        -- the elaborator sees them as equal and the kernel does not: both bodies, instances explicit
+                        let pa : String ← (try withOptions (fun o => o.setBool `pp.explicit true) (do return toString (← Meta.ppExpr av)) catch _ => pure "?")
+                        let pb : String ← (try withOptions (fun o => o.setBool `pp.explicit true) (do return toString (← Meta.ppExpr b.value)) catch _ => pure "?")
+                        pure s!"none (kernel-only). ORIGINAL BODY: {(pa.replace "\\n" " ").take 1200} TREE BODY: {(pb.replace "\\n" " ").take 1200}"
                     else pure "universe parameters differ"
                   | _, _ => pure "not both definitions") catch _ => pure "diagnostic failed")
               why := s!"{c}: {msg} FIRSTDIFF {dd}"

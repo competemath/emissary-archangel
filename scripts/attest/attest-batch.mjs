@@ -88,8 +88,8 @@ for (const problem of problems) {
 }
 log(`${problems.length} problems, ${prepared.size} ready for Lean, ${entries.size} already failed`)
 
-// a problem the plain bridge `fun h => h` refuses is tried once more, alone, with this term (the kernel checks it like any other)
-const SECOND_BRIDGE = "fun h => by convert h"
+// a problem the plain bridge `fun h => h` refuses is tried once more, alone, with these terms in turn (the kernel checks each like any other)
+const BRIDGES = ["fun h => by with_unfolding_all exact h", "fun h => by convert h"]
 const runLean = (name, items, bridge = null) =>
   new Promise((done) => {
     const file = join(outDir, "chunks", `${name}.lean`)
@@ -157,20 +157,21 @@ if (again.length) {
   for (const p of stuck) settle(p.problem, problemEntry({ problem: p.problem, qualifiedName: p.qualified, oldId: p.oldId, exportSha256: p.exportSha256, verdict: { ok: false, reason: "process_died", via: null }, gate2Text: "Lean was killed (memory or time) alone on this problem" }))
 }
 
-// second pass: the problems refused by the plain bridge, each in a process of its own, with the other bridge term. Only a pass replaces the first verdict.
+// second pass: the problems refused by the plain bridge, each in a process of its own, with the other bridge terms in turn. Only a pass replaces the first verdict.
 const refused = [...prepared.values()].filter((p) => entries.get(p.problem.id)?.verdict === "fail" && entries.get(p.problem.id)?.reason === "rejected")
 if (refused.length) {
-  log(`${refused.length} problems were refused by the plain bridge: each once more with \`${SECOND_BRIDGE}\``)
-  const jobs = refused.map((p) => ({ name: `bridge2-${p.problem.id}`, items: [p] }))
+  log(`${refused.length} problems were refused by the plain bridge: each once more with ${BRIDGES.map((b) => `\`${b}\``).join(", then ")}`)
+  const jobs = refused.map((p) => ({ p }))
   await Promise.all(
     Array.from({ length: Math.min(parallel, jobs.length) }, async () => {
       while (jobs.length) {
-        const job = jobs.shift()
-        const before = entries.get(job.items[0].problem.id)
-        const left = await runChunk(job.name, job.items, SECOND_BRIDGE)
-        // a second-pass failure keeps the first verdict (its reason and difference are the ones to read)
-        if (entries.get(job.items[0].problem.id)?.verdict !== "pass") entries.set(job.items[0].problem.id, before)
-        void left
+        const { p } = jobs.shift()
+        const before = entries.get(p.problem.id)
+        for (const [i, bridge] of BRIDGES.entries()) {
+          await runChunk(`bridge${i + 2}-${p.problem.id}`, [p], bridge)
+          if (entries.get(p.problem.id)?.verdict === "pass") break
+          entries.set(p.problem.id, before) // a second-pass failure keeps the first verdict (its reason and difference are the ones to read)
+        }
       }
     }),
   )
