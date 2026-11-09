@@ -130,6 +130,8 @@ def attestRenameCi (ren : Std.HashMap Name Name) (ci : ConstantInfo) : ConstantI
 /-- Diagnostics only: the first place where two types differ, as text (heads and the two subterms), so that a refused bridge can be read without a Lean build. -/
 partial def attestFirstDiff (a b : Expr) : MetaM (Option String) := do
   if a.eqv b then return none
+  -- a difference the elaborator sees through (a reducible wrapper, an instance path) is not the cause: skip it
+  if (← try Meta.isDefEq a b catch _ => pure false) then return none
   let shw (x : Expr) : MetaM String := do
     let s ← try pure (toString (← Meta.ppExpr x)) catch _ => pure (toString x)
     pure s!"{(s.replace "\\n" " ").take 260}"
@@ -153,7 +155,8 @@ partial def attestFirstDiff (a b : Expr) : MetaM (Option String) := do
           return (r.map fun t => s!"arg {i} of {h}: {t}")
       return none
     else
-      return some s!"{← shw a}  VERSUS  {← shw b}"
+      let withAll ← try Meta.withTransparency .all (Meta.isDefEq a b) catch _ => pure false
+      return some s!"{← shw a}  VERSUS  {← shw b}  [defeq at all transparency: {withAll}]"
 '''
 
 COMMANDS = '''
