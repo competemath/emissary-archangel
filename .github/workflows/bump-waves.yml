@@ -1,0 +1,779 @@
+name: bump-waves
+run-name: bump-waves ${{ inputs.key }}
+# A build-once: a library too big to rebuild in every shard (flt-anthropic: 60,474 modules, 13.5M lines) is built once, wave after wave. scripts/bump/build_waves.py cuts the import graph into bands of
+# connected pieces; each job builds its own modules on top of what earlier jobs handed on (scripts/bump/wave_pack.py) and judges them with Gate 2 like any shard (bump-shard.yml, build_once). When every
+# wave has passed, bump-sharded.yml is started on this run's shards (recut_from): compose, the tree's own build, signing and parts are the same as for any bump.
+# This file is a chain of the same job 32 times: a job's `needs` is the wave before it, and tests/test_wave_workflow.py holds them identical.
+on:
+  workflow_dispatch:
+    inputs:
+      key: { description: "registered library key", required: true }
+      mathlib: { description: "Mathlib tag the Tengoku tree is seeded from", default: "v4.34.0-rc2" }
+      toolchain: { description: "the tree's Lean toolchain", default: "leanprover/lean4:v4.34.0-rc2" }
+      budget_lines: { description: "lines of Lean one job builds (132000: about 2 hours at the measured 1,100 lines a minute)", default: "132000" }
+      runners: { description: "runners a wave may use at most: the plan's bands are cut to this", default: "17" }
+      parallel: { description: "jobs running at once", default: "17" }
+      tengoku_ref: { description: "a branch of competemath/tengoku to read the records from (default main)", default: "" }
+      imports: { description: "faithful: the library keeps the imports its authors wrote, as every bump is dispatched now (bump-sharded.yml's own default is older and is full)", default: "faithful" }
+      gate2_budget_min: { description: "as in bump-sharded.yml", default: "150" }
+      gate2_rss_share: { description: "as in bump-sharded.yml", default: "0.80" }
+      swap_gb: { description: "GB of swap every job adds", default: "48" }
+      build_timeout_min: { description: "minutes one module may take to build", default: "170" }
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  plan:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    permissions: { contents: read }
+    env: { KEY: "${{ inputs.key }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}", BUDGET: "${{ inputs.budget_lines }}", RUNNERS: "${{ inputs.runners }}" }
+    outputs:
+      w0: ${{ steps.p.outputs.w0 }}
+      w1: ${{ steps.p.outputs.w1 }}
+      w2: ${{ steps.p.outputs.w2 }}
+      w3: ${{ steps.p.outputs.w3 }}
+      w4: ${{ steps.p.outputs.w4 }}
+      w5: ${{ steps.p.outputs.w5 }}
+      w6: ${{ steps.p.outputs.w6 }}
+      w7: ${{ steps.p.outputs.w7 }}
+      w8: ${{ steps.p.outputs.w8 }}
+      w9: ${{ steps.p.outputs.w9 }}
+      w10: ${{ steps.p.outputs.w10 }}
+      w11: ${{ steps.p.outputs.w11 }}
+      w12: ${{ steps.p.outputs.w12 }}
+      w13: ${{ steps.p.outputs.w13 }}
+      w14: ${{ steps.p.outputs.w14 }}
+      w15: ${{ steps.p.outputs.w15 }}
+      w16: ${{ steps.p.outputs.w16 }}
+      w17: ${{ steps.p.outputs.w17 }}
+      w18: ${{ steps.p.outputs.w18 }}
+      w19: ${{ steps.p.outputs.w19 }}
+      w20: ${{ steps.p.outputs.w20 }}
+      w21: ${{ steps.p.outputs.w21 }}
+      w22: ${{ steps.p.outputs.w22 }}
+      w23: ${{ steps.p.outputs.w23 }}
+      w24: ${{ steps.p.outputs.w24 }}
+      w25: ${{ steps.p.outputs.w25 }}
+      w26: ${{ steps.p.outputs.w26 }}
+      w27: ${{ steps.p.outputs.w27 }}
+      w28: ${{ steps.p.outputs.w28 }}
+      w29: ${{ steps.p.outputs.w29 }}
+      w30: ${{ steps.p.outputs.w30 }}
+      w31: ${{ steps.p.outputs.w31 }}
+    steps:
+      - name: This repository (scripts, the library's setup) and tengoku's entries for it
+        run: |
+          [[ "$KEY" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "::error::the key is not a source key"; exit 1; }
+          [[ "$BUDGET" =~ ^[1-9][0-9]{3,7}$ && "$RUNNERS" =~ ^[1-9][0-9]?$ ]] || { echo "::error::budget_lines and runners are numbers"; exit 1; }
+          git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
+          git -C emissary sparse-checkout set --no-cone "/scripts/" "/gate2/" "/sources.json" "/data/exports/$KEY/setup.ci.json"
+          git -C emissary checkout -q "$GITHUB_SHA"
+          git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
+          git -C tengoku sparse-checkout set --no-cone $(python3 emissary/scripts/bump/tentative_files.py sparse emissary/sources.json "$KEY")
+          ref=${TENGOKU_REF:+origin/$TENGOKU_REF}; git -C tengoku checkout -q "${ref:-main}"
+      - name: A library in the tree is not built again from nothing
+        working-directory: emissary
+        run: git -C ../tengoku ls-tree -r --name-only main -- "data/intake/$KEY" | python3 scripts/bump/in_tree.py --key "$KEY" --from-tree false --parts 300
+      - name: The library, its import graph, the plan
+        id: p
+        working-directory: emissary
+        run: |
+          read -r repo commit _ roots < <(python3 scripts/trial-library-build.py meta "$KEY")
+          git clone -q --filter=blob:none "$repo" lib && git -C lib checkout -q "$commit"
+          sub=$(python3 -c "import json, os; print(json.load(open('sources.json'))['sources'][os.environ['KEY']].get('subdir', ''))")
+          if [ -n "$sub" ]; then mv lib lib-repo && ln -s "lib-repo/$sub" lib; fi
+          python3 scripts/bump/link_srcdir.py "$KEY" lib
+          python3 scripts/bump/plan_waves.py "$KEY" lib --tengoku ../tengoku --budget-lines "$BUDGET" --runners "$RUNNERS" --out ../plan
+      - name: What the shards are built with
+        working-directory: emissary
+        env: { MATHLIB: "${{ inputs.mathlib }}", TOOLCHAIN: "${{ inputs.toolchain }}", IMPORTS: "${{ inputs.imports }}", SWAP_GB: "${{ inputs.swap_gb }}", BUILD_TIMEOUT_MIN: "${{ inputs.build_timeout_min }}" }
+        run: python3 scripts/bump/plan_inputs.py ../plan/inputs.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: "plan-${{ inputs.key }}", path: plan, retention-days: 14 }
+  w0:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w0 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w0) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w1:
+    needs: [plan, w0]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w1 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w1) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w2:
+    needs: [plan, w1]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w2 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w2) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w3:
+    needs: [plan, w2]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w3 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w3) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w4:
+    needs: [plan, w3]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w4 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w4) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w5:
+    needs: [plan, w4]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w5 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w5) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w6:
+    needs: [plan, w5]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w6 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w6) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w7:
+    needs: [plan, w6]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w7 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w7) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w8:
+    needs: [plan, w7]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w8 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w8) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w9:
+    needs: [plan, w8]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w9 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w9) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w10:
+    needs: [plan, w9]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w10 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w10) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w11:
+    needs: [plan, w10]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w11 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w11) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w12:
+    needs: [plan, w11]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w12 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w12) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w13:
+    needs: [plan, w12]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w13 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w13) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w14:
+    needs: [plan, w13]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w14 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w14) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w15:
+    needs: [plan, w14]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w15 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w15) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w16:
+    needs: [plan, w15]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w16 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w16) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w17:
+    needs: [plan, w16]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w17 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w17) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w18:
+    needs: [plan, w17]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w18 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w18) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w19:
+    needs: [plan, w18]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w19 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w19) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w20:
+    needs: [plan, w19]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w20 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w20) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w21:
+    needs: [plan, w20]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w21 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w21) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w22:
+    needs: [plan, w21]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w22 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w22) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w23:
+    needs: [plan, w22]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w23 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w23) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w24:
+    needs: [plan, w23]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w24 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w24) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w25:
+    needs: [plan, w24]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w25 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w25) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w26:
+    needs: [plan, w25]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w26 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w26) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w27:
+    needs: [plan, w26]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w27 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w27) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w28:
+    needs: [plan, w27]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w28 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w28) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w29:
+    needs: [plan, w28]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w29 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w29) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w30:
+    needs: [plan, w29]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w30 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w30) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  w31:
+    needs: [plan, w30]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.w31 != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.plan.outputs.w31) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: ${{ inputs.gate2_budget_min }}
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+    permissions: { contents: read, actions: read }
+  # every wave passed: compose, the tree's own build, signing and parts, as for any bump. A failed job is re-run from the run's page (its packs stay here), and this job with it
+  bundle:
+    needs: [plan, w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15, w16, w17, w18, w19, w20, w21, w22, w23, w24, w25, w26, w27, w28, w29, w30, w31]
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions: { actions: write }  # dispatch bump-sharded
+    env: { GH_TOKEN: "${{ github.token }}", KEY: "${{ inputs.key }}", MATHLIB: "${{ inputs.mathlib }}", TOOLCHAIN: "${{ inputs.toolchain }}", IMPORTS: "${{ inputs.imports }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}" }
+    steps:
+      - name: Start the bundle
+        run: |
+          gh workflow run bump-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$KEY" -f mathlib="$MATHLIB" -f toolchain="$TOOLCHAIN" -f imports="$IMPORTS" -f tengoku_ref="$TENGOKU_REF" \
+            -f recut_from="$GITHUB_RUN_ID" -f parts=300 -f verify=true -f verify_partial=true -f verify_modes=proposed

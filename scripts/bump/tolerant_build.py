@@ -172,6 +172,7 @@ class Builder:
         if a.modules:  # a shard: only these (a dependency-closed set: everything they import is in it)
             keep = {ln.strip() for ln in Path(a.modules).read_text().splitlines() if ln.strip()}
             self.mods = {m: p for m, p in self.mods.items() if m in keep}
+        self.own = {ln.strip() for ln in Path(a.own).read_text().splitlines() if ln.strip()} if getattr(a, "own", "") else None
         self.lock = threading.Lock()
         self.status: dict[str, dict] = {}
         self.log_lines: list[str] = []
@@ -210,6 +211,18 @@ class Builder:
         with self.lock:
             self.log_lines += lines
 
+    def restored(self, mod: str) -> None:
+        """A module an earlier job of a build-once built (--own names this job's modules). It is never built here: a second build would give its importers in other jobs a different olean, and a module
+        that crashed would burn its time limit again in every later job. Its log stays out of this job's build log, or the repair rounds would edit a module this job does not own."""
+        lf, olean = self.cache / f"{mod}.log.json", self.olean_of(mod)
+        if lf.exists() and olean.exists():
+            st = json.loads(lf.read_text())
+            st.pop("log", None)
+            self.status[mod] = {**st, "restored": True}
+            self.sha[mod] = hashlib.sha256(olean.read_bytes()).hexdigest()
+        else:
+            self.status[mod] = {"state": "blocked", "behind": ["its own job left no olean"], "errors": 0}
+
     def build_one(self, mod: str) -> None:
         src = self.mods[mod]
         rel = str(src.relative_to(self.lib))
@@ -217,6 +230,9 @@ class Builder:
             for dep in self.imports[mod]:
                 if dep in self.mods:
                     self.done[dep].wait()
+            if self.own is not None and mod not in self.own:
+                self.restored(mod)
+                return
             bad = [d for d in self.imports[mod] if (d not in self.mods and not self.external_exists(d))]
             blocked = [d for d in self.imports[mod] if d in self.mods and self.status[d]["state"] in ("blocked", "bad_import", "crashed")]
             if bad:
@@ -317,6 +333,7 @@ def main() -> None:
     ap.add_argument("--report", default="tb.json")
     ap.add_argument("--cache", default="")
     ap.add_argument("--modules", default="", help="file with one module per line: build only these (a dependency-closed set)")
+    ap.add_argument("--own", default="", help="file with one module per line: a build-once job builds only these; the other --modules were built by earlier jobs and restored (wave_pack.py)")
     a = ap.parse_args()
     b = Builder(a)
     res = b.run()
