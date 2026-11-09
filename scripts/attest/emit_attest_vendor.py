@@ -110,7 +110,7 @@ partial def attestFirstDiff (a b : Expr) : MetaM (Option String) := do
   if a.eqv b then return none
   let shw (x : Expr) : MetaM String := do
     let s ← try pure (toString (← Meta.ppExpr x)) catch _ => pure (toString x)
-    pure (s.replace "\\n" " ").take 260
+    pure ((s.replace "\\n" " ").take 260)
   match a, b with
   | .forallE n t1 b1 bi, .forallE _ t2 b2 _ =>
     if !t1.eqv t2 then attestFirstDiff t1 t2
