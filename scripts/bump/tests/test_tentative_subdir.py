@@ -23,13 +23,13 @@ def records(lib: str, *paths: str) -> list[str]:
 
 class TentativeSubdir(unittest.TestCase):
     def test_the_subdir_prefix_is_stripped_for_a_library_that_has_one(self):
-        with mock.patch.object(g, "subdirs_of_libraries", return_value={"openai-math": "lean"}):
+        with mock.patch.object(g, "subdirs_of_libraries", return_value={"openai-math": ["lean"]}):
             ents = g.tentative_entries(records("openai-math", "lean/OAI/Complex/Bezout.lean", "lean/ComparatorChallenges/C1.lean"))
         self.assertEqual({e["sourcePath"] for e in ents.values()}, {"OAI/Complex/Bezout.lean", "ComparatorChallenges/C1.lean"})
         self.assertEqual({g.module_of(e["sourcePath"]) for e in ents.values()}, {"OAI.Complex.Bezout", "ComparatorChallenges.C1"})
 
     def test_other_libraries_and_paths_without_the_prefix_are_untouched(self):
-        with mock.patch.object(g, "subdirs_of_libraries", return_value={"openai-math": "lean"}):
+        with mock.patch.object(g, "subdirs_of_libraries", return_value={"openai-math": ["lean"]}):
             self.assertEqual({e["sourcePath"] for e in g.tentative_entries(records("carleson", "lean/Carleson/X.lean")).values()}, {"lean/Carleson/X.lean"})
             self.assertEqual({e["sourcePath"] for e in g.tentative_entries(records("openai-math", "OAI/Y.lean")).values()}, {"OAI/Y.lean"})
             self.assertEqual({e["sourcePath"] for e in g.tentative_entries(records("openai-math", "leanish/Z.lean")).values()}, {"leanish/Z.lean"})  # a directory that merely starts with the same letters
@@ -37,7 +37,7 @@ class TentativeSubdir(unittest.TestCase):
     def test_the_real_registry_knows_the_subdir_libraries(self):
         subs = g.subdirs_of_libraries()
         if subs:  # skipped where sources.json is not checked out
-            self.assertEqual(subs.get("openai-math"), "lean")
+            self.assertEqual(subs.get("openai-math"), ["lean"])
             self.assertIn("fagin", subs)
 
 

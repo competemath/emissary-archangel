@@ -166,8 +166,25 @@
       "repo": "https://github.com/CBirkbeck/AINTLIB",
       "commit": "160e446617a2168c34c95bbe7a76c4105b392434",
       "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "srcdir": [
+        "Common",
+        "projects/AdicSpaces",
+        "projects/Chebotarev",
+        "projects/DedekindResidue",
+        "projects/FltRegular",
+        "projects/FltRegularBernoulli",
+        "projects/HasseWeil",
+        "projects/LeanModularForms",
+        "projects/ModularCurves",
+        "projects/NagellLutz",
+        "projects/PadicLFunctions"
+      ],
       "roots": [
-        "Common"
+        "ModularCurves",
+        "BernoulliRegular",
+        "HasseWeil",
+        "DedekindResidue",
+        "LutzNagell"
       ],
       "licence": "Apache-2.0"
     },

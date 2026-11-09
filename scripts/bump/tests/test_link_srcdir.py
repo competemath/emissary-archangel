@@ -93,6 +93,98 @@ class RealRepository(unittest.TestCase):
             self.assertFalse((self.d / name).readlink().is_absolute(), "a link that moves with the clone")
 
 
+AINT = json.loads(gzip.open(FIXTURES / "real-aintlib-layout.json.gz").read())
+AINT_SRC = json.loads((REPO / "sources.json").read_text())["sources"]["aintlib"]
+
+
+class RealMonorepo(unittest.TestCase):
+    """aintlib at its pinned commit: 11 Lake libraries with a source folder each. 30,137 of its 30,142 records were dropped because the registry knew one folder."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.d = Path(self.tmp.name)
+        for p in AINT["lean_files"]:
+            f = self.d / p
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(f"-- {p}\n")
+        self.made = link_srcdir.link(self.d, link_srcdir.srcdirs_of(AINT_SRC), AINT_SRC["roots"])
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def module(self, path):
+        for d in sorted(link_srcdir.srcdirs_of(AINT_SRC), key=len, reverse=True):
+            if path.startswith(d + "/"):
+                return path[len(d) + 1 : -len(".lean")].replace("/", ".")
+        return None
+
+    def test_the_cases_are_the_real_ones(self):
+        self.assertEqual((len(AINT["lean_files"]), sum(AINT["records"].values())), (2823, 30142))
+
+    def test_every_record_of_a_root_has_its_module(self):
+        found = tb._under_roots(self.d, AINT_SRC["roots"])
+        kept = {p: n for p, n in AINT["records"].items() if self.module(p) and self.module(p).split(".")[0] in AINT_SRC["roots"]}
+        self.assertEqual([p for p in kept if self.module(p) not in found], [])
+        self.assertEqual(sum(kept.values()), 30124)  # 13 in a `.mathlib-quality` folder and the 5 of Common are no root's
+
+    def test_every_lean_file_is_reachable_where_its_module_name_says(self):
+        """an import of another project (LeanModularForms, Common) is followed by the path its name spells (tolerant_build.module_files)"""
+        missing = []
+        for p in AINT["lean_files"]:
+            m = self.module(p)
+            if m and not m.startswith(".") and not (self.d / (m.replace(".", "/") + ".lean")).is_file():
+                missing.append(p)
+        self.assertEqual(missing, [])
+
+    def test_the_folder_named_after_its_module(self):
+        self.assertTrue((self.d / "Common" / "Analysis").is_symlink())
+        self.assertTrue((self.d / "Common.lean").is_symlink())
+        self.assertEqual((self.d / "Common" / "Analysis" / "DirichletBounds.lean").read_text(), "-- Common/Common/Analysis/DirichletBounds.lean\n")
+
+    def test_a_second_run_changes_nothing(self):
+        self.assertEqual(link_srcdir.link(self.d, link_srcdir.srcdirs_of(AINT_SRC), AINT_SRC["roots"]), self.made)
+
+    def test_an_edit_lands_in_the_real_file(self):
+        (self.d / "HasseWeil" / "HasseBound.lean").write_text("-- edited\n")
+        self.assertEqual((self.d / "projects/HasseWeil/HasseWeil/HasseBound.lean").read_text(), "-- edited\n")
+
+    def test_gate2_reads_the_record_from_inside_its_project(self):
+        with tempfile.TemporaryDirectory() as t:
+            f = Path(t) / "r.jsonl"
+            f.write_text(json.dumps({"name": "n", "library": "aintlib", "source_url": f"https://github.com/o/r/blob/{AINT['commit']}/projects/HasseWeil/HasseWeil/HasseBound.lean#L1"}) + "\n")
+            self.assertEqual(gate2_batch.tentative_entries([str(f)])["n"]["sourcePath"], "HasseWeil/HasseBound.lean")
+
+    def test_only_links_were_added(self):
+        real = sorted(p.relative_to(self.d).as_posix() for p in self.d.rglob("*") if p.is_file() and not p.is_symlink())
+        self.assertEqual(real, sorted(AINT["lean_files"]))
+
+
+class Lists(unittest.TestCase):
+    def test_a_name_in_two_source_folders_stops(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            for s in ("a", "b"):
+                (d / s / "M").mkdir(parents=True)
+                (d / s / "M" / "X.lean").write_text("--\n")
+            with self.assertRaises(ValueError):
+                link_srcdir.link(d, ["a", "b"], ["M"])
+
+    def test_a_folder_without_lean_is_not_linked(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            (d / "a" / "M").mkdir(parents=True)
+            (d / "a" / "M" / "X.lean").write_text("--\n")
+            (d / "a" / "docs").mkdir()
+            (d / "a" / "docs" / "r.md").write_text("x")
+            (d / "docs").mkdir()  # the repository's own: no clash, it holds no Lean
+            self.assertEqual(link_srcdir.link(d, ["a"], ["M"]), ["M"])
+
+    def test_srcdirs_of(self):
+        self.assertEqual(link_srcdir.srcdirs_of({"srcdir": "x"}), ["x"])
+        self.assertEqual(link_srcdir.srcdirs_of({"srcdir": ["x", "y"]}), ["x", "y"])
+        self.assertEqual(link_srcdir.srcdirs_of({}), [])
+
+
 class Refusals(unittest.TestCase):
     def test_a_folder_that_leaves_the_project(self):
         with tempfile.TemporaryDirectory() as t:
@@ -179,9 +271,10 @@ class RepositoryLinks(unittest.TestCase):
 
     def test_subdir_libraries_are_unchanged(self):
         s = gate2_batch.subdirs_of_libraries()
-        self.assertEqual(s["openai-math"], "lean")
-        self.assertEqual(s["fagin"], "proofs")
-        self.assertEqual(s["classfieldtheory-yamaguchi"], "Lean4")
+        self.assertEqual(s["openai-math"], ["lean"])
+        self.assertEqual(s["fagin"], ["proofs"])
+        self.assertEqual(s["classfieldtheory-yamaguchi"], ["Lean4"])
+        self.assertEqual(len(s["aintlib"]), 11)
 
     def test_a_library_with_no_source_folder_is_left_alone(self):
         with tempfile.TemporaryDirectory() as t:

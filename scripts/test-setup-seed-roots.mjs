@@ -119,6 +119,10 @@ check("a source folder: a second run over the same clone passes", twoRuns.code =
 const wrongFolder = seed(["Deep"], [rec("g0", "Lean4/Deep/G.lean", 1)], { srcdir: "Nope" })
 check("a source folder the repository does not have: the setup stops", wrongFolder.code !== 0 && /none of the roots/.test(wrongFolder.out), wrongFolder.out.slice(-500))
 rmSync(join(root, "infra"), { recursive: true, force: true })
+// a list of source folders (aintlib): each record is read from inside its own, and the longest matching folder wins
+const inList = seed(["Deep"], [rec("g0", "Lean4/Deep/G.lean", 1)], { srcdir: ["ALongerFolderThatHoldsNothing", "Lean4"] })
+check("a list of source folders: the record is seeded under its module's own path", inList.code === 0 && inList.queue?.[0]?.sourcePath === "Deep/G.lean", inList.out.slice(-500))
+rmSync(join(root, "infra"), { recursive: true, force: true })
 const empty = seed(["Single"], [])
 check("a library with no records at all is not that error", empty.code === 0 && empty.queue?.length === 0, empty.out.slice(-400))
 
