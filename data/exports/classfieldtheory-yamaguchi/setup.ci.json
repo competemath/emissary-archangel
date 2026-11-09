@@ -10,31 +10,31 @@
     "ProCGroups"
   ],
   "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/classfieldtheory-yamaguchi/repo",
-  "entries": 0,
-  "modules": 0,
-  "exported": 0,
+  "entries": 13326,
+  "modules": 1443,
+  "exported": 1443,
   "failed": [],
   "expansion": {
-    "expanded": 0,
-    "verbatim": 0,
+    "expanded": 5,
+    "verbatim": 576,
     "unexpanded": 0,
     "failed": []
   },
   "seed": {
     "records": 13326,
-    "kept": 0,
-    "skippedRoot": 13326,
+    "kept": 13326,
+    "skippedRoot": 0,
     "skippedDup": 0,
     "skippedNoFile": 0,
     "skippedCommented": 0,
-    "lineFixed": 0,
-    "lineUnverified": 0,
-    "nameFixed": 0,
+    "lineFixed": 1730,
+    "lineUnverified": 930,
+    "nameFixed": 12609,
     "sorryOriginals": 0,
-    "emptyProofs": 0
+    "emptyProofs": 5
   },
   "sharded": {
-    "records": 1,
+    "records": 8,
     "shards": [
       8
     ]
@@ -47,16 +47,16 @@
     "node": "v22.23.4",
     "runnerImage": "ubuntu26/20261101.186.1"
   },
-  "exportsBytes": 16384,
-  "minutes": 2,
-  "finishedAt": "2026-11-08T15:30:32.123Z",
+  "exportsBytes": 13311860736,
+  "minutes": 55,
+  "finishedAt": "2026-11-09T00:56:13.268Z",
   "archive": {
     "release": "exports-classfieldtheory-yamaguchi",
     "asset": "classfieldtheory-yamaguchi@2eb22d6485af-exports.tar.zst",
     "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-classfieldtheory-yamaguchi/classfieldtheory-yamaguchi@2eb22d6485af-exports.tar.zst",
-    "bytes": 24,
-    "sha256": "b606db750a03e4627037ef2de8288c10527247be5eda31904b1230670e177a19",
-    "files": 0,
+    "bytes": 1534260386,
+    "sha256": "3fbec7960e0aee87525c25e8c2eb60d5d2af5900c867f2dee31cf8e1dd919bef",
+    "files": 2886,
     "unpack": "tar --zstd -xf classfieldtheory-yamaguchi@2eb22d6485af-exports.tar.zst -C data/exports/classfieldtheory-yamaguchi"
   }
 }
