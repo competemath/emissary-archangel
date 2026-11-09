@@ -10,6 +10,7 @@ on:
       key: { description: "registered library key", required: true }
       mathlib: { description: "Mathlib tag the Tengoku tree is seeded from", default: "v4.34.0-rc2" }
       toolchain: { description: "the tree's Lean toolchain", default: "leanprover/lean4:v4.34.0-rc2" }
+      from_tree: { description: "true for a library with parts in the tree already: only the modules the tree does not have are cut, numbered from the next part (bump-sharded.yml from_tree)", default: "false" }
       budget_lines: { description: "lines of Lean one job builds (132000: about 2 hours at the measured 1,100 lines a minute)", default: "132000" }
       runners: { description: "runners a wave may use at most: the plan's bands are cut to this", default: "17" }
       parallel: { description: "jobs running at once", default: "17" }
@@ -28,7 +29,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 90
     permissions: { contents: read }
-    env: { KEY: "${{ inputs.key }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}", BUDGET: "${{ inputs.budget_lines }}", RUNNERS: "${{ inputs.runners }}" }
+    env: { KEY: "${{ inputs.key }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}", BUDGET: "${{ inputs.budget_lines }}", RUNNERS: "${{ inputs.runners }}", FROM_TREE: "${{ inputs.from_tree }}" }
     outputs:
       w0: ${{ steps.p.outputs.w0 }}
       w1: ${{ steps.p.outputs.w1 }}
@@ -67,15 +68,16 @@ jobs:
         run: |
           [[ "$KEY" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "::error::the key is not a source key"; exit 1; }
           [[ "$BUDGET" =~ ^[1-9][0-9]{3,7}$ && "$RUNNERS" =~ ^[1-9][0-9]?$ ]] || { echo "::error::budget_lines and runners are numbers"; exit 1; }
+          [[ "$FROM_TREE" =~ ^(true|false)$ ]] || { echo "::error::from_tree is true or false"; exit 1; }
           git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
           git -C emissary sparse-checkout set --no-cone "/scripts/" "/gate2/" "/sources.json" "/data/exports/$KEY/setup.ci.json"
           git -C emissary checkout -q "$GITHUB_SHA"
           git clone -q --filter=blob:none --no-checkout https://github.com/competemath/tengoku tengoku
           git -C tengoku sparse-checkout set --no-cone $(python3 emissary/scripts/bump/tentative_files.py sparse emissary/sources.json "$KEY")
           ref=${TENGOKU_REF:+origin/$TENGOKU_REF}; git -C tengoku checkout -q "${ref:-main}"
-      - name: A library in the tree is not built again from nothing
+      - name: A library in the tree is cut from the tree (from_tree=true), or the run stops here
         working-directory: emissary
-        run: git -C ../tengoku ls-tree -r --name-only main -- "data/intake/$KEY" | python3 scripts/bump/in_tree.py --key "$KEY" --from-tree false --parts 300
+        run: git -C ../tengoku ls-tree -r --name-only main -- "data/intake/$KEY" | python3 scripts/bump/in_tree.py --key "$KEY" --from-tree "$FROM_TREE" --parts 300
       - name: The library, its import graph, the plan
         id: p
         working-directory: emissary
@@ -771,9 +773,9 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions: { actions: write }  # dispatch bump-sharded
-    env: { GH_TOKEN: "${{ github.token }}", KEY: "${{ inputs.key }}", MATHLIB: "${{ inputs.mathlib }}", TOOLCHAIN: "${{ inputs.toolchain }}", IMPORTS: "${{ inputs.imports }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}" }
+    env: { GH_TOKEN: "${{ github.token }}", KEY: "${{ inputs.key }}", MATHLIB: "${{ inputs.mathlib }}", TOOLCHAIN: "${{ inputs.toolchain }}", IMPORTS: "${{ inputs.imports }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}", FROM_TREE: "${{ inputs.from_tree }}" }
     steps:
       - name: Start the bundle
         run: |
           gh workflow run bump-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$KEY" -f mathlib="$MATHLIB" -f toolchain="$TOOLCHAIN" -f imports="$IMPORTS" -f tengoku_ref="$TENGOKU_REF" \
-            -f recut_from="$GITHUB_RUN_ID" -f parts=300 -f verify=true -f verify_partial=true -f verify_modes=proposed
+            -f recut_from="$GITHUB_RUN_ID" -f from_tree="$FROM_TREE" -f parts=300 -f verify=true -f verify_partial=true -f verify_modes=proposed

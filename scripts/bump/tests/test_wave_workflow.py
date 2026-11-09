@@ -15,6 +15,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
 import build_waves as bw  # noqa: E402
+import in_tree  # noqa: E402
 import plan_waves as pw  # noqa: E402
 
 WF = HERE.parents[2] / ".github" / "workflows"
@@ -93,6 +94,25 @@ class Chain(unittest.TestCase):
         run = b["steps"][0]["run"]
         self.assertIn('recut_from="$GITHUB_RUN_ID"', run)
         self.assertNotIn("${{", run)
+
+    def test_a_library_already_in_the_tree_can_be_cut_from_it(self):
+        """flt-anthropic, 9 Nov 2026: part 1 merged on 6 Nov (116 theorems), so a lane that always said from_tree=false stopped in its first ten seconds"""
+        self.assertEqual(ON["workflow_dispatch"]["inputs"]["from_tree"]["default"], "false")
+        steps = waves["jobs"]["plan"]["steps"]
+        guard = next(s for s in steps if "in_tree.py" in s.get("run", ""))
+        self.assertIn('--from-tree "$FROM_TREE"', guard["run"])
+        self.assertEqual(waves["jobs"]["plan"]["env"]["FROM_TREE"], "${{ inputs.from_tree }}")
+        self.assertIn('[[ "$FROM_TREE" =~ ^(true|false)$ ]]', steps[0]["run"])
+        bundle = waves["jobs"]["bundle"]
+        self.assertEqual(bundle["env"]["FROM_TREE"], "${{ inputs.from_tree }}")
+        self.assertIn('-f from_tree="$FROM_TREE"', bundle["steps"][0]["run"])
+
+    def test_the_real_library_in_the_tree_passes_only_with_from_tree(self):
+        real = ["data/intake/flt-anthropic/manifest.jsonl", "data/intake/flt-anthropic/report.json"]
+        self.assertFalse(in_tree.verdict(real, "flt-anthropic", "false", "300")[0])
+        ok, why = in_tree.verdict(real, "flt-anthropic", "true", "300")
+        self.assertTrue(ok)
+        self.assertIn("from part 002", why)
 
     def test_a_build_once_keeps_the_authors_imports(self):
         self.assertEqual(ON["workflow_dispatch"]["inputs"]["imports"]["default"], "faithful")
