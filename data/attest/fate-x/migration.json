@@ -12,8 +12,16 @@
     "MvPolynomial.module",
     "SubmonoidClass.nPow",
     "SubgroupClass.zpow",
-    "AddSubgroupClass.zsmul"
+    "AddSubgroupClass.zsmul",
+    "AttestOld.Subring",
+    "AttestOld.Subgroup.normalizer",
+    "Subring.instModuleSubtypeMem",
+    "Algebra.ofSubring"
   ],
   "oldToolchain": "leanprover/lean4:v4.28.0",
-  "newToolchain": "leanprover/lean4:v4.34.0-rc2"
+  "newToolchain": "leanprover/lean4:v4.34.0-rc2",
+  "renames": {
+    "Subring": "AttestOld.Subring",
+    "Subgroup.normalizer": "AttestOld.Subgroup.normalizer"
+  }
 }

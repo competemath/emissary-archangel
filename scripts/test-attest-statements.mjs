@@ -167,12 +167,13 @@ ok("batch helpers: names, blocks, log splitting, verdicts (a GATE2B verdict is n
   eq([...defined].sort(), [...spec.names].sort(), "the table's names are exactly the definitions in migration.lean")
   assert.equal(new Set(spec.names).size, spec.names.length)
   assert.ok(!/\bsorry\b|\baxiom\b|\bnative_decide\b|\bunsafe\b|\bimport\b/.test(text.replace(/--.*$/gm, "")), "the table has no sorry, axiom, native_decide, unsafe or import")
-  assert.ok(/^section AttestMigration/m.test(text) && /^end AttestMigration/m.test(text), "its universes and opens stay inside a section")
-  const mig = { names: spec.names, text }
+  assert.ok(/^(noncomputable )?section AttestMigration/m.test(text) && /^end AttestMigration/m.test(text), "its universes and opens stay inside a section")
+  const mig = { names: spec.names, renames: spec.renames, text }
   const blk = problemBlock({ id: "q1", exportPath: "/e/q.ndjson", statement: "theorem t : True := trivial", qualified: "t", migration: mig })
   const iStmt = blk.indexOf("theorem t"), iSave = blk.indexOf("#attest_env_save"), iDef = blk.indexOf("def algebraMap"), iCheck = blk.indexOf("#gate2_statements"), iRestore = blk.lastIndexOf("#attest_env_restore")
   assert.ok(iStmt > 0 && iStmt < iSave && iSave < iDef && iDef < iCheck && iCheck < iRestore, "statement, then the table, then the check, then the environment as it was")
-  assert.ok(blk.includes(`#attest_env_save "${spec.names.join(",")}"`))
+  assert.ok(blk.includes(`#attest_env_save "${spec.names.join(",")}" "${Object.entries(spec.renames || {}).map(([a, b]) => `${a}=${b}`).join(",")}"`))
+  for (const [a, b] of Object.entries(spec.renames || {})) assert.ok(spec.names.includes(b), `the wrapper ${b} of ${a} is in the table`)
   assert.ok(!problemBlock({ id: "q1", exportPath: "/e/q", statement: "s", qualified: "t" }).includes("#attest_env"), "no table, no environment commands")
   // verdicts: what the original reached of the table, what it still lacks, the first difference
   const seg = "GATE2S_MIGRATED old=A names=Monoid.toNatPow,algebraMap GATE2S_END GATE2S_MISSING old=A names=Foo.bar GATE2S_END GATE2S_FAIL old=A new=A reason=rejected msg=Type mismatch GATE2S_DIFF old type = X || new type = Y GATE2S_FIRSTDIFF arg 3 of HPow.hPow: a VERSUS b GATE2S_END"

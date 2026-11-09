@@ -47,7 +47,7 @@ const migration = migrationFile
   ? (() => {
       const spec = JSON.parse(readFileSync(migrationFile, "utf8"))
       const text = readFileSync(join(resolve(migrationFile, ".."), spec.file), "utf8")
-      return { names: spec.names, text, sha256: sha256(text), file: spec.file, oldToolchain: spec.oldToolchain, newToolchain: spec.newToolchain }
+      return { names: spec.names, renames: spec.renames || {}, text, sha256: sha256(text), file: spec.file, oldToolchain: spec.oldToolchain, newToolchain: spec.newToolchain }
     })()
   : null
 if (!EXPORT_MODES.includes(exportMode)) (console.error(`attest-batch: --export-mode is one of ${EXPORT_MODES.join(", ")}`), process.exit(2))
@@ -173,7 +173,7 @@ const attestation = buildAttestation({
   problems: ordered,
   exportMode,
   checker: "batch-statement-only",
-  interpretation: migration ? { kind: "hand-written-migration-table", file: migration.file, sha256: migration.sha256, names: migration.names, oldToolchain: migration.oldToolchain, newToolchain: migration.newToolchain, text: migration.text } : null,
+  interpretation: migration ? { kind: "hand-written-migration-table", file: migration.file, sha256: migration.sha256, names: migration.names, renames: migration.renames, oldToolchain: migration.oldToolchain, newToolchain: migration.newToolchain, text: migration.text } : null,
   run: { repository: process.env.GITHUB_REPOSITORY || null, workflow: process.env.GITHUB_WORKFLOW_REF || null, runId: process.env.GITHUB_RUN_ID || null, sha: process.env.GITHUB_SHA || null, ref: process.env.GITHUB_REF || null },
 })
 const bad = checkAttestation(attestation)

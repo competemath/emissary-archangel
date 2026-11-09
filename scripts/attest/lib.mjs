@@ -178,12 +178,12 @@ const leanString = (s) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
 /** One problem's part of a check file: marker, the original's export, the translation in a section of its own (an `open` in it cannot reach the next problem), the check. */
 export function problemBlock({ id, exportPath, statement, qualified, migration = null }) {
   // the migration table is elaborated AFTER the statement (its `algebraMap` would make the statement's own `algebraMap` ambiguous) and removed again before the next problem
-  const mig = migration ? `#attest_env_save "${leanString(migration.names.join(","))}"\n${migration.text.trim()}\n` : ""
+  const mig = migration ? `#attest_env_save "${leanString(migration.names.join(","))}" "${leanString(Object.entries(migration.renames || {}).map(([a, b]) => `${a}=${b}`).join(","))}"\n${migration.text.trim()}\n` : ""
   const restore = migration ? `#attest_env_restore\n` : ""
   return `\n#attest_begin "${leanString(id)}"\n#tengoku_import_parse "${leanString(exportPath)}"\nsection\n${statement.trim()}\nend\n${mig}#gate2_statements "${leanString(qualified)}"\n${restore}`
 }
 export function checkFileText(treeImport, blocks) {
-  return `import Lean\nimport ${treeImport}\nimport Vendor.Attest\n\nset_option maxErrors 0\nset_option Elab.async false\n${blocks.join("")}`
+  return `import Lean\nimport ${treeImport}\nimport Vendor.Attest\n\nset_option maxErrors 100000\nset_option Elab.async false\n${blocks.join("")}`
 }
 
 /** The log of one Lean process -> { id: text up to the next marker }. */

@@ -68,6 +68,12 @@ STATEMENT_ONLY = '''      -- the migration table (hand-written definitions of ol
         return
 '''
 
+ALL_ANCHOR = "  let all ← importedConstantsRef.get\n"
+ALL_RENAMED = '''  let all ← importedConstantsRef.get
+  -- the original's references to a constant whose signature changed are read as references to the hand-written wrapper with the old signature (the migration table's `renames`)
+  let ren ← attestRenameRef.get
+  let all := if ren.isEmpty then all else all.map (fun _ ci => attestRenameCi ren ci)
+'''
 CLOSURE_ANCHOR = "      let closure := statementReach all [oldN]\n"
 REFUSED_ANCHOR = '''              logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=rejected msg={first} GATE2B_DIFF old type = {oldCi.type} || new type = {newCi.type} GATE2B_END"\n'''
 REFUSED_REPLACEMENT = '''              let whereDiff ← try (liftTermElabM (attestFirstDiff oldType newCi.type)) catch _ => pure none
@@ -104,6 +110,22 @@ HELPERS = '''
 initialize attestSavedEnv : IO.Ref (Option Environment) ← IO.mkRef none
 /-- The migration table's names while one problem is checked (set by `#attest_env_save`). -/
 initialize attestMigrationRef : IO.Ref (Array Name) ← IO.mkRef #[]
+/-- Old names whose signature changed in the tree: the original's references to `old` are read as references to `new` (a hand-written wrapper with the old signature). -/
+initialize attestRenameRef : IO.Ref (Std.HashMap Name Name) ← IO.mkRef {}
+
+def attestRenameExpr (ren : Std.HashMap Name Name) (e : Expr) : Expr :=
+  e.replace fun
+    | .const n ls => (ren[n]?).map (fun m => Expr.const m ls)
+    | _ => none
+
+def attestRenameCi (ren : Std.HashMap Name Name) (ci : ConstantInfo) : ConstantInfo :=
+  let r := attestRenameExpr ren
+  match ci with
+  | .defnInfo i => .defnInfo { i with type := r i.type, value := r i.value }
+  | .thmInfo i => .thmInfo { i with type := r i.type, value := r i.value }
+  | .axiomInfo i => .axiomInfo { i with type := r i.type }
+  | .opaqueInfo i => .opaqueInfo { i with type := r i.type, value := r i.value }
+  | other => other
 
 /-- Diagnostics only: the first place where two types differ, as text (heads and the two subterms), so that a refused bridge can be read without a Lean build. -/
 partial def attestFirstDiff (a b : Expr) : MetaM (Option String) := do
@@ -142,15 +164,22 @@ elab "#gate2_statements " names:str : command => do
     gate2sCheck n n
 
 /-- Start of a problem's migration table: remember the environment (the table's definitions are added to it for this problem's check only) and the table's names. -/
-elab "#attest_env_save " names:str : command => do
+elab "#attest_env_save " names:str rens:str : command => do
   attestSavedEnv.set (some (← getEnv))
   attestMigrationRef.set (((names.getString.splitOn ",").filter (· != "")).map parseDottedName).toArray
+  let mut m : Std.HashMap Name Name := {}
+  for pr in (rens.getString.splitOn ",").filter (· != "") do
+    match pr.splitOn "=" with
+    | [a, b] => m := m.insert (parseDottedName a) (parseDottedName b)
+    | _ => pure ()
+  attestRenameRef.set m
 
 /-- End of it: the environment as it was, so that the next problem's statement is elaborated without the old names. -/
 elab "#attest_env_restore" : command => do
   if let some e ← attestSavedEnv.get then setEnv e
   attestSavedEnv.set none
   attestMigrationRef.set #[]
+  attestRenameRef.set {}
 
 /-- A marker the driver splits the log by: what follows, up to the next marker, is one problem's. -/
 elab "#attest_begin " id:str : command => logInfo m!"ATTEST_BEGIN {id.getString}"
@@ -175,6 +204,9 @@ def derive(batch: str) -> str:
     if chk.count(CLOSURE_ANCHOR) != 1:
         sys.exit("emit_attest_vendor: `let closure := statementReach all [oldN]` not found exactly once")
     chk = chk.replace(CLOSURE_ANCHOR, CLOSURE_ANCHOR + ORIGINAL_SORRY, 1)
+    if chk.count(ALL_ANCHOR) != 1:
+        sys.exit("emit_attest_vendor: `let all ← importedConstantsRef.get` not found exactly once in the check")
+    chk = chk.replace(ALL_ANCHOR, ALL_RENAMED, 1)
     if chk.count(BOUNDARY_ANCHOR) != 1:
         sys.exit("emit_attest_vendor: `boundary := boundary.erase oldN` not found exactly once")
     chk = chk.replace(BOUNDARY_ANCHOR, BOUNDARY_ANCHOR + MISSING_AND_MIGRATED, 1)
