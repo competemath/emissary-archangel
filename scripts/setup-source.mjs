@@ -287,11 +287,17 @@ const SOLO_MAX = soloMax() // modules built alone in one run: each can take minu
 const BUILD_ATTEMPTS = buildAttempts() // tries of one chunk, each after the killed modules were built alone
 const SOLO_BUILD_MS = soloBuildMs()
 const MODULE_NAME = /^(?:[\p{L}_][\p{L}\p{N}_'!?]*|«[^»]+»)(?:\.(?:[\p{L}_][\p{L}\p{N}_'!?]*|«[^»]+»))*$/u
+// `srcdir` is one folder or a list of them (a monorepo of Lake libraries); the longest that matches, so that `a/b` is tried before `a`
+const SRCDIRS = [].concat(src.srcdir || []).sort((x, y) => y.length - x.length)
+const fromSrcdir = (p) => {
+  const dir = SRCDIRS.find((d) => p.startsWith(d + "/"))
+  return dir ? p.slice(dir.length + 1) : p
+}
 const moduleOfCommand = (cmd) => {
   for (const tok of cmd.split(/\s+/)) {
     if (!tok.endsWith(".lean")) continue
     const rel = relative(REPO, resolve(REPO, tok)).replace(/\\/g, "/")
-    if (rel && !rel.startsWith("..")) return moduleOfPath(src.srcdir && rel.startsWith(src.srcdir + "/") ? rel.slice(src.srcdir.length + 1) : rel)
+    if (rel && !rel.startsWith("..")) return moduleOfPath(fromSrcdir(rel))
   }
   return null
 }
@@ -511,7 +517,7 @@ async function ensureClone() {
     if (pinned && pinned !== src.toolchain) log(`WARNING: checkout pins ${pinned}, registry says ${src.toolchain} — using the checkout's`)
     if (pinned) src.toolchain = pinned
   }
-  if (src.srcdir) {
+  if (SRCDIRS.length) {
     const r = await run("python3", [join(APP_ROOT, "scripts", "bump", "link_srcdir.py"), key, REPO], { timeoutMs: 60 * 1000 })
     if (r.code !== 0) fail(`link_srcdir: ${r.tail.slice(-500)}`)
   }
@@ -623,7 +629,7 @@ function seedQueue() {
     let [, ownerRepo, commit, path] = m
     let line = Number(m[4])
     if (src.subdir && path.startsWith(src.subdir + "/")) path = path.slice(src.subdir.length + 1) // records are repository-relative
-    if (src.srcdir && path.startsWith(src.srcdir + "/")) path = path.slice(src.srcdir.length + 1) // and a module is named from inside its source folder (Lean4/A/B.lean is A.B)
+    path = fromSrcdir(path) // and a module is named from inside its source folder (Lean4/A/B.lean is A.B)
     if (!roots.has(rootOfRepoPath(path)) || path.includes("..")) {
       stats.skippedRoot++
       const top = path.split("/")[0]

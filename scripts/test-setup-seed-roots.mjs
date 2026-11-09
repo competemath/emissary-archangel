@@ -117,7 +117,11 @@ check("a source folder: the setup says what it linked", /t: linked at the top of
 const twoRuns = seed(["Deep"], [rec("g0", "Lean4/Deep/G.lean", 1)], { srcdir: "Lean4" })
 check("a source folder: a second run over the same clone passes", twoRuns.code === 0 && twoRuns.queue?.length === 1, twoRuns.out.slice(-500))
 const wrongFolder = seed(["Deep"], [rec("g0", "Lean4/Deep/G.lean", 1)], { srcdir: "Nope" })
-check("a source folder the repository does not have: the setup stops", wrongFolder.code !== 0 && /none of the roots/.test(wrongFolder.out), wrongFolder.out.slice(-500))
+check("a source folder the repository does not have: the setup stops", wrongFolder.code !== 0 && /not a folder of the project/.test(wrongFolder.out), wrongFolder.out.slice(-500))
+rmSync(join(root, "infra"), { recursive: true, force: true })
+// a list of source folders (aintlib): each record is read from inside its own, and of two that overlap the longest wins: an unsorted resolver would read Lean4/Deep/G.lean as Deep/G.lean
+const inList = seed(["G"], [rec("g0", "Lean4/Deep/G.lean", 1)], { srcdir: ["Lean4", "Lean4/Deep"] })
+check("a list of source folders: of two that overlap, the longest gives the module's path", inList.code === 0 && inList.queue?.[0]?.sourcePath === "G.lean", inList.out.slice(-500))
 rmSync(join(root, "infra"), { recursive: true, force: true })
 const empty = seed(["Single"], [])
 check("a library with no records at all is not that error", empty.code === 0 && empty.queue?.length === 0, empty.out.slice(-400))

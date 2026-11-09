@@ -315,14 +315,21 @@ def ledger_latest(path: Path) -> dict[str, dict]:
     return latest
 
 
-def subdirs_of_libraries() -> dict[str, str]:
-    """library key -> what comes before a module's path in a repository link: the Lake project's subdirectory (sources.json `subdir`; fagin `proofs`, openai-math `lean`), then its source
-    folder (`srcdir`; classfieldtheory-yamaguchi `Lean4`). Empty where sources.json is not checked out."""
+def subdirs_of_libraries() -> dict[str, list[str]]:
+    """library key -> what can come before a module's path in a repository link, longest first: the Lake project's subdirectory (sources.json `subdir`; fagin `proofs`, openai-math `lean`), then
+    its source folder or folders (`srcdir`; classfieldtheory-yamaguchi `Lean4`, aintlib one per project). Empty where sources.json is not checked out."""
     try:
         sources = json.loads((Path(__file__).resolve().parents[2] / "sources.json").read_text())["sources"].items()
-        return {k: "/".join(x for x in (v.get("subdir"), v.get("srcdir")) if x) for k, v in sources if v.get("subdir") or v.get("srcdir")}
     except (OSError, ValueError, KeyError):
         return {}
+    out: dict[str, list[str]] = {}
+    for k, v in sources:
+        srcdirs = [v["srcdir"]] if isinstance(v.get("srcdir"), str) else list(v.get("srcdir") or [])
+        prefixes = ["/".join(x for x in (v.get("subdir"), d) if x) for d in (srcdirs or [None])]
+        prefixes = sorted({p for p in prefixes if p}, key=len, reverse=True)
+        if prefixes:
+            out[k] = prefixes
+    return out
 
 
 def tentative_entries(paths: list[str]) -> dict[str, dict]:
@@ -338,9 +345,11 @@ def tentative_entries(paths: list[str]) -> dict[str, dict]:
                 continue
             m = re.search(r"/blob/[0-9a-f]{7,40}/([^#]+\.lean)", r.get("source_url", ""))
             if r.get("name") and m:
-                path, sub = m.group(1), subdirs.get(r.get("library", ""), "")
-                if sub and path.startswith(sub + "/"):
-                    path = path[len(sub) + 1 :]  # the link is repository-relative, the library's modules are relative to its Lake project (openai-math: lean/OAI/X.lean is module OAI.X)
+                path = m.group(1)
+                for sub in subdirs.get(r.get("library", ""), ()):
+                    if path.startswith(sub + "/"):
+                        path = path[len(sub) + 1 :]
+                        break  # the link is repository-relative, the library's modules are relative to its Lake project (openai-math: lean/OAI/X.lean is module OAI.X)
                 key = r["name"]
                 if key in out and out[key]["sourcePath"] != path:  # one short name in two modules (`mem_set_iff` in two namespaces): both are kept, `qualify` tells them apart
                     key = f"{r['name']}\t{path}"
