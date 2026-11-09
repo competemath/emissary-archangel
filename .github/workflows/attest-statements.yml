@@ -80,14 +80,27 @@ jobs:
         run: |
           avail() { df --output=avail -BG / | tail -1 | tr -dc 0-9; }
           while [ ! -f /tmp/disk-freed ] && [ "$(avail)" -lt 25 ]; do sleep 5; done
-          node scripts/setup-source.mjs "$KEY" 2>&1 | tee setup.log | tail -n 80
+          node scripts/setup-source.mjs "$KEY" --keep-build 2>&1 | tee setup.log | tail -n 80
+      - name: The old signatures of the names the migration table defines (Lean v4.28.0, printed so that the table can be reviewed against them)
+        continue-on-error: true
+        run: |
+          python3 - <<'PY' > infra/fate-x/repo/migration-probe.lean
+          import json
+          names = json.load(open("data/attest/fate-x/migration.json"))["names"]
+          print("import Mathlib\nset_option pp.universes true")
+          for n in names:
+              print(f"#check @{n}")
+              print(f"#print {n}")
+          PY
+          (cd infra/fate-x/repo && lake env lean migration-probe.lean) 2>&1 | tee migration-old-signatures.txt
+          test -s migration-old-signatures.txt
       - name: What was exported
         run: |
           ls data/exports/fate-x | grep -c '\.ndjson$' || true
           cat infra/fate-x/setup.json 2>/dev/null | head -c 1500 || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
-        with: { name: fatex-exports, path: "data/exports/fate-x\ninfra/fate-x/setup.json\nsetup.log", retention-days: 14, if-no-files-found: error }
+        with: { name: fatex-exports, path: "data/exports/fate-x\ninfra/fate-x/setup.json\nsetup.log\nmigration-old-signatures.txt", retention-days: 14, if-no-files-found: error }
 
   # 2a. Gate 2's own Lean modules, with the statement-only check, built in a project of their own (they import only Lean): a compile error shows here in minutes, not after the tree.
   vendor:
@@ -192,7 +205,7 @@ jobs:
           sudo -u lean env -i HOME=/home/lean PATH="$bin:/usr/bin:/bin" LEAN_NUM_THREADS=4 \
             "$(command -v node)" scripts/attest/attest-batch.mjs --problems data/attest/fate-x/translated.json --exports data/exports/fate-x --key fate-x --root FATEX \
             --source data/attest/fate-x/source.json --out out --tree tree --tree-commit "$tree_commit" --emissary-commit "$GITHUB_SHA" \
-            --lean "$bin/lean" --lean-path "$LP" --vendor vendorproj --chunk 25 --parallel 2 --limit "$LIMIT" --export-mode library-only 2>&1 | tee out/driver.log | grep -E '^\[..:..:..\]' | tail -n 170
+            --lean "$bin/lean" --lean-path "$LP" --vendor vendorproj --chunk 25 --parallel 2 --limit "$LIMIT" --export-mode library-only --migration data/attest/fate-x/migration.json 2>&1 | tee out/driver.log | grep -E '^\[..:..:..\]' | tail -n 170
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with: { name: fatex-attestation-unsigned, path: out/, retention-days: 14, if-no-files-found: error }

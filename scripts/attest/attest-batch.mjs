@@ -41,6 +41,15 @@ const timeoutMin = Number(opt("timeout-min", "100"))
 const limit = Number(opt("limit", "0")) || 0
 const only = (opt("only", "") || "").split(",").filter(Boolean)
 const exportMode = opt("export-mode", "full-closure")
+// the hand-written migration table (data/attest/fate-x/migration.json + .lean): old-library names defined by the tree's own constants, for the check of one problem at a time
+const migrationFile = opt("migration")
+const migration = migrationFile
+  ? (() => {
+      const spec = JSON.parse(readFileSync(migrationFile, "utf8"))
+      const text = readFileSync(join(resolve(migrationFile, ".."), spec.file), "utf8")
+      return { names: spec.names, text, sha256: sha256(text), file: spec.file, oldToolchain: spec.oldToolchain, newToolchain: spec.newToolchain }
+    })()
+  : null
 if (!EXPORT_MODES.includes(exportMode)) (console.error(`attest-batch: --export-mode is one of ${EXPORT_MODES.join(", ")}`), process.exit(2))
 assertNotAdmissionPath(outDir, ROOT)
 mkdirSync(join(outDir, "chunks"), { recursive: true })
@@ -82,7 +91,7 @@ log(`${problems.length} problems, ${prepared.size} ready for Lean, ${entries.siz
 const runLean = (name, items) =>
   new Promise((done) => {
     const file = join(outDir, "chunks", `${name}.lean`)
-    writeFileSync(file, checkFileText(treeImport, items.map((p) => problemBlock({ id: p.problem.id, exportPath: p.exportPath, statement: p.problem.statement, qualified: p.qualified }))))
+    writeFileSync(file, checkFileText(treeImport, items.map((p) => problemBlock({ id: p.problem.id, exportPath: p.exportPath, statement: p.problem.statement, qualified: p.qualified, migration }))))
     const logFile = join(outDir, "chunks", `${name}.log`)
     const t0 = Date.now()
     const child = spawn(lean, [file], { env: { ...process.env, LEAN_PATH: leanPath }, cwd: outDir, stdio: ["ignore", "pipe", "pipe"] })
@@ -164,6 +173,7 @@ const attestation = buildAttestation({
   problems: ordered,
   exportMode,
   checker: "batch-statement-only",
+  interpretation: migration ? { kind: "hand-written-migration-table", file: migration.file, sha256: migration.sha256, names: migration.names, oldToolchain: migration.oldToolchain, newToolchain: migration.newToolchain, text: migration.text } : null,
   run: { repository: process.env.GITHUB_REPOSITORY || null, workflow: process.env.GITHUB_WORKFLOW_REF || null, runId: process.env.GITHUB_RUN_ID || null, sha: process.env.GITHUB_SHA || null, ref: process.env.GITHUB_REF || null },
 })
 const bad = checkAttestation(attestation)

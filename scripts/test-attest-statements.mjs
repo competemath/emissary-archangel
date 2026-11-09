@@ -158,6 +158,42 @@ eq([readBatchVerdict(segs.p4).reason, readBatchVerdict(segs.p4).msg], ["rejected
 eq(readBatchVerdict("GATE2B_PASS old=A new=A via=equal").ok, null, "a BATCH verdict is not a statement verdict")
 ok("batch helpers: names, blocks, log splitting, verdicts (a GATE2B verdict is never read as GATE2S)")
 
+// ---- the migration table ---------------------------------------------------------------------------------------
+{
+  const spec = JSON.parse(readFileSync(join(ROOT, "data/attest/fate-x/migration.json"), "utf8"))
+  const text = readFileSync(join(ROOT, "data/attest/fate-x", spec.file), "utf8")
+  // every name the table declares is defined in the file, once, and every definition is in the table (a name in the table but not defined would fail every check; a definition not in the table would never be reported)
+  const defined = [...text.matchAll(/^(?:@\[[^\]]*\]\s+)?(?:def|abbrev|instance)\s+([^\s({\[:]+)/gm)].map((m) => m[1])
+  eq([...defined].sort(), [...spec.names].sort(), "the table's names are exactly the definitions in migration.lean")
+  assert.equal(new Set(spec.names).size, spec.names.length)
+  assert.ok(!/\bsorry\b|\baxiom\b|\bnative_decide\b|\bunsafe\b|\bimport\b/.test(text.replace(/--.*$/gm, "")), "the table has no sorry, axiom, native_decide, unsafe or import")
+  assert.ok(/^section AttestMigration/m.test(text) && /^end AttestMigration/m.test(text), "its universes and opens stay inside a section")
+  const mig = { names: spec.names, text }
+  const blk = problemBlock({ id: "q1", exportPath: "/e/q.ndjson", statement: "theorem t : True := trivial", qualified: "t", migration: mig })
+  const iStmt = blk.indexOf("theorem t"), iSave = blk.indexOf("#attest_env_save"), iDef = blk.indexOf("def algebraMap"), iCheck = blk.indexOf("#gate2_statements"), iRestore = blk.lastIndexOf("#attest_env_restore")
+  assert.ok(iStmt > 0 && iStmt < iSave && iSave < iDef && iDef < iCheck && iCheck < iRestore, "statement, then the table, then the check, then the environment as it was")
+  assert.ok(blk.includes(`#attest_env_save "${spec.names.join(",")}"`))
+  assert.ok(!problemBlock({ id: "q1", exportPath: "/e/q", statement: "s", qualified: "t" }).includes("#attest_env"), "no table, no environment commands")
+  // verdicts: what the original reached of the table, what it still lacks, the first difference
+  const seg = "GATE2S_MIGRATED old=A names=Monoid.toNatPow,algebraMap GATE2S_END GATE2S_MISSING old=A names=Foo.bar GATE2S_END GATE2S_FAIL old=A new=A reason=rejected msg=Type mismatch GATE2S_DIFF old type = X || new type = Y GATE2S_FIRSTDIFF arg 3 of HPow.hPow: a VERSUS b GATE2S_END"
+  const v = readBatchVerdict(seg)
+  eq([v.migrated, v.missing, v.firstDiff, v.reason], [["Monoid.toNatPow", "algebraMap"], ["Foo.bar"], "arg 3 of HPow.hPow: a VERSUS b", "rejected"])
+  assert.ok(!("diff" in v) || !/FIRSTDIFF/.test(v.diff), "the first difference is kept apart from the two types")
+  const e = problemEntry({ problem: { id: "q1", index: 1, name: "t", statement: "s" }, verdict: { ...v, ok: false }, gate2Text: null })
+  eq([e.migrated, e.missing], [["Monoid.toNatPow", "algebraMap"], ["Foo.bar"]])
+  assert.match(e.detail, /first difference: arg 3 of HPow\.hPow/)
+  const passEntry = problemEntry({ problem: { id: "q2", index: 2, name: "t", statement: "s" }, qualifiedName: "t", oldId: "k/m", exportSha256: "a".repeat(64), verdict: readBatchVerdict("GATE2S_MIGRATED old=B names=algebraMap GATE2S_END GATE2S_PASS old=B new=B via=entails"), gate2Text: null })
+  eq([passEntry.verdict, passEntry.migrated, passEntry.missing], ["pass", ["algebraMap"], undefined])
+  // the attestation carries the table, and a migrated pass needs it
+  const base = { subject: "s", upstream: {}, target: {}, inputs: {}, gate2: {}, run: {}, problems: [passEntry], exportMode: "library-only", checker: "batch-statement-only" }
+  eq(checkAttestation(buildAttestation({ ...base, interpretation: { names: ["algebraMap"], sha256: sha256(text), text } })), [])
+  assert.ok(checkAttestation(buildAttestation({ ...base })).some((m) => /not in the interpretation table/.test(m)), "a migrated pass with no table is invalid")
+  assert.ok(checkAttestation(buildAttestation({ ...base, interpretation: { names: ["Other"], sha256: sha256(text), text } })).some((m) => /not in the interpretation table/.test(m)))
+  assert.ok(checkAttestation(buildAttestation({ ...base, interpretation: { names: ["algebraMap"], sha256: "x", text } })).some((m) => /no hash/.test(m)))
+  assert.ok(limitsFor("library-only", "batch-statement-only").some((l) => /MIGRATION TABLE/.test(l)))
+}
+ok("migration table: exactly its definitions, no sorry, after the statement and removed again; verdicts carry migrated, missing and the first difference; a migrated pass needs the table in the attestation")
+
 // ---- the Lean modules: derived from the batch check, with exactly the statement-only differences ------------------
 const vend = join(tmp, "vendor")
 mkdirSync(join(vend, "Vendor"), { recursive: true })

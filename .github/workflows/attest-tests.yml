@@ -2,9 +2,9 @@
 name: attest-tests
 on:
   push:
-    paths: ["scripts/attest/**", "scripts/test-attest-statements.mjs", ".github/workflows/attest-statements.yml", ".github/workflows/attest-tests.yml", "public/local-claude-bridge.mjs"]
+    paths: ["scripts/attest/**", "data/attest/**", "scripts/test-attest-statements.mjs", ".github/workflows/attest-statements.yml", ".github/workflows/attest-tests.yml", "public/local-claude-bridge.mjs"]
   pull_request:
-    paths: ["scripts/attest/**", "scripts/test-attest-statements.mjs", ".github/workflows/attest-statements.yml", ".github/workflows/attest-tests.yml", "public/local-claude-bridge.mjs"]
+    paths: ["scripts/attest/**", "data/attest/**", "scripts/test-attest-statements.mjs", ".github/workflows/attest-statements.yml", ".github/workflows/attest-tests.yml", "public/local-claude-bridge.mjs"]
 permissions: {}
 defaults:
   run:
@@ -20,6 +20,8 @@ jobs:
           sparse-checkout: |
             scripts
             public
+            gate2
+            data/attest
             .github/workflows
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
