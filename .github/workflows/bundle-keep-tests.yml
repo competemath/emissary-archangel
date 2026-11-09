@@ -66,7 +66,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/k"
           printf '%s\n' 'axiom KeepAx.unproved : 1 = 1' 'def KeepAx.standsOn : 1 = 1 := KeepAx.unproved' 'def KeepAx.standsFurther : 1 = 1 := KeepAx.standsOn' 'def KeepAx.clean : Nat := 1' 'theorem KeepAx.usesIt : 1 = 1 := KeepAx.unproved' 'theorem KeepAx.fine : 1 = 1 := rfl' > "$RUNNER_TEMP/k/KeepAx.lean"
-          lean -o "$RUNNER_TEMP/k/KeepAx.olean" "$RUNNER_TEMP/k/KeepAx.lean"
+          lean --root="$RUNNER_TEMP/k" -o "$RUNNER_TEMP/k/KeepAx.olean" "$RUNNER_TEMP/k/KeepAx.lean"
           run() { printf '%s' "{\"imports\": [\"KeepAx\"], \"names\": $1, \"libs\": [\"KeepAx\"]}" > "$RUNNER_TEMP/keep-$2.json"; LEAN_PATH="$RUNNER_TEMP/k" lean --run ../scripts/bump/BundleKeep.lean "$RUNNER_TEMP/keep-$2.json" > "$RUNNER_TEMP/keep-$2.out"; }
           run '["KeepAx.fine"]' clean
           run '["KeepAx.usesIt"]' used
