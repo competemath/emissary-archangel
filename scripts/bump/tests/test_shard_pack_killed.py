@@ -74,7 +74,7 @@ class WorkflowsPassTheList(unittest.TestCase):
 
     def test_the_shard_artifact_carries_the_list(self):
         text = (self.ROOT / ".github" / "workflows" / "bump-shard.yml").read_text()
-        self.assertIn("emissary/gate2-killed.json", text.split("upload-artifact")[1])
+        self.assertIn("emissary/gate2-killed.json", next(part for part in text.split("upload-artifact") if 'name: shard-' in part))
 
 
 if __name__ == "__main__":
