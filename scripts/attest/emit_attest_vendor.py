@@ -89,7 +89,10 @@ GOAL_DIAG = '''                let d1 ← attestFirstDiff newBody oldBody
                   catch e =>
                     let m ← e.toMessageData.toString
                     pure (some m)
-                attestDiagRef.set s!"{d1.getD "none"} || the original's statement on its own: {d2.getD "well typed"}"
+                let pe (e : Expr) : MetaM String := (try withOptions (fun o => o.setBool `pp.explicit true) (do return toString (← Meta.ppExpr e)) catch _ => pure "?")
+                let pn ← pe newBody
+                let po ← pe oldBody
+                attestDiagRef.set s!"{d1.getD "none"} || the original's statement on its own: {d2.getD "well typed"} || TRANSLATION: {(pn.replace "\\n" " ").take 1500} ORIGINAL: {(po.replace "\\n" " ").take 1500}"
 '''
 RESULT_ANCHOR = "            let result ← liftTermElabM <| Term.withoutErrToSorry <| observing do\n"
 REFUSED_ANCHOR = '''              logInfo m!"GATE2B_FAIL old={oldN} new={newN} reason=rejected msg={first} GATE2B_DIFF old type = {oldCi.type} || new type = {newCi.type} GATE2B_END"\n'''
@@ -107,7 +110,7 @@ DRIFT_REPLACEMENT = '''            if drift.isEmpty then
                     if a.levelParams.length == b.levelParams.length then
                       let ls := b.levelParams.map Level.param
                       let av := a.value.instantiateLevelParams a.levelParams ls
-                      let r ← attestFirstDiff av b.value
+                      let r ← attestFirstDiff av b.value true
                       match r with
                       | some t => pure t
                       | none =>
@@ -212,20 +215,25 @@ initialize attestBridgeRef : IO.Ref String ← IO.mkRef "fun h => h"
 initialize attestDiagRef : IO.Ref String ← IO.mkRef ""
 
 /-- Diagnostics only: the first place where two types differ, as text (heads and the two subterms), so that a refused bridge can be read without a Lean build. -/
-partial def attestFirstDiff (a b : Expr) : MetaM (Option String) := do
+partial def attestFirstDiff (a b : Expr) (kernel : Bool := false) : MetaM (Option String) := do
   if a.eqv b then return none
   -- a difference the elaborator sees through (a reducible wrapper, an instance path) is not the cause: skip it
-  if (← try Meta.isDefEq a b catch _ => pure false) then return none
+  if kernel then
+    -- the kernel is the judge (it does not respect reducibility): skip what IT finds equal
+    match Lean.Kernel.isDefEq (← getEnv) (← getLCtx) a b with
+    | .ok true => return none
+    | _ => pure ()
+  else if (← try Meta.isDefEq a b catch _ => pure false) then return none
   let shw (x : Expr) : MetaM String := do
     let s ← try pure (toString (← Meta.ppExpr x)) catch _ => pure (toString x)
     pure s!"{(s.replace "\\n" " ").take 260}"
   match a, b with
   | .forallE n t1 b1 bi, .forallE _ t2 b2 _ =>
-    if !t1.eqv t2 then attestFirstDiff t1 t2
-    else Meta.withLocalDecl n bi t1 fun x => attestFirstDiff (b1.instantiate1 x) (b2.instantiate1 x)
+    if !t1.eqv t2 then attestFirstDiff t1 t2 kernel
+    else Meta.withLocalDecl n bi t1 fun x => attestFirstDiff (b1.instantiate1 x) (b2.instantiate1 x) kernel
   | .lam n t1 b1 bi, .lam _ t2 b2 _ =>
-    if !t1.eqv t2 then attestFirstDiff t1 t2
-    else Meta.withLocalDecl n bi t1 fun x => attestFirstDiff (b1.instantiate1 x) (b2.instantiate1 x)
+    if !t1.eqv t2 then attestFirstDiff t1 t2 kernel
+    else Meta.withLocalDecl n bi t1 fun x => attestFirstDiff (b1.instantiate1 x) (b2.instantiate1 x) kernel
   | _, _ =>
     let fa := a.getAppFn
     let fb := b.getAppFn
@@ -234,7 +242,7 @@ partial def attestFirstDiff (a b : Expr) : MetaM (Option String) := do
     if fa.eqv fb && xs.size == ys.size then
       for i in [0:xs.size] do
         if !(xs[i]!.eqv ys[i]!) then
-          let r ← attestFirstDiff xs[i]! ys[i]!
+          let r ← attestFirstDiff xs[i]! ys[i]! kernel
           let h ← shw fa
           return (r.map fun t => s!"arg {i} of {h}: {t}")
       return none

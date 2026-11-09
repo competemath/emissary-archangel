@@ -84,7 +84,7 @@ export function problemEntry({ problem, qualifiedName, oldId, exportSha256, verd
     ...(migrated ? { migrated } : {}),
     ...(verdict.bridge ? { bridge: verdict.bridge } : {}),
     ...(verdict.repaired ? { repairedInstanceArguments: verdict.repaired } : {}),
-    ...(verdict.ok ? {} : { ...(verdict.missing && verdict.missing.length ? { missing: verdict.missing } : {}), detail: String(gate2Text || [verdict.msg, verdict.firstDiff ? `first difference: ${verdict.firstDiff}` : null, verdict.diff, ...(verdict.names ? [`names: ${verdict.names.join(",")}`] : []), ...(verdict.errors || [])].filter(Boolean).join(" | ")).replace(/\s+/g, " ").slice(0, 1800) }),
+    ...(verdict.ok ? {} : { ...(verdict.missing && verdict.missing.length ? { missing: verdict.missing } : {}), detail: String(gate2Text || [verdict.msg, verdict.firstDiff ? `first difference: ${verdict.firstDiff}` : null, verdict.diff, ...(verdict.names ? [`names: ${verdict.names.join(",")}`] : []), ...(verdict.errors || [])].filter(Boolean).join(" | ")).replace(/\s+/g, " ").slice(0, 5000) }),
   }
 }
 
@@ -219,5 +219,5 @@ export function readBatchVerdict(segment) {
   const repaired = Number((flat.match(/GATE2S_REPAIRED old=\S+ count=(\d+) GATE2S_END/) || [])[1] || 0)
   const migrated = list("MIGRATED")
   const missing = list("MISSING")
-  return { migrated, missing, repaired, ...(firstDiff && firstDiff !== "none" ? { firstDiff: firstDiff.slice(0, 1400) } : {}), ok: kind === "PASS", reason: kind === "PASS" ? "pass" : reason || "unspecified", via: via || null, errors, ...(msg ? { msg: msg.slice(0, 300) } : {}), ...(names ? { names: names.split(",").slice(0, 8) } : {}), ...(diff ? { diff: diff.slice(0, 500) } : {}) }
+  return { migrated, missing, repaired, ...(firstDiff && firstDiff !== "none" ? { firstDiff: firstDiff.slice(0, 4200) } : {}), ok: kind === "PASS", reason: kind === "PASS" ? "pass" : reason || "unspecified", via: via || null, errors, ...(msg ? { msg: msg.slice(0, 300) } : {}), ...(names ? { names: names.split(",").slice(0, 8) } : {}), ...(diff ? { diff: diff.slice(0, 500) } : {}) }
 }
