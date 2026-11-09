@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { TOOL_FIELDS, collectTools, exporterAction, mergeTools, parseElan, patchFingerprint, parseLake, parseLean, plain, runnerImage } from "./setup-tools.mjs"
+import { TOOL_FIELDS, collectTools, exporterAction, mergeTools, parseElan, patchFingerprint, parseLake, parseLean, plain, retrying, runnerImage } from "./setup-tools.mjs"
 
 let bad = 0
 const check = (name, ok, got) => {
@@ -107,4 +107,30 @@ check("merge: every field is exactly the set of the values the records hold (200
 // the record is written where it has to be
 const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "setup-source.mjs"), "utf8")
 check("setup-source.mjs asks for the tools in the shard record and in the one-shot record, and merges them in the finish record", (src.match(/tools: await toolsNow\(\)/g) || []).length === 2 && /tools: mergeTools\(records\.map/.test(src), (src.match(/toolsNow/g) || []).length)
+
+// a failed download is tried again: the real answer of Lean's download server, aintlib, 9 Nov 2026
+const real504 = "error: could not download file from 'https://releases.lean-lang.org/lean4/v4.34.0-rc2/lean-4.34.0-rc2-linux.tar.zst'\ninfo: caused by: http request returned an unsuccessful status code: 504"
+const schedule = async (answers, opts = {}) => {
+  const waits = []
+  let calls = 0
+  const r = await retrying(async () => answers[calls++] ?? { code: 0 }, { sleep: async (ms) => waits.push(ms), ...opts })
+  return { r, calls, waits }
+}
+{
+  const once = await schedule([{ code: 1, tail: real504 }, { code: 0 }])
+  check("retry: the real 504 is tried again and the second answer counts", once.calls === 2 && once.r.code === 0 && once.waits.join() === "20000", once)
+  const first = await schedule([{ code: 0 }])
+  check("retry: a download that works is not tried twice and nothing waits", first.calls === 1 && first.waits.length === 0, first)
+  const never = await schedule(Array(9).fill({ code: 1, tail: real504 }))
+  check("retry: five tries, the waits grow, no wait after the last, and the failure is returned", never.calls === 5 && never.r.code === 1 && never.r.tail === real504 && never.waits.join() === "20000,40000,60000,80000", never)
+  let propertyOk = true
+  for (let i = 0; i < 2000; i++) {
+    const fails = rnd(9)
+    const tries = 1 + rnd(7)
+    const s = await schedule([...Array(fails).fill({ code: 1 + rnd(200) }), { code: 0 }], { tries })
+    propertyOk &&= s.calls === Math.min(fails + 1, tries) && (fails < tries ? s.r.code === 0 : s.r.code !== 0) && s.waits.length === s.calls - 1 && s.waits.every((w, k) => w === (k + 1) * 20000)
+  }
+  check("retry: 2,000 random schedules: stops at the first success, never more than the tries, one wait between tries", propertyOk, null)
+  check("setup-source.mjs installs Lean through the retry", /retrying\(\(\) => run\("elan", \["toolchain", "install"/.test(src), null)
+}
 process.exit(bad ? 1 : 0)

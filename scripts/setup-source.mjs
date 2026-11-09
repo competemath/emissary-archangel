@@ -35,7 +35,7 @@ import { basename, dirname, join, relative, resolve } from "node:path"
 import { StringDecoder } from "node:string_decoder"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
-import { collectTools, exporterAction, mergeTools, patchFingerprint, rootOfRepoPath } from "./setup-tools.mjs"
+import { collectTools, exporterAction, mergeTools, patchFingerprint, retrying, rootOfRepoPath } from "./setup-tools.mjs"
 import { bisectItems } from "./bisect.mjs"
 import { repairPins } from "./pinned-deps.mjs"
 import { aloneFirstMs, availableFrom, buildAttempts, closureBigModules, closureBudgetMs, closureRetryMs, membersOf, soloBuildMs, soloMax } from "./memory-rules.mjs"
@@ -491,7 +491,7 @@ const online = () => x("curl", ["-sI", "-m", "10", "https://github.com"], { env:
 async function ensureToolchain() {
   const { stdout } = await x("elan", ["toolchain", "list"], { env: ENV })
   if (stdout.split("\n").some((l) => l.trim().startsWith(src.toolchain))) return log(`toolchain ${src.toolchain} present`)
-  const r = await run("elan", ["toolchain", "install", src.toolchain], { timeoutMs: 30 * 60 * 1000 })
+  const r = await retrying(() => run("elan", ["toolchain", "install", src.toolchain], { timeoutMs: 30 * 60 * 1000 }), { warn: log })
   if (r.code !== 0) fail(`elan toolchain install ${src.toolchain}: ${r.tail.slice(-500)}`)
 }
 
