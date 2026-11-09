@@ -230,7 +230,7 @@ check("and the build is complete without it", /^complete=true$/m.test(setup(["--
 fresh()
 r = setup(["--phase", "build"], { FAKE_HUNGRY: JSON.stringify({ "Lib.C": 300 }), FAKE_ERROR_ALONE: JSON.stringify(["Lib.C"]) })
 check("a module killed in a chunk that then fails alone with an error in its own file is broken", r.status === 0 && existsSync(brokenMemo) && Object.keys(JSON.parse(readFileSync(brokenMemo, "utf8")).broken).join() === "Lib.C" && /deterministic timeout/.test(JSON.stringify(JSON.parse(readFileSync(brokenMemo, "utf8")).broken)), out(r))
-check("and the build is complete without it and what imports it", /^complete=true$/m.test(setup(["--phase", "build-status"]).stdout) && statusOf().other === 0, JSON.stringify(statusOf()))
+check("and the build is complete without it and what imports it, which stays unbuilt", /^complete=true$/m.test(setup(["--phase", "build-status"]).stdout) && statusOf().other === 0 && statusOf().blocked === 1 && !existsSync(olean("D")), JSON.stringify(statusOf()))
 // 10. NOT broken: a module that fails without an error line of its own file (case 7's compile error that only shows alone, printed nowhere), a module whose import is missing
 // (D imports C, which was killed for memory: its import has no .olean, so it is never probed), and one whose error line is in another file
 fresh()
