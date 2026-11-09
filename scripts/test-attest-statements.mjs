@@ -180,6 +180,8 @@ ok("batch helpers: names, blocks, log splitting, verdicts (a GATE2B verdict is n
   const v = readBatchVerdict(seg)
   eq([v.migrated, v.missing, v.firstDiff, v.reason], [["Monoid.toNatPow", "algebraMap"], ["Foo.bar"], "arg 3 of HPow.hPow: a VERSUS b", "rejected"])
   assert.ok(!("diff" in v) || !/FIRSTDIFF/.test(v.diff), "the first difference is kept apart from the two types")
+  eq(readBatchVerdict("GATE2S_REPAIRED old=A count=3 GATE2S_END GATE2S_PASS old=A new=A via=entails").repaired, 3)
+  eq(problemEntry({ problem: { id: "q9", index: 9, name: "t", statement: "s" }, qualifiedName: "t", oldId: "k/m", exportSha256: "b".repeat(64), verdict: readBatchVerdict("GATE2S_REPAIRED old=A count=3 GATE2S_END GATE2S_PASS old=A new=A via=entails"), gate2Text: null }).repairedInstanceArguments, 3)
   const e = problemEntry({ problem: { id: "q1", index: 1, name: "t", statement: "s" }, verdict: { ...v, ok: false }, gate2Text: null })
   eq([e.migrated, e.missing], [["Monoid.toNatPow", "algebraMap"], ["Foo.bar"]])
   assert.match(e.detail, /first difference: arg 3 of HPow\.hPow/)

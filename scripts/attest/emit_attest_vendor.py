@@ -73,6 +73,12 @@ ALL_RENAMED = '''  let all ← importedConstantsRef.get
   -- the original's references to a constant whose signature changed are read as references to the hand-written wrapper with the old signature (the migration table's `renames`)
   let ren ← attestRenameRef.get
   let all := if ren.isEmpty then all else all.map (fun _ ci => attestRenameCi ren ci)
+  -- instance arguments of the original that do not typecheck against the tree's constants are re-synthesized by the tree (counted, reported)
+  attestRepairCount.set 0
+  let repairedL ← liftTermElabM (all.toList.mapM fun (n, ci) => do return (n, ← attestRepairCi ci))
+  let all : Std.HashMap Name ConstantInfo := Std.HashMap.ofList repairedL
+  let nRepaired ← attestRepairCount.get
+  if nRepaired > 0 then logInfo m!"GATE2S_REPAIRED old={oldN} count={nRepaired} GATE2S_END"
 '''
 CLOSURE_ANCHOR = "      let closure := statementReach all [oldN]\n"
 GOAL_ANCHOR = "                let goalType := Expr.forallE `h newBody oldBody BinderInfo.default\n"
@@ -137,6 +143,43 @@ def attestRenameCi (ren : Std.HashMap Name Name) (ci : ConstantInfo) : ConstantI
   | .axiomInfo i => .axiomInfo { i with type := r i.type }
   | .opaqueInfo i => .opaqueInfo { i with type := r i.type, value := r i.value }
   | other => other
+
+/-- Instance arguments of the original that do not typecheck against the tree's constants (a constant whose instance argument is now `NonAssocRing` where the original passed a `Ring`, a class renamed) are
+re-synthesized by the tree. Counted per problem and reported (`GATE2S_REPAIRED`); the kernel then still has to accept `fun h => h` between the translation and the repaired original. -/
+initialize attestRepairCount : IO.Ref Nat ← IO.mkRef 0
+
+def attestRepairApp (e : Expr) : MetaM Meta.TransformStep := do
+  unless e.isApp do return .continue
+  let f := e.getAppFn
+  let mut args := e.getAppArgs
+  let mut fty ← (try Meta.inferType f catch _ => pure (Expr.sort Level.zero))
+  let mut changed := false
+  for i in [0:args.size] do
+    fty ← Meta.whnf fty
+    match fty with
+    | .forallE _ d b bi =>
+      if bi.isInstImplicit then
+        let aty ← (try Meta.inferType args[i]! catch _ => pure d)
+        let ok ← (try Meta.isDefEq aty d catch _ => pure true)
+        if !ok then
+          match (← (try Meta.synthInstance? d catch _ => pure none)) with
+          | some inst =>
+            args := args.set! i inst
+            changed := true
+            attestRepairCount.modify (· + 1)
+          | none => pure ()
+      fty := b.instantiate1 args[i]!
+    | _ => break
+  if changed then return .done (mkAppN f args) else return .continue
+
+def attestRepairCi (ci : ConstantInfo) : MetaM ConstantInfo := do
+  let rep (e : Expr) : MetaM Expr := (try Meta.transform e (post := attestRepairApp) catch _ => pure e)
+  match ci with
+  | .defnInfo i => return .defnInfo { i with type := ← rep i.type, value := ← rep i.value }
+  | .thmInfo i => return .thmInfo { i with type := ← rep i.type }
+  | .axiomInfo i => return .axiomInfo { i with type := ← rep i.type }
+  | .opaqueInfo i => return .opaqueInfo { i with type := ← rep i.type }
+  | other => return other
 
 /-- Diagnostics only, set while a bridge is tried: the first difference the elaborator does not see through, and whether the original's statement is well typed on its own (`Meta.check`). -/
 initialize attestDiagRef : IO.Ref String ← IO.mkRef ""
