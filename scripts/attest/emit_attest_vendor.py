@@ -148,7 +148,7 @@ def attestRenameCi (ren : Std.HashMap Name Name) (ci : ConstantInfo) : ConstantI
 re-synthesized by the tree. Counted per problem and reported (`GATE2S_REPAIRED`); the kernel then still has to accept `fun h => h` between the translation and the repaired original. -/
 initialize attestRepairCount : IO.Ref Nat ← IO.mkRef 0
 
-def attestRepairApp (e : Expr) : MetaM Meta.TransformStep := do
+def attestRepairApp (e : Expr) : MetaM TransformStep := do
   unless e.isApp do return .continue
   let f := e.getAppFn
   let mut args := e.getAppArgs
