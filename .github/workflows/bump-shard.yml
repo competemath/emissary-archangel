@@ -18,6 +18,7 @@ on:
       gate2_rss_share: { type: string, default: "0.80", description: "the share of the runner's memory one Lean process of Gate 2 may use before it is killed (gate2_driver.py --rss-share)" }
       swap_gb: { type: string, default: "0", description: "GB of swap this shard adds (0: none), for modules too big for a runner's 16 GB of RAM (flt-anthropic's P2M.Sol proofs of 100-900 KB). Gate 2 then counts swap as memory (--count-swap)" }
       build_timeout_min: { type: string, default: "90", description: "minutes one module may take to build (tolerant_build.py --timeout); a module too big for RAM and run on swap needs more" }
+      build_once: { type: string, default: "false", description: "a job of a build-once (bump-waves.yml): the plan says which modules this job builds (own) and which earlier shards built the rest (restore)" }
 permissions: {}
 defaults:
   run:
@@ -26,8 +27,9 @@ jobs:
   shard:
     runs-on: ubuntu-26.04
     timeout-minutes: 345
-    permissions: { contents: read }
+    permissions: { contents: read, actions: read }  # actions: read = the packs of the earlier jobs of a build-once
     env:
+      BUILD_ONCE: ${{ inputs.build_once }}
       KEY: ${{ inputs.key }}
       MATHLIB: ${{ inputs.mathlib }}
       TOOLCHAIN: ${{ inputs.toolchain }}
@@ -58,6 +60,10 @@ jobs:
           p = json.load(open("plan/plan.json"))["shards"][int(os.environ["SHARD"])]
           open("targets.txt", "w").write("\n".join(p["targets"]) + "\n")
           open("build.txt", "w").write("\n".join(p["build"]) + "\n")
+          own = p.get("own", p["build"])  # a build-once: what this job builds; the rest of `build` comes from the jobs before it
+          open("own.txt", "w").write("\n".join(own) + "\n")
+          open("closure.txt", "w").write("\n".join(sorted(set(p["build"]) - set(own))) + "\n")
+          open("restore.txt", "w").write(",".join(str(s) for s in p.get("restore", [])))
           key = os.environ["KEY"]
           pats = [f"/data/exports/{key}/setup.ci.json", f"/data/translate/{key}.jsonl"]
           for m in p["targets"]:
@@ -82,6 +88,13 @@ jobs:
       - name: The old exports of this shard's targets (a library set up across runners keeps them in a release, not in git); first, so that a failed download costs minutes and not the shard's hours of build
         working-directory: emissary
         run: node scripts/fetch-exports.mjs "$KEY" --modules ../targets.txt --names ../build.txt   # targets.txt is in the workspace root at this point (the build step copies it into emissary/ later)
+      - name: The work of the earlier jobs (a build-once; before any code of the library runs, the one step with a token)
+        if: inputs.build_once == 'true'
+        working-directory: emissary
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          [ ! -s ../restore.txt ] || python3 scripts/bump/wave_pack.py fetch --lib ../restored --work ../wave-packs --modules ../closure.txt --repo "$GITHUB_REPOSITORY" --run "$GITHUB_RUN_ID" --key "$KEY" --shards "$(cat ../restore.txt)"
+          rm -rf ../wave-packs
       - name: elan
         run: |
           for try in $(seq 1 20); do curl --proto '=https' --tlsv1.2 -sSfL --max-time 120 -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh && echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c - && timeout 300 sh elan-init.sh -y --default-toolchain none && break; [ "$try" -lt 20 ] || exit 1; echo "::notice::the Lean installer failed (try $try of 20): again in 30 s"; sleep 30; done
@@ -115,11 +128,18 @@ jobs:
           # full: every seeded import becomes the umbrellas (the environment a record is verified in). faithful: the library keeps the imports its authors wrote, so that names
           # resolve as upstream (bundle.py compose --imports faithful names them in the tree's modules); see bump-sharded.yml `imports`
           if [ "$IMPORTS" = full ]; then python3 scripts/bump/engine.py normalize-imports --lib lib --roots "$(echo "$roots" | tr ' ' ',')" --lean-path "$(cd lib && lake env printenv LEAN_PATH)"; fi
+      - name: The earlier jobs' work, into the library (a build-once)
+        if: inputs.build_once == 'true'
+        working-directory: emissary
+        run: |
+          [ ! -d ../restored ] || python3 scripts/bump/wave_pack.py place --from ../restored --lib lib
+          rm -rf ../restored
       - name: Build this shard's modules, repair, rebuild
         working-directory: emissary
         run: |
-          cp ../build.txt build.txt; cp ../targets.txt targets.txt
-          build() { python3 scripts/bump/tolerant_build.py --lib lib --roots "$ROOTS" --modules build.txt --log "build-$1.log" --report "tb-$1.json" --jobs 4 --cache lib/.bump-cache --timeout "$BUILD_TIMEOUT_MIN"; }
+          cp ../build.txt build.txt; cp ../targets.txt targets.txt; cp ../own.txt own.txt
+          OWN=(); [ "$BUILD_ONCE" != true ] || OWN=(--own own.txt)  # a build-once: the modules of earlier jobs are not built here and their errors are not repaired here
+          build() { python3 scripts/bump/tolerant_build.py --lib lib --roots "$ROOTS" --modules build.txt --log "build-$1.log" --report "tb-$1.json" --jobs 4 --cache lib/.bump-cache --timeout "$BUILD_TIMEOUT_MIN" "${OWN[@]}"; }
           echo '{"moves":{}}' > moves.json
           build s0; last=s0
           for r in 1 2 3 4; do
@@ -134,6 +154,13 @@ jobs:
           done
           cp "build-$last.log" build-final.log; cp "tb-$last.json" tb-final.json
           python3 -c "import json; d=json.load(open('tb-final.json')); print(d['by_state'], d['seconds'], 's')"
+      - name: This job's work, for the jobs after it (a build-once; before Gate 2, so that a Gate 2 that dies does not cost the waves after it their build)
+        if: inputs.build_once == 'true'
+        working-directory: emissary
+        run: python3 scripts/bump/wave_pack.py pack --lib lib --roots "$ROOTS" --modules own.txt --report tb-final.json --out ../wave-pack
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: inputs.build_once == 'true'
+        with: { name: "wave-${{ inputs.key }}-${{ inputs.shard }}", path: wave-pack, retention-days: 14, compression-level: 0 }
       - name: Gate 2's own Lean modules, in a project of their own
         run: |
           mkdir vendorproj && cp -r emissary/gate2/Vendor.lean emissary/gate2/Vendor vendorproj/
@@ -182,7 +209,7 @@ jobs:
       - name: Pack this shard
         working-directory: emissary
         run: |
-          python3 scripts/bump/shard_pack.py pack --lib lib --roots "$ROOTS" --modules build.txt --out ../shard-pack --gate2 gate2.log --errors build-final.log \
+          python3 scripts/bump/shard_pack.py pack --lib lib --roots "$ROOTS" --modules "$([ "$BUILD_ONCE" = true ] && echo own.txt || echo build.txt)" --out ../shard-pack --gate2 gate2.log --errors build-final.log \
             --passed passed.json --keep bundle-deps.log --results gate2-results.json --keep-drops keep-drops.txt
           du -sh ../shard-pack | cut -f1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

@@ -149,7 +149,7 @@ jobs:
       gate2_skip: ${{ inputs.gate2_skip }}
       swap_gb: ${{ needs.plan.outputs.swap_gb }}
       build_timeout_min: ${{ needs.plan.outputs.build_timeout_min }}
-    permissions: { contents: read }
+    permissions: { contents: read, actions: read }  # bump-shard.yml asks for it for a build-once; a plain bump's shards never use it
   # A shard killed for memory: the whole plan again with swap, once (rerun_killed.py). A run that already has `heavy`, or is a resume, never starts another.
   rerun-with-swap:
     needs: [plan, shard]
