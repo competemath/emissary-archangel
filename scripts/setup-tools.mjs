@@ -108,3 +108,20 @@ export const rootOfRepoPath = (p) => {
   const parts = String(p).split("/")
   return parts.length > 1 ? parts[0] : parts[0].replace(/\.lean$/, "")
 }
+
+// A download that fails is tried again, each wait longer than the last: `attempt` answers { code }, and the last answer is returned. aintlib (9 Nov 2026): Lean's download server answered 504 once and the
+// whole first build round of the setup ended after 25 seconds; a second such answer would have read as "no progress" and stopped the setup.
+// Only `shouldRetry` answers are tried again: a toolchain that does not exist will not exist in a minute, and an install that hung for its 30 minutes must not hang five times inside a 300-minute build.
+export const transientDownload = (r) => r.code !== 124 && /status code: 5\d\d|ssl|tls|connection|network|reset by peer|timed? ?out/i.test(r.tail ?? "")
+export async function retrying(attempt, { tries = 5, waitMs = 20000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), warn = () => {}, shouldRetry = () => true } = {}) {
+  let answer
+  for (let i = 1; i <= tries; i++) {
+    answer = await attempt()
+    if (answer.code === 0 || !shouldRetry(answer)) return answer
+    if (i < tries) {
+      warn(`try ${i} of ${tries} failed: again in ${(i * waitMs) / 1000} s`)
+      await sleep(i * waitMs)
+    }
+  }
+  return answer
+}

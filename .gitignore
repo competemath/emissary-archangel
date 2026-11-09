@@ -64,3 +64,4 @@ next-env.d.ts
 /data/pipeline/
 /data/pipeline-config.json
 .proof-term-fix-marker
+__pycache__/
