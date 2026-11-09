@@ -84,11 +84,16 @@ class Reading(unittest.TestCase):
 
         def gh(*args):
             calls.append(args)
-            return [{"displayTitle": "bump k", "createdAt": "2026-11-09T09:00:00Z"}] if "bump-library.yml" in args[2] else [{"displayTitle": "bump-sharded j", "createdAt": "2026-11-09T09:00:00Z"}]
+            answers = {
+                "repos/o/r/actions/workflows/bump-sharded.yml/runs?per_page=100&created=>=2026-11-09T08:00:00Z": "bump-sharded j",
+                "repos/o/r/actions/workflows/bump-library.yml/runs?per_page=100&created=>=2026-11-09T08:00:00Z": "bump k",
+            }
+            return [{"displayTitle": answers[args[2]], "createdAt": "2026-11-09T09:00:00Z"}]
 
         runs = bp.bump_runs("o/r", bp.FIRST_SETUP, gh)
         self.assertEqual(set(bp.last_bumps(runs)), {"j", "k"})
-        self.assertTrue(all("--paginate" in c and "created=>=2026-11-09T08:00:00Z" in c[2] for c in calls))
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all("--paginate" in c for c in calls))
 
     def test_a_list_that_may_be_cut_short_stops_the_pickup(self):
         full = [{"displayTitle": "bump-sharded j", "createdAt": "2026-11-09T09:00:00Z"}] * bp.LIST_LIMIT
