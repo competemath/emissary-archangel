@@ -49,6 +49,7 @@ jobs:
       - name: The memory knobs are numbers (they reach shell and Python)
         run: |
           echo "JOB_T0=$(date +%s)" >> "$GITHUB_ENV"  # the job's start, for the deadlines of the build, Gate 2 and the keep step
+          [[ "$GATE2_BUDGET_MIN" =~ ^[1-9][0-9]{0,2}$ ]] || { echo "::error::gate2_budget_min is a whole number of minutes (the job's clock caps it in shell arithmetic), not $GATE2_BUDGET_MIN"; exit 1; }
           [[ "$ROUND_RESERVE_MIN" =~ ^[1-9][0-9]{0,2}$ ]] && [ "$ROUND_RESERVE_MIN" -ge 10 ] && [ "$ROUND_RESERVE_MIN" -le 200 ] || { echo "::error::round_reserve_min is 10-200 minutes, not $ROUND_RESERVE_MIN"; exit 1; }
           [[ "$SWAP_GB" =~ ^(0|[1-9][0-9]{0,2})$ ]] || { echo "::error::swap_gb is a number of GB, not $SWAP_GB"; exit 1; }
           [[ "$BUILD_TIMEOUT_MIN" =~ ^[1-9][0-9]{0,2}$ ]] && [ "$BUILD_TIMEOUT_MIN" -le 170 ] || { echo "::error::build_timeout_min is 1-170 minutes (the job has 345, and its setup and Gate 2 come out of them), not $BUILD_TIMEOUT_MIN"; exit 1; }

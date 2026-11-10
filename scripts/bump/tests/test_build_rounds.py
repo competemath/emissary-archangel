@@ -186,6 +186,21 @@ class RealTimelines(unittest.TestCase):
         self.assertEqual(calls, [])
         self.assertIn("not started", res["stopped"])
 
+    def test_an_edit_that_runs_out_of_time_is_undone(self):
+        """the edit itself (engine.py repair, portfolio.py apply) is bounded by the deadline: one that is stopped is put back like a build that ran out"""
+        put_back = []
+
+        def edit(kind, n, last):
+            if kind == "portfolio":
+                raise br.OutOfTime
+            return n == 1
+
+        res = br.run_rounds(lambda n: 0, edit, lambda: None, lambda: put_back.append(1), 4, 3)
+        self.assertEqual(put_back, [1])
+        self.assertEqual(res["last"], "r1")
+        self.assertTrue(res["rounds"][-1]["undone"])
+        self.assertIn("edit ran out of time", res["stopped"])
+
     def test_a_build_that_fails_stops_the_step(self):
         with self.assertRaises(SystemExit):
             br.run_rounds(lambda n: 1, lambda *a: True, lambda: None, lambda: None, 4, 3)
@@ -195,9 +210,9 @@ FAKE_LEAN = """#!/bin/sh
 # lean --run DRIVER rel mod olean: sleeps as long as the module name says (T.Slow), then writes every output
 echo "$4" >> "$FAKE_CALLS"
 stem="${5%.olean}"
-for s in .olean.server .olean.private .ilean .ir.sig .ir; do [ ! -e "$stem$s" ] || { echo "$3:1:0: error: an old $s was still there"; exit 2; }; done
+for s in .olean .olean.server .olean.private .ilean .ir.sig .ir .olean.ranges.json; do [ ! -e "$stem$s" ] || { echo "$3:1:0: error: an old $s was still there"; exit 2; }; done
 case "$4" in *Slow*) echo half > "$5"; echo half > "$stem.ilean"; sleep 30;; esac  # killed half-way through writing
-for s in .olean .olean.server .olean.private .ilean .ir.sig .ir; do echo "new $4" > "$stem$s"; done
+for s in .olean .olean.server .olean.private .ilean .ir.sig .ir .olean.ranges.json; do echo "new $4" > "$stem$s"; done
 exit 0
 """
 
@@ -271,7 +286,7 @@ class Deadline(unittest.TestCase):
         self.source("T.A")
         stem = str(olean(self.lib, "T.A"))[: -len(".olean")]
         Path(stem).parent.mkdir(parents=True)
-        for s in tb.SUFFIXES:
+        for s in (".olean", ".olean.server", ".olean.private", ".ilean", ".ir.sig", ".ir", ".olean.ranges.json"):  # what Lean and TolerantBuild.lean write, listed here, not taken from the code under test
             Path(stem + s).write_text("old")
         r = self.build(0)
         self.assertEqual(r["status"]["T.A"]["state"], "clean")
@@ -371,6 +386,22 @@ class SaveAndPutBack(unittest.TestCase):
         (self.lib / rel).write_text("written in place")
         self.assertEqual((snap / "lib" / rel).read_text(), "written in place")
 
+    def test_a_symlinked_source_stays_a_link_and_gets_its_text_back(self):
+        """a `srcdir` library links its sources into lib/ (link_srcdir.py): putting a round back writes through the link and leaves it a link"""
+        real = self.t / "upstream" / "Thm_A.lean"
+        real.parent.mkdir()
+        real.write_text("-- the real source\n")
+        link = self.lib / "Theorems" / "Thm_A.lean"
+        link.unlink()
+        link.symlink_to(real)
+        snap = self.t / "snap"
+        br.save(self.lib, self.paths, [], snap)
+        link.write_text("edited by a round\n")  # engine.py and portfolio.py write the path, so through the link
+        br.put_back(self.lib, snap)
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(os.readlink(link), str(real))
+        self.assertEqual(real.read_text(), "-- the real source\n")
+
     def test_sources_and_cache_entries_are_copied_not_linked(self):
         snap = self.t / "snap"
         br.save(self.lib, self.paths, [], snap)
@@ -410,6 +441,12 @@ class Workflow(unittest.TestCase):
 
     def step(self, start):
         return next(s for s in self.job["steps"] if s.get("name", "").startswith(start))
+
+    def test_gate2_budget_must_be_whole_minutes(self):
+        line = next(ln for ln in self.job["steps"][0]["run"].splitlines() if "GATE2_BUDGET_MIN" in ln and "=~" in ln).strip()
+        for value, ok in (("150", True), ("1", True), ("340", True), ("150.5", False), ("0", False), ("", False), ("1e3", False), ("150; rm -rf /", False)):
+            r = subprocess.run(["bash", "-c", line], env={**os.environ, "GATE2_BUDGET_MIN": value}, capture_output=True, text=True)
+            self.assertEqual(r.returncode == 0, ok, value)
 
     def test_job_min_is_the_jobs_timeout(self):
         self.assertEqual(int(self.job["env"]["JOB_MIN"]), int(self.job["timeout-minutes"]))
@@ -457,6 +494,29 @@ class Workflow(unittest.TestCase):
         self.assertLessEqual(got, now - 300 * 60 + (345 - 8) * 60)
         got = self.bash(line, {"JOB_T0": str(now), "JOB_MIN": "345"}, "deadline")
         self.assertAlmostEqual(got, now + 120 * 60, delta=2)
+
+
+class Gate2ChunkTime(unittest.TestCase):
+    """no Gate 2 chunk runs past the budget (gate2_driver.chunk_timeout): the budget was checked only between chunks, each of which had 60 minutes"""
+
+    def test_a_chunk_never_outlives_the_budget(self):
+        g = load("gate2_driver")
+        cases = 0
+        for chunk in (60.0, 600.0, 3600.0):
+            for left in range(-120, 7300, 37):
+                t = g.chunk_timeout(chunk, 1000.0 + left, 1000.0)
+                self.assertLessEqual(t, max(1.0, min(chunk, left)))
+                self.assertGreaterEqual(t, 1.0)
+                if left >= chunk:
+                    self.assertEqual(t, chunk)
+                cases += 1
+        self.assertGreater(cases, 500)
+
+    def test_the_driver_passes_the_bounded_time_to_each_lean_process(self):
+        src = (BUMP / "gate2_driver.py").read_text()
+        self.assertIn("timeout = chunk_timeout(a.chunk_timeout_min * 60, deadline, time.monotonic())", src)
+        self.assertIn('pass_log, timeout, limit, count_swap=a.count_swap)', src)
+        self.assertNotIn("pass_log, a.chunk_timeout_min * 60, limit", src)
 
 
 if __name__ == "__main__":

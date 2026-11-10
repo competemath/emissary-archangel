@@ -36,7 +36,9 @@ MSG = re.compile(r"^(\S+?\.lean):(\d+):(\d+): (error|warning|info)(?:\([^)]*\))?
 CORE = ("Init", "Std", "Lean", "Lake")
 # everything Lean writes for a module (writeModule). `.ir.sig` is not optional: Lean loads a module's IR only if it exists, and a module reached only through a `meta import` has nothing else, so without it
 # the importer stops with `missing data file for module` (PrimeCert.SieveBase and PrimeCert.Meta.Pocklington on the first real run, 9 Nov 2026)
-SUFFIXES = (".olean", ".olean.server", ".olean.private", ".ilean", ".ir.sig", ".ir")
+# `.olean.ranges.json` is TolerantBuild.lean's own: where each declaration is in the source (records.py, shard_pack.py and bundle.py read it). It belongs to the olean it
+# sits next to: a round put back with an old olean and a new ranges file would place records at the wrong lines
+SUFFIXES = (".olean", ".olean.server", ".olean.private", ".ilean", ".ir.sig", ".ir", ".olean.ranges.json")
 
 
 def lake_env(lib: Path) -> dict[str, str]:

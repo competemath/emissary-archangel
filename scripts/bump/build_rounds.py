@@ -37,6 +37,10 @@ SUFFIXES = tb.SUFFIXES
 OUT_OF_TIME = 3  # tolerant_build.py's exit when its deadline stopped it
 
 
+class OutOfTime(Exception):
+    """an edit (engine.py repair, portfolio.py apply) that the deadline stopped: the round is put back like one whose build ran out of time"""
+
+
 def module_paths(lib: Path, roots: list[str], modules: list[str]) -> list[str]:
     """Every file a round can change for these modules, relative to the library: the source, everything Lean writes for it, its build-cache entry"""
     sources = tb.module_files(lib, roots, follow_imports=True)
@@ -98,8 +102,11 @@ def put_back(lib: Path, into: Path) -> int:
         f = lib / rel
         if rel in had:
             f.parent.mkdir(parents=True, exist_ok=True)
-            f.unlink(missing_ok=True)
-            _keep(into / "lib" / rel, f, rel)
+            if linkable(rel):
+                f.unlink(missing_ok=True)
+                _keep(into / "lib" / rel, f, rel)
+            else:  # written back in place, through a symlink when it is one (a `srcdir` library links its sources): the link stays, the file it points to gets its text back
+                shutil.copyfile(into / "lib" / rel, f)
             n += 1
         elif f.exists() or f.is_symlink():
             f.unlink()
@@ -130,7 +137,13 @@ def run_rounds(build, edit, snapshot, restore, repair_rounds: int, portfolio_rou
                 return {"last": last, "rounds": log, "stopped": f"{kind} {n}: not started, the deadline has passed"}
             snapshot()
             t0 = clock()
-            if not edit(kind, n, last):
+            try:
+                changed = edit(kind, n, last)
+            except OutOfTime:
+                restore()
+                log.append({"round": f"{prefix}{n}", "changed": True, "undone": True, "minutes": round((clock() - t0) / 60, 1)})
+                return {"last": last, "rounds": log, "stopped": f"{kind} {n}: its edit ran out of time and was undone; the shard keeps build {last}"}
+            if not changed:
                 log.append({"round": f"{prefix}{n}", "changed": False})
                 break
             rc = build(f"{prefix}{n}")
@@ -172,12 +185,18 @@ def main() -> None:
                "--jobs", "4", "--cache", str(lib / ".bump-cache"), "--timeout", a.timeout, "--deadline", str(a.deadline), *own]
         return subprocess.run(cmd).returncode
 
+    def bounded(cmd: list[str]) -> None:
+        try:
+            subprocess.run(cmd, check=True, timeout=max(1.0, a.deadline - time.time()))
+        except subprocess.TimeoutExpired as e:
+            raise OutOfTime from e
+
     def edit(kind: str, n: int, last: str) -> bool:
         if kind == "repair":
-            subprocess.run([py, str(HERE / "engine.py"), "repair", "--lib", a.lib, "--log", f"build-{last}.log", "--roots", a.roots, "--moves", "moves.json", "--state", "state.json",
-                            "--round", str(n), "--out", f"repair-{n}.json", "--deprecations"], check=True)
+            bounded([py, str(HERE / "engine.py"), "repair", "--lib", a.lib, "--log", f"build-{last}.log", "--roots", a.roots, "--moves", "moves.json", "--state", "state.json",
+                     "--round", str(n), "--out", f"repair-{n}.json", "--deprecations"])
             return bool(json.loads(Path(f"repair-{n}.json").read_text())["changed"])
-        subprocess.run([py, str(HERE / "portfolio.py"), "apply", "--lib", a.lib, "--log", f"build-{last}.log", "--out", f"portfolio-{n}.json"], check=True)
+        bounded([py, str(HERE / "portfolio.py"), "apply", "--lib", a.lib, "--log", f"build-{last}.log", "--out", f"portfolio-{n}.json"])
         d = json.loads(Path(f"portfolio-{n}.json").read_text())
         return d["theorems_rewritten"] + d.get("superfluous_tactics_deleted", 0) != 0
 

@@ -123,6 +123,12 @@ def drive(
     return logs, killed, last
 
 
+def chunk_timeout(chunk_s: float, deadline: float, now: float) -> float:
+    """a chunk's time limit: its own, but never past the budget's end (bump-shard.yml caps the budget by the job's end, so a chunk that ran its full 60 minutes from
+    a budget of 1 would take the keep step's and the pack's time); at least a second, so the process starts and is stopped at once"""
+    return max(1.0, min(chunk_s, deadline - now))
+
+
 def main(argv: list[str]) -> int:
     import gate2_batch as g
     from gate2_guard import mem_limit_kb, run_guarded
@@ -161,8 +167,11 @@ def main(argv: list[str]) -> int:
     limit = a.rss_limit_mb * 1024 if a.rss_limit_mb else mem_limit_kb(a.rss_share, a.count_swap)
     print(f"gate2: memory limit {limit // 1024} MB per Lean process, chunks of at most {a.max_decls} declarations")
 
+    deadline = time.monotonic() + a.budget_min * 60
+
     def run(meta: dict) -> tuple[str, str]:
-        res = run_guarded(["lean", "gate2-check.lean"], lib, {**os.environ, "LEAN_PATH": a.lean_path}, pass_log, a.chunk_timeout_min * 60, limit, count_swap=a.count_swap)
+        timeout = chunk_timeout(a.chunk_timeout_min * 60, deadline, time.monotonic())
+        res = run_guarded(["lean", "gate2-check.lean"], lib, {**os.environ, "LEAN_PATH": a.lean_path}, pass_log, timeout, limit, count_swap=a.count_swap)
         text = pass_log.read_text(errors="replace")
         print(f"gate2: {meta['modules_checked']} modules, {meta['declarations']} declarations: {res.kind}, {res.seconds}s, peak {res.peak_kb // 1024} MB, "
               f"{text.count('GATE2B_')} verdict lines")
