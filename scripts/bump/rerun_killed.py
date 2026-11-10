@@ -13,6 +13,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 SWAP = "swap_gb=48;build_timeout_min=170"
 RESUME_INPUTS = ("only_shards", "fill_from", "fill_unrecorded", "recut_from")
@@ -53,7 +54,28 @@ def gh(args: list[str], stdin: str | None = None, must: bool = False) -> str:
 
 
 
-def run(repo: str, run_id: str, inputs: dict, api=gh) -> int:
+LOG_TRIES, LOG_WAIT = 6, 30
+LOG_DEADLINE = 240  # seconds for all of the log reading, calls and waits together: the job has 10 minutes, and each call may take up to 2
+
+
+def job_logs(api, repo: str, job_ids: list[int], sleep=time.sleep, clock=time.monotonic) -> dict[int, str]:
+    """The logs of these jobs, waiting for the ones not stored yet: GitHub stores a log some time after its job ends. aintlib (9 Nov 2026): this job asked 3 seconds after shard 16's runner was
+    shut down, got no log, read no shutdown and started nothing; the same log was there minutes later. One wait per round for all of them, and one deadline over every call and wait, so that the
+    job always reaches its decision in time. Empty at the end: a runner lost before it wrote one, or no time left to read it."""
+    logs = {i: "" for i in job_ids}
+    end = clock() + LOG_DEADLINE
+    for attempt in range(1, LOG_TRIES + 1):
+        for i in [i for i, text in logs.items() if not text]:
+            if clock() >= end:
+                return logs
+            logs[i] = api(["api", f"repos/{repo}/actions/jobs/{i}/logs"])
+        if all(logs.values()) or attempt == LOG_TRIES or clock() + LOG_WAIT >= end:
+            break
+        sleep(LOG_WAIT)
+    return logs
+
+
+def run(repo: str, run_id: str, inputs: dict, api=gh, sleep=time.sleep, clock=time.monotonic) -> int:
     jobs, page = [], 1
     while True:
         batch = json.loads(api(["api", f"repos/{repo}/actions/runs/{run_id}/jobs?per_page=100&page={page}"]) or "{}").get("jobs", [])
@@ -65,7 +87,7 @@ def run(repo: str, run_id: str, inputs: dict, api=gh) -> int:
         print("::error::the jobs of this run could not be read", file=sys.stderr)
         return 1
     failed = [j for j in jobs if j.get("name", "").startswith("shard") and j.get("conclusion") == "failure"]
-    logs = {j["id"]: api(["api", f"repos/{repo}/actions/jobs/{j['id']}/logs"]) for j in failed}
+    logs = job_logs(api, repo, [j["id"] for j in failed], sleep, clock)
     go, why = decide([(j, logs.get(j["id"], "")) for j in jobs])
     if not go:
         print(f"not started again: {why}")
