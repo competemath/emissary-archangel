@@ -34,6 +34,9 @@ HERE = Path(__file__).resolve().parent
 DRIVER = HERE / "TolerantBuild.lean"
 MSG = re.compile(r"^(\S+?\.lean):(\d+):(\d+): (error|warning|info)(?:\([^)]*\))?: ?(.*)$")
 CORE = ("Init", "Std", "Lean", "Lake")
+# everything Lean writes for a module (writeModule). `.ir.sig` is not optional: Lean loads a module's IR only if it exists, and a module reached only through a `meta import` has nothing else, so without it
+# the importer stops with `missing data file for module` (PrimeCert.SieveBase and PrimeCert.Meta.Pocklington on the first real run, 9 Nov 2026)
+SUFFIXES = (".olean", ".olean.server", ".olean.private", ".ilean", ".ir.sig", ".ir")
 
 
 def lake_env(lib: Path) -> dict[str, str]:
@@ -167,6 +170,10 @@ class Builder:
         self.cache = Path(a.cache) if a.cache else self.lib / ".bump-cache"
         self.cache.mkdir(parents=True, exist_ok=True)
         self.timeout = a.timeout * 60
+        # the job's clock: past it no module is started and a running one is stopped; such a module is left unbuilt (no olean, no cache key) and the run
+        # exits 3, so the caller can put the state from before the round back (build_rounds.py). 0: no deadline
+        self.deadline = float(getattr(a, "deadline", 0) or 0)
+        self.out_of_time: list[str] = []
         self.jobs = a.jobs or os.cpu_count() or 2
         self.mods = module_files(self.lib, self.roots, follow_imports=True)
         if a.modules:  # a shard: only these (a dependency-closed set: everything they import is in it)
@@ -223,6 +230,21 @@ class Builder:
         else:
             self.status[mod] = {"state": "blocked", "behind": ["its own job left no olean"], "errors": 0}
 
+    def time_left(self) -> float:
+        return float("inf") if not self.deadline else self.deadline - time.time()
+
+    def outputs(self, olean: Path) -> list[Path]:
+        stem = str(olean)[: -len(".olean")]
+        return [Path(stem + s) for s in SUFFIXES]
+
+    def stopped(self, mod: str, olean: Path, kf: Path) -> None:
+        """A module the deadline stopped (or never started) is NOT built: its outputs and its cache key go, so nothing reads a half-written olean as built"""
+        for f in (*self.outputs(olean), kf):
+            f.unlink(missing_ok=True)
+        with self.lock:
+            self.out_of_time.append(mod)
+        self.status[mod] = {"state": "crashed", "errors": 0, "out_of_time": True, "tail": "tolerant_build: the job's deadline came first"}
+
     def build_one(self, mod: str) -> None:
         src = self.mods[mod]
         rel = str(src.relative_to(self.lib))
@@ -257,13 +279,23 @@ class Builder:
                 self.emit(st.pop("log", []))
                 return
             olean.parent.mkdir(parents=True, exist_ok=True)
-            if olean.exists():
-                olean.unlink()
+            # every output goes before Lean writes new ones: Lean then creates new files and never writes into an old one, so a copy of the old ones made by
+            # hard link (build_rounds.py, before a round) stays as it was; and a module that crashes leaves no stale .ilean or .ir behind
+            for f in self.outputs(olean):
+                f.unlink(missing_ok=True)
+            left = self.time_left()
+            if left <= 0:
+                self.stopped(mod, olean, kf)
+                return
+            limit = min(self.timeout, left)
             t0 = time.time()
             try:
-                r = subprocess.run(["lean", "--run", str(DRIVER), rel, mod, str(olean)], cwd=self.lib, env=self.env, capture_output=True, text=True, timeout=self.timeout)
+                r = subprocess.run(["lean", "--run", str(DRIVER), rel, mod, str(olean)], cwd=self.lib, env=self.env, capture_output=True, text=True, timeout=limit)
                 code, out = r.returncode, r.stdout + r.stderr
             except subprocess.TimeoutExpired as e:
+                if limit < self.timeout:  # the deadline stopped it, not the module's own time limit
+                    self.stopped(mod, olean, kf)
+                    return
                 code, out = 124, ((e.stdout or b"").decode(errors="replace") if isinstance(e.stdout, bytes) else (e.stdout or "")) + f"\n{rel}:1:0: error: tolerant_build: timeout after {self.timeout // 60} min"
             lines, nerr, nwarn = [], 0, 0
             for ln in out.splitlines():
@@ -320,7 +352,7 @@ class Builder:
             return memo[m]
 
         strict = sum(lake_ok(m) for m in self.mods)
-        return {"modules": len(self.mods), "by_state": counts, "lake_would_build": strict, "seconds": round(time.time() - t0, 1), "status": self.status}
+        return {"modules": len(self.mods), "by_state": counts, "lake_would_build": strict, "seconds": round(time.time() - t0, 1), "out_of_time": sorted(self.out_of_time), "status": self.status}
 
 
 def main() -> None:
@@ -333,6 +365,7 @@ def main() -> None:
     ap.add_argument("--report", default="tb.json")
     ap.add_argument("--cache", default="")
     ap.add_argument("--modules", default="", help="file with one module per line: build only these (a dependency-closed set)")
+    ap.add_argument("--deadline", type=float, default=0, help="epoch seconds: past it nothing more is built and the run exits 3 (0: none)")
     ap.add_argument("--own", default="", help="file with one module per line: a build-once job builds only these; the other --modules were built by earlier jobs and restored (wave_pack.py)")
     a = ap.parse_args()
     b = Builder(a)
@@ -340,6 +373,9 @@ def main() -> None:
     Path(a.log).write_text("\n".join(b.log_lines) + "\n")
     Path(a.report).write_text(json.dumps(res, indent=1))
     print(f"- Modules: {res['modules']}: {res['by_state']}; lake build would have produced {res['lake_would_build']} of them; {res['seconds']} s")
+    if res["out_of_time"]:
+        print(f"- The deadline stopped {len(res['out_of_time'])} modules (first: {res['out_of_time'][:3]})")
+        sys.exit(3)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -101,7 +102,7 @@ class KeepFixture(unittest.TestCase):
             (bin_ / name).write_text(body)
             (bin_ / name).chmod(0o755)
         # `lake env lean --run X file` -> the stand-in reads the last argument
-        self.env = {**os.environ, "PATH": f"{bin_}:{os.path.dirname(sys.executable)}:{os.environ['PATH']}", "ROOTS": "FirstProof"}
+        self.env = {**os.environ, "PATH": f"{bin_}:{os.path.dirname(sys.executable)}:{os.environ['PATH']}", "ROOTS": "FirstProof", "JOB_T0": str(int(time.time())), "JOB_MIN": "345"}  # the job's clock, set by bump-shard.yml's first step
         self.em = em
 
     def run_step(self, script: str) -> subprocess.CompletedProcess:

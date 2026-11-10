@@ -247,7 +247,8 @@ class Workflows(unittest.TestCase):
         """2026-10-17: navier-stokes-euler's shards 4 and 22 left 451 modules unjudged: chunks killed for memory used the fixed 150 minutes, and about ten modules alone outgrow 80% of the runner."""
         shard = (WORKFLOWS / "bump-shard.yml").read_text()
         sharded = (WORKFLOWS / "bump-sharded.yml").read_text()
-        self.assertIn('--budget-min "$GATE2_BUDGET_MIN" --rss-share "$GATE2_RSS_SHARE"', shard)
+        self.assertIn('--budget-min "$budget" --rss-share "$GATE2_RSS_SHARE"', shard)  # the input, capped by the job's end (test_build_rounds.py)
+        self.assertIn('budget="$GATE2_BUDGET_MIN"', shard)
         self.assertNotIn("--budget-min 150", shard)  # no fixed number left in the step
         for text, name in ((shard, "bump-shard.yml"), (sharded, "bump-sharded.yml")):
             self.assertIn("gate2_budget_min", text, name)

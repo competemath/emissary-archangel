@@ -155,8 +155,7 @@ class ShardSteps(unittest.TestCase):
 
     def test_the_build_passes_own_only_for_a_build_once(self):
         run = STEPS[index(self.build)]["run"]
-        self.assertIn('[ "$BUILD_ONCE" != true ] || OWN=(--own own.txt)', run)
-        self.assertIn('"${OWN[@]}"', run)
+        self.assertIn('$([ "$BUILD_ONCE" != true ] || echo --own own.txt)', run)  # build_rounds.py passes it to every build
 
     def test_a_shard_pack_of_a_build_once_is_its_own_modules(self):
         run = STEPS[index("Pack this shard")]["run"]

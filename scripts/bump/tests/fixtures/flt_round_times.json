@@ -1,0 +1,1470 @@
+{
+ "source": "competemath/emissary-archangel run 42678283150 (bump-waves, flt-anthropic), the 35 jobs finished by 10 Nov 2026 14:30 UTC: step times from the jobs API, round times from each job's log (the repair/portfolio summary lines' timestamps)",
+ "jobs": [
+  {
+   "job": "w0(0)",
+   "job_id": 129365914624,
+   "before_min": 3.7,
+   "first_build_min": 19.8,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 4.6
+    },
+    {
+     "round": "r2",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 1.9
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 0.5
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.2
+    }
+   ],
+   "build_step_min": 27.0,
+   "after_min": 7.1,
+   "job_min": 37.8
+  },
+  {
+   "job": "w1(1)",
+   "job_id": 129387387174,
+   "before_min": 4.4,
+   "first_build_min": 17.8,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 14.2
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 1.6
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 9.1
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 6.6
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.3
+    }
+   ],
+   "build_step_min": 49.5,
+   "after_min": 1.6,
+   "job_min": 55.4
+  },
+  {
+   "job": "w1(10)",
+   "job_id": 129387387012,
+   "before_min": 3.8,
+   "first_build_min": 205.0,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 15.5
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 0.5
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 5.7
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 1.7
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.7
+    }
+   ],
+   "build_step_min": 229.1,
+   "after_min": 4.2,
+   "job_min": 237.1
+  },
+  {
+   "job": "w1(2)",
+   "job_id": 129387387150,
+   "before_min": 3.1,
+   "first_build_min": 41.6,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 25.0
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 1.8
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 9.6
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 2.0
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.4
+    }
+   ],
+   "build_step_min": 80.3,
+   "after_min": 4.4,
+   "job_min": 87.8
+  },
+  {
+   "job": "w1(3)",
+   "job_id": 129387387211,
+   "before_min": 4.1,
+   "first_build_min": 25.1,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 14.1
+    },
+    {
+     "round": "r2",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 8.7
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 1.5
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.3
+    }
+   ],
+   "build_step_min": 49.7,
+   "after_min": 1.9,
+   "job_min": 55.7
+  },
+  {
+   "job": "w1(4)",
+   "job_id": 129387387201,
+   "before_min": 4.2,
+   "first_build_min": 39.5,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 21.0
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 1.9
+    },
+    {
+     "round": "r3",
+     "changed": true,
+     "rebuild_min": 1.1
+    },
+    {
+     "round": "r4",
+     "changed": true,
+     "rebuild_min": 0.4
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 13.0
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 1.7
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.7
+    }
+   ],
+   "build_step_min": 79.3,
+   "after_min": 2.6,
+   "job_min": 86.2
+  },
+  {
+   "job": "w1(5)",
+   "job_id": 129387387603,
+   "before_min": 3.1,
+   "first_build_min": 56.2,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 30.0
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 0.9
+    },
+    {
+     "round": "r3",
+     "changed": true,
+     "rebuild_min": 0.3
+    },
+    {
+     "round": "r4",
+     "changed": true,
+     "rebuild_min": 0.2
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 10.7
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 0.6
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.2
+    }
+   ],
+   "build_step_min": 98.9,
+   "after_min": 2.5,
+   "job_min": 104.5
+  },
+  {
+   "job": "w1(6)",
+   "job_id": 129387387286,
+   "before_min": 4.1,
+   "first_build_min": 59.5,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 28.5
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 1.5
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 10.0
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 2.1
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.8
+    }
+   ],
+   "build_step_min": 102.5,
+   "after_min": 2.2,
+   "job_min": 108.8
+  },
+  {
+   "job": "w1(7)",
+   "job_id": 129387387479,
+   "before_min": 4.8,
+   "first_build_min": 79.9,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 37.7
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 0.6
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 13.9
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 0.8
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.4
+    }
+   ],
+   "build_step_min": 133.3,
+   "after_min": 2.4,
+   "job_min": 140.5
+  },
+  {
+   "job": "w1(8)",
+   "job_id": 129387387829,
+   "before_min": 3.8,
+   "first_build_min": 105.9,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 24.5
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 0.5
+    },
+    {
+     "round": "r3",
+     "changed": true,
+     "rebuild_min": 0.1
+    },
+    {
+     "round": "r4",
+     "changed": true,
+     "rebuild_min": 0.1
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 12.7
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 1.5
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.7
+    }
+   ],
+   "build_step_min": 146.1,
+   "after_min": 2.9,
+   "job_min": 152.8
+  },
+  {
+   "job": "w1(9)",
+   "job_id": 129387388527,
+   "before_min": 4.3,
+   "first_build_min": 182.0,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 29.6
+    },
+    {
+     "round": "r2",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 13.0
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 2.1
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.5
+    }
+   ],
+   "build_step_min": 227.2,
+   "after_min": 3.1,
+   "job_min": 234.6
+  },
+  {
+   "job": "w2(11)",
+   "job_id": 129514629516,
+   "before_min": 5.7,
+   "first_build_min": 44.9,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 31.2
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 2.2
+    },
+    {
+     "round": "r3",
+     "changed": true,
+     "rebuild_min": 0.4
+    },
+    {
+     "round": "r4",
+     "changed": true,
+     "rebuild_min": 0.2
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 10.3
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 2.5
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.4
+    }
+   ],
+   "build_step_min": 92.0,
+   "after_min": 3.0,
+   "job_min": 100.8
+  },
+  {
+   "job": "w2(12)",
+   "job_id": 129514629115,
+   "before_min": 5.3,
+   "first_build_min": 29.6,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 15.7
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 3.7
+    },
+    {
+     "round": "r3",
+     "changed": true,
+     "rebuild_min": 0.3
+    },
+    {
+     "round": "r4",
+     "changed": true,
+     "rebuild_min": 0.1
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 9.6
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 5.5
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 2.9
+    }
+   ],
+   "build_step_min": 67.3,
+   "after_min": 1.6,
+   "job_min": 74.2
+  },
+  {
+   "job": "w2(13)",
+   "job_id": 129514628928,
+   "before_min": 5.2,
+   "first_build_min": 45.3,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 24.4
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 2.2
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 11.3
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 1.7
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.4
+    }
+   ],
+   "build_step_min": 85.2,
+   "after_min": 2.1,
+   "job_min": 92.6
+  },
+  {
+   "job": "w2(14)",
+   "job_id": 129514629195,
+   "before_min": 6.1,
+   "first_build_min": 62.9,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 29.2
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 1.0
+    },
+    {
+     "round": "r3",
+     "changed": true,
+     "rebuild_min": 0.4
+    },
+    {
+     "round": "r4",
+     "changed": true,
+     "rebuild_min": 0.2
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 18.9
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 4.0
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.5
+    }
+   ],
+   "build_step_min": 117.1,
+   "after_min": 3.0,
+   "job_min": 126.1
+  },
+  {
+   "job": "w2(15)",
+   "job_id": 129514629322,
+   "before_min": 5.0,
+   "first_build_min": 77.7,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 29.4
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 0.3
+    },
+    {
+     "round": "r3",
+     "changed": true,
+     "rebuild_min": 0.1
+    },
+    {
+     "round": "r4",
+     "changed": true,
+     "rebuild_min": 0.1
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 20.9
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 1.4
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.3
+    }
+   ],
+   "build_step_min": 130.3,
+   "after_min": 2.8,
+   "job_min": 138.0
+  },
+  {
+   "job": "w2(16)",
+   "job_id": 129514629109,
+   "before_min": 7.4,
+   "first_build_min": 115.2,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 30.1
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 1.5
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 32.3
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 2.0
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.5
+    }
+   ],
+   "build_step_min": 181.5,
+   "after_min": 9.3,
+   "job_min": 198.2
+  },
+  {
+   "job": "w2(17)",
+   "job_id": 129514629044,
+   "before_min": 5.0,
+   "first_build_min": 179.3,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 14.4
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 0.9
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 7.8
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 0.7
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.4
+    }
+   ],
+   "build_step_min": 203.6,
+   "after_min": 3.0,
+   "job_min": 211.5
+  },
+  {
+   "job": "w3(18)",
+   "job_id": 129600502678,
+   "before_min": 5.4,
+   "first_build_min": 83.7,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 37.1
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 0.7
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 15.0
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 3.2
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.4
+    }
+   ],
+   "build_step_min": 140.0,
+   "after_min": 3.4,
+   "job_min": 148.8
+  },
+  {
+   "job": "w3(19)",
+   "job_id": 129600502753,
+   "before_min": 4.5,
+   "first_build_min": 45.1,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 26.2
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 2.8
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 4.9
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 2.0
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.3
+    }
+   ],
+   "build_step_min": 81.3,
+   "after_min": 3.1,
+   "job_min": 88.9
+  },
+  {
+   "job": "w3(20)",
+   "job_id": 129600502792,
+   "before_min": 6.6,
+   "first_build_min": 59.9,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 21.9
+    },
+    {
+     "round": "r2",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 26.5
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 7.2
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.3
+    }
+   ],
+   "build_step_min": 115.8,
+   "after_min": 2.7,
+   "job_min": 125.1
+  },
+  {
+   "job": "w3(21)",
+   "job_id": 129600502815,
+   "before_min": 5.5,
+   "first_build_min": 52.7,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 22.7
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 3.4
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 18.0
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 3.8
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.4
+    }
+   ],
+   "build_step_min": 101.1,
+   "after_min": 2.9,
+   "job_min": 109.5
+  },
+  {
+   "job": "w3(22)",
+   "job_id": 129600502468,
+   "before_min": 6.4,
+   "first_build_min": 47.6,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 25.2
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 0.7
+    },
+    {
+     "round": "r3",
+     "changed": true,
+     "rebuild_min": 0.1
+    },
+    {
+     "round": "r4",
+     "changed": true,
+     "rebuild_min": 0.1
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 18.8
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 2.3
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.5
+    }
+   ],
+   "build_step_min": 95.3,
+   "after_min": 1.8,
+   "job_min": 103.5
+  },
+  {
+   "job": "w3(23)",
+   "job_id": 129600502500,
+   "before_min": 6.3,
+   "first_build_min": 49.7,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 22.2
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 0.6
+    },
+    {
+     "round": "r3",
+     "changed": true,
+     "rebuild_min": 0.2
+    },
+    {
+     "round": "r4",
+     "changed": true,
+     "rebuild_min": 0.1
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 7.4
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 1.0
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.3
+    }
+   ],
+   "build_step_min": 81.4,
+   "after_min": 1.7,
+   "job_min": 89.5
+  },
+  {
+   "job": "w3(24)",
+   "job_id": 129600502644,
+   "before_min": 5.5,
+   "first_build_min": 70.5,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 28.2
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 0.6
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 11.6
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 1.4
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.5
+    }
+   ],
+   "build_step_min": 112.8,
+   "after_min": 3.1,
+   "job_min": 121.4
+  },
+  {
+   "job": "w3(25)",
+   "job_id": 129600502733,
+   "before_min": 5.8,
+   "first_build_min": 161.7,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 18.8
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 0.5
+    },
+    {
+     "round": "r3",
+     "changed": true,
+     "rebuild_min": 0.1
+    },
+    {
+     "round": "r4",
+     "changed": true,
+     "rebuild_min": 0.1
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 14.1
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 1.7
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.6
+    }
+   ],
+   "build_step_min": 197.6,
+   "after_min": 3.2,
+   "job_min": 206.6
+  },
+  {
+   "job": "w4(26)",
+   "job_id": 129671383059,
+   "before_min": 7.5,
+   "first_build_min": 65.0,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 19.7
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 2.2
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 21.3
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 1.9
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.3
+    }
+   ],
+   "build_step_min": 110.3,
+   "after_min": 2.0,
+   "job_min": 119.7
+  },
+  {
+   "job": "w4(27)",
+   "job_id": 129671383055,
+   "before_min": 5.1,
+   "first_build_min": 38.1,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 18.5
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 0.6
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 12.4
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 1.1
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.3
+    }
+   ],
+   "build_step_min": 71.1,
+   "after_min": 1.6,
+   "job_min": 77.8
+  },
+  {
+   "job": "w4(28)",
+   "job_id": 129671383018,
+   "before_min": 5.8,
+   "first_build_min": 171.9,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 22.7
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 1.4
+    },
+    {
+     "round": "r3",
+     "changed": true,
+     "rebuild_min": 0.6
+    },
+    {
+     "round": "r4",
+     "changed": true,
+     "rebuild_min": 0.1
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 96.1
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 41.7
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.4
+    }
+   ],
+   "build_step_min": 335.0,
+   "after_min": 2.3,
+   "job_min": 343.1
+  },
+  {
+   "job": "w4(29)",
+   "job_id": 129671382990,
+   "before_min": 8.3,
+   "first_build_min": 74.6,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 26.8
+    },
+    {
+     "round": "r2",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 17.9
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 3.7
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.6
+    }
+   ],
+   "build_step_min": 123.5,
+   "after_min": 3.9,
+   "job_min": 135.8
+  },
+  {
+   "job": "w4(30)",
+   "job_id": 129671383030,
+   "before_min": 5.2,
+   "first_build_min": 219.5,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 21.1
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 0.9
+    },
+    {
+     "round": "r3",
+     "changed": true,
+     "rebuild_min": 0.6
+    },
+    {
+     "round": "r4",
+     "changed": true,
+     "rebuild_min": 0.3
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 29.2
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 2.3
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.7
+    }
+   ],
+   "build_step_min": 274.5,
+   "after_min": 8.2,
+   "job_min": 287.9
+  },
+  {
+   "job": "w5(31)",
+   "job_id": 129821249533,
+   "before_min": 8.8,
+   "first_build_min": 34.1,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 25.2
+    },
+    {
+     "round": "r2",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 3.3
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 0.4
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.2
+    }
+   ],
+   "build_step_min": 63.2,
+   "after_min": 1.9,
+   "job_min": 73.9
+  },
+  {
+   "job": "w5(33)",
+   "job_id": 129821249327,
+   "before_min": 5.1,
+   "first_build_min": 48.3,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 28.7
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 1.5
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 14.6
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 2.7
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.4
+    }
+   ],
+   "build_step_min": 96.2,
+   "after_min": 2.1,
+   "job_min": 103.5
+  },
+  {
+   "job": "w5(34)",
+   "job_id": 129821249317,
+   "before_min": 7.1,
+   "first_build_min": 55.4,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 27.5
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 2.4
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 21.1
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 3.2
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.8
+    }
+   ],
+   "build_step_min": 110.4,
+   "after_min": 2.1,
+   "job_min": 119.6
+  },
+  {
+   "job": "w5(35)",
+   "job_id": 129821249182,
+   "before_min": 5.1,
+   "first_build_min": 75.9,
+   "rounds": [
+    {
+     "round": "r1",
+     "changed": true,
+     "rebuild_min": 22.0
+    },
+    {
+     "round": "r2",
+     "changed": true,
+     "rebuild_min": 0.8
+    },
+    {
+     "round": "r3",
+     "changed": false,
+     "rebuild_min": 0
+    },
+    {
+     "round": "p1",
+     "changed": true,
+     "rebuild_min": 21.4
+    },
+    {
+     "round": "p2",
+     "changed": true,
+     "rebuild_min": 2.6
+    },
+    {
+     "round": "p3",
+     "changed": true,
+     "rebuild_min": 0.5
+    }
+   ],
+   "build_step_min": 123.1,
+   "after_min": 4.0,
+   "job_min": 132.2
+  }
+ ]
+}
