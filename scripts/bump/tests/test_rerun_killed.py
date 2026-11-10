@@ -174,9 +174,51 @@ class Main(unittest.TestCase):
         rk.run("o/r", "9", INPUTS, f, lambda _: None)
         self.assertEqual(sorted(f.asked), [1, 2, 2, 2])
 
-    def test_the_waits_fit_the_job(self):
+    def test_the_reading_fits_the_job(self):
         wf = yaml.safe_load((HERE.parents[2] / ".github" / "workflows" / "bump-sharded.yml").read_text())
-        self.assertLess((rk.LOG_TRIES - 1) * rk.LOG_WAIT, wf["jobs"]["rerun-with-swap"]["timeout-minutes"] * 60 / 2)
+        # the deadline, one call that may run on past it (gh's own limit), and two minutes for the checkout and the dispatch
+        self.assertLessEqual(rk.LOG_DEADLINE + 120 + 120, wf["jobs"]["rerun-with-swap"]["timeout-minutes"] * 60)
+
+    def test_slow_calls_and_waits_stop_at_the_deadline(self):
+        """32 failed shards (aintlib's bump had 32), every call slow and every log late: the reading ends at the deadline and the job still decides"""
+        now = [0.0]
+
+        def clock():
+            return now[0]
+
+        class Slow(Fake):
+            def __call__(self, args, stdin=None, must=False):
+                if args[1].endswith("/logs"):
+                    now[0] += 60
+                return super().__call__(args, stdin, must)
+
+        def sleep(s):
+            now[0] += s
+
+        jobs = [self.job(i, f"shard ({i}) / shard", ["Build this shard's modules, repair, rebuild"]) for i in range(32)]
+        f = Slow(jobs, {})
+        self.assertEqual(rk.run("o/r", "9", INPUTS, f, sleep, clock), 0)
+        self.assertLessEqual(now[0], rk.LOG_DEADLINE + 60)
+        self.assertEqual(len(f.asked), rk.LOG_DEADLINE // 60)
+
+    def test_no_wait_that_would_end_past_the_deadline(self):
+        now = [0.0]
+        ends = []
+
+        class Slow(Fake):
+            def __call__(self, args, stdin=None, must=False):
+                if args[1].endswith("/logs"):
+                    now[0] += 55
+                return super().__call__(args, stdin, must)
+
+        def sleep(s):
+            now[0] += s
+            ends.append(now[0])
+
+        f = Slow([self.job(1, "shard (1) / shard", ["Build"])], {1: [""] * rk.LOG_TRIES})
+        rk.run("o/r", "9", INPUTS, f, sleep, lambda: now[0])
+        self.assertTrue(ends and all(e <= rk.LOG_DEADLINE for e in ends), ends)
+        self.assertLess(len(ends), rk.LOG_TRIES - 1)
 
     def test_a_log_there_at_once_is_not_waited_for(self):
         waits = []
