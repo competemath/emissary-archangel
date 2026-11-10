@@ -18,6 +18,7 @@ on:
       gate2_rss_share: { type: string, default: "0.80", description: "the share of the runner's memory one Lean process of Gate 2 may use before it is killed (gate2_driver.py --rss-share)" }
       swap_gb: { type: string, default: "0", description: "GB of swap this shard adds (0: none), for modules too big for a runner's 16 GB of RAM (flt-anthropic's P2M.Sol proofs of 100-900 KB). Gate 2 then counts swap as memory (--count-swap)" }
       build_timeout_min: { type: string, default: "90", description: "minutes one module may take to build (tolerant_build.py --timeout); a module too big for RAM and run on swap needs more" }
+      round_reserve_min: { type: string, default: "30", description: "minutes of the job's 345 kept for what comes after the build: the build and its repair rounds stop that long before the limit (a round that runs out of time is undone, build_rounds.py); the steps after the build took at most 9.3 minutes on 63 real jobs (10 Nov 2026)" }
       build_once: { type: string, default: "false", description: "a job of a build-once (bump-waves.yml): the plan says which modules this job builds (own) and which earlier shards built the rest (restore)" }
 permissions: {}
 defaults:
@@ -42,9 +43,14 @@ jobs:
       GATE2_SKIP: ${{ inputs.gate2_skip }}
       SWAP_GB: ${{ inputs.swap_gb }}
       BUILD_TIMEOUT_MIN: ${{ inputs.build_timeout_min }}
+      ROUND_RESERVE_MIN: ${{ inputs.round_reserve_min }}
+      JOB_MIN: 345  # the job's timeout-minutes (a test keeps the two equal): the clock the build, Gate 2 and the keep step share
     steps:
       - name: The memory knobs are numbers (they reach shell and Python)
         run: |
+          echo "JOB_T0=$(date +%s)" >> "$GITHUB_ENV"  # the job's start, for the deadlines of the build, Gate 2 and the keep step
+          [[ "$GATE2_BUDGET_MIN" =~ ^[1-9][0-9]{0,2}$ ]] || { echo "::error::gate2_budget_min is a whole number of minutes (the job's clock caps it in shell arithmetic), not $GATE2_BUDGET_MIN"; exit 1; }
+          [[ "$ROUND_RESERVE_MIN" =~ ^[1-9][0-9]{0,2}$ ]] && [ "$ROUND_RESERVE_MIN" -ge 10 ] && [ "$ROUND_RESERVE_MIN" -le 200 ] || { echo "::error::round_reserve_min is 10-200 minutes, not $ROUND_RESERVE_MIN"; exit 1; }
           [[ "$SWAP_GB" =~ ^(0|[1-9][0-9]{0,2})$ ]] || { echo "::error::swap_gb is a number of GB, not $SWAP_GB"; exit 1; }
           [[ "$BUILD_TIMEOUT_MIN" =~ ^[1-9][0-9]{0,2}$ ]] && [ "$BUILD_TIMEOUT_MIN" -le 170 ] || { echo "::error::build_timeout_min is 1-170 minutes (the job has 345, and its setup and Gate 2 come out of them), not $BUILD_TIMEOUT_MIN"; exit 1; }
       - name: Free disk
@@ -138,22 +144,10 @@ jobs:
         working-directory: emissary
         run: |
           cp ../build.txt build.txt; cp ../targets.txt targets.txt; cp ../own.txt own.txt
-          OWN=(); [ "$BUILD_ONCE" != true ] || OWN=(--own own.txt)  # a build-once: the modules of earlier jobs are not built here and their errors are not repaired here
-          build() { python3 scripts/bump/tolerant_build.py --lib lib --roots "$ROOTS" --modules build.txt --log "build-$1.log" --report "tb-$1.json" --jobs 4 --cache lib/.bump-cache --timeout "$BUILD_TIMEOUT_MIN" "${OWN[@]}"; }
-          echo '{"moves":{}}' > moves.json
-          build s0; last=s0
-          for r in 1 2 3 4; do
-            python3 scripts/bump/engine.py repair --lib lib --log "build-$last.log" --roots "$ROOTS" --moves moves.json --state state.json --round "$r" --out "repair-$r.json" --deprecations
-            [ "$(python3 -c "import json; print(json.load(open('repair-$r.json'))['changed'])")" = True ] || break
-            build "r$r"; last="r$r"
-          done
-          for p in 1 2 3; do
-            python3 scripts/bump/portfolio.py apply --lib lib --log "build-$last.log" --out "portfolio-$p.json"
-            [ "$(python3 -c "import json; d=json.load(open('portfolio-$p.json')); print(d['theorems_rewritten'] + d.get('superfluous_tactics_deleted', 0))")" != 0 ] || break
-            build "p$p"; last="p$p"
-          done
-          cp "build-$last.log" build-final.log; cp "tb-$last.json" tb-final.json
-          python3 -c "import json; d=json.load(open('tb-final.json')); print(d['by_state'], d['seconds'], 's')"
+          # a build-once: the modules of earlier jobs are not built here and their errors are not repaired here. Every build stops at the deadline, and a repair or
+          # portfolio round that runs out of time is undone (build_rounds.py): flt-anthropic's job 28 ended 2 minutes inside the limit on 10 Nov 2026
+          python3 scripts/bump/build_rounds.py --lib lib --roots "$ROOTS" --modules build.txt $([ "$BUILD_ONCE" != true ] || echo --own own.txt) \
+            --deadline "$(( JOB_T0 + (JOB_MIN - ROUND_RESERVE_MIN) * 60 ))" --timeout "$BUILD_TIMEOUT_MIN" --repair-rounds 4 --portfolio-rounds 3
       - name: This job's work, for the jobs after it (a build-once; before Gate 2, so that a Gate 2 that dies does not cost the waves after it their build)
         if: inputs.build_once == 'true'
         working-directory: emissary
@@ -176,10 +170,13 @@ jobs:
           LP="$(cd lib && lake env printenv LEAN_PATH):$GITHUB_WORKSPACE/vendorproj/.lake/build/lib/lean"
           TENT="$(python3 scripts/bump/tentative_files.py globs sources.json "$KEY" ../tengoku)"
           mine=$(paste -sd, targets.txt)
+          # Gate 2's budget, but never past the job's end less 15 minutes for the keep step and the pack (they took at most 3 on 63 real jobs): chunks it has no time for are recorded as killed
+          budget=$(( (JOB_T0 + JOB_MIN * 60 - $(date +%s)) / 60 - 15 )); [ "$budget" -le "$GATE2_BUDGET_MIN" ] || budget="$GATE2_BUDGET_MIN"; [ "$budget" -ge 1 ] || budget=1
+          echo "Gate 2 budget: $budget minutes"
           # Gate 2 in chunks, each Lean process under a memory limit (scripts/bump/gate2_driver.py): one process over every declaration of a shard was killed by the
           # kernel, or took the runner down, on navier-stokes-euler. A module that kills Lean alone gets no verdict and is listed in gate2-killed.json.
           python3 scripts/bump/gate2_driver.py --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
-            --roots "$ROOTS" --controls "$CONTROLS" --tentative "$TENT" --only "$mine" --lean-path "$LP" --budget-min "$GATE2_BUDGET_MIN" --rss-share "$GATE2_RSS_SHARE" --skip "$GATE2_SKIP" $([ "$SWAP_GB" != 0 ] && echo --count-swap)
+            --roots "$ROOTS" --controls "$CONTROLS" --tentative "$TENT" --only "$mine" --lean-path "$LP" --budget-min "$budget" --rss-share "$GATE2_RSS_SHARE" --skip "$GATE2_SKIP" $([ "$SWAP_GB" != 0 ] && echo --count-swap)
           python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json --exports "data/exports/$KEY" --lib lib --tentative "$TENT"
       - name: What the passed theorems are made of
         working-directory: emissary
@@ -194,7 +191,7 @@ jobs:
           # part with a space stays whole; the drop lists are comma lists, so a name with a comma stops the step instead of dropping the wrong module.
           drop=""
           : > keep-drops.txt
-          deadline=$(( $(date +%s) + 120 * 60 ))
+          deadline=$(( $(date +%s) + 120 * 60 )); end=$(( JOB_T0 + (JOB_MIN - 8) * 60 )); [ "$deadline" -le "$end" ] || deadline=$end  # and never past the job's end less the pack's minutes
           for attempt in $(seq 1 25); do
             left=$(( deadline - $(date +%s) ))
             if [ "$left" -le 60 ]; then echo "::warning::the keep step's 120 minutes are spent after $((attempt - 1)) tries; compose reads the last log"; break; fi
