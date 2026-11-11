@@ -67,3 +67,16 @@ jobs:
           [ "$DRY_RUN" = "true" ] && args+=(--dry-run)
           python3 scripts/bump/intake_open.py "${args[@]}" | tee out.txt
           { echo '### intake-open'; echo '```'; tail -40 out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+  # Part N+1 of a library opens only after part N merged, and the schedule above can be hours late: intake-next.yml waits for an open intake pull request to merge and
+  # starts this workflow again (scripts/bump/intake_next.py). Only after a real run on tengoku; it ends at once when nothing of the lane is open.
+  next:
+    needs: open
+    if: ${{ !cancelled() && needs.open.result == 'success' && (github.event_name == 'workflow_dispatch' || vars.LANE_ENABLED == 'true') && (inputs.dry_run || 'false') == 'false' && (inputs.target || 'competemath/tengoku') == 'competemath/tengoku' && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: { actions: write }  # workflow_dispatch of intake-next.yml, nothing else
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Wait for the next merge (intake-next.yml)
+        run: gh workflow run intake-next.yml -R "$GITHUB_REPOSITORY" --ref main

@@ -1,0 +1,31 @@
+name: intake-next
+# The opener again as soon as an intake pull request merges (scripts/bump/intake_next.py). The opener (intake-open.yml) starts this after every run that opened or found
+# open pull requests; it waits for one of them to be merged or closed and then starts the opener, so part N+1 of a library opens minutes after part N merged instead of at
+# the next scheduled run (GitHub ran the 10-minute schedule six and a half hours apart on 11 Nov 2026). It holds no App key and opens nothing itself: it reads public pull
+# requests of the target and starts two workflows of this repository with this repository's token.
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: intake-next
+  cancel-in-progress: false  # one waits, at most one more is pending: GitHub keeps the newest pending run
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  wait:
+    if: ${{ vars.LANE_ENABLED == 'true' && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    permissions: { contents: read, actions: write }  # actions: write = workflow_dispatch of intake-open.yml and of this workflow, nothing else
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { filter: "blob:none", sparse-checkout: "scripts/bump", persist-credentials: false }
+      - name: Wait for an open intake pull request to merge, then start the opener
+        run: python3 scripts/bump/intake_next.py --target competemath/tengoku --deadline-min 330
