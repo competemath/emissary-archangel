@@ -177,7 +177,7 @@ jobs:
           # kernel, or took the runner down, on navier-stokes-euler. A module that kills Lean alone gets no verdict and is listed in gate2-killed.json.
           python3 scripts/bump/gate2_driver.py --key "$KEY" --lib lib --exports "data/exports/$KEY" --ledger "data/translate/$KEY.jsonl" \
             --roots "$ROOTS" --controls "$CONTROLS" --tentative "$TENT" --only "$mine" --lean-path "$LP" --budget-min "$budget" --rss-share "$GATE2_RSS_SHARE" --skip "$GATE2_SKIP" $([ "$SWAP_GB" != 0 ] && echo --count-swap)
-          python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json --exports "data/exports/$KEY" --lib lib --tentative "$TENT"
+          python3 scripts/bump/gate2_batch.py parse --log gate2.log --ledger "data/translate/$KEY.jsonl" --out gate2-results.json --exports "data/exports/$KEY" --lib lib --tentative "$TENT" --only "$mine" --killed gate2-killed.json
       - name: What the passed theorems are made of
         working-directory: emissary
         run: |

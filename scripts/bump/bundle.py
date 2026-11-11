@@ -71,6 +71,7 @@ PARSE_ERROR = re.compile(r"(?:unexpected |unterminated |expected )")
 IMPORT_RE = re.compile(r"^(\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)?)(" + tb.MODNAME + r")(.*)$")
 
 MODES = ("strict", "proposed", "wide")  # strict: the allow-list; proposed: + notation commands; wide: + the macro family (what the tree takes is a policy decision)
+NOT_KEPT = "passed, but the keep step kept no constant of it, so the pruning cut its declaration: not in the shipped text"
 MAX_KEEP_GAP = 0.02  # a few passed names may resolve to no constant (an alias); more than this share means the Lean step lost a part of the library
 
 
@@ -630,6 +631,13 @@ def compose(a: argparse.Namespace) -> None:
             shown = "\n".join(f"  {mod}: {ls[0]}" + (f" (+{len(ls) - 1} more)" if len(ls) > 1 else "") for mod, ls in list(leaks.items())[:20])
             sys.exit(f"pruning left unverified text in {len(leaks)} module(s) of the {mode} bundle; refusing to compose it:\n{shown}")
         manifest, left_out = [], defaultdict(int)
+        kept_cache: dict[str, set] = {}
+
+        def kept_of(mod: str) -> set:
+            if mod not in kept_cache:
+                kept_cache[mod] = modules[mod].kept_blocks(keep_blocks.get(mod, set()))
+            return kept_cache[mod]
+
         tolerated_records: dict[str, list[str]] = defaultdict(list)
         ledger: dict[str, dict] = {}  # every module whose verified theorems are not shipped: why, and how many theorems (ledger.json: nothing is missing without a reason)
         for mod, names in passed.items():
@@ -649,6 +657,12 @@ def compose(a: argparse.Namespace) -> None:
                 r = source_of(mod, n)
                 if not r:
                     left_out["no source range"] += 1
+                    continue
+                if not m.stays(m.block_of(r[0]) or (0, 0), kept_of(mod)):
+                    # a passed theorem whose declaration the pruning cut: the keep step kept no constant of it (tolerated up to MAX_KEEP_GAP), so it is not in the text that ships and no row
+                    # may say it is. aintlib part 2 (tengoku #770, 11 Nov 2026): shard 19's keep step died on 'unknown module prefix', other shards' keeps covered most of its theorems, and
+                    # the 7 nobody kept were cut from their modules while the manifest listed them as verified theorems of the tree (gitar-bot found them)
+                    left_out[NOT_KEPT] += 1
                     continue
                 text = "\n".join(m.lines[r[0] - 1 : r[1]])
                 text = re.sub(r"^\s*/--.*?-/\s*", "", text, count=1, flags=re.S)

@@ -1,0 +1,204 @@
+{
+ "source": "aintlib bump, run 42806078438 shard 19 (sources and ranges) and resume run 42873180722 (merged passed.json, bundle-aintlib-proposed-part-002.tar = tengoku #770): the four modules whose 7 passed theorems the bundle's text did not carry while its manifest listed them (gitar-bot on tengoku #770, 11 Nov 2026)",
+ "modules": {
+  "ModularCurves.ForMathlib.FibrewiseFinite": {
+   "source": "/-\nCopyright (c) 2026 Chris Birkbeck. All rights reserved.\nReleased under Apache 2.0 license as described in the file LICENSE.\nAuthors: Chris Birkbeck\n-/\nimport Mathlib.RingTheory.Artinian.Ring\nimport Mathlib.RingTheory.Localization.BaseChange\nimport Mathlib.RingTheory.TensorProduct.Quotient\nimport Mathlib.RingTheory.TensorProduct.Finite\n\n/-!\n# Fibrewise finiteness of a quotient\n\n`Module.Finite R (A ⧸ I)` says the closed subscheme `V(I) ⊆ Spec A` is **finite over the\nbase**. For a relative effective Cartier divisor `D ⊂ C` on a relative curve `C/S` this is\ntrue *globally* (`D ⟶ S` is finite) but **false on a general chart**: a chart cuts `D` down\nto an open piece, and an open piece of a finite scheme is only *clopen*-locally finite. The\nstandard counterexample is `ℤ[1/2]` over `ℤ`, which is `Γ` of a basic open of the finite\n`ℤ`-scheme `Spec ℤ`, and is not a finite `ℤ`-module.\n\nWhat survives — and what every consumer actually uses — is the **fibrewise** statement:\n\n* `ModularCurves.HasFiniteFibres R A I` — for every field `K` over `R`, the base change\n  `K ⊗[R] (A ⧸ I)` is a finite `K`-module.\n\nThis is exactly \"every fibre of `V(I) ⟶ Spec R` is a finite scheme\", and unlike finiteness\nit *is* inherited by charts: `K ⊗[ℤ] ℤ[1/2]` is `K` or `0`. The mechanism is\n`module_finite_tensor_of_localizationAway`: after base change to `K` the ambient finite\nalgebra becomes Artinian, and a localization of an Artinian ring is a quotient of it\n(`IsArtinianRing.localization_surjective`), hence still finite.\n-/\n\nuniverse u\n\nopen TensorProduct\n\nnamespace ModularCurves\n\nvariable (R A : Type u) [CommRing R] [CommRing A] [Algebra R A]\n\n/-- `A ⧸ I` **has finite fibres** over `R`: for every field `K` over `R` the base change\n`K ⊗[R] (A ⧸ I)` is a finite `K`-module, i.e. every fibre of `V(I) ⟶ Spec R` is a finite\nscheme. Weaker than `Module.Finite R (A ⧸ I)`, and — unlike it — stable under passing to a\nchart. -/\ndef HasFiniteFibres (I : Ideal A) : Prop :=\n  ∀ (K : Type u) [Field K] [Algebra R K], Module.Finite K (K ⊗[R] (A ⧸ I))\n\n/-- Finite ⟹ fibrewise finite (base change of a finite module). -/\ntheorem hasFiniteFibres_of_finite (I : Ideal A) (hfin : Module.Finite R (A ⧸ I)) :\n    HasFiniteFibres R A I := fun _ _ _ => by\n  haveI := hfin\n  infer_instance\n\n/-- Fibrewise finiteness only depends on the `R`-algebra `A ⧸ I` up to isomorphism. -/\ntheorem hasFiniteFibres_of_algEquiv {I : Ideal A} (Q : Type u) [CommRing Q] [Algebra R Q]\n    (e : Q ≃ₐ[R] A ⧸ I)\n    (h : ∀ (K : Type u) [Field K] [Algebra R K], Module.Finite K (K ⊗[R] Q)) :\n    HasFiniteFibres R A I := fun K _ _ => by\n  haveI := h K\n  exact Module.Finite.equiv\n    (Algebra.TensorProduct.congr (AlgEquiv.refl (R := K) (A₁ := K)) e).toLinearEquiv\n\n/-- **The chart mechanism.** A localization away from an element, of a *module-finite*\nalgebra, still has finite fibres: `K ⊗[R] B` is a finite `K`-algebra, hence Artinian, and a\nlocalization of an Artinian ring is a quotient of it.\n\nThis is what lets a relative effective Cartier divisor be read off on an arbitrary basic-open\nchart, where it is no longer finite over the base. -/\ntheorem module_finite_tensor_of_localizationAway (B K Bb : Type u) [CommRing B] [Algebra R B]\n    [Module.Finite R B] [Field K] [Algebra R K] (b : B) [CommRing Bb] [Algebra R Bb]\n    [Algebra B Bb] [IsScalarTower R B Bb] [IsLocalization.Away b Bb] :\n    Module.Finite K (K ⊗[R] Bb) := by\n  haveI hfinKB : Module.Finite K (K ⊗[R] B) := inferInstance\n  haveI : IsArtinianRing (K ⊗[R] B) := IsArtinianRing.of_finite K (K ⊗[R] B)\n  haveI : Module.Finite K (Localization.Away ((1 : K) ⊗ₜ[R] b)) :=\n    Module.Finite.of_surjective\n      (IsScalarTower.toAlgHom K (K ⊗[R] B)\n        (Localization.Away ((1 : K) ⊗ₜ[R] b))).toLinearMap\n      (IsArtinianRing.localization_surjective (Submonoid.powers ((1 : K) ⊗ₜ[R] b)) _)\n  exact Module.Finite.equiv\n    (IsLocalization.Away.tensorProductEquivTMulRight R K b Bb).symm.toLinearEquiv\n\nend ModularCurves\n",
+   "ranges": [
+    [
+     "ModularCurves.module_finite_tensor_of_localizationAway",
+     63,
+     81
+    ],
+    [
+     "ModularCurves.hasFiniteFibres_of_algEquiv",
+     54,
+     61
+    ],
+    [
+     "ModularCurves.hasFiniteFibres_of_finite",
+     48,
+     52
+    ],
+    [
+     "ModularCurves.HasFiniteFibres",
+     41,
+     46
+    ]
+   ],
+   "passed": [
+    "ModularCurves.hasFiniteFibres_of_algEquiv",
+    "ModularCurves.hasFiniteFibres_of_finite",
+    "ModularCurves.module_finite_tensor_of_localizationAway"
+   ],
+   "kept_in_shipped_text": [
+    "ModularCurves.module_finite_tensor_of_localizationAway",
+    "ModularCurves.HasFiniteFibres"
+   ],
+   "passed_missing_from_shipped": [
+    "ModularCurves.hasFiniteFibres_of_algEquiv",
+    "ModularCurves.hasFiniteFibres_of_finite"
+   ]
+  },
+  "ModularCurves.ForMathlib.DivisorChartFibre": {
+   "source": "/-\nCopyright (c) 2026 Chris Birkbeck. All rights reserved.\nReleased under Apache 2.0 license as described in the file LICENSE.\nAuthors: Chris Birkbeck\n-/\nimport Mathlib.AlgebraicGeometry.IdealSheaf.Subscheme\nimport Mathlib.AlgebraicGeometry.Morphisms.Finite\nimport Mathlib.AlgebraicGeometry.Morphisms.Smooth\nimport ModularCurves.ForMathlib.FibrewiseFinite\n\n/-!\n# A smooth chart on which a finite closed subscheme has finite fibres\n\nLet `π : C ⟶ S` be smooth of relative dimension `n` and let `J` be an ideal sheaf whose\nclosed subscheme is **finite over `S`** (the situation of a relative effective Cartier\ndivisor). Around any point `c` of the support we produce a standard-smooth affine chart\n`V₀ ⊆ C` over an affine `U₀ ⊆ S` on which `Γ(C,V₀) ⧸ J(V₀)` has **finite fibres** over\n`Γ(S,U₀)` (`ModularCurves.HasFiniteFibres`).\n\nThe finiteness of `J`'s subscheme over `S` does **not** survive to a chart — a chart cuts the\nsubscheme down to an open piece, and an open piece of a finite scheme is finite only over the\nlocus where it is *clopen*, which Zariski-locally one cannot arrange (splitting a fibre point\noff needs henselisation). Arranging containment in a single affine instead would need `C/S`\nquasi-projective, which is not available for an abstract relative curve.\n\nWhat *does* work — and is what the consumers need — is to shrink the chart so that the trace\nof the subscheme on it is a **basic** open of an affine chart of the subscheme\n(`exists_basicOpen_chart`). Then `Γ` of that trace is a localization away from one element of\na module-finite algebra, and `module_finite_tensor_of_localizationAway` applies fibre by\nfibre.\n-/\n\nuniverse u\n\nopen CategoryTheory AlgebraicGeometry TensorProduct\n\nnamespace ModularCurves\n\nvariable {C S : Scheme.{u}}\n\n/-- **Chart shrinking.** Given an affine chart `V₁ ∋ c` of `C` over an affine `U₀ ⊆ S`, there\nis a function `a` on `V₁`, nonvanishing at `c`, such that the trace of the closed subscheme\nof `J` on the basic open `C.basicOpen a` is a *basic* open of the affine chart\n`(J.subschemeι ≫ π) ⁻¹ᵁ U₀` of that subscheme.\n\nThe point: basic opens of an affine are localizations at one element, and that is what\nsurvives base change to a fibre. -/\ntheorem exists_basicOpen_chart (π : C ⟶ S) (J : C.IdealSheafData)\n    [IsFinite (J.subschemeι ≫ π)] {U₀ : S.Opens} (hU₀ : IsAffineOpen U₀)\n    {V₁ : C.Opens} (hV₁ : IsAffineOpen V₁) (e₁ : V₁ ≤ π ⁻¹ᵁ U₀) {c : C} (hcV₁ : c ∈ V₁)\n    (d : J.subscheme) (hd : J.subschemeι.base d = c) :\n    ∃ (a : Γ(C, V₁)) (b : Γ(J.subscheme, (J.subschemeι ≫ π) ⁻¹ᵁ U₀)),\n      c ∈ C.basicOpen a ∧\n      J.subschemeι ⁻¹ᵁ (C.basicOpen a) = J.subscheme.basicOpen b := by\n  classical\n  have hGU : IsAffineOpen ((J.subschemeι ≫ π) ⁻¹ᵁ U₀) := hU₀.preimage (J.subschemeι ≫ π)\n  have hdW₁ : d ∈ J.subschemeι ⁻¹ᵁ V₁ := by\n    show J.subschemeι.base d ∈ V₁\n    rw [hd]; exact hcV₁\n  have hW₁GU : (J.subschemeι ⁻¹ᵁ V₁) ≤ (J.subschemeι ≫ π) ⁻¹ᵁ U₀ := fun x hx => e₁ hx\n  obtain ⟨b, hbW₁, hdb⟩ :=\n    hGU.exists_basicOpen_le (⟨d, hdW₁⟩ : (J.subschemeι ⁻¹ᵁ V₁)) (hW₁GU hdW₁)\n  obtain ⟨a, ha⟩ := J.subschemeι_app_surjective ⟨V₁, hV₁⟩\n    (J.subscheme.presheaf.map (homOfLE hW₁GU).op b)\n  have hpre : J.subschemeι ⁻¹ᵁ (C.basicOpen a) = J.subscheme.basicOpen b := by\n    rw [Scheme.preimage_basicOpen, ha, Scheme.basicOpen_res]\n    exact inf_eq_right.mpr hbW₁\n  refine ⟨a, b, ?_, hpre⟩\n  have hmem : d ∈ J.subschemeι ⁻¹ᵁ (C.basicOpen a) := by rw [hpre]; exact hdb\n  have : J.subschemeι.base d ∈ C.basicOpen a := hmem\n  rwa [hd] at this\n\n/-- The `Γ(S,U₀)`-algebra comparison `Γ(subscheme, ι⁻¹V) ≃ Γ(C,V) ⧸ J(V)` on an affine chart\n`V` lying over an affine `U₀`. -/\nnoncomputable def subschemeChartAlgEquiv (π : C ⟶ S) (J : C.IdealSheafData) {U₀ : S.Opens}\n    {V : C.Opens} (hV : IsAffineOpen V) (e : V ≤ π ⁻¹ᵁ U₀)\n    (e' : J.subschemeι ⁻¹ᵁ V ≤ (J.subschemeι ≫ π) ⁻¹ᵁ U₀) :\n    letI : Algebra Γ(S, U₀) Γ(C, V) := (π.appLE U₀ V e).hom.toAlgebra\n    letI : Algebra Γ(S, U₀) Γ(J.subscheme, J.subschemeι ⁻¹ᵁ V) :=\n      ((J.subschemeι ≫ π).appLE U₀ (J.subschemeι ⁻¹ᵁ V) e').hom.toAlgebra\n    Γ(J.subscheme, J.subschemeι ⁻¹ᵁ V) ≃ₐ[Γ(S, U₀)] (Γ(C, V) ⧸ J.ideal ⟨V, hV⟩) := by\n  letI : Algebra Γ(S, U₀) Γ(C, V) := (π.appLE U₀ V e).hom.toAlgebra\n  letI : Algebra Γ(S, U₀) Γ(J.subscheme, J.subschemeι ⁻¹ᵁ V) :=\n    ((J.subschemeι ≫ π).appLE U₀ (J.subschemeι ⁻¹ᵁ V) e').hom.toAlgebra\n  have hcomp : (J.subschemeι ≫ π).appLE U₀ (J.subschemeι ⁻¹ᵁ V) e' ≫\n      (J.subschemeObjIso (⟨V, hV⟩ : C.affineOpens)).hom\n      = π.appLE U₀ V e ≫ CommRingCat.ofHom (Ideal.Quotient.mk (J.ideal ⟨V, hV⟩)) := by\n    have h1 : (J.subschemeι ≫ π).appLE U₀ (J.subschemeι ⁻¹ᵁ V) e'\n        = π.appLE U₀ V e ≫ J.subschemeι.appLE V (J.subschemeι ⁻¹ᵁ V) le_rfl := by\n      rw [Scheme.Hom.appLE_comp_appLE]\n    have h2 : J.subschemeι.appLE V (J.subschemeι ⁻¹ᵁ V) le_rfl = J.subschemeι.app V :=\n      Scheme.Hom.appLE_eq_app _\n    rw [h1, h2, J.subschemeι_app ⟨V, hV⟩, Category.assoc, Category.assoc,\n      Iso.inv_hom_id, Category.comp_id]\n  refine AlgEquiv.ofRingEquiv\n    (f := Iso.commRingCatIsoToRingEquiv (J.subschemeObjIso (⟨V, hV⟩ : C.affineOpens)))\n    (fun r => ?_)\n  exact congrArg\n    (fun w : Γ(S, U₀) ⟶ CommRingCat.of (Γ(C, V) ⧸ J.ideal ⟨V, hV⟩) => w.hom r) hcomp\n\n/-- **The chart existence theorem.** Around any point of the support of an ideal sheaf whose\nclosed subscheme is finite over `S`, a smooth relative scheme has a standard-smooth affine\nchart on which the quotient has finite fibres over the base. -/\ntheorem exists_affineChart_hasFiniteFibres (π : C ⟶ S) (J : C.IdealSheafData)\n    [IsFinite (J.subschemeι ≫ π)] (n : ℕ) [SmoothOfRelativeDimension n π] (c : C)\n    (hc : c ∈ J.support) :\n    ∃ (U₀ : S.Opens) (_ : IsAffineOpen U₀) (V₀ : C.Opens) (hV₀ : IsAffineOpen V₀)\n      (_ : c ∈ V₀) (e₀ : V₀ ≤ π ⁻¹ᵁ U₀)\n      (_ : RingHom.IsStandardSmoothOfRelativeDimension n (π.appLE U₀ V₀ e₀).hom),\n      letI : Algebra Γ(S, U₀) Γ(C, V₀) := (π.appLE U₀ V₀ e₀).hom.toAlgebra\n      HasFiniteFibres Γ(S, U₀) Γ(C, V₀) (J.ideal ⟨V₀, hV₀⟩) := by\n  classical\n  obtain ⟨U₀, hU₀, V₁, hV₁, hcV₁, e₁, hstd₁⟩ :=\n    SmoothOfRelativeDimension.exists_isStandardSmoothOfRelativeDimension (n := n) (f := π) c\n  obtain ⟨d, hd⟩ : ∃ d, J.subschemeι.base d = c := by\n    have := J.range_subschemeι\n    rw [Set.ext_iff] at this\n    exact (this c).mpr hc\n  obtain ⟨a, b, hca, hpre⟩ :=\n    exists_basicOpen_chart π J hU₀ hV₁ e₁ hcV₁ d hd\n  have hGU : IsAffineOpen ((J.subschemeι ≫ π) ⁻¹ᵁ U₀) := hU₀.preimage (J.subschemeι ≫ π)\n  have eW₀ : (J.subschemeι ⁻¹ᵁ (C.basicOpen a)) ≤ (J.subschemeι ≫ π) ⁻¹ᵁ U₀ :=\n    fun x hx => ((C.basicOpen_le a).trans e₁) hx\n  haveI : IsLocalization.Away a Γ(C, C.basicOpen a) := hV₁.isLocalization_basicOpen a\n  refine ⟨U₀, hU₀, C.basicOpen a, hV₁.basicOpen a, hca,\n    (C.basicOpen_le a).trans e₁, ?_, ?_⟩\n  · -- standard smoothness: `Γ(C, D(a))` is a localization away of the standard-smooth `Γ(C,V₁)`\n    have h := (RingHom.isStandardSmoothOfRelativeDimension_stableUnderCompositionWithLocalizationAway\n      (n := n)).right Γ(C, C.basicOpen a) a (π.appLE U₀ V₁ e₁).hom hstd₁\n    have heq : (algebraMap Γ(C, V₁) Γ(C, C.basicOpen a)).comp (π.appLE U₀ V₁ e₁).hom\n        = (π.appLE U₀ (C.basicOpen a) ((C.basicOpen_le a).trans e₁)).hom := by\n      rw [RingHom.algebraMap_toAlgebra, ← CommRingCat.hom_comp, Scheme.Hom.appLE_map]\n    rwa [heq] at h\n  · -- fibrewise finiteness, via the basic-open trace on the finite subscheme\n    letI instGU : Algebra Γ(S, U₀) Γ(J.subscheme, (J.subschemeι ≫ π) ⁻¹ᵁ U₀) :=\n      ((J.subschemeι ≫ π).app U₀).hom.toAlgebra\n    letI instW : Algebra Γ(S, U₀) Γ(J.subscheme, J.subschemeι ⁻¹ᵁ (C.basicOpen a)) :=\n      ((J.subschemeι ≫ π).appLE U₀ (J.subschemeι ⁻¹ᵁ (C.basicOpen a)) eW₀).hom.toAlgebra\n    letI instA : Algebra Γ(S, U₀) Γ(C, C.basicOpen a) :=\n      (π.appLE U₀ (C.basicOpen a) ((C.basicOpen_le a).trans e₁)).hom.toAlgebra\n    letI instBW : Algebra Γ(J.subscheme, (J.subschemeι ≫ π) ⁻¹ᵁ U₀)\n        Γ(J.subscheme, J.subschemeι ⁻¹ᵁ (C.basicOpen a)) :=\n      (J.subscheme.presheaf.map (homOfLE eW₀).op).hom.toAlgebra\n    haveI : IsScalarTower Γ(S, U₀) Γ(J.subscheme, (J.subschemeι ≫ π) ⁻¹ᵁ U₀)\n        Γ(J.subscheme, J.subschemeι ⁻¹ᵁ (C.basicOpen a)) := by\n      refine IsScalarTower.of_algebraMap_eq' ?_\n      rw [RingHom.algebraMap_toAlgebra, RingHom.algebraMap_toAlgebra,\n        RingHom.algebraMap_toAlgebra, ← CommRingCat.hom_comp,\n        ← Scheme.Hom.appLE_eq_app (f := J.subschemeι ≫ π) (U := U₀), Scheme.Hom.appLE_map]\n    haveI : IsLocalization.Away b Γ(J.subscheme, J.subschemeι ⁻¹ᵁ (C.basicOpen a)) :=\n      hGU.isLocalization_of_eq_basicOpen b (homOfLE eW₀) hpre\n    haveI : Module.Finite Γ(S, U₀) Γ(J.subscheme, (J.subschemeι ≫ π) ⁻¹ᵁ U₀) :=\n      IsFinite.finite_app (J.subschemeι ≫ π) U₀ hU₀\n    exact hasFiniteFibres_of_algEquiv Γ(S, U₀) Γ(C, C.basicOpen a) _\n      (subschemeChartAlgEquiv π J (hV₁.basicOpen a) ((C.basicOpen_le a).trans e₁) eW₀)\n      (fun K _ _ => module_finite_tensor_of_localizationAway Γ(S, U₀)\n        Γ(J.subscheme, (J.subschemeι ≫ π) ⁻¹ᵁ U₀) K _ b)\n\nend ModularCurves\n",
+   "ranges": [
+    [
+     "ModularCurves.subschemeChartAlgEquiv",
+     73,
+     99
+    ],
+    [
+     "ModularCurves.exists_affineChart_hasFiniteFibres",
+     101,
+     157
+    ],
+    [
+     "ModularCurves.exists_basicOpen_chart",
+     41,
+     71
+    ]
+   ],
+   "passed": [
+    "ModularCurves.exists_affineChart_hasFiniteFibres",
+    "ModularCurves.exists_basicOpen_chart"
+   ],
+   "kept_in_shipped_text": [
+    "ModularCurves.subschemeChartAlgEquiv",
+    "ModularCurves.exists_basicOpen_chart"
+   ],
+   "passed_missing_from_shipped": [
+    "ModularCurves.exists_affineChart_hasFiniteFibres"
+   ]
+  },
+  "ModularCurves.ForMathlib.ThreeTorsionRingCertificate": {
+   "source": "/-\nCopyright (c) 2026 Chris Birkbeck. All rights reserved.\nReleased under Apache 2.0 license as described in the file LICENSE.\nAuthors: Chris Birkbeck\n-/\nimport Mathlib.AlgebraicGeometry.EllipticCurve.DivisionPolynomial.Basic\n\n/-!\n# The ring-level `3`-torsion coordinate certificate (KM L4-iii / CHARTER-K, K1)\n\n**[KM-W0 / hArb BRIDGE core]** The purely-algebraic heart of the two hArb bridges\n(`BRIDGE-P`, `BRIDGE-Q`): over ANY commutative ring `R`, a Weierstrass point `(p, q)`\nwhose doubling equals its negation (`x(2P) = x(P)`, cleared of the `ψ₂`-denominator)\nroots the `3`-division polynomial `Ψ₃`. This is a `linear_combination` certificate —\nnon-reduced-tolerant, unlike the field-level `psi3_eval_eq_zero_of_three_zsmul`\n(`E3NormalForm.lean`), which the `ε`-example (`y²+y = x³+a₄x` over `ℤ[a₄]/(a₄²)`) shows is\ninsufficient: the `3`-torsion ideal is `(a₄²)`, not radical, so only the exact ring\nidentity `Ψ₃(0) = −a₄² = 0` holds — never `a₄ = 0`.\n\nCertificate (CAS-verified, stated in `E3NormalForm.lean:144` and `TateNormalForm.lean:259`):\n`N² + a₁·N·d − (a₂ + 3p)·d² + Ψ₃(p) = −(b₂ + 12p)·(curve defect)`,\nwhere `N = 3p² + 2a₂p + a₄ − a₁q` (tangent slope numerator) and `d = 2q + a₁p + a₃ = ψ₂`.\nSo on the curve, the cleared doubling condition `N² + a₁Nd − (a₂+3p)d² = 0` gives `Ψ₃(p) = 0`.\n-/\n\nopen Polynomial WeierstrassCurve\n\nnamespace WeierstrassCurve\n\nvariable {R : Type*} [CommRing R] (W : WeierstrassCurve R)\n\n/-- The tangent-slope numerator at `(p, q)`: `3p² + 2a₂p + a₄ − a₁q`. -/\ndef tangentNum (p q : R) : R := 3 * p ^ 2 + 2 * W.a₂ * p + W.a₄ - W.a₁ * q\n\n/-- The tangent-slope denominator at `(p, q)`: `2q + a₁p + a₃` (the `ψ₂`-value; `2P` is\nfinite exactly where this is a unit). -/\ndef tangentDen (p q : R) : R := 2 * q + W.a₁ * p + W.a₃\n\n/-- **[LEAF A — the ring-level `3`-torsion certificate ★]** If `(p, q)` lies on the\ncurve and the cleared doubling-equals-negation condition holds\n(`N² + a₁Nd − (a₂+3p)d² = 0`, i.e. `x(2P) = x(P)` after clearing `d²`), then `(p, q)`\nroots the `3`-division polynomial: `Ψ₃.eval p = 0`. Pure `linear_combination`, valid over\nany commutative ring (no field, no reducedness). -/\ntheorem Ψ₃_eval_eq_zero_of_dbl_eq_neg (p q : R)\n    (hcurve : q ^ 2 + W.a₁ * p * q + W.a₃ * q\n      = p ^ 3 + W.a₂ * p ^ 2 + W.a₄ * p + W.a₆)\n    (hdbl : (W.tangentNum p q) ^ 2 + W.a₁ * (W.tangentNum p q) * (W.tangentDen p q)\n      - (W.a₂ + 3 * p) * (W.tangentDen p q) ^ 2 = 0) :\n    W.Ψ₃.eval p = 0 := by\n  simp only [Ψ₃, tangentNum, tangentDen, b₂, b₄, b₆, b₈, eval_add, eval_mul, eval_pow,\n    eval_ofNat, eval_C, eval_X] at hdbl ⊢\n  linear_combination (norm := ring_nf) (-1 : R) * hdbl\n    + (-(W.a₁ ^ 2 + 4 * W.a₂ + 12 * p)) * hcurve\n\n/-- **[BRIDGE-P algebraic form]** On an origin-marked chart (`a₆ = 0`), the cleared\ndoubling-equals-negation condition at `(0, 0)` IS the `BRIDGE-P` identity\n`a₂a₃² − a₄a₁a₃ − a₄² = 0` (`N(0,0) = a₄`, `d(0,0) = a₃`). Provided directly for the\nassembly; the content is the scheme-level `3 • σ = 0 ⟹ x(2σ) = x(σ)` input. -/\ntheorem bridgeP_of_dbl_origin (ha₆ : W.a₆ = 0)\n    (hdbl : (W.tangentNum 0 0) ^ 2 + W.a₁ * (W.tangentNum 0 0) * (W.tangentDen 0 0)\n      - (W.a₂ + 3 * 0) * (W.tangentDen 0 0) ^ 2 = 0) :\n    W.a₂ * W.a₃ ^ 2 - W.a₄ * W.a₁ * W.a₃ - W.a₄ ^ 2 = 0 := by\n  simp only [tangentNum, tangentDen] at hdbl\n  linear_combination (norm := ring_nf) (-1 : R) * hdbl\n\n/-- **[BRIDGE-Q flex factorization]** On a flex chart (`a₂ = a₄ = a₆ = 0`) the\n`3`-division polynomial factors as `Ψ₃(p) = p · (3p³ + a₁²p² + 3a₁a₃p + 3a₃²)`. -/\ntheorem Ψ₃_eval_flex (ha₂ : W.a₂ = 0) (ha₄ : W.a₄ = 0) (ha₆ : W.a₆ = 0) (p : R) :\n    W.Ψ₃.eval p = p * (3 * p ^ 3 + W.a₁ ^ 2 * p ^ 2 + 3 * W.a₁ * W.a₃ * p\n      + 3 * W.a₃ ^ 2) := by\n  simp only [Ψ₃, b₂, b₄, b₆, b₈, ha₂, ha₄, ha₆, eval_add, eval_mul, eval_pow,\n    eval_ofNat, eval_C, eval_X]\n  ring\n\n/-- **[BRIDGE-Q algebraic form]** On a flex chart with `Q = (p, q)` roots of `Ψ₃` and `p`\na unit, the `BRIDGE-Q` flex cubic vanishes: `3p³ + a₁²p² + 3a₁a₃p + 3a₃² = 0`. -/\ntheorem bridgeQ_cubic_of_Ψ₃ (ha₂ : W.a₂ = 0) (ha₄ : W.a₄ = 0) (ha₆ : W.a₆ = 0)\n    (p : R) (hp : IsUnit p) (hΨ : W.Ψ₃.eval p = 0) :\n    3 * p ^ 3 + W.a₁ ^ 2 * p ^ 2 + 3 * W.a₁ * W.a₃ * p + 3 * W.a₃ ^ 2 = 0 := by\n  rw [Ψ₃_eval_flex W ha₂ ha₄ ha₆ p] at hΨ\n  exact hp.mul_right_eq_zero.mp hΨ\n",
+   "ranges": [
+    [
+     "WeierstrassCurve.bridgeQ_cubic_of_Ψ₃",
+     75,
+     81
+    ],
+    [
+     "WeierstrassCurve.Ψ₃_eval_eq_zero_of_dbl_eq_neg",
+     39,
+     53
+    ],
+    [
+     "WeierstrassCurve.tangentDen",
+     35,
+     37
+    ],
+    [
+     "WeierstrassCurve.Ψ₃_eval_flex",
+     66,
+     73
+    ],
+    [
+     "WeierstrassCurve.tangentNum",
+     32,
+     33
+    ],
+    [
+     "WeierstrassCurve.bridgeP_of_dbl_origin",
+     55,
+     64
+    ]
+   ],
+   "passed": [
+    "WeierstrassCurve.bridgeP_of_dbl_origin"
+   ],
+   "kept_in_shipped_text": [
+    "WeierstrassCurve.tangentDen",
+    "WeierstrassCurve.tangentNum"
+   ],
+   "passed_missing_from_shipped": [
+    "WeierstrassCurve.bridgeP_of_dbl_origin"
+   ]
+  },
+  "ModularCurves.Picard.PullbackPseudofunctor": {
+   "source": "import Mathlib.AlgebraicGeometry.Modules.Sheaf\nimport Mathlib.CategoryTheory.Sites.Descent.IsPrestack\nimport Mathlib.CategoryTheory.Sites.Descent.DescentDataPrime\n\n/-!\n# The pullback pseudofunctor for scheme modules\n\nThis file exposes the left-adjoint part of mathlib's existing scheme-module pseudofunctor and\nidentifies its flexible composition isomorphisms with `pullbackComp` followed by `pullbackCongr`.\n-/\n\nuniverse u\n\nopen CategoryTheory CategoryTheory.Limits\n\nnamespace AlgebraicGeometry.Scheme.Modules\n\nnoncomputable section\n\n/-- The contravariant, `Cat`-valued pseudofunctor of sheaves of modules on schemes. This is\nthe left-adjoint part of `Scheme.Modules.pseudofunctor`. -/\ndef pullbackPseudofunctor :=\n  pseudofunctor.comp Bicategory.Adj.forget₁\n\n/-- The functor mapped by `pullbackPseudofunctor` is the usual pullback of scheme modules. -/\ntheorem pullbackPseudofunctor_map_toFunctor\n    {X Y : Scheme.{u}} (f : X ⟶ Y) :\n    (pullbackPseudofunctor.map f.op.toLoc).toFunctor = pullback f := by\n  rfl\n\n/-- Mapping a module morphism by `pullbackPseudofunctor` is the usual pullback map. -/\ntheorem pullbackPseudofunctor_map_map\n    {X Y : Scheme.{u}} (f : X ⟶ Y) {M N : Y.Modules} (p : M ⟶ N) :\n    (pullbackPseudofunctor.map f.op.toLoc).toFunctor.map p =\n      (pullback f).map p := by\n  rfl\n\n/-- The hom of the flexible composition isomorphism for the pullback pseudofunctor, evaluated\non a module. -/\ntheorem pullbackPseudofunctor_mapComp'_hom_app\n    {X Y Z : Scheme.{u}} (f : X ⟶ Y) (g : Y ⟶ Z)\n    {k : X ⟶ Z} (h : f ≫ g = k) (M : Z.Modules) :\n    ((pullbackPseudofunctor.mapComp' g.op.toLoc f.op.toLoc k.op.toLoc\n      (by rw [← Quiver.Hom.comp_toLoc, ← op_comp, h])).hom.toNatTrans.app M) =\n      ((((pullbackComp f g).app M) ≪≫ ((pullbackCongr h).app M)).inv) := by\n  subst k\n  have hcomp : g.op.toLoc ≫ f.op.toLoc = (f ≫ g).op.toLoc := by\n    rw [← Quiver.Hom.comp_toLoc, ← op_comp]\n  cases hcomp\n  change\n    ((pullbackPseudofunctor.mapComp' g.op.toLoc f.op.toLoc\n      (g.op.toLoc ≫ f.op.toLoc) rfl).hom.toNatTrans.app M) = _\n  rw [Pseudofunctor.mapComp'_eq_mapComp]\n  unfold pullbackPseudofunctor\n  rw [Pseudofunctor.comp_mapComp,\n    Bicategory.Adj.forget₁_mapComp]\n  rfl\n\n/-- The inverse of the flexible composition isomorphism for the pullback pseudofunctor,\nevaluated on a module. -/\ntheorem pullbackPseudofunctor_mapComp'_inv_app\n    {X Y Z : Scheme.{u}} (f : X ⟶ Y) (g : Y ⟶ Z)\n    {k : X ⟶ Z} (h : f ≫ g = k) (M : Z.Modules) :\n    ((pullbackPseudofunctor.mapComp' g.op.toLoc f.op.toLoc k.op.toLoc\n      (by rw [← Quiver.Hom.comp_toLoc, ← op_comp, h])).inv.toNatTrans.app M) =\n      ((((pullbackComp f g).app M) ≪≫ ((pullbackCongr h).app M)).hom) := by\n  subst k\n  have hcomp : g.op.toLoc ≫ f.op.toLoc = (f ≫ g).op.toLoc := by\n    rw [← Quiver.Hom.comp_toLoc, ← op_comp]\n  cases hcomp\n  change\n    ((pullbackPseudofunctor.mapComp' g.op.toLoc f.op.toLoc\n      (g.op.toLoc ≫ f.op.toLoc) rfl).inv.toNatTrans.app M) = _\n  rw [Pseudofunctor.mapComp'_eq_mapComp]\n  unfold pullbackPseudofunctor\n  rw [Pseudofunctor.comp_mapComp,\n    Bicategory.Adj.forget₁_mapComp]\n  rfl\n\n/-- Pulling a morphism to a further scheme using the descent API is ordinary pullback,\nconjugated by the two composition isomorphisms. -/\ntheorem pullbackPseudofunctor_pullHom\n    {X₁ X₂ Y Y' : Scheme.{u}} {M₁ : X₁.Modules} {M₂ : X₂.Modules}\n    {f₁ : Y ⟶ X₁} {f₂ : Y ⟶ X₂}\n    (p : (pullback f₁).obj M₁ ⟶ (pullback f₂).obj M₂)\n    (g : Y' ⟶ Y) (gf₁ : Y' ⟶ X₁) (gf₂ : Y' ⟶ X₂)\n    (hgf₁ : g ≫ f₁ = gf₁) (hgf₂ : g ≫ f₂ = gf₂) :\n    Pseudofunctor.LocallyDiscreteOpToCat.pullHom\n        (F := pullbackPseudofunctor) p g gf₁ gf₂ hgf₁ hgf₂ =\n      (((pullbackComp g f₁).app M₁) ≪≫\n          ((pullbackCongr hgf₁).app M₁)).inv ≫\n        (pullback g).map p ≫\n      (((pullbackComp g f₂).app M₂) ≪≫\n          ((pullbackCongr hgf₂).app M₂)).hom := by\n  unfold Pseudofunctor.LocallyDiscreteOpToCat.pullHom\n  rw [pullbackPseudofunctor_mapComp'_hom_app g f₁ hgf₁ M₁,\n    pullbackPseudofunctor_mapComp'_inv_app g f₂ hgf₂ M₂]\n  rfl\n\n/-- The canonical comparison between two iterated pullbacks over a common map. -/\nnoncomputable def pullbackDescentComparisonIso\n    {I : Type u} {S : Scheme.{u}} {X : I → Scheme.{u}}\n    (f : ∀ i, X i ⟶ S) (M : S.Modules) {Y : Scheme.{u}}\n    (q : Y ⟶ S) {i j : I} (f₁ : Y ⟶ X i) (f₂ : Y ⟶ X j)\n    (hf₁ : f₁ ≫ f i = q) (hf₂ : f₂ ≫ f j = q) :\n    (pullback f₁).obj ((pullback (f i)).obj M) ≅\n      (pullback f₂).obj ((pullback (f j)).obj M) :=\n  (((pullbackComp f₁ (f i)).app M) ≪≫ ((pullbackCongr hf₁).app M)) ≪≫\n    (((pullbackComp f₂ (f j)).app M) ≪≫ ((pullbackCongr hf₂).app M)).symm\n\n/-- The transition morphism in the pullback descent datum is the canonical comparison between\nthe two iterated pullbacks. -/\ntheorem pullbackPseudofunctor_toDescentData_hom\n    {I : Type u} {S : Scheme.{u}} {X : I → Scheme.{u}}\n    (f : ∀ i, X i ⟶ S) (M : S.Modules) {Y : Scheme.{u}}\n    (q : Y ⟶ S) {i j : I} (f₁ : Y ⟶ X i) (f₂ : Y ⟶ X j)\n    (hf₁ : f₁ ≫ f i = q) (hf₂ : f₂ ≫ f j = q) :\n    ((pullbackPseudofunctor.toDescentData f).obj M).hom\n        q f₁ f₂ hf₁ hf₂ =\n      (pullbackDescentComparisonIso f M q f₁ f₂ hf₁ hf₂).hom := by\n  change\n    ((pullbackPseudofunctor.mapComp' (f i).op.toLoc f₁.op.toLoc q.op.toLoc\n        (by rw [← Quiver.Hom.comp_toLoc, ← op_comp, hf₁])).inv.toNatTrans.app M) ≫\n      ((pullbackPseudofunctor.mapComp' (f j).op.toLoc f₂.op.toLoc q.op.toLoc\n        (by rw [← Quiver.Hom.comp_toLoc, ← op_comp, hf₂])).hom.toNatTrans.app M) = _\n  change _ =\n    (((pullbackComp f₁ (f i)).app M) ≪≫\n        ((pullbackCongr hf₁).app M)).hom ≫\n      (((pullbackComp f₂ (f j)).app M) ≪≫\n        ((pullbackCongr hf₂).app M)).inv\n  rw [pullbackPseudofunctor_mapComp'_inv_app f₁ (f i) hf₁ M,\n    pullbackPseudofunctor_mapComp'_hom_app f₂ (f j) hf₂ M]\n  rfl\n\n/-- Compatibility with the canonical pullback comparison is the commutativity\ncondition for a morphism out of the pullback descent datum. -/\ntheorem pullbackPseudofunctorDescentIso_comm\n    {I : Type u} {S : Scheme.{u}} {X : I → Scheme.{u}}\n    (f : ∀ i, X i ⟶ S) (M : S.Modules)\n    (sq : ∀ i j, ChosenPullback (f i) (f j))\n    (sq₃ : ∀ i₁ i₂ i₃,\n      ChosenPullback₃ (sq i₁ i₂) (sq i₂ i₃) (sq i₁ i₃))\n    (D₂ : pullbackPseudofunctor.DescentData' sq sq₃)\n    (e : ∀ i, (pullback (f i)).obj M ≅ D₂.obj i)\n    (h : ∀ i j,\n      (pullback (sq i j).p₁).map (e i).hom ≫ D₂.hom i j =\n      (pullbackDescentComparisonIso f M (sq i j).p\n          (sq i j).p₁ (sq i j).p₂ (sq i j).hp₁ (sq i j).hp₂).hom ≫\n          (pullback (sq i j).p₂).map (e j).hom)\n    (i j : I) :\n    (pullback (sq i j).p₁).map (e i).hom ≫ D₂.hom i j =\n      (Pseudofunctor.DescentData'.ofDescentData sq sq₃\n          ((pullbackPseudofunctor.toDescentData f).obj M)).hom i j ≫\n        (pullback (sq i j).p₂).map (e j).hom := by\n  rw [Pseudofunctor.DescentData'.ofDescentData_hom]\n  have hsource := pullbackPseudofunctor_toDescentData_hom\n    (f := f) (M := M) (q := (sq i j).p)\n    (f₁ := (sq i j).p₁) (f₂ := (sq i j).p₂)\n    (hf₁ := (sq i j).hp₁) (hf₂ := (sq i j).hp₂)\n  have hdescent := congrArg\n    (fun m ↦ m ≫ (pullback (sq i j).p₂).map (e j).hom) hsource\n  exact (h i j).trans hdescent.symm\n\n/-- Compatible local isomorphisms identify the pullback descent datum of a module\nwith a given descent datum. -/\nnoncomputable def pullbackPseudofunctorDescentIsoOfCompatible\n    {I : Type u} {S : Scheme.{u}} {X : I → Scheme.{u}}\n    (f : ∀ i, X i ⟶ S) (M : S.Modules)\n    (sq : ∀ i j, ChosenPullback (f i) (f j))\n    (sq₃ : ∀ i₁ i₂ i₃,\n      ChosenPullback₃ (sq i₁ i₂) (sq i₂ i₃) (sq i₁ i₃))\n    (D₂ : pullbackPseudofunctor.DescentData' sq sq₃)\n    (e : ∀ i, (pullback (f i)).obj M ≅ D₂.obj i)\n    (h : ∀ i j,\n      (pullback (sq i j).p₁).map (e i).hom ≫ D₂.hom i j =\n        (pullbackDescentComparisonIso f M (sq i j).p\n          (sq i j).p₁ (sq i j).p₂ (sq i j).hp₁ (sq i j).hp₂).hom ≫\n          (pullback (sq i j).p₂).map (e j).hom) :\n    Pseudofunctor.DescentData'.ofDescentData sq sq₃\n        ((pullbackPseudofunctor.toDescentData f).obj M) ≅ D₂ := by\n  exact Pseudofunctor.DescentData'.isoMk e\n    (fun i j ↦ pullbackPseudofunctorDescentIso_comm\n      (f := f) (M := M) (sq := sq) (sq₃ := sq₃) (D₂ := D₂)\n      (e := e) h i j)\n\n/-- The transition law of an isomorphism from a pullback descent datum is expressed\nusing the canonical comparison between the two iterated pullbacks. -/\ntheorem pullbackPseudofunctorDescentIso_transition\n    {I : Type u} {S : Scheme.{u}} {X : I → Scheme.{u}}\n    (f : ∀ i, X i ⟶ S) (M : S.Modules)\n    (sq : ∀ i j, ChosenPullback (f i) (f j))\n    (sq₃ : ∀ i₁ i₂ i₃,\n      ChosenPullback₃ (sq i₁ i₂) (sq i₂ i₃) (sq i₁ i₃))\n    (D₂ : pullbackPseudofunctor.DescentData' sq sq₃)\n    (e : Pseudofunctor.DescentData'.ofDescentData sq sq₃\n        ((pullbackPseudofunctor.toDescentData f).obj M) ≅ D₂)\n    (i j : I) :\n    (pullback (sq i j).p₁).map (e.hom.hom i) ≫ D₂.hom i j =\n      (pullbackDescentComparisonIso f M (sq i j).p\n        (sq i j).p₁ (sq i j).p₂ (sq i j).hp₁ (sq i j).hp₂).hom ≫\n        (pullback (sq i j).p₂).map (e.hom.hom j) := by\n  have hsource := pullbackPseudofunctor_toDescentData_hom\n    (f := f) (M := M) (q := (sq i j).p)\n    (f₁ := (sq i j).p₁) (f₂ := (sq i j).p₂)\n    (hf₁ := (sq i j).hp₁) (hf₂ := (sq i j).hp₂)\n  have hdescent := congrArg\n    (fun m ↦ m ≫ (pullback (sq i j).p₂).map (e.hom.hom j)) hsource\n  exact (e.hom.comm i j).trans hdescent\n\nend\n\n\nend AlgebraicGeometry.Scheme.Modules\n",
+   "ranges": [
+    [
+     "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctorDescentIso_transition",
+     186,
+     208
+    ],
+    [
+     "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctorDescentIso_comm",
+     135,
+     162
+    ],
+    [
+     "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_mapComp'_hom_app",
+     38,
+     57
+    ],
+    [
+     "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctorDescentIsoOfCompatible",
+     164,
+     184
+    ],
+    [
+     "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_pullHom",
+     80,
+     98
+    ],
+    [
+     "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_mapComp'_inv_app",
+     59,
+     78
+    ],
+    [
+     "AlgebraicGeometry.Scheme.Modules.pullbackDescentComparisonIso",
+     100,
+     109
+    ],
+    [
+     "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_map_toFunctor",
+     25,
+     29
+    ],
+    [
+     "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_map_map",
+     31,
+     36
+    ],
+    [
+     "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_toDescentData_hom",
+     111,
+     133
+    ],
+    [
+     "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor",
+     20,
+     23
+    ]
+   ],
+   "passed": [
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctorDescentIso_comm",
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctorDescentIso_transition",
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_mapComp'_hom_app",
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_mapComp'_inv_app",
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_map_map",
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_map_toFunctor",
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_pullHom",
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_toDescentData_hom"
+   ],
+   "kept_in_shipped_text": [
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctorDescentIso_comm",
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_mapComp'_hom_app",
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctorDescentIsoOfCompatible",
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_pullHom",
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_mapComp'_inv_app",
+    "AlgebraicGeometry.Scheme.Modules.pullbackDescentComparisonIso",
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_toDescentData_hom",
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor"
+   ],
+   "passed_missing_from_shipped": [
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctorDescentIso_transition",
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_map_map",
+    "AlgebraicGeometry.Scheme.Modules.pullbackPseudofunctor_map_toFunctor"
+   ]
+  }
+ }
+}
