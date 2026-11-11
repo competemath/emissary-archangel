@@ -108,7 +108,10 @@ jobs:
             --jq '.jobs[] | {name, conclusion, pack_step: ([.steps[] | select(.name | startswith("This job'"'"'s work, for the jobs after it")) | .conclusion][0])}' | jq -s . > ../reuse-jobs.json
           gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$REUSE_FROM/artifacts?per_page=100" --jq '.artifacts[] | select(.expired | not) | .name' | jq -R . | jq -s . > ../reuse-artifacts.json
           plan_job=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$REUSE_FROM/jobs?per_page=100&filter=latest" --jq '.jobs[] | select(.name == "plan") | .id')
-          gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$plan_job/logs" > ../reuse-plan.log || true  # from_tree of a run from before plan/lane.json (lane_reuse.py checks it)
+          # from_tree of a run from before plan/lane.json (lane_reuse.py checks it). curl, not `gh api`: a log holds terminal colour codes and gh refuses to write it
+          # ("the response contains terminal escape sequences"; run 43066356910, 11 Nov 2026, stopped on an empty log)
+          curl -sSfL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/jobs/$plan_job/logs" -o ../reuse-plan.log || true
           python3 scripts/bump/lane_reuse.py --plan ../plan/plan.json --jobs ../reuse-jobs.json --artifacts ../reuse-artifacts.json --key "$KEY" \
             --from-tree "$FROM_TREE" --lane ../plan/lane.json --plan-log ../reuse-plan.log >> "$GITHUB_OUTPUT"
       - name: What the shards are built with
