@@ -132,7 +132,7 @@ class Workflow(unittest.TestCase):
     def test_a_recut_that_fills_in_takes_its_plan_from_the_recut_run(self):
         """2026-10-18, navier-stokes-euler: shard 1 (5 h 21 min) lived only in run A, the other 63 shards only in run B (fill_from). A fresh run with fill_from had to rebuild shard 1, because
         `plan-new` was downloaded from the current run and a recut has no plan job: the combination (recut_from = A, fill_from = B) could not exist."""
-        down = steps("compose")[index("compose", "The earlier run planned the same shards") - 2]["with"]
+        down = steps("compose")[index("compose", "fill_from.py") - 1]["with"]
         self.assertEqual(down["name"], "plan-${{ inputs.key }}")
         self.assertEqual(down["path"], "plan-new")
         self.assertEqual(down["run-id"], "${{ inputs.recut_from || github.run_id }}")
@@ -156,25 +156,27 @@ class Workflow(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_the_filled_in_shards_are_in_place_before_compose_and_finish_merge(self):
+        # scripts/bump/fill_from.py: every run of fill_from (a resume of a resume names its chain), newest first; a shard already in shards/ is never replaced
+        # (tests/test_fill_from.py holds the cases)
         for job, merge in (("compose", "shard_pack.py merge"), ("finish", "shard_pack.py merge")):
-            fill = index(job, "shard_pack.py fill")
+            fill = index(job, "fill_from.py")
             self.assertLess(fill, index(job, merge), job)
-            self.assertEqual(steps(job)[fill]["if"], "${{ inputs.fill_from != '' }}", job)
-            down = steps(job)[fill - 1]["with"]
-            self.assertEqual(down["run-id"], "${{ inputs.fill_from }}", job)
-            self.assertEqual(down["path"], "shards-fill", job)  # not straight into shards/: a shard built here is never replaced by its old copy
+            s = steps(job)[fill]
+            self.assertEqual(s["if"], "${{ inputs.fill_from != '' }}", job)
+            self.assertEqual(s["env"]["FILL_FROM"], "${{ inputs.fill_from }}", job)
+            self.assertIn('--runs "$FILL_FROM" --shards shards', s["run"], job)
+            self.assertNotIn("download-artifact", s.get("uses", ""), job)
 
     def test_the_earlier_runs_plan_must_be_this_runs_plan(self):
-        cmp_step = steps("compose")[index("compose", "The earlier run planned the same shards")]
-        self.assertIn("cmp plan-old/plan.json plan-new/plan.json", cmp_step["run"])
-        # CodeRabbit: the plan alone does not say what the shards were built with
-        self.assertIn("cmp plan-old/inputs.json plan-new/inputs.json", cmp_step["run"])
-        self.assertIn("fill_unrecorded", cmp_step["env"]["UNRECORDED"])  # an old run without inputs.json needs an explicit vouch, never a silent pass
+        fill = steps("compose")[index("compose", "fill_from.py")]
+        self.assertIn("--plan-new plan-new", fill["run"])  # fill_from.py same_plan: plan.json and inputs.json of every run of the chain (tests/test_fill_from.py)
+        self.assertIn("fill_unrecorded", fill["env"]["UNRECORDED"])  # an old run without inputs.json needs an explicit vouch, never a silent pass
+        self.assertIn('--unrecorded "$UNRECORDED"', fill["run"])
         record = next(s for s in steps("plan") if "What the shards are built with" in s.get("name", ""))
         for name in ("MATHLIB", "TOOLCHAIN", "IMPORTS", "TENGOKU_REF"):
             self.assertIn(name, record["env"], name)
         self.assertLess(steps("plan").index(record), next(i for i, s in enumerate(steps("plan")) if "upload-artifact" in s.get("uses", "")))
-        self.assertLess(index("compose", "The earlier run planned the same shards"), index("compose", "Every shard of the plan has its result"))
+        self.assertLess(index("compose", "fill_from.py"), index("compose", "Every shard of the plan has its result"))
 
     def test_a_resume_needs_no_new_permission(self):
         self.assertEqual(JOBS["compose"]["permissions"], {"contents": "read", "actions": "read"})

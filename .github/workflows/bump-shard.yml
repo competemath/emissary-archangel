@@ -20,7 +20,7 @@ on:
       build_timeout_min: { type: string, default: "90", description: "minutes one module may take to build (tolerant_build.py --timeout); a module too big for RAM and run on swap needs more" }
       round_reserve_min: { type: string, default: "30", description: "minutes of the job's 345 kept for what comes after the build: the build and its repair rounds stop that long before the limit (a round that runs out of time is undone, build_rounds.py); the steps after the build took at most 9.3 minutes on 63 real jobs (10 Nov 2026)" }
       reuse_run: { type: string, default: "", description: "a build-once that goes on from an earlier run (bump-waves.yml reuse_from): the run the packs in reuse_packs come from" }
-      reuse_packs: { type: string, default: "", description: "comma list: the shards whose pack comes from reuse_run (lane_reuse.py); every other pack comes from this run" }
+      reuse_packs: { type: string, default: "", description: "comma list: N (the pack comes from reuse_run) or N@RUN (from RUN: a resume of a resume, lane_reuse.py); every other pack comes from this run" }
       build_once: { type: string, default: "false", description: "a job of a build-once (bump-waves.yml): the plan says which modules this job builds (own) and which earlier shards built the rest (restore)" }
 permissions: {}
 defaults:
@@ -53,7 +53,7 @@ jobs:
       - name: The memory knobs are numbers (they reach shell and Python)
         run: |
           echo "JOB_T0=$(date +%s)" >> "$GITHUB_ENV"
-          [[ "$REUSE_RUN" =~ ^([1-9][0-9]{0,14})?$ && "$REUSE_PACKS" =~ ^([0-9]{1,4}(,[0-9]{1,4})*)?$ ]] || { echo "::error::reuse_run is a run id and reuse_packs a comma list of shard numbers"; exit 1; }  # the job's start, for the deadlines of the build, Gate 2 and the keep step
+          [[ "$REUSE_RUN" =~ ^([1-9][0-9]{0,14})?$ && "$REUSE_PACKS" =~ ^([0-9]{1,4}(@[1-9][0-9]{0,14})?(,[0-9]{1,4}(@[1-9][0-9]{0,14})?)*)?$ ]] || { echo "::error::reuse_run is a run id and reuse_packs a comma list of N or N@RUN"; exit 1; }  # the job's start, for the deadlines of the build, Gate 2 and the keep step
           [[ "$GATE2_BUDGET_MIN" =~ ^[1-9][0-9]{0,2}$ ]] || { echo "::error::gate2_budget_min is a whole number of minutes (the job's clock caps it in shell arithmetic), not $GATE2_BUDGET_MIN"; exit 1; }
           [[ "$ROUND_RESERVE_MIN" =~ ^[1-9][0-9]{0,2}$ ]] && [ "$ROUND_RESERVE_MIN" -ge 10 ] && [ "$ROUND_RESERVE_MIN" -le 200 ] || { echo "::error::round_reserve_min is 10-200 minutes, not $ROUND_RESERVE_MIN"; exit 1; }
           [[ "$SWAP_GB" =~ ^(0|[1-9][0-9]{0,2})$ ]] || { echo "::error::swap_gb is a number of GB, not $SWAP_GB"; exit 1; }
@@ -157,9 +157,27 @@ jobs:
         if: inputs.build_once == 'true'
         working-directory: emissary
         run: python3 scripts/bump/wave_pack.py pack --lib lib --roots "$ROOTS" --modules own.txt --report tb-final.json --out ../wave-pack
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      # The pack is hours of build: an upload that fails is tried again over half an hour, not given up after the action's own retries of a few seconds.
+      # flt-anthropic's job 43 (run 43075875630, 11 Nov 2026) built for 2 h 16 min and lost it all to a GitHub outage of ~25 minutes ("workflow run not found", then error pages).
+      - id: wave_up1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: inputs.build_once == 'true'
-        with: { name: "wave-${{ inputs.key }}-${{ inputs.shard }}", path: wave-pack, retention-days: 14, compression-level: 0 }
+        continue-on-error: true
+        with: { name: "wave-${{ inputs.key }}-${{ inputs.shard }}", path: wave-pack, retention-days: 14, compression-level: 0, overwrite: true }
+      - name: The upload failed; wait before the next try
+        if: inputs.build_once == 'true' && steps.wave_up1.outcome == 'failure'
+        run: sleep 300
+      - id: wave_up2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: inputs.build_once == 'true' && steps.wave_up1.outcome == 'failure'
+        continue-on-error: true
+        with: { name: "wave-${{ inputs.key }}-${{ inputs.shard }}", path: wave-pack, retention-days: 14, compression-level: 0, overwrite: true }
+      - name: The upload failed again; wait before the last try
+        if: inputs.build_once == 'true' && steps.wave_up2.outcome == 'failure'
+        run: sleep 900
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: inputs.build_once == 'true' && steps.wave_up2.outcome == 'failure'
+        with: { name: "wave-${{ inputs.key }}-${{ inputs.shard }}", path: wave-pack, retention-days: 14, compression-level: 0, overwrite: true }
       - name: Gate 2's own Lean modules, in a project of their own
         run: |
           mkdir vendorproj && cp -r emissary/gate2/Vendor.lean emissary/gate2/Vendor vendorproj/
@@ -214,8 +232,11 @@ jobs:
           python3 scripts/bump/shard_pack.py pack --lib lib --roots "$ROOTS" --modules "$([ "$BUILD_ONCE" = true ] && echo own.txt || echo build.txt)" --out ../shard-pack --gate2 gate2.log --errors build-final.log \
             --passed passed.json --keep bundle-deps.log --results gate2-results.json --keep-drops keep-drops.txt
           du -sh ../shard-pack | cut -f1
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      # the shard's verdicts: tried again like the pack above (the same outage would cost them the whole job)
+      - id: shard_up1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
+        continue-on-error: true
         with:
           name: shard-${{ inputs.key }}-${{ inputs.shard }}
           path: |
@@ -224,3 +245,34 @@ jobs:
             emissary/gate2-results.json
             emissary/gate2-killed.json
           retention-days: 90
+          overwrite: true
+      - name: The upload of the verdicts failed; wait before the next try
+        if: always() && steps.shard_up1.outcome == 'failure'
+        run: sleep 300
+      - id: shard_up2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && steps.shard_up1.outcome == 'failure'
+        continue-on-error: true
+        with:
+          name: shard-${{ inputs.key }}-${{ inputs.shard }}
+          path: |
+            shard-pack
+            emissary/tb-final.json
+            emissary/gate2-results.json
+            emissary/gate2-killed.json
+          retention-days: 90
+          overwrite: true
+      - name: The upload of the verdicts failed again; wait before the last try
+        if: always() && steps.shard_up2.outcome == 'failure'
+        run: sleep 900
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && steps.shard_up2.outcome == 'failure'
+        with:
+          name: shard-${{ inputs.key }}-${{ inputs.shard }}
+          path: |
+            shard-pack
+            emissary/tb-final.json
+            emissary/gate2-results.json
+            emissary/gate2-killed.json
+          retention-days: 90
+          overwrite: true
