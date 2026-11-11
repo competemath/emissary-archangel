@@ -73,6 +73,9 @@ IMPORT_RE = re.compile(r"^(\s*(?:(?:public|private|meta)\s+)*import\s+(?:all\s+)
 MODES = ("strict", "proposed", "wide")  # strict: the allow-list; proposed: + notation commands; wide: + the macro family (what the tree takes is a policy decision)
 NOT_KEPT = "passed, but the keep step kept no constant of it, so the pruning cut its declaration: not in the shipped text"
 MAX_KEEP_GAP = 0.02  # a few passed names may resolve to no constant (an alias); more than this share means the Lean step lost a part of the library
+ALREADY_DECLARED = "an import already declares this name (Lean refused the module's own declaration: 'has already been declared'), so Gate 2's pass was for that one: not shipped from this module"
+ALREADY_RE = re.compile(r"^`(.+)` has already been declared\s*$")
+ERROR_ANY_PATH = re.compile(r"^error: (?:\./)*(.+?\.lean):(\d+):(\d+): (.*)$")  # portfolio.ERROR, with a path that may hold spaces (a module `A.«B C»` is the file A/B C.lean)
 
 
 def tv_plain(module: str) -> str:
@@ -157,6 +160,29 @@ def held_back_by_root(ledger: dict[str, dict], roots_of: dict[str, list[str]]) -
 def keep_gaps(passed: dict[str, list[str]], kept: set[tuple[str, str]]) -> list[tuple[str, str]]:
     """The passed (module, name) pairs the Lean step kept no constant for. Every passed theorem is a seed of `#bundle_keep`, so each must be there."""
     return [(m, n) for m, ns in passed.items() for n in ns if (m, n) not in kept]
+
+
+def rel_of(mod: str) -> str:
+    """The source file of a module, relative to the library (how the build log names it)."""
+    parts = tb.split_mod(mod)
+    return str(Path(*parts[:-1], parts[-1] + ".lean"))
+
+
+def already_declared(errors: str) -> dict[str, set[str]]:
+    """The names each file's build refused with 'has already been declared': something the module imports (the base the tree has, or another module) declares them first.
+    lean-characteristic-set (2026-11): its Lemmas module declares MvPolynomial lemmas that upstream later added to the base; the module fails on each, Gate 2 passes the
+    name against the base's constant, the keep step has nothing of the module to keep, and compose took the 5 for a lost part of the library and refused all 47 (4 bumps)."""
+    out: dict[str, set[str]] = defaultdict(set)
+    for ln in errors.splitlines():
+        m = ERROR_ANY_PATH.match(ln)
+        if m and (d := ALREADY_RE.match(m.group(4))):
+            out[m.group(1)].add(d.group(1))
+    return out
+
+
+def without_already(passed: dict[str, list[str]], already: dict[str, set[str]]) -> dict[str, list[str]]:
+    """The passed theorems a module itself declares: a name its build refused as already declared is not its own, so it can be no gap of its keep step."""
+    return {m: [n for n in ns if n not in already.get(rel_of(m), ())] for m, ns in passed.items()}
 
 
 def asked_only(passed: dict[str, list[str]], asked_names: list[str]) -> dict[str, list[str]]:
@@ -352,7 +378,8 @@ def compose(a: argparse.Namespace) -> None:
         kept |= {(mod, c) for mod, c in json.loads(re.sub(r"\s*\n\s*", "", m.group(1)))}
     if passed and not kept:  # the Lean step failed (an empty bundle would look like a library with nothing to keep)
         sys.exit("bundle-deps.log has no BUNDLE_KEEP line although theorems passed:\n" + "\n".join(log.splitlines()[-15:]))
-    check_keep_gaps(asked_only(passed, json.loads(Path(a.keep_input).read_text())["names"]) if a.keep_input else passed, kept, log)
+    already = already_declared(Path(a.errors).read_text(errors="replace"))
+    check_keep_gaps(without_already(asked_only(passed, json.loads(Path(a.keep_input).read_text())["names"]) if a.keep_input else passed, already), kept, log)
     sidecars = {}
     base = lib / ".lake" / "build" / "lib" / "lean"
     for f in base.rglob("*.olean.ranges.json"):
@@ -650,6 +677,9 @@ def compose(a: argparse.Namespace) -> None:
                 continue
             m = modules[mod]
             for n in names:
+                if n in already.get(rel_of(mod), ()):
+                    left_out[ALREADY_DECLARED] += 1
+                    continue
                 if mod in tolerated and "." in n and n in tree_names:  # the gate's own rule: a qualified name that is a record of the tree already is refused
                     left_out["a record the tree already has: the declaration ships (the tree takes both), the record is not made again"] += 1
                     tolerated_records[mod].append(n)
