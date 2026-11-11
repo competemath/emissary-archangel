@@ -136,10 +136,17 @@ def fetch_all(lib: Path, modules: list[str], shards: list[int], download, work: 
     return {"restored": restored, "no_olean": empty}
 
 
-def gh_download(repo: str, run: str, key: str, tries: int = 4, wait: int = 30, runner=subprocess.run, sleep=time.sleep):
+def run_of(shard: int, run: str, reuse_run: str, reuse_packs: set[int]) -> str:
+    """the run a shard's pack comes from: the earlier run for a good pack (lane_reuse.py good_packs: every good pack, of a kept job or of one that runs again, such as a
+    job stopped in Gate 2 after its pack), this run for any other"""
+    return reuse_run if reuse_run and shard in reuse_packs else run
+
+
+def gh_download(repo: str, run: str, key: str, tries: int = 4, wait: int = 30, runner=subprocess.run, sleep=time.sleep, reuse_run: str = "", reuse_packs: frozenset[int] = frozenset()):
     def download(shard: int, into: Path) -> None:
+        source = run_of(shard, run, reuse_run, set(reuse_packs))
         for attempt in range(1, tries + 1):
-            r = runner(["gh", "run", "download", run, "-R", repo, "-n", f"wave-{key}-{shard}", "-D", str(into)], check=False)
+            r = runner(["gh", "run", "download", source, "-R", repo, "-n", f"wave-{key}-{shard}", "-D", str(into)], check=False)
             if r.returncode == 0:
                 return
             if attempt < tries:
@@ -185,13 +192,16 @@ def main() -> None:
     f.add_argument("--key", required=True)
     f.add_argument("--shards", required=True, help="comma list")
     f.add_argument("--work", default="wave-packs")
+    f.add_argument("--reuse-run", default="", help="an earlier run of the build-once whose packs this run reuses (bump-waves.yml reuse_from)")
+    f.add_argument("--reuse-packs", default="", help="comma list: the shards whose pack comes from --reuse-run (lane_reuse.py)")
     m = sub.add_parser("place")
     m.add_argument("--from", dest="src", required=True)
     m.add_argument("--lib", required=True)
     a = ap.parse_args()
     lib = Path(a.lib).resolve()
     if a.cmd == "fetch":
-        print(fetch_all(lib, _names(a.modules), [int(x) for x in a.shards.split(",") if x], gh_download(a.repo, a.run, a.key), Path(a.work)))
+        reuse = frozenset(int(x) for x in a.reuse_packs.split(",") if x)
+        print(fetch_all(lib, _names(a.modules), [int(x) for x in a.shards.split(",") if x], gh_download(a.repo, a.run, a.key, reuse_run=a.reuse_run, reuse_packs=reuse), Path(a.work)))
     elif a.cmd == "place":
         print(f"placed {place(Path(a.src), lib)} files")
     elif a.cmd == "pack":
