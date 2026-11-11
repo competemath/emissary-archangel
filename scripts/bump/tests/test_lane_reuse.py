@@ -162,6 +162,17 @@ class FromTree(unittest.TestCase):
             unknown = subprocess.run([*base[:-2], "--from-tree", "true"], capture_output=True, text=True)
             self.assertNotEqual(unknown.returncode, 0)
 
+    def test_the_earlier_plan_log_is_fetched_with_curl(self):
+        """gh refuses to write a job log (its colour codes: "the response contains terminal escape sequences"), and the resume of run 42678283150 stopped on an empty
+        log (run 43066356910): the log is fetched with curl, and the real log, colour codes and all, still gives from_tree"""
+        r = next(s for s in yaml.safe_load((WF / "bump-waves.yml").read_text())["jobs"]["plan"]["steps"] if s.get("id") == "r")
+        self.assertIn('curl -sSfL --retry 3 -H "Authorization: Bearer $GH_TOKEN"', r["run"])
+        self.assertIn('/actions/jobs/$plan_job/logs" -o ../reuse-plan.log', r["run"])
+        self.assertNotIn('gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$plan_job/logs"', r["run"])
+        log = (HERE / "fixtures" / "flt_lane_plan_log_head.txt").read_text()
+        self.assertIn("\x1b[36;1m", log)  # the real log carries the colour codes gh refused
+        self.assertEqual(lr.earlier_from_tree(None, log), "true")
+
     def test_a_new_plan_records_its_from_tree(self):
         steps = yaml.safe_load((WF / "bump-waves.yml").read_text())["jobs"]["plan"]["steps"]
         settings = next(s for s in steps if s.get("name", "").startswith("What the shards are built with"))
