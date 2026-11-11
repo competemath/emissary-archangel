@@ -1,5 +1,5 @@
 {
-"source": "competemath/emissary-archangel run 42678283150 (bump-waves flt-anthropic), its artifacts at 11 Nov 2026 14:45 UTC (waves 0-9 finished; jobs 43 and 53 stopped in Gate 2, 62 and 65 in their build)",
+"source": "competemath/emissary-archangel run 42678283150 (bump-waves flt-anthropic), its artifacts at 11 Nov 2026 14:45 UTC (waves 0-9 finished; jobs 43, 53 and 65 stopped in Gate 2, 62 in its build)",
 "artifacts": [
 "plan-flt-anthropic",
 "shard-flt-anthropic-0",

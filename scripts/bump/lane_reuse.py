@@ -54,6 +54,19 @@ def reusable(plan: dict, ok: set[int], good: set[int], artifacts: set[str], key:
     return {s["shard"] for s in plan["shards"] if s["shard"] in ok and s["shard"] in good and f"shard-{key}-{s['shard']}" in artifacts}
 
 
+FROM_TREE_LINE = re.compile(r"^\S+Z\s+FROM_TREE: (true|false)\s*$", re.M)
+
+
+def earlier_from_tree(lane: dict | None, plan_log: str) -> str | None:
+    """the earlier run's from_tree: its plan's lane.json (written since this change), or the value its plan job's log shows in a step's environment (a run from before
+    it, like flt-anthropic's 42678283150); None when neither says. A resume with another from_tree would number its parts from 001 instead of after the tree's last
+    part, or the reverse (cubic, #174)."""
+    if lane and lane.get("from_tree") in ("true", "false"):
+        return lane["from_tree"]
+    seen = set(FROM_TREE_LINE.findall(plan_log))
+    return seen.pop() if len(seen) == 1 else None
+
+
 def outputs(plan: dict, keep: set[int], good: set[int], max_waves: int = MAX_WAVES) -> dict[str, str]:
     """w0 ... w31 -> the shards that run in that wave (reused ones left out); `packs` -> the shards whose pack comes from the earlier run, comma list"""
     if plan["waves"] > max_waves:
@@ -73,7 +86,16 @@ def main() -> None:
     ap.add_argument("--jobs", required=True, help="the earlier run's jobs (gh api .../runs/ID/jobs, the `jobs` objects, one JSON list)")
     ap.add_argument("--artifacts", required=True, help="the earlier run's artifacts that are not expired (a JSON list of names)")
     ap.add_argument("--key", required=True)
+    ap.add_argument("--from-tree", required=True, help="this run's from_tree: it must be the earlier run's")
+    ap.add_argument("--lane", default="", help="the earlier run's plan/lane.json, when it has one")
+    ap.add_argument("--plan-log", default="", help="the earlier run's plan job log, for a run from before lane.json")
     a = ap.parse_args()
+    lane = json.loads(Path(a.lane).read_text()) if a.lane and Path(a.lane).exists() else None
+    was = earlier_from_tree(lane, Path(a.plan_log).read_text(errors="replace") if a.plan_log and Path(a.plan_log).exists() else "")
+    if was is None:
+        sys.exit("the earlier run's from_tree is not known (no plan/lane.json, and its plan log shows none or two values)")
+    if was != a.from_tree:
+        sys.exit(f"the earlier run ran with from_tree={was} and this one with from_tree={a.from_tree}: its parts would be numbered differently")
     plan = json.loads(Path(a.plan).read_text())
     jobs, artifacts = json.loads(Path(a.jobs).read_text()), set(json.loads(Path(a.artifacts).read_text()))
     good = good_packs(plan, packed(jobs), artifacts, a.key)

@@ -107,12 +107,19 @@ jobs:
           gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$REUSE_FROM/jobs?per_page=100&filter=latest" \
             --jq '.jobs[] | {name, conclusion, pack_step: ([.steps[] | select(.name | startswith("This job'"'"'s work, for the jobs after it")) | .conclusion][0])}' | jq -s . > ../reuse-jobs.json
           gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$REUSE_FROM/artifacts?per_page=100" --jq '.artifacts[] | select(.expired | not) | .name' | jq -R . | jq -s . > ../reuse-artifacts.json
-          python3 scripts/bump/lane_reuse.py --plan ../plan/plan.json --jobs ../reuse-jobs.json --artifacts ../reuse-artifacts.json --key "$KEY" >> "$GITHUB_OUTPUT"
+          plan_job=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$REUSE_FROM/jobs?per_page=100&filter=latest" --jq '.jobs[] | select(.name == "plan") | .id')
+          gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$plan_job/logs" > ../reuse-plan.log || true  # from_tree of a run from before plan/lane.json (lane_reuse.py checks it)
+          python3 scripts/bump/lane_reuse.py --plan ../plan/plan.json --jobs ../reuse-jobs.json --artifacts ../reuse-artifacts.json --key "$KEY" \
+            --from-tree "$FROM_TREE" --lane ../plan/lane.json --plan-log ../reuse-plan.log >> "$GITHUB_OUTPUT"
       - name: What the shards are built with
         working-directory: emissary
         env: { MATHLIB: "${{ inputs.mathlib }}", TOOLCHAIN: "${{ inputs.toolchain }}", IMPORTS: "${{ inputs.imports }}", SWAP_GB: "${{ inputs.swap_gb }}", BUILD_TIMEOUT_MIN: "${{ inputs.build_timeout_min }}" }
         run: |
-          if [ -z "$REUSE_FROM" ]; then python3 scripts/bump/plan_inputs.py ../plan/inputs.json; exit 0; fi
+          if [ -z "$REUSE_FROM" ]; then
+            python3 scripts/bump/plan_inputs.py ../plan/inputs.json
+            printf '{"from_tree": "%s"}\n' "$FROM_TREE" > ../plan/lane.json  # a later run that reuses this one numbers its parts the same way (lane_reuse.py)
+            exit 0
+          fi
           # a resumed run builds with the settings the earlier run built with: its packs and shards are mixed with this run's (the bundle refuses a mix too, bump-sharded.yml)
           python3 scripts/bump/plan_inputs.py ../this-run-inputs.json
           cmp ../plan/inputs.json ../this-run-inputs.json || { echo "::error::reuse_from ran with other settings (mathlib, toolchain, imports, tengoku_ref, swap_gb, build_timeout_min)"; diff ../plan/inputs.json ../this-run-inputs.json || true; exit 1; }

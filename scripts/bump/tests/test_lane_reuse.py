@@ -132,6 +132,44 @@ class RealRun(unittest.TestCase):
         self.assertFalse({43, 53, 62, 65} & keep)
 
 
+class FromTree(unittest.TestCase):
+    """a resume numbers its parts like the run it goes on from (cubic, #174)"""
+
+    def test_the_real_earlier_run_ran_from_the_tree(self):
+        log = (HERE / "fixtures" / "flt_lane_plan_log_head.txt").read_text()
+        self.assertEqual(lr.earlier_from_tree(None, log), "true")
+        self.assertEqual(lr.earlier_from_tree({"from_tree": "false"}, log), "false")  # lane.json, when there, says it
+        self.assertIsNone(lr.earlier_from_tree(None, ""))
+        self.assertIsNone(lr.earlier_from_tree(None, log + log.replace("FROM_TREE: true", "FROM_TREE: false")))  # two values: unknown
+
+    def test_a_different_from_tree_stops_the_run(self):
+        import subprocess
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            (d / "plan.json").write_text(json.dumps(PLAN))
+            (d / "jobs.json").write_text(json.dumps(RUN["jobs"]))
+            (d / "arts.json").write_text(json.dumps(RUN["artifacts"]))
+            (d / "plan.log").write_text((HERE / "fixtures" / "flt_lane_plan_log_head.txt").read_text())
+            base = [sys.executable, str(BUMP / "lane_reuse.py"), "--plan", str(d / "plan.json"), "--jobs", str(d / "jobs.json"), "--artifacts", str(d / "arts.json"), "--key", KEY, "--plan-log", str(d / "plan.log")]
+            ok = subprocess.run([*base, "--from-tree", "true"], capture_output=True, text=True)
+            self.assertEqual(ok.returncode, 0, ok.stderr)
+            self.assertIn("packs=", ok.stdout)
+            bad = subprocess.run([*base, "--from-tree", "false"], capture_output=True, text=True)
+            self.assertNotEqual(bad.returncode, 0)
+            self.assertIn("from_tree=true", bad.stderr)
+            unknown = subprocess.run([*base[:-2], "--from-tree", "true"], capture_output=True, text=True)
+            self.assertNotEqual(unknown.returncode, 0)
+
+    def test_a_new_plan_records_its_from_tree(self):
+        steps = yaml.safe_load((WF / "bump-waves.yml").read_text())["jobs"]["plan"]["steps"]
+        settings = next(s for s in steps if s.get("name", "").startswith("What the shards are built with"))
+        self.assertIn('"$FROM_TREE" > ../plan/lane.json', settings["run"])
+        r = next(s for s in steps if s.get("id") == "r")
+        self.assertIn('--from-tree "$FROM_TREE" --lane ../plan/lane.json --plan-log ../reuse-plan.log', r["run"])
+
+
 class Fetch(unittest.TestCase):
     def test_a_good_pack_comes_from_the_earlier_run_any_other_from_this_one(self):  # I5
         good, _ = decide()

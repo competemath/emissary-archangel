@@ -137,7 +137,8 @@ def fetch_all(lib: Path, modules: list[str], shards: list[int], download, work: 
 
 
 def run_of(shard: int, run: str, reuse_run: str, reuse_packs: set[int]) -> str:
-    """the run a shard's pack comes from: the earlier run for a pack the new run reuses (lane_reuse.py good_packs: the jobs it keeps built on exactly that pack), this run for any other"""
+    """the run a shard's pack comes from: the earlier run for a good pack (lane_reuse.py good_packs: every good pack, of a kept job or of one that runs again, such as a
+    job stopped in Gate 2 after its pack), this run for any other"""
     return reuse_run if reuse_run and shard in reuse_packs else run
 
 
