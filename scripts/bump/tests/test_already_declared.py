@@ -147,7 +147,7 @@ class Parser(unittest.TestCase):
         others += ["unknown constant `A.b`", "`A.b` has already been declared in another module, see above", "has already been declared", "warning text"]
         lines, want = [], {}
         for i in range(3000):
-            f = f"Lib/{rng.choice(['A', 'B', 'C.D', '«1102.4662»'])}.lean"
+            f = f"Lib/{rng.choice(['A', 'B', 'C.D', '1102.4662', 'Two Words', 'a b/c d'])}.lean"  # a path with a space too (cubic, #177)
             if rng.random() < 0.4:
                 name = ".".join(rng.choice(["Foo", "bar_baz", "x'", "«weird name»", "MvPolynomial", "degreeOf_X_self"]) for _ in range(rng.randint(1, 4)))
                 lines.append(f"error: {f}:{i}:{rng.randint(0, 80)}: `{name}` has already been declared")
@@ -155,6 +155,12 @@ class Parser(unittest.TestCase):
             else:
                 lines.append(f"error: {f}:{i}:0: {rng.choice(others)}" if rng.random() < 0.9 else f"warning: {f}:{i}:0: `x` has already been declared")
         self.assertEqual(dict(bundle.already_declared("\n".join(lines))), want)
+
+    def test_a_path_with_a_space(self):  # cubic, #177: portfolio.ERROR takes no space in the path; the module `A.«B C»` is the file A/B C.lean
+        log = "error: A/B C.lean:3:8: `A.foo` has already been declared\nerror: ./A/D.lean:1:0: `A.bar` has already been declared\n"
+        self.assertEqual(dict(bundle.already_declared(log)), {"A/B C.lean": {"A.foo"}, "A/D.lean": {"A.bar"}})
+        self.assertEqual(bundle.rel_of("A.«B C»"), "A/B C.lean")
+        self.assertEqual(bundle.without_already({"A.«B C»": ["A.foo", "A.baz"]}, bundle.already_declared(log)), {"A.«B C»": ["A.baz"]})
 
     def test_rel_of_names_the_file_the_log_names(self):
         self.assertEqual(bundle.rel_of("CharacteristicSet.Lemmas"), "CharacteristicSet/Lemmas.lean")

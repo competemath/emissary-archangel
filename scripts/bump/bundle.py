@@ -75,6 +75,7 @@ NOT_KEPT = "passed, but the keep step kept no constant of it, so the pruning cut
 MAX_KEEP_GAP = 0.02  # a few passed names may resolve to no constant (an alias); more than this share means the Lean step lost a part of the library
 ALREADY_DECLARED = "an import already declares this name (Lean refused the module's own declaration: 'has already been declared'), so Gate 2's pass was for that one: not shipped from this module"
 ALREADY_RE = re.compile(r"^`(.+)` has already been declared\s*$")
+ERROR_ANY_PATH = re.compile(r"^error: (?:\./)*(.+?\.lean):(\d+):(\d+): (.*)$")  # portfolio.ERROR, with a path that may hold spaces (a module `A.«B C»` is the file A/B C.lean)
 
 
 def tv_plain(module: str) -> str:
@@ -173,7 +174,7 @@ def already_declared(errors: str) -> dict[str, set[str]]:
     name against the base's constant, the keep step has nothing of the module to keep, and compose took the 5 for a lost part of the library and refused all 47 (4 bumps)."""
     out: dict[str, set[str]] = defaultdict(set)
     for ln in errors.splitlines():
-        m = portfolio.ERROR.match(ln)
+        m = ERROR_ANY_PATH.match(ln)
         if m and (d := ALREADY_RE.match(m.group(4))):
             out[m.group(1)].add(d.group(1))
     return out
