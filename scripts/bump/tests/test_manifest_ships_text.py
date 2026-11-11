@@ -51,8 +51,9 @@ def run_compose(argv: list[str], max_gap: float) -> tuple[int, str]:
 
 
 def declared(name: str, text: str) -> bool:
+    """a `theorem`/`lemma` command of the name (its last component, under any written prefix) at the start of a line: a mention in a comment or a proof is not a declaration (cubic, #173)"""
     last = name.split(".")[-1].strip("«»")
-    return bool(re.search(r"(?<![\w'])" + re.escape(last) + r"(?![\w'])", text))
+    return bool(re.search(r"(?m)^(?:@\[[^\]]*\]\s*)?(?:protected\s+|private\s+)?(?:theorem|lemma)\s+(?:[\w'.«»]*\.)?«?" + re.escape(last) + r"»?(?![\w'])", text))
 
 
 class RealCase(unittest.TestCase):
@@ -113,6 +114,17 @@ class RealCase(unittest.TestCase):
         self.assertFalse(missing & {r["name"] for r in self.manifest})
         self.assertEqual(self.report["left_out"].get(bundle.NOT_KEPT), 7, self.report["left_out"])
         self.assertEqual(self.report["theorems"] + sum(self.report["left_out"].values()), self.report["passed_total"])
+
+    def test_declared_means_a_declaration_not_a_mention(self):
+        self.assertTrue(declared("A.foo", "theorem foo : True := trivial"))
+        self.assertTrue(declared("A.foo", "@[simp] protected theorem A.foo : True := trivial"))
+        self.assertFalse(declared("A.foo", "-- foo is cut\ntheorem bar : True := foo"))
+        self.assertFalse(declared("A.foo", "theorem foo_bar : True := trivial"))
+        cut = FX["modules"]["ModularCurves.ForMathlib.DivisorChartFibre"]
+        shipped = self.text["ModularCurves.ForMathlib.DivisorChartFibre"].read_text()
+        for n in cut["passed_missing_from_shipped"]:
+            self.assertFalse(declared(n, shipped), n)
+        self.assertTrue(declared(n, cut["source"]))  # the source has it: the check is not blind
 
     def test_the_theorems_that_ship_are_the_seven_of_the_real_part(self):  # I3
         passed = {n for m in FX["modules"].values() for n in m["passed"]}

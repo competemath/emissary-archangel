@@ -64,7 +64,7 @@ def merge(a: argparse.Namespace) -> None:
     out = Path(a.out)
     (out / ".lake" / "build" / "lib" / "lean").mkdir(parents=True, exist_ok=True)
     passed: dict[str, set[str]] = {}
-    total: dict = {"shards": 0, "checked": 0, "pass": 0, "pass_equal": 0, "pass_entails": 0, "pass_private_not_records": 0, "fail_reasons": {}, "definitions": {}, "controls_wrongly_passed": 0}
+    total: dict = {"shards": 0, "checked": 0, "pass": 0, "pass_equal": 0, "pass_entails": 0, "pass_private_not_records": 0, "pass_unattributed": [], "fail_reasons": {}, "definitions": {}, "controls_wrongly_passed": 0}
     logs = {"gate2.log": [], "errors.log": [], "bundle-deps.log": []}
     packs = 0
     killed: set[str] = set()
@@ -113,6 +113,7 @@ def merge(a: argparse.Namespace) -> None:
             for kk, v in r.get("definitions", {}).get("by_result", {}).items():
                 total["definitions"][kk] = total["definitions"].get(kk, 0) + v
             total["controls_wrongly_passed"] += len(r.get("controls", {}).get("wrongly_passed", []))
+            total["pass_unattributed"] = sorted(set(total["pass_unattributed"]) | set(r.get("pass_unattributed", [])))  # passes no judged module of their shard declares (gate2_batch.py attribute)
         if (d / "passed.json").exists():
             for m, ns in json.loads((d / "passed.json").read_text()).items():
                 passed.setdefault(m, set()).update(ns)

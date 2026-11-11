@@ -31,8 +31,12 @@ EDS_H = "HasseWeil.Foundation.Auxiliary.EllipticDivisibilitySequence"
 EDS_L = "LutzNagell.EllipticDivisibilitySequence"
 
 
-def run_parse(only: list[str] | None, ranges: dict | None = None) -> dict:
-    d = Path(tempfile.mkdtemp())
+def run_parse(only: list[str] | None, ranges: dict | None = None, killed: list[str] | None = None) -> dict:
+    with tempfile.TemporaryDirectory() as tmp:
+        return _run_parse(Path(tmp), only, ranges, killed)
+
+
+def _run_parse(d: Path, only: list[str] | None, ranges: dict | None, killed: list[str] | None) -> dict:
     (d / "gate2.log").write_text(FX["gate2_log"])
     (d / "tent.jsonl").write_text("".join(FX["tentative"]))
     for mod, rows in (FX["ranges"] if ranges is None else ranges).items():
@@ -43,6 +47,9 @@ def run_parse(only: list[str] | None, ranges: dict | None = None) -> dict:
            "--lib", str(d / "lib"), "--tentative", str(d / "tent.jsonl")]
     if only is not None:
         cmd += ["--only", ",".join(only)]
+    if killed is not None:
+        (d / "killed.json").write_text(json.dumps(killed))
+        cmd += ["--killed", str(d / "killed.json")]
     subprocess.run(cmd, check=True, capture_output=True, text=True)
     return {"passed": json.loads((d / "passed.json").read_text()), "results": json.loads((d / "results.json").read_text())}
 
@@ -91,11 +98,48 @@ class RealShard19(unittest.TestCase):
         self.assertEqual(total, sum(len(v) for v in self.fixed["passed"].values()) + len(self.fixed["results"]["pass_unattributed"]))
 
 
+class NoVerdictAndNames(unittest.TestCase):
+    def test_a_target_with_no_verdict_is_not_judged(self):
+        """gate2-killed.json lists the targets Gate 2 skipped or that killed Lean: a pass is not credited to one of them (cubic, #173)"""
+        r = run_parse(FX["targets"], killed=[EDS_H])
+        self.assertNotIn(EDS_H, r["passed"])
+        self.assertNotIn(EDS_L, r["passed"])
+        self.assertTrue(set(r["results"]["pass_unattributed"]))
+        self.assertLessEqual(set(r["passed"]), set(FX["targets"]) - {EDS_H})
+
+    def test_a_dotted_last_component_finds_its_sidecar(self):
+        sys.path.insert(0, str(HERE))
+        import gate2_batch as g
+
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = Path(tmp)
+            f = lib / ".lake" / "build" / "lib" / "lean" / "Foo" / "1102.4662.olean.ranges.json"
+            f.parent.mkdir(parents=True)
+            f.write_text(json.dumps([["Foo.bar", 1, 2]]))
+            self.assertEqual(g.declared_in(lib, "Foo.«1102.4662»"), {"Foo.bar"})
+            self.assertEqual(g.declared_in(lib, "Foo.Missing"), set())
+
+    def test_the_merge_keeps_the_unattributed_names(self):
+        """shard_pack.py merge adds every shard's pass_unattributed to the run's results (cubic, #173)"""
+        with tempfile.TemporaryDirectory() as tmp:
+            t = Path(tmp)
+            for i, names in enumerate((["a.x", "a.y"], ["a.y", "b.z"])):
+                d = t / "shards" / f"shard-k-{i}"
+                (d / "src").mkdir(parents=True)
+                (d / "gate2-killed.json").write_text("[]")
+                (d / "gate2-results.json").write_text(json.dumps({"checked": 1, "pass": 1, "pass_unattributed": names}))
+            (t / "logs").mkdir()  # the workflow makes it (mkdir -p ../merged ../logs)
+            subprocess.run([sys.executable, str(HERE / "shard_pack.py"), "merge", "--shards", str(t / "shards"), "--out", str(t / "merged"), "--logs", str(t / "logs")],
+                           check=True, capture_output=True, text=True)
+            got = json.loads((t / "logs" / "gate2-results.json").read_text())
+            self.assertEqual(got["pass_unattributed"], ["a.x", "a.y", "b.z"])
+
+
 class Workflow(unittest.TestCase):
     def test_the_shard_parses_with_its_targets(self):
         text = (HERE.parents[1] / ".github" / "workflows" / "bump-shard.yml").read_text()
         line = next(ln for ln in text.splitlines() if "gate2_batch.py parse" in ln)
-        self.assertIn('--only "$mine"', line)
+        self.assertIn('--only "$mine" --killed gate2-killed.json', line)
         self.assertIn('mine=$(paste -sd, targets.txt)', text)
 
 

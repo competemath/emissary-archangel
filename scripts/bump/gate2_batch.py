@@ -603,7 +603,8 @@ def rejections(text: str, limit: int = REJECTIONS_KEPT) -> dict:
 
 def declared_in(lib: Path, mod: str) -> set[str]:
     """the names Lean put into `mod` in this build (tolerant_build's `.olean.ranges.json` sidecar), or nothing when the module has none"""
-    f = lib / ".lake" / "build" / "lib" / "lean" / Path(*[p.strip("«»") for p in re.findall(r"«[^»]*»|[^.]+", mod)]).with_suffix(".olean.ranges.json")
+    parts = [p.strip("«»") for p in re.findall(r"«[^»]*»|[^.]+", mod)]
+    f = lib.joinpath(".lake", "build", "lib", "lean", *parts[:-1], parts[-1] + ".olean.ranges.json")  # appended, not with_suffix: a last component `«1102.4662»` keeps its dot (cubic, #173)
     try:
         return {row[0] for row in json.loads(f.read_text())}
     except (OSError, ValueError, TypeError, IndexError):
@@ -667,6 +668,10 @@ def parse(a: argparse.Namespace) -> None:
     passed: dict[str, list[str]] = defaultdict(list)
     private = 0
     judged = [m for m in (getattr(a, "only", "") or "").split(",") if m]  # callers that build their own namespace (tests, older scripts) judged every module
+    killed_file = getattr(a, "killed", "") or ""
+    if judged and killed_file and Path(killed_file).exists():  # a target Gate 2 skipped or that killed Lean got no verdict: it was not judged here (cubic, #173)
+        no_verdict = set(json.loads(Path(killed_file).read_text()))
+        judged = [m for m in judged if m not in no_verdict]
     unattributed: list[str] = []
     for (old, _), (kind, _) in own.items():
         r = entries.get(old)
@@ -704,6 +709,7 @@ if __name__ == "__main__":
     q.add_argument("--tentative", default="")
     q.add_argument("--exports", default="", help="the library's exports (data/exports/<key>): entries are looked up under the names generate qualified")
     q.add_argument("--lib", default="", help="the library's sources (what its modules import), for the same qualification as generate")
+    q.add_argument("--killed", default="", help="gate2-killed.json (gate2_driver.py): targets with no verdict (skipped, or killed Lean); they are not judged for --only")
     q.add_argument("--only", default="", help="the modules Gate 2 judged (generate's --only, a comma list): a pass is credited only to one of them (attribute())")
     args = ap.parse_args()
     {"generate": generate, "parse": parse, "emit-vendor": emit_vendor}[args.cmd](args)
