@@ -1,0 +1,588 @@
+{
+"source": "competemath/emissary-archangel run 42678283150 (bump-waves flt-anthropic), its artifacts at 11 Nov 2026 14:45 UTC (waves 0-9 finished; jobs 43 and 53 stopped in Gate 2, 62 and 65 in their build)",
+"artifacts": [
+"plan-flt-anthropic",
+"shard-flt-anthropic-0",
+"shard-flt-anthropic-1",
+"shard-flt-anthropic-10",
+"shard-flt-anthropic-11",
+"shard-flt-anthropic-12",
+"shard-flt-anthropic-13",
+"shard-flt-anthropic-14",
+"shard-flt-anthropic-15",
+"shard-flt-anthropic-16",
+"shard-flt-anthropic-17",
+"shard-flt-anthropic-18",
+"shard-flt-anthropic-19",
+"shard-flt-anthropic-2",
+"shard-flt-anthropic-20",
+"shard-flt-anthropic-21",
+"shard-flt-anthropic-22",
+"shard-flt-anthropic-23",
+"shard-flt-anthropic-24",
+"shard-flt-anthropic-25",
+"shard-flt-anthropic-26",
+"shard-flt-anthropic-27",
+"shard-flt-anthropic-28",
+"shard-flt-anthropic-29",
+"shard-flt-anthropic-3",
+"shard-flt-anthropic-30",
+"shard-flt-anthropic-31",
+"shard-flt-anthropic-32",
+"shard-flt-anthropic-33",
+"shard-flt-anthropic-34",
+"shard-flt-anthropic-35",
+"shard-flt-anthropic-36",
+"shard-flt-anthropic-37",
+"shard-flt-anthropic-38",
+"shard-flt-anthropic-39",
+"shard-flt-anthropic-4",
+"shard-flt-anthropic-40",
+"shard-flt-anthropic-41",
+"shard-flt-anthropic-42",
+"shard-flt-anthropic-43",
+"shard-flt-anthropic-44",
+"shard-flt-anthropic-45",
+"shard-flt-anthropic-46",
+"shard-flt-anthropic-47",
+"shard-flt-anthropic-48",
+"shard-flt-anthropic-49",
+"shard-flt-anthropic-5",
+"shard-flt-anthropic-50",
+"shard-flt-anthropic-51",
+"shard-flt-anthropic-52",
+"shard-flt-anthropic-53",
+"shard-flt-anthropic-54",
+"shard-flt-anthropic-55",
+"shard-flt-anthropic-56",
+"shard-flt-anthropic-57",
+"shard-flt-anthropic-58",
+"shard-flt-anthropic-59",
+"shard-flt-anthropic-6",
+"shard-flt-anthropic-60",
+"shard-flt-anthropic-61",
+"shard-flt-anthropic-63",
+"shard-flt-anthropic-64",
+"shard-flt-anthropic-65",
+"shard-flt-anthropic-7",
+"shard-flt-anthropic-8",
+"shard-flt-anthropic-9",
+"wave-flt-anthropic-0",
+"wave-flt-anthropic-1",
+"wave-flt-anthropic-10",
+"wave-flt-anthropic-11",
+"wave-flt-anthropic-12",
+"wave-flt-anthropic-13",
+"wave-flt-anthropic-14",
+"wave-flt-anthropic-15",
+"wave-flt-anthropic-16",
+"wave-flt-anthropic-17",
+"wave-flt-anthropic-18",
+"wave-flt-anthropic-19",
+"wave-flt-anthropic-2",
+"wave-flt-anthropic-20",
+"wave-flt-anthropic-21",
+"wave-flt-anthropic-22",
+"wave-flt-anthropic-23",
+"wave-flt-anthropic-24",
+"wave-flt-anthropic-25",
+"wave-flt-anthropic-26",
+"wave-flt-anthropic-27",
+"wave-flt-anthropic-28",
+"wave-flt-anthropic-29",
+"wave-flt-anthropic-3",
+"wave-flt-anthropic-30",
+"wave-flt-anthropic-31",
+"wave-flt-anthropic-32",
+"wave-flt-anthropic-33",
+"wave-flt-anthropic-34",
+"wave-flt-anthropic-35",
+"wave-flt-anthropic-36",
+"wave-flt-anthropic-37",
+"wave-flt-anthropic-38",
+"wave-flt-anthropic-39",
+"wave-flt-anthropic-4",
+"wave-flt-anthropic-40",
+"wave-flt-anthropic-41",
+"wave-flt-anthropic-42",
+"wave-flt-anthropic-43",
+"wave-flt-anthropic-44",
+"wave-flt-anthropic-45",
+"wave-flt-anthropic-46",
+"wave-flt-anthropic-47",
+"wave-flt-anthropic-48",
+"wave-flt-anthropic-49",
+"wave-flt-anthropic-5",
+"wave-flt-anthropic-50",
+"wave-flt-anthropic-51",
+"wave-flt-anthropic-52",
+"wave-flt-anthropic-53",
+"wave-flt-anthropic-54",
+"wave-flt-anthropic-55",
+"wave-flt-anthropic-56",
+"wave-flt-anthropic-57",
+"wave-flt-anthropic-58",
+"wave-flt-anthropic-59",
+"wave-flt-anthropic-6",
+"wave-flt-anthropic-60",
+"wave-flt-anthropic-61",
+"wave-flt-anthropic-63",
+"wave-flt-anthropic-64",
+"wave-flt-anthropic-65",
+"wave-flt-anthropic-7",
+"wave-flt-anthropic-8",
+"wave-flt-anthropic-9"
+],
+"jobs": [
+{
+"name": "w0 (0) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w1 (10) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w1 (2) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w1 (1) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w1 (4) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w1 (3) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w1 (6) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w1 (7) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w1 (5) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w1 (8) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w1 (9) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w2 (13) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w2 (17) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w2 (16) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w2 (12) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w2 (14) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w2 (15) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w2 (11) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w3 (22) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w3 (23) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w3 (24) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w3 (18) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w3 (25) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w3 (19) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w3 (20) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w3 (21) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w4 (29) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w4 (28) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w4 (30) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w4 (27) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w4 (26) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w5 (35) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w5 (32) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w5 (36) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w5 (34) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w5 (33) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w5 (31) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w6 (39) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w6 (37) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w6 (38) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w7 (41) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w7 (43) / shard",
+"conclusion": "cancelled",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w7 (40) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w7 (44) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w7 (42) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w8 (51) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w8 (45) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w8 (47) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w8 (52) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w8 (50) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w8 (49) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w8 (54) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w8 (53) / shard",
+"conclusion": "cancelled",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w8 (46) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w8 (48) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w9 (62) / shard",
+"conclusion": "cancelled",
+"status": "completed",
+"pack_step": "skipped"
+},
+{
+"name": "w9 (63) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w9 (56) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w9 (64) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w9 (60) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w9 (58) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w9 (57) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w9 (61) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w9 (55) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w9 (59) / shard",
+"conclusion": "success",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w9 (65) / shard",
+"conclusion": "cancelled",
+"status": "completed",
+"pack_step": "success"
+},
+{
+"name": "w10 (69) / shard",
+"conclusion": null,
+"status": "in_progress",
+"pack_step": null
+},
+{
+"name": "w10 (66) / shard",
+"conclusion": null,
+"status": "in_progress",
+"pack_step": null
+},
+{
+"name": "w10 (71) / shard",
+"conclusion": null,
+"status": "in_progress",
+"pack_step": null
+},
+{
+"name": "w10 (70) / shard",
+"conclusion": null,
+"status": "in_progress",
+"pack_step": null
+},
+{
+"name": "w10 (68) / shard",
+"conclusion": null,
+"status": "in_progress",
+"pack_step": null
+},
+{
+"name": "w10 (67) / shard",
+"conclusion": null,
+"status": "in_progress",
+"pack_step": null
+},
+{
+"name": "w10 (73) / shard",
+"conclusion": null,
+"status": "in_progress",
+"pack_step": null
+},
+{
+"name": "w10 (72) / shard",
+"conclusion": null,
+"status": "in_progress",
+"pack_step": null
+},
+{
+"name": "w10 (74) / shard",
+"conclusion": null,
+"status": "in_progress",
+"pack_step": null
+}
+]
+}

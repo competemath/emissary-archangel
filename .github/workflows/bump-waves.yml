@@ -20,6 +20,7 @@ on:
       gate2_rss_share: { description: "as in bump-sharded.yml", default: "0.80" }
       swap_gb: { description: "GB of swap every job adds", default: "48" }
       build_timeout_min: { description: "minutes one module may take to build", default: "170" }
+      reuse_from: { description: "RESUME: an earlier bump-waves run of this key whose plan this run takes; every job that finished there is kept, the others run here (scripts/bump/lane_reuse.py). The settings above must be the ones it ran with", default: "" }
 permissions: {}
 defaults:
   run:
@@ -28,41 +29,42 @@ jobs:
   plan:
     runs-on: ubuntu-26.04
     timeout-minutes: 90
-    permissions: { contents: read }
-    env: { KEY: "${{ inputs.key }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}", BUDGET: "${{ inputs.budget_lines }}", RUNNERS: "${{ inputs.runners }}", FROM_TREE: "${{ inputs.from_tree }}" }
+    permissions: { contents: read, actions: read }  # actions: read = a reuse_from run's plan, jobs and artifacts
+    env: { KEY: "${{ inputs.key }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}", BUDGET: "${{ inputs.budget_lines }}", RUNNERS: "${{ inputs.runners }}", FROM_TREE: "${{ inputs.from_tree }}", REUSE_FROM: "${{ inputs.reuse_from }}" }
     outputs:
-      w0: ${{ steps.p.outputs.w0 }}
-      w1: ${{ steps.p.outputs.w1 }}
-      w2: ${{ steps.p.outputs.w2 }}
-      w3: ${{ steps.p.outputs.w3 }}
-      w4: ${{ steps.p.outputs.w4 }}
-      w5: ${{ steps.p.outputs.w5 }}
-      w6: ${{ steps.p.outputs.w6 }}
-      w7: ${{ steps.p.outputs.w7 }}
-      w8: ${{ steps.p.outputs.w8 }}
-      w9: ${{ steps.p.outputs.w9 }}
-      w10: ${{ steps.p.outputs.w10 }}
-      w11: ${{ steps.p.outputs.w11 }}
-      w12: ${{ steps.p.outputs.w12 }}
-      w13: ${{ steps.p.outputs.w13 }}
-      w14: ${{ steps.p.outputs.w14 }}
-      w15: ${{ steps.p.outputs.w15 }}
-      w16: ${{ steps.p.outputs.w16 }}
-      w17: ${{ steps.p.outputs.w17 }}
-      w18: ${{ steps.p.outputs.w18 }}
-      w19: ${{ steps.p.outputs.w19 }}
-      w20: ${{ steps.p.outputs.w20 }}
-      w21: ${{ steps.p.outputs.w21 }}
-      w22: ${{ steps.p.outputs.w22 }}
-      w23: ${{ steps.p.outputs.w23 }}
-      w24: ${{ steps.p.outputs.w24 }}
-      w25: ${{ steps.p.outputs.w25 }}
-      w26: ${{ steps.p.outputs.w26 }}
-      w27: ${{ steps.p.outputs.w27 }}
-      w28: ${{ steps.p.outputs.w28 }}
-      w29: ${{ steps.p.outputs.w29 }}
-      w30: ${{ steps.p.outputs.w30 }}
-      w31: ${{ steps.p.outputs.w31 }}
+      w0: ${{ steps.p.outputs.w0 || steps.r.outputs.w0 }}
+      w1: ${{ steps.p.outputs.w1 || steps.r.outputs.w1 }}
+      w2: ${{ steps.p.outputs.w2 || steps.r.outputs.w2 }}
+      w3: ${{ steps.p.outputs.w3 || steps.r.outputs.w3 }}
+      w4: ${{ steps.p.outputs.w4 || steps.r.outputs.w4 }}
+      w5: ${{ steps.p.outputs.w5 || steps.r.outputs.w5 }}
+      w6: ${{ steps.p.outputs.w6 || steps.r.outputs.w6 }}
+      w7: ${{ steps.p.outputs.w7 || steps.r.outputs.w7 }}
+      w8: ${{ steps.p.outputs.w8 || steps.r.outputs.w8 }}
+      w9: ${{ steps.p.outputs.w9 || steps.r.outputs.w9 }}
+      w10: ${{ steps.p.outputs.w10 || steps.r.outputs.w10 }}
+      w11: ${{ steps.p.outputs.w11 || steps.r.outputs.w11 }}
+      w12: ${{ steps.p.outputs.w12 || steps.r.outputs.w12 }}
+      w13: ${{ steps.p.outputs.w13 || steps.r.outputs.w13 }}
+      w14: ${{ steps.p.outputs.w14 || steps.r.outputs.w14 }}
+      w15: ${{ steps.p.outputs.w15 || steps.r.outputs.w15 }}
+      w16: ${{ steps.p.outputs.w16 || steps.r.outputs.w16 }}
+      w17: ${{ steps.p.outputs.w17 || steps.r.outputs.w17 }}
+      w18: ${{ steps.p.outputs.w18 || steps.r.outputs.w18 }}
+      w19: ${{ steps.p.outputs.w19 || steps.r.outputs.w19 }}
+      w20: ${{ steps.p.outputs.w20 || steps.r.outputs.w20 }}
+      w21: ${{ steps.p.outputs.w21 || steps.r.outputs.w21 }}
+      w22: ${{ steps.p.outputs.w22 || steps.r.outputs.w22 }}
+      w23: ${{ steps.p.outputs.w23 || steps.r.outputs.w23 }}
+      w24: ${{ steps.p.outputs.w24 || steps.r.outputs.w24 }}
+      w25: ${{ steps.p.outputs.w25 || steps.r.outputs.w25 }}
+      w26: ${{ steps.p.outputs.w26 || steps.r.outputs.w26 }}
+      w27: ${{ steps.p.outputs.w27 || steps.r.outputs.w27 }}
+      w28: ${{ steps.p.outputs.w28 || steps.r.outputs.w28 }}
+      w29: ${{ steps.p.outputs.w29 || steps.r.outputs.w29 }}
+      w30: ${{ steps.p.outputs.w30 || steps.r.outputs.w30 }}
+      w31: ${{ steps.p.outputs.w31 || steps.r.outputs.w31 }}
+      packs: ${{ steps.r.outputs.packs }}
     steps:
       - name: This repository (scripts, the library's setup) and tengoku's entries for it
         run: |
@@ -76,10 +78,12 @@ jobs:
           git -C tengoku sparse-checkout set --no-cone $(python3 emissary/scripts/bump/tentative_files.py sparse emissary/sources.json "$KEY")
           ref=${TENGOKU_REF:+origin/$TENGOKU_REF}; git -C tengoku checkout -q "${ref:-main}"
       - name: A library in the tree is cut from the tree (from_tree=true), or the run stops here
+        if: ${{ inputs.reuse_from == '' }}
         working-directory: emissary
         run: git -C ../tengoku ls-tree -r --name-only main -- "data/intake/$KEY" | python3 scripts/bump/in_tree.py --key "$KEY" --from-tree "$FROM_TREE" --parts 300
       - name: The library, its import graph, the plan
         id: p
+        if: ${{ inputs.reuse_from == '' }}
         working-directory: emissary
         run: |
           read -r repo commit _ roots < <(python3 scripts/trial-library-build.py meta "$KEY")
@@ -88,10 +92,30 @@ jobs:
           if [ -n "$sub" ]; then mv lib lib-repo && ln -s "lib-repo/$sub" lib; fi
           python3 scripts/bump/link_srcdir.py "$KEY" lib
           python3 scripts/bump/plan_waves.py "$KEY" lib --tengoku ../tengoku --budget-lines "$BUDGET" --runners "$RUNNERS" --out ../plan
+      # RESUME: the earlier run's plan as it is (the same shards, so its packs fit), and the jobs it finished (scripts/bump/lane_reuse.py). flt-anthropic, 11 Nov 2026: run
+      # 42678283150 lost job 62's pack at its time limit and 42 of the 55 jobs after it built on it; the new run keeps the 62 jobs that finished and runs 49.
+      - name: RESUME - the earlier run's plan, and which of its jobs this run keeps
+        id: r
+        if: ${{ inputs.reuse_from != '' }}
+        working-directory: emissary
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          [[ "$REUSE_FROM" =~ ^[1-9][0-9]{0,14}$ ]] || { echo "::error::reuse_from is a run id"; exit 1; }
+          what=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$REUSE_FROM" --jq '.path + " | " + .display_title')
+          [ "$what" = ".github/workflows/bump-waves.yml | bump-waves $KEY" ] || { echo "::error::reuse_from is not a bump-waves run of $KEY ($what)"; exit 1; }
+          gh run download "$REUSE_FROM" -R "$GITHUB_REPOSITORY" -n "plan-$KEY" -D ../plan
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$REUSE_FROM/jobs?per_page=100&filter=latest" \
+            --jq '.jobs[] | {name, conclusion, pack_step: ([.steps[] | select(.name | startswith("This job'"'"'s work, for the jobs after it")) | .conclusion][0])}' | jq -s . > ../reuse-jobs.json
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$REUSE_FROM/artifacts?per_page=100" --jq '.artifacts[] | select(.expired | not) | .name' | jq -R . | jq -s . > ../reuse-artifacts.json
+          python3 scripts/bump/lane_reuse.py --plan ../plan/plan.json --jobs ../reuse-jobs.json --artifacts ../reuse-artifacts.json --key "$KEY" >> "$GITHUB_OUTPUT"
       - name: What the shards are built with
         working-directory: emissary
         env: { MATHLIB: "${{ inputs.mathlib }}", TOOLCHAIN: "${{ inputs.toolchain }}", IMPORTS: "${{ inputs.imports }}", SWAP_GB: "${{ inputs.swap_gb }}", BUILD_TIMEOUT_MIN: "${{ inputs.build_timeout_min }}" }
-        run: python3 scripts/bump/plan_inputs.py ../plan/inputs.json
+        run: |
+          if [ -z "$REUSE_FROM" ]; then python3 scripts/bump/plan_inputs.py ../plan/inputs.json; exit 0; fi
+          # a resumed run builds with the settings the earlier run built with: its packs and shards are mixed with this run's (the bundle refuses a mix too, bump-sharded.yml)
+          python3 scripts/bump/plan_inputs.py ../this-run-inputs.json
+          cmp ../plan/inputs.json ../this-run-inputs.json || { echo "::error::reuse_from ran with other settings (mathlib, toolchain, imports, tengoku_ref, swap_gb, build_timeout_min)"; diff ../plan/inputs.json ../this-run-inputs.json || true; exit 1; }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: { name: "plan-${{ inputs.key }}", path: plan, retention-days: 14 }
   w0:
@@ -114,6 +138,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w1:
     needs: [plan, w0]
@@ -135,6 +161,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w2:
     needs: [plan, w1]
@@ -156,6 +184,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w3:
     needs: [plan, w2]
@@ -177,6 +207,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w4:
     needs: [plan, w3]
@@ -198,6 +230,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w5:
     needs: [plan, w4]
@@ -219,6 +253,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w6:
     needs: [plan, w5]
@@ -240,6 +276,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w7:
     needs: [plan, w6]
@@ -261,6 +299,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w8:
     needs: [plan, w7]
@@ -282,6 +322,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w9:
     needs: [plan, w8]
@@ -303,6 +345,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w10:
     needs: [plan, w9]
@@ -324,6 +368,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w11:
     needs: [plan, w10]
@@ -345,6 +391,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w12:
     needs: [plan, w11]
@@ -366,6 +414,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w13:
     needs: [plan, w12]
@@ -387,6 +437,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w14:
     needs: [plan, w13]
@@ -408,6 +460,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w15:
     needs: [plan, w14]
@@ -429,6 +483,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w16:
     needs: [plan, w15]
@@ -450,6 +506,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w17:
     needs: [plan, w16]
@@ -471,6 +529,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w18:
     needs: [plan, w17]
@@ -492,6 +552,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w19:
     needs: [plan, w18]
@@ -513,6 +575,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w20:
     needs: [plan, w19]
@@ -534,6 +598,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w21:
     needs: [plan, w20]
@@ -555,6 +621,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w22:
     needs: [plan, w21]
@@ -576,6 +644,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w23:
     needs: [plan, w22]
@@ -597,6 +667,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w24:
     needs: [plan, w23]
@@ -618,6 +690,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w25:
     needs: [plan, w24]
@@ -639,6 +713,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w26:
     needs: [plan, w25]
@@ -660,6 +736,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w27:
     needs: [plan, w26]
@@ -681,6 +759,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w28:
     needs: [plan, w27]
@@ -702,6 +782,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w29:
     needs: [plan, w28]
@@ -723,6 +805,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w30:
     needs: [plan, w29]
@@ -744,6 +828,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   w31:
     needs: [plan, w30]
@@ -765,6 +851,8 @@ jobs:
       swap_gb: ${{ inputs.swap_gb }}
       build_timeout_min: ${{ inputs.build_timeout_min }}
       build_once: "true"
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
   # every wave passed: compose, the tree's own build, signing and parts, as for any bump. A failed job is re-run from the run's page (its packs stay here), and this job with it
   bundle:
@@ -773,9 +861,11 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions: { actions: write }  # dispatch bump-sharded
-    env: { GH_TOKEN: "${{ github.token }}", KEY: "${{ inputs.key }}", MATHLIB: "${{ inputs.mathlib }}", TOOLCHAIN: "${{ inputs.toolchain }}", IMPORTS: "${{ inputs.imports }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}", FROM_TREE: "${{ inputs.from_tree }}" }
+    env: { GH_TOKEN: "${{ github.token }}", KEY: "${{ inputs.key }}", MATHLIB: "${{ inputs.mathlib }}", TOOLCHAIN: "${{ inputs.toolchain }}", IMPORTS: "${{ inputs.imports }}", TENGOKU_REF: "${{ inputs.tengoku_ref }}", FROM_TREE: "${{ inputs.from_tree }}", REUSE_FROM: "${{ inputs.reuse_from }}" }
     steps:
       - name: Start the bundle
         run: |
+          # a resumed run holds the shards it ran; the ones it kept are the earlier run's (fill_from: bump-sharded.yml checks the plans and settings are the same)
+          fill=(); [ -z "$REUSE_FROM" ] || fill=(-f fill_from="$REUSE_FROM")
           gh workflow run bump-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$KEY" -f mathlib="$MATHLIB" -f toolchain="$TOOLCHAIN" -f imports="$IMPORTS" -f tengoku_ref="$TENGOKU_REF" \
-            -f recut_from="$GITHUB_RUN_ID" -f from_tree="$FROM_TREE" -f parts=300 -f verify=true -f verify_partial=true -f verify_modes=proposed
+            -f recut_from="$GITHUB_RUN_ID" -f from_tree="$FROM_TREE" -f parts=300 -f verify=true -f verify_partial=true -f verify_modes=proposed "${fill[@]}"

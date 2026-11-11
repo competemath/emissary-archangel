@@ -54,7 +54,7 @@ class Outputs(unittest.TestCase):
 class Chain(unittest.TestCase):
     def test_as_many_waves_as_the_plan_allows(self):
         self.assertEqual(sorted(k for k in waves["jobs"] if k[0] == "w"), sorted(f"w{i}" for i in range(pw.MAX_WAVES)))
-        self.assertEqual(set(waves["jobs"]["plan"]["outputs"]), {f"w{i}" for i in range(pw.MAX_WAVES)})
+        self.assertEqual(set(waves["jobs"]["plan"]["outputs"]), {f"w{i}" for i in range(pw.MAX_WAVES)} | {"packs"})  # packs: a resumed run's reused packs (lane_reuse.py)
 
     def test_every_wave_is_the_same_job_after_the_one_before(self):
         base = None

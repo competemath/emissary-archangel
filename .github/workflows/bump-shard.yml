@@ -19,6 +19,8 @@ on:
       swap_gb: { type: string, default: "0", description: "GB of swap this shard adds (0: none), for modules too big for a runner's 16 GB of RAM (flt-anthropic's P2M.Sol proofs of 100-900 KB). Gate 2 then counts swap as memory (--count-swap)" }
       build_timeout_min: { type: string, default: "90", description: "minutes one module may take to build (tolerant_build.py --timeout); a module too big for RAM and run on swap needs more" }
       round_reserve_min: { type: string, default: "30", description: "minutes of the job's 345 kept for what comes after the build: the build and its repair rounds stop that long before the limit (a round that runs out of time is undone, build_rounds.py); the steps after the build took at most 9.3 minutes on 63 real jobs (10 Nov 2026)" }
+      reuse_run: { type: string, default: "", description: "a build-once that goes on from an earlier run (bump-waves.yml reuse_from): the run the packs in reuse_packs come from" }
+      reuse_packs: { type: string, default: "", description: "comma list: the shards whose pack comes from reuse_run (lane_reuse.py); every other pack comes from this run" }
       build_once: { type: string, default: "false", description: "a job of a build-once (bump-waves.yml): the plan says which modules this job builds (own) and which earlier shards built the rest (restore)" }
 permissions: {}
 defaults:
@@ -44,11 +46,14 @@ jobs:
       SWAP_GB: ${{ inputs.swap_gb }}
       BUILD_TIMEOUT_MIN: ${{ inputs.build_timeout_min }}
       ROUND_RESERVE_MIN: ${{ inputs.round_reserve_min }}
+      REUSE_RUN: ${{ inputs.reuse_run }}
+      REUSE_PACKS: ${{ inputs.reuse_packs }}
       JOB_MIN: 345  # the job's timeout-minutes (a test keeps the two equal): the clock the build, Gate 2 and the keep step share
     steps:
       - name: The memory knobs are numbers (they reach shell and Python)
         run: |
-          echo "JOB_T0=$(date +%s)" >> "$GITHUB_ENV"  # the job's start, for the deadlines of the build, Gate 2 and the keep step
+          echo "JOB_T0=$(date +%s)" >> "$GITHUB_ENV"
+          [[ "$REUSE_RUN" =~ ^([1-9][0-9]{0,14})?$ && "$REUSE_PACKS" =~ ^([0-9]{1,4}(,[0-9]{1,4})*)?$ ]] || { echo "::error::reuse_run is a run id and reuse_packs a comma list of shard numbers"; exit 1; }  # the job's start, for the deadlines of the build, Gate 2 and the keep step
           [[ "$GATE2_BUDGET_MIN" =~ ^[1-9][0-9]{0,2}$ ]] || { echo "::error::gate2_budget_min is a whole number of minutes (the job's clock caps it in shell arithmetic), not $GATE2_BUDGET_MIN"; exit 1; }
           [[ "$ROUND_RESERVE_MIN" =~ ^[1-9][0-9]{0,2}$ ]] && [ "$ROUND_RESERVE_MIN" -ge 10 ] && [ "$ROUND_RESERVE_MIN" -le 200 ] || { echo "::error::round_reserve_min is 10-200 minutes, not $ROUND_RESERVE_MIN"; exit 1; }
           [[ "$SWAP_GB" =~ ^(0|[1-9][0-9]{0,2})$ ]] || { echo "::error::swap_gb is a number of GB, not $SWAP_GB"; exit 1; }
@@ -99,7 +104,7 @@ jobs:
         working-directory: emissary
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
-          [ ! -s ../restore.txt ] || python3 scripts/bump/wave_pack.py fetch --lib ../restored --work ../wave-packs --modules ../closure.txt --repo "$GITHUB_REPOSITORY" --run "$GITHUB_RUN_ID" --key "$KEY" --shards "$(cat ../restore.txt)"
+          [ ! -s ../restore.txt ] || python3 scripts/bump/wave_pack.py fetch --lib ../restored --work ../wave-packs --modules ../closure.txt --repo "$GITHUB_REPOSITORY" --run "$GITHUB_RUN_ID" --key "$KEY" --shards "$(cat ../restore.txt)" --reuse-run "$REUSE_RUN" --reuse-packs "$REUSE_PACKS"
           rm -rf ../wave-packs
       - name: elan
         run: |
