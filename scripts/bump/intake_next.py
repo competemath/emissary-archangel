@@ -25,6 +25,8 @@ from typing import Callable
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from intake_open import BRANCH  # noqa: E402
 
+FIELDS = "number,headRefName,state,closedAt"
+OPEN_LIMIT, CLOSED_LIMIT = 1000, 500  # a list that comes back this long may be cut: it is refused (a failed read), never read as complete (cubic, #172)
 POLL = 120  # seconds between looks: the queue takes ~40 minutes or more per part, so two minutes is nothing next to it
 TRIES = 5  # a look that fails (an API hiccup) is tried again this many times before the wait gives up and leaves it to the schedule
 
@@ -51,6 +53,19 @@ def parse_time(s: str) -> datetime:
     if t.tzinfo is None:
         raise ValueError(f"a time without a zone: {s}")
     return t
+
+
+def fetch_rows(gh: Callable[[list[str]], list[dict]], target: str, since: datetime | None) -> list[dict]:
+    """Every open pull request of the target, and (with `since`) every one closed or merged since then: two queries, each complete or refused, not the newest N of all."""
+    rows = gh(["pr", "list", "-R", target, "--state", "open", "-L", str(OPEN_LIMIT), "--json", FIELDS])
+    if len(rows) >= OPEN_LIMIT:
+        raise RuntimeError(f"{len(rows)} open pull requests: the list may be cut")
+    if since is not None:
+        closed = gh(["pr", "list", "-R", target, "--state", "all", "--search", f"closed:>={since.astimezone(timezone.utc):%Y-%m-%dT%H:%M:%SZ}", "-L", str(CLOSED_LIMIT), "--json", FIELDS])
+        if len(closed) >= CLOSED_LIMIT:
+            raise RuntimeError(f"{len(closed)} pull requests closed since {since}: the list may be cut")
+        rows = rows + [r for r in closed if r.get("state") != "OPEN"]
+    return rows
 
 
 def wait(fetch: Callable[[], list[dict]], sleep: Callable[[float], None], clock: Callable[[], float], deadline_s: float, poll: float = POLL,
@@ -99,10 +114,12 @@ def main() -> int:
     a = ap.parse_args()
     since = parse_time(a.since) if a.since else None
 
-    def fetch() -> list[dict]:
-        # open ones, and the recently closed ones for `since`: the newest 200 pull requests of every state (the lane opens at most LANE_MAX_OPEN at once)
-        out = subprocess.run(["gh", "pr", "list", "-R", a.target, "--state", "all", "-L", "200", "--json", "number,headRefName,state,closedAt"], check=True, capture_output=True, text=True, timeout=120)
+    def gh(args: list[str]) -> list[dict]:
+        out = subprocess.run(["gh", *args], check=True, capture_output=True, text=True, timeout=120)
         return json.loads(out.stdout)
+
+    def fetch() -> list[dict]:
+        return fetch_rows(gh, a.target, since)
 
     what, prs = wait(fetch, time.sleep, time.monotonic, a.deadline_min * 60, since=since)
     if what == "changed":

@@ -163,6 +163,46 @@ class Replay(unittest.TestCase):
         with self.assertRaises(ValueError):
             nx.parse_time("2026-11-11T10:00:00")  # no zone: refused, not read as local time
 
+    def test_the_reads_are_complete_or_refused_never_cut(self):
+        """the wait reads every open pull request and every one closed since `since`, not the newest N of all; a list as long as its limit may be cut and is refused (a failed
+        read: retried, then the schedule takes over), never read as complete (cubic, #172). Checked against the real history: the open list and the closed-since list at every
+        lane pull request's opening are exactly what the replay's full view says."""
+        since = nx.parse_time("2026-11-11T08:00:00Z")
+        asked = []
+
+        def gh(args):
+            asked.append(args)
+            return [{"number": i, "headRefName": "x", "state": "OPEN"} for i in range(nx.OPEN_LIMIT)] if "open" in args else []
+
+        with self.assertRaises(RuntimeError):
+            nx.fetch_rows(gh, "competemath/tengoku", since)
+
+        def gh2(args):
+            return [] if "open" in args else [{"number": i, "headRefName": "x", "state": "MERGED", "closedAt": "2026-11-11T09:00:00Z"} for i in range(nx.CLOSED_LIMIT)]
+
+        with self.assertRaises(RuntimeError):
+            nx.fetch_rows(gh2, "competemath/tengoku", since)
+        seen = []
+        nx.fetch_rows(lambda args: seen.append(args) or [], "competemath/tengoku", since)
+        self.assertEqual(seen[0][:6], ["pr", "list", "-R", "competemath/tengoku", "--state", "open"])
+        self.assertIn("closed:>=2026-11-11T08:00:00Z", seen[1])
+        self.assertNotIn("-L", seen[0][:6])
+        self.assertEqual(len(nx.fetch_rows(lambda a: [], "t", None)), 0)
+        # the two queries against the real history give the replay's full view
+        for p in LANE[::5]:
+            t = ts(p["createdAt"]) + 30
+            full = open_at(t)
+            s_ = at(t - 3600)
+
+            def real(args, t=t, s_=s_, full=full):
+                if "open" in args:
+                    return [r for r in full if r["state"] == "OPEN"]
+                return [r for r in full if r["state"] != "OPEN" and nx.parse_time(r["closedAt"]) >= s_]
+
+            got = nx.fetch_rows(real, "t", s_)
+            self.assertEqual(nx.lane_open(got), nx.lane_open(full))
+            self.assertEqual(nx.closed_since(got, s_), nx.closed_since(full, s_))
+
     def test_the_last_look_is_at_the_deadline(self):
         looks = []
         c = Clock(0)
