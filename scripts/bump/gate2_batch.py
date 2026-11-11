@@ -601,6 +601,28 @@ def rejections(text: str, limit: int = REJECTIONS_KEPT) -> dict:
     return {"total": total, "kept": len(out), "items": out}
 
 
+def declared_in(lib: Path, mod: str) -> set[str]:
+    """the names Lean put into `mod` in this build (tolerant_build's `.olean.ranges.json` sidecar), or nothing when the module has none"""
+    f = lib / ".lake" / "build" / "lib" / "lean" / Path(*[p.strip("«»") for p in re.findall(r"«[^»]*»|[^.]+", mod)]).with_suffix(".olean.ranges.json")
+    try:
+        return {row[0] for row in json.loads(f.read_text())}
+    except (OSError, ValueError, TypeError, IndexError):
+        return set()
+
+
+def attribute(name: str, recorded: str, judged: list[str], lib: Path | None) -> str | None:
+    """The module a passed name is credited to: the one its record names, when that is a module Gate 2 judged here (`judged`, the shard's targets; empty: every module).
+    Otherwise the one judged module whose build declares the name, or None when none or more than one does. aintlib (11 Nov 2026): 956 names have records in two files
+    (LutzNagell/EllipticDivisibilitySequence and HasseWeil/.../EllipticDivisibilitySequence are copies); the record is keyed by name, so a pass judged in the HasseWeil copy
+    (shard 19) was credited to the LutzNagell copy, which shard 19 never built: its keep step died on "unknown module prefix 'LutzNagell'" and kept nothing."""
+    if not judged or recorded in judged:
+        return recorded
+    if lib is None:
+        return None
+    hits = [m for m in judged if name in declared_in(lib, m)]
+    return hits[0] if len(hits) == 1 else None
+
+
 def parse(a: argparse.Namespace) -> None:
     text = Path(a.log).read_text(errors="replace")
     verdicts: dict[tuple[str, str], tuple[str, str]] = {}
@@ -644,14 +666,21 @@ def parse(a: argparse.Namespace) -> None:
     # part 1 (tengoku #758, 8 Nov 2026) was 16 private lemmas and nothing else: "not born tagged" for every file. Its Gate 2 verdict stays in the results above.
     passed: dict[str, list[str]] = defaultdict(list)
     private = 0
+    judged = [m for m in (getattr(a, "only", "") or "").split(",") if m]  # callers that build their own namespace (tests, older scripts) judged every module
+    unattributed: list[str] = []
     for (old, _), (kind, _) in own.items():
         r = entries.get(old)
         if kind == "PASS" and r:
             if old.startswith("_private."):
                 private += 1
                 continue
-            passed[module_of(r["sourcePath"])].append(old)
+            mod = attribute(old, module_of(r["sourcePath"]), judged, Path(a.lib) if a.lib else None)
+            if mod is None:
+                unattributed.append(old)
+                continue
+            passed[mod].append(old)
     res["pass_private_not_records"] = private
+    res["pass_unattributed"] = sorted(unattributed)
     Path(a.out).write_text(json.dumps(res, indent=2))
     Path(a.out).with_name("passed.json").write_text(json.dumps({m: sorted(ns) for m, ns in passed.items()}))
     print(json.dumps(res, indent=2))
@@ -675,5 +704,6 @@ if __name__ == "__main__":
     q.add_argument("--tentative", default="")
     q.add_argument("--exports", default="", help="the library's exports (data/exports/<key>): entries are looked up under the names generate qualified")
     q.add_argument("--lib", default="", help="the library's sources (what its modules import), for the same qualification as generate")
+    q.add_argument("--only", default="", help="the modules Gate 2 judged (generate's --only, a comma list): a pass is credited only to one of them (attribute())")
     args = ap.parse_args()
     {"generate": generate, "parse": parse, "emit-vendor": emit_vendor}[args.cmd](args)
