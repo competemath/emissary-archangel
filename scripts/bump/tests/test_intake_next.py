@@ -21,7 +21,7 @@ import importlib.util
 import json
 import sys
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -46,7 +46,21 @@ def ended(p: dict) -> float | None:
 
 
 def open_at(t: float) -> list[dict]:
-    return [{"number": p["number"], "headRefName": p["headRefName"]} for p in PRS if ts(p["createdAt"]) <= t and (ended(p) is None or ended(p) > t)]
+    """what `gh pr list --state all` says at time t: every pull request created by then, open or (with its closing time) merged or closed"""
+    out = []
+    for p in PRS:
+        if ts(p["createdAt"]) > t:
+            continue
+        e = ended(p)
+        if e is None or e > t:
+            out.append({"number": p["number"], "headRefName": p["headRefName"], "state": "OPEN", "closedAt": None})
+        else:
+            out.append({"number": p["number"], "headRefName": p["headRefName"], "state": "MERGED" if p["mergedAt"] else "CLOSED", "closedAt": p["mergedAt"] or p["closedAt"]})
+    return out
+
+
+def at(t: float) -> datetime:
+    return datetime.fromtimestamp(t, tz=timezone.utc)
 
 
 class Clock:
@@ -59,6 +73,11 @@ class Clock:
         return self.t
 
     def sleep(self, s: float) -> None:
+        if s < 0:
+            raise AssertionError(f"a sleep of {s} s: the wait went past its deadline")
+        self.sleeps = getattr(self, "sleeps", 0) + 1
+        if self.sleeps > 20_000:  # the longest wait here is 330 minutes at 1 minute (330 sleeps): this many is a wait that never ends (a sleep of 0 at the deadline, forever)
+            raise AssertionError("the wait never ends")
         self.t += s
         if self.t - self.t0 > 30 * 24 * 3600:
             raise AssertionError("the wait ran past every deadline")
@@ -81,7 +100,7 @@ class Replay(unittest.TestCase):
                     start = ts(p["createdAt"]) + 30
                     c = Clock(start)
                     what, nums = nx.wait(lambda: open_at(c.t), c.sleep, c.now, deadline_min * 60, poll)
-                    first = {q["number"] for q in open_at(start) if nx.BRANCH.match(q["headRefName"])}
+                    first = nx.lane_open(open_at(start))
                     cases += 1
                     if not first:
                         self.assertEqual((what, nums), ("none", []))  # I1
@@ -101,28 +120,54 @@ class Replay(unittest.TestCase):
         self.assertEqual(cases, 306 * 3 * 2)
 
     def test_the_real_gaps_between_a_merge_and_the_next_part_close_to_one_poll(self):
+        """Each of the 70 real gaps, replayed as the chain runs: the opener that opened part N starts a wait; a wait that another library's merge ends starts the opener, which
+        starts the next wait (with `since` = that opener's start); a wait that reaches its deadline starts itself again. Every one of the 70 merges is seen within one poll."""
         by_key: dict[str, list[tuple[int, dict]]] = {}
         for p in LANE:
             m = nx.BRANCH.match(p["headRefName"])
             by_key.setdefault(m["key"], []).append((int(m["part"] or 1), p))
-        gaps, closed = [], 0
+        gaps, seen, hops = [], 0, 0
         for parts in by_key.values():
             parts.sort(key=lambda x: x[1]["createdAt"])
             for (a_n, a), (b_n, b) in zip(parts, parts[1:]):
-                if a["mergedAt"] and b_n == a_n + 1 and b["createdAt"] > a["mergedAt"]:
-                    gaps.append((ts(b["createdAt"]) - ts(a["mergedAt"])) / 60)
-                    c = Clock(ts(a["createdAt"]) + 30)  # the opener that opened part N started the wait
-                    what, nums = nx.wait(lambda: open_at(c.t), c.sleep, c.now, 7 * 24 * 3600, nx.POLL)
-                    self.assertEqual(what, "changed")
-                    started = c.t
-                    if a["number"] in nums:  # this part's merge, not another library's, ended the wait: the next part is started within a poll
-                        self.assertLessEqual(started - ts(a["mergedAt"]), nx.POLL)
-                        closed += 1
+                if not (a["mergedAt"] and b_n == a_n + 1 and b["createdAt"] > a["mergedAt"]):
+                    continue
+                gaps.append((ts(b["createdAt"]) - ts(a["mergedAt"])) / 60)
+                c = Clock(ts(a["createdAt"]) + 30)
+                since = None
+                while True:
+                    hops += 1
+                    run_start = c.t
+                    what, nums = nx.wait(lambda: open_at(c.t), c.sleep, c.now, 330 * 60, nx.POLL, since=since)
+                    if what == "changed" and a["number"] in nums:
+                        self.assertLessEqual(c.t - ts(a["mergedAt"]), nx.POLL, a["number"])
+                        seen += 1
+                        break
+                    self.assertIn(what, ("changed", "deadline"), (a["number"], what))  # part N is open until it merges: the chain never ends with 'none' before that
+                    since = at(c.t if what == "deadline" else run_start)
+                    c.t += 1  # the next run starts a second later
         self.assertEqual(len(gaps), 70)
+        self.assertEqual(seen, 70)
         gaps.sort()
         self.assertEqual(round(gaps[len(gaps) // 2]), 17)  # the median real wait, minutes
         self.assertGreater(gaps[-1], 9000)  # openai-math part 10: 6.4 days
-        self.assertGreater(closed, 10)
+        self.assertGreater(hops, 70)
+
+    def test_a_merge_before_the_first_look_is_not_missed(self):
+        """the opener ran, found part N open and started the wait; part N merged before the wait's first look (cubic, #172)"""
+        merged = [{"number": 7, "headRefName": "intake/a-123456789-part-002", "state": "MERGED", "closedAt": "2026-11-11T10:00:30Z"}]
+        c = Clock(0)
+        self.assertEqual(nx.wait(lambda: merged, c.sleep, c.now, 600, 60, since=nx.parse_time("2026-11-11T10:00:00Z")), ("changed", [7]))
+        self.assertEqual(nx.wait(lambda: merged, c.sleep, c.now, 600, 60, since=nx.parse_time("2026-11-11T10:01:00Z")), ("none", []))  # merged before the opener looked: it saw it
+        self.assertEqual(nx.wait(lambda: merged, c.sleep, c.now, 600, 60), ("none", []))
+        with self.assertRaises(ValueError):
+            nx.parse_time("2026-11-11T10:00:00")  # no zone: refused, not read as local time
+
+    def test_the_last_look_is_at_the_deadline(self):
+        looks = []
+        c = Clock(0)
+        nx.wait(lambda: looks.append(c.t) or [{"number": 5, "headRefName": "intake/a-123456789-part-002", "state": "OPEN"}], c.sleep, c.now, 330 * 60, 120)
+        self.assertEqual(looks[-1], 330 * 60)
 
     def test_pull_requests_outside_the_lane_are_never_waited_for(self):  # I3
         rows = [{"number": 1, "headRefName": "dependabot/pip/x"}, {"number": 2, "headRefName": "fix/thing"}, {"number": 3, "headRefName": "intake/aintlib-42873180722-part-002"}]
@@ -192,6 +237,15 @@ class Workflows(unittest.TestCase):
         self.assertEqual(nxt["permissions"], {"actions": "write"})
         self.assertNotIn("secrets", json.dumps(nxt))
         self.assertIn("gh workflow run intake-next.yml", nxt["steps"][0]["run"])
+        self.assertIn('-f since="$since"', nxt["steps"][0]["run"])
+
+    def test_an_automatic_start_of_the_opener_obeys_the_lane_switch(self):
+        """intake-next starts the opener with automatic=true; such a run needs LANE_ENABLED like the schedule; a person's dispatch does not (cubic, #172)"""
+        cond = self.open["jobs"]["open"]["if"]
+        self.assertIn("(github.event_name == 'workflow_dispatch' && inputs.automatic != 'true') || vars.LANE_ENABLED == 'true'", cond)
+        src = (BUMP / "intake_next.py").read_text()
+        self.assertIn('"-f", "automatic=true"', src)
+        self.assertEqual(self.open[True]["workflow_dispatch"]["inputs"]["automatic"]["default"], "false")
         self.assertEqual(self.open["jobs"]["open"]["permissions"], {"contents": "read", "actions": "read", "attestations": "read"})  # the App's job gains nothing
 
     def test_one_wait_at_a_time(self):

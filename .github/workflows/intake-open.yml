@@ -12,6 +12,7 @@ on:
       target: { description: "Repository to open the pull requests in (tengoku, or tengoku-sandbox for a rehearsal)", required: true, default: "competemath/tengoku" }
       keys: { description: "Only these libraries (space separated; empty: every library with a finished bundle)", required: false, default: "" }
       dry_run: { description: "Print what would open, open nothing", required: true, default: "true" }
+      automatic: { description: "true when intake-next.yml starts this run: it then runs only while the lane is switched on (LANE_ENABLED), like the schedule", required: false, default: "false" }
 
 permissions: {}
 
@@ -25,7 +26,7 @@ defaults:
 
 jobs:
   open:
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.LANE_ENABLED == 'true' }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.automatic != 'true') || vars.LANE_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 50
     permissions: { contents: read, actions: read, attestations: read }  # actions: the factory's runs and artifacts; attestations: `gh attestation verify`
@@ -79,4 +80,6 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Wait for the next merge (intake-next.yml)
-        run: gh workflow run intake-next.yml -R "$GITHUB_REPOSITORY" --ref main
+        run: |
+          since=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .run_started_at)  # this run's start: a part merged after the opener looked still counts
+          gh workflow run intake-next.yml -R "$GITHUB_REPOSITORY" --ref main -f since="$since"
