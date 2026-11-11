@@ -153,9 +153,11 @@ class ShardSteps(unittest.TestCase):
         self.assertEqual(uploads[0]["if"], "inputs.build_once == 'true'")
         for u in uploads[1:]:
             self.assertTrue(u["if"].startswith("inputs.build_once == 'true' && "), u["if"])
-        for s in STEPS:  # the waits between the tries too
-            if s.get("run", "").startswith("sleep") and "wave_up" in s.get("if", ""):
-                self.assertTrue(s["if"].startswith("inputs.build_once == 'true' && "), s["if"])
+        self.assertEqual([("continue-on-error" in u) for u in uploads], [True, True, False])  # only the last try may fail the job
+        waits = [s for s in STEPS if "wave_up" in s.get("if", "") and "sleep" in s.get("run", "")]
+        self.assertEqual(len(waits), 2)  # the waits between the tries too (cubic, #178: not vacuous)
+        for s in waits:
+            self.assertTrue(s["if"].startswith("inputs.build_once == 'true' && "), s["if"])
         self.assertEqual(shard[True]["workflow_call"]["inputs"]["build_once"]["default"], "false")
 
     def test_the_build_passes_own_only_for_a_build_once(self):

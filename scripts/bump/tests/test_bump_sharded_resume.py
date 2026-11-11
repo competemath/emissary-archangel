@@ -157,7 +157,7 @@ class Workflow(unittest.TestCase):
 
     def test_the_filled_in_shards_are_in_place_before_compose_and_finish_merge(self):
         # scripts/bump/fill_from.py: every run of fill_from (a resume of a resume names its chain), newest first; a shard already in shards/ is never replaced
-        # (tests/test_fill_from.py holds the cases)
+        # (tests/test_lane_chain.py holds the cases)
         for job, merge in (("compose", "shard_pack.py merge"), ("finish", "shard_pack.py merge")):
             fill = index(job, "fill_from.py")
             self.assertLess(fill, index(job, merge), job)
@@ -169,7 +169,7 @@ class Workflow(unittest.TestCase):
 
     def test_the_earlier_runs_plan_must_be_this_runs_plan(self):
         fill = steps("compose")[index("compose", "fill_from.py")]
-        self.assertIn("--plan-new plan-new", fill["run"])  # fill_from.py same_plan: plan.json and inputs.json of every run of the chain (tests/test_fill_from.py)
+        self.assertIn("--plan-new plan-new", fill["run"])  # fill_from.py same_plan: plan.json and inputs.json of every run of the chain (tests/test_lane_chain.py)
         self.assertIn("fill_unrecorded", fill["env"]["UNRECORDED"])  # an old run without inputs.json needs an explicit vouch, never a silent pass
         self.assertIn('--unrecorded "$UNRECORDED"', fill["run"])
         record = next(s for s in steps("plan") if "What the shards are built with" in s.get("name", ""))

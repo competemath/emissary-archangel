@@ -140,8 +140,12 @@ def main() -> None:
         e.add_argument("--lane", default="")
         b = e.parse_args()
         lane = json.loads(Path(b.lane).read_text()) if b.lane and Path(b.lane).exists() else None
+        log = Path(b.plan_log).read_text(errors="replace") if Path(b.plan_log).exists() else ""
+        if not (lane and "reuse_from" in lane) and not log.strip():
+            # neither says: an unfetched log must not read as "this run started from wave 0", which would cut the chain and rebuild what its older runs kept (cubic, #178)
+            sys.exit(f"{b.plan_log}: the plan log is empty or missing and lane.json does not say what the run resumed")
         try:
-            print(earlier_of(lane, Path(b.plan_log).read_text(errors="replace") if Path(b.plan_log).exists() else ""))
+            print(earlier_of(lane, log))
         except ValueError as err:
             sys.exit(str(err))
         return

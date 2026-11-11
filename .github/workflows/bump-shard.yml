@@ -166,7 +166,9 @@ jobs:
         with: { name: "wave-${{ inputs.key }}-${{ inputs.shard }}", path: wave-pack, retention-days: 14, compression-level: 0, overwrite: true }
       - name: The upload failed; wait before the next try
         if: inputs.build_once == 'true' && steps.wave_up1.outcome == 'failure'
-        run: sleep 300
+        run: |
+          # never past the job's end: a wait that runs into the timeout cancels the job before its last try (cubic, #178); 6 minutes stay for the upload
+          left=$(( JOB_T0 + JOB_MIN * 60 - $(date +%s) - 360 )); w=300; [ "$left" -lt "$w" ] && w=$left; [ "$w" -le 0 ] || sleep "$w"
       - id: wave_up2
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: inputs.build_once == 'true' && steps.wave_up1.outcome == 'failure'
@@ -174,7 +176,9 @@ jobs:
         with: { name: "wave-${{ inputs.key }}-${{ inputs.shard }}", path: wave-pack, retention-days: 14, compression-level: 0, overwrite: true }
       - name: The upload failed again; wait before the last try
         if: inputs.build_once == 'true' && steps.wave_up2.outcome == 'failure'
-        run: sleep 900
+        run: |
+          # never past the job's end: a wait that runs into the timeout cancels the job before its last try (cubic, #178); 6 minutes stay for the upload
+          left=$(( JOB_T0 + JOB_MIN * 60 - $(date +%s) - 360 )); w=900; [ "$left" -lt "$w" ] && w=$left; [ "$w" -le 0 ] || sleep "$w"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: inputs.build_once == 'true' && steps.wave_up2.outcome == 'failure'
         with: { name: "wave-${{ inputs.key }}-${{ inputs.shard }}", path: wave-pack, retention-days: 14, compression-level: 0, overwrite: true }
@@ -248,7 +252,9 @@ jobs:
           overwrite: true
       - name: The upload of the verdicts failed; wait before the next try
         if: always() && steps.shard_up1.outcome == 'failure'
-        run: sleep 300
+        run: |
+          # never past the job's end: a wait that runs into the timeout cancels the job before its last try (cubic, #178); 6 minutes stay for the upload
+          left=$(( JOB_T0 + JOB_MIN * 60 - $(date +%s) - 360 )); w=300; [ "$left" -lt "$w" ] && w=$left; [ "$w" -le 0 ] || sleep "$w"
       - id: shard_up2
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && steps.shard_up1.outcome == 'failure'
@@ -264,7 +270,9 @@ jobs:
           overwrite: true
       - name: The upload of the verdicts failed again; wait before the last try
         if: always() && steps.shard_up2.outcome == 'failure'
-        run: sleep 900
+        run: |
+          # never past the job's end: a wait that runs into the timeout cancels the job before its last try (cubic, #178); 6 minutes stay for the upload
+          left=$(( JOB_T0 + JOB_MIN * 60 - $(date +%s) - 360 )); w=900; [ "$left" -lt "$w" ] && w=$left; [ "$w" -le 0 ] || sleep "$w"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && steps.shard_up2.outcome == 'failure'
         with:

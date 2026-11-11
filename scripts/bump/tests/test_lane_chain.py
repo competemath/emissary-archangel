@@ -121,8 +121,24 @@ class RealChain(unittest.TestCase):
     def test_mutant_a_jobs_state_from_the_oldest_run(self):  # I2 fails
         ran = sorted(set(range(len(PLAN["shards"]))) - kept(lr.chain_view(PLAN, [run_of_fx(P)], KEY)))
         jobs, arts = finished(ran, {43: "built"})
-        oldest_first = lr.chain_view(PLAN, [run_of_fx(P), (R, jobs, arts)], KEY)  # the same view with the runs the wrong way round
-        self.assertNotEqual(kept(oldest_first), set(range(len(PLAN["shards"]))) - {43})
+        right = kept(lr.chain_view(PLAN, [(R, jobs, arts), run_of_fx(P)], KEY))
+        chain = [(R, jobs, arts), run_of_fx(P)]
+        source = lr.chain_view(PLAN, chain, KEY)[1]
+        last: dict[int, tuple[str, set]] = {}
+        for run, js, a in reversed(chain):  # the mutant: a job's state from the OLDEST run it ran in (the packs as they are)
+            for j in js:
+                m = lr.JOB.match(j["name"])
+                if m and int(m.group(2)) not in last:
+                    last[int(m.group(2))] = (j["conclusion"], a)
+        mutant = {n for n, (c, a) in last.items() if c == "success" and n in source and f"shard-{KEY}-{n}" in a}
+        _, pj, pa = run_of_fx(P)
+        old_keep = lr.reusable(PLAN, lr.succeeded(pj), lr.good_packs(PLAN, lr.packed(pj), pa, KEY), pa, KEY)
+        no_job_in_p = {n for n in ran if not any(j["name"].endswith(f"({n}) / shard") for j in pj)}
+        # exactly: the mutant keeps what 42678283150 kept and the resume's jobs that 42678283150 never started; every job the resume ran again after a failure
+        # there (53, 62, 65, ...) is run once more, although it now succeeded (cubic, #178: the exact set, not "different")
+        self.assertEqual(mutant, old_keep | (no_job_in_p - {43}))
+        self.assertEqual(right, set(range(len(PLAN["shards"]))) - {43})
+        self.assertTrue({53, 62, 65} <= right - mutant)
 
     def test_the_chain_is_read_from_the_real_plan_logs(self):  # I5
         self.assertEqual(lr.earlier_of(None, FX["runs"][R]["plan_log"]), P)
@@ -132,6 +148,25 @@ class RealChain(unittest.TestCase):
         with self.assertRaises(ValueError):
             lr.earlier_of(None, "2026-11-11T18:14:40.1Z   REUSE_FROM: 1\n2026-11-11T18:14:41.1Z   REUSE_FROM: 2\n")
         self.assertEqual(lr.earlier_of(None, "2026-11-11T18:14:40.1Z   REUSE_FROM: \n"), "")  # a run started from wave 0 since reuse_from exists
+
+    def test_an_unfetched_log_does_not_end_the_chain(self):  # I5 (cubic, #178)
+        t = Path(tempfile.mkdtemp())
+        (t / "empty.log").write_text("")
+        (t / "lane.json").write_text(json.dumps({"from_tree": "true"}))
+        (t / "lane2.json").write_text(json.dumps({"from_tree": "true", "reuse_from": "77"}))
+        (t / "real.log").write_text(FX["runs"][P]["plan_log"])
+
+        def earlier(*args):
+            return subprocess.run([sys.executable, str(HERE / "lane_reuse.py"), "earlier", *args], capture_output=True, text=True)
+
+        for args in (["--plan-log", str(t / "empty.log")], ["--plan-log", str(t / "missing.log")], ["--plan-log", str(t / "empty.log"), "--lane", str(t / "lane.json")]):
+            r = earlier(*args)
+            self.assertNotEqual(r.returncode, 0, args)  # refused: it cannot say what the run resumed
+            self.assertEqual(r.stdout, "")
+        r = earlier("--plan-log", str(t / "empty.log"), "--lane", str(t / "lane2.json"))
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, "77"))  # lane.json says it
+        r = earlier("--plan-log", str(t / "real.log"))
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, ""))  # a real log of a run started from wave 0
 
 
 def i3_holds(plan: dict, chain, source: dict[int, str], key: str) -> bool:
@@ -354,8 +389,27 @@ class WorkflowText(unittest.TestCase):
                 self.assertIs(u["with"]["overwrite"], True)
             self.assertIn(f"steps.{first}1.outcome == 'failure'", ups[1]["if"])
             self.assertIn(f"steps.{first}2.outcome == 'failure'", ups[2]["if"])
-            waits = [s for s in self.shard if s.get("run", "").startswith("sleep") and first in s.get("if", "")]
-            self.assertEqual([w["run"] for w in waits], ["sleep 300", "sleep 900"])
+            waits = [s for s in self.shard if "sleep" in s.get("run", "") and first in s.get("if", "")]
+            self.assertEqual([re.search(r"w=(\d+)", w["run"]).group(1) for w in waits], ["300", "900"])
+
+    def test_a_wait_never_runs_past_the_jobs_end(self):  # I8 (cubic, #178): the wait is cut to what the job has left, 6 minutes kept for the upload
+        waits = [s for s in self.shard if "sleep" in s.get("run", "") and "_up" in s.get("if", "")]
+        self.assertEqual(len(waits), 4)
+        import time as _t
+        now = int(_t.time())
+        for w in waits:
+            script = w["run"].replace('sleep "$w"', 'echo "$w"')
+            for job_t0, want in ((now, None), (now - 340 * 60, 0), (now - 330 * 60, None)):
+                r = subprocess.run(["bash", "-e", "-c", script], env={"JOB_T0": str(job_t0), "JOB_MIN": "345", "PATH": "/usr/bin:/bin"}, capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                slept = int(r.stdout.strip() or 0)
+                left = job_t0 + 345 * 60 - now - 360
+                self.assertLessEqual(slept, max(left, 0) + 2)  # never into the last 6 minutes
+                planned = int(re.search(r"w=(\d+)", w["run"]).group(1))
+                if want is None and left > planned + 5:
+                    self.assertEqual(slept, planned)  # the whole wait when there is time
+                if want == 0:
+                    self.assertEqual(slept, 0)
 
     def test_the_pack_step_is_still_what_lane_reuse_reads(self):
         names = [s.get("name", "") for s in self.shard]
