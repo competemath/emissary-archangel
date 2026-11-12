@@ -54,7 +54,7 @@ class Outputs(unittest.TestCase):
 class Chain(unittest.TestCase):
     def test_as_many_waves_as_the_plan_allows(self):
         self.assertEqual(sorted(k for k in waves["jobs"] if k[0] == "w"), sorted(f"w{i}" for i in range(pw.MAX_WAVES)))
-        self.assertEqual(set(waves["jobs"]["plan"]["outputs"]), {f"w{i}" for i in range(pw.MAX_WAVES)} | {"packs"})  # packs: a resumed run's reused packs (lane_reuse.py)
+        self.assertEqual(set(waves["jobs"]["plan"]["outputs"]), {f"w{i}" for i in range(pw.MAX_WAVES)} | {"packs", "fill"})  # packs: a resumed run's reused packs; fill: the runs of its chain (lane_reuse.py)
 
     def test_every_wave_is_the_same_job_after_the_one_before(self):
         base = None
@@ -149,8 +149,15 @@ class ShardSteps(unittest.TestCase):
         for words in (self.fetch, self.place, self.pack):
             self.assertEqual(STEPS[index(words)]["if"], "inputs.build_once == 'true'", words)
         uploads = [s for s in STEPS if "with" in s and str(s["with"].get("name", "")).startswith("wave-")]
-        self.assertEqual(len(uploads), 1)
+        self.assertEqual(len(uploads), 3)  # the upload and its two later tries (test_lane_chain.py I8)
         self.assertEqual(uploads[0]["if"], "inputs.build_once == 'true'")
+        for u in uploads[1:]:
+            self.assertTrue(u["if"].startswith("inputs.build_once == 'true' && "), u["if"])
+        self.assertEqual([("continue-on-error" in u) for u in uploads], [True, True, False])  # only the last try may fail the job
+        waits = [s for s in STEPS if "wave_up" in s.get("if", "") and "sleep" in s.get("run", "")]
+        self.assertEqual(len(waits), 2)  # the waits between the tries too (cubic, #178: not vacuous)
+        for s in waits:
+            self.assertTrue(s["if"].startswith("inputs.build_once == 'true' && "), s["if"])
         self.assertEqual(shard[True]["workflow_call"]["inputs"]["build_once"]["default"], "false")
 
     def test_the_build_passes_own_only_for_a_build_once(self):

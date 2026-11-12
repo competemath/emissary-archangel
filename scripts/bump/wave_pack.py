@@ -12,6 +12,7 @@ must not look like a module that failed to build. A module a pack lists with no 
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -136,15 +137,34 @@ def fetch_all(lib: Path, modules: list[str], shards: list[int], download, work: 
     return {"restored": restored, "no_olean": empty}
 
 
-def run_of(shard: int, run: str, reuse_run: str, reuse_packs: set[int]) -> str:
+def run_of(shard: int, run: str, reuse_run: str, reuse_packs) -> str:
     """the run a shard's pack comes from: the earlier run for a good pack (lane_reuse.py good_packs: every good pack, of a kept job or of one that runs again, such as a
-    job stopped in Gate 2 after its pack), this run for any other"""
+    job stopped in Gate 2 after its pack), this run for any other. `reuse_packs` is a set (every pack from reuse_run) or {shard: run} (parse_packs: a resume of a resume)."""
+    if isinstance(reuse_packs, dict):
+        return reuse_packs.get(shard, run)
     return reuse_run if reuse_run and shard in reuse_packs else run
 
 
-def gh_download(repo: str, run: str, key: str, tries: int = 4, wait: int = 30, runner=subprocess.run, sleep=time.sleep, reuse_run: str = "", reuse_packs: frozenset[int] = frozenset()):
+PACK_ENTRY = re.compile(r"^([0-9]{1,4})(?:@([1-9][0-9]{0,14}))?$")
+
+
+def parse_packs(text: str, reuse_run: str) -> dict[int, str]:
+    """bump-shard.yml reuse_packs: `N` (the pack is reuse_run's) or `N@RUN` (lane_reuse.py chain_outputs: the run the good pack lives in); anything else refuses"""
+    out: dict[int, str] = {}
+    for x in (y for y in text.split(",") if y):
+        m = PACK_ENTRY.match(x)
+        if not m or (not m.group(2) and not reuse_run):
+            raise ValueError(f"reuse_packs: {x!r} is not N@RUN (or N with a reuse_run)")
+        n = int(m.group(1))
+        if n in out:
+            raise ValueError(f"reuse_packs names shard {n} twice")
+        out[n] = m.group(2) or reuse_run
+    return out
+
+
+def gh_download(repo: str, run: str, key: str, tries: int = 4, wait: int = 30, runner=subprocess.run, sleep=time.sleep, reuse_run: str = "", reuse_packs: frozenset[int] | dict[int, str] = frozenset()):
     def download(shard: int, into: Path) -> None:
-        source = run_of(shard, run, reuse_run, set(reuse_packs))
+        source = run_of(shard, run, reuse_run, reuse_packs if isinstance(reuse_packs, dict) else set(reuse_packs))
         for attempt in range(1, tries + 1):
             r = runner(["gh", "run", "download", source, "-R", repo, "-n", f"wave-{key}-{shard}", "-D", str(into)], check=False)
             if r.returncode == 0:
@@ -193,14 +213,14 @@ def main() -> None:
     f.add_argument("--shards", required=True, help="comma list")
     f.add_argument("--work", default="wave-packs")
     f.add_argument("--reuse-run", default="", help="an earlier run of the build-once whose packs this run reuses (bump-waves.yml reuse_from)")
-    f.add_argument("--reuse-packs", default="", help="comma list: the shards whose pack comes from --reuse-run (lane_reuse.py)")
+    f.add_argument("--reuse-packs", default="", help="comma list: N (the pack comes from --reuse-run) or N@RUN (from RUN: a resume of a resume, lane_reuse.py chain_outputs)")
     m = sub.add_parser("place")
     m.add_argument("--from", dest="src", required=True)
     m.add_argument("--lib", required=True)
     a = ap.parse_args()
     lib = Path(a.lib).resolve()
     if a.cmd == "fetch":
-        reuse = frozenset(int(x) for x in a.reuse_packs.split(",") if x)
+        reuse = parse_packs(a.reuse_packs, a.reuse_run)
         print(fetch_all(lib, _names(a.modules), [int(x) for x in a.shards.split(",") if x], gh_download(a.repo, a.run, a.key, reuse_run=a.reuse_run, reuse_packs=reuse), Path(a.work)))
     elif a.cmd == "place":
         print(f"placed {place(Path(a.src), lib)} files")

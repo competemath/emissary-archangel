@@ -166,8 +166,8 @@ class FromTree(unittest.TestCase):
         """gh refuses to write a job log (its colour codes: "the response contains terminal escape sequences"), and the resume of run 42678283150 stopped on an empty
         log (run 43066356910): the log is fetched with curl, and the real log, colour codes and all, still gives from_tree"""
         r = next(s for s in yaml.safe_load((WF / "bump-waves.yml").read_text())["jobs"]["plan"]["steps"] if s.get("id") == "r")
-        self.assertIn('curl -sSfL --retry 3 -H "Authorization: Bearer $GH_TOKEN"', r["run"])
-        self.assertIn('/actions/jobs/$plan_job/logs" -o ../reuse-plan.log', r["run"])
+        self.assertIn('curl -sSfL --retry 5 -H "Authorization: Bearer $GH_TOKEN"', r["run"])
+        self.assertIn('/actions/jobs/$plan_job/logs" -o "$d/plan.log"', r["run"])  # every run of the chain (test_lane_chain.py)
         self.assertNotIn('gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$plan_job/logs"', r["run"])
         log = (HERE / "fixtures" / "flt_lane_plan_log_head.txt").read_text()
         self.assertIn("\x1b[36;1m", log)  # the real log carries the colour codes gh refused
@@ -178,7 +178,7 @@ class FromTree(unittest.TestCase):
         settings = next(s for s in steps if s.get("name", "").startswith("What the shards are built with"))
         self.assertIn('"$FROM_TREE" > ../plan/lane.json', settings["run"])
         r = next(s for s in steps if s.get("id") == "r")
-        self.assertIn('--from-tree "$FROM_TREE" --lane ../plan/lane.json --plan-log ../reuse-plan.log', r["run"])
+        self.assertIn('--from-tree "$FROM_TREE" --lane ../plan/lane.json --plan-log "../reuse/$REUSE_FROM/plan.log"', r["run"])
 
 
 class Fetch(unittest.TestCase):
@@ -235,7 +235,8 @@ class Workflows(unittest.TestCase):
 
     def test_the_bundle_fills_from_the_earlier_run(self):
         run = self.waves["jobs"]["bundle"]["steps"][0]["run"]
-        self.assertIn('fill=(); [ -z "$REUSE_FROM" ] || fill=(-f fill_from="$REUSE_FROM")', run)
+        self.assertIn('fill=(); [ -z "$REUSE_FROM" ] || fill=(-f fill_from="$FILL")', run)  # the whole chain, newest first (test_lane_chain.py)
+        self.assertEqual(self.waves["jobs"]["bundle"]["env"]["FILL"], "${{ needs.plan.outputs.fill }}")
         self.assertIn('"${fill[@]}"', run)
 
     def test_the_shard_checks_the_reuse_inputs_and_hands_them_to_the_fetch(self):
