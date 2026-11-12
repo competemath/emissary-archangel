@@ -1,0 +1,61 @@
+{
+  "key": "abel-formalization",
+  "repo": "https://github.com/archernikov/abel-formalization",
+  "commit": "e5c3d233c4bd4220ec3b8e52a05ff6e42c2ef3a3",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "AbelFormalization",
+    "Challenge",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/abel-formalization/repo",
+  "entries": 7813,
+  "modules": 830,
+  "exported": 830,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 42,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 7813,
+    "kept": 7813,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 1275,
+    "lineUnverified": 87,
+    "nameFixed": 7813,
+    "sorryOriginals": 0,
+    "emptyProofs": 7
+  },
+  "sharded": {
+    "records": 11,
+    "shards": [
+      11
+    ]
+  },
+  "tools": {
+    "lean": "4.34.0-rc2 (commit 6a10ac8c22beadecabdbb0919c2b50214762f91d, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+6a10ac8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "483e011449cc + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 1259757568,
+  "minutes": 8,
+  "finishedAt": "2026-11-12T17:23:32.283Z",
+  "archive": {
+    "release": "exports-abel-formalization",
+    "asset": "abel-formalization@e5c3d233c4bd-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-abel-formalization/abel-formalization@e5c3d233c4bd-exports.tar.zst",
+    "bytes": 133292862,
+    "sha256": "d8e006b634422e6822042faab2d78fbd53b99ffa869b6a20ec99099406c7107f",
+    "files": 1660,
+    "unpack": "tar --zstd -xf abel-formalization@e5c3d233c4bd-exports.tar.zst -C data/exports/abel-formalization"
+  }
+}
