@@ -28,7 +28,7 @@ ROOT NAMES (`--qualify-roots`). The leak scan also lists the declarations a libr
 with no `open`, so after `open Polynomial` a bare `X` has two readings (`Polynomial.X` and `_root_.X`): "Ambiguous term X" in every other library's statements (compfiles'
 `Usa1980P3` fails in the one environment because formal-forbidden-matrix declares a root `X` and `C`). Two libraries that both declare a root `f` cannot be imported together
 at all. `qualify_roots_in_file` moves each such NAMED declaration to `Tengoku.<Library>.<name>` and keeps the library's own code working by `open Tengoku.<Library>` in the
-modules that use the name: the declaration (and a `namespace X` block, or a dotted `X.foo`, of a root type X) gets the prefix, nothing else changes, and no line is added or moved.
+modules that use the name: the declaration (and a `namespace X` block, or a dotted `X.foo`, of a root type X) gets the prefix, nothing else changes, and the edits are inside existing lines (the report's positions stay valid; a note is appended at the end of each changed file).
 """
 
 from __future__ import annotations
@@ -191,7 +191,7 @@ def edit_attribute_command(f: Lines, name: str, kind: str) -> str:
     return "missing"
 
 
-NAMESPACE = re.compile(r"^\s*(?:(?:public|noncomputable)\s+)*namespace\s+(\S+)\s*$")
+NAMESPACE = re.compile(r"^\s*(?:(?:public|noncomputable)\s+)*namespace\s+((?:«[^»]*»|[^\s«»])+)\s*$")  # a «quoted» component may hold a space
 NAMED_INSTANCE = re.compile(
     r"^[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|noncomputable|nonrec|partial|unsafe|public)[ \t]+)*(?:local[ \t]+|scoped[ \t]+)?instance\s+(?:\(priority\s*:=[^)]*\)\s*)?([^\s:({\[]+)"
 )
@@ -389,7 +389,7 @@ def notation_reopens(f: Lines, notes: list[tuple[int, dict]]) -> dict[int, list[
     return {end: activation_lines(infos) for end, infos in by_end.items()}
 
 
-OPENER = re.compile(r"^\s*(?:namespace\s+\S+|(?:@\[expose\]\s+)?(?:(?:public|noncomputable)\s+)*section\b.*|mutual\s*)$")
+OPENER = re.compile(r"^\s*(?:namespace\s+(?:«[^»]*»|[^\s«»])+|(?:@\[expose\]\s+)?(?:(?:public|noncomputable)\s+)*section\b.*|mutual\s*)$")
 CLOSER = re.compile(r"^\s*end\b")
 
 
@@ -758,14 +758,25 @@ def rewrite_manifest(root: Path, leaks: list[dict]) -> int:
     return changed
 
 
-ROOT_LINE = re.compile(r"(?m)^root:\s+(\S+)\s*$")
+# A Lean name component is plain or «quoted» (the quotes may hold spaces and dots: `«foo bar»`, `«foo.bar»`); a name is components joined by dots.
+QUOTED = r"«[^»]*»"
+NAME_TOKEN = rf"(?:{QUOTED}|[^\s:({{\[⦃«»])+"
+PLAIN = r"[^\W\d][\w'!?]*"  # a plain identifier component: a letter or `_`, then letters, digits, `_`, `'`, `!`, `?` (Unicode letters and subscripts included)
+SIMPLE_NAME = re.compile(rf"(?:{QUOTED}|{PLAIN})(?:\.(?:{QUOTED}|{PLAIN}))*")
+ROOT_LINE = re.compile(rf"(?m)^[ \t]*root:\s+((?:{QUOTED}|[^\s«»])+)[ \t]*$")  # leading blanks: `;` may be followed by a space
+
+
+def head_of(name: str) -> str:
+    """the first component of a dotted name, the quotes of a «quoted» one kept: `«a.b».c` -> `«a.b»`, `Foo.bar` -> `Foo`"""
+    m = re.match(rf"{QUOTED}|[^.«»]+", name)
+    return m.group(0) if m else name
 ROOT_DECL = re.compile(
     r"^(?P<pre>[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|public|noncomputable|nonrec|partial|unsafe)[ \t]+)*)"
     r"(?:(?:local|scoped)[ \t]+)?(?:theorem|lemma|def|abbrev|structure|inductive|class|opaque|axiom|instance)\s+"
-    r"(?:\(priority\s*:=[^)]*\)\s*)?(?P<name>[^\s:({\[⦃]+)"
+    rf"(?:\(priority\s*:=[^)]*\)\s*)?(?P<name>{NAME_TOKEN})"
 )
-NAMESPACE_NAME = re.compile(r"^(?P<pre>\s*(?:(?:public|noncomputable)\s+)*namespace\s+)(?P<name>\S+)\s*$")
-END_NAME = re.compile(r"^(?P<pre>\s*end\s+)(?P<name>\S+)\s*$")
+NAMESPACE_NAME = re.compile(rf"^(?P<pre>\s*(?:(?:public|noncomputable)\s+)*namespace\s+)(?P<name>(?:{QUOTED}|[^\s«»])+)\s*$")
+END_NAME = re.compile(rf"^(?P<pre>\s*end\s+)(?P<name>(?:{QUOTED}|[^\s«»])+)\s*$")
 OPEN_MARK = "namespace {ns} end {ns} open {ns} "
 OPEN_LINE = re.compile(r"^(?P<pre>\s*(?:@\[[^\]]*\]\s*)?open\s+(?:scoped\s+)?)(?P<args>[^()]*?)(?P<post>\s+(?:hiding|renaming)\b.*|\s+in\s*|\s*\(.*)?\s*$")
 
@@ -792,7 +803,7 @@ def qualify_roots_in_file(f: Lines, roots: set[str], ns: str, mark_open: bool = 
         if any(NAMESPACE.match(f.code[o]) for o in open_at[i]):
             continue  # inside a namespace a declaration is `N.x`, not a root; the block itself is handled at its own `namespace` line
         if m := NAMESPACE_NAME.match(code):
-            head = m.group("name").split(".")[0]
+            head = head_of(m.group("name"))
             if head in roots:
                 f.insert(i, m.start("name"), ns + ".")
                 done["namespaces"] += 1
@@ -804,17 +815,17 @@ def qualify_roots_in_file(f: Lines, roots: set[str], ns: str, mark_open: bool = 
         if not m:
             continue
         name = m.group("name")
-        if name.split(".")[0] in roots:
+        if head_of(name) in roots:
             f.insert(i, m.start("name"), ns + ".")
-            if "." in name:
+            if len(re.findall(rf"{QUOTED}|[^.«»]+", name)) > 1:  # a dot inside «quotes» is part of one component
                 done["dotted"] += 1
             else:
                 done["declared"].append(name)
     for i, code in enumerate(f.code):  # `open R` of a root namespace R: the namespace moved, so the `open` follows (right to left: an insertion shifts the columns after it)
         if (m := OPEN_LINE.match(code)) and "namespace" not in code:
-            for t in reversed(list(re.finditer(r"[^\s]+", m.group("args")))):
+            for t in reversed(list(re.finditer(rf"(?:{QUOTED}|[^\s«»])+", m.group("args")))):
                 tok = t.group(0)
-                if tok.split(".")[0] in roots and not tok.startswith(ns):
+                if head_of(tok) in roots and not tok.startswith(ns):
                     f.insert(i, m.start("args") + t.start(), ns + ".")
                     done["opens"] = done.get("opens", 0) + 1
     touched = bool(done["declared"] or done["namespaces"] or done["dotted"] or done.get("opens"))
@@ -870,12 +881,20 @@ def qualify_manifest(root: Path, roots: set[str], ns: str) -> int:
     return changed
 
 
+def valid_namespace(ns: str) -> str:
+    """a namespace name as it goes into generated Lean (`namespace NS end NS open NS`, a declaration prefix): dotted components, plain or «quoted», nothing else: no newline, no command"""
+    if not SIMPLE_NAME.fullmatch(ns) or "\n" in ns or "\r" in ns:
+        raise argparse.ArgumentTypeError(f"not a Lean namespace name: {ns!r}")
+    return ns
+
+
 def library_namespace(root: Path, skip: int) -> str | None:
     """`Tengoku.<Library>` of a bundle directory (`Tengoku/<Library>/…`); None for the library's own layout (give --namespace)"""
     if skip != 0 or not (root / "Tengoku").is_dir():
         return None
     libs = [d.name for d in (root / "Tengoku").iterdir() if d.is_dir()]
-    return f"Tengoku.{libs[0]}" if len(libs) == 1 else None
+    ns = f"Tengoku.{libs[0]}" if len(libs) == 1 else None
+    return ns if ns and SIMPLE_NAME.fullmatch(ns) else None  # a directory name that is no Lean name gives no namespace (give --namespace)
 
 
 def for_tree(leaks: list[dict]) -> list[dict]:
@@ -897,7 +916,7 @@ def main() -> None:
     ap.add_argument("--leaks", required=True)
     ap.add_argument("--reexport", action="store_true", help="also give every module that imports a flagged module the same registrations, local to it")
     ap.add_argument("--qualify-roots", action="store_true", help="also move the library's root-namespace declarations (the report's `root:` lines) to Tengoku.<Library>.<name>")
-    ap.add_argument("--namespace", help="the namespace for --qualify-roots (default: Tengoku.<Library> of the bundle)")
+    ap.add_argument("--namespace", type=valid_namespace, help="the namespace for --qualify-roots (default: Tengoku.<Library> of the bundle)")
     ap.add_argument("--forbid-namespaces", help="a file, one namespace per line: a notation there is not made scoped (core and Mathlib have scoped entries in it); it stays as it is and is reported")
     a = ap.parse_args()
     leaks = parse(a.leaks)

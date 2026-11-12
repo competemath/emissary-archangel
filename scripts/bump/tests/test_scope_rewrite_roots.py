@@ -49,6 +49,18 @@ class Parse(unittest.TestCase):
     def test_semicolon_separated_and_the_totals_line_is_not_a_name(self):
         self.assertEqual(sr.parse_roots("roots: 2 declarations;root: X;root: C"), {"X", "C"})
 
+    def test_a_blank_after_the_semicolon_is_fine(self):
+        self.assertEqual(sr.parse_roots("roots: 2 declarations; root: X; root: C ;  root: D"), {"X", "C", "D"})
+
+    def test_quoted_names_are_one_name(self):
+        self.assertEqual(sr.parse_roots("root: «foo bar»\nroot: «foo.bar»\nroot: plain"), {"«foo bar»", "«foo.bar»", "plain"})
+
+    def test_head_of(self):
+        self.assertEqual(sr.head_of("Foo.bar"), "Foo")
+        self.assertEqual(sr.head_of("«a.b».c"), "«a.b»")
+        self.assertEqual(sr.head_of("«foo bar»"), "«foo bar»")
+        self.assertEqual(sr.head_of("plain"), "plain")
+
     def test_none(self):
         self.assertEqual(sr.parse_roots("leakscan: 0 global instances"), set())
 
@@ -58,6 +70,13 @@ class OneFile(unittest.TestCase):
         new, done = edit(MATRIX, {"X", "Y", "L", "L_true"})
         old_lines, new_lines = MATRIX.split("\n"), new.split("\n")
         self.assertEqual(len(old_lines), len(new_lines))
+        edited = {i for i, (a, b) in enumerate(zip(old_lines, new_lines)) if a != b}
+        self.assertEqual(edited, {i for i, ln in enumerate(old_lines) if ln.startswith(("def X", "def Y", "def L ", "theorem L_true"))} | {i for i, ln in enumerate(new_lines) if ln.startswith("namespace " + NS)})
+        for i, (a, b) in enumerate(zip(old_lines, new_lines)):
+            if i in edited:
+                self.assertTrue(b.endswith(a) or a.split(" ", 1)[0] == b.split(" ", 1)[0], (i, a, b))  # the same declaration on the same line, only a prefix added
+            else:
+                self.assertEqual(a, b)
         self.assertIn(f"def {NS}.X : (Fin 3)ᵒᵈ → Bool", new)
         self.assertIn(f"def {NS}.Y : Fin 3 → Bool", new)
         self.assertIn(f"theorem {NS}.L_true : L 0 0 := trivial", new)
@@ -134,6 +153,17 @@ class OneFile(unittest.TestCase):
         self.assertIn(f"open {NS}.Cell hiding inc\n", new)
         self.assertIn("\nopen Other\n", new)  # not a root
         self.assertEqual(done["opens"], 3)
+
+    def test_quoted_root_names(self):
+        text = "module\n\npublic import Tengoku\n\ndef «foo bar» : Nat := 1\ndef «foo.bar» : Nat := 2\nnamespace «foo bar»\ndef x : Nat := 3\nend «foo bar»\ndef «foo bar».y : Nat := 4\nopen «foo bar» in\ntheorem t : «foo.bar» = 2 := rfl\n"
+        new, done = edit(text, {"«foo bar»", "«foo.bar»"})
+        self.assertIn(f"def {NS}.«foo bar» : Nat := 1", new)
+        self.assertIn(f"def {NS}.«foo.bar» : Nat := 2", new)
+        self.assertIn(f"namespace {NS}.«foo bar»\n", new)
+        self.assertIn(f"end {NS}.«foo bar»\n", new)
+        self.assertIn(f"def {NS}.«foo bar».y", new)
+        self.assertIn(f"open {NS}.«foo bar» in", new)
+        self.assertEqual(sorted(done["declared"]), ["«foo bar»", "«foo.bar»"])
 
     def test_an_end_without_a_name_is_left_alone(self):
         text = "module\n\npublic import Tengoku\n\nnamespace Cell\ndef inc : Nat := 1\nend\n"
@@ -220,6 +250,22 @@ class Bundle(unittest.TestCase):
             )
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertIn(f"def {NS}.X", (p / "MatrixOperations.lean").read_text())
+
+    def test_a_namespace_that_is_not_a_lean_name_is_refused_and_nothing_is_written(self):
+        for bad in ("Tengoku.A\nend", "Tengoku.A end X", "A..B", "", "A;B"):
+            with tempfile.TemporaryDirectory() as t:
+                d = Path(t)
+                b = self.layout(d)
+                before = (b / "MatrixOperations.lean").read_text()
+                r = subprocess.run([sys.executable, str(Path(sr.__file__)), "--bundle", str(d / "bundle"), "--qualify-roots", "--namespace", bad, "--leaks", "root: X"], capture_output=True, text=True)
+                self.assertNotEqual(r.returncode, 0, bad)
+                self.assertEqual((b / "MatrixOperations.lean").read_text(), before, bad)
+
+    def test_a_directory_name_that_is_no_lean_name_gives_no_namespace(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            (d / "Tengoku" / "Bad Name").mkdir(parents=True)
+            self.assertIsNone(sr.library_namespace(d, 0))
 
     def test_without_the_flag_roots_are_only_reported(self):
         with tempfile.TemporaryDirectory() as t:
