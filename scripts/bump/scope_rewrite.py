@@ -797,7 +797,7 @@ def _uses_roots(f: Lines, roots: set[str]) -> bool:
 def qualify_roots_in_file(f: Lines, roots: set[str], ns: str, mark_open: bool = True) -> dict:
     """The edits of one module: a declaration whose name is a root of the library, a `namespace R` block of a root R (with its `end`), and a dotted `R.x` declaration get `<ns>.`
     in front; the first body line gets `namespace NS end NS open NS` when the module declares or still uses a root. All of it goes INSIDE existing lines (no line moves)."""
-    done: dict = {"declared": [], "namespaces": 0, "dotted": 0, "opened": False}
+    done: dict = {"declared": [], "namespaces": 0, "dotted": 0, "opened": False, "heads": set()}
     open_at, end_of = scope_info(f.code)
     for i, code in enumerate(f.code):
         if any(NAMESPACE.match(f.code[o]) for o in open_at[i]):
@@ -806,6 +806,7 @@ def qualify_roots_in_file(f: Lines, roots: set[str], ns: str, mark_open: bool = 
             head = head_of(m.group("name"))
             if head in roots:
                 f.insert(i, m.start("name"), ns + ".")
+                done["heads"].add(head)
                 done["namespaces"] += 1
                 end = end_of.get(i)
                 if end is not None and (e := END_NAME.match(f.code[end])) and e.group("name") == m.group("name"):
@@ -817,6 +818,7 @@ def qualify_roots_in_file(f: Lines, roots: set[str], ns: str, mark_open: bool = 
         name = m.group("name")
         if head_of(name) in roots:
             f.insert(i, m.start("name"), ns + ".")
+            done["heads"].add(head_of(name))
             if len(re.findall(rf"{QUOTED}|[^.«»]+", name)) > 1:  # a dot inside «quotes» is part of one component
                 done["dotted"] += 1
             else:
@@ -842,6 +844,7 @@ def qualify_bundle(root: Path, roots: set[str], ns: str, skip: int = 0) -> dict:
     anonymous instance, `instAddFoo`, which no text says) is returned in `unresolved`: it cannot be renamed by text, and it is not a name anyone writes."""
     report: dict = {"qualified": 0, "namespaces": 0, "dotted": 0, "modules_opened": 0, "unresolved": []}
     seen: set[str] = set()
+    renamed: set[str] = set()
     for mod, path in sorted(native_names(root, skip).items()):
         f = Lines(path.read_text())
         d = qualify_roots_in_file(f, roots, ns)
@@ -852,24 +855,27 @@ def qualify_bundle(root: Path, roots: set[str], ns: str, skip: int = 0) -> dict:
         report["dotted"] += d["dotted"]
         report["modules_opened"] += 1 if d["opened"] else 0
         seen.update(d["declared"])
+        renamed |= d["heads"]
         new = "\n".join(f.text)
         if not new.endswith("\n"):
             new += "\n"
         new += f"-- Tengoku: root names of this library moved to {ns} so they do not collide with other libraries (generated)\n"
         path.write_text(new)
     report["unresolved"] = sorted(roots - seen)
+    report["renamed"] = sorted(renamed)  # the roots the module pass renamed: what the manifest follows
     return report
 
 
 def qualify_manifest(root: Path, roots: set[str], ns: str) -> int:
-    """The manifest record of a root-named declaration keeps the old name and statement unless it is changed too: the module now declares `<ns>.<name>`. Returns the count."""
+    """The manifest record of a declaration whose name starts with a root that the module pass renamed (`roots` is that set: the declaration itself, a member of its namespace block, a dotted
+    `R.x`) follows: the module now declares `<ns>.<name>`. A root no module pass renamed (an anonymous instance) leaves its record alone. Returns the count."""
     path = root / "manifest.jsonl"
     if not path.is_file():
         return 0
     out, changed = [], 0
     for line in path.read_text(encoding="utf-8").splitlines(keepends=True):
         rec = json.loads(line) if line.strip() else None
-        if rec and rec.get("name") in roots:
+        if rec and head_of(rec.get("name", "")) in roots:
             f = Lines(rec["statement"])
             qualify_roots_in_file(f, roots, ns, mark_open=False)  # a record's statement is the declaration alone: no header, no `open`
             rec["statement"] = "\n".join(f.text)
@@ -939,7 +945,7 @@ def main() -> None:
                     if ns:
                         rep["roots"] = qualify_bundle(Path(b), roots, ns, skip)
                         if skip == 0:
-                            rep["roots"]["manifest_records"] = qualify_manifest(Path(b), roots, ns)
+                            rep["roots"]["manifest_records"] = qualify_manifest(Path(b), set(rep["roots"]["renamed"]), ns)
                     else:
                         rep["roots"] = {"skipped": "no --namespace, and the bundle is not a single Tengoku/<Library>"}
                 if a.reexport:
