@@ -31,8 +31,8 @@ RUN_INFO = "{head_sha, path, display_title, head_branch, event, head_repo: .head
 
 
 def runs_of(text: str) -> list[str]:
-    runs = [r for r in text.split(",") if r]
-    if not runs or len(runs) > MAX_RUNS or len(set(runs)) != len(runs) or not all(RUN.match(r) for r in runs):
+    runs = text.split(",")  # an empty field (`A,,B`) is a typo, never a run to skip (cubic, #178)
+    if not text or len(runs) > MAX_RUNS or len(set(runs)) != len(runs) or not all(RUN.match(r) for r in runs):
         raise ValueError(f"fill_from is 1 to {MAX_RUNS} distinct run ids, newest first, not {text!r}")
     return runs
 

@@ -208,8 +208,8 @@ def main() -> None:
         sys.exit(f"the earlier run ran with from_tree={was} and this one with from_tree={a.from_tree}: its parts would be numbered differently")
     plan = json.loads(Path(a.plan).read_text())
     if a.chain:
-        runs = [r for r in a.chain.split(",") if r]
-        if not runs or len(runs) > MAX_CHAIN or len(set(runs)) != len(runs) or not all(re.fullmatch(r"[1-9][0-9]{0,14}", r) for r in runs):
+        runs = a.chain.split(",")  # an empty field (`A,,B`) is refused, not skipped (cubic, #178)
+        if not a.chain or len(runs) > MAX_CHAIN or len(set(runs)) != len(runs) or not all(re.fullmatch(r"[1-9][0-9]{0,14}", r) for r in runs):
             sys.exit(f"--chain is 1 to {MAX_CHAIN} distinct run ids, newest first, not {a.chain!r}")
         base = Path(a.reuse_dir)
         ok, source, shard_pack = chain_view(plan, [(r, json.loads((base / r / "jobs.json").read_text()), set(json.loads((base / r / "artifacts.json").read_text()))) for r in runs], a.key)

@@ -165,7 +165,9 @@ class Workflow(unittest.TestCase):
             self.assertEqual(s["if"], "${{ inputs.fill_from != '' }}", job)
             self.assertEqual(s["env"]["FILL_FROM"], "${{ inputs.fill_from }}", job)
             self.assertIn('--runs "$FILL_FROM" --shards shards', s["run"], job)
-            self.assertNotIn("download-artifact", s.get("uses", ""), job)
+            # no step downloads a fill run's artifacts itself (cubic, #178): fill_from.py is the one way in, so its checks cannot be bypassed
+            fill_downloads = [x for x in steps(job) if "download-artifact" in x.get("uses", "") and "fill_from" in str(x.get("with", {}).get("run-id", ""))]
+            self.assertEqual(fill_downloads, [], job)
 
     def test_the_earlier_runs_plan_must_be_this_runs_plan(self):
         fill = steps("compose")[index("compose", "--runs \"$FILL_FROM\"")]

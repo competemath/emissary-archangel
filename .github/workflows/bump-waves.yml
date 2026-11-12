@@ -106,7 +106,10 @@ jobs:
           # A RESUME OF A RESUME: the run reuse_from resumed, and the one that one resumed, back to the run that started from wave 0 (lane_reuse.py chain_view). flt-anthropic,
           # 11 Nov 2026: the resume 43075875630 of 42678283150 lost job 43 to a GitHub outage, and the 63 jobs it kept live in 42678283150.
           # The jobs API answered 502 to 100-job pages of these runs that evening: pages of 30, each call tried again.
-          retry() { local i; for i in 1 2 3 4 5; do "$@" && return 0; sleep $((i * 20)); done; return 1; }
+          # each try's output is kept apart and printed only when the try succeeds: a failed page (gh prints a 502's body to stdout) or a half-done --paginate
+          # must not stay in front of the next try's whole output (cubic, #178); a download goes into a directory emptied before each try
+          retry() { local i out; for i in 1 2 3 4 5; do if out=$("$@"); then [ -z "$out" ] || printf '%s\n' "$out"; return 0; fi; sleep $((i * 20)); done; return 1; }
+          retry_into() { local dir=$1 i; shift; for i in 1 2 3 4 5; do rm -rf "$dir"; "$@" && return 0; sleep $((i * 20)); done; return 1; }
           now_lib=$(python3 scripts/bump/lane_reuse.py library --setup "data/exports/$KEY/setup.ci.json" --sources sources.json --key "$KEY")
           chain=(); run="$REUSE_FROM"
           while [ -n "$run" ]; do
@@ -126,7 +129,7 @@ jobs:
             then_lib=$(python3 scripts/bump/lane_reuse.py library --setup "$d/setup.ci.json" --sources "$d/sources.json" --key "$KEY")
             [ "$then_lib" = "$now_lib" ] || { echo "::error::run $run built another library ($then_lib) than this run ($now_lib)"; exit 1; }
             if [ "$run" = "$REUSE_FROM" ]; then cp -r ../plan "$d/plan"; else
-              retry gh run download "$run" -R "$GITHUB_REPOSITORY" -n "plan-$KEY" -D "$d/plan"
+              retry_into "$d/plan" gh run download "$run" -R "$GITHUB_REPOSITORY" -n "plan-$KEY" -D "$d/plan"
               # every run of the chain planned these shards and built them with these settings (each resume checked it against the run before it, but not a run started by hand)
               cmp "$d/plan/plan.json" ../plan/plan.json || { echo "::error::run $run of the chain planned other shards"; exit 1; }
               cmp "$d/plan/inputs.json" ../plan/inputs.json || { echo "::error::run $run of the chain was built with other settings"; exit 1; }

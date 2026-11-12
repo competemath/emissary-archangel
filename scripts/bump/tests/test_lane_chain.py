@@ -533,7 +533,7 @@ class Fill(unittest.TestCase):
 
     def test_run_lists(self):
         self.assertEqual(ff.runs_of(f"{R},{P}"), [R, P])
-        for bad in ("", "0", "1,1", "a", ",".join(str(i) for i in range(1, 10)), "1;2"):
+        for bad in ("", "0", "1,1", "a", ",".join(str(i) for i in range(1, 10)), "1;2", f"{R},,{P}", f",{R}", f"{R},"):  # an empty field is a typo (cubic, #178)
             with self.assertRaises(ValueError, msg=bad):
                 ff.runs_of(bad)
 
@@ -607,6 +607,21 @@ class ResumeStep(unittest.TestCase):
             self.assertIn(f"run {run} built another library", r.stdout + r.stderr)
             self.assertNotIn("packs", out)
 
+    def test_a_failed_page_leaves_nothing_behind(self):  # cubic, #178: a try that fails after printing (a 502 body, half a --paginate) is not kept
+        r, _, out = self.run_step(flaky=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(json.loads(out["w7"]), [43])
+        self.assertIn("reused from the earlier run: 110 of 111", r.stderr)
+
+    def test_the_chain_argument_refuses_empty_fields(self):
+        lane = Path(tempfile.mkdtemp()) / "lane.json"
+        lane.write_text(json.dumps({"from_tree": "true"}))
+        for chain in (f"{R},,{P}", f",{R}", f"{R},"):
+            r = subprocess.run([sys.executable, str(HERE / "lane_reuse.py"), "--plan", str(HERE / "tests" / "fixtures" / "flt_plan_restore.json"), "--chain", chain,
+                                "--reuse-dir", "/nonexistent", "--key", KEY, "--from-tree", "true", "--lane", str(lane)], capture_output=True, text=True)
+            self.assertNotEqual(r.returncode, 0, chain)
+            self.assertIn("--chain is 1 to", r.stderr + r.stdout)
+
     def test_a_run_of_the_chain_not_dispatched_on_main_stops_the_step(self):  # I10 (hacktron, #178)
         for run in (R, P):
             r, _, out = self.run_step(other_branch_for=run)
@@ -614,7 +629,7 @@ class ResumeStep(unittest.TestCase):
             self.assertIn(f"{run} (the chain of reuse_from) is not a bump-waves run of {KEY} dispatched on main", r.stdout + r.stderr)
             self.assertNotIn("packs", out)
 
-    def run_step(self, other_commit_for: str | None = None, other_branch_for: str | None = None):
+    def run_step(self, other_commit_for: str | None = None, other_branch_for: str | None = None, flaky: bool = False):
         step = next(s for s in yaml.safe_load((WF / "bump-waves.yml").read_text())["jobs"]["plan"]["steps"] if s.get("id") == "r")
         t = Path(tempfile.mkdtemp())
         (t / "emissary" / "scripts" / "bump").mkdir(parents=True)
@@ -634,7 +649,8 @@ class ResumeStep(unittest.TestCase):
         (t / "emissary" / "data" / "exports" / KEY).mkdir(parents=True)
         (t / "emissary" / "data" / "exports" / KEY / "setup.ci.json").write_text(json.dumps(LIB["setup"]["main"]))
         (t / "emissary" / "sources.json").write_text(json.dumps({"sources": {KEY: LIB["sources_entry"]["main"]}}))
-        (t / "fx.json").write_text(json.dumps({"runs": runs, "plan": PLAN, "key": KEY, "heads": heads, "files": files, "branch": {other_branch_for: "feature"} if other_branch_for else {}}))
+        (t / "fx.json").write_text(json.dumps({"runs": runs, "plan": PLAN, "key": KEY, "heads": heads, "files": files, "branch": {other_branch_for: "feature"} if other_branch_for else {},
+                                                "flaky": str(t / "flaky") if flaky else ""}))
         bin_ = t / "bin"
         bin_.mkdir()
         (bin_ / "gh").write_text(f"""#!{sys.executable}
@@ -660,6 +676,11 @@ elif url.endswith("/runs/" + run):
 elif "/jobs" in url and 'select(.name == "plan")' in jq:
     print(fx["runs"][run]["id"])
 elif "/jobs" in url:
+    if fx.get("flaky") and not os.path.exists(fx["flaky"] + run):  # the first listing of each run prints half its jobs and a 502 body, then fails
+        open(fx["flaky"] + run, "w").close()
+        for j in fx["runs"][run]["jobs"][:10]: print(json.dumps(j))
+        print('{{"message":"Server Error"}}')
+        sys.exit(1)
     for j in fx["runs"][run]["jobs"]: print(json.dumps(j))
 elif "/artifacts" in url:
     for n in fx["runs"][run]["artifacts"]: print(n)
