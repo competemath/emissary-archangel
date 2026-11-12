@@ -54,9 +54,15 @@ def payload(inputs: dict) -> dict:
     return out
 
 
-def gh(args: list[str], stdin: str | None = None, must: bool = False) -> str:
-    """The output of `gh`; empty if it failed (a lost runner has no log), or RuntimeError if `must`."""
-    r = subprocess.run(["gh", *args], input=stdin, capture_output=True, text=True, timeout=120, check=False)
+def gh(args: list[str], stdin: str | None = None, must: bool = False, timeout: int = 120) -> str:
+    """The output of `gh`; empty if it failed or ran out of time (a lost runner has no log), or RuntimeError if `must`. A call that times out is a failed call, never a
+    crash of the script (cubic, #184)."""
+    try:
+        r = subprocess.run(["gh", *args], input=stdin, capture_output=True, text=True, timeout=timeout, check=False)
+    except subprocess.TimeoutExpired:
+        if must:
+            raise RuntimeError(f"gh took more than {timeout} s")
+        return ""
     if must and r.returncode != 0:
         raise RuntimeError(r.stderr.strip()[-300:] or f"gh exited with {r.returncode}")
     return r.stdout if r.returncode == 0 else ""
@@ -84,15 +90,32 @@ def job_logs(api, repo: str, job_ids: list[int], sleep=time.sleep, clock=time.mo
     return logs
 
 
+NOTES_DEADLINE, NOTES_CALL = 90, 30  # seconds for all annotation reads, and for one: with the logs' 240 (+120 for a last slow call) the job stays inside its 10 minutes
+
+
 def annotations(api, repo: str, job_id: int) -> str:
-    """the messages GitHub attached to a job (its check run): there even when the job's log is not. Empty if they cannot be read."""
-    try:
-        return "\n".join(str(a.get("message", "")) for a in json.loads(api(["api", f"repos/{repo}/check-runs/{job_id}/annotations"]) or "[]") if isinstance(a, dict))
-    except (ValueError, AttributeError, TypeError):
-        return ""
+    """the messages GitHub attached to a job (its check run), every page of them (cubic, #184: GitHub pages them 30 at a time by default): there even when the job's log is
+    not. One message per line; empty if they cannot be read."""
+    return api(["api", f"repos/{repo}/check-runs/{job_id}/annotations", "--method", "GET", "-F", "per_page=100", "--paginate", "--jq", ".[].message"]) or ""
 
 
-def run(repo: str, run_id: str, inputs: dict, api=gh, sleep=time.sleep, clock=time.monotonic) -> int:
+def gh_notes(args: list[str]) -> str:
+    return gh(args, timeout=NOTES_CALL)
+
+
+def job_notes(api, repo: str, job_ids: list[int], clock=time.monotonic) -> dict[int, str]:
+    """the annotations of these jobs, inside one deadline (cubic, #184): a job not reached in time has none, and none is never a kill"""
+    notes: dict[int, str] = {}
+    end = clock() + NOTES_DEADLINE
+    for i in job_ids:
+        if clock() >= end:
+            break
+        notes[i] = annotations(api, repo, i)
+    return notes
+
+
+def run(repo: str, run_id: str, inputs: dict, api=gh, sleep=time.sleep, clock=time.monotonic, notes_api=None) -> int:
+    notes_api = notes_api or (gh_notes if api is gh else api)  # the real gh reads annotations with a short timeout; a test's fake answers both
     jobs, page = [], 1
     while True:
         batch = json.loads(api(["api", f"repos/{repo}/actions/runs/{run_id}/jobs?per_page=100&page={page}"]) or "{}").get("jobs", [])
@@ -105,7 +128,7 @@ def run(repo: str, run_id: str, inputs: dict, api=gh, sleep=time.sleep, clock=ti
         return 1
     failed = [j for j in jobs if j.get("name", "").startswith("shard") and j.get("conclusion") == "failure"]
     logs = job_logs(api, repo, [j["id"] for j in failed], sleep, clock)
-    notes = {j["id"]: annotations(api, repo, j["id"]) for j in failed}
+    notes = job_notes(notes_api, repo, [j["id"] for j in failed], clock)
     go, why = decide([(j, logs.get(j["id"], ""), notes.get(j["id"], "")) for j in jobs])
     if not go:
         print(f"not started again: {why}")

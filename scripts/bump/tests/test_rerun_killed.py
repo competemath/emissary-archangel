@@ -99,9 +99,10 @@ class Fake:
         self.jobs, self.logs, self.posts, self.post_failures, self.tries = jobs, logs, [], post_failures, 0
         self.asked: list[int] = []
         self.notes = notes or {}  # job id -> annotations (a list of dicts), or None: the call fails
+        self.note_calls: list[list[str]] = []
 
     def __call__(self, args, stdin=None, must=False):
-        if "--method" in args:
+        if "--method" in args and args[args.index("--method") + 1] == "POST":
             self.tries += 1
             if self.tries <= self.post_failures:
                 if must:
@@ -110,8 +111,13 @@ class Fake:
             self.posts.append((args, json.loads(stdin)))
             return ""
         if args[1].endswith("/annotations"):
+            self.note_calls.append(args)
             got = self.notes.get(int(args[1].split("/")[-2]), [])
-            return "" if got is None else json.dumps(got)
+            if got is None:
+                return ""
+            if "--paginate" not in args:  # GitHub's first page only
+                got = got[:30]
+            return "\n".join(a["message"] for a in got)  # what `--jq .[].message` prints
         if args[1].endswith("/logs"):
             self.asked.append(int(args[1].split("/")[-2]))
             log = self.logs.get(int(args[1].split("/")[-2]), "")
@@ -325,6 +331,77 @@ class LostRunner(unittest.TestCase):
                 self.assertEqual(go, expect)
                 n += 1
         self.assertGreaterEqual(n, 200)
+
+
+class ReviewOn184(unittest.TestCase):
+    """cubic on #184: every page of annotations, one deadline over them, a timeout is a failed call"""
+
+    def test_a_note_beyond_the_first_page_counts(self):
+        noise = [{"annotation_level": "warning", "message": f"Node.js 20 is deprecated ({i})"} for i in range(40)]
+        f = Fake([dict(LOST["job"])], {}, notes={LOST["job"]["id"]: noise + LOST["annotations"]})
+        rk.run("o/r", "1", INPUTS, f, lambda _: None)
+        self.assertEqual(len(f.posts), 1)
+        args = f.note_calls[0]
+        self.assertIn("--paginate", args)
+        self.assertEqual(args[args.index("--jq") + 1], ".[].message")
+        self.assertEqual(args[args.index("--method") + 1], "GET")  # -F would otherwise make it a POST
+
+    def test_mutant_first_page_only_misses_it(self):
+        noise = [{"annotation_level": "warning", "message": f"note {i}"} for i in range(40)]
+        f = Fake([dict(LOST["job"])], {}, notes={LOST["job"]["id"]: noise + LOST["annotations"]})
+        real = rk.annotations
+        try:
+            rk.annotations = lambda api, repo, i: api(["api", f"repos/{repo}/check-runs/{i}/annotations", "--jq", ".[].message"]) or ""
+            rk.run("o/r", "1", INPUTS, f, lambda _: None)
+        finally:
+            rk.annotations = real
+        self.assertEqual(f.posts, [])
+
+    def test_one_deadline_over_every_note(self):
+        now = [0.0]
+
+        class Slow(Fake):
+            def __call__(self, args, stdin=None, must=False):
+                if args[1].endswith("/annotations"):
+                    now[0] += rk.NOTES_CALL
+                return super().__call__(args, stdin, must)
+
+        jobs = [dict(LOST["job"], id=100 + i, name=f"shard ({i}) / shard") for i in range(32)]
+        f = Slow(jobs, {}, notes={100 + i: LOST["annotations"] for i in range(32)})
+        start = now[0]
+        rk.run("o/r", "1", INPUTS, f, lambda s: None, lambda: now[0])
+        self.assertLessEqual(len(f.note_calls), rk.NOTES_DEADLINE // rk.NOTES_CALL)
+        self.assertLessEqual(now[0] - start, rk.NOTES_DEADLINE + rk.NOTES_CALL)
+        self.assertEqual(f.posts, [])  # the shards not reached have no note: no kill on no evidence
+
+    def test_the_budget_fits_the_job(self):
+        self.assertLessEqual(rk.LOG_DEADLINE + 120 + rk.NOTES_DEADLINE + rk.NOTES_CALL + 60, JOB["timeout-minutes"] * 60)
+
+    def test_a_timeout_is_a_failed_call_not_a_crash(self):
+        import subprocess
+        from unittest import mock
+
+        def boom(*a, **k):
+            raise subprocess.TimeoutExpired(cmd="gh", timeout=k.get("timeout"))
+
+        with mock.patch.object(rk.subprocess, "run", boom):
+            self.assertEqual(rk.gh(["api", "x"]), "")
+            self.assertEqual(rk.gh_notes(["api", "x"]), "")
+            self.assertEqual(rk.annotations(rk.gh_notes, "o/r", 1), "")
+            with self.assertRaises(RuntimeError):
+                rk.gh(["api", "x"], must=True)
+
+    def test_the_real_gh_reads_annotations_with_the_short_timeout(self):
+        from unittest import mock
+        seen = []
+
+        def fake_run(cmd, **k):
+            seen.append(k.get("timeout"))
+            return mock.Mock(returncode=0, stdout="The hosted runner lost communication with the server.\n", stderr="")
+
+        with mock.patch.object(rk.subprocess, "run", fake_run):
+            self.assertIn("lost communication", rk.annotations(rk.gh_notes, "o/r", 1))
+        self.assertEqual(seen, [rk.NOTES_CALL])
 
 
 if __name__ == "__main__":
