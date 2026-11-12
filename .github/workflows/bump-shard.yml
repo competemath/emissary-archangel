@@ -22,6 +22,8 @@ on:
       reuse_run: { type: string, default: "", description: "a build-once that goes on from an earlier run (bump-waves.yml reuse_from): the run the packs in reuse_packs come from" }
       reuse_packs: { type: string, default: "", description: "comma list: N (the pack comes from reuse_run) or N@RUN (from RUN: a resume of a resume, lane_reuse.py); every other pack comes from this run" }
       build_once: { type: string, default: "false", description: "a job of a build-once (bump-waves.yml): the plan says which modules this job builds (own) and which earlier shards built the rest (restore)" }
+      regate: { type: string, default: "false", description: "REGATE (a build-once): this shard's Gate 2 ran out of budget; judge only the targets it gave no verdict, on its own build (restored, not built again), and hand on its pack with the new verdicts (shard_pack.py regate)" }
+      regate_from: { type: string, default: "", description: "REGATE: the runs that may hold this shard's pack (shard-KEY-N), newest first, comma list: this run, then the runs it resumes" }
 permissions: {}
 defaults:
   run:
@@ -33,6 +35,8 @@ jobs:
     permissions: { contents: read, actions: read }  # actions: read = the packs of the earlier jobs of a build-once
     env:
       BUILD_ONCE: ${{ inputs.build_once }}
+      REGATE: ${{ inputs.regate }}
+      REGATE_FROM: ${{ inputs.regate_from }}
       KEY: ${{ inputs.key }}
       MATHLIB: ${{ inputs.mathlib }}
       TOOLCHAIN: ${{ inputs.toolchain }}
@@ -53,6 +57,7 @@ jobs:
       - name: The memory knobs are numbers (they reach shell and Python)
         run: |
           echo "JOB_T0=$(date +%s)" >> "$GITHUB_ENV"
+          [[ "$REGATE" =~ ^(true|false)$ && "$REGATE_FROM" =~ ^([1-9][0-9]{0,14}(,[1-9][0-9]{0,14}){0,8})?$ ]] && { [ "$REGATE" = false ] || { [ "$BUILD_ONCE" = true ] && [ -n "$REGATE_FROM" ]; }; } || { echo "::error::regate is true or false, regate_from a comma list of run ids, and a regate is a build-once with regate_from"; exit 1; }
           [[ "$REUSE_RUN" =~ ^([1-9][0-9]{0,14})?$ && "$REUSE_PACKS" =~ ^([0-9]{1,4}(@[1-9][0-9]{0,14})?(,[0-9]{1,4}(@[1-9][0-9]{0,14})?)*)?$ ]] || { echo "::error::reuse_run is a run id and reuse_packs a comma list of N or N@RUN"; exit 1; }  # the job's start, for the deadlines of the build, Gate 2 and the keep step
           [[ "$GATE2_BUDGET_MIN" =~ ^[1-9][0-9]{0,2}$ ]] || { echo "::error::gate2_budget_min is a whole number of minutes (the job's clock caps it in shell arithmetic), not $GATE2_BUDGET_MIN"; exit 1; }
           [[ "$ROUND_RESERVE_MIN" =~ ^[1-9][0-9]{0,2}$ ]] && [ "$ROUND_RESERVE_MIN" -ge 10 ] && [ "$ROUND_RESERVE_MIN" -le 200 ] || { echo "::error::round_reserve_min is 10-200 minutes, not $ROUND_RESERVE_MIN"; exit 1; }
@@ -99,6 +104,35 @@ jobs:
       - name: The old exports of this shard's targets (a library set up across runners keeps them in a release, not in git); first, so that a failed download costs minutes and not the shard's hours of build
         working-directory: emissary
         run: node scripts/fetch-exports.mjs "$KEY" --modules ../targets.txt --names ../build.txt   # targets.txt is in the workspace root at this point (the build step copies it into emissary/ later)
+      # REGATE: the shard's pack as the last job left it, and the targets its Gate 2 gave no verdict. Gate 2 judges only those (the targets file), on the shard's own build
+      # restored with the earlier jobs' (restore.txt gets the shard itself, closure.txt every module of the build): nothing is built. flt-anthropic's job 43 (run
+      # 43146942669, 12 Nov 2026) built for 3 h 02 min, so its Gate 2 had 139 minutes and left 114 target modules without a verdict.
+      - name: REGATE - the shard's pack, and the targets its Gate 2 gave no verdict
+        if: inputs.regate == 'true'
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          for r in ${REGATE_FROM//,/ }; do
+            rm -rf old-shard
+            if gh run download "$r" -R "$GITHUB_REPOSITORY" -n "shard-$KEY-$SHARD" -D old-shard; then echo "the pack of shard $SHARD is run $r's"; break; fi
+          done
+          [ -d old-shard/shard-pack ] || { echo "::error::no run of $REGATE_FROM holds shard-$KEY-$SHARD"; exit 1; }
+          python3 - <<'PY'
+          import json, os
+          killed = set(json.load(open("old-shard/emissary/gate2-killed.json")))
+          targets = [t for t in open("targets.txt").read().split() if t]
+          asked = [t for t in targets if t in killed]
+          if not asked:
+              raise SystemExit("regate: the shard's Gate 2 left none of its targets without a verdict")
+          open("asked.txt", "w").write("\n".join(asked) + "\n")
+          open("targets.txt", "w").write("\n".join(asked) + "\n")
+          build = [m for m in open("build.txt").read().split() if m]
+          open("closure.txt", "w").write("\n".join(build) + "\n")  # the shard's own modules come from its pack too
+          restore = [x for x in open("restore.txt").read().split(",") if x]
+          open("restore.txt", "w").write(",".join(restore + [os.environ["SHARD"]]))
+          print(f"regate: {len(asked)} of {len(targets)} targets to judge; {len(killed) - len(asked)} killed modules are not this shard's targets")
+          PY
+          # where Gate 2 and the keep step read them (the build step, skipped here, copies them otherwise)
+          for f in build targets own; do cp "$f.txt" "emissary/$f.txt"; done
       - name: The work of the earlier jobs (a build-once; before any code of the library runs, the one step with a token)
         if: inputs.build_once == 'true'
         working-directory: emissary
@@ -146,6 +180,7 @@ jobs:
           [ ! -d ../restored ] || python3 scripts/bump/wave_pack.py place --from ../restored --lib lib
           rm -rf ../restored
       - name: Build this shard's modules, repair, rebuild
+        if: inputs.regate != 'true'
         working-directory: emissary
         run: |
           cp ../build.txt build.txt; cp ../targets.txt targets.txt; cp ../own.txt own.txt
@@ -154,33 +189,33 @@ jobs:
           python3 scripts/bump/build_rounds.py --lib lib --roots "$ROOTS" --modules build.txt $([ "$BUILD_ONCE" != true ] || echo --own own.txt) \
             --deadline "$(( JOB_T0 + (JOB_MIN - ROUND_RESERVE_MIN) * 60 ))" --timeout "$BUILD_TIMEOUT_MIN" --repair-rounds 4 --portfolio-rounds 3
       - name: This job's work, for the jobs after it (a build-once; before Gate 2, so that a Gate 2 that dies does not cost the waves after it their build)
-        if: inputs.build_once == 'true'
+        if: inputs.build_once == 'true' && inputs.regate != 'true'
         working-directory: emissary
         run: python3 scripts/bump/wave_pack.py pack --lib lib --roots "$ROOTS" --modules own.txt --report tb-final.json --out ../wave-pack
       # The pack is hours of build: an upload that fails is tried again over half an hour, not given up after the action's own retries of a few seconds.
       # flt-anthropic's job 43 (run 43075875630, 11 Nov 2026) built for 2 h 16 min and lost it all to a GitHub outage of ~25 minutes ("workflow run not found", then error pages).
       - id: wave_up1
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: inputs.build_once == 'true'
+        if: inputs.build_once == 'true' && inputs.regate != 'true'
         continue-on-error: true
         with: { name: "wave-${{ inputs.key }}-${{ inputs.shard }}", path: wave-pack, retention-days: 14, compression-level: 0, overwrite: true }
       - name: The upload failed; wait before the next try
-        if: inputs.build_once == 'true' && steps.wave_up1.outcome == 'failure'
+        if: inputs.build_once == 'true' && inputs.regate != 'true' && steps.wave_up1.outcome == 'failure'
         run: |
           # never past the job's end: a wait that runs into the timeout cancels the job before its last try (cubic, #178); 6 minutes stay for the upload
           left=$(( JOB_T0 + JOB_MIN * 60 - $(date +%s) - 360 )); w=300; [ "$left" -lt "$w" ] && w=$left; [ "$w" -le 0 ] || sleep "$w"
       - id: wave_up2
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: inputs.build_once == 'true' && steps.wave_up1.outcome == 'failure'
+        if: inputs.build_once == 'true' && inputs.regate != 'true' && steps.wave_up1.outcome == 'failure'
         continue-on-error: true
         with: { name: "wave-${{ inputs.key }}-${{ inputs.shard }}", path: wave-pack, retention-days: 14, compression-level: 0, overwrite: true }
       - name: The upload failed again; wait before the last try
-        if: inputs.build_once == 'true' && steps.wave_up2.outcome == 'failure'
+        if: inputs.build_once == 'true' && inputs.regate != 'true' && steps.wave_up2.outcome == 'failure'
         run: |
           # never past the job's end: a wait that runs into the timeout cancels the job before its last try (cubic, #178); 6 minutes stay for the upload
           left=$(( JOB_T0 + JOB_MIN * 60 - $(date +%s) - 360 )); w=900; [ "$left" -lt "$w" ] && w=$left; [ "$w" -le 0 ] || sleep "$w"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: inputs.build_once == 'true' && steps.wave_up2.outcome == 'failure'
+        if: inputs.build_once == 'true' && inputs.regate != 'true' && steps.wave_up2.outcome == 'failure'
         with: { name: "wave-${{ inputs.key }}-${{ inputs.shard }}", path: wave-pack, retention-days: 14, compression-level: 0, overwrite: true }
       - name: Gate 2's own Lean modules, in a project of their own
         run: |
@@ -231,15 +266,24 @@ jobs:
           done
           grep -c BUNDLE_KEEP bundle-deps.log || true
       - name: Pack this shard
+        if: inputs.regate != 'true'
         working-directory: emissary
         run: |
           python3 scripts/bump/shard_pack.py pack --lib lib --roots "$ROOTS" --modules "$([ "$BUILD_ONCE" = true ] && echo own.txt || echo build.txt)" --out ../shard-pack --gate2 gate2.log --errors build-final.log \
             --passed passed.json --keep bundle-deps.log --results gate2-results.json --keep-drops keep-drops.txt
           du -sh ../shard-pack | cut -f1
+      # REGATE: the pack the last job left, with the new verdicts in it (shard_pack.py regate): its sources, ranges and errors, the targets judged now off the killed list
+      - name: REGATE - the shard's pack with the new verdicts
+        id: regate_merge
+        if: inputs.regate == 'true'
+        working-directory: emissary
+        run: |
+          python3 scripts/bump/shard_pack.py regate --old ../old-shard --asked ../asked.txt --gate2 gate2.log --passed passed.json --results gate2-results.json --killed gate2-killed.json \
+            --keep bundle-deps.log --keep-drops keep-drops.txt --out ../shard-pack --out-emissary .
       # the shard's verdicts: tried again like the pack above (the same outage would cost them the whole job)
       - id: shard_up1
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
+        if: always() && inputs.regate != 'true'
         continue-on-error: true
         with:
           name: shard-${{ inputs.key }}-${{ inputs.shard }}
@@ -251,13 +295,13 @@ jobs:
           retention-days: 90
           overwrite: true
       - name: The upload of the verdicts failed; wait before the next try
-        if: always() && steps.shard_up1.outcome == 'failure'
+        if: always() && inputs.regate != 'true' && steps.shard_up1.outcome == 'failure'
         run: |
           # never past the job's end: a wait that runs into the timeout cancels the job before its last try (cubic, #178); 6 minutes stay for the upload
           left=$(( JOB_T0 + JOB_MIN * 60 - $(date +%s) - 360 )); w=300; [ "$left" -lt "$w" ] && w=$left; [ "$w" -le 0 ] || sleep "$w"
       - id: shard_up2
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && steps.shard_up1.outcome == 'failure'
+        if: always() && inputs.regate != 'true' && steps.shard_up1.outcome == 'failure'
         continue-on-error: true
         with:
           name: shard-${{ inputs.key }}-${{ inputs.shard }}
@@ -269,14 +313,63 @@ jobs:
           retention-days: 90
           overwrite: true
       - name: The upload of the verdicts failed again; wait before the last try
-        if: always() && steps.shard_up2.outcome == 'failure'
+        if: always() && inputs.regate != 'true' && steps.shard_up2.outcome == 'failure'
         run: |
           # never past the job's end: a wait that runs into the timeout cancels the job before its last try (cubic, #178); 6 minutes stay for the upload
           left=$(( JOB_T0 + JOB_MIN * 60 - $(date +%s) - 360 )); w=900; [ "$left" -lt "$w" ] && w=$left; [ "$w" -le 0 ] || sleep "$w"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && steps.shard_up2.outcome == 'failure'
+        if: always() && inputs.regate != 'true' && steps.shard_up2.outcome == 'failure'
         with:
           name: shard-${{ inputs.key }}-${{ inputs.shard }}
+          path: |
+            shard-pack
+            emissary/tb-final.json
+            emissary/gate2-results.json
+            emissary/gate2-killed.json
+          retention-days: 90
+          overwrite: true
+      # REGATE: the new pack under its own name, and only when it was made whole (cubic, #180): a regate that fails, or an upload that fails, never touches the
+      # shard's first pack. Whatever reads the packs takes regate-KEY-N in place of shard-KEY-N (fill_from.py pack_names / promote).
+      - id: regate_up1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: inputs.regate == 'true' && steps.regate_merge.outcome == 'success'
+        continue-on-error: true
+        with:
+          name: regate-${{ inputs.key }}-${{ inputs.shard }}
+          path: |
+            shard-pack
+            emissary/tb-final.json
+            emissary/gate2-results.json
+            emissary/gate2-killed.json
+          retention-days: 90
+          overwrite: true
+      - name: The upload of the regate pack failed; wait before the next try
+        if: inputs.regate == 'true' && steps.regate_merge.outcome == 'success' && steps.regate_up1.outcome == 'failure'
+        run: |
+          # never past the job's end: a wait that runs into the timeout cancels the job before its last try (cubic, #178); 6 minutes stay for the upload
+          left=$(( JOB_T0 + JOB_MIN * 60 - $(date +%s) - 360 )); w=300; [ "$left" -lt "$w" ] && w=$left; [ "$w" -le 0 ] || sleep "$w"
+      - id: regate_up2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: inputs.regate == 'true' && steps.regate_merge.outcome == 'success' && steps.regate_up1.outcome == 'failure'
+        continue-on-error: true
+        with:
+          name: regate-${{ inputs.key }}-${{ inputs.shard }}
+          path: |
+            shard-pack
+            emissary/tb-final.json
+            emissary/gate2-results.json
+            emissary/gate2-killed.json
+          retention-days: 90
+          overwrite: true
+      - name: The upload of the regate pack failed again; wait before the last try
+        if: inputs.regate == 'true' && steps.regate_merge.outcome == 'success' && steps.regate_up2.outcome == 'failure'
+        run: |
+          # never past the job's end: a wait that runs into the timeout cancels the job before its last try (cubic, #178); 6 minutes stay for the upload
+          left=$(( JOB_T0 + JOB_MIN * 60 - $(date +%s) - 360 )); w=900; [ "$left" -lt "$w" ] && w=$left; [ "$w" -le 0 ] || sleep "$w"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: inputs.regate == 'true' && steps.regate_merge.outcome == 'success' && steps.regate_up2.outcome == 'failure'
+        with:
+          name: regate-${{ inputs.key }}-${{ inputs.shard }}
           path: |
             shard-pack
             emissary/tb-final.json

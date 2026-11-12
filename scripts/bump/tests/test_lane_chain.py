@@ -564,7 +564,7 @@ class WorkflowText(unittest.TestCase):
 
     def test_a_wait_never_runs_past_the_jobs_end(self):  # I8 (cubic, #178): the wait is cut to what the job has left, 6 minutes kept for the upload
         waits = [s for s in self.shard if "sleep" in s.get("run", "") and "_up" in s.get("if", "")]
-        self.assertEqual(len(waits), 4)
+        self.assertEqual(len(waits), 6)  # the wave pack's, the shard pack's and the regate pack's (test_lane_regate.py I9)
         import time as _t
         now = int(_t.time())
         for w in waits:

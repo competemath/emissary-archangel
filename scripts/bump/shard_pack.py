@@ -129,6 +129,85 @@ def merge(a: argparse.Namespace) -> None:
           + (f"; {len(keep_drops)} left out of the keep step for an import clash: {', '.join(sorted(keep_drops))}" if keep_drops else ""))
 
 
+REGATE_COUNTS = ("checked", "pass", "pass_equal", "pass_entails", "pass_private_not_records")
+
+
+def regate(a: argparse.Namespace) -> None:
+    """A shard's Gate 2 ran out of its budget (its gate2-killed.json lists the targets it gave no verdict) and a later job judged those targets alone, on the
+    shard's own build (bump-shard.yml regate): the shard's pack again, with the new verdicts in it. The sources, the ranges, the build's errors and the earlier
+    verdicts stay as they were; a target judged now leaves the killed list; a target the new job could not judge either stays on it.
+
+    flt-anthropic's job 43 (run 43146942669, 12 Nov 2026) built for 3 h 02 min, so Gate 2 had 139 minutes: 288 theorems judged, 125 passed, 114 target modules killed."""
+    old = Path(a.old)
+    old_pack = next(iter(old.glob("shard-pack")), old)
+    if not (old_pack / "src").is_dir():
+        sys.exit(f"regate: {old} holds no shard pack (no src/)")
+    kf = next((c for c in (old / "emissary" / "gate2-killed.json", old_pack / "gate2-killed.json") if c.is_file()), None)
+    if kf is None:
+        sys.exit(f"regate: {old} has no gate2-killed.json")
+    was_killed = set(json.loads(kf.read_text()))
+    asked = {x for x in Path(a.asked).read_text().split() if x}
+    if not asked or not asked <= was_killed:
+        sys.exit(f"regate: the judged targets must be modules the shard left without a verdict ({len(asked - was_killed)} are not)")
+    now_killed = set(json.loads(Path(a.killed).read_text())) if Path(a.killed).exists() else set(asked)  # no file: nothing says Gate 2 judged anything
+    if not now_killed <= asked:
+        sys.exit("regate: the new Gate 2 lists a module without a verdict that it was not asked to judge")
+    old_passed = json.loads((old_pack / "passed.json").read_text()) if (old_pack / "passed.json").exists() else {}
+    new_passed = json.loads(Path(a.passed).read_text()) if Path(a.passed).exists() else {}
+    if not set(new_passed) <= asked - now_killed:
+        sys.exit(f"regate: passes credited to modules it was not asked to judge, or gave no verdict: {sorted(set(new_passed) - (asked - now_killed))[:5]}")
+    if set(new_passed) & set(old_passed):
+        sys.exit("regate: a module has passes in both packs (a killed module has none in the first)")
+    out = Path(a.out)
+    if out.exists():
+        shutil.rmtree(out)
+    shutil.copytree(old_pack, out, symlinks=True)  # src/, ranges/, errors.log, keep-drops.txt: the build is the one the first job made
+    merged = dict(old_passed)
+    merged.update({m: sorted(ns) for m, ns in new_passed.items()})
+    (out / "passed.json").write_text(json.dumps(merged))
+    gate2 = [ln for ln in Path(a.gate2).read_text(errors="replace").splitlines() if re.search(r"GATE2B_(PASS|FAIL) ", ln)] if Path(a.gate2).exists() else []
+    old_log = (old_pack / "gate2.log").read_text(errors="replace") if (old_pack / "gate2.log").exists() else ""
+    (out / "gate2.log").write_text(old_log.rstrip("\n") + ("\n" if old_log.strip() else "") + "\n".join(gate2) + "\n")
+    keep_old = (old_pack / "bundle-deps.log").read_text(errors="replace") if (old_pack / "bundle-deps.log").exists() else ""
+    keep_new = Path(a.keep).read_text(errors="replace") if a.keep and Path(a.keep).exists() else ""
+    (out / "bundle-deps.log").write_text(keep_old + ("\n" if keep_old and not keep_old.endswith("\n") else "") + keep_new)
+    drops = set()
+    for f in (old_pack / "keep-drops.txt", Path(a.keep_drops) if a.keep_drops else None):
+        if f and f.is_file():
+            drops.update(x.strip() for x in f.read_text().splitlines() if x.strip())
+    (out / "keep-drops.txt").write_text("".join(m + "\n" for m in sorted(drops)))
+    r_old = json.loads((old_pack / "gate2-results.json").read_text()) if (old_pack / "gate2-results.json").exists() else {}
+    r_new = json.loads(Path(a.results).read_text()) if Path(a.results).exists() else {}
+    res = dict(r_old)
+    for k in REGATE_COUNTS:
+        res[k] = r_old.get(k, 0) + r_new.get(k, 0)
+    res["fail_reasons"] = dict(r_old.get("fail_reasons", {}))
+    for k, v in r_new.get("fail_reasons", {}).items():
+        res["fail_reasons"][k] = res["fail_reasons"].get(k, 0) + v
+    res["pass_unattributed"] = sorted(set(r_old.get("pass_unattributed", [])) | set(r_new.get("pass_unattributed", [])))
+    # the definitions and controls the new job checked too (shard_pack.merge sums definitions.by_result and counts controls.wrongly_passed; cubic, #180)
+    defs = dict(r_old.get("definitions", {}))
+    by = dict(defs.get("by_result", {}))
+    for k, v in r_new.get("definitions", {}).get("by_result", {}).items():
+        by[k] = by.get(k, 0) + v
+    defs["by_result"] = by
+    if "drifted" in defs or "drifted" in r_new.get("definitions", {}):
+        defs["drifted"] = {**defs.get("drifted", {}), **r_new.get("definitions", {}).get("drifted", {})}  # {name: what drifted}
+    res["definitions"] = defs
+    ctl_old, ctl_new = r_old.get("controls", {}), r_new.get("controls", {})
+    res["controls"] = {**ctl_old, "checked": ctl_old.get("checked", 0) + ctl_new.get("checked", 0),
+                       "wrongly_passed": sorted(set(ctl_old.get("wrongly_passed", [])) | set(ctl_new.get("wrongly_passed", [])))}
+    res["regate"] = {"asked": len(asked), "judged": len(asked - now_killed), "still_killed": len(now_killed)}
+    (out / "gate2-results.json").write_text(json.dumps(res, indent=1))
+    side = Path(a.out_emissary)
+    side.mkdir(parents=True, exist_ok=True)
+    (side / "gate2-killed.json").write_text(json.dumps(sorted((was_killed - asked) | now_killed)))
+    (side / "gate2-results.json").write_text(json.dumps(res, indent=1))
+    if (old / "emissary" / "tb-final.json").is_file():
+        shutil.copy2(old / "emissary" / "tb-final.json", side / "tb-final.json")
+    print(f"regate: {len(asked)} targets asked, {len(asked - now_killed)} judged, {sum(len(v) for v in new_passed.values())} new passes; {len(now_killed)} still without a verdict")
+
+
 def has_pack(artifact: Path) -> bool:
     d = next(iter(artifact.glob("shard-pack")), artifact) if artifact.is_dir() else artifact
     return (d / "src").exists()
@@ -185,8 +264,13 @@ if __name__ == "__main__":
     fl = sub.add_parser("fill")
     for f in ("shards", "fill"):
         fl.add_argument(f"--{f}", required=True)
+    rg = sub.add_parser("regate", help="the shard's pack again, with the verdicts of a job that judged its killed targets (bump-shard.yml regate)")
+    for f in ("old", "asked", "gate2", "passed", "results", "killed", "out", "out-emissary"):
+        rg.add_argument("--" + f, required=True)
+    rg.add_argument("--keep", default="")
+    rg.add_argument("--keep-drops", default="")
     c = sub.add_parser("complete")
     for f in ("shards", "key", "planned"):
         c.add_argument(f"--{f}", required=True)
     a = ap.parse_args()
-    {"pack": pack, "merge": merge, "select": select, "fill": fill, "complete": complete}[a.cmd](a)
+    {"pack": pack, "merge": merge, "select": select, "fill": fill, "complete": complete, "regate": regate}[a.cmd](a)

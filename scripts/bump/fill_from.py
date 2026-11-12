@@ -16,6 +16,7 @@ import base64
 import filecmp
 import json
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -30,10 +31,10 @@ MAX_RUNS = 8  # lane_reuse.MAX_CHAIN
 RUN_INFO = "{head_sha, path, display_title, head_branch, event, head_repo: .head_repository.full_name}"
 
 
-def runs_of(text: str) -> list[str]:
+def runs_of(text: str, most: int = MAX_RUNS) -> list[str]:
     runs = text.split(",")  # an empty field (`A,,B`) is a typo, never a run to skip (cubic, #178)
-    if not text or len(runs) > MAX_RUNS or len(set(runs)) != len(runs) or not all(RUN.match(r) for r in runs):
-        raise ValueError(f"fill_from is 1 to {MAX_RUNS} distinct run ids, newest first, not {text!r}")
+    if not text or len(runs) > most or len(set(runs)) != len(runs) or not all(RUN.match(r) for r in runs):
+        raise ValueError(f"fill_from is 1 to {most} distinct run ids, newest first, not {text!r}")
     return runs
 
 
@@ -41,6 +42,18 @@ def shard_names(names: list[str], key: str) -> list[str]:
     """the shard artifacts of the key (shard-KEY-N): never a wave pack, a plan, or another key's shard"""
     pat = re.compile(rf"^shard-{re.escape(key)}-[0-9]{{1,4}}$")
     return sorted({n for n in names if pat.match(n)}, key=lambda n: int(n.rsplit("-", 1)[1]))
+
+
+def pack_names(names: list[str], key: str) -> dict[str, str]:
+    """{shard-KEY-N: the artifact that holds its pack in this run}: regate-KEY-N when the run judged the shard again (bump-shard.yml regate: the
+    shard's pack with the new verdicts, under its own name so that a failed regate never touches the first pack; cubic, #180), else shard-KEY-N"""
+    pat = re.compile(rf"^(shard|regate)-{re.escape(key)}-([0-9]{{1,4}})$")
+    out: dict[str, str] = {}
+    for n in names:
+        m = pat.match(n)
+        if m and (m.group(1) == "regate" or f"shard-{key}-{m.group(2)}" not in out):
+            out[f"shard-{key}-{m.group(2)}"] = n
+    return dict(sorted(out.items(), key=lambda kv: int(kv[0].rsplit("-", 1)[1])))
 
 
 def gh(args: list[str], runner=subprocess.run, sleep=time.sleep, tries: int = 4, wait: int = 30) -> str:
@@ -76,6 +89,25 @@ def library_of_run(repo: str, run: str, key: str, runner=subprocess.run, sleep=t
     return lane_reuse.library_identity(setup, sources, key)
 
 
+def promote(repo: str, key: str, run: str, shards: Path, work: Path, runner=subprocess.run, sleep=time.sleep) -> list[str]:
+    """The run's regate packs in place of its shard packs in --shards (the run being cut: its shard packs are downloaded by name pattern, its regate
+    packs here). A regate pack replaces the shard's only when it is a whole pack."""
+    listing = gh(["api", "--paginate", f"repos/{repo}/actions/runs/{run}/artifacts?per_page=100", "--jq", ".artifacts[] | select(.expired | not) | .name"], runner, sleep)
+    done = []
+    for name, artifact in pack_names(listing.split(), key).items():
+        if not artifact.startswith("regate-"):
+            continue
+        dest = work / artifact
+        gh(["run", "download", run, "-R", repo, "-n", artifact, "-D", str(dest)], runner, sleep)
+        if not shard_pack.has_pack(dest):
+            sys.exit(f"{artifact} of run {run} holds no whole pack")
+        if (shards / name).exists():
+            shutil.rmtree(shards / name)
+        shutil.move(str(dest), str(shards / name))
+        done.append(name)
+    return done
+
+
 def check_library(repo: str, key: str, run: str, library: dict, runner=subprocess.run, sleep=time.sleep) -> None:
     then = library_of_run(repo, run, key, runner, sleep)
     if then != library:
@@ -95,10 +127,10 @@ def fill_from(repo: str, key: str, runs: list[str], shards: Path, work: Path, pl
             gh(["run", "download", run, "-R", repo, "-n", f"plan-{key}", "-D", str(d / "plan")], runner, sleep)
             same_plan(d / "plan", plan_new, unrecorded, run)
         listing = gh(["api", "--paginate", f"repos/{repo}/actions/runs/{run}/artifacts?per_page=100", "--jq", ".artifacts[] | select(.expired | not) | .name"], runner, sleep)
-        for name in shard_names(listing.split(), key):
+        for name, artifact in pack_names(listing.split(), key).items():
             if (shards / name).exists():  # built by the run being cut or by a newer run of the chain: never replaced
                 continue
-            gh(["run", "download", run, "-R", repo, "-n", name, "-D", str(d / "shards" / name)], runner, sleep)
+            gh(["run", "download", run, "-R", repo, "-n", artifact, "-D", str(d / "shards" / name)], runner, sleep)
         before = {p.name for p in shards.iterdir()}
         shard_pack.fill(argparse.Namespace(shards=str(shards), fill=str(d / "shards")))
         filled[run] = len({p.name for p in shards.iterdir()} - before)
@@ -110,6 +142,7 @@ def main() -> None:
     ap.add_argument("--repo", required=True)
     ap.add_argument("--key", required=True)
     ap.add_argument("--runs", default="", help="fill_from: comma list of run ids, newest first")
+    ap.add_argument("--promote-from", default="", help="put this run's regate packs in place of its shard packs in --shards (the run being cut)")
     ap.add_argument("--check-library", default="", help="only check that this run (recut_from: its shards are in shards/ before any fill) built the library of --library-from")
     ap.add_argument("--shards", required=True)
     ap.add_argument("--work", required=True)
@@ -117,6 +150,12 @@ def main() -> None:
     ap.add_argument("--unrecorded", default="false")
     ap.add_argument("--library-from", default="", help="this run's checkout of this repository: every run of the chain must have built the library its setup record names")
     a = ap.parse_args()
+    if a.promote_from:
+        if not RUN.match(a.promote_from):
+            sys.exit("--promote-from is a run id")
+        done = promote(a.repo, a.key, a.promote_from, Path(a.shards), Path(a.work))
+        print(f"regate packs in place of {len(done)} shard pack(s): {', '.join(done)}")
+        return
     if a.check_library:
         # a recut merges the shards of recut_from as they are, before any fill: they are checked here, or another commit's shards pass where a fill's would not (cubic, #178)
         if not RUN.match(a.check_library) or not a.library_from:
