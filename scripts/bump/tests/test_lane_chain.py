@@ -306,12 +306,13 @@ class Library(unittest.TestCase):
         self.assertNotEqual(lr.library_identity(LIB["other_library"], sources_with({}), KEY), ident)
 
 
-# the real runs as the API showed them on 12 Nov 2026 (path | display_title | head_branch | event | head_repository.full_name)
+# the real runs, every field as the API returned it on 12 Nov 2026 (GET /repos/competemath/emissary-archangel/actions/runs/ID: head_sha, path, display_title,
+# head_branch, event, head_repository.full_name), with the key each one ran for
 REAL_RUNS = {
-    "42678283150": (".github/workflows/bump-waves.yml", "bump-waves flt-anthropic", "flt-anthropic"),
-    "43075875630": (".github/workflows/bump-waves.yml", "bump-waves flt-anthropic", "flt-anthropic"),
-    "43102927936": (".github/workflows/bump-sharded.yml", "bump-sharded lean-characteristic-set", "lean-characteristic-set"),
-    "42494414245": (".github/workflows/bump-sharded.yml", "bump-sharded lean-characteristic-set", "lean-characteristic-set"),
+    "42678283150": ({"head_sha": "0cb69536f548a98d17d1ec76fdb670cdcbd2b0a1", "path": ".github/workflows/bump-waves.yml", "display_title": "bump-waves flt-anthropic", "head_branch": "main", "event": "workflow_dispatch", "head_repo": "competemath/emissary-archangel"}, "flt-anthropic"),
+    "43075875630": ({"head_sha": "ba713d3c1f18c814de260918741ad0192ab0d953", "path": ".github/workflows/bump-waves.yml", "display_title": "bump-waves flt-anthropic", "head_branch": "main", "event": "workflow_dispatch", "head_repo": "competemath/emissary-archangel"}, "flt-anthropic"),
+    "43102927936": ({"head_sha": "79f46062d46f5a96b3866f1e7d40e2902222ceb2", "path": ".github/workflows/bump-sharded.yml", "display_title": "bump-sharded lean-characteristic-set", "head_branch": "main", "event": "workflow_dispatch", "head_repo": "competemath/emissary-archangel"}, "lean-characteristic-set"),
+    "42494414245": ({"head_sha": "ccb6917b75423482efc8c97272a5c6f371006ac1", "path": ".github/workflows/bump-sharded.yml", "display_title": "bump-sharded lean-characteristic-set", "head_branch": "main", "event": "workflow_dispatch", "head_repo": "competemath/emissary-archangel"}, "lean-characteristic-set"),
 }
 REPO = "competemath/emissary-archangel"
 
@@ -324,8 +325,11 @@ class Provenance(unittest.TestCase):
     """I10: artifacts are taken only from runs of the lane's own workflows for this key, dispatched on main of this repository (hacktron, #178)"""
 
     def test_the_real_runs_may_hand_on(self):
-        for run, (path, title, key) in REAL_RUNS.items():
-            self.assertEqual(lr.untrusted(info_of(path, title), REPO, key), "", run)
+        for run, (info, key) in REAL_RUNS.items():  # the real records as they are, nothing filled in (cubic, #178)
+            self.assertEqual(lr.untrusted(info, REPO, key), "", run)
+            self.assertNotEqual(lr.untrusted(info, REPO, "another-key"), "", run)
+        self.assertEqual(LIB["refs"]["42678283150"], REAL_RUNS["42678283150"][0]["head_sha"])  # the same records the library fixture was read at
+        self.assertEqual(LIB["refs"]["43075875630"], REAL_RUNS["43075875630"][0]["head_sha"])
         self.assertEqual(lr.untrusted(info_of(".github/workflows/bump-sharded.yml", "bump-sharded flt-anthropic (from tree)"), REPO, KEY), "")
 
     def test_any_other_run_may_not(self):
