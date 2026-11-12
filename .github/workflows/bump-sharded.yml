@@ -156,7 +156,7 @@ jobs:
     if: ${{ !cancelled() && needs.shard.result == 'failure' && inputs.heavy == '' && inputs.only_shards == '' && inputs.fill_from == '' && inputs.recut_from == '' && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
-    permissions: { actions: write, contents: read }  # read the run's jobs and logs, dispatch this workflow
+    permissions: { actions: write, checks: read, contents: read }  # read the run's jobs, logs and the jobs' annotations (a lost runner has only those), dispatch this workflow
     env: { GH_TOKEN: "${{ github.token }}", INPUTS: "${{ toJSON(inputs) }}" }
     steps:
       - name: The scripts of this commit

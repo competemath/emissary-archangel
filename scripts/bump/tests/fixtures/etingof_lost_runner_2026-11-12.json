@@ -1,0 +1,153 @@
+{
+ "source": "competemath/emissary-archangel bump-sharded run 43292037870 (etingofrepresentationtheory), job 131440605609 'shard (2) / shard', 12 Nov 2026: GET .../jobs/131440605609/logs answered BlobNotFound (no log stored)",
+ "job": {
+  "id": 131440605609,
+  "name": "shard (2) / shard",
+  "conclusion": "failure",
+  "steps": [
+   {
+    "name": "Set up job",
+    "conclusion": "success"
+   },
+   {
+    "name": "The memory knobs are numbers (they reach shell and Python)",
+    "conclusion": "success"
+   },
+   {
+    "name": "Free disk",
+    "conclusion": "success"
+   },
+   {
+    "name": "Run actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+    "conclusion": "success"
+   },
+   {
+    "name": "This shard's modules, and only the exports and entries it needs",
+    "conclusion": "success"
+   },
+   {
+    "name": "The old exports of this shard's targets (a library set up across runners keeps them in a release, not in git); first, so that a failed download costs minutes and not the shard's hours of build",
+    "conclusion": "success"
+   },
+   {
+    "name": "REGATE - the shard's pack, and the targets its Gate 2 gave no verdict",
+    "conclusion": "skipped"
+   },
+   {
+    "name": "The work of the earlier jobs (a build-once; before any code of the library runs, the one step with a token)",
+    "conclusion": "skipped"
+   },
+   {
+    "name": "elan",
+    "conclusion": "success"
+   },
+   {
+    "name": "Swap (swap_gb), for modules that do not fit in a runner's RAM (sized from the free space, 40 GB kept for the library's build)",
+    "conclusion": "skipped"
+   },
+   {
+    "name": "The library at its pinned commit, on the tree's Mathlib",
+    "conclusion": "success"
+   },
+   {
+    "name": "The earlier jobs' work, into the library (a build-once)",
+    "conclusion": "skipped"
+   },
+   {
+    "name": "Build this shard's modules, repair, rebuild",
+    "conclusion": "failure"
+   },
+   {
+    "name": "This job's work, for the jobs after it (a build-once; before Gate 2, so that a Gate 2 that dies does not cost the waves after it their build)",
+    "conclusion": "skipped"
+   },
+   {
+    "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "conclusion": "skipped"
+   },
+   {
+    "name": "The upload failed; wait before the next try",
+    "conclusion": "skipped"
+   },
+   {
+    "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "conclusion": "skipped"
+   },
+   {
+    "name": "The upload failed again; wait before the last try",
+    "conclusion": "skipped"
+   },
+   {
+    "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "conclusion": "skipped"
+   },
+   {
+    "name": "Gate 2's own Lean modules, in a project of their own",
+    "conclusion": "skipped"
+   },
+   {
+    "name": "Batched Gate 2 over the declarations of this shard's targets",
+    "conclusion": "skipped"
+   },
+   {
+    "name": "What the passed theorems are made of",
+    "conclusion": "skipped"
+   },
+   {
+    "name": "Pack this shard",
+    "conclusion": "skipped"
+   },
+   {
+    "name": "REGATE - the shard's pack with the new verdicts",
+    "conclusion": "skipped"
+   },
+   {
+    "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "conclusion": null
+   },
+   {
+    "name": "The upload of the verdicts failed; wait before the next try",
+    "conclusion": null
+   },
+   {
+    "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "conclusion": null
+   },
+   {
+    "name": "The upload of the verdicts failed again; wait before the last try",
+    "conclusion": null
+   },
+   {
+    "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "conclusion": null
+   },
+   {
+    "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "conclusion": null
+   },
+   {
+    "name": "The upload of the regate pack failed; wait before the next try",
+    "conclusion": null
+   },
+   {
+    "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "conclusion": null
+   },
+   {
+    "name": "The upload of the regate pack failed again; wait before the last try",
+    "conclusion": null
+   },
+   {
+    "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "conclusion": null
+   }
+  ]
+ },
+ "log": "",
+ "annotations": [
+  {
+   "annotation_level": "failure",
+   "message": "The hosted runner lost communication with the server. Anything in your workflow that terminates the runner process, starves it for CPU/Memory, or blocks its network access can cause this error."
+  }
+ ]
+}
