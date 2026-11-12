@@ -274,6 +274,7 @@ jobs:
           du -sh ../shard-pack | cut -f1
       # REGATE: the pack the last job left, with the new verdicts in it (shard_pack.py regate): its sources, ranges and errors, the targets judged now off the killed list
       - name: REGATE - the shard's pack with the new verdicts
+        id: regate_merge
         if: inputs.regate == 'true'
         working-directory: emissary
         run: |
@@ -282,7 +283,7 @@ jobs:
       # the shard's verdicts: tried again like the pack above (the same outage would cost them the whole job)
       - id: shard_up1
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
+        if: always() && inputs.regate != 'true'
         continue-on-error: true
         with:
           name: shard-${{ inputs.key }}-${{ inputs.shard }}
@@ -294,13 +295,13 @@ jobs:
           retention-days: 90
           overwrite: true
       - name: The upload of the verdicts failed; wait before the next try
-        if: always() && steps.shard_up1.outcome == 'failure'
+        if: always() && inputs.regate != 'true' && steps.shard_up1.outcome == 'failure'
         run: |
           # never past the job's end: a wait that runs into the timeout cancels the job before its last try (cubic, #178); 6 minutes stay for the upload
           left=$(( JOB_T0 + JOB_MIN * 60 - $(date +%s) - 360 )); w=300; [ "$left" -lt "$w" ] && w=$left; [ "$w" -le 0 ] || sleep "$w"
       - id: shard_up2
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && steps.shard_up1.outcome == 'failure'
+        if: always() && inputs.regate != 'true' && steps.shard_up1.outcome == 'failure'
         continue-on-error: true
         with:
           name: shard-${{ inputs.key }}-${{ inputs.shard }}
@@ -312,14 +313,63 @@ jobs:
           retention-days: 90
           overwrite: true
       - name: The upload of the verdicts failed again; wait before the last try
-        if: always() && steps.shard_up2.outcome == 'failure'
+        if: always() && inputs.regate != 'true' && steps.shard_up2.outcome == 'failure'
         run: |
           # never past the job's end: a wait that runs into the timeout cancels the job before its last try (cubic, #178); 6 minutes stay for the upload
           left=$(( JOB_T0 + JOB_MIN * 60 - $(date +%s) - 360 )); w=900; [ "$left" -lt "$w" ] && w=$left; [ "$w" -le 0 ] || sleep "$w"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && steps.shard_up2.outcome == 'failure'
+        if: always() && inputs.regate != 'true' && steps.shard_up2.outcome == 'failure'
         with:
           name: shard-${{ inputs.key }}-${{ inputs.shard }}
+          path: |
+            shard-pack
+            emissary/tb-final.json
+            emissary/gate2-results.json
+            emissary/gate2-killed.json
+          retention-days: 90
+          overwrite: true
+      # REGATE: the new pack under its own name, and only when it was made whole (cubic, #180): a regate that fails, or an upload that fails, never touches the
+      # shard's first pack. Whatever reads the packs takes regate-KEY-N in place of shard-KEY-N (fill_from.py pack_names / promote).
+      - id: regate_up1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: inputs.regate == 'true' && steps.regate_merge.outcome == 'success'
+        continue-on-error: true
+        with:
+          name: regate-${{ inputs.key }}-${{ inputs.shard }}
+          path: |
+            shard-pack
+            emissary/tb-final.json
+            emissary/gate2-results.json
+            emissary/gate2-killed.json
+          retention-days: 90
+          overwrite: true
+      - name: The upload of the regate pack failed; wait before the next try
+        if: inputs.regate == 'true' && steps.regate_merge.outcome == 'success' && steps.regate_up1.outcome == 'failure'
+        run: |
+          # never past the job's end: a wait that runs into the timeout cancels the job before its last try (cubic, #178); 6 minutes stay for the upload
+          left=$(( JOB_T0 + JOB_MIN * 60 - $(date +%s) - 360 )); w=300; [ "$left" -lt "$w" ] && w=$left; [ "$w" -le 0 ] || sleep "$w"
+      - id: regate_up2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: inputs.regate == 'true' && steps.regate_merge.outcome == 'success' && steps.regate_up1.outcome == 'failure'
+        continue-on-error: true
+        with:
+          name: regate-${{ inputs.key }}-${{ inputs.shard }}
+          path: |
+            shard-pack
+            emissary/tb-final.json
+            emissary/gate2-results.json
+            emissary/gate2-killed.json
+          retention-days: 90
+          overwrite: true
+      - name: The upload of the regate pack failed again; wait before the last try
+        if: inputs.regate == 'true' && steps.regate_merge.outcome == 'success' && steps.regate_up2.outcome == 'failure'
+        run: |
+          # never past the job's end: a wait that runs into the timeout cancels the job before its last try (cubic, #178); 6 minutes stay for the upload
+          left=$(( JOB_T0 + JOB_MIN * 60 - $(date +%s) - 360 )); w=900; [ "$left" -lt "$w" ] && w=$left; [ "$w" -le 0 ] || sleep "$w"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: inputs.regate == 'true' && steps.regate_merge.outcome == 'success' && steps.regate_up2.outcome == 'failure'
+        with:
+          name: regate-${{ inputs.key }}-${{ inputs.shard }}
           path: |
             shard-pack
             emissary/tb-final.json

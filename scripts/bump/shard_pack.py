@@ -185,6 +185,18 @@ def regate(a: argparse.Namespace) -> None:
     for k, v in r_new.get("fail_reasons", {}).items():
         res["fail_reasons"][k] = res["fail_reasons"].get(k, 0) + v
     res["pass_unattributed"] = sorted(set(r_old.get("pass_unattributed", [])) | set(r_new.get("pass_unattributed", [])))
+    # the definitions and controls the new job checked too (shard_pack.merge sums definitions.by_result and counts controls.wrongly_passed; cubic, #180)
+    defs = dict(r_old.get("definitions", {}))
+    by = dict(defs.get("by_result", {}))
+    for k, v in r_new.get("definitions", {}).get("by_result", {}).items():
+        by[k] = by.get(k, 0) + v
+    defs["by_result"] = by
+    if "drifted" in defs or "drifted" in r_new.get("definitions", {}):
+        defs["drifted"] = {**defs.get("drifted", {}), **r_new.get("definitions", {}).get("drifted", {})}  # {name: what drifted}
+    res["definitions"] = defs
+    ctl_old, ctl_new = r_old.get("controls", {}), r_new.get("controls", {})
+    res["controls"] = {**ctl_old, "checked": ctl_old.get("checked", 0) + ctl_new.get("checked", 0),
+                       "wrongly_passed": sorted(set(ctl_old.get("wrongly_passed", [])) | set(ctl_new.get("wrongly_passed", [])))}
     res["regate"] = {"asked": len(asked), "judged": len(asked - now_killed), "still_killed": len(now_killed)}
     (out / "gate2-results.json").write_text(json.dumps(res, indent=1))
     side = Path(a.out_emissary)

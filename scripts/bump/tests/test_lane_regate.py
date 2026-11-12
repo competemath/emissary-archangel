@@ -14,7 +14,9 @@ Invariants:
       runs it resumes, each the lane's own run of the same library), and hands the jobs the runs to find the packs in;
   I7  the shard job's REGATE step (bump-shard.yml), run on the real pack and the real plan entry of shard 43: Gate 2 is asked exactly the 114, the shard's own pack is
       restored with the earlier jobs', every module of the build is restored, nothing is built, no wave pack is handed on;
-  I8  bump-waves.yml: every wave passed, then the regate plan, the regate jobs, then the bundle, which a failed regate does not stop.
+  I8  bump-waves.yml: every wave passed, then the regate plan, the regate jobs, then the bundle, which a failed regate does not stop;
+  I9  a regate never touches the shard's first pack: its pack is regate-KEY-N, uploaded only when it was made whole, and whatever reads the packs takes it in the
+      shard pack's place (fill_from.py pack_names, promote; the bundle's compose and finish) (cubic, #180).
 Mutant: handing the new verdicts in as a second pack instead (the merge takes the union of the killed lists) leaves all 114 killed (fails I5).
 Cases: the real pack with all 114 judged and with 34 still killed, 6 refusals, 1,000 generated splits of the real killed list, the real plan entry of shard 43, 7 input checks.
 """
@@ -36,6 +38,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE))
+import fill_from as ff  # noqa: E402
 import shard_pack as sp  # noqa: E402
 
 FX = json.loads(gzip.open(HERE / "tests" / "fixtures" / "flt_shard43_pack_2026-11-12.json.gz", "rt", encoding="utf-8").read())
@@ -202,9 +205,6 @@ class Generated(unittest.TestCase):
                 self.assertEqual(res["checked"], OLD_RESULTS["checked"] + new["checked"], case)
                 shutil.rmtree(t)
 
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 PLAN43 = json.loads(gzip.open(HERE / "tests" / "fixtures" / "flt_plan_shard43.json.gz", "rt", encoding="utf-8").read())
@@ -414,3 +414,90 @@ elif "/artifacts" in url:
         r = self.run_plan(earlier_branch="feature")
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("may not hand its artifacts", r.stderr + r.stdout)
+
+
+class OwnName(unittest.TestCase):
+    """I9: the regate pack has its own name, is uploaded only when whole, and takes the shard pack's place where the packs are read"""
+
+    def test_the_pack_names(self):
+        names = ["shard-k-1", "shard-k-2", "regate-k-2", "regate-k-3", "wave-k-1", "plan-k", "regate-kk-1", "regate-k-x", "shard-k-10"]
+        self.assertEqual(ff.pack_names(names, "k"), {"shard-k-1": "shard-k-1", "shard-k-2": "regate-k-2", "shard-k-3": "regate-k-3", "shard-k-10": "shard-k-10"})
+        self.assertEqual(ff.pack_names(["regate-k-2", "shard-k-2"], "k"), {"shard-k-2": "regate-k-2"})  # whatever the order of the listing
+
+    def test_the_uploads(self):
+        import yaml
+
+        steps = yaml.safe_load((WF / "bump-shard.yml").read_text())["jobs"]["shard"]["steps"]
+        shard_ups = [s for s in steps if "upload-artifact" in s.get("uses", "") and str(s.get("with", {}).get("name", "")).startswith("shard-")]
+        regate_ups = [s for s in steps if "upload-artifact" in s.get("uses", "") and str(s.get("with", {}).get("name", "")).startswith("regate-")]
+        self.assertEqual((len(shard_ups), len(regate_ups)), (3, 3))
+        for u in shard_ups:
+            self.assertIn("inputs.regate != 'true'", u["if"])  # a regate never uploads shard-KEY-N
+        for u in regate_ups:
+            self.assertTrue(u["if"].startswith("inputs.regate == 'true' && steps.regate_merge.outcome == 'success'"), u["if"])  # only a whole pack
+        self.assertEqual([("continue-on-error" in u) for u in regate_ups], [True, True, False])
+        self.assertEqual(next(s for s in steps if s.get("id") == "regate_merge")["if"], "inputs.regate == 'true'")
+
+    def test_the_bundle_takes_the_regate_packs(self):
+        import yaml
+
+        jobs = yaml.safe_load((WF / "bump-sharded.yml").read_text())["jobs"]
+        for job in ("compose", "finish"):
+            st = jobs[job]["steps"]
+            down = next(i for i, s in enumerate(st) if s.get("with", {}).get("path") == "shards" and "pattern" in s.get("with", {}))
+            prom = next(i for i, s in enumerate(st) if "--promote-from" in s.get("run", ""))
+            merge = next(i for i, s in enumerate(st) if "shard_pack.py merge" in s.get("run", ""))
+            self.assertLess(down, prom, job)
+            self.assertLess(prom, merge, job)
+            self.assertEqual(st[prom]["env"]["RUN"], "${{ inputs.recut_from || github.run_id }}")
+
+    def test_promote_puts_a_whole_regate_pack_in_place(self):
+        t = Path(tempfile.mkdtemp())
+        shards = t / "shards"
+        old_pack(shards)
+        regated = t / "store"
+        v = new_verdicts(t, KILLED, [], passes_for(KILLED[:5]))
+        self.assertEqual(regate(t, old_pack(regated), v).returncode, 0)
+        def runner(cmd, capture_output=True, text=True, check=False):
+            if cmd[1] == "api":
+                return subprocess.CompletedProcess(cmd, 0, "shard-flt-anthropic-43\nregate-flt-anthropic-43\nwave-flt-anthropic-43\n", "")
+            shutil.copytree(t / "out", cmd[cmd.index("-D") + 1])
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        done = ff.promote("o/r", "flt-anthropic", "5", shards, t / "work", runner, lambda s: None)
+        self.assertEqual(done, ["shard-flt-anthropic-43"])
+        self.assertEqual(json.loads((shards / "shard-flt-anthropic-43" / "emissary" / "gate2-killed.json").read_text()), [])
+        def broken(cmd, capture_output=True, text=True, check=False):  # a regate artifact without a whole pack is refused, the first pack kept
+            if cmd[1] == "api":
+                return subprocess.CompletedProcess(cmd, 0, "regate-flt-anthropic-43\n", "")
+            Path(cmd[cmd.index("-D") + 1]).mkdir(parents=True)
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        with self.assertRaises(SystemExit):
+            ff.promote("o/r", "flt-anthropic", "5", shards, t / "work2", broken, lambda s: None)
+        self.assertTrue((shards / "shard-flt-anthropic-43" / "shard-pack" / "src").is_dir())
+
+    def test_nine_runs_for_a_resume_at_the_deepest(self):  # cubic, #180: this run and the 8 a resume may name
+        chain = ",".join(str(1000 + i) for i in range(9))
+        self.assertEqual(len(ff.runs_of(chain, most=ff.MAX_RUNS + 1)), 9)
+        with self.assertRaises(ValueError):
+            ff.runs_of(chain)
+
+
+class DefinitionsAndControls(unittest.TestCase):
+    def test_the_new_jobs_checks_are_counted(self):  # cubic, #180: shard_pack.merge sums definitions.by_result and counts controls.wrongly_passed
+        t = Path(tempfile.mkdtemp())
+        art = old_pack(t)
+        v = new_verdicts(t, KILLED, [], passes_for(KILLED[:3]))
+        r = json.loads(v["results"].read_text())
+        r["definitions"] = {"by_result": {"identical": 7, "drift": 1}, "drifted": {"Def.X": "a -> b"}}
+        r["controls"] = {"checked": 4, "wrongly_passed": ["Ctl.y"]}
+        v["results"].write_text(json.dumps(r))
+        self.assertEqual(regate(t, art, v).returncode, 0)
+        res = json.loads((t / "out" / "shard-pack" / "gate2-results.json").read_text())
+        self.assertEqual(res["definitions"]["by_result"], {"identical": OLD_RESULTS["definitions"]["by_result"]["identical"] + 7, "drift": 1})
+        self.assertEqual(res["definitions"]["drifted"]["Def.X"], "a -> b")
+        self.assertEqual(res["controls"]["checked"], OLD_RESULTS["controls"]["checked"] + 4)
+        self.assertIn("Ctl.y", res["controls"]["wrongly_passed"])
+
+
+if __name__ == "__main__":
+    unittest.main()

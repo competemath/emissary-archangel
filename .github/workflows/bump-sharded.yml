@@ -185,6 +185,10 @@ jobs:
           git -C emissary checkout -q "$GITHUB_SHA"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { pattern: "shard-${{ inputs.key }}-*", path: shards, run-id: "${{ inputs.recut_from || github.run_id }}", github-token: "${{ github.token }}" }
+      # a lane run that judged a shard again (bump-waves.yml regate) holds its new pack as regate-KEY-N: it takes the shard pack's place (fill_from.py promote)
+      - name: The regate packs of the run, in place of its shard packs
+        env: { GH_TOKEN: "${{ github.token }}", RUN: "${{ inputs.recut_from || github.run_id }}" }
+        run: python3 emissary/scripts/bump/fill_from.py --repo "$GITHUB_REPOSITORY" --key "$KEY" --promote-from "$RUN" --shards shards --work regate-work
       # a recut merges another run's shards as they are: that run built the library this run's setup record names, or the run stops (cubic and hacktron, #178)
       - name: The run this one recuts built this library
         if: ${{ inputs.recut_from != '' }}
@@ -556,6 +560,10 @@ jobs:
           git -C emissary checkout -q "$GITHUB_SHA"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { pattern: "shard-${{ inputs.key }}-*", path: shards, run-id: "${{ inputs.recut_from || github.run_id }}", github-token: "${{ github.token }}" }
+      # a lane run that judged a shard again (bump-waves.yml regate) holds its new pack as regate-KEY-N: it takes the shard pack's place (fill_from.py promote)
+      - name: The regate packs of the run, in place of its shard packs
+        env: { GH_TOKEN: "${{ github.token }}", RUN: "${{ inputs.recut_from || github.run_id }}" }
+        run: python3 emissary/scripts/bump/fill_from.py --repo "$GITHUB_REPOSITORY" --key "$KEY" --promote-from "$RUN" --shards shards --work regate-work
       # RESUME (fill_from): the same shards compose filled in (it checked the plans): newest run first, a shard built here never replaced (scripts/bump/fill_from.py)
       - name: Fill in the shards of the earlier runs
         if: ${{ inputs.fill_from != '' }}

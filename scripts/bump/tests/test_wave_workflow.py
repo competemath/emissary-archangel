@@ -150,8 +150,10 @@ class ShardSteps(unittest.TestCase):
         self.assertIn("--report tb-final.json", STEPS[index(self.pack)]["run"])
 
     def test_the_build_once_steps_are_off_for_a_plain_bump(self):
-        for words in (self.fetch, self.place, self.pack):
-            self.assertTrue(STEPS[index(words)]["if"].startswith("inputs.build_once == 'true'"), words)  # a regate (also a build-once) skips the pack
+        # exact conditions, so that nothing can switch these on for a plain bump (cubic, #180): the fetch and the place serve a regate too, the pack never
+        self.assertEqual(STEPS[index(self.fetch)]["if"], "inputs.build_once == 'true'")
+        self.assertEqual(STEPS[index(self.place)]["if"], "inputs.build_once == 'true'")
+        self.assertEqual(STEPS[index(self.pack)]["if"], "inputs.build_once == 'true' && inputs.regate != 'true'")
         uploads = [s for s in STEPS if "with" in s and str(s["with"].get("name", "")).startswith("wave-")]
         self.assertEqual(len(uploads), 3)  # the upload and its two later tries (test_lane_chain.py I8)
         self.assertEqual(uploads[0]["if"], "inputs.build_once == 'true' && inputs.regate != 'true'")  # a regate hands on no wave pack: it built nothing

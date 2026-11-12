@@ -58,7 +58,7 @@ def main() -> None:
     ap.add_argument("--library-from", required=True, help="this run's checkout of this repository: the runs must have built its library")
     ap.add_argument("--work", required=True)
     a = ap.parse_args()
-    runs = ff.runs_of(",".join([a.run] + ([a.fill] if a.fill else [])))
+    runs = ff.runs_of(",".join([a.run] + ([a.fill] if a.fill else [])), most=ff.MAX_RUNS + 1)  # this run and up to 8 it resumes (cubic, #180)
     work = Path(a.work)
     plan_dir = work / "plan"
     ff.gh(["run", "download", a.run, "-R", a.repo, "-n", f"plan-{a.key}", "-D", str(plan_dir)])
