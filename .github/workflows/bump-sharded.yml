@@ -194,7 +194,7 @@ jobs:
       - name: Fill in the shards of the earlier runs (each planned the same shards, built with the same settings)
         if: ${{ inputs.fill_from != '' }}
         env: { GH_TOKEN: "${{ github.token }}", FILL_FROM: "${{ inputs.fill_from }}", UNRECORDED: "${{ inputs.fill_unrecorded }}" }
-        run: python3 emissary/scripts/bump/fill_from.py --repo "$GITHUB_REPOSITORY" --key "$KEY" --runs "$FILL_FROM" --shards shards --work fill-work --plan-new plan-new --unrecorded "$UNRECORDED"
+        run: python3 emissary/scripts/bump/fill_from.py --repo "$GITHUB_REPOSITORY" --key "$KEY" --runs "$FILL_FROM" --shards shards --work fill-work --plan-new plan-new --unrecorded "$UNRECORDED" --library-from emissary
       - name: Every shard of the plan has its result (a shard whose job died must not read as a library without it)
         # a plain recut has no plan and merges what an earlier run left; a recut that fills in from another run (fill_from) has the plan of the run it recuts, checked above
         if: ${{ inputs.recut_from == '' || inputs.fill_from != '' }}

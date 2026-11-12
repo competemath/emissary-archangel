@@ -70,6 +70,14 @@ def earlier_of(lane: dict | None, plan_log: str) -> str:
     return seen.pop() if seen else ""
 
 
+def library_identity(setup: dict, sources: dict, key: str) -> dict:
+    """What a run built: the library's repo, commit and roots (data/exports/KEY/setup.ci.json, trial-library-build.py meta) and its subdir (sources.json). A resume
+    reuses packs and shard packs of earlier runs only if they built this same library (hacktron, #178: the plan and the settings can match across two commits);
+    the export hashes, timings and archive of the record may change between runs (a setup re-run republishes them) and are not the library."""
+    src = (sources.get("sources") or {}).get(key) or {}
+    return {"repo": setup.get("repo"), "commit": setup.get("commit"), "roots": setup.get("roots"), "subdir": src.get("subdir") or ""}
+
+
 def chain_view(plan: dict, chain: list[tuple[str, list[dict], set[str]]], key: str) -> tuple[set[int], dict[int, str], set[int]]:
     """A resume of a resume (flt-anthropic, 11 Nov 2026: the resume 43075875630 of 42678283150 lost job 43's uploads in a GitHub outage, and the 63 jobs it kept live in
     42678283150). `chain`: (run, jobs, artifacts), the run this one resumes first, then the run that one resumed, and so on.
@@ -133,6 +141,18 @@ def chain_outputs(plan: dict, keep: set[int], source: dict[int, str], runs: list
 
 
 def main() -> None:
+    if sys.argv[1:2] == ["library"]:  # lane_reuse.py library --setup setup.ci.json --sources sources.json --key K: the identity, canonical JSON (bump-waves.yml compares)
+        e = argparse.ArgumentParser()
+        e.add_argument("cmd")
+        e.add_argument("--setup", required=True)
+        e.add_argument("--sources", required=True)
+        e.add_argument("--key", required=True)
+        b = e.parse_args()
+        ident = library_identity(json.loads(Path(b.setup).read_text()), json.loads(Path(b.sources).read_text()), b.key)
+        if not ident["repo"] or not ident["commit"]:
+            sys.exit(f"{b.setup}: no repo or commit")
+        print(json.dumps(ident, sort_keys=True))
+        return
     if sys.argv[1:2] == ["earlier"]:  # lane_reuse.py earlier --plan-log LOG [--lane lane.json]: the run an earlier run resumed, "" for none (bump-waves.yml walks the chain)
         e = argparse.ArgumentParser()
         e.add_argument("cmd")

@@ -12,7 +12,9 @@ from before plan/inputs.json, as fill_unrecorded did for one run).
 from __future__ import annotations
 
 import argparse
+import base64
 import filecmp
+import json
 import re
 import subprocess
 import sys
@@ -20,6 +22,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lane_reuse  # noqa: E402
 import shard_pack  # noqa: E402
 
 RUN = re.compile(r"^[1-9][0-9]{0,14}$")
@@ -60,12 +63,27 @@ def same_plan(old: Path, new: Path, unrecorded: bool, run: str) -> None:
         sys.exit(f"run {run} recorded no settings (it predates plan/inputs.json): pass fill_unrecorded=true to vouch that they are the same")
 
 
-def fill_from(repo: str, key: str, runs: list[str], shards: Path, work: Path, plan_new: Path | None = None, unrecorded: bool = False, runner=subprocess.run, sleep=time.sleep) -> dict[str, int]:
-    """{run: shards filled in from it}, newest run first"""
+def library_of_run(repo: str, run: str, key: str, runner=subprocess.run, sleep=time.sleep) -> dict:
+    """the library a run built, as its own commit of this repository recorded it (lane_reuse.library_identity)"""
+    head = gh(["api", f"repos/{repo}/actions/runs/{run}", "--jq", ".head_sha"], runner, sleep).strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", head):
+        sys.exit(f"run {run} has no head commit ({head[:60]!r})")
+    setup = json.loads(base64.b64decode(gh(["api", f"repos/{repo}/contents/data/exports/{key}/setup.ci.json?ref={head}", "--jq", ".content"], runner, sleep)))
+    sources = json.loads(base64.b64decode(gh(["api", f"repos/{repo}/contents/sources.json?ref={head}", "--jq", ".content"], runner, sleep)))
+    return lane_reuse.library_identity(setup, sources, key)
+
+
+def fill_from(repo: str, key: str, runs: list[str], shards: Path, work: Path, plan_new: Path | None = None, unrecorded: bool = False, runner=subprocess.run, sleep=time.sleep,
+              library: dict | None = None) -> dict[str, int]:
+    """{run: shards filled in from it}, newest run first. `library` (compose): this run's library; a run that built another one is refused (hacktron, #178)."""
     shards.mkdir(parents=True, exist_ok=True)
     filled: dict[str, int] = {}
     for run in runs:
         d = work / run
+        if library is not None:
+            then = library_of_run(repo, run, key, runner, sleep)
+            if then != library:
+                sys.exit(f"run {run} built another library ({json.dumps(then, sort_keys=True)}) than this run ({json.dumps(library, sort_keys=True)})")
         if plan_new is not None:
             gh(["run", "download", run, "-R", repo, "-n", f"plan-{key}", "-D", str(d / "plan")], runner, sleep)
             same_plan(d / "plan", plan_new, unrecorded, run)
@@ -89,12 +107,17 @@ def main() -> None:
     ap.add_argument("--work", required=True)
     ap.add_argument("--plan-new", default="", help="this run's plan directory: every run of the chain must have planned the same shards with the same settings")
     ap.add_argument("--unrecorded", default="false")
+    ap.add_argument("--library-from", default="", help="this run's checkout of this repository: every run of the chain must have built the library its setup record names")
     a = ap.parse_args()
     try:
         runs = runs_of(a.runs)
     except ValueError as e:
         sys.exit(str(e))
-    filled = fill_from(a.repo, a.key, runs, Path(a.shards), Path(a.work), Path(a.plan_new) if a.plan_new else None, a.unrecorded == "true")
+    library = None
+    if a.library_from:
+        base = Path(a.library_from)
+        library = lane_reuse.library_identity(json.loads((base / "data" / "exports" / a.key / "setup.ci.json").read_text()), json.loads((base / "sources.json").read_text()), a.key)
+    filled = fill_from(a.repo, a.key, runs, Path(a.shards), Path(a.work), Path(a.plan_new) if a.plan_new else None, a.unrecorded == "true", library=library)
     print("filled in: " + ", ".join(f"{n} shard(s) from run {r}" for r, n in filled.items()))
 
 

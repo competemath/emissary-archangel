@@ -23,6 +23,7 @@ Cases: 2,000 generated chains of 1-4 runs over generated plans, the real chain, 
 from __future__ import annotations
 
 import argparse
+import base64
 import gzip
 import json
 import os
@@ -47,6 +48,7 @@ import wave_pack as wp  # noqa: E402
 
 FX = json.loads(gzip.open(HERE / "tests" / "fixtures" / "flt_chain_2026-11-11.json.gz", "rt", encoding="utf-8").read())
 PLAN = json.loads((HERE / "tests" / "fixtures" / "flt_plan_restore.json").read_text())
+LIB = json.loads(gzip.open(HERE / "tests" / "fixtures" / "flt_library_records_2026-11-11.json.gz", "rt", encoding="utf-8").read())
 P, R = "42678283150", "43075875630"
 KEY = "flt-anthropic"
 
@@ -238,6 +240,32 @@ class Generated(unittest.TestCase):
                     break
 
 
+def sources_with(entry: dict) -> dict:
+    return {"sources": {KEY: entry}}
+
+
+class Library(unittest.TestCase):
+    """I9: a resume and a fill take work only from runs that built this same library (hacktron, #178): repo, commit, roots, subdir"""
+
+    def test_the_real_runs_built_the_library_main_names(self):
+        ids = {k: lr.library_identity(LIB["setup"][k], sources_with(LIB["sources_entry"][k]), KEY) for k in LIB["refs"]}
+        self.assertEqual(ids["main"]["commit"], "aa2d8b34692b16c70f699536de0d8e75b9a3e9ef")
+        self.assertEqual(ids["main"], ids[P])
+        self.assertEqual(ids["main"], ids[R])
+
+    def test_what_is_not_the_library_does_not_count(self):
+        base = LIB["setup"]["main"]
+        moved = dict(base, archive={"release": "x", "asset": "y"}, exported=1, finishedAt="2026-12-01T00:00:00Z", exportsBytes=5)  # a setup re-run republishes these
+        self.assertEqual(lr.library_identity(moved, sources_with({}), KEY), lr.library_identity(base, sources_with({}), KEY))
+
+    def test_another_commit_repo_roots_or_subdir_is_another_library(self):
+        base = LIB["setup"]["main"]
+        ident = lr.library_identity(base, sources_with({}), KEY)
+        for changed, src in ((dict(base, commit="0" * 40), {}), (dict(base, repo="https://github.com/x/y"), {}), (dict(base, roots=["Theorems"]), {}), (base, {"subdir": "lib"})):
+            self.assertNotEqual(lr.library_identity(changed, sources_with(src), KEY), ident)
+        self.assertNotEqual(lr.library_identity(LIB["other_library"], sources_with({}), KEY), ident)
+
+
 class Packs(unittest.TestCase):
     def test_what_the_plan_hands_on_the_shard_reads_back(self):  # I6
         ran = sorted(set(range(len(PLAN["shards"]))) - kept(lr.chain_view(PLAN, [run_of_fx(P)], KEY)))
@@ -272,7 +300,7 @@ class Packs(unittest.TestCase):
             self.assertEqual(r.returncode != 0, bool(want), (packs, r.stdout))
 
 
-def fake_gh(store: dict[str, dict[str, dict[str, str]]], fail_first: int = 0):
+def fake_gh(store: dict[str, dict[str, dict[str, str]]], fail_first: int = 0, heads: dict | None = None, contents: dict | None = None):
     """gh run download / gh api .../artifacts over `store` {run: {artifact: {relpath: text}}}; the first `fail_first` calls fail (a 502)"""
     calls = []
 
@@ -289,6 +317,14 @@ def fake_gh(store: dict[str, dict[str, dict[str, str]]], fail_first: int = 0):
                 f.parent.mkdir(parents=True, exist_ok=True)
                 f.write_text(body)
             return subprocess.CompletedProcess(cmd, 0, "", "")
+        if cmd[1] == "api" and re.search(r"/runs/\d+$", cmd[2]):
+            run = cmd[2].rsplit("/", 1)[1]
+            return subprocess.CompletedProcess(cmd, 0, (heads or {}).get(run, "a" * 40) + "\n", "")
+        if cmd[1] == "api" and "/contents/" in cmd[2]:
+            ref = cmd[2].split("ref=")[1]
+            files = (contents or {}).get(ref, {})
+            name = "sources.json" if "/contents/sources.json" in cmd[2] else "setup.ci.json"
+            return subprocess.CompletedProcess(cmd, 0, base64.b64encode(json.dumps(files[name]).encode()).decode() + "\n", "")
         if cmd[1] == "api":
             run = re.search(r"/runs/(\d+)/artifacts", cmd[3]).group(1)
             return subprocess.CompletedProcess(cmd, 0, "\n".join(store.get(run, {})) + "\n", "")
@@ -361,6 +397,35 @@ class Fill(unittest.TestCase):
         got = ff.fill_from("o/r", KEY, [R, P], self.t / "shards", self.t / "work2", None, runner=runner, sleep=lambda s: None)
         self.assertTrue(got)
 
+    def real_contents(self, commit_of_p: str | None = None) -> tuple[dict, dict]:
+        heads = {r: LIB["refs"][r] for r in (R, P)}
+        contents = {}
+        for r in (R, P):
+            setup = dict(LIB["setup"][r])
+            if r == P and commit_of_p:
+                setup["commit"] = commit_of_p
+            contents[LIB["refs"][r]] = {"setup.ci.json": setup, "sources.json": sources_with(LIB["sources_entry"][r])}
+        return heads, contents
+
+    def test_runs_of_the_same_library_fill(self):  # I9
+        heads, contents = self.real_contents()
+        runner, _ = fake_gh(real_store(), heads=heads, contents=contents)
+        here = lr.library_identity(LIB["setup"]["main"], sources_with(LIB["sources_entry"]["main"]), KEY)
+        got = ff.fill_from("o/r", KEY, [R, P], self.t / "shards", self.t / "work", self.t / "plan-new", runner=runner, sleep=lambda s: None, library=here)
+        self.assertTrue(got[P])
+
+    def test_a_run_of_another_library_commit_is_refused(self):  # I9 (hacktron, #178)
+        heads, contents = self.real_contents(commit_of_p="0" * 40)
+        here = lr.library_identity(LIB["setup"]["main"], sources_with(LIB["sources_entry"]["main"]), KEY)
+        runner, _ = fake_gh(real_store(), heads=heads, contents=contents)
+        with self.assertRaises(SystemExit) as e:
+            ff.fill_from("o/r", KEY, [R, P], self.t / "shards", self.t / "work", self.t / "plan-new", runner=runner, sleep=lambda s: None, library=here)
+        self.assertIn(P, str(e.exception))
+        self.assertFalse((self.t / "shards" / f"shard-{KEY}-0").exists() and self.marker(0) == P)  # nothing of the other commit got in
+        runner, _ = fake_gh(real_store(), heads=heads, contents=contents)  # the mutant: no library check lets it in
+        got = ff.fill_from("o/r", KEY, [R, P], self.t / "shards", self.t / "work2", self.t / "plan-new", runner=runner, sleep=lambda s: None)
+        self.assertTrue(got[P])
+
     def test_run_lists(self):
         self.assertEqual(ff.runs_of(f"{R},{P}"), [R, P])
         for bad in ("", "0", "1,1", "a", ",".join(str(i) for i in range(1, 10)), "1;2"):
@@ -419,7 +484,25 @@ class WorkflowText(unittest.TestCase):
 class ResumeStep(unittest.TestCase):
     """bump-waves.yml's RESUME step, run on the real runs: fake `gh` and `curl` serve the fixture"""
 
-    def test_the_step_walks_the_real_chain(self):  # I2 I3 I5 I6 end to end
+    def test_the_step_walks_the_real_chain(self):  # I2 I3 I5 I6 I9 end to end
+        r, t, out = self.run_step()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(out["fill"], f"{R},{P}")
+        self.assertEqual(sum(len(json.loads(out[f"w{w}"])) for w in range(lr.MAX_WAVES)), 1)  # job 43 alone
+        self.assertEqual(json.loads(out["w7"]), [43])
+        packs = wp.parse_packs(out["packs"], R)
+        self.assertEqual(packs[43], P)
+        self.assertEqual(packs[62], R)
+        self.assertIn("reused from the earlier run: 110 of 111", r.stderr)
+
+    def test_a_run_of_the_chain_that_built_another_commit_stops_the_step(self):  # I9 (hacktron, #178)
+        for run in (R, P):
+            r, _, out = self.run_step(other_commit_for=run)
+            self.assertNotEqual(r.returncode, 0, run)
+            self.assertIn(f"run {run} built another library", r.stdout + r.stderr)
+            self.assertNotIn("packs", out)
+
+    def run_step(self, other_commit_for: str | None = None):
         step = next(s for s in yaml.safe_load((WF / "bump-waves.yml").read_text())["jobs"]["plan"]["steps"] if s.get("id") == "r")
         t = Path(tempfile.mkdtemp())
         (t / "emissary" / "scripts" / "bump").mkdir(parents=True)
@@ -432,7 +515,14 @@ class ResumeStep(unittest.TestCase):
         jobs, arts = finished(ran, {43: "built"})
         runs = {R: {"jobs": jobs, "artifacts": sorted(arts), "log": FX["runs"][R]["plan_log"], "id": 1},
                 P: {"jobs": FX["runs"][P]["jobs"], "artifacts": FX["runs"][P]["artifacts"], "log": FX["runs"][P]["plan_log"], "id": 2}}
-        (t / "fx.json").write_text(json.dumps({"runs": runs, "plan": PLAN, "key": KEY}))
+        heads = {R: LIB["refs"][R], P: LIB["refs"][P]}
+        files = {LIB["refs"][r]: {"setup": LIB["setup"][r], "sources": {"sources": {KEY: LIB["sources_entry"][r]}}} for r in (R, P)}
+        if other_commit_for:
+            files[LIB["refs"][other_commit_for]]["setup"] = dict(LIB["setup"][other_commit_for], commit="0" * 40)
+        (t / "emissary" / "data" / "exports" / KEY).mkdir(parents=True)
+        (t / "emissary" / "data" / "exports" / KEY / "setup.ci.json").write_text(json.dumps(LIB["setup"]["main"]))
+        (t / "emissary" / "sources.json").write_text(json.dumps({"sources": {KEY: LIB["sources_entry"]["main"]}}))
+        (t / "fx.json").write_text(json.dumps({"runs": runs, "plan": PLAN, "key": KEY, "heads": heads, "files": files}))
         bin_ = t / "bin"
         bin_.mkdir()
         (bin_ / "gh").write_text(f"""#!{sys.executable}
@@ -444,9 +534,15 @@ if a[:2] == ["run", "download"]:
     (d / "plan.json").write_text(json.dumps(fx["plan"])); (d / "inputs.json").write_text("{{}}")
     sys.exit(0)
 url = next(x for x in a if x.startswith("repos/"))
-run = re.search(r"/runs/(\\d+)", url).group(1)
+run = (re.search(r"/runs/(\\d+)", url) or re.search(r"(x)", "x")).group(1)
 jq = a[a.index("--jq") + 1] if "--jq" in a else ""
-if url.endswith("/runs/" + run):
+if "/contents/" in url:
+    import base64
+    f = fx["files"][url.split("ref=")[1]]
+    print(base64.b64encode(json.dumps(f["sources"] if "/contents/sources.json" in url else f["setup"]).encode()).decode())
+elif url.endswith("/runs/" + run) and jq == ".head_sha":
+    print(fx["heads"][run])
+elif url.endswith("/runs/" + run):
     print(".github/workflows/bump-waves.yml | bump-waves " + fx["key"])
 elif "/jobs" in url and 'select(.name == "plan")' in jq:
     print(fx["runs"][run]["id"])
@@ -471,15 +567,8 @@ open(a[a.index("-o") + 1], "w").write(fx["runs"][run]["log"])
                "GITHUB_REPOSITORY": "o/r", "GITHUB_OUTPUT": str(t / "out")}
         script = step["run"].replace("python3 ", f"{sys.executable} ").replace("sleep $((i * 20))", "true")
         r = subprocess.run(["bash", "-e", "-o", "pipefail", "-c", script], cwd=t / "emissary", env=env, capture_output=True, text=True)
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         out = dict(ln.split("=", 1) for ln in (t / "out").read_text().splitlines() if "=" in ln)
-        self.assertEqual(out["fill"], f"{R},{P}")
-        self.assertEqual(sum(len(json.loads(out[f"w{w}"])) for w in range(lr.MAX_WAVES)), 1)  # job 43 alone
-        self.assertEqual(json.loads(out["w7"]), [43])
-        packs = wp.parse_packs(out["packs"], R)
-        self.assertEqual(packs[43], P)
-        self.assertEqual(packs[62], R)
-        self.assertIn("reused from the earlier run: 110 of 111", r.stderr)
+        return r, t, out
 
 
 if __name__ == "__main__":

@@ -107,6 +107,7 @@ jobs:
           # 11 Nov 2026: the resume 43075875630 of 42678283150 lost job 43 to a GitHub outage, and the 63 jobs it kept live in 42678283150.
           # The jobs API answered 502 to 100-job pages of these runs that evening: pages of 30, each call tried again.
           retry() { local i; for i in 1 2 3 4 5; do "$@" && return 0; sleep $((i * 20)); done; return 1; }
+          now_lib=$(python3 scripts/bump/lane_reuse.py library --setup "data/exports/$KEY/setup.ci.json" --sources sources.json --key "$KEY")
           chain=(); run="$REUSE_FROM"
           while [ -n "$run" ]; do
             [[ "$run" =~ ^[1-9][0-9]{0,14}$ ]] || { echo "::error::an earlier run of the chain is not a run id: $run"; exit 1; }
@@ -115,6 +116,14 @@ jobs:
             what=$(retry gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq '.path + " | " + .display_title')
             [ "$what" = ".github/workflows/bump-waves.yml | bump-waves $KEY" ] || { echo "::error::$run (the chain of reuse_from) is not a bump-waves run of $KEY ($what)"; exit 1; }
             d="../reuse/$run"; mkdir -p "$d"
+            # the run built THIS library (repo, commit, roots, subdir as its own commit of this repository recorded them): the plan and the settings can match across
+            # two commits of the library, and a pack or shard of another commit must not reach this bundle (hacktron, #178)
+            head=$(retry gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .head_sha)
+            [[ "$head" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::run $run has no head commit"; exit 1; }
+            retry gh api "repos/$GITHUB_REPOSITORY/contents/data/exports/$KEY/setup.ci.json?ref=$head" --jq .content | base64 -d > "$d/setup.ci.json"
+            retry gh api "repos/$GITHUB_REPOSITORY/contents/sources.json?ref=$head" --jq .content | base64 -d > "$d/sources.json"
+            then_lib=$(python3 scripts/bump/lane_reuse.py library --setup "$d/setup.ci.json" --sources "$d/sources.json" --key "$KEY")
+            [ "$then_lib" = "$now_lib" ] || { echo "::error::run $run built another library ($then_lib) than this run ($now_lib)"; exit 1; }
             if [ "$run" = "$REUSE_FROM" ]; then cp -r ../plan "$d/plan"; else
               retry gh run download "$run" -R "$GITHUB_REPOSITORY" -n "plan-$KEY" -D "$d/plan"
               # every run of the chain planned these shards and built them with these settings (each resume checked it against the run before it, but not a run started by hand)
