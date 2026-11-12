@@ -144,12 +144,16 @@ def main() -> None:
     ap.add_argument("--runs", default="", help="fill_from: comma list of run ids, newest first")
     ap.add_argument("--promote-from", default="", help="put this run's regate packs in place of its shard packs in --shards (the run being cut)")
     ap.add_argument("--check-library", default="", help="only check that this run (recut_from: its shards are in shards/ before any fill) built the library of --library-from")
-    ap.add_argument("--shards", required=True)
-    ap.add_argument("--work", required=True)
+    # --shards and --work are what a fill or a promotion writes into; --check-library reads the run's plan and setup only, so it takes neither. They were
+    # required for every mode, and the first real recut (prime-gaps-186, run 43263333838, 12 Nov 2026) stopped there before anything was checked.
+    ap.add_argument("--shards", default="")
+    ap.add_argument("--work", default="")
     ap.add_argument("--plan-new", default="", help="this run's plan directory: every run of the chain must have planned the same shards with the same settings")
     ap.add_argument("--unrecorded", default="false")
     ap.add_argument("--library-from", default="", help="this run's checkout of this repository: every run of the chain must have built the library its setup record names")
     a = ap.parse_args()
+    if not a.check_library and not (a.shards and a.work):
+        ap.error("--shards and --work are required, except with --check-library")
     if a.promote_from:
         if not RUN.match(a.promote_from):
             sys.exit("--promote-from is a run id")
