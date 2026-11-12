@@ -23,6 +23,12 @@ a note is appended at the end of each changed file. Nothing is trusted: the tree
 module still compiles (a later module of the library that used the instance fails and is dropped, as any module that does not build).
 
   scope_rewrite.py [--bundle DIR …] [--pruned DIR …] --leaks "<report lines, separated by newlines or ;>"
+
+ROOT NAMES (`--qualify-roots`). The leak scan also lists the declarations a library puts in the ROOT namespace (`root: X`). `X` is then visible in every file of the tree
+with no `open`, so after `open Polynomial` a bare `X` has two readings (`Polynomial.X` and `_root_.X`): "Ambiguous term X" in every other library's statements (compfiles'
+`Usa1980P3` fails in the one environment because formal-forbidden-matrix declares a root `X` and `C`). Two libraries that both declare a root `f` cannot be imported together
+at all. `qualify_roots_in_file` moves each such NAMED declaration to `Tengoku.<Library>.<name>` and keeps the library's own code working by `open Tengoku.<Library>` in the
+modules that use the name: the declaration (and a `namespace X` block, or a dotted `X.foo`, of a root type X) gets the prefix, nothing else changes, and no line is added or moved.
 """
 
 from __future__ import annotations
@@ -752,6 +758,118 @@ def rewrite_manifest(root: Path, leaks: list[dict]) -> int:
     return changed
 
 
+ROOT_LINE = re.compile(r"(?m)^root:\s+(\S+)\s*$")
+ROOT_DECL = re.compile(
+    r"^(?P<pre>[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|public|noncomputable|nonrec|partial|unsafe)[ \t]+)*)"
+    r"(?:(?:local|scoped)[ \t]+)?(?:theorem|lemma|def|abbrev|structure|inductive|class|opaque|axiom|instance)\s+"
+    r"(?:\(priority\s*:=[^)]*\)\s*)?(?P<name>[^\s:({\[⦃]+)"
+)
+NAMESPACE_NAME = re.compile(r"^(?P<pre>\s*(?:(?:public|noncomputable)\s+)*namespace\s+)(?P<name>\S+)\s*$")
+END_NAME = re.compile(r"^(?P<pre>\s*end\s+)(?P<name>\S+)\s*$")
+OPEN_MARK = "namespace {ns} end {ns} open {ns} "
+
+
+def parse_roots(text: str) -> set[str]:
+    """the `root: NAME` lines of a leak scan report (a declaration of the library whose name has one component)"""
+    return {m.group(1) for m in ROOT_LINE.finditer(text.replace(";", "\n"))}
+
+
+def _uses_roots(f: Lines, roots: set[str]) -> bool:
+    """a bare use of a root name is left in the code (an edited token is preceded by `.`, so it no longer matches)"""
+    if not roots:
+        return False
+    pat = re.compile(r"(?<![\w.'«])(?:" + "|".join(re.escape(r) for r in sorted(roots, key=len, reverse=True)) + r")(?![\w'»])")
+    return any(pat.search(c) for c in f.code)
+
+
+def qualify_roots_in_file(f: Lines, roots: set[str], ns: str, mark_open: bool = True) -> dict:
+    """The edits of one module: a declaration whose name is a root of the library, a `namespace R` block of a root R (with its `end`), and a dotted `R.x` declaration get `<ns>.`
+    in front; the first body line gets `namespace NS end NS open NS` when the module declares or still uses a root. All of it goes INSIDE existing lines (no line moves)."""
+    done: dict = {"declared": [], "namespaces": 0, "dotted": 0, "opened": False}
+    open_at, end_of = scope_info(f.code)
+    for i, code in enumerate(f.code):
+        if any(NAMESPACE.match(f.code[o]) for o in open_at[i]):
+            continue  # inside a namespace a declaration is `N.x`, not a root; the block itself is handled at its own `namespace` line
+        if m := NAMESPACE_NAME.match(code):
+            head = m.group("name").split(".")[0]
+            if head in roots:
+                f.insert(i, m.start("name"), ns + ".")
+                done["namespaces"] += 1
+                end = end_of.get(i)
+                if end is not None and (e := END_NAME.match(f.code[end])) and e.group("name") == m.group("name"):
+                    f.insert(end, e.start("name"), ns + ".")
+            continue
+        m = ROOT_DECL.match(code)
+        if not m:
+            continue
+        name = m.group("name")
+        if name.split(".")[0] in roots:
+            f.insert(i, m.start("name"), ns + ".")
+            if "." in name:
+                done["dotted"] += 1
+            else:
+                done["declared"].append(name)
+    touched = bool(done["declared"] or done["namespaces"] or done["dotted"])
+    first = body_start(f.text)
+    mark = OPEN_MARK.format(ns=ns)
+    if mark_open and (touched or _uses_roots(f, roots)) and first < len(f.text) and mark not in f.text[first]:
+        f.insert(first, 0, mark)
+        done["opened"] = True
+    return done
+
+
+def qualify_bundle(root: Path, roots: set[str], ns: str, skip: int = 0) -> dict:
+    """qualify_roots_in_file on every module of a bundle (`Tengoku/<Library>/…`, skip=0) or of the library's own layout (skip=2). A root that no module declares (the name of an
+    anonymous instance, `instAddFoo`, which no text says) is returned in `unresolved`: it cannot be renamed by text, and it is not a name anyone writes."""
+    report: dict = {"qualified": 0, "namespaces": 0, "dotted": 0, "modules_opened": 0, "unresolved": []}
+    seen: set[str] = set()
+    for mod, path in sorted(native_names(root, skip).items()):
+        f = Lines(path.read_text())
+        d = qualify_roots_in_file(f, roots, ns)
+        if not f.edited:
+            continue
+        report["qualified"] += len(d["declared"])
+        report["namespaces"] += d["namespaces"]
+        report["dotted"] += d["dotted"]
+        report["modules_opened"] += 1 if d["opened"] else 0
+        seen.update(d["declared"])
+        new = "\n".join(f.text)
+        if not new.endswith("\n"):
+            new += "\n"
+        new += f"-- Tengoku: root names of this library moved to {ns} so they do not collide with other libraries (generated)\n"
+        path.write_text(new)
+    report["unresolved"] = sorted(roots - seen)
+    return report
+
+
+def qualify_manifest(root: Path, roots: set[str], ns: str) -> int:
+    """The manifest record of a root-named declaration keeps the old name and statement unless it is changed too: the module now declares `<ns>.<name>`. Returns the count."""
+    path = root / "manifest.jsonl"
+    if not path.is_file():
+        return 0
+    out, changed = [], 0
+    for line in path.read_text(encoding="utf-8").splitlines(keepends=True):
+        rec = json.loads(line) if line.strip() else None
+        if rec and rec.get("name") in roots:
+            f = Lines(rec["statement"])
+            qualify_roots_in_file(f, roots, ns, mark_open=False)  # a record's statement is the declaration alone: no header, no `open`
+            rec["statement"] = "\n".join(f.text)
+            rec["name"] = f"{ns}.{rec['name']}"
+            line = json.dumps(rec, ensure_ascii=False) + "\n"
+            changed += 1
+        out.append(line)
+    path.write_text("".join(out), encoding="utf-8")
+    return changed
+
+
+def library_namespace(root: Path, skip: int) -> str | None:
+    """`Tengoku.<Library>` of a bundle directory (`Tengoku/<Library>/…`); None for the library's own layout (give --namespace)"""
+    if skip != 0 or not (root / "Tengoku").is_dir():
+        return None
+    libs = [d.name for d in (root / "Tengoku").iterdir() if d.is_dir()]
+    return f"Tengoku.{libs[0]}" if len(libs) == 1 else None
+
+
 def for_tree(leaks: list[dict]) -> list[dict]:
     """The leaks as the tree names them. The leak scan runs on the library's own build, where Lean's auto-generated instance names carry the library's suffix
     (`instFoo_prismriver`); in the bundle they carry the tree's (`instFoo_tengoku`, autonames.py), and every line this script writes into a bundle must use those:
@@ -770,21 +888,32 @@ def main() -> None:
     ap.add_argument("--pruned", action="append", default=[], help="a directory of the library's own layout (the factory's pruned sources)")
     ap.add_argument("--leaks", required=True)
     ap.add_argument("--reexport", action="store_true", help="also give every module that imports a flagged module the same registrations, local to it")
+    ap.add_argument("--qualify-roots", action="store_true", help="also move the library's root-namespace declarations (the report's `root:` lines) to Tengoku.<Library>.<name>")
+    ap.add_argument("--namespace", help="the namespace for --qualify-roots (default: Tengoku.<Library> of the bundle)")
     ap.add_argument("--forbid-namespaces", help="a file, one namespace per line: a notation there is not made scoped (core and Mathlib have scoped entries in it); it stays as it is and is reported")
     a = ap.parse_args()
     leaks = parse(a.leaks)
+    roots = parse_roots(a.leaks) if a.qualify_roots else set()
     if a.forbid_namespaces:
         FORBIDDEN_NS.update(x.strip() for x in Path(a.forbid_namespaces).read_text().splitlines() if x.strip())
-    if not leaks:
+    if not leaks and not roots:
         print(json.dumps({"rewritten": 0, "note": "no leak lines"}))
         return
     for dirs, skip in ((a.bundle, 0), (a.pruned, 2)):
         for b in dirs:
             if Path(b).exists():
                 use = for_tree(leaks) if skip == 0 else leaks
-                rep = apply_bundle(Path(b), use, skip)
+                rep = apply_bundle(Path(b), use, skip) if leaks else {"rewritten": 0}
                 if skip == 0:
-                    rep["manifest_statements"] = rewrite_manifest(Path(b), use)
+                    rep["manifest_statements"] = rewrite_manifest(Path(b), use) if leaks else 0
+                if roots:
+                    ns = a.namespace or library_namespace(Path(b), skip)
+                    if ns:
+                        rep["roots"] = qualify_bundle(Path(b), roots, ns, skip)
+                        if skip == 0:
+                            rep["roots"]["manifest_records"] = qualify_manifest(Path(b), roots, ns)
+                    else:
+                        rep["roots"] = {"skipped": "no --namespace, and the bundle is not a single Tengoku/<Library>"}
                 if a.reexport:
                     rep.update(reexport(Path(b), use, skip))
                 print(b, json.dumps(rep))
