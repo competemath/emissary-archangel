@@ -33,9 +33,9 @@ import yaml
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE))
 ROOT = Path(__file__).resolve().parents[3]
-WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+WORKFLOWS = sorted([*(ROOT / ".github" / "workflows").glob("*.yml"), *(ROOT / ".github" / "workflows").glob("*.yaml")])  # both spellings GitHub runs (cubic, #183)
 
-CALL = re.compile(r"python3?\s+(?:-[A-Za-z]+\s+)*(?:\S*/)?scripts/bump/([a-z_]+)\.py\b([^\n]*)")
+CALL = re.compile(r"python3?\s+(?:-[A-Za-z]+\s+)*(?:\S*/)?scripts/bump/([A-Za-z0-9_]+)\.py\b([^\n]*)")  # gate2_batch.py and the like too (cubic, #183)
 OPERATORS = {"|", "||", "&&", ";", ">", ">>", "<", "&", ">&", "<<", "(", ")", ")>>", "2>&1", "1>&2", ">&2"}
 
 
@@ -100,25 +100,39 @@ def invocations() -> list[tuple[str, str, str, list[str], str | None]]:
 
 
 def parse_only(name: str, argv: list[str], parse=None):
-    """run X.main() with argv until its parser has parsed (for real); returns the namespace, or the SystemExit the parser raised"""
+    """run X.main() with argv until its parser has parsed (for real); returns the namespace, or the SystemExit the parser raised.
+
+    The script's own parse is the OUTERMOST parse_args/parse_known_args call (a subparser parses inside it): it is stopped there by depth, never by
+    the parser's prog, which Python 3.14 takes from how __main__ was started ("python3 -m unittest" under the test runner: the bump-tests job of #183)."""
     mod = importlib.import_module(name)
     real_parse, real_known = argparse.ArgumentParser.parse_args, argparse.ArgumentParser.parse_known_args
+    depth = [0]
 
     def stop(self, args=None, namespace=None):
-        ns = (parse or real_parse)(self, args, namespace)
-        if self.prog.endswith(f"{name}.py"):
+        outer = depth[0] == 0
+        depth[0] += 1
+        try:
+            ns = (parse or real_parse)(self, args, namespace)
+        finally:
+            depth[0] -= 1
+        if outer:
             raise Parsed(ns)
-        return ns  # a subparser parses inside the top-level parse
+        return ns
 
     def stop_known(self, args=None, namespace=None):
-        ns, extra = real_known(self, args, namespace)
-        if self.prog.endswith(f"{name}.py") and not extra:
+        outer = depth[0] == 0
+        depth[0] += 1
+        try:
+            ns, extra = real_known(self, args, namespace)
+        finally:
+            depth[0] -= 1
+        if outer and not extra:
             raise Parsed(ns)
         return ns, extra
 
     err = io.StringIO()
     with mock.patch.object(argparse.ArgumentParser, "parse_args", stop), mock.patch.object(argparse.ArgumentParser, "parse_known_args", stop_known), \
-            mock.patch.object(sys, "argv", [f"scripts/bump/{name}.py", *argv]), contextlib.redirect_stderr(err):
+            mock.patch.object(sys, "argv", [f"scripts/bump/{name}.py", *argv]), contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
         try:
             params = inspect.signature(mod.main).parameters
             mod.main(argv) if params and next(iter(params.values())).default is inspect.Parameter.empty else mod.main()  # main(argv) or main()
@@ -135,7 +149,8 @@ class EveryCallParses(unittest.TestCase):
     UNRESOLVED = sorted([
         ("bump-autocut.yml", "propose_cut", "an array"), ("bump-library.yml", "autonames", "an unquoted variable"),
         ("bump-library.yml", "bundle_layers", "an unquoted variable"), ("bump-library.yml", "bundle_rehead", "an unquoted variable"),
-        ("bump-library.yml", "canonicalise_bundle", "an unquoted variable"), ("bump-library.yml", "scope_rewrite", "an unquoted variable"),
+        ("bump-library.yml", "canonicalise_bundle", "an unquoted variable"), ("bump-library.yml", "gate2_driver", "an unquoted variable"),
+        ("bump-library.yml", "scope_rewrite", "an unquoted variable"), ("bump-shard.yml", "gate2_driver", "an unquoted command substitution"),
         ("bump-pickup.yml", "bump_pickup", "an unquoted command substitution"), ("bump-shard.yml", "build_rounds", "arithmetic"),
         ("bump-sharded.yml", "bundle_layers", "an unquoted variable"), ("bump-sharded.yml", "canonicalise_bundle", "an unquoted command substitution"),
         ("bump-sharded.yml", "tree_dups", "an array"), ("bump-sharded.yml", "tree_dups", "an array"), ("bump-sharded.yml", "tree_dups", "an array"),
@@ -144,12 +159,12 @@ class EveryCallParses(unittest.TestCase):
         ("bump-sharded.yml", "tree_verify", "an array"), ("bump-sharded.yml", "tree_verify", "an array"), ("bump-waves.yml", "lane_reuse", "an unquoted variable"),
         ("intake-open.yml", "intake_open", "an array"), ("notation-census.yml", "notation_census", "an array"), ("notation-census.yml", "scope_rewrite", "an unquoted variable"),
     ])
-    BY_HAND = {"adapters", "bundle", "bundle_tar", "engine", "import_graph", "in_tree", "lake_fetch", "leakscan_args", "ledger_rows", "link_srcdir", "mine_moves",
+    BY_HAND = {"adapters", "bundle", "bundle_tar", "engine", "gate2_batch", "import_graph", "in_tree", "lake_fetch", "leakscan_args", "ledger_rows", "link_srcdir", "mine_moves",
                "plan_inputs", "portfolio", "records", "rerun_killed", "shard_pack", "tentative_files"}
 
     def test_every_invocation(self):
         calls = invocations()
-        self.assertGreaterEqual(len(calls), 100, "the workflows call bump scripts 108 times (12 Nov 2026); far fewer means the scan broke")
+        self.assertGreaterEqual(len(calls), 100, "the workflows call bump scripts 112 times (12 Nov 2026); far fewer means the scan broke")
         parsed, left, n_by_hand, by_hand, unresolved, bad = 0, 0, 0, set(), [], []
         for wf, step, name, argv, why in calls:
             if not argparse_main(name):
@@ -175,6 +190,24 @@ class EveryCallParses(unittest.TestCase):
         self.assertGreaterEqual(parsed, 40)
         self.assertEqual(len(calls), parsed + left + n_by_hand)  # every call is parsed, named as unresolved, or a script read by hand
 
+    def test_the_stop_does_not_depend_on_the_program_name(self):
+        # Python 3.14 names the parser after how __main__ was started: under `python3 -m unittest` (the bump-tests job) every script's parser is
+        # "python3 -m unittest". #183's first version stopped a script by that name, so on 3.14 the scripts ran for real and the job failed.
+        real_init = argparse.ArgumentParser.__init__
+
+        def as_on_314(self, *a, **k):
+            real_init(self, *a, **k)
+            self.prog = "python3 -m unittest"
+
+        argv = ["--repo", "competemath/emissary-archangel", "--key", "prime-gaps-186", "--check-library", "42549840777", "--library-from", "emissary"]
+        with mock.patch.object(argparse.ArgumentParser, "__init__", as_on_314):
+            ns = parse_only("fill_from", argv)
+            self.assertNotIsInstance(ns, SystemExit, ns)
+            self.assertEqual(ns.check_library, "42549840777")
+            # a script with subcommands: the outer parse is the one stopped, the subparser's runs inside it
+            sub = parse_only("tree_dups", ["after-verdict", "--fp-before", "a", "--fp-after", "b", "--candidates", "c", "--dups", "d", "--new", "n", "--tree", "t", "--log2", "l", "--out", "o"])
+            self.assertNotIsInstance(sub, SystemExit, sub)
+
     def test_the_real_failing_call(self):
         # bump-sharded run 43263333838, compose, as it ran
         argv = ["--repo", "competemath/emissary-archangel", "--key", "prime-gaps-186", "--check-library", "42549840777", "--library-from", "emissary"]
@@ -196,7 +229,7 @@ class EveryCallParses(unittest.TestCase):
 
         def required_again(self, args=None, namespace=None):
             for act in self._actions:
-                if act.dest in ("shards", "work") and self.prog.endswith("fill_from.py"):
+                if act.dest in ("shards", "work"):  # only fill_from.py's parser has both
                     act.required = True
             return real_parse(self, args, namespace)
 
@@ -236,10 +269,11 @@ class FillFromModes(unittest.TestCase):
             self.assertEqual(seen[-1], ("competemath/emissary-archangel", "prime-gaps-186", "42549840777", {"id": "x"}))
 
     def test_fill_and_promote_still_need_them(self):
-        for argv in (["--runs", "43146942669"], ["--promote-from", "43146942669"], ["--runs", "43146942669", "--shards", "s"], ["--promote-from", "1", "--work", "w"]):
+        for argv in (["--runs", "43146942669"], ["--promote-from", "43146942669"], ["--runs", "43146942669", "--shards", "s"], ["--promote-from", "1", "--work", "w"],
+                     ["--promote-from", "43146942669", "--check-library", "42549840777", "--library-from", "emissary"]):  # a promotion writes: never exempt (cubic, #183)
             code, out, err = self.run_main(["--repo", "r", "--key", "k", *argv])
             self.assertEqual(code, 2, argv)
-            self.assertIn("--shards and --work are required, except with --check-library", err)
+            self.assertIn("--shards and --work are required for a fill or a promotion", err)
 
 
 if __name__ == "__main__":

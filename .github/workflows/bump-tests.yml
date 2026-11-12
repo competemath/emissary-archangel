@@ -27,4 +27,5 @@ jobs:
       - name: unit tests of scripts/bump
         run: |
           set -o pipefail  # `| tail` would otherwise hide a failing test
-          python3 -m unittest discover -s scripts/bump/tests 2>&1 | tail -15
+          # -u: stdout unbuffered, so the summary and a failing test's name end the output and survive the tail (#183: buffered output came last and hid them)
+          python3 -u -m unittest discover -s scripts/bump/tests 2>&1 | tail -15
