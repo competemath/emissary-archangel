@@ -88,6 +88,8 @@ SWAP_GB = re.compile(r"0|[1-9][0-9]{0,2}")
 
 def swap_of(rec: dict) -> str:
     """the swap (GB) a plan's shards were built with: what the record says, or the default when it says nothing (a record leaves out the defaults)"""
+    if not isinstance(rec, dict):
+        raise ValueError(f"inputs.json: a record is a JSON object, not {type(rec).__name__}")  # cubic, #182
     v = rec.get("swap_gb", DEFAULTS["SWAP_GB"])
     if not isinstance(v, str) or not SWAP_GB.fullmatch(v):
         raise ValueError(f"inputs.json: swap_gb is a number of GB, not {str(v)[:20]!r}")
