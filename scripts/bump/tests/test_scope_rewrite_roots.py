@@ -221,6 +221,37 @@ class Bundle(unittest.TestCase):
             self.assertEqual(rows[0]["statement"], f"theorem {NS}.L_true : L 0 0")
             self.assertEqual(rows[1]["name"], "c")  # not a root: unchanged
 
+    def test_a_record_follows_by_head_component_not_by_exact_name(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            self.layout(d)
+            rows = [
+                {"name": "Helper.inner", "statement": "def Helper.inner : Nat := 3", "module": f"{NS}.ForbiddenMatrix.MatrixOperations"},  # a member of a root's namespace block
+                {"name": "Nat.double", "statement": "def Nat.double (n : Nat) : Nat := 2 * n", "module": f"{NS}.ForbiddenMatrix.MatrixOperations"},  # an extension of an outside namespace
+            ]
+            (d / "bundle" / "manifest.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+            self.assertEqual(sr.qualify_manifest(d / "bundle", {"Helper"}, NS), 1)
+            out = [json.loads(x) for x in (d / "bundle" / "manifest.jsonl").read_text().splitlines()]
+            self.assertEqual(out[0]["name"], f"{NS}.Helper.inner")
+            self.assertEqual(out[0]["statement"], f"def {NS}.Helper.inner : Nat := 3")
+            self.assertEqual(out[1]["name"], "Nat.double")
+
+    def test_the_cli_leaves_the_record_of_a_root_no_module_renamed_alone(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            self.layout(d)
+            rows = [json.loads(x) for x in (d / "bundle" / "manifest.jsonl").read_text().splitlines()]
+            rows.append({"name": "instAddFoo", "statement": "instance : Add Foo := inferInstance", "module": f"{NS}.ForbiddenMatrix.MatrixOperations"})
+            (d / "bundle" / "manifest.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+            r = subprocess.run(
+                [sys.executable, str(Path(sr.__file__)), "--bundle", str(d / "bundle"), "--qualify-roots", "--leaks", "roots: 2 declarations\nroot: X\nroot: instAddFoo"],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            out = [json.loads(x) for x in (d / "bundle" / "manifest.jsonl").read_text().splitlines()]
+            self.assertEqual([x["name"] for x in out], ["L_true", "c", "instAddFoo"])
+
     def test_cli_end_to_end_default_namespace(self):
         with tempfile.TemporaryDirectory() as t:
             d = Path(t)
