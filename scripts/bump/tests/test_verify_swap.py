@@ -211,15 +211,43 @@ def fakes(d: Path, scripts: dict) -> dict:
 class PlanLookup(unittest.TestCase):
     """the compose step that decides whether the plan of the shards' run is still kept, run as bash with a fake gh"""
 
-    def run_step(self, recut: str, gh_body: str):
+    STEP = None
+
+    def run_step(self, recut: str, gh_body: str, step: str | None = None):
+        """(exit, $GITHUB_OUTPUT, log, the arguments gh was called with: one list per call)"""
         with tempfile.TemporaryDirectory() as d:
-            env = fakes(Path(d), {"gh": gh_body})
+            calls = Path(d) / "calls"
+            # every call's arguments, one per line, then a separator: the query is asserted exactly (cubic, #182)
+            env = fakes(Path(d), {"gh": f'for a in "$@"; do printf "%s\\n" "$a" >> {calls}; done; echo "--" >> {calls}\n' + gh_body})
             out = Path(d) / "out"
             out.write_text("")
             env.update(GITHUB_OUTPUT=str(out), GITHUB_REPOSITORY="competemath/emissary-archangel", KEY="prime-gaps-186", RECUT=recut,
                        RUN=recut or "43237206258", GH_TOKEN="x")
-            r = subprocess.run(["bash", "-e", "-o", "pipefail", "-c", step_run("compose", lambda s: s.get("id") == "planrec")], capture_output=True, text=True, env=env)
-            return r.returncode, out.read_text(), r.stdout + r.stderr
+            step = step or step_run("compose", lambda s: s.get("id") == "planrec")
+            r = subprocess.run(["bash", "-e", "-o", "pipefail", "-c", step], capture_output=True, text=True, env=env)
+            got = calls.read_text().split("--\n")[:-1] if calls.exists() else []
+            return r.returncode, out.read_text(), r.stdout + r.stderr, [c.splitlines() for c in got]
+
+    QUERY = ["api", "repos/competemath/emissary-archangel/actions/runs/42549840777/artifacts?name=plan-prime-gaps-186",
+             "--jq", "[.artifacts[] | select(.expired | not)] | length"]
+
+    def test_the_exact_query(self):
+        code, out, log, calls = self.run_step("42549840777", "echo 1\n")
+        self.assertEqual((code, out), (0, "kept=true\n"), log)
+        self.assertEqual(calls, [self.QUERY])  # one call: this repository, the recut run, the plan of this key, kept artifacts only
+
+    def test_a_wrong_query_is_caught(self):
+        real = step_run("compose", lambda s: s.get("id") == "planrec")
+        wrong = {
+            "another repository": real.replace("repos/$GITHUB_REPOSITORY/", "repos/competemath/emissary-sandbox/"),
+            "this run, not the recut one": real.replace("actions/runs/$RUN/", "actions/runs/43237206258/"),
+            "no key in the name": real.replace("name=plan-$KEY", "name=plan-"),
+            "every artifact of the run": real.replace("artifacts?name=plan-$KEY", "artifacts"),
+            "expired ones counted": real.replace("[.artifacts[] | select(.expired | not)] | length", "[.artifacts[]] | length"),
+        }
+        for name, step in wrong.items():
+            self.assertNotEqual(step, real, name)
+            self.assertNotEqual(self.run_step("42549840777", "echo 1\n", step)[3], [self.QUERY], name)
 
     def test_cases(self):
         kept = "echo 1\n"
@@ -235,8 +263,10 @@ class PlanLookup(unittest.TestCase):
         for (recut, gh), (code, out) in cases.items():
             got = self.run_step(recut, gh)
             self.assertEqual(got[:2], (code, out), (recut, gh, got[2]))
-            if recut == "":
-                self.assertNotIn("called", got[2])
+            if recut == "" or not recut.isdigit() or recut == "0":
+                self.assertEqual(got[3], [], (recut, "gh is not asked"))  # this run's own plan, or a run id refused before any query
+            else:
+                self.assertEqual(got[3], [[a.replace("42549840777", recut) for a in self.QUERY]])
 
 
 class SwapStep(unittest.TestCase):
