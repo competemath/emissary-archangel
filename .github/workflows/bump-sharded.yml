@@ -177,6 +177,7 @@ jobs:
     env: { KEY: "${{ inputs.key }}", TOOLCHAIN: "${{ inputs.toolchain }}", DROP: "${{ inputs.drop }}", SCOPE: "${{ inputs.scope }}", VERIFY: "${{ inputs.verify }}", VERIFY_MODES: "${{ inputs.verify_modes }}", DUPS: "${{ inputs.dups }}", IMPORTS: "${{ inputs.imports }}" }
     outputs:
       modes: ${{ steps.draft.outputs.modes }}
+      swap_gb: ${{ steps.built.outputs.swap_gb }}
     steps:
       - name: This repository (scripts, the library's setup)
         run: |
@@ -189,6 +190,15 @@ jobs:
       - name: The regate packs of the run, in place of its shard packs
         env: { GH_TOKEN: "${{ github.token }}", RUN: "${{ inputs.recut_from || github.run_id }}" }
         run: python3 emissary/scripts/bump/fill_from.py --repo "$GITHUB_REPOSITORY" --key "$KEY" --promote-from "$RUN" --shards shards --work regate-work
+      # the swap the shards were built with (the plan's inputs.json, of the run whose shards these are): verify builds the same modules and needs the same memory. prime-gaps-186
+      # (run 42549840777, 9 and 12 Nov 2026): the shard built its one new module on 48 GB of swap in 64 min; verify had none and lost its runner 16 min into the build, twice.
+      # A recut of a run older than the plan's 14 days has no record: plan_inputs.py says so and verify builds without swap, as before.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        continue-on-error: ${{ inputs.recut_from != '' }}
+        with: { name: "plan-${{ inputs.key }}", path: plan-built, run-id: "${{ inputs.recut_from || github.run_id }}", github-token: "${{ github.token }}" }
+      - name: The swap the shards were built with
+        id: built
+        run: python3 emissary/scripts/bump/plan_inputs.py swap plan-built/inputs.json >> "$GITHUB_OUTPUT"
       # a recut merges another run's shards as they are: that run built the library this run's setup record names, or the run stops (cubic and hacktron, #178)
       - name: The run this one recuts built this library
         if: ${{ inputs.recut_from != '' }}
@@ -265,7 +275,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 355
     permissions: { contents: read }
-    env: { KEY: "${{ inputs.key }}", MODE: "${{ matrix.mode }}", VERIFY_PARTIAL: "${{ inputs.verify_partial }}", DUPS: "${{ inputs.dups }}", FORK_IDENTICAL: "${{ inputs.fork_identical }}" }
+    env: { KEY: "${{ inputs.key }}", MODE: "${{ matrix.mode }}", VERIFY_PARTIAL: "${{ inputs.verify_partial }}", DUPS: "${{ inputs.dups }}", FORK_IDENTICAL: "${{ inputs.fork_identical }}", SWAP_GB: "${{ needs.compose.outputs.swap_gb }}" }
     steps:
       # the copies-of-tree-modules steps spend what is left of the job after the steps that must still run (axiom check 15, clash scan 20, whole-tree import 50, verdict and upload 25: 110 minutes)
       - name: The clock
@@ -305,6 +315,10 @@ jobs:
           echo "tree: $(git -C tree rev-parse HEAD)" | tee out/tree-sha.txt
           cd tree && scripts/cache.sh get 2>&1 | tail -3
           { echo "== after seeding"; df -h / | tail -1; du -sh .lake/build 2>/dev/null; } | tee -a ../out/disk.log
+      # after the tree's cache is unpacked, so that add-swap.sh sizes the swap from what is really free; before the first `lake build`
+      - name: Swap, as the shards were built with (sized from the free space, 40 GB kept for the build)
+        if: ${{ needs.compose.outputs.swap_gb != '0' && needs.compose.outputs.swap_gb != '' }}
+        run: sh emissary/scripts/add-swap.sh "$SWAP_GB" 40
       - name: Copy the new modules into the tree
         run: |
           python3 emissary/scripts/bump/tree_verify.py apply --bundle bundle --tree tree --out out
@@ -318,8 +332,9 @@ jobs:
           if [ ${#targets} -gt 1500000 ]; then echo "::error::the new modules do not fit one command line; recut from the tree in rounds (from_tree) so that fewer are new"; exit 1; fi
           cd tree
           set +e
-          # the disk, every minute: a runner whose disk fills dies without a word, and this is what says so afterwards
-          ( while sleep 60; do echo "$(date -u +%H:%M:%S) $(df -h / | tail -1 | awk '{print "used=" $3 " avail=" $4}') mem_avail_kb=$(awk '/MemAvailable/ {print $2}' /proc/meminfo)" >> ../out/disk.log; done ) &
+          # the disk, memory and swap, every minute, in out/disk.log AND the job's log: a runner that runs out of either dies without a word and takes out/ with it (prime-gaps-186's
+          # verify, 12 Nov 2026), while the job's log keeps what was streamed before the end
+          ( while sleep 60; do echo "$(date -u +%H:%M:%S) $(df -h / | tail -1 | awk '{print "used=" $3 " avail=" $4}') mem_avail_kb=$(awk '/MemAvailable/ {print $2}' /proc/meminfo) swap_used_kb=$(awk '/SwapTotal/ {t=$2} /SwapFree/ {f=$2} END {print t-f}' /proc/meminfo)" | tee -a ../out/disk.log; done ) &
           sampler=$!
           # one argument per module (a name never splits; compose leaves out names with a space, which the tree's queue would split)
           mapfile -t tg < <(grep -v '^[[:space:]]*$' ../out/targets.txt)

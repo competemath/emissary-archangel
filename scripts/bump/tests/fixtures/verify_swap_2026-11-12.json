@@ -1,0 +1,43 @@
+{
+ "source": "competemath/emissary-archangel run 42549840777 (bump-sharded prime-gaps-186): shard job 128942789138, verify job 131224020207 (attempt 2; attempt 1, job 128963419921, ended the same way 03:27-03:44 on 9 Nov); bump-waves run 43146942669 (flt-anthropic lane)",
+ "prime_gaps_inputs": {
+  "build_timeout_min": "170",
+  "imports": "faithful",
+  "mathlib": "v4.34.0-rc2",
+  "swap_gb": "48",
+  "tengoku_ref": "",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2"
+ },
+ "flt_lane_inputs": {
+  "build_timeout_min": "170",
+  "imports": "faithful",
+  "mathlib": "v4.34.0-rc2",
+  "swap_gb": "48",
+  "tengoku_ref": "",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2"
+ },
+ "shard_log": [
+  "2026-11-09T02:15:00.9649165Z   heavy: swap_gb=48;build_timeout_min=170",
+  "2026-11-09T02:17:22.2648679Z Setting up swapspace version 1, size = 48 GiB (51539603456 bytes)",
+  "2026-11-09T02:17:22.2750697Z add-swap.sh: 48 GB of swap (112 GB were free, 40 kept, at most 48)",
+  "2026-11-09T02:17:22.2762026Z Swap:             47           0          47",
+  "2026-11-09T03:24:46.2238383Z gate2: 1 modules, 3504 declarations: ok, 65.6s, peak 7095 MB, 5124 verdict lines"
+ ],
+ "verify_log": [
+  "2026-11-12T13:46:09.5208016Z ##[group]Run echo \"JOB_START=$(date +%s)\" >> \"$GITHUB_ENV\"",
+  "2026-11-12T13:46:09.5594276Z   JOB_START: 1794491169",
+  "2026-11-12T13:46:10.8824845Z   JOB_START: 1794491169",
+  "2026-11-12T13:46:12.8901858Z   JOB_START: 1794491169",
+  "2026-11-12T13:46:12.9207201Z   JOB_START: 1794491169",
+  "2026-11-12T13:48:29.0647565Z == after freeing",
+  "2026-11-12T13:48:29.0653732Z /dev/root       145G   18G  128G  12% /",
+  "2026-11-12T13:48:29.0759821Z   JOB_START: 1794491169",
+  "2026-11-12T13:48:44.3279612Z   JOB_START: 1794491169",
+  "2026-11-12T13:52:48.6339938Z /dev/root       145G   56G   89G  39% /",
+  "2026-11-12T13:52:56.1849750Z   JOB_START: 1794491169",
+  "2026-11-12T13:52:56.3015272Z 1 new module(s) of 2 in the bundle: copied into tree; targets in out/targets.txt",
+  "2026-11-12T13:52:56.3237159Z   JOB_START: 1794491169",
+  "2026-11-12T14:09:02.1795174Z ##[error]Process completed with exit code 143.",
+  "2026-11-12T14:09:02.1808619Z ##[error]The runner has received a shutdown signal. This can happen when the runner service is stopped, or a manually started runner is canceled."
+ ]
+}
