@@ -126,6 +126,15 @@ class OneFile(unittest.TestCase):
         self.assertIn(f"end {NS}.Cell\n", new)
         self.assertIn(f"def {NS}.Cell.dec", new)
 
+    def test_open_of_a_root_namespace_follows_the_namespace(self):
+        text = "module\n\npublic import Tengoku\n\nopen Cell\nopen scoped Cell Other\nopen Cell hiding inc\nopen Other\n\nstructure Cell where\n  v : Nat\n"
+        new, done = edit(text, {"Cell"})
+        self.assertIn(f"open {NS}.Cell\n", new)
+        self.assertIn(f"open scoped {NS}.Cell Other\n", new)
+        self.assertIn(f"open {NS}.Cell hiding inc\n", new)
+        self.assertIn("\nopen Other\n", new)  # not a root
+        self.assertEqual(done["opens"], 3)
+
     def test_an_end_without_a_name_is_left_alone(self):
         text = "module\n\npublic import Tengoku\n\nnamespace Cell\ndef inc : Nat := 1\nend\n"
         new, done = edit(text, {"Cell"})
@@ -196,6 +205,21 @@ class Bundle(unittest.TestCase):
             self.assertEqual(out["roots"]["qualified"], 2)
             self.assertEqual(out["roots"]["manifest_records"], 1)
             self.assertIn(f"def {NS}.X", (b / "MatrixOperations.lean").read_text())
+
+    def test_the_library_layout_takes_the_bundles_namespace(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            self.layout(d)
+            p = d / "pruned" / "ForbiddenMatrix"
+            p.mkdir(parents=True)
+            (p / "MatrixOperations.lean").write_text(MATRIX)
+            r = subprocess.run(
+                [sys.executable, str(Path(sr.__file__)), "--bundle", str(d / "bundle"), "--pruned", str(d / "pruned"), "--qualify-roots", "--leaks", "root: X"],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn(f"def {NS}.X", (p / "MatrixOperations.lean").read_text())
 
     def test_without_the_flag_roots_are_only_reported(self):
         with tempfile.TemporaryDirectory() as t:

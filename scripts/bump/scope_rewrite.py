@@ -767,6 +767,7 @@ ROOT_DECL = re.compile(
 NAMESPACE_NAME = re.compile(r"^(?P<pre>\s*(?:(?:public|noncomputable)\s+)*namespace\s+)(?P<name>\S+)\s*$")
 END_NAME = re.compile(r"^(?P<pre>\s*end\s+)(?P<name>\S+)\s*$")
 OPEN_MARK = "namespace {ns} end {ns} open {ns} "
+OPEN_LINE = re.compile(r"^(?P<pre>\s*(?:@\[[^\]]*\]\s*)?open\s+(?:scoped\s+)?)(?P<args>[^()]*?)(?P<post>\s+(?:hiding|renaming)\b.*|\s+in\s*|\s*\(.*)?\s*$")
 
 
 def parse_roots(text: str) -> set[str]:
@@ -809,7 +810,14 @@ def qualify_roots_in_file(f: Lines, roots: set[str], ns: str, mark_open: bool = 
                 done["dotted"] += 1
             else:
                 done["declared"].append(name)
-    touched = bool(done["declared"] or done["namespaces"] or done["dotted"])
+    for i, code in enumerate(f.code):  # `open R` of a root namespace R: the namespace moved, so the `open` follows (right to left: an insertion shifts the columns after it)
+        if (m := OPEN_LINE.match(code)) and "namespace" not in code:
+            for t in reversed(list(re.finditer(r"[^\s]+", m.group("args")))):
+                tok = t.group(0)
+                if tok.split(".")[0] in roots and not tok.startswith(ns):
+                    f.insert(i, m.start("args") + t.start(), ns + ".")
+                    done["opens"] = done.get("opens", 0) + 1
+    touched = bool(done["declared"] or done["namespaces"] or done["dotted"] or done.get("opens"))
     first = body_start(f.text)
     mark = OPEN_MARK.format(ns=ns)
     if mark_open and (touched or _uses_roots(f, roots)) and first < len(f.text) and mark not in f.text[first]:
@@ -899,6 +907,7 @@ def main() -> None:
     if not leaks and not roots:
         print(json.dumps({"rewritten": 0, "note": "no leak lines"}))
         return
+    tree_ns = next((n for b in a.bundle if Path(b).exists() and (n := library_namespace(Path(b), 0))), None)  # the library's own layout takes the bundle's namespace
     for dirs, skip in ((a.bundle, 0), (a.pruned, 2)):
         for b in dirs:
             if Path(b).exists():
@@ -907,7 +916,7 @@ def main() -> None:
                 if skip == 0:
                     rep["manifest_statements"] = rewrite_manifest(Path(b), use) if leaks else 0
                 if roots:
-                    ns = a.namespace or library_namespace(Path(b), skip)
+                    ns = a.namespace or library_namespace(Path(b), skip) or tree_ns
                     if ns:
                         rep["roots"] = qualify_bundle(Path(b), roots, ns, skip)
                         if skip == 0:
