@@ -306,6 +306,64 @@ class Library(unittest.TestCase):
         self.assertNotEqual(lr.library_identity(LIB["other_library"], sources_with({}), KEY), ident)
 
 
+# the real runs as the API showed them on 12 Nov 2026 (path | display_title | head_branch | event | head_repository.full_name)
+REAL_RUNS = {
+    "42678283150": (".github/workflows/bump-waves.yml", "bump-waves flt-anthropic", "flt-anthropic"),
+    "43075875630": (".github/workflows/bump-waves.yml", "bump-waves flt-anthropic", "flt-anthropic"),
+    "43102927936": (".github/workflows/bump-sharded.yml", "bump-sharded lean-characteristic-set", "lean-characteristic-set"),
+    "42494414245": (".github/workflows/bump-sharded.yml", "bump-sharded lean-characteristic-set", "lean-characteristic-set"),
+}
+REPO = "competemath/emissary-archangel"
+
+
+def info_of(path: str, title: str, **kw) -> dict:
+    return {"head_sha": "a" * 40, "path": path, "display_title": title, "head_branch": "main", "event": "workflow_dispatch", "head_repo": REPO} | kw
+
+
+class Provenance(unittest.TestCase):
+    """I10: artifacts are taken only from runs of the lane's own workflows for this key, dispatched on main of this repository (hacktron, #178)"""
+
+    def test_the_real_runs_may_hand_on(self):
+        for run, (path, title, key) in REAL_RUNS.items():
+            self.assertEqual(lr.untrusted(info_of(path, title), REPO, key), "", run)
+        self.assertEqual(lr.untrusted(info_of(".github/workflows/bump-sharded.yml", "bump-sharded flt-anthropic (from tree)"), REPO, KEY), "")
+
+    def test_any_other_run_may_not(self):
+        bw = (".github/workflows/bump-waves.yml", f"bump-waves {KEY}")
+        cases = [
+            info_of(".github/workflows/pr-check.yml", f"bump-waves {KEY}"),  # another workflow with a look-alike title
+            info_of(".github/workflows/bump-waves.yml", "bump-waves another-key"),  # another key
+            info_of(*bw, head_repo="evil/emissary-archangel"),  # a fork
+            info_of(*bw, event="pull_request"),  # a pull request's run
+            info_of(*bw, head_branch="feature"),  # another branch
+            info_of(*bw, event="push"),
+            info_of(*bw, head_sha="x"),
+            {},
+        ]
+        for c in cases:
+            self.assertNotEqual(lr.untrusted(c, REPO, KEY), "", c)
+
+    def test_a_forged_run_fills_nothing(self):  # hacktron's case: matching plan and library, but not a run of the lane
+        t = Path(tempfile.mkdtemp())
+        (t / "plan-new").mkdir()
+        (t / "plan-new" / "plan.json").write_text(json.dumps(PLAN))
+        (t / "plan-new" / "inputs.json").write_text('{"x": 1}')
+        store = {"99": {f"plan-{KEY}": {"plan.json": json.dumps(PLAN), "inputs.json": '{"x": 1}'}, f"shard-{KEY}-0": {"shard-pack/src/Forged.lean": "theorem forged : False := sorry"}}}
+        contents = {"a" * 40: {"setup.ci.json": LIB["setup"]["main"], "sources.json": sources_with(LIB["sources_entry"]["main"])}}
+        here = lr.library_identity(LIB["setup"]["main"], sources_with(LIB["sources_entry"]["main"]), KEY)
+        for bad in ({"path": ".github/workflows/pr-check.yml"}, {"event": "pull_request"}, {"head_repo": "evil/x"}, {"head_branch": "feature"}):
+            runner, _ = fake_gh(store, contents=contents, infos={"99": bad})
+            with self.assertRaises(SystemExit) as e:
+                ff.fill_from("o/r", KEY, ["99"], t / "shards", t / "work", t / "plan-new", runner=runner, sleep=lambda s: None, library=here)
+            self.assertIn("may not hand its artifacts", str(e.exception))
+            self.assertFalse(list((t / "shards").rglob("Forged.lean")))
+            with self.assertRaises(SystemExit):
+                ff.check_library("o/r", KEY, "99", here, runner, lambda s: None)  # the recut check too
+        runner, _ = fake_gh(store, contents=contents)  # a real lane run of the same library: taken
+        ff.fill_from("o/r", KEY, ["99"], t / "shards", t / "work2", t / "plan-new", runner=runner, sleep=lambda s: None, library=here)
+        self.assertTrue(list((t / "shards").rglob("Forged.lean")))
+
+
 class Packs(unittest.TestCase):
     def test_what_the_plan_hands_on_the_shard_reads_back(self):  # I6
         ran = sorted(set(range(len(PLAN["shards"]))) - kept(lr.chain_view(PLAN, [run_of_fx(P)], KEY)))
@@ -340,7 +398,7 @@ class Packs(unittest.TestCase):
             self.assertEqual(r.returncode != 0, bool(want), (packs, r.stdout))
 
 
-def fake_gh(store: dict[str, dict[str, dict[str, str]]], fail_first: int = 0, heads: dict | None = None, contents: dict | None = None):
+def fake_gh(store: dict[str, dict[str, dict[str, str]]], fail_first: int = 0, heads: dict | None = None, contents: dict | None = None, infos: dict | None = None):
     """gh run download / gh api .../artifacts over `store` {run: {artifact: {relpath: text}}}; the first `fail_first` calls fail (a 502)"""
     calls = []
 
@@ -359,7 +417,9 @@ def fake_gh(store: dict[str, dict[str, dict[str, str]]], fail_first: int = 0, he
             return subprocess.CompletedProcess(cmd, 0, "", "")
         if cmd[1] == "api" and re.search(r"/runs/\d+$", cmd[2]):
             run = cmd[2].rsplit("/", 1)[1]
-            return subprocess.CompletedProcess(cmd, 0, (heads or {}).get(run, "a" * 40) + "\n", "")
+            info = {"head_sha": (heads or {}).get(run, "a" * 40), "path": ".github/workflows/bump-waves.yml", "display_title": f"bump-waves {KEY}", "head_branch": "main",
+                    "event": "workflow_dispatch", "head_repo": "o/r"} | (infos or {}).get(run, {})
+            return subprocess.CompletedProcess(cmd, 0, json.dumps(info) + "\n", "")
         if cmd[1] == "api" and "/contents/" in cmd[2]:
             ref = cmd[2].split("ref=")[1]
             files = (contents or {}).get(ref, {})
@@ -543,7 +603,14 @@ class ResumeStep(unittest.TestCase):
             self.assertIn(f"run {run} built another library", r.stdout + r.stderr)
             self.assertNotIn("packs", out)
 
-    def run_step(self, other_commit_for: str | None = None):
+    def test_a_run_of_the_chain_not_dispatched_on_main_stops_the_step(self):  # I10 (hacktron, #178)
+        for run in (R, P):
+            r, _, out = self.run_step(other_branch_for=run)
+            self.assertNotEqual(r.returncode, 0, run)
+            self.assertIn(f"{run} (the chain of reuse_from) is not a bump-waves run of {KEY} dispatched on main", r.stdout + r.stderr)
+            self.assertNotIn("packs", out)
+
+    def run_step(self, other_commit_for: str | None = None, other_branch_for: str | None = None):
         step = next(s for s in yaml.safe_load((WF / "bump-waves.yml").read_text())["jobs"]["plan"]["steps"] if s.get("id") == "r")
         t = Path(tempfile.mkdtemp())
         (t / "emissary" / "scripts" / "bump").mkdir(parents=True)
@@ -563,7 +630,7 @@ class ResumeStep(unittest.TestCase):
         (t / "emissary" / "data" / "exports" / KEY).mkdir(parents=True)
         (t / "emissary" / "data" / "exports" / KEY / "setup.ci.json").write_text(json.dumps(LIB["setup"]["main"]))
         (t / "emissary" / "sources.json").write_text(json.dumps({"sources": {KEY: LIB["sources_entry"]["main"]}}))
-        (t / "fx.json").write_text(json.dumps({"runs": runs, "plan": PLAN, "key": KEY, "heads": heads, "files": files}))
+        (t / "fx.json").write_text(json.dumps({"runs": runs, "plan": PLAN, "key": KEY, "heads": heads, "files": files, "branch": {other_branch_for: "feature"} if other_branch_for else {}}))
         bin_ = t / "bin"
         bin_.mkdir()
         (bin_ / "gh").write_text(f"""#!{sys.executable}
@@ -584,7 +651,8 @@ if "/contents/" in url:
 elif url.endswith("/runs/" + run) and jq == ".head_sha":
     print(fx["heads"][run])
 elif url.endswith("/runs/" + run):
-    print(".github/workflows/bump-waves.yml | bump-waves " + fx["key"])
+    branch = fx.get("branch", {{}}).get(run, "main")
+    print(".github/workflows/bump-waves.yml | bump-waves " + fx["key"] + " | " + branch + " | workflow_dispatch | o/r")
 elif "/jobs" in url and 'select(.name == "plan")' in jq:
     print(fx["runs"][run]["id"])
 elif "/jobs" in url:

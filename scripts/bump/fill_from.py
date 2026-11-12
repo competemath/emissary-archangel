@@ -27,6 +27,7 @@ import shard_pack  # noqa: E402
 
 RUN = re.compile(r"^[1-9][0-9]{0,14}$")
 MAX_RUNS = 8  # lane_reuse.MAX_CHAIN
+RUN_INFO = "{head_sha, path, display_title, head_branch, event, head_repo: .head_repository.full_name}"
 
 
 def runs_of(text: str) -> list[str]:
@@ -65,9 +66,11 @@ def same_plan(old: Path, new: Path, unrecorded: bool, run: str) -> None:
 
 def library_of_run(repo: str, run: str, key: str, runner=subprocess.run, sleep=time.sleep) -> dict:
     """the library a run built, as its own commit of this repository recorded it (lane_reuse.library_identity)"""
-    head = gh(["api", f"repos/{repo}/actions/runs/{run}", "--jq", ".head_sha"], runner, sleep).strip()
-    if not re.fullmatch(r"[0-9a-f]{40}", head):
-        sys.exit(f"run {run} has no head commit ({head[:60]!r})")
+    info = json.loads(gh(["api", f"repos/{repo}/actions/runs/{run}", "--jq", RUN_INFO], runner, sleep))
+    why = lane_reuse.untrusted(info, repo, key)
+    if why:
+        sys.exit(f"run {run} may not hand its artifacts to this one: {why}")
+    head = info["head_sha"]
     setup = json.loads(base64.b64decode(gh(["api", f"repos/{repo}/contents/data/exports/{key}/setup.ci.json?ref={head}", "--jq", ".content"], runner, sleep)))
     sources = json.loads(base64.b64decode(gh(["api", f"repos/{repo}/contents/sources.json?ref={head}", "--jq", ".content"], runner, sleep)))
     return lane_reuse.library_identity(setup, sources, key)

@@ -113,8 +113,9 @@ jobs:
             [[ "$run" =~ ^[1-9][0-9]{0,14}$ ]] || { echo "::error::an earlier run of the chain is not a run id: $run"; exit 1; }
             [ "${#chain[@]}" -lt 8 ] || { echo "::error::more than 8 runs in the chain of reuse_from"; exit 1; }
             for c in "${chain[@]}"; do [ "$c" != "$run" ] || { echo "::error::the chain of reuse_from loops at $run"; exit 1; }; done
-            what=$(retry gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq '.path + " | " + .display_title')
-            [ "$what" = ".github/workflows/bump-waves.yml | bump-waves $KEY" ] || { echo "::error::$run (the chain of reuse_from) is not a bump-waves run of $KEY ($what)"; exit 1; }
+            # a run of this lane for this key, dispatched on main of this repository: no other run's artifacts may be taken (hacktron, #178)
+            what=$(retry gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq '.path + " | " + .display_title + " | " + .head_branch + " | " + .event + " | " + .head_repository.full_name')
+            [ "$what" = ".github/workflows/bump-waves.yml | bump-waves $KEY | main | workflow_dispatch | $GITHUB_REPOSITORY" ] || { echo "::error::$run (the chain of reuse_from) is not a bump-waves run of $KEY dispatched on main of $GITHUB_REPOSITORY ($what)"; exit 1; }
             d="../reuse/$run"; mkdir -p "$d"
             # the run built THIS library (repo, commit, roots, subdir as its own commit of this repository recorded them): the plan and the settings can match across
             # two commits of the library, and a pack or shard of another commit must not reach this bundle (hacktron, #178)

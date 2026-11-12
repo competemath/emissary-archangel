@@ -70,6 +70,26 @@ def earlier_of(lane: dict | None, plan_log: str) -> str:
     return seen.pop() if seen else ""
 
 
+LANE_WORKFLOWS = {".github/workflows/bump-sharded.yml": "bump-sharded", ".github/workflows/bump-waves.yml": "bump-waves"}
+
+
+def untrusted(info: dict, repo: str, key: str) -> str:
+    """Why a run may not hand its artifacts to this one ("" when it may): a run of the lane's own workflows for this key, dispatched on main of this repository.
+    Any other run (a pull request's workflow, a fork's, another branch's, another workflow) could upload artifacts named plan-KEY and shard-KEY-N (hacktron, #178)."""
+    title = LANE_WORKFLOWS.get(info.get("path", ""))
+    if not title:
+        return f"it is not a run of {' or '.join(sorted(LANE_WORKFLOWS))} ({info.get('path')!r})"
+    if info.get("display_title") not in (f"{title} {key}", f"{title} {key} (from tree)"):
+        return f"it is not a {title} run of {key} ({info.get('display_title')!r})"
+    if info.get("head_repo") != repo:
+        return f"it ran on {info.get('head_repo')!r}, not {repo}"
+    if info.get("head_branch") != "main" or info.get("event") != "workflow_dispatch":
+        return f"it was not dispatched on main ({info.get('event')!r} on {info.get('head_branch')!r})"
+    if not re.fullmatch(r"[0-9a-f]{40}", str(info.get("head_sha", ""))):
+        return f"it has no head commit ({str(info.get('head_sha'))[:60]!r})"
+    return ""
+
+
 def library_identity(setup: dict, sources: dict, key: str) -> dict:
     """What a run built: the library's repo, commit and roots (data/exports/KEY/setup.ci.json, trial-library-build.py meta) and its subdir (sources.json). A resume
     reuses packs and shard packs of earlier runs only if they built this same library (hacktron, #178: the plan and the settings can match across two commits);
