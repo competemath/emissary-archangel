@@ -132,7 +132,7 @@ class Workflow(unittest.TestCase):
     def test_a_recut_that_fills_in_takes_its_plan_from_the_recut_run(self):
         """2026-10-18, navier-stokes-euler: shard 1 (5 h 21 min) lived only in run A, the other 63 shards only in run B (fill_from). A fresh run with fill_from had to rebuild shard 1, because
         `plan-new` was downloaded from the current run and a recut has no plan job: the combination (recut_from = A, fill_from = B) could not exist."""
-        down = steps("compose")[index("compose", "fill_from.py") - 1]["with"]
+        down = steps("compose")[index("compose", "--runs \"$FILL_FROM\"") - 1]["with"]
         self.assertEqual(down["name"], "plan-${{ inputs.key }}")
         self.assertEqual(down["path"], "plan-new")
         self.assertEqual(down["run-id"], "${{ inputs.recut_from || github.run_id }}")
@@ -159,7 +159,7 @@ class Workflow(unittest.TestCase):
         # scripts/bump/fill_from.py: every run of fill_from (a resume of a resume names its chain), newest first; a shard already in shards/ is never replaced
         # (tests/test_lane_chain.py holds the cases)
         for job, merge in (("compose", "shard_pack.py merge"), ("finish", "shard_pack.py merge")):
-            fill = index(job, "fill_from.py")
+            fill = index(job, "--runs \"$FILL_FROM\"")
             self.assertLess(fill, index(job, merge), job)
             s = steps(job)[fill]
             self.assertEqual(s["if"], "${{ inputs.fill_from != '' }}", job)
@@ -168,7 +168,7 @@ class Workflow(unittest.TestCase):
             self.assertNotIn("download-artifact", s.get("uses", ""), job)
 
     def test_the_earlier_runs_plan_must_be_this_runs_plan(self):
-        fill = steps("compose")[index("compose", "fill_from.py")]
+        fill = steps("compose")[index("compose", "--runs \"$FILL_FROM\"")]
         self.assertIn("--plan-new plan-new", fill["run"])  # fill_from.py same_plan: plan.json and inputs.json of every run of the chain (tests/test_lane_chain.py)
         self.assertIn("fill_unrecorded", fill["env"]["UNRECORDED"])  # an old run without inputs.json needs an explicit vouch, never a silent pass
         self.assertIn('--unrecorded "$UNRECORDED"', fill["run"])
@@ -176,7 +176,7 @@ class Workflow(unittest.TestCase):
         for name in ("MATHLIB", "TOOLCHAIN", "IMPORTS", "TENGOKU_REF"):
             self.assertIn(name, record["env"], name)
         self.assertLess(steps("plan").index(record), next(i for i, s in enumerate(steps("plan")) if "upload-artifact" in s.get("uses", "")))
-        self.assertLess(index("compose", "fill_from.py"), index("compose", "Every shard of the plan has its result"))
+        self.assertLess(index("compose", "--runs \"$FILL_FROM\""), index("compose", "Every shard of the plan has its result"))
 
     def test_a_resume_needs_no_new_permission(self):
         self.assertEqual(JOBS["compose"]["permissions"], {"contents": "read", "actions": "read"})

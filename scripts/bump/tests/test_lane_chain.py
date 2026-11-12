@@ -258,6 +258,46 @@ class Library(unittest.TestCase):
         moved = dict(base, archive={"release": "x", "asset": "y"}, exported=1, finishedAt="2026-12-01T00:00:00Z", exportsBytes=5)  # a setup re-run republishes these
         self.assertEqual(lr.library_identity(moved, sources_with({}), KEY), lr.library_identity(base, sources_with({}), KEY))
 
+    def test_the_library_command(self):  # what bump-waves.yml compares as text (cubic, #178)
+        t = Path(tempfile.mkdtemp())
+
+        def library(setup, sources) -> subprocess.CompletedProcess:
+            (t / "s.json").write_text(json.dumps(setup))
+            (t / "src.json").write_text(json.dumps(sources))
+            return subprocess.run([sys.executable, str(HERE / "lane_reuse.py"), "library", "--setup", str(t / "s.json"), "--sources", str(t / "src.json"), "--key", KEY], capture_output=True, text=True)
+
+        r = library(LIB["setup"]["main"], sources_with(LIB["sources_entry"]["main"]))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout), {"repo": "https://github.com/anthropics/fermats-last-theorem", "commit": "aa2d8b34692b16c70f699536de0d8e75b9a3e9ef",
+                                                "roots": ["Theorems", "Definitions"], "subdir": ""})
+        self.assertEqual(r.stdout, library(LIB["setup"][P], sources_with(LIB["sources_entry"][P])).stdout)  # byte for byte: the step compares strings
+        self.assertEqual(r.stdout.strip(), json.dumps(json.loads(r.stdout), sort_keys=True))
+        for missing in ("repo", "commit"):
+            bad = {k: v for k, v in LIB["setup"]["main"].items() if k != missing}
+            r = library(bad, sources_with({}))
+            self.assertNotEqual(r.returncode, 0, missing)
+            self.assertEqual(r.stdout, "")
+
+    def test_the_recut_run_is_checked_before_its_shards_are_merged(self):  # cubic, #178: recut_from's shards are in shards/ before any fill
+        steps = yaml.safe_load((WF / "bump-sharded.yml").read_text())["jobs"]["compose"]["steps"]
+        names = [s.get("name", "") for s in steps]
+        check = names.index("The run this one recuts built this library")
+        down = next(i for i, s in enumerate(steps) if "run-id" in s.get("with", {}) and s["with"].get("path") == "shards")
+        merge = next(i for i, s in enumerate(steps) if "shard_pack.py merge" in s.get("run", ""))
+        self.assertLess(down, check)
+        self.assertLess(check, merge)
+        self.assertEqual(steps[check]["if"], "${{ inputs.recut_from != '' }}")
+        self.assertIn('--check-library "$RECUT_FROM" --library-from emissary', steps[check]["run"])
+        heads = {"5": LIB["refs"][P]}
+        contents = {LIB["refs"][P]: {"setup.ci.json": LIB["setup"][P], "sources.json": sources_with(LIB["sources_entry"][P])}}
+        here = lr.library_identity(LIB["setup"]["main"], sources_with(LIB["sources_entry"]["main"]), KEY)
+        runner, _ = fake_gh({}, heads=heads, contents=contents)
+        ff.check_library("o/r", KEY, "5", here, runner, lambda s: None)  # the same library: passes
+        contents[LIB["refs"][P]]["setup.ci.json"] = dict(LIB["setup"][P], commit="0" * 40)
+        runner, _ = fake_gh({}, heads=heads, contents=contents)
+        with self.assertRaises(SystemExit):
+            ff.check_library("o/r", KEY, "5", here, runner, lambda s: None)
+
     def test_another_commit_repo_roots_or_subdir_is_another_library(self):
         base = LIB["setup"]["main"]
         ident = lr.library_identity(base, sources_with({}), KEY)
@@ -421,7 +461,8 @@ class Fill(unittest.TestCase):
         with self.assertRaises(SystemExit) as e:
             ff.fill_from("o/r", KEY, [R, P], self.t / "shards", self.t / "work", self.t / "plan-new", runner=runner, sleep=lambda s: None, library=here)
         self.assertIn(P, str(e.exception))
-        self.assertFalse((self.t / "shards" / f"shard-{KEY}-0").exists() and self.marker(0) == P)  # nothing of the other commit got in
+        leaked = [d.name for d in (self.t / "shards").iterdir() if (d / "shard-pack" / "src" / "marker").read_text() == P]
+        self.assertEqual(leaked, [])  # nothing of the other commit got in, in any shard (cubic, #178)
         runner, _ = fake_gh(real_store(), heads=heads, contents=contents)  # the mutant: no library check lets it in
         got = ff.fill_from("o/r", KEY, [R, P], self.t / "shards", self.t / "work2", self.t / "plan-new", runner=runner, sleep=lambda s: None)
         self.assertTrue(got[P])

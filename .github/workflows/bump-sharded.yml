@@ -185,6 +185,11 @@ jobs:
           git -C emissary checkout -q "$GITHUB_SHA"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: { pattern: "shard-${{ inputs.key }}-*", path: shards, run-id: "${{ inputs.recut_from || github.run_id }}", github-token: "${{ github.token }}" }
+      # a recut merges another run's shards as they are: that run built the library this run's setup record names, or the run stops (cubic and hacktron, #178)
+      - name: The run this one recuts built this library
+        if: ${{ inputs.recut_from != '' }}
+        env: { GH_TOKEN: "${{ github.token }}", RECUT_FROM: "${{ inputs.recut_from }}" }
+        run: python3 emissary/scripts/bump/fill_from.py --repo "$GITHUB_REPOSITORY" --key "$KEY" --check-library "$RECUT_FROM" --library-from emissary
       # this run's plan: its own, or (a recut that fills in from another run has no plan job) the plan of the run it recuts
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         if: ${{ inputs.fill_from != '' }}

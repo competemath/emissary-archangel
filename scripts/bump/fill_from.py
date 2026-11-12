@@ -73,6 +73,12 @@ def library_of_run(repo: str, run: str, key: str, runner=subprocess.run, sleep=t
     return lane_reuse.library_identity(setup, sources, key)
 
 
+def check_library(repo: str, key: str, run: str, library: dict, runner=subprocess.run, sleep=time.sleep) -> None:
+    then = library_of_run(repo, run, key, runner, sleep)
+    if then != library:
+        sys.exit(f"run {run} built another library ({json.dumps(then, sort_keys=True)}) than this run ({json.dumps(library, sort_keys=True)})")
+
+
 def fill_from(repo: str, key: str, runs: list[str], shards: Path, work: Path, plan_new: Path | None = None, unrecorded: bool = False, runner=subprocess.run, sleep=time.sleep,
               library: dict | None = None) -> dict[str, int]:
     """{run: shards filled in from it}, newest run first. `library` (compose): this run's library; a run that built another one is refused (hacktron, #178)."""
@@ -81,9 +87,7 @@ def fill_from(repo: str, key: str, runs: list[str], shards: Path, work: Path, pl
     for run in runs:
         d = work / run
         if library is not None:
-            then = library_of_run(repo, run, key, runner, sleep)
-            if then != library:
-                sys.exit(f"run {run} built another library ({json.dumps(then, sort_keys=True)}) than this run ({json.dumps(library, sort_keys=True)})")
+            check_library(repo, key, run, library, runner, sleep)
         if plan_new is not None:
             gh(["run", "download", run, "-R", repo, "-n", f"plan-{key}", "-D", str(d / "plan")], runner, sleep)
             same_plan(d / "plan", plan_new, unrecorded, run)
@@ -102,13 +106,23 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", required=True)
     ap.add_argument("--key", required=True)
-    ap.add_argument("--runs", required=True, help="fill_from: comma list of run ids, newest first")
+    ap.add_argument("--runs", default="", help="fill_from: comma list of run ids, newest first")
+    ap.add_argument("--check-library", default="", help="only check that this run (recut_from: its shards are in shards/ before any fill) built the library of --library-from")
     ap.add_argument("--shards", required=True)
     ap.add_argument("--work", required=True)
     ap.add_argument("--plan-new", default="", help="this run's plan directory: every run of the chain must have planned the same shards with the same settings")
     ap.add_argument("--unrecorded", default="false")
     ap.add_argument("--library-from", default="", help="this run's checkout of this repository: every run of the chain must have built the library its setup record names")
     a = ap.parse_args()
+    if a.check_library:
+        # a recut merges the shards of recut_from as they are, before any fill: they are checked here, or another commit's shards pass where a fill's would not (cubic, #178)
+        if not RUN.match(a.check_library) or not a.library_from:
+            sys.exit("--check-library is a run id, with --library-from")
+        base = Path(a.library_from)
+        here = lane_reuse.library_identity(json.loads((base / "data" / "exports" / a.key / "setup.ci.json").read_text()), json.loads((base / "sources.json").read_text()), a.key)
+        check_library(a.repo, a.key, a.check_library, here)
+        print(f"run {a.check_library} built this library")
+        return
     try:
         runs = runs_of(a.runs)
     except ValueError as e:
