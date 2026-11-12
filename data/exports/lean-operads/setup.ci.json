@@ -1,0 +1,59 @@
+{
+  "key": "lean-operads",
+  "repo": "https://github.com/landonfox00/lean-operads",
+  "commit": "09ccda4a2b0461142f207c75a268f8487c8fddb0",
+  "toolchain": "leanprover/lean4:v4.30.0",
+  "roots": [
+    "Operad"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lean-operads/repo",
+  "entries": 8174,
+  "modules": 264,
+  "exported": 264,
+  "failed": [],
+  "expansion": {
+    "expanded": 16,
+    "verbatim": 4896,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 8174,
+    "kept": 8174,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 27,
+    "lineUnverified": 0,
+    "nameFixed": 8172,
+    "sorryOriginals": 0,
+    "emptyProofs": 350
+  },
+  "sharded": {
+    "records": 11,
+    "shards": [
+      11
+    ]
+  },
+  "tools": {
+    "lean": "4.30.0 (commit d024af099ca4bf2c86f649261ebf59565dc8c622, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+d024af0",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "a3e35a584f59 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1 | ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 1968766976,
+  "minutes": 9,
+  "finishedAt": "2026-11-12T18:06:54.469Z",
+  "archive": {
+    "release": "exports-lean-operads",
+    "asset": "lean-operads@09ccda4a2b04-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-lean-operads/lean-operads@09ccda4a2b04-exports.tar.zst",
+    "bytes": 240959070,
+    "sha256": "6f94ad358277a14292b19203cd7b17dbb09ae8732cb13bb019744c28376128ba",
+    "files": 528,
+    "unpack": "tar --zstd -xf lean-operads@09ccda4a2b04-exports.tar.zst -C data/exports/lean-operads"
+  }
+}

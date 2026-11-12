@@ -1,0 +1,282 @@
+/-
+# The signed total space, and the graded Jacobi identity
+
+`Operad.GradedPreLie` proves the graded pre-Lie identity arity by arity, with explicit
+reindexings. Reading off the Jacobi identity from it in that form would mean tracking twelve
+products across six different arity expressions at once.
+
+Bundling into a direct sum removes all of that: every product lands in the single type
+`TotS R P`, the associator is mathlib's, and the twelve-term regrouping becomes one call to the
+`module` tactic. This is the same move `Operad.TotalSpace` makes for the unsigned product; the
+two cannot share a type, because a type carries only one multiplication, so `PieceS` is a second
+synonym for `P (k + 1)` carrying the signed one.
+
+Note what is *not* claimed. A graded Lie structure is not a `LieRing` on `TotS R P`: the sign
+`(-1)^(j k)` depends on the degrees of the arguments, so the identity holds for homogeneous
+elements and does not extend to the whole direct sum. The statements below are therefore about
+`incS`-images, and the degrees appear explicitly.
+-/
+import Operad.GradedPreLie
+import Operad.TotalSpace
+
+
+-- @@ L22-22 verbatim
+universe u v
+
+
+-- @@ L24-24 verbatim
+namespace Operad
+
+
+-- @@ L26-26 verbatim
+open NSOperad DirectSum
+
+
+-- @@ L28-30 verbatim
+/-- The degree-`k` piece of the signed total space. -/
+@[nolint unusedArguments]
+def PieceS (R : Type u) [CommRing R] (P : ℕ → Type v) (k : ℕ) : Type v := P (k + 1)
+
+
+-- @@ L32-32 verbatim
+section
+
+
+-- @@ L34-35 verbatim
+variable {R : Type u} [CommRing R] {P : ℕ → Type v}
+  [∀ n, AddCommGroup (P n)] [∀ n, Module R (P n)]
+
+
+-- @@ L37-37 verbatim
+instance (k : ℕ) : AddCommGroup (PieceS R P k) := inferInstanceAs (AddCommGroup (P (k + 1)))
+
+
+-- @@ L39-39 verbatim
+instance (k : ℕ) : Module R (PieceS R P k) := inferInstanceAs (Module R (P (k + 1)))
+
+
+-- @@ L41-41 verbatim
+variable [NSOperad R P]
+
+
+-- @@ L43-45 verbatim
+/-- The signed circle product as a graded multiplication. -/
+instance : GradedMonoid.GMul (PieceS R P) where
+  mul {_ _} a b := sstar (R := R) a b
+
+
+-- @@ L47-51 verbatim
+instance : DirectSum.GNonUnitalNonAssocSemiring (PieceS R P) where
+  mul_zero a := sstar_zero (R := R) a
+  zero_mul b := zero_sstar (R := R) b
+  mul_add a b c := sstar_add_right (R := R) a b c
+  add_mul a b c := sstar_add_left (R := R) a b c
+
+
+-- @@ L53-57 verbatim
+/-- The total space carrying the signed product. -/
+@[nolint unusedArguments]
+abbrev TotS (R : Type u) [CommRing R] (P : ℕ → Type v)
+    [∀ n, AddCommGroup (P n)] [∀ n, Module R (P n)] [NSOperad R P] : Type v :=
+  ⨁ k : ℕ, PieceS R P k
+
+
+-- @@ L59-60 verbatim
+/-- The inclusion of a homogeneous piece. -/
+abbrev incS (k : ℕ) : PieceS R P k →+ TotS R P := DirectSum.of (PieceS R P) k
+
+
+-- @@ L62-64 verbatim
+@[simp] lemma incS_mul_incS {i j : ℕ} (a : PieceS R P i) (b : PieceS R P j) :
+    (incS i a * incS j b : TotS R P) = incS (i + j) (sstar (R := R) a b) :=
+  DirectSum.of_mul_of a b
+
+
+-- @@ L66-69 verbatim
+lemma incS_reindex {m n : ℕ} (h : m = n) (x : PieceS R P m) :
+    (incS m x : TotS R P) = incS n (reindex R P (by rw [h]) x) := by
+  subst h
+  rw [reindex_self]
+
+
+-- @@ L71-73 verbatim
+lemma smul_incS (t : R) {i : ℕ} (a : PieceS R P i) :
+    t • (incS i a : TotS R P) = incS i (t • a) :=
+  (DirectSum.of_smul (R := R) i t a).symm
+
+
+-- @@ L75-75 verbatim
+/-! ### `R`-bilinearity of the signed product on the total space -/
+
+
+-- @@ L77-87 verbatim
+lemma smul_mul_totS (t : R) (x y : TotS R P) : (t • x) * y = t • (x * y) := by
+  induction x using DirectSum.induction_on with
+  | zero => simp
+  | add x₁ x₂ h₁ h₂ => simp only [smul_add, add_mul, h₁, h₂]
+  | of i a =>
+    induction y using DirectSum.induction_on with
+    | zero => simp
+    | add y₁ y₂ h₁ h₂ => simp only [mul_add, smul_add, h₁, h₂]
+    | of j b =>
+      rw [smul_incS, incS_mul_incS, incS_mul_incS, smul_incS]
+      exact congrArg _ (sstar_smul_left t a b)
+
+
+-- @@ L89-99 verbatim
+lemma mul_smul_totS (t : R) (x y : TotS R P) : x * (t • y) = t • (x * y) := by
+  induction x using DirectSum.induction_on with
+  | zero => simp
+  | add x₁ x₂ h₁ h₂ => simp only [smul_add, add_mul, h₁, h₂]
+  | of i a =>
+    induction y using DirectSum.induction_on with
+    | zero => simp
+    | add y₁ y₂ h₁ h₂ => simp only [mul_add, smul_add, h₁, h₂]
+    | of j b =>
+      rw [smul_incS, incS_mul_incS, incS_mul_incS, smul_incS]
+      exact congrArg _ (sstar_smul_right t a b)
+
+
+-- @@ L101-101 verbatim
+/-! ### The graded pre-Lie identity on the total space -/
+
+
+-- @@ L103-112 verbatim
+/-- The graded pre-Lie identity, transported to homogeneous elements of `TotS`. -/
+lemma associatorS_inc (i j k : ℕ) (a : PieceS R P i) (b : PieceS R P j) (c : PieceS R P k) :
+    associator (incS i a : TotS R P) (incS j b) (incS k c)
+      = ((-1 : R) ^ (j * k))
+        • associator (incS i a : TotS R P) (incS k c) (incS j b) := by
+  simp only [associator, incS_mul_incS]
+  rw [incS_reindex (show i + (j + k) = i + j + k by omega),
+    incS_reindex (show i + k + j = i + j + k by omega),
+    incS_reindex (show i + (k + j) = i + j + k by omega), ← map_sub, ← map_sub, smul_incS]
+  exact congrArg _ (sstar_assoc_symm a b c)
+
+
+-- @@ L114-114 verbatim
+/-! ### The graded Jacobi identity -/
+
+
+-- @@ L116-120 verbatim
+/-- The graded bracket of two elements whose degrees are asserted to be `m` and `n`. Degrees are
+parameters rather than being read off the elements, because an element of a direct sum need not
+be homogeneous; every use below supplies the degree of an `incS`-image. -/
+def brT (m n : ℕ) (x y : TotS R P) : TotS R P :=
+  x * y - ((-1 : R) ^ (m * n)) • (y * x)
+
+
+-- @@ L122-123 verbatim
+private lemma neg_one_two_mul (n : ℕ) : ((-1 : R)) ^ (2 * n) = 1 := by
+  rw [pow_mul]; norm_num
+
+
+-- @@ L125-126 verbatim
+private lemma neg_one_mul_two (n : ℕ) : ((-1 : R)) ^ (n * 2) = 1 := by
+  rw [mul_comm]; exact neg_one_two_mul n
+
+
+-- @@ L128-141 verbatim
+/-- The twelve products of a signed double bracket regroup into six associators. This is pure
+bilinear algebra in `TotS R P` — no operad axiom is used. -/
+private lemma jacobi_regroup (i j k : ℕ) (x y z : TotS R P) :
+    ((-1 : R) ^ (i * k)) • brT (i + j) k (brT i j x y) z
+      + ((-1 : R) ^ (j * i)) • brT (j + k) i (brT j k y z) x
+      + ((-1 : R) ^ (k * j)) • brT (k + i) j (brT k i z x) y
+      = ((-1 : R) ^ (i * k)) • (associator x y z - ((-1 : R) ^ (j * k)) • associator x z y)
+        + ((-1 : R) ^ (j * i)) • (associator y z x - ((-1 : R) ^ (k * i)) • associator y x z)
+        + ((-1 : R) ^ (k * j)) • (associator z x y - ((-1 : R) ^ (i * j)) • associator z y x) := by
+  simp only [brT, associator, sub_mul, mul_sub, smul_mul_totS, mul_smul_totS, smul_sub, smul_smul,
+    ← pow_add]
+  match_scalars
+  all_goals ring_nf
+  all_goals try simp only [neg_one_mul_two, one_mul]
+
+
+-- @@ L143-151 verbatim
+/-- **The graded Jacobi identity.** Each of the three regrouped brackets is one instance of the
+graded pre-Lie identity, so all three vanish. -/
+theorem jacobiS (i j k : ℕ) (a : PieceS R P i) (b : PieceS R P j) (c : PieceS R P k) :
+    ((-1 : R) ^ (i * k)) • brT (i + j) k (brT i j (incS i a) (incS j b)) (incS k c)
+      + ((-1 : R) ^ (j * i)) • brT (j + k) i (brT j k (incS j b) (incS k c)) (incS i a)
+      + ((-1 : R) ^ (k * j)) • brT (k + i) j (brT k i (incS k c) (incS i a)) (incS j b) = 0 := by
+  rw [jacobi_regroup, associatorS_inc i j k a b c, associatorS_inc j k i b c a,
+    associatorS_inc k i j c a b]
+  simp
+
+
+-- @@ L153-158 verbatim
+/-! ### Two equal odd arguments
+
+Applying the graded pre-Lie identity with its last two arguments *equal and odd* gives only
+`A(x, Θ, Θ) = -A(x, Θ, Θ)`, that is, `2 A(x, Θ, Θ) = 0` (`two_smul_associator_odd`). The
+associator in fact vanishes over any commutative ring (`associator_self_one`): its disjoint-slot
+terms cancel in pairs (`sstar_sstar_self_one`). -/
+
+
+-- @@ L160-165 verbatim
+/-- **The associator with two equal odd arguments vanishes**, over any commutative ring. -/
+lemma associator_self_one (m : ℕ) (x : PieceS R P m) (T : PieceS R P 1) :
+    associator (incS m x : TotS R P) (incS 1 T) (incS 1 T) = 0 := by
+  simp only [associator, incS_mul_incS]
+  rw [incS_reindex (show m + (1 + 1) = m + 1 + 1 by omega), ← map_sub,
+    sstar_sstar_self_one x T, reindex_reindex, reindex_self, sub_self, map_zero]
+
+
+-- @@ L167-174 verbatim
+/-- The associator with two equal odd arguments is annihilated by 2. This is what the graded
+pre-Lie identity gives on its own; `associator_self_one` is the sharper statement. -/
+lemma two_smul_associator_odd (m : ℕ) (x : PieceS R P m) (T : PieceS R P 1) :
+    (2 : ℕ) • associator (incS m x : TotS R P) (incS 1 T) (incS 1 T) = 0 := by
+  have h := associatorS_inc m 1 1 x T T
+  rw [Nat.mul_one, pow_one, neg_one_smul] at h
+  rw [two_smul]
+  exact add_eq_zero_iff_eq_neg.2 h
+
+
+-- @@ L176-179 verbatim
+/-! ### The differential
+
+For an odd `Θ` solving the Maurer–Cartan equation, `d = ⁅Θ, -⁆` squares to `-A(x, Θ, Θ)`, which
+vanishes by `associator_self_one`. So `d² = 0` holds over any commutative ring. -/
+
+
+-- @@ L181-202 verbatim
+/-- `d²` collapses to a single associator: everything else cancels, using the graded pre-Lie
+identity once and the Maurer–Cartan equation twice. -/
+theorem dsq_eq (m : ℕ) (T : PieceS R P 1) (x : PieceS R P m)
+    (hMC : (incS 1 T : TotS R P) * incS 1 T = 0) :
+    brT 1 (1 + m) (incS 1 T) (brT 1 m (incS 1 T) (incS m x))
+      = - associator (incS m x : TotS R P) (incS 1 T) (incS 1 T) := by
+  have hA := associatorS_inc 1 m 1 T x T
+  rw [Nat.mul_one] at hA
+  have expand : brT 1 (1 + m) (incS 1 T) (brT 1 m (incS 1 T) (incS m x))
+      = (incS 1 T * incS 1 T : TotS R P) * incS m x
+        - associator (incS 1 T : TotS R P) (incS 1 T) (incS m x)
+        + ((-1 : R) ^ m) • associator (incS 1 T : TotS R P) (incS m x) (incS 1 T)
+        - associator (incS m x : TotS R P) (incS 1 T) (incS 1 T)
+        - (incS m x : TotS R P) * (incS 1 T * incS 1 T) := by
+    simp only [brT, associator, mul_sub, sub_mul, smul_mul_totS, mul_smul_totS, smul_sub,
+      smul_smul, ← pow_add]
+    match_scalars
+    all_goals ring_nf
+    all_goals try simp only [neg_one_mul_two]
+  rw [expand, hA, smul_smul, ← pow_add, show m + m = 2 * m from by ring, neg_one_two_mul,
+    one_smul, hMC]
+  simp
+
+
+-- @@ L204-208 verbatim
+/-- **The differential squares to zero**, over any commutative ring. -/
+theorem dsq_eq_zero (m : ℕ) (T : PieceS R P 1) (x : PieceS R P m)
+    (hMC : (incS 1 T : TotS R P) * incS 1 T = 0) :
+    brT 1 (1 + m) (incS 1 T) (brT 1 m (incS 1 T) (incS m x)) = 0 := by
+  rw [dsq_eq m T x hMC, associator_self_one, neg_zero]
+
+
+-- @@ L210-210 verbatim
+end
+
+
+-- @@ L212-212 verbatim
+end Operad
