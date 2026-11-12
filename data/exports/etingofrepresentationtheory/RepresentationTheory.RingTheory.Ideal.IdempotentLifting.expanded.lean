@@ -1,0 +1,45 @@
+/-
+Copyright (c) 2026 mathlib-initiative. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: mathlib-initiative
+-/
+
+import Mathlib.RingTheory.Idempotents
+import Mathlib.RingTheory.Nilpotent.Defs
+import RepresentationTheory.Alignment.Attribute
+
+
+-- @@ L11-11 verbatim
+namespace RepresentationTheory.RingTheory.Ideal.IdempotentLifting
+
+
+-- @@ L13-32 verbatim
+/-- A complete orthogonal family of idempotents in the quotient by a nilpotent two-sided ideal
+lifts to a complete orthogonal family in the ring. -/
+theorem exists_completeOrthogonalIdempotents_lift_of_isNilpotent {A : Type*} [Ring A]
+    {I : Ideal A} [I.IsTwoSided] (hI : IsNilpotent I)
+    {ι : Type*} [Fintype ι] {ebar : ι → A ⧸ I}
+    (h_coi : CompleteOrthogonalIdempotents ebar) :
+    ∃ e : ι → A, CompleteOrthogonalIdempotents e ∧
+      ∀ i, Ideal.Quotient.mk I (e i) = ebar i := by
+  obtain ⟨n, hn⟩ := hI
+  have hker : ∀ x ∈ RingHom.ker (Ideal.Quotient.mk I), IsNilpotent x := by
+    intro x hx
+    rw [RingHom.mem_ker, Ideal.Quotient.eq_zero_iff_mem] at hx
+    exact ⟨n, by
+      have := Ideal.pow_mem_pow hx n
+      rw [hn] at this
+      exact Ideal.mem_bot.mp this⟩
+  obtain ⟨e, he_coi, he_lift⟩ :=
+    CompleteOrthogonalIdempotents.lift_of_isNilpotent_ker
+      (Ideal.Quotient.mk I) hker h_coi (fun i => Ideal.Quotient.mk_surjective (ebar i))
+  exact ⟨e, he_coi, fun i => congr_fun he_lift i⟩
+
+
+-- @@ L34-36 verbatim
+end RepresentationTheory.RingTheory.Ideal.IdempotentLifting
+
+-- Recovered exact-module book alignment.
+
+-- @@ L37-37 verbatim
+attribute [source_ref "Chapter9/Corollary9.1.3" (role := primary)] _root_.RepresentationTheory.RingTheory.Ideal.IdempotentLifting.exists_completeOrthogonalIdempotents_lift_of_isNilpotent

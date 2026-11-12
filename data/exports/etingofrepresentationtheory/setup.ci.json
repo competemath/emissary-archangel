@@ -1,0 +1,68 @@
+{
+  "key": "etingofrepresentationtheory",
+  "repo": "https://github.com/mathlib-initiative/EtingofRepresentationTheory",
+  "commit": "752fe269b3233f08f0795aa4bcdc5b4c84be7a50",
+  "toolchain": "leanprover/lean4:v4.32.2",
+  "roots": [
+    "RepresentationTheory"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/etingofrepresentationtheory/repo",
+  "entries": 10823,
+  "modules": 758,
+  "exported": 758,
+  "failed": [],
+  "expansion": {
+    "expanded": 5,
+    "verbatim": 15088,
+    "unexpanded": 0,
+    "failed": [
+      {
+        "module": "RepresentationTheory.IndexedPermutationFinsetAction",
+        "why": "ommand failed: lake env lean -M 14336 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/etingofrepresentationtheory RepresentationTheory RepresentationTheory.IndexedPermutationFinsetAction "
+      },
+      {
+        "module": "RepresentationTheory.AdjInputSetCardinalities",
+        "why": "Command failed: lake env lean -M 14336 --run /home/runner/work/emissary-archangel/emissary-archangel/scripts/expand-notations.lean /home/runner/work/emissary-archangel/emissary-archangel/data/exports/etingofrepresentationtheory RepresentationTheory RepresentationTheory.AdjInputSetCardinalities "
+      }
+    ]
+  },
+  "seed": {
+    "records": 10823,
+    "kept": 10823,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 1578,
+    "lineUnverified": 19,
+    "nameFixed": 10600,
+    "sorryOriginals": 0,
+    "emptyProofs": 6
+  },
+  "sharded": {
+    "records": 15,
+    "shards": [
+      15
+    ]
+  },
+  "tools": {
+    "lean": "4.32.2 (commit f3b06c705e6c85f5314019d5d3baab0fec5b580c, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+f3b06c7",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "86e4a3395074 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1 | ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 828899328,
+  "minutes": 28,
+  "finishedAt": "2026-11-12T19:36:40.107Z",
+  "archive": {
+    "release": "exports-etingofrepresentationtheory",
+    "asset": "etingofrepresentationtheory@752fe269b323-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-etingofrepresentationtheory/etingofrepresentationtheory@752fe269b323-exports.tar.zst",
+    "bytes": 91636194,
+    "sha256": "58f03c7c33d3edd2952006ee23e91668ccf24d885e49221ce446e1b70d1ee250",
+    "files": 1516,
+    "unpack": "tar --zstd -xf etingofrepresentationtheory@752fe269b323-exports.tar.zst -C data/exports/etingofrepresentationtheory"
+  }
+}
