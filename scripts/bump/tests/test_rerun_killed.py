@@ -95,12 +95,14 @@ class TheRunItStarts(unittest.TestCase):
 
 
 class Fake:
-    def __init__(self, jobs, logs, post_failures=0):
+    def __init__(self, jobs, logs, post_failures=0, notes=None):
         self.jobs, self.logs, self.posts, self.post_failures, self.tries = jobs, logs, [], post_failures, 0
         self.asked: list[int] = []
+        self.notes = notes or {}  # job id -> annotations (a list of dicts), or None: the call fails
+        self.note_calls: list[list[str]] = []
 
     def __call__(self, args, stdin=None, must=False):
-        if "--method" in args:
+        if "--method" in args and args[args.index("--method") + 1] == "POST":
             self.tries += 1
             if self.tries <= self.post_failures:
                 if must:
@@ -108,6 +110,14 @@ class Fake:
                 return ""
             self.posts.append((args, json.loads(stdin)))
             return ""
+        if args[1].endswith("/annotations"):
+            self.note_calls.append(args)
+            got = self.notes.get(int(args[1].split("/")[-2]), [])
+            if got is None:
+                return ""
+            if "--paginate" not in args:  # GitHub's first page only
+                got = got[:30]
+            return "\n".join(a["message"] for a in got)  # what `--jq .[].message` prints
         if args[1].endswith("/logs"):
             self.asked.append(int(args[1].split("/")[-2]))
             log = self.logs.get(int(args[1].split("/")[-2]), "")
@@ -255,7 +265,8 @@ class Workflow(unittest.TestCase):
         self.assertIn("!cancelled()", JOB["if"])
 
     def test_permissions(self):
-        self.assertEqual(JOB["permissions"], {"actions": "write", "contents": "read"})
+        # checks: read is for the jobs' annotations, the only trace a runner lost under its job leaves when no log is stored (etingofrepresentationtheory, 12 Nov 2026)
+        self.assertEqual(JOB["permissions"], {"actions": "write", "checks": "read", "contents": "read"})
 
     def test_inputs_never_reach_a_shell_as_expressions(self):
         for step in JOB["steps"]:
@@ -263,6 +274,134 @@ class Workflow(unittest.TestCase):
 
     def test_the_script_is_in_the_sparse_checkout(self):
         self.assertIn('"/scripts/bump/"', JOB["steps"][0]["run"])
+
+
+LOST = json.loads((HERE / "fixtures" / "etingof_lost_runner_2026-11-12.json").read_text())
+
+
+class LostRunner(unittest.TestCase):
+    """The real case: EtingofRepresentationTheory's shard 2 (run 43292037870): the build step marked failed, no log stored, one annotation that the runner lost communication."""
+
+    def test_the_fixture_is_the_real_job(self):
+        failed = [s["name"] for s in LOST["job"]["steps"] if s["conclusion"] == "failure"]
+        self.assertEqual(failed, ["Build this shard's modules, repair, rebuild"])
+        self.assertEqual(LOST["log"], "")
+        self.assertTrue(any("lost communication with the server" in a["message"] for a in LOST["annotations"]))
+
+    def test_its_note_makes_it_killed_and_the_plan_runs_again_once(self):
+        job = dict(LOST["job"], id=LOST["job"]["id"])
+        f = Fake([job], {}, notes={job["id"]: LOST["annotations"]})
+        self.assertEqual(rk.run("o/r", "43292037870", INPUTS, f, lambda _: None), 0)
+        self.assertEqual(len(f.posts), 1)
+        self.assertEqual(f.posts[0][1]["inputs"]["heavy"], rk.SWAP)
+
+    def test_mutant_without_the_note_it_reads_as_a_build_that_fails(self):
+        # the bug as it was: log and steps alone
+        self.assertFalse(rk.killed(LOST["job"], LOST["log"]))
+        self.assertTrue(rk.killed(LOST["job"], LOST["log"], "\n".join(a["message"] for a in LOST["annotations"])))
+        f = Fake([dict(LOST["job"])], {}, notes={})
+        rk.run("o/r", "43292037870", INPUTS, f, lambda _: None)
+        self.assertEqual(f.posts, [])
+
+    def test_annotations_that_cannot_be_read_start_nothing(self):
+        f = Fake([dict(LOST["job"])], {}, notes={LOST["job"]["id"]: None})
+        rk.run("o/r", "43292037870", INPUTS, f, lambda _: None)
+        self.assertEqual(f.posts, [])
+
+    def test_another_note_is_not_a_kill(self):
+        for msg in ("Process completed with exit code 1.", "Process completed with exit code 2.", "The job running on runner X has exceeded the maximum execution time of 345 minutes.",
+                    "Canceling since a higher priority waiting request for 'x' exists"):
+            self.assertFalse(rk.killed(LOST["job"], "", msg), msg)
+
+    def test_a_lost_runner_beside_a_real_failure_starts_nothing(self):
+        other = {"id": 2, "name": "shard (0) / shard", "conclusion": "failure", "steps": [{"name": "The library at its pinned commit", "conclusion": "failure"}]}
+        f = Fake([dict(LOST["job"]), other], {2: "##[error]Process completed with exit code 1."}, notes={LOST["job"]["id"]: LOST["annotations"]})
+        rk.run("o/r", "43292037870", INPUTS, f, lambda _: None)
+        self.assertEqual(f.posts, [])
+
+    def test_the_real_mixes_with_the_lost_runner(self):
+        # every real run of the fixture, with the lost runner added: started exactly when every other failed shard was killed too
+        rng = random.Random(1112)
+        n = 0
+        for run, jobs in by_run().items():
+            for _ in range(20):
+                mix = [(j, log) for j, log in jobs if rng.random() < 0.7] + [(LOST["job"], "", "\n".join(a["message"] for a in LOST["annotations"]))]
+                go, _ = rk.decide(mix)
+                expect = all(rk.killed(j, log) for j, log in [(m[0], m[1]) for m in mix[:-1]] if j.get("name", "").startswith("shard") and j.get("conclusion") == "failure")
+                self.assertEqual(go, expect)
+                n += 1
+        self.assertGreaterEqual(n, 200)
+
+
+class ReviewOn184(unittest.TestCase):
+    """cubic on #184: every page of annotations, one deadline over them, a timeout is a failed call"""
+
+    def test_a_note_beyond_the_first_page_counts(self):
+        noise = [{"annotation_level": "warning", "message": f"Node.js 20 is deprecated ({i})"} for i in range(40)]
+        f = Fake([dict(LOST["job"])], {}, notes={LOST["job"]["id"]: noise + LOST["annotations"]})
+        rk.run("o/r", "1", INPUTS, f, lambda _: None)
+        self.assertEqual(len(f.posts), 1)
+        args = f.note_calls[0]
+        self.assertIn("--paginate", args)
+        self.assertEqual(args[args.index("--jq") + 1], ".[].message")
+        self.assertEqual(args[args.index("--method") + 1], "GET")  # -F would otherwise make it a POST
+
+    def test_mutant_first_page_only_misses_it(self):
+        noise = [{"annotation_level": "warning", "message": f"note {i}"} for i in range(40)]
+        f = Fake([dict(LOST["job"])], {}, notes={LOST["job"]["id"]: noise + LOST["annotations"]})
+        real = rk.annotations
+        try:
+            rk.annotations = lambda api, repo, i: api(["api", f"repos/{repo}/check-runs/{i}/annotations", "--jq", ".[].message"]) or ""
+            rk.run("o/r", "1", INPUTS, f, lambda _: None)
+        finally:
+            rk.annotations = real
+        self.assertEqual(f.posts, [])
+
+    def test_one_deadline_over_every_note(self):
+        now = [0.0]
+
+        class Slow(Fake):
+            def __call__(self, args, stdin=None, must=False):
+                if args[1].endswith("/annotations"):
+                    now[0] += rk.NOTES_CALL
+                return super().__call__(args, stdin, must)
+
+        jobs = [dict(LOST["job"], id=100 + i, name=f"shard ({i}) / shard") for i in range(32)]
+        f = Slow(jobs, {}, notes={100 + i: LOST["annotations"] for i in range(32)})
+        start = now[0]
+        rk.run("o/r", "1", INPUTS, f, lambda s: None, lambda: now[0])
+        self.assertLessEqual(len(f.note_calls), rk.NOTES_DEADLINE // rk.NOTES_CALL)
+        self.assertLessEqual(now[0] - start, rk.NOTES_DEADLINE + rk.NOTES_CALL)
+        self.assertEqual(f.posts, [])  # the shards not reached have no note: no kill on no evidence
+
+    def test_the_budget_fits_the_job(self):
+        self.assertLessEqual(rk.LOG_DEADLINE + 120 + rk.NOTES_DEADLINE + rk.NOTES_CALL + 60, JOB["timeout-minutes"] * 60)
+
+    def test_a_timeout_is_a_failed_call_not_a_crash(self):
+        import subprocess
+        from unittest import mock
+
+        def boom(*a, **k):
+            raise subprocess.TimeoutExpired(cmd="gh", timeout=k.get("timeout"))
+
+        with mock.patch.object(rk.subprocess, "run", boom):
+            self.assertEqual(rk.gh(["api", "x"]), "")
+            self.assertEqual(rk.gh_notes(["api", "x"]), "")
+            self.assertEqual(rk.annotations(rk.gh_notes, "o/r", 1), "")
+            with self.assertRaises(RuntimeError):
+                rk.gh(["api", "x"], must=True)
+
+    def test_the_real_gh_reads_annotations_with_the_short_timeout(self):
+        from unittest import mock
+        seen = []
+
+        def fake_run(cmd, **k):
+            seen.append(k.get("timeout"))
+            return mock.Mock(returncode=0, stdout="The hosted runner lost communication with the server.\n", stderr="")
+
+        with mock.patch.object(rk.subprocess, "run", fake_run):
+            self.assertIn("lost communication", rk.annotations(rk.gh_notes, "o/r", 1))
+        self.assertEqual(seen, [rk.NOTES_CALL])
 
 
 if __name__ == "__main__":
