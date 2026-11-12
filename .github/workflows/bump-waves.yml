@@ -108,8 +108,8 @@ jobs:
           # The jobs API answered 502 to 100-job pages of these runs that evening: pages of 30, each call tried again.
           # each try's output is kept apart and printed only when the try succeeds: a failed page (gh prints a 502's body to stdout) or a half-done --paginate
           # must not stay in front of the next try's whole output (cubic, #178); a download goes into a directory emptied before each try
-          retry() { local i out; for i in 1 2 3 4 5; do if out=$("$@"); then [ -z "$out" ] || printf '%s\n' "$out"; return 0; fi; sleep $((i * 20)); done; return 1; }
-          retry_into() { local dir=$1 i; shift; for i in 1 2 3 4 5; do rm -rf "$dir"; "$@" && return 0; sleep $((i * 20)); done; return 1; }
+          retry() { local i out; for i in 1 2 3 4 5; do if out=$("$@"); then [ -z "$out" ] || printf '%s\n' "$out"; return 0; fi; [ "$i" = 5 ] || sleep $((i * 20)); done; return 1; }
+          retry_into() { local dir=$1 i; shift; for i in 1 2 3 4 5; do rm -rf "$dir"; "$@" && return 0; [ "$i" = 5 ] || sleep $((i * 20)); done; return 1; }  # no wait after the last try (cubic, #178)
           now_lib=$(python3 scripts/bump/lane_reuse.py library --setup "data/exports/$KEY/setup.ci.json" --sources sources.json --key "$KEY")
           chain=(); run="$REUSE_FROM"
           while [ -n "$run" ]; do
@@ -903,10 +903,67 @@ jobs:
       reuse_run: ${{ inputs.reuse_from }}
       reuse_packs: ${{ needs.plan.outputs.packs }}
     permissions: { contents: read, actions: read }
-  # every wave passed: compose, the tree's own build, signing and parts, as for any bump. A failed job is re-run from the run's page (its packs stay here), and this job with it
-  bundle:
+  # every wave passed: the regate and the bundle start from here
+  lane-done:
     needs: [plan, w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15, w16, w17, w18, w19, w20, w21, w22, w23, w24, w25, w26, w27, w28, w29, w30, w31]
-    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
+    if: ${{ !cancelled() && needs.plan.result == 'success' && !contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - run: echo "every wave passed"
+  # REGATE: a lane job judges its targets in what its build left of its 345 minutes, and lists the targets it reached no verdict on (gate2-killed.json). Those shards
+  # are judged again on their own builds, Gate 2 alone with its whole budget (bump-shard.yml regate; scripts/bump/regate_plan.py). flt-anthropic's job 43 (run
+  # 43146942669, 12 Nov 2026) built for 3 h 02 min and left 114 target modules unjudged; the bundle cuts a module without a verdict with all that imports it.
+  regate-plan:
+    needs: [plan, lane-done]
+    if: ${{ !cancelled() && needs.lane-done.result == 'success' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    permissions: { contents: read, actions: read }
+    outputs:
+      shards: ${{ steps.r.outputs.shards }}
+      from: ${{ steps.r.outputs.from }}
+    env: { GH_TOKEN: "${{ github.token }}", KEY: "${{ inputs.key }}", FILL: "${{ needs.plan.outputs.fill }}" }
+    steps:
+      - name: This repository (scripts, the library's setup)
+        run: |
+          git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
+          git -C emissary sparse-checkout set --no-cone "/scripts/" "/sources.json" "/data/exports/$KEY/setup.ci.json"
+          git -C emissary checkout -q "$GITHUB_SHA"
+      - name: The shards whose Gate 2 left targets without a verdict
+        id: r
+        run: python3 emissary/scripts/bump/regate_plan.py --repo "$GITHUB_REPOSITORY" --key "$KEY" --run "$GITHUB_RUN_ID" --fill "$FILL" --library-from emissary --work regate-work >> "$GITHUB_OUTPUT"
+  regate:
+    needs: [plan, regate-plan]
+    if: ${{ !cancelled() && needs.regate-plan.result == 'success' && needs.regate-plan.outputs.shards != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix: { shard: "${{ fromJSON(needs.regate-plan.outputs.shards) }}" }
+    uses: ./.github/workflows/bump-shard.yml
+    with:
+      key: ${{ inputs.key }}
+      mathlib: ${{ inputs.mathlib }}
+      toolchain: ${{ inputs.toolchain }}
+      shard: ${{ matrix.shard }}
+      tengoku_ref: ${{ inputs.tengoku_ref }}
+      imports: ${{ inputs.imports }}
+      gate2_budget_min: "300"  # Gate 2 alone: what the job has left after the restore (it never runs past the job's end less 15 minutes)
+      gate2_rss_share: ${{ inputs.gate2_rss_share }}
+      swap_gb: ${{ inputs.swap_gb }}
+      build_timeout_min: ${{ inputs.build_timeout_min }}
+      build_once: "true"
+      regate: "true"
+      regate_from: ${{ needs.regate-plan.outputs.from }}
+      reuse_run: ${{ inputs.reuse_from }}
+      reuse_packs: ${{ needs.plan.outputs.packs }}
+    permissions: { contents: read, actions: read }
+  # every wave passed: compose, the tree's own build, signing and parts, as for any bump. A failed job is re-run from the run's page (its packs stay here), and this job with it.
+  # A regate that fails costs only its new verdicts: the shard's pack is replaced only by a whole new one, so the bundle starts whatever the regate jobs did.
+  bundle:
+    needs: [plan, lane-done, regate-plan, regate]
+    if: ${{ !cancelled() && needs.lane-done.result == 'success' && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions: { actions: write }  # dispatch bump-sharded

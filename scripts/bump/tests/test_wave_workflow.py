@@ -87,8 +87,11 @@ class Chain(unittest.TestCase):
 
     def test_the_bundle_waits_for_every_wave_and_none_may_have_failed(self):
         b = waves["jobs"]["bundle"]
-        self.assertEqual(set(b["needs"]), {"plan"} | {f"w{i}" for i in range(pw.MAX_WAVES)})
-        self.assertIn("!contains(needs.*.result, 'failure')", b["if"])
+        done = waves["jobs"]["lane-done"]  # every wave, none failed; then the regate (test_lane_regate.py), then the bundle
+        self.assertEqual(set(done["needs"]), {"plan"} | {f"w{i}" for i in range(pw.MAX_WAVES)})
+        self.assertIn("!contains(needs.*.result, 'failure')", done["if"])
+        self.assertEqual(set(b["needs"]), {"plan", "lane-done", "regate-plan", "regate"})
+        self.assertIn("needs.lane-done.result == 'success'", b["if"])
         self.assertIn("refs/heads/main", b["if"])
         self.assertEqual(b["permissions"], {"actions": "write"})
         run = b["steps"][0]["run"]
@@ -134,9 +137,10 @@ class ShardSteps(unittest.TestCase):
 
     def test_the_token_is_fetched_with_before_any_code_of_the_library_runs(self):
         self.assertLess(index(self.fetch), index(self.library))
-        with_token = [s.get("name", s.get("uses")) for s in STEPS if "GH_TOKEN" in (s.get("env") or {})]
-        self.assertEqual(len(with_token), 1)
-        self.assertIn(self.fetch, with_token[0])
+        with_token = [i for i, s in enumerate(STEPS) if "GH_TOKEN" in (s.get("env") or {})]
+        self.assertIn(index(self.fetch), with_token)
+        for i in with_token:  # every step with the token (the fetch, and a regate's download of its pack) runs before any code of the library
+            self.assertLess(i, index(self.library), STEPS[i].get("name"))
 
     def test_the_order_of_the_build_once_steps(self):
         self.assertLess(index(self.library), index(self.place))
@@ -147,10 +151,10 @@ class ShardSteps(unittest.TestCase):
 
     def test_the_build_once_steps_are_off_for_a_plain_bump(self):
         for words in (self.fetch, self.place, self.pack):
-            self.assertEqual(STEPS[index(words)]["if"], "inputs.build_once == 'true'", words)
+            self.assertTrue(STEPS[index(words)]["if"].startswith("inputs.build_once == 'true'"), words)  # a regate (also a build-once) skips the pack
         uploads = [s for s in STEPS if "with" in s and str(s["with"].get("name", "")).startswith("wave-")]
         self.assertEqual(len(uploads), 3)  # the upload and its two later tries (test_lane_chain.py I8)
-        self.assertEqual(uploads[0]["if"], "inputs.build_once == 'true'")
+        self.assertEqual(uploads[0]["if"], "inputs.build_once == 'true' && inputs.regate != 'true'")  # a regate hands on no wave pack: it built nothing
         for u in uploads[1:]:
             self.assertTrue(u["if"].startswith("inputs.build_once == 'true' && "), u["if"])
         self.assertEqual([("continue-on-error" in u) for u in uploads], [True, True, False])  # only the last try may fail the job
