@@ -2,6 +2,10 @@
 """plan_inputs.py — what a bump's shards are built with, as the plan records it (plan/inputs.json). A resume (fill_from) may only fill in shards built under the same settings.
 
   plan_inputs.py OUT.json        reads MATHLIB, TOOLCHAIN, IMPORTS, TENGOKU_REF (and SWAP_GB, BUILD_TIMEOUT_MIN) from the environment
+  plan_inputs.py swap IN.json    prints swap_gb=N: the swap the shards of that plan were built with (bump-sharded.yml compose -> verify)
+
+verify builds the shards' new modules again, in the tree; a module that needed swap in its shard needs it there too. prime-gaps-186 (run 42549840777, 9 and 12 Nov 2026): its
+shard built PrimeGaps186's one new module on 48 GB of swap in 64 minutes; verify, which had no swap, lost its runner 16 minutes into the same build, twice, with no log.
 
 swap_gb and build_timeout_min change what a shard can build and judge (a module too big for RAM builds on swap, or is killed after its timeout), so a resume must not mix shards built with
 different values. They are recorded only when they are not the defaults (0 and 90): the record of a run that used the defaults is byte for byte what it was before they existed, so that such a
@@ -79,8 +83,32 @@ def parse_heavy(raw: str) -> dict:
     return out
 
 
+SWAP_GB = re.compile(r"0|[1-9][0-9]{0,2}")
+
+
+def swap_of(rec: dict) -> str:
+    """the swap (GB) a plan's shards were built with: what the record says, or the default when it says nothing (a record leaves out the defaults)"""
+    if not isinstance(rec, dict):
+        raise ValueError(f"inputs.json: a record is a JSON object, not {type(rec).__name__}")  # cubic, #182
+    v = rec.get("swap_gb", DEFAULTS["SWAP_GB"])
+    if not isinstance(v, str) or not SWAP_GB.fullmatch(v):
+        raise ValueError(f"inputs.json: swap_gb is a number of GB, not {str(v)[:20]!r}")
+    return v
+
+
 if __name__ == "__main__":
-    if sys.argv[1] == "heavy":
+    if sys.argv[1] == "swap":
+        # no record (a recut of a run older than the plan's 14 days of retention): said plainly, and the build goes on as it did before there was a record
+        if not os.path.isfile(sys.argv[2]):
+            print(f"::warning::{sys.argv[2]}: no record of what the shards were built with; verify adds no swap", file=sys.stderr)
+            print("swap_gb=0")
+            sys.exit(0)
+        try:
+            print(f"swap_gb={swap_of(json.load(open(sys.argv[2])))}")
+        except (ValueError, json.JSONDecodeError) as e:
+            print(f"::error::{e}", file=sys.stderr)  # stdout is $GITHUB_OUTPUT
+            sys.exit(1)
+    elif sys.argv[1] == "heavy":
         try:
             for k, v in parse_heavy(sys.argv[2] if len(sys.argv) > 2 else "").items():
                 print(f"{k}={v}")

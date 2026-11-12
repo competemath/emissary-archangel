@@ -1842,6 +1842,38 @@
         "DuistermaatVanDerKallen"
       ],
       "licence": "MIT"
+    },
+    "etingofrepresentationtheory": {
+      "label": "etingofrepresentationtheory (mathlib-initiative/EtingofRepresentationTheory; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/mathlib-initiative/EtingofRepresentationTheory",
+      "commit": "752fe269b3233f08f0795aa4bcdc5b4c84be7a50",
+      "toolchain": "leanprover/lean4:v4.32.2",
+      "roots": [
+        "RepresentationTheory"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "abel-formalization": {
+      "label": "abel-formalization (archernikov/abel-formalization; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/archernikov/abel-formalization",
+      "commit": "e5c3d233c4bd4220ec3b8e52a05ff6e42c2ef3a3",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "AbelFormalization",
+        "Challenge",
+        "Solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lean-operads": {
+      "label": "lean-operads (landonfox00/lean-operads; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/landonfox00/lean-operads",
+      "commit": "09ccda4a2b0461142f207c75a268f8487c8fddb0",
+      "toolchain": "leanprover/lean4:v4.30.0",
+      "roots": [
+        "Operad"
+      ],
+      "licence": "Apache-2.0"
     }
   }
 }
