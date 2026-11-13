@@ -190,8 +190,25 @@ def locate(text: str, items: list[Item]) -> tuple[list[tuple[int, Item]], list[t
     return placed, skipped
 
 
-def write_tag(text: str, p: int, it: Item) -> tuple[str, str, str]:
-    """The text with the item's tag written at the command that starts at `p`: (new text, outcome, "") or (text, "", reason) when it cannot be written."""
+def docstring_before(text: str, p: int, docs: dict[int, int]) -> int | None:
+    """The start of the `/--` docstring that ends just before `p` with only whitespace between, or None. `docs` maps the end of every docstring of the text to its start."""
+    k = p
+    while k > 0 and text[k - 1] in " \t\n":
+        k -= 1
+    return docs.get(k)
+
+
+def write_tag(text: str, p: int, it: Item, docs: dict[int, int] | None = None) -> tuple[str, str, str]:
+    """The text with the item's tag written at the command that starts at `p`: (new text, outcome, "") or (text, "", reason) when it cannot be written.
+
+    A declaration in a `where` clause (or a `let rec`) has a range that starts at its name, after its docstring: Lean leaves the docstring out. A docstring directly
+    before the command is its docstring (Lean attaches a `/--` to what follows it), so the tag goes into it; creating another left two docstrings in a row, which does not
+    parse (lean-operads part 1, #780, 12 Nov 2026: `Operad.BTree.graft_cutAt_subAt.posAt_lt_arity_cutAt`, `unexpected token '/--'` in ShuffleTree and SymTreeConv).
+    `docs` (end -> start of each docstring) comes from the text before any edit: the tags are written from the end of the file, so the text before `p` is unchanged."""
+    if docs is not None and not text.startswith("/--", p):
+        q = docstring_before(text, p, docs)
+        if q is not None:
+            p = q
     line_start = text[text.rfind("\n", 0, p) + 1 : p]
     if text.startswith("/--", p) and not text.startswith("/--/", p):
         end = skip_block_comment(text, p)
@@ -211,8 +228,9 @@ def tag_text(text: str, items: list[Item]) -> tuple[str, dict[str, int], list[tu
         return text, counts_zero(), [(it.name, "the file has CRLF line endings") for it in items]
     counts = counts_zero()
     placed, skipped = locate(text, items)
+    docs = {e: s for kind, s, e in scan(text) if kind == "doc"}  # of the text before any edit (write_tag)
     for p, it in sorted(placed, key=lambda x: -x[0]):  # from the end: an edit never moves one still to do
-        text, what, why = write_tag(text, p, it)
+        text, what, why = write_tag(text, p, it, docs)
         if why:
             skipped.append((it.name, why))
         else:
