@@ -35,7 +35,7 @@ import { basename, dirname, join, relative, resolve } from "node:path"
 import { StringDecoder } from "node:string_decoder"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
-import { collectTools, exporterAction, mergeTools, patchFingerprint, brokenLine, errorLineKeeper, brokenAlone, retrying, rootOfRepoPath, transientDownload } from "./setup-tools.mjs"
+import { collectTools, exporterAction, mergeTools, patchFingerprint, brokenLine, errorLineKeeper, brokenAlone, sourceInside, retrying, rootOfRepoPath, transientDownload } from "./setup-tools.mjs"
 import { bisectItems } from "./bisect.mjs"
 import { repairPins } from "./pinned-deps.mjs"
 import { aloneFirstMs, availableFrom, buildAttempts, closureBigModules, closureBudgetMs, closureRetryMs, membersOf, soloBuildMs, soloMax } from "./memory-rules.mjs"
@@ -344,7 +344,7 @@ function saveBroken(map) {
 }
 // The first error a build printed for the file of module `m` itself (`error: ./Lib/X.lean:3:4: ...`, or without ./), or null.
 // ... or an import of its own library that has no source file at this commit (setup-tools.mjs missingOwnImport)
-const sourceExists = (m) => [pathOfModule(m), ...SRCDIRS.map((d) => `${d}/${pathOfModule(m)}`)].some((p) => existsSync(join(REPO, p)))
+const sourceExists = (m) => [pathOfModule(m), ...SRCDIRS.map((d) => `${d}/${pathOfModule(m)}`)].some((p) => sourceInside(REPO, p, existsSync))
 const OWN = { roots: src.roots, exists: sourceExists }
 const ownError = (m, text) => brokenLine(pathOfModule(m), SRCDIRS, text, OWN)
 function saveOom(map) {

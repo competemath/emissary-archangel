@@ -1,8 +1,9 @@
 // node scripts/test-setup-tools.mjs — the tools recorded in a setup record (scripts/setup-tools.mjs; exits 1 on a failure). No Lean, no network: the tools are asked through a stand-in.
-import { readFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { TOOL_FIELDS, collectTools, exporterAction, mergeTools, parseElan, patchFingerprint, parseLake, parseLean, plain, brokenAlone, brokenLine, errorLineKeeper, missingOwnImport, ownErrorLine, retrying, runnerImage, transientDownload } from "./setup-tools.mjs"
+import { TOOL_FIELDS, collectTools, exporterAction, mergeTools, parseElan, patchFingerprint, parseLake, parseLean, plain, brokenAlone, brokenLine, errorLineKeeper, missingOwnImport, ownErrorLine, retrying, sourceInside, runnerImage, transientDownload } from "./setup-tools.mjs"
 
 let bad = 0
 const check = (name, ok, got) => {
@@ -236,5 +237,27 @@ const schedule = async (answers, opts = {}) => {
   }
   check("missing import: 2,000 random libraries agree with the rule", agree, null)
   check("setup-source.mjs: the broken probe reads missing imports with the library's roots and source files", /const OWN = \{ roots: src\.roots, exists: sourceExists \}/.test(src) && /const ownError = \(m, text\) => brokenLine\(pathOfModule\(m\), SRCDIRS, text, OWN\)/.test(src), null)
+}
+// a module name's quoted component can name a path out of the checkout (cubic on #187): the library's own source files are only inside it
+{
+  const base = mkdtempSync(join(tmpdir(), "src-inside-"))
+  const repo = join(base, "repo")
+  for (const [f, d] of [[join(repo, "R", "A.lean"), join(repo, "R")], [join(base, "Secret.lean"), base], [join(repo, "..foo", "X.lean"), join(repo, "..foo")]]) {
+    mkdirSync(d, { recursive: true })
+    writeFileSync(f, "")
+  }
+  // the module path the way setup-source.mjs makes it (moduleComponents, then /)
+  const path = (m) => [...m.matchAll(/«[^»]*»|[^.]+/g)].map((x) => x[0].replace(/^«|»$/g, "")).join("/") + ".lean"
+  const inside = (m) => sourceInside(repo, path(m), existsSync)
+  check("source inside: a module of the library is", inside("R.A") && !inside("R.Missing"), null)
+  check("source inside: a quoted «..» that leads out of the checkout is not, though the file exists there", existsSync(join(repo, path("«..».Secret"))) && !inside("«..».Secret") && !inside("R.«..».«..».Secret"), null)
+  check("source inside: a quoted «..» that stays inside is still the library's file; a folder named ..foo is inside", inside("R.«..».R.A") && inside("«..foo».X"), null)
+  check("source inside: an absolute path in a quoted component is not", !inside("«" + join(base, "Secret") + "»"), null)
+  const line = "error: R/B.lean: bad import 'R.«..».«..».Secret'"
+  check("missing import: an import whose path leads out of the checkout is the library's own and missing", missingOwnImport("R/B.lean", [], line, ["R"], inside) !== null, null)
+  // mutant: the plain test of setup-source.mjs before (existsSync of join(REPO, path)) finds the file outside and calls the import present
+  check("mutant: without the guard the file outside the checkout counts", missingOwnImport("R/B.lean", [], line, ["R"], (m) => existsSync(join(repo, path(m)))) === null, null)
+  check("setup-source.mjs: a module's source file is looked for inside the checkout only", /some\(\(p\) => sourceInside\(REPO, p, existsSync\)\)/.test(src), null)
+  rmSync(base, { recursive: true, force: true })
 }
 process.exit(bad ? 1 : 0)

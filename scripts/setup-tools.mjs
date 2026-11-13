@@ -6,6 +6,7 @@
 //   collectTools({ exec, env, nodeVersion, toolchain, l4eDir, patchRecorded })  -> { lean, lake, elan, lean4export, node, runnerImage }
 //   mergeTools([tools, ...])                                                  -> the same shape; a field the inputs disagree on holds every value, " | " apart
 import { createHash } from "node:crypto"
+import { isAbsolute, join, relative, resolve, sep } from "node:path"
 
 export const TOOL_FIELDS = ["lean", "lake", "elan", "lean4export", "node", "runnerImage"]
 const MAX = 200
@@ -147,6 +148,12 @@ export function missingOwnImport(path, srcdirs, text, roots, exists) {
     if (roots.some((r) => m === r || m.startsWith(r + ".")) && !exists(m)) return `${hit[0].trim()} (no source file for it at this commit)`.slice(0, 300)
   }
   return null
+}
+// Whether `rel` is a file of the library's checkout `repo`: never a path that leads out of it. A module name's quoted component (`«..»`) is any text, so the path of
+// `R.«..».«..».X` is ../../X.lean (cubic on #187): missingOwnImport must not take a file outside the library for the library's own.
+export function sourceInside(repo, rel, exists) {
+  const r = relative(repo, resolve(repo, rel))
+  return r !== "" && r !== ".." && !r.startsWith(".." + sep) && !isAbsolute(r) && exists(join(repo, r))
 }
 // Why a module does not compile at this commit, from what its build printed: an error in its own file, or (given the library's roots and a test for a module's source file) an import of its own
 // library that has no file.
