@@ -1,0 +1,46 @@
+{
+  "key": "lean-commutator",
+  "repo": "https://github.com/WuProver/lean-commutator",
+  "commit": "2f197491d436faa274133f9b72b2e8e8fe6c19c0",
+  "toolchain": "leanprover/lean4:v4.30.0-rc1",
+  "roots": [
+    "CommutatorTheorem",
+    "KadisonSinger",
+    "PavingSeparation"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lean-commutator/repo",
+  "entries": 1871,
+  "modules": 167,
+  "exported": 167,
+  "failed": [],
+  "expansion": {
+    "expanded": 63,
+    "verbatim": 348,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1871,
+    "kept": 1871,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 3,
+    "lineUnverified": 0,
+    "nameFixed": 1871,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.30.0-rc1 (commit 714601baf118066cbf3f282361339c6d06665b2a, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+714601b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "fb517af7d710 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 70426624,
+  "minutes": 40,
+  "finishedAt": "2026-11-13T13:11:20.568Z"
+}
