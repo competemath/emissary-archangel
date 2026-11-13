@@ -477,14 +477,20 @@ class Workflow(unittest.TestCase):
         self.assertEqual(on["workflow_dispatch"]["inputs"]["dry_run"]["default"], "true")
         self.assertIn("schedule", on)
         # the scheduler did not fire the cron in its first four hours on main (13 Nov 2026): every bump-pickup run starts this one too
-        self.assertEqual(on["workflow_run"], {"workflows": ["bump-pickup"], "types": ["completed"]})
-        self.assertEqual(yaml.safe_load((WF / "bump-pickup.yml").read_text())["name"], "bump-pickup")
+        # and every time a long job ends and frees runners (the cron of bump-pickup itself fired 3 times in 16 hours: 20:47, 01:48 and 09:27)
+        # only runs of main (cubic on #191): github.ref of a workflow_run is the default branch whatever branch the upstream run was on
+        self.assertEqual(on["workflow_run"], {"workflows": ["bump-pickup", "setup-sharded", "bump-sharded"], "types": ["completed"], "branches": ["main"]})
+        for wf in on["workflow_run"]["workflows"]:
+            self.assertEqual(yaml.safe_load((WF / f"{wf}.yml").read_text())["name"], wf)
+        # a dry run is never a trigger: none of the long workflows has a dry_run input, and bump-pickup's dispatched runs are skipped by the job's `if`
+        for wf in ("setup-sharded", "bump-sharded"):
+            self.assertNotIn("dry_run", yaml.safe_load((WF / f"{wf}.yml").read_text())[True]["workflow_dispatch"]["inputs"], wf)
         self.assertEqual(self.y["permissions"], {})
         job = self.y["jobs"]["pickup"]
         self.assertEqual(job["permissions"], {"actions": "write", "contents": "read"})
         for s in ("vars.LANE_ENABLED == 'true'", "github.ref == 'refs/heads/main'", "github.repository == 'competemath/emissary-archangel'",
                   # after a bump-pickup only on its schedule: a person's dry run of bump-pickup must not start setups (cubic on #190)
-                  "(github.event_name != 'workflow_run' || github.event.workflow_run.event == 'schedule')"):
+                  "(github.event_name != 'workflow_run' || github.event.workflow_run.name != 'bump-pickup' || github.event.workflow_run.event == 'schedule')"):
             self.assertIn(s, job["if"])
         run = "\n".join(s.get("run", "") for s in job["steps"])
         for p in ('"/scripts/bump/"', '"/sources.json"', '"/data/exports/*/setup.ci.json"'):
