@@ -92,9 +92,6 @@ class Twins(unittest.TestCase):
         self.assertEqual(rl.mostly_overlapping(names, ["a", "b"]), [("b", "a", 1.0)])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class RefusedLines(unittest.TestCase):
     """refine reads the record lines both record rules refuse. The real case: batch 7 (13 Nov 2026), the first registration whose records met
@@ -134,3 +131,7 @@ class RefusedLines(unittest.TestCase):
         old = re.compile(r"^\s*(data/\S+\.jsonl):(\d+): (.*)$", re.M)
         self.assertEqual(len(old.findall(self.REAL["lint_banked"])), 0)  # what stopped batch 7's refine
         self.assertEqual(len(old.findall(self.REAL["validate_records"])), len(self.listed(self.REAL["validate_records"])))
+
+
+if __name__ == "__main__":
+    unittest.main()
