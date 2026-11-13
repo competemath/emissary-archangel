@@ -135,6 +135,24 @@ export function ownErrorLine(path, srcdirs, text) {
   const hit = text.match(new RegExp(`^error: (?:\\./)?${folder}${esc(path)}:\\d+:\\d+: .*$`, "m"))
   return hit ? hit[0].slice(0, 300) : null
 }
+// A module that imports a module of its OWN library (under one of its roots) with no source file at the library's commit does not compile at this commit either. Lake says so with
+// `error: <file>: bad import '<module>'`, no position, which ownErrorLine does not read: ck-hopf-formalization at f10fcd9 (13 Nov 2026) imports GaugeGeometry.QFT.HopfAlgebra.SubgraphFintype,
+// which is not in its repository, the 101 modules behind it were never recorded, and the setup stopped at 600 of 701 modules after a round that added nothing, exporting none.
+// A bad import of a module that has a file failed for a reason of that module (memory, its own error), and a package's module is not the library's: neither counts.
+export function missingOwnImport(path, srcdirs, text, roots, exists) {
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const folder = srcdirs.length ? `(?:(?:${srcdirs.map(esc).join("|")})/)?` : ""
+  for (const hit of text.matchAll(new RegExp(`^error: (?:\\./)?${folder}${esc(path)}: bad import '([^'\n]+)'[ \\t]*$`, "gm"))) {
+    const m = hit[1]
+    if (roots.some((r) => m === r || m.startsWith(r + ".")) && !exists(m)) return `${hit[0].trim()} (no source file for it at this commit)`.slice(0, 300)
+  }
+  return null
+}
+// Why a module does not compile at this commit, from what its build printed: an error in its own file, or (given the library's roots and a test for a module's source file) an import of its own
+// library that has no file.
+export function brokenLine(path, srcdirs, text, own = null) {
+  return ownErrorLine(path, srcdirs, text) ?? (own ? missingOwnImport(path, srcdirs, text, own.roots, own.exists) : null)
+}
 // The lines that start with `error: `, however the output is cut into chunks. A command's tail is its last 4,000 characters, and a module with many warnings after its errors pushes them out of it.
 // Each stream has its own unfinished line: stdout and stderr are separate pipes, and a piece of one must not end up in front of a line of the other. Every error line is kept, cut to 400 characters.
 export function errorLineKeeper() {
@@ -151,6 +169,6 @@ export function errorLineKeeper() {
 }
 
 // Why a module built alone did not build, if it is a fault of its own file. A build that ran out of its time limit (exit 124) says nothing: it may have printed an error and might have finished with more time.
-export function brokenAlone(result, path, srcdirs) {
-  return result.code === 124 ? null : ownErrorLine(path, srcdirs, `${result.errors}\n${result.tail}`)
+export function brokenAlone(result, path, srcdirs, own = null) {
+  return result.code === 124 ? null : brokenLine(path, srcdirs, `${result.errors}\n${result.tail}`, own)
 }
