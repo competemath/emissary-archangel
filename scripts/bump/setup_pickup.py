@@ -120,6 +120,17 @@ def waits_for_runners(starts: list, ready: int, free: int) -> bool:
     return not starts and ready > 0 and free < bp.NEED_FREE
 
 
+class DispatchError(RuntimeError):
+    """A dispatch that failed: never retried by the wait (GitHub may have accepted it before gh reported the error: cubic on #192), the job fails visibly."""
+
+
+def dispatch(args: list[str]) -> None:
+    try:
+        subprocess.run(args, check=True)
+    except subprocess.CalledProcessError as e:
+        raise DispatchError(f"{' '.join(args[:6])} ...: exit {e.returncode}") from e
+
+
 def once(a, sources: dict, reg: dict[str, int], log=print) -> tuple[list[tuple[str, str]], bool]:
     """One look: which libraries wait for a setup, which can start with the runners free now; starts them unless a dry run. (the starts, whether only the runners hold a ready library back)"""
     since = window_start(int(time.time()))
@@ -137,7 +148,7 @@ def once(a, sources: dict, reg: dict[str, int], log=print) -> tuple[list[tuple[s
     log(f"{len(keys)} registered and not set up, {free} runners free; setup: " + (", ".join(f"{k} (tengoku_ref={r or 'main'})" for k, r in starts) or "none"))
     if not a.dry_run:
         for k, r in starts:
-            subprocess.run(dispatch_args(k, r or "", a.repo), check=True)
+            dispatch(dispatch_args(k, r or "", a.repo))
     ready = sum(1 for k in keys if refs[k][0] is not None)
     return starts, waits_for_runners(starts, ready, free)
 
@@ -157,8 +168,10 @@ def main() -> None:
     while True:
         try:
             starts, waits = once(a, sources, reg)
+        except DispatchError:
+            raise  # not retried: the request may have been accepted
         except Exception as e:  # noqa: BLE001 - a transient failure of gh at minute 30 must not end the wait (cubic on #192); the first look failing is a real failure
-            if first:
+            if first or time.time() + POLL_SECONDS > deadline:  # and when no further look fits: the job fails visibly, it does not end quietly
                 raise
             print(f"this look failed ({type(e).__name__}: {e}); the next is in {POLL_SECONDS // 60} minutes")
             starts, waits = [], True

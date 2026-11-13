@@ -168,6 +168,17 @@ def open_titles(tree: str, gh=_lines) -> list[str]:
 POLL_SECONDS = 300  # how often a waiting pickup looks at the runners again (setup_pickup.py has the same)
 
 
+class DispatchError(RuntimeError):
+    """A dispatch that failed: never retried by the wait (GitHub may have accepted it before gh reported the error: cubic on #192), the job fails visibly."""
+
+
+def dispatch(args: list[str]) -> None:
+    try:
+        subprocess.run(args, check=True)
+    except subprocess.CalledProcessError as e:
+        raise DispatchError(f"{' '.join(args[:6])} ...: exit {e.returncode}") from e
+
+
 def once(a, log=print) -> tuple[str | None, bool]:
     """One look: the library whose bump starts now (started unless a dry run), and whether only the runners hold a ready library back."""
     text = subprocess.run(["git", "log", "--format=@%ct%x09%s", "--name-only", "--", "data/exports/*/setup.ci.json"], check=True, capture_output=True, text=True).stdout
@@ -201,7 +212,7 @@ def once(a, log=print) -> tuple[str | None, bool]:
     ref = refs[key][0] if key else ""
     log(f"{free} runners free; bump: {key or 'none'}" + (f" (tengoku_ref={ref or 'main'})" if key else ""))
     if key and not a.dry_run:
-        subprocess.run(dispatch_args(key, free, a.repo, ref or ""), check=True)
+        dispatch(dispatch_args(key, free, a.repo, ref or ""))
     ready = len(classify(published, records, bumps, parts, since, refs)[1])
     return key, waits_for_runners(key, ready, free)
 
@@ -218,8 +229,10 @@ def main() -> None:
     while True:
         try:
             key, waits = once(a)
-        except Exception as e:  # noqa: BLE001 - a transient failure of gh at minute 30 must not end the wait; the first look failing is a real failure
-            if first:
+        except DispatchError:
+            raise  # not retried: the request may have been accepted
+        except Exception as e:  # noqa: BLE001 - a transient failure of gh at minute 30 must not end the wait (cubic on #192); the first look failing is a real failure
+            if first or time.time() + POLL_SECONDS > deadline:  # and when no further look fits: the job fails visibly, it does not end quietly
                 raise
             print(f"this look failed ({type(e).__name__}: {e}); the next is in {POLL_SECONDS // 60} minutes")
             key, waits = None, True

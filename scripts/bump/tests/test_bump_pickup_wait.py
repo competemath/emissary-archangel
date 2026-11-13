@@ -108,7 +108,7 @@ class Loop(unittest.TestCase):
         os.environ.pop("GITHUB_RUN_ID", None)
         os.environ.pop("GITHUB_REPOSITORY", None)
 
-    def run_main(self, frees, wait=30, dry=False, fail_looks=(), main=None, bumped=False):
+    def run_main(self, frees, wait=30, dry=False, fail_looks=(), main=None, bumped=False, dispatch_fails=False):
         looks, sleeps, calls = [], [], []
         clock = [NOW]
         seen = [0]
@@ -118,6 +118,8 @@ class Loop(unittest.TestCase):
             if args[:2] == ["git", "log"]:
                 return subprocess.CompletedProcess(args, 0, git_log, "")
             calls.append(args)
+            if dispatch_fails:
+                raise subprocess.CalledProcessError(1, args)
             return subprocess.CompletedProcess(args, 0, "", "")
 
         def in_use():
@@ -193,12 +195,45 @@ class Loop(unittest.TestCase):
 
     def test_mutant_no_deadline_never_ends(self):
         src = inspect.getsource(bp.main)
-        old = "or time.time() + POLL_SECONDS > deadline"
+        old = "if a.dry_run or not waits or time.time() + POLL_SECONDS > deadline:"
+        self.assertEqual(src.count(old), 1)
+        ns = dict(vars(bp))
+        exec(src.replace(old, "if a.dry_run or not waits:"), ns)
+        with self.assertRaises(RuntimeError):
+            self.run_main([0], main=ns["main"])
+
+    def test_a_look_failing_when_no_further_look_fits_fails_the_job(self):
+        """cubic on #192: a failure at the last look must not end quietly after saying the next look is in five minutes"""
+        with self.assertRaises(RuntimeError):
+            self.run_main([0, 0], wait=5, fail_looks={1})
+
+    def test_a_failed_dispatch_is_not_retried(self):
+        """cubic on #192: gh may report an error for a request GitHub accepted; the next look would start the bump twice"""
+        seen = []
+        real = bp.dispatch
+        with mock.patch.object(bp, "dispatch", lambda args: (seen.append(args), real(args))[1]), self.assertRaises(bp.DispatchError):
+            self.run_main([0, 20, 20, 20], dispatch_fails=True)
+        self.assertEqual(len(seen), 1)
+
+    def test_mutant_a_failed_dispatch_is_retried(self):
+        src = inspect.getsource(bp.main)
+        old = "        except DispatchError:\n            raise  # not retried: the request may have been accepted\n"
         self.assertEqual(src.count(old), 1)
         ns = dict(vars(bp))
         exec(src.replace(old, ""), ns)
-        with self.assertRaises(RuntimeError):
-            self.run_main([0], main=ns["main"])
+        seen = []
+        real = bp.dispatch
+        with mock.patch.object(bp, "dispatch", lambda args: (seen.append(args), real(args))[1]), self.assertRaises(Exception):
+            self.run_main([0, 20, 20, 20], dispatch_fails=True, main=ns["main"])
+        self.assertGreater(len(seen), 1)
+
+    def test_mutant_a_failure_at_the_last_look_ends_quietly(self):
+        src = inspect.getsource(bp.main)
+        old = "if first or time.time() + POLL_SECONDS > deadline:"
+        self.assertEqual(src.count(old), 1)
+        ns = dict(vars(bp))
+        exec(src.replace(old, "if first:"), ns)
+        self.run_main([0, 0], wait=5, fail_looks={1}, main=ns["main"])
 
     def test_mutant_a_failing_look_ends_the_wait(self):
         src = inspect.getsource(bp.main)
