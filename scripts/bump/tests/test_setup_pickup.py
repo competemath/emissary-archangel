@@ -108,7 +108,7 @@ class RealPast(unittest.TestCase):
         keys, (key, ref, notes) = run_pickup(without_batch6(R["runs"]))
         self.assertEqual(keys, BATCH6)  # registered together: by name
         self.assertEqual((key, ref), ("ck-hopf-formalization", "content/fatex-libraries-batch-6"))
-        self.assertEqual(notes, [f"{k}: waits for the next run" for k in BATCH6[1:]])
+        self.assertEqual(notes, [f"{k}: starts in this run too" for k in BATCH6[1:]])  # 20 runners free: all four in one run
 
     def test_the_hand_setups_were_what_the_pickup_would_have_started(self):
         """each real setup-auto dispatch of batch 6 is exactly dispatch_args for that library and branch"""
@@ -253,6 +253,85 @@ class TheDirectory(unittest.TestCase):
     def test_mutant_the_directory_ignored(self):
         blind = mutant("holds", "dir_files = any(in_directory(key, f) for f in present)", "dir_files = False")
         self.assertIsNone(sp.records_ref("newlib", {}, set(), [self.DIR_ONLY], TREE, blind)[0])
+
+
+class SeveralStarts(unittest.TestCase):
+    """plan: as many starts per run as keep bump_pickup.NEED_FREE runners free after PER_START for each, at most MAX_STARTS. The real case: batch 7
+    (13 Nov 2026, seven libraries, about 16 runners free) started one library per run, twice an hour, over three and a half hours."""
+
+    def real(self, free):
+        reg = sp.registered(R["log"])
+        keys = sp.pending(reg, R["sources"], set(R["set_up"]), sp.attempts(without_batch6(R["runs"])), sp.window_start(NOW))
+        return sp.plan(keys, refs_for(keys), free)
+
+    def test_batch6_by_free_runners(self):
+        for free, n in ((20, 4), (19, 4), (16, 3), (13, 2), (12, 1), (10, 1), (9, 0), (0, 0)):
+            starts, notes = self.real(free)
+            self.assertEqual([k for k, _ in starts], BATCH6[:n], free)
+            self.assertTrue(all(r == "content/fatex-libraries-batch-6" for _, r in starts))
+            self.assertEqual(len(notes), 1 if n == 0 else 4 - n, (free, notes))
+
+    def test_at_most_max_starts(self):
+        keys = [f"l{i}" for i in range(9)]
+        starts, notes = sp.plan(keys, {k: ("", "main") for k in keys}, 100)
+        self.assertEqual(len(starts), sp.MAX_STARTS)
+        self.assertEqual(notes, [f"l{i}: waits for the next run" for i in range(sp.MAX_STARTS, 9)])
+
+    def test_5000_random_plans(self):
+        rnd = random.Random(20261113)
+        for _ in range(5000):
+            keys = [f"l{i}" for i in range(rnd.randint(0, 9))]
+            refs = {k: rnd.choice([(None, "x"), ("", "main"), ("content/b", "pr")]) for k in keys}
+            free = rnd.randint(0, 20)
+            starts, notes = sp.plan(keys, refs, free)
+            ready = [k for k in keys if refs[k][0] is not None]
+            want = 0 if free < bp.NEED_FREE else min(len(ready), sp.MAX_STARTS, (free - bp.NEED_FREE) // sp.PER_START + 1)
+            self.assertEqual([k for k, _ in starts], ready[:want])
+            for i in range(len(starts)):
+                self.assertGreaterEqual(free - sp.PER_START * i, bp.NEED_FREE)
+            mentioned = {n.split(":")[0] for n in notes if not n.endswith("needed: next run")}
+            self.assertEqual(mentioned | {k for k, _ in starts}, set(keys) if (starts or not ready) else {k for k in keys if refs[k][0] is None})
+
+    def test_mutant_no_margin_starts_everything(self):
+        with mock.patch.object(sp, "PER_START", 0):
+            self.assertEqual(len(self.real(10)[0]), 4)  # every ready library on the last ten free runners
+        self.assertEqual(len(self.real(10)[0]), 1)
+
+    def test_main_dispatches_each_start(self):
+        """main() over the real registry, runs and records pull request, with 16 runners free: three setup-auto dispatches, each with the branch"""
+        import os
+        import tempfile
+
+        calls = []
+
+        def run(args, **k):
+            if args[:2] == ["git", "log"]:
+                return subprocess.CompletedProcess(args, 0, R["log"], "")
+            calls.append(args)
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, "sources.json").write_text(json.dumps({"sources": R["sources"]}))
+            for k in R["set_up"]:
+                Path(d, "data", "exports", k).mkdir(parents=True)
+                Path(d, "data", "exports", k, "setup.ci.json").write_text("{}")
+            cwd = os.getcwd()
+            os.chdir(d)
+            try:
+                with (
+                    mock.patch.object(sp.subprocess, "run", run),
+                    mock.patch.object(sp, "setup_runs", lambda repo, since: without_batch6(R["runs"])),
+                    mock.patch.object(sp, "records_prs", lambda tree: OPEN),
+                    mock.patch.object(sp, "main_files", lambda tree, k, s: set()),
+                    mock.patch.object(sp.bp, "runners_in_use", lambda: 4),
+                    mock.patch.object(sp.time, "time", lambda: NOW),
+                    mock.patch.object(sys, "argv", ["setup_pickup.py"]),
+                ):
+                    sp.main()
+            finally:
+                os.chdir(cwd)
+        self.assertEqual([c[c.index("-f") + 1] for c in calls], [f"key={k}" for k in BATCH6[:3]])
+        self.assertTrue(all(c[-1] == "tengoku_ref=content/fatex-libraries-batch-6" for c in calls))
 
 
 def oracle(reg, sources, set_up, runs, refs, free, now):
