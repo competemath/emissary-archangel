@@ -1,0 +1,58 @@
+{
+  "shard": 4,
+  "shards": 7,
+  "commit": "f10fcd9dc19c2428b35988b8662447378d265970",
+  "toolchain": "leanprover/lean4:v4.29.0",
+  "modules": 93,
+  "exported": 85,
+  "failed": [
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4RegularizedFeynmanRule",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4ResolvedRepresentationAudit",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableRecoveredInnerForest",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableResolvedHopfCoproduct",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableResolvedRigidification",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeCorrectedQuotientForest",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeLeftFactorProduct",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeRecoveredParentTopology",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "tools": {
+    "lean": "4.29.0 (commit 98dc76e3c0a9b856c9b98726b713fb04fab16740, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+98dc76e",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "5a53b634f6a3 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "minutes": 5,
+  "finishedAt": "2026-11-13T06:23:40.075Z"
+}

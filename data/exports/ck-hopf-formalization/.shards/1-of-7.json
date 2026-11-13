@@ -1,0 +1,90 @@
+{
+  "shard": 1,
+  "shards": 7,
+  "commit": "f10fcd9dc19c2428b35988b8662447378d265970",
+  "toolchain": "leanprover/lean4:v4.29.0",
+  "modules": 112,
+  "exported": 96,
+  "failed": [
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4ResolvedForestLeft",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableBogoliubovRecursion",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableCoassocAlphaCompletion",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableCoproductCoassociativity",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableForestBlockForwardInverse",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableForestBlockInnerElements",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableGenuineForestBlockEquiv",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableLeftFactorProduct",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableRemnantComponent",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableTwoStageResidual",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeCoproductOwner",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeForestBlockDecontraction",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeForestBlockInverseSectors",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeGenuineForestBlockEquiv",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeRecoveredOuterComplement",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeRemnantComponent",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "tools": {
+    "lean": "4.29.0 (commit 98dc76e3c0a9b856c9b98726b713fb04fab16740, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+98dc76e",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "5a53b634f6a3 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.82.6"
+  },
+  "minutes": 3,
+  "finishedAt": "2026-11-13T06:23:17.768Z"
+}

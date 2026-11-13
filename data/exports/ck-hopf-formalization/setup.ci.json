@@ -1,0 +1,464 @@
+{
+  "key": "ck-hopf-formalization",
+  "repo": "https://github.com/miosync-masa/ck-hopf-formalization",
+  "commit": "f10fcd9dc19c2428b35988b8662447378d265970",
+  "toolchain": "leanprover/lean4:v4.29.0",
+  "roots": [
+    "GaugeGeometry"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/ck-hopf-formalization/repo",
+  "entries": 4759,
+  "modules": 701,
+  "exported": 600,
+  "failed": [
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.PaperMainTheorems",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4BubbleNestedObstruction",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4BubbleWitnessGeometry",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4BubbleWitnessNonPrimitive",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4BubbleWitnessTopology",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4CarrierGapBogoliubovDiscrepancy",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4CarrierGapBogoliubovDroppedSector",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4CharacterConvolutionAssociativity",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4ForestEvaluationDiscrepancy",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4ForestSupportDiscrepancy",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4NestedBoundaryIdCoherenceAudit",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4RegularizedCharacterConvolution",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4RegularizedFeynmanRule",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4ResolvedForestLeft",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4ResolvedRepresentationAudit",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4RootRelativeNestedBoundary",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4RotaBaxterSubtraction",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableBogoliubovCharacters",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableBogoliubovFactorization",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableBogoliubovRank",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableBogoliubovRecursion",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableBoundaryIdempotence",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableCoassocAlphaBridge",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableCoassocAlphaCompletion",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableConvolutionUnit",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableCoproductCoassociativity",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableCoproductCoassociativityLaw",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableCounit",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableFiniteSumOwnership",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableFiniteSumReindex",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableForestAlignedInnerForest",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableForestBlockForwardInverse",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableForestBlockInnerElements",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableForestBlockInverseForwardParent",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableForestBlockLeftInverse",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableForwardInverseForestReconciliation",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableForwardInverseForestRecontraction",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableForwardInverseOuter",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableGenuineForestBlockEquiv",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableLeftFactorProduct",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableNestedBoundaryCoherence",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableNestedCDLanding",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableQuotientForest",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableRecoveredInnerForest",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableRecoveredSplitChoice",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableRemnantComponent",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableRemnantForest",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableRenormalizationSettlement",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableResolvedHopfCoproduct",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableResolvedRigidification",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableRightFactorAggregate",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableRightFactorQuotientAudit",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableRightSurvivor",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableRootRelativeCDLanding",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableSelectedOuterLeftFactor",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableSummandAgreement",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableTwoStageQuotientEq",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableTwoStageResidual",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableTwoStageRetarget",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4StableTwoStageStars",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WDoublePrimeCoassocLeaves",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WDoublePrimeCoassocLocalChoice",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WDoublePrimeCoassocSplitChoice",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WDoublePrimeCoproduct",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WDoublePrimeFullSupply",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WDoublePrimeRawSupply",
+      "why": "does not compile at the library's own commit: error: GaugeGeometry/QFT/HopfAlgebra/Phi4WDoublePrimeRawSupply.lean: bad import 'GaugeGeometry.QFT.HopfAlgebra.SubgraphFintype' (no source file for it at this commit)"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WDoubleTriplePrimeConcreteCounterexample",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WDoubleTriplePrimeCounterexample",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WDoubleTriplePrimeStrictness",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WDoubleTriplePrimeTopology",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeCoproductOwner",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeCorrectedQuotientForest",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeEdgeCompleteCarrier",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeForestAlignedInnerForest",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeForestBlockCorrectedEquiv",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeForestBlockDecontraction",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeForestBlockEquiv",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeForestBlockForwardInverse",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeForestBlockInverseForward",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeForestBlockInverseSectors",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeForestBlockLeftInverse",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeForestBlockLeftInverseFull",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeForestBlockSectors",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeForestOccurrenceReconciliation",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeGenuineForestBlockEquiv",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeLeftFactorProduct",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeQuotientForest",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeRecoveredInnerCD",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeRecoveredInnerComplement",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeRecoveredInverse",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeRecoveredOuterComplement",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeRecoveredParentTopology",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeRecoveredRecontraction",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeRecoveredSplitChoice",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeRemnantComponent",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeRemnantForest",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeRightSurvivor",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeSelectedOuter",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeStableBoundaryNormalForm",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.Phi4WTriplePrimeSummandAgreement",
+      "why": "no closure"
+    },
+    {
+      "module": "GaugeGeometry.QFT.HopfAlgebra.ResolvedBoundaryCompletedSubgraph",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 4759,
+    "kept": 4759,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 126,
+    "nameFixed": 4759,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "sharded": {
+    "records": 7,
+    "shards": [
+      7
+    ]
+  },
+  "tools": {
+    "lean": "4.29.0 (commit 98dc76e3c0a9b856c9b98726b713fb04fab16740, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+98dc76e",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "5a53b634f6a3 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1 | ubuntu26/20261111.196.1 | ubuntu26/20261111.82.6"
+  },
+  "exportsBytes": 1167314944,
+  "minutes": 5,
+  "finishedAt": "2026-11-13T06:24:36.339Z",
+  "archive": {
+    "release": "exports-ck-hopf-formalization",
+    "asset": "ck-hopf-formalization@f10fcd9dc19c-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-ck-hopf-formalization/ck-hopf-formalization@f10fcd9dc19c-exports.tar.zst",
+    "bytes": 64967876,
+    "sha256": "a44ff131fe800fb07f97b880bdf14c7eb9a02dc56fb1080f18770e013c472e69",
+    "files": 1200,
+    "unpack": "tar --zstd -xf ck-hopf-formalization@f10fcd9dc19c-exports.tar.zst -C data/exports/ck-hopf-formalization"
+  }
+}
