@@ -63,7 +63,7 @@ echo "lake $@" >> "${tmp}/order"
 if [ -n "$FAKE_LAKE_HANGS" ] && [ "$1" = build ]; then exec sleep 25; fi
 if [ -n "$FAKE_LAKE_STORM" ] && [ "$1" = build ]; then
   echo "$LEAN_NUM_THREADS" >> "${tmp}/storm-threads"
-  if [ "$LEAN_NUM_THREADS" != 1 ]; then for i in 1 2 3 4 5 6; do node -e "const b = Buffer.alloc(120 * 1024 * 1024, 1); setInterval(() => b.length, 1000)" "$FAKE_LAKE_SRC/M$i.lean" & done; wait; sleep 8; exit 1; fi
+  if [ "$LEAN_NUM_THREADS" != 1 ] && [ "$#" -gt 2 ]; then for i in 1 2 3 4 5 6; do node -e "const b = Buffer.alloc(120 * 1024 * 1024, 1); setInterval(() => b.length, 1000); setTimeout(() => process.exit(0), 15000)" "$FAKE_LAKE_SRC/M$i.lean" & done; wait; sleep 8; exit 1; fi
 fi
 if [ "$FAKE_LAKE_MAKES" = all ] && [ "$1" = build ]; then
   shift
@@ -333,7 +333,9 @@ if (process.platform === "linux") {
   st = stormRun({ LEAN_NUM_THREADS: "1" })
   check("on one thread there is no storm rule: one try, no stop", st.threads.join(",") === "1" && !/kill storm|one job at a time/.test(st.r.stdout), st.threads.join(",") + st.r.stdout.slice(-600))
   st = stormRun({ EMISSARY_STORM_KILLS: "1000", EMISSARY_BUILD_ATTEMPTS: "1" })
-  check("with the limit above the kills there is no stop either", !/one job at a time/.test(st.r.stdout), st.r.stdout.slice(-600))
+  // the chunk (three arguments: build, two modules) is the storm; a module built alone (two arguments) just compiles. With the limit above the kills the chunk is not stopped: it ends by itself,
+  // the six killed modules are built alone, the build finishes and the run ends well inside its 30 s (cubic on #194: this case must end by itself, not by the test's timeout)
+  check("with the limit above the kills there is no stop: the chunk ends by itself, the killed modules are built alone, the build finishes", !/one job at a time/.test(st.r.stdout) && st.r.status === 0 && /memory: Lib\.M\d built alone/.test(st.r.stdout) && existsSync(olean("A")) && existsSync(olean("B")) && st.secs < 25, `${st.r.status} ${st.secs}s\n` + st.r.stdout.slice(-700))
   // the broken versions of the wiring: the threads are not lowered; the stop is never asked for
   const real = readFileSync(join(root, "scripts", "setup-source.mjs"), "utf8")
   for (const [name, from, to] of [
