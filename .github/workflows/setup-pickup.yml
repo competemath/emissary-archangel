@@ -1,10 +1,16 @@
 name: setup-pickup
-# Twice an hour, and when sources.json changes on main: a library registered since FIRST_REGISTER that has no setup yet gets one through setup-auto.yml, one per run (scripts/bump/setup_pickup.py
+# Twice an hour, and when sources.json changes on main: libraries registered since FIRST_REGISTER that have no setup yet get one through setup-auto.yml, up to 4 per run as the free runners allow: 10 free for the first, 3 more for each further one (scripts/bump/setup_pickup.py
 # says which, with which branch of the tree holding its records, and why not the others). Its bump then follows by itself (bump-pickup.yml). It reads and dispatches; it runs no library's code and
 # pushes nothing. LANE_ENABLED (the intake lane's kill switch) stops it too. A person can rehearse it with workflow_dispatch (dry_run prints what it would start).
 on:
   schedule:
     - cron: "7,37 * * * *"
+  # GitHub's scheduler did not fire this cron once in its first four hours on main (13 Nov 2026, 06:14 to 10:00) while bump-pickup's hourly one did:
+  # run after every SCHEDULED bump-pickup too (the job's `if` skips the others: a dispatched one may be a dry run), so a setup waits an hour at most whatever this
+  # cron does (main's code, as for every event here)
+  workflow_run:
+    workflows: [bump-pickup]
+    types: [completed]
   push:
     branches: [main]
     paths: [sources.json]
@@ -24,7 +30,8 @@ defaults:
 
 jobs:
   pickup:
-    if: ${{ (github.event_name == 'workflow_dispatch' || vars.LANE_ENABLED == 'true') && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
+    # after a bump-pickup only when that one ran on its schedule: a person's rehearsal of bump-pickup (workflow_dispatch, dry run) must not start setups (cubic on #190)
+    if: ${{ (github.event_name == 'workflow_dispatch' || vars.LANE_ENABLED == 'true') && (github.event_name != 'workflow_run' || github.event.workflow_run.event == 'schedule') && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions: { actions: write, contents: read }  # read the runs of the workflows, dispatch setup-auto

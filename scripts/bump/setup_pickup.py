@@ -2,7 +2,7 @@
 """A library newly registered in sources.json gets its setup: setup_pickup.py [--dry-run] (setup-pickup.yml, twice an hour and when sources.json changes on main). Until now a person started
 setup-auto.yml by hand for every registered library (batch 6, 13 Nov 2026: four dispatches, each with the tree branch that held its records).
 
-One library per run, the one registered first, so that runners stay free; its bump follows by itself (setup-sharded.yml and setup-libraries.yml start bump-pickup.yml when they finish). A library is
+Up to MAX_STARTS libraries per run, as the free runners allow (plan: NEED_FREE free for the first, PER_START more for each further one), the ones registered first first; its bump follows by itself (setup-sharded.yml and setup-libraries.yml start bump-pickup.yml when they finish). A library is
 picked up once: any setup started after it was registered (setup-auto.yml unless it was a dry run, or setup-sharded.yml), finished or not, counts, so a setup that failed is looked at by a person and
 never started again by this. Left alone: a library registered before FIRST_REGISTER (23 registered in September were left unset up on purpose or set up by other means), one registered more than
 WINDOW_DAYS ago (its runs can no longer be read in full), one that already has a setup record, and one whose tentative records are neither on the tree's main nor in exactly one open `records:` pull
@@ -63,8 +63,13 @@ def pending(reg: dict[str, int], sources: dict, set_up: set[str], tried: dict[st
     return sorted(keys, key=lambda k: (reg[k], k))
 
 
-def decide(keys: list[str], refs: dict[str, tuple[str | None, str]], free: int) -> tuple[str | None, str | None, list[str]]:
-    """(the library to set up or None, its tengoku_ref, why each other one is left)"""
+PER_START, MAX_STARTS = 3, 4  # a setup's first round holds one runner for up to 5 h; two more are kept per start as margin for its later shards and the tree's CI
+
+
+def plan(keys: list[str], refs: dict[str, tuple[str | None, str]], free: int) -> tuple[list[tuple[str, str]], list[str]]:
+    """([(library, tengoku_ref)] to start in this run, why each other one is left). In order: the first start needs bump_pickup.NEED_FREE free runners
+    (the rule of one start per run before, and bump-pickup's), each further start PER_START more (20 free: 4 starts, 16: 3, 13: 2, 10: 1), at most
+    MAX_STARTS. One start per run left batch 7 (13 Nov 2026, seven libraries, 16 runners free) to start over three and a half hours."""
     notes, ready = [], []
     for k in keys:
         ref, why = refs[k]
@@ -72,12 +77,20 @@ def decide(keys: list[str], refs: dict[str, tuple[str | None, str]], free: int) 
             notes.append(f"{k}: {why}")
         else:
             ready.append((k, ref))
-    if ready and free < bp.NEED_FREE:
-        notes.append(f"{len(ready)} ready, {free} runners free of the {bp.NEED_FREE} needed: next run")
+    n = 0
+    while n < min(len(ready), MAX_STARTS) and free - PER_START * n >= bp.NEED_FREE:
+        n += 1
+    if ready and n == 0:
+        return [], notes + [f"{len(ready)} ready, {free} runners free of the {bp.NEED_FREE} needed: next run"]
+    return ready[:n], notes + [f"{k}: waits for the next run" for k, _ in ready[n:]]
+
+
+def decide(keys: list[str], refs: dict[str, tuple[str | None, str]], free: int) -> tuple[str | None, str | None, list[str]]:
+    """the one-start view of plan, for callers that start one library: (the first library or None, its tengoku_ref, why each other one waits)"""
+    starts, notes = plan(keys, refs, free)
+    if not starts:
         return None, None, notes
-    if not ready:
-        return None, None, notes
-    return ready[0][0], ready[0][1], notes + [f"{k}: waits for the next run" for k, _ in ready[1:]]
+    return starts[0][0], starts[0][1], notes + [f"{k}: waits for the next run" for k, _ in starts[1:]]
 
 
 def dispatch_args(key: str, ref: str, repo: str) -> list[str]:
@@ -116,12 +129,13 @@ def main() -> None:
         for k in keys:
             refs[k] = records_ref(k, sources[k], main_files(a.tree, k, sources[k]), prs, a.tree, rule=setup_holds)
     free = max(0, bp.RUNNERS - bp.runners_in_use()) if keys else 0
-    key, ref, notes = decide(keys, refs, free)
+    starts, notes = plan(keys, refs, free)
     for n in notes:
         print(n)
-    print(f"{len(keys)} registered and not set up; setup: {key or 'none'}" + (f" (tengoku_ref={ref or 'main'})" if key else ""))
-    if key and not a.dry_run:
-        subprocess.run(dispatch_args(key, ref or "", a.repo), check=True)
+    print(f"{len(keys)} registered and not set up, {free} runners free; setup: " + (", ".join(f"{k} (tengoku_ref={r or 'main'})" for k, r in starts) or "none"))
+    if not a.dry_run:
+        for k, r in starts:
+            subprocess.run(dispatch_args(k, r or "", a.repo), check=True)
 
 
 if __name__ == "__main__":

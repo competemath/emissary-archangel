@@ -5,7 +5,7 @@
 The real case: batch 6 (ck-hopf-formalization, nlalib, lean-eval-pi-succ-sphere-n-mulequiv-zmod-two, rankamplificationtotient) was registered at 01:48 and set up by hand at 02:31 (four setup-auto
 dispatches with tengoku_ref=content/fatex-libraries-batch-6, the branch of competemath/tengoku#789).
 
-Invariants: at most one library starts; never one registered before FIRST_REGISTER or outside the window, or no longer in sources.json; never one with a setup record; never one with a real setup
+Invariants: at most MAX_STARTS libraries start in a run (the first with bump_pickup.NEED_FREE runners free, each further one with PER_START more), decide() names the first; never one registered before FIRST_REGISTER or outside the window, or no longer in sources.json; never one with a setup record; never one with a real setup
 started at or after its registration (a dry run of setup-auto does not count; a setup-sharded run does); the tree branch is the one open records pull request of the tree repository holding ALL the
 library's record files, '' when they are on main, and nothing starts when no such pull request or several exist or it is a fork's; nothing starts with too few free runners; the one registered first
 starts first. Mutants (each must fail a check): dry runs counted, attempts ignored, the window ignored, a fork's branch taken, any indentation read as a registration, a partial set of record files taken."""
@@ -108,7 +108,7 @@ class RealPast(unittest.TestCase):
         keys, (key, ref, notes) = run_pickup(without_batch6(R["runs"]))
         self.assertEqual(keys, BATCH6)  # registered together: by name
         self.assertEqual((key, ref), ("ck-hopf-formalization", "content/fatex-libraries-batch-6"))
-        self.assertEqual(notes, [f"{k}: waits for the next run" for k in BATCH6[1:]])
+        self.assertEqual(notes, [f"{k}: waits for the next run" for k in BATCH6[1:]])  # decide is the one-start view; plan starts all four (SeveralStarts)
 
     def test_the_hand_setups_were_what_the_pickup_would_have_started(self):
         """each real setup-auto dispatch of batch 6 is exactly dispatch_args for that library and branch"""
@@ -255,6 +255,85 @@ class TheDirectory(unittest.TestCase):
         self.assertIsNone(sp.records_ref("newlib", {}, set(), [self.DIR_ONLY], TREE, blind)[0])
 
 
+class SeveralStarts(unittest.TestCase):
+    """plan: as many starts per run as keep bump_pickup.NEED_FREE runners free after PER_START for each, at most MAX_STARTS. The real case: batch 7
+    (13 Nov 2026, seven libraries, about 16 runners free) started one library per run, twice an hour, over three and a half hours."""
+
+    def real(self, free):
+        reg = sp.registered(R["log"])
+        keys = sp.pending(reg, R["sources"], set(R["set_up"]), sp.attempts(without_batch6(R["runs"])), sp.window_start(NOW))
+        return sp.plan(keys, refs_for(keys), free)
+
+    def test_batch6_by_free_runners(self):
+        for free, n in ((20, 4), (19, 4), (16, 3), (13, 2), (12, 1), (10, 1), (9, 0), (0, 0)):
+            starts, notes = self.real(free)
+            self.assertEqual([k for k, _ in starts], BATCH6[:n], free)
+            self.assertTrue(all(r == "content/fatex-libraries-batch-6" for _, r in starts))
+            self.assertEqual(len(notes), 1 if n == 0 else 4 - n, (free, notes))
+
+    def test_at_most_max_starts(self):
+        keys = [f"l{i}" for i in range(9)]
+        starts, notes = sp.plan(keys, {k: ("", "main") for k in keys}, 100)
+        self.assertEqual(len(starts), sp.MAX_STARTS)
+        self.assertEqual(notes, [f"l{i}: waits for the next run" for i in range(sp.MAX_STARTS, 9)])
+
+    def test_5000_random_plans(self):
+        rnd = random.Random(20261113)
+        for _ in range(5000):
+            keys = [f"l{i}" for i in range(rnd.randint(0, 9))]
+            refs = {k: rnd.choice([(None, "x"), ("", "main"), ("content/b", "pr")]) for k in keys}
+            free = rnd.randint(0, 20)
+            starts, notes = sp.plan(keys, refs, free)
+            ready = [k for k in keys if refs[k][0] is not None]
+            want = 0 if free < bp.NEED_FREE else min(len(ready), sp.MAX_STARTS, (free - bp.NEED_FREE) // sp.PER_START + 1)
+            self.assertEqual([k for k, _ in starts], ready[:want])
+            for i in range(len(starts)):
+                self.assertGreaterEqual(free - sp.PER_START * i, bp.NEED_FREE)
+            mentioned = {n.split(":")[0] for n in notes if not n.endswith("needed: next run")}
+            self.assertEqual(mentioned | {k for k, _ in starts}, set(keys) if (starts or not ready) else {k for k in keys if refs[k][0] is None})
+
+    def test_mutant_no_margin_starts_everything(self):
+        with mock.patch.object(sp, "PER_START", 0):
+            self.assertEqual(len(self.real(10)[0]), 4)  # every ready library on the last ten free runners
+        self.assertEqual(len(self.real(10)[0]), 1)
+
+    def test_main_dispatches_each_start(self):
+        """main() over the real registry, runs and records pull request, with 16 runners free: three setup-auto dispatches, each with the branch"""
+        import os
+        import tempfile
+
+        calls = []
+
+        def run(args, **k):
+            if args[:2] == ["git", "log"]:
+                return subprocess.CompletedProcess(args, 0, R["log"], "")
+            calls.append(args)
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, "sources.json").write_text(json.dumps({"sources": R["sources"]}))
+            for k in R["set_up"]:
+                Path(d, "data", "exports", k).mkdir(parents=True)
+                Path(d, "data", "exports", k, "setup.ci.json").write_text("{}")
+            cwd = os.getcwd()
+            os.chdir(d)
+            try:
+                with (
+                    mock.patch.object(sp.subprocess, "run", run),
+                    mock.patch.object(sp, "setup_runs", lambda repo, since: without_batch6(R["runs"])),
+                    mock.patch.object(sp, "records_prs", lambda tree: OPEN),
+                    mock.patch.object(sp, "main_files", lambda tree, k, s: set()),
+                    mock.patch.object(sp.bp, "runners_in_use", lambda: 4),
+                    mock.patch.object(sp.time, "time", lambda: NOW),
+                    mock.patch.object(sys, "argv", ["setup_pickup.py"]),
+                ):
+                    sp.main()
+            finally:
+                os.chdir(cwd)
+        self.assertEqual([c[c.index("-f") + 1] for c in calls], [f"key={k}" for k in BATCH6[:3]])
+        self.assertTrue(all(c[-1] == "tengoku_ref=content/fatex-libraries-batch-6" for c in calls))
+
+
 def oracle(reg, sources, set_up, runs, refs, free, now):
     since = max(sp.FIRST_REGISTER, now - sp.WINDOW_DAYS * 86400)
     tried = {}
@@ -397,10 +476,15 @@ class Workflow(unittest.TestCase):
         self.assertEqual(on["push"], {"branches": ["main"], "paths": ["sources.json"]})
         self.assertEqual(on["workflow_dispatch"]["inputs"]["dry_run"]["default"], "true")
         self.assertIn("schedule", on)
+        # the scheduler did not fire the cron in its first four hours on main (13 Nov 2026): every bump-pickup run starts this one too
+        self.assertEqual(on["workflow_run"], {"workflows": ["bump-pickup"], "types": ["completed"]})
+        self.assertEqual(yaml.safe_load((WF / "bump-pickup.yml").read_text())["name"], "bump-pickup")
         self.assertEqual(self.y["permissions"], {})
         job = self.y["jobs"]["pickup"]
         self.assertEqual(job["permissions"], {"actions": "write", "contents": "read"})
-        for s in ("vars.LANE_ENABLED == 'true'", "github.ref == 'refs/heads/main'", "github.repository == 'competemath/emissary-archangel'"):
+        for s in ("vars.LANE_ENABLED == 'true'", "github.ref == 'refs/heads/main'", "github.repository == 'competemath/emissary-archangel'",
+                  # after a bump-pickup only on its schedule: a person's dry run of bump-pickup must not start setups (cubic on #190)
+                  "(github.event_name != 'workflow_run' || github.event.workflow_run.event == 'schedule')"):
             self.assertIn(s, job["if"])
         run = "\n".join(s.get("run", "") for s in job["steps"])
         for p in ('"/scripts/bump/"', '"/sources.json"', '"/data/exports/*/setup.ci.json"'):
