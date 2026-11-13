@@ -29,7 +29,8 @@ defaults:
 
 jobs:
   pickup:
-    if: ${{ (github.event_name == 'workflow_dispatch' || vars.LANE_ENABLED == 'true') && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
+    # after a bump-pickup only when that one ran on its schedule: a person's rehearsal of bump-pickup (workflow_dispatch, dry run) must not start setups (cubic on #190)
+    if: ${{ (github.event_name == 'workflow_dispatch' || vars.LANE_ENABLED == 'true') && (github.event_name != 'workflow_run' || github.event.workflow_run.event == 'schedule') && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions: { actions: write, contents: read }  # read the runs of the workflows, dispatch setup-auto

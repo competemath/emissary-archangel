@@ -482,7 +482,9 @@ class Workflow(unittest.TestCase):
         self.assertEqual(self.y["permissions"], {})
         job = self.y["jobs"]["pickup"]
         self.assertEqual(job["permissions"], {"actions": "write", "contents": "read"})
-        for s in ("vars.LANE_ENABLED == 'true'", "github.ref == 'refs/heads/main'", "github.repository == 'competemath/emissary-archangel'"):
+        for s in ("vars.LANE_ENABLED == 'true'", "github.ref == 'refs/heads/main'", "github.repository == 'competemath/emissary-archangel'",
+                  # after a bump-pickup only on its schedule: a person's dry run of bump-pickup must not start setups (cubic on #190)
+                  "(github.event_name != 'workflow_run' || github.event.workflow_run.event == 'schedule')"):
             self.assertIn(s, job["if"])
         run = "\n".join(s.get("run", "") for s in job["steps"])
         for p in ('"/scripts/bump/"', '"/sources.json"', '"/data/exports/*/setup.ci.json"'):
