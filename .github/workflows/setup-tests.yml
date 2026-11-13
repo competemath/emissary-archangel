@@ -15,7 +15,7 @@ defaults:
 jobs:
   test:
     runs-on: ubuntu-26.04
-    timeout-minutes: 10
+    timeout-minutes: 15   # was 10: the suite took 7 min 48 s on main (13 Nov 2026) and the kill-storm tests add about a minute; a run that hit the cap was cancelled, not failed
     permissions: { contents: read }
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

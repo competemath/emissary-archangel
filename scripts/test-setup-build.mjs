@@ -63,7 +63,7 @@ echo "lake $@" >> "${tmp}/order"
 if [ -n "$FAKE_LAKE_HANGS" ] && [ "$1" = build ]; then exec sleep 25; fi
 if [ -n "$FAKE_LAKE_STORM" ] && [ "$1" = build ]; then
   echo "$LEAN_NUM_THREADS" >> "${tmp}/storm-threads"
-  if [ "$LEAN_NUM_THREADS" != 1 ]; then for i in 1 2 3 4 5 6; do node -e "const b = Buffer.alloc(120 * 1024 * 1024, 1); setInterval(() => b.length, 1000)" "$FAKE_LAKE_SRC/M$i.lean" & done; wait; sleep 30; exit 1; fi
+  if [ "$LEAN_NUM_THREADS" != 1 ]; then for i in 1 2 3 4 5 6; do node -e "const b = Buffer.alloc(120 * 1024 * 1024, 1); setInterval(() => b.length, 1000)" "$FAKE_LAKE_SRC/M$i.lean" & done; wait; sleep 8; exit 1; fi
 fi
 if [ "$FAKE_LAKE_MAKES" = all ] && [ "$1" = build ]; then
   shift
@@ -314,8 +314,8 @@ if (process.platform === "linux") {
     rmSync(join(tmp, "storm-threads"), { force: true })
     rmSync(join(tmp, "lake-calls"), { force: true })
     const t0 = Date.now()
-    // a broken version may never end (that is what is being caught): 45 s, then everything under the test's temp directory is stopped
-    const r = setup(["--phase", "build"], { FAKE_LAKE_STORM: "1", FAKE_LAKE_SRC: join(realpathSync(tmp), relative(tmp, repo), "Lib"), FAKE_LAKE_MAKES: "all", EMISSARY_FOOTPRINT_MB: "20", EMISSARY_WATCH_MS: "500", EMISSARY_STORM_KILLS: "3", ...env }, { timeout: 45000, killSignal: "SIGKILL" })
+    // a broken version may never end (that is what is being caught): 30 s, then everything under the test's temp directory is stopped
+    const r = setup(["--phase", "build"], { FAKE_LAKE_STORM: "1", FAKE_LAKE_SRC: join(realpathSync(tmp), relative(tmp, repo), "Lib"), FAKE_LAKE_MAKES: "all", EMISSARY_FOOTPRINT_MB: "20", EMISSARY_WATCH_MS: "500", EMISSARY_STORM_KILLS: "3", ...env }, { timeout: 30000, killSignal: "SIGKILL" })
     spawnSync("pkill", ["-f", tmp])
     const threads = existsSync(join(tmp, "storm-threads")) ? readFileSync(join(tmp, "storm-threads"), "utf8").trim().split("\n") : []
     return { r, threads, secs: (Date.now() - t0) / 1000 }
@@ -329,10 +329,10 @@ if (process.platform === "linux") {
   const calls = existsSync(join(tmp, "lake-calls")) ? readFileSync(join(tmp, "lake-calls"), "utf8") : ""
   check("the modules the storm killed are built alone, one by one, after the stop", /memory: Lib\.M\d was killed at \d+ MB .*building it alone/.test(st.r.stdout) && /^build Lib\.M\d$/m.test(calls) && /memory: Lib\.M\d built alone/.test(st.r.stdout), calls + "\n" + st.r.stdout.slice(-1500))
   check("the build then finishes: both modules have an .olean", existsSync(olean("A")) && existsSync(olean("B")), st.r.stdout.slice(-800))
-  check("the storm costs seconds, not hours: the fake chunk would have run 30 s after the kills", st.secs < 25, `${st.secs}`)
+  check("the storm costs seconds, not hours: the fake chunk would have run 8 s after the kills", st.secs < 20, `${st.secs}`)
   st = stormRun({ LEAN_NUM_THREADS: "1" })
   check("on one thread there is no storm rule: one try, no stop", st.threads.join(",") === "1" && !/kill storm|one job at a time/.test(st.r.stdout), st.threads.join(",") + st.r.stdout.slice(-600))
-  st = stormRun({ EMISSARY_STORM_KILLS: "1000" })
+  st = stormRun({ EMISSARY_STORM_KILLS: "1000", EMISSARY_BUILD_ATTEMPTS: "1" })
   check("with the limit above the kills there is no stop either", !/one job at a time/.test(st.r.stdout), st.r.stdout.slice(-600))
   // the broken versions of the wiring: the threads are not lowered; the stop is never asked for
   const real = readFileSync(join(root, "scripts", "setup-source.mjs"), "utf8")
@@ -345,7 +345,7 @@ if (process.platform === "linux") {
     writeFileSync(join(root, "scripts", "setup-source.mjs"), real.replace(from, to))
     try {
       const m = stormRun({ EMISSARY_BUILD_ATTEMPTS: "2" })
-      check(`the broken version "${name}" is caught`, !lowered(m.threads) || m.secs >= 25 || !/one job at a time/.test(m.r.stdout) || !/building it alone/.test(m.r.stdout), m.threads.join(",") + ` ${m.secs}s`)
+      check(`the broken version "${name}" is caught`, !lowered(m.threads) || m.secs >= 20 || !/one job at a time/.test(m.r.stdout) || !/building it alone/.test(m.r.stdout), m.threads.join(",") + ` ${m.secs}s`)
     } finally {
       writeFileSync(join(root, "scripts", "setup-source.mjs"), real)
     }
