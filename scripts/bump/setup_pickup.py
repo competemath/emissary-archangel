@@ -124,13 +124,6 @@ class DispatchError(RuntimeError):
     """A dispatch that failed: never retried by the wait (GitHub may have accepted it before gh reported the error: cubic on #192), the job fails visibly."""
 
 
-def dispatch(args: list[str]) -> None:
-    try:
-        subprocess.run(args, check=True)
-    except subprocess.CalledProcessError as e:
-        raise DispatchError(f"{' '.join(args[:6])} ...: exit {e.returncode}") from e
-
-
 def once(a, sources: dict, reg: dict[str, int], log=print) -> tuple[list[tuple[str, str]], bool]:
     """One look: which libraries wait for a setup, which can start with the runners free now; starts them unless a dry run. (the starts, whether only the runners hold a ready library back)"""
     since = window_start(int(time.time()))
@@ -148,7 +141,10 @@ def once(a, sources: dict, reg: dict[str, int], log=print) -> tuple[list[tuple[s
     log(f"{len(keys)} registered and not set up, {free} runners free; setup: " + (", ".join(f"{k} (tengoku_ref={r or 'main'})" for k, r in starts) or "none"))
     if not a.dry_run:
         for k, r in starts:
-            dispatch(dispatch_args(k, r or "", a.repo))
+            try:
+                subprocess.run(dispatch_args(k, r or "", a.repo), check=True)  # inline, not through a helper taking the arguments: Snyk Code read the helper's parameter as an unsanitized command (#192)
+            except subprocess.CalledProcessError as e:
+                raise DispatchError(f"a dispatch exited {e.returncode}") from e
     ready = sum(1 for k in keys if refs[k][0] is not None)
     return starts, waits_for_runners(starts, ready, free)
 

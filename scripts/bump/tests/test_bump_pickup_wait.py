@@ -110,6 +110,7 @@ class Loop(unittest.TestCase):
 
     def run_main(self, frees, wait=30, dry=False, fail_looks=(), main=None, bumped=False, dispatch_fails=False):
         looks, sleeps, calls = [], [], []
+        self.calls = calls  # the dispatches tried, readable after a raise
         clock = [NOW]
         seen = [0]
         git_log = f"@{PUBLISHED}\texports: {KEY} (runner)\n\ndata/exports/{KEY}/setup.ci.json\n"
@@ -209,11 +210,9 @@ class Loop(unittest.TestCase):
 
     def test_a_failed_dispatch_is_not_retried(self):
         """cubic on #192: gh may report an error for a request GitHub accepted; the next look would start the bump twice"""
-        seen = []
-        real = bp.dispatch
-        with mock.patch.object(bp, "dispatch", lambda args: (seen.append(args), real(args))[1]), self.assertRaises(bp.DispatchError):
+        with self.assertRaises(bp.DispatchError):
             self.run_main([0, 20, 20, 20], dispatch_fails=True)
-        self.assertEqual(len(seen), 1)
+        self.assertEqual(len([c for c in self.calls if 'workflow' in c]), 1)
 
     def test_mutant_a_failed_dispatch_is_retried(self):
         src = inspect.getsource(bp.main)
@@ -221,11 +220,9 @@ class Loop(unittest.TestCase):
         self.assertEqual(src.count(old), 1)
         ns = dict(vars(bp))
         exec(src.replace(old, ""), ns)
-        seen = []
-        real = bp.dispatch
-        with mock.patch.object(bp, "dispatch", lambda args: (seen.append(args), real(args))[1]), self.assertRaises(Exception):
+        with self.assertRaises(Exception):
             self.run_main([0, 20, 20, 20], dispatch_fails=True, main=ns["main"])
-        self.assertGreater(len(seen), 1)
+        self.assertGreater(len([c for c in self.calls if 'workflow' in c]), 1)
 
     def test_mutant_a_failure_at_the_last_look_ends_quietly(self):
         src = inspect.getsource(bp.main)

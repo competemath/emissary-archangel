@@ -134,6 +134,7 @@ class Waiting(unittest.TestCase):
     def run_main(self, frees, wait=30, dry=False, mod=sp, runs=None, fail_looks=(), main=None, dispatch_fails=False):
         """main() over the real registry with batch 6 not yet started and `frees` runners free at each look; returns (dispatches, sleeps, looks)"""
         looks, sleeps, calls = [], [], []
+        self.calls = calls  # the dispatches tried, readable after a raise
         clock = [NOW]
         seen = [0]
 
@@ -252,11 +253,9 @@ class Waiting(unittest.TestCase):
 
     def test_a_failed_dispatch_is_not_retried(self):
         """cubic on #192: gh may report an error for a request GitHub accepted; the next look would start the setup twice"""
-        seen = []
-        real = sp.dispatch
-        with mock.patch.object(sp, "dispatch", lambda args: (seen.append(args), real(args))[1]), self.assertRaises(sp.DispatchError):
+        with self.assertRaises(sp.DispatchError):
             self.run_main([0, 20, 20, 20], dispatch_fails=True)
-        self.assertEqual(len(seen), 1)
+        self.assertEqual(len([c for c in self.calls if 'workflow' in c]), 1)
 
     def test_mutant_a_failed_dispatch_is_retried(self):
         src = inspect.getsource(sp.main)
@@ -264,11 +263,9 @@ class Waiting(unittest.TestCase):
         self.assertEqual(src.count(old), 1)
         ns = dict(vars(sp))
         exec(src.replace(old, ""), ns)
-        seen = []
-        real = sp.dispatch
-        with mock.patch.object(sp, "dispatch", lambda args: (seen.append(args), real(args))[1]), self.assertRaises(Exception):
+        with self.assertRaises(Exception):
             self.run_main([0, 20, 20, 20], dispatch_fails=True, main=ns["main"])
-        self.assertGreater(len(seen), 1)  # the mutant dispatches again at the next look
+        self.assertGreater(len([c for c in self.calls if 'workflow' in c]), 1)  # the mutant dispatches again at the next look
 
     def test_mutant_a_failure_at_the_last_look_ends_quietly(self):
         src = inspect.getsource(sp.main)
