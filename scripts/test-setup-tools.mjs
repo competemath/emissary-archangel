@@ -1,8 +1,9 @@
 // node scripts/test-setup-tools.mjs — the tools recorded in a setup record (scripts/setup-tools.mjs; exits 1 on a failure). No Lean, no network: the tools are asked through a stand-in.
-import { readFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { TOOL_FIELDS, collectTools, exporterAction, mergeTools, parseElan, patchFingerprint, parseLake, parseLean, plain, brokenAlone, errorLineKeeper, ownErrorLine, retrying, runnerImage, transientDownload } from "./setup-tools.mjs"
+import { TOOL_FIELDS, collectTools, exporterAction, mergeTools, parseElan, patchFingerprint, parseLake, parseLean, plain, brokenAlone, brokenLine, errorLineKeeper, missingOwnImport, ownErrorLine, retrying, sourceInside, runnerImage, transientDownload } from "./setup-tools.mjs"
 
 let bad = 0
 const check = (name, ok, got) => {
@@ -191,8 +192,72 @@ const schedule = async (answers, opts = {}) => {
   check("alone: the same line in the tail counts too", brokenAlone({ code: 1, errors: "", tail: ownLine }, ownPath, aintDirs) === ownLine, null)
   check("alone: a build that ran out of its time limit says nothing, even with an error line", brokenAlone({ code: 124, errors: ownLine, tail: "[timed out after 18000s]" }, ownPath, aintDirs) === null, null)
   check("alone: a failure with no error of its own says nothing", brokenAlone({ code: 1, errors: "", tail: "error: build failed" }, ownPath, aintDirs) === null, null)
-  check("setup-source.mjs asks brokenAlone about a module that failed alone", /const err = brokenAlone\(aloneResult, pathOfModule\(m\), SRCDIRS\)/.test(src), null)
+  check("setup-source.mjs asks brokenAlone about a module that failed alone, with the library's roots and files", /const err = brokenAlone\(aloneResult, pathOfModule\(m\), SRCDIRS, OWN\)/.test(src), null)
   check("setup-source.mjs keeps stdout and stderr apart", /p\.stdout\.on\("data", onData\("out"\)\)/.test(src) && /p\.stderr\.on\("data", onData\("err"\)\)/.test(src), null)
   check("setup-source.mjs looks for the error in the kept errors as well as the tail", /ownError\(m, `\$\{r\.errors\}\\n\$\{r\.tail\}`\)/.test(src), null)
+}
+// a module that imports a module of its own library with no source file: ck-hopf-formalization at f10fcd9, setup-sharded run 43359628065 (13 Nov 2026): 600 of 701 modules built, the
+// 101 others all behind GaugeGeometry.QFT.HopfAlgebra.SubgraphFintype, which is not in the repository; no module was recorded and the chain stopped (fixtures/real-ck-hopf-missing-import.json:
+// the run's 121 distinct error lines, the repository's 918 .lean files at that commit)
+{
+  const fx = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "fixtures", "real-ck-hopf-missing-import.json"), "utf8"))
+  const files = new Set(fx.leanFiles)
+  const exists = (m) => files.has(m.split(".").join("/") + ".lean")
+  const own = { roots: fx.roots, exists }
+  const text = fx.errorLines.join("\n")
+  const paths = [...new Set(fx.errorLines.map((l) => l.match(/^error: (\S+\.lean): bad import/)?.[1]).filter(Boolean))]
+  const hits = paths.filter((p) => missingOwnImport(p, [], text, fx.roots, exists) !== null)
+  const raw = "GaugeGeometry/QFT/HopfAlgebra/Phi4WDoublePrimeRawSupply.lean"
+  check("missing import: the real case has 918 files, 101 modules with a bad import, and the missing module", files.size === 918 && paths.length === 101 && !exists("GaugeGeometry.QFT.HopfAlgebra.SubgraphFintype"), [files.size, paths.length])
+  check("missing import: of the 101 real modules, only the one that imports the missing file is broken (the rest wait behind it)", hits.join() === raw, hits)
+  const targets = new Set(fx.errorLines.map((l) => l.match(/bad import '([^']+)'/)?.[1]).filter(Boolean))
+  check("missing import: every other module a real line names has its file", [...targets].filter((m) => !exists(m)).join() === "GaugeGeometry.QFT.HopfAlgebra.SubgraphFintype", [...targets].filter((m) => !exists(m)))
+  check("missing import: ownErrorLine alone reads none of the real lines (the bug)", paths.every((p) => ownErrorLine(p, [], text) === null), null)
+  check("missing import: brokenLine reads it with the library's roots and files, and not without them", brokenLine(raw, [], text, own)?.includes("SubgraphFintype") && brokenLine(raw, [], text) === null, brokenLine(raw, [], text, own))
+  check("missing import: an error of the file's own still comes first", brokenLine("A/B.lean", [], "error: A/B.lean: bad import 'A.C'\nerror: A/B.lean:3:4: unknown identifier", { roots: ["A"], exists: () => false }) === "error: A/B.lean:3:4: unknown identifier", null)
+  check("missing import: brokenAlone passes it through, and a build that ran out of time says nothing", brokenAlone({ code: 1, errors: text, tail: "" }, raw, [], own) !== null && brokenAlone({ code: 124, errors: text, tail: "" }, raw, [], own) === null, null)
+  const no = () => false
+  check("missing import: a package's module missing is not the library's", missingOwnImport("A/B.lean", [], "error: A/B.lean: bad import 'Mathlib.Gone'", ["A"], no) === null, null)
+  check("missing import: under a source folder, as Lake prints it, and only there", missingOwnImport("A/B.lean", ["src"], "error: src/A/B.lean: bad import 'A.C'", ["A"], no) !== null && missingOwnImport("A/B.lean", [], "error: src/A/B.lean: bad import 'A.C'", ["A"], no) === null, null)
+  check("missing import: a name that only begins like a root is not under it; the root itself is", missingOwnImport("A/B.lean", [], "error: A/B.lean: bad import 'AB.C'", ["A"], no) === null && missingOwnImport("A/B.lean", [], "error: A/B.lean: bad import 'A'", ["A"], no) !== null, null)
+  check("missing import: another file's line, a warning, or text after the name is not it", ["error: A/X.lean: bad import 'A.C'", "warning: A/B.lean: bad import 'A.C'", "error: A/B.lean: bad import 'A.C' and more"].every((l) => missingOwnImport("A/B.lean", [], l, ["A"], no) === null), null)
+  // mutant: without the file test, every module behind the missing one is called broken, though it compiles once its imports do
+  check("mutant: without the file test all 101 real modules are called broken", paths.filter((p) => missingOwnImport(p, [], text, fx.roots, no) !== null).length === 101, null)
+  // 2,000 random libraries against a statement of the rule written apart
+  let agree = true
+  for (let i = 0; i < 2000; i++) {
+    const roots = ["R" + rnd(3)]
+    const mods = Array.from({ length: 1 + rnd(6) }, (_, k) => (rnd(4) ? roots[0] : "Mathlib") + ".M" + k)
+    const present = new Set(mods.filter(() => rnd(3)))
+    const path = roots[0] + "/Self.lean"
+    const lines = mods.filter(() => rnd(2)).map((m) => `error: ${rnd(5) ? path : roots[0] + "/Other.lean"}: bad import '${m}'`)
+    const got = missingOwnImport(path, [], lines.join("\n"), roots, (m) => present.has(m)) !== null
+    const want = lines.some((l) => l.startsWith(`error: ${path}: `) && ((m) => m.startsWith(roots[0] + ".") && !present.has(m))(l.match(/'([^']+)'/)[1]))
+    agree &&= got === want
+  }
+  check("missing import: 2,000 random libraries agree with the rule", agree, null)
+  check("setup-source.mjs: the broken probe reads missing imports with the library's roots and source files", /const OWN = \{ roots: src\.roots, exists: sourceExists \}/.test(src) && /const ownError = \(m, text\) => brokenLine\(pathOfModule\(m\), SRCDIRS, text, OWN\)/.test(src), null)
+}
+// a module name's quoted component can name a path out of the checkout (cubic on #187): the library's own source files are only inside it
+{
+  const base = mkdtempSync(join(tmpdir(), "src-inside-"))
+  const repo = join(base, "repo")
+  for (const [f, d] of [[join(repo, "R", "A.lean"), join(repo, "R")], [join(base, "Secret.lean"), base], [join(repo, "..foo", "X.lean"), join(repo, "..foo")]]) {
+    mkdirSync(d, { recursive: true })
+    writeFileSync(f, "")
+  }
+  // the module path the way setup-source.mjs makes it (moduleComponents, then /)
+  const path = (m) => [...m.matchAll(/«[^»]*»|[^.]+/g)].map((x) => x[0].replace(/^«|»$/g, "")).join("/") + ".lean"
+  const inside = (m) => sourceInside(repo, path(m), existsSync)
+  check("source inside: a module of the library is", inside("R.A") && !inside("R.Missing"), null)
+  check("source inside: a quoted «..» that leads out of the checkout is not, though the file exists there", existsSync(join(repo, path("«..».Secret"))) && !inside("«..».Secret") && !inside("R.«..».«..».Secret"), null)
+  check("source inside: a quoted «..» that stays inside is still the library's file; a folder named ..foo is inside", inside("R.«..».R.A") && inside("«..foo».X"), null)
+  check("source inside: an absolute path in a quoted component is not", !inside("«" + join(base, "Secret") + "»"), null)
+  const line = "error: R/B.lean: bad import 'R.«..».«..».Secret'"
+  check("missing import: an import whose path leads out of the checkout is the library's own and missing", missingOwnImport("R/B.lean", [], line, ["R"], inside) !== null, null)
+  // mutant: the plain test of setup-source.mjs before (existsSync of join(REPO, path)) finds the file outside and calls the import present
+  check("mutant: without the guard the file outside the checkout counts", missingOwnImport("R/B.lean", [], line, ["R"], (m) => existsSync(join(repo, path(m)))) === null, null)
+  check("setup-source.mjs: a module's source file is looked for inside the checkout only", /some\(\(p\) => sourceInside\(REPO, p, existsSync\)\)/.test(src), null)
+  rmSync(base, { recursive: true, force: true })
 }
 process.exit(bad ? 1 : 0)

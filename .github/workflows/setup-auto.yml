@@ -1,5 +1,5 @@
 name: setup-auto
-run-name: setup-auto ${{ inputs.key }} (${{ inputs.mode }})
+run-name: setup-auto ${{ inputs.key }} (${{ inputs.mode }}${{ inputs.dry_run == 'true' && ', dry run' || '' }})
 # The one way in for setting up a library: it looks at how big the library is and starts the right workflow.
 #   small   (at most 3,000 entries)  setup-libraries.yml: the whole setup in one job.
 #   large                            setup-sharded.yml: the build alone first, one 5-hour round after another until it is

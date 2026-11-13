@@ -90,6 +90,8 @@ jobs:
           key = os.environ["KEY"]
           roots = [r for r in json.load(open(f"data/exports/{key}/setup.ci.json"))["roots"]]
           ents = g.tentative_entries(tf.files(json.load(open("sources.json")), key, "../tengoku"))
+          if not ents:  # rankamplificationtotient, 13 Nov 2026 (run 43354641538): its records were on a tree branch not merged yet, the bump read main, planned no shard and failed only at compose
+              sys.exit(f"::error::no tentative records of {key} on the tree's {os.environ.get('TENGOKU_REF') or 'main'}: set tengoku_ref to the branch that holds them, or merge them first")
           import tolerant_build as tb
           wanted = {".".join(tb.esc(x) for x in r["sourcePath"][:-5].split("/")) for r in ents.values()}
           imp, weight = ps.graph(Path("lib"), roots)
