@@ -1,0 +1,47 @@
+{
+  "key": "palomar-qseries-row-factorization",
+  "repo": "https://github.com/xiangyazi24/palomar-qseries-row-factorization",
+  "commit": "702c524cd8bc70867c918c23039680e7adf48bf8",
+  "toolchain": "leanprover/lean4:v4.30.0",
+  "roots": [
+    "Challenge",
+    "PalomarQseriesRowFactorization",
+    "QseriesFormalization",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/palomar-qseries-row-factorization/repo",
+  "entries": 2875,
+  "modules": 40,
+  "exported": 40,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 2875,
+    "kept": 2875,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 7,
+    "lineUnverified": 0,
+    "nameFixed": 2875,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.30.0 (commit d024af099ca4bf2c86f649261ebf59565dc8c622, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+d024af0",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "a3e35a584f59 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 56074240,
+  "minutes": 27,
+  "finishedAt": "2026-11-13T18:11:32.929Z"
+}
