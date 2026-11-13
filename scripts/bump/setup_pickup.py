@@ -114,13 +114,14 @@ def setup_runs(repo: str, since: int, gh=bp._lines) -> list[dict]:
 POLL_SECONDS = 300  # how often a waiting pickup looks at the runners again
 
 
-def waits_for_runners(starts: list, notes: list[str]) -> bool:
-    """Nothing started, and the reason is the runners (not an unready library): worth looking again soon."""
-    return not starts and any("runners free of the" in n for n in notes)
+def waits_for_runners(starts: list, ready: int, free: int) -> bool:
+    """Nothing started although a library is ready, and the runners are the only reason (plan starts the first library with bump_pickup.NEED_FREE free):
+    worth looking again soon. Said from the numbers, not from the words of plan's notes (cubic on #192)."""
+    return not starts and ready > 0 and free < bp.NEED_FREE
 
 
-def once(a, sources: dict, reg: dict[str, int], log=print) -> tuple[list[tuple[str, str]], list[str]]:
-    """One look: which libraries wait for a setup, which can start with the runners free now; starts them unless a dry run."""
+def once(a, sources: dict, reg: dict[str, int], log=print) -> tuple[list[tuple[str, str]], bool]:
+    """One look: which libraries wait for a setup, which can start with the runners free now; starts them unless a dry run. (the starts, whether only the runners hold a ready library back)"""
     since = window_start(int(time.time()))
     set_up = {k for k in sources if (Path("data/exports") / k / "setup.ci.json").exists()}
     keys = pending(reg, sources, set_up, attempts(setup_runs(a.repo, since)), since)
@@ -137,7 +138,8 @@ def once(a, sources: dict, reg: dict[str, int], log=print) -> tuple[list[tuple[s
     if not a.dry_run:
         for k, r in starts:
             subprocess.run(dispatch_args(k, r or "", a.repo), check=True)
-    return starts, notes
+    ready = sum(1 for k in keys if refs[k][0] is not None)
+    return starts, waits_for_runners(starts, ready, free)
 
 
 def main() -> None:
@@ -151,9 +153,17 @@ def main() -> None:
     sources = json.loads(Path("sources.json").read_text(encoding="utf-8"))["sources"]
     reg = registered(log)
     deadline = time.time() + 60 * a.wait_minutes
+    first = True
     while True:
-        starts, notes = once(a, sources, reg)
-        if a.dry_run or not waits_for_runners(starts, notes) or time.time() + POLL_SECONDS > deadline:
+        try:
+            starts, waits = once(a, sources, reg)
+        except Exception as e:  # noqa: BLE001 - a transient failure of gh at minute 30 must not end the wait (cubic on #192); the first look failing is a real failure
+            if first:
+                raise
+            print(f"this look failed ({type(e).__name__}: {e}); the next is in {POLL_SECONDS // 60} minutes")
+            starts, waits = [], True
+        first = False
+        if a.dry_run or not waits or time.time() + POLL_SECONDS > deadline:
             return
         time.sleep(POLL_SECONDS)
 

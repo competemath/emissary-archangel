@@ -34,7 +34,7 @@ jobs:
     # after a bump-pickup only when that one ran on its schedule: a person's rehearsal of bump-pickup (workflow_dispatch, dry run) must not start setups (cubic on #190); after a setup-sharded or bump-sharded run always
     if: ${{ (github.event_name == 'workflow_dispatch' || vars.LANE_ENABLED == 'true') && (github.event_name != 'workflow_run' || github.event.workflow_run.name != 'bump-pickup' || github.event.workflow_run.event == 'schedule') && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
     runs-on: ubuntu-26.04
-    timeout-minutes: 70   # up to 60 of them waiting for runners (--wait-minutes)
+    timeout-minutes: 45   # up to 30 of them waiting for runners (--wait-minutes): LANE_ENABLED is read when the job starts, so the wait is short enough for the kill switch to take effect soon (cubic on #192)
     permissions: { actions: write, contents: read }  # read the runs of the workflows, dispatch setup-auto
     env: { GH_TOKEN: "${{ github.token }}", DRY: "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run != 'false' }}" }
     steps:
@@ -45,4 +45,4 @@ jobs:
           git -C emissary checkout -q "$GITHUB_SHA"
       - name: Start the setup a newly registered library is waiting for
         working-directory: emissary
-        run: python3 scripts/bump/setup_pickup.py $([ "$DRY" = true ] && echo --dry-run || echo --wait-minutes 60)
+        run: python3 scripts/bump/setup_pickup.py $([ "$DRY" = true ] && echo --dry-run || echo --wait-minutes 30)

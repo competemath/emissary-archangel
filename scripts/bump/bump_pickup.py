@@ -117,15 +117,17 @@ def _lines(*args: str) -> list:
     return [json.loads(ln) for ln in out.splitlines() if ln.strip()]
 
 
-def runners_in_use(gh=_lines, skip_run: str | None = None) -> int:
+def runners_in_use(gh=_lines, skip_run: str | None = None, skip_repo: str | None = None) -> int:
     """Jobs running or queued in the org's repositories, not counting the run that is asking (a pickup's own job holds a runner it does not
-    take from anyone else: counted, it made 10 free look like 9 and the pickup waited for 11; 13 Nov 2026). The asking run is GITHUB_RUN_ID."""
+    take from anyone else: counted, it made 10 free look like 9 and the pickup waited for 11; 13 Nov 2026). The asking run is GITHUB_RUN_ID of
+    GITHUB_REPOSITORY: a run id is unique only within its repository (cubic on #192), so a run of another repository with the same number still counts."""
     skip = str(os.environ.get("GITHUB_RUN_ID", "") if skip_run is None else skip_run)
+    skip_repo = os.environ.get("GITHUB_REPOSITORY", "") if skip_repo is None else skip_repo
     used = 0
     for repo in REPOS:
         for status in ("in_progress", "queued"):
             for run in gh("api", "--paginate", f"repos/{repo}/actions/runs?status={status}&per_page=100", "--jq", ".workflow_runs[].id"):
-                if skip and str(run) == skip:
+                if skip and str(run) == skip and (not skip_repo or repo == skip_repo):
                     continue
                 used += sum(gh("api", "--paginate", f"repos/{repo}/actions/runs/{run}/jobs?per_page=100", "--jq", '[.jobs[] | select(.status == "in_progress" or .status == "queued")] | length'))
     return used
