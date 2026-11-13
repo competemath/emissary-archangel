@@ -119,6 +119,16 @@ def mostly_overlapping(names, new, threshold=0.5):
     return out
 
 
+RECORD_LINE = re.compile(r"^\s*(data/\S+\.jsonl):(\d+)(?: \([^\n]*?\))?: (.*)$", re.M)
+
+
+def refused_lines(text):
+    """(file, line, reason) of every record a rule refuses: validate_records.py prints `data/x.jsonl:7: reason`, lint_banked.py
+    `data/x.jsonl:7 (Name.of.record): reason` (batch 7, 13 Nov 2026: the first lint refusals refine met, `native_decide` in
+    palomar-qseries-row-factorization, were not read, and refine stopped as if the rule had failed without naming a line)"""
+    return [(m.group(1), int(m.group(2)), m.group(3)) for m in RECORD_LINE.finditer(text)]
+
+
 def refine(argv):
     """refine --tengoku T: run the record rules (validate_records.py, lint_banked.py in strict mode) until both are quiet, dropping
     each record line they refuse (the later of two equal names, a name that is already trusted, a banned command, ...); every drop is
@@ -137,8 +147,8 @@ def refine(argv):
                                env={**os.environ, "TENGOKU_INTAKE_LINT": "strict"})
             text = r.stdout + r.stderr
             found = False
-            for m in re.finditer(r"^\s*(data/\S+\.jsonl):(\d+): (.*)$", text, re.M):
-                bad[m.group(1)].add(int(m.group(2))); reasons[re.sub(r":.*", "", m.group(3))] += 1; found = True
+            for f, n, why in refused_lines(text):
+                bad[f].add(n); reasons[re.sub(r":.*", "", why)] += 1; found = True
             if r.returncode != 0 and not found:
                 sys.exit(f"{script} failed without naming a record line:\n" + text[-1500:])
         if not bad:

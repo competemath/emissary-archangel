@@ -1917,6 +1917,83 @@
         "RankAmplification"
       ],
       "licence": "Apache-2.0"
+    },
+    "sandrones-library": {
+      "label": "sandrones-library (FurinaManifold/sandrones-library; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/FurinaManifold/sandrones-library",
+      "commit": "6bce6404b264cabe0d553188f60ad2d2174f80db",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "SandronesLibrary"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "tda-lib": {
+      "label": "tda-lib (uda-lab/tda-lib; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/uda-lab/tda-lib",
+      "commit": "6880b1ef1fcfebae0b8064d3c26223f3b952964a",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "TDA"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "finite-simple-groups-lean": {
+      "label": "finite-simple-groups-lean (KitaKen1/finite-simple-groups-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/KitaKen1/finite-simple-groups-lean",
+      "commit": "7f09e33a9ceef6b59ce03e34cd4f0558c763e325",
+      "toolchain": "leanprover/lean4:v4.30.0",
+      "roots": [
+        "FiniteSimpleGroups"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lean-commutator": {
+      "label": "lean-commutator (WuProver/lean-commutator; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/WuProver/lean-commutator",
+      "commit": "2f197491d436faa274133f9b72b2e8e8fe6c19c0",
+      "toolchain": "leanprover/lean4:v4.30.0-rc1",
+      "roots": [
+        "CommutatorTheorem",
+        "KadisonSinger",
+        "PavingSeparation"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "palomar-qseries-row-factorization": {
+      "label": "palomar-qseries-row-factorization (xiangyazi24/palomar-qseries-row-factorization; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/xiangyazi24/palomar-qseries-row-factorization",
+      "commit": "702c524cd8bc70867c918c23039680e7adf48bf8",
+      "toolchain": "leanprover/lean4:v4.30.0",
+      "roots": [
+        "Challenge",
+        "PalomarQseriesRowFactorization",
+        "QseriesFormalization",
+        "Solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "piirrationalitymeasure": {
+      "label": "piirrationalitymeasure (frenzymath/PiIrrationalityMeasure; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/frenzymath/PiIrrationalityMeasure",
+      "commit": "3ee5d4d080b440469d331a2fb3862aee88c23ca0",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "Challenge",
+        "Formalization",
+        "Solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "twinprime": {
+      "label": "twinprime (andrew-tawfeek/twinprime; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/andrew-tawfeek/twinprime",
+      "commit": "9932182b26b61e4a87c89fdb31e533f1a4b8dc7a",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "TwinPrime"
+      ],
+      "licence": "Apache-2.0"
     }
   }
 }
