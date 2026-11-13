@@ -10,6 +10,7 @@ The bump reads the library's records from where the tree holds them (tree_record
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import time
@@ -116,11 +117,16 @@ def _lines(*args: str) -> list:
     return [json.loads(ln) for ln in out.splitlines() if ln.strip()]
 
 
-def runners_in_use(gh=_lines) -> int:
+def runners_in_use(gh=_lines, skip_run: str | None = None) -> int:
+    """Jobs running or queued in the org's repositories, not counting the run that is asking (a pickup's own job holds a runner it does not
+    take from anyone else: counted, it made 10 free look like 9 and the pickup waited for 11; 13 Nov 2026). The asking run is GITHUB_RUN_ID."""
+    skip = str(os.environ.get("GITHUB_RUN_ID", "") if skip_run is None else skip_run)
     used = 0
     for repo in REPOS:
         for status in ("in_progress", "queued"):
             for run in gh("api", "--paginate", f"repos/{repo}/actions/runs?status={status}&per_page=100", "--jq", ".workflow_runs[].id"):
+                if skip and str(run) == skip:
+                    continue
                 used += sum(gh("api", "--paginate", f"repos/{repo}/actions/runs/{run}/jobs?per_page=100", "--jq", '[.jobs[] | select(.status == "in_progress" or .status == "queued")] | length'))
     return used
 

@@ -111,15 +111,16 @@ def setup_runs(repo: str, since: int, gh=bp._lines) -> list[dict]:
     return runs
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--repo", default="competemath/emissary-archangel")
-    ap.add_argument("--tree", default="competemath/tengoku")
-    ap.add_argument("--dry-run", action="store_true")
-    a = ap.parse_args()
-    log = subprocess.run(["git", "log", "-p", "--reverse", "--format==%ct", "--", "sources.json"], check=True, capture_output=True, text=True).stdout
-    sources = json.loads(Path("sources.json").read_text(encoding="utf-8"))["sources"]
-    reg = registered(log)
+POLL_SECONDS = 300  # how often a waiting pickup looks at the runners again
+
+
+def waits_for_runners(starts: list, notes: list[str]) -> bool:
+    """Nothing started, and the reason is the runners (not an unready library): worth looking again soon."""
+    return not starts and any("runners free of the" in n for n in notes)
+
+
+def once(a, sources: dict, reg: dict[str, int], log=print) -> tuple[list[tuple[str, str]], list[str]]:
+    """One look: which libraries wait for a setup, which can start with the runners free now; starts them unless a dry run."""
     since = window_start(int(time.time()))
     set_up = {k for k in sources if (Path("data/exports") / k / "setup.ci.json").exists()}
     keys = pending(reg, sources, set_up, attempts(setup_runs(a.repo, since)), since)
@@ -131,11 +132,30 @@ def main() -> None:
     free = max(0, bp.RUNNERS - bp.runners_in_use()) if keys else 0
     starts, notes = plan(keys, refs, free)
     for n in notes:
-        print(n)
-    print(f"{len(keys)} registered and not set up, {free} runners free; setup: " + (", ".join(f"{k} (tengoku_ref={r or 'main'})" for k, r in starts) or "none"))
+        log(n)
+    log(f"{len(keys)} registered and not set up, {free} runners free; setup: " + (", ".join(f"{k} (tengoku_ref={r or 'main'})" for k, r in starts) or "none"))
     if not a.dry_run:
         for k, r in starts:
             subprocess.run(dispatch_args(k, r or "", a.repo), check=True)
+    return starts, notes
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--repo", default="competemath/emissary-archangel")
+    ap.add_argument("--tree", default="competemath/tengoku")
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--wait-minutes", type=int, default=0, help="when only the runners hold a ready library back, look again every five minutes for this long")
+    a = ap.parse_args()
+    log = subprocess.run(["git", "log", "-p", "--reverse", "--format==%ct", "--", "sources.json"], check=True, capture_output=True, text=True).stdout
+    sources = json.loads(Path("sources.json").read_text(encoding="utf-8"))["sources"]
+    reg = registered(log)
+    deadline = time.time() + 60 * a.wait_minutes
+    while True:
+        starts, notes = once(a, sources, reg)
+        if a.dry_run or not waits_for_runners(starts, notes) or time.time() + POLL_SECONDS > deadline:
+            return
+        time.sleep(POLL_SECONDS)
 
 
 if __name__ == "__main__":
