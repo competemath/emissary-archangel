@@ -5,7 +5,7 @@
 The real case: batch 6 (ck-hopf-formalization, nlalib, lean-eval-pi-succ-sphere-n-mulequiv-zmod-two, rankamplificationtotient) was registered at 01:48 and set up by hand at 02:31 (four setup-auto
 dispatches with tengoku_ref=content/fatex-libraries-batch-6, the branch of competemath/tengoku#789).
 
-Invariants: at most one library starts; never one registered before FIRST_REGISTER or outside the window, or no longer in sources.json; never one with a setup record; never one with a real setup
+Invariants: at most MAX_STARTS libraries start in a run (the first with bump_pickup.NEED_FREE runners free, each further one with PER_START more), decide() names the first; never one registered before FIRST_REGISTER or outside the window, or no longer in sources.json; never one with a setup record; never one with a real setup
 started at or after its registration (a dry run of setup-auto does not count; a setup-sharded run does); the tree branch is the one open records pull request of the tree repository holding ALL the
 library's record files, '' when they are on main, and nothing starts when no such pull request or several exist or it is a fork's; nothing starts with too few free runners; the one registered first
 starts first. Mutants (each must fail a check): dry runs counted, attempts ignored, the window ignored, a fork's branch taken, any indentation read as a registration, a partial set of record files taken."""
@@ -108,7 +108,7 @@ class RealPast(unittest.TestCase):
         keys, (key, ref, notes) = run_pickup(without_batch6(R["runs"]))
         self.assertEqual(keys, BATCH6)  # registered together: by name
         self.assertEqual((key, ref), ("ck-hopf-formalization", "content/fatex-libraries-batch-6"))
-        self.assertEqual(notes, [f"{k}: starts in this run too" for k in BATCH6[1:]])  # 20 runners free: all four in one run
+        self.assertEqual(notes, [f"{k}: waits for the next run" for k in BATCH6[1:]])  # decide is the one-start view; plan starts all four (SeveralStarts)
 
     def test_the_hand_setups_were_what_the_pickup_would_have_started(self):
         """each real setup-auto dispatch of batch 6 is exactly dispatch_args for that library and branch"""

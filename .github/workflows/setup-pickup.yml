@@ -1,5 +1,5 @@
 name: setup-pickup
-# Twice an hour, and when sources.json changes on main: libraries registered since FIRST_REGISTER that have no setup yet get one through setup-auto.yml, as many per run as the free runners allow (scripts/bump/setup_pickup.py
+# Twice an hour, and when sources.json changes on main: libraries registered since FIRST_REGISTER that have no setup yet get one through setup-auto.yml, up to 4 per run as the free runners allow: 10 free for the first, 3 more for each further one (scripts/bump/setup_pickup.py
 # says which, with which branch of the tree holding its records, and why not the others). Its bump then follows by itself (bump-pickup.yml). It reads and dispatches; it runs no library's code and
 # pushes nothing. LANE_ENABLED (the intake lane's kill switch) stops it too. A person can rehearse it with workflow_dispatch (dry_run prints what it would start).
 on:

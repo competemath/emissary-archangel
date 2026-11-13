@@ -2,7 +2,7 @@
 """A library newly registered in sources.json gets its setup: setup_pickup.py [--dry-run] (setup-pickup.yml, twice an hour and when sources.json changes on main). Until now a person started
 setup-auto.yml by hand for every registered library (batch 6, 13 Nov 2026: four dispatches, each with the tree branch that held its records).
 
-As many libraries per run as the free runners allow (plan: at most MAX_STARTS, PER_START runners kept for each), the ones registered first first; its bump follows by itself (setup-sharded.yml and setup-libraries.yml start bump-pickup.yml when they finish). A library is
+Up to MAX_STARTS libraries per run, as the free runners allow (plan: NEED_FREE free for the first, PER_START more for each further one), the ones registered first first; its bump follows by itself (setup-sharded.yml and setup-libraries.yml start bump-pickup.yml when they finish). A library is
 picked up once: any setup started after it was registered (setup-auto.yml unless it was a dry run, or setup-sharded.yml), finished or not, counts, so a setup that failed is looked at by a person and
 never started again by this. Left alone: a library registered before FIRST_REGISTER (23 registered in September were left unset up on purpose or set up by other means), one registered more than
 WINDOW_DAYS ago (its runs can no longer be read in full), one that already has a setup record, and one whose tentative records are neither on the tree's main nor in exactly one open `records:` pull
@@ -67,9 +67,9 @@ PER_START, MAX_STARTS = 3, 4  # a setup's first round holds one runner for up to
 
 
 def plan(keys: list[str], refs: dict[str, tuple[str | None, str]], free: int) -> tuple[list[tuple[str, str]], list[str]]:
-    """([(library, tengoku_ref)] to start in this run, why each other one is left). In order, as many as keep bump_pickup.NEED_FREE runners free
-    after PER_START for each one started, at most MAX_STARTS: one per run left batch 7 (13 Nov 2026, seven libraries, 16 runners free) to start
-    over three and a half hours."""
+    """([(library, tengoku_ref)] to start in this run, why each other one is left). In order: the first start needs bump_pickup.NEED_FREE free runners
+    (the rule of one start per run before, and bump-pickup's), each further start PER_START more (20 free: 4 starts, 16: 3, 13: 2, 10: 1), at most
+    MAX_STARTS. One start per run left batch 7 (13 Nov 2026, seven libraries, 16 runners free) to start over three and a half hours."""
     notes, ready = [], []
     for k in keys:
         ref, why = refs[k]
@@ -86,11 +86,11 @@ def plan(keys: list[str], refs: dict[str, tuple[str | None, str]], free: int) ->
 
 
 def decide(keys: list[str], refs: dict[str, tuple[str | None, str]], free: int) -> tuple[str | None, str | None, list[str]]:
-    """(the first library plan starts or None, its tengoku_ref, why each other one is left this run)"""
+    """the one-start view of plan, for callers that start one library: (the first library or None, its tengoku_ref, why each other one waits)"""
     starts, notes = plan(keys, refs, free)
     if not starts:
         return None, None, notes
-    return starts[0][0], starts[0][1], notes + [f"{k}: starts in this run too" for k, _ in starts[1:]]
+    return starts[0][0], starts[0][1], notes + [f"{k}: waits for the next run" for k, _ in starts[1:]]
 
 
 def dispatch_args(key: str, ref: str, repo: str) -> list[str]:
