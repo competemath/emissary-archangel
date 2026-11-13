@@ -22,7 +22,7 @@ jobs:
   pickup:
     if: ${{ (github.event_name == 'workflow_dispatch' || vars.LANE_ENABLED == 'true') && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
     runs-on: ubuntu-26.04
-    timeout-minutes: 20
+    timeout-minutes: 45   # up to 30 of them waiting for runners (--wait-minutes): LANE_ENABLED is read when the job starts, so the wait is short enough for the kill switch to take effect soon
     permissions: { actions: write, contents: read }  # read the runs of the workflows, dispatch bump-sharded
     env: { GH_TOKEN: "${{ github.token }}", DRY: "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run != 'false' }}" }
     steps:
@@ -33,4 +33,4 @@ jobs:
           git -C emissary checkout -q "$GITHUB_SHA"
       - name: Start the bump a finished setup is waiting for
         working-directory: emissary
-        run: python3 scripts/bump/bump_pickup.py $([ "$DRY" = true ] && echo --dry-run)
+        run: python3 scripts/bump/bump_pickup.py $([ "$DRY" = true ] && echo --dry-run || echo --wait-minutes 30)

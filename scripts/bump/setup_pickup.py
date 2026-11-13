@@ -111,15 +111,21 @@ def setup_runs(repo: str, since: int, gh=bp._lines) -> list[dict]:
     return runs
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--repo", default="competemath/emissary-archangel")
-    ap.add_argument("--tree", default="competemath/tengoku")
-    ap.add_argument("--dry-run", action="store_true")
-    a = ap.parse_args()
-    log = subprocess.run(["git", "log", "-p", "--reverse", "--format==%ct", "--", "sources.json"], check=True, capture_output=True, text=True).stdout
-    sources = json.loads(Path("sources.json").read_text(encoding="utf-8"))["sources"]
-    reg = registered(log)
+POLL_SECONDS = 300  # how often a waiting pickup looks at the runners again
+
+
+def waits_for_runners(starts: list, ready: int, free: int) -> bool:
+    """Nothing started although a library is ready, and the runners are the only reason (plan starts the first library with bump_pickup.NEED_FREE free):
+    worth looking again soon. Said from the numbers, not from the words of plan's notes (cubic on #192)."""
+    return not starts and ready > 0 and free < bp.NEED_FREE
+
+
+class DispatchError(RuntimeError):
+    """A dispatch that failed: never retried by the wait (GitHub may have accepted it before gh reported the error: cubic on #192), the job fails visibly."""
+
+
+def once(a, sources: dict, reg: dict[str, int], log=print) -> tuple[list[tuple[str, str]], bool]:
+    """One look: which libraries wait for a setup, which can start with the runners free now; starts them unless a dry run. (the starts, whether only the runners hold a ready library back)"""
     since = window_start(int(time.time()))
     set_up = {k for k in sources if (Path("data/exports") / k / "setup.ci.json").exists()}
     keys = pending(reg, sources, set_up, attempts(setup_runs(a.repo, since)), since)
@@ -131,11 +137,44 @@ def main() -> None:
     free = max(0, bp.RUNNERS - bp.runners_in_use()) if keys else 0
     starts, notes = plan(keys, refs, free)
     for n in notes:
-        print(n)
-    print(f"{len(keys)} registered and not set up, {free} runners free; setup: " + (", ".join(f"{k} (tengoku_ref={r or 'main'})" for k, r in starts) or "none"))
+        log(n)
+    log(f"{len(keys)} registered and not set up, {free} runners free; setup: " + (", ".join(f"{k} (tengoku_ref={r or 'main'})" for k, r in starts) or "none"))
     if not a.dry_run:
         for k, r in starts:
-            subprocess.run(dispatch_args(k, r or "", a.repo), check=True)
+            try:
+                subprocess.run(dispatch_args(k, r or "", a.repo), check=True)  # inline, not through a helper taking the arguments: Snyk Code read the helper's parameter as an unsanitized command (#192)
+            except subprocess.CalledProcessError as e:
+                raise DispatchError(f"a dispatch exited {e.returncode}") from e
+    ready = sum(1 for k in keys if refs[k][0] is not None)
+    return starts, waits_for_runners(starts, ready, free)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--repo", default="competemath/emissary-archangel")
+    ap.add_argument("--tree", default="competemath/tengoku")
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--wait-minutes", type=int, default=0, help="when only the runners hold a ready library back, look again every five minutes for this long")
+    a = ap.parse_args()
+    log = subprocess.run(["git", "log", "-p", "--reverse", "--format==%ct", "--", "sources.json"], check=True, capture_output=True, text=True).stdout
+    sources = json.loads(Path("sources.json").read_text(encoding="utf-8"))["sources"]
+    reg = registered(log)
+    deadline = time.time() + 60 * a.wait_minutes
+    first = True
+    while True:
+        try:
+            starts, waits = once(a, sources, reg)
+        except DispatchError:
+            raise  # not retried: the request may have been accepted
+        except Exception as e:  # noqa: BLE001 - a transient failure of gh at minute 30 must not end the wait (cubic on #192); the first look failing is a real failure
+            if first or time.time() + POLL_SECONDS > deadline:  # and when no further look fits: the job fails visibly, it does not end quietly
+                raise
+            print(f"this look failed ({type(e).__name__}: {e}); the next is in {POLL_SECONDS // 60} minutes")
+            starts, waits = [], True
+        first = False
+        if a.dry_run or not waits or time.time() + POLL_SECONDS > deadline:
+            return
+        time.sleep(POLL_SECONDS)
 
 
 if __name__ == "__main__":
