@@ -5,11 +5,11 @@ name: setup-pickup
 on:
   schedule:
     - cron: "7,37 * * * *"
-  # GitHub's scheduler did not fire this cron once in its first four hours on main (13 Nov 2026, 06:14 to 10:00) while bump-pickup's hourly one did:
-  # run after every SCHEDULED bump-pickup too (the job's `if` skips the others: a dispatched one may be a dry run), so a setup waits an hour at most whatever this
-  # cron does (main's code, as for every event here)
+  # GitHub's scheduler is not to be counted on for this repository (13 Nov 2026: this cron never fired in its first six hours on main; bump-pickup's hourly cron fired 3 times
+  # in 16 hours; six batch-7 libraries waited four hours with 12 runners free). So the pickup also runs whenever a long job ends and frees its runners: a setup-sharded or
+  # bump-sharded run (always real work, never a dry run) and a SCHEDULED bump-pickup (the job's `if` skips a person's dry run of it). Main's code, as for every event here.
   workflow_run:
-    workflows: [bump-pickup]
+    workflows: [bump-pickup, setup-sharded, bump-sharded]
     types: [completed]
   push:
     branches: [main]
@@ -30,8 +30,8 @@ defaults:
 
 jobs:
   pickup:
-    # after a bump-pickup only when that one ran on its schedule: a person's rehearsal of bump-pickup (workflow_dispatch, dry run) must not start setups (cubic on #190)
-    if: ${{ (github.event_name == 'workflow_dispatch' || vars.LANE_ENABLED == 'true') && (github.event_name != 'workflow_run' || github.event.workflow_run.event == 'schedule') && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
+    # after a bump-pickup only when that one ran on its schedule: a person's rehearsal of bump-pickup (workflow_dispatch, dry run) must not start setups (cubic on #190); after a setup-sharded or bump-sharded run always
+    if: ${{ (github.event_name == 'workflow_dispatch' || vars.LANE_ENABLED == 'true') && (github.event_name != 'workflow_run' || github.event.workflow_run.name != 'bump-pickup' || github.event.workflow_run.event == 'schedule') && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions: { actions: write, contents: read }  # read the runs of the workflows, dispatch setup-auto
