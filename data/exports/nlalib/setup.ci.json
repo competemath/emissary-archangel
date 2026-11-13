@@ -1,0 +1,59 @@
+{
+  "key": "nlalib",
+  "repo": "https://github.com/tchen-research/NLAlib",
+  "commit": "77514ce42a0e437d837797a063ac161f41022730",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "NLAlib"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/nlalib/repo",
+  "entries": 15099,
+  "modules": 2785,
+  "exported": 2785,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 3251,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 15099,
+    "kept": 15099,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 112,
+    "lineUnverified": 0,
+    "nameFixed": 14900,
+    "sorryOriginals": 0,
+    "emptyProofs": 2
+  },
+  "sharded": {
+    "records": 21,
+    "shards": [
+      21
+    ]
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1 | ubuntu26/20261111.196.1 | ubuntu26/20261111.82.6"
+  },
+  "exportsBytes": 1088688128,
+  "minutes": 11,
+  "finishedAt": "2026-11-13T04:03:36.831Z",
+  "archive": {
+    "release": "exports-nlalib",
+    "asset": "nlalib@77514ce42a0e-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-nlalib/nlalib@77514ce42a0e-exports.tar.zst",
+    "bytes": 126077574,
+    "sha256": "040cd5b834553016084b4f99df40ca9a6c5d1d644e7cbd1296a0d82849f44544",
+    "files": 5570,
+    "unpack": "tar --zstd -xf nlalib@77514ce42a0e-exports.tar.zst -C data/exports/nlalib"
+  }
+}
