@@ -333,17 +333,59 @@ class Network(unittest.TestCase):
 
     def test_records_prs_reads_the_files_of_each(self):
         calls = []
+        real789 = [{"filename": f, "status": "added", "previous_filename": None} for f in OPEN[0]["files"][:4]] + [{"filename": "schemas/sources.json", "status": "modified", "previous_filename": None}]
 
         def gh(*a):
             calls.append(a)
             if "/files" in a[2]:
-                return ["data/tentative/nlalib.jsonl"]
+                return real789
             return [{"number": 789, "branch": "content/fatex-libraries-batch-6", "repo": TREE}]
 
         prs = sp.records_prs(TREE, gh=gh)
-        self.assertEqual(prs[0]["files"], ["data/tentative/nlalib.jsonl"])
+        self.assertEqual(prs[0]["files"], OPEN[0]["files"])  # the real files of #789, as GitHub listed them (13 Nov 2026)
+        self.assertEqual(prs[0]["removed"], [])
         self.assertIn('startswith("records:")', calls[0][-1])
+        self.assertEqual(calls[1][-1], ".[] | {filename, status, previous_filename}")
 
+    def test_the_jq_is_the_one_gh_runs(self):
+        """the filter of records_prs on a real-shaped answer, run through jq (gh's --jq takes the same language)"""
+        answer = [{"filename": "data/tentative/nlalib.jsonl", "status": "added", "previous_filename": None, "additions": 9}, {"filename": "x", "status": "removed", "patch": "-"}]
+        jq = sp.records_prs.__code__.co_consts
+        expr = next(c for c in jq if isinstance(c, str) and c.startswith(".[] | {filename"))
+        out = subprocess.run(["jq", "-c", expr], input=json.dumps(answer), capture_output=True, text=True, check=True).stdout.splitlines()
+        self.assertEqual([json.loads(x) for x in out], [{"filename": "data/tentative/nlalib.jsonl", "status": "added", "previous_filename": None}, {"filename": "x", "status": "removed", "previous_filename": None}])
+
+
+class RemovedFiles(unittest.TestCase):
+    """cubic on #187: GitHub lists a file a pull request removes among its files; the branch does not have it"""
+
+    def test_branch_changes(self):
+        files, removed = sp.branch_changes([
+            {"filename": "data/tentative/a.jsonl", "status": "added"}, {"filename": "data/tentative/b.jsonl", "status": "removed"},
+            {"filename": "data/tentative/c.jsonl", "status": "renamed", "previous_filename": "data/tentative/old.jsonl"}, {"filename": "schemas/sources.json", "status": "modified"},
+        ])
+        self.assertEqual(files, ["data/tentative/a.jsonl", "data/tentative/c.jsonl", "schemas/sources.json"])
+        self.assertEqual(removed, ["data/tentative/b.jsonl", "data/tentative/old.jsonl"])
+
+    def test_a_pull_request_that_removes_the_records_is_not_their_branch(self):
+        rec = "data/tentative/nlalib.jsonl"
+        gone = {"number": 5, "branch": "content/rm", "repo": TREE, "files": ["schemas/sources.json"], "removed": [rec]}
+        for rule in (sp.setup_holds, sp.holds):
+            self.assertIsNone(sp.records_ref("nlalib", {}, set(), [gone], TREE, rule)[0])
+            # on main, and a pull request takes it away: main is still what the job reads by default, and main has it
+            self.assertEqual(sp.records_ref("nlalib", {}, {rec}, [gone], TREE, rule)[0], "")
+        # one of flt-anthropic's three files on main, removed by the pull request that adds the other two: the branch lacks it
+        files = sp.tentative_files("flt-anthropic", R["sources"]["flt-anthropic"])
+        p = {"number": 6, "branch": "content/x", "repo": TREE, "files": files[1:], "removed": files[:1]}
+        for rule in (sp.setup_holds, sp.holds):
+            self.assertIsNone(sp.records_ref("flt-anthropic", R["sources"]["flt-anthropic"], set(files[:1]), [p], TREE, rule)[0])
+            self.assertEqual(sp.records_ref("flt-anthropic", R["sources"]["flt-anthropic"], set(files[:1]), [dict(p, removed=[])], TREE, rule)[0], "content/x")
+
+    def test_mutant_removed_files_counted_is_caught(self):
+        files = sp.tentative_files("flt-anthropic", R["sources"]["flt-anthropic"])
+        p = {"number": 6, "branch": "content/x", "repo": TREE, "files": files[1:], "removed": files[:1]}
+        counted = mutant("records_ref", '(on_main - set(p.get("removed", [])))', "on_main")
+        self.assertEqual(counted("flt-anthropic", R["sources"]["flt-anthropic"], set(files[:1]), [p], TREE)[0], "content/x")
 
 class Workflow(unittest.TestCase):
     def setUp(self):

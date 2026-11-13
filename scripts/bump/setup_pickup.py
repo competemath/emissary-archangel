@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 
 import bump_pickup as bp
-from tree_records import BRANCH, holds, main_files, setup_holds, records_prs, records_ref, tentative_files  # noqa: F401 (the tests use them through this module)
+from tree_records import BRANCH, branch_changes, holds, main_files, setup_holds, records_prs, records_ref, tentative_files  # noqa: F401 (the tests use them through this module)
 
 ENTRY = re.compile(r'^\+    "([a-z0-9][a-z0-9-]*)": \{$')
 FIRST_REGISTER = 1794528000  # 2026-11-13 00:00 UTC

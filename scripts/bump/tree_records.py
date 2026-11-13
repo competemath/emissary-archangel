@@ -53,14 +53,14 @@ def records_ref(key: str, source: dict, on_main: set[str], prs: list[dict], tree
     the tree repository (never a fork's) that touches the library's records, when its branch (main and its files) holds them all; two such pull requests are not chosen between."""
     if rule(key, source, on_main):
         return "", "records on the tree's main"
-    touching = [p for p in prs if p["repo"] == tree and any(is_record_path(key, source, f) for f in p["files"])]
+    touching = [p for p in prs if p["repo"] == tree and any(is_record_path(key, source, f) for f in [*p["files"], *p.get("removed", [])])]
     if not touching:
         return None, "records neither on the tree's main nor in an open records pull request of the tree repository"
     if len(touching) > 1:
         return None, "records in " + ", ".join(f"#{p['number']}" for p in touching) + ": which one is not guessed"
     p = touching[0]
-    if not rule(key, source, on_main | set(p["files"])):
-        return None, f"#{p['number']} with main does not hold every record file sources.json lists"
+    if not rule(key, source, (on_main - set(p.get("removed", []))) | set(p["files"])):
+        return None, f"#{p['number']}'s branch (main, less what it removes, with what it adds) does not hold every record file the job reads"
     if not BRANCH.match(p["branch"]):
         return None, f"#{p['number']}'s branch name is not one setup-auto accepts"
     return p["branch"], f"records in #{p['number']}"
@@ -87,9 +87,23 @@ def main_files(tree: str, key: str, source: dict, run=subprocess.run) -> set[str
     return out
 
 
+def branch_changes(changes: list[dict]) -> tuple[list[str], list[str]]:
+    """(the files a pull request's branch has, the files it takes away) from the GitHub files list: a removed file is gone, a renamed one is gone under its old name (cubic on #187: a pull
+    request that removes a record file must not count as holding it)"""
+    files, removed = [], []
+    for c in changes:
+        if c.get("status") == "removed":
+            removed.append(c["filename"])
+            continue
+        files.append(c["filename"])
+        if c.get("status") == "renamed" and c.get("previous_filename"):
+            removed.append(c["previous_filename"])
+    return files, removed
+
+
 def records_prs(tree: str, gh=bp._lines) -> list[dict]:
     """the tree's open pull requests titled `records:` (what register_libraries.py opens), with their files"""
     prs = gh("api", "--paginate", f"repos/{tree}/pulls?state=open&per_page=100", "--jq", '.[] | select(.title | startswith("records:")) | {number, branch: .head.ref, repo: .head.repo.full_name}')
     for p in prs:
-        p["files"] = gh("api", "--paginate", f"repos/{tree}/pulls/{p['number']}/files?per_page=100", "--jq", ".[].filename | @json")
+        p["files"], p["removed"] = branch_changes(gh("api", "--paginate", f"repos/{tree}/pulls/{p['number']}/files?per_page=100", "--jq", ".[] | {filename, status, previous_filename}"))
     return prs
