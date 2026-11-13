@@ -5,6 +5,11 @@ name: setup-pickup
 on:
   schedule:
     - cron: "7,37 * * * *"
+  # GitHub's scheduler did not fire this cron once in its first four hours on main (13 Nov 2026, 06:14 to 10:00) while bump-pickup's hourly one did:
+  # run after every bump-pickup too, so a setup waits an hour at most whatever the scheduler does (main's code, as for every event here)
+  workflow_run:
+    workflows: [bump-pickup]
+    types: [completed]
   push:
     branches: [main]
     paths: [sources.json]

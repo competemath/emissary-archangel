@@ -476,6 +476,9 @@ class Workflow(unittest.TestCase):
         self.assertEqual(on["push"], {"branches": ["main"], "paths": ["sources.json"]})
         self.assertEqual(on["workflow_dispatch"]["inputs"]["dry_run"]["default"], "true")
         self.assertIn("schedule", on)
+        # the scheduler did not fire the cron in its first four hours on main (13 Nov 2026): every bump-pickup run starts this one too
+        self.assertEqual(on["workflow_run"], {"workflows": ["bump-pickup"], "types": ["completed"]})
+        self.assertEqual(yaml.safe_load((WF / "bump-pickup.yml").read_text())["name"], "bump-pickup")
         self.assertEqual(self.y["permissions"], {})
         job = self.y["jobs"]["pickup"]
         self.assertEqual(job["permissions"], {"actions": "write", "contents": "read"})
