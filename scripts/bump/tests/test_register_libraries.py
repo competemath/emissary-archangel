@@ -94,3 +94,43 @@ class Twins(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RefusedLines(unittest.TestCase):
+    """refine reads the record lines both record rules refuse. The real case: batch 7 (13 Nov 2026), the first registration whose records met
+    lint_banked.py: it prints `data/x.jsonl:N (Name): reason` and refine read only `data/x.jsonl:N: reason`, so it stopped as if the lint had
+    failed without naming a record (fixtures/real-record-rules-2026-11-13.json: both rules' real output on that commit)."""
+
+    REAL = json.loads((Path(__file__).resolve().parent / "fixtures" / "real-record-rules-2026-11-13.json").read_text())
+
+    @staticmethod
+    def listed(text):
+        return [ln for ln in text.splitlines() if ln.startswith("  data/")]
+
+    def test_every_line_of_the_real_lint_is_read(self):
+        text = self.REAL["lint_banked"]
+        got = rl.refused_lines(text)
+        self.assertEqual(len(got), len(self.listed(text)))
+        self.assertGreaterEqual(len(got), 10)
+        self.assertEqual(got[0], ("data/tentative/palomar-qseries-row-factorization.jsonl", 1084, "native_decide (trusts the compiler)"))
+
+    def test_every_line_of_the_real_validator_is_read(self):
+        text = self.REAL["validate_records"]
+        got = rl.refused_lines(text)
+        self.assertEqual(len(got), len(self.listed(text)))
+        self.assertGreaterEqual(len(got), 3)
+        self.assertIn(("data/tentative/sandrones-library.jsonl", 110, "duplicate name in this PR: SandronesLibrary.Topology.dist_convexComb_left_le"), got)
+
+    def test_names_with_brackets_and_reasons_with_colons(self):
+        got = rl.refused_lines("  data/tentative/a.jsonl:3 (A.«f (x)».g): banned: #eval\n  data/tentative/a.jsonl:4: x: y (z): w\n")
+        self.assertEqual(got, [("data/tentative/a.jsonl", 3, "banned: #eval"), ("data/tentative/a.jsonl", 4, "x: y (z): w")])
+
+    def test_other_lines_are_not_records(self):
+        self.assertEqual(rl.refused_lines("FAIL: banked content lint:\n  Tengoku/X.lean:3: native_decide\ncontent lint OK\n"), [])
+
+    def test_mutant_the_pattern_as_it_was_reads_no_lint_line(self):
+        import re
+
+        old = re.compile(r"^\s*(data/\S+\.jsonl):(\d+): (.*)$", re.M)
+        self.assertEqual(len(old.findall(self.REAL["lint_banked"])), 0)  # what stopped batch 7's refine
+        self.assertEqual(len(old.findall(self.REAL["validate_records"])), len(self.listed(self.REAL["validate_records"])))
