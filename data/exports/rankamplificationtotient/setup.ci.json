@@ -1,0 +1,59 @@
+{
+  "key": "rankamplificationtotient",
+  "repo": "https://github.com/ericlisg/RankAmplificationTotient",
+  "commit": "5f06df5c7d745e0cfb7718556159a8f3d704f6c9",
+  "toolchain": "leanprover/lean4:v4.32.2",
+  "roots": [
+    "RankAmplification"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/rankamplificationtotient/repo",
+  "entries": 4356,
+  "modules": 160,
+  "exported": 160,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 4356,
+    "kept": 4356,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 199,
+    "lineUnverified": 0,
+    "nameFixed": 4356,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "sharded": {
+    "records": 6,
+    "shards": [
+      6
+    ]
+  },
+  "tools": {
+    "lean": "4.32.2 (commit f3b06c705e6c85f5314019d5d3baab0fec5b580c, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+f3b06c7",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "86e4a3395074 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1"
+  },
+  "exportsBytes": 116744192,
+  "minutes": 4,
+  "finishedAt": "2026-11-13T02:47:37.545Z",
+  "archive": {
+    "release": "exports-rankamplificationtotient",
+    "asset": "rankamplificationtotient@5f06df5c7d74-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-rankamplificationtotient/rankamplificationtotient@5f06df5c7d74-exports.tar.zst",
+    "bytes": 10689191,
+    "sha256": "f14e8773dfe0e2ff4bdc613e2a6db9ff595b313fd2362d134e838e73bf36709f",
+    "files": 320,
+    "unpack": "tar --zstd -xf rankamplificationtotient@5f06df5c7d74-exports.tar.zst -C data/exports/rankamplificationtotient"
+  }
+}
