@@ -26,10 +26,10 @@ jobs:
     permissions: { actions: write, contents: read }  # read the runs of the workflows, dispatch bump-sharded
     env: { GH_TOKEN: "${{ github.token }}", DRY: "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run != 'false' }}" }
     steps:
-      - name: The script, and every library's setup record with its history
+      - name: The script, the registry, and every library's setup record with its history
         run: |
           git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
-          git -C emissary sparse-checkout set --no-cone "/scripts/bump/" "/data/exports/*/setup.ci.json"
+          git -C emissary sparse-checkout set --no-cone "/scripts/bump/" "/sources.json" "/data/exports/*/setup.ci.json"
           git -C emissary checkout -q "$GITHUB_SHA"
       - name: Start the bump a finished setup is waiting for
         working-directory: emissary

@@ -1,0 +1,332 @@
+"""Which newly registered library the setup pickup sets up (setup_pickup.py), and with which tree branch, on the repository's real history (fixtures/real-setup-pickup.json.gz, fetched 13 Nov 2026
+02:47 UTC: the whole `git log -p` of sources.json (174 libraries, 3 removed), the 147 real setup records, 176 real runs of setup-auto.yml and setup-sharded.yml since 30 Oct, the 5 latest real
+`records:` pull requests of the tree with their files, and whether each of their 26 record files is on the tree's main) and on 5,000 random states against an oracle written apart.
+
+The real case: batch 6 (ck-hopf-formalization, nlalib, lean-eval-pi-succ-sphere-n-mulequiv-zmod-two, rankamplificationtotient) was registered at 01:48 and set up by hand at 02:31 (four setup-auto
+dispatches with tengoku_ref=content/fatex-libraries-batch-6, the branch of competemath/tengoku#789).
+
+Invariants: at most one library starts; never one registered before FIRST_REGISTER or outside the window, or no longer in sources.json; never one with a setup record; never one with a real setup
+started at or after its registration (a dry run of setup-auto does not count; a setup-sharded run does); the tree branch is the one open records pull request of the tree repository holding ALL the
+library's record files, '' when they are on main, and nothing starts when no such pull request or several exist or it is a fork's; nothing starts with too few free runners; the one registered first
+starts first. Mutants (each must fail a check): dry runs counted, attempts ignored, the window ignored, a fork's branch taken, any indentation read as a registration, a partial set of record files taken."""
+
+import gzip
+import inspect
+import json
+import random
+import subprocess
+import sys
+import unittest
+from pathlib import Path
+from unittest import mock
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent))
+
+import bump_pickup as bp  # noqa: E402
+import setup_pickup as sp  # noqa: E402
+import yaml  # noqa: E402
+
+R = json.loads(gzip.open(HERE / "fixtures" / "real-setup-pickup.json.gz").read())
+NOW = sp._epoch(R["fetched"])
+TREE = "competemath/tengoku"
+BATCH6 = ["ck-hopf-formalization", "lean-eval-pi-succ-sphere-n-mulequiv-zmod-two", "nlalib", "rankamplificationtotient"]
+OPEN = [p for p in R["records_prs"] if p["number"] == 789]  # the only one of the five open when fetched
+WF = HERE.parents[2] / ".github" / "workflows"
+
+
+def mutant(name, old, new):
+    """the function `name` of setup_pickup.py with `old` replaced by `new` in its source (which must hold `old` once)"""
+    src = inspect.getsource(getattr(sp, name))
+    if src.count(old) != 1:
+        raise AssertionError(f"{name}: {old!r} is not in it once")
+    ns = dict(vars(sp))
+    exec(src.replace(old, new), ns)
+    return ns[name]
+
+
+def refs_for(keys, prs=OPEN, on_main=None):
+    on_main = R["on_main"] if on_main is None else on_main
+    out = {}
+    for k in keys:
+        files = sp.tentative_files(k, R["sources"][k])
+        out[k] = sp.records_ref(files, all(on_main.get(f, False) for f in files), prs, TREE)
+    return out
+
+
+def run_pickup(runs, now=NOW, prs=OPEN, free=20, mod=sp):
+    reg = mod.registered(R["log"])
+    since = mod.window_start(now)
+    keys = mod.pending(reg, R["sources"], set(R["set_up"]), mod.attempts(runs), since)
+    return keys, mod.decide(keys, refs_for(keys, prs), free)
+
+
+def without_batch6(runs):
+    return [r for r in runs if not any(f" {k} (" in r["displayTitle"] for k in BATCH6)]
+
+
+class RealRegistry(unittest.TestCase):
+    def setUp(self):
+        self.reg = sp.registered(R["log"])
+
+    def test_every_library_has_its_registration(self):
+        self.assertEqual(len(R["sources"]), 174)
+        self.assertEqual(set(R["sources"]) - set(self.reg), set())
+        # read off the entry lines only: what else was registered once is exactly what was removed since
+        self.assertEqual(set(self.reg) - set(R["sources"]), {"lean-wasm", "software-foundations-lean", "riemann-roch-function-fields"})
+
+    def test_batch6_is_registered_at_its_commit(self):
+        for k in BATCH6:
+            self.assertEqual(self.reg[k], 1794534508, k)  # f91e13c3, 13 Nov 01:48 UTC
+
+    def test_the_old_libraries_without_a_setup_are_before_the_cut(self):
+        old = [k for k in R["sources"] if k not in R["set_up"] and k not in BATCH6]
+        self.assertEqual(len(old), 23)
+        self.assertTrue(all(self.reg[k] < sp.FIRST_REGISTER for k in old))
+
+    def test_nested_objects_and_the_top_level_are_not_libraries(self):
+        self.assertIn('+      "setup": {', R["log"])
+        self.assertIn('+  "sources": {', R["log"])
+        self.assertNotIn("setup", self.reg)
+        self.assertNotIn("sources", self.reg)
+
+    def test_mutant_any_indentation_is_caught(self):
+        loose = mock.patch.object(sp, "ENTRY", sp.re.compile(r'^\+\s+"([a-z0-9][a-z0-9-]*)": \{'))
+        with loose:
+            self.assertIn("setup", sp.registered(R["log"]))
+
+
+class RealPast(unittest.TestCase):
+    def test_the_real_present_starts_nothing(self):
+        """batch 6 was set up by hand at 02:31: the day this is switched on, nothing may start a second setup"""
+        keys, (key, ref, notes) = run_pickup(R["runs"])
+        self.assertEqual(keys, [])
+        self.assertIsNone(key)
+        self.assertEqual(notes, [])
+
+    def test_batch6_without_its_hand_setups_is_picked_with_its_branch(self):
+        keys, (key, ref, notes) = run_pickup(without_batch6(R["runs"]))
+        self.assertEqual(keys, BATCH6)  # registered together: by name
+        self.assertEqual((key, ref), ("ck-hopf-formalization", "content/fatex-libraries-batch-6"))
+        self.assertEqual(notes, [f"{k}: waits for the next run" for k in BATCH6[1:]])
+
+    def test_the_hand_setups_were_what_the_pickup_would_have_started(self):
+        """each real setup-auto dispatch of batch 6 is exactly dispatch_args for that library and branch"""
+        args = sp.dispatch_args("nlalib", "content/fatex-libraries-batch-6", "competemath/emissary-archangel")
+        self.assertEqual(args[:9], ["gh", "workflow", "run", "setup-auto.yml", "-R", "competemath/emissary-archangel", "--ref", "main", "-f"])
+        self.assertEqual(args[9:], ["key=nlalib", "-f", "tengoku_ref=content/fatex-libraries-batch-6"])
+
+    def test_one_at_a_time_in_order(self):
+        runs = without_batch6(R["runs"])
+        started = []
+        for i in range(5):
+            _, (key, ref, _) = run_pickup(runs, now=NOW + 60 * i)
+            if key is None:
+                break
+            started.append(key)
+            runs = runs + [{"displayTitle": f"setup-auto {key} (auto)", "createdAt": f"2026-11-13T03:{10 + i:02d}:00Z"}]
+        self.assertEqual(started, BATCH6)
+
+    def test_a_dry_run_is_not_a_setup_but_a_staged_one_is(self):
+        dry = without_batch6(R["runs"]) + [{"displayTitle": f"setup-auto {k} (auto{sp.DRY_MARK})", "createdAt": "2026-11-13T02:29:00Z"} for k in BATCH6]
+        self.assertEqual(run_pickup(dry)[0], BATCH6)
+        sharded = without_batch6(R["runs"]) + [{"displayTitle": "setup-sharded nlalib (round 1)", "createdAt": "2026-11-13T02:31:00Z"}]
+        self.assertNotIn("nlalib", run_pickup(sharded)[0])
+
+    def test_mutant_dry_runs_counted(self):
+        dry = without_batch6(R["runs"]) + [{"displayTitle": f"setup-auto {k} (auto{sp.DRY_MARK})", "createdAt": "2026-11-13T02:29:00Z"} for k in BATCH6]
+        with mock.patch.object(sp, "DRY_MARK", "\0never"):
+            self.assertEqual(run_pickup(dry)[0], [])
+
+    def test_mutant_attempts_ignored(self):
+        with mock.patch.object(sp, "attempts", lambda runs: {}):
+            self.assertEqual(run_pickup(R["runs"])[0], BATCH6)  # the real present would start batch 6 a second time
+
+    def test_mutant_window_ignored(self):
+        with mock.patch.object(sp, "window_start", lambda now: 0):
+            keys = run_pickup(R["runs"])[0]
+        # the September libraries left alone on purpose, but for the two a person tried to set up again (setup-auto runs since 30 Oct, no record): a failed setup is never retried by this
+        old = {k for k in R["sources"] if k not in R["set_up"] and k not in BATCH6}
+        self.assertEqual(set(keys), old - {"classfieldtheory", "frenzymath-reap"})
+        self.assertEqual(len(keys), 21)
+
+    def test_the_window_closes(self):
+        keys = run_pickup(without_batch6(R["runs"]), now=1794534508 + sp.WINDOW_DAYS * 86400 + 1)[0]
+        self.assertEqual(keys, [])
+
+    def test_too_few_runners(self):
+        _, (key, ref, notes) = run_pickup(without_batch6(R["runs"]), free=bp.NEED_FREE - 1)
+        self.assertIsNone(key)
+        self.assertEqual(notes, [f"4 ready, {bp.NEED_FREE - 1} runners free of the {bp.NEED_FREE} needed: next run"])
+
+
+class RealRecords(unittest.TestCase):
+    def test_every_real_records_pull_request_gives_its_branch(self):
+        n = 0
+        for p in R["records_prs"]:
+            for f in p["files"]:
+                k = f.removeprefix("data/tentative/").removesuffix(".jsonl")
+                if k not in R["sources"]:
+                    continue
+                n += 1
+                files = sp.tentative_files(k, R["sources"][k])
+                self.assertEqual(sp.records_ref(files, False, [p], TREE)[0], p["branch"], k)
+                self.assertEqual(sp.records_ref(files, True, [p], TREE)[0], "", k)
+                fork = dict(p, repo="someone/tengoku")
+                self.assertIsNone(sp.records_ref(files, False, [fork], TREE)[0], k)
+                self.assertIsNone(sp.records_ref(files, False, [p, dict(p, number=p["number"] + 1)], TREE)[0], k)
+                self.assertIsNone(sp.records_ref(files, False, [], TREE)[0], k)
+        self.assertEqual(n, 25)
+
+    def test_merged_records_are_read_from_main(self):
+        for k in ("abel-formalization", "etingofrepresentationtheory", "lean-operads"):  # competemath/tengoku#777, merged
+            self.assertEqual(refs_for([k], prs=[])[k][0], "", k)
+        for k in BATCH6:
+            self.assertEqual(refs_for([k], prs=[])[k][0], None, k)
+
+    def test_a_library_with_records_in_several_files_needs_them_all(self):
+        p = next(p for p in R["records_prs"] if p["number"] == 612)  # openai-math: one of its record files
+        files = ["data/tentative/openai-math/003.jsonl", "data/tentative/openai-math/004.jsonl"]
+        self.assertIsNone(sp.records_ref(files, False, [p], TREE)[0])
+        self.assertEqual(sp.records_ref(files[:1], False, [p], TREE)[0], p["branch"])
+
+    def test_mutant_a_partial_set_is_caught(self):
+        p = next(p for p in R["records_prs"] if p["number"] == 612)
+        files = ["data/tentative/openai-math/003.jsonl", "data/tentative/openai-math/004.jsonl"]
+        partial = mutant("records_ref", 'set(files) <= set(p["files"])', 'set(files) & set(p["files"])')
+        self.assertIsNotNone(partial(files, False, [p], TREE)[0])
+
+    def test_mutant_a_fork_taken_is_caught(self):
+        fork = dict(OPEN[0], repo="someone/tengoku")
+        files = sp.tentative_files("nlalib", R["sources"]["nlalib"])
+        taken = mutant("records_ref", 'p["repo"] == tree and ', "")
+        self.assertEqual(taken(files, False, [fork], TREE)[0], OPEN[0]["branch"])
+        self.assertIsNone(sp.records_ref(files, False, [fork], TREE)[0])
+
+    def test_a_branch_setup_auto_refuses_is_never_given(self):
+        for bad in ("a b", "x;rm", "$(id)", "a`b", ""):
+            p = dict(OPEN[0], branch=bad)
+            self.assertIsNone(refs_for(["nlalib"], prs=[p])["nlalib"][0], bad)
+            if bad:
+                with self.assertRaises(ValueError):
+                    sp.dispatch_args("nlalib", bad, "r/r")
+
+    def test_the_rule_for_record_files_is_setup_autos(self):
+        text = (WF / "setup-auto.yml").read_text()
+        self.assertIn("print(' '.join('data/tentative/' + f for f in s.get('tentative', [os.environ['KEY'] + '.jsonl'])))", text)
+        self.assertEqual(sp.tentative_files("tauceti", R["sources"]["tauceti"]), ["data/tentative/tauceti/project-001.jsonl", "data/tentative/tauceti/project-002.jsonl"])
+
+
+def oracle(reg, sources, set_up, runs, refs, free, now):
+    since = max(sp.FIRST_REGISTER, now - sp.WINDOW_DAYS * 86400)
+    tried = {}
+    for r in runs:
+        t = r["displayTitle"]
+        if t.startswith("setup-auto ") and t.endswith(", dry run)"):
+            continue
+        k = t.split(" ")[1]
+        tried.setdefault(k, []).append(sp._epoch(r["createdAt"]))
+    eligible = [k for k in reg if reg[k] >= since and k in sources and k not in set_up and not any(w >= reg[k] for w in tried.get(k, []))]
+    ready = [k for k in eligible if refs[k][0] is not None]
+    if not ready or free < bp.NEED_FREE:
+        return None, None
+    k = min(ready, key=lambda k: (reg[k], k))
+    return k, refs[k][0]
+
+
+class Random(unittest.TestCase):
+    def test_5000_states_against_the_oracle(self):
+        rnd = random.Random(20261113)
+        for _ in range(5000):
+            keys = [f"lib{i}" for i in range(rnd.randint(0, 8))]
+            now = sp.FIRST_REGISTER + rnd.randint(0, 30 * 86400)
+            reg = {k: sp.FIRST_REGISTER + rnd.randint(-5 * 86400, 30 * 86400) for k in keys}
+            reg = {k: min(w, now) for k, w in reg.items()}
+            sources = {k: {} for k in keys if rnd.random() < 0.9}
+            set_up = {k for k in keys if rnd.random() < 0.2}
+            runs = []
+            for k in keys:
+                for _ in range(rnd.randint(0, 2)):
+                    t = reg[k] + rnd.randint(-86400, 86400)
+                    kind = rnd.choice(["auto", "auto-dry", "sharded"])
+                    title = {"auto": f"setup-auto {k} (auto)", "auto-dry": f"setup-auto {k} (staged, dry run)", "sharded": f"setup-sharded {k} (round 1)"}[kind]
+                    runs.append({"displayTitle": title, "createdAt": sp.time.strftime("%Y-%m-%dT%H:%M:%SZ", sp.time.gmtime(t))})
+            refs = {k: rnd.choice([(None, "x"), ("", "main"), (f"content/b{rnd.randint(0, 9)}", "pr")]) for k in keys}
+            free = rnd.randint(0, 20)
+            since = sp.window_start(now)
+            pend = sp.pending(reg, sources, set_up, sp.attempts(runs), since)
+            key, ref, notes = sp.decide(pend, refs, free)
+            self.assertEqual((key, ref), oracle(reg, sources, set_up, runs, refs, free, now))
+            if key:
+                self.assertTrue(reg[key] >= since and key in sources and key not in set_up)
+                self.assertGreaterEqual(free, bp.NEED_FREE)
+            mentioned = {n.split(":")[0] for n in notes if not n.endswith("needed: next run")}
+            short = any(n.endswith("next run") and "ready" in n for n in notes)
+            if key:
+                self.assertEqual(mentioned, set(pend) - {key})
+            elif short:
+                self.assertEqual(mentioned, {k for k in pend if refs[k][0] is None})
+            else:
+                self.assertEqual(mentioned, set(pend))
+
+class Network(unittest.TestCase):
+    def test_on_main_reads_404_as_no_and_stops_on_anything_else(self):
+        def fake(code, err=""):
+            return lambda *a, **k: subprocess.CompletedProcess(a, code, "", err)
+
+        self.assertTrue(sp.on_main(TREE, ["a", "b"], run=fake(0)))
+        self.assertFalse(sp.on_main(TREE, ["a"], run=fake(1, "gh: Not Found (HTTP 404)")))
+        with self.assertRaises(RuntimeError):
+            sp.on_main(TREE, ["a"], run=fake(1, "gh: Bad credentials (HTTP 401)"))
+
+    def test_a_list_that_may_be_cut_stops_the_pickup(self):
+        with self.assertRaises(RuntimeError):
+            sp.setup_runs("r/r", NOW, gh=lambda *a: [{}] * bp.LIST_LIMIT)
+
+    def test_records_prs_reads_the_files_of_each(self):
+        calls = []
+
+        def gh(*a):
+            calls.append(a)
+            if "/files" in a[2]:
+                return ["data/tentative/nlalib.jsonl"]
+            return [{"number": 789, "branch": "content/fatex-libraries-batch-6", "repo": TREE}]
+
+        prs = sp.records_prs(TREE, gh=gh)
+        self.assertEqual(prs[0]["files"], ["data/tentative/nlalib.jsonl"])
+        self.assertIn('startswith("records:")', calls[0][-1])
+
+
+class Workflow(unittest.TestCase):
+    def setUp(self):
+        self.text = (WF / "setup-pickup.yml").read_text()
+        self.y = yaml.safe_load(self.text)
+
+    def test_triggers_permissions_and_guard(self):
+        on = self.y[True]
+        self.assertEqual(on["push"], {"branches": ["main"], "paths": ["sources.json"]})
+        self.assertEqual(on["workflow_dispatch"]["inputs"]["dry_run"]["default"], "true")
+        self.assertIn("schedule", on)
+        self.assertEqual(self.y["permissions"], {})
+        job = self.y["jobs"]["pickup"]
+        self.assertEqual(job["permissions"], {"actions": "write", "contents": "read"})
+        for s in ("vars.LANE_ENABLED == 'true'", "github.ref == 'refs/heads/main'", "github.repository == 'competemath/emissary-archangel'"):
+            self.assertIn(s, job["if"])
+        run = "\n".join(s.get("run", "") for s in job["steps"])
+        for p in ('"/scripts/bump/"', '"/sources.json"', '"/data/exports/*/setup.ci.json"'):
+            self.assertIn(p, run)
+        self.assertIn("python3 scripts/bump/setup_pickup.py", run)
+        self.assertNotIn("${{", run)
+
+    def test_setup_autos_run_name_marks_a_dry_run(self):
+        name = yaml.safe_load((WF / "setup-auto.yml").read_text())["run-name"]
+        self.assertEqual(name, "setup-auto ${{ inputs.key }} (${{ inputs.mode }}${{ inputs.dry_run == 'true' && ', dry run' || '' }})")
+        for dry, counted in (("true", False), ("false", True)):
+            title = name.replace("${{ inputs.key }}", "nlalib").replace("${{ inputs.mode }}", "auto")
+            title = title.replace("${{ inputs.dry_run == 'true' && ', dry run' || '' }}", ", dry run" if dry == "true" else "")
+            got = sp.attempts([{"displayTitle": title, "createdAt": "2026-11-13T03:00:00Z"}])
+            self.assertEqual("nlalib" in got, counted, title)
+
+
+if __name__ == "__main__":
+    unittest.main()

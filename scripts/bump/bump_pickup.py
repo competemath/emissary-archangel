@@ -4,7 +4,9 @@
 One library per run, the smallest first, so that runners stay free. A setup is picked up once: any bump started after it, finished or not, counts as its bump, so a bump that failed is looked at by a
 person and never started again by this. Left alone: a library with a part open on the tree (a new cut would renumber the parts, 13 Oct 2026, tengoku #546), one that exported nothing, one too big for a
 plain bump (flt-anthropic has its build-once lane), and every setup from before this existed. Nothing starts unless NEED_FREE of the org's 20 runners are free, and those free runners set `parallel`.
-Only a commit the setup jobs write counts as a setup, so a change across the setup records can never start a bump."""
+Only a commit the setup jobs write counts as a setup, so a change across the setup records can never start a bump.
+The bump reads the library's records from where the tree holds them (tree_records.py): main, or the branch of its open records pull request; a library whose records are neither is left
+(rankamplificationtotient, 13 Nov 2026: its bump read main before its records were merged, found none and failed)."""
 
 import argparse
 import json
@@ -64,8 +66,10 @@ def window_start(now: int) -> int:
     return max(FIRST_SETUP, now - WINDOW_DAYS * 86400)
 
 
-def decide(published: dict[str, int], records: dict[str, dict], bumps: dict[str, int], parts: set[str], free: int, since: int = FIRST_SETUP) -> tuple[str | None, list[str]]:
-    """(the library to bump or None, why each other one is left)"""
+def decide(
+    published: dict[str, int], records: dict[str, dict], bumps: dict[str, int], parts: set[str], free: int, since: int = FIRST_SETUP, refs: dict[str, tuple[str | None, str]] | None = None
+) -> tuple[str | None, list[str]]:
+    """(the library to bump or None, why each other one is left); `refs` (tree_records.records_ref of each, when given): a library whose records the tree holds nowhere to trust is left"""
     notes, ready = [], []
     for key, when in sorted(published.items()):
         rec = records.get(key)
@@ -81,6 +85,8 @@ def decide(published: dict[str, int], records: dict[str, dict], bumps: dict[str,
             notes.append(f"{key}: {rec['modules']} modules, too big for a plain bump")
         elif key in parts:
             notes.append(f"{key}: a part is open on the tree")
+        elif refs is not None and refs.get(key, (None, "records not looked for"))[0] is None:
+            notes.append(f"{key}: {refs.get(key, (None, 'records not looked for'))[1]}")
         else:
             ready.append((rec["modules"], key))
     if ready and free < NEED_FREE:
@@ -90,10 +96,17 @@ def decide(published: dict[str, int], records: dict[str, dict], bumps: dict[str,
     return (ready[0][1] if ready else None), notes + [f"{k}: waits for the next run" for _, k in ready[1:]]
 
 
-def dispatch_args(key: str, free: int, repo: str) -> list[str]:
+def dispatch_args(key: str, free: int, repo: str, ref: str = "") -> list[str]:
+    """the standard bump; `ref`: the tree branch that holds the library's records when they are not on main"""
     args = ["gh", "workflow", "run", "bump-sharded.yml", "-R", repo, "--ref", "main", "-f", f"key={key}", "-f", f"parallel={parallel_for(free)}"]
     for k, v in BUMP.items():
         args += ["-f", f"{k}={v}"]
+    if ref:
+        import tree_records as tr
+
+        if not tr.BRANCH.match(ref):
+            raise ValueError(f"not a branch name: {ref!r}")
+        args += ["-f", f"tengoku_ref={ref}"]
     return args
 
 
@@ -147,13 +160,28 @@ def main() -> None:
             records[key] = {"exported": int(r.get("exported") or 0), "modules": len(r["modules"]) if isinstance(r.get("modules"), list) else int(r.get("modules") or 0)}
     since = window_start(int(time.time()))
     runs = bump_runs(a.repo, since)
+    bumps = last_bumps(runs)
     free = max(0, RUNNERS - runners_in_use())
-    key, notes = decide(published, records, last_bumps(runs), open_parts(open_titles(a.tree)), free, since)
+    import tree_records as tr
+
+    waiting = [k for k, w in published.items() if w >= since and bumps.get(k, 0) < w]
+    refs: dict[str, tuple[str | None, str]] = {}
+    if waiting:
+        sources = json.loads(Path("sources.json").read_text(encoding="utf-8"))["sources"]
+        prs = tr.records_prs(a.tree)
+        for k in waiting:
+            if k not in sources:
+                refs[k] = (None, "no longer in sources.json")
+                continue
+            files = tr.tentative_files(k, sources[k])
+            refs[k] = tr.records_ref(files, tr.on_main(a.tree, files), prs, a.tree)
+    key, notes = decide(published, records, bumps, open_parts(open_titles(a.tree)), free, since, refs)
     for n in notes:
         print(n)
-    print(f"{free} runners free; bump: {key or 'none'}")
+    ref = refs[key][0] if key else ""
+    print(f"{free} runners free; bump: {key or 'none'}" + (f" (tengoku_ref={ref or 'main'})" if key else ""))
     if key and not a.dry_run:
-        subprocess.run(dispatch_args(key, free, a.repo), check=True)
+        subprocess.run(dispatch_args(key, free, a.repo, ref or ""), check=True)
 
 
 if __name__ == "__main__":
