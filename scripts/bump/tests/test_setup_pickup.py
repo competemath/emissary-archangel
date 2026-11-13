@@ -478,7 +478,8 @@ class Workflow(unittest.TestCase):
         self.assertIn("schedule", on)
         # the scheduler did not fire the cron in its first four hours on main (13 Nov 2026): every bump-pickup run starts this one too
         # and every time a long job ends and frees runners (the cron of bump-pickup itself fired 3 times in 16 hours: 20:47, 01:48 and 09:27)
-        self.assertEqual(on["workflow_run"], {"workflows": ["bump-pickup", "setup-sharded", "bump-sharded"], "types": ["completed"]})
+        # only runs of main (cubic on #191): github.ref of a workflow_run is the default branch whatever branch the upstream run was on
+        self.assertEqual(on["workflow_run"], {"workflows": ["bump-pickup", "setup-sharded", "bump-sharded"], "types": ["completed"], "branches": ["main"]})
         for wf in on["workflow_run"]["workflows"]:
             self.assertEqual(yaml.safe_load((WF / f"{wf}.yml").read_text())["name"], wf)
         # a dry run is never a trigger: none of the long workflows has a dry_run input, and bump-pickup's dispatched runs are skipped by the job's `if`

@@ -11,6 +11,7 @@ on:
   workflow_run:
     workflows: [bump-pickup, setup-sharded, bump-sharded]
     types: [completed]
+    branches: [main]  # only runs of main: a hand dispatch of a long workflow from another branch must not start setups here (cubic on #191)
   push:
     branches: [main]
     paths: [sources.json]
