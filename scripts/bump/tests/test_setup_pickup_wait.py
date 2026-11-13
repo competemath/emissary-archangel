@@ -32,6 +32,7 @@ from test_setup_pickup import BATCH6, NOW, OPEN, R, without_batch6  # noqa: E402
 
 WF = HERE.parents[2] / ".github" / "workflows"
 OWN = "43470891538"
+EM = "competemath/emissary-archangel"
 # repo -> {run id: jobs in progress or queued}, as measured at 17:14 UTC on 13 Nov 2026 (the pickup's own run added)
 BUSY = {
     "competemath/tengoku": {"43469883877": 1, "43469880695": 1, "43469615333": 1, "43464819698": 1, "43457936611": 1},
@@ -55,9 +56,16 @@ def fake_gh(busy):
 
 
 class OwnJob(unittest.TestCase):
+    def setUp(self):  # the tests must not depend on where they run: Actions sets GITHUB_RUN_ID and GITHUB_REPOSITORY (the unit check of #192 failed on it)
+        p = mock.patch.dict(os.environ)
+        p.start()
+        self.addCleanup(p.stop)
+        os.environ.pop("GITHUB_RUN_ID", None)
+        os.environ.pop("GITHUB_REPOSITORY", None)
+
     def test_the_real_measurement(self):
         self.assertEqual(bp.runners_in_use(fake_gh(BUSY), skip_run=""), 10)
-        self.assertEqual(bp.runners_in_use(fake_gh(BUSY), skip_run=OWN), 9)
+        self.assertEqual(bp.runners_in_use(fake_gh(BUSY), skip_run=OWN, skip_repo=EM), 9)
 
     def test_the_run_id_of_the_actions_environment_is_the_default(self):
         with mock.patch.dict(os.environ, {"GITHUB_RUN_ID": OWN}):
@@ -70,7 +78,7 @@ class OwnJob(unittest.TestCase):
         """what the 17:20 dispatch should have done: 11 jobs running with its own, 10 free for the others"""
         busy = {r: dict(v) for r, v in BUSY.items()}
         busy["competemath/tengoku"]["1"] = 1  # one more job: 11 with its own, 10 without
-        free = lambda skip: bp.RUNNERS - bp.runners_in_use(fake_gh(busy), skip_run=skip)  # noqa: E731
+        free = lambda skip: bp.RUNNERS - bp.runners_in_use(fake_gh(busy), skip_run=skip, skip_repo=EM)  # noqa: E731
         self.assertEqual(free(""), 9)
         self.assertEqual(free(OWN), 10)
         self.assertEqual(sp.plan(BATCH6[:1], {BATCH6[0]: ("x", "ok")}, free(OWN))[0], [(BATCH6[0], "x")])
@@ -82,9 +90,10 @@ class OwnJob(unittest.TestCase):
             busy = {r: {str(rng.randrange(10**11)): rng.randrange(1, 12) for _ in range(rng.randrange(0, 5))} for r in bp.REPOS}
             own = str(rng.randrange(10**11))
             n = rng.randrange(1, 12)
-            busy[rng.choice(bp.REPOS)][own] = n
+            own_repo = rng.choice(bp.REPOS)
+            busy[own_repo][own] = n
             total = sum(v for runs in busy.values() for v in runs.values())
-            self.assertEqual(bp.runners_in_use(fake_gh(busy), skip_run=own), total - n)
+            self.assertEqual(bp.runners_in_use(fake_gh(busy), skip_run=own, skip_repo=own_repo), total - n)
             self.assertEqual(bp.runners_in_use(fake_gh(busy), skip_run=""), total)
 
     def test_a_run_of_another_repository_with_the_same_number_still_counts(self):
@@ -111,10 +120,17 @@ class OwnJob(unittest.TestCase):
         self.assertEqual(src.count("if skip and str(run) == skip and (not skip_repo or repo == skip_repo):"), 1)
         ns = dict(vars(bp))
         exec(src.replace("if skip and str(run) == skip and (not skip_repo or repo == skip_repo):", "if False:"), ns)
-        self.assertEqual(ns["runners_in_use"](fake_gh(BUSY), skip_run=OWN), 10)  # not 9: the real measurement catches it
+        self.assertEqual(ns["runners_in_use"](fake_gh(BUSY), skip_run=OWN, skip_repo=EM), 10)  # not 9: the real measurement catches it
 
 
 class Waiting(unittest.TestCase):
+    def setUp(self):
+        p = mock.patch.dict(os.environ)
+        p.start()
+        self.addCleanup(p.stop)
+        os.environ.pop("GITHUB_RUN_ID", None)
+        os.environ.pop("GITHUB_REPOSITORY", None)
+
     def run_main(self, frees, wait=30, dry=False, mod=sp, runs=None, fail_looks=(), main=None):
         """main() over the real registry with batch 6 not yet started and `frees` runners free at each look; returns (dispatches, sleeps, looks)"""
         looks, sleeps, calls = [], [], []

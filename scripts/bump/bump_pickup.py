@@ -67,10 +67,10 @@ def window_start(now: int) -> int:
     return max(FIRST_SETUP, now - WINDOW_DAYS * 86400)
 
 
-def decide(
-    published: dict[str, int], records: dict[str, dict], bumps: dict[str, int], parts: set[str], free: int, since: int = FIRST_SETUP, refs: dict[str, tuple[str | None, str]] | None = None
-) -> tuple[str | None, list[str]]:
-    """(the library to bump or None, why each other one is left); `refs` (tree_records.records_ref of each, when given): a library whose records the tree holds nowhere to trust is left"""
+def classify(
+    published: dict[str, int], records: dict[str, dict], bumps: dict[str, int], parts: set[str], since: int = FIRST_SETUP, refs: dict[str, tuple[str | None, str]] | None = None
+) -> tuple[list[str], list[tuple[int, str]]]:
+    """(why each library is left, the ready ones as (modules, key)); `refs` (tree_records.records_ref of each, when given): a library whose records the tree holds nowhere to trust is left"""
     notes, ready = [], []
     for key, when in sorted(published.items()):
         rec = records.get(key)
@@ -90,6 +90,19 @@ def decide(
             notes.append(f"{key}: {refs.get(key, (None, 'records not looked for'))[1]}")
         else:
             ready.append((rec["modules"], key))
+    return notes, ready
+
+
+def waits_for_runners(key: str | None, ready: int, free: int) -> bool:
+    """Nothing started although a library is ready, and the runners are the only reason (decide starts the first with NEED_FREE free): worth looking again soon, from the numbers and not from the words of the notes."""
+    return key is None and ready > 0 and free < NEED_FREE
+
+
+def decide(
+    published: dict[str, int], records: dict[str, dict], bumps: dict[str, int], parts: set[str], free: int, since: int = FIRST_SETUP, refs: dict[str, tuple[str | None, str]] | None = None
+) -> tuple[str | None, list[str]]:
+    """(the library to bump or None, why each other one is left)"""
+    notes, ready = classify(published, records, bumps, parts, since, refs)
     if ready and free < NEED_FREE:
         notes.append(f"{len(ready)} ready, {free} runners free of the {NEED_FREE} needed: next hour")
         return None, notes
@@ -152,14 +165,13 @@ def open_titles(tree: str, gh=_lines) -> list[str]:
     return got
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--repo", default="competemath/emissary-archangel")
-    ap.add_argument("--tree", default="competemath/tengoku")
-    ap.add_argument("--dry-run", action="store_true")
-    a = ap.parse_args()
-    log = subprocess.run(["git", "log", "--format=@%ct%x09%s", "--name-only", "--", "data/exports/*/setup.ci.json"], check=True, capture_output=True, text=True).stdout
-    published = setups(log)
+POLL_SECONDS = 300  # how often a waiting pickup looks at the runners again (setup_pickup.py has the same)
+
+
+def once(a, log=print) -> tuple[str | None, bool]:
+    """One look: the library whose bump starts now (started unless a dry run), and whether only the runners hold a ready library back."""
+    text = subprocess.run(["git", "log", "--format=@%ct%x09%s", "--name-only", "--", "data/exports/*/setup.ci.json"], check=True, capture_output=True, text=True).stdout
+    published = setups(text)
     records = {}
     for key in published:
         p = Path("data/exports") / key / "setup.ci.json"
@@ -182,13 +194,39 @@ def main() -> None:
                 refs[k] = (None, "no longer in sources.json")
                 continue
             refs[k] = tr.records_ref(k, sources[k], tr.main_files(a.tree, k, sources[k]), prs, a.tree)
-    key, notes = decide(published, records, bumps, open_parts(open_titles(a.tree)), free, since, refs)
+    parts = open_parts(open_titles(a.tree))
+    key, notes = decide(published, records, bumps, parts, free, since, refs)
     for n in notes:
-        print(n)
+        log(n)
     ref = refs[key][0] if key else ""
-    print(f"{free} runners free; bump: {key or 'none'}" + (f" (tengoku_ref={ref or 'main'})" if key else ""))
+    log(f"{free} runners free; bump: {key or 'none'}" + (f" (tengoku_ref={ref or 'main'})" if key else ""))
     if key and not a.dry_run:
         subprocess.run(dispatch_args(key, free, a.repo, ref or ""), check=True)
+    ready = len(classify(published, records, bumps, parts, since, refs)[1])
+    return key, waits_for_runners(key, ready, free)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--repo", default="competemath/emissary-archangel")
+    ap.add_argument("--tree", default="competemath/tengoku")
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--wait-minutes", type=int, default=0, help="when only the runners hold a ready library back, look again every five minutes for this long")
+    a = ap.parse_args()
+    deadline = time.time() + 60 * a.wait_minutes
+    first = True
+    while True:
+        try:
+            key, waits = once(a)
+        except Exception as e:  # noqa: BLE001 - a transient failure of gh at minute 30 must not end the wait; the first look failing is a real failure
+            if first:
+                raise
+            print(f"this look failed ({type(e).__name__}: {e}); the next is in {POLL_SECONDS // 60} minutes")
+            key, waits = None, True
+        first = False
+        if a.dry_run or not waits or time.time() + POLL_SECONDS > deadline:
+            return
+        time.sleep(POLL_SECONDS)
 
 
 if __name__ == "__main__":
