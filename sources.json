@@ -1874,6 +1874,49 @@
         "Operad"
       ],
       "licence": "Apache-2.0"
+    },
+    "ck-hopf-formalization": {
+      "label": "ck-hopf-formalization (miosync-masa/ck-hopf-formalization; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/miosync-masa/ck-hopf-formalization",
+      "commit": "f10fcd9dc19c2428b35988b8662447378d265970",
+      "toolchain": "leanprover/lean4:v4.29.0",
+      "roots": [
+        "GaugeGeometry"
+      ],
+      "licence": "MIT"
+    },
+    "nlalib": {
+      "label": "nlalib (tchen-research/NLAlib; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/tchen-research/NLAlib",
+      "commit": "77514ce42a0e437d837797a063ac161f41022730",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "NLAlib"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lean-eval-pi-succ-sphere-n-mulequiv-zmod-two": {
+      "label": "lean-eval-pi-succ-sphere-n-mulequiv-zmod-two (KitaKen1/lean-eval-pi-succ-sphere-n-mulequiv-zmod-two; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/KitaKen1/lean-eval-pi-succ-sphere-n-mulequiv-zmod-two",
+      "commit": "de4d09ac3e86a17d4544c1c86839336ec03a4734",
+      "toolchain": "leanprover/lean4:v4.32.2",
+      "roots": [
+        "Challenge",
+        "ReusableTheorems",
+        "Solution",
+        "Submission"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "rankamplificationtotient": {
+      "label": "rankamplificationtotient (ericlisg/RankAmplificationTotient; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/ericlisg/RankAmplificationTotient",
+      "commit": "5f06df5c7d745e0cfb7718556159a8f3d704f6c9",
+      "toolchain": "leanprover/lean4:v4.32.2",
+      "roots": [
+        "RankAmplification"
+      ],
+      "licence": "Apache-2.0"
     }
   }
 }
