@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 
 import bump_pickup as bp
-from tree_records import BRANCH, on_main, records_prs, records_ref, tentative_files  # noqa: F401 (records_ref and BRANCH: the tests use them through this module)
+from tree_records import BRANCH, holds, main_files, setup_holds, records_prs, records_ref, tentative_files  # noqa: F401 (the tests use them through this module)
 
 ENTRY = re.compile(r'^\+    "([a-z0-9][a-z0-9-]*)": \{$')
 FIRST_REGISTER = 1794528000  # 2026-11-13 00:00 UTC
@@ -114,8 +114,7 @@ def main() -> None:
     if keys:
         prs = records_prs(a.tree)
         for k in keys:
-            files = tentative_files(k, sources[k])
-            refs[k] = records_ref(files, on_main(a.tree, files), prs, a.tree)
+            refs[k] = records_ref(k, sources[k], main_files(a.tree, k, sources[k]), prs, a.tree, rule=setup_holds)
     free = max(0, bp.RUNNERS - bp.runners_in_use()) if keys else 0
     key, ref, notes = decide(keys, refs, free)
     for n in notes:

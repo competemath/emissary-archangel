@@ -36,22 +36,22 @@ WF = HERE.parents[2] / ".github" / "workflows"
 
 
 def mutant(name, old, new):
-    """the function `name` of setup_pickup.py with `old` replaced by `new` in its source (which must hold `old` once)"""
-    src = inspect.getsource(getattr(sp, name))
+    """the function `name` (as setup_pickup.py has it) with `old` replaced by `new` in its source (which must hold `old` once)"""
+    fn = getattr(sp, name)
+    src = inspect.getsource(fn)
     if src.count(old) != 1:
         raise AssertionError(f"{name}: {old!r} is not in it once")
-    ns = dict(vars(sp))
+    ns = dict(vars(sys.modules[fn.__module__]))  # the module that defines it (tree_records for the records rules)
     exec(src.replace(old, new), ns)
     return ns[name]
 
 
-def refs_for(keys, prs=OPEN, on_main=None):
-    on_main = R["on_main"] if on_main is None else on_main
-    out = {}
-    for k in keys:
-        files = sp.tentative_files(k, R["sources"][k])
-        out[k] = sp.records_ref(files, all(on_main.get(f, False) for f in files), prs, TREE)
-    return out
+MAIN = {f for f, v in R["on_main"].items() if v}  # the real record files on the tree's main when fetched
+
+
+def refs_for(keys, prs=OPEN, main=None):
+    main = MAIN if main is None else main
+    return {k: sp.records_ref(k, R["sources"][k], main, prs, TREE, rule=sp.setup_holds) for k in keys}
 
 
 def run_pickup(runs, now=NOW, prs=OPEN, free=20, mod=sp):
@@ -169,14 +169,19 @@ class RealRecords(unittest.TestCase):
                 if k not in R["sources"]:
                     continue
                 n += 1
-                files = sp.tentative_files(k, R["sources"][k])
-                self.assertEqual(sp.records_ref(files, False, [p], TREE)[0], p["branch"], k)
-                self.assertEqual(sp.records_ref(files, True, [p], TREE)[0], "", k)
-                fork = dict(p, repo="someone/tengoku")
-                self.assertIsNone(sp.records_ref(files, False, [fork], TREE)[0], k)
-                self.assertIsNone(sp.records_ref(files, False, [p, dict(p, number=p["number"] + 1)], TREE)[0], k)
-                self.assertIsNone(sp.records_ref(files, False, [], TREE)[0], k)
+                src = R["sources"][k]
+                own = set(sp.tentative_files(k, src))
+                for rule in (sp.setup_holds, sp.holds):
+                    self.assertEqual(sp.records_ref(k, src, set(), [p], TREE, rule)[0], p["branch"], k)
+                    self.assertEqual(sp.records_ref(k, src, own, [p], TREE, rule)[0], "", k)  # main first
+                    self.assertIsNone(sp.records_ref(k, src, set(), [dict(p, repo="someone/tengoku")], TREE, rule)[0], k)
+                    self.assertIsNone(sp.records_ref(k, src, set(), [p, dict(p, number=p["number"] + 1)], TREE, rule)[0], k)
+                    self.assertIsNone(sp.records_ref(k, src, set(), [], TREE, rule)[0], k)
         self.assertEqual(n, 25)
+
+    def test_openai_math_listed_in_its_directory(self):
+        p = next(p for p in R["records_prs"] if p["number"] == 612)  # openai-math lists openai-math/003.jsonl: a file of its directory
+        self.assertEqual(sp.records_ref("openai-math", R["sources"]["openai-math"], set(), [p], TREE)[0], p["branch"])
 
     def test_merged_records_are_read_from_main(self):
         for k in ("abel-formalization", "etingofrepresentationtheory", "lean-operads"):  # competemath/tengoku#777, merged
@@ -184,24 +189,28 @@ class RealRecords(unittest.TestCase):
         for k in BATCH6:
             self.assertEqual(refs_for([k], prs=[])[k][0], None, k)
 
-    def test_a_library_with_records_in_several_files_needs_them_all(self):
-        p = next(p for p in R["records_prs"] if p["number"] == 612)  # openai-math: one of its record files
-        files = ["data/tentative/openai-math/003.jsonl", "data/tentative/openai-math/004.jsonl"]
-        self.assertIsNone(sp.records_ref(files, False, [p], TREE)[0])
-        self.assertEqual(sp.records_ref(files[:1], False, [p], TREE)[0], p["branch"])
+    def test_a_library_listing_several_files_needs_them_all(self):
+        """flt-anthropic's real listing (three files outside its directory): a pull request with one of them, and main without the others, is not enough"""
+        k, src = "flt-anthropic", R["sources"]["flt-anthropic"]
+        files = sp.tentative_files(k, src)
+        self.assertEqual(len(files), 3)
+        p = {"number": 1, "branch": "content/x", "repo": TREE, "files": files[:1]}
+        for rule in (sp.setup_holds, sp.holds):
+            self.assertIsNone(sp.records_ref(k, src, set(), [p], TREE, rule)[0])
+            self.assertEqual(sp.records_ref(k, src, set(files[1:]), [p], TREE, rule)[0], "content/x")  # the rest on main: the branch has them all
 
     def test_mutant_a_partial_set_is_caught(self):
-        p = next(p for p in R["records_prs"] if p["number"] == 612)
-        files = ["data/tentative/openai-math/003.jsonl", "data/tentative/openai-math/004.jsonl"]
-        partial = mutant("records_ref", 'set(files) <= set(p["files"])', 'set(files) & set(p["files"])')
-        self.assertIsNotNone(partial(files, False, [p], TREE)[0])
+        k, src = "flt-anthropic", R["sources"]["flt-anthropic"]
+        files = sp.tentative_files(k, src)
+        p = {"number": 1, "branch": "content/x", "repo": TREE, "files": files[:1]}
+        partial = mutant("holds", "all(f in present for f in need)", "any(f in present for f in need)")
+        self.assertIsNotNone(sp.records_ref(k, src, set(), [p], TREE, partial)[0])
 
     def test_mutant_a_fork_taken_is_caught(self):
         fork = dict(OPEN[0], repo="someone/tengoku")
-        files = sp.tentative_files("nlalib", R["sources"]["nlalib"])
         taken = mutant("records_ref", 'p["repo"] == tree and ', "")
-        self.assertEqual(taken(files, False, [fork], TREE)[0], OPEN[0]["branch"])
-        self.assertIsNone(sp.records_ref(files, False, [fork], TREE)[0])
+        self.assertEqual(taken("nlalib", R["sources"]["nlalib"], set(), [fork], TREE)[0], OPEN[0]["branch"])
+        self.assertIsNone(sp.records_ref("nlalib", R["sources"]["nlalib"], set(), [fork], TREE)[0])
 
     def test_a_branch_setup_auto_refuses_is_never_given(self):
         for bad in ("a b", "x;rm", "$(id)", "a`b", ""):
@@ -215,6 +224,35 @@ class RealRecords(unittest.TestCase):
         text = (WF / "setup-auto.yml").read_text()
         self.assertIn("print(' '.join('data/tentative/' + f for f in s.get('tentative', [os.environ['KEY'] + '.jsonl'])))", text)
         self.assertEqual(sp.tentative_files("tauceti", R["sources"]["tauceti"]), ["data/tentative/tauceti/project-001.jsonl", "data/tentative/tauceti/project-002.jsonl"])
+
+
+class TheDirectory(unittest.TestCase):
+    """cubic on #187: the bump also reads data/tentative/<key>/*.jsonl (tentative_files.globs), the setup does not (setup-auto's sparse checkout is the listed files)"""
+
+    DIR_ONLY = {"number": 9, "branch": "content/d", "repo": TREE, "files": ["data/tentative/newlib/part-1.jsonl", "data/tentative/newlib/part-2.jsonl"]}
+
+    def test_a_bump_takes_records_only_in_the_directory(self):
+        self.assertEqual(sp.records_ref("newlib", {}, set(), [self.DIR_ONLY], TREE, sp.holds)[0], "content/d")
+        self.assertEqual(sp.records_ref("newlib", {}, set(self.DIR_ONLY["files"]), [], TREE, sp.holds)[0], "")
+
+    def test_a_setup_does_not(self):
+        self.assertIsNone(sp.records_ref("newlib", {}, set(), [self.DIR_ONLY], TREE, sp.setup_holds)[0])
+
+    def test_nested_and_other_files_are_not_the_directory(self):
+        for f in ("data/tentative/newlib/a/b.jsonl", "data/tentative/newlib/x.json", "data/tentative/newlibx/a.jsonl", "data/tentative/newlib.json"):
+            p = dict(self.DIR_ONLY, files=[f])
+            self.assertIsNone(sp.records_ref("newlib", {}, set(), [p], TREE, sp.holds)[0], f)
+
+    def test_a_listing_inside_the_directory_reads_the_directory(self):
+        """tauceti's real listing (tauceti/project-00N.jsonl): the bump reads them through the directory's glob"""
+        src = R["sources"]["tauceti"]
+        p = dict(self.DIR_ONLY, files=["data/tentative/tauceti/project-001.jsonl"])
+        self.assertEqual(sp.records_ref("tauceti", src, set(), [p], TREE, sp.holds)[0], "content/d")
+        self.assertIsNone(sp.records_ref("tauceti", src, set(), [p], TREE, sp.setup_holds)[0])  # setup-auto reads both listed files
+
+    def test_mutant_the_directory_ignored(self):
+        blind = mutant("holds", "dir_files = any(in_directory(key, f) for f in present)", "dir_files = False")
+        self.assertIsNone(sp.records_ref("newlib", {}, set(), [self.DIR_ONLY], TREE, blind)[0])
 
 
 def oracle(reg, sources, set_up, runs, refs, free, now):
@@ -270,14 +308,24 @@ class Random(unittest.TestCase):
                 self.assertEqual(mentioned, set(pend))
 
 class Network(unittest.TestCase):
-    def test_on_main_reads_404_as_no_and_stops_on_anything_else(self):
-        def fake(code, err=""):
-            return lambda *a, **k: subprocess.CompletedProcess(a, code, "", err)
+    def test_main_files_reads_404_as_absent_and_stops_on_anything_else(self):
+        def fake(answers):
+            def run(args, **k):
+                path = args[2].split("/contents/", 1)[1].split("?", 1)[0]
+                code, out, err = answers.get(path, (1, "", "gh: Not Found (HTTP 404)"))
+                return subprocess.CompletedProcess(args, code, out, err)
 
-        self.assertTrue(sp.on_main(TREE, ["a", "b"], run=fake(0)))
-        self.assertFalse(sp.on_main(TREE, ["a"], run=fake(1, "gh: Not Found (HTTP 404)")))
+            return run
+
+        src = {"tentative": ["lib-001.jsonl", "lib/x.jsonl"]}
+        got = sp.main_files(TREE, "lib", src, run=fake({
+            "data/tentative/lib-001.jsonl": (0, "data/tentative/lib-001.jsonl\n", ""),
+            "data/tentative/lib": (0, "data/tentative/lib/x.jsonl\ndata/tentative/lib/y.jsonl\ndata/tentative/lib/notes.md\n", ""),
+        }))
+        self.assertEqual(got, {"data/tentative/lib-001.jsonl", "data/tentative/lib/x.jsonl", "data/tentative/lib/y.jsonl"})
+        self.assertEqual(sp.main_files(TREE, "lib", {}, run=fake({})), set())
         with self.assertRaises(RuntimeError):
-            sp.on_main(TREE, ["a"], run=fake(1, "gh: Bad credentials (HTTP 401)"))
+            sp.main_files(TREE, "lib", {}, run=fake({"data/tentative/lib.jsonl": (1, "", "gh: Bad credentials (HTTP 401)")}))
 
     def test_a_list_that_may_be_cut_stops_the_pickup(self):
         with self.assertRaises(RuntimeError):

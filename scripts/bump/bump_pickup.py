@@ -173,8 +173,7 @@ def main() -> None:
             if k not in sources:
                 refs[k] = (None, "no longer in sources.json")
                 continue
-            files = tr.tentative_files(k, sources[k])
-            refs[k] = tr.records_ref(files, tr.on_main(a.tree, files), prs, a.tree)
+            refs[k] = tr.records_ref(k, sources[k], tr.main_files(a.tree, k, sources[k]), prs, a.tree)
     key, notes = decide(published, records, bumps, open_parts(open_titles(a.tree)), free, since, refs)
     for n in notes:
         print(n)

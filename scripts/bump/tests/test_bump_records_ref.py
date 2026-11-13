@@ -35,12 +35,12 @@ REC = {KEY: {"exported": 160, "modules": 160}}  # data/exports/rankamplification
 PR789 = {"number": 789, "branch": BRANCH, "repo": "competemath/tengoku", "files": [
     "data/tentative/ck-hopf-formalization.jsonl", "data/tentative/lean-eval-pi-succ-sphere-n-mulequiv-zmod-two.jsonl", "data/tentative/nlalib.jsonl",
     "data/tentative/rankamplificationtotient.jsonl", "schemas/sources.json"]}
-FILES = tr.tentative_files(KEY, {})
+FILES = set(tr.tentative_files(KEY, {}))
 
 
 class PickupGivesTheBranch(unittest.TestCase):
     def refs(self, on_main, prs):
-        return {KEY: tr.records_ref(FILES, on_main, prs, "competemath/tengoku")}
+        return {KEY: tr.records_ref(KEY, {}, FILES if on_main else set(), prs, "competemath/tengoku")}
 
     def test_the_real_case_gets_its_branch(self):
         refs = self.refs(False, [PR789])
