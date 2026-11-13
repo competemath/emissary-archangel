@@ -1,0 +1,62 @@
+{
+  "key": "lean-eval-pi-succ-sphere-n-mulequiv-zmod-two",
+  "repo": "https://github.com/KitaKen1/lean-eval-pi-succ-sphere-n-mulequiv-zmod-two",
+  "commit": "de4d09ac3e86a17d4544c1c86839336ec03a4734",
+  "toolchain": "leanprover/lean4:v4.32.2",
+  "roots": [
+    "Challenge",
+    "ReusableTheorems",
+    "Solution",
+    "Submission"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lean-eval-pi-succ-sphere-n-mulequiv-zmod-two/repo",
+  "entries": 7798,
+  "modules": 442,
+  "exported": 442,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 11654,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 7798,
+    "kept": 7798,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 37,
+    "lineUnverified": 0,
+    "nameFixed": 7797,
+    "sorryOriginals": 0,
+    "emptyProofs": 17
+  },
+  "sharded": {
+    "records": 11,
+    "shards": [
+      11
+    ]
+  },
+  "tools": {
+    "lean": "4.32.2 (commit f3b06c705e6c85f5314019d5d3baab0fec5b580c, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+f3b06c7",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "86e4a3395074 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1 | ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 1590685696,
+  "minutes": 35,
+  "finishedAt": "2026-11-13T03:52:48.046Z",
+  "archive": {
+    "release": "exports-lean-eval-pi-succ-sphere-n-mulequiv-zmod-two",
+    "asset": "lean-eval-pi-succ-sphere-n-mulequiv-zmod-two@de4d09ac3e86-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-lean-eval-pi-succ-sphere-n-mulequiv-zmod-two/lean-eval-pi-succ-sphere-n-mulequiv-zmod-two@de4d09ac3e86-exports.tar.zst",
+    "bytes": 155242682,
+    "sha256": "85792d4972949881af2322f0e3fc73e7ff9ef9721dba888c34f90c1640c9da24",
+    "files": 884,
+    "unpack": "tar --zstd -xf lean-eval-pi-succ-sphere-n-mulequiv-zmod-two@de4d09ac3e86-exports.tar.zst -C data/exports/lean-eval-pi-succ-sphere-n-mulequiv-zmod-two"
+  }
+}
