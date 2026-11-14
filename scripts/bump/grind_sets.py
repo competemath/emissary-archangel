@@ -339,18 +339,26 @@ def notice(upstream: str, path: str, what: list[str]) -> str:
 NOTICE_BODY = re.compile(r"/-! Tengoku change notice: (?P<body>.*?) -/", re.S)
 
 
+PRINT_REPAIR = re.compile(r"/-! Tengoku repair: removed `#(?:print|check)\b[^`\n]*` \(it only prints;")  # bundle.py print_note: a printing command (strip_attrs.PRINT_COMMAND: #print or #check) the factory removed from a module
+
+
 def shipped_changes(texts) -> dict[str, int]:
-    """What the factory changed, counted from the change notices of the files that SHIP (`texts`: the module files of a bundle or a part). Counted before the bundle is
-    cut, the numbers named modules that compose or the verification build dropped later: formal-conjectures (Tengoku #752, 7 Nov) reported 6 changed modules and 8 removed
-    lines while one shipped file carried a notice (3 lines); the reviewer read that as 5 changed files without the notice the licence asks for. A file's notice is what it ships
-    with, so a count read from the notices can never name a change that is not in the files."""
-    stats = {"modules changed": 0, "set registrations removed": 0, "set tags removed": 0, "grind calls rewritten": 0, "inert lines removed": 0}
+    """What the factory changed, counted from the notes of the files that SHIP (`texts`: the module files of a bundle or a part): the change notices of grind-set and inert-line
+    changes, and the repair notes of removed printing commands (`#print axioms`, `#check`). Counted before the bundle is cut, the numbers named modules that compose or the verification build
+    dropped later: formal-conjectures (Tengoku #752, 7 Nov) reported 6 changed modules and 8 removed lines while one shipped file carried a notice (3 lines); the reviewer read that as 5
+    changed files without the notice the licence asks for. A file's notes are what it ships with, so a count read from them can never name a change that is not in the files.
+    The repair notes were left out until 14 Nov 2026 (tda-lib part 1, Tengoku #826: 4 changed modules and 13 removed lines, reported as 2 and 3)."""
+    stats = {"modules changed": 0, "set registrations removed": 0, "set tags removed": 0, "grind calls rewritten": 0, "inert lines removed": 0, "print lines removed": 0}
     for text in texts:
         m = NOTICE_BODY.search(text)
+        printed = len(PRINT_REPAIR.findall(text))
+        if not m and not printed:
+            continue
+        stats["modules changed"] += 1
+        stats["print lines removed"] += printed
         if not m:
             continue
         body = m.group("body")
-        stats["modules changed"] += 1
         reg = re.search(r"removed the registration of the grind sets? (?P<names>.*?) \(it runs code", body)
         if reg:
             stats["set registrations removed"] += len(re.findall(r"`[^`]+`", reg.group("names")))
