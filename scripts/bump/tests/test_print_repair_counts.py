@@ -26,7 +26,7 @@ import open_intake_pr as oip  # noqa: E402
 FX = HERE / "fixtures" / "tda-lib-826"
 TEXT = {p.stem: p.read_text(encoding="utf-8") for p in sorted(FX.glob("*.lean"))}
 REAL = ["AlgebraicFamily", "CompatibleOrder", "CompatibleOrderExistence"]
-NOTES = re.compile(r"Tengoku repair: removed `#print axioms ")
+NOTES = re.compile(r"Tengoku repair: removed `#(?:print|check)\b")
 
 
 def expected(texts):
@@ -72,8 +72,19 @@ class RealPart(unittest.TestCase):
             cmd = "#print axioms " + ".".join(rng.choice(["Foo", "bar", "baz_1", "A'", "x"]) for _ in range(rng.randrange(1, 5)))
             self.assertEqual(gs.shipped_changes(["import A\n\n" + bundle.print_note(cmd) + "\ntheorem t : True := trivial\n"]), {"modules changed": 1, "print lines removed": 1}, cmd)
 
+    def test_check_commands_and_a_tab_are_counted_too(self):
+        """cubic on #196: strip_print_commands removes `#check` as well, and bundle.print_note writes the same kind of note"""
+        for cmd in ("#check Foo.bar", "#print\taxioms Foo", "#check (1 : Nat)", "#print Foo"):
+            self.assertEqual(gs.shipped_changes(["import A\n\n" + bundle.print_note(cmd) + "\n"]), {"modules changed": 1, "print lines removed": 1}, cmd)
+        import strip_attrs
+
+        text, removed = strip_attrs.strip_print_commands("theorem t : True := trivial\n\n#check t\n#print axioms t\n")
+        notes = "".join(bundle.print_note(c) + "\n" for c in removed)
+        self.assertEqual(removed, ["#check t", "#print axioms t"])
+        self.assertEqual(gs.shipped_changes([text + notes]), {"modules changed": 1, "print lines removed": 2})  # every command the stripper removes is counted
+
     def test_other_text_is_not_a_repair_note(self):
-        for t in ("-- Tengoku repair: removed `#print axioms X`", "/-! Tengoku repair: removed `#eval 1` (it only prints; x). -/", "/-! removed `#print axioms X` (it only prints;"):
+        for t in ("-- Tengoku repair: removed `#print axioms X`", "/-! Tengoku repair: removed `#eval 1` (it only prints; x). -/", "/-! Tengoku repair: removed `#checkpoint 1` (it only prints; x). -/", "/-! removed `#print axioms X` (it only prints;"):
             self.assertEqual(gs.shipped_changes([t]), {}, t)
 
 
@@ -81,7 +92,7 @@ class Description(unittest.TestCase):
     def test_the_sentence_says_what_the_notes_are(self):
         line = oip.changes_line({"factory_changes": {"modules changed": 3, "inert lines removed": 2, "print lines removed": 11}})
         self.assertIn("print lines removed: 11", line)
-        self.assertIn("a repair note for a removed `#print` command", line)
+        self.assertIn("a repair note for a removed `#print` or `#check` command", line)
         self.assertNotIn("each changed file carries a change notice naming the upstream commit and the change", line)  # a repair note names no commit
         self.assertEqual(oip.changes_line({"factory_changes": {}}), "")
 

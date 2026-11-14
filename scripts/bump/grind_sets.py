@@ -339,12 +339,12 @@ def notice(upstream: str, path: str, what: list[str]) -> str:
 NOTICE_BODY = re.compile(r"/-! Tengoku change notice: (?P<body>.*?) -/", re.S)
 
 
-PRINT_REPAIR = re.compile(r"/-! Tengoku repair: removed `#print [^`\n]*` \(it only prints;")  # bundle.py print_note: a printing command the factory removed from a module
+PRINT_REPAIR = re.compile(r"/-! Tengoku repair: removed `#(?:print|check)\b[^`\n]*` \(it only prints;")  # bundle.py print_note: a printing command (strip_attrs.PRINT_COMMAND: #print or #check) the factory removed from a module
 
 
 def shipped_changes(texts) -> dict[str, int]:
     """What the factory changed, counted from the notes of the files that SHIP (`texts`: the module files of a bundle or a part): the change notices of grind-set and inert-line
-    changes, and the repair notes of removed printing commands (`#print axioms`). Counted before the bundle is cut, the numbers named modules that compose or the verification build
+    changes, and the repair notes of removed printing commands (`#print axioms`, `#check`). Counted before the bundle is cut, the numbers named modules that compose or the verification build
     dropped later: formal-conjectures (Tengoku #752, 7 Nov) reported 6 changed modules and 8 removed lines while one shipped file carried a notice (3 lines); the reviewer read that as 5
     changed files without the notice the licence asks for. A file's notes are what it ships with, so a count read from them can never name a change that is not in the files.
     The repair notes were left out until 14 Nov 2026 (tda-lib part 1, Tengoku #826: 4 changed modules and 13 removed lines, reported as 2 and 3)."""

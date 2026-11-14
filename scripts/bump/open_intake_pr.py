@@ -35,12 +35,13 @@ from pathlib import Path
 
 
 def changes_line(report: dict) -> str:
-    """The changes the factory made to the library's own text (grind_sets.py), for the PR: each changed file carries a change notice saying what and from where."""
+    """The changes the factory made to the library's own text (grind_sets.py), for the PR: each changed file carries a note saying what changed: a change notice that also names the upstream
+    commit (grind-set and inert-line changes), or a repair note for a removed `#print`/`#check` command (which names no commit)."""
     ch = {k: v for k, v in (report.get("factory_changes") or {}).items() if v}
     if not ch:
         return ""
     return ("\n- changed from upstream, with what every declaration states unchanged (each changed file carries a note saying what changed: a change notice naming the upstream commit for "
-            "grind-set and inert-line changes, a repair note for a removed `#print` command; the content lint and the tree's build check them like any other file): " + ", ".join(f"{k}: {v}" for k, v in ch.items()))
+            "grind-set and inert-line changes, a repair note for a removed `#print` or `#check` command; the content lint and the tree's build check them like any other file): " + ", ".join(f"{k}: {v}" for k, v in ch.items()))
 
 
 def parts_total(plan: dict) -> int:
