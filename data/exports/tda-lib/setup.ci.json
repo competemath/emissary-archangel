@@ -1,0 +1,59 @@
+{
+  "key": "tda-lib",
+  "repo": "https://github.com/uda-lab/tda-lib",
+  "commit": "6880b1ef1fcfebae0b8064d3c26223f3b952964a",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "TDA"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/tda-lib/repo",
+  "entries": 13866,
+  "modules": 824,
+  "exported": 824,
+  "failed": [],
+  "expansion": {
+    "expanded": 35,
+    "verbatim": 1596,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 13866,
+    "kept": 13866,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 130,
+    "lineUnverified": 0,
+    "nameFixed": 13866,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "sharded": {
+    "records": 19,
+    "shards": [
+      19
+    ]
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261101.186.1 | ubuntu26/20261111.196.1 | ubuntu26/20261111.82.6"
+  },
+  "exportsBytes": 1284866048,
+  "minutes": 10,
+  "finishedAt": "2026-11-14T00:23:11.568Z",
+  "archive": {
+    "release": "exports-tda-lib",
+    "asset": "tda-lib@6880b1ef1fcf-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-tda-lib/tda-lib@6880b1ef1fcf-exports.tar.zst",
+    "bytes": 142855461,
+    "sha256": "1e551c23d269b3e79b343af8f6aca8a7ce6520ec77b6e220d319e92b1ed12a2f",
+    "files": 1648,
+    "unpack": "tar --zstd -xf tda-lib@6880b1ef1fcf-exports.tar.zst -C data/exports/tda-lib"
+  }
+}
