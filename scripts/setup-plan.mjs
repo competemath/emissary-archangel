@@ -73,9 +73,14 @@ export function roundProgress({ round, prev = null, built, min = MIN_PROGRESS_DE
 // build-gate dispatches it instead of the next round: at the end of a round that left the build incomplete, when the rounds the pace needs (round + remaining / what this round added) go past the plan.
 // No count to compare with, a round that added nothing (the stall rule decides), a library added to an archive (from_release / only_modules: the slices would not start from it) and a build that fits the
 // plan keep the next round, and so do a round that added fewer than min_progress (the stall rule judges it), a library whose slices would be bigger than a shard holds, and a build that needs only one more round (flt-anthropic's 86 modules: round 6 built 85, one module is left; the first version of this rule sent it to 8 shards). The shell of the build-gate does the same arithmetic; test-setup-workflows.mjs runs it.
-export const SLICE_MODULES_PER_SHARD = 25
+export const SLICE_MODULES_PER_SHARD = 13 // the mean slice aimed at; see SLICE_MAX_MODULES_PER_SHARD for the largest one allowed
 export const SLICE_MIN_SHARDS = 8
-export const SLICE_MAX_MODULES_PER_SHARD = 25 // MEASURED on the first real sliced run (finite-simple-groups-lean, 14 Nov 2026): a slice of 65 modules took ~1,500 lake jobs and 5 h 5 min, because a shard builds the whole import closure of its slice (111 to 205 modules built for a slice of 65, about 3 times the slice, ~105 s each): 3 of 3 shards read ran out of their 300 minutes with 3, 13 and 130 jobs left and exported nothing. 25 modules a slice is ~75 modules of closure, ~2.2 h: a library with more than 64 x 25 = 1,600 modules is not sliced
+// The largest slice a shard may get: the slices are hash buckets (setup-source.mjs shardOf), so they are not equal; the biggest of 64 is about the mean + 3 standard deviations (per + 3 sqrt(per), rounded up; cubic on #200: the mean alone let
+// one shard get 33 modules where the mean was 25). MEASURED on the first real sliced run (finite-simple-groups-lean, 14 Nov 2026, 3,964 modules in 64 slices, 62 on average, 65 in shard 0): a slice of 65 took ~1,500 lake jobs and 5 h 5 min,
+// because a shard builds the whole import closure of its slice (111 to 205 modules built, about 3 times the slice, ~105 s each): 3 of 3 shards read ran out of their 300 minutes with 3, 13 and 130 jobs left and exported nothing. A slice of at most 25
+// is ~75 modules of closure, ~2.2 h. With the mean at 13 that is a library of at most 832 modules (64 shards); one with more keeps its rounds.
+export const SLICE_MAX_MODULES_PER_SHARD = 25
+export const sliceBound = (per) => per + Math.ceil(3 * Math.sqrt(per))
 export function slicedSwitch({ round, prev = null, built = null, modules = null, maxBuildRounds, min = MIN_PROGRESS_DEFAULT, fromRelease = false, onlyModules = false }) {
   if (!Number.isInteger(round) || round < 1) throw new Error(`round is 1 or more, not ${round}`)
   if (!Number.isInteger(maxBuildRounds) || maxBuildRounds < 1) throw new Error(`maxBuildRounds is 1 or more, not ${maxBuildRounds}`)
@@ -96,7 +101,8 @@ export function slicedSwitch({ round, prev = null, built = null, modules = null,
   // the sliced run starts from nothing (prime_minutes=0: no build is carried over), so its shards divide ALL the modules, not the ones that are left
   const shards = Math.min(MAX_SHARDS, Math.max(SLICE_MIN_SHARDS, Math.ceil(m / SLICE_MODULES_PER_SHARD)))
   const per = Math.ceil(m / shards)
-  if (per > SLICE_MAX_MODULES_PER_SHARD) return { switch: false, why: `${m} modules in ${shards} shards is ${per} a shard, more than the ${SLICE_MAX_MODULES_PER_SHARD} a shard's time holds: rounds go on` }
+  const biggest = sliceBound(per)
+  if (biggest > SLICE_MAX_MODULES_PER_SHARD) return { switch: false, why: `${m} modules in ${shards} shards is ${per} a shard and up to ${biggest} in the biggest, more than the ${SLICE_MAX_MODULES_PER_SHARD} a shard's time holds: rounds go on` }
   return { switch: true, shards, why: `${remaining} modules at ${added} a round is ${roundsLeft} more rounds (${round + roundsLeft} in all, planned ${maxBuildRounds}): ${shards} shards build slices of about ${per} of the ${m} modules instead` }
 }
 

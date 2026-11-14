@@ -426,22 +426,22 @@ for (const job of ["shard", "finish"]) {
 {
   const sw = (c) => slicedSwitch({ round: c.round, prev: c.prev === "" ? null : Number(c.prev), built: c.built === "" ? null : Number(c.built), modules: c.modules === "" ? null : Number(c.modules), maxBuildRounds: c.maxRounds ?? 6, min: c.min ?? 1, fromRelease: c.fromRelease === "true", onlyModules: (c.only ?? "") !== "" })
   const real = [
-    // MEASURED, 14 Nov 2026: 64 slices of 65 modules of finite-simple-groups-lean ran out of the 300 minutes of a shard (each builds the import closure of its slice: 111 to 205 modules, ~1,500 jobs) and exported nothing
+    // MEASURED, 14 Nov 2026: 64 slices of finite-simple-groups-lean (62 on average, 65 in shard 0) ran out of the 300 minutes of a shard (each builds the import closure of its slice: 111 to 205 modules, ~1,500 jobs) and exported nothing
     { name: "finite-simple-groups-lean round 1 (95 of 3,964, 14 Nov 2026): 62 a slice ran out of a shard's time, rounds go on", c: { round: 1, prev: "", built: "95", modules: "3964", min: 1, maxRounds: 6 }, want: { switch: false } },
     { name: "finite-simple-groups-lean round 1 before the storm rule (13 of 3,964): rounds go on", c: { round: 1, prev: "", built: "13", modules: "3964", min: 1, maxRounds: 6 }, want: { switch: false } },
     { name: "finite-simple-groups-lean, 3,000 of 3,964 built at 95 a round: rounds go on", c: { round: 2, prev: "2905", built: "3000", modules: "3964", min: 1, maxRounds: 6 }, want: { switch: false } },
-    { name: "a 1,500-module library at 95 a round: 60 slices of 25 modules", c: { round: 1, prev: "", built: "95", modules: "1500", min: 1, maxRounds: 6 }, want: { switch: true, shards: 60 } },
-    { name: "a 1,500-module library at 90 a round in round 2: the slices still divide all 1,500", c: { round: 2, prev: "80", built: "90", modules: "1500", min: 1, maxRounds: 6 }, want: { switch: true, shards: 60 } },
-    { name: "the largest sliced library, 1,600 modules: 64 slices of 25", c: { round: 1, prev: "", built: "10", modules: "1600", min: 1, maxRounds: 6 }, want: { switch: true, shards: 64 } },
-    { name: "1,601 modules: 26 a slice is over what a shard holds, rounds go on", c: { round: 1, prev: "", built: "10", modules: "1601", min: 1, maxRounds: 6 }, want: { switch: false } },
+    { name: "an 800-module library at 95 a round: 62 slices of 13 modules", c: { round: 1, prev: "", built: "95", modules: "800", min: 1, maxRounds: 6 }, want: { switch: true, shards: 62 } },
+    { name: "an 800-module library at 90 a round in round 2: the slices still divide all 800", c: { round: 2, prev: "80", built: "90", modules: "800", min: 1, maxRounds: 6 }, want: { switch: true, shards: 62 } },
+    { name: "the largest sliced library, 832 modules: 64 slices of 13", c: { round: 1, prev: "", built: "10", modules: "832", min: 1, maxRounds: 6 }, want: { switch: true, shards: 64 } },
+    { name: "833 modules: the biggest slice is up to 26, over what a shard holds, rounds go on", c: { round: 1, prev: "", built: "10", modules: "833", min: 1, maxRounds: 6 }, want: { switch: false } },
     { name: "flt-anthropic's 30,662 modules: 480 a slice, rounds go on", c: { round: 1, prev: "", built: "9", modules: "30662", min: 1, maxRounds: 6 }, want: { switch: false } },
     { name: "flt-anthropic's 86 modules, round 6 built 85 of 86 (a delta from the archive)", c: { round: 6, prev: "1", built: "85", modules: "86", min: 1, maxRounds: 6, fromRelease: "true", only: "Theorems.Thm_A" }, want: { switch: false } },
-    { name: "the 1,500-module pace with from_release: the archive keeps the rounds", c: { round: 1, prev: "", built: "95", modules: "1500", min: 1, maxRounds: 6, fromRelease: "true" }, want: { switch: false } },
+    { name: "the 800-module pace with from_release: the archive keeps the rounds", c: { round: 1, prev: "", built: "95", modules: "800", min: 1, maxRounds: 6, fromRelease: "true" }, want: { switch: false } },
     { name: "the same 86 without the archive flags: 85 of 86 is nearly done", c: { round: 6, prev: "1", built: "85", modules: "86", min: 1, maxRounds: 6 }, want: { switch: false } },
     { name: "a library that needs three rounds at its pace (2,900 a round of 8,000)", c: { round: 2, prev: "3000", built: "5900", modules: "8000", min: 1, maxRounds: 6 }, want: { switch: false } },
-    { name: "a round that added nothing is the stall rule's", c: { round: 3, prev: "100", built: "100", modules: "1500", min: 1, maxRounds: 6 }, want: { switch: false } },
-    { name: "a round that added 1 with min_progress 5 is the stall rule's", c: { round: 3, prev: "100", built: "101", modules: "1500", min: 5, maxRounds: 6 }, want: { switch: false } },
-    { name: "a round after the first with no count of the round before is not judged", c: { round: 3, prev: "", built: "95", modules: "1500", min: 1, maxRounds: 6 }, want: { switch: false } },
+    { name: "a round that added nothing is the stall rule's", c: { round: 3, prev: "100", built: "100", modules: "800", min: 1, maxRounds: 6 }, want: { switch: false } },
+    { name: "a round that added 1 with min_progress 5 is the stall rule's", c: { round: 3, prev: "100", built: "101", modules: "800", min: 5, maxRounds: 6 }, want: { switch: false } },
+    { name: "a round after the first with no count of the round before is not judged", c: { round: 3, prev: "", built: "95", modules: "800", min: 1, maxRounds: 6 }, want: { switch: false } },
   ]
   for (const { name, c, want } of real) {
     const e = sw(c), g = runGate(gateScript, c)
@@ -450,8 +450,8 @@ for (const job of ["shard", "finish"]) {
     check(`build-gate: ${name}: ${want.switch ? "dispatches the slices" : "does not"}`, sliced === want.switch && (!want.switch || (g.code === 0 && g.calls.includes(`shards=${want.shards} `) && !g.calls.includes("build_run=") && !g.calls.includes("prev_built=") && g.calls.includes("from_release=false") && g.calls.split("\n").filter((l) => l.includes("workflow run")).length === 1)), g.calls.slice(0, 300))
   }
   const grid = []
-  for (const round of [1, 2, 6]) for (const maxRounds of [1, 6]) for (const modules of ["", "86", "1500", "3964", "30662"]) for (const built of ["", "0", "13", "95", "3964"]) for (const prev of ["", "0", "90"]) for (const extra of [{}, { fromRelease: "true" }]) for (const min of [0, 5]) grid.push({ round, maxRounds, modules, built, prev, min, ...extra })
-  for (let i = 0; i < 700; i++) { const m = 1 + rnd(rnd(3) === 0 ? 40000 : 1700), b = rnd(2) === 0 ? rnd(Math.min(m, 300) + 1) : rnd(m + 1), p = rnd(m + 1); grid.push({ round: 1 + rnd(8), maxRounds: 1 + rnd(8), modules: String(m), built: String(b), prev: rnd(5) === 0 ? "" : String(p), min: rnd(6) }) }
+  for (const round of [1, 2, 6]) for (const maxRounds of [1, 6]) for (const modules of ["", "86", "800", "1500", "3964", "30662"]) for (const built of ["", "0", "13", "95", "3964"]) for (const prev of ["", "0", "90"]) for (const extra of [{}, { fromRelease: "true" }]) for (const min of [0, 5]) grid.push({ round, maxRounds, modules, built, prev, min, ...extra })
+  for (let i = 0; i < 700; i++) { const m = 1 + rnd(rnd(3) === 0 ? 40000 : 900), b = rnd(2) === 0 ? rnd(Math.min(m, 300) + 1) : rnd(m + 1), p = rnd(m + 1); grid.push({ round: 1 + rnd(8), maxRounds: 1 + rnd(8), modules: String(m), built: String(b), prev: rnd(5) === 0 ? "" : String(p), min: rnd(6) }) }
   let wrongSw = [], switched = 0, kept = 0
   for (const c of grid) {
     const e = sw(c), g = runGate(gateScript, c)
@@ -467,9 +467,10 @@ for (const job of ["shard", "finish"]) {
     ["the switch judges a round with no count of the round before it on the total built", 'elif [ -n "$PREV_BUILT" ]; then pace=$(( 10#$BUILT - 10#$PREV_BUILT )); fi', 'else pace=$(( 10#$BUILT - 10#${PREV_BUILT:-0} )); fi'],
     ["the switch counts the rounds left without the rounds done (round 1 of a plan of 6)", '[ $(( 10#$BUILD_ROUND + rounds_left )) -gt $(( 10#$MAX_BUILD_ROUNDS )) ]', '[ $(( rounds_left )) -gt $(( 10#$MAX_BUILD_ROUNDS )) ]'],
     ["the switch rounds the rounds left down", 'rounds_left=$(( (remaining + pace - 1) / pace ))', 'rounds_left=$(( remaining / pace ))'],
-    ["the shards divide the modules that are left, not all of them", 'slices=$(( (10#$MODULES + 24) / 25 ))', 'slices=$(( (remaining + 24) / 25 ))'],
+    ["the shards divide the modules that are left, not all of them", 'slices=$(( (10#$MODULES + 12) / 13 ))', 'slices=$(( (remaining + 12) / 13 ))'],
     ["the slices are not capped at 64", '[ "$slices" -gt 64 ] && slices=64', ':'],
-    ["a slice may be any size (the 30,662-module library and finite-simple-groups-lean are sliced)", ' && [ "$per" -le 25 ]; then', '; then'],
+    ["the biggest slice is taken to be the mean (an unbalanced hash bucket can pass 25)", 'print p + t', 'print p'],
+    ["a slice may be any size (the 30,662-module library and finite-simple-groups-lean are sliced)", ' && [ "$biggest" -le 25 ]; then', '; then'],
     ["the slices keep the build of the round before (build_run)", '-f from_release=false\n', '-f from_release=false -f build_run="$GITHUB_RUN_ID"\n'],
     ["the slices still have a prime build", '-f prime_minutes=0', '-f prime_minutes="$PRIME_MINUTES"'],
     ["the switch slices a build that needs only one more round", 'if [ "$rounds_left" -ge 2 ] && ', 'if '],
