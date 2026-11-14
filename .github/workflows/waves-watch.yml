@@ -27,7 +27,7 @@ jobs:
   watch:
     if: ${{ (github.event_name == 'workflow_dispatch' || vars.LANE_ENABLED == 'true') && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
     runs-on: ubuntu-26.04
-    timeout-minutes: 20
+    timeout-minutes: 45   # at most MAX_RESUMES (2) recoveries a look, each up to 10 minutes for its cancel (cubic on #195)
     permissions: { actions: write, contents: read }  # read the runs and their plan artifacts, cancel a run, dispatch the resume
     env: { GH_TOKEN: "${{ github.token }}", DRY: "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run != 'false' }}" }
     steps:

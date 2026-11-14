@@ -2,9 +2,9 @@
 steps, as GitHub listed them at 23:46 UTC on 13 Nov 2026; fixtures/real-flt-plan-*-run-43529754609.json: the settings its resume was dispatched with).
 
 The real case: job 93 of wave 15 lost its runner at 19:14 (failure, no failed step), jobs 92 and 94 of the same wave ran on until 22:58 and 23:03, waves 16 and 17 then failed at the restore step within 9 to 20
-minutes each, and a person noticed at 23:44. Replayed minute by minute, the rule fires at 23:14 (the second job of a later wave to fail at the restore step), never before, and from then on.
-Invariants: never while the failed job's wave still has running jobs; never on one failed job or on failures of the same wave; never on a cancelled job; once fired it stays fired; the resume is dispatched for the
-cancelled run with the settings its plan recorded and nothing else; a value that is not a plain setting is refused; a chain longer than MAX_CHAIN, a run that does not end after its cancel, and a dry run dispatch
+minutes each, and a person noticed at 23:44. Replayed minute by minute, the rule fires at 23:32 (the first job of a second later wave to fail at the restore step; two jobs of wave 16 had failed at 23:12 and 23:13, which could be a transient), never before, and from then on.
+Invariants: never while the failed job's wave still has running jobs; never on one failed job, on failures of the same wave, or on failures of ONE later wave; never on a cancelled job; once fired it stays fired; the resume is dispatched for the
+cancelled run with the settings its plan recorded and nothing else; a value that is not a plain setting is refused; a chain longer than MAX_CHAIN, a plan without its settings, a run that does not end after its cancel, and a dry run dispatch
 nothing; a failed dispatch is never retried.
 Mutants (each must fail a check): the later-wave condition dropped (fires at 19:14), one later failure enough (fires at 23:12), cancelled jobs counted, the chain guard dropped, the cancel not waited for.
 """
@@ -75,9 +75,10 @@ class RealRun(unittest.TestCase):
 
     def test_it_fires_at_the_second_later_failure_and_not_before(self):
         self.assertIsNotNone(FIRST)
-        self.assertEqual(hhmm(FIRST), "23:14")  # the second later failure ended at 23:13:30
-        # a person noticed at 23:44: 31 minutes later
-        self.assertLessEqual(FIRST, at("2026-11-13T23:14:00Z"))
+        self.assertEqual(hhmm(FIRST), "23:32")  # the first job of a second later wave (w17) failed at 23:31:39; two jobs of w16 had at 23:12 and 23:13
+        # a person noticed at 23:44: 12 minutes later
+        self.assertLessEqual(FIRST, at("2026-11-13T23:33:00Z"))
+        self.assertLess(FIRST, at("2026-11-13T23:44:00Z"))
 
     def test_never_while_the_failed_jobs_wave_still_runs(self):
         for t in range(int(at("2026-11-13T19:14:20Z")), int(at("2026-11-13T22:58:00Z")), 60):
@@ -107,6 +108,12 @@ class Rule(unittest.TestCase):
         self.assertIsNone(ww.doomed([self.job(3, 10, "failure"), self.job(4, 11, "failure", True)]))
         self.assertIsNotNone(ww.doomed([self.job(3, 10, "failure"), self.job(4, 11, "failure", True), self.job(5, 12, "failure", True)]))
 
+    def test_two_failures_of_one_later_wave_are_not_dead(self):
+        """cubic on #195: two jobs of one wave failing to restore may be a transient fetch failure"""
+        self.assertIsNone(ww.doomed([self.job(3, 10, "failure"), self.job(4, 11, "failure", True), self.job(4, 12, "failure", True)]))
+        self.assertIsNone(ww.doomed([self.job(3, 10, "failure")] + [self.job(4, 11 + i, "failure", True) for i in range(9)]))
+        self.assertIsNotNone(ww.doomed([self.job(3, 10, "failure"), self.job(4, 11, "failure", True), self.job(5, 12, "failure", True)]))
+
     def test_failures_of_the_same_wave_or_earlier_waves_do_not_count(self):
         self.assertIsNone(ww.doomed([self.job(3, 10, "failure"), self.job(3, 11, "failure", True), self.job(3, 12, "failure", True)]))
         self.assertIsNone(ww.doomed([self.job(4, 10, "failure"), self.job(3, 11, "failure", True), self.job(2, 12, "failure", True)]))
@@ -132,7 +139,7 @@ class Rule(unittest.TestCase):
             want = False
             if fails:
                 w0 = min(map(wv, fails))
-                want = sum(1 for j in fails if wv(j) > w0 and j["failed_steps"]) >= 2
+                want = len({wv(j) for j in fails if wv(j) > w0 and j["failed_steps"]}) >= 2
             self.assertEqual(ww.doomed(jobs) is not None, want)
 
     def test_mutant_the_later_wave_condition_dropped_fires_at_the_first_failure(self):
@@ -143,19 +150,30 @@ class Rule(unittest.TestCase):
         exec(src.replace(old, 'later = [s for s in roots if any(x.startswith(RESTORE_STEP) for x in s["steps"])]'), ns)
         t = int(at("2026-11-13T20:00:00Z"))
         self.assertIsNone(ww.doomed(slice_at(t)))
-        self.assertIsNotNone(ns["doomed"](slice_at(int(at("2026-11-13T23:20:00Z")))))  # control: the mutant fires late too
-        same_wave = [self.job(3, 10, "failure"), self.job(3, 11, "failure", True), self.job(3, 12, "failure", True)]
-        self.assertIsNotNone(ns["doomed"](same_wave))  # the mutant cancels a wave that is still running
+        self.assertIsNotNone(ns["doomed"](slice_at(int(at("2026-11-13T23:40:00Z")))))  # control: the mutant fires late too
+        same_wave = [self.job(3, 10, "failure"), self.job(3, 11, "failure", True), self.job(4, 12, "failure", True)]
+        self.assertIsNotNone(ns["doomed"](same_wave))  # the mutant counts a restore failure of the failed job's own wave as a later one: it cancels a wave that is still running
         self.assertIsNone(ww.doomed(same_wave))
 
     def test_mutant_one_later_failure_is_enough_fires_early(self):
         src = inspect.getsource(ww.doomed)
-        self.assertEqual(src.count("if len(later) < LATER_FAILURES:"), 1)
+        old = 'if len({s["wave"] for s in later}) < LATER_FAILURES:'
+        self.assertEqual(src.count(old), 1)
         ns = dict(vars(ww))
-        exec(src.replace("if len(later) < LATER_FAILURES:", "if len(later) < 1:"), ns)
+        exec(src.replace(old, "if len(later) < 1:"), ns)
         early = int(at("2026-11-13T23:12:30Z"))
         self.assertIsNone(ww.doomed(slice_at(early)))
         self.assertIsNotNone(ns["doomed"](slice_at(early)))
+
+    def test_mutant_jobs_counted_instead_of_waves(self):
+        src = inspect.getsource(ww.doomed)
+        old = 'if len({s["wave"] for s in later}) < LATER_FAILURES:'
+        ns = dict(vars(ww))
+        exec(src.replace(old, "if len(later) < LATER_FAILURES:"), ns)
+        one_wave = [self.job(3, 10, "failure"), self.job(4, 11, "failure", True), self.job(4, 12, "failure", True)]
+        self.assertIsNone(ww.doomed(one_wave))
+        self.assertIsNotNone(ns["doomed"](one_wave))
+        self.assertIsNotNone(ns["doomed"](slice_at(at("2026-11-13T23:14:00Z"))))  # the real run, 18 minutes early
 
     def test_mutant_cancelled_jobs_counted(self):
         src = inspect.getsource(ww.doomed)
@@ -163,7 +181,7 @@ class Rule(unittest.TestCase):
         self.assertEqual(src.count(old), 1)
         ns = dict(vars(ww))
         exec(src.replace(old, 'roots = [s for s in shards if s["conclusion"] in ("failure", "cancelled")]'), ns)
-        jobs = [self.job(3, 10, "cancelled"), self.job(4, 11, "failure", True), self.job(4, 12, "failure", True)]
+        jobs = [self.job(3, 10, "cancelled"), self.job(4, 11, "failure", True), self.job(5, 12, "failure", True)]
         self.assertIsNone(ww.doomed(jobs))
         self.assertIsNotNone(ns["doomed"](jobs))
 
@@ -180,16 +198,26 @@ class Dispatch(unittest.TestCase):
         self.assertNotIn("tengoku_ref", fields)  # empty: the default
 
     def test_a_value_that_is_not_a_plain_setting_is_refused(self):
-        for bad in ("a b", "x;rm", "$(id)", "`id`", "a\nb", "x'y", 'x"y'):
+        for bad in ("a b", "x;rm", "$(id)", "`id`", "a\nb", "x\n", "x'y", 'x"y'):
             with self.assertRaises(ww.WatchError, msg=bad):
                 ww.dispatch_args("flt-anthropic", 1, {**INPUTS, "tengoku_ref": bad}, LANE)
-        for bad in ("Flt", "a b", "-x", "", "a;b"):
+        for bad in ("Flt", "a b", "-x", "", "a;b", "flt-anthropic\n"):
             with self.assertRaises(ww.WatchError, msg=bad):
                 ww.dispatch_args(bad, 1, INPUTS, LANE)
         with self.assertRaises(ww.WatchError):
             ww.dispatch_args("flt-anthropic", 1, INPUTS, {"from_tree": "maybe"})
         with self.assertRaises(ValueError):
             ww.dispatch_args("flt-anthropic", "1; x", INPUTS, LANE)
+
+    def test_a_plan_without_its_settings_is_refused_before_anything_is_cancelled(self):
+        """cubic on #195: missing settings would be dispatched as empty and the resume's plan step would stop on the mismatch"""
+        for k in ww.SETTINGS:
+            with self.assertRaises(ww.WatchError, msg=k):
+                ww.dispatch_args("flt-anthropic", 1, {a: b for a, b in INPUTS.items() if a != k}, LANE)
+        with self.assertRaises(ww.WatchError):
+            ww.dispatch_args("flt-anthropic", 1, INPUTS, {})
+        _, calls = Flow().run_incomplete()
+        self.assertEqual(calls, [])
 
     def test_the_chain_length_follows_the_lanes(self):
         lanes = {"2": {"reuse_from": "1"}, "1": {}}
@@ -199,10 +227,11 @@ class Dispatch(unittest.TestCase):
 
 
 class Flow(unittest.TestCase):
-    def run_main(self, argv=(), chain=1, ends=True, dispatch_fails=False, jobs=None, mutate=None):
+    def run_main(self, argv=(), chain=1, ends=True, dispatch_fails=False, jobs=None, mutate=None, runs=1):
         """main() with the world faked; `mutate=(old, new)` runs a broken copy of main() instead (its functions are looked up in a copy of the module, so the fakes go there)"""
         calls = []
-        jobs = jobs if jobs is not None else slice_at(at("2026-11-13T23:20:00Z"))
+        self.last_calls = calls
+        jobs = jobs if jobs is not None else slice_at(at("2026-11-13T23:40:00Z"))
 
         def run(args, **k):
             calls.append(list(args))
@@ -213,7 +242,7 @@ class Flow(unittest.TestCase):
         fake_sub = mock.Mock(run=run, CalledProcessError=subprocess.CalledProcessError)
         lane = {"from_tree": "true", **({"reuse_from": "7"} if chain > 1 else {})}
         fakes = {
-            "running": lambda dry=False: [{"id": 43237206258, "title": "bump-waves flt-anthropic"}],
+            "running": lambda: [{"id": 43237206258 + i, "title": "bump-waves flt-anthropic"} for i in range(runs)],
             "jobs_of": lambda r: jobs,
             "plan_files": lambda r, k: (INPUTS, lane),
             "chain_length": lambda lane_, lanes: chain,
@@ -234,6 +263,20 @@ class Flow(unittest.TestCase):
                 st.enter_context(mock.patch.object(ww, "subprocess", fake_sub))
                 rc = ww.main(list(argv))
         return rc, calls
+
+    def run_incomplete(self):
+        """a dead run whose plan has no settings: nothing is cancelled"""
+        calls = []
+        fake_sub = mock.Mock(run=lambda args, **k: calls.append(list(args)), CalledProcessError=subprocess.CalledProcessError)
+        with contextlib.ExitStack() as st:
+            st.enter_context(mock.patch.object(ww, "running", lambda: [{"id": 5, "title": "bump-waves flt-anthropic"}]))
+            st.enter_context(mock.patch.object(ww, "jobs_of", lambda r: slice_at(at("2026-11-13T23:40:00Z"))))
+            st.enter_context(mock.patch.object(ww, "plan_files", lambda r, k: ({}, {})))
+            st.enter_context(mock.patch.object(ww, "chain_length", lambda lane_, lanes: 1))
+            st.enter_context(mock.patch.object(ww, "subprocess", fake_sub))
+            with self.assertRaises(ww.WatchError):
+                ww.main([])
+        return None, calls
 
     def test_a_dead_run_is_cancelled_then_resumed(self):
         rc, calls = self.run_main()
@@ -261,8 +304,35 @@ class Flow(unittest.TestCase):
             self.run_main(ends=False)
 
     def test_a_failed_dispatch_is_not_retried(self):
-        with self.assertRaises(subprocess.CalledProcessError):
-            self.run_main(dispatch_fails=True)
+        """cubic on #195: two dead runs; the first dispatch fails; exactly one dispatch was tried and the second run was not touched"""
+        calls = []
+        try:
+            self.run_main(dispatch_fails=True, runs=2)
+        except subprocess.CalledProcessError:
+            pass
+        else:
+            self.fail("a failed dispatch must end the look")
+        for _ in range(1):
+            calls = self.last_calls
+        self.assertEqual(len([c for c in calls if c[:3] == ["gh", "workflow", "run"]]), 1)
+        self.assertEqual(len([c for c in calls if c[:3] == ["gh", "run", "cancel"]]), 1)
+
+    def test_at_most_two_runs_are_resumed_in_one_look(self):
+        _, calls = self.run_main(runs=3)
+        self.assertEqual(len([c for c in calls if c[:3] == ["gh", "workflow", "run"]]), ww.MAX_RESUMES)
+
+    def test_every_run_in_progress_is_looked_at_not_the_first_page(self):
+        pages = []
+
+        def fake_gh(*args):
+            page = int(args[1].rsplit("page=", 1)[1])
+            pages.append(page)
+            n = 100 if page < 3 else 7
+            return json.dumps({"workflow_runs": [{"id": page * 1000 + i, "display_title": "bump-waves k"} for i in range(n)]})
+
+        with mock.patch.object(ww, "gh", fake_gh):
+            got = ww.running()
+        self.assertEqual((pages, len(got)), ([1, 2, 3], 207))
 
     def test_mutant_the_chain_guard_dropped(self):
         _, calls = self.run_main(chain=ww.MAX_CHAIN + 1, mutate=("if n > MAX_CHAIN:", "if False:"))
@@ -292,7 +362,7 @@ class Workflow(unittest.TestCase):
         for wf in on["workflow_run"]["workflows"]:
             self.assertEqual(yaml.safe_load((WF / f"{wf}.yml").read_text())["name"], wf)
         self.assertLess(job["timeout-minutes"] * 60, 3600)
-        self.assertGreater(job["timeout-minutes"] * 60, ww.ENDED_WITHIN_SECONDS + 300)
+        self.assertGreaterEqual(job["timeout-minutes"] * 60, ww.MAX_RESUMES * (ww.ENDED_WITHIN_SECONDS + 300))  # every recovery of a look may wait for its cancel (cubic on #195)
 
     def test_it_never_runs_a_pull_requests_code(self):
         text = (WF / "waves-watch.yml").read_text()

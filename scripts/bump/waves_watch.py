@@ -5,7 +5,7 @@
 (a build-once chain), so every job of waves 16 and 17 failed within 9 to 20 minutes at that step ("the pack of shard 93 could not be fetched in 4 tries") and the run went on until a person read the job
 results at 23:44 and resumed it by hand (`reuse_from`, from_tree true: 94 of 111 jobs reused, 17 run). The same shape as the outage of 12 Nov. This is that recovery, made automatic.
 
-The rule (doomed): a shard job failed (not cancelled), and at least two shard jobs of LATER waves failed at the restore step ("The work of the earlier jobs"). Later waves only start when their predecessors
+The rule (doomed): a shard job failed (not cancelled), and shard jobs of at least two LATER waves failed at the restore step ("The work of the earlier jobs"): two jobs of one wave could be a transient fetch failure. Later waves only start when their predecessors
 have finished, so the jobs still running when the rule fires cannot be lost work, and the first failure of a wave with other jobs still running (shard 93 at 19:14, with 92 and 94 running for four more
 hours) never fires it: waiting for the wave is what spares them. The run is cancelled, and when it has ended a new run is dispatched with reuse_from the cancelled run, from_tree and the settings the
 plan artifact recorded (inputs.json, lane.json), so that the plan step's own checks pass. A chain of more than MAX_CHAIN runs is left to a person (the same job failing again is not a runner lost), and so
@@ -25,7 +25,8 @@ REPO = "competemath/emissary-archangel"
 WORKFLOW = "bump-waves.yml"
 SHARD = re.compile(r"^w(\d+) \((\d+)\) / shard$")
 RESTORE_STEP = "The work of the earlier jobs"
-LATER_FAILURES = 2  # jobs of later waves that failed at the restore step before a run counts as dead
+LATER_FAILURES = 2  # later WAVES with a job that failed at the restore step before a run counts as dead
+MAX_RESUMES = 2  # runs resumed by one invocation: each may wait 10 minutes for its cancel, and the job's cap must cover them (cubic on #195)
 MAX_CHAIN = 4  # runs of one chain (the first, and what this resumed); the workflow itself stops at 8
 POLL_SECONDS = 15
 ENDED_WITHIN_SECONDS = 600
@@ -55,19 +56,22 @@ def doomed(jobs: list[dict]) -> dict | None:
         return None
     first = min(s["wave"] for s in roots)
     later = [s for s in roots if s["wave"] > first and any(x.startswith(RESTORE_STEP) for x in s["steps"])]
-    if len(later) < LATER_FAILURES:
+    if len({s["wave"] for s in later}) < LATER_FAILURES:  # distinct waves: two jobs of one wave failing to restore may be a transient (cubic on #195)
         return None
     return {"failed": sorted(s["shard"] for s in roots if s["wave"] == first), "wave": first, "later": sorted(s["shard"] for s in later)}
 
 
 def dispatch_args(key: str, run: int, inputs: dict, lane: dict) -> list[str]:
     """`gh workflow run` for the resume: the cancelled run, the settings its plan recorded, from_tree as its lane says. A value that is not a plain setting is refused."""
-    if not KEY.match(key):
+    if not KEY.fullmatch(key):
         raise WatchError(f"not a source key: {key!r}")
-    values = {k: str(inputs.get(k, "")) for k in SETTINGS}
-    values["from_tree"] = str(lane.get("from_tree", ""))
+    missing = [k for k in SETTINGS if k not in inputs] + (["from_tree"] if "from_tree" not in lane else [])
+    if missing:  # before anything is cancelled: the resume's own plan step would stop on a settings mismatch (cubic on #195)
+        raise WatchError(f"the plan recorded no {', '.join(missing)}: not resumed")
+    values = {k: str(inputs[k]) for k in SETTINGS}
+    values["from_tree"] = str(lane["from_tree"])
     for k, v in values.items():
-        if not SAFE.match(v):
+        if not SAFE.fullmatch(v):
             raise WatchError(f"{k} is not a plain setting: {v!r}")
     if values["from_tree"] not in ("true", "false"):
         raise WatchError(f"from_tree is true or false, not {values['from_tree']!r}")
@@ -121,9 +125,15 @@ def plan_files(run: int, key: str) -> tuple[dict, dict]:
         return read("inputs.json"), read("lane.json")
 
 
-def running(dry: bool = False) -> list[dict]:
-    text = gh("api", f"repos/{REPO}/actions/workflows/{WORKFLOW}/runs?status=in_progress&branch=main&event=workflow_dispatch&per_page=20")
-    return [{"id": int(r["id"]), "title": str(r.get("display_title", ""))} for r in json.loads(text).get("workflow_runs", [])]
+def running() -> list[dict]:
+    out, page = [], 1
+    while True:
+        text = gh("api", f"repos/{REPO}/actions/workflows/{WORKFLOW}/runs?status=in_progress&branch=main&event=workflow_dispatch&per_page=100&page={page}")
+        got = json.loads(text).get("workflow_runs", [])
+        out += [{"id": int(r["id"]), "title": str(r.get("display_title", ""))} for r in got]
+        if len(got) < 100:
+            return out
+        page += 1
 
 
 def key_of(title: str) -> str:
@@ -148,6 +158,9 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     resumed = 0
     for r in running():
+        if resumed >= MAX_RESUMES:
+            print("the rest is left to the next look")
+            break
         d = doomed(jobs_of(r["id"]))
         if not d:
             print(f"run {r['id']} ({r['title']}): alive")
