@@ -266,7 +266,7 @@ jobs:
   # token that can dispatch; the only thing taken from the prime job is a word that is compared, never run.
   build-gate:
     needs: prime
-    if: always() && inputs.bank_run == '' && inputs.prime_minutes != '0' && needs.prime.result == 'success' && (needs.prime.outputs.complete != 'true' || needs.prime.outputs.escalate == 'true')
+    if: ${{ !cancelled() && inputs.bank_run == '' && inputs.prime_minutes != '0' && needs.prime.result == 'success' && (needs.prime.outputs.complete != 'true' || needs.prime.outputs.escalate == 'true') }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions: { actions: write }
@@ -339,7 +339,7 @@ jobs:
           # A build too slow for rounds of one runner is split over runners instead of dispatching the next round: when the rounds this pace needs (this round + what is left / what this round added) go past
           # max_build_rounds, the library is set up again with prime_minutes=0, where every shard builds its own slice of about 60 modules and exports it. finite-simple-groups-lean, 14 Nov 2026: round 1
           # built 95 of 3,964 (one module at a time, 10-12 GB each): 41 more rounds, about 200 hours, against about 13 hours in 64 slices. A library added to its archive (from_release, only_modules), a round
-          # with no count, a round that added nothing or fewer than min_progress (the stall rule below decides), a library whose slices would be over 150 modules and a build that needs only one more round keep the next round. scripts/setup-plan.mjs slicedSwitch is the same rule; scripts/test-setup-workflows.mjs runs this text against it.
+          # with no count, a round that added nothing or fewer than min_progress (the stall rule below decides), a library whose slices would be over 25 modules and a build that needs only one more round keep the next round. scripts/setup-plan.mjs slicedSwitch is the same rule; scripts/test-setup-workflows.mjs runs this text against it.
           if [ -z "$ONLY_MODULES" ] && [ "$FROM_RELEASE" = false ] && [ -n "$BUILT" ] && [ -n "$MODULES" ] && [ $(( 10#$BUILT )) -lt $(( 10#$MODULES )) ]; then
             pace=0
             if [ "$BUILD_ROUND" -eq 1 ]; then pace=$(( 10#$BUILT )); elif [ -n "$PREV_BUILT" ]; then pace=$(( 10#$BUILT - 10#$PREV_BUILT )); fi
@@ -347,10 +347,10 @@ jobs:
             if [ "$pace" -gt 0 ] && { [ "$BUILD_ROUND" -eq 1 ] || [ "$MIN_PROGRESS" -eq 0 ] || [ "$pace" -ge "$MIN_PROGRESS" ]; }; then
               remaining=$(( 10#$MODULES - 10#$BUILT ))
               rounds_left=$(( (remaining + pace - 1) / pace ))
-              # the sliced run starts from nothing, so its shards divide ALL the modules; a slice is at most 150 modules (~110 s each: under the 300 minutes of a shard)
-              slices=$(( (10#$MODULES + 59) / 60 )); [ "$slices" -lt 8 ] && slices=8; [ "$slices" -gt 64 ] && slices=64
+              # the sliced run starts from nothing, so its shards divide ALL the modules; a slice is at most 25 modules (a shard builds the import closure of its slice, about 3 times as many modules at ~105 s: measured on finite-simple-groups-lean, 65 a slice ran out of the 300 minutes)
+              slices=$(( (10#$MODULES + 24) / 25 )); [ "$slices" -lt 8 ] && slices=8; [ "$slices" -gt 64 ] && slices=64
               per=$(( (10#$MODULES + slices - 1) / slices ))
-              if [ "$rounds_left" -ge 2 ] && [ $(( 10#$BUILD_ROUND + rounds_left )) -gt $(( 10#$MAX_BUILD_ROUNDS )) ] && [ "$per" -le 150 ]; then
+              if [ "$rounds_left" -ge 2 ] && [ $(( 10#$BUILD_ROUND + rounds_left )) -gt $(( 10#$MAX_BUILD_ROUNDS )) ] && [ "$per" -le 25 ]; then
                 gh workflow run setup-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$KEY" -f shards="$slices" -f prime_minutes=0 \
                   -f expand_chunk="$EXPAND_CHUNK" -f round="$ROUND" -f max_rounds="$MAX_ROUNDS" -f parallel="$PARALLEL" \
                   -f tengoku_ref="$TENGOKU_REF" -f retry_mb="$RETRY_MB" -f swap_gb="$SWAP_GB" -f solo_minutes="$SOLO_MINUTES" -f from_release=false
@@ -396,7 +396,7 @@ jobs:
   # library's code and checks nothing out; the only things it takes from the other jobs are numbers, checked again here. `issues: write` is held by this job alone.
   report-stall:
     needs: build-gate
-    if: always() && inputs.bank_run == '' && needs.build-gate.outputs.stalled == 'true'
+    if: ${{ !cancelled() && inputs.bank_run == '' && needs.build-gate.outputs.stalled == 'true' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions: { issues: write }
@@ -574,9 +574,11 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: { name: "out-${{ matrix.shard }}", path: "out-${{ matrix.shard }}.tar.zst", retention-days: 3, compression-level: 0 }
 
+  # !cancelled(), not always(): a CANCELLED run is stopped, and always() let this job run after a cancel anyway, find the shards had exported nothing and dispatch the next round (finite-simple-groups-lean, 14 Nov 2026: the cancel of a
+  # wasteful run started the same run again, round 2, 10 runners, until it was force-cancelled). A failed shard still lets it run, as before.
   finish:
     needs: [prime, shard]
-    if: always() && (needs.prime.result == 'success' || inputs.bank_run != '') && (inputs.bank_run != '' || inputs.prime_minutes == '0' || (needs.prime.outputs.complete == 'true' && needs.prime.outputs.escalate != 'true'))
+    if: ${{ !cancelled() && (needs.prime.result == 'success' || inputs.bank_run != '') && (inputs.bank_run != '' || inputs.prime_minutes == '0' || (needs.prime.outputs.complete == 'true' && needs.prime.outputs.escalate != 'true')) }}
     runs-on: ubuntu-26.04
     timeout-minutes: 150
     permissions: { contents: write, actions: write }

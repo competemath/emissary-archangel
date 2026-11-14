@@ -69,13 +69,13 @@ export function roundProgress({ round, prev = null, built, min = MIN_PROGRESS_DE
 
 // A build that is too slow to finish in rounds of one runner is split over runners instead. finite-simple-groups-lean (14 Nov 2026): 3,964 modules of about 110 seconds each, one at a time (a module
 // alone takes 10-12 GB, so a 16 GB runner holds one): round 1 built 95 (the round before the storm rule built 13), so the other 3,869 would take 41 more five-hour rounds, about 200 hours, while the
-// same work cut into slices of about 60 modules is ~2 hours per runner. `setup-sharded.yml` with prime_minutes=0 does that (every shard builds its own hash slice and exports it); this decides when the
+// same work cut into slices would be ~2 hours per runner IF a shard only built its slice: it builds its whole import closure (see SLICE_MAX_MODULES_PER_SHARD). `setup-sharded.yml` with prime_minutes=0 does that (every shard builds its own hash slice and exports it); this decides when the
 // build-gate dispatches it instead of the next round: at the end of a round that left the build incomplete, when the rounds the pace needs (round + remaining / what this round added) go past the plan.
 // No count to compare with, a round that added nothing (the stall rule decides), a library added to an archive (from_release / only_modules: the slices would not start from it) and a build that fits the
 // plan keep the next round, and so do a round that added fewer than min_progress (the stall rule judges it), a library whose slices would be bigger than a shard holds, and a build that needs only one more round (flt-anthropic's 86 modules: round 6 built 85, one module is left; the first version of this rule sent it to 8 shards). The shell of the build-gate does the same arithmetic; test-setup-workflows.mjs runs it.
-export const SLICE_MODULES_PER_SHARD = 60
+export const SLICE_MODULES_PER_SHARD = 25
 export const SLICE_MIN_SHARDS = 8
-export const SLICE_MAX_MODULES_PER_SHARD = 150 // 150 modules of ~110 s is 4.6 hours, under the 300 minutes a shard has; a library whose slices would be bigger than that is not sliced
+export const SLICE_MAX_MODULES_PER_SHARD = 25 // MEASURED on the first real sliced run (finite-simple-groups-lean, 14 Nov 2026): a slice of 65 modules took ~1,500 lake jobs and 5 h 5 min, because a shard builds the whole import closure of its slice (111 to 205 modules built for a slice of 65, about 3 times the slice, ~105 s each): 3 of 3 shards read ran out of their 300 minutes with 3, 13 and 130 jobs left and exported nothing. 25 modules a slice is ~75 modules of closure, ~2.2 h: a library with more than 64 x 25 = 1,600 modules is not sliced
 export function slicedSwitch({ round, prev = null, built = null, modules = null, maxBuildRounds, min = MIN_PROGRESS_DEFAULT, fromRelease = false, onlyModules = false }) {
   if (!Number.isInteger(round) || round < 1) throw new Error(`round is 1 or more, not ${round}`)
   if (!Number.isInteger(maxBuildRounds) || maxBuildRounds < 1) throw new Error(`maxBuildRounds is 1 or more, not ${maxBuildRounds}`)
