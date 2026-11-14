@@ -765,7 +765,7 @@ async function buildAlone(m) {
     aloneResult = r
     if (r.code !== 0) log(`WARNING: lake build ${m} (alone) exited ${r.code}`)
   } finally {
-    footprintLimit = FOOTPRINT_MB
+    footprintLimit = baseFootprint
   }
   return existsSync(oleanOf(m))
 }
@@ -840,6 +840,11 @@ async function build(modules) {
         // a kill storm: stopped after STORM_KILLS kills; what was killed is built alone below, and from here on one job at a time, which is what a 6-8 GB module needs
         log(`memory: ${killsInRun} modules were killed within one lake build on ${ENV.LEAN_NUM_THREADS} threads: stopped, and the rest of this build runs one job at a time (LEAN_NUM_THREADS=1)`)
         ENV.LEAN_NUM_THREADS = "1"
+        // one job at a time IS the machine to itself, which is what the limit of a module built alone is for: finite-simple-groups-lean (14 Nov 2026), the first run with this rule: after
+        // the stop 221 of the SiftCert modules were killed at 10.2-12.4 GB (median 11.0 GB) by the per-process limit of 10,240 MB, one a minute, and 13 modules had an .olean after five hours;
+        // each of them built alone, at the limit of a module alone (14,336 MB), in 100-120 s
+        baseFootprint = footprintLimit = RETRY_FOOTPRINT_MB
+        log(`memory: each process may now take up to ${RETRY_FOOTPRINT_MB} MB (it has the machine to itself)`)
         await settle()
         chunk = chunk.filter((m) => !blocker.has(m) && !existsSync(oleanOf(m)))
         continue
@@ -849,6 +854,7 @@ async function build(modules) {
       chunk = chunk.filter((m) => !blocker.has(m) && !existsSync(oleanOf(m)))
     }
   }
+  baseFootprint = footprintLimit = FOOTPRINT_MB // the chunks are done: the limit of a build with several jobs again
   // Modules still without an .olean whose library imports are all built and that are not left out for memory: built alone once more; one that fails with an error in its
   // own file (and no watchdog kill) does not compile at this commit and is written down as broken (BROKEN_FILE).
   const broken = loadBroken()
@@ -1526,6 +1532,7 @@ function finish(entries, modules, stats, t0) {
 // (default 10240). The killed command fails like any other and its module is recorded as failed.
 const FOOTPRINT_MB = Number(process.env.EMISSARY_FOOTPRINT_MB || 10240)
 let footprintLimit = FOOTPRINT_MB // raised while a module killed for its memory is built alone (buildAlone)
+let baseFootprint = FOOTPRINT_MB // what footprintLimit goes back to after a module built alone: raised for the rest of a build that runs one job at a time (the kill storm)
 // The phases after the build (closures, notation expansion, exports) run one Lean process at a time by default (--concurrency 1), and
 // each imports the whole environment of a batch of modules, which for a deep library is most of the library: flt-anthropic, 3-4 Nov 2026,
 // every closure process, a batch of 350-600 modules or a single module, was killed at 10.3-11.8 GB under the 10 GB limit, 62 of 64 shards
