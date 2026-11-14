@@ -67,9 +67,13 @@ if [ -n "$FAKE_LAKE_STORM" ] && [ "$1" = build ]; then
   if [ "$LEAN_NUM_THREADS" = 1 ] && [ "$#" -gt 2 ]; then node -e "const b = Buffer.alloc(120 * 1024 * 1024, 1); setTimeout(() => process.exit(0), 3000)" "$FAKE_LAKE_SRC/Big.lean" & wait; fi
   if [ "$LEAN_NUM_THREADS" != 1 ] && [ "$#" -gt 2 ]; then for i in 1 2 3 4 5 6; do node -e "const b = Buffer.alloc(120 * 1024 * 1024, 1); setInterval(() => b.length, 1000); setTimeout(() => process.exit(0), 15000)" "$FAKE_LAKE_SRC/M$i.lean" & done; wait; sleep 8; exit 1; fi
 fi
+# a module built alone that holds ~120 MB for 3 s (the build after the chunks: the original limit is back)
+if [ -n "$FAKE_LAKE_BIG_SOLO" ] && [ "$1" = build ] && [ "$#" -eq 2 ] && [ "$2" = "$FAKE_LAKE_BIG_SOLO" ]; then node -e "const b = Buffer.alloc(120 * 1024 * 1024, 1); setTimeout(() => process.exit(0), 3000)" "$FAKE_LAKE_SRC/Big.lean" & wait; fi
 if [ "$FAKE_LAKE_MAKES" = all ] && [ "$1" = build ]; then
+  n=$#
   shift
   for m in "$@"; do
+    if [ "$n" -gt 2 ] && [ "$m" = "$FAKE_LAKE_NO_OLEAN" ]; then continue; fi  # a chunk that leaves one module without an .olean
     f=".lake/build/lib/lean/$(echo "$m" | tr . /).olean"; mkdir -p "$(dirname "$f")"; : > "$f"
   done
 fi
@@ -333,6 +337,11 @@ if (process.platform === "linux") {
   // finite-simple-groups-lean, 14 Nov 2026: after the stop its modules of 10-12 GB were killed by the limit of 10 GB, one a minute, for five hours. One job at a time has the machine to itself: nothing is killed after the stop
   const after = st.r.stdout.split("one job at a time")[1] || ""
   check("after the stop a process over the old limit is not killed (one job at a time has the limit of a module alone)", /each process may now take up to 14336 MB/.test(after) && !/memory watchdog: killed/.test(after), after.slice(0, 900))
+  // cubic on #198: the original limit is back after the chunks. One module is left without an .olean by the chunks and built alone afterwards, holding ~120 MB: killed (20 MB limit), not spared by a limit that stayed raised
+  const back = stormRun({ FAKE_LAKE_NO_OLEAN: "Lib.B", FAKE_LAKE_BIG_SOLO: "Lib.B" })
+  const probe = back.r.stdout.split("$ lake build Lib.B")[1] || ""
+  check("after the chunks the original limit is back: the module built alone afterwards is killed at 20 MB", /memory watchdog: killed \d+ at \d+ MB \(limit 20 MB\)/.test(probe) && existsSync(olean("B")), probe.slice(0, 600))
+  st = stormRun()
   check("the build then finishes: both modules have an .olean", existsSync(olean("A")) && existsSync(olean("B")), st.r.stdout.slice(-800))
   check("the storm costs seconds, not hours: the fake chunk would have run 8 s after the kills", st.secs < 20, `${st.secs}`)
   st = stormRun({ LEAN_NUM_THREADS: "1" })
@@ -347,13 +356,14 @@ if (process.platform === "linux") {
     ["the threads are not lowered after the stop", '        ENV.LEAN_NUM_THREADS = "1"\n', ""],
     ["the killed modules are not settled after the stop", "        await settle()\n        chunk = chunk.filter((m) => !blocker.has(m) && !existsSync(oleanOf(m)))\n        continue\n", "        chunk = chunk.filter((m) => !blocker.has(m) && !existsSync(oleanOf(m)))\n        continue\n"],
     ["the limit is not raised after the stop", "        baseFootprint = footprintLimit = RETRY_FOOTPRINT_MB\n", ""],
+    ["the limit is not put back when the chunks are done", "  baseFootprint = footprintLimit = FOOTPRINT_MB // the chunks are done: the limit of a build with several jobs again\n", ""],
     ["the chunk is never stopped", "abortWhen: () => stormTripped({ kills: killsInRun, threads: Number(ENV.LEAN_NUM_THREADS), limit: STORM_KILLS }),", "abortWhen: null,"],
   ]) {
     if (real.split(from).length !== 2) { check(`mutant ${name}: the text to break is there once`, false, from); continue }
     writeFileSync(join(root, "scripts", "setup-source.mjs"), real.replace(from, to))
     try {
-      const m = stormRun({ EMISSARY_BUILD_ATTEMPTS: "2" })
-      check(`the broken version "${name}" is caught`, !lowered(m.threads) || m.secs >= 20 || !/one job at a time/.test(m.r.stdout) || !/building it alone/.test(m.r.stdout) || /memory watchdog: killed/.test(m.r.stdout.split("one job at a time")[1] || ""), m.threads.join(",") + ` ${m.secs}s`)
+      const m = stormRun({ EMISSARY_BUILD_ATTEMPTS: "2", FAKE_LAKE_NO_OLEAN: "Lib.B", FAKE_LAKE_BIG_SOLO: "Lib.B" })
+      check(`the broken version "${name}" is caught`, !lowered(m.threads) || m.secs >= 20 || !/one job at a time/.test(m.r.stdout) || !/building it alone/.test(m.r.stdout) || /memory watchdog: killed/.test((m.r.stdout.split("one job at a time")[1] || "").split("$ lake build Lib.B")[0]) || !/memory watchdog: killed \d+ at \d+ MB \(limit 20 MB\)/.test(m.r.stdout.split("$ lake build Lib.B")[1] || ""), m.threads.join(",") + ` ${m.secs}s`)
     } finally {
       writeFileSync(join(root, "scripts", "setup-source.mjs"), real)
     }
