@@ -1,0 +1,41 @@
+name: waves-watch
+# A bump-waves run whose build chain is dead is cancelled and resumed (scripts/bump/waves_watch.py says when: a shard job failed and two jobs of later waves could not restore its pack; 13 Nov 2026, run
+# 43237206258, the dead run went on for 4.5 hours until a person read it). Every 20 minutes and whenever a long emissary job ends (GitHub's scheduler is not to be counted on here: reference-github-scheduler-unreliable),
+# on main only. It reads, cancels and dispatches; it runs no library's code and pushes nothing. LANE_ENABLED (the intake lane's kill switch) stops it too. A person can rehearse it with workflow_dispatch (dry_run prints).
+on:
+  schedule:
+    - cron: "5,25,45 * * * *"
+  workflow_run:
+    workflows: [setup-sharded, bump-sharded, bump-waves]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run: { description: "Print what it would do, cancel and dispatch nothing", required: true, default: "true" }
+
+permissions: {}
+
+concurrency:
+  group: waves-watch
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  watch:
+    if: ${{ (github.event_name == 'workflow_dispatch' || vars.LANE_ENABLED == 'true') && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45   # at most MAX_RESUMES (2) recoveries a look, each up to 10 minutes for its cancel (cubic on #195)
+    permissions: { actions: write, contents: read }  # read the runs and their plan artifacts, cancel a run, dispatch the resume
+    env: { GH_TOKEN: "${{ github.token }}", DRY: "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run != 'false' }}" }
+    steps:
+      - name: The script
+        run: |
+          git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
+          git -C emissary sparse-checkout set --no-cone "/scripts/bump/"
+          git -C emissary checkout -q "$GITHUB_SHA"
+      - name: Cancel and resume a run whose build chain is dead
+        working-directory: emissary
+        run: python3 scripts/bump/waves_watch.py $([ "$DRY" = true ] && echo --dry-run)

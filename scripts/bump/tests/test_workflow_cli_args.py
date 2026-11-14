@@ -151,7 +151,7 @@ class EveryCallParses(unittest.TestCase):
         ("bump-library.yml", "bundle_layers", "an unquoted variable"), ("bump-library.yml", "bundle_rehead", "an unquoted variable"),
         ("bump-library.yml", "canonicalise_bundle", "an unquoted variable"), ("bump-library.yml", "gate2_driver", "an unquoted variable"),
         ("bump-library.yml", "scope_rewrite", "an unquoted variable"), ("bump-shard.yml", "gate2_driver", "an unquoted command substitution"),
-        ("bump-pickup.yml", "bump_pickup", "an unquoted command substitution"), ("setup-pickup.yml", "setup_pickup", "an unquoted command substitution"), ("bump-shard.yml", "build_rounds", "arithmetic"),
+        ("bump-pickup.yml", "bump_pickup", "an unquoted command substitution"), ("setup-pickup.yml", "setup_pickup", "an unquoted command substitution"), ("waves-watch.yml", "waves_watch", "an unquoted command substitution"), ("bump-shard.yml", "build_rounds", "arithmetic"),
         ("bump-sharded.yml", "bundle_layers", "an unquoted variable"), ("bump-sharded.yml", "canonicalise_bundle", "an unquoted command substitution"),
         ("bump-sharded.yml", "tree_dups", "an array"), ("bump-sharded.yml", "tree_dups", "an array"), ("bump-sharded.yml", "tree_dups", "an array"),
         ("bump-sharded.yml", "tree_dups", "an unquoted command substitution"), ("bump-sharded.yml", "tree_repair", "an array"),
