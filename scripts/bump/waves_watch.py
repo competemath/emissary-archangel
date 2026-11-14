@@ -10,7 +10,10 @@ have finished, so the jobs still running when the rule fires cannot be lost work
 hours) never fires it: waiting for the wave is what spares them. The run is cancelled, and when it has ended a new run is dispatched with reuse_from the cancelled run, from_tree and the settings the
 plan artifact recorded (inputs.json, lane.json), so that the plan step's own checks pass. A chain of more than MAX_CHAIN runs is left to a person (the same job failing again is not a runner lost), and so
 is any run this cannot read.
-It reads and cancels and dispatches; it runs no library's code. LANE_ENABLED (the intake lane's kill switch) stops it."""
+It reads and cancels and dispatches; it runs no library's code. LANE_ENABLED (the intake lane's kill switch) stops it.
+GitHub's scheduler did not fire the 20-minute cron once in the 46 minutes after the merge (14 Nov 2026), so the watcher does not wait for it: with --wait-minutes N it looks again every POLL_SECONDS
+for as long as a bump-waves run is in progress (up to N minutes), and then dispatches itself once more if one still is, so that a run is watched from the moment it is requested (waves-watch.yml
+runs on the `requested` event of bump-waves) to its end, by a job that does not depend on the scheduler. The cost is one runner while a run lives."""
 
 import argparse
 import json
@@ -28,7 +31,8 @@ RESTORE_STEP = "The work of the earlier jobs"
 LATER_FAILURES = 2  # later WAVES with a job that failed at the restore step before a run counts as dead
 MAX_RESUMES = 2  # runs resumed by one invocation: each may wait 10 minutes for its cancel, and the job's cap must cover them (cubic on #195)
 MAX_CHAIN = 4  # runs of one chain (the first, and what this resumed); the workflow itself stops at 8
-POLL_SECONDS = 15
+POLL_SECONDS = 15  # between two looks of ended(): a cancel
+LOOK_SECONDS = 300  # between two looks at the runs while one is in progress (--wait-minutes)
 ENDED_WITHIN_SECONDS = 600
 SETTINGS = ("mathlib", "toolchain", "imports", "tengoku_ref", "swap_gb", "build_timeout_min")  # what inputs.json records and the plan step compares
 SAFE = re.compile(r"^[A-Za-z0-9._/:+=-]*$")  # a value that can only be a setting: no space, no quote, no `$`, no `;`
@@ -152,13 +156,12 @@ def ended(run: int, sleep=time.sleep, clock=time.time) -> bool:
     return False
 
 
-def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--dry-run", action="store_true")
-    a = ap.parse_args(argv)
+def look(dry: bool, resumed_so_far: int = 0) -> tuple[int, int]:
+    """One look at every run in progress: dead ones are cancelled and resumed (unless dry). (runs in progress at the start of the look, runs resumed)"""
     resumed = 0
-    for r in running():
-        if resumed >= MAX_RESUMES:
+    runs = running()
+    for r in runs:
+        if resumed_so_far + resumed >= MAX_RESUMES:
             print("the rest is left to the next look")
             break
         d = doomed(jobs_of(r["id"]))
@@ -173,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"run {r['id']}: the chain has {n} runs (more than {MAX_CHAIN}): left to a person")
             continue
         args = dispatch_args(key, r["id"], inputs, lane)
-        if a.dry_run:
+        if dry:
             print("dry run: would cancel the run and dispatch: " + " ".join(args[3:]))
             continue
         subprocess.run(["gh", "run", "cancel", str(r["id"]), "-R", REPO], check=True)
@@ -182,7 +185,36 @@ def main(argv: list[str] | None = None) -> int:
         subprocess.run(args, check=True)  # never retried: a second dispatch would be a second resume
         resumed += 1
         print(f"run {r['id']} cancelled; resume dispatched: " + " ".join(args[3:]))
-    print(f"{resumed} resumed")
+    return len(runs), resumed
+
+
+def main(argv: list[str] | None = None, sleep=time.sleep, clock=time.time) -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--wait-minutes", type=int, default=0, help="while a bump-waves run is in progress, look again every five minutes for this long, then dispatch this workflow once more")
+    a = ap.parse_args(argv)
+    deadline = clock() + 60 * a.wait_minutes
+    total, first = 0, True
+    while True:
+        try:
+            alive, resumed = look(a.dry_run, total)
+        except Exception as e:  # noqa: BLE001 - a transient failure of gh must not end the watch of a run; the first look failing is a real failure
+            if first or clock() + LOOK_SECONDS > deadline:
+                raise
+            print(f"this look failed ({type(e).__name__}: {e}); the next is in {LOOK_SECONDS // 60} minutes")
+            alive, resumed = 1, 0
+        first = False
+        total += resumed
+        if a.dry_run or not alive:
+            break
+        if clock() + LOOK_SECONDS > deadline:
+            if a.wait_minutes:
+                # a run is still in progress at the end of this job's time: the watch goes on in a new job (never retried: a second dispatch would only queue a second watcher)
+                subprocess.run(["gh", "workflow", "run", "waves-watch.yml", "-R", REPO, "--ref", "main", "-f", "dry_run=false"], check=True)
+                print("a run is still in progress: the watch goes on in a new job")
+            break
+        sleep(LOOK_SECONDS)
+    print(f"{total} resumed")
     return 0
 
 

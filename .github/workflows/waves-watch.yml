@@ -7,7 +7,7 @@ on:
     - cron: "5,25,45 * * * *"
   workflow_run:
     workflows: [setup-sharded, bump-sharded, bump-waves]
-    types: [completed]
+    types: [requested, completed]  # `requested`: the watch of a bump-waves run starts when it is requested, not when the scheduler gets round to it
     branches: [main]
   workflow_dispatch:
     inputs:
@@ -27,7 +27,7 @@ jobs:
   watch:
     if: ${{ (github.event_name == 'workflow_dispatch' || vars.LANE_ENABLED == 'true') && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
     runs-on: ubuntu-26.04
-    timeout-minutes: 45   # at most MAX_RESUMES (2) recoveries a look, each up to 10 minutes for its cancel (cubic on #195)
+    timeout-minutes: 345   # --wait-minutes 300 of looking every five minutes while a run lives, and at most MAX_RESUMES (2) recoveries a look, each up to 10 minutes for its cancel
     permissions: { actions: write, contents: read }  # read the runs and their plan artifacts, cancel a run, dispatch the resume
     env: { GH_TOKEN: "${{ github.token }}", DRY: "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run != 'false' }}" }
     steps:
@@ -38,4 +38,4 @@ jobs:
           git -C emissary checkout -q "$GITHUB_SHA"
       - name: Cancel and resume a run whose build chain is dead
         working-directory: emissary
-        run: python3 scripts/bump/waves_watch.py $([ "$DRY" = true ] && echo --dry-run)
+        run: python3 scripts/bump/waves_watch.py $([ "$DRY" = true ] && echo --dry-run || echo --wait-minutes 300)
