@@ -2,9 +2,9 @@
 // --phase build-status says whether every module is compiled. Runs setup-source.mjs for real, in a throwaway
 // root, against a local git repository and stand-in `elan` and `lake` programs (no Lean, no network).
 import { execFileSync, spawnSync } from "node:child_process"
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
-import { dirname, join, resolve } from "node:path"
+import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -61,6 +61,10 @@ writeFileSync(join(bin, "lake"), `#!/bin/sh
 echo "$@" >> "${tmp}/lake-calls"
 echo "lake $@" >> "${tmp}/order"
 if [ -n "$FAKE_LAKE_HANGS" ] && [ "$1" = build ]; then exec sleep 25; fi
+if [ -n "$FAKE_LAKE_STORM" ] && [ "$1" = build ]; then
+  echo "$LEAN_NUM_THREADS" >> "${tmp}/storm-threads"
+  if [ "$LEAN_NUM_THREADS" != 1 ] && [ "$#" -gt 2 ]; then for i in 1 2 3 4 5 6; do node -e "const b = Buffer.alloc(120 * 1024 * 1024, 1); setInterval(() => b.length, 1000); setTimeout(() => process.exit(0), 15000)" "$FAKE_LAKE_SRC/M$i.lean" & done; wait; sleep 8; exit 1; fi
+fi
 if [ "$FAKE_LAKE_MAKES" = all ] && [ "$1" = build ]; then
   shift
   for m in "$@"; do
@@ -74,8 +78,8 @@ chmodSync(join(bin, "lake"), 0o755)
 
 const repo = join(root, "infra", "t", "repo")
 const olean = (m) => join(repo, ".lake", "build", "lib", "lean", "Lib", `${m}.olean`)
-const setup = (args, env = {}) =>
-  spawnSync("node", [join(root, "scripts", "setup-source.mjs"), "t", ...args], { env: { ...process.env, HOME: home, ...env }, encoding: "utf8" })
+const setup = (args, env = {}, opts = {}) =>
+  spawnSync("node", [join(root, "scripts", "setup-source.mjs"), "t", ...args], { env: { ...process.env, HOME: home, ...env }, encoding: "utf8", ...opts })
 const statusOf = (r) => ({ word: (r.stdout.match(/^complete=(true|false)$/m) || [])[1], file: JSON.parse(readFileSync(join(root, "infra", "t", "build-status.json"), "utf8")) })
 
 // a build that holds the .oleans of the first two modules, as an earlier round would have packed it
@@ -299,6 +303,55 @@ if (process.platform === "linux") {
   r = setup(["--phase", "build"], { FAKE_LAKE_HANGS: "1", EMISSARY_MIN_AVAILABLE_MB: "1536MB" })
   check("an unreadable threshold falls back to the default instead of killing everything", !/memory watchdog: killed/.test(r.stdout + r.stderr), r.stdout + r.stderr)
   check("with plenty of memory left nothing is killed", !/memory watchdog: killed/.test(r.stdout + r.stderr), r.stdout + r.stderr)
+}
+
+// 9. a kill storm (finite-simple-groups-lean, 13 Nov 2026: 610 kills in one 5-hour `lake build` chunk, 15 of 3,964 modules built): a lake build on several threads whose Lean processes are
+// killed one after another is stopped after EMISSARY_STORM_KILLS kills and the rest of the build runs on ONE thread. The fake lake starts six node processes (~120 MB each) that the watchdog kills
+// under a 20 MB limit (the per-process rule, which runs on macOS too) and, on one thread, compiles what it is asked for.
+{
+  const stormRun = (env = {}) => {
+    rmSync(join(repo, ".lake"), { recursive: true, force: true })
+    rmSync(join(tmp, "storm-threads"), { force: true })
+    rmSync(join(tmp, "lake-calls"), { force: true })
+    const t0 = Date.now()
+    // a broken version may never end (that is what is being caught): 30 s, then everything under the test's temp directory is stopped
+    const r = setup(["--phase", "build"], { FAKE_LAKE_STORM: "1", FAKE_LAKE_SRC: join(realpathSync(tmp), relative(tmp, repo), "Lib"), FAKE_LAKE_MAKES: "all", EMISSARY_FOOTPRINT_MB: "20", EMISSARY_WATCH_MS: "500", EMISSARY_STORM_KILLS: "3", ...env }, { timeout: 30000, killSignal: "SIGKILL" })
+    spawnSync("pkill", ["-f", tmp])
+    const threads = existsSync(join(tmp, "storm-threads")) ? readFileSync(join(tmp, "storm-threads"), "utf8").trim().split("\n") : []
+    return { r, threads, secs: (Date.now() - t0) / 1000 }
+  }
+  // the first try runs on 4 threads and is stopped; every later `lake build` (each killed module alone, then the chunk again) runs on 1
+  const lowered = (t) => t.length > 1 && t[0] === "4" && t.slice(1).every((x) => x === "1")
+  let st = stormRun()
+  check("a kill storm stops the lake build, and every later try runs on one thread", lowered(st.threads), st.threads.join(",") + "\n" + st.r.stdout.slice(-1500))
+  check("the storm is said in the log with the number of kills and the new setting", /memory: \d+ modules were killed within one lake build on 4 threads: stopped, and the rest of this build runs one job at a time \(LEAN_NUM_THREADS=1\)/.test(st.r.stdout), st.r.stdout.slice(-1500))
+  // cubic on #194: each killed process names its module (a `.lean` argument), so the watchdog records it and settle() builds it alone after the stop
+  const calls = existsSync(join(tmp, "lake-calls")) ? readFileSync(join(tmp, "lake-calls"), "utf8") : ""
+  check("the modules the storm killed are built alone, one by one, after the stop", /memory: Lib\.M\d was killed at \d+ MB .*building it alone/.test(st.r.stdout) && /^build Lib\.M\d$/m.test(calls) && /memory: Lib\.M\d built alone/.test(st.r.stdout), calls + "\n" + st.r.stdout.slice(-1500))
+  check("the build then finishes: both modules have an .olean", existsSync(olean("A")) && existsSync(olean("B")), st.r.stdout.slice(-800))
+  check("the storm costs seconds, not hours: the fake chunk would have run 8 s after the kills", st.secs < 20, `${st.secs}`)
+  st = stormRun({ LEAN_NUM_THREADS: "1" })
+  check("on one thread there is no storm rule: one try, no stop", st.threads.join(",") === "1" && !/kill storm|one job at a time/.test(st.r.stdout), st.threads.join(",") + st.r.stdout.slice(-600))
+  st = stormRun({ EMISSARY_STORM_KILLS: "1000", EMISSARY_BUILD_ATTEMPTS: "1" })
+  // the chunk (three arguments: build, two modules) is the storm; a module built alone (two arguments) just compiles. With the limit above the kills the chunk is not stopped: it ends by itself,
+  // the six killed modules are built alone, the build finishes and the run ends well inside its 30 s (cubic on #194: this case must end by itself, not by the test's timeout)
+  check("with the limit above the kills there is no stop: the chunk ends by itself, the killed modules are built alone, the build finishes", !/one job at a time/.test(st.r.stdout) && st.r.status === 0 && /memory: Lib\.M\d built alone/.test(st.r.stdout) && existsSync(olean("A")) && existsSync(olean("B")) && st.secs < 25, `${st.r.status} ${st.secs}s\n` + st.r.stdout.slice(-700))
+  // the broken versions of the wiring: the threads are not lowered; the stop is never asked for
+  const real = readFileSync(join(root, "scripts", "setup-source.mjs"), "utf8")
+  for (const [name, from, to] of [
+    ["the threads are not lowered after the stop", '        ENV.LEAN_NUM_THREADS = "1"\n', ""],
+    ["the killed modules are not settled after the stop", "        ENV.LEAN_NUM_THREADS = \"1\"\n        await settle()\n", "        ENV.LEAN_NUM_THREADS = \"1\"\n"],
+    ["the chunk is never stopped", "abortWhen: () => stormTripped({ kills: killsInRun, threads: Number(ENV.LEAN_NUM_THREADS), limit: STORM_KILLS }),", "abortWhen: null,"],
+  ]) {
+    if (real.split(from).length !== 2) { check(`mutant ${name}: the text to break is there once`, false, from); continue }
+    writeFileSync(join(root, "scripts", "setup-source.mjs"), real.replace(from, to))
+    try {
+      const m = stormRun({ EMISSARY_BUILD_ATTEMPTS: "2" })
+      check(`the broken version "${name}" is caught`, !lowered(m.threads) || m.secs >= 20 || !/one job at a time/.test(m.r.stdout) || !/building it alone/.test(m.r.stdout), m.threads.join(",") + ` ${m.secs}s`)
+    } finally {
+      writeFileSync(join(root, "scripts", "setup-source.mjs"), real)
+    }
+  }
 }
 
 rmSync(tmp, { recursive: true, force: true })

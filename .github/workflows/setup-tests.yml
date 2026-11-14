@@ -5,9 +5,9 @@
 name: setup-tests
 on:
   push:
-    paths: ["scripts/bump/link_srcdir.py", "scripts/bump/tests/fixtures/real-seed-paths.json.gz", "scripts/test-setup-seed-roots.mjs", "scripts/setup-plan.mjs", "scripts/setup-source.mjs", "scripts/setup-tools.mjs", "scripts/bisect.mjs", "scripts/memory-rules.mjs", "scripts/pinned-deps.mjs", "scripts/test-pinned-deps.mjs", "scripts/add-swap.sh", "scripts/budget-run.sh", "scripts/test-add-swap.mjs", "scripts/test-memory-rules.mjs", "scripts/fixtures/real-free-memory.json", "scripts/fixtures/real-leanbridge-001-sizes.json", "scripts/test-bisect-property.mjs", "scripts/fixtures/real-module-lists.json", "scripts/make-module-fixture.mjs", "scripts/test-setup-*.mjs", "scripts/test-workflow-pins.mjs", "scripts/check-workflow-pins.mjs", "scripts/runner-watch.sh", "scripts/round-summary.py", ".github/workflows/*.yml", ".github/workflows/*.yaml"]
+    paths: ["scripts/bump/link_srcdir.py", "scripts/bump/tests/fixtures/real-seed-paths.json.gz", "scripts/test-setup-seed-roots.mjs", "scripts/setup-plan.mjs", "scripts/setup-source.mjs", "scripts/setup-tools.mjs", "scripts/bisect.mjs", "scripts/memory-rules.mjs", "scripts/pinned-deps.mjs", "scripts/test-pinned-deps.mjs", "scripts/add-swap.sh", "scripts/budget-run.sh", "scripts/test-add-swap.mjs", "scripts/test-memory-rules.mjs", "scripts/test-memory-storm.mjs", "scripts/fixtures/real-fsgl-memory-kills.json", "scripts/fixtures/real-free-memory.json", "scripts/fixtures/real-leanbridge-001-sizes.json", "scripts/test-bisect-property.mjs", "scripts/fixtures/real-module-lists.json", "scripts/make-module-fixture.mjs", "scripts/test-setup-*.mjs", "scripts/test-workflow-pins.mjs", "scripts/check-workflow-pins.mjs", "scripts/runner-watch.sh", "scripts/round-summary.py", ".github/workflows/*.yml", ".github/workflows/*.yaml"]
   pull_request:
-    paths: ["scripts/bump/link_srcdir.py", "scripts/bump/tests/fixtures/real-seed-paths.json.gz", "scripts/test-setup-seed-roots.mjs", "scripts/setup-plan.mjs", "scripts/setup-source.mjs", "scripts/setup-tools.mjs", "scripts/bisect.mjs", "scripts/memory-rules.mjs", "scripts/pinned-deps.mjs", "scripts/test-pinned-deps.mjs", "scripts/add-swap.sh", "scripts/budget-run.sh", "scripts/test-add-swap.mjs", "scripts/test-memory-rules.mjs", "scripts/fixtures/real-free-memory.json", "scripts/fixtures/real-leanbridge-001-sizes.json", "scripts/test-bisect-property.mjs", "scripts/fixtures/real-module-lists.json", "scripts/make-module-fixture.mjs", "scripts/test-setup-*.mjs", "scripts/test-workflow-pins.mjs", "scripts/check-workflow-pins.mjs", "scripts/runner-watch.sh", "scripts/round-summary.py", ".github/workflows/*.yml", ".github/workflows/*.yaml"]
+    paths: ["scripts/bump/link_srcdir.py", "scripts/bump/tests/fixtures/real-seed-paths.json.gz", "scripts/test-setup-seed-roots.mjs", "scripts/setup-plan.mjs", "scripts/setup-source.mjs", "scripts/setup-tools.mjs", "scripts/bisect.mjs", "scripts/memory-rules.mjs", "scripts/pinned-deps.mjs", "scripts/test-pinned-deps.mjs", "scripts/add-swap.sh", "scripts/budget-run.sh", "scripts/test-add-swap.mjs", "scripts/test-memory-rules.mjs", "scripts/test-memory-storm.mjs", "scripts/fixtures/real-fsgl-memory-kills.json", "scripts/fixtures/real-free-memory.json", "scripts/fixtures/real-leanbridge-001-sizes.json", "scripts/test-bisect-property.mjs", "scripts/fixtures/real-module-lists.json", "scripts/make-module-fixture.mjs", "scripts/test-setup-*.mjs", "scripts/test-workflow-pins.mjs", "scripts/check-workflow-pins.mjs", "scripts/runner-watch.sh", "scripts/round-summary.py", ".github/workflows/*.yml", ".github/workflows/*.yaml"]
 permissions: {}
 defaults:
   run:
@@ -15,7 +15,7 @@ defaults:
 jobs:
   test:
     runs-on: ubuntu-26.04
-    timeout-minutes: 10
+    timeout-minutes: 15   # was 10: the suite took 7 min 48 s on main (13 Nov 2026) and the kill-storm tests add about a minute; a run that hit the cap was cancelled, not failed
     permissions: { contents: read }
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -32,6 +32,7 @@ jobs:
       - run: node scripts/test-setup-bisect.mjs
       - run: node scripts/test-bisect-property.mjs
       - run: node scripts/test-memory-rules.mjs
+      - run: node scripts/test-memory-storm.mjs
       - run: node scripts/test-add-swap.mjs
       - run: node scripts/test-setup-workflows.mjs
       - run: node scripts/test-setup-tools.mjs

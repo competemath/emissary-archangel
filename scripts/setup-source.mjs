@@ -38,7 +38,7 @@ import { promisify } from "node:util"
 import { collectTools, exporterAction, mergeTools, patchFingerprint, brokenLine, errorLineKeeper, brokenAlone, sourceInside, retrying, rootOfRepoPath, transientDownload } from "./setup-tools.mjs"
 import { bisectItems } from "./bisect.mjs"
 import { repairPins } from "./pinned-deps.mjs"
-import { aloneFirstMs, availableFrom, buildAttempts, closureBigModules, closureBudgetMs, closureRetryMs, membersOf, soloBuildMs, soloMax } from "./memory-rules.mjs"
+import { aloneFirstMs, availableFrom, buildAttempts, closureBigModules, closureBudgetMs, closureRetryMs, membersOf, soloBuildMs, soloMax, stormKills, stormTripped } from "./memory-rules.mjs"
 
 const x = promisify(execFile)
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -165,7 +165,7 @@ function killGroup(p) {
 }
 
 // Streams a long command's output to our stdout (lake build progress) and resolves with its exit code.
-function run(cmd, args, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000, quiet = false } = {}) {
+function run(cmd, args, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000, quiet = false, abortWhen = null } = {}) {
   return new Promise((res) => {
     if (!quiet) log(`$ ${cmd} ${args.join(" ")}  (cwd ${cwd})`)
     // detached: the command leads its own process group, so that a timeout can kill the whole tree. `lake env <tool>` runs the tool as a child of `lake`:
@@ -184,12 +184,24 @@ function run(cmd, args, { cwd = APP_ROOT, timeoutMs = 4 * 3600 * 1000, quiet = f
     p.stdout.on("data", onData("out"))
     p.stderr.on("data", onData("err"))
     const t = setTimeout(() => {
+      clearInterval(poll)
       killGroup(p)
       res({ code: 124, tail: tail + `\n[timed out after ${timeoutMs / 1000}s]`, errors: errors.text() })
     }, timeoutMs)
+    // abortWhen: the caller can stop the command (exit code 125) when a condition holds, polled every second: a kill storm (stormTripped)
+    const poll = abortWhen
+      ? setInterval(() => {
+          if (!abortWhen()) return
+          clearInterval(poll)
+          clearTimeout(t)
+          killGroup(p)
+          res({ code: 125, tail: tail + "\n[stopped by the caller]", errors: errors.text() })
+        }, 1000)
+      : null
     p.on("close", (code) => {
       live.delete(p)
       clearTimeout(t)
+      clearInterval(poll)
       res({ code: code ?? 1, tail, errors: errors.text() })
     })
   })
@@ -288,6 +300,8 @@ const OOM_FILE = join(REPO, ".lake", "build", "emissary-oom.json")
 const SOLO_MAX = soloMax() // modules built alone in one run: each can take minutes (memory-rules.mjs: more when the retry limit is the escalation's, EMISSARY_RETRY_FOOTPRINT_MB >= 57344)
 const BUILD_ATTEMPTS = buildAttempts() // tries of one chunk, each after the killed modules were built alone
 const SOLO_BUILD_MS = soloBuildMs()
+const STORM_KILLS = stormKills() // kills in one `lake build` with several threads after which it is stopped and the rest is built one job at a time (memory-rules.mjs)
+let killsInRun = 0 // watchdog kills since the current `lake build` chunk started
 const MODULE_NAME = /^(?:[\p{L}_][\p{L}\p{N}_'!?]*|«[^»]+»)(?:\.(?:[\p{L}_][\p{L}\p{N}_'!?]*|«[^»]+»))*$/u
 // `srcdir` is one folder or a list of them (a monorepo of Lake libraries); the longest that matches, so that `a/b` is tried before `a`
 const SRCDIRS = [].concat(src.srcdir || []).sort((x, y) => y.length - x.length)
@@ -815,8 +829,21 @@ async function build(modules) {
   for (let i = 0; i < modules.length; i += BUILD_CHUNK) {
     let chunk = modules.slice(i, i + BUILD_CHUNK).filter((m) => !blocker.has(m))
     for (let attempt = 0; chunk.length && attempt < BUILD_ATTEMPTS; attempt++) {
-      const r = await run("lake", ["build", ...chunk], { cwd: REPO, timeoutMs: 6 * 3600 * 1000 })
+      killsInRun = 0
+      const r = await run("lake", ["build", ...chunk], {
+        cwd: REPO,
+        timeoutMs: 6 * 3600 * 1000,
+        abortWhen: () => stormTripped({ kills: killsInRun, threads: Number(ENV.LEAN_NUM_THREADS), limit: STORM_KILLS }),
+      })
       if (r.code === 0) break
+      if (r.code === 125) {
+        // a kill storm: stopped after STORM_KILLS kills; what was killed is built alone below, and from here on one job at a time, which is what a 6-8 GB module needs
+        log(`memory: ${killsInRun} modules were killed within one lake build on ${ENV.LEAN_NUM_THREADS} threads: stopped, and the rest of this build runs one job at a time (LEAN_NUM_THREADS=1)`)
+        ENV.LEAN_NUM_THREADS = "1"
+        await settle()
+        chunk = chunk.filter((m) => !blocker.has(m) && !existsSync(oleanOf(m)))
+        continue
+      }
       log(`WARNING: lake build chunk ${i / BUILD_CHUNK + 1} exited ${r.code}: ${r.tail.slice(-400)} — modules that did not build are reported at export`)
       if (!(await settle())) break
       chunk = chunk.filter((m) => !blocker.has(m) && !existsSync(oleanOf(m)))
@@ -1570,6 +1597,7 @@ function killProcess(pid, mb, why) {
     /* exited */
   }
   process.kill(pid, "SIGKILL")
+  killsInRun++
   // The module first: the command line is cut at 160 characters, and the module's name sits after the toolchain's and the project's paths (2026-10-29: 9 kills, none named).
   const mod = moduleOfCommand(cmd)
   if (mod) oomKilled.set(mod, { mb: Math.max(oomKilled.get(mod)?.mb ?? 0, Math.round(mb)), why })

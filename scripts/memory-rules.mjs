@@ -28,6 +28,15 @@ const escalated = (env) => Number(env.EMISSARY_RETRY_FOOTPRINT_MB) >= ESCALATED_
 export const buildAttempts = (env = process.env) => positiveInt(env.EMISSARY_BUILD_ATTEMPTS, 1000) ?? (escalated(env) ? BUILD_ATTEMPTS_ESCALATED : BUILD_ATTEMPTS_DEFAULT)
 export const soloMax = (env = process.env) => positiveInt(env.EMISSARY_SOLO_MAX, 1000) ?? (escalated(env) ? SOLO_MAX_ESCALATED : SOLO_MAX_DEFAULT)
 
+// A kill storm: several Lean processes at once, each needing more than a share of the machine, are killed one after another for the whole round. finite-simple-groups-lean, 13 Nov 2026: 610
+// `FiniteSimpleGroups.Sporadic.Co2.SiftCert<N>` modules of 3.4-7.9 GB each (median 6.2 GB) on a 16 GB runner with four threads: one kill every 30-60 seconds for 4.96 hours, ONE `lake build` chunk that
+// never ended, so no module was ever built alone (settle() runs after a chunk) and 15 of 3,964 modules were built in two rounds of 5 hours. Past EMISSARY_STORM_KILLS kills in one `lake build` with
+// more than one thread the chunk is stopped, the killed modules are built alone as always, and the rest of the build runs ONE job at a time (LEAN_NUM_THREADS=1), where a module of 6-8 GB fits.
+// Not with one thread: there a kill is a module that does not fit alone, which the solo rule already handles.
+export const STORM_KILLS_DEFAULT = 8
+export const stormKills = (env = process.env) => positiveInt(env.EMISSARY_STORM_KILLS, 1000) ?? STORM_KILLS_DEFAULT
+export const stormTripped = ({ kills, threads, limit }) => threads > 1 && kills >= limit
+
 // A module whose closure ran out of time alone gets ONE more try with a longer limit (flt-anthropic, 6 Nov 2026: the closure of the 86 top-of-proof modules, the final theorem among them, took
 // more than the 20 minutes a single module gets, so the export recorded "86 failed" after 5 hours and nobody could tell the library from a module that needs more time). The retry is four times the
 // first limit, at most four hours, and only when what is left of the job's budget (EMISSARY_CLOSURE_BUDGET_MINUTES, default and at most 300: the shard process's own timeout) holds it; 0 means no retry.
