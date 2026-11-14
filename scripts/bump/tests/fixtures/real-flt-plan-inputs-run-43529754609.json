@@ -1,0 +1,8 @@
+{
+ "build_timeout_min": "170",
+ "imports": "faithful",
+ "mathlib": "v4.34.0-rc2",
+ "swap_gb": "48",
+ "tengoku_ref": "",
+ "toolchain": "leanprover/lean4:v4.34.0-rc2"
+}
