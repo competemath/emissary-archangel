@@ -424,39 +424,47 @@ for (const job of ["shard", "finish"]) {
 // finite-simple-groups-lean, 14 Nov 2026: round 1 built 95 of 3,964 modules (the round before the storm rule, 13): 41 more rounds, about 200 hours. The shell of the build-gate against the rule, run for
 // real with a fake `gh`, on the real rounds, on a grid of every kind of count and on random rounds; and mutants of the shell that must each be noticed.
 {
-  const sw = (c) => slicedSwitch({ round: c.round, prev: c.prev === "" ? null : Number(c.prev), built: c.built === "" ? null : Number(c.built), modules: c.modules === "" ? null : Number(c.modules), maxBuildRounds: c.maxRounds ?? 6, fromRelease: c.fromRelease === "true", onlyModules: (c.only ?? "") !== "" })
+  const sw = (c) => slicedSwitch({ round: c.round, prev: c.prev === "" ? null : Number(c.prev), built: c.built === "" ? null : Number(c.built), modules: c.modules === "" ? null : Number(c.modules), maxBuildRounds: c.maxRounds ?? 6, min: c.min ?? 1, fromRelease: c.fromRelease === "true", onlyModules: (c.only ?? "") !== "" })
   const real = [
     { name: "finite-simple-groups-lean round 1 (95 of 3,964, 14 Nov 2026)", c: { round: 1, prev: "", built: "95", modules: "3964", min: 1, maxRounds: 6 }, want: { switch: true, shards: 64 } },
     { name: "finite-simple-groups-lean round 1 before the storm rule (13 of 3,964)", c: { round: 1, prev: "", built: "13", modules: "3964", min: 1, maxRounds: 6 }, want: { switch: true, shards: 64 } },
+    { name: "finite-simple-groups-lean, 3,000 of 3,964 built at 95 a round: the slices still divide all 3,964", c: { round: 2, prev: "2905", built: "3000", modules: "3964", min: 1, maxRounds: 6 }, want: { switch: true, shards: 64 } },
+    { name: "flt-anthropic's 30,662 modules: 480 a slice is more than a shard holds, rounds go on", c: { round: 1, prev: "", built: "9", modules: "30662", min: 1, maxRounds: 6 }, want: { switch: false } },
     { name: "flt-anthropic's 86 modules, round 6 built 85 of 86 (a delta from the archive)", c: { round: 6, prev: "1", built: "85", modules: "86", min: 1, maxRounds: 6, fromRelease: "true", only: "Theorems.Thm_A" }, want: { switch: false } },
+    { name: "the same pace as FSGL with from_release: the archive keeps the rounds", c: { round: 1, prev: "", built: "95", modules: "3964", min: 1, maxRounds: 6, fromRelease: "true" }, want: { switch: false } },
     { name: "the same 86 without the archive flags: 85 of 86 is nearly done", c: { round: 6, prev: "1", built: "85", modules: "86", min: 1, maxRounds: 6 }, want: { switch: false } },
     { name: "a library that needs three rounds at its pace (2,900 a round of 8,000)", c: { round: 2, prev: "3000", built: "5900", modules: "8000", min: 1, maxRounds: 6 }, want: { switch: false } },
     { name: "a round that added nothing is the stall rule's", c: { round: 3, prev: "100", built: "100", modules: "3964", min: 1, maxRounds: 6 }, want: { switch: false } },
+    { name: "a round that added 1 with min_progress 5 is the stall rule's", c: { round: 3, prev: "100", built: "101", modules: "3964", min: 5, maxRounds: 6 }, want: { switch: false } },
+    { name: "a round after the first with no count of the round before is not judged", c: { round: 3, prev: "", built: "95", modules: "3964", min: 1, maxRounds: 6 }, want: { switch: false } },
   ]
   for (const { name, c, want } of real) {
     const e = sw(c), g = runGate(gateScript, c)
     const sliced = g.calls.includes("prime_minutes=0")
     check(`slicedSwitch: ${name}: switch=${want.switch}`, e.switch === want.switch && (!want.switch || e.shards === want.shards), e)
-    check(`build-gate: ${name}: ${want.switch ? "dispatches the slices" : "does not"}`, sliced === want.switch && (!want.switch || (g.code === 0 && g.calls.includes(`shards=${want.shards}`) && !g.calls.includes("build_run=") && !g.calls.includes("prev_built=") && g.calls.includes("from_release=false") && g.calls.split("\n").filter((l) => l.includes("workflow run")).length === 1)), g.calls.slice(0, 300))
+    check(`build-gate: ${name}: ${want.switch ? "dispatches the slices" : "does not"}`, sliced === want.switch && (!want.switch || (g.code === 0 && g.calls.includes(`shards=${want.shards} `) && !g.calls.includes("build_run=") && !g.calls.includes("prev_built=") && g.calls.includes("from_release=false") && g.calls.split("\n").filter((l) => l.includes("workflow run")).length === 1)), g.calls.slice(0, 300))
   }
   const grid = []
-  for (const round of [1, 2, 5, 6, 7]) for (const maxRounds of [1, 6]) for (const modules of ["", "86", "3964", "30662"]) for (const built of ["", "0", "1", "13", "95", "3964", "30000"]) for (const prev of ["", "0", "90"]) for (const extra of [{}, { fromRelease: "true" }, { fromRelease: "true", only: "A.B" }]) grid.push({ round, maxRounds, modules, built, prev, min: 0, ...extra })
-  for (let i = 0; i < 400; i++) { const m = 1 + rnd(40000), b = rnd(m + 1), p = rnd(m + 1); grid.push({ round: 1 + rnd(8), maxRounds: 1 + rnd(8), modules: String(m), built: String(b), prev: rnd(5) === 0 ? "" : String(p), min: 0 }) }
+  for (const round of [1, 2, 6]) for (const maxRounds of [1, 6]) for (const modules of ["", "86", "3964", "30662"]) for (const built of ["", "0", "13", "95", "3964"]) for (const prev of ["", "0", "90"]) for (const extra of [{}, { fromRelease: "true" }]) for (const min of [0, 5]) grid.push({ round, maxRounds, modules, built, prev, min, ...extra })
+  for (let i = 0; i < 500; i++) { const m = 1 + rnd(rnd(2) === 0 ? 9000 : 40000), b = rnd(2) === 0 ? rnd(Math.min(m, 300) + 1) : rnd(m + 1), p = rnd(m + 1); grid.push({ round: 1 + rnd(8), maxRounds: 1 + rnd(8), modules: String(m), built: String(b), prev: rnd(5) === 0 ? "" : String(p), min: rnd(6) }) }
   let wrongSw = [], switched = 0, kept = 0
   for (const c of grid) {
-    if (c.built !== "" && c.round > 1 && c.prev !== "" && Number(c.built) < Number(c.prev)) c.min = 0 // a fall at min 0 is no stop
     const e = sw(c), g = runGate(gateScript, c)
     const sliced = g.calls.includes("prime_minutes=0")
     if (sliced) switched++; else kept++
     if (sliced !== e.switch || (e.switch && !g.calls.includes(`shards=${e.shards} `))) wrongSw.push({ c, e, calls: g.calls.slice(0, 160) })
   }
-  check(`build-gate's shell and slicedSwitch agree on ${grid.length} rounds (${switched} slice, ${kept} do not): counts, empty counts, falls, archive flags`, wrongSw.length === 0 && switched > 100 && kept > 100, wrongSw.slice(0, 3))
+  check(`build-gate's shell and slicedSwitch agree on ${grid.length} rounds (${switched} slice, ${kept} do not): counts, empty counts, falls, min_progress, archive flags`, wrongSw.length === 0 && switched > 100 && kept > 100, wrongSw.slice(0, 3))
   const swMutants = [
     ["the switch ignores the archive flags (from_release)", '[ "$FROM_RELEASE" = false ] && [ -n "$BUILT" ] && [ -n "$MODULES" ]', '[ -n "$BUILT" ] && [ -n "$MODULES" ]'],
-    ["the switch fires on a round that added nothing (pace 0)", 'if [ "$pace" -gt 0 ]; then', 'if [ "$pace" -ge 0 ]; then'],
+    ["the switch fires on a round that added nothing (pace 0)", 'if [ "$pace" -gt 0 ] && {', 'if [ "$pace" -ge 0 ] && {'],
+    ["the switch ignores min_progress (a stalled round slices)", ' || [ "$MIN_PROGRESS" -eq 0 ] || [ "$pace" -ge "$MIN_PROGRESS" ]; }', ' || true; }'],
+    ["the switch judges a round with no count of the round before it on the total built", 'elif [ -n "$PREV_BUILT" ]; then pace=$(( 10#$BUILT - 10#$PREV_BUILT )); fi', 'else pace=$(( 10#$BUILT - 10#${PREV_BUILT:-0} )); fi'],
     ["the switch counts the rounds left without the rounds done (round 1 of a plan of 6)", '[ $(( 10#$BUILD_ROUND + rounds_left )) -gt $(( 10#$MAX_BUILD_ROUNDS )) ]', '[ $(( rounds_left )) -gt $(( 10#$MAX_BUILD_ROUNDS )) ]'],
     ["the switch rounds the rounds left down", 'rounds_left=$(( (remaining + pace - 1) / pace ))', 'rounds_left=$(( remaining / pace ))'],
+    ["the shards divide the modules that are left, not all of them", 'slices=$(( (10#$MODULES + 59) / 60 ))', 'slices=$(( (remaining + 59) / 60 ))'],
     ["the slices are not capped at 64", '[ "$slices" -gt 64 ] && slices=64', ':'],
+    ["a slice may be any size (the 30,662-module library is sliced)", ' && [ "$per" -le 150 ]; then', '; then'],
     ["the slices keep the build of the round before (build_run)", '-f from_release=false\n', '-f from_release=false -f build_run="$GITHUB_RUN_ID"\n'],
     ["the slices still have a prime build", '-f prime_minutes=0', '-f prime_minutes="$PRIME_MINUTES"'],
     ["the switch slices a build that needs only one more round", 'if [ "$rounds_left" -ge 2 ] && ', 'if '],
