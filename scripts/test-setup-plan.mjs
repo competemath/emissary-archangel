@@ -1,5 +1,5 @@
 // node scripts/test-setup-plan.mjs — the route a library is set up by (exits 1 on a wrong plan)
-import { decide, roundProgress, roundsCap, BUILD_ROUNDS_CEILING_FACTOR, MIN_PROGRESS_DEFAULT, ONE_SHOT_MAX_ENTRIES, MAX_SHARDS } from "./setup-plan.mjs"
+import { decide, roundProgress, roundsCap, slicedSwitch, SLICE_MODULES_PER_SHARD, SLICE_MIN_SHARDS, SLICE_MAX_MODULES_PER_SHARD, BUILD_ROUNDS_CEILING_FACTOR, MIN_PROGRESS_DEFAULT, ONE_SHOT_MAX_ENTRIES, MAX_SHARDS } from "./setup-plan.mjs"
 let bad = 0
 const check = (name, ok, got) => {
   if (!ok) { bad++; console.log("FAIL", name, JSON.stringify(got)) } else console.log("ok", name)
@@ -84,5 +84,48 @@ check("mutant: stopping on a fall although min is 0 is noticed", disagrees(({ ro
   let threw = 0
   for (const a of [{ round: 0, maxRounds: 6 }, { round: 1, maxRounds: 0 }, { round: 1.5, maxRounds: 6 }, { round: 1, maxRounds: 6, min: -1 }]) { try { roundsCap(a) } catch { threw++ } }
   check("a round or a plan that is not a count is an error", threw === 4, threw)
+}
+
+// ---- a build too slow for rounds is split over runners (slicedSwitch) ----
+{
+  const sw = (a) => slicedSwitch({ maxBuildRounds: 6, ...a })
+  const fsgl = sw({ round: 1, built: 95, modules: 3964 })
+  check("finite-simple-groups-lean, 14 Nov 2026: 95 of 3,964 in round 1 is 41 more rounds: 64 slices of about 62 modules instead", fsgl.switch && fsgl.shards === 64 && /41 more rounds/.test(fsgl.why) && /about 62 of the 3964/.test(fsgl.why), fsgl)
+  check("the round before the storm rule (13 of 3,964) switches too", sw({ round: 1, built: 13, modules: 3964 }).switch, null)
+  check("a build that fits the plan keeps the rounds: 2,900 a round of 8,000 is 3 in all", !sw({ round: 2, prev: 3000, built: 5900, modules: 8000 }).switch && !sw({ round: 1, built: 2000, modules: 8000 }).switch, null)
+  check("the line is exact: round + rounds left = the plan keeps rounds, one over switches", !sw({ round: 1, built: 100, modules: 600 }).switch && sw({ round: 1, built: 100, modules: 601 }).switch, [sw({ round: 1, built: 100, modules: 600 }), sw({ round: 1, built: 100, modules: 601 })])
+  check("a build that needs only one more round keeps it: flt-anthropic 86 modules, round 6 built 85 (one left, 84 a round)", !sw({ round: 6, prev: 1, built: 85, modules: 86 }).switch && !sw({ round: 6, prev: 100, built: 200, modules: 300 }).switch && sw({ round: 6, prev: 100, built: 200, modules: 301 }).switch, [sw({ round: 6, prev: 1, built: 85, modules: 86 }), sw({ round: 6, prev: 100, built: 200, modules: 301 })])
+  // the archive flags alone decide: the same pace that switches (95 of 3,964 in round 1) keeps the rounds with either flag (cubic: the 86-module case would keep its rounds without the guard)
+  check("an archive delta is built by rounds (from_release, only_modules): the pace that switches keeps the rounds with either flag", sw({ round: 1, built: 95, modules: 3964 }).switch && !sw({ round: 1, built: 95, modules: 3964, fromRelease: true }).switch && !sw({ round: 1, built: 95, modules: 3964, onlyModules: true }).switch, null)
+  check("no count, a finished build and a round that added nothing or fell are not the pace's to judge", [{ built: null, modules: 100 }, { built: 5, modules: null }, { built: "", modules: 100 }, { built: 100, modules: 100 }, { built: 120, modules: 100 }, { round: 3, prev: 50, built: 50, modules: 5000 }, { round: 3, prev: 60, built: 50, modules: 5000 }].every((a) => !sw({ round: 1, ...a }).switch), null)
+  check("a round after the first with no count of the round before it is not judged (cubic: not projected from the total)", !sw({ round: 3, prev: null, built: 95, modules: 3964 }).switch && !sw({ round: 3, prev: "", built: 95, modules: 3964 }).switch && sw({ round: 1, prev: null, built: 95, modules: 3964 }).switch, null)
+  check("a round after the first is judged on what it added, not on the total: 1,000 added of 3,964 is one more round", !sw({ round: 2, prev: 2000, built: 3000, modules: 3964 }).switch && sw({ round: 2, prev: 2999, built: 3000, modules: 3964 }).switch, null)
+  check("a later round at a pace of 95 a round (prev 95, built 190) switches", sw({ round: 2, prev: 95, built: 190, modules: 3964 }).switch, null)
+  // cubic: a round that added fewer than min_progress modules is the stall rule's, not the pace's
+  check("a round that added fewer than min_progress is the stall rule's: added 1 with min 5 keeps the rounds, added 5 or min 0 slices; round 1 has no stall rule", !sw({ round: 3, prev: 100, built: 101, modules: 3964, min: 5 }).switch && sw({ round: 3, prev: 100, built: 105, modules: 3964, min: 5 }).switch && sw({ round: 3, prev: 100, built: 101, modules: 3964, min: 0 }).switch && sw({ round: 1, built: 1, modules: 3964, min: 5 }).switch, null)
+  // cubic: the sliced run starts from nothing, so its shards divide ALL the modules, not the ones left
+  check("the shards divide all the modules: 64 for 3,964 whatever is built, and 3,000 of 3,964 built is still 64 (not 16)", sw({ round: 1, built: 95, modules: 3964 }).shards === 64 && sw({ round: 2, prev: 2990, built: 3000, modules: 3964 }).shards === 64, [sw({ round: 2, prev: 2990, built: 3000, modules: 3964 })])
+  check("flt-anthropic's 30,662 modules are not sliced (480 a shard in 64 shards is more than a shard's time holds): rounds go on", !sw({ round: 1, built: 9, modules: 30662 }).switch && /480 a shard/.test(sw({ round: 1, built: 9, modules: 30662 }).why), sw({ round: 1, built: 9, modules: 30662 }))
+  check("the shards are about 60 modules each, 8 at least, 64 at most, and a slice is at most 150 modules", sw({ round: 1, built: 1, modules: 400, maxBuildRounds: 1 }).shards === SLICE_MIN_SHARDS && sw({ round: 1, built: 10, modules: 1000 }).shards === 17 && sw({ round: 1, built: 1, modules: 64 * SLICE_MAX_MODULES_PER_SHARD }).shards === 64 && !sw({ round: 1, built: 1, modules: 64 * SLICE_MAX_MODULES_PER_SHARD + 1 }).switch && SLICE_MODULES_PER_SHARD === 60, [sw({ round: 1, built: 1, modules: 64 * SLICE_MAX_MODULES_PER_SHARD })])
+  // an independent statement of the rule on random numbers
+  let ok = true, switched = 0, kept = 0
+  for (let i = 0; i < 20000; i++) {
+    const modules = 1 + rnd(40000), built = rnd(modules + 1), prevN = rnd(modules + 1), round = 1 + rnd(8), maxBuildRounds = 1 + rnd(8), min = rnd(4) === 0 ? 0 : 1 + rnd(5), prev = rnd(5) === 0 ? null : prevN
+    let want = false
+    if (built < modules && !(round > 1 && prev === null)) {
+      const added = round === 1 ? built : built - prev
+      const roundsLeft = added > 0 ? Math.ceil((modules - built) / added) : 0
+      const shards = Math.min(64, Math.max(8, Math.ceil(modules / 60)))
+      want = added > 0 && !(round > 1 && min > 0 && added < min) && roundsLeft >= 2 && round + roundsLeft > maxBuildRounds && Math.ceil(modules / shards) <= 150
+      if (want && slicedSwitch({ round, prev, built, modules, maxBuildRounds, min }).shards !== shards) { ok = false; console.log("  shards", { round, prev, built, modules }); break }
+    }
+    const got = slicedSwitch({ round, prev, built, modules, maxBuildRounds, min })
+    if (got.switch !== want) { ok = false; console.log("  differs", { round, prev, built, modules, maxBuildRounds, min, got, want }); break }
+    if (want) switched++; else kept++
+  }
+  check(`slicedSwitch agrees with an independent statement of the rule on 20,000 random builds (${switched} switch, ${kept} do not)`, ok && switched > 300 && kept > 1000, { switched, kept })
+  let threw = 0
+  for (const a of [{ round: 0 }, { round: 1.5 }, { round: 1, maxBuildRounds: 0 }, { round: 1, built: -1, modules: 5 }, { round: 1, built: 1, modules: 5.5 }, { round: 1, min: -1 }]) { try { slicedSwitch({ maxBuildRounds: 6, ...a }) } catch { threw++ } }
+  check("a round, a plan or a count that is not a count is an error", threw === 6, threw)
 }
 process.exit(bad ? 1 : 0)

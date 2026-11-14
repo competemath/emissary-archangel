@@ -67,6 +67,39 @@ export function roundProgress({ round, prev = null, built, min = MIN_PROGRESS_DE
   return { stop: false, added, why: min === 0 ? `round ${round} added ${added} modules (${prev} -> ${built}); min 0: no stop` : `round ${round} added ${added} modules (${prev} -> ${built})` }
 }
 
+// A build that is too slow to finish in rounds of one runner is split over runners instead. finite-simple-groups-lean (14 Nov 2026): 3,964 modules of about 110 seconds each, one at a time (a module
+// alone takes 10-12 GB, so a 16 GB runner holds one): round 1 built 95 (the round before the storm rule built 13), so the other 3,869 would take 41 more five-hour rounds, about 200 hours, while the
+// same work cut into slices of about 60 modules is ~2 hours per runner. `setup-sharded.yml` with prime_minutes=0 does that (every shard builds its own hash slice and exports it); this decides when the
+// build-gate dispatches it instead of the next round: at the end of a round that left the build incomplete, when the rounds the pace needs (round + remaining / what this round added) go past the plan.
+// No count to compare with, a round that added nothing (the stall rule decides), a library added to an archive (from_release / only_modules: the slices would not start from it) and a build that fits the
+// plan keep the next round, and so do a round that added fewer than min_progress (the stall rule judges it), a library whose slices would be bigger than a shard holds, and a build that needs only one more round (flt-anthropic's 86 modules: round 6 built 85, one module is left; the first version of this rule sent it to 8 shards). The shell of the build-gate does the same arithmetic; test-setup-workflows.mjs runs it.
+export const SLICE_MODULES_PER_SHARD = 60
+export const SLICE_MIN_SHARDS = 8
+export const SLICE_MAX_MODULES_PER_SHARD = 150 // 150 modules of ~110 s is 4.6 hours, under the 300 minutes a shard has; a library whose slices would be bigger than that is not sliced
+export function slicedSwitch({ round, prev = null, built = null, modules = null, maxBuildRounds, min = MIN_PROGRESS_DEFAULT, fromRelease = false, onlyModules = false }) {
+  if (!Number.isInteger(round) || round < 1) throw new Error(`round is 1 or more, not ${round}`)
+  if (!Number.isInteger(maxBuildRounds) || maxBuildRounds < 1) throw new Error(`maxBuildRounds is 1 or more, not ${maxBuildRounds}`)
+  count(min, "min")
+  const known = (v) => v !== null && v !== undefined && v !== ""
+  if (fromRelease || onlyModules) return { switch: false, why: "a library added to its archive is built by rounds: the slices would not start from the archive" }
+  if (!known(built) || !known(modules)) return { switch: false, why: "no count of the build: nothing to project from" }
+  const b = count(built, "built"), m = count(modules, "modules")
+  if (b >= m) return { switch: false, why: "every module is built" }
+  if (round > 1 && !known(prev)) return { switch: false, why: "the round before it left no count: nothing to compare with" }
+  const added = round === 1 ? b : b - count(prev, "prev")
+  if (added <= 0) return { switch: false, why: `the round added ${added} modules: the stall rule decides, not the pace` }
+  if (round > 1 && min > 0 && added < min) return { switch: false, why: `the round added ${added} modules, fewer than min_progress ${min}: the stall rule decides, not the pace` }
+  const remaining = m - b
+  const roundsLeft = Math.ceil(remaining / added)
+  if (roundsLeft < 2) return { switch: false, why: `${remaining} modules at ${added} a round is one more round: slices would not be faster` }
+  if (round + roundsLeft <= maxBuildRounds) return { switch: false, why: `${remaining} modules at ${added} a round is ${roundsLeft} more rounds: ${round + roundsLeft} in all, within the planned ${maxBuildRounds}` }
+  // the sliced run starts from nothing (prime_minutes=0: no build is carried over), so its shards divide ALL the modules, not the ones that are left
+  const shards = Math.min(MAX_SHARDS, Math.max(SLICE_MIN_SHARDS, Math.ceil(m / SLICE_MODULES_PER_SHARD)))
+  const per = Math.ceil(m / shards)
+  if (per > SLICE_MAX_MODULES_PER_SHARD) return { switch: false, why: `${m} modules in ${shards} shards is ${per} a shard, more than the ${SLICE_MAX_MODULES_PER_SHARD} a shard's time holds: rounds go on` }
+  return { switch: true, shards, why: `${remaining} modules at ${added} a round is ${roundsLeft} more rounds (${round + roundsLeft} in all, planned ${maxBuildRounds}): ${shards} shards build slices of about ${per} of the ${m} modules instead` }
+}
+
 // Past the planned number of build rounds: the plan (`maxRounds`) is a budget, not a wall. A round that still added modules (at least `min`, and at least 1) is followed by another, up to `maxRounds * 3`.
 // Without a count to compare with (`prev` or `built` empty) there is no evidence of progress, so the plan's end is the end. The build-gate shell does the same arithmetic; test-setup-workflows.mjs runs it.
 export const BUILD_ROUNDS_CEILING_FACTOR = 3
