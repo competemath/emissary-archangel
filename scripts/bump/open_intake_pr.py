@@ -39,8 +39,8 @@ def changes_line(report: dict) -> str:
     ch = {k: v for k, v in (report.get("factory_changes") or {}).items() if v}
     if not ch:
         return ""
-    return ("\n- changed from upstream, with what every declaration states unchanged (each changed file carries a change notice naming the upstream commit and the change; "
-            "the content lint and the tree's build check them like any other file): " + ", ".join(f"{k}: {v}" for k, v in ch.items()))
+    return ("\n- changed from upstream, with what every declaration states unchanged (each changed file carries a note saying what changed: a change notice naming the upstream commit for "
+            "grind-set and inert-line changes, a repair note for a removed `#print` command; the content lint and the tree's build check them like any other file): " + ", ".join(f"{k}: {v}" for k, v in ch.items()))
 
 
 def parts_total(plan: dict) -> int:
