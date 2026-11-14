@@ -337,8 +337,9 @@ jobs:
             exit 0
           fi
           # A build too slow for rounds of one runner is split over runners instead of dispatching the next round: when the rounds this pace needs (this round + what is left / what this round added) go past
-          # max_build_rounds, the library is set up again with prime_minutes=0, where every shard builds its own slice of about 60 modules and exports it. finite-simple-groups-lean, 14 Nov 2026: round 1
-          # built 95 of 3,964 (one module at a time, 10-12 GB each): 41 more rounds, about 200 hours, against about 13 hours in 64 slices. A library added to its archive (from_release, only_modules), a round
+          # max_build_rounds, the library is set up again with prime_minutes=0, where every shard builds its own slice (about 13 modules, at most 25 in the biggest) and exports it. MEASURED, finite-simple-groups-lean (3,964
+          # modules), 14 Nov 2026: round 1 built 95 (41 more rounds, about 200 hours), but its 64 slices (62 on average, 65 in shard 0) ran out of the 300 minutes of a shard, which builds the import closure of its slice (about 3 times
+          # as many modules), and exported nothing: so only a library whose biggest slice is at most 25 modules (832 modules at most) is sliced. A library added to its archive (from_release, only_modules), a round
           # with no count, a round that added nothing or fewer than min_progress (the stall rule below decides), a library whose biggest slice would be over 25 modules and a build that needs only one more round keep the next round. scripts/setup-plan.mjs slicedSwitch is the same rule; scripts/test-setup-workflows.mjs runs this text against it.
           if [ -z "$ONLY_MODULES" ] && [ "$FROM_RELEASE" = false ] && [ -n "$BUILT" ] && [ -n "$MODULES" ] && [ $(( 10#$BUILT )) -lt $(( 10#$MODULES )) ]; then
             pace=0
