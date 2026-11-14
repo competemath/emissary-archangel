@@ -336,6 +336,25 @@ jobs:
             echo "::notice::${TOOBIG:-some} modules were killed for memory at ${RETRY_MB} MB even alone: dispatched build round $((BUILD_ROUND + 1)) with swap and a limit of 57344 MB"
             exit 0
           fi
+          # A build too slow for rounds of one runner is split over runners instead of dispatching the next round: when the rounds this pace needs (this round + what is left / what this round added) go past
+          # max_build_rounds, the library is set up again with prime_minutes=0, where every shard builds its own slice of about 60 modules and exports it. finite-simple-groups-lean, 14 Nov 2026: round 1
+          # built 95 of 3,964 (one module at a time, 10-12 GB each): 41 more rounds, about 200 hours, against about 13 hours in 64 slices. A library added to its archive (from_release, only_modules), a round
+          # with no count, a round that added nothing (the stall rule below decides) and a build that needs only one more round keep the next round. scripts/setup-plan.mjs slicedSwitch is the same rule; scripts/test-setup-workflows.mjs runs this text against it.
+          if [ -z "$ONLY_MODULES" ] && [ "$FROM_RELEASE" = false ] && [ -n "$BUILT" ] && [ -n "$MODULES" ] && [ $(( 10#$BUILT )) -lt $(( 10#$MODULES )) ]; then
+            if [ "$BUILD_ROUND" -gt 1 ] && [ -n "$PREV_BUILT" ]; then pace=$(( 10#$BUILT - 10#$PREV_BUILT )); else pace=$(( 10#$BUILT )); fi
+            if [ "$pace" -gt 0 ]; then
+              remaining=$(( 10#$MODULES - 10#$BUILT ))
+              rounds_left=$(( (remaining + pace - 1) / pace ))
+              if [ "$rounds_left" -ge 2 ] && [ $(( 10#$BUILD_ROUND + rounds_left )) -gt $(( 10#$MAX_BUILD_ROUNDS )) ]; then
+                slices=$(( (remaining + 59) / 60 )); [ "$slices" -lt 8 ] && slices=8; [ "$slices" -gt 64 ] && slices=64
+                gh workflow run setup-sharded.yml -R "$GITHUB_REPOSITORY" --ref main -f key="$KEY" -f shards="$slices" -f prime_minutes=0 \
+                  -f expand_chunk="$EXPAND_CHUNK" -f round="$ROUND" -f max_rounds="$MAX_ROUNDS" -f parallel="$PARALLEL" \
+                  -f tengoku_ref="$TENGOKU_REF" -f retry_mb="$RETRY_MB" -f swap_gb="$SWAP_GB" -f solo_minutes="$SOLO_MINUTES" -f from_release=false
+                echo "::notice::$KEY: $remaining modules at $pace a round is $rounds_left more rounds ($(( 10#$BUILD_ROUND + rounds_left )) in all, planned $MAX_BUILD_ROUNDS): dispatched $slices shards that build slices of about $(( (remaining + slices - 1) / slices )) modules each instead of build round $((BUILD_ROUND + 1))"
+                exit 0
+              fi
+            fi
+          fi
           # A round that did nothing is not followed by another. Round 1 has no round before it, and a chain started by hand may not know the count of the round before: neither is judged.
           # (flt-anthropic, 30,662 modules: three rounds in a row exported nothing and nothing noticed.) scripts/setup-plan.mjs roundProgress is the same rule; scripts/test-setup-workflows.mjs runs this text against it.
           if [ "$BUILD_ROUND" -gt 1 ] && [ -n "$PREV_BUILT" ] && [ -n "$BUILT" ]; then

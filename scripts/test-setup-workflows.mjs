@@ -10,7 +10,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { roundProgress, roundsCap, escalation, ESCALATE_RETRY_MB, ESCALATE_SWAP_GB, ESCALATE_SOLO_MINUTES } from "./setup-plan.mjs"
+import { roundProgress, roundsCap, slicedSwitch, escalation, ESCALATE_RETRY_MB, ESCALATE_SWAP_GB, ESCALATE_SOLO_MINUTES } from "./setup-plan.mjs"
 
 const wf = join(dirname(fileURLToPath(import.meta.url)), "..", ".github", "workflows")
 let bad = 0
@@ -109,7 +109,7 @@ const runGate = (script, c) => {
     env: {
       PATH: `${sandbox}:${process.env.PATH}`, GH_CALLS: calls, GITHUB_OUTPUT: outFile, GITHUB_REPOSITORY: "o/r", GH_TOKEN: "x", KEY: "k",
       SHARDS: "16", PRIME_MINUTES: "300", EXPAND_CHUNK: "1", ROUND: "1", MAX_ROUNDS: "4", PARALLEL: "6", RESUME_RUN: "", GITHUB_RUN_ID: "77", TENGOKU_REF: "", MAX_BUILD_ROUNDS: String(c.maxRounds ?? 99),
-      BUILD_ROUND: String(c.round), PREV_BUILT: c.prev, BUILT: c.built, MODULES: "30662", MIN_PROGRESS: String(c.min), TOOBIG: c.toobig ?? "", BLOCKED: c.blocked ?? "",
+      BUILD_ROUND: String(c.round), PREV_BUILT: c.prev, BUILT: c.built, MODULES: c.modules ?? "", MIN_PROGRESS: String(c.min), TOOBIG: c.toobig ?? "", BLOCKED: c.blocked ?? "",
       ESCALATE: c.escalate ?? "", RETRY_MB: c.retry ?? "14336", SWAP_GB: c.swap ?? "0", SOLO_MINUTES: c.solo ?? "90", FROM_RELEASE: c.fromRelease ?? "false", ONLY_MODULES: c.only ?? "",
     },
   })
@@ -346,7 +346,7 @@ for (const [name, from, to] of [
     check(`ESCALATE=${JSON.stringify(e)} is not an escalation: a round that added nothing still stops`, r.code !== 0 && !r.calls.includes("workflow run") && /stalled=true/.test(r.output), r.text)
   }
   const escMutants = [
-    ["the escalation round is followed by an ordinary dispatch too (no exit after it)", '  exit 0\nfi\n# A round that did nothing', "  :\nfi\n# A round that did nothing"],
+    ["the escalation round is followed by an ordinary dispatch too (no exit after it)", '  exit 0\nfi\n# A build too slow for rounds', "  :\nfi\n# A build too slow for rounds"],
     ["the escalation round keeps the old limit", '-f retry_mb="57344"', '-f retry_mb="$RETRY_MB"'],
     ["the escalation round has no swap", `-f swap_gb="${ESCALATE_SWAP_GB}"`, '-f swap_gb="$SWAP_GB"'],
     ["the escalation round is judged for progress first (the escalation moved below the stall check)", 'if [ "$ESCALATE" = "true" ]; then', 'if [ "$ESCALATE" = "true" ] && [ "$BUILT" != "$PREV_BUILT" ]; then'],
@@ -359,7 +359,7 @@ for (const [name, from, to] of [
     check(`mutant: ${name} is noticed`, mutated !== gateScript && wrongEsc(mutated, true).length > 0, mutated === gateScript ? "pattern not found" : "")
   }
   const ordMutants = [
-    ["the ordinary dispatch drops retry_mb", ' -f retry_mb="$RETRY_MB" -f swap_gb="$SWAP_GB"', ' -f swap_gb="$SWAP_GB"'],
+    ["the ordinary dispatch drops retry_mb", ' -f retry_mb="$RETRY_MB" -f swap_gb="$SWAP_GB" -f solo_minutes="$SOLO_MINUTES" -f from_release="$FROM_RELEASE" -f only_modules', ' -f swap_gb="$SWAP_GB" -f solo_minutes="$SOLO_MINUTES" -f from_release="$FROM_RELEASE" -f only_modules'],
     ["the ordinary dispatch drops from_release", ' -f solo_minutes="$SOLO_MINUTES" -f from_release="$FROM_RELEASE" -f only_modules="$ONLY_MODULES"\necho "::notice::the build is not complete', ' -f solo_minutes="$SOLO_MINUTES" -f only_modules="$ONLY_MODULES"\necho "::notice::the build is not complete'],
     ["the ordinary dispatch drops only_modules", ' -f only_modules="$ONLY_MODULES"\necho "::notice::the build is not complete', '\necho "::notice::the build is not complete'],
   ]
@@ -418,5 +418,56 @@ for (const job of ["shard", "finish"]) {
   const say = b.slice(b.indexOf("- name: Say that the round resumed from deltas"), b.indexOf("- name: Say that the round resumed from deltas") + 1500)
   check(`${job}: a round that resumed from the per-shard outputs says so, when exports-partial failed, with values through env`, /if: inputs\.resume_run != '' && steps\.partial\.outcome == 'failure'\n\s+env: \{ RESUME_RUN: "\$\{\{ inputs\.resume_run \}\}", OUTS: "\$\{\{ steps\.outs\.outcome \}\}" \}/.test(say), "")
   check(`${job}: the warning names the run and the outcome of the out-* download, in a block scalar (a colon-space in a one-line value made the workflow invalid YAML)`, /\n\s+run: \|\n\s+echo "::warning::exports-partial of run \$RESUME_RUN [^\n]*\(download outcome: \$OUTS\)/.test(say), "")
+}
+
+// ---- a build too slow for rounds is split over runners (slicedSwitch) ----
+// finite-simple-groups-lean, 14 Nov 2026: round 1 built 95 of 3,964 modules (the round before the storm rule, 13): 41 more rounds, about 200 hours. The shell of the build-gate against the rule, run for
+// real with a fake `gh`, on the real rounds, on a grid of every kind of count and on random rounds; and mutants of the shell that must each be noticed.
+{
+  const sw = (c) => slicedSwitch({ round: c.round, prev: c.prev === "" ? null : Number(c.prev), built: c.built === "" ? null : Number(c.built), modules: c.modules === "" ? null : Number(c.modules), maxBuildRounds: c.maxRounds ?? 6, fromRelease: c.fromRelease === "true", onlyModules: (c.only ?? "") !== "" })
+  const real = [
+    { name: "finite-simple-groups-lean round 1 (95 of 3,964, 14 Nov 2026)", c: { round: 1, prev: "", built: "95", modules: "3964", min: 1, maxRounds: 6 }, want: { switch: true, shards: 64 } },
+    { name: "finite-simple-groups-lean round 1 before the storm rule (13 of 3,964)", c: { round: 1, prev: "", built: "13", modules: "3964", min: 1, maxRounds: 6 }, want: { switch: true, shards: 64 } },
+    { name: "flt-anthropic's 86 modules, round 6 built 85 of 86 (a delta from the archive)", c: { round: 6, prev: "1", built: "85", modules: "86", min: 1, maxRounds: 6, fromRelease: "true", only: "Theorems.Thm_A" }, want: { switch: false } },
+    { name: "the same 86 without the archive flags: 85 of 86 is nearly done", c: { round: 6, prev: "1", built: "85", modules: "86", min: 1, maxRounds: 6 }, want: { switch: false } },
+    { name: "a library that needs three rounds at its pace (2,900 a round of 8,000)", c: { round: 2, prev: "3000", built: "5900", modules: "8000", min: 1, maxRounds: 6 }, want: { switch: false } },
+    { name: "a round that added nothing is the stall rule's", c: { round: 3, prev: "100", built: "100", modules: "3964", min: 1, maxRounds: 6 }, want: { switch: false } },
+  ]
+  for (const { name, c, want } of real) {
+    const e = sw(c), g = runGate(gateScript, c)
+    const sliced = g.calls.includes("prime_minutes=0")
+    check(`slicedSwitch: ${name}: switch=${want.switch}`, e.switch === want.switch && (!want.switch || e.shards === want.shards), e)
+    check(`build-gate: ${name}: ${want.switch ? "dispatches the slices" : "does not"}`, sliced === want.switch && (!want.switch || (g.code === 0 && g.calls.includes(`shards=${want.shards}`) && !g.calls.includes("build_run=") && !g.calls.includes("prev_built=") && g.calls.includes("from_release=false") && g.calls.split("\n").filter((l) => l.includes("workflow run")).length === 1)), g.calls.slice(0, 300))
+  }
+  const grid = []
+  for (const round of [1, 2, 5, 6, 7]) for (const maxRounds of [1, 6]) for (const modules of ["", "86", "3964", "30662"]) for (const built of ["", "0", "1", "13", "95", "3964", "30000"]) for (const prev of ["", "0", "90"]) for (const extra of [{}, { fromRelease: "true" }, { fromRelease: "true", only: "A.B" }]) grid.push({ round, maxRounds, modules, built, prev, min: 0, ...extra })
+  for (let i = 0; i < 400; i++) { const m = 1 + rnd(40000), b = rnd(m + 1), p = rnd(m + 1); grid.push({ round: 1 + rnd(8), maxRounds: 1 + rnd(8), modules: String(m), built: String(b), prev: rnd(5) === 0 ? "" : String(p), min: 0 }) }
+  let wrongSw = [], switched = 0, kept = 0
+  for (const c of grid) {
+    if (c.built !== "" && c.round > 1 && c.prev !== "" && Number(c.built) < Number(c.prev)) c.min = 0 // a fall at min 0 is no stop
+    const e = sw(c), g = runGate(gateScript, c)
+    const sliced = g.calls.includes("prime_minutes=0")
+    if (sliced) switched++; else kept++
+    if (sliced !== e.switch || (e.switch && !g.calls.includes(`shards=${e.shards} `))) wrongSw.push({ c, e, calls: g.calls.slice(0, 160) })
+  }
+  check(`build-gate's shell and slicedSwitch agree on ${grid.length} rounds (${switched} slice, ${kept} do not): counts, empty counts, falls, archive flags`, wrongSw.length === 0 && switched > 100 && kept > 100, wrongSw.slice(0, 3))
+  const swMutants = [
+    ["the switch ignores the archive flags (from_release)", '[ "$FROM_RELEASE" = false ] && [ -n "$BUILT" ] && [ -n "$MODULES" ]', '[ -n "$BUILT" ] && [ -n "$MODULES" ]'],
+    ["the switch fires on a round that added nothing (pace 0)", 'if [ "$pace" -gt 0 ]; then', 'if [ "$pace" -ge 0 ]; then'],
+    ["the switch counts the rounds left without the rounds done (round 1 of a plan of 6)", '[ $(( 10#$BUILD_ROUND + rounds_left )) -gt $(( 10#$MAX_BUILD_ROUNDS )) ]', '[ $(( rounds_left )) -gt $(( 10#$MAX_BUILD_ROUNDS )) ]'],
+    ["the switch rounds the rounds left down", 'rounds_left=$(( (remaining + pace - 1) / pace ))', 'rounds_left=$(( remaining / pace ))'],
+    ["the slices are not capped at 64", '[ "$slices" -gt 64 ] && slices=64', ':'],
+    ["the slices keep the build of the round before (build_run)", '-f from_release=false\n', '-f from_release=false -f build_run="$GITHUB_RUN_ID"\n'],
+    ["the slices still have a prime build", '-f prime_minutes=0', '-f prime_minutes="$PRIME_MINUTES"'],
+    ["the switch slices a build that needs only one more round", 'if [ "$rounds_left" -ge 2 ] && ', 'if '],
+    ["the switch is left out", 'if [ -z "$ONLY_MODULES" ] && [ "$FROM_RELEASE" = false ] && [ -n "$BUILT" ]', 'if false && [ -n "$BUILT" ]'],
+  ]
+  for (const [name, from, to] of swMutants) {
+    const mutated = gateScript.replace(from, to)
+    let caught = false
+    if (mutated !== gateScript) for (const c of [...real.map((r) => r.c), ...grid.slice(0, 1500)]) { const e = sw(c), g = runGate(mutated, c), b = runGate(gateScript, c); const sliced = g.calls.includes("prime_minutes=0"); if (sliced !== e.switch || (sliced && (g.calls.includes("build_run=") || !g.calls.includes(`shards=${e.shards} `))) || g.code !== b.code || g.calls !== b.calls || g.output !== b.output || g.text !== b.text) { caught = true; break } }
+    check(`mutant: ${name} is noticed`, caught, mutated === gateScript ? "pattern not found" : "")
+  }
+  check("the build-gate still holds actions: write and nothing else, and has no new variable", /^\{ actions: write \}$/.test(permissionsOf(gate) || "") && envNames.length === 23, envNames.length)
 }
 process.exit(bad ? 1 : 0)
