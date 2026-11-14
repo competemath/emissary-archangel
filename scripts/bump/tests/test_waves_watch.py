@@ -255,7 +255,7 @@ class Flow(unittest.TestCase):
             ns.update(fakes)
             ns["subprocess"] = fake_sub
             exec(src.replace(*mutate), ns)
-            ns["look"](False, 0)
+            ns["look"](False)
             rc = 0
         else:
             with contextlib.ExitStack() as st:
@@ -285,6 +285,54 @@ class Flow(unittest.TestCase):
         self.assertEqual([c[:3] for c in calls], [["gh", "run", "cancel"], ["gh", "workflow", "run"]])
         self.assertIn("reuse_from=43237206258", calls[1])
         self.assertIn("from_tree=true", calls[1])
+
+    def test_a_queued_run_counts_as_alive_and_is_not_judged(self):
+        """cubic on #197: a run that was just requested is queued; the watch must not end before it starts"""
+        calls = []
+        with (
+            mock.patch.object(ww, "running", lambda: [{"id": 7, "title": "bump-waves flt-anthropic", "status": "queued"}]),
+            mock.patch.object(ww, "jobs_of", lambda r: calls.append(r) or []),
+        ):
+            self.assertEqual(ww.look(False), (1, 0))
+        self.assertEqual(calls, [])  # its jobs are not read: there are none
+
+    def test_running_lists_queued_runs_too_without_a_run_twice(self):
+        seen = []
+
+        def fake_gh(*args):
+            seen.append(args[1].split("status=")[1].split("&")[0])
+            ids = [1, 2] if "in_progress" in args[1] else [2, 3]
+            return json.dumps({"workflow_runs": [{"id": i, "display_title": f"bump-waves k{i}"} for i in ids]})
+
+        with mock.patch.object(ww, "gh", fake_gh):
+            got = ww.running()
+        self.assertEqual(seen, ["in_progress", "queued"])
+        self.assertEqual([(r["id"], r["status"]) for r in got], [(1, "in_progress"), (2, "in_progress"), (3, "queued")])
+
+    def test_read_wraps_failures_of_reading_and_nothing_else(self):
+        def boom():
+            raise subprocess.CalledProcessError(1, ["gh"])
+
+        def bad_json():
+            return json.loads("{")
+
+        def refusal():
+            raise ww.WatchError("a refusal")
+
+        with self.assertRaises(ww.ReadFailure):
+            ww.read(boom)
+        with self.assertRaises(ww.ReadFailure):
+            ww.read(bad_json)
+        with self.assertRaises(ww.WatchError):
+            ww.read(refusal)
+        self.assertEqual(ww.read(lambda x: x + 1, 1), 2)
+
+    def test_the_cap_is_per_look_not_per_job(self):
+        """cubic on #197: a third dead run is resumed by the next look, not five hours later"""
+        _, calls = self.run_main(runs=3)
+        self.assertEqual(len([c for c in calls if c[:3] == ["gh", "workflow", "run"]]), ww.MAX_RESUMES)
+        _, calls2 = self.run_main(runs=1)
+        self.assertEqual(len([c for c in calls2 if c[:3] == ["gh", "workflow", "run"]]), 1)  # a look of its own starts at zero
 
     def test_an_alive_run_is_left_alone(self):
         rc, calls = self.run_main(jobs=slice_at(at("2026-11-13T20:00:00Z")))
@@ -333,7 +381,7 @@ class Flow(unittest.TestCase):
 
         with mock.patch.object(ww, "gh", fake_gh):
             got = ww.running()
-        self.assertEqual((pages, len(got)), ([1, 2, 3], 207))
+        self.assertEqual((pages, len(got)), ([1, 2, 3, 1, 2, 3], 207))  # three pages of each status; the ids repeat, so each run is listed once
 
     def test_mutant_the_chain_guard_dropped(self):
         _, calls = self.run_main(chain=ww.MAX_CHAIN + 1, mutate=("if n > MAX_CHAIN:", "if False:"))
@@ -347,7 +395,7 @@ class Flow(unittest.TestCase):
 class Loop(unittest.TestCase):
     """the watch of a run: looks every LOOK_SECONDS while one is in progress, up to --wait-minutes, then dispatches itself once more"""
 
-    def run_loop(self, argv, alive=(1,), fail_looks=(), dispatch_fails=False, mutate=None):
+    def run_loop(self, argv, alive=(1,), fail_looks=(), dispatch_fails=False, mutate=None, hard_fail_looks=()):
         clock = [1000.0]
         looks, sleeps, calls = [], [], []
         self.looks, self.sleeps, self.calls = looks, sleeps, calls  # readable after a raise
@@ -356,7 +404,9 @@ class Loop(unittest.TestCase):
             i = len(looks)
             looks.append(clock[0])
             if i in fail_looks:
-                raise RuntimeError("HTTP 502")
+                raise ww.ReadFailure("HTTP 502")
+            if i in hard_fail_looks:
+                raise subprocess.CalledProcessError(1, ["gh", "run", "cancel"])
             return alive[min(i, len(alive) - 1)], 0
 
         def run(args, **k):
@@ -405,10 +455,16 @@ class Loop(unittest.TestCase):
         self.assertEqual(len(self.looks), 7)
 
     def test_the_first_look_and_the_last_look_failing_are_failures(self):
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ww.ReadFailure):
             self.run_loop(["--wait-minutes", "30"], fail_looks={0})
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ww.ReadFailure):
             self.run_loop(["--wait-minutes", "30"], alive=(1,), fail_looks={6})
+
+    def test_only_a_failed_read_is_tolerated(self):
+        """cubic on #197: a cancel or a dispatch that fails (after a run was cancelled, no resume) ends the watch with the error, in the middle of the loop too"""
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.run_loop(["--wait-minutes", "30"], alive=(1,), hard_fail_looks={2})
+        self.assertEqual(len(self.looks), 3)
 
     def test_a_failed_self_dispatch_is_not_retried(self):
         with self.assertRaises(subprocess.CalledProcessError):
@@ -422,6 +478,12 @@ class Loop(unittest.TestCase):
     def test_mutant_it_never_dispatches_itself(self):
         self.run_loop(["--wait-minutes", "30"], alive=(1,), mutate=('subprocess.run(["gh", "workflow", "run", "waves-watch.yml", "-R", REPO, "--ref", "main", "-f", "dry_run=false"], check=True)', "pass"))
         self.assertEqual(self.calls, [])  # the watch would end at the first job's end: test_at_the_end_of_its_time... needs the dispatch
+
+
+class Docs(unittest.TestCase):
+    def test_the_module_says_how_often_it_looks(self):
+        self.assertIn("every LOOK_SECONDS (five minutes)", ww.__doc__)
+        self.assertEqual(ww.LOOK_SECONDS, 300)
 
 
 class Workflow(unittest.TestCase):
@@ -442,9 +504,10 @@ class Workflow(unittest.TestCase):
         self.assertNotIn("${{", run)
         for wf in on["workflow_run"]["workflows"]:
             self.assertEqual(yaml.safe_load((WF / f"{wf}.yml").read_text())["name"], wf)
-        self.assertLessEqual(job["timeout-minutes"], 360)  # a hosted job's own limit
+        self.assertLessEqual(job["timeout-minutes"], 345)  # 15 minutes under a hosted job's own limit of 360: the job ends by itself and dispatches its successor (cubic on #197)
         self.assertGreaterEqual(job["timeout-minutes"] * 60, 300 * 60 + ww.MAX_RESUMES * (ww.ENDED_WITHIN_SECONDS + 300))  # the 300 minutes of looking, and every recovery of a look waiting for its cancel
         self.assertIn("--wait-minutes 300", run)
+        self.assertIn("github.event.action != 'requested' || github.event.workflow_run.name == 'bump-waves'", job["if"])  # `requested` of setup-sharded or bump-sharded starts no watch
         self.assertIn('echo --dry-run ||', run)  # a dry run does not wait
 
     def test_it_never_runs_a_pull_requests_code(self):

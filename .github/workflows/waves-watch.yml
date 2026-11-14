@@ -25,9 +25,10 @@ defaults:
 
 jobs:
   watch:
-    if: ${{ (github.event_name == 'workflow_dispatch' || vars.LANE_ENABLED == 'true') && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
+    # `requested` is for bump-waves only: a setup-sharded or bump-sharded run being requested starts no watch (cubic on #197)
+    if: ${{ (github.event_name == 'workflow_dispatch' || vars.LANE_ENABLED == 'true') && (github.event_name != 'workflow_run' || github.event.action != 'requested' || github.event.workflow_run.name == 'bump-waves') && github.ref == 'refs/heads/main' && github.repository == 'competemath/emissary-archangel' }}
     runs-on: ubuntu-26.04
-    timeout-minutes: 345   # --wait-minutes 300 of looking every five minutes while a run lives, and at most MAX_RESUMES (2) recoveries a look, each up to 10 minutes for its cancel
+    timeout-minutes: 345   # --wait-minutes 300 of looking every five minutes while a run lives, and a look that starts at the end may resume MAX_RESUMES (2) runs, each up to 10 minutes for its cancel and a bit more for the rest
     permissions: { actions: write, contents: read }  # read the runs and their plan artifacts, cancel a run, dispatch the resume
     env: { GH_TOKEN: "${{ github.token }}", DRY: "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run != 'false' }}" }
     steps:

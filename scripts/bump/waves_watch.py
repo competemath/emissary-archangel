@@ -11,7 +11,7 @@ hours) never fires it: waiting for the wave is what spares them. The run is canc
 plan artifact recorded (inputs.json, lane.json), so that the plan step's own checks pass. A chain of more than MAX_CHAIN runs is left to a person (the same job failing again is not a runner lost), and so
 is any run this cannot read.
 It reads and cancels and dispatches; it runs no library's code. LANE_ENABLED (the intake lane's kill switch) stops it.
-GitHub's scheduler did not fire the 20-minute cron once in the 46 minutes after the merge (14 Nov 2026), so the watcher does not wait for it: with --wait-minutes N it looks again every POLL_SECONDS
+GitHub's scheduler did not fire the 20-minute cron once in the 46 minutes after the merge (14 Nov 2026), so the watcher does not wait for it: with --wait-minutes N it looks again every LOOK_SECONDS (five minutes)
 for as long as a bump-waves run is in progress (up to N minutes), and then dispatches itself once more if one still is, so that a run is watched from the moment it is requested (waves-watch.yml
 runs on the `requested` event of bump-waves) to its end, by a job that does not depend on the scheduler. The cost is one runner while a run lives."""
 
@@ -29,7 +29,7 @@ WORKFLOW = "bump-waves.yml"
 SHARD = re.compile(r"^w(\d+) \((\d+)\) / shard$")
 RESTORE_STEP = "The work of the earlier jobs"
 LATER_FAILURES = 2  # later WAVES with a job that failed at the restore step before a run counts as dead
-MAX_RESUMES = 2  # runs resumed by one invocation: each may wait 10 minutes for its cancel, and the job's cap must cover them (cubic on #195)
+MAX_RESUMES = 2  # runs resumed by one look: each may wait 10 minutes for its cancel, and the job's cap must cover them (cubic on #195)
 MAX_CHAIN = 4  # runs of one chain (the first, and what this resumed); the workflow itself stops at 8
 POLL_SECONDS = 15  # between two looks of ended(): a cancel
 LOOK_SECONDS = 300  # between two looks at the runs while one is in progress (--wait-minutes)
@@ -37,6 +37,17 @@ ENDED_WITHIN_SECONDS = 600
 SETTINGS = ("mathlib", "toolchain", "imports", "tengoku_ref", "swap_gb", "build_timeout_min")  # what inputs.json records and the plan step compares
 SAFE = re.compile(r"^[A-Za-z0-9._/:+=-]*$")  # a value that can only be a setting: no space, no quote, no `$`, no `;`
 KEY = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+
+
+class ReadFailure(RuntimeError):
+    """A read of GitHub failed (a 502, a timeout, an answer that is not JSON): the only kind of failure a later look may tolerate. A cancel, a dispatch and a refusal are never this (cubic on #197)."""
+
+
+def read(fn, *args):
+    try:
+        return fn(*args)
+    except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError, TypeError, OSError) as e:
+        raise ReadFailure(f"{getattr(fn, '__name__', 'read')}: {type(e).__name__}: {e}") from e
 
 
 class WatchError(RuntimeError):
@@ -130,14 +141,21 @@ def plan_files(run: int, key: str) -> tuple[dict, dict]:
 
 
 def running() -> list[dict]:
-    out, page = [], 1
-    while True:
-        text = gh("api", f"repos/{REPO}/actions/workflows/{WORKFLOW}/runs?status=in_progress&branch=main&event=workflow_dispatch&per_page=100&page={page}")
-        got = json.loads(text).get("workflow_runs", [])
-        out += [{"id": int(r["id"]), "title": str(r.get("display_title", ""))} for r in got]
-        if len(got) < 100:
-            return out
-        page += 1
+    """Every bump-waves run of main that has not ended: in progress, and queued (a run that was just requested is queued: the watch of it must not end before it starts; cubic on #197)."""
+    out, seen = [], set()
+    for status in ("in_progress", "queued"):
+        page = 1
+        while True:
+            text = gh("api", f"repos/{REPO}/actions/workflows/{WORKFLOW}/runs?status={status}&branch=main&event=workflow_dispatch&per_page=100&page={page}")
+            got = json.loads(text).get("workflow_runs", [])
+            for r in got:
+                if int(r["id"]) not in seen:
+                    seen.add(int(r["id"]))
+                    out.append({"id": int(r["id"]), "title": str(r.get("display_title", "")), "status": status})
+            if len(got) < 100:
+                break
+            page += 1
+    return out
 
 
 def key_of(title: str) -> str:
@@ -156,22 +174,25 @@ def ended(run: int, sleep=time.sleep, clock=time.time) -> bool:
     return False
 
 
-def look(dry: bool, resumed_so_far: int = 0) -> tuple[int, int]:
+def look(dry: bool) -> tuple[int, int]:
     """One look at every run in progress: dead ones are cancelled and resumed (unless dry). (runs in progress at the start of the look, runs resumed)"""
     resumed = 0
-    runs = running()
+    runs = read(running)
     for r in runs:
-        if resumed_so_far + resumed >= MAX_RESUMES:
+        if resumed >= MAX_RESUMES:  # per look: the next look is five minutes away
             print("the rest is left to the next look")
             break
-        d = doomed(jobs_of(r["id"]))
+        if r.get("status") == "queued":
+            print(f"run {r['id']} ({r['title']}): queued, not started")
+            continue
+        d = doomed(read(jobs_of, r["id"]))
         if not d:
             print(f"run {r['id']} ({r['title']}): alive")
             continue
         print(f"run {r['id']} ({r['title']}): dead: shard(s) {d['failed']} of wave {d['wave']} failed and shards {d['later']} of later waves could not restore their packs")
         key = key_of(r["title"])
-        inputs, lane = plan_files(r["id"], key)
-        n = chain_length(lane, lambda run: plan_files(int(run), key)[1])
+        inputs, lane = read(plan_files, r["id"], key)
+        n = chain_length(lane, lambda run: read(plan_files, int(run), key)[1])
         if n > MAX_CHAIN:
             print(f"run {r['id']}: the chain has {n} runs (more than {MAX_CHAIN}): left to a person")
             continue
@@ -197,8 +218,8 @@ def main(argv: list[str] | None = None, sleep=time.sleep, clock=time.time) -> in
     total, first = 0, True
     while True:
         try:
-            alive, resumed = look(a.dry_run, total)
-        except Exception as e:  # noqa: BLE001 - a transient failure of gh must not end the watch of a run; the first look failing is a real failure
+            alive, resumed = look(a.dry_run)
+        except ReadFailure as e:  # a failed READ of GitHub must not end the watch of a run; a cancel, a dispatch or a refusal always does (cubic on #197); the first look and the last failing are real failures
             if first or clock() + LOOK_SECONDS > deadline:
                 raise
             print(f"this look failed ({type(e).__name__}: {e}); the next is in {LOOK_SECONDS // 60} minutes")
