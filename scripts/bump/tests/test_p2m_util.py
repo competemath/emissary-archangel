@@ -143,6 +143,34 @@ class TheEdges(unittest.TestCase):
         self.assertEqual(counted["P2M.Util shortcuts written out"], 5)  # and the second
 
 
+class TheMoreEdges(unittest.TestCase):
+    """the second round of cubic on #203"""
+
+    def test_an_import_line_inside_a_comment_or_a_string_is_not_an_import(self):
+        t = 'import P2M.Util\n/-\nimport P2M.Util\n-/\ndef s := "\nimport P2M.Util\n"\np2m_open "A"\n'
+        new, done, left = pu.rewrite_module(t)
+        self.assertEqual(new, '/-\nimport P2M.Util\n-/\ndef s := "\nimport P2M.Util\n"\nopen A\n')  # only the real import goes; the comment and the string keep their lines
+        self.assertEqual(len(pu.util_imports(t)), 1)
+
+    def test_in_on_the_next_line_belongs_to_the_command(self):
+        for sep in ("\n in", "\n    in", " \t in"):
+            new, _, _ = pu.rewrite_module(f'import P2M.Util\np2m_open "A"{sep}\ntheorem t : True := trivial\n')
+            self.assertEqual(new, "open A in\ntheorem t : True := trivial\n", repr(sep))
+
+    def test_in_is_a_word_not_the_start_of_one(self):
+        new, _, _ = pu.rewrite_module('import P2M.Util\np2m_open "A"\ninvariant_x\n')
+        self.assertEqual(new, "open A\ninvariant_x\n")
+
+    def test_two_anonymous_hypotheses_of_one_type_cannot_be_told_apart(self):
+        """cubic on #203: `‹T›` finds a hypothesis by its type: with two of that type (anonymous or named) it could hand the solution the wrong one"""
+        for header in ("(_ : P) (_ : P)", "(_ : P) (h : P)", "(h : P) (_ : P)"):
+            t = f"import P2M.Util\ntheorem T {header} : True := by p2m_exact_reverting @_root_.P2MW.S_T.solution\n"
+            new, done, left = pu.rewrite_module(t)
+            self.assertEqual((new, dict(done), dict(left)), (t, {}, {"p2m_exact_reverting": 1}), header)
+        t = "import P2M.Util\ntheorem T (_ : P) (_ : Q) (h : R) : True := by p2m_exact_reverting @_root_.P2MW.S_T.solution\n"
+        self.assertTrue(pu.rewrite_module(t)[0].rstrip("\n").endswith("solution ‹P› ‹Q› h"))  # distinct types: unambiguous
+
+
 class TheSolModules(unittest.TestCase):
     def test_export_and_open_with_a_second_namespace(self):
         new, done, left = pu.rewrite_module(real("S_ModularCurve_legendreJ_one_sub.lean"))
@@ -152,11 +180,17 @@ class TheSolModules(unittest.TestCase):
         self.assertEqual((dict(done), dict(left)), ({"p2m_export": 1, "p2m_open": 2}, {}))
 
     def test_several_commands_on_one_line_stay_on_that_line(self):
+        line = 'namespace FreyPackage p2m_export "FreyPackage" "freyCurve c p a hc0 ha0 b hFLT hb0" end FreyPackage'  # the real line of S_FreyPackage_frey_no_cofixed_eleven
+        new, done, _ = pu.rewrite_module(f"import P2M.Util\n{line}\np2m_open_scoped \"FreyPackage\" in\n")
+        self.assertEqual(new, "namespace FreyPackage export FreyPackage (freyCurve c p a hc0 ha0 b hFLT hb0) end FreyPackage\nopen scoped FreyPackage in\n")
+        self.assertEqual(dict(done), {"p2m_export": 1, "p2m_open_scoped": 1})
+
+    def test_an_export_with_no_namespace_leaves_the_module_as_it_was(self):
+        """cubic on #203: the alias `<current>.A.b` for `A.b` has no plain form, and dropping it could change what a name resolves to without an error: the real module (283 such uses in 135 files) stays behind the import"""
         t = real("S_FreyPackage_frey_no_cofixed_eleven.lean")
-        new, done, _ = pu.rewrite_module(t)
-        self.assertIn("namespace FreyPackage export FreyPackage (freyCurve c p a hc0 ha0 b hFLT hb0) end FreyPackage", new)
-        self.assertIn("open scoped FreyPackage in\n", new)
-        self.assertEqual(dict(done), {"p2m_export": 1, "p2m_export (no namespace, dropped)": 1, "p2m_open_scoped": 1})
+        self.assertIn('p2m_export "" "FreyPackage.p_ne_of_fermatLastTheoremFor_K"', t)
+        new, done, left = pu.rewrite_module(t)
+        self.assertEqual((new, dict(done), dict(left)), (t, {}, {"p2m_export (no namespace)": 1}))
 
     def test_reactivate_is_open_scoped(self):
         new, _, _ = pu.rewrite_module(real("S_GaloisRep_isFractionRing_ratLocalizedAt.lean"))
@@ -307,7 +341,7 @@ class TheMutants(unittest.TestCase):
         self.assertTrue(f(text, pu.code_mask(text))[0].endswith("solution"))  # the binder names are gone: test_binders_of_every_kind_become_the_arguments_of_the_solution refuses this
 
     def test_import_kept(self):
-        f = mutated("return IMPORT_UTIL.sub(\"\", out), done, left", "return out, done, left")
+        f = mutated("return drop_util_imports(out), done, left", "return out, done, left")
         new, _, _ = f("import P2M.Util\np2m_open \"A\"\n")
         self.assertIn("import P2M.Util", new)  # the invariant test_no_shortcut_is_left_in_code_when_the_import_goes refuses this
 

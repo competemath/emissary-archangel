@@ -11,10 +11,10 @@ because of it (bump run 43686274801, 15 Nov 2026; 10,867 of them under this one 
   p2m_open "A B~x~y"                 37,090 uses: `OpenDecl.simple A []`, `OpenDecl.simple B [x, y]` and the scoped entries of both: that is `open A` and `open B hiding x y`. A word `scoped` (the translator wrote
                                      `open scoped A` as "scoped A") names no namespace and does nothing. With ` in` after it: `open … in`.
   p2m_open_scoped "A B" [in]         5,623 uses: the scoped entries of A and B are activated and no name is opened: `open scoped A B [in]`.
-  p2m_export "N" "a b c"             38,433 uses: aliases `<current namespace>.a` for `N.a` (or its private form), skipping a name that does not exist: `export N (a b c)` (283 uses have no N: dropped, see export_command).
+  p2m_export "N" "a b c"             38,433 uses: aliases `<current namespace>.a` for `N.a` (or its private form), skipping a name that does not exist: `export N (a b c)` (283 uses in 135 files have no N: those modules are left as they were, see export_command).
   p2m_reactivate "A B"               66,151 uses: after a `namespace A … end A` closed, the scoped notations and instances of A are switched on again: `open scoped A B`.
   #p2m_type_eq(_warn) a b            34 uses: compare two types and print a message; declares nothing: removed (the tree's lint refuses every `#` command, as for `#print`, strip_attrs.py).
-Left as they are, so that the module is not rewritten at all (it stays behind the import of P2M.Util, as before): p2m_alias (556 uses in 233 files: an alias under an exact name), p2m_export_all, p2m_ns, and a
+Left as they are, so that the module is not rewritten at all (it stays behind the import of P2M.Util, as before): p2m_alias (556 uses in 233 files: an alias under an exact name), p2m_export with no namespace (283 uses in 135 files), p2m_export_all, p2m_ns, and a
 theorem whose binders cannot be read. The import of `P2M.Util` is removed from a module only when nothing of it is left.
 
 What a declaration SAYS never changes: no statement is touched (only the proof of a Theorems/ module, and commands that open names). The only risk is a module that no longer compiles (a name `export`
@@ -34,6 +34,19 @@ from adapters import code_mask  # noqa: E402
 
 UTIL = "P2M.Util"
 IMPORT_UTIL = re.compile(r"^[ \t]*(?:(?:public|private|meta)[ \t]+)*import[ \t]+(?:all[ \t]+)?P2M\.Util[ \t]*(?:\n|$)", re.M)  # `import all` is the module system's form of the same import
+def util_imports(text: str, mask: list[bool] | None = None) -> list[re.Match]:
+    """the `import P2M.Util` lines that are CODE (a block comment or a multiline string that holds such a line is not an import: cubic on #203)"""
+    mask = code_mask(text) if mask is None else mask
+    return [m for m in IMPORT_UTIL.finditer(text) if mask[m.start()]]
+
+
+def drop_util_imports(text: str) -> str:
+    out = text
+    for m in reversed(util_imports(text)):
+        out = out[: m.start()] + out[m.end() :]
+    return out
+
+
 KEYWORD = re.compile(r"(?<![\w.#'])(#?p2m_[a-z_]+)\b")
 STR = r'"((?:[^"\\\n]|\\.)*)"'
 WS = r"[ \t\r\n]*"
@@ -68,8 +81,7 @@ def scoped_commands(arg: str, in_: bool, tilde: bool = True) -> str:
 
 def export_command(ns: str, names: str) -> str:
     """`export N (a b)`. With no namespace (`p2m_export "" "A.b"`, 283 uses in 135 files: the full names are given) there is no plain command that makes the alias `<current namespace>.A.b` (an `export` inside
-    `namespace <current>.A` would name the namespace `A` it is inside of), so nothing is written: the alias only changes what a name resolves to inside the file, and a module that needed it does not
-    compile in the tree and stays out as before."""
+    `namespace <current>.A` would name the namespace `A` it is inside of), so rewrite_module leaves such a module as it was (dropping the alias could change what a name resolves to, silently)."""
     if not ns or not words(names):
         return ""
     return f"export {ns} ({' '.join(words(names))})"
@@ -83,11 +95,15 @@ def header_binders(text: str, name_end: int) -> tuple[list[str], int] | None:
     """The argument list for `@solution`: one entry per binder name (`_` for an instance binder with no name), and the index of the `:` that ends the binders. None when something here is not understood."""
     i, n = name_end, len(text)
     args: list[str] = []
+    typed: list[tuple[str, str, str]] = []  # (name, bracket, type) of every binder name, to see which `‹T›` could pick a hypothesis other than its own
     while i < n:
         c = text[i]
         if c in " \t\r\n":
             i += 1
         elif c == ":" and not text.startswith(":=", i):
+            for k, (name, br, typ) in enumerate(typed):
+                if name == "_" and br != "[" and sum(1 for o, b2, t2 in typed if b2 != "[" and t2 == typ) > 1:  # two hypotheses of this type: `‹T›` cannot tell which one is meant (cubic on #203)
+                    return None
             return args, i
         elif text.startswith(".{", i):  # universe parameters of the name
             j = text.find("}", i)
@@ -124,6 +140,7 @@ def header_binders(text: str, name_end: int) -> tuple[list[str], int] | None:
                     return None
                 # `(_ : T)`: a hypothesis with no name, found by its type (`‹T›`); an instance binder `[_ : C]` is found by instance search
                 args.extend(("_" if c == "[" else f"‹{typ}›") if x == "_" else x for x in names)
+                typed.extend((x, c, typ) for x in names)
             i = j + 1
         else:
             return None
@@ -188,7 +205,7 @@ def rewrite_module(text: str) -> tuple[str, Counter, Counter]:
             if a is None:
                 left[kw] += 1
                 continue
-            in_m = re.compile(r"[ \t]+in\b").match(text, a.end())
+            in_m = re.compile(r"\s+in\b").match(text, a.end())  # any whitespace, a newline included: `p2m_open "A"` and ` in` on the next line is the same command (cubic on #203)
             in_ = in_m is not None
             new = (open_commands if kw == "p2m_open" else scoped_commands)(a.group(1), in_)
             edits.append((m.start(), in_m.end() if in_m else a.end(), new))
@@ -196,11 +213,11 @@ def rewrite_module(text: str) -> tuple[str, Counter, Counter]:
             continue
         if kw == "p2m_export":
             a = re.compile(rf"{WS}{STR}{WS}{STR}").match(text, end)
-            if a is None:
-                left[kw] += 1
+            if a is None or not a.group(1):  # no namespace (`p2m_export "" "A.b"`): no plain form, and dropping it could change what a name resolves to: the module is left as it was (cubic on #203)
+                left[kw if a is None else "p2m_export (no namespace)"] += 1
                 continue
             edits.append((m.start(), a.end(), export_command(a.group(1), a.group(2))))
-            done[kw if a.group(1) else "p2m_export (no namespace, dropped)"] += 1
+            done[kw] += 1
             continue
         if kw == "p2m_reactivate":
             a = re.compile(rf"{WS}{STR}").match(text, end)
@@ -226,7 +243,7 @@ def rewrite_module(text: str) -> tuple[str, Counter, Counter]:
         left["p2m_exact_reverting"] += 1 if not left["p2m_exact_reverting"] else 0
     if left:  # something of the shortcuts cannot be written out: the module stays exactly as the library wrote it
         return text, Counter(), left
-    return IMPORT_UTIL.sub("", out), done, left
+    return drop_util_imports(out), done, left
 
 
 def rewrite(texts: dict[str, str], imports: dict[str, list[str]]) -> tuple[dict[str, str], dict[str, list[str]], dict[str, int], dict[str, list[str]]]:
@@ -247,7 +264,7 @@ def rewrite(texts: dict[str, str], imports: dict[str, list[str]]) -> tuple[dict[
         stats["modules changed"] += 1
         n = sum(done.values())
         parts = [f"{v} `{k}`" for k, v in sorted(done.items())]
-        dropped = bool(IMPORT_UTIL.search(before)) and not IMPORT_UTIL.search(after)
+        dropped = bool(util_imports(before)) and not util_imports(after)
         if dropped:
             new_imports[mod] = [d for d in imports.get(mod, []) if d != UTIL]
         what = []
@@ -273,7 +290,7 @@ def main(argv: list[str] | None = None) -> int:
         text = Path(f).read_text(encoding="utf-8")
         new, done, left = rewrite_module(text)
         tot.update(done)
-        print(f"{f}: expanded {dict(done)}; left {dict(left)}; import {'kept' if IMPORT_UTIL.search(new) else 'dropped'}")
+        print(f"{f}: expanded {dict(done)}; left {dict(left)}; import {'kept' if util_imports(new) else 'dropped'}")
     return 0
 
 
