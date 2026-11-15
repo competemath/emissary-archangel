@@ -156,7 +156,8 @@ def main(argv: list[str]) -> int:
     (work / "Orig.lean").write_text(ORIG, encoding="utf-8")
     new, done, left = pu.rewrite_module(ORIG)
     if mutant:  # a wrong rewrite on purpose: the names of `p2m_open` are opened by `open scoped` (no name opened)
-        new = new.replace("open Toy", "open scoped Toy").replace("open Toy~", "open scoped Toy")
+        new = new.replace("open _root_.Toy", "open scoped _root_.Toy")
+        assert new != pu.rewrite_module(ORIG)[0], "the mutant changed nothing: the probe would accept it"
     if left or "P2M.Util" in new:
         print("the rewrite left a shortcut or the import: the probe's own case is wrong", left)
         return 2
