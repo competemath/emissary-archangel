@@ -59,24 +59,72 @@ def words(s: str) -> list[str]:
     return [w for w in s.split(" ") if w]
 
 
-def open_commands(arg: str, in_: bool) -> str:
-    """`p2m_open "A B~x~y"` as plain Lean: one `open` per word, on one line (no line is added or moved), each with `in` after it when the original had it."""
+def absolute(name: str) -> str:
+    """The shortcuts take every namespace as an ABSOLUTE name (`n.getString.toName`, no resolution); plain Lean resolves `open A` / `export A` relative to the namespace the command is in, and inside `namespace X.A`
+    that is `X.A` itself: 571 modules of the first recut failed with `invalid 'export', self export` (run 43738852809). `_root_.A` is the absolute name."""
+    return name if name.startswith("_root_.") else "_root_." + name
+
+
+OWN = "P2MW."  # the namespace the library wraps a Sol module in, `P2MW.S_<module>`: what names under it exist is read from the module's own `namespace` commands
+
+
+class Namespaces:
+    """The namespaces a module has opened so far, read from its own `namespace` / `section` / `end` commands (code only), and the namespace it is in. 410 of the 443 `unknown namespace` errors of the first
+    recut were a `p2m_open` / `p2m_reactivate` word under `P2MW.S_<this module>` that the module never opened: the shortcut accepted a namespace nobody had declared (a no-op), `open` refuses it."""
+
+    TOKEN = re.compile(r"(?<![\w.'])(namespace|section|end)(?![\w'])[ \t]*((?:[^\s«»]|«[^»]*»)+)?")
+
+    def __init__(self, text: str, mask: list[bool]):
+        self.events = [(m.start(), m.group(1), (m.group(2) or "")) for m in self.TOKEN.finditer(text) if mask[m.start()]]
+        self.i = 0
+        self.stack: list[tuple[str, int]] = []  # (kind, how many components it added)
+        self.current: list[str] = []
+        self.known: set[str] = set()
+
+    def advance(self, pos: int) -> None:
+        while self.i < len(self.events) and self.events[self.i][0] < pos:
+            _, kind, arg = self.events[self.i]
+            self.i += 1
+            if kind == "namespace" and arg:
+                comps = [c for c in arg.split(".") if c]
+                for c in comps:
+                    self.current.append(c)
+                    self.known.add(".".join(self.current))
+                self.stack.append(("namespace", len(comps)))
+            elif kind == "section":
+                self.stack.append(("section", 0))
+            elif kind == "end" and self.stack:
+                _, n = self.stack.pop()
+                if n:
+                    del self.current[-n:]
+
+    def exists(self, name: str, pos: int) -> bool:
+        """whether the namespace `name` (absolute) can be opened at `pos`: only the module's own wrapper namespaces are decided here (everything else is taken to exist, as before)"""
+        self.advance(pos)
+        return not name.startswith(OWN) or name in self.known
+
+
+def open_commands(arg: str, in_: bool, exists=None) -> str:
+    """`p2m_open "A B~x~y"` as plain Lean: one `open` per word, on one line (no line is added or moved), each with `in` after it when the original had it. Every namespace is absolute (`_root_.A`); a word
+    under the module's own wrapper namespace that the module never opened is left out (a no-op in the original: `exists(name)` says)."""
     out = []
     for w in words(arg):
         head, *hidden = w.split("~")
         if head == SCOPED_WORD and not hidden:
             continue
+        if exists is not None and not exists(head):
+            continue
         hidden = [h for h in hidden if h]
-        out.append(f"open {head}" + (" hiding " + " ".join(hidden) if hidden else "") + (" in" if in_ else ""))
+        out.append(f"open {absolute(head)}" + (" hiding " + " ".join(hidden) if hidden else "") + (" in" if in_ else ""))
     return " ".join(out)
 
 
-def scoped_commands(arg: str, in_: bool, tilde: bool = True) -> str:
+def scoped_commands(arg: str, in_: bool, tilde: bool = True, exists=None) -> str:
     """`open scoped A B [in]`. `p2m_open_scoped` reads each word like `p2m_open` (the part before a `~` is the namespace); `p2m_reactivate` takes every word as one namespace, verbatim
-    (`tilde=False`: cubic on #203)."""
+    (`tilde=False`: cubic on #203). Absolute names, and a module's own namespace it never opened is left out, as in open_commands."""
     heads = [w.split("~")[0] if tilde else w for w in words(arg)]
-    heads = [h for h in heads if h]
-    return ("open scoped " + " ".join(heads) + (" in" if in_ else "")) if heads else ""
+    heads = [h for h in heads if h and (exists is None or exists(h))]
+    return ("open scoped " + " ".join(absolute(h) for h in heads) + (" in" if in_ else "")) if heads else ""
 
 
 def export_command(ns: str, names: str) -> str:
@@ -84,7 +132,7 @@ def export_command(ns: str, names: str) -> str:
     `namespace <current>.A` would name the namespace `A` it is inside of), so rewrite_module leaves such a module as it was (dropping the alias could change what a name resolves to, silently)."""
     if not ns or not words(names):
         return ""
-    return f"export {ns} ({' '.join(words(names))})"
+    return f"export {absolute(ns)} ({' '.join(words(names))})"
 
 
 # a binder group of a theorem header: ( … ) { … } [ … ] ⦃ … ⦄, nested brackets counted; strings and comments do not occur in the headers of the Theorems files
@@ -174,6 +222,7 @@ def rewrite_module(text: str) -> tuple[str, Counter, Counter]:
     if UTIL not in text and "p2m_" not in text:
         return text, done, left
     mask = code_mask(text)
+    spaces = Namespaces(text, mask)
     edits: list[tuple[int, int, str]] = []
     for m in KEYWORD.finditer(text):
         if not mask[m.start()]:
@@ -207,7 +256,9 @@ def rewrite_module(text: str) -> tuple[str, Counter, Counter]:
                 continue
             in_m = re.compile(r"\s+in\b").match(text, a.end())  # any whitespace, a newline included: `p2m_open "A"` and ` in` on the next line is the same command (cubic on #203)
             in_ = in_m is not None
-            new = (open_commands if kw == "p2m_open" else scoped_commands)(a.group(1), in_)
+            pos = m.start()
+            ex = lambda name, pos=pos: spaces.exists(name, pos)  # noqa: E731
+            new = (open_commands if kw == "p2m_open" else scoped_commands)(a.group(1), in_, exists=ex)
             edits.append((m.start(), in_m.end() if in_m else a.end(), new))
             done[kw] += 1
             continue
@@ -224,7 +275,8 @@ def rewrite_module(text: str) -> tuple[str, Counter, Counter]:
             if a is None:
                 left[kw] += 1
                 continue
-            edits.append((m.start(), a.end(), scoped_commands(a.group(1), False, tilde=False)))
+            pos = m.start()
+            edits.append((m.start(), a.end(), scoped_commands(a.group(1), False, tilde=False, exists=lambda name, pos=pos: spaces.exists(name, pos))))
             done[kw] += 1
             continue
         left[kw] += 1  # a p2m_ word this does not know

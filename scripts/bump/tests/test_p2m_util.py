@@ -115,15 +115,15 @@ class TheEdges(unittest.TestCase):
     """what cubic found on #203: forms of the same things this had not looked at"""
 
     def test_reactivate_takes_every_word_verbatim_open_scoped_reads_the_tilde(self):
-        self.assertEqual(pu.scoped_commands("A.B C~x", False, tilde=False), "open scoped A.B C~x")
-        self.assertEqual(pu.scoped_commands("A.B C~x", False), "open scoped A.B C")
+        self.assertEqual(pu.scoped_commands("A.B C~x", False, tilde=False), "open scoped _root_.A.B _root_.C~x")
+        self.assertEqual(pu.scoped_commands("A.B C~x", False), "open scoped _root_.A.B _root_.C")
         new, _, _ = pu.rewrite_module('import P2M.Util\np2m_reactivate "A~b C"\np2m_open_scoped "A~b C"\n')
-        self.assertEqual(new, "open scoped A~b C\nopen scoped A C\n")
+        self.assertEqual(new, "open scoped _root_.A~b _root_.C\nopen scoped _root_.A _root_.C\n")
 
     def test_import_all_is_an_import_of_the_util_too(self):
         for line in ("import all P2M.Util", "public import all P2M.Util", "meta import P2M.Util", "import P2M.Util"):
             new, done, left = pu.rewrite_module(f"{line}\np2m_open \"A\"\n")
-            self.assertEqual(new, "open A\n", line)
+            self.assertEqual(new, "open _root_.A\n", line)
         self.assertIsNone(pu.IMPORT_UTIL.search("-- import P2M.Util\n"))  # a comment is not an import
 
     def test_an_escaped_identifier_in_a_print_only_check_is_not_guessed_at(self):
@@ -143,23 +143,76 @@ class TheEdges(unittest.TestCase):
         self.assertEqual(counted["P2M.Util shortcuts written out"], 5)  # and the second
 
 
+class TheRecutsFailures(unittest.TestCase):
+    """the two biggest classes of the first real recut (run 43738852809: 1,246 of 12,529 new modules failed in the tree; the first error of 571 was `self export`, of 347 `unknown namespace`)"""
+
+    def test_a_namespace_is_absolute_so_an_export_inside_a_namespace_of_that_name_is_no_self_export(self):
+        """the real head of S_GaloisRep_isLocalization_ratLocalizedAt: inside `namespace GaloisRep` (that is P2MW.S_….GaloisRep) `export GaloisRep (x)` resolved to the namespace it was in"""
+        t = "import P2M.Util\nnamespace P2MW.S_G\nnamespace GaloisRep\np2m_export \"GaloisRep\" \"ratLocalizedAt\"\nnamespace FlatSol\n"
+        new, _, _ = pu.rewrite_module(t)
+        self.assertEqual(new, "namespace P2MW.S_G\nnamespace GaloisRep\nexport _root_.GaloisRep (ratLocalizedAt)\nnamespace FlatSol\n")
+
+    def test_a_namespace_of_the_module_that_it_never_opened_is_not_opened(self):
+        """the real shape of S_AdicCompletion_…: `p2m_open "Valued AdicCompletion P2MW.S_X.AdicCompletion"` with no `namespace AdicCompletion` in the module: a no-op for the shortcut, an error for `open`"""
+        t = 'import P2M.Util\nnamespace P2MW.S_X\np2m_open "Valued AdicCompletion P2MW.S_X.AdicCompletion"\n'
+        new, _, _ = pu.rewrite_module(t)
+        self.assertEqual(new, "namespace P2MW.S_X\nopen _root_.Valued open _root_.AdicCompletion\n")
+
+    def test_one_it_did_open_stays_even_after_it_was_closed(self):
+        t = 'import P2M.Util\nnamespace P2MW.S_X\nnamespace Sub\nend Sub\np2m_open "P2MW.S_X.Sub"\np2m_reactivate "P2MW.S_X.Sub P2MW.S_X.Other"\n'
+        new, _, _ = pu.rewrite_module(t)
+        self.assertEqual(new, "namespace P2MW.S_X\nnamespace Sub\nend Sub\nopen _root_.P2MW.S_X.Sub\nopen scoped _root_.P2MW.S_X.Sub\n")
+
+    def test_a_dotted_namespace_command_opens_every_prefix_and_end_closes_it(self):
+        t = 'import P2M.Util\nnamespace P2MW.S_X.A.B\nend P2MW.S_X.A.B\np2m_open "P2MW.S_X P2MW.S_X.A P2MW.S_X.A.B P2MW.S_X.A.B.C"\n'
+        new, _, _ = pu.rewrite_module(t)
+        self.assertTrue(new.endswith("open _root_.P2MW.S_X open _root_.P2MW.S_X.A open _root_.P2MW.S_X.A.B\n"), new)
+
+    def test_a_namespace_in_a_comment_or_a_string_is_not_opened(self):
+        t = 'import P2M.Util\n-- namespace P2MW.S_X.Sub\ndef s := "namespace P2MW.S_X.Sub"\np2m_open "P2MW.S_X.Sub"\n'
+        new, _, _ = pu.rewrite_module(t)
+        self.assertEqual(new, '-- namespace P2MW.S_X.Sub\ndef s := "namespace P2MW.S_X.Sub"\n\n')  # the open is left out: nothing opened it
+
+    def test_a_section_is_not_a_namespace(self):
+        t = 'import P2M.Util\nnamespace P2MW.S_X\nsection Sub\nend Sub\np2m_open "P2MW.S_X.Sub"\n'
+        new, _, _ = pu.rewrite_module(t)
+        self.assertEqual(new, "namespace P2MW.S_X\nsection Sub\nend Sub\n\n")
+
+    def test_the_real_module_that_failed_loses_only_the_namespace_it_never_opened(self):
+        t = real("S_AlgebraicGeometry_Scheme_Modules_IsLocallyFreeOfRank_pullback.lean")
+        new, _, _ = pu.rewrite_module(t)
+        self.assertIn("open _root_.CategoryTheory open _root_.AlgebraicGeometry\n", new)  # `P2MW.S_….AlgebraicGeometry` was not opened yet at that line
+
+    def test_mutant_every_own_namespace_is_kept(self):
+        src = inspect.getsource(pu.Namespaces.exists).replace("return not name.startswith(OWN) or name in self.known", "return True")
+        ns = dict(vars(pu))
+        exec("class _N:\n" + "\n".join("    " + ln for ln in src.splitlines()), ns)
+        self.assertTrue(ns["_N"].exists(type("o", (), {"advance": lambda self, p: None})(), "P2MW.S_X.Nope", 0))  # test_a_namespace_of_the_module_that_it_never_opened_is_not_opened refuses this
+
+    def test_mutant_names_relative(self):
+        src = inspect.getsource(pu.absolute).replace('return name if name.startswith("_root_.") else "_root_." + name', "return name")
+        ns = dict(vars(pu))
+        exec(src, ns)
+        self.assertEqual(ns["absolute"]("GaloisRep"), "GaloisRep")  # test_a_namespace_is_absolute... refuses this
+
+
 class TheMoreEdges(unittest.TestCase):
     """the second round of cubic on #203"""
 
     def test_an_import_line_inside_a_comment_or_a_string_is_not_an_import(self):
         t = 'import P2M.Util\n/-\nimport P2M.Util\n-/\ndef s := "\nimport P2M.Util\n"\np2m_open "A"\n'
         new, done, left = pu.rewrite_module(t)
-        self.assertEqual(new, '/-\nimport P2M.Util\n-/\ndef s := "\nimport P2M.Util\n"\nopen A\n')  # only the real import goes; the comment and the string keep their lines
+        self.assertEqual(new, '/-\nimport P2M.Util\n-/\ndef s := "\nimport P2M.Util\n"\nopen _root_.A\n')  # only the real import goes; the comment and the string keep their lines
         self.assertEqual(len(pu.util_imports(t)), 1)
 
     def test_in_on_the_next_line_belongs_to_the_command(self):
         for sep in ("\n in", "\n    in", " \t in"):
             new, _, _ = pu.rewrite_module(f'import P2M.Util\np2m_open "A"{sep}\ntheorem t : True := trivial\n')
-            self.assertEqual(new, "open A in\ntheorem t : True := trivial\n", repr(sep))
+            self.assertEqual(new, "open _root_.A in\ntheorem t : True := trivial\n", repr(sep))
 
     def test_in_is_a_word_not_the_start_of_one(self):
         new, _, _ = pu.rewrite_module('import P2M.Util\np2m_open "A"\ninvariant_x\n')
-        self.assertEqual(new, "open A\ninvariant_x\n")
+        self.assertEqual(new, "open _root_.A\ninvariant_x\n")
 
     def test_two_anonymous_hypotheses_of_one_type_cannot_be_told_apart(self):
         """cubic on #203: `‹T›` finds a hypothesis by its type: with two of that type (anonymous or named) it could hand the solution the wrong one"""
@@ -174,15 +227,15 @@ class TheMoreEdges(unittest.TestCase):
 class TheSolModules(unittest.TestCase):
     def test_export_and_open_with_a_second_namespace(self):
         new, done, left = pu.rewrite_module(real("S_ModularCurve_legendreJ_one_sub.lean"))
-        self.assertIn('export ModularCurve (legendreJ)', new)
-        self.assertIn("open ModularCurve open P2MW.S_ModularCurve_legendreJ_one_sub.ModularCurve", new)
+        self.assertIn('export _root_.ModularCurve (legendreJ)', new)
+        self.assertIn("open _root_.ModularCurve open _root_.P2MW.S_ModularCurve_legendreJ_one_sub.ModularCurve", new)
         self.assertNotIn("p2m_", new)
         self.assertEqual((dict(done), dict(left)), ({"p2m_export": 1, "p2m_open": 2}, {}))
 
     def test_several_commands_on_one_line_stay_on_that_line(self):
         line = 'namespace FreyPackage p2m_export "FreyPackage" "freyCurve c p a hc0 ha0 b hFLT hb0" end FreyPackage'  # the real line of S_FreyPackage_frey_no_cofixed_eleven
         new, done, _ = pu.rewrite_module(f"import P2M.Util\n{line}\np2m_open_scoped \"FreyPackage\" in\n")
-        self.assertEqual(new, "namespace FreyPackage export FreyPackage (freyCurve c p a hc0 ha0 b hFLT hb0) end FreyPackage\nopen scoped FreyPackage in\n")
+        self.assertEqual(new, "namespace FreyPackage export _root_.FreyPackage (freyCurve c p a hc0 ha0 b hFLT hb0) end FreyPackage\nopen scoped _root_.FreyPackage in\n")
         self.assertEqual(dict(done), {"p2m_export": 1, "p2m_open_scoped": 1})
 
     def test_an_export_with_no_namespace_leaves_the_module_as_it_was(self):
@@ -194,7 +247,7 @@ class TheSolModules(unittest.TestCase):
 
     def test_reactivate_is_open_scoped(self):
         new, _, _ = pu.rewrite_module(real("S_GaloisRep_isFractionRing_ratLocalizedAt.lean"))
-        self.assertIn("open scoped P2MW.S_GaloisRep_isFractionRing_ratLocalizedAt.SolB0C", new)
+        self.assertIn("open scoped _root_.P2MW.S_GaloisRep_isFractionRing_ratLocalizedAt.SolB0C", new)
 
     def test_all_four_in_one_module(self):
         t = real("S_AlgebraicGeometry_Scheme_Modules_IsLocallyFreeOfRank_pullback.lean")
@@ -236,19 +289,19 @@ class TheSolModules(unittest.TestCase):
 
 class TheForms(unittest.TestCase):
     def test_p2m_open(self):
-        self.assertEqual(pu.open_commands("Toy", False), "open Toy")
-        self.assertEqual(pu.open_commands("Toy~foo", False), "open Toy hiding foo")
-        self.assertEqual(pu.open_commands("scoped MatrixGroups ModularForm~a~b", False), "open MatrixGroups open ModularForm hiding a b")
-        self.assertEqual(pu.open_commands("A B", True), "open A in open B in")
+        self.assertEqual(pu.open_commands("Toy", False), "open _root_.Toy")
+        self.assertEqual(pu.open_commands("Toy~foo", False), "open _root_.Toy hiding foo")
+        self.assertEqual(pu.open_commands("scoped MatrixGroups ModularForm~a~b", False), "open _root_.MatrixGroups open _root_.ModularForm hiding a b")
+        self.assertEqual(pu.open_commands("A B", True), "open _root_.A in open _root_.B in")
         self.assertEqual(pu.open_commands("scoped", False), "")
 
     def test_p2m_open_scoped_and_reactivate(self):
-        self.assertEqual(pu.scoped_commands("A B", False), "open scoped A B")
-        self.assertEqual(pu.scoped_commands("A B~x", True), "open scoped A B in")
+        self.assertEqual(pu.scoped_commands("A B", False), "open scoped _root_.A _root_.B")
+        self.assertEqual(pu.scoped_commands("A B~x", True), "open scoped _root_.A _root_.B in")
         self.assertEqual(pu.scoped_commands("", False), "")
 
     def test_p2m_export(self):
-        self.assertEqual(pu.export_command("Toy", "foo bar"), "export Toy (foo bar)")
+        self.assertEqual(pu.export_command("Toy", "foo bar"), "export _root_.Toy (foo bar)")
         self.assertEqual(pu.export_command("", "A.b"), "")
         self.assertEqual(pu.export_command("Toy", ""), "")
 
@@ -283,7 +336,7 @@ class TheInvariants(unittest.TestCase):
     def test_comments_and_strings_that_name_a_shortcut_are_not_code(self):
         t = 'import P2M.Util\n-- p2m_open "A" is how it was written\n/- p2m_export "A" "b" -/\ndef s := "p2m_reactivate \\"A\\""\np2m_open "A"\n'
         new, done, _ = pu.rewrite_module(t)
-        self.assertEqual(new, '-- p2m_open "A" is how it was written\n/- p2m_export "A" "b" -/\ndef s := "p2m_reactivate \\"A\\""\nopen A\n')
+        self.assertEqual(new, '-- p2m_open "A" is how it was written\n/- p2m_export "A" "b" -/\ndef s := "p2m_reactivate \\"A\\""\nopen _root_.A\n')
         self.assertEqual(dict(done), {"p2m_open": 1})
 
     def test_a_name_inside_another_name_is_not_a_shortcut_and_an_unknown_p2m_word_leaves_the_module(self):
@@ -327,13 +380,13 @@ class TheMutants(unittest.TestCase):
         src = inspect.getsource(pu.open_commands).replace('" hiding " + " ".join(hidden) if hidden else ""', '""')
         ns = dict(vars(pu))
         exec(src, ns)
-        self.assertEqual(ns["open_commands"]("Toy~foo", False), "open Toy")  # what the real check (test_p2m_open) refuses
+        self.assertEqual(ns["open_commands"]("Toy~foo", False), "open _root_.Toy")  # what the real check (test_p2m_open) refuses
 
     def test_open_as_open_scoped(self):
-        src = inspect.getsource(pu.open_commands).replace('f"open {head}"', 'f"open scoped {head}"')
+        src = inspect.getsource(pu.open_commands).replace('f"open {absolute(head)}"', 'f"open scoped {absolute(head)}"')
         ns = dict(vars(pu))
         exec(src, ns)
-        self.assertEqual(ns["open_commands"]("Toy", False), "open scoped Toy")  # test_p2m_open refuses this
+        self.assertEqual(ns["open_commands"]("Toy", False), "open scoped _root_.Toy")  # test_p2m_open refuses this
 
     def test_binder_names_dropped(self):
         f = mutated('"".join(" " + a for a in args)', '""', "expand_exact")
@@ -348,7 +401,7 @@ class TheMutants(unittest.TestCase):
     def test_comments_rewritten(self):
         f = mutated("if not mask[m.start()]:\n            continue", "if False:\n            continue")
         new, done, _ = f('-- p2m_open "A"\nimport P2M.Util\n')
-        self.assertIn("open A", new)  # the comment is rewritten: test_comments_and_strings_that_name_a_shortcut_are_not_code refuses this
+        self.assertIn("open _root_.A", new)  # the comment is rewritten: test_comments_and_strings_that_name_a_shortcut_are_not_code refuses this
 
 
 class TheComposePass(unittest.TestCase):
