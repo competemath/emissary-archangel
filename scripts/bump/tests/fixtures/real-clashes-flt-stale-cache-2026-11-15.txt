@@ -1,0 +1,12 @@
+../emissary/scripts/bump/ModuleClashes.lean:66:60: warning: `String.trim` has been deprecated: Use `String.trimAscii` instead
+
+Note: The updated constant has a different type:
+  String → String.Slice
+instead of
+  String → String
+CLASH	Tengoku.FltAnthropic.Definitions.Def_Mathlib_MeasureTheory_Constructions_BorelSpace_RestrictedProduct	Tengoku.Flt.FLT.Mathlib.MeasureTheory.Constructions.BorelSpace.RestrictedProduct	1	instMeasurableSpaceRestrictedProduct
+CLASH	Tengoku.FltAnthropic.Definitions.Def_Deformations_ContinuousSMulDiscrete	Tengoku.Flt.FLT.Mathlib.Topology.Algebra.ContinuousSMulDiscrete	6	ContinuousSMulDiscrete.recOn
+CLASH	Tengoku.FltAnthropic.Definitions.Def_Mathlib_Algebra_IsDirectLimit	Tengoku.Flt.FLT.Mathlib.Algebra.IsDirectLimit	18	IsDirectLimit.preimage
+CLASH	Tengoku.FltAnthropic.Definitions.Def_FLTPrelim_FreyPackage	Tengoku.Flt.FLT.FreyCurve.Basic	2	FreyPackage.freyCurveInt
+CLASH	Tengoku.FltAnthropic.Definitions.Def_FLTPrelim_FreyPackage	Tengoku.Flt.FLT.FreyCurve.FreyPackage	16	FreyPackage.casesOn
+clashes: 5 module pair(s), 43 name(s)

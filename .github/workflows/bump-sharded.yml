@@ -378,6 +378,33 @@ jobs:
         run: |
           flag=(); if [ "$VERIFY_PARTIAL" = true ]; then flag=(--allow-unfinished); fi
           python3 emissary/scripts/bump/tree_verify.py collect --new out/new.json --log out/build.log --out out --bundle bundle "${flag[@]}"
+      # The tree's cache may be older than the tree. The scans below read every olean in `.lake/build`, and a tree module that the build above did not need keeps the olean the cache holds, from before its source
+      # changed (15 Nov 2026, flt-anthropic: the Flt library's names were qualified on the 14th at 15:09, the cache is from 11:52, and `FreyPackage.freyCurveInt` was "declared by" Tengoku.Flt.FLT.FreyCurve.Basic, whose
+      # source says Tengoku.Flt.FreyPackage: four modules were refused for a clash that was not there, and 15,006 names stayed out with them). So: scan once, build the OTHER module of every pair (Lake rebuilds it, and
+      # what it needs when the cache is older), and the scans below read the fresh oleans (scripts/bump/clash_recheck.py). Nothing here refuses a module: a build that fails or runs out of time leaves the oleans as
+      # they were, and the scans decide as before.
+      - name: Build again the tree modules that a name clash names (the cache may be older than the tree)
+        run: |
+          if [ -s out/built.txt ]; then
+            cap=$(( (JOB_START + 355 * 60 - $(date +%s)) / 60 - 110 )); [ "$cap" -gt 45 ] && cap=45
+            if [ "$cap" -ge 15 ]; then
+              cd tree
+              timeout -k 30 10m lake env lean --run ../emissary/scripts/bump/ModuleClashes.lean .lake/build/lib/lean ../out/built.txt Tengoku > ../out/clashes-first.txt 2>&1 || true
+              tail -n 3 ../out/clashes-first.txt
+              cd ..
+              python3 emissary/scripts/bump/clash_recheck.py others out/clashes-first.txt --new out/built.txt > out/clash-others.txt || { echo "::warning::the modules of the clashes could not be read: nothing is built again"; : > out/clash-others.txt; }
+              if [ -s out/clash-others.txt ]; then
+                mapfile -t og < out/clash-others.txt
+                echo "building again ${#og[@]} tree module(s) that a clash names"
+                cd tree
+                set +e
+                timeout -k 60 "$(( cap - 10 ))m" lake build "${og[@]}" 2>&1 | tee ../out/clash-refresh.log | tail -n 5
+                echo "lake exit status: ${PIPESTATUS[0]}"
+              fi
+            else
+              echo "no time left to build the tree modules of a clash again"
+            fi
+          fi
       # COPIES OF TREE MODULES (tree_dups.py, input `dups`). The draft still holds each copy M of a tree module and everything that imports it, and the tree has built them all. Here: which copies
       # are provably the same as the tree's module (every declaration of M has the fingerprint, type + value + everything below, of a declaration of the tree's module(s)), what imports them
       # imports the tree's module instead, those importers are built again, and each must come out with exactly the declarations it had. What this does and does not guarantee is in tree_dups.py.
@@ -549,6 +576,9 @@ jobs:
             out/summary.txt
             out/axioms.txt
             out/clashes.txt
+            out/clashes-first.txt
+            out/clash-others.txt
+            out/clash-refresh.log
             out/union-excluded.txt
             out/union-excluded.reasons
             out/union-*.txt
