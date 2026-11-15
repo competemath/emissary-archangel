@@ -205,8 +205,8 @@ class Bundle(unittest.TestCase):
             self.assertEqual(rep["qualified"], 3)
             self.assertEqual(rep["unresolved"], ["instAddFoo"])  # an anonymous instance: no text names it
             self.assertEqual(rep["modules_opened"], 2)  # MatrixOperations declares, Containment uses `X`
-            self.assertIn(f"def {NS}.X", (b / "MatrixOperations.lean").read_text())
-            self.assertIn(f"namespace {NS} end {NS} open {NS} ", (b / "Containment.lean").read_text())
+            self.assertIn(f"def _root_.{NS}.X", (b / "MatrixOperations.lean").read_text())
+            self.assertIn(f"namespace {NS} end {NS} open {NS}\ntheorem c", (b / "Containment.lean").read_text())
             self.assertEqual((b / "Other.lean").read_text(), "module\n\npublic import Tengoku\n\ndef Q : Nat := 1\n")
             self.assertIn("root names of this library moved to", (b / "MatrixOperations.lean").read_text())
 
@@ -265,7 +265,7 @@ class Bundle(unittest.TestCase):
             out = json.loads(r.stdout.split(" ", 1)[1])
             self.assertEqual(out["roots"]["qualified"], 2)
             self.assertEqual(out["roots"]["manifest_records"], 1)
-            self.assertIn(f"def {NS}.X", (b / "MatrixOperations.lean").read_text())
+            self.assertIn(f"def _root_.{NS}.X", (b / "MatrixOperations.lean").read_text())
 
     def test_the_library_layout_takes_the_bundles_namespace(self):
         with tempfile.TemporaryDirectory() as t:
@@ -280,7 +280,7 @@ class Bundle(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(r.returncode, 0, r.stderr)
-            self.assertIn(f"def {NS}.X", (p / "MatrixOperations.lean").read_text())
+            self.assertIn(f"def _root_.{NS}.X", (p / "MatrixOperations.lean").read_text())
 
     def test_a_namespace_that_is_not_a_lean_name_is_refused_and_nothing_is_written(self):
         for bad in ("Tengoku.A\nend", "Tengoku.A end X", "A..B", "", "A;B"):

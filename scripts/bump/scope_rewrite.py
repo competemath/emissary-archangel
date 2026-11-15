@@ -41,6 +41,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import autonames  # noqa: E402
+import roots_tree  # noqa: E402
 import tolerant_build as tb  # noqa: E402
 
 LEAK = re.compile(
@@ -840,14 +841,24 @@ def qualify_roots_in_file(f: Lines, roots: set[str], ns: str, mark_open: bool = 
 
 
 def qualify_bundle(root: Path, roots: set[str], ns: str, skip: int = 0) -> dict:
-    """qualify_roots_in_file on every module of a bundle (`Tengoku/<Library>/…`, skip=0) or of the library's own layout (skip=2). A root that no module declares (the name of an
-    anonymous instance, `instAddFoo`, which no text says) is returned in `unresolved`: it cannot be renamed by text, and it is not a name anyone writes."""
+    """The root declarations of every module of a bundle (`Tengoku/<Library>/…`, skip=0) or of the library's own layout (skip=2) move to `ns`, by the tree's own script: roots_tree.py
+    here is a verbatim copy of tengoku's scripts/roots_tree.py (tests/test_roots_tree_copy.py pins it), so a bundle is qualified exactly as the tree's roots PRs were, with every form
+    those learned (`_root_.R`, an `end A.B` that closes several scopes, a section that closes early, `class abbrev`, `alias`). The two passes of its `qualify_files`: the declarations
+    and namespace blocks over every module (which roots are renamed), then the names spelled from the root for those roots. A root that no module declares (the name of an anonymous
+    instance, `instAddFoo`, which no text says) is returned in `unresolved`: it cannot be renamed by text, and it is not a name anyone writes."""
     report: dict = {"qualified": 0, "namespaces": 0, "dotted": 0, "modules_opened": 0, "unresolved": []}
     seen: set[str] = set()
     renamed: set[str] = set()
-    for mod, path in sorted(native_names(root, skip).items()):
-        f = Lines(path.read_text())
-        d = qualify_roots_in_file(f, roots, ns)
+    edited: dict[Path, tuple] = {}
+    for _mod, path in sorted(native_names(root, skip).items()):
+        f = roots_tree.Lines(path.read_text())
+        edited[path] = (f, roots_tree.qualify_roots_in_file(f, roots, ns))
+        renamed |= edited[path][1]["heads"]
+    note = roots_tree.NOTE.format(ns=ns)
+    for path, (f, d) in edited.items():
+        e = roots_tree.qualify_explicit_roots(f, renamed, ns)
+        d["declared"] += e["declared"]
+        d["dotted"] += e["dotted"]
         if not f.edited:
             continue
         report["qualified"] += len(d["declared"])
@@ -855,12 +866,10 @@ def qualify_bundle(root: Path, roots: set[str], ns: str, skip: int = 0) -> dict:
         report["dotted"] += d["dotted"]
         report["modules_opened"] += 1 if d["opened"] else 0
         seen.update(d["declared"])
-        renamed |= d["heads"]
         new = "\n".join(f.text)
         if not new.endswith("\n"):
             new += "\n"
-        new += f"-- Tengoku: root names of this library moved to {ns} so they do not collide with other libraries (generated)\n"
-        path.write_text(new)
+        path.write_text(new if note in new else new + note)  # one footer per module
     report["unresolved"] = sorted(roots - seen)
     report["renamed"] = sorted(renamed)  # the roots the module pass renamed: what the manifest follows
     return report
@@ -868,22 +877,14 @@ def qualify_bundle(root: Path, roots: set[str], ns: str, skip: int = 0) -> dict:
 
 def qualify_manifest(root: Path, roots: set[str], ns: str) -> int:
     """The manifest record of a declaration whose name starts with a root that the module pass renamed (`roots` is that set: the declaration itself, a member of its namespace block, a dotted
-    `R.x`) follows: the module now declares `<ns>.<name>`. A root no module pass renamed (an anonymous instance) leaves its record alone. Returns the count."""
+    `R.x`) follows: the module now declares `<ns>.<name>`. A root no module pass renamed (an anonymous instance) leaves its record alone. Returns the count. The tree's script does it
+    (roots_tree.qualify_manifest_text), as for the modules."""
     path = root / "manifest.jsonl"
     if not path.is_file():
         return 0
-    out, changed = [], 0
-    for line in path.read_text(encoding="utf-8").splitlines(keepends=True):
-        rec = json.loads(line) if line.strip() else None
-        if rec and head_of(rec.get("name", "")) in roots:
-            f = Lines(rec["statement"])
-            qualify_roots_in_file(f, roots, ns, mark_open=False)  # a record's statement is the declaration alone: no header, no `open`
-            rec["statement"] = "\n".join(f.text)
-            rec["name"] = f"{ns}.{rec['name']}"
-            line = json.dumps(rec, ensure_ascii=False) + "\n"
-            changed += 1
-        out.append(line)
-    path.write_text("".join(out), encoding="utf-8")
+    new, changed = roots_tree.qualify_manifest_text(path.read_text(encoding="utf-8"), roots, ns)
+    if changed:
+        path.write_text(new, encoding="utf-8")
     return changed
 
 
@@ -922,11 +923,14 @@ def main() -> None:
     ap.add_argument("--leaks", required=True)
     ap.add_argument("--reexport", action="store_true", help="also give every module that imports a flagged module the same registrations, local to it")
     ap.add_argument("--qualify-roots", action="store_true", help="also move the library's root-namespace declarations (the report's `root:` lines) to Tengoku.<Library>.<name>")
+    ap.add_argument("--roots-file", help="a file of more `root:` lines for --qualify-roots (root_lines.py: a large library has more names than one argument holds); a missing file is none")
     ap.add_argument("--namespace", type=valid_namespace, help="the namespace for --qualify-roots (default: Tengoku.<Library> of the bundle)")
     ap.add_argument("--forbid-namespaces", help="a file, one namespace per line: a notation there is not made scoped (core and Mathlib have scoped entries in it); it stays as it is and is reported")
     a = ap.parse_args()
     leaks = parse(a.leaks)
     roots = parse_roots(a.leaks) if a.qualify_roots else set()
+    if a.qualify_roots and a.roots_file and Path(a.roots_file).is_file():
+        roots |= parse_roots(Path(a.roots_file).read_text(encoding="utf-8"))
     if a.forbid_namespaces:
         FORBIDDEN_NS.update(x.strip() for x in Path(a.forbid_namespaces).read_text().splitlines() if x.strip())
     if not leaks and not roots:
