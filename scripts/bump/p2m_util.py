@@ -33,7 +33,7 @@ sys.path.insert(0, str(HERE))
 from adapters import code_mask  # noqa: E402
 
 UTIL = "P2M.Util"
-IMPORT_UTIL = re.compile(r"^[ \t]*(?:(?:public|private|meta)[ \t]+)*import[ \t]+P2M\.Util[ \t]*(?:\n|$)", re.M)
+IMPORT_UTIL = re.compile(r"^[ \t]*(?:(?:public|private|meta)[ \t]+)*import[ \t]+(?:all[ \t]+)?P2M\.Util[ \t]*(?:\n|$)", re.M)  # `import all` is the module system's form of the same import
 KEYWORD = re.compile(r"(?<![\w.#'])(#?p2m_[a-z_]+)\b")
 STR = r'"((?:[^"\\\n]|\\.)*)"'
 WS = r"[ \t\r\n]*"
@@ -58,8 +58,10 @@ def open_commands(arg: str, in_: bool) -> str:
     return " ".join(out)
 
 
-def scoped_commands(arg: str, in_: bool) -> str:
-    heads = [w.split("~")[0] for w in words(arg)]
+def scoped_commands(arg: str, in_: bool, tilde: bool = True) -> str:
+    """`open scoped A B [in]`. `p2m_open_scoped` reads each word like `p2m_open` (the part before a `~` is the namespace); `p2m_reactivate` takes every word as one namespace, verbatim
+    (`tilde=False`: cubic on #203)."""
+    heads = [w.split("~")[0] if tilde else w for w in words(arg)]
     heads = [h for h in heads if h]
     return ("open scoped " + " ".join(heads) + (" in" if in_ else "")) if heads else ""
 
@@ -169,14 +171,14 @@ def rewrite_module(text: str) -> tuple[str, Counter, Counter]:
         if kw in INERT:
             line_end = text.find("\n", end)
             line_end = len(text) if line_end < 0 else line_end
-            a = re.compile(rf"{WS}\S+{WS}\S+[ \t]*").match(text, end)
+            a = re.compile(rf"[ \t]+([^\s«»]+)[ \t]+([^\s«»]+)[ \t]*(?=\n|$)").match(text, end)  # two plain identifiers and the end of the line: an escaped identifier (`«a b»`) or anything else is not guessed at (cubic on #203)
             if a is None or a.end() > line_end:
                 left[kw] += 1
                 continue
             start = m.start()
             ls = text.rfind("\n", 0, start) + 1
             stop = a.end()
-            if text[ls:start].strip() == "" and text[stop:line_end].strip() == "":
+            if text[ls:start].strip() == "":
                 start, stop = ls, min(line_end + 1, len(text))  # the whole line goes
             edits.append((start, stop, ""))
             done[kw] += 1
@@ -205,7 +207,7 @@ def rewrite_module(text: str) -> tuple[str, Counter, Counter]:
             if a is None:
                 left[kw] += 1
                 continue
-            edits.append((m.start(), a.end(), scoped_commands(a.group(1), False)))
+            edits.append((m.start(), a.end(), scoped_commands(a.group(1), False, tilde=False)))
             done[kw] += 1
             continue
         left[kw] += 1  # a p2m_ word this does not know

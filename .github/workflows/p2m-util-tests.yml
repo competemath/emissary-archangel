@@ -4,9 +4,9 @@
 name: p2m-util-tests
 on:
   push:
-    paths: ["scripts/bump/p2m_util.py", "scripts/bump/tests/p2m_util_probe.py", "scripts/bump/tests/test_p2m_util.py", "scripts/bump/tests/lean/P2MCompare.lean", "scripts/bump/tests/fixtures/real-p2m-util-aa2d8b34.lean", "scripts/bump/adapters.py", ".github/workflows/p2m-util-tests.yml"]
+    paths: ["scripts/bump/p2m_util.py", "scripts/bump/tests/p2m_util_probe.py", "scripts/bump/tests/test_p2m_util.py", "scripts/bump/tests/lean/P2MCompare.lean", "scripts/bump/tests/fixtures/real-p2m-util-aa2d8b34.lean", "scripts/bump/adapters.py", "gate2/lean-toolchain", ".github/workflows/p2m-util-tests.yml"]
   pull_request:
-    paths: ["scripts/bump/p2m_util.py", "scripts/bump/tests/p2m_util_probe.py", "scripts/bump/tests/test_p2m_util.py", "scripts/bump/tests/lean/P2MCompare.lean", "scripts/bump/tests/fixtures/real-p2m-util-aa2d8b34.lean", "scripts/bump/adapters.py", ".github/workflows/p2m-util-tests.yml"]
+    paths: ["scripts/bump/p2m_util.py", "scripts/bump/tests/p2m_util_probe.py", "scripts/bump/tests/test_p2m_util.py", "scripts/bump/tests/lean/P2MCompare.lean", "scripts/bump/tests/fixtures/real-p2m-util-aa2d8b34.lean", "scripts/bump/adapters.py", "gate2/lean-toolchain", ".github/workflows/p2m-util-tests.yml"]
 permissions: {}
 defaults:
   run:
@@ -42,8 +42,23 @@ jobs:
       - name: "A rewrite with another effect is refused (a mutant, `p2m_open` written as `open scoped`)"
         working-directory: gate2
         run: |
-          if python3 ../scripts/bump/tests/p2m_util_probe.py "$RUNNER_TEMP/p2m-mutant" --mutant; then
-            echo "::error::the probe accepted a rewrite that opens no name"
+          set +e
+          python3 ../scripts/bump/tests/p2m_util_probe.py "$RUNNER_TEMP/p2m-mutant" --mutant
+          rc=$?
+          # 1 = the rewrite was refused; 0 = accepted (wrong); 2 = the probe itself broke (also wrong: a crash must not pass for a refusal)
+          if [ "$rc" -ne 1 ]; then
+            echo "::error::the probe answered $rc to a rewrite that opens no name (1 is the refusal)"
             exit 1
           fi
           echo "the mutant was refused, as it must be"
+      - name: "A rewrite that declares one more theorem is refused too (a mutant)"
+        working-directory: gate2
+        run: |
+          set +e
+          python3 ../scripts/bump/tests/p2m_util_probe.py "$RUNNER_TEMP/p2m-extra" --mutant-extra
+          rc=$?
+          if [ "$rc" -ne 1 ]; then
+            echo "::error::the probe answered $rc to a rewrite that adds a constant (1 is the refusal)"
+            exit 1
+          fi
+          echo "the extra constant was refused, as it must be"

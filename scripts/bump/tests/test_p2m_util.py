@@ -111,6 +111,38 @@ class SeveralTheorems(unittest.TestCase):
         self.assertEqual((dict(done), dict(left)), ({"p2m_exact_reverting": 1}, {}))
 
 
+class TheEdges(unittest.TestCase):
+    """what cubic found on #203: forms of the same things this had not looked at"""
+
+    def test_reactivate_takes_every_word_verbatim_open_scoped_reads_the_tilde(self):
+        self.assertEqual(pu.scoped_commands("A.B C~x", False, tilde=False), "open scoped A.B C~x")
+        self.assertEqual(pu.scoped_commands("A.B C~x", False), "open scoped A.B C")
+        new, _, _ = pu.rewrite_module('import P2M.Util\np2m_reactivate "A~b C"\np2m_open_scoped "A~b C"\n')
+        self.assertEqual(new, "open scoped A~b C\nopen scoped A C\n")
+
+    def test_import_all_is_an_import_of_the_util_too(self):
+        for line in ("import all P2M.Util", "public import all P2M.Util", "meta import P2M.Util", "import P2M.Util"):
+            new, done, left = pu.rewrite_module(f"{line}\np2m_open \"A\"\n")
+            self.assertEqual(new, "open A\n", line)
+        self.assertIsNone(pu.IMPORT_UTIL.search("-- import P2M.Util\n"))  # a comment is not an import
+
+    def test_an_escaped_identifier_in_a_print_only_check_is_not_guessed_at(self):
+        t = "import P2M.Util\n#p2m_type_eq_warn «A b» C\n"
+        new, done, left = pu.rewrite_module(t)
+        self.assertEqual((new, dict(left)), (t, {"#p2m_type_eq_warn": 1}))
+        t2 = "import P2M.Util\n#p2m_type_eq_warn A B extra\n"
+        self.assertEqual(pu.rewrite_module(t2)[0], t2)  # more than two words: left too
+
+    def test_a_module_changed_by_two_passes_is_counted_by_both_notices(self):
+        import grind_sets as gs
+
+        text = "import X\n" + gs.notice("lib@aa", "A.lean", ["removed 2 tag(s) of the custom grind set(s) `s` from declarations"]) + "\n" + gs.notice("lib@aa", "A.lean", ["wrote out 5 shortcut(s) of the library's `P2M.Util` (it runs code when a module compiles) as plain Lean: 5 `p2m_open`"]) + "\n"
+        counted = gs.shipped_changes([text])
+        self.assertEqual(counted["modules changed"], 1)  # one module
+        self.assertEqual(counted["set tags removed"], 2)  # the first notice
+        self.assertEqual(counted["P2M.Util shortcuts written out"], 5)  # and the second
+
+
 class TheSolModules(unittest.TestCase):
     def test_export_and_open_with_a_second_namespace(self):
         new, done, left = pu.rewrite_module(real("S_ModularCurve_legendreJ_one_sub.lean"))

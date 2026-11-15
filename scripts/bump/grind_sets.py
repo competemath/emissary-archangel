@@ -350,22 +350,20 @@ def shipped_changes(texts) -> dict[str, int]:
     The repair notes were left out until 14 Nov 2026 (tda-lib part 1, Tengoku #826: 4 changed modules and 13 removed lines, reported as 2 and 3)."""
     stats = {"modules changed": 0, "set registrations removed": 0, "set tags removed": 0, "grind calls rewritten": 0, "inert lines removed": 0, "print lines removed": 0, "P2M.Util shortcuts written out": 0}
     for text in texts:
-        m = NOTICE_BODY.search(text)
+        bodies = [m.group("body") for m in NOTICE_BODY.finditer(text)]  # a module changed by two passes (the grind sets, then P2M.Util) carries two notices: every one is counted (cubic on #203)
         printed = len(PRINT_REPAIR.findall(text))
-        if not m and not printed:
+        if not bodies and not printed:
             continue
         stats["modules changed"] += 1
         stats["print lines removed"] += printed
-        if not m:
-            continue
-        body = m.group("body")
-        reg = re.search(r"removed the registration of the grind sets? (?P<names>.*?) \(it runs code", body)
-        if reg:
-            stats["set registrations removed"] += len(re.findall(r"`[^`]+`", reg.group("names")))
-        stats["set tags removed"] += sum(int(x) for x in re.findall(r"removed (\d+) tag\(s\) of the custom grind set", body))
-        stats["grind calls rewritten"] += sum(int(x) for x in re.findall(r"in (\d+) `grind` call\(s\)", body))
-        stats["inert lines removed"] += sum(int(x) for x in re.findall(r"removed (\d+) `#adaptation_note` / `set_option linter` line\(s\)", body))
-        stats["P2M.Util shortcuts written out"] += sum(int(x) for x in re.findall(r"wrote out (\d+) shortcut\(s\) of the library's `P2M\.Util`", body))
+        for body in bodies:
+            reg = re.search(r"removed the registration of the grind sets? (?P<names>.*?) \(it runs code", body)
+            if reg:
+                stats["set registrations removed"] += len(re.findall(r"`[^`]+`", reg.group("names")))
+            stats["set tags removed"] += sum(int(x) for x in re.findall(r"removed (\d+) tag\(s\) of the custom grind set", body))
+            stats["grind calls rewritten"] += sum(int(x) for x in re.findall(r"in (\d+) `grind` call\(s\)", body))
+            stats["inert lines removed"] += sum(int(x) for x in re.findall(r"removed (\d+) `#adaptation_note` / `set_option linter` line\(s\)", body))
+            stats["P2M.Util shortcuts written out"] += sum(int(x) for x in re.findall(r"wrote out (\d+) shortcut\(s\) of the library's `P2M\.Util`", body))
     return {k: v for k, v in stats.items() if v}
 
 

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """p2m_util_probe.py — run a real Lean on the shortcuts of `P2M/Util.lean` and on what p2m_util.py writes in their place, and compare what they declare.
 
-  p2m_util_probe.py WORKDIR [--mutant]     needs `lean` on the PATH (the CI job p2m-util-tests puts it there; nothing here runs on a developer's machine by default)
+  p2m_util_probe.py WORKDIR [--mutant | --mutant-extra]     needs `lean` on the PATH (the CI job p2m-util-tests puts it there; nothing here runs on a developer's machine by default)
 
 `WORKDIR` gets: `P2M/Util.lean` (the library's own file, byte for byte: fixtures/real-p2m-util-aa2d8b34.lean), `Defs.lean` (what the cases open, export and reactivate), `Orig.lean` (one case per shortcut,
 written the way the library writes them), `New.lean` (what p2m_util.rewrite_module makes of Orig.lean). All three are compiled, and P2MCompare.lean (run with `lean --run`) checks that every constant Orig.lean
 declares is declared by New.lean with the same type and the same value (proof terms included): the statement of each case only compiles with the effect of the shortcut it uses (an opened name, a hidden name,
-a scoped notation switched on again, an alias), so a rewrite with a different effect fails to compile or declares something else. Exit status 0 only when New.lean compiles and nothing differs.
-With --mutant the rewrite is made wrong on purpose (`p2m_open` becomes `open scoped`): the probe must then FAIL.
+a scoped notation switched on again, an alias), so a rewrite with a different effect fails to compile or declares something else. Exit status 0 only when New.lean compiles and nothing differs; 1 when the rewrite is REFUSED (New.lean does not compile, or declares something else); 2 when the probe itself broke (Orig.lean or the Util does not compile, an assertion): the mutant step of the workflow accepts only 1.
+With --mutant the rewrite is made wrong on purpose (`p2m_open` becomes `open scoped`), with --mutant-extra it declares one more theorem: the probe must then FAIL (exit 1) both times.
 """
 
 from __future__ import annotations
@@ -127,6 +127,7 @@ def compile_(work: Path, mod: str, lean_path: str) -> None:
 def main(argv: list[str]) -> int:
     work = Path(argv[0])
     mutant = "--mutant" in argv
+    extra = "--mutant-extra" in argv
     (work / "P2M").mkdir(parents=True, exist_ok=True)
     (work / "P2M" / "Util.lean").write_bytes((HERE / "fixtures" / "real-p2m-util-aa2d8b34.lean").read_bytes())
     (work / "Defs.lean").write_text(DEFS, encoding="utf-8")
@@ -134,21 +135,28 @@ def main(argv: list[str]) -> int:
     new, done, left = pu.rewrite_module(ORIG)
     if mutant:  # a wrong rewrite on purpose: the names of `p2m_open` are opened by `open scoped` (no name opened)
         new = new.replace("open Toy", "open scoped Toy").replace("open Toy~", "open scoped Toy")
-    assert not left, left
-    assert "P2M.Util" not in new, new
+    if left or "P2M.Util" in new:
+        print("the rewrite left a shortcut or the import: the probe's own case is wrong", left)
+        return 2
+    if extra:  # a rewrite that adds a constant must be refused too (P2MCompare: EXTRA)
+        new = new.rstrip("\n") + "\ntheorem p2m_probe_extra : True := trivial\n"
     (work / "New.lean").write_text(new, encoding="utf-8")
     print("expanded:", dict(done))
     lp = str(work)
-    compile_(work, "P2M/Util", lp)
-    compile_(work, "Defs", lp)
-    compile_(work, "Orig", lp)
+    try:
+        compile_(work, "P2M/Util", lp)
+        compile_(work, "Defs", lp)
+        compile_(work, "Orig", lp)
+    except subprocess.CalledProcessError:
+        print("the library's own module or the original case does not compile: the probe is broken, not the rewrite")
+        return 2
     try:
         compile_(work, "New", lp)
     except subprocess.CalledProcessError:
         print("New.lean does not compile")
         return 1
     r = subprocess.run([*lean(), "--run", str(HERE / "lean" / "P2MCompare.lean"), str(work / "Orig.olean"), str(work / "New.olean")], env={**os.environ, "LEAN_PATH": lp})
-    return r.returncode
+    return {0: 0, 1: 1}.get(r.returncode, 2)  # the comparison itself crashing is the probe's, not a refusal
 
 
 if __name__ == "__main__":
