@@ -348,7 +348,7 @@ def shipped_changes(texts) -> dict[str, int]:
     dropped later: formal-conjectures (Tengoku #752, 7 Nov) reported 6 changed modules and 8 removed lines while one shipped file carried a notice (3 lines); the reviewer read that as 5
     changed files without the notice the licence asks for. A file's notes are what it ships with, so a count read from them can never name a change that is not in the files.
     The repair notes were left out until 14 Nov 2026 (tda-lib part 1, Tengoku #826: 4 changed modules and 13 removed lines, reported as 2 and 3)."""
-    stats = {"modules changed": 0, "set registrations removed": 0, "set tags removed": 0, "grind calls rewritten": 0, "inert lines removed": 0, "print lines removed": 0}
+    stats = {"modules changed": 0, "set registrations removed": 0, "set tags removed": 0, "grind calls rewritten": 0, "inert lines removed": 0, "print lines removed": 0, "P2M.Util shortcuts written out": 0}
     for text in texts:
         m = NOTICE_BODY.search(text)
         printed = len(PRINT_REPAIR.findall(text))
@@ -365,6 +365,7 @@ def shipped_changes(texts) -> dict[str, int]:
         stats["set tags removed"] += sum(int(x) for x in re.findall(r"removed (\d+) tag\(s\) of the custom grind set", body))
         stats["grind calls rewritten"] += sum(int(x) for x in re.findall(r"in (\d+) `grind` call\(s\)", body))
         stats["inert lines removed"] += sum(int(x) for x in re.findall(r"removed (\d+) `#adaptation_note` / `set_option linter` line\(s\)", body))
+        stats["P2M.Util shortcuts written out"] += sum(int(x) for x in re.findall(r"wrote out (\d+) shortcut\(s\) of the library's `P2M\.Util`", body))
     return {k: v for k, v in stats.items() if v}
 
 

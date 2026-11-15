@@ -1,0 +1,49 @@
+# scripts/bump/p2m_util.py writes the shortcuts of flt-anthropic's `P2M/Util.lean` out as plain Lean (`elab` runs the library's code while a module compiles, which the tree's lint refuses). The Python side
+# (scripts/bump/tests/test_p2m_util.py, on the library's real files) also runs in bump-tests; this runs a real Lean: the library's own Util.lean (byte for byte) and one case per shortcut, compiled as the library
+# wrote it and as p2m_util.py writes it, and P2MCompare.lean checks that both declare the same constants with the same types and the same values. A wrong rewrite (the mutant) must fail it.
+name: p2m-util-tests
+on:
+  push:
+    paths: ["scripts/bump/p2m_util.py", "scripts/bump/tests/p2m_util_probe.py", "scripts/bump/tests/test_p2m_util.py", "scripts/bump/tests/lean/P2MCompare.lean", "scripts/bump/tests/fixtures/real-p2m-util-aa2d8b34.lean", "scripts/bump/adapters.py", ".github/workflows/p2m-util-tests.yml"]
+  pull_request:
+    paths: ["scripts/bump/p2m_util.py", "scripts/bump/tests/p2m_util_probe.py", "scripts/bump/tests/test_p2m_util.py", "scripts/bump/tests/lean/P2MCompare.lean", "scripts/bump/tests/fixtures/real-p2m-util-aa2d8b34.lean", "scripts/bump/adapters.py", ".github/workflows/p2m-util-tests.yml"]
+permissions: {}
+defaults:
+  run:
+    shell: bash
+jobs:
+  lean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout: |
+            gate2
+            scripts/bump
+          persist-credentials: false
+      - name: elan (the installer at a fixed commit, checked against its digest before it runs)
+        run: |
+          for try in $(seq 1 20); do curl --proto '=https' --tlsv1.2 -sSfL --max-time 120 -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh && echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c - && timeout 300 sh elan-init.sh -y --default-toolchain none && break; [ "$try" -lt 20 ] || exit 1; echo "::notice::the Lean installer failed (try $try of 20): again in 30 s"; sleep 30; done
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: The Python side, on the library's real files
+        run: python3 -u -m unittest discover -s scripts/bump/tests -p "test_p2m_util.py"
+      - name: The shortcuts and what is written in their place declare the same constants (Lean 4.34.0-rc2, the tree's)
+        working-directory: gate2
+        run: python3 ../scripts/bump/tests/p2m_util_probe.py "$RUNNER_TEMP/p2m-tree"
+      - name: The same on Lean 4.33.0, the library's own
+        working-directory: gate2
+        env:
+          LEAN_TOOLCHAIN: leanprover/lean4:v4.33.0
+        run: |
+          elan toolchain install "$LEAN_TOOLCHAIN"
+          python3 ../scripts/bump/tests/p2m_util_probe.py "$RUNNER_TEMP/p2m-lib"
+      - name: "A rewrite with another effect is refused (a mutant, `p2m_open` written as `open scoped`)"
+        working-directory: gate2
+        run: |
+          if python3 ../scripts/bump/tests/p2m_util_probe.py "$RUNNER_TEMP/p2m-mutant" --mutant; then
+            echo "::error::the probe accepted a rewrite that opens no name"
+            exit 1
+          fi
+          echo "the mutant was refused, as it must be"
