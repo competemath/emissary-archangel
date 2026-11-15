@@ -18,6 +18,7 @@ import inspect
 import io
 import re
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -33,6 +34,7 @@ REAL = (FX / "real-clashes-flt-stale-cache-2026-11-15.txt").read_text()
 TREE_SOURCE = (FX / "real-tree-flt-freycurve-basic-excerpt-2026-11-14.lean").read_text()
 WORKFLOW = HERE.parents[2] / ".github" / "workflows" / "bump-sharded.yml"
 STEP = "Build again the tree modules that a name clash names"
+NEW = frozenset(m for ln in REAL.splitlines() if ln.startswith("CLASH\t") for m in ln.split("\t")[1:3] if m.startswith("Tengoku.FltAnthropic."))  # what built.txt held: the library's own modules
 FIVE = [
     "Tengoku.Flt.FLT.FreyCurve.Basic",
     "Tengoku.Flt.FLT.FreyCurve.FreyPackage",
@@ -52,12 +54,18 @@ def mutated(old: str, new: str):
 
 class TheModules(unittest.TestCase):
     def test_the_real_log_names_five_tree_modules(self):
-        self.assertEqual(cr.others(REAL), FIVE)
+        self.assertEqual(cr.others(REAL, NEW), FIVE)
         self.assertEqual(len([ln for ln in REAL.splitlines() if ln.startswith("CLASH\t")]), 5)
 
     def test_it_is_the_tree_side_not_the_new_side(self):
-        self.assertTrue(all(m.startswith("Tengoku.Flt.") for m in cr.others(REAL)))
-        self.assertFalse(any("FltAnthropic" in m for m in cr.others(REAL)))
+        self.assertTrue(all(m.startswith("Tengoku.Flt.") for m in cr.others(REAL, NEW)))
+        self.assertFalse(any("FltAnthropic" in m for m in cr.others(REAL, NEW)))
+
+    def test_either_side_may_be_the_new_one(self):
+        """cubic on #202: ModuleClashes prints the later module of a pair first and lists a pair when at least one of the two is new, so the second field is not always the tree's."""
+        text = "CLASH\tTengoku.T.Old\tTengoku.N.New\t1\tf\nCLASH\tTengoku.N.New2\tTengoku.T.Old2\t1\tg\n"
+        self.assertEqual(cr.others(text, {"Tengoku.N.New", "Tengoku.N.New2"}), ["Tengoku.T.Old", "Tengoku.T.Old2"])
+        self.assertEqual(cr.others(text, set()), ["Tengoku.N.New", "Tengoku.N.New2", "Tengoku.T.Old", "Tengoku.T.Old2"])  # nothing known to be new: both sides are built again, never one missed
 
     def test_the_real_clash_was_read_from_an_old_olean(self):
         """The evidence, from the two real files: the log's first name is the unqualified one, and the tree's source has only the qualified one."""
@@ -69,30 +77,38 @@ class TheModules(unittest.TestCase):
 
     def test_every_module_once_and_sorted(self):
         text = "CLASH\tTengoku.A.X\tTengoku.T.Z\t2\tf\nCLASH\tTengoku.B.Y\tTengoku.T.Z\t1\tg\nCLASH\tTengoku.A.W\tTengoku.T.A\t1\th\nclashes: 3 module pair(s), 4 name(s)\n"
-        self.assertEqual(cr.others(text), ["Tengoku.T.A", "Tengoku.T.Z"])
+        self.assertEqual(cr.others(text, {"Tengoku.A.X", "Tengoku.B.Y", "Tengoku.A.W"}), ["Tengoku.T.A", "Tengoku.T.Z"])
 
     def test_lines_that_are_not_clashes_say_nothing(self):
-        self.assertEqual(cr.others("clashes: 0 module pair(s), 0 name(s)\nwarning: x\n\nCLASH only\n"), [])
-        self.assertEqual(cr.others(""), [])
+        self.assertEqual(cr.others("clashes: 0 module pair(s), 0 name(s)\nwarning: x\n\nCLASH only\n", NEW), [])
+        self.assertEqual(cr.others("", NEW), [])
 
-    def test_a_name_that_is_not_a_plain_module_is_refused(self):
-        for bad in ("Other.Mod", "Tengoku.A;rm -rf x", "Tengoku.A B", "Tengoku.A$(x)", "Tengoku.A`x`", "Tengoku.A|B", "Tengoku.A\"B", "Tengoku."):
-            with self.assertRaises(SystemExit, msg=bad):
-                cr.others(f"CLASH\tTengoku.N.X\t{bad}\t1\tf\n")
+    def test_a_name_that_is_not_a_plain_module_is_skipped_and_the_rest_is_still_built(self):
+        err = io.StringIO()
+        for bad in ("Other.Mod", "Tengoku.A;rm -rf x", "Tengoku.A$(x)", "Tengoku.A`x`", "Tengoku.A|B", "Tengoku.A\\B", "Tengoku."):
+            with contextlib.redirect_stderr(err):
+                got = cr.others(f"CLASH\tTengoku.N.X\t{bad}\t1\tf\nCLASH\tTengoku.N.X\tTengoku.T.Good\t1\tg\n", {"Tengoku.N.X"})
+            self.assertEqual(got, ["Tengoku.T.Good"], bad)
+        self.assertIn("not built again", err.getvalue())
 
-    def test_guillemets_survive(self):
-        self.assertEqual(cr.others("CLASH\tTengoku.N.X\tTengoku.L.«1102.4662».A\t1\tf\n"), ["Tengoku.L.«1102.4662».A"])
+    def test_guillemets_survive_and_may_hold_a_space(self):
+        """cubic on #202: Lean allows a space inside `«…»`, and the workflow passes every module as one array element: one such name must not stop the others"""
+        got = cr.others("CLASH\tTengoku.N.X\tTengoku.L.«1102.4662».A\t1\tf\nCLASH\tTengoku.N.X\tTengoku.L.«a b».C\t1\tg\n", {"Tengoku.N.X"})
+        self.assertEqual(got, ["Tengoku.L.«1102.4662».A", "Tengoku.L.«a b».C"])
 
     def test_at_most_the_limit(self):
         text = "".join(f"CLASH\tTengoku.N.X{i}\tTengoku.T.M{i:04d}\t1\tf\n" for i in range(cr.LIMIT + 20))
-        got = cr.others(text)
+        got = cr.others(text, {f"Tengoku.N.X{i}" for i in range(cr.LIMIT + 20)})
         self.assertEqual(len(got), cr.LIMIT)
         self.assertEqual(got, sorted(got))
 
     def test_the_command_prints_one_module_per_line(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            self.assertEqual(cr.main(["others", str(FX / "real-clashes-flt-stale-cache-2026-11-15.txt")]), 0)
+            with tempfile.TemporaryDirectory() as d:
+                built = Path(d) / "built.txt"
+                built.write_text("\n".join(sorted(NEW)) + "\n")
+                self.assertEqual(cr.main(["others", str(FX / "real-clashes-flt-stale-cache-2026-11-15.txt"), "--new", str(built)]), 0)
         self.assertEqual(out.getvalue().splitlines(), FIVE)
         err = io.StringIO()
         with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as stop:
@@ -100,18 +116,18 @@ class TheModules(unittest.TestCase):
         self.assertEqual(stop.exception.code, 2)
 
     def test_mutant_the_new_side_is_built(self):
-        self.assertNotEqual(mutated('other = m.group("other")', 'other = m.group("new")')(REAL), FIVE)
+        self.assertNotEqual(mutated("if side in new:", "if False:")(REAL, NEW), FIVE)
 
     def test_mutant_duplicates_are_kept(self):
         text = "CLASH\tTengoku.A.X\tTengoku.T.Z\t2\tf\nCLASH\tTengoku.B.Y\tTengoku.T.Z\t1\tg\n"
-        src = inspect.getsource(cr.others).replace("found: set[str] = set()", "found = []").replace("found.add(other)", "found.append(other)")
+        src = inspect.getsource(cr.others).replace("found: set[str] = set()", "found = []").replace("found.add(side)", "found.append(side)")
         ns = dict(vars(cr))
         exec(src, ns)
-        self.assertNotEqual(ns["others"](text), ["Tengoku.T.Z"])
+        self.assertNotEqual(ns["others"](text, {"Tengoku.A.X", "Tengoku.B.Y"}), ["Tengoku.T.Z"])
 
     def test_mutant_the_name_check_dropped(self):
-        f = mutated("if not MODULE.fullmatch(other):", "if False:")
-        self.assertEqual(f("CLASH\tTengoku.N.X\tTengoku.A;rm\t1\tf\n"), ["Tengoku.A;rm"])  # what the check refuses
+        f = mutated("if not MODULE.fullmatch(side):", "if False:")
+        self.assertEqual(f("CLASH\tTengoku.N.X\tTengoku.A;rm\t1\tf\n", {"Tengoku.N.X"}), ["Tengoku.A;rm"])  # what the check skips
 
 
 def load(text: str) -> dict:
@@ -148,7 +164,7 @@ class TheStep(unittest.TestCase):
 
     def test_it_builds_the_modules_as_separate_arguments(self):
         run = self.step()["run"]
-        self.assertIn("python3 emissary/scripts/bump/clash_recheck.py others out/clashes-first.txt > out/clash-others.txt", run)
+        self.assertIn("python3 emissary/scripts/bump/clash_recheck.py others out/clashes-first.txt --new out/built.txt > out/clash-others.txt", run)  # built.txt: what ModuleClashes was given as new
         self.assertIn('mapfile -t og < out/clash-others.txt', run)
         self.assertIn('lake build "${og[@]}"', run)
 
@@ -179,8 +195,12 @@ class TheStep(unittest.TestCase):
         self.assertNotIn("secrets.", self.step()["run"])
 
     def test_the_scan_it_runs_is_the_one_the_verdict_runs(self):
-        run = self.step()["run"]
-        self.assertIn("lake env lean --run ../emissary/scripts/bump/ModuleClashes.lean .lake/build/lib/lean ../out/built.txt Tengoku", run)
+        """the command of the refresh scan is the command of the verdict scan (`The names that two modules…`), compared from the parsed workflow: same program, same olean root, same list, same prefix"""
+        def scan(run: str) -> str:
+            return re.search(r"lake env lean --run (\S*ModuleClashes\.lean) (\S+) (\S+) (\S+)", run).groups()
+
+        verdict = next(x for x in self.doc["jobs"]["verify"]["steps"] if x.get("name", "").startswith("The names that two modules"))["run"]
+        self.assertEqual(scan(self.step()["run"]), scan(verdict))
 
     def test_mutant_the_step_after_the_dups_scan(self):
         i = self.text.index("      # The tree's cache may be older than the tree.")
@@ -206,8 +226,10 @@ class TheStep(unittest.TestCase):
         run = self.step()["run"]
         mutant = run.replace('timeout -k 60 "$(( cap - 10 ))m" ', "")
         self.assertNotEqual(mutant, run)
-        self.assertNotIn("timeout -k 60", mutant.split("lake build")[0].splitlines()[-1])  # the line that builds has no timeout: the budget test below reads `timeout` and fails on it
-        self.assertIsNone(re.search(r'timeout -k 60 "\$\(\( cap - 10 \)\)m" lake build', mutant))
+        build = [ln for ln in mutant.splitlines() if "lake build" in ln]
+        self.assertEqual(len(build), 1)
+        self.assertNotIn("timeout", build[0])  # the build line of the mutant has no cap...
+        self.assertTrue(any("timeout -k 60" in ln and "lake build" in ln for ln in run.splitlines()))  # ...and the real one has: this is what `test_its_time_is_what_the_job_has_left` pins
 
 
 class TheBudgets(unittest.TestCase):

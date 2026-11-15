@@ -392,7 +392,7 @@ jobs:
               timeout -k 30 10m lake env lean --run ../emissary/scripts/bump/ModuleClashes.lean .lake/build/lib/lean ../out/built.txt Tengoku > ../out/clashes-first.txt 2>&1 || true
               tail -n 3 ../out/clashes-first.txt
               cd ..
-              python3 emissary/scripts/bump/clash_recheck.py others out/clashes-first.txt > out/clash-others.txt || { echo "::warning::the modules of the clashes could not be read: nothing is built again"; : > out/clash-others.txt; }
+              python3 emissary/scripts/bump/clash_recheck.py others out/clashes-first.txt --new out/built.txt > out/clash-others.txt || { echo "::warning::the modules of the clashes could not be read: nothing is built again"; : > out/clash-others.txt; }
               if [ -s out/clash-others.txt ]; then
                 mapfile -t og < out/clash-others.txt
                 echo "building again ${#og[@]} tree module(s) that a clash names"
