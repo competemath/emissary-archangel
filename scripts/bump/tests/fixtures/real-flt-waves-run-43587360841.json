@@ -1,0 +1,109 @@
+{
+ "source": "the jobs of bump-waves run 43587360841 (flt-anthropic, resumed from 43529754609) as GitHub listed them after it was cancelled at 23:33 UTC on 14 Nov 2026: shard 109 of wave 19 lost its runner (failure, no failed step) after 55 minutes, 107 and 108 succeeded, job 110 of wave 20 was waiting at its restore step (cancelled)",
+ "jobs": [
+  {
+   "name": "plan",
+   "status": "completed",
+   "conclusion": "success",
+   "started_at": "2026-11-14T10:53:04Z",
+   "completed_at": "2026-11-14T10:53:55Z",
+   "failed_steps": []
+  },
+  {
+   "name": "w16 (99) / shard",
+   "status": "completed",
+   "conclusion": "success",
+   "started_at": "2026-11-14T10:53:58Z",
+   "completed_at": "2026-11-14T11:48:44Z",
+   "failed_steps": []
+  },
+  {
+   "name": "w17 (100) / shard",
+   "status": "completed",
+   "conclusion": "success",
+   "started_at": "2026-11-14T11:48:46Z",
+   "completed_at": "2026-11-14T17:06:21Z",
+   "failed_steps": []
+  },
+  {
+   "name": "w17 (101) / shard",
+   "status": "completed",
+   "conclusion": "success",
+   "started_at": "2026-11-14T11:48:46Z",
+   "completed_at": "2026-11-14T17:06:32Z",
+   "failed_steps": []
+  },
+  {
+   "name": "w17 (102) / shard",
+   "status": "completed",
+   "conclusion": "success",
+   "started_at": "2026-11-14T11:48:46Z",
+   "completed_at": "2026-11-14T17:10:50Z",
+   "failed_steps": []
+  },
+  {
+   "name": "w17 (103) / shard",
+   "status": "completed",
+   "conclusion": "success",
+   "started_at": "2026-11-14T11:48:46Z",
+   "completed_at": "2026-11-14T17:07:33Z",
+   "failed_steps": []
+  },
+  {
+   "name": "w18 (104) / shard",
+   "status": "completed",
+   "conclusion": "success",
+   "started_at": "2026-11-14T17:10:52Z",
+   "completed_at": "2026-11-14T22:28:21Z",
+   "failed_steps": []
+  },
+  {
+   "name": "w18 (105) / shard",
+   "status": "completed",
+   "conclusion": "success",
+   "started_at": "2026-11-14T17:10:52Z",
+   "completed_at": "2026-11-14T22:28:06Z",
+   "failed_steps": []
+  },
+  {
+   "name": "w18 (106) / shard",
+   "status": "completed",
+   "conclusion": "success",
+   "started_at": "2026-11-14T17:10:52Z",
+   "completed_at": "2026-11-14T21:33:43Z",
+   "failed_steps": []
+  },
+  {
+   "name": "w19 (108) / shard",
+   "status": "completed",
+   "conclusion": "success",
+   "started_at": "2026-11-14T22:28:23Z",
+   "completed_at": "2026-11-14T23:08:48Z",
+   "failed_steps": []
+  },
+  {
+   "name": "w19 (107) / shard",
+   "status": "completed",
+   "conclusion": "success",
+   "started_at": "2026-11-14T22:28:23Z",
+   "completed_at": "2026-11-14T23:28:11Z",
+   "failed_steps": []
+  },
+  {
+   "name": "w19 (109) / shard",
+   "status": "completed",
+   "conclusion": "failure",
+   "started_at": "2026-11-14T22:28:23Z",
+   "completed_at": "2026-11-14T23:23:24Z",
+   "failed_steps": []
+  },
+  {
+   "name": "w20 (110) / shard",
+   "status": "completed",
+   "conclusion": "cancelled",
+   "started_at": "2026-11-14T23:28:13Z",
+   "completed_at": "2026-11-14T23:32:57Z",
+   "failed_steps": []
+  }
+ ]
+}
