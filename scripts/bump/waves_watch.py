@@ -10,6 +10,9 @@ have finished, so the jobs still running when the rule fires cannot be lost work
 hours) never fires it: waiting for the wave is what spares them. The run is cancelled, and when it has ended a new run is dispatched with reuse_from the cancelled run, from_tree and the settings the
 plan artifact recorded (inputs.json, lane.json), so that the plan step's own checks pass. A chain of more than MAX_CHAIN runs is left to a person (the same job failing again is not a runner lost), and so
 is any run this cannot read.
+A run that has ENDED failed is resumed too (--resume-ended): 14 Nov 2026, run 43587360841 (flt-anthropic): job 109 of wave 19 lost its runner at 55 minutes, and the only job after it (110, wave 20) could not restore its pack. That is ONE
+later wave, so the rule above never fired (it needs two), and the failure of the last wave ENDS the run, which a watch of runs in progress never sees: nothing would have resumed it (a person did, at 23:33). A completed run that failed with a shard job that
+failed AND at least one shard job that succeeded (it made progress: a run that did nothing is not resumed again) is resumed by a dispatch with reuse_from, unless a newer run already continues it (its lane's reuse_from) or its chain is longer than MAX_CHAIN.
 It reads and cancels and dispatches; it runs no library's code. LANE_ENABLED (the intake lane's kill switch) stops it.
 GitHub's scheduler did not fire the 20-minute cron once in the 46 minutes after the merge (14 Nov 2026), so the watcher does not wait for it: with --wait-minutes N it looks again every LOOK_SECONDS (five minutes)
 for as long as a bump-waves run is in progress (up to N minutes), and then dispatches itself once more if one still is, so that a run is watched from the moment it is requested (waves-watch.yml
@@ -22,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import datetime
 from pathlib import Path
 
 REPO = "competemath/emissary-archangel"
@@ -32,6 +36,7 @@ LATER_FAILURES = 2  # later WAVES with a job that failed at the restore step bef
 MAX_RESUMES = 2  # runs resumed by one look: each may wait 10 minutes for its cancel, and the job's cap must cover them (cubic on #195)
 MAX_CHAIN = 4  # runs of one chain (the first, and what this resumed); the workflow itself stops at 8
 POLL_SECONDS = 15  # between two looks of ended(): a cancel
+RECENT_HOURS = 36  # an ended failed run older than this is left alone (a person has seen it)
 LOOK_SECONDS = 300  # between two looks at the runs while one is in progress (--wait-minutes)
 ENDED_WITHIN_SECONDS = 600
 SETTINGS = ("mathlib", "toolchain", "imports", "tengoku_ref", "swap_gb", "build_timeout_min")  # what inputs.json records and the plan step compares
@@ -158,6 +163,72 @@ def running() -> list[dict]:
     return out
 
 
+def failed_runs(clock=time.time) -> list[dict]:
+    """The bump-waves runs of main that ENDED with a failure in the last RECENT_HOURS (a cancelled run is a person's or the watcher's own decision, never listed), newest first."""
+    text = gh("api", f"repos/{REPO}/actions/workflows/{WORKFLOW}/runs?status=completed&branch=main&event=workflow_dispatch&per_page=30")
+    out = []
+    for r in json.loads(text).get("workflow_runs", []):
+        if r.get("conclusion") != "failure":
+            continue
+        updated = datetime.fromisoformat(str(r["updated_at"]).replace("Z", "+00:00")).timestamp()
+        if clock() - updated > RECENT_HOURS * 3600:
+            continue
+        out.append({"id": int(r["id"]), "title": str(r.get("display_title", ""))})
+    return out
+
+
+def newer_runs(run: int, key: str) -> list[int]:
+    """The ids of the bump-waves runs of this source that were dispatched after `run` (any state): the ones that may continue it."""
+    text = gh("api", f"repos/{REPO}/actions/workflows/{WORKFLOW}/runs?branch=main&event=workflow_dispatch&per_page=30")
+    return [int(r["id"]) for r in json.loads(text).get("workflow_runs", []) if int(r["id"]) > int(run) and str(r.get("display_title", "")) == f"bump-waves {key}"]
+
+
+def continued(run: int, key: str) -> bool:
+    """True when a newer run of this source resumes `run` (its plan's lane says reuse_from the run)."""
+    return any(str(read(plan_files, n, key)[1].get("reuse_from", "")) == str(int(run)) for n in read(newer_runs, run, key))
+
+
+def ended_dead(jobs: list[dict]) -> dict | None:
+    """None, or why a run that has ENDED failed should be resumed: a shard job failed (not cancelled) and at least one shard job succeeded (progress: a run that did nothing is not resumed again)."""
+    shards = shard_jobs(jobs)
+    failed = sorted(s["shard"] for s in shards if s["conclusion"] == "failure")
+    ok = sorted(s["shard"] for s in shards if s["conclusion"] == "success")
+    if not failed or not ok:
+        return None
+    return {"failed": failed, "ok": ok}
+
+
+def look_ended(dry: bool, budget: int) -> int:
+    """One look at the runs that ended failed: each that qualifies (ended_dead), has no newer run continuing it and has a chain of at most MAX_CHAIN runs is resumed (no cancel: it has ended). At most `budget` are
+    resumed. The number of runs dispatched."""
+    n = 0
+    for r in read(failed_runs):
+        if n >= budget:
+            print("the rest is left to the next look")
+            break
+        d = ended_dead(read(jobs_of, r["id"]))
+        if not d:
+            continue
+        key = key_of(r["title"])
+        if continued(r["id"], key):
+            print(f"run {r['id']} ({r['title']}): ended failed, and a newer run continues it")
+            continue
+        inputs, lane = read(plan_files, r["id"], key)
+        length = chain_length(lane, lambda run: read(plan_files, int(run), key)[1])
+        if length > MAX_CHAIN:
+            print(f"run {r['id']}: ended failed, but the chain has {length} runs (more than {MAX_CHAIN}): left to a person")
+            continue
+        args = dispatch_args(key, r["id"], inputs, lane)
+        print(f"run {r['id']} ({r['title']}): ended failed: shard(s) {d['failed']} failed, shard(s) {d['ok']} succeeded")
+        if dry:
+            print("dry run: would dispatch: " + " ".join(args[3:]))
+            continue
+        subprocess.run(args, check=True)  # never retried: a second dispatch would be a second resume
+        n += 1
+        print(f"resume dispatched: " + " ".join(args[3:]))
+    return n
+
+
 def key_of(title: str) -> str:
     m = re.match(r"^bump-waves ([a-z0-9][a-z0-9-]*)$", title)
     if not m:
@@ -212,6 +283,7 @@ def look(dry: bool) -> tuple[int, int]:
 def main(argv: list[str] | None = None, sleep=time.sleep, clock=time.time) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--resume-ended", action="store_true", help="also resume a run that ENDED failed with shard failures (and progress), when no newer run continues it")
     ap.add_argument("--wait-minutes", type=int, default=0, help="while a bump-waves run is in progress, look again every five minutes for this long, then dispatch this workflow once more")
     a = ap.parse_args(argv)
     deadline = clock() + 60 * a.wait_minutes
@@ -219,6 +291,9 @@ def main(argv: list[str] | None = None, sleep=time.sleep, clock=time.time) -> in
     while True:
         try:
             alive, resumed = look(a.dry_run)
+            if a.resume_ended:
+                new = look_ended(a.dry_run, max(0, MAX_RESUMES - resumed))
+                alive, resumed = alive + new, resumed + new  # what was dispatched is a run in progress: the watch goes on
         except ReadFailure as e:  # a failed READ of GitHub must not end the watch of a run; a cancel, a dispatch or a refusal always does (cubic on #197); the first look and the last failing are real failures
             if first or clock() + LOOK_SECONDS > deadline:
                 raise

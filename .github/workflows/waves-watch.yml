@@ -39,4 +39,4 @@ jobs:
           git -C emissary checkout -q "$GITHUB_SHA"
       - name: Cancel and resume a run whose build chain is dead
         working-directory: emissary
-        run: python3 scripts/bump/waves_watch.py $([ "$DRY" = true ] && echo --dry-run || echo --wait-minutes 300)
+        run: python3 scripts/bump/waves_watch.py --resume-ended $([ "$DRY" = true ] && echo --dry-run || echo --wait-minutes 300)
