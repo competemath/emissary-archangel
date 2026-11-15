@@ -72,7 +72,8 @@ class Namespaces:
     """The namespaces a module has opened so far, read from its own `namespace` / `section` / `end` commands (code only), and the namespace it is in. 410 of the 443 `unknown namespace` errors of the first
     recut were a `p2m_open` / `p2m_reactivate` word under `P2MW.S_<this module>` that the module never opened: the shortcut accepted a namespace nobody had declared (a no-op), `open` refuses it."""
 
-    TOKEN = re.compile(r"(?<![\w.'])(namespace|section|end)(?![\w'])[ \t]*((?:[^\s«»]|«[^»]*»)+)?")
+    # the name stops at whitespace AND at the start of a comment (`namespace A--note`, `namespace A/- note -/`): cubic on #205
+    TOKEN = re.compile(r"(?<![\w.'])(namespace|section|end)(?![\w'])[ \t]*((?:(?!--|/-)[^\s«»]|«[^»]*»)+)?")
 
     def __init__(self, text: str, mask: list[bool]):
         self.events = [(m.start(), m.group(1), (m.group(2) or "")) for m in self.TOKEN.finditer(text) if mask[m.start()]]

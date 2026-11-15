@@ -168,6 +168,19 @@ class TheRecutsFailures(unittest.TestCase):
         new, _, _ = pu.rewrite_module(t)
         self.assertTrue(new.endswith("open _root_.P2MW.S_X open _root_.P2MW.S_X.A open _root_.P2MW.S_X.A.B\n"), new)
 
+    def test_end_closes_the_namespace_that_is_active(self):
+        """cubic on #205: a parser that ignored `end` would pass the test above (nothing is declared after it); here `Later` is declared AFTER the `end`, at the top level, so
+        `P2MW.S_X.A.B.Later` was never opened (a parser that ignores `end` would think it was and keep it), while the closed `P2MW.S_X.A.B` stays known"""
+        t = 'import P2M.Util\nnamespace P2MW.S_X.A.B\nend P2MW.S_X.A.B\nnamespace Later\np2m_open "P2MW.S_X.A.B.Later P2MW.S_X.A.B"\nend Later\n'
+        new, _, _ = pu.rewrite_module(t)
+        self.assertEqual(new, "namespace P2MW.S_X.A.B\nend P2MW.S_X.A.B\nnamespace Later\nopen _root_.P2MW.S_X.A.B\nend Later\n")
+
+    def test_a_comment_right_after_the_name_is_not_part_of_the_name(self):
+        for tail in ("--note", "/- note -/", "  -- note"):
+            t = f'import P2M.Util\nnamespace P2MW.S_X.Sub{tail}\nend P2MW.S_X.Sub\np2m_open "P2MW.S_X.Sub"\n'
+            new, _, _ = pu.rewrite_module(t)
+            self.assertTrue(new.rstrip("\n").endswith("open _root_.P2MW.S_X.Sub"), (tail, new))
+
     def test_a_namespace_in_a_comment_or_a_string_is_not_opened(self):
         t = 'import P2M.Util\n-- namespace P2MW.S_X.Sub\ndef s := "namespace P2MW.S_X.Sub"\np2m_open "P2MW.S_X.Sub"\n'
         new, _, _ = pu.rewrite_module(t)
