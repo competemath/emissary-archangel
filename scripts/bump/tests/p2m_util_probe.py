@@ -105,6 +105,28 @@ theorem c11.{u} {β : Sort u}
     (x : β) :
     x = x := by p2m_exact_reverting @_root_.P2MW.S_c11.solution
 
+-- (the first recut, 15 Nov 2026) a namespace given as an ABSOLUTE name, inside a namespace of the same name: the shortcut exports the root Toy4.a4, plain `export Toy4` meant the namespace it was in
+namespace Toy4
+def a4 : Nat := 4
+end Toy4
+namespace Outer
+namespace Toy4
+def b4 : Nat := 5
+p2m_export "Toy4" "a4"
+theorem c12 : Outer.Toy4.a4 = 4 := rfl
+end Toy4
+end Outer
+
+-- a namespace of the module that it never opened is no error for the shortcut; the rewrite leaves it out
+namespace P2MW.S_c13
+namespace Sub
+def q : Nat := 9
+end Sub
+p2m_open "P2MW.S_c13.Sub P2MW.S_c13.Never"
+theorem c13 : q = 9 := rfl
+p2m_reactivate "P2MW.S_c13.Sub P2MW.S_c13.AlsoNever"
+end P2MW.S_c13
+
 -- the two checks that only print
 #p2m_type_eq_warn Toy.foo Toy.bar
 #p2m_type_eq Toy.foo Toy.foo
@@ -134,7 +156,8 @@ def main(argv: list[str]) -> int:
     (work / "Orig.lean").write_text(ORIG, encoding="utf-8")
     new, done, left = pu.rewrite_module(ORIG)
     if mutant:  # a wrong rewrite on purpose: the names of `p2m_open` are opened by `open scoped` (no name opened)
-        new = new.replace("open Toy", "open scoped Toy").replace("open Toy~", "open scoped Toy")
+        new = new.replace("open _root_.Toy", "open scoped _root_.Toy")
+        assert new != pu.rewrite_module(ORIG)[0], "the mutant changed nothing: the probe would accept it"
     if left or "P2M.Util" in new:
         print("the rewrite left a shortcut or the import: the probe's own case is wrong", left)
         return 2
