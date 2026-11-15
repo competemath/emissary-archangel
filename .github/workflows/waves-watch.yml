@@ -1,6 +1,6 @@
 name: waves-watch
 # A bump-waves run whose build chain is dead is cancelled and resumed (scripts/bump/waves_watch.py says when: a shard job failed and two jobs of later waves could not restore its pack; 13 Nov 2026, run
-# 43237206258, the dead run went on for 4.5 hours until a person read it). Every 20 minutes and whenever a long emissary job ends (GitHub's scheduler is not to be counted on here: reference-github-scheduler-unreliable),
+# 43237206258, the dead run went on for 4.5 hours until a person read it). A run that ENDED failed (a shard job failed, another succeeded, no newer run continues it) is resumed without a cancel (--resume-ended; 14 Nov 2026, run 43587360841). Every 20 minutes and whenever a long emissary job ends (GitHub's scheduler is not to be counted on here: reference-github-scheduler-unreliable),
 # on main only. It reads, cancels and dispatches; it runs no library's code and pushes nothing. LANE_ENABLED (the intake lane's kill switch) stops it too. A person can rehearse it with workflow_dispatch (dry_run prints).
 on:
   schedule:
@@ -37,6 +37,6 @@ jobs:
           git clone -q --filter=blob:none --no-checkout "https://github.com/$GITHUB_REPOSITORY" emissary
           git -C emissary sparse-checkout set --no-cone "/scripts/bump/"
           git -C emissary checkout -q "$GITHUB_SHA"
-      - name: Cancel and resume a run whose build chain is dead
+      - name: Cancel and resume a run whose build chain is dead, or resume one that ended failed
         working-directory: emissary
         run: python3 scripts/bump/waves_watch.py --resume-ended $([ "$DRY" = true ] && echo --dry-run || echo --wait-minutes 300)

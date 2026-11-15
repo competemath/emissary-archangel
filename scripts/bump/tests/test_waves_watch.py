@@ -11,6 +11,7 @@ Mutants (each must fail a check): the later-wave condition dropped (fires at 19:
 
 import contextlib
 import inspect
+import io
 import json
 import os
 import random
@@ -345,7 +346,9 @@ class Flow(unittest.TestCase):
     def test_a_long_chain_is_left_to_a_person(self):
         _, calls = self.run_main(chain=ww.MAX_CHAIN + 1)
         self.assertEqual(calls, [])
-        _, calls = self.run_main(chain=ww.MAX_CHAIN)
+        _, calls = self.run_main(chain=ww.MAX_CHAIN)  # the resume would be the MAX_CHAIN + 1st run (cubic on #201)
+        self.assertEqual(calls, [])
+        _, calls = self.run_main(chain=ww.MAX_CHAIN - 1)
         self.assertEqual(len(calls), 2)
 
     def test_a_run_that_does_not_end_is_not_resumed(self):
@@ -384,7 +387,7 @@ class Flow(unittest.TestCase):
         self.assertEqual((pages, len(got)), ([1, 2, 3, 1, 2, 3], 207))  # three pages of each status; the ids repeat, so each run is listed once
 
     def test_mutant_the_chain_guard_dropped(self):
-        _, calls = self.run_main(chain=ww.MAX_CHAIN + 1, mutate=("if n > MAX_CHAIN:", "if False:"))
+        _, calls = self.run_main(chain=ww.MAX_CHAIN, mutate=("if n >= MAX_CHAIN:", "if False:"))
         self.assertEqual(len(calls), 2)  # the mutant resumes a chain that test_a_long_chain_is_left_to_a_person leaves alone
 
     def test_mutant_the_cancel_not_waited_for(self):
@@ -502,7 +505,7 @@ class EndedRun(unittest.TestCase):
     """14 Nov 2026, run 43587360841: shard 109 of wave 19 lost its runner after 55 minutes; the one job after it (110, wave 20) could not restore its pack; the run ENDS failed. The rule of a run in progress (two later waves) never fires and
     a watch of runs in progress never sees an ended run, so a person resumed it by hand (23:33). A run that ended failed with a shard job that failed and one that succeeded is resumed (reuse_from), once."""
 
-    def run_look(self, dry=False, budget=2, jobs=None, continues=False, chain=4, runs=None, dispatch_fails=False, mutate=None):
+    def run_look(self, dry=False, budget=2, jobs=None, continues=False, chain=3, runs=None, dispatch_fails=False, mutate=None):
         calls = []
         self.calls = calls
 
@@ -578,10 +581,20 @@ class EndedRun(unittest.TestCase):
 
     def test_a_long_chain_is_left_to_a_person(self):
         self.assertEqual(self.run_look(chain=ww.MAX_CHAIN + 1), (0, []))
-        self.assertEqual(self.run_look(chain=ww.MAX_CHAIN)[0], 1)
+        self.assertEqual(self.run_look(chain=ww.MAX_CHAIN), (0, []))  # the resume would be the MAX_CHAIN + 1st run (cubic on #201)
+        self.assertEqual(self.run_look(chain=ww.MAX_CHAIN - 1)[0], 1)
 
     def test_a_dry_run_changes_nothing(self):
         self.assertEqual(self.run_look(dry=True), (0, []))
+
+    def test_a_dry_run_previews_no_more_than_the_budget_allows(self):
+        runs = [{"id": RUN_ENDED + i, "title": "bump-waves flt-anthropic"} for i in range(5)]
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            n, calls = self.run_look(dry=True, runs=runs, budget=2)
+        self.assertEqual((n, calls), (0, []))  # nothing dispatched, and not reported as resumed
+        self.assertEqual(out.getvalue().count("dry run: would dispatch"), 2)  # what a real look with this budget would do (cubic on #201)
+        self.assertIn("the rest is left to the next look", out.getvalue())
 
     def test_at_most_the_budget_is_resumed(self):
         runs = [{"id": RUN_ENDED + i, "title": "bump-waves flt-anthropic"} for i in range(3)]
@@ -614,9 +627,9 @@ class EndedRun(unittest.TestCase):
 
     def test_continued_reads_the_lane_of_newer_runs_of_the_same_source_only(self):
         listing = {"workflow_runs": [
-            {"id": 12, "display_title": "bump-waves flt-anthropic"},
-            {"id": 11, "display_title": "bump-waves hironaka"},
-            {"id": 9, "display_title": "bump-waves flt-anthropic"},
+            {"id": 12, "status": "in_progress", "display_title": "bump-waves flt-anthropic"},
+            {"id": 11, "status": "completed", "display_title": "bump-waves hironaka"},
+            {"id": 9, "status": "completed", "display_title": "bump-waves flt-anthropic"},
         ]}
         lanes = {12: {"reuse_from": "10"}, 11: {"reuse_from": "10"}, 9: {"reuse_from": "10"}}
         read_runs = []
@@ -625,11 +638,93 @@ class EndedRun(unittest.TestCase):
             read_runs.append(run)
             return {}, lanes[int(run)]
 
-        with mock.patch.object(ww, "gh", lambda *a: json.dumps(listing)), mock.patch.object(ww, "plan_files", plan):
+        with mock.patch.object(ww, "gh", lambda *a: json.dumps(listing)), mock.patch.object(ww, "plan_files", plan), mock.patch.object(ww, "has_plan", lambda run, key: True):
             self.assertTrue(ww.continued(10, "flt-anthropic"))
             self.assertEqual(read_runs, [12])  # newer and the same source: 11 is another source, 9 is older
             lanes[12] = {"reuse_from": "8"}
             self.assertFalse(ww.continued(10, "flt-anthropic"))
+
+    def test_a_newer_run_with_no_plan_does_not_abort_the_look(self):
+        """cubic on #201: a queued run, or one that failed before its plan step, has no plan artifact: `gh run download` fails on it, and that used to raise out of the whole look."""
+        listing = {"workflow_runs": [
+            {"id": 13, "status": "queued", "display_title": "bump-waves flt-anthropic"},
+            {"id": 12, "status": "completed", "display_title": "bump-waves flt-anthropic"},
+        ]}
+        plans = {13: False, 12: False}
+        downloads = []
+
+        def plan(run, key):
+            downloads.append(int(run))
+            raise AssertionError("a plan that is not there must not be downloaded")
+
+        with mock.patch.object(ww, "gh", lambda *a: json.dumps(listing)), mock.patch.object(ww, "has_plan", lambda run, key: plans[int(run)]), mock.patch.object(ww, "plan_files", plan):
+            self.assertTrue(ww.continued(10, "flt-anthropic"))  # 13 may be the resume that was just dispatched: wait for the next look, never a second resume
+            self.assertEqual(downloads, [])  # no download of a plan that is not there
+            listing["workflow_runs"] = listing["workflow_runs"][1:]
+            self.assertFalse(ww.continued(10, "flt-anthropic"))  # 12 ended without a plan: it continues nothing, and the run is not blocked for ever
+            self.assertEqual(downloads, [])
+
+    def test_a_failed_read_of_a_plan_that_exists_is_a_failed_read(self):
+        listing = {"workflow_runs": [{"id": 12, "status": "completed", "display_title": "bump-waves flt-anthropic"}]}
+
+        def plan(run, key):
+            raise subprocess.CalledProcessError(1, ["gh", "run", "download"])
+
+        with mock.patch.object(ww, "gh", lambda *a: json.dumps(listing)), mock.patch.object(ww, "has_plan", lambda run, key: True), mock.patch.object(ww, "plan_files", plan):
+            with self.assertRaises(ww.ReadFailure):  # tolerated by a later look, never read as "not continued"
+                ww.continued(10, "flt-anthropic")
+
+    def test_has_plan_asks_for_this_sources_plan_artifact_and_ignores_expired_ones(self):
+        asked = []
+
+        def gh(*a):
+            asked.append(a)
+            return json.dumps({"artifacts": [{"name": "plan-flt-anthropic", "expired": True}]})
+
+        with mock.patch.object(ww, "gh", gh):
+            self.assertFalse(ww.has_plan(7, "flt-anthropic"))
+        self.assertIn("runs/7/artifacts?name=plan-flt-anthropic", asked[0][1])
+        with mock.patch.object(ww, "gh", lambda *a: json.dumps({"artifacts": [{"name": "plan-flt-anthropic", "expired": False}]})):
+            self.assertTrue(ww.has_plan(7, "flt-anthropic"))
+        with mock.patch.object(ww, "gh", lambda *a: json.dumps({"artifacts": []})):
+            self.assertFalse(ww.has_plan(7, "flt-anthropic"))
+
+    def test_the_listings_read_every_page_not_the_first_30(self):
+        """cubic on #201: `per_page=30` looked at the newest 30 runs of any source; a failure or a continuation on a later page was missed."""
+        title = "bump-waves flt-anthropic"
+        others = [{"id": 1000 - i, "status": "completed", "conclusion": "success", "created_at": "2026-11-14T10:00:00Z", "updated_at": "2026-11-14T11:00:00Z", "display_title": "bump-waves tda-lib"} for i in range(100)]
+        page2 = [{"id": 800, "status": "completed", "conclusion": "failure", "created_at": "2026-11-14T08:00:00Z", "updated_at": "2026-11-14T22:00:00Z", "display_title": title},
+                 {"id": 790, "status": "completed", "conclusion": "failure", "created_at": "2026-11-14T07:00:00Z", "updated_at": "2026-11-14T08:00:00Z", "display_title": title}]
+        pages = {1: others, 2: page2}
+        asked = []
+
+        def gh(*a):
+            asked.append(a[1])
+            page = int(a[1].rsplit("page=", 1)[1])
+            return json.dumps({"workflow_runs": pages.get(page, [])})
+
+        with mock.patch.object(ww, "gh", gh):
+            got = ww.failed_runs(lambda: NOW)
+            self.assertEqual([r["id"] for r in got], [800, 790])  # both pages read; 790 failed 15 hours before NOW
+            self.assertEqual(len(asked), 2)
+            asked.clear()
+            pages[2] = [{"id": 1100, "status": "in_progress", "display_title": title}, {"id": 900, "status": "completed", "display_title": title}, {"id": 700, "status": "completed", "display_title": title}]
+            pages[1] = [{"id": 1200 - i, "status": "completed", "display_title": "bump-waves tda-lib"} for i in range(100)]
+            self.assertEqual(ww.newer_runs(800, "flt-anthropic"), [(1100, "in_progress"), (900, "completed")])  # a continuation on page 2; 700 is older than the run: the listing stops there
+        self.assertEqual(len(asked), 2)
+
+    def test_a_listing_stops_at_the_lookback(self):
+        old = {"id": 5, "conclusion": "failure", "created_at": "2026-10-01T00:00:00Z", "updated_at": "2026-11-14T23:00:00Z", "display_title": "bump-waves flt-anthropic"}
+        pages = [json.dumps({"workflow_runs": [dict(old, id=100 - i, created_at="2026-11-14T00:00:00Z") for i in range(100)]}), json.dumps({"workflow_runs": [old] * 100}), "never read"]
+        asked = []
+
+        def gh(*a):
+            asked.append(a[1])
+            return pages[len(asked) - 1]
+
+        with mock.patch.object(ww, "gh", gh):
+            ww.failed_runs(lambda: NOW)
+        self.assertEqual(len(asked), 2)  # page 2 starts with a run created before the lookback: the listing ends, page 3 is never asked for
 
     def test_5000_random_job_lists_against_the_rule_written_apart(self):
         rng = random.Random(14112026)
@@ -653,7 +748,7 @@ class EndedRun(unittest.TestCase):
         self.assertEqual(n, 1)
 
     def test_mutant_the_chain_guard_dropped(self):
-        n, calls = self.run_look(chain=ww.MAX_CHAIN + 3, mutate=("look_ended", "if length > MAX_CHAIN:", "if False:"))
+        n, calls = self.run_look(chain=ww.MAX_CHAIN, mutate=("look_ended", "if length >= MAX_CHAIN:", "if False:"))
         self.assertEqual(n, 1)
 
     def test_mutant_a_cancelled_job_counts_as_failed(self):
@@ -661,7 +756,7 @@ class EndedRun(unittest.TestCase):
         n, calls = self.run_look(jobs=jobs, mutate=("ended_dead", 's["conclusion"] == "failure")', 's["conclusion"] in ("failure", "cancelled"))'))
         self.assertEqual(n, 1)
 
-    def test_main_resumes_ended_runs_only_with_the_flag_and_keeps_watching_what_it_dispatched(self):
+    def test_main_resumes_ended_runs_only_with_the_flag(self):
         seen = []
 
         def look(dry, so_far=0):
@@ -676,7 +771,28 @@ class EndedRun(unittest.TestCase):
             ww.main([], sleep=lambda s_: None, clock=lambda: clock[0])
             self.assertEqual(seen, [])
             ww.main(["--resume-ended"], sleep=lambda s_: None, clock=lambda: clock[0])
-            self.assertEqual(seen, [ww.MAX_RESUMES])  # one look: alive was 0, and the run it dispatched is 1, so a one-look watch ends after it
+            self.assertEqual(seen, [ww.MAX_RESUMES])  # one look (no --wait-minutes): the watch ends after it
+
+    def test_the_watch_goes_on_looking_at_what_it_dispatched(self):
+        """cubic on #201: alive was 0 and the resume dispatched is a run in progress: with --wait-minutes there is a second look (the first test names what it checks: one look without the flag)."""
+        budgets, sleeps = [], []
+        answers = iter([1, 0])  # the first look dispatches a resume, the second finds nothing to do
+
+        def look_ended(dry, budget):
+            budgets.append(budget)
+            return next(answers)
+
+        clock = [1000.0]
+
+        def sleep(s_):
+            sleeps.append(s_)
+            clock[0] += s_
+
+        # look() sees no run in progress at both looks: only the resume this watch dispatched keeps it looking
+        with mock.patch.object(ww, "look", lambda dry, so_far=0: (0, 0)), mock.patch.object(ww, "look_ended", look_ended), mock.patch.object(ww, "subprocess", mock.Mock(run=lambda *a, **k: None, CalledProcessError=subprocess.CalledProcessError)):
+            ww.main(["--resume-ended", "--wait-minutes", "60"], sleep=sleep, clock=lambda: clock[0])
+        self.assertEqual(budgets, [ww.MAX_RESUMES, ww.MAX_RESUMES])  # two looks
+        self.assertEqual(sleeps, [ww.LOOK_SECONDS])
 
     def test_the_workflow_passes_the_flag_in_both_branches(self):
         text = (WF / "waves-watch.yml").read_text()
