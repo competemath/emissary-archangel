@@ -694,6 +694,8 @@ jobs:
           # shellcheck disable=SC2086  # the list is meant to be split into arguments
           python3 emissary/scripts/bump/canonicalise_bundle.py $(for d in bundle bundle-proposed bundle-wide; do [ -d "$d" ] && printf -- "--bundle %s " "$d"; done)
       - name: Pack and attest
+        env:
+          GH_TOKEN: ${{ github.token }}  # read-only (the job has contents: read): GitHub rate-limits an unauthenticated call on a shared runner
         run: |
           for mode in strict proposed wide; do
             dir=bundle; [ "$mode" != strict ] && dir="bundle-$mode"
@@ -705,7 +707,11 @@ jobs:
                 # the library is in the tree already (its first parts merged): cut only the modules it does not have, from the next part number
                 ns=$(basename "$dir"/Tengoku/*.lean .lean)
                 curl -sSfL "https://raw.githubusercontent.com/competemath/tengoku/main/Tengoku/$ns.lean" -o "tree-umbrella-$mode.lean"
-                last=$(curl -sS "https://api.github.com/repos/competemath/tengoku/contents/data/intake/$KEY/parts" | python3 -c 'import json, re, sys; d = json.load(sys.stdin); n = [int(m.group(1)) for x in (d if isinstance(d, list) else []) for m in [re.match(r"(\d{3})\.json$", x["name"])] if m]; print(max(n, default=1))')
+                # the tree's last part number, from GitHub WITH the job's read token and a real answer only (scripts/bump/last_part.py): 15 Nov 2026, flt-anthropic, the bare call was rate-limited,
+                # read as "no parts", and the parts were cut from 002 over the merged 002 and 003 (tengoku#842)
+                resp=$(curl -sS --retry 4 --retry-all-errors -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -w '\n%{http_code}' "https://api.github.com/repos/competemath/tengoku/contents/data/intake/$KEY/parts") || { echo "::error::could not ask GitHub for the tree's parts"; exit 1; }
+                code=${resp##*$'\n'}; body=${resp%$'\n'*}
+                last=$(printf '%s' "$body" | python3 emissary/scripts/bump/last_part.py --status "$code") || { echo "::error::the tree's last part number is not known (GitHub answered $code): not cutting parts that could collide with the merged ones"; exit 1; }
                 from_tree="--tree-umbrella tree-umbrella-$mode.lean --start $((last + 1))"
               fi
               python3 emissary/scripts/bump/bundle_layers.py --bundle "$dir" --out "parts-$mode" --max-modules "$PARTS" --tar $from_tree

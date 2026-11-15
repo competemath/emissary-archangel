@@ -368,14 +368,16 @@ class WorkflowsCutPartsFromTheTree(unittest.TestCase):
             self.assertIn("bundle_layers.py --bundle \"$dir\" --out \"parts-$mode\" --max-modules \"$PARTS\" --tar $from_tree", text, name)
 
     def test_the_next_part_number_is_read_from_the_trees_parts_folder(self):
+        """the number comes from scripts/bump/last_part.py (15 Nov 2026: the inline one-liner here read a rate-limited answer as "no parts"; test_last_part.py has the real answers)"""
         text = (self.WORKFLOWS / "bump-sharded.yml").read_text()
-        code = re.search(r"last=\$\(curl [^\n]*? \| python3 -c '([^']*)'\)", text).group(1)
+        self.assertIn('last_part.py --status "$code"', text)
+        script = Path(__file__).resolve().parents[1] / "last_part.py"
 
-        def last(answer: str) -> str:
-            return subprocess.run(["python3", "-c", code], input=answer, capture_output=True, text=True).stdout.strip()
+        def last(answer: str, status: str = "200") -> str:
+            return subprocess.run(["python3", str(script), "--status", status], input=answer, capture_output=True, text=True).stdout.strip()
 
         self.assertEqual(last('[{"name":"002.json"},{"name":"003.json"}]'), "3")
-        self.assertEqual(last('{"message":"Not Found","status":"404"}'), "1")  # no parts folder yet: the next part is 2
+        self.assertEqual(last('{"message":"Not Found","status":"404"}', "404"), "1")  # no parts folder yet: the next part is 2
         self.assertEqual(last('[{"name":"002.json"},{"name":"README.md"}]'), "2")
 
 
