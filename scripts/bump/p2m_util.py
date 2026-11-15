@@ -132,19 +132,20 @@ THEOREM = re.compile(r"(?m)^[ \t]*(?:(?:private|protected|nonrec)[ \t]+)*theorem
 EXACT = re.compile(r"\bby[ \t]+p2m_exact_reverting[ \t]+(@_root_\.P2MW\.[A-Za-z0-9_'.]+\.solution)[ \t]*$", re.M)
 
 
-def expand_exact(text: str, mask: list[bool]) -> tuple[str, bool] | None:
-    """(`text` with the one `by p2m_exact_reverting @…solution` written out, True) / None when it cannot be: no theorem header before it, or a binder this does not read."""
-    m = EXACT.search(text)
-    if not m or not mask[m.start()]:
-        return None
+def expand_exact(text: str, mask: list[bool]) -> tuple[str, str]:
+    """(`text` with the FIRST `by p2m_exact_reverting @…solution` that is code written out, "done"); (`text`, "none") when there is none; (`text`, "fail") when there is one that cannot be: no theorem header
+    before it, or a binder this does not read. (A module with several theorems has several; a comment that names the tactic is not one.)"""
+    m = next((x for x in EXACT.finditer(text) if mask[x.start()]), None)
+    if m is None:
+        return text, "none"
     heads = [h for h in THEOREM.finditer(text, 0, m.start()) if mask[h.start()]]
     if not heads:
-        return None
+        return text, "fail"
     parsed = header_binders(text, heads[-1].end())
     if parsed is None or parsed[1] > m.start():
-        return None
+        return text, "fail"
     args, _ = parsed
-    return text[: m.start()] + "by exact " + m.group(1) + "".join(" " + a for a in args) + text[m.end() :], True
+    return text[: m.start()] + "by exact " + m.group(1) + "".join(" " + a for a in args) + text[m.end() :], "done"
 
 
 def rewrite_module(text: str) -> tuple[str, Counter, Counter]:
@@ -211,18 +212,16 @@ def rewrite_module(text: str) -> tuple[str, Counter, Counter]:
     out = text
     for s, e, new in sorted(edits, reverse=True):
         out = out[:s] + new + out[e:]
-    if "p2m_exact_reverting" in out:
-        mask = code_mask(out)
-        got = expand_exact(out, mask)
-        if got is None:
-            left["p2m_exact_reverting"] += 1
-        else:
-            out = got[0]
+    while "p2m_exact_reverting" in out:
+        out, status = expand_exact(out, code_mask(out))
+        if status == "done":
             done["p2m_exact_reverting"] += 1
-        if "p2m_exact_reverting" in out and mask:
-            m2 = KEYWORD.search(out)
-            if m2 and code_mask(out)[m2.start()] and m2.group(1) == "p2m_exact_reverting" and not left["p2m_exact_reverting"]:
-                left["p2m_exact_reverting"] += 1
+            continue
+        if status == "fail":
+            left["p2m_exact_reverting"] += 1
+        break
+    if any(k.group(1) == "p2m_exact_reverting" and code_mask(out)[k.start()] for k in KEYWORD.finditer(out)):  # a use of another shape: not guessed at
+        left["p2m_exact_reverting"] += 1 if not left["p2m_exact_reverting"] else 0
     if left:  # something of the shortcuts cannot be written out: the module stays exactly as the library wrote it
         return text, Counter(), left
     return IMPORT_UTIL.sub("", out), done, left

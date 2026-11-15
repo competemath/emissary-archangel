@@ -80,6 +80,37 @@ class TheTheoremsModules(unittest.TestCase):
         self.assertEqual((dict(done), dict(left)), ({}, {"p2m_exact_reverting": 1}))
 
 
+class SeveralTheorems(unittest.TestCase):
+    """the probe's toy module has three theorems; the library's Theorems modules have one each, but a module with several must not be left half done (found by the first real Lean run, p2m-util-tests)"""
+
+    def test_every_theorem_of_a_module_is_written_out(self):
+        t = (
+            "import P2M.Util\ntheorem a (n : ℕ) : n = n := by p2m_exact_reverting @_root_.P2MW.S_a.solution\n"
+            "theorem\nb : True := by p2m_exact_reverting @_root_.P2MW.S_b.solution\n"
+            "theorem c.{u} {β : Sort u}\n    (x : β) :\n    x = x := by p2m_exact_reverting @_root_.P2MW.S_c.solution\n"
+        )
+        new, done, left = pu.rewrite_module(t)
+        self.assertEqual(
+            new,
+            "theorem a (n : ℕ) : n = n := by exact @_root_.P2MW.S_a.solution n\ntheorem\nb : True := by exact @_root_.P2MW.S_b.solution\n"
+            "theorem c.{u} {β : Sort u}\n    (x : β) :\n    x = x := by exact @_root_.P2MW.S_c.solution β x\n",
+        )
+        self.assertEqual((dict(done), dict(left)), ({"p2m_exact_reverting": 3}, {}))
+
+    def test_one_that_cannot_be_written_out_leaves_the_module_as_it_was(self):
+        t = "import P2M.Util\ntheorem a : True := by p2m_exact_reverting @_root_.P2MW.S_a.solution\ntheorem b (x := 1) : True := by p2m_exact_reverting @_root_.P2MW.S_b.solution\n"
+        new, done, left = pu.rewrite_module(t)
+        self.assertEqual((new, dict(done)), (t, {}))
+        self.assertEqual(dict(left), {"p2m_exact_reverting": 1})
+
+    def test_a_comment_that_names_the_tactic_is_not_one(self):
+        t = "import P2M.Util\n/- the proof is `by p2m_exact_reverting @_root_.P2MW.S_a.solution` in the library -/\ntheorem a : True := by p2m_exact_reverting @_root_.P2MW.S_a.solution\n"
+        new, done, left = pu.rewrite_module(t)
+        self.assertTrue(new.rstrip("\n").endswith("by exact @_root_.P2MW.S_a.solution"))
+        self.assertIn("`by p2m_exact_reverting @_root_", new)  # the comment is untouched
+        self.assertEqual((dict(done), dict(left)), ({"p2m_exact_reverting": 1}, {}))
+
+
 class TheSolModules(unittest.TestCase):
     def test_export_and_open_with_a_second_namespace(self):
         new, done, left = pu.rewrite_module(real("S_ModularCurve_legendreJ_one_sub.lean"))
@@ -240,9 +271,8 @@ class TheMutants(unittest.TestCase):
 
     def test_binder_names_dropped(self):
         f = mutated('"".join(" " + a for a in args)', '""', "expand_exact")
-        ns = dict(vars(pu))
-        ns["expand_exact"] = f
-        self.assertEqual(f("theorem T (n : ℕ) : n = n := by p2m_exact_reverting @_root_.P2MW.S_T.solution", pu.code_mask("theorem T (n : ℕ) : n = n := by p2m_exact_reverting @_root_.P2MW.S_T.solution"))[0].endswith("solution"), True)
+        text = "theorem T (n : ℕ) : n = n := by p2m_exact_reverting @_root_.P2MW.S_T.solution"
+        self.assertTrue(f(text, pu.code_mask(text))[0].endswith("solution"))  # the binder names are gone: test_binders_of_every_kind_become_the_arguments_of_the_solution refuses this
 
     def test_import_kept(self):
         f = mutated("return IMPORT_UTIL.sub(\"\", out), done, left", "return out, done, left")
