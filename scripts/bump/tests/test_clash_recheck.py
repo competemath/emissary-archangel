@@ -115,6 +115,21 @@ class TheModules(unittest.TestCase):
             cr.main(["nonsense"])
         self.assertEqual(stop.exception.code, 2)
 
+    def test_no_clash_no_output_at_all(self):
+        """cubic on #202: one newline would make the workflow's `[ -s out/clash-others.txt ]` true and it would run `lake build ""`"""
+        with tempfile.TemporaryDirectory() as d:
+            clashes, built = Path(d) / "c.txt", Path(d) / "b.txt"
+            clashes.write_text("clashes: 0 module pair(s), 0 name(s)\n")
+            built.write_text("Tengoku.N.X\n")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(cr.main(["others", str(clashes), "--new", str(built)]), 0)
+            self.assertEqual(out.getvalue(), "")
+            clashes.write_text("CLASH\tTengoku.N.X\tTengoku.N.X\t1\tf\nclashes: 1 module pair(s), 1 name(s)\n")  # both sides new: nothing to build either
+            with contextlib.redirect_stdout(out):
+                cr.main(["others", str(clashes), "--new", str(built)])
+            self.assertEqual(out.getvalue(), "")
+
     def test_mutant_the_new_side_is_built(self):
         self.assertNotEqual(mutated("if side in new:", "if False:")(REAL, NEW), FIVE)
 

@@ -55,7 +55,8 @@ def main(argv: list[str] | None = None) -> int:
     mods = others(Path(a.clashes).read_text(encoding="utf-8", errors="replace"), new)
     if len(mods) == LIMIT:
         print(f"::warning::{LIMIT} or more modules to build again: only the first {LIMIT} are", file=sys.stderr)
-    print("\n".join(mods))
+    if mods:  # no module, no output at all: one newline would make `[ -s ]` true and the workflow would build a module named ""
+        print("\n".join(mods))
     return 0
 
 
