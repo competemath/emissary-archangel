@@ -41,6 +41,7 @@ import keep_closure  # noqa: E402
 import lean_names  # noqa: E402
 import strip_attrs  # noqa: E402
 import grind_sets  # noqa: E402
+import p2m_util  # noqa: E402
 import tolerant_build as tb  # noqa: E402
 import tree_dups  # noqa: E402
 import tree_repair  # noqa: E402
@@ -514,6 +515,15 @@ def compose(a: argparse.Namespace) -> None:
     pruned, changed, gstats = grind_sets.rewrite(pruned, {m: [d for d in imports.get(m, []) if d in pruned] for m in pruned})
     for mod, what in changed.items():
         pruned[mod] = add_change_notice(pruned[mod], grind_sets.notice(f"{meta.get('repo', a.key)}@{str(meta.get('commit', ''))[:12]}", str(modules[mod].path.relative_to(lib)), what))
+    # The shortcuts of a library's own `P2M/Util.lean` (elab commands: they run the library's code while a module compiles, which the tree's lint refuses) written out as plain Lean, with what
+    # every declaration states unchanged (p2m_util.py): flt-anthropic had 15,006 passed declarations behind that one file. A module this cannot write out stays as it was and is refused as before.
+    pruned, p2m_changed, p2m_stats, p2m_imports = p2m_util.rewrite(pruned, {m: [d for d in imports.get(m, []) if d in pruned] for m in pruned})
+    for mod, deps in p2m_imports.items():
+        imports[mod] = deps
+    for mod, what in p2m_changed.items():
+        pruned[mod] = add_change_notice(pruned[mod], grind_sets.notice(f"{meta.get('repo', a.key)}@{str(meta.get('commit', ''))[:12]}", str(modules[mod].path.relative_to(lib)), what))
+    if p2m_stats:
+        print("P2M.Util shortcuts written out: " + ", ".join(f"{k} {v}" for k, v in sorted(p2m_stats.items())))
     for mod in list(pruned):
         pruned[mod], c = strip_attrs.strip_attributes(pruned[mod])
         stripped_attrs.update(c)

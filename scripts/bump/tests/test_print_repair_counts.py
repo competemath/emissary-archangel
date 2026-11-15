@@ -110,11 +110,11 @@ class Mutants(unittest.TestCase):
         self.assertNotEqual(f(TEXT[k] for k in REAL), {"modules changed": 3, "inert lines removed": 2, "print lines removed": 11})
 
     def test_mutant_a_repair_only_module_not_counted_as_changed(self):
-        f = self.broken("if not m and not printed:", "if not m:")
+        f = self.broken("if not bodies and not printed:", "if not bodies:")
         self.assertNotEqual(f(TEXT[k] for k in REAL)["modules changed"], 3)
 
     def test_mutant_a_module_with_both_counted_twice(self):
-        f = self.broken("        stats[\"modules changed\"] += 1\n        stats[\"print lines removed\"] += printed\n", "        stats[\"modules changed\"] += 1 + (1 if (m and printed) else 0)\n        stats[\"print lines removed\"] += printed\n")
+        f = self.broken("        stats[\"modules changed\"] += 1\n        stats[\"print lines removed\"] += printed\n", "        stats[\"modules changed\"] += 1 + (1 if (bodies and printed) else 0)\n        stats[\"print lines removed\"] += printed\n")
         both = TEXT["AlgebraicFamily"] + "\n" + TEXT["CompatibleOrder"].split("\n")[8] + "\n"
         self.assertNotEqual(f([both])["modules changed"], 1)
 
