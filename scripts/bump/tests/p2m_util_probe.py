@@ -26,6 +26,9 @@ def foo (n : Nat) : Nat := n + 1
 def bar (n : Nat) : Nat := n + 2
 theorem foo_pos (n : Nat) : 0 < foo n := Nat.succ_pos n
 scoped notation "⟪" x "⟫" => foo x
+structure T where
+  n : Nat
+scoped instance : Inhabited T := ⟨⟨7⟩⟩
 end Toy
 def foo (n : Nat) : Nat := n
 '''
@@ -77,8 +80,9 @@ theorem c6 : Cur.bar 1 = 3 ∧ Cur.foo 1 = 2 := ⟨rfl, rfl⟩
 -- `in` forms
 p2m_open "Toy" in
 theorem c7a : bar 1 = 3 := rfl
+-- (a scoped NOTATION cannot be parsed in the command after `in`: the activation comes after the parse, in the original and in plain Lean alike; a scoped instance is looked up at elaboration)
 p2m_open_scoped "Toy" in
-theorem c7b : ⟪1⟫ = 2 := rfl
+theorem c7b : (default : Toy.T).n = 7 := rfl
 
 -- several commands on one line, as the library writes them
 namespace Cur8 p2m_export "Toy" "foo" end Cur8
