@@ -1,0 +1,59 @@
+{
+  "key": "lie-lean",
+  "repo": "https://github.com/apellis/lie-lean",
+  "commit": "7cc1dfa2a1ebb5bbe22e79b4203cc9b5ee34be6d",
+  "toolchain": "leanprover/lean4:v4.34.1",
+  "roots": [
+    "LieLean"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lie-lean/repo",
+  "entries": 14072,
+  "modules": 913,
+  "exported": 913,
+  "failed": [],
+  "expansion": {
+    "expanded": 3,
+    "verbatim": 13093,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 14072,
+    "kept": 14072,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 67,
+    "lineUnverified": 0,
+    "nameFixed": 14020,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "sharded": {
+    "records": 19,
+    "shards": [
+      19
+    ]
+  },
+  "tools": {
+    "lean": "4.34.1 (commit 5045d0056413266e57c625dcd7c365b10e377c52, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+5045d00",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "076e8e57707e + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1 | ubuntu26/20261111.82.6"
+  },
+  "exportsBytes": 7596109824,
+  "minutes": 25,
+  "finishedAt": "2026-11-16T18:30:31.932Z",
+  "archive": {
+    "release": "exports-lie-lean",
+    "asset": "lie-lean@7cc1dfa2a1eb-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-lie-lean/lie-lean@7cc1dfa2a1eb-exports.tar.zst",
+    "bytes": 872481355,
+    "sha256": "962e17ccf42c45dcbd9b08098996bb48fee03af1172d61c2c329a931ef429f7b",
+    "files": 1826,
+    "unpack": "tar --zstd -xf lie-lean@7cc1dfa2a1eb-exports.tar.zst -C data/exports/lie-lean"
+  }
+}
