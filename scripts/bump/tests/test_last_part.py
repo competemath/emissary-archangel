@@ -148,8 +148,8 @@ class ThePackStep(unittest.TestCase):
         self.assertIn('last_part.py --status "$code" < "$body"', self.script)
 
     def test_a_failure_stops_the_job_before_any_part_is_cut(self):
-        i = self.script.index("last_part.py")
-        j = self.script.index("bundle_layers.py")
+        i = self.script.index("last=$(python3 emissary/scripts/bump/last_part.py")
+        j = self.script.index("python3 emissary/scripts/bump/bundle_layers.py")
         self.assertLess(i, j)
         self.assertIn("exit 1", self.script[i:j])
         self.assertIn("--start $((last + 1))", self.script)
@@ -162,6 +162,29 @@ class ThePackStep(unittest.TestCase):
         """cubic on #206: the finish job holds attestations: write, so `github.token` is not read-only"""
         self.assertNotIn("read-only", WORKFLOW.read_text(encoding="utf-8").split("- name: Pack and attest")[1].split("run: |")[0])
         self.assertIn("contents", DOC["jobs"]["finish"]["permissions"])
+
+    def test_the_token_is_dropped_after_the_call_and_the_last_try_does_not_sleep(self):
+        """cubic on #206 (P3, both): only the lookup needs GH_TOKEN, so the shell unsets it right after; no pause after the fifth try"""
+        i = self.script.index("last=$(python3 emissary/scripts/bump/last_part.py")
+        self.assertIn("unset GH_TOKEN", self.script)
+        self.assertLess(self.script.index("unset GH_TOKEN"), self.script.index("python3 emissary/scripts/bump/bundle_layers.py"))
+        self.assertGreater(self.script.index("unset GH_TOKEN"), self.script.index("curl -sS"))
+        self.assertIn('[ "$try" -lt 5 ] || break', self.script)
+        self.assertLess(self.script.index('[ "$try" -lt 5 ] || break'), self.script.index("sleep 20"))
+        self.assertGreater(i, 0)
+
+    def test_the_last_try_neither_sleeps_nor_says_again(self):
+        with tempfile.TemporaryDirectory() as d:
+            marker = Path(d) / "slept"
+            prog = f"sleep() {{ echo s >> {marker}; }}\n"
+            # run the real snippet with a sleep that counts: five tries give four pauses, not five
+            import types  # noqa: F401
+
+            root_status, last, calls = run_snippet(self.script.replace("sleep 20", "echo s >> " + str(marker)), [("403", RATE)])
+            self.assertEqual(calls, 5)
+            self.assertEqual(len(marker.read_text().split()), 4)
+            self.assertNotEqual(root_status, 0)
+            self.assertEqual(prog.count("sleep"), 1)
 
     def test_it_runs_a_real_answer_after_a_server_error_without_mixing_the_bodies(self):
         """cubic on #206 (P1): a 503 and then a 200 must give 3, not an invalid concatenation"""
@@ -200,6 +223,12 @@ class TheLibraryWorkflowToo(unittest.TestCase):
         self.assertIn("--start $((last + 1))", self.pack["run"])
         self.assertNotIn("max(n, default=1)", self.pack["run"])
         self.assertNotIn("--retry", self.pack["run"])
+
+    def test_the_token_is_dropped_here_too_and_the_last_try_does_not_sleep(self):
+        run = self.pack["run"]
+        self.assertIn("unset GH_TOKEN", run)
+        self.assertLess(run.index("unset GH_TOKEN"), run.index("python3 emissary/scripts/bump/bundle_layers.py"))
+        self.assertIn('[ "$try" -lt 5 ] || break', run)
 
     def test_it_runs_here_too(self):
         self.assertEqual(run_snippet(self.pack["run"], [("502", "<html>"), ("200", REAL)]), (0, "3", 2))

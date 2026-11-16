@@ -383,8 +383,10 @@ jobs:
                 for try in 1 2 3 4 5; do
                   code=$(curl -sS --max-time 60 -o "$body" -w '%{http_code}' -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/competemath/tengoku/contents/data/intake/$KEY/parts" || true)
                   case "$code" in 200|404) break ;; esac
+                  [ "$try" -lt 5 ] || break  # no pause and no notice after the last try (cubic on #206)
                   echo "::notice::GitHub answered $code for the tree's parts (try $try of 5): again in 20 s"; sleep 20
                 done
+                unset GH_TOKEN  # the rest of the step (bundle_layers.py and the like) needs no token: the step-level env cannot be scoped to one call, the shell can drop it (cubic on #206)
                 last=$(python3 emissary/scripts/bump/last_part.py --status "$code" < "$body") || { echo "::error::the tree's last part number is not known (GitHub answered $code): not cutting parts that could collide with the merged ones"; exit 1; }
                 from_tree="--tree-umbrella tree-umbrella-$mode.lean --start $((last + 1))"
               fi
