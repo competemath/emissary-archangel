@@ -1,0 +1,1 @@
+{"names":["Singularity.fixed_zpow_of_fixed","Singularity.fixed_of_conjugates_tendsto_one"],"modules":["Singularity.Mautner"],"moduleOf":{"Singularity.fixed_zpow_of_fixed":"Singularity.Mautner","Singularity.fixed_of_conjugates_tendsto_one":"Singularity.Mautner"},"deps":{"Singularity.fixed_zpow_of_fixed":[],"Singularity.fixed_of_conjugates_tendsto_one":[]}}

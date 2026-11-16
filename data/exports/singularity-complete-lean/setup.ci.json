@@ -1,0 +1,45 @@
+{
+  "key": "singularity-complete-lean",
+  "repo": "https://github.com/petekos-math/singularity_complete_lean",
+  "commit": "476377d677d757511d298d550189ab0f2153cf9b",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "Challenge",
+    "Singularity"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/singularity-complete-lean/repo",
+  "entries": 2275,
+  "modules": 519,
+  "exported": 519,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 309,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 2275,
+    "kept": 2275,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 2275,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.34.0-rc2 (commit 6a10ac8c22beadecabdbb0919c2b50214762f91d, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+6a10ac8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "483e011449cc + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 395407360,
+  "minutes": 56,
+  "finishedAt": "2026-11-16T18:48:51.479Z"
+}
