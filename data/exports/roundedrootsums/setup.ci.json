@@ -1,0 +1,44 @@
+{
+  "key": "roundedrootsums",
+  "repo": "https://github.com/vlad-galkin38/RoundedRootSums",
+  "commit": "9e8ea9c36ce5d59e64ae6032fe1c5b74bd4dee2c",
+  "toolchain": "leanprover/lean4:v4.33.0-rc1",
+  "roots": [
+    "RoundedRootSums"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/roundedrootsums/repo",
+  "entries": 550,
+  "modules": 30,
+  "exported": 30,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 550,
+    "kept": 550,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 7,
+    "lineUnverified": 0,
+    "nameFixed": 550,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.0-rc1 (commit 62eed1db4d67327ec8120be05f1a1b0847d74561, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+62eed1d",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "af5aa64bb914 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 3416064,
+  "minutes": 10,
+  "finishedAt": "2026-11-16T19:33:04.461Z"
+}
