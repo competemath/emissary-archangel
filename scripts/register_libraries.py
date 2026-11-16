@@ -137,6 +137,7 @@ def refine(argv):
     import collections, os
     T = argv[argv.index("--tengoku") + 1]
     reasons = collections.Counter()
+    trusted = trusted_names(T)
     for _ in range(40):
         subprocess.run(["git", "-C", T, "add", "-A"], check=True)
         subprocess.run(["git", "-C", T, "-c", "user.name=mikaelbashir", "-c", "user.email=138998999+mikael-bashir@users.noreply.github.com",
@@ -151,6 +152,8 @@ def refine(argv):
                 bad[f].add(n); reasons[re.sub(r":.*", "", why)] += 1; found = True
             if r.returncode != 0 and not found:
                 sys.exit(f"{script} failed without naming a record line:\n" + text[-1500:])
+        for f, lines in trusted_clashes(T, trusted).items():  # the rule the gate applies and the sparse checkout cannot show the two scripts above
+            bad[f] |= lines; reasons["already trusted name"] += len(lines)
         if not bad:
             print("record rules quiet:", dict(reasons))
             twins = overlap_check(T)
@@ -160,6 +163,39 @@ def refine(argv):
             rows = open(f"{T}/{f}").read().splitlines(True)
             open(f"{T}/{f}", "w").writelines(l for i, l in enumerate(rows, 1) if i not in lines)
     sys.exit("the record rules did not settle in 40 rounds")
+
+
+def names_of(text):
+    got = set()
+    for l in text.splitlines():
+        try: got.add(json.loads(l)["name"])
+        except Exception: pass
+    return got
+
+
+def trusted_names(T):
+    """the names of every trusted record on origin/main, read with `git show` so that the checkout need not hold data/trusted (a sparse checkout has none: 15 Nov 2026,
+    batch 8, refine ran without it and let symmmoncoherence's `exchange` through; the gate refuses a record whose name is already trusted)"""
+    import os
+    names = set()
+    for f in subprocess.run(["git", "-C", T, "ls-tree", "--name-only", "origin/main", "data/trusted/"], capture_output=True, text=True).stdout.split():
+        if f.endswith(".jsonl"):
+            names |= names_of(subprocess.run(["git", "-C", T, "show", f"origin/main:{f}"], capture_output=True, text=True).stdout)
+    return names
+
+
+def trusted_clashes(T, trusted):
+    """{file: {line numbers}} of the records the checkout adds to data/tentative whose name is already trusted (a record already on origin/main is not new, so it is not judged)"""
+    out = {}
+    changed = subprocess.run(["git", "-C", T, "diff", "--name-only", "origin/main", "HEAD", "--", "data/tentative/"], capture_output=True, text=True).stdout.split()
+    for f in changed:
+        if not f.endswith(".jsonl"): continue
+        old = names_of(subprocess.run(["git", "-C", T, "show", f"origin/main:{f}"], capture_output=True, text=True).stdout)
+        for i, l in enumerate(open(f"{T}/{f}", encoding="utf-8").read().splitlines(), 1):
+            try: n = json.loads(l)["name"]
+            except Exception: continue
+            if n in trusted and n not in old: out.setdefault(f, set()).add(i)
+    return out
 
 
 def overlap_check(T):

@@ -132,6 +132,59 @@ class RefusedLines(unittest.TestCase):
         self.assertEqual(len(old.findall(self.REAL["lint_banked"])), 0)  # what stopped batch 7's refine
         self.assertEqual(len(old.findall(self.REAL["validate_records"])), len(self.listed(self.REAL["validate_records"])))
 
+class TrustedNames(unittest.TestCase):
+    """15 Nov 2026, batch 8: refine ran in a sparse checkout without data/trusted, so it could not see that symmmoncoherence's `exchange` (theorem exchange : (Fin.preCoxeterSystem n).ExchangeProperty')
+    is the name of a trusted record (the whiskering lemma of mathlib-categorytheory); gitar found it on the records PR. The names are now read from origin/main with `git show`."""
+
+    def repo(self, trusted, tentative_old=None, tentative_new=None):
+        import subprocess
+        d = Path(tempfile.mkdtemp())
+        run = lambda *a: subprocess.run(["git", "-C", str(d), "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True)
+        run("init", "-q", "-b", "main")
+        (d / "data/trusted").mkdir(parents=True); (d / "data/tentative").mkdir(parents=True)
+        (d / "data/trusted/mathlib-categorytheory.jsonl").write_text("".join(json.dumps({"name": n}) + "\n" for n in trusted))
+        for k, names in (tentative_old or {}).items():
+            (d / f"data/tentative/{k}.jsonl").write_text("".join(json.dumps({"name": n}) + "\n" for n in names))
+        run("add", "-A"); run("commit", "-q", "-m", "base"); run("update-ref", "refs/remotes/origin/main", "HEAD")
+        for k, names in (tentative_new or {}).items():
+            (d / f"data/tentative/{k}.jsonl").write_text("".join(json.dumps({"name": n}) + "\n" for n in names))
+        run("add", "-A"); run("commit", "-q", "-m", "records")
+        return d
+
+    def test_the_real_case_exchange_is_found_by_line_without_data_trusted_in_the_checkout(self):
+        d = self.repo(["exchange", "CategoryTheory.whiskerLeft_id"], tentative_new={"symmmoncoherence": ["SymmMonCoherence.foo", "exchange", "SymmMonCoherence.bar"]})
+        import shutil; shutil.rmtree(d / "data/trusted")  # a sparse checkout has none
+        t = rl.trusted_names(str(d))
+        self.assertEqual(t, {"exchange", "CategoryTheory.whiskerLeft_id"})
+        self.assertEqual(rl.trusted_clashes(str(d), t), {"data/tentative/symmmoncoherence.jsonl": {2}})
+
+    def test_a_record_already_on_main_is_not_new_and_a_qualified_name_is_not_a_clash(self):
+        d = self.repo(["exchange"], tentative_old={"lib": ["exchange"]}, tentative_new={"lib": ["exchange", "Lib.exchange"]})
+        self.assertEqual(rl.trusted_clashes(str(d), rl.trusted_names(str(d))), {})
+
+    def test_two_thousand_records_every_clash_and_only_those(self):
+        import random
+        rnd = random.Random(15112026)
+        trusted = [f"t{i}" for i in range(500)]
+        names = [rnd.choice([f"t{rnd.randrange(900)}", f"x{rnd.randrange(10**6)}"]) for _ in range(2000)]
+        d = self.repo(trusted, tentative_new={"big": names})
+        want = {i for i, n in enumerate(names, 1) if n in set(trusted)}
+        got = rl.trusted_clashes(str(d), rl.trusted_names(str(d)))
+        self.assertEqual(got.get("data/tentative/big.jsonl", set()), want)
+        self.assertGreater(len(want), 200)  # the draw really has clashes
+
+    def test_refine_applies_it_and_counts_the_reason(self):
+        import inspect
+        src = inspect.getsource(rl.refine)
+        self.assertIn("trusted_clashes(T, trusted)", src)
+        self.assertIn('reasons["already trusted name"]', src)
+        self.assertLess(src.index("trusted = trusted_names(T)"), src.index("for _ in range(40)"))
+
+    def test_mutant_without_the_trusted_names_nothing_is_found(self):
+        d = self.repo(["exchange"], tentative_new={"lib": ["exchange"]})
+        self.assertEqual(rl.trusted_clashes(str(d), set()), {})  # the old refine: no trusted names, no clash: this is what let `exchange` through
+        self.assertEqual(rl.trusted_clashes(str(d), rl.trusted_names(str(d))), {"data/tentative/lib.jsonl": {1}})
+
 
 if __name__ == "__main__":
     unittest.main()
