@@ -1994,6 +1994,179 @@
         "TwinPrime"
       ],
       "licence": "Apache-2.0"
+    },
+    "thurston23": {
+      "label": "thurston23 (t4v1/thurston23; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/t4v1/thurston23",
+      "commit": "3e118f265ef17eddb117513b9b401483fba13dc5",
+      "toolchain": "leanprover/lean4:v4.29.0-rc2",
+      "roots": [
+        "CatalanEisensteinRatio",
+        "CatalanLattice",
+        "CatalanLogSin",
+        "EisensteinLogSin",
+        "Thurston23",
+        "Thurston23Eisenstein"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "qpcf-lean": {
+      "label": "qpcf-lean (DavidVFeldman/qpcf-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/DavidVFeldman/qpcf-lean",
+      "commit": "3610bafc5e8c47b4cd7f490b451b31dd772aa87d",
+      "toolchain": "leanprover/lean4:v4.28.0",
+      "roots": [
+        "Beta",
+        "Forward",
+        "Gamma",
+        "QPCFStandalone",
+        "RequestProject"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "klsposet": {
+      "label": "klsposet (davidsavitt/KLSposet; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/davidsavitt/KLSposet",
+      "commit": "8bc19a7f8498d5cdff5cb1ebcc0fa9b8785be91a",
+      "toolchain": "leanprover/lean4:v4.28.0",
+      "roots": [
+        "KLSposet"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lie-lean": {
+      "label": "lie-lean (apellis/lie-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/apellis/lie-lean",
+      "commit": "7cc1dfa2a1ebb5bbe22e79b4203cc9b5ee34be6d",
+      "toolchain": "leanprover/lean4:v4.34.1",
+      "roots": [
+        "LieLean"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "char-p-nahodge-formalization": {
+      "label": "char-p-nahodge-formalization (G-course/char-p-NAhodge-formalization; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/G-course/char-p-NAhodge-formalization",
+      "commit": "c297c088e8320499bb190bab2a4c01022982ca4e",
+      "toolchain": "leanprover/lean4:v4.33.0-rc1",
+      "roots": [
+        "LSZ"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "partitionpolynomial": {
+      "label": "partitionpolynomial (AxiomMath/PartitionPolynomial; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/AxiomMath/PartitionPolynomial",
+      "commit": "b2a9e8d75cc76e5c432f15f668c18826a9abab80",
+      "toolchain": "leanprover/lean4:v4.28.0",
+      "roots": [
+        "PartitionPolynomial"
+      ],
+      "licence": "MIT"
+    },
+    "biswal": {
+      "label": "biswal (AxiomMath/Biswal; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/AxiomMath/Biswal",
+      "commit": "62c945fb6c06ac2f915bbfd7521e6c807e47e92a",
+      "toolchain": "leanprover/lean4:v4.28.0",
+      "roots": [
+        "Biswal"
+      ],
+      "licence": "MIT"
+    },
+    "salem-theorem": {
+      "label": "salem-theorem (stalex444/salem-theorem; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/stalex444/salem-theorem",
+      "commit": "887be765bf24c6a645600dfc7bd0a1055a1761dd",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "Challenge",
+        "PdtPisotLadder",
+        "PdtSalemArith",
+        "PdtSalemCircle",
+        "PdtSalemEndgame",
+        "PdtSalemMinus",
+        "PdtSalemQuadUnit",
+        "SalemPisot",
+        "Solution"
+      ],
+      "licence": "MIT"
+    },
+    "alternating-analytic-characteristic-p": {
+      "label": "alternating-analytic-characteristic-p (Deicyde/alternating-analytic-characteristic-p; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/Deicyde/alternating-analytic-characteristic-p",
+      "commit": "2ca20e750fefa7c356eec5f09655c889100846e7",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "AlternatingAnalytic",
+        "Challenges",
+        "Solutions",
+        "challenge",
+        "solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "ulmstheorem": {
+      "label": "ulmstheorem (elanroth/UlmsTheorem; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/elanroth/UlmsTheorem",
+      "commit": "5545628c78c015a76bbe8c763f121d6458c90379",
+      "toolchain": "leanprover/lean4:v4.30.0-rc1",
+      "roots": [
+        "Lib",
+        "Test"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "symmmoncoherence": {
+      "label": "symmmoncoherence (robin-carlier/SymmMonCoherence; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/robin-carlier/SymmMonCoherence",
+      "commit": "0cb94d5bcbddf2637423504af658a2f6e3319ef2",
+      "toolchain": "leanprover/lean4:v4.29.0-rc6",
+      "roots": [
+        "SymmMonCoherence"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "tutte-homotopy-lean": {
+      "label": "tutte-homotopy-lean (mbaker386/tutte-homotopy-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/mbaker386/tutte-homotopy-lean",
+      "commit": "ab33c23369865b5fbd30b7a19710a527aa7ebab6",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "TutteFormalization"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "factorization-theory-formalization": {
+      "label": "factorization-theory-formalization (aravpaladiya/factorization-theory-formalization; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/aravpaladiya/factorization-theory-formalization",
+      "commit": "446677f78db920289a200faefe20a5a1db8fdf5f",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "FactorizationTheory"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "singularity-complete-lean": {
+      "label": "singularity-complete-lean (petekos-math/singularity_complete_lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/petekos-math/singularity_complete_lean",
+      "commit": "476377d677d757511d298d550189ab0f2153cf9b",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "Challenge",
+        "Singularity"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "osp-triviality": {
+      "label": "osp-triviality (ritsumei-aoi/osp-triviality; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/ritsumei-aoi/osp-triviality",
+      "commit": "5d8c67a8d3775163ea62f975139343beb4190d87",
+      "toolchain": "leanprover/lean4:v4.29.1",
+      "roots": [
+        "InhomogeneousDeformations"
+      ],
+      "licence": "MIT"
     }
   }
 }
