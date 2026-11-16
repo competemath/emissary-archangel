@@ -1,0 +1,44 @@
+{
+  "key": "jacobian-two",
+  "repo": "https://github.com/alok/jacobian-two",
+  "commit": "ded8e67fb47c155f83ec9bd68af6014499fc2d61",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "JacobianTwo"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/jacobian-two/repo",
+  "entries": 270,
+  "modules": 23,
+  "exported": 23,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 270,
+    "kept": 270,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 50,
+    "lineUnverified": 0,
+    "nameFixed": 270,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.0 (commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+8c9756b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "4e7915201d3f + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 6410240,
+  "minutes": 3,
+  "finishedAt": "2026-11-16T19:04:06.025Z"
+}
