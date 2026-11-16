@@ -1,0 +1,44 @@
+{
+  "key": "osp-triviality",
+  "repo": "https://github.com/ritsumei-aoi/osp-triviality",
+  "commit": "5d8c67a8d3775163ea62f975139343beb4190d87",
+  "toolchain": "leanprover/lean4:v4.29.1",
+  "roots": [
+    "InhomogeneousDeformations"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/osp-triviality/repo",
+  "entries": 671,
+  "modules": 25,
+  "exported": 25,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 671,
+    "kept": 671,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 671,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.29.1 (commit f72c35b3f637c8c6571d353742168ab66cc22c00, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+f72c35b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "6f4e21dd70c3 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 12345344,
+  "minutes": 5,
+  "finishedAt": "2026-11-16T17:59:35.286Z"
+}
