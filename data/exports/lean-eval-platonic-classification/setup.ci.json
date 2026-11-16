@@ -1,0 +1,47 @@
+{
+  "key": "lean-eval-platonic-classification",
+  "repo": "https://github.com/Solarys431/lean-eval-platonic-classification",
+  "commit": "3cd00dfd965e5b9639cbf1011beea553001a290a",
+  "toolchain": "leanprover/lean4:v4.32.0-rc1",
+  "roots": [
+    "Challenge",
+    "ChallengeDeps",
+    "Solution",
+    "Submission"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lean-eval-platonic-classification/repo",
+  "entries": 2389,
+  "modules": 138,
+  "exported": 138,
+  "failed": [],
+  "expansion": {
+    "expanded": 120,
+    "verbatim": 559,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 2389,
+    "kept": 2389,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 2,
+    "lineUnverified": 0,
+    "nameFixed": 1815,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.0-rc1 (commit b4812ae53eea93439ad5dce5a5c26591c31cb697, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+b4812ae",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "3de59f10bc4b + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 100651008,
+  "minutes": 70,
+  "finishedAt": "2026-11-16T20:34:02.475Z"
+}
