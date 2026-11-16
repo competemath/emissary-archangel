@@ -357,7 +357,7 @@ jobs:
           # shellcheck disable=SC2086  # the list is meant to be split into arguments
           python3 emissary/scripts/bump/canonicalise_bundle.py $BUNDLES
       - name: Pack (the attested bytes are the canonical .tar, the same function as tengoku's gate; the .tar.gz is for transport)
-        env: { GH_TOKEN: "${{ github.token }}" }  # read-only (the job has contents: read): an unauthenticated call is rate-limited on a shared runner
+        env: { GH_TOKEN: "${{ github.token }}" }  # this call reads a public repository: the token is there only because GitHub rate-limits an unauthenticated call on a shared runner
         run: |
           mkdir -p out
           for mode in strict proposed wide; do
@@ -376,10 +376,16 @@ jobs:
                 # the library is in the tree already (its first parts merged): cut only the modules it does not have, from the next part number
                 ns=$(basename "$dir"/Tengoku/*.lean .lean)
                 curl -sSfL "https://raw.githubusercontent.com/competemath/tengoku/main/Tengoku/$ns.lean" -o "tree-umbrella-$mode.lean"
-                # the tree's last part number: authenticated, a real answer only (scripts/bump/last_part.py; bump-sharded.yml has the story: a rate-limited bare call read as "no parts", tengoku#842)
-                resp=$(curl -sS --retry 4 --retry-all-errors -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -w '\n%{http_code}' "https://api.github.com/repos/competemath/tengoku/contents/data/intake/$KEY/parts") || { echo "::error::could not ask GitHub for the tree's parts"; exit 1; }
-                code=${resp##*$'\n'}; body=${resp%$'\n'*}
-                last=$(printf '%s' "$body" | python3 emissary/scripts/bump/last_part.py --status "$code") || { echo "::error::the tree's last part number is not known (GitHub answered $code): not cutting parts that could collide with the merged ones"; exit 1; }
+                # the tree's last part number: GitHub WITH the job's token, a real answer only (scripts/bump/last_part.py). 15 Nov 2026, flt-anthropic: the bare call was rate-limited, read as "no parts", and the
+                # parts were cut from 002 over the merged 002 and 003 (tengoku#842). The body goes to a file (a retry by curl would append the bodies of the failed tries to stdout), the status is read
+                # apart, 200 and 404 are the only answers that count, and the tries are ours: five, with a pause.
+                body=$(mktemp); code=000
+                for try in 1 2 3 4 5; do
+                  code=$(curl -sS --max-time 60 -o "$body" -w '%{http_code}' -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/competemath/tengoku/contents/data/intake/$KEY/parts" || true)
+                  case "$code" in 200|404) break ;; esac
+                  echo "::notice::GitHub answered $code for the tree's parts (try $try of 5): again in 20 s"; sleep 20
+                done
+                last=$(python3 emissary/scripts/bump/last_part.py --status "$code" < "$body") || { echo "::error::the tree's last part number is not known (GitHub answered $code): not cutting parts that could collide with the merged ones"; exit 1; }
                 from_tree="--tree-umbrella tree-umbrella-$mode.lean --start $((last + 1))"
               fi
               python3 emissary/scripts/bump/bundle_layers.py --bundle "$dir" --out "parts-$mode" --max-modules "$PARTS" --tar $from_tree

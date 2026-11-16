@@ -30,9 +30,14 @@ def last_part(body: str, status: str) -> int:
         listing = json.loads(body)
     except ValueError:
         raise SystemExit("the answer for the tree's parts is not JSON: the number of the next part is not known") from None
-    if not isinstance(listing, list):
+    if isinstance(listing, dict):
         raise SystemExit(f"the answer for the tree's parts is not a listing ({str(listing.get('message', listing))[:120]!r}): the number of the next part is not known")
-    nums = [int(m.group(1)) for x in listing if isinstance(x, dict) for m in [PART.match(str(x.get("name", "")))] if m]
+    if not isinstance(listing, list):
+        raise SystemExit(f"the answer for the tree's parts is not a listing (a {type(listing).__name__}): the number of the next part is not known")
+    for x in listing:  # an entry without a name would be skipped and the number understated (cubic on #206)
+        if not isinstance(x, dict) or not isinstance(x.get("name"), str):
+            raise SystemExit(f"an entry of the tree's parts has no name ({str(x)[:80]!r}): the number of the next part is not known")
+    nums = [int(m.group(1)) for x in listing for m in [PART.match(x["name"])] if m]
     return max(nums, default=1)
 
 
