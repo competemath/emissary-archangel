@@ -254,9 +254,15 @@ jobs:
           python3 scripts/bump/bundle.py compose --lib ../merged --log ../logs/bundle-deps.log --passed ../logs/passed.json --meta "data/exports/$KEY/setup.ci.json" \
             --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --gate2-killed ../logs/gate2-killed.json --out ../bundle --src ../pruned-src --drop-modules "$drop" \
             --tree-names ../tree-names.txt --tree-decls ../tree-decls.txt --drop-leaks --imports "$IMPORTS" "${keep[@]}"
-      - name: Make the registrations that leak into other libraries local (RECUT only)
-        if: ${{ inputs.scope != '' }}
-        run: python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --reexport --leaks "$SCOPE" --qualify-roots
+      # Every cut: the declarations the library puts in the root namespace move to Tengoku.<Library> (root_lines.py reads their names from the sidecars the shards left: no Lean runs
+      # here), so that a first cut is not refused by the tree's roots guard. RECUT: also the `leak:` and `root:` lines of the queue's report (`scope`). compose and finish make
+      # the same edit from the same shards, so what finish ships is still what verify built.
+      - name: Make the registrations that leak into other libraries local (RECUT), and move the root declarations to Tengoku.<Library> (every cut)
+        run: |
+          python3 emissary/scripts/bump/root_lines.py --merged merged --out roots.scope
+          if [ -n "$SCOPE" ] || [ -s roots.scope ]; then
+            python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --reexport --leaks "$SCOPE" --roots-file roots.scope --qualify-roots
+          fi
       # The draft of every mode that is to be verified, as a tar. `verify` builds each in the tree; `finish` cuts the same bundle again from the same shards and the same
       # tree names (they travel with the draft), drops what the tree refused, and proves that what is left is byte for byte what was built.
       - name: The draft, for the tree's build
@@ -673,9 +679,15 @@ jobs:
           python3 scripts/bump/bundle.py compose --lib ../merged --log ../logs/bundle-deps.log --passed ../logs/passed.json --meta "data/exports/$KEY/setup.ci.json" \
             --key "$KEY" --toolchain "$TOOLCHAIN" --errors ../logs/errors.log --gate2 ../logs/gate2.log --gate2-killed ../logs/gate2-killed.json --out ../bundle --src ../pruned-src --drop-modules "$drop" \
             --tree-names ../tree-names.txt --tree-decls ../tree-decls.txt --drop-leaks --tree-failures ../tree-failures.txt --tree-repairs ../tree-repairs.json --imports "$IMPORTS" "${keep[@]}"
-      - name: Make the registrations that leak into other libraries local (RECUT only)
-        if: ${{ inputs.scope != '' }}
-        run: python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --reexport --leaks "$SCOPE" --qualify-roots
+      # Every cut: the declarations the library puts in the root namespace move to Tengoku.<Library> (root_lines.py reads their names from the sidecars the shards left: no Lean runs
+      # here), so that a first cut is not refused by the tree's roots guard. RECUT: also the `leak:` and `root:` lines of the queue's report (`scope`). compose and finish make
+      # the same edit from the same shards, so what finish ships is still what verify built.
+      - name: Make the registrations that leak into other libraries local (RECUT), and move the root declarations to Tengoku.<Library> (every cut)
+        run: |
+          python3 emissary/scripts/bump/root_lines.py --merged merged --out roots.scope
+          if [ -n "$SCOPE" ] || [ -s roots.scope ]; then
+            python3 emissary/scripts/bump/scope_rewrite.py --bundle bundle --bundle bundle-proposed --bundle bundle-wide --reexport --leaks "$SCOPE" --roots-file roots.scope --qualify-roots
+          fi
       # What ships is what the tree built: every new module of the final bundle, in every verified mode, has the bytes the tree's build accepted.
       - name: Every module that ships was built in the tree, byte for byte
         env: { MODES: "${{ needs.compose.outputs.modes }}" }
