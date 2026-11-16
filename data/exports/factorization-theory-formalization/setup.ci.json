@@ -1,0 +1,44 @@
+{
+  "key": "factorization-theory-formalization",
+  "repo": "https://github.com/aravpaladiya/factorization-theory-formalization",
+  "commit": "446677f78db920289a200faefe20a5a1db8fdf5f",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "FactorizationTheory"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/factorization-theory-formalization/repo",
+  "entries": 315,
+  "modules": 27,
+  "exported": 27,
+  "failed": [],
+  "expansion": {
+    "expanded": 7,
+    "verbatim": 94,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 315,
+    "kept": 315,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 70,
+    "lineUnverified": 0,
+    "nameFixed": 173,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.34.0-rc2 (commit 6a10ac8c22beadecabdbb0919c2b50214762f91d, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+6a10ac8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "483e011449cc + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.82.6"
+  },
+  "exportsBytes": 5107712,
+  "minutes": 2,
+  "finishedAt": "2026-11-16T18:01:58.167Z"
+}
