@@ -1,0 +1,44 @@
+{
+  "key": "tutte-homotopy-lean",
+  "repo": "https://github.com/mbaker386/tutte-homotopy-lean",
+  "commit": "ab33c23369865b5fbd30b7a19710a527aa7ebab6",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "TutteFormalization"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/tutte-homotopy-lean/repo",
+  "entries": 600,
+  "modules": 190,
+  "exported": 190,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 600,
+    "kept": 600,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 600,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.34.0-rc2 (commit 6a10ac8c22beadecabdbb0919c2b50214762f91d, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+6a10ac8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "483e011449cc + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 123949056,
+  "minutes": 22,
+  "finishedAt": "2026-11-16T18:26:22.462Z"
+}
