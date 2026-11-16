@@ -717,7 +717,6 @@ jobs:
                   [ "$try" -lt 5 ] || break  # no pause and no notice after the last try (cubic on #206)
                   echo "::notice::GitHub answered $code for the tree's parts (try $try of 5): again in 20 s"; sleep 20
                 done
-                unset GH_TOKEN  # the rest of the step (bundle_layers.py and the like) needs no token: the step-level env cannot be scoped to one call, the shell can drop it (cubic on #206)
                 last=$(python3 emissary/scripts/bump/last_part.py --status "$code" < "$body") || { echo "::error::the tree's last part number is not known (GitHub answered $code): not cutting parts that could collide with the merged ones"; exit 1; }
                 from_tree="--tree-umbrella tree-umbrella-$mode.lean --start $((last + 1))"
               fi
@@ -728,6 +727,7 @@ jobs:
               cp "parts-$mode/plan.json" "parts-$mode.json"
             fi
           done
+          unset GH_TOKEN  # only the lookups above need it, once per mode: the step-level env cannot be scoped, so the shell drops it after the last mode (cubic on #207: inside the loop the second mode had none)
           sha256sum bundle-"$KEY"-*.tar | tee bundle.sha256
           cat bundle/report.json bundle-proposed/report.json bundle-wide/report.json
       # A from-tree recut can only ADD modules: a module an earlier part merged is final. This says which merged modules the corrected compose would extend (declarations the tree's

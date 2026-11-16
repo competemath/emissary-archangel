@@ -114,8 +114,9 @@ def snippet(script: str) -> str:
     return script[i:k]
 
 
-def run_snippet(script: str, answers: list[tuple[str, str]], curl_fails: bool = False) -> tuple[int, str, int]:
-    """the lookup run for real in bash with a fake `curl` that answers (status, body) in turn and a `sleep` that does not sleep: (exit status, `last`, how many times curl was called)"""
+def run_snippet(script: str, answers: list[tuple[str, str]], curl_fails: bool = False, repeat: int = 1, sleeps: bool = False):
+    """the lookup run for real in bash with a fake `curl` that answers (status, body) in turn and a `sleep` that does not sleep: (exit status, `last`, how many times curl was called).
+    repeat=2 runs it twice in ONE shell, as the mode loop does (the step's environment is shared by the modes); sleeps=True returns instead (status, last, calls, pauses, stdout, call arguments)"""
     with tempfile.TemporaryDirectory() as d:
         root = Path(d)
         (root / "emissary").symlink_to(HERE.parents[2])
@@ -123,17 +124,22 @@ def run_snippet(script: str, answers: list[tuple[str, str]], curl_fails: bool = 
         bin_.mkdir()
         (root / "answers.json").write_text(json.dumps(answers))
         (bin_ / "curl").write_text(
-            "#!/usr/bin/env python3\nimport json, sys, os\nroot = os.environ['FAKE_ROOT']\nn = len(os.listdir(root + '/calls'))\nopen(root + '/calls/' + str(n), 'w').close()\n"
+            "#!/usr/bin/env python3\nimport json, sys, os\nroot = os.environ['FAKE_ROOT']\nn = len(os.listdir(root + '/calls'))\nopen(root + '/calls/' + str(n), 'w').write(' '.join(sys.argv[1:]))\n"
             "answers = json.load(open(root + '/answers.json'))\ncode, body = answers[min(n, len(answers) - 1)]\n"
             "args = sys.argv[1:]\nout = args[args.index('-o') + 1]\nopen(out, 'w').write(body)\nprint(code, end='')\nsys.exit(" + ("7" if curl_fails else "0") + ")\n"
         )
         (bin_ / "curl").chmod(0o755)
         (root / "calls").mkdir()
-        prog = "set -e\nsleep() { :; }\n" + snippet(script) + '\necho "last=$last"\n'
+        pause = f"echo p >> {root}/pauses" if sleeps else ":"
+        prog = "set -e\nsleep() { " + pause + "; }\n" + (snippet(script) + "\n") * repeat + 'echo "last=$last"\n'
         r = subprocess.run(["bash", "-c", prog], cwd=root, capture_output=True, text=True, env={**os.environ, "PATH": f"{bin_}:{os.environ['PATH']}", "FAKE_ROOT": str(root), "KEY": "flt-anthropic", "GH_TOKEN": "t"})
         calls = len(os.listdir(root / "calls"))
         last = next((ln.split("=", 1)[1] for ln in r.stdout.splitlines() if ln.startswith("last=")), "")
-        return r.returncode, last, calls
+        if not sleeps:
+            return r.returncode, last, calls
+        pauses = len((root / "pauses").read_text().split()) if (root / "pauses").exists() else 0
+        args = [(root / "calls" / str(i)).read_text() for i in range(calls)]
+        return r.returncode, last, calls, pauses, r.stdout, args
 
 
 class ThePackStep(unittest.TestCase):
@@ -163,28 +169,31 @@ class ThePackStep(unittest.TestCase):
         self.assertNotIn("read-only", WORKFLOW.read_text(encoding="utf-8").split("- name: Pack and attest")[1].split("run: |")[0])
         self.assertIn("contents", DOC["jobs"]["finish"]["permissions"])
 
-    def test_the_token_is_dropped_after_the_call_and_the_last_try_does_not_sleep(self):
-        """cubic on #206 (P3, both): only the lookup needs GH_TOKEN, so the shell unsets it right after; no pause after the fifth try"""
-        i = self.script.index("last=$(python3 emissary/scripts/bump/last_part.py")
-        self.assertIn("unset GH_TOKEN", self.script)
-        self.assertLess(self.script.index("unset GH_TOKEN"), self.script.index("python3 emissary/scripts/bump/bundle_layers.py"))
-        self.assertGreater(self.script.index("unset GH_TOKEN"), self.script.index("curl -sS"))
-        self.assertIn('[ "$try" -lt 5 ] || break', self.script)
-        self.assertLess(self.script.index('[ "$try" -lt 5 ] || break'), self.script.index("sleep 20"))
-        self.assertGreater(i, 0)
+    def test_the_token_is_dropped_after_the_mode_loop_not_inside_it(self):
+        """cubic on #207 (P1, P2): the first version unset it after the lookup INSIDE the loop, and the second mode asked GitHub with an empty token. It goes after the loop's `done`."""
+        script = self.script
+        self.assertEqual(script.count("unset GH_TOKEN"), 1)
+        u = script.index("unset GH_TOKEN")
+        self.assertGreater(u, script.index("bundle_layers.py"))
+        self.assertGreater(u, script.rindex("cp \"parts-$mode/plan.json\""))
+        self.assertLess(u, script.index("sha256sum"))
+        self.assertNotIn("unset GH_TOKEN", snippet(script))
+
+    def test_every_mode_asks_with_the_token(self):
+        for script in (self.script, TheLibraryWorkflowToo.pack["run"]):
+            status, last, calls, pauses, out, args = run_snippet(script, [("200", REAL)], repeat=2, sleeps=True)
+            self.assertEqual((status, last, calls), (0, "3", 2))
+            self.assertTrue(all("Authorization: Bearer t" in a for a in args), args)
 
     def test_the_last_try_neither_sleeps_nor_says_again(self):
-        with tempfile.TemporaryDirectory() as d:
-            marker = Path(d) / "slept"
-            prog = f"sleep() {{ echo s >> {marker}; }}\n"
-            # run the real snippet with a sleep that counts: five tries give four pauses, not five
-            import types  # noqa: F401
-
-            root_status, last, calls = run_snippet(self.script.replace("sleep 20", "echo s >> " + str(marker)), [("403", RATE)])
-            self.assertEqual(calls, 5)
-            self.assertEqual(len(marker.read_text().split()), 4)
-            self.assertNotEqual(root_status, 0)
-            self.assertEqual(prog.count("sleep"), 1)
+        """cubic on #206 (P3) and #207 (P2, P3): five rate-limited tries give four pauses and four notices, then the job stops"""
+        for script in (self.script, TheLibraryWorkflowToo.pack["run"]):
+            status, last, calls, pauses, out, args = run_snippet(script, [("403", RATE)], sleeps=True)
+            self.assertNotEqual(status, 0)
+            self.assertEqual((calls, pauses), (5, 4))
+            self.assertEqual(out.count("::notice::GitHub answered 403"), 4)
+            self.assertIn("(try 4 of 5)", out)
+            self.assertNotIn("(try 5 of 5)", out)
 
     def test_it_runs_a_real_answer_after_a_server_error_without_mixing_the_bodies(self):
         """cubic on #206 (P1): a 503 and then a 200 must give 3, not an invalid concatenation"""
@@ -224,11 +233,13 @@ class TheLibraryWorkflowToo(unittest.TestCase):
         self.assertNotIn("max(n, default=1)", self.pack["run"])
         self.assertNotIn("--retry", self.pack["run"])
 
-    def test_the_token_is_dropped_here_too_and_the_last_try_does_not_sleep(self):
+    def test_the_token_is_dropped_here_too_after_the_loop(self):
         run = self.pack["run"]
-        self.assertIn("unset GH_TOKEN", run)
-        self.assertLess(run.index("unset GH_TOKEN"), run.index("python3 emissary/scripts/bump/bundle_layers.py"))
-        self.assertIn('[ "$try" -lt 5 ] || break', run)
+        self.assertEqual(run.count("unset GH_TOKEN"), 1)
+        u = run.index("unset GH_TOKEN")
+        self.assertGreater(u, run.rindex('cp "parts-$mode/plan.json"'))
+        self.assertLess(u, run.index("sha256sum"))
+        self.assertNotIn("unset GH_TOKEN", snippet(run))
 
     def test_it_runs_here_too(self):
         self.assertEqual(run_snippet(self.pack["run"], [("502", "<html>"), ("200", REAL)]), (0, "3", 2))
