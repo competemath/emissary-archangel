@@ -1,0 +1,44 @@
+{
+  "key": "biswal",
+  "repo": "https://github.com/AxiomMath/Biswal",
+  "commit": "62c945fb6c06ac2f915bbfd7521e6c807e47e92a",
+  "toolchain": "leanprover/lean4:v4.28.0",
+  "roots": [
+    "Biswal"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/biswal/repo",
+  "entries": 218,
+  "modules": 3,
+  "exported": 3,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 218,
+    "kept": 218,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 0,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.28.0 (commit 7e01a1bf5c70fc6167d49c345d3bf80596e9a79b, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+7e01a1b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "d065b0009aed + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 1163264,
+  "minutes": 7,
+  "finishedAt": "2026-11-16T16:01:28.540Z"
+}
