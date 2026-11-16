@@ -36,8 +36,8 @@ def Z : Nat := 1 -- not a root
 
 
 def edit(text, roots, ns=NS):
-    f = sr.Lines(text)
-    done = sr.qualify_roots_in_file(f, set(roots), ns)
+    f = sr.roots_tree.Lines(text)
+    done = sr.roots_tree.qualify_roots_in_file(f, set(roots), ns)
     return "\n".join(f.text), done
 
 
@@ -56,10 +56,10 @@ class Parse(unittest.TestCase):
         self.assertEqual(sr.parse_roots("root: «foo bar»\nroot: «foo.bar»\nroot: plain"), {"«foo bar»", "«foo.bar»", "plain"})
 
     def test_head_of(self):
-        self.assertEqual(sr.head_of("Foo.bar"), "Foo")
-        self.assertEqual(sr.head_of("«a.b».c"), "«a.b»")
-        self.assertEqual(sr.head_of("«foo bar»"), "«foo bar»")
-        self.assertEqual(sr.head_of("plain"), "plain")
+        self.assertEqual(sr.roots_tree.head_of("Foo.bar"), "Foo")
+        self.assertEqual(sr.roots_tree.head_of("«a.b».c"), "«a.b»")
+        self.assertEqual(sr.roots_tree.head_of("«foo bar»"), "«foo bar»")
+        self.assertEqual(sr.roots_tree.head_of("plain"), "plain")
 
     def test_none(self):
         self.assertEqual(sr.parse_roots("leakscan: 0 global instances"), set())
@@ -77,9 +77,9 @@ class OneFile(unittest.TestCase):
                 self.assertTrue(b.endswith(a) or a.split(" ", 1)[0] == b.split(" ", 1)[0], (i, a, b))  # the same declaration on the same line, only a prefix added
             else:
                 self.assertEqual(a, b)
-        self.assertIn(f"def {NS}.X : (Fin 3)ᵒᵈ → Bool", new)
-        self.assertIn(f"def {NS}.Y : Fin 3 → Bool", new)
-        self.assertIn(f"theorem {NS}.L_true : L 0 0 := trivial", new)
+        self.assertIn(f"def _root_.{NS}.X : (Fin 3)ᵒᵈ → Bool", new)
+        self.assertIn(f"def _root_.{NS}.Y : Fin 3 → Bool", new)
+        self.assertIn(f"theorem _root_.{NS}.L_true : L 0 0 := trivial", new)
         self.assertIn("def Z : Nat := 1", new)  # not a root of the library: untouched
         self.assertEqual(sorted(done["declared"]), ["L", "L_true", "X", "Y"])
 
@@ -99,7 +99,7 @@ class OneFile(unittest.TestCase):
         new, done = edit(text, {"X"})
         self.assertEqual(done["declared"], [])
         self.assertTrue(done["opened"])
-        self.assertIn(f"namespace {NS} end {NS} open {NS} open Foo", new)
+        self.assertIn(f"namespace {NS} end {NS} open {NS}\nopen Foo", new)
         self.assertEqual(len(text.split("\n")), len(new.split("\n")))
 
     def test_a_module_that_does_not_mention_a_root_is_untouched(self):
@@ -123,16 +123,16 @@ class OneFile(unittest.TestCase):
         text = "module\n\npublic import Tengoku\n\nsection S\ndef X : Nat := 1\nend S\n"
         new, done = edit(text, {"X"})
         self.assertEqual(done["declared"], ["X"])
-        self.assertIn(f"def {NS}.X : Nat := 1", new)
+        self.assertIn(f"def _root_.{NS}.X : Nat := 1", new)
 
     def test_modifiers_attributes_and_named_instances(self):
         text = "module\n\npublic import Tengoku\n\n@[simp] def X : Nat := 1\nprivate noncomputable def Y : Nat := 2\nnoncomputable instance instW : Inhabited Nat := ⟨0⟩\n@[reducible]\nabbrev A : Type := Nat\n"
         new, done = edit(text, {"X", "Y", "instW", "A"})
         self.assertEqual(sorted(done["declared"]), ["A", "X", "Y", "instW"])
-        self.assertIn(f"@[simp] def {NS}.X", new)
-        self.assertIn(f"private noncomputable def {NS}.Y", new)
-        self.assertIn(f"noncomputable instance {NS}.instW", new)
-        self.assertIn(f"abbrev {NS}.A : Type", new)
+        self.assertIn(f"@[simp] def _root_.{NS}.X", new)
+        self.assertIn(f"private noncomputable def _root_.{NS}.Y", new)
+        self.assertIn(f"noncomputable instance _root_.{NS}.instW", new)
+        self.assertIn(f"abbrev _root_.{NS}.A : Type", new)
 
     def test_a_root_structure_its_namespace_and_dotted_members(self):
         text = "module\n\npublic import Tengoku\n\nstructure Cell where\n  v : Nat\n\nnamespace Cell\ndef inc (c : Cell) : Cell := ⟨c.v + 1⟩\nend Cell\n\ndef Cell.dec (c : Cell) : Cell := ⟨c.v - 1⟩\n"
@@ -140,7 +140,7 @@ class OneFile(unittest.TestCase):
         self.assertEqual(done["declared"], ["Cell"])
         self.assertEqual(done["namespaces"], 1)
         self.assertEqual(done["dotted"], 1)
-        self.assertIn(f"structure {NS}.Cell where", new)
+        self.assertIn(f"structure _root_.{NS}.Cell where", new)
         self.assertIn(f"namespace {NS}.Cell\n", new)
         self.assertIn(f"end {NS}.Cell\n", new)
         self.assertIn(f"def {NS}.Cell.dec", new)
@@ -157,8 +157,8 @@ class OneFile(unittest.TestCase):
     def test_quoted_root_names(self):
         text = "module\n\npublic import Tengoku\n\ndef «foo bar» : Nat := 1\ndef «foo.bar» : Nat := 2\nnamespace «foo bar»\ndef x : Nat := 3\nend «foo bar»\ndef «foo bar».y : Nat := 4\nopen «foo bar» in\ntheorem t : «foo.bar» = 2 := rfl\n"
         new, done = edit(text, {"«foo bar»", "«foo.bar»"})
-        self.assertIn(f"def {NS}.«foo bar» : Nat := 1", new)
-        self.assertIn(f"def {NS}.«foo.bar» : Nat := 2", new)
+        self.assertIn(f"def _root_.{NS}.«foo bar» : Nat := 1", new)
+        self.assertIn(f"def _root_.{NS}.«foo.bar» : Nat := 2", new)
         self.assertIn(f"namespace {NS}.«foo bar»\n", new)
         self.assertIn(f"end {NS}.«foo bar»\n", new)
         self.assertIn(f"def {NS}.«foo bar».y", new)
@@ -205,8 +205,8 @@ class Bundle(unittest.TestCase):
             self.assertEqual(rep["qualified"], 3)
             self.assertEqual(rep["unresolved"], ["instAddFoo"])  # an anonymous instance: no text names it
             self.assertEqual(rep["modules_opened"], 2)  # MatrixOperations declares, Containment uses `X`
-            self.assertIn(f"def {NS}.X", (b / "MatrixOperations.lean").read_text())
-            self.assertIn(f"namespace {NS} end {NS} open {NS} ", (b / "Containment.lean").read_text())
+            self.assertIn(f"def _root_.{NS}.X", (b / "MatrixOperations.lean").read_text())
+            self.assertIn(f"namespace {NS} end {NS} open {NS}\ntheorem c", (b / "Containment.lean").read_text())
             self.assertEqual((b / "Other.lean").read_text(), "module\n\npublic import Tengoku\n\ndef Q : Nat := 1\n")
             self.assertIn("root names of this library moved to", (b / "MatrixOperations.lean").read_text())
 
@@ -265,7 +265,7 @@ class Bundle(unittest.TestCase):
             out = json.loads(r.stdout.split(" ", 1)[1])
             self.assertEqual(out["roots"]["qualified"], 2)
             self.assertEqual(out["roots"]["manifest_records"], 1)
-            self.assertIn(f"def {NS}.X", (b / "MatrixOperations.lean").read_text())
+            self.assertIn(f"def _root_.{NS}.X", (b / "MatrixOperations.lean").read_text())
 
     def test_the_library_layout_takes_the_bundles_namespace(self):
         with tempfile.TemporaryDirectory() as t:
@@ -280,7 +280,7 @@ class Bundle(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(r.returncode, 0, r.stderr)
-            self.assertIn(f"def {NS}.X", (p / "MatrixOperations.lean").read_text())
+            self.assertIn(f"def _root_.{NS}.X", (p / "MatrixOperations.lean").read_text())
 
     def test_a_namespace_that_is_not_a_lean_name_is_refused_and_nothing_is_written(self):
         for bad in ("Tengoku.A\nend", "Tengoku.A end X", "A..B", "", "A;B"):
