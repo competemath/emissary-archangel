@@ -151,6 +151,21 @@ class TrustedNames(unittest.TestCase):
         run("add", "-A"); run("commit", "-q", "-m", "records")
         return d
 
+    def test_nested_trusted_files_are_read_too(self):
+        """cubic on #209 (P1, P2): ls-tree without -r listed only the top level of data/trusted; today every file is at the top, a subfolder would have been skipped silently"""
+        import subprocess
+        d = self.repo(["top_name"], tentative_new={"lib": ["nested_name", "top_name", "free_name"]})
+        run = lambda *a: subprocess.run(["git", "-C", str(d), "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True)
+        (d / "data/trusted/sub/deeper").mkdir(parents=True)
+        (d / "data/trusted/sub/deeper/more.jsonl").write_text(json.dumps({"name": "nested_name"}) + "\n")
+        run("add", "-A"); run("commit", "-q", "-m", "nested trusted"); run("update-ref", "refs/remotes/origin/main", "HEAD")
+        t = rl.trusted_names(str(d))
+        self.assertEqual(t, {"top_name", "nested_name"})
+        # the records are on main already, so none is new: add a new file with the nested name and judge it
+        (d / "data/tentative/lib2.jsonl").write_text(json.dumps({"name": "nested_name"}) + "\n" + json.dumps({"name": "free_name"}) + "\n")
+        run("add", "-A"); run("commit", "-q", "-m", "new records")
+        self.assertEqual(rl.trusted_clashes(str(d), t), {"data/tentative/lib2.jsonl": {1}})
+
     def test_the_real_case_exchange_is_found_by_line_without_data_trusted_in_the_checkout(self):
         d = self.repo(["exchange", "CategoryTheory.whiskerLeft_id"], tentative_new={"symmmoncoherence": ["SymmMonCoherence.foo", "exchange", "SymmMonCoherence.bar"]})
         import shutil; shutil.rmtree(d / "data/trusted")  # a sparse checkout has none

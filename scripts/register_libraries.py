@@ -178,7 +178,7 @@ def trusted_names(T):
     batch 8, refine ran without it and let symmmoncoherence's `exchange` through; the gate refuses a record whose name is already trusted)"""
     import os
     names = set()
-    for f in subprocess.run(["git", "-C", T, "ls-tree", "--name-only", "origin/main", "data/trusted/"], capture_output=True, text=True).stdout.split():
+    for f in subprocess.run(["git", "-C", T, "ls-tree", "-r", "--name-only", "origin/main", "data/trusted/"], capture_output=True, text=True).stdout.split():
         if f.endswith(".jsonl"):
             names |= names_of(subprocess.run(["git", "-C", T, "show", f"origin/main:{f}"], capture_output=True, text=True).stdout)
     return names
