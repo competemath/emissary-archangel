@@ -1,0 +1,45 @@
+{
+  "key": "quadratic-algebras",
+  "repo": "https://github.com/FormalFrontier/quadratic-algebras",
+  "commit": "16a5b4c54c4586483cf53597a96eb91ecd5a3bca",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "QuadraticAlgebras",
+    "QuadraticAlgebrasTest"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/quadratic-algebras/repo",
+  "entries": 211,
+  "modules": 28,
+  "exported": 28,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 211,
+    "kept": 211,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 17,
+    "lineUnverified": 0,
+    "nameFixed": 200,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.34.0-rc2 (commit 6a10ac8c22beadecabdbb0919c2b50214762f91d, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+6a10ac8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "483e011449cc + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 3678208,
+  "minutes": 4,
+  "finishedAt": "2026-11-16T18:55:47.091Z"
+}

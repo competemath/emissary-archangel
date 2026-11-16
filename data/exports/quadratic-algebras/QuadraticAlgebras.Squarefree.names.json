@@ -1,0 +1,1 @@
+{"names":["IsFractionRing.isInteger_of_sq_mul_squarefree"],"modules":["QuadraticAlgebras.Squarefree"],"moduleOf":{"IsFractionRing.isInteger_of_sq_mul_squarefree":"QuadraticAlgebras.Squarefree"},"deps":{"IsFractionRing.isInteger_of_sq_mul_squarefree":[]}}
