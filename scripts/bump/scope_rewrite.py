@@ -27,7 +27,7 @@ module still compiles (a later module of the library that used the instance fail
 ROOT NAMES (`--qualify-roots`). The leak scan also lists the declarations a library puts in the ROOT namespace (`root: X`). `X` is then visible in every file of the tree
 with no `open`, so after `open Polynomial` a bare `X` has two readings (`Polynomial.X` and `_root_.X`): "Ambiguous term X" in every other library's statements (compfiles'
 `Usa1980P3` fails in the one environment because formal-forbidden-matrix declares a root `X` and `C`). Two libraries that both declare a root `f` cannot be imported together
-at all. `qualify_roots_in_file` moves each such NAMED declaration to `Tengoku.<Library>.<name>` and keeps the library's own code working by `open Tengoku.<Library>` in the
+at all. `qualify_bundle` (the tree's own script, `roots_tree.py`, a verbatim copy of tengoku's) moves each such NAMED declaration to `Tengoku.<Library>.<name>` and keeps the library's own code working by `open Tengoku.<Library>` in the
 modules that use the name: the declaration (and a `namespace X` block, or a dotted `X.foo`, of a root type X) gets the prefix, nothing else changes, and the edits are inside existing lines (the report's positions stay valid; a note is appended at the end of each changed file).
 """
 
@@ -761,25 +761,9 @@ def rewrite_manifest(root: Path, leaks: list[dict]) -> int:
 
 # A Lean name component is plain or «quoted» (the quotes may hold spaces and dots: `«foo bar»`, `«foo.bar»`); a name is components joined by dots.
 QUOTED = r"«[^»]*»"
-NAME_TOKEN = rf"(?:{QUOTED}|[^\s:({{\[⦃«»])+"
 PLAIN = r"[^\W\d][\w'!?]*"  # a plain identifier component: a letter or `_`, then letters, digits, `_`, `'`, `!`, `?` (Unicode letters and subscripts included)
 SIMPLE_NAME = re.compile(rf"(?:{QUOTED}|{PLAIN})(?:\.(?:{QUOTED}|{PLAIN}))*")
 ROOT_LINE = re.compile(rf"(?m)^[ \t]*root:\s+((?:{QUOTED}|[^\s«»])+)[ \t]*$")  # leading blanks: `;` may be followed by a space
-
-
-def head_of(name: str) -> str:
-    """the first component of a dotted name, the quotes of a «quoted» one kept: `«a.b».c` -> `«a.b»`, `Foo.bar` -> `Foo`"""
-    m = re.match(rf"{QUOTED}|[^.«»]+", name)
-    return m.group(0) if m else name
-ROOT_DECL = re.compile(
-    r"^(?P<pre>[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|public|noncomputable|nonrec|partial|unsafe)[ \t]+)*)"
-    r"(?:(?:local|scoped)[ \t]+)?(?:theorem|lemma|def|abbrev|structure|inductive|class|opaque|axiom|instance)\s+"
-    rf"(?:\(priority\s*:=[^)]*\)\s*)?(?P<name>{NAME_TOKEN})"
-)
-NAMESPACE_NAME = re.compile(rf"^(?P<pre>\s*(?:(?:public|noncomputable)\s+)*namespace\s+)(?P<name>(?:{QUOTED}|[^\s«»])+)\s*$")
-END_NAME = re.compile(rf"^(?P<pre>\s*end\s+)(?P<name>(?:{QUOTED}|[^\s«»])+)\s*$")
-OPEN_MARK = "namespace {ns} end {ns} open {ns} "
-OPEN_LINE = re.compile(r"^(?P<pre>\s*(?:@\[[^\]]*\]\s*)?open\s+(?:scoped\s+)?)(?P<args>[^()]*?)(?P<post>\s+(?:hiding|renaming)\b.*|\s+in\s*|\s*\(.*)?\s*$")
 
 
 def parse_roots(text: str) -> set[str]:
@@ -787,57 +771,9 @@ def parse_roots(text: str) -> set[str]:
     return {m.group(1) for m in ROOT_LINE.finditer(text.replace(";", "\n"))}
 
 
-def _uses_roots(f: Lines, roots: set[str]) -> bool:
-    """a bare use of a root name is left in the code (an edited token is preceded by `.`, so it no longer matches)"""
-    if not roots:
-        return False
-    pat = re.compile(r"(?<![\w.'«])(?:" + "|".join(re.escape(r) for r in sorted(roots, key=len, reverse=True)) + r")(?![\w'»])")
-    return any(pat.search(c) for c in f.code)
-
-
-def qualify_roots_in_file(f: Lines, roots: set[str], ns: str, mark_open: bool = True) -> dict:
-    """The edits of one module: a declaration whose name is a root of the library, a `namespace R` block of a root R (with its `end`), and a dotted `R.x` declaration get `<ns>.`
-    in front; the first body line gets `namespace NS end NS open NS` when the module declares or still uses a root. All of it goes INSIDE existing lines (no line moves)."""
-    done: dict = {"declared": [], "namespaces": 0, "dotted": 0, "opened": False, "heads": set()}
-    open_at, end_of = scope_info(f.code)
-    for i, code in enumerate(f.code):
-        if any(NAMESPACE.match(f.code[o]) for o in open_at[i]):
-            continue  # inside a namespace a declaration is `N.x`, not a root; the block itself is handled at its own `namespace` line
-        if m := NAMESPACE_NAME.match(code):
-            head = head_of(m.group("name"))
-            if head in roots:
-                f.insert(i, m.start("name"), ns + ".")
-                done["heads"].add(head)
-                done["namespaces"] += 1
-                end = end_of.get(i)
-                if end is not None and (e := END_NAME.match(f.code[end])) and e.group("name") == m.group("name"):
-                    f.insert(end, e.start("name"), ns + ".")
-            continue
-        m = ROOT_DECL.match(code)
-        if not m:
-            continue
-        name = m.group("name")
-        if head_of(name) in roots:
-            f.insert(i, m.start("name"), ns + ".")
-            done["heads"].add(head_of(name))
-            if len(re.findall(rf"{QUOTED}|[^.«»]+", name)) > 1:  # a dot inside «quotes» is part of one component
-                done["dotted"] += 1
-            else:
-                done["declared"].append(name)
-    for i, code in enumerate(f.code):  # `open R` of a root namespace R: the namespace moved, so the `open` follows (right to left: an insertion shifts the columns after it)
-        if (m := OPEN_LINE.match(code)) and "namespace" not in code:
-            for t in reversed(list(re.finditer(rf"(?:{QUOTED}|[^\s«»])+", m.group("args")))):
-                tok = t.group(0)
-                if head_of(tok) in roots and not tok.startswith(ns):
-                    f.insert(i, m.start("args") + t.start(), ns + ".")
-                    done["opens"] = done.get("opens", 0) + 1
-    touched = bool(done["declared"] or done["namespaces"] or done["dotted"] or done.get("opens"))
-    first = body_start(f.text)
-    mark = OPEN_MARK.format(ns=ns)
-    if mark_open and (touched or _uses_roots(f, roots)) and first < len(f.text) and mark not in f.text[first]:
-        f.insert(first, 0, mark)
-        done["opened"] = True
-    return done
+def parse_root_lines(text: str) -> set[str]:
+    """the `root: NAME` lines of a file with one record a line (root_lines.py writes it): a `;` is part of a «quoted» name there (`«term_;_»`), not a separator as in a report passed on the command line"""
+    return {m.group(1) for m in ROOT_LINE.finditer(text)}
 
 
 def qualify_bundle(root: Path, roots: set[str], ns: str, skip: int = 0) -> dict:
@@ -930,7 +866,7 @@ def main() -> None:
     leaks = parse(a.leaks)
     roots = parse_roots(a.leaks) if a.qualify_roots else set()
     if a.qualify_roots and a.roots_file and Path(a.roots_file).is_file():
-        roots |= parse_roots(Path(a.roots_file).read_text(encoding="utf-8"))
+        roots |= parse_root_lines(Path(a.roots_file).read_text(encoding="utf-8"))
     if a.forbid_namespaces:
         FORBIDDEN_NS.update(x.strip() for x in Path(a.forbid_namespaces).read_text().splitlines() if x.strip())
     if not leaks and not roots:

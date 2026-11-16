@@ -5,6 +5,7 @@ roots only on a recut with `scope`; the tree fixed them afterwards (tengoku #841
 after the first version (tengoku #787, #834, #835): the factory now runs that script (roots_tree.py, a verbatim copy)."""
 
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -14,6 +15,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 import root_lines as rl  # noqa: E402
+import scope_rewrite as sr  # noqa: E402
 
 NS = "Tengoku.Toy"
 A = """import Tengoku
@@ -62,8 +64,22 @@ SIDECAR_A = [
 ]
 
 
+MODES = ("bundle", "bundle-proposed", "bundle-wide")
+
+
 def layout(d: Path) -> None:
-    b = d / "bundle" / "Tengoku" / "Toy" / "Toy"
+    layout_one(d, "bundle")
+    for mode in MODES[1:]:  # the directories bump-sharded passes besides the strict one: the same library, a different cut
+        shutil.copytree(d / "bundle", d / mode)
+    side = d / "merged" / ".lake" / "build" / "lib" / "lean" / "Toy"
+    side.mkdir(parents=True)
+    (side / "A.olean.ranges.json").write_text(json.dumps(SIDECAR_A, ensure_ascii=False))
+    (side / "B.olean.ranges.json").write_text(json.dumps([["uses", 4, 4]]))
+    (side / "C.olean.ranges.json").write_text(json.dumps([["Quiet.q", 4, 4]]))
+
+
+def layout_one(d: Path, mode: str) -> None:
+    b = d / mode / "Tengoku" / "Toy" / "Toy"
     b.mkdir(parents=True)
     (b / "A.lean").write_text(A)
     (b / "B.lean").write_text(B)
@@ -73,12 +89,7 @@ def layout(d: Path) -> None:
         {"name": "uses", "statement": "theorem uses : eisensteinScattering 1 = 1", "module": f"{NS}.Toy.B"},
         {"name": "Quiet.q", "statement": "def Quiet.q : Nat", "module": f"{NS}.Toy.C"},
     ]
-    (d / "bundle" / "manifest.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
-    side = d / "merged" / ".lake" / "build" / "lib" / "lean" / "Toy"
-    side.mkdir(parents=True)
-    (side / "A.olean.ranges.json").write_text(json.dumps(SIDECAR_A, ensure_ascii=False))
-    (side / "B.olean.ranges.json").write_text(json.dumps([["uses", 4, 4]]))
-    (side / "C.olean.ranges.json").write_text(json.dumps([["Quiet.q", 4, 4]]))
+    (d / mode / "manifest.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
 
 
 def run(*argv: str, cwd: Path) -> subprocess.CompletedProcess:
@@ -116,6 +127,17 @@ class RootsOf(unittest.TestCase):
             self.assertNotEqual(r.returncode, 0)
             self.assertIn("is not JSON", r.stderr)
             self.assertFalse((d / "roots.scope").exists())  # nothing that reads as "no roots"
+
+    def test_a_row_of_another_shape_stops_the_step(self):
+        for bad in ('[["X", 1]]', '[["X", 1, 2, 3]]', '[[7, 1, 2]]', '[["X", "1", 2]]', '[["X", 1.5, 2]]', '[["X", true, 2]]', '["X", 1, 2]', "[null]"):
+            with tempfile.TemporaryDirectory() as t:
+                d = Path(t)
+                layout(d)
+                (d / "merged" / ".lake" / "build" / "lib" / "lean" / "Toy" / "A.olean.ranges.json").write_text(bad)
+                r = run(str(HERE.parent / "root_lines.py"), "--merged", "merged", "--out", "roots.scope", cwd=d)
+                self.assertNotEqual(r.returncode, 0, bad)
+                self.assertIn("not [name, first line, last line]", r.stderr, bad)
+                self.assertFalse((d / "roots.scope").exists(), bad)
 
     def test_a_sidecar_that_is_not_a_list_stops_the_step(self):
         with tempfile.TemporaryDirectory() as t:
@@ -157,34 +179,37 @@ class FirstCut(unittest.TestCase):
             d = Path(t)
             layout(d)
             rep = self.cut(d)["roots"]
-            a = (d / "bundle" / "Tengoku" / "Toy" / "Toy" / "A.lean").read_text()
-            self.assertIn(f"class abbrev _root_.{NS}.CarriesDim", a)  # tengoku #835
-            self.assertIn(f"def _root_.{NS}.eisensteinScattering", a)
-            self.assertIn(f"alias {NS}.scat := eisensteinScattering", a)  # tengoku #835
-            self.assertIn(f"namespace {NS}.Dimension\nnamespace Exponent", a)
-            self.assertIn(f"end {NS}.Dimension.Exponent", a)  # tengoku #834: the `end` that closes two scopes
-            self.assertIn(f"structure _root_.{NS}.CartierDual where", a)
-            self.assertIn(f"def _root_.{NS}.CartierDual.x", a)  # tengoku #787: a name spelled from the root
             self.assertEqual(rep["unresolved"], ["instInhabitedNat", "«termℝ²»"])  # nobody wrote them: the queue's scanner exempts them
-            self.assertEqual(a.count("root names of this library moved to"), 1)
+            for mode in MODES:  # the strict, proposed and wide cuts: each is edited, none is skipped
+                a = (d / mode / "Tengoku" / "Toy" / "Toy" / "A.lean").read_text()
+                self.assertIn(f"class abbrev _root_.{NS}.CarriesDim", a, mode)  # tengoku #835
+                self.assertIn(f"def _root_.{NS}.eisensteinScattering", a, mode)
+                self.assertIn(f"alias {NS}.scat := eisensteinScattering", a, mode)  # tengoku #835
+                self.assertIn(f"namespace {NS}.Dimension\nnamespace Exponent", a, mode)
+                self.assertIn(f"end {NS}.Dimension.Exponent", a, mode)  # tengoku #834: the `end` that closes two scopes
+                self.assertIn(f"structure _root_.{NS}.CartierDual where", a, mode)
+                self.assertIn(f"def _root_.{NS}.CartierDual.x", a, mode)  # tengoku #787: a name spelled from the root
+                self.assertEqual(a.count("root names of this library moved to"), 1, mode)
 
     def test_a_module_that_only_uses_a_root_opens_the_namespace_and_one_that_does_not_is_untouched(self):
         with tempfile.TemporaryDirectory() as t:
             d = Path(t)
             layout(d)
             self.cut(d)
-            b = (d / "bundle" / "Tengoku" / "Toy" / "Toy" / "B.lean").read_text()
-            self.assertIn(f"namespace {NS} end {NS} open {NS}\n", b)
-            self.assertIn("eisensteinScattering 1 = 1", b)
-            self.assertEqual((d / "bundle" / "Tengoku" / "Toy" / "Toy" / "C.lean").read_text(), C)
+            for mode in MODES:
+                b = (d / mode / "Tengoku" / "Toy" / "Toy" / "B.lean").read_text()
+                self.assertIn(f"namespace {NS} end {NS} open {NS}\n", b, mode)
+                self.assertIn("eisensteinScattering 1 = 1", b, mode)
+                self.assertEqual((d / mode / "Tengoku" / "Toy" / "Toy" / "C.lean").read_text(), C, mode)
 
     def test_the_manifest_follows(self):
         with tempfile.TemporaryDirectory() as t:
             d = Path(t)
             layout(d)
             self.assertEqual(self.cut(d)["roots"]["manifest_records"], 2)
-            rows = [json.loads(x) for x in (d / "bundle" / "manifest.jsonl").read_text().splitlines()]
-            self.assertEqual([r["name"] for r in rows], [f"{NS}.eisensteinScattering", f"{NS}.uses", "Quiet.q"])
+            for mode in MODES:
+                rows = [json.loads(x) for x in (d / mode / "manifest.jsonl").read_text().splitlines()]
+                self.assertEqual([r["name"] for r in rows], [f"{NS}.eisensteinScattering", f"{NS}.uses", "Quiet.q"], mode)
 
     def test_the_same_shards_give_the_same_bytes_twice(self):
         """compose and finish each cut the bundle: finish holds what it ships to the bytes verify built"""
@@ -194,7 +219,7 @@ class FirstCut(unittest.TestCase):
                 d = Path(t)
                 layout(d)
                 self.cut(d)
-                out.append({p.relative_to(d).as_posix(): p.read_bytes() for p in sorted((d / "bundle").rglob("*")) if p.is_file()})
+                out.append({p.relative_to(d).as_posix(): p.read_bytes() for mode in MODES for p in sorted((d / mode).rglob("*")) if p.is_file()})
             self.assertEqual(out[0], out[1])
 
     def test_a_library_without_roots_is_left_byte_for_byte(self):
@@ -222,6 +247,12 @@ class FirstCut(unittest.TestCase):
 
 
 class RootsFileOption(unittest.TestCase):
+    def test_a_semicolon_inside_a_quoted_name_is_part_of_the_name(self):
+        """the file has one record a line; only the `--leaks` argument of a recut separates records with `;`"""
+        self.assertEqual(sr.parse_root_lines("root: «term_;_»\nroot: plain\n"), {"«term_;_»", "plain"})
+        self.assertNotIn("«term_;_»", sr.parse_roots("root: «term_;_»"))  # the report form splits there, as it always did
+
+
     def test_a_missing_file_is_no_roots_and_scope_lines_still_count(self):
         with tempfile.TemporaryDirectory() as t:
             d = Path(t)

@@ -43,7 +43,10 @@ def roots_of(merged: Path) -> list[str]:
         if not isinstance(rows, list):
             sys.exit(f"root_lines: {f} is not a list of [name, first line, last line]")
         for row in rows:
-            if isinstance(row, list) and row and atomic(row[0]):
+            # TolerantBuild.lean writes [name, first line, last line]: a row of another shape means the sidecar is not what the shard built, and a quietly shorter list would leave declarations unqualified
+            if not (isinstance(row, list) and len(row) == 3 and isinstance(row[0], str) and all(isinstance(x, int) and not isinstance(x, bool) for x in row[1:])):
+                sys.exit(f"root_lines: {f} has a row that is not [name, first line, last line]: {str(row)[:120]}")
+            if atomic(row[0]):
                 names.add(row[0])
     return sorted(names)
 
