@@ -1,0 +1,44 @@
+{
+  "key": "char-p-nahodge-formalization",
+  "repo": "https://github.com/G-course/char-p-NAhodge-formalization",
+  "commit": "c297c088e8320499bb190bab2a4c01022982ca4e",
+  "toolchain": "leanprover/lean4:v4.33.0-rc1",
+  "roots": [
+    "LSZ"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/char-p-nahodge-formalization/repo",
+  "entries": 685,
+  "modules": 46,
+  "exported": 46,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 685,
+    "kept": 685,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 237,
+    "lineUnverified": 0,
+    "nameFixed": 685,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.0-rc1 (commit 62eed1db4d67327ec8120be05f1a1b0847d74561, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+62eed1d",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "af5aa64bb914 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.82.6"
+  },
+  "exportsBytes": 51826688,
+  "minutes": 6,
+  "finishedAt": "2026-11-16T16:11:14.605Z"
+}
