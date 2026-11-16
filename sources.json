@@ -2167,6 +2167,176 @@
         "InhomogeneousDeformations"
       ],
       "licence": "MIT"
+    },
+    "string-diagrams-lean": {
+      "label": "string-diagrams-lean (apellis/string-diagrams-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/apellis/string-diagrams-lean",
+      "commit": "8ae261b120e748db9f79fa3179028fa5617c996f",
+      "toolchain": "leanprover/lean4:v4.34.1",
+      "roots": [
+        "StringDiagrams"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "pcf-cyclotomic-lean": {
+      "label": "pcf-cyclotomic-lean (pingram3/pcf-cyclotomic-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/pingram3/pcf-cyclotomic-lean",
+      "commit": "b7b6186ef67bc7bb9a1d08d94bd78b4b0d872084",
+      "toolchain": "leanprover/lean4:v4.34.1",
+      "roots": [
+        "IngramMello"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "zanello-lc": {
+      "label": "zanello-lc (tigerisaac/zanello-lc; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/tigerisaac/zanello-lc",
+      "commit": "17b73a42d30fd5e1c39d2646b8598b1ffeca83ce",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "BettiThree",
+        "FormalDeps",
+        "GradedResolution",
+        "InverseSystem",
+        "Koszul",
+        "KoszulHomology",
+        "LogConcavity",
+        "ModuloStanley",
+        "Statement",
+        "Witness"
+      ],
+      "licence": "MIT"
+    },
+    "tunnell-two-to-one-map": {
+      "label": "tunnell-two-to-one-map (GrgAakash/tunnell-two-to-one-map; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/GrgAakash/tunnell-two-to-one-map",
+      "commit": "965584090a7b5f63b3872e94bc1ad07e23646d3d",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "PalomarEntries",
+        "RequestProject",
+        "TunnellMap"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "rank-two-poisson-counterexample": {
+      "label": "rank-two-poisson-counterexample (long-mathematics/rank-two-poisson-counterexample; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/long-mathematics/rank-two-poisson-counterexample",
+      "commit": "6ef94a5c64e0a74b6698eefeea7e8938cdc783fd",
+      "toolchain": "leanprover/lean4:v4.32.1",
+      "roots": [
+        "RankTwoPoisson"
+      ],
+      "licence": "MIT"
+    },
+    "exact-semiprimes-lean": {
+      "label": "exact-semiprimes-lean (UnknownSequence/exact-semiprimes-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/UnknownSequence/exact-semiprimes-lean",
+      "commit": "34529d5b160887149d0dfdce57da1c005075ea0c",
+      "toolchain": "leanprover/lean4:v4.34.0",
+      "roots": [
+        "ExactSemiprimes"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "fourier-jacobi-core-evaluation": {
+      "label": "fourier-jacobi-core-evaluation (abhisaha-git/fourier-jacobi-core-evaluation; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/abhisaha-git/fourier-jacobi-core-evaluation",
+      "commit": "fb2b788d6271dd6228044b2c4e9e47c891a16762",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "Challenge",
+        "FourierJacobi",
+        "Solution",
+        "StatementAudit_v1"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "quadratic-algebras": {
+      "label": "quadratic-algebras (FormalFrontier/quadratic-algebras; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/FormalFrontier/quadratic-algebras",
+      "commit": "16a5b4c54c4586483cf53597a96eb91ecd5a3bca",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "QuadraticAlgebras",
+        "QuadraticAlgebrasTest"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lemmalib": {
+      "label": "lemmalib (hara-seihun/LemmaLib; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/hara-seihun/LemmaLib",
+      "commit": "086d764fa1659ef261aa442bb12ff3c90ae8aa2a",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "LemmaLib",
+        "LemmaLibTest"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "xilab": {
+      "label": "xilab (BrandonMYates/xilab; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/BrandonMYates/xilab",
+      "commit": "4d24c74c3834b3f47a84110d8b864e3e50eacd7f",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "XiLab"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "roundedrootsums": {
+      "label": "roundedrootsums (vlad-galkin38/RoundedRootSums; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/vlad-galkin38/RoundedRootSums",
+      "commit": "9e8ea9c36ce5d59e64ae6032fe1c5b74bd4dee2c",
+      "toolchain": "leanprover/lean4:v4.33.0-rc1",
+      "roots": [
+        "RoundedRootSums"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lean-eval-platonic-classification": {
+      "label": "lean-eval-platonic-classification (Solarys431/lean-eval-platonic-classification; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/Solarys431/lean-eval-platonic-classification",
+      "commit": "3cd00dfd965e5b9639cbf1011beea553001a290a",
+      "toolchain": "leanprover/lean4:v4.32.0-rc1",
+      "roots": [
+        "Challenge",
+        "ChallengeDeps",
+        "Solution",
+        "Submission"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "axiomaticgw": {
+      "label": "axiomaticgw (jingxiangma/AxiomaticGW; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/jingxiangma/AxiomaticGW",
+      "commit": "c6289b432a462612f834721c7be3f306c7211ac0",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "AxiomaticGW",
+        "AxiomaticGWTest"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "jacobian-two": {
+      "label": "jacobian-two (alok/jacobian-two; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/alok/jacobian-two",
+      "commit": "ded8e67fb47c155f83ec9bd68af6014499fc2d61",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "JacobianTwo"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "semigroup": {
+      "label": "semigroup (timharv4755-crypto/Semigroup; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/timharv4755-crypto/Semigroup",
+      "commit": "cb852a8398e40dc8ec721a53afc67b0f470a3a90",
+      "toolchain": "leanprover/lean4:v4.32.2",
+      "roots": [
+        "Semigroup"
+      ],
+      "licence": "Apache-2.0"
     }
   }
 }
