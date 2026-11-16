@@ -1,0 +1,44 @@
+{
+  "key": "rank-two-poisson-counterexample",
+  "repo": "https://github.com/long-mathematics/rank-two-poisson-counterexample",
+  "commit": "6ef94a5c64e0a74b6698eefeea7e8938cdc783fd",
+  "toolchain": "leanprover/lean4:v4.32.1",
+  "roots": [
+    "RankTwoPoisson"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/rank-two-poisson-counterexample/repo",
+  "entries": 321,
+  "modules": 17,
+  "exported": 17,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 321,
+    "kept": 321,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 321,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.1 (commit f054605aea4b840552cca2e725580bffd1e1b704, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+f054605",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "86e4a3395074 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 2768896,
+  "minutes": 15,
+  "finishedAt": "2026-11-16T19:37:26.850Z"
+}

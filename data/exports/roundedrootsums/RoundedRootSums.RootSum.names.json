@@ -1,0 +1,1 @@
+{"names":["RoundedRootSums.rootSum_unfold","RoundedRootSums.rootSum"],"modules":["RoundedRootSums.RootSum","RoundedRootSums.Definitions"],"moduleOf":{"RoundedRootSums.rootSum_unfold":"RoundedRootSums.RootSum","RoundedRootSums.rootSum":"RoundedRootSums.Definitions"},"deps":{"RoundedRootSums.rootSum_unfold":["RoundedRootSums.rootSum"],"RoundedRootSums.rootSum":[]}}

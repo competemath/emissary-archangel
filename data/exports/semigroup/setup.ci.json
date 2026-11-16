@@ -1,0 +1,44 @@
+{
+  "key": "semigroup",
+  "repo": "https://github.com/timharv4755-crypto/Semigroup",
+  "commit": "cb852a8398e40dc8ec721a53afc67b0f470a3a90",
+  "toolchain": "leanprover/lean4:v4.32.2",
+  "roots": [
+    "Semigroup"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/semigroup/repo",
+  "entries": 232,
+  "modules": 23,
+  "exported": 23,
+  "failed": [],
+  "expansion": {
+    "expanded": 123,
+    "verbatim": 306,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 232,
+    "kept": 232,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 2,
+    "lineUnverified": 0,
+    "nameFixed": 110,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.2 (commit f3b06c705e6c85f5314019d5d3baab0fec5b580c, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+f3b06c7",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "86e4a3395074 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 4055040,
+  "minutes": 4,
+  "finishedAt": "2026-11-16T19:28:00.707Z"
+}
