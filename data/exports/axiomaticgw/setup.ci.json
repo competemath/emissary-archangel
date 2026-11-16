@@ -1,0 +1,45 @@
+{
+  "key": "axiomaticgw",
+  "repo": "https://github.com/jingxiangma/AxiomaticGW",
+  "commit": "c6289b432a462612f834721c7be3f306c7211ac0",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "AxiomaticGW",
+    "AxiomaticGWTest"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/axiomaticgw/repo",
+  "entries": 329,
+  "modules": 43,
+  "exported": 43,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 329,
+    "kept": 329,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 101,
+    "lineUnverified": 0,
+    "nameFixed": 329,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.0 (commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+8c9756b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "4e7915201d3f + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 37429248,
+  "minutes": 4,
+  "finishedAt": "2026-11-16T19:01:34.843Z"
+}
