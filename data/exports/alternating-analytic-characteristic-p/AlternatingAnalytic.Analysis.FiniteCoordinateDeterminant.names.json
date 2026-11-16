@@ -1,0 +1,1 @@
+{"names":["AlternatingAnalytic.norm_det_le_factorial_mul_prod"],"modules":["AlternatingAnalytic.Analysis.FiniteCoordinateDeterminant"],"moduleOf":{"AlternatingAnalytic.norm_det_le_factorial_mul_prod":"AlternatingAnalytic.Analysis.FiniteCoordinateDeterminant"},"deps":{"AlternatingAnalytic.norm_det_le_factorial_mul_prod":[]}}

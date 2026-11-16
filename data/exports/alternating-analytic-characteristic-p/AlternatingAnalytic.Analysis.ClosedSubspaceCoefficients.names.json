@@ -1,0 +1,1 @@
+{"names":["AlternatingAnalytic.HasFPowerSeriesAt.diagonal_mem_closedSubspace"],"modules":["AlternatingAnalytic.Analysis.ClosedSubspaceCoefficients"],"moduleOf":{"AlternatingAnalytic.HasFPowerSeriesAt.diagonal_mem_closedSubspace":"AlternatingAnalytic.Analysis.ClosedSubspaceCoefficients"},"deps":{"AlternatingAnalytic.HasFPowerSeriesAt.diagonal_mem_closedSubspace":[]}}
