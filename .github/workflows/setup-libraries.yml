@@ -24,8 +24,12 @@ on:
 
 permissions: {}
 
+# One group PER KEY LIST, not one for the workflow: GitHub keeps one running and ONE pending run per group and a newer pending run replaces (cancels) the older pending one, whatever
+# cancel-in-progress says. setup-auto sends every small library here with its own `keys`, so a setup-pickup that started 2-4 libraries at once lost all but one of them: on 16 Nov 2026
+# 8 of batch 8's 15 setups ended "cancelled" while setup-pickup counted them as started (scripts/bump/tests/test_setup_libraries_concurrency.py). The exports commit in the job below
+# already retries `git pull --rebase` + push, so runs of different keys may commit side by side, as the jobs of one run do.
 concurrency:
-  group: setup-libraries
+  group: setup-libraries-${{ inputs.keys }}
   cancel-in-progress: false
 
 jobs:
