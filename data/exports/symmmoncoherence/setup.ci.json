@@ -1,0 +1,44 @@
+{
+  "key": "symmmoncoherence",
+  "repo": "https://github.com/robin-carlier/SymmMonCoherence",
+  "commit": "0cb94d5bcbddf2637423504af658a2f6e3319ef2",
+  "toolchain": "leanprover/lean4:v4.29.0-rc6",
+  "roots": [
+    "SymmMonCoherence"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/symmmoncoherence/repo",
+  "entries": 651,
+  "modules": 28,
+  "exported": 28,
+  "failed": [],
+  "expansion": {
+    "expanded": 188,
+    "verbatim": 1084,
+    "unexpanded": 2,
+    "failed": []
+  },
+  "seed": {
+    "records": 651,
+    "kept": 651,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 342,
+    "lineUnverified": 6,
+    "nameFixed": 605,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.29.0-rc6 (commit 00659f8e6071d7e46131ed643bf8003b99b044e9, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+00659f8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "a3b9791ca50c + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 75751424,
+  "minutes": 14,
+  "finishedAt": "2026-11-16T18:07:41.039Z"
+}
