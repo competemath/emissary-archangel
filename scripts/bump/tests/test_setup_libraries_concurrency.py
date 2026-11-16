@@ -73,6 +73,14 @@ class TheWorkflow(unittest.TestCase):
         self.assertRegex(text, r"for i in \$\(seq 1 30\); do\s*\n\s*if git pull -q --rebase --autostash origin main && git push")
 
 
+    def test_a_second_run_of_the_same_library_banks_nothing_and_does_not_fail(self):
+        """cubic on #211 (P2): overlapping key lists (translate-all's bulk list, setup-auto's single key) can run one library twice: the second finds nothing new to commit and exits 0"""
+        text = WORKFLOW.read_text(encoding="utf-8")
+        i = text.index("git diff --cached --quiet")
+        self.assertLess(i, text.index('git commit -q -m "exports: $KEY (runner)"'))
+        self.assertIn("exit 0", text[i : i + 120])
+
+
 class TheModel(unittest.TestCase):
     def real_replaced(self):
         return [i for i, r in enumerate(RUNS) if r["conclusion"] == "cancelled" and (_t(r["updated"]) - _t(r["created"])).total_seconds() < 60]
