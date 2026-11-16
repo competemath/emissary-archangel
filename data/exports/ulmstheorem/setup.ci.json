@@ -1,0 +1,45 @@
+{
+  "key": "ulmstheorem",
+  "repo": "https://github.com/elanroth/UlmsTheorem",
+  "commit": "5545628c78c015a76bbe8c763f121d6458c90379",
+  "toolchain": "leanprover/lean4:v4.30.0-rc1",
+  "roots": [
+    "Lib",
+    "Test"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/ulmstheorem/repo",
+  "entries": 135,
+  "modules": 11,
+  "exported": 11,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 135,
+    "kept": 135,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 8,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.30.0-rc1 (commit 714601baf118066cbf3f282361339c6d06665b2a, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+714601b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "fb517af7d710 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 3252224,
+  "minutes": 9,
+  "finishedAt": "2026-11-16T18:19:35.841Z"
+}
