@@ -1,0 +1,44 @@
+{
+  "key": "closure-residue-p3-lean",
+  "repo": "https://github.com/Katsuya-Tagawa-research/closure-residue-p3-lean",
+  "commit": "21866e8f070ef153ab0b9eae090fcf13970c1b30",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "P3"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/closure-residue-p3-lean/repo",
+  "entries": 299,
+  "modules": 11,
+  "exported": 11,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 299,
+    "kept": 299,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 66,
+    "lineUnverified": 0,
+    "nameFixed": 299,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 3674112,
+  "minutes": 6,
+  "finishedAt": "2026-11-17T16:36:44.605Z"
+}
