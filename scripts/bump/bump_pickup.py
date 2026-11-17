@@ -174,10 +174,12 @@ class DispatchError(RuntimeError):
     """A dispatch that failed: never retried by the wait (GitHub may have accepted it before gh reported the error: cubic on #192), the job fails visibly."""
 
 
-def once(a, log=print) -> tuple[str | None, bool]:
-    """One look: the library whose bump starts now (started unless a dry run), and whether only the runners hold a ready library back."""
+def once(a, log=print, started: set[str] | None = None) -> tuple[str | None, bool]:
+    """One look: the library whose bump starts now (started unless a dry run), and whether only the runners hold a ready library back or others are ready after one started.
+    `started`: the libraries this pickup already dispatched on an earlier look: GitHub may accept a dispatch and not list its run yet, and the next look must not start the same library twice (cubic on #214)."""
+    started = set() if started is None else started
     text = subprocess.run(["git", "log", "--format=@%ct%x09%s", "--name-only", "--", "data/exports/*/setup.ci.json"], check=True, capture_output=True, text=True).stdout
-    published = setups(text)
+    published = {k: w for k, w in setups(text).items() if k not in started}
     records = {}
     for key in published:
         p = Path("data/exports") / key / "setup.ci.json"
@@ -211,6 +213,7 @@ def once(a, log=print) -> tuple[str | None, bool]:
             subprocess.run(dispatch_args(key, free, a.repo, ref or ""), check=True)  # inline, not through a helper taking the arguments: Snyk Code read the helper's parameter as an unsanitized command (#192)
         except subprocess.CalledProcessError as e:
             raise DispatchError(f"a dispatch exited {e.returncode}") from e
+        started.add(key)
     ready = len(classify(published, records, bumps, parts, since, refs)[1])
     return key, waits_for_runners(key, ready, free)
 
@@ -224,9 +227,10 @@ def main() -> None:
     a = ap.parse_args()
     deadline = time.time() + 60 * a.wait_minutes
     first = True
+    started: set[str] = set()
     while True:
         try:
-            key, waits = once(a)
+            key, waits = once(a, started=started)
         except DispatchError:
             raise  # not retried: the request may have been accepted
         except Exception as e:  # noqa: BLE001 - a transient failure of gh at minute 30 must not end the wait (cubic on #192); the first look failing is a real failure

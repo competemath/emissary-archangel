@@ -112,7 +112,7 @@ class Loop(unittest.TestCase):
         os.environ.pop("GITHUB_RUN_ID", None)
         os.environ.pop("GITHUB_REPOSITORY", None)
 
-    def run_main(self, frees, wait=30, dry=False, fail_looks=(), main=None, bumped=False, dispatch_fails=False, second=False):
+    def run_main(self, frees, wait=30, dry=False, fail_looks=(), main=None, bumped=False, dispatch_fails=False, second=False, lag=False):
         looks, sleeps, calls = [], [], []
         self.calls = calls  # the dispatches tried, readable after a raise
         clock = [NOW]
@@ -140,7 +140,7 @@ class Loop(unittest.TestCase):
             seen[0] += 1
             if seen[0] - 1 in fail_looks:
                 raise RuntimeError("HTTP 502")
-            return [{"displayTitle": f"bump-sharded {k}", "createdAt": "2026-11-13T18:30:00Z"} for k in (keys if bumped else started)]
+            return [{"displayTitle": f"bump-sharded {k}", "createdAt": "2026-11-13T18:30:00Z"} for k in (keys if bumped else ([] if lag else started))]
 
         def sleep(s):
             sleeps.append(s)
@@ -206,6 +206,22 @@ class Loop(unittest.TestCase):
         self.assertEqual([next(a for a in c if a.startswith("key=")) for c in started], [f"key={KEY}", f"key={KEY2}"])
         self.assertEqual(sleeps, [bp.POLL_SECONDS] * 2)
         self.assertEqual(len(looks), 3)
+
+    def test_a_dispatch_that_github_lists_late_is_not_started_again(self):
+        """cubic on #214: GitHub may accept a dispatch and not list its run at the next look (here it never does); the pickup remembers what it started, so the second library is the next one and the first is not dispatched twice"""
+        started, sleeps, _ = self.run_main([14, 14, 14], second=True, lag=True)
+        self.assertEqual([next(a for a in c if a.startswith("key=")) for c in started], [f"key={KEY}", f"key={KEY2}"])
+        self.assertEqual(len(sleeps), 1)
+
+    def test_mutant_the_pickup_forgets_what_it_started(self):
+        src = inspect.getsource(bp.main)
+        old = "key, waits = once(a, started=started)"
+        self.assertEqual(src.count(old), 1)
+        ns = dict(vars(bp))
+        exec(src.replace(old, "key, waits = once(a)"), ns)
+        started, _, _ = self.run_main([14, 14, 14], second=True, lag=True, main=ns["main"])
+        keys = [next(a for a in c if a.startswith("key=")) for c in started]
+        self.assertGreater(keys.count(f"key={KEY}"), 1)  # the same library again: what the fix prevents
 
     def test_with_two_ready_and_no_minutes_to_wait_it_starts_one_and_stops(self):
         started, sleeps, _ = self.run_main([14], second=True, wait=0)
