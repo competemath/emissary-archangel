@@ -5,9 +5,10 @@ timestamped 18:11:52). The workflow_run of setup-sharded started bump-pickup at 
 and the next hourly cron is not to be counted on (it fired 3 times in 16 hours). The bump started only because a person dispatched bump-pickup at 18:55.
 
 Invariants: with the runners full it waits (looks again every POLL_SECONDS until the deadline) and starts the bump on the first look with NEED_FREE free; it does not wait when nothing is ready, when a bump
-started, on a dry run, or with --wait-minutes 0; a look that fails after the first does not end the wait; the decision is made from numbers (key, ready, free), not from the words of the notes (cubic on #192);
+started and no other library is ready, on a dry run, or with --wait-minutes 0; when a bump started and others are ready it looks again (17 Nov 2026: paper-c-lean waited an hour
+for the cron behind mobius-cpt, which had started in the same pickup); a look that fails after the first does not end the wait; the decision is made from numbers (key, ready, free), not from the words of the notes (cubic on #192);
 decide() is the same as before the split into classify() (5,000 random states against the old function's text kept here as an oracle).
-Mutants (each must fail a check): waiting for any reason; no deadline; a failing look ending the wait.
+Mutants (each must fail a check): waiting for any reason; no deadline; a failing look ending the wait; not looking again after a start with others ready.
 """
 
 import inspect
@@ -29,6 +30,7 @@ import yaml  # noqa: E402
 
 WF = HERE.parents[2] / ".github" / "workflows"
 KEY = "palomar-qseries-row-factorization"
+KEY2 = "mobius-cpt"  # set up 17 Nov 2026 in the same pickup window as paper-c-lean; its pickup started this one and left the other
 RECORD = {"exported": 40, "modules": 40}  # setup.ci.json of 13 Nov 2026, finishedAt 18:11:32Z
 PUBLISHED = 1794593512  # 2026-11-13 18:11:52 UTC, the exports commit
 NOW = PUBLISHED + 20 * 60
@@ -74,7 +76,9 @@ class Decision(unittest.TestCase):
     def test_truth_table(self):
         self.assertTrue(bp.waits_for_runners(None, 1, 0))
         self.assertFalse(bp.waits_for_runners(None, 0, 0))  # nothing ready
-        self.assertFalse(bp.waits_for_runners("a", 2, 4))  # something started
+        self.assertTrue(bp.waits_for_runners("a", 2, 4))  # something started and another one is ready: look again
+        self.assertFalse(bp.waits_for_runners("a", 1, 4))  # it started the only ready one
+        self.assertFalse(bp.waits_for_runners("a", 0, 20))
         self.assertFalse(bp.waits_for_runners(None, 3, bp.NEED_FREE))
 
     def test_5000_random_states_decide_as_before_and_wait_exactly_for_the_runners(self):
@@ -91,8 +95,8 @@ class Decision(unittest.TestCase):
             self.assertEqual((key, notes), old_decide(published, records, bumps, parts, free, bp.FIRST_SETUP, refs))
             _, ready = bp.classify(published, records, bumps, parts, bp.FIRST_SETUP, refs)
             waits = bp.waits_for_runners(key, len(ready), free)
-            self.assertEqual(waits, bool(ready) and free < bp.NEED_FREE)
-            self.assertEqual(waits, any("runners free of the" in n for n in notes))  # the same as the note says, without reading it
+            self.assertEqual(waits, (key is None and bool(ready) and free < bp.NEED_FREE) or (key is not None and len(ready) > 1))
+            self.assertEqual(waits and key is None, any("runners free of the" in n for n in notes))  # the same as the note says, without reading it
 
     def test_mutant_waiting_for_any_reason(self):
         ns = dict(vars(bp))
@@ -108,17 +112,21 @@ class Loop(unittest.TestCase):
         os.environ.pop("GITHUB_RUN_ID", None)
         os.environ.pop("GITHUB_REPOSITORY", None)
 
-    def run_main(self, frees, wait=30, dry=False, fail_looks=(), main=None, bumped=False, dispatch_fails=False):
+    def run_main(self, frees, wait=30, dry=False, fail_looks=(), main=None, bumped=False, dispatch_fails=False, second=False, lag=False):
         looks, sleeps, calls = [], [], []
         self.calls = calls  # the dispatches tried, readable after a raise
         clock = [NOW]
         seen = [0]
-        git_log = f"@{PUBLISHED}\texports: {KEY} (runner)\n\ndata/exports/{KEY}/setup.ci.json\n"
+        keys = [KEY, KEY2] if second else [KEY]
+        git_log = "".join(f"@{PUBLISHED}\texports: {k} (runner)\n\ndata/exports/{k}/setup.ci.json\n" for k in keys)
+        started = []  # the keys of the bump-sharded dispatches so far: the next look finds them among the runs
 
         def run(args, **k):
             if args[:2] == ["git", "log"]:
                 return subprocess.CompletedProcess(args, 0, git_log, "")
             calls.append(args)
+            if "bump-sharded.yml" in args and not dispatch_fails:
+                started.extend(a[4:] for a in args if a.startswith("key="))
             if dispatch_fails:
                 raise subprocess.CalledProcessError(1, args)
             return subprocess.CompletedProcess(args, 0, "", "")
@@ -132,7 +140,7 @@ class Loop(unittest.TestCase):
             seen[0] += 1
             if seen[0] - 1 in fail_looks:
                 raise RuntimeError("HTTP 502")
-            return [{"displayTitle": f"bump-sharded {KEY}", "createdAt": "2026-11-13T18:30:00Z"}] if bumped else []
+            return [{"displayTitle": f"bump-sharded {k}", "createdAt": "2026-11-13T18:30:00Z"} for k in (keys if bumped else ([] if lag else started))]
 
         def sleep(s):
             sleeps.append(s)
@@ -144,9 +152,10 @@ class Loop(unittest.TestCase):
 
         argv = ["bump_pickup.py", "--wait-minutes", str(wait)] + (["--dry-run"] if dry else [])
         with tempfile.TemporaryDirectory() as d:
-            Path(d, "sources.json").write_text(json.dumps({"sources": {KEY: {"repo": "x", "commit": "y"}}}))
-            Path(d, "data", "exports", KEY).mkdir(parents=True)
-            Path(d, "data", "exports", KEY, "setup.ci.json").write_text(json.dumps({**RECORD, "modules": 40}))
+            Path(d, "sources.json").write_text(json.dumps({"sources": {k: {"repo": "x", "commit": "y"} for k in keys}}))
+            for k, n in zip(keys, (40, 88)):  # the smaller one starts first
+                Path(d, "data", "exports", k).mkdir(parents=True)
+                Path(d, "data", "exports", k, "setup.ci.json").write_text(json.dumps({**RECORD, "modules": n}))
             cwd = os.getcwd()
             os.chdir(d)
             try:
@@ -189,6 +198,50 @@ class Loop(unittest.TestCase):
     def test_a_look_that_fails_in_the_middle_does_not_end_the_wait(self):
         started, _, _ = self.run_main([0, 0, 0, 12], fail_looks={1})
         self.assertEqual(len(started), 1)
+
+    def test_a_start_with_another_library_ready_looks_again_and_starts_the_next_when_the_runners_free(self):
+        """17 Nov 2026: one pickup, two ready libraries (paper-c-lean, mobius-cpt): it started one and the other waited for the cron. Now: look 1 starts the smaller one with 14 free, look 2 has 6 free
+        (the first bump took runners) and waits, look 3 has 12 free and starts the other; one library each, never both at once."""
+        started, sleeps, looks = self.run_main([14, 6, 12], second=True)
+        self.assertEqual([next(a for a in c if a.startswith("key=")) for c in started], [f"key={KEY}", f"key={KEY2}"])
+        self.assertEqual(sleeps, [bp.POLL_SECONDS] * 2)
+        self.assertEqual(len(looks), 3)
+
+    def test_a_dispatch_that_github_lists_late_is_not_started_again(self):
+        """cubic on #214: GitHub may accept a dispatch and not list its run at the next look (here it never does); the pickup remembers what it started, so the second library is the next one and the first is not dispatched twice"""
+        started, sleeps, _ = self.run_main([14, 14, 14], second=True, lag=True)
+        self.assertEqual([next(a for a in c if a.startswith("key=")) for c in started], [f"key={KEY}", f"key={KEY2}"])
+        self.assertEqual(len(sleeps), 1)
+
+    def test_mutant_the_pickup_forgets_what_it_started(self):
+        src = inspect.getsource(bp.main)
+        old = "key, waits = once(a, started=started)"
+        self.assertEqual(src.count(old), 1)
+        ns = dict(vars(bp))
+        exec(src.replace(old, "key, waits = once(a)"), ns)
+        started, _, _ = self.run_main([14, 14, 14], second=True, lag=True, main=ns["main"])
+        keys = [next(a for a in c if a.startswith("key=")) for c in started]
+        self.assertGreater(keys.count(f"key={KEY}"), 1)  # the same library again: what the fix prevents
+
+    def test_with_two_ready_and_no_minutes_to_wait_it_starts_one_and_stops(self):
+        started, sleeps, _ = self.run_main([14], second=True, wait=0)
+        self.assertEqual(len(started), 1)
+        self.assertEqual(sleeps, [])
+
+    def test_a_dry_run_with_two_ready_starts_nothing_and_does_not_wait(self):
+        started, sleeps, _ = self.run_main([14], second=True, dry=True)
+        self.assertEqual((started, sleeps), ([], []))
+
+    def test_mutant_not_looking_again_after_a_start(self):
+        ns = dict(vars(bp))
+        old = "or (key is not None and ready > 1)"
+        src = inspect.getsource(bp.waits_for_runners)
+        self.assertEqual(src.count(old), 1)
+        exec(src.replace(old, ""), ns)
+        with mock.patch.object(bp, "waits_for_runners", ns["waits_for_runners"]):
+            started, sleeps, _ = self.run_main([14, 6, 12], second=True)
+        self.assertEqual(len(started), 1)  # the old behaviour: the second waits for the cron
+        self.assertEqual(sleeps, [])
 
     def test_the_first_look_failing_is_a_failure(self):
         with self.assertRaises(RuntimeError):
