@@ -1,0 +1,44 @@
+{
+  "key": "formalize-tubal-demyst-paper",
+  "repo": "https://github.com/haimav/formalize-tubal-demyst-paper",
+  "commit": "08d013e19c2b8706408085de641758659d78f913",
+  "toolchain": "leanprover/lean4:v4.31.0-rc2",
+  "roots": [
+    "TubalTensor"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/formalize-tubal-demyst-paper/repo",
+  "entries": 481,
+  "modules": 38,
+  "exported": 38,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 464,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 481,
+    "kept": 481,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 20,
+    "lineUnverified": 0,
+    "nameFixed": 481,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.31.0-rc2 (commit 5e44d5f905127c78a2da7a015fe7a47840c95eb1, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+5e44d5f",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "b66b1cd7b881 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.82.6"
+  },
+  "exportsBytes": 11149312,
+  "minutes": 11,
+  "finishedAt": "2026-11-17T16:55:48.407Z"
+}

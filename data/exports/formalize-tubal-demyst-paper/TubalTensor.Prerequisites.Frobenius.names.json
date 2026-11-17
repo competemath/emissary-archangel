@@ -1,0 +1,1 @@
+{"names":["TubalTensor.comm_frobenius"],"modules":["TubalTensor.Prerequisites.Frobenius"],"moduleOf":{"TubalTensor.comm_frobenius":"TubalTensor.Prerequisites.Frobenius"},"deps":{"TubalTensor.comm_frobenius":[]}}
