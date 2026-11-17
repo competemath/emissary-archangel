@@ -1,0 +1,45 @@
+{
+  "key": "agrawal-r5",
+  "repo": "https://github.com/Solarys431/agrawal-r5",
+  "commit": "2d0a88a942ee85a7aa05af54f957d9aaab5b7572",
+  "toolchain": "leanprover/lean4:v4.32.0-rc1",
+  "roots": [
+    "AgrawalCore",
+    "Comparator"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/agrawal-r5/repo",
+  "entries": 517,
+  "modules": 62,
+  "exported": 62,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 517,
+    "kept": 517,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 4,
+    "lineUnverified": 0,
+    "nameFixed": 517,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.0-rc1 (commit b4812ae53eea93439ad5dce5a5c26591c31cb697, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+b4812ae",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "3de59f10bc4b + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 7393280,
+  "minutes": 5,
+  "finishedAt": "2026-11-17T15:45:58.345Z"
+}

@@ -1,0 +1,1 @@
+{"names":["AgrawalCore.coprime_mul_dvd","AgrawalCore.mul_dvd_gcd_mul"],"modules":["AgrawalCore.IndexLemma"],"moduleOf":{"AgrawalCore.coprime_mul_dvd":"AgrawalCore.IndexLemma","AgrawalCore.mul_dvd_gcd_mul":"AgrawalCore.IndexLemma"},"deps":{"AgrawalCore.coprime_mul_dvd":[],"AgrawalCore.mul_dvd_gcd_mul":[]}}
