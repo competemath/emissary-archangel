@@ -129,6 +129,17 @@ def refused_lines(text):
     return [(m.group(1), int(m.group(2)), m.group(3)) for m in RECORD_LINE.finditer(text)]
 
 
+REFINE_ROUNDS = 2000  # the rules name about 25 refused lines per run (27 and 18 lines of output in batch 10): 40 rounds dropped at most ~1,000; batch 10 had 1,993 duplicate names alone (17 Nov 2026)
+
+
+def stage_and_amend(T):
+    """Stage everything in the tengoku checkout and fold it into HEAD. `--sparse`: the checkout is sparse (data/ is left out), and a plain `git add -A` skips every path outside
+    it, so the records the rules had just cut lines from never reached the commit and the rules never settled (17 Nov 2026, batch 10: two runs of 40 and 3,000 rounds)."""
+    subprocess.run(["git", "-C", T, "add", "--sparse", "-A"], check=True)
+    subprocess.run(["git", "-C", T, "-c", "user.name=mikaelbashir", "-c", "user.email=138998999+mikael-bashir@users.noreply.github.com",
+                    "commit", "-q", "--amend", "--no-edit", "--signoff"], check=True)
+
+
 def refine(argv):
     """refine --tengoku T: run the record rules (validate_records.py, lint_banked.py in strict mode) until both are quiet, dropping
     each record line they refuse (the later of two equal names, a name that is already trusted, a banned command, ...); every drop is
@@ -138,10 +149,8 @@ def refine(argv):
     T = argv[argv.index("--tengoku") + 1]
     reasons = collections.Counter()
     trusted = trusted_names(T)
-    for _ in range(40):
-        subprocess.run(["git", "-C", T, "add", "-A"], check=True)
-        subprocess.run(["git", "-C", T, "-c", "user.name=mikaelbashir", "-c", "user.email=138998999+mikael-bashir@users.noreply.github.com",
-                        "commit", "-q", "--amend", "--no-edit", "--signoff"], check=True)
+    for _ in range(REFINE_ROUNDS):
+        stage_and_amend(T)
         bad = collections.defaultdict(set)
         for script in ("validate_records.py", "lint_banked.py"):
             r = subprocess.run([sys.executable, f"scripts/ci/{script}", "origin/main", "HEAD"], cwd=T, capture_output=True, text=True,
@@ -162,7 +171,7 @@ def refine(argv):
         for f, lines in bad.items():
             rows = open(f"{T}/{f}").read().splitlines(True)
             open(f"{T}/{f}", "w").writelines(l for i, l in enumerate(rows, 1) if i not in lines)
-    sys.exit("the record rules did not settle in 40 rounds")
+    sys.exit(f"the record rules did not settle in {REFINE_ROUNDS} rounds")
 
 
 def names_of(text):

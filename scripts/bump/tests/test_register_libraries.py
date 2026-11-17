@@ -193,12 +193,71 @@ class TrustedNames(unittest.TestCase):
         src = inspect.getsource(rl.refine)
         self.assertIn("trusted_clashes(T, trusted)", src)
         self.assertIn('reasons["already trusted name"]', src)
-        self.assertLess(src.index("trusted = trusted_names(T)"), src.index("for _ in range(40)"))
+        self.assertLess(src.index("trusted = trusted_names(T)"), src.index("for _ in range(REFINE_ROUNDS)"))
 
     def test_mutant_without_the_trusted_names_nothing_is_found(self):
         d = self.repo(["exchange"], tentative_new={"lib": ["exchange"]})
         self.assertEqual(rl.trusted_clashes(str(d), set()), {})  # the old refine: no trusted names, no clash: this is what let `exchange` through
         self.assertEqual(rl.trusted_clashes(str(d), rl.trusted_names(str(d))), {"data/tentative/lib.jsonl": {1}})
+
+
+
+class RefineSparse(unittest.TestCase):
+    """17 Nov 2026, batch 10: `refine` ran against a sparse tengoku checkout (data/ left out). A plain `git add -A` skips paths outside the sparse set, so the lines the record
+    rules had cut never reached the commit, the same lines were refused again, and refine stopped after 40 rounds (and again after 3,000)."""
+
+    @staticmethod
+    def git(T, *a):
+        import subprocess
+        return subprocess.run(["git", "-C", str(T), "-c", "user.name=t", "-c", "user.email=t@example.com", *a], check=True, capture_output=True, text=True).stdout
+
+    def repo(self, tmp):
+        T = Path(tmp)
+        self.git(T, "init", "-q", "-b", "main")
+        (T / "scripts").mkdir()
+        (T / "scripts" / "a.py").write_text("x = 1\n")
+        (T / "data" / "tentative").mkdir(parents=True)
+        (T / "data" / "tentative" / "lib.jsonl").write_text("".join(json.dumps({"name": f"A.t{i}"}) + "\n" for i in range(5)))
+        self.git(T, "add", "-A")
+        self.git(T, "commit", "-q", "-m", "base")
+        self.git(T, "sparse-checkout", "set", "--no-cone", "/scripts/")  # the real clone: scripts/ and a few more, data/ left out
+        (T / "data" / "tentative").mkdir(parents=True, exist_ok=True)  # `apply` writes records there all the same
+        (T / "data" / "tentative" / "lib.jsonl").write_text("".join(json.dumps({"name": f"A.t{i}"}) + "\n" for i in range(5)))
+        return T
+
+    def head_lines(self, T):
+        return len(self.git(T, "show", "HEAD:data/tentative/lib.jsonl").splitlines())
+
+    def cut_two_lines(self, T):
+        f = T / "data" / "tentative" / "lib.jsonl"
+        f.write_text("".join(l for i, l in enumerate(f.read_text().splitlines(True), 1) if i not in (2, 4)))
+
+    def test_lines_cut_outside_the_sparse_set_reach_the_commit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            T = self.repo(tmp)
+            self.assertEqual(self.head_lines(T), 5)
+            self.cut_two_lines(T)
+            rl.stage_and_amend(str(T))
+            self.assertEqual(self.head_lines(T), 3)
+
+    def test_mutant_a_plain_add_leaves_the_cut_lines_in_the_commit(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            T = self.repo(tmp)
+            self.cut_two_lines(T)
+            subprocess.run(["git", "-C", str(T), "add", "-A"], check=True, capture_output=True)  # what refine did
+            self.git(T, "commit", "-q", "--amend", "--no-edit", "--allow-empty")
+            self.assertEqual(self.head_lines(T), 5)  # still five: this is the bug
+
+    def test_the_round_cap_covers_a_real_batch(self):
+        refused_per_run = 18  # the smaller of the two real runs of 17 Nov 2026 (validator 27 lines, lint 18)
+        self.assertGreaterEqual(rl.REFINE_ROUNDS * refused_per_run, 4 * 1993)
+
+    def test_refine_stages_through_the_helper(self):
+        src = (Path(__file__).resolve().parents[2] / "register_libraries.py").read_text()
+        body = src[src.index("def refine(") : src.index("def names_of(")]
+        self.assertIn("stage_and_amend(T)", body)
+        self.assertNotIn('"add", "-A"', body)
 
 
 if __name__ == "__main__":
