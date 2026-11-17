@@ -94,8 +94,10 @@ def classify(
 
 
 def waits_for_runners(key: str | None, ready: int, free: int) -> bool:
-    """Nothing started although a library is ready, and the runners are the only reason (decide starts the first with NEED_FREE free): worth looking again soon, from the numbers and not from the words of the notes."""
-    return key is None and ready > 0 and free < NEED_FREE
+    """Worth looking again soon, from the numbers and not from the words of the notes: nothing started although a library is ready and the runners are the only reason (decide starts the
+    first with NEED_FREE free), or one library started and others are ready too (`ready` counts the one just started): decide starts only one per look, and nothing else starts the next
+    pickup but the hourly cron, which fired 3 times in 16 hours (17 Nov 2026: paper-c-lean's setup finished with mobius-cpt's, the pickup started mobius-cpt and paper-c-lean waited until a person dispatched it)."""
+    return (key is None and ready > 0 and free < NEED_FREE) or (key is not None and ready > 1)
 
 
 def decide(
