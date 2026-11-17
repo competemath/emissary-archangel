@@ -1,0 +1,45 @@
+{
+  "key": "lean-descriptive-set-theory",
+  "repo": "https://github.com/Hilbert-beinghappy/lean-descriptive-set-theory",
+  "commit": "a91633e387e32fb32640761ab3ece7081528c752",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "LeanDescriptiveSetTheory",
+    "LeanDescriptiveSetTheoryTest"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lean-descriptive-set-theory/repo",
+  "entries": 1179,
+  "modules": 97,
+  "exported": 97,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1179,
+    "kept": 1179,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 44,
+    "lineUnverified": 0,
+    "nameFixed": 1179,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.0 (commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+8c9756b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "4e7915201d3f + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 13746176,
+  "minutes": 4,
+  "finishedAt": "2026-11-17T18:24:09.443Z"
+}
