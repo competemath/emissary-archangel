@@ -1,0 +1,116 @@
+{
+  "key": "riemannhypothesis-formalization",
+  "repo": "https://github.com/alejandrozu/RiemannHypothesis-Formalization",
+  "commit": "753938937e624d1c8bbe4c208517660a672d1b8e",
+  "toolchain": "leanprover/lean4:v4.31.0",
+  "roots": [
+    "RiemannHypothesis"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/riemannhypothesis-formalization/repo",
+  "entries": 3075,
+  "modules": 100,
+  "exported": 86,
+  "failed": [
+    {
+      "module": "RiemannHypothesis.CauchyKernel.Basic",
+      "why": "does not compile at the library's own commit: error: RiemannHypothesis/CauchyKernel/Basic.lean:412:80: unsolved goals"
+    },
+    {
+      "module": "RiemannHypothesis.CauchyKernel.FiniteCloud",
+      "why": "no closure"
+    },
+    {
+      "module": "RiemannHypothesis.Deprecated.Monolith",
+      "why": "does not compile at the library's own commit: error: RiemannHypothesis/Deprecated/Monolith.lean:1093:45: unsolved goals"
+    },
+    {
+      "module": "RiemannHypothesis.Deprecated.StrippingMonolith",
+      "why": "no closure"
+    },
+    {
+      "module": "RiemannHypothesis.ExplicitFormula.HighHeightRegion",
+      "why": "no closure"
+    },
+    {
+      "module": "RiemannHypothesis.ExplicitFormula.IntegrationByParts",
+      "why": "no closure"
+    },
+    {
+      "module": "RiemannHypothesis.ExplicitFormula.LowHeightRegion",
+      "why": "no closure"
+    },
+    {
+      "module": "RiemannHypothesis.ExplicitFormula.Stieltjes",
+      "why": "no closure"
+    },
+    {
+      "module": "RiemannHypothesis.Reduction.StieltjesIdentities",
+      "why": "no closure"
+    },
+    {
+      "module": "RiemannHypothesis.Xi.Energy",
+      "why": "does not compile at the library's own commit: error: RiemannHypothesis/Xi/Energy.lean:295:4: `simp` made no progress"
+    },
+    {
+      "module": "RiemannHypothesis.XiDecomposition.ErrorBounds",
+      "why": "no closure"
+    },
+    {
+      "module": "RiemannHypothesis.XiDecomposition.Model",
+      "why": "no closure"
+    },
+    {
+      "module": "RiemannHypothesis.XiDecomposition.Residual",
+      "why": "no closure"
+    },
+    {
+      "module": "RiemannHypothesis.ZeroCounting.Backlund",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 3075,
+    "kept": 3075,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 3,
+    "lineUnverified": 161,
+    "nameFixed": 3075,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "sharded": {
+    "records": 5,
+    "shards": [
+      5
+    ]
+  },
+  "tools": {
+    "lean": "4.31.0 (commit 68218e876d2a38b1985b8590fff244a83c321783, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+68218e8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "8554815c2dc6 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1 | ubuntu26/20261111.82.6"
+  },
+  "exportsBytes": 26566656,
+  "minutes": 3,
+  "finishedAt": "2026-11-17T20:04:57.030Z",
+  "archive": {
+    "release": "exports-riemannhypothesis-formalization",
+    "asset": "riemannhypothesis-formalization@753938937e62-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-riemannhypothesis-formalization/riemannhypothesis-formalization@753938937e62-exports.tar.zst",
+    "bytes": 2416510,
+    "sha256": "4af38be26edbfd124944993f1311b6dbf331a46d33cafdab097549938ea462c3",
+    "files": 172,
+    "unpack": "tar --zstd -xf riemannhypothesis-formalization@753938937e62-exports.tar.zst -C data/exports/riemannhypothesis-formalization"
+  }
+}

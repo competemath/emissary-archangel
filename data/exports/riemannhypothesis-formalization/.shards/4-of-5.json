@@ -1,0 +1,38 @@
+{
+  "shard": 4,
+  "shards": 5,
+  "commit": "753938937e624d1c8bbe4c208517660a672d1b8e",
+  "toolchain": "leanprover/lean4:v4.31.0",
+  "modules": 20,
+  "exported": 17,
+  "failed": [
+    {
+      "module": "RiemannHypothesis.ExplicitFormula.HighHeightRegion",
+      "why": "no closure"
+    },
+    {
+      "module": "RiemannHypothesis.ExplicitFormula.Stieltjes",
+      "why": "no closure"
+    },
+    {
+      "module": "RiemannHypothesis.XiDecomposition.Residual",
+      "why": "no closure"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "tools": {
+    "lean": "4.31.0 (commit 68218e876d2a38b1985b8590fff244a83c321783, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+68218e8",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "8554815c2dc6 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.82.6"
+  },
+  "minutes": 2,
+  "finishedAt": "2026-11-17T20:03:42.868Z"
+}
