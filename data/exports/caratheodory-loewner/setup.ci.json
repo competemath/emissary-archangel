@@ -1,0 +1,46 @@
+{
+  "key": "caratheodory-loewner",
+  "repo": "https://github.com/Paul-Lez/caratheodory-loewner",
+  "commit": "7ad96921225bc6994bc9d8aea9d8ad314afe93ee",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "Challenge",
+    "Examples",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/caratheodory-loewner/repo",
+  "entries": 301,
+  "modules": 1,
+  "exported": 1,
+  "failed": [],
+  "expansion": {
+    "expanded": 99,
+    "verbatim": 373,
+    "unexpanded": 8,
+    "failed": []
+  },
+  "seed": {
+    "records": 301,
+    "kept": 301,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 18,
+    "lineUnverified": 0,
+    "nameFixed": 301,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.2.4 (227caca13 2026-08-25)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 1867776,
+  "minutes": 10,
+  "finishedAt": "2026-11-17T16:26:20.824Z"
+}
