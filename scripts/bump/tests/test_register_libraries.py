@@ -201,8 +201,6 @@ class TrustedNames(unittest.TestCase):
         self.assertEqual(rl.trusted_clashes(str(d), rl.trusted_names(str(d))), {"data/tentative/lib.jsonl": {1}})
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 class RefineSparse(unittest.TestCase):
     """17 Nov 2026, batch 10: `refine` ran against a sparse tengoku checkout (data/ left out). A plain `git add -A` skips paths outside the sparse set, so the lines the record
@@ -261,3 +259,6 @@ class RefineSparse(unittest.TestCase):
         self.assertIn("stage_and_amend(T)", body)
         self.assertNotIn('"add", "-A"', body)
 
+
+if __name__ == "__main__":
+    unittest.main()
