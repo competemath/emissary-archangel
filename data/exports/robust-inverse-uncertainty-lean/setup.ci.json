@@ -1,0 +1,44 @@
+{
+  "key": "robust-inverse-uncertainty-lean",
+  "repo": "https://github.com/GaloisInc/robust-inverse-uncertainty-lean",
+  "commit": "269382def96bb6f53502b95ae609460df5375ca4",
+  "toolchain": "leanprover/lean4:v4.32.1",
+  "roots": [
+    "LeanFormalization"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/robust-inverse-uncertainty-lean/repo",
+  "entries": 196,
+  "modules": 6,
+  "exported": 6,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 196,
+    "kept": 196,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 48,
+    "lineUnverified": 0,
+    "nameFixed": 196,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.1 (commit f054605aea4b840552cca2e725580bffd1e1b704, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+f054605",
+    "elan": "4.3.0 (84d03798d 2026-11-17)",
+    "lean4export": "86e4a3395074 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 2609152,
+  "minutes": 5,
+  "finishedAt": "2026-11-17T21:19:10.580Z"
+}
