@@ -1,0 +1,46 @@
+{
+  "key": "scott1972",
+  "repo": "https://github.com/catskillsresearch/scott1972",
+  "commit": "a198b6e24aea07cfc858a59798d0ca78161c4387",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "roots": [
+    "Challenge",
+    "Scott1972",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/scott1972/repo",
+  "entries": 303,
+  "modules": 11,
+  "exported": 11,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 416,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 303,
+    "kept": 303,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 292,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.0 (commit d8b18978322de05a8f3dba51ef03cf5461676c17, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+d8b1897",
+    "elan": "4.3.0 (84d03798d 2026-11-17)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.82.6"
+  },
+  "exportsBytes": 3829760,
+  "minutes": 2,
+  "finishedAt": "2026-11-18T00:17:53.803Z"
+}
