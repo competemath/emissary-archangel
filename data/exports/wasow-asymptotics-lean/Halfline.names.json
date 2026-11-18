@@ -1,0 +1,1 @@
+{"names":["CRGHalfline.exists_column","CRGHalfline.halflineNullSingleton"],"modules":["Halfline"],"moduleOf":{"CRGHalfline.exists_column":"Halfline","CRGHalfline.halflineNullSingleton":"Halfline"},"deps":{"CRGHalfline.exists_column":["CRGHalfline.halflineNullSingleton"],"CRGHalfline.halflineNullSingleton":[]}}
