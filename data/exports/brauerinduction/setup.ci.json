@@ -1,0 +1,46 @@
+{
+  "key": "brauerinduction",
+  "repo": "https://github.com/norbsvr/BrauerInduction",
+  "commit": "a88cd7566a7c3b5d93d791a9320b9e7fa75a001a",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "BrauerInduction",
+    "Challenge",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/brauerinduction/repo",
+  "entries": 678,
+  "modules": 77,
+  "exported": 77,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 678,
+    "kept": 678,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 180,
+    "lineUnverified": 0,
+    "nameFixed": 661,
+    "sorryOriginals": 0,
+    "emptyProofs": 1
+  },
+  "tools": {
+    "lean": "4.32.0 (commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+8c9756b",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "4e7915201d3f + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 63365120,
+  "minutes": 8,
+  "finishedAt": "2026-11-18T19:06:36.285Z"
+}
