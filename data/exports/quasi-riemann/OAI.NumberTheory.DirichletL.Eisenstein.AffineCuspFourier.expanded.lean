@@ -1,0 +1,922 @@
+import OAI.NumberTheory.DirichletL.Reciprocity.RamifiedCuspPhases
+
+
+-- @@ L3-3 verbatim
+namespace OAI
+
+
+-- @@ L5-5 verbatim
+noncomputable section
+
+
+-- @@ L7-7 verbatim
+namespace CubicEisenstein
+
+
+-- @@ L9-9 verbatim
+open scoped BigOperators
+
+-- @@ L10-10 verbatim
+open MulChar AddChar
+
+-- @@ L11-11 verbatim
+open scoped BigOperators
+
+-- @@ L12-12 verbatim
+open Filter Asymptotics MeasureTheory
+
+-- @@ L13-13 verbatim
+open scoped Topology
+
+-- @@ L14-14 verbatim
+open MeasureTheory Real
+
+-- @@ L15-15 verbatim
+open scoped FourierTransform SchwartzMap
+
+-- @@ L16-16 verbatim
+open Finset Complex
+
+-- @@ L17-17 verbatim
+open scoped Classical
+
+-- @@ L18-18 verbatim
+open scoped Classical
+
+-- @@ L19-19 verbatim
+open Filter Real Asymptotics
+
+-- @@ L20-20 verbatim
+open ActualEisensteinCubic
+
+-- @@ L21-21 verbatim
+open Filter
+
+-- @@ L22-22 verbatim
+open ActualEisensteinCubic RationalPrimeExtraction ShortDraftLatticeCount
+
+-- @@ L23-23 verbatim
+open ActualEisensteinCubic ShortDraftLatticeCount
+
+-- @@ L24-24 verbatim
+open Filter
+
+-- @@ L25-25 verbatim
+open scoped Topology
+
+-- @@ L26-26 verbatim
+open EisensteinEmbedding ConcreteTraceCRT ActualEisensteinCubic
+
+-- @@ L27-27 verbatim
+open MulChar AddChar
+
+-- @@ L28-28 verbatim
+open Filter Asymptotics
+
+-- @@ L29-29 verbatim
+open scoped LSeries.notation ArithmeticFunction.Moebius
+
+-- @@ L30-30 verbatim
+open Filter
+
+-- @@ L31-31 verbatim
+open MulChar AddChar
+
+-- @@ L32-32 verbatim
+open MulChar AddChar
+
+-- @@ L33-33 verbatim
+open scoped LSeries.notation ArithmeticFunction.Moebius
+
+-- @@ L34-34 verbatim
+open Filter Asymptotics MeasureTheory
+
+-- @@ L35-35 verbatim
+open scoped Topology
+
+-- @@ L36-36 verbatim
+open Filter Asymptotics
+
+-- @@ L37-37 verbatim
+open Ideal NumberField RingOfIntegers UniqueFactorizationMonoid
+
+-- @@ L38-38 verbatim
+open Ideal NumberField RingOfIntegers UniqueFactorizationMonoid
+
+-- @@ L39-39 verbatim
+open Ideal NumberField RingOfIntegers UniqueFactorizationMonoid
+
+-- @@ L40-40 verbatim
+open Ideal NumberField RingOfIntegers UniqueFactorizationMonoid
+
+-- @@ L41-41 verbatim
+open Ideal NumberField RingOfIntegers UniqueFactorizationMonoid
+
+-- @@ L42-42 verbatim
+open Filter Asymptotics
+
+-- @@ L43-43 verbatim
+open Filter Asymptotics MeasureTheory
+
+-- @@ L44-44 verbatim
+open scoped Topology
+
+-- @@ L45-45 verbatim
+open Filter Asymptotics Ideal NumberField
+
+-- @@ L46-46 verbatim
+open Filter
+
+-- @@ L47-47 verbatim
+open Filter Asymptotics MeasureTheory
+
+-- @@ L48-48 verbatim
+open scoped Topology
+
+-- @@ L49-49 verbatim
+open Filter Asymptotics MeasureTheory
+
+-- @@ L50-50 verbatim
+open scoped Topology
+
+-- @@ L51-51 verbatim
+open Filter Asymptotics MeasureTheory
+
+-- @@ L52-52 verbatim
+open scoped Topology
+
+-- @@ L53-53 verbatim
+open MeasureTheory Real
+
+-- @@ L54-54 verbatim
+open scoped ContDiff FourierTransform SchwartzMap
+
+-- @@ L55-55 verbatim
+open scoped BigOperators Classical
+
+-- @@ L56-56 verbatim
+open scoped BigOperators Classical
+
+-- @@ L57-57 verbatim
+open scoped BigOperators Classical
+
+-- @@ L58-58 verbatim
+open scoped BigOperators Classical SchwartzMap ContDiff
+
+-- @@ L59-59 verbatim
+open scoped BigOperators Classical SchwartzMap ContDiff
+
+-- @@ L60-60 verbatim
+open scoped BigOperators Classical
+
+-- @@ L61-61 verbatim
+open scoped BigOperators Classical SchwartzMap ContDiff
+
+-- @@ L62-62 verbatim
+open scoped BigOperators Classical
+
+-- @@ L63-63 verbatim
+open scoped BigOperators Classical SchwartzMap ContDiff
+
+-- @@ L64-64 verbatim
+open scoped BigOperators Classical SchwartzMap ContDiff
+
+-- @@ L65-65 verbatim
+open scoped BigOperators Classical SchwartzMap ContDiff
+
+-- @@ L66-66 verbatim
+open scoped BigOperators Classical
+
+-- @@ L67-67 verbatim
+open scoped BigOperators Classical SchwartzMap ContDiff
+
+-- @@ L68-68 verbatim
+open MeasureTheory Set
+
+-- @@ L69-69 verbatim
+open scoped BigOperators
+
+-- @@ L70-70 verbatim
+open scoped BigOperators Classical
+
+-- @@ L71-71 verbatim
+open scoped BigOperators Classical
+
+-- @@ L72-72 verbatim
+open ActualEisensteinCubic UniqueFactorizationMonoid
+
+-- @@ L73-73 verbatim
+open scoped BigOperators
+
+-- @@ L74-74 verbatim
+open scoped BigOperators
+
+-- @@ L75-75 verbatim
+open scoped BigOperators Classical SchwartzMap
+
+-- @@ L76-76 verbatim
+open scoped BigOperators Classical
+
+
+-- @@ L78-78 verbatim
+section
+
+-- @@ L79-79 verbatim
+open Filter MeasureTheory
+
+-- @@ L80-80 verbatim
+open scoped BigOperators Classical
+
+
+-- @@ L82-82 verbatim
+section
+
+-- @@ L83-83 verbatim
+open ActualEisensteinCubic ConcreteTraceCRT CubicJacobiGlobal CubicRamified
+
+-- @@ L84-84 verbatim
+local notation "Eis" => ActualEisensteinCubic.O
+
+
+-- @@ L86-93 verbatim
+lemma affineLowerTerm_eq_shifted (q r:Eis) (z:ℂ) (v:ℝ) (hv:0<v) (s:ℂ)
+    (a d:Eis) (ha:a≠0) (hq:q≠0) :
+    affineLowerTerm q r z v s a d=
+      (eisEmbedding (symbol r d)*eisEmbedding (symbol d a)*
+        ((‖eisEmbedding (q*a)‖^2:ℝ):ℂ)^(-s))*
+          shiftedHeightKernel v s (eisEmbedding d/eisEmbedding (q*a)) z := by
+  rw [affineLowerTerm,rowHeight_eq_shiftedHeightKernel z v hv s (q*a) d (mul_ne_zero hq ha)]
+  ring
+
+
+-- @@ L95-99 verbatim
+lemma affineLowerTerm_integrable (q r:Eis) (v:ℝ) (hv:0<v) (s:ℂ) (hs:1<s.re)
+    (a d:Eis) (ha:a≠0) (hq:q≠0) :
+    Integrable (fun z=>affineLowerTerm q r z v s a d) := by
+  simp_rw [affineLowerTerm_eq_shifted q r _ v hv s a d ha hq]
+  exact (shiftedHeightKernel_integrable v hv s _ hs).const_mul _
+
+
+-- @@ L101-111 verbatim
+lemma affineLowerTerm_fourier_integral (q r:Eis) (v:ℝ) (hv:0<v) (s freq:ℂ)
+    (a d:Eis) (ha:a≠0) (hq:q≠0) :
+    (∫z:ℂ,affineLowerTerm q r z v s a d*ShortDraftTrace.breveE (-freq*z))=
+      ((v:ℂ)^(2-s)*sourceFourierKernel s (freq*v))*
+        ((‖eisEmbedding (q*a)‖^2:ℝ):ℂ)^(-s)*
+          ((eisEmbedding (symbol r d)*eisEmbedding (symbol d a))*
+            ShortDraftTrace.breveE (freq*eisEmbedding d/eisEmbedding (q*a))) := by
+  simp_rw [affineLowerTerm_eq_shifted q r _ v hv s a d ha hq,mul_assoc]
+  rw [integral_const_mul,integral_const_mul,integral_const_mul,
+    traceIntegral_shiftedHeightKernel v hv s (eisEmbedding d/eisEmbedding (q*a)) freq]
+  ring_nf
+
+
+-- @@ L113-130 verbatim
+lemma affineCuspGaussTerm_factor (h h1 q r a k x:Eis) (j n:ℕ)
+    (ha:a≠0) (hprimary:lambda^2∣a-1) (hq:q≠0)
+    (hr:r=omega^j*ramifiedTraceLambda^n ∨ r=-(omega^j*ramifiedTraceLambda^n))
+    (hh:h=q*h1) (hk:3*k=h1+ramifiedAffineParameter j n*a) :
+    (eisEmbedding (symbol r (a+3*x))*eisEmbedding (symbol (a+3*x) a))*
+      ShortDraftTrace.breveE (ninthCuspFrequency h*eisEmbedding (a+3*x)/eisEmbedding (q*a))=
+    (ShortDraftTrace.breveE (ninthCuspFrequency h/eisEmbedding q)*
+      (eisEmbedding (symbol r a)*eisEmbedding (symbol 3 a)))*
+        (eisEmbedding (symbol x a)*residueAdditive (3*k) a x) := by
+  have hs:symbol (a+3*x) a=symbol (3*x) a:=symbol_congr ⟨1,by ring⟩
+  rw [ramified_symbol_primary_shift_signed j n r a x hr hprimary,hs,
+    symbol_mul_numerator _ _ _ hprimary,map_mul eisEmbedding (symbol 3 a) (symbol x a)]
+  have hp:=affineCusp_phase_identity h h1 q a k (ramifiedAffineParameter j n) x ha hq hh hk
+  calc
+    _ = (eisEmbedding (symbol r a)*eisEmbedding (symbol 3 a)*eisEmbedding (symbol x a))*
+      (ShortDraftTrace.breveE (eisEmbedding (ramifiedAffineParameter j n*x)/eisLam/3)*
+        ShortDraftTrace.breveE (ninthCuspFrequency h*eisEmbedding (a+3*x)/eisEmbedding (q*a))) := by ring
+    _ = _ := by rw [hp];ring
+
+
+-- @@ L132-143 verbatim
+lemma affineCuspTwistedCoefficient_add (h h1 q r a k x m:Eis) (j n:ℕ)
+    (ha:a≠0) (hprimary:lambda^2∣a-1) (hq:q≠0)
+    (hr:r=omega^j*ramifiedTraceLambda^n ∨ r=-(omega^j*ramifiedTraceLambda^n))
+    (hh:h=q*h1) (hk:3*k=h1+ramifiedAffineParameter j n*a) :
+    (eisEmbedding (symbol r (a+3*(x+a*m)))*eisEmbedding (symbol (a+3*(x+a*m)) a))*
+      ShortDraftTrace.breveE (ninthCuspFrequency h*eisEmbedding (a+3*(x+a*m))/eisEmbedding (q*a))=
+    (eisEmbedding (symbol r (a+3*x))*eisEmbedding (symbol (a+3*x) a))*
+      ShortDraftTrace.breveE (ninthCuspFrequency h*eisEmbedding (a+3*x)/eisEmbedding (q*a)) := by
+  rw [affineCuspGaussTerm_factor h h1 q r a k (x+a*m) j n ha hprimary hq hr hh hk,
+    affineCuspGaussTerm_factor h h1 q r a k x j n ha hprimary hq hr hh hk]
+  rw [symbol_congr (show a∣x+a*m-x from ⟨m,by ring⟩),
+    residueAdditive_three_congr k a (x+a*m) x ha ⟨m,by ring⟩]
+
+
+-- @@ L145-192 verbatim
+lemma affineLowerTerm_weighted_translate (h h1 q r a k x m:Eis) (j n:ℕ)
+    (ha:a≠0) (hprimary:lambda^2∣a-1) (hq:q≠0)
+    (hr:r=omega^j*ramifiedTraceLambda^n ∨ r=-(omega^j*ramifiedTraceLambda^n))
+    (hh:h=q*h1) (hk:3*k=h1+ramifiedAffineParameter j n*a)
+    (z:ℂ) (v:ℝ) (s:ℂ) :
+    affineLowerTerm q r z v s a (a+3*(x+a*m))*ShortDraftTrace.breveE (-ninthCuspFrequency h*z)=
+      affineLowerTerm q r (z+3*eisEmbedding m/eisEmbedding q) v s a (a+3*x)*
+        ShortDraftTrace.breveE (-ninthCuspFrequency h*(z+3*eisEmbedding m/eisEmbedding q)) := by
+  let c1:=eisEmbedding (symbol r (a+3*(x+a*m)))*eisEmbedding (symbol (a+3*(x+a*m)) a)
+  let c0:=eisEmbedding (symbol r (a+3*x))*eisEmbedding (symbol (a+3*x) a)
+  let B:=ninthCuspFrequency h*eisEmbedding (a+3*x)/eisEmbedding (q*a)
+  let Q:=ninthCuspFrequency h*(3*eisEmbedding m/eisEmbedding q)
+  have harg:ninthCuspFrequency h*eisEmbedding (a+3*(x+a*m))/eisEmbedding (q*a)=B+Q:=by
+    dsimp [B,Q]
+    simp only [map_add,map_mul,map_ofNat]
+    field_simp [eisEmbedding_ne_zero hq,eisEmbedding_ne_zero ha]
+    ;ring
+  have hcoef:=affineCuspTwistedCoefficient_add h h1 q r a k x m j n ha hprimary hq hr hh hk
+  change c1*ShortDraftTrace.breveE (ninthCuspFrequency h*eisEmbedding (a+3*(x+a*m))/eisEmbedding (q*a))=
+    c0*ShortDraftTrace.breveE B at hcoef
+  rw [harg,AddChar.map_add_eq_mul] at hcoef
+  have heB:ShortDraftTrace.breveE B≠0:=Complex.exp_ne_zero _
+  have heQ:ShortDraftTrace.breveE Q≠0:=Complex.exp_ne_zero _
+  have hmult:c1*ShortDraftTrace.breveE Q=c0:=by
+    apply mul_right_cancel₀ heB
+    calc
+      _ = c1*(ShortDraftTrace.breveE B*ShortDraftTrace.breveE Q) := by ring
+      _ = _ := hcoef
+  have hsolve:c1=c0*ShortDraftTrace.breveE (-Q):=by
+    rw [AddChar.map_neg_eq_inv]
+    calc
+      c1=c1*(ShortDraftTrace.breveE Q*(ShortDraftTrace.breveE Q)⁻¹) := by rw [mul_inv_cancel₀ heQ,mul_one]
+      _ = (c1*ShortDraftTrace.breveE Q)*(ShortDraftTrace.breveE Q)⁻¹ := by ring
+      _ = _ := by rw [hmult]
+  have hrow:eisEmbedding (q*a)*z+eisEmbedding (a+3*(x+a*m))=
+      eisEmbedding (q*a)*(z+3*eisEmbedding m/eisEmbedding q)+eisEmbedding (a+3*x):=by
+    simp only [map_add,map_mul,map_ofNat]
+    field_simp [eisEmbedding_ne_zero hq]
+    ;ring
+  change c1*((v/(‖eisEmbedding (q*a)*z+eisEmbedding (a+3*(x+a*m))‖^2+
+    ‖eisEmbedding (q*a)‖^2*v^2):ℝ):ℂ)^s*ShortDraftTrace.breveE (-ninthCuspFrequency h*z)=_
+  rw [hsolve,hrow]
+  unfold affineLowerTerm
+  have hphase:-ninthCuspFrequency h*(z+3*eisEmbedding m/eisEmbedding q)=(-Q)+(-ninthCuspFrequency h*z):=by
+    dsimp [Q];ring
+  rw [hphase,AddChar.map_add_eq_mul]
+  dsimp only [c0]
+  ring
+
+
+-- @@ L194-210 verbatim
+lemma affineLowerIntegral_sum_translate (h h1 q r a k x:Eis) (j n:ℕ)
+    (ha:a≠0) (hprimary:lambda^2∣a-1) (hq:q≠0)
+    (hr:r=omega^j*ramifiedTraceLambda^n ∨ r=-(omega^j*ramifiedTraceLambda^n))
+    (hh:h=q*h1) (hk:3*k=h1+ramifiedAffineParameter j n*a)
+    (v:ℝ) (hv:0<v) (s:ℂ) (hs:1<s.re) :
+    (∑'m:Eis,∫z in periodDomain,affineLowerTerm q r z v s a (a+3*(x+a*m))*
+      ShortDraftTrace.breveE (-ninthCuspFrequency h*z))=
+      (Ideal.absNorm (Ideal.span {q}):ℂ)*
+        ∫z:ℂ,affineLowerTerm q r z v s a (a+3*x)*ShortDraftTrace.breveE (-ninthCuspFrequency h*z) := by
+  have hint:=trace_mul_integrable (fun z=>affineLowerTerm q r z v s a (a+3*x))
+    (affineLowerTerm_integrable q r v hv s hs a (a+3*x) ha hq) (ninthCuspFrequency h)
+  rw [←finite_index_period_unfold q hq _ hint]
+  apply tsum_congr
+  intro m
+  apply integral_congr_ae
+  exact Filter.Eventually.of_forall (fun z=>affineLowerTerm_weighted_translate
+    h h1 q r a k x m j n ha hprimary hq hr hh hk z v s)
+
+
+-- @@ L212-212 verbatim
+end
+
+
+-- @@ L214-214 verbatim
+open ActualEisensteinCubic ConcreteTraceCRT CubicJacobiGlobal CubicRamified
+
+-- @@ L215-215 verbatim
+local notation "Eis" => ActualEisensteinCubic.O
+
+
+-- @@ L217-255 verbatim
+lemma affineDenominator_integral_formula (h h1 q r k:Eis) (j n:ℕ) (a:PrimaryLower)
+    (hq:q≠0) (hr:r=omega^j*ramifiedTraceLambda^n ∨ r=-(omega^j*ramifiedTraceLambda^n))
+    (hh:h=q*h1) (hk:3*k=h1+ramifiedAffineParameter j n*a.val)
+    (v:ℝ) (hv:0<v) (s:ℂ) (hs:1<s.re)
+    (hsum:Summable (fun d:PrimaryCoprimeDenominator a=>∫z in periodDomain,
+      affineLowerTerm q r z v s a.val d.val.val*ShortDraftTrace.breveE (-ninthCuspFrequency h*z))) :
+    (∑'d:PrimaryCoprimeDenominator a,∫z in periodDomain,
+      affineLowerTerm q r z v s a.val d.val.val*ShortDraftTrace.breveE (-ninthCuspFrequency h*z))=
+      (Ideal.absNorm (Ideal.span {q}):ℂ)*
+        ((v:ℂ)^(2-s)*sourceFourierKernel s (ninthCuspFrequency h*v))*
+          ((‖eisEmbedding (q*a.val)‖^2:ℝ):ℂ)^(-s)*ramifiedAffineGauss h q r a.val := by
+  let e:=(cubicResidueElementEquiv a.val (primaryLower_ne_zero a)).trans (primaryDenominatorEquiv a)
+  have hpair:=e.summable_iff.mpr hsum
+  change Summable (fun p:CubicUnitResidue a.val×Eis=>∫z in periodDomain,
+    affineLowerTerm q r z v s a.val (a.val+3*(GaussianShiftedPartition.representative a.val p.1.val+a.val*p.2))*
+      ShortDraftTrace.breveE (-ninthCuspFrequency h*z)) at hpair
+  rw [←e.tsum_eq]
+  change (∑'p:CubicUnitResidue a.val×Eis,∫z in periodDomain,
+    affineLowerTerm q r z v s a.val (a.val+3*(GaussianShiftedPartition.representative a.val p.1.val+a.val*p.2))*
+      ShortDraftTrace.breveE (-ninthCuspFrequency h*z))=_
+  rw [hpair.tsum_prod]
+  have hinner (x:CubicUnitResidue a.val) :
+      (∑'m:Eis,∫z in periodDomain,
+        affineLowerTerm q r z v s a.val (a.val+3*(GaussianShiftedPartition.representative a.val x.val+a.val*m))*
+          ShortDraftTrace.breveE (-ninthCuspFrequency h*z))=
+      (Ideal.absNorm (Ideal.span {q}):ℂ)*
+        (((v:ℂ)^(2-s)*sourceFourierKernel s (ninthCuspFrequency h*v))*
+          ((‖eisEmbedding (q*a.val)‖^2:ℝ):ℂ)^(-s)*
+            ((eisEmbedding (symbol r (a.val+3*GaussianShiftedPartition.representative a.val x.val))*
+              eisEmbedding (symbol (a.val+3*GaussianShiftedPartition.representative a.val x.val) a.val))*
+                ShortDraftTrace.breveE (ninthCuspFrequency h*
+                  eisEmbedding (a.val+3*GaussianShiftedPartition.representative a.val x.val)/eisEmbedding (q*a.val)))) := by
+    rw [affineLowerIntegral_sum_translate h h1 q r a.val k _ j n (primaryLower_ne_zero a)
+      (primaryLower_primary a) hq hr hh hk v hv s hs,
+      affineLowerTerm_fourier_integral q r v hv s _ a.val _ (primaryLower_ne_zero a) hq]
+  simp_rw [hinner]
+  unfold ramifiedAffineGauss
+  simp_rw [mul_assoc]
+  rw [tsum_mul_left,tsum_mul_left,tsum_mul_left,tsum_mul_left]
+
+
+-- @@ L257-264 verbatim
+lemma affineCuspFrequency_lift (h1:Eis) (j n:ℕ) (a:PrimaryLower)
+    (hfreq:(3:Eis)∣h1+ramifiedAffineParameter j n) :
+    ∃k:Eis,3*k=h1+ramifiedAffineParameter j n*a.val := by
+  have hh:=dvd_add hfreq (a.2.mul_left (ramifiedAffineParameter j n))
+  have hd:(3:Eis)∣h1+ramifiedAffineParameter j n*a.val:=by
+    convert hh using 1 ;ring
+  obtain ⟨k,hk⟩:=hd
+  exact ⟨k,hk.symm⟩
+
+
+-- @@ L266-270 verbatim
+lemma affineCusp_norm_factor (q:Eis) (s:ℂ) (a:PrimaryLower) :
+    ((‖eisEmbedding (q*a.val)‖^2:ℝ):ℂ)^(-s)=
+      ((‖eisEmbedding q‖^2:ℝ):ℂ)^(-s)*((‖eisEmbedding a.val‖^2:ℝ):ℂ)^(-s) := by
+  rw [map_mul,norm_mul,mul_pow,Complex.ofReal_mul,
+    Complex.mul_cpow_ofReal_nonneg (sq_nonneg _) (sq_nonneg _)]
+
+
+-- @@ L272-307 verbatim
+theorem affineCusp_branch_fourier (h h1 q r:Eis) (j n:ℕ)
+    (hq:q≠0) (hr:r=omega^j*ramifiedTraceLambda^n ∨ r=-(omega^j*ramifiedTraceLambda^n))
+    (hh:h=q*h1) (hfreq:(3:Eis)∣h1+ramifiedAffineParameter j n)
+    (v:ℝ) (hv:0<v) (s:ℂ) (hs:1<s.re)
+    (hsum:Summable (fun p:UnitLowerData=>∫z in periodDomain,
+      affineLowerTerm q r z v s p.1.val p.2.val.val*ShortDraftTrace.breveE (-ninthCuspFrequency h*z))) :
+    (∑'p:UnitLowerData,∫z in periodDomain,
+      affineLowerTerm q r z v s p.1.val p.2.val.val*ShortDraftTrace.breveE (-ninthCuspFrequency h*z))=
+      (Ideal.absNorm (Ideal.span {q}):ℂ)*((‖eisEmbedding q‖^2:ℝ):ℂ)^(-s)*
+        ((v:ℂ)^(2-s)*sourceFourierKernel s (ninthCuspFrequency h*v))*
+          ShortDraftTrace.breveE (ninthCuspFrequency h/eisEmbedding q)*
+            unramifiedCubicGaussSeries s (3*r^2*h1) := by
+  rw [hsum.tsum_sigma]
+  have ha (a:PrimaryLower):
+      (∑'d:PrimaryCoprimeDenominator a,∫z in periodDomain,
+        affineLowerTerm q r z v s a.val d.val.val*ShortDraftTrace.breveE (-ninthCuspFrequency h*z))=
+      ((Ideal.absNorm (Ideal.span {q}):ℂ)*((‖eisEmbedding q‖^2:ℝ):ℂ)^(-s)*
+        ((v:ℂ)^(2-s)*sourceFourierKernel s (ninthCuspFrequency h*v))*
+          ShortDraftTrace.breveE (ninthCuspFrequency h/eisEmbedding q))*
+        (((‖eisEmbedding a.val‖^2:ℝ):ℂ)^(-s)*cubicUnitGaussSum (3*r^2*h1) a.val) := by
+    obtain ⟨k,hk⟩:=affineCuspFrequency_lift h1 j n a hfreq
+    rw [affineDenominator_integral_formula h h1 q r k j n a hq hr hh hk v hv s hs
+      (hsum.sigma_factor a),ramifiedAffineGauss_eq_unramified h h1 q r a.val k j n
+        (primaryLower_ne_zero a) (primaryLower_primary a) hq hr hh hk,
+      affineCusp_norm_factor]
+    ring
+  simp_rw [ha]
+  rw [tsum_mul_left]
+  congr 1
+  rw [←primaryLowerIdealEquiv.symm.tsum_eq,unramifiedCubicGaussSeries]
+  apply tsum_congr
+  intro I
+  change ((‖eisEmbedding (CompletedGauss.primaryGenerator I.val)‖^2:ℝ):ℂ)^(-s)*
+    cubicUnitGaussSum (3*r^2*h1) (CompletedGauss.primaryGenerator I.val)=_
+  rw [eisEmbedding_norm_sq_eq_absNorm_span,(CompletedGauss.primaryGenerator_spec I.val I.2).1,
+    Complex.ofReal_natCast]
+
+
+-- @@ L309-309 verbatim
+end
+
+
+-- @@ L311-311 verbatim
+section
+
+-- @@ L312-312 verbatim
+open MeasureTheory Filter
+
+-- @@ L313-313 verbatim
+open scoped BigOperators Classical MatrixGroups
+
+
+-- @@ L315-315 verbatim
+open ActualEisensteinCubic ConcreteTraceCRT CubicJacobiGlobal CubicRamified
+
+-- @@ L316-316 verbatim
+local notation "Eis" => ActualEisensteinCubic.O
+
+
+-- @@ L318-332 verbatim
+lemma hasSum_diagonal_unit_integrals (u t:Eisˣ) (v:ℝ) (hv:0<v) (s freq:ℂ) (hs:2<s.re) :
+    HasSum (fun p:UnitLowerData=>∫z in periodDomain,
+      affineLowerTerm (t:Eis) ((↑u⁻¹:Eis)^2*(t:Eis)) z v s p.1.val p.2.val.val*
+        ShortDraftTrace.breveE (-freq*z))
+      (∫z in periodDomain,eisenstein (integralComplexMatrix (unitCuspDiagonal u)*
+        integralComplexMatrix (lowerCuspMatrix (t:Eis))*upperSection z v hv) s*
+          ShortDraftTrace.breveE (-freq*z)) := by
+  have hh:=(diagonalUnitCuspIndex u t).hasSum_iff.mpr
+    (hasSum_integral_fixed_left_Eisenstein
+      (integralComplexMatrix (unitCuspDiagonal u)*integralComplexMatrix (lowerCuspMatrix (t:Eis)))
+      v hv s freq hs)
+  apply hh.congr_fun
+  intro p
+  apply integral_congr_ae
+  exact Filter.Eventually.of_forall (fun z=>by dsimp only; rw [diagonal_unit_summand])
+
+
+-- @@ L334-349 verbatim
+theorem diagonal_unit_eisenstein_fourier (u t:Eisˣ) (j:ℕ) (h h1:Eis)
+    (hr:(↑u⁻¹:Eis)^2*(t:Eis)=omega^j ∨ (↑u⁻¹:Eis)^2*(t:Eis)=-(omega^j))
+    (hh:h=(t:Eis)*h1) (hfreq:(3:Eis)∣h1+ramifiedAffineParameter j 0)
+    (v:ℝ) (hv:0<v) (s:ℂ) (hs:2<s.re) :
+    (∫z in periodDomain,eisenstein (integralComplexMatrix (unitCuspDiagonal u)*
+      integralComplexMatrix (lowerCuspMatrix (t:Eis))*upperSection z v hv) s*
+        ShortDraftTrace.breveE (-ninthCuspFrequency h*z))=
+      ((v:ℂ)^(2-s)*sourceFourierKernel s (ninthCuspFrequency h*v))*
+        ShortDraftTrace.breveE (ninthCuspFrequency h/eisEmbedding (t:Eis))*
+          unramifiedCubicGaussSeries s (3*((↑u⁻¹:Eis)^2*(t:Eis))^2*h1) := by
+  have hsum:=hasSum_diagonal_unit_integrals u t v hv s (ninthCuspFrequency h) hs
+  rw [←hsum.tsum_eq]
+  have h:=affineCusp_branch_fourier h h1 (t:Eis) ((↑u⁻¹:Eis)^2*(t:Eis)) j 0 t.ne_zero
+    (by simpa using hr) hh hfreq v hv s (by linarith) hsum.summable
+  simpa only [GaussGeneratorTransport.norm_eisEmbedding_unit,one_pow,Complex.ofReal_one,
+    Complex.one_cpow,Ideal.span_singleton_eq_top.mpr t.isUnit,Ideal.absNorm_top,map_one,Nat.cast_one,one_mul] using h
+
+
+-- @@ L351-361 verbatim
+lemma onceCusp_q_norm (t:Eisˣ) (j:Fin 3) :
+    ‖eisEmbedding (onceCuspScale t*omega^j.val)‖^2=3 := by
+  have hw:‖eisEmbedding omega‖=1:=by
+    let w:Eisˣ:=(omega_primitive.isUnit (by decide)).unit
+    have hw:(w:Eis)=omega:=(omega_primitive.isUnit (by decide)).unit_spec
+    rw [←hw]
+    exact GaussGeneratorTransport.norm_eisEmbedding_unit w
+  simp only [onceCuspScale,map_mul,norm_mul,GaussGeneratorTransport.norm_eisEmbedding_unit,
+    one_mul,map_pow,norm_pow,hw,one_pow,mul_one,ramifiedEmbedding_traceLambda]
+  rw [←ramifiedEmbedding_traceLambda,←norm_pow,←map_pow,ramifiedTraceLambda_square]
+  norm_num [map_ofNat]
+
+
+-- @@ L363-367 verbatim
+lemma onceCusp_q_absNorm (t:Eisˣ) (j:Fin 3) :
+    Ideal.absNorm (Ideal.span {onceCuspScale t*omega^j.val})=3 := by
+  have h:=onceCusp_q_norm t j
+  rw [eisEmbedding_norm_sq_eq_absNorm_span] at h
+  exact_mod_cast h
+
+
+-- @@ L369-388 verbatim
+theorem diagonal_once_branch_fourier (u t:Eisˣ) (l:Fin 3) (j:ℕ) (h h1:Eis)
+    (hr:(↑u⁻¹:Eis)^2*(onceCuspScale t*omega^l.val)=omega^j*ramifiedTraceLambda ∨
+      (↑u⁻¹:Eis)^2*(onceCuspScale t*omega^l.val)=-(omega^j*ramifiedTraceLambda))
+    (hh:h=(onceCuspScale t*omega^l.val)*h1) (hfreq:(3:Eis)∣h1+ramifiedAffineParameter j 1)
+    (v:ℝ) (hv:0<v) (s:ℂ) (hs:2<s.re) :
+    (∑'p:UnitLowerData,∫z in periodDomain,
+      affineLowerTerm (onceCuspScale t*omega^l.val)
+        ((↑u⁻¹:Eis)^2*(onceCuspScale t*omega^l.val)) z v s p.1.val p.2.val.val*
+          ShortDraftTrace.breveE (-ninthCuspFrequency h*z))=
+      (3:ℂ)*(3:ℂ)^(-s)*((v:ℂ)^(2-s)*sourceFourierKernel s (ninthCuspFrequency h*v))*
+        ShortDraftTrace.breveE (ninthCuspFrequency h/eisEmbedding (onceCuspScale t*omega^l.val))*
+          unramifiedCubicGaussSeries s
+            (3*((↑u⁻¹:Eis)^2*(onceCuspScale t*omega^l.val))^2*h1) := by
+  have hsum:=(hasSum_diagonal_once_integrals u t v hv s (ninthCuspFrequency h) hs).summable.prod_factor l
+  have hq:onceCuspScale t*omega^l.val≠0:=mul_ne_zero (onceCusp_scale_ne_zero t)
+    (pow_ne_zero _ (omega_primitive.isUnit (by decide)).ne_zero)
+  have h:=affineCusp_branch_fourier h h1 (onceCuspScale t*omega^l.val)
+    ((↑u⁻¹:Eis)^2*(onceCuspScale t*omega^l.val)) j 1 hq (by simpa only [pow_one] using hr)
+      hh hfreq v hv s (by linarith) hsum
+  simpa only [onceCusp_q_norm,onceCusp_q_absNorm,Nat.cast_ofNat,Complex.ofReal_ofNat] using h
+
+
+-- @@ L390-390 verbatim
+end
+
+
+-- @@ L392-392 verbatim
+section
+
+-- @@ L393-393 verbatim
+open MeasureTheory Filter
+
+-- @@ L394-394 verbatim
+open scoped BigOperators Classical ENNReal
+
+
+-- @@ L396-396 verbatim
+open ActualEisensteinCubic ConcreteTraceCRT
+
+-- @@ L397-397 verbatim
+local notation "Eis" => ActualEisensteinCubic.O
+
+
+-- @@ L399-438 verbatim
+theorem quotient_weighted_period_unfold (q:Eis) (hq:q≠0)
+    (ψ:(Eis⧸Ideal.span {q})→ℂ) (f:ℂ→ℂ) (hf:Integrable f) :
+    (∑'n:Eis,ψ (Ideal.Quotient.mk (Ideal.span {q}) n)*
+      ∫z in periodDomain,f (z+3*eisEmbedding n/eisEmbedding q))=
+      (∑'r:Eis⧸Ideal.span {q},ψ r)*(∫z:ℂ,f z) := by
+  let : Finite (Eis⧸Ideal.span {q}):=finite_quotient_span hq
+  let : Fintype (Eis⧸Ideal.span {q}):=Fintype.ofFinite _
+  let I:Eis→ℂ:=fun n=>∫z in periodDomain,f (z+3*eisEmbedding n/eisEmbedding q)
+  have hs:Summable (fun n:Eis=>ψ (Ideal.Quotient.mk (Ideal.span {q}) n)*I n):=by
+    apply (((finite_index_period_integrals_summable q hq f hf).norm).mul_left ‖ψ‖).of_norm_bounded
+    intro n
+    rw [norm_mul]
+    exact mul_le_mul_of_nonneg_right (norm_le_pi_norm ψ _) (norm_nonneg _)
+  have hinner (r:Eis⧸Ideal.span {q}):
+      (∑'n:((Ideal.Quotient.mk (Ideal.span {q})) ⁻¹' {r}),
+        ψ (Ideal.Quotient.mk (Ideal.span {q}) n.val)*I n.val)=ψ r*(∫z:ℂ,f z) := by
+    have heval (n:((Ideal.Quotient.mk (Ideal.span {q})) ⁻¹' {r})):
+        Ideal.Quotient.mk (Ideal.span {q}) n.val=r:=n.2
+    simp_rw [heval]
+    rw [tsum_mul_left,GaussianFiberEquiv.fiber_tsum q hq r (GaussianShiftedPartition.representative q r)
+      (GaussianShiftedPartition.representative_spec q r)]
+    congr 1
+    let b:=3*eisEmbedding (GaussianShiftedPartition.representative q r)/eisEmbedding q
+    have he (n:Eis) (z:ℂ):
+        z+3*eisEmbedding (GaussianShiftedPartition.representative q r+q*n)/eisEmbedding q=
+          (z+3*eisEmbedding n)+b:=by
+      dsimp [b]
+      simp only [map_add,map_mul]
+      field_simp [eisEmbedding_ne_zero hq]
+      ;ring
+    change (∑'n:Eis,∫z in periodDomain,f (z+3*eisEmbedding
+      (GaussianShiftedPartition.representative q r+q*n)/eisEmbedding q))=_
+    simp_rw [he]
+    rw [←integral_eq_period_integrals (fun z=>f (z+b)) (hf.comp_add_right b)]
+    exact integral_add_right_eq_self f b
+  rw [←(hs.hasSum.tsum_fiberwise (Ideal.Quotient.mk (Ideal.span {q})) ).tsum_eq]
+  change (∑'r:Eis⧸Ideal.span {q},∑'n:((Ideal.Quotient.mk (Ideal.span {q})) ⁻¹' {r}),
+    ψ (Ideal.Quotient.mk (Ideal.span {q}) n.val)*I n.val)=_
+  simp_rw [hinner]
+  exact tsum_mul_right
+
+
+-- @@ L440-453 verbatim
+theorem character_weighted_period_unfold (q:Eis) (hq:q≠0)
+    (ψ:AddChar (Eis⧸Ideal.span {q}) ℂ) (f:ℂ→ℂ) (hf:Integrable f) :
+    (∑'n:Eis,ψ (Ideal.Quotient.mk (Ideal.span {q}) n)*
+      ∫z in periodDomain,f (z+3*eisEmbedding n/eisEmbedding q))=
+      if ψ=1 then (Ideal.absNorm (Ideal.span {q}):ℂ)*(∫z:ℂ,f z) else 0 := by
+  let : Finite (Eis⧸Ideal.span {q}):=finite_quotient_span hq
+  let : Fintype (Eis⧸Ideal.span {q}):=Fintype.ofFinite _
+  rw [quotient_weighted_period_unfold q hq ψ f hf,tsum_fintype]
+  split_ifs with hψ
+  · rw [AddChar.sum_eq_card_of_eq_one hψ]
+    congr 1
+    change (Fintype.card (Eis⧸Ideal.span {q}):ℂ)=(Nat.card (Eis⧸Ideal.span {q}):ℂ)
+    rw [Nat.card_eq_fintype_card]
+  · rw [AddChar.sum_eq_zero_of_ne_one hψ,zero_mul]
+
+
+-- @@ L455-455 verbatim
+end
+
+
+-- @@ L457-457 verbatim
+section
+
+-- @@ L458-458 verbatim
+open Filter MeasureTheory
+
+-- @@ L459-459 verbatim
+open scoped BigOperators Classical
+
+
+-- @@ L461-461 verbatim
+open ActualEisensteinCubic ConcreteTraceCRT CubicJacobiGlobal CubicRamified
+
+-- @@ L462-462 verbatim
+local notation "Eis" => ActualEisensteinCubic.O
+
+
+-- @@ L464-466 verbatim
+def affinePeriodChar (q:Eis) (hq:q≠0) (ell:Eis) : AddChar (Eis⧸Ideal.span {q}) ℂ :=
+  (eisTraceModChar ShortDraftTrace.breveE ConcreteBreveE.breveE_period_coordinates q hq).mulShift
+    (Ideal.Quotient.mk (Ideal.span {q}) ell)
+
+
+-- @@ L468-472 verbatim
+lemma affinePeriodChar_mk (q:Eis) (hq:q≠0) (ell x:Eis) :
+    affinePeriodChar q hq ell (Ideal.Quotient.mk (Ideal.span {q}) x)=
+      ShortDraftTrace.breveE (eisEmbedding (ell*x)/(eisEmbedding q*eisLam)) := by
+  simp only [affinePeriodChar,AddChar.mulShift_apply,←map_mul,eisTraceModChar,
+    IdealGaussCRT.traceModChar_mk]
+
+
+-- @@ L474-486 verbatim
+lemma affinePeriodChar_eq_one (q:Eis) (hq:q≠0) (ell:Eis) :
+    affinePeriodChar q hq ell=1 ↔ q∣ell := by
+  constructor
+  · intro h
+    by_contra hd
+    have hz:Ideal.Quotient.mk (Ideal.span {q}) ell≠0:=by
+      intro he
+      exact hd (Ideal.mem_span_singleton.mp (Ideal.Quotient.eq_zero_iff_mem.mp he))
+    exact GeneralPrimitiveTrace.eisTraceModChar_breveE_primitive q hq hz h
+  · intro hd
+    have hz:Ideal.Quotient.mk (Ideal.span {q}) ell=0:=
+      Ideal.Quotient.eq_zero_iff_mem.mpr (Ideal.mem_span_singleton.mpr hd)
+    simp [affinePeriodChar,hz]
+
+
+-- @@ L488-541 verbatim
+lemma affineCusp_general_weighted_translate (h q r a ell x m:Eis) (j n:ℕ)
+    (hprimary:lambda^2∣a-1) (hq:q≠0)
+    (hr:r=omega^j*ramifiedTraceLambda^n ∨ r=-(omega^j*ramifiedTraceLambda^n))
+    (hell:3*ell=h+ramifiedAffineParameter j n*q*a)
+    (z:ℂ) (v:ℝ) (s:ℂ) :
+    affineLowerTerm q r z v s a (a+3*(x+a*m))*ShortDraftTrace.breveE (-ninthCuspFrequency h*z)=
+      affinePeriodChar q hq ell (Ideal.Quotient.mk (Ideal.span {q}) m)*
+        (affineLowerTerm q r (z+3*eisEmbedding m/eisEmbedding q) v s a (a+3*x)*
+          ShortDraftTrace.breveE (-ninthCuspFrequency h*(z+3*eisEmbedding m/eisEmbedding q))) := by
+  let A:=eisEmbedding (ramifiedAffineParameter j n*(a*m))/eisLam/3
+  let delta:=3*eisEmbedding m/eisEmbedding q
+  have hchar:eisEmbedding (symbol r (a+3*(x+a*m)))=
+      eisEmbedding (symbol r (a+3*x))*ShortDraftTrace.breveE A:=by
+    have hd:lambda^2∣a+3*x-1:=primary_add_three a x hprimary
+    have h:=ramified_symbol_primary_shift_signed j n r (a+3*x) (a*m) hr hd
+    convert h using 1 ; congr 2 ;ring
+  have hden:symbol (a+3*(x+a*m)) a=symbol (a+3*x) a:=
+    symbol_congr ⟨3*m,by ring⟩
+  have hrow:eisEmbedding (q*a)*z+eisEmbedding (a+3*(x+a*m))=
+      eisEmbedding (q*a)*(z+delta)+eisEmbedding (a+3*x):=by
+    dsimp [delta]
+    simp only [map_add,map_mul,map_ofNat]
+    field_simp [eisEmbedding_ne_zero hq]
+    ;ring
+  have hell':eisEmbedding ell=(eisEmbedding h+eisEmbedding (ramifiedAffineParameter j n)*eisEmbedding q*eisEmbedding a)/3:=by
+    apply (eq_div_iff (by norm_num : (3:ℂ)≠0)).mpr
+    have he:=congrArg eisEmbedding hell
+    simp only [map_mul,map_add,map_ofNat] at he
+    linear_combination he
+  have harg:A+ninthCuspFrequency h*delta=eisEmbedding (ell*m)/(eisEmbedding q*eisLam):=by
+    dsimp [A,delta,ninthCuspFrequency,cuspFrequency]
+    simp only [map_mul]
+    rw [hell']
+    field_simp [eisEmbedding_ne_zero hq,eisLam_ne_zero]
+    ;ring
+  have hphase:ShortDraftTrace.breveE A*ShortDraftTrace.breveE (-ninthCuspFrequency h*z)=
+      affinePeriodChar q hq ell (Ideal.Quotient.mk (Ideal.span {q}) m)*
+        ShortDraftTrace.breveE (-ninthCuspFrequency h*(z+delta)):=by
+    rw [affinePeriodChar_mk,←harg,←AddChar.map_add_eq_mul,←AddChar.map_add_eq_mul]
+    congr 1
+    ring
+  unfold affineLowerTerm
+  rw [hchar,hden,hrow]
+  change _=affinePeriodChar q hq ell (Ideal.Quotient.mk (Ideal.span {q}) m)*
+    ((eisEmbedding (symbol r (a+3*x))*eisEmbedding (symbol (a+3*x) a))*
+      ((v/(‖eisEmbedding (q*a)*(z+delta)+eisEmbedding (a+3*x)‖^2+
+        ‖eisEmbedding (q*a)‖^2*v^2):ℝ):ℂ)^s*
+          ShortDraftTrace.breveE (-ninthCuspFrequency h*(z+delta)))
+  calc
+    _ = ((eisEmbedding (symbol r (a+3*x))*eisEmbedding (symbol (a+3*x) a))*
+      ((v/(‖eisEmbedding (q*a)*(z+delta)+eisEmbedding (a+3*x)‖^2+
+        ‖eisEmbedding (q*a)‖^2*v^2):ℝ):ℂ)^s)*
+        (ShortDraftTrace.breveE A*ShortDraftTrace.breveE (-ninthCuspFrequency h*z)) := by ring
+    _ = _ := by rw [hphase];ring
+
+
+-- @@ L543-557 verbatim
+lemma affineCusp_masked_inner (h q r a ell x:Eis) (j n:ℕ)
+    (ha:a≠0) (hprimary:lambda^2∣a-1) (hq:q≠0)
+    (hr:r=omega^j*ramifiedTraceLambda^n ∨ r=-(omega^j*ramifiedTraceLambda^n))
+    (hell:3*ell=h+ramifiedAffineParameter j n*q*a)
+    (v:ℝ) (hv:0<v) (s:ℂ) (hs:1<s.re) :
+    (∑'m:Eis,∫z in periodDomain,affineLowerTerm q r z v s a (a+3*(x+a*m))*
+      ShortDraftTrace.breveE (-ninthCuspFrequency h*z))=
+      if q∣ell then (Ideal.absNorm (Ideal.span {q}):ℂ)*
+        (∫z:ℂ,affineLowerTerm q r z v s a (a+3*x)*ShortDraftTrace.breveE (-ninthCuspFrequency h*z)) else 0 := by
+  have hint:=trace_mul_integrable (fun z=>affineLowerTerm q r z v s a (a+3*x))
+    (affineLowerTerm_integrable q r v hv s hs a (a+3*x) ha hq) (ninthCuspFrequency h)
+  simp_rw [affineCusp_general_weighted_translate h q r a ell x _ j n hprimary hq hr hell,
+    integral_const_mul]
+  rw [character_weighted_period_unfold q hq (affinePeriodChar q hq ell) _ hint]
+  simp only [affinePeriodChar_eq_one]
+
+
+-- @@ L559-559 verbatim
+end
+
+
+-- @@ L561-561 verbatim
+open Filter MeasureTheory
+
+-- @@ L562-562 verbatim
+open scoped BigOperators Classical MatrixGroups
+
+
+-- @@ L564-564 verbatim
+open ActualEisensteinCubic ConcreteTraceCRT CubicJacobiGlobal CubicRamified
+
+-- @@ L565-565 verbatim
+local notation "Eis" => ActualEisensteinCubic.O
+
+
+-- @@ L567-607 verbatim
+lemma affineDenominator_zero (h h1 q r:Eis) (j n:ℕ) (a:PrimaryLower)
+    (hq:q≠0) (hr:r=omega^j*ramifiedTraceLambda^n ∨ r=-(omega^j*ramifiedTraceLambda^n))
+    (hh:h=q*h1) (hbase:(3:Eis)∣h+ramifiedAffineParameter j n*q)
+    (hfreq:¬(3:Eis)∣h1+ramifiedAffineParameter j n)
+    (v:ℝ) (hv:0<v) (s:ℂ) (hs:1<s.re)
+    (hsum:Summable (fun d:PrimaryCoprimeDenominator a=>∫z in periodDomain,
+      affineLowerTerm q r z v s a.val d.val.val*ShortDraftTrace.breveE (-ninthCuspFrequency h*z))) :
+    (∑'d:PrimaryCoprimeDenominator a,∫z in periodDomain,
+      affineLowerTerm q r z v s a.val d.val.val*ShortDraftTrace.breveE (-ninthCuspFrequency h*z))=0 := by
+  have hdiv:(3:Eis)∣h+ramifiedAffineParameter j n*q*a.val:=by
+    have ht:=dvd_add hbase (a.2.mul_left (ramifiedAffineParameter j n*q))
+    convert ht using 1 ;ring
+  obtain ⟨ell,hell⟩:=hdiv
+  have hell':3*ell=h+ramifiedAffineParameter j n*q*a.val:=hell.symm
+  have hne:¬q∣ell:=by
+    rintro ⟨b,hb⟩
+    have he:q*(3*b)=q*(h1+ramifiedAffineParameter j n*a.val):=by
+      rw [hb,hh] at hell'
+      linear_combination hell'
+    have hc:=mul_left_cancel₀ hq he
+    have ht:(3:Eis)∣h1+ramifiedAffineParameter j n*a.val:=⟨b,hc.symm⟩
+    apply hfreq
+    have hh:=dvd_sub ht (a.2.mul_left (ramifiedAffineParameter j n))
+    convert hh using 1 ;ring
+  let e:=(cubicResidueElementEquiv a.val (primaryLower_ne_zero a)).trans (primaryDenominatorEquiv a)
+  have hpair:=e.summable_iff.mpr hsum
+  change Summable (fun p:CubicUnitResidue a.val×Eis=>∫z in periodDomain,
+    affineLowerTerm q r z v s a.val (a.val+3*(GaussianShiftedPartition.representative a.val p.1.val+a.val*p.2))*
+      ShortDraftTrace.breveE (-ninthCuspFrequency h*z)) at hpair
+  rw [←e.tsum_eq]
+  change (∑'p:CubicUnitResidue a.val×Eis,∫z in periodDomain,
+    affineLowerTerm q r z v s a.val (a.val+3*(GaussianShiftedPartition.representative a.val p.1.val+a.val*p.2))*
+      ShortDraftTrace.breveE (-ninthCuspFrequency h*z))=_
+  rw [hpair.tsum_prod]
+  have hinner (x:CubicUnitResidue a.val):
+      (∑'m:Eis,∫z in periodDomain,
+        affineLowerTerm q r z v s a.val (a.val+3*(GaussianShiftedPartition.representative a.val x.val+a.val*m))*
+          ShortDraftTrace.breveE (-ninthCuspFrequency h*z))=0:=by
+    rw [affineCusp_masked_inner h q r a.val ell _ j n (primaryLower_ne_zero a)
+      (primaryLower_primary a) hq hr hell' v hv s hs,ite_eq_right hne]
+  simp only [hinner,tsum_zero]
+
+
+-- @@ L609-626 verbatim
+theorem affineCusp_branch_fourier_masked (h h1 q r:Eis) (j n:ℕ)
+    (hq:q≠0) (hr:r=omega^j*ramifiedTraceLambda^n ∨ r=-(omega^j*ramifiedTraceLambda^n))
+    (hh:h=q*h1) (hbase:(3:Eis)∣h+ramifiedAffineParameter j n*q)
+    (v:ℝ) (hv:0<v) (s:ℂ) (hs:1<s.re)
+    (hsum:Summable (fun p:UnitLowerData=>∫z in periodDomain,
+      affineLowerTerm q r z v s p.1.val p.2.val.val*ShortDraftTrace.breveE (-ninthCuspFrequency h*z))) :
+    (∑'p:UnitLowerData,∫z in periodDomain,
+      affineLowerTerm q r z v s p.1.val p.2.val.val*ShortDraftTrace.breveE (-ninthCuspFrequency h*z))=
+      if (3:Eis)∣h1+ramifiedAffineParameter j n then
+        (Ideal.absNorm (Ideal.span {q}):ℂ)*((‖eisEmbedding q‖^2:ℝ):ℂ)^(-s)*
+          ((v:ℂ)^(2-s)*sourceFourierKernel s (ninthCuspFrequency h*v))*
+            ShortDraftTrace.breveE (ninthCuspFrequency h/eisEmbedding q)*
+              unramifiedCubicGaussSeries s (3*r^2*h1) else 0 := by
+  split_ifs with hfreq
+  · exact affineCusp_branch_fourier h h1 q r j n hq hr hh hfreq v hv s hs hsum
+  · rw [hsum.tsum_sigma]
+    simp only [affineDenominator_zero h h1 q r j n _ hq hr hh hbase hfreq v hv s hs
+      (hsum.sigma_factor _),tsum_zero]
+
+
+-- @@ L628-652 verbatim
+theorem diagonal_once_eisenstein_fourier (u t:Eisˣ) (j:Fin 3→ℕ) (h:Eis) (h1:Fin 3→Eis)
+    (hr:∀l,(↑u⁻¹:Eis)^2*(onceCuspScale t*omega^l.val)=omega^(j l)*ramifiedTraceLambda ∨
+      (↑u⁻¹:Eis)^2*(onceCuspScale t*omega^l.val)=-(omega^(j l)*ramifiedTraceLambda))
+    (hh:∀l,h=(onceCuspScale t*omega^l.val)*h1 l)
+    (hbase:∀l,(3:Eis)∣h+ramifiedAffineParameter (j l) 1*(onceCuspScale t*omega^l.val))
+    (v:ℝ) (hv:0<v) (s:ℂ) (hs:2<s.re) :
+    (∫z in periodDomain,eisenstein (integralComplexMatrix (unitCuspDiagonal u)*
+      integralComplexMatrix (lowerCuspMatrix (onceCuspScale t))*upperSection z v hv) s*
+        ShortDraftTrace.breveE (-ninthCuspFrequency h*z))=
+      ∑l:Fin 3,if (3:Eis)∣h1 l+ramifiedAffineParameter (j l) 1 then
+        (3:ℂ)*(3:ℂ)^(-s)*((v:ℂ)^(2-s)*sourceFourierKernel s (ninthCuspFrequency h*v))*
+          ShortDraftTrace.breveE (ninthCuspFrequency h/eisEmbedding (onceCuspScale t*omega^l.val))*
+            unramifiedCubicGaussSeries s
+              (3*((↑u⁻¹:Eis)^2*(onceCuspScale t*omega^l.val))^2*h1 l) else 0 := by
+  have hsum:=hasSum_diagonal_once_integrals u t v hv s (ninthCuspFrequency h) hs
+  rw [←hsum.tsum_eq,hsum.summable.tsum_prod,tsum_fintype]
+  apply Finset.sum_congr rfl
+  intro l hl
+  have hq:onceCuspScale t*omega^l.val≠0:=mul_ne_zero (onceCusp_scale_ne_zero t)
+    (pow_ne_zero _ (omega_primitive.isUnit (by decide)).ne_zero)
+  have h:=affineCusp_branch_fourier_masked h (h1 l) (onceCuspScale t*omega^l.val)
+    ((↑u⁻¹:Eis)^2*(onceCuspScale t*omega^l.val)) (j l) 1 hq
+      (by simpa only [pow_one] using hr l) (hh l) (hbase l) v hv s (by linarith)
+        (hsum.summable.prod_factor l)
+  simpa only [onceCusp_q_norm,onceCusp_q_absNorm,Nat.cast_ofNat,Complex.ofReal_ofNat] using h
+
+
+-- @@ L654-654 verbatim
+end CubicEisenstein
+
+
+-- @@ L656-656 verbatim
+end
+
+
+-- @@ L658-658 verbatim
+end OAI

@@ -1,0 +1,69 @@
+import OAI.NumberTheory.DirichletL.Moments.DetectorDictionary
+import OAI.NumberTheory.DirichletL.Detector.RayPoolGood
+
+
+-- @@ L4-4 verbatim
+namespace OAI
+
+
+-- @@ L6-6 verbatim
+noncomputable section
+
+-- @@ L7-7 verbatim
+open scoped Classical Topology
+
+-- @@ L8-8 verbatim
+open Filter
+
+-- @@ L9-9 verbatim
+namespace SevenEighths.CenteredMomentDetectorDictionary
+
+-- @@ L10-10 verbatim
+open HeckeFamily CenteredMomentPrimeSlot
+
+-- @@ L11-11 verbatim
+local notation "O" => HeckeFamily.O
+
+
+-- @@ L13-23 verbatim
+lemma annular_prime_coprime (η : Character) (a D : ℝ) (ha : 0<a) (hD : 0<D)
+    (hlarge : (η.modulus.absNorm:ℝ)/a<D)
+    (W : ℝ→ℂ) (hs : Function.support W⊆Set.Ici a)
+    (P : Ideal O) (hp : Prime P) (hW : W ((P.absNorm:ℝ)/D)≠0) :
+    IsCoprime P η.modulus := by
+  apply ProbeRaySlots.prime_coprime_of_norm_gt η ⟨P,hp⟩
+  have hlo : a*D≤(P.absNorm:ℝ) := (le_div_iff₀ hD).mp (hs hW)
+  have hh : (η.modulus.absNorm:ℝ)<a*D := by
+    have hh := (div_lt_iff₀ ha).mp hlarge
+    nlinarith
+  exact hh.trans_le hlo
+
+
+-- @@ L25-31 verbatim
+theorem eventually_primePool_coprime (η : Character) (a : ℝ) (ha : 0<a) :
+    ∀ᶠD : ℝ in atTop,∀(M : Ideal O)(H : Subgroup (O⧸M)ˣ)(W : ℝ→ℂ)(b : ℝ),
+      Function.support W⊆Set.Ici a →
+      ∀P∈primePool M H b D,W ((P.absNorm:ℝ)/D)≠0→IsCoprime P η.modulus := by
+  filter_upwards [eventually_gt_atTop (0:ℝ),eventually_gt_atTop ((η.modulus.absNorm:ℝ)/a)] with D hD hlarge
+  intro M H W b hs P hP hW
+  exact annular_prime_coprime η a D ha hD hlarge W hs P (Finset.mem_filter.mp hP).2.1 hW
+
+
+-- @@ L33-37 verbatim
+theorem eventually_primePool_power_coprime (η : Character) (a ell : ℝ) (ha : 0<a) (hell : 0<ell) :
+    ∀ᶠZ : ℝ in atTop,∀(M : Ideal O)(H : Subgroup (O⧸M)ˣ)(W : ℝ→ℂ)(b : ℝ),
+      Function.support W⊆Set.Ici a →
+      ∀P∈primePool M H b (Z^ell),W ((P.absNorm:ℝ)/(Z^ell))≠0→IsCoprime P η.modulus :=
+  (tendsto_rpow_atTop hell).eventually (eventually_primePool_coprime η a ha)
+
+
+-- @@ L39-39 verbatim
+end SevenEighths.CenteredMomentDetectorDictionary
+
+
+-- @@ L41-41 verbatim
+end
+
+
+-- @@ L43-43 verbatim
+end OAI

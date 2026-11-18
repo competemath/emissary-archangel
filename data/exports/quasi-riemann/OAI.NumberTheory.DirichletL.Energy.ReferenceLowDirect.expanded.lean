@@ -1,0 +1,120 @@
+import OAI.NumberTheory.DirichletL.Energy.ReferenceLowChild
+
+
+-- @@ L3-3 verbatim
+namespace OAI
+
+
+-- @@ L5-5 verbatim
+noncomputable section
+
+-- @@ L6-6 verbatim
+open scoped Classical BigOperators SchwartzMap
+
+
+-- @@ L8-8 verbatim
+namespace SevenEighths.CenteredMomentEnergyReferenceLowDirect
+
+-- @@ L9-9 verbatim
+open HeckeFamily HeckeDyadic ConcreteTraceCRT
+
+-- @@ L10-10 verbatim
+open CenteredMomentEnergyState CenteredMomentEnergyBands
+
+-- @@ L11-11 verbatim
+open CenteredMomentEnergyReferenceLowBands CenteredMomentEnergyReferenceState
+
+-- @@ L12-12 verbatim
+open CenteredMomentEnergyReferenceChild CenteredMomentEnergyReferenceChildProfiles
+
+-- @@ L13-13 verbatim
+open CenteredMomentNaturalFixedRaySource CenteredMomentInductionEnergy
+
+-- @@ L14-14 verbatim
+open CenteredMomentPrimeSlot CenteredMomentFiniteProfileExceptional QuadraticInitialBound
+
+-- @@ L15-15 verbatim
+open CenteredMomentOriginalRadialComparison CenteredMomentCommonMaskExpansion
+
+-- @@ L16-16 verbatim
+open CenteredMomentCommonMaskEnergy CenteredMomentAllocatedNaturalRadial
+
+-- @@ L17-17 verbatim
+open CenteredMomentScaleSupremum CenteredMomentSectorLocalization
+
+-- @@ L18-18 verbatim
+local notation "O"=>HeckeFamily.O
+
+
+-- @@ L20-20 verbatim
+open CenteredMomentEnergyReferenceLowChild
+
+
+-- @@ L22-22 verbatim
+variable {α:Type*}[Fintype α][DecidableEq α]
+
+-- @@ L23-23 verbatim
+variable (M:Ideal O)[NeZero M]
+
+-- @@ L24-24 verbatim
+local instance : Finite (O⧸M):=Ring.HasFiniteQuotients.finiteQuotient (NeZero.ne M)
+
+-- @@ L25-25 verbatim
+variable (H:Subgroup (O⧸M)ˣ)(hH:RayOrthogonality.globalUnits M≤H)
+
+
+-- @@ L27-68 verbatim
+theorem direct_child_from_low
+    (Wslot:ℝ→ℂ)(bslot a b bΦ Bmask L Lslot lo hi Mcap ε κ Z:ℝ)
+    (η₀:Character)(Q:Ideal O)(degree:ℕ)(S:Finset (ℕ×ℕ))(C:ℝ)
+    (hlow:PositiveLowAt (α:=α) M H hH Wslot bslot a b bΦ Bmask L Lslot lo hi
+      Mcap ε κ Z η₀ Q degree S C)
+    (hB:0≤Bmask)(ha:0<a)
+    (F:Finset α)(θ:α→RayQuotient.Characters M H)(w σ freq:α→ℝ)(t height:ℝ)
+    (hw:∀i,0≤w i)(hwL:∀i,w i≤Lslot)(hσlo:∀i,lo≤σ i)(hσhi:∀i,σ i≤hi)
+    (hheight:0≤height)(hfreq:∀i,|freq i|≤height)
+    (s:NaturalState Z Bmask bΦ)(hQ:s.fixedModulus=internalQ Q η₀)(hs:s.width≤Mcap)
+    (W₁ W₂:𝓢(ℝ,ℂ))(hs₁:Function.support (W₁:ℝ→ℂ)⊆Set.Icc a b)
+    (hs₂:Function.support (W₂:ℝ→ℂ)⊆Set.Icc a b)(X₁ X₂:ℝ)(hX₁:0<X₁)(hX₂:0<X₂)(hc₁:X₁≤Z^L)(hc₂:X₂≤Z^L)
+    (hcapacity:length Z X₁+length Z X₂+6*κ*(∑i∈F,w i)≤s.width)
+    (hsmall:length Z X₁+length Z X₂+(∑i∈F,w i)≤5*s.width/6):
+    radialEnergy (fun z=>polynomial (naturalCharacter s.character z) false
+      W₁ X₁ 0 t*
+      polynomial (naturalCharacter s.character z) false W₂ X₂ 0 t *
+      ∏i∈F,naturalSlot (naturalCharacter s.character z)
+        (primePool M H bslot (Z^(w i)))
+        (heightCoefficient (fun I=>idealCoeff (relativeCharacter M H hH η₀ (θ i)) I*
+          HeckePrimeAnnular.annularWeight Wslot (Z^(w i)) (σ i) (freq i) I) t) (Z^(w i)))
+      (effectiveState s).radial.keep s.radial.profile s.radial.scale≤
+      C*diagonalControl s.radial.profile*
+        ((independentProfiles ha W₁ W₂ hs₁ hs₂ t t).control S)^2*
+        (1+|t|+height)^degree*Z^(s.width+ε):=by
+  have hZ:0<Z:=zero_lt_one.trans_le s.base_ge_one
+  have hh:=hlow F (fun i=>θ i) (fun i=>w i) (fun i=>σ i) (fun i=>t+freq i)
+    0 (|t|+height) (fun i=>hw i) (fun i=>hwL i) (fun i=>hσlo i) (fun i=>hσhi i)
+    (add_nonneg (abs_nonneg t) hheight)
+    (fun i=>(abs_add_le t (freq i)).trans (add_le_add le_rfl (hfreq i)))
+    (unitBudgetState s hB) hQ hs (independentProfiles ha W₁ W₂ hs₁ hs₂ t t)
+    X₁ X₂ hX₁ hX₂ hc₁ hc₂
+    (by simpa only [Finset.sum_coe_sort,unitBudgetState,unpuncturedState,NaturalState.width] using hcapacity)
+    (by simpa only [Finset.sum_coe_sort,unitBudgetState,unpuncturedState,NaturalState.width] using hsmall)
+  rw [independent_child_ray_energy s ha W₁ W₂ hs₁ hs₂ F
+    (fun i=>primePool M H bslot (Z^(w i)))
+    (fun i=>relativeCharacter M H hH η₀ (θ i)) (fun _=>Wslot)
+    (fun i=>Z^(w i)) σ freq
+    (fun i _ I hI=>(Finset.mem_filter.mp hI).2.1)
+    (fun i _=>Real.rpow_pos_of_pos hZ _) t t t X₁ X₂ hX₁ hX₂]
+  simpa only [unitBudgetState,unpuncturedState,NaturalState.width,
+    NaturalState.mask,effectiveState,effectiveRadial,abs_zero,add_zero,add_assoc] using hh
+
+
+-- @@ L70-70 verbatim
+end SevenEighths.CenteredMomentEnergyReferenceLowDirect
+
+
+-- @@ L72-72 verbatim
+end
+
+
+-- @@ L74-74 verbatim
+end OAI

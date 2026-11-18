@@ -1,0 +1,95 @@
+import OAI.NumberTheory.DirichletL.Moments.RankinCount
+import OAI.NumberTheory.DirichletL.Moments.SecondDiagonal
+
+
+-- @@ L4-4 verbatim
+namespace OAI
+
+
+-- @@ L6-6 verbatim
+noncomputable section
+
+-- @@ L7-7 verbatim
+open scoped BigOperators Classical
+
+-- @@ L8-8 verbatim
+namespace SevenEighths.CenteredMomentRankinRadical
+
+-- @@ L9-9 verbatim
+open IdealMobiusDivisorSum UniqueFactorizationMonoid CenteredMomentDivisorAllocation
+
+-- @@ L10-10 verbatim
+local notation "O" => ActualEisensteinCubic.O
+
+
+-- @@ L12-13 verbatim
+def commonRadical (I J : Ideal O) : Ideal O :=
+  ∏ P ∈ primeSupport I ∩ primeSupport J,P
+
+
+-- @@ L15-16 verbatim
+theorem commonRadical_ne_zero (I J : Ideal O) : commonRadical I J ≠ 0 :=
+  support_product_ne_zero Finset.inter_subset_left
+
+
+-- @@ L18-19 verbatim
+theorem commonRadical_squarefree (I J : Ideal O) : Squarefree (commonRadical I J) :=
+  squarefree_support_product Finset.inter_subset_left
+
+
+-- @@ L21-25 verbatim
+theorem commonRadical_support (I J : Ideal O) :
+    primeSupport (commonRadical I J)=primeSupport I∩primeSupport J := by
+  unfold primeSupport commonRadical
+  rw [factors_support_product Finset.inter_subset_left]
+  simp [primeSupport]
+
+
+-- @@ L27-40 verbatim
+theorem old_mask_dvd_commonRadical (s I J : Ideal O) (hs : Squarefree s)
+    (hI : I ≠ 0) (hJ : J ≠ 0) (hsI : s ∣ I) (hsJ : s ∣ J) :
+    s ∣ commonRadical I J := by
+  apply (squarefree_dvd_iff s _ hs).mpr
+  intro P hP
+  have hp := support_prime hP
+  have hd := dvd_of_mem_normalizedFactors (Multiset.mem_toFinset.mp hP)
+  have hi : P ∈ primeSupport I := by
+    simpa only [primeSupport,Multiset.mem_toFinset,mem_normalizedFactors_iff hI,hp,true_and]
+      using hd.trans hsI
+  have hj : P ∈ primeSupport J := by
+    simpa only [primeSupport,Multiset.mem_toFinset,mem_normalizedFactors_iff hJ,hp,true_and]
+      using hd.trans hsJ
+  exact Finset.dvd_prod_of_mem id (Finset.mem_inter.mpr ⟨hi,hj⟩)
+
+
+-- @@ L42-59 verbatim
+theorem old_mask_radical_count {α : Type*} (S : Finset α) (I J : α → Ideal O)
+    (s : Ideal O) (hs : Squarefree s) (hs0 : s ≠ 0)
+    (hI : ∀ a ∈ S,I a ≠ 0) (hJ : ∀ a ∈ S,J a ≠ 0)
+    (hsi : ∀ a ∈ S,s ∣ I a) (hsj : ∀ a ∈ S,s ∣ J a)
+    (Y : ℝ) (hY : 0 ≤ Y)
+    (hN : ∀ a ∈ S,(Ideal.absNorm (commonRadical (I a) (J a)):ℝ) ≤ Y) :
+    ((S.image (fun a => commonRadical (I a) (J a))).card:ℝ) ≤
+      128*Y/(Ideal.absNorm s:ℝ) := by
+  refine CenteredMomentSecondDiagonal.divisible_ideal_card _ s hs0 ?_ ?_ Y hY ?_
+  · intro R hR
+    obtain ⟨a,ha,rfl⟩ := Finset.mem_image.mp hR
+    exact commonRadical_ne_zero _ _
+  · intro R hR
+    obtain ⟨a,ha,rfl⟩ := Finset.mem_image.mp hR
+    exact old_mask_dvd_commonRadical s _ _ hs (hI a ha) (hJ a ha) (hsi a ha) (hsj a ha)
+  · intro R hR
+    obtain ⟨a,ha,rfl⟩ := Finset.mem_image.mp hR
+    exact hN a ha
+
+
+-- @@ L61-61 verbatim
+end SevenEighths.CenteredMomentRankinRadical
+
+
+-- @@ L63-63 verbatim
+end
+
+
+-- @@ L65-65 verbatim
+end OAI

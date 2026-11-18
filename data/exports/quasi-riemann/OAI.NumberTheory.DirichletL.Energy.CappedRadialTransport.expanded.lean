@@ -1,0 +1,84 @@
+import OAI.NumberTheory.DirichletL.Energy.CappedWidthInduction
+
+
+-- @@ L3-3 verbatim
+namespace OAI
+
+
+-- @@ L5-5 verbatim
+noncomputable section
+
+-- @@ L6-6 verbatim
+open scoped Classical
+
+-- @@ L7-7 verbatim
+open Filter
+
+
+-- @@ L9-9 verbatim
+namespace SevenEighths.CenteredMomentEnergyCappedRadialTransport
+
+-- @@ L10-10 verbatim
+open HeckeFamily CenteredMomentEnergyCappedWidthInduction
+
+-- @@ L11-11 verbatim
+open CenteredMomentEnergyBandMonotonicity
+
+-- @@ L12-12 verbatim
+local notation "O" => HeckeFamily.O
+
+-- @@ L13-13 verbatim
+variable {α : Type*}
+
+-- @@ L14-14 verbatim
+variable (M : Ideal O) [NeZero M]
+
+-- @@ L15-15 verbatim
+local instance : Finite (O ⧸ M) := Ring.HasFiniteQuotients.finiteQuotient (NeZero.ne M)
+
+-- @@ L16-16 verbatim
+variable (H : Subgroup (O ⧸ M)ˣ) (hH : RayOrthogonality.globalUnits M ≤ H)
+
+
+-- @@ L18-36 verbatim
+theorem certified_radial_mono (W : ℝ → ℂ)
+    (bslot a b radialOld radialNew Bmask L lo hi Mcap κ ε : ℝ) (k : ℕ)
+    (hrad : radialNew ≤ radialOld)
+    (h : CertifiedBand (α := α) M H hH W bslot a b radialOld Bmask L lo hi Mcap κ ε k) :
+    CertifiedBand (α := α) M H hH W bslot a b radialNew Bmask L lo hi Mcap κ ε k := by
+  obtain ⟨degree, S, hbound⟩ := h
+  refine ⟨degree, S, ?_⟩
+  intro η₀ Q hQM hQ0 hQt hQ72
+  obtain ⟨Czero, Cpositive, hCzero, hCpositive, hcert⟩ := hbound η₀ Q hQM hQ0 hQt hQ72
+  refine ⟨Czero, Cpositive, hCzero, hCpositive, ?_⟩
+  filter_upwards [hcert] with Z hZ
+  refine ⟨hZ.1, ?_, ?_⟩
+  · exact zeroAt_transport _ _ _ _ _ _ _ _ Z _ _ _ _ _ _ _
+      degree degree S S Czero Czero hZ.1.le le_rfl le_rfl hrad le_rfl
+      le_rfl le_rfl le_rfl le_rfl (Finset.Subset.refl _) hCzero.le le_rfl hZ.2.1
+  · exact positiveAt_transport (α := α) M H hH W bslot _ _ _ _ _ _ _ _ _ _ κ Z
+      _ _ _ _ _ _ _ η₀ Q degree degree S S Cpositive Cpositive hZ.1.le
+      le_rfl le_rfl hrad le_rfl le_rfl le_rfl le_rfl le_rfl (Finset.Subset.refl _)
+      hCpositive.le le_rfl hZ.2.2
+
+
+-- @@ L38-44 verbatim
+theorem certified_from_max_two (W : ℝ → ℂ)
+    (bslot a b radial Bmask L lo hi Mcap κ ε : ℝ) (k : ℕ)
+    (h : CertifiedBand (α := α) M H hH W bslot a b (max 2 radial)
+      Bmask L lo hi Mcap κ ε k) :
+    CertifiedBand (α := α) M H hH W bslot a b radial Bmask L lo hi Mcap κ ε k :=
+  certified_radial_mono (α := α) M H hH W bslot a b (max 2 radial) radial
+    Bmask L lo hi Mcap κ ε k (le_max_right _ _) h
+
+
+-- @@ L46-46 verbatim
+end SevenEighths.CenteredMomentEnergyCappedRadialTransport
+
+
+-- @@ L48-48 verbatim
+end
+
+
+-- @@ L50-50 verbatim
+end OAI

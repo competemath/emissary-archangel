@@ -1,0 +1,200 @@
+import OAI.NumberTheory.DirichletL.Moments.FirstMixedExceptionalCap
+import OAI.NumberTheory.DirichletL.Moments.FirstMixedCommonRadius
+import OAI.NumberTheory.DirichletL.Moments.FirstMixedNormalizationActual
+
+
+-- @@ L5-5 verbatim
+namespace OAI
+
+
+-- @@ L7-7 verbatim
+noncomputable section
+
+-- @@ L8-8 verbatim
+open scoped Classical BigOperators
+
+
+-- @@ L10-10 verbatim
+namespace SevenEighths.CenteredMomentFirstMixedExceptionalLow
+
+-- @@ L11-11 verbatim
+open HeckeFamily CanonicalQuadraticSieve CompletedGauss ActualEisensteinCubic ConcreteTraceCRT
+
+-- @@ L12-12 verbatim
+open CenteredMomentCommonRadialData CenteredMomentCommonAllocationSum CenteredMomentCommonProfile
+
+-- @@ L13-13 verbatim
+open CenteredMomentAmplificationChildInput CenteredMomentAmplificationChildSourceCaps
+
+-- @@ L14-14 verbatim
+open CenteredMomentFirstMixedAllowance CenteredMomentFirstMixedChild
+
+-- @@ L15-15 verbatim
+open CenteredMomentFirstMixedNormalizationActual CenteredMomentFirstExceptionalChildPaid
+
+-- @@ L16-16 verbatim
+open CenteredMomentFirstPhysicalSource CenteredMomentFirstExceptionalPrefactor CenteredMomentFirstScale
+
+-- @@ L17-17 verbatim
+open CenteredMomentCommonRadiusSaving CenteredMomentFirstAmplificationChoice
+
+-- @@ L18-18 verbatim
+open CenteredMomentAmplifiedRetainedRadius CenteredMomentSectorLocalization
+
+-- @@ L19-19 verbatim
+open CenteredMomentDescentLedger CenteredMomentCompleteCommon CenteredMomentCanonicalFirst
+
+-- @@ L20-20 verbatim
+open CenteredMomentPrimeElements CenteredMomentPrimePool CenteredMomentRankinRadical
+
+-- @@ L21-21 verbatim
+open CenteredMomentSecondHeightFamily CenteredMomentAmplificationErrorEnergy
+
+-- @@ L22-22 verbatim
+local notation "O"=>HeckeFamily.O
+
+-- @@ L23-23 verbatim
+local instance {κ:Type*}:DecidableEq κ:=Classical.decEq _
+
+
+-- @@ L25-25 verbatim
+open CenteredMomentFirstMixedExceptionalCap CenteredMomentFirstMixedCommonRadius
+
+
+-- @@ L27-64 verbatim
+theorem actual_main_exceptional_reference (η τ : Character)
+    (I J E : Ideal O) (hI : Supported I) (hJ : Supported J)
+    (hIJ:primeSupport I=primeSupport J)
+    (A : Finset (CommonIndex I J)) (hE:E=Ideal.span {primeSubsetGenerator (fun P:CommonIndex I J=>P.val) A})
+    (K X Z j sigma delta reserve r : ℝ) (hZ : 1<Z)
+    (hmod : τ.modulus=η.modulus*Ideal.span {fixedBadMask}*Ideal.span {(72:O)}*
+      Ideal.span {primeSubsetGenerator (fun P : CommonIndex I J => P.val) A*activeConductor I J})
+    (hK:0<K)(hX:0<X) :
+    ((X/(I.absNorm:ℝ))*(X/(I.absNorm:ℝ))^((1:ℝ)/3)*(mainCommonRadius Z (Real.logb Z (J.absNorm:ℝ)) (nominalLog I J E K X Z) (Real.logb Z (I.absNorm:ℝ)) sigma delta reserve)^((5:ℝ)/6)*Z^(-sigma/3)/((τ.modulus.absNorm:ℝ)*(X/(I.absNorm:ℝ))^2*Z^(allowance I J Z)))*Z^(-2*max r 0/3)≤
+      Z^(Real.logb Z X-5*(Real.logb Z K+Real.logb Z (η.modulus.absNorm:ℝ))/6+4*sigma/3+5*(delta+reserve)/6):=by
+  have hz:0<Z:=zero_lt_one.trans hZ
+  have hf:=fixed_presentation_log_nonneg Z hZ
+  have hr : 0 ≤ max r 0 := le_max_right _ _
+  have hi : 0 ≤ Real.logb Z (I.absNorm:ℝ) := by
+    apply Real.logb_nonneg hZ
+    exact_mod_cast Nat.one_le_iff_ne_zero.mpr (Ideal.absNorm_eq_zero_iff.not.mpr hI.1)
+  have hc:=commonPart_of_equal_support I J hI.1 hIJ
+  have hd:=commonPart_of_equal_support J I hJ.1 hIJ.symm
+  have hs:=actual_main_column_saving η τ fixedBadMask I J E hI hJ A
+    K X Z j sigma delta reserve hZ hmod
+  dsimp only at hs
+  simp only [hc,hd,extracted_allowance_eq I J hI.1 hJ.1 hIJ Z] at hs
+  have he:=(actual_exceptional_reference η τ I J hI hJ hIJ A K X Z j
+    (Real.logb Z (mainCommonRadius Z (Real.logb Z (J.absNorm:ℝ)) (nominalLog I J E K X Z) (Real.logb Z (I.absNorm:ℝ)) sigma delta reserve)-j) 0 0 (sigma/3) hK hX hZ hmod).le
+  rw [←hE] at he
+  have hrad:0<mainCommonRadius Z (Real.logb Z (J.absNorm:ℝ)) (nominalLog I J E K X Z) (Real.logb Z (I.absNorm:ℝ)) sigma delta reserve:=by unfold mainCommonRadius;positivity
+  rw [show j+(Real.logb Z (mainCommonRadius Z (Real.logb Z (J.absNorm:ℝ)) (nominalLog I J E K X Z) (Real.logb Z (I.absNorm:ℝ)) sigma delta reserve)-j)=Real.logb Z (mainCommonRadius Z (Real.logb Z (J.absNorm:ℝ)) (nominalLog I J E K X Z) (Real.logb Z (I.absNorm:ℝ)) sigma delta reserve) by ring,
+    Real.rpow_logb hz hZ.ne' hrad] at he
+  simp only [neg_zero,Real.rpow_zero,mul_one,div_one] at he
+  have hexp:-sigma/3=-(sigma/3):=by ring
+  rw [hexp]
+  have hmul:=mul_le_mul_of_nonneg_right he
+    (Real.rpow_nonneg hz.le (-2*max r 0/3))
+  apply hmul.trans
+  rw [←Real.rpow_add hz]
+  apply Real.rpow_le_rpow_of_exponent_le hZ.le
+  simp only [nominalLog] at hs ⊢
+  linarith
+
+
+-- @@ L66-111 verbatim
+theorem actual_error_exceptional_reference (η τ : Character)
+    (I J E : Ideal O) (hI : Supported I) (hJ : Supported J)
+    (hIJ:primeSupport I=primeSupport J)
+    (A : Finset (CommonIndex I J)) (hE:E=Ideal.span {primeSubsetGenerator (fun P:CommonIndex I J=>P.val) A})
+    (K X Z j sigma delta reserve r : ℝ) (hZ : 1<Z)
+    (hmod : τ.modulus=η.modulus*Ideal.span {fixedBadMask}*Ideal.span {(72:O)}*
+      Ideal.span {primeSubsetGenerator (fun P : CommonIndex I J => P.val) A*activeConductor I J})
+    (M : Ideal O) [NeZero M] (H : Subgroup (O ⧸ M)ˣ)
+    (Sbad : Finset (Ideal O)) (hbad : fixedBadPrimes⊆Sbad)
+    (p0 : O) (hp0 : p0∈CenteredMomentPrimeElements.elementPool
+      (CenteredMomentPrimePool.primePool M H Sbad (1/2) 1 (Z^(sigma/3))))
+    (k : ℕ) (hk : k=1 ∨ k=6 ∨ k=7)
+    (hK:0<K)(hX:0<X) :
+    ((X/(I.absNorm:ℝ))*localErrorCost p0 (k-1)*(X/(I.absNorm:ℝ)/(normValue p0)^k)^((1:ℝ)/3)*(errorCommonRadius Z (Real.logb Z (J.absNorm:ℝ)) (nominalLog I J E K X Z) (Real.logb Z (I.absNorm:ℝ)) sigma delta reserve p0 k)^((5:ℝ)/6)/((τ.modulus.absNorm:ℝ)*(X/(I.absNorm:ℝ))^2*Z^(allowance I J Z)))*Z^(-2*max r 0/3)≤
+      Z^(Real.logb Z X-5*(Real.logb Z K+Real.logb Z (η.modulus.absNorm:ℝ))/6+3*sigma/2+5*(delta+reserve)/6):=by
+  have hz:0<Z:=zero_lt_one.trans hZ
+  have hf:=fixed_presentation_log_nonneg Z hZ
+  have hr : 0 ≤ max r 0 := le_max_right _ _
+  have hi : 0 ≤ Real.logb Z (I.absNorm:ℝ) := by
+    apply Real.logb_nonneg hZ
+    exact_mod_cast Nat.one_le_iff_ne_zero.mpr (Ideal.absNorm_eq_zero_iff.not.mpr hI.1)
+  have hc:=commonPart_of_equal_support I J hI.1 hIJ
+  have hd:=commonPart_of_equal_support J I hJ.1 hIJ.symm
+  have hs:=actual_error_column_saving η τ fixedBadMask I J E hI hJ A
+    K X Z j sigma delta reserve hZ hmod M H Sbad hbad p0 hp0 k hk
+  dsimp only at hs
+  simp only [hc,hd,extracted_allowance_eq I J hI.1 hJ.1 hIJ Z] at hs
+  have hp:=elementPool_data _
+    (fun Q hQ=>(primePool_data M H Sbad hbad (1/2) 1 (Z^(sigma/3)) Q hQ).1)
+    (fun Q hQ=>(primePool_data M H Sbad hbad (1/2) 1 (Z^(sigma/3)) Q hQ).2) p0 hp0
+  have hl : 0 ≤ Real.logb Z (normValue p0) :=
+    Real.logb_nonneg hZ (normValue_ge_one p0 hp.1.ne_zero)
+  have hw : 0 ≤ errorRemoval p0 Z k := by unfold errorRemoval; positivity
+  have he:=actual_error_reference_le η τ I J hI hJ hIJ A K X Z j
+    (Real.logb Z (errorCommonRadius Z (Real.logb Z (J.absNorm:ℝ)) (nominalLog I J E K X Z) (Real.logb Z (I.absNorm:ℝ)) sigma delta reserve p0 k)-j) hK hX hZ hmod p0 hp.1.ne_zero k hk
+  rw [←hE] at he
+  have hrad:0<errorCommonRadius Z (Real.logb Z (J.absNorm:ℝ)) (nominalLog I J E K X Z) (Real.logb Z (I.absNorm:ℝ)) sigma delta reserve p0 k:=by unfold errorCommonRadius;positivity
+  rw [show j+(Real.logb Z (errorCommonRadius Z (Real.logb Z (J.absNorm:ℝ)) (nominalLog I J E K X Z) (Real.logb Z (I.absNorm:ℝ)) sigma delta reserve p0 k)-j)=Real.logb Z (errorCommonRadius Z (Real.logb Z (J.absNorm:ℝ)) (nominalLog I J E K X Z) (Real.logb Z (I.absNorm:ℝ)) sigma delta reserve p0 k) by ring,
+    Real.rpow_logb hz hZ.ne' hrad] at he
+  have hmul:=mul_le_mul_of_nonneg_right he
+    (Real.rpow_nonneg hz.le (-2*max r 0/3))
+  apply hmul.trans
+  rw [←Real.rpow_add hz]
+  apply Real.rpow_le_rpow_of_exponent_le hZ.le
+  simp only [nominalLog] at hs ⊢
+  linarith
+
+
+-- @@ L113-125 verbatim
+theorem actual_main_exceptional_low (η τ : Character)
+    (I J E : Ideal O) (hI : Supported I) (hJ : Supported J)
+    (hIJ:primeSupport I=primeSupport J)
+    (A : Finset (CommonIndex I J)) (hE:E=Ideal.span {primeSubsetGenerator (fun P:CommonIndex I J=>P.val) A})
+    (K X Z j sigma delta reserve r : ℝ) (hZ : 1<Z)
+    (hmod : τ.modulus=η.modulus*Ideal.span {fixedBadMask}*Ideal.span {(72:O)}*
+      Ideal.span {primeSubsetGenerator (fun P : CommonIndex I J => P.val) A*activeConductor I J})
+    (hK:0<K)(hX:0<X)
+    (hLow : Real.logb Z X ≤ 5*(Real.logb Z K+Real.logb Z (η.modulus.absNorm:ℝ))/6) :
+    ((X/(I.absNorm:ℝ))*(X/(I.absNorm:ℝ))^((1:ℝ)/3)*(mainCommonRadius Z (Real.logb Z (J.absNorm:ℝ)) (nominalLog I J E K X Z) (Real.logb Z (I.absNorm:ℝ)) sigma delta reserve)^((5:ℝ)/6)*Z^(-sigma/3)/((τ.modulus.absNorm:ℝ)*(X/(I.absNorm:ℝ))^2*Z^(allowance I J Z)))*Z^(-2*max r 0/3)≤
+      Z^(4*sigma/3+5*(delta+reserve)/6) := by
+  apply (actual_main_exceptional_reference η τ I J E hI hJ hIJ A hE K X Z j sigma delta reserve r hZ hmod hK hX).trans
+  exact Real.rpow_le_rpow_of_exponent_le hZ.le (by linarith)
+
+
+-- @@ L127-144 verbatim
+theorem actual_error_exceptional_low (η τ : Character)
+    (I J E : Ideal O) (hI : Supported I) (hJ : Supported J)
+    (hIJ:primeSupport I=primeSupport J)
+    (A : Finset (CommonIndex I J)) (hE:E=Ideal.span {primeSubsetGenerator (fun P:CommonIndex I J=>P.val) A})
+    (K X Z j sigma delta reserve r : ℝ) (hZ : 1<Z)
+    (hmod : τ.modulus=η.modulus*Ideal.span {fixedBadMask}*Ideal.span {(72:O)}*
+      Ideal.span {primeSubsetGenerator (fun P : CommonIndex I J => P.val) A*activeConductor I J})
+    (M : Ideal O) [NeZero M] (H : Subgroup (O ⧸ M)ˣ)
+    (Sbad : Finset (Ideal O)) (hbad : fixedBadPrimes⊆Sbad)
+    (p0 : O) (hp0 : p0∈CenteredMomentPrimeElements.elementPool
+      (CenteredMomentPrimePool.primePool M H Sbad (1/2) 1 (Z^(sigma/3))))
+    (k : ℕ) (hk : k=1 ∨ k=6 ∨ k=7)
+    (hK:0<K)(hX:0<X)
+    (hLow : Real.logb Z X ≤ 5*(Real.logb Z K+Real.logb Z (η.modulus.absNorm:ℝ))/6) :
+    ((X/(I.absNorm:ℝ))*localErrorCost p0 (k-1)*(X/(I.absNorm:ℝ)/(normValue p0)^k)^((1:ℝ)/3)*(errorCommonRadius Z (Real.logb Z (J.absNorm:ℝ)) (nominalLog I J E K X Z) (Real.logb Z (I.absNorm:ℝ)) sigma delta reserve p0 k)^((5:ℝ)/6)/((τ.modulus.absNorm:ℝ)*(X/(I.absNorm:ℝ))^2*Z^(allowance I J Z)))*Z^(-2*max r 0/3)≤
+      Z^(3*sigma/2+5*(delta+reserve)/6) := by
+  apply (actual_error_exceptional_reference η τ I J E hI hJ hIJ A hE K X Z j sigma delta reserve r hZ hmod M H Sbad hbad p0 hp0 k hk hK hX).trans
+  exact Real.rpow_le_rpow_of_exponent_le hZ.le (by linarith)
+
+
+-- @@ L146-146 verbatim
+end SevenEighths.CenteredMomentFirstMixedExceptionalLow
+
+
+-- @@ L148-148 verbatim
+end
+
+
+-- @@ L150-150 verbatim
+end OAI

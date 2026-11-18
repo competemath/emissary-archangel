@@ -1,0 +1,127 @@
+import OAI.NumberTheory.DirichletL.Inversion.InitialEnergyCallerAssigned
+
+
+-- @@ L3-3 verbatim
+namespace OAI
+
+
+-- @@ L5-5 verbatim
+noncomputable section
+
+
+-- @@ L7-7 verbatim
+open scoped BigOperators Classical
+
+-- @@ L8-8 verbatim
+open ActualEisensteinCubic CompletedGauss IdealMobiusDivisorSum
+
+-- @@ L9-9 verbatim
+open SevenEighths.InverseMoment SevenEighths.InverseInitialArithmetic
+
+-- @@ L10-10 verbatim
+open SevenEighths.InverseInitialQuotientGeometry SevenEighths.InverseInitialClippedColumns
+
+-- @@ L11-11 verbatim
+namespace SevenEighths.InverseInitialEnergyCallerSupport
+
+-- @@ L12-12 verbatim
+local notation "Eis" => ActualEisensteinCubic.O
+
+-- @@ L13-14 verbatim
+variable {ι : Type*} [DecidableEq ι] (p : ι → Eis)
+  (hp : ∀ i, p i ≠ 0) [∀ i, (Ideal.span {p i}).IsMaximal]
+
+
+-- @@ L16-53 verbatim
+include hp in
+
+theorem actual_sector_energy {J : ℕ}
+    (hinj : Function.Injective (fun i => Ideal.span {p i}))
+    (hpr : ∀ i, ConcretePrimeRowBridge.goodLambda^2 ∣ p i-1)
+    (S : Finset (Source (ι:=ι) J)) (u : Eisˣ)
+    (hdiv : ∀ x ∈ S, x.divisor ⊆ x.common)
+    (hsupport : ∀ x ∈ S, ∀i,x.assigned i∈x.common∪x.overlap)
+    (labels : Finset (Ideal Eis)) (rows : Finset Eis)
+    (hlabels : ∀ f ∈ labels, f ≠ 0)
+    (hchild : ∀ x ∈ S,
+      (initialChild (toTuple p (sectorSource u x))).2.1 ∈ labels ∧
+      (initialChild (toTuple p (sectorSource u x))).2.2 ∈ rows)
+    (F : InitialChild → ℂ) :
+    (∑ x ∈ S, ‖F (initialChild (toTuple p (sectorSource u x)))‖^2) ≤
+      ∑ t ∈ quotientSet p S, ((idealDivisors t).card : ℝ)^J *
+        ∑ f ∈ labels, ((idealDivisors f).card : ℝ)^(J+1) *
+          ∑ k ∈ rows, ‖F (t,f,k)‖^2 := by
+  let T := S.image (fun x => toTuple p (sectorSource u x))
+  have hvalid : ∀ y ∈ T, InitialSourceValid y := by
+    intro y hy
+    obtain ⟨x,hx,rfl⟩ := Finset.mem_image.mp hy
+    exact sourceTuple_valid p hp hpr x.common x.divisor x.overlap
+      ((u:Eis)^5*x.frequency) x.assigned (hdiv x hx) (hsupport x hx)
+  have hc : ∀ y ∈ T, (initialChild y).2.1 ∈ labels ∧ (initialChild y).2.2 ∈ rows := by
+    intro y hy
+    obtain ⟨x,hx,rfl⟩ := Finset.mem_image.mp hy
+    exact hchild x hx
+  have he := initial_energy_projection T hvalid labels rows hlabels hc
+    (fun _ => 1) (fun _ _ => le_rfl) F
+  simp only [one_mul] at he
+  rw [show initialQuotientSet T = quotientSet p S from
+    quotientSet_eq_initial p hp S u hdiv] at he
+  have hs : (∑ y ∈ T, ‖F (initialChild y)‖^2) =
+      ∑ x ∈ S, ‖F (initialChild (toTuple p (sectorSource u x)))‖^2 := by
+    exact Finset.sum_image (fun x _ y _ he => sectorSource_injective u (toTuple_injective p hinj he))
+  rw [hs] at he
+  exact he
+
+
+-- @@ L55-93 verbatim
+include hp in
+
+theorem actual_sector_signed_pair {J : ℕ}
+    (hinj : Function.Injective (fun i => Ideal.span {p i}))
+    (hpr : ∀ i, ConcretePrimeRowBridge.goodLambda^2 ∣ p i-1)
+    (S : Finset (Source (ι:=ι) J)) (u : Eisˣ)
+    (hdiv : ∀ x ∈ S, x.divisor ⊆ x.common)
+    (hsupport : ∀ x ∈ S, ∀i,x.assigned i∈x.common∪x.overlap)
+    (labels : Finset (Ideal Eis)) (rows : Finset Eis)
+    (hlabels : ∀ f ∈ labels, f ≠ 0)
+    (hchild : ∀ x ∈ S,
+      (initialChild (toTuple p (sectorSource u x))).2.1 ∈ labels ∧
+      (initialChild (toTuple p (sectorSource u x))).2.2 ∈ rows)
+    (c : Source (ι:=ι) J → ℂ) (A : ℝ) (hA : 0 ≤ A)
+    (hc : ∀ x ∈ S, ‖c x‖ ≤ A) (F G : InitialChild → ℂ) :
+    ‖∑ x ∈ S, c x * star (F (initialChild (toTuple p (sectorSource u x)))) *
+        G (initialChild (toTuple p (sectorSource u x)))‖ ≤
+      A * (Real.sqrt (∑ t ∈ quotientSet p S, ((idealDivisors t).card : ℝ)^J *
+        ∑ f ∈ labels, ((idealDivisors f).card : ℝ)^(J+1) * ∑ k ∈ rows, ‖F (t,f,k)‖^2) *
+        Real.sqrt (∑ t ∈ quotientSet p S, ((idealDivisors t).card : ℝ)^J *
+        ∑ f ∈ labels, ((idealDivisors f).card : ℝ)^(J+1) * ∑ k ∈ rows, ‖G (t,f,k)‖^2)) := by
+  let child := fun x : Source (ι:=ι) J => initialChild (toTuple p (sectorSource u x))
+  have hF := actual_sector_energy p hp hinj hpr S u hdiv hsupport labels rows hlabels hchild F
+  have hG := actual_sector_energy p hp hinj hpr S u hdiv hsupport labels rows hlabels hchild G
+  calc
+    _ ≤ ∑ x ∈ S, ‖c x * star (F (child x)) * G (child x)‖ := norm_sum_le _ _
+    _ ≤ ∑ x ∈ S, A * (‖F (child x)‖ * ‖G (child x)‖) := by
+      apply Finset.sum_le_sum
+      intro x hx
+      simp only [norm_mul, norm_star]
+      nlinarith [mul_le_mul_of_nonneg_right (hc x hx)
+        (mul_nonneg (norm_nonneg (F (child x))) (norm_nonneg (G (child x))))]
+    _ = A * ∑ x ∈ S, ‖F (child x)‖ * ‖G (child x)‖ := by rw [Finset.mul_sum]
+    _ ≤ A * (Real.sqrt (∑ x ∈ S, ‖F (child x)‖^2) *
+        Real.sqrt (∑ x ∈ S, ‖G (child x)‖^2)) :=
+      mul_le_mul_of_nonneg_left (Real.sum_mul_le_sqrt_mul_sqrt S _ _) hA
+    _ ≤ _ := mul_le_mul_of_nonneg_left
+      (mul_le_mul (Real.sqrt_le_sqrt hF) (Real.sqrt_le_sqrt hG)
+        (Real.sqrt_nonneg _) (Real.sqrt_nonneg _)) hA
+
+
+-- @@ L95-95 verbatim
+end SevenEighths.InverseInitialEnergyCallerSupport
+
+
+-- @@ L97-97 verbatim
+end
+
+
+-- @@ L99-99 verbatim
+end OAI

@@ -1,0 +1,117 @@
+import OAI.NumberTheory.DirichletL.Moments.SecondSourceRetained
+
+
+-- @@ L3-3 verbatim
+namespace OAI
+
+
+-- @@ L5-5 verbatim
+noncomputable section
+
+-- @@ L6-6 verbatim
+open scoped BigOperators Classical SchwartzMap
+
+
+-- @@ L8-8 verbatim
+namespace SevenEighths.CenteredMomentSecondSourceFrequency
+
+-- @@ L9-9 verbatim
+open HeckeFamily CanonicalQuadraticSieve CompletedGauss
+
+-- @@ L10-10 verbatim
+open CenteredMomentSourceRow CenteredMomentSecondSourceRetained CenteredMomentFirstSectors
+
+-- @@ L11-11 verbatim
+open CenteredMomentSecondSectorColumns CenteredMomentHeckeColumnWindow CenteredMomentSecondSectorRetained
+
+-- @@ L12-12 verbatim
+open CenteredMomentSecondRetainedPair CenteredMomentSecondSectorFrequency CenteredMomentSupport CenteredMomentSectorLocalization
+
+-- @@ L13-13 verbatim
+open CenteredMomentSecondCanonical CenteredMomentSecondCanonicalFrequency CenteredMomentSecondCanonicalNonunit
+
+-- @@ L14-14 verbatim
+open CenteredMomentCanonicalFirst
+
+-- @@ L15-15 verbatim
+local notation "O" => ActualEisensteinCubic.O
+
+
+-- @@ L17-63 verbatim
+theorem retained_sector_eq_physical (η : Character) (t : ℝ)
+    (S : Finset (Ideal O)) (β : Ideal O→ℂ) (C D : Ideal O) (hC : Supported C) (hD : Supported D)
+    (hCD : CompletedGauss.primeSupport C=CompletedGauss.primeSupport D)
+    (W : 𝓢(ℝ,ℂ)) (K Tsec Z ξ : ℝ) (hK : 0<K) :
+    (∑ q∈pairSector C D (supportedColumns S) (supportedColumns S),
+      ((β q.1*heightCoeff η t q.1)*star (β q.2*heightCoeff η t q.2))*
+        retainedKernel q.1 q.2 W K Tsec Z ξ)=
+      heightCoeff η t C*star (heightCoeff η t D)*
+        ∑' j : O,sectorFrequency η t S β C D hC hD
+          (physicalKernel C D W K (frequencyRadius Tsec Z ξ)) j := by
+  rw [retained_sector_independent η t S β C D hC.1 hD.1 hCD]
+  congr 1
+  let c := fun I : sectorPool C hC.1 S=>β (C*I)*heightCoeff η t I
+  let d := fun J : sectorPool D hD.1 S=>β (D*J)*heightCoeff η t J
+  have hci (I : sectorPool C hC.1 S) : Supported (C*(I:Ideal O)) :=
+    (supported_mul_iff _ _).mpr ⟨hC,sectorPool_supported C hC.1 S I⟩
+  have hdj (J : sectorPool D hD.1 S) : Supported (D*(J:Ideal O)) :=
+    (supported_mul_iff _ _).mpr ⟨hD,sectorPool_supported D hD.1 S J⟩
+  let f := fun (I : sectorPool C hC.1 S) (J : sectorPool D hD.1 S) (j : O)=>
+    if IsCoprime (I:Ideal O) (J:Ideal O) then
+      (c I*star (d J))*(idealCorrelation (C*I) (D*J) (hci I) (hdj J) j*
+        physicalKernel C D W K (frequencyRadius Tsec Z ξ) j I J) else 0
+  have hs (I : sectorPool C hC.1 S) (J : sectorPool D hD.1 S) : Summable (f I J) := by
+    by_cases hc : IsCoprime (I:Ideal O) (J:Ideal O)
+    · simpa only [f,ite_eq_left hc] using (physical_pair_summable C D I J (hci I) (hdj J)
+        W K (frequencyRadius Tsec Z ξ) hK).mul_left (c I*star (d J))
+    · simp only [f,ite_eq_right hc];exact summable_zero
+  have hp (I : sectorPool C hC.1 S) (J : sectorPool D hD.1 S) :
+      (if IsCoprime (I:Ideal O) (J:Ideal O) then
+        ((β (C*I)*heightCoeff η t I)*star (β (D*J)*heightCoeff η t J))*
+          retainedKernel (C*I) (D*J) W K Tsec Z ξ else 0)=∑' j : O,f I J j := by
+    by_cases hc : IsCoprime (I:Ideal O) (J:Ideal O)
+    · simp only [f,ite_eq_left hc]
+      rw [retainedKernel_physical C D I J (hci I) (hdj J),tsum_mul_left]
+    · simp only [f,ite_eq_right hc,tsum_zero]
+  have hf (j : O) : sectorFrequency η t S β C D hC hD
+      (physicalKernel C D W K (frequencyRadius Tsec Z ξ)) j=
+      ∑ I : sectorPool C hC.1 S,∑ J : sectorPool D hD.1 S,f I J j := by
+    apply Finset.sum_congr rfl
+    intro I hI
+    apply Finset.sum_congr rfl
+    intro J hJ
+    dsimp only [f,c,d]
+    split_ifs <;> ring
+  simp_rw [hp]
+  rw [tsum_congr hf, Summable.tsum_finsetSum (fun I _=>summable_sum (fun J _=>hs I J))]
+  exact Finset.sum_congr rfl (fun I _=>(Summable.tsum_finsetSum (fun J _=>hs I J)).symm)
+
+
+-- @@ L65-79 verbatim
+theorem original_retained_sector_GV (η : Character) (t : ℝ)
+    (S : Finset (Ideal O)) (β : Ideal O→ℂ) (C D : Ideal O) (hC : Supported C) (hD : Supported D)
+    (hCD : CompletedGauss.primeSupport C=CompletedGauss.primeSupport D)
+    (W : 𝓢(ℝ,ℂ)) (K Tsec Z ξ : ℝ) (hK : 0<K) :
+    (∑ q∈pairSector C D (supportedColumns S) (supportedColumns S),
+      ((β q.1*heightCoeff η t q.1)*star (β q.2*heightCoeff η t q.2))*
+        retainedKernel q.1 q.2 W K Tsec Z ξ)=
+      heightCoeff η t C*star (heightCoeff η t D)*
+        ∑ U : Finset (CommonIndex C D),∑' h : O,
+          if canonicalPartition C D U (nonunitFrequencyGenerator C D U*h) then
+            sectorFrequency η t S β C D hC hD
+              (physicalKernel C D W K (frequencyRadius Tsec Z ξ))
+              ((commonFrequencyGenerator C D*nonunitFrequencyGenerator C D U)*h) else 0 := by
+  rw [retained_sector_eq_physical η t S β C D hC hD hCD W K Tsec Z ξ hK,
+    actual_retained_sector_GV η t S β C D hC hD hCD W K (frequencyRadius Tsec Z ξ) hK]
+
+
+-- @@ L81-81 verbatim
+end SevenEighths.CenteredMomentSecondSourceFrequency
+
+
+-- @@ L83-83 verbatim
+end
+
+
+-- @@ L85-85 verbatim
+end OAI
