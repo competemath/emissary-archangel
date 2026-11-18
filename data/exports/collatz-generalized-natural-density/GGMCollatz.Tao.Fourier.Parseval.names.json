@@ -1,0 +1,1 @@
+{"names":["GGMCollatz.dft_parseval","GGMCollatz.dft_parseval_complex"],"modules":["GGMCollatz.Tao.Fourier.Parseval"],"moduleOf":{"GGMCollatz.dft_parseval":"GGMCollatz.Tao.Fourier.Parseval","GGMCollatz.dft_parseval_complex":"GGMCollatz.Tao.Fourier.Parseval"},"deps":{"GGMCollatz.dft_parseval":["GGMCollatz.dft_parseval_complex"],"GGMCollatz.dft_parseval_complex":[]}}

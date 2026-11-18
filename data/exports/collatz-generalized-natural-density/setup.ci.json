@@ -1,0 +1,44 @@
+{
+  "key": "collatz-generalized-natural-density",
+  "repo": "https://github.com/harappa/collatz-generalized-natural-density",
+  "commit": "a390df858b5433039c7fbaeb6e8713d6ac247d8d",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "GGMCollatz"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/collatz-generalized-natural-density/repo",
+  "entries": 1676,
+  "modules": 174,
+  "exported": 174,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1676,
+    "kept": 1676,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 1676,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 91602944,
+  "minutes": 29,
+  "finishedAt": "2026-11-18T19:28:50.358Z"
+}
