@@ -1,0 +1,46 @@
+{
+  "key": "tusnady-lean",
+  "repo": "https://github.com/wzskytop/tusnady-lean",
+  "commit": "6f14d177668e79a9155f7cd60496313514ad0c9e",
+  "toolchain": "leanprover/lean4:v4.34.1",
+  "roots": [
+    "Oscillation",
+    "R56Audit",
+    "Riesz"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/tusnady-lean/repo",
+  "entries": 1067,
+  "modules": 89,
+  "exported": 89,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1067,
+    "kept": 1067,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 1067,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.34.1 (commit 5045d0056413266e57c625dcd7c365b10e377c52, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+5045d00",
+    "elan": "4.3.0 (84d03798d 2026-11-17)",
+    "lean4export": "076e8e57707e + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 21594112,
+  "minutes": 10,
+  "finishedAt": "2026-11-18T01:35:17.251Z"
+}

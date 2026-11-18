@@ -1,0 +1,1 @@
+{"names":["Oscillation.abs_mean_of_fourth_three","Oscillation.midpoint_range_comparison"],"modules":["Oscillation.R17LocalFacts"],"moduleOf":{"Oscillation.abs_mean_of_fourth_three":"Oscillation.R17LocalFacts","Oscillation.midpoint_range_comparison":"Oscillation.R17LocalFacts"},"deps":{"Oscillation.abs_mean_of_fourth_three":[],"Oscillation.midpoint_range_comparison":[]}}
