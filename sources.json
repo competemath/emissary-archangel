@@ -2843,6 +2843,240 @@
         "LevinZeroFree"
       ],
       "licence": "Apache-2.0"
+    },
+    "mahler-hansen-cograph": {
+      "label": "mahler-hansen-cograph (jeremypparker/mahler-hansen-cograph; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/jeremypparker/mahler-hansen-cograph",
+      "commit": "c7639c5060f40d69b613bcbd637b1750f27b7e3f",
+      "toolchain": "leanprover/lean4:v4.34.0-rc1",
+      "roots": [
+        "Challenge",
+        "CographPortalFlagsAxiomAudit",
+        "CographPortalRestrictedProductAxiomAudit",
+        "Formalisation",
+        "GeneralFlagProductAllSizesAxiomAudit",
+        "GeneralFlagProductShuffleAxiomAudit",
+        "Solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "jsp-000198-lean": {
+      "label": "jsp-000198-lean (peilinliu66-dev/jsp-000198-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/peilinliu66-dev/jsp-000198-lean",
+      "commit": "0202e2902bbe51bcf202dc117075b2869e76a355",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "EmptyPentagon",
+        "Prize",
+        "Proof"
+      ],
+      "licence": "MIT"
+    },
+    "erdos-1091-lean": {
+      "label": "erdos-1091-lean (noahbenjamin1994/erdos-1091-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/noahbenjamin1994/erdos-1091-lean",
+      "commit": "c692a97e2d476e176ee207ded68f15ef2d956ed5",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "Erdos1091"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "barbier": {
+      "label": "barbier (jpbald93/barbier; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/jpbald93/barbier",
+      "commit": "d2d6d48d509a3c1d4c5e87faee319760dba31089",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "Barbier"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lean-nct": {
+      "label": "lean-nct (roos-j/lean-nct; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/roos-j/lean-nct",
+      "commit": "412a206c3d6254058d78c0805dabefa735502af0",
+      "toolchain": "leanprover/lean4:v4.33.0-rc2",
+      "roots": [
+        "LeanNct"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "quadratic-carleson-palomar-submission": {
+      "label": "quadratic-carleson-palomar-submission (anastasiosfragkosmath/quadratic-carleson-palomar-submission; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/anastasiosfragkosmath/quadratic-carleson-palomar-submission",
+      "commit": "3d3cf4316acac4c23140059a78fb570b1440394b",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "Challenge",
+        "QuadraticCarleson",
+        "Solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "nikoghosyan-conjecture": {
+      "label": "nikoghosyan-conjecture (canghaimeng/Nikoghosyan-conjecture; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/canghaimeng/Nikoghosyan-conjecture",
+      "commit": "ccc8514d6801c4bce0bb00bf8a3061b0750c043c",
+      "toolchain": "leanprover/lean4:v4.34.1",
+      "roots": [
+        "Nikoghosyan",
+        "NikoghosyanPrerequisites"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "linearhadwiger": {
+      "label": "linearhadwiger (snorin239/LinearHadwiger; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/snorin239/LinearHadwiger",
+      "commit": "9ef0db5fbaba0c4bc15248b9ea83933c262559c1",
+      "toolchain": "leanprover/lean4:v4.32.1",
+      "roots": [
+        "HadwigerLean"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "damian-formalizare": {
+      "label": "damian-formalizare (t4v1/damian_formalizare; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/t4v1/damian_formalizare",
+      "commit": "545ebb1a7d4c55299b1f59787a7ff0d4d703af27",
+      "toolchain": "leanprover/lean4:v4.34.1",
+      "roots": [
+        "MorseFloer"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "collatz-generalized-natural-density": {
+      "label": "collatz-generalized-natural-density (harappa/collatz-generalized-natural-density; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/harappa/collatz-generalized-natural-density",
+      "commit": "a390df858b5433039c7fbaeb6e8713d6ac247d8d",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "GGMCollatz"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "egz-formal-proof": {
+      "label": "egz-formal-proof (zakharov2k/EGZ-formal-proof; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/zakharov2k/EGZ-formal-proof",
+      "commit": "7c82267c43a51dd5cb3e440412780ff82aff7500",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "Challenge",
+        "EGZ",
+        "Solution"
+      ],
+      "licence": "MIT"
+    },
+    "svw-half-density": {
+      "label": "svw-half-density (Yunlei-Wang/svw-half-density; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/Yunlei-Wang/svw-half-density",
+      "commit": "44cbe11f95704667a60a037c046781b2ec82e013",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "Main",
+        "SVWHalfDensity"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "erdos260": {
+      "label": "erdos260 (Hanziwww/erdos260; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/Hanziwww/erdos260",
+      "commit": "e708b584c9a3b54857f050d6b7efbecb8a5ea27a",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "Erdos260"
+      ],
+      "licence": "MIT"
+    },
+    "nkbesicovitch": {
+      "label": "nkbesicovitch (CoolRmal/NKBesicovitch; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/CoolRmal/NKBesicovitch",
+      "commit": "e12e5981d840eb5ebdc25403691b3c63a9c7aff8",
+      "toolchain": "leanprover/lean4:v4.34.0-rc1",
+      "roots": [
+        "Challenge",
+        "NKBesicovitch",
+        "Solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "oddcyclegoodman-lean": {
+      "label": "oddcyclegoodman-lean (mekty2012/OddCycleGoodman-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/mekty2012/OddCycleGoodman-lean",
+      "commit": "dbaea5a4d2c044a202f1e40647f4b24a1c77b313",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "OddCycleBound"
+      ],
+      "licence": "MIT"
+    },
+    "lean-hahn-kaplansky": {
+      "label": "lean-hahn-kaplansky (selpoG/lean-hahn-kaplansky; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/selpoG/lean-hahn-kaplansky",
+      "commit": "0dff534638ae00e8eaaa55417079568f7da0dd9a",
+      "toolchain": "leanprover/lean4:v4.34.0",
+      "roots": [
+        "HahnKaplanskyRealClosedness"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "brauerinduction": {
+      "label": "brauerinduction (norbsvr/BrauerInduction; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/norbsvr/BrauerInduction",
+      "commit": "a88cd7566a7c3b5d93d791a9320b9e7fa75a001a",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "BrauerInduction",
+        "Challenge",
+        "Solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "nashembedding": {
+      "label": "nashembedding (langlerangle/NashEmbedding; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/langlerangle/NashEmbedding",
+      "commit": "f8e753f8ddd0edfb21bf5c5dd08b0c25cdb63323",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "Challenge",
+        "NashEmbedding",
+        "NashEmbeddingTest",
+        "Solution"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "erdos647": {
+      "label": "erdos647 (JustinWick/erdos647; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/JustinWick/erdos647",
+      "commit": "3df8fb47a0072817c704fc96d93e308c7c34a95e",
+      "toolchain": "leanprover/lean4:v4.32.2",
+      "roots": [
+        "Erdos647Sieve",
+        "Examples"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "grunbaum-lean": {
+      "label": "grunbaum-lean (GiulianoBasso/Grunbaum-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/GiulianoBasso/Grunbaum-lean",
+      "commit": "ad79767bf01b553e5fa3f34ceb4e3d184786709e",
+      "toolchain": "leanprover/lean4:v4.34.1",
+      "roots": [
+        "FranklFuredi",
+        "Grunbaum",
+        "ProjectionConstants"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "magic-squares-fields-lean": {
+      "label": "magic-squares-fields-lean (jiji7879/magic-squares-fields-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/jiji7879/magic-squares-fields-lean",
+      "commit": "d7efc54f0a8a7bda257319615f2b9ddb6bd81f95",
+      "toolchain": "leanprover/lean4:v4.32.1",
+      "roots": [
+        "MagicSquares"
+      ],
+      "licence": "MIT"
     }
   }
 }
